@@ -367,6 +367,51 @@ describe("KpiTile - izolacja warsztatów i dostępność", () => {
     expect((chip() as HTMLElement).textContent?.startsWith("-")).toBe(true);
   });
 
+  // DEFEKT PRZYPIĘTY - ETYKIETA I WARTOŚĆ NIE SĄ POWIĄZANE PROGRAMOWO.
+  //
+  // `KpiTile` renderuje parę jako dwa sąsiednie `<div>`-y w `<div class="min-w-0">`:
+  // etykieta jest `<span>`-em, wartość osobnym `<div>`-em. Nie ma ani
+  // `<dl>/<dt>/<dd>`, ani `aria-labelledby`, ani wspólnej dostępnej nazwy.
+  // Czytnik ekranu ogłasza więc DWA NIEPOWIĄZANE węzły tekstowe - „Sesje" i
+  // „1 240" - i nic w drzewie dostępności nie mówi, że druga liczba jest
+  // wartością pierwszej etykiety. Na pulpicie z sześcioma kafelkami obok siebie
+  // daje to dwanaście luźnych napisów w kolejności wizualnej, a nie sześć par.
+  // Cała treść informacyjna kafelka to WŁAŚNIE to powiązanie.
+  //
+  // DLACZEGO `axe` TEGO NIE ŁAPIE (przypadek wyżej jest zielony i słusznie):
+  // axe-core nie ma reguły wymagającej semantyki listy definicji dla dowolnej
+  // pary `<div>`-ów - nie da się odróżnić „etykieta i wartość" od dwóch
+  // niezależnych akapitów bez znajomości intencji. Zieleń axe i ten defekt nie
+  // są sprzeczne: to granica tego, co bramka strukturalna może zmierzyć.
+  //
+  // SKUTEK UBOCZNY, WIDOCZNY W CAŁYM MODULE: skoro powiązania nie ma, testy
+  // pulpitów muszą trafiać w wartość po KLASIE UKŁADU. Pomocnik `kpiValue()`
+  // w pięciu plikach (`gscBiDashboard`, `ga4BiDashboard`, `vitalsBiDashboard`,
+  // `clientErrorsDashboard`, `relatedPostsAnalytics`) ma postać
+  // `getByText(label).closest("div.min-w-0")` + indeks dziecka. Kilkadziesiąt
+  // asercji KPI wisi więc na klasie prezentacyjnej, bo nie ma czego zapytać
+  // semantycznie. Naprawa po stronie produkcji zamyka defekt dostępności
+  // i kruchość tych asercji JEDNĄ zmianą.
+  //
+  // NIE NAPRAWIAM TEGO TUTAJ: `KpiTile` jest współdzielony przez pięć pulpitów,
+  // a zmiana znaczników pociąga przepisanie tych pomocników - poza zakresem
+  // zlecenia N1-N8.
+  //
+  // Kontrakt złamany: wartość wskaźnika jest programowo powiązana ze swoją
+  // etykietą (WCAG 1.3.1 - informacja i relacje).
+  it.fails("etykieta i wartość są parą w drzewie dostępności, nie dwoma napisami", () => {
+    kafelek({ label: "Sesje", value: "1 240" });
+
+    // Naturalną postacią tej pary jest lista definicji: `<dt>` ma rolę `term`,
+    // `<dd>` rolę `definition`. Asercja jest spełnialna także przez
+    // `aria-labelledby` - wtedy wartość miałaby dostępną nazwę „Sesje" - więc
+    // nie narzuca JEDNEJ implementacji, tylko wymaga JAKIEJKOLWIEK relacji.
+    const term = screen.queryAllByRole("term");
+    const definition = screen.queryAllByRole("definition");
+    const nazwana = screen.queryByLabelText("Sesje");
+    expect((term.length === 1 && definition.length === 1) || nazwana !== null).toBe(true);
+  });
+
   it("kafelek z pełnym wyposażeniem nie wnosi naruszeń axe", async () => {
     const { container } = kafelek({
       icon: <span aria-hidden>◆</span>,
