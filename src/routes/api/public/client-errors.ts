@@ -9,6 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
+import { isIgnorableClientError } from "@/lib/observability/noise";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
@@ -43,6 +44,10 @@ export const Route = createFileRoute("/api/public/client-errors")({
           // routinely carry emails, tokens and `code`/`email` query params.
           const message = redactPii(clip(body.message, 2000));
           if (!message) return noContent(); // a message is the minimum useful signal
+          // Druga bramka na szum (aborty, ResizeObserver, „[boot] undefined").
+          // Klient filtruje u źródła, ale starsze, zacache'owane bundle nadal
+          // beaconują - a to one wypełniły panel błędów w 82%.
+          if (isIgnorableClientError(message.replace(/^\[boot\]\s*/, ""))) return noContent();
 
           const source =
             typeof body.source === "string" && VALID_SOURCES.has(body.source) ? body.source : null;

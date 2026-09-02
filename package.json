@@ -58,6 +58,7 @@
     "generate:codeowners": "bun run scripts/generate-codeowners.ts",
     "check:codeowners": "bun run scripts/generate-codeowners.ts --check",
     "check:db-contract": "bun run scripts/check-db-contract.ts",
+    "i18n:translate-widgets": "bun run scripts/i18n-translate-widgets.ts",
     "check:migration-ledger": "bun run scripts/check-migration-ledger.ts",
     "check:types-freshness": "bun run scripts/check-generated-types-freshness.ts",
     "check:db-row-casts": "bun run scripts/check-db-row-casts.ts",

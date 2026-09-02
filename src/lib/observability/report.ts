@@ -7,6 +7,8 @@
 // captured BY DEFAULT - no external APM required and nothing dormant. Pure
 // helpers are unit-tested.
 
+import { isIgnorableClientErrorValue } from "./noise";
+
 /** Built-in ingest route used when no external endpoint is configured. */
 export const INTERNAL_ERROR_ENDPOINT = "/api/public/client-errors";
 /** Built-in RUM ingest route - the vitals counterpart of the route above. */
@@ -84,8 +86,14 @@ export function sendBeaconPayload(endpoint: string, payload: unknown): boolean {
   }
 }
 
-/** Report an uncaught client error to the resolved endpoint (external or internal). */
+/**
+ * Report an uncaught client error to the resolved endpoint (external or internal).
+ *
+ * Znany szum (anulowane żądania, pętla ResizeObservera, pusty komunikat) jest
+ * ODRZUCANY U ŹRÓDŁA - inaczej zalewa panel błędów i chowa realne awarie.
+ */
 export function reportClientError(error: unknown, source: ClientErrorPayload["source"]): boolean {
+  if (isIgnorableClientErrorValue(error)) return false;
   const endpoint = observabilityEndpoint();
   const path = typeof location !== "undefined" ? location.pathname : "";
   return sendBeaconPayload(endpoint, buildErrorPayload(error, source, path, Date.now()));

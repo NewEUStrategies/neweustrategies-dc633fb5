@@ -77,11 +77,24 @@ function toText(value: unknown): string | null {
   return null;
 }
 
-/** Czy tekst wygląda na polski (używane wyłącznie dla wartości pól EN). */
+/**
+ * Czy tekst wygląda na polski (używane wyłącznie dla wartości pól EN).
+ *
+ * Polskie słowo funkcyjne przesądza sprawę od razu. Same diakrytyki nie
+ * wystarczą: poprawnie przetłumaczony adres („ul. Tytusa Chałubińskiego 8,
+ * 00-613 Warszawa") albo nazwa własna („Fundacja New European Strategies")
+ * niosą polskie znaki, ale zdaniem nie są - dlatego dla dłuższych tekstów
+ * wymagamy, by wyrazy z diakrytykami stanowiły zauważalny UŁAMEK całości.
+ */
 export function looksPolish(value: string): boolean {
   const text = stripHtml(value);
   if (text.length < 3) return false;
-  return PL_DIACRITICS.test(text) || PL_STOPWORDS.test(text);
+  if (PL_STOPWORDS.test(text)) return true;
+  if (!PL_DIACRITICS.test(text)) return false;
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= 6) return true;
+  const diacritic = words.filter((w) => PL_DIACRITICS.test(w)).length;
+  return diacritic / words.length > 0.15;
 }
 
 function preview(value: string, max = 120): string {
