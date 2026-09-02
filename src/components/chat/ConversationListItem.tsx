@@ -11,6 +11,7 @@ import { draftSnapshot, subscribeDrafts } from "@/lib/chat/drafts";
 import { computeReceipt } from "@/lib/chat/receipts";
 import { isMuted } from "@/lib/chat/useConversations";
 import { relTime, type ChatLang } from "@/lib/chat/time";
+import { truncatePreview } from "@/lib/chat/preview";
 import type { ConversationView, PeerProfile } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 import { ChatAvatar } from "./ChatAvatar";
@@ -28,11 +29,23 @@ export interface ConversationListItemProps {
   myUserId: string;
   lang: ChatLang;
   active?: boolean;
+  /** Skróć podgląd treści do N znaków (ikona czatu w nagłówku: 30). */
+  previewChars?: number;
   onOpen: () => void;
 }
 
 export function ConversationListItem(props: ConversationListItemProps) {
-  const { view, profiles, nicknames, onlineUsers, myUserId, lang, active = false, onOpen } = props;
+  const {
+    view,
+    profiles,
+    nicknames,
+    onlineUsers,
+    myUserId,
+    lang,
+    active = false,
+    previewChars,
+    onOpen,
+  } = props;
   const { t } = useTranslation();
   const display = conversationDisplay(view, profiles, t("chat.group.circle"), nicknames);
   const name = display.name;
@@ -50,7 +63,10 @@ export function ConversationListItem(props: ConversationListItemProps) {
   );
 
   let preview = "";
-  if (c.last_message_kind === "text" && c.last_message_preview) preview = c.last_message_preview;
+  if (c.last_message_kind === "text" && c.last_message_preview)
+    preview = previewChars
+      ? truncatePreview(c.last_message_preview, previewChars)
+      : c.last_message_preview;
   else if (c.last_message_kind === "image") preview = t("chat.photo");
   else if (c.last_message_kind === "file") preview = t("chat.file");
   else if (c.last_message_kind === "audio") preview = t("chat.voice.message");
