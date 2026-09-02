@@ -241,6 +241,11 @@ function trendChart(): Opt {
   throw new Error("test: nie przechwycono wykresu trendu");
 }
 
+/** Wyzwalacz dymka podany przez opcję wykresu (nie przez motyw). */
+function tooltipTrigger(o: Opt): unknown {
+  return rec(o.tooltip).trigger;
+}
+
 /** Iskra kafelka KPI - jedyna linia z ukrytą osią. */
 function sparkChart(): Opt {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
@@ -590,6 +595,35 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
 });
 
 // ---------------------------------------------------------------------------
+
+describe("ClientErrorsDashboard - wyzwalacz dymka należy do WYKRESU, nie do motywu", () => {
+  // PO CO TEN BLOK. `baseOption` w `chartTheme.ts` ustawia prymitywy motywu
+  // (kolory, siatka, animacja, czcionka) i świadomie NIE narzuca
+  // `tooltip.trigger`, bo wyzwalacz jest własnością TYPU wykresu. Ten panel był
+  // JEDYNYM w repo, który miał dymek wyłącznie z bazy - i przez to jedynym,
+  // który po rozdzieleniu tych dwóch spraw cicho tracił wyzwalacz osiowy.
+  // Utrata nie wywraca panelu: dymek nadal jest, tylko pokazuje jeden słupek
+  // bez nazwy dnia. Taka awaria nie ma jak zapalić się sama, więc ma tu
+  // własny przypadek.
+  it("trend słupkowy deklaruje wyzwalacz OSIOWY w swojej opcji", async () => {
+    panel();
+    await loaded();
+
+    // Słupki nad osią dni czyta się porównawczo - dymek ma podać cały dzień,
+    // nie pojedynczy słupek pod kursorem.
+    expect(tooltipTrigger(trendChart())).toBe("axis");
+  });
+
+  it("iskra KPI NIE dostaje wyzwalacza osiowego - nie ma osi do porównania", async () => {
+    panel();
+    await loaded();
+
+    // Kanarek rozróżnienia: iskra ma `xAxis.show === false`, więc wyzwalacz
+    // osiowy byłby tam bez znaczenia. Ten przypadek pilnuje, że naprawa trendu
+    // nie została rozlana na wszystkie wykresy panelu „dla spójności”.
+    expect(tooltipTrigger(sparkChart())).toBeUndefined();
+  });
+});
 
 describe("ClientErrorsDashboard - zgodność z agregatorem", () => {
   it("liczba wierszy i ich kolejność odpowiadają grupom z agregatora", async () => {

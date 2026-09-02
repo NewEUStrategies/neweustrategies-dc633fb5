@@ -3,6 +3,14 @@
 // zgodzie ANALITYCZNEJ z ConsentScriptInjector). Nazwy zdarzeń są stabilne,
 // żeby panel admin/analytics -> footer mógł je zgrupować bez migracji.
 //
+// NIEZALEŻNOŚĆ OBU NADAŃ, a nie tylko bramka zgody: każdy beacon idzie we
+// WŁASNEJ granicy błędu (`fireBeacon`). Bramka `gtagIfConsented()` pilnowała
+// dotąd wyłącznie TEGO, ŻE nadajemy - nie tego, co się dzieje, gdy nadanie
+// padnie. Oba wejścia tego modułu są wołane z nasłuchu zdarzeń w `Footer.tsx`
+// (klik w fazie przechwytywania i `submit` formularza newslettera), więc
+// niewyłapany wyjątek z analityki leci do `window.onerror` i - przy `submit` -
+// zabiera obsługę zapisu, choć sama analityka jest fire-and-forget.
+//
 // RODO: bramka zgody `analytics` stoi przed OBOMA kanałami wyjścia. Własny
 // beacon bramkuje `track()` (sam czyta `hasAnalyticsConsent()`), a jedyną
 // drogą do GA4 w tym module jest `gtagIfConsented()` - patrz komentarz przy
@@ -10,6 +18,7 @@
 // marketingowej") było nieprawdziwe w dwóch miejscach naraz: GA4 wstrzykuje
 // `loadAnalytics()` pod kategorią ANALYTICS, a sprzątanie (`removeMarked`)
 // usuwa element <script>, nie globalną funkcję, którą ten skrypt zdefiniował.
+import { fireBeacon } from "@/lib/analytics/fireBeacon";
 import { track } from "@/lib/analytics/track";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import type { FooterLinkGroup } from "@/lib/seo/footerNavigation";
@@ -76,37 +85,43 @@ export function trackFooterLink(payload: FooterClickPayload): void {
     group: payload.group,
     external: Boolean(payload.external),
   };
-  track({
-    type: "cta_click",
-    name: eventName,
-    entityType: "menu",
-    entityId: payload.href,
-    meta,
+  // Dwa OSOBNE wywołania `fireBeacon`, a nie jedno wspólne `try`: wspólny blok
+  // przywróciłby defekt, w którym wyjątek z pierwszego nadania przeskakuje
+  // drugie. Bramka zgody zostaje W ŚRODKU granicy - to nadal jedyna droga do
+  // GA4 w tym module, a granica błędu jej nie omija.
+  fireBeacon(() => {
+    track({
+      type: "cta_click",
+      name: eventName,
+      entityType: "menu",
+      entityId: payload.href,
+      meta,
+    });
   });
-  const g = gtagIfConsented();
-  if (g) {
-    g("event", eventName, {
+  fireBeacon(() => {
+    gtagIfConsented()?.("event", eventName, {
       link_url: payload.href,
       link_text: payload.label,
       link_group: payload.group,
       outbound: Boolean(payload.external),
     });
-  }
+  });
 }
 
 export function trackFooterNewsletterSubmit(
   status: "success" | "error" | "throttled",
   meta?: Record<string, unknown>,
 ): void {
-  track({
-    type: "cta_click",
-    name: "footer_newsletter_signup",
-    entityType: "cta",
-    entityId: "footer_newsletter",
-    meta: { status, ...(meta ?? {}) },
+  fireBeacon(() => {
+    track({
+      type: "cta_click",
+      name: "footer_newsletter_signup",
+      entityType: "cta",
+      entityId: "footer_newsletter",
+      meta: { status, ...(meta ?? {}) },
+    });
   });
-  const g = gtagIfConsented();
-  if (g) {
-    g("event", "footer_newsletter_signup", { status, ...(meta ?? {}) });
-  }
+  fireBeacon(() => {
+    gtagIfConsented()?.("event", "footer_newsletter_signup", { status, ...(meta ?? {}) });
+  });
 }

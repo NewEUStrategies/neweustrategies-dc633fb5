@@ -74,6 +74,7 @@ import { useCurrentTenantId } from "@/lib/tenant";
 import { previousWindow, resolveWindow, type WindowPresetId } from "@/lib/analytics/semantic";
 import { WindowProvenance } from "./semantic/molecules/WindowProvenance";
 import { ChartCard } from "./ChartCard";
+import { useChartTheme } from "./useChartTheme";
 import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { InsightSection } from "./InsightSection";
@@ -142,6 +143,11 @@ export function Ga4BiDashboard({
   activeMode?: string;
 }) {
   const { t } = useTranslation();
+  // ROZWIĄZANY motyw dla pól, których `baseOption` nie zna - w tym panelu
+  // to cała siatka radaru (uzasadnienie przy `radarOption`). Referencja jest
+  // stabilna, dopóki tokeny się nie zmienią, więc wolno ją trzymać
+  // w zależnościach `useMemo`.
+  const theme = useChartTheme();
   const fetchReport = useServerFn(runGa4Report);
   const [presetId, setPresetId] = useState<Ga4PresetId>("28d");
   // Warsztat wchodzi do KLUCZA cache, nie tylko do zapytania serwerowego -
@@ -412,15 +418,49 @@ export function Ga4BiDashboard({
     ];
   }, [engageQ.data]);
 
+  // SIATKA RADARU MA WŁASNE POLA, KTÓRYCH BAZA MOTYWU NIE ZNA. `baseOption`
+  // motywuje `xAxis`/`yAxis`, a wykres radarowy trzyma `splitLine`, `axisLine`,
+  // `splitArea` i `axisName` WEWNĄTRZ sekcji `radar` - to inne pola niż
+  // `yAxis.splitLine`, więc głębokie złączenie nie dowozi tu ani jednego
+  // koloru. Stąd hook motywu, a nie ręczne powtarzanie bazy.
+  //
+  // CO TU STAŁO: `"hsl(var(--border))"` i `"hsl(var(--muted-foreground))"`.
+  // `var()` rozwiązuje CSS, a ECharts podaje ten napis WPROST kanwie jako
+  // `strokeStyle`/`fillStyle`. Oba tokeny siedzą w `src/styles.css` jako
+  // `oklch(...)`, więc literał rozwijał się do `hsl(oklch(...))` - wartości
+  // nieparsowalnej, przy której kanwa NIE RZUCA, tylko zostaje przy poprzednim
+  // kolorze (mechanizm opisany przy `BARE_HSL_TRIPLE` w `./chartTheme.ts`).
+  // Awaria wyglądała jak „siatka radaru jest jakoś ciemna”, nie jak błąd.
   const radarOption = useMemo<EChartsCoreOption>(() => {
     return {
-      tooltip: {},
+      // WYZWALACZ ELEMENTOWY, NIE OSIOWY - i to jest decyzja, nie domyślność.
+      // Stało tu puste `tooltip: {}`: przy płaskim złączeniu wyrzucało ono
+      // `trigger: "axis"` z bazy razem z całą sekcją, więc dymek działał
+      // PRZYPADKIEM - domyślną wartością ECharts. Baza `trigger` już nie
+      // narzuca, ale radar nie ma osi kartezjańskiej, więc wyzwalacz osiowy
+      // nie pokazałby tu nic; dymek elementowy podaje cały wielokąt (pięć osi
+      // naraz) po najechaniu na punkt serii. Deklarujemy go WPROST, bo
+      // wyzwalacz jest własnością typu wykresu.
+      tooltip: { trigger: "item" },
       radar: {
         indicator: RADAR_AXES.map((key) => ({ name: t(key), max: 100 })),
         radius: "62%",
-        splitLine: { lineStyle: { color: "hsl(var(--border))" } },
-        splitArea: { areaStyle: { color: ["rgba(0,0,0,0.02)", "rgba(0,0,0,0.05)"] } },
-        axisName: { color: "hsl(var(--muted-foreground))", fontSize: 10 },
+        splitLine: { lineStyle: { color: theme.border } },
+        // Szprychy motywujemy tak samo jak pierścienie. Bez tego pola radar
+        // bierze `tokens.color.neutral20` ZASZYTE w ECharts (patrz
+        // `coord/radar/RadarModel.js`) - jedyny element siatki panelu, który
+        // nie chodziłby za motywem, a w trybie ciemnym najjaśniejszy.
+        axisLine: { lineStyle: { color: theme.border } },
+        // Naprzemienne pasy stały na `rgba(0,0,0,0.02|0.05)`: czerni na
+        // ciemnym tle nie widać wcale, więc w trybie ciemnym radar tracił
+        // czytelną skalę promienia. Kryjemy co drugi pierścień kolorem tekstu
+        // pomocniczego, a przezroczystość podajemy OSOBNYM polem `opacity`,
+        // bo tokenu nie da się rozcieńczyć w napisie (`--muted-foreground` to
+        // `oklch(...)`, a `color-mix()` w kanwie nie żyje). ECharts nakłada
+        // `opacity` z `areaStyle` na oba pasy i nadpisuje samo `fill` z
+        // tablicy kolorów (`component/radar/RadarView.js`).
+        splitArea: { areaStyle: { color: ["transparent", theme.muted], opacity: 0.06 } },
+        axisName: { color: theme.muted, fontSize: 10 },
       },
       series: [
         {
@@ -431,7 +471,7 @@ export function Ga4BiDashboard({
         },
       ],
     };
-  }, [radarValues, days, t]);
+  }, [radarValues, days, t, theme]);
 
   // Rank stron MALEJĄCO i przycięty do 15 - jedno źródło dla osi wykresu,
   // drążenia i tabeli danych. Skracanie ścieżki do 40 znaków należy WYŁĄCZNIE

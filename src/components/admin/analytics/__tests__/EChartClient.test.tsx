@@ -375,3 +375,113 @@ describe("kontrakt komponentu", () => {
     await settle();
   });
 });
+
+// ---------------------------------------------------------------------------
+// ZŁĄCZENIE OPCJI PANELU Z BAZĄ MOTYWU - widziane od strony komponentu.
+//
+// Reguły złączenia i ich rachunek sprawdza `__tests__/chartTheme.test.ts` na
+// czystej funkcji `mergeChartOption`. TUTAJ stoi dowód, że to złączenie jest
+// faktycznie tym, które `EChartClient` podaje silnikowi wykresów - bo między
+// funkcją a `setOption` jest jeszcze `useMemo`, rzutowania i prop `option`.
+describe("opcja podana silnikowi wykresów", () => {
+  /** Realistyczna opcja panelu: nadpisuje wszystkie sekcje, które panele nadpisują. */
+  const OPCJA_PANELU: EChartsCoreOption = {
+    tooltip: { trigger: "axis", formatter: () => "x" },
+    legend: { top: 4, data: ["a"] },
+    grid: { left: 8, right: 8, top: 32, bottom: 24, containLabel: true },
+    xAxis: { type: "category", data: ["p", "q"], boundaryGap: false },
+    yAxis: { type: "value", max: 100, axisLabel: { fontSize: 10 } },
+    series: [{ type: "line", data: [1, 2] }],
+  };
+
+  it("panel podający własne `yAxis` NIE traci umotywowanych kolorów pozostałych pól tej osi", async () => {
+    // TO JEST TA USTERKA. `mergeWithTheme` sklejał opcję z bazą PŁASKO, więc
+    // panel, który podał `yAxis` choćby tylko po to, żeby ustawić `max`,
+    // wyrzucał z tej osi `axisLine`, `axisTick`, `splitLine` i `axisLabel` -
+    // czyli wszystkie kolory motywu. Wykres nie przewracał żadnego testu:
+    // po prostu malował etykiety domyślną czernią, w trybie ciemnym
+    // nieczytelną.
+    const { chartThemeSnapshot } = await import("../chartTheme");
+    render(<EChartClient option={OPCJA_PANELU} />);
+    await settle();
+    const motyw = chartThemeSnapshot();
+    const yAxis = h.lastOption?.yAxis as {
+      type?: string;
+      max?: number;
+      axisLabel?: { color?: string; fontSize?: number };
+      splitLine?: { lineStyle?: { color?: string; type?: string } };
+      axisLine?: { show?: boolean };
+      axisTick?: { show?: boolean };
+    };
+
+    expect(motyw.muted).toBeTruthy();
+    expect(yAxis.axisLabel?.color).toBe(motyw.muted);
+    expect(yAxis.splitLine?.lineStyle?.color).toBe(motyw.border);
+    expect(yAxis.splitLine?.lineStyle?.type).toBe("dashed");
+    expect(yAxis.axisLine?.show).toBe(false);
+    expect(yAxis.axisTick?.show).toBe(false);
+    // ...a to, po co panel w ogóle tę sekcję podał, zostaje jego.
+    expect(yAxis.type).toBe("value");
+    expect(yAxis.max).toBe(100);
+    expect(yAxis.axisLabel?.fontSize).toBe(10);
+  });
+
+  it("ani jedna umotywowana sekcja bazy nie ginie, choćby panel nadpisał wszystkie pięć", async () => {
+    // Zbiorczo: `tooltip` (26 opcji w repo), `xAxis`/`yAxis` (18 + 18),
+    // `grid` (15) i `legend` (12). Asercja idzie po kolorach, bo to one
+    // ginęły niewidocznie.
+    const { chartThemeSnapshot } = await import("../chartTheme");
+    render(<EChartClient option={OPCJA_PANELU} />);
+    await settle();
+    const motyw = chartThemeSnapshot();
+    const tooltip = h.lastOption?.tooltip as {
+      backgroundColor?: string;
+      borderColor?: string;
+      textStyle?: { color?: string };
+    };
+    const legend = h.lastOption?.legend as { textStyle?: { color?: string }; data?: string[] };
+    const xAxis = h.lastOption?.xAxis as {
+      axisLine?: { lineStyle?: { color?: string } };
+      axisLabel?: { color?: string };
+      data?: string[];
+    };
+
+    expect(tooltip.backgroundColor).toBe(motyw.background);
+    expect(tooltip.borderColor).toBe(motyw.border);
+    expect(tooltip.textStyle?.color).toBe(motyw.foreground);
+    expect(legend.textStyle?.color).toBe(motyw.muted);
+    expect(xAxis.axisLine?.lineStyle?.color).toBe(motyw.border);
+    expect(xAxis.axisLabel?.color).toBe(motyw.muted);
+    // Treść od panelu przeżywa złączenie w obie strony.
+    expect(legend.data).toEqual(["a"]);
+    expect(xAxis.data).toEqual(["p", "q"]);
+  });
+
+  it("`series` panelu jedzie do wykresu TĄ SAMĄ tablicą - nie jest scalana z bazą", async () => {
+    // Seria to jedyna sekcja, w której scalanie byłoby katastrofą: hybryda
+    // dwóch serii nie wygląda na zepsutą, tylko pokazuje nieprawdziwe dane.
+    // Tożsamość referencji jest tu mocniejszą asercją niż równość - dowodzi,
+    // że po drodze nikt serii nie przepisał ani nie uzupełnił.
+    render(<EChartClient option={OPCJA_PANELU} />);
+    await settle();
+
+    expect(h.lastOption?.series).toBe(OPCJA_PANELU.series);
+  });
+
+  it("głębokie złączenie NIE DOKŁADA przebiegów - dziesięć wykresów z własnymi osiami to nadal dziesięć renderów i JEDEN odczyt tokenów", async () => {
+    // Kontrola kosztu naprawy. Złączenie chodzi raz na `useMemo([option, theme])`,
+    // dokładnie jak płaskie, więc ZMIERZONE liczby z tego pliku muszą zostać
+    // takie same także dla opcji, która nadpisuje pięć sekcji bazy.
+    render(
+      <>
+        {Array.from({ length: 10 }, (_, i) => (
+          <EChartClient key={i} option={OPCJA_PANELU} />
+        ))}
+      </>,
+    );
+
+    expect(h.chartRenders).toBe(10);
+    expect(computedStyleCalls).toBe(1);
+    await settle();
+  });
+});

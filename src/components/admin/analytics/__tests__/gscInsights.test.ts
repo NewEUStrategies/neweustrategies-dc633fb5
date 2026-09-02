@@ -332,7 +332,249 @@ describe("KPI CTR - tabela benchmarku, luka do benchmarku i próg zmiany", () =>
   });
 });
 
-describe("KPI pozycja - próg 0.5 miejsca w obie strony", () => {
+// DWA PROGI CTR, DWA RÓŻNE FAKTY - i to jest ROZSTRZYGNIĘCIE, nie przeoczenie.
+// `kpi-ctr` podejmuje dwie decyzje o jednym wpisie, ale KAŻDA STOI NA INNEJ
+// LICZBIE: lista działań na ZNAKU luki wobec benchmarku pozycji (`ctrGap`),
+// a waga na ROZMIARZE tej luki (martwa strefa ±2 pp), z kierunkiem zmiany CTR
+// (`dCtr`) jako rozstrzygnięciem WEWNĄTRZ martwej strefy. Dlatego kafelek
+// ZIELONY z pełną listą remontową jest tu zachowaniem POPRAWNYM, a nie
+// rozjazdem progów w rodzaju tego domkniętego w `kpi-position`: tam JEDNA
+// liczba (`dPos`), opisana JEDNYM zdaniem, sterowała obiema decyzjami, więc
+// alarm z poradą „trzymaj kurs” był sprzecznością. Tu `detail` wypisuje OBA
+// fakty w jednym zdaniu („niższy o 0.5 pp” i „Zmiana vs poprzednie okno:
+// 1.00 pp”), więc kafelek czyta się jako „idzie w dobrą stronę, ale wciąż
+// poniżej normy dla tej pozycji - oto co robić”.
+//
+// Asercje niżej pilnują tego jako REGUŁY, w obie strony:
+//   - oba lustrzane narożniki tej samej reguły: zielony z remontem ORAZ
+//     bursztynowy z poradą „utrzymaj stylistykę tytułów - działa”;
+//   - każda z TRZECH granic bloku osobno (znak luki, ±2 pp, 0.5 pp zmiany),
+//     DOKŁADNIE na progu i po obu jego stronach, przy drugiej osi
+//     UNIERUCHOMIONEJ - czyli test mówi też, która granica NIE rusza;
+//   - dwie tabele prawdy na skali luki (trend rosnący i trend spadający)
+//     porównane z LITERAŁEM oczekiwań, nie z powtórzonym warunkiem ze źródła.
+//
+// Kto zechce „naprawić” ten blok jednym booleanem jak `kpi-position`, oblewa
+// wiersze -1.9 pp i -0.5 pp w OBU tabelach: wspólna martwa strefa ±2 pp
+// wypisałaby „Utrzymaj stylistykę tytułów - działa” na bursztynowym kafelku
+// strony, która jest pod krzywą i dalej spada, czyli wyprodukowałaby defekt
+// z `kpi-position` zamiast go usunąć.
+describe("KPI CTR - dwa progi to dwa różne fakty: znak luki rządzi poradami, rozmiar wagą", () => {
+  const REMONT = lista("adminAnalytics.gsc.insights.ctr.fixesLow");
+  const PODTRZYMANIE = lista("adminAnalytics.gsc.insights.ctr.fixesGood");
+
+  /** CTR i CTR poprzedniego okna w częściach jedności; pozycja ustala benchmark. */
+  const at = (ctr: number, prevCtr: number, position = 5): Insight =>
+    pick(
+      build({
+        totals: { ...ZERO_TOTALS, ctr, position },
+        prevTotals: { ...ZERO_TOTALS, ctr: prevCtr, position },
+      }),
+      "kpi-ctr",
+    );
+  const remont = (fixes: string[]): boolean =>
+    fixes.length === REMONT.length && fixes.every((f, idx) => f === REMONT[idx]);
+
+  it("oba zestawy porad naprawdę się różnią, a remontowy ma cztery kroki", () => {
+    // Bez tego reszta bloku nie dowodziłaby niczego: gdyby słownik oddawał ten
+    // sam tekst dla obu kluczy, każda asercja o „remoncie” przechodziłaby sama.
+    expect(REMONT).not.toEqual(PODTRZYMANIE);
+    expect(REMONT).toHaveLength(4);
+    expect(PODTRZYMANIE).toHaveLength(1);
+    expect(REMONT[0]).toContain("Przepisz meta title");
+    expect(PODTRZYMANIE[0]).toContain("Utrzymaj stylistykę tytułów");
+  });
+
+  it("ZIELONY kafelek z pełną listą remontową jest zachowaniem POPRAWNYM, nie rozjazdem progów", () => {
+    // Sonda z rozstrzygnięcia: CTR 5.5% przy pozycji 5 (benchmark 6%) i wzrost
+    // o 1 pp. Waga „good”, a pod nią cztery kroki naprawcze - i to jest dobrze,
+    // bo `detail` mówi operatorowi OBA fakty naraz: jest poniżej normy dla
+    // swojego miejsca w SERP I rośnie. Kto zetnie tu listę do zestawu
+    // podtrzymującego, każe modułowi pochwalić snippet, którego sam pomiar
+    // stawia pod krzywą.
+    const i = at(0.055, 0.045);
+    expect(i.severity).toBe("good");
+    expect(i.fixes).toEqual(REMONT);
+    expect(i.detail).toBe(
+      "Oczekiwany CTR dla tej pozycji: ~6.0%. Twój CTR jest niższy o 0.5 pp. Zmiana vs poprzednie okno: 1.00 pp.",
+    );
+  });
+
+  it("BURSZTYNOWY kafelek z poradą „utrzymaj stylistykę tytułów” też jest poprawny - to ten sam narożnik od drugiej strony", () => {
+    // Luka nieujemna (+0.5 pp), ale CTR spadł o 1.5 pp. Alarm dotyczy SPADKU,
+    // a porada mówi, że przyczyną NIE jest snippet, i wskazuje drugą dźwignię
+    // („wprowadź ten sam wzorzec na słabszych stronach”) - więc nie jest to
+    // alarm z instrukcją bezczynności, jaki zamknięto w `kpi-position`.
+    const i = at(0.065, 0.08);
+    expect(i.severity).toBe("warn");
+    expect(i.fixes).toEqual(PODTRZYMANIE);
+    expect(i.detail).toBe(
+      "Oczekiwany CTR dla tej pozycji: ~6.0%. Twój CTR jest wyższy o 0.5 pp. Zmiana vs poprzednie okno: -1.50 pp.",
+    );
+  });
+
+  it("granica porad jest ZEROWA i domknięta po stronie dodatniej, a waga przy niej NIE drga", () => {
+    // Benchmark 2% (pozycja 15) jest w tym miejscu ważny: 0.02 - 0.02 to
+    // w IEEE 754 dokładnie zero, więc próg jest badany bez marginesu błędu.
+    // Trend unieruchomiony na zerze, żeby zmieniała się TYLKO luka.
+    const zero = at(0.02, 0.02, 15);
+    const ponizej = at(0.019, 0.019, 15);
+    const powyzej = at(0.021, 0.021, 15);
+    expect(zero.fixes).toEqual(PODTRZYMANIE);
+    expect(ponizej.fixes).toEqual(REMONT);
+    expect(powyzej.fixes).toEqual(PODTRZYMANIE);
+    // Trzy różne luki, ta sama waga - to jest ta druga oś.
+    expect([zero.severity, ponizej.severity, powyzej.severity]).toEqual(["info", "info", "info"]);
+  });
+
+  it("granica wagi to OTWARTE -2 pp: luka dokładnie -2 pp jeszcze nie alarmuje, -2.1 pp już tak", () => {
+    // Punkt DOKŁADNIE -2 pp bierzemy z benchmarku 2% (pozycja 15, CTR 0),
+    // bo tam 0 - 0.02 to w IEEE 754 dokładnie -0.02. Przy benchmarku 6%
+    // różnica 0.04 - 0.06 wypada 3e-18 WEWNĄTRZ strefy i nie badałaby progu.
+    // UWAGA NA PRZYSZŁOŚĆ: ten wiersz jest jednocześnie skrajnym przypadkiem
+    // martwej strefy. Przy benchmarku 2% (pozycja 11-20) największa możliwa
+    // luka ujemna to właśnie -2 pp, a przy 0.8% (pozycja > 20) - 0.8 pp, więc
+    // dla właściwości rankujących poza TOP 10 reguła benchmarku NIE MOŻE
+    // podnieść wagi i decyduje wyłącznie trend. Zerowy CTR na pozycji 15
+    // dostaje więc „info”. Czy to dobrze, jest odrębnym pytaniem (próg
+    // absolutny kontra proporcjonalny, jakiego blok `pages` używa przez
+    // mnożniki 0.6 / 1.3) - ten wiersz przypina dzisiejszą odpowiedź, żeby
+    // zmiana progu na proporcjonalny była DECYZJĄ, a nie skutkiem ubocznym.
+    const rowno = at(0, 0, 15);
+    expect(rowno.severity).toBe("info");
+    const ponizej = at(0.039, 0.039);
+    expect(ponizej.severity).toBe("warn");
+    const wStrefie = at(0.041, 0.041);
+    expect(wStrefie.severity).toBe("info");
+    // Porady po tej stronie skali są niezmiennie remontowe - alarm się rusza,
+    // lista działań nie, bo odpowiada na inne pytanie.
+    expect([rowno.fixes, ponizej.fixes, wStrefie.fixes]).toEqual([REMONT, REMONT, REMONT]);
+  });
+
+  it("granica wagi jest SYMETRYCZNA: luka dokładnie +2 pp też nie przesądza wagi, +2.1 pp daje „good” z samej luki", () => {
+    // 0.04 - 0.02 to w IEEE 754 dokładnie +0.02, więc `> CTR_GAP_DEADBAND`
+    // jest tu sprawdzone bez marginesu błędu. Trend zerowy, czyli „info”
+    // może przyjść wyłącznie z martwej strefy luki.
+    expect(at(0.04, 0.04, 15).severity).toBe("info");
+    expect(at(0.041, 0.041, 15).severity).toBe("good");
+    expect([at(0.04, 0.04, 15).fixes, at(0.041, 0.041, 15).fixes]).toEqual([
+      PODTRZYMANIE,
+      PODTRZYMANIE,
+    ]);
+  });
+
+  it("próg zmiany CTR jest OTWARTY na 0.5 pp - pół punktu już rusza wagę, 0.49 pp jeszcze nie, a porady stoją", () => {
+    // 0.005 - 0 i 0.0049 - 0 są w IEEE 754 dokładne, więc próg `< 0.005`
+    // badamy na samej granicy. Luka trzymana w martwej strefie (-1.5 pp
+    // i -1.51 pp przy benchmarku 2%), żeby o wadze decydował wyłącznie trend.
+    const naProgu = at(0.005, 0, 15);
+    const podProgiem = at(0.0049, 0, 15);
+    expect(naProgu.severity).toBe("good");
+    expect(podProgiem.severity).toBe("info");
+    expect([naProgu.fixes, podProgiem.fixes]).toEqual([REMONT, REMONT]);
+  });
+
+  it("na całej skali luki przy trendzie ROSNĄCYM waga łamie się na -2 pp, a porady na zerze", () => {
+    // Tabela prawdy zamiast powtórzenia warunku ze źródła. `dCtr` ustalone na
+    // +1 pp dla KAŻDEGO wiersza, więc zmienia się wyłącznie luka. Cztery
+    // pierwsze wiersze to zielone i bursztynowe kafelki z tą samą listą
+    // remontową - dokładnie to, co rozstrzygnięcie uznaje za poprawne.
+    const skala: Array<{ lukaPp: string; ctr: number }> = [
+      { lukaPp: "-4.0", ctr: 0.02 },
+      { lukaPp: "-2.1", ctr: 0.039 },
+      { lukaPp: "-1.9", ctr: 0.041 },
+      { lukaPp: "-0.5", ctr: 0.055 },
+      { lukaPp: "0.0", ctr: 0.06 },
+      { lukaPp: "+0.5", ctr: 0.065 },
+      { lukaPp: "+1.9", ctr: 0.079 },
+      { lukaPp: "+2.1", ctr: 0.081 },
+      { lukaPp: "+4.0", ctr: 0.1 },
+    ];
+    const zmierzone = skala.map(({ lukaPp, ctr }) => {
+      const i = at(ctr, ctr - 0.01);
+      return { lukaPp, waga: i.severity, remont: remont(i.fixes) };
+    });
+    expect(zmierzone).toEqual([
+      { lukaPp: "-4.0", waga: "warn", remont: true },
+      { lukaPp: "-2.1", waga: "warn", remont: true },
+      { lukaPp: "-1.9", waga: "good", remont: true },
+      { lukaPp: "-0.5", waga: "good", remont: true },
+      { lukaPp: "0.0", waga: "good", remont: false },
+      { lukaPp: "+0.5", waga: "good", remont: false },
+      { lukaPp: "+1.9", waga: "good", remont: false },
+      { lukaPp: "+2.1", waga: "good", remont: false },
+      { lukaPp: "+4.0", waga: "good", remont: false },
+    ]);
+  });
+
+  it("na tej samej skali przy trendzie SPADAJĄCYM waga jest bursztynowa aż do +2 pp, a porady dalej łamią się na zerze", () => {
+    // Ta sama skala luki, `dCtr` ustalone na -1 pp. Wiersz „0.0” to lustrzany
+    // narożnik: kafelek bursztynowy z jedyną poradą „utrzymaj stylistykę
+    // tytułów - działa”. Zestawienie obu tabel pokazuje, że waga i porady
+    // reagują na DWIE RÓŻNE liczby: kolumna wagi zmienia się między tabelami,
+    // kolumna remontu jest w obu identyczna.
+    const skala: Array<{ lukaPp: string; ctr: number }> = [
+      { lukaPp: "-4.0", ctr: 0.02 },
+      { lukaPp: "-2.1", ctr: 0.039 },
+      { lukaPp: "-1.9", ctr: 0.041 },
+      { lukaPp: "-0.5", ctr: 0.055 },
+      { lukaPp: "0.0", ctr: 0.06 },
+      { lukaPp: "+0.5", ctr: 0.065 },
+      { lukaPp: "+1.9", ctr: 0.079 },
+      { lukaPp: "+2.1", ctr: 0.081 },
+      { lukaPp: "+4.0", ctr: 0.1 },
+    ];
+    const zmierzone = skala.map(({ lukaPp, ctr }) => {
+      const i = at(ctr, ctr + 0.01);
+      return { lukaPp, waga: i.severity, remont: remont(i.fixes) };
+    });
+    expect(zmierzone).toEqual([
+      { lukaPp: "-4.0", waga: "warn", remont: true },
+      { lukaPp: "-2.1", waga: "warn", remont: true },
+      { lukaPp: "-1.9", waga: "warn", remont: true },
+      { lukaPp: "-0.5", waga: "warn", remont: true },
+      { lukaPp: "0.0", waga: "warn", remont: false },
+      { lukaPp: "+0.5", waga: "warn", remont: false },
+      { lukaPp: "+1.9", waga: "warn", remont: false },
+      { lukaPp: "+2.1", waga: "good", remont: false },
+      { lukaPp: "+4.0", waga: "good", remont: false },
+    ]);
+  });
+
+  it("słowo w detalu i zestaw porad mają TĘ SAMĄ granicę zero - „niższy” zawsze idzie z remontem", () => {
+    // To jest materialne uzasadnienie zerowej granicy porad: lista kroków
+    // odpowiada na to samo pytanie, na które odpowiada zdanie w `detail`.
+    // Gdyby porady dostały własną martwą strefę, moduł pisałby „Twój CTR jest
+    // niższy o 1.9 pp” i w tym samym kafelku „Utrzymaj stylistykę tytułów -
+    // działa”. Skala celowo zawiera wiersz 0.0 pp, gdzie detal mówi „wyższy”.
+    const skala = [0.02, 0.039, 0.041, 0.055, 0.06, 0.065, 0.081, 0.1];
+    const zmierzone = skala.map((ctr) => {
+      const i = at(ctr, ctr - 0.01);
+      return { ctr, nizszy: i.detail.includes("jest niższy o"), remont: remont(i.fixes) };
+    });
+    expect(zmierzone).toEqual([
+      { ctr: 0.02, nizszy: true, remont: true },
+      { ctr: 0.039, nizszy: true, remont: true },
+      { ctr: 0.041, nizszy: true, remont: true },
+      { ctr: 0.055, nizszy: true, remont: true },
+      { ctr: 0.06, nizszy: false, remont: false },
+      { ctr: 0.065, nizszy: false, remont: false },
+      { ctr: 0.081, nizszy: false, remont: false },
+      { ctr: 0.1, nizszy: false, remont: false },
+    ]);
+  });
+});
+
+// GRANICA POZYCJI. `kpi-position` podejmuje DWIE decyzje o tej samej liczbie:
+// wagę wpisu (kolor ramki, miejsce w posortowanej liście, wpis do odznaki
+// „do poprawy”) oraz zestaw kroków pod nagłówkiem. Operator widzi je razem,
+// w JEDNYM kafelku (`InsightSection` renderuje ikonę wagi i `fixes` w tym samym
+// `<li>`), więc kafelek ostrzegawczy z jedyną poradą „utrzymaj tempo” jest dla
+// niego sprzecznością: alarm i instrukcja bezczynności w jednym miejscu.
+// Granica jest więc JEDNA i DOMKNIĘTA - ±0.5 miejsca - a asercje niżej pilnują
+// jej jako reguły: równoważności „waga `warn`” ⇔ „zestaw naprawczy” na całej
+// skali delty, z osobnymi przypadkami DOKŁADNIE na progu i po obu jego stronach.
+describe("KPI pozycja - jedna domknięta granica 0.5 miejsca dla wagi i dla działań", () => {
   const at = (pos: number, prevPos: number): Insight =>
     pick(
       build({
@@ -341,14 +583,92 @@ describe("KPI pozycja - próg 0.5 miejsca w obie strony", () => {
       }),
       "kpi-position",
     );
+  const STABILNE = lista("adminAnalytics.gsc.insights.position.fixesStable");
+  const NAPRAWCZE = lista("adminAnalytics.gsc.insights.position.fixesWorse");
 
-  it("poprawa o dokładnie 0.5 miejsca to już „good”, o 0.4 jeszcze „info”", () => {
-    expect(at(9.5, 10).severity).toBe("good");
-    expect(at(9.6, 10).severity).toBe("info");
+  it("dwa zestawy porad naprawdę się różnią - inaczej reszta bloku nie dowodziłaby niczego", () => {
+    expect(NAPRAWCZE).not.toEqual(STABILNE);
+    expect(STABILNE.length).toBeGreaterThan(0);
   });
 
-  it("pogorszenie o dokładnie 0.5 miejsca to już „warn”, o 0.4 jeszcze „info”", () => {
+  it("pogorszenie DOKŁADNIE o 0.5 miejsca: waga `warn` I zestaw naprawczy razem", () => {
+    const i = at(10.5, 10);
+    expect(i.severity).toBe("warn");
+    expect(i.fixes).toEqual(NAPRAWCZE);
+  });
+
+  it("pogorszenie o 0.4 miejsca zostaje pod progiem: waga `info` i porady stabilne", () => {
+    const i = at(10.4, 10);
+    expect(i.severity).toBe("info");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("pogorszenie o 0.6 miejsca dalej trzyma tę samą parę: `warn` i zestaw naprawczy", () => {
+    const i = at(10.6, 10);
+    expect(i.severity).toBe("warn");
+    expect(i.fixes).toEqual(NAPRAWCZE);
+  });
+
+  it("poprawa DOKŁADNIE o 0.5 miejsca: waga `good`, a kroki podtrzymujące, nie naprawcze", () => {
+    const i = at(9.5, 10);
+    expect(i.severity).toBe("good");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("poprawa o 0.4 miejsca zostaje pod progiem: waga `info` i porady stabilne", () => {
+    const i = at(9.6, 10);
+    expect(i.severity).toBe("info");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("poprawa o 0.6 miejsca to `good` z poradami stabilnymi", () => {
+    const i = at(9.4, 10);
+    expect(i.severity).toBe("good");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("na progu kafelek NIE stawia obok siebie alarmu i porady „trzymaj kurs”", () => {
+    // To zdanie ze słownika jest całą listą działań wariantu stabilnego. Jeśli
+    // pojawi się w kafelku o wadze `warn`, operator czyta ostrzeżenie i
+    // instrukcję bezczynności w jednym miejscu - dokładnie ten defekt.
+    const i = at(10.5, 10);
+    expect(i.severity).toBe("warn");
+    expect(i.detail).toBe("Pozycja pogorszyła się o 0.5 miejsc - spadek widoczności.");
+    expect(i.fixes).not.toContain("Utrzymaj tempo linkowania wewnętrznego i publikacji.");
+  });
+
+  it("na całej skali delty waga `warn` zachodzi DOKŁADNIE wtedy, gdy porady są naprawcze", () => {
+    // Tabela prawdy zamiast powtórzenia warunku ze źródła: każdy wiersz mówi,
+    // co operator ma zobaczyć przy danej zmianie pozycji. Przesunięcie
+    // KTÓREGOKOLWIEK z dwóch progów o jeden znak porównania oblewa wiersz
+    // ±0.5, a rozjechanie ich względem siebie - wiersz 0.5 w obu kolumnach.
+    const naprawczy = (fixes: string[]): boolean =>
+      fixes.length === NAPRAWCZE.length && fixes.every((f, idx) => f === NAPRAWCZE[idx]);
+    const delty = [-2, -0.6, -0.5, -0.4, 0, 0.4, 0.5, 0.6, 2];
+    const zmierzone = delty.map((d) => {
+      const i = at(10 + d, 10);
+      return { delta: d, ostrzezenie: i.severity === "warn", naprawcze: naprawczy(i.fixes) };
+    });
+    expect(zmierzone).toEqual([
+      { delta: -2, ostrzezenie: false, naprawcze: false },
+      { delta: -0.6, ostrzezenie: false, naprawcze: false },
+      { delta: -0.5, ostrzezenie: false, naprawcze: false },
+      { delta: -0.4, ostrzezenie: false, naprawcze: false },
+      { delta: 0, ostrzezenie: false, naprawcze: false },
+      { delta: 0.4, ostrzezenie: false, naprawcze: false },
+      { delta: 0.5, ostrzezenie: true, naprawcze: true },
+      { delta: 0.6, ostrzezenie: true, naprawcze: true },
+      { delta: 2, ostrzezenie: true, naprawcze: true },
+    ]);
+  });
+
+  it("granica jest SYMETRYCZNA - pół miejsca w dół waży tyle samo, co pół miejsca w górę", () => {
+    // Gdyby pogorszenie o równo 0.5 spadło do „info” (próg wagi otwarty na
+    // `> 0.5`), moduł traktowałby ten sam ruch jako sygnał w górę i jako szum
+    // w dół - czyli zawyżałby obraz widoczności. Ta para wierszy tego pilnuje.
+    expect(at(9.5, 10).severity).toBe("good");
     expect(at(10.5, 10).severity).toBe("warn");
+    expect(at(9.6, 10).severity).toBe("info");
     expect(at(10.4, 10).severity).toBe("info");
   });
 
@@ -358,14 +678,18 @@ describe("KPI pozycja - próg 0.5 miejsca w obie strony", () => {
     expect(at(10, 10).detail).toBe("Pozycja stabilna względem poprzedniego okna.");
   });
 
-  it("brak zmiany zapisuje deltę ze znakiem plus - `signed()` traktuje zero jako nieujemne", () => {
-    expect(at(10, 10).title).toBe("Średnia pozycja: 10.0 (+0.0)");
+  it("detal ma WŁASNĄ, zerową granicę - opisuje kierunek, nie wagę ruchu", () => {
+    // Ruch o 0.1 miejsca to jeszcze `info` z poradami stabilnymi, ale detal
+    // już nazywa kierunek. To nie jest rozjazd progów: zdanie opisowe i ocena
+    // odpowiadają na dwa różne pytania i nie mogą mieć wspólnej granicy.
+    const i = at(10.1, 10);
+    expect(i.severity).toBe("info");
+    expect(i.fixes).toEqual(STABILNE);
+    expect(i.detail).toBe("Pozycja pogorszyła się o 0.1 miejsc - spadek widoczności.");
   });
 
-  it("zestaw naprawczy dopiero POWYŻEJ 0.5 - przy równo 0.5 severity to warn, ale porady stabilne", () => {
-    // Świadomie zapisany rozjazd progów w źródle: severity `>= 0.5`, porady `> 0.5`.
-    expect(at(10.5, 10).fixes).toEqual(lista("adminAnalytics.gsc.insights.position.fixesStable"));
-    expect(at(10.6, 10).fixes).toEqual(lista("adminAnalytics.gsc.insights.position.fixesWorse"));
+  it("brak zmiany zapisuje deltę ze znakiem plus - `signed()` traktuje zero jako nieujemne", () => {
+    expect(at(10, 10).title).toBe("Średnia pozycja: 10.0 (+0.0)");
   });
 });
 

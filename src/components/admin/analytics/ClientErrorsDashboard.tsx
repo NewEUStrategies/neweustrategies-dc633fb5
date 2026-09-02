@@ -89,6 +89,17 @@ export function ClientErrorsDashboard() {
   const trendOption = useMemo<EChartsCoreOption>(() => {
     const days = report?.daily ?? [];
     return {
+      // WYZWALACZ DYMKA DEKLARUJEMY TU, A NIE LICZYMY NA BAZĘ.
+      //
+      // `baseOption` w `chartTheme.ts` ustawia PRYMITYWY motywu (kolory, siatka,
+      // animacja, czcionka) i świadomie NIE narzuca `tooltip.trigger` - to jest
+      // własność TYPU WYKRESU, a nie motywu. Ten wykres był jedynym w repo,
+      // który miał dymek wyłącznie z bazy, więc po rozdzieleniu tych dwóch
+      // spraw stracił wyzwalacz osiowy i dostawał domyślny dymek elementu
+      // (wartość jednego słupka po najechaniu, bez nazwy dnia). Słupki nad osią
+      // dni czyta się porównawczo, więc wyzwalacz osiowy jest tu poprawny -
+      // i odtąd stoi tam, gdzie jest decyzją: w opcji wykresu.
+      tooltip: { trigger: "axis" },
       grid: { left: 44, right: 16, top: 24, bottom: 28, containLabel: true },
       xAxis: {
         type: "category",

@@ -26,6 +26,25 @@
  * eksport CSV. Kanwa ECharts jest dla czytnika ekranu pustym prostokątem -
  * bez tabeli cały pulpit wydajności był dla osoby niewidzącej nieczytelny.
  *
+ * KOLOR DLA KANWY, NIE DLA CSS. ECharts nie maluje DOM-em, tylko kanwą, a
+ * kanwa zmiennych CSS nie rozwiązuje: `"hsl(var(--muted-foreground))"` podane
+ * jako `fillStyle` jest napisem nieparsowalnym i przeglądarka ZOSTAJE PRZY
+ * POPRZEDNIEJ wartości, nie rzucając niczym - awaria wygląda jak „etykiety są
+ * jakoś ciemne", nie jak błąd. W tym repo było dodatkowo gorzej, bo
+ * `src/styles.css` trzyma `--foreground`, `--muted-foreground` i `--background`
+ * w `oklch(...)`, więc literał rozwijał się do `hsl(oklch(...))` (mechanizm
+ * opisuje komentarz `BARE_HSL_TRIPLE` w `chartTheme.ts`). Dlatego wszystkie
+ * kolory idą tu z `useChartTheme()`, czyli z tokenu JUŻ ROZWIĄZANEGO.
+ *
+ * CZEGO PANEL NIE POWTARZA. Kolorów, które `baseOption` ustawia sam - etykiety
+ * i linie osi, tło, ramka i tekst dymka, tekst legendy - panel NIE wpisuje
+ * ponownie: głębokie złączenie (`mergeChartOption`) dowozi je do każdej sekcji,
+ * której panel nie podał w całości, a druga kopia tej samej wartości to drugie
+ * miejsce do zapomnienia. Hook obsługuje WYŁĄCZNIE pola, których baza znać nie
+ * może, bo należą do jednego typu wykresu: linia progowa trendu
+ * (`markLine.lineStyle`), ramki kafli treemapy (`series[].itemStyle.borderColor`)
+ * i dwa styly `rich` w środku pierścienia.
+ *
  * IZOLACJA WARSZTATÓW. Każdy klucz react-query niesie identyfikator najemcy,
  * a zapytanie jest wstrzymane do jego rozwiązania - inaczej dwa panele
  * liczące to samo okno dzieliłyby jeden wpis cache i raport RUM przeciekałby
@@ -44,6 +63,7 @@ import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/
 import { useCurrentTenantId } from "@/lib/tenant";
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import { ChartCard } from "./ChartCard";
+import { useChartTheme } from "./useChartTheme";
 import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { VitalsRecommendations } from "./VitalsRecommendations";
@@ -84,6 +104,11 @@ function sparkForMetric(report: VitalsSummaryResult, metric: VitalName): number[
 
 export function VitalsBiDashboard() {
   const { t } = useTranslation();
+  // Motyw JEST zależnością każdej opcji, która wpisuje kolor - stąd `theme`
+  // w listach `useMemo` niżej. Referencja jest stabilna, dopóki tokeny się nie
+  // zmieniły (kontrakt `useChartTheme`), więc dopisanie jej do zależności nie
+  // przelicza opcji ani razu więcej, niż trzeba.
+  const theme = useChartTheme();
   const fetchVitals = useServerFn(getVitalsSummary);
   const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
