@@ -183,15 +183,15 @@ export function VitalsBiDashboard() {
             silent: true,
             itemStyle: { opacity: 0.12 },
             data: [
-              [{ yAxis: 0, itemStyle: { color: "#16a34a" } }, { yAxis: thGood }],
-              [{ yAxis: thGood, itemStyle: { color: "#f59e0b" } }, { yAxis: thPoor }],
-              [{ yAxis: thPoor, itemStyle: { color: "#dc2626" } }, { yAxis: "max" }],
+              [{ yAxis: 0, itemStyle: { color: theme.success } }, { yAxis: thGood }],
+              [{ yAxis: thGood, itemStyle: { color: theme.warning } }, { yAxis: thPoor }],
+              [{ yAxis: thPoor, itemStyle: { color: theme.danger } }, { yAxis: "max" }],
             ],
           },
           markLine: {
             silent: true,
             symbol: "none",
-            lineStyle: { color: "hsl(var(--muted-foreground))", type: "dashed", width: 1 },
+            lineStyle: { color: theme.muted, type: "dashed", width: 1 },
             data: [
               {
                 yAxis: thGood,
@@ -221,7 +221,7 @@ export function VitalsBiDashboard() {
           name: "Good",
           type: "bar",
           stack: "rating",
-          color: "#16a34a",
+          color: theme.success,
           data: metrics.map((m) => metricsByName.get(m)?.good ?? 0),
           itemStyle: { borderRadius: [0, 0, 0, 0] },
         },
@@ -229,29 +229,29 @@ export function VitalsBiDashboard() {
           name: "Needs improvement",
           type: "bar",
           stack: "rating",
-          color: "#f59e0b",
+          color: theme.warning,
           data: metrics.map((m) => metricsByName.get(m)?.needsImprovement ?? 0),
         },
         {
           name: "Poor",
           type: "bar",
           stack: "rating",
-          color: "#dc2626",
+          color: theme.danger,
           data: metrics.map((m) => metricsByName.get(m)?.poor ?? 0),
           itemStyle: { borderRadius: [4, 4, 0, 0] },
         },
       ],
     };
-  }, [metricsByName]);
+  }, [metricsByName, theme]);
 
   const pathTreemapOption = useMemo<EChartsCoreOption>(() => {
     const paths = (report?.paths ?? []).slice(0, 25);
     const [lcpGood, lcpPoor] = VITAL_THRESHOLDS.LCP;
     const colorFor = (lcp: number): string => {
-      if (!lcp) return "#64748b"; // brak danych LCP - neutralny slate
-      if (lcp <= lcpGood) return "#16a34a";
-      if (lcp <= lcpPoor) return "#f59e0b";
-      return "#dc2626";
+      if (!lcp) return theme.muted; // brak danych LCP - neutralny slate
+      if (lcp <= lcpGood) return theme.success;
+      if (lcp <= lcpPoor) return theme.warning;
+      return theme.danger;
     };
     return {
       tooltip: {
@@ -274,7 +274,7 @@ export function VitalsBiDashboard() {
             textBorderColor: "rgba(0,0,0,0.35)",
             textBorderWidth: 2,
           },
-          itemStyle: { borderColor: "hsl(var(--background))", borderWidth: 2, gapWidth: 2 },
+          itemStyle: { borderColor: theme.background, borderWidth: 2, gapWidth: 2 },
           data: paths.map((p) => {
             const lcp = p.metrics.find((m) => m.metric === "LCP")?.p75 ?? 0;
             const shown = p.path.length > 26 ? p.path.slice(0, 26) + "…" : p.path;
@@ -289,7 +289,7 @@ export function VitalsBiDashboard() {
         },
       ],
     };
-  }, [report, t]);
+  }, [report, t, theme]);
 
   // Kubełki ocen policzone RAZ: koło i jego tabela danych muszą podać te same
   // trzy liczby, a dwa osobne sumowania to dwie okazje na rozjazd.
@@ -317,19 +317,19 @@ export function VitalsBiDashboard() {
             position: "center",
             formatter: `{a|${good + ni + poor}}\n{b|${t("adminAnalytics.vitals.samplesWord")}}`,
             rich: {
-              a: { fontSize: 22, fontWeight: 700, color: "hsl(var(--foreground))" },
-              b: { fontSize: 10, color: "hsl(var(--muted-foreground))" },
+              a: { fontSize: 22, fontWeight: 700, color: theme.foreground },
+              b: { fontSize: 10, color: theme.muted },
             },
           },
           data: [
-            { name: "Good", value: good, itemStyle: { color: "#16a34a" } },
-            { name: "Needs improvement", value: ni, itemStyle: { color: "#f59e0b" } },
-            { name: "Poor", value: poor, itemStyle: { color: "#dc2626" } },
+            { name: "Good", value: good, itemStyle: { color: theme.success } },
+            { name: "Needs improvement", value: ni, itemStyle: { color: theme.warning } },
+            { name: "Poor", value: poor, itemStyle: { color: theme.danger } },
           ],
         },
       ],
     };
-  }, [ratingTotals, t]);
+  }, [ratingTotals, t, theme]);
 
   // Drill-down: click a chart element to inspect the underlying sample.
   const activeMetrics = useMemo(

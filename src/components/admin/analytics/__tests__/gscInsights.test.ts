@@ -271,12 +271,14 @@ describe("KPI CTR - tabela benchmarku, luka do benchmarku i próg zmiany", () =>
     expect(expForPosition(5, 0.06)).toContain("jest wyższy o 0.0 pp");
   });
 
-  it("luka poniżej -2 pp daje „warn”, luka RÓWNA -2 pp już nie", () => {
-    // 0 - 0.02 to w liczbach zmiennoprzecinkowych dokładnie -0.02, więc próg
-    // jest tu badany bez marginesu błędu.
+  it("strefa luki jest UDZIAŁEM benchmarku (1/3): zerowy CTR alarmuje w KAŻDYM kubełku", () => {
+    // Benchmark pozycji 15 to 2%, więc strefa ma 0.667 pp - luka -2 pp leży
+    // daleko poza nią. Próg absolutny 2 pp dawał tu „info”, czyli reguła
+    // benchmarku nie umiała alarmować nigdzie poza TOP 10; udział benchmarku
+    // domyka tę martwą strefę.
     expect(
       pick(build({ totals: { ...ZERO_TOTALS, ctr: 0, position: 15 } }), "kpi-ctr").severity,
-    ).toBe("info");
+    ).toBe("warn");
     expect(
       pick(build({ totals: { ...ZERO_TOTALS, ctr: 0.001, position: 5 } }), "kpi-ctr").severity,
     ).toBe("warn");
@@ -441,7 +443,7 @@ describe("KPI CTR - dwa progi to dwa różne fakty: znak luki rządzi poradami, 
     // mnożniki 0.6 / 1.3) - ten wiersz przypina dzisiejszą odpowiedź, żeby
     // zmiana progu na proporcjonalny była DECYZJĄ, a nie skutkiem ubocznym.
     const rowno = at(0, 0, 15);
-    expect(rowno.severity).toBe("info");
+    expect(rowno.severity).toBe("warn");
     const ponizej = at(0.039, 0.039);
     expect(ponizej.severity).toBe("warn");
     const wStrefie = at(0.041, 0.041);
@@ -455,7 +457,7 @@ describe("KPI CTR - dwa progi to dwa różne fakty: znak luki rządzi poradami, 
     // 0.04 - 0.02 to w IEEE 754 dokładnie +0.02, więc `> CTR_GAP_DEADBAND`
     // jest tu sprawdzone bez marginesu błędu. Trend zerowy, czyli „info”
     // może przyjść wyłącznie z martwej strefy luki.
-    expect(at(0.04, 0.04, 15).severity).toBe("info");
+    expect(at(0.04, 0.04, 15).severity).toBe("good");
     expect(at(0.041, 0.041, 15).severity).toBe("good");
     expect([at(0.04, 0.04, 15).fixes, at(0.041, 0.041, 15).fixes]).toEqual([
       PODTRZYMANIE,
@@ -464,11 +466,11 @@ describe("KPI CTR - dwa progi to dwa różne fakty: znak luki rządzi poradami, 
   });
 
   it("próg zmiany CTR jest OTWARTY na 0.5 pp - pół punktu już rusza wagę, 0.49 pp jeszcze nie, a porady stoją", () => {
-    // 0.005 - 0 i 0.0049 - 0 są w IEEE 754 dokładne, więc próg `< 0.005`
-    // badamy na samej granicy. Luka trzymana w martwej strefie (-1.5 pp
-    // i -1.51 pp przy benchmarku 2%), żeby o wadze decydował wyłącznie trend.
-    const naProgu = at(0.005, 0, 15);
-    const podProgiem = at(0.0049, 0, 15);
+    // Próg zmiany badamy na samej granicy (0.5 pp i 0.49 pp), a lukę trzymamy
+    // w martwej strefie kubełka 6% (pozycja 5, strefa 2 pp): -1.0 pp i -1.01 pp,
+    // żeby o wadze decydował wyłącznie trend.
+    const naProgu = at(0.05, 0.045);
+    const podProgiem = at(0.0499, 0.045);
     expect(naProgu.severity).toBe("good");
     expect(podProgiem.severity).toBe("info");
     expect([naProgu.fixes, podProgiem.fixes]).toEqual([REMONT, REMONT]);
