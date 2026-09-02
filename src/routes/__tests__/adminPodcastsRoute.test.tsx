@@ -428,11 +428,7 @@ describe("publikacja odcinka", () => {
     // Publikacja bez daty domyka się bieżącą chwilą - kanał RSS bez `pubDate`
     // nie ma po czym sortować odcinków.
     expect(payload.published_at).not.toBeNull();
-    expect(invalidatedKeys(spy)).toEqual([
-      ["admin", "podcasts"],
-      ["podcasts"],
-      ["podcast-people"],
-    ]);
+    expect(invalidatedKeys(spy)).toEqual([["admin", "podcasts"], ["podcasts"], ["podcast-people"]]);
   });
 
   it("brak tenanta odmawia zapisu komunikatem i NIE pisze do bazy", async () => {
@@ -441,9 +437,7 @@ describe("publikacja odcinka", () => {
     fireEvent.click(await waitFor(() => screen.getByText("Sondaz na Baltyku")));
     await waitFor(() => expect(screen.getByText("adminPodcasts.editor.editTitle")).toBeTruthy());
     fireEvent.click(screen.getByText("common.save"));
-    await waitFor(() =>
-      expect(h.toastError).toHaveBeenCalledWith("adminPodcasts.errors.tenant"),
-    );
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("adminPodcasts.errors.tenant"));
     expect(callsOf("podcasts", "update")).toEqual([]);
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
@@ -479,10 +473,7 @@ describe("usuwanie wymaga potwierdzenia", () => {
     expect(updates).toHaveLength(1);
     expect(Object.keys(updates[0][0] as Record<string, unknown>)).toEqual(["deleted_at"]);
     expect(callsOf("podcast_shows", "eq")).toEqual([["id", SHOW_ID]]);
-    expect(invalidatedKeys(spy)).toEqual([
-      ["admin", "podcast-shows"],
-      ["podcast-shows"],
-    ]);
+    expect(invalidatedKeys(spy)).toEqual([["admin", "podcast-shows"], ["podcast-shows"]]);
   });
 
   it("Usun przy odcinku takze najpierw pyta, a potwierdzenie kasuje miekko", async () => {
@@ -490,9 +481,7 @@ describe("usuwanie wymaga potwierdzenia", () => {
     await mountPanel(queryClient);
     await waitFor(() => expect(screen.getByText("Sondaz na Baltyku")).toBeTruthy());
     fireEvent.click(screen.getAllByText("adminPodcasts.remove")[0]);
-    await waitFor(() =>
-      expect(screen.getByText("adminPodcasts.confirmEpisodeTitle")).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText("adminPodcasts.confirmEpisodeTitle")).toBeTruthy());
     expect(callsOf("podcasts", "update")).toEqual([]);
 
     const spy = vi.spyOn(queryClient, "invalidateQueries");
