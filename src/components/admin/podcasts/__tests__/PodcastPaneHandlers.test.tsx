@@ -149,8 +149,13 @@ function mountShows() {
   db().setResponse("podcast_shows", (chain) =>
     chain.has("update") || chain.has("insert") ? ok(null) : ok([SHOW]),
   );
-  const onBack = vi.fn();
-  return { onBack, ...renderWithQueryClient(<PodcastShowsPane onBack={onBack} />) };
+  // `onClose`, nie `onBack`: pierwsza wersja tego harnessu podawała `onBack`,
+  // czyli props, którego ten komponent NIE MA. Testy przechodziły, bo React
+  // ignoruje nieznane propsy i żaden z nich nie wyzwalał powrotu do listy -
+  // wyłapał to `tsc --noEmit`, nie vitest. Wniosek na przyszłość: zielona
+  // suita nie jest dowodem, że harness podłącza się do prawdziwego kontraktu.
+  const onClose = vi.fn();
+  return { onClose, ...renderWithQueryClient(<PodcastShowsPane onClose={onClose} />) };
 }
 
 beforeEach(() => {
