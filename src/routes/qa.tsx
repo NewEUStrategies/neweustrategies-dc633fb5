@@ -3,8 +3,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { HelpCircle, Clock } from "lucide-react";
-import { fetchPublicQaSessions, type PublicQaSession } from "@/lib/community/publicQueries";
+import { publicQaSessionsQueryOptions, type PublicQaSession } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -20,9 +22,25 @@ export const Route = createFileRoute("/qa")({
   component: QaListPage,
   // Loader zwraca wyłącznie serializowalne stringi i nigdy nie wywraca trasy -
   // markup listy jest opcjonalny, awaria backendu degraduje do samych metatagów.
-  loader: async (): Promise<QaListHeadData> => {
+  //
+  // ZASIEW, NIE GOŁY FETCH. Wcześniej loader wołał `fetchPublicQaSessions()`
+  // wprost, więc jego praca kończyła się na `head()`: markup listy w wyjściu
+  // serwera był PUSTY (`query.isLoading`), a przeglądarka pobierała te same
+  // sesje drugi raz po hydratacji. Teraz idzie przez `ensureQueryData` na
+  // WSPÓLNYM kluczu (`publicQaSessionsQueryOptions`), więc lista jest w HTML
+  // z serwera i nie jest ponawiana.
+  //
+  // BRAMKA MODUŁU jak w `/polls`: mapa `site_settings` jest już rozgrzana
+  // przez root loader, więc `ensureQueryData` deduplikuje z jego fetchem,
+  // a wyłączony moduł nie kosztuje ANI JEDNEGO zapytania o sesje.
+  loader: async ({ context }): Promise<QaListHeadData> => {
+    const settings = await context.queryClient
+      .ensureQueryData(siteSettingsQueryOptions)
+      .catch(() => undefined);
+    const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
+    if (!modules.qa_enabled) return { sessions: [] };
     try {
-      const sessions = await fetchPublicQaSessions();
+      const sessions = await context.queryClient.ensureQueryData(publicQaSessionsQueryOptions());
       return {
         sessions: sessions.slice(0, 50).map((s) => ({
           slug: s.slug,
@@ -87,8 +105,7 @@ function QaListPage() {
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const modules = useCommunityModules();
   const query = useQuery({
-    queryKey: ["public-qa-sessions"],
-    queryFn: fetchPublicQaSessions,
+    ...publicQaSessionsQueryOptions(),
     enabled: modules.qa_enabled,
   });
 

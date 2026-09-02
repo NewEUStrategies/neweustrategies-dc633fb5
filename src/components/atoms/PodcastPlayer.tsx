@@ -2,8 +2,10 @@
 // World-class UX: keyboard accessible, A11Y labelled, speed control,
 // 15s skip, seek slider, time display.
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Play, Pause, Rewind, FastForward, Volume2, VolumeX } from "lucide-react";
 import { formatDuration } from "@/lib/podcast/types";
+import { ensureI18n as ensurePlayerI18n } from "@/lib/i18n-podcast-player";
 import { announcePlayback, subscribePlayback } from "@/lib/audio/playbackBus";
 import {
   PLAYBACK_RATES,
@@ -98,6 +100,8 @@ export function PodcastPlayer({
   lang = "pl",
   registerSeek,
 }: Props) {
+  // Rejestracja slownika w chunku odtwarzacza (nie w entry) - patrz lib/i18n-*.
+  ensurePlayerI18n();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Unikalny identyfikator instancji na szynie arbitrażu odtwarzania.
   const playerId = useId();
@@ -112,6 +116,12 @@ export function PodcastPlayer({
   // efekcie po montażu (initializer rozjechałby hydratację <select value>).
   const [speed, setSpeed] = useState<number>(DEFAULT_PLAYBACK_RATE);
   const [muted, setMuted] = useState(false);
+  /**
+   * Sekunda, do ktorej czytelnik WLASNIE przewinal - tresc regionu
+   * `aria-live`. `null` = nic jeszcze nie oglaszamy, wiec region startuje pusty
+   * i nie czyta sie przy samym wejsciu na strone.
+   */
+  const [seekedToSeconds, setSeekedToSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     setSpeed(readStoredPlaybackRate());
@@ -267,6 +277,7 @@ export function PodcastPlayer({
       const target = Math.max(0, Math.min(seconds, a.duration || seconds));
       a.currentTime = target;
       setTime(target);
+      setSeekedToSeconds(Math.floor(target));
       void a.play();
     });
   }, [registerSeek]);
@@ -283,34 +294,29 @@ export function PodcastPlayer({
   const skip = (delta: number) => {
     const a = audioRef.current;
     if (!a) return;
-    a.currentTime = Math.max(0, Math.min(a.duration || duration, a.currentTime + delta));
+    const target = Math.max(0, Math.min(a.duration || duration, a.currentTime + delta));
+    a.currentTime = target;
+    // Zapowiedz liczymy z WARTOSCI DOCELOWEJ, nie z odczytu `a.currentTime`
+    // po zapisie: przy zrodle bez metadanych przegladarka potrafi zignorowac
+    // seek, a czytnik ekranu dostalby wtedy komunikat o pozycji, ktorej nie ma.
+    setSeekedToSeconds(Math.floor(target));
   };
 
   const onSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
     if (audioRef.current) audioRef.current.currentTime = v;
     setTime(v);
+    setSeekedToSeconds(Math.floor(v));
   };
 
-  const t = (k: "play" | "pause" | "back" | "fwd" | "speed" | "mute") => {
-    const pl = {
-      play: "Odtwórz",
-      pause: "Pauza",
-      back: "−15s",
-      fwd: "+15s",
-      speed: "Tempo",
-      mute: "Wycisz",
-    };
-    const en = {
-      play: "Play",
-      pause: "Pause",
-      back: "−15s",
-      fwd: "+15s",
-      speed: "Speed",
-      mute: "Mute",
-    };
-    return (lang === "en" ? en : pl)[k];
-  };
+  // Etykiety transportu ida ze SLOWNIKA (`lib/i18n-podcast-player`), a `lng`
+  // honoruje prop `lang`: odtwarzacz montuje sie tez w podgladzie redakcyjnym,
+  // gdzie jezyk PODGLADU jest wybierany zakladka, nie jezykiem panelu. Wczesniej
+  // byla tu lokalna para obiektow `pl`/`en` - dwa rownolegle zestawy literalow,
+  // ktorych bramka parytetu PL/EN nie widziala wcale.
+  const { t } = useTranslation();
+  const label = (key: string, params?: Record<string, string>): string =>
+    t(`podcastPlayer.${key}`, { ...params, lng: lang });
 
   const compact = variant === "mini";
 
@@ -326,14 +332,14 @@ export function PodcastPlayer({
         className ?? "",
       ].join(" ")}
       role="region"
-      aria-label={title ?? "Podcast"}
+      aria-label={title ?? label("region")}
     >
       <audio ref={audioRef} src={src} preload="metadata" autoPlay={autoPlay} />
 
       <button
         type="button"
         onClick={toggle}
-        aria-label={playing ? t("pause") : t("play")}
+        aria-label={playing ? label("pause") : label("play")}
         className="h-11 w-11 shrink-0 rounded-full bg-brand text-brand-foreground flex items-center justify-center hover:scale-105 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
@@ -344,7 +350,7 @@ export function PodcastPlayer({
           <button
             type="button"
             onClick={() => skip(-15)}
-            aria-label={t("back")}
+            aria-label={label("rewind")}
             className="h-9 w-9 rounded-full border border-border flex items-center justify-center text-xs hover:bg-muted"
           >
             <Rewind className="w-4 h-4" />
@@ -352,7 +358,7 @@ export function PodcastPlayer({
           <button
             type="button"
             onClick={() => skip(15)}
-            aria-label={t("fwd")}
+            aria-label={label("forward")}
             className="h-9 w-9 rounded-full border border-border flex items-center justify-center text-xs hover:bg-muted"
           >
             <FastForward className="w-4 h-4" />
@@ -363,7 +369,19 @@ export function PodcastPlayer({
       <div className="flex-1 min-w-0">
         {title && !compact && <div className="text-xs font-medium truncate mb-1">{title}</div>}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] tabular-nums text-muted-foreground w-10">
+          {/* `role="timer"` z `aria-live="off"` JEST decyzja dostepnosciowa, nie
+              brakiem jej: tekst zmienia sie raz na sekunde przez cala dlugosc
+              odcinka, wiec region "polite" zamienilby czytnik ekranu w licznik
+              czytany bez przerwy i zaglusszylby wszystko inne na stronie.
+              Zwrotna informacje o pozycji daje region nizej - odzywa sie
+              WYLACZNIE po dzialaniu czytelnika (przewiniecie, skok do
+              rozdzialu), czyli wtedy, kiedy jest o co pytac. */}
+          <span
+            role="timer"
+            aria-live="off"
+            aria-label={label("elapsed")}
+            className="text-[11px] tabular-nums text-muted-foreground w-10"
+          >
             {formatDuration(time)}
           </span>
           <input
@@ -373,18 +391,30 @@ export function PodcastPlayer({
             step={1}
             value={time}
             onChange={onSeek}
-            aria-label="Seek"
+            aria-label={label("seek")}
+            aria-valuetext={formatDuration(time)}
             className="flex-1 h-1 accent-brand"
           />
-          <span className="text-[11px] tabular-nums text-muted-foreground w-12 text-right">
+          <span
+            aria-label={label("total")}
+            className="text-[11px] tabular-nums text-muted-foreground w-12 text-right"
+          >
             {formatDuration(duration)}
           </span>
         </div>
+        {/* Jedyna droga zwrotna po przewinieciu dla osoby, ktora nie widzi
+            suwaka. Pusty do pierwszego dzialania, zeby nie czytal sie przy
+            samym wejsciu na strone. */}
+        <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {seekedToSeconds === null
+            ? ""
+            : label("seekedTo", { time: formatDuration(seekedToSeconds) })}
+        </span>
       </div>
 
       {!compact && showSpeed && (
         <select
-          aria-label={t("speed")}
+          aria-label={label("speed")}
           value={speed}
           onChange={(e) => changeSpeed(Number(e.target.value))}
           className="text-xs bg-background border border-border rounded px-1.5 py-1"
@@ -401,7 +431,7 @@ export function PodcastPlayer({
         <button
           type="button"
           onClick={() => setMuted((m) => !m)}
-          aria-label={t("mute")}
+          aria-label={muted ? label("unmute") : label("mute")}
           className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted"
         >
           {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}

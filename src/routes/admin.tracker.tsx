@@ -27,7 +27,7 @@ import {
 import { POLICY_AREAS, STAGE_LABELS, stageLabel } from "@/lib/tracker/stages";
 import { AdminDatePicker } from "@/components/admin/blocks/AdminDatePicker";
 import { EU_COUNTRIES, STANCE_META } from "@/lib/tracker/euCountries";
-import { POLICY_RELATIONS, type PolicyItem, type PolicyPosition } from "@/lib/tracker/queries";
+import { POLICY_RELATIONS, fetchPositions, type PolicyItem } from "@/lib/tracker/queries";
 
 export const Route = createFileRoute("/admin/tracker")({
   component: AdminTrackerPage,
@@ -226,20 +226,20 @@ function AdminTrackerPage() {
                   placeholder="COM(2026) 123"
                 />
               </Field>
-              <Field label="Tytuł PL">
+              <Field label={t("adminTracker.titlePl")}>
                 <Input value={draft.title_pl} onChange={(e) => set({ title_pl: e.target.value })} />
               </Field>
-              <Field label="Title EN">
+              <Field label={t("adminTracker.titleEn")}>
                 <Input value={draft.title_en} onChange={(e) => set({ title_en: e.target.value })} />
               </Field>
-              <Field label="Opis PL">
+              <Field label={t("adminTracker.summaryPl")}>
                 <Textarea
                   rows={2}
                   value={draft.summary_pl}
                   onChange={(e) => set({ summary_pl: e.target.value })}
                 />
               </Field>
-              <Field label="Summary EN">
+              <Field label={t("adminTracker.summaryEn")}>
                 <Textarea
                   rows={2}
                   value={draft.summary_en}
@@ -285,9 +285,9 @@ function AdminTrackerPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 — {t("adminTracker.low")}</SelectItem>
-                    <SelectItem value="2">2 — {t("adminTracker.medium")}</SelectItem>
-                    <SelectItem value="3">3 — {t("adminTracker.key")}</SelectItem>
+                    <SelectItem value="1">1 - {t("adminTracker.low")}</SelectItem>
+                    <SelectItem value="2">2 - {t("adminTracker.medium")}</SelectItem>
+                    <SelectItem value="3">3 - {t("adminTracker.key")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -427,16 +427,16 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
   type RowDraft = { stance: string; note_pl: string; note_en: string };
   const [rows, setRows] = useState<Record<string, RowDraft>>({});
 
+  // Odczyt stanowisk idzie PRZEZ BIBLIOTEKĘ (`fetchPositions`): ta sama tabela,
+  // ta sama lista kolumn (`POSITION_FIELDS`) i ten sam filtr po dossier, więc
+  // duplikat zapytania w trasie nie miał czego dowodzić - a niósł własne
+  // `as unknown as`. Zostaje TUTAJ: klucz cache w przestrzeni `["admin", ...]`
+  // (panel czyta stanowiska dossier NIEOPUBLIKOWANYCH, więc jego wynik nie
+  // może wpaść do wpisu współdzielonego ze stroną publiczną) oraz
+  // `enabled: open` (draft budowany z bazy przy każdym otwarciu okna).
   const existingQ = useQuery({
     queryKey: ["admin", "tracker-positions", itemId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("eu_policy_positions")
-        .select("item_id,country_code,stance,note_pl,note_en,updated_at")
-        .eq("item_id", itemId);
-      if (error) throw error;
-      return (data ?? []) as unknown as PolicyPosition[];
-    },
+    queryFn: () => fetchPositions(itemId),
     enabled: open,
   });
 
@@ -547,7 +547,7 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
                 >
                   <span className="text-sm font-medium">{lang === "en" ? c.en : c.pl}</span>
                   <Select value={row.stance} onValueChange={(v) => setRow(c.code, { stance: v })}>
-                    <SelectTrigger aria-label={`${c.code} — ${t("adminTracker.stance")}`}>
+                    <SelectTrigger aria-label={`${c.code} - ${t("adminTracker.stance")}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -563,14 +563,14 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
                     value={row.note_pl}
                     maxLength={500}
                     placeholder={t("adminTracker.notePl")}
-                    aria-label={`${c.code} — nota PL`}
+                    aria-label={`${c.code} - ${t("adminTracker.notePl")}`}
                     onChange={(e) => setRow(c.code, { note_pl: e.target.value })}
                   />
                   <Input
                     value={row.note_en}
                     maxLength={500}
-                    placeholder="Note EN"
-                    aria-label={`${c.code} — note EN`}
+                    placeholder={t("adminTracker.noteEn")}
+                    aria-label={`${c.code} - ${t("adminTracker.noteEn")}`}
                     onChange={(e) => setRow(c.code, { note_en: e.target.value })}
                   />
                 </div>
@@ -807,10 +807,10 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
     >
       <div className="w-full max-w-lg space-y-3 rounded-lg bg-background p-5 shadow-lg">
         <h3 className="text-base font-semibold">{t("adminTracker.addUpdate")}</h3>
-        <Field label="Notatka PL">
+        <Field label={t("adminTracker.updateNotePl")}>
           <Textarea rows={2} value={notePl} onChange={(e) => setNotePl(e.target.value)} />
         </Field>
-        <Field label="Note EN">
+        <Field label={t("adminTracker.updateNoteEn")}>
           <Textarea rows={2} value={noteEn} onChange={(e) => setNoteEn(e.target.value)} />
         </Field>
         <Field label={t("adminTracker.stageChangeOptional")}>

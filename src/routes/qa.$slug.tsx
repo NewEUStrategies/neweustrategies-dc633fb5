@@ -3,7 +3,7 @@
 // 5/h, sanitizowany author_display - nigdy pełny e-mail, powiadomienie
 // hosta). Lista przez list_qa_questions: porządek priorytet Pro (flaga
 // qa_priority) > głosy > starszeństwo, licznik głosów w jednej podróży.
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -19,9 +19,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   askQaQuestion,
-  fetchPublicQaSessionBySlug,
-  fetchPublicQaQuestions,
   fetchQaSummaryPost,
+  publicQaQuestionsQueryOptions,
+  publicQaSessionQueryOptions,
+  type PublicQaSession,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
@@ -71,43 +72,66 @@ interface QaSessionHeadData {
 
 export const Route = createFileRoute("/qa/$slug")({
   component: QaDetail,
-  // Loader zwraca WYŁĄCZNIE stringi/liczby (serializowalne) i nigdy nie wywraca
-  // trasy - brak sesji / błąd backendu degraduje do brandowego fallbacku.
-  loader: async ({ params }): Promise<QaSessionHeadData | null> => {
+  // ── DWIE RÓŻNE PRAWDY, DWIE RÓŻNE ODPOWIEDZI ─────────────────────────────
+  // Loader ROZDZIELA „tej sesji nie ma" od „backend nie odpowiada":
+  //   * slug, którego nie ma w widocznym obszarze roboczym -> `notFound()`,
+  //     czyli HTTP 404. Wcześniej wychodziło stąd HTTP 200 z komunikatem
+  //     `community.common.loadError`, więc każdy literówkowy i każdy usunięty
+  //     adres zostawał w indeksie jako strona bez treści - nierozróżnialny
+  //     od awarii;
+  //   * awaria odczytu -> `null`, czyli HTTP 200 z brandowym fallbackiem.
+  //     404 przy blipie bazy WYPISAŁBY z indeksu działające sesje, więc ta
+  //     gałąź świadomie NIE jest 404 (ten sam błąd popełnia `programs.$slug`).
+  //
+  // Loader ZASIEWA też cache react-query TYMI SAMYMI `queryOptions`, których
+  // używa komponent (`publicQaSessionQueryOptions`,
+  // `publicQaQuestionsQueryOptions`). Wcześniej wołał fetchery WPROST, więc
+  // oba odczyty leciały drugi raz z przeglądarki po hydratacji - a to treść
+  // NAD ZGIĘCIEM (tytuł sesji, wprowadzenie, lista pytań). Wspólne
+  // `queryOptions` niosą też `staleTime`, bez którego zasiew jest
+  // przeterminowany w chwili hydratacji i refetch wraca po cichu.
+  loader: async ({ context, params }): Promise<QaSessionHeadData | null> => {
+    let session: PublicQaSession | null;
     try {
-      const session = await fetchPublicQaSessionBySlug(params.slug);
-      if (!session) return null;
-      let answered: QaSessionHeadQuestion[] = [];
-      try {
-        const questions = await fetchPublicQaQuestions(session.id);
-        answered = questions
-          .filter((q) => (q.answer_body ?? "").trim().length > 0)
-          .slice(0, 20)
-          .map((q) => ({
-            id: q.id,
-            body: q.body,
-            answer: q.answer_body,
-            authorName: q.is_anonymous ? null : q.author_display,
-            createdAt: q.created_at,
-            answeredAt: q.answered_at,
-            upvotes: q.votes,
-          }));
-      } catch {
-        /* markup Q&A jest opcjonalny - brak pytań nie może psuć trasy */
-      }
-      return {
-        titlePl: session.title_pl,
-        titleEn: session.title_en,
-        introPl: session.intro_pl,
-        introEn: session.intro_en,
-        openedAt: session.opens_at,
-        closedAt: session.closes_at,
-        answered,
-      };
+      session = await context.queryClient.ensureQueryData(publicQaSessionQueryOptions(params.slug));
     } catch {
       return null;
     }
+    if (!session) throw notFound();
+    // Stała, żeby domknięcie `queryFn` nie potrzebowało `!` - zawężenie
+    // z `if` nie przechodzi przez granicę funkcji przy zmiennej `let`.
+    const found = session;
+    let answered: QaSessionHeadQuestion[] = [];
+    try {
+      const questions = await context.queryClient.ensureQueryData(
+        publicQaQuestionsQueryOptions(found.id),
+      );
+      answered = questions
+        .filter((q) => (q.answer_body ?? "").trim().length > 0)
+        .slice(0, 20)
+        .map((q) => ({
+          id: q.id,
+          body: q.body,
+          answer: q.answer_body,
+          authorName: q.is_anonymous ? null : q.author_display,
+          createdAt: q.created_at,
+          answeredAt: q.answered_at,
+          upvotes: q.votes,
+        }));
+    } catch {
+      /* markup Q&A jest opcjonalny - brak pytań nie może psuć trasy */
+    }
+    return {
+      titlePl: found.title_pl,
+      titleEn: found.title_en,
+      introPl: found.intro_pl,
+      introEn: found.intro_en,
+      openedAt: found.opens_at,
+      closedAt: found.closes_at,
+      answered,
+    };
   },
+  notFoundComponent: () => <QaSessionNotFound />,
   head: ({ params, loaderData }) => {
     const url = getRequestUrl() || `/qa/${params.slug}`;
     const lang = activeLang(url);
@@ -166,6 +190,23 @@ export const Route = createFileRoute("/qa/$slug")({
   },
 });
 
+/**
+ * 404 sesji Q&A. Tekst idzie ze słownika community (ten sam, którego używa
+ * widok), więc odwiedzający `/en/qa/...` nie dostaje polskiego komunikatu.
+ */
+function QaSessionNotFound() {
+  ensureCommunityI18n();
+  const { t } = useTranslation();
+  return (
+    <div className="container mx-auto max-w-3xl px-4 py-12">
+      <p className="text-muted-foreground">{t("community.qa.sessionNotFound")}</p>
+      <Link to="/qa" className="mt-4 inline-block text-sm text-primary">
+        {t("community.qa.backToList")}
+      </Link>
+    </div>
+  );
+}
+
 function QaDetail() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureCommunityI18n();
@@ -177,15 +218,13 @@ function QaDetail() {
   const qc = useQueryClient();
 
   const sessionQ = useQuery({
-    queryKey: ["public-qa-session", slug],
-    queryFn: () => fetchPublicQaSessionBySlug(slug),
+    ...publicQaSessionQueryOptions(slug),
     enabled: modules.qa_enabled,
   });
 
   const sessionId = sessionQ.data?.id ?? null;
   const questionsQ = useQuery({
-    queryKey: ["public-qa-questions", sessionId],
-    queryFn: () => fetchPublicQaQuestions(sessionId!),
+    ...publicQaQuestionsQueryOptions(sessionId ?? ""),
     enabled: !!sessionId,
   });
 

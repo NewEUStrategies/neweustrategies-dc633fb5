@@ -5495,6 +5495,224 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+
+        // ---------------------------------------------------------------
+        // MODUŁ 07 - kampania 2026-09-02, część I: powierzchnie crawlera.
+        //
+        // Sześć powierzchni, które CDN zapamiętuje na godziny, a katalogi
+        // (Apple Podcasts, Spotify, Google Discover) czytają jako stan
+        // faktyczny. Wszystkie szły z ZERA; po dopisaniu ich do kontraktu
+        // `routes/__tests__/feedRoutesDegradation.test.ts` (plik z 47 na 142
+        // testy) ZMIERZONE: 100% instrukcji, 100% linii, 100% funkcji,
+        // 93,57% gałęzi łącznie. Zlecenie żądało >= 90 / >= 90 / >= 80.
+        //
+        // Progi = zmierzone minus ~4 pp marginesu na dryf CI, ta sama reguła
+        // co w kronice progu globalnego. Gałęzie per plik, bo różnią się
+        // realnie: kanał programu scala trzy warstwy metadanych (program ->
+        // kanał -> marka), kanał sieciowy dwie, a tracker i feed programu
+        // badawczego całą mechanikę mają w modułach `lib/`.
+        // ---------------------------------------------------------------
+        "src/routes/podcast.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/podcasts.$show.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/routes/live_.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // Tracker i feed programu badawczego to CIENKIE trasy - cała
+        // mechanika siedzi w `lib/tracker/feed.server.ts` i
+        // `lib/seo/taxonomyFeed.server.ts`, więc same pliki tras nie mają
+        // ani jednej gałęzi. Próg na gałęziach zostaje mimo to, żeby
+        // dołożenie warunku do trasy nie weszło bez testu.
+        "src/routes/tracker.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/programs.$slug.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/web-stories.$slug.amp.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Jeden kontrakt TTL kanałów - wydzielony z pięciu kopii literału.
+        // Zmierzone 100/100/100/100; to czysta funkcja, więc próg jest
+        // wysoki i ma zostać wysoki.
+        "src/lib/seo/feedCache.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // ---------------------------------------------------------------
+        // MODUŁ 07 - kampania 2026-09-02, część II: warstwa danych
+        // podcastów, panele po ekstrakcji, eksperci i mapy.
+        //
+        // REGUŁA PROGÓW, zastosowana dosłownie: metryka zmierzona na 100%
+        // dostaje 98 (konwencja tego pliku dla powierzchni domkniętych),
+        // każda inna `floor(zmierzone - 4)` - ta sama reguła co w kronice
+        // progu globalnego. Wszystkie liczby ZMIERZONE reporterem v8 na tym
+        // HEAD, nie oszacowane.
+        //
+        // Pomiar był zawężony do testów dotykających tych plików, więc pełna
+        // suita może dać wartości WYŻSZE (nigdy niższe: pełny przebieg
+        // wykonuje nadzbiór kodu przebiegu zawężonego). Progi są więc
+        // bezpieczne z definicji.
+        // ---------------------------------------------------------------
+
+        // Warstwa danych i czyste reguły - zmierzone 100% linii i funkcji.
+        // Gałęzie niżej, bo obie warstwy mają zapasy `?? ""` wymagane
+        // typem (schemat zod dopuszcza null), których kaskada nigdy nie
+        // wykonuje - patrz `__tests__/PodcastPaneHandlers.test.tsx`.
+        "src/lib/podcast/applePodcast.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/podcast/queries.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        "src/lib/podcast/shape.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/podcast/types.ts": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+
+        // Komponenty panelu podcastów. Pięć z siedmiu powstało przy
+        // ekstrakcji trasy `admin.podcasts.tsx` (2072 -> 170 linii), więc bez
+        // tych progów każdy z nich mógłby cicho wrócić do zera.
+        "src/components/admin/podcasts/ApplePodcastMetaFields.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/podcasts/PodcastFeedReadinessCard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/podcasts/PodcastStatCard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Odznaka statusu nie ma ANI JEDNEJ gałęzi (mapa wartość -> wygląd),
+        // a v8 raportuje dla 0/0 sto procent. Próg na gałęziach zostaje
+        // mimo to, żeby dołożenie warunku nie weszło bez testu.
+        "src/components/admin/podcasts/PodcastStatusBadge.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/components/admin/podcasts/EpisodesListPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        "src/components/admin/podcasts/EpisodeLayerEditors.tsx": {
+          statements: 93,
+          functions: 92,
+          lines: 92,
+          branches: 89,
+        },
+        "src/components/admin/podcasts/PodcastShowsPane.tsx": {
+          statements: 93,
+          functions: 92,
+          lines: 93,
+          branches: 83,
+        },
+        // GAŁĘZIE 57, i to NIE jest bramka wyłączona (rozdz. 6.1 audytu),
+        // tylko próg pod SUFIT STRUKTURALNY. Ten panel ma ~15 gałęzi
+        // `merged.X ?? ""`, które są runtime NIEOSIĄGALNE, bo
+        // `mergePodcastSettings` domyka każde z tych pól na `""` - a usunąć
+        // ich nie wolno, bo `PodcastSettings` pochodzi ze schematu zod,
+        // gdzie pola są `nullable().optional()`. Zmierzone 61,90% gałęzi przy
+        // 100% instrukcji, linii i funkcji. Domknięcie wymaga zawężenia typu
+        // ZWRACANEGO przez `mergePodcastSettings`, czyli zmiany kontraktu
+        // publicznego - osobna praca, nie doklejka do kampanii testowej.
+        "src/components/admin/podcasts/PodcastSettingsPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 57,
+        },
+        // Najgrubszy z paneli (edytor odcinka z czterema warstwami, obsadą
+        // i wykrywaniem czasu trwania z pliku audio). Zmierzone 93,24% linii
+        // / 88,10% funkcji po dołożeniu testu atrapy `Audio`.
+        "src/components/admin/podcasts/EpisodeEditorPane.tsx": {
+          statements: 88,
+          functions: 84,
+          lines: 89,
+          branches: 88,
+        },
+
+        // Trasa po ekstrakcji - POWŁOKA. Zlecenie żądało >= 50 / 45 / 40;
+        // zmierzone 89,29% linii / 75% funkcji / 81,82% gałęzi.
+        "src/routes/admin.podcasts.tsx": {
+          statements: 85,
+          functions: 71,
+          lines: 85,
+          branches: 77,
+        },
+
+        // Trzy pliki, które audyt wydania 8 wskazał jako JEDYNE poniżej 100%
+        // w warstwie bibliotecznej modułu (obok dwóch zer, które zamknął N6).
+        // ExpertPicker szedł z 41,4% linii i 4/15 funkcji, WorldMap z 85,7%
+        // i 12/19, worldMapGeo z 94,7%. Wszystkie trzy zmierzone na 100%
+        // linii i 100% funkcji.
+        "src/components/admin/experts/ExpertPicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/maps/WorldMap.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/maps/worldMapGeo.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
       },
     },
   },

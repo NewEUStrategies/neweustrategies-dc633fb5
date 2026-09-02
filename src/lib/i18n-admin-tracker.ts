@@ -8,7 +8,7 @@
 // w świat. Bramka parytetu nie miała czego z czym porównać.
 import i18n from "./i18n";
 
-const pl = {
+export const adminTrackerPl = {
   adminTracker: {
     tickComplete_one: "Tick uruchomiony. Wysłano {{count}} powiadomienie.",
     tickComplete_few: "Tick uruchomiony. Wysłano {{count}} powiadomienia.",
@@ -22,6 +22,13 @@ const pl = {
     runTickNow: "Uruchom tick teraz",
     newDossier: "Nowe dossier",
     editDossier: "Edycja dossier",
+    titlePl: "Tytuł PL",
+    titleEn: "Tytuł EN",
+    summaryPl: "Opis PL",
+    summaryEn: "Opis EN",
+    updateNotePl: "Notatka PL",
+    updateNoteEn: "Notatka EN",
+    noteEn: "Nota EN",
     reference: "Referencja",
     area: "Obszar",
     stage: "Etap",
@@ -48,7 +55,7 @@ const pl = {
       "Wiersz bez stanowiska nie jest publikowany. Nota jest opcjonalna (max 500 znaków).",
     loading: "Wczytywanie...",
     stance: "stanowisko",
-    none: "— brak —",
+    none: "- brak -",
     notePl: "Nota PL",
     savePositions: "Zapisz stanowiska",
     relatedFiles: "Powiązane akty",
@@ -60,15 +67,15 @@ const pl = {
     addLink: "Dodaj powiązanie",
     close: "Zamknij",
     updatePublishedFollowersWereNotified:
-      "Aktualizacja opublikowana — obserwujący dostali powiadomienie",
+      "Aktualizacja opublikowana - obserwujący dostali powiadomienie",
     addUpdate: "Dodaj aktualizację",
     stageChangeOptional: "Zmiana etapu (opcjonalnie)",
-    stageChange: "— bez zmiany etapu —",
+    stageChange: "- bez zmiany etapu -",
     publish: "Opublikuj",
   },
 };
 
-const en = {
+export const adminTrackerEn = {
   adminTracker: {
     tickComplete_one: "Tick complete. {{count}} notification sent.",
     tickComplete_other: "Tick complete. {{count}} notifications sent.",
@@ -80,6 +87,13 @@ const en = {
     runTickNow: "Run tick now",
     newDossier: "New dossier",
     editDossier: "Edit dossier",
+    titlePl: "Title PL",
+    titleEn: "Title EN",
+    summaryPl: "Summary PL",
+    summaryEn: "Summary EN",
+    updateNotePl: "Note PL",
+    updateNoteEn: "Note EN",
+    noteEn: "Note EN",
     reference: "Reference",
     area: "Area",
     stage: "Stage",
@@ -106,7 +120,7 @@ const en = {
       "A row without a stance is not published. The note is optional (max 500 chars).",
     loading: "Loading...",
     stance: "stance",
-    none: "— none —",
+    none: "- none -",
     notePl: "Note PL",
     savePositions: "Save positions",
     relatedFiles: "Related files",
@@ -117,16 +131,16 @@ const en = {
     relation: "Relation",
     addLink: "Add link",
     close: "Close",
-    updatePublishedFollowersWereNotified: "Update published — followers were notified",
+    updatePublishedFollowersWereNotified: "Update published - followers were notified",
     addUpdate: "Add update",
     stageChangeOptional: "Stage change (optional)",
-    stageChange: "— no stage change —",
+    stageChange: "- no stage change -",
     publish: "Publish",
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
+i18n.addResourceBundle("pl", "translation", adminTrackerPl, true, true);
+i18n.addResourceBundle("en", "translation", adminTrackerEn, true, true);
 
 /**
  * No-op wołany w KOMPONENCIE trasy (nie side-effectowym importem w pliku
