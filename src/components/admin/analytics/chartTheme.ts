@@ -353,6 +353,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * rzecz panelu - bez wchodzenia w środek.
  */
 function deepMergeSection(base: unknown, override: unknown): unknown {
+  if (Array.isArray(base) && Array.isArray(override)) {
+    const scalone: unknown[] = [...base];
+    override.forEach((item, i) => {
+      scalone[i] = deepMergeSection(base[i], item);
+    });
+    return scalone;
+  }
   if (!isPlainObject(base) || !isPlainObject(override)) return override;
   const out: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(override)) {
