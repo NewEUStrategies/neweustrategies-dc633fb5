@@ -9,6 +9,7 @@ import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_NAME } from "@/lib/seo/meta";
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
+import { rssResponseHeaders } from "@/lib/seo/feedCache";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import {
   fetchPublishedPostsByTaxonomy,
@@ -85,10 +86,8 @@ export async function taxonomyFeedResponse(
     items,
   });
 
-  return new Response(xml, {
-    headers: {
-      "Content-Type": "application/rss+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
-    },
-  });
+  // Taksonomia ISTNIEJE (inaczej wyszliśmy 404 wyżej), ale może nie mieć ani
+  // jednego opublikowanego wpisu - albo czytnik wpisów zdegradował do pustki.
+  // Krótki TTL dla kanału pustego, patrz `feedCache.ts`.
+  return new Response(xml, { headers: rssResponseHeaders(items.length) });
 }
