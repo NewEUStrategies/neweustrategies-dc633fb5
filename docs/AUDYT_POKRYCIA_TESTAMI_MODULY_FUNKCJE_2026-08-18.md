@@ -4006,3 +4006,18 @@ obniżony, snapshot autoryzacji nie był regenerowany.
 6. **Dwa sufity gałęzi opisane, nie obejście**: `threadDynamics.ts` 84,91% i
    `threadWorkspaceTypes.ts` 96,77% - zapasy `?? …` wymuszone przez `noUncheckedIndexedAccess`
    na indeksach udowodnionych w sąsiednim kodzie. Nie zostały dobite rzutowaniem.
+7. **`check:bundle` PADA - i pada tak samo bez tej pracy.** Bramka zgłasza
+   `overall total 4321,7 KB > 4306 KB`. Zmierzyłem ją w ZAMROŻONYM worktree na commicie
+   bazowym (`5b5b52f`), po pełnym buildzie: tam wynosi **4321,4 KB** i pada z tym samym
+   komunikatem. Cały diff tej kampanii dokłada więc **0,3 KB gzip**, a budżet był przekroczony
+   o 15,4 KB, zanim ta praca się zaczęła. Powód widać w liście ruchów samej bramki i nie ma
+   związku z modułem 16: `i18n` +129,1 KB, nowy `EventStudioModuleSections` +65,5 KB, nowy
+   `useEventSessions` +31,1 KB, `vendor` +39,8 KB - wszystko wobec baseline'u z 2026-08-15,
+   który bramka sama opisuje jako pisany starą konwencją wiader. Podniesienie budżetu ani
+   przepisanie baseline'u NIE należy do tej kampanii: to jedna z trzech zmian produkcyjnych
+   w całym diffie (49 dodanych linii w trzech plikach) i żadna z nich nie dotyka grafu chunków.
+   Pozostałe bramki buildowe przechodzą: `check:chunks`, `check:entry-purity`,
+   `check:chunk-parity`.
+8. **Dwie bramki nieuruchamialne w tym środowisku**, obie z braku dostępu do bazy, nie z powodu
+   tej pracy: `check:db-contract` i `check:migration-ledger` kończą się „Brak SUPABASE_URL /
+   klucza Supabase". Zmierzone identycznie na commicie bazowym.
