@@ -368,25 +368,25 @@ describe("cache tokenu Service Accountu (granica exp - 60 s)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it.fails(
-    "wymiana bez pola access_token nie może oddać { token: undefined } udającego string",
-    async () => {
-      // DEFEKT. Odpowiedź jest rzutowana (`as { access_token: string }`) bez
-      // walidacji, więc brak pola daje `{ token: undefined, source: "sa" }` -
-      // obiekt PRAWDZIWY, który przechodzi bramkę `if (!auth)` u wołającego
-      // (`ga4.functions.ts`, `snapshot.functions.ts`) i kończy się nagłówkiem
-      // „Bearer undefined" wysłanym do płatnego API. Kontrakt sygnatury
-      // (`Promise<{ token: string } | null>`) jest tu złamany w czasie
-      // wykonania: albo token, albo `null` - trzeciej opcji nie ma.
-      vi.stubEnv("GA4_SERVICE_ACCOUNT_JSON", saPoprawny());
-      zawsze(() => odpowiedz(200, JSON.stringify({ expires_in: 3600 })));
-      const { resolveGa4AccessToken } = await loadGa4();
+  it("wymiana bez pola access_token nie oddaje { token: undefined } udającego string", async () => {
+    // PILNUJE dwuwartościowego kontraktu resolwera. Odpowiedź tokenowa jest
+    // walidowana, a nie rzutowana na `{ access_token: string }`: bez tej
+    // bramki brak pola dawał `{ token: undefined, source: "sa" }` - obiekt
+    // PRAWDZIWY, który przechodzi bramkę `if (!auth)` u wołającego
+    // (`ga4.functions.ts`, `snapshot.functions.ts`) i kończy się nagłówkiem
+    // „Bearer undefined" wysłanym do płatnego API. Sygnatura
+    // (`Promise<{ token: string } | null>`) obowiązuje więc także w czasie
+    // wykonania: albo token, albo `null` - trzeciej opcji nie ma.
+    vi.stubEnv("GA4_SERVICE_ACCOUNT_JSON", saPoprawny());
+    zawsze(() => odpowiedz(200, JSON.stringify({ expires_in: 3600 })));
+    const { resolveGa4AccessToken } = await loadGa4();
 
-      const auth = await resolveGa4AccessToken();
+    const auth = await resolveGa4AccessToken();
 
-      expect(auth === null || typeof auth.token === "string").toBe(true);
-    },
-  );
+    expect(auth === null || typeof auth.token === "string").toBe(true);
+    // Domknięcie: brak tokenu to `null`, a nie obiekt z pustym polem.
+    expect(auth).toBeNull();
+  });
 
   it("nieudana wymiana rzuca z kodem statusu, a komunikat NIE niesie podpisanego JWT", async () => {
     vi.stubEnv("GA4_SERVICE_ACCOUNT_JSON", saPoprawny());
@@ -575,26 +575,25 @@ describe("resolveGa4PropertyId - sekret kontra ustawienie workspace'u", () => {
     expect(workspaceA).not.toBe(workspaceB);
   });
 
-  it.fails(
-    "pusty sekret GA4_PROPERTY_ID musi znaczyć BRAK sekretu, a nie property o pustej nazwie",
-    async () => {
-      // DEFEKT. `process.env.GA4_PROPERTY_ID ?? (stored?.trim() || undefined)`
-      // używa `??`, które łapie tylko null/undefined - a pusta zmienna
-      // środowiskowa to PUSTY STRING. Skutek: deklaracja `GA4_PROPERTY_ID=`
-      // w .env / w sekretach CI (albo sekret wyczyszczony bez usunięcia klucza)
-      // oddaje `""`, więc `if (!propertyId) return EMPTY_GA4_REPORT`
-      // w `ga4.functions.ts` raportuje „GA4 nieskonfigurowane" KAŻDEMU
-      // workspace'owi, który ma poprawne property w bazie. Funkcja sama
-      // pokazuje intencję po drugiej stronie wyrażenia (`trim() || undefined`
-      // traktuje pusty wpis jak brak), a siostrzany kod w tym samym module
-      // (`ga4.functions.ts`: GA4_MEASUREMENT_ID?.trim() || stored...) używa
-      // właśnie `||`. Ta asymetria jest błędem, nie decyzją.
-      vi.stubEnv("GA4_PROPERTY_ID", "");
-      const { resolveGa4PropertyId } = await loadGa4();
+  it("pusty sekret GA4_PROPERTY_ID znaczy BRAK sekretu, a nie property o pustej nazwie", async () => {
+    // PILNUJE granicy „pusty sekret to brak sekretu". Resolwer używa
+    // `env?.trim() || stored?.trim() || undefined`, a nie `??`, bo `??` łapie
+    // wyłącznie null/undefined - a pusta zmienna środowiskowa to PUSTY STRING.
+    // Z `??` deklaracja `GA4_PROPERTY_ID=` w .env / w sekretach CI (albo
+    // sekret wyczyszczony bez usunięcia klucza) oddawała `""`, więc
+    // `if (!propertyId) return EMPTY_GA4_REPORT` w `ga4.functions.ts`
+    // raportowało „GA4 nieskonfigurowane" KAŻDEMU workspace'owi z poprawnym
+    // property w bazie. Obie strony wyrażenia mówią teraz to samo, tak jak
+    // siostrzany kod modułu (`ga4.functions.ts`:
+    // `GA4_MEASUREMENT_ID?.trim() || stored...`).
+    vi.stubEnv("GA4_PROPERTY_ID", "");
+    const { resolveGa4PropertyId } = await loadGa4();
 
-      expect(resolveGa4PropertyId("222222222")).toBe("222222222");
-    },
-  );
+    expect(resolveGa4PropertyId("222222222")).toBe("222222222");
+    // Sekret z samych białych znaków to też brak sekretu.
+    vi.stubEnv("GA4_PROPERTY_ID", "   ");
+    expect(resolveGa4PropertyId("222222222")).toBe("222222222");
+  });
 });
 
 describe("runGa4DataApiReport - kształt żądania", () => {
@@ -867,31 +866,39 @@ describe("runGa4DataApiReport - mapowanie odpowiedzi", () => {
     expect(raport.error).toBe("workerd: subrequest limit");
   });
 
-  it.fails(
-    "raport błędu nie może współdzielić tablic z eksportowanym EMPTY_GA4_REPORT",
-    async () => {
-      // DEFEKT (utajony, ale wprost międzynajemcowy). `{ ...EMPTY_GA4_REPORT }`
-      // to płytka kopia: `rows`, `totals`, `dimensionHeaders` i `metricHeaders`
-      // każdego raportu błędu to TE SAME instancje tablic, co w module-scope'owej
-      // stałej - wspólnej dla całego izolatu workera, czyli dla wszystkich
-      // najemców. `Ga4Report.rows` jest publicznie typowane jako zwykła,
-      // mutowalna tablica, więc sortowanie wierszy pod wykres jest normalnym
-      // użyciem. `ga4.functions.ts` oddaje ponadto `EMPTY_GA4_REPORT` DOSŁOWNIE
-      // (`if (!propertyId) return EMPTY_GA4_REPORT`), więc mutacja u jednego
-      // wołającego jest widoczna u każdego następnego. Poniżej to samo w jednym
-      // przebiegu: workspace A dopisuje wiersz do swojego raportu, a widzi go
-      // workspace B.
-      zawsze(() => odpowiedz(503, "chwilowo niedostepne"));
-      const { runGa4DataApiReport, EMPTY_GA4_REPORT } = await loadGa4();
+  it("raport błędu nie współdzieli tablic z eksportowanym EMPTY_GA4_REPORT", async () => {
+    // PILNUJE izolacji najemców na poziomie instancji tablic - granica utajona,
+    // ale wprost międzynajemcowa. Raport-baza powstaje z `emptyGa4Report()`,
+    // czyli ze ŚWIEŻYCH tablic przy każdym wywołaniu, a nie z płytkiej kopii
+    // `{ ...EMPTY_GA4_REPORT }`, która dawała `rows`, `totals` i oba nagłówki
+    // KAŻDEGO raportu błędu jako TE SAME instancje ze stałej modułowej -
+    // wspólnej dla całego izolatu workera, czyli dla wszystkich najemców.
+    // `Ga4Report.rows` jest publicznie typowane jako zwykła, mutowalna
+    // tablica, więc sortowanie wierszy pod wykres jest normalnym użyciem.
+    // `ga4.functions.ts` oddaje ponadto `EMPTY_GA4_REPORT` DOSŁOWNIE
+    // (`if (!propertyId) return EMPTY_GA4_REPORT`), a `snapshot.functions.ts`
+    // podstawia tę samą instancję dwa razy - dlatego sama stała jest dziś
+    // zamrożona GŁĘBOKO i mutacja pada w miejscu błędu, zamiast wyciekać.
+    // Poniżej cała droga w jednym przebiegu: workspace A dopisuje wiersz do
+    // swojego raportu, a workspace B ma go nie widzieć.
+    zawsze(() => odpowiedz(503, "chwilowo niedostepne"));
+    const { runGa4DataApiReport, EMPTY_GA4_REPORT } = await loadGa4();
 
-      const a = await runGa4DataApiReport({ ...REQ, propertyId: "100000001" }, "token-a");
-      a.rows.push({ dims: ["wiersz workspace'u A"], metrics: ["1"] });
-      const b = await runGa4DataApiReport({ ...REQ, propertyId: "100000002" }, "token-b");
+    const a = await runGa4DataApiReport({ ...REQ, propertyId: "100000001" }, "token-a");
+    a.rows.push({ dims: ["wiersz workspace'u A"], metrics: ["1"] });
+    const b = await runGa4DataApiReport({ ...REQ, propertyId: "100000002" }, "token-b");
 
-      expect(b.rows).toEqual([]);
-      expect(EMPTY_GA4_REPORT.rows).toEqual([]);
-    },
-  );
+    expect(b.rows).toEqual([]);
+    expect(EMPTY_GA4_REPORT.rows).toEqual([]);
+    // Żadna z czterech tablic raportu błędu nie jest instancją ze stałej.
+    expect(a.rows).not.toBe(EMPTY_GA4_REPORT.rows);
+    expect(a.totals).not.toBe(EMPTY_GA4_REPORT.totals);
+    expect(a.dimensionHeaders).not.toBe(EMPTY_GA4_REPORT.dimensionHeaders);
+    expect(a.metricHeaders).not.toBe(EMPTY_GA4_REPORT.metricHeaders);
+    expect(b.rows).not.toBe(a.rows);
+    // Stała jest zamrożona wraz z tablicami - próba mutacji pada natychmiast.
+    expect(() => EMPTY_GA4_REPORT.rows.push({ dims: ["x"], metrics: ["1"] })).toThrow(TypeError);
+  });
 });
 
 describe("ga4TotalsMap", () => {

@@ -4,18 +4,18 @@
 // PO CO. Ten moduł jest JEDYNYM tłumaczem między semantycznymi tokenami CSS
 // projektu a ECharts, a tłumaczenie jest nieoczywiste w obie strony:
 //
-//  1. FORMAT TOKENU. `readVar` przepuszcza wartość bez zmian tylko wtedy, gdy
-//     zaczyna się od `#`, `rgb` albo `hsl`; wszystko inne opakowuje w `hsl(...)`,
-//     bo shadcn zapisuje kolory jako gołe trójki HSL („221 83% 53%"). To jest
-//     heurystyka na napisie, nie parser - a klasą defektu, którą ten plik ma
-//     łapać, jest DOKŁADNIE napis, którego heurystyka nie zna: wtedy do ECharts
-//     idzie `hsl(<coś-co-nie-jest-trójką>)`, czyli kolor, którego przeglądarka
-//     nie umie odczytać, i wykres cicho maluje etykiety domyślną czernią. Nic
-//     nie rzuca, nic nie trafia do konsoli - regres jest niewidoczny inaczej niż
-//     przez asercję na wyniku `resolveChartTheme`. Poniżej jest przypadek
-//     `it.fails`, który pokazuje, że repo JUŻ w to wdepnęło (`src/styles.css`
-//     trzyma `--foreground`, `--border`, `--muted-foreground`, `--background`
-//     i `--primary` w `oklch(...)`).
+//  1. FORMAT TOKENU. `readVar` opakowuje w `hsl(...)` WYŁĄCZNIE gołą trójkę HSL
+//     („221 83% 53%" - zapis shadcn, który sam kolorem nie jest), a każdą inną
+//     niepustą wartość przepuszcza dosłownie. Rozpoznawanie idzie więc po
+//     wzorcu trójki, nie po liście dozwolonych prefiksów (`#`, `rgb`, `hsl`),
+//     bo lista prefiksów z natury zostaje o krok za CSS-em i każdy napis,
+//     którego nie zna, zamieniała w `hsl(<coś-co-nie-jest-trójką>)` - kolor,
+//     którego przeglądarka nie umie odczytać, a wykres cicho maluje etykiety
+//     domyślną czernią. Nic nie rzuca, nic nie trafia do konsoli - regres jest
+//     niewidoczny inaczej niż przez asercję na wyniku `resolveChartTheme`, i
+//     dlatego niżej stoją OBA kierunki naraz: trójka opakowana, `oklch(...)`
+//     przepuszczony (`src/styles.css` trzyma `--foreground`, `--border`,
+//     `--muted-foreground`, `--background` i `--primary` właśnie w OKLCH).
 //  2. GAŁĄŹ SSR. `chartThemeSnapshot` jest podpięty w `EChartClient` jako
 //     `getServerSnapshot` dla `useSyncExternalStore`, więc ten moduł JEST
 //     wykonywany w workerze Cloudflare, gdzie zakres modułu żyje dłużej niż
@@ -241,44 +241,44 @@ describe("readVar - rozpoznawanie formatu tokenu", () => {
     expect(theme.background).toBe("hsl(221 83% 53%)");
   });
 
-  it.fails(
-    "token oklch() - realny format --foreground w src/styles.css - przechodzi BEZ opakowania w hsl()",
-    async () => {
-      // DEFEKT, NIE HIPOTEZA. `src/styles.css` definiuje semantyczne tokeny tego
-      // projektu w OKLCH:
-      //   --foreground: oklch(0.18 0 0);   --muted-foreground: oklch(0.5 0 0);
-      //   --border:     oklch(0.9 0.005 80); --background: oklch(0.99 0.003 80);
-      //   --primary:    oklch(0.18 0 0);
-      // `readVar` zna tylko prefiksy `#`, `rgb` i `hsl`, więc każdy z nich
-      // wychodzi stąd jako `hsl(oklch(...))` - napis, który nie jest kolorem CSS
-      // w żadnej przeglądarce. Dotyczy to czterech z pięciu pól motywu
-      // niebędących paletą, czyli koloru tekstu, etykiet osi, siatki i tła
-      // dymka na KAŻDYM wykresie panelu /admin/analytics.
-      //
-      // Dlaczego nikt tego nie zgłosił: ECharts nie waliduje koloru, tylko
-      // oddaje go canvasowi, a canvas przy nieparsowalnym napisie zostaje przy
-      // poprzedniej wartości `fillStyle`. Awaria wygląda jak „etykiety są jakoś
-      // ciemne", nie jak błąd.
-      //
-      // Poprawka należy do produkcji (rozszerzyć rozpoznawanie o `oklch`/`lab`/
-      // `color(`/`var(` albo odwrócić warunek: opakowywać TYLKO napis wyglądający
-      // jak trójka), więc test jest tu jako przypinka.
-      const { resolveChartTheme } = await loadChartTheme();
-      setTokens({
-        "--foreground": "oklch(0.18 0 0)",
-        "--muted-foreground": "oklch(0.5 0 0)",
-        "--border": "oklch(0.9 0.005 80)",
-        "--background": "oklch(0.99 0.003 80)",
-      });
+  it("token oklch() - realny format --foreground w src/styles.css - przechodzi BEZ opakowania w hsl()", async () => {
+    // TO JEST FORMAT TEGO REPO, NIE HIPOTEZA. `src/styles.css` definiuje
+    // semantyczne tokeny projektu w OKLCH:
+    //   --foreground: oklch(0.18 0 0);   --muted-foreground: oklch(0.5 0 0);
+    //   --border:     oklch(0.9 0.005 80); --background: oklch(0.99 0.003 80);
+    //   --primary:    oklch(0.18 0 0);
+    // Dopóki `readVar` szło po liście prefiksów (`#`, `rgb`, `hsl`), każdy z
+    // nich wychodził stąd jako `hsl(oklch(...))` - napis, który nie jest
+    // kolorem CSS w żadnej przeglądarce - i dotyczyło to czterech z pięciu pól
+    // motywu niebędących paletą, czyli koloru tekstu, etykiet osi, siatki i
+    // tła dymka na KAŻDYM wykresie panelu /admin/analytics. Teraz warunek jest
+    // odwrócony: opakowywana jest tylko goła trójka, więc `oklch(...)` idzie
+    // dalej dosłownie.
+    //
+    // Ten przypadek pilnuje odwrócenia od strony, z której awaria była
+    // niewidoczna: ECharts nie waliduje koloru, tylko oddaje go canvasowi, a
+    // canvas przy nieparsowalnym napisie zostaje przy poprzedniej wartości
+    // `fillStyle`. Regres wyglądałby jak „etykiety są jakoś ciemne", nie jak
+    // błąd - żaden test renderu ani typy go nie złapią.
+    //
+    // Asercja jest DOSŁOWNA (identyczność z wartością tokenu), bo dowodem na
+    // brak opakowania jest tu wyłącznie znak w znak ten sam napis: warunek
+    // „nie zawiera `hsl(`" przeszedłby także dla wartości okrojonej.
+    const { resolveChartTheme } = await loadChartTheme();
+    setTokens({
+      "--foreground": "oklch(0.18 0 0)",
+      "--muted-foreground": "oklch(0.5 0 0)",
+      "--border": "oklch(0.9 0.005 80)",
+      "--background": "oklch(0.99 0.003 80)",
+    });
 
-      const theme = resolveChartTheme();
+    const theme = resolveChartTheme();
 
-      expect(theme.foreground).toBe("oklch(0.18 0 0)");
-      expect(theme.muted).toBe("oklch(0.5 0 0)");
-      expect(theme.border).toBe("oklch(0.9 0.005 80)");
-      expect(theme.background).toBe("oklch(0.99 0.003 80)");
-    },
-  );
+    expect(theme.foreground).toBe("oklch(0.18 0 0)");
+    expect(theme.muted).toBe("oklch(0.5 0 0)");
+    expect(theme.border).toBe("oklch(0.9 0.005 80)");
+    expect(theme.background).toBe("oklch(0.99 0.003 80)");
+  });
 });
 
 // ---------------------------------------------------------------------------

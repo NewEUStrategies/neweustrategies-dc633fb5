@@ -37,9 +37,20 @@ const CTR_BENCHMARK_BY_POS: Array<{ maxPos: number; expected: number }> = [
   { maxPos: Infinity, expected: 0.008 },
 ];
 
+/** Benchmark dla pozycji, której GSC nie zmierzył - ostatni, najgłębszy kubełek. */
+const CTR_BENCHMARK_DEEPEST = CTR_BENCHMARK_BY_POS[CTR_BENCHMARK_BY_POS.length - 1].expected;
+
+/**
+ * Oczekiwany CTR dla średniej pozycji. Pozycja GSC startuje od 1.0, więc
+ * wartość mniejsza (0 z okna bez wyświetleń) albo nieliczbowa (uszkodzony
+ * payload API) NIE jest miejscem w TOP 3 - to brak pomiaru. Taki przypadek
+ * dostaje najgłębszy, najniższy benchmark: inaczej pusty raport ogłaszałby
+ * lukę -18 pp i kazał przepisywać meta title stron, których w nim nie ma.
+ */
 function expectedCtr(pos: number): number {
+  if (!(pos >= 1)) return CTR_BENCHMARK_DEEPEST;
   const b = CTR_BENCHMARK_BY_POS.find((x) => pos <= x.maxPos);
-  return b?.expected ?? 0.008;
+  return b?.expected ?? CTR_BENCHMARK_DEEPEST;
 }
 
 export function buildGscInsights(p: Params): Insight[] {
@@ -127,9 +138,13 @@ export function buildGscInsights(p: Params): Insight[] {
     const sorted = dateRows
       .slice()
       .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+    // Obie połowy muszą obejmować TĘ SAMĄ liczbę dni, inaczej porównanie sum
+    // porównuje różne okna: przy nieparzystej liczbie dni krótsze H1 zawyża
+    // trend (albo ukrywa spadek) na serii, która nie drgnęła. Dzień środkowy
+    // nie należy więc do żadnej połowy - H1 to pierwsze `half` dni, H2 ostatnie.
     const half = Math.floor(sorted.length / 2);
     const early = sorted.slice(0, half).reduce((s, r) => s + r.clicks, 0);
-    const late = sorted.slice(half).reduce((s, r) => s + r.clicks, 0);
+    const late = sorted.slice(sorted.length - half).reduce((s, r) => s + r.clicks, 0);
     const trend = pctDelta(late, early);
     out.push({
       id: "trend",
@@ -237,18 +252,32 @@ export function buildGscInsights(p: Params): Insight[] {
     const desktopClicks = desktop?.clicks ?? 0;
     const mobileCtr = mobile && mobile.impressions ? mobile.ctr : 0;
     const desktopCtr = desktop && desktop.impressions ? desktop.ctr : 0;
+    // Luka jest ZNAKOWANA: dodatnia to przewaga desktopu, ujemna - mobile'a.
+    // Alarm i lista "gap" mówią wyłącznie o mobilnym snippecie, więc należą się
+    // tylko przewadze desktopu. Rozkład wolno nazwać równomiernym dopiero
+    // wtedy, gdy różnica jest poniżej progu W OBIE strony - przy przewadze
+    // mobile'a o 18 pp nie jest równomierny i tego zdania tu nie ma. Słownik
+    // (`i18n-admin-analytics.ts`) nie ma jeszcze noty o przewadze mobile'a,
+    // więc detal poprzestaje wtedy na obu zmierzonych CTR-ach, zamiast
+    // dopisywać do nich nieprawdę.
     const gap = desktopCtr - mobileCtr;
+    const desktopLeads = gap > 0.02;
+    const evenSpread = Math.abs(gap) <= 0.02;
     out.push({
       id: "devices",
       element: t(`${B}.devices.element`),
-      severity: gap > 0.02 ? "warn" : "info",
+      severity: desktopLeads ? "warn" : "info",
       title: t(`${B}.devices.title`, { mobile: mobileClicks, desktop: desktopClicks }),
       detail: t(`${B}.devices.detail`, {
         mctr: (mobileCtr * 100).toFixed(2),
         dctr: (desktopCtr * 100).toFixed(2),
-        note: gap > 0.02 ? t(`${B}.devices.noteGap`) : t(`${B}.devices.noteEven`),
-      }),
-      fixes: gap > 0.02 ? arr(`${B}.devices.fixesGap`) : arr(`${B}.devices.fixesEven`),
+        note: evenSpread
+          ? t(`${B}.devices.noteEven`)
+          : desktopLeads
+            ? t(`${B}.devices.noteGap`)
+            : "",
+      }).trim(),
+      fixes: desktopLeads ? arr(`${B}.devices.fixesGap`) : arr(`${B}.devices.fixesEven`),
     });
   }
 

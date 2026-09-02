@@ -125,16 +125,26 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
     const oauthRefreshOk = Boolean(process.env.GA4_OAUTH_REFRESH_TOKEN);
 
     // Measurement Protocol (send events) - fall back to stored measurement id.
+    // `||`, nie `??`: pusta zmienna środowiskowa to pusty string, a nie brak
+    // wartości. Z `??` deklaracja `GA4_MEASUREMENT_ID=` przesłaniałaby wpis
+    // najemcy i panel meldowałby „nieskonfigurowane", podczas gdy
+    // `sendGa4Event` (`GA4_MEASUREMENT_ID?.trim() || stored...`) nadawałby
+    // identyfikatorem z bazy - dwie funkcje modułu przeczyłyby sobie co do
+    // tej samej wartości.
     const measurementId =
-      process.env.GA4_MEASUREMENT_ID ?? (stored.ga4_measurement_id?.trim() || null);
+      process.env.GA4_MEASUREMENT_ID?.trim() || stored.ga4_measurement_id?.trim() || null;
     const apiSecretOk = Boolean(process.env.GA4_API_SECRET);
     const mpOk = Boolean(measurementId && apiSecretOk);
 
     // Embed (Looker Studio / iframe)
     const embedUrl = process.env.GA4_EMBED_URL ?? null;
 
-    // Property ID: env pierwsze, potem konfiguracja z bazy.
-    const propertyId = process.env.GA4_PROPERTY_ID ?? (stored.ga4_property_id?.trim() || null);
+    // Property ID: env pierwsze, potem konfiguracja z bazy. Znowu `||`:
+    // pusty sekret znaczy BRAK sekretu, a nie skasowanie property zapisanego
+    // przez najemcę - ta sama granica, co w `resolveGa4PropertyId`
+    // (`ga4.server.ts`), żeby status i odczyt raportów mówiły to samo.
+    const propertyId =
+      process.env.GA4_PROPERTY_ID?.trim() || stored.ga4_property_id?.trim() || null;
     const hasProperty = Boolean(propertyId);
 
     let activeMode: Ga4Mode = null;
