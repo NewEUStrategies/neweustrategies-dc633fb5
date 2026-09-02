@@ -340,6 +340,28 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     expect(tooltip.textStyle.color).toBe(THEME.foreground);
   });
 
+  it("baza NIE narzuca `tooltip.trigger` - to własność TYPU WYKRESU, nie motywu", async () => {
+    // Póki złączenie było płaskie, `trigger: "axis"` w bazie było niewidoczne:
+    // 26 z 27 opcji w repo podaje własny `tooltip` i wyrzucało je razem z całą
+    // sekcją. Po naprawie złączenia baza dowozi swoje pola TAM, GDZIE PANEL ICH
+    // NIE PODAŁ - a wtedy wyzwalacz osiowy trafiłby na treemapę
+    // (`VitalsBiDashboard.tsx:232`, `GscBiDashboard.tsx:410`), kalendarz
+    // (`GscBiDashboard.tsx:452`) i mapę cieplną (`RelatedPostsAnalytics.tsx:197`),
+    // których formattery czytają KSZTAŁT ELEMENTU (`raw as { name, value }`),
+    // podczas gdy przy wyzwalaczu osiowym ECharts podaje TABLICĘ punktów -
+    // dymek pokazałby „undefined". Radar (`Ga4BiDashboard.tsx:417`) nie
+    // pokazałby dymka wcale, bo nie ma osi kartezjańskiej.
+    const { baseOption } = await loadChartTheme();
+    const tooltip = (baseOption(THEME) as Record<string, unknown>).tooltip as Record<
+      string,
+      unknown
+    >;
+
+    expect("trigger" in tooltip).toBe(false);
+    // ...a KOLORY dymka baza wnosi dalej - to jest dokładnie jej robota.
+    expect(tooltip.backgroundColor).toBe(THEME.background);
+  });
+
   it("obie osie: linie i podziałka w kolorze ramki, etykiety w wyciszonym", async () => {
     const { baseOption } = await loadChartTheme();
     const option = baseOption(THEME) as Record<string, unknown>;
@@ -653,14 +675,14 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
       backgroundColor?: string;
       borderColor?: string;
       textStyle?: { color?: string };
-      trigger?: string;
+      borderWidth?: number;
       extraCssText?: string;
     };
 
     expect(tooltip.backgroundColor).toBe(THEME.background);
     expect(tooltip.borderColor).toBe(THEME.border);
     expect(tooltip.textStyle?.color).toBe(THEME.foreground);
-    expect(tooltip.trigger).toBe("axis");
+    expect(tooltip.borderWidth).toBe(1);
     expect(tooltip.extraCssText).toContain("border-radius");
   });
 

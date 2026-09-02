@@ -233,7 +233,31 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       right: 4,
     },
     tooltip: {
-      trigger: "axis",
+      // NIE MA TU `trigger` - i to jest decyzja, nie przeoczenie.
+      //
+      // Stało tu `trigger: "axis"` i przechodziło niezauważone WYŁĄCZNIE dzięki
+      // usterce płaskiego złączenia: panel, który podawał własny `tooltip`
+      // (26 z 27 opcji w repo), wyrzucał tę wartość razem z całą sekcją.
+      // Głębokie złączenie dowozi ją tam, gdzie panel jej nie podał - a to są
+      // dokładnie wykresy, dla których `trigger: "axis"` jest BŁĘDEM:
+      //
+      //   * `VitalsBiDashboard.tsx:232` (treemap), `GscBiDashboard.tsx:410`
+      //     (treemap), `GscBiDashboard.tsx:452` (kalendarz),
+      //     `RelatedPostsAnalytics.tsx:197` (mapa cieplna) - formattery tych
+      //     czterech dymków są napisane na KSZTAŁT ELEMENTU
+      //     (`raw as { name, value, data }`), a przy wyzwalaczu osiowym ECharts
+      //     podaje TABLICĘ punktów. Dymek pokazałby „undefined";
+      //   * `Ga4BiDashboard.tsx:417` (radar, `tooltip: {}`) - wyzwalacz osiowy
+      //     na wykresie bez osi kartezjańskiej nie pokazuje nic.
+      //
+      // `trigger` jest własnością TYPU WYKRESU, nie motywu, i nagłówek tego
+      // pliku mówi to wprost: baza ustawia PRYMITYWY (kolory, siatka, animacja,
+      // czcionka). Wykres, który chce dymka osiowego, deklaruje to u siebie -
+      // tak robi dziś 21 z 27 opcji. JEDYNY wykres w repo, który miał `tooltip`
+      // wyłącznie z bazy, to `ClientErrorsDashboard.tsx:91`; bez tej linii
+      // dostaje domyślny dymek elementu ECharts (wartość słupka po najechaniu),
+      // a wyzwalacz osiowy wraca tam jednym polem `tooltip: { trigger: "axis" }`
+      // w opcji panelu.
       backgroundColor: theme.background,
       borderColor: theme.border,
       borderWidth: 1,
