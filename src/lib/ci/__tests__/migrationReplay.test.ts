@@ -360,6 +360,97 @@ describe("inwariant bliźniaków treści", () => {
       report.twinLedgerDefects,
       "rejestr długu niespójny sam ze sobą - patrz validateTwinLedger",
     ).toEqual([]);
+    expect(
+      report.twinProvenanceGaps,
+      "kopia z pipeline'u bez nagłówka `-- BLIZNIAK TRESCI:` - patrz inwariant 5",
+    ).toEqual([]);
+  });
+});
+
+// INWARIANT 5. Inwarianty 3 i 4 domykają rejestr, ten domyka PLIK, na którym
+// ląduje człowiek datujący regresję: kopia pipeline'u ma NAJNOWSZĄ wersję
+// w katalogu, zero uzasadnienia (komentarze giną przy generowaniu) i myli
+// o kilka godzin. Nagłówek jest jedynym miejscem, do którego taki człowiek
+// trafia BEZ wiedzy, że istnieje rejestr długu.
+describe("inwariant proweniencji kopii (INWARIANT 5)", () => {
+  const twin = "CREATE TABLE IF NOT EXISTS public.x (id uuid PRIMARY KEY);";
+  const origin = "20260901000000_pisana_w_pr.sql";
+  const generated = "20260901120000_5b55b33f-269f-41a6-a28f-12765357a74e.sql";
+  const entry: KnownContentTwin = {
+    files: [origin, generated],
+    deployment: "PR #999",
+    appliedOn: "2026-09-01",
+    rationale: "obie wersje w `schema_migrations`, SQL idempotentny",
+  };
+  const analyze = (generatedSql: string, ledgerEntry: KnownContentTwin = entry) =>
+    analyzeMigrationReplay(
+      [origin, generated],
+      [
+        { file: origin, sql: twin },
+        { file: generated, sql: generatedSql },
+      ],
+      [ledgerEntry],
+    );
+
+  it("czerwieni parę, której kopia milczy o swoim oryginale", () => {
+    const report = analyze(twin);
+    expect(report.twinProvenanceGaps).toEqual([
+      { generated, origin, problem: "brak nagłówka `-- BLIZNIAK TRESCI:`" },
+    ]);
+    expect(migrationReplayFailed(report)).toBe(true);
+  });
+
+  it("przepuszcza kopię z nagłówkiem wskazującym plik z PR-a", () => {
+    const report = analyze(`-- BLIZNIAK TRESCI: ${origin}\n${twin}`);
+    expect(report.twinProvenanceGaps).toEqual([]);
+    expect(migrationReplayFailed(report)).toBe(false);
+  });
+
+  // Nagłówek wskazujący „jakiś" plik byłby ozdobnikiem: proweniencja ma wiązać
+  // DOKŁADNIE tę parę, inaczej przy dwóch wdrożeniach w jednym dniu wskaże cudzy
+  // oryginał i wyśle datującego regresję w jeszcze gorsze miejsce niż milczenie.
+  it("czerwieni nagłówek wskazujący plik spoza pary", () => {
+    const report = analyze("-- BLIZNIAK TRESCI: 20260101000000_cudzy.sql\n" + twin);
+    expect(report.twinProvenanceGaps[0].problem).toContain("20260101000000_cudzy.sql");
+    expect(migrationReplayFailed(report)).toBe(true);
+  });
+
+  // Ratchet po dacie: 53 pary sprzed linii zostają bez nagłówka, bo backfill
+  // komentarzy w zastosowanych migracjach to decyzja operatorska. Gdyby test tego
+  // nie pilnował, przesunięcie linii w przód przeszłoby niezauważone.
+  it("nie żąda nagłówka od pary sprzed linii ratchetu", () => {
+    const old = "20260101000000_stara_z_pr.sql";
+    const oldGenerated = "20260102000000_8eed6a02-fe17-4a5d-b379-e149b5617099.sql";
+    const report = analyzeMigrationReplay(
+      [old, oldGenerated],
+      [
+        { file: old, sql: twin },
+        { file: oldGenerated, sql: twin },
+      ],
+      [{ ...entry, files: [old, oldGenerated], appliedOn: "2026-01-02" }],
+    );
+    expect(report.twinProvenanceGaps).toEqual([]);
+    expect(migrationReplayFailed(report)).toBe(false);
+  });
+
+  it("raport mówi, którą linię dopisać i do którego pliku", () => {
+    const rendered = renderMigrationReplayReport(analyze(twin));
+    expect(rendered).toContain("-- BLIZNIAK TRESCI:");
+    expect(rendered).toContain(generated);
+    expect(rendered).toContain(`oryginał: ${origin}`);
+  });
+
+  // Bez tego inwariant 5 wskazywałby plik po cichu zgadniętą regułą nazw.
+  it("para bez rozstrzygalnej kopii jest wadą REJESTRU, nie cichym pominięciem", () => {
+    const a = "20260901000000_jedna_z_pr.sql";
+    const b = "20260901120000_druga_z_pr.sql";
+    const defects = validateTwinLedger([{ ...entry, files: [a, b] }]);
+    expect(defects.map((d) => d.problem).join(" ")).toContain("nie wskazuje kopii pipeline'u");
+  });
+
+  it("zielony raport odróżnia parę objętą ratchetem od pary sprzed linii", () => {
+    const rendered = renderMigrationReplayReport(analyze(`-- BLIZNIAK TRESCI: ${origin}\n${twin}`));
+    expect(rendered).toContain("[proweniencja w kopii]");
   });
 });
 

@@ -74,9 +74,51 @@
 // jest REKORDEM (`KnownContentTwin`), a `validateTwinLedger` sprawdza rejestr
 // tak samo bezlitośnie jak katalog migracji - z `appliedOn` konfrontowanym
 // z wersją późniejszego pliku pary.
+//
+// ── INWARIANT 5: kopia pipeline'u wskazuje na swój oryginał ─────────────────
+// Inwarianty 3 i 4 domykają REJESTR, ale nie plik, na którym ląduje człowiek.
+// Kopia z pipeline'u jest tą z NOWSZĄ wersją (patrz PR #312: oryginały mają
+// 20260831160000 i 20260831170000, kopie - 20260831214637 i 20260831215103),
+// a przy okazji generowania traci komentarze: para z PR #312 straciła 187 linii
+// komentarza (125 + 62), czyli CAŁE uzasadnienie: 215 -> 85 i 113 -> 51 linii. Kto dat regresję po katalogu albo
+// po wersji z `schema_migrations`, trafia więc na plik, który jest NAJNOWSZY,
+// ANONIMOWY i myli o 5 h 46 min - a wpis w rejestrze pomaga tylko temu, kto już
+// wie, że ma tam zajrzeć.
+//
+// Dlatego kopia musi nieść nagłówek `-- BLIZNIAK TRESCI: <plik oryginału>`.
+// Komentarz nie zmienia niczego, co migracja WYKONUJE (`normalizeSql` i tak go
+// odejmuje, więc para nadal grupuje się po tej samej treści), a niesie jedyną
+// rzecz, której z samej nazwy pliku wyczytać się nie da: gdzie leży uzasadnienie
+// i KIEDY zmiana naprawdę weszła.
+//
+// Zakres jest RATCHETEM po dacie (`TWIN_PROVENANCE_SINCE`): 53 pary sprzed
+// 2026-08-31 zostają bez nagłówka, bo backfill komentarzy w zastosowanych
+// migracjach to osobna decyzja operatorska, nie skutek uboczny naprawy jednego
+// wdrożenia. Linia może się przesuwać WYŁĄCZNIE wstecz - pokrycie tylko rośnie.
 
 /** `20260803090000_opis.sql` -> wersja + opis. */
 const FILE_RE = /^(\d{14})_(.+)\.sql$/;
+
+/**
+ * Nazwa nadana przez pipeline: `<wersja>_<uuid>.sql`. Pliki pisane w PR-ze mają
+ * opis słowny, pliki wygenerowane przez panel - UUID. To nie jest zgadywanka:
+ * reguła trzyma się na WSZYSTKICH 55 parach rejestru (dokładnie jeden człon
+ * każdej pary pasuje), a `validateTwinLedger` zgłasza wadę, gdy przestanie -
+ * zamiast po cichu wskazać zły plik.
+ */
+const GENERATED_FILE_RE =
+  /^\d{14}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.sql$/;
+
+/** Nagłówek proweniencji w kopii: `-- BLIZNIAK TRESCI: <plik oryginału>`. */
+const TWIN_PROVENANCE_RE = /^--\s*BLIZNIAK TRESCI:\s*(\S+\.sql)\s*$/m;
+
+/**
+ * Od tej daty (`appliedOn`) para musi nieść nagłówek proweniencji w kopii.
+ * Linia wolno przesuwać WYŁĄCZNIE wstecz: pokrycie inwariantu 5 może rosnąć,
+ * nigdy maleć. Data wdrożenia PR #312 - pierwszego, przy którym bramka tego
+ * zażądała.
+ */
+const TWIN_PROVENANCE_SINCE = "2026-08-31";
 
 /** Data z wersji pliku: `20260818061944_...sql` -> `2026-08-18`. */
 function versionDate(file: string): string | null {
@@ -89,6 +131,20 @@ function versionDate(file: string): string | null {
 /** Tożsamość pary: nazwy plików posortowane i sklejone `|`. */
 function twinKey(files: readonly string[]): string {
   return [...files].sort().join("|");
+}
+
+/**
+ * Który człon pary wyprodukował pipeline, a który przyszedł z PR-a. `null`, gdy
+ * konwencja nazw nie rozstrzyga (zero albo dwa człony z UUID-em) - wtedy
+ * inwariant 5 nie zgaduje, tylko oddaje sprawę `validateTwinLedger`.
+ */
+function splitTwinByOrigin(
+  files: readonly string[],
+): { readonly generated: string; readonly origin: string } | null {
+  const generated = files.filter((file) => GENERATED_FILE_RE.test(file));
+  if (generated.length !== 1) return null;
+  const origin = files.find((file) => file !== generated[0]);
+  return origin === undefined ? null : { generated: generated[0], origin };
 }
 
 /**
@@ -183,6 +239,15 @@ export function validateTwinLedger(entries: readonly KnownContentTwin[]): TwinLe
       if (expected !== null && expected !== entry.appliedOn) {
         report(
           `\`appliedOn\` (${entry.appliedOn}) rozjeżdża się z wersją \`${second}\` (${expected})`,
+        );
+      }
+      // Inwariant 5 musi WIEDZIEĆ, który plik jest kopią, zanim zażąda od niej
+      // nagłówka. Wiedza pochodzi z konwencji nazw, więc para, w której ta
+      // konwencja nie rozstrzyga, jest wadą REJESTRU - nie cichym pominięciem.
+      if (entry.appliedOn >= TWIN_PROVENANCE_SINCE && splitTwinByOrigin(entry.files) === null) {
+        report(
+          "konwencja nazw nie wskazuje kopii pipeline'u - dokładnie jeden człon pary " +
+            "ma nazwę `<wersja>_<uuid>.sql`, więc inwariant 5 nie ma czego sprawdzić",
         );
       }
     }
@@ -767,7 +832,7 @@ const KNOWN_CONTENT_TWINS: readonly KnownContentTwin[] = [
     deployment: "PR #312 / panel Lovable (commit 1759be2)",
     appliedOn: "2026-08-31",
     rationale:
-      "Izolacja najemcy w kanonicznej sciezce strony: `CREATE OR REPLACE FUNCTION public.page_full_path(uuid)` i `public.page_full_paths(uuid[])` z `GRANT EXECUTE`, dwa ograniczenia na `public.pages` (`pages_id_tenant_id_key`, `pages_parent_same_tenant_fkey`) oraz `COMMENT ON CONSTRAINT`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260831160000_page_full_path_tenant_scope.sql` -> `20260831214637`, czyli zapisuje, pod ktora wersja pipeline FAKTYCZNIE wykonal ten SQL - a `check:migration-ledger` sprawdza obecnosc wskazanej wersji w `schema_migrations` na wdrozonej bazie, wiec ten wpis nie jest adnotacja, tylko egzekwowana asercja. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `9df21f7097e4` po obu stronach pary. Panel zdjal z duplikatu 131 linii uzasadnienia (215 -> 84 linii), wiec plik z PR-a jest jedynym nosnikiem argumentu i to ON zostaje. Idempotentnosc ma konkretny mechanizm i nazywamy go wprost, bo NIE jest to `IF NOT EXISTS`: Postgres nie zna `ADD CONSTRAINT IF NOT EXISTS`, wiec oba `ADD CONSTRAINT` siedza w `DO $$ ... EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL; END $$` i drugi przebieg pochlania wyjatek. Jedyny zapis danych - `UPDATE public.pages SET parent_id = NULL` w bloku naprawczym - jest ZBIEZNY W SKUTKU, nie idempotentny z definicji: jego predykat (`p.tenant_id <> c.tenant_id` po zlaczeniu dziecko-rodzic) po pierwszym przebiegu nie ma juz czego wybrac, bo zalozone zaraz potem `pages_parent_same_tenant_fkey` czyni ten stan niereprezentowalnym. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
+      "Izolacja najemcy w kanonicznej sciezce strony: `CREATE OR REPLACE FUNCTION public.page_full_path(uuid)` i `public.page_full_paths(uuid[])` z `GRANT EXECUTE`, dwa ograniczenia na `public.pages` (`pages_id_tenant_id_key`, `pages_parent_same_tenant_fkey`) oraz `COMMENT ON CONSTRAINT`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260831160000_page_full_path_tenant_scope.sql` -> `20260831214637`, czyli zapisuje, pod ktora wersja pipeline FAKTYCZNIE wykonal ten SQL - a `check:migration-ledger` sprawdza obecnosc wskazanej wersji w `schema_migrations` na wdrozonej bazie, wiec ten wpis nie jest adnotacja, tylko egzekwowana asercja. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `9df21f7097e4` po obu stronach pary. Panel zdjal z duplikatu przy generowaniu WSZYSTKIE 125 linii komentarza (215 -> 85 linii), wiec plik z PR-a jest jedynym nosnikiem argumentu i to ON zostaje; kopia niesie dzis wylacznie naglowek proweniencji `-- BLIZNIAK TRESCI:` wymagany przez inwariant 5, ktory wskazuje na oryginal i prostuje datowanie. Idempotentnosc ma konkretny mechanizm i nazywamy go wprost, bo NIE jest to `IF NOT EXISTS`: Postgres nie zna `ADD CONSTRAINT IF NOT EXISTS`, wiec oba `ADD CONSTRAINT` siedza w `DO $$ ... EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL; END $$` i drugi przebieg pochlania wyjatek. Jedyny zapis danych - `UPDATE public.pages SET parent_id = NULL` w bloku naprawczym - jest ZBIEZNY W SKUTKU, nie idempotentny z definicji: jego predykat (`p.tenant_id <> c.tenant_id` po zlaczeniu dziecko-rodzic) po pierwszym przebiegu nie ma juz czego wybrac, bo zalozone zaraz potem `pages_parent_same_tenant_fkey` czyni ten stan niereprezentowalnym. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
   },
   {
     files: [
@@ -777,7 +842,7 @@ const KNOWN_CONTENT_TWINS: readonly KnownContentTwin[] = [
     deployment: "PR #312 / panel Lovable (commit 528abb5)",
     appliedOn: "2026-08-31",
     rationale:
-      "Zasieg najemcy na historii czytania plaszczyzny wlasciciela: `ALTER TABLE public.user_read_history ALTER COLUMN tenant_id SET DEFAULT COALESCE(public.current_tenant_id(), public.public_tenant_id())`, piec par `DROP POLICY IF EXISTS` + `CREATE POLICY` (cztery na `user_read_history` dla select/insert/update/delete, jedna na `personality_result_history`) i dwa `COMMENT ON TABLE`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260831170000_owner_plane_tenant_scope_read_history.sql` -> `20260831215103`, a `check:migration-ledger` sprawdza te wersje w `schema_migrations` na wdrozonej bazie. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `a90cb00acee0` po obu stronach pary. Panel zdjal z duplikatu 63 linie uzasadnienia (113 -> 50 linii). Idempotentnosc, INACZEJ NIZ W PARZE WYZEJ, nie wymaga zadnej furtki na wyjatek: to wylacznie operacje USTALAJACE STAN - `SET DEFAULT` nadpisuje wartosc domyslna, kazde `CREATE POLICY` jest poprzedzone `DROP POLICY IF EXISTS` o tej samej nazwie, a `COMMENT ON TABLE` podmienia opis. Migracja nie zapisuje ani jednego wiersza danych, wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
+      "Zasieg najemcy na historii czytania plaszczyzny wlasciciela: `ALTER TABLE public.user_read_history ALTER COLUMN tenant_id SET DEFAULT COALESCE(public.current_tenant_id(), public.public_tenant_id())`, piec par `DROP POLICY IF EXISTS` + `CREATE POLICY` (cztery na `user_read_history` dla select/insert/update/delete, jedna na `personality_result_history`) i dwa `COMMENT ON TABLE`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260831170000_owner_plane_tenant_scope_read_history.sql` -> `20260831215103`, a `check:migration-ledger` sprawdza te wersje w `schema_migrations` na wdrozonej bazie. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `a90cb00acee0` po obu stronach pary. Panel zdjal z duplikatu przy generowaniu WSZYSTKIE 62 linie komentarza (113 -> 51 linii); kopia niesie dzis wylacznie naglowek proweniencji `-- BLIZNIAK TRESCI:` wymagany przez inwariant 5, ktory wskazuje na oryginal i prostuje datowanie. Idempotentnosc, INACZEJ NIZ W PARZE WYZEJ, nie wymaga zadnej furtki na wyjatek: to wylacznie operacje USTALAJACE STAN - `SET DEFAULT` nadpisuje wartosc domyslna, kazde `CREATE POLICY` jest poprzedzone `DROP POLICY IF EXISTS` o tej samej nazwie, a `COMMENT ON TABLE` podmienia opis. Migracja nie zapisuje ani jednego wiersza danych, wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
   },
 ];
 
@@ -823,6 +888,8 @@ export interface MigrationReplayReport {
   readonly knownContentTwins: readonly KnownTwinSighting[];
   /** Wpisy rejestru, których już nie ma w repo - ratchet każe je usunąć. */
   readonly staleKnownTwins: readonly string[];
+  /** Kopie pipeline'u (od `TWIN_PROVENANCE_SINCE`) bez nagłówka proweniencji. */
+  readonly twinProvenanceGaps: readonly TwinProvenanceGap[];
   /** Wady SAMEGO rejestru długu (kolejność, duplikaty, brak decyzji, krzywa data). */
   readonly twinLedgerDefects: readonly TwinLedgerDefect[];
   /** `CREATE FUNCTION` (bez OR REPLACE) dla sygnatury utworzonej wcześniej. */
@@ -835,6 +902,20 @@ export interface KnownTwinSighting {
   readonly files: readonly string[];
   /** Wpis rejestru: wdrożenie, data domknięcia pary i decyzja operatora. */
   readonly entry: KnownContentTwin;
+}
+
+/**
+ * Kopia pipeline'u, która nie mówi, czyją jest kopią. Osobny typ zamiast samej
+ * nazwy pliku, bo raport ma podać DOKŁADNIE to zdanie, które trzeba dopisać -
+ * inaczej bramka zna odpowiedź i jej nie zdradza.
+ */
+export interface TwinProvenanceGap {
+  /** Plik wygenerowany przez pipeline - ten z nowszą wersją i bez uzasadnienia. */
+  readonly generated: string;
+  /** Plik z PR-a, który niesie treść merytoryczną i prawdziwą datę wejścia. */
+  readonly origin: string;
+  /** Co jest nie tak: brak nagłówka albo nagłówek wskazujący nie ten plik. */
+  readonly problem: string;
 }
 
 export interface RecreatedFunction {
@@ -987,6 +1068,48 @@ function findRecreatedFunctions(sources: readonly MigrationSource[]): RecreatedF
 }
 
 /**
+ * Inwariant 5: kopia pipeline'u wskazuje na swój oryginał.
+ *
+ * Sprawdzane WYŁĄCZNIE dla par faktycznie przyłapanych w tym przebiegu
+ * (`knownContentTwins`), więc analiza cząstkowa nie żąda nagłówka od pliku,
+ * którego w ogóle nie czytała. Nagłówek musi wskazywać DRUGI człon tej samej
+ * pary: wskazanie „jakiegoś" pliku byłoby ozdobnikiem, a nie proweniencją.
+ */
+function findTwinProvenanceGaps(
+  sightings: readonly KnownTwinSighting[],
+  sources: readonly MigrationSource[],
+): TwinProvenanceGap[] {
+  const sqlByFile = new Map(sources.map(({ file, sql }) => [file, sql]));
+  const gaps: TwinProvenanceGap[] = [];
+
+  for (const { files, entry } of sightings) {
+    if (entry.appliedOn < TWIN_PROVENANCE_SINCE) continue;
+    const split = splitTwinByOrigin(files);
+    // Para bez rozstrzygniętej kopii jest już zgłoszona jako wada rejestru -
+    // drugie zgłoszenie tego samego faktu tylko rozmywałoby raport.
+    if (split === null) continue;
+
+    const sql = sqlByFile.get(split.generated);
+    if (sql === undefined) continue;
+    const declared = TWIN_PROVENANCE_RE.exec(sql)?.[1];
+    if (declared === undefined) {
+      gaps.push({
+        generated: split.generated,
+        origin: split.origin,
+        problem: "brak nagłówka `-- BLIZNIAK TRESCI:`",
+      });
+    } else if (declared !== split.origin) {
+      gaps.push({
+        generated: split.generated,
+        origin: split.origin,
+        problem: `nagłówek wskazuje \`${declared}\`, a para wiąże go z \`${split.origin}\``,
+      });
+    }
+  }
+  return gaps.sort((a, b) => a.generated.localeCompare(b.generated));
+}
+
+/**
  * Czysta analiza migracji. `sources` jest opcjonalne: bez treści plików bramka
  * sprawdza tylko inwariant wersji (nazwy), co pozwala testować go w izolacji.
  *
@@ -1087,6 +1210,7 @@ export function analyzeMigrationReplay(
     contentTwins,
     knownContentTwins,
     staleKnownTwins,
+    twinProvenanceGaps: findTwinProvenanceGaps(knownContentTwins, sources),
     twinLedgerDefects: validateTwinLedger(ledger),
     recreatedFunctions: findRecreatedFunctions(sources),
   };
@@ -1103,6 +1227,10 @@ export function migrationReplayFailed(report: MigrationReplayReport): boolean {
     // lista długu rosłaby w nieskończoność, zamiast maleć.
     report.contentTwins.length > 0 ||
     report.staleKnownTwins.length > 0 ||
+    // Kopia bez nagłówka proweniencji jest właśnie tym kosztem, który inwariant
+    // 3 nazywa, a którego dotąd nikt nie egzekwował: plik z NAJNOWSZĄ wersją
+    // milczy o tym, że nic nie wnosi i że zmiana weszła wcześniej.
+    report.twinProvenanceGaps.length > 0 ||
     // Rejestr, który sam siebie nie trzyma w ryzach, przestaje być rejestrem -
     // i wtedy dwa punkty wyżej mierzą już tylko własny szum.
     report.twinLedgerDefects.length > 0 ||
@@ -1190,6 +1318,26 @@ export function renderMigrationReplayReport(report: MigrationReplayReport): stri
     );
   }
 
+  if (report.twinProvenanceGaps.length > 0) {
+    lines.push("✗ Kopia z pipeline'u nie mówi, czyją jest kopią (nagłówek proweniencji):");
+    for (const { generated, origin, problem } of report.twinProvenanceGaps) {
+      lines.push(`    - ${generated}`);
+      lines.push(`        ${problem}`);
+      lines.push(`        oryginał: ${origin}`);
+    }
+    lines.push(
+      "  Ten plik ma NAJNOWSZĄ wersję w katalogu i zero uzasadnienia, bo pipeline",
+      "  zdjął komentarze przy generowaniu. Kto datuje regresję po wersji migracji -",
+      '  a przy commitach „Changes" to jedyne narzędzie, jakie zostaje - dostaje',
+      "  chwilę ZASTOSOWANIA zamiast chwili WEJŚCIA zmiany.",
+      "  Napraw: dopisz na początku kopii linię",
+      "    -- BLIZNIAK TRESCI: <plik oryginału>",
+      "  a pod nią, czym plik jest i gdzie leży uzasadnienie. Komentarz nie zmienia",
+      "  niczego, co migracja wykonuje - `normalizeSql` i tak go odejmuje, więc para",
+      "  nadal grupuje się po tej samej treści.",
+    );
+  }
+
   if (report.twinLedgerDefects.length > 0) {
     lines.push("✗ Rejestr KNOWN_CONTENT_TWINS jest niespójny sam ze sobą:");
     for (const { entry, problem } of report.twinLedgerDefects) {
@@ -1214,7 +1362,13 @@ export function renderMigrationReplayReport(report: MigrationReplayReport): stri
         `zero niezabezpieczonych zapisów do storage.objects${debt}).`,
     );
     for (const { files, entry } of report.knownContentTwins) {
-      lines.push(`    dług: ${entry.deployment} (${entry.appliedOn}) ${files.join(" ≡ ")}`);
+      // Znacznik pokazuje, gdzie stoi ratchet inwariantu 5. Bez niego zielony
+      // raport nie odróżniałby pary z domkniętą proweniencją od pary sprzed
+      // linii - a wtedy nie widać, czy pokrycie w ogóle rośnie.
+      const provenance = entry.appliedOn >= TWIN_PROVENANCE_SINCE ? " [proweniencja w kopii]" : "";
+      lines.push(
+        `    dług: ${entry.deployment} (${entry.appliedOn}) ${files.join(" ≡ ")}${provenance}`,
+      );
     }
   }
   return lines.join("\n");
