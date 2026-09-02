@@ -773,7 +773,7 @@ describe("pulpit społeczności - kolejka zgłoszeń użytkowników", () => {
         reporter_name: "Cezary Fikcyjny",
         reported_name: "Dorota Nieistniejąca",
         reason: "harassment",
-        details: null,
+        details: undefined,
       }),
     ];
     await mountOverview();

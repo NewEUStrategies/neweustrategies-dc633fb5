@@ -79,8 +79,6 @@ const spec = asServerFn(embedClubQuery);
 const USER_ID = "11111111-2222-4333-8444-555555555555";
 const OTHER_USER_ID = "99999999-8888-4777-8666-555555555555";
 
-const CONTEXT = { supabase: null, userId: USER_ID };
-
 /** Wektor bramki. Wartości bez znaczenia - liczy się tożsamość obiektu. */
 const vector = (seed = 0.1): number[] => Array.from({ length: 8 }, (_, i) => seed + i / 100);
 

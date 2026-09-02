@@ -238,6 +238,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 // `react-i18next` NIE JEST atrapowany - napisy mają pochodzić ze słownika
 // `@/lib/i18n-admin-community` (rejestruje się przy imporcie modułów tras).
 import { realT } from "@/test/i18nReal";
+import type { AnyRoute } from "@tanstack/react-router";
 import { renderRoute, routeHead } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import { badgeLabel } from "@/lib/profile/badgeCatalog";
@@ -251,7 +252,11 @@ function testClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
-async function mount(route: typeof BadgesRoute, path: string, queryClient?: QueryClient) {
+// Trzy trasy tego pliku mają RÓŻNE literały `path` w typie, więc `typeof BadgesRoute`
+// zawęziłby parametr do `"/badges"` i dwa pozostałe wywołania nie skompilowałyby się.
+// `AnyRoute` to ten sam typ, którego przyjmuje `renderRoute` w harnessie - zawężenie
+// idzie przez niego, nie przez rzutowanie.
+async function mount(route: AnyRoute, path: string, queryClient?: QueryClient) {
   return renderRoute({
     route,
     path,
