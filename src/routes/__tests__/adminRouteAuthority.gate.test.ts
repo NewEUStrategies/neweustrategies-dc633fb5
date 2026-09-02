@@ -912,3 +912,132 @@ describe("panel newslettera - autorytet dostępu", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// PANEL SPOŁECZNOŚCI POZA KLUBAMI
+// rozszerzenie zakresu bramki (2026-09-02, moduł 16)
+// ---------------------------------------------------------------------------
+//
+// PO CO. Bramka widziała z modułu społeczności WYŁĄCZNIE podrodzinę
+// `admin.community.clubs.*` (sześć tras, sekcja „panel klubów - autorytet
+// dostępu" wyżej). Pozostałe DZIESIĘĆ tras panelu społeczności - w tym
+// `admin.community.qa.tsx`, przez które przechodzi moderacja pytań
+// publiczności i PUBLIKACJA podsumowania sesji jako treści - nie było na
+// żadnej z list tego pliku: ani na `CLUB_ROUTES`, ani na `NEWSLETTER_ROUTES`,
+// ani na `MODULE19_ROUTES`. Skutek: gdyby ktoś dołożył tam własny warunek
+// roli albo zbudował zapytanie do Supabase z pominięciem warstwy `lib/`,
+// bramka by tego nie zauważyła.
+//
+// DLACZEGO REGUŁA JEST TU INNA NIŻ DLA KLUBÓW. Struktura klubów jest domeną
+// wyłącznie admina, więc TAM każda trasa MUSI sprawdzać `isAdmin` sama.
+// Społecznością (Q&A, ankiety, czat, odznaki, powiadomienia) zarządza CAŁA
+// redakcja - `isStaff` z layoutu `/admin` jest tu bramką właściwą, a własny
+// warunek roli w trasie byłby defektem w drugą stronę: panel odmawiałby
+// czegoś, do czego RLS i tak dopuszcza (polityki `qa sessions staff all`,
+// `qa questions staff read` wymieniają `admin` ORAZ `editor`, a dodatkowo
+// przepuszczają gospodarza sesji).
+//
+// STAN i SKLEJENIE tych tras pokrywają osobne pliki
+// (`adminCommunityQaRoute.test.tsx`, `adminCommunityChatRoute.test.tsx`,
+// `adminCommunityNotificationsRoute.test.tsx`). Tutaj - wyłącznie AUTORYTET.
+
+/** Rodzina `admin.community.*` BEZ podrodziny klubów (ta ma sekcję wyżej). */
+const COMMUNITY_ROUTES = [
+  "admin.community.tsx",
+  "admin.community.index.tsx",
+  "admin.community.qa.tsx",
+  "admin.community.polls.tsx",
+  "admin.community.events.tsx",
+  "admin.community.chat.tsx",
+  "admin.community.badges.tsx",
+  "admin.community.contributors.tsx",
+  "admin.community.engagement.tsx",
+  "admin.community.notifications.tsx",
+] as const;
+
+/** pgTAP autorytetu Q&A - anonimowość pytających i workflow publikacji. */
+const COMMUNITY_QA_PGTAP = [
+  "supabase/tests/community_qa_test.sql",
+  "supabase/tests/community_qa_summary_test.sql",
+] as const;
+
+describe("panel społeczności - autorytet dostępu", () => {
+  it("wszystkie dziesięć tras rodziny `admin.community` (poza klubami) istnieje", () => {
+    // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i MILCZAŁA.
+    const present = adminRoutes();
+    for (const file of COMMUNITY_ROUTES) {
+      expect(present, `brak trasy ${file}`).toContain(file);
+    }
+    // Skan widzi CAŁĄ rodzinę razem z klubami, także pliki dodane po napisaniu
+    // tej listy - inaczej nowa trasa panelu społeczności wchodziłaby poza
+    // zasięg bramki bez żadnego sygnału.
+    const skan = present.filter((name) => name.startsWith("admin.community"));
+    expect(skan.length).toBeGreaterThanOrEqual(COMMUNITY_ROUTES.length + CLUB_ROUTES.length);
+  });
+
+  it("dostępu pilnuje layout `/admin` - żadna z tych tras nie udaje własnej bramki", () => {
+    // Społecznością zarządza cała redakcja (`isStaff` = admin/editor/author),
+    // więc brak własnego `isAdmin` jest tu POPRAWNY, a nie przeoczony.
+    // `useAuth` samo w sobie nie jest zakazane (`admin.community.badges`
+    // czyta z niego `tenantId` do zapytań) - zakazany jest WARUNEK ROLI, bo
+    // to on rozjeżdża się z regułami bazy przy pierwszej zmianie ról.
+    const zRolaWTrasie = COMMUNITY_ROUTES.filter((file) =>
+      /isAdmin|isSuperAdmin|isStaff/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zRolaWTrasie).toEqual([]);
+    // …a skoro tak, layout MUSI być jedyną i realną bramką.
+    expect(read(ADMIN_LAYOUT)).toMatch(/isStaff/);
+  });
+
+  it("trasy społeczności nie budują WŁASNYCH zapytań do Supabase", () => {
+    // Zapytanie zbudowane w pliku trasy omija warstwę `src/lib/admin/*`,
+    // w której mieszka wybór kolumn - a w Q&A ten wybór jest regułą
+    // prywatności: `qa_questions.user_id` jest odcięty grantem i lista kolumn
+    // musi go pomijać, inaczej odczyt w ogóle się nie powiedzie.
+    const offenders = COMMUNITY_ROUTES.filter((file) =>
+      /@\/integrations\/supabase|supabaseAdmin|\bsupabase\s*\n?\s*\.from\(/.test(
+        read(`${ROUTES_DIR}/${file}`),
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("trasy społeczności mówią do operatora KLUCZAMI i18n, nie polszczyzną w kodzie", () => {
+    // Bramka parytetu słowników nie widzi literału w JSX-ie, a moduł ma wersję
+    // angielską. Sprawdzamy trasy, które w ogóle mają własną treść - reszta to
+    // powłoki delegujące render do organizmów panelu.
+    const zTrescia = COMMUNITY_ROUTES.filter((file) =>
+      /useTranslation\(/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zTrescia.length, "żadna trasa społeczności nie ma własnej treści?").toBeGreaterThan(0);
+    for (const file of zTrescia) {
+      expect(read(`${ROUTES_DIR}/${file}`), `${file} nie woła t() ani razu`).toMatch(/\bt\("/);
+    }
+  });
+
+  it("autorytet Q&A jest pokryty pgTAP - anonimowość i workflow publikacji", () => {
+    // Ten test nie sprawdza bazy (do tego jest pgTAP) - sprawdza, że pokrycie
+    // NIE ZNIKNĘŁO. To są reguły, po których (a) tożsamość pytającego nie
+    // opuszcza bazy i (b) publikacja podsumowania wymaga roli redakcyjnej.
+    for (const file of COMMUNITY_QA_PGTAP) {
+      expect(read(file).length, `pusty plik pgTAP: ${file}`).toBeGreaterThan(0);
+    }
+    const sql = COMMUNITY_QA_PGTAP.map((file) => read(file)).join("\n");
+    expect(sql, "pgTAP przestał pilnować odcięcia kolumny user_id").toContain("user_id");
+    expect(sql).toContain("publish_qa_session_summary");
+    expect(sql).toContain("publish requires editorial role");
+  });
+
+  it("panel Q&A nie oferuje publikacji jako akcji cichej - ma osobną drogę na szkic", () => {
+    // Ten sam wzorzec, który znalazł defekt z nagłówka pliku (panel oferuje
+    // akcję, którą baza odrzuci). RPC `publish_qa_session_summary` przepuszcza
+    // szkic dla redaktora i gospodarza, a PUBLIKACJĘ tylko dla
+    // `can_publish_content`. Panel musi mieć OBIE drogi widoczne obok siebie,
+    // inaczej redaktor ma jeden przycisk, który zawsze kończy się odmową.
+    const source = read(`${ROUTES_DIR}/admin.community.qa.tsx`);
+    expect(source).toMatch(/publishQaSessionSummary\(session\.id, publish\)/);
+    expect(source).toMatch(/adminCommunity\.qa\.createDraft/);
+    expect(source).toMatch(/adminCommunity\.qa\.publishNow/);
+    expect(source).toMatch(/adminCommunity\.qa\.publishingRequiresAdminRole/);
+  });
+});
