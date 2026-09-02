@@ -48,24 +48,88 @@ const CTR_BENCHMARK_DEEPEST = CTR_BENCHMARK_BY_POS[CTR_BENCHMARK_BY_POS.length -
 const POS_DEADBAND = 0.5;
 
 /**
- * Martwa strefa dla LUKI CTR wobec benchmarku pozycji, w częściach jedności
- * (0.02 = 2 pp). Steruje wyłącznie WAGĄ wpisu, nie listą działań - dlaczego
- * właśnie tak, opisuje blok `kpi-ctr`.
+ * Martwa strefa dla LUKI CTR wobec benchmarku pozycji, wyrażona jako UDZIAŁ
+ * benchmarku tego kubełka, a nie jako punkty procentowe. Steruje wyłącznie
+ * WAGĄ wpisu, nie listą działań - dlaczego właśnie tak, opisuje blok `kpi-ctr`;
+ * dlaczego udział, a nie punkty procentowe, opisuje komentarz niżej.
+ *
+ * DLACZEGO NIE ±2 PP, JAK BYŁO. `CTR_BENCHMARK_BY_POS` jest tabelą GEOMETRYCZNĄ:
+ * 18% / 6% / 2% / 0.8%, czyli krok między kubełkami to mnożnik ~3x, nie stała
+ * liczba punktów. Martwa strefa ±2 pp nałożona na taką skalę znaczyła w każdym
+ * kubełku coś innego, a w dwóch najgłębszych była ARYTMETYCZNIE NIEOSIĄGALNA po
+ * stronie alarmu - bo największa możliwa luka ujemna to CAŁY benchmark (przy
+ * CTR = 0), a benchmark był tam mniejszy albo równy samej strefie:
+ *
+ *   kubełek        benchmark   max luka ujemna   `|luka| > 2 pp` po stronie alarmu
+ *   pozycja <= 3      18%          -18.0 pp      osiągalne
+ *   pozycja <= 10      6%           -6.0 pp      osiągalne
+ *   pozycja <= 20      2%           -2.0 pp      NIEOSIĄGALNE (równość, próg ostry)
+ *   pozycja > 20     0.8%           -0.8 pp      NIEOSIĄGALNE
+ *
+ * Strona POCHWAŁY osiągalna była wszędzie (CTR wolno przekroczyć benchmark
+ * dowolnie), więc dla każdej właściwości rankującej poza TOP 10 blok umiał
+ * wystawić „good” z samej luki i NIE UMIAŁ wystawić „warn” - reagował czulej
+ * na dobrą wiadomość niż na złą i zawyżał obraz widoczności. To DOKŁADNIE ten
+ * defekt, który commit progu 0.5 odrzucił w `kpi-position` („na metryce, gdzie
+ * mniej znaczy lepiej, asymetria musi iść w drugą stronę albo nie iść wcale”),
+ * tylko przeniesiony na oś CTR. Zerowy CTR na pozycji 15 - najgorszy możliwy
+ * wynik snippetu w tym kubełku - dostawał niebieskie „info”.
+ *
+ * DLACZEGO 1/3. Pytanie tego bloku jest RELATYWNE z konstrukcji („czy snippet
+ * dobiera tyle kliknięć, ile dobiera przeciętny wynik NA TYM MIEJSCU SERP”),
+ * więc jego martwa strefa też musi być relatywna - absolutna strefa na
+ * relatywnym pytaniu to pomyłka kategorii, a tabela wyżej jest jej rachunkiem.
+ * Sama liczba 1/3 jest wybrana tak, by kubełek, którego zachowanie zostało
+ * ROZSTRZYGNIĘTE i przypięte (pozycje 4-10, benchmark 6%), został co do bitu
+ * tam, gdzie był: 6% / 3 = 2 pp, czyli stary próg. Zmienia się wyłącznie to,
+ * co było zepsute albo nieosiągalne:
+ *
+ *   kubełek        benchmark   strefa (1/3)   alarm od CTR       pochwała od CTR
+ *   pozycja <= 3      18%         6.0 pp        < 12%              > 24%
+ *   pozycja <= 10      6%         2.0 pp        < 4%               > 8%     (bez zmian)
+ *   pozycja <= 20      2%        0.67 pp        < 1.33%            > 2.67%
+ *   pozycja > 20     0.8%       0.27 pp        < 0.53%            > 1.07%
+ *
+ * KOSZT, KTÓRY JEST ŚWIADOMY. W TOP 3 strefa rośnie z 2 pp do 6 pp, więc luka
+ * -5 pp przy benchmarku 18% nie wystawia już alarmu z samej luki (wystawi go
+ * trend, jeśli CTR spada). Operator NIE TRACI przez to ani jednej informacji:
+ * `detail` dalej pisze „Twój CTR jest niższy o 5.0 pp”, a lista kroków dalej
+ * jest remontowa, bo obie stoją na ZNAKU luki i granicy zero. Traci się tylko
+ * roszczenie o PILNOŚĆ - a to jest zasób racjonowany (dziesięć kafelków, jeden
+ * budżet uwagi) i 28% niedoboru wobec benchmarku, który między pozycją 3.0
+ * i 3.1 skacze o 12 pp, jest wewnątrz rozdzielczości samego pomiaru. Odwrotna
+ * strona kosztu: 0.67 pp CTR na pozycji 15 waży w kliknięciach mniej niż 5 pp
+ * w TOP 3, więc blok alarmuje teraz o mniejszych bezwzględnych stratach głębiej
+ * w SERP. Bezwzględna skala straty nie ginie z raportu - niesie ją `kpi-clicks`
+ * (próg -10% kliknięć) i `pages` (licznik słabych stron) - a zadaniem TEGO
+ * bloku jest wyłącznie „czy snippet robi swoje na miejscu, które zajmuje”.
  */
-const CTR_GAP_DEADBAND = 0.02;
+const CTR_GAP_DEADBAND_RATIO = 1 / 3;
 
 /** Martwa strefa dla zmiany CTR wobec poprzedniego okna (0.005 = 0.5 pp). */
 const CTR_MOVE_DEADBAND = 0.005;
 
 /**
- * Oczekiwany CTR dla średniej pozycji. Pozycja GSC startuje od 1.0, więc
+ * Czy GSC w ogóle ZMIERZYŁ średnią pozycję. Pozycja startuje od 1.0, więc
  * wartość mniejsza (0 z okna bez wyświetleń) albo nieliczbowa (uszkodzony
- * payload API) NIE jest miejscem w TOP 3 - to brak pomiaru. Taki przypadek
- * dostaje najgłębszy, najniższy benchmark: inaczej pusty raport ogłaszałby
- * lukę -18 pp i kazał przepisywać meta title stron, których w nim nie ma.
+ * payload API) NIE jest miejscem w TOP 3 - to brak pomiaru. Negacja zamiast
+ * `pos < 1` jest tu konieczna: dla `NaN` każde porównanie ostre jest fałszem,
+ * więc „nie wiadomo” musi być zapisane jako `!(… >= …)`, inaczej uszkodzony
+ * payload przechodzi jako pomiar.
+ */
+function posMeasured(pos: number): boolean {
+  return pos >= 1;
+}
+
+/**
+ * Oczekiwany CTR dla średniej pozycji. Bez pomiaru pozycji zwracany jest
+ * najgłębszy, najniższy benchmark: inaczej pusty raport ogłaszałby lukę
+ * -18 pp i kazał przepisywać meta title stron, których w nim nie ma. Sam
+ * benchmark jest wtedy DOMYSŁEM, więc `kpi-ctr` nie buduje na nim wagi -
+ * patrz `benchKnown` w tym bloku.
  */
 function expectedCtr(pos: number): number {
-  if (!(pos >= 1)) return CTR_BENCHMARK_DEEPEST;
+  if (!posMeasured(pos)) return CTR_BENCHMARK_DEEPEST;
   const b = CTR_BENCHMARK_BY_POS.find((x) => pos <= x.maxPos);
   return b?.expected ?? CTR_BENCHMARK_DEEPEST;
 }
@@ -118,13 +182,49 @@ export function buildGscInsights(p: Params): Insight[] {
   //
   // DLACZEGO WAGA MA MARTWĄ STREFĘ, A PORADY NIE. Benchmark to CZTEROSTOPNIOWA
   // TABELA (18% / 6% / 2% / 0.8%), która między pozycją 3.0 i 3.1 skacze o 12 pp
-  // - luka rzędu pół punktu jest więc poniżej rozdzielczości samego pomiaru
-  // i nie może podnosić alarmu, bo waga to roszczenie o PILNOŚĆ, konkurujące
-  // o jeden budżet uwagi z dziewięcioma innymi kafelkami. Znak tej samej luki
-  // pozostaje użyteczny: słownik ma tylko DWA zestawy porad, więc środek skali
-  // musi trafić do jednego z nich - i trafia do ostrożnego, bo koszt zbędnego
+  // - luka rzędu jednej trzeciej benchmarku jest więc poniżej rozdzielczości
+  // samego pomiaru i nie może podnosić alarmu, bo waga to roszczenie o PILNOŚĆ,
+  // konkurujące o jeden budżet uwagi z dziewięcioma innymi kafelkami. Znak tej
+  // samej luki pozostaje użyteczny: słownik ma tylko DWA zestawy porad, więc
+  // środek skali musi trafić do jednego z nich - i trafia do ostrożnego, bo
   // „sprawdź snippet w SERP” jest znikomy, a koszt fałszywego „działa” na
   // stronie zmierzonej PONIŻEJ krzywej - już nie.
+  //
+  // STREFA JEST UDZIAŁEM BENCHMARKU, NIE PUNKTAMI PROCENTOWYMI, i to jest
+  // poprawka, nie kosmetyka: jako ±2 pp była po stronie alarmu ARYTMETYCZNIE
+  // NIEOSIĄGALNA w dwóch najgłębszych kubełkach - największa możliwa luka
+  // ujemna to CAŁY benchmark (przy CTR = 0), a benchmark wynosi tam 2% i 0.8%,
+  // czyli mniej albo tyle samo, co sama strefa. Reguła benchmarku umiała więc
+  // poza TOP 10 wyłącznie CHWALIĆ: strona pochwały (CTR wolno przekroczyć
+  // benchmark dowolnie) była osiągalna w każdym kubełku. Zerowy CTR na pozycji
+  // 15, najgorszy możliwy wynik snippetu w tym kubełku, dostawał niebieskie
+  // „info”. Rachunek czterech kubełków, wybór liczby 1/3 i koszt tej zmiany
+  // w TOP 3 stoją przy stałej `CTR_GAP_DEADBAND_RATIO`. Strefa pozostaje
+  // SYMETRYCZNA w KAŻDYM kubełku: alarm od 2/3 benchmarku, pochwała od 4/3.
+  //
+  // BEZ POMIARU POZYCJI NIE MA WERDYKTU O BENCHMARKU (`benchKnown`). Gdy GSC
+  // nie zmierzył pozycji (okno bez wyświetleń daje `position === 0`, uszkodzony
+  // payload - `NaN`), `expectedCtr` zwraca najgłębszy benchmark jako DOMYSŁ.
+  // Udziałowa strefa jest wtedy tak wąska (0.27 pp), że pusty raport ogłaszałby
+  // z tego domysłu „warn” - alarm o snippetach stron, których w raporcie nie
+  // ma. Waga spada więc w takim przypadku na regułę TRENDU, stojącą na liczbach
+  // naprawdę zmierzonych w obu oknach. Bramka dotyczy WYŁĄCZNIE wagi: `detail`
+  // i lista kroków dalej idą za znakiem luki, czyli za wersją ostrożną, bo
+  // fałszywe „działa” jest tu droższe od zbędnego „sprawdź snippet”. Przedtem to
+  // samo załatwiała strefa ±2 pp, ale PRZYPADKIEM - jako skutek uboczny tego,
+  // że była szersza niż najgłębszy benchmark.
+  //
+  // `NaN` MUSI DAWAĆ „NIE WIADOMO”, NIE „DZIAŁA”. Uszkodzony `totals.ctr` robi
+  // z `ctrGap` i `dCtr` wartość `NaN`, dla której KAŻDE porównanie ostre jest
+  // fałszem. Dlatego decyzje, których odpowiedzią na „nie wiadomo” ma być
+  // PRAWDA, są zapisane negacją (`ctrBelowBench`, `ctrFlat`), a ta, której
+  // odpowiedzią ma być FAŁSZ (`ctrGapWide`), zostaje porównaniem ostrym - ten
+  // sam idiom, co `posMeasured`. Dla liczb skończonych każda z tych form jest
+  // tożsama z poprzednią, więc zachowanie zmierzonych raportów nie drga; zmienia
+  // się tylko to, że przy `NaN` detal („niższy”) i porady (remontowe) mówią to
+  // samo, a waga nie zgłasza roszczenia („info”). Przedtem detal mówił „niższy”,
+  // porady „utrzymaj stylistykę tytułów - działa”, a waga wychodziła „good” -
+  // trzy zdania o niczym, każde z innej gałęzi.
   //
   // ZIELONY KAFELEK Z LISTĄ REMONTOWĄ JEST POPRAWNY. Przy CTR 5.5% na pozycji 5
   // (benchmark 6%) i wzroście o 1 pp operator dostaje wagę „good” RAZEM z pełną,
@@ -141,7 +241,9 @@ export function buildGscInsights(p: Params): Insight[] {
   // JEDNYM zdaniem, sterowała OBIEMA decyzjami - rozjazd progów dawał więc
   // alarm z instrukcją bezczynności. Tu każda decyzja stoi na innej liczbie.
   //
-  // NIE SPRZĘGAĆ TYCH PROGÓW JEDNYM BOOLEANEM. Wspólna martwa strefa ±2 pp
+  // NIE SPRZĘGAĆ TYCH PROGÓW JEDNYM BOOLEANEM - to rozstrzygnięcie zostaje
+  // w mocy także po przejściu strefy na udział benchmarku. Wspólna strefa
+  // (w kubełku 6% to dalej 2 pp)
   // wypisałaby „Utrzymaj stylistykę tytułów - działa” na bursztynowym kafelku
   // strony, która jest 1.9 pp POD krzywą i dalej spada - czyli
   // WYPRODUKOWAŁABY defekt z `kpi-position` zamiast go usunąć. Waga steruje też
@@ -152,10 +254,12 @@ export function buildGscInsights(p: Params): Insight[] {
   // to okazja do poprawy, nie incydent. Reguła jest przypięta testami
   // (`gscInsights.test.ts`, blok „dwa progi to dwa różne fakty”).
   const dCtr = totals.ctr - prevTotals.ctr; // punkty procentowe
-  const ctrGap = totals.ctr - expectedCtr(totals.position);
-  const ctrBelowBench = ctrGap < 0;
-  const ctrGapWide = Math.abs(ctrGap) > CTR_GAP_DEADBAND;
-  const ctrFlat = Math.abs(dCtr) < CTR_MOVE_DEADBAND;
+  const ctrBench = expectedCtr(totals.position);
+  const ctrGap = totals.ctr - ctrBench;
+  const benchKnown = posMeasured(totals.position);
+  const ctrBelowBench = !(ctrGap >= 0);
+  const ctrGapWide = benchKnown && Math.abs(ctrGap) > ctrBench * CTR_GAP_DEADBAND_RATIO;
+  const ctrFlat = !(Math.abs(dCtr) >= CTR_MOVE_DEADBAND);
   out.push({
     id: "kpi-ctr",
     element: t(`${B}.ctr.element`),
@@ -173,8 +277,8 @@ export function buildGscInsights(p: Params): Insight[] {
       pos: totals.position.toFixed(1),
     }),
     detail: t(`${B}.ctr.detail`, {
-      exp: (expectedCtr(totals.position) * 100).toFixed(1),
-      cmp: ctrGap >= 0 ? t(`${B}.ctr.cmpHigher`) : t(`${B}.ctr.cmpLower`),
+      exp: (ctrBench * 100).toFixed(1),
+      cmp: ctrBelowBench ? t(`${B}.ctr.cmpLower`) : t(`${B}.ctr.cmpHigher`),
       gap: (Math.abs(ctrGap) * 100).toFixed(1),
       dctr: (dCtr * 100).toFixed(2),
     }),
@@ -366,6 +470,22 @@ export function buildGscInsights(p: Params): Insight[] {
 
   // ── 9. Strony (treemap) ────────────────────────────────────────────
   if (pageRows.length > 0) {
+    // TEN SAM IDIOM, CO W `kpi-ctr`, INNE LICZBY - i to jest decyzja. Oba bloki
+    // pytają o to samo (czy CTR jest poniżej benchmarku SWOJEJ pozycji) i oba
+    // odpowiadają MNOŻNIKIEM benchmarku, bo tabela `CTR_BENCHMARK_BY_POS` jest
+    // geometryczna i próg absolutny znaczyłby w każdym kubełku coś innego
+    // (rachunek przy `CTR_GAP_DEADBAND_RATIO`). Mnożniki są jednak inne
+    // i NIE WOLNO ich zrównywać przez przepisanie liczby z tamtej stałej:
+    //   * tu klasyfikowany jest POJEDYNCZY WIERSZ, a alarm wystawia dopiero
+    //     LICZNIK (`lowCtr.length > 3`) na wierszach od 30 wyświetleń - próg
+    //     per wiersz ma więc nad sobą drugi filtr szumu i może być luźniejszy;
+    //   * `kpi-ctr` stawia JEDNO roszczenie o pilność z jednej sumy, bez
+    //     drugiego filtra, więc jego strefa musi zostać tam, gdzie została
+    //     rozstrzygnięta i przypięta (1/3 benchmarku, czyli 2 pp w kubełku 6%);
+    //   * tu progi są ASYMETRYCZNE (0.6 kontra 1.3), a strefa `kpi-ctr` jest
+    //     świadomie symetryczna - zrównanie liczb przeniosłoby tę asymetrię na
+    //     wagę całej właściwości, czyli dokładnie to, czego zakazuje komentarz
+    //     przy `kpi-position`.
     const withImpr = pageRows.filter((r) => r.impressions >= 30);
     const lowCtr = withImpr.filter((r) => r.ctr < expectedCtr(r.position) * 0.6);
     const winners = withImpr.filter((r) => r.ctr > expectedCtr(r.position) * 1.3);
