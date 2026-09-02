@@ -539,7 +539,7 @@ describe("footerTracking - granica błędu OSOBNO dla każdego beacona", () => {
   });
 
   it("granica błędu NIE otwiera GA4 bez zgody - rzucający gtag nie zostaje nawet zawołany", () => {
-    // Gdyby ktoś „naprawił" połknięty błąd, przenosząc nadanie przed bramkę
+    // Gdyby ktoś „naprawił” połknięty błąd, przenosząc nadanie przed bramkę
     // (albo omijając `gtagIfConsented()` w nowym `catch`), ten przypadek padnie
     // ZANIM zdarzenie po odmowie zgody trafi do Google.
     zapiszZgode({ analytics: false });

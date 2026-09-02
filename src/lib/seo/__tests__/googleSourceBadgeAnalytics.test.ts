@@ -285,9 +285,9 @@ describe("niezależność obu beaconów - granica błędu w OBIE strony", () => 
   // PO CO TE PRZYPADKI. Do naprawy kod robił `track({...})` a POTEM
   // `gtag()?.(...)` bez żadnego `try`, więc porażka pierwszego wywołania
   // przerywała funkcję: GA4 nie dostawał nic ORAZ wyjątek wychodził z handlera
-  // kliknięcia. Dwie złe rzeczy naraz - „podwójny beacon" przestawał być
+  // kliknięcia. Dwie złe rzeczy naraz - „podwójny beacon” przestawał być
   // podwójny dokładnie w chwili, w której druga ścieżka miała ratować
-  // pierwszą, a kliknięcie w link „Preferowane źródło" zgłaszało błąd
+  // pierwszą, a kliknięcie w link „Preferowane źródło” zgłaszało błąd
   // aplikacji (`window.onerror`, a w panelach - granica błędu Reacta).
   // Produkcja trzyma dziś KAŻDE nadanie w osobnym `try`/`catch`, więc oba
   // kierunki awarii są tu przypięte osobno.
@@ -340,7 +340,7 @@ describe("niezależność obu beaconów - granica błędu w OBIE strony", () => 
     ["rzucają OBA naraz", true, true],
   ])("%s: wołający nie widzi wyjątku, a każdy sprawny kanał nadaje", (_case, zTrack, zGtag) => {
     // Klucz do konsekwencji dla użytkownika: `expect(...).not.toThrow()` jest
-    // tu odpowiednikiem „kliknięcie prowadzi do nawigacji". Trzeci wiersz
+    // tu odpowiednikiem „kliknięcie prowadzi do nawigacji”. Trzeci wiersz
     // (oba kanały padają) pilnuje, że granice są NIEZALEŻNE, a nie jedna
     // wspólna - wspólny `try` przeszedłby dwa pierwsze wiersze i przewrócił
     // się dopiero na trzecim, gdyby drugi `catch` nie istniał.
@@ -361,7 +361,7 @@ describe("RODO - granica błędu nie jest obejściem bramki zgody", () => {
   // nim: `hasAnalyticsConsent()` wewnątrz prawdziwego `track()` oraz sam fakt
   // wczytania skryptu GA4 przez CMP (dopóki go nie ma, `window.gtag` nie
   // istnieje). Dlatego szpieguję WSZYSTKIE wyjścia sieciowe przeglądarki:
-  // gdyby ktoś „poprawił" połknięty błąd na ponowną próbę przez `fetch` albo
+  // gdyby ktoś „poprawił” połknięty błąd na ponowną próbę przez `fetch` albo
   // `navigator.sendBeacon`, zdarzenie poszłoby do serwera bez zgody.
   const podstawWyjsciaSieciowe = (): {
     fetch: ReturnType<typeof vi.fn>;
@@ -401,7 +401,7 @@ describe("RODO - granica błędu nie jest obejściem bramki zgody", () => {
   it("moduł nie tworzy sam window.gtag ani dataLayer - GA4 zostaje niedostępne", () => {
     // Bez zgody marketingowej CMP nie wstrzykuje snippetu GA4, więc ani
     // `window.gtag`, ani kolejka `dataLayer` nie istnieją. Nadawca nie ma
-    // prawa ich założyć „na wszelki wypadek" - byłby to pomiar przed zgodą.
+    // prawa ich założyć „na wszelki wypadek” - byłby to pomiar przed zgodą.
     delete gtagWindow().dataLayer;
     expect(gtagWindow().gtag).toBeUndefined();
 

@@ -5,7 +5,7 @@
 // „TENANT SCOPE: these readers use the service role, which bypasses RLS - so
 // every query filters by the tenant that owns the request host. Without the
 // explicit filter a second tenant's content would leak into another site's
-// sitemap/RSS/llms.txt." Czyli: RLS - jedyna zapora, która działa bez pamięci
+// sitemap/RSS/llms.txt.” Czyli: RLS - jedyna zapora, która działa bez pamięci
 // programisty - jest dla tych zapytań WYŁĄCZONA, a to, co zostaje, to filtr
 // wpisany ręcznie. Powierzchnia skutku jest najgorsza z możliwych: sitemapa
 // i kanały RSS są czytane i cache'owane przez wyszukiwarki, więc wyciek
@@ -32,7 +32,7 @@
 //   2. KLUCZ CACHE - `edgeTtlCache` trzyma wynik 60 s; klucz bez `tenantId`
 //      podałby treść najemcy A na domenie najemcy B przy IDEALNYCH filtrach.
 //      `lib/ssrCache.ts` skopuje wpisy hostem, ale żądania bez rozwiązywalnego
-//      hosta dzielą zakres „no-host" - tam `tenantId` w kluczu jest JEDYNYM
+//      hosta dzielą zakres „no-host” - tam `tenantId` w kluczu jest JEDYNYM
 //      separatorem;
 //   3. PŁASZCZYZNA ROZWIĄZANIA HOSTA - `tenant.server.ts` ma dwa kontrakty:
 //      treściowy (`resolveTenantForHost`: nieznany host -> tenant DOMYŚLNY)
@@ -113,7 +113,7 @@ const SERVICE_ROLE_READERS = [
 
 /**
  * Zapytania świadomie bez filtru najemcy. Trzy kategorie, każda z innym
- * powodem - i żadna z nich nie jest „nie zdążyliśmy".
+ * powodem - i żadna z nich nie jest „nie zdążyliśmy”.
  *
  * TABELA BEZ KOLUMNY NAJEMCY (zakres przechodni). `post_categories` ma
  * dokładnie `{post_id, category_id}`, `post_tags` - `{post_id, tag_id}`
@@ -349,10 +349,15 @@ describe("adres kanoniczny wpisu - ścieżka rodzica sprawdza najemcę", () => {
    *
    * CO BYŁO NA SZALI. Strona z `parent_id` wskazującym stronę innego najemcy
    * wnosiła JEGO slug do ścieżki kanonicznej publikowanej w sitemapie
-   * (`sitemapEntries.server.ts`), w podglądzie SEO (`SeoPanel.tsx:131`) i na
-   * liście zapisanych stron (`SavedSection.tsx:79`). Przecieka segment adresu,
-   * nie wiersz - ale to ta sama klasa i ta sama powierzchnia, czytana
-   * i cache'owana przez wyszukiwarki.
+   * (`sitemapEntries.server.ts`) i w RSS-ie. Przecieka segment adresu, nie
+   * wiersz - ale to ta sama klasa i ta sama powierzchnia, czytana
+   * i cache'owana przez wyszukiwarki, więc wyciek przeżywa własną naprawę
+   * o tyle, ile trwa cykl indeksowania. Tę samą ścieżkę pokazują panel SEO
+   * (`SeoPanel.tsx:131`) i lista zapisanych stron (`SavedSection.tsx:79`), ale
+   * one wołają RPC klientem przeglądarki - tam łańcuch urywał się sam na
+   * polityce, więc to miejsca WYŚWIETLENIA ścieżki, nie miejsca naruszenia
+   * izolacji. Komentarz migracji wymienia je jednym tchem z sitemapą i w tym
+   * jednym miejscu jest za szeroki.
    *
    * CO GWARANTUJE NAPRAWA - migracja
    * `20260831160000_page_full_path_tenant_scope.sql` (bliźniak treści:
@@ -368,8 +373,18 @@ describe("adres kanoniczny wpisu - ścieżka rodzica sprawdza najemcę", () => {
    *      segmentów. Ta warstwa chroni ODCZYT danych, które w bazie już są.
    *      Ten sam predykat dostał wariant WSADOWY `page_full_paths(uuid[])` -
    *      osobne znalezisko tamtej migracji, bo audyt nazywał tylko funkcję
-   *      pojedynczą, a wsadowa stoi pod archiwami i wyszukiwarką, czyli pod
-   *      WIĘKSZYM ruchem.
+   *      pojedynczą, a wsadowa powtarzała tę samą rekurencję bez najemcy.
+   *      UWAGA NA ZASIĘG, bo komentarz tamtej migracji jest tu za szeroki:
+   *      wariantu wsadowego NIE woła dziś żadna powierzchnia service-role -
+   *      jedynym wołającym jest `src/lib/queries/archives.ts:45`, czyli
+   *      płaszczyzna przeglądarki pod RLS-em. Sitemapa nadal robi JEDNO RPC NA
+   *      STRONĘ (`sitemapEntries.server.ts:75`) i to jest osobne, przypięte
+   *      znalezisko (`sitemapEntries.server.test.ts:752`). Bramka pilnuje obu
+   *      wariantów mimo to, i to jest decyzja, nie przezorność na zapas:
+   *      `page_full_paths` ma `GRANT EXECUTE` dla `service_role`, a przejście
+   *      sitemapy na wołanie wsadowe - dokładnie to, o co prosi tamto
+   *      przypięcie - położyłoby ją na tej płaszczyźnie w jednej linii kodu.
+   *      Naprawa połowiczna byłaby wtedy naprawą cofniętą.
    *   B. OGRANICZENIE SCHEMATU: złożony klucz obcy
    *      `(parent_id, tenant_id) -> (id, tenant_id)`
    *      (`pages_parent_same_tenant_fkey`, poprzedzony
@@ -496,9 +511,11 @@ describe("adres kanoniczny wpisu - ścieżka rodzica sprawdza najemcę", () => {
 
   it("page_full_paths - wariant wsadowy ma ten sam predykat, nie słabszy", () => {
     // Osobny przypadek, bo to osobna funkcja i osobne znalezisko: audyt nazywał
-    // tylko wariant pojedynczy, a wsadowy powtarzał tę samą rekurencję i stoi
-    // pod archiwami oraz wyszukiwarką. Naprawa jednej bez drugiej zostawia
-    // dziurę na ścieżce o WIĘKSZYM ruchu.
+    // tylko wariant pojedynczy. Dziś wariant wsadowy stoi pod archiwami
+    // (`src/lib/queries/archives.ts:45`) i idzie klientem przeglądarki, czyli
+    // pod RLS-em - ale ma `GRANT EXECUTE` dla `service_role`, więc jest
+    // o jedną linię od tej samej płaszczyzny co wariant pojedynczy. Predykat
+    // w jednej funkcji, a w drugiej nie, to naprawa, która czeka na regres.
     expect(predicateOffenders("page_full_paths")).toEqual([]);
   });
 
@@ -512,9 +529,7 @@ describe("adres kanoniczny wpisu - ścieżka rodzica sprawdza najemcę", () => {
     const offenders: string[] = [];
     for (const d of defs) {
       if (!/\btenant_id\b/.test(d.anchor)) {
-        offenders.push(
-          `${d.file} - public.${d.fn}: kotwica rekurencji nie wnosi tenant_id do CTE`,
-        );
+        offenders.push(`${d.file} - public.${d.fn}: kotwica rekurencji nie wnosi tenant_id do CTE`);
       }
       if (/\bcurrent_tenant_id\s*\(/.test(d.body)) {
         offenders.push(

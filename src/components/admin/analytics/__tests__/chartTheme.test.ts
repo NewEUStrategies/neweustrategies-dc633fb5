@@ -36,6 +36,7 @@
 // zmienne CSS na `document.documentElement`, a nie szpiega na
 // `getComputedStyle` - szpieg dowodziłby tylko tego, co sam zwraca.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 
 import type { ResolvedTheme } from "../chartTheme";
 
@@ -560,5 +561,414 @@ describe("izolacja tenantów", () => {
 
     expect(chartThemeSnapshot().palette[0]).toBe("#bb2222");
     odepnij();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GŁĘBOKIE ZŁĄCZENIE OPCJI Z BAZĄ.
+//
+// USTERKA, KTÓREJ TO PILNUJE. `EChartClient` sklejał opcję panelu z bazą
+// PŁASKO (`{ ...base, ...option }`), a rozłożenie płaskie podmienia CAŁĄ
+// wartość pod kluczem. Panel, który podawał `yAxis` choćby tylko po to, żeby
+// ustawić `max` albo `axisLabel.formatter`, wyrzucał z tej osi WSZYSTKO, co
+// baza w niej umotywowała: `axisLine`, `axisTick`, `splitLine`, `axisLabel`.
+// ZMIERZONE na tym HEAD-zie: 27 opcji wykresów w 8 plikach, 89 wystąpień
+// sekcji, 74 z nich z kolorami motywu.
+//
+// DLACZEGO ASERCJE IDĄ PO ŚCIEŻKACH OPCJI, A NIE PO RENDERZE. Zgubiony kolor
+// osi nie przewraca ani typów, ani testu renderu - wykres dostaje domyślny
+// kolor ECharts i cicho maluje etykiety czernią na ciemnym tle. Jedynym
+// dowodem jest asercja na WYNIKU złączenia.
+describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu", () => {
+  /** Motyw o rozłącznych kolorach - każde pole ma inny, rozpoznawalny ślad. */
+  const THEME: ResolvedTheme = {
+    palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005"],
+    muted: "#b10001",
+    border: "#c10001",
+    foreground: "#d10001",
+    background: "#e10001",
+    primary: "#f10001",
+    success: "#16a34a",
+    warning: "#f59e0b",
+    danger: "#dc2626",
+  };
+
+  interface OsBazy {
+    axisLine?: { show?: boolean; lineStyle?: { color?: string } };
+    axisTick?: { show?: boolean; lineStyle?: { color?: string } };
+    splitLine?: { show?: boolean; lineStyle?: { color?: string; type?: string } };
+    axisLabel?: { color?: string; fontSize?: number; formatter?: unknown };
+    type?: string;
+    max?: number;
+    data?: unknown;
+    name?: string;
+  }
+
+  async function zloz(override: Record<string, unknown>) {
+    const { baseOption, mergeChartOption } = await loadChartTheme();
+    return mergeChartOption(baseOption(THEME) as Record<string, unknown>, override);
+  }
+
+  it("panel podający `yAxis` z JEDNYM polem NIE traci umotywowanych kolorów pozostałych pól tej osi", async () => {
+    // TO JEST TA USTERKA. Panel chce wyłącznie `type` i `max`; przy płaskim
+    // złączeniu wychodziła stąd oś BEZ `splitLine`, BEZ `axisLabel.color`
+    // i bez wyłączonych `axisLine`/`axisTick` - czyli z domyślną szarą siatką
+    // i czarnymi etykietami, nieczytelnymi w trybie ciemnym.
+    const merged = await zloz({
+      yAxis: { type: "value", max: 100 },
+      series: [{ type: "line", data: [1, 2, 3] }],
+    });
+    const yAxis = merged.yAxis as OsBazy;
+
+    expect(yAxis.type).toBe("value");
+    expect(yAxis.max).toBe(100);
+    expect(yAxis.axisLabel?.color).toBe(THEME.muted);
+    expect(yAxis.splitLine?.lineStyle?.color).toBe(THEME.border);
+    expect(yAxis.splitLine?.lineStyle?.type).toBe("dashed");
+    expect(yAxis.axisLine?.show).toBe(false);
+    expect(yAxis.axisTick?.show).toBe(false);
+  });
+
+  it("pole podane przez panel WYGRYWA na liściu, a sąsiednie pola bazy zostają", async () => {
+    // Kierunek rozstrzygania: baza jest PODKŁADEM, nie nadrzędnym motywem.
+    // `fontSize` panelu ma wygrać, `color` bazy ma zostać - w tym samym obiekcie.
+    const formatter = (v: number) => `${v} ms`;
+    const merged = await zloz({
+      yAxis: { axisLabel: { fontSize: 10, formatter } },
+      series: [],
+    });
+    const axisLabel = (merged.yAxis as OsBazy).axisLabel;
+
+    expect(axisLabel?.fontSize).toBe(10);
+    expect(axisLabel?.color).toBe(THEME.muted);
+    // Funkcja przechodzi TĄ SAMĄ referencją - złączenie nie klonuje formatterów.
+    expect(axisLabel?.formatter).toBe(formatter);
+  });
+
+  it("`tooltip` panelu z samym formatterem zachowuje tło, ramkę i kolor tekstu bazy", async () => {
+    // Najczęstszy przypadek w repo: `tooltip` nadpisuje 26 z 27 opcji, prawie
+    // zawsze tylko po to, żeby podać `formatter` albo `trigger`.
+    const merged = await zloz({ tooltip: { formatter: () => "x" }, series: [] });
+    const tooltip = merged.tooltip as {
+      backgroundColor?: string;
+      borderColor?: string;
+      textStyle?: { color?: string };
+      trigger?: string;
+      extraCssText?: string;
+    };
+
+    expect(tooltip.backgroundColor).toBe(THEME.background);
+    expect(tooltip.borderColor).toBe(THEME.border);
+    expect(tooltip.textStyle?.color).toBe(THEME.foreground);
+    expect(tooltip.trigger).toBe("axis");
+    expect(tooltip.extraCssText).toContain("border-radius");
+  });
+
+  it("`legend` panelu z samym `top` zachowuje wyciszony kolor tekstu legendy", async () => {
+    const merged = await zloz({ legend: { top: 40 }, series: [] });
+    const legend = merged.legend as { top?: number; textStyle?: { color?: string } };
+
+    expect(legend.top).toBe(40);
+    expect(legend.textStyle?.color).toBe(THEME.muted);
+  });
+
+  it("TABLICA osi panelu dostaje bazę do KAŻDEGO elementu - wykres o trzech osiach też jest umotywowany", async () => {
+    // `baseOption` opisuje JEDNĄ oś obiektem, bo to są DOMYŚLNE ustawienia osi,
+    // nie „oś numer zero". Panel wielosokiowy (klikanie / wyświetlenia / CTR
+    // w `GscBiDashboard`) podaje tablicę - dziś 2 wykresy i 5 osi. Reguła
+    // tablicowa sama by tę tablicę przepuściła atomowo i baza znów by zginęła.
+    const merged = await zloz({
+      yAxis: [
+        { type: "value", name: "klikania" },
+        { type: "value", name: "wyświetlenia", splitLine: { show: false } },
+        { type: "value", name: "CTR", max: 100 },
+      ],
+      series: [],
+    });
+    const axes = merged.yAxis as OsBazy[];
+
+    expect(axes).toHaveLength(3);
+    for (const axis of axes) {
+      expect(axis.axisLabel?.color).toBe(THEME.muted);
+      expect(axis.splitLine?.lineStyle?.color).toBe(THEME.border);
+    }
+    expect(axes[1]?.name).toBe("wyświetlenia");
+    // Wyłączenie siatki na drugiej osi PRZEŻYWA rozgłoszenie bazy.
+    expect(axes[1]?.splitLine?.show).toBe(false);
+    expect(axes[0]?.splitLine?.show).toBeUndefined();
+  });
+
+  it("`series` panelu wchodzi CAŁA - NIE jest scalana z bazą element po elemencie", async () => {
+    // Gdyby serie scalały się po indeksie, panel nadpisujący jedną serię
+    // dostałby HYBRYDĘ: własny `type` z cudzymi `data` albo odwrotnie. Taki
+    // wykres nie wygląda na zepsuty - tylko kłamie. Dziś `baseOption` serii nie
+    // ustawia, więc baza jest tu podana wprost: reguła ma trzymać także wtedy,
+    // gdy ktoś dołoży do bazy domyślne `emphasis` albo `animationDelay`.
+    const { mergeChartOption } = await loadChartTheme();
+    const panelowa = [{ type: "bar", data: [7, 8] }];
+
+    const merged = mergeChartOption(
+      { series: [{ type: "line", data: [1, 2, 3], smooth: true }], color: THEME.palette },
+      { series: panelowa },
+    );
+
+    expect(merged.series).toBe(panelowa);
+    expect(merged.series).toEqual([{ type: "bar", data: [7, 8] }]);
+    // Ani jedno pole serii bazowej nie przecieka do serii panelu.
+    expect(JSON.stringify(merged.series)).not.toContain("smooth");
+    expect(JSON.stringify(merged.series)).not.toContain("line");
+    // ...a `color` bazy, którego panel nie tyka, zostaje.
+    expect(merged.color).toEqual(THEME.palette);
+  });
+
+  it("`series` podana OBIEKTEM też nie jest scalana - reguła nie stoi na tym, że to tablica", async () => {
+    const { mergeChartOption } = await loadChartTheme();
+
+    const merged = mergeChartOption(
+      { series: { type: "line", smooth: true } },
+      { series: { type: "bar" } },
+    );
+
+    expect(merged.series).toEqual({ type: "bar" });
+  });
+
+  it("`dataset` jest atomowy z tego samego powodu co `series`", async () => {
+    const { mergeChartOption } = await loadChartTheme();
+
+    const merged = mergeChartOption(
+      { dataset: { source: [[1, 2]], dimensions: ["a", "b"] } },
+      { dataset: { source: [[9, 9]] } },
+    );
+
+    expect(merged.dataset).toEqual({ source: [[9, 9]] });
+  });
+
+  it("tablica jest wartością ATOMOWĄ - `legend.data` panelu nie jest doklejana do bazy", async () => {
+    // Scalanie tablic po indeksie dorobiłoby legendzie serie, których na
+    // wykresie nie ma - i to pod nazwami z innego wykresu.
+    const { mergeChartOption } = await loadChartTheme();
+
+    const merged = mergeChartOption(
+      { legend: { data: ["a", "b", "c"], textStyle: { color: THEME.muted } } },
+      { legend: { data: ["x"] } },
+    );
+    const legend = merged.legend as { data: string[]; textStyle: { color: string } };
+
+    expect(legend.data).toEqual(["x"]);
+    expect(legend.textStyle.color).toBe(THEME.muted);
+  });
+
+  it("sekcje bazy, których panel NIE TYKA, przechodzą bez zmian", async () => {
+    const merged = await zloz({ yAxis: { type: "value" }, series: [] });
+
+    expect(merged.color).toEqual(THEME.palette);
+    expect(merged.backgroundColor).toBe("transparent");
+    expect(merged.animationDuration).toBe(400);
+    expect((merged.textStyle as { color: string }).color).toBe(THEME.foreground);
+    expect((merged.grid as { containLabel: boolean }).containLabel).toBe(true);
+  });
+
+  it("ŻADEN kolor motywu z bazy nie ginie, choćby panel nadpisał WSZYSTKIE pięć sekcji", async () => {
+    // Test odwrotny do powyższych: zamiast wymieniać pola po nazwie, porównuje
+    // serializaty. Nowa umotywowana sekcja w `baseOption` jest tym przypadkiem
+    // pilnowana od razu, bez dopisywania asercji - a dokładnie tak wygląda
+    // regres, który ta zmiana naprawia.
+    const { baseOption, mergeChartOption } = await loadChartTheme();
+    const base = baseOption(THEME) as Record<string, unknown>;
+    const merged = mergeChartOption(base, {
+      textStyle: { fontSize: 12 },
+      legend: { top: 4 },
+      tooltip: { trigger: "item" },
+      grid: { left: 8 },
+      xAxis: { type: "category", data: ["a"] },
+      yAxis: { type: "value" },
+      series: [{ type: "bar", data: [1] }],
+    });
+    const wynik = JSON.stringify(merged);
+
+    for (const kolor of [
+      ...THEME.palette,
+      THEME.muted,
+      THEME.border,
+      THEME.foreground,
+      THEME.background,
+    ]) {
+      expect(wynik).toContain(kolor);
+    }
+    // Kontrola liczby: tyle samo wystąpień koloru wyciszonego co w bazie
+    // (legenda + dwie osie) - żadna sekcja nie wypadła po cichu.
+    const ile = (tekst: string, igla: string) => tekst.split(igla).length - 1;
+    expect(ile(wynik, THEME.muted)).toBe(ile(JSON.stringify(base), THEME.muted));
+  });
+
+  it("złączenie NIE MUTUJE ani bazy, ani opcji panelu", async () => {
+    // `EChartClient` memoizuje wynik po REFERENCJI opcji panelu
+    // (`useMemo([option, theme])`). Mutacja wejścia znaczyłaby, że przy drugim
+    // złączeniu tej samej opcji panel dostaje opcję już nadpisaną motywem,
+    // a przy zmianie motywu - kolory z poprzedniego.
+    const { baseOption, mergeChartOption } = await loadChartTheme();
+    const base = baseOption(THEME) as Record<string, unknown>;
+    const option = { yAxis: { type: "value" }, series: [{ type: "bar" }] };
+    const bazaPrzed = JSON.stringify(base);
+    const opcjaPrzed = JSON.stringify(option);
+
+    mergeChartOption(base, option);
+
+    expect(JSON.stringify(base)).toBe(bazaPrzed);
+    expect(JSON.stringify(option)).toBe(opcjaPrzed);
+  });
+
+  it("sekcja panelu na wartości NIEOBIEKTOWEJ bazy nadpisuje ją w całości", async () => {
+    // Trzy postacie, na których rekurencja MUSI się zatrzymać: `null`
+    // (bo `typeof null === "object"`), tablica i skalar.
+    const { mergeChartOption } = await loadChartTheme();
+
+    const merged = mergeChartOption(
+      { tooltip: null, grid: [1, 2], animationDuration: 400 },
+      { tooltip: { trigger: "axis" }, grid: { left: 8 }, animationDuration: { zle: true } },
+    );
+
+    expect(merged.tooltip).toEqual({ trigger: "axis" });
+    expect(merged.grid).toEqual({ left: 8 });
+    expect(merged.animationDuration).toEqual({ zle: true });
+  });
+
+  it("tablica osi BEZ odpowiednika w bazie wchodzi bez zmian", async () => {
+    // Rozgłaszanie bazy do elementów listy wymaga, żeby baza tej osi BYŁA
+    // obiektem. Nie ma jej - lista panelu jest wynikiem.
+    const { mergeChartOption } = await loadChartTheme();
+
+    const merged = mergeChartOption({}, { yAxis: [{ type: "value" }], xAxis: [{ type: "time" }] });
+
+    expect(merged.yAxis).toEqual([{ type: "value" }]);
+    expect(merged.xAxis).toEqual([{ type: "time" }]);
+  });
+
+  it("`undefined` podane przez panel jest WARTOŚCIĄ i wygrywa - to jest kontrakt, nie przypadek", async () => {
+    // Panel bywa budowany warunkowo (`formatter: warunek ? f : undefined`).
+    // Zapis kontraktu, żeby nikt nie dopisywał tu cichego pomijania pustych
+    // pól: pole podane wprost wygrywa, także gdy jest puste.
+    const { mergeChartOption } = await loadChartTheme();
+
+    const merged = mergeChartOption(
+      { tooltip: { trigger: "axis", backgroundColor: "#e10001" } },
+      { tooltip: { backgroundColor: undefined } },
+    );
+    const tooltip = merged.tooltip as { trigger: string; backgroundColor?: string };
+
+    expect(tooltip.trigger).toBe("axis");
+    expect(tooltip.backgroundColor).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HOOK `useChartTheme` - motyw dla PANELU, z tego samego magazynu co wykres.
+//
+// PO CO OSOBNA DROGA, SKORO ZŁĄCZENIE JEST GŁĘBOKIE. Bo są pola, których baza
+// nie zna i znać nie może: `calendar.dayLabel.color`, `radar.axisName.color`,
+// `series[].itemStyle.borderColor`, `markLine.lineStyle.color`. Dziś stoją tam
+// napisy `"hsl(var(--border))"`, których kanwa NIE POTRAFI rozwiązać - `var()`
+// żyje w CSS, nie w `fillStyle`. Hook daje panelowi wartość JUŻ ROZWIĄZANĄ.
+//
+// DLACZEGO TEN SAM MAGAZYN, a nie `resolveChartTheme()` w panelu: panel i jego
+// wykresy muszą widzieć TĘ SAMĄ migawkę w jednym renderze, inaczej po dowiezieniu
+// palety tenanta ramki treemapy byłyby z nowego motywu, a baza wykresu ze starego.
+describe("useChartTheme - kontrakt hooka dla paneli", () => {
+  /** Świeży moduł hooka WRAZ z tą samą instancją magazynu motywu. */
+  async function loadHook() {
+    const chartTheme = await loadChartTheme();
+    const { useChartTheme } = await import("../useChartTheme");
+    return { ...chartTheme, useChartTheme };
+  }
+
+  /** Wypłucz mikrotask zaplanowany przez efekt montujący hooka. */
+  async function settle(): Promise<void> {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  it("oddaje DOKŁADNIE tę migawkę, z której korzysta wykres - nie własny odczyt", async () => {
+    // Tożsamość, nie równość: dwie równe migawki o różnych referencjach
+    // znaczyłyby dwa niezależne odczyty i dwa niezależne przerenderowania.
+    const { useChartTheme, chartThemeSnapshot } = await loadHook();
+    setTokens({ "--chart-1": "#123456", "--border": "#654321" });
+
+    const { result } = renderHook(() => useChartTheme());
+    await settle();
+
+    expect(result.current).toBe(chartThemeSnapshot());
+    expect(result.current.palette[0]).toBe("#123456");
+    expect(result.current.border).toBe("#654321");
+  });
+
+  it("zmiana tokenu po rozgłoszeniu przerenderowuje panel NOWYM kolorem", async () => {
+    const { useChartTheme, notifyChartThemeChanged } = await loadHook();
+    const { result } = renderHook(() => useChartTheme());
+    await settle();
+    expect(result.current.border).not.toBe("#aabbcc");
+
+    setTokens({ "--border": "#aabbcc" });
+    await act(async () => {
+      notifyChartThemeChanged();
+    });
+
+    expect(result.current.border).toBe("#aabbcc");
+  });
+
+  it("rozgłoszenie BEZ realnej zmiany tokenów NIE przerenderowuje panelu", async () => {
+    // Ta sama oszczędność, którą ma wykres: panel przelicza opcję w `useMemo`
+    // po referencji motywu, więc nowa referencja o tych samych kolorach to
+    // darmowe `setOption(notMerge)` na każdym wykresie panelu.
+    const { useChartTheme, notifyChartThemeChanged } = await loadHook();
+    let rendery = 0;
+    renderHook(() => {
+      rendery += 1;
+      return useChartTheme();
+    });
+    await settle();
+    const przed = rendery;
+
+    await act(async () => {
+      notifyChartThemeChanged();
+    });
+
+    expect(rendery).toBe(przed);
+  });
+
+  it("odmontowany panel przestaje nasłuchiwać - hook nie przecieka subskrypcją", async () => {
+    const { useChartTheme, notifyChartThemeChanged } = await loadHook();
+    let rendery = 0;
+    const { unmount } = renderHook(() => {
+      rendery += 1;
+      return useChartTheme();
+    });
+    await settle();
+    unmount();
+    const przed = rendery;
+
+    setTokens({ "--border": "#0f0f0f" });
+    await act(async () => {
+      notifyChartThemeChanged();
+    });
+
+    expect(rendery).toBe(przed);
+  });
+
+  it("DZIESIĘCIU konsumentów hooka to DWA odczyty tokenów, nie dwadzieścia", async () => {
+    // Ta sama liczba, którą `EChartClient.test.tsx` mierzy dla dziesięciu
+    // wykresów: jeden odczyt na pierwszą migawkę i jeden na koalescencyjne
+    // odświeżenie po zamontowaniu. Hook NIE MOŻE dołożyć tu nic ponad to -
+    // inaczej panel korzystający z motywu płaciłby za samo pytanie o kolor.
+    const { useChartTheme } = await loadHook();
+    const szpieg = vi.spyOn(window, "getComputedStyle");
+
+    // Dziesięć NIEZALEŻNYCH konsumentów, nie dziesięć wywołań w pętli: pętla
+    // łamie kolejność hooków (`react-hooks/rules-of-hooks`), a mierzyć trzeba
+    // to, co robi panel - kilka komponentów pytających o motyw w jednej turze.
+    for (let i = 0; i < 10; i += 1) renderHook(() => useChartTheme());
+    await settle();
+
+    expect(szpieg).toHaveBeenCalledTimes(2);
   });
 });

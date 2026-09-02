@@ -70,7 +70,7 @@ function gtagIfConsented(): GtagFn | null {
  * CISZA W `catch` JEST KONWENCJĄ TEJ WARSTWY, nie przeoczeniem: przeglądarkowe
  * moduły telemetrii w tym repo połykają błąd bez śladu w konsoli, zostawiając
  * jedynie komentarz w pustym `catch` - `analytics/track.ts` (`randomId`,
- * `readSession`, `readAnonId`), `ads/consent.ts` („private mode") oraz
+ * `readSession`, `readAnonId`), `ads/consent.ts` („private mode”) oraz
  * `observability/report.ts` (`sendBeaconPayload` zwraca `false`). `console.warn`
  * w `src/lib/analytics` stoi WYŁĄCZNIE w funkcjach serwerowych
  * (`audience.functions.ts`, `semantic/snapshot.functions.ts`), gdzie trafia do

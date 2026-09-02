@@ -4,7 +4,7 @@
 //
 // NIEZALEŻNOŚĆ OBU NADAŃ JEST TU FUNKCJONALNOŚCIĄ, NIE OZDOBĄ. Każdy beacon
 // idzie we WŁASNEJ granicy błędu (`fireBeacon`), bo cała wartość modułu leży
-// w słowie „niezależne": awaria jednego kanału nie ma prawa zabrać drugiego,
+// w słowie „niezależne”: awaria jednego kanału nie ma prawa zabrać drugiego,
 // a żadna z nich nie ma prawa wyjść wyjątkiem do wołającego. Ta funkcja jest
 // wołana WPROST z `onClick` linku wychodzącego (`GooglePreferredSourceBadge`),
 // więc niewyłapany wyjątek zamienia kliknięcie w link na zgłoszenie błędu
@@ -36,7 +36,7 @@ function gtag(): GtagFn | null {
  * CISZA W `catch` JEST KONWENCJĄ TEJ WARSTWY, a nie przeoczeniem. Przeglądarkowe
  * moduły telemetrii w tym repo połykają błąd bez śladu w konsoli, zostawiając
  * wyłącznie komentarz w pustym `catch` - tak robi `analytics/track.ts`
- * (`randomId`, `readSession`, `readAnonId`), `ads/consent.ts` („private mode")
+ * (`randomId`, `readSession`, `readAnonId`), `ads/consent.ts` („private mode”)
  * i `observability/report.ts` (`sendBeaconPayload` zwraca `false`). `console.warn`
  * w `src/lib/analytics` występuje TYLKO w funkcjach serwerowych
  * (`audience.functions.ts`, `semantic/snapshot.functions.ts`), gdzie trafia do
