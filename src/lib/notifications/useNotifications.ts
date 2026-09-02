@@ -80,7 +80,6 @@ function normalizeFilter(filter: NotificationsFilter) {
   } as const;
 }
 
-
 const listKey = (uid: string | undefined, filter: NotificationsFilter) =>
   ["notifications", uid ?? "anon", normalizeFilter(filter)] as const;
 
@@ -192,8 +191,6 @@ export function useUnreadCountExcluding(
     staleTime: 15_000,
   });
 }
-
-
 
 export function useMarkNotificationRead() {
   const qc = useQueryClient();

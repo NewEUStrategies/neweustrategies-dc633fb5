@@ -105,7 +105,6 @@ const KIND_ICON_BY_NAME: Readonly<Record<string, React.ComponentType<{ className
 /** Rodzaje obsługiwane przez ikonę czatu - dzwonek ich nie pokazuje. */
 const CHAT_KINDS: readonly NotificationKind[] = ["message"];
 
-
 export interface NotificationsBellProps {
   panelWidth?: number;
 }

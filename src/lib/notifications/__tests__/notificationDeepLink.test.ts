@@ -88,7 +88,14 @@ describe("deep link powiadomienia o wiadomości", () => {
 
   it("przeczytane powiadomienie spoza rozmowy ma zerowy licznik", () => {
     const groups = groupNotifications(
-      [row({ id: "s", kind: "system", href: "/profile/plan", read_at: "2026-09-02T07:30:00.000Z" })],
+      [
+        row({
+          id: "s",
+          kind: "system",
+          href: "/profile/plan",
+          read_at: "2026-09-02T07:30:00.000Z",
+        }),
+      ],
       { groupByConversation: true },
     );
     expect(groups[0]?.unreadCount).toBe(0);
@@ -96,10 +103,9 @@ describe("deep link powiadomienia o wiadomości", () => {
   });
 
   it("przeczytane powiadomienie nie podbija licznika", () => {
-    const groups = groupNotifications(
-      [row({ id: "r", read_at: "2026-09-02T07:30:00.000Z" })],
-      { groupByConversation: true },
-    );
+    const groups = groupNotifications([row({ id: "r", read_at: "2026-09-02T07:30:00.000Z" })], {
+      groupByConversation: true,
+    });
     expect(groups[0]?.unreadCount).toBe(0);
   });
 });

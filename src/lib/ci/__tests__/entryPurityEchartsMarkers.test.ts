@@ -37,7 +37,10 @@ const ECHARTS_MIN = join("node_modules", "echarts", "dist", "echarts.min.js");
 function echartsMarkers(): string[] {
   const src = readFileSync(GATE, "utf8");
   const entry = src.slice(src.indexOf('label: "echarts'));
-  const markersLine = entry.slice(entry.indexOf("markers: ["), entry.indexOf("]", entry.indexOf("markers: [")));
+  const markersLine = entry.slice(
+    entry.indexOf("markers: ["),
+    entry.indexOf("]", entry.indexOf("markers: [")),
+  );
   return [...markersLine.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) =>
     m[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\"),
   );

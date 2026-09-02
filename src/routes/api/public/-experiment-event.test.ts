@@ -91,9 +91,10 @@ async function post(payload: unknown, raw?: string, headers?: Record<string, str
 
 beforeEach(() => {
   h.rateLimit.mockReset().mockResolvedValue(true);
-  h.maybeSingle
-    .mockReset()
-    .mockResolvedValue({ data: { id: EXPERIMENT_ID, status: "running", tenant_id: "tenant-1" }, error: null });
+  h.maybeSingle.mockReset().mockResolvedValue({
+    data: { id: EXPERIMENT_ID, status: "running", tenant_id: "tenant-1" },
+    error: null,
+  });
   h.insert.mockReset().mockResolvedValue({ error: null });
   h.hostTenantId = "tenant-1";
   h.trustedHost = "redakcja.example.test";
@@ -211,7 +212,10 @@ describe("limiter", () => {
   it("limiter jest kluczowany HASHEM widza, a nie surowym adresem - w kluczu nie ma IP", async () => {
     // Klucz limitera trafia do tabeli `rate_limit_hit`; gdyby był surowym
     // adresem, tabela techniczna stałaby się rejestrem adresów odwiedzających.
-    await post(body(), undefined, { "cf-connecting-ip": "203.0.113.42", "user-agent": "Firefox/1" });
+    await post(body(), undefined, {
+      "cf-connecting-ip": "203.0.113.42",
+      "user-agent": "Firefox/1",
+    });
 
     const args = h.rateLimit.mock.calls[0]![0] as { scope: string; subjectId: string; max: number };
     expect(args.scope).toBe("ab.event");
@@ -225,7 +229,8 @@ describe("limiter", () => {
     await post(body(), undefined, { "cf-connecting-ip": "203.0.113.9", "user-agent": "A" });
     await post(body(), undefined, { "cf-connecting-ip": "203.0.113.9", "user-agent": "B" });
 
-    const subject = (i: number) => (h.rateLimit.mock.calls[i]![0] as { subjectId: string }).subjectId;
+    const subject = (i: number) =>
+      (h.rateLimit.mock.calls[i]![0] as { subjectId: string }).subjectId;
     expect(subject(0)).toBe(subject(1));
     expect(subject(0)).not.toBe(subject(2));
   });
@@ -239,7 +244,8 @@ describe("limiter", () => {
     });
     await POST({ request: req });
 
-    const subject = (i: number) => (h.rateLimit.mock.calls[i]![0] as { subjectId: string }).subjectId;
+    const subject = (i: number) =>
+      (h.rateLimit.mock.calls[i]![0] as { subjectId: string }).subjectId;
     // Trzy różne źródła adresu dają trzy różne kubełki; brak adresu ma własny,
     // wspólny kubełek zamiast kanału bez limitu.
     expect(new Set([subject(0), subject(1), subject(2)]).size).toBe(3);
