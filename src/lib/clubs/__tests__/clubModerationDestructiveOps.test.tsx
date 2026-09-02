@@ -78,11 +78,7 @@ vi.mock("@/lib/clubs/clubSemantic.functions", () => ({
 
 import { clubApiMock, resetClubApiMock } from "@/test/clubs/apiMock";
 import { clubKeys } from "@/lib/clubs/queryKeys";
-import {
-  clubModerationKeys,
-  clubOnlyKeys,
-  clubSettingsKeys,
-} from "@/lib/clubs/clubInvalidations";
+import { clubModerationKeys, clubOnlyKeys, clubSettingsKeys } from "@/lib/clubs/clubInvalidations";
 import { CLUB_MODERATION_ACTIONS } from "@/lib/clubs/types";
 import type { ClubSegmentRule } from "@/lib/clubs/types";
 import {
@@ -573,7 +569,7 @@ describe("cofnięcie tam, gdzie jest przewidziane", () => {
 // 5. Błąd serwera
 // ---------------------------------------------------------------------------
 
-describe("odmowa bazy nie zostawia ekranu w stanie „zrobione\"", () => {
+describe('odmowa bazy nie zostawia ekranu w stanie „zrobione"', () => {
   it("moduł NIE MA optymistycznej podmiany - nie ma więc czego wycofywać", () => {
     for (const src of [MODERATION_HOOKS_SRC, ADMIN_HOOKS_SRC]) {
       expect(src).not.toMatch(/onMutate|setQueryData|cancelQueries/);
@@ -620,9 +616,9 @@ describe("odmowa bazy nie zostawia ekranu w stanie „zrobione\"", () => {
     clubApiMock.banClubMember.mockRejectedValue(new Error("clubs: forbidden"));
 
     const { result } = renderHook(() => useBanClubMember(CLUB), { wrapper });
-    await expect(
-      result.current.mutateAsync({ userId: "u1", banned: true }),
-    ).rejects.toThrow("clubs: forbidden");
+    await expect(result.current.mutateAsync({ userId: "u1", banned: true })).rejects.toThrow(
+      "clubs: forbidden",
+    );
 
     expect(invalidated).toEqual([]);
   });
@@ -721,9 +717,7 @@ describe("inwalidacje - zgodność z katalogiem `clubInvalidations`", () => {
       reason: "Dane osobowe",
     });
 
-    await waitFor(() =>
-      expect(sawKeys(second.invalidated, clubModerationKeys(CLUB))).toBe(true),
-    );
+    await waitFor(() => expect(sawKeys(second.invalidated, clubModerationKeys(CLUB))).toBe(true));
   });
 
   it("blokada, masowa rola, przeniesienie i wątek z panelu ruszają SAM klub", async () => {
@@ -1063,10 +1057,7 @@ describe("odczyty pulpitu moderacji", () => {
     // poleciały. Wycisza je jawne `enabled: false` (gość na stronie publicznej,
     // zamknięty kompozytor, panel bez wybranego klubu).
     renderHook(() => useClubSearch({ query: "energia jadrowa", enabled: false }), { wrapper });
-    renderHook(
-      () => useClubAnchorSuggestions({ query: "dyrektywa", enabled: false }),
-      { wrapper },
-    );
+    renderHook(() => useClubAnchorSuggestions({ query: "dyrektywa", enabled: false }), { wrapper });
     renderHook(() => useAdminClubs({ search: "energia" }, false), { wrapper });
 
     await flush();
