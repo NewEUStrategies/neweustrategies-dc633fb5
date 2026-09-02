@@ -263,22 +263,102 @@ function rowMessage(row: HTMLElement): string {
   return row.querySelector("span.font-mono")?.textContent ?? "";
 }
 
-/** Liczba wystąpień - drugi `span` przycisku, wyrównany do prawej. */
+/**
+ * Liczba wystąpień - drugi `span` przycisku, wyrównany do prawej. Selektor
+ * celuje w klasę UKŁADU (`justify-self-end`) ŚWIADOMIE: w wierszu nie ma ani
+ * jednego pola powiązanego z nazwą, więc nie ma o co zapytać semantycznie -
+ * patrz przypięcie "DEFEKT: wiersz grupy nie wiąże żadnej wartości z nazwą
+ * pola".
+ */
 function rowCount(row: HTMLElement): string {
   return row.querySelector("span.justify-self-end")?.textContent ?? "";
 }
 
-/** Udział w procentach - jedyny `span` o szerokości `w-9`. */
+/**
+ * Udział w procentach - jedyny `span` o szerokości `w-9`. Znów klasa układu i
+ * znów świadomie, z tego samego powodu co przy `rowCount` (to samo przypięcie).
+ */
 function rowShare(row: HTMLElement): string {
   return row.querySelector("span.w-9")?.textContent ?? "";
 }
 
+/**
+ * Plakietki źródeł - dzieci kontenera z utility `hidden`. Selektor jest
+ * układowy PODWÓJNIE świadomie: `hidden` nie znaczy "źródła", znaczy
+ * `display:none` poniżej breakpointu `sm` - patrz przypięcie "DEFEKT: źródła
+ * błędu gasną poniżej breakpointu sm...".
+ */
 function rowSources(row: HTMLElement): string[] {
   return Array.from(row.querySelectorAll("span.hidden > *")).map((b) => b.textContent ?? "");
 }
 
 function rowStack(row: HTMLElement): HTMLElement | null {
   return row.querySelector("pre");
+}
+
+/**
+ * Trzy pola wiersza jako ELEMENTY - wejście do asercji o drzewie dostępności.
+ * Selektory są te same, układowe, co w pomocnikach wyżej; brak któregokolwiek
+ * oblewa najpierw asercje o kolejności wierszy i o udziałach, więc ten rzut
+ * nie może zazielenić przypięcia po cichu.
+ */
+function rowFieldElements(row: HTMLElement): HTMLElement[] {
+  return ["span.font-mono", "span.justify-self-end", "span.w-9"].map((selector) => {
+    const el = row.querySelector(selector);
+    if (!el) throw new Error(`test: wiersz grupy nie ma pola "${selector}"`);
+    return el as HTMLElement;
+  });
+}
+
+/**
+ * Nazwa nadana JAWNIE (`aria-label` / `aria-labelledby`) - jedyna, która nie
+ * zależy od arkusza stylów. `title` się tu NIE liczy: na `span`-ie o roli
+ * generycznej nie tworzy dostępnej nazwy, a w tym wierszu i tak powtarza
+ * WARTOŚĆ pola, a nie jego nazwę.
+ */
+function explicitAriaName(el: Element): string {
+  const label = el.getAttribute("aria-label");
+  if (label !== null) return label;
+  const ids = (el.getAttribute("aria-labelledby") ?? "").split(/\s+/).filter(Boolean);
+  return ids.map((id) => el.ownerDocument.getElementById(id)?.textContent ?? "").join(" ");
+}
+
+/**
+ * Czy element leży w poddrzewie gaszonym poniżej breakpointu `sm`, czyli w
+ * kontenerze z utility `hidden` odwracaną dopiero warunkiem `sm:*`.
+ *
+ * Świadectwem jest LISTA KLAS, a nie `getComputedStyle`: happy-dom nie wczytuje
+ * arkusza Tailwinda i nie ma silnika layoutu, więc `display` takiego kontenera
+ * jest w tym środowisku pustym napisem (zmierzone). To samo jest powodem, dla
+ * którego axe-core uznaje plakietki źródeł za widoczne.
+ */
+function hiddenBelowSm(el: Element, root: Element): boolean {
+  for (let node: Element | null = el; node !== null; node = node.parentElement) {
+    const classes = Array.from(node.classList);
+    if (classes.includes("hidden") && classes.some((c) => c.startsWith("sm:"))) return true;
+    if (node === root) break;
+  }
+  return false;
+}
+
+/**
+ * Czy pole jest powiązane z JAKĄKOLWIEK nazwą w drzewie dostępności. Trzy
+ * mechanizmy, bez preferencji dla żadnego: jawna nazwa ARIA na polu, para
+ * `<dt>`/`<dd>` w liście definicji albo komórka wiersza tabeli/siatki, której
+ * tabela ma nagłówek kolumny. Wystarczy jeden - asercja nie narzuca
+ * implementacji, wymaga istnienia relacji.
+ */
+function fieldHasNameRelation(field: Element): boolean {
+  if (explicitAriaName(field).trim() !== "") return true;
+
+  const definitionList = field.closest("dd")?.closest("dl") ?? null;
+  if (definitionList !== null && definitionList.querySelector("dt") !== null) return true;
+
+  const cell = field.closest('[role="cell"], [role="gridcell"], [role="columnheader"], td, th');
+  const rowScope = cell?.closest('[role="row"], tr') ?? null;
+  const tableScope =
+    rowScope?.closest('[role="table"], [role="grid"], [role="treegrid"], table') ?? null;
+  return (tableScope?.querySelector('[role="columnheader"], thead th') ?? null) !== null;
 }
 
 function shortDateTime(iso: string, locale: string): string {
@@ -983,4 +1063,116 @@ describe("ClientErrorsDashboard - dostępność", () => {
     expect(list).not.toBeNull();
     expect(Array.from(list?.children ?? []).every((li) => li.tagName === "LI")).toBe(true);
   });
+
+  it("wartownik: pierwszy wiersz BUSY naprawdę wystawia plakietkę źródła", async () => {
+    // Przypięcie o źródłach szuka NOŚNIKA etykiety "promise" i wnioskuje z
+    // tego, gdzie ta etykieta leży. W `it.fails` każda porażka - także pusta
+    // fixtura - liczy się jako sukces, więc warunek wstępny musi stać w
+    // ZWYKŁYM przypadku, poza przypięciem. Ten wartownik jest tym warunkiem.
+    panel();
+    await loaded();
+
+    expect(rowSources(groupRows()[0])).toContain(ce("sourceLabels.unhandledrejection"));
+  });
+
+  it.fails("DEFEKT: wiersz grupy nie wiąże żadnej wartości z nazwą pola", async () => {
+    // DEFEKT. Wiersz grupy (`ErrorGroupRow`, `ClientErrorsDashboard.tsx`
+    // 201-245) to `<button>` z płaską siatką `<span>`-ów: komunikat, liczba
+    // wystąpień, pasek udziału z procentem, plakietki źródeł. Ani jednego
+    // `role="row"`, ani jednego `columnheader`, żadnej pary `<dt>`/`<dd>`,
+    // zero `aria-label` i `aria-labelledby` w całym poddrzewie (zmierzone:
+    // 0 elementów). Dostępna nazwa przycisku jest składana z TREŚCI i wychodzi
+    // jednym ciągiem - "Loading chunk 7 failed 3 50% onerror promise" - więc
+    // czytnik ekranu ogłasza "trzy" i "pięćdziesiąt procent" bez informacji,
+    // CZEGO te liczby są. `title` przycisku niesie tylko "Pokaż szczegóły" i
+    // dla nazwy przegrywa z treścią, a `title` na komunikacie powtarza wartość
+    // pola, nie jego nazwę.
+    //
+    // ZŁAMANY KONTRAKT: WCAG 2.2 SC 1.3.1 Info and Relationships (poziom A).
+    // Relacja nazwa-wartość jest w tym wierszu obecna WIZUALNIE - kolumny
+    // siatki, wyrównanie, znak procentu - i nieobecna PROGRAMOWO.
+    //
+    // DLACZEGO AXE-CORE TEGO NIE ŁAPIE, i dlaczego jego zieleń nie jest z tym
+    // defektem sprzeczna: axe bada POPRAWNOŚĆ zadeklarowanej semantyki, nie
+    // jej OBECNOŚĆ. `aria-required-children` i `aria-required-parent` odpalają
+    // wyłącznie wtedy, gdy jakiś `role` już jest - tu nie ma żadnego, więc nie
+    // ma czego weryfikować. `button-name` przechodzi, bo przycisk MA nazwę; to,
+    // że jest ona nierozdzielną sklejką czterech pól, nie narusza żadnej
+    // reguły. Trzy przypadki axe wyżej w tym pliku są zielone i mają nimi
+    // zostać: dowodzą, że panel nie deklaruje niczego BŁĘDNIE. Brak modelu
+    // semantycznego jest dla narzędzia automatycznego niewidzialny - to luka
+    // klasy "brak", a nie "błąd".
+    //
+    // SKUTEK UBOCZNY DLA ASERCJI: `rowMessage`, `rowCount`, `rowShare` i
+    // `rowSources` muszą celować w utility Tailwinda (`font-mono`,
+    // `justify-self-end`, `w-9`, `hidden`). Kilkanaście asercji w tym pliku -
+    // kolejność wierszy, udziały 67/33, tłumaczenia źródeł, formaty en-GB -
+    // wisi na tym, że nikt nie zmieni wyrównania ani szerokości kolumny.
+    // Refaktor CSS-a bez zmiany zachowania oblewa je wszystkie, a defekt
+    // dostępności zostaje na miejscu. Test utrwala wtedy brak semantyki jako
+    // umowę - dlatego stoi tu przypięcie, a nie kolejna asercja na klasach.
+    panel();
+    await loaded();
+
+    const fields = rowFieldElements(groupRows()[0]);
+
+    expect(fields.map((field) => fieldHasNameRelation(field))).toEqual([true, true, true]);
+  });
+
+  it.fails(
+    "DEFEKT: źródła błędu gasną poniżej breakpointu sm i nie mają dojścia niezależnego od szerokości ekranu",
+    async () => {
+      // DEFEKT. Plakietki źródeł siedzą w `<span className="hidden
+      // items-center gap-1 sm:flex">` (`ClientErrorsDashboard.tsx` 229-237).
+      // `hidden` to `display:none`, a `sm:flex` odwraca to dopiero od 640 px:
+      // poniżej tej szerokości źródła SĄ w DOM, ale wypadają z drzewa
+      // dostępności, a więc i z dostępnej nazwy przycisku - ta jest tu składana
+      // z treści, `aria-label` nie ma, `title` niesie tylko "Pokaż szczegóły".
+      // Na telefonie czytnik ekranu ogłasza "Loading chunk 7 failed 3 50%" i
+      // nie ma ŻADNEJ drogi do informacji, że błąd przyszedł z `onerror` i z
+      // odrzuconej obietnicy. To nie ozdoba: źródło rozstrzyga, czy patrzymy na
+      // błąd skryptu, czy na nieobsłużone odrzucenie - czyli gdzie szukać
+      // przyczyny.
+      //
+      // ZŁAMANY KONTRAKT: WCAG 2.2 SC 1.4.10 Reflow (poziom AA) - przy 320 px
+      // szerokości treść ginie bez zamiennika. Wtórnie znów SC 1.3.1: ta sama
+      // informacja jest programowo dostępna na szerokim ekranie i niedostępna
+      // na wąskim, czyli model nie odwzorowuje treści.
+      //
+      // DLACZEGO AXE-CORE TEGO NIE ŁAPIE - dwa powody, oba twarde. (1) W tym
+      // środowisku `hidden` NIE DZIAŁA: happy-dom nie wczytuje arkusza
+      // Tailwinda i nie ma silnika layoutu, więc `getComputedStyle(kontener)
+      // .display` jest pustym napisem (zmierzone), axe widzi plakietki jako
+      // widoczne i wlicza je do nazwy. (2) Nawet w prawdziwej przeglądarce axe
+      // bada JEDEN stan drzewa - ten przy aktualnej szerokości - i nie ma
+      // reguły "treść nie może zniknąć między breakpointami". Zieleń trzech
+      // przypadków axe wyżej jest więc prawdziwa i niesprzeczna z tym
+      // defektem: mierzy poprawność tego, co widać przy szerokości testowej, a
+      // nie zachowanie modelu przy 320 px. Ta sama nieobecność CSS-a jest
+      // powodem, dla którego asercja poniżej pyta `hiddenBelowSm` o LISTĘ KLAS,
+      // a nie o `display`.
+      //
+      // SKUTEK UBOCZNY DLA ASERCJI: `rowSources` czyta `span.hidden > *`, więc
+      // dwie asercje o źródłach ("źródła grupy są tłumaczone...", "angielskie
+      // źródła i podpowiedzi...") są zielone na treści, której użytkownik
+      // czytnika ekranu na telefonie nigdy nie usłyszy. Zielony test na
+      // niedostępnej treści jest gorszy od braku testu, bo zamyka sprawę.
+      //
+      // Asercja przyjmuje KAŻDE wyjście: plakietkę poza kontenerem gaszonym
+      // poniżej `sm` (zwijanie zamiast ukrywania, kopia `sr-only`) albo jawną
+      // nazwę przycisku niosącą źródła.
+      panel();
+      await loaded();
+
+      const row = groupRows()[0];
+      const label = ce("sourceLabels.unhandledrejection");
+      const carriers = Array.from(row.querySelectorAll("*")).filter(
+        (el) => el.children.length === 0 && (el.textContent ?? "").trim() === label,
+      );
+      const reachableOnNarrow = carriers.some((el) => !hiddenBelowSm(el, row));
+      const nameCarriesSource = explicitAriaName(rowToggle(row)).includes(label);
+
+      expect(reachableOnNarrow || nameCarriesSource).toBe(true);
+    },
+  );
 });
