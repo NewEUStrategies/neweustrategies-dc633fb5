@@ -107,6 +107,7 @@ import {
 import {
   useAdminClub,
   useAdminClubGroups,
+  useAdminClubs,
   useAdminClubStats,
   useClubCapabilitiesPreview,
   useClubSegmentPreview,
@@ -879,21 +880,23 @@ describe("odczyty pulpitu moderacji", () => {
     const { wrapper } = harness();
     clubApiMock.fetchAdminClubThreads.mockResolvedValue({ rows: [], total: 0 });
 
-    const a = renderHook(
-      () => useAdminClubThreads(CLUB, { status: "hidden", search: "energia", offset: 0 }),
-      { wrapper },
-    );
+    const filters = {
+      groupId: "group-3",
+      kind: "consultation",
+      status: "hidden",
+      search: "energia",
+    };
+    const a = renderHook(() => useAdminClubThreads(CLUB, { ...filters, offset: 0 }), { wrapper });
     await waitFor(() => expect(a.result.current.isSuccess).toBe(true));
-    const b = renderHook(
-      () => useAdminClubThreads(CLUB, { status: "hidden", search: "energia", offset: 50 }),
-      { wrapper },
-    );
+    const b = renderHook(() => useAdminClubThreads(CLUB, { ...filters, offset: 50 }), { wrapper });
     await waitFor(() => expect(b.result.current.isSuccess).toBe(true));
 
     expect(clubApiMock.fetchAdminClubThreads).toHaveBeenCalledTimes(2);
-    expect(clubApiMock.fetchAdminClubThreads).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: "hidden", search: "energia", offset: 50 }),
-    );
+    expect(clubApiMock.fetchAdminClubThreads).toHaveBeenLastCalledWith({
+      clubId: CLUB,
+      ...filters,
+      offset: 50,
+    });
   });
 
   it("odpowiedzi panelu i licznik plakietki czytają swoje źródła", async () => {
@@ -1053,6 +1056,34 @@ describe("odczyty pulpitu moderacji", () => {
     });
   });
 
+  it("bramka `enabled` wycisza wyszukiwarkę, podpowiedzi i listę panelu", async () => {
+    const { wrapper } = harness();
+
+    // Fraza jest DŁUGA - gdyby liczył się tylko próg znaków, oba zapytania by
+    // poleciały. Wycisza je jawne `enabled: false` (gość na stronie publicznej,
+    // zamknięty kompozytor, panel bez wybranego klubu).
+    renderHook(() => useClubSearch({ query: "energia jadrowa", enabled: false }), { wrapper });
+    renderHook(
+      () => useClubAnchorSuggestions({ query: "dyrektywa", enabled: false }),
+      { wrapper },
+    );
+    renderHook(() => useAdminClubs({ search: "energia" }, false), { wrapper });
+
+    await flush();
+    expect(clubApiMock.searchClubThreads).not.toHaveBeenCalled();
+    expect(clubApiMock.fetchClubAnchorSuggestions).not.toHaveBeenCalled();
+    expect(clubApiMock.fetchAdminClubs).not.toHaveBeenCalled();
+  });
+
+  it("podgląd uprawnień bez KLUBU milczy tak samo, jak bez osoby", async () => {
+    const { wrapper } = harness();
+
+    renderHook(() => useClubCapabilitiesPreview({ clubId: undefined, userId: "u1" }), { wrapper });
+
+    await flush();
+    expect(clubApiMock.previewClubCapabilities).not.toHaveBeenCalled();
+  });
+
   it("kotwica bez identyfikatora nie odpytuje", async () => {
     const { wrapper } = harness();
 
@@ -1069,7 +1100,107 @@ describe("odczyty pulpitu moderacji", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Defekt: rozmiar strony poza kluczem cache'u
+// 8. Wartość zastępcza identyfikatora
+// ---------------------------------------------------------------------------
+
+describe("brak identyfikatora daje PUSTY napis, nigdy `undefined`", () => {
+  // DLACZEGO TO NIE JEST CZEPIALSTWO. `enabled` wycisza zapytanie, ale NIE jest
+  // ostatnią linią obrony: `refetch()` z React Query świadomie ignoruje
+  // `enabled` (tak działa przycisk „odśwież" i ręczne ponowienie po błędzie),
+  // więc `queryFn` DA SIĘ wykonać bez identyfikatora. Wtedy liczy się, co
+  // pojedzie do bazy. `""` to identyfikator, który nie pasuje do niczego -
+  // odpowiedź jest pusta. `undefined` w ładunku RPC znaczy „argument
+  // pominięty", czyli „użyj domyślnej", a domyślna dla filtra klubu to BRAK
+  // FILTRA. Ta różnica to granica najemcy dla ścieżki, którą łatwo przeoczyć,
+  // bo w normalnym renderze nigdy się nie wykonuje.
+  it("odczyty panelu klubu wysyłają pusty identyfikator, nie pomijają argumentu", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchAdminClub.mockResolvedValue(null);
+    clubApiMock.fetchAdminClubGroups.mockResolvedValue([]);
+    clubApiMock.fetchAdminClubStats.mockResolvedValue(null);
+    clubApiMock.previewClubCapabilities.mockResolvedValue({ can_moderate: false });
+    clubApiMock.previewClubSegment.mockResolvedValue({ count: 0, sample: [] });
+
+    const club = renderHook(() => useAdminClub(undefined), { wrapper });
+    const groups = renderHook(() => useAdminClubGroups(undefined), { wrapper });
+    const stats = renderHook(() => useAdminClubStats(undefined), { wrapper });
+    const caps = renderHook(
+      () => useClubCapabilitiesPreview({ clubId: undefined, userId: undefined }),
+      { wrapper },
+    );
+    const segment = renderHook(
+      () => useClubSegmentPreview({ clubId: undefined, rule: { kind: "badge" }, enabled: true }),
+      { wrapper },
+    );
+
+    await Promise.all([
+      club.result.current.refetch(),
+      groups.result.current.refetch(),
+      stats.result.current.refetch(),
+      caps.result.current.refetch(),
+      segment.result.current.refetch(),
+    ]);
+
+    expect(clubApiMock.fetchAdminClub).toHaveBeenCalledWith("");
+    expect(clubApiMock.fetchAdminClubGroups).toHaveBeenCalledWith("");
+    expect(clubApiMock.fetchAdminClubStats).toHaveBeenCalledWith("");
+    expect(clubApiMock.previewClubCapabilities).toHaveBeenCalledWith({
+      clubId: "",
+      userId: "",
+      groupId: undefined,
+    });
+    expect(clubApiMock.previewClubSegment).toHaveBeenCalledWith({
+      clubId: "",
+      rule: { kind: "badge" },
+    });
+  });
+
+  it("odczyty pulpitu moderacji zachowują się tak samo", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchAdminClubThreads.mockResolvedValue({ rows: [], total: 0 });
+    clubApiMock.fetchAdminClubReplies.mockResolvedValue({ rows: [], total: 0 });
+    clubApiMock.fetchClubModerationQueue.mockResolvedValue({ rows: [], total: 0 });
+    clubApiMock.fetchClubModerationLog.mockResolvedValue([]);
+    clubApiMock.fetchClubThreadsForAnchor.mockResolvedValue([]);
+
+    const threads = renderHook(() => useAdminClubThreads(undefined, {}), { wrapper });
+    const replies = renderHook(() => useAdminClubReplies(undefined), { wrapper });
+    const queue = renderHook(() => useClubModerationQueue(undefined), { wrapper });
+    const log = renderHook(() => useClubModerationLog(undefined), { wrapper });
+    const anchor = renderHook(
+      () => useClubThreadsForAnchor({ anchorType: undefined, anchorId: undefined }),
+      { wrapper },
+    );
+
+    await Promise.all([
+      threads.result.current.refetch(),
+      replies.result.current.refetch(),
+      queue.result.current.refetch(),
+      log.result.current.refetch(),
+      anchor.result.current.refetch(),
+    ]);
+
+    expect(clubApiMock.fetchAdminClubThreads).toHaveBeenCalledWith({
+      clubId: "",
+      groupId: null,
+      status: null,
+      kind: null,
+      search: "",
+      offset: 0,
+    });
+    expect(clubApiMock.fetchAdminClubReplies).toHaveBeenCalledWith({ threadId: "" });
+    expect(clubApiMock.fetchClubModerationQueue).toHaveBeenCalledWith({ clubId: "" });
+    expect(clubApiMock.fetchClubModerationLog).toHaveBeenCalledWith({ clubId: "" });
+    expect(clubApiMock.fetchClubThreadsForAnchor).toHaveBeenCalledWith({
+      anchorType: "",
+      anchorId: "",
+      limit: 5,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Defekt: rozmiar strony poza kluczem cache'u
 // ---------------------------------------------------------------------------
 
 describe("rozmiar strony NIE jest częścią klucza - defekt", () => {
