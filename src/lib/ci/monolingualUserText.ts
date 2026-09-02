@@ -20,6 +20,15 @@
 // 71 `placeholder`, 66 `aria-label`, 24 `title`, 12 `alt`. Poza panelem
 // administracyjnym leży 85 z nich w 42 plikach - reszta to panel.
 //
+// SZUM RESZTKOWY: 42 z 713 (około 6%). To nazwy własne renderowane wprost
+// („New European Strategies”, „LinkedIn”, „Facebook”, „Spotify”) i wartości
+// przykładowe w `placeholder` („uuid1,uuid2”, „esc”, „ts”). Marki się NIE
+// tłumaczy, więc formalnie nie są długiem - a jednak zostają w pomiarze
+// świadomie: allowlista nazw własnych byłaby listą bez końca, która z czasem
+// zaczyna przepuszczać prawdziwy tekst („Website”, „New”), a te 42 wystąpienia
+// i tak są ZAMROŻONE w baseline'ie i mogą tylko zniknąć. Fałszywy alarm
+// kosztuje tu jeden wiersz na liście, nie oblany build.
+//
 // ZASIĘG: DZIECI I PROPSY JSX, NIE „KAŻDY POLSKI LITERAŁ”. To decyzja
 // z pomiaru, nie oszczędność. Zmierzone klasy, które ZOSTAŁY POZA bramką:
 //   * właściwości obiektów (`{ title: "Zapisz", label: "Anuluj" }`) - 2 205
