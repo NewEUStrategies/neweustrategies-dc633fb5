@@ -8,8 +8,7 @@ const pl = {
   adminAnalytics: {
     bi: {
       title: "BI - wszystkie dashboardy",
-      subtitle:
-        "Web Vitals, audytorium, błędy przeglądarki, Search Console i GA4 w jednym widoku.",
+      subtitle: "Web Vitals, audytorium, błędy przeglądarki, Search Console i GA4 w jednym widoku.",
       stripTitle: "Analityka (moduł 17)",
       stripSubtitle: "Dane rzeczywiste z ostatnich {{days}} dni.",
       openFull: "Otwórz pełny panel BI",
@@ -21,7 +20,7 @@ const pl = {
       },
       charts: {
         lcpTrend: "LCP p75 - trend dzienny",
-        lcpTrendSub: "Im niżej, tym lepiej; linia 2500 ms to próg „dobry\" Web Vitals.",
+        lcpTrendSub: 'Im niżej, tym lepiej; linia 2500 ms to próg „dobry" Web Vitals.',
         errorsDaily: "Błędy przeglądarki dziennie",
         errorsDailySub: "Grupowanie po znormalizowanym komunikacie.",
       },
@@ -874,7 +873,7 @@ const en = {
       },
       charts: {
         lcpTrend: "LCP p75 - daily trend",
-        lcpTrendSub: "Lower is better; the 2500 ms line is the Web Vitals \"good\" threshold.",
+        lcpTrendSub: 'Lower is better; the 2500 ms line is the Web Vitals "good" threshold.',
         errorsDaily: "Browser errors per day",
         errorsDailySub: "Grouped by normalized message.",
       },

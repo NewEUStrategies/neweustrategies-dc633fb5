@@ -112,8 +112,6 @@ function CommunityOverview() {
       {/* Analityka modułu 17 - te same funkcje serwerowe co /admin/analytics */}
       <AdminBiStrip days={14} />
 
-
-
       {/* Metryki */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard
