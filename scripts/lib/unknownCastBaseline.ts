@@ -119,6 +119,10 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/observability/vitals.functions.ts", 2],
   ["src/lib/patterns/i18n.ts", 1],
   ["src/lib/platform-error-reporting.ts", 1],
+  // Przeniesione 1:1 z `src/routes/admin.podcasts.tsx` przy wyciągnięciu warstwy
+  // danych panelu podcastów: `explicit` / `episode_type` (migracja 20260725090500)
+  // nie są jeszcze w wygenerowanych typach. Znika przy regeneracji types.ts.
+  ["src/lib/podcast/queries.ts", 1],
   ["src/lib/profile/usePublicExposure.ts", 1],
   ["src/lib/queries/archives.ts", 1],
   ["src/lib/queries/podcasts.ts", 7],
@@ -140,7 +144,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/admin.monetization.tsx", 1],
   ["src/routes/admin.pages.$slug.tsx", 1],
   ["src/routes/admin.pages.new.tsx", 1],
-  ["src/routes/admin.podcasts.tsx", 1],
   ["src/routes/admin.research-programs.tsx", 2],
   ["src/routes/admin.tracker.tsx", 1],
   ["src/routes/author.$slug.tsx", 1],

@@ -2,20 +2,51 @@
 //
 // Powód istnienia: braki, które Apple traktuje jako blokujące, wychodziły dotąd
 // dopiero w ich walidatorze - po zgłoszeniu, bez wskazania czego brakuje w
-// naszym panelu. `podcastFeedReadiness` liczy to samo, co emituje builder RSS,
-// więc redakcja widzi listę braków ZANIM wyśle kanał.
+// naszym panelu. Redakcja widzi listę braków ZANIM wyśle kanał.
+//
+// Karta jest CIENKIM RENDEREM: zero własnej walidacji i zero decyzji o tym, co
+// jest brakiem. Regułę trzyma `@/lib/podcast/applePodcast` - ona rozstrzyga
+// także, którą z trzech dróg wejścia policzyć (gotowa lista braków, metadane
+// kanału, wynik starszej checklisty `podcastFeedReadiness`). Dzięki temu ta
+// sama karta obsługuje panel sieciowy i - po podaniu `channel`/`show` - program.
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import type { PodcastFeedReadiness } from "@/lib/seo/podcastFeedReadiness";
+import {
+  applePodcastBlockingGaps,
+  applePodcastWarningGaps,
+  isApplePodcastSubmittable,
+  resolveApplePodcastGaps,
+  type ApplePodcastChannelMeta,
+  type ApplePodcastGap,
+  type ApplePodcastShowOverride,
+} from "@/lib/podcast/applePodcast";
 
 interface Props {
-  readiness: PodcastFeedReadiness;
+  /** Gotowa lista braków - najkrótsza droga, gdy woła je już rodzic. */
+  gaps?: readonly ApplePodcastGap[] | null;
+  /** Metadane kanału; karta woła regułę Apple sama. */
+  channel?: ApplePodcastChannelMeta | null;
+  /** Nadpisania programu - liczone tylko razem z `channel`. */
+  show?: ApplePodcastShowOverride | null;
+  /** Wynik `podcastFeedReadiness` - droga panelu sieciowego (kontrakt bez zmian). */
+  readiness?: PodcastFeedReadiness | null;
 }
 
-export function PodcastFeedReadinessCard({ readiness }: Props): React.ReactElement {
+export function PodcastFeedReadinessCard({
+  gaps,
+  channel,
+  show,
+  readiness,
+}: Props): React.ReactElement {
   const { t } = useTranslation();
-  const { ready, blocking, warnings } = readiness;
+  const resolved = resolveApplePodcastGaps({ gaps, channel, show, readiness });
+  const blocking = applePodcastBlockingGaps(resolved);
+  const warnings = applePodcastWarningGaps(resolved);
+  // Gotowość liczy predykat reguły, a nie flaga z propsów - inaczej `ready`
+  // niezgodne z listą braków dawało zieloną ramkę nad listą braków.
+  const ready = isApplePodcastSubmittable(resolved);
 
   return (
     <section
@@ -36,7 +67,7 @@ export function PodcastFeedReadinessCard({ readiness }: Props): React.ReactEleme
         </h3>
       </div>
 
-      {ready && blocking.length === 0 && (
+      {ready && (
         <p className="text-xs text-muted-foreground">
           {t("adminPodcasts.settings.apple.readinessOk")}
         </p>
@@ -48,8 +79,8 @@ export function PodcastFeedReadinessCard({ readiness }: Props): React.ReactEleme
             {t("adminPodcasts.settings.apple.readinessBlocking")}
           </p>
           <ul className="ml-4 list-disc text-xs text-muted-foreground">
-            {blocking.map((code) => (
-              <li key={code}>{t(`adminPodcasts.settings.apple.blocking.${code}`)}</li>
+            {blocking.map((gap) => (
+              <li key={`${gap.field}:${gap.messageKey}`}>{t(gap.messageKey)}</li>
             ))}
           </ul>
         </div>
@@ -62,8 +93,8 @@ export function PodcastFeedReadinessCard({ readiness }: Props): React.ReactEleme
             {t("adminPodcasts.settings.apple.readinessWarnings")}
           </p>
           <ul className="ml-4 list-disc text-xs text-muted-foreground">
-            {warnings.map((code) => (
-              <li key={code}>{t(`adminPodcasts.settings.apple.warnings.${code}`)}</li>
+            {warnings.map((gap) => (
+              <li key={`${gap.field}:${gap.messageKey}`}>{t(gap.messageKey)}</li>
             ))}
           </ul>
         </div>
