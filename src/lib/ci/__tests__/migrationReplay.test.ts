@@ -190,7 +190,21 @@ describe("self-test na realnym katalogu supabase/migrations", () => {
     const report = analyzeMigrationReplay(files, sources);
     expect(report.unparsable).toEqual([]);
     expect(report.outOfOrder).toEqual([]);
-    expect(migrationReplayFailed(report)).toBe(false);
+  });
+
+  // Asercja zbiorcza MUSI stać osobno, a nie jako trzecia linia testu wyżej.
+  // Stała tam i skutek był dokładnie taki, jakiego można się było spodziewać:
+  // gdy w katalogu pojawiły się dwie bliźniacze migracje z panelu, padał test
+  // o nazwie „nazwy są parsowalne i porządek nazw = porządek wersji" - mimo że
+  // `unparsable` i `outOfOrder` były PUSTE. Raport bramki mówił prawdę, ale
+  // nazwa czerwonego testu kierowała diagnozę na zupełnie inny inwariant.
+  // Tu nazwa nie obiecuje niczego poza tym, co asercja naprawdę mierzy.
+  it("bramka jako całość jest zielona na realnym katalogu", () => {
+    const report = analyzeMigrationReplay(files, sources);
+    expect(
+      migrationReplayFailed(report),
+      `bramka czerwona - patrz KTÓRY inwariant:\n${renderMigrationReplayReport(report)}`,
+    ).toBe(false);
   });
 });
 

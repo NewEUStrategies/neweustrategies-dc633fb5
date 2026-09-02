@@ -752,6 +752,33 @@ const KNOWN_CONTENT_TWINS: readonly KnownContentTwin[] = [
     rationale:
       "Przepisanie RPC `public.event_sections(text)` - FUNKCJI zwracajacej sekcje strony wydarzenia, wraz z `REVOKE`/`GRANT`/`COMMENT` na niej. NIE jest to kolumna ani tabela: w schemacie nie ma obiektu `event_sections.content_source`, ta nazwa zyje wylacznie w nazwie pliku migracji i w nazwie asercji `runtime_test.d/96_section_content_sources.sql`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260829221500_event_sections_materials_content_source.sql` -> `20260830093427`. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `48723bf16911` po obu stronach pary. Idempotentnosc ma konkretny mechanizm i nazywamy go wprost: `CREATE OR REPLACE FUNCTION` na NIEZMIENIONEJ sygnaturze plus `REVOKE`/`GRANT`/`COMMENT`, czyli same operacje ustalajace stan - migracja nie zapisuje ani jednego wiersza danych, wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
   },
+  // ── PR #312: panel wyemitowal ponownie DWIE migracje izolacji najemcy ───────
+  // Jedno zdarzenie, nie dwa: 31.08 miedzy 21:50:45 a 21:51:17 panel wypuscil
+  // pod wlasnymi numerami oba pliki SQL przyniesione w PR #312, a 21:52:15
+  // dopisal dla nich mapowanie `reconciled` w `supabase/migration-ledger.json`
+  // (commit `ceb5a23`) i 21:53:03 zamknal serie commitem „Wdrozyl migracje
+  // PR #312" (`8e771b9`). Obie pary maja ten sam dowod zastosowania, ale ROZNY
+  // mechanizm idempotentnosci - i dlatego kazda ma wlasne uzasadnienie.
+  {
+    files: [
+      "20260831160000_page_full_path_tenant_scope.sql",
+      "20260831214637_5b55b33f-269f-41a6-a28f-12765357a74e.sql",
+    ],
+    deployment: "PR #312 / panel Lovable (commit 1759be2)",
+    appliedOn: "2026-08-31",
+    rationale:
+      "Izolacja najemcy w kanonicznej sciezce strony: `CREATE OR REPLACE FUNCTION public.page_full_path(uuid)` i `public.page_full_paths(uuid[])` z `GRANT EXECUTE`, dwa ograniczenia na `public.pages` (`pages_id_tenant_id_key`, `pages_parent_same_tenant_fkey`) oraz `COMMENT ON CONSTRAINT`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260831160000_page_full_path_tenant_scope.sql` -> `20260831214637`, czyli zapisuje, pod ktora wersja pipeline FAKTYCZNIE wykonal ten SQL - a `check:migration-ledger` sprawdza obecnosc wskazanej wersji w `schema_migrations` na wdrozonej bazie, wiec ten wpis nie jest adnotacja, tylko egzekwowana asercja. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `9df21f7097e4` po obu stronach pary. Panel zdjal z duplikatu 131 linii uzasadnienia (215 -> 84 linii), wiec plik z PR-a jest jedynym nosnikiem argumentu i to ON zostaje. Idempotentnosc ma konkretny mechanizm i nazywamy go wprost, bo NIE jest to `IF NOT EXISTS`: Postgres nie zna `ADD CONSTRAINT IF NOT EXISTS`, wiec oba `ADD CONSTRAINT` siedza w `DO $$ ... EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL; END $$` i drugi przebieg pochlania wyjatek. Jedyny zapis danych - `UPDATE public.pages SET parent_id = NULL` w bloku naprawczym - jest ZBIEZNY W SKUTKU, nie idempotentny z definicji: jego predykat (`p.tenant_id <> c.tenant_id` po zlaczeniu dziecko-rodzic) po pierwszym przebiegu nie ma juz czego wybrac, bo zalozone zaraz potem `pages_parent_same_tenant_fkey` czyni ten stan niereprezentowalnym. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
+  },
+  {
+    files: [
+      "20260831170000_owner_plane_tenant_scope_read_history.sql",
+      "20260831215103_21bb8d7a-8ed0-45f8-b86e-d6a329ae4e12.sql",
+    ],
+    deployment: "PR #312 / panel Lovable (commit 528abb5)",
+    appliedOn: "2026-08-31",
+    rationale:
+      "Zasieg najemcy na historii czytania plaszczyzny wlasciciela: `ALTER TABLE public.user_read_history ALTER COLUMN tenant_id SET DEFAULT COALESCE(public.current_tenant_id(), public.public_tenant_id())`, piec par `DROP POLICY IF EXISTS` + `CREATE POLICY` (cztery na `user_read_history` dla select/insert/update/delete, jedna na `personality_result_history`) i dwa `COMMENT ON TABLE`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260831170000_owner_plane_tenant_scope_read_history.sql` -> `20260831215103`, a `check:migration-ledger` sprawdza te wersje w `schema_migrations` na wdrozonej bazie. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `a90cb00acee0` po obu stronach pary. Panel zdjal z duplikatu 63 linie uzasadnienia (113 -> 50 linii). Idempotentnosc, INACZEJ NIZ W PARZE WYZEJ, nie wymaga zadnej furtki na wyjatek: to wylacznie operacje USTALAJACE STAN - `SET DEFAULT` nadpisuje wartosc domyslna, kazde `CREATE POLICY` jest poprzedzone `DROP POLICY IF EXISTS` o tej samej nazwie, a `COMMENT ON TABLE` podmienia opis. Migracja nie zapisuje ani jednego wiersza danych, wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
+  },
 ];
 
 /**
