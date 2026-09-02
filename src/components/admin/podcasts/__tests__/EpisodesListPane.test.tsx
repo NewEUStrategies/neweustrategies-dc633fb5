@@ -23,12 +23,15 @@ vi.mock("@/lib/i18n-admin-podcasts", () => ({ ensureI18n: () => undefined }));
 const { EpisodesListPane } = await import("@/components/admin/podcasts/EpisodesListPane");
 
 /**
- * Zaślepka kolumny „Program" w kodzie produkcyjnym. Zapisana kodem znaku,
- * bo dom w tym repo pisze dywizem - a ta pauza przyszła z kodu przed
- * ekstrakcją i została w nim verbatim (zamiana byłaby zmianą tego, co widzi
- * redakcja, przy okazji przenoszenia plików).
+ * Znak zastępczy kolumny programu. DYWIZ, nie pauza (U+2014).
+ *
+ * Ten test PRZYPINAŁ pauzę: `"\u2014"`. House style repozytorium zakazuje
+ * pauzy, a `i18nCohesion.test.ts` pilnuje tego tylko w RDZENIU słowników
+ * (`locale/pl.ts`, `locale/en.ts`) - literał w kodzie komponentu przechodził
+ * obok bramki. Po zamianie na dywiz test padł, i to jest dowód, że asercja
+ * faktycznie dotyczy tego znaku, a nie „czegokolwiek w tej komórce".
  */
-const MISSING_SHOW = "\u2014";
+const MISSING_SHOW = "-";
 
 const SHOW: PodcastShow = {
   id: "s1",

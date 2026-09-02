@@ -1,7 +1,7 @@
 // Zapytania i hooki trackera legislacyjnego UE (react-query + supabase).
 // Publiczne odczyty przechodzą przez RLS (tylko status = 'published'),
 // obserwowanie jest owner-only - insert wymaga jawnego tenant_id dossier.
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 /**
@@ -427,12 +427,22 @@ export async function fetchRecentUpdates(limit = 40): Promise<RecentUpdate[]> {
     }));
 }
 
-export function useRecentUpdates(limit = 40) {
-  return useQuery({
+/**
+ * Wspólne opcje globalnego feedu zmian. Loader SSR `/tracker/changes` i hook
+ * czytają DOKŁADNIE ten klucz (`["tracker","recent-updates",limit]`), więc
+ * treść wyrenderowana serwerowo hydratuje się z cache bez drugiej podróży -
+ * i crawler dostaje wpisy, a nie `t("tracker.loading")`.
+ */
+export function recentUpdatesQueryOptions(limit = 40) {
+  return queryOptions({
     queryKey: ["tracker", "recent-updates", limit] as const,
     queryFn: () => fetchRecentUpdates(limit),
     staleTime: 60_000,
   });
+}
+
+export function useRecentUpdates(limit = 40) {
+  return useQuery(recentUpdatesQueryOptions(limit));
 }
 
 // ---------------------------------------------------------------------------

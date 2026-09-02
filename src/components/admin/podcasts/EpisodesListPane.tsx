@@ -29,6 +29,17 @@ import {
 } from "@/lib/podcast/shape";
 import { ensureI18n as ensureAdminPodcastsI18n } from "@/lib/i18n-admin-podcasts";
 
+/**
+ * Znak zastępczy w kolumnie programu, gdy odcinek nie należy do żadnej serii.
+ *
+ * DYWIZ, NIE PAUZA: house style tego repozytorium zakazuje „—" (U+2014), a
+ * pauza siedziała tu dotąd jako literał w dwóch miejscach jednego wyrażenia.
+ * Nie idzie do słownika, bo znak zastępczy nie jest zdaniem do tłumaczenia -
+ * jest taki sam w PL i w EN, a klucz i18n dawałby tylko dwa miejsca do
+ * rozjechania.
+ */
+const NO_SHOW_DASH = "-";
+
 export function EpisodesListPane({
   rows,
   shows,
@@ -124,9 +135,9 @@ export function EpisodesListPane({
               <th className="text-left p-3 w-16"></th>
               <th className="text-left p-3">{t("adminPodcasts.colTitle")}</th>
               <th className="text-left p-3 w-40">{t("adminPodcasts.colShow")}</th>
-              <th className="text-left p-3 w-24">S/E</th>
+              <th className="text-left p-3 w-24">{t("adminPodcasts.colSeasonEpisode")}</th>
               <th className="text-left p-3 w-24">{t("adminPodcasts.colTime")}</th>
-              <th className="text-left p-3 w-32">Status</th>
+              <th className="text-left p-3 w-32">{t("adminPodcasts.colStatus")}</th>
               <th className="p-3 w-24"></th>
             </tr>
           </thead>
@@ -159,7 +170,7 @@ export function EpisodesListPane({
                   <div className="text-xs text-muted-foreground font-mono">{r.slug}</div>
                 </td>
                 <td className="p-3 text-xs text-muted-foreground">
-                  {r.show_id ? (showTitleById.get(r.show_id) ?? "—") : "—"}
+                  {r.show_id ? (showTitleById.get(r.show_id) ?? NO_SHOW_DASH) : NO_SHOW_DASH}
                 </td>
                 <td className="p-3 text-xs tabular-nums">
                   {r.season ? `S${r.season}` : "-"}

@@ -2,7 +2,7 @@
 // z alertami oraz oś czasu aktualizacji. Publiczny odczyt (RLS: published).
 // Loader prefetchuje dossier pod head() - meta i JSON-LD (schema.org
 // Legislation) renderują się w SSR, a komponent czyta ten sam cache.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Bell, BellOff, ExternalLink, Landmark } from "lucide-react";
@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import {
   itemBySlugQueryOptions,
+  type PolicyItem,
   useItemBySlug,
   useItemPositions,
   useItemUpdates,
@@ -33,12 +34,36 @@ import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 import { ClubAnchorThreads } from "@/components/clubs/organisms/ClubAnchorThreads";
 import { uiLocale } from "@/lib/i18n/format";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+
 export const Route = createFileRoute("/tracker/$slug")({
+  // 404 ROZSTRZYGA LOADER, NIE KOMPONENT (naprawa N4, 2026-09-02).
+  //
+  // Do dziś loader robił `.catch(() => null)` i oddawał `{ item: null }`, więc
+  // slug, którego NIE MA (literówka w linku, usunięte dossier, cudzy tenant),
+  // wychodził jako pełnowartościowa strona ze statusem HTTP 200 i napisem
+  // „Nie znaleziono dossier." Skutek: crawler indeksował adres jako
+  // ISTNIEJĄCY (soft 404), a monitoring linków nie miał czego zgłosić.
+  //
+  // ROZRÓŻNIENIE, KTÓRE JEST TU CAŁĄ TREŚCIĄ (ta sama doktryna, co
+  // `eventShellLoader`): 404 wolno oprzeć WYŁĄCZNIE na CZYSTYM odczycie, który
+  // wrócił pusty. Awaria transportu znaczy „nie wiem", a 404 z niewiedzy
+  // wyrzuciłoby żywe dossier z indeksu na czas blipu backendu - dlatego
+  // `degraded` prowadzi do strony 200 z `robots: noindex, follow` z `head()`
+  // (adres wraca do indeksu sam, gdy backend wróci), a nie do twardego 404.
   loader: async ({ params, context }) => {
-    // Crawler surfaces degrade, never 500 - brak wiersza obsługuje komponent.
-    const item = await context.queryClient
-      .ensureQueryData(itemBySlugQueryOptions(params.slug))
-      .catch(() => null);
+    let item: PolicyItem | null = null;
+    let degraded = false;
+    try {
+      item = await context.queryClient.ensureQueryData(itemBySlugQueryOptions(params.slug));
+    } catch {
+      degraded = true;
+    }
+    // Zdegradowany render nie może utrwalić się na brzegu: kolejni czytelnicy
+    // dostawaliby zapamiętane „nie znaleziono" długo po powrocie bazy.
+    setCacheControlHeader(resilientCacheControl(degraded));
+    if (!degraded && !item) throw notFound();
     return { item };
   },
   head: ({ loaderData, params }) => {
@@ -122,10 +147,28 @@ export const Route = createFileRoute("/tracker/$slug")({
     };
   },
   component: TrackerDetail,
+  // Ten sam ekran, co gałąź `!item` w komponencie - różni się WYŁĄCZNIE
+  // statusem odpowiedzi (404 kontra 200 przy degradacji), a to jest cała
+  // sprawa dla crawlera.
+  notFoundComponent: () => <TrackerNotFound />,
   errorComponent: (props) => (
     <RouteErrorFallback {...props} title="Nie udało się załadować dossier" />
   ),
 });
+
+/** Ekran „nie ma takiego dossier" - dwujęzyczny, z drogą powrotu do listy. */
+function TrackerNotFound() {
+  ensureTrackerI18n();
+  const { t } = useTranslation();
+  return (
+    <div className="container mx-auto max-w-3xl px-4 py-12 text-center">
+      <p className="text-sm text-muted-foreground">{t("tracker.notFound")}</p>
+      <Button asChild variant="outline" size="sm" className="mt-4">
+        <Link to="/tracker">{t("tracker.backToIndex")}</Link>
+      </Button>
+    </div>
+  );
+}
 
 type Lang = "pl" | "en";
 
@@ -204,16 +247,10 @@ function TrackerDetail() {
       <div className="container mx-auto max-w-3xl px-4 py-12 text-sm">{t("tracker.loading")}</div>
     );
   }
-  if (!item) {
-    return (
-      <div className="container mx-auto max-w-3xl px-4 py-12 text-center">
-        <p className="text-sm text-muted-foreground">{t("tracker.notFound")}</p>
-        <Button asChild variant="outline" size="sm" className="mt-4">
-          <Link to="/tracker">{t("tracker.backToIndex")}</Link>
-        </Button>
-      </div>
-    );
-  }
+  // Ta gałąź zostaje mimo `notFound()` w loaderze: dosięga jej render
+  // ZDEGRADOWANY (backend nie odpowiedział, więc loader świadomie nie rzucił
+  // 404) oraz odświeżenie z komponentu, które zastaje dossier już wycofane.
+  if (!item) return <TrackerNotFound />;
 
   const title = lang === "en" ? item.title_en || item.title_pl : item.title_pl || item.title_en;
   const summary =

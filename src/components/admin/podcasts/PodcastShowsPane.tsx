@@ -192,7 +192,7 @@ function ShowEditor({
 
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
-          <Label>Slug</Label>
+          <Label>{t("adminPodcasts.fieldSlug")}</Label>
           <Input
             value={d.slug}
             onChange={(e) => upd({ slug: e.target.value })}
@@ -200,7 +200,7 @@ function ShowEditor({
           />
         </div>
         <div>
-          <Label>Status</Label>
+          <Label>{t("adminPodcasts.fieldStatus")}</Label>
           <select
             className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
             value={d.status}
@@ -234,11 +234,11 @@ function ShowEditor({
         </TabsContent>
         <TabsContent value="en" className="space-y-3 mt-4">
           <div>
-            <Label>Title</Label>
+            <Label>{t("adminPodcasts.showEditor.fieldTitle")}</Label>
             <Input value={d.title_en} onChange={(e) => upd({ title_en: e.target.value })} />
           </div>
           <div>
-            <Label>Description</Label>
+            <Label>{t("adminPodcasts.showEditor.fieldDescription")}</Label>
             <Textarea
               rows={3}
               value={d.description_en}

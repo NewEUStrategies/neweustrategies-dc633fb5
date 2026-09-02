@@ -26,7 +26,7 @@ const pl = {
     cvPending: "Sekcja CV zostanie uzupełniona wkrótce.",
     contentPending: "Treść przygotowywana",
     // SEO fallbacks
-    seoDescriptionAreas: "Ekspert {{name}} — {{areas}}. Publikacje, komentarze i wystąpienia.",
+    seoDescriptionAreas: "Ekspert {{name}} - {{areas}}. Publikacje, komentarze i wystąpienia.",
     seoDescriptionFallback: "Profil eksperta {{name}} w New European Strategies.",
     // Kontakt
     contactHeading: "Kontakt bezpośredni",
@@ -135,8 +135,8 @@ const en = {
     cvPending: "The CV section will be added soon.",
     contentPending: "Content pending",
     seoDescriptionAreas:
-      "{{name}} — expert in {{areas}}. Publications, commentary and appearances.",
-    seoDescriptionFallback: "{{name}} — expert profile at New European Strategies.",
+      "{{name}} - expert in {{areas}}. Publications, commentary and appearances.",
+    seoDescriptionFallback: "{{name}} - expert profile at New European Strategies.",
     contactHeading: "Direct contact",
     mediaContactHeading: "Media contact",
     email: "Email",

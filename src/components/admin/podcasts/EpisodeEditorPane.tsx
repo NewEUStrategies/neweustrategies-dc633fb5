@@ -166,7 +166,7 @@ export function EpisodeEditorPane({
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <Label>Slug</Label>
+              <Label>{t("adminPodcasts.fieldSlug")}</Label>
               <Input
                 value={d.slug}
                 onChange={(e) => upd({ slug: e.target.value })}
@@ -174,7 +174,7 @@ export function EpisodeEditorPane({
               />
             </div>
             <div>
-              <Label>Status</Label>
+              <Label>{t("adminPodcasts.fieldStatus")}</Label>
               <select
                 className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                 value={d.status}
@@ -259,13 +259,18 @@ export function EpisodeEditorPane({
                 />
               </div>
             </TabsContent>
+            {/* Zakładka EN nosi TE SAME etykiety, co PL - etykieta opisuje POLE,
+                a zakładka mówi, w jakim języku jest treść. Dotąd stały tu
+                literały angielskie, czyli polski redaktor widział w jednej
+                zakładce „Tytuł", a w drugiej „Title" - i tylko w tej drugiej
+                interfejs przestawał być po polsku. */}
             <TabsContent value="en" className="space-y-3 mt-4">
               <div>
-                <Label>Title</Label>
+                <Label>{t("adminPodcasts.editor.fieldTitle")}</Label>
                 <Input value={d.title_en} onChange={(e) => upd({ title_en: e.target.value })} />
               </div>
               <div>
-                <Label>Excerpt</Label>
+                <Label>{t("adminPodcasts.editor.excerpt")}</Label>
                 <Textarea
                   rows={2}
                   value={d.excerpt_en}
@@ -273,7 +278,7 @@ export function EpisodeEditorPane({
                 />
               </div>
               <div>
-                <Label>Show notes (HTML)</Label>
+                <Label>{t("adminPodcasts.editor.showNotes")}</Label>
                 <Textarea
                   rows={5}
                   value={d.show_notes_en}
@@ -281,7 +286,7 @@ export function EpisodeEditorPane({
                 />
               </div>
               <div>
-                <Label>Transcript</Label>
+                <Label>{t("adminPodcasts.editor.transcript")}</Label>
                 <Textarea
                   rows={5}
                   value={d.transcript_en}

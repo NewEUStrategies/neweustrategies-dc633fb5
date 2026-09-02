@@ -46,7 +46,7 @@ const pl = {
       uploadingInProgress: "Trwa wgrywanie…",
       noMatch:
         "Brak pasujących plików. Przeciągnij pliki tutaj lub użyj przycisku „Wgraj z dysku”.",
-      altLabel: "Tekst alternatywny (alt) — dla dostępności i SEO",
+      altLabel: "Tekst alternatywny (alt) - dla dostępności i SEO",
       altPlaceholder: "Opisz obraz w 1-2 zdaniach",
       saveAltBtn: "Zapisz alt",
       savingAlt: "Zapisywanie…",
@@ -110,7 +110,7 @@ const en = {
       dropToUpload: "Drop files to upload",
       uploadingInProgress: "Uploading…",
       noMatch: 'No matching files. Drag files here or use the "Upload from disk" button.',
-      altLabel: "Alternative text (alt) — for accessibility and SEO",
+      altLabel: "Alternative text (alt) - for accessibility and SEO",
       altPlaceholder: "Describe the image in 1-2 sentences",
       saveAltBtn: "Save alt",
       savingAlt: "Saving…",
