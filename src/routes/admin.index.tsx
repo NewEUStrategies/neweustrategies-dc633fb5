@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { FileText, FolderTree, Tags, Image as ImageIcon } from "@/lib/lucide-shim";
+import { AdminBiStrip } from "@/components/admin/analytics/AdminBiStrip";
 
 export const Route = createFileRoute("/admin/")({
   component: Dashboard,
@@ -69,6 +70,9 @@ function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Analityka modułu 17 - realne dane RUM + błędy przeglądarki */}
+      <AdminBiStrip days={14} className="mt-6" />
     </div>
   );
 }

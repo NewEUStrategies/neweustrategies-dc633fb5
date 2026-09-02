@@ -6,6 +6,27 @@ import i18n from "@/lib/i18n";
 
 const pl = {
   adminAnalytics: {
+    bi: {
+      title: "BI - wszystkie dashboardy",
+      subtitle: "Web Vitals, audytorium, błędy przeglądarki, Search Console i GA4 w jednym widoku.",
+      stripTitle: "Analityka (moduł 17)",
+      stripSubtitle: "Dane rzeczywiste z ostatnich {{days}} dni.",
+      openFull: "Otwórz pełny panel BI",
+      kpi: {
+        samples: "Próbki RUM",
+        lcp: "LCP p75",
+        errors: "Błędy przeglądarki",
+        errorGroups: "Grupy błędów",
+      },
+      charts: {
+        lcpTrend: "LCP p75 - trend dzienny",
+        lcpTrendSub: 'Im niżej, tym lepiej; linia 2500 ms to próg „dobry" Web Vitals.',
+        errorsDaily: "Błędy przeglądarki dziennie",
+        errorsDailySub: "Grupowanie po znormalizowanym komunikacie.",
+      },
+      cols: { day: "Dzień", value: "Wartość", count: "Liczba" },
+    },
+
     common: {
       refresh: "Odśwież",
       loading: "Ładowanie...",
@@ -838,6 +859,27 @@ const pl = {
 
 const en = {
   adminAnalytics: {
+    bi: {
+      title: "BI - all dashboards",
+      subtitle: "Web Vitals, audience, browser errors, Search Console and GA4 in one view.",
+      stripTitle: "Analytics (module 17)",
+      stripSubtitle: "Real data from the last {{days}} days.",
+      openFull: "Open full BI panel",
+      kpi: {
+        samples: "RUM samples",
+        lcp: "LCP p75",
+        errors: "Browser errors",
+        errorGroups: "Error groups",
+      },
+      charts: {
+        lcpTrend: "LCP p75 - daily trend",
+        lcpTrendSub: 'Lower is better; the 2500 ms line is the Web Vitals "good" threshold.',
+        errorsDaily: "Browser errors per day",
+        errorsDailySub: "Grouped by normalized message.",
+      },
+      cols: { day: "Day", value: "Value", count: "Count" },
+    },
+
     common: {
       refresh: "Refresh",
       loading: "Loading...",

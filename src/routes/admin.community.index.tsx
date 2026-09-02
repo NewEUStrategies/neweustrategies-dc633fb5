@@ -19,6 +19,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminBiStrip } from "@/components/admin/analytics/AdminBiStrip";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,9 @@ function CommunityOverview() {
           {t("adminCommunity.overview.moderationConfigurationChatEvents")}
         </p>
       </header>
+
+      {/* Analityka modułu 17 - te same funkcje serwerowe co /admin/analytics */}
+      <AdminBiStrip days={14} />
 
       {/* Metryki */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
