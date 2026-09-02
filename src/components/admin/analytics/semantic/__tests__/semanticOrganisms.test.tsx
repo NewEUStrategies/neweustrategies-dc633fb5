@@ -483,13 +483,28 @@ describe("SemanticReconciliationPanel - kolejność i treść liczb", () => {
     await loaded();
 
     const card = cardOf(t("adminAnalytics.semantic.canonicalLabel"));
-    const deltas = Array.from(
-      card.querySelectorAll(`[title="${t("adminAnalytics.semantic.deltaVsPrevious")}"]`),
-    ).map((el) => el.textContent ?? "");
+    const deltaTitle = t("adminAnalytics.semantic.deltaVsPrevious");
+
+    // Delta czytana Z WIERSZA konkretnej metryki, nie z całej karty. Agregat po
+    // karcie („jest jedna dodatnia i jedna ujemna”) przechodzi także wtedy, gdy
+    // panel przypnie deltę sesji do odsłon i odwrotnie - a to jest właśnie ten
+    // błąd, który przekłamuje raport zarządczy, nie zaś brak delty.
+    const deltaOf = (metricId: MetricId): string | null => {
+      const label = metricById(metricId).labelPl;
+      const row = Array.from(card.querySelector("ul")?.children ?? []).find(
+        (r) => r.querySelector("span")?.textContent === label,
+      );
+      if (!row) throw new Error(`test: brak wiersza metryki ${metricId}`);
+      return row.querySelector(`[title="${deltaTitle}"]`)?.textContent ?? null;
+    };
+
+    // Migawka daje sesjom +12,5 %, a odsłonom -4,2 % - wartości RÓŻNE i RÓŻNEGO
+    // ZNAKU, więc odwrócenie parowania metryka-delta wywraca oba te odczyty.
+    expect(deltaOf("sessions")).toBe("+12,5 %");
+    expect(deltaOf("page_views")).toBe("-4,2 %");
+
     // Dwie delty w migawce - i tylko dwie na ekranie.
-    expect(deltas).toHaveLength(2);
-    expect(deltas.some((d) => d.startsWith("+"))).toBe(true);
-    expect(deltas.some((d) => d.startsWith("-"))).toBe(true);
+    expect(card.querySelectorAll(`[title="${deltaTitle}"]`)).toHaveLength(2);
   });
 
   it("metryka bez delty w migawce nie dostaje zmyślonej zmiany", async () => {

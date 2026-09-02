@@ -771,18 +771,61 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
   it("kafel szybkiej ścieżki drąży się w tonie dobrym, średniej - w ostrzegawczym", async () => {
     // Ta sama trójka progów co na wykresie musi dojechać do okna drążenia,
     // inaczej kolor kafla i kolor liczby w oknie mówią dwie różne rzeczy.
+    //
+    // KOLOR JEST TU MIERZONY ŚWIADOMIE, BO NIC INNEGO NIE MA. `pathTreemapClick`
+    // oddaje ocenę wyłącznie jako `tone`, a `ChartDrillDialog` zamienia `tone`
+    // na klasę z `TONE_CLS` - w DOM nie powstaje ani napis oceny, ani `hint`,
+    // ani atrybut dostępnościowy. Kontrakt „ocena ma nośnik tekstowy" jest
+    // więc złamany i przypięty niżej osobnym `it.fails`; dopóki tak jest,
+    // klasa tonu to jedyny dostępny dowód, że próg dojechał do okna.
+    // Wartość liczbowa (jedyny napis, jaki tu jest) sprawdzana jest wprost.
     const [good, poor] = VITAL_THRESHOLDS.LCP;
     h.fetchVitals.mockResolvedValue(summary({ paths: [path("/szybka", 40, good)] }));
     panel();
     await loaded();
 
     await clickChart(treemap(), { data: { fullPath: "/szybka", value: 40, lcp: good } });
+    expect(drillMetrics()).toEqual([
+      [vit("samplesLabel"), "40"],
+      ["LCP p75", "2.50 s"],
+    ]);
     expect(drillTone(1)).toContain("text-emerald");
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
 
     await clickChart(treemap(), { data: { fullPath: "/srednia", value: 40, lcp: poor } });
+    expect(drillMetrics()).toEqual([
+      [vit("samplesLabel"), "40"],
+      ["LCP p75", "4.00 s"],
+    ]);
     expect(drillTone(1)).toContain("text-amber");
   });
+
+  it.fails(
+    "DEFEKT: ocena kafla treemapy jest WYŁĄCZNIE kolorem - bez nośnika tekstowego (WCAG 1.4.1)",
+    async () => {
+      // Drążenie TRENDU podaje ocenę napisem („Dobrze" / „Do poprawy" /
+      // „Słabo") i dokłada kolor jako wzmocnienie. Drążenie TREEMAPY tego nie
+      // robi: `pathTreemapClick` ustawia tylko `tone`, więc różnica między
+      // ścieżką szybką a wolną dojeżdża do użytkownika jako zieleń kontra
+      // amber i nic więcej. Dla czytnika ekranu oba okna są identyczne, a przy
+      // deuteranopii - nieodróżnialne. To naruszenie WCAG 1.4.1 („Use of
+      // Color"): informacja nie może być przenoszona samym kolorem.
+      //
+      // Naprawa jest w kodzie produkcyjnym, nie w teście: dołożyć do wiersza
+      // „LCP p75" pole `hint` (albo osobny wiersz) z `drillDialog.rating.*`,
+      // dokładnie jak robi to `buildTrendClick`. Ten przypadek pilnuje, żeby
+      // luka nie zniknęła po cichu z pola widzenia.
+      const [, poor] = VITAL_THRESHOLDS.LCP;
+      h.fetchVitals.mockResolvedValue(summary({ paths: [path("/srednia", 40, poor)] }));
+      panel();
+      await loaded();
+
+      await clickChart(treemap(), { data: { fullPath: "/srednia", value: 40, lcp: poor } });
+
+      // Ocena „Do poprawy" musi być gdziekolwiek w oknie jako TEKST.
+      expect(within(screen.getByRole("dialog")).getByText(rating("needs"))).toBeInTheDocument();
+    },
+  );
 
   it("kafel bez liczby próbek pokazuje zero, a nie puste pole", async () => {
     // `value` i `lcp` przychodzą z danych serii - kafel zbudowany ze ścieżki

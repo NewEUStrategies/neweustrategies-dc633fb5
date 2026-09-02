@@ -333,6 +333,71 @@ function kpiValue(label: string): string {
   return box.lastElementChild?.textContent ?? "";
 }
 
+// --- Wnioski panelu -------------------------------------------------------
+
+/** Gałąź słownika z treścią wniosków GSC. */
+const GI = "adminAnalytics.gsc.insights";
+
+/** Napis wniosku ze słownika, z podstawionymi zmiennymi. */
+function gi(path: string, vars: Record<string, unknown> = {}): string {
+  return realT("pl")(`${GI}.${path}`, vars);
+}
+
+/** Lista kroków naprawczych ze słownika. */
+function giList(path: string): string[] {
+  return realT("pl")(`${GI}.${path}`, { returnObjects: true }) as string[];
+}
+
+/** Karta „Interpretacja i rekomendacje" - jedyne miejsce z wnioskami panelu. */
+function insightCard(): HTMLElement {
+  // `getByText`, nie `getByRole("heading")`: przy PUSTEJ liście `InsightSection`
+  // renderuje tytuł zwykłym `div`-em, więc szukanie roli gubiłoby dokładnie te
+  // przypadki, w których dowodzimy, że żaden próg się nie zapalił.
+  const card = screen
+    .getByText(realT("pl")("adminAnalytics.insightSection.defaultTitle"))
+    .closest("div.p-4");
+  if (!card) throw new Error("test: nie znaleziono karty interpretacji");
+  return card as HTMLElement;
+}
+
+/** Wnioski w kolejności, jaką nadała im sekcja (najostrzejsze na górze). */
+function insightItems(): HTMLElement[] {
+  const list = insightCard().querySelector("ul");
+  if (!list) throw new Error("test: karta interpretacji nie ma listy wniosków");
+  return Array.from(list.children).filter((el): el is HTMLElement => el instanceof HTMLElement);
+}
+
+/** Elementy panelu, do których przypięte są wnioski - po jednym na wniosek. */
+function insightElements(): string[] {
+  return insightItems().map((li) => li.querySelector("div.uppercase")?.textContent ?? "");
+}
+
+/** Wniosek rozpoznany po elemencie panelu, którego dotyczy. */
+function insightOf(element: string): HTMLElement {
+  const found = insightItems().find(
+    (li) => li.querySelector("div.uppercase")?.textContent === element,
+  );
+  if (!found) throw new Error(`test: brak wniosku dla elementu „${element}"`);
+  return found;
+}
+
+/** Tytuł wniosku - jedyny napis wniosku wyróżniony wizualnie. */
+function insightTitle(element: string): string {
+  return insightOf(element).querySelector("span.font-semibold")?.textContent ?? "";
+}
+
+/** Treść interpretacji wniosku (akapit między tytułem a krokami). */
+function insightDetail(element: string): string {
+  return insightOf(element).querySelector("p")?.textContent ?? "";
+}
+
+/** Kroki naprawcze wniosku, bez znaku wypunktowania. */
+function insightFixes(element: string): string[] {
+  return Array.from(insightOf(element).querySelectorAll("ul > li")).map((li) =>
+    (li.textContent ?? "").replace(/^→/, "").trim(),
+  );
+}
+
 function panel(configured = true, client?: QueryClient) {
   const queryClient = client ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return {
@@ -659,6 +724,329 @@ describe("GscBiDashboard - dane", () => {
     expect(
       await screen.findByText(t("adminAnalytics.gsc.insightsSubtitle", { site: SITE_A, days: 28 })),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("GscBiDashboard - interpretacja i rekomendacje", () => {
+  // PO CO TEN BLOK. Cała warstwa wniosków (`buildGscInsights`, dziesięć reguł)
+  // była tu dowodzona WYŁĄCZNIE przez podpis sekcji. Podpis renderuje się
+  // jednak z `insightsSubtitle`, a nie z listy wniosków, więc wycięcie
+  // dziewięciu z dziesięciu reguł nie ruszało ani jednej asercji: panel dalej
+  // pokazywał nagłówek „Interpretacja i rekomendacje" i podpis z oknem.
+  // Poniższe przypadki asertują TREŚĆ - tytuł, interpretację i kroki naprawcze
+  // konkretnego wniosku - oraz LICZBĘ wniosków, bo to jedyne dwie rzeczy,
+  // które operator naprawdę czyta.
+  //
+  // Progi są sprawdzane Z OBU STRON granicy: reguły GSC łamią severity i listę
+  // kroków na RÓŻNYCH liczbach (kliknięcia: ocena na -15/+5, lista na -10/+20;
+  // pozycja: ocena na 0,5, lista na tym samym 0,5 ale ostro), więc test na
+  // jednej wartości nie odróżnia „próg działa" od „próg jest o jeden obok".
+
+  /** Nazwy elementów panelu, do których wnioski są przypięte. */
+  const E = {
+    clicks: gi("clicks.element"),
+    ctr: gi("ctr.element"),
+    position: gi("position.element"),
+    trend: gi("trend.element"),
+    topQueries: gi("topQueries.element"),
+    histogram: gi("positionHistogram.element"),
+    countries: gi("countries.element"),
+    devices: gi("devices.element"),
+    pages: gi("pages.element"),
+    calendar: gi("calendar.element"),
+  } as const;
+
+  /** Wiersz dzienny o CTR wyliczonym z podanych liczb - jak oddaje go API. */
+  function dayRow(iso: string, clicks: number, impressions: number, position = 5): GscRow {
+    return row(iso, clicks, impressions, impressions > 0 ? clicks / impressions : 0, position);
+  }
+
+  /** Seria `n` kolejnych dni sierpnia z podanymi kliknięciami. */
+  function days(clicks: number[]): GscRow[] {
+    return clicks.map((c, i) => dayRow(`2026-08-0${i + 1}`, c, 100));
+  }
+
+  /** Renderuje panel na zbiorze zbudowanym z FULL i podanych nadpisań. */
+  async function withData(over: Partial<Dataset>): Promise<void> {
+    respondWith({ ...FULL, ...over });
+    panel();
+    await loaded();
+  }
+
+  it("każdy element panelu z danymi dostaje DOKŁADNIE jeden wniosek, w kolejności ostrości", async () => {
+    panel();
+    await loaded();
+
+    // Osiem elementów z danymi = osiem wniosków. Wycięcie reguł z listy
+    // (albo dorzucenie duplikatu) zmienia tę tablicę, a nie podpis sekcji.
+    expect(insightElements()).toEqual([
+      E.topQueries,
+      E.histogram,
+      E.countries,
+      E.devices,
+      E.pages,
+      E.clicks,
+      E.ctr,
+      E.position,
+    ]);
+    // Odznaki podają LICZBĘ wniosków per ocena - kolor paska to za mało.
+    const card = insightCard();
+    expect(
+      within(card).getByText(realT("pl")("adminAnalytics.insightSection.badgeInfo", { count: 5 })),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(realT("pl")("adminAnalytics.insightSection.badgeOk", { count: 3 })),
+    ).toBeInTheDocument();
+    // Trend i kalendarz mają własne progi długości serii - przy trzech dniach
+    // ich nie ma, więc lista nie może ich wymieniać.
+    expect(insightElements()).not.toContain(E.trend);
+    expect(insightElements()).not.toContain(E.calendar);
+  });
+
+  it("wzrost kliknięć POWYŻEJ 20% daje listę utrwalającą trend", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 61, 1000)],
+      prev: [dayRow("2026-07-01", 50, 1000)],
+    });
+
+    expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "+22.0" }));
+    expect(insightDetail(E.clicks)).toBe(
+      gi("clicks.detail", { days: 28, clicks: 61, prev: 50, impr: 1000, prevImpr: 1000 }),
+    );
+    expect(insightFixes(E.clicks)).toEqual(giList("clicks.fixesUp"));
+  });
+
+  it("wzrost DOKŁADNIE o 20% to jeszcze lista stabilna, nie utrwalająca", async () => {
+    // Próg to `> 20`, nie `>= 20`. Jeden punkt procentowy mniej i rekomendacja
+    // brzmi inaczej - to świadoma granica reguły, nie przeoczenie testu.
+    await withData({
+      date: [dayRow("2026-08-01", 60, 1000)],
+      prev: [dayRow("2026-07-01", 50, 1000)],
+    });
+
+    expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "+20.0" }));
+    expect(insightFixes(E.clicks)).toEqual(giList("clicks.fixesStable"));
+  });
+
+  it("spadek kliknięć poniżej -10% zapala listę naprawczą i ocenę „do poprawy”", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 80, 1000)],
+      prev: [dayRow("2026-07-01", 100, 1000)],
+    });
+
+    expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "-20.0" }));
+    expect(insightFixes(E.clicks)).toEqual(giList("clicks.fixesDown"));
+    // Ocena „warn” wypycha wniosek na szczyt listy I wystawia odznakę z liczbą.
+    expect(insightElements()[0]).toBe(E.clicks);
+    expect(
+      within(insightCard()).getByText(
+        realT("pl")("adminAnalytics.insightSection.badgeWarn", { count: 1 }),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("spadek DOKŁADNIE o 10% nie jest jeszcze awarią - lista zostaje stabilna", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 90, 1000)],
+      prev: [dayRow("2026-07-01", 100, 1000)],
+    });
+
+    expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "-10.0" }));
+    expect(insightFixes(E.clicks)).toEqual(giList("clicks.fixesStable"));
+    expect(insightFixes(E.clicks)).not.toEqual(giList("clicks.fixesDown"));
+  });
+
+  it("CTR pod benchmarkiem pozycji porównuje się z oczekiwanym i każe przepisać snippet", async () => {
+    // Pozycja 5 -> benchmark 6%. Zmierzone 1% to luka -5 pp, czyli gałąź
+    // `fixesLow`, a nie „utrzymaj stylistykę tytułów”.
+    await withData({
+      date: [dayRow("2026-08-01", 10, 1000)],
+      prev: [dayRow("2026-07-01", 10, 1000)],
+    });
+
+    expect(insightTitle(E.ctr)).toBe(gi("ctr.title", { ctr: "1.00", pos: "5.0" }));
+    expect(insightDetail(E.ctr)).toBe(
+      gi("ctr.detail", { exp: "6.0", cmp: gi("ctr.cmpLower"), gap: "5.0", dctr: "0.00" }),
+    );
+    expect(insightFixes(E.ctr)).toEqual(giList("ctr.fixesLow"));
+    expect(insightElements()[0]).toBe(E.ctr);
+  });
+
+  it("pogorszenie pozycji o 4 miejsca daje interpretację spadku i listę konkurencyjną", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 100, 1000, 12)],
+      prev: [dayRow("2026-07-01", 100, 1000, 8)],
+    });
+
+    expect(insightTitle(E.position)).toBe(gi("position.title", { pos: "12.0", delta: "+4.0" }));
+    expect(insightDetail(E.position)).toBe(gi("position.detailWorse", { n: "4.0" }));
+    expect(insightFixes(E.position)).toEqual(giList("position.fixesWorse"));
+  });
+
+  it("pogorszenie DOKŁADNIE o 0,5 miejsca to już ostrzeżenie, ale jeszcze lista stabilna", async () => {
+    // Dwa łańcuchy `if` nad tą samą liczbą: ocena łamie się na `>= 0.5`,
+    // a lista kroków na `> 0.5`. Granica 0,5 jest więc miejscem, w którym te
+    // dwie decyzje się rozjeżdżają - i dlatego ma własny przypadek.
+    await withData({
+      date: [dayRow("2026-08-01", 100, 1000, 8.5)],
+      prev: [dayRow("2026-07-01", 100, 1000, 8)],
+    });
+
+    expect(insightTitle(E.position)).toBe(gi("position.title", { pos: "8.5", delta: "+0.5" }));
+    expect(insightDetail(E.position)).toBe(gi("position.detailWorse", { n: "0.5" }));
+    expect(insightFixes(E.position)).toEqual(giList("position.fixesStable"));
+    expect(insightElements()[0]).toBe(E.position);
+  });
+
+  it("trend widoczności pojawia się dopiero przy CZTERECH dniach serii", async () => {
+    // Reguła dzieli okno na połowy, więc przy trzech dniach „pierwsza połowa”
+    // to jeden dzień - porównanie byłoby szumem, nie trendem.
+    await withData({ date: days([10, 10, 20, 20]) });
+
+    expect(insightElements()).toContain(E.trend);
+    expect(insightTitle(E.trend)).toBe(gi("trend.title", { delta: "+100.0" }));
+    expect(insightDetail(E.trend)).toBe(gi("trend.detail", { early: 20, late: 40, days: 28 }));
+    expect(insightFixes(E.trend)).toEqual(giList("trend.fixesDefault"));
+    // Kalendarz ma wyższy próg (siedem dni) - przy czterech dalej go nie ma.
+    expect(insightElements()).not.toContain(E.calendar);
+  });
+
+  it("SZEŚĆ dni serii to jeszcze za mało na kalendarz aktywności", async () => {
+    // Trend już jest (próg to cztery dni), kalendarza jeszcze nie - dwa różne
+    // progi na tej samej serii, więc jeden zbiór dowodzi obu naraz.
+    await withData({ date: days([1, 2, 3, 4, 5, 6]) });
+
+    expect(insightElements()).toContain(E.trend);
+    expect(insightElements()).not.toContain(E.calendar);
+  });
+
+  it("przy SIEDMIU dniach kalendarz wskazuje dzień szczytu z jego liczbą kliknięć", async () => {
+    await withData({ date: days([1, 2, 3, 4, 5, 6, 0]) });
+
+    expect(insightTitle(E.calendar)).toBe(
+      gi("calendar.titleSpike", { clicks: 6, date: "2026-08-06" }),
+    );
+    expect(insightDetail(E.calendar)).toBe(
+      gi("calendar.detailSpike", { date: "2026-08-06", clicks: 6 }),
+    );
+    expect(insightFixes(E.calendar)).toEqual(giList("calendar.fixesSpike"));
+  });
+
+  it("większość dni bez kliknięć przestawia kalendarz na komunikat o zerach", async () => {
+    // Próg to `zeros > 40% dni`: trzy zera na siedem dni już go przekraczają.
+    await withData({ date: days([0, 0, 0, 4, 5, 6, 7]) });
+
+    expect(insightTitle(E.calendar)).toBe(gi("calendar.titleZeros", { zeros: 3, total: 7 }));
+    expect(insightDetail(E.calendar)).toBe(gi("calendar.detailZeros"));
+    expect(insightFixes(E.calendar)).toEqual(giList("calendar.fixesZeros"));
+  });
+
+  it("ruch brandowy powyżej 60% zamienia wniosek o zapytaniach na CAŁĄ inną treść", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 100, 1000)],
+      prev: [dayRow("2026-07-01", 100, 1000)],
+      query: [row("new european strategies", 70, 500, 0.14, 3), row("energia", 30, 400, 0.075, 8)],
+    });
+
+    expect(insightTitle(E.topQueries)).toBe(gi("topQueries.titleBranded", { pct: "70" }));
+    expect(insightDetail(E.topQueries)).toBe(gi("topQueries.detailBranded"));
+    expect(insightFixes(E.topQueries)).toEqual(giList("topQueries.fixesBranded"));
+  });
+
+  it("DOKŁADNIE 60% ruchu brandowego to jeszcze wniosek o frazach bez kliknięć", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 100, 1000)],
+      prev: [dayRow("2026-07-01", 100, 1000)],
+      query: [row("new european strategies", 60, 500, 0.12, 3), row("energia", 40, 400, 0.1, 8)],
+    });
+
+    expect(insightTitle(E.topQueries)).toBe(gi("topQueries.titleZeroClick", { count: 0 }));
+    expect(insightFixes(E.topQueries)).toEqual(giList("topQueries.fixesZeroClick"));
+  });
+
+  it("poniżej 25% wyświetleń w TOP 10 trzeci krok naprawczy mówi o backlinkach", async () => {
+    await withData({ query: [row("a", 5, 200, 0.025, 2), row("b", 5, 800, 0.006, 30)] });
+
+    expect(insightTitle(E.histogram)).toBe(gi("positionHistogram.title", { pct: "20" }));
+    expect(insightDetail(E.histogram)).toBe(
+      gi("positionHistogram.detail", { top3: 200, top10: 0, top20: 0, deep: 800 }),
+    );
+    expect(insightFixes(E.histogram)).toEqual([
+      gi("positionHistogram.fix1"),
+      gi("positionHistogram.fix2"),
+      gi("positionHistogram.fix3Low"),
+    ]);
+    expect(insightElements()[0]).toBe(E.histogram);
+  });
+
+  it("DOKŁADNIE 25% wyświetleń w TOP 10 wraca do kroku o świeżości treści", async () => {
+    await withData({ query: [row("a", 5, 250, 0.02, 2), row("b", 5, 750, 0.0066, 30)] });
+
+    expect(insightTitle(E.histogram)).toBe(gi("positionHistogram.title", { pct: "25" }));
+    expect(insightFixes(E.histogram)[2]).toBe(gi("positionHistogram.fix3High"));
+    expect(insightFixes(E.histogram)).not.toContain(gi("positionHistogram.fix3Low"));
+  });
+
+  it("kraj powyżej 90% kliknięć dostaje rekomendację dywersyfikacji rynku", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 100, 1000)],
+      prev: [dayRow("2026-07-01", 100, 1000)],
+      country: [row("pol", 95, 900, 0.1, 5), row("deu", 5, 100, 0.05, 6)],
+    });
+
+    expect(insightTitle(E.countries)).toBe(gi("countries.title", { country: "POL", pct: "95" }));
+    expect(insightDetail(E.countries)).toBe(
+      gi("countries.detail", { count: 2, top3: "POL 95, DEU 5" }),
+    );
+    expect(insightFixes(E.countries)).toEqual(giList("countries.fixesSingle"));
+  });
+
+  it("DOKŁADNIE 90% na jednym kraju to jeszcze rynek uznany za rozłożony", async () => {
+    await withData({
+      date: [dayRow("2026-08-01", 100, 1000)],
+      prev: [dayRow("2026-07-01", 100, 1000)],
+      country: [row("pol", 90, 900, 0.1, 5), row("deu", 10, 100, 0.1, 6)],
+    });
+
+    expect(insightTitle(E.countries)).toBe(gi("countries.title", { country: "POL", pct: "90" }));
+    expect(insightFixes(E.countries)).toEqual(giList("countries.fixesMulti"));
+  });
+
+  it("przewaga CTR desktopu nad mobile o ponad 2 pp zapala notatkę o mobilnym snippecie", async () => {
+    await withData({
+      device: [row("DESKTOP", 40, 400, 0.1, 5), row("MOBILE", 10, 200, 0.05, 5)],
+    });
+
+    expect(insightTitle(E.devices)).toBe(gi("devices.title", { mobile: 10, desktop: 40 }));
+    expect(insightDetail(E.devices)).toBe(
+      gi("devices.detail", { mctr: "5.00", dctr: "10.00", note: gi("devices.noteGap") }),
+    );
+    expect(insightFixes(E.devices)).toEqual(giList("devices.fixesGap"));
+    expect(insightElements()[0]).toBe(E.devices);
+  });
+
+  it("CZWARTA strona pod benchmarkiem CTR przestawia wniosek o stronach w ostrzeżenie", async () => {
+    const weak = (n: number): GscRow => row(`https://alfa.example.com/${n}`, 1, 100, 0.01, 5);
+    await withData({ page: [weak(1), weak(2), weak(3), weak(4)] });
+
+    expect(insightTitle(E.pages)).toBe(gi("pages.title", { low: 4, winners: 0 }));
+    expect(insightDetail(E.pages)).toBe(gi("pages.detail", { count: 4 }));
+    expect(insightElements()[0]).toBe(E.pages);
+  });
+
+  it("strona z 29 wyświetleniami nie liczy się do progu - benchmark wymaga 30", async () => {
+    // Bramka `impressions >= 30` istnieje po to, żeby pojedyncze wyświetlenie
+    // nie robiło z przypadkowej strony problemu CTR. Czwarta słaba strona z 29
+    // wyświetleniami zostaje więc poza analizą i wniosek jest OBSERWACJĄ.
+    const weak = (n: number, impressions: number): GscRow =>
+      row(`https://alfa.example.com/${n}`, 1, impressions, 0.01, 5);
+    await withData({ page: [weak(1, 100), weak(2, 100), weak(3, 100), weak(4, 29)] });
+
+    expect(insightTitle(E.pages)).toBe(gi("pages.title", { low: 3, winners: 0 }));
+    expect(insightDetail(E.pages)).toBe(gi("pages.detail", { count: 3 }));
+    expect(insightFixes(E.pages)).toEqual(giList("pages.fixes"));
   });
 });
 
