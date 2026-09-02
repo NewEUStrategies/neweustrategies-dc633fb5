@@ -695,6 +695,25 @@ reszta modułu.
 
 Plików w mianowniku: 89 (wejście) / 89 (po).
 
+**Delta wobec WYDANIA 8, podana osobno i z zastrzeżeniem.** Zamówienie prosiło
+o odniesienie do liczb wydania 8, więc je podaję - ale nie mieszam ich z tabelą
+wyżej, bo mierzą inny stan wyjściowy: linie **32,88% -> 96,24% (+63,36 pp)**,
+gałęzie **25,14% -> 92,17% (+67,03 pp)**, funkcje **28,41% -> 95,96% (+67,55 pp)**,
+plików na zerze **47 -> 0**. Ta delta jest większa od zmierzonej przeze mnie
+dokładnie o to, co między wydaniem 8 a startem kampanii dołożyli inni - w tym
+pierwszy test reportera Core Web Vitals. Przypisywanie tej różnicy kampanii
+byłoby zawyżeniem, dlatego liczbą wiążącą dla oceny TEJ pracy jest delta wobec
+`3eb5e92`, a nie wobec wydania 8.
+
+**Zakres zmian w kodzie produkcyjnym: DZIEWIĘĆ plików** w 16 commitach -
+`lib/webVitals.ts`, `lib/observability/report.ts`,
+`components/admin/analytics/{chartTheme.ts,EChartClient.tsx}`,
+`lib/views/postViews.functions.ts`, `routes/api/public/{vitals,client-errors}.ts`,
+`scripts/check-entry-purity.ts` i `scripts/lib/unknownCastBaseline.ts`.
+`package.json` i `package-lock.json` nietknięte, `echarts` i `echarts-for-react`
+ani dodane, ani usunięte. W całej kampanii zero `it.skip`, zero `it.todo`, zero
+`any` i zero `as any` - sprawdzone grepem po całym diffie, nie po pamięci.
+
 **Cztery funkcjonalności.** Ta sama reguła podziału po obu stronach pomiaru.
 
 | Funkcjonalność | Plików | linie wejście | linie po | gałęzie po | funkcje po | cel (linie/fn/gał) |
