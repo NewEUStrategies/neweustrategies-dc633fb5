@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
@@ -47,12 +47,12 @@ export const Route = createFileRoute("/programs/")({
     }
     const title =
       lang === "en"
-        ? "Research programs — New European Strategies"
-        : "Programy badawcze — New European Strategies";
+        ? "Research programs - New European Strategies"
+        : "Programy badawcze - New European Strategies";
     const description =
       lang === "en"
-        ? "Our research programs on Europe's security, economy and foreign policy — each with its own team, projects, publications and events."
-        : "Nasze programy badawcze o bezpieczeństwie, gospodarce i polityce zagranicznej Europy — każdy z własnym zespołem, projektami, publikacjami i wydarzeniami.";
+        ? "Our research programs on Europe's security, economy and foreign policy - each with its own team, projects, publications and events."
+        : "Nasze programy badawcze o bezpieczeństwie, gospodarce i polityce zagranicznej Europy - każdy z własnym zespołem, projektami, publikacjami i wydarzeniami.";
     const head = buildContentHead({ url, lang, type: "website", title, description });
     const breadcrumbs = breadcrumbListJsonLd(
       [{ label: lang === "en" ? "Research programs" : "Programy badawcze", href: "/programs" }],
@@ -66,17 +66,23 @@ export const Route = createFileRoute("/programs/")({
   },
   component: ProgramsIndex,
   pendingComponent: () => <ArchiveSkeleton />,
-  errorComponent: (props) => (
-    <RouteErrorFallback
-      {...props}
-      title={
-        activeLang() === "en" ? "Failed to load programs" : "Nie udało się załadować programów"
-      }
-    />
-  ),
+  // Nagłówek błędu idzie ze SŁOWNIKA: `errorComponent` renderuje się jak każdy
+  // inny komponent, więc `t()` jest tu dostępne. Wersja z `activeLang()` była
+  // drugim, równoległym zestawem literałów - bramka parytetu PL/EN nie miała
+  // czego porównać, a angielska gałąź mówiła coś innego niż słownik.
+  errorComponent: (props) => <ProgramsIndexError {...props} />,
 });
 
+function ProgramsIndexError(props: ErrorComponentProps) {
+  ensureProgramsI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("programs.loadFailedList")} />;
+}
+
 function ProgramCard({ program, lang }: { program: Program; lang: "pl" | "en" }) {
+  // `lang` zostaje WYŁĄCZNIE do wyboru bliźniaczej kolumny treści
+  // (`name_pl`/`name_en`); etykieta interfejsu idzie przez `t()`.
+  const { t } = useTranslation();
   const accent = safeAccent(program.accent_color);
   const name = pickLocalized(program, "name", lang);
   const tagline = pickLocalized(program, "tagline", lang);
@@ -106,7 +112,7 @@ function ProgramCard({ program, lang }: { program: Program; lang: "pl" | "en" })
         className="inline-flex items-center gap-1 text-sm font-medium"
         style={{ color: accent }}
       >
-        {lang === "en" ? "Explore" : "Poznaj program"}
+        {t("programs.explore")}
         <ArrowRight
           className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
           aria-hidden="true"
@@ -133,9 +139,7 @@ function ProgramsIndex() {
 
       {degraded ? (
         // „Brak programów" i „nie udało się pobrać" to dwie różne prawdy.
-        <DegradedDataNotice
-          title={lang === "en" ? "Couldn't load programmes" : "Nie udało się załadować programów"}
-        />
+        <DegradedDataNotice title={t("programs.loadFailedList")} />
       ) : programs.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">{t("programs.empty")}</p>
       ) : (

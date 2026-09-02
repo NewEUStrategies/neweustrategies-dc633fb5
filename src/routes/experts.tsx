@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { EXPERTS_DIRECTORY_EMPTY, expertsDirectoryQueryOptions } from "@/lib/experts/directory";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
@@ -46,7 +47,11 @@ export const Route = createFileRoute("/experts")({
       EXPERTS_DIRECTORY_EMPTY,
     );
     setCacheControlHeader(resilientCacheControl(degraded));
-    return null;
+    // FLAGA JEDZIE DO KOMPONENTU. Wcześniej loader zwracał `null`, więc widok
+    // nie miał czym odróżnić awarii backendu od pustego katalogu i blip bazy
+    // pokazywał czytelnikowi „Brak ekspertów do wyświetlenia." - zdanie
+    // nieprawdziwe i nie do odróżnienia od stanu redakcyjnego.
+    return { degraded };
   },
   head: () => {
     const url = getRequestUrl() || "/experts";
@@ -80,6 +85,7 @@ function ExpertsDirectoryPage() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const { degraded } = Route.useLoaderData();
   const { data } = useSuspenseQuery(expertsDirectoryQueryOptions());
   const [programFilter, setProgramFilter] = useState<string | null>(null);
 
@@ -175,7 +181,11 @@ function ExpertsDirectoryPage() {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {degraded ? (
+        // Pusty katalog i „nic nie dojechało" to dwie różne prawdy - przy
+        // degradacji mówimy wprost, co się stało (patrz lib/ssr/resilientLoad).
+        <DegradedDataNotice title={t("expert.directoryLoadFailed")} />
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-[8px] border border-dashed border-border/70 p-12 text-center">
           <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
           <p className="text-sm text-muted-foreground">

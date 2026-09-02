@@ -65,6 +65,15 @@ const STANCE_ORDER: Record<PositionStance, number> = {
   undecided: 3,
 };
 
+/**
+ * Znak zastępczy w kolumnie noty stanowiska. DYWIZ, nie pauza (U+2014) -
+ * house style repozytorium dopuszcza tu wyłącznie dywiz, a to jest TREŚĆ
+ * WIDOCZNA w tabeli alternatywnej dla mapy (czyta ją czytnik ekranu).
+ * Nie idzie do słownika: znak zastępczy jest identyczny w PL i EN, a klucz
+ * i18n dawałby tylko dwa miejsca do rozjechania.
+ */
+const NO_NOTE_DASH = "-";
+
 export function PolicyPositionsMap({
   positions,
   lang,
@@ -144,7 +153,7 @@ export function PolicyPositionsMap({
               {euCountryName(p.country_code, lang)}
             </th>
             <td className={CHART_TABLE_CLS.td}>{stanceLabel(p.stance, lang)}</td>
-            <td className={CHART_TABLE_CLS.td}>{noteOf(p) ?? "—"}</td>
+            <td className={CHART_TABLE_CLS.td}>{noteOf(p) ?? NO_NOTE_DASH}</td>
           </tr>
         ))}
       </tbody>

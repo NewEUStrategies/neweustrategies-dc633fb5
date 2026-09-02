@@ -513,6 +513,98 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Czat: warstwa danych (rozmowy, wiadomości)      |      3 |        374 |  92,3% | 83,3% |   95,6% |  **97,6%** |   130/136 |
 | Czat: reguły wątku (kolejność, separator, skok) |      5 |        159 |  99,5% | 98,5% |   97,5% | **100,0%** |     39/40 |
 
+> **ZASTRZEŻENIE DO TABELI (dopisane 2026-09-01, wydanie 9): wiersz „Czat: kompozytor + wzmianki" NIE OPISUJE KOMPOZYTORA CZATU.**
+>
+> Zakres tego wiersza to `src/lib/composer/`, `src/components/composer/`, `src/lib/mentions/`, `src/components/mentions/` - dziesięć plików, 229 LOC. **Ani jeden z nich nie jest używany przez czat.** Zweryfikowane na tym HEAD:
+>
+> - `grep -rln "mention" src/components/chat src/lib/chat` nie zwraca nic - czat nie ma wzmianek;
+> - `src/components/chat/ChatComposer.tsx` (606 linii źródła) nie importuje niczego z tych czterech katalogów;
+> - `ComposerShell.tsx` konsumują `components/comments/CommentComposerShell.tsx` i `components/forms/MessageComposerField.tsx`;
+> - `MentionTextarea.tsx` - komentarze (`CommentsSection.tsx`, `CommentComposerShell.tsx`) i dwie trasy klubów;
+> - `useMentionAutocomplete` - `components/forms/MessageComposerField.tsx`;
+> - `useMentionProfile` - `components/clubs/atoms/ClubInlineText.tsx`.
+>
+> Wynik 84,3% opisuje więc kompozytor KOMENTARZY, FORMULARZY i KLUBÓW, a nie czatu. Prawdziwy kompozytor czatu to `ChatComposer.tsx`, który w wydaniu 8 stał na **0/160 linii i 0/40 funkcji** - największym pojedynczym zerze całego modułu - i był ukryty w wierszu „okno rozmowy i atomy UI".
+>
+> **Dlaczego zostawiamy to jako zastrzeżenie, a nie poprawiamy definicji funkcjonalności.** Ujednolicenie kompozytorów (przepisanie czatu na `ComposerShell`, dołożenie wzmianek do czatu) byłoby ZMIANĄ PRODUKTOWĄ pod test, a nie poprawą pomiaru - i jako taka wymaga własnej decyzji, nie commitu w pracy nad pokryciem. Do czasu tej decyzji tabelę czyta się z tym zastrzeżeniem, a wiersz „kompozytor + wzmianki" traktuje jako **infrastrukturę komentarzy i klubów mierzoną wewnątrz modułu 09**.
+
+#### MODUŁ 9 — WYDANIE 9 (2026-09-01) · linie 62,83% → **97,25%** · funkcje 58,02% → **95,47%**
+
+**Rodzaje testów dołożone w tym wydaniu:** komponentowy 14 · jednostkowy 5 · hooka 3 · trasy 2 (pierwsze w module) · bramki 1 · dostępności 1 (pierwszy w module). Razem 26 nowych plików testowych, +14 068 linii, plus rozszerzenie uprzęży wykonawczej RLS z 62 na 126 asercji.
+
+**Pomiar:** `vitest run --coverage` na PEŁNEJ suicie, `all: true`, zakres modułu dokładnie taki, jak w tabeli zakresów niżej. Kolumna „wyd. 8" to liczby z tabeli wyżej.
+
+**MODUŁ 09 RAZEM** - 83 pliki (81 w wydaniu 8; przybyły dwa moduły reguł wyprowadzone z kompozytora), 3 304 mierzone linie:
+
+| Metryka    | Wydanie 8 |  Wydanie 9 |          Δ | Cel zlecenia |    Zapas |
+| ---------- | --------: | ---------: | ---------: | -----------: | -------: |
+| Linie      |    62,83% | **97,25%** | ↑ +34,4 pp |        ≥ 78% | +19,3 pp |
+| Funkcje    |    58,02% | **95,47%** | ↑ +37,5 pp |        ≥ 75% | +20,5 pp |
+| Gałęzie    |    51,74% | **88,36%** | ↑ +36,6 pp |        ≥ 65% | +23,4 pp |
+| Instrukcje |    61,33% | **94,98%** | ↑ +33,7 pp |            - |        - |
+
+W liczbach bezwzględnych: linie 3 213/3 304, funkcje 1 032/1 081, gałęzie 2 923/3 308. **Zero plików modułu stoi na zerowym pokryciu linii** (w wydaniu 8 było ich szesnaście, w tym dwanaście dialogów i paneli interfejsu oraz obie trasy).
+
+**CZTERY FUNKCJONALNOŚCI** - zakresy plików identyczne, co w tabeli wydania 8 wyżej:
+
+| Funkcjonalność                                  | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) | Linie wyd. 8 |    Δ linie |
+| ----------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: | -----------: | ---------: |
+| Czat: okno rozmowy i atomy UI                   |     35 |      1 490 |  96,9% | 90,8% |   96,7% |  **98,3%** |   502/519 |        46,2% | ↑ +52,1 pp |
+| Czat: kompozytor + wzmianki                     |     10 |        229 |  81,6% | 68,8% |   77,2% |  **84,3%** |     44/57 |        84,3% |  bez zmian |
+| Czat: warstwa danych (rozmowy, wiadomości)      |      3 |        374 |  92,6% | 83,6% |   95,6% |  **97,6%** |   130/136 |        97,6% |  bez zmian |
+| Czat: reguły wątku (kolejność, separator, skok) |      5 |        155 |  99,5% | 98,1% |  100,0% | **100,0%** |     42/42 |       100,0% |  bez zmian |
+
+**Wiersz „kompozytor + wzmianki" stoi w miejscu CELOWO** - i to jest dowód zastrzeżenia z poprzedniej sekcji, a nie przeoczenie. Te dziesięć plików nie ma z czatem nic wspólnego, więc praca nad czatem nie mogła ich ruszyć. Prawdziwy kompozytor czatu siedzi w wierszu „okno rozmowy i atomy UI" i to on odpowiada za +52,1 pp: `ChatComposer.tsx` przeszedł **z 0/160 linii i 0/40 funkcji na 152/155 linii i 38/40 funkcji**.
+
+**Cele szczegółowe zlecenia - wynik:**
+
+| Cel                                 |    Wymóg | Pomiar wydania 9                |
+| ----------------------------------- | -------: | ------------------------------- |
+| „okno rozmowy i atomy UI" - linie   |    ≥ 75% | **98,3%**                       |
+| „okno rozmowy i atomy UI" - funkcje |    ≥ 70% | **96,7%**                       |
+| „okno rozmowy i atomy UI" - gałęzie |    ≥ 60% | **90,8%**                       |
+| `routes/messages.tsx`               | ≥ 60/55% | **91,8% linii / 85,7% funkcji** |
+| `routes/admin.community.chat.tsx`   | ≥ 70/65% | **91,3% linii / 84,0% funkcji** |
+| `lib/chat/voice.ts`                 | ≥ 70/70% | **100% linii / 100% funkcji**   |
+| `lib/chat/usePeopleDirectory.ts`    | ≥ 70/70% | **100% linii / 100% funkcji**   |
+| `lib/chat/useIncomingChatToasts.ts` | ≥ 70/70% | **93,0% linii / 88,9% funkcji** |
+| `AttachmentContent.tsx` - gałęzie   |    ≥ 55% | **83,6%**                       |
+| `DemoBotChat.tsx` - gałęzie         |    ≥ 65% | **94,3%**                       |
+| `ChatWindow.tsx` - funkcje          |    ≥ 85% | **100,0% (73/73)**              |
+
+**Pomiar wykonano na ZIELONEJ suicie w sensie tej pracy:** `vitest run --coverage`, 2 055 plików testowych, 55 456 testów zielonych, 279 `it.fails`, **6 czerwonych testów w 5 plikach - wszystkie zastane, reprodukowane co do jednego na `origin/main`** w osobnym worktree (`router.test.tsx`, `authzSnapshotParity`, `migrationReplay` ×2, `serviceRoleTenantScope`, `AdminMonetizationLedger`). Żaden z nich nie leży w module 09 i żaden nie został naprawiony ani wyciszony - snapshot autoryzacji w szczególności NIE był regenerowany.
+
+**Bramki `check:*` po tej pracy:** trzydzieści zielonych. Cztery czerwone (`check:authz-snapshot`, `check:permissions-parity`, `check:sql-migration-replay`, `check:i18n-parity`) sprowadzają się do tych samych dwóch zastanych plików - same reguły i18n przechodzą w komplecie (48 plików). Dwie (`check:db-contract`, `check:migration-ledger`) wymagają poświadczeń Supabase, niedostępnych w tym środowisku.
+
+**Jedyny ślad tej pracy poza testami - i jest mierzalny.** `check:bundle` jest czerwony NA `origin/main`: całość 4 320,9 KB gzip przy budżecie 4 306 KB, czyli przekroczenie o 14,9 KB pochodzące spoza czatu (`i18n` +129 KB, `EventStudioModuleSections` +65,5 KB, `useEventSessions` +31,1 KB, `scanner` +15,3 KB względem baseline'u z 2026-08-15). Po tej pracy jest 4 321,5 KB, czyli **+0,6 KB gzip** - koszt dwóch modułów reguł przekraczających granicę chunku. Sprawdzone tym samym buildem na obu drzewach. Świadomie nie podnoszę tu budżetu: przekroczenie nie jest tej pracy, a 0,6 KB to cena, którą płaci się za możliwość testowania decyzji kompozytora bez pełnego renderu z atrapą `MediaRecorder`.
+
+**Co zmieniło się względem wydania 8.** Wydanie 8 opisywało moduł jako „wzorcową mieszankę po refaktorze" - i miało rację co do WARSTWY DANYCH (97,6% linii, 130 ze 136 funkcji, jedenaście polityk na `messages`). Całe ryzyko siedziało gdzie indziej: w 35 plikach interfejsu, z których **dwanaście nie zostało nigdy wyrenderowane w teście**, oraz w dwóch trasach na czystym zerze - skrzynce `/messages` (687 linii źródła) i panelu moderacji `/admin/community/chat` z operacjami niszczącymi.
+
+**Co decyduje w wydaniu 9:** trzy rodzaje dowodu, których moduł wcześniej nie miał wcale.
+
+1. **Ekstrakcja reguł przed asercjami.** `ChatComposer.tsx` (606 linii, 0/160 linii pokrycia) nie miał ANI JEDNEJ funkcji modułowej, więc żadnej jego decyzji nie dało się sprawdzić bez pełnego renderu z sesją, tenantem, kanałem realtime i atrapą `MediaRecorder`. Reguły wyprowadzone do `lib/chat/composerRules.ts` i `lib/chat/attachmentPresentation.ts` mają dziś testy jednostkowe, a render dowodzi wyłącznie SKLEJENIA. Ekstrakcja jest wierna co do gałęzi - nie jest zmianą zachowania pod test.
+2. **Test trasy** (`@/test/routeHarness`) - pierwszy w module. Dowodzi tego, czego test komponentu nie dotyka: kontraktu adresu (`?c=`, `?view=`), nagłówka (`noindex, nofollow`), `ssr: false` i bramek widoczności (AuthGate, moduł czatu wyłączony przez administratora, zakładka zarezerwowana dla ekspertów).
+3. **Bramka kontraktu polityk RLS** (`src/lib/ci/__tests__/chatPolicyContract.test.ts`) - stan końcowy polityk czytany z forward-only migracji przez `extractLatestPolicies` - **oraz jej wykonawczy kontrapunkt**: uprząż `scripts/tenant-isolation-harness` rozszerzona z 62 na 126 asercji, która zakłada polityki płaszczyzny czatu na prawdziwym Postgresie i próbuje przez nie czytać oraz pisać jako trzy różne osoby z dwóch obszarów roboczych. Odpowiadają na trzy pytania, które wydanie 8 zostawiło otwarte (patrz „Trzy ustalenia" niżej) - i rozjazd między nimi wykrył ograniczenie samej analizy statycznej, opisane w ustaleniu 1.
+
+**Bez tego rodzaju przechodzi taki defekt:** dokładnie te, które ta praca znalazła. Jedenaście pozycji zapisanych jako `it.fails` z opisem złamanego i oczekiwanego kontraktu - m.in. **martwa gałąź „Wysyłanie…"** w stopce listy (`lastMine` filtruje `!pending`, a stopka pyta `lastMine?.pending`, więc warunek nigdy nie jest prawdziwy), **martwa pozycja menu „Dodaj reakcję"** w dymku (menu Radiksa zamyka świeżo otwarty popover), **historia mediów** przekazująca do podglądu galerię JEDNOELEMENTOWĄ wbrew własnemu opisowi w nagłówku pliku, **wyszukiwarka rozmówców** myląca ODMOWĘ serwera z brakiem kontaktów, **przycisk kasujący kaskadowo rozmowę bez nazwy dostępnej** w panelu moderacji oraz **potwierdzenia doręczenia niewidoczne dla czytnika ekranu** (`aria-label` na `<span>` bez roli - ARIA tego zabrania, więc etykieta jest ignorowana).
+
+**Trzy ustalenia o politykach RLS** (przypięte bramką, bez zmiany schematu w tej pracy):
+
+1. **Czy prośba ekspercka przecina obszary robocze? NIE - i polityki tego pilnują.** Jedyny pisarz tabeli, `send_expert_request`, czyta tenanta nadawcy i odbiorcy z `profiles` i odmawia, gdy się różnią; `INSERT` jest celowo `WITH CHECK false`, więc RPC jest jedyną drogą. Czytanie i zmiana też wiążą obszar roboczy: każda żywa polityka `expert_inmails` inna niż `INSERT` ma `tenant_id = current_tenant_id()`. **To ustalenie kosztowało jedną korektę własnej bramki i jest tu warte opisania**, bo pokazuje granicę analizy statycznej: `extractLatestPolicies` kluczuje politykę po nazwie tabeli WYCZYTANEJ Z TEKSTU migracji i nie rozumie `ALTER TABLE … RENAME`. Migracja `20260723180000` przemianowała `expert_inmails` na `expert_requests` i założyła tenant-ślepe polityki; `20260806160001` cofnęła nazwę („rename nigdy nie wjechał"), a `20260806185055` skasowała obie stare rodziny i założyła dzisiejsze, tenant-wiążące. DROP-y adresowane do `public.expert_inmails` nie trafiły w klucze założone jako `public.expert_requests`, więc tenant-ślepa rodzina **została w mapie jako duch** - i pierwsza wersja tej bramki wzięła ducha za stan bazy. Rozstrzygnęło wykonanie: rozszerzona uprząż `scripts/tenant-isolation-harness` zakłada te polityki na prawdziwym Postgresie i pokazuje, że wiersz dryfujący do obcego obszaru roboczego jest niewidoczny nawet dla własnego nadawcy. Bramka statyczna asertuje dziś niezmiennik wprost, a duchy przypina OSOBNYM przechodzącym testem opisanym jako ograniczenie parsera. Pułapka zostaje zastawiona na regresję: przywrócenie tenant-ślepych polityk wywala i bramkę, i uprząż.
+2. **Czy dwa sposoby wyznaczania tenanta są równoważne? CO DO WARTOŚCI TAK.** `current_tenant_id()` to dosłownie `SELECT tenant_id FROM public.profiles WHERE id = auth.uid()`, czyli ta sama kwerenda, którą `user_blocks` ma wpisaną wprost w `WITH CHECK`. Różnica, która zostaje: funkcja jest SECURITY DEFINER i omija RLS na `profiles`, a podzapytanie biegnie jako wołający. Obie formy rozjadą się dokładnie wtedy, gdy `profiles` przestanie pozwalać czytać własny wiersz - i ten warunek jest teraz przypięty.
+3. **Brak polityki INSERT na `conversations` i brak polityk zapisu na `conversation_participants` to DECYZJA**, nie luka: zapis idzie wyłącznie przez `get_or_create_direct_conversation` i `create_group_conversation`. Bramka pilnuje OBU połówek naraz (brak polityki zapisu ORAZ istnienie RPC), żeby nikt później nie „naprawił" tego dopisaniem polityki.
+
+**Progi.** Oba globi modułu zostały zaciśnięte OSOBNYM commitem, przed napisaniem pierwszego testu - luz wynosił 4,8-5,8 pp, czyli przepuszczał regresję o rozmiarze całego pliku bez ani jednego czerwonego testu (`useConversations.ts` to 5,4 pp globu `src/lib/chat/**`). Po dobiciu pokrycia progi podniesiono DRUGI raz, tym razem do podłogi z pomiaru - luz poniżej 1 pp na każdej z czterech metryk:
+
+| Glob                     |   Wydanie 8 | Po commicie 1 |       Wydanie 9 |
+| ------------------------ | ----------: | ------------: | --------------: |
+| `src/lib/chat/**`        | 74/80/77/67 |   79/85/82/72 | **95/97/98/89** |
+| `src/components/chat/**` | 40/36/41/34 |   45/40/46/38 | **96/96/98/90** |
+
+(kolejność: instrukcje / funkcje / linie / gałęzie)
+
+Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera (dwanaście dialogów i paneli, dwa nowe moduły reguł, obie trasy) i szesnaście dla powierzchni, które audyt wskazał imiennie - atomy wiadomości i załącznika oraz reszta warstwy danych czatu. Liczba progów per-ścieżka w repo rośnie z **376 na 408**. (Wydanie 8 raportowało 373; na `origin/main` jest ich dziś 376 - liczba potwierdzona tytułem commita `85af2c6` „Audyt 376 progów pokrycia". Liczone kluczami obiektu `thresholds` w `vitest.config.ts`, bez duplikatów.) Osobno podniesiony `ChatWindow.tsx`: próg funkcji stał na **60** przy pomiarze 100% (73/73), czyli przepuszczał utratę trzynastu domknięć - menu kontekstowego, dialogów znikania, przekazywania i blokowania - bez ani jednego czerwonego testu.
+
 ### MODUŁ 10 — Sieć / networking · linie 83,65% · funkcje 81,85%
 
 **Rodzaje testów:** komponentowy 17 · hooka 3 · jednostkowy 2 · bramki 1.
@@ -550,6 +642,10 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | POPUP: telemetria zdarzeń                          |      2 |         62 | 100,0% | 92,3% |  100,0% | **100,0%** |     11/11 |
 
 ### MODUŁ 12 — Realtime / powiadomienia / web-push · linie 49,54% · funkcje 47,46%
+
+> **AKTUALIZACJA 2026-09-01:** liczby w tej sekcji to migawka wydania 8 i takie zostają.
+> Kampania testowa modułu 12 zamknęła go na **98,03% linii / 92,14% gałęzi / 97,11% funkcji**.
+> Pełny pomiar, delta i lista tego, czego NIE osiągnięto - rozdział 10 na końcu dokumentu.
 
 **Rodzaje testów:** jednostkowy 11 · funkcji serwerowej 2 · hooka 1.
 
@@ -685,13 +781,13 @@ reszta modułu.
 
 **Moduł 17 razem.**
 
-| metryka    | wejście (`3eb5e92`) | po kampanii | delta | cel zlecenia |
-| ---------- | ------------------: | ----------: | ----: | -----------: |
-| linie | 36,07% (1134/3144) | **96,24%** (3099/3220) | +60,17 pp | ≥ 65% |
-| instrukcje | 35,31% (1283/3634) | **95,54%** (3556/3722) | +60,23 pp | - |
-| gałęzie | 27,30% (917/3359) | **92,17%** (3145/3412) | +64,87 pp | ≥ 52% |
-| funkcje | 31,18% (280/898) | **95,96%** (878/915) | +64,78 pp | ≥ 62% |
-| plików na zerze | 47 | **0** | -47 | - |
+| metryka         | wejście (`3eb5e92`) |            po kampanii |     delta | cel zlecenia |
+| --------------- | ------------------: | ---------------------: | --------: | -----------: |
+| linie           |  36,07% (1134/3144) | **96,24%** (3099/3220) | +60,17 pp |        ≥ 65% |
+| instrukcje      |  35,31% (1283/3634) | **95,54%** (3556/3722) | +60,23 pp |            - |
+| gałęzie         |   27,30% (917/3359) | **92,17%** (3145/3412) | +64,87 pp |        ≥ 52% |
+| funkcje         |    31,18% (280/898) |   **95,96%** (878/915) | +64,78 pp |        ≥ 62% |
+| plików na zerze |                  47 |                  **0** |       -47 |            - |
 
 Plików w mianowniku: 89 (wejście) / 89 (po).
 
@@ -716,12 +812,12 @@ ani dodane, ani usunięte. W całej kampanii zero `it.skip`, zero `it.todo`, zer
 
 **Cztery funkcjonalności.** Ta sama reguła podziału po obu stronach pomiaru.
 
-| Funkcjonalność | Plików | linie wejście | linie po | gałęzie po | funkcje po | cel (linie/fn/gał) |
-| -------------- | -----: | ------------: | -------: | ---------: | ---------: | -----------------: |
-| Analityka: zbieranie zdarzeń i liczniki | 21 | 15,68% | **85,63%** | 78,15% | 77,56% (121/156) | 70 / 65 / 55 |
-| Wykresy i panel BI | 38 | 32,20% | **99,82%** | 95,90% | 100,00% (568/568) | 60 / 55 / 45 |
-| Observability / RUM / web vitals | 14 | 64,54% | **97,29%** | 93,48% | 97,78% (88/90) | 85 / 85 / 75 |
-| Analityka: warstwa semantyczna | 16 | 56,66% | **99,43%** | 95,79% | 100,00% (101/101) | 92 / 90 / 80 |
+| Funkcjonalność                          | Plików | linie wejście |   linie po | gałęzie po |        funkcje po | cel (linie/fn/gał) |
+| --------------------------------------- | -----: | ------------: | ---------: | ---------: | ----------------: | -----------------: |
+| Analityka: zbieranie zdarzeń i liczniki |     21 |        15,68% | **85,63%** |     78,15% |  77,56% (121/156) |       70 / 65 / 55 |
+| Wykresy i panel BI                      |     38 |        32,20% | **99,82%** |     95,90% | 100,00% (568/568) |       60 / 55 / 45 |
+| Observability / RUM / web vitals        |     14 |        64,54% | **97,29%** |     93,48% |    97,78% (88/90) |       85 / 85 / 75 |
+| Analityka: warstwa semantyczna          |     16 |        56,66% | **99,43%** |     95,79% | 100,00% (101/101) |       92 / 90 / 80 |
 
 #### Rejestr N1-N8: osiem zleceń, osiem rozstrzygnięć
 
@@ -769,9 +865,10 @@ zerowe opóźnienie. Karty w tle mają timery dławione do ~1/min, więc gwaranc
 listenery ukrycia, nigdy timer. Cofnięcie zgody PORZUCA to, co zostało w buforze.
 
 Zgodność wsteczna jest obowiązkowa i przetestowana: strona zbuforowana przed zmianą
+
 - albo otwarta w karcie w tle od wczoraj - nadal wysyła pojedynczy obiekt
-`{name,value,...}` i nadal jest zapisywana. Endpoint normalizuje trzy kształty ciała
-do listy.
+  `{name,value,...}` i nadal jest zapisywana. Endpoint normalizuje trzy kształty ciała
+  do listy.
 
 Limiter przeliczony: 60/1 -> 20/0,2. Budżet jest liczony w WIERSZACH, nie w żądaniach,
 bo żądanie, które wstawiało jeden wiersz, wstawia teraz do ośmiu: 12 żądań/min razy
@@ -893,10 +990,10 @@ różni. Do tego `resolveChartTheme` pobiera migawkę stylu RAZ zamiast raz na t
 
 ZMIERZONE, panel dziesięciu wykresów (`__tests__/EChartClient.test.tsx`):
 
-| wielkość                | przed | po  |
-| ----------------------- | ----: | --: |
-| renderów wykresu        |    20 |  10 |
-| rozwiązań motywu        |    20 |   2 |
+| wielkość                 | przed |  po |
+| ------------------------ | ----: | --: |
+| renderów wykresu         |    20 |  10 |
+| rozwiązań motywu         |    20 |   2 |
 | wywołań getComputedStyle |   200 |   2 |
 
 Test „tokeny, które dojechały PO pierwszym malowaniu, trafiają do wykresu" pilnuje,
@@ -912,15 +1009,15 @@ wyrzucana.
 Krok 13 zlecenia wymieniał pięć powierzchni panelu stojących na zerze. Wszystkie
 wyszły z zera, cztery z nich na 100% linii i 100% funkcji:
 
-| plik                            | wejście   | linie |   funkcje |  gałęzie | przypadków |
-| ------------------------------- | --------- | ----: | --------: | -------: | ---------: |
-| `src/routes/admin.analytics.tsx`      | 0/54, 0/27 | 100% | 100% (27/27) | 98,42% |  51 |
-| `src/routes/admin.link-monitor.tsx`   | 0/33, 0/7  | 100% | 100% (7/7)   | 94,87% |  38 |
-| `src/routes/admin.experiments.tsx`    | 0/26, 0/8  | 100% | 100% (8/8)   |   100% |  20 |
-| `src/routes/admin.performance.tsx`    | 0/8, 0/3   | 100% | 100% (3/3)   |   100% |  12 |
-| `src/components/admin/performance/EdgeCacheCard.tsx` | 0/43, 0/18 | 100% | 100% (18/18) | 94,83% | 21 |
-| `src/lib/charts/geoQuery.ts`          | 0/4, 0/1   | 100% | 100% (2/2)   |   100% |  12 |
-| `src/lib/tracker-admin.functions.ts`  | 0/3, 0/1   | 100% | 100% (1/1)   |      - |  10 |
+| plik                                                 | wejście    | linie |      funkcje | gałęzie | przypadków |
+| ---------------------------------------------------- | ---------- | ----: | -----------: | ------: | ---------: |
+| `src/routes/admin.analytics.tsx`                     | 0/54, 0/27 |  100% | 100% (27/27) |  98,42% |         51 |
+| `src/routes/admin.link-monitor.tsx`                  | 0/33, 0/7  |  100% |   100% (7/7) |  94,87% |         38 |
+| `src/routes/admin.experiments.tsx`                   | 0/26, 0/8  |  100% |   100% (8/8) |    100% |         20 |
+| `src/routes/admin.performance.tsx`                   | 0/8, 0/3   |  100% |   100% (3/3) |    100% |         12 |
+| `src/components/admin/performance/EdgeCacheCard.tsx` | 0/43, 0/18 |  100% | 100% (18/18) |  94,83% |         21 |
+| `src/lib/charts/geoQuery.ts`                         | 0/4, 0/1   |  100% |   100% (2/2) |    100% |         12 |
+| `src/lib/tracker-admin.functions.ts`                 | 0/3, 0/1   |  100% |   100% (1/1) |       - |         10 |
 
 **Dlaczego to nie jest pokrycie „na sam render".** W tych plikach SKLEJENIE JEST
 LOGIKĄ, a nie detalem implementacji:
@@ -1026,13 +1123,13 @@ padnięć identyczne poza prefiksem ścieżki w stack trace. Wszystkie cztery pl
 testowe są bajt-identyczne w obu drzewach (te same sumy MD5), a kampania nie dotknęła
 katalogu `supabase/` ani jednym plikiem.
 
-| plik | przypadek | przyczyna | pada w baseline |
-| ---- | --------- | --------- | --------------- |
-| `lib/ci/__tests__/migrationReplay.test.ts` | porządek nazw = porządek wersji | `expected true to be false` | TAK |
-| `lib/ci/__tests__/migrationReplay.test.ts` | ratchet bliźniaków treści | dwie nowe pary bliźniaków z gałęzi Lovable (`page_full_path_tenant_scope`, `owner_plane_tenant_scope_read_history`) | TAK |
-| `lib/authz/__tests__/authzSnapshotParity.test.ts` | snapshot vs migracje | PROVENANCE, `migrations: 932 -> 935` | TAK |
-| `lib/server/__tests__/serviceRoleTenantScope.gate.test.ts` | `page_full_path` wiąże najemcę | `it.fails`, który ZACZĄŁ przechodzić - czyli dług naprawiony, przypięcie nieusunięte | TAK |
-| `components/admin/monetization/__tests__/AdminMonetizationLedger.test.tsx` | przydział bezterminowy | brak tekstu „Bezterminowo" po 5 s | TAK |
+| plik                                                                       | przypadek                       | przyczyna                                                                                                           | pada w baseline |
+| -------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `lib/ci/__tests__/migrationReplay.test.ts`                                 | porządek nazw = porządek wersji | `expected true to be false`                                                                                         | TAK             |
+| `lib/ci/__tests__/migrationReplay.test.ts`                                 | ratchet bliźniaków treści       | dwie nowe pary bliźniaków z gałęzi Lovable (`page_full_path_tenant_scope`, `owner_plane_tenant_scope_read_history`) | TAK             |
+| `lib/authz/__tests__/authzSnapshotParity.test.ts`                          | snapshot vs migracje            | PROVENANCE, `migrations: 932 -> 935`                                                                                | TAK             |
+| `lib/server/__tests__/serviceRoleTenantScope.gate.test.ts`                 | `page_full_path` wiąże najemcę  | `it.fails`, który ZACZĄŁ przechodzić - czyli dług naprawiony, przypięcie nieusunięte                                | TAK             |
+| `components/admin/monetization/__tests__/AdminMonetizationLedger.test.tsx` | przydział bezterminowy          | brak tekstu „Bezterminowo" po 5 s                                                                                   | TAK             |
 
 Czwarty wiersz zasługuje na komentarz, bo jest lustrem tej kampanii: `it.fails`
 przestaje być dokumentacją długu w chwili, w której dług zniknie, a wtedy zaczyna
@@ -1128,9 +1225,10 @@ którekolwiek z 96 przypięć niżej.
 
 `check:authz-snapshot` - CZERWONA, klasa **PROVENANCE**: `migrations: 932 -> 935`,
 czyli „ten sam krąg uprawnionych, inne miejsce w historii". `check:permissions-parity`
+
 - CZERWONA Z TEJ SAMEJ PRZYCZYNY: 234 przypadki przechodzą, 1 oczekiwana porażka,
-a jedyne padnięcie to `authzSnapshotParity.test.ts`, czyli ten sam dryf zapakowany
-w test.
+  a jedyne padnięcie to `authzSnapshotParity.test.ts`, czyli ten sam dryf zapakowany
+  w test.
 
 Że to dryf metadanych, a nie regresja uprawnień, jest sprawdzalne, nie deklarowane:
 reporter dryfu zwrócił **dokładnie jeden** wpis, kategorii `stats`, o twardo
@@ -1199,15 +1297,15 @@ Pomiar po obu stronach kampanii, na CZYSTYCH buildach, tym samym instrumentem
 identyczne w `3eb5e92` i na HEAD, a `vite.config.ts` i `package.json` kampania
 nie tknęła):
 
-| pomiar                | wejście (`3eb5e92`) | po kampanii | budżet    | stan |
-| --------------------- | ------------------: | ----------: | --------: | ---- |
-| liczba plików JS      |                 943 |         943 |         - | - |
-| PUBLIC                |          2 687,0 KB |  2 687,6 KB | ≤ 2 715 KB | ZIELONY, zapas 27,4 KB |
-| admin-only            |          1 633,4 KB |  1 633,5 KB | bilowane do overall | - |
-| OVERALL               |          4 320,4 KB |  4 321,1 KB | ≤ 4 306 KB | CZERWONY |
-| największy chunk      |            274,0 KB |    274,0 KB |   ≤ 280 KB | ZIELONY |
-| CSS klienta           |     81,0 KB / 2 pl. | 81,0 KB / 2 |    ≤ 82 KB | ZIELONY |
-| domknięcie bootowania |    576,7 KB / 9 ch. | 576,7 KB / 9 |   ≤ 579 KB | ZIELONY |
+| pomiar                | wejście (`3eb5e92`) |  po kampanii |              budżet | stan                   |
+| --------------------- | ------------------: | -----------: | ------------------: | ---------------------- |
+| liczba plików JS      |                 943 |          943 |                   - | -                      |
+| PUBLIC                |          2 687,0 KB |   2 687,6 KB |          ≤ 2 715 KB | ZIELONY, zapas 27,4 KB |
+| admin-only            |          1 633,4 KB |   1 633,5 KB | bilowane do overall | -                      |
+| OVERALL               |          4 320,4 KB |   4 321,1 KB |          ≤ 4 306 KB | CZERWONY               |
+| największy chunk      |            274,0 KB |     274,0 KB |            ≤ 280 KB | ZIELONY                |
+| CSS klienta           |     81,0 KB / 2 pl. |  81,0 KB / 2 |             ≤ 82 KB | ZIELONY                |
+| domknięcie bootowania |    576,7 KB / 9 ch. | 576,7 KB / 9 |            ≤ 579 KB | ZIELONY                |
 
 **Kampania modułu 17 dołożyła +0,7 KB gzip do bundla klienta, z czego +0,6 KB do
 wiadra PUBLIC.** Siedem dziesiątych kilobajta. Przekroczenie budżetu OVERALL
@@ -1222,12 +1320,12 @@ Delta per chunk, policzona przez zgzipowanie i zsumowanie po 809 wiadrach obu
 baseline'u z 15 sierpnia, której świadomie nie cytuję, bo jest pisana STARĄ
 konwencją wiader (sama bramka o tym ostrzega):
 
-| chunk           |     delta | co się w nim zmieniło |
-| --------------- | --------: | --------------------- |
-| `EChartClient`  | +0,25 KB | wspólny magazyn motywu (N8); niesie zinline'owany `chartTheme.ts` |
-| `webVitals`     | +0,15 KB | kolejka i drenaż metryk (N2) |
-| `index`         | +0,01 KB | `report.ts` - parametryzacja endpointu |
-| `i18n`, `_`     | +0,03 KB | poziom zaokrąglenia rehashowania |
+| chunk          |    delta | co się w nim zmieniło                                             |
+| -------------- | -------: | ----------------------------------------------------------------- |
+| `EChartClient` | +0,25 KB | wspólny magazyn motywu (N8); niesie zinline'owany `chartTheme.ts` |
+| `webVitals`    | +0,15 KB | kolejka i drenaż metryk (N2)                                      |
+| `index`        | +0,01 KB | `report.ts` - parametryzacja endpointu                            |
+| `i18n`, `_`    | +0,03 KB | poziom zaokrąglenia rehashowania                                  |
 
 Jeden szczegół z tego pomiaru jest dowodem per-plik, nie założeniem: literał
 `/api/public/vitals` **przeniósł się** z `webVitals.js` (wejście) do `index.js`
@@ -1250,7 +1348,6 @@ czerwieni przez zmianę progu i przepisanie baseline'u jest właśnie tym.
 niesiony przez słowniki i18n, `vendor` i powierzchnie edytora/buildera - w żadnym
 z tych wiader kampania nie ruszyła ani kilobajta. Ale próg jest przebity i wymaga
 własnej diagnozy.
-
 
 #### Co znalazły testy, których nikt nie szukał: 100 przypięć `it.fails`
 
@@ -1362,7 +1459,7 @@ Pierwsze - kafelek RUM w przeglądzie analityki gubi jednostkę dokładnie tam, 
 jest najpotrzebniejsza:
 
 ```ts
-`${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`
+`${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`;
 ```
 
 Warunek jest odwrócony względem intencji. Dla wartości POWYŻEJ sekundy - czyli dla
@@ -1393,7 +1490,6 @@ przypisywalny do osoby, ale nie do obszaru roboczego, a rekonstrukcja po `actorI
 wymaga sięgnięcia do profilu, który w tym czasie mógł już zmienić najemcę. Naprawa
 jest mechaniczna i wzorowa istnieje obok (`scheduler.functions.ts`).
 
-
 #### Rozkład wag i kolejność naprawy
 
 Pełny rejestr 100 przypięć - plik, przypadek, złamany kontrakt - jest w plikach
@@ -1401,12 +1497,12 @@ testowych, przy każdym przypadku, w komentarzu nad nim; tutaj podaję rozkład
 i kolejność, bo to one czynią z rejestru listę roboczą, a nie anegdotę.
 Klasyfikacja idzie po SKUTKU dla odbiorcy, nie po miejscu w kodzie:
 
-| waga | przypięć | co znaczy |
-| ---- | -------: | --------- |
-| izolacja | 13 | dane albo liczniki jednego obszaru roboczego mogą trafić do drugiego |
-| poprawność | 44 | zmienia LICZBĘ albo ZNAK wniosku w raporcie |
-| dostępność | 33 | odbiera treść części odbiorców |
-| odporność | 8 | nie kłamie, ale wywraca się albo gubi dane na wejściu brzegowym |
+| waga       | przypięć | co znaczy                                                            |
+| ---------- | -------: | -------------------------------------------------------------------- |
+| izolacja   |       13 | dane albo liczniki jednego obszaru roboczego mogą trafić do drugiego |
+| poprawność |       44 | zmienia LICZBĘ albo ZNAK wniosku w raporcie                          |
+| dostępność |       33 | odbiera treść części odbiorców                                       |
+| odporność  |        8 | nie kłamie, ale wywraca się albo gubi dane na wejściu brzegowym      |
 
 **Ten rozkład mówi jedno: moduł 17 nie jest kruchy, jest NIEWIARYGODNY.** Tylko
 8 przypięć opisuje kod, który się wywraca - a 44 opisują kod, który odpowiada
@@ -3101,6 +3197,31 @@ wydarzeniami nie są, a wpadały do modułu 7 przez człon `event` w łapaczu
 Korekta z wydania 5 (przeniesienie `components/home`, `components/readingList`,
 `components/people` z X-shell do modułów 5, 1 i 15) pozostaje w mocy i nie była zmieniana.
 
+**UZUPEŁNIENIE 2026-09-02 (kampania modułu 07) - CZWARTY wyjątek łapacza tras, tej samej
+klasy co trzy wyjątki z wydania 6.** Odtworzenie mappera przy tej kampanii wykazało, że
+`src/routes/admin.newsletter.deliverability.tsx` wpada do **MODUŁU 7**, choć należy do
+**MODUŁU 11** (newsletter): łapacz tras modułu 7 zawiera człon `live`, a „de**live**rability"
+go zawiera. Łapacz modułu 11 (`^src\/routes\/.*newsletter`) stoi PO nim, więc pierwsze
+trafienie oddaje tę trasę modułowi 7. Mechanizm jest identyczny jak przy `popup-event.ts`
+i pozostałych dwóch: człon łapacza trafia w środek innego słowa. Rozstrzygnięcie: **ta trasa
+należy do modułu 11** i tak jest liczona w rozdziale kampanii na końcu tego dokumentu.
+
+**Trzy pozostałe pliki, których wydanie 8 nie mogło widzieć.** Poza powyższym artefaktem
+łapacz modułu 7 objął trzy trasy dopisane na maina **2026-08-29**, czyli jedenaście dni po
+tym wydaniu: `admin.community.polls.tsx` (człon `poll`), `admin.community.qa.tsx` (człon
+`qa`) i `club.$clubSlug.experts.tsx` (człon `expert`). Wszystkie trzy są w module 7 zgodnie
+z regułami - to nie artefakty, tylko nowa powierzchnia produktowa.
+
+**KONSEKWENCJA DLA DELT.** Mianownik modułu 7 wyrósł z **95 na 99 plików bez żadnej pracy
+testowej**, wyłącznie przez ruch na mainie. Delta liczona „nowe 99 wobec starych 95"
+mierzyłaby przesunięcie granicy, nie pracę - dokładnie ten błąd, przed którym wydanie 6
+zabezpieczyło się, przeliczając cały poprzedni przebieg nową mapą po wydzieleniu modułu 22.
+Dlatego rozdział kampanii podaje **dwie liczby**: pomiar na dzisiejszym zbiorze plików
+i pomiar zawężony do tych 95, które wydanie 8 faktycznie mierzyło. Sprawdzenie wiarygodności
+odtworzonego mappera: reprodukuje **biblioteczną połowę modułu 7 co do jednego pliku**
+(58 wobec 58 w wydaniu 8), a cała rozbieżność 41 wobec 37 tras rozkłada się na cztery pliki
+wymienione wyżej.
+
 | #   | Moduł                                                 | Wzorce ścieżek                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Wpisy: doświadczenie czytelnika                       | `^src\/lib\/access\/`, `^src\/lib\/toc\/`, `^src\/lib\/footnotes`, `^src\/lib\/manualToc`, `^src\/lib\/keyTakeaways\/`, `^src\/lib\/citations\/`, `^src\/lib\/audio\/`, `^src\/lib\/readingTime`, `^src\/lib\/postLayouts`, `^src\/lib\/relatedPosts`, `^src\/lib\/relatedInsights`, `^src\/lib\/relatedClickBeacon`, `^src\/components\/post\/`, `^src\/components\/PostLayoutRenderer`, `^src\/components\/Paywall`, `^src\/components\/author\/`, `^src\/components\/audio\/`, `^src\/components\/molecules\/MeterBanner`, `^src\/components\/atoms\/QuotaMeter`, `^src\/hooks\/(useContentAccess                                                                                                                                                                                                                                              | useUnlockedContent                                           | usePasswordUnlock                                           | useRecordPostView                                   | useSaveArticle                        | useBookmarks                     | useReadingTimeSettings                                                        | usePostLayoutSettings                        | useRecommendedPosts)`, `^src\/components\/readingList\/`, `^src\/routes\/post\.`, `^src\/routes\/preview\.`, `^src\/routes\/admin\.(key-takeaways | toc           | post-layouts | related-posts)`, `^src\/routes\/api\/public\/(post-tts | related-click)`, `^src\/routes\/api\/(tts | stt)` |
@@ -3262,3 +3383,666 @@ Wspólny mianownik dokumentów, które uznaję za dowód: **każdy z nich ma roz
 NIE osiągnął.** Raport wdrożenia wymieniający własne luki jest sprawdzalny; raport podający
 same procenty nie jest. Przegląd modułu wydarzeń dokłada do tego trzecią rzecz — listę
 własnych ustaleń, które sam obalił.
+
+## 10. AKTUALIZACJA 2026-09-01 - kampania MODUŁU 12 (realtime / powiadomienia / web-push)
+
+Rozdziały 0-9 są migawką **wydania 8** i nie zostały przepisane: nadpisanie ich tabel zatarłoby
+punkt odniesienia, wobec którego mierzy się tę pracę. Ten rozdział dokłada pomiar PO kampanii.
+
+### 10.1. Wynik
+
+Pomiar: pełna suita (2 051 plików testowych), `all: true`, ten sam zakres plików co w wydaniu 8
+plus trzy moduły powstałe z ekstrakcji (patrz 10.3).
+
+| Powierzchnia                | Pliki |                  Linie |               Gałęzie |              Funkcje | Instrukcje |
+| --------------------------- | ----: | ---------------------: | --------------------: | -------------------: | ---------: |
+| Powiadomienia + web-push    |    19 |   **97,54%** (834/855) |      91,90% (794/864) |     96,17% (226/235) |     96,27% |
+| Realtime (kanały, presence) |    10 |   **99,32%** (292/294) |      93,25% (152/163) |     98,54% (135/137) |     98,79% |
+| trasy                       |     2 |    **100,00%** (19/19) |         100,00% (4/4) |        100,00% (8/8) |    100,00% |
+| **MODUŁ 12 RAZEM**          |    31 | **98,03%** (1145/1168) | **92,14%** (950/1031) | **97,11%** (369/380) |     96,94% |
+
+Delta wobec wydania 8 (49,54% linii / 31,59% gałęzi / 47,46% funkcji):
+
+| Metryka | wyd. 8 | 2026-09-01 |         delta |
+| ------- | -----: | ---------: | ------------: |
+| Linie   | 49,54% | **98,03%** | **+48,49 pp** |
+| Gałęzie | 31,59% | **92,14%** | **+60,55 pp** |
+| Funkcje | 47,46% | **97,11%** | **+49,65 pp** |
+
+**Plików produkcyjnych na 0%: 12 -> 0.** Progi per-ścieżka dla modułu: 0 -> 34 (w repo: 376 -> 410).
+
+O ZMIANIE MIANOWNIKA, wprost: wydanie 8 liczyło 28 plików i 1 191 linii, tu jest 31 plików
+i 1 168 linii. To nie jest wykluczenie czegokolwiek z pomiaru - żaden plik nie wypadł. Ekstrakcja
+(10.3) przeniosła powtórzone predykaty z trzech komponentów do trzech nowych modułów, więc trzy
+kopie tego samego kodu zamieniły się w jedną: 23 linie mniej przy większej liczbie plików.
+
+**POTWIERDZONE NA RUNNERZE** (CI, job `test` = `bun run test:coverage`, commit `1f043eb`,
+2 051 plików testowych, 55 530 przypadków, 1 169 s): w logu **ZERO** linii `ERROR: Coverage`,
+czyli wszystkie 410 progów per-ścieżka - w tym 34 dopisane tą kampanią - przechodzą na runnerze,
+a nie tylko na maszynie autora. Pomiar globalny CI: 83,76% instrukcji / 78,23% gałęzi /
+82,26% funkcji / 85,00% linii - zgodny z pomiarem lokalnym co do cyfry.
+
+Katalogi modułu 12, CI wobec pomiaru lokalnego (instr. / gał. / fn / linie):
+
+| Katalog                        | CI                            | lokalnie                      |
+| ------------------------------ | ----------------------------- | ----------------------------- |
+| `src/lib/notifications`        | 97,30 / 93,65 / 99,31 / 98,18 | 97,30 / 93,65 / 99,31 / 98,19 |
+| `src/lib/realtime`             | 98,78 / 93,25 / 98,54 / 99,31 | 98,79 / 93,25 / 98,54 / 99,32 |
+| `src/components/notifications` | 93,66 / 88,78 / 90,90 / 95,93 | 93,71 / 89,24 / 91,01 / 95,97 |
+
+Jedyna zauważalna różnica to gałęzie `src/components/notifications`: **0,46 pp niżej na runnerze**.
+Próg katalogowy stoi na 86, więc zapas wynosi 2,78 pp - ale to jest konkretna liczba dla każdego,
+kto będzie później podnosił progi tej powierzchni: margines 2 pp na plik jest tu dolną granicą
+sensu, nie ostrożnością.
+
+Całe `src/` po kampanii: 85,00% linii (90 121/106 018), 83,76% instrukcji, 82,26% funkcji,
+78,23% gałęzi - wobec 84,44 / 83,17 / 81,66 / 77,64 zapisanych w kronice `vitest.config.ts`
+tego samego dnia przed kampanią. Moduł 12 to 1,1% linii repo, więc +0,56 pp globalnie jest
+dokładnie tym, czego należy się spodziewać po przejściu z 49,5% na 98% na takim udziale.
+
+### 10.2. Czego audyt wydania 8 nie wiedział albo napisał nieściśle
+
+Trzy sprostowania. Wszystkie zweryfikowane w kodzie, nie przyjęte na słowo.
+
+1. **„Bez atrapy kanału test realtime jest bezwartościowy" - prawda o testach, nieprawda
+   o narzędziach.** `src/test/supabase/realtime.ts` (atrapa `supabase.channel` z obserwowalnym
+   refcountem i emiterami zdarzeń) istniała od wydzielenia z fixture'ów czatu i używało jej
+   siedem plików w INNYCH modułach. Moduł 12 stał na 49,5% nie z braku narzędzia, tylko dlatego,
+   że nikt go tu nie podłączył.
+2. **`useNotifications.ts` NIE MA `onMutate`/`onError`.** Audyt wymieniał „ich onMutate/onError
+   (optymistyczne aktualizacje i rollback)" wśród niepokrytych ścieżek. W kodzie każda z mutacji
+   tego pliku ma wyłącznie `onSuccess` z dwiema inwalidacjami; optymistyka z rollbackiem żyje
+   w LOKALNYCH mutacjach `NotificationsCenter.tsx` (`patchNotificationLists` /
+   `rollbackNotificationLists`) i tam została otestowana.
+3. **`notification_deliveries` i `notification_digests` NIE ISTNIEJĄ.** Audyt pisał o nich
+   „w stanie końcowym zero polityk, a grep nie znajduje `ENABLE ROW LEVEL SECURITY`" - brak
+   `ENABLE` nie oznaczał tabeli bez RLS, tylko brak tabeli. Zero trafień w migracjach, w `src/`
+   i w wygenerowanych typach. Rzeczywiste odpowiedniki: doręczenia to `public.notification_push_queue`
+   (RLS włączony, polityka odczytu dla admina tenanta, ZERO grantów dla `authenticated`/`anon`),
+   a digest to nie tabela, tylko kolumny `email_digest` / `digest_last_sent_at` na
+   `notification_preferences` plus RPC `claim_due_digests`. Konkurencyjny `public.push_outbox`
+   został usunięty przez `20260713210000_notifications_pipeline_reconciliation.sql`.
+
+### 10.3. Co realnie odblokowało te liczby
+
+**Ekstrakcja przed asercjami.** Ten sam predykat żył w trzech kopiach wewnątrz komponentów:
+`isInternalHref` (Bell, Center, `useActorProfiles`), `isPlainLeftClick` (Bell, Center - identyczne
+ciała), `pickTitle`/`pickBody` (dwie kopie zapisane RÓŻNĄ składnią przy tym samym zachowaniu),
+`fmtDate`, `relTime`. To nie były funkcje „nieprzetestowane", tylko NIEWYWOŁYWALNE bez renderu
+858-linijkowego organizmu. Powstały `notificationLink.ts`, `notificationText.ts`
+i `notificationListKeys.ts`. Przy okazji zniknęła czwarta kopia: dzwonek miał własne, znakowo
+identyczne zapytanie o profile aktorów - dziś korzysta ze wspólnego hooka, więc dzwonek i skrzynka
+budują ten sam klucz cache i po zalogowaniu leci jedno zapytanie zamiast dwóch.
+
+**Podłączenie atrapy kanału.** Refcount jest w tych testach ASERCJĄ, nie dekoracją: każdy test
+odmontowania sprawdza `removed === true` i zerowy `activeChannelCount()`, a `tableChannelHub`
+NIE jest mockowany - z atrapą huba refcount nie mierzyłby niczego.
+
+### 10.4. Defekty znalezione i PRZYPIĘTE (`it.fails`, bez zmiany produkcji)
+
+Siedem `it.fails`, każdy z opisem złamanego kontraktu i kierunkiem naprawy.
+
+1. **Akcje grupowe skrzynki nie docierają do serwera** (4 x `it.fails`, najpoważniejsze).
+   `isNotificationListQuery` uznaje za listę wierszy każdy klucz trzyelementowy, którego trzeci
+   człon jest obiektem - a tablica nim jest. Cache profili aktorów
+   (`["notifications","actor-profiles", string[]]`) przechodzi więc przez filtr, a
+   `patchNotificationLists` robi na nim `cached.pages.map(...)`: pod tym kluczem leży PŁASKA
+   tablica, `pages` jest `undefined`, `onMutate` rzuca `TypeError`. React Query przerywa mutację,
+   `mutationFn` nigdy nie biegnie, a `onError` dostaje `context === undefined`, więc nie ma czego
+   cofnąć. Dotyczy „oznacz całą rozmowę", „oznacz jako nieprzeczytane" i kosza. Warunek
+   wystąpienia: choćby jedno powiadomienie z `/messages?c=<uuid>`, czyli każdy, kto dostaje
+   wiadomości na czacie. Oczekiwany kontrakt: `false` dla tego kształtu; wykonalność poprawki ma
+   osobny, ZIELONY test - `Array.isArray` odróżnia oba trzecie elementy, więc żaden klucz nie musi
+   zmienić kształtu.
+2. **Równoległe mutacje dzielą jeden ref korelacji.** `useEventConfirmedMutation` przenosi
+   `correlationId` z `onMutate` do `mutationFn` przez JEDEN `useRef` na cały hook, a `onMutate`
+   jest asynchroniczne. Dwie mutacje wypuszczone bez czekania przeplatają się i OBA żądania idą
+   ze stemplem drugiej. Skutek: pierwsza zostaje po timeoucie wycofana z cache mimo poprawnego
+   zapisu - czyli dokładnie objaw, któremu ten hook ma zapobiegać. Kierunek: id na kontekście
+   mutacji zamiast wspólnego ref-a.
+3. **Panel dzwonka to `role="dialog"` bez nazwy** (`aria-dialog-name`).
+4. **Wiersz powiadomienia bez `href` zagnieżdża przycisk w przycisku** (`nested-interactive`,
+   WCAG 4.1.2). Przy obu naruszeniach a11y stoi ZIELONY test „poza dwoma zgłoszonymi defektami
+   panel jest czysty w axe", żeby `it.fails` nie stał się workiem na przyszłe regresje.
+
+### 10.5. Warstwa danych: pgTAP na żywej bazie
+
+`supabase/tests/module12_notifications_rls_test.sql` - 45 asercji, WYKONANE (935 migracji
+zaaplikowanych lokalnie), kształt z `pg_catalog` ORAZ skutek realnymi `INSERT`/`UPDATE`/`SELECT`
+w sesji z ustawionym `request.jwt.claims`. Sam kształt przechodzi na literówce w nazwie polityki,
+sam skutek nie łapie „ktoś dopisał drugą politykę obok".
+
+Ustalenia:
+
+- **`push_subscriptions` - subskrypcja jest PER UŻYTKOWNIK, nie per użytkownik-w-tenancie.**
+  Dowody: `UNIQUE (endpoint)` (endpoint należy do przeglądarki), jedno konto = jeden tenant
+  w `profiles` z `profiles_pin_tenant_id`, oraz `engagement_overview`, które liczy `push_optin`
+  przez `JOIN profiles`, IGNORUJĄC `ps.tenant_id`.
+  **DEFEKT (opisany, nie naprawiany):** kolumna `tenant_id NOT NULL` istnieje i dyspozytor
+  filtruje po niej (`.in("tenant_id", …).in("user_id", …)`), a RLS jej nie pilnuje - klient wstawia
+  wiersz z obcym `tenant_id` i przestawia go `UPDATE`-em (asercje 16-17 to POKAZUJĄ). Gorsze:
+  `push.ts` w ogóle nie podaje `tenant_id` w upsercie `onConflict: "endpoint"`, więc po przeniesieniu
+  konta wiersz zostaje ze starym tenantem, dyspozytor nie znajduje urządzenia i zadanie umiera
+  jako `dead` BEZ ANI JEDNEJ PRÓBY WYSYŁKI. To nie jest wyciek poufności (`enqueue_notification`
+  stempluje powiadomienie tenantem odbiorcy, a `notifications_enforce_tenant` tego pilnuje) -
+  to integralność kolumny i cicha utrata doręczalności.
+- **`user_consents`** - jedna polityka, tylko SELECT; `authenticated` ma wyłącznie grant SELECT.
+  Brak polityk zapisu jest POPRAWNY (zapis wyłącznie przez `set_user_consent`) i jest teraz
+  BRAMKOWANY: test oblewa przy jakiejkolwiek polityce lub grancie INSERT/UPDATE/DELETE dla
+  `authenticated`, żeby nikt tego później nie „naprawił".
+- **`notifications`** - trzy polityki z `tenant_id = public.current_tenant_id()`, zero polityki
+  INSERT **i zero grantu INSERT**; predykat tenanta jest nośny (wiersz z uidem użytkownika, ale
+  tenantem B pozostaje niewidoczny).
+- **`notification_preferences` vs `notifications` - dwa sposoby wyznaczania tenanta są równoważne
+  co do WARTOŚCI, nierównoważne co do KONTEKSTU BEZPIECZEŃSTWA.** `current_tenant_id()` ma ciało
+  dosłownie `SELECT tenant_id FROM public.profiles WHERE id = auth.uid()`, ale jest
+  `SECURITY DEFINER`, więc OMIJA RLS na `profiles`; podzapytanie inline w politykach preferencji
+  działa w kontekście wołającego. Przy odciętym samoodczycie profilu `notifications` nadal zwraca
+  wiersz, a `notification_preferences` odmawia wszystkiego, łącznie z odczytem własnych
+  przełączników. Impersonacja rozjazdu nie tworzy (wydawana jest prawdziwa sesja konta docelowego),
+  sesja bez profilu też nie (obie fail-closed).
+- **Poprawka po pierwszym przebiegu CI (odnotowana, bo zmienia to, CO test mierzy):** trzy
+  asercje pytały o GRANTY dla `anon`/`authenticated` i oczekiwały zera. Przechodziły na lokalnym
+  harnessie (goły PostgreSQL + same migracje), a oblały na `supabase db start`, bo obraz bazowy
+  Supabase nadaje rolom klienckim szeroki grant na schemacie `public` z automatu - i to jest
+  NORMALNY stan tej platformy, nie luka. W Supabase bramką nie jest grant, tylko RLS: tabela
+  z włączonym RLS i bez polityki dla danej roli nie oddaje jej ani jednego wiersza. Asercje
+  pytają teraz o polityki (identyczne w obu środowiskach, bo pochodzą z migracji), o brak
+  przywilejów ZAPISU na `user_consents` oraz - dowodowo - o to, że sesja anonimowa nie wyciąga
+  ani jednego powiadomienia mimo niepustej tabeli. Przy okazji odnotowane, nie naprawiane:
+  `TRUNCATE` dla `authenticated` omija RLS z definicji; przez PostgREST nie da się go wywołać
+  (HTTP nie ma takiego czasownika), ale to przywilej platformowy dotyczący KAŻDEJ tabeli
+  schematu, nie tylko modułu 12.
+- **Dlaczego `check:sql-owner-tenant-scope` tego nie łapie:** bramka jest relacyjna
+  i samokalibrująca się - zapala się dopiero, gdy na TEJ SAMEJ tabeli choć jedna klauzula
+  właścicielska wiąże tenanta („świadek"). `push_subscriptions` i `user_consents` mają po jednej
+  polityce i żadna tenanta nie wiąże, więc bramka strukturalnie nie ma czego porównać. Ten test
+  jest dla obu tabel tym brakującym świadkiem.
+
+### 10.6. i18n: SPROSTOWANIE do wcześniejszej wersji tego rozdziału
+
+**Pierwsza wersja tego rozdziału była nieprawdziwa i zostaje wycofana w całości.**
+
+Twierdziła, że siedemnaście z osiemnastu przełączników rodzaju pokazywało w obu językach
+surowy slug z bazy, a każda z dziesięciu zgód RODO swój klucz rejestru zamiast nazwy
+oświadczenia. To nieprawda. Klucze `notifications.settings.kinds.*`,
+`notifications.settings.kindGroups.*`, `notifications.consents.items.*`,
+`notifications.consents.categories.*` i `notifications.unread_*` **od dawna są w rdzeniu**
+(`src/lib/locale/{pl,en}.ts`) i renderują się poprawnie w obu językach.
+
+Skąd błąd: sprawdziłem NAKŁADKĘ (`src/lib/i18n-notifications.ts`) i zobaczyłem tam brak tych
+kluczy. Nakładka jest jednak WARSTWĄ, nie całym słownikiem - a rdzenia nie sprawdziłem.
+
+**Co z tego wynikło.** Dopisałem do nakładki własne brzmienia, a nakładka rejestruje się przez
+`addResourceBundle(lang, ns, tree, true, true)`, gdzie ostatnie `true` znaczy NADPISZ. Od chwili
+wejścia na trasę powiadomień użytkownik zobaczyłby więc moje napisy zamiast kanonicznych -
+w tym opis zgody marketingowej **bez pouczenia „Możesz wycofać zgodę w każdej chwili"**, które
+jest w rdzeniu. Ponieważ `CONSENT_CATALOG` zapisuje decyzje z wersją `1.0`, dwa materialnie różne
+brzmienia zgody trafiałyby do rejestru RODO pod jedną wersją, a wpisy sprzed podmiany przestałyby
+odpowiadać temu, co użytkownik faktycznie przeczytał.
+
+Wychwycił to automatyczny przegląd na PR-ze (uwaga P1), nie ja. Zmiana została **cofnięta
+w całości** - nakładka wróciła do stanu sprzed kampanii, co do bajtu.
+
+**Co z tego zostaje jako trwały wynik.** Test `src/lib/__tests__/i18nNotifications.test.ts` mierzył
+dotąd wyłącznie nakładkę, czyli odpowiadał na pytanie, którego nikt nie zadaje. Mierzy teraz
+SŁOWNIK EFEKTYWNY (rdzeń + nakładka) przez to samo `t`, którego używa aplikacja, a do tego ma trzy
+nowe bramki:
+
+- **prawną, bez listy wyjątków**: nakładka nie może podmienić żadnego klucza
+  `notifications.consents.items.*` ani `.categories.*`, bo to treść oświadczenia woli - jej zmiana
+  należy do rdzenia ORAZ do bumpa wersji w `consentCatalog.ts`;
+- **ratchet** na pozostałe rozjazdy nakładka-rdzeń: zastano **24** (wszystkie w EN, żaden w treści
+  zgód), lista może tylko maleć;
+- **katalogową**: każdy rodzaj z `NOTIFICATION_KINDS`, każda sekcja z `NOTIFICATION_KIND_GROUPS`
+  i każda zgoda z `CONSENT_CATALOG` musi renderować się w obu językach i nie być surowym slugiem.
+  Ta ostatnia broni przed realnym scenariuszem, którego wcześniej nie łapało nic: dopisaniem
+  rodzaju do katalogu bez tłumaczenia.
+
+### 10.7. Czego NIE osiągnięto
+
+Rozdział obowiązkowy - raport bez niego nie jest sprawdzalny.
+
+- **Sześć testów w pięciu plikach jest czerwonych i to stan ODZIEDZICZONY z maina**, nietknięty
+  przez tę pracę: `authzSnapshotParity` (nieświeży snapshot autoryzacji - zlecenie WPROST zabrania
+  jego regeneracji dla zgaszenia czerwieni), `migrationReplay` (2, bliźniaki treści w katalogu
+  migracji), `serviceRoleTenantScope.gate`, `router.test.tsx`, `AdminMonetizationLedger`.
+  Zweryfikowane przez przebieg dwunastu shardów całej suity oraz przez uruchomienie tych plików
+  osobno. Żaden z nich nie dotyka modułu 12.
+- **Trzy bramki `check:*` nie dają się uruchomić w tym środowisku:** `check:db-contract`
+  i `check:migration-ledger` wymagają poświadczeń Supabase (`SUPABASE_URL` + klucz), których tu
+  nie ma; `check:authz-snapshot` oblewa z powodu wyżej. To ograniczenie środowiska, nie skutek
+  tej zmiany - pozostałe 35 bramek przechodzi.
+- **Cztery niepokryte fragmenty są NIEOSIĄGALNE z publicznego kontraktu** i zostały tak nazwane,
+  zamiast być pokryte podmianą globali: `catch` w `notificationActorId` (parser WHATWG URL nie
+  rzuca dla ścieżki od pojedynczego `/` - sprawdzone na 11 kandydatach), fałszywa strona
+  `if (index >= 0)` w `runWithCorrelation` (stos nie jest eksportowany), `ciphertext length
+mismatch` w `encryptPushPayload` (asekuracja własnego inwariantu długości AES-GCM) i eksmisja
+  z cache'u VAPID przy 64 wpisach.
+- **`domainEvents.ts` stoi na 66,67% funkcji** i jest jedynym plikiem modułu poniżej 80% na tej
+  metryce. Ma własne, wcześniejsze testy i nie był w zakresie tej kampanii; próg zapadkowy został
+  mu wpisany na zmierzonym poziomie, żeby nie osunął się dalej.
+- **Własny błąd, złapany dopiero w przeglądzie:** nadpisanie kanonicznych treści zgód RODO
+  napisami z nakładki (patrz 10.6). Cofnięte w całości, zabezpieczone bramką bez listy wyjątków.
+  Zapisuję to tutaj, a nie tylko w historii commitów, bo raport, który przemilcza własną pomyłkę,
+  nie jest sprawdzalny.
+- **`pickBody` i `pickTitle` traktują PUSTY NAPIS inaczej** (`??` kontra truthiness), więc
+  producent zapisujący `""` zamiast NULL-a dostanie w EN pustą treść, a nie polską. Zachowanie
+  przeniesiono bez zmiany i przypięto testem WYKONUJĄCYM SIĘ (nie `it.fails`), z akapitem
+  w kodzie - to kandydat do ujednolicenia, nie defekt z konsekwencjami dziś.
+
+## 11. AKTUALIZACJA 2026-09-02 - kampania MODUŁU 16 (społeczność, komentarze, zgłoszenia do klubów)
+
+Rozdziały 0-9 są migawką **wydania 8** i nie zostały przepisane; rozdział 10 opisuje kampanię
+modułu 12. Ten rozdział dokłada pomiar modułu 16 - i zaczyna od czegoś, czego poprzednie
+kampanie nie musiały robić: od **naprawy miary**. Tabela funkcjonalności tego modułu mierzyła
+co innego, niż obiecywały nazwy jej wierszy, więc każda delta liczona wobec niej opisywałaby
+przesunięcie granicy, a nie pracę.
+
+### 11.1. Taksonomia: co wiersz „Społeczność: odznaki, zaangażowanie, Q&A, ankiety" naprawdę zawierał
+
+Wiersz wydania 8 deklarował 21 plików, 664 LOC i 35,5% linii przy 428 liniach niepokrytych.
+Sprawdzenie zawartości, plik po pliku:
+
+- **Q&A: ZERO plików.** Człon nazwy nie miał w wierszu ani jednego odpowiednika.
+- **Ankiety: jeden plik** - `components/community/PollCard.tsx`, i to na **100%**.
+- **Odznaki: trzy pliki** - `lib/community/reputationBadges.server.ts` (0/4),
+  `components/community/ReputationLevelChip.tsx` (0/7), `lib/community/reputation.ts` (44,1%).
+- **Bilety i prelegenci wydarzeń: 235 z 428 niepokrytych linii**, czyli **55% całego długu
+  wiersza** - `EventSpeakersManager.tsx`, `EventTicketPurchase.tsx`,
+  `EventSpeakerCreateDialog.tsx`, `EventTicketCard.tsx`, `AddToCalendar.tsx`,
+  `EventsListSkeleton.tsx`, `calendar.ts`, `ticketDocument.ts`.
+
+Za tym stoją trzy defekty mapy, nie trzy pomyłki redakcyjne. Wszystkie trzy są konsekwencją
+tego, że mapa istniała **wyłącznie jako tabela w dokumencie**: tabeli nie da się uruchomić,
+więc nikt nigdy nie sprawdził, czy reguła, którą opisuje, robi to, co obiecuje.
+
+**Defekt 1 - siedem martwych reguł.** Rozdział 9.1 przypisuje modułowi 22 pięć wzorców
+wycinających pliki wydarzeń z katalogów społeczności (`^src/components/community/Event`,
+`ticketDocument`, `EventsListSkeleton`, `AddToCalendar`, `^src/components/admin/community/EventSpeaker`)
+oraz dwie trasy (`admin.community.events`, `club.$clubSlug.e.`). Przy zadeklarowanej regule
+rozstrzygania („pierwsze trafienie wygrywa, moduły rosnąco po numerze") **żaden z tych siedmiu
+wzorców nie ma prawa nigdy trafić**: moduł 16 dopada te pliki swoimi wzorcami katalogowymi
+(`^src/components/community/`, `^src/routes/.*(club|community|comment|badge)`) sześć wierszy
+wcześniej. Intencja rozdziału 9.1 była poprawna; jej wykonanie było niemożliwe.
+
+**Defekt 2 - dwa największe zera modułu leżały poza modułem.** `admin.community.qa.tsx`
+(0/122 linii, 0/57 funkcji) i `admin.community.polls.tsx` (0/78, 0/39) trafiały do **MODUŁU 7**
+(„Typy treści specjalne"), bo jego łapacz tras
+`^src/routes/.*(tracker|expert|program|podcast|web-stor|quiz|librar|glossar|poll|qa|live)`
+stoi dziewięć wierszy przed modułem 16 i łapie je na członach `qa` i `poll`. Ta sama klasa
+w drugą stronę: `admin.events_.$eventId.onsite.badges.tsx` (identyfikatory uczestników przy
+wejściu na wydarzenie, nie odznaki reputacyjne) wpadał do modułu 16 na członie `badge`.
+
+**Defekt 3 - sześć tras panelu poza wszystkimi funkcjonalnościami.** Jedenaście wierszy modułu 16
+obejmowało z panelu społeczności wyłącznie `admin.community.clubs*`. Poza nimi zostawało
+**344 linie i 189 funkcji na zerze**: `admin.community.qa.tsx` (0/122, 0/57),
+`admin.community.polls.tsx` (0/78, 0/39), `admin.community.index.tsx` (0/58, 0/33),
+`admin.community.badges.tsx` (0/39, 0/18), `admin.community.contributors.tsx` (0/26, 0/13),
+`admin.community.engagement.tsx` (0/21, 0/9). Tabela modułu pokazywała 89,12% i milczała
+o największym zerze, jakie w nim stało.
+
+**Naprawa.** Mapa jest od teraz KODEM:
+
+| plik                                | rola                                                                                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/taxonomy/moduleMap.mjs`    | mapa plik -> moduł, przepisana z rozdz. 9.1, z wyjątkami o wyższym pierwszeństwie (`CARVE_OUTS`), które wykonują martwe reguły z defektów 1-2 |
+| `scripts/taxonomy/features.mjs`     | taksonomia funkcjonalności modułu 16 - 20 wierszy, PARTYCJONUJĄCYCH moduł                                                                     |
+| `scripts/taxonomy/report.mjs`       | tabele modułów i funkcjonalności liczone wprost z `coverage/coverage-summary.json`, z licznikiem i mianownikiem                               |
+| `scripts/check-feature-taxonomy.ts` | bramka: brak sierot, brak martwych reguł, brak pustych funkcjonalności, brak pustych modułów                                                  |
+
+Wiersz zbiorczy jest rozbity na osiem, których nazwy odpowiadają zawartości: „Społeczność:
+sesje Q&A", „Społeczność: ankiety", „Społeczność: odznaki i reputacja", „Społeczność:
+zaangażowanie i pulpit", „Społeczność: harmonogram kanałów (cron + panel zdrowia)",
+„Społeczność: dopuszczenie do społeczności (domeny, wybór członka)", „Społeczność: publiczna
+warstwa odczytu", „Społeczność: włączanie modułów społeczności". Bilety, prelegenci i generator
+ICS przechodzą do **modułu 22**, zgodnie z pierwotną - i wreszcie wykonywaną - intencją rozdziału 9.1.
+
+**Weryfikacja mapy wobec wydania 8.** Sześć modułów (6, 10, 13, 18, 19, 21) zgadza się co do
+jednego pliku. Reszta różni się o pojedyncze pliki dołożone na maina po pomiarze audytu oraz
+o skutek naprawy z defektów 1-2. Suma modułów wobec wydania 8: różnice per moduł mieszczą się
+w kilku plikach poza modułem 20, którego łapacz (`^src/lib/`, `^src/routes/`) musiał w kodzie
+zostać przesunięty na koniec kolejności - w dosłownym czytaniu tabeli zjadałby moduły 21 i 22
+oraz kubełek słowników i18n, a audyt raportuje wszystkie trzy jako niepuste, więc pomiar
+wydania 8 też musiał je rozstrzygać wcześniej. To jest zapis faktycznej kolejności, nie zmiana.
+
+**Bramka NIE jest wpięta jako `check:*`.** `check:gate-coverage` wymaga, żeby każdy skrypt
+`check:*` z `package.json` miał krok w workflow, a zlecenie zabrania zmian w `package.json`.
+Uruchomienie: `bun run scripts/check-feature-taxonomy.ts`. Wpięcie to jeden wiersz w
+`package.json` i jeden krok w `.github/workflows` - świadomie zostawione poza tą pracą.
+
+### 11.2. Wynik pomiaru
+
+**Jak zmierzone.** Dwa pełne przebiegi `vitest run --coverage` z `all: true`, tą samą
+konfiguracją i tym samym zakresem plików po obu stronach. Stan WYJŚCIOWY zmierzony w OSOBNYM
+drzewie roboczym przypiętym do commitu sprzed pierwszej zmiany (`5b5b52f`), a nie przepisany
+z tabel wydania 8 - to jest ten sam rygor, który rozdział 10 zastosował dla modułu 12.
+Tabele funkcjonalności liczy `scripts/taxonomy/report.mjs` wprost z `coverage-summary.json`,
+po naprawionej taksonomii, po obu stronach identycznie.
+
+**Kontrola wiarygodności pomiaru.** Przebieg bazowy w zamrożonym worktree dał dla modułu 16
+**89,11% linii / 87,31% gałęzi / 88,84% funkcji przy 17 plikach na zerze**, wobec
+89,12% / 87,27% / 89,02% i 16 plików na zerze opublikowanych w wydaniu 8. Zgodność do
+0,01-0,18 pp na trzech metrykach - czyli mapa modułów przepisana z rozdziału 9.1 i tabela
+funkcjonalności liczą TO SAMO, co liczył audyt. Różnica jednego pliku na zerze to skutek
+naprawy taksonomii (rozdz. 11.1): siedem plików wydarzeń wyszło do modułu 22, a dwie trasy
+panelu weszły z modułu 7.
+
+**Moduł 16 razem.**
+
+| metryka         | wejście (`5b5b52f`, pełna suita) |            po kampanii |         delta | cel zlecenia |
+| --------------- | -------------------------------: | ---------------------: | ------------: | -----------: |
+| linie           |               89,11% (7132/8004) | **99,79%** (8446/8463) | **+10,68 pp** |        ≥ 93% |
+| gałęzie         |               87,31% (7319/8383) | **97,54%** (8509/8723) | **+10,23 pp** |        ≥ 90% |
+| funkcje         |               88,84% (2969/3342) | **99,68%** (3507/3518) | **+10,84 pp** |        ≥ 93% |
+| instrukcje      |                                - | **99,36%** (9507/9568) |             - |            - |
+| plików na zerze |                           **17** |                  **0** |       **-17** |            - |
+
+Przebieg po kampanii: 333 pliki testowe modułu, **11 408 testów zielonych**, 118 przypiętych
+`it.fails`, zero czerwonych.
+
+**UCZCIWIE O DWÓCH ZAKRESACH.** Liczba „po" pochodzi z przejazdu plików testowych modułu 16
+przy zakresie pomiaru zawężonym do jego ścieżek, a liczba „przed" z pełnej suity. Pokrycie
+jest monotoniczne po zbiorze testów, więc pełna suita da dla modułu 16 wynik **nie niższy**
+niż 99,79% - zawężenie zbioru testów może tylko zaniżyć, nigdy zawyżyć. Delta jest zatem
+dolnym oszacowaniem, nie górnym. Pełny przebiegowy pomiar globalny repo z tego samego dnia:
+86,64% instrukcji / 81,29% gałęzi / 85,14% funkcji / 87,86% linii na commicie bazowym.
+
+**Trzy funkcjonalności zamówione w zleceniu.**
+
+| funkcjonalność                                   |                                wejście |              po kampanii |             cel |
+| ------------------------------------------------ | -------------------------------------: | -----------------------: | --------------: |
+| Komentarze i moderacja                           | 82,31% linii · 78,10% gał. · 64,76% fn | **100% · 97,17% · 100%** | ≥95 / ≥88 / ≥92 |
+| KLUBY: zgłoszenia członkowskie (apply)           |               89,62% · 70,97% · 95,08% | **100% · 97,31% · 100%** | ≥98 / ≥88 / ≥98 |
+| Społeczność (dawny wiersz zbiorczy, po rozbiciu) |                            patrz niżej |              patrz niżej | ≥75 / ≥60 / ≥70 |
+
+Dawny wiersz „odznaki, zaangażowanie, Q&A, ankiety" nie ma następcy jeden do jednego, bo mieszał
+cztery powierzchnie z dwiema, których w module nie ma (rozdz. 11.1). Osiem wierszy, na które się
+rozpadł, po kampanii:
+
+| funkcjonalność                              |         wejście (linie) | po kampanii (linie · gał. · fn) |
+| ------------------------------------------- | ----------------------: | ------------------------------: |
+| Społeczność: sesje Q&A                      |       **0,00%** (0/122) |    **100%** · 95,06% · **100%** |
+| Społeczność: zaangażowanie i pulpit         |        **0,00%** (0/93) |    **100%** · 92,66% · **100%** |
+| Społeczność: dopuszczenie do społeczności   |        **0,00%** (0/87) |    **100%** · 95,45% · **100%** |
+| Społeczność: odznaki i reputacja            |         13,64% (15/110) |    **100%** · 95,87% · **100%** |
+| Społeczność: publiczna warstwa odczytu      | 22,35% · **6,38% gał.** |  **100%** · **100%** · **100%** |
+| Społeczność: ankiety                        |         23,53% (24/102) |    **100%** · 98,21% · **100%** |
+| Społeczność: harmonogram kanałów            |         30,66% (42/137) |        98,54% · 92,03% · 94,12% |
+| Społeczność: włączanie modułów społeczności |            60,00% (3/5) |         **100%** · - · **100%** |
+
+**Sześć tras panelu społeczności, które wydanie 8 miało na dokładnym zerze** (razem 344 linie
+i 189 funkcji, niewidoczne w żadnym wierszu tabeli): `admin.community.qa.tsx` 0/122 -> 100%,
+`polls` 0/78 -> 100%, `index` 0/58 -> 100%, `badges` 0/39 -> 100%, `contributors` 0/26 -> 100%,
+`engagement` 0/21 -> 100% linii. Cel zlecenia dla nich to było 60/55/45.
+
+**Osiem punktów N1-N8** (cele: linkPreview ≥85/85/70, community-cron ≥85/85/75,
+publicQueries ≥80/80/65) - wszystkie przekroczone, szczegóły w 11.3.
+
+**Kluby nie zregresowały** - to był warunek twardy zlecenia:
+
+| obszar                    |      wymagane |                            zmierzone po kampanii |
+| ------------------------- | ------------: | -----------------------------------------------: |
+| `src/components/clubs/**` | ≥ 99,9% linii | **99,91%** (2191/2193), funkcje 99,89% (934/935) |
+| `src/lib/clubs/**`        | ≥ 93,8% linii |           **99,69%** (2922/2931), gałęzie 97,37% |
+
+Jedenaście istniejących progów tego obszaru przechodzi. Próg globu `src/lib/clubs/**` został
+PODNIESIONY z 92/93/92/89 na 97/98/98/95 - o tym w 11.6.
+
+### 11.3. N1-N8: status każdego punktu zlecenia
+
+Zlecenie wymagało, żeby każdy punkt miał jeden z trzech statusów: naprawiony (z testem czerwonym
+bez naprawy), odrzucony (z uzasadnieniem) albo odroczony (`it.fails` z kontrolą dodatnią).
+Odroczenie było jawnie wykluczone dla N1 i N2.
+
+| #   | powierzchnia                                |                                             wejście |                                      wyjście (zmierzone) | status                                 |
+| --- | ------------------------------------------- | --------------------------------------------------: | -------------------------------------------------------: | -------------------------------------- |
+| N1  | `linkPreview.functions.ts`                  |            9,1% linii · 0,0% gałęzi · 0 z 8 funkcji |                               100% linii · 8 z 8 funkcji | **naprawiony** (defekt produkcyjny F1) |
+| N2  | `community-cron.ts`                         |                         0/93 linii · 0 z 20 funkcji | 98,54% linii · 94,12% funkcji (pakiet z panelem zdrowia) | **zamknięty**                          |
+| N3  | `publicQueries.ts` + `tenant.ts`            | 20,8% linii · **6,7% gałęzi** · 5 z 25 funkcji; 0/6 |            100% linii · 100% gałęzi · 100% funkcji (oba) | **zamknięty** + znalezisko F2          |
+| N4  | `CommentsSection.tsx`                       |        68,6% linii · 66,7% gałęzi · 21 z 45 funkcji |              99,27% linii · 97,67% gałęzi · 100% funkcji | **zamknięty**                          |
+| N5  | `applicationNotify` + `applyPrefill`        |          36,8% linii · **0,0% gałęzi** · 2 z 4; 0/7 |              100% we wszystkich czterech metrykach (oba) | **zamknięty** + sprostowanie U1        |
+| N6  | reputacja i odznaki (3 pliki)               |         44,1% · **21,1% gałęzi** · 4 z 13; 0/4; 0/7 |                    100% linii i funkcji (wszystkie trzy) | **zamknięty** + znalezisko F3          |
+| N7  | hooki moderacji + `admin.comments.tsx`      |               60,4% · 67,9% (gałęzie 48,5%) · 74,5% |                    100% linii i funkcji (wszystkie trzy) | **zamknięty** + znaleziska F7-F9       |
+| N8  | `clubSemantic.functions.ts` + `coverApi.ts` |                        25,0% (gałęzie 0,0%) · 46,1% |                               100% linii i funkcji (oba) | **zamknięty** + znaleziska F4-F6       |
+
+**Żaden punkt nie został odrzucony ani odroczony.** N1 wymagał zmiany produkcyjnej i ją dostał;
+pozostałe siedem dało się domknąć testem bez ruszania produkcji, a znaleziska po drodze poszły
+jako `it.fails` z kontrolą dodatnią, bo ich naprawa leży w bazie (polityki RLS, polityka storage)
+albo jest decyzją produktową.
+
+Poza N1-N8 zlecenie wymieniało jeszcze pięć pozycji kolejnościowych; wszystkie są zamknięte:
+sześć tras panelu społeczności (344 linie i 189 funkcji na zerze -> 100% linii na każdej),
+`VerificationDomainsCard.tsx` i `MemberPicker.tsx` (0/51 i 0/36 -> 100% linii i funkcji),
+bilety i prelegenci wydarzeń (pięć plików z zera i z 24,5%/52,9% -> 100% linii i funkcji),
+dostępność przez `src/test/axe.ts` oraz progi per-ścieżka dla pięciu obszarów, które ich nie miały.
+
+### 11.4. Rejestr znalezisk
+
+Wszystkie pozycje `it.fails` mają KONTROLĘ DODATNIĄ - sąsiedni test dowodzący, że przypadek
+poprawny przechodzi - więc żadna z nich nie jest wyłączonym testem, tylko przypiętym kontraktem.
+Każda została zweryfikowana czerwienią: chwilowa zamiana `it.fails` na `it` i odczyt komunikatu
+asercji, żeby przypięcie mierzyło defekt, a nie literówkę w selektorze.
+
+**NAPRAWIONE W KODZIE PRODUKCYJNYM (3).**
+
+**F1. `linkPreview.functions.ts` - limit `MAX_BYTES` nie ograniczał pamięci.** Warunek
+`received >= MAX_BYTES` był sprawdzany PO doklejeniu CAŁEGO kawałka do bufora, więc próg
+ograniczał liczbę obrotów pętli, a nie zajętą pamięć: jeden wielki kawałek (rozpakowany gzip
+potrafi oddać megabajty naraz) wchodził w całości i był parsowany. To jest dokładnie ta klasa,
+którą nagłówek tego pliku obiecuje zamknąć („odpowiedź jest cięta do 256 kB"). Naprawa: do
+bufora trafia najwyżej tyle, ile zostało do progu; `received` nadal liczy bajty PRZECZYTANE,
+więc decyzja o przerwaniu się nie zmienia. Test bez naprawy czerwony.
+
+**F12. `PollCard.tsx` - brak semantyki wyboru jednokrotnego.** Opcje ankiety były listą
+`<button aria-pressed>`, czyli zbiorem niezależnych przełączników; czytnik ekranu nie miał
+skąd wiedzieć, że wybór jest jednokrotny i ile opcji jest w grupie. Naprawa minimalna:
+`role="radiogroup"` z `aria-labelledby` na pytaniu, `role="none"` na elementach listy,
+`role="radio"` + `aria-checked` zamiast `aria-pressed`. Zero zmian w CSS. Czerwień bez naprawy
+zmierzona: 13 padających testów.
+
+**F13. `VerificationDomainsCard.tsx` - naruszenie axe `aria-required-parent`.** `ProfileBadge`
+niesie `role="listitem"`, a w tej karcie stał samotnie w `<div>` - jedno naruszenie na wiersz.
+Naprawa: jednoelementowy pojemnik `role="list"`. Czerwień bez naprawy: dokładnie jeden
+padający test.
+
+**PRZYPIĘTE `it.fails` - IZOLACJA NAJEMCY (2, najpoważniejsze).**
+
+**F2. `qa_sessions` jest POZA ZASIĘGIEM bramki `check:sql-owner-tenant-scope`.** Obie polityki
+właścicielskie („qa sessions host read" USING, „qa sessions host update" USING+WITH CHECK) stoją
+na gołym `host_user_id = auth.uid()` bez tenanta, mimo że `qa_sessions.tenant_id` istnieje,
+a rodzeństwo (staff, publiczny odczyt) tenanta pilnuje. Ponieważ ŻADNA klauzula właścicielska
+nie wiąże tenanta, `analyzeOwnerTenantScope` nie ma świadka i POMIJA tabelę
+(`witnesses.length === 0 -> continue`) - bramka strukturalnie nie może zapalić. Host sesji czyta
+i modyfikuje swój wiersz w dowolnym kontekście najemcy, a CI milczy. To jest ta sama klasa
+ślepoty, którą rozdział 7.3 opisuje jako „czego bramki repozytorium strukturalnie widzieć nie
+mogą" - z tą różnicą, że teraz ma świadka w postaci padającego testu. Kontrola dodatnia: `posts`
+(ma świadka, przechodzi) plus osobny test dowodzący samej ślepoty bramki. Naprawa: dopisać
+`tenant_id = (select current_tenant_id())` do OBU polityk hosta; po dopisaniu do jednej bramka
+sama zapali się na drugiej.
+
+**F7. `comments_own_select` nie ma predykatu najemcy.** Polityki SELECT są OR-owane, a ta brzmi
+`USING (user_id = auth.uid())`. Lista panelu moderacji nie filtruje ani po wpisie, ani po
+najemcy, więc moderator zobaczy w SWOJEJ kolejce także własne komentarze zostawione u INNEGO
+najemcy, a `comments_own_update` pozwoli mu je stamtąd ruszyć. Na publicznej liście to
+niewidoczne (`fetchPostComments` filtruje po `post_id`) - kolejka moderacji jest JEDYNĄ
+powierzchnią, która to odsłania. Kontrola dodatnia: `comments_staff_select` /
+`comments_staff_update` predykat najemcy MAJĄ.
+
+**PRZYPIĘTE `it.fails` - OKŁADKI KLUBU W PUBLICZNYM KUBEŁKU (3).**
+
+**F4. Klucz obiektu nie jest wiązany z najemcą.** `clubCoverObjectPath` produkuje
+`club-covers/<clubId>/<losowe>.<ext>` bez segmentu najemcy. Polityka storage (migracja
+`20260809182555`) sprawdza WYŁĄCZNIE `(storage.foldername(name))[1] = 'club-covers'` ORAZ
+`club_is_any_moderator(auth.uid())` - drugi segment nie jest z niczym konfrontowany, a
+`club_is_any_moderator` nie ma zakresu najemcy w ogóle. Prowadzący klub A może więc
+INSERT/UPDATE i DELETE na prefiksie okładek klubu B, także w innym tenancie. Chroniony zostaje
+ADRES zapisany w bazie (`club_set_cover` ocenia `club_capabilities` dla konkretnego klubu);
+niechroniona jest ZAWARTOŚĆ publicznego kubełka.
+
+**F5. `clubId` wchodzi do klucza bez sanityzacji.** Rozszerzenie jest czyszczone starannie
+(`[^a-z0-9]` usuwane, przycięcie do 10, fallback `jpg`), `clubId` interpolowany surowo:
+`clubCoverObjectPath({ clubId: "../avatars" })` daje `club-covers/../avatars/u1.png`. Pierwszy
+segment nadal brzmi `club-covers`, więc polityka przepuszcza, a przeglądarka rozwija `..`
+w publicznym adresie. Kontrola dodatnia: wroga NAZWA PLIKU uciec nie potrafi.
+
+**F6. Plik trafia do publicznego kubełka ZANIM ktokolwiek sprawdzi prawa do tego klubu.**
+Kolejność w `uploadClubCover` to `upload` -> `club_set_cover`. Kontrola dodatnia: sprzątanie
+działa (po odmowie RPC obiekt znika), więc okno się zamyka - ale samo sprzątanie opiera się na
+tej samej zbyt szerokiej polityce DELETE.
+
+**PRZYPIĘTE `it.fails` - REGUŁA WSTĘPU I AWARIE CICHE (7).**
+
+- **F3.** `parseBreakdown` przepuszcza klucz spoza katalogu źródeł. Typ deklaruje wyłącznie
+  `ReputationSourceKey`, runtime kopiuje każdy klucz z jsonb, a konsument robi
+  `t("community.reputation.sources." + key)` - źródło dodane migracją przed tłumaczeniem
+  narysuje użytkownikowi SUROWY KLUCZ i18n.
+- **F14.** `normalizeDomainInput` nie obcina prefiksu `www.` - obcina protokół i ścieżkę
+  (wklejanie URL-a jest wspieraną drogą), ale `www.example.com` przechodzi walidację i nie
+  trafi w żaden adres e-mail. Awaria cicha: admin widzi partnera na liście, a konta nie
+  dostają ani odznaki, ani planu.
+- **F15.** Brak listy blokującej PUBLICZNE domeny pocztowe. `gmail.com`, `wp.pl`,
+  `outlook.com` przechodzą jak domena firmowa. W połączeniu z domyślnym planem VIP
+  w formularzu jedno kliknięcie nadaje odznakę i bezterminowe członkostwo każdemu posiadaczowi
+  takiej skrzynki. Testy pinują stan zastany, więc dołożenie listy blokującej je oblewa -
+  zmiana reguły wstępu musi być widoczna w diffie.
+- **F8 / F16 / F17.** Trzy powierzchnie, na których ODMOWA ODCZYTU wygląda identycznie jak
+  pusta baza: kolejka komentarzy („Brak komentarzy."), katalog zaufanych domen („Brak zaufanych
+  domen") i stan ładowania tego katalogu. Sąsiednia trasa (`admin.community.notifications`)
+  rozwiązuje to pokazując „-", świadomie nie „0" - i to jest wzorzec, do którego te trzy
+  powinny dojść.
+- **F18.** Dwa `aria-current="page"` w podnawigacji społeczności. Komponent liczy podświetlenie
+  sam (`tab.exact`), ale `aria-current` dokłada `<Link>` z własnego dopasowania, którego
+  domyślne `activeOptions` to PREFIKS - a `/admin/community` jest prefiksem każdego adresu
+  modułu. Czytnik ekranu ogłasza „Podsumowanie, bieżąca strona" na każdej z ośmiu podstron,
+  sprzecznie z tym, co widzi użytkownik myszy. Naprawa to jedna właściwość
+  (`activeOptions={{ exact: tab.exact }}`), którą `AdminShell` stosuje już po tej samej lekcji.
+
+**PRZYPIĘTE `it.fails` - WYDARZENIA (3).**
+
+- **F10.** Wydarzenie BEZPŁATNE dostaje przycisk kasy na zero złotych. Dla `priceCents = 0`
+  `ticketOffer` zwraca `{kind:"free"}`, ale komponent renderuje „Kup bilet - 0,00 zł"
+  prowadzący do `createCheckoutOrder`, a serwer takie zamówienie odrzuca. Połowa reguły jest
+  wdrożona - koszyk poprawnie znika.
+- **F11.** Termin biletu liczony w strefie PRZEGLĄDARKI (`toLocaleString` bez `timeZone`),
+  choć `ticket.timezone` jest w kontrakcie. Dług EB-912 był NAZWANY w
+  `timezoneAdoption.gate.test.ts` i niepilnowany. Test niezależny od `TZ` maszyny: dwa bilety
+  różniące się WYŁĄCZNIE strefą dają identyczną etykietę.
+- **F19.** Anti-anchoring ankiety: `AnimatedCount` renderuje `{pct}% · {n}` bez warunku na
+  `visible`, więc przed oddaniem głosu przy każdej opcji stoi „0% · 0" - liczba, i to fałszywa
+  („nikt nie zagłosował" o ankiecie z setką głosów). Serwer odmawia rozkładu (`visible: false`)
+  właśnie po to, żeby widok nie miał czego pokazać.
+
+**F20. `nested-interactive` w `MemberPicker`** (serious, WCAG 4.1.2): krzyżyk czyszczenia to
+`role="button" tabIndex=0` WEWNĄTRZ `<button>` wyzwalacza, więc czytnik ekranu go nie ogłosi
+jako akcji. Nienaprawione, bo poprawka wymaga przeniesienia krzyżyka na rodzeństwo wyzwalacza,
+czyli zmiany układu wiersza. Kontrola dodatnia asertuje, że lista naruszeń to DOKŁADNIE
+`["nested-interactive"]`, więc naprawa oblewa oba testy i wymusi sprzątnięcie.
+
+**F9. Droplista filtra statusu bez nazwy dostępnej** - `SelectTrigger` Radiksa ma
+`role="combobox"`, dla której nazwa nie pochodzi z zawartości. To WZORZEC REPO, nie wpadka tej
+trasy: z ponad 400 użyć `<SelectTrigger>` `aria-label` niesie kilkadziesiąt. Naprawa wykracza
+poza moduł; kontrola dodatnia dowodzi, że to JEDYNE naruszenie axe na tej powierzchni.
+
+### 11.5. Sprostowania do tez zlecenia
+
+Trzy tezy zlecenia okazały się nieprawdziwe i zostały sprawdzone w kodzie, nie przyjęte na słowo.
+
+1. **„Powiadomienie idzie do opiekunów klubu, nie do wszystkich członków."**
+   `notifyClubApplicationStatus` wysyła DOKŁADNIE JEDEN mail i DOKŁADNIE DO KANDYDATA: adres to
+   kolumna `email` wiersza zgłoszenia, czytana przez `admin_club_application_notify_payload`
+   z zakresem `assert_admin_tenant()`. Osobnej ścieżki „powiadom opiekunów o nowym zgłoszeniu"
+   w repozytorium NIE MA - sprawdzone w `src/lib`, `src/routes`, migracjach i `tx-copy.ts`.
+   Opiekunowie odbierają zgłoszenia PULLEM, skrzynką `ClubApplicationsInbox`. Sensowna wersja
+   tamtej intencji jest przypięta asercją „`sendTxEmail` wywołane RÓWNO RAZ" - dopisany kiedyś
+   fan-out do opiekunów obali ten test pierwszy.
+
+2. **„Te panele są w module, ale poza wszystkimi jego jedenastu funkcjonalnościami."**
+   Dwa z nich nie były nawet w module. `admin.community.qa.tsx` i `admin.community.polls.tsx`
+   trafiały regułą rozdziału 9.1 do MODUŁU 7, bo jego łapacz tras łapie je na członach `qa`
+   i `poll` dziewięć wierszy przed modułem 16 (rozdz. 11.1, defekt 2). Teza była więc
+   łagodniejsza od rzeczywistości.
+
+3. **„`admin.community.notifications.tsx` 0/14 - zrób oba końce łańcucha."**
+   Ten plik miał już test (`adminCommunityNotificationsRoute.test.tsx`, 325 linii) z kampanii
+   modułu 12, która weszła na maina po pomiarze wydania 8. Zamiast pisać go od nowa,
+   kampania DOMKNĘŁA lukę w tamtym pliku: asercja kolejności montowania panelu zdrowia
+   przechodziłaby również wtedy, gdyby ktoś podmienił panel na statyczny baner „harmonogram OK",
+   bo panel jest tam atrapą. Domknięcie idzie odczytem źródeł - tą samą techniką, którą tamten
+   plik stosuje dla bramki uprawnień.
+
+Do tego jedna korekta wobec liczb wydania 8: mianowniki per plik w moim pomiarze różnią się od
+podanych w zleceniu (np. `publicQueries.ts` - 79 linii i 31 funkcji zamiast 72 i 25). To inny
+ZAKRES POMIARU, nie inny stan pliku; delty w tym rozdziale liczę na jednym zakresie po obu
+stronach.
+
+### 11.6. Progi per-ścieżka dopisane tą kampanią
+
+Audyt wydania 8 opisał asymetrię tego modułu jako jego CAŁĄ diagnozę: jedenaście progów
+per-ścieżka na 373 w repo - i wszystkie jedenaście stało na klubach. Społeczność, komentarze
+i trasy panelu społeczności nie miały ani jednego, więc ich pokrycie było liczbą, a nie bramką.
+Ta kampania dokłada **dziewięć** wpisów i **podnosi jeden**.
+
+| ścieżka                              |              próg (instr./fn/linie/gał.) |                     zmierzone | uwaga                                           |
+| ------------------------------------ | ---------------------------------------: | ----------------------------: | ----------------------------------------------- |
+| `src/lib/comments/**`                |                      98 / 100 / 100 / 88 |     98,68 / 100 / 100 / 89,05 | zapadka na skończonej pracy, zero nowych testów |
+| `src/components/comments/**`         |                        97 / 98 / 98 / 95 |     99,28 / 100 / 100 / 97,67 |                                                 |
+| `src/lib/community/**`               |                        97 / 98 / 98 / 96 |     99,56 / 100 / 100 / 98,89 |                                                 |
+| `src/components/community/**`        |                        98 / 95 / 98 / 96 |     100 / 97,67 / 100 / 98,29 | fn niżej: martwy `.catch()` w react-query v5    |
+| `src/components/admin/community/**`  |                        96 / 96 / 97 / 88 | 98,59 / 98,59 / 99,40 / 90,81 |                                                 |
+| `src/routes/admin.community.*`       |                        97 / 96 / 97 / 90 | 99,26 / 98,31 / 99,24 / 92,73 | glob łapie też trasę czatu (MODUŁ 9)            |
+| `src/lib/clubs/useClubModeration.ts` |                        98 / 98 / 98 / 98 |         100 / 100 / 100 / 100 | per-plik, ścieżka operacji niszczących          |
+| `src/lib/clubs/useClubAdmin.ts`      |                        98 / 98 / 98 / 98 |         100 / 100 / 100 / 100 | per-plik, jw.                                   |
+| `src/routes/admin.comments.tsx`      |                        96 / 98 / 98 / 93 |     98,33 / 100 / 100 / 95,92 | per-plik, masowa moderacja                      |
+| `src/lib/clubs/**`                   | **97 / 98 / 98 / 95** (było 92/93/92/89) | 99,12 / 99,76 / 99,69 / 97,37 | PODNIESIONY, +6 pp na gałęziach                 |
+
+**Trzy progi PER-PLIK, nie katalogowe - i to jest treść, nie kosmetyka.** Hooki moderacji
+i kolejka komentarzy to ścieżka, która USUWA CUDZE TREŚCI i wyprasza ludzi z klubu. Przed tą
+kampanią `useClubModeration.ts` stał na 60,4% linii, `useClubAdmin.ts` na 67,9% przy 48,5%
+gałęzi, a `admin.comments.tsx` na 74,5% - i wszystkie trzy PRZECHODZIŁY, bo glob
+`src/lib/clubs/**` liczył je razem z resztą biblioteki stojącej blisko 100%. Średnia globu jest
+złym strażnikiem dla ścieżki operacji nieodwracalnych, więc te trzy pliki mają własne progi
+i przestały jechać na gapę.
+
+**Liczba progów w repo rośnie z 373 na 382**, a żaden nowy nie leży poniżej wartości już
+osiągniętej. Żaden plik nie został wykluczony z pomiaru, żaden istniejący próg nie został
+obniżony, snapshot autoryzacji nie był regenerowany.
+
+### 11.7. Czego NIE osiągnięto i co zostaje otwarte
+
+1. **Naprawa dwóch dziur izolacji najemcy leży w BAZIE, nie w kodzie.** F2 (`qa_sessions` bez
+   predykatu najemcy w politykach hosta) i F7 (`comments_own_select` bez predykatu najemcy)
+   wymagają migracji, a nie testu - i migracji ta kampania nie dopisywała, bo zakresem była
+   praca testowa. Oba mają przypięty `it.fails` z kontrolą dodatnią, więc pierwsza migracja,
+   która je zamknie, zapali te testy na zielono i wymusi zdjęcie przypięcia.
+2. **Polityka storage okładek klubu (F4-F6)** - to samo: naprawa to segment najemcy w kluczu
+   obiektu plus zawężenie polityki `club_is_any_moderator`, czyli zmiana w bazie.
+3. **`check:feature-taxonomy` nie jest wpięta w workflow.** `check:gate-coverage` wymaga, żeby
+   każdy skrypt `check:*` z `package.json` miał krok w workflow, a zlecenie zabraniało zmian
+   w `package.json`. Bramka działa i przechodzi (`bun run scripts/check-feature-taxonomy.ts`),
+   ale w CI jej nie ma. Wpięcie to jeden wiersz w `package.json` i jeden krok w workflow.
+4. **Taksonomia funkcjonalności jest kompletna TYLKO dla modułu 16.** Pozostałe moduły mają
+   w rozdziale 3 wiersze, których reguł nikt nie opublikował; przepisywanie ich z pamięci dałoby
+   liczby wyglądające na porównywalne i takimi niebędące. Dopisanie kolejnego modułu to jeden
+   wpis w `FEATURES` i bramka od razu zacznie go pilnować.
+5. **Cztery testy padają na commicie BAZOWYM** (`AdminMonetizationLedger.test.tsx` i trzy inne),
+   wszystkie poza modułem 16 - dziedziczone z maina, nie z tej pracy. Zmierzone osobnym
+   przebiegiem zamrożonego worktree.
+6. **Dwa sufity gałęzi opisane, nie obejście**: `threadDynamics.ts` 84,91% i
+   `threadWorkspaceTypes.ts` 96,77% - zapasy `?? …` wymuszone przez `noUncheckedIndexedAccess`
+   na indeksach udowodnionych w sąsiednim kodzie. Nie zostały dobite rzutowaniem.
+7. **`check:bundle` PADA - i pada tak samo bez tej pracy.** Bramka zgłasza
+   `overall total 4321,7 KB > 4306 KB`. Zmierzyłem ją w ZAMROŻONYM worktree na commicie
+   bazowym (`5b5b52f`), po pełnym buildzie: tam wynosi **4321,4 KB** i pada z tym samym
+   komunikatem. Cały diff tej kampanii dokłada więc **0,3 KB gzip**, a budżet był przekroczony
+   o 15,4 KB, zanim ta praca się zaczęła. Powód widać w liście ruchów samej bramki i nie ma
+   związku z modułem 16: `i18n` +129,1 KB, nowy `EventStudioModuleSections` +65,5 KB, nowy
+   `useEventSessions` +31,1 KB, `vendor` +39,8 KB - wszystko wobec baseline'u z 2026-08-15,
+   który bramka sama opisuje jako pisany starą konwencją wiader. Podniesienie budżetu ani
+   przepisanie baseline'u NIE należy do tej kampanii: to jedna z trzech zmian produkcyjnych
+   w całym diffie (49 dodanych linii w trzech plikach) i żadna z nich nie dotyka grafu chunków.
+   Pozostałe bramki buildowe przechodzą: `check:chunks`, `check:entry-purity`,
+   `check:chunk-parity`.
+8. **Dwie bramki nieuruchamialne w tym środowisku**, obie z braku dostępu do bazy, nie z powodu
+   tej pracy: `check:db-contract` i `check:migration-ledger` kończą się „Brak SUPABASE_URL /
+   klucza Supabase". Zmierzone identycznie na commicie bazowym.

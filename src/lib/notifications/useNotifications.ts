@@ -53,9 +53,17 @@ export const NOTIFICATIONS_PAGE_SIZE = 25;
 export interface NotificationsFilter {
   onlyUnread?: boolean;
   kind?: NotificationKind | null;
+  /** Rodzaje WYKLUCZONE z listy - dzwonek odcina `message`, bo powiadomienia
+   *  o wiadomościach czatu mieszkają w ikonie czatu, nie w dzwonku. */
+  excludeKinds?: readonly NotificationKind[];
   /** Nadpisanie rozmiaru strony wyłącznie w testach. Produkcyjnie używaj
    *  domyślnego `NOTIFICATIONS_PAGE_SIZE`, żeby zachować dedup cache. */
   pageSize?: number;
+}
+
+/** Lista rodzajów -> deterministyczny fragment `in.(...)` dla PostgREST. */
+export function kindListLiteral(kinds: readonly NotificationKind[]): string {
+  return `(${[...kinds].sort().join(",")})`;
 }
 
 /** Zamień filtr na deterministyczny klucz cache'u - `undefined` traktujemy
@@ -65,6 +73,9 @@ function normalizeFilter(filter: NotificationsFilter) {
   return {
     onlyUnread: !!filter.onlyUnread,
     kind: filter.kind ?? null,
+    excludeKinds: filter.excludeKinds?.length
+      ? ([...filter.excludeKinds].sort() as readonly NotificationKind[])
+      : null,
     pageSize: filter.pageSize ?? NOTIFICATIONS_PAGE_SIZE,
   } as const;
 }
@@ -100,6 +111,8 @@ export function useNotificationsInfinite(
         .range(from, to);
       if (norm.onlyUnread) q = q.is("read_at", null);
       if (norm.kind) q = q.eq("kind", norm.kind);
+      if (norm.excludeKinds) q = q.not("kind", "in", kindListLiteral(norm.excludeKinds));
+
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -144,6 +157,34 @@ export function useUnreadCount(): UseQueryResult<number> {
         .from("notifications")
         .select("id", { count: "exact", head: true })
         .is("read_at", null);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    staleTime: 15_000,
+  });
+}
+
+/**
+ * Licznik nieprzeczytanych Z POMINIĘCIEM wybranych rodzajów.
+ *
+ * Zmaterializowany licznik (`user_pending_counters`) liczy WSZYSTKO, więc nie
+ * da się z niego odjąć czatu - dzwonek, który nie pokazuje `message`, musi
+ * policzyć swoje wiersze sam (`head: true`, więc bez transferu danych).
+ */
+export function useUnreadCountExcluding(
+  excludeKinds: readonly NotificationKind[],
+): UseQueryResult<number> {
+  const { user } = useAuth();
+  const literal = kindListLiteral(excludeKinds);
+  return useQuery({
+    queryKey: ["notifications", "unread-count", user?.id ?? "anon", "exclude", literal] as const,
+    enabled: !!user,
+    queryFn: async (): Promise<number> => {
+      const { count, error } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .is("read_at", null)
+        .not("kind", "in", literal);
       if (error) throw error;
       return count ?? 0;
     },

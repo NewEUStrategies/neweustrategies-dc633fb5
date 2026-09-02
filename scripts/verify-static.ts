@@ -49,6 +49,7 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "check:chunk-parity": "test vitest - jedzie w `bun run test`",
   "check:permissions-parity": "testy vitest - jadą w `bun run test`",
   "check:i18n-parity": "testy vitest - jadą w `bun run test`",
+  "check:ci-gates": "testy vitest - jadą w `bun run test`",
   "check:widget-fidelity": "testy vitest - jadą w `bun run test`",
 };
 

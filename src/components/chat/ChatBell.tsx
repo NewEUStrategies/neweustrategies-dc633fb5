@@ -21,6 +21,7 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { CHAT_PREVIEW_CHARS } from "@/lib/chat/preview";
 import { useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
 import { useNotificationPreferences } from "@/lib/notifications/useNotifications";
 import type { ChatLang } from "@/lib/chat/time";
@@ -233,6 +234,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                         onlineUsers={online}
                         myUserId={user.id}
                         lang={lang}
+                        previewChars={CHAT_PREVIEW_CHARS}
                         onOpen={() => openConversation(view.conversation.id)}
                       />
                     </li>

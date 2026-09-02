@@ -3,6 +3,38 @@
 // host, FAIL-CLOSED like the site feeds. Items carry <enclosure> audio + the
 // iTunes tags Apple/Spotify need to ingest the show - this is the real feed the
 // admin "RSS" subscription link should point at when no external URL is set.
+//
+// UJEDNOLICENIE KONTRAKTU 2026-09-02 (N2 audytu pokrycia). Ten kanał i
+// `/live/rss.xml` - dwie powierzchnie crawlera TEGO SAMEGO modułu - miały DWA
+// różne kontrakty braku tenanta, a różnica nie była zamierzona:
+//
+//   * `/live/rss.xml`, `/rss.xml` i `/tracker/rss.xml` rozdzielają DWA powody
+//     braku tenanta (patrz docstring `crawlerDegradeIsSafe`, który wprost mówi
+//     „utrzymywane razem (...), żeby predykat bezpieczeństwa był jeden");
+//   * ten kanał miał wyłącznie człon fail-closed, więc na hoście podglądowym
+//     i przy nieosiągalnym katalogu domen oddawał 404 tam, gdzie tamte trzy
+//     oddawały poprawny, pusty kanał.
+//
+// KTÓRY KONTRAKT JEST POPRAWNY: dwuczłonowy. Człon fail-closed decyduje o
+// szczelności tenanta i jest w obu wariantach IDENTYCZNY - realna obca domena
+// przy zasiedlonym katalogu dostaje 404 tak samo. Jednoczłonowy warunek NIE
+// zacieśnia więc niczego; zamienia tylko „katalog domen nieosiągalny" na 404
+// na hostach podglądowych i w CI, czyli jest regresją DOSTĘPNOŚCI bez zysku
+// bezpieczeństwa. Ta trasa dostaje dziś ten sam predykat, co pozostałe trzy.
+//
+// Degradacja emituje kanał PUSTY, a pusty kanał podcastu utrwalony na brzegu
+// to ryzyko wypadnięcia audycji z katalogu Apple - dlatego TTL odpowiedzi
+// zależy od liczby pozycji (patrz `lib/seo/feedCache.ts`). Bez tego drugiego
+// pół kroku ujednolicenie predykatu byłoby wymianą jednej awarii na drugą.
+//
+// Kanał respektuje też `rss_enabled` - tak jak `/rss.xml`, `/tracker/rss.xml`,
+// `/live/rss.xml` i feedy taksonomii. Dotąd był JEDYNYM kanałem RSS w
+// repozytorium, którego redakcja nie mogła wyłączyć: przełącznik „RSS" w
+// ustawieniach SEO gasił wszystkie pozostałe, a ten serwował dalej. Świadomy
+// koszt tej decyzji: wyłączenie RSS gasi także subskrypcję audycji, więc jeśli
+// redakcja będzie potrzebowała rozdzielić te dwa zamiary, właściwym krokiem
+// jest OSOBNY przełącznik `podcast_feed_enabled`, a nie kanał ignorujący
+// jedyny przełącznik, jaki istnieje.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
@@ -19,12 +51,17 @@ import {
   type PodcastRssItem,
 } from "@/lib/seo/podcastRss";
 import { resolvePodcastChannelMeta } from "@/lib/seo/podcastChannelMeta";
+import { parseSeoSettings } from "@/lib/seo/settings";
+import { rssResponseHeaders } from "@/lib/seo/feedCache";
 import {
   fetchMediaMetaByUrls,
   fetchPodcastChannelMeta,
   fetchPublishedPodcasts,
+  fetchSeoSettingsValue,
+  type PodcastChannelMetaRow,
+  type PublishedPodcastRow,
 } from "@/lib/server/publishedContent.server";
-import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
+import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 /** `podcasts.episode_type` -> typ Apple; nieznana wartość degraduje do "full". */
 function episodeType(raw: string | null | undefined): PodcastEpisodeType {
@@ -50,24 +87,40 @@ export const Route = createFileRoute("/podcast/rss.xml")({
     handlers: {
       GET: async () => {
         const { origin, host, lang } = await requestContext();
+        // FAIL-CLOSED + DEGRADACJA, jeden predykat dla wszystkich kanałów
+        // (patrz nagłówek pliku): obca domena przy zasiedlonym katalogu to 404,
+        // host podglądowy / nieosiągalny katalog to poprawny, pusty kanał.
         const tenantId = await resolveCrawlerTenantIdForHost(host);
-        if (!tenantId) {
+        if (!tenantId && !(await crawlerDegradeIsSafe(host))) {
           return new Response("Unknown host", { status: 404 });
         }
 
-        const [episodes, channelMeta] = await Promise.all([
-          fetchPublishedPodcasts(tenantId),
-          fetchPodcastChannelMeta(tenantId),
-        ]);
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
+        if (!settings.rss_enabled) {
+          return new Response("Feed disabled", { status: 404 });
+        }
+
+        // Oba odczyty RÓWNOLEGLE - jak dotąd. Limit 6 równoległych
+        // subrequestów na żądanie w Workers jest tu bez znaczenia (dwa),
+        // ale serializacja dołożyłaby round-trip do TTFB kanału.
+        const [episodes, channelMeta]: [PublishedPodcastRow[], PodcastChannelMetaRow | null] =
+          tenantId
+            ? await Promise.all([
+                fetchPublishedPodcasts(tenantId),
+                fetchPodcastChannelMeta(tenantId),
+              ])
+            : [[], null];
         const withAudio = episodes
           // Bez URL audio odcinek nie jest prawidłowym elementem podcastu.
           .filter((e) => !!e.audio_url);
         // Prawdziwy rozmiar + MIME dla plików wgranych przez bibliotekę mediów
         // (enclosure length/type); zewnętrzne URL-e zostają przy length=0.
-        const mediaMeta = await fetchMediaMetaByUrls(
-          tenantId,
-          withAudio.map((e) => e.audio_url),
-        );
+        const mediaMeta = tenantId
+          ? await fetchMediaMetaByUrls(
+              tenantId,
+              withAudio.map((e) => e.audio_url),
+            )
+          : new Map<string, { sizeBytes: number | null; mimeType: string | null }>();
         const items: PodcastRssItem[] = withAudio.map((e) => ({
           url: `${origin}${localizedPath(`/podcast/${e.slug}`, lang)}`,
           // Tożsamość odcinka jest jedna dla obu kanałów językowych - adres
@@ -118,12 +171,9 @@ export const Route = createFileRoute("/podcast/rss.xml")({
           items,
         });
 
-        return new Response(xml, {
-          headers: {
-            "Content-Type": "application/rss+xml; charset=utf-8",
-            "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
-          },
-        });
+        // TTL zależny od liczby pozycji: pusty kanał podcastu utrwalony na
+        // brzegu to ryzyko wypadnięcia audycji z katalogu Apple.
+        return new Response(xml, { headers: rssResponseHeaders(items.length) });
       },
     },
   },

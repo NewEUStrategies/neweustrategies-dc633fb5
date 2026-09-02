@@ -2254,11 +2254,31 @@ export default defineConfig({
         // Niedobita reszta to nagrywanie głosu (MediaRecorder), toasty
         // przychodzące, katalog osób i pseudonimy - powierzchnie z własnymi
         // warstwami danych, które są następnym krokiem, nie regresją tego.
+        //
+        // 2026-09-01 - ZACIŚNIĘCIE BEZ JEDNEGO NOWEGO TESTU. Progi stały
+        // 4,8-5,8 pp POD pomiarem, czyli przepuszczały regresję o rozmiarze
+        // całego pliku (`useConversations.ts` to 5,4 pp tego globu) bez ani
+        // jednego czerwonego testu. Pomiar pełnej suity na tym HEAD:
+        // instrukcje 79,48% · funkcje 85,78% · linie 82,82% · gałęzie 72,83%
+        // (wydanie 8 audytu raportowało 80,51 / 86,51 / 84,06 / 73,58 - biorę
+        // NIŻSZĄ z dwóch liczb, żeby próg trzymał na obu pomiarach).
+        // Nowe progi to pomiar minus <= 1 pp. Luz zabrany jednym ruchem na
+        // 36 plikach, zanim powstał pierwszy nowy test.
+        //
+        // 2026-09-01, DRUGIE PODNIESIENIE (wydanie 9 audytu, po dobiciu
+        // pokrycia). Pomiar pełnej suity z `all: true`:
+        // instrukcje 95,44% · funkcje 97,95% · linie 98,75% · gałęzie 89,95%.
+        // Progi to PODŁOGA z pomiaru, czyli luz PONIŻEJ 1 pp na każdej z
+        // czterech metryk - tak jak przy pierwszym zaciśnięciu. Dobite:
+        // nagrywanie głosu, toasty przychodzące, katalog osób, pseudonimy,
+        // wersje robocze, obecność, szyna doku oraz DWA NOWE moduły reguł
+        // wyprowadzone z `ChatComposer.tsx` (`composerRules`,
+        // `attachmentPresentation`), które mają własne progi niżej.
         "src/lib/chat/**": {
-          statements: 74,
-          functions: 80,
-          lines: 77,
-          branches: 67,
+          statements: 95,
+          functions: 97,
+          lines: 98,
+          branches: 89,
         },
         // CZYSTE MODUŁY WĄTKU trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak pozostałe czyste moduły w tym pliku. To one
@@ -2294,16 +2314,107 @@ export default defineConfig({
         // WARSTWA DANYCH ROZMOWY - dwa pliki, od których zależy, czy wiadomość
         // dojdzie i czy nie wycieknie między tenantami. Startowały z 0% i 12%.
         "src/lib/chat/useMessages.ts": {
-          statements: 86,
-          functions: 87,
-          lines: 91,
-          branches: 78,
+          statements: 88,
+          functions: 89,
+          lines: 93,
+          branches: 80,
         },
         "src/lib/chat/useConversations.ts": {
-          statements: 90,
-          functions: 96,
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // ── REGUŁY WYPROWADZONE Z KOMPOZYTORA (wydanie 9) ────────────────────
+        // `ChatComposer.tsx` stał na 0/160 linii i 0/40 funkcji, bo NIE MIAŁ
+        // ani jednej funkcji modułowej: każda decyzja (co robi Enter, czy
+        // pokazać szybką emotkę, czy plik wolno wysłać, co znaczy ta odmowa
+        // magazynu) siedziała w domknięciu wewnątrz komponentu i wymagała
+        // pełnego renderu z sesją, tenantem, kanałem realtime i atrapą
+        // `MediaRecorder`. Reguły wyszły do dwóch czystych modułów - i to one
+        // niosą dziś ciężar dowodu, a render sprawdza wyłącznie SKLEJENIE.
+        // Progi pod 100%, bo obie ekstrakcje są wierne co do gałęzi.
+        "src/lib/chat/composerRules.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/chat/attachmentPresentation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ── CZTERY RUINY WARSTWY DANYCH (wydanie 9) ──────────────────────────
+        // Wszystkie cztery szły z zera albo z okolic zera. `voice.ts` niesie
+        // nagrywanie notatki głosowej (uprawnienie mikrofonu, `MediaRecorder`,
+        // sprzątanie ścieżek), `useIncomingChatToasts` decyduje, czy powiadomienie
+        // ma się w ogóle pokazać (wyciszenie rozmowy, własna wiadomość, okno na
+        // wierzchu), `usePeopleDirectory` buduje katalog osób do nowej rozmowy,
+        // a `nicknames` trzyma pseudonimy per rozmowa.
+        "src/lib/chat/voice.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/lib/chat/useIncomingChatToasts.ts": {
+          statements: 87,
+          functions: 86,
+          lines: 91,
+          branches: 87,
+        },
+        "src/lib/chat/usePeopleDirectory.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/chat/nicknames.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ── OBRZEŻA POWIERZCHNI CZATU (wydanie 9) ────────────────────────────
+        // Wersje robocze (przetrwanie po zamknięciu okna), obecność (renderowana
+        // także na serwerze - stąd osobny test SSR), szyna doku (limit okien).
+        "src/lib/chat/drafts.ts": {
+          statements: 92,
+          functions: 98,
           lines: 96,
-          branches: 80,
+          branches: 85,
+        },
+        "src/lib/chat/presence.ts": {
+          statements: 91,
+          functions: 98,
+          lines: 94,
+          branches: 81,
+        },
+        "src/lib/chat/chatDockBus.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/chat/attachments.ts": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 82,
+        },
+        "src/lib/chat/time.ts": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 87,
+        },
+        "src/lib/chat/themes.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
         // WARSTWA KOMPONENTÓW: 17,32% -> 44,63%. Próg jest niższy niż w warstwie
         // danych i to jest uczciwe: kompozytor (585 linii), panel mediów, dialogi
@@ -2311,18 +2422,173 @@ export default defineConfig({
         // co ten PR faktycznie pokrył: okna rozmowy w obu wariantach, menu, doku
         // z limitem okien, dzwonka, wiersza listy z potwierdzeniami i wersją
         // roboczą, paska wyszukiwania oraz przekazywania wiadomości.
+        //
+        // 2026-09-01 - to samo zaciśnięcie, co w warstwie danych wyżej. Pomiar
+        // pełnej suity: instrukcje 45,26% · funkcje 40,69% · linie 46,34% ·
+        // gałęzie 39,16% (wydanie 8: 45,24 / 40,69 / 46,18 / 38,72). Progi to
+        // NIŻSZA z dwóch liczb minus <= 1 pp - stąd gałęzie 38, a nie 39:
+        // 39 przechodzi na tym HEAD, ale nie przeszłoby na pomiarze wydania 8,
+        // a próg ma trzymać na obu.
+        //
+        // 2026-09-01, DRUGIE PODNIESIENIE (wydanie 9 audytu). DWANAŚCIE plików
+        // tego globu nie zostało nigdy wyrenderowane w teście - kompozytor,
+        // picker emotek, oba dialogi kręgu, dialog wyglądu, panel mediów,
+        // wyszukiwarka rozmówców, cała rodzina zapytań eksperckich i wiersz
+        // wątku demo. Każdy z nich ma dziś własny próg niżej, żeby dołek
+        // pojedynczego pliku nie chował się w średniej 35 plików. Pomiar
+        // pełnej suity z `all: true`:
+        // instrukcje 96,88% · funkcje 96,72% · linie 98,32% · gałęzie 90,77%.
+        // Progi to PODŁOGA z pomiaru - luz poniżej 1 pp na każdej metryce.
         "src/components/chat/**": {
-          statements: 40,
-          functions: 36,
-          lines: 41,
-          branches: 34,
+          statements: 96,
+          functions: 96,
+          lines: 98,
+          branches: 90,
         },
-        // Organizm okna rozmowy - z 0% na 83,55% po podziale na atomy.
+        // Organizm okna rozmowy - z 0% na 83,55% po podziale na atomy, a w
+        // wydaniu 9 na komplet 73/73 funkcji. Próg funkcji stał na 60, czyli
+        // przepuszczał utratę TRZYNASTU domknięć (menu kontekstowe, dialogi
+        // znikania, przekazywanie, blokowanie) bez ani jednego czerwonego testu.
         "src/components/chat/ChatWindow.tsx": {
-          statements: 78,
-          functions: 60,
-          lines: 84,
-          branches: 70,
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ── DWANAŚCIE POWIERZCHNI ZDJĘTYCH Z ZERA (wydanie 9) ────────────────
+        // Każda dostała ten sam zestaw dowodów: otwarcie, walidacja, akcja,
+        // odmowa serwera i zamknięcie bez zapisu. Dialog kręgu i picker członków
+        // dostały dodatkowo test tenanta (zapytanie o kandydatów NIE MOŻE
+        // wyjść poza obszar roboczy).
+        "src/components/chat/ChatComposer.tsx": {
+          statements: 95,
+          functions: 93,
+          lines: 96,
+          branches: 88,
+        },
+        "src/components/chat/ChatAppearanceDialog.tsx": {
+          statements: 96,
+          functions: 93,
+          lines: 96,
+          branches: 98,
+        },
+        "src/components/chat/ChatMediaPanel.tsx": {
+          statements: 95,
+          functions: 89,
+          lines: 95,
+          branches: 89,
+        },
+        "src/components/chat/DemoBotListItem.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/chat/EmojiPicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 79,
+        },
+        "src/components/chat/ExpertRequestDialog.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/components/chat/ExpertRequestDialogHost.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 48,
+        },
+        "src/components/chat/ExpertRequestsInbox.tsx": {
+          statements: 88,
+          functions: 98,
+          lines: 93,
+          branches: 73,
+        },
+        "src/components/chat/GroupCreateDialog.tsx": {
+          statements: 86,
+          functions: 88,
+          lines: 85,
+          branches: 82,
+        },
+        "src/components/chat/GroupInfoDialog.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/components/chat/GroupMemberPicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        "src/components/chat/NewChatSearch.tsx": {
+          statements: 94,
+          functions: 88,
+          lines: 93,
+          branches: 93,
+        },
+        // ── ATOMY WIADOMOŚCI I ZAŁĄCZNIKA (wydanie 9) ────────────────────────
+        // Dymek niesie macierz stanów (własna/cudza, w locie/doręczona/odczytana,
+        // usunięta, edytowana, odpowiedź, reakcje), lista - separatory dni,
+        // skok do trafienia i stopkę potwierdzeń. Podgląd zdjęcia ma gesty
+        // (zoom, obrót, przeciąganie), których nie widzi żaden inny test.
+        "src/components/chat/MessageBubble.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        "src/components/chat/MessageList.tsx": {
+          statements: 90,
+          functions: 90,
+          lines: 94,
+          branches: 85,
+        },
+        "src/components/chat/AttachmentContent.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 81,
+        },
+        "src/components/chat/AttachmentPreview.tsx": {
+          statements: 94,
+          functions: 90,
+          lines: 96,
+          branches: 96,
+        },
+        "src/components/chat/DemoBotChat.tsx": {
+          statements: 95,
+          functions: 93,
+          lines: 97,
+          branches: 92,
+        },
+        "src/components/chat/MediaHistoryDialog.tsx": {
+          statements: 93,
+          functions: 79,
+          lines: 92,
+          branches: 81,
+        },
+        // ── TRASY CZATU (wydanie 9) ──────────────────────────────────────────
+        // Obie startowały z CZYSTEGO ZERA. `/messages` to 687 linii źródła i
+        // jedyne wejście do skrzynki; `/admin/community/chat` niesie operacje
+        // NISZCZĄCE (czyszczenie historii, kasowanie rozmowy kaskadowo), więc
+        // brak dowodu był tam najdroższy w całym module.
+        "src/routes/messages.tsx": {
+          statements: 89,
+          functions: 83,
+          lines: 89,
+          branches: 83,
+        },
+        "src/routes/admin.community.chat.tsx": {
+          statements: 89,
+          functions: 82,
+          lines: 89,
+          branches: 75,
         },
         // Bramka symetrii FTS: czysty analizator migracji. Niedobite gałęzie to
         // ramiona obronne dla wzorców, których w repo nie ma (konfiguracja
@@ -4095,11 +4361,160 @@ export default defineConfig({
         // (hooki React Query, klienty RPC, słowniki), a cztery powierzchnie
         // objęte zadaniem stoją tu na 100%. Podniesienie tego progu to osobna
         // praca nad resztą warstwy, nie regresja tej.
+        //
+        // 2026-09-02, KAMPANIA MODUŁU 16: RATCHET W GÓRĘ z 92/93/92/89.
+        // Powód dokładnie ten, który zapowiadał akapit wyżej („podniesienie tego
+        // progu to osobna praca nad resztą warstwy") - ta praca została zrobiona.
+        // Piętnaście plików tej biblioteki było poniżej progu; wszystkie zostały
+        // domknięte, w tym cztery, które ciągnęły GAŁĘZIE najmocniej:
+        // `capabilityMatrix.ts` 16,66% -> 100%, `useClubInvites.ts` 55,55% -> 100%,
+        // `useThreadWorkspace.ts` 55,76% -> 100%, `threadWorkspaceTypes.ts`
+        // 63,70% -> 96,77%. ZMIERZONE na tym HEAD (pełny przejazd katalogu,
+        // 87 plików testowych, 2 922 testy zielone, 6 `it.fails`):
+        // 99,12% instrukcji / 97,37% gałęzi / 99,76% funkcji / 99,69% linii
+        // (2922/2931). Próg = zmierzone minus ~2 pp.
+        //
+        // DWA SUFITY, KTÓRE TRZYMAJĄ GAŁĘZIE PONIŻEJ 100 i nie zostaną dobite bez
+        // złamania typów: `threadDynamics.ts` (84,91% - osiem zapasów `?? …`
+        // wymuszonych przez `noUncheckedIndexedAccess` na indeksach udowodnionych
+        // w sąsiednim kodzie) i `threadWorkspaceTypes.ts` (96,77% - cztery
+        // strażniki za własnymi filtrami). Oba opisane w nagłówkach swoich testów.
         "src/lib/clubs/**": {
-          statements: 92,
-          functions: 93,
-          lines: 92,
-          branches: 89,
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ── MODUŁ 16, KAMPANIA 2026-09-02: PIĘĆ OBSZARÓW, KTÓRE NIE MIAŁY PROGU ─
+        //
+        // Audyt wydania 8 pokazał w tym module asymetrię, która była całą jego
+        // diagnozą: jedenaście progów per-ścieżka na 373 w repo - i WSZYSTKIE
+        // jedenaście stało na klubach. Społeczność, komentarze i trasy panelu
+        // społeczności nie miały ANI JEDNEGO, więc ich pokrycie było liczbą,
+        // a nie bramką. Poniższe pięć wpisów to zapadka na pracy tej kampanii.
+        //
+        // Wszystkie liczby to POMIAR v8 z 2026-09-02 na tym HEAD (320 plików
+        // testowych modułu, 10 907 testów zielonych), plik po pliku; progi stoją
+        // 1-2 pp pod pomiarem, zgodnie z regułą pozostałych wpisów w tym pliku.
+
+        // Sekcja komentarzy pod wpisem (2 pliki). Zmierzone: 99,28% instrukcji /
+        // 97,67% gałęzi / 100% funkcji / 100% linii (122/122) - z 68,6% linii,
+        // 66,7% gałęzi i 21 z 45 funkcji. `CommentsSection.tsx` jest jedynym
+        // realnym konsumentem stosu kompozytora i wzmianek (czat go nie używa),
+        // więc ten próg pilnuje też tamtej infrastruktury.
+        "src/components/comments/**": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Reguły społeczności (7 plików). Zmierzone: 99,56% / 98,89% / 100% /
+        // 100% (184/184). Wejście: `publicQueries.ts` 20,8% linii przy 6,7%
+        // GAŁĘZI, `tenant.ts` 0/6, `reputation.ts` 44,1% przy 21,1% gałęzi,
+        // `reputationBadges.server.ts` 0/4.
+        "src/lib/community/**": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        // Prezentacja społeczności (8 plików). Zmierzone: 100% instrukcji /
+        // 98,29% gałęzi / 97,67% funkcji / 100% linii (155/155) - z 26,62% linii
+        // i 6 plików na zerze. Funkcje niżej niż linie z jednego powodu:
+        // `EventTicketPurchase.tsx` ma martwy `.catch()` przy `refetch()`,
+        // nieosiągalny w react-query v5 bez `throwOnError` (opisany w teście).
+        "src/components/community/**": {
+          statements: 98,
+          functions: 95,
+          lines: 98,
+          branches: 96,
+        },
+        // Panel społeczności (6 plików). Zmierzone: 98,59% / 90,81% / 98,59% /
+        // 99,40% (331/333) - z 33,93% linii i 3 plików na zerze. Gałęzie
+        // floorowane ostrożniej: `VerificationDomainsCard` i
+        // `EventSpeakerCreateDialog` mają po kilka strażników nieosiągalnych
+        // z komponentu (`fileRef.current === null`, `close(true)` bez propsa).
+        "src/components/admin/community/**": {
+          statements: 96,
+          functions: 96,
+          lines: 97,
+          branches: 88,
+        },
+        // Trasy panelu społeczności (16 plików). Zmierzone: 99,26% / 92,73% /
+        // 98,31% / 99,24% (519/523) - z 21,80% linii i 10 plików na zerze.
+        // Sześć tras, które wydanie 8 miało na dokładnym zerze (qa 0/122,
+        // polls 0/78, index 0/58, badges 0/39, contributors 0/26,
+        // engagement 0/21), stoi dziś na 100% linii każda.
+        //
+        // UWAGA NA ZAKRES TEGO GLOBU: łapie też `admin.community.chat.tsx`
+        // (MODUŁ 9) i `admin.community.notifications.tsx` (MODUŁ 12). To jest
+        // świadome - glob pilnuje POWIERZCHNI ADRESOWEJ `/admin/community`,
+        // a nie granicy modułu; gałęzie na 90 zostawiają zapas na trasę czatu,
+        // która nie była przedmiotem tej kampanii.
+        "src/routes/admin.community.*": {
+          statements: 97,
+          functions: 96,
+          lines: 97,
+          branches: 90,
+        },
+        // ── HOOKI MODERACJI: PRÓG PER-PLIK, ŻEBY PRZESTAŁY CHOWAĆ SIĘ ZA GLOBEM ─
+        //
+        // To ścieżka OPERACJI NISZCZĄCYCH: ukrycie wpisu, usunięcie wątku,
+        // wyproszenie członka, masowa moderacja komentarzy. Przed tą kampanią
+        // `useClubModeration.ts` stał na 60,4% linii (21 z 37 funkcji),
+        // `useClubAdmin.ts` na 67,9% przy 48,5% GAŁĘZI, a `admin.comments.tsx`
+        // na 74,5% - i wszystkie trzy przechodziły, bo glob `src/lib/clubs/**`
+        // liczył je razem z resztą biblioteki stojącej blisko 100%. Średnia
+        // globu jest złym strażnikiem dla ścieżki, która USUWA cudze treści,
+        // więc dostają własne progi.
+        //
+        // Zmierzone: oba hooki 100% we wszystkich czterech metrykach,
+        // `admin.comments.tsx` 100% linii (55/55), 100% funkcji (30/30),
+        // 95,92% gałęzi. Dwie niedobite gałęzie tej trasy są OBRONNE
+        // i nieosiągalne z ekranu (opisane przy teście).
+        "src/lib/clubs/useClubModeration.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/clubs/useClubAdmin.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/admin.comments.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // ── MODUŁ 16: KOMENTARZE - ZAPADKA NA CZTERECH SKOŃCZONYCH PLIKACH ──
+        //
+        // `src/lib/comments/**` stoi na 100% LINII i 100% FUNKCJI (29/29) na
+        // czterech plikach: `api.ts` (18/18 funkcji), `guest.functions.ts`,
+        // `selection.ts`, `tree.ts`. Do dziś stało tam BEZ ŻADNEGO PROGU, czyli
+        // dowolny PR mógł je zregresować i nie zapaliłby ani jednej czerwieni:
+        // próg globalny repo ma kilkanaście punktów luzu, a tej warstwy nie
+        // obejmował żaden próg per-ścieżka. Audyt wydania 8 wskazał to jako
+        // NAJKRUCHSZĄ rzecz w module - skończona praca bez zapadki.
+        //
+        // Ten wpis nie wymagał ani jednego nowego testu: jest zapisem stanu,
+        // który już jest. ZMIERZONE (`vitest run src/lib/comments --coverage`,
+        // zieleń 92/92): 98,68% instrukcji (150/152), 89,05% gałęzi (122/137),
+        // 100% funkcji (29/29), 100% linii (117/117).
+        //
+        // Progi linii i funkcji stoją na 100 CELOWO, bez luzu: to warstwa czystych
+        // reguł bez I/O i bez stanu serwera, więc każda niepokryta linia jest tu
+        // decyzją autora, nie kosztem środowiska. Gałęzie floorowane na 88
+        // (1,05 pp zapasu) - niedobite ramiona to ścieżki błędu PostgREST
+        // w `api.ts` i jedno `?? ""` w `guest.functions.ts`.
+        "src/lib/comments/**": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 88,
         },
         // ── MODUŁ 19: USTAWIENIA, INTEGRACJE, UŻYTKOWNICY, MULTI-TENANT, RODO ─
         //
@@ -4955,6 +5370,497 @@ export default defineConfig({
           functions: 96,
           lines: 96,
           branches: 87,
+        },
+        // ── MODUŁ 12: REALTIME / POWIADOMIENIA / WEB-PUSH ────────────────────
+        //
+        // POWIERZCHNIA, KTÓRA DO 01.09.2026 NIE MIAŁA ANI JEDNEGO PROGU.
+        // Audyt wyd. 8 nazwał to wprost: 373 progi per-ścieżka w tym pliku,
+        // dla modułu 12 - zero, więc regres nie zapalał niczego poza progiem
+        // globalnym, a ten przy 1,1% udziału modułu w repo nie zauważyłby
+        // nawet zjazdu całej powierzchni do zera. Moduł stał 5 wydań audytu
+        // w miejscu (delta wyd. 7 -> 8: 0,0 pp) na 49,54% linii, z 12 z 28
+        // plików na OKRĄGŁYM ZERZE.
+        //
+        // ZMIERZONE 01.09.2026 (pełna suita, 2 051 plików testowych,
+        // `all: true`, 664 przypadki modułu w 37 plikach - 657 zielonych
+        // + 7 `it.fails` na realnych defektach):
+        //
+        //   moduł 12 razem      98,03% linii (1145/1168) | 92,14% gałęzi | 97,11% funkcji
+        //   Powiadomienia+push  97,54% linii  (834/855)  | 91,90% gałęzi | 96,17% funkcji
+        //   Realtime            99,32% linii  (292/294)  | 93,25% gałęzi | 98,54% funkcji
+        //   trasy                100% linii    (19/19)   |  100% gałęzi  |  100% funkcji
+        //
+        // Delta wobec wyd. 8: +48,49 pp linii, +60,55 pp gałęzi, +49,65 pp
+        // funkcji. Plików na zerze: 12 -> 0.
+        //
+        // CO ODBLOKOWAŁO TE LICZBY - i dlaczego progi są tu tak wysokie.
+        // Nie brakowało narzędzia: `src/test/supabase/realtime.ts` (atrapa
+        // kanału z obserwowalnym refcountem) istniała od wydzielenia z fixture'ów
+        // czatu i używało jej siedem plików w INNYCH modułach. Z modułu 12 -
+        // ani jeden. Drugą połowę zdjęła ekstrakcja: `isInternalHref`,
+        // `isPlainLeftClick`, `pickTitle`/`pickBody`, `fmtDate` i rozpoznanie
+        // kluczy cache żyły w kopiach WEWNĄTRZ komponentów, więc były
+        // nieosiągalne dla testu jednostkowego - nie „nieprzetestowane", tylko
+        // niewywoływalne bez renderu 858-linijkowego organizmu.
+        //
+        // MARGINES: `floor(zmierzone - 2)` dla pojedynczego pliku i
+        // `floor(zmierzone - 3)` dla katalogu. Plik nie ma wewnętrznego dryfu -
+        // albo test go wykonuje, albo nie - więc szerszy margines byłby tu
+        // wyłącznie luzem na regres. Wpisy KATALOGOWE stoją obok plikowych
+        // celowo: to one łapią plik DOPISANY do modułu bez własnego progu.
+        //
+        // Te progi wolno wyłącznie PODNOSIĆ.
+        "src/lib/realtime/**": { statements: 95, functions: 95, lines: 96, branches: 90 },
+        "src/lib/notifications/**": { statements: 94, functions: 96, lines: 95, branches: 90 },
+        "src/components/notifications/**": {
+          statements: 90,
+          functions: 88,
+          lines: 92,
+          branches: 86,
+        },
+        // Realtime - kanały, presence, korelacja. Refcount kanału jest tu
+        // ASERCJĄ, nie dekoracją: gubiony `removeChannel` nie psuje żadnego
+        // widoku od razu, dopiero po kilku przejściach między trasami kończy
+        // się limit kanałów i zdarzenia przestają przychodzić. Każdy test
+        // odmontowania sprawdza `removed === true` i zerowy `activeChannelCount()`.
+        "src/lib/realtime/useModuleRealtime.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/useDomainEventStream.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/useEntityPresence.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/tableChannelHub.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/useEventConfirmedMutation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/cohesionLiveSync.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // `correlationContext.ts`: gałęzie 87,5%, bo fałszywa strona
+        // `if (index >= 0)` w `runWithCorrelation` jest NIEOSIĄGALNA przez
+        // publiczne API - stos nie jest eksportowany, a każdy `push` ma swój
+        // `splice` w `finally`. Próg mierzy to, co da się wykonać.
+        "src/lib/realtime/correlationContext.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 85,
+        },
+        "src/lib/realtime/correlation.ts": {
+          statements: 93,
+          functions: 88,
+          lines: 95,
+          branches: 73,
+        },
+        "src/lib/realtime/eventInvalidationMap.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 79,
+        },
+        "src/lib/realtime/domainEvents.ts": {
+          statements: 83,
+          functions: 64,
+          lines: 83,
+          branches: 98,
+        },
+        // Warstwa danych powiadomień. `useNotifications.ts` szedł z 44,6% linii
+        // i 18 z 39 funkcji na komplet - w tym bramka WIELOTENANTOWA:
+        // preferencje NIE zapisują się bez `tenant_id` odczytanego z profilu.
+        "src/lib/notifications/useNotifications.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/notifications/useActorProfiles.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Warstwa RODO - do tej kampanii BEZ ANI JEDNEGO TESTU. Progi pilnują
+        // dwóch kontraktów, których nie widać w procencie: klient nigdy nie
+        // pisze do `user_consents` (wyłącznie server-fn -> RPC `set_user_consent`
+        // z gwarantowanym audit-logiem), a kolumna `gpc` zapisuje AKTYWNOŚĆ
+        // sygnału Global Privacy Control, nie jego honorowanie - zgoda udzielona
+        // jako świadomy override MUSI mieć `gpc = true`, bo to ona jest wyjątkiem
+        // wymagającym uzasadnienia.
+        "src/lib/notifications/useConsents.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/notifications/consentCatalog.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Klient Web Push: cztery warunki wsparcia, cache klucza VAPID na czas
+        // życia karty, dekodowanie base64url i ścieżki odmowy uprawnienia.
+        "src/lib/notifications/push.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/notifications/pushConfig.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // `webpush.server.ts`: krypto (RFC 8291/8292) miało testy od dawna,
+        // CAŁA ścieżka wysyłki nie miała żadnych - a to ona decyduje, co
+        // dyspozytor zrobi z wynikiem. Gałęzie 56,3% -> 92,71%. Najważniejsza
+        // z nich: strażnica SSRF jest fail-closed (endpoint na localhost /
+        // 169.254.169.254 / `.internal` daje `gone:true` i `fetch` NIE zostaje
+        // wywołany ani razu), bo `endpoint` subskrypcji to napis przysłany przez
+        // przeglądarkę użytkownika, czyli wejście wrogie.
+        "src/lib/notifications/webpush.server.ts": {
+          statements: 94,
+          functions: 93,
+          lines: 96,
+          branches: 90,
+        },
+        "src/lib/notifications/dispatch.server.ts": {
+          statements: 90,
+          functions: 98,
+          lines: 92,
+          branches: 79,
+        },
+        "src/lib/notifications/digestEmail.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/notifications/grouping.ts": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/lib/notifications/kindInvalidation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/notifications/preferences.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 73,
+        },
+        // Czyste predykaty i selektory wydzielone z komponentów (01.09.2026).
+        // `notificationLink.ts` stoi na 83,33% linii i to jest poziom DOCELOWY:
+        // niepokryty jest wyłącznie `catch` w `notificationActorId`, nieosiągalny
+        // z publicznego kontraktu (href jest wcześniej filtrowany przez
+        // `isInternalHref`, a parser WHATWG URL nie rzuca dla ścieżki
+        // zaczynającej się pojedynczym `/` - sprawdzone na 11 kandydatach).
+        // Pokrycie go wymagałoby podmiany globalnego `URL`, czyli testowania
+        // atrapy zamiast kontraktu.
+        "src/lib/notifications/notificationLink.ts": {
+          statements: 83,
+          functions: 98,
+          lines: 81,
+          branches: 98,
+        },
+        "src/lib/notifications/notificationText.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/notifications/notificationListKeys.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Komponenty. `NotificationsCenter.tsx` szedł z 0/146 linii i 0/64
+        // funkcji; po ekstrakcji ma 135 linii i 94,07% z nich wykonanych.
+        // Cel zlecenia dla funkcji brzmiał „>= 70%" - osiągnięte 89,47%.
+        "src/components/notifications/NotificationsCenter.tsx": {
+          statements: 89,
+          functions: 87,
+          lines: 92,
+          branches: 84,
+        },
+        "src/components/notifications/NotificationsBell.tsx": {
+          statements: 94,
+          functions: 82,
+          lines: 94,
+          branches: 85,
+        },
+        "src/components/notifications/ConsentsPanel.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        "src/components/notifications/molecules/NotificationKindToggle.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Trasy modułu - obie na komplecie.
+        "src/routes/admin.community.notifications.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/profile.notifications.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // ---------------------------------------------------------------
+        // MODUŁ 07 - kampania 2026-09-02, część I: powierzchnie crawlera.
+        //
+        // Sześć powierzchni, które CDN zapamiętuje na godziny, a katalogi
+        // (Apple Podcasts, Spotify, Google Discover) czytają jako stan
+        // faktyczny. Wszystkie szły z ZERA; po dopisaniu ich do kontraktu
+        // `routes/__tests__/feedRoutesDegradation.test.ts` (plik z 47 na 142
+        // testy) ZMIERZONE: 100% instrukcji, 100% linii, 100% funkcji,
+        // 93,57% gałęzi łącznie. Zlecenie żądało >= 90 / >= 90 / >= 80.
+        //
+        // Progi = zmierzone minus ~4 pp marginesu na dryf CI, ta sama reguła
+        // co w kronice progu globalnego. Gałęzie per plik, bo różnią się
+        // realnie: kanał programu scala trzy warstwy metadanych (program ->
+        // kanał -> marka), kanał sieciowy dwie, a tracker i feed programu
+        // badawczego całą mechanikę mają w modułach `lib/`.
+        // ---------------------------------------------------------------
+        "src/routes/podcast.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/podcasts.$show.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/routes/live_.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // Tracker i feed programu badawczego to CIENKIE trasy - cała
+        // mechanika siedzi w `lib/tracker/feed.server.ts` i
+        // `lib/seo/taxonomyFeed.server.ts`, więc same pliki tras nie mają
+        // ani jednej gałęzi. Próg na gałęziach zostaje mimo to, żeby
+        // dołożenie warunku do trasy nie weszło bez testu.
+        "src/routes/tracker.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/programs.$slug.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/web-stories.$slug.amp.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Jeden kontrakt TTL kanałów - wydzielony z pięciu kopii literału.
+        // Zmierzone 100/100/100/100; to czysta funkcja, więc próg jest
+        // wysoki i ma zostać wysoki.
+        "src/lib/seo/feedCache.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // ---------------------------------------------------------------
+        // MODUŁ 07 - kampania 2026-09-02, część II: warstwa danych
+        // podcastów, panele po ekstrakcji, eksperci i mapy.
+        //
+        // REGUŁA PROGÓW, zastosowana dosłownie: metryka zmierzona na 100%
+        // dostaje 98 (konwencja tego pliku dla powierzchni domkniętych),
+        // każda inna `floor(zmierzone - 4)` - ta sama reguła co w kronice
+        // progu globalnego. Wszystkie liczby ZMIERZONE reporterem v8 na tym
+        // HEAD, nie oszacowane.
+        //
+        // Pomiar był zawężony do testów dotykających tych plików, więc pełna
+        // suita może dać wartości WYŻSZE (nigdy niższe: pełny przebieg
+        // wykonuje nadzbiór kodu przebiegu zawężonego). Progi są więc
+        // bezpieczne z definicji.
+        // ---------------------------------------------------------------
+
+        // Warstwa danych i czyste reguły - zmierzone 100% linii i funkcji.
+        // Gałęzie niżej, bo obie warstwy mają zapasy `?? ""` wymagane
+        // typem (schemat zod dopuszcza null), których kaskada nigdy nie
+        // wykonuje - patrz `__tests__/PodcastPaneHandlers.test.tsx`.
+        "src/lib/podcast/applePodcast.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/podcast/queries.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        "src/lib/podcast/shape.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/podcast/types.ts": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+
+        // Komponenty panelu podcastów. Pięć z siedmiu powstało przy
+        // ekstrakcji trasy `admin.podcasts.tsx` (2072 -> 170 linii), więc bez
+        // tych progów każdy z nich mógłby cicho wrócić do zera.
+        "src/components/admin/podcasts/ApplePodcastMetaFields.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/podcasts/PodcastFeedReadinessCard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/podcasts/PodcastStatCard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Odznaka statusu nie ma ANI JEDNEJ gałęzi (mapa wartość -> wygląd),
+        // a v8 raportuje dla 0/0 sto procent. Próg na gałęziach zostaje
+        // mimo to, żeby dołożenie warunku nie weszło bez testu.
+        "src/components/admin/podcasts/PodcastStatusBadge.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/components/admin/podcasts/EpisodesListPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        "src/components/admin/podcasts/EpisodeLayerEditors.tsx": {
+          statements: 93,
+          functions: 92,
+          lines: 92,
+          branches: 89,
+        },
+        "src/components/admin/podcasts/PodcastShowsPane.tsx": {
+          statements: 93,
+          functions: 92,
+          lines: 93,
+          branches: 83,
+        },
+        // GAŁĘZIE 57, i to NIE jest bramka wyłączona (rozdz. 6.1 audytu),
+        // tylko próg pod SUFIT STRUKTURALNY. Ten panel ma ~15 gałęzi
+        // `merged.X ?? ""`, które są runtime NIEOSIĄGALNE, bo
+        // `mergePodcastSettings` domyka każde z tych pól na `""` - a usunąć
+        // ich nie wolno, bo `PodcastSettings` pochodzi ze schematu zod,
+        // gdzie pola są `nullable().optional()`. Zmierzone 61,90% gałęzi przy
+        // 100% instrukcji, linii i funkcji. Domknięcie wymaga zawężenia typu
+        // ZWRACANEGO przez `mergePodcastSettings`, czyli zmiany kontraktu
+        // publicznego - osobna praca, nie doklejka do kampanii testowej.
+        "src/components/admin/podcasts/PodcastSettingsPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 57,
+        },
+        // Najgrubszy z paneli (edytor odcinka z czterema warstwami, obsadą
+        // i wykrywaniem czasu trwania z pliku audio). Zmierzone 93,24% linii
+        // / 88,10% funkcji po dołożeniu testu atrapy `Audio`.
+        "src/components/admin/podcasts/EpisodeEditorPane.tsx": {
+          statements: 88,
+          functions: 84,
+          lines: 89,
+          branches: 88,
+        },
+
+        // Trasa po ekstrakcji - POWŁOKA. Zlecenie żądało >= 50 / 45 / 40;
+        // zmierzone 89,29% linii / 75% funkcji / 81,82% gałęzi.
+        "src/routes/admin.podcasts.tsx": {
+          statements: 85,
+          functions: 71,
+          lines: 85,
+          branches: 77,
+        },
+
+        // Trzy pliki, które audyt wydania 8 wskazał jako JEDYNE poniżej 100%
+        // w warstwie bibliotecznej modułu (obok dwóch zer, które zamknął N6).
+        // ExpertPicker szedł z 41,4% linii i 4/15 funkcji, WorldMap z 85,7%
+        // i 12/19, worldMapGeo z 94,7%. Wszystkie trzy zmierzone na 100%
+        // linii i 100% funkcji.
+        "src/components/admin/experts/ExpertPicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/maps/WorldMap.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/maps/worldMapGeo.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
         },
       },
     },

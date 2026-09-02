@@ -85,7 +85,17 @@ export interface RecordedChain {
  * łańcuch, więc test może odpowiedzieć RÓŻNIE w zależności od filtrów
  * (np. inna strona historii dla innego kursora) bez budowania własnej atrapy.
  */
-export type TableResponder = (chain: RecordedChain) => SupabaseResult;
+/**
+ * Wynik, jaki atrapa ma zwrócić dla danej tabeli.
+ *
+ * Wolno oddać wynik SYNCHRONICZNIE albo obietnicę - łańcuch i tak przechodzi
+ * przez `Promise.resolve(resolve(chain)).then(...)`, więc runtime obsługiwał
+ * oba warianty od początku, a typ dopuszczał tylko pierwszy. Wariant
+ * asynchroniczny jest potrzebny do pomiaru KOLEJNOŚCI FAL ładowania: test,
+ * który chce dowieść, że druga fala biegnie PO pierwszej, musi umieć opóźnić
+ * jedną z odpowiedzi.
+ */
+export type TableResponder = (chain: RecordedChain) => SupabaseResult | Promise<SupabaseResult>;
 
 /**
  * Atrapa `supabase.from(...)`: pełny, thenable łańcuch PostgREST.
@@ -169,7 +179,10 @@ export function supabaseFromStub(): SupabaseFromStub {
     };
   }
 
-  function resolve(chain: RecordedChain): SupabaseResult {
+  // Typ zwracany jest UNIĄ, bo `TableResponder` wolno oddać obietnicę - a każdy
+  // wołający i tak przechodzi przez `Promise.resolve(...)`, więc rozwiązanie
+  // obietnicy dzieje się jedno miejsce wyżej i zawsze.
+  function resolve(chain: RecordedChain): SupabaseResult | Promise<SupabaseResult> {
     const responder = responders.get(chain.table);
     // Brak odpowiedzi to nie „pusta lista”, a błąd testu: cichy `[]` udawałby
     // poprawny odczyt tabeli, której test nie zaplanował.

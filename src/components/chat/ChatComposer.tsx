@@ -23,12 +23,26 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENT_BYTES,
-  attachmentKindForMime,
   formatBytes,
   uploadChatAttachment,
-  validateAttachment,
   type AttachmentKind,
 } from "@/lib/chat/attachments";
+// Reguły kompozytora mieszkają w czystym module (`lib/chat/composerRules`) -
+// tu zostaje wyłącznie sklejenie ich z DOM-em i warstwą danych.
+import {
+  MAX_BODY_LENGTH,
+  composerKeyIntent,
+  composerPrimaryAction,
+  composerSubmitPlan,
+  keyIntentPreventsDefault,
+  keyIntentStopsPropagation,
+  quickEmojiVisible,
+  replyBarState,
+  shouldEmitTyping,
+  stageFileDecision,
+  uploadErrorKey,
+  uploadLooksLikeImage,
+} from "@/lib/chat/composerRules";
 import { clearDraft, getDraft, setDraft } from "@/lib/chat/drafts";
 import { DEFAULT_QUICK_EMOJI } from "@/lib/chat/themes";
 import { formatVoiceDuration, useVoiceRecorder, type RecordedVoice } from "@/lib/chat/voice";
@@ -38,9 +52,6 @@ import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 // Lazy: the emoji dataset (~20 KB) loads only when the picker first opens.
 const EmojiPicker = lazy(() => import("./EmojiPicker").then((m) => ({ default: m.EmojiPicker })));
-
-const TYPING_THROTTLE_MS = 2500;
-const MAX_BODY_LENGTH = 8000;
 
 export interface ChatComposerProps {
   conversationId: string;
@@ -125,7 +136,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   const emitTyping = () => {
     const now = Date.now();
-    if (now - lastTypingRef.current > TYPING_THROTTLE_MS) {
+    if (shouldEmitTyping(now, lastTypingRef.current)) {
       lastTypingRef.current = now;
       onTyping();
     }
@@ -169,41 +180,47 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   // Validate + stage a picked file (upload happens on send, with the caption).
   const stageFile = (file: File) => {
-    const invalid = validateAttachment(file);
-    if (invalid === "size") {
-      toast.error(t("chat.attachmentTooLarge"));
+    const decision = stageFileDecision(file);
+    if (decision.outcome === "reject") {
+      toast.error(t(decision.messageKey));
       return;
     }
-    if (invalid === "type") {
-      toast.error(t("chat.attachmentWrongType"));
-      return;
-    }
-    const kind = attachmentKindForMime(file.type);
-    if (!kind) return;
     clearStaged();
     setStaged({
       file,
-      kind,
-      previewUrl: kind === "image" ? URL.createObjectURL(file) : null,
+      kind: decision.kind,
+      previewUrl: decision.needsPreviewUrl ? URL.createObjectURL(file) : null,
     });
     requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
   };
 
   // Unified submit: edit save, or staged attachment + caption, or plain text.
   const submit = async () => {
-    const body = text.trim();
-    if (editing) {
-      if (body && body !== (editing.body ?? "").trim()) {
-        onSaveEdit(editing.id, body.slice(0, MAX_BODY_LENGTH));
-      }
+    const plan = composerSubmitPlan({
+      text,
+      editing,
+      hasStaged: !!staged,
+      canUpload: !!user && !!tenantId,
+    });
+
+    if (plan.kind === "none") return;
+
+    if (plan.kind === "save-edit") {
+      onSaveEdit(plan.messageId, plan.body);
       onCancelEdit();
       return;
     }
 
-    if (staged) {
-      if (!user || !tenantId) return;
+    if (plan.kind === "cancel-edit") {
+      onCancelEdit();
+      return;
+    }
+
+    if (plan.kind === "send-attachment") {
+      // Zawężenie dla typów: `composerSubmitPlan` policzył już, że oba są znane.
+      if (!staged || !user || !tenantId) return;
       const { file, kind } = staged;
-      const caption = body.slice(0, 2000) || undefined; // DB caps captions at 2000
+      const caption = plan.caption; // DB caps captions at 2000
       clearStaged();
       setText("");
       if (uid) clearDraft(uid, conversationId);
@@ -226,22 +243,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         });
         onClearReply();
       } catch (err) {
-        toast.error(
-          err instanceof Error && err.message.includes("rate-limited")
-            ? t("chat.uploadRateLimited")
-            : t("chat.uploadFailed"),
-        );
+        toast.error(t(uploadErrorKey(err)));
       } finally {
         setUploading(null);
       }
       return;
     }
 
-    if (!body) return;
     onSend({
       conversationId,
       kind: "text",
-      body: body.slice(0, MAX_BODY_LENGTH),
+      body: plan.body,
       replyToId: replyTo?.id ?? null,
     });
     setText("");
@@ -304,6 +316,24 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   });
   const recording = recorder.state !== "idle";
 
+  // Stany wyliczone przez czyste reguły - JSX niżej wyłącznie je maluje.
+  const replyBar = replyBarState({ editing: !!editing, replyTo, replyToAuthor });
+  const surface = { editing: !!editing, text, staged: !!staged };
+  const primaryAction = composerPrimaryAction({
+    ...surface,
+    recorderSupported: recorder.supported,
+  });
+  const replyPreviewText =
+    replyBar.kind === "reply"
+      ? replyBar.preview.kind === "deleted"
+        ? t("chat.deletedMessage")
+        : replyBar.preview.kind === "body"
+          ? replyBar.preview.body
+          : replyBar.preview.kind === "photo"
+            ? t("chat.photo")
+            : t("chat.file")
+      : "";
+
   const insertEmoji = (emoji: string) => {
     const el = textareaRef.current;
     if (!el) {
@@ -324,7 +354,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   return (
     <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
-      {editing && (
+      {replyBar.kind === "editing" && (
         <div className="mb-1.5 flex items-center justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
             <Pencil className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
@@ -342,18 +372,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         </div>
       )}
 
-      {!editing && replyTo && (
+      {replyBar.kind === "reply" && (
         <div className="mb-1.5 flex items-start justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="min-w-0 text-[11px]">
             <span className="block font-medium text-foreground">
               {t("chat.replyingTo")}
-              {replyToAuthor ? ` - ${replyToAuthor}` : ""}
+              {replyBar.author ? ` - ${replyBar.author}` : ""}
             </span>
-            <span className="block truncate text-muted-foreground">
-              {replyTo.deleted_at
-                ? t("chat.deletedMessage")
-                : (replyTo.body ?? (replyTo.kind === "image" ? t("chat.photo") : t("chat.file")))}
-            </span>
+            <span className="block truncate text-muted-foreground">{replyPreviewText}</span>
           </div>
           <button
             type="button"
@@ -369,7 +395,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       {uploading && (
         <div className="mb-1.5 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            {/\.(jpe?g|png|gif|svg|webp)$/i.test(uploading.name) ? (
+            {uploadLooksLikeImage(uploading.name) ? (
               <ImageIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
             ) : (
               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -474,19 +500,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               emitTyping();
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void submit();
-              } else if (e.key === "Escape" && editing) {
-                // Cancel the edit only - do not bubble up to the dock
-                // window's Escape-to-close handler.
-                e.preventDefault();
-                e.stopPropagation();
-                onCancelEdit();
-              } else if (e.key === "Escape" && staged) {
-                e.preventDefault();
-                clearStaged();
-              }
+              const intent = composerKeyIntent(e, { editing: !!editing, staged: !!staged });
+              if (keyIntentPreventsDefault(intent)) e.preventDefault();
+              // Anulowanie edycji NIE może dobiec do handlera Escape okna
+              // w doku - inaczej wyjście z edycji zamyka całą rozmowę.
+              if (keyIntentStopsPropagation(intent)) e.stopPropagation();
+              if (intent === "send") void submit();
+              else if (intent === "cancel-edit") onCancelEdit();
+              else if (intent === "clear-staged") clearStaged();
             }}
             placeholder={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
             aria-label={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
@@ -552,7 +573,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 tego żadna bramka: kod się kompilował, testy przechodziły, a w UI
                 po prostu nie było czym wysłać.
               */}
-              {!editing && !text.trim() && !staged && (
+              {quickEmojiVisible(surface) && (
                 <button
                   type="button"
                   onClick={() => sendQuickEmoji()}
@@ -566,7 +587,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               )}
             </div>
 
-            {!editing && !text.trim() && !staged && recorder.supported ? (
+            {primaryAction === "record" ? (
               // WhatsApp morph: empty input shows the mic, typing/staging swaps
               // it for send.
               <button

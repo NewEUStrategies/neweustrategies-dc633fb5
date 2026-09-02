@@ -6,7 +6,7 @@
 // serwerowo, więc crawler widzi dossier zamiast "Ładowanie"; komponent czyta
 // ten sam cache bez drugiej podróży.
 import { Fragment, useState, useTransition } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CalendarClock, Landmark, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { TrackerFeedLink } from "@/components/tracker/TrackerFeedLink";
 import { TrackerIndexSkeleton } from "@/components/tracker/TrackerIndexSkeleton";
 import {
@@ -114,7 +115,12 @@ export const Route = createFileRoute("/tracker/")({
       title_en: item.title_en,
       reference: item.reference,
     }));
-    return { entries };
+    // `degraded` JEDZIE DO KOMPONENTU (naprawa 2026-09-02). Wcześniej loader
+    // zwracał samo `entries`, więc awaria backendu wyglądała na ekranie
+    // dokładnie jak pusty tracker: czytelnik dostawał zdanie „Brak dossier dla
+    // wybranych filtrów", które w tym stanie jest po prostu NIEPRAWDĄ.
+    // Nagłówek cache'a rozróżniał te dwa stany od początku - warstwa treści nie.
+    return { entries, degraded };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/tracker";
@@ -187,10 +193,21 @@ export const Route = createFileRoute("/tracker/")({
   // Zimna nawigacja klienta czeka na loader - pokazuj placeholder w kształcie
   // strony zamiast pustego ekranu (SSR nigdy tu nie trafia: loader blokuje).
   pendingComponent: () => <TrackerIndexSkeleton />,
-  errorComponent: (props) => (
-    <RouteErrorFallback {...props} title="Nie udało się załadować trackera" />
-  ),
+  errorComponent: (props) => <TrackerErrorFallback {...props} />,
 });
+
+/**
+ * Ekran awarii trasy mówiący JĘZYKIEM STRONY. Wcześniej `errorComponent` podawał
+ * tytuł zahardkodowanym literałem, więc czytelnik wersji angielskiej dostawał
+ * jedyny polski napis na całej stronie. `errorComponent` renderuje się jak każdy
+ * komponent, więc wolno mu wziąć zdanie ze słownika - klucz `tracker.loadError`
+ * istnieje w PL i EN, więc nie dopisujemy nowego.
+ */
+function TrackerErrorFallback(props: ErrorComponentProps) {
+  ensureTrackerI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("tracker.loadError")} />;
+}
 
 type Lang = "pl" | "en";
 
@@ -311,6 +328,8 @@ function TrackerIndex() {
     limit,
   );
   const { data: followerCounts } = useFollowerCounts((items ?? []).map((item) => item.id));
+  // Sygnał z loadera: czy pusta lista pochodzi z bazy, czy z fallbacku.
+  const { degraded } = Route.useLoaderData();
   // Pełne okno = prawdopodobnie jest dalszy ciąg (dokładny count nie jest
   // wart drugiej podróży; ostatnie kliknięcie zwróci niepełną stronę).
   const canLoadMore = (items ?? []).length >= limit;
@@ -369,7 +388,17 @@ function TrackerIndex() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.loading")}</p>
       ) : (items ?? []).length === 0 ? (
-        <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.empty")}</p>
+        // PUSTO Z FALLBACKU NIE JEST PUSTO Z BAZY. `loadResilient` sieje pustą
+        // listę, żeby blip backendu nie dał HTTP 500 - ale zdanie „brak
+        // dossier" jest wtedy fałszywe, a czytelnik nie ma jak się dowiedzieć,
+        // że powinien ponowić. Rozróżnienie znika, gdy dane już dojechały
+        // (fallback siany z `updatedAt: 0` refetchuje się po hydratacji), więc
+        // warunek stoi WEWNĄTRZ gałęzi pustej listy, a nie przed nią.
+        degraded ? (
+          <DegradedDataNotice />
+        ) : (
+          <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.empty")}</p>
+        )
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">

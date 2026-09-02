@@ -38,7 +38,7 @@ function itemRow(over: Record<string, unknown> = {}) {
     href: "/blog",
     target: "_self",
     css_class: "",
-      visibility: "all" as const,
+    visibility: "all" as const,
     icon: null,
     mega_enabled: false,
     mega_config: DEFAULT_MEGA_CONFIG,

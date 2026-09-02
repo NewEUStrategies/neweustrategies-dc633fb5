@@ -65,8 +65,31 @@ describe("szybka emotka w czacie - ostatnie ogniwo", () => {
   it("przycisk pojawia się dokładnie wtedy, co obiecuje słownik", () => {
     // `chat.appearance.quickEmojiHint`: „Jedno dotknięcie wysyła ją, gdy pole
     // tekstu jest puste". Warunek w kodzie musi mówić to samo.
-    expect(source).toMatch(/!editing && !text\.trim\(\) && !staged/);
+    //
+    // 2026-09-01: warunek WYPROWADZIŁ SIĘ z JSX-a do czystej reguły
+    // `quickEmojiVisible` w `src/lib/chat/composerRules.ts`. Bramka idzie za
+    // nim i jest przez to ŚCIŚLEJSZA niż wcześniej: sprawdza OBA ogniwa -
+    // że kompozytor bramkuje przycisk tą regułą ORAZ że reguła mówi dokładnie
+    // to, co obiecuje słownik. Wcześniej sprawdzała tylko pierwsze.
+    //
+    // Nagłówek tego pliku mówił „render `ChatComposer` wymaga sesji, tenanta,
+    // klienta zapytań i nagrywania głosu, więc koszt testu renderowego jest
+    // wyższy niż wartość". Ta przesłanka przestała być prawdziwa: warunek ma
+    // dziś dowód jednostkowy (`src/lib/chat/__tests__/composerRules.test.ts`)
+    // i dowód renderowy (`src/components/chat/__tests__/ChatComposer.test.tsx`,
+    // „szybka emotka jest widoczna tylko przy pustym polu"). Bramka statyczna
+    // ZOSTAJE mimo to - ona pilnuje OGNIWA (czy przycisk w ogóle jest podpięty),
+    // a nie arytmetyki warunku.
+    expect(source).toMatch(/\{quickEmojiVisible\(surface\) && \(/);
     expect(source).toMatch(/onClick=\{\(\) => sendQuickEmoji\(\)\}/);
+
+    const rules = read("src/lib/chat/composerRules.ts");
+    expect(rules).toMatch(
+      /export function quickEmojiVisible\(ctx: ComposerSurfaceContext\): boolean \{\s*return isComposerEmpty\(ctx\);/,
+    );
+    expect(rules).toMatch(
+      /function isComposerEmpty\(ctx: ComposerSurfaceContext\): boolean \{\s*return !ctx\.editing && ctx\.text\.trim\(\)\.length === 0 && !ctx\.staged;/,
+    );
   });
 
   it("przycisk ma etykietę z KLUCZA, nie z kodu - i emotkę użytkownika", () => {

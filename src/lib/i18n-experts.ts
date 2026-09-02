@@ -26,7 +26,7 @@ const pl = {
     cvPending: "Sekcja CV zostanie uzupełniona wkrótce.",
     contentPending: "Treść przygotowywana",
     // SEO fallbacks
-    seoDescriptionAreas: "Ekspert {{name}} — {{areas}}. Publikacje, komentarze i wystąpienia.",
+    seoDescriptionAreas: "Ekspert {{name}} - {{areas}}. Publikacje, komentarze i wystąpienia.",
     seoDescriptionFallback: "Profil eksperta {{name}} w New European Strategies.",
     // Kontakt
     contactHeading: "Kontakt bezpośredni",
@@ -86,9 +86,18 @@ const pl = {
     directorySubtitle: "Zespół analityczny New European Strategies.",
     directoryEmpty: "Brak ekspertów do wyświetlenia.",
     directoryEmptyFiltered: "Żaden ekspert nie pasuje do wybranych filtrów.",
+    // Render ZDEGRADOWANY (lib/ssr/resilientLoad): pusty katalog i „nic nie
+    // dojechało" to dwie różne prawdy i czytelnik ma prawo je rozróżnić.
+    directoryLoadFailed: "Nie udało się załadować katalogu ekspertów.",
     filterArea: "Obszar",
     allAreas: "Wszystkie obszary",
-    publicationsCount: "{{count}} publikacji",
+    // 1 publikacja / 2-4 publikacje / 5+ publikacji. Wcześniej stała tu jedna
+    // forma („{{count}} publikacji"), więc karta eksperta z jedną pozycją
+    // pokazywała „1 publikacji".
+    publicationsCount_one: "{{count}} publikacja",
+    publicationsCount_few: "{{count}} publikacje",
+    publicationsCount_many: "{{count}} publikacji",
+    publicationsCount_other: "{{count}} publikacji",
     viewProfile: "Zobacz profil",
     // Edytor persony eksperta (/profile/author)
     editHubHeading: "Hub eksperta",
@@ -115,7 +124,7 @@ const pl = {
   },
 };
 
-const en = {
+const en: typeof pl = {
   expert: {
     expertBadge: "Expert",
     verifiedBadge: "Verified",
@@ -135,8 +144,8 @@ const en = {
     cvPending: "The CV section will be added soon.",
     contentPending: "Content pending",
     seoDescriptionAreas:
-      "{{name}} — expert in {{areas}}. Publications, commentary and appearances.",
-    seoDescriptionFallback: "{{name}} — expert profile at New European Strategies.",
+      "{{name}} - expert in {{areas}}. Publications, commentary and appearances.",
+    seoDescriptionFallback: "{{name}} - expert profile at New European Strategies.",
     contactHeading: "Direct contact",
     mediaContactHeading: "Media contact",
     email: "Email",
@@ -191,9 +200,13 @@ const en = {
     directorySubtitle: "The New European Strategies analytical team.",
     directoryEmpty: "No experts to display.",
     directoryEmptyFiltered: "No expert matches the selected filters.",
+    directoryLoadFailed: "Could not load the experts directory.",
     filterArea: "Area",
     allAreas: "All areas",
-    publicationsCount: "{{count}} publications",
+    publicationsCount_one: "{{count}} publication",
+    publicationsCount_few: "{{count}} publications",
+    publicationsCount_many: "{{count}} publications",
+    publicationsCount_other: "{{count}} publications",
     viewProfile: "View profile",
     editHubHeading: "Expert hub",
     fullBioPl: "Full biography (PL)",
@@ -218,10 +231,18 @@ const en = {
   },
 };
 
+/**
+ * Nazwa `pl`/`en` jest tu KONWENCJĄ, nie gustem: bramka
+ * `check:i18n-overlay-imports` czyta klucze nakładki wyrażeniem
+ * `const pl = ...` (patrz `src/lib/ci/i18nOverlayImports.ts`), więc
+ * przemianowanie tej stałej ODCIĘŁOBY ten plik od bramki - i to bez żadnego
+ * czerwonego testu, bo bramka po prostu przestałaby widzieć jego klucze.
+ * Nazwane eksporty niżej są aliasami dla testu parytetu.
+ */
 i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
 
-export {};
+export { pl as expertsPl, en as expertsEn };
 
 /**
  * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.

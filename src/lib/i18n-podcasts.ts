@@ -29,6 +29,7 @@ export const podcastsPl = {
     loadFailedIndex: "Nie udało się załadować listy",
     loadFailedPodcasts: "Nie udało się załadować podcastów",
     loadFailedShow: "Nie udało się załadować programu",
+    loadFailedEpisodes: "Nie udało się załadować listy odcinków",
 
     // Liczebnik odcinków: polski ma trzy formy istotne dla liczb (1 / 2-4 / 5+),
     // a karta katalogu pokazywała skrót „odc." dla każdej liczby.
@@ -70,6 +71,7 @@ export const podcastsEn = {
     loadFailedIndex: "Couldn't load the list",
     loadFailedPodcasts: "Couldn't load podcasts",
     loadFailedShow: "Couldn't load this programme",
+    loadFailedEpisodes: "Couldn't load the episode list",
 
     episodeCount_one: "{{count}} episode",
     episodeCount_other: "{{count}} episodes",

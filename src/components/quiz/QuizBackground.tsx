@@ -1,10 +1,10 @@
-// Tło strony /quiz — warianty light/dark reagujące na motyw PLATFORMY
+// Tło strony /quiz - warianty light/dark reagujące na motyw PLATFORMY
 // (klasa `.dark` na <html>).
 //
 // Optymalizacja ładowania:
 //  - SSR renderuje tylko wariant LIGHT (odpowiada preloadowi w head()).
 //  - Po hydracji odczytujemy realny motyw i zamieniamy warstwę na DARK
-//    dopiero wtedy — dzięki temu użytkownik LIGHT nigdy nie pobiera DARK,
+//    dopiero wtedy - dzięki temu użytkownik LIGHT nigdy nie pobiera DARK,
 //    a DARK dociąga się jednym żądaniem tylko w razie potrzeby.
 //  - Preload właściwego wariantu DARK dokłada inline-script w <head>
 //    (patrz QUIZ_BG_PRELOAD_SCRIPT), więc dark-mode dostaje high-priority
@@ -57,13 +57,13 @@ function BgPicture({ variant }: { variant: BgVariant }) {
       className="absolute inset-0 -z-20 block transition-opacity duration-500 ease-out will-change-transform"
       style={{ transform: "translate3d(0, var(--quiz-parallax-crowd, 0px), 0)" }}
     >
-      {/* AVIF — najlżejszy, najnowsze przeglądarki. Mobile+desktop breakpointy. */}
+      {/* AVIF - najlżejszy, najnowsze przeglądarki. Mobile+desktop breakpointy. */}
       <source type="image/avif" media="(max-width: 767px)" srcSet={variant.mobile.avif} />
       <source type="image/avif" media="(min-width: 768px)" srcSet={variant.desktop.avif} />
-      {/* WebP — szeroka kompatybilność, mniejsze niż JPG. */}
+      {/* WebP - szeroka kompatybilność, mniejsze niż JPG. */}
       <source type="image/webp" media="(max-width: 767px)" srcSet={variant.mobile.webp} />
       <source type="image/webp" media="(min-width: 768px)" srcSet={variant.desktop.webp} />
-      {/* JPG — fallback dla najstarszych klientów. */}
+      {/* JPG - fallback dla najstarszych klientów. */}
       <source media="(max-width: 767px)" srcSet={variant.mobile.jpg} />
       <source media="(min-width: 768px)" srcSet={variant.desktop.jpg} />
       <img
@@ -79,7 +79,7 @@ function BgPicture({ variant }: { variant: BgVariant }) {
 
 export function QuizBackground() {
   const rootRef = useRef<HTMLDivElement>(null);
-  // Zawsze startuj "light" po stronie klienta i serwera — zgodnie z ThemeProvider,
+  // Zawsze startuj "light" po stronie klienta i serwera - zgodnie z ThemeProvider,
   // który świadomie unika mismatchu i przełącza motyw dopiero w efekcie.
   const [mode, setMode] = useState<Mode>("light");
 
@@ -124,7 +124,7 @@ export function QuizBackground() {
 
   return (
     <div ref={rootRef} className="pointer-events-none absolute inset-0" aria-hidden="true">
-      {/* Warstwa aktywnego motywu — druga wariacja nigdy nie trafia do DOM,
+      {/* Warstwa aktywnego motywu - druga wariacja nigdy nie trafia do DOM,
           więc opposite-theme nie generuje żadnych żądań sieciowych. */}
       {isDark ? <BgPicture variant={BG.dark} /> : <BgPicture variant={BG.light} />}
 
@@ -142,9 +142,9 @@ export function QuizBackground() {
   );
 }
 
-/** Preload dla LCP tła — wariant LIGHT (SSR default) w formacie AVIF (najlżejszy).
+/** Preload dla LCP tła - wariant LIGHT (SSR default) w formacie AVIF (najlżejszy).
  *  Przeglądarki bez wsparcia AVIF zignorują preload i pobiorą JPG przez <picture>
- *  fallback — bez blokowania renderu. DARK preloaduje inline-script tylko dla
+ *  fallback - bez blokowania renderu. DARK preloaduje inline-script tylko dla
  *  użytkowników z aktywnym trybem ciemnym. */
 export const QUIZ_BG_PRELOAD_LINKS = [
   {

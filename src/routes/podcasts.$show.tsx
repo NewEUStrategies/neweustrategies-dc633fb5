@@ -1,6 +1,6 @@
 // Program (series) page: /podcasts/$show. A podcast PROGRAM groups its
 // episodes into seasons, surfaces the recurring hosts, and carries its own
-// subscribe links + a per-program RSS feed — the RUSI/think-tank "catalogue of
+// subscribe links + a per-program RSS feed - the RUSI/think-tank "catalogue of
 // distinct series" model rather than one undifferentiated feed.
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
@@ -17,7 +17,7 @@ import {
   showEpisodesQueryOptions,
   episodesPeopleQueryOptions,
 } from "@/lib/queries/podcasts";
-import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { buildAvatarSrc } from "@/lib/cropSizes";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
@@ -52,6 +52,9 @@ import { safeJsonLd } from "@/lib/seo/jsonld";
  */
 const SHOW_UNKNOWN: PodcastShow | null = null;
 const NO_EPISODES: Podcast[] = [];
+const NO_PEOPLE: PodcastPerson[] = [];
+/** Program bez odcinkow - nie ma o kogo pytac, wiec render jest CZYSTY. */
+const PEOPLE_NOT_APPLICABLE = { data: NO_PEOPLE, degraded: false } as const;
 
 export const Route = createFileRoute("/podcasts/$show")({
   // Zapytanie TOŻSAMOŚCIOWE (czy ten program istnieje?) NIE MOŻE degradować się
@@ -81,7 +84,26 @@ export const Route = createFileRoute("/podcasts/$show")({
       showEpisodesQueryOptions(show.id),
       NO_EPISODES,
     );
-    setCacheControlHeader(resilientCacheControl(episodes.degraded));
+    // N5 - STALA OBSADA PROGRAMU JEDZIE Z LOADEREM, NIE PO HYDRATACJI.
+    // Lista prowadzacych serii to jedyne zapytanie tej trasy, ktore czytal
+    // wylacznie `useQuery`, wiec bylo round-tripem PO hydratacji: crawler nie
+    // widzial obsady programu, a czytelnik widzial przeskok ukladu. Klucz jest
+    // ten sam co w komponencie (`episodesPeopleQueryOptions` sortuje
+    // identyfikatory, wiec nie zalezy od kolejnosci odcinkow), a zasiew jedzie
+    // do przegladarki w dehydrowanym cache - `useQuery` nie ponawia swiezego
+    // wpisu. ZMIERZONE (podcastShowRoute.test.tsx): 2 loader + 1 klient -> 3
+    // loader + 0 klient.
+    // Odczyt jest WTORNY, wiec idzie przez `loadResilient`: blip na tabeli
+    // uczestnikow nie moze zamienic dzialajacego programu w HTTP 500.
+    const people =
+      episodes.data.length > 0
+        ? await loadResilient(
+            context.queryClient,
+            episodesPeopleQueryOptions(episodes.data.map((e) => e.id)),
+            NO_PEOPLE,
+          )
+        : PEOPLE_NOT_APPLICABLE;
+    setCacheControlHeader(resilientCacheControl(anyDegraded(episodes, people)));
     // Preload LCP okładki programu - render to zwykłe <img src> bez srcSet,
     // więc deskryptor niesie sam `href` (para srcset/sizes wskazywałaby inny
     // wariant niż malowany i podwoiłaby pobranie). Wartość idzie też jako
@@ -201,9 +223,16 @@ function ShowPage() {
   const episodeIds = useMemo(() => episodes.map((e) => e.id), [episodes]);
   const { data: people } = useQuery(episodesPeopleQueryOptions(episodeIds));
 
-  // Kolejność ma znaczenie: przy degradacji NIE WIEMY, czy program istnieje,
-  // więc nigdy nie pokazujemy „nie znaleziono" - to byłby fałszywy 404.
-  if (degraded) {
+  // Kolejność ma znaczenie i ROZRÓŻNIA DWIE DEGRADACJE, które wcześniej były
+  // jedną. Padł odczyt TOŻSAMOŚCI - nie wiemy, czy program istnieje, więc nigdy
+  // nie pokazujemy „nie znaleziono" (to byłby fałszywy 404) i nie pokazujemy
+  // żadnej treści, bo jej nie mamy. Padła sama LISTA ODCINKÓW - tożsamość
+  // programu ZNAMY (tytuł, opis, okładka, linki subskrypcji, kanał RSS), więc
+  // ukrywanie jej przed czytelnikiem i przed crawlerem jest stratą bez powodu:
+  // do 2026-09-02 blip na tabeli odcinków chował całą stronę programu, mimo że
+  // komentarz loadera mówi wprost „lista odcinków jest wtórna".
+  const identityUnknown = degraded && !show;
+  if (identityUnknown) {
     return (
       <div className="container mx-auto px-4 py-10 max-w-4xl">
         <DegradedDataNotice title={t("podcastNetwork.loadFailedShow")} />
@@ -326,7 +355,11 @@ function ShowPage() {
         </section>
       )}
 
-      {episodes.length === 0 ? (
+      {degraded ? (
+        // „Brak odcinków" i „nie dojechała lista" to dwie różne prawdy: program
+        // zapowiedziany przed pierwszym nagraniem kontra blip backendu.
+        <DegradedDataNotice title={t("podcastNetwork.loadFailedEpisodes")} />
+      ) : episodes.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
           {t("podcastNetwork.emptyEpisodes")}
         </p>

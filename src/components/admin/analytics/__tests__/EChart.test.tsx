@@ -25,7 +25,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { EChartsCoreOption } from "echarts/core";
 
-const h = vi.hoisted(() => ({ factoryCalls: 0, lastProps: null as Record<string, unknown> | null }));
+const h = vi.hoisted(() => ({
+  factoryCalls: 0,
+  lastProps: null as Record<string, unknown> | null,
+}));
 
 vi.mock("../EChartClient", () => {
   h.factoryCalls += 1;
@@ -66,7 +69,7 @@ describe("render serwerowy", () => {
     expect(html).toContain("aria-hidden");
   });
 
-  it("NIE WYWOŁUJE `import(\"./EChartClient\")` - to jest cała stawka tego splitu", () => {
+  it('NIE WYWOŁUJE `import("./EChartClient")` - to jest cała stawka tego splitu', () => {
     const before = h.factoryCalls;
 
     renderToStaticMarkup(<EChart option={OPTION} />);
