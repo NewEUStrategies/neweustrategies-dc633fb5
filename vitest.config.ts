@@ -4361,11 +4361,134 @@ export default defineConfig({
         // (hooki React Query, klienty RPC, słowniki), a cztery powierzchnie
         // objęte zadaniem stoją tu na 100%. Podniesienie tego progu to osobna
         // praca nad resztą warstwy, nie regresja tej.
+        //
+        // 2026-09-02, KAMPANIA MODUŁU 16: RATCHET W GÓRĘ z 92/93/92/89.
+        // Powód dokładnie ten, który zapowiadał akapit wyżej („podniesienie tego
+        // progu to osobna praca nad resztą warstwy") - ta praca została zrobiona.
+        // Piętnaście plików tej biblioteki było poniżej progu; wszystkie zostały
+        // domknięte, w tym cztery, które ciągnęły GAŁĘZIE najmocniej:
+        // `capabilityMatrix.ts` 16,66% -> 100%, `useClubInvites.ts` 55,55% -> 100%,
+        // `useThreadWorkspace.ts` 55,76% -> 100%, `threadWorkspaceTypes.ts`
+        // 63,70% -> 96,77%. ZMIERZONE na tym HEAD (pełny przejazd katalogu,
+        // 87 plików testowych, 2 922 testy zielone, 6 `it.fails`):
+        // 99,12% instrukcji / 97,37% gałęzi / 99,76% funkcji / 99,69% linii
+        // (2922/2931). Próg = zmierzone minus ~2 pp.
+        //
+        // DWA SUFITY, KTÓRE TRZYMAJĄ GAŁĘZIE PONIŻEJ 100 i nie zostaną dobite bez
+        // złamania typów: `threadDynamics.ts` (84,91% - osiem zapasów `?? …`
+        // wymuszonych przez `noUncheckedIndexedAccess` na indeksach udowodnionych
+        // w sąsiednim kodzie) i `threadWorkspaceTypes.ts` (96,77% - cztery
+        // strażniki za własnymi filtrami). Oba opisane w nagłówkach swoich testów.
         "src/lib/clubs/**": {
-          statements: 92,
-          functions: 93,
-          lines: 92,
-          branches: 89,
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ── MODUŁ 16, KAMPANIA 2026-09-02: PIĘĆ OBSZARÓW, KTÓRE NIE MIAŁY PROGU ─
+        //
+        // Audyt wydania 8 pokazał w tym module asymetrię, która była całą jego
+        // diagnozą: jedenaście progów per-ścieżka na 373 w repo - i WSZYSTKIE
+        // jedenaście stało na klubach. Społeczność, komentarze i trasy panelu
+        // społeczności nie miały ANI JEDNEGO, więc ich pokrycie było liczbą,
+        // a nie bramką. Poniższe pięć wpisów to zapadka na pracy tej kampanii.
+        //
+        // Wszystkie liczby to POMIAR v8 z 2026-09-02 na tym HEAD (320 plików
+        // testowych modułu, 10 907 testów zielonych), plik po pliku; progi stoją
+        // 1-2 pp pod pomiarem, zgodnie z regułą pozostałych wpisów w tym pliku.
+
+        // Sekcja komentarzy pod wpisem (2 pliki). Zmierzone: 99,28% instrukcji /
+        // 97,67% gałęzi / 100% funkcji / 100% linii (122/122) - z 68,6% linii,
+        // 66,7% gałęzi i 21 z 45 funkcji. `CommentsSection.tsx` jest jedynym
+        // realnym konsumentem stosu kompozytora i wzmianek (czat go nie używa),
+        // więc ten próg pilnuje też tamtej infrastruktury.
+        "src/components/comments/**": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Reguły społeczności (7 plików). Zmierzone: 99,56% / 98,89% / 100% /
+        // 100% (184/184). Wejście: `publicQueries.ts` 20,8% linii przy 6,7%
+        // GAŁĘZI, `tenant.ts` 0/6, `reputation.ts` 44,1% przy 21,1% gałęzi,
+        // `reputationBadges.server.ts` 0/4.
+        "src/lib/community/**": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        // Prezentacja społeczności (8 plików). Zmierzone: 100% instrukcji /
+        // 98,29% gałęzi / 97,67% funkcji / 100% linii (155/155) - z 26,62% linii
+        // i 6 plików na zerze. Funkcje niżej niż linie z jednego powodu:
+        // `EventTicketPurchase.tsx` ma martwy `.catch()` przy `refetch()`,
+        // nieosiągalny w react-query v5 bez `throwOnError` (opisany w teście).
+        "src/components/community/**": {
+          statements: 98,
+          functions: 95,
+          lines: 98,
+          branches: 96,
+        },
+        // Panel społeczności (6 plików). Zmierzone: 98,59% / 90,81% / 98,59% /
+        // 99,40% (331/333) - z 33,93% linii i 3 plików na zerze. Gałęzie
+        // floorowane ostrożniej: `VerificationDomainsCard` i
+        // `EventSpeakerCreateDialog` mają po kilka strażników nieosiągalnych
+        // z komponentu (`fileRef.current === null`, `close(true)` bez propsa).
+        "src/components/admin/community/**": {
+          statements: 96,
+          functions: 96,
+          lines: 97,
+          branches: 88,
+        },
+        // Trasy panelu społeczności (16 plików). Zmierzone: 99,26% / 92,73% /
+        // 98,31% / 99,24% (519/523) - z 21,80% linii i 10 plików na zerze.
+        // Sześć tras, które wydanie 8 miało na dokładnym zerze (qa 0/122,
+        // polls 0/78, index 0/58, badges 0/39, contributors 0/26,
+        // engagement 0/21), stoi dziś na 100% linii każda.
+        //
+        // UWAGA NA ZAKRES TEGO GLOBU: łapie też `admin.community.chat.tsx`
+        // (MODUŁ 9) i `admin.community.notifications.tsx` (MODUŁ 12). To jest
+        // świadome - glob pilnuje POWIERZCHNI ADRESOWEJ `/admin/community`,
+        // a nie granicy modułu; gałęzie na 90 zostawiają zapas na trasę czatu,
+        // która nie była przedmiotem tej kampanii.
+        "src/routes/admin.community.*": {
+          statements: 97,
+          functions: 96,
+          lines: 97,
+          branches: 90,
+        },
+        // ── HOOKI MODERACJI: PRÓG PER-PLIK, ŻEBY PRZESTAŁY CHOWAĆ SIĘ ZA GLOBEM ─
+        //
+        // To ścieżka OPERACJI NISZCZĄCYCH: ukrycie wpisu, usunięcie wątku,
+        // wyproszenie członka, masowa moderacja komentarzy. Przed tą kampanią
+        // `useClubModeration.ts` stał na 60,4% linii (21 z 37 funkcji),
+        // `useClubAdmin.ts` na 67,9% przy 48,5% GAŁĘZI, a `admin.comments.tsx`
+        // na 74,5% - i wszystkie trzy przechodziły, bo glob `src/lib/clubs/**`
+        // liczył je razem z resztą biblioteki stojącej blisko 100%. Średnia
+        // globu jest złym strażnikiem dla ścieżki, która USUWA cudze treści,
+        // więc dostają własne progi.
+        //
+        // Zmierzone: oba hooki 100% we wszystkich czterech metrykach,
+        // `admin.comments.tsx` 100% linii (55/55), 100% funkcji (30/30),
+        // 95,92% gałęzi. Dwie niedobite gałęzie tej trasy są OBRONNE
+        // i nieosiągalne z ekranu (opisane przy teście).
+        "src/lib/clubs/useClubModeration.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/clubs/useClubAdmin.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/admin.comments.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 93,
         },
         // ── MODUŁ 16: KOMENTARZE - ZAPADKA NA CZTERECH SKOŃCZONYCH PLIKACH ──
         //

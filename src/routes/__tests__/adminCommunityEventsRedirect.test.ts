@@ -26,23 +26,34 @@ import { existsSync } from "node:fs";
 
 import { Route as CommunityEventsRedirect } from "@/routes/admin.community.events";
 
-/** Cel przekierowania w kształcie, którego dotyczy dowód. */
+/**
+ * Cel przekierowania w DWÓCH kształtach, w jakich framework go oddaje.
+ *
+ * ZMIERZONE, NIE ZAŁOŻONE: `redirect({ to })` z `@tanstack/react-router` zwraca
+ * w tej wersji obiekt `{ options: { to } }`, ale starsze wydania (i część ścieżek
+ * budowania) kładą `to` wprost na wyrzuconym obiekcie. Pierwsza wersja tego testu
+ * czytała tylko `to` i przechodziła w przebiegu pojedynczego pliku, a padała
+ * w pełnej suicie - czyli mierzyła kształt budowania frameworka, a nie kontrakt
+ * trasy. Odczyt obu miejsc naprawia dokładnie to.
+ */
 interface RedirectLike {
   to?: unknown;
+  options?: { to?: unknown };
 }
 
 /**
- * STRAŻNIK, nie rzutowanie: warunek sprawdza w runtime, że wyrzucony obiekt ma
- * pole `to` będące napisem, i dopiero on zawęża typ. Test, który „przechodzi"
+ * STRAŻNIK, nie rzutowanie: warunek sprawdza w runtime, że wyrzucony obiekt niesie
+ * adres docelowy w postaci napisu, i dopiero on zawęża typ. Test, który „przechodzi"
  * na `undefined`, nie dowodziłby niczego o adresie docelowym.
  */
 function redirectTarget(thrown: unknown): string {
   if (thrown === null || typeof thrown !== "object") {
     throw new Error("test: `beforeLoad` nie wyrzucił obiektu przekierowania");
   }
-  const to = (thrown as RedirectLike).to;
+  const shape: RedirectLike = thrown;
+  const to = typeof shape.to === "string" ? shape.to : shape.options?.to;
   if (typeof to !== "string") {
-    throw new Error("test: obiekt przekierowania nie niesie `to` w postaci napisu");
+    throw new Error("test: obiekt przekierowania nie niesie adresu docelowego w postaci napisu");
   }
   return to;
 }
