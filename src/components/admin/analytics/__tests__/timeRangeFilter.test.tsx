@@ -52,9 +52,9 @@ function filtr(value: TimeRangeValue, onChange = vi.fn()) {
 
 /** Przycisk otwierający kalendarz - jedyny z ikoną i etykietą „Zakres". */
 function przyciskZakresu(): HTMLElement {
-  return screen.getByRole("button", { name: realT(i18n.language === "en" ? "en" : "pl")(
-    "adminAnalytics.timeRange.range",
-  ) });
+  return screen.getByRole("button", {
+    name: realT(i18n.language === "en" ? "en" : "pl")("adminAnalytics.timeRange.range"),
+  });
 }
 
 /**
@@ -343,9 +343,7 @@ describe("TimeRangeFilter - etykieta i wybór zakresu własnego", () => {
 
     fireEvent.click(screen.getByRole("button", { name: t("common.cancel") }));
 
-    await waitFor(() =>
-      expect(screen.queryByText(t("adminAnalytics.timeRange.apply"))).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByText(t("adminAnalytics.timeRange.apply"))).toBeNull());
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -363,7 +361,9 @@ describe("TimeRangeFilter - etykieta i wybór zakresu własnego", () => {
 
     // Podpowiedź wraca = szkic wyczyszczony, „Zastosuj" znów zablokowany.
     expect(await screen.findByText(t("adminAnalytics.timeRange.pickHint"))).toBeTruthy();
-    expect(screen.getByRole("button", { name: t("adminAnalytics.timeRange.apply") })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: t("adminAnalytics.timeRange.apply") }),
+    ).toBeDisabled();
   });
 
   it("wartość custom z zewnątrz zasiewa kalendarz - nie trzeba klikać od nowa", async () => {
@@ -429,9 +429,7 @@ describe("TimeRangeFilter - dwujęzyczność i dostępność", () => {
     filtr(buildPresetRange("7d"));
 
     for (const p of PRESETY) expect(screen.getByRole("button", { name: en(p.klucz) })).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: en("adminAnalytics.timeRange.range") }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: en("adminAnalytics.timeRange.range") })).toBeTruthy();
     expect(screen.queryByRole("button", { name: pl("adminAnalytics.timeRange.preset24h") })).toBe(
       null,
     );

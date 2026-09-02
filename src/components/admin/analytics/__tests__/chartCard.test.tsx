@@ -339,12 +339,10 @@ describe("ChartCard - most kliknięcia i okno szczegółów", () => {
   });
 
   it("klik w SŁUPEK serii otwiera okno z ładunkiem zbudowanym z parametrów", async () => {
-    const mapuj = vi.fn(
-      (p: ChartClickParams): ChartDrillDetail => ({
-        title: String(p.name),
-        subtitle: `${p.seriesName}: ${String(p.value)}`,
-      }),
-    );
+    const mapuj = vi.fn((p: ChartClickParams): ChartDrillDetail => ({
+      title: String(p.name),
+      subtitle: `${p.seriesName}: ${String(p.value)}`,
+    }));
     karta({ onDataClick: mapuj });
 
     await act(async () => {

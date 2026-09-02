@@ -223,7 +223,7 @@ describe("ChartDrillDialog - metryki", () => {
     // Ton niesie ocenę („dobrze / do poprawy / słabo"), więc pomylenie klas
     // odwraca wymowę kafelka przy niezmienionej liczbie.
     const metryki: ChartDrillMetric[] = [
-      { label: "Dobrze", value: "1" , tone: "good" },
+      { label: "Dobrze", value: "1", tone: "good" },
       { label: "Ostrzeżenie", value: "2", tone: "warn" },
       { label: "Źle", value: "3", tone: "bad" },
       { label: "Neutralnie", value: "4", tone: "neutral" },
@@ -321,25 +321,22 @@ describe("ChartDrillDialog - linki i cel nawigacji", () => {
     expect(w.getByRole("link", { name: "Edytuj" })).toBeTruthy();
   });
 
-  it.fails(
-    "DEFEKT: względny adres w `detail.url` jest wyrzucany do nowej karty",
-    () => {
-      // `ChartDrillDialog.tsx:92` woła `isExternal(detail.url, true)` - drugi
-      // argument jest STAŁĄ, więc autodetekcja z `isExternal` (jedyny powód
-      // istnienia tej funkcji) jest dla chipa adresu martwa. Skutek jest
-      // sprzeczny sam ze sobą W TYM SAMYM oknie: `Ga4BiDashboard.tsx:425`
-      // podaje `url: path` (ścieżka względna) i jednocześnie
-      // `links: [{ href: path, external: false }]` - ten sam adres renderuje
-      // się raz jako wewnętrzny (lista „Powiązane"), a raz jako zewnętrzny
-      // (chip pod nagłówkiem). Operator klika chip i wypada z panelu do nowej
-      // karty, tracąc stan pulpitu.
-      otworz({ title: "Ścieżka wewnętrzna", url: "/analizy/energia-w-cee" });
+  it.fails("DEFEKT: względny adres w `detail.url` jest wyrzucany do nowej karty", () => {
+    // `ChartDrillDialog.tsx:92` woła `isExternal(detail.url, true)` - drugi
+    // argument jest STAŁĄ, więc autodetekcja z `isExternal` (jedyny powód
+    // istnienia tej funkcji) jest dla chipa adresu martwa. Skutek jest
+    // sprzeczny sam ze sobą W TYM SAMYM oknie: `Ga4BiDashboard.tsx:425`
+    // podaje `url: path` (ścieżka względna) i jednocześnie
+    // `links: [{ href: path, external: false }]` - ten sam adres renderuje
+    // się raz jako wewnętrzny (lista „Powiązane"), a raz jako zewnętrzny
+    // (chip pod nagłówkiem). Operator klika chip i wypada z panelu do nowej
+    // karty, tracąc stan pulpitu.
+    otworz({ title: "Ścieżka wewnętrzna", url: "/analizy/energia-w-cee" });
 
-      const chip = within(okno()).getByRole("link");
-      expect(chip.getAttribute("target")).toBeNull();
-      expect(chip.getAttribute("rel")).toBeNull();
-    },
-  );
+    const chip = within(okno()).getByRole("link");
+    expect(chip.getAttribute("target")).toBeNull();
+    expect(chip.getAttribute("rel")).toBeNull();
+  });
 });
 
 describe("ChartDrillDialog - zamykanie i ognisko", () => {

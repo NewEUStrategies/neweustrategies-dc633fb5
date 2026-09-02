@@ -131,12 +131,7 @@ describe("InsightSection - kolejność i liczniki", () => {
   it("sortuje po wadze: critical, warn, info, good - niezależnie od wejścia", () => {
     render(<InsightSection insights={WEJSCIE} />);
 
-    expect(tytuly()).toEqual([
-      "Wniosek b",
-      "Wniosek d",
-      "Wniosek c",
-      "Wniosek a",
-    ]);
+    expect(tytuly()).toEqual(["Wniosek b", "Wniosek d", "Wniosek c", "Wniosek a"]);
   });
 
   it("przy równej wadze zachowuje kolejność WEJŚCIOWĄ (sort stabilny)", () => {
@@ -363,9 +358,13 @@ describe("InsightSection - izolacja warsztatów i dwujęzyczność", () => {
     const a = within(screen.getByTestId("a"));
     const b = within(screen.getByTestId("b"));
     expect(a.getByText("warsztat-a.example.com: 500 na wejściu")).toBeTruthy();
-    expect(a.getByText(t("adminAnalytics.insightSection.badgeCritical", { count: 1 }))).toBeTruthy();
+    expect(
+      a.getByText(t("adminAnalytics.insightSection.badgeCritical", { count: 1 })),
+    ).toBeTruthy();
     expect(b.queryByText("warsztat-a.example.com: 500 na wejściu")).toBeNull();
-    expect(b.queryByText(t("adminAnalytics.insightSection.badgeCritical", { count: 1 }))).toBeNull();
+    expect(
+      b.queryByText(t("adminAnalytics.insightSection.badgeCritical", { count: 1 })),
+    ).toBeNull();
     expect(b.getByText(t("adminAnalytics.insightSection.badgeOk", { count: 1 }))).toBeTruthy();
   });
 

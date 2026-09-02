@@ -1,40 +1,40 @@
 // `RelatedPostsAnalytics` - pulpit silnika rekomendacji: stany, agregacja,
-// interpretacja i izolacja warsztatow.
+// interpretacja i izolacja warsztatów.
 //
-// PO CO. Plik stal na zerze (0/111 linii, 0/40 funkcji). Panel nie liczy nic,
-// co dalo by sie sprawdzic okiem: bierze JEDEN raport z RPC i rozklada go na
-// szesc wykresow oraz siedem regul interpretacyjnych. Kazda z tych operacji
-// psuje sie CICHO - wykres dalej sie rysuje, kafelek dalej pokazuje liczbe,
-// a administrator dostaje odwrotna rekomendacje przy niezmienionym wygladzie
+// PO CO. Plik stał na zerze (0/111 linii, 0/40 funkcji). Panel nie liczy nic,
+// co dało by się sprawdzić okiem: bierze JEDEN raport z RPC i rozkłada go na
+// sześć wykresów oraz siedem reguł interpretacyjnych. Każda z tych operacji
+// psuje się CICHO - wykres dalej się rysuje, kafelek dalej pokazuje liczbę,
+// a administrator dostaje odwrotną rekomendację przy niezmienionym wyglądzie
 // ekranu.
 //
-// KLASY DEFEKTOW, KTORE TEN PLIK LAPIE:
-//   * ZERO UDAJACE POMIAR. „Jeszcze nie wiem", „zapytanie padlo" i „w oknie
-//     naprawde nie ma danych" to trzy rozne informacje dla operatora. Panel ma
-//     na nie JEDEN komunikat, wiec kazdy z tych stanow jest tu asertowany
-//     osobno - a tam, gdzie sie zlewaja, stoi `it.fails`.
-//   * ODWROCONA AGREGACJA. Slupki poziome sa odwracane (`.reverse()`), listy
-//     przycinane (15 kategorii / 20 tagow / 25 par / 40 wpisow / 12 hubow),
-//     a heatmapa symetryzowana. Przestawiony `.reverse()` daje wykres, ktory
-//     wyglada poprawnie i klamie o kolejnosci.
-//   * PROGI INTERPRETACJI. Siedem regul, kazda z wlasnym progiem liczbowym
-//     (100 wyswietlen, CTR 3% / 1%, „mniej niz 3 wpisy" razy 3 kategorie,
-//     50 wyswietlen, srednia 2 wspolnych wpisow, 5 klikniec huba, 3 wpisy
-//     rozjazdu). Zamieniony znak porownania nie wywraca panelu - podsuwa
-//     odwrotne dzialanie naprawcze.
-//   * OKABLOWANIE FILTRA OKNA. Zmiana zakresu ma przestawic WEJSCIE zapytania,
-//     nie tylko etykiete, dlatego asercje ida na argument funkcji serwerowej.
-//   * IZOLACJA WARSZTATOW. Klucz cache to `["related-insights", days]` - nie ma
-//     w nim ani tenanta, ani uzytkownika. Test dowodzi, ze przy swiezym
+// KLASY DEFEKTÓW, KTÓRE TEN PLIK ŁAPIE:
+//   * ZERO UDAJĄCE POMIAR. „Jeszcze nie wiem", „zapytanie padło" i „w oknie
+//     naprawdę nie ma danych" to trzy różne informacje dla operatora. Panel ma
+//     na nie JEDEN komunikat, więc każdy z tych stanów jest tu asertowany
+//     osobno - a tam, gdzie się zlewają, stoi `it.fails`.
+//   * ODWRÓCONA AGREGACJA. Słupki poziome są odwracane (`.reverse()`), listy
+//     przycinane (15 kategorii / 20 tagów / 25 par / 40 wpisów / 12 hubów),
+//     a heatmapa symetryzowana. Przestawiony `.reverse()` daje wykres, który
+//     wygląda poprawnie i kłamie o kolejności.
+//   * PROGI INTERPRETACJI. Siedem reguł, każda z własnym progiem liczbowym
+//     (100 wyświetleń, CTR 3% / 1%, „mniej niż 3 wpisy" razy 3 kategorie,
+//     50 wyświetleń, średnia 2 wspólnych wpisów, 5 kliknięć huba, 3 wpisy
+//     rozjazdu). Zamieniony znak porównania nie wywraca panelu - podsuwa
+//     odwrotne działanie naprawcze.
+//   * OKABLOWANIE FILTRA OKNA. Zmiana zakresu ma przestawić WEJŚCIE zapytania,
+//     nie tylko etykietę, dlatego asercje idą na argument funkcji serwerowej.
+//   * IZOLACJA WARSZTATÓW. Klucz cache to `["related-insights", days]` - nie ma
+//     w nim ani tenanta, ani użytkownika. Test dowodzi, że przy świeżym
 //     kliencie panel warsztatu B nie widzi wierszy warsztatu A, i przypina
-//     `it.fails` sytuacje, w ktorej klient react-query przezywa przelaczenie.
-//   * SLOWNIK. Asercje ida przez `realT("pl")` i `realT("en")`, czyli te sama
-//     instancje i18next, ktora widzi uzytkownik: usuniety klucz wypada surowym
+//     `it.fails` sytuację, w której klient react-query przeżywa przełączenie.
+//   * SŁOWNIK. Asercje idą przez `realT("pl")` i `realT("en")`, czyli tę samą
+//     instancję i18next, którą widzi użytkownik: usunięty klucz wypada surowym
 //     `adminAnalytics.…`, a brak klucza EN cicho spada na polski fallback.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz naglowek `EChart.tsx`): podmieniamy `EChart`
-// atrapa, ktora PRZECHWYTUJE `option`. Dzieki temu asercje o kolejnosci,
-// przycinaniu i podpowiedziach ida na strukture danych oddana wykresowi, a nie
+// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
+// atrapą, która PRZECHWYTUJE `option`. Dzięki temu asercje o kolejności,
+// przycinaniu i podpowiedziach idą na strukturę danych oddaną wykresowi, a nie
 // na piksele - i ~1 MB biblioteki nigdy nie wchodzi do procesu testowego.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -58,9 +58,9 @@ const h = vi.hoisted(() => ({
   charts: [] as Array<{ option: Record<string, unknown> }>,
 }));
 
-// `useServerFn` staje sie tozsamoscia - wywolanie idzie prosto do atrapy.
-// Mock CZESCIOWY, bo `@/lib/i18n` ciagnie z tego samego pakietu
-// `createIsomorphicFn`, a pelna atrapa wywracalaby inicjalizacje slownika.
+// `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
+// Mock CZĘŚCIOWY, bo `@/lib/i18n` ciągnie z tego samego pakietu
+// `createIsomorphicFn`, a pełna atrapa wywracałaby inicjalizację słownika.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
@@ -70,8 +70,8 @@ vi.mock("@/lib/relatedInsights.functions", () => ({
   getRelatedInsights: (...args: unknown[]) => h.fetchInsights(...args),
 }));
 
-// Atrapa wykresu zapisuje `option`. To jedyne miejsce, w ktorym widac, CO panel
-// policzyl - i jedyny sposob na dowiedzenie kolejnosci bez wciagania echarts.
+// Atrapa wykresu zapisuje `option`. To jedyne miejsce, w którym widać, CO panel
+// policzył - i jedyny sposób na dowiedzenie kolejności bez wciągania echarts.
 vi.mock("../EChart", () => ({
   EChart: ({ option }: { option: Record<string, unknown> }) => {
     h.charts.push({ option });
@@ -79,8 +79,8 @@ vi.mock("../EChart", () => ({
   },
 }));
 
-// `react-i18next` NIE JEST atrapowany: panel jest dwujezyczny, a przedmiotem
-// dowodu jest to, ze napisy przychodza ZE SLOWNIKA. Jezyk przestawia sie przez
+// `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
+// dowodu jest to, że napisy przychodzą ZE SŁOWNIKA. Język przestawia się przez
 // `i18n.changeLanguage`.
 import "@/test/i18nReal";
 import { realT } from "@/test/i18nReal";
@@ -89,7 +89,7 @@ import { axeViolations, summarize } from "@/test/axe";
 import { RelatedPostsAnalytics } from "../RelatedPostsAnalytics";
 
 // ---------------------------------------------------------------------------
-// Slownik
+// Słownik
 // ---------------------------------------------------------------------------
 
 const R = "adminAnalytics.related";
@@ -145,8 +145,8 @@ const EMPTY_REPORT: RelatedInsightsResult = {
   hub_targets: [],
 };
 
-/** Nadpisanie raportu; `summary` jest CZESCIOWE, bo prawie kazdy prog
- *  interpretacji zalezy od jednej albo dwoch liczb z podsumowania. */
+/** Nadpisanie raportu; `summary` jest CZĘŚCIOWE, bo prawie każdy próg
+ *  interpretacji zależy od jednej albo dwóch liczb z podsumowania. */
 type ReportOverride = Partial<Omit<RelatedInsightsResult, "summary">> & {
   summary?: Partial<InsightsSummary>;
 };
@@ -159,7 +159,7 @@ function report(over: ReportOverride = {}): RelatedInsightsResult {
   };
 }
 
-/** Raport „warsztatu A" - kazdy napis jest unikalny, zeby wyciek bylo widac. */
+/** Raport „warsztatu A" - każdy napis jest unikalny, żeby wyciek było widać. */
 const WORKSPACE_A = report({
   summary: {
     total_posts: 1500,
@@ -176,7 +176,7 @@ const WORKSPACE_A = report({
   hub_targets: [hub("post-alfa-cel", "Alfa hub wlasny", 40, 6)],
 });
 
-/** Raport „warsztatu B" - rozlaczny z A na kazdym napisie. */
+/** Raport „warsztatu B" - rozłączny z A na każdym napisie. */
 const WORKSPACE_B = report({
   summary: {
     total_posts: 3,
@@ -194,7 +194,7 @@ const WORKSPACE_B = report({
 });
 
 // ---------------------------------------------------------------------------
-// Narzedzia
+// Narzędzia
 // ---------------------------------------------------------------------------
 
 function rec(v: unknown): Opt {
@@ -217,7 +217,7 @@ function numList(v: unknown): number[] {
   return Array.isArray(v) ? (v as unknown[]).map(Number) : [];
 }
 
-/** OSTATNI przechwycony wykres pasujacy do predykatu - czyli stan po ostatnim renderze. */
+/** OSTATNI przechwycony wykres pasujący do predykatu - czyli stan po ostatnim renderze. */
 function lastOption(label: string, pred: (o: Opt) => boolean): Opt {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
     if (pred(h.charts[i].option)) return h.charts[i].option;
@@ -236,19 +236,19 @@ const coocOption = () => lastOption("heatmapa tagow", isType("heatmap"));
 const popularityOption = () => lastOption("popularnosc", isType("scatter"));
 const sankeyOption = () => lastOption("sankey", isType("sankey"));
 
-/** Formater podpowiedzi, ktory panel oddaje wykresowi. */
+/** Formater podpowiedzi, który panel oddaje wykresowi. */
 function tooltipFormatter(o: Opt): (raw: unknown) => string {
   const f = rec(o.tooltip).formatter;
   if (typeof f !== "function") throw new Error("test: wykres nie ma formatera podpowiedzi");
   return f as (raw: unknown) => string;
 }
 
-/** Wejscia, z jakimi panel wolal funkcje serwerowa. */
+/** Wejścia, z jakimi panel wołał funkcję serwerową. */
 function queryInputs(): Array<{ days: number }> {
   return h.fetchInsights.mock.calls.map((c) => (c[0] as { data: { days: number } }).data);
 }
 
-/** Wartosc kafelka KPI stojaca przy podanej etykiecie. */
+/** Wartość kafelka KPI stojąca przy podanej etykiecie. */
 function kpiValue(label: string): string {
   const box = screen.getByText(label).closest("div.min-w-0");
   if (!box) throw new Error(`test: nie znaleziono kafelka KPI „${label}"`);
@@ -258,8 +258,8 @@ function kpiValue(label: string): string {
 /** Karta „Interpretacja i rekomendacje" - jedyne miejsce z wnioskami panelu. */
 function insightCard(): HTMLElement {
   // `getByText`, nie `getByRole("heading")`: w stanie PUSTYM `InsightSection`
-  // renderuje tytul zwyklym `div`-em, wiec szukanie roli gubiloby dokladnie te
-  // przypadki, w ktorych dowodzimy, ze zaden prog sie nie zapalil.
+  // renderuje tytuł zwykłym `div`-em, więc szukanie roli gubiłoby dokładnie te
+  // przypadki, w których dowodzimy, że żaden próg się nie zapalił.
   const card = screen.getByText(dict("insightsTitle")).closest("div.p-4");
   if (!card) throw new Error("test: nie znaleziono karty interpretacji");
   return card as HTMLElement;
@@ -277,18 +277,18 @@ function panel(client?: QueryClient) {
   };
 }
 
-/** Czeka az raport dojedzie i panel przelaczy sie z komunikatu na siatke KPI. */
+/** Czeka aż raport dojedzie i panel przełączy się z komunikatu na siatkę KPI. */
 async function loaded(lang: AppLang = "pl"): Promise<void> {
   await screen.findByText(dict("kpi.posts", {}, lang));
 }
 
-/** Czeka az zapytanie sie rozstrzygnie - takze wtedy, gdy padlo. */
+/** Czeka aż zapytanie się rozstrzygnie - także wtedy, gdy padło. */
 async function settled(): Promise<void> {
   await waitFor(() => expect(h.fetchInsights).toHaveBeenCalled());
   await waitFor(() => expect(screen.queryByText(common("loading"))).toBeNull());
 }
 
-/** Ksztalt poddrzewa slownika: sciezka -> „leaf" albo „array:N". */
+/** Kształt poddrzewa słownika: ścieżka -> „leaf" albo „array:N". */
 function shape(node: unknown, prefix = "", out = new Map<string, string>()): Map<string, string> {
   if (Array.isArray(node)) {
     out.set(prefix, `array:${node.length}`);
@@ -325,22 +325,22 @@ afterEach(cleanup);
 // ---------------------------------------------------------------------------
 
 describe("RelatedPostsAnalytics - stany panelu", () => {
-  it("w trakcie pobierania pokazuje wskaznik ladowania i ANI JEDNEGO kafelka KPI", async () => {
+  it("w trakcie pobierania pokazuje wskaźnik ładowania i ANI JEDNEGO kafelka KPI", async () => {
     h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
     panel();
 
     expect(await screen.findByText(common("loading"))).toBeInTheDocument();
-    // Zero i „jeszcze nie wiem" to dwie rozne informacje - dopoki raport nie
-    // dojedzie, panel nie ma prawa narysowac ani kafelka, ani wykresu.
+    // Zero i „jeszcze nie wiem" to dwie różne informacje - dopóki raport nie
+    // dojedzie, panel nie ma prawa narysować ani kafelka, ani wykresu.
     expect(screen.queryByText(dict("kpi.posts"))).toBeNull();
     expect(screen.queryAllByTestId("echart")).toHaveLength(0);
   });
 
-  it.fails("DEFEKT: w trakcie ladowania panel twierdzi, ze w oknie NIE MA danych", async () => {
-    // `!report` obsluguje jednym komunikatem dwa rozne stany: „jeszcze nie
-    // wiem" i „wiem, ze pusto". Operator patrzacy na „Brak danych w oknie."
-    // w pierwszej sekundzie po wejsciu dostaje twierdzenie o pomiarze, ktory
-    // sie jeszcze nie odbyl. Wskaznik ladowania stoi obok, ale to on jest
+  it.fails("DEFEKT: w trakcie ładowania panel twierdzi, że w oknie NIE MA danych", async () => {
+    // `!report` obsługuje jednym komunikatem dwa różne stany: „jeszcze nie
+    // wiem" i „wiem, że pusto". Operator patrzący na „Brak danych w oknie."
+    // w pierwszej sekundzie po wejściu dostaje twierdzenie o pomiarze, który
+    // się jeszcze nie odbył. Wskaźnik ładowania stoi obok, ale to on jest
     // dopiskiem, a nie tamten komunikat.
     h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
     panel();
@@ -349,17 +349,17 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
     expect(screen.queryByText(common("noDataWindow"))).toBeNull();
   });
 
-  it("brak raportu pokazuje komunikat o braku danych ze slownika", async () => {
-    // Panel bez raportu to JEDEN komunikat - zadnego kafelka, zadnego wykresu.
+  it("brak raportu pokazuje komunikat o braku danych ze słownika", async () => {
+    // Panel bez raportu to JEDEN komunikat - żadnego kafelka, żadnego wykresu.
     h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
     panel();
 
     expect(await screen.findByText(common("noDataWindow"))).toBeInTheDocument();
   });
 
-  it("PUSTY raport to zera z pomiaru, a nie zmyslone wezly wykresow", async () => {
-    // Tenant bez ruchu ma prawo zobaczyc zera - to jest pomiar. Czego NIE MA
-    // prawa zobaczyc, to wykresow z wymyslonymi punktami.
+  it("PUSTY raport to zera z pomiaru, a nie zmyślone węzły wykresów", async () => {
+    // Tenant bez ruchu ma prawo zobaczyć zera - to jest pomiar. Czego NIE MA
+    // prawa zobaczyć, to wykresów z wymyślonymi punktami.
     h.fetchInsights.mockResolvedValue(report());
     panel();
     await loaded();
@@ -371,13 +371,13 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
     expect(dataOf(popularityOption())).toEqual([]);
     expect(firstSeries(sankeyOption()).data).toEqual([]);
     expect(firstSeries(sankeyOption()).links).toEqual([]);
-    // Zaden prog interpretacji sie nie zapala, wiec sekcja jest w stanie pustym.
+    // Żaden próg interpretacji się nie zapala, więc sekcja jest w stanie pustym.
     expect(
       screen.getByText(realT("pl")("adminAnalytics.insightSection.emptyDefault")),
     ).toBeInTheDocument();
   });
 
-  it("po awarii zapytania pasek narzedzi zyje - operator moze zmienic okno i ponowic", async () => {
+  it("po awarii zapytania pasek narzędzi żyje - operator może zmienić okno i ponowić", async () => {
     h.fetchInsights.mockRejectedValue(new Error("RPC 500: related_posts_signals failed"));
     panel();
     await settled();
@@ -388,12 +388,12 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
     ).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: awaria zapytania wyglada DOKLADNIE jak pusty raport", async () => {
-    // Blizniaczy pulpit GA4 z tego samego modulu renderuje w tej sytuacji karte
-    // bledu. Tutaj `query.error` nie jest w ogole czytany: panel rysuje
-    // „Brak danych w oknie.", czyli twierdzi o pomiarze, ktorego nie bylo.
+  it.fails("DEFEKT: awaria zapytania wygląda DOKŁADNIE jak pusty raport", async () => {
+    // Bliźniaczy pulpit GA4 z tego samego modułu renderuje w tej sytuacji kartę
+    // błędu. Tutaj `query.error` nie jest w ogóle czytany: panel rysuje
+    // „Brak danych w oknie.", czyli twierdzi o pomiarze, którego nie było.
     // Administrator widzi „silnik rekomendacji nie ma danych" tam, gdzie w
-    // rzeczywistosci padlo RPC.
+    // rzeczywistości padło RPC.
     h.fetchInsights.mockRejectedValue(new Error("RPC 500: related_posts_signals failed"));
     const { container } = panel();
     await settled();
@@ -404,15 +404,15 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - okno czasu i wejscie zapytania", () => {
-  it("startowe okno to 30 dni i tyle trafia do WEJSCIA funkcji serwerowej", async () => {
+describe("RelatedPostsAnalytics - okno czasu i wejście zapytania", () => {
+  it("startowe okno to 30 dni i tyle trafia do WEJŚCIA funkcji serwerowej", async () => {
     panel();
     await loaded();
 
     expect(queryInputs()).toEqual([{ days: 30 }]);
   });
 
-  it("zmiana presetu na 7 dni przestawia WEJSCIE zapytania, nie tylko etykiete", async () => {
+  it("zmiana presetu na 7 dni przestawia WEJŚCIE zapytania, nie tylko etykietę", async () => {
     panel();
     await loaded();
     const before = h.fetchInsights.mock.calls.length;
@@ -426,8 +426,8 @@ describe("RelatedPostsAnalytics - okno czasu i wejscie zapytania", () => {
   });
 
   it("preset 24 godz. schodzi do JEDNEGO dnia, a nie do zera", async () => {
-    // `days` idzie do walidatora `z.number().int().min(1)` - okno krotsze niz
-    // doba musi zaokraglic sie w gore, inaczej zapytanie zostanie odrzucone.
+    // `days` idzie do walidatora `z.number().int().min(1)` - okno krótsze niż
+    // doba musi zaokrąglić się w górę, inaczej zapytanie zostanie odrzucone.
     panel();
     await loaded();
     const before = h.fetchInsights.mock.calls.length;
@@ -440,7 +440,7 @@ describe("RelatedPostsAnalytics - okno czasu i wejscie zapytania", () => {
     expect(queryInputs().slice(before)).toEqual([{ days: 1 }]);
   });
 
-  it("„Odswiez” ponawia zapytanie z tym samym oknem", async () => {
+  it("„Odśwież” ponawia zapytanie z tym samym oknem", async () => {
     panel();
     await loaded();
     const before = h.fetchInsights.mock.calls.length;
@@ -451,9 +451,9 @@ describe("RelatedPostsAnalytics - okno czasu i wejscie zapytania", () => {
     expect(queryInputs()[before]).toEqual({ days: 30 });
   });
 
-  it("podpis okna bierze liczbe dni Z RAPORTU, a nie z ustawienia filtra", async () => {
-    // Serwer moze zwrocic wezsze okno niz zamowione (np. tenant ma krotsza
-    // historie). Podpis ma mowic, co POKAZUJE wykres, a nie co zamowiono.
+  it("podpis okna bierze liczbę dni Z RAPORTU, a nie z ustawienia filtra", async () => {
+    // Serwer może zwrócić węższe okno niż zamówione (np. tenant ma krótszą
+    // historię). Podpis ma mówić, co POKAZUJE wykres, a nie co zamówiono.
     h.fetchInsights.mockResolvedValue(report({ summary: { window_days: 14 } }));
     panel();
     await loaded();
@@ -462,7 +462,7 @@ describe("RelatedPostsAnalytics - okno czasu i wejscie zapytania", () => {
     expect(screen.queryByText(dict("windowInfo", { days: 30 }))).toBeNull();
   });
 
-  it("przed odpowiedzia podpis okna pokazuje okno filtra, a nie puste miejsce", async () => {
+  it("przed odpowiedzią podpis okna pokazuje okno filtra, a nie puste miejsce", async () => {
     h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
     panel();
 
@@ -473,10 +473,10 @@ describe("RelatedPostsAnalytics - okno czasu i wejscie zapytania", () => {
 // ---------------------------------------------------------------------------
 
 describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
-  it("slupki kategorii ida ROSNACO ku gorze wykresu poziomego", async () => {
-    // ECharts rysuje kategorie osi Y od dolu, wiec panel odwraca liste. Bez
-    // `.reverse()` najmocniejsza kategoria ladowalaby na dole - wykres wyglada
-    // tak samo i klamie o rankingu.
+  it("słupki kategorii idą ROSNĄCO ku górze wykresu poziomego", async () => {
+    // ECharts rysuje kategorie osi Y od dołu, więc panel odwraca listę. Bez
+    // `.reverse()` najmocniejsza kategoria lądowałaby na dole - wykres wygląda
+    // tak samo i kłamie o rankingu.
     h.fetchInsights.mockResolvedValue(
       report({ top_categories: [cat("Pierwsza", 30), cat("Druga", 20), cat("Trzecia", 10)] }),
     );
@@ -488,7 +488,7 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     expect(numList(firstSeries(o).data)).toEqual([10, 20, 30]);
   });
 
-  it("ranking kategorii przycina sie do 15 pozycji i zostawia te najmocniejsze", async () => {
+  it("ranking kategorii przycina się do 15 pozycji i zostawia te najmocniejsze", async () => {
     const cats = Array.from({ length: 18 }, (_, i) => cat(`Kategoria ${18 - i}`, 100 - i));
     h.fetchInsights.mockResolvedValue(report({ top_categories: cats }));
     panel();
@@ -496,12 +496,12 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
 
     const names = strList(rec(topCatsOption().yAxis).data);
     expect(names).toHaveLength(15);
-    // Odciete sa OSTATNIE trzy (najslabsze), nie pierwsze.
+    // Odcięte są OSTATNIE trzy (najsłabsze), nie pierwsze.
     expect(names).toContain("Kategoria 18");
     expect(names).not.toContain("Kategoria 3");
   });
 
-  it("ranking tagow przycina sie do 20 pozycji", async () => {
+  it("ranking tagów przycina się do 20 pozycji", async () => {
     const tags = Array.from({ length: 24 }, (_, i) => tag(`t${i}`, `tag-${i}`, 100 - i));
     h.fetchInsights.mockResolvedValue(report({ top_tags: tags }));
     panel();
@@ -510,10 +510,10 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     expect(strList(rec(topTagsOption().yAxis).data)).toHaveLength(20);
   });
 
-  it("heatmapa jest SYMETRYCZNA i tlumaczy identyfikatory tagow na nazwy", async () => {
-    // Wspolwystepowanie nie ma kierunku, wiec kazda para musi dac dwie komorki.
-    // Tag spoza `top_tags` nie ma nazwy - panel pokazuje sesc znakow id zamiast
-    // pustki, i to tez jest kontrakt.
+  it("heatmapa jest SYMETRYCZNA i tłumaczy identyfikatory tagów na nazwy", async () => {
+    // Współwystępowanie nie ma kierunku, więc każda para musi dać dwie komórki.
+    // Tag spoza `top_tags` nie ma nazwy - panel pokazuje sześć znaków id zamiast
+    // pustki, i to też jest kontrakt.
     h.fetchInsights.mockResolvedValue(
       report({
         top_tags: [tag("t1", "Energia"), tag("t2", "Klimat"), tag("t3", "Bezpieczenstwo")],
@@ -529,7 +529,7 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
 
     const o = coocOption();
     expect(strList(rec(o.xAxis).data)).toEqual(["Energia", "Klimat", "Bezpieczenstwo", "niezna"]);
-    // Osie sa tozsame - macierz kwadratowa.
+    // Osie są tożsame - macierz kwadratowa.
     expect(rec(o.yAxis).data).toEqual(rec(o.xAxis).data);
     expect(dataOf(o)).toEqual([
       [0, 1, 5],
@@ -539,11 +539,11 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
       [3, 1, 2],
       [1, 3, 2],
     ]);
-    // Skala koloru siega najsilniejszej pary, nie stalej.
+    // Skala koloru sięga najsilniejszej pary, nie stałej.
     expect(rec(o.visualMap).max).toBe(5);
   });
 
-  it("pusta heatmapa dostaje skale 1, a nie zero - inaczej `visualMap` sie degeneruje", async () => {
+  it("pusta heatmapa dostaje skalę 1, a nie zero - inaczej `visualMap` się degeneruje", async () => {
     h.fetchInsights.mockResolvedValue(report({ tag_cooccurrence: [] }));
     panel();
     await loaded();
@@ -551,9 +551,9 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     expect(rec(coocOption().visualMap).max).toBe(1);
   });
 
-  it("heatmapa tnie sie do 25 tagow i NIE zostawia komorek wskazujacych poza macierz", async () => {
-    // Indeks spoza przycietej listy to `undefined` - gdyby trafil do komorki,
-    // ECharts narysowalby ja w rogu macierzy jako fałszywe wspolwystepowanie.
+  it("heatmapa tnie się do 25 tagów i NIE zostawia komórek wskazujących poza macierz", async () => {
+    // Indeks spoza przyciętej listy to `undefined` - gdyby trafił do komórki,
+    // ECharts narysowałby ją w rogu macierzy jako fałszywe współwystępowanie.
     const pairs = Array.from({ length: 30 }, (_, i) => coPair(`tag-${i}`, `tag-${i + 1}`, i + 1));
     h.fetchInsights.mockResolvedValue(report({ tag_cooccurrence: pairs }));
     panel();
@@ -569,7 +569,7 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     }
   });
 
-  it("scatter popularnosci niesie pare (wyswietlenia, unikalni) i przycina sie do 40 wpisow", async () => {
+  it("scatter popularności niesie parę (wyświetlenia, unikalni) i przycina się do 40 wpisów", async () => {
     const rows = Array.from({ length: 45 }, (_, i) => pop(`p${i}`, `Wpis ${i}`, 100 - i, 50 - i));
     h.fetchInsights.mockResolvedValue(report({ popularity: rows }));
     panel();
@@ -580,7 +580,7 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     expect(data[0]).toEqual({ name: "Wpis 0", value: [100, 50] });
   });
 
-  it("wpis BEZ tytulu pokazuje osiem znakow identyfikatora, a nie „undefined”", async () => {
+  it("wpis BEZ tytułu pokazuje osiem znaków identyfikatora, a nie „undefined”", async () => {
     h.fetchInsights.mockResolvedValue(
       report({ popularity: [pop("abcdefgh-ijkl-mnop", null, 10, 5)] }),
     );
@@ -591,7 +591,7 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     expect(data[0].name).toBe("abcdefgh");
   });
 
-  it("rozmiar punktu rosnie z pierwiastka wyswietlen i miesci sie w [6, 28]", async () => {
+  it("rozmiar punktu rośnie z pierwiastka wyświetleń i mieści się w [6, 28]", async () => {
     h.fetchInsights.mockResolvedValue(report({ popularity: [pop("p", "Wpis", 100, 10)] }));
     panel();
     await loaded();
@@ -600,14 +600,14 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     if (typeof size !== "function") throw new Error("test: scatter nie ma funkcji rozmiaru");
     const fn = size as (v: number[]) => number;
     expect(fn([100, 10])).toBe(15); // sqrt(100) * 1.5
-    expect(fn([0, 0])).toBe(6); // dolne ograniczenie - punkt musi byc widoczny
-    expect(fn([1_000_000, 0])).toBe(28); // gorne ograniczenie - nie zaslania wykresu
+    expect(fn([0, 0])).toBe(6); // dolne ograniczenie - punkt musi być widoczny
+    expect(fn([1_000_000, 0])).toBe(28); // górne ograniczenie - nie zasłania wykresu
   });
 
-  it("sankey rozdziela ten sam wpis na wezel ZRODLA i wezel CELU", async () => {
-    // Bez prefiksow `s:` / `t:` wpis bedacy jednoczesnie zrodlem i celem
-    // zamknalby cykl, a ECharts odmawia narysowania sankeya z cyklem - wykres
-    // znikalby bez sladu w konsoli.
+  it("sankey rozdziela ten sam wpis na węzeł ŹRÓDŁA i węzeł CELU", async () => {
+    // Bez prefiksów `s:` / `t:` wpis będący jednocześnie źródłem i celem
+    // zamknąłby cykl, a ECharts odmawia narysowania sankeya z cyklem - wykres
+    // znikałby bez śladu w konsoli.
     h.fetchInsights.mockResolvedValue(
       report({ click_pairs: [clickPair("A", "B", 7), clickPair("B", "C", 3)] }),
     );
@@ -626,11 +626,11 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     expect(links.map((l) => l.value)).toEqual([7, 3]);
   });
 
-  it("para klikniec BEZ tytulow buduje wezly ze skroconych identyfikatorow", async () => {
-    // RPC oddaje `source_title` / `target_title` jako `null` dla wpisow
-    // usunietych albo nieopublikowanych. Wezel musi wtedy dostac szesc znakow
-    // identyfikatora, inaczej sankey rysuje dwa wezly o nazwie „undefined"
-    // i skleja w nie ruch z roznych wpisow.
+  it("para kliknięć BEZ tytułów buduje węzły ze skróconych identyfikatorów", async () => {
+    // RPC oddaje `source_title` / `target_title` jako `null` dla wpisów
+    // usuniętych albo nieopublikowanych. Węzeł musi wtedy dostać sześć znaków
+    // identyfikatora, inaczej sankey rysuje dwa węzły o nazwie „undefined"
+    // i skleja w nie ruch z różnych wpisów.
     h.fetchInsights.mockResolvedValue(
       report({
         click_pairs: [
@@ -652,7 +652,7 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     expect(JSON.stringify(nodes)).not.toContain("undefined");
   });
 
-  it("etykieta wezla sankeya obcina sie do 32 znakow", async () => {
+  it("etykieta węzła sankeya obcina się do 32 znaków", async () => {
     const longTitle = "Bardzo dlugi tytul wpisu ktory nie zmiesci sie na osi wykresu";
     h.fetchInsights.mockResolvedValue(
       report({
@@ -669,11 +669,11 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     const fn = labelFn as (p: { name: string }) => string;
     expect(fn({ name: `s:A|${longTitle}` })).toBe(longTitle.slice(0, 32));
     expect(fn({ name: `s:A|${longTitle}` })).toHaveLength(32);
-    // Nazwa bez separatora nie ma prawa dac „undefined" na osi.
+    // Nazwa bez separatora nie ma prawa dać „undefined" na osi.
     expect(fn({ name: "s:A" })).toBe("");
   });
 
-  it("hub-posty przycinaja sie do 12 i ida rosnaco ku gorze", async () => {
+  it("hub-posty przycinają się do 12 i idą rosnąco ku górze", async () => {
     const hubs = Array.from({ length: 15 }, (_, i) => hub(`h${i}`, `Hub ${i}`, 100 - i, 5));
     h.fetchInsights.mockResolvedValue(report({ hub_targets: hubs }));
     panel();
@@ -682,16 +682,16 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     const o = hubOption();
     const names = strList(rec(o.yAxis).data);
     expect(names).toHaveLength(12);
-    expect(names[0]).toBe("Hub 11"); // najslabszy z dwunastki na dole
-    expect(names[11]).toBe("Hub 0"); // najmocniejszy na gorze
+    expect(names[0]).toBe("Hub 11"); // najsłabszy z dwunastki na dole
+    expect(names[11]).toBe("Hub 0"); // najmocniejszy na górze
     expect(numList(firstSeries(o).data)[11]).toBe(100);
   });
 });
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - podpowiedzi wykresow", () => {
-  it("podpowiedz heatmapy sklada obie nazwy tagow i liczbe wspolnych wpisow", async () => {
+describe("RelatedPostsAnalytics - podpowiedzi wykresów", () => {
+  it("podpowiedź heatmapy składa obie nazwy tagów i liczbę wspólnych wpisów", async () => {
     h.fetchInsights.mockResolvedValue(
       report({
         top_tags: [tag("t1", "Energia"), tag("t2", "Klimat")],
@@ -706,7 +706,7 @@ describe("RelatedPostsAnalytics - podpowiedzi wykresow", () => {
     expect(html).not.toContain("adminAnalytics.");
   });
 
-  it("podpowiedz scatteru podaje wyswietlenia i unikalnych ze slownika", async () => {
+  it("podpowiedź scatteru podaje wyświetlenia i unikalnych ze słownika", async () => {
     h.fetchInsights.mockResolvedValue(report({ popularity: [pop("p", "Wpis X", 90, 40)] }));
     panel();
     await loaded();
@@ -715,21 +715,21 @@ describe("RelatedPostsAnalytics - podpowiedzi wykresow", () => {
     expect(html).toBe(`Wpis X<br/>${dict("views")}: <b>90</b><br/>${dict("uniques")}: <b>40</b>`);
   });
 
-  it("podpowiedz sankeya rozroznia krawedz od wezla", async () => {
+  it("podpowiedź sankeya rozróżnia krawędź od węzła", async () => {
     h.fetchInsights.mockResolvedValue(report({ click_pairs: [clickPair("A", "B", 7)] }));
     panel();
     await loaded();
 
     const fmt = tooltipFormatter(sankeyOption());
-    // Krawedz mowi o liczbie klikniec...
+    // Krawędź mówi o liczbie kliknięć...
     expect(fmt({ dataType: "edge", value: 7 })).toBe(`7 ${dict("clicksShort")}`);
-    // ...a wezel o tytule wpisu, bez technicznego prefiksu i identyfikatora.
+    // ...a węzeł o tytule wpisu, bez technicznego prefiksu i identyfikatora.
     expect(fmt({ dataType: "node", name: "s:A|Zrodlo A" })).toBe("Zrodlo A");
-    // Wezel bez nazwy nie ma prawa wypisac „undefined".
+    // Węzeł bez nazwy nie ma prawa wypisać „undefined".
     expect(fmt({ dataType: "node" })).toBe("");
   });
 
-  it("podpowiedz hub-postow laczy klikniecia i liczbe zrodel z TEGO slupka", async () => {
+  it("podpowiedź hub-postów łączy kliknięcia i liczbę źródeł z TEGO słupka", async () => {
     h.fetchInsights.mockResolvedValue(
       report({ hub_targets: [hub("h1", "Hub pierwszy", 40, 6), hub("h2", "Hub drugi", 10, 2)] }),
     );
@@ -737,17 +737,17 @@ describe("RelatedPostsAnalytics - podpowiedzi wykresow", () => {
     await loaded();
 
     const fmt = tooltipFormatter(hubOption());
-    // Lista jest odwrocona, wiec indeks 0 to SLABSZY hub - podpowiedz musi
-    // czytac ten sam odwrocony porzadek co os, inaczej pokaze cudze liczby.
+    // Lista jest odwrócona, więc indeks 0 to SŁABSZY hub - podpowiedź musi
+    // czytać ten sam odwrócony porządek co oś, inaczej pokaże cudze liczby.
     expect(fmt([{ dataIndex: 0, value: 10, name: "Hub drugi" }])).toBe(
       `Hub drugi<br/>${dict("hubClicksLabel")}<b>10</b><br/>${dict("hubSourcesLabel")}2`,
     );
     expect(fmt([{ dataIndex: 1, value: 40, name: "Hub pierwszy" }])).toContain("<b>40</b>");
   });
 
-  it("podpowiedz huba BEZ tytulu pokazuje osiem znakow identyfikatora", async () => {
-    // Ta sama zasada co na osi: brak tytulu ma dac skrocony identyfikator, a
-    // nie „undefined" w dymku nad slupkiem.
+  it("podpowiedź huba BEZ tytułu pokazuje osiem znaków identyfikatora", async () => {
+    // Ta sama zasada co na osi: brak tytułu ma dać skrócony identyfikator, a
+    // nie „undefined" w dymku nad słupkiem.
     h.fetchInsights.mockResolvedValue(
       report({ hub_targets: [hub("abcdefgh-1234-5678", null, 12, 3)] }),
     );
@@ -759,7 +759,7 @@ describe("RelatedPostsAnalytics - podpowiedzi wykresow", () => {
     );
   });
 
-  it("podpowiedz hub-postow bez wiersza nie zmysla tresci", async () => {
+  it("podpowiedź hub-postów bez wiersza nie zmyśla treści", async () => {
     h.fetchInsights.mockResolvedValue(report({ hub_targets: [hub("h1", "Hub", 1, 1)] }));
     panel();
     await loaded();
@@ -771,7 +771,7 @@ describe("RelatedPostsAnalytics - podpowiedzi wykresow", () => {
 // ---------------------------------------------------------------------------
 
 describe("RelatedPostsAnalytics - kafelki KPI", () => {
-  it("liczby powyzej tysiaca skracaja sie do „k”, a mniejsze ida doslownie", async () => {
+  it("liczby powyżej tysiąca skracają się do „k”, a mniejsze idą dosłownie", async () => {
     h.fetchInsights.mockResolvedValue(
       report({
         summary: {
@@ -791,10 +791,10 @@ describe("RelatedPostsAnalytics - kafelki KPI", () => {
     expect(kpiValue(dict("kpi.reads"))).toBe("12.3k");
   });
 
-  it("wartosc spoza zakresu liczb pokazuje kreske, a nie „NaN”", async () => {
-    // RPC oddaje jsonb - pole, ktorego zabraklo w agregacie SQL, dojedzie jako
-    // `null` i po arytmetyce w kafelku zrobi sie z niego `NaN`. Kreska mowi
-    // „nie wiem"; „NaN" na pulpicie mowi tylko, ze cos jest zepsute.
+  it("wartość spoza zakresu liczb pokazuje kreskę, a nie „NaN”", async () => {
+    // RPC oddaje jsonb - pole, którego zabrakło w agregacie SQL, dojedzie jako
+    // `null` i po arytmetyce w kafelku zrobi się z niego `NaN`. Kreska mówi
+    // „nie wiem"; „NaN" na pulpicie mówi tylko, że coś jest zepsute.
     h.fetchInsights.mockResolvedValue(report({ summary: { total_posts: Number.NaN } }));
     panel();
     await loaded();
@@ -806,7 +806,7 @@ describe("RelatedPostsAnalytics - kafelki KPI", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
+describe("RelatedPostsAnalytics - interpretacja sygnałów", () => {
   async function withSummary(over: ReportOverride): Promise<HTMLElement> {
     h.fetchInsights.mockResolvedValue(report(over));
     panel();
@@ -821,7 +821,7 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     expect(
       within(card).getByText(dict("insights.noClicks.detail", { views: 101 })),
     ).toBeInTheDocument();
-    // Odznaka „krytycznych" wystawia licznik - kolor paska to za malo.
+    // Odznaka „krytycznych" wystawia licznik - kolor paska to za mało.
     expect(
       within(card).getByText(
         realT("pl")("adminAnalytics.insightSection.badgeCritical", { count: 1 }),
@@ -832,9 +832,9 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     }
   });
 
-  it("DOKLADNIE 100 wyswietlen bez klikow nie zapala ani ostrzezenia, ani CTR", async () => {
-    // Prog to `> 100`, nie `>= 100`. Jeden wiersz mniej i panel milczy o CTR -
-    // to jest swiadoma luka w regule, a nie przeoczenie testu.
+  it("DOKŁADNIE 100 wyświetleń bez klików nie zapala ani ostrzeżenia, ani CTR", async () => {
+    // Próg to `> 100`, nie `>= 100`. Jeden wiersz mniej i panel milczy o CTR -
+    // to jest świadoma luka w regule, a nie przeoczenie testu.
     const card = await withSummary({ summary: { total_views: 100, total_clicks: 0 } });
 
     expect(within(card).queryByText(dict("insights.noClicks.element"))).toBeNull();
@@ -856,10 +856,10 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     expect(within(card).queryByText(dictList("insights.ctr.fixesBad")[0])).toBeNull();
   });
 
-  it("CTR 1% to OBSERWACJA, ale juz z lista naprawcza", async () => {
-    // Dwa lancuchy `if` nad ta sama liczba: severity lamie sie na 3 i 1, a
-    // lista fiksow TYLKO na 3. Prog 1% jest wiec granica, na ktorej te dwie
-    // decyzje sie rozjezdzaja - i dlatego ma wlasny przypadek.
+  it("CTR 1% to OBSERWACJA, ale już z listą naprawczą", async () => {
+    // Dwa łańcuchy `if` nad tą samą liczbą: severity łamie się na 3 i 1, a
+    // lista fiksów TYLKO na 3. Próg 1% jest więc granicą, na której te dwie
+    // decyzje się rozjeżdżają - i dlatego ma własny przypadek.
     const card = await withSummary({
       summary: { total_views: 1000, total_clicks: 10, total_reads: 40 },
     });
@@ -873,7 +873,7 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     }
   });
 
-  it("CTR ponizej 1% to OSTRZEZENIE", async () => {
+  it("CTR poniżej 1% to OSTRZEŻENIE", async () => {
     const card = await withSummary({
       summary: { total_views: 1000, total_clicks: 9, total_reads: 40 },
     });
@@ -884,7 +884,7 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     ).toBeInTheDocument();
   });
 
-  it("trzy kategorie z mniej niz trzema wpisami zapalaja ostrzezenie o strukturze", async () => {
+  it("trzy kategorie z mniej niż trzema wpisami zapalają ostrzeżenie o strukturze", async () => {
     const card = await withSummary({
       top_categories: [cat("A", 1), cat("B", 2), cat("C", 1), cat("D", 9)],
     });
@@ -894,10 +894,10 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     ).toBeInTheDocument();
   });
 
-  it("kategoria PUSTA i kategoria z trzema wpisami nie licza sie do ostrzezenia", async () => {
-    // Prog to `posts_count > 0 && < 3`. Kategoria bez wpisow jest problemem
-    // innego rodzaju (do usuniecia, nie do scalenia), a trzy wpisy to juz
-    // minimum, ktore silnik obsluzy.
+  it("kategoria PUSTA i kategoria z trzema wpisami nie liczą się do ostrzeżenia", async () => {
+    // Próg to `posts_count > 0 && < 3`. Kategoria bez wpisów jest problemem
+    // innego rodzaju (do usunięcia, nie do scalenia), a trzy wpisy to już
+    // minimum, które silnik obsłuży.
     const card = await withSummary({
       top_categories: [cat("A", 0), cat("B", 0), cat("C", 3), cat("D", 1), cat("E", 1)],
     });
@@ -905,21 +905,21 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     expect(within(card).queryByText(dict("insights.smallCats.element"))).toBeNull();
   });
 
-  it("brak historii czytania przy ruchu powyzej 50 wyswietlen to obserwacja", async () => {
+  it("brak historii czytania przy ruchu powyżej 50 wyświetleń to obserwacja", async () => {
     const card = await withSummary({ summary: { total_views: 51, total_reads: 0 } });
 
     expect(within(card).getByText(dict("insights.noReads.title"))).toBeInTheDocument();
   });
 
-  it("przy 50 wyswietleniach panel jeszcze NIE wnioskuje o personalizacji", async () => {
+  it("przy 50 wyświetleniach panel jeszcze NIE wnioskuje o personalizacji", async () => {
     const card = await withSummary({ summary: { total_views: 50, total_reads: 0 } });
 
     expect(within(card).queryByText(dict("insights.noReads.element"))).toBeNull();
   });
 
-  it("srednia ponizej 2 wspolnych wpisow to RZADKI graf tagow", async () => {
+  it("średnia poniżej 2 wspólnych wpisów to RZADKI graf tagów", async () => {
     const card = await withSummary({
-      tag_cooccurrence: [coPair("a", "b", 1), coPair("b", "c", 2)], // srednia 1.5
+      tag_cooccurrence: [coPair("a", "b", 1), coPair("b", "c", 2)], // średnia 1.5
     });
 
     expect(
@@ -928,9 +928,9 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     expect(within(card).queryByText(dict("insights.healthyTags.title"))).toBeNull();
   });
 
-  it("srednia DOKLADNIE 2 to juz graf ZDROWY - bez listy dzialan", async () => {
+  it("średnia DOKŁADNIE 2 to już graf ZDROWY - bez listy działań", async () => {
     const card = await withSummary({
-      tag_cooccurrence: [coPair("a", "b", 1), coPair("b", "c", 3)], // srednia 2.0
+      tag_cooccurrence: [coPair("a", "b", 1), coPair("b", "c", 3)], // średnia 2.0
     });
 
     expect(within(card).getByText(dict("insights.healthyTags.title"))).toBeInTheDocument();
@@ -939,7 +939,7 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     ).toBeInTheDocument();
   });
 
-  it("hub z pieciu klikniec zapala wpis o wchlanianiu ruchu", async () => {
+  it("hub z pięciu kliknięć zapala wpis o wchłanianiu ruchu", async () => {
     const card = await withSummary({ hub_targets: [hub("h1", "Wielki hub", 5, 3)] });
 
     expect(
@@ -950,7 +950,7 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     ).toBeInTheDocument();
   });
 
-  it("hub BEZ tytulu pokazuje osiem znakow identyfikatora, nie „undefined”", async () => {
+  it("hub BEZ tytułu pokazuje osiem znaków identyfikatora, nie „undefined”", async () => {
     const card = await withSummary({ hub_targets: [hub("abcdefgh-1234", null, 9, 2)] });
 
     expect(
@@ -958,13 +958,13 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     ).toBeInTheDocument();
   });
 
-  it("cztery klikniecia to za malo na wpis o hubie", async () => {
+  it("cztery kliknięcia to za mało na wpis o hubie", async () => {
     const card = await withSummary({ hub_targets: [hub("h1", "Prawie hub", 4, 3)] });
 
     expect(within(card).queryByText(dict("insights.hub.element"))).toBeNull();
   });
 
-  it("trzy popularne wpisy spoza hubow to ostrzezenie o rozjezdzie", async () => {
+  it("trzy popularne wpisy spoza hubów to ostrzeżenie o rozjeździe", async () => {
     const card = await withSummary({
       popularity: [
         pop("p1", "Popularny 1", 100, 50),
@@ -980,7 +980,7 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     ).toBeInTheDocument();
   });
 
-  it("dwa popularne wpisy spoza hubow to jeszcze nie rozjazd", async () => {
+  it("dwa popularne wpisy spoza hubów to jeszcze nie rozjazd", async () => {
     const card = await withSummary({
       popularity: [pop("p1", "Pop 1", 100, 50), pop("p2", "Pop 2", 90, 40), pop("h1", "Hub", 5, 2)],
       hub_targets: [hub("h1", "Hub", 20, 4)],
@@ -989,9 +989,9 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     expect(within(card).queryByText(dict("insights.mismatch.element"))).toBeNull();
   });
 
-  it("bez hub-postow regula rozjazdu w ogole sie nie uruchamia", async () => {
-    // `pop.length > 0 && hubs.length > 0` - bez celow klikniec nie ma z czym
-    // porownac popularnosci, wiec panel nie ma prawa oskarzyc silnika.
+  it("bez hub-postów reguła rozjazdu w ogóle się nie uruchamia", async () => {
+    // `pop.length > 0 && hubs.length > 0` - bez celów kliknięć nie ma z czym
+    // porównać popularności, więc panel nie ma prawa oskarżyć silnika.
     const card = await withSummary({
       popularity: [
         pop("p1", "Pop 1", 100, 50),
@@ -1004,7 +1004,7 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
     expect(within(card).queryByText(dict("insights.mismatch.element"))).toBeNull();
   });
 
-  it("kazdy wpis interpretacji jest GOTOWYM tekstem - bez surowych kluczy, „{{}}” i NaN", async () => {
+  it("każdy wpis interpretacji jest GOTOWYM tekstem - bez surowych kluczy, „{{}}” i NaN", async () => {
     const card = await withSummary({
       summary: { total_views: 4000, total_clicks: 120, total_reads: 0 },
       top_categories: [cat("A", 1), cat("B", 1), cat("C", 1)],
@@ -1023,8 +1023,8 @@ describe("RelatedPostsAnalytics - interpretacja sygnalow", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - izolacja warsztatow", () => {
-  it("panel warsztatu B pokazuje WYLACZNIE wiersze warsztatu B", async () => {
+describe("RelatedPostsAnalytics - izolacja warsztatów", () => {
+  it("panel warsztatu B pokazuje WYŁĄCZNIE wiersze warsztatu B", async () => {
     h.fetchInsights.mockResolvedValue(WORKSPACE_B);
     const { container } = panel();
     await loaded();
@@ -1041,12 +1041,12 @@ describe("RelatedPostsAnalytics - izolacja warsztatow", () => {
     ]) {
       expect(text).not.toContain(leak);
     }
-    // Takze w danych oddanych wykresom - wyciek moze siedziec w kanwie.
+    // Także w danych oddanych wykresom - wyciek może siedzieć w kanwie.
     expect(JSON.stringify(h.charts)).not.toContain("Alfa");
   });
 
-  it("swiezy klient react-query nie przenosi raportu miedzy warsztatami", async () => {
-    // Sciezka produkcyjna przy przeladowaniu panelu: nowy klient, nowy odczyt.
+  it("świeży klient react-query nie przenosi raportu między warsztatami", async () => {
+    // Ścieżka produkcyjna przy przeładowaniu panelu: nowy klient, nowy odczyt.
     h.fetchInsights.mockResolvedValue(WORKSPACE_A);
     const first = panel();
     await loaded();
@@ -1065,15 +1065,15 @@ describe("RelatedPostsAnalytics - izolacja warsztatow", () => {
   });
 
   it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu, wiec panel B maluje raport warsztatu A",
+    "DEFEKT: klucz cache nie niesie warsztatu, więc panel B maluje raport warsztatu A",
     async () => {
       // `queryKey: ["related-insights", range.days]` nie zawiera ani tenanta,
-      // ani uzytkownika. Gdy klient react-query przezywa przelaczenie warsztatu
-      // (a przezywa - jest tworzony raz na aplikacje), panel warsztatu B trafia
-      // w TEN SAM wpis cache. Przy `staleTime: 60_000` dane sa jeszcze swieze,
-      // wiec react-query NIE ponawia zapytania: administrator warsztatu B widzi
-      // kategorie, tagi, huby i tytuly wpisow warsztatu A, i to bez ani jednego
-      // zadania sieciowego. Wyciek jest calkowicie cichy - widac go wylacznie
+      // ani użytkownika. Gdy klient react-query przeżywa przełączenie warsztatu
+      // (a przeżywa - jest tworzony raz na aplikację), panel warsztatu B trafia
+      // w TEN SAM wpis cache. Przy `staleTime: 60_000` dane są jeszcze świeże,
+      // więc react-query NIE ponawia zapytania: administrator warsztatu B widzi
+      // kategorie, tagi, huby i tytuły wpisów warsztatu A, i to bez ani jednego
+      // żądania sieciowego. Wyciek jest całkowicie cichy - widać go wyłącznie
       // na ekranie.
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       h.fetchInsights.mockResolvedValue(WORKSPACE_A);
@@ -1092,8 +1092,8 @@ describe("RelatedPostsAnalytics - izolacja warsztatow", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - dostepnosc", () => {
-  it("kazdy z szesciu wykresow ma nazwe regionu zbudowana z tytulu karty", async () => {
+describe("RelatedPostsAnalytics - dostępność", () => {
+  it("każdy z sześciu wykresów ma nazwę regionu zbudowaną z tytułu karty", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -1108,19 +1108,19 @@ describe("RelatedPostsAnalytics - dostepnosc", () => {
     );
   });
 
-  it("poza nienazwanymi przyciskami panel nie ma innych naruszen axe", async () => {
+  it("poza nienazwanymi przyciskami panel nie ma innych naruszeń axe", async () => {
     const { container } = panel();
     await loaded();
 
-    // Regule `button-name` wylaczamy TYLKO tutaj i tylko po to, zeby jeden
-    // znany defekt (test nizej) nie przykrywal wszystkiego innego: kolejnosci
-    // naglowkow, poprawnosci ARIA i semantyki list.
+    // Regułę `button-name` wyłączamy TYLKO tutaj i tylko po to, żeby jeden
+    // znany defekt (test niżej) nie przykrywał wszystkiego innego: kolejności
+    // nagłówków, poprawności ARIA i semantyki list.
     expect(summarize(await axeViolations(container, { "button-name": { enabled: false } }))).toBe(
       "",
     );
   });
 
-  it("karta braku danych jest wolna od naruszen axe", async () => {
+  it("karta braku danych jest wolna od naruszeń axe", async () => {
     h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
     const { container } = panel();
     await screen.findByText(common("noDataWindow"));
@@ -1128,22 +1128,22 @@ describe("RelatedPostsAnalytics - dostepnosc", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: przyciski „wiecej” na kartach wykresow nie maja dostepnej nazwy", async () => {
-    // `ChartCard` daje `aria-label` przyciskowi pelnego ekranu, ale przycisk
-    // menu obok to sama ikona `MoreHorizontal`. Szesc wykresow = szesc
-    // bezimiennych przyciskow, przez ktore chodzi eksport PNG/CSV.
+  it.fails("DEFEKT: przyciski „więcej” na kartach wykresów nie mają dostępnej nazwy", async () => {
+    // `ChartCard` daje `aria-label` przyciskowi pełnego ekranu, ale przycisk
+    // menu obok to sama ikona `MoreHorizontal`. Sześć wykresów = sześć
+    // bezimiennych przycisków, przez które chodzi eksport PNG/CSV.
     const { container } = panel();
     await loaded();
 
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: zaden wykres panelu nie dostaje tekstowej alternatywy", async () => {
-    // `ChartCard` UMIE zbudowac tabele danych z `csv` i podpiac ja przez
-    // `aria-describedby`. Ten panel nie podaje `csv` ANI RAZU, wiec dla
-    // czytnika ekranu wszystkie szesc wykresow to pusty prostokat z sama
-    // nazwa. Slownik ma nawet gotowy komunikat na te sytuacje
-    // (`chartCard.dataTableMissing`), ktorego nikt nie uzywa.
+  it.fails("DEFEKT: żaden wykres panelu nie dostaje tekstowej alternatywy", async () => {
+    // `ChartCard` UMIE zbudować tabelę danych z `csv` i podpiąć ją przez
+    // `aria-describedby`. Ten panel nie podaje `csv` ANI RAZU, więc dla
+    // czytnika ekranu wszystkie sześć wykresów to pusty prostokąt z samą
+    // nazwą. Słownik ma nawet gotowy komunikat na tę sytuację
+    // (`chartCard.dataTableMissing`), którego nikt nie używa.
     panel();
     await loaded();
 
@@ -1156,7 +1156,7 @@ describe("RelatedPostsAnalytics - dostepnosc", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - dwujezycznosc", () => {
+describe("RelatedPostsAnalytics - dwujęzyczność", () => {
   const TITLE_KEYS = [
     "charts.topCatsTitle",
     "charts.topTagsTitle",
@@ -1166,7 +1166,7 @@ describe("RelatedPostsAnalytics - dwujezycznosc", () => {
     "charts.sankeyTitle",
   ] as const;
 
-  it("wszystkie szesc kart wykresow nazywa sie ze slownika PL", async () => {
+  it("wszystkie sześć kart wykresów nazywa się ze słownika PL", async () => {
     panel();
     await loaded();
 
@@ -1176,7 +1176,7 @@ describe("RelatedPostsAnalytics - dwujezycznosc", () => {
     }
   });
 
-  it("ten sam panel po EN mowi po angielsku, bez ani jednego polskiego tytulu", async () => {
+  it("ten sam panel po EN mówi po angielsku, bez ani jednego polskiego tytułu", async () => {
     await i18n.changeLanguage("en");
     panel();
     await loaded("en");
@@ -1185,7 +1185,7 @@ describe("RelatedPostsAnalytics - dwujezycznosc", () => {
       expect(screen.getByText(dict(key, {}, "en"))).toBeInTheDocument();
       expect(screen.queryByText(dict(key, {}, "pl"))).toBeNull();
     }
-    // Kafelki i podpis okna tez, nie tylko naglowki kart.
+    // Kafelki i podpis okna też, nie tylko nagłówki kart.
     expect(screen.getByText(dict("kpi.clicks", {}, "en"))).toBeInTheDocument();
     expect(screen.getByText(dict("windowInfo", { days: 30 }, "en"))).toBeInTheDocument();
   });
@@ -1208,9 +1208,9 @@ describe("RelatedPostsAnalytics - dwujezycznosc", () => {
     expect(text).not.toContain(dict("insights.noReads.title", {}, "pl"));
   });
 
-  it("slownik EN ma DOKLADNIE te same klucze i tak samo dlugie listy co PL", async () => {
-    // Brakujacy klucz EN nie wywala aplikacji - cicho spada na polski tekst na
-    // angielskim ekranie. Krotsza lista `fixes` gubi jedno dzialanie naprawcze.
+  it("słownik EN ma DOKŁADNIE te same klucze i tak samo długie listy co PL", async () => {
+    // Brakujący klucz EN nie wywala aplikacji - cicho spada na polski tekst na
+    // angielskim ekranie. Krótsza lista `fixes` gubi jedno działanie naprawcze.
     const pl = shape(subtree("pl", ["adminAnalytics", "related"]));
     const en = shape(subtree("en", ["adminAnalytics", "related"]));
 
@@ -1221,10 +1221,10 @@ describe("RelatedPostsAnalytics - dwujezycznosc", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - odswiezanie", () => {
-  it("w trakcie ponowienia przycisk „Odswiez” NIE blokuje sie na stale", async () => {
-    // `disabled={isLoading}` patrzy na PIERWSZE ladowanie, nie na `isFetching`.
-    // Po odpowiedzi przycisk ma byc znowu klikalny, inaczej operator utknie.
+describe("RelatedPostsAnalytics - odświeżanie", () => {
+  it("w trakcie ponowienia przycisk „Odśwież” NIE blokuje się na stałe", async () => {
+    // `disabled={isLoading}` patrzy na PIERWSZE ładowanie, nie na `isFetching`.
+    // Po odpowiedzi przycisk ma być znowu klikalny, inaczej operator utknie.
     panel();
     await loaded();
 

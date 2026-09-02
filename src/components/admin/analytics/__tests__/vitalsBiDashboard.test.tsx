@@ -1,34 +1,34 @@
 // `VitalsBiDashboard` - pulpit Core Web Vitals: progi, luki w danych, stany
-// i izolacja warsztatow.
+// i izolacja warsztatów.
 //
-// PO CO. Plik stal na zerze (0/86 linii, 0/37 funkcji). Sama matematyka
-// agregatu (`aggregate.ts`) i katalog progow (`vitalsThresholds.ts`) maja juz
-// pelne pokrycie - TUTAJ przedmiotem dowodu jest to, czego tamte pliki nie
-// widza, a co decyduje o tym, czy administrator patrzy na POMIAR, czy na
-// atrape pomiaru:
+// PO CO. Plik stał na zerze (0/86 linii, 0/37 funkcji). Sama matematyka
+// agregatu (`aggregate.ts`) i katalog progów (`vitalsThresholds.ts`) mają już
+// pełne pokrycie - TUTAJ przedmiotem dowodu jest to, czego tamte pliki nie
+// widzą, a co decyduje o tym, czy administrator patrzy na POMIAR, czy na
+// atrapę pomiaru:
 //
-//   1. PROGI MUSZA DOJECHAC DO EKRANU. Pasma Good / Needs / Poor na kazdym
+//   1. PROGI MUSZĄ DOJECHAĆ DO EKRANU. Pasma Good / Needs / Poor na każdym
 //      wykresie trendu, linie progowe z podpisami i klasyfikacja w oknie
-//      drazenia sa budowane z `VITAL_THRESHOLDS`. Wpisana na sztywno liczba
-//      albo zamieniona kolejnosc `if`-ow nie wywraca wykresu - przesuwa
-//      granice miedzy „zielono" a „czerwono" przy niezmienionym wygladzie.
-//      Dlatego asercje ida na `VITAL_THRESHOLDS`, a nie na literaly.
-//   2. ZMYSLONE ZERO JEST GORSZE NIZ LUKA. Metryka bez ani jednej probki ma
-//      byc pokazana jako brak danych, a nie jako 0 ms - zero na pulpicie
-//      wydajnosci czyta sie jako „idealnie", czyli dokladnie odwrotnie niz
-//      „nie wiem". Panel robi to POLOWICZNIE i ta polowa jest tu przypieta
+//      drążenia są budowane z `VITAL_THRESHOLDS`. Wpisana na sztywno liczba
+//      albo zamieniona kolejność `if`-ów nie wywraca wykresu - przesuwa
+//      granice między „zielono" a „czerwono" przy niezmienionym wyglądzie.
+//      Dlatego asercje idą na `VITAL_THRESHOLDS`, a nie na literały.
+//   2. ZMYŚLONE ZERO JEST GORSZE NIŻ LUKA. Metryka bez ani jednej próbki ma
+//      być pokazana jako brak danych, a nie jako 0 ms - zero na pulpicie
+//      wydajności czyta się jako „idealnie", czyli dokładnie odwrotnie niż
+//      „nie wiem". Panel robi to POŁOWICZNIE i ta połowa jest tu przypięta
 //      `it.fails`.
-//   3. TRZY STANY, JEDEN KOMUNIKAT. „Jeszcze nie wiem", „zapytanie padlo" i
-//      „w oknie naprawde nie bylo ruchu" konczyly sie tym samym napisem.
-//   4. OKABLOWANIE FILTRA. Zmiana okna ma przestawic WEJSCIE zapytania
-//      (`sinceIso` / `untilIso`), nie tylko etykiete.
-//   5. IZOLACJA WARSZTATOW. Klucz cache niesie wylacznie okno - nie ma w nim
-//      ani tenanta, ani uzytkownika. Test dowodzi izolacji przy swiezym
-//      kliencie i przypina sytuacje, w ktorej ten brak zaczyna byc widoczny.
+//   3. TRZY STANY, JEDEN KOMUNIKAT. „Jeszcze nie wiem", „zapytanie padło" i
+//      „w oknie naprawdę nie było ruchu" kończyły się tym samym napisem.
+//   4. OKABLOWANIE FILTRA. Zmiana okna ma przestawić WEJŚCIE zapytania
+//      (`sinceIso` / `untilIso`), nie tylko etykietę.
+//   5. IZOLACJA WARSZTATÓW. Klucz cache niesie wyłącznie okno - nie ma w nim
+//      ani tenanta, ani użytkownika. Test dowodzi izolacji przy świeżym
+//      kliencie i przypina sytuację, w której ten brak zaczyna być widoczny.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz naglowek `EChart.tsx`): podmieniamy `EChart`
-// atrapa, ktora PRZECHWYTUJE `option` oraz `onDataClick`. Dzieki temu progi,
-// serie i drazenie sprawdzamy na strukturze danych oddanej wykresowi, a nie na
+// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
+// atrapą, która PRZECHWYTUJE `option` oraz `onDataClick`. Dzięki temu progi,
+// serie i drążenie sprawdzamy na strukturze danych oddanej wykresowi, a nie na
 // pikselach - i ~1 MB biblioteki nigdy nie wchodzi do procesu testowego.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -53,9 +53,9 @@ const h = vi.hoisted(() => ({
   }>,
 }));
 
-// `useServerFn` staje sie tozsamoscia - wywolanie idzie prosto do atrapy.
-// Mock CZESCIOWY, bo `@/lib/i18n` ciagnie z tego samego pakietu
-// `createIsomorphicFn`, a pelna atrapa wywracalaby inicjalizacje slownika.
+// `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
+// Mock CZĘŚCIOWY, bo `@/lib/i18n` ciągnie z tego samego pakietu
+// `createIsomorphicFn`, a pełna atrapa wywracałaby inicjalizację słownika.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
@@ -78,8 +78,8 @@ vi.mock("../EChart", () => ({
   },
 }));
 
-// `react-i18next` NIE JEST atrapowany: panel jest dwujezyczny, a przedmiotem
-// dowodu jest to, ze napisy przychodza ZE SLOWNIKA.
+// `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
+// dowodu jest to, że napisy przychodzą ZE SŁOWNIKA.
 import "@/test/i18nReal";
 import { realT } from "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -87,7 +87,7 @@ import { axeViolations, summarize } from "@/test/axe";
 import { VitalsBiDashboard } from "../VitalsBiDashboard";
 
 // ---------------------------------------------------------------------------
-// Slownik
+// Słownik
 // ---------------------------------------------------------------------------
 
 function vit(path: string, vars: Record<string, unknown> = {}, lang: AppLang = "pl"): string {
@@ -169,7 +169,7 @@ function summary(over: Partial<VitalsSummaryResult> = {}): VitalsSummaryResult {
   };
 }
 
-/** Wszystkie piec metryk w strefie Good - baza dla testow struktury panelu. */
+/** Wszystkie pięć metryk w strefie Good - baza dla testów struktury panelu. */
 const ALL_GOOD = summary({
   metrics: [
     metric("LCP", 2000),
@@ -186,8 +186,8 @@ const ALL_GOOD = summary({
 });
 
 /**
- * Raport „warsztatu A" - kazda sciezka jest unikalna, zeby wyciek bylo widac.
- * LCP celowo w strefie Poor: wtedy sciezka trafia do listy rekomendacji, czyli
+ * Raport „warsztatu A" - każda ścieżka jest unikalna, żeby wyciek było widać.
+ * LCP celowo w strefie Poor: wtedy ścieżka trafia do listy rekomendacji, czyli
  * do TEKSTU strony, a nie tylko do danych oddanych kanwie.
  */
 const WORKSPACE_A = summary({
@@ -195,14 +195,14 @@ const WORKSPACE_A = summary({
   paths: [path("/alfa-analizy/energia-w-regionie", 300, 6000)],
 });
 
-/** Raport „warsztatu B" - rozlaczny z A na kazdym napisie. */
+/** Raport „warsztatu B" - rozłączny z A na każdym napisie. */
 const WORKSPACE_B = summary({
   metrics: [metric("INP", 180)],
   paths: [path("/beta-raporty/klimat", 80, null)],
 });
 
 // ---------------------------------------------------------------------------
-// Narzedzia
+// Narzędzia
 // ---------------------------------------------------------------------------
 
 function rec(v: unknown): Opt {
@@ -274,14 +274,14 @@ function tooltipFormatter(o: Opt): (raw: unknown) => string {
   return f as (raw: unknown) => string;
 }
 
-/** Symuluje klikniecie w element wykresu - dokladnie tak, jak robi to ECharts. */
+/** Symuluje kliknięcie w element wykresu - dokładnie tak, jak robi to ECharts. */
 async function clickChart(chart: Captured, params: ChartClickParams): Promise<void> {
   await act(async () => {
     chart.onDataClick?.(params);
   });
 }
 
-/** Pary [etykieta, wartosc] z siatki metryk okna drazenia, w kolejnosci renderu. */
+/** Pary [etykieta, wartość] z siatki metryk okna drążenia, w kolejności renderu. */
 function drillMetrics(lang: AppLang = "pl"): Array<[string, string]> {
   const dialog = screen.getByRole("dialog");
   const head = within(dialog).getByText(realT(lang)("adminAnalytics.drillDialog.metrics"));
@@ -293,7 +293,7 @@ function drillMetrics(lang: AppLang = "pl"): Array<[string, string]> {
   ]);
 }
 
-/** Klasa tonu przypisana wartosci metryki - kolor jest tu nosnikiem oceny. */
+/** Klasa tonu przypisana wartości metryki - kolor jest tu nośnikiem oceny. */
 function drillTone(index: number): string {
   const dialog = screen.getByRole("dialog");
   const head = within(dialog).getByText(realT("pl")("adminAnalytics.drillDialog.metrics"));
@@ -315,7 +315,7 @@ function spanDays(input: VitalsInput): number {
   return Math.round((Date.parse(input.untilIso) - Date.parse(input.sinceIso)) / 86_400_000);
 }
 
-/** Wartosc kafelka KPI stojaca przy podanej etykiecie. */
+/** Wartość kafelka KPI stojąca przy podanej etykiecie. */
 function kpiValue(label: string): string {
   const box = screen.getByText(label).closest("div.min-w-0");
   if (!box) throw new Error(`test: nie znaleziono kafelka KPI „${label}”`);
@@ -334,7 +334,7 @@ function panel(client?: QueryClient) {
   };
 }
 
-/** Czeka az raport dojedzie i panel przelaczy sie z komunikatu na siatke KPI. */
+/** Czeka aż raport dojedzie i panel przełączy się z komunikatu na siatkę KPI. */
 async function loaded(lang: AppLang = "pl"): Promise<void> {
   await waitFor(() => expect(screen.queryByText(vit("noSamples", {}, lang))).toBeNull());
 }
@@ -344,7 +344,7 @@ async function settled(): Promise<void> {
   await waitFor(() => expect(screen.queryByText(common("loading"))).toBeNull());
 }
 
-/** Ksztalt poddrzewa slownika: sciezka -> „leaf" albo „array:N". */
+/** Kształt poddrzewa słownika: ścieżka -> „leaf" albo „array:N". */
 function shape(node: unknown, prefix = "", out = new Map<string, string>()): Map<string, string> {
   if (Array.isArray(node)) {
     out.set(prefix, `array:${node.length}`);
@@ -384,7 +384,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("VitalsBiDashboard - stany panelu", () => {
-  it("w trakcie pobierania pokazuje wskaznik ladowania i ANI JEDNEGO kafelka", async () => {
+  it("w trakcie pobierania pokazuje wskaźnik ładowania i ANI JEDNEGO kafelka", async () => {
     h.fetchVitals.mockImplementation(() => new Promise<VitalsSummaryResult>(() => {}));
     panel();
 
@@ -392,7 +392,7 @@ describe("VitalsBiDashboard - stany panelu", () => {
     expect(screen.queryAllByTestId("echart")).toHaveLength(0);
   });
 
-  it("w trakcie pobierania przycisk odswiezania jest zablokowany i mowi o trwajacym odczycie", async () => {
+  it("w trakcie pobierania przycisk odświeżania jest zablokowany i mówi o trwającym odczycie", async () => {
     h.fetchVitals.mockImplementation(() => new Promise<VitalsSummaryResult>(() => {}));
     panel();
 
@@ -401,11 +401,11 @@ describe("VitalsBiDashboard - stany panelu", () => {
     expect(btn).toHaveTextContent(vit("refreshing"));
   });
 
-  it.fails("DEFEKT: w trakcie ladowania panel twierdzi, ze w oknie NIE MA probek RUM", async () => {
-    // `!report || report.total === 0` obsluguje jednym komunikatem dwa rozne
-    // stany. Operator czytajacy „Brak probek RUM w wybranym oknie" w pierwszej
-    // sekundzie po wejsciu dostaje twierdzenie o pomiarze, ktory sie jeszcze
-    // nie odbyl - i instrukcje („otworz kilka podstron"), ktora jest bledna.
+  it.fails("DEFEKT: w trakcie ładowania panel twierdzi, że w oknie NIE MA próbek RUM", async () => {
+    // `!report || report.total === 0` obsługuje jednym komunikatem dwa różne
+    // stany. Operator czytający „Brak próbek RUM w wybranym oknie" w pierwszej
+    // sekundzie po wejściu dostaje twierdzenie o pomiarze, który się jeszcze
+    // nie odbył - i instrukcję („otwórz kilka podstron"), która jest błędna.
     h.fetchVitals.mockImplementation(() => new Promise<VitalsSummaryResult>(() => {}));
     panel();
     await screen.findByText(common("loading"));
@@ -413,18 +413,18 @@ describe("VitalsBiDashboard - stany panelu", () => {
     expect(screen.queryByText(vit("noSamples"))).toBeNull();
   });
 
-  it("okno bez probek pokazuje komunikat ze slownika zamiast siatki zer", async () => {
+  it("okno bez próbek pokazuje komunikat ze słownika zamiast siatki zer", async () => {
     h.fetchVitals.mockResolvedValue(summary({ metrics: [], total: 0, windowTotal: 0 }));
     panel();
 
     expect(await screen.findByText(vit("noSamples"))).toBeInTheDocument();
-    // Zero probek to NIE jest wynik 0 ms - zaden kafelek ani wykres nie ma prawa
-    // powstac, bo kazda liczba na nim bylaby zmyslona.
+    // Zero próbek to NIE jest wynik 0 ms - żaden kafelek ani wykres nie ma prawa
+    // powstać, bo każda liczba na nim byłaby zmyślona.
     expect(screen.queryAllByTestId("echart")).toHaveLength(0);
     expect(screen.queryByText("LCP")).toBeNull();
   });
 
-  it("po awarii zapytania pasek narzedzi zyje - operator moze zmienic okno i ponowic", async () => {
+  it("po awarii zapytania pasek narzędzi żyje - operator może zmienić okno i ponowić", async () => {
     h.fetchVitals.mockRejectedValue(new Error("RUM 500: web_vitals read failed"));
     panel();
     await settled();
@@ -435,10 +435,10 @@ describe("VitalsBiDashboard - stany panelu", () => {
     ).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: awaria zapytania wyglada DOKLADNIE jak okno bez ruchu", async () => {
-    // `curQ.error` nie jest w ogole czytany. Panel rysuje „Brak probek RUM…"
-    // i podpowiada, zeby otworzyc kilka podstron - czyli kaze administratorowi
-    // szukac problemu po stronie ruchu tam, gdzie padl odczyt tabeli.
+  it.fails("DEFEKT: awaria zapytania wygląda DOKŁADNIE jak okno bez ruchu", async () => {
+    // `curQ.error` nie jest w ogóle czytany. Panel rysuje „Brak próbek RUM…"
+    // i podpowiada, żeby otworzyć kilka podstron - czyli każe administratorowi
+    // szukać problemu po stronie ruchu tam, gdzie padł odczyt tabeli.
     h.fetchVitals.mockRejectedValue(new Error("RUM 500: web_vitals read failed"));
     const { container } = panel();
     await settled();
@@ -449,20 +449,20 @@ describe("VitalsBiDashboard - stany panelu", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - okno czasu i wejscie zapytania", () => {
-  it("startowe okno to 7 dni i taki zakres trafia do WEJSCIA funkcji serwerowej", async () => {
+describe("VitalsBiDashboard - okno czasu i wejście zapytania", () => {
+  it("startowe okno to 7 dni i taki zakres trafia do WEJŚCIA funkcji serwerowej", async () => {
     panel();
     await loaded();
 
     const inputs = queryInputs();
     expect(inputs).toHaveLength(1);
     expect(spanDays(inputs[0])).toBe(7);
-    // Oba konce sa ISO - walidator server fn wymaga `z.string().datetime()`.
+    // Oba końce są ISO - walidator server fn wymaga `z.string().datetime()`.
     expect(inputs[0].sinceIso).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(inputs[0].untilIso).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it("zmiana presetu na 30 dni przestawia WEJSCIE zapytania, nie tylko etykiete", async () => {
+  it("zmiana presetu na 30 dni przestawia WEJŚCIE zapytania, nie tylko etykietę", async () => {
     panel();
     await loaded();
     const before = h.fetchVitals.mock.calls.length;
@@ -475,7 +475,7 @@ describe("VitalsBiDashboard - okno czasu i wejscie zapytania", () => {
     expect(spanDays(queryInputs()[before])).toBe(30);
   });
 
-  it("„Odswiez” ponawia zapytanie z tym samym oknem", async () => {
+  it("„Odśwież” ponawia zapytanie z tym samym oknem", async () => {
     panel();
     await loaded();
     const before = h.fetchVitals.mock.calls.length;
@@ -487,9 +487,9 @@ describe("VitalsBiDashboard - okno czasu i wejscie zapytania", () => {
     expect(queryInputs()[before]).toEqual(windowBefore);
   });
 
-  it("licznik probek bierze PELNE okno, a nie zagregowana probke", async () => {
-    // `windowTotal` to dokladny COUNT(*), `total` to liczba wierszy, na ktorych
-    // liczono percentyle (przycieta do 20 000). Pomylenie ich zaniza raport.
+  it("licznik próbek bierze PEŁNE okno, a nie zagregowaną próbkę", async () => {
+    // `windowTotal` to dokładny COUNT(*), `total` to liczba wierszy, na których
+    // liczono percentyle (przycięta do 20 000). Pomylenie ich zaniża raport.
     h.fetchVitals.mockResolvedValue(
       summary({
         metrics: [metric("LCP", 2000, { count: 20_000 })],
@@ -505,7 +505,7 @@ describe("VitalsBiDashboard - okno czasu i wejscie zapytania", () => {
     ).toBeInTheDocument();
   });
 
-  it("przyciete okno dostaje dopisek o agregacji z najnowszych probek", async () => {
+  it("przycięte okno dostaje dopisek o agregacji z najnowszych próbek", async () => {
     h.fetchVitals.mockResolvedValue(summary({ windowTotal: 31_337, capped: true }));
     const { container } = panel();
     await loaded();
@@ -513,7 +513,7 @@ describe("VitalsBiDashboard - okno czasu i wejscie zapytania", () => {
     expect(container.textContent ?? "").toContain(vit("cappedNote"));
   });
 
-  it("nieprzyciete okno NIE dostaje dopisku o agregacji", async () => {
+  it("nieprzycięte okno NIE dostaje dopisku o agregacji", async () => {
     h.fetchVitals.mockResolvedValue(summary({ windowTotal: 200, capped: false }));
     const { container } = panel();
     await loaded();
@@ -521,7 +521,7 @@ describe("VitalsBiDashboard - okno czasu i wejscie zapytania", () => {
     expect(container.textContent ?? "").not.toContain(vit("cappedNote"));
   });
 
-  it("po odpowiedzi przycisk odswiezania podpowiada godzine ostatniego odczytu", async () => {
+  it("po odpowiedzi przycisk odświeżania podpowiada godzinę ostatniego odczytu", async () => {
     panel();
     await loaded();
 
@@ -533,10 +533,10 @@ describe("VitalsBiDashboard - okno czasu i wejscie zapytania", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - progi Web Vitals docieraja do wykresu", () => {
-  it("pasma tla kazdej metryki sa zbudowane z KANONICZNYCH progow", async () => {
-    // Nie z literalow w komponencie: gdyby ktos wpisal 2500 recznie, zmiana
-    // progu w `vitalsThresholds.ts` rozjechalaby wykres z ocena w agregacie.
+describe("VitalsBiDashboard - progi Web Vitals docierają do wykresu", () => {
+  it("pasma tła każdej metryki są zbudowane z KANONICZNYCH progów", async () => {
+    // Nie z literałów w komponencie: gdyby ktoś wpisał 2500 ręcznie, zmiana
+    // progu w `vitalsThresholds.ts` rozjechałaby wykres z oceną w agregacie.
     panel();
     await loaded();
 
@@ -551,7 +551,7 @@ describe("VitalsBiDashboard - progi Web Vitals docieraja do wykresu", () => {
     }
   });
 
-  it("kolory pasm ida od zielonego przez bursztyn do czerwieni, a nie odwrotnie", async () => {
+  it("kolory pasm idą od zielonego przez bursztyn do czerwieni, a nie odwrotnie", async () => {
     panel();
     await loaded();
 
@@ -561,9 +561,9 @@ describe("VitalsBiDashboard - progi Web Vitals docieraja do wykresu", () => {
     expect(bands.map((b) => b[0].itemStyle?.color)).toEqual(["#16a34a", "#f59e0b", "#dc2626"]);
   });
 
-  it("linie progowe niosa podpis Good/Poor w jednostce tej metryki", async () => {
-    // Sekundy dla LCP, milisekundy dla INP, ulamek bez jednostki dla CLS -
-    // ta sama liczba w zlej jednostce jest gorsza niz jej brak.
+  it("linie progowe niosą podpis Good/Poor w jednostce tej metryki", async () => {
+    // Sekundy dla LCP, milisekundy dla INP, ułamek bez jednostki dla CLS -
+    // ta sama liczba w złej jednostce jest gorsza niż jej brak.
     panel();
     await loaded();
 
@@ -573,7 +573,7 @@ describe("VitalsBiDashboard - progi Web Vitals docieraja do wykresu", () => {
     expect(markLineLabels(trendChart("TTFB").option)).toEqual(["Good 800 ms", "Poor 1.80 s"]);
   });
 
-  it("os wartosci formatuje jednostke inaczej dla CLS, sekund i milisekund", async () => {
+  it("oś wartości formatuje jednostkę inaczej dla CLS, sekund i milisekund", async () => {
     panel();
     await loaded();
 
@@ -587,7 +587,7 @@ describe("VitalsBiDashboard - progi Web Vitals docieraja do wykresu", () => {
     expect(fmtFor("LCP")(900)).toBe("900ms");
   });
 
-  it("podpowiedz trendu podaje p75 dnia, a dla dnia bez probki kreske", async () => {
+  it("podpowiedź trendu podaje p75 dnia, a dla dnia bez próbki kreskę", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({
         metrics: [metric("LCP", 2400)],
@@ -601,7 +601,7 @@ describe("VitalsBiDashboard - progi Web Vitals docieraja do wykresu", () => {
     expect(fmt([{ axisValue: "2026-08-01", value: ["2026-08-01", 2400] }])).toBe(
       "2026-08-01<br/>LCP p75: <b>2.40 s</b>",
     );
-    // Dzien bez probki to KRESKA, nie „0 ms".
+    // Dzień bez próbki to KRESKA, nie „0 ms".
     expect(fmt([{ axisValue: "2026-08-02", value: ["2026-08-02", null] }])).toBe(
       "2026-08-02<br/>LCP p75: <b>-</b>",
     );
@@ -611,7 +611,7 @@ describe("VitalsBiDashboard - progi Web Vitals docieraja do wykresu", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow", () => {
+describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progów", () => {
   async function drillTrend(m: VitalName, value: number): Promise<void> {
     h.fetchVitals.mockResolvedValue(
       summary({ metrics: [metric(m, value)], trends: [day("2026-08-01", { [m]: value })] }),
@@ -621,7 +621,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     await clickChart(trendChart(m), { dataIndex: 0 });
   }
 
-  it("wartosc DOKLADNIE na progu Good jest oceniona jako dobra", async () => {
+  it("wartość DOKŁADNIE na progu Good jest oceniona jako dobra", async () => {
     const [good] = VITAL_THRESHOLDS.LCP;
     await drillTrend("LCP", good);
 
@@ -633,7 +633,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(drillTone(0)).toContain("text-emerald");
   });
 
-  it("jedna milisekunda powyzej progu Good to juz „do poprawy”", async () => {
+  it("jedna milisekunda powyżej progu Good to już „do poprawy”", async () => {
     const [good] = VITAL_THRESHOLDS.LCP;
     await drillTrend("LCP", good + 1);
 
@@ -641,16 +641,16 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(drillTone(0)).toContain("text-amber");
   });
 
-  it("wartosc DOKLADNIE na progu Poor to wciaz „do poprawy”, a nie „slabo”", async () => {
-    // `val <= poor` - granica nalezy do strefy ostrzegawczej. Przestawienie
-    // tego znaku przesuwa cala interpretacje o jeden przedzial.
+  it("wartość DOKŁADNIE na progu Poor to wciąż „do poprawy”, a nie „słabo”", async () => {
+    // `val <= poor` - granica należy do strefy ostrzegawczej. Przestawienie
+    // tego znaku przesuwa całą interpretację o jeden przedział.
     const [, poor] = VITAL_THRESHOLDS.LCP;
     await drillTrend("LCP", poor);
 
     expect(drillMetrics()[3]).toEqual([vit("samplesLabel"), rating("needs")]);
   });
 
-  it("wartosc powyzej progu Poor jest oceniona jako slaba", async () => {
+  it("wartość powyżej progu Poor jest oceniona jako słaba", async () => {
     const [, poor] = VITAL_THRESHOLDS.LCP;
     await drillTrend("LCP", poor + 1);
 
@@ -658,7 +658,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(drillTone(0)).toContain("text-rose");
   });
 
-  it("CLS drazy sie w swojej wlasnej skali, nie w milisekundach", async () => {
+  it("CLS drąży się w swojej własnej skali, nie w milisekundach", async () => {
     await drillTrend("CLS", 0.4);
 
     const rows = drillMetrics();
@@ -667,7 +667,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(rows[3]).toEqual([vit("samplesLabel"), rating("poor")]);
   });
 
-  it("klikniecie w dzien BEZ probki nie otwiera okna z wymyslona wartoscia", async () => {
+  it("kliknięcie w dzień BEZ próbki nie otwiera okna z wymyśloną wartością", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({
         metrics: [metric("LCP", 2400)],
@@ -682,7 +682,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("klikniecie bez indeksu danych nie otwiera okna", async () => {
+  it("kliknięcie bez indeksu danych nie otwiera okna", async () => {
     panel();
     await loaded();
 
@@ -691,7 +691,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("klikniecie w slupek ratingow otwiera liczniki TEJ metryki", async () => {
+  it("kliknięcie w słupek ratingów otwiera liczniki TEJ metryki", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({
         metrics: [
@@ -703,8 +703,8 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     panel();
     await loaded();
 
-    // Indeks 1 to INP - kolejnosc osi idzie z METRIC_ORDER, nie z kolejnosci
-    // wierszy w raporcie, wiec pomylka tutaj podstawia cudze liczby.
+    // Indeks 1 to INP - kolejność osi idzie z METRIC_ORDER, nie z kolejności
+    // wierszy w raporcie, więc pomyłka tutaj podstawia cudze liczby.
     await clickChart(ratingStack(), { dataIndex: 1, seriesName: "Poor" });
 
     expect(within(screen.getByRole("dialog")).getByText("INP")).toBeInTheDocument();
@@ -716,7 +716,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     ]);
   });
 
-  it("klikniecie w slupek spoza zbioru metryk nie otwiera okna", async () => {
+  it("kliknięcie w słupek spoza zbioru metryk nie otwiera okna", async () => {
     panel();
     await loaded();
 
@@ -725,7 +725,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("klikniecie w slupek BEZ indeksu danych nie otwiera okna", async () => {
+  it("kliknięcie w słupek BEZ indeksu danych nie otwiera okna", async () => {
     panel();
     await loaded();
 
@@ -734,9 +734,9 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("klikniecie poza nazwana seria opisuje okno podtytulem karty", async () => {
-    // ECharts nie zawsze poda `seriesName` (np. klikniecie w os kategorii).
-    // Podtytul musi wtedy dojechac ze slownika, a nie zostac pusty.
+  it("kliknięcie poza nazwaną serią opisuje okno podtytułem karty", async () => {
+    // ECharts nie zawsze poda `seriesName` (np. kliknięcie w oś kategorii).
+    // Podtytuł musi wtedy dojechać ze słownika, a nie zostać pusty.
     panel();
     await loaded();
 
@@ -747,7 +747,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     ).toBeInTheDocument();
   });
 
-  it("klikniecie w kafel treemapy daje PELNA sciezke, probki i odnosnik", async () => {
+  it("kliknięcie w kafel treemapy daje PEŁNĄ ścieżkę, próbki i odnośnik", async () => {
     const long = "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie";
     h.fetchVitals.mockResolvedValue(summary({ paths: [path(long, 300, 5000)] }));
     panel();
@@ -768,9 +768,9 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     ).toHaveAttribute("href", long);
   });
 
-  it("kafel szybkiej sciezki drazy sie w tonie dobrym, sredniej - w ostrzegawczym", async () => {
-    // Ta sama trojka progow co na wykresie musi dojechac do okna drazenia,
-    // inaczej kolor kafla i kolor liczby w oknie mowia dwie rozne rzeczy.
+  it("kafel szybkiej ścieżki drąży się w tonie dobrym, średniej - w ostrzegawczym", async () => {
+    // Ta sama trójka progów co na wykresie musi dojechać do okna drążenia,
+    // inaczej kolor kafla i kolor liczby w oknie mówią dwie różne rzeczy.
     const [good, poor] = VITAL_THRESHOLDS.LCP;
     h.fetchVitals.mockResolvedValue(summary({ paths: [path("/szybka", 40, good)] }));
     panel();
@@ -784,10 +784,10 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     expect(drillTone(1)).toContain("text-amber");
   });
 
-  it("kafel bez liczby probek pokazuje zero, a nie puste pole", async () => {
-    // `value` i `lcp` przychodza z danych serii - kafel zbudowany ze sciezki
-    // bez metryk nie ma ich wcale. Puste pole w oknie drazenia wyglada jak
-    // blad renderu, zero mowi wprost „tyle zebrano".
+  it("kafel bez liczby próbek pokazuje zero, a nie puste pole", async () => {
+    // `value` i `lcp` przychodzą z danych serii - kafel zbudowany ze ścieżki
+    // bez metryk nie ma ich wcale. Puste pole w oknie drążenia wygląda jak
+    // błąd renderu, zero mówi wprost „tyle zebrano".
     panel();
     await loaded();
 
@@ -799,7 +799,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
     ]);
   });
 
-  it("kafel bez sciezki nie otwiera okna", async () => {
+  it("kafel bez ścieżki nie otwiera okna", async () => {
     panel();
     await loaded();
 
@@ -811,7 +811,7 @@ describe("VitalsBiDashboard - drazenie: ocena wraca do UI z tych samych progow",
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
+describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
   const ONLY_LCP = summary({
     metrics: [metric("LCP", 2400)],
     trends: [
@@ -821,9 +821,9 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     ],
   });
 
-  it("metryka nieobecna w raporcie pokazuje KRESKE, a nie „0 ms”", async () => {
-    // Zero na pulpicie wydajnosci czyta sie jako „idealnie". Metryka, ktorej
-    // przegladarki nie zaraportowaly (np. INP bez interakcji), musi wygladac
+  it("metryka nieobecna w raporcie pokazuje KRESKĘ, a nie „0 ms”", async () => {
+    // Zero na pulpicie wydajności czyta się jako „idealnie". Metryka, której
+    // przeglądarki nie zaraportowały (np. INP bez interakcji), musi wyglądać
     // jak brak pomiaru.
     h.fetchVitals.mockResolvedValue(ONLY_LCP);
     panel();
@@ -836,7 +836,7 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     }
   });
 
-  it("metryka bez probek nie dostaje ani wykresu trendu, ani slupka ratingow", async () => {
+  it("metryka bez próbek nie dostaje ani wykresu trendu, ani słupka ratingów", async () => {
     h.fetchVitals.mockResolvedValue(ONLY_LCP);
     panel();
     await loaded();
@@ -845,7 +845,7 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     expect(() => trendChart("INP")).toThrow();
   });
 
-  it("wykres trendu zostawia dzien bez probki jako LUKE i laczy przez nia linie", async () => {
+  it("wykres trendu zostawia dzień bez próbki jako LUKĘ i łączy przez nią linie", async () => {
     h.fetchVitals.mockResolvedValue(ONLY_LCP);
     panel();
     await loaded();
@@ -856,14 +856,14 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     expect(firstSeries(o).connectNulls).toBe(true);
   });
 
-  it.fails("DEFEKT: iskra przy kafelku KPI wstawia 0 za dzien bez probki", async () => {
+  it.fails("DEFEKT: iskra przy kafelku KPI wstawia 0 za dzień bez próbki", async () => {
     // `sparkForMetric` robi `t.p75[metric] ?? 0`, podczas gdy wykres trendu -
     // z tego samego raportu i tego samego pola - robi `?? null`. Skutek:
-    // miniatura pod kafelkiem LCP nurkuje do zera w dniu, w ktorym po prostu
-    // nie bylo ani jednej probki, i pokazuje spadek czasu ladowania do zera
+    // miniatura pod kafelkiem LCP nurkuje do zera w dniu, w którym po prostu
+    // nie było ani jednej próbki, i pokazuje spadek czasu ładowania do zera
     // jako sukces. `filter(Number.isFinite)` tego nie ratuje - zero jest
-    // liczba skonczona. To jest dokladnie ten przypadek, w ktorym zmyslone
-    // zero jest gorsze niz luka.
+    // liczbą skończoną. To jest dokładnie ten przypadek, w którym zmyślone
+    // zero jest gorsze niż luka.
     h.fetchVitals.mockResolvedValue(ONLY_LCP);
     panel();
     await loaded();
@@ -871,9 +871,9 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     expect(firstSeries(sparkChart().option).data).toEqual([2400, 2600]);
   });
 
-  it("sciezka bez pomiaru LCP dostaje neutralny kolor, a nie zielony", async () => {
-    // `colorFor(0)` musi dac slate. Zielony oznaczalby „szybko" na sciezce,
-    // ktorej nikt nie zmierzyl.
+  it("ścieżka bez pomiaru LCP dostaje neutralny kolor, a nie zielony", async () => {
+    // `colorFor(0)` musi dać slate. Zielony oznaczałby „szybko" na ścieżce,
+    // której nikt nie zmierzył.
     h.fetchVitals.mockResolvedValue(
       summary({
         paths: [
@@ -899,7 +899,7 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     ]);
   });
 
-  it("podpowiedz treemapy dla sciezki bez LCP pokazuje kreske", async () => {
+  it("podpowiedź treemapy dla ścieżki bez LCP pokazuje kreskę", async () => {
     h.fetchVitals.mockResolvedValue(summary({ paths: [path("/bez-lcp", 40, null)] }));
     panel();
     await loaded();
@@ -911,7 +911,7 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     expect(fmt({ name: "/z-lcp", value: 40, data: { lcp: 2000 } })).toContain("LCP p75: 2.00 s");
   });
 
-  it("drazenie sciezki bez LCP pokazuje kreske w tonie neutralnym", async () => {
+  it("drążenie ścieżki bez LCP pokazuje kreskę w tonie neutralnym", async () => {
     h.fetchVitals.mockResolvedValue(summary({ paths: [path("/bez-lcp", 40, null)] }));
     panel();
     await loaded();
@@ -922,7 +922,7 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
     expect(drillTone(1)).toContain("text-foreground");
   });
 
-  it("p75 spoza zakresu liczb pokazuje kreske, a nie „NaN”", async () => {
+  it("p75 spoza zakresu liczb pokazuje kreskę, a nie „NaN”", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({ metrics: [metric("LCP", Number.NaN, { count: 3 })], total: 3 }),
     );
@@ -937,7 +937,7 @@ describe("VitalsBiDashboard - metryka bez probek to LUKA, nie zero", () => {
 // ---------------------------------------------------------------------------
 
 describe("VitalsBiDashboard - agregaty panelu", () => {
-  it("kolo ratingow sumuje WSZYSTKIE metryki, a nie tylko pierwsza", async () => {
+  it("koło ratingów sumuje WSZYSTKIE metryki, a nie tylko pierwszą", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({
         metrics: [
@@ -955,13 +955,13 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
       { name: "Needs improvement", value: 5, itemStyle: { color: "#f59e0b" } },
       { name: "Poor", value: 5, itemStyle: { color: "#dc2626" } },
     ]);
-    // Etykieta w srodku kola to suma trzech kubelkow, ze slowem ze slownika.
+    // Etykieta w środku koła to suma trzech kubełków, ze słowem ze słownika.
     expect(String(rec(firstSeries(pieChart().option).label).formatter)).toBe(
       `{a|25}\n{b|${vit("samplesWord")}}`,
     );
   });
 
-  it("os slupkow ratingow idzie kolejnoscia METRIC_ORDER, nie kolejnoscia raportu", async () => {
+  it("oś słupków ratingów idzie kolejnością METRIC_ORDER, nie kolejnością raportu", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({ metrics: [metric("TTFB", 600), metric("LCP", 2000), metric("CLS", 0.05)] }),
     );
@@ -971,7 +971,7 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
     expect(strList(rec(ratingStack().option.xAxis).data)).toEqual(["LCP", "CLS", "TTFB"]);
   });
 
-  it("treemapa skraca dlugie sciezki na etykiecie, ale zachowuje pelna w danych", async () => {
+  it("treemapa skraca długie ścieżki na etykiecie, ale zachowuje pełną w danych", async () => {
     const long = "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie";
     h.fetchVitals.mockResolvedValue(summary({ paths: [path(long, 300, 2000)] }));
     panel();
@@ -984,12 +984,12 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
     }>;
     expect(cells[0].name).toBe(long.slice(0, 26) + "…");
     expect(cells[0].name).toHaveLength(27);
-    // Skrocenie jest TYLKO na etykiecie - drazenie musi znac pelna sciezke.
+    // Skrócenie jest TYLKO na etykiecie - drążenie musi znać pełną ścieżkę.
     expect(cells[0].fullPath).toBe(long);
     expect(cells[0].value).toBe(300);
   });
 
-  it("treemapa przycina sie do 25 sciezek", async () => {
+  it("treemapa przycina się do 25 ścieżek", async () => {
     const paths = Array.from({ length: 30 }, (_, i) => path(`/sciezka-${i}`, 100 - i, 2000));
     h.fetchVitals.mockResolvedValue(summary({ paths }));
     panel();
@@ -1002,7 +1002,7 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
 // ---------------------------------------------------------------------------
 
 describe("VitalsBiDashboard - interpretacja i rekomendacje", () => {
-  it("wszystkie metryki w strefie Good koncza sie karta „bez znalezisk”", async () => {
+  it("wszystkie metryki w strefie Good kończą się kartą „bez znalezisk”", async () => {
     panel();
     await loaded();
 
@@ -1010,7 +1010,7 @@ describe("VitalsBiDashboard - interpretacja i rekomendacje", () => {
     expect(screen.getByText(vit("allGoodDetail"))).toBeInTheDocument();
   });
 
-  it("metryka w strefie Poor dostaje playbook tej metryki, a nie ogolnik", async () => {
+  it("metryka w strefie Poor dostaje playbook tej metryki, a nie ogólnik", async () => {
     h.fetchVitals.mockResolvedValue(summary({ metrics: [metric("LCP", 6000)] }));
     panel();
     await loaded();
@@ -1019,7 +1019,7 @@ describe("VitalsBiDashboard - interpretacja i rekomendacje", () => {
     for (const fix of vitList("playbook.LCP.poor.fixes")) {
       expect(screen.getByText(fix)).toBeInTheDocument();
     }
-    // Playbook strefy ostrzegawczej NIE ma prawa sie pokazac obok.
+    // Playbook strefy ostrzegawczej NIE ma prawa się pokazać obok.
     expect(screen.queryByText(vit("playbook.LCP.ni.title"))).toBeNull();
   });
 
@@ -1040,7 +1040,7 @@ describe("VitalsBiDashboard - interpretacja i rekomendacje", () => {
     ).toBeInTheDocument();
   });
 
-  it("sciezka w strefie Poor dostaje wlasne znalezisko z progiem ze slownika progow", async () => {
+  it("ścieżka w strefie Poor dostaje własne znalezisko z progiem ze słownika progów", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({ metrics: [metric("LCP", 2000)], paths: [path("/wolna-podstrona", 90, 6000)] }),
     );
@@ -1057,7 +1057,7 @@ describe("VitalsBiDashboard - interpretacja i rekomendacje", () => {
     ).toBeInTheDocument();
   });
 
-  it("sciezka jedynie „do poprawy” NIE zasmieca listy - per sciezke liczy sie tylko Poor", async () => {
+  it("ścieżka jedynie „do poprawy” NIE zasmieca listy - per ścieżkę liczy się tylko Poor", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({ metrics: [metric("LCP", 2000)], paths: [path("/srednia-podstrona", 90, 3000)] }),
     );
@@ -1071,19 +1071,19 @@ describe("VitalsBiDashboard - interpretacja i rekomendacje", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - izolacja warsztatow", () => {
-  it("panel warsztatu B pokazuje WYLACZNIE sciezki warsztatu B", async () => {
+describe("VitalsBiDashboard - izolacja warsztatów", () => {
+  it("panel warsztatu B pokazuje WYŁĄCZNIE ścieżki warsztatu B", async () => {
     h.fetchVitals.mockResolvedValue(WORKSPACE_B);
     const { container } = panel();
     await loaded();
 
     expect(container.textContent ?? "").not.toContain("alfa");
-    // Sciezki jada takze do kanwy - wyciek moze siedziec w samych danych.
+    // Ścieżki jadą także do kanwy - wyciek może siedzieć w samych danych.
     expect(JSON.stringify(h.charts)).not.toContain("alfa");
     expect(JSON.stringify(h.charts)).toContain("/beta-raporty/klimat");
   });
 
-  it("swiezy klient react-query nie przenosi raportu miedzy warsztatami", async () => {
+  it("świeży klient react-query nie przenosi raportu między warsztatami", async () => {
     h.fetchVitals.mockResolvedValue(WORKSPACE_A);
     const first = panel();
     await loaded();
@@ -1099,9 +1099,9 @@ describe("VitalsBiDashboard - izolacja warsztatow", () => {
     expect(JSON.stringify(h.charts)).not.toContain("alfa");
   });
 
-  it("wspoldzielony klient odswieza raport, gdy okno przesunelo sie w czasie", async () => {
-    // Klucz cache niesie granice okna, wiec panel otwarty minute pozniej ma
-    // INNY klucz i realnie odpytuje serwer zamiast malowac poprzedni raport.
+  it("współdzielony klient odświeża raport, gdy okno przesunęło się w czasie", async () => {
+    // Klucz cache niesie granice okna, więc panel otwarty minutę później ma
+    // INNY klucz i realnie odpytuje serwer zamiast malować poprzedni raport.
     const clock = vi.spyOn(Date, "now");
     const t0 = Date.parse("2026-08-20T10:00:00.000Z");
     clock.mockReturnValue(t0);
@@ -1123,17 +1123,17 @@ describe("VitalsBiDashboard - izolacja warsztatow", () => {
   });
 
   it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu - dwa panele z tym samym oknem dziela jeden raport",
+    "DEFEKT: klucz cache nie niesie warsztatu - dwa panele z tym samym oknem dzielą jeden raport",
     async () => {
       // `queryKey: ["vitals-bi", presetId, sinceIso, untilIso]` nie zawiera ani
-      // tenanta, ani uzytkownika. Dzis chroni to WYLACZNIE znacznik czasu:
-      // `buildPresetRange` woła `Date.now()` przy montowaniu, wiec dwa
-      // montowania prawie zawsze daja rozne granice okna. „Prawie" nie jest
-      // gwarancja izolacji - wystarczy, ze oba panele policza to samo okno
-      // (zegar zamrozony ponizej modeluje przelaczenie warsztatu w tej samej
+      // tenanta, ani użytkownika. Dziś chroni to WYŁĄCZNIE znacznik czasu:
+      // `buildPresetRange` woła `Date.now()` przy montowaniu, więc dwa
+      // montowania prawie zawsze dają różne granice okna. „Prawie" nie jest
+      // gwarancją izolacji - wystarczy, że oba panele policzą to samo okno
+      // (zegar zamrożony poniżej modeluje przełączenie warsztatu w tej samej
       // klatce), a przy `staleTime: 60_000` react-query NIE ponawia zapytania i
-      // administrator warsztatu B widzi sciezki warsztatu A. Wyciek jest cichy:
-      // nie leci przy nim ani jedno zadanie sieciowe.
+      // administrator warsztatu B widzi ścieżki warsztatu A. Wyciek jest cichy:
+      // nie leci przy nim ani jedno żądanie sieciowe.
       const clock = vi.spyOn(Date, "now");
       clock.mockReturnValue(Date.parse("2026-08-20T10:00:00.000Z"));
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -1154,14 +1154,14 @@ describe("VitalsBiDashboard - izolacja warsztatow", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - dostepnosc", () => {
-  it("kazdy wykres ma nazwe regionu zbudowana z tytulu karty", async () => {
+describe("VitalsBiDashboard - dostępność", () => {
+  it("każdy wykres ma nazwę regionu zbudowaną z tytułu karty", async () => {
     const t = realT("pl");
     panel();
     await loaded();
 
     const names = screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"));
-    // Piec trendow + ratingi + kolo + treemapa.
+    // Pięć trendów + ratingi + koło + treemapa.
     expect(names).toHaveLength(8);
     expect(names).toContain(
       t("adminAnalytics.chartCard.chartRegion", { title: vit("trendTitle", { metric: "LCP" }) }),
@@ -1171,14 +1171,14 @@ describe("VitalsBiDashboard - dostepnosc", () => {
     );
   });
 
-  it("przycisk odswiezania ma dostepna nazwe ze slownika, nie sama ikone", async () => {
+  it("przycisk odświeżania ma dostępną nazwę ze słownika, nie samą ikonę", async () => {
     panel();
     await loaded();
 
     expect(screen.getByRole("button", { name: vit("refreshAria") })).toBeInTheDocument();
   });
 
-  it("poza nienazwanymi przyciskami panel nie ma innych naruszen axe", async () => {
+  it("poza nienazwanymi przyciskami panel nie ma innych naruszeń axe", async () => {
     const { container } = panel();
     await loaded();
 
@@ -1187,11 +1187,11 @@ describe("VitalsBiDashboard - dostepnosc", () => {
     );
   });
 
-  it("karta braku probek jest wolna od naruszen axe", async () => {
+  it("karta braku próbek jest wolna od naruszeń axe", async () => {
     h.fetchVitals.mockResolvedValue(summary({ metrics: [], total: 0, windowTotal: 0 }));
     const { container } = panel();
-    // `settled()` przed asercja, bo komunikat o braku probek stoi na ekranie od
-    // pierwszej klatki - bez tego odpowiedz zapytania aktualizowalaby stan juz
+    // `settled()` przed asercją, bo komunikat o braku próbek stoi na ekranie od
+    // pierwszej klatki - bez tego odpowiedź zapytania aktualizowałaby stan już
     // w trakcie `axe.run`, poza `act`.
     await settled();
     await screen.findByText(vit("noSamples"));
@@ -1199,21 +1199,21 @@ describe("VitalsBiDashboard - dostepnosc", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: przyciski „wiecej” na kartach wykresow nie maja dostepnej nazwy", async () => {
-    // `ChartCard` daje `aria-label` przyciskowi pelnego ekranu, ale przycisk
-    // menu obok to sama ikona `MoreHorizontal`. Osiem wykresow = osiem
-    // bezimiennych przyciskow, przez ktore chodzi eksport PNG.
+  it.fails("DEFEKT: przyciski „więcej” na kartach wykresów nie mają dostępnej nazwy", async () => {
+    // `ChartCard` daje `aria-label` przyciskowi pełnego ekranu, ale przycisk
+    // menu obok to sama ikona `MoreHorizontal`. Osiem wykresów = osiem
+    // bezimiennych przycisków, przez które chodzi eksport PNG.
     const { container } = panel();
     await loaded();
 
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: zaden wykres panelu nie dostaje tekstowej alternatywy", async () => {
-    // ECharts maluje do kanwy, ktora dla czytnika ekranu jest pustym
-    // prostokatem. `ChartCard` UMIE zbudowac tabele danych z `csv` i podpiac ja
-    // przez `aria-describedby` - ten panel nie podaje `csv` ANI RAZU, wiec caly
-    // pulpit wydajnosci jest dla czytnika nieczytelny.
+  it.fails("DEFEKT: żaden wykres panelu nie dostaje tekstowej alternatywy", async () => {
+    // ECharts maluje do kanwy, która dla czytnika ekranu jest pustym
+    // prostokątem. `ChartCard` UMIE zbudować tabelę danych z `csv` i podpiąć ją
+    // przez `aria-describedby` - ten panel nie podaje `csv` ANI RAZU, więc cały
+    // pulpit wydajności jest dla czytnika nieczytelny.
     panel();
     await loaded();
 
@@ -1226,10 +1226,10 @@ describe("VitalsBiDashboard - dostepnosc", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - dwujezycznosc", () => {
+describe("VitalsBiDashboard - dwujęzyczność", () => {
   const TITLE_KEYS = ["ratingsPerMetric", "ratingOverall", "pathsBySamples"] as const;
 
-  it("naglowki kart i pasek narzedzi mowia po polsku ze slownika", async () => {
+  it("nagłówki kart i pasek narzędzi mówią po polsku ze słownika", async () => {
     panel();
     await loaded();
 
@@ -1240,7 +1240,7 @@ describe("VitalsBiDashboard - dwujezycznosc", () => {
     ).toBeInTheDocument();
   });
 
-  it("ten sam panel po EN mowi po angielsku, bez ani jednego polskiego naglowka", async () => {
+  it("ten sam panel po EN mówi po angielsku, bez ani jednego polskiego nagłówka", async () => {
     await i18n.changeLanguage("en");
     panel();
     await loaded("en");
@@ -1265,7 +1265,7 @@ describe("VitalsBiDashboard - dwujezycznosc", () => {
     }
   });
 
-  it("komunikat o braku probek istnieje w obu jezykach i sie rozni", async () => {
+  it("komunikat o braku próbek istnieje w obu językach i się różni", async () => {
     h.fetchVitals.mockResolvedValue(summary({ metrics: [], total: 0, windowTotal: 0 }));
     await i18n.changeLanguage("en");
     panel();
@@ -1274,10 +1274,10 @@ describe("VitalsBiDashboard - dwujezycznosc", () => {
     expect(vit("noSamples", {}, "en")).not.toBe(vit("noSamples", {}, "pl"));
   });
 
-  it("slownik EN ma DOKLADNIE te same klucze i tak samo dlugie listy co PL", async () => {
-    // Brakujacy klucz EN nie wywala aplikacji - cicho spada na polski tekst na
-    // angielskim ekranie. Krotsza lista `fixes` gubi jedno dzialanie naprawcze
-    // z playbooka wydajnosci.
+  it("słownik EN ma DOKŁADNIE te same klucze i tak samo długie listy co PL", async () => {
+    // Brakujący klucz EN nie wywala aplikacji - cicho spada na polski tekst na
+    // angielskim ekranie. Krótsza lista `fixes` gubi jedno działanie naprawcze
+    // z playbooka wydajności.
     const pl = shape(subtree("pl", ["adminAnalytics", "vitals"]));
     const en = shape(subtree("en", ["adminAnalytics", "vitals"]));
 
