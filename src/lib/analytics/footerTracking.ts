@@ -18,6 +18,7 @@
 // marketingowej") było nieprawdziwe w dwóch miejscach naraz: GA4 wstrzykuje
 // `loadAnalytics()` pod kategorią ANALYTICS, a sprzątanie (`removeMarked`)
 // usuwa element <script>, nie globalną funkcję, którą ten skrypt zdefiniował.
+import { fireBeacon } from "@/lib/analytics/fireBeacon";
 import { track } from "@/lib/analytics/track";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import type { FooterLinkGroup } from "@/lib/seo/footerNavigation";
@@ -57,34 +58,6 @@ function gtagIfConsented(): GtagFn | null {
   if (!hasAnalyticsConsent()) return null;
   const w = window as unknown as { gtag?: GtagFn };
   return typeof w.gtag === "function" ? w.gtag : null;
-}
-
-/**
- * Jeden beacon = jedna granica błędu. Kanały padają NIEZALEŻNIE od siebie:
- * `track()` czyta `localStorage`/`sessionStorage` (tryb prywatny rzuca przy
- * odczycie) i robi `flush()` W ŚRODKU `track()`, gdy bufor dobije do
- * `MAX_BATCH` - a wtedy rzucający `sendBeacon` (przekroczony limit ładunku)
- * pada wewnątrz PIERWSZEGO beacona. `gtag` jest z kolei cudzym kodem
- * wstrzykniętym przez CMP i może rzucić w środku.
- *
- * CISZA W `catch` JEST KONWENCJĄ TEJ WARSTWY, nie przeoczeniem: przeglądarkowe
- * moduły telemetrii w tym repo połykają błąd bez śladu w konsoli, zostawiając
- * jedynie komentarz w pustym `catch` - `analytics/track.ts` (`randomId`,
- * `readSession`, `readAnonId`), `ads/consent.ts` („private mode”) oraz
- * `observability/report.ts` (`sendBeaconPayload` zwraca `false`). `console.warn`
- * w `src/lib/analytics` stoi WYŁĄCZNIE w funkcjach serwerowych
- * (`audience.functions.ts`, `semantic/snapshot.functions.ts`), gdzie trafia do
- * logów workera; jedyny `console.debug` w repo (`src/lib/webVitals.ts`) jest
- * bramkowany `import.meta.env.DEV` i zastępuje beacon, więc nie jest raportem
- * połkniętego błędu.
- */
-function fireBeacon(send: () => void): void {
-  try {
-    send();
-  } catch {
-    // Fire-and-forget: analityka stopki nie ma prawa wywrócić nawigacji ani
-    // zapisu do newslettera. Pusto z rozmysłem - patrz komentarz nad funkcją.
-  }
 }
 
 export interface FooterClickPayload {

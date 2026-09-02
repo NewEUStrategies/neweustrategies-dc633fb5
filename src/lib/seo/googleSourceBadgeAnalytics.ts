@@ -9,6 +9,7 @@
 // wołana WPROST z `onClick` linku wychodzącego (`GooglePreferredSourceBadge`),
 // więc niewyłapany wyjątek zamienia kliknięcie w link na zgłoszenie błędu
 // aplikacji (`window.onerror`, a w panelach - granica błędu).
+import { fireBeacon } from "@/lib/analytics/fireBeacon";
 import { track } from "@/lib/analytics/track";
 import type {
   GoogleSourceBadgeDevice,
@@ -24,35 +25,6 @@ function gtag(): GtagFn | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as { gtag?: GtagFn };
   return typeof w.gtag === "function" ? w.gtag : null;
-}
-
-/**
- * Jeden beacon = jedna granica błędu. Oba kanały mają WŁASNE, niezależne
- * powody padnięcia: `track()` czyta `localStorage`/`sessionStorage` (tryb
- * prywatny i polityka firmowa rzucają przy samym odczycie), transport
- * `sendBeacon` rzuca po przekroczeniu limitu ładunku, a `gtag` to CUDZY kod
- * wstrzyknięty przez CMP, który równie dobrze może rzucić w środku.
- *
- * CISZA W `catch` JEST KONWENCJĄ TEJ WARSTWY, a nie przeoczeniem. Przeglądarkowe
- * moduły telemetrii w tym repo połykają błąd bez śladu w konsoli, zostawiając
- * wyłącznie komentarz w pustym `catch` - tak robi `analytics/track.ts`
- * (`randomId`, `readSession`, `readAnonId`), `ads/consent.ts` („private mode”)
- * i `observability/report.ts` (`sendBeaconPayload` zwraca `false`). `console.warn`
- * w `src/lib/analytics` występuje TYLKO w funkcjach serwerowych
- * (`audience.functions.ts`, `semantic/snapshot.functions.ts`), gdzie trafia do
- * logów workera, a nie do konsoli użytkownika; jedyny `console.debug` w repo
- * (`src/lib/webVitals.ts`) jest bramkowany `import.meta.env.DEV` i zastępuje
- * beacon w trybie developerskim, więc nie jest raportem połkniętego błędu.
- * Dokładanie tu własnego logu oznaczałoby hałas w konsoli KAŻDEGO odwiedzającego
- * z zablokowanym magazynem - i nową konwencję na jedno miejsce w repo.
- */
-function fireBeacon(send: () => void): void {
-  try {
-    send();
-  } catch {
-    // Fire-and-forget: analityka nie ma prawa wywrócić nawigacji. Pusto
-    // z rozmysłem - uzasadnienie ciszy w komentarzu nad funkcją.
-  }
 }
 
 export interface GoogleSourceBadgeClickPayload {
