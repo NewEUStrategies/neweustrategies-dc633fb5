@@ -3,11 +3,11 @@
 // ("chart") i widget buildera ("chart") - jedna implementacja, obie platformy.
 import { useMemo } from "react";
 import type { ChartConfig } from "@/lib/charts/types";
-import { MAX_SERIES } from "@/lib/charts/types";
 import { formatChartValue, formatPercent, type ChartLang } from "@/lib/charts/format";
 import { ChartFrame, CHART_TABLE_CLS, type LegendItem } from "./ChartFrame";
 import { CartesianChart } from "./CartesianChart";
 import { PieChart } from "./PieChart";
+import { pieModel, pieShare } from "./pieModel";
 
 const L = {
   pl: { category: "Kategoria", value: "Wartość", share: "Udział", empty: "Brak danych wykresu." },
@@ -26,16 +26,19 @@ export function Chart({ config, lang, className }: ChartProps) {
 
   const legend: LegendItem[] = useMemo(() => {
     if (isPie) {
-      return config.categories.map((label, i) => ({
-        name: label,
-        colorSlot: (i % MAX_SERIES) + 1,
+      // Próbka legendy musi wskazywać DOKŁADNIE jeden wycinek, więc klucz
+      // idzie z tego samego modelu, co tarcza - razem z wycinkiem zbiorczym
+      // nadmiaru kategorii i bez kategorii, których tarcza nie rysuje.
+      return pieModel(config, lang).slices.map((s) => ({
+        name: s.label,
+        colorSlot: s.colorSlot,
         shape: "rect" as const,
       }));
     }
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
     return config.series.map((s) => ({ name: s.name, colorSlot: s.colorSlot, shape }));
-  }, [config.categories, config.series, config.kind, isPie]);
+  }, [config, lang, isPie]);
 
   const hasData =
     config.categories.length > 0 &&
@@ -120,7 +123,12 @@ function PieDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }
     label,
     value: config.series[0]?.values[i] ?? null,
   }));
-  const total = values.reduce((a, v) => a + (v.value ?? 0), 0);
+  // Mianownik TEN SAM, którym liczy kąty tarcza (`pieModel`): suma dodatnich.
+  // Sumowanie wszystkiego rozjeżdżało grafikę z jej alternatywą tekstową -
+  // zestaw [-10, 100] dawał na tarczy jeden wycinek 100%, a w tabeli "111%"
+  // i "-11,1%". Każdy wiersz zostaje (tabela to jedyna pełna droga do liczb),
+  // ale udział mówi o tym, co tarcza rzeczywiście rysuje.
+  const { total } = pieModel(config, lang);
   return (
     <table className={CHART_TABLE_CLS.table}>
       <thead>
@@ -146,7 +154,7 @@ function PieDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }
               {v.value === null ? "-" : formatChartValue(v.value, lang, config.unit)}
             </td>
             <td className={CHART_TABLE_CLS.tdNum}>
-              {v.value === null || total <= 0 ? "-" : formatPercent(v.value / total, lang)}
+              {v.value === null || total <= 0 ? "-" : formatPercent(pieShare(v.value, total), lang)}
             </td>
           </tr>
         ))}

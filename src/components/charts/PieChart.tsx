@@ -9,25 +9,16 @@
 // Interakcja: hover/focus wycinka -> tooltip; wycinki są fokusowalne.
 import { useMemo, useState } from "react";
 import type { ChartConfig } from "@/lib/charts/types";
-import { MAX_SERIES } from "@/lib/charts/types";
 import { formatChartValue, formatPercent, type ChartLang } from "@/lib/charts/format";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip } from "./ChartTooltip";
+import { pieModel } from "./pieModel";
 
 const L = {
   pl: { total: "Suma" },
   en: { total: "Total" },
 } as const;
-
-interface Slice {
-  label: string;
-  value: number;
-  share: number;
-  colorSlot: number;
-  startAngle: number;
-  endAngle: number;
-}
 
 interface PieChartProps {
   config: ChartConfig;
@@ -70,28 +61,9 @@ export function PieChart({ config, lang }: PieChartProps) {
   // kontenera (rOuter poniżej), więc wyższa karta = więcej powietrza wokół.
   const height = config.height;
 
-  const { slices, total } = useMemo(() => {
-    const first = config.series[0];
-    const raw = config.categories
-      .map((label, i) => ({
-        label,
-        value: first?.values[i] ?? null,
-        colorSlot: (i % MAX_SERIES) + 1,
-      }))
-      .filter(
-        (d): d is { label: string; value: number; colorSlot: number } =>
-          d.value !== null && d.value > 0,
-      );
-    const sum = raw.reduce((a, d) => a + d.value, 0);
-    let angle = -Math.PI / 2;
-    const computed: Slice[] = raw.map((d) => {
-      const share = sum > 0 ? d.value / sum : 0;
-      const startAngle = angle;
-      angle += share * Math.PI * 2;
-      return { ...d, share, startAngle, endAngle: angle };
-    });
-    return { slices: computed, total: sum };
-  }, [config.categories, config.series]);
+  // useMemo dla stałej tożsamości tablicy wycinków - hover renderuje przy
+  // każdym ruchu wskaźnika, a config w tych renderach jest ten sam.
+  const { slices, total } = useMemo(() => pieModel(config, lang), [config, lang]);
 
   if (slices.length === 0) return null;
 
