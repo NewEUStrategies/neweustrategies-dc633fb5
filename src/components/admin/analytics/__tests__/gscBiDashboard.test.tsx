@@ -906,10 +906,11 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
     expect(insightFixes(E.position)).toEqual(giList("position.fixesWorse"));
   });
 
-  it("pogorszenie DOKŁADNIE o 0,5 miejsca to już ostrzeżenie, ale jeszcze lista stabilna", async () => {
-    // Dwa łańcuchy `if` nad tą samą liczbą: ocena łamie się na `>= 0.5`,
-    // a lista kroków na `> 0.5`. Granica 0,5 jest więc miejscem, w którym te
-    // dwie decyzje się rozjeżdżają - i dlatego ma własny przypadek.
+  it("pogorszenie DOKŁADNIE o 0,5 miejsca daje ostrzeżenie RAZEM z listą naprawczą", async () => {
+    // Granica 0,5 miejsca jest jedna i domknięta (`gscInsights.ts`,
+    // `POS_DEADBAND`): ta sama liczba przełącza wagę wpisu i zestaw kroków,
+    // bo operator widzi je w jednym kafelku. Kafelek ostrzegawczy z poradą
+    // „utrzymaj tempo” byłby alarmem i instrukcją bezczynności naraz.
     await withData({
       date: [dayRow("2026-08-01", 100, 1000, 8.5)],
       prev: [dayRow("2026-07-01", 100, 1000, 8)],
@@ -917,7 +918,7 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
     expect(insightTitle(E.position)).toBe(gi("position.title", { pos: "8.5", delta: "+0.5" }));
     expect(insightDetail(E.position)).toBe(gi("position.detailWorse", { n: "0.5" }));
-    expect(insightFixes(E.position)).toEqual(giList("position.fixesStable"));
+    expect(insightFixes(E.position)).toEqual(giList("position.fixesWorse"));
     expect(insightElements()[0]).toBe(E.position);
   });
 
