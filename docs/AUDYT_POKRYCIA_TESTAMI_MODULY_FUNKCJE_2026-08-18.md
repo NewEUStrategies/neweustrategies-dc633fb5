@@ -749,6 +749,848 @@ Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera 
 | Observability / RUM / web vitals        |     11 |        409 |  54,6% | 48,6% |   61,7% | **54,0%** |     37/60 |
 | Analityka: warstwa semantyczna          |      7 |        239 |  70,4% | 60,2% |   69,4% | **71,5%** |     43/62 |
 
+### MODUŁ 17 - kampania 2026-09-01/02: linie 36,07% -> 96,24%, funkcje 31,18% -> 95,96%, plików na zerze 47 -> 0
+
+**Punktem odniesienia tego rozdziału nie jest wyłącznie wydanie 8.** Między pomiarem
+wydania 8 (HEAD `8e771b983`) a startem tej kampanii main przyjął **59 commitów**, a
+w module 17 przybył m.in. pierwszy test reportera Core Web Vitals
+(`src/lib/__tests__/webVitals.test.ts`, 33 przypadki) - czyli plik, który wydanie 8
+wymienia jako `webVitals.ts 0/78, 0/14 funkcji`. Liczby wydania 8 nie opisują więc
+stanu, od którego ta kampania startowała. Żeby delta była uczciwa, stan WYJŚCIOWY
+zmierzyłem sam: pełnym przebiegiem `vitest run --coverage` w osobnym drzewie roboczym
+przypiętym do commitu sprzed pierwszej zmiany (`3eb5e92`). Podaję obie liczby i nie
+mieszam ich.
+
+**Zastrzeżenie do podziału wewnątrz modułu.** Reguła ścieżkowa MODUŁU 17 jest w tym
+dokumencie opublikowana (rozdz. 9.1) i użyłem jej dosłownie, więc liczby CAŁEGO modułu
+są porównywalne między wydaniami. Podział na cztery funkcjonalności nie jest
+opublikowany jako regexy, a mój (niżej) przypisuje np. cały
+`src/components/admin/analytics/semantic/` do warstwy semantycznej - stąd „plików" nie
+zgadza się z tabelą wydania 8. Dla funkcjonalności porównywalna jest zatem DELTA W
+OBRĘBIE TEJ KAMPANII (ta sama reguła po obu stronach pomiaru), a nie różnica wobec
+wydania 8.
+
+Reguła podziału, w kolejności rozstrzygania: (1) **warstwa semantyczna** -
+`lib/analytics/semantic/`, `components/admin/analytics/semantic/`, trasy z członem
+`semantic`; (2) **observability / RUM** - `lib/observability/`, `lib/webVitals`,
+`/api/public/(vitals|client-errors)`, `admin.performance`,
+`components/admin/performance/`; (3) **wykresy i panel BI** - `components/charts/`,
+`components/admin/analytics/`, `lib/charts/`,
+`admin.(analytics|experiments|link-monitor)`; (4) **zbieranie zdarzeń i liczniki** -
+reszta modułu.
+
+**Moduł 17 razem.**
+
+| metryka    | wejście (`3eb5e92`) | po kampanii | delta | cel zlecenia |
+| ---------- | ------------------: | ----------: | ----: | -----------: |
+| linie | 36,07% (1134/3144) | **96,24%** (3099/3220) | +60,17 pp | ≥ 65% |
+| instrukcje | 35,31% (1283/3634) | **95,54%** (3556/3722) | +60,23 pp | - |
+| gałęzie | 27,30% (917/3359) | **92,17%** (3145/3412) | +64,87 pp | ≥ 52% |
+| funkcje | 31,18% (280/898) | **95,96%** (878/915) | +64,78 pp | ≥ 62% |
+| plików na zerze | 47 | **0** | -47 | - |
+
+Plików w mianowniku: 89 (wejście) / 89 (po).
+
+**Delta wobec WYDANIA 8, podana osobno i z zastrzeżeniem.** Zamówienie prosiło
+o odniesienie do liczb wydania 8, więc je podaję - ale nie mieszam ich z tabelą
+wyżej, bo mierzą inny stan wyjściowy: linie **32,88% -> 96,24% (+63,36 pp)**,
+gałęzie **25,14% -> 92,17% (+67,03 pp)**, funkcje **28,41% -> 95,96% (+67,55 pp)**,
+plików na zerze **47 -> 0**. Ta delta jest większa od zmierzonej przeze mnie
+dokładnie o to, co między wydaniem 8 a startem kampanii dołożyli inni - w tym
+pierwszy test reportera Core Web Vitals. Przypisywanie tej różnicy kampanii
+byłoby zawyżeniem, dlatego liczbą wiążącą dla oceny TEJ pracy jest delta wobec
+`3eb5e92`, a nie wobec wydania 8.
+
+**Zakres zmian w kodzie produkcyjnym: DZIEWIĘĆ plików** w 16 commitach -
+`lib/webVitals.ts`, `lib/observability/report.ts`,
+`components/admin/analytics/{chartTheme.ts,EChartClient.tsx}`,
+`lib/views/postViews.functions.ts`, `routes/api/public/{vitals,client-errors}.ts`,
+`scripts/check-entry-purity.ts` i `scripts/lib/unknownCastBaseline.ts`.
+`package.json` i `package-lock.json` nietknięte, `echarts` i `echarts-for-react`
+ani dodane, ani usunięte. W całej kampanii zero `it.skip`, zero `it.todo`, zero
+`any` i zero `as any` - sprawdzone grepem po całym diffie, nie po pamięci.
+
+**Cztery funkcjonalności.** Ta sama reguła podziału po obu stronach pomiaru.
+
+| Funkcjonalność | Plików | linie wejście | linie po | gałęzie po | funkcje po | cel (linie/fn/gał) |
+| -------------- | -----: | ------------: | -------: | ---------: | ---------: | -----------------: |
+| Analityka: zbieranie zdarzeń i liczniki | 21 | 15,68% | **85,63%** | 78,15% | 77,56% (121/156) | 70 / 65 / 55 |
+| Wykresy i panel BI | 38 | 32,20% | **99,82%** | 95,90% | 100,00% (568/568) | 60 / 55 / 45 |
+| Observability / RUM / web vitals | 14 | 64,54% | **97,29%** | 93,48% | 97,78% (88/90) | 85 / 85 / 75 |
+| Analityka: warstwa semantyczna | 16 | 56,66% | **99,43%** | 95,79% | 100,00% (101/101) | 92 / 90 / 80 |
+
+#### Rejestr N1-N8: osiem zleceń, osiem rozstrzygnięć
+
+Każdy punkt ma jeden z trzech statusów. Żaden nie wyszedł „odroczony".
+
+**N1 - gubione CLS i INP po pierwszym zrzucie. NAPRAWIONY.**
+Jedna wspólna flaga `flushed` zamykała się przy pierwszym zrzucie i była czyszczona
+wyłącznie przez nawigację miękką. Skutek jest gorszy, niż mówiło zlecenie: po
+pierwszym ukryciu karty ścieżka milkła NA STAŁE - każdy kolejny cykl ukryć i powrotów
+oraz `pagehide` były no-opem, a przywrócenie z bfcache dawało całą sesję bez pomiaru.
+Zapadka rozbita na stan per metryka. LCP zostaje jednorazowe (jest finalne z
+definicji), CLS i INP są wysyłane PONOWNIE, gdy urosły.
+
+Zlecenie mówiło „zrzuć deltę". Odstąpiłem od tego świadomie i wysyłam wartość
+SKUMULOWANĄ, bo delta w tym ingeście jest gorsza niż defekt, który miała naprawić:
+wiersz `web_vitals` niesie WŁASNĄ ocenę good/needs-improvement/poor, a
+`aggregateVitals` liczy p75 po surowych wierszach i tej ocenie ufa. Strona o realnym
+CLS 0,4 („poor") rozbita na cztery przyrosty po 0,1 dałaby cztery wiersze „good"
+i zero „poor", a prawdziwa wartość nie pojawiłaby się w populacji p75 ani razu -
+zniknąłby dokładnie ten ogon rozkładu, dla którego p75 się liczy. Warunek „tylko gdy
+urosło" nie pozwala serii ukryć zalać ingestu identycznymi wierszami. Koszt przyjęty
+świadomie: odsłona z dwoma zrzutami zostawia dwa wiersze CLS, więc `count` zawyża
+liczbę odsłon.
+
+Dowód: `src/lib/__tests__/webVitals.test.ts`, blok „kumulacja po pierwszym zrzucie
+(N1)" - cztery przypadki, z których DWA są czerwone na kodzie sprzed naprawy
+(zweryfikowane przez chwilowe przywrócenie starej wersji `flushCurrent`, nie przez
+rozumowanie). Pozostałe dwa to strażnicy regresji: seria ukryć bez nowych pomiarów
+nie dubluje wierszy, a nawigacja miękka nadal zeruje akumulatory.
+
+**N2 - brak batchowania metryk RUM. NAPRAWIONY.**
+Klient buforuje i zrzuca JEDNYM beaconem na każdej granicy (nawigacja miękka,
+`visibilitychange` -> hidden, `pagehide`), endpoint przyjmuje `{metrics:[...]}` i robi
+JEDEN wielowierszowy insert. Pierwsze wczytanie kosztuje jedno żądanie zamiast pięciu.
+
+Korekta do zlecenia: komentarz w endpoincie mówił „a page load emits ~6 vitals" i to
+było zawyżone. `VALID_METRICS` dopuszcza FID, ale unia typów klienta nie umie go
+wyprodukować; realne wczytanie bez interakcji emituje CZTERY metryki (FCP, TTFB, LCP,
+CLS), bo INP wymaga zdarzenia z `interactionId` i `duration > 40`.
+
+Bufor nie jest oknem batchowania i to jest cała jego konstrukcja: każda granica
+zrzutu drenuje kolejkę SYNCHRONICZNIE, a timer istnieje wyłącznie dlatego, że FCP
+i TTFB są kolejkowane przy inicjalizacji, która własnej granicy nie ma - stąd ma
+zerowe opóźnienie. Karty w tle mają timery dławione do ~1/min, więc gwarancją są
+listenery ukrycia, nigdy timer. Cofnięcie zgody PORZUCA to, co zostało w buforze.
+
+Zgodność wsteczna jest obowiązkowa i przetestowana: strona zbuforowana przed zmianą
+- albo otwarta w karcie w tle od wczoraj - nadal wysyła pojedynczy obiekt
+`{name,value,...}` i nadal jest zapisywana. Endpoint normalizuje trzy kształty ciała
+do listy.
+
+Limiter przeliczony: 60/1 -> 20/0,2. Budżet jest liczony w WIERSZACH, nie w żądaniach,
+bo żądanie, które wstawiało jeden wiersz, wstawia teraz do ośmiu: 12 żądań/min razy
+MAX_METRICS = 8 daje ~96 wierszy/min, ten sam rząd wielkości co 60 wierszy/min przy
+starej nastawie.
+
+**N3 - dwie ścieżki beaconu do tego samego zadania. NAPRAWIONY.**
+`webVitals.ts` woła teraz `sendBeaconPayload` i `vitalsEndpoint()` zamiast własnego
+`navigator.sendBeacon` z surowym napisem i drugiego, inline'owego odczytu zmiennej
+środowiskowej.
+
+Pułapka, którą trzeba było ominąć: `observabilityEndpoint()` miała fallback na
+`/api/public/client-errors`, a `webVitals.ts` - na `/api/public/vitals`. Naiwne
+podstawienie wspólnej funkcji wysłałoby WSZYSTKIE metryki RUM do ingestu błędów, który
+wymaga pola `message`, więc odpowiedziałby 204 i nie zapisał ani jednego wiersza -
+cicha, całkowita utrata danych bez jednego czerwonego żądania, po którym można by to
+zauważyć. Dlatego fallback jest PARAMETREM, a nie stałą.
+
+Dowód: test, że ingest przyjmuje OBA kształty ciała - napis (stary transport) i Blob
+`application/json` (nowy) - po obu stronach: w teście klienta i w teście endpointu.
+
+**N4 - niezmienność „ECharts nigdy w grafie SSR" bez bramki. NAPRAWIONY, ale nie tak,
+jak zakładało zlecenie.**
+Zlecenie mówiło: dopisz echarts do `HEAVY_MODULES` w `check-entry-purity.ts`.
+Dopisałem - i to za mało, bo TA BRAMKA TEJ KRAWĘDZI NIE ŁAPIE. `check-entry-purity`
+liczy domknięcie ŚCIEŻKI BOOTOWANIA KLIENTA: startuje od chunków wstrzykiwanych przez
+SSR jako `<script type="module">` i idzie po statycznych krawędziach chunk -> chunk.
+Niezmienność z nagłówka `EChart.tsx` dotyczy natomiast grafu SSR (OOM V8 wywalał
+renderer chunków Rollupa na przebiegu Cloudflare/Nitro). Prześledzone: wszyscy
+importerzy `EChart` siedzą na powierzchniach tras LENIWYCH (`ChartCard`, `KpiTile`,
+cztery panele BI, `ClubInsights`, `admin.coupons.analytics`), a `manualChunks`
+w `vite.config.ts` nie ma kubełka na echarts ani łapacza końcowego - statyczny import
+wylądowałby więc w chunku osiągalnym wyłącznie z chunków leniwych, POZA domknięciem
+bootu. Bramka chunkowa zostałaby zielona przy padającym buildzie.
+
+Stąd DRUGA bramka, źródłowa: `src/lib/ci/__tests__/echartsStaticEdge.test.ts`. Czyta
+importy w `src/`, nie chunki - jest tańsza (nie wymaga builda), wcześniejsza (zapala
+się w PR) i wskazuje plik. Dowodzi czterech rzeczy: wartościowo ECharts importuje
+DOKŁADNIE JEDEN plik, `EChart.tsx` nie importuje modułu wykresu statycznie ale NADAL
+wciąga go przez `import()`, nikt nie omija mostu sięgając po `EChartClient` wprost,
+a sam moduł wykresu nadal używa modularnej rejestracji zamiast `import "echarts"`.
+`import type` jest dozwolone i to nie jest furtka - importy typów są kasowane przy
+kompilacji, a dziesięć plików panelu bierze z `echarts/core` wyłącznie typy. Piąty
+przypadek jest sondą samego wykrywacza: gdyby mylił typ z wartością, pierwsza reguła
+zapalałaby się na tych dziesięciu plikach i ktoś rozbroiłby ją, żeby uciszyć fałszywy
+alarm. Sprawdzone, że bramka nie jest martwa: po chwilowym dopisaniu zakazanego
+importu dwa przypadki padają.
+
+Wybór markerów dla bramki chunkowej miał własną pułapkę, wartą zapisania, bo
+kosztowała pierwszy wybór: prawie wszystkie czytelne komunikaty ECharts („There is
+a chart instance already initialized on the dom.", „Initialize failed: invalid dom.",
+„ECharts#one is deprecated.") siedzą w `process.env.NODE_ENV !== 'production'` i w
+`echarts.min.js` ICH NIE MA. Sonda po nich dałaby bramkę, która nigdy się nie zapala.
+Markery finalne (`_echarts_instance_` z `lib/core/echarts.js` i treść `throw new Error`
+z `lib/util/clazz.js`) występują w wydaniu produkcyjnym i pochodzą z dwóch niezależnych
+modułów rdzenia. Pilnuje tego trzecia bramka -
+`src/lib/ci/__tests__/entryPurityEchartsMarkers.test.ts` - która sprawdza, że każdy
+marker faktycznie jest w `echarts.min.js`, że żaden nie trafia we własny kod (fałszywy
+alarm rozbroiłby zaufanie do bramki równie skutecznie jak jej brak) i że nie wróciły
+markery wycięte z wydania produkcyjnego.
+
+**N5 - klient Supabase tworzony na każde wywołanie. NAPRAWIONY, z korektą uzasadnienia.**
+`postViews.functions.ts` tworzy teraz klienta raz na izolat, leniwie. Bezpieczne
+w izolacie wielotenantowym, bo w kliencie nie ma NIC związanego z żądaniem:
+`x-tenant-host` i `x-tenant-assert` rozstrzyga `fetchWithTenantHost` per wywołanie
+z kontekstu żądania, a `persistSession: false` daje storage pamięciowy, do którego ten
+moduł nie pisze. Leniwie, nie `const` na poziomie modułu, bo `createClient` rzuca przy
+braku `SUPABASE_URL` i przy inicjalizacji modułu wywróciłby cały chunk strony wpisu
+zamiast jednego wywołania server function.
+
+DWIE KOREKTY DO ZLECENIA, obie istotne dla tego, jak tę zmianę opisywać.
+Po pierwsze: to jest oszczędność CPU, nie latencji. Około 110 us i 16 kB na
+konstrukcję wobec round-tripu Supabase rzędu 20-150 ms to 0,1-0,5% czasu ściany. Sam
+„gorący plik" tego nie uzasadnia. Uzasadnia to model rozliczeniowy Workers, w którym
+czas CPU jest zasobem BILOWANYM i limitowanym.
+Po drugie: pytanie zlecenia o budżet SSR nie ma tu zastosowania. `/admin` ma
+`ssr: false` (`src/routes/admin.tsx:11`), więc `admin.analytics.tsx` nie jest
+renderowana serwerowo wcale, a na wejściu odpala DWA zapytania server-fn, i to
+SEKWENCYJNIE (`getVitalsSummary` żyje w panelu montowanym dopiero po odpowiedzi
+statusu). Szczyt równoległości z tej trasy to 1. Ani limit 6 subrequestów, ani
+`SSR_DB_DEADLINE_MS` nie są w grze. Sześć ciężkich pulpitów siedzi za
+niezamontowanymi zakładkami.
+
+**N6 - `ga4.server.ts` na zerze, w tym podpisywanie JWT. NAPRAWIONY.**
+0/71 linii i 0/17 funkcji -> 100% linii, funkcji, instrukcji i gałęzi. Wzorzec
+skopiowany z `webpush.test.ts`: klucz RSA generowany W TEŚCIE, `fetch` podmieniony,
+zero sieci i zero sekretów. Podpis weryfikuje się kluczem publicznym i NIE weryfikuje
+obcym; klucz z literalnymi `\n` jest odescape'owany przed podpisaniem; token w oknie
+ważności jest reużywany, wygasający - podpisywany na nowo.
+
+Korekta do zlecenia: hipoteza o wycieku tokenu jest NEGATYWNA. Żadna ścieżka błędu
+w `ga4.server.ts` nie umieszcza podpisanej asercji ani bearera w komunikacie.
+Te przypadki są więc strażnikami regresji, nie znaleziskami.
+
+**N7 - `as never` na zapisie `web_vitals`. NAPRAWIONY - i przyczyna była inna, niż
+mówiło zlecenie.**
+Zlecenie kazało zregenerować typy albo zapisać, dlaczego rzutowanie musi zostać.
+Trzecia możliwość okazała się prawdziwa: typy JUŻ SĄ zregenerowane. `web_vitals`
+(migracja 20260626210000) i `client_errors` (20260626230000) są w
+`src/integrations/supabase/types.ts`. Komentarz „tabela z migracji, której nie ma
+jeszcze w wygenerowanych typach" przestał być prawdziwy i nikt tego nie zauważył, więc
+rzutowanie było już tylko wyłączeniem kontroli kształtu wiersza - na DWÓCH ścieżkach
+zapisu osiągalnych publicznie, bez sesji i bez podpisu. Oba wiersze mają teraz
+`TablesInsert<"web_vitals">` i `TablesInsert<"client_errors">`.
+
+Dlaczego `check:stale-never-casts` tego nie złapał: bramka rozpoznaje rzutowanie
+zapisane INLINE przy nazwie tabeli, a po zbatchowaniu ingestu cast przeniósł się na
+zmienną (`insert(payload as never)`). Poszerzenie skanera to osobna zmiana, dotykająca
+charteru bramki; tutaj usunąłem przyczynę.
+
+**N8 - dodatkowy render na każdy wykres. NAPRAWIONY, z pomiarem przed i po.**
+`useEffect(() => setTick(v => v + 1), [])` zastąpiony jedną wspólną subskrypcją motywu.
+Powód, dla którego efekt istniał, jest PRAWDZIWY i został zachowany: `DesignTokensStyle`
+wstrzykuje paletę tenanta z bazy przez zapytanie react-query, więc `--primary` czy
+`--foreground` mogą dojechać po pierwszym malowaniu wykresu. Zmieniło się narzędzie:
+motyw jest rozwiązywany raz, porównywany z poprzednim i rozgłaszany WYŁĄCZNIE gdy się
+różni. Do tego `resolveChartTheme` pobiera migawkę stylu RAZ zamiast raz na token
+(dziesięć tokenów to było dziesięć wymuszeń przeliczenia stylu).
+
+ZMIERZONE, panel dziesięciu wykresów (`__tests__/EChartClient.test.tsx`):
+
+| wielkość                | przed | po  |
+| ----------------------- | ----: | --: |
+| renderów wykresu        |    20 |  10 |
+| rozwiązań motywu        |    20 |   2 |
+| wywołań getComputedStyle |   200 |   2 |
+
+Test „tokeny, które dojechały PO pierwszym malowaniu, trafiają do wykresu" pilnuje,
+żeby oszczędność nie została kupiona za poprawność. Osobna subtelność, znaleziona
+pomiarem: porzucenie migawki przy zniknięciu ostatniego subskrybenta rodziło NOWY
+obiekt dla identycznych kolorów, a `useSyncExternalStore` porównuje migawki przez
+`Object.is` - czyli przełączenie zakładki panelu na wczytane dane dawało wymuszony
+drugi render mimo całej zmiany. Migawka jest więc znaczona jako podejrzana, nie
+wyrzucana.
+
+#### Trasy panelu: cztery ekrany z zera do stu
+
+Krok 13 zlecenia wymieniał pięć powierzchni panelu stojących na zerze. Wszystkie
+wyszły z zera, cztery z nich na 100% linii i 100% funkcji:
+
+| plik                            | wejście   | linie |   funkcje |  gałęzie | przypadków |
+| ------------------------------- | --------- | ----: | --------: | -------: | ---------: |
+| `src/routes/admin.analytics.tsx`      | 0/54, 0/27 | 100% | 100% (27/27) | 98,42% |  51 |
+| `src/routes/admin.link-monitor.tsx`   | 0/33, 0/7  | 100% | 100% (7/7)   | 94,87% |  38 |
+| `src/routes/admin.experiments.tsx`    | 0/26, 0/8  | 100% | 100% (8/8)   |   100% |  20 |
+| `src/routes/admin.performance.tsx`    | 0/8, 0/3   | 100% | 100% (3/3)   |   100% |  12 |
+| `src/components/admin/performance/EdgeCacheCard.tsx` | 0/43, 0/18 | 100% | 100% (18/18) | 94,83% | 21 |
+| `src/lib/charts/geoQuery.ts`          | 0/4, 0/1   | 100% | 100% (2/2)   |   100% |  12 |
+| `src/lib/tracker-admin.functions.ts`  | 0/3, 0/1   | 100% | 100% (1/1)   |      - |  10 |
+
+**Dlaczego to nie jest pokrycie „na sam render".** W tych plikach SKLEJENIE JEST
+LOGIKĄ, a nie detalem implementacji:
+
+`/admin/performance` trzyma aktywną zakładkę W ADRESIE (`?tab=errors`), więc zakładka
+jest linkowalna - i właśnie dlatego `validateSearch` musi ZERWAĆ każdą nieznaną
+wartość do `undefined`. Parametr przepuszczony wprost do `Tabs value=` daje panel bez
+ŻADNEJ widocznej zakładki, czyli podrzucony `?tab=cokolwiek` wywraca stronę. Testowane
+są też dwie własności, których sam render nie dotyka: powrót na zakładkę DOMYŚLNĄ
+czyści parametr (jeden widok = jeden adres, inaczej historia mnoży wpisy przy każdym
+przełączeniu), a nawigacja jest `replace`.
+
+`/admin/analytics` NIE trzyma zakładki w adresie i test to przypina - nie jako
+zalecenie, ale jako stan faktyczny, żeby ewentualne przejście na zakładki linkowalne
+było zmianą jawną. Ważniejsze: w tej trasie STATUS DECYDUJE, CO SIĘ RENDERUJE.
+Nieskonfigurowany GA4 dostaje instrukcję konfiguracji, a NIE pulpit odpytujący Data
+API bez kluczy; zakładka GSC bez danych statusu renderuje `null`, a nie pulpit
+z `configured: undefined`. Stanów GA4 jest TRZY, nie dwa: „podłączony", „jest service
+account, brak `GA4_PROPERTY_ID`" i „nic nie ma" - zlepienie środkowego ze skrajnym
+kosztuje administratora godzinę, bo albo szuka klucza, który już wgrał, albo czeka na
+dane, które nie przyjdą. Przycisk testowego eventu Measurement Protocol ma cztery
+rozłączne wyjścia, w tym WCZESNE wyjście przy `configured: false` (bez `return`
+panel dokładał drugi komunikat o odpowiedzi, której nie było). Osadzony raport Looker
+Studio wymaga flagi ORAZ adresu - flaga bez adresu dawałaby pustą ramkę 720 px
+udającą raport.
+
+`/admin/link-monitor` opiera się na jednym ogniwie zapytania: `.eq("ok", false)`. Bez
+niego tabela pokazuje wszystkie sprawdzone linki, w większości działające, a tytuł
+panelu zaczyna kłamać - przy czym PUSTY panel przy zdrowej witrynie jest wynikiem
+POPRAWNYM, więc test musi rozróżniać „nie ma zepsutych" od „zapytanie nie filtruje".
+Próg alertu asertowany jest po IMPORTOWANEJ stałej `BROKEN_LINK_ALERT_THRESHOLD`, a
+nie po wpisanej w test dziesiątce: skaner wysyła powiadomienie od tego samego progu,
+więc zmiana polityki musi przestawić panel i powiadomienie naraz albo oblać test.
+Sugestia zamiany ma ZAWSZE adres - konkretną migawkę, gdy skaner ją znalazł, albo
+uniwersalny `web/2/`; wiersz bez linku odsyłałby redaktora do ręcznego wklejania
+adresów do Wayback Machine, czyli do stanu przed tym panelem.
+
+`/admin/experiments` liczy werdykt PRAWDZIWYM `zScore` i `conversionRate` (atrapowane
+są tylko dwa hooki danych), bo atrapa w tym miejscu zamieniłaby test w sprawdzanie
+własnych liczb. Dwie asercje warte wymienienia: zero ekspozycji daje „brak danych", a
+nie „różnica nieistotna" - przy zerowym ruchu `zScore` zwraca 0, więc naiwny render
+ogłaszałby brak istotności na próbce, której nie ma; a zwycięzcą jest wariant o
+wyższej KONWERSJI, nie o wyższej liczbie konwersji - wariant A z 5/100 bije B z
+10/1000, choć liczba bezwzględna „wygląda lepiej". Pomyłka w tym miejscu przestawia
+treść strony na gorszą i nikt tego nie zauważy.
+
+`lib/tracker-admin.functions.ts` to trzy linie, w których dwie decyzje są decyzjami
+bezpieczeństwa: handler bierze klienta SERVICE ROLE (tick musi zadziałać ponad RLS, bo
+drenuje kolejki pocztowe i push wszystkich najemców - podmiana na `context.supabase`
+uciszyłaby połowę jobów bez jednego błędu w logu, bo RLS po prostu nie oddałby
+wierszy), a funkcja NIE MA walidatora, więc nie da się z zewnątrz podać ani najemcy,
+ani operatora, ani zakresu jobów.
+
+`lib/charts/geoQuery.ts` ma cztery linie i jedną własność, którą łatwo zepsuć
+„porządkując" klucze cache: `["public", "geo", region]` NIE nosi identyfikatora
+najemcy ani języka - i to jest poprawne, bo zasób to wersjonowany plik statyczny
+(`/geo/europe-50m.v1.json`) identyczny dla każdego obszaru roboczego. Dorzucenie
+czegokolwiek zmiennego zwielokrotniłoby pobrania setek kilobajtów geometrii raz na
+najemcę i raz na język. `staleTime: Infinity` jest wnioskiem z wersji w NAZWIE PLIKU,
+nie optymizmem.
+
+**Higiena tych testów.** Żaden nie wychodzi w sieć: ramka Looker Studio biegnie
+z `disableIframePageLoading` (happy-dom NAPRAWDĘ nawiguje `<iframe src>`; ten sam
+wzorzec i to samo uzasadnienie co w `LazyQuizIframe.test.tsx`), a zasoby geometrii
+mają atrapę `fetch`. Adresy e-mail wyłącznie na `example.com`. Oczekiwanie idzie na
+STAN CACHE'U react-query, nie na liczbę mikrotasków - asercja po dwóch
+`await Promise.resolve()` mierzy PIERWSZĄ KLATKĘ i przechodzi także wtedy, gdy
+zapytanie nie zwróciło danych (sprawdzone: w pierwszej wersji testu monitora linków
+19 z 35 przypadków „przechodziło" właśnie na pustej tabeli). Dostępność obu dużych
+tras sprawdza `axe-core` przez `src/test/axe.ts` na drzewie Z DANYMI, bo pusty widok
+nie ma czego naruszyć.
+
+**Czego te testy NIE dowodzą.** Uprawnień. Żadna z tych tras nie ma własnego
+middleware - rolę sztabową wymuszają funkcje serwerowe (`requireAdmin`,
+`requireStaff`) i RLS, a nie render; w teście nie ma sesji, więc „użytkownik bez roli
+sztabowej nie widzi panelu" nie jest tu rozstrzygalne i pilnuje tego bramka
+`check:authz-snapshot`. Izolacji najemcy również nie dowodzą na poziomie tras, i to
+jest wniosek z lektury, nie skrót: zapytanie monitora linków ŚWIADOMIE nie ma
+`.eq("tenant_id", …)`, bo `outbound_link_checks` stoi pod RLS
+`tenant_id = public.current_tenant_id() AND public.is_staff()` (migracja
+20260720135000), a `useExperimentsAdmin` filtruje `tenant_id` i skaluje klucz cache
+po tenancie już poza trasą. Powtarzanie tych warunków w atrapie klienta dowodziłoby
+wyłącznie treści atrapy - dowód mieszka w `check:tenant-isolation`.
+
+#### Czy suita jest zielona: warunek, bez którego procenty nie znaczą nic
+
+`coverage.reportOnFailure: true` w `vitest.config.ts` jest w tym repozytorium
+świadomą decyzją (raport i progi muszą powstać także na czerwonej suicie), ale ma
+skutek uboczny, który trzeba wypowiedzieć: **linia wykonana przez PADAJĄCY test
+nadal liczy się jako pokryta.** Wzrost procentu na czerwonej suicie może więc być
+wzrostem pozornym. Dlatego liczby wyżej podaję razem z rachunkiem przebiegu, a nie
+zamiast niego.
+
+Pełny przebieg `vitest run --coverage` na tym HEAD: **2 084 pliki testowe, 2 077
+zielonych, 2 pominięte, 5 czerwonych; 56 880 przypadków, z tego 56 461 zielonych,
+361 oczekiwanych porażek (`it.fails`), 51 pominiętych, 7 padnięć.**
+
+Wszystkie 5 czerwonych plików leży POZA modułem 17 i wszystkie 5 padało już przed
+kampanią. To nie jest wniosek z lektury, to pomiar: te same cztery pliki uruchomiłem
+w worktree przypiętym do commitu wyjściowego `3eb5e92` i w drzewie końcowym -
+**baseline 5 failed / 69 passed, drzewo końcowe 5 failed / 69 passed**, bloki
+padnięć identyczne poza prefiksem ścieżki w stack trace. Wszystkie cztery pliki
+testowe są bajt-identyczne w obu drzewach (te same sumy MD5), a kampania nie dotknęła
+katalogu `supabase/` ani jednym plikiem.
+
+| plik | przypadek | przyczyna | pada w baseline |
+| ---- | --------- | --------- | --------------- |
+| `lib/ci/__tests__/migrationReplay.test.ts` | porządek nazw = porządek wersji | `expected true to be false` | TAK |
+| `lib/ci/__tests__/migrationReplay.test.ts` | ratchet bliźniaków treści | dwie nowe pary bliźniaków z gałęzi Lovable (`page_full_path_tenant_scope`, `owner_plane_tenant_scope_read_history`) | TAK |
+| `lib/authz/__tests__/authzSnapshotParity.test.ts` | snapshot vs migracje | PROVENANCE, `migrations: 932 -> 935` | TAK |
+| `lib/server/__tests__/serviceRoleTenantScope.gate.test.ts` | `page_full_path` wiąże najemcę | `it.fails`, który ZACZĄŁ przechodzić - czyli dług naprawiony, przypięcie nieusunięte | TAK |
+| `components/admin/monetization/__tests__/AdminMonetizationLedger.test.tsx` | przydział bezterminowy | brak tekstu „Bezterminowo" po 5 s | TAK |
+
+Czwarty wiersz zasługuje na komentarz, bo jest lustrem tej kampanii: `it.fails`
+przestaje być dokumentacją długu w chwili, w której dług zniknie, a wtedy zaczyna
+blokować suitę. Przypięcia z tego rozdziału trzeba będzie zdejmować tak samo -
+zgaśnięcie przypięcia jest sygnałem do jego usunięcia, nie do zignorowania.
+
+Jedyny plik modułu 17, który w tym przebiegu był czerwony, to
+`routes/__tests__/adminAnalyticsRoute.test.tsx` - dwa padnięcia asercji `axe-core`
+dopisane w trakcie przebiegu. Naruszenie jest realne (`heading-order`, jeden węzeł),
+zostało przypięte jako defekt i plik jest zielony (52 przypadki + 3 przypięcia).
+Pokrycie tego pliku nie zależało od tych dwóch asercji: 100% linii i 27/27 funkcji
+zmierzone osobno przed i po ich dopisaniu.
+
+#### Progi per-ścieżka: 376 -> 455
+
+Dopisane **79 progów** dla plików modułu 17, które wyszły z zera. Reguła jest jedna i
+mechaniczna: próg = ZMIERZONA wartość zaokrąglona w dół, minus 1 pp. Margines nie jest
+tam po to, żeby ukryć spadek - na pliku czterdziestolinijkowym 1 pp to mniej niż jedna
+linia - tylko po to, żeby inny podział na forki nie zapalał bramki. Trzy ograniczenia
+zlecenia są spełnione dosłownie:
+
+- **żaden istniejący próg nie został obniżony ani usunięty** - generator pomija pliki,
+  które próg już mają, więc nowy nie ma jak leżeć niżej niż stary;
+- **żaden plik nie został wyłączony z pomiaru** - `all: true` i zakres
+  `src/**/*.{ts,tsx}` nietknięte;
+- **progu nie stawia się nad powierzchnią niedomkniętą** - bar wejścia to 70% linii,
+  więc plik z pokryciem 40% zostaje bez progu zamiast dostać próg 39%, który
+  usankcjonowałby stan.
+
+#### Bramki: stan zmierzony na tym HEAD
+
+Uruchomione **28 bramek** `check:*`. Rachunek jest taki: **24 zielone, 4 czerwone,
+a te 4 czerwienie mają TRZY przyczyny źródłowe i żadna nie leży w module 17.**
+Rozdzielenie „bramek czerwonych" od „przyczyn czerwieni" nie jest tu retoryką -
+dwie z tych bramek pokazują czerwień z powodu, który nie ma nic wspólnego z ich
+własną nazwą, i to jest ustalenie o samych bramkach, warte zapisania.
+
+**ZIELONE - bramki buildowe (świeży `npm run build`, exit 0):**
+
+`check:entry-purity` - **ZIELONA, Z NOWYM WPISEM.** To jest zamknięcie N4:
+`echarts` stoi teraz na liście ciężkich modułów obok `dompurify`, `sonner`,
+`lib/builder/sectionLabelVariants` i `lib/legal/content/*`, a ścieżka bootowania
+to **9 chunków statycznie osiągalnych z 941**.
+`check:chunks` - ZIELONA: **941 chunków, 5455 statycznych krawędzi importu, graf
+acykliczny**. `check:chunk-parity` - ZIELONA (3 przypadki).
+
+Liczby chunków są tu z CZYSTEGO buildu i to zastrzeżenie nie jest formalnością -
+na katalogu `.output` z dwiema generacjami assetów te same bramki raportowały
+1731 chunków i 10 784 krawędzie. Mechanizm i konsekwencje opisuję niżej, przy
+`check:bundle`.
+
+**ZIELONE - harnessy bazodanowe (5):** `check:pg-harness` (**369 asercji runtime**),
+`check:events-harness` (**107 migracji, 1044 asercje**), `check:careers-harness`
+(12 migracji, 6 atrap-celów polityk, zero pominiętych migracji),
+`check:programs-harness`, oraz `check:widget-fidelity` (548 przypadków).
+
+`check:tenant-isolation` - **62 asercje RLS**,
+w tym cztery, które warto wypisać, bo dotyczą danych wrażliwych: historia czytania
+i wynik testu osobowości z obcego najemcy są niewidoczne i niezapisywalne (RODO:
+co człowiek czytał, profil psychometryczny), ścieżka kanoniczna strony urywa się na
+granicy najemcy także w wariancie WSADOWYM obsługującym sitemapę, i nie da się
+przepiąć istniejącej strony pod rodzica z obcego najemcy.
+
+**ZIELONE - bramki statyczne (22):** `check:types-freshness` (304 tabele w typach,
+26 znanych kolumn poza typami - baseline 26), `check:stale-never-casts` (3327 plików,
+zero rzutowań na nazwy już obecne w typach), `check:unknown-casts` (192 znane
+rzutowania w 124 plikach), `check:db-row-casts` (3328 plików, 20 wyjątków),
+`check:i18n-hardcoded` (791 znanych wystąpień w 110 plikach),
+`check:i18n-default-value` (**zero** zapasowych tekstów przy `t()` w 3296 plikach),
+`check:i18n-overlay-imports`, `check:sql-tenant-scope` (1086 funkcji, 5 uzasadnionych
+ścieżek publicznych), `check:sql-app-role` (1035 literałów `has_role`),
+`check:sql-anon-insert` (620 polityk, 8 tabel intake chronionych),
+`check:sql-emit-actor` (935 migracji, 1036 funkcji - aktor szóstym argumentem
+w każdym wywołaniu), `check:sql-owner-tenant-scope` (165 polityk właściciela z 620),
+`check:sql-policy-tenant-regression` (562 z 620 polityk z wiązaniem najemcy),
+`check:rpc-contract` (559 nazw wołanych przez klienta, 1039 funkcji),
+`check:content-layering` (bloki -> builder: 0, content-model -> silniki: 0),
+`check:editor-autosave`, `check:workflow-env-contract`, `check:public-assets`,
+`check:legacy-payment-refs` (5865 plików, zero żywych referencji),
+`check:gate-coverage` (**38 bramek, każda wpięta dokładnie raz na job**),
+`check:ownership`, `check:codeowners`.
+
+Dwa ustalenia z zieleni, warte zapisania, bo bramka je DRUKUJE, a nikt ich nie czyta:
+`check:ownership` przechodzi, ale raportuje **9 z 9 domen rejestru bez obsadzonego
+właściciela technicznego** oraz 226 atrybucji słabych (jeden identyfikator). Co
+istotniejsze dla tego rozdziału: **modułu 17 nie ma w rejestrze własności jako
+osobnej domeny** - analityka i BI nie mają właściciela, do którego trafiłoby
+którekolwiek z 96 przypięć niżej.
+
+#### Cztery czerwienie, trzy przyczyny - żadna w module 17
+
+**PRZYCZYNA 1: dryf snapshotu autoryzacji. Zapala DWIE bramki.**
+
+`check:authz-snapshot` - CZERWONA, klasa **PROVENANCE**: `migrations: 932 -> 935`,
+czyli „ten sam krąg uprawnionych, inne miejsce w historii". `check:permissions-parity`
+- CZERWONA Z TEJ SAMEJ PRZYCZYNY: 234 przypadki przechodzą, 1 oczekiwana porażka,
+a jedyne padnięcie to `authzSnapshotParity.test.ts`, czyli ten sam dryf zapakowany
+w test.
+
+Że to dryf metadanych, a nie regresja uprawnień, jest sprawdzalne, nie deklarowane:
+reporter dryfu zwrócił **dokładnie jeden** wpis, kategorii `stats`, o twardo
+ustawionej wadze `provenance`. Gdyby zmieniło się `appRoles` albo jakakolwiek bramka
+rolowa, przed sekcją PROVENANCE stanęłaby osobna sekcja ZMIANA UPRAWNIEŃ. Nie
+stanęła. Z trzech liczb w `stats` rozjechała się **tylko `migrations`**; `functions`
+(1086) i `policies` (607) zgadzają się z odtworzeniem z migracji.
+
+Źródło: trzy migracje z gałęzi Lovable z 31.08-01.09, które weszły PO ostatniej
+regeneracji snapshotu (`1c4a91e`, 31.08) i PRZED startem gałęzi modułu 17 -
+`page_full_path` z unikatem `pages(id, tenant_id)`, polityki właścicielskie na
+`user_read_history` i `personality_result_history`, oraz `menu_items.visibility`.
+Kampania modułu 17 **nie dodała ani jednej migracji** (`git log --diff-filter=A`
+na `supabase/migrations` jest puste). Zlecenie zabrania regenerowania snapshotu dla
+zgaszenia czerwieni i nie regenerowałem go.
+
+**PRZYCZYNA 2: bliźniaki treści migracji. Zapala DWIE bramki.**
+
+`check:sql-migration-replay` - CZERWONA: dwie NOWE pary bliźniaków, czyli ta sama
+zmiana zapisana dwa razy pod dwiema nazwami -
+`20260831160000_page_full_path_tenant_scope.sql` obok
+`20260831214637_5b55b33f-….sql` i
+`20260831170000_owner_plane_tenant_scope_read_history.sql` obok
+`20260831215103_21bb8d7a-….sql`. Komunikat bramki nazywa szkodę precyzyjnie:
+odtworzenie bazy przeżyje, bo migracje są idempotentne, ale **historia kłamie
+o tym, kiedy zmiana realnie weszła** - a przy spłaszczonej historii commitów to
+jedyne narzędzie datowania regresji.
+
+`check:i18n-parity` - CZERWONA Z TEJ SAMEJ PRZYCZYNY I TO JEST USTALENIE O BRAMCE:
+**wszystkie 49 plików językowych przechodzą, 815 przypadków zielonych.** Czerwień
+wnoszą dwa padnięcia z `src/lib/ci/__tests__/migrationReplay.test.ts`, bo glob tej
+bramki obejmuje CAŁY katalog `src/lib/ci/__tests__`, nie tylko testy językowe.
+Praktyczny skutek: `check:i18n-parity` da się dziś zapalić zmianą, która nie ma
+z językiem nic wspólnego, i odwrotnie - kto zobaczy jej czerwień, pójdzie szukać
+rozjazdu słownika, którego nie ma. **REKOMENDACJA: zawęzić glob tej bramki do
+plików językowych.**
+
+**PRZYCZYNA 3: budżet bundla.** Osobny akapit niżej, bo wymaga pomiaru po obu
+stronach kampanii.
+
+**BEZ WEJŚCIA, nie czerwone:** `check:db-contract` i `check:migration-ledger`
+kończą komunikatem „Brak SUPABASE_URL / klucza Supabase - nie mogę zweryfikować".
+To nie są porażki, tylko bramki, które w tym środowisku nie mają czego sprawdzić.
+Odnotowuję je jawnie, bo pominięcie ich w spisie wyglądałoby jak zieleń.
+
+#### `check:bundle`: pomiar, który najpierw zrobiłem BŁĘDNIE
+
+Zanim podam liczby, muszę opisać własną pomyłkę, bo jest instruktywna i łatwa do
+powtórzenia. Pierwszy pomiar dał `public 4205,5 KB` i `overall 7416,4 KB` przy
+1733 plikach - czyli przekroczenie budżetu o 1490 KB i 3110 KB, wynik
+katastrofalny i, jak się okazało, **nieprawdziwy**.
+
+Przyczyna: pierwszy build został ubity w połowie, ale zdążył zapisać do
+`.output/public/assets` 790 plików; drugi build dopisał obok 941 nowych z nowymi
+skrótami w nazwach. `check:bundle` gzipuje WSZYSTKO, co znajdzie w katalogu, więc
+policzył sumę DWÓCH GENERACJI. Widać to w znacznikach czasu (790 plików z jednej
+minuty, 941 z następnej). Bramka nie ma jak tego wykryć - `.output` jest dla niej
+prawdą o buildzie, a nie zbiorem, który sama utworzyła. **Wniosek praktyczny:
+`check:bundle` wolno czytać wyłącznie po `rm -rf .output && npm run build`;
+inkrementalny katalog wyjściowy daje liczby wyglądające jak wynik.** To samo
+dotyczy `check:chunks` i `check:entry-purity`, które na brudnym katalogu
+raportowały 1731 chunków i 10 784 krawędzie zamiast rzeczywistych 941 i 5455.
+
+Pomiar po obu stronach kampanii, na CZYSTYCH buildach, tym samym instrumentem
+(`scripts/check-bundle-size.ts` i `reports/bundle-baseline.json` są bajt w bajt
+identyczne w `3eb5e92` i na HEAD, a `vite.config.ts` i `package.json` kampania
+nie tknęła):
+
+| pomiar                | wejście (`3eb5e92`) | po kampanii | budżet    | stan |
+| --------------------- | ------------------: | ----------: | --------: | ---- |
+| liczba plików JS      |                 943 |         943 |         - | - |
+| PUBLIC                |          2 687,0 KB |  2 687,6 KB | ≤ 2 715 KB | ZIELONY, zapas 27,4 KB |
+| admin-only            |          1 633,4 KB |  1 633,5 KB | bilowane do overall | - |
+| OVERALL               |          4 320,4 KB |  4 321,1 KB | ≤ 4 306 KB | CZERWONY |
+| największy chunk      |            274,0 KB |    274,0 KB |   ≤ 280 KB | ZIELONY |
+| CSS klienta           |     81,0 KB / 2 pl. | 81,0 KB / 2 |    ≤ 82 KB | ZIELONY |
+| domknięcie bootowania |    576,7 KB / 9 ch. | 576,7 KB / 9 |   ≤ 579 KB | ZIELONY |
+
+**Kampania modułu 17 dołożyła +0,7 KB gzip do bundla klienta, z czego +0,6 KB do
+wiadra PUBLIC.** Siedem dziesiątych kilobajta. Przekroczenie budżetu OVERALL
+wynosi 15,1 KB i **istniało już na wejściu kampanii**: 4 320,4 KB wobec progu
+4 306 KB, czyli **14,4 KB ponad próg, zanim kampania cokolwiek zmieniła**. Udział
+kampanii w przekroczeniu to 0,7 z 15,1 KB, czyli **4,6%; pozostałe 95,4% jest
+odziedziczone.** Wiadra public nigdy nie przekroczono - to była wyłącznie
+konsekwencja podwójnego katalogu wyjściowego.
+
+Delta per chunk, policzona przez zgzipowanie i zsumowanie po 809 wiadrach obu
+świeżych buildów - to jest dowód, a nie lista ruchów wobec zamrożonego
+baseline'u z 15 sierpnia, której świadomie nie cytuję, bo jest pisana STARĄ
+konwencją wiader (sama bramka o tym ostrzega):
+
+| chunk           |     delta | co się w nim zmieniło |
+| --------------- | --------: | --------------------- |
+| `EChartClient`  | +0,25 KB | wspólny magazyn motywu (N8); niesie zinline'owany `chartTheme.ts` |
+| `webVitals`     | +0,15 KB | kolejka i drenaż metryk (N2) |
+| `index`         | +0,01 KB | `report.ts` - parametryzacja endpointu |
+| `i18n`, `_`     | +0,03 KB | poziom zaokrąglenia rehashowania |
+
+Jeden szczegół z tego pomiaru jest dowodem per-plik, nie założeniem: literał
+`/api/public/vitals` **przeniósł się** z `webVitals.js` (wejście) do `index.js`
+(po kampanii). To dokładnie skutek wydzielenia `INTERNAL_VITALS_ENDPOINT`
+w `report.ts` - endpoint przestał być stałą reportera metryk i stał się stałą
+warstwy obserwowalności.
+
+Zweryfikowano też - nie założono - że pozostałe pliki kampanii do klienta NIE
+wchodzą: `src/lib/views/postViews.functions.ts` (N5) nie ma chunku klienckiego
+i jego wkład to 0,00 KB, trasy `api/public/{vitals,client-errors}.ts` nie
+zostawiają w kliencie ani jednego literału (`MAX_METRICS`, `MAX_BODY` - zero
+plików), a pliki testowe nie wchodzą do bundla wcale.
+
+Progi i baseline bramki są nietknięte (md5 obu plików sprawdzone), a
+`--update-baseline` nie było uruchamiane ani razu. Zlecenie zabrania gaszenia
+czerwieni przez zmianę progu i przepisanie baseline'u jest właśnie tym.
+
+**Do decyzji poza tą kampanią:** OVERALL przebija próg o 15 KB przy zapasie
+27,4 KB na PUBLIC i 2,3 KB na domknięciu bootowania. To dryf odziedziczony,
+niesiony przez słowniki i18n, `vendor` i powierzchnie edytora/buildera - w żadnym
+z tych wiader kampania nie ruszyła ani kilobajta. Ale próg jest przebity i wymaga
+własnej diagnozy.
+
+
+#### Co znalazły testy, których nikt nie szukał: 100 przypięć `it.fails`
+
+Reguła zlecenia była jednoznaczna: defekt poza listą N1-N8 idzie do rejestru jako
+`it.fails` z opisem złamanego kontraktu, a nie do naprawy. Wszystkie niżej są więc
+ZAPISANE, nie naprawione - i to jest decyzja zamawiającego, nie mój wniosek o ich
+nieważności. Przypięcia leżą w 35 plikach testowych modułu. Cztery klasy zasługują na osobne miejsce.
+
+**KLASA PIERWSZA, NAJPOWAŻNIEJSZA: DZIEWIĘĆ kluczy cache bez identyfikatora warsztatu.**
+To nie są trzy przypadki, to jeden wzorzec powtórzony w całym module. `queryKey:
+["gsc-sites"]` jest STAŁY - nie ma w nim ani tenanta, ani użytkownika. Przy kliencie
+react-query przeżywającym zmianę warsztatu panel dostaje z cache listę właściwości
+POPRZEDNIEGO warsztatu, `preferredSite` wskazuje cudzą właściwość, a wpisy
+`["gsc-bi", <cudza właściwość>, …]` są jeszcze świeże (`staleTime: 60_000`) - więc
+PIERWSZA KLATKA panelu warsztatu B pokazuje zapytania warsztatu A. Żadne żądanie
+sieciowe przy tym nie leci, co czyni wyciek CICHYM: widać go wyłącznie na ekranie,
+nie w logu i nie w zakładce sieci. Ten sam kształt mają panele GA4 i powiązanych
+wpisów oraz - poza panelami - `usePendingCounters`, gdzie klucz kolejek nie niesie
+przestrzeni roboczej, więc liczniki tenanta A trafiają do sesji tenanta B.
+
+KOREKTA WŁASNEGO ZAPISU: przy pierwszym przeglądzie napisałem „pięć kluczy".
+Pełny rejestr niżej pokazuje **dziewięć** - osiem paneli (`gsc-sites`, `ga4-bi`,
+`vitals-bi`, `related-insights`, `footer-analytics`, `audience-segments`,
+`client-errors`, `semantic-snapshot`) plus `pendingCounterKeys.tenant()`. Dwa
+z nich są gorsze od pozostałych, bo rozdzielają warsztaty WYŁĄCZNIE znacznikiem
+czasu z `Date.now()` (`client-errors`, `vitals-bi`) - przy zamrożonym zegarze
+albo dwóch panelach liczących to samo okno trafiają w ten sam wpis cache.
+
+**I DRUGA KOREKTA, POWAŻNIEJSZA: najgroźniejszy przeciek nie jest w kluczach
+cache.** `ga4.server.ts` buduje raport błędu przez `{ ...EMPTY_GA4_REPORT }` -
+płytką kopię. `rows`, `totals` i nagłówki KAŻDEGO raportu błędu to więc TE SAME
+instancje tablic w całym izolacie workera, współdzielone MIĘDZY ŻĄDANIAMI RÓŻNYCH
+NAJEMCÓW. Klucze react-query wymagają jednej sesji przeglądarki widzącej dwa
+warsztaty; ten defekt nie wymaga niczego - działa poza sesją, po stronie serwera,
+i wiersz dopisany przez warsztat A widzi warsztat B. W kolejce naprawy stoi więc
+zaraz za kluczami, a nie w ogonie rejestru, gdzie trafiłby po samej nazwie
+(„odporność"). Naprawa: głęboka kopia albo `Object.freeze` na stałej.
+
+Warto być tu precyzyjnym co do zasięgu KLUCZY CACHE, bo od tego zależy ich
+pilność: cache react-query
+żyje w JEDNEJ sesji przeglądarki, więc wyciek wymaga tej samej sesji widzącej dwa
+warsztaty bez pełnego przeładowania. To nie jest wektor dla obcego napastnika - to
+jest wektor dla operatora obsługującego kilka instalacji, czyli dokładnie dla roli,
+która patrzy na te panele. Naprawa jest mechaniczna: identyfikator warsztatu w kluczu.
+Dziewięć przypięć zgaśnie tego samego dnia, w którym ktoś ją wprowadzi.
+**REKOMENDACJA: to powinna być następna zmiana w tym module, przed dalszym pokryciem.**
+
+**KLASA DRUGA: brak alternatywy tekstowej dla wykresów.** Wydanie 8 audytu
+PRZEWIDZIAŁO ten defekt dla tego modułu („wykres bez alternatywy tekstowej jest dla
+części odbiorców pustym prostokątem") i przewidziało poprawnie: pięć z siedmiu
+wykresów panelu GSC i wszystkie sześć wykresów panelu GA4 nie ma żadnej.
+`ChartDataTable.tsx` stoi na 100% - mechanizm ISTNIEJE i jest przetestowany, tylko
+panele go nie wołają. Do tego dziewięć przycisków panelu GSC bez dostępnej nazwy.
+ECharts maluje do kanwy, która dla czytnika ekranu jest pustym prostokątem, więc dla
+tej części odbiorców raport zarządczy nie ma treści - przy pokryciu warstwy
+semantycznej bliskim 100%.
+
+**KLASA TRZECIA: kolory wykresów BI, których przeglądarka nie sparsuje.**
+`chartTheme.readVar` rozpoznaje tylko `#hex`, `rgb` i `hsl`, a wszystko inne owija
+w `hsl(...)`. Repozytorium definiuje `--foreground`, `--muted-foreground`, `--border`
+i `--background` w OKLCH (`src/styles.css`), więc te cztery tokeny wracają z
+`resolveChartTheme` jako `hsl(oklch(0.18 0 0))` - wartość bez sensu składniowego.
+Nie jest to hipoteza o przyszłym formacie tokenów, to obecny format tokenów tego
+repozytorium.
+
+**KLASA CZWARTA, ZNALEZIONA NA KOŃCU KAMPANII: jednojęzyczny panel, którego nie
+widzi żadna bramka i18n.** `admin.analytics.tsx` przepuszcza przez słownik DWA
+napisy (`admin.nav.analytics`, `admin.nav.analyticsReconciliation`) z
+kilkudziesięciu. Nazwy siedmiu zakładek, opisy trzech pastylek statusu, cztery
+karty trybów GA4 wraz z instrukcjami krok po kroku, wszystkie tytuły,
+interpretacje i kroki naprawcze wniosków - to literały polskie wpisane w JSX.
+Anglojęzyczny administrator widzi ten panel po polsku.
+
+Istotniejsze od samego długu jest to, DLACZEGO żadna bramka go nie widzi - to
+jest luka w POMIARZE, nie tylko w pliku:
+
+- `check:i18n-parity` porównuje KLUCZE między PL i EN. Tych napisów nie ma w
+  żadnym słowniku, więc nie ma czego porównać: parytet jest zielony dokładnie
+  dlatego, że tekst istnieje wyłącznie w kodzie.
+- `check:i18n-hardcoded` (ratchet per plik) mierzy ROZGAŁĘZIENIE po języku:
+  `isPl ? "Zapisz" : "Save"`, `lang === "pl" ? … : …`, bliźniaki
+  `l("Zapisz","Save")`. Tekst JEDNOJĘZYCZNY się nie rozgałęzia, więc nie jest
+  trafieniem - plik ma w bazie ratchetu zero i to zero jest PRAWDZIWE dla tego,
+  co bramka mierzy.
+- `check:i18n-default-value` szuka `t(key, { defaultValue })`, a tu nie ma nawet
+  wywołania `t`.
+
+Trzy zielone bramki i jednojęzyczny panel nie są sprzecznością - są granicą
+pomiaru. **REKOMENDACJA: dołożyć bramkę mierzącą JEDNOJĘZYCZNY tekst widoczny dla
+użytkownika** (literał zdaniowy w JSX poza `t()`), bo bez niej każdy kolejny panel
+może wejść do repozytorium w jednym języku i przejść wszystkie trzy istniejące
+bramki. Do czasu jej powstania defekt jest przypięty asercją na DRZEWIE
+RENDEROWANYM: przy atrapie i18n zwracającej klucz każdy widoczny napis zdaniowy
+musi być echem klucza.
+
+Pozostałe przypięcia dotyczą arytmetyki interpretacji i rozróżniania stanów. Dwa
+warte wymienienia, bo powtarzają się w OBU silnikach wniosków niezależnie:
+podział okna na „połowy" przy nieparzystej liczbie dni (`Math.floor(n/2)` daje H1
+krótsze od H2, więc siedem dni po DOKŁADNIE dziesięć sesji raportuje +33,3% wzrostu
+na ruchu, w którym nic nie urosło - i ta sama arytmetyka w drugą stronę ukryje realny
+spadek), oraz mieszanie „braku pomiaru" z „pomiarem równym zero": kafelki KPI
+w trakcie pobierania, przy padniętym zapytaniu i przy nieskonfigurowanym GA4 malują
+zera, jakby to był pomiar. Pierwszy z tych błędów zmienia znak wniosku, drugi zmienia
+raport „nie wiemy" na raport „jest zero".
+
+**Dwa przypięcia jednostkowe warte wymienienia poza klasami.**
+
+Pierwsze - kafelek RUM w przeglądzie analityki gubi jednostkę dokładnie tam, gdzie
+jest najpotrzebniejsza:
+
+```ts
+`${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`
+```
+
+Warunek jest odwrócony względem intencji. Dla wartości POWYŻEJ sekundy - czyli dla
+każdego złego LCP - kafelek pokazuje samą liczbę („2400 ", ze spacją na końcu), a
+jednostkę dokłada tylko wartościom dobrym. Czytający nie ma jak odróżnić 2400 ms od
+2400 s ani od wskaźnika bezwymiarowego, i to na tym jednym kafelku, który ma
+zaalarmować. Intencją była zamiana na sekundy („2,4 s"), nie usunięcie jednostki.
+
+Drugie - ślad audytowy ręcznego ticku z `/admin/tracker` gubi najemcę. Kontrakt jest
+zapisany w samym kodzie, więc nie jest wnioskiem interpretacyjnym; `JobsTickMeta`
+w `lib/server/jobsTick.server.ts`:
+
+```ts
+/** Tylko tick ręczny z panelu: ślad audytowy (tenant + operator). */
+tenantId?: string | null;
+actorId?: string | null;
+```
+
+`runTrackerTickNow` podaje `actorId`, a `tenantId` pomija, więc `recordJobRun`
+odkłada w `job_runner_runs` wiersz z `tenant_id: null`. BLIŹNIACZA funkcja
+`/admin/scheduler` rozwiązuje najemcę z profilu operatora i podaje oba pola -
+identyczne działanie z dwóch paneli zapisuje się więc RÓŻNIE. Log przebiegów jest
+odczytywany globalnie (RPC zdrowia harmonogramu nie filtruje po najemcy), bo tick
+jest globalny - i właśnie dlatego kolumna `tenant_id` jest jedynym miejscem, w
+którym widać, CZYJ operator wypchnął alerty ponad RLS wszystkich najemców.
+W instalacji z wieloma zespołami sztabowymi ręczny tick z `/admin/tracker` jest
+przypisywalny do osoby, ale nie do obszaru roboczego, a rekonstrukcja po `actorId`
+wymaga sięgnięcia do profilu, który w tym czasie mógł już zmienić najemcę. Naprawa
+jest mechaniczna i wzorowa istnieje obok (`scheduler.functions.ts`).
+
+
+#### Rozkład wag i kolejność naprawy
+
+Pełny rejestr 100 przypięć - plik, przypadek, złamany kontrakt - jest w plikach
+testowych, przy każdym przypadku, w komentarzu nad nim; tutaj podaję rozkład
+i kolejność, bo to one czynią z rejestru listę roboczą, a nie anegdotę.
+Klasyfikacja idzie po SKUTKU dla odbiorcy, nie po miejscu w kodzie:
+
+| waga | przypięć | co znaczy |
+| ---- | -------: | --------- |
+| izolacja | 13 | dane albo liczniki jednego obszaru roboczego mogą trafić do drugiego |
+| poprawność | 44 | zmienia LICZBĘ albo ZNAK wniosku w raporcie |
+| dostępność | 33 | odbiera treść części odbiorców |
+| odporność | 8 | nie kłamie, ale wywraca się albo gubi dane na wejściu brzegowym |
+
+**Ten rozkład mówi jedno: moduł 17 nie jest kruchy, jest NIEWIARYGODNY.** Tylko
+8 przypięć opisuje kod, który się wywraca - a 44 opisują kod, który odpowiada
+PEWNIE I BŁĘDNIE. Defekt, który wywraca ekran, zgłasza się sam; defekt, który
+podaje liczbę, zostanie zauważony dopiero wtedy, gdy ktoś na jej podstawie podejmie
+decyzję. Największa pojedyncza rodzina w obrębie „poprawności" - dwadzieścia cztery
+przypięcia w jedenastu plikach - to jeden wzorzec: **mieszanie „braku pomiaru"
+z „pomiarem równym zero"**. Kafelki KPI w trakcie pobierania, przy padniętym
+zapytaniu i przy nieskonfigurowanym GA4 malują zera, jakby to był pomiar, a panele
+audytorium i błędów dokładają do tego zieloną kartę „nie znaleziono krytycznych
+zagadnień" - czyli zamieniają awarię infrastruktury w dobrą wiadomość o treści.
+
+Kolejność naprawy, pięć pierwszych pozycji, z kosztem:
+
+1. **Identyfikator warsztatu w dziewięciu kluczach react-query.** Pierwsze, bo to
+   jedyna klasa, w której dane jednego najemcy pojawiają się na ekranie drugiego,
+   a wyciek jest CICHY: nie leci ani jedno żądanie sieciowe, więc nie widać go ani
+   w logu, ani w zakładce sieci. Koszt: jedna linia w każdym z dziewięciu plików.
+2. **Głęboka kopia `EMPTY_GA4_REPORT`.** Drugie, bo to jedyny przeciek działający
+   POZA sesją przeglądarki - przez współdzielone tablice w izolacie workera, czyli
+   między żądaniami różnych najemców. Koszt: jeden plik, jedna zmiana.
+3. **Arytmetyka „połowy okna" w obu silnikach wniosków** (`ga4Insights`,
+   `gscInsights`). Przed rodziną „brak pomiaru", bo to jedyny defekt, który
+   ODWRACA ZNAK wniosku: `Math.floor(n/2)` przy nieparzystej liczbie dni daje H1
+   krótsze od H2, więc siedem dni po DOKŁADNIE dziesięć sesji raportuje +33,3%
+   wzrostu, a pięć dni po dziesięć klików +50% - i ta sama arytmetyka w drugą
+   stronę ukryje realny spadek. Koszt: jedna linia w każdym z dwóch plików.
+4. **Rozdzielenie „braku pomiaru" od „pomiaru równego zero"** - 24 przypięcia
+   w 11 plikach. Niżej niż punkt 3 tylko dlatego, że nie odwraca znaku, a zamienia
+   „nie wiemy" na „jest zero". Koszt: wiele powierzchni, ale JEDEN wzorzec - czytać
+   `isPending`/`isError` i pole `configured` z odpowiedzi zamiast `?? 0`.
+5. **`csv` dla `ChartCard` w czterech panelach plus `aria-label` na przycisku
+   „więcej".** Zamyka pięć przypięć o braku alternatywy tekstowej i cztery
+   o bezimiennych przyciskach ZA DWIE ZMIANY, bo `ChartDataTable` stoi na 100%
+   i mechanizm jest sprawdzony. Najlepszy stosunek zgaszonych przypięć do
+   dotkniętego kodu w całym rejestrze.
+
+Dwa przypięcia stoją w tej taksonomii nie na swojej półce i trzeba to powiedzieć:
+oba z `footerTracking` dotyczą przekroczenia granicy ZGODY, nie granicy warsztatu -
+`window.gtag` przeżywa cofnięcie zgody i aktywny sygnał GPC, bo `removeMarked`
+usuwa `<script>`, a nie funkcję. Wpisane do „izolacji" z adnotacją o niepewnej
+klasyfikacji, ale w kolejce naprawy należą wyżej, niż wskazuje waga: są jedynym
+wątkiem w rejestrze z konsekwencją prawną.
+
+#### Dyscyplina zdejmowania przypięć - warunek, bez którego rejestr sam siebie zniszczy
+
+`it.fails` jest asercją DWUSTRONNĄ: zielony jest tylko dopóki przypadek PADA.
+W chwili, w której ktoś naprawi opisany defekt, przypadek zaczyna przechodzić -
+i vitest zgłasza `Error: Expect test to fail`, czyli **suita staje się czerwona
+z powodu SUKCESU**.
+
+Nie jest to rozważanie teoretyczne. W tym repozytorium dzieje się to DZIŚ:
+
+```
+ ❯ src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts (14 tests | 1 failed)
+ FAIL  … page_full_path wiąże najemcę albo pages.parent_id ma ograniczenie tego samego najemcy
+Error: Expect test to fail
+```
+
+Ten plik pada nie dlatego, że coś się zepsuło, ale dlatego, że dług został
+naprawiony, a przypięcie nie zostało zdjęte. Mechanizm ma dwie nieprzyjemne
+właściwości. **Pierwsza: naprawa i zdjęcie przypięcia są zwykle w różnych rękach** -
+przypięcie pisze kampania testowa, naprawę robi ktoś realizujący własną listę
+zadań i nie ma powodu wiedzieć, że jego jedna linia wywraca cudzy plik. **Druga:
+w wyjściu CI czerwień od naprawionego przypięcia wygląda DOKŁADNIE tak samo jak
+czerwień od regresji** („1 failed") - jedynym rozróżnieniem jest treść komunikatu,
+której nikt nie czyta, dopóki nie zacznie diagnozować.
+
+Przy 100 przypięciach w 35 plikach mechanizm skaluje się liniowo: naprawa punktu 1
+z kolejności wyżej - dziewięć kluczy cache, jedna linia każdy - zamienia w czerwone
+DZIEWIĘĆ plików testowych, jeśli nikt nie usunie z nich `it.fails`. Naprawa
+punktu 5 - kolejne dziewięć. Stąd dwie zasady bez wyjątków:
+
+1. **Przypięcie znika w TYM SAMYM commicie, co naprawa** - nie w osobnym,
+   porządkowym, bo taki commit nigdy nie powstaje.
+2. **Każdy wpis rejestru musi nazywać plik produkcyjny i zmianę do wykonania**,
+   żeby osoba naprawiająca wiedziała, którego przypięcia szuka. Komentarze nad
+   przypięciami w tej kampanii są pisane właśnie tak i to nie jest gadatliwość -
+   to jedyne, co pozwala je zdjąć.
+
+Trzecia zasada wynika z kontrpróbek zrobionych w tej kampanii i warta jest
+osobnego zapisania: **przypięcie bez kontrpróbki nie jest dokumentacją defektu.**
+Cztery przypięcia dodane na końcu kampania sprawdziła w drugą stronę - przez
+chwilowe dołożenie w kodzie produkcyjnym brakującej semantyki i wykazanie, że
+przypięcie wtedy PADA z `Expect test to fail`. Bez tego kroku nie da się odróżnić
+przypięcia opisującego realny, spełnialny kontrakt od asercji trwale zepsutej,
+której nikt nigdy nie zgasi.
+
 ### MODUŁ 18 — CRM · linie 99,03% · funkcje 98,60%
 
 **Rodzaje testów:** jednostkowy 18 · warstwy danych 5 · komponentowy 6 · funkcji serwerowej 2 · parytetu 1 · hooka 1.

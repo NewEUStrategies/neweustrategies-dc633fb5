@@ -132,7 +132,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/server/publishedContent.server.ts", 5],
   ["src/lib/social/globalSocialLinks.ts", 1],
   ["src/lib/tracker/queries.ts", 2],
-  ["src/lib/webVitals.ts", 1],
   ["src/lib/wordpress-import.functions.ts", 1],
   ["src/routes/$.tsx", 1],
   ["src/routes/admin.audience.tsx", 3],

@@ -11,6 +11,7 @@ import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
 
 const VALID_SOURCES = new Set(["onerror", "unhandledrejection", "react_error_boundary"]);
 // Error bursts are noisier than vitals but still bounded: 30-token burst, one
@@ -48,10 +49,15 @@ export const Route = createFileRoute("/api/public/client-errors")({
           const stack = redactPii(clip(body.stack, 8000));
           const path = redactUrl(clip(body.url ?? body.path, 512));
           // `meta` is bounded structured context (boundary label, component stack).
-          let meta: Record<string, unknown> | null = null;
+          // `Json`, nie `Record<string, unknown>`: kolumna `meta` jest `jsonb`,
+          // a `unknown` NIE JEST przypisywalne do `Json`. Dopóki wiersz szedł
+          // przez `as never`, ta różnica nie miała gdzie się ujawnić - typowany
+          // wiersz ją pokazuje, więc lokalny typ musi mówić prawdę o kolumnie.
+          let meta: Json | null = null;
           if (body.meta && typeof body.meta === "object" && !Array.isArray(body.meta)) {
             const json = JSON.stringify(body.meta);
-            if (json.length <= 4000) meta = redactMeta(body.meta as Record<string, unknown>);
+            if (json.length <= 4000)
+              meta = redactMeta(body.meta as Record<string, Json | undefined>);
           }
 
           // Attribute the error to the browsed host's tenant so per-tenant error
@@ -66,17 +72,22 @@ export const Route = createFileRoute("/api/public/client-errors")({
             // keep tenantId null -> column default applies
           }
 
-          // `client_errors` is created by a migration not yet reflected in the
-          // generated Supabase types, so the table name/payload are cast here.
-          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("client_errors").insert({
+          // TYPOWANY WIERSZ, BEZ `as never`. Rzutowanie nosiło komentarz
+          // „tabela z migracji, której nie ma jeszcze w wygenerowanych typach";
+          // `client_errors` JEST w `src/integrations/supabase/types.ts`
+          // (migracja 20260626230000, zakres tenanta 20260720120100), więc było
+          // to już tylko wyłączenie kontroli kształtu na publicznej ścieżce
+          // zapisu - klasa długu pilnowana przez `check:stale-never-casts`.
+          const row: TablesInsert<"client_errors"> = {
             message,
             stack,
             source,
             path,
             meta,
             ...(tenantId ? { tenant_id: tenantId } : {}),
-          } as never);
+          };
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          await supabaseAdmin.from("client_errors").insert(row);
         } catch {
           // Ingest is best-effort - never error the beacon.
         }

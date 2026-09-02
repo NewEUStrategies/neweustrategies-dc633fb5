@@ -175,6 +175,57 @@ const HEAVY_MODULES: readonly HeavyDictionary[] = [
       "nigdy statycznym importem w SimpleWidgets/WidgetView",
   },
   {
+    label: "echarts + echarts-for-react (silnik wykresów BI, ~1 MB w bundlu)",
+    // DLACZEGO TA POZYCJA ISTNIEJE. `components/admin/analytics/EChart.tsx`
+    // opisuje w nagłówku, po co w ogóle jest: wciągnięcie ECharts do grafu SSR
+    // (chunk routera >2,5 MB) wywalało renderer chunków Rollupa na OOM V8 przy
+    // `build:dev`. Obroną jest `React.lazy` do `EChartClient.tsx` plus zakaz
+    // statycznego importu - zapisany DO TEJ PORY WYŁĄCZNIE W KOMENTARZU
+    // („Do NOT statically import ./EChartClient from this file"). Czyli
+    // najdroższa architektonicznie niezmienność tego modułu nie miała bramki,
+    // choć bramka na dokładnie tę klasę niezmienności stoi w tym pliku od
+    // incydentu 2026-08-06. Jedno `import` w złym miejscu - i build pada, a
+    // dowiadujemy się o tym z CI, nie z komunikatu wskazującego krawędź.
+    //
+    // ZAKRES - PRZECZYTAJ, ZANIM UZNASZ TĘ POZYCJĘ ZA PEŁNĄ OBRONĘ. Ta bramka
+    // liczy DOMKNIĘCIE ŚCIEŻKI BOOTOWANIA KLIENTA, nie graf SSR. Łapie więc
+    // przypadek „coś osiągalnego z bootu wciągnęło ECharts" - słownik, shell
+    // trasy, wspólny helper - i to jest ta sama klasa, co reszta pliku. NIE
+    // ŁAPIE natomiast krawędzi `EChart -> EChartClient`, czyli dokładnie tej,
+    // której zabrania nagłówek `EChart.tsx`: wszyscy importerzy `EChart` siedzą
+    // na powierzchniach tras LENIWYCH (ChartCard, KpiTile, panele BI,
+    // ClubInsights, admin.coupons.analytics), a `manualChunks` w
+    // `vite.config.ts` nie ma kubełka na echarts ani łapacza końcowego - więc
+    // biblioteka wylądowałaby w chunku osiągalnym wyłącznie z chunków leniwych,
+    // POZA domknięciem bootu, a ta bramka zostałaby zielona przy padającym
+    // buildzie SSR. Tamtą krawędź pilnuje bramka źródłowa:
+    // `src/lib/ci/__tests__/echartsStaticEdge.test.ts`. Dwa różne dowody;
+    // żaden nie zastępuje drugiego i żadnego nie wolno skasować, powołując się
+    // na istnienie drugiego.
+    //
+    // WYBÓR MARKERÓW. Oba MUSZĄ przeżyć build PRODUKCYJNY, a nie tylko
+    // deweloperski - i to jest tu pułapka nieoczywista: prawie wszystkie ładne,
+    // czytelne komunikaty ECharts („There is a chart instance already
+    // initialized on the dom.", „Initialize failed: invalid dom.") siedzą w
+    // `if (process.env.NODE_ENV !== 'production')` i w `echarts.min.js` ich NIE
+    // MA - sonda po nich dałaby bramkę, która nigdy nie zapala się na produkcji.
+    // Zweryfikowane: `grep -c` na `node_modules/echarts/dist/echarts.min.js`
+    // zwraca dla nich 0. Oba markery niżej zwracają 1:
+    //   * `_echarts_instance_` - `DOM_ATTRIBUTE_KEY` z `lib/core/echarts.js`,
+    //     klucz atrybutu DOM, więc jest wartością, nie identyfikatorem;
+    //   * ` is used but not imported.` - treść `throw new Error` z
+    //     `lib/util/clazz.js`, POZA jakąkolwiek bramką środowiska.
+    // Dwa niezależne moduły rdzenia, żeby jedna zmiana upstreamu nie rozbroiła
+    // bramki w ciszy. Żaden z nich nie występuje w `src/` ani w innym pakiecie
+    // z `node_modules` (sprawdzone).
+    markers: ["_echarts_instance_", " is used but not imported."],
+    remedy:
+      "wykresy renderuj WYŁĄCZNIE przez `components/admin/analytics/EChart.tsx` " +
+      "(React.lazy -> EChartClient); NIGDY nie importuj statycznie `EChartClient`, " +
+      "`echarts`, `echarts/core` ani `echarts-for-react` z pliku osiągalnego ze " +
+      "ścieżki bootowania - patrz nagłówek EChart.tsx",
+  },
+  {
     label: "lib/legal/content/* (pełne treści dokumentów prawnych, ~37 kB źródeł)",
     // Po jednym markerze na dokument: privacy / terms / refunds.
     markers: [
