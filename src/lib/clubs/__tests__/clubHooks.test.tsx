@@ -43,7 +43,9 @@ import {
   clubTreeKeys,
   clubUpsertedKeys,
   replyEditedKeys,
+  threadEditedKeys,
   threadReplyKeys,
+  threadResolvedKeys,
   threadStanceKeys,
 } from "@/lib/clubs/clubInvalidations";
 import {
@@ -90,7 +92,9 @@ import {
   useClubThreads,
   useCreateClubThread,
   useEditClubReply,
+  useEditClubThread,
   useReplyToThread,
+  useResolveClubThread,
 } from "@/lib/clubs/useClubThreadsData";
 import {
   useClubReactionActors,
@@ -101,6 +105,7 @@ import {
   useSetThreadSubscription,
   useToggleClubReaction,
 } from "@/lib/clubs/useClubReactions";
+import type { ClubReactionTally } from "@/lib/clubs/types";
 import {
   useAdminClubReplies,
   useAdminClubThreads,
@@ -951,5 +956,333 @@ describe("operacje moderacyjne", () => {
     await result.current.mutateAsync(CLUB);
 
     await waitFor(() => expect(sawKeys(invalidated, clubReadKeys())).toBe(true));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// REDAKCJA I ROZSTRZYGNIĘCIE WĄTKU
+//
+// Obie mutacje zmieniają treść, którą ktoś już przeczytał: redakcja podmienia
+// zapis wypowiedzi, rozstrzygnięcie zamyka konsultację i wskazuje odpowiedź
+// rozstrzygającą. Interesuje nas jedno pytanie: co widzi użytkownik, gdy baza
+// ODMÓWI. Mutacja, która przy odmowie i tak unieważni cache, zostawia ekran
+// w stanie „zrobione" (lista przeładowana, komunikat sukcesu), a zmiany nie ma.
+// ---------------------------------------------------------------------------
+
+describe("redakcja wątku", () => {
+  it("przekazuje komplet argumentów i unieważnia poddrzewo klubu ORAZ wyszukiwarkę", async () => {
+    const { wrapper, invalidated } = harness();
+    clubApiMock.editClubThread.mockResolvedValue(true);
+
+    const { result } = renderHook(() => useEditClubThread(CLUB, SLUG), { wrapper });
+    await result.current.mutateAsync({
+      threadId: THREAD,
+      title: "Tytuł po korekcie",
+      body: "Treść po korekcie",
+      reason: "literówka",
+    });
+
+    // `mutationFn` jest tu PRZEKAZANA WPROST, więc react-query dokłada drugi
+    // argument (kontekst mutacji). Warunek stawiamy na PIERWSZYM - to on jest
+    // ładunkiem, o który chodzi.
+    expect(clubApiMock.editClubThread.mock.calls[0]?.[0]).toEqual({
+      threadId: THREAD,
+      title: "Tytuł po korekcie",
+      body: "Treść po korekcie",
+      reason: "literówka",
+    });
+    // Wyszukiwarka jest OSOBNYM poddrzewem: bez jej unieważnienia poprawiony
+    // tytuł zostaje w wynikach w starej wersji.
+    await waitFor(() => expect(sawKeys(invalidated, threadEditedKeys(CLUB, SLUG))).toBe(true));
+  });
+
+  it("ODMOWA bazy nie unieważnia niczego - ekran nie udaje, że zapisał", async () => {
+    const { wrapper, invalidated } = harness();
+    clubApiMock.editClubThread.mockRejectedValue(new Error("thread_locked"));
+
+    const { result } = renderHook(() => useEditClubThread(CLUB, SLUG), { wrapper });
+    await expect(result.current.mutateAsync({ threadId: THREAD, body: "B" })).rejects.toThrow(
+      "thread_locked",
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidated).toEqual([]);
+    expect(result.current.isSuccess).toBe(false);
+  });
+});
+
+describe("rozstrzygnięcie wątku", () => {
+  it("unieważnia KARTĘ tego wątku i cały prefiks jego odpowiedzi", async () => {
+    const { wrapper, invalidated } = harness();
+    clubApiMock.resolveClubThread.mockResolvedValue(true);
+
+    const { result } = renderHook(() => useResolveClubThread(CLUB, SLUG), { wrapper });
+    await result.current.mutateAsync({ threadId: THREAD, replyId: "r-7" });
+
+    expect(clubApiMock.resolveClubThread.mock.calls[0]?.[0]).toEqual({
+      threadId: THREAD,
+      replyId: "r-7",
+    });
+    await waitFor(() =>
+      expect(sawKeys(invalidated, threadResolvedKeys(CLUB, SLUG, THREAD))).toBe(true),
+    );
+  });
+
+  it("COFNIĘCIE rozstrzygnięcia (replyId=null) ma ten sam skutek na cache'u", async () => {
+    // Cofnięcie jest tą samą operacją z pustym wskazaniem - gdyby unieważniało
+    // mniej, odznaka „rozstrzygnięty" zostawałaby na karcie po jej zdjęciu.
+    const { wrapper, invalidated } = harness();
+    clubApiMock.resolveClubThread.mockResolvedValue(true);
+
+    const { result } = renderHook(() => useResolveClubThread(CLUB, SLUG), { wrapper });
+    await result.current.mutateAsync({ threadId: THREAD, replyId: null });
+
+    expect(clubApiMock.resolveClubThread.mock.calls[0]?.[0]).toEqual({
+      threadId: THREAD,
+      replyId: null,
+    });
+    await waitFor(() =>
+      expect(sawKeys(invalidated, threadResolvedKeys(CLUB, SLUG, THREAD))).toBe(true),
+    );
+  });
+
+  it("ODMOWA bazy zostawia cache nietknięty - lista nie przeładuje się „na sukces”", async () => {
+    const { wrapper, invalidated } = harness();
+    clubApiMock.resolveClubThread.mockRejectedValue(new Error("forbidden"));
+
+    const { result } = renderHook(() => useResolveClubThread(CLUB, SLUG), { wrapper });
+    await expect(result.current.mutateAsync({ threadId: THREAD, replyId: "r-7" })).rejects.toThrow(
+      "forbidden",
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidated).toEqual([]);
+    expect(result.current.isSuccess).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ZAPAS `?? ""` W ZAPYTANIACH BEZ IDENTYFIKATORA
+//
+// Każdy odczyt tego modułu ma parę: bramkę `enabled` i zapas `?? ""` w ciele
+// zapytania. Warunki wyżej dowodzą BRAMKI (render bez identyfikatora nie
+// odpytuje). Bramka nie jest jednak jedyną drogą do `queryFn`: `refetch()`
+// z react-query omija `enabled` i wywoła zapytanie MIMO braku identyfikatora -
+// robi tak każdy przycisk „odśwież" wpięty w wynik hooka. Wtedy o tym, co
+// zobaczy warstwa danych, decyduje wyłącznie zapas.
+//
+// PRZEDMIOT DOWODU: do warstwy danych jedzie PUSTY NAPIS, nigdy `undefined`.
+// Różnica jest realna: `undefined` w argumencie RPC znika przy serializacji,
+// więc funkcja bazy dostaje wywołanie BEZ parametru i odpowiada błędem
+// o brakującym argumencie zamiast pustym wynikiem.
+// ---------------------------------------------------------------------------
+
+describe("odczyty wątku bez identyfikatora - wymuszony refetch", () => {
+  it("karta wątku z kompletem identyfikatorów czyta po nich obu", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubThread.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useClubThread({ clubId: CLUB, slug: SLUG }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(clubApiMock.fetchClubThread).toHaveBeenCalledWith({ clubId: CLUB, slug: SLUG });
+  });
+
+  it("wymuszony refetch karty wątku bez identyfikatorów posyła DWA puste napisy", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubThread.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useClubThread({ clubId: undefined, slug: undefined }), {
+      wrapper,
+    });
+    await result.current.refetch();
+
+    expect(clubApiMock.fetchClubThread).toHaveBeenCalledWith({ clubId: "", slug: "" });
+  });
+
+  it("wymuszony refetch listy wątków bez klubu posyła pusty napis, nie `undefined`", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubThreads.mockResolvedValue({ rows: [], nextCursor: null });
+
+    const { result } = renderHook(() => useClubThreads({ clubId: undefined }), { wrapper });
+    await result.current.refetch();
+
+    expect(clubApiMock.fetchClubThreads).toHaveBeenCalledWith(
+      expect.objectContaining({ clubId: "", cursor: null }),
+    );
+  });
+
+  it("odpowiedzi bez wątku: pusty napis jest CZĘŚCIĄ KLUCZA, nie tylko argumentu", async () => {
+    // Klucz z `undefined` w środku react-query odrzuca, więc zapas musi być
+    // również w kluczu - inaczej hook wywala się przy pierwszym renderze
+    // przed dojechaniem trasy.
+    const { wrapper, queryClient } = harness();
+    clubApiMock.fetchClubReplies.mockResolvedValue({ rows: [], total: 0 });
+
+    const { result } = renderHook(() => useClubReplies({ threadId: undefined }), { wrapper });
+    await result.current.refetch();
+
+    expect(clubApiMock.fetchClubReplies).toHaveBeenCalledWith({
+      threadId: "",
+      sort: "chronological",
+      limit: 200,
+    });
+    expect(
+      queryClient.getQueryCache().find({ queryKey: clubKeys.replies("", "chronological") }),
+    ).toBeDefined();
+  });
+
+  it("podsumowanie stanowisk i subskrypcja czytają po wątku, a bez niego - po pustym napisie", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubStanceSummary.mockResolvedValue([]);
+    clubApiMock.fetchMyThreadSubscription.mockResolvedValue(null);
+
+    const withThread = renderHook(() => useClubStanceSummary(THREAD), { wrapper });
+    await waitFor(() => expect(withThread.result.current.isSuccess).toBe(true));
+    expect(clubApiMock.fetchClubStanceSummary).toHaveBeenCalledWith(THREAD);
+
+    const subscribed = renderHook(() => useMyThreadSubscription(THREAD), { wrapper });
+    await waitFor(() => expect(subscribed.result.current.isSuccess).toBe(true));
+    expect(clubApiMock.fetchMyThreadSubscription).toHaveBeenCalledWith(THREAD);
+
+    const orphanStance = renderHook(() => useClubStanceSummary(undefined), { wrapper });
+    await orphanStance.result.current.refetch();
+    expect(clubApiMock.fetchClubStanceSummary).toHaveBeenLastCalledWith("");
+
+    const orphanSub = renderHook(() => useMyThreadSubscription(undefined), { wrapper });
+    await orphanSub.result.current.refetch();
+    expect(clubApiMock.fetchMyThreadSubscription).toHaveBeenLastCalledWith("");
+  });
+});
+
+describe("odczyty zaproszeń bez identyfikatora klubu", () => {
+  it("lista zaproszeń i katalog linków czytają po id klubu", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubInvitations.mockResolvedValue([]);
+    clubApiMock.fetchClubInviteLinks.mockResolvedValue([]);
+
+    const invitations = renderHook(() => useClubInvitations(CLUB), { wrapper });
+    await waitFor(() => expect(invitations.result.current.isSuccess).toBe(true));
+    expect(clubApiMock.fetchClubInvitations).toHaveBeenCalledWith(CLUB);
+
+    const links = renderHook(() => useClubInviteLinks(CLUB), { wrapper });
+    await waitFor(() => expect(links.result.current.isSuccess).toBe(true));
+    expect(clubApiMock.fetchClubInviteLinks).toHaveBeenCalledWith(CLUB);
+  });
+
+  it("wymuszony refetch bez klubu posyła pusty napis do OBU odczytów", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubInvitations.mockResolvedValue([]);
+    clubApiMock.fetchClubInviteLinks.mockResolvedValue([]);
+
+    const invitations = renderHook(() => useClubInvitations(undefined), { wrapper });
+    await invitations.result.current.refetch();
+    expect(clubApiMock.fetchClubInvitations).toHaveBeenCalledWith("");
+
+    const links = renderHook(() => useClubInviteLinks(undefined), { wrapper });
+    await links.result.current.refetch();
+    expect(clubApiMock.fetchClubInviteLinks).toHaveBeenCalledWith("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// REAKCJE - PARTIA CELÓW I CACHE, KTÓREGO NIE MA
+//
+// `useToggleClubReaction` jest jedyną mutacją modułu z optymistycznym zapisem,
+// więc ma DWA wejścia w cache: przed odpowiedzią bazy (onMutate) i po odmowie
+// (onError). Warunki wyżej sprawdzają je przy WYPEŁNIONYM cache'u. Tutaj
+// sprawdzamy dwa przypadki, które w interfejsie zdarzają się częściej, niż
+// wygląda: kliknięcie w reakcję na karcie, dla której licznik jeszcze nie
+// dojechał (brak wpisu w mapie), i kliknięcie zanim zapytanie o liczniki
+// w ogóle wystartowało (brak mapy).
+// ---------------------------------------------------------------------------
+
+describe("reakcje - odczyt liczników i twarzy", () => {
+  it("niepusta partia celów czyta liczniki JEDNYM zapytaniem", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubReactions.mockResolvedValue(new Map());
+
+    const { result } = renderHook(
+      () => useClubReactions({ targetType: "reply", targetIds: ["r-1", "r-2", "r-3"] }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(clubApiMock.fetchClubReactions).toHaveBeenCalledTimes(1);
+    expect(clubApiMock.fetchClubReactions).toHaveBeenCalledWith({
+      targetType: "reply",
+      targetIds: ["r-1", "r-2", "r-3"],
+    });
+  });
+
+  it("twarze niosą limit i domyślnie są WŁĄCZONE przy niepustej partii", async () => {
+    const { wrapper } = harness();
+    clubApiMock.fetchClubReactionActors.mockResolvedValue(new Map());
+
+    const { result } = renderHook(
+      () => useClubReactionActors({ targetType: "thread", targetIds: [THREAD], limit: 5 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(clubApiMock.fetchClubReactionActors).toHaveBeenCalledWith({
+      targetType: "thread",
+      targetIds: [THREAD],
+      limit: 5,
+    });
+  });
+
+  it("`enabled: false` wycisza twarze MIMO niepustej partii - lista zwinięta nie kosztuje", async () => {
+    // Twarze są cięższym zapytaniem niż liczniki i są potrzebne dopiero po
+    // najechaniu na pasek. Bramka jest tu oszczędnością, nie zabezpieczeniem.
+    const { wrapper } = harness();
+
+    renderHook(
+      () => useClubReactionActors({ targetType: "thread", targetIds: [THREAD], enabled: false }),
+      { wrapper },
+    );
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(clubApiMock.fetchClubReactionActors).not.toHaveBeenCalled();
+  });
+});
+
+describe("reakcje - optymistyczny zapis przy niekompletnym cache'u", () => {
+  it("cel BEZ wpisu w mapie liczników dostaje wpis nowy, a nie wyjątek", async () => {
+    const { wrapper, queryClient } = harness();
+    const key = clubKeys.reactions("thread", [THREAD]);
+    // Mapa istnieje (licznik dla SĄSIEDNIEGO wątku dojechał), ale ten cel
+    // jeszcze jej nie ma - dokładnie tak wygląda świeżo doładowana strona.
+    queryClient.setQueryData(key, new Map([["inny-watek", []]]));
+    clubApiMock.reactToClubTarget.mockResolvedValue(true);
+
+    const { result } = renderHook(
+      () => useToggleClubReaction({ targetType: "thread", targetIds: [THREAD] }),
+      { wrapper },
+    );
+    await result.current.mutateAsync({ targetId: THREAD, kind: "agree", active: false });
+
+    const cached = queryClient.getQueryData<Map<string, ClubReactionTally[]>>(key);
+    expect(cached?.get(THREAD)).toEqual([{ kind: "agree", total: 1, mine: true }]);
+    // Sąsiedni wpis nie może zniknąć - to ta sama mapa, nie nowa.
+    expect(cached?.get("inny-watek")).toEqual([]);
+  });
+
+  it("brak mapy w cache'u: odmowa bazy NIE tworzy wpisu z niczego", async () => {
+    // Bez tego warunku `onError` mógłby zapisać `undefined` jako stan „sprzed
+    // kliku" i pasek reakcji zostałby z pustą mapą zamiast poczekać na odczyt.
+    const { wrapper, queryClient } = harness();
+    const key = clubKeys.reactions("thread", [THREAD]);
+    clubApiMock.reactToClubTarget.mockRejectedValue(new Error("denied"));
+
+    const { result } = renderHook(
+      () => useToggleClubReaction({ targetType: "thread", targetIds: [THREAD] }),
+      { wrapper },
+    );
+    await expect(
+      result.current.mutateAsync({ targetId: THREAD, kind: "agree", active: false }),
+    ).rejects.toThrow("denied");
+
+    expect(queryClient.getQueryData(key)).toBeUndefined();
   });
 });

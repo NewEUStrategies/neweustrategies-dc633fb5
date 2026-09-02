@@ -231,3 +231,41 @@ export function resetCommentsDb(): void {
   session.userId = USER_ID.author;
   installRouter();
 }
+
+// --- obudowa widoku sekcji komentarzy ---------------------------------------
+//
+// Współdzielona przez OBA pliki testowe `CommentsSection*`: pierwszy atrapuje
+// `MentionTextarea` (dowodzi decyzji wątku i moderacji), drugi montuje prawdziwy
+// stos kompozytora. Wiersze muszą być identyczne, inaczej „to samo drzewo"
+// znaczyłoby w każdym pliku co innego.
+
+/** Wiersz gotowy dla widoku: `commentRow` z doklejonym autorem (domyślnie brak profilu). */
+export function viewRow(
+  overrides: Partial<CommentRow> = {},
+  author: CommentAuthor | null = null,
+): CommentWithAuthor {
+  return { ...commentRow(overrides), author };
+}
+
+/** Identyfikatory jednego wątku - od korzenia po piętro PONAD limitem. */
+export const THREAD_ID = {
+  root: "c-root",
+  reply: "c-reply",
+  deep: "c-deep",
+  tooDeep: "c-too-deep",
+} as const;
+
+/**
+ * Płaska lista czterech wierszy jednego wątku, w kolejności od najstarszego.
+ * Czwarty (`tooDeep`) leży PONAD `MAX_COMMENT_DEPTH` - `buildCommentTree` nie ma
+ * dla niego miejsca, więc obecność tego wiersza w wejściu jest dowodem, że
+ * komponent naprawdę woła regułę drzewa, a nie renderuje płaskiej listy.
+ */
+export function threadRows(): CommentWithAuthor[] {
+  return [
+    viewRow({ id: THREAD_ID.root, parent_id: null, body: "Wątek główny" }),
+    viewRow({ id: THREAD_ID.reply, parent_id: THREAD_ID.root, body: "Odpowiedź pierwsza" }),
+    viewRow({ id: THREAD_ID.deep, parent_id: THREAD_ID.reply, body: "Odpowiedź druga" }),
+    viewRow({ id: THREAD_ID.tooDeep, parent_id: THREAD_ID.deep, body: "Piętro ponad limitem" }),
+  ];
+}

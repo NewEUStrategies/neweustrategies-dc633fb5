@@ -312,6 +312,14 @@ describe("fetchMyClubApplications - wiersz kandydata jest WĘŻSZY od wiersza ad
     await expect(fetchMyClubApplications()).resolves.toEqual([]);
   });
 
+  it("błąd RPC wychodzi jako wyjątek, a nie jako pusta historia", async () => {
+    // Pusta lista przy błędzie znaczyłaby dla kandydata „nie masz żadnego
+    // zgłoszenia" - i drugie zgłoszenie po tygodniu ciszy, dokładnie ten
+    // scenariusz, przed którym ten odczyt ma bronić.
+    sb.state.error = { message: "auth_required" };
+    await expect(fetchMyClubApplications()).rejects.toThrow("auth_required");
+  });
+
   it("typ wiersza kandydata NIE ma `admin_note` (kontrakt na poziomie typów)", () => {
     // Notatka komisji nie jest daną dostarczoną przez osobę i nie ma prawa
     // wrócić do kandydata. Ten warunek trzyma to na poziomie TYPU: przypisanie
@@ -404,6 +412,11 @@ describe("fetchAdminClubApplications - zawężenia panelu", () => {
     expect(lastRpc().args?.p_limit).toBe(200);
   });
 
+  it("brak wierszy daje pustą listę - panel rysuje pustą skrzynkę, nie błąd", async () => {
+    sb.state.data = null;
+    await expect(fetchAdminClubApplications({ status: "accepted" })).resolves.toEqual([]);
+  });
+
   it("błąd RPC wychodzi jako wyjątek", async () => {
     sb.state.error = { message: "permission denied" };
     await expect(fetchAdminClubApplications({})).rejects.toThrow("permission denied");
@@ -424,6 +437,13 @@ describe("fetchAdminClubApplicationCounts", () => {
   it("pusta odpowiedź daje pustą listę", async () => {
     sb.state.data = null;
     await expect(fetchAdminClubApplicationCounts()).resolves.toEqual([]);
+  });
+
+  it("błąd RPC wychodzi jako wyjątek - plakietka nie pokazuje zera zamiast awarii", async () => {
+    // Zero na plakietce „oczekujące" znaczy dla komisji „nie ma nic do
+    // rozpatrzenia". Awaria odczytu musi wyglądać jak awaria.
+    sb.state.error = { message: "permission denied" };
+    await expect(fetchAdminClubApplicationCounts()).rejects.toThrow("permission denied");
   });
 });
 
@@ -503,5 +523,13 @@ describe("retryClubApplicationCrmSync", () => {
   it("odpowiedź niebędąca tablicą też jest `not_found`", async () => {
     sb.state.data = { crm_sync_status: "ok" };
     await expect(retryClubApplicationCrmSync("app-1")).rejects.toThrow("not_found");
+  });
+
+  it("błąd samego RPC zachowuje treść i NIE udaje `not_found`", async () => {
+    // Dwie różne przyczyny: „zgłoszenia nie ma" kontra „nie wolno ci ponawiać".
+    // Sklejenie ich w jeden komunikat wysyła operatora szukać rekordu, który
+    // istnieje.
+    sb.state.error = { message: "permission denied" };
+    await expect(retryClubApplicationCrmSync("app-1")).rejects.toThrow("permission denied");
   });
 });
