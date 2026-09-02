@@ -591,6 +591,22 @@ jobs:
           path: reports/i18n-parity.json
           if-no-files-found: ignore
 
+      # Testy własne MODUŁÓW BRAMKOWYCH z `src/lib/ci/` - odklejone od bramki
+      # i18n, w której jechały na barana przez glob katalogowy. Ten glob nie był
+      # pomyłką stylistyczną: robił z bramki JĘZYKOWEJ raportera defektów SQL,
+      # RLS, billingu, ownershipu i chunków, więc `check:i18n-parity` można było
+      # zapalić zmianą, która nie dotyka ani jednego klucza tłumaczenia - i tak
+      # się stało (dwie bliźniacze migracje z panelu, zero defektów i18n).
+      # Pomiar rozjazdu: z 42 plików katalogu 5 jest merytorycznie językowych,
+      # pozostałe 37 należy tutaj. Katalogowy glob ZOSTAJE, bo jego zaleta jest
+      # realna - nowy test bramki wchodzi do CI bez dopisywania ścieżki - tylko
+      # przenosi się pod bramkę, której nazwa nie kłamie o przedmiocie pomiaru.
+      # Bez tego kroku te 37 plików miałyby jedyne wywołanie w jobie `test`
+      # (16-26 min), czyli sygnał przyszedłby wielokrotnie później.
+      - name: CI gate module tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:ci-gates
+
       # Blokująca bramka wierności ustawień widgetów (panel ⇄ renderer). Mierzy
       # WYKONANIEM, które klucze treści panel oferuje redakcji, a które renderer
       # naprawdę czyta - i wywala się na każdym rozjeździe bez jawnego,
