@@ -248,11 +248,16 @@ describe("progressToNextLevel - pasek postępu nie kłamie", () => {
   });
 });
 
-describe("levelName - język bez atrapy tłumacza", () => {
-  it.each(REPUTATION_LEVELS)("$key ma osobną nazwę PL i EN", (level) => {
-    expect(levelName(level, "pl")).toBe(level.pl);
-    expect(levelName(level, "en")).toBe(level.en);
-  });
+describe("levelName - nazwa poziomu w języku interfejsu", () => {
+  it.each<ReputationLevel>([...REPUTATION_LEVELS])(
+    "$key: nazwa PL i EN pochodzi z katalogu, nie ze słownika i18n",
+    (level) => {
+      // Para PL/EN stoi PRZY PROGU, żeby nazwa i próg nie mogły rozjechać
+      // się między modułem a nakładką i18n - stąd brak `t` w tej ścieżce.
+      expect(levelName(level, "pl")).toBe(level.pl);
+      expect(levelName(level, "en")).toBe(level.en);
+    },
+  );
 
   it.each(["", "de", "EN", "en-GB", "pl-PL"])(
     "język %s (nieobsługiwany dosłownie) spada na polski",
@@ -585,10 +590,12 @@ describe("useContributorLeaderboard - klucz, argumenty i świeżość", () => {
     const { result, queryClient } = renderHookWithQueryClient(() => useContributorLeaderboard(90));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    const query = queryClient
+    // Opcję czytamy z OBSERWATORA wpisu cache (to on niesie zdefaltowane
+    // opcje zapytania), a nie z literału w kodzie hooka.
+    const observer = queryClient
       .getQueryCache()
-      .find({ queryKey: ["contributor-leaderboard", 90, 20] });
-    expect(query?.options.staleTime).toBe(60_000);
+      .find({ queryKey: ["contributor-leaderboard", 90, 20] })?.observers[0];
+    expect(observer?.options.staleTime).toBe(60_000);
   });
 
   it("błąd RPC dociera do konsumenta jako stan błędu", async () => {
@@ -651,7 +658,8 @@ describe("useMyReputation - anonim nie pyta o cudzy wynik", () => {
     const { result, queryClient } = renderHookWithQueryClient(() => useMyReputation(90, USER));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    const query = queryClient.getQueryCache().find({ queryKey: ["my-reputation", 90, USER] });
-    expect(query?.options.staleTime).toBe(60_000);
+    const observer = queryClient.getQueryCache().find({ queryKey: ["my-reputation", 90, USER] })
+      ?.observers[0];
+    expect(observer?.options.staleTime).toBe(60_000);
   });
 });

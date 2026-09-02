@@ -200,6 +200,36 @@ describe("pole treści jest prawdziwym polem wzmianek", () => {
   });
 });
 
+describe("wyliczenia w treści komentarza", () => {
+  it("Enter po punkcie listy DOPISUJE kolejny punktor", async () => {
+    section();
+    const box = await waitFor(() => composer());
+
+    type(box, "- pierwszy punkt");
+    await waitFor(() => expect(box.value).toBe("- pierwszy punkt"));
+    box.selectionStart = box.value.length;
+    box.selectionEnd = box.value.length;
+    fireEvent.keyDown(box, { key: "Enter" });
+
+    // Bez tego wyliczenia w wątku powstają ręcznie i rozjeżdżają się.
+    await waitFor(() => expect(box.value).toBe("- pierwszy punkt\n- "));
+  });
+
+  it("Enter POZA listą nie wtrąca się do treści", async () => {
+    section();
+    const box = await waitFor(() => composer());
+
+    type(box, "Zwykłe zdanie");
+    await waitFor(() => expect(box.value).toBe("Zwykłe zdanie"));
+    box.selectionStart = box.value.length;
+    box.selectionEnd = box.value.length;
+    fireEvent.keyDown(box, { key: "Enter" });
+
+    // Zdarzenie leci dalej (do obsługi listy @wzmianek), treść bez zmian.
+    expect(box.value).toBe("Zwykłe zdanie");
+  });
+});
+
 describe("limit długości i walidacja kompozytora", () => {
   it("licznik znaków pokazuje długość wobec limitu 5000", async () => {
     section();
@@ -217,7 +247,11 @@ describe("limit długości i walidacja kompozytora", () => {
     type(box, "x".repeat(5001));
 
     await waitFor(() => expect(submitButton()).toBeDisabled());
-    expect(screen.getByText(t("composer.status.tooLong", { count: 5000 }))).toBeTruthy();
+    const message = screen.getByText(t("composer.status.tooLong", { count: 5000 }));
+    // Komunikat mieszka w regionie na żywo - czytnik ekranu dowiaduje się
+    // o przekroczeniu limitu bez przenoszenia fokusu.
+    expect(message.getAttribute("role")).toBe("status");
+    expect(message.getAttribute("aria-live")).toBe("polite");
 
     fireEvent.submit(box.closest("form")!);
     expect(h.createComment).not.toHaveBeenCalled();

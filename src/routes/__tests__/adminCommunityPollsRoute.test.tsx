@@ -482,9 +482,7 @@ describe("ankiety - otwieranie i zamykanie głosowania", () => {
     await screen.findByText("Szkic ankiety");
 
     await clickRowButton("Szkic ankiety", STATUS_BUTTON);
-    await waitFor(() =>
-      expect(h.statusCalls).toContainEqual({ id: "poll-szkic", status: "open" }),
-    );
+    await waitFor(() => expect(h.statusCalls).toContainEqual({ id: "poll-szkic", status: "open" }));
 
     await clickRowButton("Otwarta ankieta", STATUS_BUTTON);
     await waitFor(() =>
@@ -493,13 +491,13 @@ describe("ankiety - otwieranie i zamykanie głosowania", () => {
   });
 
   it("ankieta zamknięta daje się otworzyć ponownie", async () => {
-    h.polls = [pollRow({ id: "poll-zamknieta", question_pl: "Zamknięta ankieta", status: "closed" })];
+    h.polls = [
+      pollRow({ id: "poll-zamknieta", question_pl: "Zamknięta ankieta", status: "closed" }),
+    ];
     await mountPolls();
     await screen.findByText("Zamknięta ankieta");
     await clickRowButton("Zamknięta ankieta", STATUS_BUTTON);
-    await waitFor(() =>
-      expect(h.statusCalls).toEqual([{ id: "poll-zamknieta", status: "open" }]),
-    );
+    await waitFor(() => expect(h.statusCalls).toEqual([{ id: "poll-zamknieta", status: "open" }]));
   });
 
   it("zmiana statusu UNIEWAŻNIA listę i potwierdza się operatorowi", async () => {
@@ -512,9 +510,7 @@ describe("ankiety - otwieranie i zamykanie głosowania", () => {
     await screen.findByText("Otwarta ankieta");
 
     await clickRowButton("Otwarta ankieta", STATUS_BUTTON);
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-polls"] }),
-    );
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-polls"] }));
     expect(h.toastSuccess).toContain(t("adminCommunity.polls.saved"));
   });
 
@@ -557,9 +553,7 @@ describe("ankiety - kasowanie wymaga potwierdzenia", () => {
 
     await clickRowButton(question, TRASH_BUTTON);
     await waitFor(() => expect(h.deleted).toEqual(["poll-do-kasacji"]));
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-polls"] }),
-    );
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-polls"] }));
     expect(h.toastSuccess).toContain(t("adminCommunity.polls.deleted"));
   });
 
@@ -599,8 +593,7 @@ describe("ankiety - kreator nowej ankiety", () => {
     return screen.findByRole("dialog");
   };
 
-  const createButton = () =>
-    screen.getByRole("button", { name: t("adminCommunity.polls.create") });
+  const createButton = () => screen.getByRole("button", { name: t("adminCommunity.polls.create") });
 
   /** Wpisuje treść do pola opcji - PL i EN mają osobne zastępniki. */
   const fillOption = (index: number, pl: string, en: string) => {
@@ -695,9 +688,7 @@ describe("ankiety - kreator nowej ankiety", () => {
       // trafiłaby do czytelników, zanim ktokolwiek ją przejrzy.
       status: "draft",
     });
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-polls"] }),
-    );
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-polls"] }));
     expect(h.toastSuccess).toContain(t("adminCommunity.polls.created"));
   });
 
@@ -837,7 +828,10 @@ describe("ankiety - dostępność", () => {
     const { container } = await mountPolls();
     await screen.findByText(t("adminCommunity.polls.noPolls"));
     const violations = await axeViolations(container);
-    expect(violations.map((v) => v.id), summarize(violations)).toEqual(["button-name"]);
+    expect(
+      violations.map((v) => v.id),
+      summarize(violations),
+    ).toEqual(["button-name"]);
     expect(violations[0]?.nodes).toHaveLength(1);
     expect(violations[0]?.nodes[0]?.html).toContain('role="combobox"');
   });
@@ -869,9 +863,7 @@ describe("ankiety - defekty zastane", () => {
     h.listFails = true;
     await mountPolls();
     await waitFor(() => expect(h.listCalls.length).toBeGreaterThan(0));
-    await waitFor(() =>
-      expect(screen.queryByText(t("adminCommunity.polls.noPolls"))).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByText(t("adminCommunity.polls.noPolls"))).toBeNull());
   });
 
   it("kontrola dodatnia: dziś odmowa pokazuje dokładnie „Brak ankiet”", async () => {
@@ -1089,7 +1081,10 @@ describe("ankiety - defekty zastane", () => {
     // Reguły NIE wyciszamy - lista jest PRZYPIĘTA, więc każde nowe naruszenie
     // wywali tę kontrolę zamiast schować się pod flagą (`it.fails` wyżej jest
     // czerwony niezależnie od powodu i sam by tego nie pokazał).
-    expect(violations.map((v) => v.id), summarize(violations)).toEqual(["button-name"]);
+    expect(
+      violations.map((v) => v.id),
+      summarize(violations),
+    ).toEqual(["button-name"]);
     const html = violations[0]?.nodes.map((n) => n.html) ?? [];
     expect(html).toHaveLength(4);
     // Jeden z nich to filtr statusu, trzy pozostałe to ikonowe przyciski wiersza

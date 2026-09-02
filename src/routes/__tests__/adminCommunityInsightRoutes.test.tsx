@@ -89,6 +89,23 @@
 //     martwym przycisku).
 //
 // ---------------------------------------------------------------------------
+// SIEDEM DEFEKTÓW PRZYPIĘTYCH W TYM PLIKU (`it.fails`, każdy z kontrolą dodatnią)
+// ---------------------------------------------------------------------------
+//   1. badges: odmowa odczytu listy nadań renderuje „Brak odznak";
+//   2. badges: potwierdzenie odebrania nie mówi, KOMU odbieramy odznakę;
+//   3. badges: naruszenia axe (`button-name` na dropliście, `aria-required-parent`
+//      na `ProfileBadge` renderowanym poza listą);
+//   4. contributors: odmowa odczytu kolejki renderuje „Brak zgłoszeń";
+//   5. contributors: odrzucenie zgłoszenia (bez drogi powrotu z tego panelu)
+//      nie pyta o potwierdzenie;
+//   6. contributors: obie droplisty filtrów są bez nazwy dostępnej;
+//   7. engagement: po odmowie odczytu panel TWIERDZI, że nie ma wydarzeń
+//      i płatnych subskrypcji, choć liczby obok degraduje uczciwie do „-".
+// Żadnego z nich NIE naprawiam - zlecenie brzmiało „pokryj testami", a punkty
+// 3 i 6 dotyczą komponentów współdzielonych (`ProfileBadge`, `ui/select`)
+// używanych przez cały panel i profile publiczne.
+//
+// ---------------------------------------------------------------------------
 // CZEGO W TYCH TRASACH NIE MA, A BYŁO W ZLECENIU (uczciwe sprostowanie)
 // ---------------------------------------------------------------------------
 //   * „tablica kontrybutorów z opt-inem do katalogu": `/admin/community/
