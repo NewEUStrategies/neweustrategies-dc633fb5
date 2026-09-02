@@ -307,15 +307,23 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
 //      LISTĘ osi. Baza jest wtedy rozgłaszana do KAŻDEGO elementu listy
 //      (patrz `AXIS_OPTION_KEYS`).
 //
-// KOSZT. Złączenie chodzi dokładnie tyle razy, ile chodziło płaskie - raz na
-// `useMemo([option, theme])` w `EChartClient`, więc ZMIERZONE liczby renderów
-// i wywołań `getComputedStyle` się nie zmieniają. Głębokość dotyczy wyłącznie
-// zagnieżdżeń OBIEKTOWYCH: tablice (`series[].data`, `xAxis.data`) wchodzą
-// przez referencję i nie są przechodzone, więc rachunek nie zależy od liczby
-// punktów na wykresie. ZMIERZONE na opcji wykresu trendu (Node 22, 200 tys.
-// przebiegów): płasko 0,25 µs/złączenie, głęboko 1,7 µs/złączenie, obiektów
-// pomocniczych 1 -> 24. To jest ~1,5 µs raz na zmianę opcji lub motywu -
-// przy jednym `setOption` po canvasie liczonym w milisekundach.
+// KOSZT - ZMIERZONY, NIE PRZEMILCZANY. Złączenie chodzi dokładnie tyle razy,
+// ile chodziło płaskie: raz na `useMemo([option, theme])` w `EChartClient`.
+// Liczby renderów i wywołań `getComputedStyle` się więc NIE zmieniają
+// (pilnuje ich `__tests__/EChartClient.test.tsx`, w tym przypadek na dziesięciu
+// wykresach z opcją nadpisującą pięć sekcji). Zmienia się sama praca w środku
+// jednego złączenia. ZMIERZONE (Node 22.22, 200 tys. przebiegów, najcięższa
+// opcja w repo - trend GSC: 3 osie Y, 3 serie, 90 punktów):
+//
+//   płasko: 0,3 µs/złączenie ·  1 obiekt pomocniczy
+//   głęboko: 7,4 µs/złączenie · 10 obiektów pomocniczych
+//
+// Czyli ~7 µs więcej raz na zmianę opcji albo motywu, ~60 µs na cały panel
+// ośmiu wykresów - przy jednym `setOption(notMerge)`, który maluje kanwę
+// w milisekundach. Głębokość dotyczy WYŁĄCZNIE zagnieżdżeń obiektowych:
+// tablice (`series[].data`, `xAxis.data`) wchodzą przez referencję i nie są
+// przechodzone, więc rachunek NIE rośnie z liczbą punktów na wykresie -
+// 90 punktów i 9 000 punktów kosztuje tu tyle samo.
 
 /**
  * Sekcje, których NIE WOLNO scalać - wchodzą CAŁE, prosto od panelu.
@@ -353,13 +361,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * rzecz panelu - bez wchodzenia w środek.
  */
 function deepMergeSection(base: unknown, override: unknown): unknown {
-  if (Array.isArray(base) && Array.isArray(override)) {
-    const scalone: unknown[] = [...base];
-    override.forEach((item, i) => {
-      scalone[i] = deepMergeSection(base[i], item);
-    });
-    return scalone;
-  }
   if (!isPlainObject(base) || !isPlainObject(override)) return override;
   const out: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(override)) {

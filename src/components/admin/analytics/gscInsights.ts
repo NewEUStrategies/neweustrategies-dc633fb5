@@ -48,6 +48,16 @@ const CTR_BENCHMARK_DEEPEST = CTR_BENCHMARK_BY_POS[CTR_BENCHMARK_BY_POS.length -
 const POS_DEADBAND = 0.5;
 
 /**
+ * Martwa strefa dla LUKI CTR wobec benchmarku pozycji, w częściach jedności
+ * (0.02 = 2 pp). Steruje wyłącznie WAGĄ wpisu, nie listą działań - dlaczego
+ * właśnie tak, opisuje blok `kpi-ctr`.
+ */
+const CTR_GAP_DEADBAND = 0.02;
+
+/** Martwa strefa dla zmiany CTR wobec poprzedniego okna (0.005 = 0.5 pp). */
+const CTR_MOVE_DEADBAND = 0.005;
+
+/**
  * Oczekiwany CTR dla średniej pozycji. Pozycja GSC startuje od 1.0, więc
  * wartość mniejsza (0 z okna bez wyświetleń) albo nieliczbowa (uszkodzony
  * payload API) NIE jest miejscem w TOP 3 - to brak pomiaru. Taki przypadek
@@ -93,21 +103,71 @@ export function buildGscInsights(p: Params): Insight[] {
   });
 
   // ── 2. KPI: CTR ────────────────────────────────────────────────────
+  // DWA PROGI NA JEDNEJ LICZBIE - I TO JEST ZAMIERZONE, nie rozjazd taki, jak
+  // ten domknięty niżej w `kpi-position`. Wpis odpowiada na DWA niezależne
+  // pytania i każde ma własną granicę:
+  //   * `ctrGap` = CTR minus `expectedCtr(pozycja)` - czy snippet dobiera tyle
+  //     kliknięć, ile dobiera przeciętny wynik NA TYM MIEJSCU SERP. ZNAK tej
+  //     luki wybiera LISTĘ DZIAŁAŃ, bo oba zestawy ze słownika są odpowiedzią
+  //     właśnie na to pytanie: „Przepisz meta title…” kontra „Utrzymaj
+  //     stylistykę tytułów - działa”. Żaden z nich nie mówi ani słowa o trendzie.
+  //     Tę samą, ZEROWĄ granicę ma słowo w `detail` („niższy” / „wyższy”), więc
+  //     zdanie opisowe i lista kroków nie mogą się rozjechać.
+  //   * `dCtr` = CTR minus CTR poprzedniego okna - kierunek ruchu. Wchodzi
+  //     wyłącznie do WAGI i wyłącznie wtedy, gdy luka jest w martwej strefie.
+  //
+  // DLACZEGO WAGA MA MARTWĄ STREFĘ, A PORADY NIE. Benchmark to CZTEROSTOPNIOWA
+  // TABELA (18% / 6% / 2% / 0.8%), która między pozycją 3.0 i 3.1 skacze o 12 pp
+  // - luka rzędu pół punktu jest więc poniżej rozdzielczości samego pomiaru
+  // i nie może podnosić alarmu, bo waga to roszczenie o PILNOŚĆ, konkurujące
+  // o jeden budżet uwagi z dziewięcioma innymi kafelkami. Znak tej samej luki
+  // pozostaje użyteczny: słownik ma tylko DWA zestawy porad, więc środek skali
+  // musi trafić do jednego z nich - i trafia do ostrożnego, bo koszt zbędnego
+  // „sprawdź snippet w SERP” jest znikomy, a koszt fałszywego „działa” na
+  // stronie zmierzonej PONIŻEJ krzywej - już nie.
+  //
+  // ZIELONY KAFELEK Z LISTĄ REMONTOWĄ JEST POPRAWNY. Przy CTR 5.5% na pozycji 5
+  // (benchmark 6%) i wzroście o 1 pp operator dostaje wagę „good” RAZEM z pełną,
+  // czteroetapową listą naprawczą - a `detail` mówi mu oba fakty w jednym
+  // zdaniu: „Twój CTR jest niższy o 0.5 pp. Zmiana vs poprzednie okno: 1.00 pp”.
+  // To nie sprzeczność: „rośnie” i „wciąż poniżej normy dla swojego miejsca” to
+  // dwa różne zdania o dwóch różnych liczbach. Lustrzany narożnik - waga „warn”
+  // przy luce nieujemnej i spadającym CTR, z poradą „utrzymaj stylistykę
+  // tytułów - działa” - jest poprawny z tego samego powodu: alarm dotyczy
+  // spadku, a porada mówi, że przyczyną NIE jest snippet, i wskazuje drugą
+  // dźwignię („wprowadź ten sam wzorzec na słabszych stronach”).
+  //
+  // CZYM TO SIĘ RÓŻNI OD `kpi-position`. Tam JEDNA liczba (`dPos`), opisana
+  // JEDNYM zdaniem, sterowała OBIEMA decyzjami - rozjazd progów dawał więc
+  // alarm z instrukcją bezczynności. Tu każda decyzja stoi na innej liczbie.
+  //
+  // NIE SPRZĘGAĆ TYCH PROGÓW JEDNYM BOOLEANEM. Wspólna martwa strefa ±2 pp
+  // wypisałaby „Utrzymaj stylistykę tytułów - działa” na bursztynowym kafelku
+  // strony, która jest 1.9 pp POD krzywą i dalej spada - czyli
+  // WYPRODUKOWAŁABY defekt z `kpi-position` zamiast go usunąć. Waga steruje też
+  // miejscem na posortowanej liście i licznikiem odznaki (`InsightSection`),
+  // więc zielony wpis idzie na SPÓD listy i liczy się do „N OK”; to również jest
+  // zamierzone, bo `InsightSection` niczego nie zwija ani nie ucina - lista
+  // remontowa spada w kolejności, a nie znika z widoku, i tak ma być:
+  // to okazja do poprawy, nie incydent. Reguła jest przypięta testami
+  // (`gscInsights.test.ts`, blok „dwa progi to dwa różne fakty”).
   const dCtr = totals.ctr - prevTotals.ctr; // punkty procentowe
   const ctrGap = totals.ctr - expectedCtr(totals.position);
+  const ctrBelowBench = ctrGap < 0;
+  const ctrGapWide = Math.abs(ctrGap) > CTR_GAP_DEADBAND;
+  const ctrFlat = Math.abs(dCtr) < CTR_MOVE_DEADBAND;
   out.push({
     id: "kpi-ctr",
     element: t(`${B}.ctr.element`),
-    severity:
-      ctrGap < -0.02
+    severity: ctrGapWide
+      ? ctrBelowBench
         ? "warn"
-        : ctrGap > 0.02
-          ? "good"
-          : Math.abs(dCtr) < 0.005
-            ? "info"
-            : dCtr < 0
-              ? "warn"
-              : "good",
+        : "good"
+      : ctrFlat
+        ? "info"
+        : dCtr < 0
+          ? "warn"
+          : "good",
     title: t(`${B}.ctr.title`, {
       ctr: (totals.ctr * 100).toFixed(2),
       pos: totals.position.toFixed(1),
@@ -118,7 +178,7 @@ export function buildGscInsights(p: Params): Insight[] {
       gap: (Math.abs(ctrGap) * 100).toFixed(1),
       dctr: (dCtr * 100).toFixed(2),
     }),
-    fixes: ctrGap < 0 ? arr(`${B}.ctr.fixesLow`) : arr(`${B}.ctr.fixesGood`),
+    fixes: ctrBelowBench ? arr(`${B}.ctr.fixesLow`) : arr(`${B}.ctr.fixesGood`),
   });
 
   // ── 3. KPI: pozycja ────────────────────────────────────────────────
