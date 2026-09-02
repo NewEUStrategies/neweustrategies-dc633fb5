@@ -4367,6 +4367,32 @@ export default defineConfig({
           lines: 92,
           branches: 89,
         },
+        // ── MODUŁ 16: KOMENTARZE - ZAPADKA NA CZTERECH SKOŃCZONYCH PLIKACH ──
+        //
+        // `src/lib/comments/**` stoi na 100% LINII i 100% FUNKCJI (29/29) na
+        // czterech plikach: `api.ts` (18/18 funkcji), `guest.functions.ts`,
+        // `selection.ts`, `tree.ts`. Do dziś stało tam BEZ ŻADNEGO PROGU, czyli
+        // dowolny PR mógł je zregresować i nie zapaliłby ani jednej czerwieni:
+        // próg globalny repo ma kilkanaście punktów luzu, a tej warstwy nie
+        // obejmował żaden próg per-ścieżka. Audyt wydania 8 wskazał to jako
+        // NAJKRUCHSZĄ rzecz w module - skończona praca bez zapadki.
+        //
+        // Ten wpis nie wymagał ani jednego nowego testu: jest zapisem stanu,
+        // który już jest. ZMIERZONE (`vitest run src/lib/comments --coverage`,
+        // zieleń 92/92): 98,68% instrukcji (150/152), 89,05% gałęzi (122/137),
+        // 100% funkcji (29/29), 100% linii (117/117).
+        //
+        // Progi linii i funkcji stoją na 100 CELOWO, bez luzu: to warstwa czystych
+        // reguł bez I/O i bez stanu serwera, więc każda niepokryta linia jest tu
+        // decyzją autora, nie kosztem środowiska. Gałęzie floorowane na 88
+        // (1,05 pp zapasu) - niedobite ramiona to ścieżki błędu PostgREST
+        // w `api.ts` i jedno `?? ""` w `guest.functions.ts`.
+        "src/lib/comments/**": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 88,
+        },
         // ── MODUŁ 19: USTAWIENIA, INTEGRACJE, UŻYTKOWNICY, MULTI-TENANT, RODO ─
         //
         // Stan wyjściowy powierzchni (audyt 2026-08-21, HEAD 6426bd0): 130 plików,
