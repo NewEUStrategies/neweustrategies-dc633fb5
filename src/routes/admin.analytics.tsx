@@ -28,6 +28,9 @@ import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status
 import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
 import { InsightSection, type Insight } from "@/components/admin/analytics/InsightSection";
+// Nakładka wnosi gałąź `admin.analyticsPanel.*` - bez tego importu i18next
+// nie ma tych kluczy i panel renderuje surowe identyfikatory.
+import "@/lib/i18n-admin-extras";
 
 // BI dashboards are heavy (ECharts + per-widget datasets). Lazy-load them so
 // the SSR route chunk stays under V8's mark-compact ceiling during `build:dev`
@@ -67,10 +70,11 @@ const SemanticReconciliationPanel = lazy(() =>
 );
 
 function DashboardFallback() {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-center py-12 text-muted-foreground">
       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      Ładowanie dashboardu…
+      {t("admin.analyticsPanel.loadingDashboard")}
     </div>
   );
 }
@@ -96,6 +100,7 @@ interface PillProps {
   detail?: string;
 }
 function StatusPill({ ok, label, detail }: PillProps) {
+  const { t } = useTranslation();
   return (
     <Card className="p-4 flex items-start gap-3">
       <div
@@ -109,7 +114,9 @@ function StatusPill({ ok, label, detail }: PillProps) {
       <div className="min-w-0">
         <div className="text-sm font-semibold">{label}</div>
         <div className="text-xs text-muted-foreground truncate">
-          {ok ? (detail ?? "Połączone") : (detail ?? "Nie skonfigurowane")}
+          {ok
+            ? (detail ?? t("admin.analyticsPanel.pill.connected"))
+            : (detail ?? t("admin.analyticsPanel.pill.notConfigured"))}
         </div>
       </div>
     </Card>
@@ -162,19 +169,22 @@ interface ModeCardProps {
 }
 
 function ModeCard({ active, ok, title, badge, children }: ModeCardProps) {
+  const { t } = useTranslation();
   return (
     <Card className={"p-4 " + (active ? "border-primary/60 ring-1 ring-primary/30" : "")}>
       <div className="flex items-center justify-between gap-3 mb-2">
         <div className="text-sm font-semibold">{title}</div>
         <div className="flex items-center gap-2">
-          {active && <Badge className="text-[10px]">Aktywny</Badge>}
+          {active && (
+            <Badge className="text-[10px]">{t("admin.analyticsPanel.ga4Modes.active")}</Badge>
+          )}
           {ok ? (
             <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/40">
               {badge}
             </Badge>
           ) : (
             <Badge variant="outline" className="text-[10px] text-muted-foreground">
-              Nieaktywne
+              {t("admin.analyticsPanel.ga4Modes.inactive")}
             </Badge>
           )}
         </div>
@@ -185,6 +195,7 @@ function ModeCard({ active, ok, title, badge, children }: ModeCardProps) {
 }
 
 function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
+  const { t } = useTranslation();
   const send = useServerFn(sendGa4Event);
   const [sending, setSending] = useState(false);
 
@@ -216,10 +227,9 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
   return (
     <Card className="p-4 space-y-4">
       <div>
-        <div className="text-sm font-semibold">Sposoby podłączenia GA4</div>
+        <div className="text-sm font-semibold">{t("admin.analyticsPanel.ga4Modes.title")}</div>
         <p className="text-xs text-muted-foreground mt-1">
-          Wybierz dowolny tryb - sekrety dodaj w sekretach środowiska wdrożeniowego. Priorytet dla
-          raportów Data API: Service Account → OAuth refresh token.
+          {t("admin.analyticsPanel.ga4Modes.intro")}
         </p>
       </div>
 
@@ -227,14 +237,15 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         <ModeCard
           active={status.activeMode === "service_account"}
           ok={status.hasServiceAccount && status.hasPropertyId}
-          title="1. Service Account (JSON)"
-          badge="Gotowe"
+          title={t("admin.analyticsPanel.ga4Modes.serviceAccount.title")}
+          badge={t("admin.analyticsPanel.ga4Modes.ready")}
         >
           <ol className="list-decimal pl-4 space-y-1">
-            <li>Google Cloud Console → utwórz Service Account, wygeneruj klucz JSON.</li>
-            <li>GA4 → Admin → Property access management → dodaj e-mail SA jako Viewer.</li>
+            <li>{t("admin.analyticsPanel.ga4Modes.serviceAccount.step1")}</li>
+            <li>{t("admin.analyticsPanel.ga4Modes.serviceAccount.step2")}</li>
             <li>
-              Sekrety: <code>GA4_SERVICE_ACCOUNT_JSON</code>, <code>GA4_PROPERTY_ID</code>.
+              {t("admin.analyticsPanel.ga4Modes.secrets")} <code>GA4_SERVICE_ACCOUNT_JSON</code>,{" "}
+              <code>GA4_PROPERTY_ID</code>
             </li>
           </ol>
           <div className="flex flex-wrap gap-1 pt-1">
@@ -255,22 +266,20 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         <ModeCard
           active={status.activeMode === "oauth_refresh"}
           ok={status.hasOauthClient && status.hasOauthRefresh && status.hasPropertyId}
-          title="2. OAuth 2.0 (refresh token)"
-          badge="Gotowe"
+          title={t("admin.analyticsPanel.ga4Modes.oauth.title")}
+          badge={t("admin.analyticsPanel.ga4Modes.ready")}
         >
           <ol className="list-decimal pl-4 space-y-1">
+            <li>{t("admin.analyticsPanel.ga4Modes.oauth.step1")}</li>
             <li>
-              Google Cloud Console → OAuth consent screen + Credentials → utwórz OAuth Client ID
-              typu <b>Desktop app</b>.
+              {t("admin.analyticsPanel.ga4Modes.oauth.step2Before")}{" "}
+              <code>https://www.googleapis.com/auth/analytics.readonly</code>{" "}
+              {t("admin.analyticsPanel.ga4Modes.oauth.step2After")}
             </li>
             <li>
-              Wygeneruj refresh_token dla scope{" "}
-              <code>https://www.googleapis.com/auth/analytics.readonly</code> (np. OAuth Playground
-              - Use your own OAuth credentials).
-            </li>
-            <li>
-              Sekrety: <code>GA4_OAUTH_CLIENT_ID</code>, <code>GA4_OAUTH_CLIENT_SECRET</code>,{" "}
-              <code>GA4_OAUTH_REFRESH_TOKEN</code>, <code>GA4_PROPERTY_ID</code>.
+              {t("admin.analyticsPanel.ga4Modes.secrets")} <code>GA4_OAUTH_CLIENT_ID</code>,{" "}
+              <code>GA4_OAUTH_CLIENT_SECRET</code>, <code>GA4_OAUTH_REFRESH_TOKEN</code>,{" "}
+              <code>GA4_PROPERTY_ID</code>
             </li>
           </ol>
           <div className="flex flex-wrap gap-1 pt-1">
@@ -289,27 +298,23 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         <ModeCard
           active={status.activeMode === "measurement_protocol"}
           ok={status.hasMeasurementProtocol}
-          title="3. Measurement Protocol (server-side events)"
-          badge="Gotowe"
+          title={t("admin.analyticsPanel.ga4Modes.measurement.title")}
+          badge={t("admin.analyticsPanel.ga4Modes.ready")}
         >
           <ol className="list-decimal pl-4 space-y-1">
+            <li>{t("admin.analyticsPanel.ga4Modes.measurement.step1")}</li>
             <li>
-              GA4 → Admin → Data Streams → wybierz strumień web →{" "}
-              <b>Measurement Protocol API secrets</b> → utwórz nowy sekret.
-            </li>
-            <li>
-              <b>Measurement ID</b> ustaw w{" "}
+              {t("admin.analyticsPanel.ga4Modes.measurement.step2Before")}{" "}
               <a href="/admin/settings/analytics" className="underline">
-                Ustawienia → Analityka
+                {t("admin.analyticsPanel.ga4Modes.measurement.step2Link")}
               </a>{" "}
-              (pole <code>Measurement ID</code>, np. G-XXXXXXX) - jest współdzielony z tym panelem.
+              {t("admin.analyticsPanel.ga4Modes.measurement.step2After")}
             </li>
             <li>
-              Sekret projektu: <code>GA4_API_SECRET</code> (tylko klucz API - poufny).
+              {t("admin.analyticsPanel.ga4Modes.secretProject")} <code>GA4_API_SECRET</code>{" "}
+              {t("admin.analyticsPanel.ga4Modes.measurement.secretHint")}
             </li>
-            <li>
-              Ten tryb służy do <b>wysyłania</b> eventów server-side, nie do czytania raportów.
-            </li>
+            <li>{t("admin.analyticsPanel.ga4Modes.measurement.step3")}</li>
           </ol>
           <div className="flex flex-wrap gap-2 items-center pt-1">
             <Badge variant="outline" className="text-[10px]">
@@ -330,7 +335,7 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
                 disabled={sending}
               >
                 {sending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
-                Wyślij testowy event
+                {t("admin.analyticsPanel.ga4Modes.testEvent")}
               </Button>
             )}
           </div>
@@ -339,19 +344,16 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         <ModeCard
           active={status.activeMode === "embed"}
           ok={status.hasEmbedUrl}
-          title="4. Embed (Looker Studio / iframe)"
-          badge="Gotowe"
+          title={t("admin.analyticsPanel.ga4Modes.embed.title")}
+          badge={t("admin.analyticsPanel.ga4Modes.ready")}
         >
           <ol className="list-decimal pl-4 space-y-1">
+            <li>{t("admin.analyticsPanel.ga4Modes.embed.step1")}</li>
             <li>
-              Zbuduj raport w <b>Looker Studio</b> na źródle GA4 i użyj File → Embed report →
-              skopiuj URL.
+              {t("admin.analyticsPanel.ga4Modes.secretSingle")} <code>GA4_EMBED_URL</code>{" "}
+              {t("admin.analyticsPanel.ga4Modes.embed.step2")}
             </li>
-            <li>
-              Sekret: <code>GA4_EMBED_URL</code> (pełen URL iframe do raportu, np. z
-              lookerstudio.google.com).
-            </li>
-            <li>Zero uwierzytelniania po naszej stronie - raport renderuje się jako iframe.</li>
+            <li>{t("admin.analyticsPanel.ga4Modes.embed.step3")}</li>
           </ol>
           <div className="flex flex-wrap gap-1 pt-1">
             <Badge variant="outline" className="text-[10px]">
@@ -365,11 +367,12 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
 }
 
 function Ga4EmbedCard({ url }: { url: string }) {
+  const { t } = useTranslation();
   return (
     <Card className="overflow-hidden">
       <div className="p-3 border-b border-border text-sm font-semibold flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" /> Raport osadzony (Looker Studio)
+          <BarChart3 className="w-4 h-4" /> {t("admin.analyticsPanel.embed.title")}
         </span>
         <a
           href={url}
@@ -377,7 +380,7 @@ function Ga4EmbedCard({ url }: { url: string }) {
           rel="noopener noreferrer"
           className="text-xs text-primary hover:underline inline-flex items-center gap-1"
         >
-          Otwórz w nowej karcie <ExternalLink className="w-3 h-3" />
+          {t("admin.analyticsPanel.embed.open")} <ExternalLink className="w-3 h-3" />
         </a>
       </div>
       <iframe
@@ -396,28 +399,46 @@ function Ga4EmbedCard({ url }: { url: string }) {
 
 // --------- Vitals mini card ---------
 
+/** Okno mini-panelu RUM w dniach - ta sama liczba idzie do zapytania i do napisu. */
+const VITALS_WINDOW_DAYS = 7;
+
+/**
+ * Wartość kafelka RUM.
+ *
+ * CLS jest bezwymiarowy i dostaje trzy miejsca po przecinku (0,083 i 0,08 to
+ * dwie różne oceny). KAŻDA metryka czasowa dostaje jednostkę - wcześniej
+ * warunek `p75 >= 1000 ? "" : "ms"` gubił ją dokładnie powyżej sekundy, czyli
+ * na każdym złym LCP: kafelek, który ma zaalarmować, pokazywał samą liczbę.
+ */
+function vitalValue(metric: string, p75: number): string {
+  if (metric === "CLS") return p75.toFixed(3);
+  return `${Math.round(p75)} ms`;
+}
+
 function VitalsMiniPanel() {
+  const { t } = useTranslation();
   const fetchVitals = useServerFn(getVitalsSummary);
   const q = useQuery({
     queryKey: ["analytics-vitals-mini"],
-    queryFn: () => fetchVitals({ data: { days: 7 } }),
+    queryFn: () => fetchVitals({ data: { days: VITALS_WINDOW_DAYS } }),
   });
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold flex items-center gap-2">
-          <Gauge className="w-4 h-4" /> Web Vitals (7 dni)
+          <Gauge className="w-4 h-4" />{" "}
+          {t("admin.analyticsPanel.vitals.title", { days: VITALS_WINDOW_DAYS })}
         </div>
         <a
           href="/admin/performance"
           className="text-xs text-primary hover:underline inline-flex items-center gap-1"
         >
-          Szczegóły <ExternalLink className="w-3 h-3" />
+          {t("admin.analyticsPanel.vitals.details")} <ExternalLink className="w-3 h-3" />
         </a>
       </div>
       {q.isLoading ? (
         <div className="text-xs text-muted-foreground flex items-center gap-2">
-          <Loader2 className="w-3 h-3 animate-spin" /> Ładowanie...
+          <Loader2 className="w-3 h-3 animate-spin" /> {t("admin.analyticsPanel.vitals.loading")}
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-3">
@@ -427,15 +448,17 @@ function VitalsMiniPanel() {
                 {m.metric}
               </div>
               <div className="text-lg font-semibold tabular-nums">
-                {m.metric === "CLS"
-                  ? m.p75.toFixed(3)
-                  : `${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`}
+                {vitalValue(m.metric, m.p75)}
               </div>
-              <div className="text-[10px] text-muted-foreground">{m.count} próbek</div>
+              <div className="text-[10px] text-muted-foreground">
+                {t("admin.analyticsPanel.vitals.samples", { count: m.count })}
+              </div>
             </div>
           ))}
           {!(q.data?.metrics ?? []).length && (
-            <div className="col-span-3 text-xs text-muted-foreground">Brak próbek.</div>
+            <div className="col-span-3 text-xs text-muted-foreground">
+              {t("admin.analyticsPanel.vitals.empty")}
+            </div>
           )}
         </div>
       )}
@@ -446,118 +469,143 @@ function VitalsMiniPanel() {
 // --------- Overview ---------
 
 function OverviewPanel({ status }: { status: AnalyticsStatus }) {
+  const { t } = useTranslation();
   const insights: Insight[] = [];
   // GSC
   insights.push({
     id: "gsc",
-    element: "Search Console",
+    element: t("admin.analyticsPanel.insights.gsc.element"),
     severity: status.gsc.configured ? "good" : "critical",
-    title: status.gsc.configured ? "GSC podłączony i zbiera dane" : "Brak połączenia z GSC",
+    title: status.gsc.configured
+      ? t("admin.analyticsPanel.insights.gsc.titleOk")
+      : t("admin.analyticsPanel.insights.gsc.titleOff"),
     detail: status.gsc.configured
-      ? "OAuth aktywny - dashboard GSC ma dostęp do wszystkich zweryfikowanych właściwości."
-      : "Bez GSC nie ma widoczności SERP: brak zapytań, pozycji, CTR i sitemap health.",
+      ? t("admin.analyticsPanel.insights.gsc.detailOk")
+      : t("admin.analyticsPanel.insights.gsc.detailOff"),
     fixes: status.gsc.configured
       ? [
-          "Zweryfikuj że wszystkie warianty domeny (http/https, www/apex) są dodane w GSC.",
-          "Wgraj świeży sitemap.xml raz w tygodniu (możesz zautomatyzować przez pg_cron).",
+          t("admin.analyticsPanel.insights.gsc.fixOkVariants"),
+          t("admin.analyticsPanel.insights.gsc.fixOkSitemap"),
         ]
       : [
-          "Otwórz Ustawienia → Konektory → Google Search Console i podłącz konto z dostępem do właściwości.",
-          "Po podłączeniu odśwież ten panel - dashboard GSC zacznie zbierać dane w ciągu godziny.",
+          t("admin.analyticsPanel.insights.gsc.fixOffConnector"),
+          t("admin.analyticsPanel.insights.gsc.fixOffRefresh"),
         ],
   });
-  // GA4
+  // GA4 - TRZY stany, nie dwa: „podłączone", „jest service account, brak
+  // GA4_PROPERTY_ID" i „nic nie ma" mają własną wagę i własny komunikat.
   insights.push({
     id: "ga4",
-    element: "Google Analytics 4",
+    element: t("admin.analyticsPanel.insights.ga4.element"),
     severity: status.ga4.configured ? "good" : status.ga4.hasServiceAccount ? "warn" : "critical",
     title: status.ga4.configured
-      ? `GA4 aktywny (property ${status.ga4.propertyId})`
+      ? t("admin.analyticsPanel.insights.ga4.titleOk", { propertyId: status.ga4.propertyId })
       : status.ga4.hasServiceAccount
-        ? "Service account jest, brak GA4_PROPERTY_ID"
-        : "GA4 nie jest podłączony",
+        ? t("admin.analyticsPanel.insights.ga4.titlePartial")
+        : t("admin.analyticsPanel.insights.ga4.titleOff"),
     detail: status.ga4.configured
-      ? "Data API odpowiada - masz sesje, źródła, urządzenia, konwersje na dashboardzie GA4."
-      : "Bez GA4 nie ma pomiaru zachowań usera po wejściu (bounce, engagement, conversions).",
+      ? t("admin.analyticsPanel.insights.ga4.detailOk")
+      : t("admin.analyticsPanel.insights.ga4.detailOff"),
     fixes: status.ga4.configured
       ? [
-          "Skonfiguruj konwersje (kontakt, newsletter) - bez nich engagement rate nie ma kontekstu.",
-          "Zdefiniuj mikroeventy (scroll_75, cta_click) - lepsze segmenty.",
+          t("admin.analyticsPanel.insights.ga4.fixOkConversions"),
+          t("admin.analyticsPanel.insights.ga4.fixOkEvents"),
         ]
       : status.ga4.hasServiceAccount
-        ? ["Dodaj sekret GA4_PROPERTY_ID (numer property, nie tag pomiaru)."]
+        ? [t("admin.analyticsPanel.insights.ga4.fixPartialProperty")]
         : [
-            "Zbierz service account JSON z Google Cloud Console (rola Viewer w GA4).",
-            "Dodaj sekret GA4_SERVICE_ACCOUNT_JSON + GA4_PROPERTY_ID.",
+            t("admin.analyticsPanel.insights.ga4.fixOffServiceAccount"),
+            t("admin.analyticsPanel.insights.ga4.fixOffSecrets"),
           ],
   });
   // Vitals
   insights.push({
     id: "vitals",
-    element: "Web Vitals",
+    element: t("admin.analyticsPanel.insights.vitals.element"),
     severity: status.vitals.configured ? "good" : "warn",
-    title: status.vitals.configured ? "RUM zbierany z realnego ruchu" : "Brak samples RUM w oknie",
+    title: status.vitals.configured
+      ? t("admin.analyticsPanel.insights.vitals.titleOk")
+      : t("admin.analyticsPanel.insights.vitals.titleOff"),
     detail: status.vitals.configured
-      ? "Beacon `/api/public/vitals` odbiera LCP/INP/CLS/FCP/TTFB. Web Vitals BI attribute per podstrona."
-      : "Brak próbek zwykle oznacza, że ruch jest zbyt niski lub RUM został wyłączony w consent bannerze.",
+      ? t("admin.analyticsPanel.insights.vitals.detailOk")
+      : t("admin.analyticsPanel.insights.vitals.detailOff"),
     fixes: status.vitals.configured
       ? [
-          "Otwórz zakładkę Web Vitals - konkretne rekomendacje per metryka są tam wygenerowane.",
-          "Jeśli LCP > 2.5s: preload obrazu bohatera + AVIF/WebP.",
+          t("admin.analyticsPanel.insights.vitals.fixOkTab"),
+          t("admin.analyticsPanel.insights.vitals.fixOkLcp"),
         ]
       : [
-          "Sprawdź w Consent Banner że kategoria 'Analytics' jest opcjonalna z domyślnie akceptowaną (jeśli prawnie OK).",
-          "W dev otwórz kilka podstron - konsola powinna pokazać `[web-vitals]`.",
+          t("admin.analyticsPanel.insights.vitals.fixOffConsent"),
+          t("admin.analyticsPanel.insights.vitals.fixOffDev"),
         ],
   });
 
   return (
     <div className="space-y-4">
+      {/* Nagłówek DRUGIEGO poziomu. Trasa daje `<h1>`, a współdzielony
+          `InsightSection` renderuje `<h3>`: bez tego poziomu czytnik ekranu
+          ogłasza zejście o dwa stopnie i pokazuje wnioski jako pod-pod-sekcję
+          czegoś, czego w dokumencie nie ma (axe: `heading-order`). Poprawka
+          stoi PO STRONIE TRASY, bo `InsightSection` jest współdzielony przez
+          sześć pulpitów BI i jego poziom nie jest tu do ruszenia. */}
+      <h2 className="text-sm font-semibold tracking-tight">
+        {t("admin.analyticsPanel.overviewHeading")}
+      </h2>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <StatusPill
           ok={status.gsc.configured}
-          label="Google Search Console"
-          detail={status.gsc.configured ? "Podłączone (OAuth)" : "Wymaga podłączenia connectora"}
+          label={t("admin.analyticsPanel.pill.gsc")}
+          detail={
+            status.gsc.configured
+              ? t("admin.analyticsPanel.pill.gscConnected")
+              : t("admin.analyticsPanel.pill.gscNeedsConnector")
+          }
         />
         <StatusPill
           ok={status.ga4.configured}
-          label="Google Analytics 4"
+          label={t("admin.analyticsPanel.pill.ga4")}
           detail={
             status.ga4.configured
-              ? `Property ${status.ga4.propertyId}`
+              ? t("admin.analyticsPanel.pill.ga4Property", { propertyId: status.ga4.propertyId })
               : status.ga4.hasServiceAccount
-                ? "Brak GA4_PROPERTY_ID"
-                : "Brak service accounta"
+                ? t("admin.analyticsPanel.pill.ga4NoProperty")
+                : t("admin.analyticsPanel.pill.ga4NoServiceAccount")
           }
         />
         <StatusPill
           ok={status.vitals.configured}
-          label="Web Vitals"
-          detail="Real user monitoring"
+          label={t("admin.analyticsPanel.pill.vitals")}
+          detail={t("admin.analyticsPanel.pill.vitalsDetail")}
         />
       </div>
 
       <VitalsMiniPanel />
 
       <InsightSection
-        title="Stan integracji i rekomendacje"
-        subtitle="Analiza gotowości: GSC · GA4 · Web Vitals"
+        title={t("admin.analyticsPanel.insights.title")}
+        subtitle={t("admin.analyticsPanel.insights.subtitle")}
         insights={insights}
       />
 
       <Card className="p-4 text-sm space-y-2">
-        <div className="font-semibold">Jak podłączyć klucze Google?</div>
+        <div className="font-semibold">{t("admin.analyticsPanel.keys.title")}</div>
         <ul className="list-disc pl-5 text-muted-foreground space-y-1">
           <li>
-            <b>Search Console</b> - konektor łączy przez OAuth. Otwórz Ustawienia projektu →
-            Konektory → Google Search Console.
+            <b>{t("admin.analyticsPanel.insights.gsc.element")}</b>
+            {" - "}
+            {t("admin.analyticsPanel.keys.gsc")}
           </li>
           <li>
-            <b>Google Analytics 4</b> — dodaj sekrety <code>GA4_SERVICE_ACCOUNT_JSON</code> i{" "}
-            <code>GA4_PROPERTY_ID</code>, a service account dodaj jako Viewer w GA4.
+            <b>{t("admin.analyticsPanel.pill.ga4")}</b>
+            {" - "}
+            {t("admin.analyticsPanel.keys.ga4")} <code>GA4_SERVICE_ACCOUNT_JSON</code>,{" "}
+            <code>GA4_PROPERTY_ID</code>
           </li>
           <li>
-            <b>Web Vitals</b> — dane RUM zbierane automatycznie z rzeczywistego ruchu.
+            <b>{t("admin.analyticsPanel.pill.vitals")}</b>
+            {" - "}
+            {t("admin.analyticsPanel.keys.vitals")}
           </li>
         </ul>
       </Card>
@@ -587,44 +635,43 @@ function AnalyticsPage() {
             <Activity className="w-6 h-6" />
             {t("admin.nav.analytics")}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Google Analytics 4, Search Console oraz Web Vitals w jednym miejscu.
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{t("admin.analyticsPanel.subtitle")}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => statusQ.refetch()}>
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież status
+          <RefreshCw className="w-3.5 h-3.5 mr-2" /> {t("admin.analyticsPanel.refresh")}
         </Button>
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="overview">
-            <Activity className="w-3.5 h-3.5 mr-2" /> Przegląd
+            <Activity className="w-3.5 h-3.5 mr-2" /> {t("admin.analyticsPanel.tabs.overview")}
           </TabsTrigger>
           <TabsTrigger value="ga4">
-            <BarChart3 className="w-3.5 h-3.5 mr-2" /> GA4
+            <BarChart3 className="w-3.5 h-3.5 mr-2" /> {t("admin.analyticsPanel.tabs.ga4")}
           </TabsTrigger>
           <TabsTrigger value="gsc">
-            <SearchIcon className="w-3.5 h-3.5 mr-2" /> Search Console
+            <SearchIcon className="w-3.5 h-3.5 mr-2" /> {t("admin.analyticsPanel.tabs.gsc")}
           </TabsTrigger>
           <TabsTrigger value="vitals">
-            <Gauge className="w-3.5 h-3.5 mr-2" /> Web Vitals
+            <Gauge className="w-3.5 h-3.5 mr-2" /> {t("admin.analyticsPanel.tabs.vitals")}
           </TabsTrigger>
           <TabsTrigger value="audience">
-            <Users className="w-3.5 h-3.5 mr-2" /> Audytorium
+            <Users className="w-3.5 h-3.5 mr-2" /> {t("admin.analyticsPanel.tabs.audience")}
           </TabsTrigger>
           <TabsTrigger value="semantic">
             <Scale className="w-3.5 h-3.5 mr-2" /> {t("admin.nav.analyticsReconciliation")}
           </TabsTrigger>
           <TabsTrigger value="footer">
-            <MousePointerClick className="w-3.5 h-3.5 mr-2" /> Stopka
+            <MousePointerClick className="w-3.5 h-3.5 mr-2" />{" "}
+            {t("admin.analyticsPanel.tabs.footer")}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
           {statusQ.isLoading || !statusQ.data ? (
             <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Ładowanie statusu...
+              <Loader2 className="w-4 h-4 animate-spin" /> {t("admin.analyticsPanel.loadingStatus")}
             </div>
           ) : (
             <OverviewPanel status={statusQ.data} />
@@ -648,7 +695,7 @@ function AnalyticsPage() {
             <VitalsBiDashboard />
           </Suspense>
           <div className="mt-3 text-sm text-muted-foreground">
-            Pełny widok RUM z rozkładem per ścieżka:{" "}
+            {t("admin.analyticsPanel.vitals.fullView")}{" "}
             <a href="/admin/performance" className="text-primary hover:underline">
               /admin/performance
             </a>

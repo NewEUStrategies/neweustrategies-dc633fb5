@@ -307,12 +307,15 @@ describe("MetricDefinitionPopover - definicja przy każdej liczbie", () => {
     ).toBe("");
   });
 
-  it.fails("DEFEKT: treść popovera jest okienkiem `dialog` BEZ dostępnej nazwy", async () => {
-    // `PopoverContent` Radiksa renderuje `role="dialog"`. Czytnik ekranu
-    // ogłasza więc „okno dialogowe” i milczy o tym, CZYJEJ metryki definicja
-    // się otwarła - a popover stoi przy KAŻDEJ liczbie panelu, więc bez nazwy
-    // nie da się ich rozróżnić. Nazwa jest w drzewie (nagłówek `h4` z etykietą
-    // metryki), brakuje wyłącznie `aria-labelledby` wiążącego ją z okienkiem.
+  it("treść popovera jest okienkiem `dialog` Z dostępną nazwą metryki", async () => {
+    // `PopoverContent` Radiksa renderuje `role="dialog"`, a ta rola NIE wylicza
+    // nazwy z zawartości. Bez wiązania czytnik ekranu ogłaszałby samo „okno
+    // dialogowe” i milczał o tym, CZYJEJ metryki definicja się otwarła - a
+    // popover stoi przy KAŻDEJ liczbie panelu, więc nie dałoby się ich
+    // rozróżnić. Nazwa jest w drzewie (nagłówek `h4` z etykietą metryki), a
+    // `aria-labelledby` na treści popovera wiąże ją z okienkiem. Asercja idzie
+    // przez axe (`aria-dialog-name`), więc pilnuje też, że nagłówek nie zgubi
+    // `id` i że nie pojawi się drugie okienko bez nazwy.
     render(<MetricDefinitionPopover metricId="lcp_p75" />);
     await openDefinition();
 
@@ -678,45 +681,43 @@ describe("StreamHealthGrid - czego w liczbach NIE MA", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails(
-    "DEFEKT: brak zgody analitycznej czyta się identycznie jak brak ruchu - status „za bramką” nie istnieje",
-    () => {
-      // `streams.ts` deklaruje `consentGate` właśnie dlatego, że strumień za
-      // bramką „analityka” bez zgody odwiedzającego jest STRUKTURALNIE pusty -
-      // to inna informacja niż „w oknie nie było zdarzeń” i prowadzi do innej
-      // decyzji (popraw baner zgody vs popraw dystrybucję treści).
-      // `SemanticStreamHealth.reason` zna tylko `not_configured | read_failed |
-      // no_data`, a słownik nie ma klucza `streams.gated`, więc oba przypadki
-      // dostają ten sam napis. Naprawa wymaga trzeciego kodu przyczyny w DTO
-      // migawki i klucza `adminAnalytics.semantic.streams.gated`.
-      const t = realT("pl");
-      render(<StreamHealthGrid streams={STREAMS.map((s) => health(s.id, false, "no_data"))} />);
+  it("brak zgody analitycznej czyta się INACZEJ niż brak ruchu - pusty strumień za bramką ma własny status", () => {
+    // `streams.ts` deklaruje `consentGate` właśnie dlatego, że strumień za
+    // bramką „analityka” bez zgody odwiedzającego jest STRUKTURALNIE pusty -
+    // to inna informacja niż „w oknie nie było zdarzeń” i prowadzi do innej
+    // decyzji (popraw baner zgody vs popraw dystrybucję treści). Siatka czyta
+    // więc kod `no_data` W KONTEKŚCIE bramki strumienia: dla bramki
+    // „analityka” (zdarzenia powstają przy KAŻDEJ odsłonie, więc zero jest
+    // strukturalnie podejrzane) status idzie na klucz
+    // `adminAnalytics.semantic.streams.gated`, a dla strumienia bez bramki
+    // zostaje „brak danych w oknie”. Ten przypadek pilnuje obu połów: i tego,
+    // że napisy się rozjeżdżają, i tego, że klucz istnieje w słowniku.
+    const t = realT("pl");
+    render(<StreamHealthGrid streams={STREAMS.map((s) => health(s.id, false, "no_data"))} />);
 
-      expect(streamById("first_party").consentGate).toBe("analytics");
-      expect(streamById("content_views").consentGate).toBe("none");
-      expect(statusLine("first_party")).not.toBe(statusLine("content_views"));
-      expect(t("adminAnalytics.semantic.streams.gated")).not.toBe(
-        "adminAnalytics.semantic.streams.gated",
-      );
-    },
-  );
+    expect(streamById("first_party").consentGate).toBe("analytics");
+    expect(streamById("content_views").consentGate).toBe("none");
+    expect(statusLine("first_party")).not.toBe(statusLine("content_views"));
+    expect(t("adminAnalytics.semantic.streams.gated")).not.toBe(
+      "adminAnalytics.semantic.streams.gated",
+    );
+  });
 
-  it.fails(
-    "DEFEKT: zastrzeżenia strumienia są NIEDOSTĘPNE z klawiatury - wyzwalacz nie jest fokusowalny",
-    () => {
-      // `Badge` to `div`, a `TooltipTrigger asChild` go tylko klonuje. Treść
-      // zastrzeżeń (np. „widok liczony po 1,5 s obecności”, „odsłony autora są
-      // pomijane”) nie istnieje NIGDZIE indziej w drzewie, więc dla osoby
-      // pracującej klawiaturą albo czytnikiem ekranu ta wiedza przepada.
-      const t = realT("pl");
-      render(<StreamHealthGrid streams={[health("content_views", true)]} />);
-      const badge = within(streamTile("content_views")).getByText(
-        t("adminAnalytics.semantic.identityGrain.viewer_hash"),
-      );
+  it("zastrzeżenia strumienia są OSIĄGALNE z klawiatury - wyzwalacz jest fokusowalny", () => {
+    // `Badge` to `div`, a `TooltipTrigger asChild` go tylko klonuje, więc
+    // wyzwalaczem jest `ChipButton` (prawdziwy `button`). Treść zastrzeżeń
+    // (np. „widok liczony po 1,5 s obecności”, „odsłony autora są pomijane”)
+    // nie istnieje NIGDZIE indziej w drzewie, więc bez fokusowalnego
+    // wyzwalacza ta wiedza przepadałaby dla osoby pracującej klawiaturą albo
+    // czytnikiem ekranu. Ten przypadek pilnuje, że nie wróci `div`.
+    const t = realT("pl");
+    render(<StreamHealthGrid streams={[health("content_views", true)]} />);
+    const badge = within(streamTile("content_views")).getByText(
+      t("adminAnalytics.semantic.identityGrain.viewer_hash"),
+    );
 
-      expect(badge.matches("button, a[href], input, select, textarea, [tabindex]")).toBe(true);
-    },
-  );
+    expect(badge.matches("button, a[href], input, select, textarea, [tabindex]")).toBe(true);
+  });
 });
 
 describe("WindowProvenance - z jakiego okna pochodzą liczby", () => {

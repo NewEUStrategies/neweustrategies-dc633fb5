@@ -16,15 +16,19 @@
 //   2. ZMYŚLONE ZERO JEST GORSZE NIŻ LUKA. Metryka bez ani jednej próbki ma
 //      być pokazana jako brak danych, a nie jako 0 ms - zero na pulpicie
 //      wydajności czyta się jako „idealnie", czyli dokładnie odwrotnie niż
-//      „nie wiem". Panel robi to POŁOWICZNIE i ta połowa jest tu przypięta
-//      `it.fails`.
+//      „nie wiem". Reguła obowiązuje w KAŻDYM nośniku tego samego pomiaru:
+//      w kafelku, w iskrze pod nim, na wykresie trendu i w tabeli danych.
 //   3. TRZY STANY, JEDEN KOMUNIKAT. „Jeszcze nie wiem", „zapytanie padło" i
 //      „w oknie naprawdę nie było ruchu" kończyły się tym samym napisem.
 //   4. OKABLOWANIE FILTRA. Zmiana okna ma przestawić WEJŚCIE zapytania
 //      (`sinceIso` / `untilIso`), nie tylko etykietę.
-//   5. IZOLACJA WARSZTATÓW. Klucz cache niesie wyłącznie okno - nie ma w nim
-//      ani tenanta, ani użytkownika. Test dowodzi izolacji przy świeżym
-//      kliencie i przypina sytuację, w której ten brak zaczyna być widoczny.
+//   5. IZOLACJA WARSZTATÓW. Klucz cache niesie NAJEMCĘ obok okna, a zapytanie
+//      czeka na jego rozwiązanie. Testy dowodzą tego z trzech stron: świeży
+//      klient, klient współdzielony z przesuniętym oknem i klient
+//      współdzielony przy PRZEŁĄCZENIU WARSZTATU w tej samej klatce zegara.
+//   6. ALTERNATYWA TEKSTOWA. Kanwa ECharts jest dla czytnika ekranu pustym
+//      prostokątem, więc każdy wykres musi dostać tabelę tych samych danych
+//      powiązaną z regionem przez `aria-describedby`.
 //
 // ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
 // atrapą, która PRZECHWYTUJE `option` oraz `onDataClick`. Dzięki temu progi,
@@ -312,6 +316,32 @@ function drillTone(index: number): string {
   return grid.children[index]?.children[1]?.className ?? "";
 }
 
+/** Region wykresu po dostępnej nazwie, którą `ChartCard` buduje z tytułu. */
+function chartRegion(title: string): HTMLElement {
+  return screen.getByRole("img", {
+    name: realT("pl")("adminAnalytics.chartCard.chartRegion", { title }),
+  });
+}
+
+/** Tabela danych POWIĄZANA z regionem wykresu - alternatywa tekstowa kanwy. */
+function dataTableOf(title: string): HTMLElement {
+  const region = chartRegion(title);
+  const id = region.getAttribute("aria-describedby") ?? "";
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`test: wykres „${title}” nie ma tabeli danych`);
+  return el;
+}
+
+function tableHeaders(table: HTMLElement): string[] {
+  return Array.from(table.querySelectorAll("thead th")).map((th) => (th.textContent ?? "").trim());
+}
+
+function tableRows(table: HTMLElement): string[][] {
+  return Array.from(table.querySelectorAll("tbody tr")).map((tr) =>
+    Array.from(tr.children).map((cell) => (cell.textContent ?? "").trim()),
+  );
+}
+
 interface VitalsInput {
   sinceIso: string;
   untilIso: string;
@@ -325,9 +355,20 @@ function spanDays(input: VitalsInput): number {
   return Math.round((Date.parse(input.untilIso) - Date.parse(input.sinceIso)) / 86_400_000);
 }
 
-/** Wartość kafelka KPI stojąca przy podanej etykiecie. */
+/**
+ * Wartość kafelka KPI stojąca przy podanej etykiecie.
+ *
+ * Etykieta szukana jest przez ROLĘ `term`, którą `KpiTile` nadaje swojemu
+ * napisowi, a nie przez sam tekst: nazwa metryki („LCP") stoi dziś także w
+ * tabeli danych wykresu ratingów, więc `getByText` miałby dwa trafienia i
+ * wywracałby się na niejednoznaczności zamiast mierzyć kafelek.
+ */
 function kpiValue(label: string): string {
-  const box = screen.getByText(label).closest("div.min-w-0");
+  const terms = screen.getAllByRole("term").filter((el) => (el.textContent ?? "").trim() === label);
+  if (terms.length !== 1) {
+    throw new Error(`test: kafelek KPI „${label}” ma ${terms.length} etykiet, oczekiwano jednej`);
+  }
+  const box = terms[0].closest("div.min-w-0");
   if (!box) throw new Error(`test: nie znaleziono kafelka KPI „${label}”`);
   return box.lastElementChild?.textContent ?? "";
 }
@@ -403,6 +444,9 @@ function subtree(lang: AppLang, segments: string[]): unknown {
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.charts.length = 0;
+  // Najemca wraca do wartości domyślnej, żeby przypadek przełączający warsztat
+  // nie zostawiał swojego identyfikatora następnym.
+  h.tenantId = "tenant-rum";
   h.fetchVitals.mockReset();
   h.fetchVitals.mockResolvedValue(ALL_GOOD);
 });
@@ -813,13 +857,11 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     // Ta sama trójka progów co na wykresie musi dojechać do okna drążenia,
     // inaczej kolor kafla i kolor liczby w oknie mówią dwie różne rzeczy.
     //
-    // KOLOR JEST TU MIERZONY ŚWIADOMIE, BO NIC INNEGO NIE MA. `pathTreemapClick`
-    // oddaje ocenę wyłącznie jako `tone`, a `ChartDrillDialog` zamienia `tone`
-    // na klasę z `TONE_CLS` - w DOM nie powstaje ani napis oceny, ani `hint`,
-    // ani atrybut dostępnościowy. Kontrakt „ocena ma nośnik tekstowy" jest
-    // więc złamany i przypięty niżej osobnym `it.fails`; dopóki tak jest,
-    // klasa tonu to jedyny dostępny dowód, że próg dojechał do okna.
-    // Wartość liczbowa (jedyny napis, jaki tu jest) sprawdzana jest wprost.
+    // KOLOR JEST TU MIERZONY OBOK NAPISU, nie zamiast niego. `pathTreemapClick`
+    // oddaje `tone`, który `ChartDrillDialog` zamienia na klasę z `TONE_CLS`, i
+    // DODATKOWO wyraz oceny w `hint` - sprawdzamy oba kanały, bo rozjazd między
+    // nimi (zielona liczba z podpisem „Słabo") byłby gorszy niż brak jednego.
+    // Sąsiedni przypadek pilnuje samego istnienia nośnika tekstowego.
     const [good, poor] = VITAL_THRESHOLDS.LCP;
     h.fetchVitals.mockResolvedValue(summary({ paths: [path("/szybka", 40, good)] }));
     panel();
@@ -831,6 +873,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
       ["LCP p75", "2.50 s"],
     ]);
     expect(drillTone(1)).toContain("text-emerald");
+    expect(within(screen.getByRole("dialog")).getByText(rating("good"))).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
 
     await clickChart(treemap(), { data: { fullPath: "/srednia", value: 40, lcp: poor } });
@@ -839,34 +882,48 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
       ["LCP p75", "4.00 s"],
     ]);
     expect(drillTone(1)).toContain("text-amber");
+    expect(within(screen.getByRole("dialog")).getByText(rating("needs"))).toBeInTheDocument();
   });
 
-  it.fails(
-    "DEFEKT: ocena kafla treemapy jest WYŁĄCZNIE kolorem - bez nośnika tekstowego (WCAG 1.4.1)",
-    async () => {
-      // Drążenie TRENDU podaje ocenę napisem („Dobrze" / „Do poprawy" /
-      // „Słabo") i dokłada kolor jako wzmocnienie. Drążenie TREEMAPY tego nie
-      // robi: `pathTreemapClick` ustawia tylko `tone`, więc różnica między
-      // ścieżką szybką a wolną dojeżdża do użytkownika jako zieleń kontra
-      // amber i nic więcej. Dla czytnika ekranu oba okna są identyczne, a przy
-      // deuteranopii - nieodróżnialne. To naruszenie WCAG 1.4.1 („Use of
-      // Color"): informacja nie może być przenoszona samym kolorem.
-      //
-      // Naprawa jest w kodzie produkcyjnym, nie w teście: dołożyć do wiersza
-      // „LCP p75" pole `hint` (albo osobny wiersz) z `drillDialog.rating.*`,
-      // dokładnie jak robi to `buildTrendClick`. Ten przypadek pilnuje, żeby
-      // luka nie zniknęła po cichu z pola widzenia.
-      const [, poor] = VITAL_THRESHOLDS.LCP;
-      h.fetchVitals.mockResolvedValue(summary({ paths: [path("/srednia", 40, poor)] }));
-      panel();
-      await loaded();
+  it("ocena kafla treemapy ma NOŚNIK TEKSTOWY, nie tylko kolor (WCAG 1.4.1)", async () => {
+    // Drążenie TRENDU podaje ocenę napisem („Dobrze" / „Do poprawy" /
+    // „Słabo") i dokłada kolor jako wzmocnienie. Drążenie TREEMAPY tego nie
+    // robiło: `pathTreemapClick` ustawiał tylko `tone`, więc różnica między
+    // ścieżką szybką a wolną dojeżdżała do użytkownika jako zieleń kontra
+    // amber i nic więcej. Dla czytnika ekranu oba okna były identyczne, a
+    // przy deuteranopii - nieodróżnialne. To naruszenie WCAG 1.4.1 („Use of
+    // Color"): informacja nie może być przenoszona samym kolorem.
+    //
+    // Dziś wiersz „LCP p75" niesie `hint` z `drillDialog.rating.*`, czyli
+    // z TEGO SAMEGO zestawu kluczy co bliźniaczy `buildTrendClick` - jedno
+    // okno nie ma prawa nazywać tej samej oceny dwoma słownikami.
+    const [, poor] = VITAL_THRESHOLDS.LCP;
+    h.fetchVitals.mockResolvedValue(summary({ paths: [path("/srednia", 40, poor)] }));
+    panel();
+    await loaded();
 
-      await clickChart(treemap(), { data: { fullPath: "/srednia", value: 40, lcp: poor } });
+    await clickChart(treemap(), { data: { fullPath: "/srednia", value: 40, lcp: poor } });
 
-      // Ocena „Do poprawy" musi być gdziekolwiek w oknie jako TEKST.
-      expect(within(screen.getByRole("dialog")).getByText(rating("needs"))).toBeInTheDocument();
-    },
-  );
+    // Ocena „Do poprawy" musi być gdziekolwiek w oknie jako TEKST.
+    expect(within(screen.getByRole("dialog")).getByText(rating("needs"))).toBeInTheDocument();
+  });
+
+  it("kafel BEZ ani jednej próbki LCP nie dostaje wyrazu oceny", async () => {
+    // `hint` jest oceną POMIARU - ścieżka bez próbek LCP nie ma czego ocenić,
+    // a wpisany tam wyraz byłby zmyśleniem. Kreska i ton neutralny mówią
+    // „nie wiem"; „Dobrze" mówiłoby „szybko".
+    h.fetchVitals.mockResolvedValue(summary({ paths: [path("/bez-lcp", 40, null)] }));
+    panel();
+    await loaded();
+
+    await clickChart(treemap(), { data: { fullPath: "/bez-lcp", value: 40, lcp: 0 } });
+
+    const dialog = screen.getByRole("dialog");
+    expect(drillMetrics()[1]).toEqual(["LCP p75", "-"]);
+    for (const key of ["good", "needs", "poor"] as const) {
+      expect(within(dialog).queryByText(rating(key))).toBeNull();
+    }
+  });
 
   it("kafel bez liczby próbek pokazuje zero, a nie puste pole", async () => {
     // `value` i `lcp` przychodzą z danych serii - kafel zbudowany ze ścieżki
@@ -1155,7 +1212,13 @@ describe("VitalsBiDashboard - interpretacja i rekomendacje", () => {
     panel();
     await loaded();
 
-    expect(screen.queryByText(/\/srednia-podstrona/)).toBeNull();
+    // Ścieżka stoi dziś w tabeli danych treemapy (alternatywa tekstowa kanwy),
+    // czyli legalnie - i to nie o nią tu idzie. Negatywna asercja dotyczy KARTY
+    // REKOMENDACJI: lista działań nie ma prawa jej wciągnąć, bo tylko „poor"
+    // zasługuje na wniosek per ścieżka.
+    const card = screen.getByText(vit("allGood")).closest("div.p-4");
+    if (!card) throw new Error("test: nie znaleziono karty rekomendacji");
+    expect(within(card as HTMLElement).queryByText(/\/srednia-podstrona/)).toBeNull();
     expect(screen.getByText(vit("allGood"))).toBeInTheDocument();
   });
 });
@@ -1213,34 +1276,42 @@ describe("VitalsBiDashboard - izolacja warsztatów", () => {
     expect(JSON.stringify(h.charts)).not.toContain("alfa");
   });
 
-  it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu - dwa panele z tym samym oknem dzielą jeden raport",
-    async () => {
-      // `queryKey: ["vitals-bi", presetId, sinceIso, untilIso]` nie zawiera ani
-      // tenanta, ani użytkownika. Dziś chroni to WYŁĄCZNIE znacznik czasu:
-      // `buildPresetRange` woła `Date.now()` przy montowaniu, więc dwa
-      // montowania prawie zawsze dają różne granice okna. „Prawie" nie jest
-      // gwarancją izolacji - wystarczy, że oba panele policzą to samo okno
-      // (zegar zamrożony poniżej modeluje przełączenie warsztatu w tej samej
-      // klatce), a przy `staleTime: 60_000` react-query NIE ponawia zapytania i
-      // administrator warsztatu B widzi ścieżki warsztatu A. Wyciek jest cichy:
-      // nie leci przy nim ani jedno żądanie sieciowe.
-      const clock = vi.spyOn(Date, "now");
-      clock.mockReturnValue(Date.parse("2026-08-20T10:00:00.000Z"));
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      h.fetchVitals.mockResolvedValue(WORKSPACE_A);
-      const first = panel(client);
-      await loaded();
-      first.unmount();
-      h.charts.length = 0;
+  it("PRZEŁĄCZENIE WARSZTATU w tej samej klatce zegara nie dzieli jednego raportu", async () => {
+    // `queryKey: ["vitals-bi", presetId, sinceIso, untilIso]` nie zawierał ani
+    // tenanta, ani użytkownika. Izolację trzymał wtedy WYŁĄCZNIE znacznik
+    // czasu: `buildPresetRange` woła `Date.now()` przy montowaniu, więc dwa
+    // montowania prawie zawsze dawały różne granice okna. „Prawie" nie jest
+    // gwarancją izolacji - wystarczyło, że oba panele policzyły to samo okno
+    // (zegar zamrożony poniżej modeluje przełączenie warsztatu w tej samej
+    // klatce), a przy `staleTime: 60_000` react-query NIE ponawia zapytania i
+    // administrator warsztatu B widział ścieżki warsztatu A. Wyciek był cichy:
+    // nie leciało przy nim ani jedno żądanie sieciowe.
+    //
+    // Dziś w kluczu stoi najemca, więc przy zamrożonym zegarze rozróżnia
+    // panele TYLKO on - i to jest tu przedmiotem dowodu. Dowód jest
+    // dwuczłonowy: brak napisów warsztatu A ORAZ drugi realny odczyt, bo bez
+    // tego drugiego członu ten sam zielony wynik dałby panel, który po prostu
+    // nic nie pokazuje.
+    const clock = vi.spyOn(Date, "now");
+    clock.mockReturnValue(Date.parse("2026-08-20T10:00:00.000Z"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    h.tenantId = "warsztat-a";
+    h.fetchVitals.mockResolvedValue(WORKSPACE_A);
+    const first = panel(client);
+    await loaded();
+    expect(JSON.stringify(h.charts)).toContain("/alfa-analizy");
+    first.unmount();
+    h.charts.length = 0;
 
-      h.fetchVitals.mockResolvedValue(WORKSPACE_B);
-      const second = panel(client);
-      await loaded();
+    h.tenantId = "warsztat-b";
+    h.fetchVitals.mockResolvedValue(WORKSPACE_B);
+    const second = panel(client);
+    await loaded();
 
-      expect(second.container.textContent ?? "").not.toContain("alfa");
-    },
-  );
+    expect(h.fetchVitals.mock.calls.length).toBe(2);
+    expect(second.container.textContent ?? "").not.toContain("alfa");
+    expect(JSON.stringify(h.charts)).not.toContain("alfa");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1307,18 +1378,73 @@ describe("VitalsBiDashboard - dostępność", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: żaden wykres panelu nie dostaje tekstowej alternatywy", async () => {
+  it("KAŻDY z ośmiu wykresów ma tekstową alternatywę powiązaną z regionem", async () => {
     // ECharts maluje do kanwy, która dla czytnika ekranu jest pustym
     // prostokątem. `ChartCard` UMIE zbudować tabelę danych z `csv` i podpiąć ją
-    // przez `aria-describedby` - ten panel nie podaje `csv` ANI RAZU, więc cały
-    // pulpit wydajności jest dla czytnika nieczytelny.
+    // przez `aria-describedby`, ale panel nie podawał `csv` ANI RAZU - cały
+    // pulpit wydajności był dla czytnika nieczytelny.
+    //
+    // Asercja idzie na OBA końce powiązania: region musi mieć
+    // `aria-describedby`, a wskazany identyfikator musi istnieć w dokumencie.
+    // Sam atrybut bez elementu jest gorszy niż jego brak - czytnik obiecuje
+    // opis i milknie.
     panel();
     await loaded();
 
-    const withoutText = screen
-      .getAllByRole("img")
-      .filter((el) => !el.getAttribute("aria-describedby"));
+    const regions = screen.getAllByRole("img");
+    expect(regions).toHaveLength(8);
+    const withoutText = regions.filter((el) => !el.getAttribute("aria-describedby"));
     expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
+    for (const region of regions) {
+      const id = region.getAttribute("aria-describedby") ?? "";
+      expect(document.getElementById(id), `wiszące aria-describedby: ${id}`).not.toBeNull();
+    }
+    expect(screen.queryByText(realT("pl")("adminAnalytics.chartCard.dataTableMissing"))).toBeNull();
+    expect(screen.getAllByText(realT("pl")("adminAnalytics.chartCard.dataTable"))).toHaveLength(8);
+  });
+
+  it("tabela trendu podaje p75 W JEDNOSTCE METRYKI, a dzień bez próbki jako kreskę", async () => {
+    // Tabela jest jedynym nośnikiem tego pomiaru bez osi z formaterem, więc
+    // sama liczba („2100") nie mówi, czy to milisekundy, sekundy, czy
+    // bezwymiarowy CLS. Dzień bez próbki musi zostać LUKĄ - podstawione zero
+    // rysowałoby czas ładowania spadający do zera, czyli sukces tam, gdzie
+    // pomiaru nie było.
+    h.fetchVitals.mockResolvedValue(
+      summary({
+        metrics: [metric("LCP", 2400)],
+        trends: [day("2026-08-01", { LCP: 2400 }), day("2026-08-02", {})],
+      }),
+    );
+    panel();
+    await loaded();
+
+    const table = dataTableOf(vit("trendTitle", { metric: "LCP" }));
+    expect(tableHeaders(table)).toEqual([
+      realT("pl")("adminAnalytics.gsc.csvHeaders.date"),
+      "LCP p75",
+    ]);
+    expect(tableRows(table)).toEqual([
+      ["2026-08-01", "2.40 s"],
+      ["2026-08-02", "-"],
+    ]);
+  });
+
+  it("tabela treemapy niesie PEŁNĄ ścieżkę, liczbę próbek i LCP p75", async () => {
+    const long = "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie";
+    h.fetchVitals.mockResolvedValue(
+      summary({ paths: [path(long, 300, 5000), path("/bez-lcp", 40, null)] }),
+    );
+    panel();
+    await loaded();
+
+    const table = dataTableOf(vit("pathsBySamples"));
+    expect(tableHeaders(table)).toEqual([vit("scopePath"), vit("samplesLabel"), "LCP p75"]);
+    // Etykieta kafla jest przycięta do 26 znaków, tabela - nie: przycięty adres
+    // nie identyfikuje podstrony, a tabela jest też materiałem do eksportu.
+    expect(tableRows(table)).toEqual([
+      [long, "300", "5.00 s"],
+      ["/bez-lcp", "40", "-"],
+    ]);
   });
 });
 

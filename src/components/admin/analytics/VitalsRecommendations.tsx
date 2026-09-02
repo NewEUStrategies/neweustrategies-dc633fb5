@@ -11,7 +11,7 @@ import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import "@/lib/i18n-admin-analytics";
-import { AlertTriangle, CheckCircle2, Lightbulb, TriangleAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Lightbulb, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";
@@ -104,6 +104,34 @@ function pathFindings(paths: VitalPathRow[], t: TFunction): Finding[] {
   return out;
 }
 
+/**
+ * Czy raport niesie JAKIKOLWIEK ŚLAD POMIARU.
+ *
+ * PO CO OSOBNY PREDYKAT. Lista wniosków powstaje wyłącznie z `metrics`
+ * i `paths`, więc raport BEZ ANI JEDNEJ PRÓBKI dawał zero znalezisk - dokładnie
+ * tyle samo, ile daje okno, w którym wszystkie metryki siedzą w strefie Good.
+ * Obie sytuacje kończyły się więc kartą „Wszystkie metryki w normie", czyli
+ * administrator po padniętym ingeście beaconów czytał z ekranu POTWIERDZENIE,
+ * że jest dobrze. Zero znalezisk NIE JEST pomiarem: dopóki nie wiadomo, czy
+ * cokolwiek zmierzono, nie wolno postawić twierdzenia o zdrowiu metryk.
+ *
+ * DLACZEGO CZTERY ŹRÓDŁA, A NIE SAM `windowTotal`. Prop niesie dwa liczniki
+ * (`windowTotal` to dokładny COUNT(*) okna, `total` - liczba wierszy, na
+ * których liczono percentyle) oraz dwie kolekcje. Wystarczy JEDEN niezerowy
+ * ślad, żeby uznać okno za zmierzone: raport, w którym agregat globalny jest
+ * pusty, ale ścieżki mają próbki, jest niespójny, a wtedy twierdzenie „nic nie
+ * zmierzono" byłoby fałszem - i to fałszem po stronie, po której kosztuje
+ * więcej, bo kazałby szukać awarii ingestu przy działającym pomiarze.
+ */
+function hasMeasuredSamples(report: VitalsSummaryResult): boolean {
+  return (
+    report.windowTotal > 0 ||
+    report.total > 0 ||
+    report.metrics.length > 0 ||
+    (report.paths ?? []).length > 0
+  );
+}
+
 const SEVERITY_ORDER: Record<Severity, number> = { poor: 0, "needs-improvement": 1, good: 2 };
 
 const SEVERITY_STYLE: Record<
@@ -133,6 +161,21 @@ export function VitalsRecommendations({ report }: { report: VitalsSummaryResult 
       (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
     );
   }, [report, t]);
+
+  // OKNO BEZ POMIARU wyprzedza wszystko inne: dopóki nie ma ani jednej próbki,
+  // panel nie ma z czego postawić ani wniosku, ani zapewnienia o zdrowiu.
+  if (!hasMeasuredSamples(report)) {
+    return (
+      <Card className="p-4">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="text-sm text-muted-foreground">
+            {t("adminAnalytics.vitals.noSamples")}
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   if (findings.length === 0) {
     return (

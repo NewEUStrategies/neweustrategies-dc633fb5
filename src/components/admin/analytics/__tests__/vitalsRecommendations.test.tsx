@@ -21,9 +21,10 @@
 //   4. PUSTA LISTA DZIAŁAŃ. FID ma w słowniku pustą tablicę `fixes` (metryka
 //      wycofana). Wniosek bez ani jednego działania jest gorszy niż jego brak,
 //      więc strażnik `fixes.length === 0` musi go wyciąć.
-//   5. ZERO UDAJĄCE POMIAR. Raport bez ani jednej próbki renderuje się dziś
-//      jako "Wszystkie metryki w normie" - okno bez pomiaru nie odróżnia się od
-//      okna zdrowego. Przypięte `it.fails`.
+//   5. ZERO UDAJĄCE POMIAR. Raport bez ani jednej próbki NIE MA prawa
+//      renderować się jako "Wszystkie metryki w normie": zero znalezisk to za
+//      mało na zapewnienie o zdrowiu, bo tyle samo znalezisk daje okno, w
+//      którym nic nie zmierzono.
 //   6. IZOLACJA WARSZTATÓW. Komponent jest bezstanowy, ale trzyma `useMemo` po
 //      `report`; ponowny render z raportem innego warsztatu nie ma prawa
 //      zostawić na ekranie ani jednej ścieżki poprzedniego.
@@ -202,15 +203,40 @@ describe("VitalsRecommendations - brak znalezisk", () => {
     expect(screen.getByText(vit("allGood"))).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: raport BEZ ANI JEDNEJ próbki melduje „wszystkie metryki w normie”", () => {
+  it("raport BEZ ANI JEDNEJ próbki NIE melduje „wszystkich metryk w normie”", () => {
     // Okno bez pomiaru i okno zdrowe to dwie różne informacje dla operatora.
-    // Komponent dostaje `total`/`windowTotal` w propsie i mógłby je rozróżnić,
-    // ale patrzy tylko na `metrics` - pusta tablica idzie tą samą ścieżką co
-    // „wszystko zielone”. Administrator, któremu padł ingest beaconów, czyta
-    // z ekranu potwierdzenie, że jest dobrze.
+    // Komponent dostaje `total`/`windowTotal` w propsie, ale patrzył tylko na
+    // `metrics` - pusta tablica dawała zero znalezisk, czyli szła tą samą
+    // ścieżką co „wszystko zielone”. Administrator, któremu padł ingest
+    // beaconów, czytał z ekranu POTWIERDZENIE, że jest dobrze.
+    //
+    // Dziś brak jakiegokolwiek śladu pomiaru (oba liczniki na zerze, zero
+    // metryk, zero ścieżek) daje komunikat o braku próbek - ten sam, którym
+    // mówi o tym stanie pulpit RUM.
     panel(report({ metrics: [], paths: [], total: 0, windowTotal: 0 }));
 
     expect(screen.queryByText(vit("allGood"))).toBeNull();
+    expect(screen.getByText(vit("noSamples"))).toBeInTheDocument();
+  });
+
+  it("liczniki okna wystarczą, żeby NIE ogłosić braku pomiaru", () => {
+    // Wystarczy JEDEN niezerowy ślad: raport, w którym agregat globalny jest
+    // pusty, ale okno miało próbki (`windowTotal`), jest zmierzony - i wtedy
+    // „w normie" jest twierdzeniem o pomiarze, a nie o jego braku.
+    panel(report({ metrics: [], paths: [], total: 0, windowTotal: 12 }));
+
+    expect(screen.getByText(vit("allGood"))).toBeInTheDocument();
+    expect(screen.queryByText(vit("noSamples"))).toBeNull();
+  });
+
+  it("ścieżki z próbkami przy pustym agregacie globalnym też są pomiarem", () => {
+    // Ten sam wniosek z drugiej strony: skoro w raporcie są ścieżki, to coś
+    // zmierzono, więc twierdzenie „nic nie zmierzono" byłoby fałszem - i to
+    // fałszem drożejszym, bo kazałby szukać awarii ingestu przy działającym
+    // pomiarze.
+    panel(report({ metrics: [], paths: [pathRow("/o-nas", 90, [["LCP", 3000]])], total: 0 }));
+
+    expect(screen.queryByText(vit("noSamples"))).toBeNull();
   });
 });
 
@@ -265,9 +291,7 @@ describe("VitalsRecommendations - format wartości w opisie", () => {
     panel(report({ metrics: [m] }));
 
     expect(
-      screen.getByText(
-        vit("globalDetail", { p75: "0.420", good: 5, ni: 5, poor: 30, count: 40 }),
-      ),
+      screen.getByText(vit("globalDetail", { p75: "0.420", good: 5, ni: 5, poor: 30, count: 40 })),
     ).toBeInTheDocument();
   });
 
@@ -313,17 +337,28 @@ describe("VitalsRecommendations - wnioski per ścieżka", () => {
     );
 
     expect(
-      screen.getByText(vit("pathTitle", { metric: "LCP", path: "/analizy/energia", value: "7.00 s" })),
+      screen.getByText(
+        vit("pathTitle", { metric: "LCP", path: "/analizy/energia", value: "7.00 s" }),
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(vit("pathDetail", { total: 240, threshold: `${poorThreshold / 1000}.00 s` })),
+      screen.getByText(
+        vit("pathDetail", { total: 240, threshold: `${poorThreshold / 1000}.00 s` }),
+      ),
     ).toBeInTheDocument();
     expect(findings(container)).toHaveLength(1);
   });
 
   it("ścieżka w strefie ostrzegawczej jest POMIJANA - inaczej lista to szum", () => {
     const { container } = panel(
-      report({ paths: [pathRow("/o-nas", 90, [["LCP", 3000], ["CLS", 0.15]])] }),
+      report({
+        paths: [
+          pathRow("/o-nas", 90, [
+            ["LCP", 3000],
+            ["CLS", 0.15],
+          ]),
+        ],
+      }),
     );
 
     expect(screen.getByText(vit("allGood"))).toBeInTheDocument();
@@ -342,7 +377,9 @@ describe("VitalsRecommendations - wnioski per ścieżka", () => {
   });
 
   it("ścieżka jest podpisana obok tytułu i oznaczona zakresem „ścieżka”", () => {
-    const { container } = panel(report({ paths: [pathRow("/raporty/klimat", 44, [["INP", 900]])] }));
+    const { container } = panel(
+      report({ paths: [pathRow("/raporty/klimat", 44, [["INP", 900]])] }),
+    );
     const card = findings(container)[0];
 
     expect(card).toHaveTextContent(vit("scopePath"));
@@ -369,9 +406,7 @@ describe("VitalsRecommendations - kolejność, plakietki i limit", () => {
 
     const titles = findings(container).map(titleOf);
     expect(titles[0]).toBe(playbook("LCP", "poor").title);
-    expect(titles[1]).toBe(
-      vit("pathTitle", { metric: "INP", path: "/analizy", value: "900 ms" }),
-    );
+    expect(titles[1]).toBe(vit("pathTitle", { metric: "INP", path: "/analizy", value: "900 ms" }));
     expect(titles[2]).toBe(playbook("CLS", "ni").title);
   });
 
@@ -484,7 +519,9 @@ describe("VitalsRecommendations - słownik PL/EN", () => {
 
     expect(findings(container)[0]).toHaveTextContent(vit("scopePath", {}, "en"));
     expect(
-      screen.getByText(vit("pathTitle", { metric: "INP", path: "/reports", value: "900 ms" }, "en")),
+      screen.getByText(
+        vit("pathTitle", { metric: "INP", path: "/reports", value: "900 ms" }, "en"),
+      ),
     ).toBeInTheDocument();
   });
 });
@@ -504,6 +541,13 @@ describe("VitalsRecommendations - dostępność", () => {
 
   it("karta „wszystko w normie” nie ma naruszeń axe", async () => {
     const { container } = panel(report({ metrics: [metric("LCP", 2000)] }));
+
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("karta braku próbek nie ma naruszeń axe", async () => {
+    const { container } = panel(report({ metrics: [], paths: [], total: 0, windowTotal: 0 }));
 
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);

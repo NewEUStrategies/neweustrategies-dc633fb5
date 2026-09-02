@@ -6,12 +6,15 @@
 // to, czego tamten plik nie widzi, a co decyduje o tym, czy administrator
 // czyta POMIAR, czy atrapę pomiaru:
 //
-//   1. TRZY STANY, JEDEN EKRAN. "Jeszcze nie wiem", "zapytanie padło" i "w
-//      oknie naprawdę nie było odsłon" kończy się tu tym samym obrazem:
-//      cztery kafelki z zerem. Gorzej - przy braku `q.data` lista wniosków
-//      jest pusta, a `InsightSection` maluje wtedy zielone "nie znaleziono
-//      krytycznych zagadnień". Awaria odczytu `post_views` melduje się więc
-//      jako dobra wiadomość. Dwa `it.fails` niżej przypinają dokładnie to.
+//   1. TRZY STANY, TRZY OBRAZY. "Jeszcze nie wiem", "zapytanie padło" i "w
+//      oknie naprawdę nie było odsłon" kończyły się tu JEDNYM obrazem: cztery
+//      kafelki z zerem. Gorzej - przy braku `q.data` lista wniosków była pusta,
+//      a `InsightSection` maluje wtedy zielone "nie znaleziono krytycznych
+//      zagadnień", więc awaria odczytu `post_views` meldowała się jako dobra
+//      wiadomość o treści. Dziś każdy z tych stanów ma własny napis na miejscu
+//      liczby, własny wpis audytu, a dwa pierwsze także własną kartę
+//      (`role="status"` z `aria-busy` w pomiarze, `role="alert"` z przyczyną po
+//      awarii). Cztery przypadki niżej pilnują, że stany się nie zlewają.
 //   2. PROGI INTERPRETACJI. 5%, 60% i "4 wpisy na zalogowanego" to granice
 //      między trzema różnymi ZALECENIAMI dla redakcji (CTA rejestracji vs
 //      personalizacja vs nic). Przesunięcie granicy albo zamiana gałęzi
@@ -23,15 +26,23 @@
 //      PARĘ nazwa-dane w opcji oddanej kanwie, nie sam fakt renderu.
 //   4. OKNO CZASU. Zmiana presetu ma przestawić WEJŚCIE funkcji serwerowej
 //      (`{ days }`), nie tylko etykietę w selekcie.
-//   5. IZOLACJA WARSZTATOW. `queryKey: ["admin","audience-segments", days]`
-//      nie niesie ani tenanta, ani użytkownika, ani znacznika czasu - dwa
-//      montowania z tym samym oknem trafiają w JEDEN wpis cache. Przy
-//      `staleTime: 60_000` drugi warsztat widzi tytuły pierwszego i nie leci
-//      przy tym ani jedno żądanie. Przypięte `it.fails`.
+//   5. IZOLACJA WARSZTATOW. `queryKey: ["admin","audience-segments", days]` nie
+//      niósł ani tenanta, ani użytkownika, ani znacznika czasu - dwa
+//      montowania z tym samym oknem trafiały w JEDEN wpis cache, a przy
+//      `staleTime: 60_000` drugi warsztat widział tytuły pierwszego bez ani
+//      jednego żądania. Dziś klucz niesie najemcę (atrapa `h.tenantId`), a
+//      zapytanie jest wstrzymane do jego rozwiązania; dowodzą tego dwa
+//      przypadki na WSPÓŁDZIELONYM kliencie cache.
 //   6. SŁOWNIK I FORMAT LICZB. Napisy są asertowane przez `realT("pl")` /
 //      `realT("en")`, czyli tę samą instancję i18next, którą widzi użytkownik.
-//      Osobno: liczby są tu formatowane zaszytym `"pl-PL"`, więc angielski
-//      administrator dostaje polskie grupowanie tysięcy - przypięte.
+//      Osobno: liczby idą przez locale JĘZYKA INTERFEJSU, nie przez zaszyte
+//      `"pl-PL"` - inaczej angielski administrator dostawał polskie grupowanie
+//      tysięcy.
+//
+//   7. DOSTĘPNOŚĆ BEZ ULG. Oba przebiegi axe (panel z danymi i bez) asertują
+//      PEŁNĄ listę naruszeń równą pustej. Selektor okna ma nazwę ze słownika, a
+//      wykres - `role="img"` z nazwą i tabelę danych powiązaną przez
+//      `aria-describedby`, bo idzie przez `ChartCard` z `csv`.
 //
 // ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
 // atrapą, która PRZECHWYTUJE `option`. Dzięki temu serie i legenda są badane na
@@ -51,6 +62,7 @@ type Opt = Record<string, unknown>;
 
 const h = vi.hoisted(() => ({
   fetchAudience: vi.fn(),
+  tenantId: "tenant-alfa" as string | null,
   charts: [] as Array<{ option: Record<string, unknown>; height?: number | string }>,
 }));
 
@@ -64,6 +76,15 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 
 vi.mock("@/lib/analytics/audience.functions", () => ({
   getAudienceSegments: (...args: unknown[]) => h.fetchAudience(...args),
+}));
+
+// Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
+// klienta Supabase i sesję `useAuth`, a przedmiotem dowodu jest tylko to, że
+// identyfikator warsztatu WCHODZI DO KLUCZA react-query. Sterowanie nim z testu
+// (`h.tenantId`) daje jedyny sposób odegrania przejścia między warsztatami na
+// TYM SAMYM kliencie cache.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 // Atrapa odwzorowuje to, co daje PRAWDZIWY `EChart`: element bez żadnej nazwy
@@ -98,6 +119,11 @@ function audList(path: string, lang: AppLang = "pl"): string[] {
 
 function common(path: string, lang: AppLang = "pl"): string {
   return realT(lang)(`adminAnalytics.common.${path}`);
+}
+
+/** Wspólny napis Z INTERPOLACJĄ - osobno, bo `common` bierze język na drugiej pozycji. */
+function commonVars(path: string, vars: Record<string, unknown>, lang: AppLang = "pl"): string {
+  return realT(lang)(`adminAnalytics.common.${path}`, vars);
 }
 
 function insightChrome(
@@ -174,6 +200,10 @@ const NEUTRAL = result({
   topLogged: [post("p-log", "Energia w regionie", 120, 40)],
   topAnon: [post("p-anon", "Klimat i miasta", 300, 250)],
 });
+
+/** Dwa rozłączne warsztaty - identyfikator wchodzi do klucza cache. */
+const TENANT_A = "tenant-alfa";
+const TENANT_B = "tenant-beta";
 
 /** Raport "warsztatu A" - każdy napis niesie rozpoznawalny prefiks. */
 const WORKSPACE_A = result({
@@ -276,29 +306,38 @@ function panel(client?: QueryClient) {
   };
 }
 
-/** Czeka, aż raport dojedzie: znika wskaźnik `isFetching`. */
 /**
  * Czeka, aż raport DOJEDZIE do panelu.
  *
- * ŚWIADOMIE NIE OPIERA SIĘ na zniknięciu wskaźnika postępu. Wskaźnik pokazuje
- * `isFetching`, a przy obciążonej maszynie pierwszy render może wypaść PRZED
- * startem zapytania: wskaźnika nie ma jeszcze wcale, więc asercja "nie ma
+ * ŚWIADOMIE NIE OPIERA SIĘ na zniknięciu samego wskaźnika postępu. Wskaźnik
+ * pokazuje `isFetching`, a przy obciążonej maszynie pierwszy render może wypaść
+ * PRZED startem zapytania: wskaźnika nie ma jeszcze wcale, więc asercja "nie ma
  * wskaźnika" przechodzi na PUSTYM panelu i test mierzy stan przejściowy.
  * Dokładnie tak oblewały się cztery przypadki przy `load average` 34. Dlatego
  * czekamy na rozstrzygnięcie obietnic, które atrapa naprawdę oddała, wewnątrz
- * `act` - i tylko dla porządku domykamy spokojnym paskiem narzędzi.
+ * `act`.
+ *
+ * DOMKNIĘCIE IDZIE NA DWA SYGNAŁY NIEZALEŻNE OD JĘZYKA: znika pasek `isFetching`
+ * ORAZ ustępuje karta pomiaru, którą panel znaczy `aria-busy="true"`. Bramka na
+ * napisie ("Trwa pomiar...") przechodziłaby jałowo w przypadkach angielskich, a
+ * bramka na samym `animate-spin` nie odróżnia "wskaźnika już nie ma" od
+ * "wskaźnika jeszcze nie było".
  */
 async function loaded(): Promise<void> {
   await waitFor(() => expect(h.fetchAudience).toHaveBeenCalled());
   await act(async () => {
     await Promise.allSettled(h.fetchAudience.mock.results.map((r) => r.value));
   });
-  await waitFor(() => expect(document.querySelector(".animate-spin")).toBeNull());
+  await waitFor(() => {
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(document.querySelector(".animate-spin")).toBeNull();
+  });
 }
 
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.charts.length = 0;
+  h.tenantId = TENANT_A;
   h.fetchAudience.mockReset();
   h.fetchAudience.mockResolvedValue(NEUTRAL);
 });
@@ -322,36 +361,51 @@ describe("AudienceSegmentsDashboard - trzy stany panelu", () => {
     expect(screen.getByRole("combobox")).toBeEnabled();
   });
 
-  it.fails(
-    "DEFEKT: w trakcie pobierania cztery kafelki meldują ZERO odsłon jako pomiar",
-    async () => {
-      // `q.data?.kpi.views_total ?? 0` nie odróżnia "nie wiem" od "nie było".
-      // Zero na pulpicie audytorium czyta się jako twierdzenie o ruchu, którego
-      // pomiar się jeszcze nie odbył - i jest to twierdzenie fałszywe.
-      h.fetchAudience.mockImplementation(() => new Promise<AudienceSegmentsResult>(() => {}));
-      const { container } = panel();
-      await waitFor(() => expect(container.querySelector(".animate-spin")).not.toBeNull());
+  it("w trakcie pobierania kafelki NIE meldują zera odsłon jako pomiaru", async () => {
+    // Zero na pulpicie audytorium czyta się jako twierdzenie o ruchu, a przed
+    // odczytem takiego twierdzenia postawić nie wolno. Na miejsce liczby wchodzi
+    // więc napis o STANIE (`common.measuringShort`) - `q.data?.kpi.x ?? 0` nie
+    // odróżniało "nie wiem" od "nie było".
+    h.fetchAudience.mockImplementation(() => new Promise<AudienceSegmentsResult>(() => {}));
+    const { container } = panel();
+    await waitFor(() => expect(container.querySelector(".animate-spin")).not.toBeNull());
 
-      const shown = [
-        kpiValue(aud("kpi.viewsTotal")),
-        kpiValue(aud("kpi.logged")),
-        kpiValue(aud("kpi.anon")),
-        kpiValue(aud("kpi.uniqueReaders")),
-      ];
-      expect(shown).not.toEqual(["0", "0", "0", "0"]);
-    },
-  );
+    const shown = [
+      kpiValue(aud("kpi.viewsTotal")),
+      kpiValue(aud("kpi.logged")),
+      kpiValue(aud("kpi.anon")),
+      kpiValue(aud("kpi.uniqueReaders")),
+    ];
+    expect(shown).not.toEqual(["0", "0", "0", "0"]);
+    // ...i nie chodzi o dowolną inną liczbę: wszystkie cztery kafelki mówią, że
+    // pomiar trwa.
+    expect(shown).toEqual(Array<string>(4).fill(common("measuringShort")));
+    // Karta stanu jest ogłoszona i oznaczona jako "w toku" - stąd bramka
+    // pomocnika `loaded()`.
+    expect(screen.getByRole("status")).toHaveTextContent(common("measuring"));
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    // Listy "Top ..." też nie twierdzą o oknie: `noDataWindow` znaczy w tym
+    // słowniku ZMIERZONE ZERO, więc przed odczytem jest tam napis o pomiarze.
+    expect(screen.queryByText(common("noDataWindow"))).toBeNull();
+  });
 
-  it.fails("DEFEKT: w trakcie pobierania panel ogłasza brak krytycznych zagadnień", async () => {
-    // `if (!q.data) return out` daje puste `insights`, a `InsightSection` z
-    // pustą listą maluje zieloną kartę "nie znaleziono krytycznych
-    // zagadnień - utrzymaj obecną strategię". To zaliczenie audytu przed
-    // audytem.
+  it("w trakcie pobierania panel NIE ogłasza braku krytycznych zagadnień", async () => {
+    // Pusta lista wniosków każe `InsightSection` namalować zieloną kartę "nie
+    // znaleziono krytycznych zagadnień - utrzymaj obecną strategię", czyli
+    // zaliczyć audyt przed audytem. Dopóki pomiaru nie ma, na liście stoi
+    // wniosek o POMIARZE W TOKU, nie cisza.
     h.fetchAudience.mockImplementation(() => new Promise<AudienceSegmentsResult>(() => {}));
     const { container } = panel();
     await waitFor(() => expect(container.querySelector(".animate-spin")).not.toBeNull());
 
     expect(screen.queryByText(insightChrome("emptyDefault"))).toBeNull();
+    // Lokalizacja przez `li.rounded-md`, a nie przez napis: ten sam komunikat
+    // stoi ŚWIADOMIE w dwóch miejscach - w ogłoszonej karcie stanu na górze i
+    // we wpisie audytu na dole - więc `getByText` miałby dwa trafienia.
+    const items = container.querySelectorAll("ul > li.rounded-md");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent(common("measuring"));
+    expect(items[0]).toHaveTextContent(common("measuringHint"));
   });
 
   it("okno bez odsłon pokazuje wniosek ze słownika, a nie puste karty", async () => {
@@ -387,23 +441,43 @@ describe("AudienceSegmentsDashboard - trzy stany panelu", () => {
     expect(screen.getByRole("heading", { name: aud("title") })).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: awaria odczytu wygląda DOKŁADNIE jak okno bez ruchu", async () => {
-    // `q.isError` i `q.error` nie są w tym pliku czytane ani raz. Panel maluje
-    // cztery zera i zielone "brak krytycznych zagadnień", czyli każe szukać
-    // problemu w ruchu tam, gdzie padł odczyt tabeli `post_views`.
+  it("awaria odczytu NIE wygląda jak okno bez ruchu - panel podaje przyczynę", async () => {
+    // `q.isError` / `q.error` nie były w tym pliku czytane ani raz, więc panel
+    // malował cztery zera i zielone "brak krytycznych zagadnień", czyli kazał
+    // szukać problemu w RUCHU tam, gdzie padł odczyt tabeli `post_views`.
     h.fetchAudience.mockRejectedValue(new Error("post_views read failed: 500"));
     const { container } = panel();
     await loaded();
 
     expect(container.textContent ?? "").toMatch(/500|b[lł][aą]d|error/i);
+    // Komunikat jest OGŁOSZONY (`role="alert"`) i niesie DOSŁOWNĄ przyczynę -
+    // sama informacja "coś padło" nie prowadzi do żadnej decyzji.
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      commonVars("readFailedReason", { reason: "post_views read failed: 500" }),
+    );
+    // Kafelki mówią o awarii, nie o zerze odsłon.
+    expect(kpiValue(aud("kpi.viewsTotal"))).toBe(common("readFailedShort"));
+    expect(kpiValue(aud("kpi.uniqueReaders"))).toBe(common("readFailedShort"));
+    // Zmierzone zero brzmi INACZEJ niż awaria - inaczej obie sytuacje znów
+    // zlałyby się w jeden obraz. Dotyczy to także pustych list "Top ...".
+    expect(screen.queryByText(aud("insights.empty.title"))).toBeNull();
+    expect(screen.queryByText(common("noDataWindow"))).toBeNull();
+    expect(screen.getAllByText(common("readFailed"))).toHaveLength(2);
   });
 
-  it.fails("DEFEKT: awaria odczytu kończą się zielonym zaliczeniem audytu", async () => {
+  it("awaria odczytu NIE kończy się zielonym zaliczeniem audytu", async () => {
     h.fetchAudience.mockRejectedValue(new Error("post_views read failed: 500"));
-    panel();
+    const { container } = panel();
     await loaded();
 
     expect(screen.queryByText(insightChrome("emptyDefault"))).toBeNull();
+    // Wpis audytu niesie przyczynę i podpowiedź, co z nią zrobić.
+    const items = container.querySelectorAll("ul > li.rounded-md");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent(
+      commonVars("readFailedReason", { reason: "post_views read failed: 500" }),
+    );
+    expect(items[0]).toHaveTextContent(common("readFailedHint"));
   });
 });
 
@@ -789,30 +863,53 @@ describe("AudienceSegmentsDashboard - izolacja warsztatów", () => {
     expect(second.container.textContent ?? "").toContain("BETA");
   });
 
-  it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu - drugi panel z tym samym oknem widzi cudze wpisy",
-    async () => {
-      // `queryKey: ["admin", "audience-segments", days]` składa się z dwóch
-      // stałych i liczby dni. Nie ma w nim ani tenanta, ani użytkownika, ani -
-      // inaczej niż w `VitalsBiDashboard` - znacznika czasu okna. Dwa
-      // montowania z domyślnym oknem 30 dni trafiają więc ZAWSZE w ten sam wpis
-      // cache, a `staleTime: 60_000` sprawia, że react-query nie ponawia
-      // zapytania. Administrator warsztatu B czyta tytuły warsztatu A i nie
-      // leci przy tym ani jedno żądanie sieciowe - wyciek jest cichy.
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      h.fetchAudience.mockResolvedValue(WORKSPACE_A);
-      const first = panel(client);
-      await loaded();
-      first.unmount();
-      h.charts.length = 0;
+  it("klucz cache niesie warsztat, więc drugi panel z tym samym oknem nie widzi cudzych wpisów", async () => {
+    // NAJOSTRZEJSZY PRZYPADEK IZOLACJI. `queryKey: ["admin",
+    // "audience-segments", days]` składał się z dwóch stałych i liczby dni:
+    // nie było w nim ani tenanta, ani użytkownika, ani - inaczej niż w
+    // `VitalsBiDashboard` - znacznika czasu okna. Dwa montowania z domyślnym
+    // oknem 30 dni trafiały więc ZAWSZE w ten sam wpis cache, a
+    // `staleTime: 60_000` blokował ponowienie: administrator warsztatu B
+    // czytał tytuły warsztatu A i nie leciało przy tym ani jedno żądanie
+    // sieciowe. Wyciek był CICHY - nie widać go w ruchu, tylko na ekranie,
+    // dlatego klient react-query jest tu WSPÓŁDZIELONY i przeżywa zmianę
+    // warsztatu, tak jak w aplikacji.
+    //
+    // Przejście odgrywamy tak, jak wygląda naprawdę: zmienia się najemca
+    // (`h.tenantId`) ORAZ to, co serwer oddaje dla niego.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    h.fetchAudience.mockResolvedValue(WORKSPACE_A);
+    const first = panel(client);
+    await loaded();
+    expect(first.container.textContent ?? "").toContain("ALFA analiza energetyczna");
+    first.unmount();
+    h.charts.length = 0;
 
-      h.fetchAudience.mockResolvedValue(WORKSPACE_B);
-      const second = panel(client);
-      await loaded();
+    h.tenantId = TENANT_B;
+    h.fetchAudience.mockResolvedValue(WORKSPACE_B);
+    const second = panel(client);
+    await loaded();
 
-      expect(second.container.textContent ?? "").not.toContain("ALFA");
-    },
-  );
+    expect(second.container.textContent ?? "").not.toContain("ALFA");
+    // ...i nie chodzi o pustą kartę: własne dane warsztatu B dojeżdżają,
+    // a odczyt dla nich REALNIE poleciał (dwa wywołania, nie jedno z cache).
+    expect(second.container.textContent ?? "").toContain("BETA notatka transportowa");
+    expect(h.fetchAudience.mock.calls).toHaveLength(2);
+    expect(JSON.stringify(h.charts)).not.toContain("ALFA");
+  });
+
+  it("panel bez rozwiązanego najemcy NIE odpytuje serwera", async () => {
+    // Odczyt puszczony przed rozwiązaniem warsztatu wpadłby do cache pod
+    // kluczem z pustym najemcą i stamtąd przeciekał do pierwszego warsztatu,
+    // który trafi w ten sam klucz. Dopóki najemcy nie ma, panel stoi w stanie
+    // POMIARU, a nie w stanie "zmierzone zero".
+    h.tenantId = null;
+    const { container } = panel();
+
+    await waitFor(() => expect(container.querySelector('[aria-busy="true"]')).not.toBeNull());
+    expect(h.fetchAudience).not.toHaveBeenCalled();
+    expect(kpiValue(aud("kpi.viewsTotal"))).toBe(common("measuringShort"));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -826,7 +923,17 @@ describe("AudienceSegmentsDashboard - słownik PL/EN", () => {
     expect(screen.getByRole("heading", { name: aud("title", {}, "en") })).toBeInTheDocument();
     expect(screen.getByText(aud("kpi.viewsTotal", {}, "en"))).toBeInTheDocument();
     expect(screen.getByText(aud("kpi.uniqueReaders", {}, "en"))).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: aud("dailyViews", {}, "en") })).toBeInTheDocument();
+    // Tytuł wykresu jedzie dziś przez `ChartCard`, więc nie stoi w konspekcie
+    // nagłówków - stoi w NAZWIE DOSTĘPNEJ regionu kanwy i w podpisie tabeli
+    // danych. Asercja idzie na oba, czyli mocniej niż na sam `role="heading"`:
+    // dowodzi i angielskiego napisu, i tego, że alternatywa tekstowa jest z nim
+    // powiązana.
+    expect(screen.getByText(aud("dailyViews", {}, "en"))).toBeInTheDocument();
+    const regionName = realT("en")("adminAnalytics.chartCard.chartRegion", {
+      title: aud("dailyViews", {}, "en"),
+    });
+    expect(screen.getByRole("img", { name: regionName })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: regionName })).toBeInTheDocument();
   });
 
   it("angielskie wnioski nie spadają na polski fallback", async () => {
@@ -863,29 +970,44 @@ describe("AudienceSegmentsDashboard - słownik PL/EN", () => {
     expect(screen.getAllByText(common("noDataWindow", "en"))).toHaveLength(2);
   });
 
-  it.fails("DEFEKT: liczby są formatowane zaszytym pl-PL także po angielsku", async () => {
-    // `value.toLocaleString("pl-PL")` w `KpiCard` i w `TopPosts` ignoruje język
+  it("liczby są formatowane locale JĘZYKA INTERFEJSU, nie zaszytym pl-PL", async () => {
+    // `value.toLocaleString("pl-PL")` w `KpiCard` i w `TopPosts` ignorował język
     // interfejsu. `ClientErrorsDashboard` w tym samym katalogu robi to poprawnie
-    // (`i18n.language === "en" ? "en-GB" : "pl-PL"`), więc to nie jest decyzja
-    // produktowa, tylko rozjazd. Angielski administrator widzi "12 345" tam,
+    // (`i18n.language === "en" ? "en-GB" : "pl-PL"`), więc nie była to decyzja
+    // produktowa, tylko rozjazd: angielski administrator widział "12 345" tam,
     // gdzie jego locale pisze "12,345".
     await i18n.changeLanguage("en");
-    h.fetchAudience.mockResolvedValue(result({ logged: 12_345, anon: 1 }));
+    h.fetchAudience.mockResolvedValue(
+      result({
+        logged: 12_345,
+        anon: 1,
+        topLogged: [post("p", "Energy in the region", 12_345, 6_789)],
+      }),
+    );
     panel();
     await loaded();
 
     expect(kpiValue(aud("kpi.logged", {}, "en"))).toBe((12_345).toLocaleString("en-GB"));
+    // Grupowanie tysięcy w OBU locale musi się realnie różnić - inaczej asercja
+    // przechodziłaby także na zaszytym "pl-PL".
+    expect((12_345).toLocaleString("en-GB")).not.toBe((12_345).toLocaleString("pl-PL"));
+    // Lista top idzie tą samą drogą, bo `TopPosts` formatowało osobno.
+    const rows = topRows(aud("topLogged", {}, "en"));
+    expect(rows[0]).toContain((12_345).toLocaleString("en-GB"));
+    expect(rows[0]).toContain((6_789).toLocaleString("en-GB"));
   });
 });
 
 // ---------------------------------------------------------------------------
 
 describe("AudienceSegmentsDashboard - dostępność", () => {
-  it("cały dług dostępności wypełnionego panelu to JEDEN bezimienny przycisk", async () => {
-    // Asercja jest na PEŁNEJ liście naruszeń, nie na jej podzbiorze: dopisanie
-    // dowolnego drugiego problemu (obrazek bez alt, plakietka bez nazwy, zła
-    // kolejność nagłówków, lista poza `ul`/`ol`) oblewa ten test. Jedyny wpis,
-    // który tu stoi, jest przypięty osobno niżej.
+  it("wypełniony panel nie ma ANI JEDNEGO naruszenia dostępności", async () => {
+    // Asercja jest na PEŁNEJ liście naruszeń, nie na jej podzbiorze i bez ani
+    // jednej ulgi: dopisanie dowolnego problemu (przycisk bez nazwy, obrazek bez
+    // alt, plakietka bez nazwy, zła kolejność nagłówków, lista poza `ul`/`ol`)
+    // oblewa ten test. Do 2026-09-02 stał tu wpis `button-name` - selektor okna
+    // czasu renderował `<button role="combobox">` bez nazwy dostępnej; dziś
+    // pełna lista jest pusta, więc test pilnuje BRAKU długu, a nie jego rozmiaru.
     h.fetchAudience.mockResolvedValue(
       result({
         logged: 700,
@@ -904,13 +1026,13 @@ describe("AudienceSegmentsDashboard - dostępność", () => {
     expect(
       violations.map((v) => v.id),
       summarize(violations),
-    ).toEqual(["button-name"]);
-    expect(violations[0].nodes).toHaveLength(1);
+    ).toEqual([]);
   });
 
   it("nagłówki panelu są w poprawnej hierarchii, a listy mają semantykę listy", async () => {
-    // Ten sam przebieg axe, ale na panelu BEZ danych: znika wykres z plakietką i
-    // obie listy top, więc zestaw reguł, które mają co sprawdzać, jest inny.
+    // Ten sam przebieg axe, ale na panelu BEZ danych: znika plakietka przy
+    // wykresie, tabela danych i obie listy top, więc zestaw reguł, które mają co
+    // sprawdzać, jest inny. Lista naruszeń również bez ulg.
     h.fetchAudience.mockResolvedValue(EMPTY);
     const { container } = panel();
     await loaded();
@@ -919,21 +1041,27 @@ describe("AudienceSegmentsDashboard - dostępność", () => {
     expect(
       violations.map((v) => v.id),
       summarize(violations),
-    ).toEqual(["button-name"]);
+    ).toEqual([]);
   });
 
-  it.fails("DEFEKT: selektor okna czasu nie ma żadnej nazwy dostępnej", async () => {
-    // `SelectTrigger` renderuje `<button role="combobox">` bez `aria-label` i
-    // bez `<label>`. `SelectValue` nie ma nawet `placeholder`, więc do
-    // pierwszego otwarcia listy przycisk jest PUSTY - czytnik ekranu ogłasza
-    // "combobox" bez ani jednego słowa o tym, czym on jest. Słownik ma już
-    // klucz `adminAnalytics.gsc.window` ("Okno" / "Window") na taką etykietę.
+  it("selektor okna czasu ma nazwę dostępną ze słownika", async () => {
+    // `SelectTrigger` renderuje `<button role="combobox">`, a etykiety wizualnej
+    // ten pasek nie ma wcale - ani `<label>`, ani `placeholder` w `SelectValue`.
+    // Do pierwszego otwarcia listy przycisk był więc PUSTY i czytnik ekranu
+    // ogłaszał samo "combobox", bez ani jednego słowa o tym, czym on jest.
     h.fetchAudience.mockResolvedValue(EMPTY);
     const { container } = panel();
     await loaded();
 
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
+    // Nazwa idzie ZE SŁOWNIKA, a nie z zaszytego napisu - inaczej angielski
+    // administrator usłyszałby polską etykietę.
+    expect(screen.getByRole("combobox")).toHaveAccessibleName(common("windowSelector"));
+    await i18n.changeLanguage("en");
+    await waitFor(() =>
+      expect(screen.getByRole("combobox")).toHaveAccessibleName(common("windowSelector", "en")),
+    );
   });
 
   it("listy topowych wpisów są numerowane semantycznie, nie divami", async () => {
@@ -946,15 +1074,29 @@ describe("AudienceSegmentsDashboard - dostępność", () => {
     expect(topCard(aud("topAnon")).querySelector("ol")).not.toBeNull();
   });
 
-  it.fails("DEFEKT: wykres dzienny nie ma żadnej tekstowej alternatywy", async () => {
-    // Karty przechodzące przez `ChartCard` dostają `role="img"` z nazwą z
-    // tytułu i `aria-describedby` do tabeli danych. Ten panel montuje `EChart`
-    // wprost w `Card`, więc kanwa - dla czytnika ekranu pusty prostokąt - nie
-    // ma ani nazwy, ani równoważnika tabelarycznego. Nagłówek `h4` obok nie
-    // jest z nią powiązany żadnym atrybutem.
+  it("wykres dzienny ma nazwę regionu i tabelaryczny równoważnik", async () => {
+    // Panel montował `EChart` wprost w `Card`, POMIJAJĄC `ChartCard`, więc kanwa
+    // - dla czytnika ekranu pusty prostokąt - nie miała ani nazwy, ani
+    // równoważnika tabelarycznego, a stojący obok nagłówek `h4` nie był z nią
+    // powiązany żadnym atrybutem. Dziś wykres idzie przez `ChartCard` z `csv`:
+    // region dostaje `role="img"` z nazwą z tytułu, a `aria-describedby`
+    // prowadzi do tabeli z TYMI SAMYMI liczbami.
     panel();
     await loaded();
 
     expect(screen.queryAllByRole("img").length).toBeGreaterThan(0);
+    const region = screen.getByRole("img", {
+      name: realT("pl")("adminAnalytics.chartCard.chartRegion", { title: aud("dailyViews") }),
+    });
+    const tableId = region.getAttribute("aria-describedby");
+    expect(tableId).toBeTruthy();
+    expect(document.getElementById(tableId ?? "")).not.toBeNull();
+    // Równoważnik niesie DANE, nie samą obietnicę: nagłówki kolumn i liczby
+    // NEUTRAL-a z obu segmentów.
+    const table = screen.getByRole("table");
+    expect(table).toHaveTextContent(aud("logged"));
+    expect(table).toHaveTextContent(aud("anon"));
+    expect(table).toHaveTextContent("2026-08-01");
+    expect(table).toHaveTextContent("300");
   });
 });

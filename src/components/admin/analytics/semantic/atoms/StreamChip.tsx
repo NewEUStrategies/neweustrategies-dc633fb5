@@ -5,12 +5,17 @@
  * Rola jest tu najważniejszą informacją: raport zarządczy cytuje wyłącznie
  * strumień autorytatywny, a chip mówi wprost, który to jest - zamiast pozostawiać
  * to domysłowi czytelnika dashboardu.
+ *
+ * Dymek niesie własności strumienia (bramka zgody, ziarno tożsamości, tryb
+ * deduplikacji, opóźnienie), których NIE MA nigdzie indziej w drzewie - dlatego
+ * wyzwalaczem jest `ChipButton` (prawdziwy `button`), a nie `Badge` renderujący
+ * `div`: bez tego cała ta wiedza jest nieosiągalna z klawiatury i dla czytnika.
  */
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-semantic";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type StreamId, streamById } from "@/lib/analytics/semantic";
+import { ChipButton } from "./ChipButton";
 
 export function StreamChip({
   streamId,
@@ -26,18 +31,20 @@ export function StreamChip({
 
   return (
     <Tooltip>
+      {/* Wyzwalacz jest przyciskiem, nie `div`-em: własności strumienia z dymka
+          to jedyne miejsce, w którym dojeżdżają do czytelnika, więc muszą być
+          osiągalne fokusem. */}
       <TooltipTrigger asChild>
-        <Badge
-          variant="outline"
+        <ChipButton
           className={
-            "text-[10px] font-medium max-w-full " +
+            "text-[10px] font-medium max-w-full cursor-help " +
             (role === "authoritative"
               ? "border-primary/50 bg-primary/10 text-primary"
               : "border-border text-muted-foreground")
           }
         >
           <span className="truncate">{label}</span>
-        </Badge>
+        </ChipButton>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs leading-relaxed space-y-1">
         <div className="font-semibold">{label}</div>

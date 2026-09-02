@@ -5,6 +5,7 @@
 // `<input>` with the shared `.input` class (same border/radius/ring tokens as
 // FloatingInput), and swap the raw checkbox for the animated `Checkbox`.
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { Checkbox as AnimatedCheckbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -98,6 +99,21 @@ export function Checkbox({
   );
 }
 
+/**
+ * Pasek zapisu wszystkich paneli `admin.settings.*` (plus panelu darowizn).
+ *
+ * NAPISY IDĄ ZE SŁOWNIKA, I TO NIE JEST KOSMETYKA. Do tej pory były to literały
+ * „Zapisz zmiany" i „Zapisywanie…" wpisane w kod, więc na angielskim panelu
+ * jedyny przycisk, który cokolwiek utrwala, stał po polsku - i to w KAŻDYM
+ * z kilkunastu paneli montujących ten pasek. Reszta tych ekranów jest w EN
+ * kompletna, więc panel wyglądał na uszkodzony dokładnie na akcji końcowej.
+ *
+ * Klucze są RDZENNE (`src/lib/locale/pl.ts` / `en.ts`), a nie z nakładki
+ * `i18n-*` - świadomie. Nakładka rejestruje się efektem ubocznym importu, więc
+ * użycie jej klucza kazałoby dopisać ten import do pliku współdzielonego przez
+ * kilkanaście paneli i wciągnąć słownik do ich chunków. Klucze rdzenia wnosi
+ * sam `useTranslation()`, bez ani jednej nowej krawędzi w grafie modułów.
+ */
 export function SaveBar({
   saving,
   disabled,
@@ -107,6 +123,7 @@ export function SaveBar({
   disabled?: boolean;
   onSave: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="mt-6 flex items-center gap-3">
       <button
@@ -115,7 +132,7 @@ export function SaveBar({
         disabled={saving || disabled}
         className="bg-brand text-brand-foreground px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
       >
-        {saving ? "Zapisywanie…" : "Zapisz zmiany"}
+        {saving ? t("admin.saving") : t("admin.saveSettings")}
       </button>
     </div>
   );

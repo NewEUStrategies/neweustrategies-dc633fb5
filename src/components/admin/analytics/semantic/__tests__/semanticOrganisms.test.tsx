@@ -57,11 +57,26 @@ import {
   type StreamObservation,
 } from "@/lib/analytics/semantic";
 
-const h = vi.hoisted(() => ({ fetchSnapshot: vi.fn() }));
+const h = vi.hoisted(() => ({
+  fetchSnapshot: vi.fn(),
+  /** Warsztat, w którym stoi panel - zmiana tej wartości to przejście do innego. */
+  tenantId: "tenant-alfa" as string | null,
+}));
 
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
+}));
+
+// Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
+// klienta Supabase i sesję `useAuth`, a przedmiotem dowodu jest tylko to, że
+// identyfikator warsztatu WCHODZI DO KLUCZA react-query (do funkcji serwerowej
+// NIE JEDZIE - ta bierze warsztat z profilu wywołującego). Sterowanie nim z
+// testu (`h.tenantId`) daje jedyny sposób odegrania przejścia między
+// warsztatami na TYM SAMYM kliencie cache - tak samo jak w
+// `__tests__/gscBiDashboard.test.tsx`.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 vi.mock("@/lib/analytics/semantic/snapshot.functions", () => ({
@@ -85,6 +100,8 @@ import { SemanticReconciliationPanel } from "../organisms/SemanticReconciliation
 
 const NOW_A = Date.parse("2026-07-15T14:37:00.000Z");
 const NOW_B = Date.parse("2026-03-10T09:12:00.000Z");
+const TENANT_A = "tenant-alfa";
+const TENANT_B = "tenant-beta";
 /** Komunikat błędu GA4 - taki, jaki serwer podaje adminowi wprost. */
 const GA4_ERROR = "GA4: brak uprawnien do property 123456";
 
@@ -239,6 +256,7 @@ function openSelect(trigger: HTMLElement): HTMLElement {
 
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
+  h.tenantId = TENANT_A;
   h.fetchSnapshot.mockReset();
   h.fetchSnapshot.mockResolvedValue(snapshot());
 });
@@ -750,41 +768,48 @@ describe("SemanticReconciliationPanel - izolacja warsztatów", () => {
     expect(second.container.textContent).not.toMatch(/24\s?690/);
   });
 
-  it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu, więc panel B maluje liczby warsztatu A",
-    async () => {
-      // `queryKey: ["semantic-snapshot", presetId]` nie ma ani tenanta, ani
-      // użytkownika, a `staleTime: 60_000` trzyma odpowiedź świeżą przez minutę.
-      // `QueryClient` stoi w korzeniu aplikacji i PRZEŻYWA zmianę warsztatu,
-      // więc panel warsztatu B dostaje migawkę warsztatu A Z CACHE i NIE
-      // WYSYŁA ani jednego zapytania. Wyciek jest cichy: nie widać go w ruchu
-      // sieciowym, widać go wyłącznie na ekranie. Naprawa: dołożyć do klucza
-      // identyfikator warsztatu (albo `tenant_id` z profilu wywołującego).
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      const first = panel(client);
-      await loaded();
-      first.unmount();
-      cleanup();
+  it("klucz cache niesie warsztat, więc panel B nie maluje liczb warsztatu A", async () => {
+    // NAJOSTRZEJSZY przypadek izolacji. Przy stałym
+    // `queryKey: ["semantic-snapshot", presetId]` klucz nie nosił ani
+    // tenanta, ani użytkownika, a `staleTime: 60_000` trzyma odpowiedź świeżą
+    // przez minutę. `QueryClient` stoi w korzeniu aplikacji i PRZEŻYWA zmianę
+    // warsztatu, więc panel warsztatu B dostawał migawkę warsztatu A Z CACHE
+    // i NIE WYSYŁAŁ ani jednego zapytania. Wyciek jest cichy: nie widać go w
+    // ruchu sieciowym, widać go wyłącznie na ekranie - dlatego asercja idzie
+    // na treść panelu B, a nie na liczbę zapytań.
+    //
+    // Przejście między warsztatami odgrywamy tak, jak wygląda w aplikacji:
+    // zmienia się najemca (`h.tenantId`) ORAZ to, co bramka oddaje dla niego,
+    // a klient cache zostaje TEN SAM.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const first = panel(client);
+    await loaded();
+    first.unmount();
+    cleanup();
 
-      h.fetchSnapshot.mockReset();
-      h.fetchSnapshot.mockResolvedValue(
-        snapshot({ nowMs: NOW_B, pageViews: 77, firstPartyPageViews: 90 }),
-      );
-      const second = panel(client);
-      await screen.findByText(realT("pl")("adminAnalytics.semantic.canonicalLabel"));
+    h.tenantId = TENANT_B;
+    h.fetchSnapshot.mockReset();
+    h.fetchSnapshot.mockResolvedValue(
+      snapshot({ nowMs: NOW_B, pageViews: 77, firstPartyPageViews: 90 }),
+    );
+    const second = panel(client);
+    await screen.findByText(realT("pl")("adminAnalytics.semantic.canonicalLabel"));
 
-      expect(second.container.textContent).not.toMatch(/12\s?345/);
-    },
-  );
+    expect(second.container.textContent).not.toMatch(/12\s?345/);
+    // ...i nie chodzi o pustą kartę: własne liczby warsztatu B dojeżdżają.
+    expect(second.container.textContent).toContain("77");
+  });
 });
 
 describe("SemanticReconciliationPanel - dostępność", () => {
-  // Regułę `button-name` wyłączamy w trzech testach niżej i TYLKO po to, żeby
-  // jeden znany defekt (przełącznik okna, `it.fails` na końcu) nie przykrywał
-  // wszystkiego innego: kolejności nagłówków, poprawności ARIA i semantyki list.
+  // Wyłączenie `button-name` zostaje w trzech testach niżej jako WARTOWNIK
+  // zakresu: to przypadek na końcu tej grupy (pełny zestaw reguł) odpowiada za
+  // nazwę przełącznika okna, a te trzy pilnują wszystkiego innego - kolejności
+  // nagłówków, poprawności ARIA i semantyki list - także wtedy, gdy nazwa
+  // przycisku znów się zgubi.
   const KNOWN = { "button-name": { enabled: false } };
 
-  it("wczytany panel nie ma naruszeń axe poza nienazwanym przełącznikiem okna", async () => {
+  it("wczytany panel nie ma naruszeń axe poza regułą nazwy przycisku", async () => {
     const { container } = panel();
     await loaded();
 
@@ -808,24 +833,21 @@ describe("SemanticReconciliationPanel - dostępność", () => {
     await screen.findByText(realT("pl")("adminAnalytics.semantic.empty"));
 
     // Nagłówek panelu (a z nim przełącznik okna) renderuje się także bez
-    // danych, więc ten sam znany defekt trzeba tu wyłączyć.
+    // danych, więc ten sam wartownik zakresu obowiązuje i tutaj.
     expect(summarize(await axeViolations(container, KNOWN))).toBe("");
   });
 
-  it.fails(
-    "DEFEKT: przełącznik okna pomiaru nie ma dostępnej nazwy - czytnik ogłasza puste pole",
-    async () => {
-      // Wyzwalacz to `<button role="combobox">28 dni</button>`. Rola
-      // `combobox` NIE wylicza nazwy z zawartości (inaczej niż `button`), więc
-      // widoczne „28 dni” nie staje się nazwą dostępną: czytnik ekranu ogłasza
-      // „pole listy” bez informacji, CZEGO dotyczy i co jest wybrane. To jedyny
-      // element panelu, który zmienia okno wszystkich liczb. Naprawa:
-      // `aria-label` z `adminAnalytics.semantic.window.title` na `SelectTrigger`
-      // (albo `aria-labelledby` wiążące go z nagłówkiem karty).
-      const { container } = panel();
-      await loaded();
+  it("przełącznik okna pomiaru ma dostępną nazwę - czytnik nie ogłasza pustego pola", async () => {
+    // Wyzwalacz to `<button role="combobox">28 dni</button>`. Rola
+    // `combobox` NIE wylicza nazwy z zawartości (inaczej niż `button`), więc
+    // widoczne „28 dni” samo nie staje się nazwą dostępną: bez `aria-label`
+    // czytnik ekranu ogłaszał „pole listy” bez informacji, CZEGO dotyczy i co
+    // jest wybrane. To jedyny element panelu, który zmienia okno wszystkich
+    // liczb. Asercja idzie na PEŁNY zestaw reguł axe (bez wyłączeń z `KNOWN`),
+    // więc pilnuje też, żeby nazwa nie zniknęła razem z inną zmianą nagłówka.
+    const { container } = panel();
+    await loaded();
 
-      expect(summarize(await axeViolations(container))).toBe("");
-    },
-  );
+    expect(summarize(await axeViolations(container))).toBe("");
+  });
 });
