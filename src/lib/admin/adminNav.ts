@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
 import type { TFunction } from "i18next";
 import {
-  BarChart3,
   CalendarDays,
   LayoutDashboard,
   FileText,
@@ -35,6 +34,7 @@ import {
 } from "@/lib/lucide-shim";
 import {
   BadgePercent,
+  BarChart3,
   BookOpen,
   Briefcase,
   Cable,
