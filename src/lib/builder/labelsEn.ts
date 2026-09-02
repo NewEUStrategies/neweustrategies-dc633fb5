@@ -197,7 +197,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Podtytuł / opis": "Subtitle / description",
   Opis: "Description",
   "Opis (podtytuł)": "Description (subtitle)",
-  Zajawka: "Excerpt",
   "Zajawka (opcjonalna)": "Excerpt (optional)",
   Etykieta: "Label",
   "Etykieta (PL)": "Label (PL)",
@@ -1252,7 +1251,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "np. 2022-10-10": "e.g. 2022-10-10",
   "Jedna data dla obu języków - napis dla czytelnika powstaje w języku widoku.":
     "One date for both languages - the human-readable label is produced in the view language.",
-  "Pokaż datę": "Show the date",
   "Adres tytułu": "Title link",
   "Puste = tytuł nie jest odnośnikiem.": "Empty = the title is not a link.",
   "Wiersze zajawki": "Excerpt lines",
