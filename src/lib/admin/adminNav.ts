@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { TFunction } from "i18next";
 import {
+  BarChart3,
   CalendarDays,
   LayoutDashboard,
   FileText,

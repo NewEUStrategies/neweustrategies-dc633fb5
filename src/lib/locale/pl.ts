@@ -186,6 +186,7 @@ export const pl = {
     stay: "Zostań",
     nav: {
       dashboard: "Kokpit",
+      analyticsBi: "BI - dashboardy",
       analyticsReconciliation: "Uzgodnienie",
       posts: "Wpisy",
       pages: "Strony",
