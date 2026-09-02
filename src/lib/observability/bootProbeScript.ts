@@ -70,4 +70,10 @@ export const BOOT_DEAD_TIMEOUT_MS = 15_000;
 /** Maksymalna liczba zbuforowanych błędów - zapora przed pętlą rzucającą. */
 export const BOOT_ERROR_BUFFER_LIMIT = 20;
 
-export const BOOT_PROBE_SCRIPT = `(function(){try{var w=window;w.__nesBootErrors=[];w.__nesBootT0=Date.now();var p=function(m,s,f){try{if(w.__nesBootErrors.length<${BOOT_ERROR_BUFFER_LIMIT})w.__nesBootErrors.push({m:String(m),s:String(s||""),f:f||""})}catch(_){}};w.addEventListener("error",function(e){p((e.error&&e.error.message)||e.message,e.error&&e.error.stack,e.filename)},true);w.addEventListener("unhandledrejection",function(e){p((e.reason&&e.reason.message)||e.reason,e.reason&&e.reason.stack)},true);w.setTimeout(function(){if(!w.__nesAppReady)w.__nesBootDead=Date.now()-w.__nesBootT0},${BOOT_DEAD_TIMEOUT_MS})}catch(_){}})();`;
+// FILTR U ŹRÓDŁA (2026-09-02). Sonda żyje przez CAŁE życie karty, więc bez
+// bramki buforowała także zdarzenia DŁUGO po starcie aplikacji i wysyłała je
+// jako „[boot] ...": 75 wpisów „[boot] undefined" w panelu błędów pochodziło
+// z anulowanych żądań i odrzuceń bez komunikatu. Teraz sonda:
+//   - milknie, gdy `__nesAppReady` jest ustawione (boot się udał),
+//   - odrzuca puste komunikaty i znany szum (aborty, ResizeObserver).
+export const BOOT_PROBE_SCRIPT = `(function(){try{var w=window;w.__nesBootErrors=[];w.__nesBootT0=Date.now();var bad=function(m){return !m||m==="undefined"||m==="null"||/aborted|resizeobserver loop|^script error/i.test(m)};var p=function(m,s,f){try{if(w.__nesAppReady)return;var t=m==null?"":String(m);if(bad(t))return;if(w.__nesBootErrors.length<${BOOT_ERROR_BUFFER_LIMIT})w.__nesBootErrors.push({m:t,s:String(s||""),f:f||""})}catch(_){}};w.addEventListener("error",function(e){p((e.error&&e.error.message)||e.message,e.error&&e.error.stack,e.filename)},true);w.addEventListener("unhandledrejection",function(e){p((e.reason&&e.reason.message)||e.reason,e.reason&&e.reason.stack)},true);w.setTimeout(function(){if(!w.__nesAppReady)w.__nesBootDead=Date.now()-w.__nesBootT0},${BOOT_DEAD_TIMEOUT_MS})}catch(_){}})();`;

@@ -17,3 +17,15 @@
 ## Sprzątanie
 
 - [x] Usunięto testowe dane z rozmowy z Maxem (wiadomości i powiadomienie testowe)
+
+## i18n - tłumaczenia widgetów (/admin/i18n)
+
+- [x] Warstwa czysta `widgetTranslationFill.ts` + testy
+- [x] Skrypt `i18n:translate-widgets` (bramka AI, cache, dry-run/--write)
+- [x] Uzupełnione tłumaczenia EN w treści widgetów (472 pola, 33 strony)
+- [x] Doprecyzowana heurystyka `looksPolish` (adresy/nazwy własne nie są błędem)
+
+## Błędy runtime (/admin/performance?tab=errors)
+
+- [x] `signal is aborted without reason` - jawny powód przerwania sondy + filtr szumu (klient i ingest)
+- [x] `[boot] undefined` - sonda bootu milknie po `__nesAppReady` i odrzuca puste komunikaty
