@@ -842,3 +842,669 @@ describe("kasowanie wydarzenia i etapu", () => {
     expect(invalidated).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// HARMONOGRAM, PYTANIA, ANKIETY I POWIĄZANIA WĄTKU - DRUGA POŁOWA KONTRAKTU
+//
+// Warunki wyżej dowodzą bramek: bez identyfikatora wątku nie ma zapytania.
+// Bramka to jednak tylko połowa umowy. Druga połowa jest w tym, CO dojeżdża
+// do RPC, gdy wątek JEST, i co się dzieje, gdy baza ODMAWIA.
+//
+// Odpięcie ankiety, usunięcie etapu i zerwanie powiązania to operacje
+// NISZCZĄCE - interfejs nie ma dla nich cofnięcia. Dowodem nie jest więc to,
+// że „się wywołało", tylko to, że po ODMOWIE nie unieważniono NICZEGO: panel
+// nie przeładowuje się tak, jakby usunięcie się powiodło, a wynik mutacji
+// nie mówi „gotowe".
+// ---------------------------------------------------------------------------
+
+describe("harmonogram wątku - okno dat", () => {
+  it("okno dat jedzie do RPC, a jego brak jako jawne `null`", async () => {
+    const { wrapper } = harness();
+    threadApiMock.fetchClubThreadMilestones.mockResolvedValue([threadMilestoneRow()]);
+
+    const bare = renderHook(() => useClubThreadMilestones({ threadId: THREAD }), { wrapper });
+    await waitFor(() => expect(bare.result.current.isSuccess).toBe(true));
+    // `null`, nie `undefined`: brak zawężenia ma dojechać jako WARTOŚĆ, bo
+    // pominięty argument RPC i argument pusty to w PostgREST dwa różne
+    // wywołania.
+    expect(threadApiMock.fetchClubThreadMilestones).toHaveBeenCalledWith({
+      threadId: THREAD,
+      from: null,
+      to: null,
+    });
+    expect(bare.result.current.data?.[0]?.id).toBe("milestone-1");
+
+    const windowed = renderHook(
+      () => useClubThreadMilestones({ threadId: THREAD, from: "2026-09-01", to: "2026-09-30" }),
+      { wrapper },
+    );
+    await waitFor(() => expect(windowed.result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadMilestones).toHaveBeenLastCalledWith({
+      threadId: THREAD,
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
+    // Okno jest częścią klucza - inaczej przełączenie miesiąca w kalendarzu
+    // pokazywałoby etapy z poprzedniego.
+    expect(threadApiMock.fetchClubThreadMilestones).toHaveBeenCalledTimes(2);
+  });
+
+  it("harmonogram milczy bez identyfikatora wątku", async () => {
+    const { wrapper } = harness();
+
+    renderHook(() => useClubThreadMilestones({ threadId: undefined }), { wrapper });
+
+    await tick();
+    expect(threadApiMock.fetchClubThreadMilestones).not.toHaveBeenCalled();
+  });
+
+  it("zapis etapu unieważnia CAŁĄ przestrzeń wątku, nie samą listę etapów", async () => {
+    const { wrapper, invalidated } = harness();
+    threadApiMock.upsertClubThreadMilestone.mockResolvedValue("milestone-9");
+
+    const { result } = renderHook(() => useUpsertClubThreadMilestone(THREAD), { wrapper });
+    const id = await result.current.mutateAsync({
+      thread_id: THREAD,
+      kind: "meeting",
+      status: "planned",
+      title: "Posiedzenie zespołu",
+      description: null,
+      starts_at: "2026-09-14T09:00:00.000Z",
+      ends_at: null,
+      all_day: false,
+      location: null,
+      url: null,
+    });
+
+    expect(id).toBe("milestone-9");
+    // `mutationFn` przekazana wprost - react-query dokłada drugi argument.
+    expect(threadApiMock.upsertClubThreadMilestone.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ thread_id: THREAD, kind: "meeting" }),
+    );
+    // Belka zakładek liczy etapy - punktowa inwalidacja zostawiłaby na niej
+    // starą liczbę.
+    await waitFor(() => expect(invalidated).toContainEqual(clubKeys.workspace(THREAD)));
+  });
+
+  it("usunięcie etapu unieważnia przestrzeń wątku", async () => {
+    const { wrapper, invalidated } = harness();
+    threadApiMock.removeClubThreadMilestone.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useRemoveClubThreadMilestone(THREAD), { wrapper });
+    await result.current.mutateAsync("milestone-1");
+
+    expect(threadApiMock.removeClubThreadMilestone.mock.calls[0]?.[0]).toBe("milestone-1");
+    await waitFor(() => expect(invalidated).toContainEqual(clubKeys.workspace(THREAD)));
+  });
+
+  it("ODMOWA przy usuwaniu etapu nie unieważnia niczego", async () => {
+    const { wrapper, invalidated } = harness();
+    threadApiMock.removeClubThreadMilestone.mockRejectedValue(new Error("clubs: forbidden"));
+
+    const { result } = renderHook(() => useRemoveClubThreadMilestone(THREAD), { wrapper });
+    await expect(result.current.mutateAsync("milestone-1")).rejects.toThrow("clubs: forbidden");
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidated).toEqual([]);
+    expect(result.current.isSuccess).toBe(false);
+  });
+});
+
+describe("pytania, ankiety i powiązania - skutek i odmowa", () => {
+  it("odpowiedź na pytanie niesie treść ORAZ status i unieważnia przestrzeń", async () => {
+    const { wrapper, invalidated } = harness();
+    threadApiMock.answerClubThreadQuestion.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useAnswerClubThreadQuestion(THREAD), { wrapper });
+    await result.current.mutateAsync({
+      questionId: "question-1",
+      body: "Koszt bilansowania liczymy z krzywej obciążenia.",
+      status: "answered",
+    });
+
+    // Status jedzie razem z treścią: odpowiedź BEZ przestawienia statusu
+    // zostawiłaby pytanie na liście „bez odpowiedzi".
+    expect(threadApiMock.answerClubThreadQuestion.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ questionId: "question-1", status: "answered" }),
+    );
+    await waitFor(() => expect(invalidated).toContainEqual(clubKeys.workspace(THREAD)));
+  });
+
+  it("ODMOWA przy odpowiadaniu nie zostawia interfejsu w stanie 'odpowiedziane'", async () => {
+    const { wrapper, invalidated } = harness();
+    threadApiMock.answerClubThreadQuestion.mockRejectedValue(new Error("clubs: forbidden"));
+
+    const { result } = renderHook(() => useAnswerClubThreadQuestion(THREAD), { wrapper });
+    await expect(
+      result.current.mutateAsync({ questionId: "question-1", body: "x" }),
+    ).rejects.toThrow("clubs: forbidden");
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidated).toEqual([]);
+    expect(result.current.isSuccess).toBe(false);
+  });
+
+  it("odpięcie ankiety idzie po identyfikatorze powiązania i unieważnia przestrzeń", async () => {
+    const { wrapper, invalidated } = harness();
+    threadApiMock.detachClubThreadPoll.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useDetachClubThreadPoll(THREAD), { wrapper });
+    await result.current.mutateAsync("thread-poll-1");
+
+    // Odpinamy WPIS ankiety w wątku, nie samą ankietę - `thread-poll-1`, nie
+    // `poll-1`. Pomyłka skasowałaby głosowanie razem z oddanymi głosami.
+    expect(threadApiMock.detachClubThreadPoll.mock.calls[0]?.[0]).toBe("thread-poll-1");
+    await waitFor(() => expect(invalidated).toContainEqual(clubKeys.workspace(THREAD)));
+  });
+
+  it("ODMOWA przy odpinaniu ankiety nie unieważnia niczego", async () => {
+    const { wrapper, invalidated } = harness();
+    threadApiMock.detachClubThreadPoll.mockRejectedValue(new Error("clubs: forbidden"));
+
+    const { result } = renderHook(() => useDetachClubThreadPoll(THREAD), { wrapper });
+    await expect(result.current.mutateAsync("thread-poll-1")).rejects.toThrow("clubs: forbidden");
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidated).toEqual([]);
+  });
+
+  it("zerwanie powiązania unieważnia przestrzeń, a odmowa - nie", async () => {
+    const ok = harness();
+    threadApiMock.removeClubThreadLink.mockResolvedValue(undefined);
+    const removed = renderHook(() => useRemoveClubThreadLink(THREAD), { wrapper: ok.wrapper });
+    await removed.result.current.mutateAsync("link-1");
+    expect(threadApiMock.removeClubThreadLink.mock.calls[0]?.[0]).toBe("link-1");
+    await waitFor(() => expect(ok.invalidated).toContainEqual(clubKeys.workspace(THREAD)));
+
+    const denied = harness();
+    threadApiMock.removeClubThreadLink.mockRejectedValue(new Error("clubs: forbidden"));
+    const failed = renderHook(() => useRemoveClubThreadLink(THREAD), { wrapper: denied.wrapper });
+    await expect(failed.result.current.mutateAsync("link-1")).rejects.toThrow("clubs: forbidden");
+    await waitFor(() => expect(failed.result.current.isError).toBe(true));
+    expect(denied.invalidated).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ODCZYTY WĄTKU Z IDENTYFIKATOREM - CO DOJEŻDŻA DO RPC I CO WRACA
+// ---------------------------------------------------------------------------
+
+describe("odczyty przestrzeni wątku z identyfikatorem", () => {
+  it("przekrój przepisuje liczniki wiersza na podsumowanie belki", async () => {
+    const { wrapper } = harness();
+    threadApiMock.fetchClubThreadWorkspace.mockResolvedValue({
+      thread_id: THREAD,
+      document_count: 3,
+      milestone_count: 2,
+      upcoming_count: 1,
+      question_count: 5,
+      open_question_count: 2,
+      poll_count: 1,
+      open_poll_count: 1,
+      link_count: 4,
+      participant_count: 7,
+      reply_count: 12,
+      next_milestone_at: "2026-09-14T09:00:00.000Z",
+      can_contribute: true,
+      can_curate: false,
+    });
+
+    const { result } = renderHook(() => useClubThreadWorkspace(THREAD), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadWorkspace).toHaveBeenCalledWith(THREAD);
+    expect(result.current.data?.openQuestions).toBe(2);
+    expect(result.current.data?.canContribute).toBe(true);
+    expect(result.current.data?.canCurate).toBe(false);
+  });
+
+  it("pytania: domyślny porządek to 'top', a status i porządek są częścią klucza", async () => {
+    const { wrapper } = harness();
+    threadApiMock.fetchClubThreadQuestions.mockResolvedValue([threadQuestionRow()]);
+
+    const bare = renderHook(() => useClubThreadQuestions({ threadId: THREAD }), { wrapper });
+    await waitFor(() => expect(bare.result.current.isSuccess).toBe(true));
+    // „Najczęściej pytane" na wejściu, bo lista pytań ma pokazywać to, co
+    // powtarza kilka osób, a nie ostatnie zdanie ostatniej osoby.
+    expect(threadApiMock.fetchClubThreadQuestions).toHaveBeenCalledWith({
+      threadId: THREAD,
+      status: null,
+      sort: "top",
+    });
+    expect(bare.result.current.data?.[0]?.id).toBe("question-1");
+
+    const sorted = renderHook(
+      () => useClubThreadQuestions({ threadId: THREAD, status: "open", sort: "newest" }),
+      { wrapper },
+    );
+    await waitFor(() => expect(sorted.result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadQuestions).toHaveBeenLastCalledWith({
+      threadId: THREAD,
+      status: "open",
+      sort: "newest",
+    });
+    expect(threadApiMock.fetchClubThreadQuestions).toHaveBeenCalledTimes(2);
+  });
+
+  it("ankiety, powiązania i skład czytają po identyfikatorze wątku", async () => {
+    const { wrapper } = harness();
+    threadApiMock.fetchClubThreadPolls.mockResolvedValue([threadPollRow()]);
+    threadApiMock.fetchClubThreadLinks.mockResolvedValue([threadLinkRow()]);
+    threadApiMock.fetchClubThreadParticipants.mockResolvedValue([threadParticipantRow()]);
+
+    const polls = renderHook(() => useClubThreadPolls({ threadId: THREAD }), { wrapper });
+    await waitFor(() => expect(polls.result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadPolls).toHaveBeenCalledWith(THREAD);
+    expect(polls.result.current.data?.[0]?.poll_id).toBe("poll-1");
+
+    const links = renderHook(() => useClubThreadLinks({ threadId: THREAD }), { wrapper });
+    await waitFor(() => expect(links.result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadLinks).toHaveBeenCalledWith(THREAD);
+    expect(links.result.current.data?.[0]?.relation).toBe("continues");
+
+    const people = renderHook(() => useClubThreadParticipants({ threadId: THREAD, limit: 50 }), {
+      wrapper,
+    });
+    await waitFor(() => expect(people.result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadParticipants).toHaveBeenCalledWith({
+      threadId: THREAD,
+      limit: 50,
+    });
+  });
+
+  it("pomiar bierze domyślnie 24 przedziały, a liczba przedziałów jest w kluczu", async () => {
+    const { wrapper } = harness();
+    threadApiMock.fetchClubThreadInsights.mockResolvedValue([threadInsightRow()]);
+
+    const bare = renderHook(() => useClubThreadInsights({ threadId: THREAD }), { wrapper });
+    await waitFor(() => expect(bare.result.current.isSuccess).toBe(true));
+    // 24 słupki - tyle, ile rysuje widżet. Zmiana tej liczby zmienia WYKRES,
+    // więc musi zmieniać też klucz.
+    expect(threadApiMock.fetchClubThreadInsights).toHaveBeenCalledWith({
+      threadId: THREAD,
+      buckets: 24,
+    });
+
+    const coarse = renderHook(() => useClubThreadInsights({ threadId: THREAD, buckets: 6 }), {
+      wrapper,
+    });
+    await waitFor(() => expect(coarse.result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadInsights).toHaveBeenLastCalledWith({
+      threadId: THREAD,
+      buckets: 6,
+    });
+    expect(threadApiMock.fetchClubThreadInsights).toHaveBeenCalledTimes(2);
+  });
+
+  it("wyszukiwarka odpala się od dwóch znaków i wysyła frazę PRZYCIĘTĄ", async () => {
+    const { wrapper } = harness();
+    threadApiMock.searchClubThread.mockResolvedValue([workspaceSearchRow()]);
+
+    const short = renderHook(() => useClubThreadSearch({ threadId: THREAD, query: " a " }), {
+      wrapper,
+    });
+    await tick();
+    expect(short.result.current.isPending).toBe(true);
+    expect(threadApiMock.searchClubThread).not.toHaveBeenCalled();
+
+    const { result } = renderHook(
+      () => useClubThreadSearch({ threadId: THREAD, query: "  bilansowanie  " }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(threadApiMock.searchClubThread).toHaveBeenCalledWith({
+      threadId: THREAD,
+      query: "bilansowanie",
+    });
+    expect(result.current.data?.[0]?.section).toBe("reply");
+  });
+
+  it("źródła: filtr rodzaju i limit dojeżdżają razem", async () => {
+    const { wrapper } = harness();
+    threadApiMock.fetchClubThreadDocuments.mockResolvedValue([threadDocumentRow()]);
+
+    const { result } = renderHook(
+      () => useClubThreadDocuments({ threadId: THREAD, kind: "dataset", limit: 5 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(threadApiMock.fetchClubThreadDocuments).toHaveBeenCalledWith({
+      threadId: THREAD,
+      kind: "dataset",
+      limit: 5,
+    });
+    expect(result.current.data?.[0]?.id).toBe("doc-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WYMUSZONY REFETCH BEZ WĄTKU
+//
+// `refetch()` OMIJA bramkę `enabled` - robi tak każdy przycisk „odśwież"
+// wpięty w wynik hooka, a także `queryClient.refetchQueries`. O tym, co wtedy
+// dojedzie do warstwy danych, decyduje zapas `?? ""`, a nie bramka.
+// `undefined` znika przy serializacji ciała RPC, więc PostgREST dostaje
+// wywołanie BEZ parametru (i błąd „function does not exist") zamiast pustego
+// wyniku. Pusty napis jest tu jedynym bezpiecznym argumentem.
+// ---------------------------------------------------------------------------
+
+describe("wymuszony refetch bez identyfikatora wątku", () => {
+  it("każdy odczyt wątku posyła PUSTY NAPIS, nie `undefined`", async () => {
+    const { wrapper } = harness();
+    threadApiMock.fetchClubThreadWorkspace.mockResolvedValue(null);
+    threadApiMock.fetchClubThreadDocuments.mockResolvedValue([]);
+    threadApiMock.fetchClubThreadMilestones.mockResolvedValue([]);
+    threadApiMock.fetchClubThreadQuestions.mockResolvedValue([]);
+    threadApiMock.fetchClubThreadPolls.mockResolvedValue([]);
+    threadApiMock.fetchClubThreadLinks.mockResolvedValue([]);
+    threadApiMock.fetchClubThreadParticipants.mockResolvedValue([]);
+    threadApiMock.fetchClubThreadInsights.mockResolvedValue([]);
+    threadApiMock.searchClubThread.mockResolvedValue([]);
+
+    const summary = renderHook(() => useClubThreadWorkspace(undefined), { wrapper });
+    await summary.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadWorkspace).toHaveBeenCalledWith("");
+
+    const documents = renderHook(() => useClubThreadDocuments({ threadId: undefined }), {
+      wrapper,
+    });
+    await documents.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "" }),
+    );
+
+    const milestones = renderHook(() => useClubThreadMilestones({ threadId: undefined }), {
+      wrapper,
+    });
+    await milestones.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadMilestones).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "" }),
+    );
+
+    const questions = renderHook(() => useClubThreadQuestions({ threadId: undefined }), {
+      wrapper,
+    });
+    await questions.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadQuestions).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "" }),
+    );
+
+    const polls = renderHook(() => useClubThreadPolls({ threadId: undefined }), { wrapper });
+    await polls.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadPolls).toHaveBeenCalledWith("");
+
+    const links = renderHook(() => useClubThreadLinks({ threadId: undefined }), { wrapper });
+    await links.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadLinks).toHaveBeenCalledWith("");
+
+    const people = renderHook(() => useClubThreadParticipants({ threadId: undefined }), {
+      wrapper,
+    });
+    await people.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadParticipants).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "" }),
+    );
+
+    const insights = renderHook(() => useClubThreadInsights({ threadId: undefined }), { wrapper });
+    await insights.result.current.refetch();
+    expect(threadApiMock.fetchClubThreadInsights).toHaveBeenCalledWith({
+      threadId: "",
+      buckets: 24,
+    });
+
+    const search = renderHook(
+      () => useClubThreadSearch({ threadId: undefined, query: "energia" }),
+      {
+        wrapper,
+      },
+    );
+    await search.result.current.refetch();
+    expect(threadApiMock.searchClubThread).toHaveBeenCalledWith({
+      threadId: "",
+      query: "energia",
+    });
+  });
+
+  it("wątek bez identyfikatora ma WŁASNY klucz 'none' - nie podszywa się pod cudzy", async () => {
+    const { wrapper, queryClient } = harness();
+    threadApiMock.fetchClubThreadPolls.mockResolvedValue([]);
+    threadApiMock.searchClubThread.mockResolvedValue([]);
+
+    const polls = renderHook(() => useClubThreadPolls({ threadId: undefined }), { wrapper });
+    await polls.result.current.refetch();
+    const search = renderHook(
+      () => useClubThreadSearch({ threadId: undefined, query: "energia" }),
+      {
+        wrapper,
+      },
+    );
+    await search.result.current.refetch();
+
+    // Gdyby zapas był pustym napisem także w KLUCZU, wynik odświeżenia
+    // „bez wątku" wpadłby do wpisu wątku o pustym identyfikatorze i mógłby
+    // zostać podany innemu ekranowi.
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((entry) => JSON.stringify(entry.queryKey));
+    expect(keys).toContain(JSON.stringify(clubKeys.threadPolls("none")));
+    expect(keys).toContain(JSON.stringify(clubKeys.workspaceSearch("none", "energia")));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SIEĆ KLUBU - ODCZYTY Z IDENTYFIKATOREM
+//
+// Bramka każdego z tych hooków ma DWA człony: `clubId !== undefined` ORAZ
+// `clubId !== ""`. Drugi nie jest zdobieniem - trasa panelu podstawia PUSTY
+// NAPIS jako parametr ścieżki, zanim router go rozwiąże, a `"" !== undefined`
+// jest prawdą. Bez drugiego członu każde wejście na ekran zaczynałoby się od
+// zapytania o klub o pustym identyfikatorze. Warunki poniżej dowodzą OBU
+// członów: z prawdziwym klubem zapytanie jedzie, z pustym - nie.
+// ---------------------------------------------------------------------------
+
+describe("sieć klubu - odczyty z identyfikatorem", () => {
+  it("moje kompetencje, obszary i katalog ekspertów czytają po klubie", async () => {
+    const { wrapper } = harness();
+    networkApiMock.fetchMyClubExpertise.mockResolvedValue(["energy"]);
+    networkApiMock.fetchClubExpertiseAreas.mockResolvedValue([
+      { topic: "energy", experts: 4, is_mine: true },
+    ]);
+    networkApiMock.fetchClubExperts.mockResolvedValue({ rows: [], total: 0 });
+
+    const mine = renderHook(() => useMyClubExpertise(CLUB), { wrapper });
+    await waitFor(() => expect(mine.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchMyClubExpertise).toHaveBeenCalledWith(CLUB);
+    expect(mine.result.current.data).toEqual(["energy"]);
+
+    const areas = renderHook(() => useClubExpertiseAreas(CLUB), { wrapper });
+    await waitFor(() => expect(areas.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchClubExpertiseAreas).toHaveBeenCalledWith(CLUB);
+    expect(areas.result.current.data?.[0]?.topic).toBe("energy");
+
+    const experts = renderHook(() => useClubExperts({ clubId: CLUB }), { wrapper });
+    await waitFor(() => expect(experts.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchClubExperts).toHaveBeenCalledWith({
+      clubId: CLUB,
+      topic: null,
+      search: "",
+      limit: 24,
+      offset: 0,
+    });
+  });
+
+  it("katalog ekspertów: klucz nosi frazę PRZYCIĘTĄ, a filtr i stronicowanie dzielą wpisy", async () => {
+    const { wrapper } = harness();
+    networkApiMock.fetchClubExperts.mockResolvedValue({ rows: [], total: 0 });
+
+    const padded = renderHook(() => useClubExperts({ clubId: CLUB, search: "  hydro  " }), {
+      wrapper,
+    });
+    await waitFor(() => expect(padded.result.current.isSuccess).toBe(true));
+    // Fraza jedzie do RPC SUROWA (przycina ją `websearch_to_tsquery`), ale do
+    // klucza - przycięta: dopisanie spacji nie ma odpalać nowego zapytania.
+    expect(networkApiMock.fetchClubExperts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "  hydro  " }),
+    );
+
+    const trimmed = renderHook(() => useClubExperts({ clubId: CLUB, search: "hydro" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(trimmed.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchClubExperts).toHaveBeenCalledTimes(1);
+
+    const paged = renderHook(
+      () => useClubExperts({ clubId: CLUB, topic: "energy", offset: 24, limit: 12 }),
+      { wrapper },
+    );
+    await waitFor(() => expect(paged.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchClubExperts).toHaveBeenLastCalledWith({
+      clubId: CLUB,
+      topic: "energy",
+      search: "",
+      limit: 12,
+      offset: 24,
+    });
+  });
+
+  it("'poznaj członka', archiwum i sygnał składu czytają po klubie z własnymi limitami", async () => {
+    const { wrapper } = harness();
+    networkApiMock.fetchClubSpotlight.mockResolvedValue(null);
+    networkApiMock.fetchClubSpotlightHistory.mockResolvedValue([]);
+    networkApiMock.fetchClubRosterSignal.mockResolvedValue(null);
+
+    const spotlight = renderHook(() => useClubSpotlight(CLUB), { wrapper });
+    await waitFor(() => expect(spotlight.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchClubSpotlight).toHaveBeenCalledWith(CLUB);
+
+    const history = renderHook(() => useClubSpotlightHistory({ clubId: CLUB }), { wrapper });
+    await waitFor(() => expect(history.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchClubSpotlightHistory).toHaveBeenCalledWith(CLUB, 12);
+
+    const roster = renderHook(() => useClubRosterSignal({ clubId: CLUB, limit: 8 }), { wrapper });
+    await waitFor(() => expect(roster.result.current.isSuccess).toBe(true));
+    expect(networkApiMock.fetchClubRosterSignal).toHaveBeenCalledWith(CLUB, 8);
+  });
+
+  it("obecni na spotkaniu jadą po WYDARZENIU, choć bramka pyta też o klub", async () => {
+    const { wrapper } = harness();
+    networkApiMock.fetchClubEventAttendees.mockResolvedValue([]);
+
+    const { result } = renderHook(
+      () => useClubEventAttendees({ clubId: CLUB, eventId: "event-1" }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // Klub jest w KLUCZU (dwa kluby nie dzielą wpisu), ale RPC pyta wyłącznie
+    // o wydarzenie - to ono nosi listę zgłoszeń.
+    expect(networkApiMock.fetchClubEventAttendees).toHaveBeenCalledWith("event-1", 12);
+  });
+
+  it("PUSTY identyfikator zatrzymuje każdy odczyt sieci - trasa podstawia go przed dojechaniem", async () => {
+    const { wrapper } = harness();
+
+    renderHook(() => useClubBoardNotices({ clubId: "" }), { wrapper });
+    renderHook(() => useMyClubExpertise(""), { wrapper });
+    renderHook(() => useClubExperts({ clubId: "" }), { wrapper });
+    renderHook(() => useClubExpertiseAreas(""), { wrapper });
+    renderHook(() => useClubSpotlight(""), { wrapper });
+    renderHook(() => useClubSpotlightHistory({ clubId: "" }), { wrapper });
+    renderHook(() => useClubRosterSignal({ clubId: "" }), { wrapper });
+    renderHook(() => useClubThreadExperts({ threadId: "" }), { wrapper });
+    renderHook(() => useClubEventAttendees({ clubId: CLUB, eventId: "" }), { wrapper });
+
+    await tick();
+    expect(networkApiMock.fetchClubBoardNotices).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchMyClubExpertise).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubExperts).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubExpertiseAreas).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubSpotlight).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubSpotlightHistory).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubRosterSignal).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubThreadExperts).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubEventAttendees).not.toHaveBeenCalled();
+  });
+
+  it("tablica ogłoszeń bez klubu milczy i trzyma własny klucz 'none'", async () => {
+    const { wrapper, queryClient } = harness();
+
+    renderHook(() => useClubBoardNotices({ clubId: undefined }), { wrapper });
+
+    await tick();
+    expect(networkApiMock.fetchClubBoardNotices).not.toHaveBeenCalled();
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((entry) => JSON.stringify(entry.queryKey));
+    expect(keys).toContain(JSON.stringify(clubKeys.board("none", null, null, "open", 0, 8)));
+  });
+});
+
+describe("wymuszony refetch bez identyfikatora klubu - warstwa sieci", () => {
+  it("każdy odczyt sieci posyła PUSTY NAPIS zamiast `undefined`", async () => {
+    const { wrapper } = harness();
+    networkApiMock.fetchClubBoardNotices.mockResolvedValue({ rows: [], total: 0 });
+    networkApiMock.fetchMyClubExpertise.mockResolvedValue([]);
+    networkApiMock.fetchClubExperts.mockResolvedValue({ rows: [], total: 0 });
+    networkApiMock.fetchClubExpertiseAreas.mockResolvedValue([]);
+    networkApiMock.fetchClubSpotlight.mockResolvedValue(null);
+    networkApiMock.fetchClubSpotlightHistory.mockResolvedValue([]);
+    networkApiMock.fetchClubRosterSignal.mockResolvedValue(null);
+    networkApiMock.fetchClubThreadExperts.mockResolvedValue([]);
+    networkApiMock.fetchClubEvent.mockResolvedValue(null);
+    networkApiMock.fetchClubEventAttendees.mockResolvedValue([]);
+
+    const board = renderHook(() => useClubBoardNotices({ clubId: undefined }), { wrapper });
+    await board.result.current.refetch();
+    expect(networkApiMock.fetchClubBoardNotices).toHaveBeenCalledWith(
+      expect.objectContaining({ clubId: "", mine: false, includeClosed: false }),
+    );
+
+    const mine = renderHook(() => useMyClubExpertise(undefined), { wrapper });
+    await mine.result.current.refetch();
+    expect(networkApiMock.fetchMyClubExpertise).toHaveBeenCalledWith("");
+
+    const experts = renderHook(() => useClubExperts({ clubId: undefined }), { wrapper });
+    await experts.result.current.refetch();
+    expect(networkApiMock.fetchClubExperts).toHaveBeenCalledWith(
+      expect.objectContaining({ clubId: "" }),
+    );
+
+    const areas = renderHook(() => useClubExpertiseAreas(undefined), { wrapper });
+    await areas.result.current.refetch();
+    expect(networkApiMock.fetchClubExpertiseAreas).toHaveBeenCalledWith("");
+
+    const spotlight = renderHook(() => useClubSpotlight(undefined), { wrapper });
+    await spotlight.result.current.refetch();
+    expect(networkApiMock.fetchClubSpotlight).toHaveBeenCalledWith("");
+
+    const history = renderHook(() => useClubSpotlightHistory({ clubId: undefined }), { wrapper });
+    await history.result.current.refetch();
+    expect(networkApiMock.fetchClubSpotlightHistory).toHaveBeenCalledWith("", 12);
+
+    const roster = renderHook(() => useClubRosterSignal({ clubId: undefined }), { wrapper });
+    await roster.result.current.refetch();
+    expect(networkApiMock.fetchClubRosterSignal).toHaveBeenCalledWith("", 24);
+
+    const threadExperts = renderHook(() => useClubThreadExperts({ threadId: undefined }), {
+      wrapper,
+    });
+    await threadExperts.result.current.refetch();
+    expect(networkApiMock.fetchClubThreadExperts).toHaveBeenCalledWith("", 6);
+
+    const event = renderHook(() => useClubEvent({ clubId: undefined, slug: "spotkanie" }), {
+      wrapper,
+    });
+    await event.result.current.refetch();
+    expect(networkApiMock.fetchClubEvent).toHaveBeenCalledWith("", "spotkanie");
+
+    const attendees = renderHook(
+      () => useClubEventAttendees({ clubId: CLUB, eventId: undefined }),
+      { wrapper },
+    );
+    await attendees.result.current.refetch();
+    expect(networkApiMock.fetchClubEventAttendees).toHaveBeenCalledWith("", 12);
+  });
+});
