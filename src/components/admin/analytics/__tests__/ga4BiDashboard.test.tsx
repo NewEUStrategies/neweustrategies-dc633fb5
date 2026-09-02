@@ -431,9 +431,7 @@ describe("Ga4BiDashboard - GA4 niepodłączone", () => {
         en("adminAnalytics.ga4.notConfiguredTab") +
         en("adminAnalytics.ga4.notConfiguredPost"),
     );
-    expect(container.textContent).not.toContain(
-      realT("pl")("adminAnalytics.ga4.notConfiguredPre"),
-    );
+    expect(container.textContent).not.toContain(realT("pl")("adminAnalytics.ga4.notConfiguredPre"));
   });
 });
 
@@ -454,17 +452,20 @@ describe("Ga4BiDashboard - ładowanie", () => {
     expect(screen.queryByText(realT("pl")("adminAnalytics.common.loading"))).toBeNull();
   });
 
-  it.fails("DEFEKT: w trakcie pobierania kafelki KPI pokazują zera, jakby to był pomiar", async () => {
-    // Zero i „jeszcze nie wiem" to dwie różne informacje. Panel renderuje pełną
-    // siatkę KPI natychmiast, więc operator widzi „0 sesji", zanim dane w ogóle
-    // dojadą - i nie ma jak odróżnić tego od właściwości bez ruchu. Sąsiednie
-    // pulpity modułu w takiej sytuacji renderują komunikat.
-    h.runReport.mockImplementation(() => new Promise<Ga4Report>(() => {}));
-    panel();
-    await screen.findByText(realT("pl")("adminAnalytics.common.loading"));
+  it.fails(
+    "DEFEKT: w trakcie pobierania kafelki KPI pokazują zera, jakby to był pomiar",
+    async () => {
+      // Zero i „jeszcze nie wiem" to dwie różne informacje. Panel renderuje pełną
+      // siatkę KPI natychmiast, więc operator widzi „0 sesji", zanim dane w ogóle
+      // dojadą - i nie ma jak odróżnić tego od właściwości bez ruchu. Sąsiednie
+      // pulpity modułu w takiej sytuacji renderują komunikat.
+      h.runReport.mockImplementation(() => new Promise<Ga4Report>(() => {}));
+      panel();
+      await screen.findByText(realT("pl")("adminAnalytics.common.loading"));
 
-    expect(kpiValue(realT("pl")("adminAnalytics.ga4.sessions"))).not.toBe("0");
-  });
+      expect(kpiValue(realT("pl")("adminAnalytics.ga4.sessions"))).not.toBe("0");
+    },
+  );
 });
 
 describe("Ga4BiDashboard - błąd Data API", () => {
@@ -682,9 +683,9 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    expect(slices(optionOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.value)).toEqual(
-      [200, 150, 100, 50],
-    );
+    expect(
+      slices(optionOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.value),
+    ).toEqual([200, 150, 100, 50]);
   });
 
   it("donut bez metryki `sessions` w nagłówkach nie zmyśla wycinków", async () => {
@@ -752,11 +753,7 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     expect(LONG_PATH.length).toBeGreaterThan(40);
     // Oś kategorii ECharts rośnie w górę, więc najmocniejsza strona jest
     // OSTATNIA - odwrotna kolejność dałaby rank do góry nogami.
-    expect(strList(rec(o.yAxis).data)).toEqual([
-      "/kontakt",
-      "/o-nas",
-      LONG_PATH.slice(0, 40),
-    ]);
+    expect(strList(rec(o.yAxis).data)).toEqual(["/kontakt", "/o-nas", LONG_PATH.slice(0, 40)]);
     expect(numList(seriesOf(o)[0].data)).toEqual([10, 40, 120]);
   });
 
@@ -778,6 +775,24 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     // Trzy najsłabsze wypadają - gdyby przycinał przed sortowaniem, wypadłyby
     // przypadkowe.
     expect(labels).not.toContain("/strona-03");
+  });
+
+  it("wiersz z brakującą metryką daje zero na serii, nie dziurę i nie NaN", async () => {
+    // Data API potrafi skrócić wiersz, gdy metryka nie ma wartości dla danego
+    // dnia. Seria z `undefined` w środku rozjeżdża oś wobec dwóch pozostałych.
+    respondWith({
+      ...FULL,
+      date: report(CORE, {
+        totals: [30, 20, 60, 0.5],
+        rows: [row("20260801", 10, 8), row("20260802", 20, 12, 60, 0.5)],
+      }),
+    });
+    panel();
+    await loaded();
+
+    const s = seriesOf(optionOf("adminAnalytics.ga4.charts.trendTitle"));
+    expect(numList(s[2].data)).toEqual([0, 60]);
+    expect(numList(s[2].data).some(Number.isNaN)).toBe(false);
   });
 
   it("wymiar spoza formatu daty GA4 idzie na oś bez przekształcenia", async () => {
@@ -813,10 +828,9 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     // Pusty wymiar to realna odpowiedź Data API (np. ruch bez przypisanego
     // kraju). Wycinek bez nazwy zniknąłby z legendy, a suma donuta przestałaby
     // zgadzać się z kafelkiem.
-    expect(slices(optionOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.name)).toEqual([
-      "?",
-      "Germany",
-    ]);
+    expect(slices(optionOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.name)).toEqual(
+      ["?", "Germany"],
+    );
     expect(strList(rec(optionOf("adminAnalytics.ga4.charts.topPagesTitle").yAxis).data)).toEqual([
       "/",
     ]);
@@ -870,26 +884,23 @@ describe("Ga4BiDashboard - zero ruchu a brak konfiguracji", () => {
     );
   });
 
-  it.fails(
-    "DEFEKT: raport z `configured: false` maluje się jak zmierzone zero ruchu",
-    async () => {
-      // `runGa4Report` oddaje `EMPTY_GA4_REPORT` (czyli `configured: false`,
-      // BEZ pola `error`), gdy zabraknie property albo gdy odświeżenie tokenu
-      // Google padnie w locie. Prop `configured` pochodzi tymczasem ze statusu
-      // liczonego z ENV, więc jest wtedy `true` - i panel rysuje pełną siatkę
-      // zer. Pole `configured` z odpowiedzi nie jest czytane W OGÓLE: „nie mam
-      // dostępu do właściwości" i „właściwość nie miała ruchu" dają na ekranie
-      // dokładnie ten sam obraz, choć pierwsze wymaga interwencji admina,
-      // a drugie nie wymaga niczego.
-      respondWith(NOT_CONFIGURED_ON_SERVER);
-      const { container } = panel();
-      await loaded();
+  it.fails("DEFEKT: raport z `configured: false` maluje się jak zmierzone zero ruchu", async () => {
+    // `runGa4Report` oddaje `EMPTY_GA4_REPORT` (czyli `configured: false`,
+    // BEZ pola `error`), gdy zabraknie property albo gdy odświeżenie tokenu
+    // Google padnie w locie. Prop `configured` pochodzi tymczasem ze statusu
+    // liczonego z ENV, więc jest wtedy `true` - i panel rysuje pełną siatkę
+    // zer. Pole `configured` z odpowiedzi nie jest czytane W OGÓLE: „nie mam
+    // dostępu do właściwości" i „właściwość nie miała ruchu" dają na ekranie
+    // dokładnie ten sam obraz, choć pierwsze wymaga interwencji admina,
+    // a drugie nie wymaga niczego.
+    respondWith(NOT_CONFIGURED_ON_SERVER);
+    const { container } = panel();
+    await loaded();
 
-      expect(container.textContent ?? "").toContain(
-        realT("pl")("adminAnalytics.ga4.notConfiguredPre"),
-      );
-    },
-  );
+    expect(container.textContent ?? "").toContain(
+      realT("pl")("adminAnalytics.ga4.notConfiguredPre"),
+    );
+  });
 
   it.fails("DEFEKT: przy zerze ruchu panel nie mówi „brak danych w oknie”", async () => {
     // Komunikat JEST w słowniku (`adminAnalytics.common.noDataWindow`) i JEST
@@ -932,6 +943,33 @@ describe("Ga4BiDashboard - drill-down", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("kliknięcie legendy - zdarzenie bez indeksu punktu - nie otwiera okna", async () => {
+    panel();
+    await loaded();
+
+    // ECharts woła ten sam handler dla legendy i osi. Bez bramki na brak
+    // `dataIndex` panel otwierałby okno z danymi PIERWSZEGO dnia okna przy
+    // każdym kliknięciu w cokolwiek na wykresie.
+    await clickChart(chartOf("adminAnalytics.ga4.charts.trendTitle"), {
+      componentType: "legend",
+      name: realT("pl")("adminAnalytics.ga4.sessions"),
+    });
+    await clickChart(chartOf("adminAnalytics.ga4.charts.topPagesTitle"), {
+      componentType: "legend",
+    });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("kliknięcie poza słupkami rankingu nie otwiera pustego okna", async () => {
+    panel();
+    await loaded();
+
+    await clickChart(chartOf("adminAnalytics.ga4.charts.topPagesTitle"), { dataIndex: 42 });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("kliknięcie wycinka donuta pokazuje sesje i udział liczony z CAŁEGO raportu", async () => {
     const t = realT("pl");
     panel();
@@ -948,7 +986,9 @@ describe("Ga4BiDashboard - drill-down", () => {
     // pokazanych wycinków - inaczej udziały sumowałyby się do ponad 100%.
     expect(within(dialog).getByText("30.0%")).toBeInTheDocument();
     expect(within(dialog).getByText("150")).toBeInTheDocument();
-    expect(within(dialog).getByText(t("adminAnalytics.ga4.charts.sourcesTitle"))).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(t("adminAnalytics.ga4.charts.sourcesTitle")),
+    ).toBeInTheDocument();
   });
 
   it("wycinek niosący wartość w `data` (tak robi ECharts dla kołowego) też się otwiera", async () => {
@@ -1060,7 +1100,9 @@ describe("Ga4BiDashboard - okno i wejście zapytania", () => {
     await loaded();
 
     const inputs = reportInputs();
-    const current = inputs.filter((i) => i.dimensions[0] === "date" && i.endDate === yesterdayUtc());
+    const current = inputs.filter(
+      (i) => i.dimensions[0] === "date" && i.endDate === yesterdayUtc(),
+    );
     const previous = inputs.filter(
       (i) => i.dimensions[0] === "date" && i.endDate !== yesterdayUtc(),
     );
@@ -1127,7 +1169,11 @@ describe("Ga4BiDashboard - okno i wejście zapytania", () => {
     await loaded();
 
     const listbox = openSelect(screen.getByRole("combobox"));
-    expect(within(listbox).getAllByRole("option").map((o) => o.textContent)).toEqual([
+    expect(
+      within(listbox)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual([
       t("adminAnalytics.timeRange.preset7d"),
       t("adminAnalytics.timeRange.preset14d"),
       t("adminAnalytics.timeRange.preset28d"),
@@ -1260,17 +1306,20 @@ describe("Ga4BiDashboard - dostępność", () => {
     expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
   });
 
-  it.fails("DEFEKT: pole wyboru okna i przyciski kart wykresów nie mają dostępnych nazw", async () => {
-    // Etykieta „Okno" jest zwykłym `<label>` bez `htmlFor`, a wyzwalacz Radiksa
-    // nie ma `aria-label` - dla czytnika ekranu pole wyboru jest bezimienne.
-    // Do tego sześć przycisków „więcej" na kartach to sama ikona
-    // `MoreHorizontal`, choć sąsiedni przycisk pełnego ekranu - w tym samym
-    // pliku `ChartCard.tsx` - nazwę ma.
-    const { container } = panel();
-    await loaded();
+  it.fails(
+    "DEFEKT: pole wyboru okna i przyciski kart wykresów nie mają dostępnych nazw",
+    async () => {
+      // Etykieta „Okno" jest zwykłym `<label>` bez `htmlFor`, a wyzwalacz Radiksa
+      // nie ma `aria-label` - dla czytnika ekranu pole wyboru jest bezimienne.
+      // Do tego sześć przycisków „więcej" na kartach to sama ikona
+      // `MoreHorizontal`, choć sąsiedni przycisk pełnego ekranu - w tym samym
+      // pliku `ChartCard.tsx` - nazwę ma.
+      const { container } = panel();
+      await loaded();
 
-    expect(summarize(await axeViolations(container))).toBe("");
-  });
+      expect(summarize(await axeViolations(container))).toBe("");
+    },
+  );
 });
 
 describe("Ga4BiDashboard - dwujęzyczność", () => {
@@ -1332,7 +1381,10 @@ describe("Ga4BiDashboard - dwujęzyczność", () => {
       en("adminAnalytics.ga4.radar.events"),
     ]);
     expect(seriesOf(radar)[0].data).toEqual([
-      { value: [90, 50, 60, 75, 50], name: en("adminAnalytics.ga4.radar.seriesName", { days: 28 }) },
+      {
+        value: [90, 50, 60, 75, 50],
+        name: en("adminAnalytics.ga4.radar.seriesName", { days: 28 }),
+      },
     ]);
   });
 

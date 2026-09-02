@@ -226,13 +226,21 @@ describe("koszt renderu panelu (N8)", () => {
   });
 
   it("wymiana panelu na panel to dziesięć renderów, nie dwadzieścia", async () => {
-    // Zakładki `/admin/analytics` na wczytanych już danych: stary panel
-    // odmontowuje się w TYM SAMYM commicie, w którym montuje się nowy.
-    // Póki ostatni `unsubscribe` WYRZUCAŁ migawkę (`snapshot = null`), pierwszy
-    // odczyt po wymianie rodził NOWY obiekt o identycznych kolorach,
-    // `useSyncExternalStore` porównywał go przez `Object.is` i wymuszał
-    // każdemu nowemu wykresowi drugi render - czyli dokładnie ten koszt, który
-    // wspólna subskrypcja miała usunąć. ZMIERZONE: 20 renderów -> 10.
+    // Stary panel odmontowuje się w TYM SAMYM commicie, w którym montuje się
+    // nowy. Póki ostatni `unsubscribe` WYRZUCAŁ migawkę (`snapshot = null`),
+    // pierwszy odczyt po wymianie rodził NOWY obiekt o identycznych kolorach,
+    // `useSyncExternalStore` porównywał go przez `Object.is` i wymuszał każdemu
+    // nowemu wykresowi drugi render oraz drugie `setOption(notMerge)` - czyli
+    // dokładnie ten koszt, który wspólna subskrypcja miała usunąć, tylko innym
+    // wejściem. ZMIERZONE na tym przypadku: 20 renderów -> 10.
+    //
+    // UCZCIWIE O ZASIĘGU: dziś na `/admin/analytics` to się NIE ZAPALA, i to
+    // nie zasługa tego pliku. `EChart` bramkuje klienta stanem `mounted`, więc
+    // nowy `EChartClient` montuje się o commit PÓŹNIEJ niż odmontował się stary
+    // - zmierzone przez prawdziwy `EChart`: 10 renderów zarówno przed zmianą,
+    // jak i po niej. Ten test pilnuje kontraktu SAMEGO `EChartClient`, żeby
+    // zdjęcie tamtej bramki (albo pierwsze użycie komponentu z pominięciem
+    // `EChart`) nie przywróciło po cichu podwójnego renderu.
     const p = (tag: string) => (
       <>
         {Array.from({ length: 10 }, (_, i) => (
