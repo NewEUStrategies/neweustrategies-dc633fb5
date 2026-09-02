@@ -46,6 +46,16 @@ import {
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { CLUB_PRODUCT_KINDS, CLUB_SOURCE_KINDS } from "@/lib/clubs/workspaceTypes";
 import {
+  threadDocumentRow,
+  threadInsightRow,
+  threadLinkRow,
+  threadMilestoneRow,
+  threadParticipantRow,
+  threadPollRow,
+  threadQuestionRow,
+  workspaceSearchRow,
+} from "@/test/clubs/threadWorkspaceFixtures";
+import {
   useClubActivitySeries,
   useClubDocuments,
   useClubEventRsvp,
@@ -53,24 +63,32 @@ import {
   useClubMilestones,
   useClubWorkspaceStats,
   useDeleteClubDocument,
+  useDeleteClubEvent,
+  useDeleteClubMilestone,
   useUpsertClubDocument,
   useUpsertClubEvent,
   useUpsertClubMilestone,
 } from "@/lib/clubs/useClubWorkspace";
 import {
   useAddClubThreadLink,
+  useAnswerClubThreadQuestion,
   useAskClubThreadQuestion,
   useClubThreadDocuments,
   useClubThreadInsights,
   useClubThreadLinks,
+  useClubThreadMilestones,
   useClubThreadParticipants,
   useClubThreadPolls,
   useClubThreadQuestions,
   useClubThreadSearch,
   useClubThreadWorkspace,
   useCreateClubThreadPoll,
+  useDetachClubThreadPoll,
   useRemoveClubThreadDocument,
+  useRemoveClubThreadLink,
+  useRemoveClubThreadMilestone,
   useUpsertClubThreadDocument,
+  useUpsertClubThreadMilestone,
   useVoteClubThreadQuestion,
 } from "@/lib/clubs/useThreadWorkspace";
 import {
@@ -635,5 +653,192 @@ describe("skład, wydarzenia i 'poznaj członka'", () => {
     await close.result.current.mutateAsync("n1");
 
     await waitFor(() => expect(invalidated).toContainEqual(clubKeys.club(CLUB)));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ODCZYTY PRZESTRZENI ROBOCZEJ Z ISTNIEJĄCYM KLUBEM
+//
+// Warunki wyżej dowodzą bramek: bez klubu nie ma zapytania. Bramka to jednak
+// tylko połowa kontraktu - druga połowa jest w tym, CO dojeżdża do warstwy
+// danych, gdy klub JEST. Bramka `clubId !== undefined && clubId !== ""` ma
+// dwa człony, bo trasa panelu podstawia PUSTY NAPIS (parametr ścieżki, który
+// jeszcze nie dojechał), a `Boolean("")` i `"" !== undefined` to dwie różne
+// odpowiedzi - bez drugiego członu każde wejście w zakładkę zaczynałoby się
+// od zapytania o klub o pustym identyfikatorze.
+// ---------------------------------------------------------------------------
+
+describe("kalendarz, harmonogram i pomiar - odczyt z identyfikatorem klubu", () => {
+  it("kalendarz przekazuje okno dat, rodzaj i limit", async () => {
+    const { wrapper } = harness();
+    workspaceApiMock.fetchClubEvents.mockResolvedValue([]);
+
+    const { result } = renderHook(
+      () =>
+        useClubEvents({
+          clubId: CLUB,
+          from: "2026-09-01",
+          to: "2026-09-30",
+          kind: "meeting",
+          limit: 25,
+        }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(workspaceApiMock.fetchClubEvents).toHaveBeenCalledWith({
+      clubId: CLUB,
+      from: "2026-09-01",
+      to: "2026-09-30",
+      kind: "meeting",
+      limit: 25,
+    });
+  });
+
+  it("kalendarz bez zawężeń jedzie z domyślnym limitem i pustym oknem", async () => {
+    const { wrapper } = harness();
+    workspaceApiMock.fetchClubEvents.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useClubEvents({ clubId: CLUB }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(workspaceApiMock.fetchClubEvents).toHaveBeenCalledWith({
+      clubId: CLUB,
+      from: null,
+      to: null,
+      kind: null,
+      limit: 200,
+    });
+  });
+
+  it("harmonogram i przekrój czytają po identyfikatorze klubu", async () => {
+    const { wrapper } = harness();
+    workspaceApiMock.fetchClubMilestones.mockResolvedValue([]);
+    workspaceApiMock.fetchClubWorkspaceStats.mockResolvedValue(null);
+
+    const milestones = renderHook(() => useClubMilestones(CLUB), { wrapper });
+    await waitFor(() => expect(milestones.result.current.isSuccess).toBe(true));
+    expect(workspaceApiMock.fetchClubMilestones).toHaveBeenCalledWith(CLUB);
+
+    const stats = renderHook(() => useClubWorkspaceStats(CLUB), { wrapper });
+    await waitFor(() => expect(stats.result.current.isSuccess).toBe(true));
+    // Domyślne okno przekroju to 30 dni - dłuższe niż domyślne 90 dni serii,
+    // bo to dwa różne pytania: „ile się dzieje teraz" i „jak szedł kwartał".
+    expect(workspaceApiMock.fetchClubWorkspaceStats).toHaveBeenCalledWith(CLUB, 30);
+  });
+
+  it("PUSTY identyfikator klubu też nie odpytuje - trasa podstawia go przed dojechaniem", async () => {
+    const { wrapper } = harness();
+
+    renderHook(() => useClubDocuments({ clubId: "" }), { wrapper });
+    renderHook(() => useClubEvents({ clubId: "" }), { wrapper });
+    renderHook(() => useClubMilestones(""), { wrapper });
+    renderHook(() => useClubActivitySeries("", 30), { wrapper });
+    renderHook(() => useClubWorkspaceStats("", 30), { wrapper });
+
+    await tick();
+    expect(workspaceApiMock.fetchClubDocuments).not.toHaveBeenCalled();
+    expect(workspaceApiMock.fetchClubEvents).not.toHaveBeenCalled();
+    expect(workspaceApiMock.fetchClubMilestones).not.toHaveBeenCalled();
+    expect(workspaceApiMock.fetchClubActivitySeries).not.toHaveBeenCalled();
+    expect(workspaceApiMock.fetchClubWorkspaceStats).not.toHaveBeenCalled();
+  });
+
+  it("wymuszony refetch bez klubu posyła PUSTY NAPIS, nie `undefined`", async () => {
+    // `refetch()` omija bramkę `enabled` - robi tak każdy przycisk „odśwież"
+    // wpięty w wynik hooka. Wtedy o argumencie decyduje zapas `?? ""`, a nie
+    // bramka. `undefined` znika przy serializacji i RPC dostaje wywołanie bez
+    // parametru zamiast pustego wyniku.
+    const { wrapper } = harness();
+    workspaceApiMock.fetchClubDocuments.mockResolvedValue({ rows: [], total: 0 });
+    workspaceApiMock.fetchClubEvents.mockResolvedValue([]);
+    workspaceApiMock.fetchClubMilestones.mockResolvedValue([]);
+    workspaceApiMock.fetchClubActivitySeries.mockResolvedValue([]);
+    workspaceApiMock.fetchClubWorkspaceStats.mockResolvedValue(null);
+
+    const documents = renderHook(() => useClubDocuments({ clubId: undefined }), { wrapper });
+    await documents.result.current.refetch();
+    expect(workspaceApiMock.fetchClubDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ clubId: "" }),
+    );
+
+    const events = renderHook(() => useClubEvents({ clubId: undefined }), { wrapper });
+    await events.result.current.refetch();
+    expect(workspaceApiMock.fetchClubEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ clubId: "" }),
+    );
+
+    const milestones = renderHook(() => useClubMilestones(undefined), { wrapper });
+    await milestones.result.current.refetch();
+    expect(workspaceApiMock.fetchClubMilestones).toHaveBeenCalledWith("");
+
+    const series = renderHook(() => useClubActivitySeries(undefined), { wrapper });
+    await series.result.current.refetch();
+    // Domyślne okno serii to 90 dni - kwartał, bo wykres aktywności poniżej
+    // kwartału nie pokazuje trendu, tylko szum.
+    expect(workspaceApiMock.fetchClubActivitySeries).toHaveBeenCalledWith("", 90);
+
+    const stats = renderHook(() => useClubWorkspaceStats(undefined), { wrapper });
+    await stats.result.current.refetch();
+    expect(workspaceApiMock.fetchClubWorkspaceStats).toHaveBeenCalledWith("", 30);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KASOWANIE W PRZESTRZENI ROBOCZEJ
+//
+// Kasowanie wydarzenia i etapu to operacje NISZCZĄCE: nie ma po nich cofnięcia
+// w interfejsie. Przedmiotem dowodu są dwie rzeczy: (1) unieważniany jest
+// KORZEŃ klubu, bo przekrój `club_workspace_stats` liczy wydarzenia i etapy -
+// punktowa inwalidacja zostawiłaby skasowane wydarzenie w kafelku pomiaru;
+// (2) ODMOWA bazy nie unieważnia NICZEGO, więc lista nie przeładowuje się tak,
+// jakby usunięcie się powiodło.
+// ---------------------------------------------------------------------------
+
+describe("kasowanie wydarzenia i etapu", () => {
+  it("usunięcie wydarzenia idzie po identyfikatorze i unieważnia korzeń klubu", async () => {
+    const { wrapper, invalidated } = harness();
+    workspaceApiMock.deleteClubEvent.mockResolvedValue(true);
+
+    const { result } = renderHook(() => useDeleteClubEvent(CLUB), { wrapper });
+    await result.current.mutateAsync("event-1");
+
+    // `mutationFn` przekazana wprost - react-query dokłada drugi argument.
+    expect(workspaceApiMock.deleteClubEvent.mock.calls[0]?.[0]).toBe("event-1");
+    await waitFor(() => expect(invalidated).toContainEqual(clubKeys.club(CLUB)));
+  });
+
+  it("usunięcie etapu ma ten sam skutek - harmonogram też jest liczony w przekroju", async () => {
+    const { wrapper, invalidated } = harness();
+    workspaceApiMock.deleteClubMilestone.mockResolvedValue(true);
+
+    const { result } = renderHook(() => useDeleteClubMilestone(CLUB), { wrapper });
+    await result.current.mutateAsync("milestone-1");
+
+    expect(workspaceApiMock.deleteClubMilestone.mock.calls[0]?.[0]).toBe("milestone-1");
+    await waitFor(() => expect(invalidated).toContainEqual(clubKeys.club(CLUB)));
+  });
+
+  it("ODMOWA bazy nie unieważnia niczego - kalendarz nie udaje, że skasował", async () => {
+    const { wrapper, invalidated } = harness();
+    workspaceApiMock.deleteClubEvent.mockRejectedValue(new Error("forbidden"));
+
+    const { result } = renderHook(() => useDeleteClubEvent(CLUB), { wrapper });
+    await expect(result.current.mutateAsync("event-1")).rejects.toThrow("forbidden");
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidated).toEqual([]);
+    expect(result.current.isSuccess).toBe(false);
+  });
+
+  it("ODMOWA przy kasowaniu etapu również zostawia cache nietknięty", async () => {
+    const { wrapper, invalidated } = harness();
+    workspaceApiMock.deleteClubMilestone.mockRejectedValue(new Error("forbidden"));
+
+    const { result } = renderHook(() => useDeleteClubMilestone(CLUB), { wrapper });
+    await expect(result.current.mutateAsync("milestone-1")).rejects.toThrow("forbidden");
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidated).toEqual([]);
   });
 });

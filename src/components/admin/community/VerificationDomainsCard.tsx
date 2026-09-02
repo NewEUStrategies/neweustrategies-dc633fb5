@@ -224,7 +224,18 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium">{row.domain}</span>
-                    <ProfileBadge badge={row.badge} language={language} />
+                    {/*
+                      `ProfileBadge` jest atomem LISTY (`role="listitem"`) -
+                      w reszcie serwisu opakowuje go `ProfileBadges` z
+                      `role="list"`. Postawiony samotnie w `<div>` dawał sierotę
+                      bez rodzica listy (axe `aria-required-parent`, WCAG 1.3.1),
+                      więc odznaka dostaje własny, jednoelementowy pojemnik listy.
+                      Kanonicznego `ProfileBadges` użyć tu NIE MOŻNA: bierze język
+                      z `i18n.language`, a ten panel dostaje go propsem `language`.
+                    */}
+                    <span role="list" className="inline-flex">
+                      <ProfileBadge badge={row.badge} language={language} />
+                    </span>
                     {row.grants_tier_key && (
                       <Badge variant="secondary">
                         {t("adminCommunity.verificationDomains.plan")}

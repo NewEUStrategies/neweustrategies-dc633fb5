@@ -182,9 +182,7 @@ describe("eskapowanie tekstu w ICS", () => {
     const unfolded = ics.split("\r\n ").join("");
     // Kolejność ucieczek ma znaczenie: backslash musi być podwojony PIERWSZY,
     // inaczej „\\," wyszłoby jako „\\\\,” albo jako niepoprawne „\\\,”.
-    expect(unfolded).toContain(
-      "SUMMARY:Panel: prawo\\, ryzyko\\; wersja C:\\\\dane\\nlinia druga",
-    );
+    expect(unfolded).toContain("SUMMARY:Panel: prawo\\, ryzyko\\; wersja C:\\\\dane\\nlinia druga");
     // Kontrola negatywna na sam sedno defektu: w całym dokumencie nie ma
     // ANI JEDNEGO przecinka bez poprzedzającego backslasha wewnątrz wartości.
     const summary = unfolded.split("\r\n").find((l) => l.startsWith("SUMMARY:")) ?? "";
@@ -221,10 +219,7 @@ describe("eskapowanie tekstu w ICS", () => {
   });
 
   it("puste pola opcjonalne (sam biały znak) NIE trafiają do dokumentu", () => {
-    const ics = buildEventIcs(
-      { ...BASE, description: "   ", location: "\t ", url: null },
-      now,
-    );
+    const ics = buildEventIcs({ ...BASE, description: "   ", location: "\t ", url: null }, now);
     expect(ics).not.toContain("DESCRIPTION:");
     expect(ics).not.toContain("LOCATION:");
     expect(ics).not.toContain("URL:");
@@ -363,23 +358,21 @@ describe("downloadIcs", () => {
   });
 
   it("buduje Blob z typem kalendarza, klika kotwicę i sprząta po sobie", async () => {
-    const createObjectURL = vi
-      .spyOn(URL, "createObjectURL")
-      .mockReturnValue("blob:test/kalendarz");
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test/kalendarz");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockReturnValue(undefined);
     // Kliknięcie kotwicy z `download` to w happy-dom próba nawigacji - szpieg
     // zatrzymuje ją i JEDNOCZEŚNIE utrwala stan elementu w chwili kliknięcia,
     // bo produkcja usuwa go natychmiast potem.
     const clicked: Array<{ href: string; download: string; inDom: boolean }> = [];
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        clicked.push({
-          href: this.getAttribute("href") ?? "",
-          download: this.getAttribute("download") ?? "",
-          inDom: this.isConnected,
-        });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked.push({
+        href: this.getAttribute("href") ?? "",
+        download: this.getAttribute("download") ?? "",
+        inDom: this.isConnected,
       });
+    });
 
     downloadIcs({ ...BASE, title: NASTY_TITLE }, icsFileName("AI Act 2026"));
 

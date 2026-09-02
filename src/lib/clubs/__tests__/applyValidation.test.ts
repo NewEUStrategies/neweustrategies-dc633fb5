@@ -536,4 +536,26 @@ describe("clubApplySchema - kontrakt kształtu", () => {
     const parsed = clubApplySchema.safeParse({ ...VALID, consent: "true" });
     expect(parsed.success).toBe(false);
   });
+
+  // DLACZEGO `validateClubApply` FILTRUJE POLA, skoro schemat i mapa błędów
+  // wyglądają na tę samą listę. Bo nie są tą samą listą: schemat zna
+  // `marketingConsent`, a `CLUB_APPLY_FIELDS` (czyli zbiór kluczy mapy błędów,
+  // po którym widok rysuje komunikaty przy polach) - nie. Błąd tego pola nie
+  // ma gdzie się narysować, więc pętla w `validateClubApply` go POMIJA zamiast
+  // wpisywać do mapy klucz, którego formularz nie umie pokazać. Warunek pilnuje
+  // ROZJAZDU: dopisanie do schematu kolejnego pola spoza `CLUB_APPLY_FIELDS`
+  // (albo odwrotnie - dopisanie `marketingConsent` do listy bez komunikatu
+  // i18n) zapala się tutaj.
+  it("`marketingConsent` jest jedynym polem schematu spoza `CLUB_APPLY_FIELDS`", () => {
+    expect(CLUB_APPLY_FIELDS as readonly string[]).not.toContain("marketingConsent");
+
+    const parsed = clubApplySchema.safeParse({ ...VALID, marketingConsent: "tak" });
+    expect(parsed.success).toBe(false);
+    const offending = parsed.success ? [] : parsed.error.issues.map((issue) => issue.path[0]);
+    expect(offending).toEqual(["marketingConsent"]);
+
+    // Kanarek: pole Z listy daje błąd, który do mapy WCHODZI - inaczej warunek
+    // wyżej przechodziłby także dla walidacji, która nie zwraca nic.
+    expect(validateClubApply({ ...VALID, motivation: "za krótko" })).toHaveProperty("motivation");
+  });
 });

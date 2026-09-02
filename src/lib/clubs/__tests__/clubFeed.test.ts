@@ -6,7 +6,10 @@
 // jest czystą funkcją i ma tu opisane WSZYSTKIE swoje przypadki brzegowe -
 // łącznie z tym najważniejszym, czyli klubem, który dopiero powstał.
 import { describe, expect, it } from "vitest";
-import { buildClubFeed, CLUB_FEED_MODES, type ClubFeedMode } from "../clubFeed";
+import { buildClubFeed, CLUB_FEED_MODES, isClubFeedEmpty, type ClubFeedMode } from "../clubFeed";
+import { clubIsoOffset, clubThreadListRow } from "@/test/clubs/fixtures";
+import { clubPostRow } from "@/test/clubs/hubFixtures";
+import type { ClubPostRow } from "../postTypes";
 import type { ClubThreadListRow } from "../types";
 import type { ClubDocumentRow, ClubEventRow, ClubMilestoneRow } from "../workspaceTypes";
 
@@ -199,5 +202,151 @@ describe("klucze wpisów", () => {
       documents: [{ id: "nowy" } as ClubDocumentRow, ...documents(2)],
     })[0]?.key;
     expect(before).not.toBe(after);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ŚCIANA W STRUMIENIU
+//
+// Wpisy weszły do strumienia PÓŹNIEJ niż wątki i nie są sortowane razem z nimi.
+// Reguła: wpis wchodzi PRZED pierwszym wątkiem, który jest od niego STARSZY.
+// Powód jest nieoczywisty i dlatego wart osobnego dowodu - lista wątków
+// przychodzi w porządku „gorące", który datą NIE JEST. Globalne posortowanie
+// całości po czasie zniszczyłoby ranking, po który użytkownik przyszedł;
+// ta reguła zachowuje względną kolejność wątków i mimo to stawia świeży wpis
+// na górze.
+// ---------------------------------------------------------------------------
+
+describe("buildClubFeed - przeplot wpisów ściany z wątkami", () => {
+  /** Wątek o zadanym „ostatnim ruchu" - to on jest znacznikiem przeplotu. */
+  function datedThread(id: string, lastReplyMinutes: number): ClubThreadListRow {
+    return clubThreadListRow({
+      id,
+      slug: id,
+      last_reply_at: clubIsoOffset(lastReplyMinutes),
+      created_at: clubIsoOffset(lastReplyMinutes),
+    });
+  }
+
+  /** Wpis ściany o zadanym czasie powstania. */
+  function datedPost(id: string, createdMinutes: number): ClubPostRow {
+    return clubPostRow({ id, created_at: clubIsoOffset(createdMinutes) });
+  }
+
+  it("tryb `posts` pokazuje SAME wpisy, w kolejności otrzymanej z bazy", () => {
+    const feed = buildClubFeed({
+      ...EMPTY,
+      mode: "posts",
+      documents: documents(3),
+      events: events(2),
+      milestones: milestones(["active"]),
+      posts: [datedPost("p1", 0), datedPost("p2", -30)],
+    });
+
+    // Tryb dedykowany NIE dokłada kart kontekstowych - użytkownik świadomie
+    // przełączył widok na ścianę i dokumenty byłyby tu wtrętem.
+    expect(feed.map((entry) => entry.kind)).toEqual(["post", "post"]);
+    expect(feed.map((entry) => entry.key)).toEqual(["p:p1", "p:p2"]);
+  });
+
+  it("tryb `posts` bez wpisów daje pusty strumień, a nie karty kontekstowe", () => {
+    const feed = buildClubFeed({ ...EMPTY, mode: "posts", events: events(1) });
+    expect(feed).toEqual([]);
+  });
+
+  it("wpis ŚWIEŻSZY niż pierwszy wątek staje NAD nim", () => {
+    const feed = buildClubFeed({
+      ...EMPTY,
+      mode: "all",
+      threads: [datedThread("t1", -60)],
+      posts: [datedPost("p1", 0)],
+    });
+    expect(feed.map((entry) => entry.key)).toEqual(["p:p1", "t:t1"]);
+  });
+
+  // SEDNO REGUŁY: wpis STARSZY od wątku czeka, aż strumień dojdzie do wątku
+  // starszego od niego. Bez tego warunku wpis sprzed tygodnia lądowałby
+  // na czele ściany przy każdym wejściu na hub.
+  it("wpis STARSZY niż wątek czeka na swoje miejsce, nie wchodzi na górę", () => {
+    const feed = buildClubFeed({
+      ...EMPTY,
+      mode: "all",
+      threads: [datedThread("t1", 0), datedThread("t2", -120)],
+      posts: [datedPost("p1", -60)],
+    });
+    // p1 jest starszy od t1, więc t1 idzie pierwszy; p1 jest świeższy od t2,
+    // więc wchodzi przed nim.
+    expect(feed.map((entry) => entry.key)).toEqual(["t:t1", "p:p1", "t:t2"]);
+  });
+
+  it("wpisy starsze od WSZYSTKICH wątków dojeżdżają na koniec, żaden nie ginie", () => {
+    const feed = buildClubFeed({
+      ...EMPTY,
+      mode: "all",
+      threads: [datedThread("t1", 0)],
+      posts: [datedPost("p1", -60), datedPost("p2", -90)],
+    });
+    expect(feed.map((entry) => entry.key)).toEqual(["t:t1", "p:p1", "p:p2"]);
+  });
+
+  it("wpis RÓWNOCZESNY z wątkiem ustępuje wątkowi - remis rozstrzyga się raz", () => {
+    // Warunek jest `<=`, więc równy znacznik znaczy „nie wyprzedzaj".
+    // Gdyby był `<`, wpis i wątek z tą samą sekundą potrafiłyby zamieniać się
+    // miejscami między renderami.
+    const feed = buildClubFeed({
+      ...EMPTY,
+      mode: "all",
+      threads: [datedThread("t1", 0)],
+      posts: [datedPost("p1", 0)],
+    });
+    expect(feed.map((entry) => entry.key)).toEqual(["t:t1", "p:p1"]);
+  });
+
+  it("wątek BEZ ostatniej odpowiedzi jest datowany swoim powstaniem", () => {
+    const thread = clubThreadListRow({
+      id: "t1",
+      slug: "t1",
+      last_reply_at: null,
+      created_at: clubIsoOffset(-60),
+    });
+    const feed = buildClubFeed({
+      ...EMPTY,
+      mode: "all",
+      threads: [thread],
+      posts: [datedPost("p1", 0)],
+    });
+    expect(feed.map((entry) => entry.key)).toEqual(["p:p1", "t:t1"]);
+  });
+
+  it("brak listy wpisów jest równoważny liście pustej - wołający bez ściany", () => {
+    // Mini-strona klubu woła `buildClubFeed` bez `posts`; strumień ma wtedy
+    // wyglądać dokładnie tak, jak przed dołożeniem ściany.
+    const withoutPosts = buildClubFeed({ ...EMPTY, mode: "all", threads: [datedThread("t1", 0)] });
+    const withEmptyPosts = buildClubFeed({
+      ...EMPTY,
+      mode: "all",
+      threads: [datedThread("t1", 0)],
+      posts: [],
+    });
+    expect(withoutPosts).toEqual(withEmptyPosts);
+  });
+});
+
+describe("isClubFeedEmpty - pusto NA POZIOMIE TREŚCI", () => {
+  it("strumień bez ani jednej karty jest pusty", () => {
+    expect(isClubFeedEmpty(buildClubFeed({ ...EMPTY, mode: "all" }))).toBe(true);
+  });
+
+  it("klub z jednym nadchodzącym posiedzeniem i ZEREM wątków NIE jest pusty", () => {
+    // To jest cały powód istnienia tej funkcji: pytanie brzmi „czy jest co
+    // pokazać", a nie „czy są wątki". Ekran nie ma prawa twierdzić inaczej.
+    const feed = buildClubFeed({ ...EMPTY, mode: "all", events: events(1) });
+    expect(feed).toHaveLength(1);
+    expect(isClubFeedEmpty(feed)).toBe(false);
+  });
+
+  it("klub z samym wpisem ściany też nie jest pusty", () => {
+    const feed = buildClubFeed({ ...EMPTY, mode: "all", posts: [clubPostRow({ id: "p1" })] });
+    expect(isClubFeedEmpty(feed)).toBe(false);
   });
 });

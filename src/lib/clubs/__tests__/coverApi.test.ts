@@ -47,7 +47,7 @@
 // klucz obiektu nie jest wiązany z tenantem, `clubId` wchodzi do klucza
 // nieprzefiltrowany, a plik ląduje w publicznym kubełku ZANIM ktokolwiek
 // sprawdzi prawo do tego konkretnego klubu.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CLUB_COVER_ACCEPT_ATTR,
@@ -134,10 +134,6 @@ beforeEach(() => {
   st.state.removed.length = 0;
   st.state.removeRejection = null;
   st.state.publicUrlData = { publicUrl: `${PUBLIC_BASE}/club-covers/${CLUB_IDS.club}/x.png` };
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -324,6 +320,11 @@ describe("wgranie okładki: ścieżka szczęśliwa", () => {
       upsert: false,
       contentType: "image/webp",
     });
+    // Nazwa pliku użytkownika jedzie do magazynu jako TREŚĆ obiektu, ale NIE
+    // jako jego klucz - inaczej spacje i wielkie litery z pulpitu autora
+    // stałyby się częścią publicznego adresu okładki.
+    expect(wgranie.fileName).toBe("Baner Klubu.WEBP");
+    expect(wgranie.path).not.toContain("Baner");
   });
 
   it("adres publiczny jest liczony dla DOKŁADNIE tego klucza, który poszedł do magazynu", async () => {
