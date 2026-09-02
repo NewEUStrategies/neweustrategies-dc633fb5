@@ -120,8 +120,14 @@ function type(box: HTMLElement, value: string) {
   });
 }
 
+/** Pole treści. Zawężenie przez `instanceof`, nie rzutowanie - testy dalej
+ *  ustawiają na nim karetkę, a to API ma tylko <textarea>. */
 function composer(): HTMLTextAreaElement {
-  return screen.getByRole("combobox");
+  const box = screen.getByRole("combobox");
+  if (!(box instanceof HTMLTextAreaElement)) {
+    throw new Error("pole treści komentarza nie jest <textarea>");
+  }
+  return box;
 }
 
 function submitButton(): HTMLElement {

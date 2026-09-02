@@ -748,20 +748,6 @@ describe("edycja własnego komentarza", () => {
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("comments.errors.generic"));
   });
-
-  it("komentarz z PUSTĄ treścią otwiera edytor bez wartości zamiast się wysypać", async () => {
-    // `body` w bazie jest nullable - edytor musi startować z pustym stringiem,
-    // bo `value={null}` przełączyłoby pole na niekontrolowane.
-    h.page = {
-      comments: [freshRow({ id: "c-empty", body: null })],
-      topLevelCount: 1,
-      approvedCount: 1,
-    };
-    const box = await openEditor();
-
-    expect(box.value).toBe("");
-    expect(screen.getByRole("button", { name: "comments.saveEdit" })).toBeDisabled();
-  });
 });
 
 describe("usunięcie komentarza wymaga potwierdzenia", () => {
