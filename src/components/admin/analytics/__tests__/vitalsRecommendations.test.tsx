@@ -265,9 +265,7 @@ describe("VitalsRecommendations - format wartości w opisie", () => {
     panel(report({ metrics: [m] }));
 
     expect(
-      screen.getByText(
-        vit("globalDetail", { p75: "0.420", good: 5, ni: 5, poor: 30, count: 40 }),
-      ),
+      screen.getByText(vit("globalDetail", { p75: "0.420", good: 5, ni: 5, poor: 30, count: 40 })),
     ).toBeInTheDocument();
   });
 
@@ -313,17 +311,28 @@ describe("VitalsRecommendations - wnioski per ścieżka", () => {
     );
 
     expect(
-      screen.getByText(vit("pathTitle", { metric: "LCP", path: "/analizy/energia", value: "7.00 s" })),
+      screen.getByText(
+        vit("pathTitle", { metric: "LCP", path: "/analizy/energia", value: "7.00 s" }),
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(vit("pathDetail", { total: 240, threshold: `${poorThreshold / 1000}.00 s` })),
+      screen.getByText(
+        vit("pathDetail", { total: 240, threshold: `${poorThreshold / 1000}.00 s` }),
+      ),
     ).toBeInTheDocument();
     expect(findings(container)).toHaveLength(1);
   });
 
   it("ścieżka w strefie ostrzegawczej jest POMIJANA - inaczej lista to szum", () => {
     const { container } = panel(
-      report({ paths: [pathRow("/o-nas", 90, [["LCP", 3000], ["CLS", 0.15]])] }),
+      report({
+        paths: [
+          pathRow("/o-nas", 90, [
+            ["LCP", 3000],
+            ["CLS", 0.15],
+          ]),
+        ],
+      }),
     );
 
     expect(screen.getByText(vit("allGood"))).toBeInTheDocument();
@@ -342,7 +351,9 @@ describe("VitalsRecommendations - wnioski per ścieżka", () => {
   });
 
   it("ścieżka jest podpisana obok tytułu i oznaczona zakresem „ścieżka”", () => {
-    const { container } = panel(report({ paths: [pathRow("/raporty/klimat", 44, [["INP", 900]])] }));
+    const { container } = panel(
+      report({ paths: [pathRow("/raporty/klimat", 44, [["INP", 900]])] }),
+    );
     const card = findings(container)[0];
 
     expect(card).toHaveTextContent(vit("scopePath"));
@@ -369,9 +380,7 @@ describe("VitalsRecommendations - kolejność, plakietki i limit", () => {
 
     const titles = findings(container).map(titleOf);
     expect(titles[0]).toBe(playbook("LCP", "poor").title);
-    expect(titles[1]).toBe(
-      vit("pathTitle", { metric: "INP", path: "/analizy", value: "900 ms" }),
-    );
+    expect(titles[1]).toBe(vit("pathTitle", { metric: "INP", path: "/analizy", value: "900 ms" }));
     expect(titles[2]).toBe(playbook("CLS", "ni").title);
   });
 
@@ -484,7 +493,9 @@ describe("VitalsRecommendations - słownik PL/EN", () => {
 
     expect(findings(container)[0]).toHaveTextContent(vit("scopePath", {}, "en"));
     expect(
-      screen.getByText(vit("pathTitle", { metric: "INP", path: "/reports", value: "900 ms" }, "en")),
+      screen.getByText(
+        vit("pathTitle", { metric: "INP", path: "/reports", value: "900 ms" }, "en"),
+      ),
     ).toBeInTheDocument();
   });
 });

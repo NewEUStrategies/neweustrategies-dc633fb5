@@ -209,7 +209,6 @@ describe("useNotificationsInfinite - klucz cache", () => {
     ]);
   });
 
-
   it("RÓŻNY filtr to RÓŻNY slot cache i osobny request", async () => {
     db().setResponse("notifications", ok([]));
     const { result, queryClient } = renderHookWithQueryClient(() => ({

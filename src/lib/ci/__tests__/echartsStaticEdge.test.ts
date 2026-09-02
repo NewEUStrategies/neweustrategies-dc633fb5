@@ -61,7 +61,10 @@ function valueImportSpecifiers(source: string): string[] {
     if (isTypeOnly) continue;
     // `import { type A, type B } from "x"` też nie tworzy krawędzi runtime.
     const named = clause.match(/^\{([\s\S]*)\}$/);
-    if (named && named[1].split(",").every((part) => part.trim() === "" || /^type\s/.test(part.trim()))) {
+    if (
+      named &&
+      named[1].split(",").every((part) => part.trim() === "" || /^type\s/.test(part.trim()))
+    ) {
       continue;
     }
     out.push(match[4]);
