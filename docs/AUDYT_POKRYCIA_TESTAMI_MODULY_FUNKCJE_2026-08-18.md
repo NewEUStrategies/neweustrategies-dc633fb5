@@ -1252,14 +1252,14 @@ z tych wiader kampania nie ruszyła ani kilobajta. Ale próg jest przebity i wym
 własnej diagnozy.
 
 
-#### Co znalazły testy, których nikt nie szukał: 96 przypięć `it.fails`
+#### Co znalazły testy, których nikt nie szukał: 100 przypięć `it.fails`
 
 Reguła zlecenia była jednoznaczna: defekt poza listą N1-N8 idzie do rejestru jako
 `it.fails` z opisem złamanego kontraktu, a nie do naprawy. Wszystkie niżej są więc
 ZAPISANE, nie naprawione - i to jest decyzja zamawiającego, nie mój wniosek o ich
 nieważności. Przypięcia leżą w 35 plikach testowych modułu. Cztery klasy zasługują na osobne miejsce.
 
-**KLASA PIERWSZA, NAJPOWAŻNIEJSZA: pięć kluczy cache bez identyfikatora warsztatu.**
+**KLASA PIERWSZA, NAJPOWAŻNIEJSZA: DZIEWIĘĆ kluczy cache bez identyfikatora warsztatu.**
 To nie są trzy przypadki, to jeden wzorzec powtórzony w całym module. `queryKey:
 ["gsc-sites"]` jest STAŁY - nie ma w nim ani tenanta, ani użytkownika. Przy kliencie
 react-query przeżywającym zmianę warsztatu panel dostaje z cache listę właściwości
@@ -1271,12 +1271,31 @@ nie w logu i nie w zakładce sieci. Ten sam kształt mają panele GA4 i powiąza
 wpisów oraz - poza panelami - `usePendingCounters`, gdzie klucz kolejek nie niesie
 przestrzeni roboczej, więc liczniki tenanta A trafiają do sesji tenanta B.
 
-Warto być tu precyzyjnym co do zasięgu, bo od tego zależy pilność: cache react-query
+KOREKTA WŁASNEGO ZAPISU: przy pierwszym przeglądzie napisałem „pięć kluczy".
+Pełny rejestr niżej pokazuje **dziewięć** - osiem paneli (`gsc-sites`, `ga4-bi`,
+`vitals-bi`, `related-insights`, `footer-analytics`, `audience-segments`,
+`client-errors`, `semantic-snapshot`) plus `pendingCounterKeys.tenant()`. Dwa
+z nich są gorsze od pozostałych, bo rozdzielają warsztaty WYŁĄCZNIE znacznikiem
+czasu z `Date.now()` (`client-errors`, `vitals-bi`) - przy zamrożonym zegarze
+albo dwóch panelach liczących to samo okno trafiają w ten sam wpis cache.
+
+**I DRUGA KOREKTA, POWAŻNIEJSZA: najgroźniejszy przeciek nie jest w kluczach
+cache.** `ga4.server.ts` buduje raport błędu przez `{ ...EMPTY_GA4_REPORT }` -
+płytką kopię. `rows`, `totals` i nagłówki KAŻDEGO raportu błędu to więc TE SAME
+instancje tablic w całym izolacie workera, współdzielone MIĘDZY ŻĄDANIAMI RÓŻNYCH
+NAJEMCÓW. Klucze react-query wymagają jednej sesji przeglądarki widzącej dwa
+warsztaty; ten defekt nie wymaga niczego - działa poza sesją, po stronie serwera,
+i wiersz dopisany przez warsztat A widzi warsztat B. W kolejce naprawy stoi więc
+zaraz za kluczami, a nie w ogonie rejestru, gdzie trafiłby po samej nazwie
+(„odporność"). Naprawa: głęboka kopia albo `Object.freeze` na stałej.
+
+Warto być tu precyzyjnym co do zasięgu KLUCZY CACHE, bo od tego zależy ich
+pilność: cache react-query
 żyje w JEDNEJ sesji przeglądarki, więc wyciek wymaga tej samej sesji widzącej dwa
 warsztaty bez pełnego przeładowania. To nie jest wektor dla obcego napastnika - to
 jest wektor dla operatora obsługującego kilka instalacji, czyli dokładnie dla roli,
 która patrzy na te panele. Naprawa jest mechaniczna: identyfikator warsztatu w kluczu.
-Pięć przypięć zgaśnie tego samego dnia, w którym ktoś ją wprowadzi.
+Dziewięć przypięć zgaśnie tego samego dnia, w którym ktoś ją wprowadzi.
 **REKOMENDACJA: to powinna być następna zmiana w tym module, przed dalszym pokryciem.**
 
 **KLASA DRUGA: brak alternatywy tekstowej dla wykresów.** Wydanie 8 audytu
@@ -1373,6 +1392,108 @@ W instalacji z wieloma zespołami sztabowymi ręczny tick z `/admin/tracker` jes
 przypisywalny do osoby, ale nie do obszaru roboczego, a rekonstrukcja po `actorId`
 wymaga sięgnięcia do profilu, który w tym czasie mógł już zmienić najemcę. Naprawa
 jest mechaniczna i wzorowa istnieje obok (`scheduler.functions.ts`).
+
+
+#### Rozkład wag i kolejność naprawy
+
+Pełny rejestr 100 przypięć - plik, przypadek, złamany kontrakt - jest w plikach
+testowych, przy każdym przypadku, w komentarzu nad nim; tutaj podaję rozkład
+i kolejność, bo to one czynią z rejestru listę roboczą, a nie anegdotę.
+Klasyfikacja idzie po SKUTKU dla odbiorcy, nie po miejscu w kodzie:
+
+| waga | przypięć | co znaczy |
+| ---- | -------: | --------- |
+| izolacja | 13 | dane albo liczniki jednego obszaru roboczego mogą trafić do drugiego |
+| poprawność | 44 | zmienia LICZBĘ albo ZNAK wniosku w raporcie |
+| dostępność | 33 | odbiera treść części odbiorców |
+| odporność | 8 | nie kłamie, ale wywraca się albo gubi dane na wejściu brzegowym |
+
+**Ten rozkład mówi jedno: moduł 17 nie jest kruchy, jest NIEWIARYGODNY.** Tylko
+8 przypięć opisuje kod, który się wywraca - a 44 opisują kod, który odpowiada
+PEWNIE I BŁĘDNIE. Defekt, który wywraca ekran, zgłasza się sam; defekt, który
+podaje liczbę, zostanie zauważony dopiero wtedy, gdy ktoś na jej podstawie podejmie
+decyzję. Największa pojedyncza rodzina w obrębie „poprawności" - dwadzieścia cztery
+przypięcia w jedenastu plikach - to jeden wzorzec: **mieszanie „braku pomiaru"
+z „pomiarem równym zero"**. Kafelki KPI w trakcie pobierania, przy padniętym
+zapytaniu i przy nieskonfigurowanym GA4 malują zera, jakby to był pomiar, a panele
+audytorium i błędów dokładają do tego zieloną kartę „nie znaleziono krytycznych
+zagadnień" - czyli zamieniają awarię infrastruktury w dobrą wiadomość o treści.
+
+Kolejność naprawy, pięć pierwszych pozycji, z kosztem:
+
+1. **Identyfikator warsztatu w dziewięciu kluczach react-query.** Pierwsze, bo to
+   jedyna klasa, w której dane jednego najemcy pojawiają się na ekranie drugiego,
+   a wyciek jest CICHY: nie leci ani jedno żądanie sieciowe, więc nie widać go ani
+   w logu, ani w zakładce sieci. Koszt: jedna linia w każdym z dziewięciu plików.
+2. **Głęboka kopia `EMPTY_GA4_REPORT`.** Drugie, bo to jedyny przeciek działający
+   POZA sesją przeglądarki - przez współdzielone tablice w izolacie workera, czyli
+   między żądaniami różnych najemców. Koszt: jeden plik, jedna zmiana.
+3. **Arytmetyka „połowy okna" w obu silnikach wniosków** (`ga4Insights`,
+   `gscInsights`). Przed rodziną „brak pomiaru", bo to jedyny defekt, który
+   ODWRACA ZNAK wniosku: `Math.floor(n/2)` przy nieparzystej liczbie dni daje H1
+   krótsze od H2, więc siedem dni po DOKŁADNIE dziesięć sesji raportuje +33,3%
+   wzrostu, a pięć dni po dziesięć klików +50% - i ta sama arytmetyka w drugą
+   stronę ukryje realny spadek. Koszt: jedna linia w każdym z dwóch plików.
+4. **Rozdzielenie „braku pomiaru" od „pomiaru równego zero"** - 24 przypięcia
+   w 11 plikach. Niżej niż punkt 3 tylko dlatego, że nie odwraca znaku, a zamienia
+   „nie wiemy" na „jest zero". Koszt: wiele powierzchni, ale JEDEN wzorzec - czytać
+   `isPending`/`isError` i pole `configured` z odpowiedzi zamiast `?? 0`.
+5. **`csv` dla `ChartCard` w czterech panelach plus `aria-label` na przycisku
+   „więcej".** Zamyka pięć przypięć o braku alternatywy tekstowej i cztery
+   o bezimiennych przyciskach ZA DWIE ZMIANY, bo `ChartDataTable` stoi na 100%
+   i mechanizm jest sprawdzony. Najlepszy stosunek zgaszonych przypięć do
+   dotkniętego kodu w całym rejestrze.
+
+Dwa przypięcia stoją w tej taksonomii nie na swojej półce i trzeba to powiedzieć:
+oba z `footerTracking` dotyczą przekroczenia granicy ZGODY, nie granicy warsztatu -
+`window.gtag` przeżywa cofnięcie zgody i aktywny sygnał GPC, bo `removeMarked`
+usuwa `<script>`, a nie funkcję. Wpisane do „izolacji" z adnotacją o niepewnej
+klasyfikacji, ale w kolejce naprawy należą wyżej, niż wskazuje waga: są jedynym
+wątkiem w rejestrze z konsekwencją prawną.
+
+#### Dyscyplina zdejmowania przypięć - warunek, bez którego rejestr sam siebie zniszczy
+
+`it.fails` jest asercją DWUSTRONNĄ: zielony jest tylko dopóki przypadek PADA.
+W chwili, w której ktoś naprawi opisany defekt, przypadek zaczyna przechodzić -
+i vitest zgłasza `Error: Expect test to fail`, czyli **suita staje się czerwona
+z powodu SUKCESU**.
+
+Nie jest to rozważanie teoretyczne. W tym repozytorium dzieje się to DZIŚ:
+
+```
+ ❯ src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts (14 tests | 1 failed)
+ FAIL  … page_full_path wiąże najemcę albo pages.parent_id ma ograniczenie tego samego najemcy
+Error: Expect test to fail
+```
+
+Ten plik pada nie dlatego, że coś się zepsuło, ale dlatego, że dług został
+naprawiony, a przypięcie nie zostało zdjęte. Mechanizm ma dwie nieprzyjemne
+właściwości. **Pierwsza: naprawa i zdjęcie przypięcia są zwykle w różnych rękach** -
+przypięcie pisze kampania testowa, naprawę robi ktoś realizujący własną listę
+zadań i nie ma powodu wiedzieć, że jego jedna linia wywraca cudzy plik. **Druga:
+w wyjściu CI czerwień od naprawionego przypięcia wygląda DOKŁADNIE tak samo jak
+czerwień od regresji** („1 failed") - jedynym rozróżnieniem jest treść komunikatu,
+której nikt nie czyta, dopóki nie zacznie diagnozować.
+
+Przy 100 przypięciach w 35 plikach mechanizm skaluje się liniowo: naprawa punktu 1
+z kolejności wyżej - dziewięć kluczy cache, jedna linia każdy - zamienia w czerwone
+DZIEWIĘĆ plików testowych, jeśli nikt nie usunie z nich `it.fails`. Naprawa
+punktu 5 - kolejne dziewięć. Stąd dwie zasady bez wyjątków:
+
+1. **Przypięcie znika w TYM SAMYM commicie, co naprawa** - nie w osobnym,
+   porządkowym, bo taki commit nigdy nie powstaje.
+2. **Każdy wpis rejestru musi nazywać plik produkcyjny i zmianę do wykonania**,
+   żeby osoba naprawiająca wiedziała, którego przypięcia szuka. Komentarze nad
+   przypięciami w tej kampanii są pisane właśnie tak i to nie jest gadatliwość -
+   to jedyne, co pozwala je zdjąć.
+
+Trzecia zasada wynika z kontrpróbek zrobionych w tej kampanii i warta jest
+osobnego zapisania: **przypięcie bez kontrpróbki nie jest dokumentacją defektu.**
+Cztery przypięcia dodane na końcu kampania sprawdziła w drugą stronę - przez
+chwilowe dołożenie w kodzie produkcyjnym brakującej semantyki i wykazanie, że
+przypięcie wtedy PADA z `Expect test to fail`. Bez tego kroku nie da się odróżnić
+przypięcia opisującego realny, spełnialny kontrakt od asercji trwale zepsutej,
+której nikt nigdy nie zgasi.
 
 ### MODUŁ 18 — CRM · linie 99,03% · funkcje 98,60%
 
