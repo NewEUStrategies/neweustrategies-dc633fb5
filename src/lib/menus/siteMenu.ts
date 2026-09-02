@@ -11,7 +11,11 @@
 // widoczne dla czytelnika zostają w komponencie, bo to on ma dostęp do języka
 // strony i do słownika.
 import { safeUrl } from "@/lib/sanitizePure";
-export { filterMenuItemsForViewer, isVisibleForViewer, normalizeMenuVisibility } from "./visibility";
+export {
+  filterMenuItemsForViewer,
+  isVisibleForViewer,
+  normalizeMenuVisibility,
+} from "./visibility";
 import type { MegaColumn, MenuItemRow } from "./types";
 
 export type SiteMenuLang = "pl" | "en";
