@@ -8784,3 +8784,34 @@ h3 .cms-inline-status-icon {
   width: 0.875rem;
   height: 0.875rem;
 }
+
+/* --- widget „Karta z okładką" (cover-overlay-card) -------------------------
+   Gradient nakładki liczy arkusz, bo `color-mix()` wpisany wprost w atrybut
+   `style` przepada w silnikach DOM bez wsparcia tej funkcji. Panel podaje
+   wyłącznie kolor i dwa krycia jako `--coc-*`. */
+.coc-overlay {
+  background: linear-gradient(
+    to top,
+    color-mix(
+      in oklab,
+      var(--coc-overlay-color, #111827) var(--coc-overlay-bottom, 50%),
+      transparent
+    ),
+    color-mix(in oklab, var(--coc-overlay-color, #111827) var(--coc-overlay-top, 25%), transparent)
+  );
+}
+.coc-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--coc-clamp-lines, 3);
+  line-clamp: var(--coc-clamp-lines, 3);
+  overflow: hidden;
+}
+.coc-lift {
+  transition: box-shadow 300ms ease-out;
+}
+.coc-lift:hover {
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}

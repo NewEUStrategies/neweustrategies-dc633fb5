@@ -197,7 +197,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Podtytuł / opis": "Subtitle / description",
   Opis: "Description",
   "Opis (podtytuł)": "Description (subtitle)",
-  Zajawka: "Excerpt",
   "Zajawka (opcjonalna)": "Excerpt (optional)",
   Etykieta: "Label",
   "Etykieta (PL)": "Label (PL)",
@@ -1238,6 +1237,29 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).":
     "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
   "Droplista tematów (zainteresowania)?": "Topics droplist (interests)?",
+  // --------------------------------------------- widget „Karta z okładką"
+  "Karta z okładką": "Cover card",
+  "Okładka (tło karty)": "Cover (card background)",
+  "Kadr pionowy lub kwadratowy. Puste = sama płaszczyzna w kolorze nakładki.":
+    "Portrait or square crop. Empty = just a plane in the overlay colour.",
+  "Tekst alternatywny okładki": "Cover alt text",
+  "Puste = okładka jest dekoracją i znika z drzewa dostępności. Wypełnij, jeśli obraz niesie własną informację.":
+    "Empty = the cover is decorative and leaves the accessibility tree. Fill it in when the image carries information of its own.",
+  "Tytuł karty": "Card title",
+  Zajawka: "Excerpt",
+  "Data (RRRR-MM-DD)": "Date (YYYY-MM-DD)",
+  "np. 2022-10-10": "e.g. 2022-10-10",
+  "Jedna data dla obu języków - napis dla czytelnika powstaje w języku widoku.":
+    "One date for both languages - the human-readable label is produced in the view language.",
+  "Adres tytułu": "Title link",
+  "Puste = tytuł nie jest odnośnikiem.": "Empty = the title is not a link.",
+  "Wiersze zajawki": "Excerpt lines",
+  "Puste = grafit wzorca. Nakładka daje kontrast dla białego tekstu nad zdjęciem.":
+    "Empty = the graphite of the reference. The overlay gives contrast to white text over the photo.",
+  "Krycie nakładki u góry (0-1)": "Overlay opacity at the top (0-1)",
+  "Krycie nakładki u dołu (0-1)": "Overlay opacity at the bottom (0-1)",
+  "Wysokość kadru nad treścią (px)": "Media height above the content (px)",
+  "Podświetl cień na hoverze": "Deepen the shadow on hover",
   // ------------------------------------------------- widget „Karta trasy"
   "Karta trasy": "Route card",
   "Mapa / zdjęcie w tle": "Background map / photo",
