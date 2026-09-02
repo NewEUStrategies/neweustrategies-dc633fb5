@@ -1128,10 +1128,16 @@ describe("RelatedPostsAnalytics - dostępność", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: przyciski „więcej” na kartach wykresów nie mają dostępnej nazwy", async () => {
-    // `ChartCard` daje `aria-label` przyciskowi pełnego ekranu, ale przycisk
-    // menu obok to sama ikona `MoreHorizontal`. Sześć wykresów = sześć
-    // bezimiennych przycisków, przez które chodzi eksport PNG/CSV.
+  it("KAŻDY przycisk panelu ma dostępną nazwę, także sześć przycisków menu eksportu", async () => {
+    // NAPRAWIONE W KOMPONENCIE WSPÓŁDZIELONYM. `ChartCard` dawał `aria-label`
+    // tylko przyciskowi pełnego ekranu, a przycisk menu obok był samą ikoną
+    // `MoreHorizontal` - sześć wykresów tego panelu dawało sześć bezimiennych
+    // przycisków, przez które chodzi cały eksport PNG i CSV. Dziś wyzwalacz
+    // menu nosi `aria-label` ze słownika, więc axe nie zgłasza `button-name`.
+    //
+    // Przypadek zostaje TUTAJ, choć naprawa siedzi w `ChartCard`: liczba
+    // wykresów jest własnością TEGO panelu, więc dodanie siódmego wykresu
+    // z pominięciem `ChartCard` zapali się właśnie tu.
     const { container } = panel();
     await loaded();
 

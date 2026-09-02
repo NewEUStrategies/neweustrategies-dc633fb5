@@ -47,10 +47,20 @@ type Opt = Record<string, unknown>;
 
 const h = vi.hoisted(() => ({
   fetchVitals: vi.fn(),
+  tenantId: "tenant-rum" as string | null,
   charts: [] as Array<{
     option: Record<string, unknown>;
     onDataClick?: (params: unknown) => void;
   }>,
+}));
+
+// Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
+// klienta Supabase i sesję `useAuth`, a przedmiotem dowodu jest tylko to, że
+// identyfikator warsztatu WCHODZI DO KLUCZA react-query. Sterowanie nim z testu
+// (`h.tenantId`) daje jedyny sposób odegrania przejścia między warsztatami na
+// TYM SAMYM kliencie cache. Ten sam wzorzec: `gscBiDashboard.test.tsx`.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 // `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
@@ -335,8 +345,29 @@ function panel(client?: QueryClient) {
 }
 
 /** Czeka aż raport dojedzie i panel przełączy się z komunikatu na siatkę KPI. */
+/**
+ * Czeka, aż panel WYJDZIE ZE STANU POMIARU - czyli aż odpowiedź dojedzie.
+ *
+ * POPRZEDNIA WERSJA TEGO POMOCNIKA BYŁA SKALIBROWANA NA DEFEKCIE i warto to
+ * zapisać, bo jest to najbardziej podstępna klasa słabości testu, jaką znalazła
+ * ta kampania. Brzmiała: „czekaj, aż zniknie napis `noSamples`". Działała
+ * WYŁĄCZNIE dlatego, że panel mieszał trzy stany w jeden komunikat - „Brak
+ * próbek RUM" wisiał na ekranie w trakcie pobierania, więc jego zniknięcie
+ * PRZYPADKOWO oznaczało nadejście danych.
+ *
+ * Po naprawie tego zlania (trzy stany, trzy karty) napis nie pojawia się już
+ * w trakcie pobierania wcale, więc stary pomocnik przechodził w PIERWSZEJ
+ * KLATCE i 47 przypadków mierzyło panel bez danych - przy zielonym liczniku
+ * przed naprawą. Innymi słowy: te 47 testów przechodziło DZIĘKI defektowi,
+ * którego inny przypadek w tym samym pliku dokumentował jako defekt.
+ *
+ * Dzisiejsza wersja nie ma tej właściwości, bo bramkuje się na DWÓCH
+ * niezależnych sygnałach: że zapytanie w ogóle poszło i że karta pomiaru
+ * ustąpiła. Żaden z nich nie jest prawdziwy w pierwszej klatce.
+ */
 async function loaded(lang: AppLang = "pl"): Promise<void> {
-  await waitFor(() => expect(screen.queryByText(vit("noSamples", {}, lang))).toBeNull());
+  await waitFor(() => expect(h.fetchVitals).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByText(common("measuring", lang))).toBeNull());
 }
 
 async function settled(): Promise<void> {
@@ -401,11 +432,15 @@ describe("VitalsBiDashboard - stany panelu", () => {
     expect(btn).toHaveTextContent(vit("refreshing"));
   });
 
-  it.fails("DEFEKT: w trakcie ładowania panel twierdzi, że w oknie NIE MA próbek RUM", async () => {
-    // `!report || report.total === 0` obsługuje jednym komunikatem dwa różne
-    // stany. Operator czytający „Brak próbek RUM w wybranym oknie" w pierwszej
-    // sekundzie po wejściu dostaje twierdzenie o pomiarze, który się jeszcze
-    // nie odbył - i instrukcję („otwórz kilka podstron"), która jest błędna.
+  it("w trakcie pomiaru panel NIE twierdzi, że w oknie nie ma próbek RUM", async () => {
+    // NAPRAWIONE. `!report || report.total === 0` obsługiwało jednym komunikatem
+    // dwa różne stany, więc operator czytający „Brak próbek RUM w wybranym
+    // oknie" w pierwszej sekundzie po wejściu dostawał twierdzenie o pomiarze,
+    // który się jeszcze nie odbył - wraz z instrukcją („otwórz kilka
+    // podstron"), która była wtedy błędna.
+    //
+    // Dziś panel ma trzy karty na trzy stany. „Brak próbek" jest TWIERDZENIEM
+    // O POMIARZE i wolno je postawić dopiero po odczycie.
     h.fetchVitals.mockImplementation(() => new Promise<VitalsSummaryResult>(() => {}));
     panel();
     await screen.findByText(common("loading"));
@@ -435,10 +470,16 @@ describe("VitalsBiDashboard - stany panelu", () => {
     ).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: awaria zapytania wygląda DOKŁADNIE jak okno bez ruchu", async () => {
-    // `curQ.error` nie jest w ogóle czytany. Panel rysuje „Brak próbek RUM…"
-    // i podpowiada, żeby otworzyć kilka podstron - czyli każe administratorowi
-    // szukać problemu po stronie ruchu tam, gdzie padł odczyt tabeli.
+  it("awaria zapytania NIE wygląda jak okno bez ruchu - podaje przyczynę", async () => {
+    // NAPRAWIONE. `curQ.error` nie był w ogóle czytany, więc panel rysował
+    // „Brak próbek RUM…" i podpowiadał, żeby otworzyć kilka podstron - czyli
+    // kazał administratorowi szukać problemu po stronie RUCHU tam, gdzie padł
+    // odczyt tabeli `web_vitals`. Najgorszy wariant tej pomyłki to odmowa
+    // uprawnień: panel zapewniał, że telemetria działa i po prostu nie ma
+    // ruchu, w chwili gdy nie miał do niej dostępu.
+    //
+    // Dziś karta awarii niesie `role="alert"` i PRZYCZYNĘ z wyjątku, a instrukcja
+    // dotyczy odczytu, nie ruchu.
     h.fetchVitals.mockRejectedValue(new Error("RUM 500: web_vitals read failed"));
     const { container } = panel();
     await settled();
@@ -899,14 +940,21 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     expect(firstSeries(o).connectNulls).toBe(true);
   });
 
-  it.fails("DEFEKT: iskra przy kafelku KPI wstawia 0 za dzień bez próbki", async () => {
-    // `sparkForMetric` robi `t.p75[metric] ?? 0`, podczas gdy wykres trendu -
-    // z tego samego raportu i tego samego pola - robi `?? null`. Skutek:
-    // miniatura pod kafelkiem LCP nurkuje do zera w dniu, w którym po prostu
-    // nie było ani jednej próbki, i pokazuje spadek czasu ładowania do zera
-    // jako sukces. `filter(Number.isFinite)` tego nie ratuje - zero jest
-    // liczbą skończoną. To jest dokładnie ten przypadek, w którym zmyślone
-    // zero jest gorsze niż luka.
+  it("iskra przy kafelku KPI POMIJA dzień bez próbki, a nie wstawia za niego zera", async () => {
+    // NAPRAWIONE. `sparkForMetric` robiło `t.p75[metric] ?? 0`, podczas gdy
+    // wykres trendu - z tego samego raportu i tego samego pola - robi `?? null`.
+    // Skutek był taki, że miniatura pod kafelkiem LCP NURKOWAŁA DO ZERA w dniu,
+    // w którym po prostu nie było ani jednej próbki, i pokazywała spadek czasu
+    // ładowania do zera jako sukces. `filter(Number.isFinite)` tego nie ratował,
+    // bo zero jest liczbą skończoną - odsiew musi iść po TYPIE, nie po wartości.
+    //
+    // Dziś dzień bez pomiaru WYPADA z serii. `KpiTileProps.series` przyjmuje
+    // `number[]`, więc luki nie da się w niej wyrazić inaczej niż pominięciem
+    // punktu - i to jest poprawne, bo iskra jest wskaźnikiem KSZTAŁTU, nie
+    // datowanym wykresem. Sąsiedni przypadek pilnuje drugiej połowy tej samej
+    // reguły: duży wykres trendu zostawia lukę JAWNIE, przez `null`
+    // i `connectNulls`, bo tam oś X jest datowana i pominięcie punktu
+    // przesunęłoby daty.
     h.fetchVitals.mockResolvedValue(ONLY_LCP);
     panel();
     await loaded();
@@ -1242,10 +1290,17 @@ describe("VitalsBiDashboard - dostępność", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: przyciski „więcej” na kartach wykresów nie mają dostępnej nazwy", async () => {
-    // `ChartCard` daje `aria-label` przyciskowi pełnego ekranu, ale przycisk
-    // menu obok to sama ikona `MoreHorizontal`. Osiem wykresów = osiem
-    // bezimiennych przycisków, przez które chodzi eksport PNG.
+  it("KAŻDY przycisk panelu ma dostępną nazwę, także osiem przycisków menu eksportu", async () => {
+    // NAPRAWIONE W KOMPONENCIE WSPÓŁDZIELONYM. `ChartCard` dawał `aria-label`
+    // tylko przyciskowi pełnego ekranu, a przycisk menu obok był samą ikoną
+    // `MoreHorizontal` - osiem wykresów tego panelu dawało osiem bezimiennych
+    // przycisków, przez które chodzi cały eksport PNG i CSV. Dziś wyzwalacz
+    // menu nosi `aria-label` ze słownika, więc axe nie zgłasza `button-name`.
+    //
+    // Ten przypadek zostaje TUTAJ, choć naprawa siedzi w `ChartCard`: liczba
+    // wykresów jest własnością TEGO panelu, więc regres polegający na dodaniu
+    // dziewiątego wykresu poza `ChartCard` (wprost `EChart` w `Card`, jak robił
+    // to pulpit audytorium) zapali się właśnie tu, a nie w teście prymitywu.
     const { container } = panel();
     await loaded();
 

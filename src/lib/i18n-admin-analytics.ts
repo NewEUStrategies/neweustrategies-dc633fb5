@@ -10,7 +10,40 @@ const pl = {
       refresh: "Odśwież",
       loading: "Ładowanie...",
       loadingData: "Ładowanie danych...",
+      // TRZY STANY, KTÓRE NIE SĄ POMIAREM. `noDataWindow` znaczy ZMIERZONE
+      // ZERO: okno zostało odczytane i po prostu nie ma w nim zdarzeń.
+      // Klucze poniżej opisują stany, w których pomiaru NIE MA WCALE - kafelek
+      // KPI nie może wtedy malować zera, bo zero byłoby kłamstwem o danych.
       noDataWindow: "Brak danych w oknie.",
+      measuring: "Trwa pomiar...",
+      measuringShort: "Pomiar",
+      measuringHint: "Odczyt źródła w toku - wartości pojawią się po pobraniu.",
+      readFailed: "Awaria odczytu danych.",
+      readFailedReason: "Awaria odczytu: {{reason}}",
+      readFailedShort: "Awaria odczytu",
+      readFailedHint:
+        "Pomiaru nie udało się pobrać - odśwież panel albo sprawdź połączenie ze źródłem.",
+      unknownReason: "przyczyna nieznana",
+      notConfigured: "Źródło nieskonfigurowane.",
+      notConfiguredShort: "Brak źródła",
+      notConfiguredHint: "Podłącz źródło w ustawieniach warsztatu, żeby zacząć pomiar.",
+      // Pusty strumień PRZEZ BRAK ZGODY prowadzi do innej decyzji (popraw baner
+      // zgody) niż strumień bez zdarzeń (popraw dystrybucję treści).
+      noConsent: "Brak zgody analitycznej.",
+      noConsentShort: "Brak zgody",
+      noConsentHint:
+        "Odwiedzający nie zgodzili się na pomiar - decyzja dotyczy banera zgody, nie dystrybucji treści.",
+      // OCENA METRYKI JAKO NAPIS, nie tylko kolor (WCAG 1.4.1). Sam wyraz oceny
+      // („Dobrze") mieszka w `drillDialog.rating.*`; tu są całe napisy dla
+      // dostępnej nazwy kafla, który ocenę koduje klasą koloru.
+      ratingGood: "Ocena: dobrze",
+      ratingNeeds: "Ocena: do poprawy",
+      ratingPoor: "Ocena: słabo",
+      // DOSTĘPNE NAZWY kontrolek, które mają dziś tylko etykietę wizualną
+      // (`<label>` bez powiązania) albo samą ikonę.
+      windowSelector: "Wybór okna czasu",
+      groupFilter: "Filtr grup",
+      more: "Więcej",
     },
     chartCard: {
       exportPng: "Eksport PNG",
@@ -23,6 +56,9 @@ const pl = {
       dataTable: "Dane wykresu (tabela)",
       dataTableHint: "Ta sama treść co wykres, w postaci tabeli.",
       dataTableMissing: "Dla tego wykresu nie udostępniono jeszcze tabeli danych.",
+      // Wyzwalacz „trzy kropki" to sama ikona - bez tego napisu czytnik ekranu
+      // ogłasza jedyne wejście do eksportu jako bezimienny „przycisk".
+      exportMenu: "Menu eksportu",
     },
     drillDialog: {
       hint: "Kliknij element wykresu, aby zobaczyć szczegóły",
@@ -46,6 +82,9 @@ const pl = {
       range: "Zakres",
       pickHint: "Wybierz początek i koniec",
       apply: "Zastosuj",
+      // Warstwa kalendarza jedzie jako `role="dialog"` - bez nazwy jest
+      // ogłaszana jako samo „dialog", więc nie wiadomo, że to wybór dat.
+      calendarDialog: "Wybór zakresu dat",
     },
     insightSection: {
       defaultTitle: "Interpretacja i rekomendacje",
@@ -737,6 +776,28 @@ const en = {
       loading: "Loading...",
       loadingData: "Loading data...",
       noDataWindow: "No data in this window.",
+      measuring: "Measuring...",
+      measuringShort: "Measuring",
+      measuringHint: "Reading the source - values appear once the fetch completes.",
+      readFailed: "Data read failed.",
+      readFailedReason: "Data read failed: {{reason}}",
+      readFailedShort: "Read failed",
+      readFailedHint:
+        "The measurement could not be fetched - refresh the panel or check the source connection.",
+      unknownReason: "reason unknown",
+      notConfigured: "Source not configured.",
+      notConfiguredShort: "No source",
+      notConfiguredHint: "Connect the source in the workspace settings to start measuring.",
+      noConsent: "No analytics consent.",
+      noConsentShort: "No consent",
+      noConsentHint:
+        "Visitors did not consent to measurement - the fix belongs to the consent banner, not to content distribution.",
+      ratingGood: "Rating: good",
+      ratingNeeds: "Rating: needs improvement",
+      ratingPoor: "Rating: poor",
+      windowSelector: "Time window selector",
+      groupFilter: "Group filter",
+      more: "More",
     },
     chartCard: {
       exportPng: "Export PNG",
@@ -747,6 +808,7 @@ const en = {
       dataTable: "Chart data (table)",
       dataTableHint: "The same content as the chart, as a table.",
       dataTableMissing: "A data table for this chart is not available yet.",
+      exportMenu: "Export menu",
     },
     drillDialog: {
       hint: "Click a chart element to see details",
@@ -770,6 +832,7 @@ const en = {
       range: "Range",
       pickHint: "Pick a start and end",
       apply: "Apply",
+      calendarDialog: "Date range picker",
     },
     insightSection: {
       defaultTitle: "Interpretation and recommendations",

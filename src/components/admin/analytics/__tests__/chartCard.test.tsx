@@ -527,13 +527,20 @@ describe("ChartCard - dwujęzyczność i dostępność", () => {
     expect(summarize(naruszenia)).toBe("");
   });
 
-  it.fails("DEFEKT: wyzwalacz menu eksportu nie ma dostępnej nazwy", () => {
-    // Przycisk „trzy kropki" to sama ikona `MoreHorizontal` bez `aria-label`
-    // i bez tekstu. Dla czytnika ekranu jest ogłoszony jako samo „przycisk" -
-    // jedyne wejście do eksportu PNG i CSV jest więc dla osoby niewidzącej
-    // nieopisane. Sąsiedni przycisk pełnego ekranu robi to poprawnie
-    // (`aria-label` ze słownika), więc brak jest przeoczeniem, nie decyzją;
-    // słownik ma już klucz `common.more` w PL i EN.
+  it("KAŻDY przycisk powłoki ma dostępną nazwę, także wyzwalacz menu eksportu", () => {
+    // Przycisk „trzy kropki" to sama ikona `MoreHorizontal`, bez tekstu -
+    // jedyne wejście do eksportu PNG i CSV. Bez `aria-label` czytnik ekranu
+    // ogłaszałby je jako samo „przycisk", czyli dla osoby niewidzącej jako
+    // wejście nieopisane. Nazwa idzie ze słownika
+    // (`adminAnalytics.chartCard.exportMenu`), dokładnie tak jak w sąsiednim
+    // przełączniku pełnego ekranu - ten sam mechanizm dla obu przycisków
+    // powłoki. Asercja jest ZBIORCZA (pętla po wszystkich przyciskach), żeby
+    // każdy kolejny przycisk dołożony do nagłówka karty musiał przejść tę samą
+    // bramkę, a nie tylko te dwa, które istnieją dziś.
+    //
+    // UWAGA na pomocnik `wyzwalaczMenu()` wyżej: rozpoznaje wyzwalacz przez
+    // ODJĘCIE przycisku pełnego ekranu, a nie przez „przycisk bez nazwy" -
+    // dlatego nadaną tu nazwę znosi bez zmian.
     const { container } = karta({ csv: CSV });
 
     for (const przycisk of within(container).getAllByRole("button")) {

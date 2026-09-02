@@ -113,14 +113,16 @@ describe("InsightSection - stan pusty", () => {
     expect(screen.queryByText(t("adminAnalytics.insightSection.emptyDefault"))).toBeNull();
   });
 
-  it.fails("DEFEKT: w stanie pustym tytuł sekcji NIE jest nagłówkiem", () => {
-    // Z wnioskami tytuł jedzie jako `<h3>`, bez wniosków - jako zwykły `<div>`
-    // z tą samą klasą. Sekcja „Interpretacja i rekomendacje" znika więc z
-    // konspektu nagłówków dokładnie wtedy, gdy wszystko jest w porządku:
-    // osoba nawigująca po nagłówkach (najszybszy sposób poruszania się po
-    // pulpicie z czytnikiem ekranu) nie ma jak stwierdzić, że sekcja w ogóle
-    // istnieje i co mówi. Ten sam tytuł, ta sama rola w układzie - semantyka
-    // nie może zależeć od liczby wpisów.
+  it("w stanie pustym tytuł sekcji jest TYM SAMYM nagłówkiem co z wnioskami", () => {
+    // Ten sam tytuł, ta sama rola w układzie - semantyka nie może zależeć od
+    // liczby wpisów. Gdy z wnioskami tytuł jedzie jako `<h3>`, a bez nich jako
+    // zwykły `<div>` z tą samą klasą, sekcja „Interpretacja i rekomendacje"
+    // wypada z konspektu nagłówków dokładnie wtedy, gdy wszystko jest
+    // w porządku: osoba nawigująca po nagłówkach (najszybszy sposób poruszania
+    // się po pulpicie z czytnikiem ekranu) nie ma jak stwierdzić, że sekcja
+    // w ogóle istnieje i co mówi. Przypadek pilnuje POZIOMU nagłówka pośrednio,
+    // przez rolę: sekcja siedzi pod nagłówkiem karty pulpitu, więc `h3` w obu
+    // wariantach trzyma konspekt spójny.
     render(<InsightSection insights={[]} title="Wnioski dla Web Vitals" />);
 
     expect(screen.getByRole("heading", { name: "Wnioski dla Web Vitals" })).toBeTruthy();

@@ -1040,10 +1040,20 @@ describe("ClientErrorsDashboard - dostępność", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it("cały dług dostępności panelu to JEDEN przycisk, i to nie jego własny", async () => {
-    // Kontrapunkt dla ulgi wyżej: bez wyłączonej reguły lista naruszeń ma
-    // dokładnie jedną pozycję i jest nią wyzwalacz menu `ChartCard`. Dopisanie
-    // przez ten panel własnego bezimiennego przycisku oblewa ten test.
+  it("panel nie ma ŻADNEGO naruszenia axe, także bez ulgi na `button-name`", async () => {
+    // TEN PRZYPADEK ZMIENIŁ TREŚĆ, bo zmienił się stan faktyczny, i to jest
+    // warte zapisania. Wcześniej asercja brzmiała „cały dług dostępności panelu
+    // to JEDEN przycisk, i to nie jego własny": bez wyłączonej reguły lista
+    // naruszeń miała dokładnie jedną pozycję i był nią bezimienny wyzwalacz
+    // menu eksportu w `ChartCard`. Ten dług został naprawiony w prymitywie,
+    // więc asercja opisująca go przestała opisywać cokolwiek - utrzymywanie jej
+    // znaczyłoby wymaganie, żeby naruszenie ISTNIAŁO.
+    //
+    // Zapadka jest teraz mocniejsza, nie słabsza: lista musi być PUSTA, więc
+    // dopisanie przez ten panel własnego bezimiennego przycisku - albo powrót
+    // regresu w `ChartCard` - oblewa test natychmiast. Dwa przypadki wyżej
+    // wyłączają `button-name` świadomie, bo mierzą inne reguły na rozwiniętym
+    // wierszu; ten jeden mierzy CAŁOŚĆ bez ulg.
     const { container } = panel();
     await loaded();
 
@@ -1051,8 +1061,7 @@ describe("ClientErrorsDashboard - dostępność", () => {
     expect(
       violations.map((v) => v.id),
       summarize(violations),
-    ).toEqual(["button-name"]);
-    expect(violations[0].nodes).toHaveLength(1);
+    ).toEqual([]);
   });
 
   it("lista grup jest listą - kolejność niesie znaczenie dla czytnika ekranu", async () => {

@@ -14,6 +14,17 @@
  *   3. Stacked rating bar per metric (good / needs / poor sample counts).
  *   4. Treemap of paths by sample volume, colour-coded by LCP p75.
  *   5. Rating pie of the whole window.
+ *
+ * STANY, KTÓRE NIE SĄ POMIAREM. Panel rozdziela „trwa pomiar", „odczyt padł"
+ * i „okno zostało odczytane i jest w nim pusto" na trzy różne karty ze
+ * słownika `adminAnalytics.common.*`. Jeden komunikat na trzy stany kazał
+ * administratorowi szukać problemu po stronie ruchu także wtedy, gdy padł
+ * odczyt tabeli albo gdy raport jeszcze nie dojechał.
+ *
+ * IZOLACJA WARSZTATÓW. Każdy klucz react-query niesie identyfikator najemcy,
+ * a zapytanie jest wstrzymane do jego rozwiązania - inaczej dwa panele
+ * liczące to samo okno dzieliłyby jeden wpis cache i raport RUM przeciekałby
+ * między warsztatami bez ani jednego żądania sieciowego.
  */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { EChartsCoreOption } from "echarts/core";
 import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/vitals.functions";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import { ChartCard } from "./ChartCard";
 import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
@@ -41,22 +53,53 @@ function fmtValue(metric: VitalName, v: number): string {
   return `${Math.round(v)} ms`;
 }
 
+/**
+ * Iskra pod kafelkiem KPI: TYLKO dni, w których metryka ma pomiar.
+ *
+ * Dzień bez ani jednej próbki WYPADA z serii, a nie zjeżdża do zera - tak samo
+ * jak na dużym wykresie trendu, który z tego samego pola robi `?? null`.
+ * Podstawione zero rysowałoby nurkowanie czasu ładowania do zera, czyli sukces
+ * tam, gdzie po prostu nie było pomiaru; `Number.isFinite` tego nie łapie, bo
+ * zero jest liczbą skończoną. `KpiTileProps.series` przyjmuje `number[]`, więc
+ * luki nie da się w niej wyrazić inaczej niż pominięciem punktu - iskra jest
+ * wskaźnikiem KSZTAŁTU, nie datowanym wykresem.
+ */
 function sparkForMetric(report: VitalsSummaryResult, metric: VitalName): number[] {
-  return report.trends.map((t) => t.p75[metric] ?? 0).filter((v) => Number.isFinite(v));
+  return report.trends
+    .map((point) => point.p75[metric])
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
 }
 
 export function VitalsBiDashboard() {
   const { t } = useTranslation();
   const fetchVitals = useServerFn(getVitalsSummary);
+  const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
 
   const curQ = useQuery({
-    queryKey: ["vitals-bi", range.presetId, range.sinceIso, range.untilIso],
+    // NAJEMCA W KLUCZU, nie tylko granice okna. Bez niego izolację trzymał
+    // wyłącznie znacznik z `Date.now()` w `buildPresetRange`, więc dwa panele
+    // policzone w tej samej chwili (przełączenie warsztatu w jednej klatce)
+    // dostawały ten sam wpis cache, a przy `staleTime` react-query nie ponawiał
+    // zapytania - warsztat B widziałby ścieżki warsztatu A i to bez ani jednego
+    // żądania w sieci.
+    queryKey: ["vitals-bi", tenantId ?? "", range.presetId, range.sinceIso, range.untilIso],
     queryFn: () => fetchVitals({ data: { sinceIso: range.sinceIso, untilIso: range.untilIso } }),
+    // Zapytanie czeka na rozwiązanie najemcy - odczyt puszczony przedwcześnie
+    // wpadłby do cache pod kluczem z pustym warsztatem.
+    enabled: Boolean(tenantId),
     staleTime: 60_000,
   });
   const report = curQ.data;
-  const isLoading = curQ.isLoading;
+  // POMIAR W TOKU to także nierozwiązany najemca: zapytanie jest wtedy
+  // wstrzymane, więc `isLoading` z react-query jest fałszywe, a panel nadal
+  // nie ma CZEGO pokazać.
+  const isMeasuring = !tenantId || curQ.isLoading;
+  const readError = curQ.error;
+  const readReason =
+    readError instanceof Error && readError.message
+      ? readError.message
+      : t("adminAnalytics.common.unknownReason");
   const isFetching = curQ.isFetching;
 
   const metricsByName = useMemo(() => {
@@ -362,14 +405,40 @@ export function VitalsBiDashboard() {
           {t("adminAnalytics.vitals.samplesInWindow", { count: report?.windowTotal ?? 0 })}
           {report?.capped ? t("adminAnalytics.vitals.cappedNote") : ""}
         </div>
-        {isLoading ? (
+        {isMeasuring ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" /> {t("adminAnalytics.common.loading")}
           </span>
         ) : null}
       </div>
 
-      {!report || report.total === 0 ? (
+      {/* TRZY STANY, TRZY KARTY - nie jeden komunikat na trzy sytuacje.
+          „Brak probek RUM w wybranym oknie" jest TWIERDZENIEM O POMIARZE i wolno
+          je postawić dopiero wtedy, gdy pomiar sie odbyl. Do 2026-09-02 ten sam
+          napis obsługiwał także „jeszcze nie wiem" i „odczyt padl", a doklejona
+          do niego instrukcja („otwórz kilka podstron") kazała administratorowi
+          szukać problemu po stronie RUCHU również wtedy, gdy padł odczyt tabeli
+          `web_vitals` albo gdy raport po prostu nie dojechal. Kolejność galezi
+          jest istotna: pomiar w toku wyprzedza awarie, bo `error` z poprzedniego
+          okna przeżywa start nowego zapytania. */}
+      {isMeasuring ? (
+        <Card className="p-6 text-sm text-muted-foreground space-y-1">
+          <div className="inline-flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            {t("adminAnalytics.common.measuring")}
+          </div>
+          <p className="text-xs">{t("adminAnalytics.common.measuringHint")}</p>
+        </Card>
+      ) : readError ? (
+        <Card role="alert" className="p-6 text-sm space-y-1 border-destructive/40 bg-destructive/5">
+          <div className="font-medium text-destructive">
+            {t("adminAnalytics.common.readFailedReason", { reason: readReason })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("adminAnalytics.common.readFailedHint")}
+          </p>
+        </Card>
+      ) : !report || report.total === 0 ? (
         <Card className="p-6 text-sm text-muted-foreground">
           {t("adminAnalytics.vitals.noSamples")}
         </Card>
