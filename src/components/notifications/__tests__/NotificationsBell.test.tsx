@@ -131,7 +131,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
+import { ok, okCount, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { realtimeStub, type FakeChannel, type RealtimeStub } from "@/test/supabase/realtime";
 import { axeViolations, summarize } from "@/test/axe";
