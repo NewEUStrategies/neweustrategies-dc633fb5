@@ -1298,6 +1298,36 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "cover-overlay-card",
+    label: "Karta z okładką",
+    category: "blocks",
+    icon: Newspaper,
+    defaults: () => ({
+      // Bez treści przykładowej i bez zdjęcia ze wzorca: świeżo wstawiona karta
+      // pokazuje samą płaszczyznę z nakładką, a nie zmyślony wpis, który ktoś
+      // mógłby opublikować.
+      title_pl: "",
+      title_en: "",
+      excerpt_pl: "",
+      excerpt_en: "",
+      image: "",
+      imageAlt_pl: "",
+      imageAlt_en: "",
+      date: "",
+      showDate: true,
+      href: "",
+      // Puste = kolor nakładki wzorca (gray-900).
+      overlayColor: "",
+      overlayAlphaTop: 0.25,
+      overlayAlphaBottom: 0.5,
+      mediaMinHeight: 256,
+      clampLines: 3,
+      radius: 6,
+      maxWidth: 0,
+      hoverLift: true,
+    }),
+  },
+  {
     type: "author-profile-card",
     label: "Karta profilu autora",
     category: "blocks",
