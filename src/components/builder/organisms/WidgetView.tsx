@@ -69,6 +69,7 @@ import {
   EventSponsorsView,
   CircularCarouselView,
   TravelRouteCardView,
+  CoverOverlayCardView,
   // Podział po typie (2026-08-15): listingi, karty zdarzeń, billing, formularz
   // onboardingu, karuzela postępu i renderer HTML tekstu jadą w chunkach na
   // żądanie - entry chrome nie płaci już za komplet widgetów.
@@ -1183,6 +1184,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     // preferencji redaktora do `localStorage` przeglądarki.
     case "travel-route-card":
       return wrap(<TravelRouteCardView c={c} lang={lang} nodeId={node.id} />);
+
+    // Karta z okładką: cała treść jest statyczna, więc widok nie potrzebuje
+    // ani identyfikatora węzła, ani wiedzy o kanwie edytora.
+    case "cover-overlay-card":
+      return wrap(<CoverOverlayCardView c={c} lang={lang} />);
 
     case "cta": {
       const tKey = `title_${lang}`;

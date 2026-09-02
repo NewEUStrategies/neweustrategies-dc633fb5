@@ -88,6 +88,7 @@ export const WIDGET_TYPES = [
   "team-member",
   "author-profile-card",
   "travel-route-card",
+  "cover-overlay-card",
   "speakers",
   "pricing",
   "interactive-circle",
