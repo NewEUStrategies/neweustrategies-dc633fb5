@@ -1,3 +1,29 @@
+-- BLIZNIAK TRESCI: 20260831160000_page_full_path_tenant_scope.sql
+--
+-- TEN PLIK NIE WNOSI ZMIANY. Pipeline wdrozeniowy wydal go ponownie przy
+-- wdrozeniu PR #312 (commit `1759be2`, 2026-08-31 21:50:45) i przy okazji zdjal
+-- WSZYSTKIE 125 linii komentarza z pliku z PR-a (215 -> 85 linii). Tresc wykonywana
+-- jest identyczna po odjeciu komentarzy - md5 okrojonej tresci `9df21f7097e4` po obu
+-- stronach pary.
+--
+-- UWAGA NA DATOWANIE: wersja w nazwie tego pliku (20260831214637) to chwila
+-- ZASTOSOWANIA przez pipeline, a NIE chwila wejscia zmiany. Zmiana weszla
+-- z wersja 20260831160000, czyli 5 h 46 min wczesniej. Kto datuje regresje po
+-- katalogu migracji albo po `schema_migrations` - a przy commitach nazwanych
+-- „Changes" to jedyne narzedzie, jakie zostaje - trafia najpierw tutaj.
+--
+-- GDZIE LEZY UZASADNIENIE: w pliku wskazanym w naglowku wyzej. Sa tam: sciezka
+-- wycieku (wolanie spod service-role z `src/lib/server/sitemapEntries.server.ts`),
+-- powod, dla ktorego polityki tego nie domykaja, oraz mechanizm idempotentnosci
+-- obu ograniczen. Tu tego nie ma i nie bedzie - duplikowanie argumentu w dwoch
+-- plikach konczy sie tym, ze rozjezdzaja sie po cichu.
+--
+-- DLACZEGO PLIK ZOSTAJE, ZAMIAST ZOSTAC SKASOWANY: wersja 20260831214637 siedzi
+-- w `schema_migrations` na wdrozonej bazie, a `supabase/migration-ledger.json`
+-- (sekcja `reconciled`) mapuje na nia plik z PR-a. Usuniecie duplikatu
+-- zostawiloby wiersz rejestru bez pliku i wywrocilo kolejny `db push`. Para jest
+-- zarejestrowana jako dlug w `KNOWN_CONTENT_TWINS` (`src/lib/ci/migrationReplay.ts`).
+
 CREATE OR REPLACE FUNCTION public.page_full_path(_page_id uuid)
 RETURNS text
 LANGUAGE sql
