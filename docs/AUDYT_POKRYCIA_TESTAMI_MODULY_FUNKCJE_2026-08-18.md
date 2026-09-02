@@ -643,6 +643,10 @@ Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera 
 
 ### MODUŁ 12 — Realtime / powiadomienia / web-push · linie 49,54% · funkcje 47,46%
 
+> **AKTUALIZACJA 2026-09-01:** liczby w tej sekcji to migawka wydania 8 i takie zostają.
+> Kampania testowa modułu 12 zamknęła go na **98,03% linii / 92,14% gałęzi / 97,11% funkcji**.
+> Pełny pomiar, delta i lista tego, czego NIE osiągnięto - rozdział 10 na końcu dokumentu.
+
 **Rodzaje testów:** jednostkowy 11 · funkcji serwerowej 2 · hooka 1.
 
 **Co tu decyduje:** realtime wymaga **atrapy kanału** (`realtimeStub`): bez niej test dowodzi tylko, że subskrypcja została utworzona, a nie że przyjście zdarzenia zmienia stan. Powiadomienia i web-push to dodatkowo **testy funkcji serwerowych** — wysyłka jest efektem ubocznym, nie zwracaną wartością.
@@ -2512,3 +2516,250 @@ Wspólny mianownik dokumentów, które uznaję za dowód: **każdy z nich ma roz
 NIE osiągnął.** Raport wdrożenia wymieniający własne luki jest sprawdzalny; raport podający
 same procenty nie jest. Przegląd modułu wydarzeń dokłada do tego trzecią rzecz — listę
 własnych ustaleń, które sam obalił.
+
+## 10. AKTUALIZACJA 2026-09-01 - kampania MODUŁU 12 (realtime / powiadomienia / web-push)
+
+Rozdziały 0-9 są migawką **wydania 8** i nie zostały przepisane: nadpisanie ich tabel zatarłoby
+punkt odniesienia, wobec którego mierzy się tę pracę. Ten rozdział dokłada pomiar PO kampanii.
+
+### 10.1. Wynik
+
+Pomiar: pełna suita (2 051 plików testowych), `all: true`, ten sam zakres plików co w wydaniu 8
+plus trzy moduły powstałe z ekstrakcji (patrz 10.3).
+
+| Powierzchnia                | Pliki |                  Linie |               Gałęzie |              Funkcje | Instrukcje |
+| --------------------------- | ----: | ---------------------: | --------------------: | -------------------: | ---------: |
+| Powiadomienia + web-push    |    19 |   **97,54%** (834/855) |      91,90% (794/864) |     96,17% (226/235) |     96,27% |
+| Realtime (kanały, presence) |    10 |   **99,32%** (292/294) |      93,25% (152/163) |     98,54% (135/137) |     98,79% |
+| trasy                       |     2 |    **100,00%** (19/19) |         100,00% (4/4) |        100,00% (8/8) |    100,00% |
+| **MODUŁ 12 RAZEM**          |    31 | **98,03%** (1145/1168) | **92,14%** (950/1031) | **97,11%** (369/380) |     96,94% |
+
+Delta wobec wydania 8 (49,54% linii / 31,59% gałęzi / 47,46% funkcji):
+
+| Metryka | wyd. 8 | 2026-09-01 |         delta |
+| ------- | -----: | ---------: | ------------: |
+| Linie   | 49,54% | **98,03%** | **+48,49 pp** |
+| Gałęzie | 31,59% | **92,14%** | **+60,55 pp** |
+| Funkcje | 47,46% | **97,11%** | **+49,65 pp** |
+
+**Plików produkcyjnych na 0%: 12 -> 0.** Progi per-ścieżka dla modułu: 0 -> 34 (w repo: 376 -> 410).
+
+O ZMIANIE MIANOWNIKA, wprost: wydanie 8 liczyło 28 plików i 1 191 linii, tu jest 31 plików
+i 1 168 linii. To nie jest wykluczenie czegokolwiek z pomiaru - żaden plik nie wypadł. Ekstrakcja
+(10.3) przeniosła powtórzone predykaty z trzech komponentów do trzech nowych modułów, więc trzy
+kopie tego samego kodu zamieniły się w jedną: 23 linie mniej przy większej liczbie plików.
+
+**POTWIERDZONE NA RUNNERZE** (CI, job `test` = `bun run test:coverage`, commit `1f043eb`,
+2 051 plików testowych, 55 530 przypadków, 1 169 s): w logu **ZERO** linii `ERROR: Coverage`,
+czyli wszystkie 410 progów per-ścieżka - w tym 34 dopisane tą kampanią - przechodzą na runnerze,
+a nie tylko na maszynie autora. Pomiar globalny CI: 83,76% instrukcji / 78,23% gałęzi /
+82,26% funkcji / 85,00% linii - zgodny z pomiarem lokalnym co do cyfry.
+
+Katalogi modułu 12, CI wobec pomiaru lokalnego (instr. / gał. / fn / linie):
+
+| Katalog                        | CI                            | lokalnie                      |
+| ------------------------------ | ----------------------------- | ----------------------------- |
+| `src/lib/notifications`        | 97,30 / 93,65 / 99,31 / 98,18 | 97,30 / 93,65 / 99,31 / 98,19 |
+| `src/lib/realtime`             | 98,78 / 93,25 / 98,54 / 99,31 | 98,79 / 93,25 / 98,54 / 99,32 |
+| `src/components/notifications` | 93,66 / 88,78 / 90,90 / 95,93 | 93,71 / 89,24 / 91,01 / 95,97 |
+
+Jedyna zauważalna różnica to gałęzie `src/components/notifications`: **0,46 pp niżej na runnerze**.
+Próg katalogowy stoi na 86, więc zapas wynosi 2,78 pp - ale to jest konkretna liczba dla każdego,
+kto będzie później podnosił progi tej powierzchni: margines 2 pp na plik jest tu dolną granicą
+sensu, nie ostrożnością.
+
+Całe `src/` po kampanii: 85,00% linii (90 121/106 018), 83,76% instrukcji, 82,26% funkcji,
+78,23% gałęzi - wobec 84,44 / 83,17 / 81,66 / 77,64 zapisanych w kronice `vitest.config.ts`
+tego samego dnia przed kampanią. Moduł 12 to 1,1% linii repo, więc +0,56 pp globalnie jest
+dokładnie tym, czego należy się spodziewać po przejściu z 49,5% na 98% na takim udziale.
+
+### 10.2. Czego audyt wydania 8 nie wiedział albo napisał nieściśle
+
+Trzy sprostowania. Wszystkie zweryfikowane w kodzie, nie przyjęte na słowo.
+
+1. **„Bez atrapy kanału test realtime jest bezwartościowy" - prawda o testach, nieprawda
+   o narzędziach.** `src/test/supabase/realtime.ts` (atrapa `supabase.channel` z obserwowalnym
+   refcountem i emiterami zdarzeń) istniała od wydzielenia z fixture'ów czatu i używało jej
+   siedem plików w INNYCH modułach. Moduł 12 stał na 49,5% nie z braku narzędzia, tylko dlatego,
+   że nikt go tu nie podłączył.
+2. **`useNotifications.ts` NIE MA `onMutate`/`onError`.** Audyt wymieniał „ich onMutate/onError
+   (optymistyczne aktualizacje i rollback)" wśród niepokrytych ścieżek. W kodzie każda z mutacji
+   tego pliku ma wyłącznie `onSuccess` z dwiema inwalidacjami; optymistyka z rollbackiem żyje
+   w LOKALNYCH mutacjach `NotificationsCenter.tsx` (`patchNotificationLists` /
+   `rollbackNotificationLists`) i tam została otestowana.
+3. **`notification_deliveries` i `notification_digests` NIE ISTNIEJĄ.** Audyt pisał o nich
+   „w stanie końcowym zero polityk, a grep nie znajduje `ENABLE ROW LEVEL SECURITY`" - brak
+   `ENABLE` nie oznaczał tabeli bez RLS, tylko brak tabeli. Zero trafień w migracjach, w `src/`
+   i w wygenerowanych typach. Rzeczywiste odpowiedniki: doręczenia to `public.notification_push_queue`
+   (RLS włączony, polityka odczytu dla admina tenanta, ZERO grantów dla `authenticated`/`anon`),
+   a digest to nie tabela, tylko kolumny `email_digest` / `digest_last_sent_at` na
+   `notification_preferences` plus RPC `claim_due_digests`. Konkurencyjny `public.push_outbox`
+   został usunięty przez `20260713210000_notifications_pipeline_reconciliation.sql`.
+
+### 10.3. Co realnie odblokowało te liczby
+
+**Ekstrakcja przed asercjami.** Ten sam predykat żył w trzech kopiach wewnątrz komponentów:
+`isInternalHref` (Bell, Center, `useActorProfiles`), `isPlainLeftClick` (Bell, Center - identyczne
+ciała), `pickTitle`/`pickBody` (dwie kopie zapisane RÓŻNĄ składnią przy tym samym zachowaniu),
+`fmtDate`, `relTime`. To nie były funkcje „nieprzetestowane", tylko NIEWYWOŁYWALNE bez renderu
+858-linijkowego organizmu. Powstały `notificationLink.ts`, `notificationText.ts`
+i `notificationListKeys.ts`. Przy okazji zniknęła czwarta kopia: dzwonek miał własne, znakowo
+identyczne zapytanie o profile aktorów - dziś korzysta ze wspólnego hooka, więc dzwonek i skrzynka
+budują ten sam klucz cache i po zalogowaniu leci jedno zapytanie zamiast dwóch.
+
+**Podłączenie atrapy kanału.** Refcount jest w tych testach ASERCJĄ, nie dekoracją: każdy test
+odmontowania sprawdza `removed === true` i zerowy `activeChannelCount()`, a `tableChannelHub`
+NIE jest mockowany - z atrapą huba refcount nie mierzyłby niczego.
+
+### 10.4. Defekty znalezione i PRZYPIĘTE (`it.fails`, bez zmiany produkcji)
+
+Siedem `it.fails`, każdy z opisem złamanego kontraktu i kierunkiem naprawy.
+
+1. **Akcje grupowe skrzynki nie docierają do serwera** (4 x `it.fails`, najpoważniejsze).
+   `isNotificationListQuery` uznaje za listę wierszy każdy klucz trzyelementowy, którego trzeci
+   człon jest obiektem - a tablica nim jest. Cache profili aktorów
+   (`["notifications","actor-profiles", string[]]`) przechodzi więc przez filtr, a
+   `patchNotificationLists` robi na nim `cached.pages.map(...)`: pod tym kluczem leży PŁASKA
+   tablica, `pages` jest `undefined`, `onMutate` rzuca `TypeError`. React Query przerywa mutację,
+   `mutationFn` nigdy nie biegnie, a `onError` dostaje `context === undefined`, więc nie ma czego
+   cofnąć. Dotyczy „oznacz całą rozmowę", „oznacz jako nieprzeczytane" i kosza. Warunek
+   wystąpienia: choćby jedno powiadomienie z `/messages?c=<uuid>`, czyli każdy, kto dostaje
+   wiadomości na czacie. Oczekiwany kontrakt: `false` dla tego kształtu; wykonalność poprawki ma
+   osobny, ZIELONY test - `Array.isArray` odróżnia oba trzecie elementy, więc żaden klucz nie musi
+   zmienić kształtu.
+2. **Równoległe mutacje dzielą jeden ref korelacji.** `useEventConfirmedMutation` przenosi
+   `correlationId` z `onMutate` do `mutationFn` przez JEDEN `useRef` na cały hook, a `onMutate`
+   jest asynchroniczne. Dwie mutacje wypuszczone bez czekania przeplatają się i OBA żądania idą
+   ze stemplem drugiej. Skutek: pierwsza zostaje po timeoucie wycofana z cache mimo poprawnego
+   zapisu - czyli dokładnie objaw, któremu ten hook ma zapobiegać. Kierunek: id na kontekście
+   mutacji zamiast wspólnego ref-a.
+3. **Panel dzwonka to `role="dialog"` bez nazwy** (`aria-dialog-name`).
+4. **Wiersz powiadomienia bez `href` zagnieżdża przycisk w przycisku** (`nested-interactive`,
+   WCAG 4.1.2). Przy obu naruszeniach a11y stoi ZIELONY test „poza dwoma zgłoszonymi defektami
+   panel jest czysty w axe", żeby `it.fails` nie stał się workiem na przyszłe regresje.
+
+### 10.5. Warstwa danych: pgTAP na żywej bazie
+
+`supabase/tests/module12_notifications_rls_test.sql` - 45 asercji, WYKONANE (935 migracji
+zaaplikowanych lokalnie), kształt z `pg_catalog` ORAZ skutek realnymi `INSERT`/`UPDATE`/`SELECT`
+w sesji z ustawionym `request.jwt.claims`. Sam kształt przechodzi na literówce w nazwie polityki,
+sam skutek nie łapie „ktoś dopisał drugą politykę obok".
+
+Ustalenia:
+
+- **`push_subscriptions` - subskrypcja jest PER UŻYTKOWNIK, nie per użytkownik-w-tenancie.**
+  Dowody: `UNIQUE (endpoint)` (endpoint należy do przeglądarki), jedno konto = jeden tenant
+  w `profiles` z `profiles_pin_tenant_id`, oraz `engagement_overview`, które liczy `push_optin`
+  przez `JOIN profiles`, IGNORUJĄC `ps.tenant_id`.
+  **DEFEKT (opisany, nie naprawiany):** kolumna `tenant_id NOT NULL` istnieje i dyspozytor
+  filtruje po niej (`.in("tenant_id", …).in("user_id", …)`), a RLS jej nie pilnuje - klient wstawia
+  wiersz z obcym `tenant_id` i przestawia go `UPDATE`-em (asercje 16-17 to POKAZUJĄ). Gorsze:
+  `push.ts` w ogóle nie podaje `tenant_id` w upsercie `onConflict: "endpoint"`, więc po przeniesieniu
+  konta wiersz zostaje ze starym tenantem, dyspozytor nie znajduje urządzenia i zadanie umiera
+  jako `dead` BEZ ANI JEDNEJ PRÓBY WYSYŁKI. To nie jest wyciek poufności (`enqueue_notification`
+  stempluje powiadomienie tenantem odbiorcy, a `notifications_enforce_tenant` tego pilnuje) -
+  to integralność kolumny i cicha utrata doręczalności.
+- **`user_consents`** - jedna polityka, tylko SELECT; `authenticated` ma wyłącznie grant SELECT.
+  Brak polityk zapisu jest POPRAWNY (zapis wyłącznie przez `set_user_consent`) i jest teraz
+  BRAMKOWANY: test oblewa przy jakiejkolwiek polityce lub grancie INSERT/UPDATE/DELETE dla
+  `authenticated`, żeby nikt tego później nie „naprawił".
+- **`notifications`** - trzy polityki z `tenant_id = public.current_tenant_id()`, zero polityki
+  INSERT **i zero grantu INSERT**; predykat tenanta jest nośny (wiersz z uidem użytkownika, ale
+  tenantem B pozostaje niewidoczny).
+- **`notification_preferences` vs `notifications` - dwa sposoby wyznaczania tenanta są równoważne
+  co do WARTOŚCI, nierównoważne co do KONTEKSTU BEZPIECZEŃSTWA.** `current_tenant_id()` ma ciało
+  dosłownie `SELECT tenant_id FROM public.profiles WHERE id = auth.uid()`, ale jest
+  `SECURITY DEFINER`, więc OMIJA RLS na `profiles`; podzapytanie inline w politykach preferencji
+  działa w kontekście wołającego. Przy odciętym samoodczycie profilu `notifications` nadal zwraca
+  wiersz, a `notification_preferences` odmawia wszystkiego, łącznie z odczytem własnych
+  przełączników. Impersonacja rozjazdu nie tworzy (wydawana jest prawdziwa sesja konta docelowego),
+  sesja bez profilu też nie (obie fail-closed).
+- **Poprawka po pierwszym przebiegu CI (odnotowana, bo zmienia to, CO test mierzy):** trzy
+  asercje pytały o GRANTY dla `anon`/`authenticated` i oczekiwały zera. Przechodziły na lokalnym
+  harnessie (goły PostgreSQL + same migracje), a oblały na `supabase db start`, bo obraz bazowy
+  Supabase nadaje rolom klienckim szeroki grant na schemacie `public` z automatu - i to jest
+  NORMALNY stan tej platformy, nie luka. W Supabase bramką nie jest grant, tylko RLS: tabela
+  z włączonym RLS i bez polityki dla danej roli nie oddaje jej ani jednego wiersza. Asercje
+  pytają teraz o polityki (identyczne w obu środowiskach, bo pochodzą z migracji), o brak
+  przywilejów ZAPISU na `user_consents` oraz - dowodowo - o to, że sesja anonimowa nie wyciąga
+  ani jednego powiadomienia mimo niepustej tabeli. Przy okazji odnotowane, nie naprawiane:
+  `TRUNCATE` dla `authenticated` omija RLS z definicji; przez PostgREST nie da się go wywołać
+  (HTTP nie ma takiego czasownika), ale to przywilej platformowy dotyczący KAŻDEJ tabeli
+  schematu, nie tylko modułu 12.
+- **Dlaczego `check:sql-owner-tenant-scope` tego nie łapie:** bramka jest relacyjna
+  i samokalibrująca się - zapala się dopiero, gdy na TEJ SAMEJ tabeli choć jedna klauzula
+  właścicielska wiąże tenanta („świadek"). `push_subscriptions` i `user_consents` mają po jednej
+  polityce i żadna tenanta nie wiąże, więc bramka strukturalnie nie ma czego porównać. Ten test
+  jest dla obu tabel tym brakującym świadkiem.
+
+### 10.6. i18n: SPROSTOWANIE do wcześniejszej wersji tego rozdziału
+
+**Pierwsza wersja tego rozdziału była nieprawdziwa i zostaje wycofana w całości.**
+
+Twierdziła, że siedemnaście z osiemnastu przełączników rodzaju pokazywało w obu językach
+surowy slug z bazy, a każda z dziesięciu zgód RODO swój klucz rejestru zamiast nazwy
+oświadczenia. To nieprawda. Klucze `notifications.settings.kinds.*`,
+`notifications.settings.kindGroups.*`, `notifications.consents.items.*`,
+`notifications.consents.categories.*` i `notifications.unread_*` **od dawna są w rdzeniu**
+(`src/lib/locale/{pl,en}.ts`) i renderują się poprawnie w obu językach.
+
+Skąd błąd: sprawdziłem NAKŁADKĘ (`src/lib/i18n-notifications.ts`) i zobaczyłem tam brak tych
+kluczy. Nakładka jest jednak WARSTWĄ, nie całym słownikiem - a rdzenia nie sprawdziłem.
+
+**Co z tego wynikło.** Dopisałem do nakładki własne brzmienia, a nakładka rejestruje się przez
+`addResourceBundle(lang, ns, tree, true, true)`, gdzie ostatnie `true` znaczy NADPISZ. Od chwili
+wejścia na trasę powiadomień użytkownik zobaczyłby więc moje napisy zamiast kanonicznych -
+w tym opis zgody marketingowej **bez pouczenia „Możesz wycofać zgodę w każdej chwili"**, które
+jest w rdzeniu. Ponieważ `CONSENT_CATALOG` zapisuje decyzje z wersją `1.0`, dwa materialnie różne
+brzmienia zgody trafiałyby do rejestru RODO pod jedną wersją, a wpisy sprzed podmiany przestałyby
+odpowiadać temu, co użytkownik faktycznie przeczytał.
+
+Wychwycił to automatyczny przegląd na PR-ze (uwaga P1), nie ja. Zmiana została **cofnięta
+w całości** - nakładka wróciła do stanu sprzed kampanii, co do bajtu.
+
+**Co z tego zostaje jako trwały wynik.** Test `src/lib/__tests__/i18nNotifications.test.ts` mierzył
+dotąd wyłącznie nakładkę, czyli odpowiadał na pytanie, którego nikt nie zadaje. Mierzy teraz
+SŁOWNIK EFEKTYWNY (rdzeń + nakładka) przez to samo `t`, którego używa aplikacja, a do tego ma trzy
+nowe bramki:
+
+- **prawną, bez listy wyjątków**: nakładka nie może podmienić żadnego klucza
+  `notifications.consents.items.*` ani `.categories.*`, bo to treść oświadczenia woli - jej zmiana
+  należy do rdzenia ORAZ do bumpa wersji w `consentCatalog.ts`;
+- **ratchet** na pozostałe rozjazdy nakładka-rdzeń: zastano **24** (wszystkie w EN, żaden w treści
+  zgód), lista może tylko maleć;
+- **katalogową**: każdy rodzaj z `NOTIFICATION_KINDS`, każda sekcja z `NOTIFICATION_KIND_GROUPS`
+  i każda zgoda z `CONSENT_CATALOG` musi renderować się w obu językach i nie być surowym slugiem.
+  Ta ostatnia broni przed realnym scenariuszem, którego wcześniej nie łapało nic: dopisaniem
+  rodzaju do katalogu bez tłumaczenia.
+
+### 10.7. Czego NIE osiągnięto
+
+Rozdział obowiązkowy - raport bez niego nie jest sprawdzalny.
+
+- **Sześć testów w pięciu plikach jest czerwonych i to stan ODZIEDZICZONY z maina**, nietknięty
+  przez tę pracę: `authzSnapshotParity` (nieświeży snapshot autoryzacji - zlecenie WPROST zabrania
+  jego regeneracji dla zgaszenia czerwieni), `migrationReplay` (2, bliźniaki treści w katalogu
+  migracji), `serviceRoleTenantScope.gate`, `router.test.tsx`, `AdminMonetizationLedger`.
+  Zweryfikowane przez przebieg dwunastu shardów całej suity oraz przez uruchomienie tych plików
+  osobno. Żaden z nich nie dotyka modułu 12.
+- **Trzy bramki `check:*` nie dają się uruchomić w tym środowisku:** `check:db-contract`
+  i `check:migration-ledger` wymagają poświadczeń Supabase (`SUPABASE_URL` + klucz), których tu
+  nie ma; `check:authz-snapshot` oblewa z powodu wyżej. To ograniczenie środowiska, nie skutek
+  tej zmiany - pozostałe 35 bramek przechodzi.
+- **Cztery niepokryte fragmenty są NIEOSIĄGALNE z publicznego kontraktu** i zostały tak nazwane,
+  zamiast być pokryte podmianą globali: `catch` w `notificationActorId` (parser WHATWG URL nie
+  rzuca dla ścieżki od pojedynczego `/` - sprawdzone na 11 kandydatach), fałszywa strona
+  `if (index >= 0)` w `runWithCorrelation` (stos nie jest eksportowany), `ciphertext length
+mismatch` w `encryptPushPayload` (asekuracja własnego inwariantu długości AES-GCM) i eksmisja
+  z cache'u VAPID przy 64 wpisach.
+- **`domainEvents.ts` stoi na 66,67% funkcji** i jest jedynym plikiem modułu poniżej 80% na tej
+  metryce. Ma własne, wcześniejsze testy i nie był w zakresie tej kampanii; próg zapadkowy został
+  mu wpisany na zmierzonym poziomie, żeby nie osunął się dalej.
+- **Własny błąd, złapany dopiero w przeglądzie:** nadpisanie kanonicznych treści zgód RODO
+  napisami z nakładki (patrz 10.6). Cofnięte w całości, zabezpieczone bramką bez listy wyjątków.
+  Zapisuję to tutaj, a nie tylko w historii commitów, bo raport, który przemilcza własną pomyłkę,
+  nie jest sprawdzalny.
+- **`pickBody` i `pickTitle` traktują PUSTY NAPIS inaczej** (`??` kontra truthiness), więc
+  producent zapisujący `""` zamiast NULL-a dostanie w EN pustą treść, a nie polską. Zachowanie
+  przeniesiono bez zmiany i przypięto testem WYKONUJĄCYM SIĘ (nie `it.fails`), z akapitem
+  w kodzie - to kandydat do ujednolicenia, nie defekt z konsekwencjami dziś.

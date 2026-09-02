@@ -4654,6 +4654,279 @@ export default defineConfig({
           lines: 96,
           branches: 87,
         },
+        // ── MODUŁ 12: REALTIME / POWIADOMIENIA / WEB-PUSH ────────────────────
+        //
+        // POWIERZCHNIA, KTÓRA DO 01.09.2026 NIE MIAŁA ANI JEDNEGO PROGU.
+        // Audyt wyd. 8 nazwał to wprost: 373 progi per-ścieżka w tym pliku,
+        // dla modułu 12 - zero, więc regres nie zapalał niczego poza progiem
+        // globalnym, a ten przy 1,1% udziału modułu w repo nie zauważyłby
+        // nawet zjazdu całej powierzchni do zera. Moduł stał 5 wydań audytu
+        // w miejscu (delta wyd. 7 -> 8: 0,0 pp) na 49,54% linii, z 12 z 28
+        // plików na OKRĄGŁYM ZERZE.
+        //
+        // ZMIERZONE 01.09.2026 (pełna suita, 2 051 plików testowych,
+        // `all: true`, 664 przypadki modułu w 37 plikach - 657 zielonych
+        // + 7 `it.fails` na realnych defektach):
+        //
+        //   moduł 12 razem      98,03% linii (1145/1168) | 92,14% gałęzi | 97,11% funkcji
+        //   Powiadomienia+push  97,54% linii  (834/855)  | 91,90% gałęzi | 96,17% funkcji
+        //   Realtime            99,32% linii  (292/294)  | 93,25% gałęzi | 98,54% funkcji
+        //   trasy                100% linii    (19/19)   |  100% gałęzi  |  100% funkcji
+        //
+        // Delta wobec wyd. 8: +48,49 pp linii, +60,55 pp gałęzi, +49,65 pp
+        // funkcji. Plików na zerze: 12 -> 0.
+        //
+        // CO ODBLOKOWAŁO TE LICZBY - i dlaczego progi są tu tak wysokie.
+        // Nie brakowało narzędzia: `src/test/supabase/realtime.ts` (atrapa
+        // kanału z obserwowalnym refcountem) istniała od wydzielenia z fixture'ów
+        // czatu i używało jej siedem plików w INNYCH modułach. Z modułu 12 -
+        // ani jeden. Drugą połowę zdjęła ekstrakcja: `isInternalHref`,
+        // `isPlainLeftClick`, `pickTitle`/`pickBody`, `fmtDate` i rozpoznanie
+        // kluczy cache żyły w kopiach WEWNĄTRZ komponentów, więc były
+        // nieosiągalne dla testu jednostkowego - nie „nieprzetestowane", tylko
+        // niewywoływalne bez renderu 858-linijkowego organizmu.
+        //
+        // MARGINES: `floor(zmierzone - 2)` dla pojedynczego pliku i
+        // `floor(zmierzone - 3)` dla katalogu. Plik nie ma wewnętrznego dryfu -
+        // albo test go wykonuje, albo nie - więc szerszy margines byłby tu
+        // wyłącznie luzem na regres. Wpisy KATALOGOWE stoją obok plikowych
+        // celowo: to one łapią plik DOPISANY do modułu bez własnego progu.
+        //
+        // Te progi wolno wyłącznie PODNOSIĆ.
+        "src/lib/realtime/**": { statements: 95, functions: 95, lines: 96, branches: 90 },
+        "src/lib/notifications/**": { statements: 94, functions: 96, lines: 95, branches: 90 },
+        "src/components/notifications/**": {
+          statements: 90,
+          functions: 88,
+          lines: 92,
+          branches: 86,
+        },
+        // Realtime - kanały, presence, korelacja. Refcount kanału jest tu
+        // ASERCJĄ, nie dekoracją: gubiony `removeChannel` nie psuje żadnego
+        // widoku od razu, dopiero po kilku przejściach między trasami kończy
+        // się limit kanałów i zdarzenia przestają przychodzić. Każdy test
+        // odmontowania sprawdza `removed === true` i zerowy `activeChannelCount()`.
+        "src/lib/realtime/useModuleRealtime.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/useDomainEventStream.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/useEntityPresence.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/tableChannelHub.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/useEventConfirmedMutation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/realtime/cohesionLiveSync.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // `correlationContext.ts`: gałęzie 87,5%, bo fałszywa strona
+        // `if (index >= 0)` w `runWithCorrelation` jest NIEOSIĄGALNA przez
+        // publiczne API - stos nie jest eksportowany, a każdy `push` ma swój
+        // `splice` w `finally`. Próg mierzy to, co da się wykonać.
+        "src/lib/realtime/correlationContext.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 85,
+        },
+        "src/lib/realtime/correlation.ts": {
+          statements: 93,
+          functions: 88,
+          lines: 95,
+          branches: 73,
+        },
+        "src/lib/realtime/eventInvalidationMap.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 79,
+        },
+        "src/lib/realtime/domainEvents.ts": {
+          statements: 83,
+          functions: 64,
+          lines: 83,
+          branches: 98,
+        },
+        // Warstwa danych powiadomień. `useNotifications.ts` szedł z 44,6% linii
+        // i 18 z 39 funkcji na komplet - w tym bramka WIELOTENANTOWA:
+        // preferencje NIE zapisują się bez `tenant_id` odczytanego z profilu.
+        "src/lib/notifications/useNotifications.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/notifications/useActorProfiles.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Warstwa RODO - do tej kampanii BEZ ANI JEDNEGO TESTU. Progi pilnują
+        // dwóch kontraktów, których nie widać w procencie: klient nigdy nie
+        // pisze do `user_consents` (wyłącznie server-fn -> RPC `set_user_consent`
+        // z gwarantowanym audit-logiem), a kolumna `gpc` zapisuje AKTYWNOŚĆ
+        // sygnału Global Privacy Control, nie jego honorowanie - zgoda udzielona
+        // jako świadomy override MUSI mieć `gpc = true`, bo to ona jest wyjątkiem
+        // wymagającym uzasadnienia.
+        "src/lib/notifications/useConsents.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/notifications/consentCatalog.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Klient Web Push: cztery warunki wsparcia, cache klucza VAPID na czas
+        // życia karty, dekodowanie base64url i ścieżki odmowy uprawnienia.
+        "src/lib/notifications/push.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/notifications/pushConfig.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // `webpush.server.ts`: krypto (RFC 8291/8292) miało testy od dawna,
+        // CAŁA ścieżka wysyłki nie miała żadnych - a to ona decyduje, co
+        // dyspozytor zrobi z wynikiem. Gałęzie 56,3% -> 92,71%. Najważniejsza
+        // z nich: strażnica SSRF jest fail-closed (endpoint na localhost /
+        // 169.254.169.254 / `.internal` daje `gone:true` i `fetch` NIE zostaje
+        // wywołany ani razu), bo `endpoint` subskrypcji to napis przysłany przez
+        // przeglądarkę użytkownika, czyli wejście wrogie.
+        "src/lib/notifications/webpush.server.ts": {
+          statements: 94,
+          functions: 93,
+          lines: 96,
+          branches: 90,
+        },
+        "src/lib/notifications/dispatch.server.ts": {
+          statements: 90,
+          functions: 98,
+          lines: 92,
+          branches: 79,
+        },
+        "src/lib/notifications/digestEmail.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/notifications/grouping.ts": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/lib/notifications/kindInvalidation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/notifications/preferences.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 73,
+        },
+        // Czyste predykaty i selektory wydzielone z komponentów (01.09.2026).
+        // `notificationLink.ts` stoi na 83,33% linii i to jest poziom DOCELOWY:
+        // niepokryty jest wyłącznie `catch` w `notificationActorId`, nieosiągalny
+        // z publicznego kontraktu (href jest wcześniej filtrowany przez
+        // `isInternalHref`, a parser WHATWG URL nie rzuca dla ścieżki
+        // zaczynającej się pojedynczym `/` - sprawdzone na 11 kandydatach).
+        // Pokrycie go wymagałoby podmiany globalnego `URL`, czyli testowania
+        // atrapy zamiast kontraktu.
+        "src/lib/notifications/notificationLink.ts": {
+          statements: 83,
+          functions: 98,
+          lines: 81,
+          branches: 98,
+        },
+        "src/lib/notifications/notificationText.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/notifications/notificationListKeys.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Komponenty. `NotificationsCenter.tsx` szedł z 0/146 linii i 0/64
+        // funkcji; po ekstrakcji ma 135 linii i 94,07% z nich wykonanych.
+        // Cel zlecenia dla funkcji brzmiał „>= 70%" - osiągnięte 89,47%.
+        "src/components/notifications/NotificationsCenter.tsx": {
+          statements: 89,
+          functions: 87,
+          lines: 92,
+          branches: 84,
+        },
+        "src/components/notifications/NotificationsBell.tsx": {
+          statements: 94,
+          functions: 82,
+          lines: 94,
+          branches: 85,
+        },
+        "src/components/notifications/ConsentsPanel.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        "src/components/notifications/molecules/NotificationKindToggle.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Trasy modułu - obie na komplecie.
+        "src/routes/admin.community.notifications.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/profile.notifications.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
       },
     },
   },

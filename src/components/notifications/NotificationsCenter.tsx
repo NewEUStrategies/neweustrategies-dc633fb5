@@ -4,7 +4,7 @@
 // - Settings tab (toggle notification kinds + default behaviour)
 // - Realtime: notifications + notification_preferences (widgets stay in sync)
 // - Multi-tenant: RLS scopes rows to auth.uid() + current_tenant_id
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
 import {
@@ -62,13 +62,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useNotificationActorProfiles } from "@/lib/notifications/useActorProfiles";
 import {
-  useNotificationActorProfiles,
+  isInternalHref,
+  isPlainLeftClick,
   notificationActorId,
-} from "@/lib/notifications/useActorProfiles";
+} from "@/lib/notifications/notificationLink";
+import { fmtDate, pickBody, pickTitle } from "@/lib/notifications/notificationText";
+import {
+  NOTIFICATION_LIST_FILTERS,
+  listKeyIsOnlyUnread,
+} from "@/lib/notifications/notificationListKeys";
 import { ConsentsPanel } from "./ConsentsPanel";
+import type { AppLang } from "@/lib/i18n/localePath";
 
-type Lang = "pl" | "en";
+type Lang = AppLang;
 type TabValue = "all" | "unread" | "settings";
 type KindFilter = "all" | NotificationKind;
 
@@ -82,18 +90,6 @@ const KIND_OPTIONS: KindFilter[] = ["all", ...NOTIFICATION_KINDS];
 // Rozmiar strony pochodzi z warstwy danych - Bell i Center współdzielą cache
 // tylko wtedy, gdy używają tego samego `pageSize` (patrz useNotifications.ts).
 
-function pickTitle(n: NotificationRow, lang: Lang): string {
-  return (lang === "en" && n.title_en) || n.title_pl;
-}
-function pickBody(n: NotificationRow, lang: Lang): string | null {
-  return lang === "en" ? (n.body_en ?? n.body_pl) : (n.body_pl ?? n.body_en);
-}
-function fmtDate(iso: string, lang: Lang): string {
-  return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 function NotificationIcon({
   name,
   className,
@@ -105,54 +101,12 @@ function NotificationIcon({
   return <DynamicIcon name={name} className={className} />;
 }
 
-// Internal links get SPA navigation (no full reload); external ones stay
-// plain anchors - same rule the header bell applies.
-//
-// Internal hrefs render a real <a href> for semantics, but plain left-clicks
-// are hijacked and routed through router.navigate({ href }). Unlike
-// <Link to={href}> - which treats `to` as a pathname verbatim and never splits
-// out `?search`, 404-ing "/messages?c=<uuid>" - navigate({ href }) parses the
-// query string correctly, so search params survive client-side navigation.
-function isInternalHref(href: string): boolean {
-  return href.startsWith("/") && !href.startsWith("//");
-}
-
-// Unmodified left-click - the only case we hijack for SPA navigation.
-// Modified clicks (ctrl/cmd/shift/alt, middle button) keep native anchor
-// behaviour like open-in-new-tab; the real href makes that work.
-function isPlainLeftClick(e: ReactMouseEvent<HTMLAnchorElement>): boolean {
-  return (
-    !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
-  );
-}
-
-// React-query plumbing for optimistic updates. List caches live under
-// ["notifications", <uid>, <filter>] (see useNotifications). The same
-// "notifications" prefix also covers the preferences and unread-count queries,
-// whose data is NOT a row array - list entries are recognized by key shape
-// (third element is the filter object).
-function isNotificationListQuery(query: { queryKey: readonly unknown[] }): boolean {
-  const key = query.queryKey;
-  return (
-    key[0] === "notifications" && key.length === 3 && typeof key[2] === "object" && key[2] !== null
-  );
-}
-
-const NOTIFICATION_LIST_FILTERS = {
-  queryKey: ["notifications"],
-  predicate: isNotificationListQuery,
-};
-
-/** Does this list cache hold only unread rows? (its filter set onlyUnread) */
-function listKeyIsOnlyUnread(key: readonly unknown[]): boolean {
-  const filter = key[2];
-  return (
-    typeof filter === "object" &&
-    filter !== null &&
-    "onlyUnread" in filter &&
-    filter.onlyUnread === true
-  );
-}
+// Odnośniki wewnętrzne dostają nawigację SPA (bez pełnego przeładowania),
+// zewnętrzne zostają zwykłymi kotwicami - ta sama reguła co w dzwonku.
+// Predykaty żyją w `@/lib/notifications/notificationLink`, a rozpoznanie kluczy
+// cache listy (pułapka wspólnego prefiksu `notifications`) w
+// `@/lib/notifications/notificationListKeys` - oba czyste i otestowane
+// jednostkowo, bez renderu tego organizmu.
 
 type NotificationInfiniteData = InfiniteData<NotificationRow[], number>;
 type NotificationListSnapshot = Array<[QueryKey, NotificationInfiniteData | undefined]>;
