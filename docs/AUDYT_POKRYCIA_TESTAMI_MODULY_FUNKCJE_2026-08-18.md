@@ -1045,42 +1045,193 @@ zlecenia są spełnione dosłownie:
 
 #### Bramki: stan zmierzony na tym HEAD
 
-`check:entry-purity` - **ZIELONA, z nowym wpisem**. Świeży `npm run build`, ścieżka
-bootowania to 9 chunków statycznie osiągalnych z 941; lista ciężkich modułów zawiera
-teraz `echarts`. `check:chunks` - ZIELONA (941 chunków, 5455 krawędzi, graf acykliczny).
-`check:chunk-parity`, `check:i18n-parity`, `check:i18n-hardcoded`,
-`check:i18n-default-value`, `check:i18n-overlay-imports`, `check:types-freshness`,
-`check:stale-never-casts`, `check:db-row-casts`, `check:unknown-casts`,
-`check:gate-coverage`, `check:tenant-isolation` (62 asercje RLS) - ZIELONE.
-`check:db-contract` i `check:migration-ledger` wymagają poświadczeń do bazy i w tym
-środowisku nie mają czego zweryfikować - nie są to porażki, tylko brak wejścia.
+Uruchomione **28 bramek** `check:*`. Rachunek jest taki: **24 zielone, 4 czerwone,
+a te 4 czerwienie mają TRZY przyczyny źródłowe i żadna nie leży w module 17.**
+Rozdzielenie „bramek czerwonych" od „przyczyn czerwieni" nie jest tu retoryką -
+dwie z tych bramek pokazują czerwień z powodu, który nie ma nic wspólnego z ich
+własną nazwą, i to jest ustalenie o samych bramkach, warte zapisania.
 
-`check:authz-snapshot` - **CZERWONA, i czerwona BAJT W BAJT tak samo przed kampanią**
-(sprawdzone w drzewie wyjściowym): `migrations: 932 -> 935`, klasa PROVENANCE, czyli
-„ten sam krąg uprawnionych, inne miejsce w historii". Wydanie 8 audytu notuje ten sam
-dryf przy 932 -> 934. Zlecenie zabrania regenerowania snapshotu dla zgaszenia
-czerwieni i nie regenerowałem go - kampania nie dodała ani jednej migracji, więc nie
-ma tu nic mojego do naprawienia.
+**ZIELONE - bramki buildowe (świeży `npm run build`, exit 0):**
 
-`check:bundle` - **CZERWONA, i była czerwona PRZED tą kampanią**. To jest jedyna
-bramka, która nie przechodzi, więc podaję pomiar z obu stron, z osobnego drzewa
-roboczego przypiętego do commitu wyjściowego:
+`check:entry-purity` - **ZIELONA, Z NOWYM WPISEM.** To jest zamknięcie N4:
+`echarts` stoi teraz na liście ciężkich modułów obok `dompurify`, `sonner`,
+`lib/builder/sectionLabelVariants` i `lib/legal/content/*`, a ścieżka bootowania
+to **9 chunków statycznie osiągalnych z 941**.
+`check:chunks` - ZIELONA: **941 chunków, 5455 statycznych krawędzi importu, graf
+acykliczny**. `check:chunk-parity` - ZIELONA (3 przypadki).
 
-| pomiar                | wejście (`3eb5e92`) | po kampanii | budżet   |
-| --------------------- | ------------------: | ----------: | -------: |
-| PUBLIC                |          2 687,1 KB |  2 687,3 KB | ≤ 2 715 |
-| OVERALL               |          4 320,5 KB |  4 320,6 KB | ≤ 4 306 |
-| domknięcie bootowania |            576,7 KB |    576,8 KB |   ≤ 579 |
-| największy chunk      |            274,0 KB |    274,1 KB |   ≤ 280 |
+Liczby chunków są tu z CZYSTEGO buildu i to zastrzeżenie nie jest formalnością -
+na katalogu `.output` z dwiema generacjami assetów te same bramki raportowały
+1731 chunków i 10 784 krawędzie. Mechanizm i konsekwencje opisuję niżej, przy
+`check:bundle`.
 
-Delta tej kampanii to **+0,1 KB gzip na OVERALL i +0,2 KB na PUBLIC** - dziesiąte
-części kilobajta, czyli tyle, ile waży bufor beaconu i wspólny magazyn motywu.
-Przekroczenie budżetu OVERALL wynosi 14,5 KB i pochodzi spoza tego modułu: rozjazd
-wobec zamrożonego baseline'u wskazuje `i18n` (+129,1 KB),
-`EventStudioModuleSections` (+65,5 KB, NOWY), `useEventSessions` (+31,1 KB, NOWY)
-i `scanner` (+15,3 KB, NOWY). Batchowanie metryk i zdjęcie efektu z `EChartClient`
-nie zmieniły kilobajtów w żadnym mierzalnym stopniu - zmieniły liczbę żądań i liczbę
-renderów, a te nie są mierzone przez tę bramkę.
+**ZIELONE - harnessy bazodanowe (5):** `check:pg-harness` (**369 asercji runtime**),
+`check:events-harness` (**107 migracji, 1044 asercje**), `check:careers-harness`
+(12 migracji, 6 atrap-celów polityk, zero pominiętych migracji),
+`check:programs-harness`, oraz `check:widget-fidelity` (548 przypadków).
+
+`check:tenant-isolation` - **62 asercje RLS**,
+w tym cztery, które warto wypisać, bo dotyczą danych wrażliwych: historia czytania
+i wynik testu osobowości z obcego najemcy są niewidoczne i niezapisywalne (RODO:
+co człowiek czytał, profil psychometryczny), ścieżka kanoniczna strony urywa się na
+granicy najemcy także w wariancie WSADOWYM obsługującym sitemapę, i nie da się
+przepiąć istniejącej strony pod rodzica z obcego najemcy.
+
+**ZIELONE - bramki statyczne (22):** `check:types-freshness` (304 tabele w typach,
+26 znanych kolumn poza typami - baseline 26), `check:stale-never-casts` (3327 plików,
+zero rzutowań na nazwy już obecne w typach), `check:unknown-casts` (192 znane
+rzutowania w 124 plikach), `check:db-row-casts` (3328 plików, 20 wyjątków),
+`check:i18n-hardcoded` (791 znanych wystąpień w 110 plikach),
+`check:i18n-default-value` (**zero** zapasowych tekstów przy `t()` w 3296 plikach),
+`check:i18n-overlay-imports`, `check:sql-tenant-scope` (1086 funkcji, 5 uzasadnionych
+ścieżek publicznych), `check:sql-app-role` (1035 literałów `has_role`),
+`check:sql-anon-insert` (620 polityk, 8 tabel intake chronionych),
+`check:sql-emit-actor` (935 migracji, 1036 funkcji - aktor szóstym argumentem
+w każdym wywołaniu), `check:sql-owner-tenant-scope` (165 polityk właściciela z 620),
+`check:sql-policy-tenant-regression` (562 z 620 polityk z wiązaniem najemcy),
+`check:rpc-contract` (559 nazw wołanych przez klienta, 1039 funkcji),
+`check:content-layering` (bloki -> builder: 0, content-model -> silniki: 0),
+`check:editor-autosave`, `check:workflow-env-contract`, `check:public-assets`,
+`check:legacy-payment-refs` (5865 plików, zero żywych referencji),
+`check:gate-coverage` (**38 bramek, każda wpięta dokładnie raz na job**),
+`check:ownership`, `check:codeowners`.
+
+Dwa ustalenia z zieleni, warte zapisania, bo bramka je DRUKUJE, a nikt ich nie czyta:
+`check:ownership` przechodzi, ale raportuje **9 z 9 domen rejestru bez obsadzonego
+właściciela technicznego** oraz 226 atrybucji słabych (jeden identyfikator). Co
+istotniejsze dla tego rozdziału: **modułu 17 nie ma w rejestrze własności jako
+osobnej domeny** - analityka i BI nie mają właściciela, do którego trafiłoby
+którekolwiek z 96 przypięć niżej.
+
+#### Cztery czerwienie, trzy przyczyny - żadna w module 17
+
+**PRZYCZYNA 1: dryf snapshotu autoryzacji. Zapala DWIE bramki.**
+
+`check:authz-snapshot` - CZERWONA, klasa **PROVENANCE**: `migrations: 932 -> 935`,
+czyli „ten sam krąg uprawnionych, inne miejsce w historii". `check:permissions-parity`
+- CZERWONA Z TEJ SAMEJ PRZYCZYNY: 234 przypadki przechodzą, 1 oczekiwana porażka,
+a jedyne padnięcie to `authzSnapshotParity.test.ts`, czyli ten sam dryf zapakowany
+w test.
+
+Że to dryf metadanych, a nie regresja uprawnień, jest sprawdzalne, nie deklarowane:
+reporter dryfu zwrócił **dokładnie jeden** wpis, kategorii `stats`, o twardo
+ustawionej wadze `provenance`. Gdyby zmieniło się `appRoles` albo jakakolwiek bramka
+rolowa, przed sekcją PROVENANCE stanęłaby osobna sekcja ZMIANA UPRAWNIEŃ. Nie
+stanęła. Z trzech liczb w `stats` rozjechała się **tylko `migrations`**; `functions`
+(1086) i `policies` (607) zgadzają się z odtworzeniem z migracji.
+
+Źródło: trzy migracje z gałęzi Lovable z 31.08-01.09, które weszły PO ostatniej
+regeneracji snapshotu (`1c4a91e`, 31.08) i PRZED startem gałęzi modułu 17 -
+`page_full_path` z unikatem `pages(id, tenant_id)`, polityki właścicielskie na
+`user_read_history` i `personality_result_history`, oraz `menu_items.visibility`.
+Kampania modułu 17 **nie dodała ani jednej migracji** (`git log --diff-filter=A`
+na `supabase/migrations` jest puste). Zlecenie zabrania regenerowania snapshotu dla
+zgaszenia czerwieni i nie regenerowałem go.
+
+**PRZYCZYNA 2: bliźniaki treści migracji. Zapala DWIE bramki.**
+
+`check:sql-migration-replay` - CZERWONA: dwie NOWE pary bliźniaków, czyli ta sama
+zmiana zapisana dwa razy pod dwiema nazwami -
+`20260831160000_page_full_path_tenant_scope.sql` obok
+`20260831214637_5b55b33f-….sql` i
+`20260831170000_owner_plane_tenant_scope_read_history.sql` obok
+`20260831215103_21bb8d7a-….sql`. Komunikat bramki nazywa szkodę precyzyjnie:
+odtworzenie bazy przeżyje, bo migracje są idempotentne, ale **historia kłamie
+o tym, kiedy zmiana realnie weszła** - a przy spłaszczonej historii commitów to
+jedyne narzędzie datowania regresji.
+
+`check:i18n-parity` - CZERWONA Z TEJ SAMEJ PRZYCZYNY I TO JEST USTALENIE O BRAMCE:
+**wszystkie 49 plików językowych przechodzą, 815 przypadków zielonych.** Czerwień
+wnoszą dwa padnięcia z `src/lib/ci/__tests__/migrationReplay.test.ts`, bo glob tej
+bramki obejmuje CAŁY katalog `src/lib/ci/__tests__`, nie tylko testy językowe.
+Praktyczny skutek: `check:i18n-parity` da się dziś zapalić zmianą, która nie ma
+z językiem nic wspólnego, i odwrotnie - kto zobaczy jej czerwień, pójdzie szukać
+rozjazdu słownika, którego nie ma. **REKOMENDACJA: zawęzić glob tej bramki do
+plików językowych.**
+
+**PRZYCZYNA 3: budżet bundla.** Osobny akapit niżej, bo wymaga pomiaru po obu
+stronach kampanii.
+
+**BEZ WEJŚCIA, nie czerwone:** `check:db-contract` i `check:migration-ledger`
+kończą komunikatem „Brak SUPABASE_URL / klucza Supabase - nie mogę zweryfikować".
+To nie są porażki, tylko bramki, które w tym środowisku nie mają czego sprawdzić.
+Odnotowuję je jawnie, bo pominięcie ich w spisie wyglądałoby jak zieleń.
+
+#### `check:bundle`: pomiar, który najpierw zrobiłem BŁĘDNIE
+
+Zanim podam liczby, muszę opisać własną pomyłkę, bo jest instruktywna i łatwa do
+powtórzenia. Pierwszy pomiar dał `public 4205,5 KB` i `overall 7416,4 KB` przy
+1733 plikach - czyli przekroczenie budżetu o 1490 KB i 3110 KB, wynik
+katastrofalny i, jak się okazało, **nieprawdziwy**.
+
+Przyczyna: pierwszy build został ubity w połowie, ale zdążył zapisać do
+`.output/public/assets` 790 plików; drugi build dopisał obok 941 nowych z nowymi
+skrótami w nazwach. `check:bundle` gzipuje WSZYSTKO, co znajdzie w katalogu, więc
+policzył sumę DWÓCH GENERACJI. Widać to w znacznikach czasu (790 plików z jednej
+minuty, 941 z następnej). Bramka nie ma jak tego wykryć - `.output` jest dla niej
+prawdą o buildzie, a nie zbiorem, który sama utworzyła. **Wniosek praktyczny:
+`check:bundle` wolno czytać wyłącznie po `rm -rf .output && npm run build`;
+inkrementalny katalog wyjściowy daje liczby wyglądające jak wynik.** To samo
+dotyczy `check:chunks` i `check:entry-purity`, które na brudnym katalogu
+raportowały 1731 chunków i 10 784 krawędzie zamiast rzeczywistych 941 i 5455.
+
+Pomiar po obu stronach kampanii, na CZYSTYCH buildach, tym samym instrumentem
+(`scripts/check-bundle-size.ts` i `reports/bundle-baseline.json` są bajt w bajt
+identyczne w `3eb5e92` i na HEAD, a `vite.config.ts` i `package.json` kampania
+nie tknęła):
+
+| pomiar                | wejście (`3eb5e92`) | po kampanii | budżet    | stan |
+| --------------------- | ------------------: | ----------: | --------: | ---- |
+| liczba plików JS      |                 943 |         943 |         - | - |
+| PUBLIC                |          2 687,0 KB |  2 687,6 KB | ≤ 2 715 KB | ZIELONY, zapas 27,4 KB |
+| admin-only            |          1 633,4 KB |  1 633,5 KB | bilowane do overall | - |
+| OVERALL               |          4 320,4 KB |  4 321,1 KB | ≤ 4 306 KB | CZERWONY |
+| największy chunk      |            274,0 KB |    274,0 KB |   ≤ 280 KB | ZIELONY |
+| CSS klienta           |     81,0 KB / 2 pl. | 81,0 KB / 2 |    ≤ 82 KB | ZIELONY |
+| domknięcie bootowania |    576,7 KB / 9 ch. | 576,7 KB / 9 |   ≤ 579 KB | ZIELONY |
+
+**Kampania modułu 17 dołożyła +0,7 KB gzip do bundla klienta, z czego +0,6 KB do
+wiadra PUBLIC.** Siedem dziesiątych kilobajta. Przekroczenie budżetu OVERALL
+wynosi 15,1 KB i **istniało już na wejściu kampanii**: 4 320,4 KB wobec progu
+4 306 KB, czyli **14,4 KB ponad próg, zanim kampania cokolwiek zmieniła**. Udział
+kampanii w przekroczeniu to 0,7 z 15,1 KB, czyli **4,6%; pozostałe 95,4% jest
+odziedziczone.** Wiadra public nigdy nie przekroczono - to była wyłącznie
+konsekwencja podwójnego katalogu wyjściowego.
+
+Delta per chunk, policzona przez zgzipowanie i zsumowanie po 809 wiadrach obu
+świeżych buildów - to jest dowód, a nie lista ruchów wobec zamrożonego
+baseline'u z 15 sierpnia, której świadomie nie cytuję, bo jest pisana STARĄ
+konwencją wiader (sama bramka o tym ostrzega):
+
+| chunk           |     delta | co się w nim zmieniło |
+| --------------- | --------: | --------------------- |
+| `EChartClient`  | +0,25 KB | wspólny magazyn motywu (N8); niesie zinline'owany `chartTheme.ts` |
+| `webVitals`     | +0,15 KB | kolejka i drenaż metryk (N2) |
+| `index`         | +0,01 KB | `report.ts` - parametryzacja endpointu |
+| `i18n`, `_`     | +0,03 KB | poziom zaokrąglenia rehashowania |
+
+Jeden szczegół z tego pomiaru jest dowodem per-plik, nie założeniem: literał
+`/api/public/vitals` **przeniósł się** z `webVitals.js` (wejście) do `index.js`
+(po kampanii). To dokładnie skutek wydzielenia `INTERNAL_VITALS_ENDPOINT`
+w `report.ts` - endpoint przestał być stałą reportera metryk i stał się stałą
+warstwy obserwowalności.
+
+Zweryfikowano też - nie założono - że pozostałe pliki kampanii do klienta NIE
+wchodzą: `src/lib/views/postViews.functions.ts` (N5) nie ma chunku klienckiego
+i jego wkład to 0,00 KB, trasy `api/public/{vitals,client-errors}.ts` nie
+zostawiają w kliencie ani jednego literału (`MAX_METRICS`, `MAX_BODY` - zero
+plików), a pliki testowe nie wchodzą do bundla wcale.
+
+Progi i baseline bramki są nietknięte (md5 obu plików sprawdzone), a
+`--update-baseline` nie było uruchamiane ani razu. Zlecenie zabrania gaszenia
+czerwieni przez zmianę progu i przepisanie baseline'u jest właśnie tym.
+
+**Do decyzji poza tą kampanią:** OVERALL przebija próg o 15 KB przy zapasie
+27,4 KB na PUBLIC i 2,3 KB na domknięciu bootowania. To dryf odziedziczony,
+niesiony przez słowniki i18n, `vendor` i powierzchnie edytora/buildera - w żadnym
+z tych wiader kampania nie ruszyła ani kilobajta. Ale próg jest przebity i wymaga
+własnej diagnozy.
+
 
 #### Co znalazły testy, których nikt nie szukał: 96 przypięć `it.fails`
 
