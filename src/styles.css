@@ -6618,7 +6618,6 @@ textarea::placeholder {
   border-color: color-mix(in oklab, var(--brand) 30%, transparent);
   color: var(--foreground);
   transform: translate(1px, -1px);
-  box-shadow: 0 6px 16px -10px color-mix(in oklab, var(--brand) 35%, transparent);
 }
 
 .menu-card-item:hover .menu-card-item__label {
@@ -6648,7 +6647,8 @@ textarea::placeholder {
 }
 
 .menu-card-item:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 45%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--brand) 45%, transparent);
+  outline-offset: 2px;
 }
 
 /* Primary variant — pierwsza pozycja "Strona sekcji" wyróżniona na spoczynku */
