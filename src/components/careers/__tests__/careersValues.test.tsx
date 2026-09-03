@@ -26,7 +26,10 @@
 //  1. Treść pochodzi ze SŁOWNIKA (`realT("pl")` + nakładka `@/lib/i18n-careers`),
 //     nie z literałów w teście: nagłówki, podtytuł, podpowiedź, etykieta
 //     „W praktyce", cztery zasady (title/body/proof) i sześć benefitów
-//     (title/body). Usunięcie klucza ze słownika oblewa ten plik.
+//     (title/body). Każdy z tych 33 odczytów idzie przez bramkę `dict()`, która
+//     GASI plik, gdy i18next zwróci sam klucz — dopiero to czyni prawdziwym
+//     zdaniem „usunięcie klucza ze słownika oblewa ten plik" (bez bramki
+//     asercja porównywała echo klucza z echem klucza; patrz REWIZJA, 1).
 //  2. Spotlight jest sterowalny myszą I klawiaturą (Radix Tabs, `activationMode
 //     ="manual"`): mousedown i Enter zmieniają zasadę, sam focus jej NIE zmienia.
 //  3. Auto-rotacja co 5 s biegnie WYŁĄCZNIE gdy: sekcja jest w viewporcie, karta
@@ -71,7 +74,9 @@
 //  * `requestAnimationFrame` / `cancelAnimationFrame` — kolejka klatek
 //    wykonywana ręcznie z podanym timestampem, plus `performance.now`.
 //    Bez tego easing jest niedeterministyczny i test mierzyłby zegar maszyny,
-//    a nie funkcję `easeOutCubic`.
+//    a nie funkcję `easeOutCubic`. Anulowanie klatki naprawdę ją Z KOLEJKI
+//    WYJMUJE — atrapa, która tylko zapisywała id, była łagodniejsza niż
+//    przeglądarka i zacierała defekt (REWIZJA, 2).
 //  * `setInterval` / `clearInterval` — tylko w testach auto-rotacji
 //    (`controlledIntervals()`), żeby dowieść ISTNIENIA i USUNIĘCIA timera oraz
 //    jego okresu (5000 ms), a nie „coś się po chwili zmieniło". Atrapa nie
@@ -110,6 +115,53 @@
 //    i `typeof IntersectionObserver === "undefined"` w obie strony — mają tu
 //    własne testy.
 //
+// REWIZJA ADWERSARYJNA (drugie przejście, założenie wyjściowe: autor pierwszego
+// przejścia hodował pokrycie i trzeba mu to udowodnić). Stan wejściowy rewizji:
+// 51/51 linii, 20/20 funkcji, 35/35 gałęzi, 33 testy, wszystkie zielone.
+// CZĘŚĆ ZARZUTÓW UPADŁA i trzeba to powiedzieć wprost: żaden `it` nie był pusty
+// ani trywialny, nie było pętli renderującej fixture bez asercji, easing był
+// sprawdzony liczbą (39 przy połowie czasu), a atrapy nie zjadły przedmiotu
+// dowodu — `t` w atrapie `react-i18next` to prawdziwy `getFixedT("pl")`, zaś
+// Radix, React, `useInView`, `parseStatValue`/`easeOutCubic`, `cn` i axe-core
+// zostały prawdziwe. Potwierdziły się natomiast cztery zarzuty:
+//  1. SAMOSPEŁNIAJĄCE SIĘ ASERCJE NA SŁOWNIK (najcięższy). i18next dla
+//     brakującego klucza zwraca SAM KLUCZ, a komponent renderuje `t(key)` —
+//     więc `getByText(t(key))` porównywało echo z echem i przechodziło także
+//     dla klucza usuniętego ze słownika. Nagłówek obiecywał „usunięcie klucza
+//     oblewa ten plik", co było prawdą wyłącznie dla czterech tytułów zasad
+//     (jedyna jawna asercja `not.toBe(key)`, teraz zbędna, bo strukturalna).
+//     ZMIERZONE: po skasowaniu `careers.values.title` ze słownika przed rewizją
+//     nie gasło NIC w całym repo — bramka parzystości w
+//     `src/lib/careers/__tests__/roles.test.ts` nie ma tego klucza w `LEAVES`
+//     (nie ma tam też `careers.values.subtitle` ani `careers.benefits.title`)
+//     i zostaje 9/9 zielona. Po rewizji ta sama mutacja gasi ten plik z nazwą
+//     klucza w komunikacie; zdjęcie całej nakładki `@/lib/i18n-careers` gasi 13
+//     testów zamiast jednego.
+//  2. ATRAPA KOLEJKI KLATEK ŁAGODNIEJSZA NIŻ PRZEGLĄDARKA. `cancelAnimationFrame`
+//     tylko zapisywał id, nie wyjmując klatki z kolejki, więc anulowana klatka
+//     wykonywała się przy najbliższym `flushFrame` — z domknięciem po STARYM
+//     `target`. Każdy dowód „po odmontowaniu / po zmianie propsa nic już nie
+//     jedzie" mierzyłby uprzejmość atrapy, a defekt `CareerStat` wyglądał przez
+//     to łagodniej, niż jest (patrz drugi test ZNALEZISKO).
+//  3. NAZWY `it(...)` MOCNIEJSZE OD CIAŁ. „Zjechanie kursorem wznawia rotację"
+//     liczyło wyłącznie rejestracje timera i nigdy nie tyknęło (teraz tyka i
+//     sprawdza okres oraz przesunięcie spotlightu). „Ikonę ukrywa przed
+//     czytnikiem" sprawdzało OBECNOŚĆ `aria-hidden` — przechodziło również dla
+//     `aria-hidden="false"`, czyli dla ikony czytanej na głos (teraz mierzy
+//     wartość; mutacja `aria-hidden={false}` w molekule gasi test). „Poprawna
+//     para <dt>/<dd>" sprawdzała dwie osobne obecności, a nie wspólne
+//     opakowanie. „Treść jako akapit" nie sprawdzała, że to akapit.
+//  4. LUKA MIĘDZY ORGANIZMEM A ATOMEM. Stagger miał dowód w `CareerReveal`, ale
+//     NIC nie mierzyło, czy `CareersValues` w ogóle podaje kaflom ich numery:
+//     mutacja `index={0}` w organizmie przechodziła wszystkie 33 testy przy
+//     nietkniętym 100% pokryciu (kolejność propsa nie jest linią kodu). Dołożony
+//     dowód na sześć narastających opóźnień gasi tę mutację.
+// Przy okazji: sprzątanie `visibilityState` czytało deskryptor z
+// `Document.prototype`, gdzie happy-dom go nie trzyma (zmierzone sondą), więc
+// gałąź odtwarzania własnej właściwości była martwa; teraz deskryptor pochodzi
+// z `document`, a test kończy się asercją, że stan globalny wrócił do
+// „visible" — bo kolejne testy w tym pliku tykają interwałem, który go czyta.
+//
 // ZNALEZISKO (defekt produkcyjny, zachowanie ISTNIEJĄCE zaasertowane niżej).
 // `CareerStat` odlicza dokładnie RAZ na cykl życia komponentu: `startedRef`
 // nigdy nie wraca do `false`, a `display` trzyma ostatnią wyliczoną liczbę.
@@ -120,6 +172,14 @@
 // którym liczby zaczną płynąć z bazy (np. „otwartych rekrutacji: N" z
 // `admin.hiring`). Testy „ZNALEZISKO" niżej przypinają stan istniejący, żeby
 // naprawa była widoczna jako zmiana testu, a nie cicha zmiana zachowania.
+// REWIZJA DOKŁADA OSTRZEJSZĄ POSTAĆ TEGO SAMEGO DEFEKTU, której pierwsze
+// przejście nie zauważyło (i której nie dało się zobaczyć przez atrapę `raf`
+// z punktu 2 powyżej): gdy `value` zmieni się W TRAKCIE odliczania, React
+// sprząta poprzedni efekt (`cancelAnimationFrame`), a efekt dla nowego `target`
+// wychodzi na `startedRef.current` i nie planuje kolejnej klatki — licznik
+// ZAMARZA na liczbie pośredniej i nie dojdzie już do żadnego celu („39" przy
+// celu „9"). To nie ta sama asercja co „stara wartość": tam użytkownik widzi
+// poprzedni wynik, tu liczbę, której nie ma w żadnym słowniku.
 //
 // RODO. Żadnych prawdziwych osób ani treści: wszystkie napisy pochodzą ze
 // słownika produktu albo są jawnie zmyślone; nie ma tu adresów e-mail,
@@ -152,6 +212,26 @@ import { CareersValues } from "@/components/careers/organisms/CareersValues";
 
 h.t = () => realT("pl");
 const t = realT("pl");
+
+/**
+ * Odczyt ze słownika, który NIE MOŻE przejść na brakującym kluczu.
+ *
+ * i18next dla nieistniejącego klucza zwraca sam klucz (zmierzone sondą),
+ * a komponent renderuje dokładnie `t(key)` — więc `getByText(t(key))`
+ * porównywało echo z echem i przechodziło TAKŻE po usunięciu klucza ze
+ * słownika. Tu każdy napis przechodzi przez tę bramkę: jeśli tłumaczenie równa
+ * się kluczowi, plik gaśnie, a w komunikacie stoi nazwa brakującego klucza.
+ */
+function dict(key: string): string {
+  const value = String(t(key));
+  if (value === key) {
+    throw new Error(
+      `Klucz i18n "${key}" nie ma tłumaczenia — i18next zwrócił sam klucz. ` +
+        "Asercja na tej wartości mierzyłaby echo klucza, nie słownik.",
+    );
+  }
+  return value;
+}
 
 /**
  * Klucze zasad i benefitów WPISANE TU JESZCZE RAZ, a nie zaimportowane
@@ -214,7 +294,8 @@ function intersect(isIntersecting = true): void {
 
 // --- Sterowalna kolejka klatek animacji ---------------------------------------
 const raf = {
-  queue: [] as FrameRequestCallback[],
+  /** Klatki oczekujące, z identyfikatorami — anulowanie MUSI je wyjmować. */
+  queue: [] as { id: number; cb: FrameRequestCallback }[],
   requested: 0,
   cancelled: [] as number[],
 };
@@ -224,12 +305,19 @@ function installRaf(): void {
   raf.requested = 0;
   raf.cancelled = [];
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
-    raf.queue.push(cb);
     raf.requested += 1;
+    raf.queue.push({ id: raf.requested, cb });
     return raf.requested;
   });
+  // REWIZJA (znalezisko 2). Atrapa, która tylko ZAPISYWAŁA id, jest
+  // łagodniejsza niż przeglądarka: anulowana klatka wykonywała się przy
+  // najbliższym `flushFrame`, z domknięciem po STARYM `target`. Test „po
+  // odmontowaniu / po zmianie propsa nic już nie jedzie" mierzyłby wtedy
+  // uprzejmość atrapy, a nie sprzątanie komponentu — i pokazywał obraz
+  // ładniejszy od prawdy (patrz drugi test ZNALEZISKO).
   vi.stubGlobal("cancelAnimationFrame", (id: number) => {
     raf.cancelled.push(id);
+    raf.queue = raf.queue.filter((frame) => frame.id !== id);
   });
 }
 
@@ -238,7 +326,7 @@ function flushFrame(nowMs: number): void {
   const pending = raf.queue;
   raf.queue = [];
   act(() => {
-    for (const cb of pending) cb(nowMs);
+    for (const frame of pending) frame.cb(nowMs);
   });
 }
 
@@ -319,20 +407,15 @@ describe("CareersValues: treść sekcji zasad i benefitów pochodzi ze słownika
     renderValues({ reduced: true });
 
     expect(
-      screen.getByRole("heading", { level: 2, name: t("careers.values.title") }),
+      screen.getByRole("heading", { level: 2, name: dict("careers.values.title") }),
     ).toBeVisible();
-    expect(screen.getByText(t("careers.values.subtitle"))).toBeVisible();
-    expect(screen.getByText(t("careers.values.hint"))).toBeVisible();
+    expect(screen.getByText(dict("careers.values.subtitle"))).toBeVisible();
+    expect(screen.getByText(dict("careers.values.hint"))).toBeVisible();
 
     const tabs = screen.getAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual(
-      VALUE_KEYS.map((key) => t(`careers.values.items.${key}.title`)),
+      VALUE_KEYS.map((key) => dict(`careers.values.items.${key}.title`)),
     );
-    // Napisy MUSZĄ być tłumaczeniami, nie kluczami — inaczej test przechodziłby
-    // także po wypadnięciu nakładki `@/lib/i18n-careers` z importów.
-    for (const key of VALUE_KEYS) {
-      expect(t(`careers.values.items.${key}.title`)).not.toBe(`careers.values.items.${key}.title`);
-    }
   });
 
   it("pierwsza zasada jest wybrana i pokazuje swój dowód „W praktyce”", () => {
@@ -341,34 +424,51 @@ describe("CareersValues: treść sekcji zasad i benefitów pochodzi ze słownika
     const panel = screen.getByRole("tabpanel");
     expect(panel).toHaveAttribute("data-state", "active");
     expect(
-      screen.getByRole("heading", { level: 3, name: t("careers.values.items.evidence.title") }),
+      screen.getByRole("heading", { level: 3, name: dict("careers.values.items.evidence.title") }),
     ).toBeVisible();
-    expect(screen.getByText(t("careers.values.items.evidence.body"))).toBeVisible();
-    expect(screen.getByText(t("careers.values.proofLabel"))).toBeVisible();
-    expect(screen.getByText(t("careers.values.items.evidence.proof"))).toBeVisible();
+    expect(screen.getByText(dict("careers.values.items.evidence.body"))).toBeVisible();
+    expect(screen.getByText(dict("careers.values.proofLabel"))).toBeVisible();
+    expect(screen.getByText(dict("careers.values.items.evidence.proof"))).toBeVisible();
 
     // Radix odmontowuje nieaktywne panele — treść pozostałych zasad NIE jest
     // w DOM, więc czytnik ekranu nie czyta czterech manifestów naraz.
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
-    expect(screen.queryByText(t("careers.values.items.europe.proof"))).toBeNull();
+    expect(screen.queryByText(dict("careers.values.items.europe.proof"))).toBeNull();
   });
 
   it("renderuje sześć kafli benefitów z tytułem i treścią ze słownika", () => {
     const { container } = renderValues({ reduced: true });
 
     expect(
-      screen.getByRole("heading", { level: 3, name: t("careers.benefits.title") }),
+      screen.getByRole("heading", { level: 3, name: dict("careers.benefits.title") }),
     ).toBeVisible();
-    expect(screen.getByText(t("careers.benefits.subtitle"))).toBeVisible();
+    expect(screen.getByText(dict("careers.benefits.subtitle"))).toBeVisible();
 
     const tiles = container.querySelectorAll("article");
     expect(tiles).toHaveLength(BENEFIT_KEYS.length);
     for (const key of BENEFIT_KEYS) {
       expect(
-        screen.getByRole("heading", { level: 3, name: t(`careers.benefits.items.${key}.title`) }),
+        screen.getByRole("heading", {
+          level: 3,
+          name: dict(`careers.benefits.items.${key}.title`),
+        }),
       ).toBeVisible();
-      expect(screen.getByText(t(`careers.benefits.items.${key}.body`))).toBeVisible();
+      expect(screen.getByText(dict(`careers.benefits.items.${key}.body`))).toBeVisible();
     }
+  });
+
+  it("siatka benefitów podaje kaflom KOLEJNOŚĆ do staggeru, nie stałą", () => {
+    const { container } = renderValues({ reduced: true });
+
+    const delays = [...container.querySelectorAll<HTMLElement>(".crs-reveal")].map((el) =>
+      el.style.getPropertyValue("--crs-delay"),
+    );
+    // REWIZJA (znalezisko 4): stagger miał dowód w atomie `CareerReveal`, ale
+    // NIC nie mierzyło, czy organizm w ogóle przekazuje numer kafla. `index={0}`
+    // wpisane na stałe (albo pominięty props) przechodziło cały plik: sześć
+    // kafli wjeżdżałoby jednym blokiem, czyli dokładnie to, czemu stagger ma
+    // zapobiegać.
+    expect(delays).toEqual(["0ms", "70ms", "140ms", "210ms", "280ms", "350ms"]);
   });
 
   it("nie ma naruszeń axe (zakładki, panel, siatka kafli)", async () => {
@@ -383,33 +483,35 @@ describe("CareersValues: wybór zasady myszą i klawiaturą", () => {
   it("mousedown na zakładce podmienia panel na jej treść i dowód", () => {
     renderValues({ reduced: true });
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: t("careers.values.items.europe.title") }));
+    fireEvent.mouseDown(
+      screen.getByRole("tab", { name: dict("careers.values.items.europe.title") }),
+    );
 
-    expect(selectedTabName()).toBe(t("careers.values.items.europe.title"));
-    expect(screen.getByText(t("careers.values.items.europe.body"))).toBeVisible();
-    expect(screen.getByText(t("careers.values.items.europe.proof"))).toBeVisible();
-    expect(screen.queryByText(t("careers.values.items.evidence.proof"))).toBeNull();
+    expect(selectedTabName()).toBe(dict("careers.values.items.europe.title"));
+    expect(screen.getByText(dict("careers.values.items.europe.body"))).toBeVisible();
+    expect(screen.getByText(dict("careers.values.items.europe.proof"))).toBeVisible();
+    expect(screen.queryByText(dict("careers.values.items.evidence.proof"))).toBeNull();
   });
 
   it("Enter na zakładce wybiera zasadę (obsługa z klawiatury, bez myszy)", () => {
     renderValues({ reduced: true });
 
-    fireEvent.keyDown(screen.getByRole("tab", { name: t("careers.values.items.craft.title") }), {
+    fireEvent.keyDown(screen.getByRole("tab", { name: dict("careers.values.items.craft.title") }), {
       key: "Enter",
     });
 
-    expect(selectedTabName()).toBe(t("careers.values.items.craft.title"));
-    expect(screen.getByText(t("careers.values.items.craft.proof"))).toBeVisible();
+    expect(selectedTabName()).toBe(dict("careers.values.items.craft.title"));
+    expect(screen.getByText(dict("careers.values.items.craft.proof"))).toBeVisible();
   });
 
   it('sam focus NIE zmienia zasady (activationMode="manual")', () => {
     renderValues({ reduced: true });
 
-    fireEvent.focusIn(screen.getByRole("tab", { name: t("careers.values.items.europe.title") }));
+    fireEvent.focusIn(screen.getByRole("tab", { name: dict("careers.values.items.europe.title") }));
 
     // Przewijanie zakładek strzałkami nie ma prawa przerzucać treści panelu
     // pod czytnikiem ekranu — wybór należy do użytkownika, nie do focusu.
-    expect(selectedTabName()).toBe(t("careers.values.items.evidence.title"));
+    expect(selectedTabName()).toBe(dict("careers.values.items.evidence.title"));
   });
 });
 
@@ -441,7 +543,7 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
     // Cztery tyknięcia = pełne kółko po zasadach i powrót do pierwszej.
     for (const key of ["ownership", "craft", "europe", "evidence"] as const) {
       tickInterval();
-      expect(selectedTabName()).toBe(t(`careers.values.items.${key}.title`));
+      expect(selectedTabName()).toBe(dict(`careers.values.items.${key}.title`));
     }
   });
 
@@ -465,7 +567,14 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
     renderValues();
     intersect(true);
 
-    const original = Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState");
+    // REWIZJA: deskryptor czytamy z SAMEGO `document`. happy-dom nie trzyma
+    // `visibilityState` ani na `document`, ani na `Document.prototype`
+    // (zmierzone sondą — jest wyżej w łańcuchu), więc lookup na prototypie
+    // zwracał `undefined` i gałąź odtwarzania własnej właściwości była martwa.
+    // Poniższe jest poprawne w OBU przypadkach, a asercja na końcu testu
+    // dowodzi, że stan globalny naprawdę wrócił (kolejne testy w pliku tykają
+    // interwałem, który czyta `visibilityState`).
+    const original = Object.getOwnPropertyDescriptor(document, "visibilityState");
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
       get: () => "hidden",
@@ -474,19 +583,20 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
       tickInterval();
       // Timer tyka dalej (nie ma po co go kasować), ale zasada się NIE zmienia:
       // inaczej wracający użytkownik zastaje sekcję przewiniętą o kilka pozycji.
-      expect(selectedTabName()).toBe(t("careers.values.items.evidence.title"));
+      expect(selectedTabName()).toBe(dict("careers.values.items.evidence.title"));
 
       Object.defineProperty(document, "visibilityState", {
         configurable: true,
         get: () => "visible",
       });
       tickInterval();
-      expect(selectedTabName()).toBe(t("careers.values.items.ownership.title"));
+      expect(selectedTabName()).toBe(dict("careers.values.items.ownership.title"));
     } finally {
       if (original) Object.defineProperty(document, "visibilityState", original);
       else
         Reflect.deleteProperty(document as unknown as Record<string, unknown>, "visibilityState");
     }
+    expect(document.visibilityState).toBe("visible");
   });
 
   it("kursor na karcie wstrzymuje rotację, zjechanie kursorem ją wznawia", () => {
@@ -502,7 +612,13 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
     expect(intervals.registered).toHaveLength(1);
 
     fireEvent.mouseOut(screen.getByRole("tablist"));
+    // REWIZJA (znalezisko 3): sama rejestracja drugiego timera to jeszcze nie
+    // „wznowiona rotacja" — dopiero tyknięcie dowodzi, że nowy timer naprawdę
+    // przesuwa spotlight, i że robi to z tym samym okresem co pierwszy.
     expect(intervals.registered).toHaveLength(2);
+    expect(intervals.registered[1].ms).toBe(AUTO_ADVANCE_MS);
+    tickInterval();
+    expect(selectedTabName()).toBe(dict("careers.values.items.ownership.title"));
   });
 
   it("wybór zasady zatrzymuje auto-pokaz NA STAŁE — powrót do viewportu go nie wznawia", () => {
@@ -511,7 +627,9 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
     intersect(true);
     const firstId = intervals.registered[0].id;
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: t("careers.values.items.craft.title") }));
+    fireEvent.mouseDown(
+      screen.getByRole("tab", { name: dict("careers.values.items.craft.title") }),
+    );
     expect(intervals.cleared).toContain(firstId);
     expect(intervals.registered).toHaveLength(1);
 
@@ -519,7 +637,7 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
     intersect(false);
     intersect(true);
     expect(intervals.registered).toHaveLength(1);
-    expect(selectedTabName()).toBe(t("careers.values.items.craft.title"));
+    expect(selectedTabName()).toBe(dict("careers.values.items.craft.title"));
   });
 
   it("focus w liście zakładek też zatrzymuje auto-pokaz (nawigacja klawiaturą)", () => {
@@ -528,13 +646,15 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
     intersect(true);
     const firstId = intervals.registered[0].id;
 
-    fireEvent.focusIn(screen.getByRole("tab", { name: t("careers.values.items.ownership.title") }));
+    fireEvent.focusIn(
+      screen.getByRole("tab", { name: dict("careers.values.items.ownership.title") }),
+    );
 
     expect(intervals.cleared).toContain(firstId);
     expect(intervals.registered).toHaveLength(1);
     // Focus nie wybrał zasady, ale zatrzymał rotację: czytający strzałkami
     // nie może stracić panelu pod palcami.
-    expect(selectedTabName()).toBe(t("careers.values.items.evidence.title"));
+    expect(selectedTabName()).toBe(dict("careers.values.items.evidence.title"));
   });
 
   it("prefers-reduced-motion wyłącza rotację całkowicie", () => {
@@ -545,7 +665,7 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
     expect(intervals.registered).toEqual([]);
     // Bez rotacji sekcja NADAL jest w pełni użyteczna — zasada pierwsza
     // widoczna, pozostałe do wyboru.
-    expect(selectedTabName()).toBe(t("careers.values.items.evidence.title"));
+    expect(selectedTabName()).toBe(dict("careers.values.items.evidence.title"));
     expect(screen.getAllByRole("tab")).toHaveLength(VALUE_KEYS.length);
   });
 
@@ -556,7 +676,7 @@ describe("CareersValues: auto-pokaz zasad ma zapraszać, nie walczyć o kursor",
 
     expect(intervals.registered).toHaveLength(1);
     tickInterval();
-    expect(selectedTabName()).toBe(t("careers.values.items.ownership.title"));
+    expect(selectedTabName()).toBe(dict("careers.values.items.ownership.title"));
   });
 });
 
@@ -647,13 +767,19 @@ describe("CareerBenefitTile: kafel renderuje to, co dostał", () => {
     const tile = container.querySelector("article");
     expect(tile).not.toBeNull();
     expect(screen.getByRole("heading", { level: 3, name: "Zdalnie lub hybrydowo" })).toBeVisible();
-    expect(screen.getByText("Godziny ustalasz z zespołem.")).toBeVisible();
+    const body = screen.getByText("Godziny ustalasz z zespołem.");
+    expect(body).toBeVisible();
+    // Nagłówek obiecuje „treść jako akapit" — więc akapit też trzeba zmierzyć.
+    expect(body.tagName).toBe("P");
     // `className` wywołującego scalony z klasami bazowymi (a nie zamiast nich).
     expect(tile?.className).toContain("h-full");
     expect(tile?.className).toContain("border-border/70");
     // Ikona jest dekoracją: nazwa kafla to jego tytuł, nie „obraz".
     const icon = screen.getByTestId("ikona-benefitu");
-    expect(icon).toHaveAttribute("aria-hidden");
+    // REWIZJA (znalezisko 3): sama OBECNOŚĆ atrybutu przechodzi także dla
+    // `aria-hidden="false"`, czyli dla ikony, którą czytnik ekranu przeczyta na
+    // głos przed tytułem kafla. Mierzymy wartość.
+    expect(icon).toHaveAttribute("aria-hidden", "true");
     expect(icon.getAttribute("class")).toBe("h-[18px] w-[18px]");
   });
 
@@ -790,6 +916,12 @@ describe("CareerStat: liczba dowodowa nigdy nie pokazuje zera zamiast wyniku", (
     const dd = container.querySelector("dd");
     expect(dt?.textContent).toBe("krajów, z których pracujemy");
     expect(dd?.textContent).toBe("9");
+    // REWIZJA (znalezisko 3): „para" to nie dwie osobne obecności w drzewie.
+    // Etykieta i wartość muszą siedzieć w JEDNYM opakowaniu wewnątrz `<dl>`,
+    // inaczej lista z wieloma liczbami rozjeżdża przypisanie etykiet do
+    // wartości u czytnika ekranu.
+    expect(dd?.parentElement).toBe(dt?.parentElement);
+    expect(dt?.parentElement?.closest("dl")).not.toBeNull();
   });
 
   it("nie ma naruszeń axe wewnątrz rodzica <dl>", async () => {
@@ -816,6 +948,34 @@ describe("CareerStat: liczba dowodowa nigdy nie pokazuje zera zamiast wyniku", (
     // `startedRef.current` i nie dotknął już `display`.
     expect(raf.requested).toBe(1);
     expect(raf.queue).toEqual([]);
+  });
+
+  it("ZNALEZISKO: zmiana wartości W TRAKCIE odliczania ZAMRAŻA licznik na klatce pośredniej", () => {
+    const { rerender } = renderStat("45");
+    intersect(true);
+    flushFrame(1000 + COUNT_MS / 2);
+    expect(screen.getByText("39")).toBeVisible();
+    expect(raf.requested).toBe(2);
+
+    rerender("9");
+
+    // STAN ISTNIEJĄCY, OSTRZEJSZY NIŻ ZAPISANY W NAGŁÓWKU PRZEZ PIERWSZE
+    // PRZEJŚCIE: React sprząta poprzedni efekt (`cancelAnimationFrame` na
+    // klatce nr 2), a efekt uruchomiony dla nowego `target` wychodzi na
+    // `startedRef.current` i NIE planuje kolejnej klatki. Odliczanie nie
+    // dobiega więc do niczego — użytkownik zostaje z liczbą POŚREDNIĄ „39"
+    // przy celu „9", czyli z wartością, której nie ma w żadnym słowniku.
+    expect(raf.cancelled).toEqual([2]);
+    expect(raf.queue).toEqual([]);
+    expect(screen.getByText("39")).toBeVisible();
+
+    // Zamrożenie jest trwałe, nie przemijające: nie ma już żadnej klatki, którą
+    // dałoby się wykonać (to mierzalne tylko dlatego, że atrapa `raf` honoruje
+    // anulowanie — przed rewizją anulowana klatka domykała animację do „45"
+    // i defekt wyglądał łagodniej, niż jest).
+    flushFrame(1000 + COUNT_MS);
+    expect(screen.getByText("39")).toBeVisible();
+    expect(raf.requested).toBe(2);
   });
 
   it("ZNALEZISKO: przejście z wartości nienumerycznej na liczbę pokazuje cel bez animacji", () => {

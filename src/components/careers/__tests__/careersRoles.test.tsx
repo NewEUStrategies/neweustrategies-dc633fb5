@@ -25,7 +25,12 @@
 //     formularz nie preselekcjonowałby stanowiska,
 //   * popup pokazujący ofertę INNEJ karty (`findOffer` po złym identyfikatorze),
 //   * karta z zaszytą polską etykietą fasety (strona jest dwujęzyczna),
-//   * `aria-pressed` przyklejone do wszystkich chipsów albo do żadnego.
+//   * `aria-pressed` przyklejone do wszystkich chipsów albo do żadnego,
+//   * podświetlony chip INNEGO działu, niż filtruje lista (dwa nośniki tej
+//     samej informacji - `aria-pressed` dla czytnika i klasy dla wzroku -
+//     rozjeżdżają się niezależnie; dopisane w rewizji),
+//   * wybrana rola nieodróżnialna wzrokiem od pozostałych, bo z trzech warstw
+//     sygnału wyboru dwie przestały patrzeć na `selected` (dopisane w rewizji).
 //
 // ---------------------------------------------------------------------------
 // CO JEST PRZEDMIOTEM DOWODU
@@ -33,19 +38,22 @@
 //  1. LICZNIK ZGADZA SIĘ Z LISTĄ. Liczba w regionie `aria-live` to liczba
 //     KART na ekranie, a druga liczba to całość katalogu - w każdym stanie
 //     filtra, także po zawężeniu do zera.
-//  2. FILTR DZIAŁÓW: który chip jest wciśnięty (`aria-pressed`), jaką liczbę
-//     nosi (także zerową), co znika z listy po zawężeniu i że sam chip TYLKO
-//     zgłasza wybór w górę - autorytet stanu jest w trasie.
+//  2. FILTR DZIAŁÓW: który chip jest wciśnięty - i to DLA WSZYSTKICH SIEDMIU
+//     naraz (`aria-pressed`, dokładnie jeden `true`), jaką liczbę nosi (także
+//     zerową), jak wygląda wciśnięty (klasy chipu I jego licznika - drugi,
+//     wzrokowy nośnik tej samej informacji), co znika z listy po zawężeniu
+//     i że sam chip TYLKO zgłasza wybór w górę - autorytet stanu jest w trasie.
 //  3. PUSTKA PO ZAWĘŻENIU: komunikat ze słownika zamiast pustego miejsca.
 //  4. DWUJĘZYCZNOŚĆ KART: tytuł i opis z WIERSZA bazy w aktywnym języku,
 //     a fasety (dział / poziom / lokalizacja / tryb współpracy) ze SŁOWNIKA -
 //     asercje trzymają `realT("pl")` i `realT("en")`, nie literały, i pilnują,
 //     że napis PL różni się od EN (inaczej test przechodziłby na atrapie
 //     ignorującej język).
-//  5. OZNACZENIA ZAANGAŻOWANIA I LOKALIZACJI: dwa znaczniki na karcie,
-//     ikony `aria-hidden` (nazwa dostępna niesie sam tekst).
-//  6. WYBRANA ROLA: `aria-current` dokładnie na jednej karcie + brandowa
-//     obwódka; pozostałe karty bez znacznika.
+//  5. OZNACZENIA ZAANGAŻOWANIA I LOKALIZACJI: dwa znaczniki na karcie, a ikony
+//     w nich bez WŁASNEJ nazwy dostępnej (nazwę niesie sam tekst znacznika).
+//  6. WYBRANA ROLA: `aria-current` dokładnie na jednej karcie + WSZYSTKIE TRZY
+//     warstwy sygnału wyboru (obwódka, belka gradientu, poświata) i uniesienie
+//     karty; pozostałe karty bez znacznika i z warstwami czekającymi na kursor.
 //  7. OTWARCIE SZCZEGÓŁÓW: co dostaje handler (`onDetails` -> `findOffer` ->
 //     popup TEJ karty), co niesie popup i co robią jego przyciski - „Aplikuj"
 //     oddaje slug i zamyka, „Zamknij" zamyka bez zgłoszenia.
@@ -70,8 +78,12 @@
 //   blokada przewijania) nie działają w happy-dom; całe repo podmienia je
 //   w testach na przezroczyste opakowania (wzorzec z
 //   `admin/events/__tests__/EventTrackDialog.test.tsx`). Atrapa ZACHOWUJE
-//   jedyną regułę, która jest tu przedmiotem dowodu: treść istnieje w DOM
-//   TYLKO przy `open`.
+//   regułę primitywu (treść istnieje w DOM tylko przy `open`), ale uczciwie:
+//   w TYM złożeniu ta bramka nigdy się nie odpala. `CareerRoleDialog` ma
+//   barierę `if (!role) return null`, a `open={detailsRole !== null}` jest
+//   prawdą dokładnie wtedy, gdy rola istnieje - atrapa nie widzi tu
+//   `open === false` ani razu. Nośnikiem dowodu „zamknięte = nie ma tego
+//   w DOM" jest więc ODMONTOWANIE okna, nie atrybut `data-open`.
 // * `react-i18next` - podmieniony na PRAWDZIWEGO tłumacza (`realT`) wstrzykiwanego
 //   pod importami. Fabryka `vi.mock` nic nie importuje: skrót `reactI18nextMock()`
 //   sięga po `@/lib/i18n`, czyli moduł importujący właśnie atrapowany pakiet
@@ -113,17 +125,63 @@
 //   rozwiązaniu zapytania lista wchodzi.
 //
 // ---------------------------------------------------------------------------
+// CO ZMIENIŁA REWIZJA ADWERSARIALNA (mierzona mutacjami produkcji)
+// ---------------------------------------------------------------------------
+// Pierwsza wersja tego pliku raportowała linie 18/18 i funkcje 13/13 - i to
+// była prawda. Rewizja sprawdziła coś innego: czy z tych 43 testów da się
+// WYWNIOSKOWAĆ zachowanie, czy tylko fakt wykonania linii. Metoda: mutacja
+// kodu produkcyjnego + uruchomienie pliku + `git checkout` (produkcja została
+// nietknięta). Sześć mutacji PRZEŻYŁO zieloną suitę przy 100% linii/funkcji:
+//
+//   1. zamiana klas chipu aktywny <-> nieaktywny (`CareerFilterChip`),
+//   2. to samo w liczniku na chipie,
+//   3. wycięcie `selected ? ... :` z belki gradientowej karty,
+//   4. wycięcie `selected ? ... :` z poświaty karty,
+//   5. zdjęcie `selected && "-translate-y-0.5"` z karty,
+//   6. zdjęcie `aria-hidden` z warstwy dekoracyjnej karty.
+//
+// Wspólny mechanizm 1-4: gałąź BYŁA przebiegana (w jednym renderze stoi obok
+// siebie chip wciśnięty i sześć luźnych, karta wybrana i dwie zwykłe), więc
+// licznik gałęzi pokazywał 100%, a NIKT nie asertował jej skutku. To jest
+// hodowanie pokrycia bez ani jednego pustego `it(...)`: metryka domknięta,
+// dowodu nie ma. 5 to osobny gatunek - asercja `className).toContain(
+// "-translate-y-0.5")` nie mogła oblać, bo klasa bazowa karty brzmi
+// `hover:-translate-y-0.5` i zawiera szukany napis jako podnapis. Stąd reguła
+// przyjęta w tym pliku: sygnały klasowe asertujemy `toHaveClass` (dopasowanie
+// całego tokenu), nigdy `toContain` na `className`.
+//
+// Mutacja RÓWNOWAŻNA, świadomie niezabijana: zdjęcie propsa `aria-hidden`
+// z ikony `lucide-react`. Biblioteka dokłada go sama, gdy ikona nie ma dziecka
+// ani propsa dostępnościowego, więc DOM wychodzi identyczny - nie ma czego
+// dowodzić. Dyskryminująca połowa tej pary („ikona nie ma własnej nazwy")
+// stoi w asercjach i pada, gdy ikonie nadać `aria-label`.
+//
+// Kontrola odwrotna (mutanty, które ginęły od początku i giną nadal): licznik
+// z `offers.length` zamiast `roles.length`, chip z licznikiem innego działu,
+// `onDepartmentChange` wołane zawsze z „all", `onDetails` zawsze z pierwszą
+// ofertą, odwrócony warunek zamknięcia popupu, `key={department}` zdjęte,
+// `type="button"` zdjęte, `aria-current` na wszystkich kartach, `aria-live`
+// przełączone na „off", `Math.min(index, 7)` bez ogranicznika, nadpisanie
+// nagłówka z panelu ignorowane, `id` sekcji zaszyte w kodzie.
+//
+// ---------------------------------------------------------------------------
 // ŚWIADOMIE POZA ZAKRESEM
 // ---------------------------------------------------------------------------
 // * KONTRAKT ZŁOŻENIA TRASY (`applySignal`, przewijanie do formularza, id
 //   sekcji jako cel przewinięcia) - `src/routes/__tests__/zatrudniamyRoute.test.tsx`.
 // * CZYSTE REGUŁY (filtr, liczniki, `findOffer`, `rowToOffer`, `sectionState`,
 //   `fallbackOffers`, parzystość PL/EN słownika) - `src/lib/careers/__tests__/`.
-// * DOSTĘPNOŚĆ PRIMITYWU POPUPU (rola `dialog`, `aria-modal`, pułapka fokusu,
-//   powrót fokusu na wyzwalacz) - primitywy są tu atrapowane, więc axe mierzy
-//   TREŚĆ oferty w popupie, nie sam popup. Dowód primitywu mieszka w Radixie
-//   i w e2e; dowód samego `CareerRoleDialog` (kolejność sekcji, meta-chipsy)
-//   należałby do osobnego pliku `careerRoleDialog.test.tsx`, którego dziś nie ma.
+// * DOSTĘPNOŚĆ PRIMITYWU POPUPU (rola `dialog`, dostępna nazwa i opis okna,
+//   pułapka fokusu, Escape, `aria-hidden` na rodzeństwie) - primitywy są tu
+//   atrapowane, więc axe mierzy TREŚĆ oferty w popupie, nie sam popup.
+//   REWIZJA: ten dowód ma już swój plik - `careers/__tests__/careerRoleDialog.test.tsx`
+//   NIE atrapuje Radiksa i dowodzi tam roli okna, kolejności sekcji,
+//   meta-chipsów, pustych list, kolejności `onOpenChange(false)` przed
+//   `onApply` i trzech wyjść (Zamknij / Escape / `×`). Poprzednia wersja tego
+//   akapitu mówiła, że takiego pliku „dziś nie ma" - to już nieprawda, a jego
+//   nagłówek cytuje tamto zdanie jako powód swojego istnienia. Poza oboma
+//   plikami zostaje wyłącznie prawdziwe malowanie (blokada przewijania tła,
+//   klik w tło, widoczny pierścień ogniska) - warstwa e2e.
 // * AKTYWACJA CHIPU KLAWIATURĄ jako EFEKT. `fireEvent.keyDown(chip, {key:"Enter"})`
 //   NIE wywołuje `click` w happy-dom (przeglądarka robi to natywnie, DOM-owa
 //   atrapa - nie), więc taka asercja mierzyłaby atrapę zdarzeń, a nie kod.
@@ -141,8 +199,11 @@
 //   malowania klatek happy-dom nie ma.
 //
 // RODO: żadnych prawdziwych osób ani ofert. Wiersze fixture są zmyślone
-// (slugi opisowe, treści jednozdaniowe), nie ma w nich danych kontaktowych;
-// gdziekolwiek potrzebny jest adres, jest to domena `@example.com`.
+// (slugi opisowe, treści jednozdaniowe), nie ma w nich ani nazwisk, ani danych
+// kontaktowych. REWIZJA: poprzednia wersja dokładała tu zdanie o adresach
+// `@example.com` - ta powierzchnia nie ma żadnego pola adresowego (kontakt
+// zbiera formularz aplikacyjny, `careersApplyForm.test.tsx`), więc w tym pliku
+// nie ma i nie może być adresu; obietnica bez przedmiotu poszła precz.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useState, type ReactNode } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -167,25 +228,34 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 // Primitywy popupu: przezroczyste opakowania z JEDNĄ zachowaną regułą Radixa -
-// treść jest w DOM tylko przy `open`. Wzorzec z testów panelu wydarzeń.
-vi.mock("@/components/ui/dialog", () => {
-  const stan = { open: false };
-  return {
-    Dialog: ({ open, children }: { open: boolean; children?: ReactNode }) => {
-      stan.open = open;
-      return (
-        <div data-testid="popup" data-open={String(open)}>
-          {children}
-        </div>
-      );
-    },
-    DialogContent: ({ children }: { children?: ReactNode }) =>
-      stan.open ? <div data-testid="popup-tresc">{children}</div> : null,
-    DialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-    DialogDescription: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  };
-});
+// treść jest w DOM tylko przy `open`.
+//
+// REWIZJA 1. Pierwsza wersja trzymała `open` w MODUŁOWEJ zmiennej
+// (`const stan = { open: false }`), którą `Dialog` nadpisywał w trakcie
+// renderu, a `DialogContent` czytał przy swoim. Dwie rzeczy były z tym nie tak:
+// stan atrapy przeżywał granicę testu (nikt go nie zerował, więc wędrował
+// w dół pliku), a sama bramka nigdy się w tym złożeniu nie odpalała -
+// `CareerRoleDialog` ma barierę `if (!role) return null`, a
+// `open={detailsRole !== null}` jest prawdą DOKŁADNIE wtedy, gdy rola istnieje.
+// Atrapa nie widzi tu `open === false` ani razu (`data-open` jest zawsze
+// `"true"`), a nośnikiem dowodu „zamknięte = nie ma tego w DOM" jest
+// ODMONTOWANIE całego okna, nie ta bramka. Reguła zostaje - bo atrapa nie może
+// być łagodniejsza od primitywu - ale siedzi w jednym miejscu i bez zmiennej
+// współdzielonej przez wszystkie testy pliku.
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ open, children }: { open: boolean; children?: ReactNode }) =>
+    open ? (
+      <div data-testid="popup" data-open={String(open)}>
+        {children}
+      </div>
+    ) : null,
+  DialogContent: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="popup-tresc">{children}</div>
+  ),
+  DialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
+}));
 
 import type { TFunction } from "i18next";
 
@@ -405,6 +475,27 @@ function chip(label: string, count: number): HTMLElement {
   return screen.getByRole("button", { name: `${label} ${count}` });
 }
 
+/**
+ * WSZYSTKIE chipsy filtra - „Wszystkie" + jeden na dział. Rozpoznawane po
+ * nazwie dostępnej kończącej się liczbą; przyciski kart („Aplikuj", „Pełna
+ * oferta") kończą się słowem, więc do tej selekcji nie wchodzą.
+ */
+function allChips(): HTMLElement[] {
+  return screen.getAllByRole("button", { name: /\d+$/ });
+}
+
+/** Chipsy zgłoszone czytnikowi jako wciśnięte - do asercji „dokładnie jeden". */
+function pressedChips(): HTMLElement[] {
+  return allChips().filter((el) => el.getAttribute("aria-pressed") === "true");
+}
+
+/** Licznik wewnątrz chipu (druga plamka) - ma WŁASNĄ parę klas zależną od `active`. */
+function badge(target: HTMLElement): HTMLElement {
+  const spans = target.querySelectorAll<HTMLElement>("span");
+  if (spans.length !== 2) throw new Error(`Chip ma ${spans.length} plamek, oczekiwano 2`);
+  return spans[1];
+}
+
 /** Region `aria-live` z licznikiem „widoczne / całość". */
 function counter(container: HTMLElement): HTMLElement {
   const live = container.querySelector<HTMLElement>('p[aria-live="polite"]');
@@ -501,19 +592,49 @@ describe("CareersRoles: chipsy filtra działów", () => {
     expect(group).toContainElement(chip(pl("careers.roles.all"), 3));
   });
 
-  it("wciśnięty jest DOKŁADNIE chip aktywnego działu", () => {
+  it("wciśnięty jest DOKŁADNIE jeden chip - ten aktywnego działu", () => {
     renderRoles({ offers: ROWS, department: "analysis" });
 
-    expect(chip(pl("careers.departments.analysis"), 2)).toHaveAttribute("aria-pressed", "true");
-    expect(chip(pl("careers.roles.all"), 3)).toHaveAttribute("aria-pressed", "false");
-    expect(chip(pl("careers.departments.marketing"), 1)).toHaveAttribute("aria-pressed", "false");
+    // REWIZJA 2. Pierwsza wersja sprawdzała TRZY z siedmiu chipsów, a nazwa
+    // obiecywała „dokładnie". Defekt z listy powodów istnienia tego pliku
+    // („aria-pressed przyklejone do wszystkich") mógł więc siedzieć
+    // w niesprawdzonej czwórce. Teraz asercja przechodzi po WSZYSTKICH.
+    const wszystkie = allChips();
+    expect(wszystkie).toHaveLength(CAREER_DEPARTMENTS.length + 1);
+    // Brak atrybutu to też defekt: czytnik nie wie wtedy, że to przełącznik.
+    for (const c of wszystkie) expect(c, c.textContent ?? "").toHaveAttribute("aria-pressed");
+    expect(pressedChips()).toEqual([chip(pl("careers.departments.analysis"), 2)]);
   });
 
-  it("bez zawężenia wciśnięty jest chip „Wszystkie”", () => {
+  it("bez zawężenia wciśnięty jest DOKŁADNIE chip „Wszystkie”", () => {
     renderRoles({ offers: ROWS });
 
-    expect(chip(pl("careers.roles.all"), 3)).toHaveAttribute("aria-pressed", "true");
-    expect(chip(pl("careers.departments.analysis"), 2)).toHaveAttribute("aria-pressed", "false");
+    expect(pressedChips()).toEqual([chip(pl("careers.roles.all"), 3)]);
+  });
+
+  it("aktywny chip nosi też WZROKOWY sygnał wyboru, a nieaktywne neutralny", () => {
+    renderRoles({ offers: ROWS, department: "analysis" });
+    const aktywny = chip(pl("careers.departments.analysis"), 2);
+    const nieaktywne = allChips().filter((c) => c !== aktywny);
+
+    // REWIZJA 3. `aria-pressed` obsługiwał czytnik ekranu, ale WZROKOWY sygnał
+    // („który filtr jest włączony") nie miał ani jednej asercji. Obie gałęzie
+    // `cn(...)` w `CareerFilterChip` były PRZEBIEGANE w każdym teście - chip
+    // aktywny i sześć nieaktywnych renderuje się razem - więc pokrycie gałęzi
+    // pokazywało 100%, a ZAMIANA klas aktywny<->nieaktywny (osobno w chipie,
+    // osobno w jego liczniku) przechodziła cały plik bez śladu: kandydat
+    // widziałby podświetlony chip innego działu, niż filtruje lista. Zmierzone
+    // mutacją: oba warianty przeżywały 43 testy.
+    expect(aktywny).toHaveClass("border-primary/60", "bg-primary/10", "text-foreground");
+    expect(badge(aktywny)).toHaveClass("bg-primary/20", "text-primary");
+    for (const c of nieaktywne) {
+      const opis = c.textContent ?? "";
+      expect(c, opis).toHaveClass("border-border/70", "bg-card/60", "text-muted-foreground");
+      expect(c, opis).not.toHaveClass("border-primary/60");
+      expect(c, opis).not.toHaveClass("bg-primary/10");
+      expect(badge(c), opis).toHaveClass("bg-muted", "text-muted-foreground");
+      expect(badge(c), opis).not.toHaveClass("bg-primary/20");
+    }
   });
 
   it("chip ZGŁASZA wybór w górę i sam nie filtruje listy (autorytet stanu jest w trasie)", () => {
@@ -532,7 +653,10 @@ describe("CareersRoles: chipsy filtra działów", () => {
 
     fireEvent.click(chip(pl("careers.roles.all"), 3));
 
+    expect(onDepartmentChange).toHaveBeenCalledTimes(1);
     expect(onDepartmentChange).toHaveBeenCalledWith("all");
+    // Zdjęcie filtra to JEDEN sygnał - nie „all" poprzedzone działem.
+    expect(onDepartmentChange.mock.calls).toEqual([["all"]]);
   });
 
   it("chip jest NATYWNYM przyciskiem: przyjmuje fokus, ma type=button, nie nadpisuje role/tabindex", () => {
@@ -598,7 +722,7 @@ describe("CareerRoleCard: treść oferty i jej oznaczenia", () => {
     expect(screen.queryByText(pl(`careers.roles.${CAREER_ROLES[0].id}.title`))).toBeNull();
   });
 
-  it("oznaczenia lokalizacji i zaangażowania to dwa znaczniki z ikonami aria-hidden", () => {
+  it("dwa znaczniki, a ikony w nich nie mają WŁASNEJ nazwy dostępnej", () => {
     renderRoles({ offers: [ROW_ANALYST] });
     const markers = within(cards()[0]).getAllByRole("listitem");
 
@@ -607,7 +731,18 @@ describe("CareerRoleCard: treść oferty i jej oznaczenia", () => {
     expect(markers[0].textContent).toBe(pl("careers.location.hybrid"));
     expect(markers[1].textContent).toBe(pl("careers.engagement.full_time"));
     for (const marker of markers) {
-      expect(marker.querySelector("svg")).toHaveAttribute("aria-hidden");
+      const ikona = marker.querySelector("svg");
+      expect(ikona).toHaveAttribute("aria-hidden", "true");
+      // REWIZJA 6. Sam `aria-hidden` nie jest dowodem DECYZJI karty:
+      // `lucide-react` dokłada go z siebie, gdy ikona nie ma dziecka ani
+      // propsa dostępnościowego (`Icon.js`: `...!children && !hasA11yProp(rest)
+      // && { "aria-hidden": "true" }`), więc zdjęcie `aria-hidden` z JSX-a jest
+      // mutacją RÓWNOWAŻNĄ - DOM wychodzi identyczny (zmierzone). Rozstrzyga
+      // druga połowa: nadanie ikonie nazwy odbiera lucide'owi domyślne
+      // ukrycie i czytnik ogłasza „map pin Hybryda" - i to ta mutacja pada.
+      expect(ikona).not.toHaveAttribute("aria-label");
+      expect(ikona).not.toHaveAttribute("aria-labelledby");
+      expect(ikona).not.toHaveAttribute("role");
     }
   });
 
@@ -643,14 +778,50 @@ describe("CareerRoleCard: treść oferty i jej oznaczenia", () => {
     expect(marketing).not.toHaveAttribute("aria-current");
   });
 
-  it("wybrana karta dostaje brandową obwódkę, pozostałe neutralną", () => {
+  it("wybrana karta ma WSZYSTKIE TRZY warstwy sygnału wyboru, pozostałe żadnej", () => {
     renderRoles({ offers: ROWS, selectedRoleId: ROW_INTERN.slug });
-    const [analyst, intern] = cards();
+    const [analyst, intern, marketing] = cards();
 
-    // Pierwsza warstwa dekoracyjna to jedyny nośnik tego sygnału wizualnego.
-    expect(intern.querySelector("span")?.className).toContain("border-brand/50");
-    expect(analyst.querySelector("span")?.className).toContain("border-border/60");
-    expect(intern.className).toContain("-translate-y-0.5");
+    // REWIZJA 4. Pierwsza wersja sprawdzała TYLKO pierwszą warstwę (obwódkę)
+    // i tylko na dwóch z trzech kart. Belka gradientowa i poświata mają własne
+    // gałęzie `selected`, obie PRZEBIEGANE w tym samym renderze (karta wybrana
+    // + dwie niewybrane), więc pokrycie gałęzi czytało 100%, a wycięcie
+    // `selected ? ... :` z którejkolwiek z nich przeżywało 43 testy: wybrana
+    // rola wyglądałaby jak każda inna, dopóki kandydat nie najedzie kursorem.
+    //
+    // REWIZJA 5. Asercja `intern.className).toContain("-translate-y-0.5")`
+    // była PUSTA: klasa bazowa karty to `hover:-translate-y-0.5`, więc szukany
+    // NAPIS siedzi w każdej karcie, wybranej i nie. Zmierzone mutacją: zdjęcie
+    // `selected && "-translate-y-0.5"` z produkcji nie zapalało nic. Dlatego
+    // tu i niżej `toHaveClass` (dopasowanie CAŁEGO tokenu), nie `toContain`.
+    const warstwy = (card: HTMLElement) =>
+      [...card.children].filter((el): el is HTMLElement => el.tagName === "SPAN");
+
+    const [obwodka, belka, poswiata] = warstwy(intern);
+    expect(warstwy(intern)).toHaveLength(3);
+    // Warstwy są DEKORACJĄ: puste, bez zdarzeń i wyjęte z drzewa dostępności.
+    for (const warstwa of warstwy(intern)) {
+      expect(warstwa).toHaveAttribute("aria-hidden");
+      expect(warstwa).toHaveClass("pointer-events-none");
+      expect(warstwa.textContent).toBe("");
+    }
+    expect(obwodka).toHaveClass("border-brand/50", "bg-brand/[0.08]");
+    expect(belka).toHaveClass("bg-[position:0%_100%]");
+    expect(poswiata).toHaveClass("bg-[position:0%_100%]", "opacity-50");
+    expect(intern).toHaveClass("-translate-y-0.5");
+
+    for (const card of [analyst, marketing]) {
+      const opis = within(card).getByRole("heading", { level: 3 }).textContent ?? "";
+      const [tloObwodka, tloBelka, tloPoswiata] = warstwy(card);
+      expect(tloObwodka, opis).toHaveClass("border-border/60", "bg-brand/[0.04]");
+      expect(tloObwodka, opis).not.toHaveClass("border-brand/50");
+      // Niewybrana karta pokazuje ruch DOPIERO pod kursorem - stąd modyfikator.
+      expect(tloBelka, opis).toHaveClass("group-hover:bg-[position:0%_100%]");
+      expect(tloBelka, opis).not.toHaveClass("bg-[position:0%_100%]");
+      expect(tloPoswiata, opis).toHaveClass("group-hover:opacity-50");
+      expect(tloPoswiata, opis).not.toHaveClass("opacity-50");
+      expect(card, opis).not.toHaveClass("-translate-y-0.5");
+    }
   });
 
   it("„Aplikuj” oddaje w górę SLUG tej karty, nie klucz główny wiersza", () => {
