@@ -162,7 +162,6 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
         </DialogHeader>
 
         <div className="flex w-full min-w-0 flex-col gap-4 sm:flex-row">
-
           <div className="flex shrink-0 flex-col items-center gap-2">
             <div
               data-testid="invite-avatar"
