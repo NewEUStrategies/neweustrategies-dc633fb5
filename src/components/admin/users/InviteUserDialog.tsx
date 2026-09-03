@@ -217,7 +217,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           </div>
 
           <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label htmlFor="invite-email">{t("adminTeamMedia.inviteUser.email")}</Label>
               <Input
                 id="invite-email"
@@ -226,11 +226,11 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label htmlFor="invite-name">{t("adminTeamMedia.inviteUser.name")}</Label>
               <Input id="invite-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-            <div className="grid gap-1 sm:col-span-2">
+            <div className="grid min-w-0 gap-1 sm:col-span-2">
               <Label htmlFor="invite-linkedin">{t("adminTeamMedia.inviteUser.linkedin")}</Label>
               <Input
                 id="invite-linkedin"
@@ -245,7 +245,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 </p>
               ) : null}
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label>{t("adminTeamMedia.inviteUser.role")}</Label>
               <Select value={role} onValueChange={(v) => isRole(v) && setRole(v)}>
                 <SelectTrigger className="w-full min-w-0">
@@ -260,7 +260,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label>{t("adminTeamMedia.inviteUser.mode")}</Label>
               <Select value={mode} onValueChange={(v) => isMode(v) && setMode(v)}>
                 <SelectTrigger className="w-full min-w-0">
@@ -293,7 +293,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
           <Button
             variant="ghost"
             className="rounded-[6px]"
