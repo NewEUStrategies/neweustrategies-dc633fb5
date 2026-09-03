@@ -22,6 +22,16 @@ export function initialsFromName(name: string): string {
 }
 
 /**
+ * Inicjały z osobnych pól imienia i nazwiska - pierwsza litera każdego,
+ * bez względu na liczbę członów w polu.
+ */
+export function initialsFromNameParts(firstName: string, lastName: string): string {
+  const first = Array.from(firstName.trim())[0] ?? "";
+  const last = Array.from(lastName.trim())[0] ?? "";
+  return `${first}${last}`.toLocaleUpperCase("pl-PL");
+}
+
+/**
  * Zwraca kanoniczny `https://www.linkedin.com/...` albo `null`, gdy wejście
  * jest puste bądź nie jest adresem LinkedIn. Nigdy nie przepuszcza innego
  * hosta ani schematu (ochrona przed `javascript:` w profilu publicznym).

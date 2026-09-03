@@ -296,9 +296,14 @@ describe("InviteUserDialog", () => {
     return el;
   }
 
-  function fill(email = "nowa@example.org", name = "Nowa Osoba"): void {
+  function fill(
+    email = "nowa@example.org",
+    firstName = "Łucja",
+    lastName = "Ostrowska-Nowak",
+  ): void {
     fireEvent.change(field("invite-email"), { target: { value: email } });
-    fireEvent.change(field("invite-name"), { target: { value: name } });
+    fireEvent.change(field("invite-first-name"), { target: { value: firstName } });
+    fireEvent.change(field("invite-last-name"), { target: { value: lastName } });
   }
 
   it("zamknięta modalka nie renderuje niczego", () => {
@@ -323,14 +328,17 @@ describe("InviteUserDialog", () => {
     expect(values).toEqual(["admin", "editor", "author", "user"]);
   });
 
-  it("przycisk wysłania jest ZABLOKOWANY, dopóki brakuje adresu albo nazwy", () => {
+  it("przycisk wysłania jest ZABLOKOWANY, dopóki brakuje adresu, imienia albo nazwiska", () => {
     mount();
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
 
     fireEvent.change(field("invite-email"), { target: { value: "nowa@example.org" } });
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
 
-    fireEvent.change(field("invite-name"), { target: { value: "Nowa Osoba" } });
+    fireEvent.change(field("invite-first-name"), { target: { value: "Łucja" } });
+    expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
+
+    fireEvent.change(field("invite-last-name"), { target: { value: "Ostrowska-Nowak" } });
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(false);
   });
 
@@ -350,13 +358,13 @@ describe("InviteUserDialog", () => {
     expect(h.createCalls[0].items).toEqual([
       {
         email: "nowa@example.org",
-        display_name: "Nowa Osoba",
+        display_name: "Łucja Ostrowska-Nowak",
         role: "editor",
         mode: "temp_password",
         // Źródło rozdziela zaproszenia ręczne od importu zespołu w audycie.
         source: "manual",
         // Autoakceptacja jest domyślna - administrator tworzy konto gotowe
-        // do użycia, więc zaproszenie nie zostaje w stanie „wysłane”.
+        // do użycia, więc zaproszenie nie zostaje w stanie „wysłane".
         metadata: { auto_accept: true },
       },
     ]);
@@ -375,7 +383,8 @@ describe("InviteUserDialog", () => {
     // Pola muszą zniknąć: modalka otwarta ponownie z poprzednim adresem
     // kończy się drugim zaproszeniem dla tej samej osoby.
     await waitFor(() => expect(field("invite-email").value).toBe(""));
-    expect(field("invite-name").value).toBe("");
+    expect(field("invite-first-name").value).toBe("");
+    expect(field("invite-last-name").value).toBe("");
   });
 
   it("hasło tymczasowe idzie OSOBNYM komunikatem, obok komunikatu o sukcesie", async () => {
@@ -397,10 +406,11 @@ describe("InviteUserDialog", () => {
     expect(h.toastInfo).not.toHaveBeenCalled();
   });
 
-  it("inicjały wyliczają się z imienia i nazwiska, dopóki nie ma zdjęcia", () => {
+  it("inicjały wyliczają się z osobnych pól imienia i nazwiska, dopóki nie ma zdjęcia", () => {
     mount();
     expect(screen.getByTestId("invite-avatar").textContent).toBe("?");
-    fireEvent.change(field("invite-name"), { target: { value: "Łucja Ostrowska-Nowak" } });
+    fireEvent.change(field("invite-first-name"), { target: { value: "Łucja" } });
+    fireEvent.change(field("invite-last-name"), { target: { value: "Ostrowska-Nowak" } });
     expect(screen.getByTestId("invite-avatar").textContent).toBe("ŁO");
   });
 

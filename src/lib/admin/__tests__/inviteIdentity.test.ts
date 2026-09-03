@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   initialsFromName,
+  initialsFromNameParts,
   isLinkedInInputValid,
   normalizeLinkedInUrl,
 } from "@/lib/admin/inviteIdentity";
@@ -24,6 +25,21 @@ describe("initialsFromName", () => {
   it("pusta nazwa nie daje inicjałów", () => {
     expect(initialsFromName("")).toBe("");
     expect(initialsFromName("   ")).toBe("");
+  });
+});
+
+describe("initialsFromNameParts", () => {
+  it("bierze pierwszą literę imienia i pierwszą literę nazwiska", () => {
+    expect(initialsFromNameParts("Jan", "Kowalski")).toBe("JK");
+    expect(initialsFromNameParts("łucja", "Ostrowska-Nowak")).toBe("ŁO");
+  });
+
+  it("ignoruje wewnętrzne spacje i człony nazwiska", () => {
+    expect(initialsFromNameParts("  Anna  Maria ", "  Nowak  ")).toBe("AN");
+  });
+
+  it("puste pola dają pusty ciąg", () => {
+    expect(initialsFromNameParts("", "")).toBe("");
   });
 });
 

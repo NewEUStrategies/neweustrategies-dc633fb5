@@ -34,7 +34,7 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { createInvitations, sendInvitation } from "@/lib/admin/invitations.functions";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  initialsFromName,
+  initialsFromNameParts,
   isLinkedInInputValid,
   normalizeLinkedInUrl,
 } from "@/lib/admin/inviteIdentity";
@@ -59,7 +59,8 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [photo, setPhoto] = useState("");
   const [role, setRole] = useState<Role>("author");
@@ -71,12 +72,17 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   const create = useServerFn(createInvitations);
   const send = useServerFn(sendInvitation);
 
-  const initials = useMemo(() => initialsFromName(name), [name]);
+  const initials = useMemo(() => initialsFromNameParts(firstName, lastName), [firstName, lastName]);
+  const displayName = useMemo(
+    () => `${firstName.trim()} ${lastName.trim()}`.trim(),
+    [firstName, lastName],
+  );
   const linkedinOk = isLinkedInInputValid(linkedin);
 
   const reset = () => {
     setEmail("");
-    setName("");
+    setFirstName("");
+    setLastName("");
     setLinkedin("");
     setPhoto("");
     setAutoAccept(true);
@@ -110,7 +116,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   };
 
   const submit = async () => {
-    if (!email || !name || !linkedinOk) return;
+    const first = firstName.trim();
+    const last = lastName.trim();
+    if (!email || !first || !last || !linkedinOk) return;
     setBusy(true);
     try {
       const linkedinUrl = normalizeLinkedInUrl(linkedin);
@@ -119,7 +127,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           items: [
             {
               email,
-              display_name: name,
+              display_name: displayName,
               role,
               mode,
               source: "manual",
@@ -226,8 +234,20 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
               />
             </div>
             <div className="grid min-w-0 gap-1">
-              <Label htmlFor="invite-name">{t("adminTeamMedia.inviteUser.name")}</Label>
-              <Input id="invite-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Label htmlFor="invite-first-name">{t("adminTeamMedia.inviteUser.firstName")}</Label>
+              <Input
+                id="invite-first-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            </div>
+            <div className="grid min-w-0 gap-1">
+              <Label htmlFor="invite-last-name">{t("adminTeamMedia.inviteUser.lastName")}</Label>
+              <Input
+                id="invite-last-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
             </div>
             <div className="grid min-w-0 gap-1 sm:col-span-2">
               <Label htmlFor="invite-linkedin">{t("adminTeamMedia.inviteUser.linkedin")}</Label>
@@ -304,7 +324,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           <Button
             className="rounded-[6px]"
             onClick={submit}
-            disabled={busy || uploading || !email || !name || !linkedinOk}
+            disabled={
+              busy || uploading || !email || !firstName.trim() || !lastName.trim() || !linkedinOk
+            }
           >
             {busy ? "..." : t("adminTeamMedia.inviteUser.send")}
           </Button>
