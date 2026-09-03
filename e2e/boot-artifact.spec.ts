@@ -171,3 +171,168 @@ test("zbudowany artefakt hydratuje się i ZOSTAJE interaktywny (/cookies)", asyn
 
   expect(errors, errors.join(" | ")).toHaveLength(0);
 });
+
+// ── DETEKTOR NIEZGODNOŚCI HYDRATACJI (mismatch) ─────────────────────────────
+//
+// ROZSTRZYGNIĘCIE, KTÓRE TA SEKCJA ZAPISUJE. Audyt wydania 8 twierdził, że
+// detektora niezgodności hydratacji nie ma w repozytorium wcale, a commit
+// 2fa8eb826 nazywa się „Boot-test na artefakcie produkcyjnym i detekcja
+// martwej hydratacji". Obie rzeczy są prawdziwe, bo to DWA RÓŻNE detektory:
+//
+//   * MARTWA HYDRATACJA („strona się nie uruchomiła") - ISTNIEJE i jest
+//     zbudowana świadomie: flaga `window.__nesAppReady` (`lib/watchdog/appReady`,
+//     czekana w tym pliku), sonda `__nesBootErrors`/`__nesBootDead`
+//     (`lib/observability/bootProbeScript`), KLIK po hydratacji w teście wyżej
+//     i próg `MAX_READY_MS` w `boot-timing.spec.ts`;
+//   * NIEZGODNOŚĆ („uruchomiła się, ale React przerysował HTML z serwera") -
+//     NIE ISTNIAŁA jako detektor. Była łapana WYŁĄCZNIE UBOCZNIE, przez
+//     ogólne `expect(errors, ...).toHaveLength(0)` (ten plik, :152 i :172,
+//     oraz `boot-timing.spec.ts`), i to z dwiema wadami: (a) nic nie nazywało
+//     tej klasy, więc komunikat awarii w artefakcie produkcyjnym brzmiałby
+//     „Minified React error #418" i nie powiedziałby czytelnikowi NIC;
+//     (b) nie istniał ŻADEN dowód, że ta klasa jest w ogóle przechwytywana -
+//     a detektor bez takiego dowodu jest napisem.
+//
+// SPROSTOWANIE ODNIESIENIA: zlecenie wydania 9 wskazuje wzorzec
+// `expect(errors, errors.join(" | ")).toHaveLength(0)` w
+// „boot-artifact.spec.ts:422". Ten plik miał wtedy 173 wiersze - wzorzec stoi
+// w NIM w :172, a w :422 stoi w `boot-timing.spec.ts`. Numer pochodzi z tego
+// drugiego pliku.
+//
+// JAK NIEZGODNOŚĆ DOCHODZI DO TESTU. React 19 zgłasza ją jako błąd
+// ODZYSKIWALNY: `defaultOnRecoverableError` woła `reportGlobalError`
+// (react-dom-client, `defaultOnRecoverableError`), co dyspozycjonuje globalne
+// zdarzenie `error` - czyli trafia w `page.on("pageerror")`, a NIE w
+// `console.error`. Detektor musi więc czytać OBA kanały; czyta oba.
+//
+// DLACZEGO KLASYFIKATOR MUSI ZNAĆ POSTAĆ ZMINIFIKOWANĄ. Artefakt serwuje
+// produkcyjny `react-dom` (sprawdzone: w `.output/public/assets/*.js` nie ma
+// ANI JEDNEGO wystąpienia „Hydration failed because the server rendered", a
+// `vendor-react-*.js` zawiera odsyłacz `react.dev/errors`). Komunikat ma tam
+// postać `Minified React error #NNN`, więc dopasowanie po tekście z builda
+// deweloperskiego łapałoby wyłącznie tryb dev - czyli nigdy w CI.
+//
+// ZMIERZONE, NIE ZAŁOŻONE (2026-09-03, react/react-dom 19.2.5, artefakt
+// `build:smoke`). Wstrzyknięcie rozjazdu daje DOKŁADNIE ten komunikat, i to
+// kanałem `pageerror`, nie `console.error`:
+//
+//   pageerror: Error: Minified React error #418; visit
+//   https://react.dev/errors/418?args[]=text&args[]= for the full message [...]
+//
+// Potwierdzone też ZACHOWANIE, które czyni tę klasę groźną: sonda pokazała
+// `domHasInjected=false` przy `domHasOriginal=true`, czyli React WYRZUCIŁ HTML
+// z serwera i przerysował poddrzewo wersją kliencką. Strona po tym ŻYJE - więc
+// żadna z asercji żywotności tego pliku by tego nie zauważyła.
+const HYDRATION_MISMATCH_MARKERS = [
+  // Postać deweloperska (dev `react-dom`, dla uruchomień lokalnych).
+  "hydration failed because the server rendered",
+  "a tree hydrated but some attributes",
+  "text content does not match",
+  "hydrating but some attributes",
+  // Postać PRODUKCYJNA - kody błędów hydratacji Reacta.
+  "minified react error #418",
+  "minified react error #423",
+  "minified react error #425",
+  "react.dev/errors/418",
+  "react.dev/errors/423",
+  "react.dev/errors/425",
+] as const;
+
+export function isHydrationMismatch(text: string): boolean {
+  const lower = text.toLowerCase();
+  return HYDRATION_MISMATCH_MARKERS.some((marker) => lower.includes(marker));
+}
+
+/**
+ * Nasłuch obu kanałów naraz. Zwraca tablicę, którą test asertuje - ten sam
+ * kształt, co `errors` wyżej, żeby komunikat awarii wyglądał tak samo.
+ */
+function watchHydrationMismatches(page: import("@playwright/test").Page): string[] {
+  const found: string[] = [];
+  page.on("pageerror", (e) => {
+    const text = String(e);
+    if (isHydrationMismatch(text)) found.push(`pageerror: ${text}`);
+  });
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    if (isHydrationMismatch(m.text())) found.push(`console.error: ${m.text()}`);
+  });
+  return found;
+}
+
+test("artefakt hydratuje się BEZ niezgodności serwer<->klient (/cookies)", async ({ page }) => {
+  const mismatches = watchHydrationMismatches(page);
+
+  await page.goto("/cookies", { waitUntil: "load" });
+  await page.waitForFunction(
+    () => (window as unknown as { __nesAppReady?: boolean }).__nesAppReady === true,
+    undefined,
+    { timeout: 60_000 },
+  );
+
+  // Niezgodność jest błędem ODZYSKIWALNYM: strona po niej ŻYJE, tylko React
+  // wyrzucił HTML z serwera i przerysował poddrzewo na kliencie. Czyli
+  // wszystkie asercje testu żywotności wyżej byłyby spełnione, a czytelnik
+  // i tak dostałby migotanie i stracony SSR. Dlatego to jest osobna asercja,
+  // a nie dodatek do tamtej.
+  expect(mismatches, mismatches.join(" | ")).toHaveLength(0);
+});
+
+test("detektor niezgodności ŁAPIE wstrzykniętą niezgodność (kontrola negatywna)", async ({
+  page,
+}) => {
+  // KONTROLA NEGATYWNA DETEKTORA. Bez niej asercja wyżej jest napisem: nie
+  // wiadomo, czy przechodzi, bo niezgodności nie ma, czy bo detektor jej nie
+  // widzi. Ten test PSUJE dokument w locie i wymaga, żeby detektor zapalił.
+  //
+  // WSTRZYKNIĘCIE IDZIE PRZEZ `page.route` NA DOKUMENCIE, nie przez
+  // `addInitScript`: mutujemy WYŁĄCZNIE HTML, który zszedł z serwera, a klient
+  // renderuje swoją (niezmienioną) wersję - czyli dokładnie asymetria, którą
+  // React nazywa niezgodnością. Cel podmiany jest wybrany świadomie: akapit
+  // „nie zapisano jeszcze wyboru" jest RENDEROWANY SERWEROWO i renderuje się
+  // tak samo w pierwszym przejściu klienta (stan zgód czyta się z przeglądarki
+  // dopiero w efekcie), więc podmiana jego treści gwarantuje rozjazd.
+  const INJECTED = "WSTRZYKNIETA-NIEZGODNOSC-HYDRATACJI";
+  await page.route(
+    (url) => url.pathname === "/cookies",
+    async (route) => {
+      const response = await route.fetch();
+      const body = await response.text();
+      // Jeżeli marker nie występuje, wstrzyknięcie nie zaszło - i test MUSI
+      // to zgłosić, zamiast przejść na braku niezgodności.
+      expect(body, "SSR nie dowiózł akapitu, w który wstrzykujemy rozjazd").toContain(UNDECIDED);
+      await route.fulfill({ response, body: body.replaceAll(UNDECIDED, INJECTED) });
+    },
+  );
+
+  const mismatches = watchHydrationMismatches(page);
+  await page.goto("/cookies", { waitUntil: "load" });
+
+  // ŚWIADOMIE NIE CZEKAMY NA `__nesAppReady`, i to jest poprawka Z POMIARU.
+  // Pierwsza wersja tego testu czekała na flagę gotowości i padała na
+  // `TimeoutError` przy uruchomieniu SAMEGO tego testu (przechodziła tylko
+  // w pełnym przebiegu, czyli była zielona PRZYPADKIEM). Przyczyna jest
+  // merytoryczna, nie techniczna: wstrzyknięty rozjazd może zatrzymać boot
+  // ZANIM efekt korzenia ustawi flagę, więc warunek „poczekaj na gotowość"
+  // zakłada dokładnie to, czego ten test celowo psuje. Przedmiotem dowodu jest
+  // TYLKO to, czy detektor zobaczył niezgodność - i na to czekamy.
+  await expect
+    .poll(() => mismatches.length, {
+      message:
+        "detektor niezgodności NIE zapalił na wstrzykniętym rozjeździe - czyli asercja w teście obok nie dowodzi niczego",
+      timeout: 30_000,
+    })
+    .toBeGreaterThan(0);
+
+  // Komunikat wypisany w logu: dzięki temu wiadomo, KTÓRY marker zadziałał,
+  // gdy React zmieni postać swojego błędu w kolejnej wersji.
+  console.log(`[hydration-mismatch] ${JSON.stringify(mismatches)}`);
+
+  // I DRUGA POŁOWA DOWODU: detektor jest WĄSKI. Gdyby `isHydrationMismatch`
+  // przepuszczał cokolwiek, ten test też by przechodził - a bramka obok
+  // świeciłaby czerwono przy każdym niezwiązanym błędzie.
+  expect(isHydrationMismatch("TypeError: fetch failed")).toBe(false);
+  expect(isHydrationMismatch("net::ERR_TUNNEL_CONNECTION_FAILED")).toBe(false);
+  expect(isHydrationMismatch("Error reading query stream: mutations")).toBe(false);
+  expect(isHydrationMismatch("Minified React error #418")).toBe(true);
+});

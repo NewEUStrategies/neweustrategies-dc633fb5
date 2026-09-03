@@ -395,6 +395,27 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:editor-autosave
 
+      # Blocking gate on the THREE INTERNAL budgets of the SSR pipeline. First
+      # load already has a gate on the RESULT (`e2e/boot-timing.spec.ts` on the
+      # built artifact); until now nothing gated the CAUSES, each of which is a
+      # single literal in a single file:
+      #   * warm-up chained before the first byte - root waves 2500 + 500 ms
+      #     (frozen at 3000, ZERO headroom on purpose) and the worst sequential
+      #     `withBudget` chain in one route loader (13 000 ms, src/routes/$.tsx);
+      #   * parallel subrequests in one loader array - frozen at 6, which is the
+      #     Cloudflare Workers per-request limit, not a measured value;
+      #   * the dehydrated payload - three structural invariants in
+      #     src/router.tsx plus a lower-bound proxy on how many cache writes
+      #     feed it.
+      # Reads SOURCES only (no build, no artifact, no database), so it belongs
+      # in `verify` and its result is machine-independent. Rationale, ceilings
+      # and the honest limits of each measurement: src/lib/ci/ssrBudgets.ts.
+      # Its unit test carries the NEGATIVE CONTROLS proving it can go red:
+      # src/lib/ci/__tests__/ssrBudgets.test.ts (run by `check:ci-gates`).
+      - name: SSR pipeline internal budgets
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:ssr-budgets
+
       # Blocking gate on the CAUSE of those casts: generated types going stale.
       # `src/integrations/supabase/types.ts` is generated from the database, and
       # the migrations are forward-only. Add a column by migration without
