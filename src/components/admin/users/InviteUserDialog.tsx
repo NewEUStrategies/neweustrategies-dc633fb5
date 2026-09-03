@@ -154,12 +154,14 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl rounded-[6px]">
+      <DialogContent className="max-h-[90dvh] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto overflow-x-hidden rounded-[6px]">
         <DialogHeader>
-          <DialogTitle>{t("adminTeamMedia.inviteUser.title")}</DialogTitle>
+          <DialogTitle className="pr-8 break-words">
+            {t("adminTeamMedia.inviteUser.title")}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex w-full min-w-0 flex-col gap-4 sm:flex-row">
           <div className="flex shrink-0 flex-col items-center gap-2">
             <div
               data-testid="invite-avatar"
@@ -214,7 +216,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           </div>
 
           <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label htmlFor="invite-email">{t("adminTeamMedia.inviteUser.email")}</Label>
               <Input
                 id="invite-email"
@@ -223,11 +225,11 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label htmlFor="invite-name">{t("adminTeamMedia.inviteUser.name")}</Label>
               <Input id="invite-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-            <div className="grid gap-1 sm:col-span-2">
+            <div className="grid min-w-0 gap-1 sm:col-span-2">
               <Label htmlFor="invite-linkedin">{t("adminTeamMedia.inviteUser.linkedin")}</Label>
               <Input
                 id="invite-linkedin"
@@ -242,12 +244,13 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 </p>
               ) : null}
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label>{t("adminTeamMedia.inviteUser.role")}</Label>
               <Select value={role} onValueChange={(v) => isRole(v) && setRole(v)}>
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="w-full min-w-0">
+                  <SelectValue className="truncate" />
                 </SelectTrigger>
+
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="editor">Editor</SelectItem>
@@ -256,12 +259,13 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               <Label>{t("adminTeamMedia.inviteUser.mode")}</Label>
               <Select value={mode} onValueChange={(v) => isMode(v) && setMode(v)}>
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="w-full min-w-0">
+                  <SelectValue className="truncate" />
                 </SelectTrigger>
+
                 <SelectContent>
                   <SelectItem value="magic_link">
                     {t("adminTeamMedia.inviteUser.modeMagic")}
@@ -288,7 +292,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
           <Button
             variant="ghost"
             className="rounded-[6px]"
