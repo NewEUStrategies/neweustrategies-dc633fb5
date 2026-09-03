@@ -49,8 +49,10 @@
  *     nie ma czego szukać w indeksie).
  *   * KSZTAŁT ZAPYTANIA LISTY: `form_id = "careers"`, kolejność malejąca po
  *     `created_at`, `limit(500)`, embed `career_applications(...)` w JEDNYM
- *     literale, oraz MINIMALIZACJA DANYCH - panel pobiera dokładnie jedenaście
- *     kolumn, których renderuje, i ani jednej więcej (żadnego `select("*")`).
+ *     literale, oraz MINIMALIZACJA DANYCH NA POZIOMIE GŁÓWNYM - dokładnie
+ *     jedenaście kolumn, które ekran renderuje, i żadnego `select("*")`.
+ *     Embed dokłada do tego cztery pola, których panel nie pokazuje NIGDZIE
+ *     (w tym powód odrzucenia kandydata) - ZNALEZISKO 9a.
  *   * FILTRY: który jedzie do BAZY (skrzynka: nowe / wszystkie / archiwum),
  *     a który jest przeliczany na KLIENCIE (etap procesu i szukajka).
  *   * `CvAccess` w całości: kto i jak dostaje podpisany adres, że adres NIE
@@ -68,8 +70,12 @@
  *   * ARCHIWIZACJA i USUNIĘCIE (z potwierdzeniem i z odmową).
  *   * CRM: dopasowanie po `email_norm`, obie gałęzie („zsynchronizowano" /
  *     „brak leada") i link do karty leada.
- *   * DWUJĘZYCZNOŚĆ panelu (wbudowane słowniki PL/EN) - napędzana PRAWDZIWĄ
- *     instancją i18n przez `i18n.changeLanguage`.
+ *   * DWUJĘZYCZNOŚĆ panelu (wbudowane słowniki PL/EN), napędzana PRAWDZIWĄ
+ *     instancją i18n przez `i18n.changeLanguage`: WSZYSTKIE 46 napisów obu
+ *     słowników - 42 renderowane sprawdzone NA EKRANIE (trzy scENY renderu
+ *     plus jeden test napisów pojawiających się po akcji), 4 bez kontrolki
+ *     sprawdzone w samym słowniku - plus zamek na literały, czyli zderzenie
+ *     każdej pary z tablicy testu ze słownikiem odczytanym z modułu trasy.
  *   * Brak naruszeń axe na obu widokach (lista i otwarte zgłoszenie).
  *
  * ---------------------------------------------------------------------------
@@ -101,10 +107,18 @@
  * UWAGA O `realT`. Ta trasa NIE MA ANI JEDNEGO KLUCZA i18n: napisy panelu
  * mieszkają w module w dwóch stałych (`PL`, `EN`), których plik nie
  * eksportuje - taki sam wzorzec, co `admin.crm.$id.tsx`. Asercje na te napisy
- * są więc literałami Z KONIECZNOŚCI, a nie z lenistwa; ich uczciwość pilnuje
- * osobny dowód, że przełączenie języka PRAWDZIWEJ instancji i18n zmienia
- * KAŻDY z nich (czyli że test mierzy wybór słownika, a nie napis wklejony
- * w teście). Napisy pochodzące ze wspólnej warstwy (`stageLabel`,
+ * są więc literałami Z KONIECZNOŚCI, a nie z lenistwa - i dlatego stoją na
+ * nich DWA zamki (oba dołożone w rewizji adwersaryjnej, patrz niżej):
+ *   1. TABLICA `PARY` zderzona ze słownikiem ODCZYTANYM Z MODUŁU trasy
+ *      (`slownikZModulu`), więc literał w teście, który rozjechał się
+ *      z panelem, zapala jeden test, a nie zeruje wiarygodność trzydziestu.
+ *   2. Dowód przełączenia po `i18n.changeLanguage`, który przechodzi po
+ *      KAŻDYM napisie mającym kontrolkę (42 z 46) i sprawdza trzy rzeczy:
+ *      polski widoczny po polsku, angielski po angielsku i - to jest ta
+ *      asercja, która łapie wklejone zdanie - po angielsku NIE ZOSTAJE
+ *      polski. Cztery napisy bez kontrolki (ZNALEZISKO 9b) domyka dowód
+ *      słownikowy, bo na ekranie nie da się ich zobaczyć.
+ * Napisy pochodzące ze wspólnej warstwy (`stageLabel`,
  * `departmentLabel`, `seniorityLabel`, `startLabel`) są asertowane PRZEZ TE
  * FUNKCJE, więc mierzą słownik. `realT("pl")` jest tu użyty tam, gdzie ma sens:
  * do dowodu, że `aria-label="Refresh"` NIE MA klucza w słowniku (ZNALEZISKO 4).
@@ -126,14 +140,23 @@
  *    wierszy i milczą o resztzie. To zachowanie jest tu zaasertowane WPROST
  *    (zmiana filtra etapu NIE wywołuje nowego zapytania), żeby nikt nie
  *    pomylił go z filtrem serwerowym.
- * 3. PIPELINE REKRUTACYJNY NIE MA ANI JEDNEGO DOWODU pgTAP. Migracja
- *    `20260814110000_careers_pipeline_and_cv_retention.sql` zakłada cztery
- *    polityki RLS, trzy triggery (bootstrap, touch, dziennik) i kolejkę
- *    usunięć CV, a w `supabase/tests/` nie ma ŻADNEGO pliku wspominającego
- *    `career_applications`. Ta trasa nie ma na kliencie żadnego warunku
- *    najemcy, więc polityka bazy jest jedynym, co dzieli tenantów - i to
- *    właśnie ona jest bez dowodu wykonawczego. Zapisane jako `it.fails`
- *    z kontrolą dodatnią (`career_sections_visibility_public_read_test.sql`).
+ * 3. SPROSTOWANE, NIE ZNALEZISKO: PIPELINE REKRUTACYJNY MA DOWÓD WYKONAWCZY.
+ *    Pierwsza wersja tego nagłówka twierdziła, że migracja
+ *    `20260814110000_careers_pipeline_and_cv_retention.sql` (cztery polityki
+ *    RLS, trzy triggery, kolejka usunięć CV) nie ma ANI JEDNEGO dowodu
+ *    wykonawczego, i zapisywała to jako `it.fails`. Podstawą był grep po
+ *    `supabase/tests/` - czyli szukanie w złym miejscu. Dowód mieszka
+ *    w `scripts/careers-harness/runtime_test.sql` (pgTAP nie jest dostępny
+ *    w obrazie CI, więc asercje są gołym SQL-em: każda niespełniona rzuca
+ *    wyjątkiem) i biegnie w CI jako `check:careers-harness`. Pokrywa
+ *    dokładnie to, czego brak zgłaszała tamta wersja: drugiego najemcę,
+ *    nieprzenoszalność procesu między najemcami i wpis w dzienniku przy
+ *    zmianie etapu. Asercje w tym pliku są DODATNIE (uprząż istnieje, CI ją
+ *    odpala), a pusty wynik grepu po `supabase/tests/` jest zaasertowany
+ *    jako ŚWIADOMY, żeby następny czytelnik nie powtórzył pomyłki.
+ *    REWIZJA ADWERSARYJNA: ciało pliku było już sprostowane, ale TEN
+ *    nagłówek nadal głosił obaloną wersję - to jest właśnie ta klasa
+ *    defektu, w której nagłówek przestaje być wywodem, a staje się reliktem.
  * 4. `aria-label="Refresh"` JEST NIEPRZETŁUMACZONYM LITERAŁEM (linia 518) -
  *    jedyna nazwa dostępna na tym ekranie, która nie przechodzi ani przez
  *    słownik i18n, ani przez wbudowane `PL`/`EN`. Osoba czytająca panel
@@ -145,10 +168,16 @@
  *    zapisu kończy się toastem o treści `no_pipeline_row` - kluczem
  *    technicznym zamiast zdania. Zaasertowane jest zachowanie ISTNIEJĄCE
  *    (żaden UPDATE nie wychodzi do bazy - i to jest w tym dobra połowa).
- * 6. TRASA `admin.careers.tsx` NIE JEST WIDZIANA PRZEZ ŻADNĄ LISTĘ RODZIN
- *    W BRAMCE `adminRouteAuthority.gate.test.ts` (grep: zero trafień na
- *    „careers"). Nie dopisuję jej tam, bo to plik innej paczki roboczej -
- *    zgłaszam w raporcie.
+ * 6. ZAMKNIĘTE: BRAMKA RODZIN TRAS PANELU WIDZI JUŻ `admin.careers`.
+ *    Stan wejściowy paczki: `adminRouteAuthority.gate.test.ts` miał jawne
+ *    listy rodzin (kluby, newsletter, moduł 19, SEO, społeczność) i ŻADNA nie
+ *    wymieniała tej trasy, więc dołożenie tu własnego, niezgodnego z bazą
+ *    warunku roli przechodziłoby po cichu. Znalezisko zostało domknięte
+ *    w tej samej gałęzi (`CAREERS_ROUTES` w bramce), a asercja w tym pliku
+ *    jest POZYTYWNA - ma pilnować OBECNOŚCI rodziny, nie utrwalać jej brak.
+ *    REWIZJA ADWERSARYJNA: nagłówek nadal mówił „nie dopisuję, zgłaszam
+ *    w raporcie", choć bramka wymienia `admin.careers.tsx` od tej samej
+ *    gałęzi - poprawione tutaj.
  * 7. ODMOWA ZAPISU „PRZECZYTANE"/ARCHIWIZACJI JEST CAŁKOWICIE CICHA. Mutacja
  *    `patch` (linie 383-398) jest JEDYNĄ z trzech mutacji tego ekranu bez
  *    `onError` - `savePipeline` i `removeApplication` mają swoje. Operator
@@ -160,6 +189,19 @@
  *    duplikat leada w CRM) oraz „Brak zmian etapu." - czyli PUSTY AUDYT decyzji
  *    o kandydacie. To ta sama klasa błędu co ZNALEZISKO 1, tylko dotyczy
  *    dokumentu, po który sięga się przy skardze na proces rekrutacji.
+ * 9. PÓŁ FUNKCJI „POWÓD ODRZUCENIA": DANE JADĄ DO PRZEGLĄDARKI, KONTROLKI NIE
+ *    MA. (a) Embed listy ciągnie `stage_changed_at`, `rejection_reason`,
+ *    `next_step_at` i `owner_id` - cztery pola, których panel nie renderuje
+ *    NIGDZIE, przy każdym otwarciu skrzynki i dla wszystkich 500 wierszy.
+ *    Uzasadnienie odrzucenia kandydata to ocena jego osoby, więc jego wysyłka
+ *    „na zapas" jest kosztem po stronie minimalizacji danych, nie estetyki.
+ *    (b) Oba słowniki deklarują cztery napisy, po które JSX nie sięga:
+ *    `crm`, `markRead`, `rejectionReason`, `nextStep`. Mutacja `savePipeline`
+ *    przyjmuje przy tym `rejection_reason` i `next_step_at`, a żadne z jej
+ *    dwóch wywołań ich nie podaje. Kolumny są w bazie, w typach, w zapytaniu
+ *    i w słowniku - w interfejsie nie ma ich wcale. Znalezisko dołożone
+ *    w rewizji adwersaryjnej; zaasertowane jest zachowanie ISTNIEJĄCE
+ *    (pola SĄ pobierane, NIE trafiają do DOM-u, kluczy nikt nie renderuje).
  *
  * ---------------------------------------------------------------------------
  * CZEGO NIE DA SIĘ TU DOWIEŚĆ UCZCIWIE (2 gałęzie z 151, świadomie zostawione)
@@ -171,15 +213,69 @@
  * biegnie, gdy jest nullish. To obrona defensywna bez wejścia - żeby ją
  * wywołać, trzeba by zawołać `queryFn` poza routerem i poza react-query, czyli
  * zmierzyć własną atrapę zamiast panelu. Odpowiednikiem dowodowym są dwa testy
- * mierzące SKUTEK tej bramki: „bez wyboru prawa kolumna prosi o wybór"
- * (zero łańcuchów do `crm_leads` i `career_application_events`) oraz
- * „ZNALEZISKO 5" (brak identyfikatora procesu = zero pytań o dziennik).
+ * mierzące SKUTEK tej bramki: „bez wyboru prawa kolumna prosi o wybór i NIE
+ * pyta ani CRM, ani dziennika" (zero łańcuchów do `crm_leads` i
+ * `career_application_events`) oraz „ZNALEZISKO 5" (brak identyfikatora
+ * procesu = zero pytań o dziennik).
  * Pozostałe 149 gałęzi, wszystkie 42 funkcje i wszystkie 109 linii są pokryte.
+ *
+ * REWIZJA ADWERSARYJNA POTWIERDZA tę dwójkę po ponownym pomiarze (nadal
+ * dokładnie 149/151 gałęzi), ALE dowód zastępczy pierwszego z nich był zielony
+ * PRZEZ TIMING: licznik łańcuchów sprawdzano natychmiast po zdaniu „Wybierz
+ * zgłoszenie z listy.", które jest na ekranie od pierwszego renderu - czyli
+ * przed odpowiedzią listy. Test przechodziłby więc także wtedy, gdyby panel
+ * pytał CRM bez wyboru. Dowód czeka teraz na ODPOWIEDŹ listy i na wiersz, a na
+ * końcu ma KONTROLĘ DODATNIĄ (po wyborze oba liczniki rosną) - bo zero, którego
+ * nikt nie umie podnieść, nie jest pomiarem.
+ *
+ * ---------------------------------------------------------------------------
+ * CO ZNALAZŁA REWIZJA ADWERSARYJNA (wszystko naprawione w tym pliku)
+ * ---------------------------------------------------------------------------
+ * Założenie rewizji: autor poprzedniego kroku oszukiwał. Osiem miejsc, w których
+ * dowód nie sięgał tam, gdzie obiecywał (kod produkcyjny NIETKNIĘTY):
+ *   1. NAGŁÓWEK GŁOSIŁ OBALONE ZNALEZISKA. Punkty 3 i 6 opisywały brak dowodu
+ *      pgTAP i brak rodziny w bramce autorytetu, gdy ciało pliku dowodziło
+ *      DOKŁADNIE ODWROTNIE (uprząż runtime w CI, `CAREERS_ROUTES` w bramce).
+ *      To najcięższy z tych defektów: nagłówek jest tu jedyną instrukcją dla
+ *      następnego czytelnika, a kłamał o stanie dowodu.
+ *   2. TAUTOLOGIA ZAMIAST SKLEJENIA. Test „trasa wisi pod /admin" asertował
+ *      `PATH.startsWith("/admin/")`, czyli MIERZYŁ WŁASNĄ STAŁĄ TESTU - zielony
+ *      niezależnie od kodu. Zastąpiony dowodem z `routeTree.gen.ts`
+ *      (`getParentRoute: () => AdminRoute` plus wpis w dzieciach layoutu), bo
+ *      tylko to znaczy, że bramka `isStaff` biegnie NAD tą trasą.
+ *   3. OSIEM `expect(...)` BEZ MATCHERA (w tym trzy z komunikatem, który przy
+ *      braku matchera nigdy się nie pokaże). Uzupełnione o asercje.
+ *   4. NAZWA OBIECYWAŁA WIĘCEJ, NIŻ DOWODZIŁO CIAŁO: „szukajka przesiewa po
+ *      nazwisku, adresie, TEMACIE i TREŚCI" przesiewała tylko po nazwisku
+ *      i adresie - na fixture, w którym wszystkie zgłoszenia miały identyczny
+ *      temat i treść, więc tamtych dwóch pól nie dało się w nim zmierzyć.
+ *      Fixture jest rozłączny, a przesiew ma teraz dowód dla WSZYSTKICH
+ *      dziewięciu pól (doszło też `custom.role_label`, którego nie mierzył
+ *      żaden test).
+ *   5. DWUJĘZYCZNOŚĆ „KAŻDEGO NAPISU" NA PRÓBIE OŚMIU Z CZTERDZIESTU SZEŚCIU.
+ *      Nagłówek obiecywał, że osobny dowód pilnuje uczciwości literałów dla
+ *      KAŻDEGO napisu; sprawdzanych było osiem. Dołożona pełna tablica par
+ *      PL/EN (trzy scENY renderu + napisy po akcji), dowód słownikowy dla
+ *      czterech napisów bez kontrolki i zamek zderzający każdy literał testu
+ *      ze słownikiem odczytanym z modułu trasy.
+ *   6. ATRAPA ZJADAŁA PRZEDMIOT DOWODU. Wiszący łańcuch (stany „w toku") nie
+ *      zapisywał ogniw do atrapy wspólnej, więc test „jedno zgłoszenie, jeden
+ *      DELETE" nie miał czym policzyć DELETE-ów - „zablokowany przycisk" dawało
+ *      się udowodnić bez ani jednego żądania. Łańcuch zapisuje teraz ogniwa,
+ *      a wiszące jest wyłącznie rozwiązanie `await`.
+ *   7. ASERCJA NA NEGATYWIE ZAMIAST NA SKUTKU. „Brak telefonu nie zostawia
+ *      wiszącego separatora" sprawdzał tylko, że nie ma dwóch kropek pod rząd -
+ *      zielone także dla linii bez adresu albo bez daty. Teraz asercja jest na
+ *      PEŁNY tekst linii kontaktu, w obu wariantach.
+ *   8. DOWÓD ZASTĘPCZY NIEPOKRYTEJ GAŁĘZI ZIELONY PRZEZ TIMING - opisany wyżej.
+ * Przy okazji rewizji doszło ZNALEZISKO 9 (embed ciągnie cztery pola bez
+ * kontrolki, w tym powód odrzucenia; cztery napisy słownika bez kontrolki).
  *
  * ŚWIADOMIE POZA ZAKRESEM (i gdzie mieszka tamten dowód):
  *   * wykonanie polityk RLS i triggerów (`career_application_log_stage`,
- *     `career_cv_enqueue_on_message_delete`, `career_cv_gc_*`) - pgTAP,
- *     dziś nieistniejący (ZNALEZISKO 3);
+ *     `career_cv_enqueue_on_message_delete`, `career_cv_gc_*`) - uprząż
+ *     runtime `scripts/careers-harness/runtime_test.sql`, odpalana w CI jako
+ *     `check:careers-harness` (a NIE „nieistniejący pgTAP" - patrz ZNALEZISKO 3);
  *   * podpisywanie linku w magazynie (`signCvUrl`, `uploadCv`, walidacja
  *     pliku) - `src/lib/careers/__tests__/cvUpload.test.ts`;
  *   * parsowanie warstwy rekrutacyjnej w izolacji -
@@ -244,8 +340,15 @@ vi.mock("@/integrations/supabase/client", async () => {
    * Łańcuch, który nigdy nie rozwiązuje `await` - jedyny sposób, żeby dowieść
    * stanu oczekiwania (atrapa wspólna odpowiada synchronicznie, bo taki jest
    * jej kontrakt; ten kształt jest tu wyjątkiem, nie drugim harnessem).
+   *
+   * REWIZJA: pierwsza wersja BUDOWAŁA WŁASNY builder i nie zapisywała ogniw,
+   * więc każdy test oczekiwania stawał się niewidomy na to, CZY zapytanie
+   * w ogóle poszło i z jakim ładunkiem - „przycisk zablokowany" dawało się
+   * udowodnić bez ani jednego żądania. Teraz ogniwa jadą do atrapy wspólnej
+   * (czyli są zapisane i asertowalne), a wiszące jest wyłącznie ROZWIĄZANIE.
    */
-  const hangingChain = () => {
+  const hangingChain = (table: string) => {
+    const recorder = shared.from(table) as Record<string, (...args: unknown[]) => unknown>;
     const builder: Record<string, unknown> = {};
     for (const method of [
       "select",
@@ -258,14 +361,17 @@ vi.mock("@/integrations/supabase/client", async () => {
       "order",
       "limit",
     ]) {
-      builder[method] = () => builder;
+      builder[method] = (...args: unknown[]) => {
+        recorder[method](...args);
+        return builder;
+      };
     }
     builder.then = () => undefined;
     return builder;
   };
   return {
     supabase: {
-      from: (table: string) => (h.hang.has(table) ? hangingChain() : shared.from(table)),
+      from: (table: string) => (h.hang.has(table) ? hangingChain(table) : shared.from(table)),
     },
   };
 });
@@ -313,6 +419,14 @@ import { Route as CareersRoute } from "@/routes/admin.careers";
 const PATH = "/admin/careers";
 const ROUTE_FILE = "src/routes/admin.careers.tsx";
 const ADMIN_LAYOUT = "src/routes/admin.tsx";
+/**
+ * Wygenerowane drzewo tras. To JEDYNE miejsce w repo, w którym stoi rodzic tej
+ * trasy: `createFileRoute("/admin/careers")` sam rodzica NIE zna, a harness
+ * testowy podkłada zastępczy korzeń, więc asercja na obiekcie `Route` mierzyłaby
+ * uprząż, nie sklejenie. Bramka `isStaff` żyje w layoucie, więc dowód „ta trasa
+ * jest DZIECKIEM layoutu" musi iść po wygenerowanym drzewie.
+ */
+const ROUTE_TREE = "src/routeTree.gen.ts";
 const AUTHORITY_GATE = "src/routes/__tests__/adminRouteAuthority.gate.test.ts";
 /** Migracja z pipeline'em rekrutacyjnym, dziennikiem decyzji i kolejką usunięć CV. */
 const PIPELINE_MIGRATION =
@@ -595,9 +709,30 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
     expect(meta()).toContainEqual({ name: "robots", content: "noindex" });
   });
 
-  it("trasa wisi pod `/admin`, więc chroni ją bramka `isStaff` z układu nadrzędnego", () => {
+  it("trasa jest DZIECKIEM layoutu `/admin` w wygenerowanym drzewie tras", () => {
+    // REWIZJA: pierwsza wersja tego testu asertowała `PATH.startsWith("/admin/")`,
+    // czyli MIERZYŁA WŁASNĄ STAŁĄ TESTU (`const PATH = "/admin/careers"`) - zielone
+    // niezależnie od kodu produkcyjnego. Dowodem sklejenia jest wygenerowane drzewo:
+    // `getParentRoute: () => AdminRoute` i obecność w dzieciach layoutu. Dopiero to
+    // znaczy, że efekt `isStaff` z `admin.tsx` biegnie NAD tą trasą.
     expect(read(ROUTE_FILE)).toMatch(/createFileRoute\("\/admin\/careers"\)/);
-    expect(PATH.startsWith("/admin/")).toBe(true);
+
+    const tree = read(ROUTE_TREE);
+    expect(tree).toMatch(
+      /const AdminCareersRoute = AdminCareersRouteImport\.update\(\{\s*id: '\/careers',\s*path: '\/careers',\s*getParentRoute: \(\) => AdminRoute,/,
+    );
+    // Dziecko musi być też WPISANE do layoutu - `update()` bez wpisu w dzieciach
+    // dałoby trasę osieroconą, renderowaną bez layoutu, a więc bez bramki.
+    const children = tree.slice(
+      tree.indexOf("const AdminRouteChildren: AdminRouteChildren = {"),
+      tree.indexOf("const AdminRouteWithChildren"),
+    );
+    expect(children).toContain("AdminCareersRoute: AdminCareersRoute,");
+    // Kontrola dodatnia dla samego wycinka - żeby zielone nie brało się z pustki.
+    expect(children).toContain("AdminHiringRoute: AdminHiringRoute,");
+    // I pełna ścieżka, po której panel jest osiągalny w przeglądarce.
+    expect(tree).toContain("'/admin/careers': typeof AdminCareersRoute");
+    expect(PATH).toBe("/admin/careers");
   });
 
   it("ta trasa NIE bramkuje dostępu sama - renderuje się bez pytania o rolę", async () => {
@@ -786,6 +921,58 @@ describe("/admin/careers - co panel pyta bazę o zgłoszenia", () => {
     expect(selectArg).not.toContain("recipient");
   });
 
+  it("ZNALEZISKO 9a: embed procesu ściąga cztery pola, których panel NIE renderuje", async () => {
+    // Minimalizacja danych z testu obok jest prawdą o POZIOMIE GŁÓWNYM: tam
+    // lista kolumn to dokładnie te jedenaście, które ekran pokazuje. Embed
+    // `career_applications(...)` dokłada jednak cztery pola, z których panel
+    // nie renderuje ŻADNEGO: `stage_changed_at`, `rejection_reason`,
+    // `next_step_at` i `owner_id`. Dwa środkowe mają nawet etykiety w obu
+    // słownikach i przyjmuje je mutacja `savePipeline` (ZNALEZISKO 9b), tylko
+    // kontrolki nie ma żadnej. Skutek jest po stronie RODO, nie estetyki:
+    // uzasadnienie odrzucenia kandydata jedzie do przeglądarki przy KAŻDYM
+    // otwarciu skrzynki - dla 500 zgłoszeń naraz - i nikt go tam nie czyta.
+    // Zaasertowane jest zachowanie ISTNIEJĄCE: pola SĄ pobierane i NIE trafiają
+    // do DOM-u. Naprawą jest zawężenie embedu, więc kod pozostaje nietknięty.
+    h.rows = [
+      application({
+        read_at: "2026-08-21T09:00:00.000Z",
+        career_applications: pipelineRow({
+          stage_changed_at: "2026-08-25T12:00:00.000Z",
+          rejection_reason: "Zmyślony powód odrzucenia: brak zmyślonej kompetencji.",
+          next_step_at: "2026-09-01T09:00:00.000Z",
+          owner_id: "operator-zmyslony",
+        }),
+      }),
+    ];
+    const { container } = await mount();
+    await openApplication("Zofia Przykładowska");
+    await screen.findByText("Brak zmian etapu.");
+
+    const [selectArg] = lastList().argsOf("select") ?? [];
+    for (const kolumna of ["stage_changed_at", "rejection_reason", "next_step_at", "owner_id"]) {
+      expect(String(selectArg), `embed przestał pytać o ${kolumna}`).toContain(kolumna);
+    }
+    for (const wartość of [
+      "2026-08-25T12:00:00.000Z",
+      "Zmyślony powód odrzucenia: brak zmyślonej kompetencji.",
+      "2026-09-01T09:00:00.000Z",
+      "operator-zmyslony",
+    ]) {
+      expect(container.innerHTML, `panel jednak renderuje „${wartość}"`).not.toContain(wartość);
+    }
+
+    // Druga połowa tego samego znaleziska: mutacja przyjmuje dwa z tych pól,
+    // a żadne z dwóch wywołań na tym ekranie ich nie podaje.
+    const source = read(ROUTE_FILE);
+    expect(source).toMatch(/rejection_reason\?: string;/);
+    expect(source).toMatch(/next_step_at\?: string \| null;/);
+    const wywołania = [...source.matchAll(/savePipeline\.mutate\(\{[\s\S]*?\}\)/g)].map(
+      (dopasowanie) => dopasowanie[0],
+    );
+    expect(wywołania).toHaveLength(2);
+    expect(wywołania.join("\n")).not.toMatch(/rejection_reason|next_step_at/);
+  });
+
   it("embed procesu jedzie JEDNYM literałem - konkatenacja cofnęłaby typowanie", async () => {
     // Uzasadnienie stoi w komentarzu produkcyjnym: supabase-js parsuje listę
     // kolumn NA POZIOMIE TYPÓW, a sklejony `string` degraduje wynik do
@@ -932,7 +1119,9 @@ describe("/admin/careers - trzy stany odczytu skrzynki", () => {
 
     expect(row.getByText("Zofia Przykładowska")).toBeInTheDocument();
     expect(row.getByText("Analityk ds. polityki cyfrowej")).toBeInTheDocument();
-    expect(row.getByText(new Date("2026-08-20T07:00:00.000Z").toLocaleDateString()));
+    expect(
+      row.getByText(new Date("2026-08-20T07:00:00.000Z").toLocaleDateString()),
+    ).toBeInTheDocument();
     // Etap pokazujemy TEKSTEM ze wspólnej warstwy, nie kodem enuma - i z
     // kolorem, który jest jedyną szybką różnicą między „Nowe" i „Odrzucony".
     const badge = row.getByText(stageLabel("new", "pl"));
@@ -969,7 +1158,9 @@ describe("/admin/careers - trzy stany odczytu skrzynki", () => {
     await mount();
     await screen.findByText("Bartosz Zmyślony");
 
-    expect(within(listRow("Bartosz Zmyślony")).getByText("Zgłoszenie spontaniczne"));
+    expect(
+      within(listRow("Bartosz Zmyślony")).getByText("Zgłoszenie spontaniczne"),
+    ).toBeInTheDocument();
     expect(
       within(listRow("Cecylia Nieistniejąca")).getByText("cecylia.nieistniejaca@example.com"),
     ).toBeInTheDocument();
@@ -999,7 +1190,9 @@ describe("/admin/careers - trzy stany odczytu skrzynki", () => {
     await mount();
     await screen.findByText("Dorota Obiektowa");
 
-    expect(within(listRow("Dorota Obiektowa")).getByText(stageLabel("new", "pl")));
+    expect(within(listRow("Dorota Obiektowa")).getByText(stageLabel("new", "pl"))).toHaveClass(
+      ...CAREER_STAGE_STYLE.new.split(" "),
+    );
     expect(
       within(listRow("Edward Tablicowy")).getByText(stageLabel("interview", "pl")),
     ).toBeInTheDocument();
@@ -1011,7 +1204,9 @@ describe("/admin/careers - trzy stany odczytu skrzynki", () => {
     h.rows = [application({ career_applications: pipelineRow({ stage: "zmyslony_etap" }) })];
     await mount();
     await screen.findByText("Zofia Przykładowska");
-    expect(within(listRow("Zofia Przykładowska")).getByText(stageLabel("new", "pl")));
+    expect(
+      within(listRow("Zofia Przykładowska")).getByText(stageLabel("new", "pl")),
+    ).toBeInTheDocument();
   });
 });
 
@@ -1114,26 +1309,62 @@ describe("/admin/careers - filtr etapu i szukajka liczą się na KLIENCIE", () =
   });
 
   it("szukajka przesiewa po nazwisku, adresie, temacie i treści - bez wielkości liter", async () => {
-    h.rows = trzy();
+    // REWIZJA: pierwsza wersja tego testu obiecywała w nazwie „temat i treść",
+    // a przesiewała WYŁĄCZNIE po nazwisku i adresie - na fixture, w którym
+    // wszystkie trzy zgłoszenia miały IDENTYCZNY temat i treść, więc dowodu
+    // tamtych dwóch pól nie dało się w nim nawet napisać. Fixture jest teraz
+    // rozłączny: każde z czterech pól niesie napis, który trafia w DOKŁADNIE
+    // jedno zgłoszenie, więc każda iteracja mierzy JEDNO pole przesiewu.
+    h.rows = [
+      application({
+        id: "filip",
+        name: "Filip Wtoku",
+        email: "filip.wtoku@example.com",
+        subject: "Zgłoszenie na staż analityczny",
+        message: "Zmyślona motywacja: fascynuje mnie regulacja platform cyfrowych.",
+      }),
+      application({
+        id: "grazyna",
+        name: "Grażyna Domknięta",
+        email: "grazyna.domknieta@example.com",
+        subject: "Zgłoszenie spontaniczne",
+        message: "Zmyślony list: chciałabym prowadzić szkolenia dla samorządów.",
+      }),
+    ];
     await mount();
     await screen.findByText("Filip Wtoku");
     const box = screen.getByPlaceholderText("Szukaj: imię, e-mail, rola…");
 
-    fireEvent.change(box, { target: { value: "GRAŻYNA" } });
-    await waitFor(() => expect(screen.queryByText("Filip Wtoku")).toBeNull());
-    expect(screen.getByText("Grażyna Domknięta")).toBeInTheDocument();
+    const przypadki: ReadonlyArray<[pole: string, needle: string, zostaje: string, znika: string]> =
+      [
+        ["nazwisko (wielkimi literami)", "GRAŻYNA", "Grażyna Domknięta", "Filip Wtoku"],
+        [
+          "adres (mieszaną wielkością)",
+          "filip.wtoku@EXAMPLE.com",
+          "Filip Wtoku",
+          "Grażyna Domknięta",
+        ],
+        ["temat zgłoszenia", "staż analityczny", "Filip Wtoku", "Grażyna Domknięta"],
+        ["treść zgłoszenia", "PROWADZIĆ SZKOLENIA", "Grażyna Domknięta", "Filip Wtoku"],
+      ];
 
-    fireEvent.change(box, { target: { value: "filip.wtoku@EXAMPLE.com" } });
-    await waitFor(() => expect(screen.getByText("Filip Wtoku")).toBeInTheDocument());
-    expect(screen.queryByText("Grażyna Domknięta")).toBeNull();
+    for (const [pole, needle, zostaje, znika] of przypadki) {
+      fireEvent.change(box, { target: { value: needle } });
+      await waitFor(() => expect(screen.queryByText(znika), `przesiew po ${pole}`).toBeNull());
+      expect(screen.getByText(zostaje), `przesiew po ${pole}`).toBeInTheDocument();
+    }
   });
 
   it("szukajka sięga też do pól rekrutacyjnych z kolumny `custom`", async () => {
     // Operator szuka „kto aplikował na analizy" albo „kto podał LinkedIn",
     // a nie tylko po nazwisku. Te pola żyją w jsonb, więc muszą być jawnie
     // wymienione w przesiewie.
+    // Temat jest tu WYZEROWANY, bo domyślny fixture ma w nim tę samą frazę co
+    // `role_label` - bez tego iteracja „etykieta roli" nie mierzyłaby `custom`,
+    // tylko `subject`, i przechodziłaby przy usuniętym polu z przesiewu.
     h.rows = [
       application({
+        subject: null,
         custom: {
           role_label: "Analityk ds. polityki cyfrowej",
           department: "analysis",
@@ -1148,10 +1379,19 @@ describe("/admin/careers - filtr etapu i szukajka liczą się na KLIENCIE", () =
     await screen.findByText("Zofia Przykładowska");
     const box = screen.getByPlaceholderText("Szukaj: imię, e-mail, rola…");
 
-    for (const needle of ["analysis", "senior", "linkedin.example.com", "zyciorys-zmyslony"]) {
+    for (const needle of [
+      "Analityk ds. polityki",
+      "analysis",
+      "senior",
+      "linkedin.example.com",
+      "zyciorys-zmyslony",
+    ]) {
       fireEvent.change(box, { target: { value: needle } });
       await waitFor(() => expect(screen.queryByText("Ignacy Inny")).toBeNull());
-      expect(screen.getByText("Zofia Przykładowska"), `szukajka nie widzi „${needle}"`);
+      expect(
+        screen.getByText("Zofia Przykładowska"),
+        `szukajka nie widzi „${needle}"`,
+      ).toBeInTheDocument();
     }
   });
 
@@ -1186,13 +1426,34 @@ describe("/admin/careers - filtr etapu i szukajka liczą się na KLIENCIE", () =
 // ---------------------------------------------------------------------------
 
 describe("/admin/careers - otwarcie zgłoszenia", () => {
-  it("bez wyboru prawa kolumna prosi o wybór, a nie pokazuje pustego formularza", async () => {
+  it("bez wyboru prawa kolumna prosi o wybór i NIE pyta ani CRM, ani dziennika", async () => {
+    // TO JEST DOWÓD ZASTĘPCZY dla dwóch świadomie niepokrytych gałęzi
+    // (`current?.email ?? ""` w filtrze leada i `current?.pipeline?.id ?? ""`
+    // w filtrze dziennika), więc nie wolno mu być zielonym PRZEZ TIMING.
+    //
+    // REWIZJA: pierwsza wersja asertowała zero łańcuchów NATYCHMIAST po
+    // `findByText("Wybierz zgłoszenie z listy.")` - a to zdanie jest na ekranie
+    // od PIERWSZEGO renderu, jeszcze przed odpowiedzią listy. Licznik był więc
+    // zerowy, bo nic nie zdążyło polecieć, i test przechodziłby także wtedy,
+    // gdyby panel pytał CRM bez wyboru. Teraz czekamy, aż lista ODPOWIE i
+    // wiersz się wyrenderuje (czyli minie render, w którym `enabled` mogłoby
+    // się przewrócić), a KONTROLA DODATNIA na końcu pokazuje, że te same
+    // liczniki UMIEJĄ wzrosnąć - zero nie jest własnością pomiaru.
     h.rows = [application()];
     await mount();
     expect(await screen.findByText("Wybierz zgłoszenie z listy.")).toBeInTheDocument();
-    // Zapytanie o lead NIE leci, dopóki nie ma adresu kandydata.
+    await settled();
+    expect(await screen.findByText("Zofia Przykładowska")).toBeInTheDocument();
+    expect(listChains().length).toBeGreaterThan(0);
+
     expect(leadChains()).toHaveLength(0);
     expect(eventChains()).toHaveLength(0);
+
+    await openApplication("Zofia Przykładowska");
+    await waitFor(() => {
+      expect(leadChains().length).toBeGreaterThan(0);
+      expect(eventChains().length).toBeGreaterThan(0);
+    });
   });
 
   it("karta kandydata niesie kontakt, datę i język zgłoszenia", async () => {
@@ -1210,13 +1471,27 @@ describe("/admin/careers - otwarcie zgłoszenia", () => {
   });
 
   it("brak telefonu nie zostawia wiszącego separatora w linii kontaktu", async () => {
-    h.rows = [application({ phone: null })];
-    const { container } = await mount();
-    await openApplication("Zofia Przykładowska");
+    // REWIZJA: pierwsza wersja asertowała TYLKO negatyw („nie ma dwóch kropek
+    // pod rząd"), co jest zielone także dla linii kontaktu, z której zniknął
+    // adres albo data. Asercja jest teraz na PEŁNY tekst linii, w obu
+    // wariantach - i to ona mówi, że separator pojawia się dokładnie wtedy,
+    // gdy jest co rozdzielać.
+    const utworzone = new Date("2026-08-20T07:00:00.000Z").toLocaleString();
+    const linia = (root: HTMLElement): string =>
+      root.querySelector("section p.text-xs")?.textContent ?? "";
 
-    const contact = container.querySelector("section p.text-xs");
-    expect(contact?.textContent ?? "").toContain("zofia.przykladowska@example.com");
-    expect(contact?.textContent ?? "").not.toMatch(/@example\.com\s+·\s+·/);
+    h.rows = [application({ phone: null })];
+    const bezTelefonu = await mount();
+    await openApplication("Zofia Przykładowska");
+    expect(linia(bezTelefonu.container)).toBe(`zofia.przykladowska@example.com · ${utworzone}`);
+
+    cleanup();
+    h.rows = [application()];
+    const zTelefonem = await mount();
+    await openApplication("Zofia Przykładowska");
+    expect(linia(zTelefonem.container)).toBe(
+      `zofia.przykladowska@example.com · +48 000 000 001 · ${utworzone}`,
+    );
   });
 
   it("samo OTWARCIE nieprzeczytanego zgłoszenia zapisuje `read_at` i status", async () => {
@@ -1417,7 +1692,10 @@ describe("/admin/careers - dostęp do CV kandydata", () => {
       await mount();
       await openApplication("Zofia Przykładowska");
 
-      expect(screen.getByText(/^CV:\s*Brak CV$/), `ścieżka „${zla}" nie została odrzucona`);
+      expect(
+        screen.getByText(/^CV:\s*Brak CV$/),
+        `ścieżka „${zla}" nie została odrzucona`,
+      ).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Otwórz CV" })).toBeNull();
       expect(h.signCalls).toEqual([]);
     }
@@ -1776,13 +2054,19 @@ describe("/admin/careers - usunięcie zgłoszenia (operacja bez cofnięcia)", ()
       expect(h.toasts).toContainEqual({ kind: "error", text: "odmowa: brak roli admina" }),
     );
     // Zgłoszenie ZOSTAJE otwarte - operator widzi, na czym poległ.
-    expect(screen.getByRole("heading", { level: 2, name: "Zofia Przykładowska" }));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Zofia Przykładowska" }),
+    ).toBeInTheDocument();
     expect(read(PIPELINE_MIGRATION)).toMatch(
       /CREATE POLICY career_applications_admin_delete ON public\.career_applications/,
     );
   });
 
   it("w trakcie usuwania przycisk jest zablokowany - jedno zgłoszenie, jeden DELETE", async () => {
+    // Druga część nazwy („jeden DELETE") była wcześniej NIE DO UDOWODNIENIA:
+    // wiszący łańcuch nie zapisywał ogniw, więc `messageDeletes()` było puste
+    // niezależnie od tego, ile żądań poszło. Po poprawce atrapy licznik jest
+    // realny - i to on odpowiada na pytanie z nazwy testu.
     h.rows = zapisane();
     await mount();
     await openApplication("Zofia Przykładowska");
@@ -1792,8 +2076,12 @@ describe("/admin/careers - usunięcie zgłoszenia (operacja bez cofnięcia)", ()
     fireEvent.click(button);
 
     await waitFor(() => expect(button).toBeDisabled());
+    expect(messageDeletes()).toHaveLength(1);
+    expect(messageDeletes()[0].argsOf("eq")).toEqual(["id", "zgloszenie-1"]);
+
     fireEvent.click(button);
     expect(h.confirmMessages).toHaveLength(1);
+    expect(messageDeletes()).toHaveLength(1);
   });
 });
 
@@ -2168,7 +2456,10 @@ describe("/admin/careers - wbudowany słownik PL/EN", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Recruitment" })).toBeInTheDocument();
     for (const label of ["New", "All", "Archive"]) {
-      expect(screen.getByRole("button", { name: label }), `brak filtra „${label}"`);
+      expect(
+        screen.getByRole("button", { name: label }),
+        `brak filtra „${label}"`,
+      ).toBeInTheDocument();
     }
     expect(screen.getByText("Pick an application from the list.")).toBeInTheDocument();
 
@@ -2185,6 +2476,382 @@ describe("/admin/careers - wbudowany słownik PL/EN", () => {
       CAREER_STAGES.map((stage) => stageLabel(stage, "en")),
     );
     expect(screen.getByText(seniorityLabel("mid", "en"))).toBeInTheDocument();
+  });
+
+  /**
+   * PEŁNA TABLICA WBUDOWANEGO SŁOWNIKA.
+   *
+   * REWIZJA. Nagłówek pierwszej wersji tego pliku obiecywał „osobny dowód, że
+   * przełączenie języka zmienia KAŻDY z nich" - a dowodem był jeden test
+   * sprawdzający OSIEM napisów z czterdziestu sześciu. To jest dokładnie ta
+   * dziura, którą literały w teście miały mieć zasłoniętą: wpisanie polskiego
+   * zdania do stałej `EN` przechodziło niewidziane dla trzydziestu ośmiu
+   * napisów. Tablica poniżej wymienia KAŻDY liść obu słowników wraz ze scENĄ,
+   * na której panel go renderuje; test niżej mierzy dla każdego z nich trzy
+   * rzeczy: napis PL jest widoczny po polsku, napis EN po angielsku, i po
+   * angielsku NIE ZOSTAJE polski.
+   *
+   * Cztery klucze (`crm`, `markRead`, `rejectionReason`, `nextStep`) nie mają
+   * na tym ekranie ŻADNEJ kontrolki - to ZNALEZISKO 9, nie luka tego dowodu.
+   * Cztery napisy są w obu językach IDENTYCZNE, bo są nazwami własnymi albo
+   * symbolem (`crm` = „CRM", `cv` = „CV", `linkedin` = „LinkedIn", `none` =
+   * „-"), więc dla nich nie ma czego przełączać. `cv` i `linkedin` zostają
+   * w tablicy z samą asercją dodatnią (napis MUSI być na ekranie); „-" z niej
+   * wypada, bo „tekst zawiera myślnik" jest zielone przy każdej dacie i każdym
+   * adresie, czyli jest asercją pozorną - jego dowód renderu stoi w teście
+   * „brak etykiety roli spada na slug (…) na „-”". `crm` nie ma kontrolki
+   * (ZNALEZISKO 9b). Dowód słownikowy dla wszystkich czterech - niżej.
+   */
+  type Scena = "lista-pusta" | "karta-archiwum" | "karta-bez-procesu";
+
+  interface Para {
+    klucz: string;
+    pl: string;
+    en: string;
+    scena: Scena;
+    /** Napis identyczny w obu słownikach - brak przełączenia nie jest defektem. */
+    identyczne?: true;
+  }
+
+  const PARY: readonly Para[] = [
+    { klucz: "title", pl: "Rekrutacja", en: "Recruitment", scena: "lista-pusta" },
+    {
+      klucz: "subtitle",
+      pl: "Zgłoszenia ze strony „Dołącz do zespołu” (/zatrudniamy).",
+      en: "Applications from the “Join the team” page (/zatrudniamy).",
+      scena: "lista-pusta",
+    },
+    { klucz: "filter.open", pl: "Nowe", en: "New", scena: "lista-pusta" },
+    { klucz: "filter.all", pl: "Wszystkie", en: "All", scena: "lista-pusta" },
+    { klucz: "filter.archived", pl: "Archiwum", en: "Archive", scena: "lista-pusta" },
+    {
+      klucz: "search",
+      pl: "Szukaj: imię, e-mail, rola…",
+      en: "Search: name, e-mail, role…",
+      scena: "lista-pusta",
+    },
+    { klucz: "empty", pl: "Brak zgłoszeń.", en: "No applications.", scena: "lista-pusta" },
+    {
+      klucz: "pickOne",
+      pl: "Wybierz zgłoszenie z listy.",
+      en: "Pick an application from the list.",
+      scena: "lista-pusta",
+    },
+    { klucz: "stageFilterAll", pl: "Wszystkie etapy", en: "All stages", scena: "lista-pusta" },
+    { klucz: "stageFilterOpen", pl: "W toku", en: "In progress", scena: "lista-pusta" },
+    { klucz: "stageFilterClosed", pl: "Domknięte", en: "Closed", scena: "lista-pusta" },
+
+    { klucz: "role", pl: "Rola", en: "Role", scena: "karta-archiwum" },
+    { klucz: "department", pl: "Dział", en: "Department", scena: "karta-archiwum" },
+    { klucz: "seniority", pl: "Poziom", en: "Seniority", scena: "karta-archiwum" },
+    { klucz: "start", pl: "Dostępność", en: "Availability", scena: "karta-archiwum" },
+    {
+      klucz: "linkedin",
+      pl: "LinkedIn",
+      en: "LinkedIn",
+      scena: "karta-archiwum",
+      identyczne: true,
+    },
+    { klucz: "message", pl: "Wiadomość", en: "Message", scena: "karta-archiwum" },
+    {
+      klucz: "crmSynced",
+      pl: "Zsynchronizowano z CRM",
+      en: "Synced with CRM",
+      scena: "karta-archiwum",
+    },
+    { klucz: "crmOpen", pl: "Otwórz w CRM", en: "Open in CRM", scena: "karta-archiwum" },
+    { klucz: "reply", pl: "Odpowiedz", en: "Reply", scena: "karta-archiwum" },
+    { klucz: "unarchive", pl: "Przywróć", en: "Restore", scena: "karta-archiwum" },
+    { klucz: "archived", pl: "Zarchiwizowano", en: "Archived", scena: "karta-archiwum" },
+    { klucz: "cv", pl: "CV", en: "CV", scena: "karta-archiwum", identyczne: true },
+    {
+      klucz: "cvPurged",
+      pl: "CV usunięte (retencja)",
+      en: "CV deleted (retention)",
+      scena: "karta-archiwum",
+    },
+    { klucz: "stage", pl: "Etap procesu", en: "Pipeline stage", scena: "karta-archiwum" },
+    {
+      klucz: "stageNote",
+      pl: "Notatka do zmiany etapu",
+      en: "Note for this stage change",
+      scena: "karta-archiwum",
+    },
+    {
+      klucz: "stageNotePh",
+      pl: "Dlaczego ta decyzja? Trafi do dziennika…",
+      en: "Why this decision? Goes into the log…",
+      scena: "karta-archiwum",
+    },
+    { klucz: "rating", pl: "Ocena", en: "Rating", scena: "karta-archiwum" },
+    { klucz: "ratingClear", pl: "Bez oceny", en: "No rating", scena: "karta-archiwum" },
+    { klucz: "history", pl: "Dziennik decyzji", en: "Decision log", scena: "karta-archiwum" },
+    {
+      klucz: "historyEmpty",
+      pl: "Brak zmian etapu.",
+      en: "No stage changes yet.",
+      scena: "karta-archiwum",
+    },
+    { klucz: "remove", pl: "Usuń zgłoszenie", en: "Delete application", scena: "karta-archiwum" },
+
+    { klucz: "crmMissing", pl: "Brak leada w CRM", en: "No CRM lead", scena: "karta-bez-procesu" },
+    { klucz: "archive", pl: "Archiwizuj", en: "Archive", scena: "karta-bez-procesu" },
+    { klucz: "cvMissing", pl: "Brak CV", en: "No CV", scena: "karta-bez-procesu" },
+    {
+      klucz: "noPipeline",
+      pl: "Brak wiersza procesu dla tego zgłoszenia.",
+      en: "No pipeline row for this application.",
+      scena: "karta-bez-procesu",
+    },
+  ];
+
+  function ustawScene(scena: Scena): void {
+    if (scena === "lista-pusta") {
+      h.rows = [];
+      return;
+    }
+    if (scena === "karta-archiwum") {
+      h.rows = [
+        application({
+          read_at: "2026-08-21T09:00:00.000Z",
+          archived_at: "2026-08-22T09:00:00.000Z",
+          custom: {
+            role_label: "Analityk ds. polityki cyfrowej",
+            department: "analysis",
+            seniority: "mid",
+            start: "month",
+            linkedin: "https://linkedin.example.com/in/zmyslona-zofia",
+            cv_purged_at: "2026-08-30",
+          },
+          career_applications: pipelineRow({ rating: 3 }),
+        }),
+      ];
+      h.leads = [{ id: "lead-1", stage: "new", updated_at: "2026-08-21T10:00:00.000Z" }];
+      h.events = [];
+      return;
+    }
+    h.rows = [
+      application({ read_at: "2026-08-21T09:00:00.000Z", custom: {}, career_applications: null }),
+    ];
+    h.leads = [];
+  }
+
+  /** Cały widzialny tekst sceny PLUS placeholdery (te nie są w `textContent`). */
+  async function tekstPanelu(scena: Scena, lang: "pl" | "en"): Promise<string> {
+    cleanup();
+    await i18n.changeLanguage(lang);
+    ustawScene(scena);
+    const { container } = await mount();
+    if (scena === "lista-pusta") await settled();
+    else await openApplication("Zofia Przykładowska");
+    // Plakietka CRM i link do karty leada pojawiają się DOPIERO po odpowiedzi
+    // `crm_leads`, więc bez tego oczekiwania scena „karta-archiwum" zbierałaby
+    // tekst sprzed odpowiedzi - i dowód napisu `crmSynced` mierzyłby wyścig.
+    if (scena === "karta-archiwum") {
+      await waitFor(() =>
+        expect(container.querySelector('a[href="/admin/crm/lead-1"]')).not.toBeNull(),
+      );
+    }
+
+    const placeholdery = [...container.querySelectorAll("[placeholder]")]
+      .map((node) => node.getAttribute("placeholder") ?? "")
+      .join("\n");
+    return `${container.textContent ?? ""}\n${placeholdery}`;
+  }
+
+  it("KAŻDY napis wbudowanego słownika przełącza się razem z językiem i18n", async () => {
+    for (const scena of ["lista-pusta", "karta-archiwum", "karta-bez-procesu"] as const) {
+      const wpisy = PARY.filter((para) => para.scena === scena);
+      expect(wpisy.length, `scena „${scena}" bez napisów do sprawdzenia`).toBeGreaterThan(0);
+
+      const polski = await tekstPanelu(scena, "pl");
+      const angielski = await tekstPanelu(scena, "en");
+
+      for (const { klucz, pl, en, identyczne } of wpisy) {
+        expect(polski, `[${scena}] PL brakuje napisu „${klucz}"`).toContain(pl);
+        expect(angielski, `[${scena}] EN brakuje napisu „${klucz}"`).toContain(en);
+        if (identyczne) continue;
+        expect(angielski, `[${scena}] po angielsku zostaje polskie „${klucz}"`).not.toContain(pl);
+        expect(polski, `[${scena}] po polsku zostaje angielskie „${klucz}"`).not.toContain(en);
+      }
+    }
+  });
+
+  it("napisy pojawiające się dopiero PO akcji też mają obie wersje słownika", async () => {
+    // Cztery napisy tego panelu nie istnieją w statycznym renderze: etykieta
+    // przycisku CV, komunikat odmowy podpisu, potwierdzenie usunięcia i dwa
+    // toasty skutku. Ich polskie wersje są zaasertowane w testach nazwanych
+    // wyżej (odmowa podpisu, usunięcie, zmiana etapu), więc tutaj domykamy
+    // stronę angielską - inaczej „EN" tych czterech napisów nie mierzy nikt.
+    await i18n.changeLanguage("en");
+    h.rows = [
+      application({
+        read_at: "2026-08-21T09:00:00.000Z",
+        custom: { cv_path: CV_PATH },
+        career_applications: pipelineRow(),
+      }),
+    ];
+    h.signed = null;
+    await mount();
+    await openApplication("Zofia Przykładowska");
+
+    // cvOpen + cvError
+    fireEvent.click(screen.getByRole("button", { name: "Open CV" }));
+    await waitFor(() =>
+      expect(h.toasts).toContainEqual({ kind: "error", text: "Could not generate the CV link." }),
+    );
+
+    // stageSaved
+    fireEvent.change(selectById("career-stage"), { target: { value: "screening" } });
+    await waitFor(() =>
+      expect(h.toasts).toContainEqual({ kind: "success", text: "Stage changed." }),
+    );
+
+    // removeConfirm + removed
+    fireEvent.click(screen.getByRole("button", { name: "Delete application" }));
+    expect(h.confirmMessages).toEqual([
+      "Delete the application together with its CV and pipeline history? This cannot be undone.",
+    ]);
+    await waitFor(() =>
+      expect(h.toasts).toContainEqual({
+        kind: "success",
+        text: "Application deleted. Its CV was queued for removal.",
+      }),
+    );
+
+    // I ani jeden polski napis nie wjechał po drodze.
+    const polskie = [
+      "Nie udało się wygenerować linku do CV.",
+      "Etap zmieniony.",
+      "Usunąć zgłoszenie wraz z CV i historią procesu? Tego nie da się cofnąć.",
+      "Zgłoszenie usunięte. Plik CV trafił do kolejki usunięć.",
+    ];
+    expect(h.toasts.map((toast) => toast.text)).not.toEqual(expect.arrayContaining(polskie));
+    expect(h.confirmMessages).not.toEqual(expect.arrayContaining(polskie));
+  });
+
+  it("ZNALEZISKO 9b: cztery napisy słownika NIE MAJĄ na tym ekranie kontrolki", () => {
+    // Oba słowniki deklarują (i tłumaczą!) `crm`, `markRead`, `rejectionReason`
+    // i `nextStep`, a JSX nie sięga po żaden z nich. Dwa ostatnie to nie
+    // ozdoba: `savePipeline` przyjmuje `rejection_reason` i `next_step_at`,
+    // zapytanie listy CIĄGNIE te kolumny do przeglądarki (ZNALEZISKO 9a),
+    // a operator nie ma czym ich ani ustawić, ani odczytać. To pół funkcji:
+    // „powód odrzucenia" jest w bazie, w typach i w słowniku - i nigdzie
+    // w interfejsie.
+    const source = read(ROUTE_FILE);
+    for (const klucz of ["crm", "markRead", "rejectionReason", "nextStep"] as const) {
+      expect(source, `klucz „${klucz}" wypadł ze słownika`).toMatch(
+        new RegExp(`^  ${klucz}: string;$`, "m"),
+      );
+      // `\b` jest tu konieczne: `L.crm` jest przedrostkiem `L.crmSynced`.
+      expect(source, `klucz „${klucz}" jednak ma kontrolkę`).not.toMatch(
+        new RegExp(`\\b(?:L|labels)\\.${klucz}\\b`),
+      );
+    }
+    // Kontrola dodatnia: ta sama technika WIDZI klucz, który kontrolkę ma.
+    expect(source).toMatch(/\b(?:L|labels)\.crmSynced\b/);
+    expect(source).toMatch(/\b(?:L|labels)\.cvPurged\b/);
+  });
+
+  /**
+   * Oba słowniki odczytane Z MODUŁU TRASY, z kluczami zagnieżdżonymi pod
+   * pełną nazwą (`filter.archived`).
+   *
+   * Kwalifikowanie prefiksem nie jest ozdobą: `archived` istnieje w słowniku
+   * DWA RAZY - jako `filter.archived` („Archiwum") i jako `archived`
+   * („Zarchiwizowano"). Płaska mapa gubi pierwszy z nich po cichu, czyli
+   * zostawia jeden napis bez dowodu i jeszcze zafałszowuje licznik kluczy.
+   */
+  function slownikZModulu(nazwa: "PL" | "EN"): Record<string, string> {
+    const source = read(ROUTE_FILE);
+    const start = source.indexOf(`const ${nazwa}: CareersDict = {`);
+    const koniec = source.indexOf("\n};", start);
+    if (start < 0 || koniec < 0) throw new Error(`test: nie ma słownika ${nazwa}`);
+    const ciało = source.slice(start, koniec).replace(/\s*\n\s*/g, " ");
+    const pary = (fragment: string, prefiks: string): Array<[string, string]> =>
+      [...fragment.matchAll(/(\w+):\s*"((?:[^"\\]|\\.)*)"/g)].map((m) => [
+        `${prefiks}${m[1]}`,
+        m[2],
+      ]);
+    const zagniezdzone = /filter:\s*\{([^}]*)\}/.exec(ciało)?.[1] ?? "";
+    return Object.fromEntries([
+      ...pary(ciało.replace(/filter:\s*\{[^}]*\}/, ""), ""),
+      ...pary(zagniezdzone, "filter."),
+    ]);
+  }
+
+  it("słowniki PL i EN różnią się na KAŻDYM kluczu poza czterema nazwami własnymi", () => {
+    // Tablica renderowa wyżej dowodzi PRZEŁĄCZENIA na ekranie, ale nie umie
+    // dosięgnąć czterech kluczy bez kontrolki (ZNALEZISKO 9b) - a to właśnie
+    // one są najbardziej narażone na wklejenie polskiego zdania do `EN`, bo
+    // nikt ich nigdy nie widzi. Ten dowód czyta OBA słowniki z modułu i
+    // porównuje je klucz po kluczu.
+    const pl = slownikZModulu("PL");
+    const en = slownikZModulu("EN");
+    // 43 klucze skalarne + trzy liście `filter` = 46 napisów w każdym słowniku.
+    expect(Object.keys(pl)).toHaveLength(46);
+    expect(Object.keys(en).sort()).toEqual(Object.keys(pl).sort());
+
+    // Nazwy własne i symbole: „CRM", „CV", „LinkedIn" i myślnik. Zbiór jest
+    // JAWNY, żeby dopisanie tu piątego klucza było świadomą decyzją, a nie
+    // sposobem na uciszenie testu po nieprzetłumaczonym napisie.
+    const IDENTYCZNE = new Set(["crm", "cv", "linkedin", "none"]);
+    for (const klucz of Object.keys(pl)) {
+      expect(pl[klucz].length, `klucz „${klucz}" jest pusty po polsku`).toBeGreaterThan(0);
+      expect(en[klucz].length, `klucz „${klucz}" jest pusty po angielsku`).toBeGreaterThan(0);
+      if (IDENTYCZNE.has(klucz)) {
+        expect(en[klucz], `„${klucz}" to nazwa własna - ma być identyczna`).toBe(pl[klucz]);
+        continue;
+      }
+      expect(en[klucz], `klucz „${klucz}" nie jest przetłumaczony`).not.toBe(pl[klucz]);
+    }
+    // Cztery napisy bez kontrolki (ZNALEZISKO 9b) nie mają dowodu NIGDZIE
+    // INDZIEJ - na ekranie nie da się ich zobaczyć. Przybite są tu WARTOŚCIAMI,
+    // nie samą obecnością: gdyby ktoś dołożył im kontrolkę, ma zobaczyć, jaki
+    // napis się w niej pojawi, a gdyby wyciął klucz - że to zmiana słownika.
+    expect([pl.crm, pl.markRead, pl.rejectionReason, pl.nextStep]).toEqual([
+      "CRM",
+      "Oznacz jako przeczytane",
+      "Powód odrzucenia",
+      "Następny krok",
+    ]);
+    expect([en.crm, en.markRead, en.rejectionReason, en.nextStep]).toEqual([
+      "CRM",
+      "Mark as read",
+      "Rejection reason",
+      "Next step",
+    ]);
+  });
+
+  it("napisy z tablicy renderowej są WZIĘTE ZE SŁOWNIKA, a nie wpisane w test", () => {
+    // To jest zamek na literały. Trasa nie eksportuje `PL`/`EN`, więc asercje
+    // na jej napisy muszą być literałami - ale literał, którego nikt nie
+    // porównał ze źródłem, dowodzi tylko tego, że ktoś go kiedyś przepisał.
+    // Tu każda para z tablicy jest zderzona z DWOMA słownikami modułu: gdyby
+    // ktoś zmienił napis w panelu (albo przepisał go w teście z błędem),
+    // zapali się to, a nie trzydzieści asercji na widokach.
+    const pl = slownikZModulu("PL");
+    const en = slownikZModulu("EN");
+    expect(PARY.length).toBeGreaterThan(30);
+    for (const para of PARY) {
+      expect(pl[para.klucz], `PL „${para.klucz}" nie zgadza się ze słownikiem`).toBe(para.pl);
+      expect(en[para.klucz], `EN „${para.klucz}" nie zgadza się ze słownikiem`).toBe(para.en);
+    }
+    // Liście, których tablica świadomie nie obejmuje: cztery bez kontrolki
+    // (ZNALEZISKO 9b), „-" (asercja renderowa byłaby pozorna) i pięć napisów
+    // pojawiających się dopiero po akcji - te ma test obok.
+    const pokryte = new Set(PARY.map((para) => para.klucz));
+    const poAkcji = ["cvOpen", "cvError", "stageSaved", "removeConfirm", "removed"];
+    const bezKontrolki = ["crm", "markRead", "rejectionReason", "nextStep"];
+    expect(
+      Object.keys(pl).filter(
+        (klucz) =>
+          !pokryte.has(klucz) &&
+          !poAkcji.includes(klucz) &&
+          !bezKontrolki.includes(klucz) &&
+          klucz !== "none",
+      ),
+    ).toEqual([]);
   });
 
   it("nieznany język interfejsu spada na polski, a nie na pustkę", async () => {
