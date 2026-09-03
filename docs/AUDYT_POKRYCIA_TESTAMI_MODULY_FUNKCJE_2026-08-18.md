@@ -3179,10 +3179,17 @@ przeczytałem zapisanego pomiaru: **FCP 5 272 ms jest jedyną z czterech metryk 
 wczytania, która nie ma progu w ogóle** — w kolumnie „PRÓG" tej kroniki stoi `brak`. A FCP jest
 tą, którą czytelnik odczuwa jako „strona się pojawiła".
 
-**Druga rzecz, której nie widziałem: podłoga `css` ma 3,4% zapasu.** Zmierzone na artefakcie
-w `.output/`: `styles-*.css` to 570 419 B surowo i **79 819 B gzip**, plus 1 431 B drugiego
-arkusza — razem **79,2 KiB wobec podłogi 82 KiB**, czyli **2,8 KiB marginesu** przy 6 739 blokach
-reguł. Jedna średnia zmiana designu tę podłogę przebije. Punkt 5(b) z wydania 8 — wycięcie panelu
+**Druga rzecz, której nie widziałem: podłoga `css` ma 1,25% zapasu.** Zmierzone na artefakcie
+w `.output/`: `styles-*.css` to 570 419 B surowo i **81 513 B gzip**, plus 1 402 B drugiego
+arkusza — razem **80,972 KiB wobec podłogi 82 KiB**, czyli **1,028 KiB marginesu** przy 6 739
+blokach reguł. Jedna średnia zmiana designu tę podłogę przebije.
+
+**Sprostowanie do powyższego akapitu** (dopisane po ponownym pomiarze): pierwsza wersja tego
+zdania mówiła o **3,4% i 2,8 KiB marginesu** i była błędna — nie w kodzie, a w narzędziu pomiaru.
+Mierzyłem `gzip -9`, a bramka liczy `Bun.gzipSync(...)` **bez drugiego argumentu**, czyli na
+domyślnym poziomie kompresji (`scripts/check-bundle-size.ts:1447`). Ta jedna różnica poziomu to
+1 694 B na arkuszu głównym — więcej niż waży cały drugi arkusz. Margines jest więc **2,7 raza
+mniejszy**, niż podałem: nie 2,8 KiB, a 1,028 KiB. Punkt 5(b) z wydania 8 — wycięcie panelu
 i buildera do osobnego arkusza — jest więc jedyną pozycją tej listy, która przestała być
 optymalizacją i stała się terminem.
 
@@ -3436,10 +3443,280 @@ nie została napisana przez niezależnego agenta — to jest znana luka tego roz
 
 **Ocena tego obszaru: dobrze na infrastrukturze, przeciętnie na drodze krytycznej.** Repozytorium
 ma dwupoziomowy cache brzegowy z kluczem per najemca, strażniki strumienia, trzy bezpieczniki
-serializacji i dwa incydenty spisane razem z naprawą. I jednocześnie: do 11 s budżetów loaderów
-przed pierwszym bajtem, arkusz 570 KB bez bramki, słownik bez preloadu, zdegradowany render
-wchodzący do cache na dobę, cztery publiczne powierzchnie oddające błąd przy statusie 200
-i **zero pokrytych linii w dwóch plikach, które posiadają wszystkie te budżety.**
+serializacji i dwa incydenty spisane razem z naprawą. I jednocześnie: **13 000 ms budżetów
+loadera na trasie łapiącej wszystko** przed pierwszym bajtem (zmierzone w 8.7; korzeń zszedł
+do 3 000 ms, trasa nie), arkusz 570 KB z podłogą, która ma 1,25% zapasu, słownik bez preloadu,
+zdegradowany render wchodzący do cache na dobę na dwóch trasach, cztery publiczne powierzchnie
+oddające błąd przy statusie 200, **zero pokrytych linii w dwóch plikach, które posiadają
+wszystkie te budżety** — i płaszczyzna roli serwisowej, która przed routerem robi dwa round-tripy
+do bazy **bez żadnego terminu.**
+
+### 8.7 Sześć wymiarów pomiaru SSR domkniętych ręcznie po limicie sesji
+
+Rozdział 8.6 powstał z ośmiu niezależnych ujęć zleconych równolegle. **Dwa wróciły z wynikiem,
+sześć padło** na `You've hit your session limit · resets 12:20pm (UTC)` - razem z dwoma etapami
+weryfikacji, które miały te wyniki skonfrontować. Ten podrozdział jest domknięciem tych sześciu
+wymiarów, zmierzonym ręcznie, bez agentów: `cache`, `degradacja`, `bramki`, `css`, `testy`, `e2e`.
+Trzy z nich dodają do listy z 8.6 pozycje, których na niej nie było, a dwa **poprawiają liczbę,
+którą ten audyt sam podał** - dlatego są tutaj, a nie w załącznikach.
+
+#### Wymiar `cache`: klucz dokumentu jest najlepiej przetestowanym elementem tej warstwy, a jego wejście - najgorzej
+
+Klucz ma postać `host::pathname?keyedParams` i rodzi się w jednej czystej funkcji
+(`src/lib/http/documentCache.ts:152-181`). Skład sprawdziłem wymiar po wymiarze - każdy, który
+może zmienić ciało odpowiedzi:
+
+- **najemca**: klucz jest zawsze prefiksowany hostem (`:179-180`), więc wpis rozgrzany dla
+  tenanta A jest nieosiągalny na domenie tenanta B; przy braku hosta scope to jawne `no-host`.
+  Izolacja z konstrukcji, nie z warunku;
+- **język**: nie występuje w kluczu **jawnie i nie musi** - PL żyje na gołej ścieżce, EN pod
+  `/en`, więc język JEST częścią `pathname`. `stripLangPrefix` (`:118-121`) służy wyłącznie do
+  dopasowania listy zakazanych prefiksów (`:124`), nigdy do budowy klucza;
+- **parametry**: biała lista ma dokładnie dwie pozycje - `page` i `sort` (`:115`). Parametry
+  kampanijne (`utm_*`, `fbclid`, `gclid`, `msclkid`, `ref`, `mc_cid`, `mc_eid` - `:109-110`) są
+  **usuwane**, więc wizyta z linku reklamowego trafia w ten sam wpis co czysta. Każdy inny,
+  nieznany parametr to BYPASS z powodem `query` (`:174`) - celowa obrona przed zaśmieceniem
+  przestrzeni kluczy (eviction-DoS);
+- **sesja**: `Authorization` albo jakiekolwiek ciasteczko `sb-*` to BYPASS z powodem `auth`
+  (`:157-162`), mimo że Supabase trzyma sesję w `localStorage`. Fail-safe w stronę BYPASS-u;
+- **negocjacja nagłówkowa**: jedyną powierzchnią, na której język jest negocjowany z nagłówków,
+  jest goła strona główna (`src/start.ts:118-161`). Ta ścieżka nie może zanieczyścić cache'a
+  z dwóch niezależnych powodów: redirect to 302 z `Cache-Control: no-store` i
+  `Vary: Cookie, Accept-Language` (`:157-159`), a gałąź bez redirectu renderuje język
+  **domyślny** i dokłada tylko `Set-Cookie` (`:135`, `:139-155`).
+
+Ostatni punkt otwiera pytanie, które w tym wymiarze było najgroźniejsze: **czy `Set-Cookie`
+dopięty do renderu może zostać odtworzony z cache'a innemu czytelnikowi.** Nie może, i to nie
+przez wycięcie, a przez **białą listę czterech nagłówków**: wpis zapamiętuje wyłącznie
+`content-type`, `cache-control`, `content-language` i `link`
+(`documentCache.server.ts:484-487`), a serwowanie buduje `new Headers({...})` od zera
+(`:332-345`). Nagłówek, którego nie ma na liście, nie istnieje dla cache'a - `Set-Cookie`,
+`Vary` i cała reszta włącznie.
+
+Domyka to **kolejność middleware** (`start.ts:443-461`): `securityHeadersMiddleware` stoi na
+pozycji 2, `documentCacheMiddleware` na 10. Zewnętrzne uruchamia się pierwsze i kończy ostatnie,
+więc trafienie w cache **nadal** dostaje CSP, HSTS i świeże ciasteczko poświadczenia najemcy -
+bo te powstają ZA cache'em, nie w nim. Symetrycznie `homepageLangMiddleware` (pozycja 7) jest
+NA ZEWNĄTRZ cache'a, więc redirect językowy nigdy nie dociera do lookupu.
+
+Pokrycie tej funkcji jest wzorowe: `documentCache.ts` **43/43 linii (100,00%), 9/9 funkcji
+(100,00%), 47/49 gałęzi (95,91%)**, dwanaście testów, w tym jeden nazwany wprost
+_„scopes keys by tenant host, with a no-host fallback scope"_
+(`__tests__/documentCache.test.ts:107`).
+
+**I tu jest ta asymetria.** Wartość `host`, na której cała ta izolacja stoi, pochodzi
+z `src/lib/http/requestHost.ts` - **2/20 linii (10,00%), 2/4 funkcji (50,00%)** - a jego
+serwerowa połowa `requestHost.server.ts` ma **0/16 linii i 0/4 funkcji, czyli zero**. Pokryte są
+dokładnie dwie linie: 28 i 39. Niepokryte funkcje: `currentTenantHost` (`:61`)
+i `currentTenantAssertion` (`:91`). Ten sam wzorzec w `tenantAssertionCookie.server.ts`:
+**1/16 linii (6,25%), 0/2 funkcji**.
+
+Przyczyna nie jest zaniedbaniem, jest **kształtem środowiska** - i dlatego to nie jest zero
+tej samej klasy co inne zera w tym audycie. `vitest.config.ts:7` ustawia
+`environment: "happy-dom"`, więc `window` ISTNIEJE, `import.meta.env.SSR` jest fałszywe,
+a gałąź serwerowa obu funkcji jest **nieosiągalna z definicji**: `currentTenantHost` wraca
+na linii 63 z `window.location.host`, a dynamiczny import `./requestHost.server` nigdy się nie
+wykonuje. Naprawa to jeden plik z `// @vitest-environment node` - wzorzec już obecny
+w repozytorium **czternaście razy**, w tym dwa razy w tych samych katalogach
+(`src/lib/http/__tests__/ssrTiming.server.test.ts:1`,
+`src/lib/server/__tests__/publishedContent.server.test.ts:1`).
+
+Do tego dochodzi obserwacja o innym charakterze: **`@/lib/http/requestHost` jest podmieniany na atrapę
+w dwudziestu sześciu plikach testowych** w całym repozytorium. To jest szew, który cała platforma
+zastępuje atrapą - i jednocześnie jedyny szew tej warstwy, którego nikt nie sprawdza
+w prawdziwej postaci.
+
+#### Wymiar `degradacja`: doktryna jest napisana, mechanizm istnieje, szesnaście tras go używa - i trasa łapiąca wszystko nie
+
+Reguła jest w repozytorium sformułowana wzorowo, w docblocku
+`src/lib/ssr/resilientLoad.ts:123-138`: _„Render zdegradowany NIE MOŻE trafić do cache'a
+wspólnego: brzeg serwowałby pustą powłokę kolejnym czytelnikom przez cały okres świeżości,
+długo po tym, jak backend wrócił do zdrowia."_ Mechanizmem jest
+`resilientCacheControl(degraded, cleanPolicy)` (`:140-144`), z drugim parametrem dodanym
+2026-09-01, żeby `/live` nie tracił swojej świeżości mierzonej w sekundach.
+
+Zliczyłem, kto go używa. **Dwadzieścia dwa pliki tras ustawiają nagłówek `Cache-Control`.**
+Z tego:
+
+| stan                                  |   ile | które                                                                                                                                                                  |
+| ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| bramkuje jawnie na degradacji         |    16 | 14 przez `resilientCacheControl` + `index.tsx` (goła strona główna) + `tracker.index.tsx:105-107`                                                                      |
+| emituje wyłącznie `no-store`          |     1 | `post.$slug.tsx:21` (zaślepka przekierowania)                                                                                                                          |
+| nie ma ścieżki degradacji             |     1 | `category.$slug.tsx` - ani budżetu, ani `allSettled`: albo są dane, albo 404 z `NO_STORE` (`:60-63`)                                                                   |
+| bramkuje ciało, nie `head()`          |     1 | `blog.index.tsx` - brak listy daje `NO_STORE` (`:79`), ale lapsus `withBudget` na ustawieniach serwisu (`:50`) przechodzi po cichu do współdzielonego nagłówka (`:82`) |
+| **może utrwalić render zdegradowany** | **2** | **`$.tsx`, `sitemap.tsx`**                                                                                                                                             |
+
+`contentCacheControl()` ma dokładnie dwa opt-outy - `personalized` i `preview`
+(`cachePolicy.ts:66-67`). **Wejścia „zdegradowany" nie ma w ogóle**, więc trasa, która nie
+przepuści decyzji przez `resilientCacheControl`, emituje na renderze niepełnym dokładnie ten sam
+nagłówek co na pełnym: `public, max-age=60, s-maxage=900, stale-while-revalidate=86400`.
+`documentStorePolicy` przyjmuje go bez zastrzeżeń (200 + `text/html` + `public` + `s-maxage>0`,
+`documentCache.ts:197-212`) i ucina świeżość do 180 s, a okno stale do 24 h (`:47`, `:57`).
+Efekt: **niepełny dokument wchodzi do L1 i do L2 kolonii na 3 minuty świeżości plus dobę
+serwowania stale.**
+
+W `$.tsx` - trasie łapiącej wszystko, czyli KAŻDEJ stronie CMS-a - dzieje się to w sposób,
+którego nie da się naprawić na miejscu jednym warunkiem, bo **nagłówek jest ustawiany przed
+pracą, która może zdegradować**. Kolejność w loaderze jest taka:
+
+1. `:237-239` - główna treść w `withBudget(..., PRIMARY_CONTENT_BUDGET_MS = 5 000)`;
+2. `:242-281` - brak danych obsłużony **poprawnie**: `setCacheControlHeader(NO_STORE)` na każdej
+   z czterech gałęzi (taksonomia, kanoniczny redirect, stary adres wpisu, 404);
+3. `:288` - `setCacheControlHeader(contentCacheControl())`;
+4. `:303-354` - `withBudget(Promise.allSettled([...]), SECONDARY_PREFETCH_BUDGET_MS = 3 000)`:
+   typografia prozy, sekcje nad zgięciem, zapytania bloków, konfiguracja „powiązanych", lista
+   dzieci strony sekcyjnej;
+5. `:358-360` - ustawienia serwisu w kolejnym `withBudget(..., 5 000)`.
+
+Kroki 4 i 5 degradują **milcząco** (`allSettled` + `.catch(() => undefined)`) na nagłówku, który
+wyszedł już w kroku 3.
+
+**I to się w tym repozytorium już raz zdarzyło, na tej samej trasie.** Komentarz w `$.tsx:344-350`
+zapisuje incydent dosłownie: strony sekcyjne (`template_type === 'archive_listing'`) ciągnęły
+całą swoją treść zwykłym `useQuery`, który na serwerze nie startuje fetcha - _„SSR emitował więc
+gałąź przejściową i ten HTML wchodził do NES Edge Cache na do 24 h - a trasy sekcyjne są typowo
+najsilniejsze linkowo w całym serwisie."_ Naprawa dodała prefetch **do kroku 4**. Nie
+zabramkowała nagłówka. Jeżeli ten prefetch przekroczy budżet 3 000 ms, ten sam pusty HTML wejdzie
+do cache'a tą samą drogą.
+
+`sitemap.tsx` jest przypadkiem czystszym i dlatego dobitniejszym: `setCacheControlHeader(
+contentCacheControl())` jest **pierwszą instrukcją loadera** (`:59`), a trzy zapytania budujące
+całą treść mapy strony lecą zaraz po nim w `Promise.allSettled` **bez budżetu i bez sprawdzenia
+wyniku** (`:60-64`). Odrzut któregokolwiek daje ludzką mapę serwisu z brakującą gałęzią,
+utrwaloną na dobę.
+
+Kontrprzykład, który dowodzi, że wzorzec jest w zespole znany i opisany:
+`tracker.index.tsx:102-107` ma nad wywołaniem komentarz _„ISR-owy nagłówek NA KOŃCU, bramkowany
+czystym renderem (wzorzec «/»)"_.
+
+#### Wymiar `bramki`: nie ma bramki na budżety wewnętrzne, a suma budżetów jest większa, niż ten audyt napisał
+
+Zinwentaryzowałem **wszystkie piętnaście stałych budżetowych** w `src/`:
+
+| stała                             | wartość | plik                                                          |
+| --------------------------------- | ------: | ------------------------------------------------------------- |
+| `PRIMARY_CONTENT_BUDGET_MS`       |   5 000 | `routes/$.tsx:166` (użyta **dwa razy**: `:239`, `:360`)       |
+| `RESILIENT_LOAD_BUDGET_MS`        |   4 000 | `lib/ssr/resilientLoad.ts:46`                                 |
+| `TRACKER_LOADER_BUDGET_MS`        |   4 000 | `routes/tracker.index.tsx:55`                                 |
+| `BLOG_LOADER_BUDGET_MS`           |   4 000 | `routes/blog.index.tsx:35` (użyta **dwa razy**: `:50`, `:66`) |
+| `SECONDARY_PREFETCH_BUDGET_MS`    |   3 000 | `routes/$.tsx:165`                                            |
+| `ROOT_WARM_BUDGET_MS`             |   2 500 | `routes/__root.tsx:78`                                        |
+| `ABOVE_FOLD_PREFETCH_BUDGET_MS`   |   2 500 | `lib/builder/prefetch.ts:554`                                 |
+| `SUPPORT_DOC_BUDGET_MS`           |   2 500 | `lib/supportRouteConfig.ts:5`                                 |
+| `POSITIONS_BUDGET_MS`             |   2 000 | `routes/tracker.explorer.tsx:51`                              |
+| `TIMELINE_BUDGET_MS`              |   2 000 | `routes/tracker.$slug.tsx:45`                                 |
+| `DOC_BUDGET_MS`                   |   2 000 | `routes/checkout.success.tsx:31`                              |
+| `SERVER_SECTION_STREAM_BUDGET_MS` |   2 000 | `lib/builder/sectionStreaming.tsx:49`                         |
+| `HYDRATE_BUDGET_MS`               |   1 500 | `lib/ssr/hydrateBudget.ts:39`                                 |
+| `TRACKER_FOLLOWERS_BUDGET_MS`     |   1 500 | `routes/tracker.index.tsx:57`                                 |
+| `CHROME_WARM_BUDGET_MS`           |     500 | `routes/__root.tsx:100`                                       |
+
+**Sprostowanie własnego twierdzenia.** Rozdział 8.6 mówi w dwóch miejscach o „do 11 s budżetów
+loaderów": raz jako o wielkości, która _„spadła z «do 11 s» na 3 000 ms"_, raz w zdaniu
+zamykającym. Obie wersje są prawdziwe **o korzeniu** - obie fale rozgrzewki siedzą w tym samym
+loaderze `__root.tsx` (`:373` i `:508`), więc jego pułap to rzeczywiście 2 500 + 500 = 3 000 ms -
+i obie **pomijają trasę**. Zmierzone dziś: `$.tsx` niesie w JEDNYM loaderze
+5 000 + 3 000 + 5 000 = **13 000 ms** szeregowego budżetu, a `blog.index.tsx` 4 000 × 2 = 8 000 ms.
+Pułap pierwszego bajtu dla dowolnej strony CMS-a to więc **13 000 ms**, nie 3 000 i nie 11 000.
+Zlecenie `docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md` podawało dla „trasy treściowej" 7 000 ms - liczba
+poprawna dla rodziny tras odpornych (korzeń 3 000 + `RESILIENT_LOAD_BUDGET_MS` 4 000), ale nie dla
+trasy łapiącej wszystko.
+
+Bramek `check:*` jest trzydzieści dziewięć. Boot i paczki dotyczą cztery: `check:bundle`,
+`check:chunks`, `check:chunk-parity`, `check:entry-purity`. **Zero** bramek pilnuje: sumy budżetów
+loadera, liczby równoległych podżądań wobec limitu 6 subrequestów runtime Workers, rozmiaru
+dehydratowanego stanu - i, nowa pozycja z tego pomiaru, **reguły „trasa, której loader może
+zdegradować, MUSI zabramkować swój `Cache-Control`"**. Ta ostatnia jest najtańszą bramką na całej
+liście rozdziału 8.6: skrypt po `src/routes/**`, który zapala się na pliku importującym
+`withBudget`/`loadResilient` albo wołającym `Promise.allSettled`, a ustawiającym
+`contentCacheControl()` bez `resilientCacheControl`. Dziś zapaliłby się na **dwóch** plikach
+i utrwaliłby regułę, którą repozytorium już zna, ale pilnuje wyłącznie recenzją.
+
+#### Wymiar `css`: sprostowanie - margines jest 2,7 razy mniejszy, niż ten audyt podał
+
+Szczegóły i poprawiona liczba są w akapicie „Druga rzecz, której nie widziałem" wyżej w tym
+rozdziale: **80,972 KiB wobec podłogi 82 KiB, czyli 1,028 KiB (1,25%) marginesu**, nie 2,8 KiB
+i nie 3,4%. Błąd był w narzędziu pomiaru, nie w kodzie: mierzyłem `gzip -9`, a bramka liczy
+`Bun.gzipSync(...)` bez drugiego argumentu, czyli na domyślnym poziomie kompresji
+(`scripts/check-bundle-size.ts:1447`). Ta jedna różnica poziomu to 1 694 B na arkuszu głównym -
+więcej niż cały drugi arkusz.
+
+#### Wymiar `testy`: każda czysta funkcja tej warstwy jest przetestowana, żaden punkt spięcia nie jest
+
+Zmierzone na tym samym przebiegu, sześć grup plików drogi pierwszego wczytania:
+
+| grupa                            | plików |   linie |          % | funkcje |          % | gałęzie |     % |
+| -------------------------------- | -----: | ------: | ---------: | ------: | ---------: | ------: | ----: |
+| `src/lib/ssr/**`                 |      6 | 149/153 |      97,39 |   39/39 | **100,00** |   83/97 | 85,57 |
+| `src/lib/asyncBudget.ts`         |      1 |   12/12 | **100,00** |     3/4 |      75,00 |     6/8 | 75,00 |
+| `src/lib/builder/prefetch.ts`    |      1 | 200/216 |      92,59 |   41/46 |      89,13 | 157/188 | 83,51 |
+| `src/lib/http/**`                |     23 | 773/907 |      85,23 | 134/162 |      82,72 | 557/699 | 79,69 |
+| `src/routes/__root.tsx`          |      1 |  67/128 |      52,34 |    7/48 |  **14,58** |   27/49 | 55,10 |
+| `src/start.ts` + `src/server.ts` |      2 |  82/168 |      48,81 |   13/26 |      50,00 |  44/140 | 31,43 |
+
+Układ jest jednoznaczny i mieści się w jednym zdaniu: **wszystko, co jest czystą funkcją, ma
+pokrycie bliskie stu procent; wszystko, co jest spięciem, ma pokrycie bliskie połowie albo niżej.**
+`documentCache.ts` 100%/100% i `requestHost.server.ts` 0%/0% leżą w tym samym katalogu i różnią
+się jedną rzeczą - czy da się je wywołać bez środowiska serwera.
+
+Najostrzejszy pojedynczy wynik tej tabeli to `src/start.ts`: **35/109 linii (32,11%), 3/14 funkcji
+(21,42%), 19/93 gałęzi (20,43%)**. Pokryte są trzy: `isPreviewRequest` (`:201`),
+`contentSecurityPolicy` (`:209`), `applySecurityHeaders` (`:343`) - czyli czysta część nagłówków
+bezpieczeństwa. Niepokrytych jest jedenaście, w tym `isInternalPlatformPath` (`:34`) i **ciała
+wszystkich middleware'ów** (`:42`, `:74`, `:118`, `:245`, `:260`, `:285`, `:291`, `:313`, `:407`,
+`:410`). Jedenaście z czternastu funkcji korzenia kompozycyjnego całego potoku żądania nigdy nie
+zostało uruchomionych przez test.
+
+#### Wymiar `e2e` i ustalenie blokujące: płaszczyzna roli serwisowej nie ma ŻADNEGO terminu
+
+To jest jedyne ustalenie z sześciu wymiarów, którego nie było na liście jedenastu punktów
+z rozdziału 8.6, a które oceniam wyżej niż większość tej listy.
+
+Przed routerem - a więc i przed jakimkolwiek budżetem loadera, i przed konsultacją cache'a
+dokumentów - biegną **dwa round-tripy do bazy rolą serwisową**:
+
+1. `redirectMiddleware` (pozycja 6 w łańcuchu) → `src/lib/seo/redirects.server.ts:54-75`:
+   `await supabaseAdmin.from("redirects").select(...).limit(5000)`;
+2. rozwiązanie hosta na najemcę → `src/lib/server/tenant.server.ts:68-85`:
+   `await supabaseAdmin.from("tenants").select(...).limit(500)`.
+
+Żaden z nich nie jest owinięty w `withBudget`, żaden nie przekazuje `AbortSignal`,
+a `src/integrations/supabase/client.server.ts` - całe 41 linii - **nie konfiguruje ani własnego
+`fetch`, ani żadnego timeoutu**. Nie ma więc terminu na tej płaszczyźnie w ogóle, w żadnym
+miejscu.
+
+Oba mają `try/catch` z zejściem na przeterminowany cache (`redirects.server.ts:71-75`,
+`tenant.server.ts:84-86`) i to jest dobra obrona - **ale przed BŁĘDEM, nie przed powolnością.**
+Zawieszone połączenie nie rzuca; ono czeka. A czeka **przed** cache'em dokumentów
+(`documentCacheMiddleware` to pozycja 10), więc nawet trafienie w gorący wpis nie ratuje
+czytelnika przed tym oczekiwaniem.
+
+Częstotliwość wynika z TTL-i: `REDIRECT_CACHE_TTL_MS = 30_000` (`redirects.server.ts:44`)
+i `CACHE_TTL_MS = 60_000` (`tenant.server.ts:40`). Na rozgrzanym izolacie oznacza to, że jedno
+żądanie na 30 sekund i jedno na 60 sekund płaci pełny round-trip bez sufitu; na zimnym izolacie
+płaci je pierwszy czytelnik.
+
+Pokrycie **nie jest** tu problemem i to jest właśnie sedno: `redirects.server.ts` ma
+**63/63 linii (100,00%) i 11/11 funkcji (100,00%)**, `tenant.server.ts` **68/70 (97,14%)
+i 17/17 (100,00%)**. Brakuje nie testu, brakuje **terminu**. To jest ustalenie, którego
+pokryciem nie da się wykryć - i dlatego zamyka ten rozdział, a nie tabelę.
+
+#### Co sześć wymiarów dodaje do listy z 8.6
+
+Dwie nowe pozycje, dwa sprostowania i jedno przekwalifikowanie:
+
+1. **NOWE, blokujące**: nadać termin płaszczyźnie roli serwisowej (`withBudget` albo
+   `AbortSignal` na obu round-tripach przed routerem). Bez tego wszystkie budżety loaderów
+   pilnują odcinka, który nie jest najdłuższy.
+2. **NOWE, najtańsza bramka na liście**: reguła CI „loader, który może zdegradować, bramkuje
+   swój `Cache-Control`" - dziś dwie trasy jej nie spełniają, w tym trasa łapiąca wszystko.
+3. **SPROSTOWANIE liczby**: margines podłogi `css` to 1,25%, nie 3,4%.
+4. **SPROSTOWANIE twierdzenia**: pułap budżetów przed pierwszym bajtem to 13 000 ms na trasie
+   łapiącej wszystko, nie 3 000 ms (korzeń) ani 11 000 ms (wydanie 8).
+5. **PRZEKWALIFIKOWANIE**: zero w `requestHost.server.ts` i `tenantAssertionCookie.server.ts` nie
+   jest zaniedbaniem, a skutkiem środowiska `happy-dom`. Naprawa to jeden plik z dyrektywą
+   `// @vitest-environment node`, której repozytorium używa już czternaście razy. To najtańszy
+   punkt tej listy i jednocześnie ten, który domyka szew izolacji najemcy.
 
 ---
 

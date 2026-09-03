@@ -24,7 +24,18 @@ bajtem, i tę liczbę podałem w pierwszej wersji tego zlecenia błędnie.** Do 
 budżet loadera trasy: na stronie głównej `prefetchAboveFoldQueries` z `ABOVE_FOLD_PREFETCH_BUDGET_MS
 = 2500` (`src/lib/builder/prefetch.ts:554`, wołane bez jawnego budżetu w `src/routes/index.tsx:215`),
 a na trasie treściowej `RESILIENT_LOAD_BUDGET_MS = 4_000` (`src/lib/ssr/resilientLoad.ts:46`).
-**Sumy sekwencyjne: `/` = 5 500 ms, trasa treściowa = 7 000 ms** - wobec „do 11 s" z wydania 8.
+**Sumy sekwencyjne: `/` = 5 500 ms, trasa odporna = 7 000 ms** - wobec „do 11 s" z wydania 8.
+
+**Drugie sprostowanie do tego akapitu** (dopisane po ręcznym domknięciu wymiaru `bramki`, patrz
+§8.7 audytu): 7 000 ms jest poprawne dla RODZINY TRAS ODPORNYCH, ale **nie jest maksimum**.
+Trasa łapiąca wszystko - `src/routes/$.tsx`, czyli każda strona CMS-a - niesie w JEDNYM loaderze
+trzy budżety szeregowo: `PRIMARY_CONTENT_BUDGET_MS = 5_000` (`:166`, użyta dwa razy - `:239`
+i `:360`) plus `SECONDARY_PREFETCH_BUDGET_MS = 3_000` (`:165`, `:353`), czyli
+**5 000 + 3 000 + 5 000 = 13 000 ms**. `blog.index.tsx` niesie 4 000 x 2 = 8 000 ms
+(`BLOG_LOADER_BUDGET_MS`, `:35`, wołana w `:50` i `:66`). **Pułap pierwszego bajtu dla
+dowolnej strony CMS-a to więc 13 000 ms**, i to jest liczba, którą punkt A4 tego zlecenia ma
+zabramkować - nie 3 000 ms i nie 7 000 ms.
+
 Fala 1
 zeszła też z trzech równoległych podżądań na dwa (dedup `fetchSiteDesignTokensRow` przez wspólny
 `edgeTtlCache`, opisany w komentarzu `__root.tsx:363-372`). Nie ruszaj tego bez pomiaru.
@@ -107,9 +118,11 @@ jedyne, co ma znaczenie: **czy w wyjściu serwera JEST TREŚĆ**.
 
 # CZĘŚĆ A - DROGA KRYTYCZNA (P1)
 
-**Osiem pozycji, a kolejność nie jest sugestią.** A0 jest defektem poprawności i wyszła dopiero
-z pomiaru; A1 odblokowuje pomiar dla B1; A5 i A6 muszą wejść **przed** jakimkolwiek dalszym
-skracaniem budżetów, bo dziś nie wiadomo, gdzie te budżety idą.
+**Dziesięć pozycji, a kolejność nie jest sugestią.** A9 jest **blokująca** i dopisana po ręcznym
+domknięciu sześciu wymiarów pomiaru (§8.7 audytu): unieważnia założenie, na którym stoją A4 i B1,
+bo najdłuższy odcinek przed pierwszym bajtem nie ma terminu w ogóle. A0 jest defektem poprawności
+i wyszła dopiero z pomiaru; A1 odblokowuje pomiar dla B1; A5 i A6 muszą wejść **przed**
+jakimkolwiek dalszym skracaniem budżetów, bo dziś nie wiadomo, gdzie te budżety idą.
 
 ## A0. Dwa `Date.now()` w ciele renderu wydarzeń - defekt ODBLOKOWANY przez naprawę punktu 4
 
@@ -239,12 +252,13 @@ Zadanie, w kolejności taniości:
 niż dziś; podłoga `css` **obniżona**, nie podniesiona; `bun run check:bundle` zielony;
 test bramki potwierdza, że nowy arkusz panelu **nie** wchodzi do domknięcia publicznego.
 
-## A4. Bramka na budżety WEWNĘTRZNE - trzy liczby, których nie pilnuje nic
+## A4. Bramka na budżety WEWNĘTRZNE - pięć liczb, których nie pilnuje nic
 
 Sprostowanie do rozdz. 8.6, żeby zlecenie stało na prawdzie: **nieprawdą jest, że „nie ma ANI
 JEDNEJ bramki na budżety SSR"** - `boot-timing.spec.ts` jest twardą bramką czasu na artefakcie
 (A2 ją rozszerza). Prawdą jest twierdzenie węższe: **żaden budżet WEWNĘTRZNY potoku nie ma
-zabezpieczenia.** Trzy konkretnie:
+zabezpieczenia.** Pięć konkretnie - trzy z pierwszej wersji tego zlecenia i dwie dołożone po
+ręcznym domknięciu wymiaru `bramki` (§8.7 audytu):
 
 1. **Suma budżetów rozgrzewki przed pierwszym bajtem.** Dziś 3 000 ms
    (`ROOT_WARM_BUDGET_MS` 2 500 + `CHROME_WARM_BUDGET_MS` 500). Nic nie broni przed tym, żeby
@@ -256,8 +270,37 @@ zabezpieczenia.** Trzy konkretnie:
    przekracza 6 zapytań w loaderze.
 3. **Rozmiar dehydratowanego stanu.** Wstrzykiwany do HTML-a przy każdym renderze; nigdzie
    nie mierzony ani nie ograniczany.
+4. **Sufit budżetów loadera TRASY - liczba, której pierwsza wersja tego zlecenia nie miała.**
+   Punkt 1 pilnuje korzenia (3 000 ms), ale najdłuższy odcinek jest na trasie: `src/routes/$.tsx`
+   niesie **13 000 ms** szeregowo (`PRIMARY_CONTENT_BUDGET_MS = 5_000` dwa razy, `:239` i `:360`,
+   plus `SECONDARY_PREFETCH_BUDGET_MS = 3_000`, `:353`), `blog.index.tsx` **8 000 ms**
+   (4 000 x 2). Bramka ma liczyć **sumę budżetów per loader**, nie sumę stałych w pliku - ta sama
+   stała użyta dwa razy to dwa budżety.
+5. **Reguła „loader, który może zdegradować, MUSI zabramkować swój `Cache-Control`" - najtańsza
+   pozycja na tej liście.** Doktryna jest w repozytorium napisana wzorowo
+   (`src/lib/ssr/resilientLoad.ts:123-138`) i mechanizm istnieje
+   (`resilientCacheControl(degraded, cleanPolicy)`, `:140-144`), a **szesnaście z dwudziestu
+   dwóch tras** ustawiających `Cache-Control` z niego korzysta. Nie korzystają **dwie**, i obie
+   mogą dziś utrwalić render niepełny na 3 minuty świeżości plus dobę okna stale:
+   - `src/routes/$.tsx` - nagłówek wychodzi w `:288`, a praca, która może zdegradować, jest
+     dopiero w `:303-354` (`Promise.allSettled` pod budżetem 3 000 ms) i `:358-360`. Awaria
+     głównej treści jest obsłużona poprawnie (`NO_STORE` na każdej z czterech gałęzi `:242-281`)
+     - degraduje po cichu dopiero prefetch wtórny. **To się na tej trasie już raz zdarzyło**:
+       komentarz `:344-350` opisuje incydent stron sekcyjnych, których HTML wchodził do edge
+       cache na 24 h. Naprawa dodała wtedy prefetch, nie zabramkowała nagłówka;
+   - `src/routes/sitemap.tsx` - `setCacheControlHeader(contentCacheControl())` jest **pierwszą
+     instrukcją loadera** (`:59`), a trzy zapytania budujące całą treść lecą po nim
+     w `Promise.allSettled` **bez budżetu i bez sprawdzenia wyniku** (`:60-64`).
 
-Zadanie: dołożyć **jedną** bramkę statyczną, która pilnuje wszystkich trzech naraz - czyta źródła,
+   Kształt bramki: skrypt po `src/routes/**`, który zapala się na pliku importującym
+   `withBudget`/`loadResilient` albo wołającym `Promise.allSettled`, a ustawiającym
+   `contentCacheControl()` bez `resilientCacheControl`. Dziś zapaliłby się na dwóch plikach.
+   `contentCacheControl()` ma dokładnie dwa opt-outy - `personalized` i `preview`
+   (`src/lib/http/cachePolicy.ts:66-67`) - **wejścia „zdegradowany" nie ma w ogóle**, więc
+   rozważ też trzecią flagę zamiast bramki na wołających. Wtedy uzasadnij, dlaczego, i zostaw
+   `resilientCacheControl` jako jedyną drogę.
+
+Zadanie: dołożyć **jedną** bramkę statyczną, która pilnuje wszystkich pięciu naraz - czyta źródła,
 a nie zbudowany artefakt, więc jest tania i biegnie w jobie `verify`.
 
 Wzorzec bierz z bramek, które już to robią dobrze: `scripts/check-bundle-size.ts` (zamrożone
@@ -270,9 +313,12 @@ Nowa bramka musi mieć:
 - wpis w `package.json` i krok w `.github/workflows/ci.yml` **bez** `continue-on-error`;
 - komunikat, który mówi, **co** przekroczono i **o ile**, nie „budżet przekroczony".
 
-**Kryterium odbioru:** `bun run check:<nazwa>` zielony na tym HEAD i czerwony po sztucznym
-podniesieniu `ROOT_WARM_BUDGET_MS` o 1 ms (pokaż oba przebiegi w PR); `check:gate-coverage`
-zielony, czyli bramka jest realnie wpięta; test kontroli negatywnej w suicie.
+**Kryterium odbioru:** `bun run check:<nazwa>` zielony na tym HEAD **po zabramkowaniu obu tras
+z punktu 5** i czerwony w trzech niezależnych próbach: po podniesieniu `ROOT_WARM_BUDGET_MS`
+o 1 ms, po podniesieniu `SECONDARY_PREFETCH_BUDGET_MS` o 1 ms i po cofnięciu bramki
+`Cache-Control` w `sitemap.tsx` (pokaż wszystkie cztery przebiegi w PR);
+`check:gate-coverage` zielony, czyli bramka jest realnie wpięta; test kontroli negatywnej
+w suicie.
 
 ---
 
@@ -352,6 +398,70 @@ oblewa ratchet. **Dopiero potem** sensownie zlecać naprawy poszczególnych tras
 
 ---
 
+## A9. Płaszczyzna roli serwisowej nie ma ŻADNEGO terminu - pozycja BLOKUJĄCA
+
+**To jest ustalenie, którego nie było w pierwszej wersji tego zlecenia ani na liście jedenastu
+punktów rozdz. 8.6.** Wyszło z ręcznego domknięcia wymiaru `e2e` po limicie sesji (§8.7 audytu)
+i stawiam je wyżej niż większość tej listy, bo unieważnia założenie, na którym stoją punkty
+A4 i B1: że budżety loaderów pilnują najdłuższego odcinka przed pierwszym bajtem. Nie pilnują.
+
+Przed routerem - a więc przed jakimkolwiek budżetem loadera i **przed konsultacją cache'u
+dokumentów** - biegną dwa round-tripy do bazy rolą serwisową:
+
+1. `redirectMiddleware` (pozycja **6** w `requestMiddleware`, `src/start.ts:443-461`) →
+   `src/lib/seo/redirects.server.ts:54-75`:
+   `await supabaseAdmin.from("redirects").select(...).limit(5000)`;
+2. rozwiązanie hosta na najemcę → `src/lib/server/tenant.server.ts:68-85`:
+   `await supabaseAdmin.from("tenants").select(...).limit(500)`.
+
+Żaden nie jest owinięty w `withBudget`, żaden nie przekazuje `AbortSignal`,
+a `src/integrations/supabase/client.server.ts` - całe 41 linii - **nie konfiguruje ani własnego
+`fetch`, ani żadnego timeoutu**. Nie ma więc terminu na tej płaszczyźnie w żadnym miejscu.
+
+Oba mają `try/catch` z zejściem na przeterminowany cache (`redirects.server.ts:71-75`,
+`tenant.server.ts:84-86`) i to jest dobra obrona - **ale przed BŁĘDEM, nie przed powolnością.**
+Zawieszone połączenie nie rzuca; ono czeka. A czeka **przed** `documentCacheMiddleware`
+(pozycja **10**), więc nawet trafienie w gorący wpis nie ratuje czytelnika przed tym czekaniem -
+co przewraca całą logikę „HIT to mikrosekundy".
+
+Częstotliwość wynika z TTL-i: `REDIRECT_CACHE_TTL_MS = 30_000` (`redirects.server.ts:44`)
+i `CACHE_TTL_MS = 60_000` (`tenant.server.ts:40`). Na rozgrzanym izolacie jedno żądanie na 30 s
+i jedno na 60 s płaci pełny round-trip bez sufitu; na zimnym - pierwszy czytelnik.
+
+**Pokrycie NIE jest tu problemem i to jest sedno tej pozycji**: `redirects.server.ts` ma
+**63/63 linii (100,00%) i 11/11 funkcji (100,00%)**, `tenant.server.ts` **68/70 (97,14%)
+i 17/17 (100,00%)**. Brakuje nie testu - brakuje terminu. To jest ustalenie, którego pokryciem
+nie da się wykryć, więc nie licz na to, że wyjdzie z rozdz. 12 audytu.
+
+Zadanie:
+
+1. **Nadać termin obu round-tripom.** Wzorzec jest w repo: `withBudget` (`src/lib/asyncBudget.ts`,
+   **12/12 linii, 100%**). Budżet ma być stałą w kodzie, nie w zmiennej środowiskowej, i ma być
+   **krótki** - to zapytania po indeksie na kilkuset wierszach, nie raport. Zejście po
+   przekroczeniu terminu jest już napisane: ta sama gałąź, co dla błędu (przeterminowany cache
+   albo `EMPTY_DIRECTORY`).
+2. **Odróżnić w telemetrii lapsus terminu od błędu.** Dziś oba kończą się tym samym
+   `console.warn`. Po zmianie `[redirects] index load failed` i `[tenant] directory load failed`
+   muszą rozróżniać przyczynę, inaczej pierwsza produkcyjna awaria będzie nieodróżnialna od
+   dwudziestu poprzednich.
+3. **Test na to, że termin DZIAŁA** - z kontrolą negatywną: atrapa `supabaseAdmin`, która nigdy
+   nie rozstrzyga, i asercja, że funkcja wraca w oknie budżetu z wartością zejścia. Bez tego
+   testu zmiana jest hipotezą.
+4. **Rozstrzygnąć, czy `limit(5000)` na przekierowaniach jest właściwą liczbą** i podać wynik.
+   Pięć tysięcy wierszy na każdym zimnym izolacie to nie jest darmowe, a indeks buduje się
+   w pamięci (`buildRedirectIndex`).
+
+**Czego NIE robić:** nie przenosić tych round-tripów za `documentCacheMiddleware`. Kolejność
+jest poprawna z powodów bezpieczeństwa - klucz cache'u jest prefiksowany hostem ZWALIDOWANYM
+względem `tenants.domain`, więc rozwiązanie najemcy MUSI poprzedzać lookup. Zadanie to termin,
+nie zmiana kolejności.
+
+**Kryterium odbioru:** oba wywołania mają termin ze stałą w kodzie; test z atrapą, która nie
+rozstrzyga, przechodzi i oblewa po zdjęciu terminu (pokaż oba przebiegi); telemetria rozróżnia
+lapsus terminu od błędu; pokrycie obu plików nie spada.
+
+---
+
 # CZĘŚĆ B - POKRYCIE WARSTWY
 
 ## B1. `src/routes/__root.tsx` - 41 z 48 funkcji bez wywołania
@@ -396,6 +506,55 @@ z asercją na zero wystąpień. `boot-artifact.spec.ts:422` ma już wzorzec
 
 **Kryterium odbioru:** jednoznaczna odpowiedź w PR („istnieje / nie istnieje", z plikiem i linią),
 a przy braku - detektor z asercją i jeden test dowodzący, że **łapie** wstrzykniętą niezgodność.
+
+---
+
+## B4. Zero w `requestHost.server.ts` to kształt środowiska, nie zaniedbanie - jeden plik zamyka szew izolacji najemcy
+
+Ten punkt jest tu, bo jest **najtańszy w całym zleceniu**, a domyka jedyny nieprzetestowany szew
+warstwy, na którym stoi izolacja najemcy.
+
+Klucz cache'u dokumentów jest prefiksowany hostem (`src/lib/http/documentCache.ts:179-180`)
+i to jest cała jego izolacja między tenantami. Sama funkcja klucza jest przetestowana wzorowo:
+**43/43 linii (100,00%), 9/9 funkcji (100,00%), 47/49 gałęzi (95,91%)**, dwanaście testów, w tym
+jeden nazwany wprost _„scopes keys by tenant host, with a no-host fallback scope"_
+(`src/lib/http/__tests__/documentCache.test.ts:107`). **Wartość `host`** pochodzi natomiast
+z `src/lib/http/requestHost.ts` - **2/20 linii (10,00%), 2/4 funkcji (50,00%)** - a jego
+serwerowa połowa `requestHost.server.ts` ma **0/16 linii i 0/4 funkcji**. Pokryte są dokładnie
+linie 28 i 39. Bez wywołania: `currentTenantHost` (`:61`) i `currentTenantAssertion` (`:91`).
+Ten sam wzorzec w `tenantAssertionCookie.server.ts`: **1/16 linii (6,25%), 0/2 funkcji**.
+
+**Przyczyna jest jedna i nie jest nią lenistwo.** `vitest.config.ts:7` ustawia
+`environment: "happy-dom"`, więc `window` ISTNIEJE, `import.meta.env.SSR` jest fałszywe,
+a gałąź serwerowa obu funkcji jest **nieosiągalna z definicji**: `currentTenantHost` wraca
+na linii 63 z `window.location.host` i dynamiczny import `./requestHost.server` nigdy się
+nie wykonuje.
+
+Do tego: **`@/lib/http/requestHost` jest podmieniany na atrapę w 26 plikach testowych** w całym
+repozytorium. To szew, który cała platforma zastępuje stubem - i jednocześnie jedyny szew tej
+warstwy, którego nikt nie sprawdza w prawdziwej postaci.
+
+Zadanie: jeden plik testowy z dyrektywą `// @vitest-environment node` w pierwszej linii - wzorzec
+obecny w repozytorium **14 razy**, w tym dwa razy w tych samych katalogach
+(`src/lib/http/__tests__/ssrTiming.server.test.ts:1`,
+`src/lib/server/__tests__/publishedContent.server.test.ts:1`). Pokryj w nim:
+
+1. `currentTenantHost` na ścieżce serwerowej - z atrapą `getRequest` i atrapą
+   `resolveTrustedRequestHost`, oraz **gałąź `catch` → `null`** (brak kontekstu żądania);
+2. `currentServerAssertion` / `assertionForRequest` - w tym `null` przy braku hosta
+   (`requestHost.server.ts:32`, `:43`) i `null` przy rzucie `mintTenantHostAssertion`;
+3. `trustedPublicHost` na ścieżce SSR - **oraz jej zejście**: gdy dynamiczny import padnie,
+   funkcja MUSI wrócić `requestPublicHost(request)` (`requestHost.ts:47-51`). To jest gałąź,
+   która w produkcji decyduje, czy nieznany host dostanie `null` („brak wskazówki tenanta"),
+   czy surowy nagłówek - więc jest to gałąź o konsekwencji bezpieczeństwa, dziś niesprawdzona;
+4. `tenantAssertionCookie.server.ts` tą samą drogą.
+
+**Czego NIE robić:** nie zmieniaj `environment` w `vitest.config.ts` na `node` - 2 218 plików
+testowych zakłada DOM. Dyrektywa per plik jest jedyną poprawną drogą.
+
+**Kryterium odbioru:** `requestHost.server.ts` i `tenantAssertionCookie.server.ts` **powyżej
+zera na funkcjach**, `requestHost.ts` z pokrytą gałęzią zejścia z punktu 3, nowy próg
+per-ścieżka w `vitest.config.ts` z komentarzem podającym pomiar i datę.
 
 ---
 
@@ -524,13 +683,21 @@ powrotem z `render`.
    rozdzielnie dla HIT i MISS.
 4. Powierzchnia publiczna pobiera arkusz **mniejszy o ≥ 25% gzip**, a podłoga `css`
    w `check-bundle-size.ts` jest **obniżona**, nie podniesiona.
-5. Jedna nowa bramka pilnuje trzech budżetów wewnętrznych, ma **kontrolę negatywną** i jest
-   wpięta w `ci.yml` bez `continue-on-error`; `check:gate-coverage` zielony.
+5. Jedna nowa bramka pilnuje **pięciu** budżetów wewnętrznych (w tym sufitu budżetów loadera
+   trasy i reguły „loader, który może zdegradować, bramkuje `Cache-Control`"), ma **kontrolę
+   negatywną** i jest wpięta w `ci.yml` bez `continue-on-error`; `check:gate-coverage` zielony.
 6. `src/lib/ssrCache.ts` daje **identyczne** pokrycie w dwóch kolejnych przebiegach.
 7. Rozstrzygnięta obecność detektora **niezgodności** hydratacji; przy braku - dołożony,
    z testem dowodzącym, że łapie wstrzykniętą niezgodność.
-8. `bun run check:*` w komplecie zielone **poza** `check:ci-gates`, która była czerwona
-   przed twoją pracą i nie należy do tego zlecenia.
+8. **Oba round-tripy roli serwisowej przed routerem mają termin** ze stałą w kodzie, a test
+   z atrapą, która nigdy nie rozstrzyga, przechodzi i oblewa po zdjęciu terminu (A9).
+9. `requestHost.server.ts` i `tenantAssertionCookie.server.ts` **powyżej zera na funkcjach**,
+   a gałąź zejścia `trustedPublicHost` pokryta (B4).
+10. `src/routes/$.tsx` i `src/routes/sitemap.tsx` **nie mogą już utrwalić renderu
+    zdegradowanego** w cache'u dokumentów - każda z osobnym testem dowodzącym, że nagłówek na
+    renderze niepełnym to `private, no-store`.
+11. `bun run check:*` w komplecie zielone **poza** `check:ci-gates`, która była czerwona
+    przed twoją pracą i nie należy do tego zlecenia.
 
 **Na koniec zdaj raport:** co zmierzyłeś przed i po (liczba za liczbą, tą samą metodą), które
 defekty zarejestrowałeś jako `it.fails` i dlaczego, czego świadomie nie zrobiłeś, oraz - osobno -
