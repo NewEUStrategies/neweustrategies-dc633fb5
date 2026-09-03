@@ -27,6 +27,12 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/clubs/api", () => clubApiMock);
+// Karta klubu zalezy od tozsamosci widza (patrz `clubKeys.bySlugViewer`),
+// wiec hooki potrzebuja rozstrzygnietej sesji - inaczej zapytanie czeka.
+const authState = { user: { id: "user-1" } as { id: string } | null, loading: false };
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => authState,
+}));
 vi.mock("@/lib/clubs/clubSemantic.functions", () => ({
   CLUB_SEMANTIC_MIN_CHARS: 4,
   embedClubQuery: (...args: unknown[]) => clubApiMock.embedClubQuery(...args),
