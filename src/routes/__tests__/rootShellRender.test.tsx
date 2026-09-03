@@ -45,8 +45,22 @@ const h = vi.hoisted(() => ({
   /**
    * Czy atrapa `Outlet` ma ZAWIESIĆ render. `RouteLoadingSkeleton` jest
    * fallbackiem `<Suspense>` wokół `<Outlet/>` i NIE JEST eksportowany, więc
-   * jedyną drogą do jego wykonania jest zawieszenie dziecka tej granicy -
-   * dokładnie to, co w produkcji robi wolno rozwiązująca się trasa.
+   * jedyną drogą do jego wykonania jest zawieszenie dziecka tej granicy.
+   *
+   * SPROSTOWANIE WŁASNEGO KOMENTARZA (2026-09-03, jeszcze przed scaleniem).
+   * Stało tu, że jest to „dokładnie to, co w produkcji robi wolno
+   * rozwiązująca się trasa". TO NIEPRAWDA i różnica jest tu całą treścią:
+   * prawdziwy `<Outlet/>` zakłada WŁASNĄ granicę `Suspense` wokół dopasowania
+   * dziecka, z fallbackiem `null`
+   * (`@tanstack/react-router/dist/esm/Match.js:284-287` + `:71-72`, bo
+   * `src/router.tsx` nie ustawia `defaultPendingComponent`). React wybiera
+   * granicę NAJBLIŻSZĄ, więc w produkcji zawieszenie trasy NIE DOCHODZI do
+   * granicy korzenia i szkielet się NIE POKAZUJE.
+   *
+   * Ten blok dowodzi więc TYLKO tego, że szkielet renderuje się poprawnie, GDY
+   * zostanie osiągnięty - a nie że produkcja go osiąga. Nieosiągalność jest
+   * zarejestrowana jako `it.fails` w `rootRouterMount.test.tsx` („DEFEKT: wolna
+   * trasa NIE pokazuje RouteLoadingSkeleton"), na prawdziwym routerze.
    */
   outletSuspends: false,
   /** Zgłoszenia z `ErrorComponent` - atrapa zamiast beaconu, patrz niżej. */
