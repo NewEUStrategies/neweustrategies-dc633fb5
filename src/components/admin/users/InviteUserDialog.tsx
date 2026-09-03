@@ -330,7 +330,6 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           </label>
         </div>
 
-
         <DialogFooter className="flex-wrap gap-2">
           <Button
             variant="ghost"
