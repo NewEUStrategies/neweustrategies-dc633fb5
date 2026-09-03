@@ -37,7 +37,8 @@
  *      polityki `career_applications_staff_read` / `_staff_update`,
  *      `career_application_events_staff_read` oraz polityka bucketu
  *      `career_cv_staff_read` - i to one są tutaj przedmiotem asercji NA
- *      ISTNIENIE (dowód wykonawczy należy do pgTAP, patrz ZNALEZISKO 3).
+ *      ISTNIENIE (dowód WYKONAWCZY mieszka w uprzęży runtime modułu karier,
+ *      `scripts/careers-harness/runtime_test.sql` - patrz ZNALEZISKO 3).
  * Dlatego NIE MA tu testu „bez roli nie widzi panelu": mierzyłby atrapę
  * `useAuth`, której ta trasa nawet nie woła. Jest zamiast tego dowód
  * pozytywny (render nie pyta o rolę) i dowód, że warunek stoi w layoucie.
@@ -769,9 +770,9 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
   });
 
   it("polityki RLS pipeline'u wymagają personelu I zgodności najemcy", () => {
-    // Tu naprawdę mieszka autoryzacja tego ekranu. Ten test nie sprawdza bazy
-    // (do tego jest pgTAP, którego nie ma - ZNALEZISKO 3), tylko że polityka
-    // nie zniknęła i nadal wymienia OBA warunki.
+    // Tu naprawdę mieszka autoryzacja tego ekranu. Ten test nie WYKONUJE
+    // polityki (do tego jest uprząż runtime, patrz ZNALEZISKO 3 i test niżej),
+    // tylko sprawdza, że nie zniknęła i nadal wymienia OBA warunki.
     const sql = read(PIPELINE_MIGRATION);
     expect(sql).toMatch(
       /CREATE POLICY career_applications_staff_read ON public\.career_applications/,
@@ -809,19 +810,20 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
   });
 
   /**
-   * ZŁAMANY KONTRAKT (DZIURA W DOWODZIE, NIE W KODZIE): pipeline rekrutacyjny
-   * nie ma ANI JEDNEGO pliku pgTAP. Migracja zakłada polityki RLS, trigger
+   * GDZIE MIESZKA DOWÓD WYKONAWCZY TEJ TRASY (sprostowanie, patrz ZNALEZISKO 3).
+   *
+   * Ta trasa nie ma na kliencie ŻADNEGO warunku najemcy, więc polityka bazy
+   * jest jedynym, co dzieli tenantów - i to ona potrzebuje dowodu, który
+   * naprawdę biegnie na Postgresie. Migracja zakłada polityki RLS, trigger
    * bootstrapu wiersza procesu, trigger dziennika decyzji i trigger kolejkujący
-   * plik CV do usunięcia - a `supabase/tests/` nie wspomina o
-   * `career_applications` ani razu. Ta trasa nie ma na kliencie żadnego
-   * warunku najemcy, więc polityka bazy jest jedynym, co dzieli tenantów.
+   * plik CV do usunięcia; wszystkie cztery rzeczy są wykonane w uprzęży
+   * `scripts/careers-harness/runtime_test.sql`, odpalanej w CI.
    *
-   * OCZEKIWANY KONTRAKT: pgTAP modułu karier zakłada drugiego najemcę,
-   * asertuje zerową widoczność jego zgłoszeń i sprawdza, że zmiana etapu
-   * zostawia wpis w dzienniku.
-   *
-   * Zapisane jako `it.fails`, bo naprawa oznacza nowy dowód w SQL, a ten plik
-   * niczego w produkcji nie zmienia. KONTROLA DODATNIA stoi w teście obok.
+   * Trzy testy poniżej pilnują tego łańcucha: dowód ISTNIEJE, CI go ODPALA,
+   * a pusty katalog `supabase/tests/` jest ŚWIADOMY (pgTAP nie jest dostępny
+   * w obrazie, więc asercje są gołym SQL-em). Poprzednia wersja tego bloku
+   * opisywała ZŁAMANY KONTRAKT zapisany jako `it.fails` - i przeczyła testowi,
+   * który stał bezpośrednio pod nią.
    */
   it("pipeline rekrutacyjny MA dowód wykonawczy - w uprzęży runtime, nie w pgTAP", () => {
     // SPROSTOWANIE WŁASNEGO ZNALEZISKA. Pierwsza wersja tego pliku twierdziła,
@@ -2438,11 +2440,16 @@ describe("/admin/careers - dziennik decyzji", () => {
 // ---------------------------------------------------------------------------
 
 describe("/admin/careers - wbudowany słownik PL/EN", () => {
-  it("po angielsku CAŁY panel mówi po angielsku - napisy nie są przypadkiem testu", async () => {
-    // Ten test jest zabezpieczeniem uczciwości reszty pliku: napisy panelu są
-    // literałami w module trasy (`PL`/`EN`), więc asercje na nie są literałami
-    // w teście. Ten jeden dowód pokazuje, że mierzą WYBÓR SŁOWNIKA po
-    // `i18n.language` - gdyby ktoś wpisał polski napis do `EN`, zapali się tu.
+  it("po angielsku karta kandydata i etykiety wspólnej warstwy też mówią po angielsku", async () => {
+    // REWIZJA NAZWY. Ten test nazywał się „CAŁY panel mówi po angielsku" i
+    // sprawdzał OSIEM napisów z czterdziestu sześciu - obietnica z nazwy była
+    // o pięć razy większa niż ciało. Dowód „każdego napisu" stoi teraz niżej
+    // (tablica `PARY` + dowód słownikowy), a TEN test odpowiada na pytanie,
+    // którego tamten zadać nie umie: czy w angielskim panelu da się jeszcze
+    // NAMIERZYĆ akcje karty, gdy filtr listy („Archive") i akcja karty
+    // („Archive") mają IDENTYCZNĄ nazwę dostępną - i czy etykiety wspólnej
+    // warstwy (`stageLabel`, `seniorityLabel`) przechodzą na angielski TĄ SAMĄ
+    // funkcją słownikową, a nie drugą kopią napisów w module trasy.
     await i18n.changeLanguage("en");
     h.rows = [
       application({
