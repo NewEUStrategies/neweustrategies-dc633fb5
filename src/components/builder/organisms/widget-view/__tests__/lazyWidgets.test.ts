@@ -28,6 +28,7 @@ const SPLIT_WIDGETS = [
   "ClubCardView",
   "ClubThreadsView",
   "ClubHubView",
+  "CoverOverlayCardView",
   // Events ecosystem
   "EventScheduleView",
   "EventsListView",
