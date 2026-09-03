@@ -84,7 +84,8 @@
 //     listy — brudnopis nie przecieka do odczytu publicznego.
 //  2. BRAK WIERSZY. Odpowiedź `data: null` z relacji ofert i z widoku sekcji
 //     wychodzi z warstwy danych jako `[]`, a `[]` znaczy dla `sectionState`
-//     „pokaż" (reguła świeżej instalacji).
+//     „pokaż" dla KAŻDEGO z siedmiu kluczy `CAREER_SECTION_KEYS` i w obu
+//     językach (reguła świeżej instalacji dotyczy całej strony, nie „hero").
 //  3. ODMOWA ODCZYTU SEKCJI W PANELU wywraca zapytanie z komunikatem PostgREST
 //     (a nie oddaje pustej listy, którą operator nadpisałby brudnopisem).
 //  4. BRAMKA SCHEMATU LINKU DO CV. Dla korpusu adresów wrogich (`javascript:`,
@@ -101,12 +102,16 @@
 //  8. DWA WYJŚCIA AWARYJNE WALIDACJI: błąd na ścieżce nieznanej kreatorowi
 //     (znalezisko 1) i wejście spoza kształtu obiektu — oba kończą się
 //     `ok: false` ze wskazaniem pierwszego pola kreatora, a nie wyjątkiem.
-//  9. NORMALIZACJA PÓL CV: wejście bez `cvFileName`/`cvUrl` daje w payloadzie
-//     PUSTE NAPISY (dowód, że `?? ""` w `superRefine` jest martwe — patrz
-//     „gałęzie nieosiągalne").
+//  9. NORMALIZACJA PÓL OPCJONALNYCH: wejście BEZ `cvFileName`/`cvUrl`/`message`
+//     (pola usunięte z obiektu, nie ustawione na "") daje w payloadzie PUSTE
+//     NAPISY (dowód, że `?? ""` w `superRefine` jest martwe — patrz „gałęzie
+//     nieosiągalne"), a link do CV jedzie do payloadu DOSŁOWNIE, bez schematu:
+//     doklejanie `https://` należy do `normalizeCvUrl` przy odczycie, więc oba
+//     moduły tej paczki spotykają się w jednym przypadku.
 // 10. ŚCIEŻKA CV BEZ `crypto.randomUUID` jest nadal ścieżką, którą panel
-//     potrafi podpisać (`isCareerCvPath`), oraz każdy przyjmowany typ MIME ma
-//     własne rozszerzenie.
+//     potrafi podpisać (`isCareerCvPath`), a każdy przyjmowany typ MIME dostaje
+//     ROZŁĄCZNE rozszerzenie (liczone na ścieżkach, nie na literale) oraz
+//     `contentType` równy własnemu MIME.
 //
 // ---------------------------------------------------------------------------
 // CO JEST ATRAPOWANE I DLACZEGO
@@ -187,6 +192,47 @@
 //    `CV_ACCEPTED_MIME` bez wpisu w mapie — i wtedy CV wjedzie do magazynu
 //    z MYLĄCYM rozszerzeniem `.pdf`. Test „każdy przyjmowany typ MIME…" jest
 //    właśnie strażnikiem tego sprzężenia.
+//
+// ---------------------------------------------------------------------------
+// REWIZJA ADWERSARYJNA (32 mutacje kodu produkcyjnego, kod NIEZMIENIONY)
+// ---------------------------------------------------------------------------
+// Plik został przeczytany drugi raz przy założeniu, że autor hodował pokrycie.
+// Sprawdzenie: 25 mutacji tych sześciu modułów uruchomionych PRZECIW SAMEMU
+// TEMU PLIKOWI (wspólny klucz cache, odwrócona bramka `is_published`, zjedzona
+// odmowa RLS, zdjęta bramka kropki w hoście, ocena bez bramki typu, brak
+// domyślnego języka, `locationLabel` czytający słownik wymiaru, zdjęty filtr
+// pól kreatora, zdjęty zapas `firstField`, `ext` zawsze `"pdf"`, ścieżka CV bez
+// tenanta): 24 ZABITE, jeden przeżył — i to nie luka testu, a mutant
+// RÓWNOWAŻNY. Usunięcie bramki `if (typeof field !== "string") continue`
+// (`applicationSchema.ts:149`) niczego nie zmienia, bo błąd bez ścieżki ma
+// `path[0] === undefined`, więc linia niżej (`CAREER_FORM_FIELDS.includes`)
+// odsiewa go tak samo; ta bramka jest obroną w głąb (jawny `continue` zamiast
+// rzutowania `undefined` na `CareerFieldName`), a nie jedynym filtrem. Jest
+// WYKONYWANA i jej skutek jest zaasertowany („wejście spoza kształtu obiektu…"),
+// ale żaden test w tej warstwie nie odróżni jej od jej braku.
+//
+// Pięć dalszych mutacji (w czterech miejscach) PRZEŻYŁO wersję z poprzedniego
+// kroku i to były prawdziwe dziury; wszystkie są tu naprawione — te same
+// mutacje po poprawce giną, co jest jedynym sprawdzalnym dowodem, że dołożone
+// asercje coś mierzą, a nie tylko wydłużają plik:
+//  * `sectionState` był dowodzony na JEDNYM kluczu („hero") i tylko po polsku,
+//    więc regresja „brak wiersza znaczy ukryj" wprowadzona dla pozostałych
+//    sześciu sekcji albo dla `lang === "en"` przechodziła — nazwa przypadku
+//    obiecywała „dla każdej sekcji". Dziś biegnie pętla po `CAREER_SECTION_KEYS`
+//    w obu językach, więc usunięcie klucza z enuma też oblewa.
+//  * Dowód „pola CV normalizują się do pustych napisów" mierzył FIXTURE, nie
+//    regułę: `KANDYDATKA` ma `message: ""`, więc asercja `value.message === ""`
+//    przechodziła również po zdjęciu `.default("")` z tego pola. Dziś `message`
+//    jest USUNIĘTE z wejścia (i to jest zaasertowane), więc asercja mierzy
+//    domyślną wartość schematu.
+//  * Nikt nie przybijał, że schemat NIE normalizuje linku do CV — wstawienie
+//    `transform` doklejającego `https://` do payloadu przechodziło bez oblania,
+//    choć rozbiłoby zgodność z `normalizeCvUrl` w panelu.
+//  * `contentType` był dowodzony wyłącznie dla `application/pdf`, więc mutacja
+//    wysyłająca `application/octet-stream` dla `.doc`/`.docx` przechodziła.
+// Poza tym: usunięte `async` z przypadku bez `await` i „WŁASNE rozszerzenie"
+// z nazwy przypadku jest dziś liczone na ZMIERZONYCH ścieżkach (rozłączność
+// zbioru), a nie tylko na literale w teście.
 //
 // POMIAR PO TYM PLIKU (sześć modułów tej paczki, zakres pomiaru
 // `src/lib/careers/**`, uruchomiony cały katalog `src/lib/careers/__tests__` -
