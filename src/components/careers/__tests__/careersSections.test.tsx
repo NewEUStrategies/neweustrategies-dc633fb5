@@ -171,8 +171,9 @@
 // słownika produktu; nie ma tu nazwisk, adresów e-mail ani danych kandydatów
 // (formularz aplikacyjny i retencja CV mają własne pliki).
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FormEvent } from "react";
 import { act, cleanup, render, screen, fireEvent, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   Outlet,
   RouterProvider,
@@ -209,6 +210,12 @@ const KLUCZE_KROKOW = ["apply", "screening", "task", "decision"] as const;
 /**
  * WSZYSTKIE klucze słownika, na których stoją asercje tego pliku - do
  * strażnika „wartość NIE JEST kluczem" niżej.
+ *
+ * REWIZJA: pierwsza wersja tej listy pomijała cztery klucze `…duration`,
+ * mimo że asercje tego pliku na nich stoją (czas trwania kroku jest
+ * asertowany w „cztery kroki stoją w kolejności…"), a nazwa testu-strażnika
+ * obiecywała „KAŻDY klucz użyty w asercjach". Cztery klucze mogły więc
+ * wypaść ze słownika i strażnik nadal świeciłby na zielono.
  */
 const KLUCZE_SLOWNIKA = [
   "careers.process.title",
@@ -219,6 +226,7 @@ const KLUCZE_SLOWNIKA = [
   "careers.closing.secondary",
   ...KLUCZE_KROKOW.map((k) => `careers.process.items.${k}.title`),
   ...KLUCZE_KROKOW.map((k) => `careers.process.items.${k}.body`),
+  ...KLUCZE_KROKOW.map((k) => `careers.process.items.${k}.duration`),
 ] as const;
 
 /** Numeracja, jaką ma zobaczyć kandydat (dwie cyfry, licząc od jedynki). */
@@ -228,6 +236,9 @@ const OPOZNIENIA_KROKOW = ["0ms", "70ms", "140ms", "210ms"] as const;
 /** Adres CMS, do którego prowadzi drugie CTA domknięcia (`to="/$"` + splat). */
 const ADRES_KONTAKTU = "/kontakt";
 const ADRES_KARIERY = "/zatrudniamy";
+/** Etykiety pomocniczego formularza z dowodu ZNALEZISKA 2 (patrz `wForm`). */
+const ETYKIETA_FORMULARZA = "formularz opakowujący z dowodu ZNALEZISKA 2";
+const ETYKIETA_KONTROLI = "kontrola z type=button";
 
 /** Poziomy nagłówków w kolejności DOM — do dowodu hierarchii. */
 function poziomyNaglowkow(zakres: Element): number[] {
@@ -259,6 +270,27 @@ function klientZSekcjami(rows: CareerSectionRow[]): QueryClient {
   return queryClient;
 }
 
+/** Liczba obserwatorów zaseedowanego zapytania sekcji w danym kliencie. */
+function liczbaObserwatorow(queryClient: QueryClient): number {
+  const zapytanie = queryClient
+    .getQueryCache()
+    .find({ queryKey: careerSectionsQueryOptions().queryKey });
+  // Zapytanie MUSI istnieć — inaczej „zero obserwatorów" byłoby zerem
+  // z powodu literówki w kluczu, a nie z powodu braku subskrypcji.
+  expect(zapytanie, "zaseedowane zapytanie sekcji nie istnieje w tym kliencie").toBeDefined();
+  return zapytanie!.getObserversCount();
+}
+
+/**
+ * KONTROLA DODATNIA dla `liczbaObserwatorow`: komponent, który ten sam widok
+ * JAWNIE subskrybuje. Bez niego „zero obserwatorów" byłoby nie do odróżnienia
+ * od „pomiar nie działa".
+ */
+function SondaSubskrypcji() {
+  const { data } = useQuery(careerSectionsQueryOptions());
+  return <output data-testid="sonda-subskrypcji">{data?.length ?? -1}</output>;
+}
+
 /**
  * Proces renderowany NAGO — bez routera i bez `QueryClientProvider`.
  * To nie oszczędność: `useQuery` bez providera rzuca („No QueryClient set"),
@@ -276,6 +308,12 @@ interface OpcjeMontazu {
   co?: "domkniecie" | "oba";
   /** Zaseedowane wiersze sekcji (dowód ZNALEZISKA 1). */
   queryClient?: QueryClient;
+  /**
+   * Owija domknięcie w `<form>` — układ, którego dziś na `/zatrudniamy` NIE
+   * MA i który budzi ZNALEZISKO 2 (przycisk bez `type` staje się `submit`).
+   * Służy dowodowi SKUTKU defektu, nie dowodowi obecnego układu strony.
+   */
+  wForm?: boolean;
 }
 
 /**
@@ -284,16 +322,31 @@ interface OpcjeMontazu {
  */
 async function zamontujWRouterze(opcje: OpcjeMontazu = {}) {
   const onOpenApplication = vi.fn();
+  const onSubmit = vi.fn((zdarzenie: FormEvent) => zdarzenie.preventDefault());
   const root = createRootRoute({ component: () => <Outlet /> });
   const kariera = createRoute({
     getParentRoute: () => root,
     path: ADRES_KARIERY,
-    component: () => (
-      <>
-        {opcje.co === "oba" ? <CareersProcess /> : null}
-        <CareersClosing onOpenApplication={onOpenApplication} />
-      </>
-    ),
+    component: () => {
+      const domkniecie = <CareersClosing onOpenApplication={onOpenApplication} />;
+      return (
+        <>
+          {opcje.co === "oba" ? <CareersProcess /> : null}
+          {opcje.wForm ? (
+            <form onSubmit={onSubmit} aria-label={ETYKIETA_FORMULARZA}>
+              {domkniecie}
+              {/* Kontrola dodatnia dla pomiaru: przycisk Z `type="button"`
+                  w TYM SAMYM formularzu. Jeśli on nie submituje, a CTA
+                  submituje, to mierzymy brak `type`, a nie „każdy klik
+                  w formularzu wysyła". */}
+              <button type="button">{ETYKIETA_KONTROLI}</button>
+            </form>
+          ) : (
+            domkniecie
+          )}
+        </>
+      );
+    },
   });
   // Zaślepka strony CMS: przedmiotem dowodu jest PRZEJŚCIE, nie cel.
   const cms = createRoute({
@@ -322,6 +375,7 @@ async function zamontujWRouterze(opcje: OpcjeMontazu = {}) {
   return {
     ...widok,
     onOpenApplication,
+    onSubmit,
     sciezka: () => router.state.location.pathname,
   };
 }
@@ -347,7 +401,10 @@ describe("słownik kariery jest ZAREJESTROWANY - strażnik samospełniających s
    * różnić się od swojego klucza i nie może być pusta.
    */
   it("każdy klucz użyty w asercjach rozwiązuje się do napisu INNEGO niż on sam", () => {
-    const t = realT("pl");
+    // Strażnik jest wart tyle, ile kompletna jest lista, której pilnuje —
+    // dlatego najpierw pomiar samej listy: sześć kluczy sekcji plus trzy
+    // pola na każdy z czterech kroków (title/body/duration).
+    expect(KLUCZE_SLOWNIKA).toHaveLength(6 + 3 * KLUCZE_KROKOW.length);
     for (const klucz of KLUCZE_SLOWNIKA) {
       const wartosc = t(klucz);
       expect(wartosc, `klucz ${klucz} nie ma wartości w słowniku`).not.toBe(klucz);
@@ -359,7 +416,6 @@ describe("słownik kariery jest ZAREJESTROWANY - strażnik samospełniających s
     // Bez tej kontroli dowód wyżej mógłby przechodzić dlatego, że `realT`
     // zwraca cokolwiek innego niż klucz (np. pusty napis albo `undefined`),
     // a nie dlatego, że słownik jest zarejestrowany.
-    const t = realT("pl");
     expect(t("careers.klucz.ktorego.nie.ma")).toBe("careers.klucz.ktorego.nie.ma");
   });
 });
@@ -447,14 +503,22 @@ describe("CareersProcess: kroki procesu w kolejności", () => {
     zamontujProces();
 
     const lista = screen.getByRole("list");
-    const os = Array.from(lista.children).find((el) => el.tagName === "SPAN");
-    expect(os).toBeDefined();
+    // REWIZJA: było `find(… === "SPAN")` + `toBeDefined()` i dalej `os?.…`.
+    // Ta para jest ślepa dokładnie tam, gdzie ma widzieć: gdyby oś czasu
+    // przestała być `<span>`, `find` oddawał `undefined`, a `os?.textContent`
+    // dawało `undefined`, więc jedyną asercją, która by zgasła, była ta
+    // trywialna. Bierzemy więc JEDYNE dziecko listy niebędące `<li>` (jego
+    // liczebność pilnuje test wyżej) i pytamy o nie bez `?.`.
+    const [os] = Array.from(lista.children).filter((el) => el.tagName !== "LI");
+    expect(os.tagName).toBe("SPAN");
     expect(os).toHaveAttribute("aria-hidden", "true");
     // Pusta tekstowo i wyjęta ze zdarzeń: linia rysuje relację między kartami,
     // ale nie może wejść do drzewa dostępności ani przechwycić kliknięcia
     // w kartę, nad którą leży (`absolute`).
-    expect(os?.textContent).toBe("");
-    expect(os?.className).toContain("pointer-events-none");
+    expect(os.textContent).toBe("");
+    expect(os.className).toContain("pointer-events-none");
+    // Skutek na drzewie dostępności: oś nie dokłada listie piątego elementu.
+    expect(screen.getAllByRole("listitem")).toHaveLength(KLUCZE_KROKOW.length);
   });
 
   it("stagger odsłaniania rośnie z POZYCJĄ kroku (0/70/140/210 ms)", () => {
@@ -476,9 +540,24 @@ describe("CareersProcess: kroki procesu w kolejności", () => {
     const opakowania = Array.from(container.querySelectorAll("li > .crs-reveal"));
     expect(opakowania).toHaveLength(KLUCZE_KROKOW.length);
     for (const el of opakowania) {
+      expect(el.className).toContain("crs-reveal");
       expect(el.className).not.toContain("crs-reveal--in");
+      // Ukrywa wyłącznie reguła CSS. Gdyby atom sięgnął po `hidden`,
+      // `aria-hidden` albo `display:none` w stylu inline, treść zniknęłaby
+      // z DOM-u także dla crawlera i czytelnika bez JS.
+      expect(el).not.toHaveAttribute("hidden");
+      expect(el).not.toHaveAttribute("aria-hidden");
+      expect((el as HTMLElement).style.display).toBe("");
     }
-    expect(screen.getByText(t("careers.process.items.apply.body"))).toBeInTheDocument();
+    // REWIZJA: nazwa mówi „treść krokÓW", a dowodem był JEDEN napis („apply").
+    // Trzy z czterech kroków mogły więc wejść w DOM puste. Teraz pytamy o cały
+    // ładunek każdej karty przed odsłonięciem.
+    KLUCZE_KROKOW.forEach((klucz, index) => {
+      const opakowanie = opakowania[index];
+      for (const pole of ["title", "body", "duration"] as const) {
+        expect(opakowanie).toHaveTextContent(t(`careers.process.items.${klucz}.${pole}`));
+      }
+    });
   });
 
   it("ikony są dekoracją, a każdy krok ma SWOJĄ ikonę", () => {
@@ -611,7 +690,7 @@ describe("CareersClosing: domknięcie strony i jego wyjścia", () => {
   });
 
   it("w sekcji są DOKŁADNIE dwa wyjścia: jeden przycisk i jeden odnośnik", async () => {
-    const { container } = await zamontujWRouterze();
+    await zamontujWRouterze();
 
     const sekcja = screen.getByRole("region", { name: t("careers.closing.title") });
     expect(sekcja.querySelectorAll("button")).toHaveLength(1);
@@ -620,31 +699,103 @@ describe("CareersClosing: domknięcie strony i jego wyjścia", () => {
     // bo oba noszą klasy `Button`. Tu jest widoczna.
     expect(screen.getByRole("button").textContent).toContain(t("careers.closing.cta"));
     expect(screen.getByRole("link").textContent).toContain(t("careers.closing.secondary"));
-    expect(container.querySelectorAll("form")).toHaveLength(0);
   });
 
-  it("ZNALEZISKO 2: pierwsze CTA nie ma atrybutu type (domyślnie submit)", async () => {
-    await zamontujWRouterze();
+  it("PRZYCISK stoi PRZED odnośnikiem - czyli akcja główna jest pierwsza w kolejności czytania i tabulacji", async () => {
+    const { container } = await zamontujWRouterze();
+
+    // ZNALEZIONE REWIZJĄ ADWERSARYJNĄ (mutant, który przeżył cały plik):
+    // przestawienie dwóch bloków `Button` w `CareersClosing.tsx` zostawia
+    // dokładnie jeden przycisk i dokładnie jeden odnośnik z niezmienionymi
+    // etykietami, więc każda ówczesna asercja tej sekcji przechodziła — a dla
+    // kandydata zmienia się to, co dostaje pierwsze: „Napisz do nas" zamiast
+    // „Aplikuj spontanicznie". Nagłówek mówił „PIERWSZE CTA" i „DRUGIE CTA",
+    // a numeracja nie miała dowodu. Ma go tutaj.
+    const wyjscia = Array.from(container.querySelectorAll("button, a"));
+    expect(wyjscia.map((el) => el.tagName)).toEqual(["BUTTON", "A"]);
+    expect(wyjscia.map((el) => el.textContent?.trim())).toEqual([
+      t("careers.closing.cta"),
+      t("careers.closing.secondary"),
+    ]);
+    // Kolejność DOM = kolejność tabulacji (żaden z elementów nie przestawia
+    // się `tabindex`-em, a `flex-row` nie odwraca kierunku).
+    for (const el of wyjscia) {
+      expect(el).not.toHaveAttribute("tabindex");
+    }
+    expect(
+      wyjscia[0].compareDocumentPosition(wyjscia[1]) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeGreaterThan(0);
+  });
+
+  it("ZNALEZISKO 2: pierwsze CTA nie ma atrybutu type, a defekt jest UŚPIONY brakiem <form> nad nim", async () => {
+    const { container } = await zamontujWRouterze();
 
     const cta = screen.getByRole("button", { name: t("careers.closing.cta") });
     // Stan ISTNIEJĄCY, przypięty świadomie: autorytet jest w
     // `src/components/ui/button.tsx`, które nie ustawia domyślnego `type`.
-    // Na `/zatrudniamy` defekt jest uśpiony, bo domknięcie jest RODZEŃSTWEM
-    // formularza aplikacyjnego - brak `<form>` nad przyciskiem sprawdzony
-    // w teście wyżej. Naprawa w `Button` oblewa tę asercję, i tak ma być.
     expect(cta).not.toHaveAttribute("type");
+    // Druga połowa znaleziska — „uśpiony" — jest tu MIERZONA, a nie tylko
+    // opowiedziana w komentarzu: nad przyciskiem nie ma ŻADNEGO przodka
+    // `<form>`, więc domyślny `type="submit"` nie ma czego wysłać.
+    // (`closest` pyta o łańcuch przodków; `querySelectorAll` niżej pilnuje,
+    // że formularza nie ma w tej sekcji w ogóle.)
+    expect(cta.closest("form")).toBeNull();
+    expect(container.querySelectorAll("form")).toHaveLength(0);
+  });
+
+  it("ZNALEZISKO 2: to samo CTA W FORMULARZU WYSYŁA go klikiem - defekt budzi się układem", async () => {
+    // REWIZJA: dowodem znaleziska był SAM BRAK ATRYBUTU, czyli kształt.
+    // Skutek („zacznie SUBMITOWAĆ") był tylko opowiedziany w nagłówku, a to
+    // jego opowiedzenie jest tu przedmiotem pomiaru: ten sam komponent,
+    // ta sama ścieżka kliknięcia, jedyna różnica to `<form>` nad sekcją.
+    const { onSubmit, onOpenApplication } = await zamontujWRouterze({ wForm: true });
+
+    const cta = screen.getByRole("button", { name: t("careers.closing.cta") });
+    // Przesłanka układu: CTA MA nad sobą przodka `<form>` (happy-dom oddaje
+    // z `closest` inny obiekt-owijkę niż `getByRole`, więc porównujemy
+    // TOŻSAMOŚĆ przez etykietę, nie przez `Object.is`).
+    const formularz = cta.closest("form");
+    expect(formularz).not.toBeNull();
+    expect(formularz).toHaveAttribute("aria-label", ETYKIETA_FORMULARZA);
+    expect(screen.getByRole("form", { name: ETYKIETA_FORMULARZA })).toBeInTheDocument();
+
+    // KONTROLA DODATNIA (najpierw, żeby jej wynik nie zależał od kolejności):
+    // przycisk z `type="button"` w tym samym formularzu NIE wysyła. Bez niej
+    // asercja niżej mogłaby przechodzić dlatego, że happy-dom wysyła
+    // formularz na każdy klik w jego wnętrzu.
+    fireEvent.click(screen.getByRole("button", { name: ETYKIETA_KONTROLI }));
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(cta);
+    // SKUTEK: jedno kliknięcie w „Aplikuj spontanicznie" wysyła formularz,
+    // którego kandydat nie zamierzał wysłać. Ustawienie `type="button"`
+    // w `Button` (albo w tym CTA) oblewa tę asercję - i tak ma być, bo to
+    // będzie oznaczało naprawę.
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    // Intencja aplikowania idzie do trasy NIEZALEŻNIE od submitu: to dwa
+    // różne skutki jednego kliknięcia, i oba trzeba widzieć.
+    expect(onOpenApplication).toHaveBeenCalledTimes(1);
   });
 
   it("tło sekcji jest dekoracją: aria-hidden, puste i nieklikalne", async () => {
     const { container } = await zamontujWRouterze();
 
-    const tlo = container.querySelector("section > span[aria-hidden]");
-    expect(tlo).not.toBeNull();
-    expect(tlo?.textContent).toBe("");
+    // REWIZJA: `aria-hidden` było wcześniej WYŁĄCZNIE w selektorze, a dalej
+    // szło `tlo?.…` — czyli zdjęcie atrybutu gasiło jedną asercję
+    // (`not.toBeNull`) i cicho przepuszczało trzy pozostałe. Selektor bierze
+    // więc teraz sam kształt (pierwszy `<span>` sekcji), a atrybut jest
+    // PRZEDMIOTEM asercji.
+    const sekcja = screen.getByRole("region", { name: t("careers.closing.title") });
+    const [tlo] = Array.from(sekcja.children).filter((el) => el.tagName === "SPAN");
+    expect(tlo).toHaveAttribute("aria-hidden", "true");
+    expect(tlo.textContent).toBe("");
     // `-z-10` + `pointer-events-none`: gradient leży pod treścią i nie
     // przechwytuje kliknięcia w CTA.
-    expect(tlo?.className).toContain("pointer-events-none");
-    expect(tlo?.className).toContain("-z-10");
+    expect(tlo.className).toContain("pointer-events-none");
+    expect(tlo.className).toContain("-z-10");
+    // Skutek: dekoracja nie wnosi do sekcji żadnego tekstu ani celu kliknięcia
+    // — cała mierzalna treść sekcji to nagłówek, akapit i dwa wyjścia.
+    expect(container.querySelectorAll("section > span[aria-hidden]")).toHaveLength(1);
   });
 
   it("ikona strzałki w CTA jest dekoracją - nazwa przycisku to sam tekst", async () => {
@@ -737,16 +888,59 @@ describe("warstwa treści: te sekcje jej NIE czytają (ZNALEZISKO 1)", () => {
     expect(CAREER_SECTION_KEYS).toContain("closing");
   });
 
-  it("proces renderuje się BEZ QueryClientProvider - czyli nie subskrybuje sekcji", () => {
-    // `useQuery` bez providera rzuca („No QueryClient set..."), więc udany
-    // render jest pomiarem braku subskrypcji, a nie wygodą testu.
-    expect(() => zamontujProces()).not.toThrow();
+  it("proces renderuje PEŁNĄ treść bez QueryClientProvider", () => {
+    // REWIZJA: dowodem był `expect(() => zamontujProces()).not.toThrow()`,
+    // czyli sam brak wyjątku. To za mało: komponent mógłby przy braku
+    // providera zjeść błąd i wyrenderować pusty szkielet, a test świeciłby
+    // na zielono. `useQuery` bez providera RZUCA („No QueryClient set..."),
+    // więc udany render jest przesłanką — ale dowodem jest CAŁA treść.
+    zamontujProces();
+
     expect(screen.getByRole("region", { name: t("careers.process.title") })).toBeInTheDocument();
+    const kroki = screen.getAllByRole("listitem");
+    expect(kroki).toHaveLength(KLUCZE_KROKOW.length);
+    KLUCZE_KROKOW.forEach((klucz, index) => {
+      expect(kroki[index]).toHaveTextContent(t(`careers.process.items.${klucz}.title`));
+    });
   });
 
-  it("domknięcie renderuje się BEZ QueryClientProvider", async () => {
-    await zamontujWRouterze();
+  it("domknięcie renderuje PEŁNĄ treść i działające CTA bez QueryClientProvider", async () => {
+    const { onOpenApplication } = await zamontujWRouterze();
+
     expect(screen.getByRole("region", { name: t("careers.closing.title") })).toBeInTheDocument();
+    expect(screen.getByText(t("careers.closing.body"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("careers.closing.cta") }));
+    expect(onOpenApplication).toHaveBeenCalledTimes(1);
+  });
+
+  it("żadna z sekcji NIE subskrybuje widoku sekcji - zero obserwatorów zapytania", async () => {
+    // REWIZJA: „nie czyta warstwy treści" było dowodzone wyłącznie NEGATYWNIE
+    // (nadpisany nagłówek się nie pokazał). Taki dowód przechodzi też wtedy,
+    // gdy sekcja czyta INNY klucz albo gdy seed w ogóle nie trafił do cache.
+    // Tu pomiar jest wprost: ilu obserwatorów ma zaseedowane zapytanie.
+    const queryClient = klientZSekcjami([wierszSekcji("process"), wierszSekcji("closing")]);
+    expect(liczbaObserwatorow(queryClient)).toBe(0);
+
+    zamontujProces(queryClient);
+    expect(liczbaObserwatorow(queryClient)).toBe(0);
+    cleanup();
+
+    await zamontujWRouterze({ queryClient });
+    expect(liczbaObserwatorow(queryClient)).toBe(0);
+    cleanup();
+
+    // KONTROLA DODATNIA: komponent, który subskrybuje, podnosi licznik do
+    // jedynki i WIDZI zaseedowane wiersze. Bez tego akapitu wszystkie zera
+    // wyżej mogłyby być zerami zepsutego pomiaru.
+    await act(async () => {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <SondaSubskrypcji />
+        </QueryClientProvider>,
+      );
+    });
+    expect(liczbaObserwatorow(queryClient)).toBe(1);
+    expect(screen.getByTestId("sonda-subskrypcji")).toHaveTextContent("2");
   });
 
   it("nadpisanie nagłówka z panelu NIE wychodzi na stronę (stan istniejący)", async () => {

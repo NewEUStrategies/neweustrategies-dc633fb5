@@ -9,12 +9,20 @@
 // czyli cała droga kandydata od „Pełna oferta" do „Aplikuj na tę rolę".
 //
 // Zera nie da się załatać testem listy ról: `careersRoles.test.tsx` PODMIENIA
-// `@/components/ui/dialog` na przezroczyste opakowania (i słusznie - dowodzi
-// tam czego INNEGO: że karta oddaje w górę właściwy slug), więc pod tą atrapą
-// nie istnieje ani portal, ani pułapka fokusu, ani Escape. Nagłówek tamtego
-// pliku sam odsyła tutaj („dowód samego `CareerRoleDialog` (...) należałby do
-// osobnego pliku `careerRoleDialog.test.tsx`, którego dziś nie ma"). Ten plik
-// go zamyka i dlatego NIE atrapuje Radiksa.
+// `@/components/ui/dialog` na przezroczyste opakowania (`vi.mock` stoi tam do
+// dziś) i słusznie - dowodzi czego INNEGO: że karta oddaje w górę właściwy
+// slug. Pod tą atrapą nie istnieje ani portal, ani pułapka fokusu, ani Escape,
+// a jej sekcja „poza zakresem" odsyła dowód samego okna tutaj. Ten plik go
+// zamyka i dlatego NIE atrapuje Radiksa.
+//
+// SPROSTOWANIE CYTATU (rewizja). Pierwsza wersja tego akapitu cytowała zdanie
+// sąsiada, że plik `careerRoleDialog.test.tsx` „dziś nie ma" - i podawała ten
+// cytat jako powód swojego istnienia. Zdanie już tam nie stoi: `careersRoles`
+// został zrewidowany i sam odnotowuje, że ten dowód „ma już swój plik".
+// Cytat z pliku, który zmienia się w tej samej kampanii, starzeje się w tydzień
+// - dlatego powód istnienia stoi teraz na zmierzonych zerach pokrycia
+// i na `vi.mock("@/components/ui/dialog")`, czyli na faktach, które da się
+// sprawdzić bez wiary w cudzy nagłówek.
 //
 // Bez tego pliku przechodzą bez śladu m.in.:
 //   * zdjęcie bariery `if (!role) return null` - trasa trzyma
@@ -34,9 +42,10 @@
 //     wskazywałoby wtedy w pustkę albo zniknęłoby razem z ostrzeżeniem Radiksa,
 //   * zaszycie faset po polsku (dział / lokalizacja / tryb / poziom) - strona
 //     jest dwujęzyczna, a chipy idą przez `t()`,
-//   * zdjęcie `aria-hidden` z ikon chipsów lub z kropki punktora - czytnik
-//     ekranu czytałby wtedy „map pin Warszawa" i pustą kropkę przed każdym
-//     punktem oferty,
+//   * zdjęcie `aria-hidden` z KROPKI PUNKTORA (zwykły `<span>`) - czytnik
+//     ekranu ogłaszałby pusty element przed każdym punktem oferty; uwaga:
+//     analogiczne zdjęcie propa z IKON chipsów jest niemierzalne, bo lucide
+//     ukrywa je samo - patrz ZNALEZISKO 3,
 //   * `OfferList`, które przy pustej tablicy gubi cały nagłówek sekcji (albo
 //     wywala się na `items.map`) - a pusta tablica to normalny stan wiersza
 //     z panelu, bo `career_roles.responsibilities_*` nie ma tam bramki
@@ -56,13 +65,17 @@
 //     to cztery luźne napisy).
 //  3. NAGŁÓWEK. Nadtytuł = dział ze słownika, PRZED tytułem oferty; cztery
 //     meta-chipy w kolejności lokalizacja -> tryb -> poziom -> dział, każdy
-//     z etykietą ze SŁOWNIKA i ikoną wyjętą z drzewa dostępności.
+//     z etykietą ze SŁOWNIKA i z ikoną, która nie wnosi do tej etykiety ani
+//     znaku (dowód stoi na TEKŚCIE chipu, nie na atrybucie ikony -
+//     ZNALEZISKO 3).
 //  4. TREŚĆ. Trzy sekcje w stałej kolejności (O roli -> Zakres obowiązków ->
 //     Wymagania), opis z oferty, punkty jako `<li>` w kolejności podanej
 //     przez ofertę, w SWOICH listach; kropka punktora `aria-hidden`.
 //  5. PUSTA LISTA. Oferta bez obowiązków zachowuje nagłówek sekcji i pustą
 //     listę, a druga sekcja nadal ma punkty; oferta bez OBU list nadal
-//     pokazuje opis roli i oba nagłówki.
+//     pokazuje opis roli i oba nagłówki. Nagłówki i listy czytane są PRZEZ
+//     ROLĘ, czyli z drzewa dostępności: sekcja obecna w DOM, ale schowana
+//     (`hidden`, `display:none`) tych asercji NIE przechodzi.
 //  6. DROGA DO FORMULARZA. „Aplikuj na tę rolę" robi DWIE rzeczy w JEDNEJ
 //     kolejności: najpierw melduje zamknięcie, potem oddaje IDENTYFIKATOR
 //     (slug, nie tytuł) - asercja stoi na wspólnym dzienniku wywołań.
@@ -121,6 +134,61 @@
 //   w primitywie współdzielonym przez cały panel i całą stronę, nie w tym
 //   komponencie, więc test „ZNALEZISKO 2" asertuje stan istniejący (nazwa
 //   „Close" niezależna od języka i18n) i nazywa właściciela.
+//
+// ZNALEZISKO 3 - `aria-hidden` na ikonach jest NIEMIERZALNE w tej warstwie
+//   (ustalone rewizją, nie przez lekturę komponentu). `MetaChip` podaje
+//   `<Icon ... aria-hidden />`, ale `lucide-react` dokłada
+//   `aria-hidden="true"` KAŻDEJ ikonie, która nie ma dzieci ani żadnego propa
+//   `aria-*` / `role` / `title`
+//   (`node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.js`
+//   oraz `Icon.js`). Skutek: usunięcie propa z `MetaChip` albo z `ArrowRight`
+//   NIE ZMIENIA renderu i żaden test tej warstwy tego nie wykryje - asercja
+//   na samym atrybucie mierzyłaby wtedy domyślną decyzję biblioteki, nie
+//   decyzję komponentu. Oba przypadki („ikony chipsów...", „nazwą dostępną
+//   CTA...") stoją więc na SKUTKU: tekst chipu i nazwa przycisku muszą być
+//   DOKŁADNIE napisem ze słownika. Zmierzone: podanie ikonie `aria-label`
+//   (realna regresja, po której lucide przestaje ją ukrywać) oblewa oba
+//   przypadki. Prop w komponencie jest zatem redundantny, ale poprawny -
+//   jego usunięcie to zmiana kodu produkcyjnego, poza zakresem tego pliku.
+//
+// ---------------------------------------------------------------------------
+// PROTOKÓŁ REWIZJI ADWERSARYJNEJ (co zostało PODWAŻONE pomiarem)
+// ---------------------------------------------------------------------------
+// Pokrycie 9/9 linii i 6/6 funkcji nie dowodzi, że test coś wykrywa - dowodzi
+// tylko, że kod się wykonał. Dlatego ten plik przejechano baterią 22 RÓŻNYCH
+// mutacji `CareerRoleDialog.tsx` (źródło przywrócone bit w bit, sprawdzone
+// `diff` i `git status`). 18 z nich oblewało właściwe przypadki od razu - m.in.
+// odwrócenie kolejności `onOpenChange`/`onApply`, `onApply(role.title)`,
+// CTA bez `onOpenChange`, zamiana list obowiązków i wymagań, zaszycie fasety
+// po polsku, `onOpenChange(true)` w „Zamknij", zdjęcie `DialogDescription`,
+// zdjęcie nadtytułu, h3 -> span, przestawienie chipsów, odwrócenie kolejności
+// stopki, pełne usunięcie bariery `!role`, `aria-label` na ikonie chipu i na
+// strzałce CTA, `<ul>` z nie-listowym dzieckiem (to złapał WYŁĄCZNIE axe -
+// dowód, że te dwa przypadki nie są ozdobą) i `aria-labelledby` wskazujące
+// w pustkę. CZTERY mutacje PRZESZŁY BEZ WYKRYCIA i to one wskazały prawdziwe
+// dziury w dowodach:
+//   * M03c `if (!role) return <div />` - przypadek obiecywał „nie renderuje
+//     NICZEGO", a dowodził jedynie braku TEKSTU; puste opakowanie przechodziło.
+//     Dziś asercja stoi na `container.childNodes` i `innerHTML`, więc mierzy
+//     to, co nazwa obiecuje: zwrot `null`. (Pełne usunięcie bariery, M03b,
+//     przypadek łapał od początku.)
+//   * M15b/M15c `<section hidden>` i `<ul hidden>` przy pustej liście -
+//     dowód „nagłówek sekcji zostaje" stał na `getByText` i `querySelector`,
+//     czyli na obecności węzła w DOM. Sekcja schowana przed użytkownikiem
+//     i przed czytnikiem ekranu przechodziła oba. Dziś nagłówki i listy
+//     czytane są przez role (`heading` / `list`), które pomijają poddrzewa
+//     niedostępne.
+//   * M04 zdjęcie `aria-hidden` z ikony chipu - niemierzalne z winy biblioteki,
+//     nie testu; rozpisane w ZNALEZISKU 3, a przypadki przestawione na skutek.
+// Po poprawkach łapane jest 21 z 22 mutacji. Jedyna ocalała to M04, czyli
+// mutacja RÓWNOWAŻNA: lucide renderuje `aria-hidden="true"` tak samo z propem
+// i bez niego, więc nie istnieje test tej warstwy, który by ją odróżnił -
+// i dlatego nie udaje się tu dowodu, którego nie ma.
+// Poza tym rewizja domknęła: sondę `console.error` (przywracana w `afterEach`,
+// nie na szczęśliwej ścieżce), „dokładnie raz" przy Escape (dziennik po
+// uspokojeniu kolejki, bo `waitFor` przechodzi w chwili sięgnięcia jedynki),
+// dowód ZNALEZISKA 2 w OBU językach (wcześniej nazwa obiecywała „w każdym
+// języku", a ciało jechało tylko po polsku) oraz nieaktualny cytat z sąsiada.
 //
 // ---------------------------------------------------------------------------
 // ŚWIADOMIE POZA ZAKRESEM
@@ -225,16 +293,33 @@ function okno(): HTMLElement {
   return screen.getByRole("dialog");
 }
 
-/** Pasek meta-chipsów: ostatnie dziecko nagłówka okna. */
-function chipy(): string[] {
-  const naglowek = okno().firstElementChild as HTMLElement;
-  const pasek = naglowek.lastElementChild as HTMLElement;
-  return Array.from(pasek.children).map((chip) => chip.textContent ?? "");
+/** Nagłówek okna (`DialogHeader`) - pierwszy blok treści. */
+function naglowekOkna(): HTMLElement {
+  return okno().firstElementChild as HTMLElement;
 }
 
-/** Sekcja treści po jej nagłówku - punkty czytamy TYLKO z niej. */
+/** Pasek meta-chipsów: ostatnie dziecko nagłówka okna. */
+function pasekChipsow(): HTMLElement {
+  return naglowekOkna().lastElementChild as HTMLElement;
+}
+
+function chipy(): string[] {
+  return Array.from(pasekChipsow().children).map((chip) => chip.textContent ?? "");
+}
+
+/**
+ * Sekcja treści po jej nagłówku - punkty czytamy TYLKO z niej.
+ *
+ * Nagłówek szukany PRZEZ ROLĘ, nie przez `getByText`: zapytania rolowe
+ * pomijają poddrzewa niedostępne (`hidden`, `display:none`), więc sekcja
+ * schowana przed użytkownikiem tu NIE ZOSTANIE znaleziona. `getByText`
+ * znajdował ją nadal - i dlatego przepuszczał mutację „pusta lista chowa
+ * całą sekcję" (M15b w rewizji).
+ */
 function sekcja(naglowek: string): HTMLElement {
-  return within(okno()).getByText(naglowek).closest("section") as HTMLElement;
+  return within(okno())
+    .getByRole("heading", { level: 3, name: naglowek })
+    .closest("section") as HTMLElement;
 }
 
 const pl = realT("pl");
@@ -246,7 +331,14 @@ beforeEach(async () => {
   document.body.innerHTML = "";
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  // Sonda `console.error` z przypadku „ZNALEZISKO 1" MUSI zniknąć także wtedy,
+  // gdy asercja przed nią oblała się w połowie. Bez tego kolejne przypadki
+  // tego pliku biegłyby z wyciszoną konsolą, a ostrzeżenia Reacta przepadałyby
+  // razem z dowodem kolizji kluczy.
+  vi.restoreAllMocks();
+});
 
 // ---------------------------------------------------------------------------
 
@@ -259,7 +351,13 @@ describe("CareerRoleDialog - brama otwarcia", () => {
     const { container } = otworz(null, true);
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(container.textContent).toBe("");
+    // NIE „brak tekstu": komponent oddaje `null`, więc kontener renderu jest
+    // PUSTY. Sama asercja na `textContent` przepuszczała barierę oddającą puste
+    // opakowanie (`if (!role) return <div />`) - zmierzone mutacją M03c
+    // w rewizji. Puste opakowanie nie jest niczym: w drzewie trasy zostaje
+    // węzeł, który łapie style i psuje `:empty`/odstępy siatki kariery.
+    expect(container.childNodes).toHaveLength(0);
+    expect(container.innerHTML).toBe("");
     expect(document.body.textContent).toBe("");
   });
 
@@ -303,7 +401,7 @@ describe("CareerRoleDialog - nagłówek oferty", () => {
   it("nadtytuł to DZIAŁ ze słownika i stoi PRZED tytułem oferty", () => {
     otworz(ANALITYK);
 
-    const naglowek = okno().firstElementChild as HTMLElement;
+    const naglowek = naglowekOkna();
     expect((naglowek.children[0] as HTMLElement).textContent).toBe(
       pl("careers.departments.analysis"),
     );
@@ -335,19 +433,37 @@ describe("CareerRoleDialog - nagłówek oferty", () => {
     expect(okno().textContent).not.toContain(pl("careers.seniority.senior"));
   });
 
-  it("ikona chipu jest WYJĘTA z drzewa dostępności - nazwą chipu jest sam tekst", () => {
-    // Bez `aria-hidden` czytnik ekranu czyta nazwę pliku ikony obok etykiety
-    // („map pin Warszawa"). Każdy chip ma dokładnie jedną ikonę.
+  it("ikony chipsów nie wnoszą tekstu do etykiet - nazwą chipu jest sam napis ze słownika", () => {
+    // ZASTRZEŻENIE POMIARU (dopisane w rewizji, patrz ZNALEZISKO 3 w nagłówku):
+    // `aria-hidden` na ikonie chipu jest gwarantowane DWA razy - raz propem
+    // w `MetaChip`, raz przez samo `lucide-react`, które dokłada
+    // `aria-hidden="true"` każdej ikonie bez dzieci i bez propa
+    // `aria-*`/`role`/`title`. Zdjęcie propa z komponentu NIE ZMIENIA więc
+    // renderu (zmierzone mutacją M04) i żaden test tej warstwy tego nie
+    // wykryje. Ten przypadek pilnuje zatem SKUTKU, który jest własnością
+    // złożenia: ikona nie wnosi ani tekstu, ani własnej nazwy dostępnej, więc
+    // etykietą chipu zostaje sam napis ze słownika. Mutacja, którą oblewa
+    // (M04b): podanie ikonie `aria-label` - wtedy lucide przestaje ją ukrywać
+    // i czytnik czyta etykietę dwa razy.
     otworz(ANALITYK);
 
-    const naglowek = okno().firstElementChild as HTMLElement;
-    const pasek = naglowek.lastElementChild as HTMLElement;
+    const pasek = pasekChipsow();
     const ikony = Array.from(pasek.querySelectorAll("svg"));
     expect(ikony).toHaveLength(4);
-    for (const ikona of ikony) expect(ikona.getAttribute("aria-hidden")).toBe("true");
-    expect(within(pasek).getByText(pl("careers.location.warsaw")).textContent).toBe(
+    for (const ikona of ikony) {
+      expect(ikona.getAttribute("aria-hidden")).toBe("true");
+      expect(ikona.getAttribute("aria-label")).toBeNull();
+      expect(ikona.querySelector("title")).toBeNull();
+      expect(ikona.textContent).toBe("");
+    }
+    // SKUTEK: tekst każdego chipu to DOKŁADNIE etykieta ze słownika - ani
+    // znaku więcej, więc ikona nie przecieka do nazwy.
+    expect(chipy()).toEqual([
       pl("careers.location.warsaw"),
-    );
+      pl("careers.engagement.full_time"),
+      pl("careers.seniority.senior"),
+      pl("careers.departments.analysis"),
+    ]);
   });
 
   it("dział pada w oknie DWA razy - jako nadtytuł i jako chip", () => {
@@ -421,8 +537,11 @@ describe("CareerRoleDialog - treść oferty", () => {
     // zostać (kandydat widzi, czego brakuje), a druga lista - działać.
     otworz({ ...ANALITYK, responsibilities: [] });
 
+    // `sekcja()` szuka nagłówka PRZEZ ROLĘ, a lista przez rolę `list`: obie
+    // asercje mierzą drzewo dostępności, nie samą obecność węzła w DOM.
+    // `querySelector("ul")` przepuszczał `<ul hidden>` (mutacja M15c).
     const obowiazki = sekcja(pl("careers.roles.dialog.responsibilities"));
-    expect(obowiazki.querySelector("ul")).not.toBeNull();
+    expect(within(obowiazki).getByRole("list")).toBeTruthy();
     expect(within(obowiazki).queryAllByRole("listitem")).toHaveLength(0);
 
     const wymagania = sekcja(pl("careers.roles.dialog.requirements"));
@@ -438,8 +557,15 @@ describe("CareerRoleDialog - treść oferty", () => {
 
     const w = within(okno());
     expect(w.getByText(BEZ_PUNKTOW.summary)).toBeTruthy();
-    expect(w.getByText(pl("careers.roles.dialog.responsibilities"))).toBeTruthy();
-    expect(w.getByText(pl("careers.roles.dialog.requirements"))).toBeTruthy();
+    // Nagłówki i listy czytane PRZEZ ROLĘ: sekcja schowana atrybutem `hidden`
+    // wypada z drzewa dostępności i ta asercja ją oblewa (mutacje M15b/M15c).
+    // Wersja na `getByText` + `querySelector` obie przepuszczała.
+    expect(w.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual([
+      pl("careers.roles.dialog.overview"),
+      pl("careers.roles.dialog.responsibilities"),
+      pl("careers.roles.dialog.requirements"),
+    ]);
+    expect(w.getAllByRole("list")).toHaveLength(2);
     expect(w.queryAllByRole("listitem")).toHaveLength(0);
     // Puste okno nie może zamienić się w okno bez wyjścia.
     expect(w.getByRole("button", { name: pl("careers.roles.dialog.close") })).toBeTruthy();
@@ -466,7 +592,8 @@ describe("CareerRoleDialog - treść oferty", () => {
     expect(bledy.mock.calls.map((args) => String(args[0])).join("\n")).toContain(
       "two children with the same key",
     );
-    bledy.mockRestore();
+    // Zdjęcie sondy należy do `afterEach` - tutaj `mockRestore()` wykonałby się
+    // TYLKO przy zielonej asercji, czyli dokładnie wtedy, gdy nie jest potrzebny.
   });
 });
 
@@ -493,8 +620,11 @@ describe("CareerRoleDialog - droga do formularza zgłoszenia", () => {
 
     fireEvent.click(screen.getByRole("button", { name: pl("careers.roles.apply") }));
 
-    expect(onApply).toHaveBeenCalledWith(REDAKTOR.id);
+    // Dziennik wywołań W CAŁOŚCI: jedno wywołanie, jeden argument, ten właściwy.
+    // `toHaveBeenCalledWith` samo przepuściłoby drugie wywołanie z tytułem.
+    expect(onApply.mock.calls).toEqual([[REDAKTOR.id]]);
     expect(onApply).not.toHaveBeenCalledWith(REDAKTOR.title);
+    expect(onApply).not.toHaveBeenCalledWith(pl("careers.departments.editorial"));
   });
 
   it("„Zamknij” melduje zamknięcie i NIE zgłasza aplikacji", () => {
@@ -507,16 +637,23 @@ describe("CareerRoleDialog - droga do formularza zgłoszenia", () => {
   });
 
   it("Escape zamyka okno dokładnie raz i też nie zgłasza aplikacji", async () => {
-    const { onOpenChange, onApply } = otworz(ANALITYK);
+    const { dziennik, onOpenChange, onApply } = otworz(ANALITYK);
 
     fireEvent.keyDown(document, { key: "Escape" });
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledTimes(1));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    // `waitFor` przechodzi w CHWILI, gdy licznik sięgnie jedynki - to jeszcze
+    // nie dowód „dokładnie raz". Dowodem jest dziennik odczytany po uspokojeniu
+    // kolejki: gdyby Radiks meldował zamknięcie drugi raz (np. `onEscapeKeyDown`
+    // plus `onOpenChange`), stałby tu drugi wpis.
+    await act(async () => {
+      await new Promise((gotowe) => setTimeout(gotowe, 0));
+    });
+    expect(dziennik).toEqual([{ handler: "onOpenChange", open: false }]);
     expect(onApply).not.toHaveBeenCalled();
   });
 
-  it("ZNALEZISKO 2: przycisk `×` primitywu zamyka, ale nazywa się „Close” w każdym języku", async () => {
+  it("ZNALEZISKO 2: przycisk `×` primitywu zamyka, ale nazywa się „Close” niezależnie od języka", async () => {
     // Trzecie wyjście dokłada `DialogContent` z `src/components/ui/dialog.tsx`
     // razem z zaszytym `<span className="sr-only">Close</span>`. Na polskiej
     // stronie czytnik ekranu ogłasza więc dwa różne wyjścia: „Zamknij"
@@ -525,27 +662,54 @@ describe("CareerRoleDialog - droga do formularza zgłoszenia", () => {
     // stan istniejący i pilnuje, że przycisk PRZYNAJMNIEJ zamyka.
     const { onOpenChange, onApply } = otworz(ANALITYK);
 
-    const nazwy = within(okno())
-      .getAllByRole("button")
-      .map((b) => b.textContent);
-    expect(nazwy).toEqual([
+    const nazwy = () =>
+      within(okno())
+        .getAllByRole("button")
+        .map((b) => b.textContent);
+    /** `×` primitywu jest OSTATNIM dzieckiem `DialogContent`, po `children`. */
+    const krzyzyk = () => within(okno()).getAllByRole("button").at(-1) as HTMLElement;
+
+    // PL jest przypadkiem ROZSTRZYGAJĄCYM: obok „Zamknij" ze słownika stoi
+    // wyjście podpisane po angielsku.
+    expect(nazwy()).toEqual([
       pl("careers.roles.dialog.close"),
       expect.stringContaining(pl("careers.roles.apply")),
       "Close",
     ]);
+    expect(krzyzyk().textContent).not.toBe(pl("careers.roles.dialog.close"));
 
     fireEvent.click(within(okno()).getByRole("button", { name: "Close" }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(onApply).not.toHaveBeenCalled();
+
+    // EN pokazuje, DLACZEGO defekt nie kłuje w oczy: napis `×` się NIE ZMIENIA,
+    // a napis ze słownika owszem („Zamknij" -> „Close"), więc oba wyjścia
+    // przypadkiem się zgadzają. Stała nazwa przy zmienionym języku to dowód,
+    // że nie przechodzi ona przez i18n.
+    cleanup();
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    otworz(ANALITYK);
+    expect(krzyzyk().textContent).toBe("Close");
+    expect(realT("en")("careers.roles.dialog.close")).toBe("Close");
+    expect(pl("careers.roles.dialog.close")).not.toBe("Close");
   });
 
-  it("ikona strzałki w CTA nie wchodzi do jego nazwy dostępnej", () => {
+  it("nazwą dostępną CTA jest sam napis ze słownika - strzałka nie wnosi tekstu", () => {
+    // To samo zastrzeżenie pomiaru co przy chipsach (ZNALEZISKO 3): `aria-hidden`
+    // na `ArrowRight` dokłada również samo lucide, więc dowodem NIE jest atrybut,
+    // a nazwa przycisku - `getByRole` z napisem dopasowuje ją DOKŁADNIE, więc
+    // każdy znak wniesiony przez ikonę oblałby to zapytanie.
     otworz(ANALITYK);
 
     const cta = screen.getByRole("button", { name: pl("careers.roles.apply") });
     const strzalka = cta.querySelector("svg") as SVGElement;
     expect(strzalka.getAttribute("aria-hidden")).toBe("true");
+    expect(strzalka.getAttribute("aria-label")).toBeNull();
+    expect(strzalka.textContent).toBe("");
+    expect(cta.textContent).toBe(pl("careers.roles.apply"));
   });
 });
 
