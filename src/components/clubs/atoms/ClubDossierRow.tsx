@@ -315,7 +315,6 @@ export function ClubDossierRow({
           </div>
         ) : null}
 
-
         <div
           className={cn(
             "min-w-0",
