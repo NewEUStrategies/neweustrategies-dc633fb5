@@ -20,12 +20,24 @@
 // A obie decyzje tego pliku są dokładnie tym, czego przegląd kodu nie widzi:
 //
 //   * TRZY WYJŚCIA Z DWÓCH BRAMEK. `useCareerOffers` zwraca albo wiersze bazy,
-//     albo PUSTĄ listę (odczyt w drodze), albo wbudowany katalog i18n. Zamiana
-//     kolejności bramek (`isLoading` przed `data`) nie zmienia ani typu, ani
-//     kształtu zwrotki, a daje stronę, na której przy pierwszym malowaniu
-//     miga dwanaście ofert ze słownika, po czym podmieniają się na trzy realne
-//     z bazy. Usunięcie bramki `isLoading` daje to samo migotanie. Bez pomiaru
-//     tej warstwy oba warianty przechodzą jako „porządki w memo".
+//     albo PUSTĄ listę (odczyt w drodze), albo wbudowany katalog i18n.
+//     USUNIĘCIE bramki `isLoading` daje stronę, na której przy pierwszym
+//     malowaniu miga dwanaście ofert ze słownika, po czym podmieniają się na
+//     realne z bazy — bez pomiaru tej warstwy taki diff przechodzi jako
+//     „porządki w memo" (ZMIERZONE mutacją: wariant bez tej bramki oblewa
+//     test „w trakcie pierwszego odczytu…").
+//     Druga, groźniejsza regresja tej samej bramki to podmiana ŹRÓDŁA flagi:
+//     `isFetching` w miejsce `isLoading`. Zwrotka ma ten sam kształt, pierwsze
+//     malowanie jest identyczne, a przy KAŻDYM odświeżeniu w tle (powrót na
+//     kartę, unieważnienie po zapisie w panelu) konsument dostaje sygnał
+//     „wczytuję" nad treścią, która już jest. Dowód wymaga PRAWDZIWEGO okna
+//     „dane są, odczyt trwa" — stąd bramka na odpowiedzi (`holdNextRead`).
+//     CZEGO TU DOWIEŚĆ NIE DA SIĘ (zmierzone, nie założone): KOLEJNOŚCI tych
+//     dwóch bramek. W `@tanstack/react-query` 5 `isLoading === isPending &&
+//     isFetching`, więc `isLoading === true` IMPLIKUJE `data === undefined`
+//     — nie istnieje stan, w którym te bramki się spierają. Wariant
+//     z odwróconą kolejnością jest mutacją RÓWNOWAŻNĄ i przechodzi 18/18
+//     (sprawdzone), więc ten plik nie udaje, że tej kolejności pilnuje.
 //   * JĘZYK MIESZKA W MAPOWANIU, NIE W KLUCZU CACHE. Klucz to
 //     `["career-roles","published"]` — bez segmentu języka i bez segmentu
 //     najemcy. To NIE jest przeoczenie: wiersz `career_roles` niesie obie
@@ -37,11 +49,18 @@
 //     języka) sprawia, że po przełączeniu języka cache oddaje treść w POPRZEDNIM
 //     języku, bo klucz się nie zmienił. Dlatego dowód stoi na SKUTKU: te same
 //     wiersze, drugi język, ZERO dodatkowych odczytów relacji.
-//   * `t` W ZALEŻNOŚCIACH MEMO. Katalog zapasowy powstaje z `t(...)`, więc
-//     wypadnięcie `t` z tablicy zależności `useMemo` (wygląda jak sprzątanie
-//     lintem: „`t` jest stabilne") zamraża zapasowe tytuły ofert w języku
-//     pierwszego malowania. Świeża instalacja + przełącznik języka = polskie
-//     nazwy stanowisk na angielskiej stronie. Nic tego nie mierzyło.
+//   * MEMO MUSI REAGOWAĆ NA PRZEŁĄCZNIK JĘZYKA. Katalog zapasowy powstaje
+//     z `t(...)`, a wiersze bazy z `rowToOffer(row, lang)` — jedno i drugie
+//     mieszka w tym samym `useMemo`. Zamrożenie go (tablica zależności
+//     wyczyszczona lintem pod hasłem „`t` jest stabilne") to polskie nazwy
+//     stanowisk na angielskiej stronie po świeżej instalacji. ZMIERZONE:
+//     wariant z deps `[data, isLoading]` oblewa trzy testy tego pliku.
+//     Czego ten plik NIE rozstrzyga i nie udaje, że rozstrzyga: KTÓRA
+//     z dwóch zależności to niesie. `react-i18next` oddaje nowe `t` w tym
+//     samym renderze, w którym zmienia się `lang`, więc każda z nich osobno
+//     wystarcza do przeliczenia memo — wariant bez `t` i wariant bez `lang`
+//     przechodzą po 18/18 (sprawdzone mutacją). Dowód stoi więc na SKUTKU dla
+//     kandydata, nie na tablicy zależności.
 //   * WSTECZNA ZGODNOŚĆ „BRAK WIERSZA ZNACZY POKAŻ". `useCareerSection`
 //     otwiera stronę także wtedy, gdy odczyt sekcji jeszcze nie wrócił, wrócił
 //     pusty albo został ODMÓWIONY. To reguła świadoma (świeża instalacja nie
@@ -62,8 +81,10 @@
 //     odpowiedzi, identyfikatorem oferty jest slug, tytuł i opis pochodzą
 //     z wiersza w aktywnym języku.
 //  2. ODCZYT W DRODZE = PUSTA LISTA. Przy pierwszym malowaniu hook NIE oddaje
-//     katalogu zapasowego (dowód, że bramka `data` stoi PRZED `isLoading`
-//     i że bramka `isLoading` istnieje).
+//     katalogu zapasowego (dowód, że bramka `isLoading` istnieje). A po
+//     powrocie odczytu ŻADNE kolejne malowanie listy już nie gasi — także
+//     w prawdziwym oknie odświeżenia w tle (dowód, że zwrotka niesie stan
+//     `pending`, a nie `fetching`).
 //  3. PUSTA TABELA = KATALOG i18n. Wszystkie role z `CAREER_ROLES`, tytuły
 //     asertowane przez `realT` na prawdziwej nakładce `@/lib/i18n-careers`
 //     (usunięcie klucza ze słownika oblewa ten plik), z kontrolą, że na
@@ -72,9 +93,9 @@
 //     dowodem, że zapytanie NAPRAWDĘ padło (stan `error` w cache i treść
 //     komunikatu PostgREST), a nie cicho zwróciło pustą listę.
 //  5. JĘZYK. Ten sam wiersz w dwóch językach po `i18n.changeLanguage`, bez
-//     drugiego odczytu relacji; to samo dla katalogu zapasowego (zależność
-//     `t`); przeglądarka z kodem regionalnym (`en-GB`) też dostaje angielską
-//     ofertę.
+//     drugiego odczytu relacji; to samo dla katalogu zapasowego (memo nie
+//     jest zamrożone); przeglądarka z kodem regionalnym (`en-GB`) też dostaje
+//     angielską ofertę.
 //  6. KSZTAŁT KLUCZA CACHE. Po przełączeniu języka w cache stoi DOKŁADNIE
 //     jeden wpis ofert i jeden wpis sekcji, o kształcie bez segmentu języka
 //     i bez segmentu najemcy — i są to te same klucze, które budują publiczne
@@ -84,11 +105,13 @@
 //     BEZ `includeDrafts`. Podmiana na wariant panelu wpuściłaby na stronę
 //     nieopublikowane oferty i nie zmieniłaby ani jednego napisu w kodzie
 //     poza jednym argumentem.
-//  8. SEKCJE: nadpisanie nagłówka z panelu wygrywa (istniejący klucz), klucz
-//     bez wiersza oznacza „pokaż bez nadpisań", sygnał `is_visible: false`
-//     z widoku dojeżdża jako `visible: false`, pusta odpowiedź i odmowa
-//     odczytu otwierają wszystkie siedem kluczy, a nagłówek sekcji jest
-//     dwujęzyczny.
+//  8. SEKCJE: nadpisanie nagłówka z panelu wygrywa i jest szukane PO KLUCZU
+//     (wiersz sekcji pytanej stoi w odpowiedzi DRUGI, pierwszy niesie obcy
+//     nagłówek), klucz bez wiersza oznacza „pokaż bez nadpisań" — dowodzone
+//     na odpowiedzi, która już DOSZŁA, bo inaczej ta asercja mierzy pierwsze
+//     malowanie (patrz REWIZJA), sygnał `is_visible: false` z widoku dojeżdża
+//     jako `visible: false`, pusta odpowiedź i odmowa odczytu otwierają
+//     wszystkie siedem kluczy, a nagłówek sekcji jest dwujęzyczny.
 //  9. ZAMKNIĘTY ZBIÓR KLUCZY. Lista sekcji jest w tym pliku WYPISANA (nie
 //     zaczytana z hooka), a osobna asercja porównuje ją z `CAREER_SECTION_KEYS`
 //     — dołożenie ósmej sekcji do produktu oblewa ten plik, zamiast cicho
@@ -105,6 +128,11 @@
 // rozwiązuje się przy `await`, a kształt odpowiedzi dają `ok`/`fail` (`fail`
 // niesie błąd DZIEDZICZĄCY po `Error`, tak jak `PostgrestError` — inaczej
 // `throw new Error(error.message)` w `queryFn` mierzyłby atrapę, nie kod).
+// Jeden test dokłada do tej atrapy DEKORATOR `holdNextRead`: wstrzymuje samo
+// ROZWIĄZANIE łańcucha do zwolnienia bramki, żeby stan „dane są, odczyt trwa"
+// w ogóle dojechał do Reacta. Ładunek i zapis ogniw nadal robi harness, więc
+// dekorator nie podstawia własnej odpowiedzi — nie ma tam czego zmierzyć
+// obok kodu produkcyjnego.
 //
 // ŚWIADOMIE NIE MA TU ATRAPY `react-i18next`. Język jest tu PRZEDMIOTEM
 // dowodu, a nie tłem: atrapa `{ i18n: { language: "en" } }` odbijałaby
@@ -155,15 +183,16 @@
 //    SKUTEK („`en-GB` daje angielską ofertę"), a nie wewnętrzny kod języka.
 //    Gdyby ktoś dołożył `nonExplicitSupportedLngs`, ta obrona zacznie działać
 //    naprawdę i test skutku zostanie prawdziwy bez zmiany.
-//  * Ochrona przed `i18n.language === undefined`. Inne miejsca repo piszą
-//    `i18n.language ?? "pl"` (patrz `adminAudienceRoutes.test.tsx`), ten hook
-//    nie — ale na kliencie `@/lib/i18n` inicjalizuje instancję top-level
-//    awaitem PRZED pierwszym renderem Reacta, więc stan bez języka nie jest
-//    osiągalny uczciwym testem tej warstwy i nie jest gałęzią w pomiarze.
+//  * Ochrona przed `i18n.language === undefined` — patrz ZNALEZISKO 3.
+//    Ten stan jest osiągalny tylko wtedy, gdy hook renderuje się BEZ
+//    zainicjalizowanej instancji i18next, a tego nie da się zrobić w pliku,
+//    który (jak ten) musi zaimportować `@/lib/i18n` na górze, żeby mierzyć
+//    słownik. Dowód mieszkałby w osobnym pliku bez tego importu; nie jest to
+//    gałąź w pomiarze, więc nic nie kosztuje pokrycia.
 //
 // POMIAR PO TYM PLIKU (ten jeden plik testowy, zakres pomiaru zawężony do
 // `useCareerContent.ts`): 13/13 linii, 6/6 funkcji, 8/8 gałęzi,
-// 17/17 instrukcji — bez ani jednej luki do uzasadniania.
+// 17/17 instrukcji — bez ani jednej luki do uzasadniania. 18 testów.
 //
 // ---------------------------------------------------------------------------
 // ZNALEZISKA (kod produkcyjny NIEZMIENIONY; testy asertują stan ISTNIEJĄCY)
@@ -191,6 +220,55 @@
 //   sekcja wyłączona przez redakcję pojawi się na jedno malowanie. Test
 //   „w trakcie odczytu sekcja ukryta jest jeszcze widoczna" pokazuje ten stan
 //   jawnie, żeby przy podłączaniu bramki nie był zaskoczeniem.
+//
+// ZNALEZISKO 3 — BRAK GARDY NA JĘZYK: `currentLang(i18n.language)` woła
+//   `.toLowerCase()` na wartości, której nikt nie sprawdza. Inne miejsca repo
+//   piszą `i18n.language ?? "pl"`, ten hook nie. ZMIERZONE sondą: hook
+//   renderowany BEZ zainicjalizowanej instancji i18next nie spada na polski
+//   — wywala się (`TypeError: Cannot read properties of undefined (reading
+//   'toLowerCase')`), czyli cała strona kariery gaśnie zamiast pokazać wersję
+//   polską. Dziś to nieosiągalne, bo `@/lib/i18n` inicjalizuje instancję
+//   top-level awaitem przed pierwszym renderem, więc od defektu chroni nas
+//   WYŁĄCZNIE kolejność importów w bootstrapie klienta — nie kod tego
+//   pliku. Dowód mieszkałby w pliku renderującym hook bez tego importu; tu go
+//   postawić nie sposób (patrz „ŚWIADOMIE POZA ZAKRESEM").
+//
+// ---------------------------------------------------------------------------
+// REWIZJA ADWERSARYJNA (drugie przejście: co przeżyło mutację)
+// ---------------------------------------------------------------------------
+// Pokrycie 100% nie mówi nic o sile asercji, więc plik został przepuszczony
+// przez mutacje kodu produkcyjnego (każda cofnięta po pomiarze). ZABITE:
+// bramka `isLoading` usunięta (1 test), `isFetching` w miejsce `isLoading`
+// (1 test, po dołożeniu bramki `holdNextRead` — PRZEDTEM przechodziło
+// 17/17), `currentLang` zwarty do „pl" (3) i do „en" (6), `rowToOffer`
+// z zaszytym „pl" (2), memo ofert bez `lang` I bez `t` (3), memo sekcji bez
+// `lang` (1), `careerRolesQueryOptions(true)` (4), sekcja czytająca stały
+// klucz „hero" (6), sekcja ignorująca odpowiedź (6), klucz zapytania sekcji
+// parametryzowany kluczem sekcji (5), bramka `if (data)` bez sprawdzenia
+// długości (2).
+//
+// PRZEŻYŁY (mutacje RÓWNOWAŻNE, nie luki w dowodzie — wywód wyżej):
+// odwrócona kolejność bramek, memo ofert bez `lang`, memo ofert bez `t`.
+//
+// CO REWIZJA NAPRAWIŁA:
+//   * dołożony dowód „odświeżenie w tle nie gasi listy" — bez niego
+//     podmiana `isLoading` na `isFetching` przechodziła bez śladu, a to
+//     regresja widoczna dla kandydata przy każdym powrocie na kartę;
+//   * test „klucz BEZ wiersza znaczy pokaż" czekał tylko na WYSŁANIE
+//     zapytania, więc jego asercja wykonywała się w stanie „odczyt w drodze"
+//     i była spełniona z całkiem innego powodu (ZMIERZONE: hook ignorujący
+//     odpowiedź przechodził ją w 4 ms). Teraz stan sekcji BEZ wiersza jest
+//     czytany razem z sekcją, która wiersz MA, z jednej odpowiedzi;
+//   * to samo dla „PUSTA odpowiedź otwiera wszystkie sekcje" (5 ms) — teraz
+//     asercja stoi za dowodem, że rozstrzygnięty, pusty odczyt jest w cache;
+//   * fixture testu nadpisań przełożona tak, że pytana sekcja NIE jest
+//     pierwszym wierszem odpowiedzi (implementacja „bierz pierwszy wiersz"
+//     przechodziła na szczęśliwym ułożeniu);
+//   * z nagłówka i z komentarzy usunięte dwie tezy, których plik nie dowodzi
+//     (KOLEJNOŚĆ bramek i KTÓRA zależność memo niesie język) — zastąpione
+//     zmierzonym zakresem dowodu;
+//   * nazwa testu „(zależność `t` w memo)" obiecywała dowód na konkretną
+//     zależność — mówi teraz to, co ciało naprawdę pokazuje.
 //
 // RODO: żadnych prawdziwych osób ani treści. Oferty i sekcje w fixture są
 // zmyślone (slug, tytuł, opis, wymagania), nie odpowiadają żadnemu prawdziwemu
@@ -318,6 +396,33 @@ function useWholePage() {
 }
 
 /**
+ * Wstrzymanie ODPOWIEDZI na następny odczyt danej relacji. Ładunek i zapis
+ * ogniw łańcucha nadal robi `supabaseFromStub()` - to dekorator na jego
+ * `then`, nie własna atrapa transportu. Jest konieczny, bo atrapa rozwiązuje
+ * łańcuch w tym samym mikrozadaniu, więc stan „dane już są, odczyt właśnie
+ * trwa" nigdy nie dochodzi do Reacta - a to JEDYNY stan, w którym widać, czy
+ * bramka listy czyta `pending`, czy `fetching` (ZMIERZONE sondą: bez bramki
+ * oba warianty malują identycznie).
+ */
+function holdNextRead(table: string): { release: () => void } {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  const base = stub.from;
+  h.from = (requested: string) => {
+    const builder = base(requested) as Record<string, unknown>;
+    if (requested !== table) return builder;
+    h.from = base; // bramka działa RAZ - kolejne odczyty idą wprost do atrapy
+    const raw = builder.then as (a?: unknown, b?: unknown) => Promise<unknown>;
+    builder.then = (onFulfilled?: unknown, onRejected?: unknown) =>
+      gate.then(() => raw()).then(onFulfilled as never, onRejected as never);
+    return builder;
+  };
+  return { release };
+}
+
+/**
  * Dwie sekcje z jednego odczytu: jedna Z wierszem, druga BEZ. Tylko takie
  * złożenie dowodzi, że stan sekcji jest szukany PO KLUCZU - jeden hook nie
  * odróżni „nie ma mojego wiersza" od „odpowiedź jeszcze nie doszła".
@@ -391,12 +496,12 @@ describe("useCareerOffers - wybór listy ofert", () => {
     expect(result.current.offers).not.toHaveLength(CAREER_ROLES.length);
   });
 
-  it("odświeżenie w tle nie gasi listy: bramka czyta stan `pending`, nie `fetching`", async () => {
+  it("odświeżenie w tle nie gasi listy: zwrotka niesie stan `pending`, nie `fetching`", async () => {
     stub.setResponse(ROLES_RELATION, ok([ROW_COORDINATOR, ROW_EDITOR]));
 
     // Zapis KAŻDEGO malowania, bo przedmiotem dowodu jest CIĄG stanów, a nie
-    // stan końcowy: regresja `isFetching` w miejsce `isLoading` gasi listę na
-    // jedno malowanie i po ustaniu odczytu nie zostawia po sobie śladu.
+    // stan końcowy: regresja gasi listę na jedno malowanie i po ustaniu
+    // odczytu nie zostawia po sobie żadnego śladu.
     const paints: { isLoading: boolean; ids: string[] }[] = [];
     const { result, queryClient } = renderHookWithQueryClient(() => {
       const value = useCareerOffers();
@@ -404,28 +509,40 @@ describe("useCareerOffers - wybór listy ofert", () => {
       return value;
     });
     await waitFor(() => expect(result.current.offers).toHaveLength(2));
-    const settled = paints.length - 1;
+    const firstSuccessfulPaint = paints.length - 1;
 
-    // Unieważnienie po zapisie w panelu / powrót na kartę - odczyt idzie znowu.
-    let duringFetch: { isLoading: boolean; ids: string[] } | null = null;
+    // Drugi odczyt - unieważnienie po zapisie w panelu albo powrót na kartę.
+    // Odpowiedź stoi na bramce, więc okno „dane są, odczyt trwa" jest
+    // PRAWDZIWE, a nie wywnioskowane; nic nie może go wyprzedzić.
+    const held = holdNextRead(ROLES_RELATION);
+    const rolesKey = careerRolesQueryOptions().queryKey;
+    let refetch: Promise<unknown> | null = null;
     await act(async () => {
-      const done = queryClient.invalidateQueries({ queryKey: careerRolesQueryOptions().queryKey });
-      await Promise.resolve();
-      duringFetch = {
-        isLoading: result.current.isLoading,
-        ids: result.current.offers.map((offer) => offer.id),
-      };
-      await done;
+      refetch = queryClient.invalidateQueries({ queryKey: rolesKey });
+      // Jeden obrót pętli zdarzeń, żeby React dostał to, co react-query ma do
+      // ogłoszenia. Bez fałszywych zegarów i bez zależności od realnego czasu:
+      // odpowiedź trzyma bramka, więc dłuższe czekanie niczego nie zmienia.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(queryClient.getQueryState(rolesKey)?.fetchStatus).toBe("fetching");
+    // ZMIERZONE mutacją: wariant czytający `isFetching` w miejsce `isLoading`
+    // oblewa dokładnie tę asercję - i dokłada malowanie, w którym konsument
+    // stawia spinner nad treścią, która już jest.
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.offers.map((offer) => offer.id)).toEqual([
+      ROW_COORDINATOR.slug,
+      ROW_EDITOR.slug,
+    ]);
+
+    held.release();
+    await act(async () => {
+      await refetch;
     });
     expect(stub.chainsFor(ROLES_RELATION)).toHaveLength(2);
-    expect(duringFetch).toEqual({
-      isLoading: false,
-      ids: [ROW_COORDINATOR.slug, ROW_EDITOR.slug],
-    });
-
-    // Od chwili, gdy dane doszły, kandydat widzi te same dwie oferty na KAŻDYM
-    // malowaniu: ani pustej listy, ani katalogu zapasowego, ani spinnera.
-    for (const paint of paints.slice(settled)) {
+    // Od pierwszego udanego odczytu kandydat na ŻADNYM malowaniu nie zobaczył
+    // ani pustej listy, ani katalogu zapasowego.
+    for (const paint of paints.slice(firstSuccessfulPaint)) {
       expect(paint).toEqual({ isLoading: false, ids: [ROW_COORDINATOR.slug, ROW_EDITOR.slug] });
     }
   });

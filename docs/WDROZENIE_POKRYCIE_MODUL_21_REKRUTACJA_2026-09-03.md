@@ -317,3 +317,47 @@ title_en` w slugu, warunek aktywnej zakładki) **oblewa 10 testów**.
 Wniosek dla następnej kampanii: raport z pokrycia mówi, co zostało
 **wykonane**. Czy cokolwiek jest **dowiedzione**, mówi dopiero mutacja — i to
 ona, a nie procent, powinna zamykać pracę nad modułem.
+
+---
+
+## 9. Zapora: progi pokrycia per ścieżka
+
+Bez progu per-ścieżka ta praca mogłaby się **cicho osunąć**: globalny floor repo
+stoi kilkadziesiąt punktów niżej, więc skasowanie połowy dowodów tego modułu
+nie zapaliłoby niczego. `vitest.config.ts` dostał więc siedem wpisów, każdy
+z wartością **zmierzoną**, nie życzeniową:
+
+| Ścieżka                              | instrukcje | gałęzie | funkcje |   linie |
+| ------------------------------------ | ---------: | ------: | ------: | ------: |
+| `src/lib/careers/**`                 |         99 |      98 | **100** | **100** |
+| `src/lib/jobs/**`                    |        100 |     100 | **100** | **100** |
+| `src/components/careers/**`          |        100 |      96 | **100** | **100** |
+| `src/routes/admin.careers.tsx`       |        100 |      98 | **100** | **100** |
+| `src/routes/admin.hiring.tsx`        |        100 |     100 | **100** | **100** |
+| `src/routes/api/public/jobs-tick.ts` |        100 |     100 | **100** | **100** |
+| `src/routes/zatrudniamy.tsx`         |         97 |      81 | **100** | **100** |
+
+Linie i funkcje stoją na 100 **wszędzie** — to nie ambicja, to stan zmierzony,
+a próg poniżej niego pozwalałby usunąć dowód bez sygnału. Gałęzie i instrukcje
+są zaokrąglone w dół do liczby całkowitej; różnica do stu to wyłącznie gałęzie
+**nazwane** w nagłówkach plików testowych (rozdz. 7). Stąd `zatrudniamy.tsx`
+ma 81 na gałęziach przy 100 na liniach: cztery z jego dwudziestu dwóch gałęzi
+to straże SSR.
+
+Sprawdzone pomiarem, nie założone: na przebiegu z pokryciem **żaden z tych
+siedmiu progów nie zgłasza błędu**.
+
+## 10. Stan bramek po kampanii
+
+| Bramka                   | Wynik                                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| `check:feature-taxonomy` | OK — 3301 plików, 2898 w modułach, 27 funkcjonalności, zero sierot i martwych reguł |
+| `check:ownership`        | OK                                                                                  |
+| `check:gate-coverage`    | OK — 39 bramek `check:*`, każda wpięta dokładnie raz na job                         |
+| `tsc --noEmit`           | czysto                                                                              |
+| `eslint` / `prettier`    | czysto                                                                              |
+| suita modułu 21          | 694 przypadki: 688 zielonych + 6 `it.fails` z kontrolą dodatnią                     |
+
+Gałąź nie zmienia **ani jednej linii kodu produkcyjnego** — sprawdzone
+`git diff --name-only` od punktu startu: 15 plików testowych, dwa skrypty
+taksonomii, jeden dokument i `vitest.config.ts`.

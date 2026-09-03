@@ -56,25 +56,34 @@
 //      ten komunikat gasi;
 //   7. zgłoszenie z PLIKIEM (nie linkiem) wysyła ścieżkę przyjętą przez
 //      magazyn, oryginalną nazwę pliku i pusty `cv_url`;
-//   8. awaria funkcji serwerowej: komunikat błędu ze słownika, brak panelu
-//      potwierdzenia, dane w polach nietknięte (także w kroku, z którego już
-//      wyszliśmy), BEZ `onRoleChange(null)` - zerowanie wyboru roli na trasie
-//      należy wyłącznie do udanej wysyłki - przycisk znów gotowy do próby,
-//      komunikat „Wysyłamy zgłoszenie" zgaszony;
-//   9. oferta zniknięta z katalogu w trakcie wypełniania (redakcja zdjęła
+//   8. awaria funkcji serwerowej: stan „w trakcie" NAJPIERW widoczny (etykieta
+//      „Wysyłanie...", przycisk zablokowany, `aria-busy`, komunikat `aria-live`
+//      „Wysyłamy zgłoszenie"), a po odmowie oba stany zgaszone; komunikat błędu
+//      ze słownika, ZERO panelu potwierdzenia, zgoda nadal zaznaczona i BEZ
+//      `onRoleChange(null)` - zerowanie wyboru roli na trasie należy wyłącznie
+//      do udanej wysyłki;
+//   9. po odmowie dane zostają we WSZYSTKICH krokach (dopasowanie oraz dane
+//      kontaktowe z wklejonym linkiem do CV), a DRUGA próba dochodzi z pełnym
+//      payloadem - i dopiero ona woła `onRoleChange(null)`, bez drugiego tostu;
+//  10. fokus po nieudanym „Dalej" ląduje na PIERWSZYM błędnym polu kroku
+//      w kolejności `CAREER_FORM_FIELDS` (poprawne imię -> fokus na nazwisku),
+//      a nie na dowolnym z błędnych - inaczej kandydat z jedną literówką
+//      w telefonie byłby przerzucany na sekcję CV;
+//  11. oferta zniknięta z katalogu w trakcie wypełniania (redakcja zdjęła
 //      publikację; zapytanie ofert ma `staleTime` 60 s, więc odświeżenie
 //      w trakcie wypełniania jest normalnym przebiegiem): zgłoszenie NADAL
 //      idzie, a etykietą roli zostaje jej identyfikator - nie pusty napis
 //      w temacie wiadomości (gałąź `?? form.role`);
-//  10. brak `document` (render serwerowy / przed hydratacją) nie wywraca
+//  12. brak `document` (render serwerowy / przed hydratacją) nie wywraca
 //      walidacji - błędy pól ustawiają się normalnie, gaśnie wyłącznie fokus
 //      i przewinięcie do pola;
-//  11. ZNALEZISKO niżej: link do CV dłuższy niż 500 znaków blokuje wysyłkę
+//  13. ZNALEZISKO niżej: link do CV dłuższy niż 500 znaków blokuje wysyłkę
 //      BEZ ANI JEDNEGO widocznego komunikatu;
-//  12. brak naruszeń axe w kroku 3 Z WIDOCZNYMI BŁĘDAMI (siostrzany plik mierzy
+//  14. brak naruszeń axe w kroku 3 Z WIDOCZNYMI BŁĘDAMI (siostrzany plik mierzy
 //      axe wyłącznie na czystym kroku 1, a to baner `role="alert"`, opisany
 //      `aria-describedby` checkbox i komunikat pod nim są tym, co czytnik
-//      ekranu dostaje w najgorszym momencie).
+//      ekranu dostaje w najgorszym momencie) - z dowodem, że mierzony jest
+//      właśnie stan błędu: dwa `role="alert"` w kolejności czytania.
 //
 // CO JEST ATRAPOWANE I DLACZEGO (granica atrapy = moduł z własnym dowodem):
 //   * `@tanstack/react-start` + `@/lib/contact.functions` - funkcja serwerowa
@@ -85,7 +94,10 @@
 //   * `@/integrations/supabase/client` - SIEĆ pod `uploadCv`. Notuje bucket
 //     i ścieżkę wysyłki oraz udaje `public_tenant_id()`. `uploadCv`
 //     i `validateCvFile` zostają PRAWDZIWE, więc odmowa formatu w teście
-//     pochodzi z prawdziwej reguły, a nie z atrapy mówiącej „odmawiam";
+//     pochodzi z prawdziwej reguły, a nie z atrapy mówiącej „odmawiam".
+//     Magazyn ZAWSZE przyjmuje plik i nie ma pokrętła „udawaj awarię" -
+//     atrapa z pokrętłem, którego żaden test nie przełącza, obiecuje dowód,
+//     którego tu nie ma (awaria magazynu: `careerCvField.test.tsx`);
 //   * `@/components/atoms/FormSelect` - Radix Select wymaga pointer API,
 //     którego happy-dom nie ma; zamieniony na natywny `<select>` (tak samo jak
 //     w pliku siostrzanym). Reguły wyboru pilnuje schemat, a sam atom ma dowód
@@ -93,7 +105,7 @@
 //   * `@/lib/careers/useCareerContent` - react-query nad tabelą `career_roles`.
 //     Oferty podajemy z WBUDOWANEGO katalogu (`fallbackOffers` + prawdziwy
 //     słownik), bo hook ma własny dowód, a tutaj jest tylko źródłem listy ról;
-//     ta sama atrapa pozwala udowodnić punkt 9 (oferta znika w trakcie);
+//     ta sama atrapa pozwala udowodnić punkt 11 (oferta znika w trakcie);
 //   * `sonner` - toast. Notujemy treść, żeby asercja mierzyła KOMUNIKAT, a nie
 //     obecność biblioteki.
 //
@@ -122,9 +134,14 @@
 //     przycisku, dostępność sekcji): `careerCvField.test.tsx`;
 //   * szczęśliwa droga kreatora, panel potwierdzenia, `applySignal`, powrót
 //     stepperem: `careersApplyForm.test.tsx`;
-//   * rzeczywiste przewinięcie i fokus po `requestAnimationFrame`
-//     (`scrollIntoView` nie istnieje w happy-dom, a bez layoutu „poza ekranem"
-//     jest nieodróżnialne od „na ekranie"): e2e;
+//   * rzeczywiste PRZEWINIĘCIE do błędnego pola: `Element.scrollIntoView`
+//     w happy-dom jest metodą pustą (dosłownie `// Do nothing` w
+//     `happy-dom/lib/nodes/element/Element.js`), a bez layoutu „poza ekranem"
+//     jest nieodróżnialne od „na ekranie": e2e. UWAGA - druga połowa tego
+//     samego efektu, czyli FOKUS na pierwszym błędnym polu, jest w tej warstwie
+//     w pełni mierzalna (`document.activeElement`) i stoi w punkcie 10;
+//     wcześniejsza wersja tej sekcji wypychała ją do e2e razem
+//     z przewinięciem, czyli chowała dowód mieszkający tutaj;
 //   * RLS bucketu, polityka pól tenanta i zapis zgłoszenia: pgTAP.
 //
 // ZNALEZISKO 1 (defekt produkcyjny, zachowanie ISTNIEJĄCE zaasertowane).
@@ -144,6 +161,36 @@
 // ZNALEZISKO 2 (martwe gałęzie zapasowe - świadomie NIEPOKRYTE, uzasadnienie
 // numeryczne na końcu pliku).
 //
+// REWIZJA ADWERSARYJNA (drugie przejście po tym pliku: co dowodziło mniej, niż
+// obiecywało, i co zostało dołożone). Pokrycie po rewizji jest IDENTYCZNE -
+// 144/144 linii, 163/163 instrukcji, 55/55 funkcji, 77/83 gałęzi w parze
+// z plikiem siostrzanym; 136/144 linii i 52/55 funkcji samym tym plikiem -
+// więc każda zmiana dokładała DOWÓD, nie pokrycie:
+//   1. „pozwala spróbować ponownie" stało w NAZWIE testu, a ciało nigdy nie
+//      próbowało ponownie - dowodziło wyłącznie, że przycisk jest odblokowany.
+//      Rozbite na dwa testy: jeden ogląda stan „w trakcie" i jego zgaszenie,
+//      drugi WYSYŁA po raz drugi i sprawdza payload drugiej próby.
+//   2. „przycisk znów gotowy" i „komunikat «Wysyłamy zgłoszenie» zgaszony" były
+//      asercjami na BRAK. Napis, którego nigdy nie było, też jest nieobecny,
+//      więc test przechodziłby i wtedy, gdyby `sending` nigdy się nie zapalało.
+//      Zawieszona wysyłka (`zawieszonaWysylka`) daje parę: najpierw stan widać,
+//      potem go nie ma.
+//   3. Nazwa testu axe obiecywała „z widocznym banerem", a ciało banera nie
+//      dotykało (mierzyło komunikat zgody). Dołożona asercja na DWA
+//      `role="alert"` w kolejności czytania i na cel `aria-describedby` zgody.
+//   4. Atrapa magazynu miała pokrętło `uploadError`, którego żaden test nie
+//      przełączał. Usunięte (patrz sekcja o atrapach).
+//   5. Fokus na pierwszym błędnym polu był wypchnięty do e2e razem
+//      z przewinięciem, choć jest mierzalny tutaj - dołożony jako punkt 10
+//      (asercja sprawdzona mutacją: wskazanie innego pola OBLEWA test).
+//   6. POTWIERDZONE bez zmian: liczby stanu wejściowego (sam plik siostrzany
+//      daje dokładnie 133/144 linii, 44/55 funkcji, 74/83 gałęzi) oraz obie
+//      grupy niepokrytych gałęzi ze stopki - sonda
+//      `vi.stubGlobal("window", undefined)` powtórzona na tym HEAD wywraca się
+//      dokładnie tak, jak opisano niżej (`resolveEventTimeStamp`,
+//      react-dom-client.development.js:22144, przy `setSending(true)`
+//      w linii 280 organizmu, `submit` bez ani jednego wywołania).
+//
 // RODO: żadnych prawdziwych osób ani treści. Kandydatka zmyślona („Anna
 // Kowalska"), adresy wyłącznie w domenie `example.com`, link do CV
 // `drive.example.com/...`, nazwy plików zmyślone (`cv-anna-kowalska.pdf`,
@@ -156,7 +203,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { axeViolations, summarize } from "@/test/axe";
 
 // Stan atrap: wysyłka formularza, toast, magazyn CV i lista ofert (ta ostatnia
-// mutowalna, bo punkt 9 dowodzi zachowania po ZNIKNIĘCIU oferty z katalogu).
+// mutowalna, bo punkt 11 dowodzi zachowania po ZNIKNIĘCIU oferty z katalogu).
 const h = vi.hoisted(() => {
   interface UploadCall {
     bucket: string;
@@ -172,7 +219,6 @@ const h = vi.hoisted(() => {
       uploads: [] as UploadCall[],
       rpcCalls: [] as string[],
       tenant: "tenant-testowy" as string | null,
-      uploadError: null as { message: string } | null,
     },
   };
 });
@@ -198,6 +244,11 @@ vi.mock("sonner", () => ({
 
 // Sieć pod `uploadCv` - jedyna atrapa na drodze załącznika. Notuje, CO poszło
 // do magazynu, żeby dało się porównać ścieżkę w payloadzie z tą przyjętą.
+// Magazyn w tym pliku ZAWSZE przyjmuje plik: odmowę formatu daje prawdziwy
+// `validateCvFile` PRZED siecią, a awaria samego magazynu (`cvUploadFailed`)
+// ma dowód w `careerCvField.test.tsx`. Świadomie nie ma tu pokrętła
+// „udawaj błąd magazynu" - atrapa, której nikt nie przełącza, obiecuje dowód,
+// którego w tym pliku nie ma.
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: async (name: string) => {
@@ -212,7 +263,7 @@ vi.mock("@/integrations/supabase/client", () => ({
           options: { contentType?: string; upsert?: boolean },
         ) => {
           h.state.uploads.push({ bucket, path, ...options });
-          return { data: { path }, error: h.state.uploadError };
+          return { data: { path }, error: null };
         },
       }),
     },
@@ -385,6 +436,32 @@ function wyslanyPayload(): Record<string, unknown> {
   return h.submit.mock.calls[0][0].data;
 }
 
+/**
+ * Wysyłka ZAWIESZONA w powietrzu - zwraca funkcję, która ją odrzuca.
+ * Dzięki temu stan „w trakcie" (etykieta przycisku, blokada, `aria-busy`,
+ * komunikat `aria-live`) da się zobaczyć, a nie tylko stwierdzić jego brak po
+ * fakcie: napis, którego nigdy nie było, też jest „nieobecny".
+ */
+function zawieszonaWysylka() {
+  let odrzuc: (() => void) | undefined;
+  h.submit.mockImplementationOnce(
+    () =>
+      new Promise<{ ok: boolean }>((_resolve, reject) => {
+        odrzuc = () => reject(new Error("test: funkcja serwerowa odmówiła"));
+      }),
+  );
+  return async () => {
+    // Bez tej bramki helper, który nigdy nie wystartował (bo klik nie doszedł
+    // do `send`), po cichu nic by nie robił - a test dalej mierzyłby „brak
+    // stanu wysyłki", którego nie było czym zapalić.
+    const strzal = odrzuc;
+    if (!strzal) throw new Error("test: wysyłka nie została nawet zaczęta");
+    await act(async () => {
+      strzal();
+    });
+  };
+}
+
 /** Przejście na krok 3 (wiadomość + zgoda) z kompletem poprawnych danych. */
 function przejdzDoKroku3(role = "analyst_economy") {
   wypelnijKontakt();
@@ -401,7 +478,6 @@ beforeEach(() => {
   h.state.uploads = [];
   h.state.rpcCalls = [];
   h.state.tenant = "tenant-testowy";
-  h.state.uploadError = null;
 });
 
 describe("CareersApplyForm: walidacja przy rozmyciu pola", () => {
@@ -560,32 +636,80 @@ describe("CareersApplyForm: załącznik CV", () => {
 });
 
 describe("CareersApplyForm: wysyłka, która się nie udała", () => {
-  it("pokazuje komunikat błędu, zostawia dane w polach i pozwala spróbować ponownie", async () => {
-    h.submit.mockRejectedValueOnce(new Error("test: funkcja serwerowa odmówiła"));
+  it('stan „w trakcie" pokazuje się i gaśnie po odmowie, panelu potwierdzenia nie ma', async () => {
+    const odrzucWysylke = zawieszonaWysylka();
     const { onRoleChange } = renderForm();
     przejdzDoKroku3();
     fireEvent.click(screen.getByRole("checkbox"));
 
     fireEvent.click(przyciskWyslij());
 
-    await waitFor(() =>
-      expect(h.toastError).toHaveBeenCalledWith(zeSlownika("careers.form.error")),
-    );
+    // W LOCIE: przycisk zmienia etykietę na „Wysyłanie...", jest zablokowany
+    // (druga wysyłka tego samego zgłoszenia = duplikat w CRM) i ogłasza się
+    // przez `aria-busy`, a czytnik ekranu dostaje „Wysyłamy zgłoszenie...".
+    const wTrakcie = screen.getByRole("button", { name: zeSlownika("careers.form.sending") });
+    expect(wTrakcie).toBeDisabled();
+    expect(wTrakcie).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText(zeSlownika("careers.form.sendingStatus"))).toBeInTheDocument();
+    expect(screen.queryByText(zeSlownika("careers.form.success.title"))).toBeNull();
+
+    await odrzucWysylke();
+
+    expect(h.toastError).toHaveBeenCalledWith(zeSlownika("careers.form.error"));
     // Kluczowe: ŻADNEGO panelu „Zgłoszenie dotarło" - to byłoby kłamstwo.
     expect(screen.queryByText(zeSlownika("careers.form.success.title"))).toBeNull();
-    // Dane zostają - kandydat nie pisze zgłoszenia od nowa.
+    // Zgoda zostaje zaznaczona - kandydat nie zaczyna zgłoszenia od nowa.
     expect(screen.getByRole("checkbox")).toBeChecked();
     // Rola wybrana w kroku 2 zostaje podświetlona na trasie: `onRoleChange(null)`
     // (zerowanie wyboru) należy WYŁĄCZNIE do udanej wysyłki.
     expect(onRoleChange.mock.calls).toEqual([["analyst_economy"]]);
-    // Przycisk znów gotowy, komunikat „Wysyłamy zgłoszenie" zgaszony.
+    // Przycisk wraca pod swoją etykietą, bez `aria-busy`, komunikat gaśnie -
+    // i to jest para do asercji „w locie" wyżej, nie samotne „czegoś nie ma".
     const przycisk = przyciskWyslij();
     expect(przycisk).toBeEnabled();
     expect(przycisk).not.toHaveAttribute("aria-busy");
     expect(screen.queryByText(zeSlownika("careers.form.sendingStatus"))).toBeNull();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: zeSlownika("careers.form.back") }));
+  it("po odmowie dane zostają we WSZYSTKICH krokach, a druga próba dochodzi", async () => {
+    h.submit.mockRejectedValueOnce(new Error("test: funkcja serwerowa odmówiła"));
+    const { onRoleChange } = renderForm();
+    przejdzDoKroku3();
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    fireEvent.click(przyciskWyslij());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
+
+    // Cofamy się przez OBA wcześniejsze kroki: awaria sieci nie ma prawa zjeść
+    // ani dopasowania, ani danych kontaktowych, ani wklejonego linku do CV.
+    const wstecz = () =>
+      fireEvent.click(screen.getByRole("button", { name: zeSlownika("careers.form.back") }));
+    wstecz();
+    expect(screen.getByLabelText(POLE.department())).toHaveValue("analysis");
     expect(screen.getByLabelText(POLE.seniority())).toHaveValue("mid");
+    wstecz();
+    expect(screen.getByLabelText(POLE.firstName())).toHaveValue("Anna");
+    expect(screen.getByLabelText(POLE.email())).toHaveValue("anna.kowalska@example.com");
+    expect(screen.getByLabelText(POLE.cvUrl())).toHaveValue("drive.example.com/cv-anna-kowalska");
+
+    // Druga próba idzie tą samą drogą - tym razem funkcja serwerowa przyjmuje.
+    dalej();
+    dalej();
+    fireEvent.click(przyciskWyslij());
+
+    await waitFor(() => expect(h.submit).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(zeSlownika("careers.form.success.title"))).toBeInTheDocument();
+    // Dopiero UDANA wysyłka zeruje wybór roli na trasie.
+    expect(onRoleChange.mock.calls).toEqual([["analyst_economy"], [null]]);
+    // Ponowna próba nie dorzuciła kolejnego tostu błędu.
+    expect(h.toastError).toHaveBeenCalledTimes(1);
+    // Payload drugiej próby jest KOMPLETNY - nie okrojony po nieudanej pierwszej.
+    const payload = h.submit.mock.calls[1][0].data;
+    expect(payload.name).toBe("Anna Kowalska");
+    expect(payload.email).toBe("anna.kowalska@example.com");
+    expect((payload.custom as Record<string, unknown>).cv_url).toBe(
+      "drive.example.com/cv-anna-kowalska",
+    );
   });
 
   it("oferta zniknięta z katalogu w trakcie wypełniania nie blokuje wysyłki - etykietą roli zostaje jej identyfikator", async () => {
@@ -649,6 +773,25 @@ describe("CareersApplyForm: wyjścia awaryjne walidacji", () => {
     expect(screen.queryByRole("button", { name: zeSlownika("careers.form.submit") })).toBeNull();
   });
 
+  it('fokus po nieudanym „Dalej" ląduje na PIERWSZYM błędnym polu kroku', async () => {
+    renderForm();
+
+    // Imię jest poprawne, więc pierwszym brakiem kroku „O Tobie" jest
+    // nazwisko: `focusFirstError` bierze pierwszy TRUTHY klucz mapy błędów,
+    // a ta powstaje w kolejności `CAREER_FORM_FIELDS`. Gdyby brał dowolny,
+    // kandydat z jednym błędem w telefonie byłby przerzucany na CV.
+    wpisz(POLE.firstName(), "Anna");
+
+    dalej();
+
+    // Fokus jedzie w `requestAnimationFrame`, więc czekamy na jego klatkę.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText(POLE.lastName())),
+    );
+    expect(screen.getByText(komunikat("lastNameRequired"))).toBeInTheDocument();
+    expect(screen.getByText(podsumowanie(4))).toBeInTheDocument();
+  });
+
   it("brak `document` (render serwerowy) nie wywraca walidacji - błędy pól ustawiają się normalnie", () => {
     renderForm();
     const dalejBtn = przyciskDalej();
@@ -680,8 +823,19 @@ describe("CareersApplyForm: dostępność stanu błędu", () => {
 
     fireEvent.click(przyciskWyslij());
 
-    expect(screen.getByText(komunikat("consentRequired"))).toBeInTheDocument();
-    expect(screen.getByRole("checkbox")).toHaveAttribute("aria-invalid", "true");
+    // Najpierw DOWÓD, że mierzymy stan błędu, a nie czysty krok 3: dwa
+    // `role="alert"` w kolejności czytania (baner sumujący, potem komunikat
+    // pod checkboxem) i opis podpięty pod `aria-describedby` zgody.
+    expect(screen.getAllByRole("alert").map((node) => node.textContent)).toEqual([
+      podsumowanie(1),
+      komunikat("consentRequired"),
+    ]);
+    const zgoda = screen.getByRole("checkbox");
+    expect(zgoda).toHaveAttribute("aria-invalid", "true");
+    const opisId = zgoda.getAttribute("aria-describedby");
+    expect(opisId).toBeTruthy();
+    expect(document.getElementById(opisId ?? "")).toHaveTextContent(komunikat("consentRequired"));
+
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
