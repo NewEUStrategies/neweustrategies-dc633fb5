@@ -359,8 +359,14 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
     </>
   );
 
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { label: t("club.title"), href: "/club" },
+    { label: clubName },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8">
+      <Breadcrumbs items={breadcrumbItems} className="mb-3" />
       <ClubHubIdentity club={club} locale={locale} className="mb-4" />
 
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">
