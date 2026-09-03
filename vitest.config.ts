@@ -593,6 +593,67 @@ export default defineConfig({
         // funkcji / 100% linii / 97,46% gałęzi; 33 z 43 plików na 100/100.
         // Punkt wyjścia był 74,18% linii / 69,27% gałęzi.
         "src/lib/seo/**": { statements: 98, functions: 98, lines: 98, branches: 95 },
+
+        // ---------------------------------------------------------------------
+        // MODUŁ 21 - REKRUTACJA / KARIERA. Zapora postawiona 03.09.2026 razem
+        // z kampanią, która doprowadziła ten moduł z 55,12% linii i 47,13%
+        // funkcji do 100% / 100%. Bez progu per-ścieżka ta praca mogłaby się
+        // cicho osunąć: globalny floor repo jest o kilkadziesiąt punktów niżej,
+        // więc skasowanie połowy dowodów tego modułu nie zapaliłoby niczego.
+        //
+        // ZMIERZONE NA TYM HEAD (pełny przebieg suity karier, `coverage.all`):
+        //   lib/careers/**     st 99,69  br 98,07  fn 100  ln 100
+        //   lib/jobs/**        st 100    br 100    fn 100  ln 100
+        //   components/careers st 100    br 96,41  fn 100  ln 100
+        //   admin.careers.tsx  st 100    br 98,68  fn 100  ln 100
+        //   admin.hiring.tsx   st 100    br 100    fn 100  ln 100
+        //   jobs-tick.ts       st 100    br 100    fn 100  ln 100
+        //   zatrudniamy.tsx    st 97,37  br 81,82  fn 100  ln 100
+        //
+        // LINIE I FUNKCJE STOJĄ NA 100 WSZĘDZIE - to nie ambicja, to stan
+        // zmierzony, a próg poniżej niego pozwalałby usunąć dowód bez sygnału.
+        // Gałęzie i instrukcje są zaokrąglone W DÓŁ do liczby całkowitej;
+        // reszta to gałęzie NAZWANE w nagłówkach plików testowych jako
+        // nieosiągalne uczciwym testem w tej warstwie - straże SSR
+        // (`typeof window/document === "undefined"`), zapasowe `|| ""`
+        // w ładunku odciętym walidacją, prawe strony `?? ""` za bramką
+        // `enabled: Boolean(...)`. Dlatego `zatrudniamy.tsx` ma 81 na
+        // gałęziach przy 100 na liniach: cztery z dwudziestu dwóch gałęzi tego
+        // pliku to straże SSR, których w środowisku z DOM-em nie da się wejść
+        // bez podmiany globala - a taka podmiana mierzyłaby atrapę globala,
+        // nie trasę.
+        "src/lib/careers/**": { statements: 99, functions: 100, lines: 100, branches: 98 },
+        "src/lib/jobs/**": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/components/careers/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 96,
+        },
+        "src/routes/admin.careers.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        "src/routes/admin.hiring.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/api/public/jobs-tick.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/zatrudniamy.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 81,
+        },
         // Middleware przekierowań na ścieżce ŻĄDANIA. Do 22.08 gałęzie 17,30%
         // przy 41,26% linii - a to warstwa, bez której panel /admin/redirects
         // jest martwą metadaną i 301-ki po migracji z WP nie docierają do
