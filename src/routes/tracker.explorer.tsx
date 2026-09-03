@@ -5,7 +5,7 @@
 // (liczba dossier, rozkład po etapach i obszarach) z RPC get_tracker_stats.
 // Publiczny odczyt (RLS: opublikowane dossier + ich stanowiska).
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Landmark } from "lucide-react";
 import {
@@ -18,18 +18,92 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import {
+  positionsForItemsQueryOptions,
+  publishedItemsQueryOptions,
+  trackerStatsQueryOptions,
   usePublishedItems,
   usePositionsForItems,
   useTrackerStats,
   type PolicyItem,
+  type PolicyPosition,
+  type TrackerStats,
 } from "@/lib/tracker/queries";
 import { EU_COUNTRIES, STANCE_META, stanceLabel, stanceMeta } from "@/lib/tracker/euCountries";
 import { POLICY_AREAS, areaLabel, stageLabel } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
+
+/** Okno macierzy. Stała stoi PRZED deklaracją trasy, bo ten sam literał bierze
+ *  loader (klucz cache) i stan początkowy komponentu - rozjazd tych dwóch daje
+ *  SSR pod jednym kluczem i odczyt kliencki pod innym, czyli powrót defektu. */
+const MATRIX_LIMIT = 100;
+
+/**
+ * Budżet DRUGIEJ fali (stanowiska). Krótszy niż domyślny budżet odpornego
+ * ładowania, bo ta fala biegnie PO pierwszej: klucz stanowisk zawiera
+ * identyfikatory dossier, więc round-trip jest z konstrukcji sekwencyjny i jego
+ * budżet dodaje się do TTFB, a nie biegnie równolegle.
+ */
+const POSITIONS_BUDGET_MS = 2_000;
+
+/** Fallbacki zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
+const NO_ITEMS: PolicyItem[] = [];
+const NO_POSITIONS: PolicyPosition[] = [];
+const NO_STATS: TrackerStats = { total: 0, by_stage: {}, by_area: {} };
+
 export const Route = createFileRoute("/tracker/explorer")({
+  // LOADER, KTÓREGO TA TRASA NIE MIAŁA (naprawa N4, 2026-09-02).
+  //
+  // DECYZJA: brak loadera NIE BYŁ tu uzasadniony. `useQuery` nie startuje
+  // fetcha na serwerze, więc crawler i pierwsze malowanie dostawały powłokę
+  // z `t("tracker.loading")` - a macierz stanowisk jest JEDYNĄ powierzchnią
+  // serwisu, na której te dane w ogóle istnieją: kanał `/tracker/rss.xml`
+  // niesie wpisy osi czasu, `/tracker` niesie karty dossier, a przekrój
+  // „dossier x 27 państw" nie schodzi z serwera NIGDZIE. Powłoka bez treści
+  // wchodziła potem do NES Edge Cache na do 24 h.
+  //
+  // ROZWAŻONE ODRZUCENIE I DLACZEGO NIE PRZESZŁO. (a) „To narzędzie
+  // interaktywne, nie treść" - ale `head()` tej trasy deklaruje indeksowalny
+  // tytuł i opis w obu językach, więc trasa JEST zgłoszona do indeksu jako
+  // treść. (b) „Dane przefiltruje loader trasy nadrzędnej" - sprawdzone
+  // w `routeTree.gen.ts`: pliku `tracker.tsx` NIE MA, rodzicem `/tracker/*`
+  // jest `__root`, więc nie ma czyich danych filtrować.
+  //
+  // KASKADA JEST TU FAKTEM, NIE WYBOREM: klucz stanowisk zawiera
+  // identyfikatory dossier, więc druga fala musi poczekać na pierwszą. Dlatego
+  // fala pierwsza (statystyki + dossier) biegnie RÓWNOLEGLE, a druga dostaje
+  // krótszy budżet - blip po stronie stanowisk oddaje macierz bez wierszy,
+  // ale nigdy nie zamienia strony w HTTP 500.
+  //
+  // Brak `notFound()` jest świadomy: pusty tracker (nowy tenant, dossier bez
+  // ani jednego stanowiska) to legalny stan z własnym, dwujęzycznym
+  // komunikatem `tracker.explorer.noData`.
+  loader: async ({ context }) => {
+    const queryClient = context.queryClient;
+    // FALA 1 - równolegle, więc dwa wolne zapytania kosztują tyle co jedno.
+    const [stats, items] = await Promise.all([
+      loadResilient(queryClient, trackerStatsQueryOptions(), NO_STATS),
+      loadResilient(queryClient, publishedItemsQueryOptions({}, MATRIX_LIMIT), NO_ITEMS),
+    ]);
+    // FALA 2 - stanowiska pod kluczem złożonym z identyfikatorów fali 1.
+    const itemIds = items.data.map((item) => item.id);
+    const positions =
+      itemIds.length > 0
+        ? await loadResilient(queryClient, positionsForItemsQueryOptions(itemIds), NO_POSITIONS, {
+            budgetMs: POSITIONS_BUDGET_MS,
+          })
+        : { data: NO_POSITIONS, degraded: false };
+    // Zdegradowany render (macierz z fallbacku) nie może trafić do cache'a
+    // wspólnego - brzeg serwowałby pustkę kolejnym czytelnikom długo po tym,
+    // jak baza wróciła do zdrowia.
+    const degraded = anyDegraded(stats, items, positions);
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/tracker/explorer";
     const lang = activeLang(url);
@@ -48,11 +122,23 @@ export const Route = createFileRoute("/tracker/explorer")({
     });
   },
   component: TrackerExplorerPage,
-  errorComponent: (props) => <RouteErrorFallback {...props} title="Tracker" />,
+  errorComponent: (props) => <TrackerErrorFallback {...props} />,
 });
 
+/**
+ * Ekran awarii trasy mówiący JĘZYKIEM STRONY. Wcześniej `errorComponent` podawał
+ * tytuł zahardkodowanym literałem, więc czytelnik `/en/tracker/explorer` dostawał
+ * jedyny polski napis na całej stronie. `errorComponent` renderuje się jak każdy
+ * komponent, więc wolno mu wziąć zdanie ze słownika - klucz `tracker.loadError`
+ * istnieje w PL i EN, więc nie dopisujemy nowego.
+ */
+function TrackerErrorFallback(props: ErrorComponentProps) {
+  ensureTrackerI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("tracker.loadError")} />;
+}
+
 type Lang = "pl" | "en";
-const MATRIX_LIMIT = 100;
 
 function StatBar({
   entries,

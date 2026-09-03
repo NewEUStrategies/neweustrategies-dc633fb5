@@ -73,7 +73,12 @@ export function KpiTile({
     : good
       ? "text-emerald-600"
       : "text-destructive";
-  const DeltaIcon = neutral ? Minus : good ? ArrowUpRight : ArrowDownRight;
+  // Strzałka koduje KIERUNEK (znak delty), kolor koduje OCENĘ. Rozdzielenie
+  // kanałów jest konieczne przy `higherIsBetter: false` (pozycja w SERP-ach,
+  // CLS, LCP): tam wzrost jest zły, ale nadal jest wzrostem, a strzałka stoi
+  // bezpośrednio przy liczbie ze znakiem - „+42,9%" ze strzałką w dół mówiłoby
+  // dwie sprzeczne rzeczy naraz.
+  const DeltaIcon = neutral ? Minus : dir > 0 ? ArrowUpRight : ArrowDownRight;
 
   const sparkOption = useMemo<EChartsCoreOption | null>(() => {
     if (!series || series.length < 2) return null;
@@ -99,12 +104,23 @@ export function KpiTile({
   return (
     <Card className="p-3 relative overflow-hidden">
       <div className="flex items-start justify-between gap-2">
+        {/* PARA ETYKIETA-WARTOŚĆ, nie dwa luźne napisy. `role="term"` i
+            `role="definition"` wiążą je w drzewie dostępności (WCAG 1.3.1):
+            na pulpicie z sześcioma kafelkami czytnik ekranu ogłasza sześć par,
+            a nie dwanaście niepowiązanych węzłów tekstowych. Role są dołożone
+            OBOK istniejących `<div>`-ów i klas układu (`min-w-0` plus kolejność
+            dzieci), bo na nich wisi kilkadziesiąt asercji KPI w pulpitach. */}
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+          <div
+            role="term"
+            className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1"
+          >
             {icon}
             <span className="truncate">{label}</span>
           </div>
-          <div className="text-xl font-semibold tabular-nums mt-1 leading-tight">{value}</div>
+          <div role="definition" className="text-xl font-semibold tabular-nums mt-1 leading-tight">
+            {value}
+          </div>
         </div>
         {hasDelta ? (
           <div

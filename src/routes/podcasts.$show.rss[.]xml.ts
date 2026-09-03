@@ -3,6 +3,21 @@
 // the network-wide feed at /podcast/rss.xml. Served with the service role (RLS
 // bypassed), so reads are scoped to the tenant owning the request host and
 // FAIL-CLOSED like the site feeds.
+//
+// UJEDNOLICENIE KONTRAKTU 2026-09-02 (N2 audytu pokrycia). Ten kanał zostaje
+// przy JEDNOCZŁONOWYM warunku braku tenanta - i to jest decyzja, nie
+// zaniedbanie. Kanał sieciowy `/podcast/rss.xml` degraduje do PUSTEGO kanału,
+// bo do jego zbudowania nie potrzeba niczego poza tenantem. Kanał programu
+// potrzebuje WIERSZA PROGRAMU: bez tenanta `fetchPublishedShowBySlug` nie ma
+// czego znaleźć, więc degradacja i tak kończy się 404 „Unknown program".
+// Dołożenie tu `crawlerDegradeIsSafe` zmieniłoby wyłącznie treść ciała 404
+// i dołożyło gałąź, której nic nie odróżnia - to samo dotyczy
+// `/programs/$slug/rss.xml` (feed taksonomii) i `/web-stories/$slug/amp`.
+// REGUŁA: kanał adresowany SLUGIEM nie ma stanu zdegradowanego, kanał
+// adresowany samym hostem ma.
+//
+// Kanał respektuje `rss_enabled` - jak wszystkie pozostałe kanały RSS
+// w repozytorium (patrz nagłówek `/podcast/rss.xml`).
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
@@ -14,11 +29,14 @@ import {
   type PodcastRssItem,
 } from "@/lib/seo/podcastRss";
 import { resolvePodcastChannelMeta } from "@/lib/seo/podcastChannelMeta";
+import { parseSeoSettings } from "@/lib/seo/settings";
+import { rssResponseHeaders } from "@/lib/seo/feedCache";
 import {
   fetchMediaMetaByUrls,
   fetchPodcastChannelMeta,
   fetchPublishedPodcastsByShow,
   fetchPublishedShowBySlug,
+  fetchSeoSettingsValue,
 } from "@/lib/server/publishedContent.server";
 import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
@@ -49,6 +67,11 @@ export const Route = createFileRoute("/podcasts/$show/rss.xml")({
         const tenantId = await resolveCrawlerTenantIdForHost(host);
         if (!tenantId) {
           return new Response("Unknown host", { status: 404 });
+        }
+
+        const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
+        if (!settings.rss_enabled) {
+          return new Response("Feed disabled", { status: 404 });
         }
 
         const show = await fetchPublishedShowBySlug(tenantId, params.show);
@@ -122,12 +145,11 @@ export const Route = createFileRoute("/podcasts/$show/rss.xml")({
           items,
         });
 
-        return new Response(xml, {
-          headers: {
-            "Content-Type": "application/rss+xml; charset=utf-8",
-            "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
-          },
-        });
+        // Program bez ANI JEDNEGO odcinka z audio istnieje jako wiersz, więc
+        // kanał wychodzi 200 z zerem pozycji - dla katalogu Apple to sygnał
+        // „audycja bez odcinków". Krótki TTL, żeby publikacja pierwszego
+        // odcinka nie czekała na wygaśnięcie brzegu (patrz `feedCache.ts`).
+        return new Response(xml, { headers: rssResponseHeaders(items.length) });
       },
     },
   },

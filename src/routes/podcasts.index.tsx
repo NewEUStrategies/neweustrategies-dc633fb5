@@ -1,4 +1,4 @@
-// Public podcast network. URL: /podcasts — the discovery page. Podcast is a
+// Public podcast network. URL: /podcasts - the discovery page. Podcast is a
 // NETWORK OF PROGRAMS (RUSI/think-tank pattern), not a flat file list: it leads with
 // the catalogue of programs (series), each linking to its own program page,
 // followed by the newest episodes across the whole network. Links to the
@@ -73,8 +73,8 @@ export const Route = createFileRoute("/podcasts/")({
       title: "Podcast - New European Strategies",
       description:
         lang === "en"
-          ? "New European Strategies podcast network — browse programs and listen to the latest episodes."
-          : "Sieć podcastów New European Strategies — przeglądaj programy i słuchaj najnowszych odcinków.",
+          ? "New European Strategies podcast network - browse programs and listen to the latest episodes."
+          : "Sieć podcastów New European Strategies - przeglądaj programy i słuchaj najnowszych odcinków.",
     });
     // Autodiscovery kanału sieciowego: bez tego feed podcastu dawał się
     // zasubskrybować wyłącznie po ręcznym wklejeniu adresu.

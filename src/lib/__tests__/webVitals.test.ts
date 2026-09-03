@@ -875,56 +875,105 @@ describe("ścieżka produkcyjna: beacon", () => {
   });
 });
 
-describe("rozbieżności między tym RUM-em a tym, co mierzy bramka Lighthouse", () => {
-  // Oba przypięcia niżej dotyczą punktu 11: dopóki RUM i bramka CI liczą INNE
-  // WIELKOŚCI pod tymi samymi nazwami, żadnej regresji nie da się potwierdzić
-  // jednym instrumentem przez drugi. Naprawa OBU jest zmianą zachowania
-  // produkcyjnego (inne liczby w ingest, inna historia w dashboardzie), więc
-  // nie należy do tego zadania.
+describe("zgodność definicji z tym, co mierzy bramka Lighthouse", () => {
+  // Oba przypadki w tym bloku pilnują JEDNEJ rzeczy: że RUM i bramka CI liczą
+  // TE SAME WIELKOŚCI pod tymi samymi nazwami. Dopóki tak nie było, żadnej
+  // regresji nie dało się potwierdzić jednym instrumentem przez drugi -
+  // `cumulative-layout-shift <= 0.1` z `lighthouserc.json` i dashboard RUM
+  // mogły się nie zgadzać bez ani jednej zmiany w produkcie. Wartości niżej są
+  // WPROST wyliczone ze specyfikacji Web Vitals, więc każdy powrót do sumy
+  // z całego życia strony albo do zwykłego maksimum oblewa ten blok.
 
-  it.fails(
-    "CLS to suma z CAŁEGO życia strony, nie maksymalne okno sesyjne 5 s - decyzja o zmianie należy do człowieka",
-    async () => {
-      // Chrome, CrUX i Lighthouse raportują CLS jako MAKSIMUM z okien sesyjnych
-      // (przerwa <= 1 s, okno <= 5 s), a nie sumę wszystkich przesunięć. Ten
-      // moduł sumuje bez ograniczeń (webVitals.ts:139), a ocenia wynik progami
-      // VITAL_THRESHOLDS.CLS = [0.1, 0.25], które są progami OKNA SESYJNEGO.
-      // Skutek: długie sesje SPA systematycznie przeszacowują CLS, więc bramka
-      // `cumulative-layout-shift <= 0.1` w lighthouserc.json i dashboard RUM
-      // mogą się nie zgadzać bez żadnej regresji w produkcie.
-      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
-      initWebVitals();
-      // Dwa skupiska rozdzielone minutą: każde ma sumę 0.06.
-      FakeObserver.forType("layout-shift").emit([
-        shift(0.03, 1_000),
-        shift(0.03, 1_500),
-        shift(0.03, 61_000),
-        shift(0.03, 61_500),
-      ]);
-      markWebVitalsPage("/x");
+  it("CLS to MAKSIMUM Z OKIEN SESYJNYCH, nie suma z całego życia strony", async () => {
+    // Chrome, CrUX i Lighthouse raportują CLS jako maksimum z okien sesyjnych
+    // (przerwa < 1 s, okno < 5 s). Progi VITAL_THRESHOLDS.CLS = [0.1, 0.25] są
+    // progami OKNA, więc suma bez ograniczeń oceniałaby wielkość, której te
+    // progi nie opisują, i długie sesje SPA systematycznie przeszacowywałyby
+    // CLS - tym mocniej, im dłużej czytelnik zostaje na stronie.
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    // Dwa skupiska rozdzielone minutą: każde ma sumę 0.06.
+    FakeObserver.forType("layout-shift").emit([
+      shift(0.03, 1_000),
+      shift(0.03, 1_500),
+      shift(0.03, 61_000),
+      shift(0.03, 61_500),
+    ]);
+    markWebVitalsPage("/x");
 
-      // Oczekiwanie POŻĄDANE: maksimum okna sesyjnego = 0.06. Dziś: 0.12.
-      expect(reportsFor("CLS")[0]?.metric.value).toBeCloseTo(0.06, 10);
-    },
-  );
+    // Maksimum okna sesyjnego = 0.06 („good"), a nie suma 0.12.
+    expect(reportsFor("CLS")[0]?.metric.value).toBeCloseTo(0.06, 10);
+    expect(reportsFor("CLS")[0]?.metric.rating).toBe("good");
+  });
 
-  it.fails(
-    "INP to maksimum czasu zdarzenia, nie wysoki percentyl - decyzja o zmianie należy do człowieka",
-    async () => {
-      // Specyfikacja INP odrzuca najgorszą interakcję na każde 50 - przy 150
-      // interakcjach odpadają trzy najgorsze. Ten moduł bierze zwykłe maksimum
-      // (webVitals.ts:152), więc JEDEN wyjątkowy przypadek definiuje metrykę,
-      // której nazwa i progi VITAL_THRESHOLDS.INP = [200, 500] mówią o percentylu.
-      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
-      initWebVitals();
-      const entries: FakeEntry[] = [];
-      for (let i = 0; i < 147; i += 1) entries.push(interaction(50, i + 1));
-      for (let i = 0; i < 3; i += 1) entries.push(interaction(600, 200 + i));
-      FakeObserver.forType("event").emit(entries);
-      markWebVitalsPage("/x");
+  it("okno sesyjne CLS zamyka się też po 5 s, mimo przerw krótszych niż 1 s", async () => {
+    // Druga granica ze specyfikacji, niezależna od przerwy: seria przesunięć
+    // co 900 ms nigdy nie robi przerwy 1 s, więc bez limitu 5 s narastałaby
+    // w jedno okno bez końca - to jest ten sam przeciek, tylko wolniejszy.
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    const entries: FakeEntry[] = [];
+    for (let i = 0; i < 7; i += 1) entries.push(shift(0.02, i * 900));
+    FakeObserver.forType("layout-shift").emit(entries);
+    markWebVitalsPage("/x");
 
-      // Oczekiwanie POŻĄDANE: 50 ms (trzy najgorsze odrzucone). Dziś: 600 ms.
-      expect(reportsFor("INP")[0]?.metric.value).toBe(50);
-    },
-  );
+    // Sześć przesunięć mieści się w oknie [0, 5000) - siódme (5400) otwiera
+    // nowe. Maksimum to 6 * 0.02 = 0.12, a nie suma 7 * 0.02 = 0.14.
+    expect(reportsFor("CLS")[0]?.metric.value).toBeCloseTo(0.12, 10);
+  });
+
+  it("INP to WYSOKI PERCENTYL interakcji - jedna odrzucona na każde 50", async () => {
+    // Specyfikacja INP odrzuca najgorszą interakcję na każde 50 - przy 150
+    // interakcjach odpadają trzy najgorsze. Zwykłe maksimum pozwalało JEDNEMU
+    // wyjątkowemu przypadkowi (zimny cache, zablokowany wątek przy pierwszym
+    // kliknięciu) zdefiniować metrykę całej odsłony, choć jej nazwa i progi
+    // VITAL_THRESHOLDS.INP = [200, 500] mówią o percentylu.
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    const entries: FakeEntry[] = [];
+    for (let i = 0; i < 147; i += 1) entries.push(interaction(50, i + 1));
+    for (let i = 0; i < 3; i += 1) entries.push(interaction(600, 200 + i));
+    FakeObserver.forType("event").emit(entries);
+    markWebVitalsPage("/x");
+
+    // 50 ms (trzy najgorsze odrzucone), a nie 600 ms.
+    expect(reportsFor("INP")[0]?.metric.value).toBe(50);
+  });
+
+  it("poniżej 50 interakcji percentyl NIE odrzuca niczego - INP to wtedy maksimum", async () => {
+    // Druga strona tej samej reguły: `floor(49 / 50) = 0`, więc jedna wolna
+    // interakcja na krótkiej odsłonie MUSI być widoczna. Odrzucanie „na
+    // wszelki wypadek" zamiotłoby pod dywan dokładnie te przypadki, po które
+    // sięga panel wydajności.
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    const entries: FakeEntry[] = [interaction(400, 1)];
+    for (let i = 1; i < 49; i += 1) entries.push(interaction(60, i + 1));
+    FakeObserver.forType("event").emit(entries);
+    markWebVitalsPage("/x");
+
+    expect(reportsFor("INP")[0]?.metric.value).toBe(400);
+    expect(reportsFor("INP")[0]?.metric.rating).toBe("needs-improvement");
+  });
+
+  it("kilka zdarzeń JEDNEJ interakcji to jedna interakcja o najdłuższym zdarzeniu", async () => {
+    // `pointerdown`, `pointerup` i `click` jednego gestu mają WSPÓLNY
+    // `interactionId`. Mianownikiem percentyla są INTERAKCJE, nie wpisy:
+    // 25 gestów po dwa zdarzenia to 25 interakcji (`floor(25 / 50) = 0`, czyli
+    // nic nie odrzucamy), a nie 50 „interakcji", przy których odpadłaby
+    // najgorsza - i najwolniejszy gest odsłony zniknąłby z metryki.
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    const entries: FakeEntry[] = [];
+    for (let i = 0; i < 25; i += 1) {
+      // Pierwsze zdarzenie gestu jest krótkie, drugie niesie jego opóźnienie.
+      entries.push(interaction(10, i + 1));
+      entries.push(interaction(i === 0 ? 500 : i === 1 ? 300 : 60, i + 1));
+    }
+    FakeObserver.forType("event").emit(entries);
+    markWebVitalsPage("/x");
+
+    expect(reportsFor("INP")).toHaveLength(1);
+    expect(reportsFor("INP")[0]?.metric.value).toBe(500);
+  });
 });

@@ -385,12 +385,24 @@ export async function fetchPollResults(pollIds: string[]): Promise<Map<string, P
   return map;
 }
 
-/** Lista publicznych ankiet - klucz współdzielony przez loader SSR /polls
- *  i render strony (hydratacja bez ponownego fetcha). */
+/**
+ * Lista publicznych ankiet - klucz współdzielony przez loader SSR /polls
+ * i render strony (hydratacja bez ponownego fetcha).
+ *
+ * `staleTime` NIE JEST TU KOSMETYKĄ. Bez niego dane zasiane loaderem są
+ * przeterminowane w chwili hydratacji, więc `useQuery` refetchuje listę
+ * ZARAZ po montażu - zmierzone: drugi odczyt `polls` w fali klienta, czyli
+ * pełny round-trip za dane, które właśnie przyjechały w dokumencie. Minuta
+ * świeżości jest bezpieczna, bo głosy NIE zmieniają tej listy (rozkład
+ * głosów żyje w osobnym kluczu `public-poll-results`, celowo klienckim),
+ * a otwarcie i zamknięcie ankiety jest zdarzeniem redakcyjnym. Ta sama
+ * wartość, którą dla listy wydarzeń deklaruje `publicEventsQueryOptions`.
+ */
 export const publicPollsQueryOptions = () =>
   queryOptions({
     queryKey: ["public-polls"],
     queryFn: fetchPublicPolls,
+    staleTime: 60_000,
   });
 
 /**
@@ -445,6 +457,22 @@ export async function fetchPublicQaSessions(): Promise<PublicQaSession[]> {
   return (data ?? []) as PublicQaSession[];
 }
 
+/**
+ * Lista publicznych sesji Q&A - klucz WSPÓLNY dla loadera SSR `/qa` i renderu
+ * strony. Wcześniej loader wołał `fetchPublicQaSessions()` wprost (żeby zasilić
+ * `head()` i węzeł kolekcji JSON-LD), więc jego praca nie zasilała cache'u
+ * react-query: markup listy w wyjściu serwera był PUSTY (`query.isLoading`),
+ * a przeglądarka pobierała te same sto sesji drugi raz po hydratacji.
+ * `staleTime` jest tu warunkiem sensu zasiewu - bez niego dane są
+ * przeterminowane w chwili hydratacji i `useQuery` i tak refetchuje.
+ */
+export const publicQaSessionsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public-qa-sessions"],
+    queryFn: fetchPublicQaSessions,
+    staleTime: 60_000,
+  });
+
 export async function fetchPublicQaSessionBySlug(slug: string): Promise<PublicQaSession | null> {
   const { data, error } = await supabase
     .from("qa_sessions")
@@ -455,6 +483,34 @@ export async function fetchPublicQaSessionBySlug(slug: string): Promise<PublicQa
   if (error) throw error;
   return (data ?? null) as PublicQaSession | null;
 }
+
+/**
+ * Jedna sesja Q&A po slugu - klucz WSPÓLNY dla loadera `/qa/$slug` i renderu.
+ * `staleTime` jak przy liście: bez niego zasiew loaderem jest przeterminowany
+ * w chwili hydratacji i przeglądarka pobiera sesję drugi raz.
+ */
+export const publicQaSessionQueryOptions = (slug: string) =>
+  queryOptions({
+    queryKey: ["public-qa-session", slug],
+    queryFn: () => fetchPublicQaSessionBySlug(slug),
+    staleTime: 60_000,
+  });
+
+/**
+ * Pytania sesji - klucz WSPÓLNY dla loadera `/qa/$slug` i renderu.
+ *
+ * `staleTime` jest tu KRÓTSZY niż przy sesji (30 s wobec 60 s) i to nie jest
+ * niekonsekwencja: lista pytań rośnie ruchem czytelników (nowe pytania, nowe
+ * głosy), więc jest treścią „żywszą" niż opis sesji. Trzydzieści sekund
+ * wystarcza, żeby zasiew loadera nie był ponawiany zaraz po hydratacji,
+ * i jednocześnie nie zamraża listy na minutę.
+ */
+export const publicQaQuestionsQueryOptions = (sessionId: string) =>
+  queryOptions({
+    queryKey: ["public-qa-questions", sessionId],
+    queryFn: () => fetchPublicQaQuestions(sessionId),
+    staleTime: 30_000,
+  });
 
 export interface QaSummaryPostTeaser {
   slug: string;
@@ -559,11 +615,21 @@ export async function fetchLibraryResources(): Promise<PublicResource[]> {
   return (data ?? []) as PublicResource[];
 }
 
-/** Opublikowane materiały biblioteki - klucz współdzielony przez loader SSR
- *  /library i render strony. Metadane są publiczne (teaser z kłódką); sam
- *  plik i tak wymaga server fn z bramką rangi, więc SSR niczego nie odsłania. */
+/**
+ * Opublikowane materiały biblioteki - klucz współdzielony przez loader SSR
+ * /library i render strony. Metadane są publiczne (teaser z kłódką); sam plik
+ * i tak wymaga server fn z bramką rangi, więc SSR niczego nie odsłania.
+ *
+ * `staleTime` z tego samego powodu, co przy liście ankiet wyżej: bez niego
+ * lista zasiana loaderem jest przeterminowana w chwili hydratacji, więc
+ * przeglądarka pobiera ją PONOWNIE zaraz po montażu (zmierzone: drugi odczyt
+ * `member_resources` w fali klienta). Katalog materiałów zmienia się gestem
+ * redakcyjnym, nie ruchem czytelnika, więc minuta świeżości jest bezpieczna;
+ * personalizacja (ranga warstwy) i tak żyje w osobnym, klienckim kluczu.
+ */
 export const libraryResourcesQueryOptions = () =>
   queryOptions({
     queryKey: ["library-resources"],
     queryFn: fetchLibraryResources,
+    staleTime: 60_000,
   });

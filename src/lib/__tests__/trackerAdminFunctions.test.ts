@@ -52,9 +52,20 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 
 import { callServerFn, serverFnMiddlewareNames } from "@/test/serverFnHarness";
+import { ok, supabaseFromStub } from "@/test/supabaseChain";
 import { runTrackerTickNow } from "@/lib/tracker-admin.functions";
 
-const SESSION_CLIENT = { marker: "session" };
+// Klient SESJI z jednym umiejętnym zapytaniem: profil operatora. Handler czyta
+// przez niego najemcę do śladu audytowego, więc atrapa musi umieć łańcuch
+// PostgREST - a nie tylko nieść znacznik tożsamości.
+const sessionDb = supabaseFromStub();
+const SESSION_CLIENT = { marker: "session", from: sessionDb.from };
+
+/** Najemcy operatorów w atrapie profili; konto poza mapą nie ma profilu. */
+const TENANT_OF: Record<string, string | undefined> = {
+  "operator-1": "tenant-redakcja",
+  "operator-42": "tenant-sprzedaz",
+};
 
 const call = (userId?: string) =>
   callServerFn(runTrackerTickNow, {
@@ -64,6 +75,12 @@ const call = (userId?: string) =>
 beforeEach(() => {
   h.calls = [];
   h.result = { newsletter: { fired: 0, continued: 0, sent: 0 } };
+  sessionDb.reset();
+  sessionDb.setResponse("profiles", (chain) => {
+    const id = chain.argsOf("eq")?.[1];
+    const tenantId = typeof id === "string" ? TENANT_OF[id] : undefined;
+    return ok(tenantId ? { tenant_id: tenantId } : null);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -131,10 +148,8 @@ describe("wywołanie dyspozytora", () => {
 });
 
 // ---------------------------------------------------------------------------
-// PRZYPIĘTY DEFEKT. Nie zmieniamy tu zachowania produkcyjnego - defekt zostaje
-// opisany testem, który JEST czerwony.
-describe("defekt przypięty (it.fails)", () => {
-  // ŚLAD AUDYTOWY RĘCZNEGO TICKU GUBI NAJEMCĘ.
+describe("ślad audytowy: najemca operatora", () => {
+  // ŚLAD AUDYTOWY RĘCZNEGO TICKU NIESIE NAJEMCĘ, NIE TYLKO OPERATORA.
   //
   // Kontrakt jest zapisany w samym kodzie, więc nie jest moim wymyśleniem -
   // `JobsTickMeta` w `lib/server/jobsTick.server.ts`:
@@ -143,28 +158,48 @@ describe("defekt przypięty (it.fails)", () => {
   //     tenantId?: string | null;
   //     actorId?: string | null;
   //
-  // Ten handler podaje `actorId`, a `tenantId` pomija, więc `recordJobRun`
-  // odkłada w `job_runner_runs` wiersz z `tenant_id: null`. BLIŹNIACZA funkcja
+  // Handler podawał `actorId`, a `tenantId` pomijał, więc `recordJobRun`
+  // odkładał w `job_runner_runs` wiersz z `tenant_id: null`. BLIŹNIACZA funkcja
   // `/admin/scheduler` (`lib/admin/scheduler.functions.ts`) rozwiązuje najemcę
   // z profilu operatora i podaje oba pola - identyczne działanie z dwóch
-  // paneli zapisuje się więc RÓŻNIE.
+  // paneli zapisywało się więc RÓŻNIE. Teraz zapisuje się TAK SAMO i to
+  // pilnują przypadki niżej.
   //
   // DLACZEGO TO NIE JEST KOSMETYKA. Log przebiegów jest odczytywany globalnie
   // (RPC zdrowia harmonogramu nie filtruje po najemcy), bo tick jest globalny -
   // ale właśnie dlatego kolumna `tenant_id` jest jedynym miejscem, w którym
   // widać, CZYJ operator wypchnął alerty ponad RLS wszystkich najemców.
   // W instalacji z wieloma zespołami sztabowymi ręczny tick z `/admin/tracker`
-  // jest przypisywalny do osoby, ale nie do obszaru roboczego - a rekonstrukcja
-  // po `actorId` wymaga sięgnięcia do profilu, który w tym czasie mógł już
-  // zmienić najemcę.
-  //
-  // NAPRAWA (nie wykonana, bo poza zakresem zlecenia N1-N8): odczyt
-  // `profiles.tenant_id` dla `context.userId` i podanie go w `meta`, dokładnie
-  // jak w `scheduler.functions.ts`.
-  it.fails("ręczny tick zapisuje najemcę operatora w śladzie audytowym", async () => {
+  // musi być przypisywalny nie tylko do osoby, ale i do obszaru roboczego -
+  // rekonstrukcja po `actorId` wymaga sięgnięcia do profilu, który do czasu
+  // audytu mógł już zmienić najemcę.
+  it("ręczny tick zapisuje najemcę operatora w śladzie audytowym", async () => {
     await call("operator-1");
 
     expect(h.calls[0].meta).toHaveProperty("tenantId");
     expect(h.calls[0].meta.tenantId).not.toBeNull();
+    expect(h.calls[0].meta.tenantId).toBe("tenant-redakcja");
+  });
+
+  it("najemca idzie z profilu TEGO operatora, czytanego klientem SESJI", async () => {
+    // Nie service role i nie z wejścia: profil czyta się w granicach RLS
+    // wołającego, a identyfikator pochodzi wyłącznie z kontekstu middleware.
+    await call("operator-42");
+
+    expect(h.calls[0].meta.tenantId).toBe("tenant-sprzedaz");
+    const chain = sessionDb.lastChain("profiles");
+    expect(chain?.argsOf("select")).toEqual(["tenant_id"]);
+    expect(chain?.argsOf("eq")).toEqual(["id", "operator-42"]);
+    expect(chain?.has("maybeSingle")).toBe(true);
+  });
+
+  it("brak profilu daje `tenantId: null`, ale NIE przerywa ticku", async () => {
+    // Ślad ma być pełny, jeśli może; nigdy za cenę niezadrenowanych kolejek
+    // poczty i push wszystkich najemców.
+    await expect(call("operator-bez-profilu")).resolves.toBeDefined();
+
+    expect(h.calls).toHaveLength(1);
+    expect(h.calls[0].meta.tenantId).toBeNull();
+    expect(h.calls[0].meta.source).toBe("admin");
   });
 });

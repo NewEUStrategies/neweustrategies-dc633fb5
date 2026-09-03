@@ -40,16 +40,20 @@ export const Route = createFileRoute("/web-stories/")({
       url,
       lang,
       type: "website",
-      title:
-        lang === "en"
-          ? "Web Stories - New European Strategies"
-          : "Web Stories - New European Strategies",
+      // Nazwa formatu jest ta sama w obu językach - ternary o identycznych
+      // gałęziach byłby tu tylko szumem (patrz lib/ci/hardcodedLanguage).
+      title: "Web Stories - New European Strategies",
       description: lang === "en" ? "Browse our web stories." : "Przeglądaj nasze web stories.",
     });
   },
   component: WebStoriesIndex,
+  // Tytuł błędu był wpisany na sztywno po polsku, więc odwiedzający
+  // `/en/web-stories` dostawał polskie zdanie na ekranie awarii.
   errorComponent: (props) => (
-    <RouteErrorFallback {...props} title="Nie udało się załadować listy" />
+    <RouteErrorFallback
+      {...props}
+      title={activeLang() === "en" ? "Failed to load the list" : "Nie udało się załadować listy"}
+    />
   ),
 });
 

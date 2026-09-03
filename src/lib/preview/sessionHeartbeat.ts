@@ -221,7 +221,13 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
     if (disposed || probeInFlight) return;
     probeInFlight = true;
     const controller = new AbortController();
-    const abort = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    // Powód przerwania jest JAWNY: bez niego przeglądarka rzuca „signal is
+    // aborted without reason", komunikat nie do odróżnienia od realnej awarii
+    // sieci w telemetrii.
+    const abort = setTimeout(
+      () => controller.abort(new DOMException("preview heartbeat timeout", "TimeoutError")),
+      PROBE_TIMEOUT_MS,
+    );
     try {
       const buildId = await probe(controller.signal);
       const step = heartbeatStep(state, { type: "ok", atMs: Date.now(), buildId });

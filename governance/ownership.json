@@ -262,6 +262,8 @@
         "admin.redirects.tsx",
         "admin.tracker*",
         "admin.analytics.tsx",
+        "admin.analytics.index.tsx",
+        "admin.analytics.bi.tsx",
         "admin.audience.tsx",
         "admin.link-monitor.tsx"
       ],

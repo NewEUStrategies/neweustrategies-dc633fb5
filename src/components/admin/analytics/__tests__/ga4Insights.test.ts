@@ -456,19 +456,20 @@ describe("buildGa4Insights - trend ruchu", () => {
     expect(trend.detail).toBe(dictText("trend.detail", { early: 0, late: 0 }));
   });
 
-  it.fails(
-    "trend przy nieparzystej liczbie dni dzieli okno na nierówne połowy - płaski ruch raportuje jako wzrost",
-    () => {
-      // Siedem dni po 10 sesji, czyli ruch DOKŁADNIE płaski. Math.floor(7/2) = 3,
-      // więc H1 to trzy dni (30), a H2 cztery (40) - silnik ogłasza +33.3%
-      // i podnosi severity do "good" na danych, w których nic nie urosło.
-      const flatWeek = [1, 2, 3, 4, 5, 6, 7].map((d) => row(`2026010${d}`, 10));
-      const trend = byId(build({ dateReport: coreTotals(70, 0, 0, 0, flatWeek) }), "trend");
+  it("trend przy nieparzystej liczbie dni dzieli okno na RÓWNE połowy - płaski ruch to zero zmiany", () => {
+    // Siedem dni po 10 sesji, czyli ruch DOKŁADNIE płaski. Przy podziale
+    // `slice(0, floor(7/2))` / `slice(floor(7/2))` H1 miałoby trzy dni (30),
+    // a H2 cztery (40) - silnik ogłaszałby +33.3% i podnosił severity do
+    // "good" na danych, w których nic nie urosło (a symetrycznie ukrywał
+    // realny spadek). Obie połowy mają teraz po trzy dni, dzień środkowy nie
+    // wchodzi do żadnej, więc H1 = H2 = 30 i trend to dokładnie 0%.
+    const flatWeek = [1, 2, 3, 4, 5, 6, 7].map((d) => row(`2026010${d}`, 10));
+    const trend = byId(build({ dateReport: coreTotals(70, 0, 0, 0, flatWeek) }), "trend");
 
-      expect(trend.title).toBe(dictText("trend.title", { delta: "+0.0" }));
-      expect(trend.severity).toBe("info");
-    },
-  );
+    expect(trend.title).toBe(dictText("trend.title", { delta: "+0.0" }));
+    expect(trend.severity).toBe("info");
+    expect(trend.detail).toBe(dictText("trend.detail", { early: 30, late: 30 }));
+  });
 });
 
 describe("buildGa4Insights - źródła ruchu", () => {
@@ -747,19 +748,18 @@ describe("buildGa4Insights - radar zaangażowania", () => {
     expect(insight.fixes).toEqual(dictFixes("engagementRadar.fixesLowSpv"));
   });
 
-  it.fails(
-    "radar buduje ostrzeżenie z podstawionych zer, gdy raport ma nagłówki metryk, ale pusty zestaw totali",
-    () => {
-      // Okno bez ruchu: Data API oddaje nagłówki metryk i ZERO wierszy, więc
-      // `totals` jest puste. Bramka sprawdza jednak nagłówki, nie totale, więc
-      // administrator dostaje "0 odsł./sesja - dodaj related posty" na danych,
-      // których nie ma. Sąsiedni helper `ga4TotalsMap` (ga4.server.ts) trzyma
-      // odwrotną regułę wprost: "brak danych" to nie to samo, co zero.
-      const insights = build({ engagementReport: report(RADAR_HEADERS, { totals: [] }) });
+  it("radar nie powstaje, gdy raport ma nagłówki metryk, ale pusty zestaw totali", () => {
+    // Okno bez ruchu: Data API oddaje nagłówki metryk i ZERO wierszy, więc
+    // `totals` jest puste. Gdyby bramka sprawdzała nagłówki, a nie totale,
+    // administrator dostawałby "0 odsł./sesja - dodaj related posty" na
+    // danych, których nie ma. `totalsFromReport` mapuje więc tylko metryki
+    // z realnym totalem, a bramka radaru pyta o tę mapę - tak samo jak
+    // sąsiedni helper `ga4TotalsMap` (ga4.server.ts), który trzyma tę regułę
+    // wprost: "brak danych" to nie to samo, co zmierzone zero.
+    const insights = build({ engagementReport: report(RADAR_HEADERS, { totals: [] }) });
 
-      expect(ids(insights)).not.toContain("engagement-radar");
-    },
-  );
+    expect(ids(insights)).not.toContain("engagement-radar");
+  });
 });
 
 describe("buildGa4Insights - top strony", () => {
@@ -841,22 +841,22 @@ describe("buildGa4Insights - top strony", () => {
     expect(top.severity).toBe("info");
   });
 
-  it.fails(
-    "tytuł top stron liczy 'zaangażowane' jako 10 minus słabe, więc przy raporcie krótszym niż 10 stron obiecuje więcej mocnych stron, niż w ogóle istnieje",
-    () => {
-      // Cztery strony, jedna słaba -> mocne są trzy. Silnik pisze "9 zaangażowanych".
-      const top = byId(
-        build({
-          pageReport: report(PAGE_HEADERS, {
-            rows: [row("/a", 100, 0.8), row("/b", 90, 0.8), row("/c", 80, 0.8), row("/d", 70, 0.1)],
-          }),
+  it("tytuł top stron liczy 'zaangażowane' z realnej długości czołówki, nie z pełnej dziesiątki", () => {
+    // Cztery strony, jedna słaba -> mocne są trzy. Przy „10 minus słabe"
+    // silnik obiecywałby "9 zaangażowanych", czyli więcej mocnych stron, niż
+    // raport w ogóle zawiera. Liczba mocnych schodzi więc z długości
+    // faktycznie ocenionej czołówki (tu: cztery wiersze).
+    const top = byId(
+      build({
+        pageReport: report(PAGE_HEADERS, {
+          rows: [row("/a", 100, 0.8), row("/b", 90, 0.8), row("/c", 80, 0.8), row("/d", 70, 0.1)],
         }),
-        "top-pages",
-      );
+      }),
+      "top-pages",
+    );
 
-      expect(top.title).toBe(dictText("topPages.title", { strong: 3, weak: 1 }));
-    },
-  );
+    expect(top.title).toBe(dictText("topPages.title", { strong: 3, weak: 1 }));
+  });
 });
 
 describe("buildGa4Insights - wiersze bez wartości wymiaru", () => {

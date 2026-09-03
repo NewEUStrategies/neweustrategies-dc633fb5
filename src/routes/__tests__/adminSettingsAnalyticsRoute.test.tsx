@@ -288,10 +288,28 @@ function serverHangs(): void {
 // Dostęp do interfejsu
 // ---------------------------------------------------------------------------
 
-/** Pasek zapisu - jedyny przycisk panelu z napisem zaszytym w `fields.tsx`. */
+/**
+ * Pasek zapisu - jedyny przycisk panelu, którego napis niesie `fields.tsx`.
+ *
+ * Szukamy po napisach ZE SŁOWNIKA, w OBU językach: pasek jest wspólny dla
+ * kilkunastu paneli `admin.settings.*`, a jego etykieta idzie teraz przez
+ * `t()`, więc helper przypięty do polskiego literału przestawał go znajdować
+ * dokładnie w tym teście, który sprawdza wersję angielską.
+ */
+function saveBarLabels(): Set<string> {
+  const labels = new Set<string>();
+  for (const lang of ["pl", "en"] as const) {
+    const t = realT(lang);
+    labels.add(t("admin.saveSettings"));
+    labels.add(t("admin.saving"));
+  }
+  return labels;
+}
+
 function saveBar(): HTMLButtonElement | undefined {
-  return Array.from(document.querySelectorAll("button")).find(
-    (button) => button.textContent === "Zapisz zmiany" || button.textContent === "Zapisywanie…",
+  const labels = saveBarLabels();
+  return Array.from(document.querySelectorAll("button")).find((button) =>
+    labels.has((button.textContent ?? "").trim()),
   );
 }
 
@@ -492,9 +510,16 @@ describe("stany połączenia są rozróżnialne", () => {
         t("admin.analyticsSettings.status.notConfigured"),
         t("admin.analyticsSettings.status.partial"),
         t("admin.analyticsSettings.status.checking"),
+        // Piąty stan: AWARIA diagnostyki. Gdyby dostał napis „Sprawdzanie…",
+        // operator znów nie odróżniłby odmowy od trwającego sprawdzania -
+        // i cały test niżej przechodziłby na napisie bez informacji.
+        t("admin.analyticsSettings.status.error"),
         t("admin.analyticsSettings.ga4.disabled"),
       ];
       expect(new Set(labels).size, `${lang}: napisy stanów się powtarzają`).toBe(labels.length);
+      // Nazwa AKCJI odświeżenia też nie ma prawa być napisem żadnego stanu -
+      // przycisk z etykietą stanu wygląda na wskaźnik i nikt go nie klika.
+      expect(labels).not.toContain(t("admin.analyticsSettings.status.refresh"));
       for (const label of labels) expect(label.length).toBeGreaterThan(0);
     }
   });
@@ -594,39 +619,37 @@ describe("stany połączenia są rozróżnialne", () => {
     );
   });
 
-  it.fails(
-    "DEFEKT: AWARIA diagnostyki jest nieodróżnialna od trwającego sprawdzania - operator nie ma czego naprawić",
-    async () => {
-      // ZMIERZONE. `admin.settings.analytics.tsx:123-134` i `:278`: jedynym
-      // wejściem do wskaźnika jest `statusQ.data`. Odrzucone zapytanie zostawia
-      // `data === undefined`, więc `ga4Kind(undefined, ...)` oddaje `"loading"`,
-      // a `gscK` też `"loading"` - czyli DOKŁADNIE ten sam napis
-      // („Sprawdzanie…"), który panel pokazuje w trakcie sprawdzania. `statusQ`
-      // ma `isError`, ale panel go nie czyta, a `StatusKind` nie ma wcale
-      // ramienia awarii; słownik nie ma nawet klucza
-      // `admin.analyticsSettings.status.*` na błąd.
-      //
-      // KONSEKWENCJA DLA OPERATORA. Trzy różne przyczyny - brak roli admina
-      // (`Forbidden: admin role required` z `requireAdmin`), padnięta bramka
-      // Google, zerwana sieć - dają wskaźnik nieodróżnialny od „jeszcze
-      // sprawdzam". Zachowanie: czekać. Właściwe zachowanie: iść po
-      // uprawnienia albo po sekrety. Odświeżenie też nie pomaga, bo po nim
-      // wskaźnik wygląda identycznie.
-      //
-      // NAPRAWA (nie robimy jej tutaj - zakresem zadania są testy): dołożyć
-      // `StatusKind = "error"` z własną odznaką i klucz
-      // `admin.analyticsSettings.status.error`, a `ga4Kind`/`gscK` karmić
-      // również `statusQ.isError`.
-      const t = realT("pl");
-      serverRefuses("bad gateway");
-      await mountPanel();
-      await waitFor(() => expect(h.statusCalls).toBeGreaterThan(0));
+  it("AWARIA diagnostyki jest odróżnialna od trwającego sprawdzania - operator wie, że ma iść po uprawnienia", async () => {
+    // MECHANIZM. Jedynym wejściem do wskaźnika był `statusQ.data`, a odrzucone
+    // zapytanie zostawia `data === undefined` - więc `ga4Kind(undefined, ...)`
+    // oddawało `"loading"` i `gscK` też `"loading"`, czyli DOKŁADNIE ten sam
+    // napis („Sprawdzanie…"), który panel pokazuje w trakcie sprawdzania.
+    // `statusQ.isError` istniał, ale nikt go nie czytał, a `StatusKind` nie
+    // miał wcale ramienia awarii.
+    //
+    // CZEGO TEN PRZYPADEK PILNUJE. Trzy różne przyczyny - brak roli admina
+    // (`Forbidden: admin role required` z `requireAdmin`), padnięta bramka
+    // Google, zerwana sieć - kończą się odrzuceniem zapytania i muszą dać
+    // wskaźnik INNY niż „jeszcze sprawdzam". Rozróżnienie jest jedyną
+    // informacją, z której operator wyprowadza zachowanie: przy „sprawdzam"
+    // się czeka, przy awarii idzie się po uprawnienia albo po sekrety.
+    // Zlanie tych dwóch stanów wraca dokładnie wtedy, gdy ktoś znów oprze
+    // wskaźnik na samym `data` - i wtedy ten test gaśnie.
+    const t = realT("pl");
+    serverRefuses("bad gateway");
+    await mountPanel();
+    await waitFor(() => expect(h.statusCalls).toBeGreaterThan(0));
 
-      const checking = t("admin.analyticsSettings.status.checking");
-      expect(badge(t("admin.analyticsSettings.ga4.title"))).not.toBe(checking);
-      expect(badge(t("admin.analyticsSettings.gsc.title"))).not.toBe(checking);
-    },
-  );
+    const checking = t("admin.analyticsSettings.status.checking");
+    const failed = t("admin.analyticsSettings.status.error");
+    await waitFor(() => expect(badge(t("admin.analyticsSettings.ga4.title"))).toBe(failed));
+    expect(badge(t("admin.analyticsSettings.gsc.title"))).toBe(failed);
+    expect(badge(t("admin.analyticsSettings.ga4.title"))).not.toBe(checking);
+    expect(badge(t("admin.analyticsSettings.gsc.title"))).not.toBe(checking);
+    // Surowy komunikat serwera nadal nie ma prawa trafić na ekran - odznaka
+    // mówi KLASĘ awarii, nie treść odmowy.
+    expect(document.body.textContent ?? "").not.toContain("bad gateway");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -765,20 +788,25 @@ describe("wersja robocza i cykl zapisu", () => {
     expect(shown).not.toContain("[object Object]");
   });
 
-  it.fails(
-    "DEFEKT: pasek zapisu jest po polsku także w EN - napis zaszyty w `fields.tsx`, poza słownikiem",
-    async () => {
-      // ZMIERZONE. `src/components/admin/settings/fields.tsx` -> `SaveBar`
-      // renderuje literały „Zapisz zmiany" i „Zapisywanie…" bez `t()`, więc na
-      // angielskim panelu jedyny przycisk, który cokolwiek utrwala, jest po
-      // polsku. Panel analityki jest w EN kompletny (tytuł, opisy, stany, okno
-      // łączenia) - łamie się dokładnie na akcji końcowej, wspólnej dla
-      // dwunastu paneli `admin.settings.*`.
-      await i18n.changeLanguage("en");
-      await mountPanel();
-      expect(saveBar()?.textContent).not.toBe("Zapisz zmiany");
-    },
-  );
+  it("pasek zapisu mówi po angielsku na angielskim panelu - napis idzie ze słownika", async () => {
+    // MECHANIZM. `src/components/admin/settings/fields.tsx` -> `SaveBar`
+    // renderował literały „Zapisz zmiany" i „Zapisywanie…" bez `t()`, więc na
+    // angielskim panelu jedyny przycisk, który cokolwiek utrwala, stał po
+    // polsku. Panel analityki jest w EN kompletny (tytuł, opisy, stany, okno
+    // łączenia) - łamał się dokładnie na akcji końcowej, wspólnej dla
+    // kilkunastu paneli `admin.settings.*`.
+    //
+    // CZEGO TEN PRZYPADEK PILNUJE. Asercja jest DWUSTRONNA: napis musi być
+    // dokładnie tym, co ma w EN słownik, i nie może być polskim literałem
+    // z kodu. Sam warunek „nie po polsku" przechodziłby także dla gołego
+    // klucza (`admin.saveSettings`) - a to nie jest napis dla operatora.
+    await i18n.changeLanguage("en");
+    await mountPanel();
+
+    expect(saveBar()?.textContent).toBe(realT("en")("admin.saveSettings"));
+    expect(saveBar()?.textContent).not.toBe("Zapisz zmiany");
+    expect(saveBar()?.textContent).not.toContain("admin.save");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -884,7 +912,7 @@ describe("odświeżenie stanu połączeń", () => {
     );
 
     serverSays(status({ ga4: { configured: true, activeMode: "service_account" } }));
-    fireEvent.click(buttonWithText(t("admin.analyticsSettings.status.checking")));
+    fireEvent.click(buttonWithText(t("admin.analyticsSettings.status.refresh")));
 
     await waitFor(() => expect(h.statusCalls).toBe(2));
     await waitFor(() =>
@@ -908,25 +936,29 @@ describe("odświeżenie stanu połączeń", () => {
     await waitFor(() => expect(h.statusCalls).toBe(2));
   });
 
-  it.fails(
-    "DEFEKT: przycisk odświeżenia nosi napis STANU („Sprawdzanie…”), nie nazwę akcji",
-    async () => {
-      // ZMIERZONE. `admin.settings.analytics.tsx:337` wstawia w przycisk
-      // `tStatus.loading`, czyli ten sam napis, którym odznaki opisują trwające
-      // sprawdzanie. Skutki są dwa i oba realne: (1) przycisk wygląda na
-      // wskaźnik, więc nikt go nie klika, a to jedyna droga do ponownego
-      // sprawdzenia; (2) po odmowie diagnostyki (patrz defekt wyżej) na ekranie
-      // stoją TRZY napisy „Sprawdzanie…" i żaden z nich nie jest akcją.
-      // Słownik nie ma klucza na tę akcję - naprawa to `status.refresh` w PL/EN.
-      const t = realT("pl");
-      serverSays(status());
-      await mountPanel();
-      const refresh = buttonWithText(t("admin.analyticsSettings.status.checking"));
-      expect((refresh.textContent ?? "").trim()).not.toBe(
-        t("admin.analyticsSettings.status.checking"),
-      );
-    },
-  );
+  it("przycisk odświeżenia nosi nazwę AKCJI, a nie napis stanu („Sprawdzanie…”)", async () => {
+    // MECHANIZM. Przycisk brał `tStatus.loading`, czyli ten sam napis, którym
+    // odznaki opisują trwające sprawdzanie. Skutki były dwa i oba realne:
+    // (1) przycisk wyglądał na wskaźnik, więc nikt go nie klikał, a to jedyna
+    // droga do ponownej diagnostyki; (2) po odmowie diagnostyki (patrz przypadek
+    // wyżej) na ekranie stały TRZY napisy „Sprawdzanie…" i żaden z nich nie był
+    // akcją. Teraz etykietą jest `status.refresh`, a trwanie sprawdzania niesie
+    // kręcąca się ikona i `disabled`.
+    //
+    // CZEGO TEN PRZYPADEK PILNUJE: że na ekranie nie ma ANI JEDNEGO przycisku
+    // z napisem stanu - podmiana etykiety na czas pobierania wróciłaby tym
+    // samym defektem, tylko na jedną klatkę dłużej.
+    const t = realT("pl");
+    serverSays(status());
+    await mountPanel();
+
+    const refresh = buttonWithText(t("admin.analyticsSettings.status.refresh"));
+    expect((refresh.textContent ?? "").trim()).toBe(t("admin.analyticsSettings.status.refresh"));
+    const checking = t("admin.analyticsSettings.status.checking");
+    for (const button of Array.from(document.querySelectorAll("button"))) {
+      expect((button.textContent ?? "").trim()).not.toBe(checking);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

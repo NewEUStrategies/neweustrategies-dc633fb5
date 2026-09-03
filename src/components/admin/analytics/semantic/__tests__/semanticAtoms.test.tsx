@@ -337,22 +337,19 @@ describe("StreamChip - nazwa strumienia i jego własności", () => {
     expect(root(container).textContent?.trim()).toBe(streamById("newsletter").labelPl);
   });
 
-  it.fails(
-    "DEFEKT: własności strumienia z dymka są NIEDOSTĘPNE z klawiatury - wyzwalacz nie jest fokusowalny",
-    () => {
-      // `Badge` renderuje `div`, a `TooltipTrigger asChild` tylko go klonuje -
-      // nie dokłada `tabindex`. Bramka zgody, ziarno tożsamości, tryb
-      // deduplikacji i opóźnienie NIE ISTNIEJĄ nigdzie indziej w drzewie, więc
-      // osoba pracująca klawiaturą albo czytnikiem ekranu nie ma jak
-      // dowiedzieć się, dlaczego dwie liczby o tej samej nazwie są różne.
-      // Naprawa: `Badge asChild` na `button type="button"` albo `tabIndex={0}`
-      // z `role="button"` na wyzwalaczu.
-      const { container } = render(<StreamChip streamId="ga4" role="authoritative" />);
-      const trigger = root(container);
+  it("własności strumienia z dymka są OSIĄGALNE z klawiatury - wyzwalacz jest fokusowalny", () => {
+    // `Badge` renderuje `div`, a `TooltipTrigger asChild` tylko go klonuje -
+    // nie dokłada `tabindex`. Dlatego chip stoi na `ChipButton` (prawdziwy
+    // `button type="button"`): bramka zgody, ziarno tożsamości, tryb
+    // deduplikacji i opóźnienie NIE ISTNIEJĄ nigdzie indziej w drzewie, więc
+    // bez fokusowalnego wyzwalacza osoba pracująca klawiaturą albo czytnikiem
+    // ekranu nie miałaby jak dowiedzieć się, dlaczego dwie liczby o tej samej
+    // nazwie są różne. Ten przypadek pilnuje, że wyzwalacz nie wróci do `div`.
+    const { container } = render(<StreamChip streamId="ga4" role="authoritative" />);
+    const trigger = root(container);
 
-      expect(trigger.matches("button, a[href], input, select, textarea, [tabindex]")).toBe(true);
-    },
-  );
+    expect(trigger.matches("button, a[href], input, select, textarea, [tabindex]")).toBe(true);
+  });
 });
 
 describe("Atomy semantyczne - izolacja warsztatów", () => {

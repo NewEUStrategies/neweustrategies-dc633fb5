@@ -383,35 +383,33 @@ describe("TimeRangeFilter - etykieta i wybór zakresu własnego", () => {
     ).not.toBeDisabled();
   });
 
-  it.fails(
-    "DEFEKT: ODWRÓCONA wartość z zewnątrz przechodzi przez Zastosuj nietknięta",
-    async () => {
-      // `buildCustomRange` NIE waliduje kolejności granic, a szkic jest zasiewany
-      // wprost z `value`. Wystarczy, że wołający poda okno na wspak (przywrócenie
-      // stanu z adresu URL, migracja zapisanego filtra, literówka w pulpicie),
-      // a przycisk „Zastosuj" jest aktywny i oddaje `sinceIso` PÓŹNIEJSZY niż
-      // `untilIso` oraz `days: 1` - czyli okno, które w każdym zapytaniu zwróci
-      // pustkę, a w etykiecie skłamie o długości. Kalendarz sam takiego zakresu
-      // nie wyprodukuje (`addToRange` porządkuje granice), więc jedyna brakująca
-      // bariera stoi tutaj: `buildCustomRange` powinien zamieniać granice
-      // miejscami albo odmawiać.
-      const t = realT("pl");
-      const { onChange } = filtr({
-        presetId: "custom",
-        sinceIso: new Date(2026, 7, 20, 0, 0, 0, 0).toISOString(),
-        untilIso: new Date(2026, 7, 4, 23, 59, 59, 999).toISOString(),
-        days: 17,
-      });
+  it("ODWRÓCONA wartość z zewnątrz wychodzi przez Zastosuj UPORZĄDKOWANA", async () => {
+    // `buildCustomRange` PORZĄDKUJE granice, bo szkic jest zasiewany wprost
+    // z `value`, a `value` przychodzi nie tylko z kalendarza: z przywrócenia
+    // stanu z adresu URL, z migracji zapisanego filtra, z literówki
+    // w pulpicie. Bez tej bariery wystarczyło okno na wspak, żeby przycisk
+    // „Zastosuj" oddał `sinceIso` PÓŹNIEJSZY niż `untilIso` oraz `days: 1` -
+    // okno, które w każdym zapytaniu zwraca pustkę, a w etykiecie kłamie
+    // o długości. Sam kalendarz takiego zakresu nie wyprodukuje
+    // (`addToRange` porządkuje granice), więc jedyne miejsce, gdzie ta
+    // bariera może stanąć, to `buildCustomRange` - i ten przypadek tego
+    // pilnuje na wejściu, którego kalendarz nie kontroluje.
+    const t = realT("pl");
+    const { onChange } = filtr({
+      presetId: "custom",
+      sinceIso: new Date(2026, 7, 20, 0, 0, 0, 0).toISOString(),
+      untilIso: new Date(2026, 7, 4, 23, 59, 59, 999).toISOString(),
+      days: 17,
+    });
 
-      fireEvent.click(screen.getByRole("button", { name: /20 sie\s*-\s*4 sie 2026/ }));
-      fireEvent.click(
-        await screen.findByRole("button", { name: t("adminAnalytics.timeRange.apply") }),
-      );
+    fireEvent.click(screen.getByRole("button", { name: /20 sie\s*-\s*4 sie 2026/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: t("adminAnalytics.timeRange.apply") }),
+    );
 
-      const oddane = onChange.mock.calls[0][0] as TimeRangeValue;
-      expect(oddane.sinceIso < oddane.untilIso).toBe(true);
-    },
-  );
+    const oddane = onChange.mock.calls[0][0] as TimeRangeValue;
+    expect(oddane.sinceIso < oddane.untilIso).toBe(true);
+  });
 });
 
 describe("TimeRangeFilter - dwujęzyczność i dostępność", () => {
@@ -477,13 +475,17 @@ describe("TimeRangeFilter - dwujęzyczność i dostępność", () => {
     expect(summarize(naruszenia)).toBe("");
   });
 
-  it.fails("DEFEKT: warstwa kalendarza to role=dialog BEZ dostępnej nazwy", async () => {
-    // Radiksowy `PopoverContent` renderuje `role="dialog"`. Rola okna dialogowego
-    // bez nazwy jest dla czytnika ekranu ogłoszona jako samo „dialog" - osoba
-    // niewidząca nie wie, że wylądowała w wyborze zakresu dat, a nie w menu.
-    // Naprawa należy do `TimeRangeFilter`: `PopoverContent` musi dostać
-    // `aria-label` ze słownika (klucz `adminAnalytics.timeRange.range` już jest
-    // w PL i EN). Ten sam brak dotyczy menu eksportu w `ChartCard`.
+  it("otwarta warstwa kalendarza jest czysta w axe - `role=dialog` MA nazwę", async () => {
+    // Radiksowy `PopoverContent` renderuje `role="dialog"`. Rola okna
+    // dialogowego bez nazwy jest dla czytnika ekranu ogłaszana jako samo
+    // „dialog" - osoba niewidząca nie wiedziałaby, że wylądowała w wyborze
+    // zakresu dat, a nie w menu. Nazwa idzie ze słownika, z klucza dedykowanego
+    // tej warstwie (`adminAnalytics.timeRange.calendarDialog` -
+    // „Wybór zakresu dat"), a nie z `timeRange.range` („Zakres"), który jest
+    // etykietą PRZYCISKU otwierającego i sam nie mówi, co jest w środku.
+    // Ta asercja różni się od poprzedniej JEDNĄ rzeczą: nie wyłącza reguły
+    // `aria-dialog-name`, więc przechodzi tylko wtedy, gdy nazwa naprawdę jest.
+    // Ten sam mechanizm zamyka menu eksportu w `ChartCard`.
     const t = realT("pl");
     filtr(buildPresetRange("7d"));
     fireEvent.click(przyciskZakresu());

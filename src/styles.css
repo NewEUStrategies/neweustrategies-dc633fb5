@@ -279,8 +279,18 @@ body {
   --chart-grid: oklch(0.92 0.004 80);
   --chart-axis: oklch(0.8 0.005 80);
   /* Kolor etykiety WEWNĄTRZ wypełnienia slotu (dobrany kontrastem WCAG
-     do konkretnego odcienia - jedyny wyjątek od zasady "tekst w tokenach"). */
-  --chart-ink-1: #0b0b0b;
+     do konkretnego odcienia - jedyny wyjątek od zasady "tekst w tokenach").
+
+     SLOT 1 W MOTYWIE JASNYM MA CZERŃ PEŁNĄ, NIE #0b0b0b, I TO NIE JEST
+     NIEDBAŁOŚĆ. Etykieta udziału to 12 px / waga 600, więc nie jest "dużym
+     tekstem" i obowiązuje ją próg AA 4,5:1. Para #2a78d6 / #0b0b0b daje
+     4,458:1 - pęka o cztery setne. Czerń pełna podnosi ją do 4,756:1.
+     Zmierzone na wszystkich szesnastu parach palety: to była JEDYNA poniżej
+     progu (pozostałe od 4,945:1 do 9,090:1), a slot 1 to pierwszy wycinek
+     KAŻDEJ tarczy, czyli najczęstsza etykieta w całym silniku wykresów.
+     Alternatywą było rozjaśnienie samego `--chart-1`, ale to rusza kolor
+     serii, a nie tusz - węższa zmiana jest tutaj lepsza. */
+  --chart-ink-1: #000000;
   --chart-ink-2: #0b0b0b;
   --chart-ink-3: #0b0b0b;
   --chart-ink-4: #ffffff;
@@ -8773,4 +8783,35 @@ h3 .cms-inline-status-icon {
 .event-dialog-compact svg {
   width: 0.875rem;
   height: 0.875rem;
+}
+
+/* --- widget „Karta z okładką" (cover-overlay-card) -------------------------
+   Gradient nakładki liczy arkusz, bo `color-mix()` wpisany wprost w atrybut
+   `style` przepada w silnikach DOM bez wsparcia tej funkcji. Panel podaje
+   wyłącznie kolor i dwa krycia jako `--coc-*`. */
+.coc-overlay {
+  background: linear-gradient(
+    to top,
+    color-mix(
+      in oklab,
+      var(--coc-overlay-color, #111827) var(--coc-overlay-bottom, 50%),
+      transparent
+    ),
+    color-mix(in oklab, var(--coc-overlay-color, #111827) var(--coc-overlay-top, 25%), transparent)
+  );
+}
+.coc-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--coc-clamp-lines, 3);
+  line-clamp: var(--coc-clamp-lines, 3);
+  overflow: hidden;
+}
+.coc-lift {
+  transition: box-shadow 300ms ease-out;
+}
+.coc-lift:hover {
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
 }

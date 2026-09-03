@@ -47,6 +47,8 @@ interface AnalyticsInput {
 const h = vi.hoisted(() => ({
   listSites: vi.fn(),
   queryAnalytics: vi.fn(),
+  /** Warsztat, w którym stoi panel - zmiana tej wartości to przejście do innego. */
+  tenantId: "tenant-alfa" as string | null,
   charts: [] as Array<{
     option: Record<string, unknown>;
     onDataClick?: (params: unknown) => void;
@@ -64,6 +66,15 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 vi.mock("@/lib/analytics/gsc.functions", () => ({
   listGscSites: (...args: unknown[]) => h.listSites(...args),
   queryGscAnalytics: (...args: unknown[]) => h.queryAnalytics(...args),
+}));
+
+// Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
+// klienta Supabase i sesję `useAuth`, a przedmiotem dowodu jest tylko to, że
+// identyfikator warsztatu WCHODZI DO KLUCZY react-query. Sterowanie nim z testu
+// (`h.tenantId`) daje jedyny sposób odegrania przejścia między warsztatami na
+// TYM SAMYM kliencie cache.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 // Atrapa wykresu zapisuje `option`. To jedyne miejsce, w którym widać, CO panel
@@ -96,6 +107,9 @@ import { GscBiDashboard } from "../GscBiDashboard";
 // ---------------------------------------------------------------------------
 // Dane
 // ---------------------------------------------------------------------------
+
+const TENANT_A = "tenant-alfa";
+const TENANT_B = "tenant-beta";
 
 const SITE_A = "sc-domain:alfa.example.com";
 const SITE_B = "sc-domain:beta.example.org";
@@ -436,6 +450,7 @@ function comboboxWithText(text: string): HTMLElement {
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.charts.length = 0;
+  h.tenantId = TENANT_A;
   h.listSites.mockReset();
   h.queryAnalytics.mockReset();
   h.listSites.mockResolvedValue({ sites: [site(SITE_A)], configured: true });
@@ -495,21 +510,27 @@ describe("GscBiDashboard - ładowanie", () => {
     ).toBeInTheDocument();
   });
 
-  it.fails(
-    "DEFEKT: w trakcie pobierania kafelki KPI pokazują zera, jakby to był pomiar",
-    async () => {
-      // Zero i „jeszcze nie wiem" to dwie różne informacje. Panel renderuje
-      // pełną siatkę KPI natychmiast, więc operator widzi „0 kliknięć" zanim
-      // dane w ogóle dojadą - i nie ma jak odróżnić tego od właściwości, która
-      // faktycznie nie ma ruchu. Sąsiedni pulpity modułu (`AudienceSegments`,
-      // `RelatedPostsAnalytics`) w takiej sytuacji renderują komunikat.
-      h.queryAnalytics.mockImplementation(() => new Promise<{ rows: GscRow[] }>(() => {}));
-      panel();
-      await screen.findByText(realT("pl")("adminAnalytics.common.loadingData"));
+  it("w trakcie pobierania kafelki KPI mówią „Pomiar”, a nie zero udające pomiar", async () => {
+    // Zero i „jeszcze nie wiem" to dwie różne informacje. Siatka KPI renderuje
+    // się natychmiast, więc bez napisu stanu operator czytał „0 kliknięć",
+    // zanim dane w ogóle dojechały - nieodróżnialnie od właściwości, która
+    // faktycznie nie ma ruchu. Napis idzie ze słownika (`measuringShort`), tak
+    // jak w sąsiednich pulpitach modułu (`AudienceSegments`,
+    // `RelatedPostsAnalytics`), a kafelek traci przy tym deltę: procent
+    // policzony z dwóch nieznanych okien byłby drugim kłamstwem.
+    const t = realT("pl");
+    h.queryAnalytics.mockImplementation(() => new Promise<{ rows: GscRow[] }>(() => {}));
+    panel();
+    await screen.findByText(t("adminAnalytics.common.loadingData"));
 
-      expect(kpiValue(realT("pl")("adminAnalytics.gsc.clicks"))).not.toBe("0");
-    },
-  );
+    expect(kpiValue(t("adminAnalytics.gsc.clicks"))).not.toBe("0");
+    expect(kpiValue(t("adminAnalytics.gsc.clicks"))).toBe(
+      t("adminAnalytics.common.measuringShort"),
+    );
+    expect(kpiValue(t("adminAnalytics.gsc.avgPosition"))).toBe(
+      t("adminAnalytics.common.measuringShort"),
+    );
+  });
 });
 
 describe("GscBiDashboard - dane", () => {
@@ -650,29 +671,29 @@ describe("GscBiDashboard - dane", () => {
     });
   });
 
-  it.fails(
-    "DEFEKT: „Inne” w donucie liczy się z ogona WEJŚCIA, nie z reszty poza pierwszą ósemką",
-    async () => {
-      // `top` bierze osiem największych PO własnym sortowaniu, ale `otherClicks`
-      // sumuje `rows.slice(8)` - ogon KOLEJNOŚCI WEJŚCIOWEJ. Gdy API odda
-      // wiersze inaczej niż malejąco, te dwa zbiory zachodzą na siebie: kraje
-      // pokazane jako osobne wycinki wchodzą JESZCZE RAZ do „Innych", a udziały
-      // procentowe donuta przestają się sumować do całości.
-      const t = realT("pl");
-      respondWith({ ...FULL, country: [...COUNTRY_ROWS].reverse() });
-      panel();
-      await loaded();
+  it("„Inne” w donucie to reszta poza pierwszą ósemką, także przy niesortowanej odpowiedzi API", async () => {
+    // Wycinki i „Inne" liczą się z JEDNEJ, tej samej posortowanej listy, więc
+    // oba zbiory są rozłączne. Wcześniej `top` brał osiem największych PO
+    // własnym sortowaniu, a `otherClicks` sumował `rows.slice(8)` - ogon
+    // KOLEJNOŚCI WEJŚCIOWEJ; przy odpowiedzi innej niż malejąca te zbiory
+    // zachodziły na siebie, kraje pokazane jako osobne wycinki wchodziły
+    // JESZCZE RAZ do „Innych", a udziały procentowe przestawały sumować się
+    // do całości. Search Console nie obiecuje porządku, więc dowód jedzie na
+    // wierszach ODWRÓCONYCH - wynik musi być identyczny jak dla posortowanych.
+    const t = realT("pl");
+    respondWith({ ...FULL, country: [...COUNTRY_ROWS].reverse() });
+    panel();
+    await loaded();
 
-      await waitFor(() => {
-        const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0]
-          .data ?? []) as Array<{ name: string; value: number }>;
-        expect(slices).toHaveLength(9);
-      });
+    await waitFor(() => {
       const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0]
         .data ?? []) as Array<{ name: string; value: number }>;
-      expect(slices[8]).toEqual({ name: t("adminAnalytics.gsc.other"), value: 30 });
-    },
-  );
+      expect(slices).toHaveLength(9);
+    });
+    const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0].data ??
+      []) as Array<{ name: string; value: number }>;
+    expect(slices[8]).toEqual({ name: t("adminAnalytics.gsc.other"), value: 30 });
+  });
 
   it("treemap obcina domenę ze ścieżki i skraca długie adresy", async () => {
     panel();
@@ -885,10 +906,11 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
     expect(insightFixes(E.position)).toEqual(giList("position.fixesWorse"));
   });
 
-  it("pogorszenie DOKŁADNIE o 0,5 miejsca to już ostrzeżenie, ale jeszcze lista stabilna", async () => {
-    // Dwa łańcuchy `if` nad tą samą liczbą: ocena łamie się na `>= 0.5`,
-    // a lista kroków na `> 0.5`. Granica 0,5 jest więc miejscem, w którym te
-    // dwie decyzje się rozjeżdżają - i dlatego ma własny przypadek.
+  it("pogorszenie DOKŁADNIE o 0,5 miejsca daje ostrzeżenie RAZEM z listą naprawczą", async () => {
+    // Granica 0,5 miejsca jest jedna i domknięta (`gscInsights.ts`,
+    // `POS_DEADBAND`): ta sama liczba przełącza wagę wpisu i zestaw kroków,
+    // bo operator widzi je w jednym kafelku. Kafelek ostrzegawczy z poradą
+    // „utrzymaj tempo” byłby alarmem i instrukcją bezczynności naraz.
     await withData({
       date: [dayRow("2026-08-01", 100, 1000, 8.5)],
       prev: [dayRow("2026-07-01", 100, 1000, 8)],
@@ -896,7 +918,7 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
     expect(insightTitle(E.position)).toBe(gi("position.title", { pos: "8.5", delta: "+0.5" }));
     expect(insightDetail(E.position)).toBe(gi("position.detailWorse", { n: "0.5" }));
-    expect(insightFixes(E.position)).toEqual(giList("position.fixesStable"));
+    expect(insightFixes(E.position)).toEqual(giList("position.fixesWorse"));
     expect(insightElements()[0]).toBe(E.position);
   });
 
@@ -1321,22 +1343,23 @@ describe("GscBiDashboard - zero wierszy", () => {
     expect(strList(rec(trendOption().xAxis).data)).toEqual([]);
   });
 
-  it.fails(
-    "DEFEKT: przy zerze wierszy panel nie mówi „brak danych w oknie”, tylko rysuje zera",
-    async () => {
-      // Komunikat JEST w słowniku i JEST używany przez dwa sąsiednie pulpity
-      // tego samego modułu (`AudienceSegmentsDashboard`, `RelatedPostsAnalytics`).
-      // Tutaj właściwość bez ani jednego wyświetlenia wygląda identycznie jak
-      // właściwość, której dane nie dojechały.
-      respondWith(EMPTY);
-      panel();
-      await loaded();
+  it("przy zerze wierszy panel mówi „brak danych w oknie”, a nie tylko rysuje zera", async () => {
+    // ZMIERZONE ZERO ma własny komunikat, bo prowadzi do innej decyzji niż brak
+    // odczytu: tu właściwość została odczytana i naprawdę nie ma w niej ruchu.
+    // Napis jest ten sam, co w dwóch sąsiednich pulpitach modułu
+    // (`AudienceSegmentsDashboard`, `RelatedPostsAnalytics`), a warunek wymaga
+    // udanego powrotu WSZYSTKICH sześciu zapytań - inaczej „brak danych"
+    // pokazałby się właściwości, której dane dopiero jadą albo nie dojadą wcale.
+    // Wykresy zostają na ekranie (patrz dwa przypadki wyżej): komunikat jest
+    // DOPISANY nad siatką, nie zamiast niej.
+    respondWith(EMPTY);
+    panel();
+    await loaded();
 
-      expect(
-        screen.getByText(realT("pl")("adminAnalytics.common.noDataWindow")),
-      ).toBeInTheDocument();
-    },
-  );
+    expect(
+      await screen.findByText(realT("pl")("adminAnalytics.common.noDataWindow")),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("GscBiDashboard - wiersze brzegowe", () => {
@@ -1537,30 +1560,44 @@ describe("GscBiDashboard - błąd zapytania", () => {
     expect(screen.getByText(t("adminAnalytics.gsc.window"))).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: awaria zapytania nie wystawia żadnego komunikatu błędu", async () => {
-    // Bliźniaczy pulpit GA4 z tego samego modułu renderuje w tej sytuacji kartę
-    // `adminAnalytics.ga4.apiError`. GSC połyka wyjątek: zapytania są w stanie
-    // `error`, a panel rysuje pełną siatkę zer - operator widzi „brak ruchu"
-    // tam, gdzie w rzeczywistości padła bramka.
+  it("awaria zapytania wystawia komunikat Z PRZYCZYNĄ, nie milczącą siatkę zer", async () => {
+    // Bliźniaczy pulpit GA4 z tego samego modułu robi to samo kartą
+    // `adminAnalytics.ga4.apiError`. Wcześniej GSC połykał wyjątek: zapytania
+    // stały w stanie `error`, a panel malował pełną siatkę zer - operator
+    // widział „brak ruchu" tam, gdzie w rzeczywistości padła bramka. Komunikat
+    // niesie PRZYCZYNĘ z wyjątku, bo „coś nie działa" nie prowadzi do żadnej
+    // decyzji, a „GSC 503" prowadzi do ponowienia albo do sprawdzenia integracji.
+    const t = realT("pl");
     h.queryAnalytics.mockRejectedValue(new Error("GSC 503: backend error"));
     const { container } = panel();
     await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThanOrEqual(6));
 
-    // Krótki limit: dowodzimy BRAKU komunikatu, więc nie ma na co czekać.
-    await waitFor(
-      () => {
-        expect(container.textContent ?? "").toMatch(/503|b[łl][ąa]d|error/i);
-      },
-      { timeout: 400 },
-    );
+    expect(
+      await screen.findByText(
+        t("adminAnalytics.common.readFailedReason", { reason: "GSC 503: backend error" }),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(t("adminAnalytics.common.readFailedHint"))).toBeInTheDocument();
+    expect(container.textContent ?? "").toMatch(/503|b[łl][ąa]d|error/i);
   });
 
-  it.fails("DEFEKT: przy padniętym zapytaniu KPI pokazuje 0 zamiast braku pomiaru", async () => {
+  it("przy padniętym zapytaniu KPI mówi „Awaria odczytu”, a nie 0", async () => {
+    // Ten sam mechanizm co dla stanu ładowania, ale INNY napis: zero po awarii
+    // jest gorsze niż zero w trakcie odczytu, bo wygląda na wynik końcowy.
+    // Kafelek traci też deltę - procent liczony z okna, którego nie odczytano,
+    // pokazywałby kierunek wzięty z niczego.
+    const t = realT("pl");
     h.queryAnalytics.mockRejectedValue(new Error("GSC 503: backend error"));
     panel();
     await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThanOrEqual(6));
 
-    expect(kpiValue(realT("pl")("adminAnalytics.gsc.clicks"))).not.toBe("0");
+    await waitFor(() =>
+      expect(kpiValue(t("adminAnalytics.gsc.clicks"))).toBe(
+        t("adminAnalytics.common.readFailedShort"),
+      ),
+    );
+    expect(kpiValue(t("adminAnalytics.gsc.clicks"))).not.toBe("0");
+    expect(kpiValue("CTR")).toBe(t("adminAnalytics.common.readFailedShort"));
   });
 });
 
@@ -1726,29 +1763,40 @@ describe("GscBiDashboard - izolacja warsztatów", () => {
     expect(within(second.container).queryByText("raport nes")).toBeNull();
   });
 
-  it.fails(
-    "DEFEKT: klucz cache listy właściwości nie niesie warsztatu, więc panel B maluje wiersze warsztatu A",
-    async () => {
-      // `queryKey: ["gsc-sites"]` jest STAŁY - nie ma w nim ani tenanta, ani
-      // użytkownika. Przy kliencie react-query przeżywającym zmianę warsztatu
-      // panel dostaje z cache listę właściwości POPRZEDNIEGO warsztatu,
-      // `preferredSite` wskazuje cudzą właściwość, a wpisy `["gsc-bi", <cudza
-      // właściwość>, ...]` są jeszcze świeże (`staleTime: 60_000`) - więc
-      // PIERWSZA klatka panelu warsztatu B pokazuje zapytania warsztatu A.
-      // Żadne zapytanie sieciowe przy tym nie leci, co czyni wyciek cichym:
-      // widać go wyłącznie na ekranie.
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      const first = panel(true, client);
-      await loaded();
-      first.unmount();
+  it("klucz cache listy właściwości niesie warsztat, więc PIERWSZA klatka panelu B jest czysta", async () => {
+    // NAJOSTRZEJSZY przypadek izolacji: klient react-query przeżywa zmianę
+    // warsztatu, więc każdy klucz panelu musi nieść identyfikator najemcy.
+    // Przy stałym `["gsc-sites"]` panel warsztatu B dostawał z cache listę
+    // właściwości warsztatu A, `preferredSite` wskazywał cudzą właściwość,
+    // a wpisy `["gsc-bi", <cudza właściwość>, ...]` były jeszcze świeże
+    // (`staleTime: 60_000`) - więc pierwsza klatka malowała cudze frazy BEZ
+    // ani jednego zapytania sieciowego. To czyni wyciek CICHYM: nie widać go
+    // w ruchu, tylko na ekranie, i dlatego asercja idzie na PIERWSZĄ klatkę,
+    // a nie na stan po dojechaniu danych.
+    //
+    // Przejście między warsztatami odgrywamy tak, jak wygląda w aplikacji:
+    // zmienia się najemca (`h.tenantId`) ORAZ to, co bramka oddaje dla niego.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const first = panel(true, client);
+    await loaded();
+    expect(await screen.findByText("energia w cee")).toBeInTheDocument();
+    first.unmount();
 
-      h.listSites.mockResolvedValue({ sites: [site(SITE_B)], configured: true });
-      respondWith({ ...EMPTY, query: [row("beta fraza wlasna", 4, 40, 0.1, 3)] });
-      const second = panel(true, client);
+    h.tenantId = TENANT_B;
+    h.listSites.mockResolvedValue({ sites: [site(SITE_B)], configured: true });
+    respondWith({ ...EMPTY, query: [row("beta fraza wlasna", 4, 40, 0.1, 3)] });
+    const second = panel(true, client);
 
-      expect(second.container.textContent ?? "").not.toContain("energia w cee");
-    },
-  );
+    expect(second.container.textContent ?? "").not.toContain("energia w cee");
+    // ...i nie chodzi o pustą kartę: własne dane warsztatu B dojeżdżają.
+    expect(await screen.findByText("beta fraza wlasna")).toBeInTheDocument();
+    expect(second.container.textContent ?? "").not.toContain("energia w cee");
+    expect(
+      analyticsInputs()
+        .filter((i) => i.siteUrl !== "")
+        .every((i) => i.siteUrl === SITE_A || i.siteUrl === SITE_B),
+    ).toBe(true);
+  });
 });
 
 describe("GscBiDashboard - dostępność", () => {
@@ -1759,7 +1807,9 @@ describe("GscBiDashboard - dostępność", () => {
 
     await waitFor(() => expect(screen.getAllByRole("table").length).toBeGreaterThan(0));
     const tables = screen.getAllByRole("table");
-    expect(tables).toHaveLength(2);
+    // SIEDEM tabel, po jednej na wykres - tabele stoją w kolejności kart, więc
+    // pierwsza należy do trendu, a druga do ranku fraz.
+    expect(tables).toHaveLength(7);
 
     const trend = tables[0];
     expect(
@@ -1791,33 +1841,43 @@ describe("GscBiDashboard - dostępność", () => {
     );
   });
 
-  it.fails(
-    "DEFEKT: pięć z siedmiu wykresów panelu nie ma żadnej alternatywy tekstowej",
-    async () => {
-      // Karta UMIE zbudować tabelę danych - dostaje ją tylko trend i rank fraz.
-      // Rozkład pozycji, kraje, urządzenia, strony i kalendarz jadą bez `csv`,
-      // więc dla czytnika ekranu są pustym prostokątem z samą nazwą. Słownik ma
-      // nawet gotowy komunikat na tę sytuację (`chartCard.dataTableMissing`),
-      // którego nikt nie używa.
-      panel();
-      await loaded();
+  it("każdy z siedmiu wykresów ma alternatywę tekstową powiązaną z regionem wykresu", async () => {
+    // ECharts maluje do kanwy, więc region wykresu jest dla czytnika ekranu
+    // pustym prostokątem z samą nazwą - opis niesie dopiero tabela danych
+    // wskazana przez `aria-describedby`. Kartę stać na nią zawsze, bo buduje
+    // ją z tego samego `csv`, co eksport; wcześniej dostawał go tylko trend
+    // i rank fraz, a rozkład pozycji, kraje, urządzenia, strony i kalendarz
+    // jechały bez alternatywy. Asercja pilnuje OBU stron powiązania: że żaden
+    // region nie został bez opisu i że każdy identyfikator wskazuje tabelę,
+    // która naprawdę stoi w drzewie (wiszące `aria-describedby` obiecuje
+    // czytnikowi opis, którego nie dostarcza).
+    panel();
+    await loaded();
 
-      await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
-      const withoutText = screen
-        .getAllByRole("img")
-        .filter((el) => !el.getAttribute("aria-describedby"));
-      expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
-    },
-  );
+    await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
+    await waitFor(() => expect(screen.getAllByRole("table")).toHaveLength(7));
+    const withoutText = screen
+      .getAllByRole("img")
+      .filter((el) => !el.getAttribute("aria-describedby"));
+    expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
+    for (const region of screen.getAllByRole("img")) {
+      const opis = document.getElementById(region.getAttribute("aria-describedby") ?? "");
+      expect(opis).not.toBeNull();
+      expect(opis?.querySelector("table")).not.toBeNull();
+    }
+  });
 
   it("poza nienazwanymi przyciskami panel nie ma innych naruszeń axe", async () => {
     const { container } = panel();
     await loaded();
     await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
 
-    // Regułę `button-name` wyłączamy TYLKO tutaj i tylko po to, żeby jeden znany
-    // defekt (test niżej) nie przykrywał wszystkiego innego: kolejności
-    // nagłówków, poprawności ARIA, semantyki list i tabel.
+    // Regułę `button-name` wyłączamy TYLKO tutaj, żeby ten przypadek pilnował
+    // STRUKTURY panelu - kolejności nagłówków, poprawności ARIA, semantyki list
+    // i tabel - niezależnie od nazw kontrolek. Nazwy ma na sobie przypadek
+    // niżej, który jedzie pełnym zestawem reguł; rozdzielenie zostaje, bo
+    // regresja w nazwie przycisku i regresja w strukturze to dwie różne awarie
+    // i mają się zgłaszać osobno.
     const violations = await axeViolations(container, { "button-name": { enabled: false } });
     expect(summarize(violations)).toBe("");
   });
@@ -1828,16 +1888,33 @@ describe("GscBiDashboard - dostępność", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: dziewięć przycisków panelu nie ma dostępnej nazwy", async () => {
-    // Dwa pola wyboru w pasku narzędzi (właściwość, okno) mają widoczną
-    // etykietę `<label>`, ale bez `htmlFor` - czyli dla czytnika ekranu są
-    // bezimienne. Do tego siedem przycisków „więcej" na kartach wykresów to
-    // sama ikona `MoreHorizontal` bez `aria-label`, choć przycisk pełnego
-    // ekranu obok - w tym samym pliku `ChartCard.tsx` - nazwę ma.
+  it("każda z dziewięciu kontrolek panelu ma dostępną nazwę", async () => {
+    // DZIEWIĘĆ kontrolek, dwa różne mechanizmy naprawy. Pola wyboru w pasku
+    // narzędzi (właściwość, okno) mają widoczną etykietę `<label>`, ale
+    // `<label>` NIE nazywa wyzwalacza Radiksa: to `button` z rolą `combobox`,
+    // a dla tej roli nazwę buduje wyłącznie autor - ani treść przycisku, ani
+    // `htmlFor` się nie liczą. Dlatego każdy wyzwalacz wskazuje swoją etykietę
+    // przez `aria-labelledby`: nazwa dostępna jest wtedy DOKŁADNIE napisem
+    // widocznym na ekranie (WCAG 2.5.3), bez drugiego napisu w słowniku.
+    // Siedem przycisków eksportu na kartach to sama ikona `MoreHorizontal`,
+    // więc te dostają nazwę ze słownika w `ChartCard.tsx`.
+    const t = realT("pl");
     const { container } = panel();
     await loaded();
     await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
 
+    expect(
+      screen.getByRole("combobox", { name: t("adminAnalytics.gsc.property") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: t("adminAnalytics.gsc.window") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: t("adminAnalytics.chartCard.exportMenu") }),
+    ).toHaveLength(7);
+
+    // Pełne axe, BEZ wyłączonej reguły `button-name` - to jedyny przypadek
+    // panelu, który przepuszcza cały zestaw reguł.
     expect(summarize(await axeViolations(container))).toBe("");
   });
 });
@@ -1884,7 +1961,7 @@ describe("GscBiDashboard - dwujęzyczność", () => {
     panel();
     await loaded();
 
-    await waitFor(() => expect(screen.getAllByRole("table").length).toBe(2));
+    await waitFor(() => expect(screen.getAllByRole("table").length).toBe(7));
     expect(
       within(screen.getAllByRole("table")[1])
         .getAllByRole("columnheader")

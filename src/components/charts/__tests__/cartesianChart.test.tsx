@@ -25,8 +25,9 @@
 //     słupkowego, seria z samymi `null` wypada przed geometrią, a pusty
 //     zestaw musi dać `null` zamiast pustego SVG;
 //   * stan interakcji, który przeżywa podmianę configu - to jest wektor
-//     wycieku między przestrzeniami roboczymi i ma tu zapięty własny
-//     `it.fails`.
+//     wycieku między przestrzeniami roboczymi, więc pilnujemy zarówno
+//     przemalowania tooltipa na nowe dane, jak i klamry na aktywnym indeksie,
+//     gdy nowy zestaw jest KRÓTSZY od poprzedniego.
 //
 // SKĄD BIORĘ LICZBY. `useContainerWidth` czyta `clientWidth`, które w
 // happy-dom wynosi 0, więc szerokość zostaje na wartości startowej 720 -
@@ -1189,56 +1190,53 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
   });
 });
 
-describe("CartesianChart - defekty zapięte", () => {
-  it.fails(
-    "podmiana configu na krótszy NIE MOŻE wywracać wykresu: aktywny indeks z poprzedniego zestawu wychodzi poza tablicę i formatChartValue dostaje undefined",
-    () => {
-      const szeroki = cfg({
-        kind: "bar",
-        categories: ["a1", "a2", "a3"],
-        series: [{ name: "SA", values: [1, 2, 3] }],
-      });
-      const waski = cfg({
-        kind: "bar",
-        categories: ["b1"],
-        series: [{ name: "SB", values: [9] }],
-      });
+describe("CartesianChart - odporność stanu interakcji i pas wyłącznie ujemny", () => {
+  it("podmiana configu na krótszy nie wywraca wykresu: aktywny indeks z poprzedniego zestawu wraca w zakres nowej tablicy", () => {
+    const szeroki = cfg({
+      kind: "bar",
+      categories: ["a1", "a2", "a3"],
+      series: [{ name: "SA", values: [1, 2, 3] }],
+    });
+    const waski = cfg({
+      kind: "bar",
+      categories: ["b1"],
+      series: [{ name: "SB", values: [9] }],
+    });
 
-      const { container, rerender } = render(<CartesianChart config={szeroki} lang="pl" />);
-      for (let i = 0; i < 3; i++) fireEvent.keyDown(box(container), { key: "ArrowRight" });
-      expect(container.querySelector(SEL.tooltip)?.textContent).toBe("a3SA3");
+    const { container, rerender } = render(<CartesianChart config={szeroki} lang="pl" />);
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(box(container), { key: "ArrowRight" });
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("a3SA3");
 
-      // Oczekiwane: tooltip przeskakuje na jedyną kategorię nowego configu.
-      // Faktyczne: render rzuca "Cannot read properties of undefined
-      // (reading 'toLocaleString')", bo `active.index` = 2 przeżył podmianę.
-      rerender(<CartesianChart config={waski} lang="pl" />);
-      expect(container.querySelector(SEL.tooltip)?.textContent).toBe("b1SB9");
-    },
-  );
+    // Aktywny indeks przeżywa podmianę - to ten sam, ŻYWY komponent - więc
+    // przy krótszym zestawie musi zostać przyklamrowany do jego zakresu:
+    // tooltip przeskakuje na jedyną kategorię nowego configu. Bez klamry
+    // indeks 2 czytałby poza jednoelementową tablicą i render padał na
+    // "Cannot read properties of undefined (reading 'toLocaleString')".
+    rerender(<CartesianChart config={waski} lang="pl" />);
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("b1SB9");
+  });
 
-  it.fails(
-    "pas wyłącznie ujemny, którego OSTATNIA seria ma lukę, i tak musi dostać zaokrąglony koniec z danymi",
-    () => {
-      const { container } = render(
-        <CartesianChart
-          config={cfg({
-            kind: "bar",
-            stacked: true,
-            categories: ["luka", "pelna"],
-            series: [
-              { name: "A", values: [-5, 3] },
-              { name: "B", values: [null, 4] },
-            ],
-          })}
-          lang="pl"
-        />,
-      );
-      // W kategorii "luka" rysuje się TYLKO segment serii A i to on domyka pas
-      // ujemny, więc spec dataviz każe zaokrąglić jego dolny koniec.
-      // Faktycznie `lastStackIndexFor` zwraca fallback `series.length - 1`
-      // (indeks serii B, która nic tu nie rysuje), więc rounding przepada.
-      const [luka] = ds(container, SEL.bar);
-      expect(luka).toContain("q0 4 4 4");
-    },
-  );
+  it("pas wyłącznie ujemny, którego OSTATNIA seria ma lukę, i tak dostaje zaokrąglony koniec z danymi", () => {
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          stacked: true,
+          categories: ["luka", "pelna"],
+          series: [
+            { name: "A", values: [-5, 3] },
+            { name: "B", values: [null, 4] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    // W kategorii "luka" rysuje się TYLKO segment serii A i to on domyka pas
+    // ujemny, więc spec dataviz każe zaokrąglić jego dolny koniec.
+    // `lastStackIndexFor` szuka domknięcia PO ZNAKU segmentu, więc nie
+    // spada na fallback `series.length - 1` - czyli na serię B, która w tej
+    // kategorii nic nie rysuje i zabrałaby zaokrąglenie całemu pasowi.
+    const [luka] = ds(container, SEL.bar);
+    expect(luka).toContain("q0 4 4 4");
+  });
 });

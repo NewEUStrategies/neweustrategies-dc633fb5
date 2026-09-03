@@ -202,6 +202,7 @@ import { Route as AdminCrmIndexRouteImport } from './routes/admin.crm.index'
 import { Route as AdminCouponsIndexRouteImport } from './routes/admin.coupons.index'
 import { Route as AdminCompaniesIndexRouteImport } from './routes/admin.companies.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
+import { Route as AdminAnalyticsIndexRouteImport } from './routes/admin.analytics.index'
 import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
 import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
 import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$slug.rss[.]xml'
@@ -313,6 +314,7 @@ import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appear
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/admin.appearance.category-archive'
+import { Route as AdminAnalyticsBiRouteImport } from './routes/admin.analytics.bi'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminEventsEventIdIndexRouteImport } from './routes/admin.events_.$eventId.index'
@@ -1346,6 +1348,11 @@ const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminCommunityRoute,
 } as any)
+const AdminAnalyticsIndexRoute = AdminAnalyticsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminAnalyticsRoute,
+} as any)
 const WebStoriesSlugAmpRoute = WebStoriesSlugAmpRouteImport.update({
   id: '/amp',
   path: '/amp',
@@ -1922,6 +1929,11 @@ const AdminAppearanceCategoryArchiveRoute =
     path: '/category-archive',
     getParentRoute: () => AdminAppearanceRoute,
   } as any)
+const AdminAnalyticsBiRoute = AdminAnalyticsBiRouteImport.update({
+  id: '/bi',
+  path: '/bi',
+  getParentRoute: () => AdminAnalyticsRoute,
+} as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -2349,7 +2361,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
-  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/analytics': typeof AdminAnalyticsRouteWithChildren
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
@@ -2483,6 +2495,7 @@ export interface FileRoutesByFullPath {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
@@ -2594,6 +2607,7 @@ export interface FileRoutesByFullPath {
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
+  '/admin/analytics/': typeof AdminAnalyticsIndexRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
@@ -2715,7 +2729,6 @@ export interface FileRoutesByTo {
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
-  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
@@ -2840,6 +2853,7 @@ export interface FileRoutesByTo {
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
@@ -2949,6 +2963,7 @@ export interface FileRoutesByTo {
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
+  '/admin/analytics': typeof AdminAnalyticsIndexRoute
   '/admin/community': typeof AdminCommunityIndexRoute
   '/admin/companies': typeof AdminCompaniesIndexRoute
   '/admin/coupons': typeof AdminCouponsIndexRoute
@@ -3075,7 +3090,7 @@ export interface FileRoutesById {
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
-  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/analytics': typeof AdminAnalyticsRouteWithChildren
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
@@ -3209,6 +3224,7 @@ export interface FileRoutesById {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
@@ -3320,6 +3336,7 @@ export interface FileRoutesById {
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
+  '/admin/analytics/': typeof AdminAnalyticsIndexRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
@@ -3581,6 +3598,7 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
@@ -3692,6 +3710,7 @@ export interface FileRouteTypes {
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
+    | '/admin/analytics/'
     | '/admin/community/'
     | '/admin/companies/'
     | '/admin/coupons/'
@@ -3813,7 +3832,6 @@ export interface FileRouteTypes {
     | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
-    | '/admin/analytics'
     | '/admin/appearance'
     | '/admin/audience'
     | '/admin/authors'
@@ -3938,6 +3956,7 @@ export interface FileRouteTypes {
     | '/tracker'
     | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
@@ -4047,6 +4066,7 @@ export interface FileRouteTypes {
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
+    | '/admin/analytics'
     | '/admin/community'
     | '/admin/companies'
     | '/admin/coupons'
@@ -4306,6 +4326,7 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
@@ -4417,6 +4438,7 @@ export interface FileRouteTypes {
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
+    | '/admin/analytics/'
     | '/admin/community/'
     | '/admin/companies/'
     | '/admin/coupons/'
@@ -5962,6 +5984,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommunityIndexRouteImport
       parentRoute: typeof AdminCommunityRoute
     }
+    '/admin/analytics/': {
+      id: '/admin/analytics/'
+      path: '/'
+      fullPath: '/admin/analytics/'
+      preLoaderRoute: typeof AdminAnalyticsIndexRouteImport
+      parentRoute: typeof AdminAnalyticsRoute
+    }
     '/web-stories/$slug/amp': {
       id: '/web-stories/$slug/amp'
       path: '/amp'
@@ -6739,6 +6768,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceCategoryArchiveRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/admin/analytics/bi': {
+      id: '/admin/analytics/bi'
+      path: '/bi'
+      fullPath: '/admin/analytics/bi'
+      preLoaderRoute: typeof AdminAnalyticsBiRouteImport
+      parentRoute: typeof AdminAnalyticsRoute
+    }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
       path: '/.mcp/invoke-tool/$tool'
@@ -7190,6 +7226,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminAnalyticsRouteChildren {
+  AdminAnalyticsBiRoute: typeof AdminAnalyticsBiRoute
+  AdminAnalyticsIndexRoute: typeof AdminAnalyticsIndexRoute
+}
+
+const AdminAnalyticsRouteChildren: AdminAnalyticsRouteChildren = {
+  AdminAnalyticsBiRoute: AdminAnalyticsBiRoute,
+  AdminAnalyticsIndexRoute: AdminAnalyticsIndexRoute,
+}
+
+const AdminAnalyticsRouteWithChildren = AdminAnalyticsRoute._addFileChildren(
+  AdminAnalyticsRouteChildren,
+)
+
 interface AdminAppearanceRouteChildren {
   AdminAppearanceCategoryArchiveRoute: typeof AdminAppearanceCategoryArchiveRoute
   AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
@@ -7599,7 +7649,7 @@ const AdminEventsEventIdRouteWithChildren =
 
 interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
-  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminAnalyticsRoute: typeof AdminAnalyticsRouteWithChildren
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
@@ -7678,7 +7728,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAdsRoute: AdminAdsRoute,
-  AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminAnalyticsRoute: AdminAnalyticsRouteWithChildren,
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,

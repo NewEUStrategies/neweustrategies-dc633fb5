@@ -29,13 +29,38 @@ export interface Ga4Report {
   error?: string;
 }
 
-export const EMPTY_GA4_REPORT: Ga4Report = {
-  configured: false,
-  dimensionHeaders: [],
-  metricHeaders: [],
-  rows: [],
-  totals: [],
-};
+/**
+ * Świeży pusty raport - ZA KAŻDYM wywołaniem NOWE instancje tablic.
+ *
+ * `Ga4Report.rows` jest publicznie typowane jako zwykła, mutowalna tablica
+ * (sortowanie wierszy pod wykres to normalne użycie), a ten moduł żyje w
+ * izolacie workera wspólnym dla wszystkich najemców. Każdy raport zbudowany
+ * z płytkiej kopii stałej modułowej współdzieliłby więc `rows`, `totals` i
+ * nagłówki MIĘDZY ŻĄDANIAMI OBCYCH SOBIE NAJEMCÓW. Dlatego raport-baza dla
+ * każdego wywołania powstaje tutaj od nowa, a nie przez `{ ...STAŁA }`.
+ */
+function emptyGa4Report(): Ga4Report {
+  return {
+    configured: false,
+    dimensionHeaders: [],
+    metricHeaders: [],
+    rows: [],
+    totals: [],
+  };
+}
+
+// Kanoniczna pusta odpowiedź dla wołających. Zamrożona GŁĘBOKO (obiekt plus
+// wszystkie cztery tablice), bo `ga4.functions.ts` oddaje ją DOSŁOWNIE
+// (`if (!propertyId) return EMPTY_GA4_REPORT`), a `snapshot.functions.ts`
+// podstawia TĘ SAMĄ instancję dwa razy (`[EMPTY_GA4_REPORT, EMPTY_GA4_REPORT]`).
+// Bez zamrożenia jedna mutacja u jednego wołającego byłaby widoczna u każdego
+// następnego; z zamrożeniem taka próba pada natychmiast, w miejscu błędu.
+const PUSTY_RAPORT = emptyGa4Report();
+Object.freeze(PUSTY_RAPORT.dimensionHeaders);
+Object.freeze(PUSTY_RAPORT.metricHeaders);
+Object.freeze(PUSTY_RAPORT.rows);
+Object.freeze(PUSTY_RAPORT.totals);
+export const EMPTY_GA4_REPORT: Ga4Report = Object.freeze(PUSTY_RAPORT);
 
 export type Ga4AuthSource = "sa" | "oauth";
 
@@ -67,7 +92,31 @@ function b64url(input: Buffer | string): string {
 let saTokenCache: { token: string; exp: number } | null = null;
 let oauthTokenCache: { token: string; exp: number } | null = null;
 
-async function getServiceAccountToken(sa: ServiceAccount): Promise<string> {
+/**
+ * Wyjmuje `access_token` z ciała odpowiedzi tokenowej Google'a.
+ *
+ * Odpowiedź 200 BEZ tego pola (albo z polem innego typu) to nie token - to
+ * awaria wymiany. Bez tej bramki rzutowanie `as { access_token: string }`
+ * przepuszczałoby `undefined` udające string, wołający dostawałby PRAWDZIWY
+ * obiekt `{ token: undefined }` przechodzący bramkę `if (!auth)`, a do
+ * płatnego Data API poleciałby nagłówek „Bearer undefined". `null` z tej
+ * funkcji znaczy „nie ma tokenu" i domyka kontrakt sygnatur wyżej: albo token,
+ * albo `null`, trzeciej opcji nie ma.
+ *
+ * `expires_in` jest ODDZIELNĄ sprawą: brak tego pola daje `NaN` w `exp`, więc
+ * cache nigdy nie uzna tokenu za ważny i następne wywołanie pobierze go od
+ * nowa. To zachowanie fail-safe i zostaje bez zmian.
+ */
+function odczytajTokenZOdpowiedzi(body: string): { token: string; expiresIn: number } | null {
+  const parsed = JSON.parse(body) as { access_token?: unknown; expires_in?: unknown };
+  if (typeof parsed.access_token !== "string" || parsed.access_token === "") return null;
+  return {
+    token: parsed.access_token,
+    expiresIn: typeof parsed.expires_in === "number" ? parsed.expires_in : Number.NaN,
+  };
+}
+
+async function getServiceAccountToken(sa: ServiceAccount): Promise<string | null> {
   const now = Math.floor(Date.now() / 1000);
   if (saTokenCache && saTokenCache.exp - 60 > now) return saTokenCache.token;
 
@@ -97,9 +146,10 @@ async function getServiceAccountToken(sa: ServiceAccount): Promise<string> {
   });
   const body = await res.text();
   if (!res.ok) throw new Error(`GA4 SA token exchange ${res.status}: ${body.slice(0, 400)}`);
-  const parsed = JSON.parse(body) as { access_token: string; expires_in: number };
-  saTokenCache = { token: parsed.access_token, exp: now + parsed.expires_in };
-  return parsed.access_token;
+  const wymiana = odczytajTokenZOdpowiedzi(body);
+  if (!wymiana) return null;
+  saTokenCache = { token: wymiana.token, exp: now + wymiana.expiresIn };
+  return wymiana.token;
 }
 
 async function getOauthAccessToken(): Promise<string | null> {
@@ -123,26 +173,49 @@ async function getOauthAccessToken(): Promise<string | null> {
   });
   const body = await res.text();
   if (!res.ok) throw new Error(`GA4 OAuth refresh ${res.status}: ${body.slice(0, 400)}`);
-  const parsed = JSON.parse(body) as { access_token: string; expires_in: number };
-  oauthTokenCache = { token: parsed.access_token, exp: now + parsed.expires_in };
-  return parsed.access_token;
+  const wymiana = odczytajTokenZOdpowiedzi(body);
+  if (!wymiana) return null;
+  oauthTokenCache = { token: wymiana.token, exp: now + wymiana.expiresIn };
+  return wymiana.token;
 }
 
-/** Ujednolicony resolwer tokenu: Service Account, a w razie braku OAuth refresh. */
+/**
+ * Ujednolicony resolwer tokenu: Service Account, a w razie braku OAuth refresh.
+ *
+ * Kontrakt zwrotu jest dwuwartościowy: albo `{ token: <niepusty string> }`,
+ * albo `null`. Wymiana, która oddała 200 bez `access_token`, jest tu brakiem
+ * tokenu (`null`), a nie obiektem z pustym polem - inaczej bramka `if (!auth)`
+ * u wołających przepuszczałaby żądanie z nagłówkiem „Bearer undefined".
+ * Tryb Service Accountu ma pierwszeństwo i jego nieudana wymiana NIE schodzi
+ * cicho na OAuth: rozmyłoby to źródło tokenu i dopisało drugie płatne
+ * wywołanie do awarii, której miejsce jest jedno.
+ */
 export async function resolveGa4AccessToken(): Promise<{
   token: string;
   source: Ga4AuthSource;
 } | null> {
   const sa = readServiceAccount();
-  if (sa) return { token: await getServiceAccountToken(sa), source: "sa" };
+  if (sa) {
+    const token = await getServiceAccountToken(sa);
+    return token ? { token, source: "sa" } : null;
+  }
   const oauth = await getOauthAccessToken();
   if (oauth) return { token: oauth, source: "oauth" };
   return null;
 }
 
-/** Property ID z sekretu, a w razie braku z ustawień w bazie. */
+/**
+ * Property ID z sekretu, a w razie braku z ustawień w bazie.
+ *
+ * Oba źródła są przycinane i oba puste znaczą BRAK, dlatego `||`, a nie `??`:
+ * zadeklarowana, ale pusta zmienna środowiskowa (`GA4_PROPERTY_ID=` w .env
+ * albo sekret wyczyszczony bez usunięcia klucza) to pusty string, którego
+ * `??` nie łapie. Z `??` taka deklaracja przesłaniałaby property zapisane
+ * przez najemcę i `ga4.functions.ts` meldowałby „GA4 nieskonfigurowane"
+ * każdemu, kto ma poprawną konfigurację w bazie.
+ */
 export function resolveGa4PropertyId(storedPropertyId?: string | null): string | undefined {
-  return process.env.GA4_PROPERTY_ID ?? (storedPropertyId?.trim() || undefined);
+  return process.env.GA4_PROPERTY_ID?.trim() || storedPropertyId?.trim() || undefined;
 }
 
 export interface Ga4ReportRequest {
@@ -172,7 +245,8 @@ export async function runGa4DataApiReport(
   req: Ga4ReportRequest,
   token: string,
 ): Promise<Ga4Report> {
-  const base: Ga4Report = { ...EMPTY_GA4_REPORT, configured: true, propertyId: req.propertyId };
+  // Własne tablice dla KAŻDEGO wywołania - patrz `emptyGa4Report()`.
+  const base: Ga4Report = { ...emptyGa4Report(), configured: true, propertyId: req.propertyId };
   try {
     const res = await fetch(
       `https://analyticsdata.googleapis.com/v1beta/properties/${req.propertyId}:runReport`,

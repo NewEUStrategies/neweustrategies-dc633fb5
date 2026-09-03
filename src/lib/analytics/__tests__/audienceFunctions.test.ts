@@ -683,13 +683,17 @@ describe("getAudienceSegments - degradacja przy awarii odczytu", () => {
   });
 });
 
-describe("getAudienceSegments - defekt: KPI i wykres liczą inne okno", () => {
-  // KPI liczy WSZYSTKO od `since` (= teraz minus days*24h, godzina w godzinę),
-  // ale seria ma dokładnie `days` punktów liczonych od DZISIAJ wstecz, czyli
-  // zaczyna się od `today - (days-1)`. Wiersz z pierwszej, częściowej doby okna
-  // wchodzi więc do `views_total`, ale nie ma go na wykresie - suma słupków
-  // rozjeżdża się z liczbą nad wykresem i nie da się tego wyjaśnić użytkownikowi.
-  it.fails("suma serii równa się views_total dla wiersza z częściowej pierwszej doby", async () => {
+describe("getAudienceSegments - KPI i wykres opisują JEDNO okno", () => {
+  // Mechanizm rozjazdu: KPI liczy WSZYSTKO od `since` (= teraz minus days*24h,
+  // godzina w godzinę - dokładnie tak filtruje zapytanie), a seria ma `days`
+  // punktów KALENDARZOWYCH liczonych od dzisiaj wstecz, czyli zaczyna się od
+  // `today - (days-1)`. Pierwsza doba okna jest więc częściowa i wiersz z niej
+  // ma prawo wejść do `views_total`. Rację przyznaliśmy oknu KPI (uzasadnienie
+  // w komentarzu przy agregacji w `audience.functions.ts`: to ono decyduje, co
+  // przyszło z bazy, a zawężenie do północy cicho wyrzucałoby dane, o które
+  // użytkownik poprosił), a brzegowe kubełki siatki domykają okno - dlatego
+  // suma słupków JEST liczbą nad wykresem i da się to wyjaśnić patrzącemu.
+  it("suma serii równa się views_total dla wiersza z częściowej pierwszej doby", async () => {
     widoki = [
       {
         tenant_id: TENANT_A,
@@ -703,5 +707,46 @@ describe("getAudienceSegments - defekt: KPI i wykres liczą inne okno", () => {
     const sumaSerii = wynik.series.reduce((acc, p) => acc + p.logged + p.anon, 0);
     expect(wynik.kpi.views_total).toBe(1);
     expect(sumaSerii).toBe(wynik.kpi.views_total);
+  });
+
+  it("wiersz z częściowej doby ląduje w PIERWSZYM punkcie siatki, a nie poza nią", async () => {
+    // Domknięcie ma być widoczne w konkretnym słupku - inaczej „suma się zgadza"
+    // dałoby się spełnić także przez doklejenie punktu poza oknem wykresu.
+    widoki = [
+      {
+        tenant_id: TENANT_A,
+        post_id: "post-1",
+        user_id: null,
+        viewer_hash: "h1",
+        viewed_at: godzinTemu(7 * 24 - 6),
+      },
+    ];
+    const wynik = await wywolaj(ADMIN_A, { days: 7 });
+    expect(wynik.series).toHaveLength(7);
+    expect(wynik.series[0]).toEqual({ day: "2026-03-09", logged: 0, anon: 1 });
+    expect(wynik.series.map((p) => p.day).at(-1)).toBe("2026-03-15");
+  });
+
+  it("niezmiennik trzyma się także przy oknie jednodniowym i przy pełnym ruchu", async () => {
+    widoki = [
+      {
+        tenant_id: TENANT_A,
+        post_id: "post-1",
+        user_id: "user-1",
+        viewer_hash: "h1",
+        viewed_at: godzinTemu(23),
+      },
+      {
+        tenant_id: TENANT_A,
+        post_id: "post-1",
+        user_id: null,
+        viewer_hash: "h2",
+        viewed_at: godzinTemu(1),
+      },
+    ];
+    const wynik = await wywolaj(ADMIN_A, { days: 1 });
+    expect(wynik.series).toHaveLength(1);
+    expect(wynik.kpi.views_total).toBe(2);
+    expect(wynik.series.reduce((acc, p) => acc + p.logged + p.anon, 0)).toBe(2);
   });
 });

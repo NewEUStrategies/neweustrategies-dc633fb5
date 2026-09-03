@@ -163,6 +163,30 @@ describe("/admin/community/notifications - nagłówek i skład panelu", () => {
     expect(panel.compareDocumentPosition(siatka!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("montowany panel to ten, który czyta ŚWIEŻOŚĆ z logu przebiegów", () => {
+    // LUKA DOMKNIĘTA 02.09.2026. Asercja wyżej mierzy KOLEJNOŚĆ montowania,
+    // ale panel jest tutaj ATRAPĄ, więc sama w sobie przechodziłaby również
+    // wtedy, gdyby ktoś podmienił panel na statyczny baner „harmonogram OK".
+    // Domykamy to odczytem źródeł - tą samą techniką, którą ten plik stosuje
+    // niżej dla bramki uprawnień, bo renderem atrapy nie da się tego dosięgnąć.
+    //
+    // ŁAŃCUCH „AWARIA HARMONOGRAMU JEST WIDOCZNA" ma dwa końce i oba są
+    // pokryte: koniec ZAPISUJĄCY (przebieg, także nieudany, ląduje
+    // w `public.job_runner_runs`) dowodzi
+    // `src/routes/api/public/-community-cron.test.ts`, a koniec RENDERUJĄCY
+    // (stan `stale`/`never` podnosi widoczny alert) -
+    // `src/components/admin/community/__tests__/SchedulerHealthPanel.test.tsx`.
+    // Tu spinamy je w jedno: TA trasa montuje komponent, który ciągnie
+    // `getSchedulerHealth`, a ta funkcja liczy świeżość z RPC
+    // `job_scheduler_health` - czyli z tego samego logu przebiegów.
+    const panel = readFileSync("src/components/admin/community/SchedulerHealthPanel.tsx", "utf8");
+    expect(panel).toMatch(/getSchedulerHealth/);
+
+    const warstwa = readFileSync("src/lib/admin/scheduler.functions.ts", "utf8");
+    expect(warstwa).toMatch(/rpc\("job_scheduler_health"\)/);
+    expect(warstwa).toMatch(/freshness: schedulerFreshness\(/);
+  });
+
   it("pokazuje SZEŚĆ kafelków z danymi z fetchNotificationStats", async () => {
     await mountRoute();
 

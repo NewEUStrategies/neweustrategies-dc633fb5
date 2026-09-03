@@ -410,6 +410,7 @@ export type WidgetType =
   // Karta trasy: mapa w tle pod nakładką, tytuł/autor, wielki dystans i
   // polubienie pamiętane w przegladarce odwiedzajacego (bez zapisu w bazie).
   | "travel-route-card"
+  | "cover-overlay-card"
   | "speakers"
   | "pricing"
   | "interactive-circle"

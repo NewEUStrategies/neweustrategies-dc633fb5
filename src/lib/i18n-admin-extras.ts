@@ -10,6 +10,173 @@ import i18n from "./i18n";
 
 export const adminExtrasPl = {
   admin: {
+    // Pulpit `/admin/analytics` - siedem zakładek, trzy pastylki statusu,
+    // cztery karty trybów GA4, mini-panel RUM i warstwa wniosków. Cały ten
+    // tekst żył wcześniej jako literał polski w JSX, więc ŻADNA bramka i18n go
+    // nie mierzyła: parytet porównuje klucze między PL i EN (a tych napisów nie
+    // było w żadnym słowniku), ratchet `check:i18n-hardcoded` mierzy
+    // rozgałęzienie po języku (tekst jednojęzyczny się nie rozgałęzia),
+    // a `check:i18n-default-value` szuka `defaultValue` przy `t()` (a tu nie
+    // było nawet wywołania `t`). Klucze są więc jedynym sposobem, w który ten
+    // ekran da się zmierzyć.
+    analyticsPanel: {
+      embed: {
+        open: "Otwórz w nowej karcie",
+        title: "Raport osadzony (Looker Studio)",
+      },
+      ga4Modes: {
+        active: "Aktywny",
+        embed: {
+          step1:
+            "Zbuduj raport w Looker Studio na źródle GA4 i użyj File → Embed report → skopiuj URL.",
+          step2: "(pełen URL iframe do raportu, np. z lookerstudio.google.com)",
+          step3: "Zero uwierzytelniania po naszej stronie - raport renderuje się jako iframe.",
+          title: "4. Embed (Looker Studio / iframe)",
+        },
+        inactive: "Nieaktywne",
+        intro:
+          "Wybierz dowolny tryb - sekrety dodaj w sekretach środowiska wdrożeniowego. Priorytet dla raportów Data API: Service Account → OAuth refresh token.",
+        measurement: {
+          secretHint: "(tylko klucz API - poufny)",
+          step1:
+            "GA4 → Admin → Data Streams → wybierz strumień web → Measurement Protocol API secrets → utwórz nowy sekret.",
+          step2After: "(pole Measurement ID, np. G-XXXXXXX) - jest współdzielony z tym panelem.",
+          step2Before: "Measurement ID ustaw w",
+          step2Link: "Ustawienia → Analityka",
+          step3: "Ten tryb służy do wysyłania eventów server-side, nie do czytania raportów.",
+          title: "3. Measurement Protocol (server-side events)",
+        },
+        oauth: {
+          step1:
+            "Google Cloud Console → OAuth consent screen + Credentials → utwórz OAuth Client ID typu Desktop app.",
+          step2After: "(np. OAuth Playground - Use your own OAuth credentials).",
+          step2Before: "Wygeneruj token odświeżający dla zakresu",
+          title: "2. OAuth 2.0 (refresh token)",
+        },
+        ready: "Gotowe",
+        secretProject: "Sekret projektu:",
+        secretSingle: "Sekret:",
+        secrets: "Sekrety:",
+        serviceAccount: {
+          step1: "Google Cloud Console → utwórz Service Account, wygeneruj klucz JSON.",
+          step2: "GA4 → Admin → Property access management → dodaj e-mail SA jako Viewer.",
+          title: "1. Service Account (JSON)",
+        },
+        testEvent: "Wyślij testowy event",
+        title: "Sposoby podłączenia GA4",
+      },
+      insights: {
+        ga4: {
+          detailOff:
+            "Bez GA4 nie ma pomiaru zachowań usera po wejściu (bounce, engagement, conversions).",
+          detailOk:
+            "Data API odpowiada - masz sesje, źródła, urządzenia, konwersje na dashboardzie GA4.",
+          element: "Google Analytics 4",
+          fixOffSecrets: "Dodaj sekret GA4_SERVICE_ACCOUNT_JSON + GA4_PROPERTY_ID.",
+          fixOffServiceAccount:
+            "Zbierz service account JSON z Google Cloud Console (rola Viewer w GA4).",
+          fixOkConversions:
+            "Skonfiguruj konwersje (kontakt, newsletter) - bez nich engagement rate nie ma kontekstu.",
+          fixOkEvents: "Zdefiniuj mikroeventy (scroll_75, cta_click) - lepsze segmenty.",
+          fixPartialProperty: "Dodaj sekret GA4_PROPERTY_ID (numer property, nie tag pomiaru).",
+          titleOff: "GA4 nie jest podłączony",
+          titleOk: "GA4 aktywny (property {{propertyId}})",
+          titlePartial: "Service account jest, brak GA4_PROPERTY_ID",
+        },
+        gsc: {
+          detailOff:
+            "Bez GSC nie ma widoczności SERP: brak zapytań, pozycji, CTR i sitemap health.",
+          detailOk:
+            "OAuth aktywny - dashboard GSC ma dostęp do wszystkich zweryfikowanych właściwości.",
+          element: "Search Console",
+          fixOffConnector:
+            "Otwórz Ustawienia → Konektory → Google Search Console i podłącz konto z dostępem do właściwości.",
+          fixOffRefresh:
+            "Po podłączeniu odśwież ten panel - dashboard GSC zacznie zbierać dane w ciągu godziny.",
+          fixOkSitemap:
+            "Wgraj świeży sitemap.xml raz w tygodniu (możesz zautomatyzować przez pg_cron).",
+          fixOkVariants:
+            "Zweryfikuj że wszystkie warianty domeny (http/https, www/apex) są dodane w GSC.",
+          titleOff: "Brak połączenia z GSC",
+          titleOk: "GSC podłączony i zbiera dane",
+        },
+        subtitle: "Analiza gotowości: GSC · GA4 · Web Vitals",
+        title: "Stan integracji i rekomendacje",
+        vitals: {
+          detailOff:
+            "Brak próbek zwykle oznacza, że ruch jest zbyt niski lub RUM został wyłączony w consent bannerze.",
+          detailOk:
+            "Beacon /api/public/vitals odbiera LCP/INP/CLS/FCP/TTFB. Web Vitals BI atrybuuje je per podstrona.",
+          element: "Web Vitals",
+          fixOffConsent:
+            "Sprawdź w Consent Banner, że kategoria Analityczne jest opcjonalna z domyślnie akceptowaną (jeśli prawnie OK).",
+          fixOffDev: "W dev otwórz kilka podstron - konsola powinna pokazać [web-vitals].",
+          fixOkLcp: "Jeśli LCP > 2.5 s: preload obrazu bohatera + AVIF/WebP.",
+          fixOkTab:
+            "Otwórz zakładkę Web Vitals - konkretne rekomendacje per metryka są tam wygenerowane.",
+          titleOff: "Brak próbek RUM w oknie",
+          titleOk: "RUM zbierany z realnego ruchu",
+        },
+      },
+      keys: {
+        ga4: "dodaj sekrety poniżej, a service account dopisz jako Viewer w GA4:",
+        gsc: "konektor łączy przez OAuth. Otwórz Ustawienia projektu → Konektory → Google Search Console.",
+        title: "Jak podłączyć klucze Google?",
+        vitals: "dane RUM zbierane automatycznie z rzeczywistego ruchu.",
+      },
+      loadingDashboard: "Ładowanie dashboardu…",
+      loadingStatus: "Ładowanie statusu…",
+      // Nagłówek drugiego poziomu w przeglądzie. Trasa daje `<h1>`, a wspólny
+      // `InsightSection` renderuje `<h3>` - bez tego poziomu axe zgłasza
+      // `heading-order`, a nawigacja po nagłówkach pokazuje sekcję jako
+      // pod-pod-sekcję czegoś, czego nie ma.
+      overviewHeading: "Stan pomiaru",
+      pill: {
+        connected: "Połączone",
+        ga4: "Google Analytics 4",
+        ga4NoProperty: "Brak GA4_PROPERTY_ID",
+        ga4NoServiceAccount: "Brak service accounta",
+        ga4Property: "Property {{propertyId}}",
+        gsc: "Google Search Console",
+        gscConnected: "Podłączone (OAuth)",
+        gscNeedsConnector: "Wymaga podłączenia konektora",
+        notConfigured: "Nie skonfigurowane",
+        vitals: "Web Vitals",
+        vitalsDetail: "Monitoring realnych użytkowników",
+      },
+      refresh: "Odśwież status",
+      subtitle: "Google Analytics 4, Search Console oraz Web Vitals w jednym miejscu.",
+      tabs: {
+        audience: "Audytorium",
+        footer: "Stopka",
+        ga4: "GA4",
+        gsc: "Search Console",
+        overview: "Przegląd",
+        vitals: "Web Vitals",
+      },
+      vitals: {
+        details: "Szczegóły",
+        empty: "Brak próbek.",
+        fullView: "Pełny widok RUM z rozkładem per ścieżka:",
+        loading: "Ładowanie…",
+        // Formy mnogie, bo „12 próbka" i „2 próbek" to dwa różne błędy w tym
+        // samym miejscu - liczebnik przychodzi z opcji `count`.
+        samples_few: "{{count}} próbki",
+        samples_many: "{{count}} próbek",
+        samples_one: "{{count}} próbka",
+        samples_other: "{{count}} próbek",
+        title: "Web Vitals ({{days}} dni)",
+      },
+    },
+    // Panel `/admin/settings/analytics`. Rdzeń słownika ma cztery stany
+    // wskaźnika; brakowało piątego - AWARII diagnostyki - i nazwy AKCJI dla
+    // przycisku, który dotąd nosił napis stanu („Sprawdzanie…").
+    analyticsSettings: {
+      status: {
+        error: "Awaria diagnostyki",
+        refresh: "Sprawdź ponownie",
+      },
+    },
     // Podgląd przypisów w edytorze bloków. Formy mnogie zamiast dawnych
     // "problem(y)" / "przypis(y)" - liczebnik przychodzi z opcji `count`,
     // więc skrót w nawiasie nie miał jak się odmienić.
@@ -731,6 +898,151 @@ export const adminExtrasPl = {
 
 export const adminExtrasEn = {
   admin: {
+    analyticsPanel: {
+      embed: {
+        open: "Open in a new tab",
+        title: "Embedded report (Looker Studio)",
+      },
+      ga4Modes: {
+        active: "Active",
+        embed: {
+          step1:
+            "Build the report in Looker Studio on top of the GA4 source, then use File → Embed report → copy the URL.",
+          step2: "(full iframe URL of the report, e.g. from lookerstudio.google.com)",
+          step3: "No authentication on our side - the report renders as an iframe.",
+          title: "4. Embed (Looker Studio / iframe)",
+        },
+        inactive: "Inactive",
+        intro:
+          "Pick any mode - add the secrets in the deployment environment secrets. Priority for Data API reports: Service Account → OAuth refresh token.",
+        measurement: {
+          secretHint: "(API key only - confidential)",
+          step1:
+            "GA4 → Admin → Data Streams → pick the web stream → Measurement Protocol API secrets → create a new secret.",
+          step2After: "(the Measurement ID field, e.g. G-XXXXXXX) - it is shared with this panel.",
+          step2Before: "Set the Measurement ID in",
+          step2Link: "Settings → Analytics",
+          step3: "This mode sends server-side events; it does not read reports.",
+          title: "3. Measurement Protocol (server-side events)",
+        },
+        oauth: {
+          step1:
+            "Google Cloud Console → OAuth consent screen + Credentials → create an OAuth Client ID of the Desktop app type.",
+          step2After: "(e.g. OAuth Playground - Use your own OAuth credentials).",
+          step2Before: "Generate a refresh token for the scope",
+          title: "2. OAuth 2.0 (refresh token)",
+        },
+        ready: "Ready",
+        secretProject: "Project secret:",
+        secretSingle: "Secret:",
+        secrets: "Secrets:",
+        serviceAccount: {
+          step1: "Google Cloud Console → create a Service Account, generate a JSON key.",
+          step2: "GA4 → Admin → Property access management → add the SA e-mail as Viewer.",
+          title: "1. Service Account (JSON)",
+        },
+        testEvent: "Send a test event",
+        title: "Ways to connect GA4",
+      },
+      insights: {
+        ga4: {
+          detailOff:
+            "Without GA4 there is no measurement of on-site behaviour (bounce, engagement, conversions).",
+          detailOk:
+            "The Data API responds - sessions, sources, devices and conversions are on the GA4 dashboard.",
+          element: "Google Analytics 4",
+          fixOffSecrets: "Add the GA4_SERVICE_ACCOUNT_JSON + GA4_PROPERTY_ID secrets.",
+          fixOffServiceAccount:
+            "Collect the service account JSON from Google Cloud Console (Viewer role in GA4).",
+          fixOkConversions:
+            "Configure conversions (contact, newsletter) - without them the engagement rate has no context.",
+          fixOkEvents: "Define micro-events (scroll_75, cta_click) for sharper segments.",
+          fixPartialProperty:
+            "Add the GA4_PROPERTY_ID secret (the property number, not the measurement tag).",
+          titleOff: "GA4 is not connected",
+          titleOk: "GA4 active (property {{propertyId}})",
+          titlePartial: "Service account is in place, GA4_PROPERTY_ID is missing",
+        },
+        gsc: {
+          detailOff:
+            "Without GSC there is no SERP visibility: no queries, positions, CTR or sitemap health.",
+          detailOk: "OAuth is active - the GSC dashboard reaches every verified property.",
+          element: "Search Console",
+          fixOffConnector:
+            "Open Settings → Connectors → Google Search Console and connect an account with property access.",
+          fixOffRefresh:
+            "After connecting, refresh this panel - the GSC dashboard starts collecting data within an hour.",
+          fixOkSitemap:
+            "Upload a fresh sitemap.xml once a week (you can automate it with pg_cron).",
+          fixOkVariants: "Verify that every domain variant (http/https, www/apex) is added in GSC.",
+          titleOff: "No connection to GSC",
+          titleOk: "GSC is connected and collecting data",
+        },
+        subtitle: "Readiness analysis: GSC · GA4 · Web Vitals",
+        title: "Integration status and recommendations",
+        vitals: {
+          detailOff:
+            "No samples usually means traffic is too low or RUM was switched off in the consent banner.",
+          detailOk:
+            "The /api/public/vitals beacon receives LCP/INP/CLS/FCP/TTFB. Web Vitals BI attributes them per page.",
+          element: "Web Vitals",
+          fixOffConsent:
+            "Check in the Consent Banner that the Analytics category is optional and accepted by default (where legally fine).",
+          fixOffDev: "In dev open a few pages - the console should print [web-vitals].",
+          fixOkLcp: "If LCP > 2.5 s: preload the hero image + AVIF/WebP.",
+          fixOkTab: "Open the Web Vitals tab - per-metric recommendations are generated there.",
+          titleOff: "No RUM samples in the window",
+          titleOk: "RUM collected from real traffic",
+        },
+      },
+      keys: {
+        ga4: "add the secrets below and add the service account as Viewer in GA4:",
+        gsc: "the connector links through OAuth. Open Project settings → Connectors → Google Search Console.",
+        title: "How to connect the Google keys?",
+        vitals: "RUM data is collected automatically from real traffic.",
+      },
+      loadingDashboard: "Loading the dashboard…",
+      loadingStatus: "Loading the status…",
+      overviewHeading: "Measurement status",
+      pill: {
+        connected: "Connected",
+        ga4: "Google Analytics 4",
+        ga4NoProperty: "GA4_PROPERTY_ID missing",
+        ga4NoServiceAccount: "No service account",
+        ga4Property: "Property {{propertyId}}",
+        gsc: "Google Search Console",
+        gscConnected: "Connected (OAuth)",
+        gscNeedsConnector: "Needs a connector",
+        notConfigured: "Not configured",
+        vitals: "Web Vitals",
+        vitalsDetail: "Real user monitoring",
+      },
+      refresh: "Refresh status",
+      subtitle: "Google Analytics 4, Search Console and Web Vitals in one place.",
+      tabs: {
+        audience: "Audience",
+        footer: "Footer",
+        ga4: "GA4",
+        gsc: "Search Console",
+        overview: "Overview",
+        vitals: "Web Vitals",
+      },
+      vitals: {
+        details: "Details",
+        empty: "No samples.",
+        fullView: "Full RUM view with the per-path breakdown:",
+        loading: "Loading…",
+        samples_one: "{{count}} sample",
+        samples_other: "{{count}} samples",
+        title: "Web Vitals (last {{days}} days)",
+      },
+    },
+    analyticsSettings: {
+      status: {
+        error: "Diagnostics failed",
+        refresh: "Check again",
+      },
+    },
     autoFootnotes: {
       badge: "auto from [fn]…[/fn]",
       blockLabel: "Block #{{n}} ({{type}})",

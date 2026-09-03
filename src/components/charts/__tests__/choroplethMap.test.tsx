@@ -7,9 +7,10 @@
 //
 //   * SKALA RAMPY. Odcień liczy się z `(value - min) / (max - min)`. Gdy
 //     wszystkie wartości są równe (albo jest tylko jeden region), mianownik
-//     wyszedłby zerem, więc kod podnosi `max` o 1 - i ta SZTUCZNA jedynka
-//     wycieka do legendy jako realna wartość. Legenda mapy z jednym regionem
-//     obiecuje zakres, którego w danych nie ma (zapięte `it.fails`);
+//     wyszedłby zerem - rozbraja go zerowa rozpiętość przy liczeniu odcienia,
+//     a NIE podbicie `max` o 1 (tamta sztuczna jedynka wyciekała do legendy
+//     jako realna wartość). Pilnujemy, żeby legenda mapy z jednym regionem
+//     nie obiecywała zakresu, którego w danych nie ma;
 //   * ALTERNATYWA TEKSTOWA. Kolor bez etykiety nie jest treścią: osoba
 //     czytająca ekran, drukująca stronę albo nierozróżniająca odcieni musi
 //     dostać wszystkie liczby z tabeli. Tabela musi też ZOSTAĆ, gdy zasób
@@ -17,9 +18,10 @@
 //     obrazek. Region bez geometrii (albo przed hydracją) nie może zniknąć
 //     z tabeli tylko dlatego, że nie ma dla niego kształtu;
 //   * MOTYW. Wypełnienie jedzie przez `color-mix()` na tokenach rampy, ale
-//     w atrybucie `fill` siedzi jeszcze awaryjny hex interpolowany w JS - i on
-//     jest ZAWSZE jasnomotywny. W trybie ciemnym ramp awaryjny jest odwrócony:
-//     najwyższa wartość dostaje najmniej widoczny kolor (zapięte `it.fails`).
+//     w atrybucie `fill` siedzi jeszcze awaryjny hex interpolowany w JS -
+//     i on musi brać parę hexów TEGO SAMEGO motywu. Na jednej parze jasnej
+//     ramp awaryjny w trybie ciemnym był odwrócony: najwyższa wartość
+//     dostawała najmniej widoczny kolor.
 //
 // Do tego pilnujemy porządku malowania (kraje bez danych PRZED krajami z
 // danymi, żeby obrys aktywnego nie chował się pod sąsiadem), fokusowalności
@@ -332,28 +334,26 @@ describe("ChoroplethMap - ramp sekwencyjny", () => {
     for (const p of dataPaths(container)) expect(p.getAttribute("style")).toContain("15%");
   });
 
-  it.fails(
-    "legenda NIE MOŻE wymyślać maksimum - przy jednym regionie pokazuje wartość, której nie ma w danych",
-    () => {
-      // `max` jest podbijane o 1, żeby nie dzielić przez zero. Ta sztuczna
-      // jedynka wychodzi na wierzch w legendzie: dla jednego regionu o wartości
-      // 42 mld czytelnik dostaje skalę "42 mld ... 43 mld", czyli obietnicę
-      // zakresu, w którym nikogo nie ma. Poprawnie: legenda przy zdegenerowanej
-      // domenie ma pokazać jedną wartość albo zniknąć.
-      const view = render(
-        <Wrapper>
-          <ChoroplethMap
-            config={cfg({ region: "europe", unit: " mld", values: [{ id: "PL", value: 42 }] })}
-            lang="pl"
-          />
-        </Wrapper>,
-      );
-      const napisy = [
-        ...(legendBox(view.container)?.querySelectorAll("span.tabular-nums") ?? []),
-      ].map((s) => s.textContent);
-      expect(napisy).not.toContain("43 mld");
-    },
-  );
+  it("legenda NIE wymyśla maksimum - przy jednym regionie pokazuje tylko wartość, która jest w danych", () => {
+    // Dzielenie przez zero rozbraja `span` przy liczeniu odcienia, a NIE
+    // podbicie `max` o 1. Dawna sztuczna jedynka wychodziła na wierzch
+    // w legendzie: dla jednego regionu o wartości 42 mld czytelnik dostawał
+    // skalę "42 mld ... 43 mld", czyli obietnicę zakresu, w którym nikogo
+    // nie ma. Przy zdegenerowanej domenie legenda podaje JEDNĄ wartość.
+    const view = render(
+      <Wrapper>
+        <ChoroplethMap
+          config={cfg({ region: "europe", unit: " mld", values: [{ id: "PL", value: 42 }] })}
+          lang="pl"
+        />
+      </Wrapper>,
+    );
+    const napisy = [
+      ...(legendBox(view.container)?.querySelectorAll("span.tabular-nums") ?? []),
+    ].map((s) => s.textContent);
+    expect(napisy).not.toContain("43 mld");
+    expect(napisy).toEqual(["42 mld"]);
+  });
 
   it("region spoza geometrii wpływa na domenę rampy, ale nie znika z tabeli", async () => {
     // Zasób nie ma kształtu dla "XX" (np. nowszy słownik danych niż mapa),
@@ -485,21 +485,18 @@ describe("ChoroplethMap - tabela jako równorzędna droga do danych", () => {
     expect(tip(container)?.textContent).toBe("PolskaValue10");
   });
 
-  it.fails(
-    "ETYKIETA ARIA kraju musi mieć ten sam fallback nazwy co tabela - inaczej region zostaje bez nazwy",
-    async () => {
-      // Grafika ma dwie DROGI do tej samej nazwy: tabela i tooltip idą przez
-      // `nameOf` (z fallbackiem `c.en || c.pl` i kodem ISO na końcu), a
-      // `aria-label` ścieżki bierze `lang === "en" ? c.en : c.pl` WPROST.
-      // Gdy zasób nie ma nazwy w języku strony, czytnik ekranu ogłasza
-      // ": 10" - wartość bez podmiotu. To jedyny kanał dostępu do tego
-      // regionu na obrazku, więc jego brak jest utratą treści, a nie kosmetyką.
-      h.geo = ASSET_BEZ_NAZW;
-      const { container } = await mapa(EUROPA, { lang: "en" });
-      const etykiety = dataPaths(container).map((p) => p.getAttribute("aria-label"));
-      expect(etykiety).toEqual(["Polska: 10", "Germany: 90"]);
-    },
-  );
+  it("ETYKIETA ARIA kraju ma ten sam fallback nazwy co tabela - żaden region nie zostaje bez nazwy", async () => {
+    // Wszystkie DROGI do nazwy idą przez jedno `nameOf` (z fallbackiem
+    // `c.en || c.pl` i kodem ISO na końcu): tabela, tooltip i `aria-label`
+    // ścieżki. Gdyby etykieta brała `lang === "en" ? c.en : c.pl` wprost,
+    // zasób bez nazwy w języku strony kazałby czytnikowi ogłosić ": 10" -
+    // wartość bez podmiotu. To jedyny kanał dostępu do tego regionu na
+    // obrazku, więc jego brak jest utratą treści, a nie kosmetyką.
+    h.geo = ASSET_BEZ_NAZW;
+    const { container } = await mapa(EUROPA, { lang: "en" });
+    const etykiety = dataPaths(container).map((p) => p.getAttribute("aria-label"));
+    expect(etykiety).toEqual(["Polska: 10", "Germany: 90"]);
+  });
 
   it("PRZED hydracją zasobu tabela pokazuje kod kraju, nigdy pustą komórkę", async () => {
     // Nazwy krajów mieszkają w zasobie geometrii, a ten dogrywa się po
@@ -790,36 +787,31 @@ describe("ChoroplethMap - motyw jasny i ciemny", () => {
     for (const s of styles) expect(s).toContain("var(--chart-seq-max)");
   });
 
-  it.fails(
-    "awaryjne wypełnienie MUSI iść za motywem - w ciemnym ramp jest ODWRÓCONY i najwyższa wartość gaśnie",
-    async () => {
-      // Atrybut `fill` to fallback dla przeglądarek bez color-mix(): hex
-      // interpolowany w JS między dwiema STAŁYMI jasnego motywu (#cde2fb ->
-      // #0d366b). W trybie ciemnym daje to ramp odwrotny do tokenowego:
-      // najniższa wartość świeci (#b0c8e5 na karcie #0f0f0f, ~11:1), a
-      // NAJWYŻSZA gaśnie (#0d366b, ~1,6:1 - poniżej progu 3:1 dla obiektu
-      // graficznego). Poprawnie: fallback musi być liczony z tokenów motywu.
-      document.documentElement.classList.add("dark");
-      const { container } = await mapa({
-        region: "europe",
-        values: [
-          { id: "PL", value: 10 },
-          { id: "DE", value: 90 },
-        ],
-      });
-      const CARD_DARK = "#0f0f0f";
-      const fillOf = (label: RegExp): string =>
-        dataPaths(container)
-          .find((p) => label.test(p.getAttribute("aria-label") ?? ""))
-          ?.getAttribute("fill") ?? "";
-      const lo = kontrast(fillOf(/^PL/), CARD_DARK);
-      const hi = kontrast(fillOf(/^DE/), CARD_DARK);
-      expect(hi, `najwyższa wartość na ciemnej karcie: ${hi.toFixed(2)}:1`).toBeGreaterThanOrEqual(
-        3,
-      );
-      expect(hi).toBeGreaterThan(lo);
-    },
-  );
+  it("awaryjne wypełnienie idzie ZA MOTYWEM - w ciemnym najwyższa wartość zostaje najwidoczniejsza", async () => {
+    // Atrybut `fill` to fallback dla przeglądarek bez color-mix(): hex
+    // interpolowany w JS między parą hexów TEGO SAMEGO motywu, co tokeny
+    // rampy. Na jednej parze jasnej ciemny motyw dostawał ramp odwrotny do
+    // tokenowego: najniższa wartość świeciła (#b0c8e5 na karcie #0f0f0f,
+    // ~11:1), a NAJWYŻSZA gasła (#0d366b, ~1,6:1 - poniżej progu 3:1 dla
+    // obiektu graficznego). Tu pilnujemy kierunku i progu w trybie ciemnym.
+    document.documentElement.classList.add("dark");
+    const { container } = await mapa({
+      region: "europe",
+      values: [
+        { id: "PL", value: 10 },
+        { id: "DE", value: 90 },
+      ],
+    });
+    const CARD_DARK = "#0f0f0f";
+    const fillOf = (label: RegExp): string =>
+      dataPaths(container)
+        .find((p) => label.test(p.getAttribute("aria-label") ?? ""))
+        ?.getAttribute("fill") ?? "";
+    const lo = kontrast(fillOf(/^PL/), CARD_DARK);
+    const hi = kontrast(fillOf(/^DE/), CARD_DARK);
+    expect(hi, `najwyższa wartość na ciemnej karcie: ${hi.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+    expect(hi).toBeGreaterThan(lo);
+  });
 });
 
 describe("ChoroplethMap - izolacja przestrzeni roboczych", () => {

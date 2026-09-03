@@ -113,14 +113,16 @@ describe("InsightSection - stan pusty", () => {
     expect(screen.queryByText(t("adminAnalytics.insightSection.emptyDefault"))).toBeNull();
   });
 
-  it.fails("DEFEKT: w stanie pustym tytuł sekcji NIE jest nagłówkiem", () => {
-    // Z wnioskami tytuł jedzie jako `<h3>`, bez wniosków - jako zwykły `<div>`
-    // z tą samą klasą. Sekcja „Interpretacja i rekomendacje" znika więc z
-    // konspektu nagłówków dokładnie wtedy, gdy wszystko jest w porządku:
-    // osoba nawigująca po nagłówkach (najszybszy sposób poruszania się po
-    // pulpicie z czytnikiem ekranu) nie ma jak stwierdzić, że sekcja w ogóle
-    // istnieje i co mówi. Ten sam tytuł, ta sama rola w układzie - semantyka
-    // nie może zależeć od liczby wpisów.
+  it("w stanie pustym tytuł sekcji jest TYM SAMYM nagłówkiem co z wnioskami", () => {
+    // Ten sam tytuł, ta sama rola w układzie - semantyka nie może zależeć od
+    // liczby wpisów. Gdy z wnioskami tytuł jedzie jako `<h3>`, a bez nich jako
+    // zwykły `<div>` z tą samą klasą, sekcja „Interpretacja i rekomendacje"
+    // wypada z konspektu nagłówków dokładnie wtedy, gdy wszystko jest
+    // w porządku: osoba nawigująca po nagłówkach (najszybszy sposób poruszania
+    // się po pulpicie z czytnikiem ekranu) nie ma jak stwierdzić, że sekcja
+    // w ogóle istnieje i co mówi. Przypadek pilnuje POZIOMU nagłówka pośrednio,
+    // przez rolę: sekcja siedzi pod nagłówkiem karty pulpitu, więc `h3` w obu
+    // wariantach trzyma konspekt spójny.
     render(<InsightSection insights={[]} title="Wnioski dla Web Vitals" />);
 
     expect(screen.getByRole("heading", { name: "Wnioski dla Web Vitals" })).toBeTruthy();
@@ -245,6 +247,30 @@ describe("InsightSection - treść wpisu", () => {
       "Włącz preload fontu",
       "Zdejmij trzeci skrypt",
     ]);
+  });
+
+  it("waga i lista działań są w JEDNYM kafelku - dlatego muszą mówić to samo", () => {
+    // Ta asercja jest przesłanką decyzji o progach w generatorach wniosków
+    // (`gscInsights`, `ga4Insights`): ponieważ ikona i ramka wagi stoją w tym
+    // samym `<li>`, co wypunktowanie kroków, wpis o wadze `warn` z poradą
+    // „nic nie rób” jest dla operatora sprzecznością widoczną na jednym
+    // ekranie, a nie dwiema niezależnymi informacjami. Gdyby sekcja rozdzielała
+    // te dwie rzeczy na osobne miejsca, rozjazd progów wagi i porad byłby
+    // dopuszczalny - nie jest, i to jest tutaj udowodnione.
+    render(
+      <InsightSection
+        insights={[wniosek("x", "warn", { fixes: ["Utrzymaj tempo publikacji"] })]}
+      />,
+    );
+
+    const wpis = wpisy()[0];
+    expect(wpis.className).toContain("border-amber-500/30");
+    expect(within(wpis).getByText("Wniosek x")).toBeTruthy();
+    expect(
+      within(wpis)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent?.replace("→", "").trim()),
+    ).toEqual(["Utrzymaj tempo publikacji"]);
   });
 
   it("PUSTA lista działań nie zostawia pustego wypunktowania", () => {

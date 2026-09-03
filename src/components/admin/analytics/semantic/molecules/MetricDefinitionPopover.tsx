@@ -7,6 +7,7 @@
  * Bez tego czytelnik raportu musiał zgadywać, którą z sześciu wersji „odsłony”
  * właśnie widzi.
  */
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-semantic";
 import { Info, ShieldAlert } from "lucide-react";
@@ -22,6 +23,11 @@ export function MetricDefinitionPopover({
   className?: string;
 }) {
   const { t, i18n } = useTranslation();
+  // `PopoverContent` Radiksa renderuje `role="dialog"`, a rola `dialog` NIE
+  // wylicza nazwy z zawartości. Popover stoi przy KAŻDEJ liczbie panelu, więc
+  // bez nazwy czytnik ogłaszałby serię nieodróżnialnych „okien dialogowych”.
+  // Nazwa jest w drzewie - nagłówek metryki - trzeba ją tylko z okienkiem związać.
+  const headingId = useId();
   const isEn = i18n.language?.toLowerCase().startsWith("en");
   const metric = metricById(metricId);
   const definition = isEn ? metric.definitionEn : metric.definitionPl;
@@ -42,9 +48,13 @@ export function MetricDefinitionPopover({
           <Info className="h-3.5 w-3.5" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-3 space-y-2.5">
+      <PopoverContent
+        align="start"
+        aria-labelledby={headingId}
+        className="w-[min(22rem,calc(100vw-2rem))] p-3 space-y-2.5"
+      >
         <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-semibold leading-5">
+          <h4 id={headingId} className="text-sm font-semibold leading-5">
             {isEn ? metric.labelEn : metric.labelPl}
           </h4>
           <Badge variant="outline" className="text-[10px] shrink-0">

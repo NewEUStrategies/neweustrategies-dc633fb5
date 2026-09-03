@@ -1,5 +1,5 @@
 import { FollowButton } from "@/components/FollowButton";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, type ErrorComponentProps } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -112,15 +112,16 @@ export const Route = createFileRoute("/programs/$slug")({
   },
   component: ProgramDetail,
   notFoundComponent: PublicNotFound,
-  errorComponent: (props) => (
-    <RouteErrorFallback
-      {...props}
-      title={
-        activeLang() === "en" ? "Failed to load the program" : "Nie udało się załadować programu"
-      }
-    />
-  ),
+  // Nagłówek błędu ze SŁOWNIKA - patrz `programs.index.tsx`: `errorComponent`
+  // renderuje się jak każdy inny komponent, więc `t()` jest tu dostępne.
+  errorComponent: (props) => <ProgramDetailError {...props} />,
 });
+
+function ProgramDetailError(props: ErrorComponentProps) {
+  ensureProgramsI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("programs.loadFailedProgram")} />;
+}
 
 // ---------- section primitives --------------------------------------------
 
@@ -213,7 +214,7 @@ function ProjectCard({ project, lang }: { project: ProgramProject; lang: "pl" | 
       {summary && <p className="text-sm text-muted-foreground">{summary}</p>}
       {project.url && (
         <span className="inline-flex items-center gap-1 text-sm text-primary">
-          {lang === "en" ? `Open project: ${name}` : `Otwórz projekt: ${name}`}
+          {t("programs.openProject", { name })}
           <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       )}

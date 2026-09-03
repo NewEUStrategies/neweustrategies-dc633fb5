@@ -5,7 +5,7 @@
 // „TENANT SCOPE: these readers use the service role, which bypasses RLS - so
 // every query filters by the tenant that owns the request host. Without the
 // explicit filter a second tenant's content would leak into another site's
-// sitemap/RSS/llms.txt." Czyli: RLS - jedyna zapora, która działa bez pamięci
+// sitemap/RSS/llms.txt.” Czyli: RLS - jedyna zapora, która działa bez pamięci
 // programisty - jest dla tych zapytań WYŁĄCZONA, a to, co zostaje, to filtr
 // wpisany ręcznie. Powierzchnia skutku jest najgorsza z możliwych: sitemapa
 // i kanały RSS są czytane i cache'owane przez wyszukiwarki, więc wyciek
@@ -26,13 +26,13 @@
 // warstwę, której nie pokrywa nic innego: zapytania TypeScriptu wykonywane
 // z pominięciem RLS.
 //
-// TRZY GRANICE, NIE JEDNA. Filtr w zapytaniu to tylko pierwsza z nich, i sama
+// CZTERY GRANICE, NIE JEDNA. Filtr w zapytaniu to tylko pierwsza z nich, i sama
 // nie wystarcza:
 //   1. FILTR - każde zapytanie ma jawne `.eq("tenant_id", tenantId)`;
 //   2. KLUCZ CACHE - `edgeTtlCache` trzyma wynik 60 s; klucz bez `tenantId`
 //      podałby treść najemcy A na domenie najemcy B przy IDEALNYCH filtrach.
 //      `lib/ssrCache.ts` skopuje wpisy hostem, ale żądania bez rozwiązywalnego
-//      hosta dzielą zakres „no-host" - tam `tenantId` w kluczu jest JEDYNYM
+//      hosta dzielą zakres „no-host” - tam `tenantId` w kluczu jest JEDYNYM
 //      separatorem;
 //   3. PŁASZCZYZNA ROZWIĄZANIA HOSTA - `tenant.server.ts` ma dwa kontrakty:
 //      treściowy (`resolveTenantForHost`: nieznany host -> tenant DOMYŚLNY)
@@ -41,7 +41,13 @@
 //      domyślnego na cudzej, niezajętej domenie - z idealnymi filtrami
 //      i idealnym kluczem cache. Nagłówek `publishedContent.server.ts` wskazuje
 //      tu `resolveTenantForHost`, czyli dokładnie tę gorszą z dwóch funkcji;
-//      dlatego to KOD, nie komentarz, jest przypięty niżej.
+//      dlatego to KOD, nie komentarz, jest przypięty niżej;
+//   4. ŚCIEŻKA KANONICZNA - adres wpisu składa RPC `page_full_path`
+//      rekurencją w górę po `pages.parent_id`, czyli po wierszach, których
+//      filtr z punktu 1 nie dotyka. Rodzic u obcego najemcy wnosi JEGO slug do
+//      adresu przy idealnym filtrze, idealnym kluczu cache i właściwej
+//      płaszczyźnie hosta. Granicę stawia tu SQL funkcji i ograniczenie
+//      schematu - oba pilnowane w ostatnim bloku tego pliku.
 //
 // WYJĄTKI SĄ DECYZJĄ. Lista `EXEMPTIONS` niżej jest kluczowana parą
 // plik+tabela, nie samą tabelą: zgoda na brak filtru dotyczy jednego miejsca,
@@ -51,7 +57,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { extractLatestDefinitions, stripSqlComments } from "../../../../scripts/lib/sqlMigrations";
+import { stripSqlComments } from "../../../../scripts/lib/sqlMigrations";
 import { maskComments } from "@/lib/ci/i18nKeyUsage";
 import {
   auditServiceRoleTenantScope,
@@ -108,7 +114,7 @@ const SERVICE_ROLE_READERS = [
 
 /**
  * Zapytania świadomie bez filtru najemcy. Trzy kategorie, każda z innym
- * powodem - i żadna z nich nie jest „nie zdążyliśmy".
+ * powodem - i żadna z nich nie jest „nie zdążyliśmy”.
  *
  * TABELA BEZ KOLUMNY NAJEMCY (zakres przechodni). `post_categories` ma
  * dokładnie `{post_id, category_id}`, `post_tags` - `{post_id, tag_id}`
@@ -315,248 +321,325 @@ describe("powierzchnie crawlera rozwiązują hosta płaszczyzną fail-closed", (
   });
 });
 
-describe("adres kanoniczny strony - ścieżka rodzica nie przekracza granicy najemcy", () => {
+describe("adres kanoniczny wpisu - ścieżka rodzica sprawdza najemcę", () => {
   /**
-   * DEFEKT NAPRAWIONY 31.08.2026. TO JEST DZIŚ RATCHET, NIE ZGŁOSZENIE.
+   * CZWARTA GRANICA: ŚCIEŻKĘ KANONICZNĄ SKŁADA SQL, NIE TYPESCRIPT.
+   * `fetchPagePaths` (publishedContent.server.ts:59) i `buildPagePaths`
+   * (sitemapEntries.server.ts:60) filtrują `pages` po najemcy poprawnie - ale
+   * pełną ścieżkę składa RPC `public.page_full_path(_page_id uuid)`:
+   * rekurencyjne CTE idące w GÓRĘ po `pages.parent_id`. Filtr z zapytania
+   * obejmuje więc wiersz STARTOWY, a nie łańcuch rodziców, który dokłada do
+   * adresu kolejne slugi. Granicą jest tu treść funkcji, nie łańcuch `.eq()`.
    *
-   * Do 31.08 `fetchPagePaths` (`publishedContent.server.ts:59`) filtrował `pages`
-   * po najemcy poprawnie, ale pełną ścieżkę składał RPC
-   * `public.page_full_path(_page_id uuid)` (migracja 20260531223436): rekurencyjne
-   * CTE idące w GÓRĘ po `pages.parent_id`, BEZ predykatu najemcy, `LANGUAGE sql
-   * STABLE` (czyli SECURITY INVOKER - wołane spod service-role nie ma nad sobą
-   * RLS). Strona z `parent_id` wskazującym stronę innego najemcy wnosiła JEGO
-   * slug do ścieżki kanonicznej publikowanej w sitemapie i RSS-ie.
+   * DLACZEGO RLS TEGO NIE DOMYKA. Funkcja jest `LANGUAGE sql STABLE`, czyli
+   * SECURITY INVOKER - ale wołający to service_role z BYPASSRLS
+   * (`sitemapEntries.server.ts:75`, `publishedContent.server.ts:73`), więc nad
+   * rekurencją nie stoi ŻADNA polityka. To ta sama luka w rozumowaniu, którą
+   * opisuje nagłówek tego pliku, o jedną warstwę niżej.
    *
-   * ZAMKNĘŁA TO migracja `20260831160000_page_full_path_tenant_scope.sql` dwiema
-   * niezależnymi warstwami:
-   *   A. predykat `AND p.tenant_id = c.tenant_id` w rekurencji OBU funkcji
-   *      ścieżki (linie 76 i 114 migracji) - chroni ODCZYT danych, które już są;
-   *   B. złożony klucz obcy `pages_parent_same_tenant_fkey`
-   *      `(parent_id, tenant_id) -> pages(id, tenant_id)` (linia 201, w bloku
-   *      `DO $$ … EXCEPTION`) - nie pozwala takich danych WYTWORZYĆ.
+   * ZASIĘG - UCZCIWIE, BO PIERWSZA WERSJA TEGO OPISU MYLIŁA SIĘ. Polityka
+   * „Public reads published pages” NIE jest dziś tenant-ślepa: brzmi
+   * `status = 'published' AND deleted_at IS NULL AND tenant_id = public_tenant_id()`,
+   * więc pod JWT `anon`/`authenticated` rekurencja nie zobaczy wiersza rodzica
+   * z obcego najemcy i łańcuch urwie się sam. Wyciek był realny na ścieżce
+   * SERVICE-ROLE, a nie „wszędzie” - i dlatego pilnuje go TA bramka, która całą
+   * tę płaszczyznę już opisuje. Zabezpieczenie oparte WYŁĄCZNIE na tym, że RLS
+   * przypadkiem ukryje wiersz rodzica, jest zabezpieczeniem przez skutek
+   * uboczny: funkcje mają `GRANT EXECUTE` dla `anon, authenticated,
+   * service_role` i muszą bronić się same.
    *
-   * DLACZEGO `it.fails` ZNIKA. Asercja przechodzi od 31.08, więc vitest zgłaszał
-   * `Error: Expect test to fail` - i to TEN wpis czerwienił job `test` na `main`
-   * przez pięć dni. Znacznik defektu przeżył defekt: dokładnie ta klasa długu,
-   * przed którą broni reszta tego pliku, tylko obrócona przeciw niemu samemu.
+   * CO BYŁO NA SZALI. Strona z `parent_id` wskazującym stronę innego najemcy
+   * wnosiła JEGO slug do ścieżki kanonicznej publikowanej w sitemapie
+   * (`sitemapEntries.server.ts`) i w RSS-ie. Przecieka segment adresu, nie
+   * wiersz - ale to ta sama klasa i ta sama powierzchnia, czytana
+   * i cache'owana przez wyszukiwarki, więc wyciek przeżywa własną naprawę
+   * o tyle, ile trwa cykl indeksowania. Tę samą ścieżkę pokazują panel SEO
+   * (`SeoPanel.tsx:131`) i lista zapisanych stron (`SavedSection.tsx:79`), ale
+   * one wołają RPC klientem przeglądarki - tam łańcuch urywał się sam na
+   * polityce, więc to miejsca WYŚWIETLENIA ścieżki, nie miejsca naruszenia
+   * izolacji. Komentarz migracji wymienia je jednym tchem z sitemapą i w tym
+   * jednym miejscu jest za szeroki.
    *
-   * DLACZEGO ASERCJA MUSIAŁA UROSNĄĆ, A NIE TYLKO STRACIĆ ZNACZNIK. Poprzednia
-   * flaga `parentSameTenantConstraint` szukała po SUROWEJ treści migracji
-   * wyłącznie `/(CHECK…parent_id…tenant_id)|(TRIGGER…pages…parent…tenant)/`.
-   * Ma to trzy niezależne wady i każda osobno wystarcza, żeby ją unieważnić:
+   * CO GWARANTUJE NAPRAWA - migracja
+   * `20260831160000_page_full_path_tenant_scope.sql` (bliźniak treści:
+   * `20260831214637`, ten sam SQL bez komentarza). Zamyka dziurę DWOMA
+   * niezależnymi warstwami, bo żadna osobno nie wystarcza:
+   *   A. PREDYKAT NAJEMCY W CZŁONIE REKURENCYJNYM - `AND p.tenant_id =
+   *      c.tenant_id`, SAMO-ZAKOTWICZONY w wierszu startowym (kotwica wnosi
+   *      `tenant_id` do CTE), a NIE w sesji: `current_tenant_id()` byłoby tu
+   *      błędem, bo spod service-role kontekst najemcy jest NULL i wtedy każda
+   *      ścieżka wychodzi NULL-em - to zamiana cichego naruszenia izolacji na
+   *      cichą awarię produkcyjną. Przy naruszeniu łańcuch urywa się na granicy
+   *      najemcy, więc strona dostaje ścieżkę złożoną WYŁĄCZNIE z własnych
+   *      segmentów. Ta warstwa chroni ODCZYT danych, które w bazie już są.
+   *      Ten sam predykat dostał wariant WSADOWY `page_full_paths(uuid[])` -
+   *      osobne znalezisko tamtej migracji, bo audyt nazywał tylko funkcję
+   *      pojedynczą, a wsadowa powtarzała tę samą rekurencję bez najemcy.
+   *      UWAGA NA ZASIĘG, bo komentarz tamtej migracji jest tu za szeroki:
+   *      wariantu wsadowego NIE woła dziś żadna powierzchnia service-role -
+   *      jedynym wołającym jest `src/lib/queries/archives.ts:45`, czyli
+   *      płaszczyzna przeglądarki pod RLS-em. Sitemapa nadal robi JEDNO RPC NA
+   *      STRONĘ (`sitemapEntries.server.ts:75`) i to jest osobne, przypięte
+   *      znalezisko (`sitemapEntries.server.test.ts:752`). Bramka pilnuje obu
+   *      wariantów mimo to, i to jest decyzja, nie przezorność na zapas:
+   *      `page_full_paths` ma `GRANT EXECUTE` dla `service_role`, a przejście
+   *      sitemapy na wołanie wsadowe - dokładnie to, o co prosi tamto
+   *      przypięcie - położyłoby ją na tej płaszczyźnie w jednej linii kodu.
+   *      Naprawa połowiczna byłaby wtedy naprawą cofniętą.
+   *   B. OGRANICZENIE SCHEMATU: złożony klucz obcy
+   *      `(parent_id, tenant_id) -> (id, tenant_id)`
+   *      (`pages_parent_same_tenant_fkey`, poprzedzony
+   *      `pages_id_tenant_id_key UNIQUE (id, tenant_id)`, bo FK potrzebuje
+   *      UNIQUE po stronie referencowanej). Migracja założycielska
+   *      (20260531223436) dawała `parent_id` wyłącznie
+   *      `REFERENCES public.pages(id) ON DELETE RESTRICT` - nic nie
+   *      przeszkadzało WYTWORZYĆ wiersza powodującego wyciek. Złożony FK
+   *      pilnuje obu kierunków jedną deklaracją (zapis dziecka ORAZ zmiana
+   *      `tenant_id` rodzica), robi to pod właściwą blokadą, nie da się go
+   *      pominąć spod service-role i przeżywa dump/restore.
    *
-   *   1. SZUKAŁA NIE TEGO OGRANICZENIA. Migracja świadomie odrzuciła obie te
-   *      drogi (jej linie 126-147: CHECK czytający inny wiersz nie jest
-   *      immutable i nie przelicza się przy zmianie `tenant_id` RODZICA,
-   *      a trigger da się wyłączyć `ALTER TABLE … DISABLE TRIGGER`) i założyła
-   *      ZŁOŻONY KLUCZ OBCY. Słowo `FOREIGN` nie padało w tamtym wzorcu ani raz.
+   * DLACZEGO OSOBNE PRZYPADKI, A NIE ALTERNATYWA. Poprzednia wersja tej bramki
+   * sprawdzała `rpcBindsTenant || parentSameTenantConstraint` jednym `expect`.
+   * Alternatywa przechodzi, gdy JEDNA z warstw zniknie - czyli milczy dokładnie
+   * w chwili regresu, na który jest postawiona. Każda warstwa ma tu więc własny
+   * przypadek i pada osobno.
    *
-   *   2. BYŁA PRAWDZIWA SIEDEM TYGODNI PRZED NAPRAWĄ. Zmierzone na katalogu 935
-   *      migracji: stary wzorzec trafiał w cztery pliki, z czego trzy bez związku
-   *      ze sprawą - `20260713173411` i `20260714130000` przez `CHECK (parent_id
-   *      IS NULL OR parent_id <> id)` na tabeli `categories`, oraz `20260826114616`
-   *      przez `DROP TRIGGER … ON public.event_pages`, gdzie „pages" jest ogonem
-   *      nazwy `event_pages`. Czwarte trafienie, w samej migracji naprawiającej,
-   *      padało na POLSKI KOMENTARZ, a nie na DDL. Flaga stała więc na cudzych
-   *      migracjach od 13.07 - była zielona długo przed naprawą i nigdy nie
-   *      mierzyła tego, co obiecywała jej nazwa.
-   *      Dlatego cały ten blok czyta treść przepuszczoną przez `stripSqlComments`:
-   *      w repozytorium, które pisze w migracjach kroniki decyzji, proza
-   *      o ograniczeniu nie ma prawa spełniać asercji o ograniczeniu.
-   *
-   *   3. `.some()` PO CAŁEJ HISTORII TO FLAGA MONOTONICZNA - raz zapalona, nie
-   *      umie zgasnąć. Gdyby jutro ktoś zdjął ograniczenie, migracja z 31.08
-   *      nadal leży w katalogu i nadal pasuje, więc bramka świeciłaby zielono nad
-   *      otwartą dziurą. Reszta repo liczy to inaczej i mówi to wprost:
-   *      `rpcContract.ts` i `policyTenantRegression.ts` oceniają STAN KOŃCOWY.
-   *
-   * DLACZEGO STAN KOŃCOWY FUNKCJI BIERZEMY Z `scripts/lib/sqlMigrations`, A NIE
-   * WŁASNYM REGEXEM. `extractLatestDefinitions()` jest w tym repozytorium
-   * kanoniczną rachubą „ostatnia definicja wygrywa" - używają jej
-   * `check-sql-rpc-contract`, `check-sql-app-role-literals` i `tenantHostTrust
-   * .invariant.test.ts`. Domknięcie listy parametrów po zbalansowanych nawiasach
-   * i złapanie znacznika dollar-quote (`$$` albo `$function$`) ma tam zrobione
-   * poprawnie; wersja pisana tu od nowa zaszywałaby `$$;` na sztywno i na ciele
-   * z innym znacznikiem pobiegłaby aż do `$$;` z NIEZWIĄZANEGO bloku `DO`
-   * w tym samym pliku. Klucz stanu końcowego to `nazwa/arność`, więc
-   * `page_full_path/1` i `page_full_paths/1` liczą się OSOBNO.
-   *
-   * PREDYKAT, A NIE SAMA OBECNOŚĆ KOLUMNY. Stara flaga pytała `/tenant_id/`
-   * o całą treść - a ciało SELECT-uje `tenant_id` jako kolumnę łańcucha, więc
-   * przechodziła też wersja BEZ złączenia po najemcy. Wymagamy równości dwóch
-   * `tenant_id` pod RÓŻNYMI aliasami: to jedyny kształt, który realnie urywa
-   * łańcuch na granicy najemcy, i jest odporny na przemianowanie aliasów.
-   *
-   * KSZTAŁT I NAZWA W OSOBNYCH TESTACH, bo to dwa różne ryzyka:
-   *   * KSZTAŁT - para `(parent_id, tenant_id)` wskazująca `pages(id, tenant_id)`,
-   *     sparowana POZYCYJNIE - jest jedyną treścią, która cokolwiek egzekwuje.
-   *     Pozycyjnie, bo `REFERENCES pages(tenant_id, id)` to poprawna składnia,
-   *     ten sam ZBIÓR kolumn i zupełnie bezużyteczne ograniczenie. Kształtu
-   *     szukamy dla DOWOLNEJ nazwy, żeby przemianowanie dawało komunikat „jest,
-   *     ale pod inną nazwą", a nie kłamliwe „nie ma ograniczenia".
-   *   * NAZWA jest napisem i sama nie chroni danych. Sprawdzamy ją z innego
-   *     powodu niż bezpieczeństwo: pod TĄ nazwą pytają `pg_constraint` dowody
-   *     wykonaniowe (`scripts/tenant-isolation-harness/runtime_test.sql`,
-   *     `supabase/tests/page_full_path_tenant_scope_test.sql`), więc ciche
-   *     przemianowanie zamieniłoby je w testy o niczym.
-   *
-   * CZEGO TEN BLOK NIE MIERZY - i to jest ograniczenie, nie przeoczenie.
-   * Wszystkie cztery asercje czytają PLIKI migracji, więc dowodzą DEKLARACJI,
-   * nie wykonania na wdrożonej bazie. Dowód wykonaniowy stoi osobno, w pgTAP-ach
-   * i w uprzęży izolacji najemcy wymienionych wyżej. Rozważaliśmy piątą asercję
-   * czytającą `src/integrations/supabase/types.ts` (plik generowany Z BAZY), ale
-   * odrzuciliśmy ją świadomie: `src/lib/ci/generatedTypesFreshness.ts` sam
-   * dokumentuje, że ten plik BYWA nieświeży, więc bramka postawiona na nim
-   * potrafi zaświecić czerwono z powodu niezwiązanego z izolacją najemcy -
-   * a to jest dokładnie ta choroba, którą ten commit leczy.
+   * CZEGO NIE DUBLUJE. `supabase/tests/page_full_path_tenant_scope_test.sql`
+   * (14 asercji, w tym odczyt po `DROP CONSTRAINT`) dowodzi ZACHOWANIA obu
+   * warstw na prawdziwej bazie - ale wymaga `supabase test db` i nie biegnie
+   * w suicie vitesta. Ta bramka czyta KATALOG MIGRACJI i pilnuje, że mechanizm
+   * jest wciąż ZADEKLAROWANY: definicja funkcji bez predykatu albo migracja
+   * zdejmująca klucz obcy zapala czerwone bez żadnej bazy.
    */
-  const LATEST_FNS = extractLatestDefinitions();
+  const MIGRATIONS_DIR = "supabase/migrations";
 
-  /** Klucze stanu końcowego w formacie `nazwa/arność` (patrz `FnDef.key`). */
-  const PATH_FUNCTIONS = ["public.page_full_path/1", "public.page_full_paths/1"] as const;
-  const PARENT_TENANT_FK = "pages_parent_same_tenant_fkey";
-  const PAGES_MIGRATIONS_DIR = "supabase/migrations";
+  /**
+   * Wersja migracji naprawczej. Definicji ZAŁOŻYCIELSKIEJ (20260531223436) nie
+   * wolno wymagać predykatu - historii migracji się nie przepisuje. Znaczenie
+   * dla stanu bazy po odtworzeniu katalogu ma to, co jest OD naprawy w górę:
+   * żadna z tych migracji nie może wytworzyć funkcji bez granicy najemcy,
+   * a ostatnia definicja - ta, która wygrywa po replayu - jest w tym zbiorze.
+   */
+  const FIX_VERSION = "20260831160000";
 
-  /** Równość `tenant_id` pod DWOMA RÓŻNYMI aliasami - czyli złączenie, nie kolumna. */
-  function bindsTenant(body: string): boolean {
-    return [...body.matchAll(/([A-Za-z_]\w*)\.tenant_id\s*=\s*([A-Za-z_]\w*)\.tenant_id/g)].some(
-      (m) => m[1] !== m[2],
+  const SITEMAP_ENTRIES = "src/lib/server/sitemapEntries.server.ts";
+
+  /** Definicja funkcji ścieżki, rozłożona na członów rekurencji. */
+  interface PathFunctionDef {
+    readonly file: string;
+    readonly fn: string;
+    /** Człon kotwiczący: wiersz startowy rekurencji (przed `UNION ALL`). */
+    readonly anchor: string;
+    /** Człon rekurencyjny: skok do rodzica (od `UNION ALL`). */
+    readonly recursive: string;
+    readonly body: string;
+  }
+
+  /**
+   * Ciała `public.page_full_path(...)` i `public.page_full_paths(...)`
+   * z migracji od naprawczej w górę. Ciałem jest tekst między `AS $$` i `$$;`,
+   * więc bloki `DO $$ ... $$;` tej samej migracji nie wchodzą w dopasowanie.
+   */
+  function pathFunctionDefs(): PathFunctionDef[] {
+    const out: PathFunctionDef[] = [];
+    const files = readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith(".sql") && f.slice(0, 14) >= FIX_VERSION)
+      .sort();
+    for (const name of files) {
+      const sql = read(`${MIGRATIONS_DIR}/${name}`);
+      const re =
+        /CREATE OR REPLACE FUNCTION public\.(page_full_paths?)\([\s\S]*?AS \$\$([\s\S]*?)\$\$;/g;
+      for (const m of sql.matchAll(re)) {
+        const body = m[2];
+        const cut = body.indexOf("UNION ALL");
+        out.push({
+          file: `${MIGRATIONS_DIR}/${name}`,
+          fn: m[1],
+          anchor: cut === -1 ? body : body.slice(0, cut),
+          recursive: cut === -1 ? "" : body.slice(cut),
+          body,
+        });
+      }
+    }
+    return out;
+  }
+
+  /** Migracje od naprawczej w górę - surowy SQL, do skanu ograniczeń. */
+  function migrationsSinceFix(): Array<{ file: string; sql: string }> {
+    return readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith(".sql") && f.slice(0, 14) >= FIX_VERSION)
+      .sort()
+      .map((f) => ({ file: `${MIGRATIONS_DIR}/${f}`, sql: read(`${MIGRATIONS_DIR}/${f}`) }));
+  }
+
+  const defs = pathFunctionDefs();
+
+  /**
+   * Granica najemcy w rekurencji: rodzic musi siedzieć w tym samym najemcy co
+   * dziecko. Aliasy jak w migracji - `p` to wiersz rodzica, `c` to CTE `chain`,
+   * czyli wiersz, z którego skaczemy.
+   */
+  const SELF_ANCHORED_PREDICATE = /\bp\.tenant_id\s*=\s*c\.tenant_id\b/;
+
+  function predicateOffenders(fn: string): string[] {
+    return defs
+      .filter((d) => d.fn === fn && !SELF_ANCHORED_PREDICATE.test(d.recursive))
+      .map(
+        (d) =>
+          `${d.file} - public.${d.fn}: człon rekurencyjny bez predykatu p.tenant_id = c.tenant_id`,
+      );
+  }
+
+  it("kanarek zasięgu: obie funkcje ścieżki mają definicję po migracji naprawczej", () => {
+    // Bez tego cały blok przechodzi PUSTY: dość zmienić `AS $$` na
+    // `AS $function$`, żeby `defs` wyszło zerowe - a filtr po pustym zbiorze
+    // nie ma czego złapać. Sygnał jest POZYTYWNY (definicja znaleziona
+    // i rozłożona na członów), nie negatywny („brak zgłoszeń”).
+    expect(defs.filter((d) => d.fn === "page_full_path").length).toBeGreaterThanOrEqual(1);
+    expect(defs.filter((d) => d.fn === "page_full_paths").length).toBeGreaterThanOrEqual(1);
+    // Rozbiór na członów musi się udać, inaczej predykatu szukalibyśmy w całym
+    // ciele - a `tenant_id` stoi tam też w kotwicy i w liście SELECT.
+    expect(defs.filter((d) => d.recursive === "").map((d) => `${d.fn} @ ${d.file}`)).toEqual([]);
+
+    // ...a sygnał pozytywny nadal jest ślepy na ZDJĘCIE funkcji: `defs` zbiera
+    // `CREATE [OR REPLACE] FUNCTION`, więc późniejszy `DROP FUNCTION` zostawia
+    // definicję w zbiorze i cały blok ogląda ciało SPRZED zdjęcia. To ta sama
+    // wada monotoniczności, którą warstwa B zamyka dla ograniczenia - tu
+    // domknięta dla funkcji. Ustalenie z recenzji Codeksa na PR #325.
+    //
+    // Dopasowanie po SAMEJ NAZWIE, bez listy typów, jest świadomie ZACHOWAWCZE:
+    // `DROP FUNCTION` z inną arnością zgłosi się tu jako zdjęcie i bramka
+    // zaświeci. Fałszywy alarm kosztuje jedno spojrzenie człowieka; przeoczone
+    // zdjęcie kosztuje obcy slug w sitemapie.
+    const dropped = migrationsSinceFix().flatMap(({ file, sql }) =>
+      [
+        ...stripSqlComments(sql).matchAll(
+          /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(page_full_paths?)\b/gi,
+        ),
+      ].map((m) => `${file} - zdejmuje public.${m[1]}`),
     );
-  }
-
-  /**
-   * JEDEN wzorzec na `ADD` i `DROP`, bo liczy się KOLEJNOŚĆ W PLIKU. Dwie osobne
-   * pętle (najpierw wszystkie `ADD`, potem wszystkie `DROP`) dawały wynik zależny
-   * od kolejności pętli, a nie od treści migracji: dominujący idiom tego repo
-   * `DROP CONSTRAINT IF EXISTS x; ADD CONSTRAINT x …` - wymuszony tym, że Postgres
-   * nie zna `ADD CONSTRAINT IF NOT EXISTS` - zostałby policzony jako ZDJĘCIE
-   * ograniczenia i wywrócił bramkę przy zerowej regresji.
-   */
-  const PAGES_CONSTRAINT_OP = new RegExp(
-    "ALTER\\s+TABLE\\s+(?:ONLY\\s+)?(?:public\\.)?pages\\s+(?:" +
-      "ADD\\s+CONSTRAINT\\s+([A-Za-z_]\\w*)\\s+FOREIGN\\s+KEY\\s*\\(([^)]*)\\)" +
-      "\\s*REFERENCES\\s+(?:public\\.)?pages\\s*\\(([^)]*)\\)" +
-      "|DROP\\s+CONSTRAINT\\s+(?:IF\\s+EXISTS\\s+)?([A-Za-z_]\\w*)" +
-      ")",
-    "gi",
-  );
-
-  const columnList = (raw: string): string[] =>
-    raw.split(",").map((c) => c.trim().replace(/"/g, "").toLowerCase());
-
-  /**
-   * Ograniczenia „ten sam najemca" ŻYWE w stanie końcowym: nazwa -> migracja,
-   * która je dziś niesie.
-   *
-   * Wstępny filtr po SUROWEJ treści jest poprawnościowo bezpieczny, nie tylko
-   * szybki: `stripSqlComments` wyłącznie USUWA tekst, więc plik bez słowa `pages`
-   * przed odjęciem komentarzy tym bardziej nie ma go po. Odsiewa 834 z 935 plików.
-   */
-  function liveSameTenantFks(): Map<string, string> {
-    const live = new Map<string, string>();
-    const files = readdirSync(PAGES_MIGRATIONS_DIR)
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
-    for (const file of files) {
-      const raw = read(`${PAGES_MIGRATIONS_DIR}/${file}`);
-      if (!/\bpages\b/i.test(raw)) continue;
-      for (const m of stripSqlComments(raw).matchAll(PAGES_CONSTRAINT_OP)) {
-        const [, addName, localRaw, referencedRaw, dropName] = m;
-        if (dropName !== undefined) {
-          live.delete(dropName.toLowerCase());
-          continue;
-        }
-        const local = columnList(localRaw);
-        const referenced = columnList(referencedRaw);
-        // Jednokolumnowe `parent_id -> pages(id)` z migracji założycielskiej
-        // odpada tutaj - i ma odpaść, bo to właśnie ono dopuszczało wyciek.
-        if (local.length !== 2 || referenced.length !== 2) continue;
-        const pairs = local.map((c, i) => `${c}->${referenced[i]}`).sort();
-        if (pairs.join("|") !== "parent_id->id|tenant_id->tenant_id") continue;
-        live.set(addName.toLowerCase(), file);
-      }
-    }
-    return live;
-  }
-
-  const LIVE_FKS = liveSameTenantFks();
-
-  /**
-   * Funkcje ZDJĘTE po swojej ostatniej definicji.
-   *
-   * `extractLatestDefinitions()` rejestruje wyłącznie `CREATE [OR REPLACE]
-   * FUNCTION` - słowo `DROP` nie pada w `scripts/lib/sqlMigrations.ts` ani razu.
-   * Sam kanarek istnienia byłby więc ślepy na `DROP FUNCTION`: wpis zostaje
-   * w mapie, `missing` jest puste, a asercja o predykacie ogląda ciało SPRZED
-   * zdjęcia. Bramka świeciłaby zielono nad funkcją, której już nie ma - czyli
-   * dokładnie ta sama wada monotoniczności, którą wpis nr 3 wyżej zarzuca
-   * staremu `.some()`, tylko przeniesiona o poziom niżej.
-   *
-   * Liczymy to TUTAJ, a nie w `sqlMigrations.ts`: ten helper karmi cztery inne
-   * bramki, a zmiana jego semantyki jest osobną decyzją z własnym pomiarem.
-   *
-   * Dopasowanie po SAMEJ NAZWIE, bez listy typów, jest świadomie ZACHOWAWCZE:
-   * `DROP FUNCTION` z inną arnością zgłosi się tu jako zdjęcie i bramka zaświeci
-   * czerwono. Fałszywy alarm na bramce izolacji najemcy kosztuje jedno
-   * spojrzenie człowieka; przeoczone zdjęcie kosztuje wyciek.
-   */
-  function droppedAfterDefinition(): string[] {
-    const files = readdirSync(PAGES_MIGRATIONS_DIR)
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
-    const lastDrop = new Map<string, string>();
-    for (const file of files) {
-      const raw = read(`${PAGES_MIGRATIONS_DIR}/${file}`);
-      if (!/page_full_path/i.test(raw)) continue;
-      for (const m of stripSqlComments(raw).matchAll(
-        /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(page_full_paths?)\b/gi,
-      )) {
-        lastDrop.set(`public.${m[1].toLowerCase()}`, file);
-      }
-    }
-    return PATH_FUNCTIONS.flatMap((key) => {
-      const def = LATEST_FNS.get(key);
-      const dropped = lastDrop.get(key.split("/")[0]);
-      if (def === undefined || dropped === undefined || dropped <= def.file) return [];
-      return [`${key} - zdjęta w ${dropped}, po ostatniej definicji w ${def.file}`];
-    });
-  }
-
-  it("obie funkcje ścieżki istnieją w stanie końcowym migracji - kanarek zasięgu", () => {
-    // Bez tego przemianowanie funkcji (albo zmiana arności) robi z asercji niżej
-    // pustą pętlę, która przechodzi, bo nie ma czego sprawdzić.
-    const missing = PATH_FUNCTIONS.filter((key) => LATEST_FNS.get(key) === undefined);
-    expect(missing).toEqual([]);
-    // ...a bez tego kanarek byłby ślepy na `DROP FUNCTION` - patrz komentarz
-    // nad `droppedAfterDefinition`.
-    expect(droppedAfterDefinition()).toEqual([]);
+    expect(dropped).toEqual([]);
   });
 
-  it("obie funkcje ścieżki wiążą najemcę w rekurencji", () => {
-    const offenders = PATH_FUNCTIONS.flatMap((key) => {
-      const def = LATEST_FNS.get(key);
-      if (def === undefined || bindsTenant(def.body)) return [];
-      return [`${key} (${def.file}) - rekurencja bez predykatu najemcy`];
-    });
+  it("page_full_path wiąże najemcę w członie rekurencyjnym", () => {
+    // WARSTWA A dla wariantu pojedynczego - tego, który woła sitemapa
+    // (`sitemapEntries.server.ts:75`) i czytnik feedów
+    // (`publishedContent.server.ts:73`). Bez tego predykatu skok do rodzica
+    // przechodzi granicę najemcy i wnosi obcy slug do adresu kanonicznego.
+    expect(predicateOffenders("page_full_path")).toEqual([]);
+  });
+
+  it("page_full_paths - wariant wsadowy ma ten sam predykat, nie słabszy", () => {
+    // Osobny przypadek, bo to osobna funkcja i osobne znalezisko: audyt nazywał
+    // tylko wariant pojedynczy. Dziś wariant wsadowy stoi pod archiwami
+    // (`src/lib/queries/archives.ts:45`) i idzie klientem przeglądarki, czyli
+    // pod RLS-em - ale ma `GRANT EXECUTE` dla `service_role`, więc jest
+    // o jedną linię od tej samej płaszczyzny co wariant pojedynczy. Predykat
+    // w jednej funkcji, a w drugiej nie, to naprawa, która czeka na regres.
+    expect(predicateOffenders("page_full_paths")).toEqual([]);
+  });
+
+  it("predykat jest zakotwiczony w wierszu startowym, nie w sesji", () => {
+    // Zakotwiczenie decyduje, czy naprawa w ogóle działa spod service-role.
+    // `current_tenant_id()` jest tam NULL-em, więc filtr po sesji wywróciłby
+    // KAŻDĄ ścieżkę do NULL-a - to nie wariant tej samej naprawy, tylko zamiana
+    // cichego naruszenia izolacji na cichą awarię produkcyjną. Warunkiem
+    // samo-zakotwiczenia jest `tenant_id` wniesiony do CTE przez kotwicę: bez
+    // niego nie istnieje `c.tenant_id`, z którym porównuje się rodzica.
+    const offenders: string[] = [];
+    for (const d of defs) {
+      if (!/\btenant_id\b/.test(d.anchor)) {
+        offenders.push(`${d.file} - public.${d.fn}: kotwica rekurencji nie wnosi tenant_id do CTE`);
+      }
+      if (/\bcurrent_tenant_id\s*\(/.test(d.body)) {
+        offenders.push(
+          `${d.file} - public.${d.fn}: najemca z sesji (current_tenant_id) zamiast z wiersza startowego`,
+        );
+      }
+    }
     expect(offenders).toEqual([]);
   });
 
-  it("pages.parent_id ma w stanie końcowym złożony klucz obcy tego samego najemcy", () => {
-    // Lista wchodzi do KOMUNIKATU, nie do asercji: gdy test oblewa, `LIVE_FKS`
-    // jest pusta, więc porównanie samej listy nie miałoby czego pokazać.
-    // Komunikat mówi wtedy „BRAK" i to jest cała informacja, jakiej szuka
-    // czytelnik - plus nazwy tych ograniczeń, które JEDNAK są.
-    const declared = [...LIVE_FKS].map(([name, file]) => `${name} <- ${file}`);
-    expect(
-      declared.length,
-      `żywe ograniczenia tego kształtu na pages.parent_id: ${declared.join(", ") || "BRAK"}`,
-    ).toBeGreaterThan(0);
+  it("pages.parent_id ma ograniczenie tego samego najemcy i nikt go nie zdejmuje", () => {
+    // WARSTWA B, niezależna od A: A chroni ODCZYT danych, które już są,
+    // B nie pozwala ich WYTWORZYĆ. Ten przypadek pada osobno właśnie po to,
+    // żeby zniknięcie jednej warstwy nie schowało się za drugą.
+    const migrations = migrationsSinceFix();
+
+    // Para kolumn po OBU stronach - to jest cała różnica wobec założycielskiego
+    // `parent_id -> pages(id)`, który o najemcy nie mówi nic.
+    const COMPOSITE_FK =
+      /ADD CONSTRAINT\s+pages_parent_same_tenant_fkey\s+FOREIGN KEY\s*\(\s*parent_id\s*,\s*tenant_id\s*\)\s*REFERENCES\s+public\.pages\s*\(\s*id\s*,\s*tenant_id\s*\)/i;
+    // Warunek wstępny złożonego FK: UNIQUE po stronie referencowanej. Bez niego
+    // Postgres odrzuca `ADD CONSTRAINT`, czyli migracja przestaje się odtwarzać.
+    const UNIQUE_SIDE =
+      /ADD CONSTRAINT\s+pages_id_tenant_id_key\s+UNIQUE\s*\(\s*id\s*,\s*tenant_id\s*\)/i;
+
+    expect(migrations.filter((m) => COMPOSITE_FK.test(m.sql)).length).toBeGreaterThanOrEqual(1);
+    expect(migrations.filter((m) => UNIQUE_SIDE.test(m.sql)).length).toBeGreaterThanOrEqual(1);
+
+    const offenders: string[] = [];
+    for (const { file, sql } of migrations) {
+      // `NOT VALID` pilnuje wyłącznie NOWYCH zapisów, a istniejące naruszenia
+      // zostawia w bazie - czyli dokładnie te wiersze, które już wnoszą obcy
+      // slug do sitemapy. Migracja świadomie ich nie zostawia (odczepia stronę
+      // od obcego rodzica), więc `NOT VALID` byłoby cofnięciem połowy naprawy.
+      const statement = /ADD CONSTRAINT\s+pages_parent_same_tenant_fkey[^;]*/i.exec(sql);
+      if (statement !== null && /NOT VALID/i.test(statement[0])) {
+        offenders.push(
+          `${file} - pages_parent_same_tenant_fkey jako NOT VALID: istniejące naruszenia zostają w bazie`,
+        );
+      }
+      if (/DROP CONSTRAINT[^;]*pages_parent_same_tenant_fkey/i.test(sql)) {
+        offenders.push(`${file} - migracja zdejmuje pages_parent_same_tenant_fkey`);
+      }
+      if (/DROP CONSTRAINT[^;]*pages_id_tenant_id_key/i.test(sql)) {
+        offenders.push(
+          `${file} - migracja zdejmuje pages_id_tenant_id_key, czyli stronę referencowaną złożonego FK`,
+        );
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
-  it("ograniczenie nosi nazwę, pod którą pytają o nie dowody wykonaniowe", () => {
-    // `toContain`, nie `toEqual`: drugie, nadmiarowe ograniczenie tego kształtu
-    // to bałagan schematu, a nie dziura izolacji - bramka od bezpieczeństwa nie
-    // powinna z tego powodu oblewać.
-    expect([...LIVE_FKS.keys()]).toContain(PARENT_TENANT_FK);
+  it("kanoniczną ścieżkę woła sitemapa spod klienta service-role - kanarek zakresu", () => {
+    // PO CO TEN PRZYPADEK. Oba dowody wyżej mają wartość tylko o tyle, o ile
+    // ta funkcja jest naprawdę wołana spod service-role z powierzchni crawlera.
+    // Gdyby wołanie przeniosło się gdzie indziej albo doszła DRUGA taka
+    // powierzchnia, uzasadnienie tego bloku przestałoby opisywać kod, a bramka
+    // pilnowałaby migracji „na wszelki wypadek”. Lista jest samokalibrująca:
+    // skanujemy tę samą płaszczyznę co reszta pliku i wymagamy zgodności.
+    const RPC_CALL = /\.rpc\(\s*"(?:page_full_paths?)"/;
+    const callers = serverSources()
+      .filter((s) => RPC_CALL.test(maskComments(s.source)))
+      .map((s) => s.file);
+    expect(callers).toEqual([PUBLISHED, SITEMAP_ENTRIES]);
+
+    // Sygnał POZYTYWNY: wołanie stoi tam, gdzie mówi opis, i idzie przez
+    // wstrzyknięty klient `admin`, a nie przez klient przeglądarki.
+    const sitemap = read(SITEMAP_ENTRIES);
+    expect(sitemap).toMatch(/admin\.rpc\(\s*"page_full_path"/);
+    expect(sitemap).not.toMatch(/from "@\/integrations\/supabase\/client"/);
+
+    // PROWENIENCJA UPRAWNIEŃ JEST W TRASACH, nie w kolektorze:
+    // `sitemapEntries.server.ts` przyjmuje klient parametrem (`admin: DbClient`),
+    // więc sam z siebie nie mówi, jakimi uprawnieniami idzie zapytanie - i tym
+    // samym nie trafia do SERVICE_ROLE_READERS wyżej (skan szuka `supabaseAdmin`).
+    // Dowód domyka się dopiero na trasach: to one wstrzykują klient service-role.
+    const offenders: string[] = [];
+    for (const file of ["src/routes/sitemap[.]xml.ts", "src/routes/sitemaps.$section.ts"]) {
+      const source = maskComments(read(file));
+      if (
+        !/supabaseAdmin\s*\}\s*=\s*await import\("@\/integrations\/supabase\/client\.server"\)/.test(
+          source,
+        )
+      ) {
+        offenders.push(`${file} - nie bierze klienta service-role z client.server`);
+      }
+      if (!/collect(?:All)?Sitemap\w*\(\s*supabaseAdmin\b/.test(source)) {
+        offenders.push(`${file} - nie podaje supabaseAdmin kolektorowi sitemapy`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });

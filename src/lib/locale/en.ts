@@ -183,6 +183,7 @@ export const en = {
     stay: "Stay",
     nav: {
       dashboard: "Dashboard",
+      analyticsBi: "BI dashboards",
       analyticsReconciliation: "Reconciliation",
       posts: "Posts",
       pages: "Pages",

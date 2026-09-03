@@ -19,13 +19,17 @@
 //      powrotem, ani nie interpretować jako znaczników HTML - stack to tekst
 //      przysłany przez obcą przeglądarkę. Osobno: stack jest treści schowana,
 //      więc w stanie zwiniętym nie ma go w DOM w ogóle.
-//   3. TRZY STANY, JEDEN KOMUNIKAT. "Jeszcze nie wiem", "odczyt padł" i "w
-//      oknie naprawdę nie było błędów" kończy się tym samym zielonym
-//      "Brak błędów w wybranym oknie. To dobrze". Bramka roli w server function
-//      RZUCA (`Forbidden: admin role required`), więc ten komunikat obsługuje
-//      także odmowę dostępu. Przypięte `it.fails`.
-//   4. IZOLACJA WARSZTATÓW. `queryKey` niesie wyłącznie granice okna - nie ma
-//      w nim ani tenanta, ani użytkownika.
+//   3. TRZY STANY, TRZY KOMUNIKATY. "Jeszcze nie wiem", "odczyt padł" i "w
+//      oknie naprawdę nie było błędów" to trzy różne decyzje operatora, więc
+//      panel melduje je osobno: pomiar w toku (`common.measuring`), awaria z
+//      PRZYCZYNĄ i `role="alert"` (`common.readFailedReason`) oraz zmierzone
+//      zero (`clientErrors.empty`). Bramka roli w server function RZUCA
+//      (`Forbidden: admin role required`), więc gałąź awarii jest tu także
+//      gałęzią odmowy dostępu, a kafelki KPI nie mają prawa malować wtedy zera.
+//   4. IZOLACJA WARSZTATÓW. `queryKey` niesie NAJEMCĘ obok granic okna, a
+//      zapytanie czeka na jego rozwiązanie (`enabled`) - najemca jest tu
+//      atrapą (`h.tenantId`), bo tylko tak da się odegrać przejście między
+//      warsztatami na tym samym kliencie cache.
 //   5. SŁOWNIK PL/EN. Napisy są asertowane przez `realT("pl")` / `realT("en")`.
 //      Formatowanie liczb i dat jest tu zależne od języka (`en-GB` / `pl-PL`) -
 //      i to jest sprawdzane, a nie deklarowane.
@@ -49,8 +53,13 @@ import type { AppLang } from "@/lib/i18n/localePath";
 
 type Opt = Record<string, unknown>;
 
+const TENANT_A = "tenant-alfa";
+const TENANT_B = "tenant-beta";
+
 const h = vi.hoisted(() => ({
   fetchReport: vi.fn(),
+  /** Warsztat, w którym stoi panel - zmiana tej wartości to przejście do innego. */
+  tenantId: "tenant-alfa" as string | null,
   charts: [] as Array<{ option: Record<string, unknown> }>,
 }));
 
@@ -64,6 +73,15 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 
 vi.mock("@/lib/observability/clientErrors.functions", () => ({
   getClientErrorsReport: (...args: unknown[]) => h.fetchReport(...args),
+}));
+
+// Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
+// klienta Supabase i sesję `useAuth`, a przedmiotem dowodu jest tylko to, że
+// identyfikator warsztatu WCHODZI DO KLUCZA react-query. Sterowanie nim z testu
+// (`h.tenantId`) daje jedyny sposób odegrania przejścia między warsztatami na
+// TYM SAMYM kliencie cache.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 vi.mock("../EChart", () => ({
@@ -223,6 +241,11 @@ function trendChart(): Opt {
   throw new Error("test: nie przechwycono wykresu trendu");
 }
 
+/** Wyzwalacz dymka podany przez opcję wykresu (nie przez motyw). */
+function tooltipTrigger(o: Opt): unknown {
+  return rec(o.tooltip).trigger;
+}
+
 /** Iskra kafelka KPI - jedyna linia z ukrytą osią. */
 function sparkChart(): Opt {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
@@ -258,38 +281,55 @@ function rowToggle(row: HTMLElement): HTMLElement {
   return btn as HTMLElement;
 }
 
-/** Komunikat grupy - pierwszy `span` przycisku, ten z `font-mono`. */
-function rowMessage(row: HTMLElement): string {
-  return row.querySelector("span.font-mono")?.textContent ?? "";
+/**
+ * Wartość pola wiersza wskazana PRZEZ NAZWĘ POLA, a nie przez klasę układu.
+ *
+ * Wiersz grupy jest listą definicji: każda wartość stoi w `<dd>` zaraz za
+ * `<dt>` z nazwą pola ze słownika (`colMessage`, `colCount`, `colShare`,
+ * `colSources`). Pomocnik idzie więc po RELACJI nazwa-wartość - tej samej,
+ * której istnienia pilnuje przypadek „wiersz grupy wiąże każdą wartość z nazwą
+ * pola". Wcześniej te same wartości wskazywały utility Tailwinda
+ * (`font-mono`, `justify-self-end`, `w-9`, `hidden`), więc kilkanaście asercji
+ * tego pliku wisiało na wyrównaniu i szerokości kolumny: refaktor CSS-a bez
+ * zmiany zachowania oblewał je wszystkie, a test utrwalał brak semantyki jako
+ * umowę. Zniknięcie nazwy pola nie da się tu przemilczeć - pomocnik RZUCA,
+ * więc oblewa każdą asercję, która przez niego przechodzi.
+ */
+function rowField(row: HTMLElement, col: string, lang: AppLang = "pl"): HTMLElement {
+  const name = ce(col, {}, lang);
+  const term = Array.from(row.querySelectorAll("dt")).find(
+    (dt) => (dt.textContent ?? "").trim() === name,
+  );
+  if (!term) throw new Error(`test: wiersz grupy nie ma pola o nazwie "${name}"`);
+  const value = term.nextElementSibling;
+  if (!value || value.tagName !== "DD") {
+    throw new Error(`test: pole "${name}" nie ma wartości w <dd>`);
+  }
+  return value as HTMLElement;
+}
+
+/** Komunikat grupy - wartość pola „Komunikat". */
+function rowMessage(row: HTMLElement, lang: AppLang = "pl"): string {
+  return rowField(row, "colMessage", lang).textContent ?? "";
+}
+
+/** Liczba wystąpień - wartość pola „Wystąpienia". */
+function rowCount(row: HTMLElement, lang: AppLang = "pl"): string {
+  return rowField(row, "colCount", lang).textContent ?? "";
 }
 
 /**
- * Liczba wystąpień - drugi `span` przycisku, wyrównany do prawej. Selektor
- * celuje w klasę UKŁADU (`justify-self-end`) ŚWIADOMIE: w wierszu nie ma ani
- * jednego pola powiązanego z nazwą, więc nie ma o co zapytać semantycznie -
- * patrz przypięcie "DEFEKT: wiersz grupy nie wiąże żadnej wartości z nazwą
- * pola".
+ * Udział w procentach - wartość pola „Udział". Pasek postępu stojący w tym
+ * samym `<dd>` jest ilustracją procentu (`aria-hidden`, zero treści), więc
+ * `textContent` pola to sam procent.
  */
-function rowCount(row: HTMLElement): string {
-  return row.querySelector("span.justify-self-end")?.textContent ?? "";
+function rowShare(row: HTMLElement, lang: AppLang = "pl"): string {
+  return rowField(row, "colShare", lang).textContent ?? "";
 }
 
-/**
- * Udział w procentach - jedyny `span` o szerokości `w-9`. Znów klasa układu i
- * znów świadomie, z tego samego powodu co przy `rowCount` (to samo przypięcie).
- */
-function rowShare(row: HTMLElement): string {
-  return row.querySelector("span.w-9")?.textContent ?? "";
-}
-
-/**
- * Plakietki źródeł - dzieci kontenera z utility `hidden`. Selektor jest
- * układowy PODWÓJNIE świadomie: `hidden` nie znaczy "źródła", znaczy
- * `display:none` poniżej breakpointu `sm` - patrz przypięcie "DEFEKT: źródła
- * błędu gasną poniżej breakpointu sm...".
- */
-function rowSources(row: HTMLElement): string[] {
-  return Array.from(row.querySelectorAll("span.hidden > *")).map((b) => b.textContent ?? "");
+/** Plakietki źródeł - dzieci pola „Źródła". */
+function rowSources(row: HTMLElement, lang: AppLang = "pl"): string[] {
+  return Array.from(rowField(row, "colSources", lang).children).map((b) => b.textContent ?? "");
 }
 
 function rowStack(row: HTMLElement): HTMLElement | null {
@@ -298,16 +338,12 @@ function rowStack(row: HTMLElement): HTMLElement | null {
 
 /**
  * Trzy pola wiersza jako ELEMENTY - wejście do asercji o drzewie dostępności.
- * Selektory są te same, układowe, co w pomocnikach wyżej; brak któregokolwiek
- * oblewa najpierw asercje o kolejności wierszy i o udziałach, więc ten rzut
- * nie może zazielenić przypięcia po cichu.
+ * Brak któregokolwiek oblewa najpierw asercje o kolejności wierszy i o
+ * udziałach (idą tym samym pomocnikiem), więc ten rzut nie może zazielenić
+ * przypadku o dostępności po cichu.
  */
-function rowFieldElements(row: HTMLElement): HTMLElement[] {
-  return ["span.font-mono", "span.justify-self-end", "span.w-9"].map((selector) => {
-    const el = row.querySelector(selector);
-    if (!el) throw new Error(`test: wiersz grupy nie ma pola "${selector}"`);
-    return el as HTMLElement;
-  });
+function rowFieldElements(row: HTMLElement, lang: AppLang = "pl"): HTMLElement[] {
+  return ["colMessage", "colCount", "colShare"].map((col) => rowField(row, col, lang));
 }
 
 /**
@@ -390,29 +426,38 @@ function panel(client?: QueryClient) {
   };
 }
 
-/** Czeka, aż raport dojedzie i karta grup przestanie meldować ładowanie. */
 /**
  * Czeka, aż raport DOJEDZIE do panelu.
  *
- * ŚWIADOMIE NIE OPIERA SIĘ na zniknięciu wskaźnika postępu. Wskaźnik pokazuje
- * `isFetching`, a przy obciążonej maszynie pierwszy render może wypaść PRZED
- * startem zapytania: wskaźnika nie ma jeszcze wcale, więc asercja "nie ma
- * wskaźnika" przechodzi na PUSTYM panelu i test mierzy stan przejściowy.
- * Dokładnie tak oblewały się cztery przypadki przy `load average` 34. Dlatego
- * czekamy na rozstrzygnięcie obietnic, które atrapa naprawdę oddała, wewnątrz
- * `act` - i tylko dla porządku domykamy spokojnym paskiem narzędzi.
+ * ŚWIADOMIE NIE OPIERA SIĘ na zniknięciu żadnego KOMUNIKATU O STANIE. Po
+ * pierwsze dlatego, że asercja "nie ma napisu X" przechodzi też wtedy, gdy
+ * napisu jeszcze nie ma: przy obciążonej maszynie pierwszy render może wypaść
+ * PRZED startem zapytania i test mierzy wtedy pusty panel - dokładnie tak
+ * oblewały się cztery przypadki przy `load average` 34. Po drugie dlatego, że
+ * komunikat o stanie jest przedmiotem dowodu w tym pliku (pomiar / awaria /
+ * zmierzone zero), a pomocnik bramkujący się na przedmiocie dowodu przechodzi
+ * jałowo w chwili, w której ten przedmiot się zmieni.
+ *
+ * Zostają więc dwa sygnały niezależne od treści ekranu: rozstrzygnięcie
+ * obietnic, które atrapa naprawdę oddała (wewnątrz `act`, żeby React zdążył
+ * przemalować), i POZYTYWNY warunek na pasku narzędzi - przycisk odświeżania
+ * jest zablokowany dokładnie tak długo, jak trwa `isFetching`, więc jego
+ * odblokowanie nie może być prawdą w pierwszej klatce.
  */
 async function loaded(lang: AppLang = "pl"): Promise<void> {
   await waitFor(() => expect(h.fetchReport).toHaveBeenCalled());
   await act(async () => {
     await Promise.allSettled(h.fetchReport.mock.results.map((r) => r.value));
   });
-  await waitFor(() => expect(screen.queryByText(common("loadingData", lang))).toBeNull());
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: common("refresh", lang) })).toBeEnabled(),
+  );
 }
 
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.charts.length = 0;
+  h.tenantId = TENANT_A;
   h.fetchReport.mockReset();
   h.fetchReport.mockResolvedValue(BUSY);
 });
@@ -446,11 +491,16 @@ describe("ClientErrorsDashboard - wartownicy fixtur", () => {
 // ---------------------------------------------------------------------------
 
 describe("ClientErrorsDashboard - trzy stany panelu", () => {
-  it("w trakcie pobierania karta grup melduje ładowanie i nie ma ani jednego stacka", async () => {
+  it("w trakcie pobierania panel melduje POMIAR i nie ma ani jednego stacka", async () => {
+    // Komunikat stoi RAZ, w karcie stanu nad kafelkami, i mówi „trwa pomiar" -
+    // nie „brak błędów". Lista grup nie dopisuje do niego drugiego napisu ani
+    // nie renderuje wiersza, więc żaden stack nie ma jak wejść do DOM.
     h.fetchReport.mockImplementation(() => new Promise<ClientErrorsReport>(() => {}));
     const { container } = panel();
 
-    expect(await screen.findByText(common("loadingData"))).toBeInTheDocument();
+    expect(await screen.findByText(common("measuring"))).toBeInTheDocument();
+    expect(screen.getByText(common("measuringHint"))).toBeInTheDocument();
+    expect(screen.queryByText(ce("empty"))).toBeNull();
     expect(groupRows()).toHaveLength(0);
     expect(container.querySelector("pre")).toBeNull();
   });
@@ -463,13 +513,15 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(btn).toBeDisabled();
   });
 
-  it.fails("DEFEKT: w trakcie pobierania cztery kafelki meldują ZERO błędów", async () => {
-    // `(report?.windowTotal ?? 0).toLocaleString(locale)` nie odróżnia
-    // "nie wiem" od "nie było". Zero na pulpicie błędów czyta się jako
-    // twierdzenie o zdrowiu aplikacji, którego pomiar się nie odbył.
+  it("w trakcie pobierania kafelki NIE meldują zera - pomiaru jeszcze nie było", async () => {
+    // `(report?.windowTotal ?? 0).toLocaleString(locale)` nie odróżniało "nie
+    // wiem" od "nie było": cztery kafelki malowały zero, zanim cokolwiek
+    // policzono. Zero na pulpicie BŁĘDÓW czyta się jako twierdzenie o zdrowiu
+    // aplikacji, więc dopóki pomiar się nie odbył, kafelek pokazuje kreskę, a
+    // powód stoi obok w karcie stanu.
     h.fetchReport.mockImplementation(() => new Promise<ClientErrorsReport>(() => {}));
     panel();
-    await screen.findByText(common("loadingData"));
+    await screen.findByText(common("measuring"));
 
     const shown = [
       kpiValue(ce("kpiTotal")),
@@ -478,6 +530,10 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
       kpiValue(ce("kpiLast24h")),
     ];
     expect(shown).not.toEqual(["0", "0", "0", "0"]);
+    // Zapadka na konkretny zamiennik: kreska jest znakiem, nie napisem, więc
+    // nie wymaga klucza i18n, ale musi być JEDNA dla wszystkich czterech -
+    // inaczej operator zgaduje, który kafelek jest pomiarem, a który brakiem.
+    expect(shown).toEqual(["-", "-", "-", "-"]);
   });
 
   it("okno bez błędów pokazuje komunikat ze słownika i zero wierszy", async () => {
@@ -499,19 +555,30 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(screen.getByRole("button", { name: presetLabel("30d") })).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: odmowa dostępu melduje się jako dobra wiadomość", async () => {
-    // `reportQuery.isError` i `.error` nie są w tym pliku czytane ani raz, a
-    // server function RZUCA przy braku roli admina i przy padnięte
+  it("odmowa dostępu melduje się jako AWARIA ODCZYTU, z przyczyną", async () => {
+    // `reportQuery.isError` i `.error` nie były w panelu czytane ani raz, a
+    // server function RZUCA przy braku roli admina i przy padniętym
     // uwierzytelnieniu (degraduje do pustego raportu tylko brak tabeli). Panel
-    // maluje wtedy "Brak błędów w wybranym oknie. To dobrze - beacony (...)
-    // trafiają tu automatycznie" - czyli zapewnia, że telemetria działa, w
-    // sytuacji, w której odczyt został odrzucony.
+    // malował wtedy "Brak błędów w wybranym oknie. To dobrze - beacony (...)
+    // trafiają tu automatycznie", czyli ZAPEWNIAŁ, że telemetria działa, w
+    // sytuacji, w której odczyt został odrzucony. Teraz odmowa idzie własną
+    // gałęzią: komunikat pustego okna nie ma prawa się pokazać, a przyczyna
+    // ("Forbidden: admin role required") musi dojść do operatora dosłownie -
+    // to jedyna informacja, z którą może cokolwiek zrobić.
     h.fetchReport.mockRejectedValue(new Error("Forbidden: admin role required"));
     const { container } = panel();
     await loaded();
 
     expect(screen.queryByText(ce("empty"))).toBeNull();
     expect(container.textContent ?? "").toMatch(/Forbidden|b[lł][aą]d|error/i);
+    // Napis przychodzi ZE SŁOWNIKA, nie z literału w JSX - podpowiedź obok
+    // przyczyny nie ma zmiennych, więc nadaje się na wartownika klucza.
+    expect(screen.getByText(common("readFailedHint"))).toBeInTheDocument();
+    // Awaria jest OGŁASZANA, nie tylko wypisana: bez `role="alert"` operator
+    // patrzący na kafelki nie dowiaduje się, że pomiaru nie było.
+    expect(screen.getByRole("alert")).toHaveTextContent("Forbidden: admin role required");
+    // I ta sama zasada co przy pomiarze w toku: kafelek nie maluje zera.
+    expect(kpiValue(ce("kpiTotal"))).not.toBe("0");
   });
 
   it("przycisk odświeżania ponawia odczyt tego samego okna", async () => {
@@ -529,6 +596,35 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
 
 // ---------------------------------------------------------------------------
 
+describe("ClientErrorsDashboard - wyzwalacz dymka należy do WYKRESU, nie do motywu", () => {
+  // PO CO TEN BLOK. `baseOption` w `chartTheme.ts` ustawia prymitywy motywu
+  // (kolory, siatka, animacja, czcionka) i świadomie NIE narzuca
+  // `tooltip.trigger`, bo wyzwalacz jest własnością TYPU wykresu. Ten panel był
+  // JEDYNYM w repo, który miał dymek wyłącznie z bazy - i przez to jedynym,
+  // który po rozdzieleniu tych dwóch spraw cicho tracił wyzwalacz osiowy.
+  // Utrata nie wywraca panelu: dymek nadal jest, tylko pokazuje jeden słupek
+  // bez nazwy dnia. Taka awaria nie ma jak zapalić się sama, więc ma tu
+  // własny przypadek.
+  it("trend słupkowy deklaruje wyzwalacz OSIOWY w swojej opcji", async () => {
+    panel();
+    await loaded();
+
+    // Słupki nad osią dni czyta się porównawczo - dymek ma podać cały dzień,
+    // nie pojedynczy słupek pod kursorem.
+    expect(tooltipTrigger(trendChart())).toBe("axis");
+  });
+
+  it("iskra KPI NIE dostaje wyzwalacza osiowego - nie ma osi do porównania", async () => {
+    panel();
+    await loaded();
+
+    // Kanarek rozróżnienia: iskra ma `xAxis.show === false`, więc wyzwalacz
+    // osiowy byłby tam bez znaczenia. Ten przypadek pilnuje, że naprawa trendu
+    // nie została rozlana na wszystkie wykresy panelu „dla spójności”.
+    expect(tooltipTrigger(sparkChart())).toBeUndefined();
+  });
+});
+
 describe("ClientErrorsDashboard - zgodność z agregatorem", () => {
   it("liczba wierszy i ich kolejność odpowiadają grupom z agregatora", async () => {
     panel();
@@ -536,7 +632,7 @@ describe("ClientErrorsDashboard - zgodność z agregatorem", () => {
 
     const rows = groupRows();
     expect(rows).toHaveLength(BUSY.groups.length);
-    expect(rows.map(rowMessage)).toEqual(BUSY.groups.map((g) => g.message));
+    expect(rows.map((r) => rowMessage(r))).toEqual(BUSY.groups.map((g) => g.message));
     // Agregator sortuje malejąco po liczności - panel nie ma prawa tego zmienić.
     expect(rows.map((r) => Number(rowCount(r)))).toEqual([3, 2, 1]);
   });
@@ -689,11 +785,9 @@ describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
     const row = groupRows()[0];
     expect(rowStack(row)).toBeNull();
     expect(row.textContent ?? "").not.toContain("submitForm");
-    // `title` zwiniętego wiersza to komunikat, nie stack - inaczej cała treść
+    // `title` pola „Komunikat" to komunikat, nie stack - inaczej cała treść
     // wyjechałaby w podpowiedzi przeglądarki.
-    expect(row.querySelector("span.font-mono")?.getAttribute("title")).toBe(
-      "Loading chunk 7 failed",
-    );
+    expect(rowField(row, "colMessage").getAttribute("title")).toBe("Loading chunk 7 failed");
     expect(document.body.innerHTML).not.toContain("submitForm");
   });
 
@@ -922,32 +1016,43 @@ describe("ClientErrorsDashboard - izolacja warsztatów", () => {
     expect(second.container.textContent ?? "").not.toContain("ALFA");
   });
 
-  it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu - to samo okno oznacza wspólny raport",
-    async () => {
-      // `queryKey: ["admin","client-errors", sinceIso, untilIso]` nie zawiera
-      // ani tenanta, ani użytkownika. Dziś chroni to WYŁĄCZNIE znacznik czasu:
-      // `buildPresetRange("7d")` woła `Date.now()` przy montowaniu, więc dwa
-      // montowania prawie zawsze dają różne granice. "Prawie" nie jest
-      // gwarancją - zamrożony zegar modeluje przełączenie warsztatu w tej samej
-      // klatce, a przy `staleTime: 60_000` react-query NIE ponawia zapytania.
-      // Administrator warsztatu B czyta wtedy komunikaty i stacki warsztatu A,
-      // i nie leci przy tym ani jedno żądanie sieciowe.
-      const clock = vi.spyOn(Date, "now");
-      clock.mockReturnValue(Date.parse("2026-08-20T10:00:00.000Z"));
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      h.fetchReport.mockResolvedValue(WORKSPACE_A);
-      const first = panel(client);
-      await loaded();
-      first.unmount();
+  it("klucz cache niesie WARSZTAT, więc to samo okno nie oznacza wspólnego raportu", async () => {
+    // `queryKey: ["admin","client-errors", sinceIso, untilIso]` nie zawierał
+    // ani tenanta, ani użytkownika. Izolację trzymał wtedy WYŁĄCZNIE znacznik
+    // czasu: `buildPresetRange("7d")` woła `Date.now()` przy montowaniu, więc
+    // dwa montowania prawie zawsze dawały różne granice. "Prawie" nie jest
+    // gwarancją - zamrożony zegar modeluje przełączenie warsztatu w tej samej
+    // klatce (a także dwa pulpity liczące to samo okno), i przy
+    // `staleTime: 60_000` react-query NIE ponawiał zapytania. Administrator
+    // warsztatu B czytał wtedy komunikaty i stacki warsztatu A, i nie leciało
+    // przy tym ani jedno żądanie sieciowe - wyciek był CICHY, niewidoczny w
+    // ruchu, widoczny tylko na ekranie.
+    //
+    // Odtąd klucz niesie najemcę, a zapytanie czeka na jego rozwiązanie
+    // (`enabled`), więc przejście warsztatu jest zawsze INNYM wpisem cache.
+    // Przejście odgrywamy tak, jak wygląda w aplikacji: zmienia się najemca
+    // (`h.tenantId`) ORAZ to, co bramka oddaje dla niego.
+    const clock = vi.spyOn(Date, "now");
+    clock.mockReturnValue(Date.parse("2026-08-20T10:00:00.000Z"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    h.fetchReport.mockResolvedValue(WORKSPACE_A);
+    const first = panel(client);
+    await loaded();
+    expect(first.container.textContent ?? "").toContain("ALFA: chunk 12 failed");
+    first.unmount();
 
-      h.fetchReport.mockResolvedValue(WORKSPACE_B);
-      const second = panel(client);
-      await loaded();
+    h.tenantId = TENANT_B;
+    h.fetchReport.mockResolvedValue(WORKSPACE_B);
+    const second = panel(client);
+    await loaded();
 
-      expect(second.container.textContent ?? "").not.toContain("ALFA");
-    },
-  );
+    expect(second.container.textContent ?? "").not.toContain("ALFA");
+    // ...i nie chodzi o pustą kartę: własne dane warsztatu B dojeżdżają, a po
+    // nie poleciało OSOBNE żądanie, mimo identycznych granic okna.
+    expect(second.container.textContent ?? "").toContain("BETA: hydration mismatch");
+    expect(h.fetchReport.mock.calls.length).toBe(2);
+    expect(queryInputs()[0]).toEqual(queryInputs()[1]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1016,18 +1121,19 @@ describe("ClientErrorsDashboard - dostępność", () => {
     expect(names).toContain(chrome("chartRegion", { title: ce("trendTitle") }));
   });
 
-  it("wypełniony panel z rozwiniętą grupą nie ma naruszeń axe", async () => {
-    // `button-name` wyłączone ŚWIADOMIE: jedyne naruszenie w tym poddrzewie to
-    // wyzwalacz menu eksportu w `ChartCard` (sama ikona `MoreHorizontal` bez
-    // `aria-label`), przypięty `it.fails` w `chartCard.test.tsx`. Nie należy do
-    // tego panelu i nie ma sensu pinować go drugi raz. Wszystko, co ten pulpit
-    // dodaje od siebie - przyciski rozwijania z `aria-expanded`, lista grup,
-    // plakietki źródeł, blok `pre` ze stackiem - przechodzi bez ulg.
+  it("wypełniony panel z rozwiniętą grupą nie ma ŻADNEGO naruszenia axe", async () => {
+    // BEZ ULG. Do 2026-09-02 stała tu wyłączona reguła `button-name`: jedynym
+    // naruszeniem w tym poddrzewie był wtedy wyzwalacz menu eksportu w
+    // `ChartCard` (sama ikona `MoreHorizontal` bez `aria-label`), czyli dług
+    // prymitywu, nie tego panelu. Prymitywowi go naprawiono, a wiersz grupy ma
+    // odtąd wyzwalacz z jawną nazwą, więc ulga nie miała już czego obchodzić -
+    // zdjęcie jej jest zaostrzeniem zapadki, nie luzowaniem: własny bezimienny
+    // przycisk tego pulpitu oblewa test natychmiast.
     const { container } = panel();
     await loaded();
     fireEvent.click(rowToggle(groupRows()[0]));
 
-    const violations = await axeViolations(container, { "button-name": { enabled: false } });
+    const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
 
@@ -1036,14 +1142,38 @@ describe("ClientErrorsDashboard - dostępność", () => {
     const { container } = panel();
     await loaded();
 
-    const violations = await axeViolations(container, { "button-name": { enabled: false } });
+    const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it("cały dług dostępności panelu to JEDEN przycisk, i to nie jego własny", async () => {
-    // Kontrapunkt dla ulgi wyżej: bez wyłączonej reguły lista naruszeń ma
-    // dokładnie jedną pozycję i jest nią wyzwalacz menu `ChartCard`. Dopisanie
-    // przez ten panel własnego bezimiennego przycisku oblewa ten test.
+  it("karta awarii odczytu nie ma naruszeń axe", async () => {
+    // Karta stanu jest NOWĄ powierzchnią z rolą (`role="alert"`), więc wchodzi
+    // pod axe tak samo jak lista grup - inaczej gałąź, która powstała po to,
+    // żeby operator dowiedział się o odmowie dostępu, byłaby jedyną
+    // niesprawdzoną.
+    h.fetchReport.mockRejectedValue(new Error("Forbidden: admin role required"));
+    const { container } = panel();
+    await loaded();
+
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("panel zwinięty nie ma naruszeń axe - i żadna reguła nie jest tu wyłączana", async () => {
+    // TEN PRZYPADEK ZMIENIŁ TREŚĆ DWA RAZY, bo dwa razy zmienił się stan
+    // faktyczny, i oba razy są warte zapisania. Najpierw asercja brzmiała
+    // „cały dług dostępności panelu to JEDEN przycisk, i to nie jego własny":
+    // bez wyłączonej reguły lista naruszeń miała dokładnie jedną pozycję i był
+    // nią bezimienny wyzwalacz menu eksportu w `ChartCard`. Ten dług naprawiono
+    // w prymitywie, więc asercja opisująca go przestała opisywać cokolwiek -
+    // utrzymywanie jej znaczyłoby wymaganie, żeby naruszenie ISTNIAŁO. Potem
+    // ulgę na `button-name` zdjęto także w dwóch przypadkach wyżej, bo wiersz
+    // grupy dostał semantykę i jawną nazwę wyzwalacza.
+    //
+    // Rola tego przypadku jest odtąd taka: mierzy panel ZWINIĘTY, czyli stan,
+    // w którym na ekranie stoi cała lista grup i ani jednego rozwinięcia -
+    // i robi to na liście identyfikatorów, więc komunikat porażki nazywa
+    // regułę, a nie wypisuje węzły.
     const { container } = panel();
     await loaded();
 
@@ -1051,8 +1181,7 @@ describe("ClientErrorsDashboard - dostępność", () => {
     expect(
       violations.map((v) => v.id),
       summarize(violations),
-    ).toEqual(["button-name"]);
-    expect(violations[0].nodes).toHaveLength(1);
+    ).toEqual([]);
   });
 
   it("lista grup jest listą - kolejność niesie znaczenie dla czytnika ekranu", async () => {
@@ -1065,114 +1194,119 @@ describe("ClientErrorsDashboard - dostępność", () => {
   });
 
   it("wartownik: pierwszy wiersz BUSY naprawdę wystawia plakietkę źródła", async () => {
-    // Przypięcie o źródłach szuka NOŚNIKA etykiety "promise" i wnioskuje z
-    // tego, gdzie ta etykieta leży. W `it.fails` każda porażka - także pusta
-    // fixtura - liczy się jako sukces, więc warunek wstępny musi stać w
-    // ZWYKŁYM przypadku, poza przypięciem. Ten wartownik jest tym warunkiem.
+    // Przypadek o dojściu do źródeł szuka NOŚNIKA etykiety "promise" i wnioskuje
+    // z tego, gdzie ta etykieta leży. Warunek wstępny - że fixtura w ogóle taką
+    // etykietę wystawia - stoi więc OSOBNO, w tym wartowniku: gdyby `BUSY`
+    // przestało dawać źródło `unhandledrejection`, tamten przypadek mówiłby o
+    // pustym zbiorze nośników, a ten oblewa się od razu i wskazuje fixturę.
     panel();
     await loaded();
 
     expect(rowSources(groupRows()[0])).toContain(ce("sourceLabels.unhandledrejection"));
   });
 
-  it.fails("DEFEKT: wiersz grupy nie wiąże żadnej wartości z nazwą pola", async () => {
-    // DEFEKT. Wiersz grupy (`ErrorGroupRow`, `ClientErrorsDashboard.tsx`
-    // 201-245) to `<button>` z płaską siatką `<span>`-ów: komunikat, liczba
-    // wystąpień, pasek udziału z procentem, plakietki źródeł. Ani jednego
-    // `role="row"`, ani jednego `columnheader`, żadnej pary `<dt>`/`<dd>`,
-    // zero `aria-label` i `aria-labelledby` w całym poddrzewie (zmierzone:
-    // 0 elementów). Dostępna nazwa przycisku jest składana z TREŚCI i wychodzi
+  it("wiersz grupy wiąże KAŻDĄ wartość z nazwą pola", async () => {
+    // Wiersz grupy (`ErrorGroupRow`) był `<button>`-em z płaską siatką
+    // `<span>`-ów: komunikat, liczba wystąpień, pasek udziału z procentem,
+    // plakietki źródeł. Ani jednego `role`, ani jednej pary `<dt>`/`<dd>`, zero
+    // `aria-label` i `aria-labelledby` w całym poddrzewie (zmierzone: 0
+    // elementów). Dostępna nazwa przycisku była składana z TREŚCI i wychodziła
     // jednym ciągiem - "Loading chunk 7 failed 3 50% onerror promise" - więc
-    // czytnik ekranu ogłasza "trzy" i "pięćdziesiąt procent" bez informacji,
-    // CZEGO te liczby są. `title` przycisku niesie tylko "Pokaż szczegóły" i
-    // dla nazwy przegrywa z treścią, a `title` na komunikacie powtarza wartość
+    // czytnik ekranu ogłaszał "trzy" i "pięćdziesiąt procent" bez informacji,
+    // CZEGO te liczby są. `title` przycisku niósł tylko "Pokaż szczegóły" i dla
+    // nazwy przegrywał z treścią, a `title` na komunikacie powtarzał wartość
     // pola, nie jego nazwę.
     //
-    // ZŁAMANY KONTRAKT: WCAG 2.2 SC 1.3.1 Info and Relationships (poziom A).
-    // Relacja nazwa-wartość jest w tym wierszu obecna WIZUALNIE - kolumny
-    // siatki, wyrównanie, znak procentu - i nieobecna PROGRAMOWO.
+    // PILNOWANY KONTRAKT: WCAG 2.2 SC 1.3.1 Info and Relationships (poziom A).
+    // Relacja nazwa-wartość była w tym wierszu obecna WIZUALNIE - kolumny
+    // siatki, wyrównanie, znak procentu - i nieobecna PROGRAMOWO. Odtąd wiersz
+    // jest listą definicji: `<dt>` ze słownika (`colMessage`, `colCount`,
+    // `colShare`, `colSources`) plus `<dd>` z wartością, a wyzwalacz stoi
+    // OBOK danych (rozciągnięty na cały wiersz), nie wokół nich - bo drzewo
+    // dostępności spłaszcza wnętrze przycisku do jednego napisu i pary schowane
+    // w środku nie dotarłyby do czytnika ekranu.
     //
-    // DLACZEGO AXE-CORE TEGO NIE ŁAPIE, i dlaczego jego zieleń nie jest z tym
+    // DLACZEGO AXE-CORE TEGO NIE ŁAPIŁ, i dlaczego jego zieleń nie była z tym
     // defektem sprzeczna: axe bada POPRAWNOŚĆ zadeklarowanej semantyki, nie
     // jej OBECNOŚĆ. `aria-required-children` i `aria-required-parent` odpalają
-    // wyłącznie wtedy, gdy jakiś `role` już jest - tu nie ma żadnego, więc nie
-    // ma czego weryfikować. `button-name` przechodzi, bo przycisk MA nazwę; to,
-    // że jest ona nierozdzielną sklejką czterech pól, nie narusza żadnej
-    // reguły. Trzy przypadki axe wyżej w tym pliku są zielone i mają nimi
-    // zostać: dowodzą, że panel nie deklaruje niczego BŁĘDNIE. Brak modelu
-    // semantycznego jest dla narzędzia automatycznego niewidzialny - to luka
-    // klasy "brak", a nie "błąd".
+    // wyłącznie wtedy, gdy jakiś `role` już jest - tam nie było żadnego, więc
+    // nie było czego weryfikować. `button-name` przechodziło, bo przycisk MIAŁ
+    // nazwę; to, że była nierozdzielną sklejką czterech pól, nie narusza żadnej
+    // reguły. Przypadki axe w tej sekcji były zielone i takie zostają: dowodzą,
+    // że panel nie deklaruje niczego BŁĘDNIE. Brak modelu semantycznego jest
+    // dla narzędzia automatycznego niewidzialny - to luka klasy "brak", a nie
+    // "błąd", i dlatego pilnuje jej ta asercja, a nie axe.
     //
-    // SKUTEK UBOCZNY DLA ASERCJI: `rowMessage`, `rowCount`, `rowShare` i
-    // `rowSources` muszą celować w utility Tailwinda (`font-mono`,
-    // `justify-self-end`, `w-9`, `hidden`). Kilkanaście asercji w tym pliku -
-    // kolejność wierszy, udziały 67/33, tłumaczenia źródeł, formaty en-GB -
-    // wisi na tym, że nikt nie zmieni wyrównania ani szerokości kolumny.
-    // Refaktor CSS-a bez zmiany zachowania oblewa je wszystkie, a defekt
-    // dostępności zostaje na miejscu. Test utrwala wtedy brak semantyki jako
-    // umowę - dlatego stoi tu przypięcie, a nie kolejna asercja na klasach.
+    // SKUTEK DLA ASERCJI CAŁEGO PLIKU: `rowMessage`, `rowCount`, `rowShare` i
+    // `rowSources` przestały celować w utility Tailwinda (`font-mono`,
+    // `justify-self-end`, `w-9`, `hidden`) i idą po nazwie pola. Kilkanaście
+    // asercji - kolejność wierszy, udziały 67/33, tłumaczenia źródeł, formaty
+    // en-GB - nie wisi już na wyrównaniu i szerokości kolumny, a zniknięcie
+    // nazwy pola oblewa je wszystkie naraz.
     panel();
     await loaded();
 
-    const fields = rowFieldElements(groupRows()[0]);
+    const row = groupRows()[0];
+    const fields = rowFieldElements(row);
 
     expect(fields.map((field) => fieldHasNameRelation(field))).toEqual([true, true, true]);
+    // Nazwa jest POWIĄZANA Z TĄ wartością, nie z sąsiednią.
+    expect(rowField(row, "colCount").textContent).toBe("3");
+    expect(rowField(row, "colShare").textContent).toBe("50%");
+    // Wyzwalacz IDENTYFIKUJE wiersz nazwą nadaną JAWNIE, więc trzy przyciski
+    // listy nie nazywają się tak samo i żaden nie jest sklejką wartości.
+    expect(explicitAriaName(rowToggle(row))).toContain("Loading chunk 7 failed");
   });
 
-  it.fails(
-    "DEFEKT: źródła błędu gasną poniżej breakpointu sm i nie mają dojścia niezależnego od szerokości ekranu",
-    async () => {
-      // DEFEKT. Plakietki źródeł siedzą w `<span className="hidden
-      // items-center gap-1 sm:flex">` (`ClientErrorsDashboard.tsx` 229-237).
-      // `hidden` to `display:none`, a `sm:flex` odwraca to dopiero od 640 px:
-      // poniżej tej szerokości źródła SĄ w DOM, ale wypadają z drzewa
-      // dostępności, a więc i z dostępnej nazwy przycisku - ta jest tu składana
-      // z treści, `aria-label` nie ma, `title` niesie tylko "Pokaż szczegóły".
-      // Na telefonie czytnik ekranu ogłasza "Loading chunk 7 failed 3 50%" i
-      // nie ma ŻADNEJ drogi do informacji, że błąd przyszedł z `onerror` i z
-      // odrzuconej obietnicy. To nie ozdoba: źródło rozstrzyga, czy patrzymy na
-      // błąd skryptu, czy na nieobsłużone odrzucenie - czyli gdzie szukać
-      // przyczyny.
-      //
-      // ZŁAMANY KONTRAKT: WCAG 2.2 SC 1.4.10 Reflow (poziom AA) - przy 320 px
-      // szerokości treść ginie bez zamiennika. Wtórnie znów SC 1.3.1: ta sama
-      // informacja jest programowo dostępna na szerokim ekranie i niedostępna
-      // na wąskim, czyli model nie odwzorowuje treści.
-      //
-      // DLACZEGO AXE-CORE TEGO NIE ŁAPIE - dwa powody, oba twarde. (1) W tym
-      // środowisku `hidden` NIE DZIAŁA: happy-dom nie wczytuje arkusza
-      // Tailwinda i nie ma silnika layoutu, więc `getComputedStyle(kontener)
-      // .display` jest pustym napisem (zmierzone), axe widzi plakietki jako
-      // widoczne i wlicza je do nazwy. (2) Nawet w prawdziwej przeglądarce axe
-      // bada JEDEN stan drzewa - ten przy aktualnej szerokości - i nie ma
-      // reguły "treść nie może zniknąć między breakpointami". Zieleń trzech
-      // przypadków axe wyżej jest więc prawdziwa i niesprzeczna z tym
-      // defektem: mierzy poprawność tego, co widać przy szerokości testowej, a
-      // nie zachowanie modelu przy 320 px. Ta sama nieobecność CSS-a jest
-      // powodem, dla którego asercja poniżej pyta `hiddenBelowSm` o LISTĘ KLAS,
-      // a nie o `display`.
-      //
-      // SKUTEK UBOCZNY DLA ASERCJI: `rowSources` czyta `span.hidden > *`, więc
-      // dwie asercje o źródłach ("źródła grupy są tłumaczone...", "angielskie
-      // źródła i podpowiedzi...") są zielone na treści, której użytkownik
-      // czytnika ekranu na telefonie nigdy nie usłyszy. Zielony test na
-      // niedostępnej treści jest gorszy od braku testu, bo zamyka sprawę.
-      //
-      // Asercja przyjmuje KAŻDE wyjście: plakietkę poza kontenerem gaszonym
-      // poniżej `sm` (zwijanie zamiast ukrywania, kopia `sr-only`) albo jawną
-      // nazwę przycisku niosącą źródła.
-      panel();
-      await loaded();
+  it("źródła błędu mają dojście niezależne od szerokości ekranu", async () => {
+    // Plakietki źródeł siedziały w `<span className="hidden items-center gap-1
+    // sm:flex">`. `hidden` to `display:none`, a `sm:flex` odwraca to dopiero od
+    // 640 px: poniżej tej szerokości źródła BYŁY w DOM, ale wypadały z drzewa
+    // dostępności, a więc i z dostępnej nazwy przycisku - ta była składana z
+    // treści, `aria-label` nie było, `title` niósł tylko "Pokaż szczegóły". Na
+    // telefonie czytnik ekranu ogłaszał "Loading chunk 7 failed 3 50%" i nie
+    // było ŻADNEJ drogi do informacji, że błąd przyszedł z `onerror` i z
+    // odrzuconej obietnicy. To nie ozdoba: źródło rozstrzyga, czy patrzymy na
+    // błąd skryptu, czy na nieobsłużone odrzucenie - czyli gdzie szukać
+    // przyczyny. Odtąd pole „Źródła" ZAWIJA SIĘ do kolejnego wiersza siatki
+    // zamiast gasnąć, więc treść zostaje na każdej szerokości - i dla oka, i
+    // dla czytnika ekranu.
+    //
+    // PILNOWANY KONTRAKT: WCAG 2.2 SC 1.4.10 Reflow (poziom AA) - przy 320 px
+    // szerokości treść nie może ginąć bez zamiennika. Wtórnie znów SC 1.3.1: ta
+    // sama informacja nie może być programowo dostępna na szerokim ekranie i
+    // niedostępna na wąskim, bo wtedy model nie odwzorowuje treści.
+    //
+    // DLACZEGO AXE-CORE TEGO NIE ŁAPIE - dwa powody, oba twarde. (1) W tym
+    // środowisku `hidden` NIE DZIAŁA: happy-dom nie wczytuje arkusza Tailwinda
+    // i nie ma silnika layoutu, więc `getComputedStyle(kontener).display` jest
+    // pustym napisem (zmierzone), axe widział plakietki jako widoczne i wliczał
+    // je do nazwy. (2) Nawet w prawdziwej przeglądarce axe bada JEDEN stan
+    // drzewa - ten przy aktualnej szerokości - i nie ma reguły "treść nie może
+    // zniknąć między breakpointami". Zieleń przypadków axe w tej sekcji jest
+    // więc prawdziwa i była niesprzeczna z tym defektem: mierzy poprawność
+    // tego, co widać przy szerokości testowej, a nie zachowanie modelu przy
+    // 320 px. Ta sama nieobecność CSS-a jest powodem, dla którego asercja pyta
+    // `hiddenBelowSm` o LISTĘ KLAS, a nie o `display`.
+    //
+    // Asercja przyjmuje KAŻDE wyjście: plakietkę poza kontenerem gaszonym
+    // poniżej `sm` (zwijanie zamiast ukrywania, kopia `sr-only`) albo jawną
+    // nazwę przycisku niosącą źródła. Powrót do `hidden ... sm:flex` bez
+    // żadnego z tych zamienników oblewa ją natychmiast.
+    panel();
+    await loaded();
 
-      const row = groupRows()[0];
-      const label = ce("sourceLabels.unhandledrejection");
-      const carriers = Array.from(row.querySelectorAll("*")).filter(
-        (el) => el.children.length === 0 && (el.textContent ?? "").trim() === label,
-      );
-      const reachableOnNarrow = carriers.some((el) => !hiddenBelowSm(el, row));
-      const nameCarriesSource = explicitAriaName(rowToggle(row)).includes(label);
+    const row = groupRows()[0];
+    const label = ce("sourceLabels.unhandledrejection");
+    const carriers = Array.from(row.querySelectorAll("*")).filter(
+      (el) => el.children.length === 0 && (el.textContent ?? "").trim() === label,
+    );
+    const reachableOnNarrow = carriers.some((el) => !hiddenBelowSm(el, row));
+    const nameCarriesSource = explicitAriaName(rowToggle(row)).includes(label);
 
-      expect(reachableOnNarrow || nameCarriesSource).toBe(true);
-    },
-  );
+    expect(reachableOnNarrow || nameCarriesSource).toBe(true);
+    // Źródła są PEŁNOPRAWNYM polem wiersza, a nie ozdobą przy nim - więc mają
+    // nazwę na tych samych zasadach co komunikat, liczność i udział.
+    expect(fieldHasNameRelation(rowField(row, "colSources"))).toBe(true);
+  });
 });

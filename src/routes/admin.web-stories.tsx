@@ -301,13 +301,18 @@ function Editor({
           />
         </TabsContent>
         <TabsContent value="en" className="space-y-3 mt-4">
+          {/* TE SAME klucze co przy zakładce PL: etykieta opisuje POLE
+              („tytuł"), a zakładka mówi o JĘZYKU TREŚCI. Wpisane tu na
+              sztywno „Title" i „Description" dawały panel mówiący dwoma
+              językami naraz, niezależnie od języka wybranego przez
+              redaktora. */}
           <FloatingInput
-            label="Title"
+            label={t("adminMiscRoutes.webStories.title")}
             value={d.title_en}
             onChange={(e) => upd({ title_en: e.target.value })}
           />
           <FloatingTextarea
-            label="Description"
+            label={t("adminMiscRoutes.webStories.description")}
             rows={2}
             value={d.description_en}
             onChange={(e) => upd({ description_en: e.target.value })}

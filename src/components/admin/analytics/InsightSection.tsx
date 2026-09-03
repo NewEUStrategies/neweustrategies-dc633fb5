@@ -79,7 +79,13 @@ export function InsightSection({
             <CheckCircle2 className="w-5 h-5 text-emerald-500" />
           </span>
           <div>
-            <div className="text-sm font-semibold leading-5">{titleText}</div>
+            {/* Ten sam poziom nagłówka co w wariancie z wnioskami. Semantyka nie
+                może zależeć od liczby wpisów: gdy tytuł jedzie jako zwykły
+                `<div>`, sekcja wypada z konspektu nagłówków dokładnie wtedy,
+                gdy wszystko jest w porządku, a nawigacja po nagłówkach (najszybszy
+                sposób poruszania się po pulpicie z czytnikiem ekranu) traci
+                informację, że sekcja w ogóle istnieje. */}
+            <h3 className="text-sm font-semibold leading-5">{titleText}</h3>
             <p className="text-xs text-muted-foreground mt-1">{emptyText}</p>
           </div>
         </div>

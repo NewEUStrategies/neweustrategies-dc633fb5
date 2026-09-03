@@ -237,7 +237,24 @@ function happyDomSettings(): { disableIframePageLoading: boolean } {
     .happyDOM.settings;
 }
 
-/** Zakładka o widocznej nazwie - Radix aktywuje trigger na `mouseDown`. */
+/**
+ * Klucze nazw zakładek.
+ *
+ * Nazwy zakładek idą przez słownik, a atrapa i18n zwraca KLUCZ - więc test
+ * szuka zakładki po kluczu, nie po polskim napisie. To nie jest obejście:
+ * asercja na literale („Audytorium") przechodziłaby dokładnie wtedy, gdy tekst
+ * jest wpisany w kod, czyli mierzyłaby defekt jako sukces.
+ */
+const TAB = {
+  overview: "admin.analyticsPanel.tabs.overview",
+  ga4: "admin.analyticsPanel.tabs.ga4",
+  gsc: "admin.analyticsPanel.tabs.gsc",
+  vitals: "admin.analyticsPanel.tabs.vitals",
+  audience: "admin.analyticsPanel.tabs.audience",
+  footer: "admin.analyticsPanel.tabs.footer",
+} as const;
+
+/** Zakładka o danej dostępnej nazwie - Radix aktywuje trigger na `mouseDown`. */
 async function openTab(label: string): Promise<void> {
   await act(async () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: new RegExp(label) }));
@@ -299,9 +316,9 @@ describe("siedem zakładek, jeden montowany pulpit", () => {
     // Bez `await`: `React.lazy` rozwiązuje się mikrotaskiem, więc stan pośredni
     // istnieje dokładnie jedną klatkę - i to on jest tu przedmiotem dowodu.
     act(() => {
-      fireEvent.mouseDown(screen.getByRole("tab", { name: /Audytorium/ }));
+      fireEvent.mouseDown(screen.getByRole("tab", { name: new RegExp(TAB.audience) }));
     });
-    expect(screen.getByText(/Ładowanie dashboardu/)).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.loadingDashboard")).toBeTruthy();
 
     await waitFor(() => expect(screen.getByTestId("pulpit-audience")).toBeTruthy());
   });
@@ -328,11 +345,11 @@ describe("siedem zakładek, jeden montowany pulpit", () => {
     await mount();
 
     for (const [label, testId] of [
-      ["GA4", "ga4"],
-      ["Search Console", "gsc"],
-      ["Web Vitals", "vitals"],
-      ["Audytorium", "audience"],
-      ["Stopka", "footer"],
+      [TAB.ga4, "ga4"],
+      [TAB.gsc, "gsc"],
+      [TAB.vitals, "vitals"],
+      [TAB.audience, "audience"],
+      [TAB.footer, "footer"],
     ] as const) {
       await openTab(label);
       await waitFor(() => expect(screen.getByTestId(`pulpit-${testId}`)).toBeTruthy());
@@ -355,7 +372,7 @@ describe("siedem zakładek, jeden montowany pulpit", () => {
     // linkowalne będzie zmianą JAWNĄ, a nie przypadkową.
     const view = await mount();
 
-    await openTab("Web Vitals");
+    await openTab(TAB.vitals);
     await waitFor(() => expect(screen.getByTestId("pulpit-vitals")).toBeTruthy());
     expect(view.search()).toEqual({});
     expect(view.currentPath()).toBe(PATH);
@@ -368,8 +385,8 @@ describe("brama wczytywania statusu", () => {
     h.statusGate = () => {};
     await renderRoute({ route: AnalyticsRoute, path: PATH, initialEntry: PATH });
 
-    expect(screen.getByText(/Ładowanie statusu/)).toBeTruthy();
-    expect(screen.queryByText("Google Search Console")).toBeNull();
+    expect(screen.getByText("admin.analyticsPanel.loadingStatus")).toBeTruthy();
+    expect(screen.queryByText("admin.analyticsPanel.pill.gsc")).toBeNull();
 
     const release = h.statusGate as unknown as () => void;
     await act(async () => {
@@ -382,7 +399,7 @@ describe("brama wczytywania statusu", () => {
     h.statusError = new Error("Forbidden: admin role required");
     await mount();
 
-    await openTab("Search Console");
+    await openTab(TAB.gsc);
     expect(screen.queryByTestId("pulpit-gsc")).toBeNull();
     expect(h.props.gsc).toBeUndefined();
   });
@@ -391,16 +408,16 @@ describe("brama wczytywania statusu", () => {
     h.statusError = new Error("Forbidden: admin role required");
     await mount();
 
-    await openTab("GA4");
+    await openTab(TAB.ga4);
     expect(screen.queryByTestId("pulpit-ga4")).toBeNull();
-    expect(screen.queryByText("Sposoby podłączenia GA4")).toBeNull();
+    expect(screen.queryByText("admin.analyticsPanel.ga4Modes.title")).toBeNull();
   });
 
   it("zakładka Web Vitals działa BEZ statusu - RUM nie zależy od kluczy Google", async () => {
     h.statusError = new Error("Forbidden");
     await mount();
 
-    await openTab("Web Vitals");
+    await openTab(TAB.vitals);
     await waitFor(() => expect(screen.getByTestId("pulpit-vitals")).toBeTruthy());
   });
 
@@ -409,7 +426,7 @@ describe("brama wczytywania statusu", () => {
     expect(h.statusCalls).toBe(1);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Odśwież status/ }));
+      fireEvent.click(screen.getByRole("button", { name: /admin\.analyticsPanel\.refresh/ }));
     });
 
     await waitFor(() => expect(h.statusCalls).toBe(2));
@@ -421,7 +438,11 @@ describe("pastylki statusu", () => {
   it("trzy pastylki: GSC, GA4, Web Vitals", async () => {
     await mount();
 
-    for (const label of ["Google Search Console", "Google Analytics 4", "Web Vitals"]) {
+    for (const label of [
+      "admin.analyticsPanel.pill.gsc",
+      "admin.analyticsPanel.pill.ga4",
+      "admin.analyticsPanel.pill.vitals",
+    ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
   });
@@ -429,31 +450,33 @@ describe("pastylki statusu", () => {
   it("GSC podłączony i niepodłączony mają RÓŻNE opisy", async () => {
     h.status = status({ gsc: true });
     const first = await mount();
-    expect(screen.getByText("Podłączone (OAuth)")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.pill.gscConnected")).toBeTruthy();
 
     first.unmount();
     cleanup();
     h.status = status({ gsc: false });
     await mount();
-    expect(screen.getByText("Wymaga podłączenia connectora")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.pill.gscNeedsConnector")).toBeTruthy();
   });
 
   it("GA4 ma TRZY opisy, nie dwa - stan pośredni jest własnym komunikatem", async () => {
     h.status = status({ ga4: { configured: true, propertyId: "123456789" } });
     const view = await mount();
-    expect(screen.getByText("Property 123456789")).toBeTruthy();
+    expect(
+      screen.getByText("admin.analyticsPanel.pill.ga4Property(propertyId=123456789)"),
+    ).toBeTruthy();
 
     view.unmount();
     cleanup();
     h.status = status({ ga4: { hasServiceAccount: true } });
     const second = await mount();
-    expect(screen.getByText("Brak GA4_PROPERTY_ID")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.pill.ga4NoProperty")).toBeTruthy();
 
     second.unmount();
     cleanup();
     h.status = status();
     await mount();
-    expect(screen.getByText("Brak service accounta")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.pill.ga4NoServiceAccount")).toBeTruthy();
   });
 });
 
@@ -467,8 +490,8 @@ describe("wnioski i ich wagi", () => {
 
     expect(screen.getByText("adminAnalytics.insightSection.badgeCritical(count=2)")).toBeTruthy();
     expect(screen.getByText("adminAnalytics.insightSection.badgeWarn(count=1)")).toBeTruthy();
-    expect(screen.getByText("Brak połączenia z GSC")).toBeTruthy();
-    expect(screen.getByText("GA4 nie jest podłączony")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.insights.gsc.titleOff")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.insights.ga4.titleOff")).toBeTruthy();
   });
 
   it("wszystko podłączone: TRZY wnioski dobre, zero krytycznych", async () => {
@@ -481,7 +504,9 @@ describe("wnioski i ich wagi", () => {
 
     expect(screen.getByText("adminAnalytics.insightSection.badgeOk(count=3)")).toBeTruthy();
     expect(screen.queryByText(/badgeCritical/)).toBeNull();
-    expect(screen.getByText("GA4 aktywny (property 999)")).toBeTruthy();
+    expect(
+      screen.getByText("admin.analyticsPanel.insights.ga4.titleOk(propertyId=999)"),
+    ).toBeTruthy();
   });
 
   it("service account BEZ property to OSTRZEŻENIE, nie stan krytyczny ani dobry", async () => {
@@ -491,7 +516,7 @@ describe("wnioski i ich wagi", () => {
     h.status = status({ ga4: { hasServiceAccount: true } });
     await mount();
 
-    expect(screen.getByText("Service account jest, brak GA4_PROPERTY_ID")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.insights.ga4.titlePartial")).toBeTruthy();
     expect(screen.getByText("adminAnalytics.insightSection.badgeWarn(count=2)")).toBeTruthy();
     expect(screen.getByText("adminAnalytics.insightSection.badgeCritical(count=1)")).toBeTruthy();
   });
@@ -512,22 +537,22 @@ describe("panel GA4 - status decyduje o zawartości", () => {
   it("NIESKONFIGUROWANY GA4 pokazuje instrukcję, a NIE pulpit odpytujący Data API", async () => {
     h.status = status({ ga4: { configured: false } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
-    expect(screen.getByText("Sposoby podłączenia GA4")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.ga4Modes.title")).toBeTruthy();
     expect(screen.queryByTestId("pulpit-ga4")).toBeNull();
   });
 
   it("SKONFIGUROWANY GA4 montuje pulpit i oddaje mu tryb aktywny", async () => {
     h.status = status({ ga4: { configured: true, activeMode: "oauth_refresh" } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
     await waitFor(() => expect(screen.getByTestId("pulpit-ga4")).toBeTruthy());
     expect(h.props.ga4).toEqual({ configured: true, activeMode: "oauth_refresh" });
     // Instrukcja zostaje POD pulpitem - admin może przełączyć tryb bez
     // rozłączania GA4.
-    expect(screen.getByText("Sposoby podłączenia GA4")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.ga4Modes.title")).toBeTruthy();
   });
 
   it("brak trybu aktywnego jest oddawany jako `undefined`, nie jako `null`", async () => {
@@ -535,7 +560,7 @@ describe("panel GA4 - status decyduje o zawartości", () => {
     // wiadomo" - pulpit rozgałęzia się po `undefined`.
     h.status = status({ ga4: { configured: true, activeMode: null } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
     await waitFor(() => expect(screen.getByTestId("pulpit-ga4")).toBeTruthy());
     expect(h.props.ga4?.activeMode).toBeUndefined();
@@ -547,13 +572,13 @@ describe("panel GA4 - status decyduje o zawartości", () => {
 describe("cztery karty trybów GA4", () => {
   it("cztery karty istnieją, w kolejności od najmocniejszego trybu odczytu", async () => {
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
     for (const title of [
-      "1. Service Account (JSON)",
-      "2. OAuth 2.0 (refresh token)",
-      "3. Measurement Protocol (server-side events)",
-      "4. Embed (Looker Studio / iframe)",
+      "admin.analyticsPanel.ga4Modes.serviceAccount.title",
+      "admin.analyticsPanel.ga4Modes.oauth.title",
+      "admin.analyticsPanel.ga4Modes.measurement.title",
+      "admin.analyticsPanel.ga4Modes.embed.title",
     ]) {
       expect(screen.getByText(title)).toBeTruthy();
     }
@@ -562,21 +587,25 @@ describe("cztery karty trybów GA4", () => {
   it("plakietka „Aktywny” stoi przy DOKŁADNIE jednym trybie", async () => {
     h.status = status({ ga4: { activeMode: "oauth_refresh" } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
-    const active = screen.getAllByText("Aktywny");
+    const active = screen.getAllByText("admin.analyticsPanel.ga4Modes.active");
     expect(active).toHaveLength(1);
     const card = active[0].closest("div.p-4");
-    expect(within(card as HTMLElement).getByText("2. OAuth 2.0 (refresh token)")).toBeTruthy();
+    expect(
+      within(card as HTMLElement).getByText("admin.analyticsPanel.ga4Modes.oauth.title"),
+    ).toBeTruthy();
   });
 
   it("service account jest „Gotowe” tylko RAZEM z property id", async () => {
     h.status = status({ ga4: { hasServiceAccount: true, hasPropertyId: false } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
-    const card = screen.getByText("1. Service Account (JSON)").closest("div.p-4") as HTMLElement;
-    expect(within(card).getByText("Nieaktywne")).toBeTruthy();
+    const card = screen
+      .getByText("admin.analyticsPanel.ga4Modes.serviceAccount.title")
+      .closest("div.p-4") as HTMLElement;
+    expect(within(card).getByText("admin.analyticsPanel.ga4Modes.inactive")).toBeTruthy();
     expect(within(card).getByText(/^SA/).textContent).toContain("✓");
     expect(within(card).getByText(/^Property/).textContent).toContain("×");
   });
@@ -586,23 +615,25 @@ describe("cztery karty trybów GA4", () => {
       ga4: { hasOauthClient: true, hasOauthRefresh: true, hasPropertyId: true },
     });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
-    const card = screen.getByText("2. OAuth 2.0 (refresh token)").closest("div.p-4") as HTMLElement;
-    expect(within(card).getByText("Gotowe")).toBeTruthy();
-    expect(within(card).queryByText("Nieaktywne")).toBeNull();
+    const card = screen
+      .getByText("admin.analyticsPanel.ga4Modes.oauth.title")
+      .closest("div.p-4") as HTMLElement;
+    expect(within(card).getByText("admin.analyticsPanel.ga4Modes.ready")).toBeTruthy();
+    expect(within(card).queryByText("admin.analyticsPanel.ga4Modes.inactive")).toBeNull();
   });
 
   it("adres e-mail service accountu pokazywany jest TYLKO, gdy jest znany", async () => {
     h.status = status({ ga4: { serviceAccountEmail: "raporty@projekt.iam.example.com" } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
     expect(screen.getByText("raporty@projekt.iam.example.com")).toBeTruthy();
 
     cleanup();
     h.status = status({ ga4: { serviceAccountEmail: null } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
     expect(screen.queryByText(/iam\.example\.com/)).toBeNull();
   });
 
@@ -614,7 +645,7 @@ describe("cztery karty trybów GA4", () => {
       ga4: { hasMeasurementId: true, measurementId: "G-TEST12345", hasMeasurementProtocol: true },
     });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
     expect(screen.getByText("G-TEST12345")).toBeTruthy();
     expect(screen.getByText("GA4_API_SECRET")).toBeTruthy();
@@ -627,14 +658,18 @@ describe("cztery karty trybów GA4", () => {
   it("przycisk testowego eventu istnieje TYLKO przy skonfigurowanym Measurement Protocol", async () => {
     h.status = status({ ga4: { hasMeasurementProtocol: false } });
     await mount();
-    await openTab("GA4");
-    expect(screen.queryByRole("button", { name: /Wyślij testowy event/ })).toBeNull();
+    await openTab(TAB.ga4);
+    expect(
+      screen.queryByRole("button", { name: /admin\.analyticsPanel\.ga4Modes\.testEvent/ }),
+    ).toBeNull();
 
     cleanup();
     h.status = status({ ga4: { hasMeasurementProtocol: true } });
     await mount();
-    await openTab("GA4");
-    expect(screen.getByRole("button", { name: /Wyślij testowy event/ })).toBeTruthy();
+    await openTab(TAB.ga4);
+    expect(
+      screen.getByRole("button", { name: /admin\.analyticsPanel\.ga4Modes\.testEvent/ }),
+    ).toBeTruthy();
   });
 });
 
@@ -643,8 +678,8 @@ describe("testowy event GA4 ma cztery wyjścia", () => {
   async function openGa4WithButton(): Promise<HTMLElement> {
     h.status = status({ ga4: { hasMeasurementProtocol: true, hasMeasurementId: true } });
     await mount();
-    await openTab("GA4");
-    return screen.getByRole("button", { name: /Wyślij testowy event/ });
+    await openTab(TAB.ga4);
+    return screen.getByRole("button", { name: /admin\.analyticsPanel\.ga4Modes\.testEvent/ });
   }
 
   const clickTest = async (button: HTMLElement) => {
@@ -778,11 +813,13 @@ describe("osadzony raport wymaga DWÓCH warunków", () => {
     const url = "https://lookerstudio.google.com/embed/reporting/abc/page/1";
     h.status = status({ ga4: { configured: true, hasEmbedUrl: true, embedUrl: url } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
     const frame = await screen.findByTitle("GA4 Looker Studio embed");
     expect(frame.getAttribute("src")).toBe(url);
-    const link = screen.getByRole("link", { name: /Otwórz w nowej karcie/ });
+    const link = screen.getByRole("link", {
+      name: /admin\.analyticsPanel\.embed\.open/,
+    });
     expect(link.getAttribute("href")).toBe(url);
     expect(link.getAttribute("rel")).toContain("noopener");
     expect(link.getAttribute("rel")).toContain("noreferrer");
@@ -792,7 +829,7 @@ describe("osadzony raport wymaga DWÓCH warunków", () => {
   it("FLAGA BEZ ADRESU nie renderuje pustej ramki udającej raport", async () => {
     h.status = status({ ga4: { configured: true, hasEmbedUrl: true, embedUrl: null } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
     await waitFor(() => expect(screen.getByTestId("pulpit-ga4")).toBeTruthy());
     expect(screen.queryByTitle("GA4 Looker Studio embed")).toBeNull();
@@ -804,7 +841,7 @@ describe("osadzony raport wymaga DWÓCH warunków", () => {
     const url = "https://lookerstudio.google.com/embed/reporting/xyz/page/1";
     h.status = status({ ga4: { configured: false, hasEmbedUrl: true, embedUrl: url } });
     await mount();
-    await openTab("GA4");
+    await openTab(TAB.ga4);
 
     expect(screen.getByTitle("GA4 Looker Studio embed").getAttribute("src")).toBe(url);
     expect(screen.queryByTestId("pulpit-ga4")).toBeNull();
@@ -817,7 +854,7 @@ describe("mini-panel RUM w przeglądzie", () => {
     h.vitalsGate = () => {};
     await mount();
 
-    expect(screen.getByText(/Ładowanie\.\.\./)).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.vitals.loading")).toBeTruthy();
 
     const release = h.vitalsGate as unknown as () => void;
     await act(async () => {
@@ -830,7 +867,7 @@ describe("mini-panel RUM w przeglądzie", () => {
     h.vitals = vitalsSummary([]);
     await mount();
 
-    await waitFor(() => expect(screen.getByText("Brak próbek.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("admin.analyticsPanel.vitals.empty")).toBeTruthy());
   });
 
   it("BŁĄD odczytu RUM też daje komunikat, a nie wywrotkę na `metrics`", async () => {
@@ -841,9 +878,9 @@ describe("mini-panel RUM w przeglądzie", () => {
     h.vitalsError = new Error("Forbidden: admin role required");
     await mount();
 
-    await waitFor(() => expect(screen.getByText("Brak próbek.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("admin.analyticsPanel.vitals.empty")).toBeTruthy());
     // Reszta przeglądu stoi - awaria jednego kafelka nie gasi panelu.
-    expect(screen.getByText("Google Search Console")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.pill.gsc")).toBeTruthy();
   });
 
   it("pokazuje TRZY pierwsze metryki, nie wszystkie sześć", async () => {
@@ -868,7 +905,7 @@ describe("mini-panel RUM w przeglądzie", () => {
     await mount();
 
     await waitFor(() => expect(screen.getByText("0.083")).toBeTruthy());
-    expect(screen.getByText("12 próbek")).toBeTruthy();
+    expect(screen.getByText("admin.analyticsPanel.vitals.samples(count=12)")).toBeTruthy();
   });
 
   it("metryka czasowa PONIŻEJ sekundy ma jednostkę `ms`", async () => {
@@ -910,24 +947,26 @@ describe("dostępność przeglądu", () => {
     return (await axeViolations(container)).map((v) => v.id).sort();
   };
 
-  // ZAPADKA W DOBRĄ STRONĘ. Naruszenie jest JEDNO i jest znane (przypięte
-  // niżej), więc ta asercja nie udaje zieleni: pilnuje, żeby nie doszło
-  // DRUGIE. Każda nowa klasa naruszenia - obraz bez alternatywy, przycisk bez
-  // nazwy, nieprawidłowy atrybut ARIA - oblewa ten test natychmiast, a
-  // naprawa kolejności nagłówków skróci listę do zera bez ruszania go.
-  it("JEDYNYM naruszeniem axe jest znany przeskok poziomów nagłówków", async () => {
+  // ZAPADKA W DOBRĄ STRONĘ. Zbiór naruszeń jest PUSTY i taki ma zostać:
+  // przeskok poziomów nagłówków (`heading-order`) był tu jedynym wpisem i
+  // został zamknięty nagłówkiem drugiego poziomu na trasie. Asercja na zbiorze,
+  // a nie na liczbie, pilnuje jednego i drugiego naraz: powrót przeskoku i
+  // każdą NOWĄ klasę naruszenia - obraz bez alternatywy, przycisk bez nazwy,
+  // nieprawidłowy atrybut ARIA - widać tu natychmiast i po nazwie.
+  it("przegląd nie ma ŻADNEGO naruszenia axe - zbiór jest pusty, nie krótki", async () => {
     const view = await mountFullOverview();
 
-    expect(await violationIds(view.container)).toEqual(["heading-order"]);
+    expect(await violationIds(view.container)).toEqual([]);
   });
 
   it("lista zakładek jest poprawną listą zakładek ARIA", async () => {
     const view = await mount();
 
     expect(screen.getByRole("tablist")).toBeTruthy();
-    // Sama zakładkowość jest czysta - naruszenie siedzi w nagłówkach treści,
-    // nie w `Tabs`, i test to rozdziela.
-    expect(await violationIds(view.container)).toEqual(["heading-order"]);
+    // Sama zakładkowość jest czysta - i przy NIEWCZYTANYM statusie (`mount()`
+    // bez danych) też nie ma ani jednego naruszenia, więc stan pośredni panelu
+    // nie jest tu dziurą w pomiarze.
+    expect(await violationIds(view.container)).toEqual([]);
   });
 
   it("nagłówek pierwszego poziomu jest DOKŁADNIE jeden", async () => {
@@ -938,98 +977,117 @@ describe("dostępność przeglądu", () => {
 });
 
 // ---------------------------------------------------------------------------
-// PRZYPIĘTE DEFEKTY. Zgodnie z zamówieniem nie zmieniamy tu zachowania
-// produkcyjnego - defekt zostaje opisany testem, który JEST czerwony, i to
-// czerwień jest jego dokumentacją.
-describe("defekty przypięte (it.fails)", () => {
-  // DEFEKT 1 - JEDNOSTKA ZNIKA DOKŁADNIE TAM, GDZIE JEST NAJPOTRZEBNIEJSZA.
+// ZAMKNIĘTE PRZYPIĘCIA. Trzy defekty, które ten plik dokumentował czerwienią,
+// są naprawione po stronie produkcyjnej - a przypadki, które je opisywały,
+// stoją tu dalej jako KONTRAKTY. Każdy z nich gaśnie, gdy defekt wróci, i to
+// jest cała ich wartość: zdjęcie ich razem z czerwienią zostawiłoby naprawę bez
+// dozoru.
+describe("kontrakty domknięte po naprawie", () => {
+  // JEDNOSTKA NA KAŻDEJ METRYCE CZASOWEJ.
+  //
+  // MECHANIZM DEFEKTU:
   //
   //   `${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`
   //
-  // Warunek jest odwrócony względem intencji: dla wartości POWYŻEJ sekundy -
-  // czyli dla każdego złego LCP - kafelek pokazuje samą liczbę („2400 ") bez
-  // jednostki, a dla wartości dobrych dokłada „ms". Czytający nie ma jak
+  // Warunek był odwrócony względem intencji: dla wartości POWYŻEJ sekundy -
+  // czyli dla każdego złego LCP - kafelek pokazywał samą liczbę („2400 ") bez
+  // jednostki, a „ms" dostawały tylko wartości dobre. Czytający nie miał jak
   // odróżnić 2400 ms od 2400 s ani od bezwymiarowego wskaźnika, i to na tym
-  // jednym kafelku, który ma zaalarmować. Intencją była zamiana na sekundy
-  // („2,4 s"), a nie usunięcie jednostki. Kontrakt złamany: KAŻDA metryka
-  // czasowa na kafelku ma jednostkę.
-  it.fails(
-    "metryka POWYŻEJ sekundy traci jednostkę - `p75 >= 1000` daje pusty sufiks",
-    async () => {
-      h.vitals = vitalsSummary([metric({ metric: "LCP", p75: 2400, count: 55 })]);
-      await mount();
+  // jednym kafelku, który ma zaalarmować. Do tego zostawała bezwarunkowa
+  // spacja na końcu.
+  //
+  // CZEGO TEN PRZYPADEK PILNUJE: że KAŻDA metryka czasowa ma jednostkę,
+  // niezależnie od rzędu wielkości - razem z bliźniaczym przypadkiem na
+  // wartości PONIŻEJ sekundy (patrz „mini-panel RUM"), bo defekt polegał
+  // właśnie na tym, że jeden z tych dwóch przedziałów był obsłużony.
+  //
+  // ŚWIADOMA RÓŻNICA WOBEC PIERWOTNEGO ZGŁOSZENIA. Zgłoszenie wspominało
+  // zamianę na sekundy („2,4 s") jako intencję autora - i tego NIE robimy.
+  // Asercja niżej wymaga, żeby na kafelku stała liczba milisekund (`/^2400/`),
+  // więc przeliczenie na sekundy oblałoby ten sam przypadek, który defekt
+  // dokumentował. Kafelek mówi teraz „2400 ms": jednostka jest, a rząd
+  // wielkości czyta się bez przeliczania w głowie.
+  it("metryka POWYŻEJ sekundy niesie jednostkę - `2400 ms`, nie samo `2400`", async () => {
+    h.vitals = vitalsSummary([metric({ metric: "LCP", p75: 2400, count: 55 })]);
+    await mount();
 
-      await waitFor(() => expect(screen.getByText(/^2400/)).toBeTruthy());
-      const tile = screen.getByText(/^2400/).textContent ?? "";
-      // Oczekiwanie: jednostka czasu jest obecna (ms albo s).
-      expect(tile).toMatch(/\d\s*(ms|s)\b/);
-    },
-  );
+    await waitFor(() => expect(screen.getByText(/^2400/)).toBeTruthy());
+    const tile = screen.getByText(/^2400/).textContent ?? "";
+    expect(tile).toMatch(/\d\s*(ms|s)\b/);
+    // Bez wiszącej spacji: napis kończy się jednostką, a nie odstępem.
+    expect(tile).toBe(tile.trim());
+    expect(tile).toBe("2400 ms");
+  });
 
-  // DEFEKT 2 - CAŁY PANEL JEST JEDNOJĘZYCZNY I ŻADNA BRAMKA TEGO NIE WIDZI.
+  // BRAK PRZESKOKU POZIOMÓW NAGŁÓWKÓW W PRZEGLĄDZIE.
   //
-  // Z całego ekranu przez słownik idą DWA napisy (`admin.nav.analytics`,
-  // `admin.nav.analyticsReconciliation`); pozostałe kilkadziesiąt - nazwy
-  // zakładek, opisy pastylek, cztery karty trybów wraz z instrukcjami,
-  // wszystkie tytuły, interpretacje i kroki naprawcze wniosków - to literały
-  // polskie wpisane w JSX. Angielski administrator widzi panel po polsku.
+  // MECHANIZM DEFEKTU. Trasa dawała `<h1>`, a `InsightSection` - jedyny wtedy
+  // nagłówek treści w przeglądzie - renderuje `<h3>`. Poziom drugi nie
+  // istniał, więc czytnik ekranu ogłaszał zejście o dwa poziomy i tworzył
+  // w drzewie dokumentu pustą gałąź: nawigacja po nagłówkach (podstawowy sposób
+  // skanowania strony bez wzroku) pokazywała „Analityka" i od razu „Stan
+  // integracji i rekomendacje" jako pod-pod-sekcję czegoś, czego nie ma.
+  // Zmierzone wtedy axe-core: `heading-order`, jedno naruszenie, jeden węzeł.
   //
-  // DLACZEGO NIE ZŁAPAŁA TEGO ŻADNA BRAMKA i18n - to jest tu najciekawsze,
-  // bo pokazuje LUKĘ W POMIARZE, nie tylko dług w pliku:
-  //   * `check:i18n-parity` porównuje KLUCZE między PL i EN. Tych napisów nie
-  //     ma w żadnym słowniku, więc nie ma czego porównać - parytet jest
-  //     zielony dokładnie dlatego, że tekst istnieje wyłącznie w kodzie.
-  //   * `check:i18n-hardcoded` (ratchet per plik) mierzy ROZGAŁĘZIENIE po
-  //     języku: `isPl ? "Zapisz" : "Save"`, `lang === "pl" ? … : …`, bliźniaki
-  //     `l("Zapisz","Save")`. Tekst JEDNOJĘZYCZNY nie rozgałęzia się, więc nie
-  //     jest trafieniem - plik ma w bazie ratchetu zero i to zero jest
-  //     prawdziwe dla tego, co bramka mierzy.
-  //   * `check:i18n-default-value` łapie `t(key, { defaultValue })`, a tu nie
-  //     ma nawet wywołania `t`.
-  // Trzy zielone bramki i jednojęzyczny panel to nie sprzeczność, to granica
-  // pomiaru - i dlatego ten defekt musi być przypięty testem, a nie liczbą.
+  // GDZIE NAPRAWIONE I DLACZEGO TAM. Po stronie TRASY - przegląd ma teraz
+  // własny `<h2>` (`admin.analyticsPanel.overviewHeading`) nad pastylkami.
+  // `InsightSection` jest współdzielony przez wszystkie pulpity BI modułu
+  // (GSC, GA4, Web Vitals, audytorium, stopka) i ma twardo zapisany `<h3>`;
+  // sparametryzowanie tego poziomu dotknęłoby SZEŚCIU powierzchni naraz, więc
+  // hierarchię domyka strona, która nagłówek pierwszego poziomu wystawia.
   //
-  // Kontrakt złamany: tekst widoczny dla użytkownika pochodzi ze słownika.
-  // Asercja: po zamontowaniu z atrapą i18n (echo klucza) KAŻDY widoczny napis
-  // zdaniowy jest echem klucza. Zmierzone przy pisaniu tego testu: dziesiątki
-  // napisów niebędących kluczami (dokładna liczba rośnie z zawartością kart).
-  // DEFEKT 3 - PRZESKOK POZIOMÓW NAGŁÓWKÓW W PRZEGLĄDZIE.
-  //
-  // Trasa daje `<h1>`, a `InsightSection` - jedyny nagłówek treści w przeglądzie -
-  // renderuje `<h3>`. Poziom drugi nie istnieje, więc czytnik ekranu ogłasza
-  // zejście o dwa poziomy i tworzy w drzewie dokumentu pustą gałąź: nawigacja
-  // po nagłówkach (podstawowy sposób skanowania strony bez wzroku) pokazuje
-  // „Analityka" i od razu „Stan integracji i rekomendacje" jako pod-pod-sekcję
-  // czegoś, czego nie ma. Zmierzone axe-core: `heading-order`, jedno naruszenie,
-  // jeden węzeł.
-  //
-  // DLACZEGO NIE NAPRAWIAM TEGO TUTAJ. `InsightSection` jest współdzielony przez
-  // wszystkie pulpity BI modułu (GSC, GA4, Web Vitals, audytorium, stopka) i ma
-  // twardo zapisany `<h3>`. Poprawna naprawa to sparametryzowanie poziomu (albo
-  // zejście na `<h2>` w tym komponencie i podniesienie hierarchii w pulpitach),
-  // czyli zmiana dotykająca SZEŚCIU powierzchni - poza zakresem zlecenia N1-N8
-  // i nie do przeprowadzenia bez przejrzenia każdej z nich.
-  //
-  // Kontrakt złamany: poziomy nagłówków nie przeskakują (WCAG 1.3.1, reguła
-  // `heading-order`).
-  it.fails("przegląd nie ma ŻADNEGO naruszenia axe-core", async () => {
+  // CZEGO TEN PRZYPADEK PILNOWAŁ I PILNUJE: WCAG 1.3.1, reguła `heading-order` -
+  // z tą różnicą, że asercja jest teraz na PUSTYM podsumowaniu, więc mówi też,
+  // która reguła wróciła.
+  it("przegląd nie ma ŻADNEGO naruszenia axe-core", async () => {
     h.status = status({ gsc: true, ga4: { hasServiceAccount: true }, vitals: true });
     const view = await mount();
 
     const { axeViolations, summarize } = await import("@/test/axe");
     expect(summarize(await axeViolations(view.container))).toBe("");
+    // Poziom drugi ISTNIEJE - bez tej asercji „zero naruszeń" dałoby się
+    // osiągnąć również usunięciem nagłówka z `InsightSection`.
+    expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(0);
   });
 
-  it.fails(
-    "tekst panelu idzie ze słownika - dziś kilkadziesiąt literałów PL omija `t()`",
-    async () => {
-      h.status = status({ ga4: { hasMeasurementProtocol: true } });
-      await mount();
+  // CAŁY PANEL IDZIE PRZEZ SŁOWNIK.
+  //
+  // MECHANIZM DEFEKTU. Z całego ekranu przez słownik szły DWA napisy
+  // (`admin.nav.analytics`, `admin.nav.analyticsReconciliation`); pozostałe
+  // kilkadziesiąt - nazwy zakładek, opisy pastylek, cztery karty trybów wraz
+  // z instrukcjami, wszystkie tytuły, interpretacje i kroki naprawcze wniosków -
+  // to były literały polskie wpisane w JSX. Angielski administrator widział
+  // panel po polsku.
+  //
+  // DLACZEGO NIE ZŁAPAŁA TEGO ŻADNA BRAMKA i18n - to jest tu najciekawsze,
+  // bo pokazuje LUKĘ W POMIARZE, nie tylko dług w pliku, i dlatego zostaje
+  // w komentarzu także po naprawie:
+  //   * `check:i18n-parity` porównuje KLUCZE między PL i EN. Tych napisów nie
+  //     było w żadnym słowniku, więc nie było czego porównać - parytet był
+  //     zielony dokładnie dlatego, że tekst istniał wyłącznie w kodzie.
+  //   * `check:i18n-hardcoded` (ratchet per plik) mierzy ROZGAŁĘZIENIE po
+  //     języku: `isPl ? "Zapisz" : "Save"`, `lang === "pl" ? … : …`, bliźniaki
+  //     `l("Zapisz","Save")`. Tekst JEDNOJĘZYCZNY nie rozgałęzia się, więc nie
+  //     był trafieniem - plik miał w bazie ratchetu zero i to zero było
+  //     prawdziwe dla tego, co bramka mierzy.
+  //   * `check:i18n-default-value` łapie `t(key, { defaultValue })`, a tu nie
+  //     było nawet wywołania `t`.
+  // Trzy zielone bramki i jednojęzyczny panel to nie była sprzeczność, to
+  // granica pomiaru - i dlatego kontrakt musi stać TESTEM na drzewie
+  // renderowanym, a nie liczbą w baseline.
+  //
+  // CZEGO TEN PRZYPADEK PILNUJE: że każdy widoczny napis zdaniowy przeglądu
+  // jest echem klucza. Atrapa i18n zwraca klucz, więc napis wpisany w kod
+  // wyróżnia się kształtem - definicję naruszenia niesie `polishLiterals()`
+  // na końcu pliku. Napisy z kart trybów GA4 (osobna zakładka, więc poza tym
+  // drzewem) chroni siostrzana asercja na kluczach ich tytułów wyżej.
+  it("tekst panelu idzie ze SŁOWNIKA - ani jeden literał PL nie omija `t()`", async () => {
+    h.status = status({ ga4: { hasMeasurementProtocol: true } });
+    await mount();
 
-      const offenders = polishLiterals();
-      expect(offenders).toEqual([]);
-    },
-  );
+    const offenders = polishLiterals();
+    expect(offenders).toEqual([]);
+  });
 });
 
 /**
