@@ -223,6 +223,20 @@ test("zbudowany artefakt hydratuje się i ZOSTAJE interaktywny (/cookies)", asyn
 // `domHasInjected=false` przy `domHasOriginal=true`, czyli React WYRZUCIŁ HTML
 // z serwera i przerysował poddrzewo wersją kliencką. Strona po tym ŻYJE - więc
 // żadna z asercji żywotności tego pliku by tego nie zauważyła.
+//
+// POTWIERDZONE NA RUNNERZE, nie tylko na hoście - i to jest tu dowód
+// właściwy, bo cały sens postaci zminifikowanej polega na tym, że CI widzi
+// WYŁĄCZNIE ją. Przebieg 33765187255, job `build`, krok „Boot test and
+// first-load timing", head `2e1bdbd5e`:
+//
+//   [hydration-mismatch] ["pageerror: Error: Minified React error #418; visit
+//   https://react.dev/errors/418?args[]=text&args[]= for the full message or
+//   use the non-minified dev environment [...]"]
+//
+// Czyli kontrola negatywna zapaliła na runnerze DOKŁADNIE na markerze
+// `minified react error #418` z listy niżej. Gdyby klasyfikator znał tylko
+// postać deweloperską, test obok byłby zielony BEZ ŻADNEJ zdolności łapania -
+// i nikt by tego nie zauważył, bo zielone jest zielone.
 const HYDRATION_MISMATCH_MARKERS = [
   // Postać deweloperska (dev `react-dom`, dla uruchomień lokalnych).
   "hydration failed because the server rendered",
