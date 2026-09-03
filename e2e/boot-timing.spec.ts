@@ -210,6 +210,12 @@ const MAX_BOOT_JS_TRANSFER_KB = 3_000;
  * KIEDY TO PRZEFLOOROWAĆ: razem z MAX_TTFB_MS, gdy artefakt w CI dostanie
  * prawdziwe sekrety Supabase. Wtedy oba progi schodzą o rząd, a składnik
  * paintowy zostaje.
+ *
+ * POTWIERDZONE DWOMA POMIARAMI Z RUNNERA po postawieniu progu (2026-09-03 po
+ * południu, przebiegi 33763700986 i 33765187255): FCP 5 296,0 ms i 5 308,0 ms,
+ * zapas 1,70x w obu - dokładnie tam, gdzie wyliczyła arytmetyka wyżej z jednego
+ * starszego logu. Próg nie jest zacieśniany: rządzi nim najgorszy pomiar
+ * z hosta (5 748,0 ms, zapas 1,57x).
  */
 const MAX_FCP_MS = MAX_TTFB_MS + 1_000;
 
@@ -242,11 +248,14 @@ const MAX_FCP_MS = MAX_TTFB_MS + 1_000;
  *   5 500,0 - 5 112,2 = 387,8 ms
  *   5 424,0 - 5 038,2 = 385,8 ms
  *   5 744,0 - 5 045,9 = 698,1 ms
- * Zakres SAMEGO PAINTU: 385,8 - 698,1 ms. Do tego jedna para z runnera:
- * 5 272,0 - 5 030,1 = 241,9 ms (ta była policzona poprawnie - jeden przebieg).
+ *   5 420,0 - 5 084,3 = 335,7 ms   <- dołożona 2026-09-03 po południu
+ * Zakres SAMEGO PAINTU: 335,7 - 698,1 ms na pięciu parach (przed piątym
+ * pomiarem stało tu 385,8 - 698,1). Do tego pary z runnera: 241,9 ms
+ * (5 272,0 - 5 030,1), 253,2 ms i 266,2 ms - wszystkie trzy z jednego
+ * przebiegu każda, więc policzone poprawnie.
  *
  * PRÓG. 2 000 / 698,1 = 2,86x najgorszej ZMIERZONEJ W PARZE wartości
- * (rozrzut 385,8 - 698,1 ms na czterech parach to 1,8x - sam paint jest tu
+ * (rozrzut 335,7 - 698,1 ms na pięciu parach to 2,1x - sam paint jest tu
  * najbardziej rozrzuconą z mierzonych liczb, bo zależy wyłącznie od CPU).
  * Pierwotnie postawiłem 1 000 ms i następny pomiar zostawił na nim 1,50x - za
  * mało dla metryki zależnej od CPU na maszynie bez gwarancji sąsiedztwa: taki
@@ -256,6 +265,16 @@ const MAX_FCP_MS = MAX_TTFB_MS + 1_000;
  * był tego dnia wolniejszy i paint pojechał razem z nim - dowód empiryczny, że
  * ta liczba mierzy też CPU. 2 000 ms nadal łapie klasę regresji, o którą tu
  * chodzi: podwojenie arkusza blokującego render to setki ms, nie dziesiątki.
+ *
+ * POTWIERDZONE DWOMA PARAMI Z RUNNERA (2026-09-03 po południu): 253,2 ms
+ * i 266,2 ms - a między sobą powtarzalne do 13 ms, przy rozrzucie 2,1x na
+ * hoście. Runner jest tu szybszy od hosta 2,62x licząc kraniec do krańca
+ * (698,1 / 266,2) albo 1,91x licząc średnią do średniej (495,0 / 259,7);
+ * podaję oba, bo „2,6x" bez powiedzenia, co dzieli co, jest dokładnie tym
+ * błędem, który ten plik prostuje wyżej. Próg ZOSTAJE na 2 000 ms i NIE jest
+ * zacieśniany do liczby wyprowadzonej z runnera: rządzi nim najgorszy pomiar
+ * (host, 698,1 ms), nie najlepszy - inaczej byłaby to bramka na kontencję hosta
+ * dewelopera. Tabele wszystkich przebiegów - w kronice niżej.
  */
 const MAX_PAINT_AFTER_TTFB_MS = 2_000;
 
@@ -361,6 +380,12 @@ const MAX_PAINT_AFTER_TTFB_MS = 2_000;
 // paint jest składnikiem, którego bramka TTFB nie widzi Z DEFINICJI, a rośnie
 // od arkusza blokującego render. Zmierzone: 241,9 ms (runner: 5272,0 - 5030,1)
 // i 272 - 537 ms (host); próg 1 000 ms to 1,86x najgorszego z nich.
+// (DWIE POPRAWKI DO TEGO ZDANIA, zostawionego bo pokazuje kolejność ustaleń.
+// Para z runnera 241,9 ms jest POPRAWNA - policzona z jednego przebiegu. Zakres
+// „272 - 537 ms (host)" NIE - powstał z parowania krańców dwóch niezależnych
+// zakresów; sprostowanie przy `MAX_PAINT_AFTER_TTFB_MS`, gdzie pary z jednego
+// przebiegu dają 335,7 - 698,1 ms. Próg stoi dziś na 2 000 ms, nie 1 000.
+// Par z runnera są dziś TRZY: 241,9 / 253,2 / 266,2 ms.)
 //
 // TTFB HIT/MISS - ROZSTRZYGNIĘTE POMIAREM, i to jest najważniejsza liczba
 // tego wpisu. Zlecenie wydania 9 pytało, czy 5 030,1 ms to cena pierwszej
@@ -392,10 +417,98 @@ const MAX_PAINT_AFTER_TTFB_MS = 2_000;
 //
 // 5 sekund jest więc ceną PIERWSZEJ wizyty na zimny klucz (a w tym środowisku
 // to prawie w całości `SSR_QUERY_TIMEOUT_MS` na zaślepce Supabase), nie ceną
-// każdej. Progu na HIT nie zacieśniam poniżej `MAX_TTFB_MS / 2`, bo pomiaru
-// z RUNNERA dla tego rozbicia nie ma jeszcze ani jednego - pierwszy zielony
-// log CI (`[boot-timing-cache] ...`) jest podstawą do postawienia tam liczby
-// rzędu zmierzonych 8,3 ms.
+// każdej. Progu na HIT nie zacieśniałem wtedy poniżej `MAX_TTFB_MS / 2`, bo
+// pomiaru z RUNNERA dla tego rozbicia nie było ani jednego, i zapisałem tu, że
+// pierwszy zielony log CI (`[boot-timing-cache] ...`) będzie podstawą liczby
+// rzędu zmierzonych 8,3 ms. TEN WARUNEK JEST SPEŁNIONY - dwa logi runnera stoją
+// w akapicie niżej, a próg został zdjęty do `MAX_TTFB_MS / 16`. Zapis
+// pozostawiony w kronice, żeby było widać, że to nie jest liczba dobrana
+// po fakcie do wyniku.
+//
+// ── 2026-09-03, PO POŁUDNIU: DWA POMIARY Z RUNNERA DLA NOWYCH PROGÓW ────────
+//
+// Progi `MAX_FCP_MS`, `MAX_PAINT_AFTER_TTFB_MS` i rozbicie HIT/MISS zostały
+// postawione WYŁĄCZNIE na pomiarach z hosta plus jeden stary log runnera
+// (33512138238, sprzed rozbicia HIT/MISS). Poniżej PIERWSZE DWA przebiegi CI,
+// w których nowy kształt tego pliku faktycznie się wykonał - a więc pierwsze
+// liczby runnera dla samego paintu ORAZ pierwsze W OGÓLE dla HIT-a:
+//
+//   PRZEBIEG 33763700986, job `build`, krok „Boot test and first-load timing":
+//   [boot-timing] TTFB=5042.8ms ready=641ms (exact=true)
+//                 bootJS=2508.6KB/46 (statyczne 2098.9KB/12 + dynamiczne 409.7KB/34)
+//                 decoded=2495.1KB (x0.99) FCP=5296.0ms
+//   [boot-timing-cache] 1: MISS TTFB=5025.4ms | 2: HIT TTFB=3.1ms
+//
+//   PRZEBIEG 33765187255, head `2e1bdbd5e`, ten sam krok:
+//   [boot-timing] TTFB=5041.8ms ready=573ms (exact=true)
+//                 bootJS=2405.0KB/34 (statyczne 2098.9KB/12 + dynamiczne 306.1KB/22)
+//                 decoded=2395.1KB (x1.00) FCP=5308.0ms
+//   [boot-timing-cache] 1: MISS TTFB=5027.7ms | 2: HIT TTFB=2.8ms
+//
+//   POMIAR        RUNNER #1    RUNNER #2    PRÓG        ZAPAS (#1 / #2)
+//   TTFB          5042,8 ms    5041,8 ms    8000 ms     1,59x / 1,59x
+//   READY           641   ms     573   ms   6000 ms     9,4x  / 10,5x
+//   bootJS        2508,6 KB    2405,0 KB    3000 KB     1,20x / 1,25x
+//   FCP           5296,0 ms    5308,0 ms    9000 ms     1,70x / 1,70x
+//   sam paint      253,2 ms     266,2 ms    2000 ms     7,9x  / 7,5x
+//   TTFB MISS     5025,4 ms    5027,7 ms    8000 ms     1,59x / 1,59x
+//   TTFB HIT           3,1 ms       2,8 ms  (niżej)     1621x / 1796x niżej niż MISS
+//
+// Sam paint policzony W PARZE, z jednej nawigacji: 5296,0 - 5042,8 = 253,2 ms
+// i 5308,0 - 5041,8 = 266,2 ms.
+//
+// TRZY USTALENIA, każde zmieniające czytanie progu wyżej:
+//
+// 1. `MAX_PAINT_AFTER_TTFB_MS` ZOSTAJE na 2 000 ms, choć runner daje na nim
+//    7,5x - 7,9x zapasu. Nie obniżam, bo progiem rządzi NAJGORSZY pomiar,
+//    a ten jest z HOSTA (698,1 ms, zapas 2,86x), nie z runnera. Runner jest
+//    dla paintu szybszy 2,62x kraniec do krańca (698,1 / 266,2) i 1,91x
+//    średnia do średniej (495,0 / 259,7) - dokładnie ta sama asymetria, którą
+//    ustalenie #1 z 2026-09-01 opisało dla gotowości hydratacji. Zejście do liczby
+//    wyprowadzonej z runnera zrobiłoby z tej bramki bramkę na kontencję
+//    hosta dewelopera.
+//
+// 2. PAINT NA RUNNERZE JEST POWTARZALNY z dokładnością do 13 ms (253,2 vs
+//    266,2), przy rozrzucie 2,1x na hoście. To pierwszy dowód, że rozrzut
+//    tej metryki opisany wyżej jest szumem MASZYNY, a nie właściwością
+//    pomiaru - i że próg z niej wyprowadzony ma sens.
+//
+// 3. bootJS 2405,0 KB / 34 pliki wobec 2508,6 KB / 46 plików W DWÓCH
+//    PRZEBIEGACH TEGO SAMEGO ARTEFAKTU domyka ustalenie #2 z 2026-09-01:
+//    wiadro STATYCZNE jest identyczne co do 0,1 KB (2098,9 KB / 12 w obu),
+//    cała różnica 103,6 KB siedzi w dynamicznym (409,7 KB/34 vs 306,1 KB/22).
+//    Ta metryka mierzy „ile leniwych chunków zdążyło wejść przed flagą
+//    gotowości", nie wagę artefaktu, i próg 3 000 KB dalej nie jest
+//    zacieśniany.
+//
+// ÓSMY PRZEBIEG Z HOSTA, wykonany PO zejściu z progiem HIT-a - żeby nowa liczba
+// nie poszła do CI niesprawdzona (2026-09-03, `bun run test:e2e:artifact`, ten
+// sam artefakt, z czterema zmiennymi środowiska z `ci.yml:944-947`):
+//
+//   [boot-timing] TTFB=5084.3ms ready=468ms (exact=true)
+//                 bootJS=2388.6KB/28 (statyczne 2098.8KB/12 + dynamiczne 289.8KB/16)
+//                 decoded=2380.4KB (x1.00) FCP=5420.0ms
+//   [boot-timing-cache] 1: MISS TTFB=5025.0ms | 2: HIT TTFB=3.5ms
+//
+//   POMIAR         2026-09-03 #8   PRÓG        ZAPAS
+//   TTFB           5084,3 ms       8000 ms     1,57x
+//   READY            468   ms      6000 ms    12,8x
+//   bootJS         2388,6 KB       3000 KB     1,26x
+//   FCP            5420,0 ms       9000 ms     1,66x
+//   sam paint       335,7 ms       2000 ms     6,0x   <- POZA zakresem, W DÓŁ
+//   TTFB HIT          3,5 ms        500 ms   143x
+//
+// Sam paint 5 420,0 - 5 084,3 = 335,7 ms - to ROZSZERZA zakres hosta W DÓŁ, do
+// 335,7 - 698,1 ms (było 385,8 - 698,1). Progu to nie zmienia, bo progiem
+// rządzi górny kraniec; wpisane, bo przemilczenie pomiaru, który rozszerza
+// zakres, byłoby tym samym błędem, co parowanie krańców opisane wyżej.
+//
+// UWAGA METODOLOGICZNA, warta zapisania: przebieg BEZ tych czterech zmiennych
+// oblewa CZTERY z pięciu testów (`page.waitForFunction` na `__nesAppReady`
+// wychodzi w timeout, bo aplikacja nie kończy bootu), a test HIT/MISS
+// przechodzi - z MISS-em 1 050,3 ms zamiast ~5 025 ms, bo bez `SUPABASE_URL`
+// loader nie dochodzi do `SSR_QUERY_TIMEOUT_MS`, tylko pada od razu. Kto
+// zobaczy tu czerwień, niech NAJPIERW sprawdzi środowisko, a nie progi.
 
 /** Kopia PL z `src/routes/cookies.tsx` - dowód, że mierzymy stronę, a nie błąd. */
 const UNDECIDED = "Nie zapisano jeszcze wyboru";
@@ -645,14 +758,15 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
 //      `?page=7&utm_source=...` to INNY URL dla przeglądarki i TEN SAM wpis
 //      dla serwera. Dokładnie to, czego ten pomiar potrzebuje.
 //
-// CZEGO TEN TEST NIE ROBI: nie stawia progu na TTFB HIT-a. Progi w tym pliku
-// wolno wyłącznie OBNIŻAĆ i tylko po pomiarze z runnera, a tego pomiaru dla
-// rozbicia HIT/MISS nie ma jeszcze ANI JEDNEGO. Test WYPISUJE obie liczby
-// (pierwszy przebieg CI będzie podstawą progu) i bramkuje to, co jest
-// kontraktem JUŻ DZIŚ: że drugie żądanie o ten sam klucz JEST odtworzeniem
-// z cache'u. Bez tej asercji „cache dokumentów działa" jest przekonaniem,
-// a nie ustaleniem - a jego brak jest właśnie tym, co czyni 5 sekund TTFB
-// ceną KAŻDEJ wizyty, nie tylko pierwszej.
+// CO TEN TEST BRAMKUJE. Kontrakt JUŻ DZIŚ: drugie żądanie o ten sam klucz JEST
+// odtworzeniem z cache'u. Bez tej asercji „cache dokumentów działa" jest
+// przekonaniem, a nie ustaleniem - a jego brak jest właśnie tym, co czyni
+// 5 sekund TTFB ceną KAŻDEJ wizyty, nie tylko pierwszej. Do tego, od
+// 2026-09-03 po południu, GÓRNA GRANICA TTFB NA HIT-cie - patrz
+// `MAX_TTFB_HIT_MS` na końcu tego testu. Pierwsza wersja tego pliku progu tam
+// NIE stawiała i nazywała powód: progi tu wolno wyłącznie OBNIŻAĆ i tylko po
+// pomiarze z runnera, a dla rozbicia HIT/MISS nie było go ani jednego. Są dwa
+// (przebiegi 33763700986 i 33765187255), więc powód jest wydany.
 test("cache dokumentów oddaje drugie żądanie z HIT-a, a TTFB jest podany rozdzielnie", async ({
   page,
 }) => {
@@ -726,13 +840,34 @@ test("cache dokumentów oddaje drugie żądanie z HIT-a, a TTFB jest podany rozd
     `2. żądanie o ten sam klucz: ${second.status ?? "brak nagłówka"} (oczekiwane HIT albo STALE)`,
   ).toMatch(/^(HIT|STALE)$/);
 
-  // Górna granica dla HIT-a NIE JEST progiem tego pliku, tylko strażnikiem
-  // sensu: odtworzenie z pamięci procesu nie może kosztować tyle, co pełny
-  // render z budżetem zapytań SSR. Liczba jest ZAKOTWICZONA w istniejącej
-  // stałej, a nie wybrana - `MAX_TTFB_MS` mierzy ścieżkę renderu, więc HIT
-  // musi zmieścić się w jej połowie. Zapas jest ogromny z premedytacją:
-  // pomiaru HIT-a z runnera nie ma jeszcze ani jednego (patrz wyżej).
-  const MAX_TTFB_HIT_MS = MAX_TTFB_MS / 2;
+  // GÓRNA GRANICA TTFB NA HIT-cie, ZDJĘTA 2026-09-03 z `MAX_TTFB_MS / 2`
+  // (4 000 ms) DO `MAX_TTFB_MS / 16` (500 ms) - po dwóch pomiarach z runnera,
+  // czyli po spełnieniu warunku, który poprzednia wersja tego komentarza sama
+  // sobie postawiła.
+  //
+  // DLACZEGO STARY PRÓG BYŁ MARTWY. Zmierzone HIT-y: 2,8 i 3,1 ms na runnerze,
+  // 3,7 - 8,3 ms na hoście. Wobec 4 000 ms to zapas 482x - 1429x. Bramka
+  // z takim zapasem nie łapie ŻADNEJ regresji poza całkowitym zniknięciem
+  // cache'u - a to łapie już asercja na `x-nes-cache` wyżej. Innymi słowy:
+  // stary próg nie miał EFEKTU, którego naruszenie dawałoby czerwień.
+  //
+  // ARYTMETYKA NOWEGO. Liczba nadal jest ZAKOTWICZONA w istniejącej stałej,
+  // nie wybrana: `MAX_TTFB_MS / 16` = 500 ms, czyli „HIT musi być o rząd
+  // wielkości tańszy niż budżet renderu". Dwa zapasy, oba policzone:
+  //   - 500 / 8,3 = 60x wobec NAJGORSZEGO zmierzonego HIT-a (host, nie runner);
+  //   - 5 051,1 / 500 = 10,1x - czyli HIT zdegenerowany do kosztu MISS-a jest
+  //     czerwony z dziesięciokrotnym marginesem, a nie „o włos".
+  //
+  // ŚCIEŻKA DEGRADACJI, sprawdzona przed zejściem z progiem, nie po. Na HIT-cie
+  // middleware oddaje ciało z mapy w pamięci procesu i NIE renderuje
+  // (`documentCache.server.ts:332-338`) - koszt nie zależy od budżetu zapytań
+  // SSR ani od tego, czy Supabase jest zaślepką. STALE idzie tą samą ścieżką
+  // (ciało z cache'u od razu, rewalidacja w tle przez `runAfterResponse`), więc
+  // akceptowanie STALE obok HIT-a nie psuje tego progu. Warstwa L2 (Cache API)
+  // pod presetem `node-server` nie istnieje, więc mierzymy wyłącznie L1;
+  // gdy CI dostanie preset Workers, L2 doda pojedyncze do niskich dziesiątek
+  // ms i 500 ms nadal je pomieści.
+  const MAX_TTFB_HIT_MS = MAX_TTFB_MS / 16;
   expect(
     second.ttfbMs,
     `TTFB na HIT ${second.ttfbMs.toFixed(1)} ms > ${MAX_TTFB_HIT_MS} ms - odtworzenie z cache'u nie może kosztować jak render`,
