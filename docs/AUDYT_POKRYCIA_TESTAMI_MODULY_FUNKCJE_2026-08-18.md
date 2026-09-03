@@ -3151,11 +3151,42 @@ mniejszego — i są **zapisanym pomiarem, nie progiem**. Dla `__root.tsx` ten s
 44,20 / 53,33 / **14,58** / 50, czyli funkcje nadal poniżej piętnastu procent, a `rootShellRender.test.tsx`
 ma jedyne w repozytorium **bezwarunkowe** `describe.skip` (12.3).
 
-**Czego nadal NIE MA — i to jest jedyna niedomknięta pozycja tej listy:** żadnej bramki na budżety
-SSR. Ani na czas rozgrzewki, ani na liczbę zapytań w loaderze, ani na rozmiar dehydratowanego stanu.
-Limit **6 równoległych subrequestów na żądanie** w runtime Workers występuje w repozytorium
-**wyłącznie jako komentarz** — ani jednej asercji, ani jednej bramki. Wszystkie pięć stałych
-budżetowych to liczby, które ktoś może zmienić jednym commitem i nic tego nie zauważy.
+**Sprostowanie do własnego zdania z pierwszej wersji tego akapitu, dopisane po sprawdzeniu.**
+Napisałem tu, że „nadal nie ma ANI JEDNEJ bramki na budżety SSR" i że jest to _jedyna_ niedomknięta
+pozycja tej listy. **Oba zdania są nieprawdziwe** i jedno jest nieprawdziwe w drugą stronę, niż
+sugerowałem. Sprawdzone na dzisiejszym HEAD:
+
+- **Bramka czasu ISTNIEJE i ma twarde asercje.** `e2e/boot-timing.spec.ts` jedzie po zbudowanym
+  artefakcie w jobie CI bez `continue-on-error` i oblewa na `expect(...).toBeLessThan(...)`:
+  `MAX_TTFB_MS = 8_000` (:105, asercja :379), `MAX_READY_MS = 6_000` (:127, :390),
+  `MAX_BOOT_JS_TRANSFER_KB = 3_000` (:171, :403). Istnieje też **pierwszy zapisany pomiar
+  z runnera** (:177-190, 2026-09-01, przebieg 33512138238): TTFB 5 030,1 ms, ready 356 ms,
+  bootJS 2 562,8 KB, **FCP 5 272,0 ms**.
+- **Bramka rozmiaru liczy dziś `.css` i domknięcie startowe.** `FROZEN_BUDGET_KB`
+  w `scripts/check-bundle-size.ts:1151` ma pięć podłóg: chunk 280, public 2 715, overall 4 351,
+  **css 82**, **boot 579** — czyli punkty 5(a) i 8 z listy wydania 8 są zamknięte.
+- **Budżety rozgrzewki spadły z „do 11 s" na 3 000 ms.** Fala 2 dostała własny, dwunastokrotnie
+  krótszy budżet (`CHROME_WARM_BUDGET_MS = 500` wobec 2 500), a prefetch strony głównej został
+  **zdjęty z drogi krytycznej** — `src/routes/index.tsx:184-198` dokumentuje, że serwer już go
+  nie woła, a `HomeBuilderContent` przekazuje `stream`.
+
+**Poprawna wersja zarzutu jest więc WĘŻSZA, a nie łagodniejsza: nie ma bramki na budżety
+WEWNĘTRZNE potoku.** Trzy konkretnie: suma budżetów rozgrzewki przed pierwszym bajtem (dziś
+3 000 ms, jedna liczba w jednym pliku), liczba równoległych podżądań w loaderze wobec limitu
+**6 subrequestów** runtime Workers (który w repozytorium występuje wyłącznie jako komentarz)
+oraz rozmiar dehydratowanego stanu. Do tego dochodzi rzecz, której nie widziałem, dopóki nie
+przeczytałem zapisanego pomiaru: **FCP 5 272 ms jest jedyną z czterech metryk pierwszego
+wczytania, która nie ma progu w ogóle** — w kolumnie „PRÓG" tej kroniki stoi `brak`. A FCP jest
+tą, którą czytelnik odczuwa jako „strona się pojawiła".
+
+**Druga rzecz, której nie widziałem: podłoga `css` ma 3,4% zapasu.** Zmierzone na artefakcie
+w `.output/`: `styles-*.css` to 570 419 B surowo i **79 819 B gzip**, plus 1 431 B drugiego
+arkusza — razem **79,2 KiB wobec podłogi 82 KiB**, czyli **2,8 KiB marginesu** przy 6 739 blokach
+reguł. Jedna średnia zmiana designu tę podłogę przebije. Punkt 5(b) z wydania 8 — wycięcie panelu
+i buildera do osobnego arkusza — jest więc jedyną pozycją tej listy, która przestała być
+optymalizacją i stała się terminem.
+
+Zlecenie naprawcze na to, co realnie zostało, jest w `docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md`.
 
 Ten rozdział powstał na osobne pytanie: **czy pierwsze wczytanie strony dzieje się sprawnie,
 precyzyjnie i szybko.** Odpowiedź jest asymetryczna i to jest jej treść: **infrastruktura jest
