@@ -333,6 +333,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Grubość podtytułu": "Subtitle weight",
   "Grubość / wysokość (px)": "Thickness / height (px)",
   "Szerokość (%)": "Width (%)",
+  "Maksymalna szerokość (px)": "Maximum width (px)",
   "Wysokość (px)": "Height (px)",
   "Wysokość - desktop (px)": "Height - desktop (px)",
   "Wysokość - tablet (px, 0 = dziedziczy)": "Height - tablet (px, 0 = inherit)",
