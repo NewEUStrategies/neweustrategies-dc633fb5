@@ -184,7 +184,10 @@ const MAX_BOOT_JS_TRANSFER_KB = 3_000;
  * ODWRÓCENIE WCZEŚNIEJSZEJ DECYZJI TEGO PLIKU, powiedziane wprost. Do
  * 2026-09-03 stało tu, że FCP jest „ZMIERZONY, ŚWIADOMIE NIE BRAMKOWANY", bo
  * 91-95% jego wartości to czas serwera, a próg byłby „DRUGĄ, GŁOŚNIEJSZĄ KOPIĄ
- * bramki TTFB". Ten argument był poprawny wtedy i JEST DZIŚ SŁABSZY z dwóch
+ * bramki TTFB". (Samo „91-95%" było policzone tą samą wadliwą metodą, co dawne
+ * „272 - 537 ms" - przez parowanie krańców dwóch niezależnych zakresów; z tych
+ * zakresów wynika 88,5% - 97,1%. Szczegóły przy `MAX_PAINT_AFTER_TTFB_MS`.)
+ * Ten argument był poprawny wtedy i JEST DZIŚ SŁABSZY z dwóch
  * niezależnych powodów:
  *   1. TTFB jest od dziś mierzony ROZDZIELNIE na HIT i MISS (osobny test
  *      niżej), więc „ta sama regresja" przestała być tym samym zdaniem;
@@ -223,18 +226,36 @@ const MAX_FCP_MS = MAX_TTFB_MS + 1_000;
  * i która ma dziś poniżej 1% zapasu. Ta para progów bramkuje więc dwie
  * NIEZALEŻNE przyczyny jednym pomiarem.
  *
- * PRÓG 2 000 ms, I DLACZEGO NIE 1 000. Zmierzone: 241,9 ms na runnerze
- * (5 272,0 - 5 030,1) i 272 - 537 ms na hoście w sześciu przebiegach z
- * 2026-09-01 - ale W POMIARZE Z 2026-09-03 na tym samym hoście wyszło
- * 667,8 ms (5 748,0 - 5 080,2), przy gotowości hydratacji 735 ms wobec
- * wcześniejszych 461 - 616 ms. Czyli host był tego dnia WOLNIEJSZY, a paint
- * pojechał razem z nim - co jest oczekiwane, bo paint zależy od CPU.
- * Pierwotnie postawiłem tu 1 000 ms (1,86x najgorszego pomiaru z 2026-09-01)
- * i NASTĘPNY POMIAR ZOSTAWIŁ NA TYM PROGU 1,50x ZAPASU. To za mało dla metryki
- * zależnej od CPU na maszynie bez gwarancji sąsiedztwa: taki próg jest bramką
- * na kontencję runnera, nie na wagę arkusza. 2 000 ms to 3,0x najgorszego
- * ZMIERZONEGO paintu i nadal łapie klasę regresji, o którą tu chodzi
- * (podwojenie arkusza render-blocking to setki ms, nie dziesiątki).
+ * PRÓG 2 000 ms, I DLACZEGO NIE 1 000.
+ *
+ * NAJPIERW O METODZIE, bo poprzednia wersja tego akapitu liczyła ŹLE i wolę to
+ * zapisać, niż poprawić po cichu. Stało tu „272 - 537 ms na hoście", wyliczone
+ * przez odjęcie KRAŃCÓW DWÓCH NIEZALEŻNYCH ZAKRESÓW z sześciu przebiegów
+ * (FCP 5 348,0 - 5 732,0 minus TTFB 5 075,6 - 5 194,9). To nie jest zakres
+ * różnicy: z dwóch niezależnych zakresów wynika tylko 153,1 - 656,4 ms, i to
+ * przy założeniu, że skrajne wartości wypadły w tych samych przebiegach - czego
+ * nikt nie zapisał. Różnicę wolno liczyć WYŁĄCZNIE W PARZE, z jednego przebiegu.
+ *
+ * PARY Z JEDNEGO PRZEBIEGU (2026-09-03, trzy przebiegi `test:e2e:artifact`,
+ * FCP i TTFB z TEJ SAMEJ nawigacji):
+ *   5 748,0 - 5 080,2 = 667,8 ms
+ *   5 500,0 - 5 112,2 = 387,8 ms
+ *   5 424,0 - 5 038,2 = 385,8 ms
+ *   5 744,0 - 5 045,9 = 698,1 ms
+ * Zakres SAMEGO PAINTU: 385,8 - 698,1 ms. Do tego jedna para z runnera:
+ * 5 272,0 - 5 030,1 = 241,9 ms (ta była policzona poprawnie - jeden przebieg).
+ *
+ * PRÓG. 2 000 / 698,1 = 2,86x najgorszej ZMIERZONEJ W PARZE wartości
+ * (rozrzut 385,8 - 698,1 ms na czterech parach to 1,8x - sam paint jest tu
+ * najbardziej rozrzuconą z mierzonych liczb, bo zależy wyłącznie od CPU).
+ * Pierwotnie postawiłem 1 000 ms i następny pomiar zostawił na nim 1,50x - za
+ * mało dla metryki zależnej od CPU na maszynie bez gwarancji sąsiedztwa: taki
+ * próg jest bramką na kontencję runnera, nie na wagę arkusza. Przy 667,8 ms
+ * gotowość hydratacji wyszła 735 ms, a przy 698,1 ms - 738 ms, wobec
+ * 461 - 616 ms z 2026-09-01, czyli host
+ * był tego dnia wolniejszy i paint pojechał razem z nim - dowód empiryczny, że
+ * ta liczba mierzy też CPU. 2 000 ms nadal łapie klasę regresji, o którą tu
+ * chodzi: podwojenie arkusza blokującego render to setki ms, nie dziesiątki.
  */
 const MAX_PAINT_AFTER_TTFB_MS = 2_000;
 
@@ -652,8 +673,27 @@ test("cache dokumentów oddaje drugie żądanie z HIT-a, a TTFB jest podany rozd
 
   // ŻĄDANIE 1: zimny klucz. Oczekujemy MISS (render).
   const first = await measure(KEY_PATH);
+
   // ŻĄDANIE 2: ten sam klucz cache'u, inny URL dla przeglądarki.
-  const second = await measure(`${KEY_PATH}&utm_source=nes-boot-timing`);
+  //
+  // PONAWIANE, I TO NIE JEST ROZLUŹNIENIE ASERCJI. Zapis do cache'u jest
+  // ODROCZONY I NIEOCZEKIWANY PRZEZ NIKOGO: `src/server.ts` woła
+  // `applyDeferredDocumentStore(...)`, a ta oddaje pracę do
+  // `runAfterResponse`, które poza Workers degraduje do fire-and-forget
+  // (`lib/http/waitUntil.server.ts`). Nie ma też single-flightu na ścieżce
+  // MISS. Między odpowiedzią na żądanie 1 i wejściem żądania 2 wpis więc
+  // MOŻE jeszcze nie istnieć - i wtedy drugie żądanie jest kolejnym MISS-em,
+  // co jest poprawnym zachowaniem systemu, a nie awarią cache'u.
+  //
+  // Bramką ma być „cache DOCHODZI do stanu, w którym odtwarza", a nie „zapis
+  // zdążył w konkretnym oknie". Dlatego ponawiamy ograniczoną liczbę razy;
+  // wyczerpanie prób ORAZ TAK oblewa test, więc cache, który nigdy nie oddaje
+  // HIT-a, nadal jest znaleziskiem blokującym. Każde ponowienie ma własny
+  // `utm_source`, żeby nie trafić w cache przeglądarki.
+  let second = await measure(`${KEY_PATH}&utm_source=nes-boot-timing-1`);
+  for (let attempt = 2; attempt <= 4 && second.status === "MISS"; attempt += 1) {
+    second = await measure(`${KEY_PATH}&utm_source=nes-boot-timing-${attempt}`);
+  }
 
   console.log(
     `[boot-timing-cache] 1: ${first.status ?? "brak nagłówka"} TTFB=${first.ttfbMs.toFixed(1)}ms | ` +
