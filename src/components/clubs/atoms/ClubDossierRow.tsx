@@ -323,7 +323,7 @@ export function ClubDossierRow({
           )}
         >
           {titleStyle === "headline" ? (
-            <div className="text-xl font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/dossier:text-foreground sm:text-2xl">
+            <div className="text-lg font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/dossier:text-foreground sm:text-xl">
               {title}
             </div>
           ) : (
@@ -332,7 +332,7 @@ export function ClubDossierRow({
         </div>
 
         {excerpt !== undefined ? (
-          <div className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+          <div className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
             {excerpt}
           </div>
         ) : null}
