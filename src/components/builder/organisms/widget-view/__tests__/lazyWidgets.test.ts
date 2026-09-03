@@ -27,6 +27,7 @@ const SPLIT_WIDGETS = [
   // Kluby dyskusyjne (spec §5.5)
   "ClubCardView",
   "ClubThreadsView",
+  "ClubHubView",
   // Events ecosystem
   "EventScheduleView",
   "EventsListView",

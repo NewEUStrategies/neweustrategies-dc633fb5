@@ -1989,6 +1989,33 @@ export const WIDGETS: WidgetDef[] = [
       limit: 4,
     }),
   },
+  // Strona klubu jako blok: artykuly, komentarze i zapisy JEDNEGO klubu -
+  // ta sama tresc, co panel `/club/$slug`, tylko osadzalna poza modulem.
+  {
+    type: "club-hub",
+    label: "Klub: strona",
+    category: "dynamic",
+    icon: MessagesSquare,
+    defaults: () => ({
+      clubSlug: "",
+      showHeader: "true",
+      showCover: "true",
+      showArticles: "true",
+      showComments: "true",
+      showSignups: "true",
+      articlesLimit: 4,
+      commentsLimit: 3,
+      signupsLimit: 6,
+      joinLabel_pl: "Dołącz do klubu",
+      joinLabel_en: "Join the club",
+      articlesTitle_pl: "Artykuły",
+      articlesTitle_en: "Articles",
+      commentsTitle_pl: "Komentarze",
+      commentsTitle_en: "Comments",
+      signupsTitle_pl: "Zapisy",
+      signupsTitle_en: "Sign-ups",
+    }),
+  },
   // Web Stories
   {
     type: "web-stories-carousel",
