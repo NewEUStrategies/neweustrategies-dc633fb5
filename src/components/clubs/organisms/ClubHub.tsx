@@ -119,6 +119,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
   const clubSlug = club.slug;
+  const clubName = pickLocalized(club, "name", lang);
 
   const { session } = useAuth();
   const signedIn = session !== null;
