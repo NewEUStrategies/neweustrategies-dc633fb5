@@ -1041,3 +1041,115 @@ describe("panel społeczności - autorytet dostępu", () => {
     expect(source).toMatch(/adminCommunity\.qa\.publishingRequiresAdminRole/);
   });
 });
+
+// Rodzina karier - dwie trasy panelu rekrutacji, które ta bramka do 03.09.2026
+// NIE WIDZIAŁA. Bramka pilnuje autorytetu dostępu przez JAWNE listy rodzin
+// (kluby, newsletter, moduł 19, SEO, społeczność); rodziny karier nie było na
+// żadnej z nich, więc dołożenie w tych trasach własnego - i niezgodnego z bazą -
+// warunku roli przechodziłoby po cichu. Dziurę wykrył `adminHiringRoute.test.tsx`
+// i zapisał jako `it.fails` z kontrolą dodatnią; ta sekcja ją zamyka, a tamten
+// `it.fails` przy najbliższym przebiegu zapali się jako NIEOCZEKIWANIE ZIELONY
+// i wymusi zamianę na zwykły `it` - czyli dokładnie tak, jak ten wzorzec ma
+// działać.
+const CAREERS_ROUTES = ["admin.careers.tsx", "admin.hiring.tsx"] as const;
+
+/** Tabele, do których panel rekrutacji ma prawo pisać WPROST (pod RLS). */
+const CAREERS_TABLES = [
+  "career_application_events",
+  "career_applications",
+  "career_cv_gc_queue",
+  "career_page_sections",
+  "career_roles",
+  "career_settings",
+  "contact_messages",
+  "crm_leads",
+] as const;
+
+/** Migracja zakładająca zakres najemcy i polityki `is_staff()` dla karier. */
+const CAREERS_TENANT_MIGRATION = "supabase/migrations/20260814100000_careers_tenant_scope.sql";
+
+describe("panel rekrutacji - autorytet dostępu", () => {
+  it("obie trasy rodziny karier istnieją", () => {
+    // Kanarek: bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku
+    // i MILCZAŁA, zamiast zapalić się na braku trasy.
+    const present = adminRoutes();
+    for (const file of CAREERS_ROUTES) {
+      expect(present, `brak trasy ${file}`).toContain(file);
+    }
+    // Skan widzi CAŁĄ rodzinę, także trasy dodane po napisaniu tej listy -
+    // inaczej nowy panel rekrutacji wchodziłby poza zasięg bramki bez sygnału.
+    const skan = present.filter(
+      (name) => name.startsWith("admin.careers") || name.startsWith("admin.hiring"),
+    );
+    expect(skan.length).toBe(CAREERS_ROUTES.length);
+  });
+
+  it("dostępu pilnuje layout `/admin` - żadna z tych tras nie udaje własnej bramki", () => {
+    // Rekrutację prowadzi cała redakcja (`isStaff` = admin/editor/author), więc
+    // brak własnego `isAdmin` jest tu POPRAWNY, a nie przeoczony. Zakazany jest
+    // WARUNEK ROLI w trasie, bo to on rozjeżdża się z regułami bazy przy
+    // pierwszej zmianie ról - a tu po drugiej stronie stoją polityki
+    // `career_*_staff_*` pytające `public.is_staff()`.
+    const zRolaWTrasie = CAREERS_ROUTES.filter((file) =>
+      /isAdmin|isSuperAdmin|isStaff/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zRolaWTrasie).toEqual([]);
+    expect(read(ADMIN_LAYOUT)).toMatch(/isStaff/);
+    const sql = read(CAREERS_TENANT_MIGRATION);
+    expect(sql, "polityki karier przestały pytać o `is_staff()`").toContain("public.is_staff()");
+  });
+
+  it("ŻADNA trasa rekrutacji nie sięga po klienta z rolą serwisową", () => {
+    // NAJWAŻNIEJSZY INWARIANT TEJ SEKCJI. Oba panele obracają DANYMI OSOBOWYMI
+    // kandydatów (imię, kontakt, plik CV w prywatnym kubełku). Klient
+    // `service_role` omija RLS W CAŁOŚCI, więc jeden taki import zamieniłby
+    // panel pod polityką najemcy w panel bez granic - i to bez śladu w typach.
+    // Ta reguła nie jest teoretyczna: sąsiedni endpoint `jobs-tick` NAPRAWDĘ
+    // używa `supabaseAdmin`, więc wzorzec jest w repo dostępny „pod ręką".
+    const offenders = CAREERS_ROUTES.filter((file) =>
+      /client\.server|supabaseAdmin/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("trasy rekrutacji nie piszą WPROST do tabel uprzywilejowanych", () => {
+    const zakazane = ["user_roles", "tenants", "role_audit_log", "user_consents"] as const;
+    for (const file of CAREERS_ROUTES) {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      for (const table of zakazane) {
+        expect(source, `${file} pisze wprost do ${table}`).not.toMatch(
+          new RegExp(`from\\("${table}"\\)`),
+        );
+      }
+    }
+  });
+
+  it("zbiór tabel dotykanych przez panel rekrutacji nie rośnie po cichu", () => {
+    // RATCHET ZAKRESU, nie ozdoba. Te trasy budują zapytania W SOBIE (inaczej
+    // niż rodzina społeczności, która schodzi przez `src/lib/admin/*`), więc
+    // nowa tabela pojawia się tu jednym `.from("...")` - bez przeglądu, bez
+    // migracji polityki i bez wpisu w rejestrze własnicielskim. Lista jest
+    // JAWNA, żeby takie poszerzenie wymagało zmiany tej bramki, a więc rozmowy.
+    const dotykane = new Set<string>();
+    for (const file of CAREERS_ROUTES) {
+      for (const match of read(`${ROUTES_DIR}/${file}`).matchAll(/\.from\("([a-z_]+)"\)/g)) {
+        dotykane.add(match[1]);
+      }
+    }
+    expect([...dotykane].sort()).toEqual([...CAREERS_TABLES]);
+  });
+
+  it("plik CV kandydata wychodzi z panelu WYŁĄCZNIE jako krótkotrwały podpis", () => {
+    // Kubełek `career-cv` jest prywatny, a panel nie ma prawa budować adresu
+    // publicznego. `signCvUrl` domyślnie podpisuje na 300 sekund i to jedyna
+    // droga do pliku - `getPublicUrl` w tej ścieżce byłby wyciekiem danych
+    // osobowych do każdego, kto zobaczy adres.
+    const layer = read("src/lib/careers/cvUpload.ts");
+    expect(layer).toMatch(/createSignedUrl\(path, expiresInSeconds\)/);
+    expect(layer).toMatch(/expiresInSeconds\s*=\s*300/);
+    expect(layer, "warstwa CV zaczęła budować adres publiczny").not.toContain("getPublicUrl");
+    const panel = read(`${ROUTES_DIR}/admin.careers.tsx`);
+    expect(panel).toContain("signCvUrl");
+    expect(panel, "panel zaczął budować adres do CV sam").not.toContain("createSignedUrl");
+  });
+});
