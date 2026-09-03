@@ -7,6 +7,7 @@
 // importu - ten sam wzorzec, co przy podziale workspace klubu i watku
 // (bramka `workspaceModuleBoundary.test.ts`).
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import {
   fetchClubBySlug,
   fetchClubGroups,
@@ -72,11 +73,17 @@ export function useClubActivityFeed(params: {
 }
 
 export function useClubBySlug(slug: string | undefined): UseQueryResult<ClubViewRow | null, Error> {
+  // Karta klubu zalezy od TOZSAMOSCI czytajacego: ta sama trasa zwraca inne
+  // `can_read`/`my_role` dla anonima i dla czlonka. Loader trasy dziala bez
+  // sesji (SSR), wiec jego wynik nie moze byc podany zalogowanemu - stad klucz
+  // z widzem i wstrzymanie zapytania, dopoki sesja nie jest rozstrzygnieta
+  // (inaczej przez moment renderowalaby sie bramka dostepu).
+  const { user, loading } = useAuth();
   return useQuery({
-    queryKey: clubKeys.bySlug(slug ?? ""),
+    queryKey: clubKeys.bySlugViewer(slug ?? "", user?.id ?? null),
     queryFn: () => fetchClubBySlug(slug ?? ""),
     staleTime: CLUB_STALE_MS,
-    enabled: Boolean(slug),
+    enabled: Boolean(slug) && !loading,
   });
 }
 
