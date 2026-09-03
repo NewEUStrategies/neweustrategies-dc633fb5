@@ -260,3 +260,60 @@ pliku testowego. Trzy rodziny:
 Poza zakresem tej warstwy zostaje wykonanie polityk RLS i triggerów — jego
 dowód mieszka w `scripts/careers-harness/runtime_test.sql` (CI:
 `check:careers-harness`), a nie w `supabase/tests/`.
+
+---
+
+## 8. Dwie klasy defektu warte przeniesienia na inne moduły
+
+Rewizje adwersaryjne tej kampanii znalazły dwa wzorce, które **wyglądają jak
+dobra praktyka** i przez to są groźniejsze od literału wklejonego w test:
+literał widać w diffie, a tych nie widać wcale. Oba są mechaniczne do
+wyszukania w każdym module.
+
+### 8.1 `t(key)` w asercji jest tautologią, jeśli klucz może zniknąć
+
+i18next dla **brakującego** klucza zwraca **sam klucz**, a komponent renderuje
+`t(key)`. Więc `screen.getByText(t("careers.process.title"))` porównuje napis
+`"careers.process.title"` z napisem `"careers.process.title"` i przechodzi
+także wtedy, gdy klucza w słowniku nie ma wcale. Asercja **udaje** pomiar
+słownika.
+
+Zamknięcie: jeden strażnik na rodzinę kluczy pliku — każda wartość musi się
+różnić od swojego klucza i nie być pusta — plus **kontrola dodatnia**, że klucz
+nieistniejący wraca jako on sam (bez niej dowód przechodzi też wtedy, gdy `t`
+zwraca `undefined` albo pusty napis, a nie dlatego, że słownik jest
+zarejestrowany).
+
+Wyszukanie: `grep -rE 'ByText\(t\(|ByRole\([^)]*name: t\(' src | …` i sprawdzenie,
+czy plik ma gdziekolwiek `not.toBe(<klucz>)`.
+
+### 8.2 `toContain` na `className` nie odróżnia tokenu od podnapisu
+
+`expect(el.className).toContain("-translate-y-0.5")` znajduje ten napis w klasie
+**bazowej** `hover:-translate-y-0.5`. Asercja „wybrany element jest uniesiony"
+była więc zielona dla **każdego** elementu i została zielona po zdjęciu
+`selected && "-translate-y-0.5"` z kodu produkcyjnego. Reguła: sygnał klasowy
+asertujemy `toHaveClass` na całym tokenie.
+
+Wyszukanie: `grep -rE 'className\)?\.toContain\(' src`. Uwaga na fałszywe
+alarmy — kolizja istnieje tylko wtedy, gdy w źródłach naprawdę stoi klasa
+zawierająca ten napis (np. `hover:` / `sm:` / `not-` / wariant z `/40`).
+
+### 8.3 Pokrycie 100% nie jest dowodem — mutacja jest
+
+Na `CareersRoles` + `CareerRoleCard` + `CareerFilterChip` przy **18/18 linii
+i 13/13 funkcji** przeżyło **sześć** mutacji kodu produkcyjnego (zamiana klas
+aktywny ↔ nieaktywny w chipie i w jego liczniku, wycięcie `selected ? … :`
+z dwóch warstw karty, zdjęcie `selected && …`, zdjęcie `aria-hidden`).
+Mechanizm zawsze ten sam: **gałąź była przebiegana** (w jednym renderze stoi
+obok siebie element wybrany i niewybrany), więc licznik pokrycia był
+zaspokojony, ale **skutku nikt nie asertował**.
+
+Na `/admin/hiring` ta sama metoda dała odwrotny, dobry wynik: ośmiokrotna
+mutacja (`onConflict` obu upsertów, `trim()` tytułu, kolejność nowej oferty,
+domyślna flaga publikacji, wybór słownika PL/EN, kolejność `title_pl ||
+title_en` w slugu, warunek aktywnej zakładki) **oblewa 10 testów**.
+
+Wniosek dla następnej kampanii: raport z pokrycia mówi, co zostało
+**wykonane**. Czy cokolwiek jest **dowiedzione**, mówi dopiero mutacja — i to
+ona, a nie procent, powinna zamykać pracę nad modułem.
