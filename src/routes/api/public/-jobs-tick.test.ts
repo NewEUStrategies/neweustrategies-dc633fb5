@@ -33,13 +33,17 @@
 //   4. że niezgodny sekret TEJ SAMEJ długości odpada bez pracy, a o odmowie
 //      decyduje WERDYKT `secretsEqual`, nie porównanie operatorem w trasie,
 //   5. że limiter jest po ADRESIE klienta (`clientIpFromHeaders`: pierwszy wpis
-//      `x-forwarded-for`, potem `x-real-ip`, na końcu wspólny kubełek) i stoi
-//      PRZED bramką sekretu oraz przed odczytem tabeli,
+//      `x-forwarded-for`, potem `x-real-ip`, na końcu wspólny kubełek) i jest
+//      PIERWSZĄ bramką: żeton pobiera KAŻDE żądanie, także to bez nagłówka
+//      sekretu - więc anonimowe młócenie endpointu też ma cenę,
 //   6. że na ścieżce szczęśliwej dyspozytor dostaje klienta service role
 //      (tożsamość obiektu) i źródło znormalizowane przez
 //      `normalizeSchedulerSource`, z `pg_cron` jako domyślnym,
 //   7. że odpowiedź 200 niesie DOKŁADNIE wynik ticku jako JSON,
-//      z `Content-Type: application/json` i `Cache-Control: no-store`.
+//      z `Content-Type: application/json` i `Cache-Control: no-store`,
+//   8. że moduły SERVER-ONLY wchodzą do handlera wyłącznie przez `await
+//      import(...)`, a nie górnym importem pliku trasy - to jedyna właściwość
+//      tej trasy NIEWIDOCZNA w runtime testu (patrz warstwa statyczna niżej).
 //
 // JAK ASERTUJEMY. Przez SKUTEK, nie przez kod odpowiedzi. `401` jest zgodny
 // również ze światem, w którym endpoint najpierw wysłał całą kolejkę, a dopiero
@@ -48,6 +52,17 @@
 // zawołany, czy tabela ustawień była w ogóle czytana i czy sekret trafił do
 // porównania - a kod odpowiedzi sprawdzamy tam, gdzie jest jedynym kontraktem
 // (401 / 429 / 200 + nagłówki).
+//
+// DWIE WARSTWY (jak w `src/routes/platform/email/-preview-secrets.test.ts`).
+// Warstwa ZACHOWANIA to 95% tego pliku. Ale `vi.mock` podstawia moduł
+// niezależnie od tego, czy trasa importuje go górnym `import`, czy `await
+// import(...)` w handlerze - te dwa światy są w runtime testu NIEROZRÓŻNIALNE,
+// a różnią się tym, czy kod service role / Resend / VAPID wchodzi do bundla
+// przeglądarki (drzewo tras jest importowane też po stronie klienta). Ta jedna
+// właściwość jest więc mierzona na TREŚCI ŹRÓDŁA, a nie na zachowaniu. Tam
+// mieszka też dowód WIERNOŚCI atrapy `secretsEqual` - bo atrapa jest tu
+// instrumentem pomiarowym i jej rozjazd z prawdziwym helperem unieważniłby
+// punkt 4, a nie zapaliłby żadnego testu.
 //
 // CO JEST ATRAPOWANE I DLACZEGO (granica atrapy = moduł z własnym dowodem):
 //   * `@tanstack/react-start/server` (`getRequest`) - w teście nie ma runtime'u
@@ -64,7 +79,9 @@
 //     dla cyklu pracy, pgTAP dla `record_job_run` i claimów SKIP LOCKED).
 //     Atrapa `secretsEqual` jest WIERNA: powtarza porównanie długości PRZED
 //     `timingSafeEqual`, bo bez tego strażnika sekret innej długości kończyłby
-//     się `RangeError` (500) zamiast 401 - i test na wiernej atrapie to widzi.
+//     się `RangeError` (500) zamiast 401. Wierność nie jest tu deklaracją -
+//     warstwa statyczna sprawdza, że prawdziwy helper naprawdę ma ten strażnik
+//     i naprawdę porównuje przez `timingSafeEqual`.
 // PRAWDZIWE zostają: limiter (`@/lib/http/rateLimit` - `createRateLimiter`,
 // `tickBucket`, `clientIpFromHeaders`) i `normalizeSchedulerSource`
 // (`@/lib/jobs/scheduler`). To one są tutaj przedmiotem dowodu: ich atrapowanie
@@ -100,11 +117,33 @@
 //       do `job_runner_runs`. Fail-loud jest tu obronny (pg_net i tak ignoruje
 //       odpowiedź), ale diagnoza takiej awarii nie ma śladu w bazie - dowodem
 //       jest tu asercja na PROPAGACJI wyjątku.
-//   Z3. Prawdziwy `secretsEqual` (strażnik długości przed `timingSafeEqual`)
-//       nie ma własnego testu jednostkowego w repo - najbliższy dowód jest
-//       statyczny (`-preview-secrets.test.ts`) i dotyczy innych tras. Ten plik
-//       tej luki nie zamyka (moduł jest tu atrapowany), tylko ją nazywa;
-//       wierność atrapy jest warunkiem sensu dowodu z punktu 4.
+//   Z3. Prawdziwy `secretsEqual` nie ma w repo testu, który by go WYKONAŁ:
+//       wszystkie cztery pliki wołające ten moduł atrapują go
+//       (`-preview-secrets.test.ts`, `-preview-render.test.ts`,
+//       `queue/-process.test.ts`, ten plik). Wykonania nie da się dołożyć
+//       tutaj: `jobsTick.server` ciągnie górnymi importami `queueDrain.server`,
+//       `newsletter-campaigns.functions`, dispatcher powiadomień i
+//       `jobScheduler.server`, więc `importActual` zamieniłby test trasy
+//       w test całej maszyny wysyłkowej. Ten plik zamyka natomiast PREMISĘ
+//       swojego dowodu: statycznie sprawdza, że helper ma strażnik długości
+//       przed `timingSafeEqual` (czyli że atrapa go nie upiększa).
+//       Brakujący dowód: test jednostkowy przy samym helperze.
+//
+// REWIZJA ADWERSARYJNA (03.09.2026, mutanty puszczone na prawdziwym źródle).
+// Warstwa zachowania okazała się odporna - mutanty `provided !== settings.secret`
+// (zabity 4 testami), odwrócony limiter, `capacity`/`refillPerSec`, klucz
+// kubełka bez `clientIpFromHeaders`, brak `await`, podmiana klienta na
+// anonimowego, `single()` zamiast `maybeSingle()`, `eq("id", 2)` - wszystkie
+// padają. PRZEŻYŁY dokładnie dwa i to one są powodem dwóch nowych dowodów:
+//   * zamiana trzech `await import(...)` na importy GÓRNE - 37/37 zielone,
+//     bo `vi.mock` nie widzi różnicy (stąd warstwa statyczna, punkt 8),
+//   * przestawienie sprawdzenia `!provided` PRZED limiter - 37/37 zielone,
+//     bo żaden test nie płacił żetonem za żądanie BEZ sekretu (stąd dowód
+//     „limiter jest PIERWSZĄ bramką").
+// Trzeci defekt był w samym teście: dowód „sekret innej długości daje 401"
+// mierzył strażnik ATRAPY i nazywał to zachowaniem trasy. Rozdzielony:
+// zachowanie trasy (nieobcięty sekret idzie do helpera, werdykt decyduje)
+// i wierność atrapy (statycznie, na źródle helpera).
 //
 // RODO. Zero prawdziwych osób i treści: sekrety są losowane w każdym przebiegu
 // (`node:crypto`) i nie ma ich w repo ani w logu; adresy IP - dane osobowe -
@@ -112,6 +151,7 @@
 // TEST-NET-2 (198.51.100.0/24, RFC 5737), więc nie należą do nikogo.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { SupabaseFromStub } from "@/test/supabaseChain";
 import type { JobsTickResult } from "@/lib/server/jobsTick.server";
 import type { SchedulerSource } from "@/lib/jobs/scheduler";
@@ -337,11 +377,14 @@ async function drainBucket(ip: string): Promise<void> {
 // POWIERZCHNIA TRASY
 // ===========================================================================
 describe("powierzchnia trasy /api/public/jobs-tick", () => {
-  it("wystawia WYŁĄCZNIE POST - sonda GET nie potrafi uruchomić ticku", () => {
+  it("rejestruje WYŁĄCZNIE handler POST - GET nie ma tu czego wywołać", () => {
     // To nie kosmetyka: gdyby tick dał się odpalić GET-em, każdy uptime robot
     // (i każdy prefetch linku) stałby się drugim harmonogramem, a sekret
-    // wylądowałby w query stringu logów proxy.
+    // wylądowałby w query stringu logów proxy. `routeServerHandlers` zwraca
+    // ten sam obiekt, który dostaje framework, więc brak klucza `GET` znaczy
+    // brak trasy dla GET - nie ma czego wywołać sondą.
     expect(Object.keys(handlers)).toEqual(["POST"]);
+    expect(handlers.GET).toBeUndefined();
   });
 });
 
@@ -487,10 +530,14 @@ describe("bramka sekretu: porównanie w stałym czasie", () => {
     expect(jobs.secretChecks).toEqual([[SECRET, SECRET]]);
   });
 
-  it("sekret INNEJ długości kończy się 401, a nie wyjątkiem `timingSafeEqual`", async () => {
-    // `crypto.timingSafeEqual` RZUCA `RangeError` na buforach różnej długości.
-    // Bez strażnika `bufA.length === bufB.length` w helperze ta ścieżka dałaby
-    // 500, czyli wyciek sygnału „twój sekret ma inną długość niż prawdziwy".
+  it("sekret INNEJ długości idzie do helpera NIEOBCIĘTY - trasa nie mierzy długości sama", async () => {
+    // Uczciwa granica tego dowodu: to, że różnica długości nie kończy się
+    // `RangeError` z `timingSafeEqual` (czyli 500 i wyciek sygnału „twój sekret
+    // ma inną długość niż prawdziwy"), jest własnością HELPERA, a helper jest
+    // tu atrapą - taki test mierzyłby własną atrapę. Mierzalne w tej warstwie
+    // jest to, że trasa nie ma ŻADNEJ własnej gałęzi na długość: podaje sekret
+    // w całości, a o odmowie decyduje werdykt. Strażnik długości w prawdziwym
+    // helperze jest sprawdzony w warstwie statycznej na końcu pliku.
     const krotki = SECRET.slice(0, 7);
     expect(krotki.length).not.toBe(SECRET.length);
 
@@ -499,6 +546,20 @@ describe("bramka sekretu: porównanie w stałym czasie", () => {
     expect(res.status).toBe(401);
     nicSieNieStalo();
     expect(jobs.secretChecks).toEqual([[krotki, SECRET]]);
+  });
+
+  it("sekret DŁUŻSZY o prefiks też idzie w całości - żadnego obcinania po drodze", async () => {
+    // Mutant, który ten test zabija: `provided.slice(0, settings.secret.length)`
+    // (albo zdjęcie prefiksu `Bearer `) - czyli defekt K9 z bliźniaczych tras
+    // podglądu poczty. Po takiej zmianie sekret z dopiskiem przechodziłby jak
+    // prawdziwy, a tu widać, że do porównania idzie napis DOKŁADNIE z nagłówka.
+    const zDopiskiem = `${SECRET}-dopisek`;
+
+    const res = await post({ secret: zDopiskiem });
+
+    expect(res.status).toBe(401);
+    nicSieNieStalo();
+    expect(jobs.secretChecks).toEqual([[zDopiskiem, SECRET]]);
   });
 });
 
@@ -549,6 +610,28 @@ describe("limiter po adresie klienta", () => {
     expect(res.status).toBe(429);
     expect(settingsReads()).toBe(odczyty);
     expect(jobs.secretChecks).toHaveLength(porownania);
+    nicSieNieStalo();
+  });
+
+  it("limiter jest PIERWSZĄ bramką: żeton pobiera też żądanie BEZ nagłówka sekretu", async () => {
+    // Mutant, który przeżył całą resztę tego pliku (sprawdzone): przestawienie
+    // `if (!provided) return 401` PRZED `limiter.check(...)`. Wtedy anonimowe
+    // młócenie endpointu - bez nagłówka, więc bez żadnego kosztu poznawczego
+    // dla napastnika - jest DARMOWE i nie zostawia śladu w kubełku, a legalny
+    // tick z tego samego adresu (za NAT-em: cała sieć) nadal ma pełny zapas.
+    // Kontrakt jest odwrotny: żeton pobiera KAŻDE żądanie.
+    const ip = "198.51.100.19";
+    for (let i = 0; i < CAPACITY; i += 1) {
+      const res = await post({ secret: null, ip });
+      expect(res.status).toBe(401);
+    }
+    // Kubełek jest wyczerpany samymi 401-kami, a nie pracą: nic się nie stało.
+    nicSieNieStalo();
+    expect(settingsReads()).toBe(0);
+
+    const res = await tick({ ip });
+
+    expect(res.status).toBe(429);
     nicSieNieStalo();
   });
 
@@ -603,21 +686,28 @@ describe("limiter po adresie klienta", () => {
     expect(res.status).toBe(429);
   });
 
-  it("dolewka to 0,5 żetonu/s: po 1 s wciąż 429, po 2 s tick przechodzi", async () => {
+  it("dolewka to 0,5 żetonu/s: po 1 s wciąż 429, po 2 s żeton wrócił i tick przechodzi", async () => {
     // Dowód, że limit jest KUBEŁKIEM (dolewanym w czasie), a nie licznikiem
     // „10 na zawsze": po odblokowaniu ścieżka podstawowa musi wrócić sama,
-    // bez restartu workera.
+    // bez restartu workera. Granice są DOKŁADNE (0,5 i 1,0 żetonu to wartości
+    // ścisłe w IEEE754), więc test mierzy stawkę dolewki, a nie „kiedyś się
+    // odblokuje": przy szybszej dolewce zapali się krok +1 s, przy wolniejszej
+    // krok +2 s.
     const ip = "198.51.100.18";
     await drainBucket(ip);
     expect((await tick({ ip })).status).toBe(429);
 
+    // +1 s = 0,5 żetonu - za mało na przepustkę.
     vi.setSystemTime(new Date(NOW.getTime() + 1_000));
     expect((await tick({ ip })).status).toBe(429);
 
-    vi.setSystemTime(new Date(NOW.getTime() + 3_000));
+    // +2 s = pełny żeton (0,5 z poprzedniej próby + 0,5 z tej sekundy).
+    vi.setSystemTime(new Date(NOW.getTime() + 2_000));
     const res = await tick({ ip });
 
     expect(res.status).toBe(200);
+    // Skutek, nie tylko kod: po odblokowaniu tick NAPRAWDĘ znów pracuje.
+    expect(jobs.calls).toHaveLength(CAPACITY + 1);
   });
 });
 
@@ -733,5 +823,80 @@ describe("odpowiedź ticku", () => {
 
     await expect(tick()).rejects.toThrow("job_runner_runs unreachable");
     expect(jobs.calls).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// WARSTWA STATYCZNA: DWIE WŁAŚCIWOŚCI NIEWIDOCZNE W RUNTIME TEGO PLIKU
+// ===========================================================================
+// Nie jest to ozdoba ani obejście - to jedyne miejsce, w którym te dwie rzeczy
+// dają się zmierzyć, bo `vi.mock` zaciera właśnie tę różnicę (patrz nagłówek,
+// sekcja „DWIE WARSTWY"). Wzorzec jest w repo ustalony:
+// `src/routes/platform/email/-preview-secrets.test.ts`.
+const ROUTE_FILE = "src/routes/api/public/jobs-tick.ts";
+const TICK_MODULE_FILE = "src/lib/server/jobsTick.server.ts";
+
+/** Moduły zaimportowane GÓRNYM `import ... from "..."` (poza handlerem). */
+function importyGorne(source: string): string[] {
+  return [...source.matchAll(/^import\s[\s\S]*?from\s+"([^"]+)";$/gm)].map((m) => m[1]!);
+}
+
+describe("źródło trasy: granica server-only", () => {
+  const source = readFileSync(ROUTE_FILE, "utf8");
+
+  // Sanity pomiaru: czytamy ten plik, który testujemy, a nie pustkę.
+  it("czyta źródło TEJ trasy i widzi w nim handler POST", () => {
+    expect(source).toContain('createFileRoute("/api/public/jobs-tick")');
+    expect(source).toContain("POST:");
+  });
+
+  it.each([
+    ["@/lib/server/jobsTick.server", "dyspozytor ticku (service role, Resend, VAPID)"],
+    ["@/integrations/supabase/client.server", "klient service role"],
+  ])("moduł server-only `%s` wchodzi TYLKO przez `await import(...)` w handlerze", (modul) => {
+    // Import GÓRNY tego modułu w pliku trasy wciąga kod server-only do bundla
+    // klienta (drzewo tras importuje pliki tras także po stronie przeglądarki)
+    // albo wywraca build ochroną importów TanStacka. W runtime testu tej
+    // zmiany NIE WIDAĆ: atrapa odpowiada identycznie w obu wariantach.
+    expect(source).toContain(`await import("${modul}")`);
+    expect(importyGorne(source)).not.toContain(modul);
+  });
+
+  it("żaden import GÓRNY pliku trasy nie sięga po kod server-only", () => {
+    // Reguła, nie lista: dowolny nowy `*.server` / `lib/server/` na górze tego
+    // pliku ma zapalić ten test, nawet jeśli nikt nie doda mu dowodu wyżej.
+    const gorne = importyGorne(source);
+    expect(gorne).not.toEqual([]);
+    expect(gorne.filter((m) => /\.server$|\/server\//.test(m))).toEqual([]);
+  });
+});
+
+describe("wierność atrapy `secretsEqual` (premisa dowodu o bramce sekretu)", () => {
+  const helper = readFileSync(TICK_MODULE_FILE, "utf8");
+  const podpis = "export async function secretsEqual";
+  const cialo = helper.slice(helper.indexOf(podpis));
+
+  it("prawdziwy helper ISTNIEJE i jest asynchroniczny - atrapa nie wymyśla API", () => {
+    // Gdyby helper zniknął albo przestał być `async`, atrapa dalej udawałaby
+    // go bez szemrania, a cała bramka sekretu byłaby dowodzona na fikcji.
+    expect(helper).toContain(podpis);
+    expect(cialo).toContain("(a: string, b: string): Promise<boolean>");
+  });
+
+  it("prawdziwy helper strzeże DŁUGOŚCI przed `timingSafeEqual` - tak jak atrapa", () => {
+    // To jest warunek sensu dowodu „sekret innej długości daje 401, nie 500":
+    // `crypto.timingSafeEqual` rzuca `RangeError` na buforach różnej długości.
+    // Atrapa powtarza dokładnie tę linię; tutaj sprawdzamy, że powtarza
+    // PRAWDĘ, a nie życzenie autora testu.
+    expect(cialo).toContain("bufA.length === bufB.length && timingSafeEqual(bufA, bufB)");
+  });
+
+  it("prawdziwy helper porównuje przez `node:crypto`, a nie operatorem", () => {
+    // Powrót do `return a === b` przeszedłby CAŁĄ warstwę zachowania tego
+    // pliku (atrapa jest podstawiona), a zabrałby stałoczasowość - jedyną
+    // rzecz, po którą ten helper istnieje.
+    expect(cialo).toContain('await import("node:crypto")');
+    expect(cialo).toContain("Buffer.from(a)");
+    expect(cialo).not.toMatch(/return\s+a\s*===\s*b/);
   });
 });

@@ -116,6 +116,16 @@
  * fallbackuje na `title_en` - przy ofercie tylko angielskiej operator nie
  * widzi adresu, który zostanie zapisany.
  *
+ * ZNALEZISKO I (DEFEKT PRODUKCYJNY, PASEK ZAKŁADEK BEZ SEMANTYKI).
+ * Trzy zakładki to trzy `<button type="button">` bez `role="tab"`,
+ * `aria-selected` i bez kontenera `role="tablist"`. Aktywną zakładkę zdradza
+ * WYŁĄCZNIE klasa obwódki, więc czytnik ekranu nie ma z czego powiedzieć,
+ * którą z trzech tabel operator właśnie edytuje. axe tego nie łapie (trzy
+ * poprawnie nazwane przyciski to dla niego poprawny dokument) - i to jest
+ * granica dowodu z `axeViolations`, którą warto znać. Zachowanie istniejące
+ * (klasa jako jedyny sygnał) jest zaasertowane, kontrakt oczekiwany stoi
+ * w `it.fails` „pasek zakładek mówi technologiom asystującym...".
+ *
  * ZNALEZISKO G (DEFEKT PRODUKCYJNY, UTRATA NIEZAPISANYCH ZMIAN W SEKCJACH).
  * `SectionsTab` kopiuje `rows` do stanu lokalnego efektem na `[rows]`, a każdy
  * zapis dowolnej sekcji unieważnia klucz `career-page-sections`. Refetch
@@ -123,10 +133,29 @@
  * więc zapis sekcji A cicho kasuje niezapisane zmiany w sekcji B.
  *
  * ---------------------------------------------------------------------------
+ * JAK CZYTAMY AUTORYTET BAZY: OSTATNIA DEFINICJA, NIE PIERWSZA
+ * ---------------------------------------------------------------------------
+ * Twierdzenia o politykach RLS liczą się z CAŁEGO katalogu migracji (935
+ * plików), a nie z pliku, który politykę wprowadził. Powód jest zmierzony:
+ * `career_roles_staff_*` i `career_sections_staff_*` są definiowane TRZY RAZY
+ * (20260813224302, 20260814100000, 20260814122639), `career_settings_*` DWA
+ * (20260814110000, 20260814123014), a `career_sections_public_read` cztery
+ * (ostatni raz w 20260818061944). Asercja czytająca JEDEN plik świeciłaby więc
+ * na zielono także wtedy, gdyby PÓŹNIEJSZA migracja rozluźniła politykę do
+ * `USING (true)` - mierzyłaby historię, nie stan obowiązujący. Dlatego
+ * `effectivePolicy(nazwa)` i `effectiveView(nazwa)` przechodzą migracje
+ * w kolejności nazw (= czasu stosowania) i oddają OSTATNIĄ definicję, a brak
+ * definicji jest błędem testu, nie cichym zerem.
+ * Twierdzenia o DDL (indeks unikalny `(tenant_id, slug)`, DEFAULT najemcy,
+ * klucz główny `(tenant_id, key)`, CHECK-i retencji) zostają przy pliku, który
+ * je wprowadził: tam mieszka ich wywód, a ich stan obowiązujący sprawdza REPLAY
+ * całego zestawu w `scripts/careers-harness/`.
+ *
+ * ---------------------------------------------------------------------------
  * CO JEST PRZEDMIOTEM DOWODU
  * ---------------------------------------------------------------------------
  * `head()` (tytuł karty + `noindex`); dwujęzyczność panelu PL/EN wraz
- * z tym, skąd bierze się język; kształt ŁADUNKU każdego z pięciu zapisów
+ * z tym, skąd bierze się język; kształt ŁADUNKU każdego z sześciu zapisów
  * (update oferty, insert oferty, delete oferty, upsert importu, upsert sekcji,
  * upsert retencji) - pole po polu, z `onConflict` włącznie; brak filtra
  * najemcy na odczytach (autorytet = RLS) przy JAWNYM najemcy na zapisach
@@ -164,10 +193,62 @@
  *   * zgłoszenia kandydatów (`/admin/careers`) - osobna trasa, osobny plik.
  *
  * RODO: żadnych prawdziwych osób ani treści. Nazwy ofert, tytuły i teksty są
- * zmyślone, identyfikatory najemcy i użytkownika sztuczne, adresy wyłącznie
- * `@example.com`.
+ * zmyślone, identyfikatory najemcy i operatora sztuczne. Adresu e-mail nie ma
+ * tu ANI JEDNEGO i nie ma go z czego wziąć: ta powierzchnia redaguje OGŁOSZENIA
+ * i politykę retencji, a dane kandydatów mieszkają w /admin/careers. Reguła
+ * „adresy wyłącznie `@example.com`" jest więc spełniona przez brak.
+ *
+ * ---------------------------------------------------------------------------
+ * REWIZJA ADWERSARYJNA 03.09.2026 (co w tym pliku było słabsze, niż obiecywał)
+ * ---------------------------------------------------------------------------
+ * Rewizja szła założeniem, że autor hodował pokrycie, i zamknęła sześć miejsc,
+ * w których nazwa `it(...)` obiecywała więcej niż ciało:
+ *   1. „trasa wisi pod /admin" dowodziła tego tautologią na STAŁEJ TESTU
+ *      (`PATH.startsWith("/admin/")`) - dziś oba końce relacji (identyfikator
+ *      tej trasy i identyfikator układu) są czytane ZE ŹRÓDŁA.
+ *   2. Autorytet obu tabel treściowych i `career_settings` był czytany
+ *      z migracji WPROWADZAJĄCEJ, czyli z pliku, który późniejsza migracja już
+ *      nadpisała - patrz sekcja o `effectivePolicy` wyżej.
+ *   3. „bramka rodzin tras WIDZI admin.hiring" przechodziło na `toContain`
+ *      po całym pliku, więc wystarczyłaby WZMIANKA W KOMENTARZU; dziś liczy się
+ *      wystąpienie w liście `CAREERS_ROUTES`, po której biegną tamte pętle.
+ *   4. „wartość niebędącą liczbą sprowadza do zera" mierzyło puste pole.
+ *      Sonda pokazała, że `<input type="number">` sam blankuje napis
+ *      nie-liczbę, więc test asertuje teraz OBA kroki tej drogi.
+ *   5. „slug wylicza się z tytułu PL, a gdy PL nie ma - z EN" dowodziło TYLKO
+ *      gałęzi EN (gałąź PL nie jest wymagana do 100% gałęzi, bo v8 nie liczy
+ *      pominiętej prawej strony `||` jako osobnej gałęzi) - rozdzielone na dwa
+ *      testy, każdy ze swoim ładunkiem.
+ *   6. „panel nie dokłada nic do wierszy z bazy" liczyło tylko przyciski;
+ *      dziś sprawdza WPROST, że żaden tytuł katalogu wbudowanego nie wchodzi
+ *      na listę bez importu.
+ *   7. „sekcje czyta z TABELI, bo widok kasowałby brudnopis" dowodziło tylko
+ *      pierwszej połowy zdania; druga jest twierdzeniem o WIDOKU i dziś czyta
+ *      jego obowiązującą definicję (`CASE WHEN s.is_visible THEN ...`).
+ *   8. Kontrola dodatnia pgTAP mówiła „u dwóch najemców", a sprawdzała samo
+ *      słowo `tenants` - dziś żąda obu podmiotów seeda.
+ *   9. `it.fails` o progu roli w uprzęży dawał się zaspokoić SŁOWEM „editor"
+ *      w komentarzu (uprząż ma je trzy razy, w nazwie `is_admin_or_editor()`);
+ *      dziś celuje w INSERT do `user_roles` z tą rolą.
+ * Dołożone dowody: oznaczenie aktywnej zakładki (renderowane, ale wcześniej
+ * niezaasertowane - stąd ZNALEZISKO I i jego marker) oraz gałąź PL slugu.
+ * Higiena: `window.confirm` jest oddawany w `afterEach` (atrapa nie przeżywa
+ * pliku), a ładunek importu chodzi przez STRAŻNIKA `importedRows()` zamiast
+ * przez `expect(Array.isArray(rows)).toBe(true)` i rzutowanie.
+ *
+ * CZEGO REWIZJA NIE ZNALAZŁA (i szukała): `it(...)` bez asercji, asercji
+ * `toBeDefined`/`not.toThrow` jako całego dowodu, pętli renderującej fixture
+ * bez asercji na skutek, atrapy zjadającej przedmiot dowodu (i18n, react-query,
+ * router, `@/lib/tenant` i warstwa katalogu ZOSTAJĄ prawdziwe, a supabase jest
+ * atrapowany na poziomie łańcucha, więc ładunek i ogniwa są widoczne), napisów
+ * z literału tam, gdzie istnieje słownik, ani zależności od zegara, kolejności
+ * plików czy niedomkniętych timerów. Ośmiokrotna mutacja kodu produkcyjnego
+ * (`onConflict` obu upsertów, `trim()` tytułu, kolejność nowej oferty, domyślna
+ * flaga publikacji, wybór słownika PL/EN, kolejność `title_pl || title_en`
+ * w slugu, warunek aktywnej zakładki) obala dziesięć testów tego pliku - żadna
+ * z tych zmian nie przechodzi tu po cichu.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
@@ -255,6 +336,50 @@ function read(path: string): string {
   return readFileSync(path, "utf8");
 }
 
+const MIGRATIONS_DIR = "supabase/migrations";
+/** Treść migracji dotykających modułu karier - czytana RAZ na plik testowy. */
+let careerMigrationSql: string[] | null = null;
+
+function careerMigrationSources(): string[] {
+  careerMigrationSql ??= readdirSync(MIGRATIONS_DIR)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => readFileSync(`${MIGRATIONS_DIR}/${name}`, "utf8"))
+    .filter((sql) => sql.includes("career_"));
+  return careerMigrationSql;
+}
+
+/**
+ * OSTATNIA definicja obiektu zaczynającego się danym nagłówkiem DDL - czyli
+ * ta, która OBOWIĄZUJE.
+ *
+ * Sortowanie po nazwie pliku = sortowanie po czasie stosowania (nazwy migracji
+ * są znacznikami czasu), a `DROP ... IF EXISTS` + `CREATE ...` w każdym
+ * kolejnym pliku sprawia, że liczy się wyłącznie definicja najpóźniejsza.
+ * Brak definicji to BŁĄD TESTU, nie pusty napis - inaczej `toContain` na pustce
+ * oblałby się z niezrozumiałym komunikatem, a `not.toContain` przeszedłby.
+ */
+function lastDefinition(start: string, what: string): string {
+  const found = careerMigrationSources().flatMap((sql) =>
+    [...sql.matchAll(new RegExp(`${start}[\\s\\S]*?;`, "g"))].map((match) => match[0]),
+  );
+  const last = found.at(-1);
+  if (last === undefined) {
+    throw new Error(`test: żadna migracja nie definiuje ${what}`);
+  }
+  return last;
+}
+
+/** Obowiązująca definicja polityki RLS o danej nazwie. */
+function effectivePolicy(name: string): string {
+  return lastDefinition(`CREATE POLICY ${name}\\b`, `polityki „${name}"`);
+}
+
+/** Obowiązująca definicja widoku publicznego. */
+function effectiveView(name: string): string {
+  return lastDefinition(`CREATE VIEW public\\.${name}\\b`, `widoku „${name}"`);
+}
+
 /**
  * Słownik TEJ trasy - świadomie literały.
  *
@@ -277,6 +402,8 @@ const PANEL = {
   tabSectionsEn: "Page sections",
   tabRetentionEn: "CV retention",
   add: "Nowa oferta",
+  /** `L.newRole` - inny klucz słownika niż `L.add`, choć dziś ten sam napis. */
+  newRole: "Nowa oferta",
   importI18n: "Importuj wbudowane oferty",
   imported: "Zaimportowano wbudowane oferty.",
   save: "Zapisz",
@@ -503,6 +630,26 @@ function payload(table: string, link: string): Record<string, unknown> {
   return first as Record<string, unknown>;
 }
 
+/**
+ * Wiersze przekazane do `upsert` na `career_roles`, czyli ładunek importu.
+ *
+ * STRAŻNIK, nie rzutowanie: `upsert` importu bierze TABLICĘ (inaczej niż
+ * pozostałe zapisy tego ekranu), więc `payload()` by ją odrzucił - a brak
+ * tablicy to błąd testu, nie puste wyliczenie, po którym pętla asercji
+ * przechodzi na zielono, nie sprawdzając niczego.
+ */
+function importedRows(): Array<Record<string, unknown>> {
+  const rows = db()
+    .chainsFor("career_roles")
+    .filter((item) => item.has("upsert"))
+    .at(-1)
+    ?.argsOf("upsert")?.[0];
+  if (!Array.isArray(rows)) {
+    throw new Error("test: import nie przekazał tablicy wierszy do `upsert`");
+  }
+  return rows as Array<Record<string, unknown>>;
+}
+
 /** Opcje `onConflict` przekazane do `upsert`. */
 function upsertOptions(table: string): Record<string, unknown> {
   const chain = db()
@@ -566,6 +713,10 @@ beforeEach(() => {
 
 afterEach(async () => {
   cleanup();
+  // `window.confirm` był podmieniony WŁASNOŚCIĄ okna, więc go oddajemy: atrapa
+  // przeżywająca plik jest dokładnie tym rodzajem niedomkniętego stanu, który
+  // każe kolejnemu plikowi zgadywać, czy okno pyta, czy odpowiada samo.
+  Reflect.deleteProperty(window, "confirm");
   // Język jest stanem GLOBALNYM instancji i18n - test dwujęzyczny musi go
   // oddać, inaczej kolejny plik dostaje panel po angielsku.
   if (i18n.language !== "pl") await i18n.changeLanguage("pl");
@@ -591,10 +742,16 @@ describe("/admin/hiring - sklejenie trasy", () => {
     expect(meta()).toContainEqual({ name: "robots", content: "noindex" });
   });
 
-  it("trasa wisi pod `/admin`, więc chroni ją bramka `isStaff` z układu nadrzędnego", () => {
-    const source = read(ROUTE_FILE);
-    expect(source).toMatch(/createFileRoute\("\/admin\/hiring"\)/);
-    expect(PATH.startsWith("/admin/")).toBe(true);
+  it("trasa rejestruje się jako DZIECKO układu `/admin` - stąd bierze jego bramkę", () => {
+    // Zagnieżdżenie NIE jest domysłem z nazwy pliku i nie wolno go dowodzić
+    // `PATH.startsWith("/admin/")`: to asercja na stałej TEGO TESTU, prawdziwa
+    // nawet wtedy, gdy trasa przestanie wisieć pod układem. Oba końce relacji
+    // czytamy więc ze ŹRÓDEŁ: identyfikator tej trasy i identyfikator układu.
+    const routeId = read(ROUTE_FILE).match(/createFileRoute\("([^"]+)"\)/)?.[1];
+    const layoutId = read(ADMIN_LAYOUT).match(/createFileRoute\("([^"]+)"\)/)?.[1];
+    expect(routeId).toBe(PATH);
+    expect(layoutId).toBe("/admin");
+    expect(routeId?.startsWith(`${layoutId}/`)).toBe(true);
   });
 
   it("ta trasa NIE bramkuje dostępu sama - renderuje się bez pytania o rolę", async () => {
@@ -649,12 +806,20 @@ describe("/admin/hiring - sklejenie trasy", () => {
    * KONTROLA DODATNIA stoi w teście obok, żeby ten dowód nie przechodził
    * z powodu zepsutego wzorca odczytu.
    */
-  it("bramka rodzin tras panelu WIDZI rodzinę `admin.hiring`", () => {
-    expect(read(AUTHORITY_GATE)).toContain("admin.hiring.tsx");
+  it("bramka rodzin tras panelu WIDZI rodzinę `admin.hiring` na swojej LIŚCIE", () => {
+    // NIE `toContain` po całym pliku: tamten plik wspomina `admin.hiring.tsx`
+    // także w prozie komentarza, więc taka asercja świeciłaby na zielono przy
+    // bramce, która tej trasy nie sprawdza. Liczy się wystąpienie w liście
+    // rodziny, bo TYLKO po niej biegną tam pętle asercji.
+    expect(read(AUTHORITY_GATE)).toMatch(
+      /const CAREERS_ROUTES = \[[^\]]*"admin\.hiring\.tsx"[^\]]*\]/,
+    );
   });
 
-  it("kontrola dodatnia: ten sam odczyt ZNAJDUJE w bramce rodzinę newslettera", () => {
-    expect(read(AUTHORITY_GATE)).toContain("admin.newsletter.tsx");
+  it("kontrola dodatnia: ten sam odczyt ZNAJDUJE listę rodziny newslettera", () => {
+    expect(read(AUTHORITY_GATE)).toMatch(
+      /const NEWSLETTER_ROUTES = \[[^\]]*"admin\.newsletter\.tsx"[^\]]*\]/,
+    );
   });
 });
 
@@ -665,8 +830,10 @@ describe("/admin/hiring - sklejenie trasy", () => {
 describe("/admin/hiring - autorytet zapisu: panel kontra polityki bazy", () => {
   it("treść ofert i sekcji wymaga w bazie DOKŁADNIE tego, co wpuszcza layout", () => {
     // Zgodność, której nie wolno stracić: obie tabele treściowe pytają
-    // `public.is_staff()`, czyli o to samo, co bramka `/admin`.
-    const sql = read(TENANT_MIGRATION);
+    // `public.is_staff()`, czyli o to samo, co bramka `/admin`. Czytamy
+    // OBOWIĄZUJĄCĄ (ostatnią) definicję każdej z pięciu polityk - asercja na
+    // migracji wprowadzającej przechodziłaby także po jej rozluźnieniu
+    // w pliku późniejszym (patrz nagłówek, sekcja o `effectivePolicy`).
     for (const policy of [
       "career_roles_staff_write",
       "career_roles_staff_update",
@@ -674,11 +841,18 @@ describe("/admin/hiring - autorytet zapisu: panel kontra polityki bazy", () => {
       "career_sections_staff_write",
       "career_sections_staff_update",
     ]) {
-      expect(sql, `zniknęła polityka ${policy}`).toContain(policy);
+      const sql = effectivePolicy(policy);
+      expect(sql, `polityka ${policy} nie pyta o public.is_staff()`).toContain("public.is_staff()");
+      expect(sql, `polityka ${policy} nie zawęża najemcy`).toContain(
+        "tenant_id = public.current_tenant_id()",
+      );
     }
-    expect(sql).toMatch(
+    // Zapis potrzebuje WITH CHECK, nie samego USING: bez niego wiersz da się
+    // WSTAWIĆ obcemu najemcy, choć odczyt go potem schowa.
+    expect(effectivePolicy("career_roles_staff_write")).toMatch(
       /WITH CHECK \(public\.is_staff\(\) AND tenant_id = public\.current_tenant_id\(\)\)/,
     );
+    expect(effectivePolicy("career_sections_staff_update")).toMatch(/WITH CHECK \(/);
     expect(read(ADMIN_LAYOUT)).toMatch(/isStaff/);
   });
 
@@ -688,12 +862,16 @@ describe("/admin/hiring - autorytet zapisu: panel kontra polityki bazy", () => {
     // `career_settings_admin_update` przepuszczają wyłącznie admina.
     // Redaktor (też `isStaff`) zobaczy więc formularz polityki RODO, który
     // przy każdej próbie zapisu zwróci mu surowy błąd RLS.
-    const sql = read(RETENTION_MIGRATION);
-    expect(sql).toContain("career_settings_admin_write");
-    expect(sql).toContain("career_settings_admin_update");
-    expect(sql).toMatch(
-      /has_role\(auth\.uid\(\), 'admin'\) OR public\.has_role\(auth\.uid\(\), 'super_admin'\)/,
-    );
+    for (const policy of ["career_settings_admin_write", "career_settings_admin_update"]) {
+      expect(effectivePolicy(policy), `polityka ${policy} nie pyta o rolę admina`).toMatch(
+        /has_role\(auth\.uid\(\), 'admin'\) OR public\.has_role\(auth\.uid\(\), 'super_admin'\)/,
+      );
+    }
+    // KONTROLA DODATNIA na tej samej tabeli: ODCZYT ma próg `is_staff()`, więc
+    // asercje wyżej mierzą RÓŻNICĘ progów (odczyt dla personelu, zapis dla
+    // admina), a nie „gdzieś w pliku pada słowo admin".
+    expect(effectivePolicy("career_settings_staff_read")).toContain("public.is_staff()");
+    expect(effectivePolicy("career_settings_staff_read")).not.toMatch(/has_role\(auth\.uid\(\)/);
 
     await mount();
     switchTo(PANEL.tabRetention);
@@ -729,8 +907,11 @@ describe("/admin/hiring - autorytet zapisu: panel kontra polityki bazy", () => {
    * ORAZ że `cv_retention_days = 0` odrzuca CHECK (czyli dokładnie ładunek,
    * który panel wysyła po wyczyszczeniu pola - ZNALEZISKO E).
    *
-   * DZIURA, KTÓRA ZOSTAJE, jest węższa i konkretna: uprząż NIE ĆWICZY ROLI
-   * `editor` ANI RAZU (zero wystąpień w całym pliku), więc próg roli zapisu
+   * DZIURA, KTÓRA ZOSTAJE, jest węższa i konkretna: uprząż NIE ZAKŁADA ANI RAZU
+   * PODMIOTU z rolą `editor` (wartość `'editor'` nie pada w niej nigdy; samo
+   * słowo występuje wyłącznie w nazwie `public.is_admin_or_editor()` i w prozie
+   * komentarza §15 - dlatego marker asertuje INSERT do `user_roles`, a nie
+   * obecność słowa), więc próg roli zapisu
    * `career_settings` - admin/super_admin, a nie cały `isStaff` - nie ma
    * dowodu wykonawczego. To ta sama klasa asercji, którą uprząż UMIE zrobić:
    * §15 udowadnia, że `author` nie jest personelem rekrutacji, z kontrolą
@@ -738,9 +919,13 @@ describe("/admin/hiring - autorytet zapisu: panel kontra polityki bazy", () => {
    * i po prostu nie została użyta do pary (`editor`, `career_settings`).
    */
   it.fails("próg roli zapisu `career_settings` jest dowiedziony w uprzęży runtime", () => {
-    // Wystarczyłoby: SET ROLE authenticated z podmiotem-redaktorem i
-    // `assert_raises` na UPDATE tej tabeli.
-    expect(read(CAREERS_HARNESS)).toContain("'editor'");
+    // Minimum, które zamknie dziurę: PODMIOT z rolą `editor` w `user_roles`
+    // (uprząż nie zakłada go ani razu) i `assert_raises` na UPDATE tej tabeli
+    // spod tego podmiotu. Asercja celuje w wartość roli WEWNĄTRZ insertu do
+    // `user_roles`, a nie w samo słowo „editor": słowo pada w uprzęży trzy razy
+    // - w nazwie `public.is_admin_or_editor()` i w komentarzu §15 - więc
+    // `toContain("editor")` zaspokoiłaby ten marker KOMENTARZEM.
+    expect(read(CAREERS_HARNESS)).toMatch(/INSERT INTO public\.user_roles[\s\S]{0,300}'editor'/);
   });
 
   it("kontrola dodatnia: uprząż UMIE dowodzić progu roli - robi to dla `author`", () => {
@@ -765,7 +950,11 @@ describe("/admin/hiring - autorytet zapisu: panel kontra polityki bazy", () => {
   it("kontrola dodatnia: pgTAP karier dowodzi widoczności sekcji u dwóch najemców", () => {
     const sql = read(CAREERS_PGTAP);
     expect(sql).toContain("career_page_sections");
-    expect(sql).toMatch(/INSERT INTO public\.tenants/);
+    expect(sql).toContain("career_page_sections_public");
+    // „Dwóch najemców" nie jest ozdobą nazwy: przy jednym test widoczności nie
+    // odróżnia „RLS zawęża wiersze" od „tabela ma tylko jeden wiersz". Dlatego
+    // asercja żąda OBU podmiotów seeda, a nie samego słowa `tenants`.
+    expect(sql).toMatch(/INSERT INTO public\.tenants[\s\S]*'sections-a'[\s\S]*'sections-b'/);
   });
 });
 
@@ -816,6 +1005,13 @@ describe("/admin/hiring - najemca: skąd się bierze i gdzie jedzie", () => {
     expect(db().lastChain("career_page_sections")?.argsOf("select")).toEqual([
       "key,is_visible,sort_order,title_pl,title_en,subtitle_pl,subtitle_en",
     ]);
+    // Druga połowa zdania („inaczej kasowałby brudnopis") jest twierdzeniem
+    // o WIDOKU, więc czytamy jego obowiązującą definicję: nagłówki sekcji
+    // ukrytej są w niej ucięte do NULL. Gdyby widok przestał je ucinać,
+    // ta asercja zapali się i powie, że wybór tabeli stracił uzasadnienie.
+    const view = effectiveView("career_page_sections_public");
+    expect(view).toMatch(/CASE WHEN s\.is_visible THEN s\.title_pl END/);
+    expect(view).toMatch(/CASE WHEN s\.is_visible THEN s\.subtitle_pl END/);
   });
 });
 
@@ -857,7 +1053,7 @@ describe("/admin/hiring - dwujęzyczność panelu", () => {
     ).toBeInTheDocument();
   });
 
-  it("po angielsku pola formularza i przełącznik publikacji mówią po angielsku", async () => {
+  it("po angielsku pola mówią EN, ale tożsamość rekordu zostaje polska (ZNALEZISKO H)", async () => {
     await i18n.changeLanguage("en");
     plan.rolesRead = ok([offer()]);
     await mount();
@@ -976,6 +1172,14 @@ describe("/admin/hiring - lista ofert: trzy stany odczytu zlane w jeden", () => 
     await screen.findByText("Pierwsza zmyślona");
     expect(container.querySelectorAll("li button")).toHaveLength(2);
     expect(screen.queryByText(PANEL.empty)).toBeNull();
+    // Sam licznik przycisków tego nie dowodzi - dowodzi tego NIEOBECNOŚĆ
+    // każdego tytułu katalogu wbudowanego. Kontrola dodatnia stoi obok:
+    // katalog nie jest pusty, więc asercja nie przechodzi na wyliczeniu zera.
+    const builtIn = fallbackRoleRows(realT("pl"), realT("en"));
+    expect(builtIn.length).toBeGreaterThan(1);
+    for (const row of builtIn) {
+      expect(screen.queryByText(row.title_pl), `katalog wbudowany wszedł: ${row.slug}`).toBeNull();
+    }
   });
 });
 
@@ -1045,7 +1249,7 @@ describe("/admin/hiring - wybór oferty i wypełnienie formularza", () => {
     await screen.findByText("Druga zmyślona");
     await newOffer();
 
-    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(PANEL.add);
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(PANEL.newRole);
     expect(field(PANEL.slug).value).toBe("");
     expect(field(PANEL.order).value).toBe("20");
     expect(field(PANEL.department).value).toBe("analysis");
@@ -1214,14 +1418,32 @@ describe("/admin/hiring - zapis oferty: co dokładnie jedzie do bazy", () => {
       expect(h.toastError).toHaveBeenCalledWith("new row violates row-level security policy"),
     );
     expect(h.toastSuccess).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(PANEL.add);
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(PANEL.newRole);
     expect(screen.queryByRole("button", { name: PANEL.remove })).toBeNull();
   });
 
-  it("slug pusty wylicza się z tytułu PL, a gdy PL nie ma - z tytułu EN", async () => {
+  it("slug pusty wylicza się z TYTUŁU PL - i to on, nie EN, staje się adresem", async () => {
+    // Gałąź PL zapisu (`slugify(value.title_pl || value.title_en)`) NIE jest
+    // wymagana do 100% gałęzi: v8 nie liczy pominiętej prawej strony `||` jako
+    // osobnej gałęzi, więc bez tego testu pokrycie było pełne, a dowód nie.
+    // Oba tytuły są tu WYPEŁNIONE, żeby asercja rozróżniała, który wygrał.
+    await mount();
+    await newOffer();
+    type(PANEL.titlePl, "Zmyślony Tytuł Polski");
+    type(PANEL.titleEn2, "Made Up English Role");
+    fireEvent.click(screen.getByRole("button", { name: PANEL.save }));
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith(PANEL.saved));
+    expect(payload("career_roles", "insert").slug).toBe("zmyslony-tytul-polski");
+    // Podpowiedź pokazuje operatorowi TEN SAM adres, który poszedł do bazy.
+    expect(inputField(PANEL.slug).placeholder).toBe("zmyslony-tytul-polski");
+  });
+
+  it("gdy tytułu PL nie ma, slug spada na tytuł EN - ale podpowiedź go NIE pokazuje", async () => {
     // Fallback na EN jest istotny: ogłoszenie tylko po angielsku też musi mieć
-    // adres. UWAGA: podpowiedź w polu liczy się WYŁĄCZNIE z tytułu PL, więc
-    // przy pustym PL operator nie widzi slugu, który zostanie zapisany.
+    // adres. ZNALEZISKO H, druga połowa: podpowiedź liczy się WYŁĄCznie
+    // z tytułu PL, więc przy pustym PL operator nie widzi slugu, który
+    // zostanie zapisany - pole podpowiada pustkę, a baza dostaje adres.
     await mount();
     await newOffer();
     type(PANEL.titleEn2, "Made Up English Role");
@@ -1292,9 +1514,15 @@ describe("/admin/hiring - zapis oferty: co dokładnie jedzie do bazy", () => {
     expect(payload("career_roles", "update").is_published).toBe(true);
   });
 
-  it("kolejność przyjmuje liczbę, a wartość niebędącą liczbą sprowadza do zera", async () => {
-    // `Number(value) || 0` - pole numeryczne bez tej gałęzi wysyłałoby NaN,
-    // czyli `null` w JSON i wiersz wypadający z sortowania strony publicznej.
+  it("kolejność przyjmuje liczbę, a wpis, którego pole nie przyjmie, jedzie jako 0", async () => {
+    // `Number(value) || 0` - bez tej gałęzi wiersz jechałby z NaN, czyli
+    // `null` w JSON, i wypadałby z sortowania strony publicznej.
+    // USTALENIE (zmierzone, nie założone): `<input type="number">` sam BLANKUJE
+    // napis, który nie jest liczbą (algorytm sanityzacji wartości), więc do
+    // lewej strony `||` nie dociera „abc", tylko pustka. Kontrolka jest
+    // STEROWANA, więc round-trip przez stan wraca do pola jako „0" i operator
+    // WIDZI, co się stało - dlatego nazwa mówi „wpis, którego pole nie
+    // przyjmie", a nie „wartość niebędąca liczbą" (tamta nigdy tu nie dojdzie).
     plan.rolesRead = ok([offer()]);
     await mount();
     await pickOffer("Analityk zmyślonego rejestru");
@@ -1304,9 +1532,16 @@ describe("/admin/hiring - zapis oferty: co dokładnie jedzie do bazy", () => {
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(1));
     expect(payload("career_roles", "update").sort_order).toBe(70);
 
-    type(PANEL.order, "");
+    type(PANEL.order, "abc");
+    expect(field(PANEL.order).value).toBe("0");
     fireEvent.click(screen.getByRole("button", { name: PANEL.save }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(2));
+    expect(payload("career_roles", "update").sort_order).toBe(0);
+
+    type(PANEL.order, "");
+    expect(field(PANEL.order).value).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: PANEL.save }));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(3));
     expect(payload("career_roles", "update").sort_order).toBe(0);
   });
 
@@ -1491,12 +1726,7 @@ describe("/admin/hiring - import wbudowanego katalogu ofert", () => {
     fireEvent.click(screen.getByRole("button", { name: PANEL.importI18n }));
 
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith(PANEL.imported));
-    const chain = db()
-      .chainsFor("career_roles")
-      .filter((item) => item.has("upsert"))
-      .at(-1);
-    const rows = chain?.argsOf("upsert")?.[0];
-    expect(Array.isArray(rows)).toBe(true);
+    const rows = importedRows();
     const expected = fallbackRoleRows(realT("pl"), realT("en")).map((row) => ({
       ...row,
       tenant_id: TENANT,
@@ -1530,13 +1760,7 @@ describe("/admin/hiring - import wbudowanego katalogu ofert", () => {
     fireEvent.click(screen.getByRole("button", { name: PANEL.importI18n }));
 
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith(PANEL.imported));
-    const rows = db()
-      .chainsFor("career_roles")
-      .filter((item) => item.has("upsert"))
-      .at(-1)
-      ?.argsOf("upsert")?.[0];
-    expect(Array.isArray(rows)).toBe(true);
-    const list = rows as Array<Record<string, unknown>>;
+    const list = importedRows();
     expect(list.length).toBeGreaterThan(0);
     for (const row of list) {
       expect(row.tenant_id).toBe(TENANT);
@@ -1557,6 +1781,15 @@ describe("/admin/hiring - import wbudowanego katalogu ofert", () => {
 
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith(PANEL.imported));
     expect(h.confirmMessages).toEqual([]);
+    // „Nadpisuje ręczne edycje" nie jest tu domysłem z nazwy: ładunek niesie
+    // pola REDAKCYJNE (tytuł, opis) i flagę publikacji, a `onConflict` każe
+    // bazie ZASTĄPIĆ wiersz o tym slugu, nie pominąć go. Dopiero te dwie
+    // rzeczy razem czynią z jednego kliknięcia operację nieodwracalną.
+    const rows = importedRows();
+    expect(upsertOptions("career_roles")).toEqual({ onConflict: "tenant_id,slug" });
+    expect(rows[0].title_pl).not.toBe("");
+    expect(rows[0].summary_pl).not.toBe("");
+    expect(rows[0].is_published).toBe(true);
   });
 
   it("sesja bez profilu najemcy nie importuje niczego", async () => {
@@ -1977,6 +2210,42 @@ describe("/admin/hiring - zakładki", () => {
     switchTo(PANEL.tabRoles);
     expect(await awaitField(PANEL.titlePl)).toHaveValue("Wersja robocza");
   });
+
+  it("aktywna zakładka jest OZNACZONA, a nieaktywne nie - to jedyny sygnał, gdzie jest operator", async () => {
+    // Trzy zakładki to trzy różne TABELE, więc pomyłka co do tego, na której
+    // stoisz, to edycja nie tej treści. Sygnał jest jeden i jest wizualny
+    // (klasa obwódki) - dlatego to on jest tu przedmiotem dowodu, choć zwykle
+    // asercja na klasie byłaby asercją na kształcie. ZNALEZISKO I mówi, czego
+    // ten sygnał NIE daje czytnikowi ekranu; marker obok trzyma ten kontrakt.
+    const tabButton = (name: string) => screen.getByRole("button", { name });
+    await mount();
+
+    expect(tabButton(PANEL.tabRoles).className).toContain("border-brand");
+    expect(tabButton(PANEL.tabSections).className).toContain("border-transparent");
+    expect(tabButton(PANEL.tabRetention).className).toContain("border-transparent");
+
+    switchTo(PANEL.tabSections);
+    expect(tabButton(PANEL.tabSections).className).toContain("border-brand");
+    expect(tabButton(PANEL.tabRoles).className).toContain("border-transparent");
+  });
+
+  /**
+   * OCZEKIWANY KONTRAKT dla ZNALEZISKA I: pasek zakładek jest paskiem zakładek
+   * także dla czytnika ekranu (`role="tablist"` + `role="tab"` +
+   * `aria-selected`), a nie trójką przycisków, z których jeden ma inną obwódkę.
+   * Naprawa to zmiana kodu produkcyjnego, więc zostaje markerem.
+   * KONTROLA DODATNIA: test wyżej dowodzi, że stan aktywności ISTNIEJE i jest
+   * mierzalny - brakuje wyłącznie jego wystawienia w dostępnej formie. axe
+   * tego nie zgłasza (trzy nazwane przyciski to dla niego poprawny dokument),
+   * i to jest znana granica dowodu z `axeViolations` na tym ekranie.
+   */
+  it.fails(
+    "pasek zakładek mówi technologiom asystującym, która zakładka jest aktywna",
+    async () => {
+      await mount();
+      expect(screen.getByRole("tab", { selected: true })).toBeInTheDocument();
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
