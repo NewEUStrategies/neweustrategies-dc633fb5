@@ -1019,6 +1019,97 @@ const CLIENT_DIR =
 //             `--update-baseline` na pierwszym zielonym runnerze wpisze
 //             `bucketConvention: 2` i tryb zgodności przestanie się włączać.
 
+// 2026-09-02 XII  RE-FLOOR OVERALL 4306 -> 4329, I TYLKO ON. Z pięciu progów
+//             przekroczony jest DOKŁADNIE JEDEN, więc rusza się dokładnie
+//             jeden - pozostałe cztery zostają tam, gdzie stoją.
+//
+//             POMIAR (host, artefakt cloudflare'owy, 943 pliki, 2026-09-02):
+//               overall  4320,6 KB  (floor 4306)  -> PRZEKROCZENIE 14,6 KB
+//               public   2687,6     (<= 2715)      chunk  274,6  (<= 280)
+//               css        81,0     (<= 82)        boot   577,3  (<= 579)
+//
+//             GDZIE SIEDZI WZROST - ROZKŁAD, NIE DOMYSŁ. Wpis VII zapisał dla
+//             drzewa, na którym stanął floor 4306, pomiar TEGO SAMEGO HOSTA:
+//             public 2701,7 / overall 4298,1, czyli admin-only 1596,4. Dziś
+//             host daje public 2687,6 / overall 4320,6, czyli admin-only
+//             1633,0:
+//               public     2701,7 -> 2687,6    -14,1 KB
+//               admin-only 1596,4 -> 1633,0    +36,6 KB
+//               overall    4298,1 -> 4320,6    +22,5 KB
+//             Budżet PUBLICZNY SPADŁ (PR #309 „bundle-public-budget-cut"),
+//             a przyrost w całości - i jeszcze 14,1 KB ponad niego - dołożyła
+//             powierzchnia osiągalna wyłącznie spod /admin. Dlatego czerwony
+//             jest WYŁĄCZNIE `overall`: to jedyny z pięciu progów, który
+//             w ogóle liczy kod adminowy.
+//
+//             PRZYCZYNA, NAZWANA Z NAZWY. Od 1cfc501 (floor 4306, 30.08)
+//             scalono PR #308 do #320. W `src/` przybyło 67 nowych plików
+//             produkcyjnych (bez testów i stories), z czego 42 pod
+//             `src/components/admin/`: gifting 10, monetization 9, ads 8,
+//             membership 7, coupons 5, donations 3 - plus 3 w
+//             `src/lib/admin/monetization`, słownik
+//             `src/lib/i18n-admin-monetization.ts` i trasa
+//             `admin.monetization-ledger`. Cały ruch produkcyjny w `src/` to
+//             200 plików, +12 608 / -4 312 linii; jego część adminowa
+//             (`components/admin` + `lib/admin` + `routes/admin`) to 68 plików,
+//             +5 687 / -3 181. To nie jest dryf narzędzi ani wymiana
+//             zależności - to nowa powierzchnia produktu, dołożona świadomie.
+//
+//             ROZWAŻONE CIĘCIE ZAMIAST FLOORA - ODRZUCONE, Z LICZBAMI.
+//             Zejście pod 4306 wymaga SKASOWANIA >= 15 KB wyemitowanego kodu:
+//             `overall` sumuje bajty, więc przełożenie chunku między wiadrami
+//             nie daje ani bajta (akapit „CZEGO ŻADNE PRZENOSZENIE NIE
+//             ZAŁATWI", wpis VIII). Trzy kandydatury, dwie zważone dziś na
+//             artefakcie: duplikaty ~2,8 KB (wycena z analizy, tu nieważona -
+//             i tak o rząd wielkości za mało), shim Font Awesome
+//             `lucide-shim.fa-C7vWNulb.js` 39,0 KB gzip i wygenerowany katalog
+//             ikon `lucideIconNodes.generated-CsYpKku0.js` 109,1 KB gzip.
+//             Wagę mają dwie ostatnie i żadna nie jest jednocześnie TANIA
+//             i BEZPIECZNA: pierwsza zdejmuje z produktu przełącznik paczki
+//             ikon (`admin.settings.general` + `IconPackSync`), druga -
+//             wybieralny katalog ikon (`LucideIconPicker`, `DynamicIconFull`).
+//             To zmiany produktowe z własnym pomiarem przed/po i własnym
+//             review, jak `ClubInsights`/ECharts we wpisie VIII - a nie coś,
+//             co wciska się do PR-a o zielone CI.
+//
+//             SPROSTOWANIE DO TEJ WYCENY, ZMIERZONE: shim FA NIE leży
+//             w powierzchni admin-only. Chunk WEJŚCIOWY `index-CiXKim-t.js`
+//             (ten sam, który jest korzeniem floora `boot`: 274,6 + osiem
+//             vendorów 302,6 = 577,2 wobec wydrukowanych 577,3) trzyma
+//             `f.lazy(()=>import("./lucide-shim.fa-C7vWNulb.js"))`, więc
+//             krawędź wychodzi z korzenia PUBLICZNEGO, `EDGE_RE` ją łapie
+//             i te 39,0 KB liczą się TAKŻE do PUBLIC. Znowu mechanizm z wpisu
+//             VIII: `lazy()` NIE ZDEJMUJE KRAWĘDZI. Cięcie zbiłoby więc oba
+//             budżety naraz, co czyni je bardziej atrakcyjnym, a nie mniej -
+//             ale nie zmienia tego, że jest zmianą produktową.
+//
+//             ARYTMETYKA FLOORA. 4305,2 (runner, wpis VII) + 22,5 (przyrost
+//             host-do-hosta) = 4327,7 rzutowane na runnera; sufit do pełnego
+//             KB i +1 KB na granicę zaokrąglenia (mechanizm rozpisany przy
+//             florze 3893: porównanie idzie na surowej liczbie, a wydruk
+//             `toFixed(1)` zaokrągla) -> 4329.
+//
+//             TA LICZBA JEST Z HOSTA I CZEKA NA PRZEFLOOROWANIE Z PIERWSZEGO
+//             ZIELONEGO LOGU RUNNERA - dokładnie tak, jak floory `css` i `boot`
+//             z 01.09. Runnera na tym drzewie NIKT NIE ZMIERZYŁ: 4327,7 to
+//             PROGNOZA, nie odczyt, oparta na jednym mostku host <-> runner
+//             (wpis VII, to samo drzewo: PUBLIC 2701,7 -> 2714,3, czyli
+//             +0,466%; OVERALL 4298,1 -> 4305,2). Zasada z wpisu V obowiązuje
+//             bez wyjątku: floor idzie z runnera, w górę albo w dół, przy
+//             pierwszym zielonym przebiegu. Zapas nad dzisiejszym pomiarem
+//             hosta to 8,4 KB (0,19%), więc ostrzeżenie „ZAPAS BUDŻETU PONIŻEJ
+//             2%" zapali się od razu - ten sam koszt maksymalnej czułości,
+//             który policzył wpis VII.
+//
+//             CZEGO TEN WPIS ŚWIADOMIE NIE RUSZA: pozostałych czterech progów,
+//             a zwłaszcza `public`. Konwencja „próg schodzi za śladem" kazałaby
+//             ściąć go dziś z 2715 za pomiarem 2687,6 (27,4 KB zapasu). Nie
+//             robimy tego, bo ten pomiar jest z HOSTA, a host czyta NIŻEJ: na
+//             drzewie wpisu VII różnica wynosiła 12,6 KB na PUBLIC. Floor
+//             ścięty do śladu hosta mógłby zostawić job `build` czerwony na
+//             runnerze - i zniszczyć jedyny zielony log, z którego wolno
+//             przefloorować wszystkie pięć progów naraz, z prawdziwych liczb.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -1060,7 +1151,16 @@ const FROZEN_BUDGET_KB = {
   // studio wydarzeń, sesje, skaner i słowniki, +407,9 KB od baseline'u z 15.08.
   // Ratchet 4302 -> 4306 (wpis 2026-08-30 VII): runner 4305,2 po scaleniu
   // PR #307 (941 plików zamiast 939); host na tym drzewie 4298,1.
-  overall: 4306,
+  // Ratchet 4306 -> 4329 (wpis 2026-09-02 XII): host dziś 4320,6 przy 943
+  // plikach, host na drzewie floora 4306 dawał 4298,1 (wpis VII) - przyrost
+  // host-do-hosta +22,5 KB. Rzut na runnera: 4305,2 + 22,5 = 4327,7, sufit do
+  // pełnego KB i +1 KB na granicę zaokrąglenia (mechanizm wyżej, floor 3893)
+  // -> 4329. Przyczyna: nowa powierzchnia adminowa z PR #308-#320 (ads,
+  // coupons, donations, gifting, membership, monetization) - admin-only
+  // 1596,4 -> 1633,0, przy PUBLIC schodzącym 2701,7 -> 2687,6.
+  // TA LICZBA JEST Z HOSTA, NIE Z RUNNERA, I CZEKA NA PRZEFLOOROWANIE
+  // Z PIERWSZEGO ZIELONEGO LOGU RUNNERA (zasada z wpisu V) - jak `css` i `boot`.
+  overall: 4329,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
