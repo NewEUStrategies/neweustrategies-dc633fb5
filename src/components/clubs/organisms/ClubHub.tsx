@@ -437,8 +437,8 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
             </div>
           ) : null}
 
-          <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
-            <div className="relative">
+          <div className="mb-3 grid items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
+            <div className="relative h-12 min-w-0">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden="true"
@@ -448,7 +448,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t("club.searchPlaceholder")}
                 aria-label={t("club.searchPlaceholder")}
-                className="rounded-lg pl-9 pr-9"
+                className="h-12 min-h-12 rounded-[6px] py-0 pl-9 pr-9"
               />
               {query !== "" ? (
                 <button
@@ -465,7 +465,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
               <SelectTrigger
                 aria-label={t("club.sort.label")}
                 className={cn(
-                  "h-full min-h-12 items-center rounded-lg py-0",
+                  "h-12 min-h-12 items-center rounded-[6px] py-0 leading-none [&>svg]:self-center",
                   searching && "hidden",
                 )}
               >
