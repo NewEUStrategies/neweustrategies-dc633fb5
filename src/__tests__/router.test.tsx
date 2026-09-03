@@ -280,60 +280,133 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     },
   );
 
-  // ── DEFEKT BIBLIOTEKI, PRZYPIĘTY - nie mój, ale mój boot-test go widzi ────
+  // ── TERMINALNY ODCZYT STRUMIENIA ZAPYTAŃ: DLACZEGO LOGU NIE MA ───────────
   //
-  // ZNALEZIONY PRZEZ `e2e/boot-artifact.spec.ts` na ZBUDOWANYM artefakcie:
-  // każde wczytanie strony publicznej wypisuje do konsoli
+  // `e2e/boot-artifact.spec.ts` toleruje na zbudowanym artefakcie jeden
+  // `console.error` na dokument:
   //   Error reading query stream: TypeError: Cannot read properties of
   //   undefined (reading 'mutations')
-  // Przyczyna jest w `@tanstack/router-ssr-query-core` (dist/esm/index.js:93-95)
-  // i jest jednoliniowa - kolejność dwóch instrukcji:
+  // Ta zgoda stoi na KONIUNKCJI dwóch warunków i bez OBU nie ma podstawy.
+  //
+  // WARUNEK (A), KSZTAŁT PĘTLI - PRAWDZIWY DZIŚ. `@tanstack/router-ssr-query-core`
+  // 1.169.1 (dist/esm/index.js:93-96) woła `hydrate` PRZED sprawdzeniem `done`:
   //   reader.read().then(async function handle({ done, value }) {
   //     hydrate(queryClient, value, hydrateOptions);   // <- WOŁANE PRZED...
   //     if (done) return;                              // <- ...sprawdzeniem `done`
-  // Ostatni odczyt domkniętego strumienia to z definicji `{done: true, value:
-  // undefined}`, a `hydrate(qc, undefined)` czyta `dehydratedState.mutations`
-  // i rzuca. Rzut leci do `.catch`, który loguje `console.error`.
+  // Odczyt terminalny domkniętego strumienia to z definicji
+  // `{done: true, value: undefined}`, więc `hydrate(qc, undefined)` PADA na
+  // każdym dokumencie. Warunku (A) pilnuje drugi test w tym bloku.
   //
-  // SKUTEK JEST KOSMETYCZNY, i to trzeba powiedzieć wprost, żeby nikt nie
-  // gasił tego pośpiesznie: rzut wypada na odczycie TERMINALNYM, więc wszystkie
-  // PRAWDZIWE porcje strumienia są już zhydratowane. Nie ginie ani jedno
-  // zapytanie. Cena to jeden `console.error` na każdy dokument - czyli dokładnie
-  // ten rodzaj szumu, który przykrywa błędy prawdziwe.
+  // WARUNEK (B), CZY `hydrate` TO PRZEŻYWA - FAŁSZYWY DZIŚ. Na PRZYPIĘTEJ
+  // `@tanstack/query-core` 5.101.2 (bun.lock:682) funkcja otwiera się strażnikiem
+  //   if (typeof dehydratedState !== "object" || dehydratedState === null) return;
+  // więc `undefined` wychodzi CICHO, nie dotykając `.mutations`. ZMIERZONE
+  // WYKONANIEM na czterech buildach pobranych z npm: 5.101.2 i 5.102.0 NIE
+  // rzucają, 5.102.1 i 5.102.8 rzucają `TypeError: Cannot read properties of
+  // undefined (reading 'mutations')`. Granica to 5.102.0 -> 5.102.1: tam strażnik
+  // ZNIKA, a typ parametru zmienia się z `unknown` na `Partial<DehydratedState>`.
   //
-  // DLACZEGO NIE NAPRAWIAM TEGO U SIEBIE. `src/router.tsx` owija
-  // `options.hydrate`, więc seam wygląda na dostępny - nie jest. Biblioteka
-  // czyta `dehydrated.queryStream.getReader()` SAMA, a `ReadableStream` nie
-  // pozwala oddać terminalnego odczytu z wartością inną niż `undefined`
-  // (kontrakt strumienia). Zostają tylko obejścia: podstawić czytnik, który
-  // nigdy się nie rozstrzyga (wieczna obietnica na dokument), albo atrapę
-  // `getReader` w miejscu typowanym na `ReadableStream` (rzutowanie, którego
-  // ta gałąź nie dopuszcza). Zmiana zachowania produkcyjnego takim obejściem,
-  // żeby zgasić log, jest DECYZJĄ CZŁOWIEKA - nie robię jej przy okazji.
+  // DLACZEGO POPRZEDNIA WERSJA TEGO TESTU ŚWIECIŁA NA CZERWONO W CI. Zakładała
+  // `toThrow(/mutations/)`, czyli warunek (B) prawdziwy - a powstała na drzewie,
+  // w którym `node_modules` STAŁO PONAD `bun.lock`: `package.json` dopuszcza
+  // `^5.101.2`, więc instalacja bez locka wciąga 5.102.x. Ślad jest w opisie
+  // commita b2e4f34: `tsc` odrzucił tam argument, bo parametr był typowany
+  // `Partial<DehydratedState>` - sygnatura istniejąca WYŁĄCZNIE od 5.102.1,
+  // podczas gdy przypięty build typuje go `unknown`. CI instaluje z locka, więc
+  // dostaje 5.101.2 i asercja o rzucie była tam niespełnialna z definicji:
+  // żadna zmiana w kodzie TEGO repozytorium nie mogła jej zazielenić.
   //
-  // CO ROBI TEN TEST. Przypina PRZYCZYNĘ, żeby zgoda na ten jeden komunikat
-  // w boot-teście nie przeżyła defektu. Gdy biblioteka to naprawi (przestawi
-  // dwie instrukcje albo przestanie rzucać na `undefined`), ten test zapali się
-  // sam i będzie sygnałem do zdjęcia wyjątku z `e2e/boot-artifact.spec.ts`.
+  // CO MIERZY TEN TEST TERAZ. Nie wnętrze biblioteki, tylko OBJAW na tej samej
+  // ścieżce, którą ogląda bramka bootu: prawdziwa integracja, prawdziwy
+  // `QueryClient`, prawdziwy strumień doprowadzony do odczytu TERMINALNEGO -
+  // i zero `console.error`. Zapali się dokładnie wtedy, gdy koniunkcja znów
+  // stanie się prawdziwa, czyli po podbiciu query-core do >= 5.102.1 - a więc
+  // wtedy, gdy zgoda w `e2e/boot-artifact.spec.ts` znów będzie miała podstawę.
+  // Dopóki jest zielony, tamta zgoda jest MARTWA i przepuszcza klasę
+  // komunikatów, której na przypiętym drzewie nikt nie produkuje.
   describe("integracja router<->query: terminalny odczyt strumienia", () => {
-    it("`hydrate(qc, undefined)` RZUCA - to jest przyczyna logu na każdym dokumencie", async () => {
-      const { hydrate, QueryClient } = await import("@tanstack/query-core");
-      // WYWOŁANIE REFLEKSYJNE, i to jest część dowodu, nie obejście lintera:
-      // sygnatura `hydrate` NIE DOPUSZCZA `undefined` (`Partial<DehydratedState>`),
-      // więc `tsc` odrzuca ten argument wprost. Biblioteka dochodzi do tego
-      // wywołania tylko dlatego, że w jej buildzie `value` z
-      // `ReadableStreamReadResult` nie jest opcjonalne - czyli typ obiecuje coś,
-      // czego strumień na odczycie terminalnym nie dowozi. `Reflect.apply` woła
-      // to tak, jak zrobi to przeglądarka, bez rzutowania w naszym kodzie.
-      expect(() => Reflect.apply(hydrate, undefined, [new QueryClient(), undefined])).toThrow(
-        /mutations/,
-      );
+    it("PRAWDZIWA pętla odczytu hydratuje porcję i NIE loguje na odczycie terminalnym", async () => {
+      // Tu jedzie PRAWDZIWA integracja, nie atrapa z góry pliku: atrapa podmienia
+      // `@tanstack/react-router-ssr-query`, a pętla odczytu mieszka piętro niżej,
+      // w `@tanstack/router-ssr-query-core`, i tamtędy przechodzi przeglądarka.
+      const { setupCoreRouterSsrQueryIntegration } =
+        await import("@tanstack/router-ssr-query-core");
+      const { QueryClient, dehydrate } = await import("@tanstack/query-core");
+
+      // Gałąź wybiera `isServer ?? router.isServer`. ZMIERZONE: pod vitest
+      // `isServer` z `@tanstack/router-core/isServer` ma wartość `undefined`, bo
+      // build serwerowy zwraca `void 0` przy `NODE_ENV === "test"` - a atrapa
+      // z góry tego pliku NIE sięga do node_modules (paczka jest zewnętrzna).
+      // O gałęzi decyduje więc `router.isServer` i ustawiamy je JAWNIE, zamiast
+      // opierać test na tym, że pola nie ma; `h.server` ustawiamy dla porządku,
+      // gdyby paczka kiedyś została wciągnięta do transformacji vite.
+      h.server = false;
+      const router = { isServer: false, options: {} as Record<string, unknown> };
+      const queryClient = new QueryClient();
+      setupCoreRouterSsrQueryIntegration({ router, queryClient } as never);
+
+      // Ładunek o PRAWDZIWYM kształcie - dokładnie to, co serwer wysyła w porcji.
+      const source = new QueryClient();
+      source.setQueryData(["terminalny-odczyt"], { v: 42 });
+      const chunk = dehydrate(source);
+
+      // Odczyt TERMINALNY mierzymy WPROST, opakowując czytnik - bo to on jest
+      // jedynym miejscem, w którym biblioteka woła `hydrate(qc, undefined)`
+      // (`router-ssr-query-core/dist/esm/index.js:93-98`: `hydrate` stoi PRZED
+      // `if (done) return`).
+      //
+      // NIE liczymy tu wywołań `pull`, i to jest poprawka błędu, nie stylu:
+      // `pull` numer 2 odpala się przy ZDJĘCIU porcji z kolejki podczas odczytu
+      // PIERWSZEGO, a nie przy wywołaniu drugiego `read()`. Zmierzone: przy
+      // urwanej pętli (`return;` zamiast `return handle(await reader.read())`)
+      // licznik `pull` i tak dochodził do 2, więc asercja o nim przechodziła
+      // w scenariuszu, który miała wykluczać. `reads` zbiera flagi `done`
+      // zwrócone przez KAŻDY `read()`, więc `[false, true]` znaczy dosłownie:
+      // była porcja, po niej był odczyt domykający.
+      const source$ = new ReadableStream({
+        start: (c) => {
+          c.enqueue(chunk);
+          c.close();
+        },
+      });
+      const reads: boolean[] = [];
+      const queryStream = {
+        getReader: () => {
+          const reader = source$.getReader();
+          return {
+            read: async () => {
+              const result = await reader.read();
+              reads.push(result.done);
+              return result;
+            },
+          };
+        },
+      };
+
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      await (router.options.hydrate as (d: unknown) => Promise<void>)({ queryStream });
+      // Pętla jest FIRE-AND-FORGET (biblioteka jej nie awaituje), więc ustępujemy
+      // makrozadanie - inaczej mierzylibyśmy stan sprzed obu odczytów.
+      await new Promise((r) => setTimeout(r, 0));
+      const logged = err.mock.calls.map((c) => c.map(String).join(" "));
+      err.mockRestore();
+
+      expect(reads).toEqual([false, true]);
+      // Porcja NAPRAWDĘ wylądowała w cache'u docelowego klienta - to odróżnia
+      // „nic się nie zepsuło" od „nic się nie wydarzyło".
+      expect(queryClient.getQueryData(["terminalny-odczyt"])).toEqual({ v: 42 });
+      // Tyle logów na dokument widzi bramka bootu.
+      expect(logged).toEqual([]);
     });
 
     it("biblioteka nadal woła `hydrate` PRZED sprawdzeniem `done`", async () => {
-      // Asercja po ŹRÓDLE paczki, bo tej ścieżki nie da się wywołać bez
-      // prawdziwego strumienia SSR-owego: klient integracji instaluje się
-      // wyłącznie w gałęzi `!isServer`, a w tym pliku integracja jest atrapą.
+      // Asercja po ŹRÓDLE paczki, a nie po zachowaniu, i to jest konieczne:
+      // to warunek (A) koniunkcji, a przy ŻYWYM strażniku w query-core
+      // kolejność tych dwóch instrukcji jest z zewnątrz NIEOBSERWOWALNA -
+      // `hydrate(qc, undefined)` wychodzi cicho, więc test wyżej przechodzi
+      // niezależnie od niej. Dopiero razem obie asercje pilnują całej
+      // koniunkcji: ta - że defekt w górze rzeki nadal tam jest, tamta - że
+      // przypięta wersja query-core nadal go znosi.
       const { readFileSync } = await import("node:fs");
       const source = readFileSync(
         "node_modules/@tanstack/router-ssr-query-core/dist/esm/index.js",
@@ -350,8 +423,9 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
         doneAt,
         "kształt pętli odczytu się zmienił - przejrzyj defekt od nowa",
       ).toBeGreaterThan(-1);
-      // GDY TO PRZESTANIE BYĆ PRAWDĄ, defekt jest naprawiony w górze rzeki
-      // i wyjątek w `e2e/boot-artifact.spec.ts` trzeba ZDJĄĆ.
+      // GDY TO PRZESTANIE BYĆ PRAWDĄ, defekt jest naprawiony w górze rzeki:
+      // wtedy log nie wróci NAWET po podbiciu query-core ponad 5.102.0,
+      // a zgoda w `e2e/boot-artifact.spec.ts` traci ostatnią podstawę.
       expect(hydrateAt).toBeLessThan(doneAt);
     });
   });

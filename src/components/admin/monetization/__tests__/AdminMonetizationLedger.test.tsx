@@ -199,7 +199,21 @@ describe("AdminMonetizationLedger", () => {
     renderWithQueryClient(<AdminMonetizationLedger />);
     expect(await screen.findByText("Brak rozliczonych wpłat")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
-    expect(await screen.findByText("Bezterminowo")).toBeInTheDocument();
+    // Kolumna „Okres” to JEDNA komórka złożona z czterech węzłów tekstowych
+    // („2020-01-01”, „ -”, „ ”, „Bezterminowo”) - JSX rozbija `{data} -{" "}{terminator}`
+    // na osobne dzieci. Matcher tekstowy RTL nie ogląda węzłów, tylko ELEMENTY:
+    // `getNodeText` skleja BEZPOŚREDNIE węzły tekstowe elementu, a `matches` dla
+    // matchera-napisu robi RÓWNOŚĆ po normalizacji. Żaden element nie ma więc tekstu
+    // równego samemu „Bezterminowo”: poprzednia asercja nie mogła trafić w ŻADNEJ
+    // chwili i wypalała cały budżet `asyncUtilTimeout` (vitest.setup.ts: 5000 ms).
+    // Zmierzone: 5057 ms na czerwono, wobec 1-402 ms pozostałych przypadków w tym
+    // pliku - czyli cały koszt to wypalony timeout, nie praca.
+    // Pytamy o całą komórkę - tak jak „2 / 5” wyżej i „9 / Bez limitu” niżej.
+    expect(await screen.findByText(`${PAST.slice(0, 10)} - Bezterminowo`)).toBeInTheDocument();
+    // Druga gałąź tego samego warunku: przydział Z datą końca pokazuje datę, a nie
+    // etykietę. Bez tej pary test nie odróżniłby „etykieta zawsze” od „etykieta tylko
+    // wtedy, gdy expiresAt === null”.
+    expect(screen.getByText(`${PAST.slice(0, 10)} - ${FUTURE.slice(0, 10)}`)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Linki prezentowe" }));
     expect(await screen.findByText("kod12")).toBeInTheDocument();
     expect(screen.getByText("9 / Bez limitu")).toBeInTheDocument();

@@ -57,6 +57,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { stripSqlComments } from "../../../../scripts/lib/sqlMigrations";
 import { maskComments } from "@/lib/ci/i18nKeyUsage";
 import {
   auditServiceRoleTenantScope,
@@ -499,6 +500,25 @@ describe("adres kanoniczny wpisu - ścieżka rodzica sprawdza najemcę", () => {
     // Rozbiór na członów musi się udać, inaczej predykatu szukalibyśmy w całym
     // ciele - a `tenant_id` stoi tam też w kotwicy i w liście SELECT.
     expect(defs.filter((d) => d.recursive === "").map((d) => `${d.fn} @ ${d.file}`)).toEqual([]);
+
+    // ...a sygnał pozytywny nadal jest ślepy na ZDJĘCIE funkcji: `defs` zbiera
+    // `CREATE [OR REPLACE] FUNCTION`, więc późniejszy `DROP FUNCTION` zostawia
+    // definicję w zbiorze i cały blok ogląda ciało SPRZED zdjęcia. To ta sama
+    // wada monotoniczności, którą warstwa B zamyka dla ograniczenia - tu
+    // domknięta dla funkcji. Ustalenie z recenzji Codeksa na PR #325.
+    //
+    // Dopasowanie po SAMEJ NAZWIE, bez listy typów, jest świadomie ZACHOWAWCZE:
+    // `DROP FUNCTION` z inną arnością zgłosi się tu jako zdjęcie i bramka
+    // zaświeci. Fałszywy alarm kosztuje jedno spojrzenie człowieka; przeoczone
+    // zdjęcie kosztuje obcy slug w sitemapie.
+    const dropped = migrationsSinceFix().flatMap(({ file, sql }) =>
+      [
+        ...stripSqlComments(sql).matchAll(
+          /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(page_full_paths?)\b/gi,
+        ),
+      ].map((m) => `${file} - zdejmuje public.${m[1]}`),
+    );
+    expect(dropped).toEqual([]);
   });
 
   it("page_full_path wiąże najemcę w członie rekurencyjnym", () => {
