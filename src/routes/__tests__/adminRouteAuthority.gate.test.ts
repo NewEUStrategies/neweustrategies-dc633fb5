@@ -30,6 +30,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const ROUTES_DIR = "src/routes";
+const MIGRATIONS_DIR = "supabase/migrations";
 // Rodzina `admin.community.clubs.*` - sześć tras, które ta bramka pilnuje
 // osobno (patrz `describe("panel klubów - autorytet")` na końcu pliku).
 const CLUB_ROUTES = [
@@ -1068,6 +1069,28 @@ const CAREERS_TABLES = [
 /** Migracja zakładająca zakres najemcy i polityki `is_staff()` dla karier. */
 const CAREERS_TENANT_MIGRATION = "supabase/migrations/20260814100000_careers_tenant_scope.sql";
 
+/** Treść jednego `CREATE POLICY ...;` z pliku migracji (do porównań progu roli). */
+function policyBlock(migrationFile: string, policy: string): string {
+  const sql = read(`${MIGRATIONS_DIR}/${migrationFile}`);
+  return sql.slice(sql.indexOf(`CREATE POLICY ${policy}`)).split(";")[0];
+}
+
+/** Migracje definiujące daną politykę, w kolejności wykonania (ostatnia obowiązuje). */
+function migrationsDefining(policy: string): string[] {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .filter((file) => read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`));
+}
+
+/** Definicja OBOWIĄZUJĄCA - z ostatniej migracji, która politykę odtwarza. */
+function effectivePolicy(policy: string): { file: string; block: string } {
+  const defining = migrationsDefining(policy);
+  if (defining.length === 0) throw new Error(`test: nikt nie definiuje polityki ${policy}`);
+  const file = defining[defining.length - 1];
+  return { file, block: policyBlock(file, policy) };
+}
+
 describe("panel rekrutacji - autorytet dostępu", () => {
   it("obie trasy rodziny karier istnieją", () => {
     // Kanarek: bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku
@@ -1137,6 +1160,124 @@ describe("panel rekrutacji - autorytet dostępu", () => {
       }
     }
     expect([...dotykane].sort()).toEqual([...CAREERS_TABLES]);
+  });
+
+  it("próg roli tabel TREŚCIOWYCH karier jest ten sam W KAŻDEJ migracji, która go definiuje", () => {
+    // PO CO TA ASERCJA JEST TUTAJ, A NIE W TEŚCIE TRASY. Test trasy dowodzi
+    // zgodności „panel wpuszcza dokładnie tych, których wpuszcza baza",
+    // czytając JEDNĄ migrację. To za mało: `career_roles_staff_write` jest
+    // definiowane w TRZECH migracjach (20260813224302, 20260814100000,
+    // 20260814122639), a obowiązuje OSTATNIA. Test czytający pierwszą z nich
+    // zostaje zielony także wtedy, gdy ktoś zmieni próg w najnowszej -
+    // czyli dowodzi inwariantu o polityce obowiązującej, patrząc na tekst
+    // zastąpiony. Ta bramka sprawdza WSZYSTKIE definicje razem, więc
+    // rozjechanie się ich progów zapala się tutaj, niezależnie od tego, którą
+    // migrację czyta który test.
+    const migrations = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
+    const contentPolicies = [
+      "career_roles_staff_write",
+      "career_roles_staff_update",
+      "career_roles_staff_delete",
+      "career_sections_staff_write",
+      "career_sections_staff_update",
+    ] as const;
+    for (const policy of contentPolicies) {
+      const defining = migrations.filter((file) =>
+        read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`),
+      );
+      expect(defining.length, `nikt już nie definiuje polityki ${policy}`).toBeGreaterThan(0);
+      // PRÓG ROLI musi być ten sam w KAŻDEJ definicji - to on rozjeżdża się
+      // z bramką panelu i to jego zmiana w najnowszej migracji przeszłaby
+      // niezauważona przez test czytający starszą.
+      for (const file of defining) {
+        const block = policyBlock(file, policy);
+        expect(block, `${policy} w ${file} nie pyta o public.is_staff()`).toContain(
+          "public.is_staff()",
+        );
+      }
+      // ZAKRES NAJEMCY sprawdzamy tylko w definicji OBOWIĄZUJĄCEJ. Żądanie go
+      // od wszystkich byłoby asercją nieprawdziwą: `20260813224302` powstało
+      // PRZED zakresowaniem i ma `WITH CHECK (public.is_staff())` bez najemcy -
+      // zakres dołożyła dopiero `20260814100000_careers_tenant_scope`. Bramka
+      // ma pilnować stanu obowiązującego, nie przepisywać historii.
+      const effective = defining[defining.length - 1];
+      expect(
+        policyBlock(effective, policy),
+        `${policy} zgubiło zakres najemcy w obowiązującej ${effective}`,
+      ).toContain("public.current_tenant_id()");
+    }
+  });
+
+  it("zaostrzenie progu dla ZGŁOSZEŃ kandydatów nie zostało cicho cofnięte", () => {
+    // Migracja 20260824074231 przestawiła `career_applications*` z
+    // `is_staff()` na `is_admin_or_editor()` - różnica to DOKŁADNIE rola
+    // `author`, która od tamtej pory nie widzi procesów rekrutacyjnych,
+    // dziennika etapów ani kubełka CV. Uprząż runtime sprawdza to na żywej
+    // bazie (§15 `scripts/careers-harness/runtime_test.sql`); tutaj stoi
+    // tańszy strażnik statyczny: NAJNOWSZA definicja tych polityk nie może
+    // wrócić do `is_staff()`.
+    const migrations = readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    for (const policy of [
+      "career_applications_staff_read",
+      "career_applications_staff_update",
+      "career_application_events_staff_read",
+    ] as const) {
+      const defining = migrations.filter((file) =>
+        read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`),
+      );
+      expect(defining.length, `nikt już nie definiuje polityki ${policy}`).toBeGreaterThan(0);
+      const last = defining[defining.length - 1];
+      const sql = read(`${MIGRATIONS_DIR}/${last}`);
+      const block = sql.slice(sql.indexOf(`CREATE POLICY ${policy}`)).split(";")[0];
+      expect(block, `${policy} wróciło do is_staff() w ${last}`).toContain("is_admin_or_editor()");
+    }
+  });
+
+  it("kubełek `career-cv` NIE MOŻE zgubić wiązania najemcy - to już raz się cofnęło", () => {
+    // TA BRAMKA POWSTAŁA NA WYRAŹNE ŻĄDANIE MIGRACJI NAPRAWCZEJ.
+    // `20260814194500_career_cv_policies_tenant_scope_reassert.sql` opisuje we
+    // własnym nagłówku, co się stało: `20260814100000` zawęziło trzy polityki
+    // bucketu do najemcy, bo `is_staff()` bada WYŁĄCZNIE rolę - więc redaktor
+    // najemcy A mógł podpisać i pobrać KAŻDE CV każdego najemcy. Trzy godziny
+    // później platforma zapisała wygenerowaną `20260814122512`, odpowiednik
+    // stanu SPRZED hardeningu, który tę samą trójkę odtworzył bez najemcy.
+    // I dalej cytat z tamtego nagłówka: „Stan końcowy bazy uratowała WYŁĄCZNIE
+    // kolejność plików. (…) Gdyby bliźniak dostał wcześniejszy znacznik czasu -
+    // izolacja najemców na plikach CV byłaby dziś otwarta na produkcji,
+    // A ŻADNA BRAMKA BY TEGO NIE POWIEDZIAŁA." Od teraz powie.
+    //
+    // Mierzymy definicję OBOWIĄZUJĄCĄ, czyli z ostatniej migracji odtwarzającej
+    // politykę - dokładnie tak, jak rozstrzyga to Postgres.
+    for (const policy of ['"career_cv_staff_read"', '"career_cv_staff_delete"'] as const) {
+      const { file, block } = effectivePolicy(policy);
+      expect(block, `${policy} zgubiło najemcę w obowiązującej ${file}`).toContain(
+        "public.current_tenant_id()::text",
+      );
+      expect(block, `${policy} zgubiło próg roli w obowiązującej ${file}`).toMatch(
+        /public\.(is_staff|is_admin_or_editor)\(\)/,
+      );
+    }
+  });
+
+  it("wgranie CV przez KANDYDATA wymusza ścieżkę z najemcą, bez warunku roli", () => {
+    // Ta polityka jest dla `anon` - kandydat z zewnątrz nie ma roli i mieć jej
+    // nie może, więc najemcę wymusza KSZTAŁT ŚCIEŻKI: dokładnie trzy segmenty,
+    // pierwszy równy najemcy przeglądanego hosta, drugi `uploads`. Zdjęcie
+    // któregokolwiek z tych warunków otwiera zapis w katalogu obcego najemcy.
+    const { file, block } = effectivePolicy('"career_cv_public_upload"');
+    expect(block, `zapis CV przestał liczyć segmenty ścieżki (${file})`).toContain(
+      "array_length(storage.foldername(name), 1) = 3",
+    );
+    expect(block, `zapis CV przestał przypinać najemcę hosta (${file})`).toContain(
+      "public.public_tenant_id()::text",
+    );
+    expect(block, `zapis CV przestał wymagać katalogu uploads (${file})`).toContain("'uploads'");
+    // Kontrola dodatnia sensu tej polityki: jest dla anonima, więc NIE MA
+    // w niej progu roli - i to jest poprawne, a nie przeoczone.
+    expect(block).toContain("TO anon");
+    expect(block).not.toContain("is_staff()");
   });
 
   it("plik CV kandydata wychodzi z panelu WYŁĄCZNIE jako krótkotrwały podpis", () => {
