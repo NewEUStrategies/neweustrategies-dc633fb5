@@ -95,6 +95,8 @@ import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobal
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 
 const FEED_ICONS = {
   all: LayoutList,
