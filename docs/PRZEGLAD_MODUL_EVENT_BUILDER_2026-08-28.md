@@ -444,6 +444,37 @@ Wyścig na asercji stanu przejściowego. Poza modułem wydarzeń, ale liczy się
 CI i uczy zespół ignorować czerwień. Naprawa: wstrzymać rozstrzygnięcie mutacji i sprawdzić `disabled`
 przy zatrzymanym zapisie, zamiast sprawdzać stan przejściowy po czasie.
 
+> **Aneks z 2026-09-02.** Powyższa recepta była już wtedy wdrożona i **okazała się no-opem**: test od
+> początku wstrzymywał rozstrzygnięcie mutacji (`mockImplementationOnce` z ręcznym `release`) i i tak
+> się przewracał. Diagnoza „wyścig na asercji" wskazywała złe miejsce — wyścig siedział w helperze
+> `clickSave`, nie w asercji.
+>
+> Prawdziwy mechanizm: `Mutation.execute` rozgłasza `pending` synchronicznie
+> (`query-core/mutation.js:94`), ale react-query doręcza to rozgłoszenie do drzewa **makrozadaniem** —
+> `notifyManager` planuje je przez `systemSetTimeoutZero`, czyli `setTimeout(cb, 0)`
+> (`query-core/timeoutManager.js:62-64`). `await act(async () => …)` czeka na własną obietnicę, a nie
+> na cudzy zegar: przy bezczynnej pętli zdarzeń zgarniał ten timer przypadkiem, pod obciążeniem pełnej
+> suity callback wypadał za drenaż act i natychmiastowa asercja czytała drzewo sprzed przełączenia
+> `isPending`. Zmierzone sondą: tuż po `fireEvent.click` przycisk ma `disabled === false`.
+>
+> Co zmieniono (`src/components/admin/menu/__tests__/MenuManager.test.tsx`):
+>
+> 1. `clickSave` domyka jedną turę makrozadań jawnie, wewnątrz tego samego `act`, zaraz po
+>    `fireEvent.click`. Kolejka zegarów jest FIFO, a timer react-query rejestruje się w trakcie
+>    synchronicznego kliku — czyli przed naszym. Uporządkowanie jest więc strukturalne, nie czasowe.
+>    Sonda potwierdza: na znaczniku zarejestrowanym po kliku `disabled === true`.
+> 2. Asercja `expect(button).toBeDisabled()` **została natychmiastowa** — bez `waitFor`, bez `try/catch`.
+>    Naprawiono harmonogram, nie osłabiono pomiaru.
+> 3. Dołożono asercję **skutku**: drugi klik w trakcie trwającego zapisu nie wysyła drugiego zapisu.
+>    Ma własny flush, bo bez niego byłaby zawsze zielona (react-query dochodzi do `mutationFn` dopiero
+>    po `await onMutate`, `query-core/mutation.js:102`) — czyli martwa bramka dokładnie nad klasą awarii,
+>    w której destrukcyjny zapis menu (delete-all + insert-all) rusza dwa razy równolegle.
+>
+> Kontrpróbki (zmierzone): po usunięciu `disabled={saveMutation.isPending}` z `MenuManager.tsx` czerwienią
+> się obie asercje — blokada („Received element is not disabled") i skutek („expected 1 times, but got
+> 2 times"). Po zdjęciu flusha z asercji skutku ta sama kontrpróbka przechodzi na zielono, co potwierdza,
+> że flush jest tam nośny, a nie kosmetyczny. Stabilność: 5 przebiegów pod rząd, 66/66 w każdym.
+
 ---
 
 ## 5. Dokumentacja wyprzedzona przez kod

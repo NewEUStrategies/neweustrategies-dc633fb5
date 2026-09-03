@@ -135,13 +135,40 @@ function pickerPanel(): HTMLElement {
   return panel as HTMLElement;
 }
 
-/** Klik „Zapisz" + oddanie tury mutacji react-query (zapis jest asynchroniczny). */
+/**
+ * Klik „Zapisz" + JAWNE domknięcie jednej tury MAKROZADAŃ.
+ *
+ * `Mutation.execute` rozgłasza stan `pending` SYNCHRONICZNIE
+ * (query-core/mutation.js:94, przed pierwszym `await`), ale react-query nie
+ * wpuszcza tego rozgłoszenia do drzewa od razu: `notifyManager` planuje je przez
+ * `systemSetTimeoutZero`, czyli dosłownie `setTimeout(cb, 0)`
+ * (query-core/timeoutManager.js:62-64). Powiadomienie jest więc MAKROZADANIEM.
+ * Zmierzone sondą: tuż po `fireEvent.click` przycisk ma `disabled === false` -
+ * `fireEvent` drenuje kolejkę Reacta, ale nie doręcza jeszcze `isPending`.
+ *
+ * Samo `await act(async () => …)` zwykle ten timer PRZYPADKIEM zgarnia (przy
+ * bezczynnej pętli zdarzeń sonda pokazała `disabled === true` już po nim) - ale
+ * niczego nie porządkuje: act czeka na swoją obietnicę, nie na cudzy zegar. Pod
+ * obciążeniem pełnej suity callback zegara potrafi wypaść za drenaż act i wtedy
+ * natychmiastowa asercja czyta drzewo sprzed przełączenia `isPending`. Stąd
+ * wynik zależny od obciążenia: w izolacji zielono, w CI czerwono (dokumentacja
+ * klasyfikowała to jako flake, punkt U-13).
+ *
+ * Jawne oddanie tury zamienia ten przypadek w REGUŁĘ, bo liczy się KOLEJNOŚĆ
+ * REJESTRACJI: react-query zakłada swój timer w trakcie synchronicznego
+ * `fireEvent.click`, a my zakładamy swój w tym samym bloku synchronicznym zaraz
+ * po nim. Kolejka zegarów jest FIFO, więc powiadomienie react-query wykona się
+ * PRZED wznowieniem tej funkcji - niezależnie od tego, jak obciążona jest
+ * maszyna. Zmierzone sondą: na znaczniku zarejestrowanym po kliku przycisk ma
+ * już `disabled === true`.
+ */
 async function clickSave() {
   // Nazwa przycisku zależy od języka panelu - test dwujęzyczny pyta o napis
   // w AKTUALNYM języku, a nie w polskim na sztywno.
   const label = realT(i18n.language === "en" ? "en" : "pl")("common.save");
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: new RegExp(label) }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
@@ -933,6 +960,24 @@ describe("stan zapisu", () => {
     await clickSave();
     const button = screen.getByRole("button", { name: new RegExp(t("common.save")) });
     expect(button).toBeDisabled();
+
+    // Blokada to środek, a nie cel. Celem jest SKUTEK: drugi klik w trakcie
+    // trwającego zapisu nie może wysłać drugiego zapisu, bo zapis menu jest
+    // destrukcyjny (delete-all + insert-all) - dwa równoległe przebiegi
+    // przepisują nawigację całego serwisu na wyścig.
+    //
+    // Flush jest tu KONIECZNY, nie kosmetyczny: `fireEvent` drenuje kolejkę
+    // Reacta, ale nie mikrozadania, a react-query dochodzi do `mutationFn`
+    // dopiero po `await onMutate` (query-core/mutation.js:102) i po
+    // `retryer.start()`. Bez oddania tury asercja sprawdzałaby stan sprzed
+    // ewentualnego drugiego wywołania i była ZAWSZE zielona - czyli byłaby
+    // martwą bramką dokładnie nad tą klasą awarii. Zmierzone: bez flusha
+    // kontrpróbka KP1 nie potrafi zaświecić na czerwono, z flushem - potrafi.
+    fireEvent.click(button);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(server.save).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       release();
