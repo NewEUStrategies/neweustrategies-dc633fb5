@@ -116,14 +116,20 @@ export function ClubHubView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const clubId = club?.id ?? "";
 
   const articles =
-    useQuery({ ...clubHubArticlesQueryOptions(clubId, articlesLimit), enabled: showArticles && clubId !== "" })
-      .data ?? [];
+    useQuery({
+      ...clubHubArticlesQueryOptions(clubId, articlesLimit),
+      enabled: showArticles && clubId !== "",
+    }).data ?? [];
   const comments =
-    useQuery({ ...clubHubCommentsQueryOptions(clubId, commentsLimit), enabled: showComments && clubId !== "" })
-      .data ?? [];
+    useQuery({
+      ...clubHubCommentsQueryOptions(clubId, commentsLimit),
+      enabled: showComments && clubId !== "",
+    }).data ?? [];
   const members =
-    useQuery({ ...clubHubMembersQueryOptions(clubId, signupsLimit), enabled: showSignups && clubId !== "" })
-      .data ?? [];
+    useQuery({
+      ...clubHubMembersQueryOptions(clubId, signupsLimit),
+      enabled: showSignups && clubId !== "",
+    }).data ?? [];
 
   if (!club) return null;
 
@@ -144,7 +150,12 @@ export function ClubHubView({ c, lang }: { c: WidgetContent; lang: Lang }) {
       data-testid="club-hub"
     >
       {showCover && club.cover_image_url !== null && club.cover_image_url !== "" ? (
-        <img src={club.cover_image_url} alt="" loading="lazy" className="h-40 w-full object-cover" />
+        <img
+          src={club.cover_image_url}
+          alt=""
+          loading="lazy"
+          className="h-40 w-full object-cover"
+        />
       ) : null}
 
       <div className="space-y-6 p-4 sm:p-5">

@@ -65,10 +65,7 @@ export function clubHubDateAttr(raw: string | null): string {
  * Skrót treści komentarza: białe znaki spłaszczone do pojedynczych spacji,
  * cięcie na granicy słowa, wielokropek TYLKO gdy faktycznie ucięto.
  */
-export function clubHubExcerpt(
-  body: string,
-  max: number = CLUB_HUB_DEFAULTS.excerptChars,
-): string {
+export function clubHubExcerpt(body: string, max: number = CLUB_HUB_DEFAULTS.excerptChars): string {
   const flat = body.replace(/\s+/gu, " ").trim();
   const limit = Math.max(max, 1);
   if (flat.length <= limit) return flat;
