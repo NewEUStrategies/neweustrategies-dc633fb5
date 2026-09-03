@@ -206,6 +206,21 @@ const tEn = realT("en");
  * znacząca: na niej stoi cały dowód chronologii.
  */
 const KLUCZE_KROKOW = ["apply", "screening", "task", "decision"] as const;
+/**
+ * WSZYSTKIE klucze słownika, na których stoją asercje tego pliku - do
+ * strażnika „wartość NIE JEST kluczem" niżej.
+ */
+const KLUCZE_SLOWNIKA = [
+  "careers.process.title",
+  "careers.process.subtitle",
+  "careers.closing.title",
+  "careers.closing.body",
+  "careers.closing.cta",
+  "careers.closing.secondary",
+  ...KLUCZE_KROKOW.map((k) => `careers.process.items.${k}.title`),
+  ...KLUCZE_KROKOW.map((k) => `careers.process.items.${k}.body`),
+] as const;
+
 /** Numeracja, jaką ma zobaczyć kandydat (dwie cyfry, licząc od jedynki). */
 const NUMERY_KROKOW = ["01", "02", "03", "04"] as const;
 /** Stagger `CareerReveal` na pozycjach 0..3 (własny dowód: careersValues.test.tsx). */
@@ -313,6 +328,40 @@ async function zamontujWRouterze(opcje: OpcjeMontazu = {}) {
 
 afterEach(() => {
   cleanup();
+});
+
+describe("słownik kariery jest ZAREJESTROWANY - strażnik samospełniających się asercji", () => {
+  /**
+   * PUŁAPKA, KTÓRĄ TEN TEST ZAMYKA, WYGLĄDA JAK DOBRA PRAKTYKA.
+   * Asercje tego pliku porównują tekst na ekranie z `t("careers.…")` - czyli
+   * ze SŁOWNIKIEM, a nie z literałem wklejonym w test. To jest właściwy
+   * kierunek, ale sam w sobie NIE WYSTARCZA: i18next dla BRAKUJĄCEGO klucza
+   * zwraca SAM KLUCZ, a komponent renderuje `t(key)`. Gdyby więc klucz wypadł
+   * ze słownika, `getByText(t(key))` porównywałoby napis „careers.process.title"
+   * z napisem „careers.process.title" i przechodziło - test UDAWAŁBY pomiar
+   * słownika, będąc tautologią. To gorszy przypadek niż literał w teście, bo
+   * literał widać w diffie, a tego nie widać wcale.
+   *
+   * Znalezione rewizją adwersaryjną w `careersValues.test.tsx` i domknięte tu
+   * dla całej rodziny kluczy tego pliku JEDNYM dowodem: każda wartość MUSI
+   * różnić się od swojego klucza i nie może być pusta.
+   */
+  it("każdy klucz użyty w asercjach rozwiązuje się do napisu INNEGO niż on sam", () => {
+    const t = realT("pl");
+    for (const klucz of KLUCZE_SLOWNIKA) {
+      const wartosc = t(klucz);
+      expect(wartosc, `klucz ${klucz} nie ma wartości w słowniku`).not.toBe(klucz);
+      expect(wartosc.trim(), `klucz ${klucz} ma pustą wartość`).not.toBe("");
+    }
+  });
+
+  it("kontrola dodatnia: klucz, którego NIE MA, wraca jako on sam", () => {
+    // Bez tej kontroli dowód wyżej mógłby przechodzić dlatego, że `realT`
+    // zwraca cokolwiek innego niż klucz (np. pusty napis albo `undefined`),
+    // a nie dlatego, że słownik jest zarejestrowany.
+    const t = realT("pl");
+    expect(t("careers.klucz.ktorego.nie.ma")).toBe("careers.klucz.ktorego.nie.ma");
+  });
 });
 
 describe("CareersProcess: kroki procesu w kolejności", () => {
