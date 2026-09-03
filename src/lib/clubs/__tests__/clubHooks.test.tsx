@@ -209,6 +209,33 @@ describe("useClubBySlug / useClubGroups", () => {
     expect(clubApiMock.fetchClubBySlug).toHaveBeenCalledWith("klub-x");
   });
 
+  // REGRESJA: loader trasy dziala na SSR bez sesji i zapisuje odpowiedz dla
+  // anonima (`can_read = false`). Gdyby zalogowany czlonek czytal ten sam wpis
+  // cache, zobaczylby bramke "Popros o dostep" mimo aktywnego czlonkostwa.
+  it("nie czyta wpisu cache zapisanego pod kluczem anonimowym", async () => {
+    const { queryClient, wrapper } = harness();
+    queryClient.setQueryData(clubKeys.bySlug("klub-x"), { can_read: false });
+    queryClient.setQueryData(clubKeys.bySlugViewer("klub-x", null), { can_read: false });
+    clubApiMock.fetchClubBySlug.mockResolvedValue({ can_read: true });
+
+    const { result } = renderHook(() => useClubBySlug("klub-x"), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ can_read: true });
+  });
+
+  it("czeka z odpytaniem, dopoki sesja nie jest rozstrzygnieta", async () => {
+    const { wrapper } = harness();
+    authState.loading = true;
+    try {
+      renderHook(() => useClubBySlug("klub-x"), { wrapper });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(clubApiMock.fetchClubBySlug).not.toHaveBeenCalled();
+    } finally {
+      authState.loading = false;
+    }
+  });
+
   it("działy: bez id klubu nie odpytuje, z id odpytuje raz", async () => {
     const { wrapper } = harness();
     clubApiMock.fetchClubGroups.mockResolvedValue([]);
