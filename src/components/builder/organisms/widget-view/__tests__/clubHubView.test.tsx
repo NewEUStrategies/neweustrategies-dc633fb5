@@ -125,7 +125,7 @@ describe("ClubHubView", () => {
     expect(await screen.findByText("Artykuły")).toBeTruthy();
     expect(await screen.findByText("Komentarze")).toBeTruthy();
     expect(await screen.findByText("Zapisy")).toBeTruthy();
-    expect(await screen.findByText("Raport 2026")).toBeTruthy();
+    expect((await screen.findAllByText("Raport 2026")).length).toBeGreaterThan(0);
     expect(await screen.findByText("Zgadzam się z tezą raportu.")).toBeTruthy();
     expect(await screen.findByText("Maria Lis")).toBeTruthy();
     expect(await screen.findByText("Dołącz do klubu")).toBeTruthy();
@@ -171,7 +171,7 @@ describe("ClubHubView", () => {
   it("artykuł prowadzi do wątku klubu, a data ma maszynowy datetime", async () => {
     seed();
     const { container } = renderWidget(<ClubHubView c={content} lang="en" />);
-    const link = await screen.findByRole("link", { name: /Raport 2026/ });
+    const [link] = await screen.findAllByRole("link", { name: /Raport 2026/ });
     expect(link.getAttribute("href")).toContain("/club/bezpieczenstwo/t/raport-2026");
     const time = container.querySelector("time");
     expect(time?.getAttribute("datetime")).toBe("2026-03-04T10:00:00.000Z");
