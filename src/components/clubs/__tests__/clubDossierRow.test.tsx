@@ -495,7 +495,7 @@ describe("ClubDossierRow - warianty i gałęzie", () => {
       />,
     );
     const nagłówek = rodzic(screen.getByText("TYTUŁ"));
-    expect(nagłówek.className).toContain("text-xl");
+    expect(nagłówek.className).toContain("text-lg");
     expect(nagłówek.className).toContain("font-bold");
     // Nawet bez `meta` tytuł nagłówkowy odsuwa się od krawędzi wiersza.
     expect(rodzic(nagłówek).className).toContain("mt-2");
