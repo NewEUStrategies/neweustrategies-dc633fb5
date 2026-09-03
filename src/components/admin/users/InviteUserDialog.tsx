@@ -154,12 +154,15 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl rounded-[6px]">
+      <DialogContent className="max-h-[90dvh] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto overflow-x-hidden rounded-[6px]">
         <DialogHeader>
-          <DialogTitle>{t("adminTeamMedia.inviteUser.title")}</DialogTitle>
+          <DialogTitle className="pr-8 break-words">
+            {t("adminTeamMedia.inviteUser.title")}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex w-full min-w-0 flex-col gap-4 sm:flex-row">
+
           <div className="flex shrink-0 flex-col items-center gap-2">
             <div
               data-testid="invite-avatar"
