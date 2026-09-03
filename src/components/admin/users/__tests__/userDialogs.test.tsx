@@ -253,10 +253,6 @@ function buttonWith(fragment: string): HTMLButtonElement {
   return button;
 }
 
-function inputs(): HTMLInputElement[] {
-  return Array.from(document.querySelectorAll<HTMLInputElement>("input:not([type=checkbox])"));
-}
-
 beforeEach(() => {
   cleanup();
   h.toastSuccess.mockReset();
