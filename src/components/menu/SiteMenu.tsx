@@ -66,7 +66,7 @@ function DropdownPanel({
   return (
     <div
       role="menu"
-      className="menu-card overflow-hidden rounded-md border border-border/50 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5"
+      className="menu-card overflow-hidden rounded-md border border-border/50 bg-popover text-popover-foreground ring-1 ring-black/5"
       style={{ width: "min(320px, calc(100vw - 32px))" }}
       onMouseLeave={onRequestClose}
     >
