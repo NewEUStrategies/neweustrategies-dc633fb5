@@ -481,11 +481,55 @@ describe("adres kanoniczny strony - ścieżka rodzica nie przekracza granicy naj
 
   const LIVE_FKS = liveSameTenantFks();
 
+  /**
+   * Funkcje ZDJĘTE po swojej ostatniej definicji.
+   *
+   * `extractLatestDefinitions()` rejestruje wyłącznie `CREATE [OR REPLACE]
+   * FUNCTION` - słowo `DROP` nie pada w `scripts/lib/sqlMigrations.ts` ani razu.
+   * Sam kanarek istnienia byłby więc ślepy na `DROP FUNCTION`: wpis zostaje
+   * w mapie, `missing` jest puste, a asercja o predykacie ogląda ciało SPRZED
+   * zdjęcia. Bramka świeciłaby zielono nad funkcją, której już nie ma - czyli
+   * dokładnie ta sama wada monotoniczności, którą wpis nr 3 wyżej zarzuca
+   * staremu `.some()`, tylko przeniesiona o poziom niżej.
+   *
+   * Liczymy to TUTAJ, a nie w `sqlMigrations.ts`: ten helper karmi cztery inne
+   * bramki, a zmiana jego semantyki jest osobną decyzją z własnym pomiarem.
+   *
+   * Dopasowanie po SAMEJ NAZWIE, bez listy typów, jest świadomie ZACHOWAWCZE:
+   * `DROP FUNCTION` z inną arnością zgłosi się tu jako zdjęcie i bramka zaświeci
+   * czerwono. Fałszywy alarm na bramce izolacji najemcy kosztuje jedno
+   * spojrzenie człowieka; przeoczone zdjęcie kosztuje wyciek.
+   */
+  function droppedAfterDefinition(): string[] {
+    const files = readdirSync(PAGES_MIGRATIONS_DIR)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    const lastDrop = new Map<string, string>();
+    for (const file of files) {
+      const raw = read(`${PAGES_MIGRATIONS_DIR}/${file}`);
+      if (!/page_full_path/i.test(raw)) continue;
+      for (const m of stripSqlComments(raw).matchAll(
+        /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(page_full_paths?)\b/gi,
+      )) {
+        lastDrop.set(`public.${m[1].toLowerCase()}`, file);
+      }
+    }
+    return PATH_FUNCTIONS.flatMap((key) => {
+      const def = LATEST_FNS.get(key);
+      const dropped = lastDrop.get(key.split("/")[0]);
+      if (def === undefined || dropped === undefined || dropped <= def.file) return [];
+      return [`${key} - zdjęta w ${dropped}, po ostatniej definicji w ${def.file}`];
+    });
+  }
+
   it("obie funkcje ścieżki istnieją w stanie końcowym migracji - kanarek zasięgu", () => {
     // Bez tego przemianowanie funkcji (albo zmiana arności) robi z asercji niżej
     // pustą pętlę, która przechodzi, bo nie ma czego sprawdzić.
     const missing = PATH_FUNCTIONS.filter((key) => LATEST_FNS.get(key) === undefined);
     expect(missing).toEqual([]);
+    // ...a bez tego kanarek byłby ślepy na `DROP FUNCTION` - patrz komentarz
+    // nad `droppedAfterDefinition`.
+    expect(droppedAfterDefinition()).toEqual([]);
   });
 
   it("obie funkcje ścieżki wiążą najemcę w rekurencji", () => {
