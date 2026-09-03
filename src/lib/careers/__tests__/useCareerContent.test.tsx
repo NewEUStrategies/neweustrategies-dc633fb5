@@ -407,10 +407,21 @@ describe("useCareerOffers - wybór listy ofert", () => {
     const settled = paints.length - 1;
 
     // Unieważnienie po zapisie w panelu / powrót na kartę - odczyt idzie znowu.
+    let duringFetch: { isLoading: boolean; ids: string[] } | null = null;
     await act(async () => {
-      await queryClient.invalidateQueries({ queryKey: careerRolesQueryOptions().queryKey });
+      const done = queryClient.invalidateQueries({ queryKey: careerRolesQueryOptions().queryKey });
+      await Promise.resolve();
+      duringFetch = {
+        isLoading: result.current.isLoading,
+        ids: result.current.offers.map((offer) => offer.id),
+      };
+      await done;
     });
     expect(stub.chainsFor(ROLES_RELATION)).toHaveLength(2);
+    expect(duringFetch).toEqual({
+      isLoading: false,
+      ids: [ROW_COORDINATOR.slug, ROW_EDITOR.slug],
+    });
 
     // Od chwili, gdy dane doszły, kandydat widzi te same dwie oferty na KAŻDYM
     // malowaniu: ani pustej listy, ani katalogu zapasowego, ani spinnera.
@@ -637,9 +648,7 @@ describe("useCareerSection - stan sekcji strony", () => {
     // (ZMIERZONE: hook ignorujący odpowiedź przechodził poprzednią wersję
     // tego testu w 5 ms) i dublowała test ZNALEZISKA 2.
     const sectionsKey = careerSectionsQueryOptions().queryKey;
-    await waitFor(() =>
-      expect(queryClient.getQueryState(sectionsKey)?.status).toBe("success"),
-    );
+    await waitFor(() => expect(queryClient.getQueryState(sectionsKey)?.status).toBe("success"));
     expect(queryClient.getQueryData(sectionsKey)).toEqual([]);
     expect(stub.chainsFor(SECTIONS_RELATION)).toHaveLength(1);
 
