@@ -305,9 +305,11 @@ function sectionRow(overrides: Partial<CareerSectionRow> = {}): CareerSectionRow
  * Kontrakt `supabaseFromStub()` mówi „łańcuch rozwiązuje się przy `await`" -
  * to jest jego zaleta wszędzie tam, gdzie liczy się kształt zapytania, i wada
  * dokładnie tutaj: bez stanu „w drodze" nie da się zobaczyć strony, jaką
- * kandydat dostaje przy pierwszym malowaniu. Ogniwa są jawne (`select`,
- * `order`, `eq` - te i tylko te wywołuje `careerRolesQueryOptions`), więc
- * literówka w kodzie produkcyjnym oblewa test, a nie zostaje pochłonięta.
+ * kandydat dostaje przy pierwszym malowaniu. Ogniwa są wypisane JAWNIE
+ * (`select`, `order`, `eq` - dokładnie te, które składa
+ * `careerRolesQueryOptions`), a nie podstawione `Proxy` na cokolwiek: nieznane
+ * ogniwo wywala łańcuch, zamiast zostać cicho pochłonięte. KSZTAŁTU zapytania
+ * ten plik nie dowodzi - to przedmiot `catalog.test.ts` i warstwy danych.
  */
 function deferredChain(): { chain: unknown; settle: (result: SupabaseResult) => void } {
   let settle: (result: SupabaseResult) => void = () => {};
@@ -426,8 +428,10 @@ describe("CareersRoles: licznik zgadza się z listą", () => {
     expect(cards()).toHaveLength(3);
     const live = counter(container);
     expect(live).toHaveAttribute("aria-live", "polite");
+    // Pierwsza liczba = karty na ekranie, druga = całość katalogu ze słownika
+    // (`showingShort` interpoluje `total`), rozdzielone dekoracyjnym ukośnikiem.
     expect(live.textContent).toBe(`3/${pl("careers.roles.showingShort", { total: 3 })}`);
-    expect(live.textContent).toContain("3 ról");
+    expect(live.querySelector("span[aria-hidden]")?.textContent).toBe("/");
   });
 
   it("etykieta statusu i nagłówek sekcji pochodzą ze słownika", () => {
