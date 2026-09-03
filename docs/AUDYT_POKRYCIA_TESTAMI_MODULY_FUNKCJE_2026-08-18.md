@@ -257,10 +257,17 @@ zero `as any` i zero `: any` w kodzie pisanym ręcznie, a w tym wydaniu znalazł
 w `src/routes/platform/email/auth/webhook.ts:115`. Sprawdziłem, czy to regres tego okna: **nie
 jest.** `git show 8e771b983:src/routes/platform/email/auth/webhook.ts` pokazuje tę linię pod tym
 samym numerem, a plik nie ma w tym oknie ANI JEDNEGO commitu. To była moja pomyłka pomiarowa
-w wydaniu 8, nie nowy dług. Dzisiejszy pomiar na 3 362 plikach pisanych ręcznie: `as any` **0**,
-`: any` **1** (ta jedna linia), `as unknown as` **188**. Naiwny grep daje 370 trafień `as any`, ale
-wszystkie siedzą w `routeTree.gen.ts`, którego repo zabrania edytować i który jest wykluczony
-z pomiaru w `vitest.config.ts:81`.
+w wydaniu 8, nie nowy dług. Dzisiejszy pomiar w **3 305 plikach produkcyjnych** pisanych ręcznie,
+z wygaszonymi komentarzami i literałami napisowymi: `as any` **0**, `: any` **1** (ta jedna linia),
+`as unknown as` **179** w 115 plikach. Dwa zastrzeżenia do metody, bo bez nich liczba jest fałszywa
+w obie strony. **Naiwny grep daje 370 trafień `as any`**, ale wszystkie siedzą
+w `routeTree.gen.ts`, którego repo zabrania edytować i który jest wykluczony z pomiaru
+w `vitest.config.ts:81`. **A grep po samych plikach ręcznych daje 10 trafień `as any` i 5 `: any` —
+i wszystkie oprócz jednego są w KOMENTARZACH**, bo to repozytorium o tych wzorcach pisze (np.
+`src/lib/ci/unknownCasts.ts:4`: „…tak samo skutecznie jak `as any`"). Licznik, który nie wygasza
+komentarzy, mierzy tu dyscyplinę opisową, nie dług. W plikach testowych `as any` jest **3**,
+a `as unknown as` **654** — i to jest zgodne z regułą repo, która dopuszcza `any` wyłącznie
+w testach.
 
 ---
 
@@ -3091,7 +3098,8 @@ i nie jest to regres tego okna.** `let payload: any` stoi w
 `src/routes/platform/email/auth/webhook.ts:115`. Sprawdziłem, czy doszło w tym oknie:
 `git show 8e771b983:…` pokazuje tę linię pod tym samym numerem, a plik nie ma w oknie ANI JEDNEGO
 commitu. Czyli to była **moja pomyłka pomiarowa w wydaniu 8**, nie nowy dług. Dzisiejszy pomiar
-na 3 362 plikach pisanych ręcznie: `as any` **0**, `: any` **1**, `as unknown as` **188**.
+w 3 305 plikach produkcyjnych pisanych ręcznie, z wygaszonymi komentarzami i literałami:
+`as any` **0**, `: any` **1**, `as unknown as` **179** w 115 plikach.
 
 **7. Prawie policzyłem zera złym filtrem — i różnica wyniosłaby 30% wyniku pracy pięciu
 kampanii.** Warunek `lines.pct === 0` daje w raporcie wydania 9 **240** plików, a prawdziwych zer
@@ -4651,8 +4659,10 @@ w `src/routeTree.gen.ts`, który repozytorium samo zabrania edytować („You sh
 any changes in this file as it will be overwritten") i który jest **wykluczony z pomiaru
 pokrycia** w `vitest.config.ts:81`.
 
-W **3 362** plikach produkcyjnych pisanych ręcznie: `as any` = **0** (wydanie 8 podawało
-sześć), `: any` = **1**, `as unknown as` = **188**.
+W **3 305** plikach produkcyjnych pisanych ręcznie, licząc po wygaszeniu komentarzy i literałów
+napisowych: `as any` = **0** (wydanie 8 podawało sześć), `: any` = **1**,
+`as unknown as` = **179** w 115 plikach. Bez wygaszenia komentarzy wychodzi 10 i 5 — i to jest
+pouczające, bo dziewięć z tych dziesięciu trafień to zdania o tym, że repo `as any` NIE używa.
 
 **Ta jedna adnotacja nie jest regresem tego okna i tak ją trzeba zapisać.**
 `src/routes/platform/email/auth/webhook.ts:115` → `let payload: any;` **istniało już
