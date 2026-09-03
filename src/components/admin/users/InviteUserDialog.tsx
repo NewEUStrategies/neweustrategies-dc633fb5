@@ -263,9 +263,10 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
             <div className="grid gap-1">
               <Label>{t("adminTeamMedia.inviteUser.mode")}</Label>
               <Select value={mode} onValueChange={(v) => isMode(v) && setMode(v)}>
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="w-full min-w-0">
+                  <SelectValue className="truncate" />
                 </SelectTrigger>
+
                 <SelectContent>
                   <SelectItem value="magic_link">
                     {t("adminTeamMedia.inviteUser.modeMagic")}
