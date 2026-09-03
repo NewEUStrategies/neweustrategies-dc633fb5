@@ -128,41 +128,49 @@
 // CO ZMIENIŁA REWIZJA ADWERSARIALNA (mierzona mutacjami produkcji)
 // ---------------------------------------------------------------------------
 // Pierwsza wersja tego pliku raportowała linie 18/18 i funkcje 13/13 - i to
-// była prawda. Rewizja sprawdziła coś innego: czy z tych 43 testów da się
+// była prawda. Rewizja pytała o coś innego: czy z tych 43 testów da się
 // WYWNIOSKOWAĆ zachowanie, czy tylko fakt wykonania linii. Metoda: mutacja
-// kodu produkcyjnego + uruchomienie pliku + `git checkout` (produkcja została
-// nietknięta). Sześć mutacji PRZEŻYŁO zieloną suitę przy 100% linii/funkcji:
+// kodu produkcyjnego -> uruchomienie pliku -> `git checkout` (produkcja wyszła
+// z tego nietknięta). Numeracja niżej to te same numery, którymi podpisane są
+// wzmocnione asercje w ciele pliku (`REWIZJA 1` ... `REWIZJA 6`).
 //
-//   1. zamiana klas chipu aktywny <-> nieaktywny (`CareerFilterChip`),
-//   2. to samo w liczniku na chipie,
-//   3. wycięcie `selected ? ... :` z belki gradientowej karty,
-//   4. wycięcie `selected ? ... :` z poświaty karty,
-//   5. zdjęcie `selected && "-translate-y-0.5"` z karty,
-//   6. zdjęcie `aria-hidden` z warstwy dekoracyjnej karty.
+// REWIZJA 1 (atrapa popupu, przy `vi.mock`) - stan atrapy w zmiennej modułowej
+//   przeżywał granicę testu, a jej bramka `open` nie odpalała się tu ani razu.
+//   Nie było fałszywej asercji, była fałszywa opowieść w nagłówku.
+// REWIZJA 2 („wciśnięty jest DOKŁADNIE...") - nazwa obiecywała wyczerpanie,
+//   ciało sprawdzało 3 z 7 chipsów. Klasyczne „nazwa większa od dowodu".
+// REWIZJA 3 (wzrokowy sygnał chipu) - PRZEŻYŁY dwie mutacje: zamiana klas
+//   aktywny <-> nieaktywny w chipie i to samo w jego liczniku.
+// REWIZJA 4 (warstwy karty) - PRZEŻYŁY trzy: wycięcie `selected ? ... :`
+//   z belki gradientowej, to samo z poświaty, zdjęcie `aria-hidden`
+//   z warstwy dekoracyjnej.
+// REWIZJA 5 (uniesienie wybranej karty) - PRZEŻYŁO zdjęcie
+//   `selected && "-translate-y-0.5"`, bo jedyna asercja tego sygnału nie
+//   mogła oblać: `className).toContain("-translate-y-0.5")` znajduje ten napis
+//   w klasie bazowej `hover:-translate-y-0.5`, na KAŻDEJ karcie. Stąd reguła
+//   tego pliku: sygnały klasowe asertujemy `toHaveClass` (cały token), nigdy
+//   `toContain` na `className`.
+// REWIZJA 6 (ikony znaczników) - mutacja RÓWNOWAŻNA, świadomie niezabijana:
+//   `lucide-react` sam dokłada `aria-hidden`, gdy ikona nie ma dziecka ani
+//   propsa dostępnościowego, więc zdjęcie propsa z JSX-a daje IDENTYCZNY DOM.
+//   Dyskryminująca połowa pary („ikona nie ma własnej nazwy") stoi w asercjach
+//   i pada, gdy ikonie nadać `aria-label`.
 //
-// Wspólny mechanizm 1-4: gałąź BYŁA przebiegana (w jednym renderze stoi obok
+// Wspólny mechanizm 3-5: gałąź BYŁA przebiegana (w jednym renderze stoi obok
 // siebie chip wciśnięty i sześć luźnych, karta wybrana i dwie zwykłe), więc
 // licznik gałęzi pokazywał 100%, a NIKT nie asertował jej skutku. To jest
 // hodowanie pokrycia bez ani jednego pustego `it(...)`: metryka domknięta,
-// dowodu nie ma. 5 to osobny gatunek - asercja `className).toContain(
-// "-translate-y-0.5")` nie mogła oblać, bo klasa bazowa karty brzmi
-// `hover:-translate-y-0.5` i zawiera szukany napis jako podnapis. Stąd reguła
-// przyjęta w tym pliku: sygnały klasowe asertujemy `toHaveClass` (dopasowanie
-// całego tokenu), nigdy `toContain` na `className`.
+// dowodu nie ma. Wszystkie te mutacje po rewizji padają (przemierzone).
 //
-// Mutacja RÓWNOWAŻNA, świadomie niezabijana: zdjęcie propsa `aria-hidden`
-// z ikony `lucide-react`. Biblioteka dokłada go sama, gdy ikona nie ma dziecka
-// ani propsa dostępnościowego, więc DOM wychodzi identyczny - nie ma czego
-// dowodzić. Dyskryminująca połowa tej pary („ikona nie ma własnej nazwy")
-// stoi w asercjach i pada, gdy ikonie nadać `aria-label`.
-//
-// Kontrola odwrotna (mutanty, które ginęły od początku i giną nadal): licznik
+// Kontrola odwrotna - mutanty, które ginęły od początku i giną nadal: licznik
 // z `offers.length` zamiast `roles.length`, chip z licznikiem innego działu,
-// `onDepartmentChange` wołane zawsze z „all", `onDetails` zawsze z pierwszą
-// ofertą, odwrócony warunek zamknięcia popupu, `key={department}` zdjęte,
-// `type="button"` zdjęte, `aria-current` na wszystkich kartach, `aria-live`
-// przełączone na „off", `Math.min(index, 7)` bez ogranicznika, nadpisanie
-// nagłówka z panelu ignorowane, `id` sekcji zaszyte w kodzie.
+// `onDepartmentChange` wołane zawsze z „all", `active` liczone ze złego
+// porównania, `onDetails` zawsze z pierwszą ofertą, odwrócony warunek
+// zamknięcia popupu, `key={department}` zdjęte, `type="button"` zdjęte,
+// `aria-pressed` zdjęte, `aria-current` na wszystkich kartach, `aria-live`
+// przełączone na „off", `Math.min(index, 7)` bez ogranicznika, opis karty
+// podmieniony na tytuł, „Aplikuj" wołające `onDetails`, nadpisanie nagłówka
+// z panelu ignorowane, `id` sekcji zaszyte w kodzie.
 //
 // ---------------------------------------------------------------------------
 // ŚWIADOMIE POZA ZAKRESEM
