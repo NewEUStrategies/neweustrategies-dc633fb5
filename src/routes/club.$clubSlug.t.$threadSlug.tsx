@@ -1019,7 +1019,7 @@ function ReplyBranch(props: ReplyBranchProps) {
             />
           </div>
         ) : (
-          <ClubProse className="mt-2" size="sm" body={reply.body} clubSlug={clubSlug} />
+          <ClubProse className="mt-2 max-w-none" size="sm" body={reply.body} clubSlug={clubSlug} />
         )}
 
         {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych
