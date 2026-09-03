@@ -178,7 +178,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
               {photo ? (
                 <img src={photo} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="text-2xl font-semibold tracking-wide text-muted-foreground">
+                <span className="text-2xl font-semibold tracking-wide text-muted-foreground/50">
                   {initials || "?"}
                 </span>
               )}
