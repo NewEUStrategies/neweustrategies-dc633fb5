@@ -450,6 +450,8 @@ export type WidgetType =
   // Kluby dyskusyjne (spec §5.5)
   | "club-card"
   | "club-threads"
+  // Strona klubu w bloku: artykuly, komentarze i zapisy jednego klubu.
+  | "club-hub"
   // Web Stories
   | "web-stories-carousel"
   // Auth forms (structural - never raw HTML)

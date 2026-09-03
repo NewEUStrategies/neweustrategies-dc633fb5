@@ -69,6 +69,7 @@ import {
   EventSponsorsView,
   CircularCarouselView,
   TravelRouteCardView,
+  ClubHubView,
   CoverOverlayCardView,
   // Podział po typie (2026-08-15): listingi, karty zdarzeń, billing, formularz
   // onboardingu, karuzela postępu i renderer HTML tekstu jadą w chunkach na
@@ -900,6 +901,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<ClubCardView c={c} lang={lang} />);
     case "club-threads":
       return wrap(<ClubThreadsView c={c} lang={lang} />);
+    case "club-hub":
+      return wrap(<ClubHubView c={c} lang={lang} />);
     case "web-stories-carousel":
       return wrap(<WebStoriesCarouselView c={c} lang={lang} />);
     case "categories":

@@ -126,6 +126,7 @@ export const WIDGET_TYPES = [
   // Kluby dyskusyjne (spec §5.5)
   "club-card",
   "club-threads",
+  "club-hub",
   // Web Stories
   "web-stories-carousel",
   // Auth forms

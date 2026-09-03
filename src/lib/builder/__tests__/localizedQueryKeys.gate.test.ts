@@ -161,6 +161,12 @@ describe("rejestr fabryk nie ma dziur", () => {
     // przy renderze. Klucz z językiem trzymałby dwa identyczne wpisy cache.
     "clubCardQueryOptions",
     "clubThreadsQueryOptions",
+    // Sekcje widgetu „Klub: strona" - RPC zwraca dane niezależne od języka
+    // (tytuły wątków, treści komentarzy, nazwiska członków), a widok formatuje
+    // tylko daty, więc język nie należy do klucza cache.
+    "clubHubArticlesQueryOptions",
+    "clubHubCommentsQueryOptions",
+    "clubHubMembersQueryOptions",
     "designTokensQueryOptions",
     "eventByIdQueryOptions",
     "eventRsvpCountsQueryOptions",
