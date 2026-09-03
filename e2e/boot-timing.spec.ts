@@ -211,11 +211,11 @@ const MAX_BOOT_JS_TRANSFER_KB = 3_000;
  * prawdziwe sekrety Supabase. Wtedy oba progi schodzą o rząd, a składnik
  * paintowy zostaje.
  *
- * POTWIERDZONE DWOMA POMIARAMI Z RUNNERA po postawieniu progu (2026-09-03 po
- * południu, przebiegi 33763700986 i 33765187255): FCP 5 296,0 ms i 5 308,0 ms,
- * zapas 1,70x w obu - dokładnie tam, gdzie wyliczyła arytmetyka wyżej z jednego
- * starszego logu. Próg nie jest zacieśniany: rządzi nim najgorszy pomiar
- * z hosta (5 748,0 ms, zapas 1,57x).
+ * POTWIERDZONE TRZEMA POMIARAMI Z RUNNERA po postawieniu progu (2026-09-03 po
+ * południu, przebiegi 33763700986 / 33765187255 / 33768894559): FCP 5 296,0 /
+ * 5 308,0 / 5 356,0 ms, zapas 1,70x / 1,70x / 1,68x - dokładnie tam, gdzie
+ * wyliczyła arytmetyka wyżej z jednego starszego logu. Próg nie jest
+ * zacieśniany: rządzi nim najgorszy pomiar z hosta (5 748,0 ms, zapas 1,57x).
  */
 const MAX_FCP_MS = MAX_TTFB_MS + 1_000;
 
@@ -250,9 +250,9 @@ const MAX_FCP_MS = MAX_TTFB_MS + 1_000;
  *   5 744,0 - 5 045,9 = 698,1 ms
  *   5 420,0 - 5 084,3 = 335,7 ms   <- dołożona 2026-09-03 po południu
  * Zakres SAMEGO PAINTU: 335,7 - 698,1 ms na pięciu parach (przed piątym
- * pomiarem stało tu 385,8 - 698,1). Do tego pary z runnera: 241,9 ms
- * (5 272,0 - 5 030,1), 253,2 ms i 266,2 ms - wszystkie trzy z jednego
- * przebiegu każda, więc policzone poprawnie.
+ * pomiarem stało tu 385,8 - 698,1). Do tego CZTERY pary z runnera: 241,9 ms
+ * (5 272,0 - 5 030,1), 253,2 ms, 266,2 ms i 312,5 ms - każda z jednego
+ * przebiegu, więc policzone poprawnie.
  *
  * PRÓG. 2 000 / 698,1 = 2,86x najgorszej ZMIERZONEJ W PARZE wartości
  * (rozrzut 335,7 - 698,1 ms na pięciu parach to 2,1x - sam paint jest tu
@@ -266,15 +266,29 @@ const MAX_FCP_MS = MAX_TTFB_MS + 1_000;
  * ta liczba mierzy też CPU. 2 000 ms nadal łapie klasę regresji, o którą tu
  * chodzi: podwojenie arkusza blokującego render to setki ms, nie dziesiątki.
  *
- * POTWIERDZONE DWOMA PARAMI Z RUNNERA (2026-09-03 po południu): 253,2 ms
- * i 266,2 ms - a między sobą powtarzalne do 13 ms, przy rozrzucie 2,1x na
- * hoście. Runner jest tu szybszy od hosta 2,62x licząc kraniec do krańca
- * (698,1 / 266,2) albo 1,91x licząc średnią do średniej (495,0 / 259,7);
- * podaję oba, bo „2,6x" bez powiedzenia, co dzieli co, jest dokładnie tym
- * błędem, który ten plik prostuje wyżej. Próg ZOSTAJE na 2 000 ms i NIE jest
- * zacieśniany do liczby wyprowadzonej z runnera: rządzi nim najgorszy pomiar
- * (host, 698,1 ms), nie najlepszy - inaczej byłaby to bramka na kontencję hosta
- * dewelopera. Tabele wszystkich przebiegów - w kronice niżej.
+ * TRZY PARY Z RUNNERA (2026-09-03 po południu): 253,2 / 266,2 / 312,5 ms.
+ * Zakres 253,2 - 312,5 ms, rozrzut 1,23x, średnia 277,3 ms - wobec 335,7 -
+ * 698,1 ms i rozrzutu 2,08x na hoście. Runner jest tu szybszy od hosta 2,23x
+ * licząc kraniec do krańca (698,1 / 312,5) albo 1,79x licząc średnią do
+ * średniej (495,0 / 277,3); podaję oba, bo mnożnik bez powiedzenia, co dzieli
+ * co, jest dokładnie tym błędem, który ten plik prostuje wyżej.
+ *
+ * SPROSTOWANIE WŁASNEJ LICZBY, TRZECIE W TYM PLIKU. Po DWÓCH parach stało tu,
+ * że paint na runnerze jest „powtarzalny do 13 ms" (253,2 vs 266,2) i że to
+ * „pierwszy dowód, że rozrzut tej metryki jest szumem MASZYNY". Trzecia para
+ * dała 312,5 ms, czyli rozrzut 59,3 ms - CZTERY I PÓŁ RAZA WIĘCEJ niż liczba,
+ * którą sam podałem jako miarę powtarzalności. Wniosek JAKOŚCIOWY się trzyma
+ * (1,23x na runnerze wobec 2,08x na hoście - runner jest istotnie ciaśniejszy),
+ * ale słowo „powtarzalny" i liczba 13 ms były wnioskiem z DWÓCH punktów i nie
+ * miały prawa tam stać. To ta sama pomyłka, którą ten plik zapisuje wyżej przy
+ * paincie (parowanie krańców) i którą `vitest.config.ts` zapisuje przy progu
+ * `__root.tsx` (jeden pomiar niedeterministycznej metryki) - trzeci raz ta sama
+ * klasa, więc zapisuję ją, a nie poprawiam po cichu.
+ *
+ * Próg ZOSTAJE na 2 000 ms i NIE jest zacieśniany do liczby z runnera: rządzi
+ * nim najgorszy pomiar (host, 698,1 ms, zapas 2,86x), nie najlepszy - inaczej
+ * byłaby to bramka na kontencję hosta dewelopera. Tabele wszystkich przebiegów
+ * - w kronice niżej.
  */
 const MAX_PAINT_AFTER_TTFB_MS = 2_000;
 
@@ -420,16 +434,16 @@ const MAX_PAINT_AFTER_TTFB_MS = 2_000;
 // każdej. Progu na HIT nie zacieśniałem wtedy poniżej `MAX_TTFB_MS / 2`, bo
 // pomiaru z RUNNERA dla tego rozbicia nie było ani jednego, i zapisałem tu, że
 // pierwszy zielony log CI (`[boot-timing-cache] ...`) będzie podstawą liczby
-// rzędu zmierzonych 8,3 ms. TEN WARUNEK JEST SPEŁNIONY - dwa logi runnera stoją
+// rzędu zmierzonych 8,3 ms. TEN WARUNEK JEST SPEŁNIONY - logi runnera stoją
 // w akapicie niżej, a próg został zdjęty do `MAX_TTFB_MS / 16`. Zapis
 // pozostawiony w kronice, żeby było widać, że to nie jest liczba dobrana
 // po fakcie do wyniku.
 //
-// ── 2026-09-03, PO POŁUDNIU: DWA POMIARY Z RUNNERA DLA NOWYCH PROGÓW ────────
+// ── 2026-09-03, PO POŁUDNIU: POMIARY Z RUNNERA DLA NOWYCH PROGÓW ───────────
 //
 // Progi `MAX_FCP_MS`, `MAX_PAINT_AFTER_TTFB_MS` i rozbicie HIT/MISS zostały
 // postawione WYŁĄCZNIE na pomiarach z hosta plus jeden stary log runnera
-// (33512138238, sprzed rozbicia HIT/MISS). Poniżej PIERWSZE DWA przebiegi CI,
+// (33512138238, sprzed rozbicia HIT/MISS). Poniżej PIERWSZE TRZY przebiegi CI,
 // w których nowy kształt tego pliku faktycznie się wykonał - a więc pierwsze
 // liczby runnera dla samego paintu ORAZ pierwsze W OGÓLE dla HIT-a:
 //
@@ -445,41 +459,58 @@ const MAX_PAINT_AFTER_TTFB_MS = 2_000;
 //                 decoded=2395.1KB (x1.00) FCP=5308.0ms
 //   [boot-timing-cache] 1: MISS TTFB=5027.7ms | 2: HIT TTFB=2.8ms
 //
-//   POMIAR        RUNNER #1    RUNNER #2    PRÓG        ZAPAS (#1 / #2)
-//   TTFB          5042,8 ms    5041,8 ms    8000 ms     1,59x / 1,59x
-//   READY           641   ms     573   ms   6000 ms     9,4x  / 10,5x
-//   bootJS        2508,6 KB    2405,0 KB    3000 KB     1,20x / 1,25x
-//   FCP           5296,0 ms    5308,0 ms    9000 ms     1,70x / 1,70x
-//   sam paint      253,2 ms     266,2 ms    2000 ms     7,9x  / 7,5x
-//   TTFB MISS     5025,4 ms    5027,7 ms    8000 ms     1,59x / 1,59x
-//   TTFB HIT           3,1 ms       2,8 ms  (niżej)     1621x / 1796x niżej niż MISS
+//   PRZEBIEG 33768894559, head `84b9d75e9`, ten sam krok:
+//   [boot-timing] TTFB=5043.5ms ready=674ms (exact=true)
+//                 bootJS=2402.8KB/33 (statyczne 2098.9KB/12 + dynamiczne 303.9KB/21)
+//                 decoded=2393.2KB (x1.00) FCP=5356.0ms
+//   [boot-timing-cache] 1: MISS TTFB=5026.5ms | 2: HIT TTFB=2.3ms
 //
-// Sam paint policzony W PARZE, z jednej nawigacji: 5296,0 - 5042,8 = 253,2 ms
-// i 5308,0 - 5041,8 = 266,2 ms.
+//   POMIAR       RUNNER #1   RUNNER #2   RUNNER #3   PRÓG      ZAPAS (#1/#2/#3)
+//   TTFB         5042,8 ms   5041,8 ms   5043,5 ms   8000 ms   1,59x/1,59x/1,59x
+//   READY          641   ms    573   ms    674   ms  6000 ms   9,4x /10,5x/ 8,9x
+//   bootJS       2508,6 KB   2405,0 KB   2402,8 KB   3000 KB   1,20x/1,25x/1,25x
+//   FCP          5296,0 ms   5308,0 ms   5356,0 ms   9000 ms   1,70x/1,70x/1,68x
+//   sam paint     253,2 ms    266,2 ms    312,5 ms   2000 ms   7,9x / 7,5x/ 6,4x
+//   TTFB MISS    5025,4 ms   5027,7 ms   5026,5 ms   8000 ms   1,59x/1,59x/1,59x
+//   TTFB HIT         3,1 ms      2,8 ms      2,3 ms   500 ms  161x /179x /217x
+//
+// Sam paint policzony W PARZE, z jednej nawigacji: 5296,0 - 5042,8 = 253,2 ms,
+// 5308,0 - 5041,8 = 266,2 ms, 5356,0 - 5043,5 = 312,5 ms.
 //
 // TRZY USTALENIA, każde zmieniające czytanie progu wyżej:
 //
 // 1. `MAX_PAINT_AFTER_TTFB_MS` ZOSTAJE na 2 000 ms, choć runner daje na nim
-//    7,5x - 7,9x zapasu. Nie obniżam, bo progiem rządzi NAJGORSZY pomiar,
+//    6,4x - 7,9x zapasu. Nie obniżam, bo progiem rządzi NAJGORSZY pomiar,
 //    a ten jest z HOSTA (698,1 ms, zapas 2,86x), nie z runnera. Runner jest
-//    dla paintu szybszy 2,62x kraniec do krańca (698,1 / 266,2) i 1,91x
-//    średnia do średniej (495,0 / 259,7) - dokładnie ta sama asymetria, którą
+//    dla paintu szybszy 2,23x kraniec do krańca (698,1 / 312,5) i 1,79x
+//    średnia do średniej (495,0 / 277,3) - dokładnie ta sama asymetria, którą
 //    ustalenie #1 z 2026-09-01 opisało dla gotowości hydratacji. Zejście do liczby
 //    wyprowadzonej z runnera zrobiłoby z tej bramki bramkę na kontencję
 //    hosta dewelopera.
 //
-// 2. PAINT NA RUNNERZE JEST POWTARZALNY z dokładnością do 13 ms (253,2 vs
-//    266,2), przy rozrzucie 2,1x na hoście. To pierwszy dowód, że rozrzut
-//    tej metryki opisany wyżej jest szumem MASZYNY, a nie właściwością
-//    pomiaru - i że próg z niej wyprowadzony ma sens.
+// 2. PAINT NA RUNNERZE JEST CIAŚNIEJSZY NIŻ NA HOŚCIE, ALE NIE „POWTARZALNY" -
+//    i to jest SPROSTOWANIE tego, co stało tu po dwóch przebiegach. Miałem
+//    wtedy 253,2 i 266,2 ms i napisałem „powtarzalny z dokładnością do 13 ms".
+//    Trzeci przebieg dał 312,5 ms, czyli rozrzut 59,3 ms - cztery i pół raza
+//    więcej niż moja własna miara powtarzalności. Co się trzyma: 1,23x na
+//    runnerze wobec 2,08x na hoście, więc rozrzut tej metryki NAPRAWDĘ jest
+//    w dużej mierze szumem maszyny. Co nie: liczba 13 ms i słowo
+//    „powtarzalny", bo były wnioskiem z DWÓCH punktów.
+//    WNIOSEK DLA NASTĘPNEJ OSOBY: dwa punkty nie są rozkładem. Ten plik
+//    popełnia tę pomyłkę po raz TRZECI (wcześniej: parowanie krańców przy
+//    paincie, jeden pomiar niedeterministycznego pokrycia w `vitest.config.ts`),
+//    więc jeśli chcesz z tych liczb wyprowadzić próg - zbierz ich pięć.
 //
-// 3. bootJS 2405,0 KB / 34 pliki wobec 2508,6 KB / 46 plików W DWÓCH
-//    PRZEBIEGACH TEGO SAMEGO ARTEFAKTU domyka ustalenie #2 z 2026-09-01:
-//    wiadro STATYCZNE jest identyczne co do 0,1 KB (2098,9 KB / 12 w obu),
-//    cała różnica 103,6 KB siedzi w dynamicznym (409,7 KB/34 vs 306,1 KB/22).
-//    Ta metryka mierzy „ile leniwych chunków zdążyło wejść przed flagą
-//    gotowości", nie wagę artefaktu, i próg 3 000 KB dalej nie jest
-//    zacieśniany.
+// 3. bootJS: wiadro STATYCZNE jest identyczne co do 0,1 KB w TRZECH
+//    przebiegach (2098,9 KB / 12 w każdym), a całość waha się 2402,8 - 2508,6 KB
+//    wyłącznie wiadrem DYNAMICZNYM (303,9 KB/21 do 409,7 KB/34). To domyka
+//    ustalenie #2 z 2026-09-01 mocniej, niż dwa przebiegi: metryka mierzy
+//    „ile leniwych chunków zdążyło wejść przed flagą gotowości", nie wagę
+//    artefaktu, i próg 3 000 KB dalej nie jest zacieśniany.
+//
+// HIT-y z runnera: 2,3 / 2,8 / 3,1 ms - wszystkie trzy o TRZY RZĘDY pod MISS-em
+// (2185x / 1796x / 1621x). Najgorszy zmierzony HIT to nadal 8,3 ms Z HOSTA,
+// i to on wyznacza zapas progu 500 ms (60x), nie te trzy.
 //
 // ÓSMY PRZEBIEG Z HOSTA, wykonany PO zejściu z progiem HIT-a - żeby nowa liczba
 // nie poszła do CI niesprawdzona (2026-09-03, `bun run test:e2e:artifact`, ten
@@ -765,8 +796,8 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
 // 2026-09-03 po południu, GÓRNA GRANICA TTFB NA HIT-cie - patrz
 // `MAX_TTFB_HIT_MS` na końcu tego testu. Pierwsza wersja tego pliku progu tam
 // NIE stawiała i nazywała powód: progi tu wolno wyłącznie OBNIŻAĆ i tylko po
-// pomiarze z runnera, a dla rozbicia HIT/MISS nie było go ani jednego. Są dwa
-// (przebiegi 33763700986 i 33765187255), więc powód jest wydany.
+// pomiarze z runnera, a dla rozbicia HIT/MISS nie było go ani jednego. Są trzy
+// (przebiegi 33763700986, 33765187255, 33768894559), więc powód jest wydany.
 test("cache dokumentów oddaje drugie żądanie z HIT-a, a TTFB jest podany rozdzielnie", async ({
   page,
 }) => {
@@ -841,12 +872,12 @@ test("cache dokumentów oddaje drugie żądanie z HIT-a, a TTFB jest podany rozd
   ).toMatch(/^(HIT|STALE)$/);
 
   // GÓRNA GRANICA TTFB NA HIT-cie, ZDJĘTA 2026-09-03 z `MAX_TTFB_MS / 2`
-  // (4 000 ms) DO `MAX_TTFB_MS / 16` (500 ms) - po dwóch pomiarach z runnera,
+  // (4 000 ms) DO `MAX_TTFB_MS / 16` (500 ms) - po pomiarach z runnera,
   // czyli po spełnieniu warunku, który poprzednia wersja tego komentarza sama
   // sobie postawiła.
   //
-  // DLACZEGO STARY PRÓG BYŁ MARTWY. Zmierzone HIT-y: 2,8 i 3,1 ms na runnerze,
-  // 3,7 - 8,3 ms na hoście. Wobec 4 000 ms to zapas 482x - 1429x. Bramka
+  // DLACZEGO STARY PRÓG BYŁ MARTWY. Zmierzone HIT-y: 2,3 / 2,8 / 3,1 ms na
+  // runnerze, 3,5 - 8,3 ms na hoście. Wobec 4 000 ms to zapas 482x - 1739x. Bramka
   // z takim zapasem nie łapie ŻADNEJ regresji poza całkowitym zniknięciem
   // cache'u - a to łapie już asercja na `x-nes-cache` wyżej. Innymi słowy:
   // stary próg nie miał EFEKTU, którego naruszenie dawałoby czerwień.
