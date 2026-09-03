@@ -338,6 +338,18 @@ function pgtapMentioning(needle: string): string[] {
   );
 }
 
+/**
+ * UPRZĄŻ RUNTIME MODUŁU KARIER - i to TU, a nie w `supabase/tests/`, mieszka
+ * dowód wykonawczy tego modułu. Rozróżnienie jest istotne, bo szukanie
+ * dowodu wyłącznie w katalogu pgTAP prowadzi do fałszywego wniosku „dowodu
+ * nie ma": pierwsze trzy linie tej uprzęży mówią wprost „pgtap nie jest
+ * dostepny w tym obrazie, wiec asercje sa golym SQL-em: kazda niespelniona
+ * rzuca wyjatek i przerywa skrypt". Uprząż biegnie w CI jako
+ * `check:careers-harness` na czystym Postgresie po odtworzeniu migracji.
+ */
+const CAREERS_HARNESS = "scripts/careers-harness/runtime_test.sql";
+const CI_WORKFLOW = ".github/workflows/ci.yml";
+
 /** Wiersz skrzynki w kształcie, w jakim oddaje go zapytanie panelu. */
 interface ApplicationRow {
   id: string;
@@ -676,14 +688,43 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
    * Zapisane jako `it.fails`, bo naprawa oznacza nowy dowód w SQL, a ten plik
    * niczego w produkcji nie zmienia. KONTROLA DODATNIA stoi w teście obok.
    */
-  it.fails("pipeline rekrutacyjny ma dowód wykonawczy w pgTAP", () => {
-    expect(pgtapMentioning("career_applications")).not.toEqual([]);
+  it("pipeline rekrutacyjny MA dowód wykonawczy - w uprzęży runtime, nie w pgTAP", () => {
+    // SPROSTOWANIE WŁASNEGO ZNALEZISKA. Pierwsza wersja tego pliku twierdziła,
+    // że pipeline nie ma ANI JEDNEGO dowodu wykonawczego, i zapisywała to jako
+    // `it.fails`. Podstawą był grep po `supabase/tests/` - i to było szukanie
+    // w złym miejscu. Dowód istnieje i pokrywa DOKŁADNIE to, czego brak
+    // zgłaszała tamta wersja: drugiego najemcę, nieprzenoszalność procesu
+    // między najemcami i wpis w dzienniku przy zmianie etapu.
+    const sql = read(CAREERS_HARNESS);
+    expect(sql).toContain("career_applications");
+    // §5c - trigger przypina `tenant_id` z powrotem, więc UPDATE nie przenosi
+    // procesu kandydata do innego najemcy.
+    expect(sql).toContain("UPDATE nie przenosi procesu do innego najemcy");
+    expect(sql).toContain("trigger przypial tenant_id do wartosci pierwotnej");
+    // §5 i §5b - zmiana etapu ZOSTAWIA wpis w dzienniku, a UPDATE bez zmiany
+    // etapu go NIE produkuje (inaczej dziennik puchłby od zapisów bez decyzji).
+    expect(sql).toContain("career_application_events");
+    expect(sql).toContain("UPDATE bez zmiany etapu NIE produkuje wpisu w dzienniku");
+    // §10 - personel widzi w kubełku CV WYŁĄCZNIE swojego najemcę.
+    expect(sql).toContain("personel widzi WYLACZNIE swojego najemce");
+    // Dwa najemcy w oprzyrządowaniu - bez tego żadna z powyższych asercji nie
+    // mierzyłaby izolacji.
+    expect(sql).toMatch(/INSERT INTO public\.tenants/);
   });
 
-  it("kontrola dodatnia: ta sama technika ZNAJDUJE dowód pgTAP dla sekcji karier", () => {
-    // Bez tej kontroli `it.fails` wyżej mógłby przechodzić dlatego, że wzorzec
-    // szukania jest zepsuty, a nie dlatego, że dowodu nie ma.
+  it("ten dowód JEST uruchamiany przez CI - inaczej nie byłby dowodem", () => {
+    // Uprząż, której nikt nie odpala, jest dokumentacją, nie bramką.
+    expect(read(CI_WORKFLOW)).toContain("check:careers-harness");
+  });
+
+  it("katalog pgTAP nie zawiera dowodu zgłoszeń - i to jest ŚWIADOME, nie luka", () => {
+    // Zostawiamy tę asercję, żeby następny czytelnik nie powtórzył pomyłki:
+    // pusty wynik grepu po `supabase/tests/` NIE znaczy „brak dowodu".
+    // Kontrola dodatnia: ta sama technika ZNAJDUJE pgTAP dla sekcji karier,
+    // więc wzorzec szukania jest sprawny.
+    expect(pgtapMentioning("career_applications")).toEqual([]);
     expect(pgtapMentioning("career_sections")).toContain(CAREER_SECTIONS_PGTAP);
+    expect(read(CAREERS_HARNESS)).toContain("pgtap nie jest dostepny w tym obrazie");
   });
 
   it("ZNALEZISKO 6 ZAMKNIĘTE: bramka rodzin tras panelu WIDZI rodzinę `admin.careers`", () => {

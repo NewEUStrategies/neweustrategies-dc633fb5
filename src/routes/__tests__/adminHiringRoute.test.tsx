@@ -244,6 +244,8 @@ const AUTHORITY_GATE = "src/routes/__tests__/adminRouteAuthority.gate.test.ts";
 /** Migracja nadająca tabelom karier najemcę, indeks (tenant_id, slug) i RLS. */
 const TENANT_MIGRATION = "supabase/migrations/20260814100000_careers_tenant_scope.sql";
 /** Migracja z `career_settings` (retencja CV) i kolejką usunięć plików. */
+/** Uprząż runtime modułu karier - dowód wykonawczy biegnący w CI. */
+const CAREERS_HARNESS = "scripts/careers-harness/runtime_test.sql";
 const RETENTION_MIGRATION =
   "supabase/migrations/20260814110000_careers_pipeline_and_cv_retention.sql";
 /** Jedyny pgTAP modułu karier - widoczność sekcji na powierzchni publicznej. */
@@ -717,16 +719,47 @@ describe("/admin/hiring - autorytet zapisu: panel kontra polityki bazy", () => {
   });
 
   /**
-   * DZIURA W DOWODZIE: autorytet zapisu `career_settings` nie ma pgTAP.
-   * Jedyny plik pgTAP modułu karier
-   * (`career_sections_visibility_public_read_test.sql`) pracuje na sekcjach
-   * i nie dotyka tabeli retencji - a to ona trzyma decyzję RODO i jest
-   * jedyną tabelą tego ekranu z INNYM progiem roli niż bramka `/admin`.
+   * DZIURA W DOWODZIE - ZAWĘŻONA PO SPROSTOWANIU. Pierwsza wersja tego pliku
+   * mówiła „autorytet zapisu `career_settings` nie ma pgTAP" i szukała dowodu
+   * w `supabase/tests/`. To było szukanie w złym miejscu: dowód wykonawczy
+   * tego modułu mieszka w UPRZĘŻY RUNTIME (`scripts/careers-harness/`), bo -
+   * jak mówi jej własny nagłówek - „pgtap nie jest dostepny w tym obrazie".
+   * Uprząż biegnie w CI (`check:careers-harness`) i dowodzi o tej tabeli
+   * WIĘCEJ, niż tamta wersja zakładała: §12 sprawdza domyślne 365 dni / 24 h
+   * ORAZ że `cv_retention_days = 0` odrzuca CHECK (czyli dokładnie ładunek,
+   * który panel wysyła po wyczyszczeniu pola - ZNALEZISKO E).
    *
-   * KONTROLA DODATNIA w teście obok: ten sam odczyt ZNAJDUJE dowód dla sekcji.
+   * DZIURA, KTÓRA ZOSTAJE, jest węższa i konkretna: uprząż NIE ĆWICZY ROLI
+   * `editor` ANI RAZU (zero wystąpień w całym pliku), więc próg roli zapisu
+   * `career_settings` - admin/super_admin, a nie cały `isStaff` - nie ma
+   * dowodu wykonawczego. To ta sama klasa asercji, którą uprząż UMIE zrobić:
+   * §15 udowadnia, że `author` nie jest personelem rekrutacji, z kontrolą
+   * dodatnią na adminie tego samego najemcy. Technika jest więc dostępna
+   * i po prostu nie została użyta do pary (`editor`, `career_settings`).
    */
-  it.fails("autorytet zapisu `career_settings` jest dowiedziony w pgTAP", () => {
-    expect(read(CAREERS_PGTAP)).toContain("career_settings");
+  it.fails("próg roli zapisu `career_settings` jest dowiedziony w uprzęży runtime", () => {
+    // Wystarczyłoby: SET ROLE authenticated z podmiotem-redaktorem i
+    // `assert_raises` na UPDATE tej tabeli.
+    expect(read(CAREERS_HARNESS)).toContain("'editor'");
+  });
+
+  it("kontrola dodatnia: uprząż UMIE dowodzić progu roli - robi to dla `author`", () => {
+    const sql = read(CAREERS_HARNESS);
+    expect(sql).toContain("Rola author NIE jest personelem rekrutacji");
+    expect(sql).toContain("'author'");
+    // Kontrola dodatnia samej uprzęży: dowód nie jest próżny, bo admin tego
+    // samego najemcy MUSI te wiersze widzieć.
+    expect(sql).toContain("pg_temp.assert_raises");
+  });
+
+  it("wartość retencji ma dowód wykonawczy - łącznie z ładunkiem, który wysyła panel", () => {
+    // Domknięcie ZNALEZISKA E z drugiej strony: panel po wyczyszczeniu pola
+    // wysyła `cv_retention_days: 0`, a uprząż dowodzi, że baza to odrzuca.
+    // Defekt jest więc w panelu, nie w bazie - i to jest tu zmierzone.
+    const sql = read(CAREERS_HARNESS);
+    expect(sql).toContain("domyslna retencja CV = 365 dni");
+    expect(sql).toContain("domyslne okno laski = 24 h");
+    expect(sql).toContain("retencja 0 dni odrzucona przez CHECK");
   });
 
   it("kontrola dodatnia: pgTAP karier dowodzi widoczności sekcji u dwóch najemców", () => {
