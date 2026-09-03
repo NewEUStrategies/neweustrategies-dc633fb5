@@ -156,11 +156,11 @@
 //   Dyskryminująca połowa pary („ikona nie ma własnej nazwy") stoi w asercjach
 //   i pada, gdy ikonie nadać `aria-label`.
 //
-// Wspólny mechanizm 3-5: gałąź BYŁA przebiegana (w jednym renderze stoi obok
+// Wspólny mechanizm 3-4: gałąź BYŁA przebiegana (w jednym renderze stoi obok
 // siebie chip wciśnięty i sześć luźnych, karta wybrana i dwie zwykłe), więc
 // licznik gałęzi pokazywał 100%, a NIKT nie asertował jej skutku. To jest
 // hodowanie pokrycia bez ani jednego pustego `it(...)`: metryka domknięta,
-// dowodu nie ma. Wszystkie te mutacje po rewizji padają (przemierzone).
+// dowodu nie ma. Wszystkie sześć mutacji po rewizji pada - zmierzone ponownie.
 //
 // Kontrola odwrotna - mutanty, które ginęły od początku i giną nadal: licznik
 // z `offers.length` zamiast `roles.length`, chip z licznikiem innego działu,
