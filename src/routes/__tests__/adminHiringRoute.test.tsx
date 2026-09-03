@@ -2217,16 +2217,26 @@ describe("/admin/hiring - zakładki", () => {
     // (klasa obwódki) - dlatego to on jest tu przedmiotem dowodu, choć zwykle
     // asercja na klasie byłaby asercją na kształcie. ZNALEZISKO I mówi, czego
     // ten sygnał NIE daje czytnikowi ekranu; marker obok trzyma ten kontrakt.
+    // REGULA TEGO REPO (sformulowana rewizja `careersRoles.test.tsx`): sygnal
+    // klasowy asertujemy `toHaveClass` na CALYM tokenie, nigdy `toContain` na
+    // `className`. Powod jest zmierzony, nie teoretyczny: tam
+    // `toContain("-translate-y-0.5")` znajdowalo ten napis w klasie BAZOWEJ
+    // `hover:-translate-y-0.5`, wiec asercja "wybrana karta jest uniesiona"
+    // nie mogla oblac Z ZASADY i przezyla zdjecie warunku z kodu.
+    // TUTAJ kolizji dzis NIE MA (`border-brand` wystepuje w `admin.hiring.tsx`
+    // tylko w tej jednej formie - sprawdzone), wiec to nie naprawa defektu,
+    // a zamkniecie drogi nastepnemu: dodanie `border-brand/40` gdziekolwiek
+    // w tym pliku uniewaznilo by wersje z `toContain` bez zadnego sygnalu.
     const tabButton = (name: string) => screen.getByRole("button", { name });
     await mount();
 
-    expect(tabButton(PANEL.tabRoles).className).toContain("border-brand");
-    expect(tabButton(PANEL.tabSections).className).toContain("border-transparent");
-    expect(tabButton(PANEL.tabRetention).className).toContain("border-transparent");
+    expect(tabButton(PANEL.tabRoles)).toHaveClass("border-brand");
+    expect(tabButton(PANEL.tabSections)).toHaveClass("border-transparent");
+    expect(tabButton(PANEL.tabRetention)).toHaveClass("border-transparent");
 
     switchTo(PANEL.tabSections);
-    expect(tabButton(PANEL.tabSections).className).toContain("border-brand");
-    expect(tabButton(PANEL.tabRoles).className).toContain("border-transparent");
+    expect(tabButton(PANEL.tabSections)).toHaveClass("border-brand");
+    expect(tabButton(PANEL.tabRoles)).toHaveClass("border-transparent");
   });
 
   /**
