@@ -19,6 +19,7 @@ import {
   blankNonCode,
   dehydrationInvariants,
   FROZEN_SSR_BUDGETS,
+  FROZEN_UNMEASURABLE_PARALLEL,
   loaderBudgetFacts,
   numericConstants,
   renderSsrBudgetReport,
@@ -44,8 +45,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 `;
 
-/** Poprawny `src/router.tsx`: trzy inwarianty dehydracji obecne i w kolejności. */
+/**
+ * Poprawny `src/router.tsx`: trzy inwarianty dehydracji obecne i w kolejności.
+ *
+ * IMPORT NA GÓRZE JEST CZĘŚCIĄ ATRAPY, nie ozdobą. Pierwsza wersja tej stałej
+ * go NIE MIAŁA - i właśnie dlatego test przechodził na implementacji, która
+ * szukała PIERWSZEGO WYSTĄPIENIA identyfikatora `sweepQueryCacheForSerialization`
+ * zamiast jego WYWOŁANIA. W prawdziwym `src/router.tsx` pierwszym wystąpieniem
+ * jest import (`:13`), który zawsze poprzedza `integrationDehydrate`, więc
+ * inwariant kolejności był tam PUSTY. Atrapa bez importu nie odtwarzała pliku,
+ * który ma opisywać - i test zielenił się na dziurze.
+ */
 const ROUTER_OK = `
+import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
+import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
 const router = createRouter({
   defaultOptions: {
     dehydrate: {
@@ -297,7 +310,7 @@ export const Route = createFileRoute("/seven")({
     // jako 0 odnóg wyglądałoby jak „ten loader nic nie zrównolegla" - czyli
     // bramka twierdziłaby coś nieprawdziwego, będąc zieloną.
     const report = analyze();
-    expect(report.unmeasurable.join(" | ")).toContain("tablicę ZE ZMIENNEJ");
+    expect(report.unmeasurable.join(" | ")).toContain("NIE DA SIĘ ustalić ze źródeł");
     const root = report.loaders.find((l) => l.file === "src/routes/__root.tsx");
     expect(root?.parallelSites.some((s) => s.arms === null)).toBe(true);
     expect(renderSsrBudgetReport(report)).toContain("NIEMIERZALNE STATYCZNIE");
@@ -371,6 +384,116 @@ const opts = { shouldDehydrateQuery: (query) => query.state.status === "success"
     ]);
     expect(ssrBudgetsFailed(report)).toBe(true);
     expect(renderSsrBudgetReport(report)).toContain("dehydrationWritesPerLoader = 12 > 11");
+  });
+});
+
+describe("dziury, które przepuszczały dowolną wartość - naprawione po recenzji Codeksa", () => {
+  // TRZY ZNALEZISKA Z RECENZJI PR #327, wszystkie potwierdzone pomiarem PRZED
+  // naprawą i wszystkie tej samej klasy: bramka BLOKUJĄCA przechodziła na
+  // wejściu, które miała zatrzymać. Każde ma tu kontrolę negatywną, bo bez niej
+  // naprawa jest tylko obietnicą.
+
+  it("KONTROLA NEGATYWNA: budżet jako WYRAŻENIE nie może przejść jako zero", () => {
+    // ZMIERZONE PRZED NAPRAWĄ: `ROOT_WARM_BUDGET_MS = 2_500 + 1` dawało
+    // `rootWarmChainMs = 500` (nierozwiązany budżet liczony jako 0)
+    // i `ssrBudgetsFailed() === false`. Czyli budżet dało się podnieść
+    // o DOWOLNĄ wartość, byle zapisać go jako wyrażenie - przez bramkę,
+    // która ma pilnować dokładnie tej liczby.
+    const report = analyzeSsrBudgets({
+      sources: [
+        { file: "src/routes/__root.tsx", source: ROOT_OK.replace("2_500", "2_500 + 1") },
+        { file: "src/router.tsx", source: ROUTER_OK },
+      ],
+    });
+    expect(ssrBudgetsFailed(report)).toBe(true);
+    const rendered = renderSsrBudgetReport(report);
+    expect(rendered).toContain("nie jest literałem ani stałą liczbową");
+    expect(rendered).toContain("policzyłaby go jako ZERO");
+  });
+
+  it("KONTROLA NEGATYWNA: ROZWINIĘCIE w tablicy nie może liczyć się jako jedna odnoga", () => {
+    // ZMIERZONE PRZED NAPRAWĄ: `Promise.all([fixedQuery(), ...queries])` dawało
+    // `arms = 2`. `...queries` może odpalić dowolnie wiele podżądań, więc
+    // loader mógł przekroczyć sufit 6, a bramka raportowała 2 i przechodziła.
+    const report = analyze([
+      {
+        file: "src/routes/spread.tsx",
+        source: `
+export const Route = createFileRoute("/spread")({
+  loader: async () => {
+    await Promise.all([fixedQuery(), ...queries]);
+  },
+});
+`,
+      },
+    ]);
+    const facts = report.loaders.find((l) => l.file === "src/routes/spread.tsx");
+    // NIE 2 - liczby nie da się ustalić.
+    expect(facts?.parallelSites[0]?.arms).toBeNull();
+    // I to jest DZIURA W NOWYM PLIKU, więc oblewa (allowlist go nie zna).
+    expect(ssrBudgetsFailed(report)).toBe(true);
+    expect(renderSsrBudgetReport(report)).toContain("niemierzalna równoległość");
+  });
+
+  it("KONTROLA NEGATYWNA: przeniesienie sweepa PO dehydracji oblewa TAKŻE gdy jest import", () => {
+    // TO JEST TEST NA WŁASNĄ ATRAPĘ, nie tylko na kod. Poprzednia wersja
+    // sprawdzała kolejność na atrapie BEZ importu, więc przechodziła na
+    // implementacji, która porównywała pozycję IMPORTU - a na prawdziwym
+    // `src/router.tsx` (import w `:13`, wywołanie w `:160`) inwariant był pusty.
+    const reordered = `
+import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
+const opts = { shouldDehydrateQuery: (query) => query.state.status === "success" };
+const integrationDehydrate = router.options.dehydrate;
+router.options.dehydrate = async () => {
+  const dehydrated = await integrationDehydrate?.();
+  sweepQueryCacheForSerialization(queryClient, { reason: "dehydrate" });
+  if (dehydrated?.queryStream) {
+    dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient, {});
+  }
+  return dehydrated;
+};
+`;
+    const sweep = dehydrationInvariants(reordered).find((i) => i.name.includes("PRZED dehydracją"));
+    expect(sweep?.present).toBe(false);
+
+    const report = analyzeSsrBudgets({
+      sources: [
+        { file: "src/routes/__root.tsx", source: ROOT_OK },
+        { file: "src/router.tsx", source: reordered },
+      ],
+    });
+    expect(ssrBudgetsFailed(report)).toBe(true);
+  });
+
+  it("sam IMPORT bez wywołania NIE spełnia inwariantu zamiatania", () => {
+    // Granica z drugiej strony: gdyby ktoś usunął wywołanie, zostawiając import,
+    // bramka MUSI to zobaczyć.
+    const importOnly = `
+import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
+const opts = { shouldDehydrateQuery: (query) => query.state.status === "success" };
+const integrationDehydrate = router.options.dehydrate;
+router.options.dehydrate = async () => {
+  const dehydrated = await integrationDehydrate?.();
+  if (dehydrated?.queryStream) {
+    dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient, {});
+  }
+  return dehydrated;
+};
+`;
+    const sweep = dehydrationInvariants(importOnly).find((i) =>
+      i.name.includes("PRZED dehydracją"),
+    );
+    expect(sweep?.present).toBe(false);
+  });
+
+  it("ZAMROŻONE dziury z loadera korzenia PRZECHODZĄ - bramka nie jest czerwona na wejściu", () => {
+    // Dwie tablice ze zmiennej w loaderze korzenia istniały przy powstaniu
+    // bramki. Są opisane w `FROZEN_UNMEASURABLE_PARALLEL` i MUSZĄ przechodzić -
+    // bramka czerwona na wejściu nie pilnuje niczego, uczy tylko obchodzenia.
+    expect(FROZEN_UNMEASURABLE_PARALLEL["src/routes/__root.tsx"]).toBe(2);
+    const report = analyze();
+    expect(report.unmeasurable.length).toBeGreaterThan(0);
+    expect(ssrBudgetsFailed(report)).toBe(false);
   });
 });
 

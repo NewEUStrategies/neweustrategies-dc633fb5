@@ -30,11 +30,15 @@
  *   (1) TAK, i to najmocniej. Budżety są literałami w `const *_BUDGET_MS`
  *       w tym samym pliku, co ich użycie.
  *
- *   (2) TAK, ale tylko dla tablic LITERAŁOWYCH (`Promise.all([a, b, c])`).
- *       Tablica budowana zmienną (`Promise.allSettled(chromeWarm)`) jest
- *       niemierzalna z definicji i bramka RAPORTUJE ją jako niemierzalną,
- *       zamiast policzyć zero - zero byłoby cichym fałszem, a to jest ta klasa
- *       błędu, której ta bramka ma nie popełniać.
+ *   (2) TAK, ale tylko dla tablic LITERAŁOWYCH BEZ ROZWINIĘĆ
+ *       (`Promise.all([a, b, c])`). Tablica budowana zmienną
+ *       (`Promise.allSettled(chromeWarm)`) ORAZ tablica z rozwinięciem
+ *       (`Promise.all([a, ...xs])`) są niemierzalne z definicji - bramka
+ *       raportuje je jako niemierzalne i NIE przypisuje im liczby. Cicha zła
+ *       liczba jest gorsza od braku liczby: rozwinięcie liczone jako jedna
+ *       odnoga przepuszczało loader z dowolną liczbą podżądań. Dziury z tej
+ *       kategorii są ZAMROŻONE imiennie (`FROZEN_UNMEASURABLE_PARALLEL`),
+ *       więc każda NOWA oblewa bramkę.
  *
  *   (3) NIE - ROZMIARU nie da się. Payload serializuje framework, a jego waga
  *       zależy od danych z bazy, nie od źródeł. Statycznie da się natomiast
@@ -129,6 +133,27 @@ export const FROZEN_SSR_BUDGETS = {
   dehydrationWritesPerLoader: 11,
 } as const;
 
+/**
+ * ZAMROŻONE miejsca, w których RÓWNOLEGŁOŚCI NIE DA SIĘ policzyć ze źródeł -
+ * plik -> liczba takich miejsc w jego loaderze.
+ *
+ * PO CO LISTA, a nie samo raportowanie. Miejsce niemierzalne jest DZIURĄ
+ * w budżecie (2): przez tablicę budowaną zmienną albo przez rozwinięcie
+ * (`...xs`) można wprowadzić dowolnie wiele podżądań, a bramka nie ma czym
+ * tego policzyć. Samo wypisanie takiej dziury na liście informacyjnej
+ * znaczyłoby, że dziury wolno DOKŁADAĆ - więc lista jest ZAMKNIĘTA: te,
+ * które istniały przy powstaniu bramki, są opisane i przepuszczone; KAŻDE
+ * NOWE oblewa.
+ *
+ * ZMIERZONE 2026-09-03: dokładnie DWA miejsca, oba w loaderze korzenia
+ * (`Promise.all(menuWarm)` i `Promise.allSettled(chromeWarm)` - tablice
+ * budowane zmienną, `__root.tsx:326` i `:508`). ZERO rozwinięć w tablicach
+ * literałowych w całym `src/routes`. Ta liczba wolno wyłącznie MALEĆ.
+ */
+export const FROZEN_UNMEASURABLE_PARALLEL: Readonly<Record<string, number>> = {
+  "src/routes/__root.tsx": 2,
+};
+
 /** Plik źródłowy w kształcie, w którym bramka go czyta. */
 export interface SsrBudgetSource {
   readonly file: string;
@@ -186,7 +211,9 @@ export interface SsrBudgetReport {
   readonly violations: readonly SsrBudgetViolation[];
   /**
    * Miejsca, których bramka NIE POTRAFI zmierzyć - raportowane jawnie, żeby
-   * zielony wynik nie był czytany jako „wszystko policzone".
+   * zielony wynik nie był czytany jako „wszystko policzone". Te, które
+   * przekraczają `FROZEN_UNMEASURABLE_PARALLEL`, wchodzą DODATKOWO do
+   * `violations` i oblewają bramkę.
    */
   readonly unmeasurable: readonly string[];
 }
@@ -304,9 +331,20 @@ function splitTopLevel(text: string): string[] {
   return parts;
 }
 
-/** Liczba odnóg tablicy literałowej - niepuste człony najwyższego poziomu. */
-function countArms(arrayBody: string): number {
-  return splitTopLevel(arrayBody).filter((p) => p.trim() !== "").length;
+/**
+ * Liczba odnóg tablicy literałowej - niepuste człony najwyższego poziomu.
+ *
+ * `null` = NIE DA SIĘ policzyć, bo któryś człon jest ROZWINIĘCIEM (`...xs`).
+ * Bez tego `Promise.all([fixedQuery(), ...queries])` liczyło się jako DWIE
+ * odnogi, choć `...queries` może odpalić dowolnie wiele podżądań - czyli
+ * loader mógł przekroczyć sufit 6 subrequestów, a bramka raportowała 2
+ * i przechodziła. Cicha zła liczba jest gorsza od braku liczby, więc
+ * rozwinięcie daje `null`, a nie „tyle, ile widać".
+ */
+function countArms(arrayBody: string): number | null {
+  const parts = splitTopLevel(arrayBody).filter((p) => p.trim() !== "");
+  if (parts.some((p) => p.trim().startsWith("..."))) return null;
+  return parts.length;
 }
 
 const CACHE_WRITE_RE =
@@ -411,7 +449,20 @@ export function dehydrationInvariants(routerSource: string | null): DehydrationI
   // przy LICZENIU wzorców kodu (i tam zostaje), a błędne przy dopasowywaniu
   // wzorców, których napis jest częścią.
   const clean = routerSource === null ? "" : stripTsComments(routerSource);
-  const sweepAt = clean.indexOf("sweepQueryCacheForSerialization");
+  // WYWOŁANIE, NIE PIERWSZE WYSTĄPIENIE IDENTYFIKATORA - i to jest naprawa
+  // defektu, który czynił ten inwariant PUSTYM na prawdziwym pliku.
+  // `src/router.tsx:13` IMPORTUJE `sweepQueryCacheForSerialization`, a samo
+  // wywołanie stoi w `:160`. `indexOf(nazwa)` trafiał więc w import, który
+  // ZAWSZE poprzedza deklarację `integrationDehydrate` - czyli warunek
+  // „zamiatanie PRZED dehydracją" był spełniony niezależnie od tego, gdzie
+  // naprawdę stoi wywołanie. Przeniesienie sweepa POD
+  // `await integrationDehydrate?.()` - dokładnie ta regresja, której ten
+  // inwariant ma pilnować - przechodziło na zielono. Zmierzone na
+  // prawdziwym `src/router.tsx`, nie na atrapie.
+  //
+  // `nazwa\s*\(` pomija import z konstrukcji: `import { nazwa } from "..."`
+  // nie ma nawiasu po identyfikatorze.
+  const sweepAt = clean.search(/sweepQueryCacheForSerialization\s*\(/);
   // `?.` W WYWOŁANIU JEST TU REGUŁĄ: `src/router.tsx` woła
   // `await integrationDehydrate?.()`, więc wzorzec bez opcjonalnego łańcucha
   // nie trafiał i inwariant „zamiatanie PRZED dehydracją" raportował się jako
@@ -508,18 +559,53 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
           "każdy rozstrzygnięty wpis wchodzi do dehydratowanego stanu w HTML-u (proxy liczby wpisów, nie bajtów)",
       });
     }
-    for (const site of loader.parallelSites) {
-      if (site.arms === null) {
-        unmeasurable.push(
-          `${loader.file}: Promise.all* w linii ${site.line} loadera dostaje tablicę ZE ZMIENNEJ - liczby odnóg nie da się ustalić ze źródeł`,
-        );
-      }
+    const unmeasurableHere = loader.parallelSites.filter((s) => s.arms === null);
+    for (const site of unmeasurableHere) {
+      unmeasurable.push(
+        `${loader.file}: Promise.all* w linii ${site.line} loadera - liczby odnóg NIE DA SIĘ ustalić ze źródeł (tablica ze zmiennej albo rozwinięcie \`...xs\`)`,
+      );
     }
+    // ── NOWA DZIURA W RÓWNOLEGŁOŚCI = OBLANIE ──────────────────────────────
+    //
+    // Miejsce niemierzalne jest dziurą w budżecie (2): tablicą ze zmiennej
+    // albo rozwinięciem można wprowadzić dowolnie wiele podżądań. Dwie takie
+    // dziury ISTNIAŁY przy powstaniu bramki (loader korzenia) i są opisane
+    // w `FROZEN_UNMEASURABLE_PARALLEL`; KAŻDA NOWA oblewa. Bez tego
+    // raportowanie dziur znaczyłoby, że dziury wolno dokładać.
+    const allowed = FROZEN_UNMEASURABLE_PARALLEL[loader.file] ?? 0;
+    if (unmeasurableHere.length > allowed) {
+      violations.push({
+        budget: "unmeasurableParallel",
+        file: loader.file,
+        measured: unmeasurableHere.length,
+        ceiling: allowed,
+        detail: `niemierzalna równoległość w liniach ${unmeasurableHere.map((s) => s.line).join(", ")} - przez tablicę ze zmiennej albo rozwinięcie \`...xs\` da się wprowadzić dowolnie wiele podżądań, a sufit ${FROZEN_SSR_BUDGETS.parallelQueriesPerLoader} przestaje cokolwiek znaczyć`,
+      });
+    }
+    // ── BUDŻET NIEROZWIĄZANY = OBLANIE, nie adnotacja ──────────────────────
+    //
+    // NAPRAWA DZIURY, KTÓRA PRZEPUSZCZAŁA DOWOLNIE DUŻY BUDŻET. `chainMs`
+    // sumuje `s.ms ?? 0`, więc budżet, którego bramka nie umie rozwiązać
+    // (wyrażenie `2_500 + 1`, wynik funkcji, stała spoza skanu), liczył się
+    // jako ZERO. Zmierzone: `ROOT_WARM_BUDGET_MS = 2_500 + 1` dawało
+    // `rootWarmChainMs = 500` i `ssrBudgetsFailed() === false` - czyli
+    // podniesienie budżetu o dowolną wartość przechodziło przez bramkę
+    // BLOKUJĄCĄ, o ile tylko zapisano je jako wyrażenie.
+    //
+    // Nie da się „rozwiązać wyrażenia" statycznie w ogólności i nie o to tu
+    // chodzi: bramka ma wtedy POWIEDZIEĆ, że nie wie, a nie policzyć zero.
+    // Konsekwencja praktyczna: budżet MUSI być literałem albo stałą - i to
+    // jest wymóg, nie ograniczenie, bo dokładnie takie są wszystkie dzisiejsze
+    // (zmierzone: 13 wywołań `withBudget`, wszystkie rozwiązane).
     for (const site of loader.budgetSites) {
       if (site.ms === null) {
-        unmeasurable.push(
-          `${loader.file}: budżet \`${site.constName}\` w linii ${site.line} loadera nie jest literałem liczbowym w tym pliku`,
-        );
+        violations.push({
+          budget: "unresolvedBudget",
+          file: loader.file,
+          measured: 0,
+          ceiling: 0,
+          detail: `budżet \`${site.constName}\` w linii ${site.line} nie jest literałem ani stałą liczbową w zasięgu skanu - bramka policzyłaby go jako ZERO, czyli przepuściłaby dowolną wartość`,
+        });
       }
     }
   }
