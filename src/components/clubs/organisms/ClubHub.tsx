@@ -464,7 +464,10 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
             <Select value={sort} onValueChange={(value) => setSort(value as ClubThreadSort)}>
               <SelectTrigger
                 aria-label={t("club.sort.label")}
-                className={cn("rounded-lg", searching && "hidden")}
+                className={cn(
+                  "h-full min-h-12 items-center rounded-lg py-0",
+                  searching && "hidden",
+                )}
               >
                 <SelectValue />
               </SelectTrigger>
