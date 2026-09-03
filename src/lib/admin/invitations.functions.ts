@@ -373,12 +373,17 @@ async function performSend(
       }
     }
 
+    // Autoakceptacja: konto (wraz z rolą) już istnieje, więc zaproszenie nie
+    // czeka na potwierdzenie - domykamy je od razu statusem `accepted`.
+    const autoAccept = meta.auto_accept === true;
+    const nowIso = new Date().toISOString();
     await supabase
       .from("user_invitations")
       .update({
-        status: "sent",
+        status: autoAccept ? "accepted" : "sent",
         auth_user_id: authUserId,
-        sent_at: new Date().toISOString(),
+        sent_at: nowIso,
+        accepted_at: autoAccept ? nowIso : null,
         last_error: null,
       })
       .eq("id", invitationId);
@@ -390,7 +395,12 @@ async function performSend(
       entity_type: "user_invitation",
       entity_id: invitationId,
       tenant_id: inv.tenant_id,
-      metadata: { mode: inv.mode, email, auth_user_id: authUserId } as never,
+      metadata: {
+        mode: inv.mode,
+        email,
+        auth_user_id: authUserId,
+        auto_accept: autoAccept,
+      } as never,
     });
 
     return { ok: true, email, tempPassword };

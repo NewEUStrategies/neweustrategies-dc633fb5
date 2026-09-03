@@ -78,6 +78,8 @@ const h = vi.hoisted(() => ({
    * odpowiedzi nie-JSON rzuca surową treścią odpowiedzi.
    */
   throwRaw: false,
+  uploadCalls: [] as string[],
+  uploadResult: { error: null } as { error: { message: string } | null },
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -86,6 +88,22 @@ vi.mock("sonner", () => ({
   toast: { success: h.toastSuccess, error: h.toastError, info: h.toastInfo },
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
+vi.mock("@/hooks/useAuth", () => ({ useRequiredTenant: () => "tenant-1" }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    storage: {
+      from: () => ({
+        upload: async (path: string) => {
+          h.uploadCalls.push(path);
+          return h.uploadResult;
+        },
+        getPublicUrl: (path: string) => ({
+          data: { publicUrl: `https://cdn.example.org/${path}` },
+        }),
+      }),
+    },
+  },
+}));
 
 function boom(step: string): never {
   if (h.throwRaw) throw `${step}_raw`;
@@ -235,10 +253,6 @@ function buttonWith(fragment: string): HTMLButtonElement {
   return button;
 }
 
-function inputs(): HTMLInputElement[] {
-  return Array.from(document.querySelectorAll<HTMLInputElement>("input:not([type=checkbox])"));
-}
-
 beforeEach(() => {
   cleanup();
   h.toastSuccess.mockReset();
@@ -255,6 +269,8 @@ beforeEach(() => {
   h.bulkSendResult = { results: [{ ok: true }] };
   h.linkResult = { updated: 2 };
   h.previewResult = { candidates: [] };
+  h.uploadCalls = [];
+  h.uploadResult = { error: null };
   h.provisionResult = { created: 1, skipped: 0, linked: 1, errors: [] };
   h.throwOn = null;
   h.throwRaw = false;
@@ -274,10 +290,15 @@ describe("InviteUserDialog", () => {
     return { ...utils, onOpenChange, onDone };
   }
 
+  function field(id: string): HTMLInputElement {
+    const el = document.getElementById(id);
+    if (!(el instanceof HTMLInputElement)) throw new Error(`test: brak pola #${id}`);
+    return el;
+  }
+
   function fill(email = "nowa@example.org", name = "Nowa Osoba"): void {
-    const [emailInput, nameInput] = inputs();
-    fireEvent.change(emailInput, { target: { value: email } });
-    fireEvent.change(nameInput, { target: { value: name } });
+    fireEvent.change(field("invite-email"), { target: { value: email } });
+    fireEvent.change(field("invite-name"), { target: { value: name } });
   }
 
   it("zamknięta modalka nie renderuje niczego", () => {
@@ -306,17 +327,16 @@ describe("InviteUserDialog", () => {
     mount();
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
 
-    const [emailInput, nameInput] = inputs();
-    fireEvent.change(emailInput, { target: { value: "nowa@example.org" } });
+    fireEvent.change(field("invite-email"), { target: { value: "nowa@example.org" } });
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
 
-    fireEvent.change(nameInput, { target: { value: "Nowa Osoba" } });
+    fireEvent.change(field("invite-name"), { target: { value: "Nowa Osoba" } });
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(false);
   });
 
   it("pole adresu ma typ `email` - walidacja przeglądarki jest pierwszą bramką", () => {
     mount();
-    expect(inputs()[0].type).toBe("email");
+    expect(field("invite-email").type).toBe("email");
   });
 
   it("pełny formularz wysyła ładunek z ROLĄ, TRYBEM i źródłem `manual`", async () => {
@@ -335,6 +355,9 @@ describe("InviteUserDialog", () => {
         mode: "temp_password",
         // Źródło rozdziela zaproszenia ręczne od importu zespołu w audycie.
         source: "manual",
+        // Autoakceptacja jest domyślna - administrator tworzy konto gotowe
+        // do użycia, więc zaproszenie nie zostaje w stanie „wysłane”.
+        metadata: { auto_accept: true },
       },
     ]);
     await waitFor(() => expect(h.sendCalls).toEqual(["inv-1"]));
@@ -351,8 +374,8 @@ describe("InviteUserDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     // Pola muszą zniknąć: modalka otwarta ponownie z poprzednim adresem
     // kończy się drugim zaproszeniem dla tej samej osoby.
-    await waitFor(() => expect(inputs()[0].value).toBe(""));
-    expect(inputs()[1].value).toBe("");
+    await waitFor(() => expect(field("invite-email").value).toBe(""));
+    expect(field("invite-name").value).toBe("");
   });
 
   it("hasło tymczasowe idzie OSOBNYM komunikatem, obok komunikatu o sukcesie", async () => {
@@ -372,6 +395,65 @@ describe("InviteUserDialog", () => {
     fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
     expect(h.toastInfo).not.toHaveBeenCalled();
+  });
+
+  it("inicjały wyliczają się z imienia i nazwiska, dopóki nie ma zdjęcia", () => {
+    mount();
+    expect(screen.getByTestId("invite-avatar").textContent).toBe("?");
+    fireEvent.change(field("invite-name"), { target: { value: "Łucja Ostrowska-Nowak" } });
+    expect(screen.getByTestId("invite-avatar").textContent).toBe("ŁO");
+  });
+
+  it("wgrane zdjęcie zastępuje inicjały i trafia do ładunku zaproszenia", async () => {
+    mount();
+    fill();
+    const file = new File(["x"], "foto.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [file] } });
+    await waitFor(() => expect(h.uploadCalls).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("invite-avatar").querySelector("img")).toBeTruthy(),
+    );
+
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+    await waitFor(() => expect(h.createCalls).toHaveLength(1));
+    const meta = h.createCalls[0].items[0].metadata as Record<string, unknown>;
+    expect(String(meta.photo)).toContain("tenant-1/invites/");
+  });
+
+  it("zbyt duże zdjęcie i plik nie-graficzny są ODRZUCANE bez wysyłki do magazynu", async () => {
+    mount();
+    const text = new File(["x"], "cv.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [text] } });
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+
+    const big = new File([new Uint8Array(6 * 1024 * 1024)], "big.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [big] } });
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(2));
+    expect(h.uploadCalls).toEqual([]);
+  });
+
+  it("LinkedIn: błędny adres BLOKUJE wysyłkę, poprawny jedzie znormalizowany", async () => {
+    mount();
+    fill();
+    fireEvent.change(field("invite-linkedin"), { target: { value: "https://example.org/jan" } });
+    expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
+
+    fireEvent.change(field("invite-linkedin"), { target: { value: "linkedin.com/in/jan" } });
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+    await waitFor(() => expect(h.createCalls).toHaveLength(1));
+    const meta = h.createCalls[0].items[0].metadata as Record<string, unknown>;
+    expect(meta.linkedin).toBe("https://linkedin.com/in/jan");
+  });
+
+  it("wyłączona autoakceptacja jedzie w metadanych jako `false`", async () => {
+    mount();
+    fill();
+    const box = document.querySelector<HTMLInputElement>("input[type=checkbox]");
+    if (!box) throw new Error("test: brak pola autoakceptacji");
+    fireEvent.click(box);
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+    await waitFor(() => expect(h.createCalls).toHaveLength(1));
+    expect(h.createCalls[0].items[0].metadata).toEqual({ auto_accept: false });
   });
 
   it("odmowa wysyłki pokazuje powód serwera i NIE mówi o sukcesie", async () => {
