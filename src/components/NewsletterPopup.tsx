@@ -238,8 +238,10 @@ export function NewsletterPopup() {
             type="button"
             aria-label={t("common.close")}
             onClick={close}
-            className="absolute top-3 right-3 z-20 h-9 w-9 rounded-[6px] bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-            style={{ color: palette.fg }}
+            // Bez domyślnego niebieskiego ringu przeglądarki - focus-visible
+            // rysujemy sami w kolorze palety popupu.
+            className="absolute top-3 right-3 z-20 h-9 w-9 rounded-[6px] bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--nl-accent,#fdb078)]"
+            style={{ color: palette.fg, WebkitTapHighlightColor: "transparent" }}
           >
             <X className="w-4 h-4" />
           </button>
