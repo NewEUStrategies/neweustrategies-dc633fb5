@@ -105,6 +105,10 @@ const REGISTERED: ReadonlyArray<{
       },
     ],
   },
+  {
+    file: "ClubHubView.tsx",
+    types: [{ type: "club-hub", content: { clubSlug: "bezpieczenstwo" } }],
+  },
   { file: "EventsListView.tsx", types: [{ type: "event-list", content: {} }] },
   { file: "NewsTickerView.tsx", types: [{ type: "news-ticker", content: {} }] },
   { file: "TrendingNowView.tsx", types: [{ type: "trending-now", content: {} }] },
