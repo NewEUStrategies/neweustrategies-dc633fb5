@@ -248,9 +248,10 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
             <div className="grid gap-1">
               <Label>{t("adminTeamMedia.inviteUser.role")}</Label>
               <Select value={role} onValueChange={(v) => isRole(v) && setRole(v)}>
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="w-full min-w-0">
+                  <SelectValue className="truncate" />
                 </SelectTrigger>
+
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="editor">Editor</SelectItem>
