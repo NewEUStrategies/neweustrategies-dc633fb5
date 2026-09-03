@@ -36,7 +36,7 @@ function ThreadCounter({ count, active }: { count: number; active: boolean }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums transition-opacity",
+        "shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-bold tabular-nums transition-opacity",
         active
           ? "bg-[color-mix(in_oklab,var(--club-accent)_85%,var(--foreground))] text-background"
           : "bg-muted text-muted-foreground opacity-0 group-hover/row:opacity-100",
@@ -283,7 +283,7 @@ export function ClubGroupTree({
             </span>
             <span
               className={cn(
-                "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums",
+                "shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-bold tabular-nums",
                 activeGroupId === null
                   ? "bg-foreground text-background"
                   : "bg-muted text-muted-foreground opacity-0 group-hover/row:opacity-100 transition-opacity",
@@ -324,7 +324,7 @@ export function ClubGroupBar({
         aria-pressed={activeGroupId === null}
         onClick={() => onGroupChange(null)}
         className={cn(
-          "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+          "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] border px-3 py-1.5 text-xs font-medium transition-colors",
           activeGroupId === null
             ? "border-foreground/20 bg-muted/50 text-foreground"
             : "border-border/60 bg-transparent text-muted-foreground hover:bg-muted/50",
@@ -343,7 +343,7 @@ export function ClubGroupBar({
             onClick={() => onGroupChange(active ? null : group.id)}
             style={clubGroupAccentVars(group.accent_color)}
             className={cn(
-              "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] border px-3 py-1.5 text-xs font-medium transition-colors",
               active
                 ? "border-[color-mix(in_oklab,var(--club-accent)_40%,var(--border))] bg-[color-mix(in_oklab,var(--club-accent)_8%,var(--muted))] text-[color-mix(in_oklab,var(--club-accent)_40%,var(--foreground))]"
                 : "border-border/60 bg-transparent text-muted-foreground hover:bg-[color-mix(in_oklab,var(--club-accent)_5%,var(--muted))] hover:text-[color-mix(in_oklab,var(--club-accent)_60%,var(--foreground))]",
