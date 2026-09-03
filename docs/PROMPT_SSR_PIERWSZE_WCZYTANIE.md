@@ -13,15 +13,15 @@ obowiązkowa do przeczytania: zlecenie powtarzające zrobioną pracę jest gorsz
 
 # 0. Co jest ustalone. Przeczytaj to, zanim cokolwiek zmienisz
 
-**Dwie fale rozgrzewki korzenia są ROZDZIELONE i mają osobne budżety.** Fala 1 (`__root.tsx:373-380`)
-
-- `siteSettings`, `designTokens`, `globalColors` - `await withBudget(..., ROOT_WARM_BUDGET_MS)`,
-  gdzie `ROOT_WARM_BUDGET_MS = 2_500` (`__root.tsx:78`, dziś eksportowana). Fala 2, dekoracja powłoki
-  (ticker, menu, widgety headera i stopki) - `await withBudget(Promise.allSettled(chromeWarm),
-CHROME_WARM_BUDGET_MS)` (`__root.tsx:508`), gdzie `CHROME_WARM_BUDGET_MS = 500` (`__root.tsx:100`).
-  **Maksymalny sekwencyjny budżet przed pierwszym bajtem to dziś 3 000 ms, nie „do 11 s".** Fala 1
-  zeszła też z trzech równoległych podżądań na dwa (dedup `fetchSiteDesignTokensRow` przez wspólny
-  `edgeTtlCache`, opisany w komentarzu `__root.tsx:363-372`). Nie ruszaj tego bez pomiaru.
+**Dwie fale rozgrzewki korzenia są ROZDZIELONE i mają osobne budżety.** Fala 1
+(`__root.tsx:373-380`) to `siteSettings`, `designTokens` i `globalColors` pod
+`await withBudget(..., ROOT_WARM_BUDGET_MS)`, gdzie `ROOT_WARM_BUDGET_MS = 2_500`
+(`__root.tsx:78`, dziś eksportowana). Fala 2 to dekoracja powłoki - ticker, menu, widgety headera
+i stopki - pod `await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS)`
+(`__root.tsx:508`), gdzie `CHROME_WARM_BUDGET_MS = 500` (`__root.tsx:100`).
+**Maksymalny sekwencyjny budżet przed pierwszym bajtem to dziś 3 000 ms, nie „do 11 s".** Fala 1
+zeszła też z trzech równoległych podżądań na dwa (dedup `fetchSiteDesignTokensRow` przez wspólny
+`edgeTtlCache`, opisany w komentarzu `__root.tsx:363-372`). Nie ruszaj tego bez pomiaru.
 
 **Prefetch strony głównej jest ZDJĘTY z drogi krytycznej.** `src/routes/index.tsx:184-198`
 dokumentuje, co było wcześniej: serwer wołał tam `prefetchCachedRouteQueries` z budżetem 6 000 ms.
@@ -35,7 +35,7 @@ się przed rozstrzygnięciem sekcji. Stała `CACHED_ROUTE_PREFETCH_BUDGET_MS` **
 `src/lib/http/responseHeaders.ts` istnieje po to, żeby decyzja loadera „ten render jest
 zdegradowany" przeszła do middleware - komentarz w :27-29 nazwa defekt, który to naprawia
 („pustą powłokę do L1/L2 na 24 h", a czytelnik dostawał `private, no-store`).
-`src/lib/http/cachePolicy.ts:25` zwraca `private, no-store` dla nieca­che'owalnych odpowiedzi
+`src/lib/http/cachePolicy.ts:25` zwraca `private, no-store` dla niecache'owalnych odpowiedzi
 i ma test (`cachePolicy.test.ts`). Drugi martwy opt-out zamknął commit `2e3408780`:
 opt-out trasy wyprzedza status i typ treści.
 
