@@ -230,7 +230,11 @@ export const FEATURES_21 = [
   {
     key: "careers-public-ui",
     name: "Kariera: publiczna strona ofert (UI)",
-    patterns: [/^src\/components\/careers\//],
+    // Trasa `zatrudniamy` idzie tym samym wierszem co jej komponenty: to jedna
+    // powierzchnia produktowa (strona, na którą wchodzi kandydat), a rozbijanie
+    // jej na „trasę" i „komponenty" dałoby dwa wiersze, z których żaden nie
+    // opisuje niczego, co czytelnik tabeli umie sobie wyobrazić osobno.
+    patterns: [/^src\/components\/careers\//, /^src\/routes\/zatrudniamy/],
   },
   {
     key: "careers-admin-hiring",
