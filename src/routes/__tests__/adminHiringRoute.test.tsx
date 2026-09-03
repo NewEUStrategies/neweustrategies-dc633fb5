@@ -59,12 +59,16 @@
  * w `it.fails` „zakładka retencji nie oferuje zapisu komu baza go odmówi",
  * z kontrolą dodatnią na `admin.names.tsx` (ta trasa DOKŁADA `isSuperAdmin`).
  *
- * ZNALEZISKO B (DZIURA W DOWODZIE, NIE W KODZIE).
- * Bramka `src/routes/__tests__/adminRouteAuthority.gate.test.ts` ma jawne
- * listy rodzin (`CLUB_ROUTES`, `NEWSLETTER_ROUTES`, `MODULE19_ROUTES`,
- * `SEO_ROUTES`, `COMMUNITY_ROUTES`) i ŻADNA nie obejmuje `admin.hiring.tsx`.
- * Nie dopisuję jej tam (to plik innej paczki roboczej) - zapisuję dziurę
- * jako `it.fails` z kontrolą dodatnią.
+ * ZNALEZISKO B (DZIURA W DOWODZIE, NIE W KODZIE - JUŻ ZAMKNIĘTA).
+ * Gdy powstawał ten plik, bramka
+ * `src/routes/__tests__/adminRouteAuthority.gate.test.ts` miała jawne listy
+ * rodzin (`CLUB_ROUTES`, `NEWSLETTER_ROUTES`, `MODULE19_ROUTES`,
+ * `SEO_ROUTES`, `COMMUNITY_ROUTES`) i ŻADNA nie obejmowała
+ * `admin.hiring.tsx`. Dziura była tu zapisana jako `it.fails` z kontrolą
+ * dodatnią; w tej samej gałęzi bramka dostała rodzinę `CAREERS_ROUTES`, więc
+ * marker zapalił się jako nieoczekiwanie zielony i został zamieniony na
+ * zwykły dowód (szczegóły przy samym teście). To jest cały cykl życia
+ * wzorca `it.fails`, nie wyjątek od niego.
  *
  * ZNALEZISKO C (DEFEKT PRODUKCYJNY, EDYCJA LISTY PUNKTÓW).
  * Pola „Zakres obowiązków" / „Wymagania" są kontrolkami sterowanymi przez
