@@ -81,6 +81,33 @@ export default defineConfig({
         "src/routeTree.gen.ts",
         "src/integrations/supabase/types.ts",
         "src/lib/icons/lucideIconNodes.generated.ts",
+        // USTALENIE 2026-09-03 o SĄSIEDZIE tego wpisu, zapisane tutaj, bo
+        // `src/lib/icons/DynamicIconFull.tsx` NIE MA progu per-ścieżka (obowiązuje
+        // go próg globalny) - a to jest jedyne miejsce w tej konfiguracji, które
+        // mówi o tym katalogu.
+        //
+        // `DynamicIconFull.tsx` MIERZY SIĘ NIEDETERMINISTYCZNIE i NIE JEST TO
+        // REGRESJA. Wydanie 9 zmierzyło szum własny pomiaru na dwóch pełnych
+        // przebiegach TEGO SAMEGO HEAD-a: gałęzie 7 -> 9 (linie 12 i funkcje 4
+        // stabilne).
+        //
+        // MECHANIZM: `iconFor()` trzyma MEMO NA POZIOMIE MODUŁU
+        // (`const cache = new Map()`), a gałąź `if (!Cmp)` zależy od tego, czy
+        // ktoś PRZED nami poprosił już o tę samą nazwę ikony. Moduł jest
+        // współdzielony przez trzy pliki testowe
+        // (`lib/icons/__tests__/DynamicIcon.test.tsx`, `lib/__tests__/brandIcons.test.ts`,
+        // `components/clubs/__tests__/clubAtomChips.test.tsx`), więc zbiór
+        // wykonanych gałęzi zależy od KOLEJNOŚCI i PODZIAŁU plików na forki -
+        // czyli od szeregowania vitesta, nie od kodu. Dodatkowo gałęzie aliasu
+        // (`LUCIDE_ICON_NODES[kebab] ? kebab : LUCIDE_ICON_ALIASES[kebab]`)
+        // wykonują się tylko dla nazw, o które ktoś realnie zapytał.
+        //
+        // ŚWIADOMIE BEZ ZMIANY: memo per moduł jest tu zachowaniem
+        // PRODUKCYJNYM (stabilna tożsamość komponentu dla Reacta), więc
+        // determinizacja pomiaru wymagałaby albo hooka czyszczącego cache
+        // w produkcji, albo scalenia trzech plików testowych. Jedno i drugie
+        // jest droższe niż wartość dwóch gałęzi. Zapisane, żeby następna osoba
+        // nie szukała regresji tam, gdzie jej nie ma.
         // Test-only helpers.
         "src/test/**",
         // Pure code-splitting glue (React.lazy + Suspense wrappers). The actual
@@ -298,6 +325,29 @@ export default defineConfig({
         // To, co widzi czytelnik: 40+ widoków bloków plus dyspozytor rejestru.
         // ZMIERZONE 2026-08-20: 96,75% instrukcji / 93,03% gałęzi /
         // 94,57% funkcji / 97,85% linii.
+        //
+        // USTALENIE 2026-09-03 - `LiveBlogBlock.tsx` MIERZY SIĘ
+        // NIEDETERMINISTYCZNIE i NIE JEST TO REGRESJA. Wydanie 9 zmierzyło szum
+        // własny pomiaru na dwóch pełnych przebiegach TEGO SAMEGO HEAD-a: ten
+        // plik dał funkcje 20 -> 21 i gałęzie 46 -> 50 (linie stabilne, 51).
+        //
+        // MECHANIZM, żeby następna osoba nie ścigała fantoma: callback
+        // subskrypcji realtime (`LiveBlogBlock.tsx:116-140`) odpala DWA
+        // odroczone timery na PRAWDZIWYCH zegarach - `setTimeout(..., 800)`
+        // gasi puls i `setTimeout(..., 2400)` gasi podświetlenie nowego wpisu -
+        // a każdy z nich niesie własną gałąź (`cur === row.id ? null : cur`).
+        // Czy zdążą się wykonać PRZED końcem pliku testowego, jest wyścigiem,
+        // nie właściwością kodu. To ta sama klasa, którą w
+        // `src/lib/ssrCache.ts` zdjęto (patrz `ssrCacheHostScope.test.ts`,
+        // nagłówek przy `vi.mock` modułu `waitUntil.server`): praca odroczona
+        // w trybie fire-and-forget, o której pokrycie pyta, zanim się wykona.
+        //
+        // ŚWIADOMIE NIE RUSZAM TEGO PLIKU W TYM ZLECENIU: nie leży na drodze
+        // krytycznej pierwszego wczytania (blok redakcyjny relacji na żywo),
+        // a próg globu jest o ~4 pp poniżej pomiaru, więc wahanie 4 gałęzi na
+        // ~2 000 w tym katalogu go nie przewraca. Gdyby kiedyś przewróciło:
+        // naprawą jest wstrzyknięcie zegara albo punkt zaczepienia na FAKT
+        // wywołania, NIE obniżenie progu.
         "src/components/blocks/**": {
           statements: 95,
           functions: 92,
@@ -4971,18 +5021,61 @@ export default defineConfig({
         // nagłówki `Link`), `head()` i powłoka dokumentu przez
         // `renderToStaticMarkup`.
         //
-        // DROGA W GÓRĘ JEST ZNANA I NAZWANA: `RootComponent` nie montuje się
-        // z gołego renderu (`Link`/`useRouterState` czytają pusty kontekst
-        // routera), więc podniesienie metryki funkcji wymaga prawdziwego
-        // `RouterProvider` z `__root` JAKO KORZENIEM - czyli opcjonalnego
-        // `rootRoute` w `src/test/routeHarness.tsx`. To zmiana harness'u
-        // testowego, nie produkcji, i osobna praca. Ten próg wolno wyłącznie
-        // podnosić.
+        // 2026-09-03: RATCHET W GÓRĘ - DROGĄ, KTÓRĄ TEN KOMENTARZ NAZWAŁ.
+        // Poprzedni wpis mówił: „podniesienie metryki funkcji wymaga
+        // prawdziwego `RouterProvider` z `__root` JAKO KORZENIEM - czyli
+        // opcjonalnego `rootRoute` w `src/test/routeHarness.tsx`". Ta opcja
+        // powstała (harness testowy, ZERO zmian produkcyjnych) i wraz z
+        // odpięciem jedynego bezwarunkowego `describe.skip` w repozytorium
+        // (`rootShellRender.test.tsx:91`) dała skok, którego nie da się
+        // pomylić z dryfem.
+        //
+        // ZMIERZONE 2026-09-03, cztery pliki
+        // (`rootRoute.test.tsx` + `rootShellRender.test.tsx` +
+        // `rootRouterMount.test.tsx` + `src/__tests__/router.test.tsx`):
+        //   92,41% instrukcji (134/145) / 83,67% gałęzi (41/49) /
+        //   89,58% funkcji (43/48)     / 93,75% linii (120/128).
+        // Punkt wyjścia tego samego pomiaru: 46,20 / 55,10 / 14,58 / 52,34.
+        // Funkcje: 7 -> 43 z 48. Linie: 67 -> 120 z 128.
+        //
+        // LICZBA JEST POTWIERDZONA SZEŚCIOMA PRZEBIEGAMI, i to nie jest
+        // nadmiarowa ostrożność - to naprawa MOJEGO WŁASNEGO defektu z pierwszej
+        // wersji tego wpisu. Stało tu „83,33% funkcji (40/48)" z JEDNEGO
+        // pomiaru, a pomiar był NIEDETERMINISTYCZNY: trzy przebiegi tej samej
+        // komendy dały 89,58% / 79,17% / 79,17%, czyli próg zapalałby się na
+        // czerwono BEZ ŻADNEJ REGRESJI (79,17 < 81). Wahały się fabryki
+        // `lazy()` nakładek korzenia, bo granica `Suspense` ponawia render po
+        // JEDNEJ nakładce na przejście, a każde ponowienie czekało na
+        // transformację modułu przez vitesta. Przyczyna i naprawa (rozgrzanie
+        // rejestru modułów PRZED renderem) są rozpisane w
+        // `rootRouterMount.test.tsx` przy `warmOverlayModules`.
+        // Po naprawie: funkcje, instrukcje i linie IDENTYCZNE w 6 z 6
+        // przebiegów; gałęzie wahają się o JEDNĄ (40 albo 41 z 49), dlatego
+        // ich próg jest postawiony od 40/49 = 81,63%, nie od 41/49.
+        //
+        // Próg = ZMIERZONE NAJGORSZE minus ~2 pp (reguła dla progu na JEDEN
+        // plik, ta sama co wpisy z 2026-08-06/18/20/22 i 2026-09-01).
+        //
+        // PIĘĆ FUNKCJI, KTÓRE ZOSTAŁY - wypisane, żeby następna osoba nie
+        // szukała po omacku (numery linii `src/routes/__root.tsx`):
+        //   :119, :120  fabryka `lazy()` `GlobalAudioBar` - `GlobalAudioBarGate`
+        //               zwraca `null`, dopóki odtwarzacz nie ma ścieżki ani
+        //               błędu, więc chunk NIE JEST dociągany w ogóle;
+        //   :273        `.catch` na `syncI18nToRequest()` - ścieżka odrzucenia
+        //               synchronizacji języka po stronie żądania;
+        //   :458        `.catch` na rozgrzewce tickera - ścieżka odrzucenia
+        //               zapytania nagłówka;
+        //   :633        `.then` importu `previewWatchdog` - IFRAME-ONLY
+        //               (`window.self !== window.top`), martwe na publikowanej
+        //               stronie z konstrukcji.
+        // Dwie to ścieżki degradacji, jedna jest bramkowana stanem odtwarzacza,
+        // jedna jest osiągalna wyłącznie w iframie edytora podglądu.
+        // Ten próg wolno wyłącznie podnosić.
         "src/routes/__root.tsx": {
-          statements: 40,
-          functions: 12,
-          lines: 46,
-          branches: 48,
+          statements: 90,
+          functions: 87,
+          lines: 91,
+          branches: 79,
         },
 
         // Menedżer przekierowań: cztery warstwy kontraktu (requireStaff, Zod,
