@@ -289,6 +289,7 @@ import {
   type CareerApplicationInput,
 } from "../applicationSchema";
 import {
+  CAREER_SECTION_KEYS,
   careerRolesQueryOptions,
   careerSectionsQueryOptions,
   sectionState,
@@ -460,22 +461,36 @@ describe("careerRolesQueryOptions: wariant z brudnopisami", () => {
 });
 
 describe("careerSectionsQueryOptions: widok sekcji strony publicznej", () => {
-  it("odpowiedź bez wierszy daje pustą listę, a pusta lista znaczy `pokaż` dla każdej sekcji", async () => {
+  it("odpowiedź bez wierszy daje pustą listę, a pusta lista znaczy `pokaż` dla KAŻDEJ sekcji", async () => {
     // Dwie reguły spotykają się dopiero tutaj: `?? []` w zapytaniu i „brak
     // wiersza znaczy pokaż" w `sectionState`. Gdyby zapytanie oddało `null`,
     // `sectionState` przeszłoby przez `rows?.find` na tej samej odpowiedzi -
     // ale konsument z `.map` po sekcjach dostałby wyjątek na świeżej
     // instalacji, czyli w jedynym momencie, w którym ta ścieżka żyje.
+    //
+    // Pętla biegnie po `CAREER_SECTION_KEYS`, a nie po jednym wybranym kluczu:
+    // reguła świeżej instalacji dotyczy CAŁEJ strony (siedem sekcji), więc
+    // dowód na samym „hero" pozwoliłby wprowadzić wyjątek dla „form" albo
+    // „closing" i nie oblać niczego. Dołożenie klucza do enuma bez wpisu
+    // w bazie też przechodzi tędy.
     stub.setResponse(SECTIONS_VIEW, ok(null));
 
     const rows = await freshClient().fetchQuery(careerSectionsQueryOptions());
 
     expect(rows).toEqual([]);
-    expect(sectionState(rows, "hero", "pl")).toEqual({
-      visible: true,
-      title: null,
-      subtitle: null,
-    });
+    expect(CAREER_SECTION_KEYS).toHaveLength(7);
+    for (const key of CAREER_SECTION_KEYS) {
+      expect(sectionState(rows, key, "pl"), key).toEqual({
+        visible: true,
+        title: null,
+        subtitle: null,
+      });
+      expect(sectionState(rows, key, "en"), key).toEqual({
+        visible: true,
+        title: null,
+        subtitle: null,
+      });
+    }
   });
 });
 
@@ -540,7 +555,7 @@ describe("normalizeCvUrl: obcy schemat nie wychodzi z normalizacji", () => {
     if (wynik !== null) expect(wynik).toMatch(/^https?:\/\//);
   });
 
-  it("obcy schemat odsiewa KROPKA w nazwie hosta, nie porównanie protokołu", async () => {
+  it("obcy schemat odsiewa KROPKA w nazwie hosta, nie porównanie protokołu", () => {
     // Ustalenie, które rozstrzyga, gdzie mieszka bezpieczeństwo tej funkcji.
     // `"ftp://files.example.com/cv.pdf"` NIE pasuje do `/^https?:\/\//`, więc
     // dostaje prefiks `https://` - i wtedy `ftp` jest HOSTEM (bez kropki),
@@ -726,9 +741,15 @@ describe("validateApplication: błędy, których kreator nie umie pokazać", () 
     // `trimmed.optional().default(\"\")` zamienia brak pola na pusty napis
     // ZANIM reguła CV je przeczyta. Payload jedzie do `contact_messages.custom`,
     // gdzie `undefined` znika po serializacji - i panel traci nazwę pliku.
+    // Pola SĄ USUNIĘTE z wejścia, nie ustawione na "" - inaczej asercja
+    // mierzyłaby fixture, nie `.default("")`. `message` leci tą samą drogą
+    // (`trimmed.optional().default("")`), więc też musi wyjść z wejścia.
     const bezPolCv = { ...KANDYDATKA } as Record<string, unknown>;
     delete bezPolCv.cvFileName;
     delete bezPolCv.cvUrl;
+    delete bezPolCv.message;
+    expect(Object.keys(bezPolCv)).not.toContain("cvFileName");
+    expect(Object.keys(bezPolCv)).not.toContain("message");
 
     const brakCV = validateApplication(bezPolCv as CareerApplicationInput);
     expect(brakCV.ok).toBe(false);
@@ -745,6 +766,13 @@ describe("validateApplication: błędy, których kreator nie umie pokazać", () 
     if (!zLinkiem.ok) return;
     expect(zLinkiem.value.cvFileName).toBe("");
     expect(zLinkiem.value.message).toBe("");
+    // Szew między dwoma modułami tej paczki: schemat przyjmuje link BEZ
+    // schematu i wpuszcza go do payloadu dosłownie (walidacja `LINKEDIN_RE`,
+    // nie normalizacja), więc doklejenie `https://` należy do `normalizeCvUrl`
+    // przy odczycie w panelu - i dopiero tam adres bez kropki w hoście albo
+    // z obcym schematem zostaje odsiany.
+    expect(zLinkiem.value.cvUrl).toBe("drive.example.com/cv-ewa");
+    expect(normalizeCvUrl(zLinkiem.value.cvUrl)).toBe("https://drive.example.com/cv-ewa");
   });
 });
 
@@ -805,14 +833,27 @@ describe("uploadCv: przeglądarka bez `crypto.randomUUID`", () => {
       "application/msword": "doc",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
     };
+    const zmierzone: string[] = [];
 
     for (const mime of CV_ACCEPTED_MIME) {
       h.uploads = [];
       const wynik = await uploadCv(cvFile("zyciorys-bez-rozszerzenia", mime));
 
       expect(wynik.ok, mime).toBe(true);
-      expect(h.uploads[0].path.split(".").pop(), mime).toBe(oczekiwane[mime]);
+      const ext = h.uploads[0].path.split(".").pop();
+      expect(ext, mime).toBe(oczekiwane[mime]);
       expect(isCareerCvPath(h.uploads[0].path), mime).toBe(true);
+      // `contentType` jedzie do magazynu z pliku, więc rozszerzenie w ścieżce
+      // i typ obiektu muszą mówić to samo - inaczej podpisany link otwiera się
+      // operatorowi jako pobranie nieznanego formatu.
+      expect(h.uploads[0].contentType, mime).toBe(mime);
+      zmierzone.push(ext as string);
     }
+
+    // „WŁASNE" z nazwy przypadku znaczy ROZŁĄCZNE: dowód liczy rozszerzenia
+    // ZMIERZONE na ścieżkach, a nie wpisy w literale wyżej. Gdyby dwa MIME
+    // dostały to samo rozszerzenie (albo wszystkie spadły na zapas `.pdf`),
+    // zbiór byłby mniejszy niż lista przyjmowanych typów.
+    expect(new Set(zmierzone).size).toBe(CV_ACCEPTED_MIME.length);
   });
 });
