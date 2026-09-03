@@ -317,6 +317,15 @@ function useWholePage() {
   };
 }
 
+/**
+ * Dwie sekcje z jednego odczytu: jedna Z wierszem, druga BEZ. Tylko takie
+ * złożenie dowodzi, że stan sekcji jest szukany PO KLUCZU - jeden hook nie
+ * odróżni „nie ma mojego wiersza" od „odpowiedź jeszcze nie doszła".
+ */
+function useHeroAndClosing() {
+  return { hero: useCareerSection("hero"), closing: useCareerSection("closing") };
+}
+
 /** Zmiana języka na PRAWDZIWEJ instancji i18next, z re-renderem hooka. */
 async function switchLanguage(lang: string): Promise<void> {
   await act(async () => {
@@ -372,9 +381,42 @@ describe("useCareerOffers - wybór listy ofert", () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.offers).toEqual([]);
-    // Gdyby bramki stały w odwrotnej kolejności, tu byłby katalog i18n
-    // (dwanaście ról), który po powrocie odczytu podmieniłby się na jedną.
+    // Gdyby bramki `isLoading` NIE BYŁO, stałby tu katalog i18n (dwanaście
+    // ról), który po powrocie odczytu podmieniłby się na jedną ofertę.
+    // ZMIERZONE mutacją: wariant bez tej bramki oblewa dokładnie tę asercję.
+    // KOLEJNOŚCI bramek ta asercja nie rozstrzyga i nie udaje, że rozstrzyga -
+    // wywód stoi w nagłówku (mutacja równoważna).
+    // Ta linia nie jest powtórzeniem `toEqual([])`: pilnuje, żeby katalog
+    // zapasowy nie był PUSTY, bo wtedy cały ten przypadek byłby bez treści.
     expect(result.current.offers).not.toHaveLength(CAREER_ROLES.length);
+  });
+
+  it("odświeżenie w tle nie gasi listy: bramka czyta stan `pending`, nie `fetching`", async () => {
+    stub.setResponse(ROLES_RELATION, ok([ROW_COORDINATOR, ROW_EDITOR]));
+
+    // Zapis KAŻDEGO malowania, bo przedmiotem dowodu jest CIĄG stanów, a nie
+    // stan końcowy: regresja `isFetching` w miejsce `isLoading` gasi listę na
+    // jedno malowanie i po ustaniu odczytu nie zostawia po sobie śladu.
+    const paints: { isLoading: boolean; ids: string[] }[] = [];
+    const { result, queryClient } = renderHookWithQueryClient(() => {
+      const value = useCareerOffers();
+      paints.push({ isLoading: value.isLoading, ids: value.offers.map((offer) => offer.id) });
+      return value;
+    });
+    await waitFor(() => expect(result.current.offers).toHaveLength(2));
+    const settled = paints.length - 1;
+
+    // Unieważnienie po zapisie w panelu / powrót na kartę - odczyt idzie znowu.
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: careerRolesQueryOptions().queryKey });
+    });
+    expect(stub.chainsFor(ROLES_RELATION)).toHaveLength(2);
+
+    // Od chwili, gdy dane doszły, kandydat widzi te same dwie oferty na KAŻDYM
+    // malowaniu: ani pustej listy, ani katalogu zapasowego, ani spinnera.
+    for (const paint of paints.slice(settled)) {
+      expect(paint).toEqual({ isLoading: false, ids: [ROW_COORDINATOR.slug, ROW_EDITOR.slug] });
+    }
   });
 
   it("PUSTA tabela ofert oddaje wbudowany katalog i18n, żeby strona nie była pusta", async () => {
@@ -454,7 +496,7 @@ describe("useCareerOffers - wybór listy ofert", () => {
     expect(result.current.offers[0].title).toBe(ROW_COORDINATOR.title_en);
   });
 
-  it("zmiana języka przy PUSTEJ bazie przełącza katalog zapasowy (zależność `t` w memo)", async () => {
+  it("zmiana języka przy PUSTEJ bazie przełącza katalog zapasowy na angielskie tytuły", async () => {
     stub.setResponse(ROLES_RELATION, ok([]));
 
     const { result } = renderHookWithQueryClient(() => useCareerOffers());
@@ -468,6 +510,9 @@ describe("useCareerOffers - wybór listy ofert", () => {
     );
     // Kontrola tłumacza: gdyby `t` ignorowało język, obie listy byłyby równe.
     expect(en(roleTitleKey(CAREER_ROLES[0].id))).not.toBe(pl(roleTitleKey(CAREER_ROLES[0].id)));
+    // Dowodem jest SKUTEK (memo nie jest zamrożone), a nie tablica zależności:
+    // `lang` i `t` zmieniają się w tym samym renderze, więc każde z nich
+    // osobno wystarcza do przeliczenia - patrz nagłówek.
   });
 
   it("publiczny hook pyta WYŁĄCZNIE o oferty opublikowane i tylko o relację ofert", async () => {
@@ -510,9 +555,13 @@ describe("useCareerOffers - wybór listy ofert", () => {
 // ---------------------------------------------------------------------------
 describe("useCareerSection - stan sekcji strony", () => {
   it("nadpisanie nagłówka z panelu dojeżdża do sekcji o tym kluczu", async () => {
+    // Wiersz sekcji PYTANEJ stoi DRUGI, a pierwszy niesie inny nagłówek:
+    // implementacja czytająca „pierwszy wiersz odpowiedzi" zamiast szukająca
+    // po kluczu oblewa ten test, zamiast przejść na szczęśliwym ułożeniu.
     stub.setResponse(
       SECTIONS_RELATION,
       ok([
+        sectionRow({ key: "hero", title_pl: "Nagłówek innej sekcji", sort_order: 10 }),
         sectionRow({
           key: "roles",
           title_pl: "Otwarte rekrutacje",
@@ -520,7 +569,6 @@ describe("useCareerSection - stan sekcji strony", () => {
           subtitle_pl: "Cztery zespoły szukają ludzi.",
           subtitle_en: "Four teams are hiring.",
         }),
-        sectionRow({ key: "hero", title_pl: "Nagłówek innej sekcji" }),
       ]),
     );
 
@@ -538,10 +586,17 @@ describe("useCareerSection - stan sekcji strony", () => {
   it("klucz BEZ wiersza znaczy `pokaż bez nadpisań` - panel nie musi opisać każdej sekcji", async () => {
     stub.setResponse(SECTIONS_RELATION, ok([sectionRow({ key: "hero", title_pl: "Kariera" })]));
 
-    const { result } = renderHookWithQueryClient(() => useCareerSection("closing"));
-    await waitFor(() => expect(stub.chainsFor(SECTIONS_RELATION)).toHaveLength(1));
+    // Dwie sekcje z JEDNEJ odpowiedzi: `hero` ma wiersz, `closing` go nie ma.
+    // Oczekiwanie na nagłówek `hero` jest dowodem, że odpowiedź DOSZŁA - bez
+    // tego cała asercja byłaby spełniona przez stan „odczyt w drodze", w którym
+    // każda sekcja jest widoczna bez nadpisań z całkiem innego powodu
+    // (ZMIERZONE: hook ignorujący odpowiedź przechodził poprzednią wersję
+    // tego testu w 4 ms).
+    const { result } = renderHookWithQueryClient(() => useHeroAndClosing());
+    await waitFor(() => expect(result.current.hero.title).toBe("Kariera"));
 
-    expect(result.current).toEqual({ visible: true, title: null, subtitle: null });
+    expect(result.current.closing).toEqual({ visible: true, title: null, subtitle: null });
+    expect(stub.chainsFor(SECTIONS_RELATION)).toHaveLength(1);
   });
 
   it("sygnał `is_visible: false` z widoku dojeżdża jako `visible: false`", async () => {
@@ -575,8 +630,18 @@ describe("useCareerSection - stan sekcji strony", () => {
     stub.setResponse(SECTIONS_RELATION, ok([]));
     stub.setResponse(ROLES_RELATION, ok([]));
 
-    const { result } = renderHookWithQueryClient(() => useWholePage());
-    await waitFor(() => expect(stub.chainsFor(SECTIONS_RELATION)).toHaveLength(1));
+    const { result, queryClient } = renderHookWithQueryClient(() => useWholePage());
+    // Dowód, że PUSTA ODPOWIEDŹ naprawdę doszła, a nie że mierzymy pierwsze
+    // malowanie: w cache stoi rozstrzygnięty odczyt z pustą listą. Bez tego
+    // asercja „wszystko widoczne" byłaby spełniona przez stan „w drodze"
+    // (ZMIERZONE: hook ignorujący odpowiedź przechodził poprzednią wersję
+    // tego testu w 5 ms) i dublowała test ZNALEZISKA 2.
+    const sectionsKey = careerSectionsQueryOptions().queryKey;
+    await waitFor(() =>
+      expect(queryClient.getQueryState(sectionsKey)?.status).toBe("success"),
+    );
+    expect(queryClient.getQueryData(sectionsKey)).toEqual([]);
+    expect(stub.chainsFor(SECTIONS_RELATION)).toHaveLength(1);
 
     // Zbiór kluczy tego pliku POKRYWA zamknięty zbiór produktu - ósma sekcja
     // dołożona do `CAREER_SECTION_KEYS` oblewa tę asercję.

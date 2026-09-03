@@ -51,14 +51,18 @@
 //   9. „Usuń plik" zwraca rodzicowi PEŁNY pusty rekord (`path`, `fileName`
 //      i `url` naraz) i przywraca pole linku;
 //  10. wpisanie linku czyści ZASTANĄ ścieżkę i nazwę pliku (stan wejściowy ze
-//      ścieżką bez nazwy modeluje odtworzony szkic formularza);
+//      ścieżką bez nazwy modeluje odtworzony szkic formularza), a wpisany
+//      adres ZOSTAJE widoczny w polu (kontrolka kontrolowana);
 //  11. dostępność: pole pliku ma nazwę ze słownika (jest jego etykietą),
 //      komunikat błędu jest `role="alert"`, a kontener `[data-field="cv"]`
 //      wskazuje go przez `aria-describedby`, jest oznaczony `data-invalid`
 //      i JEST PROGRAMOWO FOKUSOWALNY - `tabindex="-1"` (to on jest celem
 //      `focusFirstError` w rodzicu:
 //      `document.querySelector('[data-field="cv"]')?.focus()`);
-//  12. brak naruszeń axe w stanie pustym i w stanie „plik + błąd".
+//  12. brak naruszeń axe w stanie pustym i w stanie „plik + błąd";
+//  13. w KONTEKŚCIE FORMULARZA (bo tam pole żyje): klik „Wgraj CV" i „Usuń
+//      plik" NIE wysyła formularza - inaczej wybór CV kończyłby krok kreatora
+//      zamiast dołączyć plik.
 //
 // CO JEST ATRAPOWANE I DLACZEGO. JEDNA atrapa: `@/integrations/supabase/client`,
 // czyli sieć. Notuje bucket, ścieżkę i opcje wysyłki oraz udaje
@@ -127,9 +131,11 @@
 // TABEM (bez skoku fokusu z walidacji) nie usłyszy jednak przy nim błędu -
 // to brak w produkcie, nie w teście, i nie wolno go „naprawić" asercją.
 //
-// REWIZJA ADWERSARYJNA (audyt mutacyjny, 30 mutantów `CareerCvField.tsx`).
-// Pierwsza wersja tego pliku miała 100% linii i funkcji, a mimo to PRZEPUSZCZAŁA
-// osiem zmian zachowania. Każdą zabija teraz konkretna asercja, nie render:
+// REWIZJA ADWERSARYJNA (audyt mutacyjny: 33 mutanty wstrzyknięte do
+// `CareerCvField.tsx`, z tego jeden semantycznie równoważny - zostaje 32 realne
+// zmiany zachowania). Pierwsza wersja tego pliku miała 100% linii, funkcji
+// i gałęzi, a mimo to PRZEPUSZCZAŁA JEDENAŚCIE z nich - dowód, że pokrycie nie
+// jest dowodem. Każdą zabija teraz konkretna asercja, nie render:
 //   * `onErrorMessage(undefined)` przeniesione ZA transfer (komunikat po
 //     poprzednim pliku wisi przez cały upload) - łapie test kolejności
 //     z bramką;
@@ -146,19 +152,31 @@
 //   * „Zmień plik" odcięty od okna wyboru (`if (!value.fileName)`) - stary
 //     test podmieniał plik prosto przez ukrytą kontrolkę, więc nazwa testu
 //     obiecywała przycisk, którego nikt nie klikał;
-//   * spinacz zamieniony ze spinnerem - łapie asercja na wskaźniku postępu.
-// Pozostałe 22 mutanty (brak wartownika pustego pliku, brak `return` po
-// odmowie, klucz błędu bez przedrostka, `accept` spoza schematu, nazwa
-// kontrolki z literału, zamiana napisów „Wgraj"/„Zmień", zdjęta rola `alert`,
-// stałe `data-invalid`, przycisk bez `click()`, brak `await`, pole linku
-// widoczne razem z plikiem, ...) padały już wcześniej.
+//   * spinacz zamieniony ze spinnerem - łapie asercja na wskaźniku postępu;
+//   * `type="button"` zamienione na `submit` (osobno na „Wgraj/Zmień plik"
+//     i na „Usuń plik") - łapie test w `<form>`: happy-dom wykonuje niejawną
+//     wysyłkę, więc dowodem jest SKUTEK (`onSubmit` zawołany dwa razy),
+//     a atrybut jest tylko potwierdzeniem;
+//   * `value={value.url}` zamienione na `value=""` (pole linku kasuje tekst
+//     pod palcami kandydata) - łapie asercja na wartości kontrolki.
+// Jeden mutant PRZEŻYWA świadomie: zdjęcie `sr-only` z kontrolki pliku. Jest
+// czysto wizualny (nazwa aria i czystość axe stoją niezależnie od klasy),
+// a asercja na klasie mierzyłaby styl, nie zachowanie; ten sam powód dotyczy
+// `inputMode="url"` (podpowiedź klawiatury mobilnej).
+//
+// Pozostałe 20 mutantów padało już przed rewizją: brak wartownika pustego
+// pliku, brak `return` po odmowie, klucz błędu bez przedrostka, `accept` spoza
+// schematu, nazwa kontrolki z literału, zamiana napisów „Wgraj"/„Zmień",
+// zdjęta rola `alert`, stałe `data-invalid`, przycisk bez `click()`, brak
+// `await` na wysyłce, plakietka pokazująca link zamiast nazwy, usunięcie
+// zostawiające ścieżkę, pole linku widoczne razem z plikiem.
 //
 // RODO: żadnych prawdziwych osób ani plików. Nazwiska i nazwy plików zmyślone
 // (`cv-anna-kowalska.pdf`, `zyciorys.exe`), tenant `tenant-testowy`, adresy
 // wyłącznie w domenie `example.com`. Plik testowy nie zawiera treści CV -
 // `new File(["x"], ...)` z podmienionym `size`, więc żaden bajt danych
 // osobowych nie powstaje.
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
@@ -359,9 +377,11 @@ describe("CareerCvField: stan pusty i wejście do okna wyboru", () => {
     // Pole nie ma własnej listy formatów - bierze tę ze schematu, którym
     // walidator zaraz odrzuci plik spoza polityki bucketu.
     expect(wejsciePliku(container)).toHaveAttribute("accept", CV_ACCEPT_ATTR);
-    // Jedyne miejsce w repo, gdzie TREŚĆ filtra jest asertowana: rozszerzenie
-    // na jeden dozwolony typ MIME, nic ponad to. Dołożenie MIME bez dołożenia
-    // rozszerzenia (albo odwrotnie) oblewa ten test.
+    // Jedyne miejsce w repo, gdzie TREŚĆ filtra `accept` jest asertowana:
+    // rozszerzenie na jeden dozwolony typ MIME, nic ponad to. Dołożenie MIME
+    // bez dołożenia rozszerzenia (albo odwrotnie) oblewa ten test. Że KAŻDY
+    // przyjmowany MIME ma własne rozszerzenie w ścieżce, dowodzi warstwa reguł
+    // (`lib/careers/__tests__/careersRulesEdges.test.ts`).
     expect(CV_ACCEPT_ATTR.split(",")).toEqual([".pdf", ".doc", ".docx"]);
     expect(CV_ACCEPTED_MIME).toHaveLength(CV_ACCEPT_ATTR.split(",").length);
   });
@@ -394,7 +414,10 @@ describe("CareerCvField: plik przyjęty", () => {
       fileName: "cv-anna-kowalska.pdf",
       url: "",
     });
-    // Poprzedni komunikat gaśnie PRZED transferem (jedno miejsce na błąd).
+    // Pole zgłasza rodzicowi „brak błędu" (jedno miejsce na komunikat).
+    // KOLEJNOŚĆ - że gaśnie jeszcze w trakcie transferu - dowodzi osobny test
+    // z bramką („gasi poprzedni komunikat JESZCZE PRZED transferem"); sam fakt
+    // wywołania jej nie mierzy.
     expect(onErrorSpy).toHaveBeenCalledWith(undefined);
   });
 
@@ -629,6 +652,36 @@ describe("CareerCvField: usunięcie pliku i ręczny link", () => {
       fileName: "",
       url: "https://portfolio.example.com/cv-anna-kowalska",
     });
+    // Pole jest KONTROLOWANE wartością z rodzica: wpisany adres musi w nim
+    // zostać, inaczej kandydat pisze w polu, które kasuje mu tekst pod palcami.
+    expect(screen.getByLabelText(T("careers.form.cvUrl"))).toHaveValue(
+      "https://portfolio.example.com/cv-anna-kowalska",
+    );
+  });
+});
+
+describe("CareerCvField: pole wewnątrz formularza kreatora", () => {
+  it("klik „Wgraj CV” i „Usuń plik” nie wysyła formularza, w którym pole żyje", async () => {
+    // Kontekst produkcyjny: pole stoi w `<form>` kreatora aplikacji. Przyciski
+    // MUSZĄ być `type="button"` - domyślny `submit` zamieniłby wybór CV
+    // w wysłanie zgłoszenia (albo w przejście kroku) bez reszty danych.
+    const wyslanie = vi.fn((event: FormEvent<HTMLFormElement>) => event.preventDefault());
+    const { container } = render(
+      <form onSubmit={wyslanie}>
+        <Rodzic onChangeSpy={vi.fn()} onErrorSpy={vi.fn()} />
+      </form>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: T("careers.form.cvUpload") }));
+    await wybierz(container, [plik("cv-anna-kowalska.pdf", "application/pdf", 2048)]);
+    const zmien = screen.getByRole("button", { name: T("careers.form.cvChange") });
+    const usun = screen.getByRole("button", { name: T("careers.form.cvRemove") });
+    fireEvent.click(zmien);
+    fireEvent.click(usun);
+
+    expect(wyslanie).not.toHaveBeenCalled();
+    expect(zmien).toHaveAttribute("type", "button");
+    expect(usun).toHaveAttribute("type", "button");
   });
 });
 
