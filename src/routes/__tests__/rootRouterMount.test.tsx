@@ -105,20 +105,64 @@ function grantAnalyticsConsent(): void {
 }
 
 /**
- * Przepłukanie kolejki `Suspense` i mikrozadań importów dynamicznych.
+ * ROZGRZANIE REJESTRU MODUŁÓW NAKŁADEK - i to jest NAPRAWA
+ * NIEDETERMINIZMU POMIARU, nie optymalizacja.
  *
- * KILKA OBROTÓW, NIE JEDEN - i to jest ustalenie z pomiaru, nie ostrożność.
- * Gdy dziecko `<Suspense>` zawiesi render, React NIE PRÓBUJE rodzeństwa w tym
- * samym przejściu: maluje fallback i ponawia dopiero po rozstrzygnięciu.
- * Osiem nakładek korzenia siedzi w JEDNEJ granicy, więc pojedyncze
- * przepłukanie wykonywało fabrykę `lazy()` WYŁĄCZNIE pierwszej z nich
- * (zmierzone: `ConsentBanner` tak, `ConsentPreviewPanel` nie).
+ * OBJAW, ZMIERZONY: pierwsza wersja tego pliku przepłukiwała granicę
+ * `Suspense` ustaloną liczbą obrotów po PRAWDZIWYM zegarze. Pokrycie funkcji
+ * `src/routes/__root.tsx` wychodziło wtedy 38/48 (79,17%), 40/48 (83,33%)
+ * albo 43/48 (89,58%) - NA TYM SAMYM HEADZIE, bez zmiany ani jednego znaku.
+ * Trzy przebiegi tej samej komendy dały 89,58 / 79,17 / 79,17. Wahały się
+ * DOKŁADNIE fabryki nakładek (`:111`, `:113`, `:114`, `:116`, `:117`), a próg
+ * per-ścieżka postawiony z JEDNEGO pomiaru zapalał się na czerwono bez
+ * żadnej regresji. To ta sama klasa defektu, którą zlecenie kazało zdjąć
+ * z `src/lib/ssrCache.ts` - tylko że tutaj wprowadziłem ją sam.
+ *
+ * PRZYCZYNA. Gdy dziecko `<Suspense>` zawiesi render, React NIE PRÓBUJE
+ * rodzeństwa w tym samym przejściu: maluje fallback i ponawia dopiero po
+ * rozstrzygnięciu. Osiem nakładek korzenia siedzi w JEDNEJ granicy, więc
+ * potrzeba OSIEM kolejnych ponowień, a każde czeka na rozwiązanie modułu
+ * przez vitesta (transformacja + graf zależności - dla `ConsentBanner` to
+ * ~1 400 wierszy źródeł). Ile z tych ośmiu zdąży przed końcem testu, zależy
+ * od obciążenia maszyny. Ustalona liczba obrotów po zegarze mierzy więc
+ * SZYBKOŚĆ HOSTA, nie kod.
+ *
+ * NAPRAWA. Rozwiązujemy te moduły ZAWCZASU, przed renderem. Wtedy fabryka
+ * `lazy()` wołana przez Reacta trafia w gotowy rejestr i jej `.then`
+ * rozstrzyga się w MIKROZADANIU, a nie po round-tripie transformacji. Osiem
+ * ponowień mieści się wtedy w ustalonej liczbie przepłukań deterministycznie.
+ *
+ * CZEGO TO NIE ZMIENIA: fabryki nadal wołane są PRZEZ REACTA z produkcyjnego
+ * `__root.tsx` (a nie przez ten import), więc pokrycie mierzy dokładnie to samo
+ * co wcześniej - tylko przestaje zależeć od zegara.
+ */
+async function warmOverlayModules(): Promise<void> {
+  await Promise.all([
+    import("@/components/ConsentBanner"),
+    import("@/components/ConsentPreviewPanel"),
+    import("@/components/LoginPopup"),
+    import("@/components/NewsletterPopup"),
+    import("@/components/popups/PopupHost"),
+    import("@/components/search/CommandPalette"),
+    import("@/components/chat/ExpertRequestDialogHost"),
+    import("@/components/ui/sonner"),
+  ]);
+}
+
+/**
+ * Przepłukanie granicy `Suspense`. Po rozgrzaniu rejestru (wyżej) każde
+ * ponowienie Reacta kosztuje MIKROZADANIE, więc liczba obrotów jest górnym
+ * ograniczeniem liczby nakładek, a nie zakładem o szybkość maszyny.
+ * 24 obroty na 8 nakładek = 3x zapasu.
  */
 async function flushOverlays(rounds = 24): Promise<void> {
   const { act } = await import("@testing-library/react");
   for (let i = 0; i < rounds; i++) {
     await act(async () => {
-      await new Promise((r) => setTimeout(r, i === 0 ? 60 : 40));
+      // Makrozadanie w pierwszym obrocie (efekty korzenia odroczone przez
+      // `whenIdle` degradują do `setTimeout(..., 32)`), dalej same mikrozadania.
+      if (i === 0) await new Promise((r) => setTimeout(r, 60));
+      else await Promise.resolve();
     });
   }
 }
@@ -127,6 +171,7 @@ describe("__root jako korzeń prawdziwego RouterProvider", () => {
   it("montuje całą powłokę, rozstrzyga nakładki lazy i nie wpada do granicy błędu", async () => {
     grantAnalyticsConsent();
     h.platformErrors.length = 0;
+    await warmOverlayModules();
     const { renderRoute } = await import("@/test/routeHarness");
     const child = createRoute({
       // Rodzic jest doklepywany przez harness (`wireToParent`), więc ten getter
