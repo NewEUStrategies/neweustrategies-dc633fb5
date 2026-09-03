@@ -169,101 +169,19 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex w-full min-w-0 flex-col gap-4 sm:flex-row">
-          <div className="flex shrink-0 flex-col items-center gap-2">
-            <div
-              data-testid="invite-avatar"
-              className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-[6px] border border-border bg-muted/50"
-            >
-              {photo ? (
-                <img src={photo} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-2xl font-semibold tracking-wide text-muted-foreground/50">
-                  {initials || "?"}
-                </span>
-              )}
-              {uploading ? (
-                <span className="absolute inset-0 flex items-center justify-center bg-background/70">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </span>
-              ) : null}
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              data-testid="invite-photo-input"
-              onChange={(e) => void pickPhoto(e.target.files?.[0])}
+        <div className="flex w-full min-w-0 flex-col gap-4">
+          <div className="grid min-w-0 gap-1">
+            <Label htmlFor="invite-email">{t("adminTeamMedia.inviteUser.email")}</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              value={email}
+              placeholder="osoba@example.com"
+              onChange={(e) => setEmail(e.target.value)}
             />
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="rounded-[6px]"
-                disabled={uploading || busy}
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload className="mr-1 h-3.5 w-3.5" />
-                {t("adminTeamMedia.inviteUser.photo")}
-              </Button>
-              {photo ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="rounded-[6px]"
-                  aria-label={t("adminTeamMedia.inviteUser.photoRemove")}
-                  onClick={() => setPhoto("")}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              ) : null}
-            </div>
           </div>
 
-          <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
-            <div className="grid min-w-0 gap-1">
-              <Label htmlFor="invite-email">{t("adminTeamMedia.inviteUser.email")}</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="grid min-w-0 gap-1">
-              <Label htmlFor="invite-first-name">{t("adminTeamMedia.inviteUser.firstName")}</Label>
-              <Input
-                id="invite-first-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-              />
-            </div>
-            <div className="grid min-w-0 gap-1">
-              <Label htmlFor="invite-last-name">{t("adminTeamMedia.inviteUser.lastName")}</Label>
-              <Input
-                id="invite-last-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </div>
-            <div className="grid min-w-0 gap-1 sm:col-span-2">
-              <Label htmlFor="invite-linkedin">{t("adminTeamMedia.inviteUser.linkedin")}</Label>
-              <Input
-                id="invite-linkedin"
-                value={linkedin}
-                aria-invalid={!linkedinOk}
-                placeholder="linkedin.com/in/..."
-                onChange={(e) => setLinkedin(e.target.value)}
-              />
-              {!linkedinOk ? (
-                <p className="text-xs text-destructive">
-                  {t("adminTeamMedia.inviteUser.linkedinError")}
-                </p>
-              ) : null}
-            </div>
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
             <div className="grid min-w-0 gap-1">
               <Label>{t("adminTeamMedia.inviteUser.role")}</Label>
               <Select value={role} onValueChange={(v) => isRole(v) && setRole(v)}>
@@ -296,20 +214,120 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <label className="flex items-start gap-2 sm:col-span-2">
-              <Checkbox
-                checked={autoAccept}
-                onCheckedChange={(v) => setAutoAccept(v === true)}
-                aria-label={t("adminTeamMedia.inviteUser.autoAccept")}
-              />
-              <span className="text-sm leading-tight">
-                {t("adminTeamMedia.inviteUser.autoAccept")}
-                <span className="block text-xs text-muted-foreground">
-                  {t("adminTeamMedia.inviteUser.autoAcceptHint")}
-                </span>
-              </span>
-            </label>
           </div>
+
+          <div className="grid min-w-0 gap-3 rounded-[6px] border border-border bg-muted/20 p-3">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              {t("adminTeamMedia.inviteUser.personSection")}
+            </p>
+
+            <div className="flex min-w-0 items-center gap-3">
+              <div
+                data-testid="invite-avatar"
+                className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-border bg-background"
+              >
+                {photo ? (
+                  <img src={photo} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-lg font-semibold tracking-wide text-muted-foreground/50">
+                    {initials || "?"}
+                  </span>
+                )}
+                {uploading ? (
+                  <span className="absolute inset-0 flex items-center justify-center bg-background/70">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </span>
+                ) : null}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                data-testid="invite-photo-input"
+                onChange={(e) => void pickPhoto(e.target.files?.[0])}
+              />
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="text-sm">{t("adminTeamMedia.inviteUser.photoLabel")}</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-[6px]"
+                    disabled={uploading || busy}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <Upload className="mr-1 h-3.5 w-3.5" />
+                    {t("adminTeamMedia.inviteUser.photo")}
+                  </Button>
+                  {photo ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-[6px]"
+                      aria-label={t("adminTeamMedia.inviteUser.photoRemove")}
+                      onClick={() => setPhoto("")}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-1">
+                <Label htmlFor="invite-first-name">
+                  {t("adminTeamMedia.inviteUser.firstName")}
+                </Label>
+                <Input
+                  id="invite-first-name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div className="grid min-w-0 gap-1">
+                <Label htmlFor="invite-last-name">{t("adminTeamMedia.inviteUser.lastName")}</Label>
+                <Input
+                  id="invite-last-name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid min-w-0 gap-1">
+              <Label htmlFor="invite-linkedin">{t("adminTeamMedia.inviteUser.linkedin")}</Label>
+              <Input
+                id="invite-linkedin"
+                value={linkedin}
+                aria-invalid={!linkedinOk}
+                placeholder="https://www.linkedin.com/in/..."
+                onChange={(e) => setLinkedin(e.target.value)}
+              />
+              {!linkedinOk ? (
+                <p className="text-xs text-destructive">
+                  {t("adminTeamMedia.inviteUser.linkedinError")}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <label className="flex min-w-0 items-start gap-2">
+            <Checkbox
+              checked={autoAccept}
+              onCheckedChange={(v) => setAutoAccept(v === true)}
+              aria-label={t("adminTeamMedia.inviteUser.autoAccept")}
+            />
+            <span className="text-sm leading-tight">
+              {t("adminTeamMedia.inviteUser.autoAccept")}
+              <span className="block text-xs text-muted-foreground">
+                {t("adminTeamMedia.inviteUser.autoAcceptHint")}
+              </span>
+            </span>
+          </label>
         </div>
 
         <DialogFooter className="flex-wrap gap-2">

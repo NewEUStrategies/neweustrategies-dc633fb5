@@ -61,7 +61,10 @@ const pl = {
       lastName: "Nazwisko",
       linkedin: "LinkedIn (opcjonalnie)",
       linkedinError: "Podaj poprawny adres profilu LinkedIn",
-      photo: "Zdjęcie",
+      photo: "Wgraj",
+      photoLabel: "Zdjęcie profilowe",
+      personSection: "Dane osoby (opcjonalne)",
+
       photoRemove: "Usuń zdjęcie",
       photoTypeError: "Wybierz plik graficzny",
       photoSizeError: "Zdjęcie może mieć maksymalnie 5 MB",
@@ -135,7 +138,10 @@ const en = {
       lastName: "Last name",
       linkedin: "LinkedIn (optional)",
       linkedinError: "Enter a valid LinkedIn profile URL",
-      photo: "Photo",
+      photo: "Upload",
+      photoLabel: "Profile photo",
+      personSection: "Person details (optional)",
+
       photoRemove: "Remove photo",
       photoTypeError: "Pick an image file",
       photoSizeError: "The photo may be up to 5 MB",
