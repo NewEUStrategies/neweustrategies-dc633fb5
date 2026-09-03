@@ -127,12 +127,16 @@ export function SignupPopupPanel({
           type="button"
           aria-label={t("common.close")}
           onClick={onClose}
-          className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-[6px] border transition-colors hover:opacity-80"
+          // focus:outline-none + własny focus-visible w akcencie popupu:
+          // domyślny niebieski ring przeglądarki (Chrome/Android) rysował
+          // poświatę wokół „X” zaraz po otwarciu popupu.
+          className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-[6px] border transition-colors hover:opacity-80 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--nl-accent)]"
           style={{
             backgroundColor: "color-mix(in srgb, var(--nl-bg) 70%, transparent)",
             borderColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)",
             color: "var(--nl-fg)",
             backdropFilter: "blur(4px)",
+            WebkitTapHighlightColor: "transparent",
           }}
         >
           <X className="h-4 w-4" />
