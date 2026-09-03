@@ -3405,6 +3405,18 @@ nie została napisana przez niezależnego agenta — to jest znana luka tego roz
 
 #### Kolejność naprawy — jedenaście punktów, każdy z efektem i kosztem
 
+**Jak czytać tę listę.** Jest to lista z **wydania 8**, przedrukowana dla zapisu, a nie dzisiejsze
+zadanie — zlecenie z wydania 8 zostało wykonane (patrz nagłówek tego rozdziału) i część punktów
+niżej jest już zamknięta w kodzie. Punkt 1 zamknął commit, który dał fali 2 własny,
+dwunastokrotnie krótszy budżet (`CHROME_WARM_BUDGET_MS = 500`); punkt 2 — zdjęcie prefetchu strony
+głównej z drogi krytycznej (`src/routes/index.tsx:184-198`); punkt 5 przestał być optymalizacją
+i **stał się terminem**, bo bramka arkusza ma dziś 1,25% zapasu (patrz sprostowanie wyżej).
+**Rozstrzygnięty status każdego z jedenastu punktów, z plikiem i linią, mieszka w sekcji
+„0. Co jest ustalone" zlecenia `docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md`** — nie tutaj; ta lista
+zachowuje brzmienie wydania 8, żeby dało się porównać, co się zmieniło. To, co do listy **doszło**
+po limicie sesji, jest w rozdz. 8.7 (dwa nowe ustalenia, dwa sprostowania, jedno
+przekwalifikowanie).
+
 1. **Zdjąć drugą falę rozgrzewki korzenia z drogi krytycznej** (`__root.tsx:398`). Fala 2 nie jest
    potrzebna do wyrenderowania treści: przenieść za `Suspense` albo obniżyć budżet do 300-500 ms
    i nie awaitować. Efekt: **do 2,5 s, a w najgorszym razie do 5 s, z czasu do pierwszego bajtu
