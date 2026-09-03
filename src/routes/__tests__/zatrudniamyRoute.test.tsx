@@ -651,17 +651,17 @@ describe("stan filtra działu i korekta roli w formularzu", () => {
     await mount();
     expect(lastRoles().department).toBe("all");
 
-    await jakDziecko(() => h.onDepartmentChange?.("research"));
+    await jakDziecko(() => h.onDepartmentChange?.("analysis"));
 
-    await waitFor(() => expect(lastRoles().department).toBe("research"));
+    await waitFor(() => expect(lastRoles().department).toBe("analysis"));
     // Filtr działu NIE jest zamiarem aplikowania - licznik stoi.
     expect(lastForm().applySignal).toBe(0);
   });
 
   it("powrót filtra na „wszystkie” jest możliwy", async () => {
     await mount();
-    await jakDziecko(() => h.onDepartmentChange?.("research"));
-    await waitFor(() => expect(lastRoles().department).toBe("research"));
+    await jakDziecko(() => h.onDepartmentChange?.("analysis"));
+    await waitFor(() => expect(lastRoles().department).toBe("analysis"));
 
     await jakDziecko(() => h.onDepartmentChange?.("all"));
     await waitFor(() => expect(lastRoles().department).toBe("all"));
