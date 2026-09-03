@@ -7,6 +7,7 @@
 // importu - ten sam wzorzec, co przy podziale workspace klubu i watku
 // (bramka `workspaceModuleBoundary.test.ts`).
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import {
   fetchClubBySlug,
   fetchClubGroups,
