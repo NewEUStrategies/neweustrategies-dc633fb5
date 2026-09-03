@@ -1173,7 +1173,6 @@ describe("panel rekrutacji - autorytet dostępu", () => {
     // zastąpiony. Ta bramka sprawdza WSZYSTKIE definicje razem, więc
     // rozjechanie się ich progów zapala się tutaj, niezależnie od tego, którą
     // migrację czyta który test.
-    const migrations = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
     const contentPolicies = [
       "career_roles_staff_write",
       "career_roles_staff_update",
@@ -1182,9 +1181,17 @@ describe("panel rekrutacji - autorytet dostępu", () => {
       "career_sections_staff_update",
     ] as const;
     for (const policy of contentPolicies) {
-      const defining = migrations.filter((file) =>
-        read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`),
-      );
+      // `migrationsDefining` SORTUJE, i to nie jest kosmetyka: `readdirSync`
+      // oddaje wpisy w kolejności zależnej od systemu plików (na ext4 jest to
+      // kolejność haszowa, nie nazwowa), a ten test rozstrzyga, KTÓRA definicja
+      // obowiązuje, po OSTATNIM elemencie listy. Bez sortowania bramka mogłaby
+      // na innym checkoucie zatwierdzić definicję ZASTĄPIONĄ - czyli popełnić
+      // dokładnie ten błąd, przeciw któremu została napisana.
+      // ZNALEZISKO Codeksa na PR #326, potwierdzone pomiarem: przy odwróconej
+      // kolejności listingu stara wersja wybierała `20260813224302` (sprzed
+      // zakresowania najemcy) i przechodziła, choć zakres mógł już nie istnieć
+      // w migracji obowiązującej.
+      const defining = migrationsDefining(policy);
       expect(defining.length, `nikt już nie definiuje polityki ${policy}`).toBeGreaterThan(0);
       // PRÓG ROLI musi być ten sam w KAŻDEJ definicji - to on rozjeżdża się
       // z bramką panelu i to jego zmiana w najnowszej migracji przeszłaby
@@ -1216,17 +1223,12 @@ describe("panel rekrutacji - autorytet dostępu", () => {
     // bazie (§15 `scripts/careers-harness/runtime_test.sql`); tutaj stoi
     // tańszy strażnik statyczny: NAJNOWSZA definicja tych polityk nie może
     // wrócić do `is_staff()`.
-    const migrations = readdirSync(MIGRATIONS_DIR)
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
     for (const policy of [
       "career_applications_staff_read",
       "career_applications_staff_update",
       "career_application_events_staff_read",
     ] as const) {
-      const defining = migrations.filter((file) =>
-        read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`),
-      );
+      const defining = migrationsDefining(policy);
       expect(defining.length, `nikt już nie definiuje polityki ${policy}`).toBeGreaterThan(0);
       const last = defining[defining.length - 1];
       const sql = read(`${MIGRATIONS_DIR}/${last}`);
