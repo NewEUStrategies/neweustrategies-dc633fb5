@@ -19,7 +19,13 @@ obowiązkowa do przeczytania: zlecenie powtarzające zrobioną pracę jest gorsz
 (`__root.tsx:78`, dziś eksportowana). Fala 2 to dekoracja powłoki - ticker, menu, widgety headera
 i stopki - pod `await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS)`
 (`__root.tsx:508`), gdzie `CHROME_WARM_BUDGET_MS = 500` (`__root.tsx:100`).
-**Maksymalny sekwencyjny budżet przed pierwszym bajtem to dziś 3 000 ms, nie „do 11 s".** Fala 1
+**Sufit korzenia to dziś 3 000 ms, nie 5 000 - ale to NIE jest cały budżet przed pierwszym
+bajtem, i tę liczbę podałem w pierwszej wersji tego zlecenia błędnie.** Do sufitu korzenia dochodzi
+budżet loadera trasy: na stronie głównej `prefetchAboveFoldQueries` z `ABOVE_FOLD_PREFETCH_BUDGET_MS
+= 2500` (`src/lib/builder/prefetch.ts:554`, wołane bez jawnego budżetu w `src/routes/index.tsx:215`),
+a na trasie treściowej `RESILIENT_LOAD_BUDGET_MS = 4_000` (`src/lib/ssr/resilientLoad.ts:46`).
+**Sumy sekwencyjne: `/` = 5 500 ms, trasa treściowa = 7 000 ms** - wobec „do 11 s" z wydania 8.
+Fala 1
 zeszła też z trzech równoległych podżądań na dwa (dedup `fetchSiteDesignTokensRow` przez wspólny
 `edgeTtlCache`, opisany w komentarzu `__root.tsx:363-372`). Nie ruszaj tego bez pomiaru.
 
@@ -101,8 +107,34 @@ jedyne, co ma znaczenie: **czy w wyjściu serwera JEST TREŚĆ**.
 
 # CZĘŚĆ A - DROGA KRYTYCZNA (P1)
 
-Cztery pozycje. Kolejność nie jest sugestią: pozycja A1 odblokowuje pomiar dla A2, a A3 musi
-wejść przed jakimkolwiek dalszym skracaniem budżetów.
+**Osiem pozycji, a kolejność nie jest sugestią.** A0 jest defektem poprawności i wyszła dopiero
+z pomiaru; A1 odblokowuje pomiar dla B1; A5 i A6 muszą wejść **przed** jakimkolwiek dalszym
+skracaniem budżetów, bo dziś nie wiadomo, gdzie te budżety idą.
+
+## A0. Dwa `Date.now()` w ciele renderu wydarzeń - defekt ODBLOKOWANY przez naprawę punktu 4
+
+**To najważniejsza pozycja tego zlecenia i nie było jej na żadnej wcześniejszej liście.**
+`src/routes/events.$slug.index.tsx:284` (`const isPast = startsAt.getTime() < Date.now()`)
+i `:340` (`const rsvpBeforeOpen = !!rsvpOpensAt && rsvpOpensAt.getTime() > Date.now()`).
+
+Oba wyrażenia istniały przed oknem, ale komponent wychodził w SSR na `if (!eventQ.data) return null`
+(`:258`), bo klucz zapytania był **zimny**. **Od naprawy punktu 4 loader powłoki go grzeje, więc to
+poddrzewo renderuje się teraz serwerowo** - czyli naprawa wydajnościowa **uaktywniła** uśpiony
+defekt klasy „czas w renderze". Klasa jest ta sama, którą punkt 7 domknął w trzynastu miejscach.
+
+Skala: `isPast` steruje **dziewięcioma gałęziami STRUKTURALNYMI** (`:510`, `:515`, `:622`, `:652`,
+`:688`, `:696`, `:706`, `:713`, `:721`), a linia `:652` przekazuje go w dół propem, więc gałęzi
+w poddrzewie jest więcej. Serwer zawsze liczy w UTC, dokument wchodzi do cache brzegowego
+(`contentCacheControl()` - `PUBLIC_CONTENT_S_MAXAGE` / `PUBLIC_CONTENT_SWR`, `cachePolicy.ts:67-72`),
+a React 19 przy rozjeździe **struktury** porzuca serwerowe poddrzewo i przerysowuje je na kliencie.
+
+**Naprawa:** oba wyrażenia przechodzą na `useNowMs` (`src/lib/time/useNowMs.ts:29`,
+`useNowMs(intervalMs = 0): number | null` - zwraca `null` w SSR i w pierwszym renderze klienta,
+czyli wymusza jawną decyzję, co pokazać, gdy czasu jeszcze nie ma).
+
+**Kryterium odbioru:** nowy przypadek w `ssrRenderSafety.test.tsx` dowodzi przez `renderToString`,
+że serwerowy HTML wydarzenia **przeszłego i przyszłego jest identyczny** w części sterowanej
+`isPast`; kontrola negatywna: cofnięcie zmiany zapala ten jeden przypadek. Koszt: jeden plik.
 
 ## A1. Odpiąć bezwarunkowe `describe.skip` na `RootComponent`
 
@@ -158,22 +190,37 @@ Zadanie:
 komentarza ma wpis z datą, zmierzoną wartością FCP i uzasadnieniem progu; TTFB podany rozdzielnie
 dla HIT i MISS, z liczbami w komentarzu.
 
-## A3. Rozbić arkusz - podłoga `css` ma dziś 3,4% zapasu
+## A3. Rozbić arkusz - podłoga `css` ma dziś 1,25% zapasu
 
 Zmierzone na zbudowanym artefakcie w `.output/`:
 
-| plik                          |    surowo |            gzip -9 |
-| ----------------------------- | --------: | -----------------: |
-| `styles-*.css`                | 570 419 B |       **79 819 B** |
-| `BlocksRenderer-*.css`        |   5 321 B |            1 431 B |
-| **razem**                     |           |       **79,2 KiB** |
-| podłoga `css` w bramce bundla |           |         **82 KiB** |
-| **zapas**                     |           | **2,8 KiB (3,4%)** |
+| plik                          |    surowo |  gzip TAK JAK BRAMKA |
+| ----------------------------- | --------: | -------------------: |
+| `styles-*.css`                | 570 419 B |         **81 518 B** |
+| `BlocksRenderer-*.css`        |   5 321 B |              1 402 B |
+| **razem**                     |           |        **80,98 KiB** |
+| podłoga `css` w bramce bundla |           |           **82 KiB** |
+| **zapas**                     |           | **1,02 KiB (1,25%)** |
+
+**Sprostowanie do pierwszej wersji tego zlecenia: podałem tu 2,8 KiB (3,4%) i była to liczba
+z niewłaściwego poziomu kompresji.** Bramka liczy `Bun.gzipSync(...)` bez argumentu
+(`scripts/check-bundle-size.ts:1447`), czyli **poziomem domyślnym**, a ja zmierzyłem `gzip -9`.
+Różnica na samym arkuszu to 1 699 B i **całą wielkość marginesu**: prawdziwy zapas jest
+**2,7 raza mniejszy**, niż napisałem. To jest dokładnie ta klasa błędu, którą to zlecenie każe
+wykrywać - liczba zmierzona inną metodą niż ta, którą mierzy bramka, jest liczbą o czymś innym.
 
 Arkusz ma **6 739 bloków reguł** (`grep -o "{" | wc -l` na zbudowanym pliku), źródło
-`src/styles.css` to 280 137 B w 8 817 wierszach. **To najciaśniejsza podłoga w repozytorium:
-jedna średnia zmiana designu ją przebije** - i wtedy albo bramka zapala się na czerwono, albo
-ktoś podniesie próg, co jest wprost zakazane.
+`src/styles.css` to 280 137 B w 8 817 wierszach. **To najciaśniejsza podłoga w repozytorium
+i przy 1,25% zapasu może zapalić się na własnym szumie:** udokumentowana rozbieżność host ↔ runner
+wynosi +0,466%, czyli jedną trzecią dostępnego marginesu. Podłoga `boot` (579 KB) ma jeszcze mniej -
+**0,64%**. Obie są zmierzone na **hoście**, nie na runnerze, i obie czekają na przefloorowanie.
+
+**Ale priorytet tej pozycji SPADA i trzeba to powiedzieć wprost, bo inaczej zrobisz pracę za zero.**
+Zmierzony element LCP artefaktu to **akapit banera cookie w nakładce `position: fixed`**, nie treść,
+a TTFB (≈5 s) dominuje FCP w **91-95%**. Przy dzisiejszym TTFB podział arkusza **nie ruszy ani FCP,
+ani LCP w sposób mierzalny.** Ta pozycja ma dwa różne uzasadnienia i tylko jedno z nich jest dziś
+prawdziwe: **bramka jest o włos od zapalenia (prawda) i arkusz jest na ścieżce krytycznej
+(niesprawdzone i wątpliwe).** Rób ją dla pierwszego powodu, nie dla drugiego - i dopiero po A2.
 
 Zadanie, w kolejności taniości:
 
@@ -226,6 +273,82 @@ Nowa bramka musi mieć:
 **Kryterium odbioru:** `bun run check:<nazwa>` zielony na tym HEAD i czerwony po sztucznym
 podniesieniu `ROOT_WARM_BUDGET_MS` o 1 ms (pokaż oba przebiegi w PR); `check:gate-coverage`
 zielony, czyli bramka jest realnie wpięta; test kontroli negatywnej w suicie.
+
+---
+
+## A5. Pomiar A/B na trasie z ŻYWYMI danymi - bo dziś nie ma liczby na pytanie „po co to było"
+
+**Repozytorium ma pierwszy w swojej historii pomiar porównawczy i jego wynik jest najważniejszą
+liczbą całego okna:** `docs/POMIAR_PIERWSZEGO_WCZYTANIA_AB_2026-09-01.md`, baza → main, trasa
+`/cookies`:
+
+| pomiar                 |       baza |       main |           zmiana | ocena    |
+| ---------------------- | ---------: | ---------: | ---------------: | -------- |
+| TTFB dokumentu         |   5 068 ms |   5 064 ms |    −4 ms (−0,1%) | **szum** |
+| First Contentful Paint |   5 312 ms |   5 272 ms |   −40 ms (−0,8%) | **szum** |
+| dokument SSR           |   76 860 B |   77 414 B |   +554 B (+0,7%) | **szum** |
+| treść tekstowa w SSR   |  2 298 zn. |  2 298 zn. |                0 | **szum** |
+| JS bootu razem         | 2 580,6 KB | 2 591,6 KB | +11,0 KB (+0,4%) | **szum** |
+
+**Czyli: dziewięć zamkniętych punktów nie przyspieszyło pierwszego wczytania o nic mierzalnego.**
+Raport sam nazywa ograniczenie: artefakt gada z **zaślepką Supabase**, więc główny zysk prefetchu
+SSR jest na tej trasie **niemierzalny**. Narzędzie już istnieje: `bun run measure:boot-ab <rewizja> <trasa>`.
+
+**Kryterium odbioru:** zapisany w repozytorium pomiar `measure:boot-ab` na trasie **z osiągalnym
+backendem** (albo z atrapą PostgREST oddającą wiersze) - `/` i jedna trasa treściowa - z rozbiciem
+TTFB / FCP / „treść tekstowa w SSR", i **jawne zdanie, czy punkty 1 i 2 przyspieszyły stronę
+główną, czy nie.** Bez tego cała ta warstwa nie ma liczby na pytanie, po co była praca.
+
+## A6. Około dwóch sekund ścieżki krytycznej, których nikt nie przypisał
+
+Sufit budżetów loaderów na `/cookies` - trasie **bez loadera trasy** - to **3 000 ms**, a
+`withBudget` (`src/lib/asyncBudget.ts`) **ściga i rozstrzyga na budżecie**, więc loader korzenia
+fizycznie nie może trzymać dłużej. Zmierzone TTFB na tej trasie: **5 030-5 195 ms**.
+Raport przypisuje różnicę `SSR_QUERY_TIMEOUT_MS = 5000`, ale **nie pokazuje ogniwa, które na nią
+czeka**. Około **2 s ścieżki krytycznej jest dziś nieprzypisane**.
+
+**To najprawdopodobniej powód, dla którego A/B nie widzi zysku** - i dlatego ta pozycja stoi przed
+podziałem arkusza i przed jakimkolwiek dalszym skracaniem budżetów. **Dopóki tych 2 s nie ma
+adresu, każde dalsze skracanie budżetów loaderów jest hipotezą**, bo dowodnie nie ruszają TTFB.
+
+**Kryterium odbioru:** log serwera artefaktu ze znacznikami czasu na czterech granicach - powrót
+loadera korzenia, wejście w `dehydrate`, wynik `sweepQueryCacheForSerialization`, `onShellReady` -
+z jednym zdaniem „te X ms to Y". Jeśli winowajcą okaże się budżet, dołóż test, który go przypina.
+Koszt: niski. Zysk: największy z całej listy.
+
+## A7. Preload słownika działa, ale nic go nie pilnia - a raz już umarł
+
+Punkt 6 z wydania 8 jest **zrobiony bez zapadki**. Mechanizm jest lepszy od rekomendacji audytu -
+wyłącznie nagłówek HTTP `Link` (`rel="modulepreload"`), nie węzeł w `<head>`, bo nazwa chunku
+powstaje przy podziale i bundel klienta jej nie zna. Ale gdy hint umrze - **a umarł już raz**,
+commit `6700e74cb` „hint słownika był MARTWY w artefakcie" - jedynym śladem jest `this.warn`
+w `scripts/lib/localeChunkPlugin.ts`, które **nie wywraca builda**. Rdzeń słownika wpadający do
+wspólnego chunku albo cicha zmiana kształtu `LOCALE_CHUNK_URLS` przechodzą na zielono.
+Dwa istniejące testy (`rootHead.test.ts`, `localeChunkPlugin.test.ts`) są **na atrapach** i nie
+sprawdzają artefaktu.
+
+**Kryterium odbioru:** jedna asercja w `e2e/boot-timing.spec.ts` na nagłówku `Link` odpowiedzi
+nawigacyjnej - dokładnie jeden `rel="modulepreload"`, cel pasujący do
+`/assets/(pl|en)-[A-Za-z0-9_-]{8}\.js` - przez **istniejący** parser `modulepreloadTargets`
+ze `scripts/lib/bootAbReport.ts`, nie własny. Kontrola negatywna: podmiana `LOCALE_CHUNK_URLS`
+na `{pl:null,en:null}` oblewa ten przypadek. Koszt: ~10 linii.
+
+## A8. Ogon punktu 4: siedemnaście tras z zimnymi kluczami, dwanaście w cache
+
+Punkt 4 jest zamknięty - wszystkie cztery wskazane powierzchnie mają loader - ale ma **zmierzony
+ogon**: z 370 tras → 82 publiczne strony SSR → **11 bez loadera w łańcuchu + 6 z loaderem, który
+tych kluczy nie grzeje = 17**, z czego **12 wchodzi do NES Edge Cache** (`/club`, `/club/apply`,
+`/club/specialization/$slug`, `/donate`, `/publications`, `/quiz`, `/search`, `/regulamin`,
+`/polityka-prywatnosci`, `/zwroty-i-reklamacje`, `/zatrudniamy`, `/club/join/$token`).
+
+Narzędzie, które to liczy, mówi o sobie wprost, że **jest narzędziem pomiarowym, nie bramką**
+(`src/lib/ci/publicRouteLoaders.ts:1`), a jego 34 testy sprawdzają **analizator na atrapach**,
+nie liczbę w repozytorium. **Jedna nowa trasa bez loadera nie zapali dziś niczego.**
+
+**Kryterium odbioru:** ratchet w `src/lib/ci/__tests__/publicRouteLoaders.test.ts` - asercje
+`cold.length <= 17` i `cachedCold.length <= 12` na **prawdziwym drzewie tras**, z komentarzem,
+że progi wolno wyłącznie obniżać; kontrola negatywna: atrapowa trasa z `useQuery` bez loadera
+oblewa ratchet. **Dopiero potem** sensownie zlecać naprawy poszczególnych tras. Koszt: niski.
 
 ---
 
