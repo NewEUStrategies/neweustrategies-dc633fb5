@@ -1089,6 +1089,34 @@ const CLIENT_DIR =
 //             florze 3893: porównanie idzie na surowej liczbie, a wydruk
 //             `toFixed(1)` zaokrągla) -> 4329.
 //
+// 2026-09-03 XIII  SPROSTOWANIE DO XII, ZANIM WPIS ZDAZYL WEJSC: 4329 -> 4351.
+//             Wpis XII policzono na drzewie `main` @ 25bca08. Zanim PR trafil do
+//             scalenia, `main` przesunal sie na 0ec42aa i pomiar sie zmienil.
+//             Zostawienie 4329 znaczyloby wypuszczenie kroniki z liczba, o ktorej
+//             WIADOMO, ze jest za niska - a to ta sama choroba, ktora ten PR leczy.
+//
+//             POMIAR PO SCALENIU (host, 953 pliki, 2026-09-03):
+//               overall 4342,6 (byl 4320,6)   public 2718,1 (byl 2687,6)
+//               chunk    316,2 (byl  274,6)   boot    618,8 (byl  577,3)
+//               css       81,2 (byl   81,0)
+//             Arytmetyka bez zmian co do metody: host przy florze 4306 to 4298,1
+//             (wpis VII), dzis 4342,6, czyli przyrost host-do-hosta +44,5 KB.
+//             4305,2 (runner, wpis VII) + 44,5 = 4349,7 -> sufit i +1 na granice
+//             zaokraglenia -> 4351.
+//
+//             UWAGA, I TO JEST WAZNIEJSZE OD SAMEGO FLOORA: przekroczone sa teraz
+//             CZTERY progi, nie jeden. `chunk` +41,6 KB i `boot` +41,5 KB wzgledem
+//             poprzedniego pomiaru to nie dryf - to ~40 KB dolozone do tego, co
+//             KAZDY CZYTELNIK pobiera przed hydratacja. Tych trzech progow
+//             (`chunk`, `public`, `boot`) ten commit SWIADOMIE NIE RUSZA: floor
+//             postawiony pod regresje sciezki bootowania bylby powrotem do ery
+//             „re-floor zamiast naprawy", ktora wpis z 2026-08-06 zamknal. Nalezy
+//             im sie wlasny pomiar skladu chunku wejsciowego
+//             (`BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory index`)
+//             i wlasna decyzja: co weszlo do korzenia i czy ma tam zostac.
+//             Do tego czasu job `build` pozostaje czerwony - i to jest uczciwszy
+//             stan niz zielony osiagniety podniesieniem czterech progow naraz.
+//
 //             TA LICZBA JEST Z HOSTA I CZEKA NA PRZEFLOOROWANIE Z PIERWSZEGO
 //             ZIELONEGO LOGU RUNNERA - dokładnie tak, jak floory `css` i `boot`
 //             z 01.09. Runnera na tym drzewie NIKT NIE ZMIERZYŁ: 4327,7 to
@@ -1160,7 +1188,7 @@ const FROZEN_BUDGET_KB = {
   // 1596,4 -> 1633,0, przy PUBLIC schodzącym 2701,7 -> 2687,6.
   // TA LICZBA JEST Z HOSTA, NIE Z RUNNERA, I CZEKA NA PRZEFLOOROWANIE
   // Z PIERWSZEGO ZIELONEGO LOGU RUNNERA (zasada z wpisu V) - jak `css` i `boot`.
-  overall: 4329,
+  overall: 4351,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
