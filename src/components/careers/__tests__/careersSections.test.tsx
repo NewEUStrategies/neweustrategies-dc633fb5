@@ -49,10 +49,14 @@
 //  1. TREŚĆ ZE SŁOWNIKA, NIE Z LITERAŁU. Wszystkie napisy asertowane przez
 //     `realT("pl")` / `realT("en")` na prawdziwej nakładce `@/lib/i18n-careers`:
 //     tytuł i podtytuł obu sekcji, cztery kroki (title/body/duration), oba CTA
-//     domknięcia. Usunięcie klucza ze słownika oblewa ten plik. Osobna asercja
-//     pilnuje, że na ekranie nie ma SUROWEGO klucza (i18next zwraca brakujący
-//     klucz jako samego siebie, więc bez tej kontroli „careers.process.title"
-//     przeszłoby jako poprawny napis).
+//     domknięcia. Usunięcie klucza ze słownika oblewa ten plik. Osobny strażnik
+//     pilnuje, że KAŻDA z tych 18 wartości różni się od swojego klucza i nie
+//     jest pusta (i18next zwraca brakujący klucz jako samego siebie, więc bez
+//     tej kontroli asercja `getByText(t(k))` porównywałaby „careers.process.
+//     title" z „careers.process.title" i przechodziła jako tautologia).
+//     Kompletność listy, której strażnik pilnuje, jest sama zmierzona —
+//     to nie jest ozdoba, bo dokładnie tam autor pierwszej wersji miał lukę
+//     (patrz REWIZJA ADWERSARYJNA, punkt B).
 //  2. KROKI W KOLEJNOŚCI. Cztery `<li>` w kolejności apply → screening → task
 //     → decision, każdy z numerem „01".."04" na swojej pozycji. Lista kluczy
 //     jest WPISANA W TYM PLIKU, a nie zaimportowana z `CareersProcess.tsx`:
@@ -81,11 +85,20 @@
 //     i bez `rel`, prowadzi WEWNĄTRZ aplikacji (mierzone przejściem routera na
 //     `/$` ze splatem „kontakt", nie atrybutem) i NIE woła `onOpenApplication`.
 //     W sekcji jest dokładnie jeden przycisk i jeden odnośnik — trzeciego
-//     wyjścia nie ma.
-//  8. WARSTWA TREŚCI JEJ NIE DOTYCZY (patrz ZNALEZISKO). Obie sekcje renderują
-//     się bez `QueryClientProvider`, a nadpisanie nagłówka i flaga
-//     `is_visible: false` zaseedowane w cache `career_page_sections_public`
-//     nie zmieniają ani napisu, ani widoczności.
+//     wyjścia nie ma. Słowa „PIERWSZE" i „DRUGIE" mają tu własny dowód:
+//     przycisk POPRZEDZA odnośnik w DOM, czyli w kolejności czytania
+//     i tabulacji (bez tego dowodu przestawienie dwóch bloków `Button`
+//     przechodziło cały plik — patrz REWIZJA ADWERSARYJNA, punkt A).
+//  8. WARSTWA TREŚCI JEJ NIE DOTYCZY (patrz ZNALEZISKO 1). Dowód jest
+//     DWUSTRONNY. Negatywnie: nadpisany nagłówek i flaga `is_visible: false`
+//     zaseedowane w cache `career_page_sections_public` nie zmieniają ani
+//     napisu, ani widoczności, a obie sekcje renderują pełną treść bez
+//     `QueryClientProvider`. Pozytywnie: zaseedowane zapytanie ma DOKŁADNIE
+//     ZERO obserwatorów po zamontowaniu obu sekcji, przy kontroli dodatniej
+//     (komponent-sonda, który to samo zapytanie subskrybuje, podnosi licznik
+//     do jedynki i widzi te wiersze). Bez tej drugiej strony „nic się nie
+//     zmieniło" przechodziłoby też wtedy, gdyby seed w ogóle nie trafił pod
+//     czytany klucz.
 //  9. DWUJĘZYCZNOŚĆ. Te same asercje po angielsku, z kontrolą, że EN ≠ PL
 //     (inaczej test przechodziłby na tłumaczu ignorującym język).
 // 10. DOSTĘPNOŚĆ. Brak naruszeń axe: proces osobno, domknięcie osobno i obie
@@ -105,7 +118,10 @@
 // treść kroków JEST w DOM (a więc widzi ją crawler i czytelnik bez JS) także
 // przed odsłonięciem — ukrywanie robi wyłącznie CSS `crs-reveal`.
 // `QueryClientProvider` pojawia się tylko w testach punktu 8, jako NARZĘDZIE
-// dowodu (nośnik zaseedowanych wierszy sekcji), nie jako atrapa.
+// dowodu (nośnik zaseedowanych wierszy sekcji), nie jako atrapa. Tak samo
+// `<form>` z opcji `wForm`: to nie atrapa domknięcia, a UKŁAD, którego dziś na
+// stronie nie ma i który budzi ZNALEZISKO 2 — sam komponent jest w tym teście
+// prawdziwy w całości.
 //
 // CO ZOSTAJE PRAWDZIWE: React, prawdziwy `i18next` z nakładką kariery,
 // prawdziwy `@tanstack/react-router` z historią pamięciową i dwiema trasami,
@@ -128,14 +144,19 @@
 //    sekcję, która ją honoruje, ma dowód w `careersRoles.test.tsx`.
 //  * Parzystość słowników PL/EN — `src/lib/careers/__tests__/roles.test.ts`.
 //  * Kontrast barw — `axeViolations` wyłącza `color-contrast` (brak silnika
-//    malowania w happy-dom, patrz `@/test/axe`).
+//    malowania w happy-dom, patrz `@/test/axe`). Ten sam harness wyłącza też
+//    regułę `region` (opakowanie treści w landmarki strony jest zadaniem
+//    trasy, nie organizmu), więc dowód „brak naruszeń axe" w tym pliku NIE
+//    obejmuje tych dwóch reguł. Nie należy go czytać szerzej, niż mierzy —
+//    a `role="region"` asertowany niżej to nazwana sekcja komponentu i z tą
+//    wyłączoną regułą nie ma nic wspólnego.
 //  * Wygląd docelowej strony `/kontakt` — w tym pliku trasa `/$` jest
 //    zaślepką, bo przedmiotem dowodu jest PRZEJŚCIE, nie cel.
 //
-// POMIAR PO TYM PLIKU (uczciwie, z zastrzeżeniem). `CareersProcess.tsx` 4/4
-// linii, 2/2 funkcji, 4/4 instrukcji; `CareersClosing.tsx` 2/2 linii, 1/1
-// funkcji, 2/2 instrukcji — czyli 100% linii i funkcji bez ani jednej luki do
-// uzasadniania. Gałęzie raportują się jako 0/0 i to NIE jest zasługa testów:
+// POMIAR PO TYM PLIKU (uczciwie, z zastrzeżeniem). 34 testy. `CareersProcess.
+// tsx` 4/4 linii, 2/2 funkcji, 4/4 instrukcji; `CareersClosing.tsx` 2/2 linii,
+// 1/1 funkcji, 2/2 instrukcji — czyli 100% linii i funkcji bez ani jednej luki
+// do uzasadniania. Gałęzie raportują się jako 0/0 i to NIE jest zasługa testów:
 // żaden z tych plików nie ma warunku, wartości domyślnej ani operatora `??`,
 // więc V8 nie ma tu czego liczyć. Sto procent gałęzi w tym wycinku jest puste
 // z definicji i nie należy go czytać jako dowodu czegokolwiek — dowód niosą
@@ -165,11 +186,67 @@
 //    Obudzi się w dniu, w którym ktoś przeniesie domknięcie do wnętrza
 //    formularza (albo owinie stronę formularzem newslettera) — wtedy „Aplikuj
 //    spontanicznie" zacznie SUBMITOWAĆ. Autorytet jest w `Button`, nie w mojej
-//    paczce, więc test asertuje stan istniejący i brak `<form>` w tej sekcji.
+//    paczce, więc test asertuje stan ISTNIEJĄCY, w dwóch krokach:
+//      (a) brak atrybutu `type` ORAZ brak przodka `<form>` nad przyciskiem
+//          w dzisiejszym układzie — czyli defekt istnieje i śpi;
+//      (b) SKUTEK, gdy układ się zmieni: ten sam komponent owinięty `<form>`
+//          wysyła formularz na jedno kliknięcie w CTA, przy kontroli dodatniej
+//          (bliźniaczy przycisk z `type="button"` w tym samym formularzu NIE
+//          wysyła). Bez (b) znalezisko było opowieścią w komentarzu przy
+//          asercji na kształcie — zmierzone, że ustawienie domyślnego `type`
+//          w `Button` oblewa oba te testy, i tak ma być, bo to naprawa.
+//
+// ---------------------------------------------------------------------------
+// REWIZJA ADWERSARYJNA (drugie przejście, założenie: autor pierwszej wersji
+// hodował pokrycie — trzeba to udowodnić albo obalić)
+// ---------------------------------------------------------------------------
+// METODA. Pomiar 100%/100% nic nie mówi o sile dowodu, więc rewizja nie czytała
+// raportu pokrycia, a MUTOWAŁA przedmiot dowodu: 38 mutantów w obu organizmach
+// (i po jednym w `Button` oraz w słowniku), każdy uruchomiony przeciw całemu
+// plikowi. ZARZUT HODOWANIA POKRYCIA OBALONY: 37 z 38 mutantów zginęło, w tym
+// wszystkie regresy wymienione w sekcji „PO CO TEN PLIK ISTNIEJE" (przestawienie
+// kroków, `index` bez `+1`, brak `padStart`, `<ol>`→`<ul>`, stała `index={0}`,
+// jedna ikona dla wszystkich, `Link`→`<a href>`, `target="_blank"`, zamiana ról
+// CTA, literały w miejsce `t(...)`). Żaden test w tym pliku nie był pusty ani
+// tautologiczny. Poprawione zostało to, co mutacja i lektura wykazały jako
+// dowód SŁABSZY OD SWOJEJ NAZWY:
+//
+//  A. MUTANT, KTÓRY PRZEŻYŁ — KOLEJNOŚĆ CTA. Przestawienie dwóch bloków
+//     `Button` w `CareersClosing.tsx` przechodziło CAŁY plik: zostawia jeden
+//     przycisk i jeden odnośnik z niezmienionymi etykietami, a nagłówek mówił
+//     „PIERWSZE CTA" / „DRUGIE CTA", nie mierząc numeracji. Kandydat dostawałby
+//     pierwsze „Napisz do nas" zamiast „Aplikuj spontanicznie". Domknięte
+//     osobnym testem na kolejność DOM (= kolejność tabulacji).
+//  B. STRAŻNIK SŁOWNIKA Z NIEKOMPLETNĄ LISTĄ. `KLUCZE_SLOWNIKA` pomijało
+//     cztery klucze `…duration`, choć asercje pliku na nich stoją, a nazwa
+//     testu obiecywała „KAŻDY klucz użyty w asercjach". Klucze dopisane,
+//     kompletność listy sama zmierzona.
+//  C. ZNALEZISKO 2 DOWODZONE KSZTAŁTEM. Dowodem był sam brak atrybutu `type`,
+//     a skutek („zacznie SUBMITOWAĆ") stał wyłącznie w komentarzu. Dołożony
+//     test SKUTKU z kontrolą dodatnią — patrz ZNALEZISKO 2 (b).
+//  D. „NIE SUBSKRYBUJE SEKCJI" DOWODZONE BRAKIEM WYJĄTKU. Ciałem testu było
+//     `expect(() => zamontujProces()).not.toThrow()`. Zastąpione pomiarem
+//     liczby obserwatorów zaseedowanego zapytania (z kontrolą dodatnią) oraz
+//     asercjami na PEŁNEJ treści renderu bez providera.
+//  E. ASERCJE ŚLEPE NA WŁASNY BRAK. Oś czasu procesu i tło domknięcia były
+//     wyszukiwane selektorem, sprawdzane `toBeDefined()`/`not.toBeNull()`
+//     i dalej odczytywane przez `?.` — czyli zniknięcie elementu gasiło jedną
+//     asercję, a pozostałe przepuszczało na `undefined`. Teraz `aria-hidden`
+//     jest przedmiotem asercji, nie częścią selektora, a odczyty są bez `?.`.
+//  F. NAZWA SZERSZA OD CIAŁA. „Treść krokÓW jest w DOM przed odsłonięciem"
+//     sprawdzała JEDEN napis jednego kroku; trzy karty mogły wejść w DOM puste
+//     (zmierzone mutantem: przechodziło). Teraz pytany jest cały ładunek
+//     wszystkich czterech kart, plus jawnie zmierzona przesłanka środowiska
+//     (istnienie `IntersectionObserver`, bez którego `useInView` degraduje do
+//     `inView = true` i test dowodziłby stanu PO odsłonięciu).
+//
+// Pokrycie po rewizji NIE SPADŁO (te same 4/4, 2/2, 1/1 — pomiar niżej).
 //
 // RODO: żadnych prawdziwych osób ani treści. Wszystkie napisy pochodzą ze
 // słownika produktu; nie ma tu nazwisk, adresów e-mail ani danych kandydatów
-// (formularz aplikacyjny i retencja CV mają własne pliki).
+// (formularz aplikacyjny i retencja CV mają własne pliki). Fixture'y panelu
+// („NAGŁÓWEK Z PANELU") i etykiety pomocniczego formularza są zmyślone
+// i opisują same siebie.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FormEvent } from "react";
 import { act, cleanup, render, screen, fireEvent, within } from "@testing-library/react";
@@ -535,8 +612,13 @@ describe("CareersProcess: kroki procesu w kolejności", () => {
   it("treść kroków jest w DOM PRZED odsłonięciem - crawler i czytelnik bez JS ją widzą", () => {
     const { container } = zamontujProces();
 
-    // happy-dom nigdy nie strzela IntersectionObserverem, więc każde
-    // opakowanie stoi w stanie „przed wejściem w viewport". Treść i tak jest.
+    // PRZESŁANKA ŚRODOWISKA, JAWNIE ZMIERZONA. `useInView` ma gałąź
+    // degradacji: gdy `IntersectionObserver` NIE ISTNIEJE, ustawia
+    // `inView = true` od razu — i wtedy każde opakowanie miałoby
+    // `crs-reveal--in`, a ten test dowodziłby stanu PO odsłonięciu pod nazwą
+    // stanu PRZED. happy-dom obserwatora dostarcza i nigdy nim nie strzela,
+    // więc stan „przed wejściem w viewport" jest tu obserwowalny.
+    expect(typeof IntersectionObserver).not.toBe("undefined");
     const opakowania = Array.from(container.querySelectorAll("li > .crs-reveal"));
     expect(opakowania).toHaveLength(KLUCZE_KROKOW.length);
     for (const el of opakowania) {
