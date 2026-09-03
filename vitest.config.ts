@@ -4910,18 +4910,50 @@ export default defineConfig({
         // nagłówki `Link`), `head()` i powłoka dokumentu przez
         // `renderToStaticMarkup`.
         //
-        // DROGA W GÓRĘ JEST ZNANA I NAZWANA: `RootComponent` nie montuje się
-        // z gołego renderu (`Link`/`useRouterState` czytają pusty kontekst
-        // routera), więc podniesienie metryki funkcji wymaga prawdziwego
-        // `RouterProvider` z `__root` JAKO KORZENIEM - czyli opcjonalnego
-        // `rootRoute` w `src/test/routeHarness.tsx`. To zmiana harness'u
-        // testowego, nie produkcji, i osobna praca. Ten próg wolno wyłącznie
-        // podnosić.
+        // 2026-09-03: RATCHET W GÓRĘ - DROGĄ, KTÓRĄ TEN KOMENTARZ NAZWAŁ.
+        // Poprzedni wpis mówił: „podniesienie metryki funkcji wymaga
+        // prawdziwego `RouterProvider` z `__root` JAKO KORZENIEM - czyli
+        // opcjonalnego `rootRoute` w `src/test/routeHarness.tsx`". Ta opcja
+        // powstała (harness testowy, ZERO zmian produkcyjnych) i wraz z
+        // odpięciem jedynego bezwarunkowego `describe.skip` w repozytorium
+        // (`rootShellRender.test.tsx:91`) dała skok, którego nie da się
+        // pomylić z dryfem.
+        //
+        // ZMIERZONE 2026-09-03, cztery pliki
+        // (`rootRoute.test.tsx` + `rootShellRender.test.tsx` +
+        // `rootRouterMount.test.tsx` + `src/__tests__/router.test.tsx`,
+        // 43 zielone + 1 `it.fails`):
+        //   90,34% instrukcji (131/145) / 83,67% gałęzi (41/49) /
+        //   83,33% funkcji (40/48)     / 92,96% linii (119/128).
+        // Punkt wyjścia tego samego pomiaru: 46,20 / 55,10 / 14,58 / 52,34.
+        // Funkcje: 7 -> 40 z 48. Linie: 67 -> 119 z 128.
+        //
+        // Próg = zmierzone minus ~2 pp (reguła dla progu na JEDEN plik, ta
+        // sama co wpisy z 2026-08-06/18/20/22 i 2026-09-01).
+        //
+        // OSIEM FUNKCJI, KTÓRE ZOSTAŁY - wypisane, żeby następna osoba nie
+        // szukała po omacku (numery linii `src/routes/__root.tsx`):
+        //   :113, :114  fabryka `lazy()` `CommandPalette` (para arrow +
+        //               `.then`) - paleta wchodzi dopiero na skrót klawiszowy;
+        //   :117        wewnętrzne `.then` fabryki `PopupHost`;
+        //   :119, :120  fabryka `lazy()` `GlobalAudioBar` - `GlobalAudioBarGate`
+        //               zwraca `null`, dopóki odtwarzacz nie ma ścieżki ani
+        //               błędu, więc chunk nie jest dociągany W OGÓLE;
+        //   :273        `.catch` na `syncI18nToRequest()` - ścieżka odrzucenia
+        //               synchronizacji języka po stronie żądania;
+        //   :458        `.catch` na rozgrzewce tickera - ścieżka odrzucenia
+        //               zapytania nagłówka;
+        //   :633        `.then` importu `previewWatchdog` - IFRAME-ONLY
+        //               (`window.self !== window.top`), martwe na publikowanej
+        //               stronie z konstrukcji.
+        // Trzy ostatnie to ścieżki degradacji i podglądu edytora; pozostałe
+        // pięć to klej podziału kodu nakładek, których nic w teście nie otwiera.
+        // Ten próg wolno wyłącznie podnosić.
         "src/routes/__root.tsx": {
-          statements: 40,
-          functions: 12,
-          lines: 46,
-          branches: 48,
+          statements: 88,
+          functions: 81,
+          lines: 90,
+          branches: 81,
         },
 
         // Menedżer przekierowań: cztery warstwy kontraktu (requireStaff, Zod,
