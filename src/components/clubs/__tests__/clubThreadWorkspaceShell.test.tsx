@@ -62,6 +62,11 @@ vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
 vi.mock("@/lib/clubs/api", () => clubApiMock);
+// Karta klubu czeka na rozstrzygniętą sesję (`useClubBySlug`), więc harness
+// musi dostarczyć gotowy kontekst auth zamiast domyślnego `loading: true`.
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "user-1" }, session: null, loading: false }),
+}));
 vi.mock("@/components/clubs/molecules/ClubHubRail", () => ({
   ClubHubRail: () => null,
   ClubWorkspaceRail: ({ club }: { club: { slug: string } }) => (
