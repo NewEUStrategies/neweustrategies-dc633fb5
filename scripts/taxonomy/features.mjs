@@ -179,8 +179,81 @@ export const FEATURES_16 = [
   },
 ];
 
-/** Taksonomia funkcjonalności per moduł. Dziś kompletna dla modułu 16. */
-export const FEATURES = new Map([[16, FEATURES_16]]);
+/**
+ * Funkcjonalności modułu 21, w kolejności rozstrzygania (pierwsze trafienie
+ * wygrywa).
+ *
+ * WIERSZ DOTYCHCZASOWY BYŁ NIEPRZELICZALNY I ZANIŻONY. Audyt wydania z
+ * 2026-08-18 pokazuje dla tego modułu JEDEN wiersz funkcjonalności - „Kariera:
+ * ogłoszenia i zgłoszenia", 26 plików, 576 LOC, linie 81,3%, funkcje 164/224.
+ * Modułu 21 nie było wtedy w tej mapie wcale, więc `featureForPath` zwracał dla
+ * jego plików `null`, a `report.mjs` pomijał moduł w tabeli funkcjonalności
+ * (`if (!FEATURES.has(module)) continue;`). Ten wiersz nie powstał więc z kodu.
+ *
+ * RACHUNEK, KTÓRY TO PRZYBIJA (pomiar tego HEAD-a, `coverage.all`):
+ *   moduł 21 . . . 29 plików, linie 468/849, funkcje 164/348
+ *   wiersz audytu . 26 plików, LOC 576,      funkcje 164/224
+ *   849 - 576 = 273 = 148 (`admin.hiring`) + 109 (`admin.careers`) + 16 (`jobs-tick`)
+ *   348 - 224 = 124 =  81 (`admin.hiring`) +  42 (`admin.careers`) +  1 (`jobs-tick`)
+ *   licznik funkcji w OBU wierszach ten sam (164), bo wykluczona trójka miała
+ *   dokładnie ZERO pokrytych funkcji.
+ * Wiersz obiecywał „ogłoszenia i zgłoszenia" i wycinał z siebie DOKŁADNIE oba
+ * panele, w których ogłoszenia się redaguje, a zgłoszenia czyta - czyli trzy
+ * największe zera modułu. To ta sama choroba, przeciw której napisano
+ * niezmiennik 1 bramki `check:feature-taxonomy` („żaden plik modułu nie wisi
+ * poza funkcjonalnością"); bramka jej nie widziała, bo sprawdza wyłącznie
+ * moduły, które JUŻ mają taksonomię.
+ *
+ * Od tej zmiany moduł 21 ma taksonomię, więc tabela funkcjonalności liczy się
+ * z kodu, a bramka pilnuje jej kompletności.
+ */
+export const FEATURES_21 = [
+  {
+    key: "careers-application",
+    name: "Kariera: zgłoszenie kandydata (walidacja, CV, retencja)",
+    // Ścieżka, po której chodzą DANE OSOBOWE osoby z zewnątrz - dlatego stoi
+    // przed łapaczem katalogu, a nie w nim.
+    patterns: [/^src\/lib\/careers\/(applicationSchema|cvUpload|cvRetention)\.ts$/],
+  },
+  {
+    key: "careers-pipeline",
+    name: "Kariera: lejek rekrutacyjny (etapy, decyzje)",
+    patterns: [/^src\/lib\/careers\/(recruitmentLayer|recruitmentShared)\.ts$/],
+  },
+  {
+    key: "careers-catalog",
+    name: "Kariera: katalog ogłoszeń i warstwa treści strony",
+    // Łapacz reszty biblioteki reguł (role, katalog, sekcje strony, statystyki)
+    // - świadomie PO wierszach szczegółowych, bo one nadają znaczenie.
+    patterns: [/^src\/lib\/careers\//],
+  },
+  {
+    key: "careers-public-ui",
+    name: "Kariera: publiczna strona ofert (UI)",
+    patterns: [/^src\/components\/careers\//],
+  },
+  {
+    key: "careers-admin-hiring",
+    name: "Kariera: panel ogłoszeń (/admin/hiring)",
+    patterns: [/^src\/routes\/admin\.hiring/],
+  },
+  {
+    key: "careers-admin-inbox",
+    name: "Kariera: panel zgłoszeń i dostęp do CV (/admin/careers)",
+    patterns: [/^src\/routes\/admin\.careers/],
+  },
+  {
+    key: "jobs-scheduler",
+    name: "Zadania tła: harmonogram i tick",
+    patterns: [/^src\/lib\/jobs\//, /^src\/routes\/api\/public\/jobs-tick/],
+  },
+];
+
+/** Taksonomia funkcjonalności per moduł. Dziś kompletna dla modułów 16 i 21. */
+export const FEATURES = new Map([
+  [16, FEATURES_16],
+  [21, FEATURES_21],
+]);
 
 /** Klucz funkcjonalności dla ścieżki, albo `null` (moduł bez taksonomii). */
 export function featureForPath(path) {
