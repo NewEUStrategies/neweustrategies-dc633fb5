@@ -5398,6 +5398,65 @@ export default defineConfig({
           branches: 98,
         },
 
+        // WARSTWA ZAPYTAN powierzchni "Klient Supabase / zapytania".
+        // Pomiar 2026-09-04: `relatedPosts`, `archiveListing`, `correlation-fetch`
+        // i `edgeCache.functions` po 100 na czterech wymiarach.
+        //
+        // `blocks.ts` ma DWA uczciwe pomiary i podaje sie oba, bo roznica jest
+        // pouczajaca: przebieg po samym `src/lib/queries/__tests__` daje 98,20%
+        // galezi (219/223), a przebieg po UNII 40 plikow, ktore ten modul realnie
+        // wykonuja (bezposrednio + przez `components/blocks`, `BlocksRenderer`
+        // i `routes/$`) daje 223/223 = 100%. Prog stoi na 96, czyli 4 pp pod
+        // NIZSZYM z tych pomiarow - bo o tym, ktora liczba wyjdzie w danym
+        // przebiegu, decyduje zbior wykonanych plikow, a nie ten modul.
+        // PRZED: relatedPosts 6/54 linii i 2/16 funkcji, archiveListing 2/5 i 1/2,
+        // blocks 138/186 przy 96/223 GALEZI (43,04%), correlation-fetch 0/7 i 0/1,
+        // edgeCache 0/10 i 0/5.
+        //
+        // `blocks.ts` byl podrecznikowym "test przechodzi srodkiem": 74% linii
+        // przy 43% galezi znaczy, ze polowa DECYZJI w pliku nie miala dowodu.
+        // Dlatego prog galezi jest tu postawiony wysoko - to on, nie prog linii,
+        // pilnuje tego pliku.
+        //
+        // `correlation-fetch.ts` i `edgeCache.functions.ts` stały na ZERZE z tego
+        // samego powodu co `require-staff.ts`, i to jest powod, dla ktorego prog
+        // musi tu byc: pierwszy jest importowany WYLACZNIE przez `client.ts`
+        // (podmieniany atrapa w 430 plikach testowych), drugi WYLACZNIE przez
+        // `EdgeCacheCard.tsx`, ktorego test atrapuje caly modul. Spadek pokrycia
+        // NIE objawi sie wiec padnietym testem gdzie indziej - atrapy przechodza
+        // tak samo. W `edgeCache` chodzi konkretnie o bramke SSRF w walidatorze
+        // sondy i o zawezenie czyszczenia cache do hosta najemcy.
+        "src/lib/queries/relatedPosts.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/archiveListing.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/blocks.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 96,
+        },
+        "src/integrations/supabase/correlation-fetch.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/edgeCache.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
         // EKRAN BLEDU DLA CZYTELNIKA. Pomiar 2026-09-04: 97,22 instrukcji /
         // 88,88 funkcji / 100 linii / 97,43 galezi (PRZED: 5/9 funkcji = 55,55%).
         // Prog funkcji stoi NIZEJ niz reszta i to jest udokumentowane, nie
