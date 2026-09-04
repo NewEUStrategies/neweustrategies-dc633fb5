@@ -5269,6 +5269,238 @@ export default defineConfig({
           branches: 98,
         },
 
+        // BRAMKA AUTORYZACJI STAFF - ciało `roleMiddleware`. Pomiar 2026-09-04:
+        // 100 / 100 / 100 / 100 (30/30 instrukcji, 14/14 gałęzi, 2/2 funkcji,
+        // 30/30 linii; 43 przypadki w `__tests__/requireStaff.test.ts`).
+        // PRZED tą pracą: 0/14 gałęzi = 0,00% - i to jest powód, dla którego ten
+        // próg jest maksymalny, a nie „bezpieczny". Plik jest importowany przez
+        // 46 plików produkcyjnych i podmieniany na atrapę w 39 testowych, więc
+        // spadek pokrycia NIE objawi się padniętym testem gdzie indziej: atrapy
+        // przechodzą tak samo. Siedem ścieżek odmowy, w tym wymuszenie MFA
+        // (`hasMfa === true` przy `aal < 2`), ma dowód WYŁĄCZNIE tutaj -
+        // odwrócenie tego jednego warunku cicho wyłącza step-up dla całego
+        // panelu i przechodzi CI, jeśli ten próg puści.
+        "src/integrations/supabase/require-staff.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // UWIERZYTELNIENIE, na ktorym stoi bramka wyzej. Pomiar 2026-09-04 (pelna
+        // suita, 2 253 pliki testowe): oba pliki 100 / 100 / 100 / 100.
+        // PRZED: auth-middleware 1/26 linii i 0/22 galezi, auth-attacher 1/4 linii.
+        // Dwa konce JEDNEGO kontraktu (naglowek `Authorization` produkowany po
+        // stronie klienta, czytany po stronie serwera), wiec prog stoi na obu -
+        // rozjazd konwencji napisow psuje kazde serverFn RPC naraz.
+        "src/integrations/supabase/auth-middleware.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/integrations/supabase/auth-attacher.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // BROKER TOKENU SESJI do edytora podgladu. Pomiar 2026-09-04: 100 na
+        // wszystkich czterech (PRZED: 0/50 linii, 0/14 funkcji, 0/51 galezi).
+        // Plik jest GENEROWANY, wiec prog pokrycia jest tu tylko POLOWA obrony -
+        // druga jest bramka statyczna w `__tests__/previewAuthStorage.test.ts`,
+        // ktora oblewa, gdy regeneracja zabierze ktorykolwiek z trzech predykatow
+        // bezpieczenstwa (allowlista strefy, pozycja id w koscie, walidacja
+        // originu adresata). Test zachowania na SLABSZYM regexie nadal by
+        // przechodzil - dlatego bramka jest osobno.
+        "src/integrations/supabase/previewAuthStorage.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // WARSTWA SERWEROWA: pieniadze, poczta, dziennik audytu i retencja danych
+        // osobowych. Pomiar 2026-09-04: kazdy z szesciu plikow 100 / 100 / 100 / 100.
+        // PRZED: audit 1/14 linii i 0/2 funkcji, email 0/27 i 0/4, careerCvRetention
+        // 0/30 i 0/4, jobScheduler 0/41 i 0/6, aiTranslate 0/42 i 0/6,
+        // jobsTick 3/49 (6,12%) i 1/19 (5,26%).
+        "src/lib/server/audit.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/email.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/careerCvRetention.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/jobScheduler.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/aiTranslate.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/jobsTick.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // PUBLICZNE API MCP. Pomiar 2026-09-04: wszystkie piec plikow 100 na
+        // czterech wymiarach (PRZED: kazdy na ZERZE). Prog jest tu maksymalny z
+        // dwoch powodow, ktorych nie widac w procencie: (1) izolacja najemcy wisi
+        // na naglowku `x-tenant-host`, a jej awaria jest CICHA - bez niego
+        // `public_tenant_id()` spada na najemce domyslnego i narzedzia serwuja
+        // tresc INNEJ strony bez bledu; (2) `index.ts` niesie kontrakt fail-closed,
+        // w ktorym `auth` NIGDY nie moze byc `undefined`, bo to przelacza SDK w
+        // tryb nieuwierzytelniony i otwiera narzedzia dla wszystkich.
+        "src/lib/mcp/**": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/routes/[.mcp]/list-tools.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/routes/[.mcp]/invoke-tool/$tool.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // PRZECHWYTNIA BLEDOW SSR. Pomiar 2026-09-04: 100 / 100 / 100 / 100
+        // (PRZED: 6/17 linii, 1/4 funkcji, 2/11 galezi). Modul istnieje, bo h3
+        // polyka blad SSR do generycznej Response 500 - bez niego diagnoza awarii
+        // to napis "HTTPError" i nic wiecej. Galaz TTL ma konsekwencje
+        // PRYWATNOSCIOWA (korelacja bledow miedzy niepowiazanymi zadaniami na tym
+        // samym izolacie Workera), wiec prog galezi jest tu nienegocjowalny.
+        "src/lib/error-capture.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // WARSTWA ZAPYTAN powierzchni "Klient Supabase / zapytania".
+        // Pomiar 2026-09-04: `relatedPosts`, `archiveListing`, `correlation-fetch`
+        // i `edgeCache.functions` po 100 na czterech wymiarach.
+        //
+        // `blocks.ts` ma DWA uczciwe pomiary i podaje sie oba, bo roznica jest
+        // pouczajaca: przebieg po samym `src/lib/queries/__tests__` daje 98,20%
+        // galezi (219/223), a przebieg po UNII 40 plikow, ktore ten modul realnie
+        // wykonuja (bezposrednio + przez `components/blocks`, `BlocksRenderer`
+        // i `routes/$`) daje 223/223 = 100%. Prog stoi na 96, czyli 4 pp pod
+        // NIZSZYM z tych pomiarow - bo o tym, ktora liczba wyjdzie w danym
+        // przebiegu, decyduje zbior wykonanych plikow, a nie ten modul.
+        // PRZED: relatedPosts 6/54 linii i 2/16 funkcji, archiveListing 2/5 i 1/2,
+        // blocks 138/186 przy 96/223 GALEZI (43,04%), correlation-fetch 0/7 i 0/1,
+        // edgeCache 0/10 i 0/5.
+        //
+        // `blocks.ts` byl podrecznikowym "test przechodzi srodkiem": 74% linii
+        // przy 43% galezi znaczy, ze polowa DECYZJI w pliku nie miala dowodu.
+        // Dlatego prog galezi jest tu postawiony wysoko - to on, nie prog linii,
+        // pilnuje tego pliku.
+        //
+        // `correlation-fetch.ts` i `edgeCache.functions.ts` stały na ZERZE z tego
+        // samego powodu co `require-staff.ts`, i to jest powod, dla ktorego prog
+        // musi tu byc: pierwszy jest importowany WYLACZNIE przez `client.ts`
+        // (podmieniany atrapa w 430 plikach testowych), drugi WYLACZNIE przez
+        // `EdgeCacheCard.tsx`, ktorego test atrapuje caly modul. Spadek pokrycia
+        // NIE objawi sie wiec padnietym testem gdzie indziej - atrapy przechodza
+        // tak samo. W `edgeCache` chodzi konkretnie o bramke SSRF w walidatorze
+        // sondy i o zawezenie czyszczenia cache do hosta najemcy.
+        "src/lib/queries/relatedPosts.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/archiveListing.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/blocks.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 96,
+        },
+        "src/integrations/supabase/correlation-fetch.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/edgeCache.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // EKRAN BLEDU DLA CZYTELNIKA. Pomiar 2026-09-04: 97,22 instrukcji /
+        // 88,88 funkcji / 100 linii / 97,43 galezi (PRZED: 5/9 funkcji = 55,55%).
+        // Prog funkcji stoi NIZEJ niz reszta i to jest udokumentowane, nie
+        // odpuszczone: sufit tego pliku to 8/9 funkcji, bo domkniecie
+        // `primaryAction` dla trybu logowania (`:102`) jest KODEM MARTWYM - render
+        // rozgalezia sie na tym samym `primaryIsLogin` i w galezi logowania stawia
+        // `<Link>`, a `onClick={primaryAction}` zyje tylko w galezi `<button>`.
+        // V8 zglasza w tym pliku dokladnie dwa braki i OBA to ten jeden defekt.
+        // Defekt jest zarejestrowany jako `it.fails` w
+        // `__tests__/FriendlyErrorPage.test.tsx`; po jego naprawie (jedna linia:
+        // `const primaryAction = handleRetry;`) ten prog nalezy podniesc do 100.
+        "src/components/error/FriendlyErrorPage.tsx": {
+          statements: 95,
+          functions: 86,
+          lines: 98,
+          branches: 95,
+        },
+
+        // TRASA LAPIACA WSZYSTKO (kazda strona CMS-a). Pomiar 2026-09-04:
+        // 46,46 instrukcji / 45,16 funkcji / 45,83 linii / 21,44 galezi
+        // (PRZED: 3/31 funkcji = 9,67%, 71/216 linii, 11,82% galezi).
+        // Prog jest NISKI swiadomie i to nie jest kapitulacja: pokryta jest
+        // granica bledu (`PublicErrorComponent`), `head()` z preloadem LCP,
+        // `buildCoverPreload`, kontekst rozgrzewki silnika blokow i sciezki
+        // degradacji. NIE jest montowane `ResolvedPage` - 850 linii nad 102
+        // deklaracjami importu ze 100 modulow, gdzie kazda atrapa jest wlasnym
+        // zrodlem falszywej czerwieni przy nastepnej zmianie importu. Ten prog
+        // chroni to, co JEST dowiedzione, i ma rosnac razem z rozbiciem tego
+        // komponentu na czesci dajace sie montowac osobno.
+        //
+        // MARGINES 4 pp, NIE 2 pp - i to jest decyzja z powodem. Pokrycie tego
+        // pliku nie pochodzi z jednego testu: dokladaja sie do niego WSZYSTKIE
+        // suity tras publicznych. A osiem plikow czerwonych na tym HEAD-zie
+        // (dziedziczonych z maina) to w wiekszosci wlasnie testy tras, wiec
+        // zbior plikow wnoszacych pokrycie do `$.tsx` moze sie miedzy przebiegami
+        // ROZNIC. Przy marginesie 2 pp taki dryf zamienilby ten prog w falszywa
+        // czerwien cudzej awarii. Zmierzone 46,46 / 45,16 / 45,83 / 21,44.
+        "src/routes/$.tsx": {
+          statements: 42,
+          functions: 41,
+          lines: 41,
+          branches: 17,
+        },
+
         // ── MODUŁ WYDARZEŃ ────────────────────────────────────────────────
         //
         // DO 2026-08-29 TEN MODUŁ NIE MIAŁ PROGU WCALE - jako jedyna duża

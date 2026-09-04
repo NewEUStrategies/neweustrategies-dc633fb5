@@ -2852,7 +2852,7 @@ do `KNOWN_CONTENT_TWINS` z dowodem zastosowania. Rejestr może tylko maleć.
 
 ---
 
-### 8.5 Pięć rzeczy, w których TEN audyt się mylił
+### 8.5 Rzeczy, w których TEN audyt się mylił
 
 Ta seria ma zapadkę na progach pokrycia i rejestr defektów w `it.fails`. Nie ma zapadki
 na pomyłki audytora, więc trzymam ją tutaj: jawną listę, która może tylko rosnąć.
@@ -2906,6 +2906,89 @@ w bazie, postęp, media, kontrakt jednego języka; `wp-import.functions.ts` (688
 **stron** — konwersja HTML na `BuilderDocument`, parowanie PL/EN, ścieżka WXR. To dwie ścieżki
 dla dwóch typów treści i **żadna nie jest martwa**. Obserwacja o pokryciu (jedna przetestowana,
 druga na 0–3,3%) i wniosek metodologiczny zostają; rama „jedna zbędna” była nieuczciwa.
+
+#### 8.5.1 Weryfikacja liczb MODUŁU 20 (2026-09-04) - sprawdzone, nie przepisane
+
+Ten blok powstał przy realizacji zlecenia na sześć powierzchni modułu 20. Zlecenie niosło
+tabelę „stan na dziś", której źródłem NIE jest ten audyt: rozdz. 3 podaje dla modułu 20
+`linie 75,83% · funkcje 68,65%` i inne liczby per powierzchnia (Routing 27,4%, obsługa błędów
+79,1%, klient Supabase 71,7%), a zlecenie - 51,1%, 85,2% i 76,2%. Zgadza się wyłącznie warstwa
+serwerowa (78,7%). Każda liczba niżej jest sprawdzona wobec stanu repozytorium na HEAD `dceea0b`,
+metodą podaną przy niej. Nagłówek sekcji stracił przy tej okazji słowo „Pięć": lista, o której
+sama sekcja pisze, że „może tylko rosnąć", nie może nieść stałej liczby w tytule.
+
+**6. Próg `src/routes/__root.tsx` nie brzmi `functions: 12`.** Zlecenia pochodne opisują go jako
+„najniższą podłogę funkcji w całym repozytorium, dopasowaną do pomiaru 14,58%" i zakazują go
+podnosić. Zmierzone (`vitest.config.ts:5074-5079`): `statements: 90, functions: 87, lines: 91,
+branches: 79`. Ten plik jest już PO pracy testowej, nie przed nią, więc wiersz „Routing / trasy
+publiczne (powłoka)" (16,0% funkcji, 17/106) nie opisuje go dłużej.
+
+**7. Bezwarunkowego `describe.skip` w repozytorium NIE MA.** Twierdzenie „jedyne w repozytorium
+bezwarunkowe `describe.skip`" (`rootShellRender.test.tsx`) było prawdziwe do 2026-09-03. Blok
+odpięto tego dnia, a kronika w nagłówku tego pliku (`:216-231`) opisuje, co to kosztowało: DWIE
+atrapy w samym teście i ZERO zmian produkcyjnych - a więc uzasadnienie pominięcia („wymaga zmiany
+w `src/test/routeHarness.tsx`") było nieprawdziwe. Zmierzone: w `src/**` zostały dwa
+`describe.skip`, oba WARUNKOWE (`src/__tests__/db-schema-invariant.test.ts:24`,
+`src/__tests__/lang-parity.test.ts:21`). Wniosek pochodny „dopóki tam stoi, `$.tsx` też się nie
+da porządnie zmierzyć" jest tym samym nieaktualny.
+
+**8. Rejestr `it.fails` jest większy, niż podają zlecenia pochodne.** Podawane: 327 wpisów w 186
+plikach. Zmierzone (`grep -ro "it\.fails" src --include=*.test.ts --include=*.test.tsx`):
+**605 wystąpień w 219 plikach**. Rejestr rośnie szybciej niż jego opisy - liczba w prompcie ma
+krótszy okres przydatności niż samo polecenie.
+
+**9. Trasa `/api/public/jobs-tick` MA plik testowy.** Zlecenie twierdziło, że go nie ma
+(„0/16 linii, 0/1 funkcji"). `src/routes/api/public/-jobs-tick.test.ts` istnieje od 2026-09-03,
+ma 902 linie i pokrywa całą warstwę HTTP: brak nagłówka, zły sekret, `enabled: false`, 200
+z `Cache-Control: no-store`, 429 PRZED odczytem sekretu, źródło z `x-cron-source`. Realna luka
+jest węższa i nazwana wprost w nagłówku tego pliku (zastrzeżenie Z3, `:120-130`): **prawdziwy
+`secretsEqual` nie ma testu, który by go WYKONAŁ** - wszystkie cztery pliki wołające ten moduł
+go atrapują. Zamknięte tym PR-em: `src/lib/server/__tests__/jobsTickSecrets.test.ts`.
+
+**10. `normalizeSchedulerSource` ma już własny test.** `src/lib/jobs/__tests__/scheduler.test.ts`.
+Zlecenie żądało go jako brakującego przypadku przy trasie ticku.
+
+**11. Katalogów `coverage-ed9/` i `coverage-ed9-final/` nie ma w repozytorium.** `.gitignore:13`
+ignoruje `coverage`, więc w świeżym klonie nie ma ich wcale. Komentarz progu globalnego mówi to
+zresztą wprost („ZAPISANEGO pomiaru pokrycia z runnera CI nie ma w repo ANI JEDNEGO"), ale
+zlecenia pochodne odwołują się do tych katalogów jako do stanu faktycznego i zwalniają wykonawcę
+z powtórzenia pomiaru. Nie wolno się na nich oprzeć. To samo dotyczy dokumentów
+`docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md` i `docs/PROMPT_OSIEM_CZERWIENI.md`: w `docs/` nie ma
+ANI JEDNEGO pliku `PROMPT_*`, więc odesłania „to ma własne zlecenie" nie da się sprawdzić.
+
+**12. POWTÓRKA POZYCJI 5 TEJ SEKCJI: ODPOWIEDŹ BYŁA JUŻ NAPISANA W PLIKU, KTÓREGO NIE
+DOCZYTAŁEM.** Sesja, w której powstał ten blok, zaczęła się od twardej blokady pomiaru:
+`bun.lock` przypina wszystkie 340 adresów tarballi do prywatnego mirrora
+`europe-west{1,4}-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache`, a ten host jest odrzucany
+przez politykę egress środowiska (403 na CONNECT). `bun install --frozen-lockfile` zakończył się
+**kodem 0** przy dziesiątkach błędów i zainstalował 394 pakiety z ~1500; zabrakło
+`@tanstack/react-start`, `@tanstack/react-router`, `@lovable.dev/*`. Skutek: żaden plik modułu 20
+nie dawał się zaimportować, więc ZERO testów dało się uruchomić. Zgłosiłem to jako blokadę
+środowiska i **napisałem, że pomiar jest niemożliwy**.
+
+Był możliwy. `.github/workflows/ci.yml:135-142` niesie krok, który robi DOKŁADNIE to, czego
+potrzebowałem, z tym samym uzasadnieniem, co moje własne:
+
+    sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+Komentarz nad nim wyjaśnia, dlaczego to jest bezpieczne, a nie obejście: _„The path after the
+cache prefix is byte-identical to the npm registry layout, so repointing the host keeps the exact
+pinned versions + integrity while installing from the public registry. This edit is CI-only
+(never committed)."_ Ten sam krok stoi w TRZECH jobach (`verify`, `build`, `test`). Po jego
+zastosowaniu `bun install --frozen-lockfile` przeszedł, a pomiar ruszył - z zachowaniem wersji
+z lockfile'a, bo integralność sha512 jest weryfikowana przy każdym tarballu.
+
+Dwie nauki, obie droższe niż się wydaje:
+**(a) kod wyjścia instalatora nie jest dowodem kompletnej instalacji** - dowodem jest OBECNOŚĆ
+paczek. `bun install` kończy się zerem przy dziesiątkach 403, dokładnie tak jak w pozycji 1 tej
+sekcji `npm install` kończył się zerem przy niedokończonym zapisie do `node_modules`. Ta sama
+pułapka, drugi raz, inny instalator.
+**(b) zanim ogłoszę środowisko niesprawnym, czytam `.github/workflows/` - CI JUŻ ROZWIĄZAŁO ten
+problem, bo musiało.** Publiczny runner ma tę samą blokadę co każde środowisko poza siecią
+platformy budującej, więc jeśli CI w ogóle działa, to obejście gdzieś w repozytorium JEST. To jest
+ta sama lekcja co pozycja 5 (kronika `check-bundle-size.ts` odpowiadała na moje pytanie o budżet
+bundla), tylko dotknięta z drugiej strony: tam nie doczytałem kroniki skryptu, tu - definicji
+własnego CI.
 
 ---
 
