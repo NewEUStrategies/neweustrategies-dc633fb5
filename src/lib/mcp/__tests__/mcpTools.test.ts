@@ -854,7 +854,14 @@ describe("narzędzia NIE dublują filtra RLS - i to jest zamierzone", () => {
   // i sugeruje, że to ona chroni dane. Ten opis jest tu po to, żeby następna
   // osoba nie „naprawiała" braku - i żeby dołożenie filtra było ŚWIADOMĄ
   // zmianą testu, nie cichym dopiskiem.
-  const scenariusze: ReadonlyArray<{ nazwa: string; run: () => Promise<ToolHandlerResult> }> = [
+  const scenariusze: ReadonlyArray<{
+    nazwa: string;
+    // `defineTool` dopuszcza handler synchroniczny, więc typ zwrotny jest UNIĄ.
+    // Zawężenie do samej obietnicy nie kompiluje się - i słusznie: `await`
+    // niżej obsługuje oba warianty, a udawanie, że handler jest zawsze
+    // asynchroniczny, ukryłoby zmianę kontraktu pakietu.
+    run: () => ToolHandlerResult | Promise<ToolHandlerResult>;
+  }> = [
     {
       nazwa: "get_post",
       run: () => getPost.handler({ slug: "traktat-o-cle", lang: "pl" }, anon),
@@ -894,7 +901,14 @@ describe("każde narzędzie działa na kliencie oznaczonym najemcą", () => {
   // ŁĄCZNIK Z `supabaseClient.ts`: dowód, że narzędzia nie budują własnego
   // klienta obok `mcpSupabase()`. Klient BEZ nagłówka `x-tenant-host` serwuje
   // treść najemcy DOMYŚLNEGO - czyli złej strony - i robi to bez błędu.
-  const scenariusze: ReadonlyArray<{ nazwa: string; run: () => Promise<ToolHandlerResult> }> = [
+  const scenariusze: ReadonlyArray<{
+    nazwa: string;
+    // `defineTool` dopuszcza handler synchroniczny, więc typ zwrotny jest UNIĄ.
+    // Zawężenie do samej obietnicy nie kompiluje się - i słusznie: `await`
+    // niżej obsługuje oba warianty, a udawanie, że handler jest zawsze
+    // asynchroniczny, ukryłoby zmianę kontraktu pakietu.
+    run: () => ToolHandlerResult | Promise<ToolHandlerResult>;
+  }> = [
     {
       nazwa: "get_post",
       run: () => getPost.handler({ slug: "traktat-o-cle", lang: "pl" }, anon),

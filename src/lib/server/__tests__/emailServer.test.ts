@@ -51,7 +51,7 @@
 // PRAWDZIWE zostaje wszystko z `email.server.ts`: odczyt env, decyzja
 // o blokadzie, składanie żądania, odczyt `messageId`, przycinanie komunikatów.
 // MODUŁU POKRYWANEGO NIE ATRAPUJEMY.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { SuppressionHit, SuppressionScope } from "@/lib/email/suppression.server";
 import {
   sendTransactionalEmail,
@@ -190,7 +190,7 @@ function lastBody(): Record<string, unknown> {
   return { ...parsed };
 }
 
-let errorSpy: ReturnType<typeof vi.spyOn<Console, "error">>;
+let errorSpy: MockInstance<typeof console.error>;
 
 beforeEach(() => {
   h.fetchMock.mockReset();

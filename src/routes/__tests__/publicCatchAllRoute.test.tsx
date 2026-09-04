@@ -843,21 +843,26 @@ describe("loader trasy `/$` - degradacja zapytań pobocznych", () => {
 // `Route.options.component` (`PublicPage` -> `ResolvedPage`, `$.tsx:571` i `:582`)
 // ZOSTAJE NIEZAMONTOWANY. Nie z powodu braku atrapy routera - `renderRoute`
 // z `src/test/routeHarness.tsx` postawiłby prawdziwy `RouterProvider` - ale
-// dlatego, że `ResolvedPage` to ~800 linii kompozycji nad ~60 importami
-// (renderer treści, powłoka buildera, paywall, metering, prezenty, przypisy,
-// reklamy śródtekstowe, powiązane wpisy, komentarze, słownik, audio, layouty).
+// dlatego, że `ResolvedPage` to 850 linii kompozycji (`$.tsx:582-1431`) nad 102
+// deklaracjami importu ze 100 różnych modułów - liczby ZMIERZONE na tym HEAD,
+// nie oszacowane (renderer treści, powłoka buildera, paywall, metering,
+// prezenty, przypisy, reklamy śródtekstowe, powiązane wpisy, komentarze,
+// słownik, audio, layouty).
 // Montaż tego drzewa oznacza atrapy kilkunastu modułów naraz, a każda z nich
 // jest wtedy WŁASNYM źródłem fałszywej czerwieni przy następnej zmianie
 // któregokolwiek z tych importów - i wtedy plik przestaje mierzyć trasę,
 // a zaczyna mierzyć zestaw atrap.
 //
-// Jest przy tym drugie ustalenie, ZMIERZONE, a nie założone: gałąź
+// Jest przy tym drugie ustalenie, i to ono jest tu ważniejsze: gałąź
 // `if (!data) return <PublicNotFound />` w `PublicPage` (`$.tsx:578`) jest
-// z routera NIEOSIĄGALNA. Loader, który dostanie z cache'u `null`, wchodzi
-// w gałąź „treści nie ma" i RZUCA `notFound()` (`$.tsx:245`), więc komponent
-// nigdy nie zobaczy pustego wyniku - to strażnik obronny, a nie stan
-// produkcyjny. Sprawdzenie tego renderem wymagałoby rozejścia klucza zapytania
-// między loaderem i komponentem, czego trasa nie robi.
+// z routera NIEOSIĄGALNA. Przesłankę tego zdania sprawdza przypadek „brak
+// treści pod adresem daje 404" wyżej w tym pliku: loader, który dostanie
+// z cache'u pusty wynik, NIE ODDAJE `null` - wchodzi w gałąź „treści nie ma"
+// i RZUCA `notFound()`. Skoro loader rzuca, komponent nigdy nie dostaje
+// pustego wyniku, więc ta gałąź jest strażnikiem obronnym, a nie stanem
+// produkcyjnym (i dlatego NIE jest tu zapisana jako defekt). Wymuszenie jej
+// renderem wymagałoby rozejścia klucza zapytania między loaderem
+// i komponentem, czego trasa nie robi.
 //
 // Render drzewa treści ma więc zostać osobną pracą, z osobnym plikiem i osobnym
 // budżetem atrap; ścieżkę użytkownika pokrywają dziś testy e2e i bramki SSR

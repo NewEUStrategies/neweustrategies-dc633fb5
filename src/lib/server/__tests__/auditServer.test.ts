@@ -55,7 +55,7 @@
 // PRAWDZIWE zostaje wszystko, co jest przedmiotem dowodu: `recordAudit`,
 // `DOCUMENT_PURGE_ACTIONS` i kolejność kroków. MODUŁU POKRYWANEGO NIE
 // ATRAPUJEMY - to reguła, bez której ten plik byłby testem atrapy.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fail, ok, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
 
@@ -185,7 +185,7 @@ function auditRow(stub: ReturnType<typeof supabaseFromStub>): AuditRow {
 }
 
 /** Wszystkie komunikaty, jakie moduł oddał do `console.warn`, w jednym tekście. */
-function warnings(spy: ReturnType<typeof vi.spyOn<Console, "warn">>): string {
+function warnings(spy: MockInstance<typeof console.warn>): string {
   return spy.mock.calls.map((call) => call.map((part) => String(part)).join(" ")).join("\n");
 }
 
@@ -198,7 +198,7 @@ async function flushMicrotasks(): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
-let warnSpy: ReturnType<typeof vi.spyOn<Console, "warn">>;
+let warnSpy: MockInstance<typeof console.warn>;
 
 beforeEach(() => {
   h.purge.mockReset();
