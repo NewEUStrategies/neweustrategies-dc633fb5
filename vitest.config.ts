@@ -6016,6 +6016,116 @@ export default defineConfig({
           lines: 98,
           branches: 94,
         },
+        // ── CMS BUILDER: CZTERY NAJSŁABSZE POWIERZCHNIE (kampania 2026-09-04) ──
+        // Wszystkie progi niżej są ZMIERZONE tym samym przebiegiem:
+        //   npx vitest run src/lib/content/__tests__ src/lib/builder/__tests__ \
+        //     src/lib/brand/__tests__ src/components/atoms/__tests__/BrandIcon.test.tsx \
+        //     src/components/builder/organisms/widget-view/__tests__/socialHoverContrast.test.ts \
+        //     src/components/builder/organisms/widget-view/__tests__/socialIconsHover.test.tsx \
+        //     --coverage --coverage.include='<plik>'
+        // (79 plików testowych, 1 344 zielone + 3 `it.fails`). Floor = zmierzone
+        // minus ~2 pp, zgodnie z konwencją tego pliku. Progi wolno WYŁĄCZNIE podnosić.
+        //
+        // Przed tą kampanią OSIEMNAŚCIE z dziewiętnastu plików tych powierzchni
+        // nie miało ŻADNEGO progu; jedyny złapany globem był `socialHover.ts`
+        // (przez `widget-view/**`), a ten glob jest AGREGATEM KATALOGU, bo
+        // `thresholds.perFile` nie jest ustawione - `socialHover.ts` siedział
+        // pod jego podłogą funkcji (75,00% wobec 94) i nikt się o tym nie
+        // dowiadywał. Progi per-plik niżej są odpowiedzią na to dokładnie.
+
+        // A1. Kontrast napisu wiersza social. ZMIERZONE 2026-09-04:
+        // 97,63% instrukcji / 100% funkcji (24/24) / 100% linii / 93,83% gałęzi.
+        // Przed kampanią: 88,04% linii, 75,00% funkcji (12/16) - `luminance`
+        // i `readableOn` nie miały ANI JEDNEGO wywołania.
+        "src/components/builder/organisms/widget-view/socialHover.ts": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+
+        // A3 + B1. Skrót IP/user-agenta (ścieżka RODO). ZMIERZONE 2026-09-04:
+        // 100% instrukcji / 100% funkcji (4/4) / 100% linii / 86,36% gałęzi.
+        // Przed kampanią 3,70% linii i 0/4 funkcji - najsłabszy plik modułu.
+        "src/lib/content/feedback.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 84,
+        },
+        // A2 + B1. Linki podglądu szkiców - tu siedział wyciek między najemcami.
+        // ZMIERZONE 2026-09-04: 100% instrukcji / 100% funkcji (9/9) / 100% linii
+        // / 84,61% gałęzi. Przed kampanią 17,07% linii i 0/9 funkcji.
+        "src/lib/content/previewTokens.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 82,
+        },
+        // B1. Tłumaczenie robocze PL->EN. ZMIERZONE 2026-09-04: 94,44% instrukcji
+        // / 100% funkcji (2/2) / 100% linii / 90% gałęzi. Przed kampanią 11,76%
+        // linii i 0/2 funkcji. Jedyna niepokryta instrukcja to martwy rzut
+        // „Invalid blocks document" - zarejestrowany jako `it.fails` w teście.
+        "src/lib/content/translate.functions.ts": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // B1. Ręczny skan linków. ZMIERZONE 2026-09-04: 100% na wszystkich
+        // czterech metrykach. Przed kampanią 14,29% linii i 0/2 funkcji.
+        "src/lib/content/linkMonitor.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // B4. Warstwa danych widgetu post-list - najgorsze gałęzie całego obszaru.
+        // ZMIERZONE 2026-09-04: 100% instrukcji / 100% funkcji (35/35) / 100% linii
+        // / 99,15% gałęzi. Przed kampanią 73,83% linii, 71,43% funkcji i 54,62%
+        // GAŁĘZI, a `fetchPopularPostIds` nie było wywołane ani razu. Jedyna
+        // niepokryta gałąź to `typeof console !== "undefined"` - nieosiągalna
+        // bez skasowania globalnego `console`.
+        "src/lib/builder/postListQuery.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 97,
+        },
+        // B3. Żywa typografia widgetów. ZMIERZONE 2026-09-04: 100% na wszystkich
+        // czterech metrykach. Przed kampanią 78,87% linii i 66,67% funkcji, bo
+        // `clearAllLiveWidgetTypography` była martwa WYŁĄCZNIE przez to, że
+        // jedyny test docierający do jej wywołania podmieniał ją na atrapę
+        // (`builderShell.test.tsx:69`). Nowy test woła ją wprost.
+        "src/lib/builder/liveTypography.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // B3. Kaskada logotypu marki. ZMIERZONE 2026-09-04: 100% na wszystkich
+        // czterech metrykach. Przed kampanią 47,06% linii, 50% funkcji i 29,63%
+        // gałęzi - hook był podmieniany na atrapę w czterech plikach testowych,
+        // więc KOLEJNOŚĆ kandydatów nie była sprawdzona nigdy (8 kandydatów dla
+        // powierzchni ciemnej, 7 dla jasnej - zlecenie mówiło o trzynastu,
+        // policzone jest osiem).
+        "src/lib/brand/useBrandLogoUrl.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // B3. Atom ikony marki - JEDYNA implementacja po usunięciu duplikatu
+        // `src/components/icons/BrandIcon.tsx` (0% na wszystkich metrykach,
+        // jeden konsument, dwie rozbieżności behawioralne). ZMIERZONE 2026-09-04:
+        // 100% instrukcji / 100% funkcji / 100% linii / 92,85% gałęzi.
+        "src/components/atoms/BrandIcon.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
       },
     },
   },

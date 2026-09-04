@@ -111,8 +111,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Działa w obu układach: w liście maluje cały wiersz, w rzędzie - kafelek ikony.":
     "Works in both layouts: it paints the whole row in the list, and the icon tile in the row layout.",
   "Własny kolor podświetlenia": "Custom highlight colour",
-  "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności.":
-    "The gradient is built from that colour; the text colour follows its lightness automatically.",
+  "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności. Dla zapisów, których jasności nie da się policzyć (var(--...), oklch, transparent), tekst bierze kolor motywu.":
+    "The gradient is built from that colour; the text colour follows its lightness automatically. For notations whose lightness cannot be computed (var(--...), oklch, transparent) the text falls back to the theme colour.",
   "Ikony po najechaniu": "Icons on hover",
   "automatycznie (jasne na ciemnym tle)": "automatic (light on a dark background)",
   // „jasne (białe)" jest już przetłumaczone niżej (opcje „Kolory ikon").
