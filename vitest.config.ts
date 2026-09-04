@@ -5287,6 +5287,153 @@ export default defineConfig({
           branches: 98,
         },
 
+        // UWIERZYTELNIENIE, na ktorym stoi bramka wyzej. Pomiar 2026-09-04 (pelna
+        // suita, 2 253 pliki testowe): oba pliki 100 / 100 / 100 / 100.
+        // PRZED: auth-middleware 1/26 linii i 0/22 galezi, auth-attacher 1/4 linii.
+        // Dwa konce JEDNEGO kontraktu (naglowek `Authorization` produkowany po
+        // stronie klienta, czytany po stronie serwera), wiec prog stoi na obu -
+        // rozjazd konwencji napisow psuje kazde serverFn RPC naraz.
+        "src/integrations/supabase/auth-middleware.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/integrations/supabase/auth-attacher.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // BROKER TOKENU SESJI do edytora podgladu. Pomiar 2026-09-04: 100 na
+        // wszystkich czterech (PRZED: 0/50 linii, 0/14 funkcji, 0/51 galezi).
+        // Plik jest GENEROWANY, wiec prog pokrycia jest tu tylko POLOWA obrony -
+        // druga jest bramka statyczna w `__tests__/previewAuthStorage.test.ts`,
+        // ktora oblewa, gdy regeneracja zabierze ktorykolwiek z trzech predykatow
+        // bezpieczenstwa (allowlista strefy, pozycja id w koscie, walidacja
+        // originu adresata). Test zachowania na SLABSZYM regexie nadal by
+        // przechodzil - dlatego bramka jest osobno.
+        "src/integrations/supabase/previewAuthStorage.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // WARSTWA SERWEROWA: pieniadze, poczta, dziennik audytu i retencja danych
+        // osobowych. Pomiar 2026-09-04: kazdy z szesciu plikow 100 / 100 / 100 / 100.
+        // PRZED: audit 1/14 linii i 0/2 funkcji, email 0/27 i 0/4, careerCvRetention
+        // 0/30 i 0/4, jobScheduler 0/41 i 0/6, aiTranslate 0/42 i 0/6,
+        // jobsTick 3/49 (6,12%) i 1/19 (5,26%).
+        "src/lib/server/audit.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/email.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/careerCvRetention.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/jobScheduler.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/aiTranslate.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/jobsTick.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // PUBLICZNE API MCP. Pomiar 2026-09-04: wszystkie piec plikow 100 na
+        // czterech wymiarach (PRZED: kazdy na ZERZE). Prog jest tu maksymalny z
+        // dwoch powodow, ktorych nie widac w procencie: (1) izolacja najemcy wisi
+        // na naglowku `x-tenant-host`, a jej awaria jest CICHA - bez niego
+        // `public_tenant_id()` spada na najemce domyslnego i narzedzia serwuja
+        // tresc INNEJ strony bez bledu; (2) `index.ts` niesie kontrakt fail-closed,
+        // w ktorym `auth` NIGDY nie moze byc `undefined`, bo to przelacza SDK w
+        // tryb nieuwierzytelniony i otwiera narzedzia dla wszystkich.
+        "src/lib/mcp/**": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/routes/[.mcp]/list-tools.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/routes/[.mcp]/invoke-tool/$tool.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // PRZECHWYTNIA BLEDOW SSR. Pomiar 2026-09-04: 100 / 100 / 100 / 100
+        // (PRZED: 6/17 linii, 1/4 funkcji, 2/11 galezi). Modul istnieje, bo h3
+        // polyka blad SSR do generycznej Response 500 - bez niego diagnoza awarii
+        // to napis "HTTPError" i nic wiecej. Galaz TTL ma konsekwencje
+        // PRYWATNOSCIOWA (korelacja bledow miedzy niepowiazanymi zadaniami na tym
+        // samym izolacie Workera), wiec prog galezi jest tu nienegocjowalny.
+        "src/lib/error-capture.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // EKRAN BLEDU DLA CZYTELNIKA. Pomiar 2026-09-04: 97,22 instrukcji /
+        // 88,88 funkcji / 100 linii / 97,43 galezi (PRZED: 5/9 funkcji = 55,55%).
+        // Prog funkcji stoi NIZEJ niz reszta i to jest udokumentowane, nie
+        // odpuszczone: sufit tego pliku to 8/9 funkcji, bo domkniecie
+        // `primaryAction` dla trybu logowania (`:102`) jest KODEM MARTWYM - render
+        // rozgalezia sie na tym samym `primaryIsLogin` i w galezi logowania stawia
+        // `<Link>`, a `onClick={primaryAction}` zyje tylko w galezi `<button>`.
+        // V8 zglasza w tym pliku dokladnie dwa braki i OBA to ten jeden defekt.
+        // Defekt jest zarejestrowany jako `it.fails` w
+        // `__tests__/FriendlyErrorPage.test.tsx`; po jego naprawie (jedna linia:
+        // `const primaryAction = handleRetry;`) ten prog nalezy podniesc do 100.
+        "src/components/error/FriendlyErrorPage.tsx": {
+          statements: 95,
+          functions: 86,
+          lines: 98,
+          branches: 95,
+        },
+
+        // TRASA LAPIACA WSZYSTKO (kazda strona CMS-a). Pomiar 2026-09-04:
+        // 46,46 instrukcji / 45,16 funkcji / 45,83 linii / 21,44 galezi
+        // (PRZED: 3/31 funkcji = 9,67%, 71/216 linii, 11,82% galezi).
+        // Prog jest NISKI swiadomie i to nie jest kapitulacja: pokryta jest
+        // granica bledu (`PublicErrorComponent`), `head()` z preloadem LCP,
+        // `buildCoverPreload`, kontekst rozgrzewki silnika blokow i sciezki
+        // degradacji. NIE jest montowane `ResolvedPage` - 850 linii nad 102
+        // deklaracjami importu ze 100 modulow, gdzie kazda atrapa jest wlasnym
+        // zrodlem falszywej czerwieni przy nastepnej zmianie importu. Ten prog
+        // chroni to, co JEST dowiedzione, i ma rosnac razem z rozbiciem tego
+        // komponentu na czesci dajace sie montowac osobno.
+        "src/routes/$.tsx": {
+          statements: 44,
+          functions: 43,
+          lines: 43,
+          branches: 19,
+        },
+
         // ── MODUŁ WYDARZEŃ ────────────────────────────────────────────────
         //
         // DO 2026-08-29 TEN MODUŁ NIE MIAŁ PROGU WCALE - jako jedyna duża
