@@ -587,9 +587,7 @@ describe("search_posts - kolumna językowa w zapytaniu i w wyniku", () => {
 
     const result = await searchPosts.handler({ query: "tariff", lang: "en", limit: 10 }, anon);
 
-    expect(stringArg(postsChain(), "or")).toBe(
-      "title_en.ilike.%tariff%,excerpt_en.ilike.%tariff%",
-    );
+    expect(stringArg(postsChain(), "or")).toBe("title_en.ilike.%tariff%,excerpt_en.ilike.%tariff%");
     expect(result.structuredContent).toEqual({
       results: [
         expect.objectContaining({ title: "Treaty on tariffs", excerpt: "Excerpt in English" }),
@@ -625,7 +623,9 @@ describe("search_posts - odkażanie frazy przed wejściem do .or()", () => {
 
     await searchPosts.handler({ query: 'cło,50%_(x)"y\\z', lang: "pl", limit: 10 }, anon);
 
-    expect(stringArg(postsChain(), "or")).toBe("title_pl.ilike.%cło50xyz%,excerpt_pl.ilike.%cło50xyz%");
+    expect(stringArg(postsChain(), "or")).toBe(
+      "title_pl.ilike.%cło50xyz%,excerpt_pl.ilike.%cło50xyz%",
+    );
   });
 
   it("fraza próbująca dopisać własny filtr nie tworzy trzeciego warunku", async () => {
@@ -803,7 +803,7 @@ describe("list_recent_posts - kolumna językowa, filtry i limit", () => {
 
 describe("list_recent_posts - ścieżki błędu", () => {
   it("błąd PostgREST oddaje isError i komunikat bazy", async () => {
-    h.db!.setResponse("posts", fail("relation \"posts\" does not exist", "42P01"));
+    h.db!.setResponse("posts", fail('relation "posts" does not exist', "42P01"));
 
     const result = await listRecentPosts.handler({ lang: "pl", limit: 10 }, anon);
 

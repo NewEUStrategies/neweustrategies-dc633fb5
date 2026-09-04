@@ -207,9 +207,7 @@ describe("translateSegmentsPlToEn - warunki wstępne", () => {
   it("komunikat o braku klucza niesie też część angielską", async () => {
     vi.stubEnv("LOVABLE_API_KEY", "");
 
-    await expect(translateSegmentsPlToEn(["Tekst"])).rejects.toThrow(
-      /AI translation unavailable/,
-    );
+    await expect(translateSegmentsPlToEn(["Tekst"])).rejects.toThrow(/AI translation unavailable/);
   });
 });
 

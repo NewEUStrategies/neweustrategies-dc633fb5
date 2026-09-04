@@ -286,11 +286,7 @@ describe("definicja MCP - tożsamość serwera i skład narzędzi", () => {
   it("wystawia trzy narzędzia przeglądania treści w zadeklarowanej kolejności", async () => {
     const { mcp } = await loadMcp({ supabaseUrl: URL_OK });
 
-    expect(mcp.tools.map((t) => t.name)).toEqual([
-      "search_posts",
-      "get_post",
-      "list_recent_posts",
-    ]);
+    expect(mcp.tools.map((t) => t.name)).toEqual(["search_posts", "get_post", "list_recent_posts"]);
   });
 
   it("nazwy narzędzi są unikalne - to warunek przejścia przez defineMcp", async () => {

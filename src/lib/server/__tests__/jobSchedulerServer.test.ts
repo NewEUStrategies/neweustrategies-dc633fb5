@@ -182,7 +182,10 @@ describe("recordJobRun - mapowanie na record_job_run", () => {
     // przy martwym cronie - i odwrotnie.
     db.setRpc("record_job_run", ok(null));
 
-    await recordJobRun(report({ source: "github_actions", job: "digest-weekly", ok: false }), db.client);
+    await recordJobRun(
+      report({ source: "github_actions", job: "digest-weekly", ok: false }),
+      db.client,
+    );
 
     expect(argsOfRpc(db, "record_job_run")).toMatchObject({
       p_source: "github_actions",
@@ -255,7 +258,13 @@ describe("recordJobRun - mapowanie na record_job_run", () => {
     db.setRpc("record_job_run", ok(null));
 
     await recordJobRun(
-      report({ source: "admin", ok: false, error: "push failed", tenantId: TENANT, actorId: ACTOR }),
+      report({
+        source: "admin",
+        ok: false,
+        error: "push failed",
+        tenantId: TENANT,
+        actorId: ACTOR,
+      }),
       db.client,
     );
 
