@@ -5269,6 +5269,24 @@ export default defineConfig({
           branches: 98,
         },
 
+        // BRAMKA AUTORYZACJI STAFF - ciało `roleMiddleware`. Pomiar 2026-09-04:
+        // 100 / 100 / 100 / 100 (30/30 instrukcji, 14/14 gałęzi, 2/2 funkcji,
+        // 30/30 linii; 43 przypadki w `__tests__/requireStaff.test.ts`).
+        // PRZED tą pracą: 0/14 gałęzi = 0,00% - i to jest powód, dla którego ten
+        // próg jest maksymalny, a nie „bezpieczny". Plik jest importowany przez
+        // 46 plików produkcyjnych i podmieniany na atrapę w 39 testowych, więc
+        // spadek pokrycia NIE objawi się padniętym testem gdzie indziej: atrapy
+        // przechodzą tak samo. Siedem ścieżek odmowy, w tym wymuszenie MFA
+        // (`hasMfa === true` przy `aal < 2`), ma dowód WYŁĄCZNIE tutaj -
+        // odwrócenie tego jednego warunku cicho wyłącza step-up dla całego
+        // panelu i przechodzi CI, jeśli ten próg puści.
+        "src/integrations/supabase/require-staff.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
         // ── MODUŁ WYDARZEŃ ────────────────────────────────────────────────
         //
         // DO 2026-08-29 TEN MODUŁ NIE MIAŁ PROGU WCALE - jako jedyna duża

@@ -2956,19 +2956,39 @@ z powtórzenia pomiaru. Nie wolno się na nich oprzeć. To samo dotyczy dokument
 `docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md` i `docs/PROMPT_OSIEM_CZERWIENI.md`: w `docs/` nie ma
 ANI JEDNEGO pliku `PROMPT_*`, więc odesłania „to ma własne zlecenie" nie da się sprawdzić.
 
-**12. POWTÓRKA POZYCJI 1 TEJ SEKCJI, w innym środowisku i z innym skutkiem.** Sesja, w której
-powstał ten blok, NIE MOGŁA zmierzyć niczego: `bun.lock` przypina wszystkie 340 adresów tarballi
-do prywatnego mirrora `europe-west{1,4}-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache`, a ten
-host jest odrzucany przez politykę egress (403 na CONNECT). `bun install --frozen-lockfile`
-zakończył się **kodem 0** przy dziesiątkach błędów 403 i zainstalował 394 pakiety z ~1500;
-zabrakło m.in. `@tanstack/react-start`, `@tanstack/react-router`, `@lovable.dev/*`. Skutek:
-każdy plik z zakresu modułu 20 nie daje się nawet zaimportować (`Failed to resolve import
-"@tanstack/react-start"`), więc ZERO testów da się uruchomić. Dwie nauki, obie kosztowały
-wydanie 8 dokładnie to samo: **(a)** kod wyjścia instalatora nie jest dowodem kompletnej
-instalacji - dowodem jest obecność paczek, **(b)** liczbę pokrycia wolno podać tylko wtedy, gdy
-przebieg, z którego pochodzi, startował po POTWIERDZONEJ instalacji. Testy dołożone w tym PR-ze
-są z tego powodu oznaczone jako NIEZMIERZONE, a progów per-ścieżka NIE dopisano - próg bez
-pomiaru byłby zgadywaniem podanym w formie zapadki.
+**12. POWTÓRKA POZYCJI 5 TEJ SEKCJI: ODPOWIEDŹ BYŁA JUŻ NAPISANA W PLIKU, KTÓREGO NIE
+DOCZYTAŁEM.** Sesja, w której powstał ten blok, zaczęła się od twardej blokady pomiaru:
+`bun.lock` przypina wszystkie 340 adresów tarballi do prywatnego mirrora
+`europe-west{1,4}-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache`, a ten host jest odrzucany
+przez politykę egress środowiska (403 na CONNECT). `bun install --frozen-lockfile` zakończył się
+**kodem 0** przy dziesiątkach błędów i zainstalował 394 pakiety z ~1500; zabrakło
+`@tanstack/react-start`, `@tanstack/react-router`, `@lovable.dev/*`. Skutek: żaden plik modułu 20
+nie dawał się zaimportować, więc ZERO testów dało się uruchomić. Zgłosiłem to jako blokadę
+środowiska i **napisałem, że pomiar jest niemożliwy**.
+
+Był możliwy. `.github/workflows/ci.yml:135-142` niesie krok, który robi DOKŁADNIE to, czego
+potrzebowałem, z tym samym uzasadnieniem, co moje własne:
+
+    sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+Komentarz nad nim wyjaśnia, dlaczego to jest bezpieczne, a nie obejście: _„The path after the
+cache prefix is byte-identical to the npm registry layout, so repointing the host keeps the exact
+pinned versions + integrity while installing from the public registry. This edit is CI-only
+(never committed)."_ Ten sam krok stoi w TRZECH jobach (`verify`, `build`, `test`). Po jego
+zastosowaniu `bun install --frozen-lockfile` przeszedł, a pomiar ruszył - z zachowaniem wersji
+z lockfile'a, bo integralność sha512 jest weryfikowana przy każdym tarballu.
+
+Dwie nauki, obie droższe niż się wydaje:
+**(a) kod wyjścia instalatora nie jest dowodem kompletnej instalacji** - dowodem jest OBECNOŚĆ
+paczek. `bun install` kończy się zerem przy dziesiątkach 403, dokładnie tak jak w pozycji 1 tej
+sekcji `npm install` kończył się zerem przy niedokończonym zapisie do `node_modules`. Ta sama
+pułapka, drugi raz, inny instalator.
+**(b) zanim ogłoszę środowisko niesprawnym, czytam `.github/workflows/` - CI JUŻ ROZWIĄZAŁO ten
+problem, bo musiało.** Publiczny runner ma tę samą blokadę co każde środowisko poza siecią
+platformy budującej, więc jeśli CI w ogóle działa, to obejście gdzieś w repozytorium JEST. To jest
+ta sama lekcja co pozycja 5 (kronika `check-bundle-size.ts` odpowiadała na moje pytanie o budżet
+bundla), tylko dotknięta z drugiej strony: tam nie doczytałem kroniki skryptu, tu - definicji
+własnego CI.
 
 ---
 
