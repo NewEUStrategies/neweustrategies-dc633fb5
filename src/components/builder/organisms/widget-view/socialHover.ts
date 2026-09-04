@@ -142,26 +142,179 @@ const paintsBackground = (mode: SocialRowHover): boolean =>
 const isDeep = (mode: SocialRowHover): boolean =>
   mode === "brand" || mode === "house" || mode === "custom";
 
-/** Luminancja postrzegana dla zapisów, które da się sparsować lokalnie. */
-function luminance(color: string): number | null {
-  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+/** Kanały sRGB (0-255) plus alfa (0-1), wyłuskane z zapisu koloru. */
+interface RgbaChannels {
+  readonly r: number;
+  readonly g: number;
+  readonly b: number;
+  readonly a: number;
+}
+
+const HEX_RE = /^#([0-9a-f]{3,8})$/i;
+const RGB_FUNC_RE = /^rgba?\(([^()]*)\)$/i;
+const HSL_FUNC_RE = /^hsla?\(([^()]*)\)$/i;
+
+/** Argumenty funkcji koloru: `a, b, c` i `a b c / d` dają tę samą listę. */
+function splitColorArgs(inside: string): string[] {
+  return inside
+    .replace(/\//g, " ")
+    .split(/[\s,]+/)
+    .filter(Boolean);
+}
+
+/** Liczba albo procent skalowany do `scale`; `deg` przy odcieniu jest opcjonalny. */
+function colorNumber(token: string, scale: number): number | null {
+  const m = /^([+-]?(?:\d+\.?\d*|\.\d+))(%|deg)?$/.exec(token);
   if (!m) return null;
-  const digits = m[1];
-  const pairs =
-    digits.length === 3
-      ? [...digits].map((ch) => ch + ch)
-      : [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 6)];
-  const lin = pairs.map((pair) => {
-    const v = parseInt(pair, 16) / 255;
+  const v = Number.parseFloat(m[1]);
+  if (!Number.isFinite(v)) return null;
+  return m[2] === "%" ? (v / 100) * scale : v;
+}
+
+/** Nasycenie i jasność w `hsl()` są z definicji procentami - bez `%` odrzucamy. */
+function colorPercent(token: string): number | null {
+  return token.endsWith("%") ? colorNumber(token, 1) : null;
+}
+
+function parseHexColor(value: string): RgbaChannels | null {
+  const m = HEX_RE.exec(value);
+  if (!m) return null;
+  const d = m[1];
+  const twice = (ch: string) => Number.parseInt(ch + ch, 16);
+  if (d.length === 3 || d.length === 4) {
+    return {
+      r: twice(d[0]),
+      g: twice(d[1]),
+      b: twice(d[2]),
+      a: d.length === 4 ? twice(d[3]) / 255 : 1,
+    };
+  }
+  if (d.length === 6 || d.length === 8) {
+    const pair = (i: number) => Number.parseInt(d.slice(i, i + 2), 16);
+    return { r: pair(0), g: pair(2), b: pair(4), a: d.length === 8 ? pair(6) / 255 : 1 };
+  }
+  // Zapisy 5- i 7-znakowe nie są kolorem, choć przechodzą przez `HEX_RE`.
+  return null;
+}
+
+function parseRgbColor(value: string): RgbaChannels | null {
+  const m = RGB_FUNC_RE.exec(value);
+  if (!m) return null;
+  const parts = splitColorArgs(m[1]);
+  if (parts.length < 3 || parts.length > 4) return null;
+  const r = colorNumber(parts[0], 255);
+  const g = colorNumber(parts[1], 255);
+  const b = colorNumber(parts[2], 255);
+  const a = parts.length === 4 ? colorNumber(parts[3], 1) : 1;
+  if (r === null || g === null || b === null || a === null) return null;
+  return { r, g, b, a };
+}
+
+function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+  const hue = ((h % 360) + 360) % 360;
+  const sat = Math.min(Math.max(s, 0), 1);
+  const light = Math.min(Math.max(l, 0), 1);
+  const c = (1 - Math.abs(2 * light - 1)) * sat;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = light - c / 2;
+  const seg = Math.floor(hue / 60) % 6;
+  const rgb =
+    seg === 0
+      ? [c, x, 0]
+      : seg === 1
+        ? [x, c, 0]
+        : seg === 2
+          ? [0, c, x]
+          : seg === 3
+            ? [0, x, c]
+            : seg === 4
+              ? [x, 0, c]
+              : [c, 0, x];
+  return { r: (rgb[0] + m) * 255, g: (rgb[1] + m) * 255, b: (rgb[2] + m) * 255 };
+}
+
+function parseHslColor(value: string): RgbaChannels | null {
+  const m = HSL_FUNC_RE.exec(value);
+  if (!m) return null;
+  const parts = splitColorArgs(m[1]);
+  if (parts.length < 3 || parts.length > 4) return null;
+  const h = colorNumber(parts[0], 360);
+  const s = colorPercent(parts[1]);
+  const l = colorPercent(parts[2]);
+  const a = parts.length === 4 ? colorNumber(parts[3], 1) : 1;
+  if (h === null || s === null || l === null || a === null) return null;
+  return { ...hslToRgb(h, s, l), a };
+}
+
+/**
+ * Luminancja postrzegana (WCAG relative luminance) dla zapisów, które da się
+ * policzyć LOKALNIE, bez layoutu: hex 3/4/6/8, `rgb()`/`rgba()` i `hsl()`/`hsla()`
+ * w obu składniach (przecinkowej i ze spacją + `/`), kanały jako liczby lub procenty.
+ *
+ * `null` (czyli „nie wiem") dla wszystkiego, czego policzyć się NIE DA:
+ * `var(--…)`, `currentcolor`, `transparent` oraz przestrzeni percepcyjnych
+ * (`hwb`, `oklab`, `oklch`, `lab`, `lch`, `color()`). Zgadywanie ich jasności
+ * wymagałoby wartości obliczonej z layoutu, której ten moduł nie widzi.
+ *
+ * ALFA. Kolor NIEPRZEZROCZYSTY liczymy normalnie (`#ffffffff`, `#ffff`,
+ * `rgba(…, 1)`). Kolor półprzezroczysty daje `null`, bo komponuje się z tłem
+ * strony, którego ten moduł nie zna - dokładnie z tego samego powodu, dla
+ * którego `transparent` nie ma luminancji.
+ */
+export function luminance(color: string): number | null {
+  const value = color.trim();
+  const rgba = parseHexColor(value) ?? parseRgbColor(value) ?? parseHslColor(value);
+  if (!rgba) return null;
+  // Zapis odwrotny (`!(a >= 1)`) łapie też NaN, którego `a < 1` by przepuściło.
+  if (!(rgba.a >= 1)) return null;
+  const lin = [rgba.r, rgba.g, rgba.b].map((channel) => {
+    const v = Math.min(Math.max(channel, 0), 255) / 255;
     return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
   });
   return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
 }
 
-/** Czytelny kolor treści na podanym tle; dla zapisów nieparsowalnych - biel. */
-function readableOn(bg: string): string {
+/** Ciemny tusz treści - token `--background` motywu ciemnego (`styles.css:304`). */
+const READABLE_INK = "#141414";
+
+/**
+ * Próg jasności tła, powyżej którego czytelniejszy jest ciemny tusz.
+ *
+ * ZMIERZONE 2026-09-04 (`src/components/builder/organisms/widget-view/__tests__/socialHoverContrast.test.ts`,
+ * wzór kontrastu WCAG `(L1+0,05)/(L2+0,05)`):
+ *   L(#ffffff) = 1,000000 ; L(#141414) = 0,00699541
+ *   biel trzyma 4,5:1 tylko dla   L(tła) <= 0,183333
+ *   #141414 trzyma 4,5:1 tylko dla L(tła) >= 0,206479
+ * Te dwa okna SIĘ NIE STYKAJĄ, więc dla TEJ PARY kolorów NIE ISTNIEJE próg,
+ * który utrzymałby 4,5:1 na całym zakresie - w paśmie (0,1833 ; 0,2065) żaden
+ * z dwóch kolorów nie osiąga AA. To jest zarejestrowane jako `it.fails`
+ * w teście wyżej, razem z wartością, która by to naprawiła: tusz nie jaśniejszy
+ * niż #060606 (wtedy próg 0,1832 domyka obie strony). Nie biorę tej zmiany
+ * tutaj, bo #141414 to token palety (`--background` trybu ciemnego), a nie
+ * lokalna stała tego modułu - to decyzja o palecie, nie o kontraście.
+ *
+ * Próg poniżej jest punktem ZRÓWNANIA obu kontrastów, czyli maksymalizuje
+ * gwarantowane minimum: `(t+0,05)^2 = 1,05 * (L(#141414)+0,05)` daje
+ * t = 0,194633 i podłogę 4,292:1 po OBU stronach.
+ * Poprzednia wartość 0,42 dawała bieli na tle o tej jasności 2,234:1 - czyli
+ * mniej niż połowę wymagania AA i źródło defektu „biel na bieli".
+ */
+const READABLE_ON_LUMINANCE_THRESHOLD = 0.1946;
+
+/**
+ * Czytelny kolor treści na podanym tle.
+ *
+ * Tło NIEPOLICZALNE nie dostaje już bieli (to był defekt: `safeWidgetColor`
+ * przepuszcza dziesięć zapisów, których stary `luminance` nie umiał, a każdy
+ * z nich lądował na `#ffffff` - biały napis na jasnym wierszu). Zamiast tego
+ * oddajemy `var(--foreground)`, ten sam token, co gałąź „soft" niżej: jest
+ * czytelny na `--background` z definicji, więc jest bezpieczny na tle, którego
+ * jasności nie znamy.
+ */
+export function readableOn(bg: string): string {
   const l = luminance(bg);
-  return l !== null && l > 0.42 ? "#141414" : "#ffffff";
+  if (l === null) return "var(--foreground)";
+  return l > READABLE_ON_LUMINANCE_THRESHOLD ? READABLE_INK : "#ffffff";
 }
 
 /** Kolor tekstu wiersza po najechaniu; `undefined` = nie zmieniaj. */

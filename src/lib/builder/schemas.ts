@@ -2544,7 +2544,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "Własny kolor podświetlenia",
       placeholder: "#B85410 lub var(--brand)",
       visibleWhen: (c) => c.rowHover === "custom",
-      hint: "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności.",
+      hint: "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności. Dla zapisów, których jasności nie da się policzyć (var(--...), oklch, transparent), tekst bierze kolor motywu.",
     },
     {
       key: "hoverIconMode",
