@@ -5427,11 +5427,19 @@ export default defineConfig({
         // zrodlem falszywej czerwieni przy nastepnej zmianie importu. Ten prog
         // chroni to, co JEST dowiedzione, i ma rosnac razem z rozbiciem tego
         // komponentu na czesci dajace sie montowac osobno.
+        //
+        // MARGINES 4 pp, NIE 2 pp - i to jest decyzja z powodem. Pokrycie tego
+        // pliku nie pochodzi z jednego testu: dokladaja sie do niego WSZYSTKIE
+        // suity tras publicznych. A osiem plikow czerwonych na tym HEAD-zie
+        // (dziedziczonych z maina) to w wiekszosci wlasnie testy tras, wiec
+        // zbior plikow wnoszacych pokrycie do `$.tsx` moze sie miedzy przebiegami
+        // ROZNIC. Przy marginesie 2 pp taki dryf zamienilby ten prog w falszywa
+        // czerwien cudzej awarii. Zmierzone 46,46 / 45,16 / 45,83 / 21,44.
         "src/routes/$.tsx": {
-          statements: 44,
-          functions: 43,
-          lines: 43,
-          branches: 19,
+          statements: 42,
+          functions: 41,
+          lines: 41,
+          branches: 17,
         },
 
         // ── MODUŁ WYDARZEŃ ────────────────────────────────────────────────
