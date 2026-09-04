@@ -5,8 +5,12 @@ Wejście: audyt pokrycia testami, wydanie 9
 bloki (typ Gutenberg) i widgety (typ Elementor)**, plus jedna powierzchnia z modułu 04
 (`Ikony / marka`), która z buildera jest wołana i z nim się psuje.
 
-**Zlecenie jest WĄSKIE i to jest jego najważniejsza cecha.** Moduł stoi na **96,93% linii
-(14 038 z 14 483) i 95,55% funkcji (4 398 z 4 603)** - to jest jeden z najlepiej przetestowanych
+**Zlecenie jest WĄSKIE i to jest jego najważniejsza cecha.** Powierzchnie CMS-a buildera stoją
+razem na **96,93% linii (14 038 z 14 483) i 95,55% funkcji (4 398 z 4 603)** - to jest suma
+trzynastu funkcjonalności modułu 03, a nie liczba z nagłówka rozdziału 3 audytu
+(94,46% / 92,61%), która liczy się z szerszego mapowania `plik → moduł` (§9.1 audytu). Podaję
+obie, bo różnica mianowników jest realna, a pytanie „dlaczego dwie różne liczby dla tego samego
+modułu" ma odpowiedź, nie usprawiedliwienie. Tak czy inaczej to jeden z najlepiej przetestowanych
 obszarów tej platformy. Dziewięć z trzynastu powierzchni ma **każdą funkcję wywołaną w teście**.
 Nie ruszaj tych dziewięciu. Robota jest w czterech i mieści się w trzech defektach oraz dwóch
 progach.
@@ -19,10 +23,16 @@ progach.
 
 Tabela funkcjonalności w wydaniu 9 audytu (i w artefakcie) została zbudowana z raportu
 **wydania 8**, choć opisuje wydanie 9. Sprawdzone plik po pliku: **wszystkie 141 wierszy** tej
-tabeli zgadza się z `coverage-ed8/coverage-summary.json` co do cyfry (procent, licznik funkcji
-i mianownik LOC), a nie z pomiarem wydania 9. Dla większości wierszy nie ma to znaczenia
-(114 mieści się w 1 pp, bo te powierzchnie się nie ruszyły), ale **trzynaście wierszy jest
-przesuniętych o ≥10 pp, najgorszy o 71,20 pp**. Konsekwencje dla TEGO obszaru:
+tabeli zgadzały się z `coverage-ed8/coverage-summary.json` co do cyfry (procent, licznik funkcji
+ORAZ mianownik LOC), a nie z pomiarem wydania 9. Po przeliczeniu wszystkich z `coverage-ed9`:
+**46 wierszy niosło liczby inne niż dzisiejszy pomiar** - 13 rozjechanych o **≥ 10 pp**
+(najgorszy o **71,24 pp**), 15 o 1-10 pp, 18 poniżej 1 pp; pozostałe 95 wierszy było
+identycznych w obu wydaniach, czyli poprawnych przez przypadek, nie przez pomiar.
+
+**Tabela jest już naprawiona** - rozdz. 3 dokumentu niesie dziś liczby wydania 9, a pełny opis
+pomyłki, jej skali i wniosku procesowego stoi w rozdz. 8.5 jako pozycja 8. To zlecenie zachowuje
+sprostowanie mimo naprawy, bo **liczby ze zlecenia, które dostałeś, mogą być z wersji przed
+naprawą**. Konsekwencje dla TEGO obszaru:
 
 | powierzchnia                    | w tabeli (ed8)               | prawda (ed9)                     | różnica      |
 | ------------------------------- | ---------------------------- | -------------------------------- | ------------ |
@@ -43,15 +53,23 @@ realnie i to sprawdziłem w `coverage-ed9-final/coverage-final.json`, licznik `f
 
 ## 0.1a Pełny stan czterech powierzchni, którymi zajmuje się to zlecenie
 
-Wszystkie liczby z `coverage-ed9-final`, plik po pliku zsumowane po liście plików danej
-powierzchni. To jest podstawa każdego kryterium odbioru niżej:
+Procenty z `coverage-ed9` (PIERWSZY przebieg wydania 9 - ten, w którym zakotwiczony jest cały
+dokument audytu), nazwy niewywołanych funkcji z `coverage-ed9-final/coverage-final.json`
+(przebieg 2 - tylko on ma reporter `json`). Zsumowane po wzorcach ścieżek z definicji
+funkcjonalności, plik po pliku. To jest podstawa każdego kryterium odbioru niżej:
 
 | powierzchnia                                      | plików | linie                | funkcje              | gałęzie          |
 | ------------------------------------------------- | -----: | -------------------- | -------------------- | ---------------- |
 | CMS: silnik treści publicznej (contentEngine)     |     20 | 426/525 = **81,14%** | 100/121 = **82,64%** | 394/506 = 77,87% |
 | CMS: zapytania danych widgetów                    |      8 | 442/488 = **90,57%** | 125/140 = **89,29%** | 349/464 = 75,22% |
-| CMS: design tokens / kolory globalne / typografia |      6 | 226/257 = **87,94%** | 35/40 = **87,50%**   | 218/267 = 81,65% |
-| Ikony / marka                                     |      7 | 120/149 = **80,54%** | 27/37 = **72,97%**   | 116/157 = 73,89% |
+| CMS: design tokens / kolory globalne / typografia |      6 | 226/257 = **87,94%** | 34/40 = **85,00%**   | 218/267 = 81,65% |
+| Ikony / marka                                     |      7 | 120/149 = **80,54%** | 27/37 = **72,97%**   | 114/157 = 72,61% |
+
+**Dwie komórki tej tabeli różnią się między dwoma przebiegami tego samego wydania** i to jest
+zmierzona podłoga szumu, nie pomyłka: `design tokens` mają w przebiegu 2 o **jedną funkcję**
+więcej (35/40 = 87,50%; plik `liveTypography.ts`), a `Ikony / marka` o **dwie gałęzie** więcej
+(116/157 = 73,89%). Jeśli u siebie zobaczysz te wartości, nie zgłaszaj rozbieżności - zgłoś ją
+dla każdej innej.
 
 **Zanim ruszysz jakąkolwiek liczbę z tego zlecenia - odtwórz ją u siebie.** Jeśli się nie
 zgadza, zatrzymaj się i zgłoś rozbieżność. To zlecenie powstało po tym, jak audyt pomylił dwa
@@ -396,7 +414,7 @@ jedną ścieżką. Rozstrzygnij każdy i podaj wynik:
 | `src/lib/builder/clubsQuery.ts`      | **100%** | **100%** | **58,33%** | wszystkie linie wykonane, **41% gałęzi nie** - klasyczny „test przechodzi środkiem"           |
 | `src/lib/builder/taxonomyQuery.ts`   |   71,42% |  **50%** |          - | połowa funkcji martwa                                                                         |
 | `src/lib/iconPack.ts`                | **100%** | **100%** |     70,00% | jak `clubsQuery`                                                                              |
-| `src/lib/builder/liveTypography.ts`  |   78,87% |   73,33% |     57,14% | B3 punkt 1 domyka część tego                                                                  |
+| `src/lib/builder/liveTypography.ts`  |   78,87% |   66,66% |     57,14% | B3 punkt 1 domyka część tego; jeden z dwóch plików z rozjazdem między przebiegami (§0.1a)     |
 
 ---
 

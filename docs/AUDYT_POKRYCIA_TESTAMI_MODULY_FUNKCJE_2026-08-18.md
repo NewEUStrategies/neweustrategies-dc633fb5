@@ -449,7 +449,7 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | ---------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
 | Paywall / bramka dostępu           |      5 |        152 |  70,9% | 73,4% |   78,8% |  **71,7%** |     26/33 |
 | Audio wpisu (TTS)                  |     16 |        763 |  84,5% | 79,2% |   83,4% |  **86,8%** |   126/151 |
-| Układy wpisu + render              |     29 |        507 |  83,7% | 73,5% |   77,4% |  **87,2%** |   127/164 |
+| Układy wpisu + render              |     29 |        504 |  83,6% | 73,3% |   77,3% |  **87,1%** |   126/163 |
 | Powiązane wpisy / rekomendacje     |      7 |        162 |  89,4% | 80,1% |   95,7% |  **91,4%** |     45/47 |
 | Key takeaways + cytowania          |      5 |        171 |  98,5% | 92,4% |  100,0% |  **99,4%** |     41/41 |
 | Spis treści (TOC) + przypisy       |      6 |        253 |  96,2% | 87,6% |   98,5% |  **99,6%** |     67/68 |
@@ -468,7 +468,7 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Funkcjonalność                  | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
 | ------------------------------- | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
 | Rewizje i przywracanie          |     12 |        286 |  97,6% |  90,1% |   96,3% |  **97,9%** |   105/109 |
-| Edytor wpisu (panele)           |     68 |      1 077 |  98,8% |  95,5% |   99,1% |  **99,4%** |   422/426 |
+| Edytor wpisu (panele)           |     68 |      1 077 |  98,7% |  95,5% |   98,8% |  **99,4%** |   421/426 |
 | Workflow draft→review→published |     10 |        214 |  99,1% |  95,6% |   99,0% |  **99,5%** |     96/97 |
 | Autozapis wpisu                 |      3 |         85 | 100,0% |  96,0% |  100,0% | **100,0%** |     20/20 |
 | Obecność edytorska (presence)   |      2 |          6 | 100,0% | 100,0% |  100,0% | **100,0%** |       3/3 |
@@ -483,14 +483,14 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność                                         | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | ------------------------------------------------------ | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| CMS: silnik treści publicznej (contentEngine)          |     20 |        525 |  79,8% | 77,9% |   82,6% |  **81,0%** |   100/121 |
-| CMS: zapytania danych widgetów                         |      8 |        459 |  78,3% | 68,8% |   87,9% |  **83,2%** |   123/140 |
+| CMS: silnik treści publicznej (contentEngine)          |     20 |        525 |  79,9% | 77,9% |   82,6% |  **81,1%** |   100/121 |
+| CMS: zapytania danych widgetów                         |      8 |        488 |  85,2% | 75,2% |   89,3% |  **90,6%** |   125/140 |
 | CMS: design tokens / kolory globalne / typografia      |      6 |        257 |  85,5% | 81,6% |   85,0% |  **87,9%** |     34/40 |
-| CMS: page builder (typ Elementor) — schemat i operacje |     11 |        650 |  89,5% | 69,8% |   99,7% |  **96,9%** |   294/295 |
+| CMS: page builder (typ Elementor) — schemat i operacje |     11 |        651 |  89,5% | 69,8% |   99,7% |  **96,9%** |   295/296 |
 | CMS: panele właściwości widgetów                       |    112 |      4 671 |  96,5% | 93,2% |   95,0% |  **97,3%** | 1972/2076 |
 | CMS: sanityzacja HTML                                  |      4 |        157 |  93,9% | 88,1% |   90,6% |  **97,5%** |     29/32 |
-| CMS: widgety buildera — render publiczny               |     55 |      3 596 |  96,2% | 88,2% |   95,3% |  **97,9%** |   758/795 |
-| CMS: render bloków (publiczny)                         |     39 |      1 920 |  97,3% | 94,0% |   96,3% |  **98,1%** |   499/518 |
+| CMS: widgety buildera — render publiczny               |     56 |      3 525 |  96,2% | 88,4% |   95,4% |  **97,9%** |   742/778 |
+| CMS: render bloków (publiczny)                         |     39 |      1 921 |  97,3% | 93,9% |   96,1% |  **98,1%** |   494/514 |
 | CMS: silnik bloków (typ Gutenberg) — rdzeń             |      9 |        359 |  99,0% | 94,1% |  100,0% |  **98,9%** |   148/148 |
 | CMS: builder sidebara + wzorce                         |      7 |        238 |  96,1% | 91,7% |  100,0% |  **99,2%** |   132/132 |
 | CMS: warstwa content-model (rozdział bloki⇄builder)    |      7 |        150 |  95,7% | 86,7% |  100,0% |  **99,3%** |     32/32 |
@@ -523,7 +523,7 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Funkcjonalność                       | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
 | ------------------------------------ | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
 | Mega menu                            |      3 |        135 |  80,9% |  66,0% |   79,5% |  **88,1%** |     31/39 |
-| Nagłówek / stopka / menu             |     19 |        847 |  96,6% |  86,1% |   94,8% |  **97,9%** |   325/343 |
+| Nagłówek / stopka / menu             |     20 |        866 |  96,7% |  86,0% |   94,8% |  **97,9%** |   330/348 |
 | Chrome mobilny (drawer, dolny pasek) |     11 |        220 |  95,6% |  90,5% |   91,4% |  **98,2%** |     53/58 |
 | Archiwa kategorii/tagów              |     16 |        189 |  97,5% |  83,0% |   97,0% |  **98,4%** |     65/67 |
 | Strona główna: sekcje i układ        |      8 |         31 | 100,0% | 100,0% |  100,0% | **100,0%** |     13/13 |
@@ -551,11 +551,11 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność                   | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | -------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| Podcast                          |      4 |         78 |  73,7% | 74,3% |   50,0% |  **70,5%** |     16/32 |
+| Podcast                          |     14 |        514 |  98,2% | 93,4% |   97,3% |  **98,4%** |   284/292 |
 | Wydarzenia (RSVP, waitlist, ICS) |    199 |      5 973 |  86,3% | 80,4% |   89,0% |  **88,4%** | 1768/1987 |
-| Quiz / mapy                      |      5 |        251 |  92,8% | 88,0% |   88,7% |  **94,4%** |     55/62 |
-| Huby ekspertów                   |     26 |        820 |  97,0% | 89,4% |   95,7% |  **97,9%** |   244/255 |
-| Tracker legislacyjny             |      9 |        235 |  99,3% | 96,1% |  100,0% | **100,0%** |     95/95 |
+| Quiz / mapy                      |      5 |        251 |  98,6% | 97,0% |  100,0% | **100,0%** |     62/62 |
+| Huby ekspertów                   |     26 |        820 |  99,2% | 92,5% |  100,0% | **100,0%** |   255/255 |
+| Tracker legislacyjny             |      9 |        240 |  99,3% | 96,1% |  100,0% | **100,0%** |   100/100 |
 | Programy badawcze                |      4 |         31 | 100,0% | 96,6% |  100,0% | **100,0%** |     14/14 |
 | Web stories                      |      3 |         98 |  99,2% | 96,3% |  100,0% | **100,0%** |     30/30 |
 | Biblioteka plików                |      7 |        248 |  99,7% | 91,0% |  100,0% | **100,0%** |     76/76 |
@@ -570,8 +570,8 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność               | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
 | ---------------------------- | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
-| Feedy i sitemapy             |      8 |        130 |  60,4% |  40,6% |   37,5% |  **61,5%** |      9/24 |
-| SEO: meta, JSON-LD, hreflang |     46 |      1 397 |  98,8% |  96,4% |   99,0% |  **99,3%** |   296/299 |
+| Feedy i sitemapy             |      8 |        130 |  64,7% |  46,2% |   41,7% |  **65,4%** |     10/24 |
+| SEO: meta, JSON-LD, hreflang |     48 |      1 407 |  98,8% |  96,4% |   99,0% |  **99,3%** |   301/304 |
 | Udostępnianie / OG           |      5 |        216 |  99,2% |  98,4% |  100,0% | **100,0%** |     65/65 |
 | Monitor linków               |      2 |         18 | 100,0% | 100,0% |  100,0% | **100,0%** |       8/8 |
 
@@ -585,9 +585,9 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność                                  | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | ----------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| Czat: okno rozmowy i atomy UI                   |     35 |      1 507 |  45,2% | 38,7% |   40,7% |  **46,2%** |   212/521 |
-| Czat: kompozytor + wzmianki                     |     10 |        229 |  81,6% | 68,8% |   77,2% |  **84,3%** |     44/57 |
-| Czat: warstwa danych (rozmowy, wiadomości)      |      3 |        374 |  92,3% | 83,3% |   95,6% |  **97,6%** |   130/136 |
+| Czat: okno rozmowy i atomy UI                   |     35 |      1 492 |  96,9% | 90,8% |   96,7% |  **98,3%** |   502/519 |
+| Czat: kompozytor + wzmianki                     |     10 |        229 |  85,4% | 72,0% |   78,9% |  **88,6%** |     45/57 |
+| Czat: warstwa danych (rozmowy, wiadomości)      |      3 |        374 |  92,6% | 83,6% |   95,6% |  **97,6%** |   130/136 |
 | Czat: reguły wątku (kolejność, separator, skok) |      5 |        159 |  99,5% | 98,5% |   97,5% | **100,0%** |     39/40 |
 
 > **ZASTRZEŻENIE DO TABELI (dopisane 2026-09-01, wydanie 9): wiersz „Czat: kompozytor + wzmianki" NIE OPISUJE KOMPOZYTORA CZATU.**
@@ -732,8 +732,8 @@ Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera 
 
 | Funkcjonalność              | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | --------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Powiadomienia + web-push    |     16 |        878 |  42,3% | 29,5% |   32,1% | **44,9%** |    80/249 |
-| Realtime (kanały, presence) |     10 |        294 |  61,5% | 44,2% |   76,6% | **65,0%** |   105/137 |
+| Powiadomienia + web-push    |     19 |        863 |  96,3% | 92,0% |   96,2% | **97,6%** |   229/238 |
+| Realtime (kanały, presence) |     10 |        294 |  98,8% | 93,3% |   98,5% | **99,3%** |   135/137 |
 
 ### MODUŁ 13 — Monetyzacja: checkout / subskrypcje / billing · linie 96,57% · funkcje 96,35%
 
@@ -745,10 +745,10 @@ Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera 
 
 | Funkcjonalność                              | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Webhook płatności                           |      1 |         37 |  65,8% | 63,3% |   20,0% | **64,9%** |       1/5 |
+| Webhook płatności                           |      1 |         37 |  68,4% | 63,3% |   40,0% | **67,6%** |       2/5 |
 | Checkout (Stripe) + intencja                |     15 |        200 |  73,6% | 66,5% |   72,7% | **77,0%** |     40/55 |
 | Dołączenie do członkostwa (membership join) |      9 |         65 |  96,1% | 90,2% |   93,8% | **96,9%** |     30/32 |
-| Billing: rekoncyliacja i panel              |    116 |      3 988 |  96,5% | 91,7% |   98,3% | **97,4%** |   815/829 |
+| Billing: rekoncyliacja i panel              |    116 |      3 988 |  96,6% | 91,7% |   98,3% | **97,5%** |   815/829 |
 | Subskrypcje / plany / cennik                |     33 |        759 |  96,8% | 93,4% |   96,2% | **98,2%** |   353/367 |
 
 ### MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy · linie 92,63% · funkcje 90,12%
@@ -799,13 +799,13 @@ Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera 
 
 | Funkcjonalność                                     | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | -------------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| Społeczność: odznaki, zaangażowanie, Q&A, ankiety  |     21 |        664 |  34,0% | 40,4% |   31,1% |  **35,5%** |    73/235 |
-| Komentarze i moderacja                             |      6 |        239 |  83,2% | 78,2% |   68,0% |  **84,1%** |     51/75 |
-| KLUBY: zgłoszenia członkowskie (apply)             |      5 |        183 |  87,4% | 71,0% |   95,1% |  **89,6%** |     58/61 |
-| KLUBY: API i zapytania (klub, posty, wątki)        |     10 |        591 |  96,1% | 96,8% |   98,2% |  **96,6%** |   222/226 |
-| KLUBY: dostęp i uprawnienia (gate, macierz, plany) |      7 |        152 |  96,6% | 93,6% |  100,0% |  **98,0%** |     43/43 |
+| Społeczność: odznaki, zaangażowanie, Q&A, ankiety  |     21 |        677 |  99,2% | 94,6% |   98,8% |  **99,7%** |   243/246 |
+| Komentarze i moderacja                             |      6 |        239 |  99,0% | 93,2% |  100,0% | **100,0%** |     75/75 |
+| KLUBY: zgłoszenia członkowskie (apply)             |      5 |        183 |  99,0% | 97,3% |  100,0% | **100,0%** |     61/61 |
+| KLUBY: API i zapytania (klub, posty, wątki)        |     10 |        591 |  98,7% | 98,3% |   99,6% |  **99,0%** |   225/226 |
+| KLUBY: dostęp i uprawnienia (gate, macierz, plany) |      7 |        152 |  98,3% | 96,8% |  100,0% |  **99,3%** |     43/43 |
 | KLUBY: reguły widoków wyprowadzone z JSX-a         |     12 |        378 |  99,1% | 97,2% |   98,7% |  **99,5%** |   151/153 |
-| KLUBY: wątki dyskusyjne (dynamika, puls, źródła)   |      8 |        256 |  97,0% | 85,6% |  100,0% |  **99,6%** |     93/93 |
+| KLUBY: wątki dyskusyjne (dynamika, puls, źródła)   |      8 |        256 |  98,4% | 92,6% |  100,0% | **100,0%** |     93/93 |
 | KLUBY: UI (atomy/molekuły/organizmy)               |    103 |      2 193 |  99,8% | 99,3% |   99,9% |  **99,9%** |   934/935 |
 | KLUBY: tematy, specjalizacje, obszary polityk      |     10 |        166 |  98,6% | 95,7% |   98,3% | **100,0%** |     59/60 |
 | KLUBY: panel admina                                |     77 |      1 634 |  99,6% | 98,8% |  100,0% | **100,0%** |   782/782 |
@@ -821,10 +821,10 @@ Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera 
 
 | Funkcjonalność                          | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | --------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Analityka: zbieranie zdarzeń i liczniki |     20 |        705 |  15,4% | 13,7% |   18,2% | **16,0%** |    28/154 |
-| Wykresy i panel BI                      |     41 |      1 501 |  27,8% | 22,3% |   22,3% | **29,0%** |   114/512 |
-| Observability / RUM / web vitals        |     11 |        409 |  54,6% | 48,6% |   61,7% | **54,0%** |     37/60 |
-| Analityka: warstwa semantyczna          |      7 |        239 |  70,4% | 60,2% |   69,4% | **71,5%** |     43/62 |
+| Analityka: zbieranie zdarzeń i liczniki |     21 |        746 |  85,8% | 79,3% |   78,9% | **87,3%** |   131/166 |
+| Wykresy i panel BI                      |     45 |      1 779 |  98,8% | 95,5% |   98,5% | **99,4%** |   592/601 |
+| Observability / RUM / web vitals        |     13 |        506 |  96,5% | 92,3% |   97,4% | **97,2%** |     74/76 |
+| Analityka: warstwa semantyczna          |      7 |        240 |  97,8% | 94,2% |  100,0% | **99,2%** |     60/60 |
 
 ### MODUŁ 17 - kampania 2026-09-01/02: linie 36,07% -> 96,24%, funkcje 31,18% -> 95,96%, plików na zerze 47 -> 0
 
@@ -1679,7 +1679,7 @@ której nikt nigdy nie zgasi.
 | Funkcjonalność                        | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
 | CRM: UI panelu                        |     19 |        569 |  95,1% | 83,4% |   96,5% | **96,0%** |   279/289 |
-| CRM: import/eksport CSV + organizacje |      7 |        356 |  98,8% | 92,0% |   96,3% | **99,7%** |     79/82 |
+| CRM: import/eksport CSV + organizacje |      7 |        361 |  98,8% | 92,1% |   96,4% | **99,7%** |     80/83 |
 | CRM: kontakty, firmy, lejek, zadania  |     25 |      1 115 |  98,9% | 90,7% |   99,6% | **99,8%** |   275/276 |
 
 ### MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO · linie 90,22% · funkcje 80,23%
@@ -1692,9 +1692,9 @@ której nikt nigdy nie zgasi.
 
 | Funkcjonalność                           | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ---------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Ustawienia serwisu (panele)              |      5 |        111 |  68,5% | 40,6% |   59,6% | **69,4%** |     31/52 |
-| Zgody / cookie banner / GPC / RODO       |     28 |        460 |  86,7% | 79,1% |   78,8% | **89,3%** |   119/151 |
-| Multi-tenant (izolacja tenanta w kodzie) |      6 |        281 |  88,5% | 83,3% |   84,1% | **90,4%** |     58/69 |
+| Ustawienia serwisu (panele)              |      5 |        112 |  67,9% | 40,6% |   57,7% | **68,8%** |     30/52 |
+| Zgody / cookie banner / GPC / RODO       |     28 |        460 |  88,3% | 80,4% |   82,1% | **90,9%** |   124/151 |
+| Multi-tenant (izolacja tenanta w kodzie) |      6 |        281 |  91,4% | 86,2% |   85,5% | **92,5%** |     59/69 |
 | Integracje zewnętrzne                    |      3 |        181 |  91,3% | 94,0% |   67,6% | **91,7%** |     23/34 |
 | Autoryzacja / macierz uprawnień (authz)  |     23 |        207 |  92,9% | 90,3% |   85,2% | **91,8%** |     75/88 |
 | Feature flags                            |      3 |        163 |  95,9% | 90,3% |   97,2% | **96,9%** |     35/36 |
@@ -1710,14 +1710,14 @@ której nikt nigdy nie zgasi.
 
 | Funkcjonalność                          | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
 | --------------------------------------- | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
-| Routing / trasy publiczne (powłoka)     |      8 |        423 |  26,6% |  17,2% |   16,0% |  **27,4%** |    17/106 |
-| A11y / watchdog / MCP                   |      9 |        164 |  39,6% |  29,9% |   31,0% |  **42,1%** |      9/29 |
-| Klient Supabase / zapytania             |     27 |        959 |  69,4% |  64,5% |   73,7% |  **71,7%** |   205/278 |
+| Routing / trasy publiczne (powłoka)     |      8 |        421 |  49,1% |  23,2% |   33,7% |  **51,1%** |    35/104 |
+| A11y / watchdog / MCP                   |     10 |        166 |  41,3% |  32,4% |   35,5% |  **43,4%** |     11/31 |
+| Klient Supabase / zapytania             |     28 |        964 |  74,5% |  68,8% |   80,4% |  **76,2%** |   225/280 |
 | Warstwa serwerowa (server fns)          |     19 |        980 |  78,1% |  73,6% |   81,8% |  **78,7%** |   180/220 |
-| Obsługa błędów / error boundary         |      7 |        115 |  79,5% |  79,3% |   69,0% |  **79,1%** |     20/29 |
-| SSR / hydracja / cache brzegowy         |     32 |      1 160 |  83,6% |  79,7% |   83,3% |  **85,1%** |   185/222 |
-| Bramki CI (rejestry, kontrakty)         |     32 |      3 107 |  93,5% |  86,6% |   93,3% |  **94,9%** |   529/567 |
-| Podgląd sesji / heartbeat               |      2 |        148 |  98,8% |  95,1% |  100,0% |  **99,3%** |     27/27 |
+| Obsługa błędów / error boundary         |      7 |        115 |  85,8% |  84,3% |   75,9% |  **85,2%** |     22/29 |
+| SSR / hydracja / cache brzegowy         |     33 |      1 184 |  85,7% |  81,5% |   84,7% |  **87,3%** |   194/229 |
+| Bramki CI (rejestry, kontrakty)         |     34 |      3 614 |  93,9% |  86,6% |   93,3% |  **95,4%** |   603/646 |
+| Podgląd sesji / heartbeat               |      2 |        149 |  98,8% |  95,1% |  100,0% |  **99,3%** |     27/27 |
 | Lista lektur / kolekcje (warstwa reguł) |      2 |         10 | 100,0% | 100,0% |  100,0% | **100,0%** |       8/8 |
 
 ### MODUŁ 21 — Rekrutacja / kariera · linie 55,12% · funkcje 47,13%
@@ -1742,11 +1742,11 @@ której nikt nigdy nie zgasi.
 
 | Funkcjonalność                                  | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
 | ----------------------------------------------- | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
-| Publiczny portal wydarzenia                     |     60 |      1 133 |  65,2% |  62,2% |   60,5% |  **66,5%** |   256/423 |
-| Bilety, pakiety, wejściówki (pieniądze)         |     30 |        955 |  67,6% |  65,2% |   75,3% |  **70,1%** |   244/324 |
-| Katalog wydarzeń, typy, tworzenie               |     24 |        629 |  77,0% |  82,3% |   73,2% |  **76,3%** |   199/272 |
+| Publiczny portal wydarzenia                     |     60 |      1 148 |  77,4% |  67,6% |   76,5% |  **78,9%** |   323/422 |
+| Bilety, pakiety, wejściówki (pieniądze)         |     30 |        955 |  76,5% |  73,5% |   80,6% |  **78,7%** |   261/324 |
+| Katalog wydarzeń, typy, tworzenie               |     24 |        629 |  77,4% |  82,5% |   74,3% |  **76,8%** |   202/272 |
 | Rejestracja: formularz, pola, zgody, decyzje    |     38 |      1 303 |  75,1% |  72,0% |   68,6% |  **77,1%** |   273/398 |
-| Studio wydarzenia: rama, moduły, gotowość       |     28 |        569 |  86,9% |  78,9% |   83,9% |  **87,0%** |   177/211 |
+| Studio wydarzenia: rama, moduły, gotowość       |     28 |        569 |  87,2% |  78,9% |   84,4% |  **87,3%** |   178/211 |
 | Branding, strony i menu wydarzenia              |     12 |        435 |  89,4% |  86,6% |   83,6% |  **89,4%** |   158/189 |
 | Giełda spotkań 1-1                              |     32 |        950 |  88,1% |  85,8% |   93,6% |  **91,4%** |   366/391 |
 | Sponsorzy i partnerzy                           |     16 |        595 |  88,8% |  83,1% |   93,9% |  **92,1%** |   248/264 |
@@ -3048,13 +3048,15 @@ sortuje się później. Gdyby znaczniki czasu wypadły odwrotnie, izolacja była
 produkcji — i żadna bramka by tego nie powiedziała. W tym oknie **42 z 222 commitów (18,92%) mają
 komunikat bez treści informacyjnej, i wszystkie 42 to commity bota, czyli 77,8% jego dorobku.**
 
-### 8.5 Siedem rzeczy, w których TEN audyt się mylił
+### 8.5 Osiem rzeczy, w których TEN audyt się mylił
 
 Ten rozdział jest w dokumencie od wydania 5 i jest jego najważniejszą częścią, bo audyt bez
-rejestru własnych pomyłek jest opinią. W tym wydaniu pozycji jest siedem — więcej niż kiedykolwiek,
+rejestru własnych pomyłek jest opinią. W tym wydaniu pozycji jest osiem — więcej niż kiedykolwiek,
 i to nie przypadek: pierwszy raz puściłem większość pomiarów **równolegle, w kilkunastu niezależnych
 wątkach analitycznych**, każdy z instrukcją „sprawdź moją liczbę, a jeśli się nie zgadza, zgłoś
-rozbieżność, bo to cenniejsze niż potwierdzenie". Siedem z tych rozbieżności dotyczyło mnie.
+rozbieżność, bo to cenniejsze niż potwierdzenie". Siedem z tych rozbieżności dotyczyło mnie,
+a ósma — najpoważniejsza w całej serii — wyszła dopiero z pisania kolejnego zlecenia, bo dwie
+liczby tego samego dokumentu nie dawały się ze sobą pogodzić.
 
 **1. Podejrzewałem, że czerwień jest środowiskowa. Nie jest — i zmierzyłem to dwukrotnie.**
 Uruchomiłem pomiar równolegle z pracą kilkunastu agentów na czterech rdzeniach i założyłem, że
@@ -3111,7 +3113,67 @@ więc opublikowane liczby są porównywalne. **Ale dowiedziałem się tego przez
 założenie** — i przyczyny samego rozjazdu `pct` między dwoma raportami nie ustaliłem, co zapisuję
 jako otwarte.
 
-**Ósma pozycja, której nie liczę jako pomyłki, ale która należy do tego samego rejestru: dwie
+**8. Cała tabela rozdziału 3 opisywała wydanie 9, a niosła liczby wydania 8 - i to jest
+najpoważniejsza pomyłka tej serii.** Wykryte przy pisaniu zlecenia dla CMS-a buildera, przez
+sprawdzenie jednej liczby, której nie dawało się pogodzić z drugą: nagłówek MODUŁU 17 mówił
+94,14%, a jego własne wiersze w tej samej tabeli - 16,03% i 29,05%. Sprawdzone plik po pliku:
+**wszystkie 141 wierszy tabeli funkcjonalności zgadzało się co do cyfry z
+`coverage-ed8/coverage-summary.json`** (procent, licznik funkcji ORAZ mianownik LOC), a nie
+z pomiarem tego wydania. Przyczyna jest prozaiczna: dane funkcjonalności powstały ze katalogu
+`coverage/`, gdy ten trzymał jeszcze wynik wydania 8, i nie zostały przeliczone po zakończeniu
+nowego przebiegu. Nagłówki modułów były przez cały czas poprawne (liczone z innego mapowania),
+więc dokument **sam sobie przeczył** w dwóch miejscach na tej samej stronie.
+
+Skala, po przeliczeniu wszystkich 141 wierszy z `coverage-ed9` (PIERWSZY przebieg tego wydania -
+ten, w którym zakotwiczone są nagłówki modułów, totale i skrypt weryfikacyjny): **46 wierszy
+niosło liczby inne niż dzisiejszy pomiar**, z czego **13 rozjechanych o ≥ 10 pp**, 15 o 1-10 pp
+i 18 poniżej 1 pp; pozostałe 95 wierszy było identycznych w obu wydaniach (te powierzchnie się
+nie ruszyły), więc były poprawne przez przypadek, nie przez pomiar. Największe rozjazdy dotyczyły dokładnie
+tych powierzchni, których naprawę to wydanie ogłasza jako sukces - czyli tabela **zaniżała
+własny wynik**:
+
+| funkcjonalność                          | tabela (ed8)       | prawda (ed9)           |   rozjazd |
+| --------------------------------------- | ------------------ | ---------------------- | --------: |
+| Analityka: zbieranie zdarzeń i liczniki | 16,03% · F 28/154  | **87,27% · F 131/166** | +71,24 pp |
+| Wykresy i panel BI                      | 29,05% · F 114/512 | **99,38% · F 592/601** | +70,33 pp |
+| Społeczność: odznaki, Q&A, ankiety      | 35,54% · F 73/235  | **99,70% · F 243/246** | +64,16 pp |
+| Powiadomienia + web-push                | 44,87% · F 80/249  | **97,57% · F 229/238** | +52,69 pp |
+| Czat: okno rozmowy i atomy UI           | 46,18% · F 212/521 | **98,32% · F 502/519** | +52,14 pp |
+| Observability / RUM / web vitals        | 54,03% · F 37/60   | **97,23% · F 74/76**   | +43,20 pp |
+| Realtime (kanały, presence)             | 64,97% · F 105/137 | **99,32% · F 135/137** | +34,35 pp |
+| Podcast                                 | 70,51% · F 16/32   | **98,44% · F 284/292** | +27,93 pp |
+| Analityka: warstwa semantyczna          | 71,55% · F 43/62   | **99,17% · F 60/60**   | +27,62 pp |
+| Routing / trasy publiczne (powłoka)     | 27,42% · F 17/106  | **51,07% · F 35/104**  | +23,65 pp |
+| Komentarze i moderacja                  | 84,10% · F 51/75   | **100,00% · F 75/75**  | +15,90 pp |
+| Publiczny portal wydarzenia             | 66,46% · F 256/423 | **78,92% · F 323/422** | +12,46 pp |
+| KLUBY: zgłoszenia członkowskie (apply)  | 89,62% · F 58/61   | **100,00% · F 61/61**  | +10,38 pp |
+
+Wszystkie 141 wierszy są dziś przeliczone skryptem z `coverage-ed9` i to jest **jedna wspólna
+podstawa** dla całego dokumentu: ten sam przebieg, w którym siedzą nagłówki modułów, totale
+i 115 asercji weryfikacyjnych. Powtórne uruchomienie skryptu w trybie warunkowym daje **zero
+podmian**, a wierszy niejednoznacznych jest **zero** - to jest dowód spójności, nie deklaracja.
+
+**Przy naprawie popełniłem po drodze dwa własne błędy i oba warto zapisać, bo oba są tej samej
+klasy co naprawiany.** Pierwszy: przeliczyłem tabelę z DRUGIEGO przebiegu (`coverage-ed9-final`),
+choć dokument jest zakotwiczony w pierwszym - i na czterech wierszach (design tokens, render
+bloków, Ikony/marka, SSR) oraz trzech nagłówkach modułów podstawiłem liczby z innego przebiegu
+niż reszta dokumentu. Wykrył to skrypt 115 asercji, który po tej zmianie zapalił się na trzech
+nagłówkach; cofnąłem i przeliczyłem wszystko z przebiegu 1. **Rozjazd między dwoma przebiegami
+tego samego wydania to 0,01-0,12 pp na trzech modułach** - czyli dokładnie tyle, ile zmierzona
+podłoga szumu, i dokładnie dość, by wykryć pomieszanie podstaw. Drugi błąd: przy sprawdzaniu
+nagłówków użyłem najpierw **własnego, wymyślonego mianownika** (moduł = suma plików jego
+funkcjonalności) i dostałem „22 z 22 nagłówków są błędne". Nagłówki liczą się z mapowania
+`plik → moduł` (§9.1), które jest szersze niż suma funkcjonalności; po podstawieniu właściwego
+mianownika wyszło **19 z 22 poprawnych**, a trzy pozostałe różniły się o setne. Gdybym nie
+sprawdził mianownika, „naprawiłbym" 22 poprawne nagłówki.
+
+**Wniosek metodologiczny, mocniejszy niż ta liczba:** ten audyt miał od wydania 9 skrypt
+weryfikujący każdą liczbę PROZY (115 asercji), i ten skrypt przeszedł na zielono, bo
+weryfikował zdania, nie tabele. **Liczba w tabeli nie była weryfikowana niczym.** Od tego
+wydania weryfikacja obejmuje wiersze tabel, a nie tylko akapity - i to jest jedyna zmiana
+procesu, która by ten błąd złapała przed publikacją.
+
+**Dziewiąta pozycja, której nie liczę jako pomyłki, ale która należy do tego samego rejestru: dwie
 liczby o commitach w oknie są OBIE poprawne.** „194 commity nie-merge" to zakres
 `8e771b983..d737e1329`, czyli to, co weszło między dwoma pomiarami. `git log --since=2026-08-31`
 daje **302** — bo 108 commitów ma datę autora po 2026-08-31, ale jest już przodkami `8e771b983`,

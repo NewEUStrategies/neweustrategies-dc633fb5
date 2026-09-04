@@ -504,5 +504,5 @@ literał ze słownika>"` nie zwraca nic.
 **Na koniec zdaj raport:** co zmierzyłeś przed i po (liczba za liczbą, tą samą metodą), które
 defekty zarejestrowałeś jako `it.fails` i dlaczego, czego świadomie nie zrobiłeś, oraz - osobno -
 **które liczby z tego zlecenia okazały się nieaktualne**. Ta ostatnia lista jest dla audytu
-najcenniejsza: wydanie 9 znalazło siedem własnych pomyłek i wszystkie przez sprawdzenie liczby,
+najcenniejsza: wydanie 9 znalazło osiem własnych pomyłek i wszystkie przez sprawdzenie liczby,
 nie przez jej przepisanie.
