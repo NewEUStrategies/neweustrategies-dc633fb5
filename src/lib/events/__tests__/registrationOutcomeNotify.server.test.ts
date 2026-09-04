@@ -6,8 +6,9 @@
 // jest konkretna: jedyny test, który ten moduł wymieniał
 // (`outcomeResend.test.ts`), PODMIENIAŁ go na atrapę - czyli dowodził swojego
 // wołającego, a nie jego. Tutaj moduł biegnie PRAWDZIWY, a atrapowane są
-// wyłącznie granice systemu: klient service_role, dostawca poczty, brama SMS
-// i odczyt preferencji językowych z profilu.
+// WYŁĄCZNIE granice systemu: klient service_role, dostawca poczty i brama SMS.
+// Odczyt profilu (`resolveRecipient`) celowo NIE jest atrapowany - to zwykłe
+// zapytanie do tabeli, które i tak przechodzi przez atrapę klienta.
 //
 // CO TU JEST STAWKĄ, po kolei:
 //
@@ -120,7 +121,21 @@ const mail = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail: mail.sendTxEmail }));
+// Atrapa oddaje TAKŻE dwa czyste formatery, choć ten moduł ich nie woła.
+// Powód jest praktyczny: prawdziwy `resolveRecipient` mieszka w
+// `billing/notifications.server`, a ten importuje z tej samej granicy
+// `formatDate` i `formatMoney`. Bez nich import runie, `resolveLang` zje wyjątek
+// swoim `catch` i KAŻDY odbiorca dostanie polski - czyli testy języka byłyby
+// zielone niezależnie od tego, czy moduł czyta preferencję.
+vi.mock("@/lib/email/transactional.server", () => ({
+  sendTxEmail: mail.sendTxEmail,
+  formatMoney: (amountCents: number, currency: string, lang: "pl" | "en"): string =>
+    new Intl.NumberFormat(lang === "en" ? "en-GB" : "pl-PL", {
+      style: "currency",
+      currency,
+    }).format(amountCents / 100),
+  formatDate: (iso: string): string => iso,
+}));
 
 /** Brama SMS. Produkcyjnie NIE rzuca - `breakGateway` sprawdza właśnie to założenie. */
 const sms = vi.hoisted(() => {
@@ -147,37 +162,11 @@ const sms = vi.hoisted(() => {
 
 vi.mock("@/lib/notify/sms.server", () => ({ sendSms: sms.sendSms }));
 
-/** Preferencja językowa z profilu. Brak wpisu = konto bez preferencji. */
-const people = vi.hoisted(() => {
-  const langByUser = new Map<string, "pl" | "en">();
-  let broken: Error | null = null;
-  const resolveRecipient = vi.fn(
-    async (
-      _client: unknown,
-      userId: string,
-    ): Promise<{ email: string; lang: "pl" | "en"; name: string | null } | null> => {
-      if (broken) throw broken;
-      const lang = langByUser.get(userId);
-      return lang ? { email: `${userId}@example.org`, lang, name: null } : null;
-    },
-  );
-  return {
-    resolveRecipient,
-    langByUser,
-    breakProfiles(error: Error): void {
-      broken = error;
-    },
-    reset(): void {
-      langByUser.clear();
-      broken = null;
-      resolveRecipient.mockClear();
-    },
-  };
-});
-
-vi.mock("@/lib/billing/notifications.server", () => ({
-  resolveRecipient: people.resolveRecipient,
-}));
+// UWAGA: `@/lib/billing/notifications.server` NIE jest atrapowany, choć da się.
+// `resolveRecipient` nie jest granicą systemu - to zwykły odczyt tabeli
+// `profiles` przez PODANY mu klient, czyli przez atrapę, która i tak tu stoi.
+// Podmiana na atrapę zabrałaby jedyny dowód na to, że moduł pyta o język
+// WŁAŚCIWEGO człowieka, i zamieniłaby prawdziwy błąd bazy na zmyślony rzut.
 
 import {
   notifyTicketOutcome,
@@ -239,6 +228,30 @@ interface ChannelRow {
 
 const channelRows = new Map<string, ChannelRow>();
 
+/** Wiersz `profiles` w kształcie, jaki czyta `resolveRecipient`. */
+interface ProfileRow {
+  email: string;
+  first_name: string | null;
+  display_name: string | null;
+  prefs: Record<string, unknown>;
+}
+
+const profileRows = new Map<string, ProfileRow>();
+
+/**
+ * Konto z zapisaną preferencją językową. Adres jest tu WARUNKIEM, nie ozdobą:
+ * `resolveRecipient` oddaje `null` dla profilu bez adresu, więc profil bez
+ * poczty nie przełączyłby języka niezależnie od `prefs`.
+ */
+function givenProfileLang(userId: string, lang: "pl" | "en"): void {
+  profileRows.set(userId, {
+    email: `${userId}@example.org`,
+    first_name: null,
+    display_name: null,
+    prefs: { language: lang },
+  });
+}
+
 let stub: SupabaseFromStub;
 let errorSpy: MockInstance<typeof console.error>;
 
@@ -252,6 +265,17 @@ function givenDb(): SupabaseFromStub {
     const id = typeof args?.[1] === "string" ? args[1] : "";
     return ok(channelRows.get(id) ?? null);
   });
+  // Profil odbiorcy czyta prawdziwy `resolveRecipient` - też po identyfikatorze,
+  // więc atrapa musi rozróżniać konta. Inaczej płacący i awansowany dostawaliby
+  // ten sam język i test dwóch języków w jednej kolejce nie miałby czego pokazać.
+  next.setResponse("profiles", (chain) => {
+    const args = chain.argsOf("eq");
+    const id = typeof args?.[1] === "string" ? args[1] : "";
+    return ok(profileRows.get(id) ?? null);
+  });
+  // Zapasowe źródło języka w `resolveRecipient` - puste, żeby o języku
+  // decydował wyłącznie profil.
+  next.setResponse("newsletter_subscribers", ok(null));
   next.setResponse("notifications", ok(null));
   db.use(next);
   return next;
@@ -265,8 +289,13 @@ function deliveredOfType(type: string): TxSendInput[] {
   return mail.delivered.filter((entry) => entry.type === type);
 }
 
-function detailValue(input: TxSendInput, label: string): string | undefined {
-  return (input.details ?? []).find((detail) => detail.label === label)?.value;
+function detailValue(input: TxSendInput | undefined, label: string): string | undefined {
+  return (input?.details ?? []).find((detail) => detail.label === label)?.value;
+}
+
+/** Etykiety wierszy szczegółów pierwszej wysłanej wiadomości - w kolejności. */
+function detailLabels(): string[] {
+  return (mail.attempts[0]?.details ?? []).map((detail) => detail.label);
 }
 
 function bellRow(): Record<string, unknown> | undefined {
@@ -279,7 +308,7 @@ beforeEach(() => {
   db.reset();
   mail.reset();
   sms.reset();
-  people.reset();
+  profileRows.clear();
   channelRows.clear();
   stub = givenDb();
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -407,10 +436,25 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
   });
 
   it("brak pola `applied` traktujemy jak brak zapisu", async () => {
+    // Starsza wersja funkcji bazowej mogła pola nie odesłać. Domyślne „wyślij"
+    // znaczyłoby tu mail o opłaceniu biletu, którego baza nie zaksięgowała.
     const result = await notifyTicketOutcome({ registration_id: REG, outcome: "paid" });
+
+    expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 0 });
+    expect(mail.attempts).toHaveLength(0);
+    expect(sms.sent).toHaveLength(0);
+    expect(stub.chainsFor("notifications")).toHaveLength(0);
+  });
+
+  it("ładunek bez pola `outcome` też nie wysyła płacącemu niczego", async () => {
+    // Wynik RPC bez pola `outcome` znaczy „baza nie powiedziała, co się stało".
+    // Zgadywanie tutaj kończyłoby się mailem „bilet opłacony" po nieudanej
+    // płatności.
+    const result = await notifyTicketOutcome(payload({ outcome: undefined }));
 
     expect(result.emailed).toBe(false);
     expect(mail.attempts).toHaveLength(0);
+    expect(sms.sent).toHaveLength(0);
   });
 
   it("`unpaid` nie ma szablonu: płacący milczy, ale awansowani dostają swoje", async () => {
@@ -450,23 +494,20 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
     expect(attemptsOfType("event_ticket_refunded")).toHaveLength(0);
   });
 
-  it.fails(
-    "DEFEKT: odrzucona płatność nie dociera do uczestnika żadnym kanałem",
-    async () => {
-      // `unpaid` powstaje w `markOneTimePaymentFailed`
-      // (`lib/billing/oneTimeFulfilment.server.ts`:169), gdy karta nie
-      // przeszła. Zgłoszenie zostaje w bazie jako nieopłacone, ale uczestnik
-      // nie dowiaduje się o tym NICZYM - a katalog szablonów ma gotowy
-      // `payment_failed`. Człowiek jedzie na wydarzenie w przekonaniu, że ma
-      // opłacone miejsce, i dowiaduje się przy rejestracji na miejscu.
-      // Osobno: ta sama luka zamienia panelowy przycisk „wyślij ponownie"
-      // w cichy brak reakcji, bo `resendTicketOutcome` odtwarza `unpaid`
-      // dla każdego zgłoszenia bez zapłaty (`outcomeResend.server.ts`:40).
-      const result = await notifyTicketOutcome(payload({ outcome: "unpaid" }));
+  it.fails("DEFEKT: odrzucona płatność nie dociera do uczestnika żadnym kanałem", async () => {
+    // `unpaid` powstaje w `markOneTimePaymentFailed`
+    // (`lib/billing/oneTimeFulfilment.server.ts`:169), gdy karta nie
+    // przeszła. Zgłoszenie zostaje w bazie jako nieopłacone, ale uczestnik
+    // nie dowiaduje się o tym NICZYM - a katalog szablonów ma gotowy
+    // `payment_failed`. Człowiek jedzie na wydarzenie w przekonaniu, że ma
+    // opłacone miejsce, i dowiaduje się przy rejestracji na miejscu.
+    // Osobno: ta sama luka zamienia panelowy przycisk „wyślij ponownie"
+    // w cichy brak reakcji, bo `resendTicketOutcome` odtwarza `unpaid`
+    // dla każdego zgłoszenia bez zapłaty (`outcomeResend.server.ts`:40).
+    const result = await notifyTicketOutcome(payload({ outcome: "unpaid" }));
 
-      expect(result.emailed).toBe(true);
-    },
-  );
+    expect(result.emailed).toBe(true);
+  });
 });
 
 // --- 3. preferencje kanałów: semantyka opt-out i asymetria -------------------
@@ -590,9 +631,12 @@ describe("treść SMS-a nie wychodzi z GSM-7", () => {
   for (const outcome of outcomes) {
     for (const lang of ["pl", "en"] as const) {
       it(`${outcome}/${lang}: bez ogonków i z tytułem wydarzenia w treści`, async () => {
-        if (lang === "en") people.langByUser.set(USER, "en");
+        if (lang === "en") givenProfileLang(USER, "en");
         await notifyTicketOutcome(payload({ outcome, refunded_cents: 12_000 }));
 
+        // Bez tego sprawdzenia „brak SMS-a" przechodziłby przez obie siatki
+        // znaków - pusty napis nie ma ogonków.
+        expect(sms.sent).toHaveLength(1);
         const body = sms.sent[0]?.body ?? "";
         expect(body).not.toMatch(OGONKI);
         expect(body).not.toMatch(POZA_ASCII);
@@ -604,7 +648,7 @@ describe("treść SMS-a nie wychodzi z GSM-7", () => {
   }
 
   it("SMS o awansie z rezerwy też jest bez ogonków, w obu językach", async () => {
-    people.langByUser.set(USER_PROMOTED, "en");
+    givenProfileLang(USER_PROMOTED, "en");
     const other = "11111111-7777-4777-8777-111111111111";
     await notifyTicketOutcome(
       payload({
@@ -657,24 +701,24 @@ describe("kwota w mailu", () => {
   it("grosze zamienia na jednostki i formatuje po polsku z waluty ładunku", async () => {
     await notifyTicketOutcome(payload({ amount_cents: 24_900, currency: "PLN" }));
 
-    const value = detailValue(mail.attempts[0] as TxSendInput, "Kwota") ?? "";
+    const value = detailValue(mail.attempts[0], "Kwota") ?? "";
     expect(value).toMatch(/249[.,]00/);
     // Gdyby zabrakło dzielenia przez 100, uczestnik zobaczyłby 24 900 zł.
-    expect(value).not.toMatch(/24[\s., ]?900/);
+    expect(value).not.toMatch(/24[\s.,]?900/);
     expect(value).toContain("zł");
   });
 
   it("brak waluty w ładunku spada na PLN, nie na pustą etykietę", async () => {
     await notifyTicketOutcome(payload({ currency: null }));
 
-    expect(detailValue(mail.attempts[0] as TxSendInput, "Kwota")).toContain("zł");
+    expect(detailValue(mail.attempts[0], "Kwota")).toContain("zł");
   });
 
   it("waluta małymi literami z operatora nadal daje poprawny symbol", async () => {
-    people.langByUser.set(USER, "en");
+    givenProfileLang(USER, "en");
     await notifyTicketOutcome(payload({ currency: "eur", amount_cents: 5_000 }));
 
-    const value = detailValue(mail.attempts[0] as TxSendInput, "Amount") ?? "";
+    const value = detailValue(mail.attempts[0], "Amount") ?? "";
     expect(value).toContain("€");
     expect(value).toMatch(/50[.,]00/);
   });
@@ -684,17 +728,17 @@ describe("kwota w mailu", () => {
     // byłby dla uczestnika gorszy niż brak wiersza.
     await notifyTicketOutcome(payload({ amount_cents: Number.NaN }));
 
-    const labels = (mail.attempts[0]?.details ?? []).map((detail) => detail.label);
+    const labels = detailLabels();
     expect(labels).toEqual(["Wydarzenie"]);
   });
 
   it("język przełącza locale kwoty, a nie tylko napisy", async () => {
-    people.langByUser.set(USER, "en");
+    givenProfileLang(USER, "en");
     await notifyTicketOutcome(payload({ amount_cents: 123_456, currency: "PLN" }));
 
     // en-GB stawia kropkę dziesiętną; pl-PL przecinek. To ta sama liczba
     // zapisana inaczej i tylko locale o tym decyduje.
-    expect(detailValue(mail.attempts[0] as TxSendInput, "Amount")).toMatch(/1[\s., ]?234\.56/);
+    expect(detailValue(mail.attempts[0], "Amount")).toMatch(/1[\s.,]?234\.56/);
   });
 });
 
@@ -702,11 +746,11 @@ describe("tytuł wydarzenia i wiersze szczegółów", () => {
   it("angielski odbiorca bez tytułu angielskiego dostaje tytuł polski", async () => {
     // Kaskada istnieje po to, żeby mail nie wyszedł z pustym tematem, gdy
     // organizator wypełnił tylko jedną wersję językową.
-    people.langByUser.set(USER, "en");
+    givenProfileLang(USER, "en");
     await notifyTicketOutcome(payload({ event_title_en: null }));
 
     expect(mail.attempts[0]?.subjectName).toBe(TITLE_PL);
-    expect(detailValue(mail.attempts[0] as TxSendInput, "Event")).toBe(TITLE_PL);
+    expect(detailValue(mail.attempts[0], "Event")).toBe(TITLE_PL);
   });
 
   it("polski odbiorca bez tytułu polskiego dostaje tytuł angielski", async () => {
@@ -719,7 +763,7 @@ describe("tytuł wydarzenia i wiersze szczegółów", () => {
     await notifyTicketOutcome(payload({ event_title_pl: null, event_title_en: null }));
 
     expect(mail.attempts[0]?.subjectName).toBe("");
-    expect((mail.attempts[0]?.details ?? []).map((detail) => detail.label)).toEqual(["Kwota"]);
+    expect(detailLabels()).toEqual(["Kwota"]);
   });
 
   it("opłacony bilet NIE pokazuje kwoty zwrotu, choćby była w ładunku", async () => {
@@ -727,31 +771,40 @@ describe("tytuł wydarzenia i wiersze szczegółów", () => {
     // dlatego jest zawężony do wyników innych niż `paid`.
     await notifyTicketOutcome(payload({ outcome: "paid", refunded_cents: 5_000 }));
 
-    const labels = (mail.attempts[0]?.details ?? []).map((detail) => detail.label);
+    const labels = detailLabels();
     expect(labels).toEqual(["Wydarzenie", "Kwota"]);
   });
 
   it("zwrot częściowy pokazuje trzy wiersze: co, ile zapłacono, ile wróciło", async () => {
+    // Waluta jest tu POMINIĘTA celowo: wiersz zwrotu musi spaść na ten sam
+    // fallback co wiersz kwoty, inaczej uczestnik zobaczyłby dwie kwoty
+    // w dwóch różnych walutach.
     await notifyTicketOutcome(
-      payload({ outcome: "partial_refund", amount_cents: 24_900, refunded_cents: 5_000 }),
+      payload({
+        outcome: "partial_refund",
+        amount_cents: 24_900,
+        refunded_cents: 5_000,
+        currency: undefined,
+      }),
     );
 
     const details = mail.attempts[0]?.details ?? [];
-    expect(details.map((detail) => detail.label)).toEqual([
-      "Wydarzenie",
-      "Kwota",
-      "Kwota zwrotu",
-    ]);
+    expect(details.map((detail) => detail.label)).toEqual(["Wydarzenie", "Kwota", "Kwota zwrotu"]);
+    expect(details[1]?.value).toContain("zł");
     expect(details[2]?.value).toMatch(/50[.,]00/);
+    expect(details[2]?.value).toContain("zł");
   });
 
   it("zwrot bez kwoty zwrotu pomija ten wiersz, a nie pokazuje zera", async () => {
+    // Dwa różne kształty tego samego braku: operator potrafi przysłać `null`,
+    // a RPC potrafi pola nie odesłać wcale. Oba muszą znaczyć „nie wiemy",
+    // a nie „zwrócono 0,00 zł".
     await notifyTicketOutcome(payload({ outcome: "refunded", refunded_cents: null }));
+    expect(detailLabels()).toEqual(["Wydarzenie", "Kwota"]);
 
-    expect((mail.attempts[0]?.details ?? []).map((detail) => detail.label)).toEqual([
-      "Wydarzenie",
-      "Kwota",
-    ]);
+    mail.reset();
+    await notifyTicketOutcome(payload({ outcome: "refunded", refunded_cents: undefined }));
+    expect(detailLabels()).toEqual(["Wydarzenie", "Kwota"]);
   });
 
   it("adres CTA prowadzi na stronę wydarzenia, a bez sluga na listę wydarzeń", async () => {
@@ -773,20 +826,26 @@ describe("język odbiorcy", () => {
     );
 
     expect(mail.attempts[0]?.lang).toBe("pl");
-    expect(people.resolveRecipient).not.toHaveBeenCalled();
+    // Gość nie ma konta, więc NIE MA czego czytać: każde zapytanie o `profiles`
+    // byłoby tu odczytem na service_role po pustym kluczu.
+    expect(stub.chainsFor("profiles")).toHaveLength(0);
   });
 
-  it("konto bez preferencji językowej też dostaje polski", async () => {
+  it("o język pyta profil TEGO uczestnika, nie pierwszy lepszy wiersz", async () => {
+    // Profil obcej osoby ma angielski. Gdyby zawężenie po `id` wypadło, mail
+    // wyszedłby w jej języku - a przy okazji byłby to odczyt cudzego profilu
+    // kluczem service_role.
+    givenProfileLang(USER_PROMOTED, "en");
     await notifyTicketOutcome(payload());
 
-    expect(people.resolveRecipient).toHaveBeenCalled();
+    expect(stub.lastChain("profiles")?.argsOf("eq")).toEqual(["id", USER]);
     expect(mail.attempts[0]?.lang).toBe("pl");
   });
 
   it("awaria odczytu profilu nie wywraca wysyłki - mail idzie po polsku", async () => {
     // `resolveRecipient` rzuca przy błędzie bazy (świadomie). Tutaj to nie może
     // znaczyć „nie wysyłamy": język jest wygodą, mail o pieniądzach - nie.
-    people.breakProfiles(new Error("profil niedostępny"));
+    stub.setResponse("profiles", fail("profil niedostępny"));
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(true);
@@ -794,15 +853,12 @@ describe("język odbiorcy", () => {
   });
 
   it("preferencja z profilu przełącza cały mail na angielski", async () => {
-    people.langByUser.set(USER, "en");
+    givenProfileLang(USER, "en");
     await notifyTicketOutcome(payload());
 
     expect(mail.attempts[0]?.lang).toBe("en");
     expect(mail.attempts[0]?.type).toBe("event_ticket_paid");
-    expect((mail.attempts[0]?.details ?? []).map((detail) => detail.label)).toEqual([
-      "Event",
-      "Amount",
-    ]);
+    expect(detailLabels()).toEqual(["Event", "Amount"]);
   });
 
   it("imię z ładunku idzie do maila obcięte z białych znaków", async () => {
@@ -886,7 +942,7 @@ describe("dzwonek w aplikacji", () => {
   it("dzwonek niesie oba tytuły niezależnie od języka maila", async () => {
     // Wpis w bazie jest jeden, a czyta go interfejs w języku sesji - dlatego
     // wiersz musi mieć obie wersje, choćby mail poszedł tylko po angielsku.
-    people.langByUser.set(USER, "en");
+    givenProfileLang(USER, "en");
     await notifyTicketOutcome(payload());
 
     expect(bellRow()).toMatchObject({ body_pl: TITLE_PL, body_en: TITLE_EN });
@@ -1025,7 +1081,7 @@ describe("kolejka rezerwowa", () => {
   });
 
   it("awansowany z angielskim profilem dostaje angielski mail i angielski SMS", async () => {
-    people.langByUser.set(USER_PROMOTED, "en");
+    givenProfileLang(USER_PROMOTED, "en");
     await notifyTicketOutcome(
       payload({
         outcome: "refunded",
@@ -1065,6 +1121,26 @@ describe("kolejka rezerwowa", () => {
     expect(sms.sent.map((entry) => entry.to)).toEqual(["+48500100201"]);
   });
 
+  it("ładunek bez najemcy nie blokuje maila o awansie, tylko oddaje najemcę jako null", async () => {
+    // `tenantId` idzie do bramy poczty po to, żeby lista wykluczeń była
+    // czytana we właściwym najemcy. Brak pola nie może wstrzymać wiadomości -
+    // brama rozwiąże najemcę z adresu - ale musi być JAWNYM `null`, a nie
+    // `undefined`, żeby ta ścieżka w bramie w ogóle się uruchomiła.
+    await notifyTicketOutcome(
+      payload({
+        outcome: "refunded",
+        refunded_cents: 24_900,
+        tenant_id: undefined,
+        contact: null,
+        waitlist: { promoted: 1, registrations: [promotedRow()] },
+      }),
+    );
+
+    expect(attemptsOfType("event_waitlist_promoted")[0]?.tenantId).toBeNull();
+    // Bez najemcy nie ma też wpisu dzwonka - to ten sam warunek co przy płacącym.
+    expect(stub.chainsFor("notifications")).toHaveLength(0);
+  });
+
   it("liczba awansów jest MIERZONA, a nie przepisana z ładunku", async () => {
     // `waitlist.promoted` mówi, ile miejsc zwolniła baza; wynik funkcji mówi,
     // ile osób realnie dostało wiadomość. Zrównanie tych dwóch liczb ukrywałoby
@@ -1085,7 +1161,13 @@ describe("kolejka rezerwowa", () => {
     const result = await notifyTicketOutcome(payload({ waitlist: null }));
 
     expect(result.promotedNotified).toBe(0);
+    // Jedyna wiadomość ma trafić do płacącego i mieć jego szablon. Sama liczba
+    // „1" tego nie mówi: mail o awansie zamiast maila o opłaceniu też dałby 1.
     expect(mail.attempts).toHaveLength(1);
+    expect(mail.attempts[0]).toMatchObject({
+      type: "event_ticket_paid",
+      to: "uczestnik@example.com",
+    });
   });
 
   it("bez sluga wydarzenia awansowany trafia na listę wydarzeń", async () => {

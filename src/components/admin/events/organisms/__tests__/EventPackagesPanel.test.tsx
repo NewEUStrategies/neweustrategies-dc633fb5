@@ -86,7 +86,7 @@ const h = vi.hoisted(() => ({
   zamowienia: [] as unknown[] | undefined,
   zamowieniaLadowanie: false,
   zamowieniaBlad: null as unknown,
-  bilety: [] as unknown[],
+  bilety: [] as unknown[] | undefined,
   biletyBlad: null as unknown,
   wydarzeniaHookow: [] as string[],
   zapytaniaZamowien: [] as { eventId: string; packageId: string | null }[],
@@ -311,6 +311,7 @@ vi.mock("@/components/admin/events/molecules/EventPackageOrderDialog", () => ({
 vi.mock("@/components/admin/events/molecules/EventPackageSeatsDialog", () => ({
   EventPackageSeatsDialog: ({
     open,
+    onOpenChange,
     eventId,
     orderId,
   }: {
@@ -325,13 +326,15 @@ vi.mock("@/components/admin/events/molecules/EventPackageSeatsDialog", () => ({
         aria-label="okno-miejsc"
         data-wydarzenie={eventId}
         data-zamowienie={orderId ?? "brak"}
-      />
+      >
+        <button type="button" data-testid="miejsca-zamknij" onClick={() => onOpenChange(false)} />
+      </div>
     ),
 }));
 
 vi.mock("@/lib/events/useEventPackages", () => ({
   useEventPackages: (eventId: string) => {
-    h.wydarzeniaHookow.push(eventId);
+    h.wydarzeniaHookow.push(`useEventPackages:${eventId}`);
     return { data: h.pakiety, isLoading: h.pakietyLadowanie, error: h.pakietyBlad };
   },
   usePackageOrders: (eventId: string, packageId: string | null) => {
@@ -339,7 +342,7 @@ vi.mock("@/lib/events/useEventPackages", () => ({
     return { data: h.zamowienia, isLoading: h.zamowieniaLadowanie, error: h.zamowieniaBlad };
   },
   useSaveEventPackage: (eventId: string) => {
-    h.wydarzeniaHookow.push(eventId);
+    h.wydarzeniaHookow.push(`useSaveEventPackage:${eventId}`);
     return {
       mutate: (input: EventPackageInput, wynik?: Wynik<string>) => {
         h.zapisy.push(input);
@@ -350,7 +353,7 @@ vi.mock("@/lib/events/useEventPackages", () => ({
     };
   },
   useDeleteEventPackage: (eventId: string) => {
-    h.wydarzeniaHookow.push(eventId);
+    h.wydarzeniaHookow.push(`useDeleteEventPackage:${eventId}`);
     return {
       mutate: (id: string, wynik?: Wynik<boolean>) => {
         h.kasowania.push(id);
@@ -361,7 +364,7 @@ vi.mock("@/lib/events/useEventPackages", () => ({
     };
   },
   useCreatePackageOrder: (eventId: string) => {
-    h.wydarzeniaHookow.push(eventId);
+    h.wydarzeniaHookow.push(`useCreatePackageOrder:${eventId}`);
     return {
       mutate: (input: PackageOrderInput, wynik?: Wynik<string>) => {
         h.noweZamowienia.push(input);
@@ -372,7 +375,7 @@ vi.mock("@/lib/events/useEventPackages", () => ({
     };
   },
   useSetPackageOrderStatus: (eventId: string) => {
-    h.wydarzeniaHookow.push(eventId);
+    h.wydarzeniaHookow.push(`useSetPackageOrderStatus:${eventId}`);
     return {
       mutate: (input: ZmianaStanu, wynik?: Wynik<boolean>) => {
         h.stany.push(input);
@@ -386,14 +389,13 @@ vi.mock("@/lib/events/useEventPackages", () => ({
 
 vi.mock("@/lib/events/useEventRegistrations", () => ({
   useEventTickets: (eventId: string) => {
-    h.wydarzeniaHookow.push(eventId);
+    h.wydarzeniaHookow.push(`useEventTickets:${eventId}`);
     return { data: h.bilety, isLoading: false, error: h.biletyBlad };
   },
 }));
 
-const { EventPackagesPanel } = await import(
-  "@/components/admin/events/organisms/EventPackagesPanel"
-);
+const { EventPackagesPanel } =
+  await import("@/components/admin/events/organisms/EventPackagesPanel");
 
 const T = "adminEventRegistration.packages";
 const WYDARZENIE = "11111111-1111-4111-8111-111111111111";
@@ -508,8 +510,7 @@ const wierszZamowienia = (index = 0): HTMLElement => {
 
 const przycisk = (nazwa: string): HTMLElement => screen.getByRole("button", { name: nazwa });
 
-const przelacznik = (index = 0): HTMLElement =>
-  within(wierszPakietu(index)).getByRole("switch");
+const przelacznik = (index = 0): HTMLElement => within(wierszPakietu(index)).getByRole("switch");
 
 const filtr = (): HTMLSelectElement =>
   screen.getByLabelText(`${T}.orders.filterLabel`, { selector: "select" }) as HTMLSelectElement;
@@ -810,9 +811,7 @@ describe("przelacznik „aktywny” wysyla CALY wiersz", () => {
     expect(Date.parse(String(ostatniZapis().salesFrom))).toBe(
       Date.parse("2026-09-10T08:30:00.000Z"),
     );
-    expect(Date.parse(String(ostatniZapis().salesTo))).toBe(
-      Date.parse("2026-09-30T20:00:00.000Z"),
-    );
+    expect(Date.parse(String(ostatniZapis().salesTo))).toBe(Date.parse("2026-09-30T20:00:00.000Z"));
   });
 
   it("przelacznik dotyka DOKLADNIE swojego wiersza", () => {
@@ -869,6 +868,16 @@ describe("formularz pakietu - styk z panelem", () => {
     expect(formularzPakietu()).toHaveAttribute("data-bilety", `${BILET},${INNY_PAKIET}`);
   });
 
+  it("zanim bilety dojada, formularz dostaje PUSTA liste, a nie brak wartosci", () => {
+    // Formularz przechodzi po tej liscie, zeby zlozyc droplista biletow -
+    // `undefined` wywrocilby okno zamiast pokazac pusta droplista.
+    h.bilety = undefined;
+    panel();
+    fireEvent.click(przycisk(`${T}.addAction`));
+
+    expect(formularzPakietu()).toHaveAttribute("data-bilety", "");
+  });
+
   it("zapis w toku dojezdza do formularza - to on gasi swoje przyciski", () => {
     h.zapisPending = true;
     panel();
@@ -894,7 +903,13 @@ describe("formularz pakietu - styk z panelem", () => {
     fireEvent.click(screen.getByTestId("pakiet-zapisz"));
 
     expect(h.toastError).toHaveBeenCalledWith("odmowa:duplicate_key: klucz zajety");
-    expect(formularzPakietu()).toBeTruthy();
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    // Formularz ma nie tylko ZOSTAC na ekranie, ale nadal dzialac: po
+    // poprawieniu klucza druga proba musi dojsc do warstwy danych, a nie
+    // odbic sie od okna, ktore panel po cichu zablokowal.
+    expect(formularzPakietu()).toHaveAttribute("data-pakiet", "nowy");
+    fireEvent.click(screen.getByTestId("pakiet-zapisz"));
+    expect(h.zapisy).toHaveLength(2);
   });
 
   it("zamkniecie formularza przez uzytkownika nie wysyla niczego", () => {
@@ -924,7 +939,7 @@ describe("usuniecie pakietu - tylko przez potwierdzenie", () => {
     panel();
     fireEvent.click(within(wierszPakietu()).getByRole("button", { name: `${T}.deleteAction` }));
 
-    expect(potwierdzenie()).toBeTruthy();
+    expect(within(potwierdzenie()).getByText(`${T}.deleteTitle`)).toBeTruthy();
     expect(within(potwierdzenie()).getByText(`${T}.deleteDescription`)).toBeTruthy();
     expect(h.kasowania).toHaveLength(0);
   });
@@ -1117,7 +1132,10 @@ describe("zamowienie zakladane z panelu", () => {
     fireEvent.click(screen.getByTestId("zamowienie-zapisz"));
 
     expect(h.toastError).toHaveBeenCalledWith("odmowa:package_inactive: pakiet nieaktywny");
-    expect(formularzZamowienia()).toBeTruthy();
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    // Okno musi zostac przy TYM pakiecie: dane platnika sa w srodku, wiec
+    // zamkniecie albo przestawienie pakietu kaze wpisywac je od nowa.
+    expect(formularzZamowienia()).toHaveAttribute("data-pakiet", PAKIET);
   });
 
   it("zapis w toku dojezdza do formularza zamowienia", () => {
@@ -1126,6 +1144,17 @@ describe("zamowienie zakladane z panelu", () => {
     fireEvent.click(within(wierszPakietu()).getByRole("button", { name: `${T}.orders.addAction` }));
 
     expect(formularzZamowienia()).toHaveAttribute("data-zapis", "true");
+  });
+
+  it("rezygnacja zamyka formularz zamowienia i NIE zaklada zamowienia", () => {
+    // Zamkniecie musi tez zwolnic pakiet, ktorego formularz dotyczyl - inaczej
+    // nastepne otwarcie zaczyna od poprzedniego platnika.
+    panel();
+    fireEvent.click(within(wierszPakietu()).getByRole("button", { name: `${T}.orders.addAction` }));
+    fireEvent.click(screen.getByTestId("zamowienie-zamknij"));
+
+    expect(screen.queryByRole("dialog", { name: "formularz-zamowienia" })).toBeNull();
+    expect(h.noweZamowienia).toHaveLength(0);
   });
 });
 
@@ -1148,6 +1177,19 @@ describe("okno miejsc", () => {
 
     expect(screen.queryByRole("dialog", { name: "okno-miejsc" })).toBeNull();
   });
+
+  it("zamkniecie okna ODPINA je od zamowienia - inaczej pyta o miejsca w tle", () => {
+    // Okno miejsc ma wlasne zapytanie zawezone identyfikatorem zamowienia;
+    // zostawienie identyfikatora po zamknieciu trzymaloby to zapytanie przy
+    // zyciu i odswiezalo dane, ktorych nikt juz nie oglada.
+    panel();
+    fireEvent.click(
+      within(wierszZamowienia()).getByRole("button", { name: `${T}.orders.manageSeats` }),
+    );
+    fireEvent.click(screen.getByTestId("miejsca-zamknij"));
+
+    expect(screen.queryByRole("dialog", { name: "okno-miejsc" })).toBeNull();
+  });
 });
 
 describe("zawezenie wydarzeniem", () => {
@@ -1157,8 +1199,21 @@ describe("zawezenie wydarzeniem", () => {
     // wylacznie WYDARZENIE - i wtedy ekran pokazuje cudza sprzedaz.
     panel();
 
-    expect(h.wydarzeniaHookow.length).toBeGreaterThan(0);
-    expect([...new Set(h.wydarzeniaHookow)]).toEqual([WYDARZENIE]);
+    // Wyliczamy hooki Z NAZWY, a nie samo „ktos dostal jakies wydarzenie":
+    // hook, ktory po refaktorze przestanie pytac o wydarzenie panelu, ma tu
+    // upasc razem z hookiem, ktory zniknie z ekranu.
+    expect([...new Set(h.wydarzeniaHookow)].sort()).toEqual(
+      [
+        "useCreatePackageOrder",
+        "useDeleteEventPackage",
+        "useEventPackages",
+        "useEventTickets",
+        "useSaveEventPackage",
+        "useSetPackageOrderStatus",
+      ]
+        .map((hook) => `${hook}:${WYDARZENIE}`)
+        .sort(),
+    );
     expect([...new Set(h.zapytaniaZamowien.map((query) => query.eventId))]).toEqual([WYDARZENIE]);
   });
 
@@ -1203,11 +1258,14 @@ describe("dostepnosc", () => {
   it("trzy ikony w wierszu pakietu maja nazwy - inaczej czytnik oglasza trzy bezimienne przyciski", () => {
     panel();
 
-    expect(within(wierszPakietu()).getByRole("button", { name: `${T}.editAction` })).toBeTruthy();
-    expect(
-      within(wierszPakietu()).getByRole("button", { name: `${T}.orders.addAction` }),
-    ).toBeTruthy();
-    expect(within(wierszPakietu()).getByRole("button", { name: `${T}.deleteAction` })).toBeTruthy();
+    // Bierzemy WSZYSTKIE przyciski wiersza, a nie trzy znane z nazwy: dopisanie
+    // czwartej ikony bez etykiety ma ten test przewrocic, bo dla czytnika
+    // ekranu te ikony roznia sie wylacznie nazwa, a jedna z nich kasuje pakiet.
+    const nazwy = within(wierszPakietu())
+      .getAllByRole("button")
+      .map((guzik) => guzik.getAttribute("aria-label"));
+
+    expect(nazwy).toEqual([`${T}.editAction`, `${T}.orders.addAction`, `${T}.deleteAction`]);
   });
 
   // ---------------------------------------------------------------------------
@@ -1224,7 +1282,15 @@ describe("dostepnosc", () => {
       h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET, name_pl: "Delegacja 5 miejsc" })];
       panel();
 
-      expect(screen.getAllByLabelText(`${T}.editor.active`)).toHaveLength(1);
+      const nazwy = wierszePakietow().map((wiersz) =>
+        within(wiersz).getByRole("switch").getAttribute("aria-label"),
+      );
+
+      // Asercja opisuje stan PO naprawie, nie sam fakt duplikatu: nazwa
+      // przelacznika ma niesc pakiet, ktorego dotyczy. Dzis obie sa golym
+      // kluczem `editor.active`, wiec obie linie padaja.
+      expect(nazwy[0]).toContain("Delegacja 10 miejsc");
+      expect(nazwy[1]).toContain("Delegacja 5 miejsc");
     },
   );
 
@@ -1241,7 +1307,14 @@ describe("dostepnosc", () => {
       h.zamowienia = [zamowienie(), zamowienie({ id: INNE_ZAMOWIENIE, buyer_name: "Fundacja X" })];
       panel();
 
-      expect(screen.getAllByLabelText(`${T}.orders.status`)).toHaveLength(1);
+      const nazwy = wierszeZamowien().map((wiersz) =>
+        within(wiersz).getByRole("combobox").getAttribute("aria-label"),
+      );
+
+      // Nazwa pola ma niesc platnika (albo pakiet), zeby „oplacone" nie dalo
+      // sie wpisac w cudze zamowienie. Dzis oba pola nazywaja sie tak samo.
+      expect(nazwy[0]).toContain("Instytut Przykladowy");
+      expect(nazwy[1]).toContain("Fundacja X");
     },
   );
 });
@@ -1269,37 +1342,48 @@ describe("defekty zarejestrowane", () => {
   // „wybierz bilet" nad pusta droplista i nie ma sladu, ze to zapytanie
   // padlo. Odmowa powinna dojsc zdaniem, tak jak przy pakietach i zamowieniach.
   // ---------------------------------------------------------------------------
-  it.fails("DEFEKT: awaria listy biletow nigdzie nie widnieje - formularz dostaje pusta liste", () => {
-    h.bilety = [];
-    h.biletyBlad = new Error("forbidden: brak dostepu do biletow");
-    panel();
+  it.fails(
+    "DEFEKT: awaria listy biletow nigdzie nie widnieje - formularz dostaje pusta liste",
+    () => {
+      h.bilety = [];
+      h.biletyBlad = new Error("forbidden: brak dostepu do biletow");
+      panel();
 
-    expect(screen.getByText("odmowa:forbidden: brak dostepu do biletow")).toBeTruthy();
-  });
+      expect(screen.getByText("odmowa:forbidden: brak dostepu do biletow")).toBeTruthy();
+    },
+  );
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: filtr zamowien przezywa zniknieciе pakietu, po ktorym filtruje.
-  // Scenariusz jest osiagalny z TEGO ekranu: filtruje po pakiecie B, kasuje
-  // pakiet B (baza pozwala, bo B nie ma zamowien), lista pakietow wraca bez B -
-  // a `filterPackageId` nadal trzyma jego identyfikator. Skutek: zapytanie pyta
-  // o zamowienia pakietu, ktorego nie ma, sekcja mowi „brak zamowien dla
-  // wybranego pakietu", a kontrolka filtra nie pokazuje NICZEGO, bo jej wartosc
-  // nie ma odpowiednika na liscie opcji. Filtr powinien wracac na „wszystkie
-  // pakiety", gdy jego pakiet znika z listy.
+  // DEFEKT: filtr zamowien przezywa skasowanie pakietu, po ktorym filtruje, i od
+  // tej chwili KLAMIE. Scenariusz jest osiagalny z TEGO ekranu: organizator
+  // zawezil zamowienia do pakietu B, skasowal pakiet B (baza pozwala, bo B nie
+  // ma zamowien), lista pakietow wrocila bez B - a `filterPackageId` nadal
+  // trzyma jego identyfikator. Zapytanie pyta wiec o zamowienia pakietu, ktorego
+  // nie ma (sekcja mowi „brak zamowien dla wybranego pakietu", czyli „nikt nic
+  // nie kupil" na calym wydarzeniu), a kontrolka filtra pokazuje juz cos INNEGO
+  // niz zawezenie zapytania, bo jej wartosc nie ma odpowiednika w opcjach.
+  // Filtr powinien wracac na „wszystkie pakiety", gdy jego pakiet znika z listy.
   // ---------------------------------------------------------------------------
-  it.fails("DEFEKT: filtr po skasowanym pakiecie zostaje w mocy - lista zamowien mowi „pusto”", () => {
-    h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET })];
-    const { rerender } = panel();
+  it.fails(
+    "DEFEKT: filtr po skasowanym pakiecie zostaje w mocy - zamowienia calego wydarzenia znikaja",
+    () => {
+      h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET })];
+      const { rerender } = panel();
 
-    fireEvent.change(filtr(), { target: { value: INNY_PAKIET } });
-    fireEvent.click(within(wierszPakietu(1)).getByRole("button", { name: `${T}.deleteAction` }));
-    fireEvent.click(within(potwierdzenie()).getByRole("button", { name: `${T}.deleteConfirm` }));
+      fireEvent.change(filtr(), { target: { value: INNY_PAKIET } });
+      fireEvent.click(within(wierszPakietu(1)).getByRole("button", { name: `${T}.deleteAction` }));
+      fireEvent.click(within(potwierdzenie()).getByRole("button", { name: `${T}.deleteConfirm` }));
 
-    // Odswiezenie listy po skasowaniu: pakietu INNY_PAKIET juz nie ma.
-    h.pakiety = [pakiet()];
-    rerender(<EventPackagesPanel eventId={WYDARZENIE} />);
+      // Odswiezenie listy po skasowaniu: pakietu INNY_PAKIET juz nie ma.
+      h.pakiety = [pakiet()];
+      rerender(<EventPackagesPanel eventId={WYDARZENIE} />);
 
-    expect(wartosciOpcji(filtr())).toContain(filtr().value);
-    expect(ostatnieZapytanieZamowien().packageId).toBeNull();
-  });
+      // Dwie strony tej samej prawdy, obie dzis nieprawdziwe: zapytanie ma
+      // znowu objac cale wydarzenie, a kontrolka ma to pokazywac wpisem
+      // „wszystkie pakiety". Wartosc filtra NIE moze byc liczona z zapytania -
+      // wtedy asercja sprawdzalaby sama siebie.
+      expect(ostatnieZapytanieZamowien().packageId).toBeNull();
+      expect(filtr().value).toBe("all");
+    },
+  );
 });
