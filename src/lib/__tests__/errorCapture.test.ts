@@ -54,7 +54,7 @@ async function importFreshCapture() {
  * Zdarzenie `unhandledrejection` bez `PromiseRejectionEvent`: happy-dom NIE
  * implementuje tego konstruktora (zmierzone - `typeof
  * globalThis.PromiseRejectionEvent === "undefined"`), a kod produkcyjny czyta
- * z zdarzenia wyłącznie pole `reason`. Doklejamy je więc do gołego `Event`
+ * ze zdarzenia wyłącznie pole `reason`. Doklejamy je więc do gołego `Event`
  * przez `defineProperty` - bez `as any`, którego to repozytorium nie dopuszcza.
  */
 function rejectionEvent(reason: unknown): Event {

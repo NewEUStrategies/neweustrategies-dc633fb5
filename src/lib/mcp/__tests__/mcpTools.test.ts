@@ -368,6 +368,25 @@ describe("get_post - ciało treści WYŁĄCZNIE przez bramkowane RPC", () => {
     });
   });
 
+  // Ten sam wpis płatny pytany po ANGIELSKU. Nie jest to powtórzenie
+  // przypadku wyżej: gałąź językowa ma WŁASNY łańcuch awaryjny
+  // (`content_en ?? content_pl ?? null`, :48), więc bramka treści płatnej musi
+  // domknąć się w OBU językach. Gdyby zamykała się tylko po polsku, wersja
+  // angielska wypuszczałaby treść zza bramki.
+  it("wpis płatny pytany po angielsku: ciało też null", async () => {
+    h.db!.setResponse("posts", ok(postRow()));
+    h.rpcResult = { data: [{ content_pl: null, content_en: null }], error: null };
+
+    const result = await getPost.handler({ slug: "traktat-o-cle", lang: "en" }, anon);
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.post).toMatchObject({
+      slug: "traktat-o-cle",
+      title: "Treaty on tariffs",
+      body: null,
+    });
+  });
+
   it("RPC bez wierszy: ciało null, odpowiedź nadal poprawna", async () => {
     h.db!.setResponse("posts", ok(postRow()));
     h.rpcResult = { data: [], error: null };

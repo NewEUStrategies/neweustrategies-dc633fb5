@@ -6,7 +6,7 @@
 // wykonały się ani raz: `handleRetry`, `handleGoHome`, domknięcie przycisku
 // „Wróć” i domknięcie `primaryAction`. Innymi słowy: platforma sprawdzała, że
 // karta błędu się RYSUJE, i nie sprawdzała, że którykolwiek z jej przycisków
-// COKOLWIEK robi. A to jedyne wyjście z „ślepego zaułka”, w którym stoi
+// COKOLWIEK robi. A to jedyne wyjście ze „ślepego zaułka”, w którym stoi
 // czytelnik - jeśli „Spróbuj ponownie” przestanie unieważniać loader, ekran
 // błędu zamienia się w pułapkę i żaden test tego nie zauważy.
 //
@@ -31,10 +31,12 @@
 //   * `@/lib/platform-error-reporting` - prawdziwy `reportPlatformError`
 //     wysyła beacon do sieci (`lib/observability/report.ts`), a żaden test
 //     w tym repozytorium do sieci nie wychodzi. Atrapa zamienia przy tym
-//     „nic nie wybuchło” na policzalny kontrakt.
-// PRAWDZIWE zostają: `errorCopy`/`classifyError` (czyli mapowanie błąd ->
-// scenariusz, sedno komponentu) i `lib/i18n/localeRuntime` (język ustawiany
-// przez `setClientLang`, tak jak robi to przełącznik języka w aplikacji).
+//     „nic nie wybuchło” na policzalny kontrakt;
+//   * `@/lib/i18n/localeRuntime` - CZĄSTKOWO, sam `currentLang`, bo w środowisku
+//     testowym prawdziwy nie da się przestawić na angielski (uzasadnienie
+//     z pomiarem stoi przy samej atrapie niżej).
+// PRAWDZIWE zostają `errorCopy` i `classifyError`, czyli mapowanie
+// błąd -> scenariusz i język -> słownik - sedno tego komponentu.
 //
 // Zero sieci, zero poczty, zero sekretów.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +58,7 @@ const h = vi.hoisted(() => ({
 // a w środowisku testowym rozstrzyga się on na gałąź SERWEROWĄ: `getRequest()`
 // rzuca poza zasięgiem żądania h3, `catch` zwraca `DEFAULT_LANG`. ZMIERZONE:
 // po `setClientLang("en")` `currentLang()` nadal zwraca "pl", więc asercja
-// „wersja angielska" postawiona na prawdziwym module byłaby PUSTA - mierzyłaby
+// „wersja angielska” postawiona na prawdziwym module byłaby PUSTA - mierzyłaby
 // polski render pod nazwą angielskiego (to ta sama pułapka, którą opisuje
 // `src/test/i18nReal.ts`). Atrapa idzie więc wzorcem z `src/__tests__/router.test.tsx`
 // i jest CZĄSTKOWA: podmienia wyłącznie `currentLang`, z którego korzystają
