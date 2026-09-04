@@ -145,7 +145,6 @@ vi.mock("@/components/admin/events/molecules/RegistrationFieldDialog", () => ({
     eventId,
     field,
     nextSortOrder,
-    isSaving,
     onSubmit,
   }: {
     open: boolean;
