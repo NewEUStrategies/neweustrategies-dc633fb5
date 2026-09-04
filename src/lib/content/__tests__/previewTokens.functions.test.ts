@@ -20,6 +20,7 @@ import { setServerFnContext, resetServerFnContext, serverFnMeta } from "@/test/s
 const h = vi.hoisted(() => ({
   rateLimit: vi.fn(),
   currentTenantHost: vi.fn(),
+  resolveCrawlerTenantForHost: vi.fn(),
   resolveTenantIdForHost: vi.fn(),
 }));
 
@@ -32,6 +33,9 @@ vi.mock("@/integrations/supabase/require-staff", () => ({
 vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: h.rateLimit }));
 vi.mock("@/lib/http/requestHost", () => ({ currentTenantHost: h.currentTenantHost }));
 vi.mock("@/lib/server/tenant.server", () => ({
+  resolveCrawlerTenantForHost: h.resolveCrawlerTenantForHost,
+  // Wystawiony WYŁĄCZNIE po to, żeby dowieść, że NIE jest wołany - patrz
+  // przypadek „płaszczyzna treści jest tu fail-OPEN" niżej.
   resolveTenantIdForHost: h.resolveTenantIdForHost,
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -50,6 +54,14 @@ const db = supabaseFromStub();
 
 const TENANT_A = "11111111-1111-4111-8111-111111111111";
 const TENANT_B = "22222222-2222-4222-8222-222222222222";
+
+/** Wpis katalogu najemców w kształcie, w jakim oddaje go rezolwer. */
+const entry = (id: string, domain: string, isDefault = false) => ({
+  id,
+  slug: domain.split(".")[0],
+  domain,
+  isDefault,
+});
 const POST_A = "33333333-3333-4333-8333-333333333333";
 const TOKEN_A = "tokenNajemcyA-0123456789abcdef";
 const TOKEN_ROW_ID = "44444444-4444-4444-8444-444444444444";
@@ -107,6 +119,7 @@ beforeEach(() => {
   db.reset();
   h.rateLimit.mockReset().mockResolvedValue(true);
   h.currentTenantHost.mockReset().mockResolvedValue("a.example.com");
+  h.resolveCrawlerTenantForHost.mockReset().mockResolvedValue(entry(TENANT_A, "a.example.com"));
   h.resolveTenantIdForHost.mockReset().mockResolvedValue(TENANT_A);
   setServerFnContext({ supabase: { from: (t: string) => db.from(t) }, userId: "user-1" });
 });
@@ -120,7 +133,7 @@ describe("fetchPreviewPost - szkic NIE przechodzi między najemcami", () => {
   it("token najemcy A na hoście najemcy B NIE zwraca treści (null, nie rzut)", async () => {
     seedTenantScopedDb();
     h.currentTenantHost.mockResolvedValue("b.example.com");
-    h.resolveTenantIdForHost.mockResolvedValue(TENANT_B);
+    h.resolveCrawlerTenantForHost.mockResolvedValue(entry(TENANT_B, "b.example.com"));
 
     const result = await fetchPreviewPost({ data: { token: TOKEN_A } });
 
@@ -134,7 +147,7 @@ describe("fetchPreviewPost - szkic NIE przechodzi między najemcami", () => {
 
   it('nierozpoznany najemca to ODMOWA, nie „najemca domyślny" (fail-closed)', async () => {
     seedTenantScopedDb();
-    h.resolveTenantIdForHost.mockResolvedValue(null);
+    h.resolveCrawlerTenantForHost.mockResolvedValue(null);
 
     const result = await fetchPreviewPost({ data: { token: TOKEN_A } });
 
@@ -146,10 +159,10 @@ describe("fetchPreviewPost - szkic NIE przechodzi między najemcami", () => {
   it("brak hosta w kontekście żądania też kończy się odmową", async () => {
     seedTenantScopedDb();
     h.currentTenantHost.mockResolvedValue(null);
-    h.resolveTenantIdForHost.mockResolvedValue(null);
+    h.resolveCrawlerTenantForHost.mockResolvedValue(null);
 
     expect(await fetchPreviewPost({ data: { token: TOKEN_A } })).toBeNull();
-    expect(h.resolveTenantIdForHost).toHaveBeenCalledWith(null);
+    expect(h.resolveCrawlerTenantForHost).toHaveBeenCalledWith(null);
   });
 
   it("na własnej domenie najemcy token oddaje pełną treść szkicu", async () => {
@@ -175,6 +188,47 @@ describe("fetchPreviewPost - szkic NIE przechodzi między najemcami", () => {
     expect(eqValue(admin.lastChain("posts") as RecordedChain, "tenant_id")).toBe(TENANT_A);
     // Wpis w koszu nadal jest odfiltrowany.
     expect(admin.lastChain("posts")?.has("is")).toBe(true);
+  });
+
+  it("host NIEPRZYPISANY nie dostaje najemcy domyślnego - rezolwer jest fail-CLOSED", async () => {
+    // REGRESJA ZGŁOSZONA W REVIEW PR #329 (Codex, P1).
+    // Pierwsze podejście do tej poprawki wołało `resolveTenantIdForHost`, czyli
+    // płaszczyznę TREŚCI. Ta jest z założenia fail-OPEN: `resolveTenantForHost`
+    // (`tenant.server.ts:224-228`) kończy się na `?? directory.defaultTenant`,
+    // więc dla domeny spoza katalogu ZWRACAŁA najemcę domyślnego zamiast `null`.
+    // Warunek `.eq("tenant_id", ...)` był wtedy spełniony przez szkice najemcy
+    // domyślnego, a strażnik `if (!tenant)` nie odpalał się nigdy - podgląd
+    // wydawał SZKIC na każdej nieprzypisanej domenie kierowanej na to wdrożenie.
+    seedTenantScopedDb();
+    // Tak zachowuje się `resolveCrawlerTenantForHost` dla obcego hosta.
+    h.currentTenantHost.mockResolvedValue("nieprzypisana.example.com");
+    h.resolveCrawlerTenantForHost.mockResolvedValue(null);
+
+    expect(await fetchPreviewPost({ data: { token: TOKEN_A } })).toBeNull();
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("płaszczyzna TREŚCI (fail-OPEN) NIE jest tu używana ani razu", async () => {
+    seedTenantScopedDb();
+    await fetchPreviewPost({ data: { token: TOKEN_A } });
+
+    expect(h.resolveCrawlerTenantForHost).toHaveBeenCalledWith("a.example.com");
+    // Gdyby ktoś wrócił do rezolwera płaszczyzny treści „dla zgodności
+    // z feedback.functions.ts", ten przypadek pada - i o to chodzi.
+    expect(h.resolveTenantIdForHost).not.toHaveBeenCalled();
+  });
+
+  it("host PODGLĄDOWY platformy nadal działa - fail-closed nie zabija podglądu", async () => {
+    // `resolveCrawlerTenantForHost` dopuszcza najemcę domyślnego dokładnie
+    // w dwóch nieszkodliwych przypadkach: host podglądowy platformy oraz
+    // katalog bez ani jednej zajętej domeny. Bez tego poprawka bezpieczeństwa
+    // wyłączyłaby podgląd szkiców na środowisku deweloperskim.
+    seedTenantScopedDb();
+    h.currentTenantHost.mockResolvedValue("localhost");
+    h.resolveCrawlerTenantForHost.mockResolvedValue(entry(TENANT_A, "a.example.com", true));
+
+    const result = await fetchPreviewPost({ data: { token: TOKEN_A } });
+    expect(result?.title_pl).toBe("Szkic najemcy A");
   });
 
   it("token nieznany albo wygasły daje null", async () => {
