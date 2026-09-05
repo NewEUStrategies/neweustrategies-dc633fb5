@@ -565,7 +565,7 @@ describe("defekty zarejestrowane", () => {
   // tylko dla wpisu nowego - `eventTypeDraftWithNamePl(draft, value, keyTouched
   // || draft.id !== null)` albo zwykle `{ ...draft, namePl: value }` przy
   // `draft.id !== null`.
-  it.fails("defekt: zmiana nazwy polskiej w trybie EDYCJI podmienia zamrozony klucz", () => {
+  it("defekt: zmiana nazwy polskiej w trybie EDYCJI podmienia zamrozony klucz", () => {
     otworz(istniejacyRodzaj({ key: "sniadanie_prasowe", namePl: "Sniadanie prasowe" }));
 
     wpisz("event-type-name-pl", "Sniadanie prasowe (poranne)");
@@ -588,7 +588,7 @@ describe("defekty zarejestrowane", () => {
   // NAPRAWA (nie robimy jej tutaj): stopka ma wolac te sama sciezke, co
   // zamkniecie uzytkownika (`setKeyTouched(false); onClose();`), albo
   // `keyTouched` ma sie zerowac przy KAZDYM otwarciu (efekt na `draft?.id`).
-  it.fails("defekt: „Anuluj” zostawia klucz zamrozony na nastepne otwarcie dialogu", () => {
+  it("defekt: „Anuluj” zostawia klucz zamrozony na nastepne otwarcie dialogu", () => {
     otworz(nowyRodzaj());
 
     wpisz("event-type-key", "recznie_wpisany");

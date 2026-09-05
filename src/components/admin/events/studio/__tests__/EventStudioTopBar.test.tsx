@@ -202,7 +202,7 @@ describe("EventStudioTopBar - chip stanu", () => {
     expect(screen.queryByText(OPUBLIKOWANE)).toBeNull();
   });
 
-  it.fails("defekt: chip stanu przyjmuje zmiane w TRAKCIE trwajacego zapisu statusu", () => {
+  it("defekt: chip stanu przyjmuje zmiane w TRAKCIE trwajacego zapisu statusu", () => {
     // CO JEST ZLE: przycisk publikacji jest bramkowany `isBusy`, a chip stanu
     // NIE - w trakcie zapisu da sie stad wyslac drugie zadanie zmiany stanu
     // tego samego wiersza (`EventStudioShell.changeStatus` wola mutacje przy

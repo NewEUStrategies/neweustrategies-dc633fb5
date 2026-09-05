@@ -971,24 +971,21 @@ describe("defekty zarejestrowane", () => {
   // `documentQ.isPending || documentQ.isError`, a przy bledzie kanwa powinna
   // dostac osobny stan „nie udalo sie wczytac tresci" - inaczej trzeci raz
   // powtarza sie ta sama pomylka co przy pustej liscie podstron.
-  it.fails(
-    "defekt: odmowa odczytu tresci pokazuje strone jako PUSTA, zamiast zostawic kanwe na stronie glownej",
-    async () => {
-      h.rows = [strona({ page_slug: "prasa" })];
-      h.dokumentOdmawia = true;
-      await panel();
+  it("defekt: odmowa odczytu tresci pokazuje strone jako PUSTA, zamiast zostawic kanwe na stronie glownej", async () => {
+    h.rows = [strona({ page_slug: "prasa" })];
+    h.dokumentOdmawia = true;
+    await panel();
 
-      fireEvent.click(within(wiersz("prasa")).getByText("prasa"));
+    fireEvent.click(within(wiersz("prasa")).getByText("prasa"));
 
-      // Czekamy na ZAKONCZENIE odczytu, a nie na skutek defektu: dopoki odczyt
-      // trwa, kanwa i tak stoi na stronie glownej i asercja nizej przechodzila
-      // by z zupelnie innego powodu.
-      await waitFor(() =>
-        expect(klient?.getQueryState(eventPagesKeys.document("page-prasa"))?.status).toBe("error"),
-      );
-      // Kanwa ma zostac na stronie glownej: „nie udalo sie wczytac" nie jest
-      // tym samym, co „ta strona jest pusta".
-      expect(ostatniPodglad().selectedPage).toBeNull();
-    },
-  );
+    // Czekamy na ZAKONCZENIE odczytu, a nie na skutek defektu: dopoki odczyt
+    // trwa, kanwa i tak stoi na stronie glownej i asercja nizej przechodzila
+    // by z zupelnie innego powodu.
+    await waitFor(() =>
+      expect(klient?.getQueryState(eventPagesKeys.document("page-prasa"))?.status).toBe("error"),
+    );
+    // Kanwa ma zostac na stronie glownej: „nie udalo sie wczytac" nie jest
+    // tym samym, co „ta strona jest pusta".
+    expect(ostatniPodglad().selectedPage).toBeNull();
+  });
 });

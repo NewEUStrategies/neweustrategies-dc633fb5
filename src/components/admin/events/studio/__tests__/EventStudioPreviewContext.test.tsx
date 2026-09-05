@@ -236,7 +236,7 @@ describe("EventStudioPreviewContext - porownanie po wartosci", () => {
     expect(new Set(obiegi.slice(1))).toEqual(new Set(["Roboczy tytul"]));
   });
 
-  it.fails("defekt: szkic ekranu ZOSTAJE w podgladzie po opuszczeniu tego ekranu", () => {
+  it("defekt: szkic ekranu ZOSTAJE w podgladzie po opuszczeniu tego ekranu", () => {
     // CO JEST ZLE: `useSyncEventPreview` nie ma sprzatania - przy odmontowaniu
     // ekranu jego szkic zostaje w nakladce dostawcy na zawsze, bo nakladke
     // czysci wylacznie kolejny `patch` w TE SAME pola.
