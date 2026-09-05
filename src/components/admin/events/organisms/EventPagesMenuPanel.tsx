@@ -158,8 +158,15 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
   useSyncEventPreview({
     // Dopoki tresc sie wczytuje, podglad zostaje na stronie glownej - kanwa
     // przelaczona na strone bez dokumentu klamalaby, ze strona jest pusta.
+    //
+    // ODMOWA ODCZYTU LICZY SIE TAK SAMO, jak trwajacy odczyt. Zapytanie
+    // zakonczone bledem (RLS na `pages`, zerwana siec, strona skasowana w innej
+    // karcie) NIE jest juz `pending`, a `documentQ.data` jest wtedy puste - bez
+    // tego warunku kanwa mowilaby „ta strona nie ma jeszcze tresci" o stronie,
+    // ktorej tresci nie udalo sie WCZYTAC. Redaktor odpowiada na to, dopisujac
+    // tresc do strony, ktora tresc juz ma.
     selectedPage:
-      previewRow === null || documentQ.isPending
+      previewRow === null || documentQ.isPending || documentQ.isError
         ? null
         : {
             // Ta sama przestrzen identyfikatorow, co `key` pozycji menu nizej

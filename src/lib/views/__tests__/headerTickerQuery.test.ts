@@ -15,7 +15,7 @@
 // czekaniem, więc test podaje `now` jawnie i pilnuje, że wygaśnięcie zmienia
 // KLUCZ, a nie tylko dane - inaczej pasek po wygaśnięciu serwuje z cache
 // wpis, który miał zniknąć.
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 
 interface TickerPost {
@@ -56,10 +56,24 @@ function client(): QueryClient {
 }
 
 beforeEach(() => {
+  // ZEGAR ZAMROŻONY NA `NOW`, bo `headerTickerQueryOptions` nie przyjmuje
+  // żadnego zegara - woła `resolveTickerSource(cfg)`, a ta domyślnie czyta
+  // `Date.now()`. Dopóki data ustawiona w teście była w przyszłości, gałąź
+  // „przypinka w terminie" przechodziła przypadkiem; po 2026-09-02 `TOMORROW`
+  // stał się przeszłością i ten sam przypadek zaczął dostawać `latest`. Bez
+  // zamrożenia plik jest bombą zegarową, a nie testem. Podmieniamy WYŁĄCZNIE
+  // `Date` - timery muszą tykać realnie, bo `fetchQuery` niżej jest
+  // asynchroniczne.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   h.trending.mockReset();
   h.ticker.mockReset();
   h.trending.mockResolvedValue([post("t1")]);
   h.ticker.mockResolvedValue([post("k1")]);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("resolveTickerSource - które źródło naprawdę zagra", () => {

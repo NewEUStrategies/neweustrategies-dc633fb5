@@ -21,6 +21,10 @@ export const adminExtrasPl = {
     // ekran da się zmierzyć.
     analyticsPanel: {
       embed: {
+        // Tytul ramki czyta CZYTNIK EKRANU - bez niego osadzony raport jest
+        // dla niewidomego bezimiennym oknem. Byl tu literalem, przez co
+        // ratchet `monolingualUserText` liczyl ten plik jako nowy dlug.
+        frameTitle: "Raport Google Analytics osadzony z Looker Studio",
         open: "Otwórz w nowej karcie",
         title: "Raport osadzony (Looker Studio)",
       },
@@ -900,6 +904,7 @@ export const adminExtrasEn = {
   admin: {
     analyticsPanel: {
       embed: {
+        frameTitle: "Google Analytics report embedded from Looker Studio",
         open: "Open in a new tab",
         title: "Embedded report (Looker Studio)",
       },

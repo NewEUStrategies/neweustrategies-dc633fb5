@@ -691,6 +691,11 @@ export const adminEventsPl = {
         capacityLabel: "Limit miejsc",
         capacityHint:
           "Puste pole znaczy „bez limitu”. Po wyczerpaniu miejsc kolejne zgłoszenia trafiają na listę oczekujących.",
+        // ZDANIE DLA POLA ZGASZONEGO. Tryb „bez zapisów” nie zbiera zgłoszeń,
+        // więc limit nie ma czego odcinać - a redaktor musi wiedzieć, że
+        // wpisana wcześniej pula nie znika, tylko czeka na powrót zapisów.
+        capacityWithoutSignupsHint:
+          "Tryb „bez zapisów” nie zbiera zgłoszeń, więc limit nie ma czego ograniczać. Zapisana pula zostaje i wróci, gdy włączysz zapisy.",
         priceLabel: "Cena wejściówki",
         priceHint:
           "Kwota w jednostkach głównych, na przykład 250,00 - nie w groszach. Puste pole znaczy „wydarzenie bezpłatne”; najniższa kwota do zapłaty to 1,00.",
@@ -1734,6 +1739,8 @@ export const adminEventsEn = {
         capacityLabel: "Seat limit",
         capacityHint:
           "An empty field means no limit. Once the seats run out, further applications go to the waiting list.",
+        capacityWithoutSignupsHint:
+          "The no sign-ups mode collects no applications, so the limit has nothing to cap. The saved pool stays and returns once you switch sign-ups back on.",
         priceLabel: "Pass price",
         priceHint:
           "The amount in major units, for example 250.00 - not in cents. An empty field means the event is free; the lowest payable amount is 1.00.",

@@ -28,7 +28,7 @@
 // NAZWA NIE SKŁADA SIĘ TUTAJ. `event_attendees` oddaje gotowe `name` (nazwa
 // wyświetlana profilu -> imię i nazwisko profilu -> kartoteka wydarzenia), więc
 // front nie ma tu żadnej gałęzi do pomylenia z tą w bazie.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Loader2, Search, Users } from "lucide-react";
@@ -46,6 +46,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import {
   EMPTY_ATTENDEE_DIRECTORY,
+  type AttendeeDirectory,
   type AttendeeEntry,
   type AttendeeGroupCount,
 } from "@/lib/events/publicEventApi";
@@ -122,7 +123,16 @@ export function EventAttendeesList({
     staleTime: 5 * 60 * 1000,
   });
 
-  const data = attendees.data ?? EMPTY_ATTENDEE_DIRECTORY;
+  // OSTATNIA ODPOWIEDŹ ZOSTAJE NA EKRANIE, DOPÓKI NIE PRZYJDZIE NASTĘPNA.
+  // Każda nowa fraza i każde nowe okno to NOWY klucz cache, a nowy klucz nie ma
+  // danych - bez zapamiętanej poprzedniej odpowiedzi całe ciało sekcji (razem
+  // z `Filters`, czyli z polem wyszukiwania) znikałoby na czas rundy po sieci,
+  // a pole wracałoby jako NOWY węzeł DOM. Uczestnik piszący dłużej niż 300 ms
+  // debouncingu traciłby wtedy kursor po każdej pauzie w pisaniu. To ta sama
+  // reguła, co `placeholderData: keepPreviousData` w innych listach modułu.
+  const kept = useRef<AttendeeDirectory | null>(null);
+  if (attendees.data !== undefined) kept.current = attendees.data;
+  const data = kept.current ?? EMPTY_ATTENDEE_DIRECTORY;
 
   return (
     // Bez własnego nagłówka sekcja NIE dostaje `aria-labelledby` wskazującego
@@ -150,7 +160,7 @@ export function EventAttendeesList({
           title={t("eventFront.attendees.signInTitle")}
           body={t("eventFront.attendees.signInBody")}
         />
-      ) : attendees.isLoading ? (
+      ) : attendees.isLoading && kept.current === null ? (
         <div className="space-y-3" aria-busy="true">
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-10 w-full" />

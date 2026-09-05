@@ -235,6 +235,63 @@ describe("walidacja wejścia", () => {
 });
 
 // ---------------------------------------------------------------------------
+describe("bramka szumu - druga linia obrony, po stronie serwera", () => {
+  // Klient odsiewa szum u ŹRÓDŁA (`src/lib/observability/report.ts`), ale ta
+  // bramka jest jedyną, która dosięga bundli zacache'owanych sprzed tamtej
+  // zmiany - a to one wypełniły panel `/admin/performance?tab=errors` w 82%.
+  // Gdyby przestała działać, panel znów przestałby pokazywać awarie: prawdziwy
+  // błąd tonie w tysiącach wpisów o anulowanych żądaniach.
+
+  it("ARTEFAKT UKŁADU (ResizeObserver loop) NIE zakłada wiersza", async () => {
+    // Specyfikacja każe przeglądarce zgłosić to jako błąd okna, choć nic się
+    // nie zepsuło - wpis nie niesie żadnej diagnostyki.
+    const res = await postError({
+      message: "ResizeObserver loop completed with undelivered notifications.",
+    });
+
+    expect(res.status).toBe(204);
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+
+  it("ANULOWANE ŻĄDANIE nie zakłada wiersza - to zachowanie ZAMIERZONE, nie awaria", async () => {
+    // Każdy `AbortController` sprzątany przy odmontowaniu komponentu i każda
+    // przerwana nawigacja produkują dokładnie te komunikaty.
+    for (const message of [
+      "AbortError: signal is aborted without reason",
+      "The user aborted a request.",
+    ]) {
+      h.insert.mockClear();
+
+      const res = await postError({ message, source: "unhandledrejection" });
+
+      expect(res.status, message).toBe(204);
+      expect(h.insert, message).not.toHaveBeenCalled();
+    }
+  });
+
+  it('PREFIKS `[boot]` jest zdejmowany PRZED bramką - „[boot] undefined" też jest szumem', async () => {
+    // Sonda bootu serializuje brak komunikatu jako „[boot] undefined". Bez
+    // zdjęcia prefiksu filtr oglądałby napis z prefiksem, nie samo
+    // „undefined", i przepuszczałby wpis mówiący wyłącznie tyle, że coś się
+    // stało - czyli dokładnie tę klasę, którą bramka ma zatrzymać.
+    await postError({ message: "[boot] undefined" });
+    expect(h.insert).not.toHaveBeenCalled();
+
+    h.insert.mockClear();
+    await postError({ message: "[object Object]" });
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+
+  it("bramka jest WĄSKA - prawdziwa awaria sieci nadal wchodzi do tabeli", async () => {
+    // Gdyby filtr łapał samo słowo „fetch" albo „abort", wyciszyłby klasę
+    // błędów, dla której ten endpoint w ogóle istnieje.
+    await postError({ message: "TypeError: Failed to fetch" });
+
+    expect(row()).toMatchObject({ message: "TypeError: Failed to fetch" });
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe("RODO: dane osobowe i sekrety nie mogą wejść do tabeli", () => {
   it("ADRES E-MAIL z komunikatu NIE trafia do kolumny", async () => {
     await postError({ message: "Nie znaleziono konta jan.kowalski@example.com" });

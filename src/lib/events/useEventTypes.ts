@@ -101,9 +101,24 @@ export function useDeleteEventType(): UseMutationResult<boolean, Error, string> 
 }
 
 /**
+ * Klucz publicznej listy wydarzen - `src/lib/community/publicQueries.ts`
+ * (`PUBLIC_EVENTS_QUERY_KEY`), rozgrzewany w SSR trasy `/events`. Literal, bo
+ * tamten modul go nie eksportuje, a tak samo trzymaja go pozostali czytelnicy
+ * (`src/lib/realtime/eventInvalidationMap.ts`).
+ */
+const PUBLIC_EVENTS_KEY = ["public-events"] as const;
+
+/**
  * Przepiecie wydarzen na inny rodzaj. Unieważnia takze wydarzenia - operacja
  * zmienia `events.event_type_id` i `events.kind`, wiec lista wydarzen w panelu
  * i widgety publiczne trzymaja po niej nieaktualne dane.
+ *
+ * PUBLICZNA LISTA JEST TRZECIA RODZINA, a nie ozdobnikiem: `events.kind`
+ * filtruje ja i rysuje na kaflu, a kanal czasu rzeczywistego jej tu nie
+ * uratuje - `eventInvalidationMap` kasuje `["public-events"]` wylacznie dla
+ * `event.published.v1` i `event.cancelled.v1`, a `admin_event_type_reassign`
+ * nie emituje zadnego z nich. Bez tej linii redaktor po operacji masowej
+ * przechodzi klienckim przejsciem na `/events` i widzi stare rodzaje.
  */
 export function useReassignEventType(): UseMutationResult<
   number,
@@ -116,6 +131,7 @@ export function useReassignEventType(): UseMutationResult<
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: eventTypeKeys.all });
       void qc.invalidateQueries({ queryKey: ["admin-community-events"] });
+      void qc.invalidateQueries({ queryKey: PUBLIC_EVENTS_KEY });
     },
   });
 }

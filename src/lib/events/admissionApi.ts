@@ -247,8 +247,16 @@ export async function purchasePackage(input: PackagePurchaseInput): Promise<Pack
   const { data, error } = await supabase.rpc("event_package_purchase", { p_payload: payload });
   if (error) throw error;
   const row = record(data);
+  const orderId = text(row.order_id);
+  if (orderId === "") {
+    // Zamowienie moglo powstac, ale bez identyfikatora nie umiemy pokazac ani
+    // platnosci, ani miejsc - mowimy o tym wprost, zamiast rysowac
+    // potwierdzenie na zero zlotych (tak samo `acceptPackageInvite`,
+    // `packageInviteApi.ts:94`).
+    throw new Error("unknown: purchase response is not readable");
+  }
   return {
-    orderId: text(row.order_id),
+    orderId,
     seats: num(row.seats),
     currency: text(row.currency) || "PLN",
     totalCents: num(row.total_cents),
@@ -298,9 +306,17 @@ export async function inviteMyPackageSeat(input: BuyerSeatInviteInput): Promise<
   });
   if (error) throw error;
   const row = record(data);
+  const inviteToken = text(row.token);
+  if (inviteToken === "") {
+    // Miejsce jest juz zajete przez zaproszenie, a token jawny istnieje
+    // WYLACZNIE w tej odpowiedzi (w bazie stoi sam SHA-256). Pusty napis
+    // zamienilby sie w adres `/events/invite/` bez tokenu, wiec zamiast pustego
+    // sukcesu leci blad - tak samo jak w `acceptPackageInvite`.
+    throw new Error("unknown: invitation response is not readable");
+  }
   return {
     seatId: text(row.seat_id),
-    inviteToken: text(row.token),
+    inviteToken,
     expiresAt: typeof row.expires_at === "string" ? row.expires_at : null,
   };
 }

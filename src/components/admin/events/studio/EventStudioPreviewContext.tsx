@@ -125,6 +125,8 @@ export const EMPTY_EVENT_PREVIEW: EventPreviewModel = {
 interface PreviewContextValue {
   model: EventPreviewModel;
   patch: (partial: Partial<EventPreviewModel>) => void;
+  /** Cofniecie pol wniesionych przez ekran, ktory znika z drzewa. */
+  release: (partial: Partial<EventPreviewModel>) => void;
 }
 
 const PreviewContext = createContext<PreviewContextValue | null>(null);
@@ -143,8 +145,25 @@ export function EventStudioPreviewProvider({
     setOverlay((previous) => ({ ...previous, ...partial }));
   }, []);
 
+  // ODDANIE POL, NIE ZEROWANIE NAKLADKI. Ekran, ktory znika, zabiera WYLACZNIE
+  // swoje pola - reszta nakladki nalezy do ekranow, ktore stoja dalej. Pole
+  // oddane wraca do wartosci z `base`, czyli do stanu ZAPISANEGO, bo nakladka
+  // przestaje o nim cokolwiek mowic.
+  const release = useCallback((partial: Partial<EventPreviewModel>) => {
+    setOverlay((previous) => {
+      const next = { ...previous };
+      for (const key of Object.keys(partial) as Array<keyof EventPreviewModel>) {
+        delete next[key];
+      }
+      return next;
+    });
+  }, []);
+
   const model = useMemo<EventPreviewModel>(() => ({ ...base, ...overlay }), [base, overlay]);
-  const value = useMemo<PreviewContextValue>(() => ({ model, patch }), [model, patch]);
+  const value = useMemo<PreviewContextValue>(
+    () => ({ model, patch, release }),
+    [model, patch, release],
+  );
 
   return <PreviewContext.Provider value={value}>{children}</PreviewContext.Provider>;
 }
@@ -160,17 +179,30 @@ export function useEventPreviewModel(): EventPreviewModel {
  * POROWNANIE PO WARTOSCI, nie po referencji: szkic jest nowym obiektem przy
  * kazdym nacisnieciu klawisza, wiec zaleznosc po referencji dawalaby
  * `setState` w kazdym renderze i petle. Klucz porownania liczy sie z tresci.
+ *
+ * SZKIC ZNIKA RAZEM Z EKRANEM. Nakladka jest wspolna dla calego studia, wiec
+ * bez sprzatania efektu tytul wpisany na „Informacjach ogolnych" i NIEZAPISANY
+ * zostawalby w podgladzie takze po przejsciu na inna sekcje - czyli redaktor
+ * ogladalby wartosc, ktorej nie ma ani w bazie, ani w zadnym otwartym
+ * formularzu, i po odswiezeniu strony czytalby jej znikniecie jako zgubiony
+ * zapis. Ta sama luka pozwalala przeterminowanej nakladce wygrywac z nowym
+ * `base` z bazy.
  */
 export function useSyncEventPreview(partial: Partial<EventPreviewModel>): void {
   const context = useContext(PreviewContext);
   const patch = context?.patch;
+  const release = context?.release;
   const serialized = JSON.stringify(partial);
 
   useEffect(() => {
-    if (patch === undefined) return;
+    if (patch === undefined || release === undefined) return;
     // Odczyt z tego samego napisu, ktory jest kluczem zaleznosci: efekt nie ma
     // wtedy zaleznosci niewidocznej dla lintera, a szkic jest zwyklymi danymi,
     // wiec obieg przez JSON niczego nie gubi.
-    patch(JSON.parse(serialized) as Partial<EventPreviewModel>);
-  }, [serialized, patch]);
+    const draft = JSON.parse(serialized) as Partial<EventPreviewModel>;
+    patch(draft);
+    // Sprzatanie oddaje DOKLADNIE te pola, ktore ten ekran wniosl - takze przy
+    // zmianie tresci szkicu, gdzie zaraz po nim leci `patch` z nowa wartoscia.
+    return () => release(draft);
+  }, [serialized, patch, release]);
 }

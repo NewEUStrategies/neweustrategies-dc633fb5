@@ -1239,6 +1239,36 @@ describe("VitalsBiDashboard - izolacja warsztatów", () => {
     expect(JSON.stringify(h.charts)).toContain("/beta-raporty/klimat");
   });
 
+  it("bez rozwiązanego warsztatu panel nie odpytuje serwera, a klucz cache niesie PUSTY warsztat", async () => {
+    // Warsztat rozwiązuje się ASYNCHRONICZNIE (profil plus sesja), więc
+    // pierwsze klatki panelu widzą `null`. Bramka jest wtedy PODWÓJNA i ten
+    // przypadek pilnuje obu jej połówek naraz.
+    //
+    // `enabled: Boolean(tenantId)` wstrzymuje odczyt - inaczej odpowiedź
+    // wpadłaby do cache pod kluczem WSPÓLNYM dla wszystkich warsztatów, a
+    // izolację trzymałby wyłącznie znacznik `Date.now()` z granic okna, czyli
+    // dokładnie ten sam mechanizm, który przypadek niżej pokazuje jako
+    // niewystarczający. `tenantId ?? ""` trzyma ten wpis ROZŁĄCZNIE z każdym
+    // realnym warsztatem: react-query hashuje klucz przez `JSON.stringify`,
+    // a `undefined` w tablicy serializuje się do `null`, więc bez tej wartości
+    // domyślnej stan „warsztatu jeszcze nie znam" zlewałby się z innymi.
+    h.tenantId = null;
+    const { queryClient } = panel();
+    await screen.findByText(common("measuring"));
+
+    expect(h.fetchVitals).not.toHaveBeenCalled();
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((cached) => cached.queryKey);
+    expect(keys).toHaveLength(1);
+    expect(keys[0].slice(0, 3)).toEqual(["vitals-bi", "", "7d"]);
+    // Nierozwiązany warsztat to POMIAR W TOKU, a nie „brak próbek RUM":
+    // ten drugi komunikat jest twierdzeniem o oknie, którego nikt nie zmierzył.
+    expect(screen.queryByText(vit("noSamples"))).toBeNull();
+    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+  });
+
   it("świeży klient react-query nie przenosi raportu między warsztatami", async () => {
     h.fetchVitals.mockResolvedValue(WORKSPACE_A);
     const first = panel();
@@ -1313,6 +1343,122 @@ describe("VitalsBiDashboard - izolacja warsztatów", () => {
     expect(h.fetchVitals.mock.calls.length).toBe(2);
     expect(second.container.textContent ?? "").not.toContain("alfa");
     expect(JSON.stringify(h.charts)).not.toContain("alfa");
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("VitalsBiDashboard - raport z niepełną metryką", () => {
+  // Odpowiedź funkcji serwerowej NIE JEST po stronie klienta walidowana:
+  // `useServerFn` oddaje sparsowany JSON tak, jak przyszedł, a `curQ.data`
+  // dostaje typ z sygnatury, nie z pomiaru. Kubełki ocen mają w panelu
+  // strażnika `?? 0` w DWÓCH miejscach naraz (słupki i tabela danych pod nimi)
+  // i to jest jawne przyznanie, że wiersz metryki bywa niepełny: sam agregat
+  // `aggregate.ts` liczy je zawsze, ale `getVitalsSummary` podmienia część
+  // raportu wierszami z RPC `web_vitals_daily_p75` przepuszczonymi przez
+  // rzutowanie, a kolumna bez wartości przychodzi z Postgresa jako `null`.
+  //
+  // Ten blok pilnuje, żeby strażnik został i żeby OBA nośniki tej samej liczby
+  // - kanwa i tabela - mówiły to samo. Bez niego pulpit wydajności wypisuje
+  // `undefined` w tabeli i wywraca skalę słupków.
+  const NULL_BUCKETS = {
+    windowDays: 7,
+    total: 100,
+    windowTotal: 100,
+    capped: false,
+    metrics: [
+      { metric: "LCP", count: 100, p75: 2000, p50: 2000, min: 2000, max: 2000, rating: "good" },
+    ],
+    paths: [],
+    trends: [],
+  };
+
+  it("wiersz metryki bez kubełków daje ZERA na słupkach ratingów, a nie luki w serii", async () => {
+    h.fetchVitals.mockResolvedValue(NULL_BUCKETS);
+    panel();
+    await loaded();
+
+    const series = seriesOf(ratingStack().option);
+    expect(series.map((one) => one.name)).toEqual(["Good", "Needs improvement", "Poor"]);
+    // `undefined` w `data` ECharts rysuje jako przerwę w stosie, czyli słupek
+    // BEZ jednego kubełka - a to wygląda identycznie jak zmierzone zero i
+    // rozjeżdża wysokość całej kolumny względem sąsiednich metryk.
+    expect(series.map((one) => one.data)).toEqual([[0], [0], [0]]);
+  });
+
+  it("tabela danych pod słupkami podaje te same zera co kanwa", async () => {
+    // Tabela jest ALTERNATYWĄ TEKSTOWĄ kanwy, więc rozjazd między nią a
+    // słupkami czyta osoba niewidząca jako inny pomiar. `undefined` w komórce
+    // jedzie dodatkowo do eksportu CSV, gdzie nie da się go już odróżnić od
+    // defektu arkusza.
+    h.fetchVitals.mockResolvedValue(NULL_BUCKETS);
+    panel();
+    await loaded();
+
+    const table = dataTableOf(vit("ratingsPerMetric"));
+    expect(tableRows(table)).toEqual([["LCP", "0", "0", "0"]]);
+  });
+
+  it.fails(
+    "DEFEKT: koło ratingów NIE ma strażnika słupków - niepełny wiersz daje „NaN próbek”",
+    async () => {
+      // PRZYCZYNA. `ratingStackOption` i `ratingStackCsv` czytają kubełki przez
+      // `?? 0`, a `ratingTotals` sumuje je GOŁYM dodawaniem:
+      // `rows.reduce((acc, m) => acc + m.good, 0)`. Jedno brakujące pole zamienia
+      // sumę w `NaN`, a `NaN` idzie prosto do etykiety w środku koła
+      // (`{a|NaN}`) i do wartości wszystkich trzech wycinków.
+      //
+      // SKUTEK W PRODUKCIE. Ten sam raport daje na jednym wykresie uczciwe zera,
+      // a na sąsiednim napis „NaN próbek" - operator widzi dwa sprzeczne stany
+      // tego samego pomiaru obok siebie i nie ma jak rozstrzygnąć, który jest
+      // prawdziwy. Komentarz nad `ratingTotals` mówi wprost, że koło i jego
+      // tabela „muszą podać te same trzy liczby"; strażnik jest w jednym z
+      // trzech miejsc, w których te liczby powstają.
+      //
+      // NAPRAWA (poza zakresem tej porcji - to zmiana w kodzie produkcyjnym):
+      // `acc + (m.good ?? 0)` w każdej z trzech redukcji `ratingTotals`.
+      h.fetchVitals.mockResolvedValue(NULL_BUCKETS);
+      panel();
+      await loaded();
+
+      const label = String(rec(firstSeries(pieChart().option).label).formatter);
+      expect(label).toBe(`{a|0}\n{b|${vit("samplesWord")}}`);
+    },
+  );
+
+  it.fails("DEFEKT: raport bez pola `trends` wywraca CAŁY pulpit", async () => {
+    // PRZYCZYNA. `sparkForMetric` woła `report.trends.map(...)` BEZ strażnika,
+    // a iskra pod kafelkiem KPI renderuje się PRZED wykresami trendu. Dwa
+    // miejsca niżej ten sam odczyt ma już `report?.trends ?? []`
+    // (`trendOption`, `trendCsv`), więc panel deklaruje odporność, której
+    // faktycznie nie ma: do tych strażników sterowanie nigdy nie dolatuje.
+    //
+    // SKUTEK W PRODUKCIE. `TypeError: Cannot read properties of undefined
+    // (reading 'map')` w trakcie renderu wysadza całą zakładkę
+    // `/admin/analytics` do granicy błędu - nie tylko jeden wykres. Zamiast
+    // pulpitu z częścią liczb administrator dostaje pustą stronę, i to przy
+    // odpowiedzi, która niosła komplet metryk i ścieżek.
+    //
+    // NAPRAWA (poza zakresem tej porcji): `(report.trends ?? [])` w
+    // `sparkForMetric` - dokładnie ten sam strażnik, który stoi już w
+    // `trendOption` i `trendCsv`.
+    //
+    // KONSEKWENCJA DLA POKRYCIA: dopóki ten defekt żyje, gałęzie `?? []` w
+    // `trendOption` (linia 150) i `trendCsv` (linia 369) są NIEOSIĄGALNE -
+    // render umiera wcześniej. Nie da się ich domknąć testem bez zmiany kodu
+    // produkcyjnego i nie należy tego robić rzutowaniem.
+    h.fetchVitals.mockResolvedValue({
+      windowDays: 7,
+      total: 100,
+      windowTotal: 100,
+      capped: false,
+      metrics: [metric("LCP", 2000)],
+      paths: [],
+    });
+    panel();
+    await loaded();
+
+    expect(screen.getAllByTestId("echart").length).toBeGreaterThan(0);
   });
 });
 

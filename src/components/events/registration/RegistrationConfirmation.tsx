@@ -71,8 +71,11 @@ export function RegistrationConfirmation({
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       // Schowek bywa odcięty uprawnieniami przeglądarki - klucz nadal stoi na
-      // ekranie, więc mówimy tylko o nieudanym kopiowaniu.
-      toast.error(t("eventRegistration.result.manageTokenTitle"));
+      // ekranie, więc mówimy tylko o nieudanym kopiowaniu I O NASTĘPNYM KROKU.
+      // Tytuł ramki w tym miejscu byłby powiadomieniem o błędzie, które
+      // powtarza nagłówek stojący człowiekowi przed oczami i nie mówi ani że
+      // kopiowanie się nie udało, ani co z tym zrobić.
+      toast.error(t("eventRegistration.result.manageTokenCopyFailed"));
     }
   }
 

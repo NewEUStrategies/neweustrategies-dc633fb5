@@ -53,10 +53,15 @@
  * dosięgnąć - dowód idzie odczytem plików i mówi wprost, gdzie ta nawigacja
  * jest.
  *
- * CO JEST ATRAPĄ I DLACZEGO: wyłącznie dwie granice danych
- * (`@/lib/admin/community`, `@/lib/admin/network`) i toasty (`sonner`). i18n,
- * router, react-query i Radix są PRAWDZIWE, więc asercje mierzą napisy ze
- * słownika, a nie literały wpisane w teście. `react-i18next` świadomie NIE
+ * CO JEST ATRAPĄ I DLACZEGO: dwie granice danych (`@/lib/admin/community`,
+ * `@/lib/admin/network`), toasty (`sonner`) i SILNIK WYKRESU
+ * (`@/components/admin/analytics/EChart`) - ten ostatni dlatego, że happy-dom
+ * nie ma canvasu, a nie po to, żeby cokolwiek ukryć; uzasadnienie stoi przy
+ * samej atrapie. i18n, router, react-query i Radix są PRAWDZIWE, więc asercje
+ * mierzą napisy ze słownika, a nie literały wpisane w teście. Prawdziwy jest
+ * też cały `AdminBiStrip` z kartami wykresów - to stamtąd bierze się nagłówek
+ * poziomu drugiego, którego ten pulpit kiedyś nie miał.
+ * `react-i18next` świadomie NIE
  * jest atrapowany - fabryka takiego mocka sięga po `@/lib/i18n`, czyli moduł
  * importujący właśnie mockowany pakiet, i zakleszcza plik (ostrzeżenie
  * z nagłówka `@/test/i18nReal`).
@@ -169,6 +174,25 @@ vi.mock("sonner", () => ({
     success: (message: string) => h.toastSuccess.push(message),
     error: (message: string) => h.toastError.push(message),
   },
+}));
+
+// Granica danych numer trzy: SILNIK WYKRESU paska analityki modułu 17.
+// Pulpit osadza `<AdminBiStrip days={14} />`, a ten - dwie karty `ChartCard`,
+// z których każda montuje `EChart`. `EChart` po zamontowaniu dociąga leniwie
+// `EChartClient`, czyli ~1 MB ECharts rysującego po canvasie; happy-dom canvasu
+// nie ma, więc `getContext("2d")` oddaje `null` i zrender wywala się ASYNCHRO-
+// NICZNIE, w klatce animacji i przy `dispose()` po odmontowaniu
+// (`Cannot set properties of null (setting 'dpr')`, `... reading 'clearRect'`).
+// Vitest przypisuje takie nieobsłużone wyjątki testowi, który AKURAT trwa -
+// stąd kilkanaście czerwonych przypadków bez jednej nieudanej asercji.
+// Atrapa odcina wyłącznie rysowanie: `ChartCard`, jego przyciski eksportu,
+// nagłówek `h2` paska i cała reszta drzewa biegną PRAWDZIWE, więc asercje
+// dostępności nadal mierzą to, co widzi operator. Ta sama granica i z tego
+// samego powodu stoi w `adminCouponsAnalyticsRoute.test.tsx`.
+vi.mock("@/components/admin/analytics/EChart", () => ({
+  EChart: ({ option, height }: { option: unknown; height?: number | string }) => (
+    <div data-testid="wykres" data-wysokosc={String(height)} data-opcja={JSON.stringify(option)} />
+  ),
 }));
 
 import { renderRoute, routeHead } from "@/test/routeHarness";
@@ -875,23 +899,66 @@ describe("pulpit społeczności - nawigacja do podstron", () => {
 });
 
 describe("pulpit społeczności - dostępność", () => {
-  it("naruszenia axe są PRZYPIĘTE do dwóch znanych defektów, nie wyciszone regułą", async () => {
+  it("naruszenia axe są PRZYPIĘTE do jednego znanego defektu, nie wyciszone regułą", async () => {
     // Lista jest przypięta, a nie wyłączona flagą: każde NOWE naruszenie
-    // wywali ten test zamiast schować się pod `enabled: false`. Oba defekty
-    // opisane są niżej, w sekcji „defekty zastane".
+    // wywali ten test zamiast schować się pod `enabled: false`. Defekt jest
+    // opisany niżej, w sekcji „defekty zastane".
+    //
+    // BYŁY TU DWA. Drugim był `heading-order` - i on ZNIKNĄŁ, bo pulpit dostał
+    // nagłówek poziomu drugiego. Dowód i mechanizm: dwa testy niżej
+    // („drabina nagłówków...").
     h.reports = [userReport()];
     const { container } = await mountOverview();
     await screen.findByText("Anna Przykładowa → Bogdan Zmyślony");
     const violations = await axeViolations(container);
-    expect(violations.map((v) => v.id).sort(), summarize(violations)).toEqual([
-      "button-name",
-      "heading-order",
-    ]);
+    expect(violations.map((v) => v.id).sort(), summarize(violations)).toEqual(["button-name"]);
     const byId = new Map(violations.map((v) => [v.id, v]));
     // Dziesięć przełączników modułów plus lista TTL.
     expect(byId.get("button-name")?.nodes).toHaveLength(11);
-    // Jeden przeskok poziomu: `h1` pulpitu, potem `h3` kolejki zgłoszeń.
-    expect(byId.get("heading-order")?.nodes).toHaveLength(1);
+  });
+
+  /**
+   * DEFEKT ZAMKNIĘTY, NIE WYCISZONY - `it`, nie `it.fails`.
+   *
+   * Do 2026-09-02 pulpit otwierał się `<h1>` („Panel społeczności"), a NASTĘPNYM
+   * nagłówkiem w drzewie był `<h3>` kolejki zgłoszeń - poziom drugi nie
+   * istniał, bo tytuły kart (`CardTitle`) renderują się jako `<div>`. Ten test
+   * i jego kontrola dodatnia stały wtedy w sekcji „defekty zastane" jako
+   * `it.fails` + opis stanu dzisiejszego.
+   *
+   * CO SIĘ ZMIENIŁO. Commit 3d4b684 dołożył `AdminBiStrip` (pasek analityki
+   * modułu 17), a `src/routes/admin.community.index.tsx` osadza go zaraz pod
+   * nagłówkiem strony (`<AdminBiStrip days={14} />`). Pasek renderuje własny
+   * `<h2>{t("adminAnalytics.bi.stripTitle")}</h2>`, więc drabina nagłówków jest
+   * pełna: `h1` -> `h2` -> `h3` i axe nie ma czego zgłosić. Zgodnie z zasadą
+   * z nagłówka sekcji „defekty zastane" („naprawa defektu zapali kontrolę
+   * i wymusi aktualizację obu") oba przypadki są zaktualizowane i PRZENIESIONE
+   * tutaj - od tej chwili pilnują braku przeskoku, a nie jego obecności.
+   *
+   * CZEGO TEN TEST NIE TWIERDZI: że tytuły sekcji („Dostępność modułów",
+   * „Akcje serwisowe", „Sieć kontaktów") są już nagłówkami. Nadal są `<div>`
+   * i nadal nie da się po nich nawigować czytnikiem ekranu - to jednak nie
+   * jest naruszenie reguły `heading-order` i nie ma tu udawać, że jest.
+   */
+  it("kolejność poziomów nagłówków nie przeskakuje poziomu", async () => {
+    const { container } = await mountOverview();
+    await screen.findByText(t("adminCommunity.overview.userReports"));
+    const violations = await axeViolations(container);
+    expect(
+      violations.map((v) => v.id),
+      summarize(violations),
+    ).not.toContain("heading-order");
+  });
+
+  it("drabina nagłówków to `h1` -> `h2` -> `h3`, a poziom drugi daje pasek analityki", async () => {
+    // Kontrola nazywa ŹRÓDŁO poziomu drugiego. Sama lista `["H1","H2","H3"]`
+    // przeszłaby też wtedy, gdyby `h2` przyszedł skądkolwiek - a wtedy usunięcie
+    // paska analityki z tej trasy po cichu przywróciłoby przeskok poziomu.
+    await mountOverview();
+    await screen.findByText(t("adminCommunity.overview.userReports"));
+    const headings = screen.getAllByRole("heading");
+    expect(headings.map((el) => el.tagName)).toEqual(["H1", "H2", "H3"]);
+    expect(headings[1]).toHaveTextContent(t("adminAnalytics.bi.stripTitle"));
   });
 });
 
@@ -1084,31 +1151,10 @@ describe("pulpit społeczności - defekty zastane", () => {
     }
   });
 
-  /**
-   * ZŁAMANY KONTRAKT: PRZESKOK POZIOMU NAGŁÓWKA. Pulpit otwiera się `<h1>`
-   * („Panel społeczności"), a następny nagłówek w drzewie to `<h3>`
-   * („Zgłoszenia użytkowników") - poziom drugi nie istnieje, bo tytuły kart
-   * (`CardTitle`) renderują się jako `<div>`, nie jako nagłówki.
-   *
-   * KONSEKWENCJA: nawigacja po nagłówkach (najszybszy sposób poruszania się po
-   * długiej stronie w czytniku ekranu) gubi całą warstwę pośrednią -
-   * „Dostępność modułów", „Akcje serwisowe" i „Sieć kontaktów" nie są dla niej
-   * sekcjami, tylko tekstem w środku strony.
-   *
-   * OCZEKIWANY KONTRAKT: tytuły sekcji są nagłówkami poziomu 2, a `<h3>`
-   * kolejki zgłoszeń zostaje na swoim miejscu jako podsekcja „Sieci kontaktów".
-   */
-  it.fails("kolejność poziomów nagłówków nie przeskakuje poziomu", async () => {
-    const { container } = await mountOverview();
-    await screen.findByText(t("adminCommunity.overview.userReports"));
-    const violations = await axeViolations(container);
-    expect(violations.map((v) => v.id)).not.toContain("heading-order");
-  });
-
-  it("kontrola dodatnia: dziś po `h1` idzie od razu `h3`", async () => {
-    await mountOverview();
-    await screen.findByText(t("adminCommunity.overview.userReports"));
-    const levels = screen.getAllByRole("heading").map((el) => el.tagName);
-    expect(levels).toEqual(["H1", "H3"]);
-  });
+  // PRZESKOK POZIOMU NAGŁÓWKA (`h1` -> `h3`) BYŁ CZWARTYM DEFEKTEM TEJ SEKCJI.
+  // Został zamknięty - `AdminBiStrip` wstawił między nie własny `<h2>` - więc
+  // oba przypadki (`it.fails` i jego kontrola dodatnia) przeniosły się w górę,
+  // do sekcji „pulpit społeczności - dostępność", i tam pilnują dziś BRAKU
+  // przeskoku. Pełna historia i mechanizm stoją w komentarzu nad
+  // „kolejność poziomów nagłówków nie przeskakuje poziomu".
 });

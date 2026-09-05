@@ -749,6 +749,38 @@ describe("SemanticReconciliationPanel - izolacja warsztatów", () => {
     expect(JSON.stringify(h.fetchSnapshot.mock.calls)).not.toContain("host");
   });
 
+  it("bez rozwiązanego warsztatu panel NIE odpytuje bramki, a klucz cache niesie pusty warsztat", async () => {
+    // Warsztat rozwiązuje się ASYNCHRONICZNIE (profil plus sesja), więc
+    // pierwsze klatki panelu widzą `null`. Gdyby odczyt ruszył już wtedy, jego
+    // odpowiedź wpadłaby do cache pod kluczem WSPÓLNYM dla wszystkich
+    // warsztatów, a pierwszy panel, który rozwiąże warsztat na to samo okno,
+    // przeczytałby ją z cache - bez ani jednego żądania, czyli tak samo cicho
+    // jak wyciek opisany w przypadku niżej.
+    //
+    // Bramka jest tu PODWÓJNA i ten przypadek pilnuje obu jej połówek naraz:
+    // `enabled: Boolean(tenantId)` wstrzymuje zapytanie, a `tenantId ?? ""`
+    // trzyma je w OSOBNYM wpisie cache. Sam `undefined` w kluczu nie jest
+    // wartością rozłączną z realnym identyfikatorem - react-query hashuje klucz
+    // przez `JSON.stringify`, a `undefined` w tablicy serializuje się do
+    // `null`, więc dwa różne stany zlewałyby się w jeden wpis.
+    h.tenantId = null;
+    const { queryClient } = panel();
+
+    expect(
+      await screen.findByText(realT("pl")("adminAnalytics.common.loadingData")),
+    ).toBeInTheDocument();
+    expect(h.fetchSnapshot).not.toHaveBeenCalled();
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .map((cached) => cached.queryKey),
+    ).toEqual([["semantic-snapshot", "", "28d"]]);
+    // Nierozwiązany warsztat to ODCZYT W TOKU, a nie „brak migawki”: komunikat
+    // o pustce kazałby administratorowi szukać awarii tam, gdzie jej nie ma.
+    expect(screen.queryByText(realT("pl")("adminAnalytics.semantic.empty"))).toBeNull();
+  });
+
   it("panel drugiego warsztatu pokazuje WYŁĄCZNIE własne liczby", async () => {
     const first = panel();
     await loaded();

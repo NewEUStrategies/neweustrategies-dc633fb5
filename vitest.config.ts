@@ -5549,16 +5549,16 @@ export default defineConfig({
         // niemożliwej przez rzutowanie `as unknown` - czyli testowania stanu,
         // którego baza nie dopuszcza, kosztem ratchetu `check:unknown-casts`.
         "src/lib/events/**": {
-          statements: 82,
-          functions: 87,
-          lines: 85,
-          branches: 77,
+          statements: 93,
+          functions: 95,
+          lines: 95,
+          branches: 88,
         },
         "src/components/events/**": {
-          statements: 82,
-          functions: 79,
-          lines: 83,
-          branches: 75,
+          statements: 93,
+          functions: 94,
+          lines: 94,
+          branches: 88,
         },
         // Zakup pakietu grupowego - jedyny ekran wydarzeń dotykający PIENIĘDZY
         // po stronie kupującego, więc trzyma własny, wysoki próg.
@@ -5573,10 +5573,10 @@ export default defineConfig({
         // wcześniej i 24,2 / 19,4 / 25,5 / 24,0 przy pierwszym wpisie.
         // Reguła bez zmian: zmierzone minus ~4 pp.
         "src/components/admin/events/**": {
-          statements: 87,
-          functions: 86,
-          lines: 88,
-          branches: 85,
+          statements: 94,
+          functions: 94,
+          lines: 95,
+          branches: 90,
         },
         // Molekuły panelu to DIALOGI ZAPISU: formularze biletu, pakietu,
         // sesji, ścieżki, pola zgłoszenia, urządzenia skanującego. Osiem
@@ -5597,18 +5597,432 @@ export default defineConfig({
         // (853 linie), wymieniony w poprzednim wpisie z nazwiska jako plik bez
         // testów, ma 92 przypadki i 100% w każdej metryce.
         //
-        // CZTERY PLIKI TEGO KATALOGU MAJĄ NADAL ZERO i to jest wymienione, a nie
-        // uśrednione: `EventPackagesPanel` (59 linii),
-        // `EventRegistrationSettingsPanel` (47), `RegistrationFieldsPanel` (33)
-        // i `EventProgramPanel` (3). Do tego `EventPagesMenuPanel` stoi na
-        // 71,3% linii, a `EventTypeDialog` na 37,5%. Próg mierzy ŚREDNIĄ
-        // katalogu, więc te sześć plików jest w niej rozcieńczone - następna
-        // porcja bierze je z nazwiska.
+        // TE SZEŚĆ PLIKÓW ZOSTAŁO WZIĘTE Z NAZWISKA (2026-09-04). Poprzedni wpis
+        // nazywał je „następną porcją": `EventPackagesPanel` (0/59 linii),
+        // `EventRegistrationSettingsPanel` (0/47), `RegistrationFieldsPanel`
+        // (0/33), `EventProgramPanel` (0/3), `EventPagesMenuPanel` (71,3% linii)
+        // i `EventTypeDialog` (37,5%). Dziś każdy z nich stoi na 100% linii
+        // i 100% funkcji, a katalog podniósł się z 89,4 / 89,9 / 86,4 / 90,6 na
+        // 98,50 / 95,79 / 99,26 / 99,76. Każdy ma własny próg per-plik niżej,
+        // więc średnia katalogu przestała być miejscem, w którym da się schować
+        // plik na zerze.
         "src/components/admin/events/organisms/**": {
-          statements: 85,
-          functions: 82,
-          lines: 86,
-          branches: 85,
+          statements: 94,
+          functions: 95,
+          lines: 95,
+          branches: 91,
+        },
+
+        // ══ MODUŁ 22: PROGI PER-PLIK PO DOMKNIĘCIU LUKI (2026-09-04) ═════════
+        //
+        // DLACZEGO PER PLIK, SKORO GLOBY WYŻEJ JUŻ STOJĄ. `thresholds.perFile`
+        // NIE jest w tej konfiguracji ustawione, więc każdy glob jest AGREGATEM
+        // KATALOGU - i to nie jest teoria. Przed tą pracą
+        // `registrationOutcomeNotify.server.ts` stał na 0,00% linii WEWNĄTRZ
+        // globa z podłogą 85, a bramka świeciła na zielono, bo pozostałe 120
+        // plików katalogu go dowoziło. Tak samo `packagesApi.ts` (0% gałęzi pod
+        // podłogą 77) i cztery panele organizmów (0% pod podłogą 86). Wpisy
+        // niżej zamieniają średnią na zaporę per plik.
+        //
+        // POMIAR. Wszystkie liczby pochodzą z JEDNEGO przebiegu 2026-09-04
+        // w zakresie sześciu katalogów modułu (`src/lib/events`,
+        // `src/components/events`, `src/components/admin/events`,
+        // `src/routes/__tests__`, `src/lib/__tests__`, `src/lib/realtime/__tests__`,
+        // `src/components/profile`; 566 plików testowych, 561 zielonych).
+        // Zakres jest WĘŻSZY niż pełna suita, więc pokrycie każdego z tych
+        // plików w CI może być wyłącznie WYŻSZE - progi są przez to
+        // konserwatywne z definicji, a nie przez ostrożność.
+        //
+        // REGUŁA BEZ ZMIAN: "zmierzone minus ~2 pp" per plik, wolno wyłącznie
+        // podnosić. Przy każdym wpisie stoi pomiar PRZED i PO, żeby następna
+        // osoba nie musiała szukać, skąd wzięła się podłoga.
+        //
+        // LUKA MODUŁU: 1 359 niepokrytych linii -> 129, 510 niewywołanych
+        // funkcji -> 41, 66 plików na zerze -> 0 (zakres 351 plików modułu:
+        // 86,41% -> 98,71% linii, 86,48% -> 98,91% funkcji, 80,87% -> 92,61%
+        // gałęzi).
+        //
+        // ILE PLIKÓW OBLAŁOBY `thresholds.perFile: true`. Pytanie ze zlecenia,
+        // na które odpowiedź jest liczbą, a nie zmianą: przed tą pracą 70 z 285
+        // plików modułu objętych globami, po niej 29. `perFile` NIE jest
+        // włączane w tym miejscu - to decyzja na całe repozytorium, a nie na
+        // jeden moduł, i podjęta na 29 plikach modułu 22 przesądziłaby ją dla
+        // wszystkich pozostałych.
+        // ZMIERZONE 2026-09-04: 99.06 / 99.23 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/registrationOutcomeNotify.server.ts": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 97,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 3.4 / 1.12 / 11.11 / 4.41) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/participantTicketsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 27.27 / 12.12 / 40 / 25) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/packageInviteApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 8.51 / 0 / 9.09 / 10.81) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/packagesApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 37.17 / 46.98 / 53.33 / 43.33) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/admissionApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 91.3 / 78.57 / 100 / 100
+        // (przed: 72.46 / 66.66 / 81.25 / 83.63) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/registrationsApi.ts": {
+          statements: 89,
+          functions: 98,
+          lines: 98,
+          branches: 76,
+        },
+        // ZMIERZONE 2026-09-04: 78.26 / 64.77 / 91.3 / 91.66
+        // (przed: 65.21 / 57.95 / 78.26 / 79.16) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/sessionsApi.ts": {
+          statements: 76,
+          functions: 89,
+          lines: 89,
+          branches: 62,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 48.14 / 40 / 54.16 / 55.38) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/sponsorsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 61.24 / 63.82 / 80 / 73.78) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/meetingsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 13.63 / 0 / 0 / 13.63) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/useEventTypes.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 30.23 / 50 / 32.25 / 30.23) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/useEventRegistrations.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97.14 / 100 / 100
+        // (przed: 68.93 / 60.71 / 75 / 79.04) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/publicEventApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97.82 / 100 / 100
+        // (przed: 76.27 / 63.04 / 71.05 / 76.27) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/usePublicEvent.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 58.46 / 57.53 / 77.77 / 72.91) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/publicRegistrationApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 70.66 / 65.21 / 92.3 / 72.88) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/myEventProfileApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 77.14 / 89.74 / 100 / 76.66) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/meetingDirectory.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 73.07 / 92.85 / 85.71 / 72) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/leadExport.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97 / 100 / 100
+        // (przed: 93.75 / 89.82 / 100 / 93.06) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/ticketDraft.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 87.87 / 91.83 / 100 / 86.79) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/timezone.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 98.5 / 88 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventPackagesPanel.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventProgramPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventRegistrationSettingsPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 97.29 / 88.88 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/RegistrationFieldsPanel.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ZMIERZONE 2026-09-04: 99.15 / 94.31 / 100 / 100
+        // (przed: 71.42 / 64.77 / 54.23 / 71.29) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventPagesMenuPanel.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 90 / 100 / 100
+        // (przed: 37.5 / 55 / 32 / 37.5) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventTypeDialog.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioTopBar.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 71.42 / 100 / 33.33 / 71.42
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioCreateShell.tsx": {
+          statements: 69,
+          functions: 31,
+          lines: 69,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 52.94 / 60.71 / 50 / 50) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 52.63 / 25 / 50 / 53.33) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioPreviewContext.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 95.65 / 100 / 100
+        // (przed: 9.09 / 0 / 0 / 9.09) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventSponsorsSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 38.88 / 44.44 / 33.33 / 35.29) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventSponsorTiers.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 81.81 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/SavedEventsList.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 79,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 88.88 / 100 / 100
+        // (przed: 11.76 / 0 / 0 / 11.76) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventMaterialsSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97.05 / 100 / 100
+        // (przed: 71.08 / 63.23 / 61.53 / 71.23) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventAgendaSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 98.97 / 100 / 100
+        // (przed: 72.88 / 61.22 / 50 / 73.68) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventAttendeesList.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/atoms/SponsorLogo.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 52.38 / 30 / 40 / 52.38) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/molecules/EventBookmarkButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 93.93 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/molecules/EventModulePage.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 94.11 / 100 / 100
+        // (przed: 79.2 / 63.52 / 62.22 / 77.65) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/PublicRegistrationForm.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 98.5 / 100 / 100
+        // (przed: 55 / 26.86 / 27.27 / 57.89) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/RegistrationAnswerField.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        // ZMIERZONE 2026-09-04: 94.11 / 96.55 / 100 / 100
+        // (przed: 47.05 / 72.41 / 25 / 53.33) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/RegistrationConfirmation.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/RegistrationTermsList.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 84.84 / 100 / 100
+        // (przed: 17.74 / 31.81 / 5.88 / 18.96) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.index.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 82,
+        },
+        // ZMIERZONE 2026-09-04: 96.46 / 86.36 / 94.73 / 99.03
+        // (przed: 67.25 / 54.13 / 31.57 / 71.15) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.$slug.index.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 97,
+          branches: 84,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/routes/admin.events_.new.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 100 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.$slug_.register.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 100 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.$slug_.packages.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
 
         // ══ MODUŁ 14: REKLAMY, KUPONY, PODARUNKI, DAROWIZNY (2026-08-31) ══════

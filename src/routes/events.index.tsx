@@ -120,27 +120,43 @@ export const Route = createFileRoute("/events/")({
       description,
     });
     const { origin } = splitUrl(url);
-    const collection = eventsCollectionJsonLd({
-      origin,
-      lang,
-      path: "/events",
-      name: title,
-      description,
-      events: (loaderData?.headEvents ?? []).map((ev) => ({
-        slug: ev.slug,
-        name: (lang === "en" ? ev.titleEn || ev.titlePl : ev.titlePl || ev.titleEn) || ev.slug,
-        startDate: ev.startsAt,
-        endDate: ev.endsAt,
-        kind: ev.kind,
-        location: ev.location,
-        image: ev.cover,
-      })),
-    });
+    // DEGRADACJA NIE SKLADA ROBOTOWI OSWIADCZENIA O ZAWARTOSCI KATALOGU.
+    // `headEvents` jest wtedy puste NIE dlatego, ze wydarzen nie ma, tylko
+    // dlatego, ze lista nie dojechala - a `CollectionPage` z pustym
+    // `ItemList` czyta sie dokladnie jak "ten serwis nie ma wydarzen".
+    // Odpowiedz wychodzi na HTTP 200 (to cala pointa degradacji), a
+    // `Cache-Control: private, no-store` odcina cache, nie indeksowanie, wiec
+    // blip backendu w chwili wizyty crawlera zostalby zapisany jako fakt.
+    // Body mowi w tej sytuacji "nie udalo sie wczytac" - dane strukturalne maja
+    // milczec z tego samego powodu. Okruszki zostaja: sciezka do katalogu jest
+    // prawdziwa niezaleznie od tego, czy lista dojechala.
+    const collection =
+      (loaderData?.degraded ?? false)
+        ? null
+        : eventsCollectionJsonLd({
+            origin,
+            lang,
+            path: "/events",
+            name: title,
+            description,
+            events: (loaderData?.headEvents ?? []).map((ev) => ({
+              slug: ev.slug,
+              name:
+                (lang === "en" ? ev.titleEn || ev.titlePl : ev.titlePl || ev.titleEn) || ev.slug,
+              startDate: ev.startsAt,
+              endDate: ev.endsAt,
+              kind: ev.kind,
+              location: ev.location,
+              image: ev.cover,
+            })),
+          });
     const breadcrumbs = breadcrumbListJsonLd([{ label: title, href: "/events" }], origin, lang);
     return {
       ...head,
       scripts: [
-        { type: "application/ld+json", children: safeJsonLd(collection) },
+        ...(collection === null
+          ? []
+          : [{ type: "application/ld+json", children: safeJsonLd(collection) }]),
         { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
       ],
     };

@@ -138,6 +138,33 @@ function interaction(duration: number, interactionId = 1): FakeEntry {
   return { name: "pointerdown", entryType: "event", startTime: 0, duration, interactionId };
 }
 
+/**
+ * Wpis Paint Timing w kształcie, w jakim czyta go reporter. Budowany jako
+ * zwykły obiekt, bez rzutowania: `PerformanceEntry` to cztery pola i `toJSON`.
+ */
+function paintEntry(startTime: number): PerformanceEntry {
+  return {
+    name: "first-contentful-paint",
+    entryType: "paint",
+    startTime,
+    duration: 0,
+    toJSON: () => ({ name: "first-contentful-paint", entryType: "paint", startTime }),
+  };
+}
+
+/** Wpis Navigation Timing - reporter bierze z niego wyłącznie `responseStart`. */
+function navigationEntry(responseStart: number): PerformanceEntry {
+  const entry = {
+    name: "",
+    entryType: "navigation",
+    startTime: 0,
+    duration: 0,
+    responseStart,
+    toJSON: () => ({ entryType: "navigation", responseStart }),
+  };
+  return entry;
+}
+
 beforeEach(() => {
   FakeObserver.reset();
   vi.stubGlobal("PerformanceObserver", FakeObserver);
@@ -776,6 +803,42 @@ describe("ścieżka produkcyjna: beacon", () => {
     expect(() => markWebVitalsPage("/blog")).not.toThrow();
   });
 
+  it("bez `navigator` próbka NIE wchodzi do bufora - inaczej wyciekłaby do NASTĘPNEGO żądania", async () => {
+    // Różnica między „brak sendBeacon" (przypadek wyżej) a „brak całego
+    // `navigator`": tam transport oddaje `false` i próbka ginie po drodze, tu
+    // nie wolno jej nawet PRZYJĄĆ. `queue` żyje w zakresie MODUŁU - jednego na
+    // proces, nie na żądanie - a moduł jest osiągalny z grafu serwera
+    // (`observability/index.ts`). Bez strażnika próbka zebrana tam, gdzie nie
+    // ma czym jej wysłać, czekałaby w tablicy do pierwszej granicy zrzutu i
+    // doklejała się do CUDZEGO beaconu. To nie jest wyciek pamięci, tylko
+    // wyciek między żądaniami.
+    //
+    // FCP i TTFB są jedynymi metrykami raportowanymi POZA granicą zrzutu (przy
+    // inicjalizacji, na zaplanowany drain), więc tylko na nich widać różnicę
+    // między „odrzucone u źródła" a „odłożone na później".
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    vi.spyOn(performance, "getEntriesByName").mockReturnValue([paintEntry(700)]);
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([navigationEntry(120)]);
+
+    const realNavigator = navigator;
+    const { initWebVitals } = await loadWebVitals();
+    vi.stubGlobal("navigator", undefined);
+    expect(typeof navigator).toBe("undefined");
+    expect(() => initWebVitals()).not.toThrow();
+    vi.stubGlobal("navigator", realNavigator);
+
+    const sent = captureBeacons();
+    FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(1000)]);
+    window.dispatchEvent(new Event("pagehide"));
+    // Zaplanowany drain jest zadaniem makro - dajemy mu dojść do głosu.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(sent).toHaveLength(1);
+    const payload = (await beaconJson(sent[0]?.body)) as { metrics: Array<{ name: string }> };
+    // Ani FCP, ani TTFB: odrzucone u źródła, a nie odłożone do tego beaconu.
+    expect(payload.metrics.map((m) => m.name).sort()).toEqual(["CLS", "LCP"]);
+  });
+
   // -------------------------------------------------------------------------
   // Defekt N2 (audyt wyd. 8, rozdz. 4): zdarzenia analityczne były batchowane
   // (`src/lib/analytics/track.ts`), a metryki wydajności - nie. Jedno pierwsze
@@ -810,6 +873,35 @@ describe("ścieżka produkcyjna: beacon", () => {
         "LCP",
         "TTFB",
       ]);
+    });
+
+    it("para FCP+TTFB wychodzi SAMA na następnym zadaniu makro, bez żadnej granicy zrzutu", async () => {
+      // Timer NIE jest oknem batchowania - jest ZEROWY, i to jest cała jego
+      // rola. FCP i TTFB są jedyną parą raportowaną poza granicą zrzutu (przy
+      // inicjalizacji), więc bez tego zadania makro wisiałyby w buforze do
+      // pierwszej miękkiej nawigacji albo ukrycia karty. Czytelnik, który
+      // wchodzi i zamyka kartę awaryjnie, oddałby wtedy ZERO próbek startowych
+      // - a to właśnie one opisują pierwsze wczytanie. Okno, w którym awaria
+      // gubi tę parę, ma trwać jedno zadanie, nie sekundy.
+      vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+      vi.spyOn(performance, "getEntriesByName").mockReturnValue([paintEntry(900)]);
+      vi.spyOn(performance, "getEntriesByType").mockReturnValue([navigationEntry(210)]);
+      const sent = captureBeacons();
+
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      // Synchronicznie po inicjalizacji nic jeszcze nie poszło - to nadal
+      // JEDNO żądanie na parę, a nie dwa strzały z `report()`.
+      expect(sent).toHaveLength(0);
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(sent).toHaveLength(1);
+      const payload = (await beaconJson(sent[0]?.body)) as {
+        metrics: Array<{ name: string; value: number }>;
+      };
+      expect(payload.metrics.map((m) => m.name).sort()).toEqual(["FCP", "TTFB"]);
+      expect(payload.metrics.find((m) => m.name === "TTFB")?.value).toBe(210);
     });
 
     it("pusta kolejka NIE bije beaconem - zrzut bez metryk to zero żądań", async () => {
@@ -975,5 +1067,30 @@ describe("zgodność definicji z tym, co mierzy bramka Lighthouse", () => {
 
     expect(reportsFor("INP")).toHaveLength(1);
     expect(reportsFor("INP")[0]?.metric.value).toBe(500);
+  });
+
+  it("krótsze zdarzenie TEJ SAMEJ interakcji NIE obniża jej opóźnienia", async () => {
+    // Druga połowa reguły „opóźnieniem interakcji jest NAJDŁUŻSZE z jej
+    // zdarzeń". Kolejność wpisów `event` nie jest niczym gwarantowana:
+    // przeglądarka potrafi oddać `pointerdown` (długi, bo to on czekał na
+    // zajęty wątek) przed krótkimi `pointerup` i `click` tego samego gestu.
+    // Gdyby zapis szedł „ostatni wygrywa", 480 ms odczute przez czytelnika
+    // zamieniłoby się w 12 ms - a ponieważ INP jest wysokim percentylem, taka
+    // podmiana usuwa dokładnie ten ogon rozkładu, po który sięga panel
+    // wydajności. Przypadek wyżej dowodzi rosnącej kolejności, ten - malejącej.
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    FakeObserver.forType("event").emit([
+      interaction(480, 7),
+      interaction(12, 7),
+      interaction(120, 7),
+    ]);
+    markWebVitalsPage("/x");
+
+    const inp = reportsFor("INP");
+    expect(inp).toHaveLength(1);
+    expect(inp[0]?.metric.value).toBe(480);
+    // Ocena idzie od tej samej liczby: 480 mieści się w (200, 500].
+    expect(inp[0]?.metric.rating).toBe("needs-improvement");
   });
 });
