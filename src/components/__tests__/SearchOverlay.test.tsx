@@ -51,12 +51,24 @@
  * `useFocusTrap`, `useQuery` na świeżym `QueryClient`, `recentSearches`
  * (prawdziwy localStorage), `overlayTabs`, `AppLink` i atomy `SuggestListView`.
  *
- * ZNALEZISKO (przypięte niżej jako `it.fails`): `SearchOverlay` importuje
- * wyłącznie nakładkę `@/lib/i18n-public`, a używa kluczy `search.*`, które
- * rejestruje `@/lib/i18n-search` (robią to `SearchButtonWidget` i
- * `CommandPalette`, overlay - nie). Na stronie, której graf nie wciągnie tamtej
- * nakładki, stopka overlaya pokazuje surowe klucze. Ten plik CELOWO nie
- * importuje `@/lib/i18n-search`, żeby stan faktyczny był mierzalny.
+ * ZNALEZISKO (przypięte niżej jako `it.fails`) - UWAGA, to NIE jest defekt
+ * widoczny dla czytelnika, a UKRYTE SPRZĘŻENIE między modułami:
+ * `SearchOverlay` importuje wyłącznie nakładkę `@/lib/i18n-public`, a używa
+ * kluczy `search.recent`, `search.recent_clear`, `search.widget.*`, które
+ * rejestruje `@/lib/i18n-search`. Overlay tej nakładki NIE deklaruje - w
+ * prawdziwej aplikacji dociąga ją cudzy moduł: `__root.tsx` renderuje
+ * (bezwarunkowo, przez `lazy`) `<CommandPalette />`, a ten importuje
+ * `@/lib/i18n-search`, który rejestruje słownik przy ewaluacji modułu. Napisy
+ * są więc na stronie poprawne, dopóki tamten chunk dojdzie pierwszy - a
+ * dochodzi, bo ładuje się z pierwszym renderem `__root`, podczas gdy overlay
+ * jest lazy i wchodzi dopiero po kliknięciu lupki. Ryzyko resztkowe: gdyby
+ * kolejność się odwróciła, `addResourceBundle` już nie przemaluje overlaya
+ * (domyślne `bindI18n` react-i18next to samo `languageChanged`), a usunięcie
+ * `<CommandPalette />` z `__root` zabrałoby overlayowi napisy bez żadnego
+ * sygnału w jego własnym pliku. Ten plik CELOWO nie importuje
+ * `@/lib/i18n-search`, żeby zmierzyć, co overlay gwarantuje SAM ZE SIEBIE;
+ * jednolinijkowe domknięcie sprzężenia to `import "@/lib/i18n-search"` w
+ * `SearchOverlay.tsx`.
  *
  * ŚWIADOMIE POZA ZAKRESEM: gałęzie `typeof document === "undefined"` (SSR -
  * w happy-dom nie da się ich osiągnąć uczciwie) oraz wygląd (klasy Tailwind).
@@ -449,6 +461,8 @@ describe("SearchOverlay - ostatnie wyszukiwania", () => {
 
     expect(screen.getAllByRole("option")).toHaveLength(1);
 
+    // Surowy klucz, nie napis: w izolacji overlay nie ma nakładki
+    // `@/lib/i18n-search` (patrz `it.fails` niżej i nagłówek pliku).
     fireEvent.click(screen.getByRole("button", { name: "search.recent_clear" }));
 
     expect(screen.queryByRole("option")).toBeNull();
@@ -457,13 +471,18 @@ describe("SearchOverlay - ostatnie wyszukiwania", () => {
   });
 
   it.fails(
-    "DEFEKT: overlay nie dociąga nakładki `@/lib/i18n-search`, więc etykiety `search.*` renderują się jako surowe klucze",
+    "SPRZĘŻENIE (nie defekt widoczny na stronie): overlay SAM Z SIEBIE nie gwarantuje etykiet `search.*` - nakładkę `@/lib/i18n-search` dociąga cudzy moduł",
     () => {
       seedRecent(["unia energetyczna"]);
       renderOverlay({});
 
       // W słowniku klucz istnieje ("Wyczyść historię" / "Clear history"), ale
       // rejestruje go `@/lib/i18n-search`, którego SearchOverlay nie importuje.
+      // W aplikacji napis JEST poprawny, bo `__root.tsx` renderuje
+      // `<CommandPalette />`, a ten importuje tamtą nakładkę - overlay jedzie
+      // więc na cudzym imporcie. Tu, w izolacji, widać co gwarantuje sam:
+      // surowy klucz. Przypadek pilnuje granicy własności słownika, nie
+      // bieżącego wyglądu strony - patrz nagłówek pliku.
       expect(screen.getByRole("button", { name: "Wyczyść historię" })).toBeInTheDocument();
     },
   );

@@ -543,6 +543,33 @@ describe("NewsletterForm - wybór tematów", () => {
     });
   });
 
+  it("wybór z jednej tylko półki nie dokłada pustego pola drugiej", async () => {
+    h.items = ITEMS;
+    const onlyTag = renderForm({ widgetConfig: { showFirstName: true } });
+
+    fireEvent.click(screen.getByRole("button", { name: "temat: Klimat" }));
+    fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
+    await submit();
+
+    // Sam tag: `interests_areas` w ogóle nie powstaje (a nie: powstaje puste).
+    expect(h.submissions[0].custom).toEqual({
+      interests: "Klimat",
+      interests_topics: "Klimat",
+    });
+    onlyTag.unmount();
+
+    h.submissions.length = 0;
+    renderForm({ widgetConfig: { showFirstName: true } });
+    fireEvent.click(screen.getByRole("button", { name: "temat: Energia" }));
+    fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
+    await submit();
+
+    expect(h.submissions[0].custom).toEqual({
+      interests: "Energia",
+      interests_areas: "Energia",
+    });
+  });
+
   it("ponowny klik odznacza temat, a 'wyczyść' zdejmuje cały wybór", async () => {
     h.items = ITEMS;
     renderForm({ widgetConfig: { showFirstName: true } });

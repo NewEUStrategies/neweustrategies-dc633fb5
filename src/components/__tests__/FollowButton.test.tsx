@@ -1,7 +1,7 @@
 /**
  * <FollowButton /> - przełącznik obserwowania autora / kategorii / tagu
  * w nagłówkach archiwum. Jedyna ścieżka, którą czytelnik może ZACZĄĆ coś
- * obserwować, więc test dotyka wszystkich trzech wyjść przycisku:
+ * obserwować, więc test dotyka każdego wyjścia przycisku:
  *
  *  1. GOŚĆ nie dostaje cichej porażki - leci zdarzenie otwarcia okna logowania
  *     Z TEKSTAMI z ustawień personalizacji (to one tłumaczą, po co konto).
@@ -11,6 +11,9 @@
  *  3. ODMOWA ZAPISU pokazuje komunikat (toast), zamiast zostawić przycisk
  *     w stanie, którego serwer nie przyjął.
  *  4. WYŁĄCZONA PERSONALIZACJA chowa przycisk całkowicie.
+ *  5. LISTA OBSERWACJI JESZCZE NIEWCZYTANA (dane `undefined`) - przycisk musi
+ *     stanąć w pozycji „nie obserwuję" i mimo to działać, a nie wywrócić się
+ *     na czytaniu pustki.
  *
  * CO JEST ZAATRAPOWANE: `useAuth` (sesja), `usePersonalizedSettings`
  * (ustawienia serwisu), `useFollows` / `useToggleFollow` (warstwa danych) oraz
@@ -44,7 +47,9 @@ interface ToggleOptions {
 const h = vi.hoisted(() => ({
   user: null as { id: string } | null,
   settings: null as PersonalizedSettings | null,
-  follows: [] as Array<{ id: string; target_type: string; target_id: string; created_at: string }>,
+  /** `undefined` = lista obserwacji jeszcze się nie wczytała. */
+  follows: [] as
+    undefined | Array<{ id: string; target_type: string; target_id: string; created_at: string }>,
   pending: false,
   failWith: null as string | null,
   mutations: [] as Array<{ targetType: string; targetId: string; on: boolean }>,
@@ -161,6 +166,19 @@ describe("FollowButton - przełącznik obserwowania", () => {
     fireEvent.click(button);
 
     expect(h.mutations).toEqual([{ targetType: "author", targetId: "autor-1", on: false }]);
+  });
+
+  it("przed wczytaniem listy obserwacji przycisk zachowuje się jak 'nie obserwuję'", () => {
+    h.follows = undefined;
+    renderButton();
+
+    const button = screen.getByRole("button", { name: "Obserwuj" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(button);
+
+    // Brak danych nie ma prawa wywrócić handlera - zapis leci z on:true.
+    expect(h.mutations).toEqual([{ targetType: "author", targetId: "autor-1", on: true }]);
   });
 
   it("w trakcie zapisu przycisk jest zablokowany (bez podwójnego żądania)", () => {

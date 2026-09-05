@@ -20,6 +20,11 @@
  *     bąbelkują do strony, więc kreacje html/script raportują je własnym
  *     kanałem (`onEngage`). Oba warianty mają osobny przypadek, bo w kodzie są
  *     to dwie różne, niezależne domknięcia.
+ *  4. KREACJA GRAFICZNA BEZ OPCJONALNYCH POL. Slot bez `image_link` nie ma
+ *     być owinięty w odnośnik, a brak `image_alt` musi SPAŚĆ na nazwę slotu
+ *     (czytnik ekranu inaczej dostaje pustkę). Tego wariantu nie dotyka
+ *     `ads/__tests__/AdSlotView.test.tsx` - tam każda kreacja graficzna ma
+ *     i link, i opis, i wymiary.
  *
  * CO JEST ZAATRAPOWANE I DLACZEGO.
  *  * `@/lib/ads/queries` - granica danych strefy (zapytanie do bazy).
@@ -214,6 +219,31 @@ describe("AdSlotView - pomiar zaangażowania", () => {
     fireEvent.click(boxes()[0]);
 
     expect(h.events.at(-1)).toEqual({ kind: "click", slotId: "slot-1", placementId: "p1" });
+  });
+
+  it("kreacja bez linku i bez wymiarów renderuje samą grafikę, a opis spada na nazwę slotu", async () => {
+    h.placements = [
+      placement("p1", {
+        name: "Slot bez linku",
+        image_link: null,
+        image_alt: null,
+        width: null,
+        height: null,
+      }),
+    ];
+
+    renderZone();
+    await settleGates();
+
+    const img = document.querySelector<HTMLImageElement>("[data-ad-slot] img");
+    expect(img).not.toBeNull();
+    // Brak `image_alt` = opis z nazwy slotu (inaczej czytnik ekranu dostaje
+    // pustkę), brak wymiarów = brak atrybutów width/height na grafice.
+    expect(img?.getAttribute("alt")).toBe("Slot bez linku");
+    expect(img?.hasAttribute("width")).toBe(false);
+    expect(img?.hasAttribute("height")).toBe(false);
+    // Bez `image_link` kreacja NIE jest owinięta w odnośnik.
+    expect(document.querySelector("[data-ad-slot] a")).toBeNull();
   });
 
   it("slot zablokowany brakiem zgody marketingowej nie melduje ani odsłony, ani kliknięcia", () => {
