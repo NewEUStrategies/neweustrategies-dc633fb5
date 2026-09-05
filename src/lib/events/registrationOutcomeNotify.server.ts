@@ -24,10 +24,32 @@ import type { TxEmailType } from "@/lib/email-templates/tx-copy";
 /** Wyniki płatności, o których piszemy do uczestnika. */
 export type TicketOutcome = "paid" | "unpaid" | "refunded" | "partial_refund";
 
+/**
+ * Szablon per wynik płatności. Odrzucona karta (`unpaid`) MUSI mieć swój wpis:
+ * bez niego funkcja kończyła się w ciszy (`if (!type ...)`) i uczestnik jechał
+ * na wydarzenie w przekonaniu, że ma opłacone miejsce.
+ *
+ * Typ zostaje `Partial`, bo klucz przychodzi z rzutowanego napisu RPC - ładunek
+ * bez pola `outcome` albo z wynikiem, którego nie znamy, ma dalej trafiać
+ * w bramkę `!type`, a nie w szablon wybrany na chybił trafił.
+ */
 const TYPE_BY_OUTCOME: Readonly<Partial<Record<TicketOutcome, TxEmailType>>> = {
   paid: "event_ticket_paid",
+  unpaid: "payment_failed",
   refunded: "event_ticket_refunded",
   partial_refund: "event_ticket_partially_refunded",
+};
+
+/**
+ * Tytuły dzwonka per wynik, w obu językach - wiersz w bazie jest jeden, a czyta
+ * go interfejs w języku sesji. Tabela zamiast czterech ramion ternary'ego:
+ * przy czwartym wyniku zagnieżdżenie przestawało być czytelne.
+ */
+const BELL_TITLES: Readonly<Record<TicketOutcome, { pl: string; en: string }>> = {
+  paid: { pl: "Bilet opłacony", en: "Ticket paid" },
+  unpaid: { pl: "Płatność odrzucona - bilet nieopłacony", en: "Payment declined - ticket unpaid" },
+  refunded: { pl: "Bilet anulowany - zwrot płatności", en: "Ticket cancelled - payment refunded" },
+  partial_refund: { pl: "Częściowy zwrot za bilet", en: "Partial ticket refund" },
 };
 
 interface Contact {
@@ -108,7 +130,10 @@ function detailsFor(
   const paid = money(payload.amount_cents, payload.currency ?? null, lang);
   if (paid) details.push({ label: lang === "en" ? "Amount" : "Kwota", value: paid });
 
-  if (outcome !== "paid") {
+  // Wiersz zwrotu tylko tam, gdzie zwrot NAPRAWDĘ był. W mailu o opłaceniu
+  // sugerowałby anulowanie, a w mailu o odrzuconej płatności byłby zdaniem
+  // „zwrócono 0,00 zł" o pieniądzach, których nikt nie pobrał.
+  if (outcome === "refunded" || outcome === "partial_refund") {
     const refunded = money(payload.refunded_cents ?? null, payload.currency ?? null, lang);
     if (refunded) {
       details.push({ label: lang === "en" ? "Refunded amount" : "Kwota zwrotu", value: refunded });
@@ -121,12 +146,18 @@ function smsBody(payload: TicketOutcomePayload, outcome: TicketOutcome, lang: Em
   const title = eventTitle(payload, lang);
   if (lang === "en") {
     if (outcome === "paid") return `Ticket paid: ${title}. Details are in your inbox.`;
+    if (outcome === "unpaid") {
+      return `Payment for ${title} was declined - your seat is not confirmed. Details are in your inbox.`;
+    }
     if (outcome === "refunded") {
       return `Your ticket for ${title} was cancelled and refunded. Details are in your inbox.`;
     }
     return `Partial refund issued for ${title}. Your seat stays reserved.`;
   }
   if (outcome === "paid") return `Bilet oplacony: ${title}. Szczegoly wyslalismy mailem.`;
+  if (outcome === "unpaid") {
+    return `Platnosc za bilet na ${title} nie przeszla - miejsce nie jest potwierdzone. Szczegoly w mailu.`;
+  }
   if (outcome === "refunded") {
     return `Bilet na ${title} zostal anulowany, platnosc zwrocona. Szczegoly w mailu.`;
   }
@@ -141,26 +172,15 @@ async function pushBell(
 ): Promise<void> {
   const tenantId = payload.tenant_id ?? null;
   if (!contact.userId || !tenantId) return;
-  const titlePl =
-    outcome === "paid"
-      ? "Bilet opłacony"
-      : outcome === "refunded"
-        ? "Bilet anulowany - zwrot płatności"
-        : "Częściowy zwrot za bilet";
-  const titleEn =
-    outcome === "paid"
-      ? "Ticket paid"
-      : outcome === "refunded"
-        ? "Ticket cancelled - payment refunded"
-        : "Partial ticket refund";
+  const titles = BELL_TITLES[outcome];
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("notifications").insert({
       user_id: contact.userId,
       tenant_id: tenantId,
       kind: "billing",
-      title_pl: titlePl,
-      title_en: titleEn,
+      title_pl: titles.pl,
+      title_en: titles.en,
       body_pl: eventTitle(payload, "pl"),
       body_en: eventTitle(payload, "en"),
       href: payload.event_slug ? `/events/${payload.event_slug}` : "/profile/tickets",
@@ -184,29 +204,42 @@ async function notifyPromoted(payload: TicketOutcomePayload): Promise<number> {
     if (!email || !registrationId) continue;
     const lang = await resolveLang(str(row, "user_id"));
     const title = eventTitle(payload, lang);
-    const result = await sendTxEmail({
-      type: "event_waitlist_promoted",
-      to: email,
-      lang,
-      subjectName: title,
-      details: title ? [{ label: lang === "en" ? "Event" : "Wydarzenie", value: title }] : [],
-      ctaPath: payload.event_slug ? `/events/${payload.event_slug}` : "/events",
-      metaName: str(row, "first_name"),
-      tenantId: payload.tenant_id ?? null,
-      // Awans jest jednorazowy per zgłoszenie - klucz trzyma ten kontrakt nawet
-      // przy ponowieniu tego samego zdarzenia przez operatora.
-      idempotencyKey: `event-ticket-promoted:${registrationId}`,
-    });
-    if (result.ok && !result.skipped) sent += 1;
+    // Awans to wiadomość o CUDZYM zgłoszeniu, więc preferencje kanałów czytamy
+    // po JEGO identyfikatorze - dokładnie tak, jak dla płacącego niżej. Pilność
+    // awansu nie jest tu wyjątkiem: ścieżka pieniężna, co najmniej równie pilna,
+    // preferencje respektuje.
+    const channels = await readChannels(registrationId);
 
-    const { sendSms } = await import("@/lib/notify/sms.server");
-    await sendSms({
-      to: str(row, "phone"),
-      body:
-        lang === "en"
-          ? `A seat opened up for ${title} - you are in. Details are in your inbox.`
-          : `Zwolnilo sie miejsce na ${title} - jestes na liscie uczestnikow. Szczegoly w mailu.`,
-    });
+    if (channels.email) {
+      const result = await sendTxEmail({
+        type: "event_waitlist_promoted",
+        to: email,
+        lang,
+        subjectName: title,
+        details: title ? [{ label: lang === "en" ? "Event" : "Wydarzenie", value: title }] : [],
+        ctaPath: payload.event_slug ? `/events/${payload.event_slug}` : "/events",
+        metaName: str(row, "first_name"),
+        tenantId: payload.tenant_id ?? null,
+        // Awans jest jednorazowy per zgłoszenie - klucz trzyma ten kontrakt nawet
+        // przy ponowieniu tego samego zdarzenia przez operatora.
+        idempotencyKey: `event-ticket-promoted:${registrationId}`,
+      });
+      if (result.ok && !result.skipped) sent += 1;
+    }
+
+    if (channels.sms) {
+      const { sendSms } = await import("@/lib/notify/sms.server");
+      await sendSms({
+        to: str(row, "phone"),
+        body:
+          lang === "en"
+            ? `A seat opened up for ${title} - you are in. Details are in your inbox.`
+            : `Zwolnilo sie miejsce na ${title} - jestes na liscie uczestnikow. Szczegoly w mailu.`,
+        // Ten sam kontrakt co przy mailu o awansie: ponowione zdarzenie nie ma
+        // prawa dołożyć drugiego SMS-a.
+        idempotencyKey: `event-ticket-promoted-sms:${registrationId}`,
+      });
+    }
   }
   return sent;
 }
@@ -312,7 +345,14 @@ export async function notifyTicketOutcome(
   if (contact.phone && channels.sms) {
     try {
       const { sendSms } = await import("@/lib/notify/sms.server");
-      const sms = await sendSms({ to: contact.phone, body: smsBody(payload, outcome, lang) });
+      const sms = await sendSms({
+        to: contact.phone,
+        body: smsBody(payload, outcome, lang),
+        // Klucz zbudowany tak samo jak pocztowy - z samego zdarzenia, więc
+        // ponowiony webhook nie wysyła drugiego SMS-a, a dopisek z panelu
+        // świadomie omija bramkę.
+        idempotencyKey: `event-ticket-sms:${registrationId}:${outcome}:${payload.refunded_cents ?? 0}${suffix}`,
+      });
       result.smsSent = sms.ok && !sms.skipped;
     } catch (err) {
       console.error("[events] ticket outcome sms failed", err);

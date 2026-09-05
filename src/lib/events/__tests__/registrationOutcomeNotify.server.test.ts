@@ -17,9 +17,10 @@
 //      kwota zwrotu), więc nie może nieść znacznika czasu - inaczej każda
 //      powtórka to nowy mail. Odwrotny wymóg ma przycisk „wyślij ponownie"
 //      w panelu: on MUSI ominąć bramkę, bo inaczej nie robi nic.
-//   2. WYNIK `unpaid` NIE MA SZABLONU, a kolejka rezerwowa rusza PRZED
-//      sprawdzeniem szablonu. To nie jest szczegół implementacyjny: decyduje,
-//      kto dostanie wiadomość, gdy karta nie przeszła.
+//   2. WYNIK `unpaid` MA SZABLON (`payment_failed`), a kolejka rezerwowa rusza
+//      PRZED sprawdzeniem szablonu. To nie jest szczegół implementacyjny:
+//      decyduje, kto dostanie wiadomość, gdy karta nie przeszła - i płacący,
+//      i osoby, które właśnie weszły na zwolnione miejsce.
 //   3. PREFERENCJE KANAŁÓW są PER ZGŁOSZENIE i mają semantykę opt-out
 //      (NULL znaczy „wysyłaj"), a błąd bazy nie może wyciszyć wiadomości
 //      o pieniądzach.
@@ -137,12 +138,28 @@ vi.mock("@/lib/email/transactional.server", () => ({
   formatDate: (iso: string): string => iso,
 }));
 
-/** Brama SMS. Produkcyjnie NIE rzuca - `breakGateway` sprawdza właśnie to założenie. */
+/**
+ * Brama SMS Z DZIAŁAJĄCĄ BRAMKĄ DUPLIKATÓW - z tego samego powodu, dla którego
+ * ma ją atrapa poczty. Produkcyjny `sendSms` odrzuca powtórzony
+ * `idempotencyKey` (licznik `rate_limits` z limitem 1) i oddaje
+ * `skipped: "duplicate"`; atrapa bez tej pamięci przepuszczałaby każde
+ * ponowienie webhooka, więc test idempotencji SMS-a byłby zielony niezależnie
+ * od tego, czy moduł w ogóle buduje klucz. Wiadomość BEZ klucza idzie dalej bez
+ * pytania - to kontrakt dla wołających, którzy nadają z ludzkiego kliknięcia.
+ *
+ * Produkcyjnie brama NIE rzuca - `breakGateway` sprawdza właśnie to założenie.
+ */
 const sms = vi.hoisted(() => {
   const sent: SmsInput[] = [];
+  const seen = new Set<string>();
   let broken: Error | null = null;
   const sendSms = vi.fn(async (input: SmsInput): Promise<SmsResult> => {
     if (broken) throw broken;
+    const key = input.idempotencyKey;
+    if (key !== undefined) {
+      if (seen.has(key)) return { ok: true, skipped: "duplicate" };
+      seen.add(key);
+    }
     sent.push(input);
     return { ok: true };
   });
@@ -154,6 +171,7 @@ const sms = vi.hoisted(() => {
     },
     reset(): void {
       sent.length = 0;
+      seen.clear();
       broken = null;
       sendSms.mockClear();
     },
@@ -397,7 +415,7 @@ describe("idempotencja wobec ponowionego webhooka", () => {
     expect(key.replace(REG_PROMOTED, "<zgloszenie>")).not.toMatch(/\d{10,}/);
   });
 
-  it.fails(
+  it(
     "DEFEKT: ponowiony webhook wysyła DRUGI SMS - kanał SMS nie ma klucza idempotencji",
     async () => {
       // `NotifyOptions` opisuje kontrakt wprost: „webhook nadal nie może wysłać
@@ -457,12 +475,10 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
     expect(sms.sent).toHaveLength(0);
   });
 
-  it("`unpaid` nie ma szablonu: płacący milczy, ale awansowani dostają swoje", async () => {
-    // `TYPE_BY_OUTCOME` (:27-31) nie ma wpisu dla `unpaid`, choć `unpaid` jest
-    // zadeklarowanym `TicketOutcome` (:25). Kolejka rezerwowa rusza PRZED tym
-    // sprawdzeniem (:279 vs :284), więc zwolnione miejsce trafia do ludzi
-    // niezależnie od tego, że sam płacący nie dostanie ani maila, ani SMS-a,
-    // ani dzwonka.
+  it("`unpaid` idzie do płacącego szablonem `payment_failed`, a kolejka rusza obok", async () => {
+    // Odrzucona karta zwalnia miejsce i JEDNOCZEŚNIE wymaga wiadomości do tego,
+    // komu płatność nie przeszła. Kolejka rezerwowa rusza PRZED sprawdzeniem
+    // szablonu, więc obie grupy dostają swoje niezależnie od siebie.
     const result = await notifyTicketOutcome(
       payload({
         outcome: "unpaid",
@@ -470,11 +486,26 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
       }),
     );
 
-    expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 1 });
+    expect(result).toEqual({ emailed: true, smsSent: true, promotedNotified: 1 });
     expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(1);
-    expect(mail.attempts.map((entry) => entry.to)).not.toContain("uczestnik@example.com");
-    expect(sms.sent.map((entry) => entry.to)).not.toContain("+48500100200");
-    expect(stub.chainsFor("notifications")).toHaveLength(0);
+    // Płacący dostaje SWÓJ szablon, a nie mail o awansie: sama liczba „2"
+    // przepuściłaby dwie wiadomości o zwolnionym miejscu.
+    expect(attemptsOfType("payment_failed")).toHaveLength(1);
+    expect(attemptsOfType("payment_failed")[0]?.to).toBe("uczestnik@example.com");
+    expect(sms.sent.map((entry) => entry.to)).toContain("+48500100200");
+    expect(bellRow()).toMatchObject({
+      user_id: USER,
+      title_pl: "Płatność odrzucona - bilet nieopłacony",
+      title_en: "Payment declined - ticket unpaid",
+    });
+  });
+
+  it("mail o odrzuconej płatności NIE niesie wiersza „Kwota zwrotu”", async () => {
+    // Nikt niczego nie zwracał, a `refunded_cents: 0` sformatowane jako
+    // „0,00 zł" byłoby zdaniem o pieniądzach, których operator nie pobrał.
+    await notifyTicketOutcome(payload({ outcome: "unpaid", refunded_cents: 0 }));
+
+    expect(detailLabels()).toEqual(["Wydarzenie", "Kwota"]);
   });
 
   it("zgłoszenie bez identyfikatora nie blokuje kolejki rezerwowej", async () => {
@@ -494,7 +525,7 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
     expect(attemptsOfType("event_ticket_refunded")).toHaveLength(0);
   });
 
-  it.fails("DEFEKT: odrzucona płatność nie dociera do uczestnika żadnym kanałem", async () => {
+  it("DEFEKT: odrzucona płatność nie dociera do uczestnika żadnym kanałem", async () => {
     // `unpaid` powstaje w `markOneTimePaymentFailed`
     // (`lib/billing/oneTimeFulfilment.server.ts`:169), gdy karta nie
     // przeszła. Zgłoszenie zostaje w bazie jako nieopłacone, ale uczestnik
@@ -584,7 +615,7 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
     );
   });
 
-  it.fails(
+  it(
     "DEFEKT: awansowani dostają mail i SMS wbrew preferencjom zapisanym na ICH zgłoszeniu",
     async () => {
       // `notifyPromoted` (:175-212) nie woła `readChannels` ani razu, choć
@@ -626,7 +657,7 @@ describe("treść SMS-a nie wychodzi z GSM-7", () => {
    */
   const POZA_ASCII = /[^ -~]/;
 
-  const outcomes = ["paid", "refunded", "partial_refund"] as const;
+  const outcomes = ["paid", "unpaid", "refunded", "partial_refund"] as const;
 
   for (const outcome of outcomes) {
     for (const lang of ["pl", "en"] as const) {
@@ -679,7 +710,7 @@ describe("treść SMS-a nie wychodzi z GSM-7", () => {
     expect(sms.sent[1]?.body).toContain(TITLE_PL);
   });
 
-  it("trzy wyniki dają trzy RÓŻNE treści - status nie może się rozmyć", async () => {
+  it("cztery wyniki dają cztery RÓŻNE treści - status nie może się rozmyć", async () => {
     const bodies: string[] = [];
     for (const outcome of outcomes) {
       sms.reset();
@@ -687,11 +718,13 @@ describe("treść SMS-a nie wychodzi z GSM-7", () => {
       bodies.push(sms.sent[0]?.body ?? "");
     }
 
-    expect(new Set(bodies).size).toBe(3);
-    // Zwrot pełny musi być rozpoznawalny jako anulowanie, a częściowy - jako
-    // utrzymanie miejsca. Pomylenie tych dwóch to reklamacja.
-    expect(bodies[1]).toMatch(/anulowany/);
-    expect(bodies[2]).toMatch(/Miejsce pozostaje/);
+    expect(new Set(bodies).size).toBe(4);
+    // Odrzucona płatność musi mówić, że miejsca NIE MA - inaczej SMS brzmi jak
+    // potwierdzenie. Zwrot pełny musi być rozpoznawalny jako anulowanie,
+    // a częściowy - jako utrzymanie miejsca. Pomylenie tych dwóch to reklamacja.
+    expect(bodies[1]).toMatch(/nie jest potwierdzone/);
+    expect(bodies[2]).toMatch(/anulowany/);
+    expect(bodies[3]).toMatch(/Miejsce pozostaje/);
   });
 });
 
