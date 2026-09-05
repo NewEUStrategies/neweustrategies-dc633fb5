@@ -21,7 +21,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LogIn } from "lucide-react";
+import { LogIn, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -30,12 +30,14 @@ import {
   useClubList,
   useClubSearch,
   useMyClubInvitations,
+  useMyClubProposals,
   useRespondClubInvitation,
 } from "@/lib/clubs/useClubs";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { resolveClubHubAccess } from "@/lib/clubs/hubAccess";
 import { toClubSaveError } from "@/lib/clubs/types";
 import { ClubHubHero } from "@/components/clubs/organisms/ClubHubHero";
+import { ClubProposeDialog } from "@/components/clubs/molecules/ClubProposeDialog";
 import { ClubInvitationInbox } from "@/components/clubs/organisms/ClubInvitationInbox";
 import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
 import { MyClubsTabs } from "@/components/clubs/organisms/MyClubsTabs";
@@ -90,6 +92,10 @@ function ClubHub() {
   const [catalogLimit, setCatalogLimit] = useState(CATALOG_PAGE);
   const clubsQ = useClubList(true, catalogLimit);
   const invitationsQ = useMyClubInvitations(signedIn);
+  // Zgloszenie klubu jest czynnoscia CZLONKA - stad brak tego wejscia dla gosci
+  // i brak go w panelu administracyjnym.
+  const proposalsQ = useMyClubProposals(signedIn);
+  const [proposeOpen, setProposeOpen] = useState(false);
   const tierQ = useCurrentTier();
   const respondM = useRespondClubInvitation();
 
@@ -212,8 +218,38 @@ function ClubHub() {
                 <div className="min-w-0 flex-1">
                   <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} />
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 rounded-[6px]"
+                  onClick={() => setProposeOpen(true)}
+                >
+                  <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                  {t("club.propose.action")}
+                </Button>
                 <ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />
               </div>
+              {proposeOpen ? (
+                <ClubProposeDialog open={proposeOpen} onOpenChange={setProposeOpen} />
+              ) : null}
+
+              {(proposalsQ.data ?? []).length > 0 ? (
+                <section className="mb-4 rounded-[6px] border border-border/60 p-3">
+                  <h2 className="mb-2 text-sm font-semibold">{t("club.propose.myTitle")}</h2>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {(proposalsQ.data ?? []).map((proposal) => (
+                      <li key={proposal.id} className="flex flex-wrap gap-x-2">
+                        <span className="text-foreground">{proposal.name_pl}</span>
+                        <span>
+                          {t(`club.propose.status.${proposal.status}`, {
+                            defaultValue: proposal.status,
+                          })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
 
               {mine.length > 0 ? (
                 <MyClubsTabs clubs={mine} loading={clubsQ.isPending} layout={hubLayout} />

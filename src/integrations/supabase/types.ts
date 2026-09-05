@@ -18737,6 +18737,11 @@ export type Database = {
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
       _caller_tenant: { Args: never; Returns: string }
+      _club_slugify: { Args: { p_text: string }; Returns: string }
+      _club_unique_slug: {
+        Args: { _tenant_id: string; p_base: string }
+        Returns: string
+      }
       _event_answer_matches: {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
@@ -22322,6 +22327,18 @@ export type Database = {
           unread_count: number
         }[]
       }
+      club_my_proposals: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          name_en: string
+          name_pl: string
+          policy_area: string
+          slug: string
+          status: string
+        }[]
+      }
       club_my_subscription: { Args: { p_thread_id: string }; Returns: string }
       club_notify: {
         Args: {
@@ -22386,6 +22403,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      club_propose: { Args: { p: Json }; Returns: Json }
       club_prune_thread_embeddings: { Args: never; Returns: number }
       club_react: {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
@@ -23013,6 +23031,10 @@ export type Database = {
       }
       club_unreact: {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
+      }
+      club_update_settings: {
+        Args: { p: Json; p_club_id: string }
         Returns: boolean
       }
       club_upsert_thread_embedding: {

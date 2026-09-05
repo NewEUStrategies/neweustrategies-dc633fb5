@@ -35,6 +35,7 @@ import {
   MessagesSquare,
   Newspaper,
   Search,
+  Settings2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,7 @@ import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobal
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { ClubSettingsDialog } from "@/components/clubs/molecules/ClubSettingsDialog";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 
@@ -124,6 +126,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   const { session } = useAuth();
   const signedIn = session !== null;
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState<ClubFeedMode>("all");
   const [groupId, setGroupId] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubThreadSort>("hot");
@@ -367,6 +370,24 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8">
       <Breadcrumbs items={breadcrumbItems} className="mb-3" />
+      {/* Edycja danych klubu stoi PRZY kluby, nie w panelu: prowadzacy klubu
+          nie ma dostepu do panelu administracyjnego. */}
+      {club.can_manage ? (
+        <div className="mb-2 flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-[6px]"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t("club.settings.action")}
+          </Button>
+        </div>
+      ) : null}
+      {settingsOpen ? (
+        <ClubSettingsDialog club={club} open={settingsOpen} onOpenChange={setSettingsOpen} />
+      ) : null}
       <ClubHubIdentity club={club} locale={locale} className="mb-4" />
 
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">

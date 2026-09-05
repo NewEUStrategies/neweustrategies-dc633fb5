@@ -118,6 +118,8 @@ vi.mock("@/lib/clubs/useClubs", () => ({
     };
   },
   useMyClubInvitations: () => ({ data: h.invitations }),
+  // Zgloszenia klubow: atrapa oddaje puste, bo ten test bada KATALOG.
+  useMyClubProposals: () => ({ data: [] }),
   useRespondClubInvitation: () => ({
     mutate: (
       vars: RespondVars,

@@ -66,6 +66,10 @@ export {
 } from "./useClubInvites";
 export type { InviteByEmailVars, InviteMemberVars } from "./useClubInvites";
 
+// zgloszenie klubu i edycja danych klubu przez prowadzacego
+export { useMyClubProposals, useProposeClub, useUpdateClubSettings } from "./useClubOwner";
+export type { UpdateClubSettingsVars } from "./useClubOwner";
+
 // watki i odpowiedzi
 export {
   useClubReplies,

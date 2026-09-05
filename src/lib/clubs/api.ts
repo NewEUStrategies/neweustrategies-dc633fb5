@@ -17,7 +17,12 @@ import type { Database, Json } from "@/integrations/supabase/types";
 type RpcArgs<K extends keyof Database["public"]["Functions"]> =
   Database["public"]["Functions"][K]["Args"];
 import {
+  CLUB_STATUSES,
   type ClubAttributionMode,
+  type ClubJoinPolicy,
+  type ClubLayout,
+  type ClubPostPolicy,
+  type ClubStatus,
   groupReactions,
   groupReactionActors,
   mergeClubSearchResults,
@@ -1262,4 +1267,105 @@ export async function revealClubAuthor(params: {
   return row
     ? { authorId: row.author_id, displayName: row.display_name, profileSlug: row.profile_slug }
     : null;
+}
+
+// ---------------------------------------------------------------------------
+// Zgloszenie klubu i edycja danych klubu PRZEZ PROWADZACEGO
+// ---------------------------------------------------------------------------
+//
+// DLACZEGO OSOBNE RPC OD `admin_club_upsert`. Tamto jest admin-only i zyje
+// w panelu, do ktorego czlonek ani prowadzacy klubu nie ma wstepu. Czlonek
+// moze ZGLOSIC klub (powstaje szkic do zatwierdzenia przez administracje),
+// a prowadzacy moze poprawic DANE swojego klubu - ale nie jego widocznosc
+// ani status, bo to decyzje platformy, nie klubu.
+
+/** Wejscie zgloszenia klubu przez czlonka. Adres (slug) liczy BAZA z nazwy. */
+export interface ClubProposalInput {
+  name_pl: string;
+  name_en?: string | null;
+  tagline_pl?: string | null;
+  tagline_en?: string | null;
+  description_pl?: string | null;
+  description_en?: string | null;
+  policy_area?: string | null;
+  specialization_slug?: string | null;
+  join_policy?: ClubJoinPolicy;
+  /** Uzasadnienie - ladunek dziennika moderacji, nie tresc klubu. */
+  motivation?: string | null;
+}
+
+export interface ClubProposalResult {
+  id: string;
+  slug: string;
+  status: ClubStatus;
+}
+
+export interface ClubProposalRow {
+  id: string;
+  slug: string;
+  name_pl: string;
+  name_en: string;
+  status: string;
+  policy_area: string | null;
+  created_at: string;
+}
+
+/** Zapisuje zgloszenie klubu. Zwraca id i adres nowego szkicu. */
+export async function proposeClub(input: ClubProposalInput): Promise<ClubProposalResult> {
+  const { data, error } = await supabase.rpc("club_propose", { p: toJsonPayload(input) });
+  if (error) throw error;
+  const row = (data ?? {}) as { id?: string; slug?: string; status?: string };
+  if (typeof row.id !== "string" || typeof row.slug !== "string") {
+    throw new Error("clubs: proposal returned no row");
+  }
+  return {
+    id: row.id,
+    slug: row.slug,
+    status: (CLUB_STATUSES as readonly string[]).includes(row.status ?? "")
+      ? (row.status as ClubStatus)
+      : "draft",
+  };
+}
+
+/** Moje zgloszenia klubow wraz ze statusem rozpatrzenia. */
+export async function fetchMyClubProposals(): Promise<ClubProposalRow[]> {
+  const { data, error } = await supabase.rpc("club_my_proposals");
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Dane klubu zmieniane przez PROWADZACEGO. Widocznosc, status, prog planu
+ * i tryb atrybucji swiadomie NIE wchodza w ten typ - RPC ich nie czyta,
+ * a droplista, ktorej baza nie uwzgledni, jest bledem interfejsu.
+ */
+export interface ClubSettingsPatch {
+  name_pl?: string;
+  name_en?: string;
+  tagline_pl?: string | null;
+  tagline_en?: string | null;
+  description_pl?: string | null;
+  description_en?: string | null;
+  rules_pl?: string | null;
+  rules_en?: string | null;
+  icon?: string;
+  accent_color?: string | null;
+  cover_image_url?: string | null;
+  policy_area?: string | null;
+  layout?: ClubLayout;
+  who_can_post?: ClubPostPolicy;
+  join_policy?: ClubJoinPolicy;
+}
+
+/** Zapis danych klubu przez prowadzacego. `false` = nic nie zmieniono. */
+export async function updateClubSettings(params: {
+  clubId: string;
+  patch: ClubSettingsPatch;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_update_settings", {
+    p_club_id: params.clubId,
+    p: toJsonPayload(params.patch),
+  });
+  if (error) throw error;
+  return data === true;
 }

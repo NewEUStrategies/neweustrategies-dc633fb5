@@ -63,6 +63,10 @@ export const clubKeys = {
    *  bo zasilaja licznik w nawigacji niezaleznie od otwartego klubu. */
   myInvitations: () => [...clubKeys.all, "myInvitations"] as const,
 
+  /** Kluby ZGLOSZONE przeze mnie wraz ze statusem rozpatrzenia. Poza galezia
+   *  konkretnego klubu, bo szkic nie ma jeszcze zadnego widoku klubu. */
+  myProposals: () => [...clubKeys.all, "myProposals"] as const,
+
   /**
    * Lista watkow. KAZDY filtr jest czescia klucza - inaczej dwa rozne zestawy
    * wynikow lezalyby pod jednym wpisem, a przelaczenie filtra pokazywaloby
