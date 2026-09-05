@@ -218,9 +218,16 @@ function ClubNewThread() {
 
   const kinds = useMemo(() => threadKindChoices(canModerate), [canModerate]);
   useEffect(() => {
+    // Autorytet moderacyjny przychodzi z `club_view`, więc DOPÓKI karta klubu
+    // jest w locie, `canModerate` jest fałszem z BRAKU DANYCH, a nie z braku
+    // prawa. Degradacja w tym momencie kasowałaby rodzaj wzięty z adresu
+    // (skrót "Napisz ogłoszenie" z huba) zanim RPC zdąży potwierdzić
+    // uprawnienie - i bez śladu, bo po pierwszym renderze droplista należy już
+    // do autora i nic jej z powrotem nie ustawi.
+    if (clubQ.isPending) return;
     const allowed = resolveThreadKind(kind, canModerate);
     if (allowed !== kind) setKind(allowed);
-  }, [canModerate, kind]);
+  }, [canModerate, clubQ.isPending, kind]);
 
   // Obszar klubu jest tylko DOMYSLNA podpowiedzia: raz dotknieta droplista
   // przestaje sie nadpisywac, zeby refetch klubu nie cofal wyboru autora.

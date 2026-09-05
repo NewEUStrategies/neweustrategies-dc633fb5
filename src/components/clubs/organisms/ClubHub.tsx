@@ -95,6 +95,8 @@ import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobal
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 
 const FEED_ICONS = {
   all: LayoutList,
@@ -117,6 +119,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
   const clubSlug = club.slug;
+  const clubName = pickLocalized(club, "name", lang);
 
   const { session } = useAuth();
   const signedIn = session !== null;
@@ -356,8 +359,14 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
     </>
   );
 
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { label: t("club.title"), href: "/club" },
+    { label: clubName },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8">
+      <Breadcrumbs items={breadcrumbItems} className="mb-3" />
       <ClubHubIdentity club={club} locale={locale} className="mb-4" />
 
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">
@@ -437,8 +446,8 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
             </div>
           ) : null}
 
-          <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
-            <div className="relative">
+          <div className="mb-3 grid items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
+            <div className="relative h-12 min-w-0">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden="true"
@@ -448,7 +457,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t("club.searchPlaceholder")}
                 aria-label={t("club.searchPlaceholder")}
-                className="rounded-lg pl-9 pr-9"
+                className="h-12 min-h-12 rounded-[6px] py-0 pl-9 pr-9"
               />
               {query !== "" ? (
                 <button
@@ -464,7 +473,10 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
             <Select value={sort} onValueChange={(value) => setSort(value as ClubThreadSort)}>
               <SelectTrigger
                 aria-label={t("club.sort.label")}
-                className={cn("rounded-lg", searching && "hidden")}
+                className={cn(
+                  "h-12 min-h-12 items-center rounded-[6px] py-0 leading-none [&>svg]:self-center",
+                  searching && "hidden",
+                )}
               >
                 <SelectValue />
               </SelectTrigger>

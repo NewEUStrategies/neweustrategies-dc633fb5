@@ -112,10 +112,45 @@ export const fetchPreviewPost = createServerFn({ method: "POST" })
       throw new Error("Rate limit exceeded");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // NAJEMCA JEST WARUNKIEM, NIE OZDOBĄ. Obie kwerendy niżej idą przez rolę
+    // serwisową, a rola serwisowa OMIJA RLS - czyli politykę
+    // `tenant_id = current_tenant_id() AND is_staff()`
+    // (`supabase/migrations/20260720131000_post_preview_tokens.sql:31-34`),
+    // która regułę najemcy niesie. Bez jawnego `.eq("tenant_id", ...)` token
+    // wystawiony na domenie najemcy A rozwiązywał się na domenie najemcy B
+    // i wydawał tam SZKIC najemcy A. Wzorzec (host -> najemca -> warunek) jest
+    // przeniesiony z `feedback.functions.ts:21-27,47-54` - ten sam katalog,
+    // ta sama rola, ta sama publiczna ścieżka.
+    const [{ resolveCrawlerTenantForHost }, { currentTenantHost }] = await Promise.all([
+      import("@/lib/server/tenant.server"),
+      import("@/lib/http/requestHost"),
+    ]);
+    // DLACZEGO PŁASZCZYZNA CRAWLERA, A NIE `resolveTenantIdForHost` JAK
+    // W `feedback.functions.ts`. Rezolwer płaszczyzny TREŚCI jest z założenia
+    // fail-OPEN: `resolveTenantForHost` (`tenant.server.ts:224-228`) kończy się
+    // na `?? directory.defaultTenant`, więc dla hosta spoza katalogu oddaje
+    // najemcę DOMYŚLNEGO. Wstawiony tu warunek `.eq("tenant_id", ...)` byłby
+    // wtedy spełniony przez szkice najemcy domyślnego i podgląd wydawałby je
+    // na KAŻDEJ nieprzypisanej domenie kierowanej na to wdrożenie - czyli
+    // dokładnie to, czego ta poprawka miała zabronić.
+    // `resolveCrawlerTenantForHost` (`tenant.server.ts:239-259`) dopuszcza
+    // najemcę domyślnego WYŁĄCZNIE tam, gdzie dwuznaczność jest nieszkodliwa:
+    // host podglądowy platformy (admin ogląda własny serwis) albo katalog bez
+    // ANI JEDNEJ zajętej domeny (routing i tak nie odróżnia najemców, więc nie
+    // ma czego wynieść). Każdy inny nieznany host daje `null`.
+    // `feedback.functions.ts` zostaje przy płaszczyźnie treści świadomie: tam
+    // czyta się wpis OPUBLIKOWANY, tutaj - SZKIC.
+    const tenant = await resolveCrawlerTenantForHost(await currentTenantHost());
+    // FAIL-CLOSED: to jest ścieżka do treści NIEOPUBLIKOWANEJ, więc nierozpoznany
+    // host oznacza odmowę, a nie „najemca domyślny". `null` zamiast rzutu -
+    // trasa `/preview/$token` renderuje z niego „nie znaleziono".
+    if (!tenant) return null;
+    const tenantId = tenant.id;
     const { data: tokenRow } = await supabaseAdmin
       .from("post_preview_tokens")
       .select("post_id, expires_at")
       .eq("token", data.token)
+      .eq("tenant_id", tenantId)
       .gt("expires_at", new Date().toISOString())
       .maybeSingle();
     if (!tokenRow) return null;
@@ -125,6 +160,7 @@ export const fetchPreviewPost = createServerFn({ method: "POST" })
         "title_pl, title_en, excerpt_pl, excerpt_en, editor, content_pl, content_en, builder_data, blocks_data, cover_image_url, status, updated_at",
       )
       .eq("id", tokenRow.post_id)
+      .eq("tenant_id", tenantId)
       .is("deleted_at", null)
       .maybeSingle();
     if (!post) return null;

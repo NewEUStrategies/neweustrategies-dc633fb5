@@ -274,9 +274,9 @@ describe("trasa /polls - treść ankiety", () => {
 
     const card = pollCard("Czy Europa powinna przyspieszyć rozbudowę sieci przesyłowych?");
     expect(within(card).getByText("Ankieta zamknięta")).toBeInTheDocument();
-    within(card)
-      .getAllByRole("button")
-      .forEach((button) => expect(button).toBeDisabled());
+    const options = within(card).getAllByRole("radio");
+    expect(options).toHaveLength(2);
+    options.forEach((option) => expect(option).toBeDisabled());
   });
 
   it("gość widzi ankietę i podpowiedź o logowaniu, ale nie może głosować", async () => {
@@ -284,9 +284,9 @@ describe("trasa /polls - treść ankiety", () => {
 
     const card = pollCard("Czy Europa powinna przyspieszyć rozbudowę sieci przesyłowych?");
     expect(within(card).getByText("Zaloguj się, aby oddać głos.")).toBeInTheDocument();
-    within(card)
-      .getAllByRole("button")
-      .forEach((button) => expect(button).toBeDisabled());
+    const options = within(card).getAllByRole("radio");
+    expect(options).toHaveLength(2);
+    options.forEach((option) => expect(option).toBeDisabled());
   });
 
   it("zalogowany oddaje głos przez RPC z NUMEREM opcji, nie z jej treścią", async () => {
@@ -295,7 +295,7 @@ describe("trasa /polls - treść ankiety", () => {
     h.userId = "user-1";
     await mount();
 
-    fireEvent.click(screen.getByRole("button", { name: /Nie, najpierw magazyny/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Nie, najpierw magazyny/ }));
 
     await waitFor(() => expect(h.votes).toEqual([{ p_poll_id: POLL_ID, p_option_idx: 1 }]));
   });
@@ -522,35 +522,63 @@ describe("trasa /polls - kanał realtime na poll_votes", () => {
 // ── DOSTĘPNOŚĆ: OPCJE ANKIETY JAKO GRUPA WYBORU ────────────────────────────
 //
 // Ankieta jednokrotnego wyboru to semantycznie GRUPA opcji z jedną etykietą -
-// pytaniem. Dzisiejsza karta buduje ją z przycisków `aria-pressed` w gołym
-// `<ul>`, bez roli grupy i bez powiązania z pytaniem. Skutek jest mierzalny
-// i całkowicie niewidoczny dla axe (przyciski MAJĄ dostępne nazwy, lista JEST
-// poprawną listą): czytnik ekranu na stronie z trzema ankietami czyta dziewięć
-// przycisków przełącznikowych bez informacji, do którego pytania należą.
+// pytaniem. Kiedy ten plik powstawał (`c674a0e`, Moduł 07), `PollCard` budował
+// ją z listy `<button aria-pressed>` w gołym `<ul>`: bez roli grupy i bez
+// powiązania z pytaniem, więc blok niżej stał tu jako zapadka na DEFEKT.
 //
-// NIE NAPRAWIAM TEGO TUTAJ, bo `PollCard` jest WSPÓLNY dla `/polls` i dla
-// bloku ankiety w treści wpisu (`PollBlockView`), a zamiana przycisków na
-// grupę radiową zmienia obsługę klawiatury obu powierzchni (strzałki zamiast
-// tabulacji, jedno zatrzymanie tabulatora na grupę). To zmiana zachowania
-// dwóch powierzchni naraz, nie usunięcie błędu na jednej trasie.
+// DEFEKT ZOSTAŁ NAPRAWIONY W PRODUKCIE, w równoległej gałęzi `ee9ad35`
+// („Moduł 16: punkt kontrolny 5"), która NIE MA `c674a0e` w przodkach - obie
+// weszły na main osobno i dlatego ta zapadka pilnowała kształtu, którego już
+// nie ma. Dziś `<ul>` jest `role="radiogroup"` powiązanym z nagłówkiem przez
+// `aria-labelledby`, każda opcja jest `role="radio"` z `aria-checked`,
+// a `<li role="none">` zdejmuje z pozycji listy rolę `listitem`, niedozwoloną
+// wewnątrz grupy radiowej. Dowód na poziomie komponentu (obie powierzchnie:
+// `/polls` i blok ankiety we wpisie) stoi w
+// `src/components/community/__tests__/PollCard.test.tsx`.
+//
+// CO ZOSTAJE DO UDOWODNIENIA NA TRASIE, a czego test komponentu nie widzi:
+// strona renderuje WIELE kart naraz, więc dopiero tutaj widać, czy opcje
+// rozkładają się na ROZŁĄCZNE grupy nazwane własnymi pytaniami. To jest cała
+// stawka tej semantyki: bez niej czytnik ekranu na stronie z dwiema ankietami
+// czyta cztery kontrolki bez informacji, do którego pytania należą - i axe
+// tego nie widzi (kontrolki MAJĄ dostępne nazwy, lista JEST poprawną listą).
 describe("trasa /polls - dostępność grupy wyboru", () => {
-  it.fails("DEFEKT: opcje ankiety NIE tworzą grupy opisanej pytaniem", async () => {
+  it("opcje ankiety tworzą grupę radiową, której nazwą jest pytanie", async () => {
     // KONTRAKT: opcje jednej ankiety są grupą, a jej dostępną nazwą jest
     // pytanie. Wtedy czytnik ekranu mówi „grupa: Czy Europa... , opcja 1 z 2".
     h.userId = "user-1";
     await mount();
 
-    expect(
-      screen.getByRole("group", {
-        name: "Czy Europa powinna przyspieszyć rozbudowę sieci przesyłowych?",
-      }),
-    ).toBeInTheDocument();
+    const group = screen.getByRole("radiogroup", {
+      name: "Czy Europa powinna przyspieszyć rozbudowę sieci przesyłowych?",
+    });
+    expect(group).toBeInTheDocument();
+    expect(within(group).getAllByRole("radio")).toHaveLength(2);
   });
 
-  it("KONTROLA DODATNIA: dziś opcje to przyciski przełącznikowe z etykietą tekstową", async () => {
-    // Para do `it.fails` wyżej: opisuje stan DZISIEJSZY, więc gdyby ktoś
-    // usunął `aria-pressed` albo etykiety, ten test padnie od razu - zapadka
-    // nie jest zapisem „i tak jest źle".
+  it("DWIE ankiety to DWIE rozłączne grupy, każda nazwana swoim pytaniem", async () => {
+    // Zapadka trasy, nie komponentu: gdyby powiązanie z nagłówkiem zeszło na
+    // stały identyfikator zamiast `useId()`, obie karty nazwałyby się tym
+    // samym pytaniem i opcje drugiej ankiety trafiłyby pod pierwsze.
+    h.userId = "user-1";
+    h.polls = [poll(), poll({ id: "p2", question_pl: "Czy dopłacać do magazynów energii?" })];
+    await mount();
+
+    const first = screen.getByRole("radiogroup", {
+      name: "Czy Europa powinna przyspieszyć rozbudowę sieci przesyłowych?",
+    });
+    const second = screen.getByRole("radiogroup", {
+      name: "Czy dopłacać do magazynów energii?",
+    });
+    expect(first).not.toBe(second);
+    expect(screen.getAllByRole("radiogroup")).toHaveLength(2);
+    expect(within(first).getAllByRole("radio")).toHaveLength(2);
+    expect(within(second).getAllByRole("radio")).toHaveLength(2);
+  });
+
+  it("stan wyboru jedzie przez `aria-checked`, a etykietą opcji jest jej treść", async () => {
+    // Gdyby ktoś usunął `aria-checked` albo etykiety, ten test padnie od razu:
+    // grupa radiowa bez zaznaczenia to kontrolka, która nie mówi, co wybrano.
     h.userId = "user-1";
     h.results = [
       { poll_id: POLL_ID, result: { visible: true, my_vote: 1, total: 1, counts: [0, 1] } },
@@ -558,12 +586,12 @@ describe("trasa /polls - dostępność grupy wyboru", () => {
     await mount();
 
     const card = pollCard("Czy Europa powinna przyspieszyć rozbudowę sieci przesyłowych?");
-    const buttons = within(card).getAllByRole("button");
-    expect(buttons).toHaveLength(2);
-    await waitFor(() => expect(buttons[1]).toHaveAttribute("aria-pressed", "true"));
-    expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
-    // Etykieta tekstowa jest jedyną dostępną nazwą tych przycisków.
-    expect(buttons[0]).toHaveAccessibleName(/Tak, natychmiast/);
+    const options = within(card).getAllByRole("radio");
+    expect(options).toHaveLength(2);
+    await waitFor(() => expect(options[1]).toHaveAttribute("aria-checked", "true"));
+    expect(options[0]).toHaveAttribute("aria-checked", "false");
+    // Etykieta tekstowa jest jedyną dostępną nazwą tych kontrolek.
+    expect(options[0]).toHaveAccessibleName(/Tak, natychmiast/);
   });
 });
 

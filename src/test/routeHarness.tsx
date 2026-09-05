@@ -63,6 +63,28 @@ export interface RenderRouteOptions {
   queryClient?: QueryClient;
   /** Opakowanie wokół `RouterProvider` (np. własny provider motywu). */
   wrapper?: (children: ReactNode) => ReactNode;
+  /**
+   * PRAWDZIWY korzeń drzewa zamiast zastępczego (`<Outlet/>`).
+   *
+   * PO CO. Domyślny korzeń zastępczy wystarcza do testu SKLEJENIA jednej trasy,
+   * ale nie da się nim zamontować `src/routes/__root.tsx`: cała powłoka
+   * aplikacji (`SiteChrome`, `Header`, banery zgód, osiem nakładek `lazy()`)
+   * czyta kontekst routera przez `Link`, `useRouterState`, `useNavigate`
+   * i `useMatches`. Bez `RouterProvider`, w którym `__root` JEST korzeniem, te
+   * odczyty wywracają się na `Cannot read properties of null (reading
+   * 'isServer')`, a atrapowanie ich po kolei kończy się tym, że każdy leniwy
+   * chunk domaga się NASTĘPNEGO haka - zmierzone: zaatrapowanie `Link`
+   * i `useRouterState` odblokowuje montaż, ale rozstrzygnięcie nakładek
+   * (`LoginPopup`, `CommandPalette`, `PopupHost`) wywala ten sam błąd znowu.
+   *
+   * Podanie tu `Route` z `__root` znosi WSZYSTKIE atrapy routera naraz: hooki
+   * dostają prawdziwy router, prawdziwą historię i prawdziwe dopasowania.
+   *
+   * KONTRAKT: musi to być korzeń z `createRootRoute*` (ma `addChildren`), a nie
+   * trasa plikowa. Loader korzenia BIEGNIE - tak samo jak w produkcji - więc
+   * test musi mieć zaatrapowane to, czego ten loader dotyka.
+   */
+  rootRoute?: AnyRoute;
 }
 
 export interface RenderedRoute extends RenderResult {
@@ -98,9 +120,11 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
   const queryClient =
     options.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-  const rootRoute = createRootRouteWithContext<RouteHarnessContext>()({
-    component: () => <Outlet />,
-  });
+  const rootRoute =
+    options.rootRoute ??
+    createRootRouteWithContext<RouteHarnessContext>()({
+      component: () => <Outlet />,
+    });
   const child = wireToParent(options.route, {
     id: options.path,
     path: options.path,

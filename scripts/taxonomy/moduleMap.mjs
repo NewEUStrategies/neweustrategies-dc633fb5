@@ -427,6 +427,19 @@ export const MODULES = [
       /^src\/components\/careers\//,
       /^src\/routes\/.*(career|job)/,
       /^src\/routes\/admin\.hiring/,
+      // PUBLICZNA STRONA KARIERY. Wzorce wyżej łapią angielskie `career`/`job`
+      // i panel `admin.hiring`, ale trasa, na którą wchodzi KANDYDAT, nazywa
+      // się po polsku - `zatrudniamy.tsx` - i nie ma w nazwie ani jednego z
+      // tych członów. Nie należała więc do żadnego z modułów 1-19, a łapacz
+      // `^src\/routes\//` modułu 20 („Platforma / backend / infrastruktura /
+      // SSR") brał ją jako ostatni. Skutek: moduł „Rekrutacja / kariera" nie
+      // zawierał strony rekrutacyjnej. To 34 linie, 11 funkcji i 22 gałęzie na
+      // ZERZE (zmierzone) - i jednocześnie KORZEŃ ZŁOŻENIA całego modułu:
+      // ta trasa spina hero, wartości, listę ról, proces, formularz i sekcję
+      // zamykającą, trzyma filtr działu, wybraną rolę i licznik intencji
+      // aplikowania (`applySignal`), a w `head()` decyduje o kanonicznym
+      // adresie i o `noindex`. Żaden wiersz tabeli nie mógł tego pokazać.
+      /^src\/routes\/zatrudniamy/,
     ],
   },
   {

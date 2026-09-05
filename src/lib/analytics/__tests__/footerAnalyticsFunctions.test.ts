@@ -143,6 +143,19 @@ function kontekst(tenantId: string): ServerFnContext {
   };
 }
 
+/**
+ * Kontekst z SUROWĄ atrapą - odpowiedź dla `analytics_events` ustawia sam
+ * przypadek. Potrzebny tam, gdzie klient najemcy jest za wierny: odtwarza on
+ * filtry zapytania, więc nie da się nim podać ani rozjazdu między licznikiem
+ * a odczytem wierszy, ani wiersza spoza listy `FOOTER_EVENTS`.
+ */
+function kontekstSurowy(): ServerFnContext {
+  return {
+    supabase: { from: stub.from },
+    userId: "99999999-9999-4999-8999-999999999999",
+  };
+}
+
 async function wywolaj(tenantId: string, data?: unknown): Promise<FooterAnalyticsResult> {
   return callServerFn<FooterAnalyticsResult>(getFooterAnalytics, {
     data,
@@ -539,6 +552,76 @@ describe("getFooterAnalytics - brzegi odczytu", () => {
     await expect(callServerFn(getFooterAnalytics, { data: { days: 3 }, context })).rejects.toThrow(
       "permission denied for analytics_events",
     );
+  });
+
+  it("awaria odczytu WIERSZY jest błędem także wtedy, gdy licznik okna się udał", async () => {
+    // Przypadek wyżej wywraca OBA zapytania naraz, więc dowodzi wyłącznie
+    // bramki przy liczniku - odczyt wierszy ma własną, drugą bramkę i nikt jej
+    // dotąd nie oglądał. A te dwa zapytania padają NIEZALEŻNIE: licznik jest
+    // tani (`head: true`, bez wierszy i bez sortowania), odczyt wierszy wozi
+    // dziesięć tysięcy rekordów z `order by created_at`, więc to on pierwszy
+    // łapie `statement timeout` albo limit pamięci PostgREST. Gdyby ta druga
+    // bramka wypadła, panel dostałby total okna obok PUSTEGO rankingu i pustego
+    // szeregu - obraz „ruch był, ale żaden link nie ma ani jednego kliknięcia",
+    // nieodróżnialny od prawdziwej zapaści ruchu w stopce.
+    stub.setResponse("analytics_events", (chain) =>
+      czyZapytanieLiczace(chain)
+        ? okCount(41)
+        : fail("canceling statement due to statement timeout"),
+    );
+
+    await expect(
+      callServerFn(getFooterAnalytics, { data: { days: 3 }, context: kontekstSurowy() }),
+    ).rejects.toThrow("canceling statement due to statement timeout");
+  });
+
+  it("zdarzenie stopki spoza czterech liczników nie podbija CUDZEGO licznika", async () => {
+    // `FOOTER_EVENTS` jest listą JEDNOKIERUNKOWĄ: rozszerza ją zapytanie, ale
+    // rozbicie na liczniki to osobny łańcuch `if/else if`. Dopisanie piątego
+    // zdarzenia stopki (np. udostępnienia) do samej listy przechodzi przez tsc
+    // i przez recenzję, a od tej chwili wiersz spada na koniec łańcucha. Test
+    // przypina, co się wtedy dzieje: zdarzenie NIE zasila po cichu licznika
+    // kliknięć w linki (to byłoby zafałszowanie raportu, nie brak danych),
+    // ale ZOSTAJE policzone w oknie, w rankingu pod własną nazwą i w szeregu
+    // dziennym po stronie kliknięć - konwersją jest wyłącznie zapis do
+    // newslettera. Zmiana któregokolwiek z tych trzech skutków ma być decyzją,
+    // a nie skutkiem ubocznym dopisania nazwy do stałej.
+    stub.setResponse("analytics_events", (chain) =>
+      czyZapytanieLiczace(chain)
+        ? okCount(2)
+        : ok([
+            {
+              event_name: "footer_share_click",
+              meta: { href: "/analizy", label: "Analizy", group: "editorial" },
+              created_at: "2026-03-15T09:00:00.000Z",
+              entity_id: "/analizy",
+            },
+            {
+              event_name: "footer_link_click",
+              meta: { href: "/analizy", label: "Analizy", group: "editorial" },
+              created_at: "2026-03-15T08:00:00.000Z",
+              entity_id: "/analizy",
+            },
+          ]),
+    );
+
+    const wynik = await callServerFn<FooterAnalyticsResult>(getFooterAnalytics, {
+      data: { days: 3 },
+      context: kontekstSurowy(),
+    });
+
+    expect(wynik.totals).toEqual({
+      total: 2,
+      link_clicks: 1,
+      legal_clicks: 0,
+      newsletter_clicks: 0,
+      newsletter_signups: 0,
+    });
+    expect(wynik.rows.map((r) => [r.event_name, r.clicks])).toEqual([
+      ["footer_share_click", 1],
+      ["footer_link_click", 1],
+    ]);
+    expect(wynik.daily).toEqual([{ date: "2026-03-15", clicks: 2, signups: 0 }]);
   });
 });
 

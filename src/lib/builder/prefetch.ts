@@ -236,6 +236,13 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   if (widget.type === "club-threads") {
     out.push(clubThreadsQueryOptions(clubThreadsInput(widget.content)));
   }
+  // `club-hub` grzeje TYLKO naglowek klubu: listy sekcji zaleza od identyfikatora,
+  // ktory poznajemy dopiero z odpowiedzi `club_view`, wiec ich prefetch
+  // wymagalby drugiej rundy zapytan po stronie serwera.
+  if (widget.type === "club-hub") {
+    const slug = clubWidgetSlug(widget.content);
+    if (slug !== "") out.push(clubCardQueryOptions(slug));
+  }
   // Podcast i Web Stories: fabryki zapytań były gotowe i już grzane serwerowo
   // w loaderach `/podcasts` i `/web-stories`, brakowało TYLKO wpisu w rejestrze
   // widgetów. Bez niego karta odcinka i kafelek historii wychodziły z SSR jako
@@ -442,6 +449,13 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   if (widget.type === "club-threads") {
     const opts = clubThreadsQueryOptions(clubThreadsInput(widget.content));
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "club-hub") {
+    const slug = clubWidgetSlug(widget.content);
+    if (slug !== "") {
+      const opts = clubCardQueryOptions(slug);
+      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+    }
   }
   if (widget.type === "podcast-latest") {
     const opts = podcastLatestQueryOptions(widget.content);

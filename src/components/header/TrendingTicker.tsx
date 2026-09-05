@@ -513,7 +513,11 @@ function TickerGlassMarquee({
     >
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
-          <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
+          <Flame
+            className={`w-3.5 h-3.5 shrink-0 ${iconClass}`}
+            style={{ color: "inherit" }}
+            aria-hidden
+          />
         </span>
         <span className="tt-chip-text hidden sm:inline">{label}</span>
       </span>
@@ -599,7 +603,11 @@ function TickerGlassCards({
     >
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
-          <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
+          <Flame
+            className={`w-3.5 h-3.5 shrink-0 ${iconClass}`}
+            style={{ color: "inherit" }}
+            aria-hidden
+          />
         </span>
         <span className="tt-chip-text hidden sm:inline">{label}</span>
       </span>
@@ -732,8 +740,8 @@ function TickerStyles() {
 
         /* Flame animations */
         @keyframes tt-flame-pulse {
-          0%,100% { transform: scale(1); filter: drop-shadow(0 0 0 currentColor) }
-          50%     { transform: scale(1.18); filter: drop-shadow(0 0 6px currentColor) }
+          0%,100% { transform: scale(1) }
+          50%     { transform: scale(1.18) }
         }
         @keyframes tt-flame-flicker {
           0%,100% { transform: scale(1) rotate(-2deg); opacity: 1 }
@@ -767,8 +775,6 @@ function TickerStyles() {
           background: linear-gradient(135deg,
             color-mix(in srgb, var(--tt-label) 18%, transparent),
             color-mix(in srgb, var(--tt-label) 4%, transparent));
-          box-shadow: 0 1px 0 color-mix(in srgb, #fff 22%, transparent) inset,
-                      0 6px 18px -12px color-mix(in srgb, var(--tt-label) 80%, transparent);
           backdrop-filter: blur(10px) saturate(140%);
           -webkit-backdrop-filter: blur(10px) saturate(140%);
         }
@@ -876,8 +882,7 @@ function TickerStyles() {
           font-size: 10px;
           letter-spacing: .06em;
           text-transform: uppercase;
-          box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--tt-label) 55%, transparent);
-          transition: transform .25s ease, box-shadow .25s ease;
+          transition: transform .25s ease;
           gap: 6px;
           /* skew wysuwa lewą krawędź w lewo - dodajemy margines, żeby nie być obciętym przez overflow-hidden rodzica */
           margin-left: 4px;
@@ -965,7 +970,6 @@ function TickerStyles() {
         .tt-skin--live .tt-live-avatar {
           background: color-mix(in srgb, var(--tt-label) 18%, transparent);
           color: var(--tt-label);
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
         }
         /* Jedna linia bazowa dla całego elementu: wspólny wiersz 24px, każdy
            składnik (numer, tytuł, kreska, awatar, nazwisko) jest wyśrodkowany

@@ -291,9 +291,25 @@ export function ClubDossierRow({
 
       <div className="min-w-0">
         {meta !== undefined ? (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          // Pasek meta: etykieta rodzaju, chipy, autor, data i odznaki mają
+          // JEDNAKOWĄ wysokość (20 px) i są wycentrowane w pionie. Avatar
+          // (`img`) i kropka nieprzeczytanego zostają przy swoich rozmiarach.
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground",
+              "[&>*:not(img):not([data-dossier-dot])]:inline-flex",
+              "[&>*:not(img):not([data-dossier-dot])]:h-5",
+              "[&>*:not(img):not([data-dossier-dot])]:items-center",
+              "[&>*:not(img):not([data-dossier-dot])]:py-0",
+              "[&>*:not(img):not([data-dossier-dot])]:leading-none",
+            )}
+          >
             {unread ? (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+              <span
+                data-dossier-dot=""
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                aria-hidden="true"
+              />
             ) : null}
             {meta}
           </div>
@@ -307,7 +323,7 @@ export function ClubDossierRow({
           )}
         >
           {titleStyle === "headline" ? (
-            <div className="text-xl font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/dossier:text-foreground sm:text-2xl">
+            <div className="text-lg font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/dossier:text-foreground sm:text-xl">
               {title}
             </div>
           ) : (
@@ -316,7 +332,7 @@ export function ClubDossierRow({
         </div>
 
         {excerpt !== undefined ? (
-          <div className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+          <div className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
             {excerpt}
           </div>
         ) : null}

@@ -727,6 +727,42 @@ describe("getAudienceSegments - KPI i wykres opisują JEDNO okno", () => {
     expect(wynik.series.map((p) => p.day).at(-1)).toBe("2026-03-15");
   });
 
+  it("odsłona ze znacznikiem z PRZYSZŁOŚCI ląduje w ostatnim punkcie, a nie poza siatką", async () => {
+    // Drugi brzeg tego samego domknięcia. Zapytanie ma WYŁĄCZNIE dolną granicę
+    // (`gte("viewed_at", since)`), więc wiersz z sekundy „po" dzisiejszym dniu
+    // przechodzi przez odczyt jak każdy inny - a takie wiersze powstają
+    // naprawdę: `viewed_at` bywa znacznikiem z przestawionego zegara klienta,
+    // a między instancjami bazy i aplikacji potrafi być kilka sekund dryfu.
+    // Bez domknięcia górnego brzegu ten wiersz wpadałby do `views_total`
+    // (bo KPI liczy wszystko, co przyszło z bazy) i JEDNOCZEŚNIE nie miałby
+    // swojego słupka - panel pokazywałby wtedy liczbę nad wykresem większą od
+    // sumy słupków, czyli sam sobie przeczył. Siatka zostaje `days`-punktowa:
+    // dorysowanie jutra byłoby drugim błędem zamiast naprawy.
+    widoki = [
+      {
+        tenant_id: TENANT_A,
+        post_id: "post-1",
+        user_id: "user-1",
+        viewer_hash: "h1",
+        viewed_at: "2026-03-16T03:00:00.000Z",
+      },
+      {
+        tenant_id: TENANT_A,
+        post_id: "post-1",
+        user_id: null,
+        viewer_hash: "h2",
+        viewed_at: godzinTemu(1),
+      },
+    ];
+    const wynik = await wywolaj(ADMIN_A, { days: 7 });
+
+    expect(wynik.series).toHaveLength(7);
+    expect(wynik.series.map((p) => p.day)).not.toContain("2026-03-16");
+    expect(wynik.series.at(-1)).toEqual({ day: "2026-03-15", logged: 1, anon: 1 });
+    expect(wynik.kpi.views_total).toBe(2);
+    expect(wynik.series.reduce((acc, p) => acc + p.logged + p.anon, 0)).toBe(wynik.kpi.views_total);
+  });
+
   it("niezmiennik trzyma się także przy oknie jednodniowym i przy pełnym ruchu", async () => {
     widoki = [
       {

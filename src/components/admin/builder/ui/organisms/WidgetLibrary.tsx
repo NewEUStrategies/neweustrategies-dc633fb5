@@ -153,6 +153,7 @@ export function WidgetLibrary({
     "podcast-latest": "listings",
     "club-card": "listings",
     "club-threads": "listings",
+    "club-hub": "listings",
     "web-stories-carousel": "listings",
     categories: "taxonomy",
     tags: "taxonomy",

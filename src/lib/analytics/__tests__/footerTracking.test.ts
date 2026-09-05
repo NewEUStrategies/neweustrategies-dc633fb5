@@ -423,6 +423,22 @@ describe("trackFooterNewsletterSubmit", () => {
     ]);
   });
 
+  it("konwersja BEZ dodatkowych meta niesie do GA4 sam status, bez pustych kluczy", () => {
+    // `meta` jest parametrem OPCJONALNYM, a ładunek GA4 składa się przez
+    // `{ status, ...(meta ?? {}) }`. Bez fallbacku na pusty obiekt rozwinięcie
+    // `undefined` wprawdzie nie rzuca, ale każda zmiana tego wyrażenia na
+    // wariant, który `undefined` nie znosi (choćby `Object.assign` czy
+    // `Object.entries`), wywracałaby nadanie GA4 dokładnie w NAJCZĘSTSZYM
+    // wywołaniu z `Footer.tsx` - zapis newslettera woła tę funkcję bez meta.
+    // Asercja jest na DOKŁADNY kształt: doklejony `meta: undefined` albo pusty
+    // klucz zaśmieciłby raport konwersji w GA4, gdzie parametry są wymiarami.
+    const ga = podstawGtag();
+
+    trackFooterNewsletterSubmit("success");
+
+    expect(ga).toEqual([{ name: "footer_newsletter_signup", params: { status: "success" } }]);
+  });
+
   it("brak GA4 nie zabiera beacona konwersji", () => {
     expect(() => trackFooterNewsletterSubmit("success")).not.toThrow();
     expect(wyslaneZdarzenia()).toHaveLength(1);

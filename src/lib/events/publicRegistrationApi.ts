@@ -270,9 +270,15 @@ export async function cancelRegistration(
   if (error) throw error;
 
   const source = bag(data);
+  if (source === null) {
+    // Odpowiedź, której nie umiemy przeczytać, NIE jest odwołanym zgłoszeniem.
+    // Wynik zastępczy rysowałby ekran „zgłoszenie odwołane" nad miejscem, które
+    // nadal jest zajęte, a gość bez konta uznałby swój `manage_token` za zużyty.
+    // Bliźniacza `submitRegistration` rozstrzyga to tak samo (linia 178).
+    throw new Error("unknown: cancel response is not readable");
+  }
   return {
-    registrationId: source === null ? "" : (nullableText(source, "registration_id") ?? ""),
-    promotedFromWaitlist:
-      source === null ? 0 : (optionalInt(source, "promoted_from_waitlist") ?? 0),
+    registrationId: nullableText(source, "registration_id") ?? "",
+    promotedFromWaitlist: optionalInt(source, "promoted_from_waitlist") ?? 0,
   };
 }

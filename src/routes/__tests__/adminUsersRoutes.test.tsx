@@ -279,9 +279,11 @@ vi.mock("@/components/media/ImageCropDialog", () => ({
   ImageCropDialog: propsStub("ImageCropDialog"),
   CROP_PRESETS: { avatar: { aspect: 1 }, cover: { aspect: 3 } },
 }));
-vi.mock("@/components/icons/BrandIcon", () => ({
-  BrandIcon: ({ name }: { name: string }) => <span data-brand={name} />,
-}));
+// `BrandIcon` (atom z `components/atoms`) NIE jest tu atrapowany celowo -
+// karta użytkownika renderuje go sześcioma wywołaniami z fallbackami Lucide,
+// a przy pustej bibliotece ikon atom degraduje do tych fallbacków, nie mieszając
+// się w nic, co ten plik mierzy. Trasy `quiz` i `profile` atrapują go, bo tam
+// współdzielony cache ikon zakłócałby pomiar „zero odczytów" treści.
 vi.mock("@/components/admin/users/InviteUserDialog", () => ({
   InviteUserDialog: propsStub("InviteUserDialog"),
 }));

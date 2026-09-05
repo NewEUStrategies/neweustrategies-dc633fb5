@@ -339,6 +339,36 @@ describe("useTenantPendingCounters - kolejki staffu", () => {
     expect(stub().chainsFor(TENANT_TABLE)).toHaveLength(0);
     expect(result.current.fetchStatus).toBe("idle");
   });
+
+  it("ręczne odświeżenie przed rozwiązaniem najemcy PADA, zamiast spytać o kolejki wszystkich", async () => {
+    // `enabled` wstrzymuje POBRANIE AUTOMATYCZNE i tylko je. `refetch()` wisi
+    // w publicznym wyniku hooka (wołają go przyciski „odśwież" i kod
+    // odzyskujący po błędzie) i uruchamia `queryFn` nawet przy wyłączonym
+    // zapytaniu - React Query nie sprawdza tam `enabled`. To jest dokładnie
+    // ten dzień, o którym mówi komentarz przy strażniku: bramka zmiękła.
+    // Bez rzutu zapytanie poszłoby BEZ `.eq("tenant_id", …)`, więc oddałoby
+    // wszystko, co przepuści polityka w chwili pobrania - a staff z dostępem
+    // serwisowym zobaczyłby w badge'u kolejki CUDZEJ przestrzeni roboczej.
+    // Cicha pustka byłaby tu równie zła: „0 zgłoszeń" u kogoś, kto ma ich
+    // kilkanaście, to kolejka moderacji, do której nikt nie zagląda.
+    h.user.current = "user-bez-profilu";
+    stub().setResponse(TENANT_TABLE, counters({ comments_pending: 7 }));
+    const { result } = renderHook(() => useTenantPendingCounters(true), {
+      wrapper: wrapperFor(makeClient()),
+    });
+    await act(async () => undefined);
+    expect(result.current.fetchStatus).toBe("idle");
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toContain("przestrzeni roboczej");
+    // Kluczowa asercja: do bazy NIE poszło ani jedno zapytanie o kolejki.
+    expect(stub().chainsFor(TENANT_TABLE)).toHaveLength(0);
+    expect(result.current.data).toBeUndefined();
+  });
 });
 
 describe("usePendingCountersRealtime - kanały", () => {

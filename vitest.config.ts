@@ -81,6 +81,33 @@ export default defineConfig({
         "src/routeTree.gen.ts",
         "src/integrations/supabase/types.ts",
         "src/lib/icons/lucideIconNodes.generated.ts",
+        // USTALENIE 2026-09-03 o SĄSIEDZIE tego wpisu, zapisane tutaj, bo
+        // `src/lib/icons/DynamicIconFull.tsx` NIE MA progu per-ścieżka (obowiązuje
+        // go próg globalny) - a to jest jedyne miejsce w tej konfiguracji, które
+        // mówi o tym katalogu.
+        //
+        // `DynamicIconFull.tsx` MIERZY SIĘ NIEDETERMINISTYCZNIE i NIE JEST TO
+        // REGRESJA. Wydanie 9 zmierzyło szum własny pomiaru na dwóch pełnych
+        // przebiegach TEGO SAMEGO HEAD-a: gałęzie 7 -> 9 (linie 12 i funkcje 4
+        // stabilne).
+        //
+        // MECHANIZM: `iconFor()` trzyma MEMO NA POZIOMIE MODUŁU
+        // (`const cache = new Map()`), a gałąź `if (!Cmp)` zależy od tego, czy
+        // ktoś PRZED nami poprosił już o tę samą nazwę ikony. Moduł jest
+        // współdzielony przez trzy pliki testowe
+        // (`lib/icons/__tests__/DynamicIcon.test.tsx`, `lib/__tests__/brandIcons.test.ts`,
+        // `components/clubs/__tests__/clubAtomChips.test.tsx`), więc zbiór
+        // wykonanych gałęzi zależy od KOLEJNOŚCI i PODZIAŁU plików na forki -
+        // czyli od szeregowania vitesta, nie od kodu. Dodatkowo gałęzie aliasu
+        // (`LUCIDE_ICON_NODES[kebab] ? kebab : LUCIDE_ICON_ALIASES[kebab]`)
+        // wykonują się tylko dla nazw, o które ktoś realnie zapytał.
+        //
+        // ŚWIADOMIE BEZ ZMIANY: memo per moduł jest tu zachowaniem
+        // PRODUKCYJNYM (stabilna tożsamość komponentu dla Reacta), więc
+        // determinizacja pomiaru wymagałaby albo hooka czyszczącego cache
+        // w produkcji, albo scalenia trzech plików testowych. Jedno i drugie
+        // jest droższe niż wartość dwóch gałęzi. Zapisane, żeby następna osoba
+        // nie szukała regresji tam, gdzie jej nie ma.
         // Test-only helpers.
         "src/test/**",
         // Pure code-splitting glue (React.lazy + Suspense wrappers). The actual
@@ -298,6 +325,29 @@ export default defineConfig({
         // To, co widzi czytelnik: 40+ widoków bloków plus dyspozytor rejestru.
         // ZMIERZONE 2026-08-20: 96,75% instrukcji / 93,03% gałęzi /
         // 94,57% funkcji / 97,85% linii.
+        //
+        // USTALENIE 2026-09-03 - `LiveBlogBlock.tsx` MIERZY SIĘ
+        // NIEDETERMINISTYCZNIE i NIE JEST TO REGRESJA. Wydanie 9 zmierzyło szum
+        // własny pomiaru na dwóch pełnych przebiegach TEGO SAMEGO HEAD-a: ten
+        // plik dał funkcje 20 -> 21 i gałęzie 46 -> 50 (linie stabilne, 51).
+        //
+        // MECHANIZM, żeby następna osoba nie ścigała fantoma: callback
+        // subskrypcji realtime (`LiveBlogBlock.tsx:116-140`) odpala DWA
+        // odroczone timery na PRAWDZIWYCH zegarach - `setTimeout(..., 800)`
+        // gasi puls i `setTimeout(..., 2400)` gasi podświetlenie nowego wpisu -
+        // a każdy z nich niesie własną gałąź (`cur === row.id ? null : cur`).
+        // Czy zdążą się wykonać PRZED końcem pliku testowego, jest wyścigiem,
+        // nie właściwością kodu. To ta sama klasa, którą w
+        // `src/lib/ssrCache.ts` zdjęto (patrz `ssrCacheHostScope.test.ts`,
+        // nagłówek przy `vi.mock` modułu `waitUntil.server`): praca odroczona
+        // w trybie fire-and-forget, o której pokrycie pyta, zanim się wykona.
+        //
+        // ŚWIADOMIE NIE RUSZAM TEGO PLIKU W TYM ZLECENIU: nie leży na drodze
+        // krytycznej pierwszego wczytania (blok redakcyjny relacji na żywo),
+        // a próg globu jest o ~4 pp poniżej pomiaru, więc wahanie 4 gałęzi na
+        // ~2 000 w tym katalogu go nie przewraca. Gdyby kiedyś przewróciło:
+        // naprawą jest wstrzyknięcie zegara albo punkt zaczepienia na FAKT
+        // wywołania, NIE obniżenie progu.
         "src/components/blocks/**": {
           statements: 95,
           functions: 92,
@@ -593,6 +643,67 @@ export default defineConfig({
         // funkcji / 100% linii / 97,46% gałęzi; 33 z 43 plików na 100/100.
         // Punkt wyjścia był 74,18% linii / 69,27% gałęzi.
         "src/lib/seo/**": { statements: 98, functions: 98, lines: 98, branches: 95 },
+
+        // ---------------------------------------------------------------------
+        // MODUŁ 21 - REKRUTACJA / KARIERA. Zapora postawiona 03.09.2026 razem
+        // z kampanią, która doprowadziła ten moduł z 55,12% linii i 47,13%
+        // funkcji do 100% / 100%. Bez progu per-ścieżka ta praca mogłaby się
+        // cicho osunąć: globalny floor repo jest o kilkadziesiąt punktów niżej,
+        // więc skasowanie połowy dowodów tego modułu nie zapaliłoby niczego.
+        //
+        // ZMIERZONE NA TYM HEAD (pełny przebieg suity karier, `coverage.all`):
+        //   lib/careers/**     st 99,69  br 98,07  fn 100  ln 100
+        //   lib/jobs/**        st 100    br 100    fn 100  ln 100
+        //   components/careers st 100    br 96,41  fn 100  ln 100
+        //   admin.careers.tsx  st 100    br 98,68  fn 100  ln 100
+        //   admin.hiring.tsx   st 100    br 100    fn 100  ln 100
+        //   jobs-tick.ts       st 100    br 100    fn 100  ln 100
+        //   zatrudniamy.tsx    st 97,37  br 81,82  fn 100  ln 100
+        //
+        // LINIE I FUNKCJE STOJĄ NA 100 WSZĘDZIE - to nie ambicja, to stan
+        // zmierzony, a próg poniżej niego pozwalałby usunąć dowód bez sygnału.
+        // Gałęzie i instrukcje są zaokrąglone W DÓŁ do liczby całkowitej;
+        // reszta to gałęzie NAZWANE w nagłówkach plików testowych jako
+        // nieosiągalne uczciwym testem w tej warstwie - straże SSR
+        // (`typeof window/document === "undefined"`), zapasowe `|| ""`
+        // w ładunku odciętym walidacją, prawe strony `?? ""` za bramką
+        // `enabled: Boolean(...)`. Dlatego `zatrudniamy.tsx` ma 81 na
+        // gałęziach przy 100 na liniach: cztery z dwudziestu dwóch gałęzi tego
+        // pliku to straże SSR, których w środowisku z DOM-em nie da się wejść
+        // bez podmiany globala - a taka podmiana mierzyłaby atrapę globala,
+        // nie trasę.
+        "src/lib/careers/**": { statements: 99, functions: 100, lines: 100, branches: 98 },
+        "src/lib/jobs/**": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/components/careers/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 96,
+        },
+        "src/routes/admin.careers.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        "src/routes/admin.hiring.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/api/public/jobs-tick.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/zatrudniamy.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 81,
+        },
         // Middleware przekierowań na ścieżce ŻĄDANIA. Do 22.08 gałęzie 17,30%
         // przy 41,26% linii - a to warstwa, bez której panel /admin/redirects
         // jest martwą metadaną i 301-ki po migracji z WP nie docierają do
@@ -4910,18 +5021,61 @@ export default defineConfig({
         // nagłówki `Link`), `head()` i powłoka dokumentu przez
         // `renderToStaticMarkup`.
         //
-        // DROGA W GÓRĘ JEST ZNANA I NAZWANA: `RootComponent` nie montuje się
-        // z gołego renderu (`Link`/`useRouterState` czytają pusty kontekst
-        // routera), więc podniesienie metryki funkcji wymaga prawdziwego
-        // `RouterProvider` z `__root` JAKO KORZENIEM - czyli opcjonalnego
-        // `rootRoute` w `src/test/routeHarness.tsx`. To zmiana harness'u
-        // testowego, nie produkcji, i osobna praca. Ten próg wolno wyłącznie
-        // podnosić.
+        // 2026-09-03: RATCHET W GÓRĘ - DROGĄ, KTÓRĄ TEN KOMENTARZ NAZWAŁ.
+        // Poprzedni wpis mówił: „podniesienie metryki funkcji wymaga
+        // prawdziwego `RouterProvider` z `__root` JAKO KORZENIEM - czyli
+        // opcjonalnego `rootRoute` w `src/test/routeHarness.tsx`". Ta opcja
+        // powstała (harness testowy, ZERO zmian produkcyjnych) i wraz z
+        // odpięciem jedynego bezwarunkowego `describe.skip` w repozytorium
+        // (`rootShellRender.test.tsx:91`) dała skok, którego nie da się
+        // pomylić z dryfem.
+        //
+        // ZMIERZONE 2026-09-03, cztery pliki
+        // (`rootRoute.test.tsx` + `rootShellRender.test.tsx` +
+        // `rootRouterMount.test.tsx` + `src/__tests__/router.test.tsx`):
+        //   92,41% instrukcji (134/145) / 83,67% gałęzi (41/49) /
+        //   89,58% funkcji (43/48)     / 93,75% linii (120/128).
+        // Punkt wyjścia tego samego pomiaru: 46,20 / 55,10 / 14,58 / 52,34.
+        // Funkcje: 7 -> 43 z 48. Linie: 67 -> 120 z 128.
+        //
+        // LICZBA JEST POTWIERDZONA SZEŚCIOMA PRZEBIEGAMI, i to nie jest
+        // nadmiarowa ostrożność - to naprawa MOJEGO WŁASNEGO defektu z pierwszej
+        // wersji tego wpisu. Stało tu „83,33% funkcji (40/48)" z JEDNEGO
+        // pomiaru, a pomiar był NIEDETERMINISTYCZNY: trzy przebiegi tej samej
+        // komendy dały 89,58% / 79,17% / 79,17%, czyli próg zapalałby się na
+        // czerwono BEZ ŻADNEJ REGRESJI (79,17 < 81). Wahały się fabryki
+        // `lazy()` nakładek korzenia, bo granica `Suspense` ponawia render po
+        // JEDNEJ nakładce na przejście, a każde ponowienie czekało na
+        // transformację modułu przez vitesta. Przyczyna i naprawa (rozgrzanie
+        // rejestru modułów PRZED renderem) są rozpisane w
+        // `rootRouterMount.test.tsx` przy `warmOverlayModules`.
+        // Po naprawie: funkcje, instrukcje i linie IDENTYCZNE w 6 z 6
+        // przebiegów; gałęzie wahają się o JEDNĄ (40 albo 41 z 49), dlatego
+        // ich próg jest postawiony od 40/49 = 81,63%, nie od 41/49.
+        //
+        // Próg = ZMIERZONE NAJGORSZE minus ~2 pp (reguła dla progu na JEDEN
+        // plik, ta sama co wpisy z 2026-08-06/18/20/22 i 2026-09-01).
+        //
+        // PIĘĆ FUNKCJI, KTÓRE ZOSTAŁY - wypisane, żeby następna osoba nie
+        // szukała po omacku (numery linii `src/routes/__root.tsx`):
+        //   :119, :120  fabryka `lazy()` `GlobalAudioBar` - `GlobalAudioBarGate`
+        //               zwraca `null`, dopóki odtwarzacz nie ma ścieżki ani
+        //               błędu, więc chunk NIE JEST dociągany w ogóle;
+        //   :273        `.catch` na `syncI18nToRequest()` - ścieżka odrzucenia
+        //               synchronizacji języka po stronie żądania;
+        //   :458        `.catch` na rozgrzewce tickera - ścieżka odrzucenia
+        //               zapytania nagłówka;
+        //   :633        `.then` importu `previewWatchdog` - IFRAME-ONLY
+        //               (`window.self !== window.top`), martwe na publikowanej
+        //               stronie z konstrukcji.
+        // Dwie to ścieżki degradacji, jedna jest bramkowana stanem odtwarzacza,
+        // jedna jest osiągalna wyłącznie w iframie edytora podglądu.
+        // Ten próg wolno wyłącznie podnosić.
         "src/routes/__root.tsx": {
-          statements: 40,
-          functions: 12,
-          lines: 46,
-          branches: 48,
+          statements: 90,
+          functions: 87,
+          lines: 91,
+          branches: 79,
         },
 
         // Menedżer przekierowań: cztery warstwy kontraktu (requireStaff, Zod,
@@ -5115,6 +5269,238 @@ export default defineConfig({
           branches: 98,
         },
 
+        // BRAMKA AUTORYZACJI STAFF - ciało `roleMiddleware`. Pomiar 2026-09-04:
+        // 100 / 100 / 100 / 100 (30/30 instrukcji, 14/14 gałęzi, 2/2 funkcji,
+        // 30/30 linii; 43 przypadki w `__tests__/requireStaff.test.ts`).
+        // PRZED tą pracą: 0/14 gałęzi = 0,00% - i to jest powód, dla którego ten
+        // próg jest maksymalny, a nie „bezpieczny". Plik jest importowany przez
+        // 46 plików produkcyjnych i podmieniany na atrapę w 39 testowych, więc
+        // spadek pokrycia NIE objawi się padniętym testem gdzie indziej: atrapy
+        // przechodzą tak samo. Siedem ścieżek odmowy, w tym wymuszenie MFA
+        // (`hasMfa === true` przy `aal < 2`), ma dowód WYŁĄCZNIE tutaj -
+        // odwrócenie tego jednego warunku cicho wyłącza step-up dla całego
+        // panelu i przechodzi CI, jeśli ten próg puści.
+        "src/integrations/supabase/require-staff.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // UWIERZYTELNIENIE, na ktorym stoi bramka wyzej. Pomiar 2026-09-04 (pelna
+        // suita, 2 253 pliki testowe): oba pliki 100 / 100 / 100 / 100.
+        // PRZED: auth-middleware 1/26 linii i 0/22 galezi, auth-attacher 1/4 linii.
+        // Dwa konce JEDNEGO kontraktu (naglowek `Authorization` produkowany po
+        // stronie klienta, czytany po stronie serwera), wiec prog stoi na obu -
+        // rozjazd konwencji napisow psuje kazde serverFn RPC naraz.
+        "src/integrations/supabase/auth-middleware.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/integrations/supabase/auth-attacher.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // BROKER TOKENU SESJI do edytora podgladu. Pomiar 2026-09-04: 100 na
+        // wszystkich czterech (PRZED: 0/50 linii, 0/14 funkcji, 0/51 galezi).
+        // Plik jest GENEROWANY, wiec prog pokrycia jest tu tylko POLOWA obrony -
+        // druga jest bramka statyczna w `__tests__/previewAuthStorage.test.ts`,
+        // ktora oblewa, gdy regeneracja zabierze ktorykolwiek z trzech predykatow
+        // bezpieczenstwa (allowlista strefy, pozycja id w koscie, walidacja
+        // originu adresata). Test zachowania na SLABSZYM regexie nadal by
+        // przechodzil - dlatego bramka jest osobno.
+        "src/integrations/supabase/previewAuthStorage.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // WARSTWA SERWEROWA: pieniadze, poczta, dziennik audytu i retencja danych
+        // osobowych. Pomiar 2026-09-04: kazdy z szesciu plikow 100 / 100 / 100 / 100.
+        // PRZED: audit 1/14 linii i 0/2 funkcji, email 0/27 i 0/4, careerCvRetention
+        // 0/30 i 0/4, jobScheduler 0/41 i 0/6, aiTranslate 0/42 i 0/6,
+        // jobsTick 3/49 (6,12%) i 1/19 (5,26%).
+        "src/lib/server/audit.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/email.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/careerCvRetention.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/jobScheduler.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/aiTranslate.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/jobsTick.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // PUBLICZNE API MCP. Pomiar 2026-09-04: wszystkie piec plikow 100 na
+        // czterech wymiarach (PRZED: kazdy na ZERZE). Prog jest tu maksymalny z
+        // dwoch powodow, ktorych nie widac w procencie: (1) izolacja najemcy wisi
+        // na naglowku `x-tenant-host`, a jej awaria jest CICHA - bez niego
+        // `public_tenant_id()` spada na najemce domyslnego i narzedzia serwuja
+        // tresc INNEJ strony bez bledu; (2) `index.ts` niesie kontrakt fail-closed,
+        // w ktorym `auth` NIGDY nie moze byc `undefined`, bo to przelacza SDK w
+        // tryb nieuwierzytelniony i otwiera narzedzia dla wszystkich.
+        "src/lib/mcp/**": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/routes/[.mcp]/list-tools.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/routes/[.mcp]/invoke-tool/$tool.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // PRZECHWYTNIA BLEDOW SSR. Pomiar 2026-09-04: 100 / 100 / 100 / 100
+        // (PRZED: 6/17 linii, 1/4 funkcji, 2/11 galezi). Modul istnieje, bo h3
+        // polyka blad SSR do generycznej Response 500 - bez niego diagnoza awarii
+        // to napis "HTTPError" i nic wiecej. Galaz TTL ma konsekwencje
+        // PRYWATNOSCIOWA (korelacja bledow miedzy niepowiazanymi zadaniami na tym
+        // samym izolacie Workera), wiec prog galezi jest tu nienegocjowalny.
+        "src/lib/error-capture.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // WARSTWA ZAPYTAN powierzchni "Klient Supabase / zapytania".
+        // Pomiar 2026-09-04: `relatedPosts`, `archiveListing`, `correlation-fetch`
+        // i `edgeCache.functions` po 100 na czterech wymiarach.
+        //
+        // `blocks.ts` ma DWA uczciwe pomiary i podaje sie oba, bo roznica jest
+        // pouczajaca: przebieg po samym `src/lib/queries/__tests__` daje 98,20%
+        // galezi (219/223), a przebieg po UNII 40 plikow, ktore ten modul realnie
+        // wykonuja (bezposrednio + przez `components/blocks`, `BlocksRenderer`
+        // i `routes/$`) daje 223/223 = 100%. Prog stoi na 96, czyli 4 pp pod
+        // NIZSZYM z tych pomiarow - bo o tym, ktora liczba wyjdzie w danym
+        // przebiegu, decyduje zbior wykonanych plikow, a nie ten modul.
+        // PRZED: relatedPosts 6/54 linii i 2/16 funkcji, archiveListing 2/5 i 1/2,
+        // blocks 138/186 przy 96/223 GALEZI (43,04%), correlation-fetch 0/7 i 0/1,
+        // edgeCache 0/10 i 0/5.
+        //
+        // `blocks.ts` byl podrecznikowym "test przechodzi srodkiem": 74% linii
+        // przy 43% galezi znaczy, ze polowa DECYZJI w pliku nie miala dowodu.
+        // Dlatego prog galezi jest tu postawiony wysoko - to on, nie prog linii,
+        // pilnuje tego pliku.
+        //
+        // `correlation-fetch.ts` i `edgeCache.functions.ts` stały na ZERZE z tego
+        // samego powodu co `require-staff.ts`, i to jest powod, dla ktorego prog
+        // musi tu byc: pierwszy jest importowany WYLACZNIE przez `client.ts`
+        // (podmieniany atrapa w 430 plikach testowych), drugi WYLACZNIE przez
+        // `EdgeCacheCard.tsx`, ktorego test atrapuje caly modul. Spadek pokrycia
+        // NIE objawi sie wiec padnietym testem gdzie indziej - atrapy przechodza
+        // tak samo. W `edgeCache` chodzi konkretnie o bramke SSRF w walidatorze
+        // sondy i o zawezenie czyszczenia cache do hosta najemcy.
+        "src/lib/queries/relatedPosts.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/archiveListing.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/blocks.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 96,
+        },
+        "src/integrations/supabase/correlation-fetch.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/edgeCache.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // EKRAN BLEDU DLA CZYTELNIKA. Pomiar 2026-09-04: 97,22 instrukcji /
+        // 88,88 funkcji / 100 linii / 97,43 galezi (PRZED: 5/9 funkcji = 55,55%).
+        // Prog funkcji stoi NIZEJ niz reszta i to jest udokumentowane, nie
+        // odpuszczone: sufit tego pliku to 8/9 funkcji, bo domkniecie
+        // `primaryAction` dla trybu logowania (`:102`) jest KODEM MARTWYM - render
+        // rozgalezia sie na tym samym `primaryIsLogin` i w galezi logowania stawia
+        // `<Link>`, a `onClick={primaryAction}` zyje tylko w galezi `<button>`.
+        // V8 zglasza w tym pliku dokladnie dwa braki i OBA to ten jeden defekt.
+        // Defekt jest zarejestrowany jako `it.fails` w
+        // `__tests__/FriendlyErrorPage.test.tsx`; po jego naprawie (jedna linia:
+        // `const primaryAction = handleRetry;`) ten prog nalezy podniesc do 100.
+        "src/components/error/FriendlyErrorPage.tsx": {
+          statements: 95,
+          functions: 86,
+          lines: 98,
+          branches: 95,
+        },
+
+        // TRASA LAPIACA WSZYSTKO (kazda strona CMS-a). Pomiar 2026-09-04:
+        // 46,46 instrukcji / 45,16 funkcji / 45,83 linii / 21,44 galezi
+        // (PRZED: 3/31 funkcji = 9,67%, 71/216 linii, 11,82% galezi).
+        // Prog jest NISKI swiadomie i to nie jest kapitulacja: pokryta jest
+        // granica bledu (`PublicErrorComponent`), `head()` z preloadem LCP,
+        // `buildCoverPreload`, kontekst rozgrzewki silnika blokow i sciezki
+        // degradacji. NIE jest montowane `ResolvedPage` - 850 linii nad 102
+        // deklaracjami importu ze 100 modulow, gdzie kazda atrapa jest wlasnym
+        // zrodlem falszywej czerwieni przy nastepnej zmianie importu. Ten prog
+        // chroni to, co JEST dowiedzione, i ma rosnac razem z rozbiciem tego
+        // komponentu na czesci dajace sie montowac osobno.
+        //
+        // MARGINES 4 pp, NIE 2 pp - i to jest decyzja z powodem. Pokrycie tego
+        // pliku nie pochodzi z jednego testu: dokladaja sie do niego WSZYSTKIE
+        // suity tras publicznych. A osiem plikow czerwonych na tym HEAD-zie
+        // (dziedziczonych z maina) to w wiekszosci wlasnie testy tras, wiec
+        // zbior plikow wnoszacych pokrycie do `$.tsx` moze sie miedzy przebiegami
+        // ROZNIC. Przy marginesie 2 pp taki dryf zamienilby ten prog w falszywa
+        // czerwien cudzej awarii. Zmierzone 46,46 / 45,16 / 45,83 / 21,44.
+        "src/routes/$.tsx": {
+          statements: 42,
+          functions: 41,
+          lines: 41,
+          branches: 17,
+        },
+
         // ── MODUŁ WYDARZEŃ ────────────────────────────────────────────────
         //
         // DO 2026-08-29 TEN MODUŁ NIE MIAŁ PROGU WCALE - jako jedyna duża
@@ -5163,16 +5549,16 @@ export default defineConfig({
         // niemożliwej przez rzutowanie `as unknown` - czyli testowania stanu,
         // którego baza nie dopuszcza, kosztem ratchetu `check:unknown-casts`.
         "src/lib/events/**": {
-          statements: 82,
-          functions: 87,
-          lines: 85,
-          branches: 77,
+          statements: 93,
+          functions: 95,
+          lines: 95,
+          branches: 88,
         },
         "src/components/events/**": {
-          statements: 82,
-          functions: 79,
-          lines: 83,
-          branches: 75,
+          statements: 93,
+          functions: 94,
+          lines: 94,
+          branches: 88,
         },
         // Zakup pakietu grupowego - jedyny ekran wydarzeń dotykający PIENIĘDZY
         // po stronie kupującego, więc trzyma własny, wysoki próg.
@@ -5187,10 +5573,10 @@ export default defineConfig({
         // wcześniej i 24,2 / 19,4 / 25,5 / 24,0 przy pierwszym wpisie.
         // Reguła bez zmian: zmierzone minus ~4 pp.
         "src/components/admin/events/**": {
-          statements: 87,
-          functions: 86,
-          lines: 88,
-          branches: 85,
+          statements: 94,
+          functions: 94,
+          lines: 95,
+          branches: 90,
         },
         // Molekuły panelu to DIALOGI ZAPISU: formularze biletu, pakietu,
         // sesji, ścieżki, pola zgłoszenia, urządzenia skanującego. Osiem
@@ -5211,18 +5597,432 @@ export default defineConfig({
         // (853 linie), wymieniony w poprzednim wpisie z nazwiska jako plik bez
         // testów, ma 92 przypadki i 100% w każdej metryce.
         //
-        // CZTERY PLIKI TEGO KATALOGU MAJĄ NADAL ZERO i to jest wymienione, a nie
-        // uśrednione: `EventPackagesPanel` (59 linii),
-        // `EventRegistrationSettingsPanel` (47), `RegistrationFieldsPanel` (33)
-        // i `EventProgramPanel` (3). Do tego `EventPagesMenuPanel` stoi na
-        // 71,3% linii, a `EventTypeDialog` na 37,5%. Próg mierzy ŚREDNIĄ
-        // katalogu, więc te sześć plików jest w niej rozcieńczone - następna
-        // porcja bierze je z nazwiska.
+        // TE SZEŚĆ PLIKÓW ZOSTAŁO WZIĘTE Z NAZWISKA (2026-09-04). Poprzedni wpis
+        // nazywał je „następną porcją": `EventPackagesPanel` (0/59 linii),
+        // `EventRegistrationSettingsPanel` (0/47), `RegistrationFieldsPanel`
+        // (0/33), `EventProgramPanel` (0/3), `EventPagesMenuPanel` (71,3% linii)
+        // i `EventTypeDialog` (37,5%). Dziś każdy z nich stoi na 100% linii
+        // i 100% funkcji, a katalog podniósł się z 89,4 / 89,9 / 86,4 / 90,6 na
+        // 98,50 / 95,79 / 99,26 / 99,76. Każdy ma własny próg per-plik niżej,
+        // więc średnia katalogu przestała być miejscem, w którym da się schować
+        // plik na zerze.
         "src/components/admin/events/organisms/**": {
-          statements: 85,
-          functions: 82,
-          lines: 86,
-          branches: 85,
+          statements: 94,
+          functions: 95,
+          lines: 95,
+          branches: 91,
+        },
+
+        // ══ MODUŁ 22: PROGI PER-PLIK PO DOMKNIĘCIU LUKI (2026-09-04) ═════════
+        //
+        // DLACZEGO PER PLIK, SKORO GLOBY WYŻEJ JUŻ STOJĄ. `thresholds.perFile`
+        // NIE jest w tej konfiguracji ustawione, więc każdy glob jest AGREGATEM
+        // KATALOGU - i to nie jest teoria. Przed tą pracą
+        // `registrationOutcomeNotify.server.ts` stał na 0,00% linii WEWNĄTRZ
+        // globa z podłogą 85, a bramka świeciła na zielono, bo pozostałe 120
+        // plików katalogu go dowoziło. Tak samo `packagesApi.ts` (0% gałęzi pod
+        // podłogą 77) i cztery panele organizmów (0% pod podłogą 86). Wpisy
+        // niżej zamieniają średnią na zaporę per plik.
+        //
+        // POMIAR. Wszystkie liczby pochodzą z JEDNEGO przebiegu 2026-09-04
+        // w zakresie sześciu katalogów modułu (`src/lib/events`,
+        // `src/components/events`, `src/components/admin/events`,
+        // `src/routes/__tests__`, `src/lib/__tests__`, `src/lib/realtime/__tests__`,
+        // `src/components/profile`; 566 plików testowych, 561 zielonych).
+        // Zakres jest WĘŻSZY niż pełna suita, więc pokrycie każdego z tych
+        // plików w CI może być wyłącznie WYŻSZE - progi są przez to
+        // konserwatywne z definicji, a nie przez ostrożność.
+        //
+        // REGUŁA BEZ ZMIAN: "zmierzone minus ~2 pp" per plik, wolno wyłącznie
+        // podnosić. Przy każdym wpisie stoi pomiar PRZED i PO, żeby następna
+        // osoba nie musiała szukać, skąd wzięła się podłoga.
+        //
+        // LUKA MODUŁU: 1 359 niepokrytych linii -> 129, 510 niewywołanych
+        // funkcji -> 41, 66 plików na zerze -> 0 (zakres 351 plików modułu:
+        // 86,41% -> 98,71% linii, 86,48% -> 98,91% funkcji, 80,87% -> 92,61%
+        // gałęzi).
+        //
+        // ILE PLIKÓW OBLAŁOBY `thresholds.perFile: true`. Pytanie ze zlecenia,
+        // na które odpowiedź jest liczbą, a nie zmianą: przed tą pracą 70 z 285
+        // plików modułu objętych globami, po niej 29. `perFile` NIE jest
+        // włączane w tym miejscu - to decyzja na całe repozytorium, a nie na
+        // jeden moduł, i podjęta na 29 plikach modułu 22 przesądziłaby ją dla
+        // wszystkich pozostałych.
+        // ZMIERZONE 2026-09-04: 99.06 / 99.23 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/registrationOutcomeNotify.server.ts": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 97,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 3.4 / 1.12 / 11.11 / 4.41) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/participantTicketsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 27.27 / 12.12 / 40 / 25) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/packageInviteApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 8.51 / 0 / 9.09 / 10.81) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/packagesApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 37.17 / 46.98 / 53.33 / 43.33) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/admissionApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 91.3 / 78.57 / 100 / 100
+        // (przed: 72.46 / 66.66 / 81.25 / 83.63) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/registrationsApi.ts": {
+          statements: 89,
+          functions: 98,
+          lines: 98,
+          branches: 76,
+        },
+        // ZMIERZONE 2026-09-04: 78.26 / 64.77 / 91.3 / 91.66
+        // (przed: 65.21 / 57.95 / 78.26 / 79.16) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/sessionsApi.ts": {
+          statements: 76,
+          functions: 89,
+          lines: 89,
+          branches: 62,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 48.14 / 40 / 54.16 / 55.38) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/sponsorsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 61.24 / 63.82 / 80 / 73.78) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/meetingsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 13.63 / 0 / 0 / 13.63) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/useEventTypes.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 30.23 / 50 / 32.25 / 30.23) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/useEventRegistrations.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97.14 / 100 / 100
+        // (przed: 68.93 / 60.71 / 75 / 79.04) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/publicEventApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97.82 / 100 / 100
+        // (przed: 76.27 / 63.04 / 71.05 / 76.27) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/usePublicEvent.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 58.46 / 57.53 / 77.77 / 72.91) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/publicRegistrationApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 70.66 / 65.21 / 92.3 / 72.88) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/myEventProfileApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 77.14 / 89.74 / 100 / 76.66) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/meetingDirectory.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 73.07 / 92.85 / 85.71 / 72) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/leadExport.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97 / 100 / 100
+        // (przed: 93.75 / 89.82 / 100 / 93.06) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/ticketDraft.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 87.87 / 91.83 / 100 / 86.79) - instrukcje / galezie / funkcje / linie.
+        "src/lib/events/timezone.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 98.5 / 88 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventPackagesPanel.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventProgramPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventRegistrationSettingsPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 97.29 / 88.88 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/RegistrationFieldsPanel.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ZMIERZONE 2026-09-04: 99.15 / 94.31 / 100 / 100
+        // (przed: 71.42 / 64.77 / 54.23 / 71.29) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventPagesMenuPanel.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 90 / 100 / 100
+        // (przed: 37.5 / 55 / 32 / 37.5) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/organisms/EventTypeDialog.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioTopBar.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 71.42 / 100 / 33.33 / 71.42
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioCreateShell.tsx": {
+          statements: 69,
+          functions: 31,
+          lines: 69,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 52.94 / 60.71 / 50 / 50) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 52.63 / 25 / 50 / 53.33) - instrukcje / galezie / funkcje / linie.
+        "src/components/admin/events/studio/EventStudioPreviewContext.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 95.65 / 100 / 100
+        // (przed: 9.09 / 0 / 0 / 9.09) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventSponsorsSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 38.88 / 44.44 / 33.33 / 35.29) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventSponsorTiers.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 81.81 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/SavedEventsList.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 79,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 88.88 / 100 / 100
+        // (przed: 11.76 / 0 / 0 / 11.76) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventMaterialsSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 97.05 / 100 / 100
+        // (przed: 71.08 / 63.23 / 61.53 / 71.23) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventAgendaSection.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 98.97 / 100 / 100
+        // (przed: 72.88 / 61.22 / 50 / 73.68) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/organisms/EventAttendeesList.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/atoms/SponsorLogo.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 52.38 / 30 / 40 / 52.38) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/molecules/EventBookmarkButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 93.93 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/public/molecules/EventModulePage.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 94.11 / 100 / 100
+        // (przed: 79.2 / 63.52 / 62.22 / 77.65) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/PublicRegistrationForm.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 98.5 / 100 / 100
+        // (przed: 55 / 26.86 / 27.27 / 57.89) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/RegistrationAnswerField.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        // ZMIERZONE 2026-09-04: 94.11 / 96.55 / 100 / 100
+        // (przed: 47.05 / 72.41 / 25 / 53.33) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/RegistrationConfirmation.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/components/events/registration/RegistrationTermsList.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 84.84 / 100 / 100
+        // (przed: 17.74 / 31.81 / 5.88 / 18.96) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.index.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 82,
+        },
+        // ZMIERZONE 2026-09-04: 96.46 / 86.36 / 94.73 / 99.03
+        // (przed: 67.25 / 54.13 / 31.57 / 71.15) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.$slug.index.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 97,
+          branches: 84,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/routes/admin.events_.new.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 100 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.$slug_.register.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
+        // (przed: 0 / 100 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        "src/routes/events.$slug_.packages.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
 
         // ══ MODUŁ 14: REKLAMY, KUPONY, PODARUNKI, DAROWIZNY (2026-08-31) ══════
@@ -5861,6 +6661,483 @@ export default defineConfig({
           functions: 98,
           lines: 98,
           branches: 94,
+        },
+        // ── CMS BUILDER: CZTERY NAJSŁABSZE POWIERZCHNIE (kampania 2026-09-04) ──
+        // Wszystkie progi niżej są ZMIERZONE tym samym przebiegiem:
+        //   npx vitest run src/lib/content/__tests__ src/lib/builder/__tests__ \
+        //     src/lib/brand/__tests__ src/components/atoms/__tests__/BrandIcon.test.tsx \
+        //     src/components/builder/organisms/widget-view/__tests__/socialHoverContrast.test.ts \
+        //     src/components/builder/organisms/widget-view/__tests__/socialIconsHover.test.tsx \
+        //     --coverage --coverage.include='<plik>'
+        // (79 plików testowych, 1 344 zielone + 3 `it.fails`). Floor = zmierzone
+        // minus ~2 pp, zgodnie z konwencją tego pliku. Progi wolno WYŁĄCZNIE podnosić.
+        //
+        // Przed tą kampanią OSIEMNAŚCIE z dziewiętnastu plików tych powierzchni
+        // nie miało ŻADNEGO progu; jedyny złapany globem był `socialHover.ts`
+        // (przez `widget-view/**`), a ten glob jest AGREGATEM KATALOGU, bo
+        // `thresholds.perFile` nie jest ustawione - `socialHover.ts` siedział
+        // pod jego podłogą funkcji (75,00% wobec 94) i nikt się o tym nie
+        // dowiadywał. Progi per-plik niżej są odpowiedzią na to dokładnie.
+
+        // A1. Kontrast napisu wiersza social. ZMIERZONE 2026-09-04:
+        // 97,63% instrukcji / 100% funkcji (24/24) / 100% linii / 93,83% gałęzi.
+        // Przed kampanią: 88,04% linii, 75,00% funkcji (12/16) - `luminance`
+        // i `readableOn` nie miały ANI JEDNEGO wywołania.
+        "src/components/builder/organisms/widget-view/socialHover.ts": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+
+        // A3 + B1. Skrót IP/user-agenta (ścieżka RODO). ZMIERZONE 2026-09-04:
+        // 100% instrukcji / 100% funkcji (4/4) / 100% linii / 86,36% gałęzi.
+        // Przed kampanią 3,70% linii i 0/4 funkcji - najsłabszy plik modułu.
+        "src/lib/content/feedback.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 84,
+        },
+        // A2 + B1. Linki podglądu szkiców - tu siedział wyciek między najemcami.
+        // ZMIERZONE 2026-09-04: 100% instrukcji / 100% funkcji (9/9) / 100% linii
+        // / 84,61% gałęzi. Przed kampanią 17,07% linii i 0/9 funkcji.
+        "src/lib/content/previewTokens.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 82,
+        },
+        // B1. Tłumaczenie robocze PL->EN. ZMIERZONE 2026-09-04: 94,44% instrukcji
+        // / 100% funkcji (2/2) / 100% linii / 90% gałęzi. Przed kampanią 11,76%
+        // linii i 0/2 funkcji. Jedyna niepokryta instrukcja to martwy rzut
+        // „Invalid blocks document" - zarejestrowany jako `it.fails` w teście.
+        "src/lib/content/translate.functions.ts": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // B1. Ręczny skan linków. ZMIERZONE 2026-09-04: 100% na wszystkich
+        // czterech metrykach. Przed kampanią 14,29% linii i 0/2 funkcji.
+        "src/lib/content/linkMonitor.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // B4. Warstwa danych widgetu post-list - najgorsze gałęzie całego obszaru.
+        // ZMIERZONE 2026-09-04: 100% instrukcji / 100% funkcji (35/35) / 100% linii
+        // / 99,15% gałęzi. Przed kampanią 73,83% linii, 71,43% funkcji i 54,62%
+        // GAŁĘZI, a `fetchPopularPostIds` nie było wywołane ani razu. Jedyna
+        // niepokryta gałąź to `typeof console !== "undefined"` - nieosiągalna
+        // bez skasowania globalnego `console`.
+        "src/lib/builder/postListQuery.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 97,
+        },
+        // B3. Żywa typografia widgetów. ZMIERZONE 2026-09-04: 100% na wszystkich
+        // czterech metrykach. Przed kampanią 78,87% linii i 66,67% funkcji, bo
+        // `clearAllLiveWidgetTypography` była martwa WYŁĄCZNIE przez to, że
+        // jedyny test docierający do jej wywołania podmieniał ją na atrapę
+        // (`builderShell.test.tsx:69`). Nowy test woła ją wprost.
+        "src/lib/builder/liveTypography.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // B3. Kaskada logotypu marki. ZMIERZONE 2026-09-04: 100% na wszystkich
+        // czterech metrykach. Przed kampanią 47,06% linii, 50% funkcji i 29,63%
+        // gałęzi - hook był podmieniany na atrapę w czterech plikach testowych,
+        // więc KOLEJNOŚĆ kandydatów nie była sprawdzona nigdy (8 kandydatów dla
+        // powierzchni ciemnej, 7 dla jasnej - zlecenie mówiło o trzynastu,
+        // policzone jest osiem).
+        "src/lib/brand/useBrandLogoUrl.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // B3. Atom ikony marki - JEDYNA implementacja po usunięciu duplikatu
+        // `src/components/icons/BrandIcon.tsx` (0% na wszystkich metrykach,
+        // jeden konsument, dwie rozbieżności behawioralne). ZMIERZONE 2026-09-04:
+        // 100% instrukcji / 100% funkcji / 100% linii / 92,85% gałęzi.
+        "src/components/atoms/BrandIcon.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+
+        // ── POWLOKA PANELU ADMIN (przekrojowa, 221 plikow) - kampania 2026-09-05 ──
+        // Audyt (rozdz. 12) zastal te powierzchnie jako jedyna ponizej 60% linii
+        // i 55% funkcji, ze 154 plikami BEZ ZADNEGO progu: kazdy istniejacy glob
+        // celuje w podkatalog (builder/**, clubs/**, seo/** ...), a 87,5% luki
+        // lezalo w plikach BEZPOSREDNIO w src/components/admin i src/components.
+        //
+        // Wszystkie progi nizej sa ZMIERZONE tym samym przebiegiem (2026-09-05):
+        //   npx vitest run --coverage --coverage.reporter=json --coverage.reporter=json-summary \
+        //     src/components/__tests__ src/components/admin/__tests__ src/components/cart
+        // (69 plikow testowych, 1 346 zielonych + 26 it.fails, zero czerwonych).
+        // Pelna suita zawiera te same testy, wiec daje na tych plikach NIE MNIEJ.
+        // Liczby "przed" w komentarzach to pelna suita na HEAD a1ea505 (worktree),
+        // w porzadku: linie / funkcje / galezie / instrukcje. Podloga per plik =
+        // zmierzone minus ~2 pp (w dol), per glob minus ~4 pp; 100% -> 98.
+        // Progi wolno WYLACZNIE podnosic.
+        //
+        // B1 - GLOB "src/components/admin/**" SWIADOMIE NIE DODANY, z liczba:
+        // objalby 833 pliki, z ktorych 800 lezy w podkatalogach ze swoimi globami
+        // na 85-100%, i mial przed kampania 90,47% linii / 88,58% funkcji przy
+        // 13 plikach bezposrednich na ZERZE. Podloga na tej liczbie nie zauwazy
+        // wyzerowania calego katalogu plikow bezposrednich (1 933 z 24 340 linii,
+        // 7,9% agregatu) - udaje ochrone. Zamiast niego dwa globy na PLIKI
+        // BEZPOSREDNIE, czyli dokladnie te, ktorych zaden glob nie lapal:
+        // src/components/admin/* - 33 pliki (31 powierzchni + PostEditor
+        // i PostGeneralOverview z modulu 2): przed 28,50 / 22,34 / 31,07 / 28,60
+        // (13 zer), po 97,88 / 98,46 / 91,22 / 96,94.
+        "src/components/admin/*": {
+          statements: 92,
+          functions: 94,
+          lines: 93,
+          branches: 87,
+        },
+        // src/components/* - 32 pliki: przed 78,47 / 67,90 / 67,90 / 75,30 (1 zero),
+        // po 92,52 / 88,89 / 81,04 / 90,73 (metoda katalogowa; pliki pokrywane
+        // tylko z innych katalogow - ErrorBoundary, Lightbox, Paywall - w pelnej
+        // suicie sa wyzej, wiec zapas jest wiekszy niz pokazuje ta liczba).
+        "src/components/*": {
+          statements: 86,
+          functions: 84,
+          lines: 88,
+          branches: 77,
+        },
+
+        // A1. Egzekucja zgody na skrypty (RODO)
+        // ConsentScriptInjector.tsx: przed 40,96 / 50 / 28,3 / 39,78 -> ZMIERZONE 2026-09-05: 100 / 100 / 92,45 / 96,77 (linie / funkcje / galezie / instrukcje).
+        "src/components/ConsentScriptInjector.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+
+        // A2. Chrome publiczny: naglowek, stopka, powloka strony
+        // Header.tsx: przed 74,58 / 52,38 / 37,31 / 67,77 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,26 / 98,57 (linie / funkcje / galezie / instrukcje).
+        "src/components/Header.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // Footer.tsx: przed 55 / 50 / 25 / 48,88 -> ZMIERZONE 2026-09-05: 97,5 / 100 / 86,36 / 95,55 (linie / funkcje / galezie / instrukcje).
+        "src/components/Footer.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 95,
+          branches: 84,
+        },
+        // SiteChrome.tsx: przed 80,95 / 60 / 66,66 / 77,27 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/SiteChrome.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AlertBar.tsx: przed 17,64 / 0 / 0 / 16,21 -> ZMIERZONE 2026-09-05: 100 / 100 / 65,71 / 94,59 (linie / funkcje / galezie / instrukcje).
+        "src/components/AlertBar.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 63,
+        },
+
+        // A2. Edytor kolorow globalnych i pasek "na czasie"
+        // GlobalColorsEditor.tsx: przed 2,12 / 0 / 0 / 1,91 -> ZMIERZONE 2026-09-05: 100 / 100 / 97,93 / 99,36 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/GlobalColorsEditor.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // TrendingTickerPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 97,94 / 100 / 77,87 / 95,51 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/TrendingTickerPane.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 95,
+          branches: 75,
+        },
+
+        // A4. Rama panelu administracyjnego i jej male sasiedztwo
+        // AdminShell.tsx: przed 4,39 / 5,4 / 18,99 / 3,96 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AdminShell.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AdminLangBar.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AdminLangBar.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AdminSidebarExtras.tsx: przed 25 / 0 / 100 / 25 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AdminSidebarExtras.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // DesignSubNav.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/DesignSubNav.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ImpersonationBanner.tsx: przed 73,33 / 66,66 / 62,5 / 73,68 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ImpersonationBanner.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // A5. Osiem paneli ustawien na wspolnym harnessie (src/test/admin/settingsPaneHarness.tsx)
+        // ThemeOptionsPane.tsx: przed 34,89 / 14,28 / 35,14 / 36 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,23 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ThemeOptionsPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // ThemeFontSizesPane.tsx: przed 1,49 / 0 / 0 / 1,36 -> ZMIERZONE 2026-09-05: 100 / 100 / 91,57 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ThemeFontSizesPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        // ThemeBackgroundsPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 97,5 / 100 / 87,09 / 97,87 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ThemeBackgroundsPane.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 95,
+          branches: 85,
+        },
+        // ExpertLayoutPreview.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,05 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ExpertLayoutPreview.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // AudioPicker.tsx: przed 4,16 / 0 / 0 / 3,73 -> ZMIERZONE 2026-09-05: 100 / 100 / 85,48 / 99,06 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AudioPicker.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // CoverImagePicker.tsx: przed 2,08 / 0 / 0 / 1,96 -> ZMIERZONE 2026-09-05: 100 / 100 / 85,29 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/CoverImagePicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // AccessSettingsPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 91,52 / 98,61 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AccessSettingsPane.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        // PostSettingsMetabox.tsx: przed 5,61 / 0 / 0 / 5,26 -> ZMIERZONE 2026-09-05: 100 / 100 / 98,38 / 98,94 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/PostSettingsMetabox.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+
+        // A3. Koszyk - sciezka pieniedzy w warstwie prezentacji
+        // CartPanel.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 94,44 / 97,61 (linie / funkcje / galezie / instrukcje).
+        "src/components/cart/organisms/CartPanel.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // CartLine.tsx: przed 0 / 0 / 100 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/cart/molecules/CartLine.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AddToCartButton.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/cart/atoms/AddToCartButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // Ogon komponentow publicznych
+        // SearchOverlay.tsx: przed 67,62 / 56,41 / 63,26 / 64,55 -> ZMIERZONE 2026-09-05: 100 / 100 / 95,91 / 98,73 (linie / funkcje / galezie / instrukcje).
+        "src/components/SearchOverlay.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // NewsletterForm.tsx: przed 71,79 / 37,5 / 57,94 / 65 -> ZMIERZONE 2026-09-05: 100 / 100 / 94,35 / 99,44 (linie / funkcje / galezie / instrukcje).
+        "src/components/NewsletterForm.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // AdSlot.tsx: przed 78,94 / 44,44 / 76,74 / 78,57 -> ZMIERZONE 2026-09-05: 100 / 100 / 97,67 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/AdSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // PostContentStyle.tsx: przed 5,55 / 0 / 0 / 5,26 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/PostContentStyle.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // FollowButton.tsx: przed 80 / 60 / 43,75 / 76,47 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/FollowButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // TtsPlayer.tsx: przed 34,54 / 45,45 / 19,23 / 31,66 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/TtsPlayer.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AppDialogHost.tsx: przed 48 / 30 / 19,23 / 44,82 -> ZMIERZONE 2026-09-05: 100 / 100 / 92,3 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/AppDialogHost.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        // RouteProgress.tsx: przed 86,04 / 83,33 / 87,5 / 84,78 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/RouteProgress.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // UnsavedChangesGuardHost.tsx: przed 57,14 / 50 / 0 / 60 -> ZMIERZONE 2026-09-05: 100 / 100 / 50 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/UnsavedChangesGuardHost.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 48,
+        },
+        // PostFooterBars.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/PostFooterBars.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ConsentPreviewPanel.tsx: przed 46,66 / 28,57 / 12,5 / 47,05 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/ConsentPreviewPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // Ogon plikow bezposrednich src/components/admin
+        // AppearanceBuilderPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,66 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AppearanceBuilderPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // CustomFontUploader.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/CustomFontUploader.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // FooterChromePane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 95,45 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/FooterChromePane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // RelatedLayoutPreview.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/RelatedLayoutPreview.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // PageParentSelect.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/PageParentSelect.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // RelatedOverrideEditor.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/RelatedOverrideEditor.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // CustomMetaValuesEditor.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/CustomMetaValuesEditor.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ImageSlot.tsx: przed 19,51 / 12,5 / 37,5 / 18,6 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ImageSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // SiteSettingsHistoryDialog.tsx: przed 41,66 / 40 / 28,57 / 42,85 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,42 / 96,42 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/SiteSettingsHistoryDialog.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // LayoutPreview.tsx: przed 80 / 100 / 67,34 / 81,08 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/LayoutPreview.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
       },
     },

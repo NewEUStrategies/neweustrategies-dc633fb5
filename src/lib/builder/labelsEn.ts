@@ -111,8 +111,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Działa w obu układach: w liście maluje cały wiersz, w rzędzie - kafelek ikony.":
     "Works in both layouts: it paints the whole row in the list, and the icon tile in the row layout.",
   "Własny kolor podświetlenia": "Custom highlight colour",
-  "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności.":
-    "The gradient is built from that colour; the text colour follows its lightness automatically.",
+  "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności. Dla zapisów, których jasności nie da się policzyć (var(--...), oklch, transparent), tekst bierze kolor motywu.":
+    "The gradient is built from that colour; the text colour follows its lightness automatically. For notations whose lightness cannot be computed (var(--...), oklch, transparent) the text falls back to the theme colour.",
   "Ikony po najechaniu": "Icons on hover",
   "automatycznie (jasne na ciemnym tle)": "automatic (light on a dark background)",
   // „jasne (białe)" jest już przetłumaczone niżej (opcje „Kolory ikon").
@@ -333,6 +333,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Grubość podtytułu": "Subtitle weight",
   "Grubość / wysokość (px)": "Thickness / height (px)",
   "Szerokość (%)": "Width (%)",
+  "Maksymalna szerokość (px)": "Maximum width (px)",
   "Wysokość (px)": "Height (px)",
   "Wysokość - desktop (px)": "Height - desktop (px)",
   "Wysokość - tablet (px, 0 = dziedziczy)": "Height - tablet (px, 0 = inherit)",
@@ -1121,6 +1122,20 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Lista wydarzeń": "Event list",
   // Kluby dyskusyjne (spec §5.5)
   "Klub: karta": "Club: card",
+  "Klub: strona": "Club: page",
+  "Pokaż nagłówek klubu": "Show club header",
+  "Pokaż okładkę": "Show cover",
+  "Sekcja: artykuły": "Section: articles",
+  "Sekcja: komentarze": "Section: comments",
+  "Sekcja: zapisy": "Section: sign-ups",
+  "Tytuł sekcji artykułów": "Articles section title",
+  "Tytuł sekcji komentarzy": "Comments section title",
+  "Tytuł sekcji zapisów": "Sign-ups section title",
+  "Liczba artykułów": "Number of articles",
+  "Liczba komentarzy": "Number of comments",
+  "Liczba zapisów": "Number of sign-ups",
+  "Etykieta przycisku zapisu": "Sign-up button label",
+  Sekcje: "Sections",
   "Kluby: dyskusje": "Clubs: discussions",
   "Adres klubu": "Club address",
   "Fragment adresu po /club/. Pusty = widget nic nie pokazuje (i nie pyta bazy).":

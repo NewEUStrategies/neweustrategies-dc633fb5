@@ -524,7 +524,7 @@ function ClubThreadView() {
               ) : null}
             </>
           }
-          title={<h1 className="[overflow-wrap:anywhere]">{thread.title}</h1>}
+          title={<h1 className="text-base sm:text-xl [overflow-wrap:anywhere]">{thread.title}</h1>}
           footer={
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
               <ClubReactionBar
@@ -1019,7 +1019,7 @@ function ReplyBranch(props: ReplyBranchProps) {
             />
           </div>
         ) : (
-          <ClubProse className="mt-2" size="sm" body={reply.body} clubSlug={clubSlug} />
+          <ClubProse className="mt-2 max-w-none" size="sm" body={reply.body} clubSlug={clubSlug} />
         )}
 
         {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych

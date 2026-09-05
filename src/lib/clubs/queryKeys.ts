@@ -34,6 +34,14 @@ export const clubKeys = {
    *  wykonanej akcji. Sluzy do tego `clubKeys.bySlugAll()`. */
   bySlug: (slug: string) => [...clubKeys.all, "bySlug", slug] as const,
 
+  /** Karta klubu W KONTEKSCIE WIDZA. Loader trasy dziala na SSR/prerenderze,
+   *  czyli BEZ sesji - `club_view` zwraca wtedy odpowiedz dla anonima
+   *  (`can_read = false` w klubie `members`). Gdyby zalogowany czytal ten sam
+   *  wpis cache, czlonek klubu zobaczylby bramke "Popros o dostep" mimo
+   *  aktywnego czlonkostwa. Tozsamosc widza jest wiec czescia klucza. */
+  bySlugViewer: (slug: string, viewerId: string | null) =>
+    [...clubKeys.bySlug(slug), "viewer", viewerId ?? "anon"] as const,
+
   /** Prefiks WSZYSTKICH kart po slugu. Mutacja nie zna slugu (pracuje na id),
    *  a prefiks trafia w kazda z nich - w tym w te otwarta na ekranie. */
   bySlugAll: () => [...clubKeys.all, "bySlug"] as const,

@@ -1201,6 +1201,69 @@ const FROZEN_BUDGET_KB = {
   // (1,27%), więc ostrzeżenie o zapasie poniżej 2% zapala się od razu.
   // TA LICZBA JEST Z HOSTA I CZEKA NA PRZEFLOOROWANIE Z PIERWSZEGO ZIELONEGO
   // LOGU RUNNERA (zasada z wpisu V) - CSS nie był mierzony na runnerze ANI RAZU.
+  //
+  // ── 2026-09-03: ZAPAS ZMIERZONY PONOWNIE I ROZSTRZYGNIĘCIE O CIĘCIU ───────
+  //
+  // ZAPAS JEST TRZY RAZY MNIEJSZY, NIŻ MÓWIŁ AUDYT WYDANIA 9. Tamten podawał
+  // 2,8 KiB (3,4%). ZMIERZONE TĄ BRAMKĄ, jej własnym kompresorem
+  // (`Bun.gzipSync`, `gzipKb()` niżej), na artefakcie z tego dnia:
+  //   styles-*.css          572 185 B raw   79,8525 KiB gzip
+  //   BlocksRenderer-*.css    5 321 B raw    1,3691 KiB gzip
+  //   RAZEM                                 81,2217 KiB
+  //   ZAPAS do floora 82                     0,7783 KiB = 0,95%
+  //
+  // SKĄD ROZBIEŻNOŚĆ Z AUDYTEM - i to jest pułapka warta zapisania: audyt
+  // liczył `gzip -9`, a ta bramka używa `Bun.gzipSync` na POZIOMIE DOMYŚLNYM.
+  // Zmierzona różnica na tych dwóch plikach to 1,6 KiB - czyli DWUKROTNOŚĆ
+  // całego pozostałego zapasu. `gzip -9` NIE JEST więc przybliżeniem tej
+  // liczby i nie wolno nim o tym floorze wnioskować.
+  //
+  // CZY DA SIĘ ZDJĄĆ Z ARKUSZA PUBLICZNEGO >= 25% GZIP PRZEZ WYCIĘCIE PANELU
+  // I BUILDERA (punkt 5(b) z wydania 8, powtórzony jako A3 w wydaniu 9):
+  // NIE DA SIĘ. Zmierzone WŁASNYM KOMPILATOREM TAILWINDA 4.2.4 (`compile()` +
+  // `Scanner` z `@tailwindcss/oxide`, świeża instancja na każdy zbiór
+  // kandydatów - `build()` jest kumulatywne i przy współdzielonej instancji
+  // po cichu zwraca to samo wyjście):
+  //
+  //   ZBIÓR KANDYDATÓW              RAW        GZIP      UDZIAŁ
+  //   wszystkie (69 427)            702 534    84 666    100%
+  //   tylko publiczne (62 627)      628 360    77 975     92,1%
+  //   ZERO kandydatów               206 032    34 117     40,3%  <- nieredukowalne
+  //
+  //   CIĘCIE z zawężenia `@source` (cały CSS admin-only poza arkusz):
+  //     raw -10,56%   gzip -7,90%
+  //
+  // Czyli sufit tego cięcia to ~8% gzip, a cel 25% jest poza zasięgiem
+  // trzykrotnie. Powód jest strukturalny: 40,3% arkusza to część
+  // NIEREDUKOWALNA (preflight, blok `@theme`, ~8 800 wierszy CSS-a pisanego
+  // ręcznie w `src/styles.css`), której żadne zawężenie źródeł nie dotyczy,
+  // a utilities faktycznie WYŁĄCZNIE adminowe to tylko 6 800 kandydatów
+  // z 69 427.
+  //
+  // USTALENIE, KTÓRE PRZEWRACA CAŁY POMYSŁ - `builder` NIE JEST POWIERZCHNIĄ
+  // ADMINOWĄ. Pierwsze podejście liczyło `src/components/builder/**`
+  // i `src/lib/builder/**` jako admin i dawało „-13%". To jest NIEPRAWDA:
+  // `BuilderRenderer` jest importowany przez `components/Header.tsx:9`,
+  // `components/Footer.tsx:4`, `components/content/ContentRenderer.tsx:20`
+  // i `components/home/molecules/HomeBuilderContent.tsx:48` - czyli renderuje
+  // się na KAŻDYM publicznym URL-u. Zawężenie `@source` po tych katalogach
+  // zabrałoby arkuszowi publicznemu klasy NAGŁÓWKA I STOPKI. Z tego samego
+  // powodu nie istnieje wariant „przenieś reguły `[data-builder-renderer]`":
+  // ten atrybut ustawia PUBLICZNY renderer
+  // (`components/builder/organisms/BuilderRenderer.tsx`).
+  //
+  // I DRUGI POWÓD, NIEZALEŻNY: ROZDZIELENIE ARKUSZA ZWIĘKSZA SUMĘ, a ten floor
+  // mierzy SUMĘ WSZYSTKICH wyemitowanych arkuszy (`walkCss` niżej nie
+  // rozróżnia ścieżek). Arkusz adminowy musi sam wnieść swoje utilities, więc
+  // suma rośnie o kilka KiB i floor `css` zapaliłby się na CZERWONO - a jego
+  // podniesienie jest w tym repozytorium zakazane. Cięcie „na arkuszu
+  // publicznym" wymagałoby więc ROZDZIELENIA TEGO BUDŻETU na publiczny
+  // i całkowity, czyli zmiany kontraktu bramki, a nie zmiany stylów.
+  //
+  // WNIOSEK DLA NASTĘPNEJ OSOBY: przy zapasie 0,95% pierwszą rzeczą do
+  // zrobienia NIE jest split panelu (sufit ~8%, koszt: nowy arkusz
+  // render-blocking na trasach panelu i wzrost sumy), a praca nad częścią
+  // NIEREDUKOWALNĄ - 34 117 B gzip w `src/styles.css` pisanych ręcznie.
   css: 82,
   // gzip STATYCZNEGO DOMKNIĘCIA ŚCIEŻKI BOOTOWANIA: chunki wstrzykiwane przez
   // SSR jako `<script type="module">` plus wszystko, co z nich osiągalne

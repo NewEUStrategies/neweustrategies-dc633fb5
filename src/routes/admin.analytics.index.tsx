@@ -384,7 +384,7 @@ function Ga4EmbedCard({ url }: { url: string }) {
         </a>
       </div>
       <iframe
-        title="GA4 Looker Studio embed"
+        title={t("admin.analyticsPanel.embed.frameTitle")}
         src={url}
         className="w-full"
         style={{ height: 720, border: 0 }}

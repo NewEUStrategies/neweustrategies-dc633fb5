@@ -67,6 +67,7 @@ import type {
   ClubCardView as ClubCardViewImpl,
   ClubThreadsView as ClubThreadsViewImpl,
 } from "./ClubWidgets";
+import type { ClubHubView as ClubHubViewImpl } from "./ClubHubView";
 import type { EventCountdownView as EventCountdownViewImpl } from "./EventCountdownView";
 import type { MeetingBookingView as MeetingBookingViewImpl } from "./MeetingBookingView";
 import type { EventSponsorsView as EventSponsorsViewImpl } from "./EventSponsorsView";
@@ -206,6 +207,11 @@ const ClubThreadsViewLazy = lazy(() =>
   import("./ClubWidgets").then((m) => ({ default: m.ClubThreadsView })),
 ) as ComponentType<ComponentProps<typeof ClubThreadsViewImpl>>;
 export const ClubThreadsView = withSuspense(ClubThreadsViewLazy);
+
+const ClubHubViewLazy = lazy(() =>
+  import("./ClubHubView").then((m) => ({ default: m.ClubHubView })),
+) as ComponentType<ComponentProps<typeof ClubHubViewImpl>>;
+export const ClubHubView = withSuspense(ClubHubViewLazy);
 
 const EventCountdownViewLazy = lazy(() =>
   import("./EventCountdownView").then((m) => ({ default: m.EventCountdownView })),
