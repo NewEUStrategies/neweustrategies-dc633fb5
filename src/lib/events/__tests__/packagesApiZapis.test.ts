@@ -537,7 +537,7 @@ describe("invitePackageSeat", () => {
     expect(wynik.inviteToken).toBe(INVITE_TOKEN);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI - opis nizej zostaje jako powod kontraktu.
   //
   // `invitePackageSeat` (`packagesApi.ts:270-274`) czyta odpowiedz przez
   // `(data ?? {}) as Record<string, unknown>` i konczy `String(record.invite_token ?? "")`.
@@ -552,7 +552,7 @@ describe("invitePackageSeat", () => {
   // (`packageInviteApi.ts:92-97`) rzuca `unknown: invitation response is not
   // readable` zamiast rysowac pusty sukces. Poprawka nalezy do produkcji:
   // brak `invite_token` ma byc bledem, a nie pustym napisem.
-  it.fails("DEFEKT: nieczytelna odpowiedz daje puste zaproszenie zamiast bledu", async () => {
+  it("DEFEKT: nieczytelna odpowiedz daje puste zaproszenie zamiast bledu", async () => {
     // `null` jest tu ksztaltem NAJGORSZYM z mozliwych: `(data ?? {})` robi
     // z niego pusty obiekt, wiec fallbacki wypelniaja OBA pola wyniku -
     // miejsce z wejscia i token pustym napisem.

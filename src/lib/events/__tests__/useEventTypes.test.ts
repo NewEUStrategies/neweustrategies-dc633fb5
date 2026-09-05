@@ -491,25 +491,28 @@ describe("zasieg uniewaznienia po mutacji", () => {
     await waitFor(() => expect(api.fetchAdminEventTypes).toHaveBeenCalledTimes(2));
   });
 
-  it("useReassignEventType kasuje DWIE rodziny: katalog I liste wydarzen panelu", async () => {
+  it("useReassignEventType kasuje TRZY rodziny: katalog, liste panelu I liste publiczna", async () => {
     // Operacja masowa zmienia `events.event_type_id` i `events.kind`, wiec sama
     // rodzina `event-types` nie wystarcza: lista wydarzen w panelu trzymalaby
-    // po niej stary rodzaj przy kazdym wierszu. Kolejnosc tez jest utrwalona -
-    // druga linia `onSuccess` jest ta, ktora najlatwiej zgubic przy refaktorze.
+    // po niej stary rodzaj przy kazdym wierszu, a publiczny katalog - stary
+    // rodzaj na kaflu. Kolejnosc tez jest utrwalona - kazda kolejna linia
+    // `onSuccess` jest ta, ktora najlatwiej zgubic przy refaktorze.
     api.reassignEventType.mockResolvedValue(3);
     client.setQueryData(eventTypeKeys.admin(), [{ id: "typ-stary", key: "kongres" }]);
     client.setQueryData(ADMIN_EVENTS_KEY, [{ id: "evt-1", kind: "kongres" }]);
+    client.setQueryData(PUBLIC_EVENTS_KEY, [{ id: "evt-1", kind: "kongres" }]);
     const invalidate = vi.spyOn(client, "invalidateQueries");
 
     const { result } = renderHook(() => useReassignEventType(), { wrapper });
     await result.current.mutateAsync({ fromId: "typ-stary", toId: "typ-nowy" });
 
     const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
-    expect(keys).toEqual([eventTypeKeys.all, ADMIN_EVENTS_KEY]);
-    // Obie rodziny naprawde traca waznosc. Bez tego zostaje asercja o samym
-    // wywolaniu - a ta przeszlaby takze dla klucza, ktorego nikt nie czyta.
+    expect(keys).toEqual([eventTypeKeys.all, ADMIN_EVENTS_KEY, PUBLIC_EVENTS_KEY]);
+    // Wszystkie trzy rodziny naprawde traca waznosc. Bez tego zostaje asercja
+    // o samym wywolaniu - a ta przeszlaby takze dla klucza, ktorego nikt nie czyta.
     expect(client.getQueryState(eventTypeKeys.admin())?.isInvalidated).toBe(true);
     expect(client.getQueryState(ADMIN_EVENTS_KEY)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(PUBLIC_EVENTS_KEY)?.isInvalidated).toBe(true);
   });
 
   it("uniewaznienie listy wydarzen siega KAZDEGO jej przekroju filtra", async () => {
@@ -527,26 +530,23 @@ describe("zasieg uniewaznienia po mutacji", () => {
     expect(state?.isInvalidated).toBe(true);
   });
 
-  it.fails("defekt: przepiecie rodzaju NIE uniewaznia publicznej listy wydarzen", async () => {
-    // CO JEST ZLE. Komentarz nad hakiem (`useEventTypes.ts:103-107`) obiecuje,
-    // ze uniewaznienie obejmuje takze "widgety publiczne" - i ma po temu
-    // powod, bo operacja przepisuje `events.kind`, po ktorym publiczna lista
-    // filtruje i ktory rysuje na kafelku. Kod uniewaznia jednak WYLACZNIE
-    // `["admin-community-events"]`.
+  it("przepiecie rodzaju uniewaznia takze PUBLICZNA liste wydarzen", async () => {
+    // NAPRAWIONY DEFEKT. Komentarz nad hakiem obiecuje, ze uniewaznienie
+    // obejmuje takze "widgety publiczne" - i ma po temu powod, bo operacja
+    // przepisuje `events.kind`, po ktorym publiczna lista filtruje i ktory
+    // rysuje na kafelku. Wczesniej kod kasowal WYLACZNIE `event-types`
+    // i `["admin-community-events"]`.
     //
-    // DLACZEGO TO BOLI. `["public-events"]`
+    // DLACZEGO TO BOLALO. `["public-events"]`
     // (`src/lib/community/publicQueries.ts:91`) jest rozgrzewane w SSR trasy
     // `/events` i zyje w tym samym kliencie zapytan, wiec redaktor, ktory po
-    // operacji masowej przejdzie na strone publiczna przejsciem klienckim,
-    // zobaczy stare rodzaje. Nie ratuje tego kanal czasu rzeczywistego:
+    // operacji masowej przechodzil na strone publiczna przejsciem klienckim,
+    // widzial stare rodzaje. Nie ratuje tego kanal czasu rzeczywistego:
     // `src/lib/realtime/eventInvalidationMap.ts:92-93` kasuje te rodzine
     // (przez `eventKeys()`, lista kluczy :349-354) WYLACZNIE dla
     // `event.published.v1` i `event.cancelled.v1`, a sama funkcja bazy
     // `admin_event_type_reassign` (migracja 20260824081304, :602) przepisuje
     // `events.kind` i nie emituje zadnego zdarzenia.
-    //
-    // NIE NAPRAWIAM TEGO TUTAJ - zmiana zasiegu uniewaznienia jest zmiana
-    // zachowania produkcyjnego.
     api.reassignEventType.mockResolvedValue(3);
     // Wpis rozgrzany w SSR: publiczna lista z parametrami trasy `/events`.
     const publicListKey = [...PUBLIC_EVENTS_KEY, { locale: "pl", page: 1 }];
@@ -557,6 +557,8 @@ describe("zasieg uniewaznienia po mutacji", () => {
 
     // Asercja na SKUTEK, nie na liste wywolan: to jest dokladnie ten wpis,
     // z ktorego strona publiczna rysuje kafelek po przejsciu klienckim.
+    // Uniewaznienie musi siegac KORZENIA rodziny, bo realny wpis nosi pod nim
+    // jeszcze parametry trasy.
     expect(client.getQueryState(publicListKey)?.isInvalidated).toBe(true);
   });
 

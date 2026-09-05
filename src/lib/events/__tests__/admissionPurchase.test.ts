@@ -335,7 +335,7 @@ describe("purchasePackage - odczyt potwierdzenia", () => {
     expect(rpc().names()).toEqual(["event_package_purchase"]);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI - opis nizej zostaje jako powod kontraktu.
   //
   // `purchasePackage` czyta odpowiedz przez `record()`/`text()`/`num()`
   // z fallbackami (`admissionApi.ts:249-257`), wiec odpowiedz, ktorej nie da
@@ -347,7 +347,7 @@ describe("purchasePackage - odczyt potwierdzenia", () => {
   // (`packageInviteApi.ts:92-97`) rzuca `unknown: invitation response is not
   // readable` „zamiast rysowac pusty sukces". Tu brakuje tego samego progu.
   // Poprawka nalezy do produkcji: brak `order_id` ma byc bledem.
-  it.fails("DEFEKT: nieczytelna odpowiedz zakupu daje pusty sukces zamiast bledu", async () => {
+  it("DEFEKT: nieczytelna odpowiedz zakupu daje pusty sukces zamiast bledu", async () => {
     rpc().setData("event_package_purchase", { seats: 10 });
 
     await expect(api.purchasePackage(buyer)).rejects.toThrow();

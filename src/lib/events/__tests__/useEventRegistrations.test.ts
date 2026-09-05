@@ -282,23 +282,33 @@ describe("klucze pamieci podrecznej zapisow", () => {
     );
   });
 
-  it.fails("defekt: fraza rozniaca sie samymi spacjami dostaje OSOBNA szuflade", () => {
-    // CO JEST ZLE. `fetchRegistrations` przepuszcza fraze przez `trimmedOrNull`
-    // (`registrationsApi.ts` - `p_q: trimmedOrNull(query.q) ?? undefined`), wiec
-    // "Kowalska" i "Kowalska " pytaja baze o DOKLADNIE te same wiersze. Klucz
-    // pamieci bierze `query.q` surowe, a panel wklada tam tresc pola bez
-    // przyciecia (`RegistrationsListPanel.tsx` - `setQ(search)`).
+  it("fraza rozniaca sie samymi spacjami trafia do TEJ SAMEJ szuflady", () => {
+    // NAPRAWIONY DEFEKT. `fetchRegistrations` przepuszcza fraze przez
+    // `trimmedOrNull` (`registrationsApi.ts` - `p_q: trimmedOrNull(query.q) ??
+    // undefined`), wiec "Kowalska" i "Kowalska " pytaja baze o DOKLADNIE te
+    // same wiersze. Klucz pamieci bral wczesniej `query.q` surowe, a panel
+    // wklada tam tresc pola bez przyciecia
+    // (`RegistrationsListPanel.tsx` - `setQ(search)`).
     //
-    // DLACZEGO TO BOLI. Spacja doklejona przy wklejaniu nazwiska ze schowka
-    // kasuje trafienie w pamiec: lista I liczniki id do bazy jeszcze raz po te
-    // same wiersze, a organizator widzi pusty ekran z kreciolka w dniu
-    // wydarzenia. To samo dotyczy skasowania frazy "do konca" - "" i " " to dla
-    // bazy jeden przypadek (brak filtra), a dla pamieci dwa.
-    //
-    // NIE NAPRAWIAM TEGO TUTAJ - normalizacja frazy w fabryce kluczy jest
-    // zmiana zachowania produkcyjnego.
+    // DLACZEGO TO BOLALO. Spacja doklejona przy wklejaniu nazwiska ze schowka
+    // kasowala trafienie w pamiec: lista I liczniki szly do bazy jeszcze raz po
+    // te same wiersze, a organizator widzial pusty ekran z kreciolka w dniu
+    // wydarzenia.
     expect(registrationKeys.list(listQuery({ q: "Kowalska " }))).toEqual(
       registrationKeys.list(listQuery({ q: "Kowalska" })),
+    );
+    // Spacja z KAZDEJ strony, nie tylko doklejona na koncu.
+    expect(registrationKeys.counts(countsQuery({ q: "  Kowalska" }))).toEqual(
+      registrationKeys.counts(countsQuery({ q: "Kowalska" })),
+    );
+    // Skasowanie frazy "do konca": "" i " " to dla bazy jeden przypadek (brak
+    // filtra), wiec musza byc jednym przypadkiem takze dla pamieci.
+    expect(registrationKeys.list(listQuery({ q: " " }))).toEqual(
+      registrationKeys.list(listQuery({ q: "" })),
+    );
+    // Przyciecie NIE zlewa roznych fraz - to nadal sa dwie szuflady.
+    expect(registrationKeys.list(listQuery({ q: "Kowalska" }))).not.toEqual(
+      registrationKeys.list(listQuery({ q: "Kowalski" })),
     );
   });
 });

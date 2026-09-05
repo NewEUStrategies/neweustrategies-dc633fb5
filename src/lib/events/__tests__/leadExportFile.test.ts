@@ -85,17 +85,15 @@ describe("eksport nie wynosi wiecej, niz obejmuje zgoda", () => {
     expect(leadExportColumns("pl")).toHaveLength(15);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI: redakcja kontaktu stoi juz takze w kliencie.
   //
-  // Redakcja kontaktu siedzi WYLACZNIE w SQL: naglowek modulu stwierdza jako
-  // fakt, ze „w takich wierszach kontakt jest pusty", i buduje plik z tego, co
-  // dostal. Klient nie powtarza tej reguly, wiec regresja po stronie RPC
-  // (nowa kolumna w SELECT, zmieniony warunek, wiersz z innego zrodla) wychodzi
-  // z budynku jako plik CSV na dysku sponsora - a to jest zdarzenie
-  // nieodwracalne i podlegajace zgloszeniu. Ostatnia bramka przed dyskiem
-  // powinna zerowac kontakt, gdy `consent` nie jest `true`.
-  // Poprawka nalezy do produkcji, nie do testu.
-  it.fails("DEFEKT: kontakt bez zgody nadal trafia do pliku, gdy RPC go poda", () => {
+  // Wczesniej siedziala WYLACZNIE w SQL: naglowek modulu stwierdzal jako fakt,
+  // ze „w takich wierszach kontakt jest pusty", i budowal plik z tego, co
+  // dostal. Regresja po stronie RPC (nowa kolumna w SELECT, zmieniony warunek,
+  // wiersz z innego zrodla) wychodzila wtedy z budynku jako plik CSV na dysku
+  // sponsora - zdarzenie nieodwracalne i podlegajace zgloszeniu. Ostatnia
+  // bramka przed dyskiem zeruje kontakt, gdy `consent` nie jest `true`.
+  it("kontakt bez zgody nie trafia do pliku, nawet gdy RPC go poda", () => {
     const cells = leadExportCells(
       lead({ consent: false, email: "brak.zgody@example.com", phone: "+48 500 000 002" }),
       "pl",

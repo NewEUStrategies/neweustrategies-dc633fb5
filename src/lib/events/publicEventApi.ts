@@ -119,8 +119,13 @@ function parseEventMenu(rows: readonly EventMenuRow[] | null): EventMenuItem[] {
   if (rows === null) return [];
   const out: EventMenuItem[] = [];
   for (const row of rows) {
-    const path = text(row.path);
-    if (path === null) continue;
+    // BRAMKA STOI PO OBCIĘCIU UKOŚNIKÓW. `text("/")` jest napisem niepustym,
+    // więc pozycja o ścieżce „/" przechodziła dalej i dopiero `replace` robił
+    // z niej pusty napis: w pasku rysowała się wtedy zakładka prowadząca do
+    // korzenia serwisu i BEZ ETYKIETY, bo ostatni stopień kaskady w
+    // `EventTabsNav` to właśnie ścieżka.
+    const path = (text(row.path) ?? "").replace(/^\/+/, "");
+    if (path === "") continue;
     out.push({
       id: text(row.id) ?? "",
       pageId: text(row.page_id) ?? "",
@@ -128,7 +133,7 @@ function parseEventMenu(rows: readonly EventMenuRow[] | null): EventMenuItem[] {
       labelEn: text(row.label_en) ?? "",
       icon: text(row.icon),
       color: text(row.color),
-      path: path.replace(/^\/+/, ""),
+      path,
       sortOrder: nullableInt(row.sort_order) ?? 0,
       // Kolumna jest w bazie nullowalna (znacznik ma tylko pięć pozycji
       // modułowych), a generowany typ `RETURNS TABLE` opisuje ją jako non-null -

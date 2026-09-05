@@ -5,6 +5,11 @@
 // a kolumna „zgoda" mówi wprost dlaczego. Ukrycie takiego wiersza dawałoby
 // sponsorowi wrażenie, że skan się nie zapisał, i wywoływało ponowny skan.
 //
+// PUSTY KONTAKT ZERUJE TEN MODUŁ, NIE TYLKO SQL. RPC też redaguje kontakt, ale
+// to jest OSTATNIA bramka przed dyskiem sponsora: regresja po stronie zapytania
+// (nowa kolumna w SELECT, zmieniony warunek, wiersz z innego źródła) wynosi
+// adres z budynku nieodwracalnie. Dlatego reguła stoi po obu stronach.
+//
 // CSV Z BOM. Excel bez BOM czyta UTF-8 jako stronę kodową systemu i rozsypuje
 // polskie znaki w nazwiskach - a to jest plik czytany poza systemem.
 import { toCsv } from "@/lib/csv/formatCsv";
@@ -57,6 +62,14 @@ export function leadExportColumns(lang: string): readonly string[] {
   return lang === "en" ? COLUMNS_EN : COLUMNS_PL;
 }
 
+/**
+ * Zeruje treść komórki kontaktowej, zachowując jej postać: `null` z RPC zostaje
+ * `null`, żeby plik wyglądał tak samo jak wiersz, który przyszedł już pusty.
+ */
+function redactedContact(value: string | null): string | null {
+  return value === null ? null : "";
+}
+
 /** Jeden wiersz eksportu w kolejności kolumn. */
 export function leadExportCells(
   row: LeadExportRow,
@@ -64,15 +77,17 @@ export function leadExportCells(
 ): ReadonlyArray<string | number | null> {
   const yes = lang === "en" ? "yes" : "tak";
   const no = lang === "en" ? "no" : "nie";
+  // Zgoda rozstrzyga o kontakcie PRZED zapisem do pliku - patrz nagłówek modułu.
+  const consented = row.consent === true;
   return [
     row.sponsor_name,
     row.first_name,
     row.last_name,
     row.company,
     row.job_title,
-    row.email,
-    row.phone,
-    row.consent === true ? yes : no,
+    consented ? row.email : redactedContact(row.email),
+    consented ? row.phone : redactedContact(row.phone),
+    consented ? yes : no,
     row.consent_snapshot_at,
     row.interest_rating,
     row.note,

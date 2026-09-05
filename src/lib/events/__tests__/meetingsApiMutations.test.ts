@@ -92,7 +92,7 @@ describe("meetingsApi - usuwanie stolika", () => {
     expect(rpc().names()).toEqual(["admin_event_meeting_table_delete"]);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI - opis nizej zostaje jako powod kontraktu.
   //
   // `deleteMeetingTable` (`meetingsApi.ts:100-104`) czyta z odpowiedzi WYLACZNIE
   // `error` i zwraca stale `true`. Funkcja bazy jest zadeklarowana jako
@@ -104,7 +104,7 @@ describe("meetingsApi - usuwanie stolika", () => {
   // (`sessionsApi.ts:314-318`) oddaje `Boolean(data)`, a `deleteSponsor`
   // (`sponsorsApi.ts:250-254`) oddaje `data === true`. Poprawka nalezy do
   // produkcji: odpowiedz bazy ma byc oddana, a nie nadpisana.
-  it.fails("DEFEKT: `false` z bazy jest raportowane jako udane usunięcie stolika", async () => {
+  it("DEFEKT: `false` z bazy jest raportowane jako udane usunięcie stolika", async () => {
     rpc().setData("admin_event_meeting_table_delete", false);
 
     await expect(api.deleteMeetingTable(STOLIK)).resolves.toBe(false);
@@ -139,14 +139,14 @@ describe("meetingsApi - usuwanie okna dostępności uczestnika", () => {
     expect(rpc().names()).toEqual(["admin_event_meeting_availability_delete"]);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI - opis nizej zostaje jako powod kontraktu.
   //
   // To samo, co przy stoliku: `deleteAdminAvailability`
   // (`meetingsApi.ts:515-519`) ignoruje `data` i zwraca stale `true`.
   // Organizator wpisuje okna dostepnosci ZA uczestnika bez konta, wiec to jest
   // jedyny ekran, na ktorym widac te dane - „usunieto" bez usuniecia znaczy
   // tutaj, ze gielda dalej proponuje termin, ktorego uczestnik juz nie ma.
-  it.fails("DEFEKT: `false` z bazy jest raportowane jako udane usunięcie okna", async () => {
+  it("DEFEKT: `false` z bazy jest raportowane jako udane usunięcie okna", async () => {
     rpc().setData("admin_event_meeting_availability_delete", false);
 
     await expect(api.deleteAdminAvailability(OKNO)).resolves.toBe(false);

@@ -391,22 +391,21 @@ describe("rezygnacja", () => {
     );
   });
 
-  it.fails("defekt: rezygnacja bez czytelnej odpowiedzi bazy wyglada na udana", async () => {
-    // CO JEST ZLE. `cancelRegistration` na odpowiedzi, ktora nie jest obiektem
-    // (`bag(data) === null`), oddaje `{ registrationId: "", promotedFromWaitlist:
-    // 0 }` - czyli WYNIK, a nie blad. Blizniacza funkcja `submitRegistration`
-    // w tej samej sytuacji rzuca `unknown: registration response is not
-    // readable`, i to ona ma racje.
+  it("rezygnacja bez czytelnej odpowiedzi bazy nie wyglada na udana", async () => {
+    // CO BYLO ZLE. `cancelRegistration` na odpowiedzi, ktora nie jest obiektem
+    // (`bag(data) === null`), oddawala `{ registrationId: "",
+    // promotedFromWaitlist: 0 }` - czyli WYNIK, a nie blad. Blizniacza funkcja
+    // `submitRegistration` w tej samej sytuacji rzuca `unknown: registration
+    // response is not readable`, i to ona ma racje.
     //
-    // DLACZEGO TO BOLI. Uczestnik dostaje ekran "zgloszenie odwolane" po
-    // odpowiedzi, ktorej nie umielismy przeczytac - a jego miejsce nadal jest
-    // zajete. Dowiaduje sie o tym dopiero przy wejsciu na wydarzenie albo
-    // z listy obecnosci organizatora. Gosc bez konta nie ma jak ponowic: klucz
+    // DLACZEGO TO BOLALO. Uczestnik dostawal ekran "zgloszenie odwolane" po
+    // odpowiedzi, ktorej nie umielismy przeczytac - a jego miejsce nadal bylo
+    // zajete. Dowiadywal sie o tym dopiero przy wejsciu na wydarzenie albo
+    // z listy obecnosci organizatora. Gosc bez konta nie mial jak ponowic: klucz
     // zarzadzania zostal juz zuzyty w jego oczach.
-    //
-    // NIE NAPRAWIAM TEGO TUTAJ - rzucenie wyjatku jest zmiana zachowania
-    // produkcyjnego.
     h.rpc?.setData("event_registration_cancel", null);
-    await expect(api.cancelRegistration({ manageToken: MANAGE })).rejects.toThrow();
+    await expect(api.cancelRegistration({ manageToken: MANAGE })).rejects.toThrow(
+      /response is not readable/,
+    );
   });
 });

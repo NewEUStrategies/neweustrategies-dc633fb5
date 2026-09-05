@@ -145,7 +145,13 @@ vi.mock("@/components/admin/analytics/semantic/organisms/SemanticReconciliationP
 }));
 
 import { renderRoute, type RenderedRoute } from "@/test/routeHarness";
-import { Route as AnalyticsRoute } from "@/routes/admin.analytics";
+// Panel mieszka w trasie INDEKSOWEJ. `admin.analytics.tsx` jest od rozdzielenia
+// sekcji (commit 3d4b684) wyłącznie ramką routingu z `<Outlet/>`: 725 linii
+// przeniosło się do `admin.analytics.index.tsx`, a warsztat BI do
+// `admin.analytics.bi.tsx`. Import ramki montowałby pusty `<Outlet/>`, więc
+// dowód idzie po trasie, która naprawdę renderuje pulpit - tak samo jak
+// w `adminCommunityIndexRoute.test.tsx` i pozostałych testach tras indeksowych.
+import { Route as AnalyticsRoute } from "@/routes/admin.analytics.index";
 
 const PATH = "/admin/analytics";
 const STATUS_KEY = ["analytics-status"] as const;
@@ -808,6 +814,11 @@ describe("testowy event GA4 ma cztery wyjścia", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Ramka jest szukana po KLUCZU słownika: dostępna nazwa `<iframe>` idzie przez
+// `t("admin.analyticsPanel.embed.frameTitle")`, a atrapa i18n zwraca klucz.
+// Asercja na dawnym literale („GA4 Looker Studio embed") przechodziłaby
+// dokładnie wtedy, gdy nazwa wraca do kodu - czyli mierzyłaby defekt jako
+// sukces, tak samo jak przy nazwach zakładek wyżej.
 describe("osadzony raport wymaga DWÓCH warunków", () => {
   it("flaga i adres razem dają ramkę raportu i link „otwórz w nowej karcie”", async () => {
     const url = "https://lookerstudio.google.com/embed/reporting/abc/page/1";
@@ -815,7 +826,7 @@ describe("osadzony raport wymaga DWÓCH warunków", () => {
     await mount();
     await openTab(TAB.ga4);
 
-    const frame = await screen.findByTitle("GA4 Looker Studio embed");
+    const frame = await screen.findByTitle("admin.analyticsPanel.embed.frameTitle");
     expect(frame.getAttribute("src")).toBe(url);
     const link = screen.getByRole("link", {
       name: /admin\.analyticsPanel\.embed\.open/,
@@ -832,7 +843,7 @@ describe("osadzony raport wymaga DWÓCH warunków", () => {
     await openTab(TAB.ga4);
 
     await waitFor(() => expect(screen.getByTestId("pulpit-ga4")).toBeTruthy());
-    expect(screen.queryByTitle("GA4 Looker Studio embed")).toBeNull();
+    expect(screen.queryByTitle("admin.analyticsPanel.embed.frameTitle")).toBeNull();
   });
 
   it("raport osadzony jest widoczny TAKŻE przy nieskonfigurowanym Data API", async () => {
@@ -843,7 +854,9 @@ describe("osadzony raport wymaga DWÓCH warunków", () => {
     await mount();
     await openTab(TAB.ga4);
 
-    expect(screen.getByTitle("GA4 Looker Studio embed").getAttribute("src")).toBe(url);
+    expect(screen.getByTitle("admin.analyticsPanel.embed.frameTitle").getAttribute("src")).toBe(
+      url,
+    );
     expect(screen.queryByTestId("pulpit-ga4")).toBeNull();
   });
 });

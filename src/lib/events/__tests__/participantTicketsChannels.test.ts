@@ -598,44 +598,44 @@ describe("fetchMyRegistrations", () => {
     await expect(api.fetchMyRegistrations()).rejects.toThrow(/auth_required/);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (zasada 2).
+  // DEFEKT NAPRAWIONY W PRODUKCJI: klient wysyła `limit` i jest nim sufit RPC.
   //
-  // CO JEST ZLE. `event_my_registrations` tnie wynik do `limit` z ładunku,
+  // CO BYŁO ZLE. `event_my_registrations` tnie wynik do `limit` z ładunku,
   // domyślnie 20 i najwyżej 50 (`20260830090000:792`), a porządek to
-  // `created_at DESC`. `fetchMyRegistrations()` nie przyjmuje ŻADNEGO argumentu
-  // i wysyła `{}`, więc uczestnik z dwudziestym pierwszym zapisem po prostu nie
-  // widzi najstarszych - i nie widzi też informacji, że lista jest ucięta.
-  // Wszystkie trzy powierzchnie (`ParticipantTicketsPanel`, `MyEventsPanel`,
-  // `AccountMenuEventsSection`) wołają tę funkcję bez argumentów, więc nie ma
-  // drugiej drogi do starszych zgłoszeń; sekcja „minione" w `MyEventsPanel`
-  // gubi je jako pierwsza, bo są najstarsze.
+  // `created_at DESC`. `fetchMyRegistrations()` wysyłało `{}`, więc uczestnik
+  // z dwudziestym pierwszym zapisem po prostu nie widział najstarszych - i nie
+  // widział też informacji, że lista jest ucięta. Wszystkie trzy powierzchnie
+  // (`ParticipantTicketsPanel`, `MyEventsPanel`, `AccountMenuEventsSection`)
+  // wołają tę funkcję bez argumentów, więc drugiej drogi do starszych zgłoszeń
+  // nie ma; sekcja „minione" w `MyEventsPanel` gubiła je jako pierwsza, bo są
+  // najstarsze.
   //
-  // DLACZEGO NIE NAPRAWIAM: wymaga parametru w funkcji, przekazania go z trzech
-  // powierzchni i stronicowania w interfejsie - czyli zmiany produkcyjnej.
-  // Do rozstrzygnięcia jest przy tym twardy sufit 50 wierszy po stronie SQL.
-  it.fails(
-    "defekt: uczestnik z 25 zapisami dostaje 20 - klient nie umie poprosić o więcej",
-    async () => {
-      // Baza zamodelowana wiernie: `limit` czytany z ładunku, domyślnie 20,
-      // sufit 50, porządek `created_at DESC` (`20260830090000:792`). Sufit jest
-      // wyżej niż 25, więc jedyną przyczyną obcięcia jest klient.
-      const wszystkie = Array.from({ length: 25 }, (_, i) =>
-        wiersz({ registration_id: `3c4d0000-0000-4000-8000-${String(700 + i).padStart(12, "0")}` }),
-      );
-      rpc().setResponse("event_my_registrations", (call) => {
-        const sent = asBag(call.arg("p_payload"));
-        const zadany = sent === null ? undefined : sent["limit"];
-        const limit = typeof zadany === "number" ? Math.min(Math.max(zadany, 1), 50) : 20;
-        return ok({ registrations: wszystkie.slice(0, limit) });
-      });
+  // PARAMETRU W FUNKCJI NIE MA CELOWO: RPC nie przyjmuje przesunięcia, a `limit`
+  // i tak ścina do 50 po stronie SQL, więc klient nie umie poprosić o stronę
+  // drugą - umie tylko poprosić o wszystko, co RPC odda.
+  it("uczestnik z 25 zapisami dostaje wszystkie 25 - klient prosi o sufit RPC", async () => {
+    // Baza zamodelowana wiernie: `limit` czytany z ładunku, domyślnie 20,
+    // sufit 50, porządek `created_at DESC` (`20260830090000:792`). Sufit jest
+    // wyżej niż 25, więc jedyną przyczyną obcięcia jest klient.
+    const wszystkie = Array.from({ length: 25 }, (_, i) =>
+      wiersz({ registration_id: `3c4d0000-0000-4000-8000-${String(700 + i).padStart(12, "0")}` }),
+    );
+    rpc().setResponse("event_my_registrations", (call) => {
+      const sent = asBag(call.arg("p_payload"));
+      const zadany = sent === null ? undefined : sent["limit"];
+      const limit = typeof zadany === "number" ? Math.min(Math.max(zadany, 1), 50) : 20;
+      return ok({ registrations: wszystkie.slice(0, limit) });
+    });
 
-      const moje = await api.fetchMyRegistrations();
+    const moje = await api.fetchMyRegistrations();
 
-      // Zgłoszenia od 21. w dół nie mają drugiej drogi na ekran - i nic nie
-      // mówi uczestnikowi, że lista została ucięta.
-      expect(moje).toHaveLength(25);
-    },
-  );
+    // Zgłoszenia od 21. w dół nie mają drugiej drogi na ekran, więc muszą
+    // przyjechać za pierwszym razem.
+    expect(moje).toHaveLength(25);
+    // I dowód, że biorą się z ŻĄDANIA klienta, a nie z domyślnej wartości
+    // atrapy: w ładunku stoi sufit RPC, nie brak klucza.
+    expect(payloadOf("event_my_registrations")["limit"]).toBe(50);
+  });
 });
 
 /* --------------------------------------- panele prelegentów wydarzenia --- */

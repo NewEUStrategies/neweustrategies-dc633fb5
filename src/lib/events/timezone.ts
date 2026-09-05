@@ -121,7 +121,13 @@ export function formatEventDateTime(
     try {
       return date.toLocaleString(locale, { ...options, timeZone: EVENT_DEFAULT_TZ });
     } catch {
-      return date.toLocaleString(locale, options);
+      // TRZECIA PRÓBA NIE MOŻE UŻYWAĆ OPCJI WOŁAJĄCEGO. Odrzucona KOMBINACJA
+      // opcji (np. `dateStyle` razem z `hour`) nie zależy od strefy, więc skoro
+      // padły obie próby wyżej, padłaby i ta - a wyjątek stąd wychodzi z funkcji
+      // i zabiera ze sobą render całej listy wydarzeń. Znacznik ISO jest brzydki,
+      // ale czytelny, jednoznaczny co do strefy (`Z`) i nie przechodzi przez
+      // `Intl`, więc ostatnia bramka jest bezwarunkowo bezpieczna.
+      return date.toISOString();
     }
   }
 }

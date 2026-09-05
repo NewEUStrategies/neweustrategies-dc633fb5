@@ -301,22 +301,19 @@ describe("menu podstron", () => {
     expect(items.find((item) => item.id === "poz-zwykla")?.module).toBeNull();
   });
 
-  it.fails("defekt: pozycja o sciezce `/` przezywa jako zakladka bez adresu", async () => {
-    // CO JEST ZLE. `parseEventMenu` odsiewa pozycje PRZED obcieciem ukosnikow:
-    // `text("/")` jest napisem niepustym, wiec wiersz przechodzi bramke, a
-    // dopiero `path.replace(/^\/+/, "")` zostawia z niego pusty napis. Komentarz
+  it("pozycja o sciezce `/` wypada, zamiast przezyc jako zakladka bez adresu", async () => {
+    // CO BYLO ZLE. `parseEventMenu` odsiewalo pozycje PRZED obcieciem ukosnikow:
+    // `text("/")` jest napisem niepustym, wiec wiersz przechodzil bramke, a
+    // dopiero `path.replace(/^\/+/, "")` zostawial z niego pusty napis. Komentarz
     // przy tej samej funkcji mowi wprost: "Pozycja bez sciezki wypada: odnosnik
     // do `/` nie jest podstrona wydarzenia" - i to jest regula, ktorej kod nie
-    // realizuje.
+    // realizowal.
     //
-    // DLACZEGO TO BOLI. Taka pozycja rysuje sie jako zakladka prowadzaca do
+    // DLACZEGO TO BOLALO. Taka pozycja rysowala sie jako zakladka prowadzaca do
     // korzenia serwisu, a jej etykieta ma ostatni stopien kaskady rowny
     // `item.path`, czyli pustemu napisowi (`EventTabsNav.tsx` - `tabLabel`).
-    // Redakcja dostaje w pasku zakladke BEZ NAPISU, wyprowadzajaca czytelnika
-    // ze strony wydarzenia.
-    //
-    // NIE NAPRAWIAM TEGO TUTAJ - przeniesienie bramki za `replace` jest zmiana
-    // zachowania produkcyjnego.
+    // Redakcja dostawala w pasku zakladke BEZ NAPISU, wyprowadzajaca czytelnika
+    // ze strony wydarzenia. Bramka stoi teraz PO `replace`.
     h.rpc?.setData("event_menu", [
       menuRow({ id: "poz-korzen", path: "/", label_pl: "", label_en: "" }),
     ]);

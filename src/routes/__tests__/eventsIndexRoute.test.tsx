@@ -484,56 +484,50 @@ describe("nagłówek dokumentu - to, co widzi robot", () => {
     expect((mainEntity as { itemListElement?: unknown }).itemListElement).toEqual([]);
   });
 
-  it("STAN FAKTYCZNY: przy DEGRADACJI dokument i tak niesie węzeł katalogu z pustą listą", async () => {
-    // Utrwalenie TEGO, CO JEST - żeby zmiana (naprawa albo regres) była
-    // widoczna, a nie cicha. Przypadek niżej mówi, dlaczego to jest defekt.
+  it("przy DEGRADACJI zostają SAME okruszki - ścieżka jest prawdziwa, katalog nieznany", async () => {
+    // Druga połowa naprawy niżej. Węzeł katalogu znika, ale `BreadcrumbList`
+    // ZOSTAJE: ścieżka „Start > Wydarzenia" jest prawdziwa niezależnie od
+    // tego, czy lista dojechała, więc usunięcie jej byłoby zubożeniem wyniku
+    // wyszukiwania bez żadnego zysku.
     h.listThrows = true;
     const data = await runLoader();
 
     expect(data.degraded).toBe(true);
-    const collection = jsonLd(head(data).scripts ?? [], "CollectionPage");
-    const mainEntity = collection.mainEntity;
-    if (mainEntity === null || typeof mainEntity !== "object") {
-      throw new Error("test: węzeł katalogu nie ma listy");
-    }
-    expect((mainEntity as { itemListElement?: unknown }).itemListElement).toEqual([]);
+    const scripts = head(data).scripts ?? [];
+    expect(scripts).toHaveLength(1);
+    expect(jsonLd(scripts, "BreadcrumbList").itemListElement).toEqual([
+      { "@type": "ListItem", position: 1, name: "Start", item: "https://nes.eu/" },
+      { "@type": "ListItem", position: 2, name: "Wydarzenia" },
+    ]);
   });
 
-  it.fails(
-    "DEFEKT: render ZDEGRADOWANY wysyła robotowi katalog BEZ ANI JEDNEGO wydarzenia",
-    async () => {
-      // Nagłówek trasy mówi wprost: przy awarii transportu strona „NIE udaje,
-      // że wydarzeń nie ma" - i BODY rzeczywiście nie udaje, bo pokazuje
-      // komunikat z ponowieniem. Warstwa danych strukturalnych o tej zasadzie
-      // nie wie: `head()` dostaje `loaderData.headEvents === []` i beztrosko
-      // buduje z tego `CollectionPage` z PUSTĄ listą `ItemList`.
-      //
-      // DLACZEGO TO NIE JEST NIESZKODLIWE. Odpowiedź wychodzi z HTTP 200 (to
-      // jest cała pointa degradacji), a `Cache-Control: private, no-store`
-      // odcina wyłącznie CACHE - indeksowania nie blokuje; robi to `noindex`,
-      // którego tu nie ma. Blip backendu w chwili odwiedzin crawlera podaje
-      // mu więc oświadczenie „katalog wydarzeń tego serwisu jest pusty",
-      // podpisane danymi strukturalnymi - a to jest dokładnie to zdanie,
-      // którego trasa świadomie nie mówi człowiekowi.
-      //
-      // NAPRAWA JEST W ZASIĘGU RĘKI I DLATEGO TO PRZEOCZENIE, A NIE DECYZJA:
-      // `head()` dostaje CAŁY ładunek loadera, więc widzi `degraded` w tym
-      // samym miejscu, w którym czyta `headEvents`. Wystarczy przy degradacji
-      // nie emitować węzła katalogu (albo dołożyć `noindex`).
-      h.listThrows = true;
-      const data = await runLoader();
+  it("render ZDEGRADOWANY nie wysyła robotowi katalogu BEZ ANI JEDNEGO wydarzenia", async () => {
+    // NAPRAWIONY DEFEKT. Nagłówek trasy mówi wprost: przy awarii transportu
+    // strona „NIE udaje, że wydarzeń nie ma" - i BODY nie udawało, bo pokazuje
+    // komunikat z ponowieniem. Warstwa danych strukturalnych o tej zasadzie nie
+    // wiedziała: `head()` dostawał `loaderData.headEvents === []` i beztrosko
+    // budował z tego `CollectionPage` z PUSTĄ listą `ItemList`.
+    //
+    // DLACZEGO TO NIE BYŁO NIESZKODLIWE. Odpowiedź wychodzi z HTTP 200 (to
+    // jest cała pointa degradacji), a `Cache-Control: private, no-store`
+    // odcina wyłącznie CACHE - indeksowania nie blokuje; robi to `noindex`,
+    // którego tu nie ma. Blip backendu w chwili odwiedzin crawlera podawał
+    // mu więc oświadczenie „katalog wydarzeń tego serwisu jest pusty",
+    // podpisane danymi strukturalnymi - a to jest dokładnie to zdanie,
+    // którego trasa świadomie nie mówi człowiekowi.
+    h.listThrows = true;
+    const data = await runLoader();
 
-      // ASERCJA DOCELOWA: zdegradowany dokument nie składa robotowi
-      // oświadczenia o zawartości katalogu.
-      const typy = (head(data).scripts ?? []).map((script) => {
-        const parsed: unknown = JSON.parse(script.children ?? "{}");
-        return parsed !== null && typeof parsed === "object" && "@type" in parsed
-          ? String((parsed as Record<string, unknown>)["@type"])
-          : "";
-      });
-      expect(typy).not.toContain("CollectionPage");
-    },
-  );
+    // Zdegradowany dokument nie składa robotowi oświadczenia o zawartości
+    // katalogu.
+    const typy = (head(data).scripts ?? []).map((script) => {
+      const parsed: unknown = JSON.parse(script.children ?? "{}");
+      return parsed !== null && typeof parsed === "object" && "@type" in parsed
+        ? String((parsed as Record<string, unknown>)["@type"])
+        : "";
+    });
+    expect(typy).not.toContain("CollectionPage");
+  });
 });
 
 describe("ekran katalogu - trzy różne fakty, trzy różne widoki", () => {

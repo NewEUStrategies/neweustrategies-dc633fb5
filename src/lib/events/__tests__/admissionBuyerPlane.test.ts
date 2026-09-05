@@ -346,7 +346,7 @@ describe("inviteMyPackageSeat", () => {
     await expect(api.inviteMyPackageSeat(zaproszenie)).rejects.toThrow(/^order_cancelled:/);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI - opis nizej zostaje jako powod kontraktu.
   //
   // `inviteMyPackageSeat` (`admissionApi.ts:300-305`) czyta odpowiedz przez
   // `record()`/`text()` z fallbackiem na pusty napis, wiec odpowiedz
@@ -362,7 +362,7 @@ describe("inviteMyPackageSeat", () => {
   // (`packageInviteApi.ts:92-97`) rzuca `unknown: invitation response is not
   // readable` zamiast rysowac pusty sukces. Poprawka nalezy do produkcji:
   // brak `token` ma byc bledem.
-  it.fails("DEFEKT: odpowiedz bez tokenu daje puste zaproszenie zamiast bledu", async () => {
+  it("DEFEKT: odpowiedz bez tokenu daje puste zaproszenie zamiast bledu", async () => {
     rpc().setData("event_package_seat_invite", { seat_id: SEAT_ID });
 
     await expect(api.inviteMyPackageSeat(zaproszenie)).rejects.toThrow();

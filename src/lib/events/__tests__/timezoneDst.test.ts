@@ -228,24 +228,27 @@ describe("druga linia obrony, gdy `Intl` odmawia", () => {
     expect(eventDateBlock(PRZED_ZIMA, "America/New_York", "pl")).toEqual(oczekiwany);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI: trzeci fallback jest bezwarunkowo bezpieczny.
   //
   // `formatEventDateTime` przyjmuje DOWOLNE `Intl.DateTimeFormatOptions` od
   // wolajacego i deklaruje w komentarzu degradacje zamiast wyjatku. Odrzucona
   // KOMBINACJA opcji (tu: `dateStyle` razem z `hour` - `Intl` rzuca na to
   // `TypeError`) nie zalezy jednak od strefy, wiec gdy pierwsza proba padnie,
-  // padnie tez druga (strefa domyslna) i TRZECIA (bez strefy) - wyjatek
-  // wychodzi z funkcji i zabiera ze soba render calej listy wydarzen.
-  // Trzeci fallback musi byc bezwarunkowo bezpieczny (pusty napis albo ISO),
-  // bo inaczej `try/catch` wokol niego niczego nie chroni. Poprawka nalezy do
-  // produkcji, nie do testu.
-  it.fails("DEFEKT: odrzucona kombinacja opcji rzuca zamiast zdegradowac", () => {
-    expect(() =>
-      formatEventDateTime(PRZED_ZIMA, "Europe/Warsaw", "pl", {
+  // padnie tez druga (strefa domyslna) i - dopoki trzecia powtarzala opcje
+  // wolajacego - TRZECIA: wyjatek wychodzil z funkcji i zabieral ze soba render
+  // calej listy wydarzen. Teraz ostatnia proba oddaje ISO, ktore nie przechodzi
+  // przez `Intl`.
+  it("odrzucona kombinacja opcji degraduje, zamiast rzucac", () => {
+    let wynik = "";
+    expect(() => {
+      wynik = formatEventDateTime(PRZED_ZIMA, "Europe/Warsaw", "pl", {
         dateStyle: "long",
         hour: "numeric",
-      }),
-    ).not.toThrow();
+      });
+    }).not.toThrow();
+    // Degradacja ma cos ODDAC - pusty napis znaczy w tym module „bez terminu",
+    // wiec chwila wydarzenia zniknelaby z karty zamiast zbrzydnac.
+    expect(wynik).toBe(new Date(PRZED_ZIMA).toISOString());
   });
 });
 

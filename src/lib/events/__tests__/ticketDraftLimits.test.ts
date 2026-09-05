@@ -174,17 +174,16 @@ describe("cena i pula - kwoty, ktore obciazaja karte uczestnika", () => {
     expect(ticketDraftIssue({ ...drozsza, earlyBirdPriceCents: "15000" })).toBeNull();
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // DEFEKT NAPRAWIONY W PRODUKCJI: skladnia liczby rozstrzyga sie przed
+  // niepodzielnoscia pary.
   //
-  // `intOrNull("abc")` oddaje `NaN`, a `NaN !== null`, wiec warunek „cena
-  // promocyjna bez terminu" zapala sie na CENIE, ktora nie jest liczba, i
-  // podswietla POLE TERMINU. Redaktor, ktory wpisal w cene promocyjna „199,00"
-  // albo „199 zl", dostaje blad przy dacie: uzupelnia date, zapisuje ponownie
-  // i dopiero wtedy dowiaduje sie o cenie. Dwa obiegi formularza zamiast
-  // jednego, i przez pierwszy z nich komunikat mowi nieprawde o tym, co jest
-  // zle. Kolejnosc warunkow ma najpierw rozstrzygac SKLADNIE liczby, a dopiero
-  // potem niepodzielnosc pary. Poprawka nalezy do produkcji, nie do testu.
-  it.fails("DEFEKT: cena promocyjna nie bedaca liczba podswietla pole TERMINU", () => {
+  // `intOrNull("199,00")` oddaje `NaN`, a `NaN !== null`, wiec warunek „cena
+  // promocyjna bez terminu" zapalal sie na CENIE, ktora nie jest liczba, i
+  // podswietlal POLE TERMINU. Redaktor uzupelnial date, zapisywal ponownie
+  // i dopiero wtedy dowiadywal sie o cenie - dwa obiegi formularza zamiast
+  // jednego, a przez pierwszy z nich komunikat mowil nieprawde o tym, co jest
+  // zle.
+  it("cena promocyjna nie bedaca liczba podswietla pole CENY, nie terminu", () => {
     const issue = ticketDraftIssue(valid({ earlyBirdPriceCents: "199,00", earlyBirdUntil: "" }));
     expect(issue?.field).toBe("earlyBirdPriceCents");
   });
