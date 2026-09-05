@@ -137,3 +137,38 @@ Sekcje w `runtime_test.sql`, kazda z asercjami przerywajacymi skrypt:
     STARA polityka by ja wpuscila, ale nie widzi ani procesow, ani dziennika,
     ani zadnego CV - to jedyna asercja pilnujaca zaostrzenia z 20260824074231
     (bez niej cofniecie polityk do `is_staff()` nie zapaliloby niczego)
+16. izolacja najemcy na powierzchni danych kandydata: personel o w pelni
+    spelnionej ROLI, ale z innego najemcy, nie widzi ani danych osobowych
+    (`contact_messages`), ani procesow, ani dziennika etapow, ani kolejki CV
+    drugiego najemcy - w obie strony, kazda asercja izolacji w parze z asercja
+    niepustki po TEJ SAMEJ stronie
+17. ZNALEZISKO: hardening rol z 20260824074231 ominal `career_cv_gc_queue` -
+    `author` nie widzi procesow ani plikow CV, ale WIDZI ich sciezki w kolejce
+
+### Dlaczego sekcja 16 istnieje osobno od 10 i 15
+
+Trzy wymiary tej samej polityki sa rozlaczne i kazdy wymaga wlasnego dowodu.
+Polityki `career_*` czytaja `is_admin_or_editor() AND tenant_id =
+current_tenant_id()`. Sekcja 15 przybija pierwszy czlon (ROLA), sekcja 10
+przybija drugi, ale WYLACZNIE na `storage.objects`. Sekcja 16 przybija drugi
+czlon na czterech tabelach powierzchni rekrutacji.
+
+Luka byla strukturalna, nie przypadkowa: sekcje 4-9 dotykaja tych tabel z roli
+harnessu, ktora RLS nie podlega. Skasowanie koniunkcji najemcy przechodzilo
+caly harness na zielono - sprawdzone mutacjami, kazda zapala asercje sekcji 16
+i zadnej innej.
+
+**Gdzie naprawde leza dane osobowe.** Pierwsza wersja sekcji 16 twierdzila, ze
+imie, e-mail i telefon kandydata trzymaja tabele `career_*`. To nieprawda:
+`career_applications` nie ma ani jednej takiej kolumny. Dane osobowe siedza
+w `contact_messages`, a tabele `career_*` dokladaja warstwe procesu i - w
+`career_cv_gc_queue` - SCIEZKI do plikow CV. Sekcja dowodzi wiec izolacji
+CZTERECH tabel; bez `contact_messages` omijalaby dokladnie te, o ktora chodzi.
+
+Ta sama granica ma drugi, niezalezny dowod na PELNYM schemacie:
+`supabase/tests/career_applications_tenant_isolation_test.sql` (29 asercji,
+bramka `pgtap`). Harness stoi na atrapach szesciu celow polityk, wiec dowodzi
+mniej niz pgTAP, ale za to bez dockera i przy kazdym przebiegu bramki
+`check:careers-harness`. pgTAP dokłada trzeciego najemce oraz asercje, ze
+`current_tenant_id()` nie czyta najemcy z niczego, co podaje klient - bez niej
+kazda koniunkcja najemcy w repozytorium bylaby do obejscia jednym naglowkiem.

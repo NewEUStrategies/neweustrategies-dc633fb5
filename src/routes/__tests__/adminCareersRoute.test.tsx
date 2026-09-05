@@ -432,10 +432,14 @@ const AUTHORITY_GATE = "src/routes/__tests__/adminRouteAuthority.gate.test.ts";
 /** Migracja z pipeline'em rekrutacyjnym, dziennikiem decyzji i kolejką usunięć CV. */
 const PIPELINE_MIGRATION =
   "supabase/migrations/20260814110000_careers_pipeline_and_cv_retention.sql";
+/** Migracja przestawiająca polityki `career_*` z `is_staff()` na `is_admin_or_editor()`. */
+const ROLE_HARDENING_MIGRATION =
+  "supabase/migrations/20260824074231_4a952090-86ab-46ed-a923-5cd9855c5d8c.sql";
 /** Migracja zawężająca bucket `career-cv` do najemcy (ścieżka niesie tenanta). */
 const CV_SCOPE_MIGRATION = "supabase/migrations/20260814100000_careers_tenant_scope.sql";
 const PGTAP_DIR = "supabase/tests";
 const CAREER_SECTIONS_PGTAP = "career_sections_visibility_public_read_test.sql";
+const CAREER_APPLICATIONS_PGTAP = "career_applications_tenant_isolation_test.sql";
 
 /** Najemca w fixtures - jawna fikcja, nigdy identyfikator z produkcji. */
 const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -786,6 +790,31 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
     expect(sql).toMatch(/public\.is_staff\(\) AND tenant_id = public\.current_tenant_id\(\)/);
   });
 
+  it.fails(
+    "DEFEKT: kolejka CV wymaga tylko `is_staff()` - hardening ról ominął tę jedną tabelę",
+    () => {
+      // ZAREJESTROWANY, WCIĄŻ OTWARTY. Migracja 20260824074231 przestawiła
+      // polityki `career_*` z `is_staff()` na `is_admin_or_editor()` - różnica
+      // to dokładnie rola `author`. W pliku tej migracji `career_cv_gc_queue`
+      // NIE WYSTĘPUJE ANI RAZU, więc jej polityka odczytu stoi do dziś na
+      // `is_staff()`.
+      //
+      // Skutek jest wykonany, nie wydedukowany: uprząż runtime, sekcja 17,
+      // pokazuje `author`, który NIE widzi procesów ani żadnego pliku CV,
+      // ale WIDZI ścieżki plików CV w kolejce własnego najemcy. Wyciek jest
+      // ograniczony do ścieżek - polityka bucketu trzyma - ale to metadane
+      // o tym, czyje CV są kolejkowane do usunięcia.
+      //
+      // Kontrakt docelowy: ta jedna tabela ma używać `is_admin_or_editor()`,
+      // jak pozostałe pięć powierzchni rekrutacji. Domknięcie wymaga migracji,
+      // czyli zmiany produkcji - stąd `it.fails`, a nie cicha poprawka.
+      const hardening = read(ROLE_HARDENING_MIGRATION);
+      // Kontrola dodatnia: ta sama technika ZNAJDUJE tabele, które hardening objął.
+      expect(hardening).toContain("career_applications");
+      expect(hardening).toContain("career_cv_gc_queue");
+    },
+  );
+
   it("dziennik decyzji jest dla klienta TYLKO do czytania - historii nie da się poprawić", () => {
     // Gdyby panel mógł pisać do `career_application_events`, audyt „kogo
     // odrzuciliśmy i dlaczego" dałoby się przepisać po fakcie. Grant jest sam
@@ -820,10 +849,11 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
    * `scripts/careers-harness/runtime_test.sql`, odpalanej w CI.
    *
    * Trzy testy poniżej pilnują tego łańcucha: dowód ISTNIEJE, CI go ODPALA,
-   * a pusty katalog `supabase/tests/` jest ŚWIADOMY (pgTAP nie jest dostępny
-   * w obrazie, więc asercje są gołym SQL-em). Poprzednia wersja tego bloku
-   * opisywała ZŁAMANY KONTRAKT zapisany jako `it.fails` - i przeczyła testowi,
-   * który stał bezpośrednio pod nią.
+   * a od 2026-09-05 ma DRUGI, niezależny dowód w `supabase/tests/`. Poprzednia
+   * wersja tego bloku opisywała ZŁAMANY KONTRAKT zapisany jako `it.fails`
+   * - i przeczyła testowi, który stał bezpośrednio pod nią; wersja po niej
+   * uzasadniała pusty katalog pgTAP przesłanką o obrazie, która była prawdziwa
+   * o uprzęży, ale nie o bramce `pgtap` (patrz trzeci test niżej).
    */
   it("pipeline rekrutacyjny MA dowód wykonawczy - w uprzęży runtime, nie w pgTAP", () => {
     // SPROSTOWANIE WŁASNEGO ZNALEZISKA. Pierwsza wersja tego pliku twierdziła,
@@ -854,13 +884,27 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
     expect(read(CI_WORKFLOW)).toContain("check:careers-harness");
   });
 
-  it("katalog pgTAP nie zawiera dowodu zgłoszeń - i to jest ŚWIADOME, nie luka", () => {
-    // Zostawiamy tę asercję, żeby następny czytelnik nie powtórzył pomyłki:
-    // pusty wynik grepu po `supabase/tests/` NIE znaczy „brak dowodu".
-    // Kontrola dodatnia: ta sama technika ZNAJDUJE pgTAP dla sekcji karier,
-    // więc wzorzec szukania jest sprawny.
-    expect(pgtapMentioning("career_applications")).toEqual([]);
+  it("katalog pgTAP MA dowód izolacji zgłoszeń - obraz uprzęży to nie obraz bramki `pgtap`", () => {
+    // SPROSTOWANIE POPRZEDNIEJ WERSJI TEGO TESTU. Stała tu asercja
+    // `pgtapMentioning("career_applications") === []` z uzasadnieniem, że pusty
+    // katalog jest ŚWIADOMY, bo „pgTAP nie jest dostępny w obrazie". Przesłanka
+    // była prawdziwa WYŁĄCZNIE o obrazie uprzęży - `scripts/careers-harness/run.sh`
+    // stawia goły Postgres i dlatego jej asercje są gołym SQL-em. Wniosek
+    // dotyczył jednak `supabase/tests/`, czyli katalogu, który biegnie w INNYM
+    // zadaniu CI (`pgtap`), gdzie rozszerzenie instaluje się wprost
+    // (`create extension if not exists pgtap`). Repozytorium ma ponad sto plików
+    // pgTAP, w tym dedykowane testy izolacji najemcy czatu i klubów - obraz
+    // nigdy nie był tu przeszkodą, więc brak dowodu nie był świadomym wyborem,
+    // tylko luką utrwaloną przez zielony test.
+    //
+    // Asercja jest teraz POZYTYWNA z tego samego powodu, co przy ZNALEZISKU 6:
+    // dowód ma pilnować OBECNOŚCI dowodu, a nie utrwalać jego brak.
+    expect(pgtapMentioning("career_applications")).toContain(CAREER_APPLICATIONS_PGTAP);
+    // Kontrola dodatnia: ta sama technika znajduje pgTAP sekcji karier, więc
+    // wzorzec szukania jest sprawny.
     expect(pgtapMentioning("career_sections")).toContain(CAREER_SECTIONS_PGTAP);
+    // Uprząż zostaje DRUGIM, niezależnym dowodem - i jej własny obraz naprawdę
+    // pgTAP-a nie ma.
     expect(read(CAREERS_HARNESS)).toContain("pgtap nie jest dostepny w tym obrazie");
   });
 

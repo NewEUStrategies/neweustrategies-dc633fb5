@@ -239,6 +239,19 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:codeowners
 
+      # Bramka taksonomii istniała od 2026-09-04 jako `scripts/check-feature-
+      # taxonomy.ts` i NIE BYŁA WPIĘTA W NIC: ani w `package.json`, ani w ten
+      # plik. To ta sama klasa, którą audyt 2026-08-11 (rozdz. 8.1) opisał przy
+      # `pg-harness` - skrypt istniał, uruchamiał go wyłącznie człowiek, jeśli
+      # pamiętał, i dlatego złamany CHECK trafił na produkcję. Bramka pilnuje
+      # trzech niezmienników mapy modułów (brak sieroty, brak martwej reguły,
+      # brak pustej funkcjonalności) i czyta wyłącznie pliki repo, więc stoi
+      # w bloku najtańszych sygnałów. Zmierzone przy wpięciu: OK na 3 304
+      # plikach produkcyjnych, 2 901 w modułach, 27 funkcjonalności.
+      - name: Taksonomia modułów (bez sieroty, bez martwej reguły)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:feature-taxonomy
+
       # Blokujący inwariant odtwarzalności bazy: czy `supabase db start` (świeża
       # baza, migracje od zera) dobiegnie do końca. Trzy klasy, wszystkie
       # niewidoczne dla przyrostowego `db push` i wszystkie zabijające joby
