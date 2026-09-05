@@ -19,8 +19,17 @@ import * as invites from "@/lib/clubs/useClubInvites";
 import * as threads from "@/lib/clubs/useClubThreadsData";
 import * as reactions from "@/lib/clubs/useClubReactions";
 import * as moderation from "@/lib/clubs/useClubModeration";
+import * as owner from "@/lib/clubs/useClubOwner";
 
-const DOMAIN_MODULES = { catalog, admin, invites, threads, reactions, moderation } as const;
+const DOMAIN_MODULES = {
+  catalog,
+  admin,
+  invites,
+  threads,
+  reactions,
+  moderation,
+  owner,
+} as const;
 
 function read(relative: string): string {
   return readFileSync(join(process.cwd(), relative), "utf8");
