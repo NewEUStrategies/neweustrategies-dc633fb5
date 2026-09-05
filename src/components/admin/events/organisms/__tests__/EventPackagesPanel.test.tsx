@@ -1280,23 +1280,20 @@ describe("dostepnosc", () => {
   // nie zlapie: formalnie kazdy przelacznik MA nazwe. Etykieta powinna niesc
   // nazwe pakietu. Ten sam defekt jest zarejestrowany w `SponsorTiersPanel`.
   // ---------------------------------------------------------------------------
-  it(
-    "DEFEKT: przelaczniki „aktywny” w dwoch wierszach maja IDENTYCZNA nazwe - czytnik nie mowi, ktorego pakietu dotycza",
-    () => {
-      h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET, name_pl: "Delegacja 5 miejsc" })];
-      panel();
+  it("DEFEKT: przelaczniki „aktywny” w dwoch wierszach maja IDENTYCZNA nazwe - czytnik nie mowi, ktorego pakietu dotycza", () => {
+    h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET, name_pl: "Delegacja 5 miejsc" })];
+    panel();
 
-      const nazwy = wierszePakietow().map((wiersz) =>
-        within(wiersz).getByRole("switch").getAttribute("aria-label"),
-      );
+    const nazwy = wierszePakietow().map((wiersz) =>
+      within(wiersz).getByRole("switch").getAttribute("aria-label"),
+    );
 
-      // Asercja opisuje stan PO naprawie, nie sam fakt duplikatu: nazwa
-      // przelacznika ma niesc pakiet, ktorego dotyczy. Dzis obie sa golym
-      // kluczem `editor.active`, wiec obie linie padaja.
-      expect(nazwy[0]).toContain("Delegacja 10 miejsc");
-      expect(nazwy[1]).toContain("Delegacja 5 miejsc");
-    },
-  );
+    // Asercja opisuje stan PO naprawie, nie sam fakt duplikatu: nazwa
+    // przelacznika ma niesc pakiet, ktorego dotyczy. Dzis obie sa golym
+    // kluczem `editor.active`, wiec obie linie padaja.
+    expect(nazwy[0]).toContain("Delegacja 10 miejsc");
+    expect(nazwy[1]).toContain("Delegacja 5 miejsc");
+  });
 
   // ---------------------------------------------------------------------------
   // DEFEKT: pole stanu zamowienia ma w kazdym wierszu te sama etykiete
@@ -1305,22 +1302,19 @@ describe("dostepnosc", () => {
   // nazwane pola, i „oplacone" trafia w cudze zamowienie. Etykieta powinna
   // niesc platnika albo pakiet.
   // ---------------------------------------------------------------------------
-  it(
-    "DEFEKT: pola stanu dwoch zamowien maja IDENTYCZNA nazwe - „oplacone” da sie wpisac w cudze zamowienie",
-    () => {
-      h.zamowienia = [zamowienie(), zamowienie({ id: INNE_ZAMOWIENIE, buyer_name: "Fundacja X" })];
-      panel();
+  it("DEFEKT: pola stanu dwoch zamowien maja IDENTYCZNA nazwe - „oplacone” da sie wpisac w cudze zamowienie", () => {
+    h.zamowienia = [zamowienie(), zamowienie({ id: INNE_ZAMOWIENIE, buyer_name: "Fundacja X" })];
+    panel();
 
-      const nazwy = wierszeZamowien().map((wiersz) =>
-        within(wiersz).getByRole("combobox").getAttribute("aria-label"),
-      );
+    const nazwy = wierszeZamowien().map((wiersz) =>
+      within(wiersz).getByRole("combobox").getAttribute("aria-label"),
+    );
 
-      // Nazwa pola ma niesc platnika (albo pakiet), zeby „oplacone" nie dalo
-      // sie wpisac w cudze zamowienie. Dzis oba pola nazywaja sie tak samo.
-      expect(nazwy[0]).toContain("Instytut Przykladowy");
-      expect(nazwy[1]).toContain("Fundacja X");
-    },
-  );
+    // Nazwa pola ma niesc platnika (albo pakiet), zeby „oplacone" nie dalo
+    // sie wpisac w cudze zamowienie. Dzis oba pola nazywaja sie tak samo.
+    expect(nazwy[0]).toContain("Instytut Przykladowy");
+    expect(nazwy[1]).toContain("Fundacja X");
+  });
 });
 
 describe("defekty zarejestrowane", () => {
@@ -1346,16 +1340,13 @@ describe("defekty zarejestrowane", () => {
   // „wybierz bilet" nad pusta droplista i nie ma sladu, ze to zapytanie
   // padlo. Odmowa powinna dojsc zdaniem, tak jak przy pakietach i zamowieniach.
   // ---------------------------------------------------------------------------
-  it(
-    "DEFEKT: awaria listy biletow nigdzie nie widnieje - formularz dostaje pusta liste",
-    () => {
-      h.bilety = [];
-      h.biletyBlad = new Error("forbidden: brak dostepu do biletow");
-      panel();
+  it("DEFEKT: awaria listy biletow nigdzie nie widnieje - formularz dostaje pusta liste", () => {
+    h.bilety = [];
+    h.biletyBlad = new Error("forbidden: brak dostepu do biletow");
+    panel();
 
-      expect(screen.getByText("odmowa:forbidden: brak dostepu do biletow")).toBeTruthy();
-    },
-  );
+    expect(screen.getByText("odmowa:forbidden: brak dostepu do biletow")).toBeTruthy();
+  });
 
   // ---------------------------------------------------------------------------
   // DEFEKT: filtr zamowien przezywa skasowanie pakietu, po ktorym filtruje, i od
@@ -1368,26 +1359,23 @@ describe("defekty zarejestrowane", () => {
   // niz zawezenie zapytania, bo jej wartosc nie ma odpowiednika w opcjach.
   // Filtr powinien wracac na „wszystkie pakiety", gdy jego pakiet znika z listy.
   // ---------------------------------------------------------------------------
-  it(
-    "DEFEKT: filtr po skasowanym pakiecie zostaje w mocy - zamowienia calego wydarzenia znikaja",
-    () => {
-      h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET })];
-      const { rerender } = panel();
+  it("DEFEKT: filtr po skasowanym pakiecie zostaje w mocy - zamowienia calego wydarzenia znikaja", () => {
+    h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET })];
+    const { rerender } = panel();
 
-      fireEvent.change(filtr(), { target: { value: INNY_PAKIET } });
-      fireEvent.click(within(wierszPakietu(1)).getByRole("button", { name: `${T}.deleteAction` }));
-      fireEvent.click(within(potwierdzenie()).getByRole("button", { name: `${T}.deleteConfirm` }));
+    fireEvent.change(filtr(), { target: { value: INNY_PAKIET } });
+    fireEvent.click(within(wierszPakietu(1)).getByRole("button", { name: `${T}.deleteAction` }));
+    fireEvent.click(within(potwierdzenie()).getByRole("button", { name: `${T}.deleteConfirm` }));
 
-      // Odswiezenie listy po skasowaniu: pakietu INNY_PAKIET juz nie ma.
-      h.pakiety = [pakiet()];
-      rerender(<EventPackagesPanel eventId={WYDARZENIE} />);
+    // Odswiezenie listy po skasowaniu: pakietu INNY_PAKIET juz nie ma.
+    h.pakiety = [pakiet()];
+    rerender(<EventPackagesPanel eventId={WYDARZENIE} />);
 
-      // Dwie strony tej samej prawdy, obie dzis nieprawdziwe: zapytanie ma
-      // znowu objac cale wydarzenie, a kontrolka ma to pokazywac wpisem
-      // „wszystkie pakiety". Wartosc filtra NIE moze byc liczona z zapytania -
-      // wtedy asercja sprawdzalaby sama siebie.
-      expect(ostatnieZapytanieZamowien().packageId).toBeNull();
-      expect(filtr().value).toBe("all");
-    },
-  );
+    // Dwie strony tej samej prawdy, obie dzis nieprawdziwe: zapytanie ma
+    // znowu objac cale wydarzenie, a kontrolka ma to pokazywac wpisem
+    // „wszystkie pakiety". Wartosc filtra NIE moze byc liczona z zapytania -
+    // wtedy asercja sprawdzalaby sama siebie.
+    expect(ostatnieZapytanieZamowien().packageId).toBeNull();
+    expect(filtr().value).toBe("all");
+  });
 });

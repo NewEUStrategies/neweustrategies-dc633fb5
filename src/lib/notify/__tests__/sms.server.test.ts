@@ -100,15 +100,25 @@ describe("sendSms - bramka powtórzeń", () => {
     const fetchMock = givenProvider();
     limiter.plan(true, false);
 
-    const first = await sendSms({ to: "+48500100200", body: "Bilet oplacony.", idempotencyKey: "k" });
-    const second = await sendSms({ to: "+48500100200", body: "Bilet oplacony.", idempotencyKey: "k" });
+    const first = await sendSms({
+      to: "+48500100200",
+      body: "Bilet oplacony.",
+      idempotencyKey: "k",
+    });
+    const second = await sendSms({
+      to: "+48500100200",
+      body: "Bilet oplacony.",
+      idempotencyKey: "k",
+    });
 
     expect(first).toEqual({ ok: true });
     expect(second).toEqual({ ok: true, skipped: "duplicate" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // Limit 1 to całe „raz na klucz": przy limicie 2 bramka przepuściłaby duplikat.
-    expect(limiter.calls[0]).toMatchObject({ subjectId: "k", max: 1 });
-    expect(limiter.calls[0]?.scope).toBe(limiter.calls[1]?.scope);
+    expect(limiter.calls[0]).toMatchObject({ scope: "sms.once", subjectId: "k", max: 1 });
+    // Obie próby muszą trafić w TEN SAM kubełek - inaczej licznik nigdy się nie
+    // przepełni i bramka jest ozdobą.
+    expect(limiter.calls[1]).toMatchObject({ scope: "sms.once", subjectId: "k" });
   });
 
   it("SMS bez klucza nie pyta licznika - kontrakt starych wołających zostaje", async () => {
@@ -128,7 +138,11 @@ describe("sendSms - bramka powtórzeń", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     limiter.breakCounter(new Error("licznik odmówił"));
 
-    const result = await sendSms({ to: "+48500100200", body: "Bilet oplacony.", idempotencyKey: "k" });
+    const result = await sendSms({
+      to: "+48500100200",
+      body: "Bilet oplacony.",
+      idempotencyKey: "k",
+    });
 
     expect(result).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -145,7 +159,11 @@ describe("sendSms - bramka powtórzeń", () => {
     // po fakcie zastałoby wszystkie klucze spalone na wyłączonym kanale.
     vi.stubEnv("SMSAPI_TOKEN", "");
 
-    const result = await sendSms({ to: "+48500100200", body: "Bilet oplacony.", idempotencyKey: "k" });
+    const result = await sendSms({
+      to: "+48500100200",
+      body: "Bilet oplacony.",
+      idempotencyKey: "k",
+    });
 
     expect(result).toEqual({ ok: true, skipped: "disabled" });
     expect(limiter.rateLimit).not.toHaveBeenCalled();

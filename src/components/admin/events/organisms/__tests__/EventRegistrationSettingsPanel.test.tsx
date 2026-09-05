@@ -545,21 +545,18 @@ describe("EventRegistrationSettingsPanel - tryb zapisow", () => {
   // moglby poprawic. Wyjscie z tego stanu wymaga zgadniecia, ze trzeba wrocic
   // do karty „cudzy serwis" i wyczyscic adres, ktorego ten tryb nie uzywa.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: zly adres zewnetrzny blokuje zapis w trybie `rsvp` BEZ jakiegokolwiek komunikatu na ekranie",
-    () => {
-      panel();
+  it("DEFEKT: zly adres zewnetrzny blokuje zapis w trybie `rsvp` BEZ jakiegokolwiek komunikatu na ekranie", () => {
+    panel();
 
-      fireEvent.click(karta("registrationModes.external"));
-      fireEvent.change(screen.getByLabelText(`${R}externalUrlLabel`), {
-        target: { value: "http://zapisy.example.org/kongres" },
-      });
-      fireEvent.click(karta("registrationModes.rsvp"));
-      zapisz();
+    fireEvent.click(karta("registrationModes.external"));
+    fireEvent.change(screen.getByLabelText(`${R}externalUrlLabel`), {
+      target: { value: "http://zapisy.example.org/kongres" },
+    });
+    fireEvent.click(karta("registrationModes.rsvp"));
+    zapisz();
 
-      expect(screen.getByText(`${R}errors.externalUrlInvalid`)).toBeInTheDocument();
-    },
-  );
+    expect(screen.getByText(`${R}errors.externalUrlInvalid`)).toBeInTheDocument();
+  });
 
   it("adres zewnetrzny ZNIKA Z EKRANU przy zmianie trybu, ale NIE z ladunku", async () => {
     // Baza go nie zeruje przy zmianie trybu, wiec pominiecie klucza zostawiloby
@@ -600,20 +597,17 @@ describe("EventRegistrationSettingsPanel - tryb zapisow", () => {
   // wpis rejestru zadal wylacznie `disabled`, poprawka druga zostawilaby go
   // czerwonym i nikt by sie nie dowiedzial, ze dziura jest juz zalatana.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: tryb „bez zapisow” zostawia limit miejsc bez sygnalu - ani zgaszonego pola, ani ostrzezenia",
-    () => {
-      panel();
+  it("DEFEKT: tryb „bez zapisow” zostawia limit miejsc bez sygnalu - ani zgaszonego pola, ani ostrzezenia", () => {
+    panel();
 
-      fireEvent.click(karta("registrationModes.none"));
-      wpisz("capacityLabel", "120");
+    fireEvent.click(karta("registrationModes.none"));
+    wpisz("capacityLabel", "120");
 
-      expect({
-        poleZgaszone: pole("capacityLabel").disabled,
-        ostrzezenia: screen.queryAllByRole("listitem").map((item) => item.textContent),
-      }).not.toEqual({ poleZgaszone: false, ostrzezenia: [] });
-    },
-  );
+    expect({
+      poleZgaszone: pole("capacityLabel").disabled,
+      ostrzezenia: screen.queryAllByRole("listitem").map((item) => item.textContent),
+    }).not.toEqual({ poleZgaszone: false, ostrzezenia: [] });
+  });
 });
 
 describe("EventRegistrationSettingsPanel - przelacznik zasady Chatham House", () => {
@@ -747,16 +741,13 @@ describe("EventRegistrationSettingsPanel - cena wejsciowki", () => {
   // wiec czerwone zdanie tez sie nie pokazuje. Redaktor wpisuje cene, nie widzi
   // ani bledu, ani przycisku, i wychodzi z ekranu przekonany, ze bilet kosztuje.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: nieczytelna kwota w wydarzeniu bezplatnym nie budzi ani paska zapisu, ani komunikatu",
-    () => {
-      panel();
+  it("DEFEKT: nieczytelna kwota w wydarzeniu bezplatnym nie budzi ani paska zapisu, ani komunikatu", () => {
+    panel();
 
-      wpisz("priceLabel", "dwiescie");
+    wpisz("priceLabel", "dwiescie");
 
-      expect(przyciskZapisu()).not.toBeNull();
-    },
-  );
+    expect(przyciskZapisu()).not.toBeNull();
+  });
 
   it("puste pole ceny jedzie jako pusty napis - wydarzenie BEZPLATNE, a nie za zero groszy", async () => {
     panel({ ticket_price_cents: 25000 });

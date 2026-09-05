@@ -14,14 +14,13 @@
 // Moduł server-only (token dostawcy) - importuj wyłącznie z handlerów.
 
 export type SmsResult =
-  | { ok: true; skipped?: "disabled" | "no_recipient" | "duplicate" }
-  | { ok: false; error: string };
+  { ok: true; skipped?: "disabled" | "no_recipient" | "duplicate" } | { ok: false; error: string };
 
 /** Limit jednego segmentu GSM-7 z zapasem na stopkę dostawcy. */
 const MAX_LENGTH = 300;
 
 /** Kubełek licznika, w którym mieszkają klucze idempotencji SMS-a. */
-const IDEMPOTENCY_SCOPE = "sms_once";
+const IDEMPOTENCY_SCOPE = "sms.once";
 
 /**
  * Okno bramki powtórzeń - 3 doby, bo tyle mniej więcej ponawia webhooka

@@ -794,18 +794,15 @@ describe("RegistrationFieldsPanel - usuniecie pola prowadzi przez potwierdzenie"
   // cofniecia - definicja z wariantami odpowiedzi i regula kwalifikujaca znika
   // z bazy, a odtworzyc trzeba ja recznie.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: potwierdzenie usuniecia nie nazywa pola - przy kilkunastu pytaniach organizator potwierdza w ciemno",
-    async () => {
-      daneListy([polePytania(), polePytania({ id: INNE_POLE, key: "stanowisko", sort_order: 20 })]);
-      panel();
-      await czekajNaListe();
+  it("DEFEKT: potwierdzenie usuniecia nie nazywa pola - przy kilkunastu pytaniach organizator potwierdza w ciemno", async () => {
+    daneListy([polePytania(), polePytania({ id: INNE_POLE, key: "stanowisko", sort_order: 20 })]);
+    panel();
+    await czekajNaListe();
 
-      fireEvent.click(within(wiersz(1)).getByRole("button", { name: `${T}editor.deleteAction` }));
+    fireEvent.click(within(wiersz(1)).getByRole("button", { name: `${T}editor.deleteAction` }));
 
-      expect(within(okno()).getByText(/stanowisko/)).toBeInTheDocument();
-    },
-  );
+    expect(within(okno()).getByText(/stanowisko/)).toBeInTheDocument();
+  });
 });
 
 describe("RegistrationFieldsPanel - dostepnosc", () => {
@@ -863,20 +860,17 @@ describe("RegistrationFieldsPanel - dostepnosc", () => {
   // o nazwe wspolna po poprawce nie znalazloby NICZEGO i wpis rejestru zostalby
   // czerwony takze nad kodem juz naprawionym.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: przelaczniki „aktywne” w dwoch wierszach maja IDENTYCZNA nazwe - czytnik nie mowi, ktorego pytania dotycza",
-    async () => {
-      daneListy([
-        polePytania({ label_pl: "Instytucja" }),
-        polePytania({ id: INNE_POLE, key: "stanowisko", label_pl: "Stanowisko", sort_order: 20 }),
-      ]);
-      panel();
-      await czekajNaListe();
+  it("DEFEKT: przelaczniki „aktywne” w dwoch wierszach maja IDENTYCZNA nazwe - czytnik nie mowi, ktorego pytania dotycza", async () => {
+    daneListy([
+      polePytania({ label_pl: "Instytucja" }),
+      polePytania({ id: INNE_POLE, key: "stanowisko", label_pl: "Stanowisko", sort_order: 20 }),
+    ]);
+    panel();
+    await czekajNaListe();
 
-      const nazwy = [przelacznik(0), przelacznik(1)].map((s) => s.getAttribute("aria-label"));
-      expect(new Set(nazwy).size).toBe(2);
-    },
-  );
+    const nazwy = [przelacznik(0), przelacznik(1)].map((s) => s.getAttribute("aria-label"));
+    expect(new Set(nazwy).size).toBe(2);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -890,22 +884,19 @@ describe("RegistrationFieldsPanel - dostepnosc", () => {
 // zgody po kolei.
 // ---------------------------------------------------------------------------
 describe("RegistrationFieldsPanel - dokument zgody", () => {
-  it.fails(
-    "DEFEKT: wiersz pola zgody nie pokazuje dokumentu - brak wersji angielskiej jest niewidoczny",
-    async () => {
-      daneListy([
-        polePytania({
-          field_type: "consent",
-          key: "zgoda_rodo",
-          label_pl: "Zgoda na przetwarzanie",
-          consent_url_pl: "https://example.org/zgoda-pl",
-          consent_url_en: "",
-        }),
-      ]);
-      panel();
-      await czekajNaListe();
+  it("DEFEKT: wiersz pola zgody nie pokazuje dokumentu - brak wersji angielskiej jest niewidoczny", async () => {
+    daneListy([
+      polePytania({
+        field_type: "consent",
+        key: "zgoda_rodo",
+        label_pl: "Zgoda na przetwarzanie",
+        consent_url_pl: "https://example.org/zgoda-pl",
+        consent_url_en: "",
+      }),
+    ]);
+    panel();
+    await czekajNaListe();
 
-      expect(within(wiersz()).getByText(/zgoda-pl/)).toBeInTheDocument();
-    },
-  );
+    expect(within(wiersz()).getByText(/zgoda-pl/)).toBeInTheDocument();
+  });
 });

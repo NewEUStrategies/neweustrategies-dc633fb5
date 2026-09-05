@@ -398,6 +398,10 @@ export const adminEventRegistrationPl = {
         consentUrlEn: "Dokument zgody (angielski)",
         consentUrlHint:
           "Adres https:// do treści zgody. Pokazujemy go przy polu zgody, żeby uczestnik wiedział, na co się godzi.",
+        // Brak dokumentu w jednej wersji językowej widać na LIŚCIE, a nie
+        // dopiero po otwarciu pola: uczestnik czytający formularz w tym języku
+        // dostaje pytanie o zgodę bez treści, na którą się godzi.
+        consentUrlMissing: "brak dokumentu",
         required: "Pole wymagane",
         options: "Opcje listy",
         optionsHint:
@@ -409,6 +413,10 @@ export const adminEventRegistrationPl = {
         removeOption: "Usuń opcję",
         sortOrder: "Kolejność",
         active: "Pole aktywne",
+        // Przełącznik w wierszu ma w czytniku ekranu tę samą nazwę co każdy
+        // inny, dopóki jej nie dopowie, KTÓREGO pytania dotyczy. Klucz jest tu
+        // tożsamością pola - dwa pytania mogą nosić tę samą etykietę.
+        activeToggle: "Pole „{{label}}” ({{key}}) aktywne",
         qualifying: "Pytanie kwalifikujące",
         qualifyingHint:
           "Reguła nie wychodzi na front. Uczestnik, który zna regułę, odpowiada pod nią - a wtedy kwalifikacja mierzy znajomość reguły, nie to, co miała mierzyć.",
@@ -423,6 +431,10 @@ export const adminEventRegistrationPl = {
         deleteAction: "Usuń pole",
         deleteConfirm:
           "Usunąć definicję pola? Złożone odpowiedzi zostaną w zgłoszeniach jako pole usunięte.",
+        // POTWIERDZENIE NAZYWA PRZEDMIOT. Kosze w wierszach są identyczne,
+        // a usunięcie nie ma cofnięcia - okno powtarza etykietę, klucz
+        // i liczbę odpowiedzi, które właśnie osieroci.
+        deleteSubject: "Pole „{{label}}” o kluczu {{key}}, złożonych odpowiedzi: {{answers}}.",
       },
 
       toasts: {
@@ -1443,6 +1455,7 @@ export const adminEventRegistrationEn = {
         consentUrlEn: "Consent document (English)",
         consentUrlHint:
           "An https:// address with the consent wording. We show it next to the consent field so the participant knows what they agree to.",
+        consentUrlMissing: "no document",
         required: "Required field",
         options: "List options",
         optionsHint:
@@ -1454,6 +1467,7 @@ export const adminEventRegistrationEn = {
         removeOption: "Remove option",
         sortOrder: "Order",
         active: "Field active",
+        activeToggle: "Field “{{label}}” ({{key}}) active",
         qualifying: "Qualifying question",
         qualifyingHint:
           "The rule never reaches the front end. A participant who knows the rule answers to fit it - and then qualification measures knowledge of the rule, not what it was meant to measure.",
@@ -1468,6 +1482,7 @@ export const adminEventRegistrationEn = {
         deleteAction: "Delete field",
         deleteConfirm:
           "Delete the field definition? Submitted answers stay in the applications as a removed field.",
+        deleteSubject: "Field “{{label}}” with the key {{key}}, answers submitted: {{answers}}.",
       },
 
       toasts: {

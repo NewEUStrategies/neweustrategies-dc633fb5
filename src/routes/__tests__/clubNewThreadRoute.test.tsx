@@ -49,13 +49,13 @@
 //   pochodzą z SECURITY DEFINER RPC i mają pgTAP. Trasa je czyta, nie liczy.
 //
 // DWIE GAŁĘZIE NIEDOBITE ŚWIADOMIE - i to nie jest luka w testach:
-// - linia 280, `if (!formReady) return` w handlerze wysyłki: DEFENSYWNE
+// - linia 287, `if (!formReady) return` w handlerze wysyłki: DEFENSYWNE
 //   powtórzenie warunku, który już wyłącza przycisk. Nie ma w tej trasie
 //   elementu `<form>`, więc nie istnieje zdarzenie `submit`, a `onClick`
 //   wyłączonego przycisku nie odpala się ani myszą, ani klawiaturą. Gałąź jest
 //   warta swojej ceny (chroni handler przed wywołaniem z innego miejsca), tylko
 //   nie da się jej dosięgnąć bez zmiany zachowania produkcyjnego.
-// - linia 399, `if (draft.restored === null) return` w przycisku wznowienia:
+// - linia 406, `if (draft.restored === null) return` w przycisku wznowienia:
 //   ten przycisk RENDERUJE SIĘ wyłącznie wtedy, gdy szkic istnieje, a szkic nie
 //   znika między renderem a kliknięciem (zniknięcie zabiera cały pasek razem
 //   z przyciskiem). Warunek jest tu po to, żeby domknięcie nie czytało `null`,
@@ -92,6 +92,13 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
+// Sesja rozstrzygnięta - bez tego kompozytor nigdy nie schodzi ze szkieletu.
+// `useClubBySlug` wstrzymuje zapytanie o kartę, dopóki `useAuth().loading`
+// jest prawdą (klucz karty niesie WIDZA), a domyślny kontekst haka - bez
+// providera w drzewie testu - mówi „sesja w locie” bez końca. Widz jest
+// anonimowy, bo autorytet (`can_post_thread`, `can_moderate`) i tak przychodzi
+// z RPC `club_view`, a nie z sesji.
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null, loading: false }) }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 // Klucz idempotencji jest LOSOWY w produkcji, a jego wartość jest przedmiotem
 // asercji (jeden klucz na akcję), więc atrapa liczy wywołania i numeruje klucze.
@@ -291,8 +298,27 @@ const OTHER_GROUP = CLUB_IDS.otherGroup;
  *  asercja nie ma prawa zależeć od zegara maszyny. */
 const DRAFT_STAMP = Date.parse(clubIsoOffset(-30));
 
-async function mount(entry: string = ENTRY) {
+/** Montaż BEZ czekania na dane - dla dowodów, w których zapytanie ma ZOSTAĆ
+ *  w locie (szkielet, działy w locie) albo skończyć się odmową. */
+async function mountRaw(entry: string = ENTRY) {
   return renderRoute({ route: NewThreadRoute, path: PATH, initialEntry: entry });
+}
+
+/**
+ * Montaż plus czekanie, aż kompozytor ma KOMPLET danych.
+ *
+ * Karta klubu jedzie kluczem WIDZA (`clubKeys.bySlugViewer`), więc wpis
+ * odłożony przez loader jej nie karmi - zapytanie o klub startuje dopiero po
+ * montażu, a droplista działów czeka jeszcze na `club.id`. Obie warstwy domyka
+ * jeden warunek: wypełniony wybór działu. To on odblokowuje publikację, więc
+ * test, który go nie doczeka, oglądałby szkielet albo formularz bez adresata.
+ */
+async function mount(entry: string = ENTRY) {
+  const rendered = await mountRaw(entry);
+  await waitFor(() => {
+    expect(selectByLabel("club.group").value).not.toBe("");
+  });
+  return rendered;
 }
 
 function titleField(): HTMLElement {
@@ -443,15 +469,15 @@ describe("bramka - kto widzi kompozytor", () => {
   it("wczytywanie klubu pokazuje szkielet, a nie pusty formularz", async () => {
     h.loaderFails = true;
     h.clubHangs = true;
-    await mount();
+    await mountRaw();
     expect(document.querySelector("[aria-busy='true']")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "club.publishThread" })).toBeNull();
   });
 
   it("brak prawa do zakładania tematów pokazuje POWÓD z `club_view`", async () => {
     h.club = clubViewRow({ can_post_thread: false, reason: "tier_too_low" });
-    await mount();
-    expect(screen.getByText("club.reason.tier_too_low")).toBeTruthy();
+    await mountRaw();
+    expect(await screen.findByText("club.reason.tier_too_low")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "club.publishThread" })).toBeNull();
     const back = screen.getByRole("link", { name: "club.backToClub" });
     expect(back.getAttribute("href")).toBe(`/club/${SLUG}`);
@@ -459,14 +485,14 @@ describe("bramka - kto widzi kompozytor", () => {
 
   it("odmowa bez powodu degraduje do zdania ogólnego", async () => {
     h.club = clubViewRow({ can_post_thread: false, reason: "" });
-    await mount();
-    expect(screen.getByText("club.cannotPost")).toBeTruthy();
+    await mountRaw();
+    expect(await screen.findByText("club.cannotPost")).toBeTruthy();
   });
 
   it("klub, którego RPC nie zwróciło, też kończy się odmową, a nie wyjątkiem", async () => {
     h.club = null;
-    await mount();
-    expect(screen.getByText("club.cannotPost")).toBeTruthy();
+    await mountRaw();
+    expect(await screen.findByText("club.cannotPost")).toBeTruthy();
   });
 
   it("prawo do zakładania tematów pokazuje formularz", async () => {
@@ -512,7 +538,9 @@ describe("droplista działów - tylko tam, gdzie wolno pisać", () => {
   it("zapytanie o działy W LOCIE nie wywala renderu i blokuje publikację", async () => {
     // `groupsQ.data ?? []`: bez wybranego działu wysyłka nie ma adresata.
     h.groupsHang = true;
-    await mount();
+    await mountRaw();
+    // Formularz staje na karcie klubu, a droplista działów zostaje pusta.
+    await screen.findByRole("button", { name: "club.publishThread" });
     expect(optionValues(selectByLabel("club.group"))).toEqual([]);
     fillValidText();
     expect(publishButton()).toBeDisabled();

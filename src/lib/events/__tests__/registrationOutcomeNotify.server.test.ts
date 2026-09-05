@@ -415,22 +415,19 @@ describe("idempotencja wobec ponowionego webhooka", () => {
     expect(key.replace(REG_PROMOTED, "<zgloszenie>")).not.toMatch(/\d{10,}/);
   });
 
-  it(
-    "DEFEKT: ponowiony webhook wysyła DRUGI SMS - kanał SMS nie ma klucza idempotencji",
-    async () => {
-      // `NotifyOptions` opisuje kontrakt wprost: „webhook nadal nie może wysłać
-      // tej samej wiadomości dwa razy". Dla poczty pilnuje tego
-      // `idempotencyKey`, ale `sendSms` (`lib/notify/sms.server`) nie przyjmuje
-      // żadnego klucza, a `notifyTicketOutcome` (:312-319) woła go bezwarunkowo.
-      // Skutek: każde ponowienie webhooka przez operatora płatności to kolejny
-      // SMS do tej samej osoby, bez żadnej bariery - i bez śladu w
-      // `email_send_log`, bo SMS-y w nim nie siedzą.
-      await notifyTicketOutcome(payload());
-      await notifyTicketOutcome(payload());
+  it("DEFEKT: ponowiony webhook wysyła DRUGI SMS - kanał SMS nie ma klucza idempotencji", async () => {
+    // `NotifyOptions` opisuje kontrakt wprost: „webhook nadal nie może wysłać
+    // tej samej wiadomości dwa razy". Dla poczty pilnuje tego
+    // `idempotencyKey`, ale `sendSms` (`lib/notify/sms.server`) nie przyjmuje
+    // żadnego klucza, a `notifyTicketOutcome` (:312-319) woła go bezwarunkowo.
+    // Skutek: każde ponowienie webhooka przez operatora płatności to kolejny
+    // SMS do tej samej osoby, bez żadnej bariery - i bez śladu w
+    // `email_send_log`, bo SMS-y w nim nie siedzą.
+    await notifyTicketOutcome(payload());
+    await notifyTicketOutcome(payload());
 
-      expect(sms.sent).toHaveLength(1);
-    },
-  );
+    expect(sms.sent).toHaveLength(1);
+  });
 });
 
 // --- 2. wynik `unpaid` i warunek `applied` ----------------------------------
@@ -615,34 +612,31 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
     );
   });
 
-  it(
-    "DEFEKT: awansowani dostają mail i SMS wbrew preferencjom zapisanym na ICH zgłoszeniu",
-    async () => {
-      // `notifyPromoted` (:175-212) nie woła `readChannels` ani razu, choć
-      // każdy awansowany wiersz niesie własny `registration_id` (:183) - czyli
-      // dokładnie ten klucz, którym moduł czyta preferencje płacącego.
-      //
-      // ROZSTRZYGNIĘCIE: to jest defekt, nie świadomy wyjątek dla
-      // „czasowo krytycznego" awansu. Argument z pilności nie broni się,
-      // bo ŚCIEŻKA PIENIĘŻNA - zwrot płatności, sprawa co najmniej równie
-      // pilna - preferencje respektuje (:290, :312). Skutek: uczestnik, który
-      // na tym konkretnym zgłoszeniu wyłączył SMS-y, dostaje SMS-a, a moduł
-      // ma pod ręką wszystko, czego trzeba, żeby tego nie robić. Dokumentacja
-      // `readChannels` (:226-231) nazywa preferencje kontraktem PER
-      // ZGŁOSZENIE bez żadnego wyjątku dla listy rezerwowej.
-      channelRows.set(REG_PROMOTED, { notify_email: false, notify_sms: false });
-      await notifyTicketOutcome(
-        payload({
-          outcome: "refunded",
-          refunded_cents: 24_900,
-          waitlist: { promoted: 1, registrations: [promotedRow()] },
-        }),
-      );
+  it("DEFEKT: awansowani dostają mail i SMS wbrew preferencjom zapisanym na ICH zgłoszeniu", async () => {
+    // `notifyPromoted` (:175-212) nie woła `readChannels` ani razu, choć
+    // każdy awansowany wiersz niesie własny `registration_id` (:183) - czyli
+    // dokładnie ten klucz, którym moduł czyta preferencje płacącego.
+    //
+    // ROZSTRZYGNIĘCIE: to jest defekt, nie świadomy wyjątek dla
+    // „czasowo krytycznego" awansu. Argument z pilności nie broni się,
+    // bo ŚCIEŻKA PIENIĘŻNA - zwrot płatności, sprawa co najmniej równie
+    // pilna - preferencje respektuje (:290, :312). Skutek: uczestnik, który
+    // na tym konkretnym zgłoszeniu wyłączył SMS-y, dostaje SMS-a, a moduł
+    // ma pod ręką wszystko, czego trzeba, żeby tego nie robić. Dokumentacja
+    // `readChannels` (:226-231) nazywa preferencje kontraktem PER
+    // ZGŁOSZENIE bez żadnego wyjątku dla listy rezerwowej.
+    channelRows.set(REG_PROMOTED, { notify_email: false, notify_sms: false });
+    await notifyTicketOutcome(
+      payload({
+        outcome: "refunded",
+        refunded_cents: 24_900,
+        waitlist: { promoted: 1, registrations: [promotedRow()] },
+      }),
+    );
 
-      expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(0);
-      expect(sms.sent.map((entry) => entry.to)).not.toContain("+48500100201");
-    },
-  );
+    expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(0);
+    expect(sms.sent.map((entry) => entry.to)).not.toContain("+48500100201");
+  });
 });
 
 // --- 4. treść SMS-a mieści się w GSM-7 --------------------------------------
