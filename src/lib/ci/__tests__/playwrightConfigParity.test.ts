@@ -108,6 +108,7 @@ describe("parytet konfiguracji Playwrighta", () => {
     );
     expect(artifactSpecs).toContain("boot-artifact.spec.ts");
     expect(artifactSpecs).toContain("boot-timing.spec.ts");
+    expect(artifactSpecs).toContain("boot-home.spec.ts");
   });
 
   it("PODZIAŁ JEST ROZŁĄCZNY: żaden spec nie jedzie obiema konfiguracjami", () => {

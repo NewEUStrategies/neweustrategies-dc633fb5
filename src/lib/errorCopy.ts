@@ -25,6 +25,7 @@ type ErrorCopy = {
   errorTitle: string;
   errorBody: string;
   tryAgain: string;
+  homeLoading: { title: string; body: string };
   goHome: string;
   unauthorized: ErrorScenario;
   sessionExpired: ErrorScenario;
@@ -70,6 +71,10 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
     errorTitle: "Nie udało się załadować strony",
     errorBody: "Coś poszło nie tak po naszej stronie. Odśwież stronę lub wróć na stronę główną.",
     tryAgain: "Spróbuj ponownie",
+    homeLoading: {
+      title: "Wczytujemy stronę główną",
+      body: "Treść nie dotarła jeszcze z serwera. Spróbujemy pobrać ją ponownie. Możesz też ponowić wczytywanie przyciskiem poniżej.",
+    },
     goHome: "Strona główna",
     unauthorized: {
       title: "Wymagane logowanie",
@@ -153,6 +158,10 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
     errorTitle: "This page didn't load",
     errorBody: "Something went wrong on our end. Try refreshing or head back home.",
     tryAgain: "Try again",
+    homeLoading: {
+      title: "Loading the homepage",
+      body: "The content has not arrived from the server yet. We will try fetching it again. You can also retry using the button below.",
+    },
     goHome: "Go home",
     unauthorized: {
       title: "Sign in required",

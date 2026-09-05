@@ -5,7 +5,14 @@
 // Shared between the builder-widget prefetch (aboveFold, cached route) and the
 // content-loader `/$`/`category`/`author` prefetches so a single slow upstream
 // (blocks_data, related config, ...) cannot hang a public SSR response.
-export function withBudget(work: Promise<unknown>, ms: number): Promise<void> {
+export function withBudget(work: Promise<unknown>, ms: number, deadlineAt?: number): Promise<void> {
+  if (deadlineAt !== undefined) {
+    ms = Math.min(ms, deadlineAt - Date.now());
+    if (ms <= 0) {
+      void work.then(noop, noop);
+      return Promise.resolve();
+    }
+  }
   if (!Number.isFinite(ms) || ms <= 0) return work.then(noop, noop);
   return new Promise<void>((resolve) => {
     let settled = false;

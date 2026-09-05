@@ -1,4 +1,5 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, type QueryKey } from "@tanstack/react-query";
+import { isServer } from "@tanstack/router-core/isServer";
 import {
   Outlet,
   createRootRouteWithContext,
@@ -14,7 +15,14 @@ import appCss from "../styles.css?url";
 // references, so the preload is reused (not a second download). See styles.css.
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
-import { appendLinkHeader } from "../lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
+import { resilientCacheControl } from "../lib/ssr/resilientLoad";
+import {
+  HOME_THEME_BUDGET_MS,
+  hasSsrQueryData,
+  homeSsrDeadline,
+  remainingHomeBudget,
+} from "../lib/ssr/homeSsrBudget";
 import { buildRootHead } from "../lib/seo/meta";
 import {
   dictionaryPreloadLinkHeaderValue,
@@ -67,7 +75,7 @@ import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColors";
 import type { HeaderSettings } from "../components/Header";
 import type { BuilderDocument } from "../lib/builder/types";
 import { defaultDocFor } from "../lib/builder/chromeDefaults";
-import { prefetchCachedRouteQueries } from "../lib/builder/prefetch";
+import { prefetchCachedRouteQueries, sectionQueryOptionsList } from "../lib/builder/prefetch";
 import { SiteChrome } from "../components/SiteChrome";
 import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/global-player";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
@@ -265,6 +273,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // round-trip on the edge hydrates every layout chunk so chrome renders
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
+    const path = location.pathname;
+    const isHome = path === "/" || path === "/en" || path === "/en/";
+    const homeDeadline = isServer && isHome ? homeSsrDeadline(context.queryClient) : undefined;
     // 301 legacy/preview hosts of the hosting layer (see canonicalRedirect.ts)
     // to https://neweuropeanstrategies.com preserving path + query. Runs
     // server-side only; editor preview (id-preview--*, EDITOR_HOST_SUFFIXES) and
@@ -314,7 +325,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // z chrome'em. Startujemy je tutaj, równolegle z ustawieniami; druga fala
     // dostaje już rozgrzane obietnice i czeka tylko na to, co naprawdę
     // wymagało ustawień.
-    const path = location.pathname;
     const showsChrome = showsSiteChrome(path);
     // `.catch(() => null)` przy starcie, nie przy zbieraniu: obietnica leci
     // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
@@ -370,6 +380,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
     // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
     // stronie. Zmierzone: 3 równoległe podżądania -> 2.
+    const themeDeadline =
+      homeDeadline === undefined
+        ? undefined
+        : Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS);
     await withBudget(
       Promise.allSettled([
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),
@@ -377,7 +391,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         context.queryClient.ensureQueryData(globalColorsQueryOptions),
       ]),
       ROOT_WARM_BUDGET_MS,
+      themeDeadline,
     );
+    // Only homepage SSR opts into early cancellation. Another route may be
+    // awaiting this same settings promise and retains its existing contract.
+    if (homeDeadline !== undefined) {
+      for (const queryKey of [
+        siteSettingsQueryOptions.queryKey,
+        designTokensQueryOptions.queryKey,
+        globalColorsQueryOptions.queryKey,
+      ]) {
+        if (!hasSsrQueryData(context.queryClient, queryKey)) {
+          setCacheControlHeader(resilientCacheControl(true));
+          await context.queryClient.cancelQueries({ queryKey, exact: true }).catch(() => undefined);
+        }
+      }
+    }
     // `updatedAt: 0` - zasiew MUSI rodzić się PRZETERMINOWANY.
     //
     // Bez tego argumentu `setQueryData` stempluje wpis `Date.now()`, a
@@ -448,11 +477,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // postViews.functions), so in steady state this adds no extra round-trips.
     if (showsChrome) {
       try {
+        const chromeBudget =
+          homeDeadline === undefined
+            ? CHROME_WARM_BUDGET_MS
+            : remainingHomeBudget(homeDeadline, CHROME_WARM_BUDGET_MS);
         const header = resolveSetting<HeaderSettings>(settings, "header", {});
         const trending = resolveActiveTickerConfig(header.trending);
         const headerVisible = !!header.builder_data?.sections?.length;
+        const chromeQueryKeys: QueryKey[] = [
+          ["menu-with-items", "main"],
+          ["menu-with-items", "footer"],
+        ];
+        if (headerVisible && trending.enabled !== false) {
+          chromeQueryKeys.push(headerTickerQueryOptions(trending).queryKey);
+        }
         const tickerWarm =
-          headerVisible && trending.enabled !== false
+          chromeBudget > 0 && headerVisible && trending.enabled !== false
             ? context.queryClient
                 .ensureQueryData(headerTickerQueryOptions(trending))
                 .catch(() => undefined)
@@ -485,19 +525,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // (poniżej strażnik, który taki stan resetuje).
         const chromeWarm: Promise<unknown>[] = [tickerWarm, ...menuWarm];
         if (headerVisible && header.builder_data) {
-          chromeWarm.push(
-            prefetchCachedRouteQueries(
-              context.queryClient,
-              header.builder_data,
-              lang,
-              CHROME_WARM_BUDGET_MS,
+          chromeQueryKeys.push(
+            ...header.builder_data.sections.flatMap((section) =>
+              sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
             ),
           );
+          if (chromeBudget > 0)
+            chromeWarm.push(
+              prefetchCachedRouteQueries(
+                context.queryClient,
+                header.builder_data,
+                lang,
+                chromeBudget,
+              ),
+            );
         }
         if (footerDoc?.sections?.length) {
-          chromeWarm.push(
-            prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, CHROME_WARM_BUDGET_MS),
+          chromeQueryKeys.push(
+            ...footerDoc.sections.flatMap((section) =>
+              sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
+            ),
           );
+          if (chromeBudget > 0)
+            chromeWarm.push(
+              prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, chromeBudget),
+            );
         }
         // Ten sam twardy budżet obowiązuje przy pierwszym SSR i przy każdej
         // nawigacji klientowej. Menu/ticker/widget chrome są dekoracją i nie
@@ -505,7 +557,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // klik, ale ekran pozostaje bezczynny, bo jeden fetch czeka bez końca).
         // Niedokończone zapytania pozostają w React Query i mogą uzupełnić UI
         // po rozwiązaniu trasy; render ma bezpieczne wartości domyślne.
-        await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS);
+        // Zero means an expired shared deadline, never an unbounded wait.
+        if (chromeBudget > 0) {
+          await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline);
+        }
+        if (
+          homeDeadline !== undefined &&
+          chromeQueryKeys.some((key) => !hasSsrQueryData(context.queryClient, key))
+        ) {
+          setCacheControlHeader(resilientCacheControl(true));
+        }
         // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
         // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
         // po hydratacji zawiesi się czekając na strumień, który już nie wróci.
@@ -532,6 +593,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         }
       } catch {
         /* chrome warm-up is best-effort decoration - never let it block the site */
+        if (homeDeadline !== undefined) setCacheControlHeader(resilientCacheControl(true));
       }
     }
     // Nothing reads the root loader's data - return null so the settings map is

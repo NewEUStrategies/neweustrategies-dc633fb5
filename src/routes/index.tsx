@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { isServer } from "@tanstack/router-core/isServer";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
@@ -10,19 +11,21 @@ import { HomeBuilderContent } from "@/components/home/molecules/HomeBuilderConte
 import { HomeEmptyNotice } from "@/components/home/molecules/HomeEmptyNotice";
 import { HomeErrorNotice } from "@/components/home/molecules/HomeErrorNotice";
 import { HomeNotFoundNotice } from "@/components/home/molecules/HomeNotFoundNotice";
+import { HomeLoadingNotice } from "@/components/home/molecules/HomeLoadingNotice";
 import { LatestPostsHome } from "@/components/home/organisms/LatestPostsHome";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
-import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
+import {
+  ABOVE_FOLD_SECTION_COUNT,
+  prefetchAboveFoldQueries,
+  sectionQueryOptionsList,
+} from "@/lib/builder/prefetch";
 import {
   blogArchiveQueryOptions,
-  BLOG_PAGE_SIZE,
   homePageQueryOptions,
   homepageModeQueryOptions,
   resolvePostsPerPage,
   type BlogArchiveResult,
-  type HomepageMode,
-  type PageData,
 } from "@/lib/queries/public";
 import { parsePageSearch } from "@/lib/routing/pageSearch";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -54,9 +57,15 @@ import {
 } from "@/lib/seo/fields";
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { parseSeoSettings } from "@/lib/seo/settings";
-import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import {
+  HOME_ABOVE_FOLD_BUDGET_MS,
+  hasSsrQueryData,
+  homeSsrDeadline,
+  remainingHomeBudget,
+} from "@/lib/ssr/homeSsrBudget";
 
 // Keep route boundary declarations above createFileRoute. The production route
 // splitter evaluates route options separately and a later declaration can be in
@@ -107,32 +116,29 @@ export const Route = createFileRoute("/")({
     // fallbacks for anything that fails, and gate the shared-cache header on
     // a clean render.
     const queryClient = context.queryClient;
-    let homePage: PageData | null = null;
-    let homeMode: HomepageMode = "";
-    let degraded = false;
-
-    // allSettled (never rejects) so one failing fetch cannot discard the other's
-    // result. On a failure, seed the component's suspense query with a
-    // success-state fallback so SSR renders a valid (empty) shell instead of
-    // re-throwing during the render pass. `updatedAt: 0` marks the seeded data
-    // immediately stale, so the browser refetches on mount and the homepage
-    // self-heals once the backend recovers - no user action, no cached failure.
-    const [homePageRes, homeModeRes] = await Promise.allSettled([
-      queryClient.ensureQueryData(homePageQueryOptions()),
-      queryClient.ensureQueryData(homepageModeQueryOptions()),
+    const deadlineAt = isServer ? homeSsrDeadline(queryClient) : undefined;
+    const emptySettings: SettingsMap = Object.freeze({});
+    // Root and home execute concurrently, but all serial phases within home
+    // share ONE deadline. Settings start alongside the page/mode, never as a
+    // new unbounded SEO request at the end of the loader.
+    const [homePageRes, homeModeRes, settingsRes] = await Promise.all([
+      loadResilient(queryClient, homePageQueryOptions(), null, {
+        deadlineAt,
+        label: "home.page",
+      }),
+      loadResilient(queryClient, homepageModeQueryOptions(), "", {
+        deadlineAt,
+        label: "home.mode",
+      }),
+      loadResilient(queryClient, siteSettingsQueryOptions, emptySettings, {
+        deadlineAt,
+        label: "home.settings",
+      }),
     ]);
-    if (homePageRes.status === "fulfilled") {
-      homePage = homePageRes.value;
-    } else {
-      degraded = true;
-      queryClient.setQueryData(homePageQueryOptions().queryKey, null, { updatedAt: 0 });
-    }
-    if (homeModeRes.status === "fulfilled") {
-      homeMode = homeModeRes.value;
-    } else {
-      degraded = true;
-      queryClient.setQueryData(homepageModeQueryOptions().queryKey, "", { updatedAt: 0 });
-    }
+    const homePage = homePageRes.data;
+    const homeMode = homeModeRes.data;
+    const contentDegraded = homePageRes.degraded || homeModeRes.degraded;
+    let degraded = contentDegraded || settingsRes.degraded;
 
     // "Najnowsze wpisy" jako strona główna: SSR ładuje DOKŁADNIE żądaną stronę
     // wyników (?page=N) tym samym paginowanym zapytaniem co /blog - wpisy poza
@@ -147,24 +153,16 @@ export const Route = createFileRoute("/")({
     // dopiero po sparsowaniu body.
     let coverPreload: ImagePreloadInput | null = null;
 
-    if (homeMode === "latest_posts") {
-      let pageSize = BLOG_PAGE_SIZE;
-      try {
-        pageSize = resolvePostsPerPage(await queryClient.ensureQueryData(siteSettingsQueryOptions));
-      } catch {
-        // Ustawienia niedostępne - komponent policzy to samo z pustej mapy.
-      }
+    if (!contentDegraded && homeMode === "latest_posts") {
+      const pageSize = resolvePostsPerPage(settingsRes.data);
       const listOptions = blogArchiveQueryOptions({ page: deps.page, pageSize });
-      try {
-        await queryClient.ensureQueryData(listOptions);
-      } catch {
-        degraded = true;
-        queryClient.setQueryData(
-          listOptions.queryKey,
-          { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,
-          { updatedAt: 0 },
-        );
-      }
+      const listRes = await loadResilient(
+        queryClient,
+        listOptions,
+        { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,
+        { deadlineAt, label: "home.archive" },
+      );
+      degraded ||= listRes.degraded;
       // Pierwsza karta siatki jest priority (PaginatedPostGrid) - preload jej
       // okładki z IDENTYCZNĄ parą srcSet/sizes co PostListCard.
       const list = queryClient.getQueryData<BlogArchiveResult>(listOptions.queryKey);
@@ -179,7 +177,8 @@ export const Route = createFileRoute("/")({
     }
     // JEDNA ścieżka dla serwera i klienta - dokładnie ten sam kontrakt co
     // `$.tsx`: blokujemy odpowiedź WYŁĄCZNIE na sekcjach nad zgięciem
-    // (`ABOVE_FOLD_SECTION_COUNT` = 3, budżet 2,5 s).
+    // (`ABOVE_FOLD_SECTION_COUNT` = 3). SSR consumes the remaining shared
+    // deadline, capped at HOME_ABOVE_FOLD_BUDGET_MS; SPA keeps its existing cap.
     //
     // CO BYŁO WCZEŚNIEJ: serwer wołał tu `prefetchCachedRouteQueries` dla
     // CAŁEGO dokumentu z budżetem 6 000 ms, więc pierwszy bajt najważniejszej
@@ -197,9 +196,9 @@ export const Route = createFileRoute("/")({
     // zapisane w NES Edge Cache i widziane przez crawlery zostaje kompletne
     // (dla `isbot` framework czeka na `stream.allReady`). Dane rozstrzygnięte
     // w fazie renderu jadą strumieniem zapytań, na który `router.options.hydrate`
-    // czeka PRZED hydratacją Reacta, więc widget nigdy nie hydratuje się
-    // przeciw szkieletowi. Prefetch jest wewnętrznie `allSettled` i nie potrafi
-    // rzucić.
+    // pompuje dane strumieniem. Samo withHydrateBudget nie dowodzi, że cały
+    // queryStream dotarł przed Reactem; zgodność sprawdzają testy artefaktu.
+    // Prefetch jest wewnętrznie `allSettled` i nie potrafi rzucić.
     //
     // Na kliencie bramka jest tree-shaken (`import.meta.env.SSR`), więc widgety
     // niżej to zwykłe `useQuery` (szkielet, bez suspenda), a ich dane dogrzewa
@@ -208,11 +207,23 @@ export const Route = createFileRoute("/")({
     // W trybie "najnowsze wpisy" homePage jest null z konstrukcji
     // (homePageQueryOptions), więc prefetch widgetów buildera w ogóle nie
     // startuje - zero zmarnowanych round-tripów.
-    if (homePage && homePage.editor === "builder") {
+    if (!contentDegraded && homePage && homePage.editor === "builder") {
       const doc = parseBuilderDoc(homePage.builder_data);
       if (doc.sections.length > 0) {
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
-        await prefetchAboveFoldQueries(queryClient, doc, lang);
+        if (deadlineAt === undefined) {
+          await prefetchAboveFoldQueries(queryClient, doc, lang);
+        } else {
+          const budgetMs = remainingHomeBudget(deadlineAt, HOME_ABOVE_FOLD_BUDGET_MS);
+          if (budgetMs > 0) await prefetchAboveFoldQueries(queryClient, doc, lang, { budgetMs });
+          degraded ||= doc.sections
+            .slice(0, ABOVE_FOLD_SECTION_COUNT)
+            .some((section) =>
+              sectionQueryOptionsList(section, lang).some(
+                (options) => !hasSsrQueryData(queryClient, options.queryKey),
+              ),
+            );
+        }
         // Rozgrzane okno (3 sekcje) to DOKŁADNIE okno skanowane przez
         // `builderHeroPreload` (lib/seo/heroImage.ts - `aboveFoldSections`
         // domyślnie `ABOVE_FOLD_SECTION_COUNT`), więc obraz LCP pozostaje
@@ -224,20 +235,7 @@ export const Route = createFileRoute("/")({
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
     // bulk site_settings query is already warmed by the root loader. Purely
     // decorative structured data - never let it fail the whole homepage.
-    let seoSettings = parseSeoSettings(null);
-    try {
-      const settingsMap = await queryClient.ensureQueryData(siteSettingsQueryOptions);
-      seoSettings = parseSeoSettings(settingsMap["seo"]);
-    } catch {
-      // Fall back to defaults - JSON-LD without sameAs/logo is still valid. Also
-      // seed the shared query with an empty map so the site chrome (<Header/>
-      // reads this exact query via useSuspenseQuery) degrades to its defaults
-      // instead of re-throwing during render and taking the whole page down.
-      degraded = true;
-      queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}), {
-        updatedAt: 0,
-      });
-    }
+    const seoSettings = parseSeoSettings(settingsRes.data["seo"]);
 
     // ISR-like edge caching, set LAST so a degraded render is never shared-
     // cached: the homepage SSR is the anonymous shell, so a clean render is safe
@@ -246,14 +244,21 @@ export const Route = createFileRoute("/")({
     // cache entry - no cookie-driven personalization, no poisoning. A degraded
     // render opts out entirely (private, no-store) so the blip is never served
     // to the next visitor.
-    setCacheControlHeader(
-      degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl(),
-    );
+    setCacheControlHeader(resilientCacheControl(degraded));
     // Ten sam preload także jako nagłówek HTTP `Link`: przeglądarka startuje
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { seoSettings, homePage, page: deps.page, coverPreload };
+    // An unknown mode also means an unknown SEO document. Do not advertise
+    // the static page's canonical/image while the UI intentionally shows a
+    // recovery notice (the configured mode could actually be latest_posts).
+    return {
+      seoSettings,
+      homePage: contentDegraded ? null : homePage,
+      page: deps.page,
+      coverPreload,
+      degraded,
+    };
   },
 
   head: ({ loaderData }) => {
@@ -337,8 +342,13 @@ export const Route = createFileRoute("/")({
 function Index() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const { data: homePage } = useSuspenseQuery(homePageQueryOptions());
-  const { data: homeMode } = useSuspenseQuery(homepageModeQueryOptions());
+  const pageQuery = useSuspenseQuery(homePageQueryOptions());
+  const modeQuery = useSuspenseQuery(homepageModeQueryOptions());
+  const homePage = pageQuery.data;
+  const homeMode = modeQuery.data;
+  // Query state, not a latched loader flag: a successful browser refetch must
+  // replace the fallback without navigation. A real empty page is different.
+  const contentUnavailable = pageQuery.dataUpdatedAt === 0 || modeQuery.dataUpdatedAt === 0;
   const { page = 1 } = Route.useSearch();
 
   const builderData = homeBuilderSource(homeMode, homePage);
@@ -373,8 +383,17 @@ function Index() {
     <div data-theme-typography className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 w-full">
         <HomeSrHeading doc={doc} lang={lang} />
-        {content.kind === "latest_posts" ? (
-          <LatestPostsHome lang={lang} page={page} />
+        {contentUnavailable ? (
+          <HomeLoadingNotice
+            onRetry={() => {
+              void pageQuery.refetch();
+              void modeQuery.refetch();
+            }}
+          />
+        ) : content.kind === "latest_posts" ? (
+          <Suspense fallback={<HomeLoadingNotice />}>
+            <LatestPostsHome lang={lang} page={page} />
+          </Suspense>
         ) : content.kind === "builder" ? (
           <HomeBuilderContent doc={content.doc} footnotes={footnotes} lang={lang} />
         ) : (

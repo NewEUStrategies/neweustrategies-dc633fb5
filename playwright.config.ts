@@ -35,7 +35,7 @@ export default defineConfig({
   // `src/lib/ci/__tests__/playwrightConfigParity.test.ts` - bez niej rozjazd
   // dwóch plików konfiguracyjnych znowu byłby niewidoczny do pierwszego
   // czerwonego przebiegu.
-  testIgnore: /boot-(artifact|timing)\.spec\.ts$/,
+  testIgnore: /boot-(artifact|timing|home)\.spec\.ts$/,
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,

@@ -391,22 +391,20 @@ interface ReadingSettingsValue {
  */
 async function fetchReadingSettings(): Promise<ReadingSettingsValue> {
   if (typeof window === "undefined" && import.meta.env.SSR) {
-    try {
-      const { fetchAllSiteSettings } = await import("@/lib/useSiteSetting");
-      const map = await fetchAllSiteSettings();
-      const reading = map["reading"];
-      return typeof reading === "object" && reading !== null
-        ? (reading as ReadingSettingsValue)
-        : {};
-    } catch {
-      return {};
-    }
+    // Failure is not an editorial decision to use the legacy static homepage.
+    // Let the resilient route loader seed an explicitly stale fallback instead
+    // of caching a fabricated mode for 60 seconds in edgeTtlCache.
+    const { fetchAllSiteSettings } = await import("@/lib/useSiteSetting");
+    const map = await fetchAllSiteSettings();
+    const reading = map["reading"];
+    return typeof reading === "object" && reading !== null ? (reading as ReadingSettingsValue) : {};
   }
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("site_settings")
     .select("value")
     .eq("key", "reading")
     .maybeSingle();
+  if (error) throw error;
   return (data?.value ?? {}) as ReadingSettingsValue;
 }
 
