@@ -533,7 +533,7 @@ END $$;
 RESET ROLE;
 RESET request.jwt.claim.sub;
 
-\echo '== 16. Izolacja najemcy na DANYCH KANDYDATOW, nie tylko na plikach =='
+\echo '== 16. Izolacja najemcy na powierzchni danych kandydata =='
 -- PO CO TA SEKCJA. Sekcja 10 dowodzi izolacji najemcy na `storage.objects`,
 -- sekcja 15 dowodzi, ze sama ROLA nie wystarcza (`author` odpada). Zadna z nich
 -- nie dowodzi trzeciego przypadku - a to wlasnie o niego rozbila sie polityka
@@ -541,44 +541,37 @@ RESET request.jwt.claim.sub;
 -- do INNEGO najemcy.
 --
 -- Luka byla strukturalna, nie przypadkowa. Sekcje 4-9 dotykaja
--- `career_applications`, `career_application_events` i `career_cv_gc_queue`
--- z roli harnessu, ktora RLS nie podlega. Przez to ani jedna asercja tego
--- pliku nie sprawdzala, czy koniunkcja `tenant_id = current_tenant_id()`
--- w tych trzech politykach jest NOSNA: skasowanie jej przechodzilo caly
--- harness na zielono. Polityki czytaja
--- `is_admin_or_editor() AND tenant_id = current_tenant_id()`, a
--- `is_admin_or_editor()` bada WYLACZNIE role - dokladnie tak, jak `is_staff()`
--- w regresji z 20260814122512.
+-- `contact_messages`, `career_applications`, `career_application_events`
+-- i `career_cv_gc_queue` z roli harnessu, ktora RLS nie podlega. Skasowanie
+-- koniunkcji najemcy z ich polityk przechodzilo caly harness na zielono.
 --
--- Stawka jest inna niz przy sekcjach 2-3. Te trzy tabele trzymaja imie,
--- nazwisko, e-mail, telefon, LinkedIn i sciezke do CV osoby fizycznej.
--- Granica jest tu RLS, a nie trasa: `/admin/*` ma `ssr: false` i przekierowuje
--- w `useEffect` (src/routes/admin.tsx), wiec autoryzacja panelu jest
--- klientowa i nie chroni danych.
+-- GDZIE LEZA DANE OSOBOWE - sprostowanie pierwszej wersji tej sekcji.
+-- Pierwsza wersja twierdzila, ze imie, e-mail i telefon kandydata trzymaja
+-- tabele `career_*`. To nieprawda: `career_applications` nie ma ani jednej
+-- takiej kolumny. Dane osobowe siedza w `contact_messages`, a tabele `career_*`
+-- dokladaja warstwe procesu i - w `career_cv_gc_queue` - SCIEZKI do plikow CV.
+-- Dlatego sekcja dowodzi izolacji CZTERECH tabel, nie trzech.
+--
+-- KAZDE "widzi zero" ma tu pare - asercje niepustki po TEJ SAMEJ stronie.
+-- Zielone zero jest gorsze od czerwieni.
 
--- Fixture w OBU najemcach. Wiersz `career_applications` zaklada trigger
--- (sekcja 4), wiec wystarcza wiadomosc z `form_id='careers'`.
--- E-maile wylacznie w domenach example.* - to sa dane osobowe kandydata.
+-- Fixture w OBU najemcach. E-maile wylacznie w domenach example.*.
 INSERT INTO public.contact_messages
   (id, tenant_id, name, email, message, form_id, custom)
 VALUES
   ('c0000000-0000-0000-0000-000000000005','11111111-1111-1111-1111-111111111111',
    'Kandydat A','kandydat-a@example.com','Zgloszenie u najemcy A.','careers',
-   jsonb_build_object('role','analityk','phone','+48 000 000 001',
-     'linkedin','https://example.com/in/kandydat-a')),
+   jsonb_build_object('role','analityk','phone','+48 000 000 001')),
   ('c0000000-0000-0000-0000-000000000006','22222222-2222-2222-2222-222222222222',
    'Kandydat B','kandydat-b@example.org','Zgloszenie u najemcy B.','careers',
-   jsonb_build_object('role','analityk','phone','+48 000 000 002',
-     'linkedin','https://example.org/in/kandydat-b'));
+   jsonb_build_object('role','analityk','phone','+48 000 000 002'));
 
--- Dziennik etapow zaklada trigger przy ZMIANIE etapu (sekcja 5). Bez tego
--- polowa asercji nizej bylaby prozna - a zielone zero to klamstwo.
+-- Dziennik etapow zaklada trigger przy ZMIANIE etapu (sekcja 5).
 UPDATE public.career_applications SET stage = 'screening'
  WHERE message_id IN ('c0000000-0000-0000-0000-000000000005',
                       'c0000000-0000-0000-0000-000000000006');
 
 -- Kolejka GC: sekcje 6-8 ja oprozniaja, wiec wstawiam wlasne wiersze.
--- `path` jest UNIQUE, wiec sciezki musza byc nowe.
 INSERT INTO public.career_cv_gc_queue (tenant_id, path, reason) VALUES
   ('11111111-1111-1111-1111-111111111111',
    '11111111-1111-1111-1111-111111111111/uploads/2026-04-04/a5555555-1111-2222-3333-444444444444.pdf',
@@ -587,83 +580,111 @@ INSERT INTO public.career_cv_gc_queue (tenant_id, path, reason) VALUES
    '22222222-2222-2222-2222-222222222222/uploads/2026-04-04/b6666666-1111-2222-3333-444444444444.pdf',
    'retention');
 
--- ADMIN NAJEMCY A. Najpierw dowod niepustki, potem izolacja.
+-- Plik CV najemcy A dla asercji bucketu. BEZ `ON CONFLICT DO NOTHING`: cichy
+-- no-op zrobilby z asercji nizej zielone zero.
+INSERT INTO storage.objects (bucket_id, name, created_at) VALUES
+  ('career-cv','11111111-1111-1111-1111-111111111111/uploads/2026-04-04/a7777777-1111-2222-3333-444444444444.pdf', now());
+
+-- ADMIN NAJEMCY A.
 SET ROLE authenticated;
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
 DO $$
 BEGIN
-  -- Kotwica: rola jest spelniona W PELNI. Jesli ta asercja kiedys zgasnie,
-  -- wszystkie "widzi zero" nizej przestana cokolwiek dowodzic, bo beda
-  -- przechodzic z powodu roli, a nie z powodu najemcy.
+  -- Kotwica: rola spelniona W PELNI, wiec kazde "zero" nizej bierze sie
+  -- wylacznie z najemcy.
   PERFORM pg_temp.assert(
     public.is_admin_or_editor(),
     'admin A spelnia is_admin_or_editor() - koniunkcja roli NIE jest tu powodem odmowy'
   );
 
+  -- dane osobowe kandydata
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.contact_messages
+             WHERE id='c0000000-0000-0000-0000-000000000005'),
+    'admin A widzi WLASNE zgloszenie z danymi osobowymi (dowod niepustki)'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.contact_messages
+                 WHERE tenant_id='22222222-2222-2222-2222-222222222222'),
+    'admin A NIE widzi danych osobowych kandydata najemcy B'
+  );
+
+  -- warstwa procesu
   PERFORM pg_temp.assert(
     EXISTS (SELECT 1 FROM public.career_applications
              WHERE message_id='c0000000-0000-0000-0000-000000000005'),
-    'admin A widzi WLASNE zgloszenie (test nie jest prozny)'
-  );
-  -- TO JEST SPRAWDZANA KLAUZULA: bez `tenant_id = current_tenant_id()`
-  -- ten SELECT zwracalby imie, e-mail i telefon kandydata najemcy B.
-  PERFORM pg_temp.assert(
-    NOT EXISTS (SELECT 1 FROM public.career_applications
-                 WHERE message_id='c0000000-0000-0000-0000-000000000006'),
-    'admin A NIE widzi zgloszenia najemcy B'
+    'admin A widzi WLASNY proces (dowod niepustki)'
   );
   PERFORM pg_temp.assert(
     NOT EXISTS (SELECT 1 FROM public.career_applications
                  WHERE tenant_id='22222222-2222-2222-2222-222222222222'),
-    'admin A nie widzi ZADNEGO wiersza career_applications najemcy B'
+    'admin A NIE widzi procesu najemcy B'
   );
-
   PERFORM pg_temp.assert(
     EXISTS (SELECT 1 FROM public.career_application_events
              WHERE tenant_id='11111111-1111-1111-1111-111111111111'),
-    'admin A widzi WLASNY dziennik etapow (test nie jest prozny)'
+    'admin A widzi WLASNY dziennik etapow (dowod niepustki)'
   );
   PERFORM pg_temp.assert(
     NOT EXISTS (SELECT 1 FROM public.career_application_events
                  WHERE tenant_id='22222222-2222-2222-2222-222222222222'),
     'admin A NIE widzi dziennika etapow najemcy B'
   );
-
   PERFORM pg_temp.assert(
     EXISTS (SELECT 1 FROM public.career_cv_gc_queue
-             WHERE tenant_id='11111111-1111-1111-1111-111111111111'),
-    'admin A widzi WLASNA kolejke CV (test nie jest prozny)'
+             WHERE path LIKE '11111111%2026-04-04%'),
+    'admin A widzi WLASNA kolejke CV (dowod niepustki)'
   );
-  -- Kolejka nosi sciezki do plikow CV, wiec wyciek stad to gotowy adres
-  -- do podpisania obcego CV.
   PERFORM pg_temp.assert(
     NOT EXISTS (SELECT 1 FROM public.career_cv_gc_queue
                  WHERE tenant_id='22222222-2222-2222-2222-222222222222'),
-    'admin A NIE widzi kolejki CV najemcy B'
+    'admin A NIE widzi kolejki CV najemcy B (sciezki do plikow kandydatow)'
+  );
+  -- Para niepustki dla asercji bucketu w bloku admina B.
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM storage.objects
+             WHERE bucket_id='career-cv' AND name LIKE '%a7777777%'),
+    'admin A widzi WLASNY plik CV (dowod niepustki dla asercji bucketu nizej)'
   );
 END $$;
 RESET ROLE;
 RESET request.jwt.claim.sub;
 
--- ADMIN NAJEMCY B. Kierunek odwrotny - inaczej dowod trzymalby sie tego,
--- ze najemca B moze byc po prostu pusty.
+-- ADMIN NAJEMCY B. Kierunek odwrotny, z wlasna para niepustki przy KAZDYM
+-- zerze - inaczej dowod trzymalby sie tego, ze najemca B moze byc pusty.
 SET ROLE authenticated;
 SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
 DO $$
 BEGIN
   PERFORM pg_temp.assert(
-    public.is_admin_or_editor(),
-    'admin B spelnia is_admin_or_editor()'
+    public.is_admin_or_editor(), 'admin B spelnia is_admin_or_editor()'
   );
+
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.contact_messages
+             WHERE id='c0000000-0000-0000-0000-000000000006'),
+    'admin B widzi WLASNE zgloszenie z danymi osobowymi (dowod niepustki)'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.contact_messages
+                 WHERE tenant_id='11111111-1111-1111-1111-111111111111'),
+    'admin B NIE widzi danych osobowych kandydata najemcy A'
+  );
+
   PERFORM pg_temp.assert(
     EXISTS (SELECT 1 FROM public.career_applications
              WHERE message_id='c0000000-0000-0000-0000-000000000006'),
-    'admin B widzi WLASNE zgloszenie (test nie jest prozny)'
+    'admin B widzi WLASNY proces (dowod niepustki)'
   );
   PERFORM pg_temp.assert(
     NOT EXISTS (SELECT 1 FROM public.career_applications
                  WHERE tenant_id='11111111-1111-1111-1111-111111111111'),
-    'admin B NIE widzi zgloszen najemcy A'
+    'admin B NIE widzi procesu najemcy A'
+  );
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.career_application_events
+             WHERE tenant_id='22222222-2222-2222-2222-222222222222'),
+    'admin B widzi WLASNY dziennik etapow (dowod niepustki - bez tego asercja nizej jest prozna)'
   );
   PERFORM pg_temp.assert(
     NOT EXISTS (SELECT 1 FROM public.career_application_events
@@ -671,31 +692,63 @@ BEGIN
     'admin B NIE widzi dziennika etapow najemcy A'
   );
   PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.career_cv_gc_queue
+             WHERE tenant_id='22222222-2222-2222-2222-222222222222'),
+    'admin B widzi WLASNA kolejke CV (dowod niepustki - bez tego asercja nizej jest prozna)'
+  );
+  PERFORM pg_temp.assert(
     NOT EXISTS (SELECT 1 FROM public.career_cv_gc_queue
                  WHERE tenant_id='11111111-1111-1111-1111-111111111111'),
     'admin B NIE widzi kolejki CV najemcy A'
+  );
+  -- Przebieg, ktory regresja 20260814122512 otwierala wprost: `createSignedUrl`
+  -- wymaga SELECT-a na `storage.objects`, wiec brak wiersza = brak podpisu.
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM storage.objects
+                 WHERE bucket_id='career-cv' AND name LIKE '%a7777777%'),
+    'admin B nie ma czego podpisac w katalogu najemcy A (brak SELECT-a = brak signed URL)'
   );
 END $$;
 RESET ROLE;
 RESET request.jwt.claim.sub;
 
--- PODPISANIE OBCEGO CV. Sekcja 11 dowodzi, ze anonim nie WGRA pliku do
--- katalogu obcego najemcy. Tu chodzi o personel i o ODCZYT: `createSignedUrl`
--- wymaga SELECT-a na `storage.objects`, wiec brak wiersza = brak podpisu.
--- To jest dokladnie ten przebieg, ktory regresja 20260814122512 otwierala:
--- redaktor najemcy B podpisywal KAZDE CV kazdego najemcy.
-INSERT INTO storage.objects (bucket_id, name, created_at) VALUES
-  ('career-cv','11111111-1111-1111-1111-111111111111/uploads/2026-04-04/a7777777-1111-2222-3333-444444444444.pdf', now())
-ON CONFLICT DO NOTHING;
+\echo '== 17. ZNALEZISKO: hardening roli OMINAL kolejke CV =='
+-- ZAREJESTROWANE ZACHOWANIE ISTNIEJACE, NIE POSTULAT. Migracja 20260824074231
+-- przestawila polityki `career_*` z `is_staff()` na `is_admin_or_editor()`,
+-- ale `career_cv_gc_queue` NIE WYSTEPUJE W TYM PLIKU ANI RAZU. Jej polityka
+-- odczytu stoi do dzis na `is_staff() AND tenant_id = current_tenant_id()`.
+--
+-- Skutek: `author` - ktory sekcja 15 wyklucza z procesow, z dziennika etapow
+-- i z CALEGO bucketu CV - widzi mimo to SCIEZKI plikow CV wlasnego najemcy.
+-- Sekcja 15 testuje `author` przeciw trzem powierzchniom i pomija dokladnie te
+-- jedna, ktorej czlon roli jest slaby.
+--
+-- Asercje nizej PRZYBIJAJA STAN OBECNY, zeby nie zniknal po cichu w zadna
+-- strone. Kontrakt docelowy (kolejka ma wymagac `is_admin_or_editor()`, jak
+-- pozostale piec powierzchni) jest zarejestrowany jako `it.fails`
+-- w `src/routes/__tests__/adminCareersRoute.test.tsx`. Gdy ktos go domknie
+-- migracja, TA sekcja zapali sie pierwsza i wskaze, co dokladnie sie zmienilo.
 SET ROLE authenticated;
-SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
 DO $$
 BEGIN
   PERFORM pg_temp.assert(
-    NOT EXISTS (SELECT 1 FROM storage.objects
-                 WHERE bucket_id='career-cv'
-                   AND name='11111111-1111-1111-1111-111111111111/uploads/2026-04-04/a7777777-1111-2222-3333-444444444444.pdf'),
-    'admin B nie ma czego podpisac w katalogu najemcy A (brak SELECT-a = brak signed URL)'
+    public.is_staff() AND NOT public.is_admin_or_editor(),
+    'author przechodzi is_staff(), ale NIE is_admin_or_editor() - to caly mechanizm'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.career_applications),
+    'author NIE widzi procesow (polityka po hardeningu 20260824074231)'
+  );
+  -- TO JEST ZNALEZISKO: ta sama osoba, ta sama rola, inna tabela - i widzi.
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.career_cv_gc_queue
+             WHERE tenant_id='11111111-1111-1111-1111-111111111111'),
+    'ZNALEZISKO: author WIDZI sciezki CV w kolejce - hardening ominal ta tabele'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM storage.objects WHERE bucket_id='career-cv'),
+    'author nadal NIE widzi samych plikow CV - wyciek jest ograniczony do sciezek'
   );
 END $$;
 RESET ROLE;

@@ -42,7 +42,7 @@ nie pochodzi z tego pliku.
 
 ## 2. Co było naprawdę otwarte
 
-Polityki trzech tabel z danymi osobowymi kandydata czytają:
+Polityki tabel warstwy procesu rekrutacji czytają:
 
 ```sql
 USING (public.is_admin_or_editor() AND tenant_id = public.current_tenant_id())
@@ -73,10 +73,13 @@ uzasadniło ją nieściśle - patrz §5.
 
 ### 3.1 Uprząż runtime - sekcja 16
 
-`scripts/careers-harness/runtime_test.sql`, **14 nowych asercji**. Obie strony
-(A nie widzi B **i** B nie widzi A), każda asercja izolacji w parze z asercją
-niepustki, plus kotwica `is_admin_or_editor()` - bez niej „widzi zero"
+`scripts/careers-harness/runtime_test.sql`, sekcja 16 - **20 asercji**, plus
+nowa sekcja 17 (**4 asercje**, patrz §3.4). Obie strony (A nie widzi B **i** B
+nie widzi A), każda asercja izolacji w parze z asercją niepustki **po tej samej
+stronie**, plus kotwica `is_admin_or_editor()` - bez niej „widzi zero"
 przechodziłoby z powodu roli, a nie z powodu najemcy.
+
+Zakres to **cztery** tabele, nie trzy - patrz sprostowanie w §3.5.
 
 **Kontrola negatywna - trzy osobne mutacje, każda uruchomiona:**
 
@@ -89,25 +92,91 @@ przechodziłoby z powodu roli, a nie z powodu najemcy.
 Przy każdej z trzech mutacji **sekcje 10 i 15 przechodzą** - co jest dowodem,
 że luka była realna, a nie że dokładano asercję do rzeczy już pilnowanej.
 
-Asercji w pliku: 50 → 72. Przebieg po zmianie: `careers-harness: OK
-(12 migracji, 6 atrap-celów polityk, 0 pominiętych migracji)`.
+Asercji **wykonanych** przez uprząż: **56 → 80** (+24). Przebieg po zmianie:
+`careers-harness: OK (12 migracji, 6 atrap-celów polityk, 0 pominiętych migracji)`.
 
 ### 3.2 pgTAP na pełnym schemacie
 
-`supabase/tests/career_applications_tenant_isolation_test.sql`, **18 asercji**
-(`plan(18)`). Uprząż stoi na atrapach sześciu celów polityk; pgTAP biegnie na
+`supabase/tests/career_applications_tenant_isolation_test.sql`, **29 asercji**
+(`plan(29)`). Uprząż stoi na atrapach sześciu celów polityk; pgTAP biegnie na
 **pełnym** zestawie migracji w zadaniu CI `pgtap`, więc dowodzi więcej.
-Cztery asercje strukturalne (koniunkcja najemcy w każdej z trzech polityk plus
-`relrowsecurity` na trzech tabelach), reszta behawioralna, w obie strony.
+Sześć asercji strukturalnych (koniunkcja najemcy w czterech politykach,
+`relrowsecurity` na czterech tabelach, oraz - najważniejsza - że
+`current_tenant_id()` czyta najemcę z `profiles`, a **nie** z czegokolwiek, co
+podaje klient). Reszta behawioralna, w trzech tożsamościach: admin A, admin B
+i admin **trzeciego** najemcy, dla którego żaden wiersz nie pasuje.
 
-**Kontrola negatywna:** skasowanie członu najemcy z `career_applications`
-zapala **4 z 18** asercji (strukturalną, oba kierunki i sumę). Po przywróceniu
-polityki plik wraca na zielono.
+**Kontroli negatywnych jest trzy, wszystkie wykonane:**
+
+| mutacja | wynik |
+| --- | --- |
+| `contact_messages` traci człon najemcy (tabela z danymi osobowymi) | **4 z 29** czerwone |
+| `current_tenant_id()` czyta najemcę z nagłówka klienta | **1 z 29** czerwona |
+| `career_applications` na `rola OR najemca` zamiast `AND` | **4 z 29** czerwone |
+
+Po przywróceniu każdej z nich plik wraca na 29/29.
 
 Suita pgTAP lokalnie: **95 → 96 plików OK**, te same **6** plików czerwonych co
 przed zmianą (`chat_contacts_search_and_privacy`, `chat_privacy_isolation`,
 `community_cron_schedule`, `job_scheduler_heartbeat`, `profile_intent_semantic`,
 `tenant_isolation_billing_storage`). Żadnej czerwieni nie dołożono.
+
+### 3.4 ZNALEZISKO wykryte dopiero przez rewizję: hardening ról ominął kolejkę CV
+
+Rewizja adwersaryjna tej pracy znalazła coś, czego nie widziało ani zlecenie,
+ani pierwsza wersja tej zmiany. Migracja `20260824074231` przestawiła polityki
+`career_*` z `is_staff()` na `is_admin_or_editor()` - różnica to dokładnie rola
+`author`. **W pliku tej migracji `career_cv_gc_queue` nie występuje ani razu.**
+Jej polityka odczytu stoi do dziś na `is_staff() AND tenant_id = current_tenant_id()`.
+
+Skutek jest **wykonany, nie wydedukowany** (sekcja 17 uprzęży): `author`, którego
+sekcja 15 wyklucza z procesów, z dziennika etapów i z całego bucketu CV, **widzi
+mimo to ścieżki plików CV w kolejce własnego najemcy**. Wyciek jest ograniczony
+do ścieżek - polityka bucketu trzyma, co sekcja 17 też asertuje - ale to metadane
+o tym, czyje CV są kolejkowane do usunięcia.
+
+Sekcja 15 testowała `author` przeciw trzem powierzchniom i pomijała dokładnie tę
+jedną, której człon roli jest słaby. Nowa sekcja 17 **przybija stan obecny**
+(zachowanie istniejące zaasertowane, nic nie ukryte), a kontrakt docelowy jest
+zarejestrowany jako `it.fails` w `adminCareersRoute.test.tsx`. Domknięcie wymaga
+migracji, czyli zmiany produkcji - poza zakresem ZASAD tego zlecenia.
+
+### 3.5 Sprostowanie własnej pomyłki: dane osobowe nie leżą tam, gdzie napisałem
+
+Pierwsza wersja tej zmiany twierdziła - w pięciu miejscach - że
+`career_applications`, `career_application_events` i `career_cv_gc_queue`
+trzymają imię, nazwisko, e-mail, telefon, LinkedIn i CV kandydata.
+
+**To nieprawda.** `career_applications` to `id / tenant_id / message_id / stage /
+stage_changed_at / stage_note / owner_id / rating / rejection_reason /
+next_step_at / created_at / updated_at`. Ani jednej z tych kolumn tam nie ma.
+Dane osobowe siedzą w **`public.contact_messages`** (tam idzie publiczny zapis
+formularza), a tabele `career_*` dokładają warstwę procesu i - w kolejce GC -
+ścieżki do plików.
+
+Konsekwencja była poważniejsza niż nieścisłość w komentarzu: **pierwsza wersja
+obu dowodów nie asertowała `contact_messages` ani razu**, więc osłabienie
+polityki tej tabeli przechodziło przez oba nowe artefakty na zielono. Nagłówkowa
+teza („dowodzimy izolacji danych kandydata") była wtedy niepokryta dokładnie dla
+tabeli, o którą chodzi.
+
+Naprawione: obie warstwy asertują teraz `contact_messages` w obie strony,
+a kontrola negatywna na tej polityce zapala 4 z 29 asercji pgTAP i przewraca
+uprząż. Zakres dowodu to **cztery** tabele, nie trzy.
+
+### 3.6 Druga własna pomyłka: asercja bucketu była prózna
+
+Asercja „admin B nie ma czego podpisać w katalogu najemcy A" nie miała pary
+niepustki, a jej fixture kończył się `ON CONFLICT DO NOTHING`. Rewizja pokazała
+to wykonaniem: po `DELETE FROM storage.objects WHERE name LIKE '%a7777777%'`
+uprząż **nadal przechodziła** - i przechodziła nawet po jednoczesnym cofnięciu
+polityki bucketu do kształtu sprzed hardeningu. Czyli dokładnie zielone zero,
+przed którym ostrzega komentarz stojący dwadzieścia linii wyżej w tym samym pliku.
+
+Naprawione: `ON CONFLICT DO NOTHING` usunięty, dodana kotwica „admin A widzi
+własny plik CV". Ten sam `DELETE` daje teraz `EXIT=1` na kotwicy. Brakujące pary
+niepustki dostały też asercje „admin B widzi własny dziennik etapów / własną
+kolejkę CV" po stronie B, w obu warstwach.
 
 ### 3.3 Sprostowanie zielonego testu, który utrwalał tę lukę
 
@@ -124,7 +193,7 @@ Przesłanka jest prawdziwa **o obrazie uprzęży** - `scripts/careers-harness/ru
 stawia goły Postgres i dlatego jej asercje są gołym SQL-em. Wniosek dotyczył
 jednak `supabase/tests/`, czyli katalogu biegnącego w **innym** zadaniu CI,
 które rozszerzenie instaluje wprost (`create extension if not exists pgtap`,
-`ci.yml:983`). Repozytorium ma **101 plików pgTAP**, w tym dedykowane testy
+`ci.yml:983`). Repozytorium miało wtedy **101 plików pgTAP** (dziś 102 - ten commit dokłada setny pierwszy), w tym dedykowane testy
 izolacji najemcy dla czatu i klubów. Obraz nigdy nie był przeszkodą.
 
 Asercja jest teraz **pozytywna** - dokładnie tak, jak zrobiono w tym samym
@@ -254,10 +323,13 @@ polityk to od `20260824074231` **`is_admin_or_editor()`**, nie `is_staff()`.
 Test jest zielony, bo o tym pliku mówi prawdę - ale o stanie faktycznym bazy
 już nie. To ta sama klasa co §3.3: asercja o pliku udająca asercję o systemie.
 
-Ryzyko jest już strukturalnie domknięte przez tę pracę, choć innym sposobem:
-asercje strukturalne w nowym pliku pgTAP czytają **`pg_policies`**, czyli stan
-efektywny po wszystkich migracjach, a nie treść wybranego pliku. Żadna kolejna
-migracja nie może ich ominąć.
+Ryzyko jest domknięte **częściowo**: asercje strukturalne w nowym pliku pgTAP
+czytają `pg_policies`, czyli stan efektywny po wszystkich migracjach, a nie treść
+wybranego pliku - więc kolejna migracja nie ominie ich po cichu. Domykają jednak
+człon NAJEMCY, nie człon ROLI; gdyby predykat roli osłabł, te asercje nadal
+przechodzą. Człon roli pilnują sekcje 15 i 17 uprzęży - i to właśnie sekcja 17
+pokazuje, że dla `career_cv_gc_queue` jest on dziś słabszy niż dla pozostałych
+pięciu powierzchni (§3.4).
 
 **3. `check:sql-policy-tenant-regression` nie blokuje kategorii „wyleczonej".**
 Przebieg raportuje 620 polityk w stanie końcowym, 562 związane z najemcą i **11
