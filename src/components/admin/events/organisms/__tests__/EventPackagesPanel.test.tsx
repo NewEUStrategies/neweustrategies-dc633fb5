@@ -515,8 +515,12 @@ const przelacznik = (index = 0): HTMLElement => within(wierszPakietu(index)).get
 const filtr = (): HTMLSelectElement =>
   screen.getByLabelText(`${T}.orders.filterLabel`, { selector: "select" }) as HTMLSelectElement;
 
+// Nazwa pola stanu niesie PLATNIKA (inaczej „oplacone" da sie wpisac w cudze
+// zamowienie), wiec dopasowanie jest po poczatku nazwy, a nie po calosci.
 const poleStanu = (index = 0): HTMLSelectElement =>
-  within(wierszZamowienia(index)).getByLabelText(`${T}.orders.status`) as HTMLSelectElement;
+  within(wierszZamowienia(index)).getByLabelText(`${T}.orders.status`, {
+    exact: false,
+  }) as HTMLSelectElement;
 
 const wartosciOpcji = (pole: HTMLSelectElement): string[] =>
   Array.from(pole.querySelectorAll("option")).map((option) => option.value);
@@ -1276,7 +1280,7 @@ describe("dostepnosc", () => {
   // nie zlapie: formalnie kazdy przelacznik MA nazwe. Etykieta powinna niesc
   // nazwe pakietu. Ten sam defekt jest zarejestrowany w `SponsorTiersPanel`.
   // ---------------------------------------------------------------------------
-  it.fails(
+  it(
     "DEFEKT: przelaczniki „aktywny” w dwoch wierszach maja IDENTYCZNA nazwe - czytnik nie mowi, ktorego pakietu dotycza",
     () => {
       h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET, name_pl: "Delegacja 5 miejsc" })];
@@ -1301,7 +1305,7 @@ describe("dostepnosc", () => {
   // nazwane pola, i „oplacone" trafia w cudze zamowienie. Etykieta powinna
   // niesc platnika albo pakiet.
   // ---------------------------------------------------------------------------
-  it.fails(
+  it(
     "DEFEKT: pola stanu dwoch zamowien maja IDENTYCZNA nazwe - „oplacone” da sie wpisac w cudze zamowienie",
     () => {
       h.zamowienia = [zamowienie(), zamowienie({ id: INNE_ZAMOWIENIE, buyer_name: "Fundacja X" })];
@@ -1328,7 +1332,7 @@ describe("defekty zarejestrowane", () => {
   // „nieaktywny" jest DOCELOWYM stanem wycofanej oferty i musi byc widoczny
   // z rzutu oka, a nie po sprawdzeniu kazdego przelacznika po kolei.
   // ---------------------------------------------------------------------------
-  it.fails("DEFEKT: wycofany pakiet nie ma znaku „nieaktywny”, choc slownik go ma", () => {
+  it("DEFEKT: wycofany pakiet nie ma znaku „nieaktywny”, choc slownik go ma", () => {
     h.pakiety = [pakiet({ is_active: false })];
     panel();
 
@@ -1342,7 +1346,7 @@ describe("defekty zarejestrowane", () => {
   // „wybierz bilet" nad pusta droplista i nie ma sladu, ze to zapytanie
   // padlo. Odmowa powinna dojsc zdaniem, tak jak przy pakietach i zamowieniach.
   // ---------------------------------------------------------------------------
-  it.fails(
+  it(
     "DEFEKT: awaria listy biletow nigdzie nie widnieje - formularz dostaje pusta liste",
     () => {
       h.bilety = [];
@@ -1364,7 +1368,7 @@ describe("defekty zarejestrowane", () => {
   // niz zawezenie zapytania, bo jej wartosc nie ma odpowiednika w opcjach.
   // Filtr powinien wracac na „wszystkie pakiety", gdy jego pakiet znika z listy.
   // ---------------------------------------------------------------------------
-  it.fails(
+  it(
     "DEFEKT: filtr po skasowanym pakiecie zostaje w mocy - zamowienia calego wydarzenia znikaja",
     () => {
       h.pakiety = [pakiet(), pakiet({ id: INNY_PAKIET })];

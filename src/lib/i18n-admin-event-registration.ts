@@ -555,6 +555,10 @@ export const adminEventRegistrationPl = {
       unlimitedQuota: "Bez limitu",
       verificationBadge: "Wymaga weryfikacji",
       inactiveBadge: "Nieaktywny",
+      // Przełącznik w wierszu jest podstawowym narzędziem wycofania oferty,
+      // więc jego nazwa musi mówić, KTÓREGO pakietu dotyczy - samo „Aktywny”
+      // brzmi w czytniku ekranu tak samo w każdym wierszu.
+      activeToggle: "Pakiet „{{name}}” aktywny",
       ticketLabel: "Bilet nadawany miejscu",
       editAction: "Edytuj pakiet",
       deleteAction: "Usuń pakiet",
@@ -607,7 +611,10 @@ export const adminEventRegistrationPl = {
         seats: "Miejsca",
         seatsSummary: "{{assigned}} z {{total}} przypisanych, {{invited}} zaproszonych",
         amount: "Kwota",
-        status: "Stan",
+        // Pole stanu stoi w wierszu, a nie pod nagłówkiem kolumny: bez płatnika
+        // dwa sąsiednie zamówienia mają dla czytnika ekranu tę samą nazwę,
+        // a „Opłacone” trafia w cudze zamówienie.
+        status: "Stan zamówienia płatnika „{{buyer}}”",
         statuses: {
           pending: "Oczekuje na płatność",
           paid: "Opłacone",
@@ -1590,6 +1597,7 @@ export const adminEventRegistrationEn = {
       unlimitedQuota: "No limit",
       verificationBadge: "Verification required",
       inactiveBadge: "Inactive",
+      activeToggle: "Package “{{name}}” active",
       ticketLabel: "Ticket granted to a seat",
       editAction: "Edit package",
       deleteAction: "Delete package",
@@ -1642,7 +1650,7 @@ export const adminEventRegistrationEn = {
         seats: "Seats",
         seatsSummary: "{{assigned}} of {{total}} assigned, {{invited}} invited",
         amount: "Amount",
-        status: "State",
+        status: "Order state for “{{buyer}}”",
         statuses: {
           pending: "Awaiting payment",
           paid: "Paid",
