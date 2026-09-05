@@ -385,8 +385,8 @@ describe("EventSponsorTiers - pas logotypów na stronie głównej", () => {
     expect(readAloudCount(container, "Nordwind Analytics")).toBe(1);
     // A pozycja BEZ logotypu degraduje do nazwy - gdyby ta degradacja nie
     // siedziała pod `aria-hidden`, czytnik przeczytałby „Baltic Print” dwa
-    // razy pod rząd. To jest ta sama reguła, której brak w kaflu sekcji
-    // „Partnerzy” rejestruje wpis `it.fails` wyżej.
+    // razy pod rząd. To jest ta sama reguła, której w kaflu sekcji
+    // „Partnerzy” pilnuje przypadek wyżej.
     expect(readAloudCount(container, "Baltic Print")).toBe(1);
   });
 
