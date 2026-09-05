@@ -137,3 +137,28 @@ Sekcje w `runtime_test.sql`, kazda z asercjami przerywajacymi skrypt:
     STARA polityka by ja wpuscila, ale nie widzi ani procesow, ani dziennika,
     ani zadnego CV - to jedyna asercja pilnujaca zaostrzenia z 20260824074231
     (bez niej cofniecie polityk do `is_staff()` nie zapaliloby niczego)
+16. izolacja najemcy na DANYCH KANDYDATOW: personel o w pelni spelnionej ROLI,
+    ale z innego najemcy, nie widzi ani zgloszen, ani dziennika etapow, ani
+    kolejki CV drugiego najemcy - w obie strony, kazda asercja izolacji
+    w parze z asercja niepustki
+
+### Dlaczego sekcja 16 istnieje osobno od 10 i 15
+
+Trzy wymiary tej samej polityki sa rozlaczne i kazdy wymaga wlasnego dowodu.
+Polityki `career_*` czytaja `is_admin_or_editor() AND tenant_id =
+current_tenant_id()`. Sekcja 15 przybija pierwszy czlon (ROLA), sekcja 10
+przybija drugi, ale WYLACZNIE na `storage.objects`. Sekcja 16 przybija drugi
+czlon na trzech tabelach z danymi osobowymi kandydata.
+
+Luka byla strukturalna, nie przypadkowa: sekcje 4-9 dotykaja
+`career_applications`, `career_application_events` i `career_cv_gc_queue`
+z roli harnessu, ktora RLS nie podlega. Skasowanie koniunkcji najemcy z tych
+trzech polityk przechodzilo caly harness na zielono - sprawdzone trzema
+osobnymi mutacjami, kazda zapala dokladnie jedna asercje sekcji 16 i zadnej
+innej.
+
+Ta sama granica ma drugi, niezalezny dowod na PELNYM schemacie:
+`supabase/tests/career_applications_tenant_isolation_test.sql` (18 asercji,
+bramka `pgtap`). Harness stoi na atrapach szesciu celow polityk, wiec dowodzi
+mniej niz pgTAP, ale za to bez dockera i przy kazdym przebiegu bramki
+`check:careers-harness`.
