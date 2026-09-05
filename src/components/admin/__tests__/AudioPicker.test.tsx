@@ -209,6 +209,42 @@ describe("AudioPicker - upload pliku", () => {
     expect(host.changes).toHaveLength(1);
   });
 
+  // DEFEKT PRODUKCYJNY (rejestr): `AudioPicker.tsx:154` -
+  // `(file.name.split(".").pop() || "mp3")` na nazwie BEZ kropki oddaje CAŁĄ
+  // nazwę, więc klucz w buckecie kończy się „.nagranie", a zabezpieczenie
+  // `|| "mp3"` nigdy się nie odpala. Plik bez rozszerzenia przechodzi walidację
+  // po samym MIME (`okMime || okExt`), więc to nie jest przypadek teoretyczny -
+  // tak wygląda plik zrzucony z dyktafonu przez przeglądarkę. IDENTYCZNY
+  // kształt ma `CoverImagePicker.tsx:66` (`|| "png"`) i tam też jest wpis
+  // w rejestrze. Poprawka: sprawdzić, czy `split(".")` dało więcej niż jeden
+  // element.
+  it.fails(
+    "DEFEKT: plik bez rozszerzenia zamiast `.mp3` dostaje `.<nazwa>` w kluczu bucketa",
+    async () => {
+      const { view } = mountPicker();
+
+      fireEvent.change(fileInput(view.container), {
+        target: { files: [new File(["dane"], "nagranie", { type: "audio/mpeg" })] },
+      });
+
+      await waitFor(() => expect(sb().storage.upload).toHaveBeenCalledTimes(1));
+      expect(String(sb().storage.upload.mock.calls[0][0])).toMatch(/\.mp3$/);
+    },
+  );
+
+  it("nazwa z kropką na końcu jest JEDYNĄ, dla której odpala się `mp3`", async () => {
+    const { view } = mountPicker();
+
+    fireEvent.change(fileInput(view.container), {
+      target: { files: [new File(["dane"], "nagranie.", { type: "audio/mpeg" })] },
+    });
+
+    await waitFor(() => expect(sb().storage.upload).toHaveBeenCalledTimes(1));
+    expect(String(sb().storage.upload.mock.calls[0][0])).toMatch(
+      /^posts-audio\/tenant-nes\/user-redaktor\/\d+-[a-z0-9]+\.mp3$/,
+    );
+  });
+
   it("stan Wgrywam blokuje przycisk do końca uploadu", async () => {
     const { view } = mountPicker();
     let release: (() => void) | null = null;

@@ -327,19 +327,50 @@ describe("AccessSettingsPane - wczytanie", () => {
   });
 
   // DEFEKT PRODUKCYJNY (rejestr): faza ładowania IGNORUJE `error` z każdego
-  // z czterech odczytów (AccessSettingsPane.tsx:76-117 - żadne `.error` nie
-  // jest sprawdzane). Gdy odmowa RLS ubije odczyt `content_access`, panel
-  // pokazuje tryb PUBLICZNY jako stan bieżący, a pierwsze „Zapisz dostęp"
-  // upsertuje `mode: "public"` na istniejącą regułę - czyli zdejmuje paywall
-  // z płatnego materiału bez jednego komunikatu. Oczekiwanie: nieudany odczyt
-  // ma trafić do `toastError(..., "load")` albo zablokować zapis.
+  // z czterech odczytów (AccessSettingsPane.tsx:76-117 - destrukturyzowane jest
+  // WYŁĄCZNIE `data`). Panel nie odróżnia więc „reguły nie ma" od „nie udało się
+  // jej przeczytać": w obu przypadkach `r` jest `null`, formularz staje na
+  // trybie PUBLICZNYM, a pierwsze „Zapisz dostęp" upsertuje `mode: "public"` na
+  // istniejącą regułę - czyli zdejmuje paywall z płatnego materiału bez jednego
+  // komunikatu.
+  //
+  // ZAKRES DEFEKTU (bez przeceniania): sprawdzenie `.error` łapie odmowę
+  // UPRAWNIEŃ do tabeli (SQLSTATE 42501, jak niżej), błąd PostgREST i awarię
+  // sieci - supabase-js oddaje wtedy `{ data: null, error }`. NIE łapie samego
+  // filtrowania wierszy przez RLS: polityka, która wiersz ukrywa, oddaje zero
+  // wierszy, czyli `{ data: null, error: null }` z `maybeSingle()`, i taki
+  // odczyt jest nieodróżnialny od „reguły jeszcze nie ma". To osobna, głębsza
+  // dziura (panel nie wie, że czegoś nie widzi); tutaj przypinamy tę połowę,
+  // którą widać po `error`.
+  //
+  // Oczekiwanie: nieudany odczyt melduje się przez `toastError(..., "load")`
+  // ALBO blokuje zapis. Test dowodzi OBU połówek szkody - fałszywego stanu
+  // „public" NA EKRANIE i ładunku `mode: "public"` W BAZIE - a czerwona jest
+  // dopiero ostatnia asercja, czyli brakujący komunikat.
   it.fails(
     "DEFEKT: nieudany odczyt reguły udaje dostęp publiczny i pozwala go zapisać",
     async () => {
       sb().failRead("content_access", "permission denied for table content_access", "42501");
       const { container } = await mountPane({ rule: null });
 
+      // POŁOWA PIERWSZA: odmowa odczytu wygląda jak „treść jest publiczna".
       expect(modeSelect(container).value).toBe("public");
+      expect(screen.queryByText("adminPostPanes.access.teaserPl")).toBeNull();
+
+      // POŁOWA DRUGA: ten fałszywy stan daje się ZAPISAĆ - upsert po parze
+      // (typ, byt) nadpisuje regułę, której panel nawet nie przeczytał.
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+      expect(sb().lastWrite("content_access")).toMatchObject({
+        entity_type: "post",
+        entity_id: "post-42",
+        mode: "public",
+      });
+      expect(sb().db.lastChain("content_access")?.argsOf("upsert")?.[1]).toEqual({
+        onConflict: "entity_type,entity_id",
+      });
+
+      // I ANI JEDNEGO KOMUNIKATU - to jest ta czerwona asercja.
       expect(toasts().toastError).toHaveBeenCalled();
     },
   );

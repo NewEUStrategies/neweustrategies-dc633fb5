@@ -518,7 +518,11 @@ export function paneToastSpies(): PaneToastSpies {
   const notifyError = vi.fn<(message: string) => void>();
   const toastError = vi.fn<(error: unknown, kind?: string) => void>();
 
-  const toast = Object.assign(vi.fn<(m: string) => void>(), {
+  // JAWNY TYP, NIE RZUTOWANIE. `Object.assign` oddaje funkcję Z DOKLEJONYMI
+  // wariantami, więc `SonnerToast` da się na niej ZADEKLAROWAĆ - a wtedy każde
+  // brakujące ogniwo (`toast.warning`, `toast.dismiss`) pada w `tsc`, zamiast
+  // wyjść dopiero w teście, który tego ogniwa dotknie.
+  const toast: SonnerToast = Object.assign(vi.fn<(message: string) => void>(), {
     success,
     error,
     info,
@@ -526,7 +530,7 @@ export function paneToastSpies(): PaneToastSpies {
     message,
     loading,
     dismiss,
-  }) as unknown as SonnerToast;
+  });
 
   return {
     success,
@@ -616,6 +620,30 @@ export function mountSettingsPane(
 }
 
 /**
+ * STRAŻNIK, NIE RZUTOWANIE (ta sama konwencja co `happyDomSettings` w
+ * `ConsentScriptInjector.test.tsx`): kontroler happy-doma nie jest opisany
+ * w typach `globalThis`, a `as unknown as {...}` udawałby tylko, że jest -
+ * i przy zmianie środowiska pękłby dopiero w środku testu, na `undefined`.
+ * Zwracamy `object` i czytamy z niego przez `Reflect`, więc żadne ogniwo tej
+ * ścieżki nie jest zmyślone.
+ */
+function happyDomFetchSettings(): object {
+  const api: unknown = Reflect.get(globalThis, "happyDOM");
+  if (api === null || typeof api !== "object") {
+    throw new Error("test: brak kontrolera `happyDOM` - nie ma jak odciąć testu od sieci");
+  }
+  const settings: unknown = Reflect.get(api, "settings");
+  if (settings === null || typeof settings !== "object") {
+    throw new Error("test: brak `happyDOM.settings` - nie ma jak odciąć testu od sieci");
+  }
+  const fetchSettings: unknown = Reflect.get(settings, "fetch");
+  if (fetchSettings === null || typeof fetchSettings !== "object") {
+    throw new Error("test: brak `happyDOM.settings.fetch` - nie ma jak odciąć testu od sieci");
+  }
+  return fetchSettings;
+}
+
+/**
  * ODCINA HAPPY-DOM OD SIECI NA CZAS TESTU.
  *
  * happy-dom implementuje `<iframe src>` PRAWDZIWYM żądaniem HTTP: podgląd
@@ -642,27 +670,17 @@ export function mountSettingsPane(
 export function stubBrowserPageFetch(
   html = "<!doctype html><html><body></body></html>",
 ): () => void {
-  const scope = globalThis as unknown as {
-    happyDOM?: { settings?: { fetch?: { interceptor?: unknown } } };
-    Response?: new (
-      body: string,
-      init: { status: number; headers: Record<string, string> },
-    ) => unknown;
-  };
-  const fetchSettings = scope.happyDOM?.settings?.fetch;
-  const ResponseCtor = scope.Response;
-  if (!fetchSettings || !ResponseCtor) {
-    throw new Error(
-      "test: brak `happyDOM.settings.fetch` albo `Response` - nie ma jak odciąć testu od sieci",
-    );
+  const fetchSettings = happyDomFetchSettings();
+  if (typeof Response === "undefined") {
+    throw new Error("test: brak globalnego `Response` - nie ma czym odpowiedzieć na fetch okna");
   }
-  const previous = fetchSettings.interceptor;
-  fetchSettings.interceptor = {
+  const previous: unknown = Reflect.get(fetchSettings, "interceptor");
+  Reflect.set(fetchSettings, "interceptor", {
     beforeAsyncRequest: async () =>
-      new ResponseCtor(html, { status: 200, headers: { "content-type": "text/html" } }),
-  };
+      new Response(html, { status: 200, headers: { "content-type": "text/html" } }),
+  });
   return () => {
-    fetchSettings.interceptor = previous;
+    Reflect.set(fetchSettings, "interceptor", previous);
   };
 }
 
