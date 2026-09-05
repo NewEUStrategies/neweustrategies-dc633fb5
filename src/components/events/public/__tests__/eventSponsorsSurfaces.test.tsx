@@ -331,27 +331,24 @@ describe("EventSponsorsSection - sekcja „Partnerzy”", () => {
   // więc partner bez logotypu jest czytany dwa razy pod rząd. Pas na stronie
   // głównej (`EventSponsorTiers`) ma na to `aria-hidden` i komentarz mówiący
   // wprost „bez tego pozycja bez logotypu przeczytałaby nazwę dwa razy”;
-  // kafel tej samej ochrony nie dostał. Nie naprawiamy tu kodu - rejestrujemy.
-  it.fails(
-    "defekt: partner bez logotypu jest w kaflu czytany DWA RAZY (brak `aria-hidden`)",
-    async () => {
-      h.rpc?.setData("event_sponsors_public", [
-        tierWire({ sponsors: [sponsorWire({ logo: null })] }),
-      ]);
-      withClient(<EventSponsorsSection slug="kongres-strategii" />);
+  // kafel dostał tę samą ochronę - logotyp kafla siedzi pod `aria-hidden`.
+  it("defekt: partner bez logotypu jest w kaflu czytany DWA RAZY (brak `aria-hidden`)", async () => {
+    h.rpc?.setData("event_sponsors_public", [
+      tierWire({ sponsors: [sponsorWire({ logo: null })] }),
+    ]);
+    withClient(<EventSponsorsSection slug="kongres-strategii" />);
 
-      await screen.findAllByText("Nordwind Analytics");
-      const tile = screen.getByRole("listitem");
-      // Nazwa MUSI zostać na kaflu - to ona mówi, kto jest partnerem, więc
-      // naprawa przez skasowanie podpisu nie jest naprawą.
-      expect(within(tile).getAllByText("Nordwind Analytics").length).toBeGreaterThan(0);
-      // ...i MUSI być czytana raz. Liczymy odczyty, a nie węzły: poprawka
-      // polega na schowaniu logotypu przed czytnikiem (`aria-hidden`), a nie
-      // na usunięciu któregokolwiek z dwóch napisów - inaczej ten wpis
-      // zostałby czerwony także po prawidłowej naprawie.
-      expect(readAloudCount(tile, "Nordwind Analytics")).toBe(1);
-    },
-  );
+    await screen.findAllByText("Nordwind Analytics");
+    const tile = screen.getByRole("listitem");
+    // Nazwa MUSI zostać na kaflu - to ona mówi, kto jest partnerem, więc
+    // naprawa przez skasowanie podpisu nie jest naprawą.
+    expect(within(tile).getAllByText("Nordwind Analytics").length).toBeGreaterThan(0);
+    // ...i MUSI być czytana raz. Liczymy odczyty, a nie węzły: poprawka
+    // polega na schowaniu logotypu przed czytnikiem (`aria-hidden`), a nie
+    // na usunięciu któregokolwiek z dwóch napisów - inaczej ten wpis
+    // zostałby czerwony także po prawidłowej naprawie.
+    expect(readAloudCount(tile, "Nordwind Analytics")).toBe(1);
+  });
 });
 
 describe("EventSponsorTiers - pas logotypów na stronie głównej", () => {
