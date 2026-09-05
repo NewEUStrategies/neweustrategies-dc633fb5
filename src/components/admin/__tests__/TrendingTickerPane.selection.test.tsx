@@ -20,6 +20,7 @@
 // Sama logika panelu jest PRAWDZIWA, a wartości domyślne kolorów pochodzą ze
 // SŁOWNIKA `tickerVariants`, nie z przepisanych do testu literałów.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ComponentProps } from "react";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, supabaseFromStub } from "@/test/supabase";
@@ -451,4 +452,31 @@ describe("TrendingTickerPane - kolory", () => {
     expect(label.getAttribute("for")).toBe("tt-color-Tryb jasny-bg");
     expect(document.getElementById(label.getAttribute("for") ?? "")).not.toBeNull();
   });
+
+  // DRUGA POŁÓWKA tego samego defektu - test na PRAWDZIWYM próbniku, z pominięciem
+  // atrapy pliku. Atrapa wyżej kładzie `id` na swoje pole, więc gdyby naprawa
+  // dopisała `id={id}` w `ColorField` i zadeklarowała prop w `AdminColorPicker`,
+  // ale nie przekazała go przyciskowi-swatchowi, tamten test zzieleniałby przy
+  // etykiecie nadal martwej w produkcji. Ten test pyta prawdziwy `AdminColorPicker`,
+  // czy podany `id` ląduje na jego przycisku - dziś `AdminColorPickerProps` w ogóle
+  // nie ma pola `id`, więc prop przepada. Oba testy zielenieją dopiero razem.
+  it.fails(
+    "DEFEKT: prawdziwy AdminColorPicker nie kładzie podanego `id` na przycisku-swatchu",
+    async () => {
+      const real = await vi.importActual<
+        typeof import("@/components/admin/blocks/AdminColorPicker")
+      >("@/components/admin/blocks/AdminColorPicker");
+      const props: ComponentProps<typeof real.AdminColorPicker> & { id: string } = {
+        id: "tt-color-test-bg",
+        value: "#112233",
+        onChange: () => undefined,
+        ariaLabel: "Tło (prawdziwy próbnik)",
+      };
+      renderWithQueryClient(<real.AdminColorPicker {...props} />);
+
+      const swatch = screen.getByRole("button", { name: "Tło (prawdziwy próbnik)" });
+      expect(swatch).toBeInTheDocument();
+      expect(document.getElementById("tt-color-test-bg")).toBe(swatch);
+    },
+  );
 });
