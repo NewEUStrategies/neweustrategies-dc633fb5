@@ -43,6 +43,7 @@
 // `ga4Functions`) i w `check:tenant-isolation`.
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { createRoute, type AnyRoute } from "@tanstack/react-router";
 import type { AnalyticsStatus } from "@/lib/analytics/status.functions";
 import type { VitalMetricSummary } from "@/lib/observability/aggregate";
 
@@ -152,6 +153,9 @@ import { renderRoute, type RenderedRoute } from "@/test/routeHarness";
 // dowód idzie po trasie, która naprawdę renderuje pulpit - tak samo jak
 // w `adminCommunityIndexRoute.test.tsx` i pozostałych testach tras indeksowych.
 import { Route as AnalyticsRoute } from "@/routes/admin.analytics.index";
+// Sama RAMKA sekcji - dowód na nią stoi na końcu pliku. Bez tego importu plik
+// `admin.analytics.tsx` nie jest po rozdzieleniu wykonywany przez żaden test.
+import { Route as AnalyticsFrameRoute } from "@/routes/admin.analytics";
 
 const PATH = "/admin/analytics";
 const STATUS_KEY = ["analytics-status"] as const;
@@ -1130,3 +1134,53 @@ function polishLiterals(): string[] {
   walk(document.body);
   return [...found].sort();
 }
+
+// ---------------------------------------------------------------------------
+// RAMKA SEKCJI, czyli `src/routes/admin.analytics.tsx` - dwanaście linii, które
+// zostały po rozdzieleniu sekcji (commit 3d4b684). Wygląda na plik zbędny, ale
+// to ON jest rozgałęzieniem adresu: dopóki `/admin/analytics` renderowało panel
+// samo, warsztat BI nie miał się gdzie zamontować. Gdyby ktoś wstawił tu treść
+// własną zamiast `<Outlet/>`, oba adresy sekcji dałyby ten sam ekran, a
+// `/admin/analytics/bi` przestałby istnieć - i ŻADEN test panelu by tego nie
+// zauważył, bo panel mieszka od tamtej pory w trasie indeksowej. Ten dowód
+// musiał więc wrócić razem z przepięciem importu wyżej, inaczej ramka nie jest
+// w ogóle wykonywana.
+//
+// Wzorzec montażu powłoki z dziećmi jak w `adminCommunityShellRoute.test.tsx`:
+// ścieżki dzieci są PRODUKCYJNE (`/` i `bi` - patrz `routeTree.gen.ts`), a ich
+// treść zastępcza, bo przedmiotem dowodu jest wypuszczenie podstrony, nie jej
+// zawartość.
+async function mountFrame(entry: string): Promise<RenderedRoute> {
+  const frame: AnyRoute = AnalyticsFrameRoute;
+  frame.addChildren([
+    createRoute({
+      getParentRoute: () => frame,
+      path: "/",
+      component: () => <div>PODSTRONA: przegląd</div>,
+    }),
+    createRoute({
+      getParentRoute: () => frame,
+      path: "bi",
+      component: () => <div>PODSTRONA: warsztat BI</div>,
+    }),
+  ]);
+  return renderRoute({ route: frame, path: PATH, initialEntry: entry });
+}
+
+describe("ramka sekcji wypuszcza podstrony przez `<Outlet/>`", () => {
+  it("pod adresem sekcji montuje INDEKS przeglądu, a nie treść własną ramki", async () => {
+    const view = await mountFrame(PATH);
+
+    expect(view.currentPath()).toBe(PATH);
+    expect(screen.getByText("PODSTRONA: przegląd")).toBeTruthy();
+    expect(screen.queryByText("PODSTRONA: warsztat BI")).toBeNull();
+  });
+
+  it("pod adresem `/bi` montuje warsztat - i nigdy obu podstron naraz", async () => {
+    const view = await mountFrame(`${PATH}/bi`);
+
+    expect(view.currentPath()).toBe(`${PATH}/bi`);
+    expect(screen.getByText("PODSTRONA: warsztat BI")).toBeTruthy();
+    expect(screen.queryByText("PODSTRONA: przegląd")).toBeNull();
+  });
+});

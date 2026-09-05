@@ -125,6 +125,12 @@ export function EventRegistrationSettingsPanel({ row }: { row: AdminEventDetailR
   // przycisk i ani jednego pola do poprawienia.
   const externalUrlRejected = errors.some((error) => error.field === "externalRegistrationUrl");
 
+  // TA SAMA ZASADA DLA LIMITU. CHECK `capacity IS NULL OR capacity > 0` obowiazuje
+  // w kazdym trybie, wiec odrzucona wartosc gasi „Zapisz" takze przy „bez zapisow".
+  // Pole zgaszone z czerwonym zdaniem pod spodem byloby wtedy blokada, ktorej
+  // redaktor nie ma jak odblokowac - gasimy je dopiero, gdy nie ma czego poprawiac.
+  const capacityRejected = errors.some((error) => error.field === "capacity");
+
   const set = <K extends keyof RegistrationSettingsDraft>(
     key: K,
     value: RegistrationSettingsDraft[K],
@@ -274,7 +280,7 @@ export function EventRegistrationSettingsPanel({ row }: { row: AdminEventDetailR
           label={t("adminEvents.studio.registrationSettings.capacityLabel")}
           value={draft.capacity}
           inputMode="numeric"
-          disabled={withoutSignups}
+          disabled={withoutSignups && !capacityRejected}
           hint={t(
             withoutSignups
               ? "adminEvents.studio.registrationSettings.capacityWithoutSignupsHint"

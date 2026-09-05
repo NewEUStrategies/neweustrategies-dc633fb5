@@ -608,6 +608,30 @@ describe("EventRegistrationSettingsPanel - tryb zapisow", () => {
       ostrzezenia: screen.queryAllByRole("listitem").map((item) => item.textContent),
     }).not.toEqual({ poleZgaszone: false, ostrzezenia: [] });
   });
+
+  // ---------------------------------------------------------------------------
+  // GASZENIE POLA NIE MOZE ZAMKNAC REDAKTORA W BLEDZIE. CHECK
+  // `capacity IS NULL OR capacity > 0` obowiazuje w KAZDYM trybie, wiec limit
+  // odrzucony gasi „Zapisz" takze przy „bez zapisow". Gdyby pole bylo wtedy
+  // zgaszone, redaktor czytalby czerwone zdanie pod polem, ktorego nie ma jak
+  // poprawic - to ta sama blokada bez wyjscia, ktora wyzej zamyka wpis o adresie
+  // zewnetrznym. Zgaszenie nalezy sie polu, w ktorym nie ma czego poprawiac.
+  // ---------------------------------------------------------------------------
+  it("limit ODRZUCONY zostaje edytowalny takze bez zapisow - inaczej bledu nie da sie cofnac", () => {
+    panel();
+
+    wpisz("capacityLabel", "-5");
+    fireEvent.click(karta("registrationModes.none"));
+    zapisz();
+
+    expect(screen.getByText(`${R}errors.capacityInvalid`)).toBeInTheDocument();
+    expect(pole("capacityLabel").disabled).toBe(false);
+
+    wpisz("capacityLabel", "");
+
+    expect(screen.queryByText(`${R}errors.capacityInvalid`)).toBeNull();
+    expect(pole("capacityLabel").disabled).toBe(true);
+  });
 });
 
 describe("EventRegistrationSettingsPanel - przelacznik zasady Chatham House", () => {
