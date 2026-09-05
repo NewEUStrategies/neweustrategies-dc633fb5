@@ -498,34 +498,15 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
   }
 
   const root = loaders.find((l) => l.file === ROOT_ROUTE_FILE || l.file.endsWith(ROOT_ROUTE_FILE));
-  // Root now warms theme queries through loadResilient. Its configured phase
-  // ceilings still count, even though they are not direct withBudget calls.
-  // This is a conservative bound for non-home routes, not measured TTFB.
-  const rootConstants = numericConstants(
-    blankNonCode(input.sources.find((source) => source.file === root?.file)?.source ?? ""),
-  );
-  const indirectRootBudget = ["ROOT_WARM_BUDGET_MS", "CHROME_WARM_BUDGET_MS"].reduce(
-    (sum, name) =>
-      sum +
-      (root?.budgetSites.some((site) => site.constName === name)
-        ? 0
-        : (rootConstants.get(name) ?? 0)),
-    0,
-  );
-  const rootWarmChainMs = root ? root.chainMs + indirectRootBudget : null;
   const violations: SsrBudgetViolation[] = [];
   const unmeasurable: string[] = [];
 
   // ── BUDŻET 1a: łańcuch rozgrzewki KORZENIA ────────────────────────────────
-  if (
-    root !== undefined &&
-    rootWarmChainMs !== null &&
-    rootWarmChainMs > FROZEN_SSR_BUDGETS.rootWarmChainMs
-  ) {
+  if (root !== undefined && root.chainMs > FROZEN_SSR_BUDGETS.rootWarmChainMs) {
     violations.push({
       budget: "rootWarmChainMs",
       file: root.file,
-      measured: rootWarmChainMs,
+      measured: root.chainMs,
       ceiling: FROZEN_SSR_BUDGETS.rootWarmChainMs,
       detail: `fale rozgrzewki korzenia: ${root.budgetSites
         .map((s) => `${s.constName}=${s.ms ?? "?"}`)
@@ -634,7 +615,7 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
 
   return {
     loaders,
-    rootWarmChainMs,
+    rootWarmChainMs: root?.chainMs ?? null,
     dehydrationInvariants: invariants,
     violations,
     unmeasurable,

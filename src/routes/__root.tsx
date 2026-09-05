@@ -16,7 +16,7 @@ import appCss from "../styles.css?url";
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
-import { loadResilient, resilientCacheControl } from "../lib/ssr/resilientLoad";
+import { resilientCacheControl } from "../lib/ssr/resilientLoad";
 import {
   HOME_THEME_BUDGET_MS,
   hasSsrQueryData,
@@ -380,26 +380,32 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
     // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
     // stronie. Zmierzone: 3 równoległe podżądania -> 2.
-    const themeOptions = {
-      budgetMs: homeDeadline === undefined ? ROOT_WARM_BUDGET_MS : HOME_THEME_BUDGET_MS,
-      deadlineAt: homeDeadline,
-    };
-    const themeResults = await Promise.all([
-      loadResilient(context.queryClient, siteSettingsQueryOptions, Object.freeze({}), {
-        ...themeOptions,
-        label: "root.settings",
-      }),
-      loadResilient(context.queryClient, designTokensQueryOptions, EMPTY_TOKENS, {
-        ...themeOptions,
-        label: "root.tokens",
-      }),
-      loadResilient(context.queryClient, globalColorsQueryOptions, EMPTY_GLOBAL_COLORS, {
-        ...themeOptions,
-        label: "root.colors",
-      }),
-    ]);
-    if (themeResults.some((result) => result.degraded)) {
-      setCacheControlHeader(resilientCacheControl(true));
+    const themeDeadline =
+      homeDeadline === undefined
+        ? undefined
+        : Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS);
+    await withBudget(
+      Promise.allSettled([
+        context.queryClient.ensureQueryData(siteSettingsQueryOptions),
+        context.queryClient.ensureQueryData(designTokensQueryOptions),
+        context.queryClient.ensureQueryData(globalColorsQueryOptions),
+      ]),
+      ROOT_WARM_BUDGET_MS,
+      themeDeadline,
+    );
+    // Only homepage SSR opts into early cancellation. Another route may be
+    // awaiting this same settings promise and retains its existing contract.
+    if (homeDeadline !== undefined) {
+      for (const queryKey of [
+        siteSettingsQueryOptions.queryKey,
+        designTokensQueryOptions.queryKey,
+        globalColorsQueryOptions.queryKey,
+      ]) {
+        if (!hasSsrQueryData(context.queryClient, queryKey)) {
+          setCacheControlHeader(resilientCacheControl(true));
+          await context.queryClient.cancelQueries({ queryKey, exact: true }).catch(() => undefined);
+        }
+      }
     }
     // `updatedAt: 0` - zasiew MUSI rodzić się PRZETERMINOWANY.
     //

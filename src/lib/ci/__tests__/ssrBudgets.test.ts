@@ -96,8 +96,11 @@ describe("blankNonCode - wygaszanie komentarzy i literałów napisowych", () => 
     expect(loaderBudgetFacts("src/routes/__root.tsx", source)?.chainMs).toBe(3000);
   });
 
-  it("keeps configured root ceilings visible when warm-up moves into loadResilient", () => {
-    const source = ROOT_OK.replace("await withBudget(", "await loadResilient(");
+  it("adding a deadline cannot hide an increased ceiling or a third phase", () => {
+    const source = ROOT_OK.replace(
+      "withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS)",
+      "withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline)",
+    );
     const report = analyzeSsrBudgets({
       sources: [
         { file: "src/routes/__root.tsx", source },
@@ -117,8 +120,8 @@ describe("blankNonCode - wygaszanie komentarzy i literałów napisowych", () => 
         {
           file: "src/routes/__root.tsx",
           source: source.replace(
-            "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS);",
-            "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS); await withBudget(extra, 1000);",
+            "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline);",
+            "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline); await withBudget(extra, 1000);",
           ),
         },
         { file: "src/router.tsx", source: ROUTER_OK },

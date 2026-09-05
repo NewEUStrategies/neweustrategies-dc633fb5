@@ -174,6 +174,17 @@ beforeEach(() => {
 });
 
 describe("__root loader", () => {
+  it("does not cancel shared theme requests on non-home routes", async () => {
+    h.server = true;
+    h.settingsHangs = true;
+    const cancel = vi.spyOn(qc, "cancelQueries");
+    await runLoader(qc, "/blog");
+    expect(cancel).not.toHaveBeenCalled();
+    expect(qc.getQueryState(["site-settings"])?.fetchStatus).toBe("fetching");
+    await qc.cancelQueries();
+    cancel.mockRestore();
+  });
+
   it.each(["/", "/en", "/en/"])(
     "bounds homepage theme waiting and disables cache at %s",
     async (path) => {
