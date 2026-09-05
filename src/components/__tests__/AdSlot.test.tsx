@@ -79,6 +79,8 @@ class ImmediateIntersectionObserver implements IntersectionObserver {
   readonly root: Element | null = null;
   readonly rootMargin: string = "";
   readonly thresholds: ReadonlyArray<number> = [];
+  readonly scrollMargin: string = "";
+
   private readonly cb: IntersectionObserverCallback;
 
   constructor(cb: IntersectionObserverCallback) {
