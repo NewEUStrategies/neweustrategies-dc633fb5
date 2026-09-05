@@ -6358,6 +6358,373 @@ export default defineConfig({
           lines: 98,
           branches: 90,
         },
+
+        // ── POWLOKA PANELU ADMIN (przekrojowa, 221 plikow) - kampania 2026-09-05 ──
+        // Audyt (rozdz. 12) zastal te powierzchnie jako jedyna ponizej 60% linii
+        // i 55% funkcji, ze 154 plikami BEZ ZADNEGO progu: kazdy istniejacy glob
+        // celuje w podkatalog (builder/**, clubs/**, seo/** ...), a 87,5% luki
+        // lezalo w plikach BEZPOSREDNIO w src/components/admin i src/components.
+        //
+        // Wszystkie progi nizej sa ZMIERZONE tym samym przebiegiem (2026-09-05):
+        //   npx vitest run --coverage --coverage.reporter=json --coverage.reporter=json-summary \
+        //     src/components/__tests__ src/components/admin/__tests__ src/components/cart
+        // (69 plikow testowych, 1 346 zielonych + 26 it.fails, zero czerwonych).
+        // Pelna suita zawiera te same testy, wiec daje na tych plikach NIE MNIEJ.
+        // Liczby "przed" w komentarzach to pelna suita na HEAD a1ea505 (worktree),
+        // w porzadku: linie / funkcje / galezie / instrukcje. Podloga per plik =
+        // zmierzone minus ~2 pp (w dol), per glob minus ~4 pp; 100% -> 98.
+        // Progi wolno WYLACZNIE podnosic.
+        //
+        // B1 - GLOB "src/components/admin/**" SWIADOMIE NIE DODANY, z liczba:
+        // objalby 833 pliki, z ktorych 800 lezy w podkatalogach ze swoimi globami
+        // na 85-100%, i mial przed kampania 90,47% linii / 88,58% funkcji przy
+        // 13 plikach bezposrednich na ZERZE. Podloga na tej liczbie nie zauwazy
+        // wyzerowania calego katalogu plikow bezposrednich (1 933 z 24 340 linii,
+        // 7,9% agregatu) - udaje ochrone. Zamiast niego dwa globy na PLIKI
+        // BEZPOSREDNIE, czyli dokladnie te, ktorych zaden glob nie lapal:
+        // src/components/admin/* - 33 pliki (31 powierzchni + PostEditor
+        // i PostGeneralOverview z modulu 2): przed 28,50 / 22,34 / 31,07 / 28,60
+        // (13 zer), po 97,88 / 98,46 / 91,22 / 96,94.
+        "src/components/admin/*": {
+          statements: 92,
+          functions: 94,
+          lines: 93,
+          branches: 87,
+        },
+        // src/components/* - 32 pliki: przed 78,47 / 67,90 / 67,90 / 75,30 (1 zero),
+        // po 92,52 / 88,89 / 81,04 / 90,73 (metoda katalogowa; pliki pokrywane
+        // tylko z innych katalogow - ErrorBoundary, Lightbox, Paywall - w pelnej
+        // suicie sa wyzej, wiec zapas jest wiekszy niz pokazuje ta liczba).
+        "src/components/*": {
+          statements: 86,
+          functions: 84,
+          lines: 88,
+          branches: 77,
+        },
+
+        // A1. Egzekucja zgody na skrypty (RODO)
+        // ConsentScriptInjector.tsx: przed 40,96 / 50 / 28,3 / 39,78 -> ZMIERZONE 2026-09-05: 100 / 100 / 92,45 / 96,77 (linie / funkcje / galezie / instrukcje).
+        "src/components/ConsentScriptInjector.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+
+        // A2. Chrome publiczny: naglowek, stopka, powloka strony
+        // Header.tsx: przed 74,58 / 52,38 / 37,31 / 67,77 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,26 / 98,57 (linie / funkcje / galezie / instrukcje).
+        "src/components/Header.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // Footer.tsx: przed 55 / 50 / 25 / 48,88 -> ZMIERZONE 2026-09-05: 97,5 / 100 / 86,36 / 95,55 (linie / funkcje / galezie / instrukcje).
+        "src/components/Footer.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 95,
+          branches: 84,
+        },
+        // SiteChrome.tsx: przed 80,95 / 60 / 66,66 / 77,27 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/SiteChrome.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AlertBar.tsx: przed 17,64 / 0 / 0 / 16,21 -> ZMIERZONE 2026-09-05: 100 / 100 / 65,71 / 94,59 (linie / funkcje / galezie / instrukcje).
+        "src/components/AlertBar.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 63,
+        },
+
+        // A2. Edytor kolorow globalnych i pasek "na czasie"
+        // GlobalColorsEditor.tsx: przed 2,12 / 0 / 0 / 1,91 -> ZMIERZONE 2026-09-05: 100 / 100 / 97,93 / 99,36 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/GlobalColorsEditor.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // TrendingTickerPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 97,94 / 100 / 77,87 / 95,51 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/TrendingTickerPane.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 95,
+          branches: 75,
+        },
+
+        // A4. Rama panelu administracyjnego i jej male sasiedztwo
+        // AdminShell.tsx: przed 4,39 / 5,4 / 18,99 / 3,96 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AdminShell.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AdminLangBar.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AdminLangBar.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AdminSidebarExtras.tsx: przed 25 / 0 / 100 / 25 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AdminSidebarExtras.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // DesignSubNav.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/DesignSubNav.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ImpersonationBanner.tsx: przed 73,33 / 66,66 / 62,5 / 73,68 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ImpersonationBanner.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // A5. Osiem paneli ustawien na wspolnym harnessie (src/test/admin/settingsPaneHarness.tsx)
+        // ThemeOptionsPane.tsx: przed 34,89 / 14,28 / 35,14 / 36 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,23 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ThemeOptionsPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // ThemeFontSizesPane.tsx: przed 1,49 / 0 / 0 / 1,36 -> ZMIERZONE 2026-09-05: 100 / 100 / 91,57 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ThemeFontSizesPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        // ThemeBackgroundsPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 97,5 / 100 / 87,09 / 97,87 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ThemeBackgroundsPane.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 95,
+          branches: 85,
+        },
+        // ExpertLayoutPreview.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,05 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ExpertLayoutPreview.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // AudioPicker.tsx: przed 4,16 / 0 / 0 / 3,73 -> ZMIERZONE 2026-09-05: 100 / 100 / 85,48 / 99,06 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AudioPicker.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // CoverImagePicker.tsx: przed 2,08 / 0 / 0 / 1,96 -> ZMIERZONE 2026-09-05: 100 / 100 / 85,29 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/CoverImagePicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // AccessSettingsPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 91,52 / 98,61 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AccessSettingsPane.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        // PostSettingsMetabox.tsx: przed 5,61 / 0 / 0 / 5,26 -> ZMIERZONE 2026-09-05: 100 / 100 / 98,38 / 98,94 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/PostSettingsMetabox.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+
+        // A3. Koszyk - sciezka pieniedzy w warstwie prezentacji
+        // CartPanel.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 94,44 / 97,61 (linie / funkcje / galezie / instrukcje).
+        "src/components/cart/organisms/CartPanel.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // CartLine.tsx: przed 0 / 0 / 100 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/cart/molecules/CartLine.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AddToCartButton.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/cart/atoms/AddToCartButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // Ogon komponentow publicznych
+        // SearchOverlay.tsx: przed 67,62 / 56,41 / 63,26 / 64,55 -> ZMIERZONE 2026-09-05: 100 / 100 / 95,91 / 98,73 (linie / funkcje / galezie / instrukcje).
+        "src/components/SearchOverlay.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // NewsletterForm.tsx: przed 71,79 / 37,5 / 57,94 / 65 -> ZMIERZONE 2026-09-05: 100 / 100 / 94,35 / 99,44 (linie / funkcje / galezie / instrukcje).
+        "src/components/NewsletterForm.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // AdSlot.tsx: przed 78,94 / 44,44 / 76,74 / 78,57 -> ZMIERZONE 2026-09-05: 100 / 100 / 97,67 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/AdSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // PostContentStyle.tsx: przed 5,55 / 0 / 0 / 5,26 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/PostContentStyle.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // FollowButton.tsx: przed 80 / 60 / 43,75 / 76,47 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/FollowButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // TtsPlayer.tsx: przed 34,54 / 45,45 / 19,23 / 31,66 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/TtsPlayer.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AppDialogHost.tsx: przed 48 / 30 / 19,23 / 44,82 -> ZMIERZONE 2026-09-05: 100 / 100 / 92,3 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/AppDialogHost.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        // RouteProgress.tsx: przed 86,04 / 83,33 / 87,5 / 84,78 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/RouteProgress.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // UnsavedChangesGuardHost.tsx: przed 57,14 / 50 / 0 / 60 -> ZMIERZONE 2026-09-05: 100 / 100 / 50 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/UnsavedChangesGuardHost.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 48,
+        },
+        // PostFooterBars.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/PostFooterBars.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ConsentPreviewPanel.tsx: przed 46,66 / 28,57 / 12,5 / 47,05 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/ConsentPreviewPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // Ogon plikow bezposrednich src/components/admin
+        // AppearanceBuilderPane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,66 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/AppearanceBuilderPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // CustomFontUploader.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/CustomFontUploader.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // FooterChromePane.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 95,45 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/FooterChromePane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // RelatedLayoutPreview.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/RelatedLayoutPreview.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // PageParentSelect.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/PageParentSelect.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // RelatedOverrideEditor.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/RelatedOverrideEditor.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // CustomMetaValuesEditor.tsx: przed 0 / 0 / 0 / 0 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/CustomMetaValuesEditor.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ImageSlot.tsx: przed 19,51 / 12,5 / 37,5 / 18,6 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/ImageSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // SiteSettingsHistoryDialog.tsx: przed 41,66 / 40 / 28,57 / 42,85 -> ZMIERZONE 2026-09-05: 100 / 100 / 96,42 / 96,42 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/SiteSettingsHistoryDialog.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // LayoutPreview.tsx: przed 80 / 100 / 67,34 / 81,08 -> ZMIERZONE 2026-09-05: 100 / 100 / 100 / 100 (linie / funkcje / galezie / instrukcje).
+        "src/components/admin/LayoutPreview.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
       },
     },
   },

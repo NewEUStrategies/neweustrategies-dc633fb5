@@ -4129,3 +4129,332 @@ obniżony, snapshot autoryzacji nie był regenerowany.
 8. **Dwie bramki nieuruchamialne w tym środowisku**, obie z braku dostępu do bazy, nie z powodu
    tej pracy: `check:db-contract` i `check:migration-ledger` kończą się „Brak SUPABASE_URL /
    klucza Supabase". Zmierzone identycznie na commicie bazowym.
+
+## 12. AKTUALIZACJA 2026-09-05 - kampania POWŁOKI PANELU ADMIN (przekrojowa, 221 plików)
+
+Rozdziały 0-9 są migawką wydania 8; rozdziały 10 i 11 opisują kampanie modułów 12 i 16. Ten
+rozdział dokłada kampanię powierzchni „PRZEKROJOWE: powłoka panelu admin + atomy/molekuły" -
+jedynej w tabeli głównej poniżej 60% linii i 55% funkcji, przy tysiącu dwustu testach, które
+omijały jej największe pliki. Zlecenie: `2 305 niepokrytych linii -> poniżej 1 100`,
+`900 niewywołanych funkcji -> poniżej 450`, bez jednej zmiany w produkcji.
+
+Zaczyna od tego, od czego zaczynać kazało samo zlecenie: od odtworzenia liczby, nie od jej
+przepisania. **Liczby zlecenia były o jedno wydanie za stare** (12.2 pkt 2) - punkt wyjścia
+zmierzono więc od nowa, a każda delta niżej jest liczona wobec tego pomiaru, nie wobec zlecenia.
+
+### 12.1. Pomiar: przed i po, tą samą metodą
+
+**Jak zmierzone.** Dwie metody, obie z `all: true` i konfiguracją repo bez zmian:
+
+- **pełna suita** (`vitest run --coverage`, reporter `json` + `json-summary`) - metoda audytu.
+  Stan „przed" zmierzony w OSOBNYM drzewie roboczym (`git worktree`) na nietkniętym HEAD
+  `a1ea505`, żeby praca agentów nie zmieniała mianownika w trakcie pomiaru: 2 267 plików
+  testowych, 34 min, 8 czerwonych plików (12.2 pkt 4);
+- **metoda katalogowa** (zalecana przez zlecenie do iteracji): te same trzy katalogi przed
+  i po - `src/components/__tests__ src/components/admin/__tests__ src/components/cart`.
+
+Mapowanie plik -> powierzchnia odtworzono z reguł rozdz. 9.1 (`scripts/taxonomy/moduleMap.mjs`
+plus własny skrypt liczący lukę z `coverage-final.json`); mianownik zgadza się z audytem co do
+pliku, linii i funkcji: **221 plików, 5 539 linii, 1 923 funkcje**.
+
+**Metoda katalogowa (przed: 22 pliki testowe, 421 przypadków; po: 69 plików, 1 372 przypadki,
+w tym 26 `it.fails`, zero czerwonych):**
+
+| miara                 |                                przed |                               po |     delta |
+| --------------------- | -----------------------------------: | -------------------------------: | --------: |
+| linie                 |             1 226/5 539 = **22,13%** |         3 439/5 539 = **62,09%** | +39,96 pp |
+| funkcje               |               280/1 923 = **14,56%** |         1 101/1 923 = **57,25%** | +42,69 pp |
+| gałęzie               |             1 238/5 956 = **20,79%** |         3 459/5 956 = **58,08%** | +37,29 pp |
+| instrukcje            |             1 353/6 183 = **21,88%** |         3 800/6 183 = **61,46%** | +39,58 pp |
+| niepokrytych linii    |                            **4 313** |                        **2 100** |    -2 213 |
+| niewywołanych funkcji | **1 643** (nazw. 296, anonim. 1 347) | **822** (nazw. 196, anonim. 626) |      -821 |
+| plików na zerze       |                                  176 |                              145 |       -31 |
+
+Rozkład tej luki po katalogach mówi, gdzie poszła praca: `src/components/admin` (pliki
+bezpośrednie, 31 plików) **1 453 -> 40** niepokrytych linii, `src/components` (30 plików)
+**798 -> 92**, `src/components/cart/**` (3 pliki) **50 -> 0**. Katalogi atoms/molecules
+(nietknięte celowo) i features/hooks zostały na swoich liczbach - w tej metodzie wysokich, bo
+ich testy leżą w innych katalogach.
+
+**Pełna suita (metoda audytu) - stan „przed" zmierzony na HEAD `a1ea505`:**
+
+| miara                 | zlecenie (wyd. 9) |               zmierzone „przed" |
+| --------------------- | ----------------: | ------------------------------: |
+| linie                 |            58,39% |        3 521/5 539 = **63,57%** |
+| funkcje               |            53,20% |        1 082/1 923 = **56,27%** |
+| gałęzie               |            52,13% |        3 298/5 956 = **55,37%** |
+| instrukcje            |            57,06% |        3 838/6 183 = **62,07%** |
+| niepokrytych linii    |             2 305 |                       **2 018** |
+| niewywołanych funkcji |               900 | **841** (nazw. 88, anonim. 753) |
+| plików na zerze       |                27 |                          **21** |
+
+Rozbieżność zlecenie / pomiar to skutek commitu `7c83da2` (12.2 pkt 2); mianownik jest
+identyczny, więc różnica to praca wykonana między wydaniem 9 a startem kampanii, nie
+przesunięcie granicy.
+
+**Pełna suita - stan „po".** Pełny przebieg „po" (2 267 plików, ok. 35 min) był w toku w chwili tego commitu i zostanie dopisany do tej tabeli w kolejnym commicie tej gałęzi. Szacunek z pomiaru katalogowego: 44 ruszone pliki miały w pełnej suicie „przed" 1 764 niepokryte linie i 725 niewywołanych funkcji, po kampanii mają **6 linii i 0 funkcji** (metoda katalogowa; pełna suita nie mniej), więc oczekiwana luka całej powierzchni to **około 260 niepokrytych linii i około 116 niewywołanych funkcji** wobec celu 1 100 i 450.
+
+**Czterdzieści cztery ruszone pliki powierzchni** (plus dwa poza nią: `footer/BackToTop.tsx`
+i `footer/CopyrightBar.tsx` pokryte przy okazji przez drzewo Footera) niosły w pełnej suicie
+„przed" **1 764 z 2 018 niepokrytych linii (87,4%) i 725 z 841 niewywołanych funkcji (86,2%)**.
+Po kampanii, zmierzone metodą katalogową na tych samych 44 plikach: **6
+niepokrytych linii i 0 niewywołanych funkcji**. Najniższe wyniki
+w tej grupie: `Footer.tsx` i `ThemeBackgroundsPane.tsx` 97,5% linii (po jednej nieosiągalnej linii), `TrendingTickerPane.tsx` 97,94% linii i 77,87% gałęzi (fallbacki `??` po normalizacji są strukturalnie martwe); pozostałe 41 plików ma 100% linii, a wszystkie 44 mają 100% funkcji.
+
+Tabela per plik (przed -> po, pełna suita „przed", metoda katalogowa „po") jest zapisana
+w komentarzach progów w `vitest.config.ts` (12.5) - każdy z 44 plików ma tam swoje cztery liczby.
+
+### 12.2. Co w zleceniu okazało się nieaktualne - sprawdzone liczbą, nie przepisane
+
+Zlecenie prosiło o tę listę osobno, bo wydanie 9 znalazło osiem własnych pomyłek właśnie tak.
+Ta kampania znalazła ich więcej, w trzech warstwach: pomiar wyjściowy, opisy komponentów
+i założenia o środowisku testowym.
+
+**Pomiar wyjściowy (warstwa 1).**
+
+1. **Katalogów `coverage-ed9/` i `coverage-ed9-final/` nie ma w repozytorium** - to samo mówi
+   rozdz. 8.5 pkt 11. Punkt wyjścia trzeba było zmierzyć od nowa; wynik w 12.1.
+2. **Liczby zlecenia były o jedno wydanie za stare.** Zlecenie: 58,39% linii, 53,20% funkcji,
+   2 305 niepokrytych linii, 900 niewywołanych funkcji, 27 zer. Zmierzone na HEAD `a1ea505`
+   (identyczny mianownik: 221 plików, 5 539 linii, 1 923 funkcje): **63,57% / 56,27% /
+   2 018 / 841 / 21**. Przyczyną jest commit `7c83da2` („A1+B1: odpięte jedyne bezwarunkowe
+   pominięcie w repo"), który zdjął `describe.skip` z `RootComponent` PRZED tą kampanią, więc
+   `ConsentScriptInjector` (zlecenie: 1,20% linii) stał już na **40,96%**, a `Header.tsx`
+   (zlecenie: 1,65%) na **74,58%**. Katalog `src/components` (pliki bezpośrednie) miał 360
+   niepokrytych linii, nie 637.
+3. **Pułapka „nie odpinaj `describe.skip` w `rootShellRender.test.tsx`" była bezprzedmiotowa** -
+   był już odpięty (patrz wyżej). Dokumentów `docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md` i
+   `docs/PROMPT_OSIEM_CZERWIENI.md` nie ma w `docs/`; audyt nie ma rozdziału 12.2, do którego
+   odsyłało zlecenie (dokument kończył się na 11.7 - ten rozdział jest dwunasty).
+4. **Osiem czerwonych plików potwierdzone, ale 314 czerwonych testów, nie 272:**
+   `adminSettingsRoutes` (188/225), `adminAnalyticsRoute` (55/55), `clubNewThreadRoute`
+   (44/65), `adminCommunityIndexRoute` (20/51), `pollsRoute` (4/35), `settingsFidelity.gate`
+   (1/236), `monolingualUserText` (1/44), `headerTickerQuery` (1/24). Żaden nie dotyka plików
+   tej kampanii; ta sama ósemka jest czerwona po niej.
+5. **Rozmiary plików w zleceniu to długości plików, nie linie mierzone przez v8**: 1 897 /
+   1 138 / 877 / 601 / 304 / 286 / 281 / 226 linii pliku to odpowiednio 192 / 195 / 89 / 67 /
+   40 / 47 / 96 / 48 linii wykonywalnych. „CartPanel 189 linii" to długość pliku - luka miała
+   39 linii.
+6. **Pomiar katalogowy (trzy katalogi, jak sugerowało zlecenie) daje inne liczby niż pełna
+   suita** dla plików pokrywanych z `src/routes/__tests__` i innych katalogów: AdSlot 37 wobec
+   8 niepokrytych linii, RouteProgress 23,25% wobec 86,04%, AppDialogHost 0/10 funkcji wobec
+   48%/30%, UnsavedChangesGuardHost 0/6 wobec 57%/50%, ErrorBoundary 0% wobec 87,5%, Lightbox
+   0% wobec 100%, LayoutPreview 0% wobec 80%, BulkActionsBar 0% wobec 95,65%, AutosaveBar
+   i ConfirmDialog 0% wobec 100%, AlertBar 0% wobec 17,64%, SiteChrome 0% wobec 66,66%.
+   Dlatego liczby sukcesu podano poniżej OBIEMA metodami.
+7. **Dwa pliki leżące w katalogach powierzchni nie należą do jej 221 plików**: `PostEditor.tsx`
+   i `PostGeneralOverview.tsx` (moduł 2 wg mapy z 9.1), `Paywall.tsx` (moduł 1). Glob
+   `src/components/admin/*` obejmuje 33 pliki, powierzchnia liczy w tym katalogu 31.
+8. **Instalacja zależności** w świeżym klonie wymaga obejścia z `ci.yml:135-142` (bun.lock
+   przypina 340 tarballi do prywatnego mirrora `pkg.dev`, który zwraca 403). Zastosowane,
+   lockfile przywrócony bajt w bajt.
+
+**Opisy komponentów (warstwa 2) - po jednym sprawdzeniu na plik.**
+
+9. `Header.tsx` **nie czyta stanu logowania** - wariant „zalogowany / niezalogowany" nie istnieje
+   (sekcja konta żyje w `MobileDrawerBody`). `isHome` dokłada wyłącznie klasę CSS; o zwijaniu
+   decyduje `resolveHeaderMode(pathname, contentKind)`. Props `isHome` eksportowanego Headera
+   jest **ignorowany** (pułapka typowa: warstwa zewnętrzna destrukturyzuje tylko `adPageType`
+   i `contentKind`; żadne miejsce produkcyjne go nie podaje). Escape zamyka szufladę własnym
+   nasłuchem, nie fokus-trapem.
+10. `AdminShell.tsx` **nie ma trybu mobilnego** (brak `matchMedia`, drawera i progu szerokości;
+    tryby: rozwinięty, `compact`, `hideSidebar`). „Klasyczny błąd `startsWith`" NIE występuje -
+    produkcja dokleja separator (`path.startsWith(\`${item.to}/\`)`). `buildAdminNavGroups`nie
+tworzy ani jednej pozycji`href`, więc gałąź linku zewnętrznego jest produkcyjnie
+nieosiągalna, a komentarz `AdminShell.tsx:127-129` o „Darowiznach" jako usłudze zewnętrznej
+jest nieaktualny (`/admin/donations` to trasa wewnętrzna).
+11. **Osiem paneli ustawień NIE ma jednego kształtu** („czyta site_settings, pokazuje formularz,
+    zapisuje"). Zmierzone granice danych: `useSettings` (site_settings + deepMerge +
+    odczyt-przed-zapisem), `site_design_tokens.global_colors` z `edgeTtlCache`,
+    `siteSettingsQueryOptions` + `post_layout_settings` + RPC + server fn, `profiles` +
+    `expertHubQueryOptions`, `supabase.storage` + `useRequiredTenant`, `access_plans` +
+    `content_access` + cztery RPC + `membership_tiers` + `metering_settings`. Wspólny harness
+    obsługuje je wszystkie, ale przez sześć różnych wejść, nie jedno. `ExpertLayoutPreview`
+    nie ma ścieżki zapisu (komponent podglądowy). `ThemeOptionsPane` ma 17 sekcji, nie
+    zakładki. `CoverImagePicker` nie ma alt ani focal pointa (ma przełącznik trzech ramek
+    urządzeń). `AudioPicker` nie ma własnych kontrolek odtwarzania. `AccessSettingsPane` nie
+    edytuje limitów meteringu (polityka inherit/metered/exempt) i z `useContentAccess` bierze
+    tylko typy.
+12. `TrendingTickerPane.tsx` **nie używa `useSettings`/`useSiteSetting`** - czyta i zapisuje
+    `site_settings` wprost przez `supabase.from` w react-query; z `headerTickerQuery` bierze
+    wyłącznie typ; sterowania animacją ognia nie ma w UI (blok wycięty).
+13. `GlobalColorsEditor.tsx` nie przyjmuje propów, nie ma przełącznika light/dark (każdy slot ma
+    osobne pola) ani własnego komunikatu błędu zapisu (toast siedzi w haku). „12 martwych funkcji"
+    to 12 NAZWANYCH - plik ma ich 96 i wszystkie były niewywołane. `isHexColor` i `bumpFontSize`
+    nie są eksportowane; pokryte przez interakcje z asercją na wynik, bez dopisywania eksportu.
+14. **Koszyk nie ma kontrolki ilości** (`+/-`, wpisywanie) - `addCartItem` jest idempotentne
+    (jedna pozycja = jeden bilet). Suma przypięta do dodania, usunięcia i wyczyszczenia.
+15. Cztery pliki „zerowe" ze zlecenia nie były na zerze w pełnej suicie: `LayoutPreview` 80%,
+    `BulkActionsBar` 95,65%, `AutosaveBar` i `ConfirmDialog` 100%; `ImpersonationBanner` 73,33%,
+    `AdminSidebarExtras` 25%. Na zerze naprawdę były: `AdminLangBar`, `DesignSubNav`.
+16. `SearchOverlay` używa kluczy `search.*`, których sam nie rejestruje - ale w wysyłanej
+    aplikacji `__root.tsx:724` montuje `CommandPalette`, który importuje `@/lib/i18n-search`.
+    To SPRZĘŻENIE, nie widoczny defekt; pierwszy opis (implementatora) mówił „defekt" i został
+    przepisany przez recenzenta.
+
+**Środowisko testowe (warstwa 3).**
+
+17. **happy-dom 20.9.0 NIE ewaluuje inline `<script>` domyślnie** (`enableJavaScriptEvaluation:
+false`) i **nie pobiera `<script src>`** przy domyślnych ustawieniach - zlecenie zakładało
+    odwrotność w obu punktach. Kontrakt 3 z A1 włącza ewaluację punktowo, w `try/finally`.
+18. **happy-dom WYKONUJE prawdziwe żądanie HTTP dla `<iframe src>`** - `ExpertLayoutPreview`
+    montuje taką ramkę; bez interceptora test wychodził na `localhost:3000`. Harness odcina to
+    przez `stubBrowserPageFetch()`.
+19. **`@/lib/billing/fxRate` przy IMPORCIE modułu wykonuje prawdziwy `fetch` do `api.nbp.pl`**
+    (`void ensureFxRateLoaded()`); dociera tam każdy test importujący `AccessSettingsPane`
+    (przez `displayCurrency`). `vitest.setup.ts` neutralizuje tylko `navigator.sendBeacon`, nie
+    `fetch` - dyscyplina musi być per plik.
+20. `<audio>` w happy-dom nie emituje `loadedmetadata` ani `error`, a `duration` jest `NaN` -
+    bez atrapy metadanych ścieżka udanego uploadu `AudioPickera` była nieosiągalna.
+21. `src/test/supabase/storage.ts` daje tylko podpisy (brak `upload`/`getPublicUrl`/`remove`),
+    a `reactI18nextStub` nie obsługuje `t(key, { returnObjects: true })` - oba braki obeszły
+    atrapy w harnessie, bez ruszania wspólnych stubów, których używa kilkadziesiąt plików.
+22. Pełna atrapa `@tanstack/react-start` (`vi.mock` bez `importOriginal`) wywraca plik testowy na
+    starcie, bo `src/lib/i18n/localeRuntime.ts` woła `createIsomorphicFn()` z tego modułu -
+    podmieniać wolno tylko `useServerFn`.
+23. Zawężony typecheck (`extends` + `include` na kilku plikach) wymaga dopisania `"node"` do
+    `types` - inaczej fałszywe TS2591 (`process`, `Buffer`) w `src/lib/http/host.ts` i podobnych.
+
+### 12.3. Punkty zlecenia A1-A5 i B1 - wymóg wobec pomiaru
+
+| punkt             | wymóg                                                                                                                                    | zmierzone                                                                                                                                                                                                                                                                                                                                                                                                                                                               | status                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| A1                | `ConsentScriptInjector.tsx` >= 85% linii, >= 80% gałęzi, 7 funkcji nazwanych wywołanych, 4 kontrakty z osobnymi asercjami, próg per plik | **100% linii, 100% funkcji (16/16, w tym 7 nazwanych), 92,45% gałęzi**; cztery kontrakty po jednym `describe`, cofnięcie zgody asertowane na pustym `querySelectorAll('[data-consent-owner]')` po inwentarzu 12 węzłów obu kategorii; dowód braku sieci asercją (atrapa `fetch` niewywołana + obie bramki happy-dom); identyfikatory-atrapy, adresy tylko `example.com`; próg 98/98/94/90                                                                               | tak                          |
+| A2                | `GlobalColorsEditor`, `TrendingTickerPane`, `Header` >= 60% linii; `Header` >= 70% funkcji; `isHexColor` i `bumpFontSize` pokryte        | GlobalColorsEditor **100% linii, 96/96 funkcji**; TrendingTickerPane **97,94% linii, 96/96 funkcji**; Header **100% linii, 42/42 funkcji**; `isHexColor` (41 wywołań) i `bumpFontSize` (13) wykonane przez interakcje z asercją na wynik, bez dopisywania `export`; wariant „zalogowany" nie istnieje (12.2 pkt 9); PL i EN jako osobne przypadki na słowniku                                                                                                           | tak                          |
+| A3                | trzy pliki koszyka > 0, `CartPanel` >= 70% linii, suma asercją na wartość                                                                | CartPanel, CartLine, AddToCartButton **100% linii i funkcji**; sumy asertowane na kwotach (`170,00 zł`, `1,00 zł`, `50,00 €`, `PLN 120.00` po angielsku), PLN i EUR osobno; ładunek do kasy rozebrany na pola; kontrolki ilości nie ma (12.2 pkt 14)                                                                                                                                                                                                                    | tak                          |
+| A4                | `AdminShell.tsx` >= 60% funkcji, `groupContainsPath` tabelarycznie z przypadkiem wspólnego prefiksu                                      | **100/100/100/100**; `groupContainsPath` (nieeksportowana) wykonana przez zachowanie: wszystkie grupy zwinięte w localStorage, rozwinięta zostaje tylko grupa z aktywną trasą; `/admin/posts-archive` asertowane negatywnie na całej liście - produkcja jest poprawna, błędu `startsWith` nie ma                                                                                                                                                                        | tak                          |
+| A5                | osiem paneli razem >= 55% linii, żaden z 0% funkcji, harness w jednym pliku                                                              | osiem paneli: **600/601 linii (99,83%), 304/304 funkcji**; jeden harness `src/test/admin/settingsPaneHarness.tsx` (bez importów produkcyjnych, sześć wejść granic danych), osiem nazwanych funkcji `PostSettingsMetabox` wywołanych; „ten sam kształt" - nieprawda (12.2 pkt 11)                                                                                                                                                                                        | tak                          |
+| B1                | próg jawny per plik na każdy ruszony plik; rozstrzygnięcie o globie `src/components/admin/**` z liczbą                                   | 44 progi per plik (12.5); glob `src/components/admin/**` ODRZUCONY z liczbą: 833 pliki, 90,47% linii przed kampanią - podłoga zdominowana przez zdrowe podkatalogi; zamiast niego glob na PLIKI BEZPOŚREDNIE `src/components/admin/*` (33 pliki, 28,50% -> 97,88% linii) i `src/components/*` (32 pliki, 78,47% -> 92,52%)                                                                                                                                              | tak                          |
+| cała powierzchnia | >= 75% linii, >= 70% funkcji, zer < 10 (pełna suita)                                                                                     | pełna suita „po" w toku (patrz 12.1); szacunek z ruszonych plików: około 95% linii i około 94% funkcji, zer poniżej 10. Metoda katalogowa daje 62,09% / 57,25%, bo pomija testy z innych katalogów (atoms, features, hooks, membership)                                                                                                                                                                                                                                 | do potwierdzenia pełną suitą |
+| CI                | `check:*` zielone poza `check:ci-gates`; suita czerwona w tych samych ośmiu plikach                                                      | 23 z 26 bramek statycznych zielone; `check:unknown-casts` był czerwony przez harness i został naprawiony; `check:entry-purity` i `check:migration-ledger` wymagają builda / danych dostępowych i są czerwone tak samo na nietkniętym HEAD; `check:ci-gates` czerwona spoza kampanii (`monolingualUserText`); `lint`, `format:check`, pełny `tsc --noEmit` zielone; osiem czerwonych plików - w metodzie katalogowej zero czerwonych w 69 plikach; pełny przebieg w toku | tak                          |
+
+### 12.4. Rejestr defektów: 19 wpisów `it.fails` - 18 defektów i jedno sprzężenie (bez jednej zmiany w produkcji)
+
+Każdy wpis został zweryfikowany przez recenzenta adwersaryjnego odwróceniem `it.fails` na `it`,
+uruchomieniem i zacytowaniem komunikatu porażki; żaden nie pada z innego powodu niż opisany.
+
+| #   | plik produkcyjny                                | defekt                                                                                                                                                                                                                                                                                                                                                                   | waga             |
+| --- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| 1   | `admin/AccessSettingsPane.tsx:76-117`           | faza ładowania nie sprawdza `.error` żadnego z czterech odczytów: odmowa uprawnień do `content_access` (42501), błąd PostgREST albo awaria sieci dają `null`, panel pokazuje `public` jako stan bieżący, a pierwszy zapis upsertuje `public` na istniejącą regułę - **zdjęcie paywalla bez komunikatu**; test dowodzi obu połówek (stan na ekranie ORAZ ładunek upsertu) | pieniądze        |
+| 2   | `ConsentScriptInjector.tsx:102-105`             | `plausible_script_url` z panelu interpolowany do selektora CSS bez `CSS.escape()`: odwrotny ukośnik po cichu gubi `data-domain`                                                                                                                                                                                                                                          | RODO / analityka |
+| 3   | `ConsentScriptInjector.tsx:102-105`             | ten sam brak ucieczki: cudzysłów w adresie rzuca `SyntaxError` z `querySelectorAll` WEWNĄTRZ `useEffect` i wywraca render strony publicznej u każdego ze zgodą na analitykę; schemat waliduje tylko długość                                                                                                                                                              | strona publiczna |
+| 4   | `SearchOverlay.tsx:95-121, 191-198`             | dwa efekty pilnują `body.style.overflow`; drugi zapamiętuje `hidden` pierwszego, więc po zamknięciu lupki strona **przestaje się przewijać** (Header trzyma overlay zamontowany)                                                                                                                                                                                         | strona publiczna |
+| 5   | `NewsletterForm.tsx:713` + `formFields.ts:167`  | `ConsentCheckboxField` wystawia `<input type="hidden" value="1">`, a `collectCustomValues` uznaje tylko `"on"`: zgoda custom typu checkbox nigdy nie dociera do ładunku, a z `required: true` **formularza nie da się wysłać**                                                                                                                                           | newsletter       |
+| 6   | `admin/GlobalColorsEditor.tsx:398-403`          | „Anuluj" ustawia `skipHistoryRef` i woła `setDraft(baseline)` z wartością - flagę konsumuje tylko updater, więc pierwsza zmiana po anulowaniu wypada z historii cofania                                                                                                                                                                                                  | panel            |
+| 7   | `admin/GlobalColorsEditor.tsx:336-342, 778-781` | `setSlotMeta` liczy `next` z domkniętego `draft`; „Wyczyść font/size" woła je dwa razy w jednym handlerze - przeżywa ostatnie, font zostaje                                                                                                                                                                                                                              | panel            |
+| 8   | `admin/GlobalColorsEditor.tsx:867-871`          | ten sam mechanizm w `FormatRow`: „Wyczyść" zdejmuje samo podkreślenie, `fontWeight` i `fontStyle` zostają w drafcie i w CSS podglądu                                                                                                                                                                                                                                     | panel            |
+| 9   | `admin/TrendingTickerPane.tsx:702, 715, 740`    | pola dni / liczba wpisów / interwał bez górnego zacisku (`Math.max` bez `Math.min`, mimo `max=90/30/120`); 999 trafia do bazy, `normalizeTickerConfig` ścina po cichu przy odczycie do 90/50/120                                                                                                                                                                         | panel            |
+| 10  | `admin/TrendingTickerPane.tsx:1113-1126`        | `<Label htmlFor>` wskazuje identyfikator, którego `AdminColorPicker` nie przyjmuje - etykieta martwa dla 12-18 pól kolorów (atrapa w teście przekazuje `id`, więc test zzielenieje już po połowie naprawy - opisane)                                                                                                                                                     | dostępność       |
+| 11  | `admin/ThemeOptionsPane.tsx:1425-1443`          | `InputPreview` miesza skrót `borderWidth` z `borderBottomWidth`; przełączenie stylu pola na `underline` gubi jedyną krawędź podglądu przy re-renderze (React ostrzega o konflikcie skrótu i wartości szczegółowej)                                                                                                                                                       | panel            |
+| 12  | `admin/AdminShell.tsx:410-419`                  | przycisk rozwijający zwinięty sidebar nie ma dostępnej nazwy (bliźniaczy przycisk zwijania ma `title`; etykieta idzie tylko do dymka Radix, czyli daje `aria-describedby`, nie nazwę)                                                                                                                                                                                    | dostępność       |
+| 13  | `admin/AdminShell.tsx:77-110`                   | `SidebarRowButton` nie przepuszcza `...rest`, więc `TooltipTrigger asChild` gubi `data-state`/`aria-describedby`/handlery - w trybie zwiniętym motyw/język/wylogowanie bez podpowiedzi i bez napisu                                                                                                                                                                      | dostępność       |
+| 14  | `RouteProgress.tsx:73, 86`                      | efekt zwraca `() => undefined` w obu gałęziach; `clearInterval` woła się dopiero w NASTĘPNYM przebiegu efektu - odmontowanie w trakcie nawigacji zostawia `setInterval` 220 ms (mierzalny skutek: wyciek zegara; `setState` po unmount w React 19 to ciche nic)                                                                                                          | wyciek           |
+| 15  | `admin/SiteSettingsHistoryDialog.tsx`           | `handleRestore` ma `try/finally` bez `catch`, wynik nieodbierany (`onClick={handleRestore}`): odrzucone `onRestore` wycieka jako nieobsłużone odrzucenie, a `lib/observability` beaconuje je jako „nieobsłużony błąd JS" (konsument `ThemeOptionsPane` woła `mutateAsync`, które odrzuca)                                                                                | telemetria       |
+| 16  | `admin/ImageSlot.tsx`                           | `file.name.split(".").pop() \|\| "png"` - bramka zapasowa martwa dokładnie dla pliku bez kropki (cała nazwa wchodzi jako rozszerzenie do klucza w kubełku)                                                                                                                                                                                                               | media            |
+| 17  | `admin/CoverImagePicker.tsx:66`                 | identyczny kształt (`\|\| "png"`): plik `zrzut` ląduje jako `...-7f8k2q.zrzut`                                                                                                                                                                                                                                                                                           | media            |
+| 18  | `admin/AudioPicker.tsx:154`                     | identyczny kształt (`\|\| "mp3"`); plik bez rozszerzenia przechodzi walidację po samym MIME                                                                                                                                                                                                                                                                              | media            |
+
+Cztery wpisy powstały dopiero w recenzji: 1 (druga połowa dowodu - ładunek upsertu), 15 (implementator uznał ścieżkę za nietestowalną, bo nieobsłużone odrzucenie wywraca plik; recenzent zamknął ją podmianą nasłuchu `unhandledRejection` na czas jednego przypadku), 16 (implementator miał to jako test przechodzący, charakteryzujący defekt jako normę) i 18 (opisany w komentarzu, nieprzypięty). Jeden wpis recenzja **przeklasyfikowała w drugą stronę**: brak importu `@/lib/i18n-search` w `SearchOverlay` to sprzężenie międzymodułowe (12.2 pkt 16), nie widoczny defekt - został jako `it.fails` z uczciwą nazwą „SPRZĘŻENIE".
+
+**Znaleziska bez wpisu w rejestrze** (opisane w nagłówkach testów): props `isHome` eksportowanego Headera ignorowany (pułapka typowa, nie żywy błąd); `Footer.tsx:39-44` ma oba ramiona `isLoading` identyczne, a `:92-96` jest nieosiągalne; grupa `overview` w nawigacji panelu nie ma etykiety, więc nie ma czym jej zwinąć (notatka implementatora „nigdy nie może być zwinięta" przeceniała skutek); `ThemeOptionsPane` przez `useSettings` robi deepMerge już przy odczycie, więc dowód scalania przy zapisie wymaga gałęzi dopisanej PO wczytaniu; tło szuflady mobilnej leży poza kontenerem pułapki fokusu.
+
+### 12.5. Progi per-ścieżka dopisane tą kampanią i rozstrzygnięcie B1
+
+**Czterdzieści cztery progi per plik**, każdy ZMIERZONY tym samym przebiegiem:
+
+```
+npx vitest run --coverage --coverage.reporter=json --coverage.reporter=json-summary \
+  src/components/__tests__ src/components/admin/__tests__ src/components/cart
+```
+
+(69 plików testowych, 1 346 zielonych + 26 `it.fails`; 2026-09-05). Podłoga = zmierzone minus
+~2 pp na każdej z czterech miar, zaokrąglone w dół, nigdy powyżej 98 (konwencja pliku: 100%
+mierzone -> próg 98). Pełna suita daje na tych plikach nie mniej, bo zawiera te same testy.
+Przy każdym progu komentarz z czterema liczbami „przed" (pełna suita, HEAD `a1ea505`) i czterema
+„po". Liczba progów per-ścieżka w repo rośnie z 382 na **428** (44 pliki + 2 globy niżej).
+
+**B1 - glob `src/components/admin/**`: NIE, z liczbą.** Vitest dopasowuje globy progów przez
+picomatch do ścieżki względnej i liczy każdy glob jako AGREGAT dopasowanych plików
+(`coverage.DM_a_rWm.js`, `resolveThresholds`). `src/components/admin/**` objąłby **833 pliki**,
+z których 800 leży w podkatalogach mających własne globy na 85-100%. Wartość tego globu przed
+kampanią: **90,47% linii / 88,58% funkcji / 83,68% gałęzi / 89,63% instrukcji** przy 13 plikach
+bezpośrednich na zerze. Podłoga postawiona na tej liczbie nie zauważyłaby wyzerowania całego
+katalogu plików bezpośrednich (1 933 linie z 24 340 to 7,9% agregatu). Taki glob jest gorszy niż
+jego brak, bo udaje ochronę.
+
+**Zamiast niego dwa globy na PLIKI BEZPOŚREDNIE** - dokładnie te, które niosły 87,5% luki
+i nie należały do żadnego istniejącego globu:
+
+| glob                     | plików | przed (pełna suita, HEAD a1ea505)      | po (metoda katalogowa)                  | próg (instr. / fn / linie / gał.) |
+| ------------------------ | -----: | -------------------------------------- | --------------------------------------- | --------------------------------: |
+| `src/components/admin/*` |     33 | 28,60 / 22,34 / 28,50 / 31,07 (13 zer) | 96,94 / 98,46 / 97,88 / 91,22 (3 zera*) |                 92 / 94 / 93 / 87 |
+| `src/components/*`       |     32 | 75,30 / 67,90 / 78,47 / 67,90 (1 zero) | 90,73 / 88,89 / 92,52 / 81,04 (8 zer*)  |                 86 / 84 / 88 / 77 |
+
+\* „zera" w metodzie katalogowej to pliki pokrywane wyłącznie z innych katalogów (np.
+`ErrorBoundary`, `Lightbox`, `Paywall`), w pełnej suicie niezerowe. Podłoga = zmierzone minus
+~4 pp (konwencja pliku dla globów), więc pełna suita ma zapas większy niż pokazuje ta tabela.
+Glob `src/components/admin/*` obejmuje też `PostEditor.tsx` i `PostGeneralOverview.tsx`
+(moduł 2 wg mapy, po 100% w pełnej suicie) - to jedyna różnica między globem a 31 plikami
+powierzchni w tym katalogu.
+
+### 12.6. Czego NIE zrobiono i co zostaje otwarte
+
+1. **Żadnej naprawy produkcyjnej.** Osiemnaście defektów jest przypiętych, nie naprawionych -
+   zakresem była praca testowa. Pierwsza naprawa zapali odpowiedni `it.fails` na zielono
+   i wymusi zdjęcie przypięcia. Kolejność sugerowana wagą: 1 (paywall), 3 i 2 (render strony,
+   RODO), 4 i 5 (strona publiczna, newsletter), reszta.
+2. **Atomy i molekuły nietknięte** (61 plików, 159 linii luki w pełnej suicie) - zgodnie ze
+   zleceniem.
+3. **`ConsentBanner.tsx`** (868 linii pliku, 90,24% linii, ale **16 niewywołanych funkcji**) -
+   pominięty regułą „>= 90% linii pomiń". Reguła mierzyła linie, a kampania funkcje; recenzent
+   wp9 ocenił, że warto było go wziąć. To największy pojedynczy pozostały zbiór martwych
+   funkcji spośród plików bezpośrednich `src/components`.
+4. **Komponenty stylów `ContentAreaStyle`, `ThemeOptionsStyle`, `DesignTokensStyle`** mają 100%
+   linii z mimochodem wykonanego montowania w testach `__root`, ale **żaden test w repo nie
+   asertuje ich wygenerowanego CSS**. Kryterium zlecenia („asercja na wartości") jest spełnione
+   tylko dla `PostContentStyle`; dokładanie testów do plików na 100% jest pułapką, którą
+   zlecenie samo nazwało - konflikt zapisany, nie rozstrzygnięty.
+5. **Gałęzie strukturalnie martwe** zostają niepokryte i są nazwane w nagłówkach plików:
+   strażnicy SSR (`typeof window/document === "undefined"`), `?? default` po normalizacji, która
+   wypełnia każde pole (TrendingTickerPane 77,87% gałęzi), no-op za przyciskami `disabled`,
+   bramki `commit` wyłączone dokładnie wtedy, gdy mogłyby zadziałać.
+6. **Trzy bramki `check:*` nie były uruchamialne w tym środowisku**: `check:entry-purity` (wymaga
+   `bun run build`), `check:migration-ledger` i `check:db-contract`/`check:types-freshness`
+   (wymagają danych dostępowych Supabase), harnessy pgTAP. Wszystkie są czerwone tak samo na
+   nietkniętym HEAD. `check:ci-gates` jest czerwona z powodu spoza kampanii (ratchet tekstu
+   jednojęzycznego, `monolingualUserText`), tak jak zapowiadało zlecenie.
+7. **Snapshot autoryzacji nieregenerowany**, `vitest.config.ts` bez ani jednego `exclude`,
+   `all: true` bez zmian, żaden istniejący próg nie został obniżony.
+
+### 12.7. Jak to zrobiono - i co złapała recenzja adwersaryjna
+
+Dziewięć pakietów, każdy w dwóch krokach: implementator pisze testy, potem NIEZALEŻNY recenzent
+adwersaryjny (osobny kontekst, polecenie „sprawdź, nie uwierz") odtwarza pomiar, odwraca każdy
+`it.fails` na `it`, cytuje komunikat porażki, sprawdza reguły i poprawia sam. Wspólne zasady
+w jednym pliku briefu, pomiar bazowy per plik w JSON, żadnego commitu bez recenzji.
+
+Recenzja nie była formalnością. Bez niej do repozytorium trafiłyby:
+
+- **losowa czerwień w CI**: `RouteProgress.test.tsx` renderował stan nawigacji na prawdziwym
+  zegarze, a produkcja nie sprząta zegara przy odmontowaniu (defekt nr 14) - zaległy
+  `setTimeout` dobijał po rozbiórce środowiska pliku i wywalał przebieg
+  `ReferenceError: window is not defined`; w izolacji i na ciepłym cache nie reprodukowało się;
+- **bomba zegarowa**: `CartPanel.test.tsx` z literalnym `addedAt: 2026-08-20` kontra
+  30-dniowe okno `pruneCart` - plik zgasłby sam około 2026-09-19 (przy zegarze 2026-12-21
+  padało 30 z 33 testów);
+- **plik binarny w repo**: `CustomFontUploader.test.tsx` miał surowe bajty `0x00 0x01`
+  w literale `new File([...])` (git raportował `Bin`, grep odmawiał przeszukania);
+- **fałszywe „nie da się"**: ścieżka odmowy `onRestore` uznana za nietestowalną - da się;
+- **test charakteryzujący defekt jako normę** (ImageSlot) i **dowód połowiczny** (paywall bez
+  asercji na ładunek zapisu);
+- **przecenione skutki** w trzech opisach defektów (RLS zwracające `null` bez błędu; grupa
+  `overview`; etykieta koloru zieleniejąca po połowie naprawy) i jeden **niedoceniony**
+  (SidebarRowButton: w przeglądarce klasa `hidden` zdejmuje napis z drzewa dostępności, więc
+  przycisk zostaje bez dymka I bez nazwy);
+- **martwe rusztowanie** (pole `h.language` zadeklarowane, resetowane, nigdy nie ustawione na
+  `"en"` - reguła PL/EN realnie obowiązywała przez `useBuilderLabel` i nie była spełniona).
+
+Czego recenzja NIE złapała, dopóki nie zrobiła tego bramka repozytorium: dwa `as unknown as`
+w harnessie etapu A (`check:unknown-casts`, ratchet). Zdjęte w recenzji etapu B bez osłabiania
+typów. Wniosek dla następnych kampanii: `bun run check:unknown-casts` należy do zestawu
+sprawdzeń implementatora, nie tylko nadzorcy.
