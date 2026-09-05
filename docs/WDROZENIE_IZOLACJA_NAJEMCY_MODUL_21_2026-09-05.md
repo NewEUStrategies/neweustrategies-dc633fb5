@@ -15,19 +15,19 @@ bo ta druga lista jest dla audytu cenniejsza niż pierwsza.
 
 ## 1. Stan zastany: pomiar przed pracą
 
-| co | zlecenie twierdzi | repozytorium na HEAD `e15d2d3` | źródło |
-| --- | --- | --- | --- |
-| linie modułu | 55,12% (468/849) | **100%** (883/883) | commit `052aea9`, 2026-09-03 |
-| funkcje modułu | 47,13% (164/348) | **100%** (359/359) | jw. |
-| wywołania `it(` | 165 | **643** (23 pliki testowe) | `grep -a`, zakres jak niżej |
-| wywołania `expect(` | 374 | **2 007** | jw. |
-| klucze progowe w `vitest.config.ts` | 554 | **638** | parser kluczy |
-| klucze obejmujące moduł 21 | 1 (fałszywy przyjaciel) | **10** | jw. |
-| wpisy `it.fails` | 0 | **6** w module + **2** w `jobsTickRun` | `grep -a` |
-| `it.fails` na platformie | 327 / 186 plików | **348 / 199** | jw. |
-| testy trasy `admin.hiring.tsx` | brak pliku | **89 testów, 303 asercje** | `adminHiringRoute.test.tsx` |
-| testy trasy `admin.careers.tsx` | brak pliku | **111 testów, 324 asercje** | `adminCareersRoute.test.tsx` |
-| `check:ci-gates` | czerwona | **zielona** (46 plików, 892 testy) | przebieg |
+| co                                  | zlecenie twierdzi       | repozytorium na HEAD `e15d2d3`         | źródło                       |
+| ----------------------------------- | ----------------------- | -------------------------------------- | ---------------------------- |
+| linie modułu                        | 55,12% (468/849)        | **100%** (883/883)                     | commit `052aea9`, 2026-09-03 |
+| funkcje modułu                      | 47,13% (164/348)        | **100%** (359/359)                     | jw.                          |
+| wywołania `it(`                     | 165                     | **643** (23 pliki testowe)             | `grep -a`, zakres jak niżej  |
+| wywołania `expect(`                 | 374                     | **2 007**                              | jw.                          |
+| klucze progowe w `vitest.config.ts` | 554                     | **638**                                | parser kluczy                |
+| klucze obejmujące moduł 21          | 1 (fałszywy przyjaciel) | **10**                                 | jw.                          |
+| wpisy `it.fails`                    | 0                       | **6** w module + **2** w `jobsTickRun` | `grep -a`                    |
+| `it.fails` na platformie            | 327 / 186 plików        | **348 / 199**                          | jw.                          |
+| testy trasy `admin.hiring.tsx`      | brak pliku              | **89 testów, 303 asercje**             | `adminHiringRoute.test.tsx`  |
+| testy trasy `admin.careers.tsx`     | brak pliku              | **111 testów, 324 asercje**            | `adminCareersRoute.test.tsx` |
+| `check:ci-gates`                    | czerwona                | **zielona** (46 plików, 892 testy)     | przebieg                     |
 
 Prace, które to zmieniły, opisuje
 `docs/WDROZENIE_POKRYCIE_MODUL_21_REKRUTACJA_2026-09-03.md`. Zlecenie tego
@@ -83,11 +83,11 @@ Zakres to **cztery** tabele, nie trzy - patrz sprostowanie w §3.5.
 
 **Kontrola negatywna - trzy osobne mutacje, każda uruchomiona:**
 
-| mutacja polityki | wynik | która asercja zapala |
-| --- | --- | --- |
-| `career_applications` bez członu najemcy | `EXIT=1` | „admin A NIE widzi zgłoszenia najemcy B" |
+| mutacja polityki                               | wynik    | która asercja zapala                           |
+| ---------------------------------------------- | -------- | ---------------------------------------------- |
+| `career_applications` bez członu najemcy       | `EXIT=1` | „admin A NIE widzi zgłoszenia najemcy B"       |
 | `career_application_events` bez członu najemcy | `EXIT=1` | „admin A NIE widzi dziennika etapów najemcy B" |
-| `career_cv_gc_queue` bez członu najemcy | `EXIT=1` | „admin A NIE widzi kolejki CV najemcy B" |
+| `career_cv_gc_queue` bez członu najemcy        | `EXIT=1` | „admin A NIE widzi kolejki CV najemcy B"       |
 
 Przy każdej z trzech mutacji **sekcje 10 i 15 przechodzą** - co jest dowodem,
 że luka była realna, a nie że dokładano asercję do rzeczy już pilnowanej.
@@ -108,11 +108,11 @@ i admin **trzeciego** najemcy, dla którego żaden wiersz nie pasuje.
 
 **Kontroli negatywnych jest trzy, wszystkie wykonane:**
 
-| mutacja | wynik |
-| --- | --- |
+| mutacja                                                            | wynik               |
+| ------------------------------------------------------------------ | ------------------- |
 | `contact_messages` traci człon najemcy (tabela z danymi osobowymi) | **4 z 29** czerwone |
-| `current_tenant_id()` czyta najemcę z nagłówka klienta | **1 z 29** czerwona |
-| `career_applications` na `rola OR najemca` zamiast `AND` | **4 z 29** czerwone |
+| `current_tenant_id()` czyta najemcę z nagłówka klienta             | **1 z 29** czerwona |
+| `career_applications` na `rola OR najemca` zamiast `AND`           | **4 z 29** czerwone |
 
 Po przywróceniu każdej z nich plik wraca na 29/29.
 
@@ -197,8 +197,8 @@ które rozszerzenie instaluje wprost (`create extension if not exists pgtap`,
 izolacji najemcy dla czatu i klubów. Obraz nigdy nie był przeszkodą.
 
 Asercja jest teraz **pozytywna** - dokładnie tak, jak zrobiono w tym samym
-pliku przy ZNALEZISKU 6, z tym samym uzasadnieniem: *dowód ma pilnować
-obecności dowodu, a nie utrwalać jego brak*. Plik: 110 zielonych + 1 `it.fails`.
+pliku przy ZNALEZISKU 6, z tym samym uzasadnieniem: _dowód ma pilnować
+obecności dowodu, a nie utrwalać jego brak_. Plik: 110 zielonych + 1 `it.fails`.
 
 To jest znalezisko klasy, której zlecenie szukało: **zielony test, który
 zamykał drogę do dowodu, opierając się na fałszywej przesłance.**
@@ -215,7 +215,7 @@ funkcjonalności.
 To ta sama klasa, którą audyt 2026-08-11 (rozdz. 8.1) opisał przy `pg-harness`:
 skrypt istniał, uruchamiał go wyłącznie człowiek, jeśli pamiętał - i dlatego
 złamany `CHECK` trafił na produkcję. Cytat z tego samego repozytorium:
-*„Uprząż, której nikt nie odpala, jest dokumentacją, nie bramką."*
+_„Uprząż, której nikt nie odpala, jest dokumentacją, nie bramką."_
 
 Wpięta jako `check:feature-taxonomy` (`package.json`) i jako krok CI w bloku
 najtańszych sygnałów. Zielona przy wpięciu: **3 304 pliki produkcyjne, 2 901
@@ -354,11 +354,11 @@ Moduł 21 policzony **dokładnie tym zakresem, którego użyło zlecenie**
 (29 plików, `src/lib/careers` + `src/lib/jobs` + `src/components/careers` +
 `admin.careers` + `admin.hiring` + `api/public/jobs-tick`):
 
-| wymiar | zlecenie | pomiar 2026-09-05 |
-| --- | --- | --- |
-| linie | 468/849 = 55,12% | **849/849 = 100,00%** |
-| funkcje | 164/348 = 47,13% | **348/348 = 100,00%** |
-| instrukcje | - | 996/997 = 99,90% |
+| wymiar     | zlecenie         | pomiar 2026-09-05     |
+| ---------- | ---------------- | --------------------- |
+| linie      | 468/849 = 55,12% | **849/849 = 100,00%** |
+| funkcje    | 164/348 = 47,13% | **348/348 = 100,00%** |
+| instrukcje | -                | 996/997 = 99,90%      |
 
 **Mianowniki zlecenia są co do jednego trafne - 849 i 348.** Zlecenie miało
 dokładnie ten zakres plików, dokładnie te mianowniki i **nieaktualne wyłącznie
@@ -425,8 +425,8 @@ wyłącznie o jeden skrypt, na co zlecenie zezwala wprost.
 
 ## 8. O kolejności A1-A6 - zlecenie prosiło o zdanie
 
-Prosiło: *„Jeśli uznasz, że kolejność A1-A6 jest zła - że np. pgTAP powinien być
-pierwszy, bo ryzyko bije arytmetykę - napisz to i uzasadnij."*
+Prosiło: _„Jeśli uznasz, że kolejność A1-A6 jest zła - że np. pgTAP powinien być
+pierwszy, bo ryzyko bije arytmetykę - napisz to i uzasadnij."_
 
 **Powinien był być pierwszy, i to nie z powodu ryzyka, tylko z powodu samej
 metryki porządkującej.**
