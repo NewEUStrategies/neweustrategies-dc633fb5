@@ -116,13 +116,18 @@ describe("CustomMetaValuesEditor - stany ładowania i pustki", () => {
 });
 
 describe("CustomMetaValuesEditor - etykiety pól", () => {
-  it("po polsku bierze `label_pl`, po angielsku `label_en`", async () => {
-    const { unmount } = renderuj({ defs: [definicja()] });
-    expect(await screen.findByText("Źródło")).toBeInTheDocument();
-    unmount();
+  it("po polsku bierze `label_pl`, a angielskiej etykiety nie pokazuje", async () => {
+    renderuj({ defs: [definicja()] });
 
+    expect(await screen.findByText("Źródło")).toBeInTheDocument();
+    expect(screen.queryByText("Source")).not.toBeInTheDocument();
+  });
+
+  it("po angielsku bierze `label_en`, a polskiej etykiety nie pokazuje", async () => {
     renderuj({ defs: [definicja()], lang: "en" });
+
     expect(await screen.findByText("Source")).toBeInTheDocument();
+    expect(screen.queryByText("Źródło")).not.toBeInTheDocument();
   });
 
   it("brak tłumaczenia spada na drugi język, a przy jego braku na klucz", async () => {

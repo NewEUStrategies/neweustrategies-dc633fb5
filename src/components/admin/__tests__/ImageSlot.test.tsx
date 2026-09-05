@@ -24,6 +24,10 @@
 //      idą tą samą drogą co wynik wysyłki (`onChange`), a podgląd pojawia
 //      się tylko wtedy, gdy wartość jest niepusta.
 //
+// ZAREJESTROWANY DEFEKT (`it.fails` niżej): zapasowe rozszerzenie `|| "png"`
+// nie odpala się dla pliku BEZ kropki w nazwie - do klucza w kubełku wchodzi
+// wtedy cała nazwa jako końcówka. Kontrola dodatnia stoi obok.
+//
 // ZERO SIECI: klient Supabase (auth + storage) jest atrapą; `File` powstaje
 // lokalnie, żaden adres nie wskazuje realnego serwisu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -207,26 +211,35 @@ describe("ImageSlot - wysyłka pliku do kubełka", () => {
     renderuj({});
 
     // Nazwa kończąca się kropką: `split(".").pop()` daje pusty łańcuch,
-    // więc wchodzi zapasowe rozszerzenie.
+    // więc wchodzi zapasowe rozszerzenie. To jest KONTROLA DODATNIA do
+    // `it.fails` niżej: mechanizm zapasowy DZIAŁA, tylko nie budzi się dla
+    // nazwy bez kropki - czyli dla przypadku, dla którego istnieje.
     wybierzPlik("bez-koncowki.", "image/png");
 
     await waitFor(() => expect(h.upload).toHaveBeenCalledTimes(1));
     expect(h.upload.mock.calls[0][0]).toBe(`tenant-1/anon/theme/${CZAS}-i.png`);
   });
 
-  it("nazwa BEZ kropki wchodzi do ścieżki w całości jako rozszerzenie", async () => {
-    // Zachowanie zmierzone, nie życzeniowe: `"plik".split(".").pop()` zwraca
-    // `"plik"`, a nie pusty łańcuch, więc bramka `|| "png"` się NIE odpala.
-    // Bez skutków dla odbiorcy (typ MIME jedzie osobno w `contentType`), ale
-    // gdyby ktoś kiedyś oparł na tej końcówce walidację po stronie kubełka,
-    // ta asercja powie mu, co tam naprawdę trafia.
-    renderuj({});
+  it.fails(
+    "DEFEKT: plik BEZ rozszerzenia nie dostaje zapasowego `.png` - cała nazwa wchodzi jako końcówka",
+    async () => {
+      // `ext = file.name.split(".").pop()?.toLowerCase() || "png"` ma zapasowe
+      // rozszerzenie DOKŁADNIE dla pliku bez kropki - i właśnie dla niego się
+      // nie odpala: `"bezkropki".split(".").pop()` zwraca `"bezkropki"`, a nie
+      // pusty łańcuch. Bramka `|| "png"` jest więc martwa dla przypadku, dla
+      // którego ją napisano (dziś budzi ją tylko nazwa KOŃCZĄCA się kropką -
+      // patrz kontrola dodatnia wyżej), a do klucza w kubełku trafia dowolny
+      // łańcuch spod kontroli użytkownika. Nazwa ze znakiem `#` albo `?` daje
+      // publiczny adres urwany na fragmencie/zapytaniu, czyli martwy obrazek
+      // w motywie. ZMIERZONE dziś: `${SCIEZKA_BAZOWA}.bezkropki`.
+      renderuj({});
 
-    wybierzPlik("bezkropki", "image/png");
+      wybierzPlik("bezkropki", "image/png");
 
-    await waitFor(() => expect(h.upload).toHaveBeenCalledTimes(1));
-    expect(h.upload.mock.calls[0][0]).toBe(`${SCIEZKA_BAZOWA}.bezkropki`);
-  });
+      await waitFor(() => expect(h.upload).toHaveBeenCalledTimes(1));
+      expect(h.upload.mock.calls[0][0]).toBe(`${SCIEZKA_BAZOWA}.png`);
+    },
+  );
 
   it("zamknięcie okna wyboru (brak pliku) nie rusza Storage", async () => {
     const { onChange } = renderuj({});

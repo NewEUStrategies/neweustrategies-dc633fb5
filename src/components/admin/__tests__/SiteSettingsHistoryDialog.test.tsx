@@ -30,6 +30,17 @@
 // `handleRestore` - jedyne wejście do tej funkcji to przycisk, który BEZ
 // zaznaczenia jest `disabled`, więc kliknięcie do handlera nie dochodzi.
 //
+// ZAREJESTROWANY DEFEKT (`it.fails` na końcu pliku): `handleRestore` ma
+// `try/finally` BEZ `catch`, a wynik wywołania nie jest nigdzie odbierany
+// (`onClick={handleRestore}`), więc odrzucone `onRestore` kończy się
+// NIEOBSŁUŻONYM odrzuceniem obietnicy. Jedyny konsument tego okna
+// (`ThemeOptionsPane`) woła `save.mutateAsync(...)`, które przy błędzie
+// zapisu (RLS, brak sieci) ODRZUCA - a globalny nasłuch
+// `unhandledrejection` w `lib/observability` beaconuje takie odrzucenie do
+// telemetrii błędów klienta. Skutek: nieudane przywrócenie, o którym
+// użytkownik już wie z toasta mutacji, dorzuca do dashboardu błędów
+// fałszywy wpis "nieobsłużony błąd JS". Do tego kontrola dodatnia niżej.
+//
 // CZEGO ŚWIADOMIE NIE DUBLUJE: odczytu rewizji - `useSiteSettingsRevisions`
 // (dociąganie profili autorów, limit, sortowanie) jest tu ATRAPĄ, bo
 // przedmiotem dowodu jest okno, nie zapytanie.
@@ -368,5 +379,79 @@ describe("SiteSettingsHistoryDialog - przywracanie", () => {
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(onRestore).toHaveBeenCalledWith({ accent: "#123456" });
+  });
+});
+
+/**
+ * Uruchamia `akcja` z PODMIENIONYM nasłuchem `unhandledRejection` i oddaje
+ * przechwycone powody odrzuceń.
+ *
+ * Dlaczego tak, a nie prościej: wynik `handleRestore` nie jest nigdzie
+ * odbierany (React ignoruje obietnicę zwróconą z `onClick`), więc odrzucenia
+ * NIE DA SIĘ złapać ani przez `await` na kliknięciu, ani przez `catch` na
+ * atrapie - jedynym miejscem, w którym się objawia, jest zdarzenie procesu.
+ * Własny nasłuch (na czas jednego przypadku, z przywróceniem w `finally`)
+ * jest tu konieczny także dlatego, że nasłuch Vitesta raportuje takie
+ * odrzucenie jako "Unhandled Error" i wywraca CAŁY plik - a wtedy defektu nie
+ * da się zarejestrować przez `it.fails`.
+ */
+async function zlapNieobsluzoneOdrzucenia(akcja: () => Promise<void>): Promise<unknown[]> {
+  const zapamietane = process.listeners("unhandledRejection");
+  const zlapane: unknown[] = [];
+  process.removeAllListeners("unhandledRejection");
+  process.on("unhandledRejection", (powod: unknown) => {
+    zlapane.push(powod);
+  });
+  try {
+    await akcja();
+    // Node zgłasza nieobsłużone odrzucenie po opróżnieniu mikrozadań, więc
+    // oddajemy jeszcze jedno makrozadanie, zanim czytamy wynik.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    process.removeAllListeners("unhandledRejection");
+    for (const nasluch of zapamietane) {
+      process.on("unhandledRejection", nasluch as NodeJS.UnhandledRejectionListener);
+    }
+  }
+  return zlapane;
+}
+
+describe("SiteSettingsHistoryDialog - nieudane przywracanie", () => {
+  it.fails(
+    "DEFEKT: odrzucone `onRestore` kończy się NIEOBSŁUŻONYM odrzuceniem (brak `catch`)",
+    async () => {
+      const { onOpenChange } = renderuj({
+        onRestore: () => Promise.reject(new Error("RLS: brak uprawnien do site_settings")),
+      });
+
+      const zlapane = await zlapNieobsluzoneOdrzucenia(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Anna Kowalska/ }));
+        fireEvent.click(przyciskPrzywroc());
+        // To działa dobrze: `finally` odblokowuje przycisk, a okno ZOSTAJE
+        // otwarte, bo `onOpenChange(false)` jest za `await`.
+        await waitFor(() => expect(przyciskPrzywroc()).toBeEnabled());
+      });
+
+      expect(onOpenChange).not.toHaveBeenCalled();
+      // Ta asercja jest treścią defektu: dziś odrzucenie wycieka do procesu
+      // (w przeglądarce - do `window.onunhandledrejection`, a stamtąd do
+      // beaconu telemetrii). Dodanie `catch` w `handleRestore` zamknie
+      // znalezisko i wywróci to `it.fails`.
+      expect(zlapane).toEqual([]);
+    },
+  );
+
+  it("kontrola dodatnia: udane przywracanie nie generuje ŻADNEGO odrzucenia", async () => {
+    // Dowód, że harness wyżej mierzy odrzucenie z `handleRestore`, a nie szum
+    // tła: ta sama droga z obietnicą spełnioną oddaje pustą listę.
+    const { onOpenChange } = renderuj({ onRestore: () => Promise.resolve() });
+
+    const zlapane = await zlapNieobsluzoneOdrzucenia(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Anna Kowalska/ }));
+      fireEvent.click(przyciskPrzywroc());
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
+
+    expect(zlapane).toEqual([]);
   });
 });

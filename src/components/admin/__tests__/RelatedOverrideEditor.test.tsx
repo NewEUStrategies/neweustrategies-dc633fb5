@@ -94,6 +94,23 @@ describe("RelatedOverrideEditor - przełącznik nadpisania", () => {
     expect(onChange).toHaveBeenCalledWith(null);
     expect(screen.queryAllByRole("combobox")).toHaveLength(0);
   });
+
+  it("ponowne włączenie NIE przywraca skasowanych wartości - formularz wstaje czysty", () => {
+    // Wyłączenie oddaje rodzicowi `null`; rodzic (edytor wpisu) wraca z tym
+    // propem, więc odtwarzamy to `rerender`em. Komponent nie trzyma kopii
+    // nadpisania, więc po powtórnym włączeniu wszystkie pola stoją na
+    // "globalne" - to zachowanie, nie usterka, i dlatego jest przypięte.
+    const { onChange, rerender } = renderuj({ layout: "cards", items_limit: 4 });
+    fireEvent.click(screen.getByRole("switch"));
+    expect(onChange).toHaveBeenCalledWith(null);
+
+    rerender(<RelatedOverrideEditor value={null} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("switch"));
+
+    expect(listy().map((l) => l.value)).toEqual(["_", "_", "_", "_"]);
+    expect(liczby()[0]).toHaveValue(null);
+    expect(liczby()[1]).toHaveValue(null);
+  });
 });
 
 describe("RelatedOverrideEditor - wartość 'globalna' USUWA klucz", () => {
