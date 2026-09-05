@@ -112,6 +112,16 @@ export function ClubHubView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     CLUB_HUB_DEFAULTS.signupsLimit,
   );
 
+  // NAGLOWEK SEKCJI KOMENTARZY LICZONY BEZWARUNKOWO, a nie w miejscu uzycia.
+  // Tytul jest USTAWIENIEM redakcji, nie skutkiem danych - to, ile komentarzy
+  // wrocilo z bazy, nie zmienia jego wartosci. Odczyt w gałęzi `comments.length
+  // > 0` sprawiał, że `check:widget-fidelity` widziała `commentsTitle_pl/_en`
+  // jako pole MARTWE (panel oferuje, renderer nie czyta): bramka renderuje
+  // widget na atrapie klienta bazy, ktora dla komentarzy oddaje pusta liste,
+  // wiec do tamtej linii nigdy nie dochodzila. Sekcja nadal ZNIKA przy zerze
+  // komentarzy - tego pilnuje `clubHubView.test.tsx:153` i to sie nie zmienia.
+  const commentsHeading = locStr(c, "commentsTitle", lang) || t.comments;
+
   const club = useQuery(clubCardQueryOptions(slug)).data ?? null;
   const clubId = club?.id ?? "";
 
@@ -224,7 +234,7 @@ export function ClubHubView({ c, lang }: { c: WidgetContent; lang: Lang }) {
         ) : null}
 
         {showComments && comments.length > 0 ? (
-          <SectionShell title={locStr(c, "commentsTitle", lang) || t.comments}>
+          <SectionShell title={commentsHeading}>
             <ul className="space-y-3">
               {comments.map((row) => (
                 <li key={row.id} className="flex gap-3 rounded-md border border-border p-3">
