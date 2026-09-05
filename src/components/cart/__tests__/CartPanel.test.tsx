@@ -185,6 +185,14 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 beforeEach(() => {
+  // ZEGAR JEST ZAMROŻONY, BO KOSZYK MA DATĘ WAŻNOŚCI. `readCartStorage` puszcza
+  // odczyt przez `pruneCart(items, new Date())`, które wyrzuca notatki starsze niż
+  // 30 dni. Na prawdziwym zegarze `addedAt` wpisane literałem przestałoby się
+  // mieścić w oknie po 30 dniach od tej daty i CAŁY plik zgasłby sam z siebie
+  // - nie z powodu regresji, tylko z powodu kalendarza. `setSystemTime` bez
+  // `useFakeTimers` podmienia wyłącznie `Date`, więc `waitFor` i obietnice
+  // nadal biegną na prawdziwym harmonogramie.
+  vi.setSystemTime(new Date("2026-08-21T12:00:00.000Z"));
   vi.clearAllMocks();
   h.lang = "pl";
   h.session = { user: { id: "55555555-5555-4555-8555-555555555555" } };
@@ -199,6 +207,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   window.localStorage.clear();
 });
 

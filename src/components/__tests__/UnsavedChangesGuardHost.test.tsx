@@ -5,10 +5,13 @@
 // (`useUnsavedChangesGuard`) wstrzymuje przejście i CZEKA na odpowiedź z tego
 // okna. Trzy rzeczy muszą być tu prawdziwe, a żadnej nie pilnują typy:
 //
-//   1. KIERUNEK DOMYŚLNY TO „ZOSTAŃ". Escape, klik w tło i przycisk
-//      anulowania mają rozstrzygnąć obietnicę na `false`. Pomyłka w tę
-//      stronę wyrzuca redaktora z edytora razem z niezapisaną pracą -
-//      dlatego każde wyjście ma tu własny przypadek.
+//   1. KIERUNEK DOMYŚLNY TO „ZOSTAŃ". Escape i przycisk anulowania mają
+//      rozstrzygnąć obietnicę na `false`. Pomyłka w tę stronę wyrzuca
+//      redaktora z edytora razem z niezapisaną pracą - dlatego każde z tych
+//      wyjść ma tu własny przypadek. (Kliku w tło NIE ma na tej liście
+//      świadomie: `AlertDialog` Radiksa z założenia NIE zamyka się od
+//      kliknięcia poza oknem, więc taki przypadek mierzyłby bibliotekę,
+//      a nie ten komponent.)
 //
 //   2. OKNO ISTNIEJE TYLKO NA ŻĄDANIE. Host wisi w korzeniu na KAŻDEJ
 //      stronie; gdyby renderował treść bez oczekującego pytania, blokowałby

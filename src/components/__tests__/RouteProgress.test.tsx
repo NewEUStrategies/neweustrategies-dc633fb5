@@ -10,9 +10,19 @@
 // 120 ms nie mają prawa mrugnąć paskiem (miganie czyta się jak usterka),
 // a dłuższe pełzną do 90% i nigdy dalej - 100% jest zarezerwowane dla
 // ZAKOŃCZONEJ nawigacji. Bez tych progów pasek albo migocze przy każdym
-// kliknięciu, albo stoi na 100% nad stroną, która się jeszcze ładuje. Cała ta
-// część biegnie na ZEGARZE UDAWANYM: progi są w milisekundach, a test na
-// prawdziwym czasie mierzyłby obciążenie maszyny, nie zachowanie komponentu.
+// kliknięciu, albo stoi na 100% nad stroną, która się jeszcze ładuje.
+//
+// CAŁY PLIK BIEGNIE NA ZEGARZE UDAWANYM, I NIE TYLKO Z POWODU PROGÓW. Progi są
+// w milisekundach, więc test na prawdziwym czasie mierzyłby obciążenie maszyny,
+// a nie zachowanie komponentu - ale drugi powód jest twardszy. Komponent NIE
+// SPRZĄTA swoich zegarów przy odmontowaniu (patrz `it.fails` na końcu pliku),
+// więc każdy render przy „trwa nawigacja" zostawia po sobie `setTimeout(120 ms)`
+// żyjący dłużej niż test. Na prawdziwym zegarze taki takt dobija PO rozbiórce
+// środowiska pliku i wywala przebieg nieobsłużonym `ReferenceError: window is
+// not defined` (zmierzone: przebieg z pokryciem, gdzie worker żyje dłużej).
+// Zegar udawany, zdejmowany w `afterEach`, zabiera zaległe takty ze sobą - więc
+// defekt produkcyjny zostaje UDOKUMENTOWANY jednym `it.fails`, a nie rozlewa
+// się losową awarią na cały pakiet.
 //
 // Router i i18n są zamockowane celowo: przedmiotem testu jest zachowanie paska
 // wobec flagi „trwa nawigacja", nie integracja z routerem. Tłumacz jest
@@ -80,6 +90,15 @@ const FADE = 280;
 beforeEach(() => {
   h.routerState = { isLoading: false, status: "pending" };
   h.lang = "pl";
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  // Kolejność jest istotna: odmontowanie musi zajść jeszcze na udawanym
+  // zegarze, inaczej zaległe `setInterval`/`setTimeout` dobijają do
+  // prawdziwego czasu (automatyczne `cleanup` RTL biegnie PO tym hooku).
+  cleanup();
+  vi.useRealTimers();
 });
 
 describe("RouteProgress - kontrakt hydratacji", () => {
@@ -159,17 +178,6 @@ describe("komunikat dla czytnika ekranu pojawia się dopiero po zamontowaniu", (
 });
 
 describe("pasek zwleka, pełznie i gaśnie", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    // Kolejność jest istotna: odmontowanie musi zajść jeszcze na udawanym
-    // zegarze, inaczej zaległe `setInterval` dobija do prawdziwego czasu.
-    cleanup();
-    vi.useRealTimers();
-  });
-
   it("krótkie przejście NIE mruga paskiem - poniżej progu nic się nie pokazuje", () => {
     // 120 ms to cała racja bytu opóźnienia: przy szybkich trasach pasek
     // pojawiający się i znikający w jednej klatce czyta się jak usterka.
