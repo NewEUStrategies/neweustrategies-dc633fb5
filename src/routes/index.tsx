@@ -137,7 +137,8 @@ export const Route = createFileRoute("/")({
     ]);
     const homePage = homePageRes.data;
     const homeMode = homeModeRes.data;
-    let degraded = homePageRes.degraded || homeModeRes.degraded || settingsRes.degraded;
+    const contentDegraded = homePageRes.degraded || homeModeRes.degraded;
+    let degraded = contentDegraded || settingsRes.degraded;
 
     // "Najnowsze wpisy" jako strona główna: SSR ładuje DOKŁADNIE żądaną stronę
     // wyników (?page=N) tym samym paginowanym zapytaniem co /blog - wpisy poza
@@ -152,7 +153,7 @@ export const Route = createFileRoute("/")({
     // dopiero po sparsowaniu body.
     let coverPreload: ImagePreloadInput | null = null;
 
-    if (homeMode === "latest_posts") {
+    if (!contentDegraded && homeMode === "latest_posts") {
       const pageSize = resolvePostsPerPage(settingsRes.data);
       const listOptions = blogArchiveQueryOptions({ page: deps.page, pageSize });
       const listRes = await loadResilient(
@@ -206,7 +207,7 @@ export const Route = createFileRoute("/")({
     // W trybie "najnowsze wpisy" homePage jest null z konstrukcji
     // (homePageQueryOptions), więc prefetch widgetów buildera w ogóle nie
     // startuje - zero zmarnowanych round-tripów.
-    if (homePage && homePage.editor === "builder") {
+    if (!contentDegraded && homePage && homePage.editor === "builder") {
       const doc = parseBuilderDoc(homePage.builder_data);
       if (doc.sections.length > 0) {
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
@@ -248,7 +249,16 @@ export const Route = createFileRoute("/")({
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { seoSettings, homePage, page: deps.page, coverPreload, degraded };
+    // An unknown mode also means an unknown SEO document. Do not advertise
+    // the static page's canonical/image while the UI intentionally shows a
+    // recovery notice (the configured mode could actually be latest_posts).
+    return {
+      seoSettings,
+      homePage: contentDegraded ? null : homePage,
+      page: deps.page,
+      coverPreload,
+      degraded,
+    };
   },
 
   head: ({ loaderData }) => {

@@ -576,6 +576,16 @@ describe("/ - tryb „najnowsze wpisy”", () => {
 });
 
 describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
+  it("does not prefetch or expose a static page's SEO when the mode is unknown", async () => {
+    h.homePage = homePageData({ seo_canonical_url: "https://example.com/hidden-static-home" });
+    h.homeModeFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    expect(h.prefetch).toEqual([]);
+    expect(imagePreload(view.links())).toBeUndefined();
+    expect(linkByRel(view.links(), "canonical")).not.toContain("hidden-static-home");
+  });
+
   it("automatically replaces hydrated stale seeds when the backend is healthy again", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     qc.setQueryData(["public", "home-page"], null, { updatedAt: 0 });
