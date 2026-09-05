@@ -289,7 +289,7 @@ describe("EventAttendeesList - okno zapytania zamiast filtra w przeglądarce", (
     });
   });
 
-  it.fails("defekt: przeładowanie listy po frazie ZABIERA FOKUS z pola wyszukiwania", async () => {
+  it("przeładowanie listy po frazie ZOSTAWIA FOKUS w polu wyszukiwania", async () => {
     // CO JEST ZŁE. Nowa fraza to nowy klucz cache, a nowy klucz nie ma
     // danych, więc `attendees.isLoading` jest prawdą i CAŁE ciało sekcji -
     // razem z `Filters`, czyli z polem wyszukiwania - zostaje zastąpione
@@ -301,9 +301,10 @@ describe("EventAttendeesList - okno zapytania zamiast filtra w przeglądarce", (
     // trafiają nigdzie. Wpisanie „kowalik" wymaga wtedy kliknięcia w pole
     // po każdej pauzie w pisaniu.
     //
-    // NIE NAPRAWIAM TEGO TUTAJ: lekarstwem jest `placeholderData` (albo
-    // wyjęcie filtrów poza gałąź ładowania) w kodzie produkcyjnym, a to jest
-    // zmiana zachowania produkcyjnego, nie testu.
+    // JAK JEST NAPRAWIONE: lista trzyma OSTATNIĄ odpowiedź na ekranie do czasu,
+    // aż przyjdzie następna, więc szkielety zastępują ciało sekcji tylko przy
+    // PIERWSZYM wczytaniu - pole wyszukiwania nie znika i nie wraca jako nowy
+    // węzeł DOM.
     renderList();
     const pole = await screen.findByLabelText("eventFront.attendees.searchLabel");
     (pole as HTMLInputElement).focus();

@@ -308,13 +308,13 @@ describe("RegistrationAnswerField - podpowiedz organizatora i zdanie o bledzie",
     expect(screen.getByLabelText("Dieta")).toHaveAttribute("aria-invalid", "true");
   });
 
-  it.fails("DEFEKT: przy wyborze wielokrotnym zdanie o bledzie nie jest z niczym zwiazane", () => {
-    // `describedBy` jest w tej galezi POLICZONE i NIEUZYTE: `<fieldset>` nie
-    // dostaje `aria-describedby`, nie dostaja go tez pola wyboru. Uczestnik
-    // korzystajacy z czytnika ekranu slyszy „grupa: Sciezki tematyczne", a
-    // powodu odrzucenia formularza nie slyszy w ogole - komunikat wisi obok
-    // jako zwykly akapit. Kazda inna galaz tego komponentu (tekst, textarea,
-    // wybor jednokrotny, zgoda) to wiazanie ustawia.
+  it("przy wyborze wielokrotnym zdanie o bledzie jest zwiazane z GRUPA pol", () => {
+    // Wiazanie idzie na `<fieldset>`, bo w tej galezi „polem" jest cala grupa,
+    // a nie pojedynczy kwadracik. Bez tego uczestnik korzystajacy z czytnika
+    // ekranu slyszy „grupa: Sciezki tematyczne", a powodu odrzucenia
+    // formularza nie slyszy w ogole - komunikat wisi obok jako zwykly akapit.
+    // Kazda inna galaz tego komponentu (tekst, textarea, wybor jednokrotny,
+    // zgoda) to wiazanie ustawia.
     const { container } = renderField(
       { fieldType: "multiselect", options: CHOICES, isRequired: true },
       { error: "Wybierz co najmniej jedna sciezke." },

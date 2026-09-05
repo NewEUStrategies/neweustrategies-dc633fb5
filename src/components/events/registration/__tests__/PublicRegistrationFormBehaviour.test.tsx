@@ -450,18 +450,14 @@ describe("PublicRegistrationForm - wstepne wypelnienie danych konta", () => {
     expect(screen.getByLabelText(label("email"))).toHaveValue("inny.adres@example.org");
   });
 
-  it.fails("DEFEKT: konto znane PRZED odczytem formularza nie wypelnia zadnego pola", async () => {
-    // Efekt wypelniajacy dane konta ma tablice zaleznosci `[user]`, a szkic
-    // (`draft`) powstaje dopiero w OSOBNYM efekcie, po odpowiedzi
-    // `event_registration_form`. Gdy tozsamosc jest znana wczesniej niz
-    // formularz - a tak jest w praktyce, bo sesje `useAuth` odtwarza z
-    // pamieci przegladarki, a formularz wymaga rundy po sieci - efekt
-    // trafia na `draft === null`, konczy sie instrukcja `return current`
-    // i JUZ NIGDY sie nie powtarza (`user` sie nie zmienia).
-    //
-    // Skutek dla uczestnika: zalogowany czlonek przepisuje recznie imie,
-    // nazwisko i adres, ktore platforma o nim ma - dokladnie to, czemu ten
-    // efekt mial zapobiec. Brakujaca zaleznoscia jest istnienie szkicu.
+  it("konto znane PRZED odczytem formularza tez wypelnia pola", async () => {
+    // Tozsamosc bywa znana wczesniej niz formularz - i tak jest w praktyce, bo
+    // sesje `useAuth` odtwarza z pamieci przegladarki, a formularz wymaga
+    // rundy po sieci. Efekt wypelniajacy dane konta zalezy dlatego takze od
+    // ISTNIENIA szkicu, a nie od samej tozsamosci: inaczej trafialby na
+    // `draft === null`, konczyl sie na `return current` i juz nigdy nie
+    // powtarzal, a zalogowany czlonek przepisywalby recznie imie, nazwisko
+    // i adres, ktore platforma o nim ma.
     h.user = {
       id: "u-1",
       email: "anna.kowalska@example.com",

@@ -193,24 +193,31 @@ describe("RegistrationTermsList - wersja jezykowa dokumentu", () => {
     expect(screen.getByRole("checkbox", { name: "rules *" })).toBeInTheDocument();
   });
 
-  it.fails(
-    "DEFEKT: brak tlumaczenia tresci ukrywa CALY dokument, zamiast pokazac wersje zapasowa",
-    () => {
-      // `body = lang === "en" ? term.bodyEn : term.bodyPl`, a pusta tresc nie
-      // renderuje akapitu w ogole. Skutek dla uczestnika ogladajacego strone po
-      // angielsku: widzi pole wyboru z gwiazdka, numer wersji i NIC WIECEJ -
-      // ani zdania regulaminu, ani odnosnika (`externalUrl` tez bywa pusty).
-      // Zaznacza wiec zgode obowiazkowa na dokument, ktorego tresci nie da sie
-      // odczytac, a `event_term_acceptances` zapisze to jako pelnoprawna
-      // akceptacje wersji 3. Poprawnym zachowaniem jest pokazanie tresci PL
-      // (albo jawnego zdania o braku tlumaczenia), a nie ciche pominiecie.
-      renderList([term({ bodyEn: "", externalUrl: null })], { lang: "en" });
+  it("brak tlumaczenia tresci pokazuje wersje zapasowa, a nie ukrywa CALY dokument", () => {
+    // Pusta tresc w jezyku widza nie moze znaczyc „bez akapitu": uczestnik
+    // ogladajacy strone po angielsku widzialby wtedy pole wyboru z gwiazdka,
+    // numer wersji i NIC WIECEJ - ani zdania regulaminu, ani odnosnika
+    // (`externalUrl` tez bywa pusty) - a `event_term_acceptances` zapisaloby
+    // to jako pelnoprawna akceptacje wersji 3.
+    const { container } = renderList([term({ bodyEn: "", externalUrl: null })], { lang: "en" });
 
-      expect(
-        screen.getByText("Uczestnik zobowiazuje sie do przestrzegania porzadku obrad."),
-      ).toBeInTheDocument();
-    },
-  );
+    const body = screen.getByText("Uczestnik zobowiazuje sie do przestrzegania porzadku obrad.");
+    expect(body).toBeInTheDocument();
+    // Zdanie jest po polsku na angielskiej stronie, wiec czytnik ekranu ma to
+    // wiedziec - inaczej przeczyta polski tekst angielska wymowa.
+    expect(body).toHaveAttribute("lang", "pl");
+    expect(container.querySelectorAll("p")).toHaveLength(2);
+  });
+
+  it("na polskiej stronie wersja zapasowa idzie w druga strone - z tresci EN", () => {
+    // Ta sama regula, lustrzanie: dokument dopisany wylacznie po angielsku ma
+    // byc czytelny dla uczestnika ogladajacego formularz po polsku.
+    renderList([term({ bodyPl: "", externalUrl: null })], { lang: "pl" });
+
+    const body = screen.getByText("The attendee agrees to follow the order of proceedings.");
+    expect(body).toBeInTheDocument();
+    expect(body).toHaveAttribute("lang", "en");
+  });
 });
 
 describe("RegistrationTermsList - dostepnosc", () => {
