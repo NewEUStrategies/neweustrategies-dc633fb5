@@ -507,6 +507,14 @@ describe("strona główna: która strona zostaje stroną główną", () => {
     expect(wynik?.id).toBe("home-1");
   });
 
+  it("a browser settings error does not select or cache a different homepage", async () => {
+    baza().setResponse("site_settings", fail("reading unavailable", "503"));
+    await expect(klient().fetchQuery(homePageQueryOptions())).rejects.toMatchObject({
+      message: "reading unavailable",
+    });
+    expect(baza().chainsFor("pages")).toHaveLength(0);
+  });
+
   it("wiersz ustawień z pustą wartością zachowuje się jak brak wiersza", async () => {
     baza().setResponse("site_settings", ok({ value: null }));
     planuj({ strony: { home: ok({ id: "home-1", slug: "home" }) } });

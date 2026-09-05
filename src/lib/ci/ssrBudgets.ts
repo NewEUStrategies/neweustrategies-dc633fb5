@@ -389,21 +389,11 @@ export function loaderBudgetFacts(
   for (const m of loader.matchAll(budgetRe)) {
     const open = loader.indexOf("(", (m.index ?? 0) + m[0].length - 1);
     const args = balancedArgs(loader, open);
-    // Budżet jest OSTATNIM argumentem `withBudget(work, ms)`.
-    //
-    // WISZĄCY PRZECINEK JEST TU REGUŁĄ, NIE WYJĄTKIEM: prettier formatuje
-    // wielolinijkowe wywołania jako `withBudget(\n  work,\n  BUDGET_MS,\n)`,
-    // więc ostatni przecinek na poziomie 0 stoi ZA stałą, a naiwne
-    // `slice(lastComma + 1)` zwracało PUSTY łańcuch. Objaw był cichy i groźny:
-    // budżet nierozpoznany -> liczony jako 0 -> suma fal korzenia wychodziła
-    // 500 ms zamiast 3 000 i bramka była zielona z powodu własnego błędu.
-    // Dlatego bierzemy OSTATNI NIEPUSTY człon, a nie „to, co za przecinkiem".
+    // The second argument is the phase ceiling. The optional absolute
+    // deadline (third argument) can only shorten it. A trailing comma must
+    // not make either form disappear from the static report.
     const parts = splitTopLevel(args);
-    const constName =
-      parts
-        .filter((p) => p.trim() !== "")
-        .at(-1)
-        ?.trim() ?? "";
+    const constName = parts[1]?.trim() ?? "";
     const literal = /^\d[\d_]*$/.test(constName)
       ? Number(constName.replaceAll("_", ""))
       : (consts.get(constName) ?? externalConstants.get(constName) ?? null);
@@ -508,15 +498,34 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
   }
 
   const root = loaders.find((l) => l.file === ROOT_ROUTE_FILE || l.file.endsWith(ROOT_ROUTE_FILE));
+  // Root now warms theme queries through loadResilient. Its configured phase
+  // ceilings still count, even though they are not direct withBudget calls.
+  // This is a conservative bound for non-home routes, not measured TTFB.
+  const rootConstants = numericConstants(
+    blankNonCode(input.sources.find((source) => source.file === root?.file)?.source ?? ""),
+  );
+  const indirectRootBudget = ["ROOT_WARM_BUDGET_MS", "CHROME_WARM_BUDGET_MS"].reduce(
+    (sum, name) =>
+      sum +
+      (root?.budgetSites.some((site) => site.constName === name)
+        ? 0
+        : (rootConstants.get(name) ?? 0)),
+    0,
+  );
+  const rootWarmChainMs = root ? root.chainMs + indirectRootBudget : null;
   const violations: SsrBudgetViolation[] = [];
   const unmeasurable: string[] = [];
 
   // ── BUDŻET 1a: łańcuch rozgrzewki KORZENIA ────────────────────────────────
-  if (root !== undefined && root.chainMs > FROZEN_SSR_BUDGETS.rootWarmChainMs) {
+  if (
+    root !== undefined &&
+    rootWarmChainMs !== null &&
+    rootWarmChainMs > FROZEN_SSR_BUDGETS.rootWarmChainMs
+  ) {
     violations.push({
       budget: "rootWarmChainMs",
       file: root.file,
-      measured: root.chainMs,
+      measured: rootWarmChainMs,
       ceiling: FROZEN_SSR_BUDGETS.rootWarmChainMs,
       detail: `fale rozgrzewki korzenia: ${root.budgetSites
         .map((s) => `${s.constName}=${s.ms ?? "?"}`)
@@ -625,7 +634,7 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
 
   return {
     loaders,
-    rootWarmChainMs: root?.chainMs ?? null,
+    rootWarmChainMs,
     dehydrationInvariants: invariants,
     violations,
     unmeasurable,

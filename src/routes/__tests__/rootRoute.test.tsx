@@ -37,6 +37,8 @@ const h = vi.hoisted(() => ({
   lang: "pl" as "pl" | "en",
   origin: "https://neweuropeanstrategies.com",
   chrome: true,
+  server: false,
+  cacheControl: [] as string[],
   canonicalCalls: 0,
   i18nSyncCalls: 0,
   linkHeaders: [] as string[],
@@ -70,6 +72,12 @@ vi.mock("@/lib/i18n", async (o) => ({
 }));
 vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: (v: string) => h.linkHeaders.push(v),
+  setCacheControlHeader: (v: string) => h.cacheControl.push(v),
+}));
+vi.mock("@tanstack/router-core/isServer", () => ({
+  get isServer() {
+    return h.server;
+  },
 }));
 vi.mock("@/lib/routing/siteChrome", () => ({ showsSiteChrome: () => h.chrome }));
 vi.mock("@/lib/useSiteSetting", async (o) => ({
@@ -161,9 +169,28 @@ beforeEach(() => {
   h.settings = {};
   h.settingsHangs = false;
   h.chrome = true;
+  h.server = false;
+  h.cacheControl = [];
 });
 
 describe("__root loader", () => {
+  it.each(["/", "/en", "/en/"])(
+    "bounds homepage theme waiting and disables cache at %s",
+    async (path) => {
+      h.server = true;
+      h.settingsHangs = true;
+      const started = performance.now();
+      await runLoader(qc, path);
+      expect(performance.now() - started).toBeLessThan(900);
+      expect(qc.getQueryState(["site-settings"])).toMatchObject({
+        status: "success",
+        fetchStatus: "idle",
+        dataUpdatedAt: 0,
+      });
+      expect(h.cacheControl).toContain("private, no-store");
+    },
+  );
+
   it("zwraca null - nikt nie czyta danych korzenia, więc ustawienia nie jadą do payloadu drugi raz", async () => {
     await expect(runLoader(qc)).resolves.toBeNull();
   });

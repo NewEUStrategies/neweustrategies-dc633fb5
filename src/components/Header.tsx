@@ -77,7 +77,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   // Loader in __root.tsx prefetches this query, so useSuspenseQuery resolves
   // synchronously on hydration and on every client navigation - the header
   // never flashes a skeleton in steady state.
-  const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
+  const { data: settingsMap, dataUpdatedAt } = useSuspenseQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<HeaderSettings>(settingsMap, "header", {});
   const general = resolveSetting<GeneralSettings>(settingsMap, "general", {});
   const theme = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
@@ -137,6 +137,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
     };
   }, []);
 
+  if (isHome && dataUpdatedAt === 0) return <HeaderSkeleton />;
   if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
 
   const openA11y = t("common.openMenu");
