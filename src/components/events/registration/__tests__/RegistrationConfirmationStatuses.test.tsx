@@ -280,25 +280,20 @@ describe("RegistrationConfirmation - klucz zarzadzania zapisem", () => {
     expect(screen.getByText(MANAGE_TOKEN)).toBeInTheDocument();
   });
 
-  it.fails(
-    "DEFEKT: nieudane kopiowanie melduje TYTUL sekcji zamiast zdania o bledzie",
-    async () => {
-      // `toast.error(t("eventRegistration.result.manageTokenTitle"))` pokazuje
-      // napis „Klucz do zarzadzania zapisem" - czyli doslownie naglowek ramki,
-      // ktora uzytkownik ma przed oczami. Powiadomienie o bledzie z trescia
-      // tytulu nie mowi ANI ze kopiowanie sie nie udalo, ANI co zrobic dalej
-      // (przepisac klucz recznie). Slownik nie ma dzis osobnego klucza na te
-      // odmowe i to jest wlasnie brak do naprawy - komentarz w zrodle obiecuje
-      // „mowimy tylko o nieudanym kopiowaniu", a komunikat tego nie mowi.
-      writeText.mockRejectedValue(new Error("NotAllowedError"));
-      renderConfirmation({ manageToken: MANAGE_TOKEN });
+  it("nieudane kopiowanie melduje ZDANIE O BLEDZIE, a nie tytul sekcji", async () => {
+    // Powiadomienie o bledzie z trescia tytulu ramki („Klucz do zarzadzania
+    // zapisem") nie mowi ANI ze kopiowanie sie nie udalo, ANI co zrobic dalej
+    // (przepisac klucz recznie) - powtarza tylko naglowek, ktory uzytkownik ma
+    // przed oczami. Odmowa schowka ma wiec wlasny klucz w slowniku.
+    writeText.mockRejectedValue(new Error("NotAllowedError"));
+    renderConfirmation({ manageToken: MANAGE_TOKEN });
 
-      fireEvent.click(screen.getByRole("button", { name: /manageTokenTitle/ }));
+    fireEvent.click(screen.getByRole("button", { name: /manageTokenTitle/ }));
 
-      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
-      expect(toast.error).not.toHaveBeenCalledWith("eventRegistration.result.manageTokenTitle");
-    },
-  );
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).not.toHaveBeenCalledWith("eventRegistration.result.manageTokenTitle");
+    expect(toast.error).toHaveBeenCalledWith("eventRegistration.result.manageTokenCopyFailed");
+  });
 
   it("zalogowany wlasciciel bez klucza nie oglada pustej ramki", () => {
     // `event_register` oddaje `manage_token` tylko tam, gdzie jest potrzebny.

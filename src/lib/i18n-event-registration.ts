@@ -93,6 +93,11 @@ export const eventRegistrationPl = {
         "Kod wstępu nie został jeszcze wygenerowany - dostaniesz go razem z potwierdzeniem płatności.",
       manageTokenTitle: "Klucz do zarządzania zapisem",
       manageTokenHint: "Zapisz go teraz - pokazujemy go tylko raz i tylko tobie.",
+      // Powiadomienie po ODMOWIE SCHOWKA. Musi mówić, że nie udało się
+      // skopiować, i podać następny krok - klucz zostaje na ekranie, więc da
+      // się go przepisać ręcznie. Sam tytuł ramki nie mówi ani jednego, ani
+      // drugiego.
+      manageTokenCopyFailed: "Nie udało się skopiować klucza - przepisz go z ekranu.",
       cancelled: "Rezygnacja przyjęta.",
       promoted: "Z listy oczekujących weszła kolejna osoba ({{count}}).",
     },
@@ -379,6 +384,7 @@ export const eventRegistrationEn = {
         "Your entry code has not been generated yet - you will get it together with the payment confirmation.",
       manageTokenTitle: "Registration management key",
       manageTokenHint: "Save it now - we show it once and only to you.",
+      manageTokenCopyFailed: "Could not copy the key - write it down from the screen.",
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
     },
