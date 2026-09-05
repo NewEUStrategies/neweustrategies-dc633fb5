@@ -19,11 +19,11 @@ bo ta druga lista jest dla audytu cenniejsza niż pierwsza.
 | --- | --- | --- | --- |
 | linie modułu | 55,12% (468/849) | **100%** (883/883) | commit `052aea9`, 2026-09-03 |
 | funkcje modułu | 47,13% (164/348) | **100%** (359/359) | jw. |
-| wywołania `it(` | 165 | **652** | `grep -a` po katalogach modułu |
+| wywołania `it(` | 165 | **643** (23 pliki testowe) | `grep -a`, zakres jak niżej |
 | wywołania `expect(` | 374 | **2 007** | jw. |
 | klucze progowe w `vitest.config.ts` | 554 | **638** | parser kluczy |
 | klucze obejmujące moduł 21 | 1 (fałszywy przyjaciel) | **10** | jw. |
-| wpisy `it.fails` w module | 0 | **8** | `grep -a` |
+| wpisy `it.fails` | 0 | **6** w module + **2** w `jobsTickRun` | `grep -a` |
 | `it.fails` na platformie | 327 / 186 plików | **348 / 199** | jw. |
 | testy trasy `admin.hiring.tsx` | brak pliku | **89 testów, 303 asercje** | `adminHiringRoute.test.tsx` |
 | testy trasy `admin.careers.tsx` | brak pliku | **111 testów, 324 asercje** | `adminCareersRoute.test.tsx` |
@@ -169,9 +169,10 @@ Lista, o którą zlecenie prosiło osobno.
    prawda, ale wniosek fałszywy: `admin.hiring.tsx` **ma** własny klucz
    (`vitest.config.ts:689`). Regexp zlecenia nie zawiera członu `hiring`, więc
    **jego własna recepta pomiarowa nie może zobaczyć tego pliku.**
-4. **Zero `it.fails` w module** - jest **8** (5 w `adminHiringRoute`,
-   1 w `adminCareersRoute`, 2 w `jobsTickRun`). Platforma ma 348/199, nie
-   327/186; ta ostatnia para była prawdziwa 2026-09-03 i już nie jest.
+4. **Zero `it.fails` w module** - jest **6** w 23 plikach modułu (5 w
+   `adminHiringRoute`, 1 w `adminCareersRoute`) plus **2** w `jobsTickRun.test.ts`,
+   czyli w warstwie, którą §0.6 zlecenia samo zalicza do obwodu modułu. Platforma
+   ma 348/199, nie 327/186; ta ostatnia para była prawdziwa 2026-09-03.
 5. **Trasy `admin.hiring.tsx` i `admin.careers.tsx` bez ani jednego testu** -
    mają 89 i 111 testów oraz 303 i 324 asercje.
 6. **`zatrudniamy.tsx` rozliczany do modułu 20 przez lukę w mapie** - mapa jest
@@ -190,6 +191,14 @@ Lista, o którą zlecenie prosiło osobno.
     16 i **żadnej migracji `career_*` nie zaaplikuje**. Powierzchnia rekrutacji
     ma własną bramkę `check:careers-harness`, a pgTAP biegnie w zadaniu `pgtap`.
     Kryterium odbioru było w tym punkcie niewykonalne jak napisane.
+
+**Czego NIE zaliczam do pomyłek zlecenia, choć wygląda na pomyłkę.** Liczby
+`0/170` (hiring) i `0/126` (careers) mają **poprawne mianowniki** - to dokładnie
+liczniki INSTRUKCJI v8 tych plików, a nie linii (linii jest 148 i 109).
+Niezależny przebieg `vitest run --coverage` po jednym pliku daje dziś
+`admin.hiring.tsx`: instrukcje 170/170, gałęzie 90/90, funkcje 100%. Zlecenie
+pomyliło się w liczniku, nie w mianowniku, i nazwało instrukcje liniami - to
+nieścisłość nazewnicza, nie zła liczba.
 
 Zlecenie miało rację w rzeczy najważniejszej - że dowód na izolację danych
 kandydatów nie istnieje - i pomyliło się niemal we wszystkich liczbach, którymi
@@ -223,6 +232,43 @@ to uzasadniało.
 
 ---
 
+## 6a. Trzy znaleziska zostawione otwarte, z dowodem
+
+Weryfikacja adwersaryjna narracji bezpieczeństwa z A3 potwierdziła ją **w każdym
+nośnym szczególe** (trzy zawężone polityki, trzy odtworzone w kształcie sprzed
+hardeningu, ratunek wyłącznie przez kolejność sortowania nazw plików). Przy
+okazji wyszły trzy rzeczy, których ta praca nie zamyka.
+
+**1. `career_cv_gc_queue.tenant_id` jest jedyną z sześciu kolumn `tenant_id`
+bez `NOT NULL`** (`20260814110000:267`; pozostałe pięć jest NOT NULL wprost albo
+przez klucz główny). Skutek jest nieoczywisty i niedobry: wiersz z `NULL`
+przechodzi przez politykę `tenant_id = current_tenant_id()` jako **niewidoczny
+dla całego personelu**, więc zakolejkowana ścieżka CV, której nikt nie widzi,
+nie zostanie też przez nikogo obsłużona. Dołożenie `NOT NULL` to zmiana
+schematu, czyli zmiana produkcji - poza zakresem ZASAD tego zlecenia.
+
+**2. Test przypina predykat, który późniejsza migracja wymieniła.**
+`adminCareersRoute.test.tsx:773-787` czyta migrację `20260814110000` i asertuje
+`is_staff() AND tenant_id = current_tenant_id()`. Efektywny predykat tych
+polityk to od `20260824074231` **`is_admin_or_editor()`**, nie `is_staff()`.
+Test jest zielony, bo o tym pliku mówi prawdę - ale o stanie faktycznym bazy
+już nie. To ta sama klasa co §3.3: asercja o pliku udająca asercję o systemie.
+
+Ryzyko jest już strukturalnie domknięte przez tę pracę, choć innym sposobem:
+asercje strukturalne w nowym pliku pgTAP czytają **`pg_policies`**, czyli stan
+efektywny po wszystkich migracjach, a nie treść wybranego pliku. Żadna kolejna
+migracja nie może ich ominąć.
+
+**3. `check:sql-policy-tenant-regression` nie blokuje kategorii „wyleczonej".**
+Przebieg raportuje 620 polityk w stanie końcowym, 562 związane z najemcą i **11
+wyleczonych regresji jako NIEBLOKUJĄCE** - w tym trójkę `career-cv` z narracji
+A3. Klasa jest więc widziana, ale nie zatrzymuje CI. Gdyby intencją było, żeby
+wygenerowany plik nigdy więcej nie wyemitował polityki sprzed hardeningu,
+bramka potrzebuje reguły blokującej dla regresji, których plik osłabiający jest
+młodszy od samej bramki.
+
+---
+
 ## 7. Ograniczenie tego pomiaru - i dlaczego jest istotne
 
 Prywatny rejestr npm (`europe-west4-npm.pkg.dev`) jest w tym środowisku
@@ -241,6 +287,20 @@ Liczby, które są twarde, pochodzą z warstw **niezależnych od npm**: uprząż
 `careers-harness` i pgTAP to czysty `bash` + `psql` (CI mówi o tym wprost przy
 zadaniu `pg-harness`: „to także jedyna bramka bazodanowa, która nie zależy od
 prywatnego rejestru npm"). Obie kontrole negatywne z §3 biegły właśnie tam.
+
+Ostrzeżenie o tej klasie stoi zresztą w samym audycie: **rozdz. 8.5, pozycja 1**
+opisuje przebieg wydania 8, który dał 32,24% zamiast 76%, bo `npm install` pisał
+do `node_modules` jeszcze po starcie pomiaru - 966 z 2 005 plików padło na
+zbieraniu. Sygnatura była wtedy ta sama, co u mnie na pierwszym podejściu:
+**setki padniętych PLIKÓW przy garstce czerwonych TESTÓW**. Pierwszy przebieg
+w tej sesji wyglądał dokładnie tak (253 pliki „(0 test)") i został odrzucony,
+a nie opublikowany.
+
+I jeszcze jedno, czego zlecenie nie mogło wiedzieć, a co stoi w audycie:
+**rozdz. 8.5 zawiera 12 pozycji sprostowań, a pozycja 9 obala wprost wcześniejszą
+wersję tego samego zlecenia** („Zlecenie twierdziło, że go nie ma - «0/16 linii,
+0/1 funkcji»") dla trasy `/api/public/jobs-tick`. Zlecenie, które dostałem,
+podaje w tym miejscu `0/17` i powtarza tezę, którą audyt zamknął.
 
 `bun.lock` nie został zmieniony ani zacommitowany. `package.json` zmieniono
 wyłącznie o jeden skrypt, na co zlecenie zezwala wprost.
