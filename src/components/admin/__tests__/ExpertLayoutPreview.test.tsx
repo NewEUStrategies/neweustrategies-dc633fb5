@@ -58,6 +58,12 @@ const stubs = vi.hoisted(() => ({
   hub: null as unknown,
   /** Slugi, dla których zbudowano `expertHubQueryOptions`. */
   hubSlugs: [] as string[],
+  /**
+   * Slugi, dla których react-query NAPRAWDĘ odpalił `queryFn`. Zbudowanie
+   * opcji zapytania dzieje się w renderze BEZWARUNKOWO (także dla pustego
+   * sluga), więc tylko ta lista dowodzi działania `enabled`.
+   */
+  hubFetches: [] as string[],
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -79,7 +85,10 @@ vi.mock("@/lib/experts/queries", () => ({
     stubs.hubSlugs.push(slug);
     return {
       queryKey: ["public", "expert", slug] as const,
-      queryFn: async () => stubs.hub,
+      queryFn: async () => {
+        stubs.hubFetches.push(slug);
+        return stubs.hub;
+      },
     };
   },
 }));
@@ -156,6 +165,7 @@ beforeEach(() => {
   sections().reset();
   stubs.hub = HUB;
   stubs.hubSlugs = [];
+  stubs.hubFetches = [];
 });
 
 afterEach(() => {
@@ -176,7 +186,10 @@ describe("ExpertLayoutPreview - wybór eksperta", () => {
     toggle("EN");
     expect(screen.getByText(/No expert with a slug set/, { exact: false })).toBeInTheDocument();
 
-    // `enabled: Boolean(effectiveSlug)` - zapytanie o hub NIE poleciało.
+    // `enabled: Boolean(effectiveSlug)` - opcje zapytania POWSTAŁY (render woła
+    // `expertHubQueryOptions("")` bezwarunkowo), ale `queryFn` NIE poleciał.
+    expect(stubs.hubSlugs).toContain("");
+    expect(stubs.hubFetches).toEqual([]);
     expect(hero().calls).toHaveLength(0);
   });
 
@@ -216,7 +229,9 @@ describe("ExpertLayoutPreview - wybór eksperta", () => {
       "href",
       "/author/jan-nowak",
     );
-    expect(stubs.hubSlugs).toContain("jan-nowak");
+    // Nie wystarczy, że opcje zapytania powstały - hub dla ręcznego sluga musi
+    // zostać NAPRAWDĘ pobrany, inaczej podgląd stałby na danych poprzednika.
+    await waitFor(() => expect(stubs.hubFetches).toContain("jan-nowak"));
   });
 });
 

@@ -939,6 +939,27 @@ describe("ThemeOptionsPane - zapis i historia", () => {
     expect(toasts().success).toHaveBeenCalledWith("Zapisano");
   });
 
+  it("zapis DOCIĄGA aktualny wiersz: gałąź dopisana PO wczytaniu formularza przeżywa", async () => {
+    // Test wyżej NIE dowodzi jeszcze scalania przy ZAPISIE: wczytanie robi
+    // `deepMerge(DEFAULTS, wiersz)`, więc gałąź obecna w bazie PRZED montażem
+    // siedzi już w szkicu i przeżyłaby nawet nadpisanie całego wiersza.
+    // Dowodem na odczyt-przed-zapisem jest wyłącznie gałąź, która pojawia się
+    // w wierszu PÓŹNIEJ - dokładnie tak wygląda równoległy zapis z innego
+    // panelu (General, SEO i GlobalColorsEditor piszą do TEGO SAMEGO klucza
+    // `theme_options` własnym, węższym kształtem).
+    await mountPane();
+    sb().setSetting("theme_options", { obca_galaz: { flaga: true } });
+
+    fireEvent.change(screen.getByLabelText("themeOptions.slots.main"), {
+      target: { value: "https://cdn.example.test/logo.svg" },
+    });
+    const doc = await saveAndRead();
+
+    expect(doc.obca_galaz).toEqual({ flaga: true });
+    // ...a szkic panelu nadal wygrywa tam, gdzie panel faktycznie edytuje.
+    expect((doc.logo as Record<string, unknown>).main).toBe("https://cdn.example.test/logo.svg");
+  });
+
   it("odmowa bazy pokazuje komunikat i NIE kasuje wpisanych wartości", async () => {
     await mountPane();
     sb().failWrite("site_settings", "RLS: brak uprawnien do site_settings", "42501");
