@@ -74,15 +74,31 @@
 //     dostaje lokalną odpowiedź zamiast gniazda. Zwraca funkcję przywracającą
 //     poprzedni stan - wołaj ją w `afterEach`.
 //
+//   stubAudioMetadata(seconds?)
+//     GRANICA METADANYCH MEDIÓW. `AudioPicker` sonduje długość pliku
+//     odłączonym `<audio>` (`document.createElement`) i czeka na
+//     `loadedmetadata` / `error` / fail-safe 8 s. happy-dom nie emituje
+//     ŻADNEGO z tych zdarzeń i zostawia `duration = NaN`, więc bez tej atrapy
+//     KAŻDY upload kończył się gałęzią „plik uszkodzony". Tryby: `.loaded(s)`,
+//     `.broken()`, `.silent()` (rozstrzyga dopiero fail-safe pod
+//     `vi.useFakeTimers`). Zwraca też `probed` - adresy, które panel sondował.
+//
+//   controlledHost(initial, render)
+//     Panele edytora wpisu są STEROWANE (`value` + `onChange` rodzica), więc
+//     bez rodzica trzymającego stan żadna interakcja nie zmienia tego, co widać
+//     na ekranie - test „wybrałem plik" mierzyłby wtedy samo wywołanie atrapy.
+//     Zwraca `{ node, current(), changes }`.
+//
 // API - ATRAPY DZIECI I ZAPYTANIA DOM
 //
 //   propRecorder<P>()            - rejestrator propów (`.last()`, `.calls`).
 //   imageSlotStub(rec)           - `@/components/admin/ImageSlot`.
 //   colorPickerStub(rec)         - `@/components/admin/blocks/AdminColorPicker`.
+//   mediaPickerStub(rec, url?)   - `@/components/admin/media/MediaPickerDialog`.
 //   childPaneStub(name, rec)     - dowolny panel-dziecko (`data-testid=name`).
 //   rowFor / controlFor / switchFor / selectWithOption / colorPickerInputs
 //                                - patrz komentarze przy definicjach.
-import { createElement, type ReactElement, type ReactNode } from "react";
+import { createElement, useState, type ReactElement, type ReactNode } from "react";
 import { render, type RenderResult } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, type Mock } from "vitest";
@@ -110,11 +126,36 @@ interface ForcedFailure {
   code?: string;
 }
 
+/**
+ * Trzeci argument `supabase.storage.from(b).upload(path, file, options)`.
+ * Panele różnią się KAŻDYM polem (`AudioPicker` cache'uje rok i deklaruje
+ * `contentType` zastępczy, `CoverImagePicker` godzinę i typ z pliku), więc
+ * atrapa musi te opcje przyjmować - inaczej test nie ma czego asertować.
+ */
+export interface StorageUploadOptions {
+  cacheControl?: string;
+  upsert?: boolean;
+  contentType?: string;
+}
+
+/** Odpowiedź uploadu w kształcie, w jakim czyta ją produkcja. */
+export interface StorageUploadResult {
+  data: { path: string } | null;
+  error: Error | null;
+}
+
 /** Atrapa `supabase.storage` z uploadem - kontrakt ImageSlot/AudioPicker. */
 export interface PaneStorageStub {
   /** `supabase.storage.from(bucket)`. */
   from: Mock;
-  upload: Mock;
+  /** PEŁNY podpis produkcyjny: `upload(path, file, options)`. */
+  upload: Mock<
+    (
+      path: string,
+      file?: File | Blob,
+      options?: StorageUploadOptions,
+    ) => Promise<StorageUploadResult>
+  >;
   remove: Mock;
   getPublicUrl: Mock;
   createSignedUrl: Mock;
@@ -128,10 +169,15 @@ export interface PaneStorageStub {
 function paneStorageStub(publicUrlBase: string): PaneStorageStub {
   let uploadFailure: ForcedFailure | null = null;
   const buckets: string[] = [];
-  const upload = vi.fn(async (path: string) =>
-    uploadFailure
-      ? { data: null, error: new Error(uploadFailure.message) }
-      : { data: { path }, error: null },
+  const upload = vi.fn(
+    async (
+      path: string,
+      _file?: File | Blob,
+      _options?: StorageUploadOptions,
+    ): Promise<StorageUploadResult> =>
+      uploadFailure
+        ? { data: null, error: new Error(uploadFailure.message) }
+        : { data: { path }, error: null },
   );
   const remove = vi.fn(async () => ({ data: [], error: null }));
   const getPublicUrl = vi.fn((path: string) => ({
@@ -167,10 +213,28 @@ function paneStorageStub(publicUrlBase: string): PaneStorageStub {
   return stub;
 }
 
+/**
+ * Wynik `supabase.rpc(...)` w kształcie, w jakim czyta go produkcja: obietnica,
+ * na której WOLNO jeszcze zawołać ogniwo terminalne.
+ *
+ * `AccessSettingsPane` czyta podpowiedź hasła przez
+ * `supabase.rpc("get_password_hint", ...).maybeSingle()` - funkcja zwracająca
+ * TABELĘ, więc supabase-js oddaje builder, nie gotowy wiersz. Goła obietnica
+ * (tak wyglądała ta atrapa wcześniej) wywracała cały panel na
+ * `maybeSingle is not a function` JESZCZE w `Promise.all` ładowania, czyli
+ * przed pierwszą asercją. Ogniwo nie zmienia odpowiedzi - wynik zaplanowany
+ * przez `rpc.setData(...)` jest ten sam z ogniwem i bez niego - bo to test
+ * planuje kształt wiersza.
+ */
+export type RpcQueryStub = Promise<SupabaseResult> & {
+  maybeSingle(): Promise<SupabaseResult>;
+  single(): Promise<SupabaseResult>;
+};
+
 /** Klient w kształcie, w jakim czyta go produkcja (`supabase.*`). */
 export interface SupabaseClientStub {
   from: (table: string) => unknown;
-  rpc: (name: string, args?: Record<string, unknown>) => Promise<SupabaseResult>;
+  rpc: (name: string, args?: Record<string, unknown>) => RpcQueryStub;
   storage: PaneStorageStub;
   auth: {
     getUser(): Promise<{ data: { user: { id: string } | null }; error: null }>;
@@ -278,39 +342,73 @@ export function settingsPaneSupabase(
   const generic =
     (table: string): TableResponder =>
     (chain) => {
+      // WYMUSZONY BŁĄD MA PIERWSZEŃSTWO NAD WŁASNYM RESPONDEREM. `failWrite` /
+      // `failRead` to jawne żądanie testu („ta tabela odmawia"), a responder
+      // opisuje KSZTAŁT danych. Kolejność odwrotna (delegacja najpierw)
+      // sprawiała, że dla tabeli z `setTableResponder` wymuszony błąd nie
+      // robił NIC: test „błąd zapisu" przechodził na zielono, mierząc ścieżkę
+      // sukcesu - najgorszy możliwy wynik, bo cichy.
+      const forced = isWrite(chain) ? writeFailures.get(table) : readFailures.get(table);
+      if (forced) return fail(forced.message, forced.code);
       // Własny responder przejmuje ODCZYT I ZAPIS - to jedyny sposób na
       // opóźnienie zapisu (asercja na stanie „Zapisywanie...") albo na
       // odpowiedź zależną od ładunku.
       const planned = tableData.get(table);
       if (typeof planned === "function") return (planned as TableResponder)(chain);
-      if (isWrite(chain)) {
-        const forced = writeFailures.get(table);
-        return forced ? fail(forced.message, forced.code) : ok(null);
-      }
-      const forced = readFailures.get(table);
-      if (forced) return fail(forced.message, forced.code);
+      if (isWrite(chain)) return ok(null);
       return ok(planned ?? null);
     };
+
+  /**
+   * Tabele, dla których atrapa MA już respondera. Bez tego rejestru
+   * `failRead`/`failWrite` musiały zgadywać po `chainsFor()`, czy responder
+   * stoi - i dla tabeli JUŻ RAZ ODCZYTANEJ, ale nigdy nie zaplanowanej, nie
+   * instalowały niczego. Wymuszony błąd znikał wtedy bez śladu, a panel
+   * dostawał komunikat diagnostyczny atrapy zamiast zaplanowanej odmowy.
+   */
+  const installed = new Set<string>();
+
+  const installTable = (table: string) => {
+    db.setResponse(table, table === "site_settings" ? siteSettings : generic(table));
+    installed.add(table);
+  };
 
   const install = (next: SettingsPaneSupabaseOptions) => {
     settingsRows.clear();
     tableData.clear();
     readFailures.clear();
     writeFailures.clear();
+    installed.clear();
     for (const [key, value] of Object.entries(next.settings ?? {})) settingsRows.set(key, value);
     db.setResponse("site_settings", siteSettings);
+    installed.add("site_settings");
     for (const [table, data] of Object.entries(next.tables ?? {})) {
       tableData.set(table, data);
       db.setResponse(table, generic(table));
+      installed.add(table);
     }
     userId = next.userId === undefined ? "user-test" : next.userId;
   };
 
   install(options);
 
+  /** Ładunki zapisów dla tabeli - JEDNA definicja dla `writes` i `lastWrite`. */
+  function writesFor(table: string, method: WriteMethod = "upsert"): unknown[] {
+    return db
+      .chainsFor(table)
+      .filter((chain) => chain.has(method))
+      .map((chain) => chain.argsOf(method)?.[0]);
+  }
+
   const client: SupabaseClientStub = {
     from: db.from,
-    rpc: rpc.rpc,
+    rpc: (name, args) => {
+      const result = rpc.rpc(name, args);
+      return Object.assign(result, {
+        maybeSingle: () => result,
+        single: () => result,
+      });
+    },
     storage,
     auth: {
       async getUser() {
@@ -347,36 +445,23 @@ export function settingsPaneSupabase(
     setTable(table, data) {
       tableData.set(table, data);
       db.setResponse(table, generic(table));
+      installed.add(table);
     },
     setTableResponder(table, responder) {
       tableData.set(table, responder);
       db.setResponse(table, generic(table));
+      installed.add(table);
     },
     failRead(table, message, code) {
       readFailures.set(table, { message, code });
-      if (!db.chainsFor(table).length && !tableData.has(table)) {
-        db.setResponse(table, table === "site_settings" ? siteSettings : generic(table));
-      }
+      if (!installed.has(table)) installTable(table);
     },
     failWrite(table, message, code) {
       writeFailures.set(table, { message, code });
-      if (table !== "site_settings" && !tableData.has(table)) {
-        db.setResponse(table, generic(table));
-      }
+      if (!installed.has(table)) installTable(table);
     },
-    writes(table, method = "upsert") {
-      return db
-        .chainsFor(table)
-        .filter((chain) => chain.has(method))
-        .map((chain) => chain.argsOf(method)?.[0]);
-    },
-    lastWrite(table, method = "upsert") {
-      const all = db
-        .chainsFor(table)
-        .filter((chain) => chain.has(method))
-        .map((chain) => chain.argsOf(method)?.[0]);
-      return all.at(-1);
-    },
+    writes: writesFor,
+    lastWrite: (table, method = "upsert") => writesFor(table, method).at(-1),
     chainsFor: (table) => db.chainsFor(table),
     reset(next = options) {
       db.reset();
@@ -546,6 +631,13 @@ export function mountSettingsPane(
  * w przeglądarce i widać, co panel robi z dokumentem ramki.
  *
  * Zwraca funkcję przywracającą poprzedni interceptor - wołaj ją w `afterEach`.
+ *
+ * BRAK PUNKTU ZACZEPIENIA TO BŁĄD, NIE CICHA DEGRADACJA. Wcześniej funkcja
+ * oddawała wtedy pustą „przywracarkę" i przechodziła dalej - czyli test, który
+ * zamówił odcięcie od sieci, biegł Z SIECIĄ i nikt tego nie widział (do
+ * pierwszego czerwonego przebiegu na maszynie bez wyjścia na świat). Jeśli
+ * `happyDOM.settings.fetch` zniknie po zmianie środowiska, ma się to zgłosić
+ * TU, a nie objawić losowym `NetworkError` w innym pliku.
  */
 export function stubBrowserPageFetch(
   html = "<!doctype html><html><body></body></html>",
@@ -559,7 +651,11 @@ export function stubBrowserPageFetch(
   };
   const fetchSettings = scope.happyDOM?.settings?.fetch;
   const ResponseCtor = scope.Response;
-  if (!fetchSettings || !ResponseCtor) return () => {};
+  if (!fetchSettings || !ResponseCtor) {
+    throw new Error(
+      "test: brak `happyDOM.settings.fetch` albo `Response` - nie ma jak odciąć testu od sieci",
+    );
+  }
   const previous = fetchSettings.interceptor;
   fetchSettings.interceptor = {
     beforeAsyncRequest: async () =>
@@ -568,6 +664,126 @@ export function stubBrowserPageFetch(
   return () => {
     fetchSettings.interceptor = previous;
   };
+}
+
+/**
+ * GRANICA METADANYCH MEDIÓW - odłączony `<audio>` jako sonda długości pliku.
+ *
+ * `AudioPicker.probeAudioDuration` tworzy `document.createElement("audio")`,
+ * ustawia `src` i CZEKA na jedno z trzech zdarzeń: `loadedmetadata` (czas
+ * trwania), `error` (plik nieczytelny) albo fail-safe `setTimeout(8000)`.
+ * happy-dom nie emituje żadnego z nich i trzyma `duration = NaN`, więc bez
+ * atrapy każdy upload wpadał w gałąź „plik uszkodzony", a gałęzie sukcesu
+ * i fail-safe były NIEOSIĄGALNE.
+ *
+ * Atrapa podmienia `document.createElement` (a nie sam prototyp `<audio>`), bo
+ * sonda nigdy nie wkłada elementu do dokumentu - nie ma jej jak znaleźć
+ * zapytaniem DOM. Element RENDEROWANY przez panel (`<audio src controls>`) jest
+ * w drzewie, więc rozpoznajemy go po `parentNode` i zostawiamy w spokoju:
+ * inaczej `probed` liczyłby też podglądy, których nikt nie sondował.
+ *
+ * Zdarzenie leci MAKROZADANIEM: produkcja ustawia `src` i dopiero potem wpina
+ * nasłuchy, więc dyspozycja synchroniczna nie miałaby jeszcze słuchacza.
+ */
+export interface AudioMetadataStub {
+  /** Adresy, które panel naprawdę sondował (bez podglądów w drzewie). */
+  probed: string[];
+  /** Kolejne sondy kończą się `loadedmetadata` z tym czasem trwania. */
+  loaded(seconds: number): void;
+  /** Kolejne sondy kończą się zdarzeniem `error` (uszkodzony plik). */
+  broken(): void;
+  /** Sonda MILCZY - rozstrzyga ją fail-safe 8 s (wymaga fake timers). */
+  silent(): void;
+  /** Przywróć oryginalny `document.createElement` - wołaj w `afterEach`. */
+  restore(): void;
+}
+
+export function stubAudioMetadata(seconds = 95): AudioMetadataStub {
+  let mode: "loaded" | "broken" | "silent" = "loaded";
+  let duration = seconds;
+  const probed: string[] = [];
+  const original = document.createElement;
+  const patched = function (this: Document, tag: string, options?: ElementCreationOptions) {
+    const element = original.call(this, tag, options);
+    if (String(tag).toLowerCase() !== "audio") return element;
+    const audio = element as HTMLAudioElement;
+    setTimeout(() => {
+      // Podgląd panelu wisi w drzewie - sonda nie.
+      if (audio.parentNode) return;
+      probed.push(audio.src);
+      if (mode === "silent") return;
+      if (mode === "broken") {
+        audio.dispatchEvent(new Event("error"));
+        return;
+      }
+      Object.defineProperty(audio, "duration", { configurable: true, value: duration });
+      audio.dispatchEvent(new Event("loadedmetadata"));
+    }, 0);
+    return element;
+  };
+  Object.defineProperty(document, "createElement", {
+    configurable: true,
+    writable: true,
+    value: patched,
+  });
+  return {
+    probed,
+    loaded(next) {
+      mode = "loaded";
+      duration = next;
+    },
+    broken() {
+      mode = "broken";
+    },
+    silent() {
+      mode = "silent";
+    },
+    restore() {
+      Object.defineProperty(document, "createElement", {
+        configurable: true,
+        writable: true,
+        value: original,
+      });
+    },
+  };
+}
+
+// ─── montaż: panel STEROWANY ─────────────────────────────────────────────────
+
+/** Rodzic trzymający stan panelu sterowanego (`value` + `onChange`). */
+export interface ControlledHost<T> {
+  /** Drzewo do podania `mountSettingsPane`. */
+  node: ReactElement;
+  /** Wartość, którą panel widzi TERAZ (po ostatnim `onChange`). */
+  current(): T;
+  /** Wszystkie wartości oddane przez `onChange`, w kolejności. */
+  changes: T[];
+}
+
+/**
+ * Otacza panel STEROWANY rodzicem trzymającym stan.
+ *
+ * `AudioPicker`, `CoverImagePicker` i `PostSettingsMetabox` nie mają własnego
+ * stanu wartości - oddają ją przez `onChange` i renderują to, co dostaną
+ * propem. Bez rodzica test może dowieść tylko tego, że handler się zawołał;
+ * z rodzicem widzi SKUTEK (podgląd okładki znika, nazwa pliku się zmienia,
+ * nowy punkt pojawia się na liście), czyli to, co widzi redaktor.
+ */
+export function controlledHost<T>(
+  initial: T,
+  renderPane: (value: T, onChange: (next: T) => void) => ReactElement,
+): ControlledHost<T> {
+  const changes: T[] = [];
+  let latest = initial;
+  const Host = () => {
+    const [value, setValue] = useState<T>(initial);
+    latest = value;
+    return renderPane(value, (next) => {
+      changes.push(next);
+      setValue(next);
+    });
+  };
+  return { node: createElement(Host), current: () => latest, changes };
 }
 
 // ─── atrapy dzieci ───────────────────────────────────────────────────────────
@@ -665,6 +881,51 @@ export function colorPickerStub(recorder: PropRecorder<ColorPickerStubProps>): {
             onClick: () => props.onChange(undefined),
           },
           "reset",
+        ),
+      );
+    },
+  };
+}
+
+/** Propy, które panele przekazują `MediaPickerDialog`. */
+export interface MediaPickerStubProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPick: (url: string) => void;
+  accept?: "image" | "audio" | "all";
+  title?: string;
+}
+
+/**
+ * Atrapa `@/components/admin/media/MediaPickerDialog`.
+ *
+ * Prawdziwy dialog to własna powierzchnia (biblioteka mediów: lista, upload,
+ * ALT, foldery, dwie server fn) i wciągnięcie go do testu panelu mierzyłoby
+ * JEGO, a nie panel. Atrapa oddaje dokładnie to, na czym stoi kontrakt
+ * panelu: gdy jest OTWARTA, daje przycisk wybierający adres (`onPick`)
+ * i przycisk zamykający (`onOpenChange(false)`); zamknięta nie renderuje nic -
+ * więc test widzi, czy panel naprawdę ją otworzył.
+ */
+export function mediaPickerStub(
+  recorder: PropRecorder<MediaPickerStubProps>,
+  pickUrl = "https://media.example.test/biblioteka/okladka.jpg",
+): { MediaPickerDialog: (props: MediaPickerStubProps) => ReactElement | null } {
+  return {
+    MediaPickerDialog: (props: MediaPickerStubProps) => {
+      recorder.calls.push(props);
+      if (!props.open) return null;
+      return createElement(
+        "div",
+        { "data-testid": "media-picker", "data-accept": props.accept ?? "" },
+        createElement(
+          "button",
+          { type: "button", "data-media-pick": true, onClick: () => props.onPick(pickUrl) },
+          props.title ?? "pick",
+        ),
+        createElement(
+          "button",
+          { type: "button", "data-media-close": true, onClick: () => props.onOpenChange(false) },
+          "close",
         ),
       );
     },
