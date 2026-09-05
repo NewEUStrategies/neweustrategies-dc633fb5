@@ -50,7 +50,7 @@
 // nigdy nie wchodzi do procesu testowego.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import type {
   AudienceSegmentsResult,
   AudienceTopPost,
@@ -344,6 +344,9 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  // Sieć wraca po każdym przypadku - `onlineManager` jest stanem MODUŁU
+  // react-query i przeciekłby na wszystkie następne pliki w tym samym forku.
+  onlineManager.setOnline(true);
   vi.restoreAllMocks();
 });
 
@@ -388,6 +391,87 @@ describe("AudienceSegmentsDashboard - trzy stany panelu", () => {
     // słowniku ZMIERZONE ZERO, więc przed odczytem jest tam napis o pomiarze.
     expect(screen.queryByText(common("noDataWindow"))).toBeNull();
   });
+
+  it("zapytanie wstrzymane brakiem sieci nie odpytuje serwera, a kafelki mówią o POMIARZE", async () => {
+    // `q.isLoading` w react-query v5 to `isPending && isFetching`. Zapytanie
+    // wstrzymane brakiem sieci ma `fetchStatus: "paused"`, więc `isFetching`
+    // jest fałszem - a wraz z nim `isLoading`, mimo że nie przyszedł ani jeden
+    // wiersz. To jest CZWARTY stan panelu, którego `isMeasuring` (`!tenantId ||
+    // q.isLoading`) nie widzi: warsztat jest rozwiązany, ładowania nie ma,
+    // błędu nie ma i danych też nie ma.
+    //
+    // Kafelki wychodzą z niego obronną ręką, bo `kpiText` ma WŁASNĄ gałąź na
+    // `value === undefined` - i to jest tu przedmiotem dowodu. Dwa pozostałe
+    // nośniki tego samego stanu (listy „Top ..." i karta wniosków) tej gałęzi
+    // nie mają; pilnują tego dwa przypadki niżej, oznaczone jako defekt.
+    onlineManager.setOnline(false);
+    panel();
+    await waitFor(() => expect(screen.getByText(aud("kpi.viewsTotal"))).toBeInTheDocument());
+
+    expect(h.fetchAudience).not.toHaveBeenCalled();
+    const shown = [
+      kpiValue(aud("kpi.viewsTotal")),
+      kpiValue(aud("kpi.logged")),
+      kpiValue(aud("kpi.anon")),
+      kpiValue(aud("kpi.uniqueReaders")),
+    ];
+    expect(shown).not.toEqual(["0", "0", "0", "0"]);
+    expect(shown).toEqual(Array<string>(4).fill(common("measuringShort")));
+    // Podpowiedź o unikalnych czytelnikach też nie zmyśla liczby: bez pomiaru
+    // nie ma czego podpisywać.
+    expect(kpiHint(aud("kpi.logged"))).toBe("");
+  });
+
+  it.fails(
+    "DEFEKT: przy wstrzymanym odczycie listy „Top ...” twierdzą o ZMIERZONYM zerze",
+    async () => {
+      // PRZYCZYNA. `listEmptyLabel` rozgałęzia się na `isMeasuring`
+      // (`!tenantId || q.isLoading`) i `readError`. Zapytanie wstrzymane brakiem
+      // sieci nie jest ani jednym, ani drugim, więc wypada na gałąź ostatnią -
+      // `common.noDataWindow`, czyli w tym słowniku napis o ZMIERZONYM zerze.
+      //
+      // SKUTEK W PRODUKCIE. Administrator w tunelu (albo za padniętym proxy)
+      // czyta „brak danych w wybranym oknie" i idzie sprawdzać ingest odsłon,
+      // podczas gdy panel nie wykonał ani jednego żądania. Ten sam ekran mówi
+      // przy tym na kafelkach „trwa pomiar", więc pulpit sam sobie przeczy.
+      // Komentarz nad `listEmptyLabel` nazywa dokładnie ten błąd: napis o
+      // oknie „twierdzi o oknie pomiarowym coś, czego nikt nie sprawdził".
+      //
+      // NAPRAWA (poza zakresem tej porcji - to zmiana w kodzie produkcyjnym):
+      // `isMeasuring` musi objąć także odczyt wstrzymany, np.
+      // `!tenantId || q.isLoading || (q.isPending && q.fetchStatus === "paused")`.
+      onlineManager.setOnline(false);
+      panel();
+      await waitFor(() => expect(screen.getByText(aud("kpi.viewsTotal"))).toBeInTheDocument());
+
+      expect(screen.queryByText(common("noDataWindow"))).toBeNull();
+    },
+  );
+
+  it.fails(
+    "DEFEKT: przy wstrzymanym odczycie panel ogłasza brak krytycznych zagadnień",
+    async () => {
+      // PRZYCZYNA. `insights` wychodzi z `if (!report) return out;` z PUSTĄ
+      // listą, bo gałęzie „pomiar" i „awaria" stoją wyżej i żadna nie łapie
+      // odczytu wstrzymanego. Pusta lista każe `InsightSection` namalować
+      // zieloną kartę „nie znaleziono krytycznych zagadnień".
+      //
+      // SKUTEK W PRODUKCIE. Audyt audytorium zostaje ZALICZONY, zanim się
+      // odbył - i to na zielono, czyli w formie, która nie zachęca do
+      // sprawdzenia niczego dalej. Przypadek wyżej („w trakcie pobierania panel
+      // NIE ogłasza braku krytycznych zagadnień") pilnuje dokładnie tej samej
+      // zasady dla stanu ładowania; tutaj ta sama zasada nie obowiązuje tylko
+      // dlatego, że react-query nazywa ten stan inaczej.
+      //
+      // NAPRAWA: ta sama co wyżej - jedno wspólne `isMeasuring` obejmujące
+      // odczyt wstrzymany naprawia oba objawy naraz.
+      onlineManager.setOnline(false);
+      panel();
+      await waitFor(() => expect(screen.getByText(aud("kpi.viewsTotal"))).toBeInTheDocument());
+
+      expect(screen.queryByText(insightChrome("emptyDefault"))).toBeNull();
+    },
+  );
 
   it("w trakcie pobierania panel NIE ogłasza braku krytycznych zagadnień", async () => {
     // Pusta lista wniosków każe `InsightSection` namalować zieloną kartę "nie

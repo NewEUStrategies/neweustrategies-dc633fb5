@@ -499,6 +499,28 @@ describe("getOauthAccessToken - tryb refresh tokenu", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("odświeżenie 200 bez pola access_token daje null, a nie `Bearer undefined`", async () => {
+    // Bliźniak przypadku z bloku Service Accountu, ale dla DRUGIEGO źródła
+    // tokenu - i to jest sedno: kontrakt dwuwartościowy („albo token, albo
+    // null") obowiązuje w OBU trybach. Google odpowiada 200 bez `access_token`
+    // przy odwołanej zgodzie aplikacji i przy proxy, które przepisuje ciało;
+    // bez tej bramki wołający (`ga4.functions.ts`, `snapshot.functions.ts`)
+    // dostawałby PRAWDZIWY obiekt `{ token: undefined, source: "oauth" }`,
+    // przechodzący `if (!auth)`, i do płatnego Data API poleciałby nagłówek
+    // „Bearer undefined" - czyli 401 zamiast czytelnego „GA4 nieskonfigurowane".
+    ustawOauth();
+    zawsze(() => odpowiedz(200, JSON.stringify({ token_type: "Bearer", expires_in: 3600 })));
+    const { resolveGa4AccessToken } = await loadGa4();
+
+    const auth = await resolveGa4AccessToken();
+
+    expect(auth).toBeNull();
+    // Nieudana wymiana NIE zapisuje się w cache'u: druga próba znów pyta
+    // Google'a, zamiast utrwalić brak tokenu na godzinę życia izolatu.
+    expect(await resolveGa4AccessToken()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("nieudane odświeżenie rzuca z kodem statusu i nie wypisuje sekretu ani refresh tokenu", async () => {
     ustawOauth();
     zawsze(() => odpowiedz(401, JSON.stringify({ error: "invalid_client" })));

@@ -742,6 +742,37 @@ describe("FooterAnalyticsPanel - izolacja warsztatów", () => {
     expect(second.container.textContent ?? "").toContain("BETA");
   });
 
+  it("bez rozwiązanego warsztatu panel nie odpytuje serwera, a klucz cache niesie PUSTY warsztat", async () => {
+    // Warsztat rozwiązuje się ASYNCHRONICZNIE (profil plus sesja), więc
+    // pierwsze klatki panelu widzą `null`. Bramka jest wtedy PODWÓJNA i ten
+    // przypadek pilnuje obu jej połówek naraz.
+    //
+    // `enabled: Boolean(tenantId)` wstrzymuje odczyt - inaczej odpowiedź
+    // wpadłaby do cache pod kluczem WSPÓLNYM dla wszystkich warsztatów.
+    // `tenantId ?? ""` trzyma ten wpis ROZŁĄCZNIE z każdym realnym warsztatem:
+    // react-query hashuje klucz przez `JSON.stringify`, a `undefined` w tablicy
+    // serializuje się do `null`, więc bez tej domyślnej wartości stan
+    // „warsztatu jeszcze nie znam" i stan „warsztat to X" mogłyby wylądować
+    // w jednym wpisie - i to znów bez ani jednego żądania w sieci.
+    h.tenantId = null;
+    const { queryClient } = panel();
+    await waitFor(() => expect(screen.getByText("Wszystkie zdarzenia")).toBeInTheDocument());
+
+    expect(h.fetchFooter).not.toHaveBeenCalled();
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .map((cached) => cached.queryKey),
+    ).toEqual([["footer-analytics", "", 30]]);
+    // Nierozwiązany warsztat to BRAK POMIARU, nie zmierzone zero - inaczej
+    // panel twierdziłby, że stopka nie zebrała ani jednego kliknięcia, zanim
+    // w ogóle zdążył o cokolwiek zapytać.
+    expect(statValue("Wszystkie zdarzenia")).toBe("-");
+    expect(statHint("Wszystkie zdarzenia")).toBe("Brak pomiaru");
+    expect(screen.queryByText("Brak zdarzeń w wybranym oknie.")).toBeNull();
+  });
+
   it("klucz cache niesie warsztat, więc PIERWSZA klatka panelu B jest czysta", async () => {
     // NAJOSTRZEJSZY przypadek izolacji: `QueryClient` przeżywa zmianę
     // warsztatu. Przy kluczu `["footer-analytics", days]` - jedna stała i
@@ -773,6 +804,74 @@ describe("FooterAnalyticsPanel - izolacja warsztatów", () => {
 
     expect(second.container.textContent ?? "").not.toContain("ALFA");
     expect(second.container.textContent ?? "").toContain("BETA raporty");
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("FooterAnalyticsPanel - odpowiedź BEZ bloku sum", () => {
+  // Odpowiedź funkcji serwerowej NIE JEST po stronie klienta walidowana:
+  // `useServerFn` oddaje sparsowany JSON tak, jak przyszedł, a `q.data` dostaje
+  // typ z sygnatury, nie z pomiaru. Typ jest więc obietnicą KOMPILATORA, a nie
+  // gwarancją RUNTIME - dokładnie dlatego pięć kafelków ma `?? 0`, a nie gołe
+  // `totals.total`. Ten blok pilnuje, żeby ten strażnik został i żeby robił to,
+  // co obiecuje.
+  //
+  // Kiedy to się zdarza naprawdę: rozjazd wersji między przeglądarką a
+  // serwerem (klient z cache Service Workera rozmawia z nowszym wdrożeniem),
+  // odpowiedź obcięta przez pośrednika albo handler, który oddał wiersze bez
+  // domknięcia agregatu. Bez `?? 0` pierwszy kafelek rzuca
+  // `TypeError: Cannot read properties of undefined`, a cała zakładka
+  // `/admin/analytics` wpada do granicy błędu - z powodu JEDNEGO brakującego
+  // pola w skądinąd użytecznej odpowiedzi.
+  const NO_TOTALS = {
+    rows: [row({ href: "/analizy", label: "Analizy", clicks: 7 })],
+    daily: [],
+    windowDays: 30,
+  };
+
+  it("brak `totals` w odpowiedzi daje ZERA na kafelkach, a nie `undefined` ani wywrotki panelu", async () => {
+    h.fetchFooter.mockResolvedValue(NO_TOTALS);
+    const { container } = panel();
+    await loaded();
+
+    expect([
+      statValue("Wszystkie zdarzenia"),
+      statValue("Linki treści"),
+      statValue("Linki prawne"),
+      statValue("Kliknięcia newsletter"),
+      statValue("Zapisy z newslettera"),
+    ]).toEqual(["0", "0", "0", "0", "0"]);
+    // `undefined` na kafelku byłoby gorsze niż zero: wygląda jak awaria
+    // renderu, a nie jak liczba, i nie da się go odróżnić od defektu panelu.
+    expect(container.textContent ?? "").not.toContain("undefined");
+    expect(container.textContent ?? "").not.toContain("NaN");
+  });
+
+  it("brak `totals` NIE wymyśla konwersji newslettera - mianownika po prostu nie ma", async () => {
+    // Odsetek liczy się TU, w komponencie, z dwóch pól sum. Bez nich nie ma
+    // czego dzielić, a `0/0` wypisane jako „0.0% konwersji" byłoby liczbą
+    // wziętą z niczego - i wyglądałoby jak zmierzona porażka lejka.
+    h.fetchFooter.mockResolvedValue(NO_TOTALS);
+    panel();
+    await loaded();
+
+    expect(statHint("Zapisy z newslettera")).toBeNull();
+    expect(statCard("Zapisy z newslettera").children).toHaveLength(2);
+  });
+
+  it("brak `totals` nie kasuje wierszy, które w odpowiedzi PRZYSZŁY", async () => {
+    // Niepełna odpowiedź nie jest odpowiedzią pustą: ranking linków jest
+    // niezależnym polem i to, co dojechało, ma dojechać na ekran. Gdyby panel
+    // wchodził wtedy w gałąź „brak pomiaru", operator straciłby jedyne dane,
+    // które faktycznie ma.
+    h.fetchFooter.mockResolvedValue(NO_TOTALS);
+    panel();
+    await loaded();
+
+    expect(tableRows()).toHaveLength(1);
+    expect(cells(tableRows()[0])[0]).toContain("Analizy");
+    expect(screen.queryByText("Panel nie wykonał odczytu - pomiar jest wstrzymany.")).toBeNull();
   });
 });
 

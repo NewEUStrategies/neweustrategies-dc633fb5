@@ -1016,6 +1016,36 @@ describe("ClientErrorsDashboard - izolacja warsztatów", () => {
     expect(second.container.textContent ?? "").not.toContain("ALFA");
   });
 
+  it("bez rozwiązanego warsztatu panel nie odpytuje serwera, a klucz cache niesie PUSTY warsztat", async () => {
+    // Warsztat rozwiązuje się ASYNCHRONICZNIE (profil plus sesja), więc
+    // pierwsze klatki panelu widzą `null`. Bramka jest wtedy PODWÓJNA i ten
+    // przypadek pilnuje obu jej połówek naraz.
+    //
+    // `enabled: Boolean(tenantId)` wstrzymuje odczyt - bez niego odpowiedź
+    // wpadłaby do cache pod kluczem WSPÓLNYM dla wszystkich warsztatów i
+    // stamtąd przeciekała do pierwszego, który trafi w te same granice okna.
+    // `tenantId ?? ""` trzyma ten wpis ROZŁĄCZNIE z każdym realnym warsztatem:
+    // react-query hashuje klucz przez `JSON.stringify`, a `undefined` w tablicy
+    // serializuje się do `null`, więc bez tej domyślnej wartości stan
+    // „warsztatu jeszcze nie znam" nie byłby odróżnialny od stanu, w którym
+    // jakiś warsztat już jest.
+    h.tenantId = null;
+    const { queryClient } = panel();
+    await screen.findByText(common("measuring"));
+
+    expect(h.fetchReport).not.toHaveBeenCalled();
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((cached) => cached.queryKey);
+    expect(keys).toHaveLength(1);
+    expect(keys[0].slice(0, 3)).toEqual(["admin", "client-errors", ""]);
+    // Nierozwiązany warsztat to POMIAR W TOKU, nie zdrowa aplikacja: cztery
+    // zera na pulpicie błędów czytałoby się jako „nic się nie sypie".
+    expect(kpiValue(ce("kpiTotal"))).toBe("-");
+    expect(screen.queryByText(ce("empty"))).toBeNull();
+  });
+
   it("klucz cache niesie WARSZTAT, więc to samo okno nie oznacza wspólnego raportu", async () => {
     // `queryKey: ["admin","client-errors", sinceIso, untilIso]` nie zawierał
     // ani tenanta, ani użytkownika. Izolację trzymał wtedy WYŁĄCZNIE znacznik
@@ -1052,6 +1082,56 @@ describe("ClientErrorsDashboard - izolacja warsztatów", () => {
     expect(second.container.textContent ?? "").toContain("BETA: hydration mismatch");
     expect(h.fetchReport.mock.calls.length).toBe(2);
     expect(queryInputs()[0]).toEqual(queryInputs()[1]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("ClientErrorsDashboard - raport bez liczników", () => {
+  // Odpowiedź funkcji serwerowej NIE JEST po stronie klienta walidowana:
+  // `useServerFn` oddaje sparsowany JSON tak, jak przyszedł, a `reportQuery.data`
+  // dostaje typ z sygnatury, nie z pomiaru. Sygnatura `kpi(value: number |
+  // undefined)` jest tego jawnym przyznaniem - gdyby liczniki były pewne,
+  // parametr byłby zwykłym `number`, a `?? 0` nie miałoby po co istnieć.
+  //
+  // Kiedy to się zdarza naprawdę: agregat liczy cztery liczniki nad tą samą
+  // próbką, ale `windowTotal` idzie OSOBNYM `COUNT(*)`, więc częściowa awaria
+  // po stronie serwera potrafi oddać raport z grupami i bez sumy okna.
+  // Rozjazd wersji między przeglądarką a wdrożeniem daje ten sam kształt.
+  const NO_COUNTERS = { windowDays: 7, capped: false, daily: [], groups: [] };
+
+  it("raport bez liczników maluje ZERA, a nie `undefined` na kafelkach", async () => {
+    // Pomiar SIĘ ODBYŁ (raport dojechał, odczyt nie padł), więc kreska byłaby
+    // tu nieprawdą w drugą stronę - panel ma czym rysować, tylko liczników nie
+    // dostał. `?? 0` jest ostatnią barierą przed `undefined.toLocaleString`,
+    // czyli przed wywrotką całej zakładki `/admin/analytics`.
+    h.fetchReport.mockResolvedValue(NO_COUNTERS);
+    const { container } = panel();
+    await loaded();
+
+    expect([
+      kpiValue(ce("kpiTotal")),
+      kpiValue(ce("kpiGroups")),
+      kpiValue(ce("kpiPaths")),
+      kpiValue(ce("kpiLast24h")),
+    ]).toEqual(["0", "0", "0", "0"]);
+    expect(container.textContent ?? "").not.toContain("undefined");
+    expect(container.textContent ?? "").not.toContain("NaN");
+  });
+
+  it("raport bez liczników nie melduje ani pomiaru w toku, ani awarii odczytu", async () => {
+    // Trzy stany zostają rozdzielone także wtedy, gdy odpowiedź jest niepełna:
+    // niepełny raport to nadal ODBYTY odczyt, więc karta „trwa pomiar" i karta
+    // awarii nie mają prawa się pokazać - obie kazałyby operatorowi czekać albo
+    // szukać awarii, podczas gdy panel ma już wszystko, co serwer oddał.
+    h.fetchReport.mockResolvedValue(NO_COUNTERS);
+    panel();
+    await loaded();
+
+    expect(screen.queryByText(common("measuring"))).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    // Pusta lista grup to jedyny komunikat, jaki tu przysługuje.
+    expect(screen.getByText(ce("empty"))).toBeInTheDocument();
   });
 });
 
