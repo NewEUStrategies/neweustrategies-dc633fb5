@@ -269,6 +269,50 @@ młodszy od samej bramki.
 
 ---
 
+## 6b. Pomiar po pracy - pełny przebieg `bun run test:coverage`
+
+Przebieg zakończony 2026-09-05 17:01, **2 200 s**, pełna suita:
+
+```
+Test Files  6 failed | 2303 passed | 2 skipped (2311)
+     Tests  7 failed | 63647 passed | 355 expected fail | 50 skipped (64059)
+```
+
+Moduł 21 policzony **dokładnie tym zakresem, którego użyło zlecenie**
+(29 plików, `src/lib/careers` + `src/lib/jobs` + `src/components/careers` +
+`admin.careers` + `admin.hiring` + `api/public/jobs-tick`):
+
+| wymiar | zlecenie | pomiar 2026-09-05 |
+| --- | --- | --- |
+| linie | 468/849 = 55,12% | **849/849 = 100,00%** |
+| funkcje | 164/348 = 47,13% | **348/348 = 100,00%** |
+| instrukcje | - | 996/997 = 99,90% |
+
+**Mianowniki zlecenia są co do jednego trafne - 849 i 348.** Zlecenie miało
+dokładnie ten zakres plików, dokładnie te mianowniki i **nieaktualne wyłącznie
+liczniki**. To najczystszy możliwy dowód, że jego rozbiór modułu był rzetelny,
+a jedynym jego błędem był wiek danych.
+
+Obwód z mapy wykonywalnej (30 plików, z `zatrudniamy.tsx`): linie **883/883**,
+funkcje **359/359** - liczba w liczbę zgodna z tym, co deklaruje commit
+`052aea9`, co potwierdza jego opis niezależnym przebiegiem.
+
+**Żaden z dziesięciu progów modułu 21 nie oblał.** Dwa progi, które oblały
+(`src/lib/wp-import/**`, `src/components/{NewsletterPopup,PopupSignupForm}.tsx`),
+nie należą do modułu 21 i nie były przez tę pracę dotykane.
+
+Niepokryte zostaje **2 z 1 035 instrukcji** obwodu (`recruitmentShared.ts` 37/38,
+`zatrudniamy.tsx` 37/38) oraz 18 gałęzi opisanych imiennie w §7 raportu
+z 2026-09-03 (straże SSR, zapasowe `|| ""` nieosiągalne przez inwariant walidacji).
+
+Sześć czerwonych plików suity - `donationsAdmin.server`, `router`,
+`MessageBubble`, `chartDrillDialog`, `themeDesignParts`, `livePreviewStage` -
+**nie zawiera ani jednego pliku modułu 21**; dwa z nich (`router`) przewracają
+się na `useRouter must be used inside a <RouterProvider>`, czyli na dryfie wersji
+opisanym w §7, a nie na kodzie repozytorium.
+
+---
+
 ## 7. Ograniczenie tego pomiaru - i dlaczego jest istotne
 
 Prywatny rejestr npm (`europe-west4-npm.pkg.dev`) jest w tym środowisku
