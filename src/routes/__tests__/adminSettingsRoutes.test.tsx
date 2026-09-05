@@ -289,6 +289,10 @@ vi.mock("@/components/admin/blocks/AdminSelect", () => ({
 }));
 
 import { renderRoute, routeMeta } from "@/test/routeHarness";
+// Ta sama funkcja, którą podstawia atrapa `react-i18next` powyżej - dzięki
+// temu helper paska zapisu liczy napis DOKŁADNIE tak, jak policzy go panel,
+// zamiast trzymać przepisany z ręki literał.
+import { translateKey } from "@/test/i18nStub";
 // Klucze sekcji BIERZEMY Z PRODUKCJI, nie przepisujemy z ręki: literówka
 // w łańcuchu dałaby test, który „przechodzi" obok panelu (mierzy sekcję,
 // której panel nie czyta).
@@ -386,10 +390,26 @@ async function mount(
   return renderRoute({ route, path, initialEntry: path });
 }
 
+/**
+ * Napisy paska zapisu (`src/components/admin/settings/fields.tsx` -> `SaveBar`)
+ * w stanie spoczynku i w trakcie zapisu.
+ *
+ * SKĄD KLUCZE, A NIE LITERAŁY. Pasek renderował kiedyś wpisane w kod „Zapisz
+ * zmiany" i „Zapisywanie…", więc na angielskim panelu jedyny przycisk, który
+ * cokolwiek utrwala, stał po polsku - w KAŻDYM z kilkunastu paneli
+ * `admin.settings.*`. Naprawą było przepuszczenie obu napisów przez `t()`
+ * (dowód i uzasadnienie: `adminSettingsAnalyticsRoute.test.tsx`, przypadek
+ * „pasek zapisu mówi po angielsku na angielskim panelu"). Helper przypięty do
+ * polskiego literału przestał wtedy znajdować pasek - a bez paska ŻADEN
+ * przypadek w tym pliku nie ma czego kliknąć ani czego się doczekać.
+ */
+const SAVE_BAR_IDLE = translateKey("admin.saveSettings");
+const SAVE_BAR_SAVING = translateKey("admin.saving");
+
 /** Pasek zapisu - jedyny przycisk, którego napis zmienia się w trakcie zapisu. */
 function saveButton(): HTMLButtonElement | undefined {
   return Array.from(document.querySelectorAll("button")).find(
-    (button) => button.textContent === "Zapisz zmiany" || button.textContent === "Zapisywanie…",
+    (button) => button.textContent === SAVE_BAR_IDLE || button.textContent === SAVE_BAR_SAVING,
   );
 }
 
@@ -511,7 +531,7 @@ describe("admin.settings.* - reguły wspólne wszystkich paneli", () => {
       await mount(route, path);
       await waitFor(() => expect(saveButton()).toBeTruthy());
       expect(saveButton()?.disabled).toBe(true);
-      expect(saveButton()?.textContent).toBe("Zapisywanie…");
+      expect(saveButton()?.textContent).toBe(SAVE_BAR_SAVING);
     },
   );
 

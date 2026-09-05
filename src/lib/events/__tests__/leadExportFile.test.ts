@@ -100,9 +100,9 @@ describe("eksport nie wynosi wiecej, niz obejmuje zgoda", () => {
     );
     expect(cells[KOL_ZGODA]).toBe("nie");
     // Asercja NIE narzuca postaci redakcji (pusty napis czy `null`) - pyta
-    // wylacznie o to, czy kontakt opuszcza system. Dzieki temu wpis zapali sie
-    // na czerwono w dniu, w ktorym produkcja zacznie redagowac COKOLWIEK,
-    // i ktos zamieni `it.fails` na zwykle `it` zamiast przeoczyc poprawke.
+    // wylacznie o to, czy kontakt opuszcza system. Dzieki temu zapali sie na
+    // czerwono w dniu, w ktorym redakcja przestanie dzialac, niezaleznie od
+    // tego, czym produkcja zeruje kolumne.
     expect(cells[KOL_EMAIL]).not.toBe("brak.zgody@example.com");
     expect(cells[KOL_TELEFON]).not.toBe("+48 500 000 002");
   });
