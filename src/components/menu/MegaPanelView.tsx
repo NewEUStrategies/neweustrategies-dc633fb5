@@ -223,9 +223,9 @@ export function MegaPanelView({
                 </div>
               ) : null}
               {featuredTitle ? (
-                <h4 className="mb-1 text-[13px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
-                  {featuredTitle}
-                </h4>
+              <h4 className="mb-1 text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
+                {featuredTitle}
+              </h4>
               ) : null}
             </AppLink>
             {featured.author_id
