@@ -93,8 +93,11 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     const emailConfirmedAt = u.email_confirmed_at ?? null;
     const signedInAfterInvitation = Boolean(
       u.last_sign_in_at &&
-      invitationSentAt &&
-      new Date(u.last_sign_in_at).getTime() > new Date(invitationSentAt).getTime(),
+        invitationSentAt &&
+        // Utworzenie konta i administracyjna autoakceptacja mogą zapisać oba
+        // czasy w tej samej chwili. Dopiero późniejsze, realne logowanie jest
+        // dowodem użycia zaproszenia.
+        new Date(u.last_sign_in_at).getTime() - new Date(invitationSentAt).getTime() > 30_000,
     );
     // `auto_accept` zatwierdza przydzielenie konta przez administratora, ale nie
     // oznacza, że odbiorca użył linku aktywacyjnego. Starsze rekordy oznaczone
