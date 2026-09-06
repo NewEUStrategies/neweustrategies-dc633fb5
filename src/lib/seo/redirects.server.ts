@@ -23,6 +23,7 @@
 //     on the stored path so WP shortlinks (`/?p=123`) show up individually.
 import { resolveTenantForHost } from "@/lib/server/tenant.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
+import { readBootstrapSnapshot, writeBootstrapSnapshot } from "@/lib/http/bootstrapCache.server";
 import {
   buildRedirectIndex,
   isProtectedPath,
@@ -44,15 +45,47 @@ interface CachedIndex {
 const REDIRECT_CACHE_TTL_MS = 30_000;
 const cache = new Map<string, CachedIndex>();
 const inflight = new Map<string, Promise<RedirectIndex>>();
+let sharedSnapshotsAllowed = true;
 
 /** Test hook - drop every cached tenant index. */
 export function invalidateRedirectCache(): void {
+  // An explicit local invalidation must not immediately restore an old L2
+  // snapshot. The next successful database read publishes its replacement.
+  sharedSnapshotsAllowed = false;
   cache.clear();
   inflight.clear();
 }
 
-async function loadIndexForTenant(tenantId: string): Promise<RedirectIndex> {
+function isRedirectRules(value: unknown): value is RedirectRule[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 5000 &&
+    value.every(
+      (row) =>
+        row &&
+        typeof row === "object" &&
+        typeof row.id === "string" &&
+        typeof row.source_path === "string" &&
+        typeof row.target_path === "string" &&
+        typeof row.status_code === "number" &&
+        [301, 302, 307, 308, 410].includes(row.status_code),
+    )
+  );
+}
+
+async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
   try {
+    if (sharedSnapshotsAllowed && !cache.has(tenantId)) {
+      const snapshot = await readBootstrapSnapshot(
+        `redirects:${tenantId}`,
+        REDIRECT_CACHE_TTL_MS,
+        isRedirectRules,
+      );
+      if (snapshot) {
+        const index = buildRedirectIndex(snapshot.value);
+        return { at: snapshot.at, index, count: index.exact.size + index.wildcards.length };
+      }
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("redirects")
@@ -67,12 +100,24 @@ async function loadIndexForTenant(tenantId: string): Promise<RedirectIndex> {
       target_path: row.target_path as string,
       status_code: row.status_code as number,
     }));
-    return buildRedirectIndex(rules);
+    const at = Date.now();
+    const index = buildRedirectIndex(rules);
+    runAfterResponse(
+      writeBootstrapSnapshot(`redirects:${tenantId}`, { at, value: rules }, REDIRECT_CACHE_TTL_MS),
+    );
+    return { at, index, count: index.exact.size + index.wildcards.length };
   } catch (e) {
     console.warn("[redirects] index load failed:", e);
     // Stale cache is preferable to hard-failing every request while Supabase
     // is degraded; empty when nothing is cached yet.
-    return cache.get(tenantId)?.index ?? buildRedirectIndex([]);
+    const previous = cache.get(tenantId);
+    // Local retry backoff must survive an outage; shared snapshots are only
+    // written after a successful database read above.
+    return {
+      at: Date.now(),
+      index: previous?.index ?? buildRedirectIndex([]),
+      count: previous?.count ?? 0,
+    };
   }
 }
 
@@ -91,14 +136,10 @@ async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   if (cached && now - cached.at < REDIRECT_CACHE_TTL_MS) return cached.index;
   let pending = inflight.get(tenantId);
   if (!pending) {
-    pending = loadIndexForTenant(tenantId).then((index) => {
-      cache.set(tenantId, {
-        at: Date.now(),
-        index,
-        count: index.exact.size + index.wildcards.length,
-      });
+    pending = loadIndexForTenant(tenantId).then((loaded) => {
+      cache.set(tenantId, loaded);
       inflight.delete(tenantId);
-      return index;
+      return loaded.index;
     });
     inflight.set(tenantId, pending);
     // Bez waitUntil runtime Workers ucinałby odświeżenie w tle razem

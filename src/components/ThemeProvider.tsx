@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  startTransition,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 type Theme = "light" | "dark";
 const STORAGE_KEY = "theme";
@@ -45,7 +53,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
-    setThemeState(readStored());
+    startTransition(() => setThemeState(readStored()));
   }, []);
 
   // Skip the first run: until state has adopted the stored preference, the
@@ -62,7 +70,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) setThemeState(e.newValue === "dark" ? "dark" : "light");
+      if (e.key === STORAGE_KEY)
+        startTransition(() => setThemeState(e.newValue === "dark" ? "dark" : "light"));
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -74,7 +83,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (typeof window.matchMedia !== "function") return;
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
-      if (localStorage.getItem(STORAGE_KEY) === null) setThemeState(systemTheme());
+      if (localStorage.getItem(STORAGE_KEY) === null)
+        startTransition(() => setThemeState(systemTheme()));
     };
     mql.addEventListener("change", onChange);
     return () => mql.removeEventListener("change", onChange);
@@ -83,10 +93,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = (next: Theme) => {
     localStorage.setItem(STORAGE_KEY, next);
     apply(next);
-    setThemeState(next);
+    // The CSS class responds immediately. Keep already visible content while
+    // a lazy descendant finishes hydrating under the new theme; an urgent
+    // context update can otherwise replace it with a null Suspense fallback.
+    startTransition(() => setThemeState(next));
   };
 
-  const toggle = () => setTheme(theme === "dark" ? "light" : "dark");
+  // A second click may arrive while the React transition is pending. The DOM
+  // class already reflects the last explicit choice, unlike the deferred state.
+  const toggle = () =>
+    setTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
 
   return (
     <ThemeContext.Provider value={{ theme, toggle, setTheme }}>{children}</ThemeContext.Provider>

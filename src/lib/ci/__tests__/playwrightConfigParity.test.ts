@@ -162,6 +162,21 @@ describe("parytet konfiguracji Playwrighta", () => {
 // „bliżej reszty testów", i pomiar pojedzie po dev-serwerze. Dokładnie ta awaria
 // wydarzyła się już raz (przebieg 33512138275).
 describe("rozdział katalogów: pomiar porównawczy vs reszta suity", () => {
+  it("first-visit budgets run on their own production server, outside the dev suite", () => {
+    const source = readFileSync("playwright.performance.config.ts", "utf8");
+    expect(declaredTestDir(source, "performance config")).toBe("./e2e-performance");
+    expect(source).toContain(".output/server/index.mjs");
+    expect(source).toMatch(/reuseExistingServer:\s*false/);
+    expect(source).toMatch(/retries:\s*0/);
+    expect(
+      readdirSync("e2e-performance").filter((name) => name.endsWith(".spec.ts")).length,
+    ).toBeGreaterThan(0);
+    const misplaced = readdirSync(E2E_DIR, { recursive: true }).filter(
+      (name) => typeof name === "string" && /(?:first-visit|typography)\.spec\.ts$/.test(name),
+    );
+    expect(misplaced).toEqual([]);
+  });
+
   it("konfiguracja pomiaru czyta WŁASNY katalog, nie `e2e`", () => {
     expect(declaredTestDir(abSource, AB_CONFIG)).toBe(`./${AB_DIR}`);
   });

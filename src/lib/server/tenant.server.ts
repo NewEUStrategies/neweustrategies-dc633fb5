@@ -24,6 +24,7 @@
 // resolution never adds a per-request round-trip in steady state.
 import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
+import { readBootstrapSnapshot, writeBootstrapSnapshot } from "@/lib/http/bootstrapCache.server";
 
 export interface TenantDirectoryEntry {
   id: string;
@@ -46,6 +47,7 @@ interface DirectoryCache {
 
 let cache: DirectoryCache | null = null;
 let inflight: Promise<TenantDirectory> | null = null;
+let sharedSnapshotAllowed = true;
 
 const EMPTY_DIRECTORY: TenantDirectory = {
   byDomain: new Map<string, TenantDirectoryEntry>(),
@@ -65,25 +67,50 @@ function buildDirectory(rows: readonly TenantDirectoryEntry[]): TenantDirectory 
   return { byDomain, defaultTenant };
 }
 
-async function loadDirectory(): Promise<TenantDirectory> {
+function isDirectoryRows(value: unknown): value is TenantDirectoryEntry[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 500 &&
+    value.every(
+      (row) =>
+        row &&
+        typeof row === "object" &&
+        typeof row.id === "string" &&
+        typeof row.slug === "string" &&
+        (row.domain === null || typeof row.domain === "string") &&
+        typeof row.isDefault === "boolean",
+    )
+  );
+}
+
+async function loadDirectory(): Promise<DirectoryCache> {
   try {
+    // Consult L2 only when this isolate has no directory. Refreshes always
+    // reach the database, and preserve the original snapshot timestamp.
+    if (sharedSnapshotAllowed && !cache) {
+      const snapshot = await readBootstrapSnapshot("tenants", CACHE_TTL_MS, isDirectoryRows);
+      if (snapshot) return { at: snapshot.at, directory: buildDirectory(snapshot.value) };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("tenants")
       .select("id, slug, domain, is_default")
       .limit(500);
     if (error) throw error;
-    return buildDirectory(
-      (data ?? []).map((t) => ({
-        id: t.id,
-        slug: t.slug,
-        domain: t.domain,
-        isDefault: t.is_default,
-      })),
-    );
+    const rows = (data ?? []).map((t) => ({
+      id: t.id,
+      slug: t.slug,
+      domain: t.domain,
+      isDefault: t.is_default,
+    }));
+    const at = Date.now();
+    runAfterResponse(writeBootstrapSnapshot("tenants", { at, value: rows }, CACHE_TTL_MS));
+    return { at, directory: buildDirectory(rows) };
   } catch (e) {
     console.warn("[tenant] directory load failed:", e);
-    return cache?.directory ?? EMPTY_DIRECTORY;
+    // Preserve the existing local retry backoff during a database outage.
+    // Never publish that stale fallback as a fresh shared snapshot.
+    return { at: Date.now(), directory: cache?.directory ?? EMPTY_DIRECTORY };
   }
 }
 
@@ -103,10 +130,10 @@ export async function getTenantDirectory(): Promise<TenantDirectory> {
   const now = Date.now();
   if (cache && now - cache.at < CACHE_TTL_MS) return cache.directory;
   if (!inflight) {
-    inflight = loadDirectory().then((directory) => {
-      cache = { at: Date.now(), directory };
+    inflight = loadDirectory().then((loaded) => {
+      cache = loaded;
       inflight = null;
-      return directory;
+      return loaded.directory;
     });
     // Żądanie może się domknąć zanim odświeżenie wróci z bazy - bez waitUntil
     // runtime Workers uciąłby fetch w tle i wpis tkwiłby nieświeży do
@@ -120,6 +147,7 @@ export async function getTenantDirectory(): Promise<TenantDirectory> {
 
 /** Test hook: drop the per-isolate cache. */
 export function invalidateTenantDirectoryCache(): void {
+  sharedSnapshotAllowed = false;
   cache = null;
   inflight = null;
 }

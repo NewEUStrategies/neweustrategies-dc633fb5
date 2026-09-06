@@ -31,12 +31,14 @@
 // jest tu wyliczony, a nie po cichu usunięty.
 //
 // CZYM TO JEST DZIŚ ZABEZPIECZONE: dane rozstrzygnięte w fazie renderu jadą
-// strumieniem zapytań, a `router.options.hydrate` (src/router.tsx) czeka na
-// niego PRZED hydratacją Reacta, więc widget nie hydratuje się przeciw własnemu
-// szkieletowi; `shouldDehydrateQuery` przepuszcza wyłącznie `status: "success"`,
+// strumieniem zapytań. `router.options.hydrate` (src/router.tsx) oddaje jeden
+// tick na dostarczone porcje; nie czeka na domknięcie całego strumienia.
+// Testy artefaktu sprawdzają zachowanie HTML podczas hydratacji.
+// `shouldDehydrateQuery` przepuszcza wyłącznie `status: "success"`,
 // więc żadna obietnica w locie nie idzie do serializacji. Na kliencie bramka
 // jest w całości tree-shaken (`import.meta.env.SSR`), więc nawigacja SPA nie
-// dostaje ani jednego pustego fallbacku.
+// nie czeka na serwerową bramkę danych. Leniwy kod widgetów nadal może
+// zawiesić własną granicę Suspense podczas nawigacji.
 //
 // CENA, ŚWIADOMIE PRZYJĘTA: sekcja spod zgięcia, której zapytania nie zmieszczą
 // się w `SERVER_SECTION_STREAM_BUDGET_MS` (2 s), jedzie do HTML-a jako szkielet

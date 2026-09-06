@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   unsub: vi.fn(),
   getSessionResult: { data: { session: null as unknown } },
   signOutMock: vi.fn().mockResolvedValue({ error: null }),
+  rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   rolesRows: [] as { role: string }[],
   profileRow: null as { tenant_id: string } | null,
   rolesPromise: null as Promise<{ data: { role: string }[] }> | null,
@@ -25,6 +26,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    rpc: h.rpc,
     auth: {
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
         if (h.throwOnSubscribe) throw new Error("subscribe unavailable");
@@ -146,6 +148,7 @@ beforeEach(() => {
   h.unsub.mockReset();
   h.getSessionResult = { data: { session: null } };
   h.signOutMock.mockReset().mockResolvedValue({ error: null });
+  h.rpc.mockReset().mockResolvedValue({ data: null, error: null });
   h.rolesRows = [];
   h.profileRow = null;
   h.rolesPromise = null;
@@ -181,6 +184,7 @@ describe("AuthProvider - montaż i sesja startowa", () => {
     expect(screen.getByTestId("uid")).toHaveTextContent("anon");
     expect(screen.getByTestId("roles")).toHaveTextContent("");
     expect(h.fromCalls).toEqual([]);
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 
   it("INITIAL_SESSION + zgodne getSession(): jedno wczytanie kontekstu (dedupe)", async () => {
@@ -188,9 +192,12 @@ describe("AuthProvider - montaż i sesja startowa", () => {
     h.getSessionResult = { data: { session } };
     h.rolesRows = [{ role: "editor" }];
     h.profileRow = { tenant_id: "tenant-1" };
+    const invitation = createDeferred<{ data: null; error: null }>();
+    h.rpc.mockReturnValue(invitation.promise);
 
     renderProbe();
     act(() => {
+      h.authCb!("INITIAL_SESSION", session);
       h.authCb!("INITIAL_SESSION", session);
     });
 
@@ -198,6 +205,10 @@ describe("AuthProvider - montaż i sesja startowa", () => {
     expect(screen.getByTestId("roles")).toHaveTextContent("editor");
     expect(h.fromCalls.filter((t) => t === "user_roles")).toHaveLength(1);
     expect(h.fromCalls.filter((t) => t === "profiles")).toHaveLength(1);
+    // Invitation bookkeeping must not delay the usable auth context, and a
+    // repeated initial session must not make a second request.
+    expect(h.rpc).toHaveBeenCalledExactlyOnceWith("accept_my_user_invitation");
+    invitation.resolve({ data: null, error: null });
   });
 });
 

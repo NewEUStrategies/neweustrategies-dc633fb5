@@ -45,11 +45,11 @@ function fontSizeSelectors(css: string): string[] {
   for (const match of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
     const [, selectorList, body] = match;
     if (!/font-size\s*:/.test(body)) continue;
-    for (const sel of selectorList.split(",")) {
-      const trimmed = sel.trim();
-      // `::placeholder` nie dotyczy elementów bylinu i `matches` go odrzuca.
-      if (trimmed && !trimmed.includes("::")) out.push(trimmed);
-    }
+    // matches() accepts a whole selector list. Splitting at commas would
+    // break :is(p,span,...) into invalid selectors and invalidate the control.
+    // Placeholder rules are separate and do not target byline elements.
+    const trimmed = selectorList.trim();
+    if (trimmed && !trimmed.includes("::")) out.push(trimmed);
   }
   return out;
 }
