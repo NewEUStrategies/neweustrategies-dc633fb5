@@ -6,7 +6,7 @@
 // `profiles.avatar_url` / `profiles.linkedin_url` przy tworzeniu konta.
 // „Autoakceptacja” oznacza zaproszenie zamknięte od razu po utworzeniu konta
 // (status `accepted`), bez czekania na pierwsze logowanie.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-team-media";
 import { toast } from "sonner";
@@ -37,7 +37,6 @@ import {
   searchCrmCompanies,
   createCrmCompany,
 } from "@/lib/admin/invitations.functions";
-import { useQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -91,12 +90,21 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   );
   const linkedinOk = isLinkedInInputValid(linkedin);
   const companyTerm = useDebouncedValue(companyQuery, 250);
-  const { data: companyData } = useQuery({
-    queryKey: ["invite-crm-companies", companyTerm],
-    queryFn: () => findCompanies({ data: { q: companyTerm } }),
-    enabled: open,
-  });
-  const companies = companyData?.companies ?? [];
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    void findCompanies({ data: { q: companyTerm } })
+      .then((r) => {
+        if (alive) setCompanies(r.companies);
+      })
+      .catch(() => {
+        if (alive) setCompanies([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, companyTerm, findCompanies]);
   const exactMatch = companies.find(
     (c) => c.name.trim().toLowerCase() === companyQuery.trim().toLowerCase(),
   );
