@@ -1305,6 +1305,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
                   </div>
                 )}
+                {postCategories[0] && (
+                  <div className="no-print my-8">
+                    <PostCategoryArchive
+                      category={postCategories[0]}
+                      currentPostId={post.id}
+                      lang={lang}
+                    />
+                  </div>
+                )}
                 {allowAd("bottom_of_post") && (
                   <AdZone
                     position="bottom_of_post"
