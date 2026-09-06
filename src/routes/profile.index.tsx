@@ -435,7 +435,7 @@ function ProfileInline() {
                   {it.label}
                   {active && (
                     <span
-                      className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary"
+                      className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary"
                       aria-hidden
                     />
                   )}
