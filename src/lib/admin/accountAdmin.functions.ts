@@ -11,6 +11,32 @@ import { requireAdmin } from "@/integrations/supabase/require-staff";
 
 const TargetSchema = z.object({ userId: z.string().uuid() });
 
+type AccountStateInput = {
+  bannedUntil: string | null;
+  emailConfirmedAt: string | null;
+  invitedAt: string | null;
+  lastSignInAt: string | null;
+  invitationId: string | null;
+  invitationStatus: string | null;
+  invitationSentAt: string | null;
+  invitationAutoAccepted: boolean;
+};
+
+export function deriveAccountState(input: AccountStateInput): AdminAccountStatus["state"] {
+  if (input.bannedUntil) return "banned";
+  const signedInAfterInvitation = Boolean(
+    input.lastSignInAt &&
+      input.invitationSentAt &&
+      new Date(input.lastSignInAt).getTime() - new Date(input.invitationSentAt).getTime() > 30_000,
+  );
+  const invitationAccepted =
+    input.invitationStatus === "accepted" &&
+    (!input.invitationAutoAccepted || signedInAfterInvitation);
+  if (input.invitationId && !invitationAccepted) return "invited";
+  if (!input.emailConfirmedAt) return input.invitedAt ? "invited" : "pending_email";
+  return input.lastSignInAt ? "active" : "never_signed_in";
+}
+
 /** Status konta w warstwie uwierzytelniania - do prezentacji w panelu. */
 export type AdminAccountStatus = {
   exists: boolean;
@@ -93,11 +119,8 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     const emailConfirmedAt = u.email_confirmed_at ?? null;
     const signedInAfterInvitation = Boolean(
       u.last_sign_in_at &&
-      invitationSentAt &&
-      // Utworzenie konta i administracyjna autoakceptacja mogą zapisać oba
-      // czasy w tej samej chwili. Dopiero późniejsze, realne logowanie jest
-      // dowodem użycia zaproszenia.
-      new Date(u.last_sign_in_at).getTime() - new Date(invitationSentAt).getTime() > 30_000,
+        invitationSentAt &&
+        new Date(u.last_sign_in_at).getTime() - new Date(invitationSentAt).getTime() > 30_000,
     );
     // `auto_accept` zatwierdza przydzielenie konta przez administratora, ale nie
     // oznacza, że odbiorca użył linku aktywacyjnego. Starsze rekordy oznaczone
@@ -107,17 +130,16 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
       invitationStatus === "accepted" && (!invitationAutoAccepted || signedInAfterInvitation);
     const hasPendingInvitation = Boolean(invitationId) && !invitationAccepted;
     const effectiveInvitationStatus = hasPendingInvitation ? "sent" : invitationStatus;
-    const state: AdminAccountStatus["state"] = bannedUntil
-      ? "banned"
-      : hasPendingInvitation
-        ? "invited"
-        : !emailConfirmedAt
-          ? raw.invited_at
-            ? "invited"
-            : "pending_email"
-          : u.last_sign_in_at
-            ? "active"
-            : "never_signed_in";
+    const state = deriveAccountState({
+      bannedUntil,
+      emailConfirmedAt,
+      invitedAt: raw.invited_at ?? null,
+      lastSignInAt: u.last_sign_in_at ?? null,
+      invitationId,
+      invitationStatus,
+      invitationSentAt,
+      invitationAutoAccepted,
+    });
 
     return {
       exists: true,
