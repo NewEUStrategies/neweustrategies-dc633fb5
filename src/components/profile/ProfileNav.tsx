@@ -7,7 +7,7 @@ import {
   UserCircle,
   UserCog,
   Heart,
-  Sparkles,
+  ScanFace,
   Bookmark,
   Users,
   Bell,
