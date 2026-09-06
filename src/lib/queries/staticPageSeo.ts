@@ -35,7 +35,7 @@ export function staticPageSeoQueryOptions(slug: string) {
         .eq("status", "published")
         .is("deleted_at", null)
         .maybeSingle();
-      if (error) return null;
+      if (error) throw error;
       return (data as StaticPageSeo) ?? null;
     },
   });

@@ -49,6 +49,9 @@
 // * RLS nie jest tu mierzone: atrapa bazy oddaje to, co jej każemy. Testy
 //   dowodzą kształtu ZAPYTANIA (zawężenia, kolumny, licznik), nie polityki.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { RecordedChain, SupabaseFromStub, SupabaseResult } from "@/test/supabase";
 

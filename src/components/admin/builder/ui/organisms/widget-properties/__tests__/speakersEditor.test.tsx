@@ -18,6 +18,9 @@
 // publiczna projekcja prelegentów ma JEDNĄ kolumnę afiliacji, więc druga
 // rubryka obiecywałaby rozróżnienie, którego przy źródle „baza" nie ma.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import type { Json, WidgetContent, WidgetNode } from "@/lib/builder/types";

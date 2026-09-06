@@ -735,7 +735,7 @@ describe("SliderRender", () => {
 
         // Kliknięcie BEZ przeciągnięcia prowadzi do wpisu.
         fireEvent.click(surface);
-        expect(routerStub.navigate).toHaveBeenCalledWith({ href: "/p1" });
+        expect(routerStub.navigate).toHaveBeenCalledWith({ to: "/p1" });
         routerStub.navigate.mockClear();
 
         fireEvent.pointerDown(surface, { clientX: 300, pointerId: 9, pointerType: "touch" });
@@ -771,12 +771,16 @@ describe("SliderRender", () => {
     const jeden = (href: string): SliderItem[] => [
       { image: EXTERNAL_COVER, title_pl: "Jeden", href },
     ];
+    // Editorial hero exposes a native anchor over its drag surface. Activate
+    // that accessible link, as a browser does, rather than its parent div.
+    const linkKadru = (container: HTMLElement) =>
+      within(media(container)).getByRole("link", { name: "Jeden" });
 
     it("wewnętrzny odnośnik idzie przez router, bez przeładowania strony", () => {
       const { container } = wrap(
         <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" />,
       );
-      fireEvent.click(media(container));
+      fireEvent.click(linkKadru(container));
       expect(routerStub.navigate).toHaveBeenCalledWith({ href: "/wpis-1" });
     });
 
@@ -784,7 +788,11 @@ describe("SliderRender", () => {
       const open = vi.spyOn(window, "open").mockImplementation(() => null);
       const { container } = wrap(
         <SliderRender
-          config={{ items: jeden("https://obcy.example.com/artykul"), autoplay: false }}
+          config={{
+            variant: "cinematic-overlay",
+            items: jeden("https://obcy.example.com/artykul"),
+            autoplay: false,
+          }}
           lang="pl"
         />,
       );
@@ -805,7 +813,7 @@ describe("SliderRender", () => {
           lang="pl"
         />,
       );
-      fireEvent.click(media(container));
+      fireEvent.click(linkKadru(container));
       expect(routerStub.navigate).toHaveBeenCalledWith({ href: "/wewnetrzny?a=1" });
     });
 
@@ -813,7 +821,10 @@ describe("SliderRender", () => {
       routerStub.present = false;
       const assign = vi.spyOn(window.location, "assign").mockImplementation(() => undefined);
       const { container } = wrap(
-        <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" />,
+        <SliderRender
+          config={{ variant: "cinematic-overlay", items: jeden("/wpis-1"), autoplay: false }}
+          lang="pl"
+        />,
       );
       fireEvent.click(media(container));
       expect(assign).toHaveBeenCalledWith("/wpis-1");
@@ -826,33 +837,46 @@ describe("SliderRender", () => {
           <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" />
         </div>,
       );
-      fireEvent.click(media(container));
+      fireEvent.click(linkKadru(container));
       expect(routerStub.navigate).not.toHaveBeenCalled();
     });
 
-    it("podgląd panelu blokuje nawigację, a publiczny renderer ją przepuszcza", () => {
-      const podglad = wrap(
-        <div data-builder-renderer="widget-props-preview">
-          <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" />
-        </div>,
-      ).container;
-      fireEvent.click(media(podglad));
-      expect(routerStub.navigate).not.toHaveBeenCalled();
+    it.each(["editorial-hero", "cinematic-overlay", "split-feature", "minimal-strip"] as const)(
+      "podgląd panelu blokuje nawigację wariantu %s, a publiczny renderer ją przepuszcza",
+      (variant) => {
+        const target = (container: HTMLElement) =>
+          variant === "editorial-hero" ? linkKadru(container) : media(container);
+        const podglad = wrap(
+          <div data-builder-renderer="widget-props-preview">
+            <SliderRender
+              config={{ variant, items: jeden("/wpis-1"), autoplay: false }}
+              lang="pl"
+            />
+          </div>,
+        ).container;
+        fireEvent.click(target(podglad));
+        expect(routerStub.navigate).not.toHaveBeenCalled();
 
-      const publiczny = wrap(
-        <div data-builder-renderer="">
-          <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" />
-        </div>,
-      ).container;
-      fireEvent.click(media(publiczny));
-      expect(routerStub.navigate).toHaveBeenCalledWith({ href: "/wpis-1" });
-    });
+        const publiczny = wrap(
+          <div data-builder-renderer="true">
+            <SliderRender
+              config={{ variant, items: jeden("/wpis-1"), autoplay: false }}
+              lang="pl"
+            />
+          </div>,
+        ).container;
+        fireEvent.click(target(publiczny));
+        expect(routerStub.navigate).toHaveBeenCalledWith(
+          variant === "editorial-hero" ? { href: "/wpis-1" } : { to: "/wpis-1" },
+        );
+      },
+    );
 
     it("nie nawiguje w trybie podglądu", () => {
       const podglad = wrap(
         <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" preview />,
       ).container;
-      fireEvent.click(media(podglad));
+      fireEvent.click(linkKadru(podglad));
       expect(routerStub.navigate).not.toHaveBeenCalled();
     });
 
@@ -890,24 +914,28 @@ describe("SliderRender", () => {
       expect(routerStub.navigate).not.toHaveBeenCalled();
     });
 
-    it("Enter i spacja na kadrze otwierają wpis, a w trybie podglądu nie robią nic", () => {
+    it("kadr udostępnia natywny, fokusowalny link, a podgląd blokuje jego aktywację", () => {
       const { container } = wrap(
         <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" />,
       );
-      const kadr = media(container);
-      expect(kadr.getAttribute("role")).toBe("link");
-      expect(kadr.getAttribute("tabindex")).toBe("0");
-      fireEvent.keyDown(kadr, { key: "Enter" });
-      fireEvent.keyDown(kadr, { key: " " });
-      expect(routerStub.navigate).toHaveBeenCalledTimes(2);
-      fireEvent.keyDown(kadr, { key: "Escape" });
-      expect(routerStub.navigate).toHaveBeenCalledTimes(2);
+      const kadr = linkKadru(container);
+      expect(kadr.tagName).toBe("A");
+      expect(kadr.getAttribute("href")).toBe("/wpis-1");
+      expect(kadr.tabIndex).toBe(0);
+      kadr.focus();
+      expect(document.activeElement).toBe(kadr);
+      // Browser keyboard activation dispatches a click with detail=0. The
+      // native anchor supplies Enter semantics; the div needs no synthetic role.
+      fireEvent.click(kadr, { detail: 0 });
+      expect(routerStub.navigate).toHaveBeenCalledWith({ href: "/wpis-1" });
+      expect(routerStub.navigate).toHaveBeenCalledTimes(1);
 
       routerStub.navigate.mockClear();
       const podglad = wrap(
         <SliderRender config={{ items: jeden("/wpis-1"), autoplay: false }} lang="pl" preview />,
       ).container;
-      fireEvent.keyDown(media(podglad), { key: "Enter" });
+      linkKadru(podglad).focus();
+      fireEvent.click(linkKadru(podglad), { detail: 0 });
       expect(routerStub.navigate).not.toHaveBeenCalled();
     });
   });

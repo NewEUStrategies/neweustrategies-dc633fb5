@@ -29,7 +29,7 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
   const headerJustify = centered ? "items-center text-center" : "items-start text-left";
 
   // Helpery rysujące prostokąt z klasami tailwind.
-  const Bar = ({ w, h = "h-2", c = "bg-foreground/70" }: { w: string; h?: string; c?: string }) => (
+  const Bar = ({ w, h, c }: { w: string; h: string; c: string }) => (
     <div className={`${h} ${c} rounded ${w}`} />
   );
   const Img = ({ h }: { h: string }) => (

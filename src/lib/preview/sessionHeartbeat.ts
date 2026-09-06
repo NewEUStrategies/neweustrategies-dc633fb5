@@ -149,7 +149,7 @@ function askParentToReconnect(reason: string): void {
   }
 }
 
-function restoreScroll(): void {
+function restoreScroll(signal: AbortSignal): void {
   const snap = readPreviewSnapshot();
   if (!snap || snap.scrollY <= 0) return;
   const target = new URL(snap.href);
@@ -158,12 +158,14 @@ function restoreScroll(): void {
   // więc próbujemy kilka razy, aż dokument będzie wystarczająco wysoki.
   let tries = 0;
   const tick = () => {
+    if (signal.aborted) return;
     window.scrollTo({ top: snap.scrollY, behavior: "auto" });
     if (++tries < 6 && Math.abs(window.scrollY - snap.scrollY) > 4) {
-      window.setTimeout(tick, 250);
+      timer = window.setTimeout(tick, 250);
     }
   };
-  window.setTimeout(tick, 0);
+  let timer = window.setTimeout(tick, 0);
+  signal.addEventListener("abort", () => window.clearTimeout(timer), { once: true });
 }
 
 async function probe(signal: AbortSignal): Promise<string | null> {
@@ -193,8 +195,11 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
   let timer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
   let probeInFlight = false;
+  const lifetime = new AbortController();
+  let activeProbe: AbortController | null = null;
+  let activeTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  restoreScroll();
+  restoreScroll(lifetime.signal);
 
   const applyEffect = (effect: HeartbeatEffect) => {
     switch (effect.kind) {
@@ -221,6 +226,7 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
     if (disposed || probeInFlight) return;
     probeInFlight = true;
     const controller = new AbortController();
+    activeProbe = controller;
     // Powód przerwania jest JAWNY: bez niego przeglądarka rzuca „signal is
     // aborted without reason", komunikat nie do odróżnienia od realnej awarii
     // sieci w telemetrii.
@@ -228,18 +234,23 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
       () => controller.abort(new DOMException("preview heartbeat timeout", "TimeoutError")),
       PROBE_TIMEOUT_MS,
     );
+    activeTimeout = abort;
     try {
       const buildId = await probe(controller.signal);
+      if (disposed) return;
       const step = heartbeatStep(state, { type: "ok", atMs: Date.now(), buildId });
       state = step.state;
       applyEffect(step.effect);
     } catch {
+      if (disposed) return;
       const step = heartbeatStep(state, { type: "fail", atMs: Date.now() });
       state = step.state;
       applyEffect(step.effect);
     } finally {
       probeInFlight = false;
       clearTimeout(abort);
+      activeProbe = null;
+      activeTimeout = null;
       schedule();
     }
   };
@@ -271,6 +282,9 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
   return () => {
     disposed = true;
     started = false;
+    lifetime.abort();
+    activeProbe?.abort();
+    if (activeTimeout) clearTimeout(activeTimeout);
     if (timer) clearTimeout(timer);
     unsubscribe();
     window.removeEventListener("pagehide", onPageHide);

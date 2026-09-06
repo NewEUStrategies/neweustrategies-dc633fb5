@@ -763,6 +763,100 @@ describe("ThemeOptionsPane - nagłówek", () => {
   });
 });
 
+describe("ThemeOptionsPane - przełączniki", () => {
+  it.each([
+    ["sm", 32, 18],
+    ["md", 44, 24],
+    ["lg", 56, 30],
+  ])("preset %s zapisuje rozmiar %s × %s i odświeża podgląd", async (size, width, height) => {
+    const { container } = await mountPane();
+    goTo("themeOptions.sections.toggles");
+    fireEvent.change(
+      controlFor<HTMLSelectElement>(container, "themeOptions.toggles.size", "select"),
+      {
+        target: { value: size },
+      },
+    );
+    const track = container.querySelector('[data-preview-track="on"]');
+    expect(track).toHaveStyle({ width: `${width}px`, height: `${height}px` });
+    expect((await saveAndRead()).toggles).toMatchObject({ size, width, height });
+  });
+
+  it("zapisuje własne wymiary, kolory i typografię bez nadpisania nagłówka", async () => {
+    const { container } = await mountPane({ header: { layout: "layout-4" } });
+    goTo("themeOptions.sections.toggles");
+    for (const [field, value] of [
+      ["width", "54"],
+      ["height", "28"],
+      ["radius", "12"],
+      ["labelSize", "17"],
+      ["labelWeight", "600"],
+    ]) {
+      fireEvent.change(controlFor(container, `themeOptions.toggles.${field}`), {
+        target: { value },
+      });
+    }
+    const colors = ["#112233", "#445566", "#778899"];
+    colors.forEach((value, index) =>
+      fireEvent.change(colorPickerInputs(container)[index], { target: { value } }),
+    );
+    const on = container.querySelector('[data-preview-track="on"]');
+    const off = container.querySelector('[data-preview-track="off"]');
+    expect(on).toHaveStyle({
+      width: "54px",
+      height: "28px",
+      borderRadius: "12px",
+      background: "#112233",
+      justifyContent: "flex-end",
+    });
+    expect(off).toHaveStyle({ background: "#445566", justifyContent: "flex-start" });
+    expect(on?.firstElementChild).toHaveStyle({
+      width: "24px",
+      height: "24px",
+      borderRadius: "10px",
+      background: "#778899",
+    });
+    expect(screen.getByText("themeOptions.toggles.previewOn")).toHaveStyle({
+      fontSize: "17px",
+      fontWeight: "600",
+    });
+    const doc = await saveAndRead();
+    expect(doc.toggles).toMatchObject({
+      width: 54,
+      height: 28,
+      radius: 12,
+      on_color: colors[0],
+      off_color: colors[1],
+      thumb_color: colors[2],
+      label_size: 17,
+      label_weight: 600,
+    });
+    expect(header(doc).layout).toBe("layout-4");
+  });
+
+  it("puste pola liczbowe zapisuje jako bezpieczne wartości domyślne", async () => {
+    const { container } = await mountPane();
+    goTo("themeOptions.sections.toggles");
+    for (const field of ["width", "height", "radius", "labelSize", "labelWeight"]) {
+      fireEvent.change(controlFor(container, `themeOptions.toggles.${field}`), {
+        target: { value: "" },
+      });
+    }
+    expect(container.querySelector('[data-preview-track="on"]')).toHaveStyle({
+      width: "44px",
+      height: "24px",
+      borderRadius: "0px",
+    });
+    expect((await saveAndRead()).toggles).toMatchObject({
+      width: 44,
+      height: 24,
+      radius: 0,
+      label_size: 14,
+      label_weight: 500,
+    });
+  });
+});
+
 describe("ThemeOptionsPane - przyciski i pola tekstowe", () => {
   it("podgląd przycisków liczy zaokrąglenie z WARIANTU (pill => 999) i stosuje wersaliki", async () => {
     const { container } = await mountPane();

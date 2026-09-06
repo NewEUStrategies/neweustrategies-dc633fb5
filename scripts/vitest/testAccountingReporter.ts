@@ -40,10 +40,15 @@ interface ReportedModule {
 
 export default class TestAccountingReporter {
   private coverageDirectory?: string;
+  private coverageProvider: string | null = null;
 
-  onInit(context: { config: { coverage: { enabled: boolean; reportsDirectory: string } } }): void {
-    if (context.config.coverage.enabled)
+  onInit(context: {
+    config: { coverage: { enabled: boolean; reportsDirectory: string; provider?: string } };
+  }): void {
+    if (context.config.coverage.enabled) {
       this.coverageDirectory = context.config.coverage.reportsDirectory;
+      this.coverageProvider = context.config.coverage.provider ?? null;
+    }
   }
   onTestRunEnd(
     testModules: ReadonlyArray<ReportedModule>,
@@ -93,6 +98,7 @@ export default class TestAccountingReporter {
           generatedAt: new Date().toISOString(),
           commit: process.env.GITHUB_SHA ?? null,
           node: process.version,
+          coverageProvider: this.coverageProvider,
           timezone: process.env.TZ ?? null,
           modules: testModules.length,
           collected,
@@ -124,7 +130,7 @@ export default class TestAccountingReporter {
       ...offenders,
       "",
       "Możliwa przyczyna: błąd importu pliku albo utrata procesu testowego.",
-      "To nie jest kompletny pomiar wykonania testów. Pokrycie V8 takiego",
+      "To nie jest kompletny pomiar wykonania testów. Pokrycie takiego",
       "pliku nie dojechało do raportu, więc KAŻDA liczba pokrycia z tego",
       "przebiegu jest zaniżona - progów per-ścieżka nie wolno pod nią ruszać.",
       "Diagnoza: `scripts/vitest/testAccountingReporter.ts` i nagłówek",

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 import {
   BROKEN_LINK_ALERT_COOLDOWN_MS,
   BROKEN_LINK_ALERT_THRESHOLD,

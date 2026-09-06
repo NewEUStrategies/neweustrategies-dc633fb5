@@ -340,6 +340,11 @@ export const FEATURES_3 = [
     patterns: [/^src\/lib\/content\//, /^src\/components\/content\//],
   },
   {
+    key: "cms-content-mutations",
+    name: "CMS: zapis treści i taksonomii (server functions)",
+    patterns: [/^src\/lib\/content\.functions\.ts$/],
+  },
+  {
     key: "cms-sidebar-patterns",
     name: "CMS: builder sidebara + wzorce",
     // `lib/blocks/patterns.ts` to INNE wzorce (kompozycje bloków Gutenberga)
