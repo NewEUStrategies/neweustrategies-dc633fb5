@@ -282,6 +282,7 @@ beforeEach(() => {
   h.authFailsFirstOnly = false;
   h.emails = [];
   h.emailOk = true;
+  h.linkError = null;
   h.emailError = "smtp down";
 });
 
