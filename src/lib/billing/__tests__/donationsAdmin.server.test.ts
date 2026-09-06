@@ -259,9 +259,20 @@ function stripeSession(overrides: Record<string, unknown> = {}): Record<string, 
 const rowById = (id: string): DonationRow | undefined => rows.find((row) => row.id === id);
 
 beforeEach(() => {
-  // All dated ledger fixtures below belong to this reconciliation window.
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date("2026-08-31T12:00:00.000Z"));
+  // ROZSTRZYGNIĘCIE SCALENIA z `main` (commit 5e92893, „harden SSR streaming...").
+  //
+  // `main` rozbroił tę samą bombę równolegle, prostszym sposobem: zamrożeniem
+  // całego pliku na LITERALE `2026-08-31T12:00:00.000Z`. Git scalił obie
+  // naprawy bez konfliktu i powstało PODWÓJNE zamrożenie - `freezeClock()`
+  // wyżej ustawiał `FIXED_NOW`, a te dwie linie natychmiast je nadpisywały.
+  // Fixture'y liczone przez `relativeIso()` odnosiły się wtedy do 2099, a zegar
+  // wskazywał 2026: 21 czerwonych testów, m.in.
+  // „expected '2026-08-30T12:00:00.000Z' to be '2099-06-14T12:00:00.000Z'".
+  //
+  // Zostaje `freezeClock()`, bo rozwiązuje o jedną rzecz więcej: przy literale
+  // kalendarzowym daty fixture'ów nadal są literałami, więc ich odległość do
+  // zamrożonego „teraz" trzeba pilnować ręcznie przy każdej zmianie. Tutaj
+  // liczy ją `relativeIso()` i nie da się jej rozjechać.
   chain = supabaseFromStub();
   chain.setResponse("donations", respondDonations);
   h.from = (table: string) => chain.from(table);
@@ -282,7 +293,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.useRealTimers();
+  // `vi.useRealTimers()` przywraca tu `freezeClock()` w swoim własnym
+  // `afterEach` - patrz `src/test/time.ts`.
   vi.restoreAllMocks();
 });
 

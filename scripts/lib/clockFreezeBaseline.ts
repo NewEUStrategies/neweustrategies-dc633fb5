@@ -21,6 +21,15 @@
 //
 // Lista mieszka osobno, żeby rozbrojenie kolejnego modułu było diffem
 // w JEDNYM miejscu, a nie edycją runnera bramki.
+//
+// PRZELICZONA PO SCALENIU `main` (20 commitów ponad bazę, 67 zmienionych plików
+// testowych). Baseline musi opisywać drzewo, na którym bramka faktycznie
+// stanie, a nie bazę sprzed scalenia - inaczej pierwszy przebieg na CI jest
+// czerwony na cudzym długu. Zmiana wobec pomiaru z bazy: 223 -> 221 plików.
+// DWA pliki mają wpis WYŻSZY niż przed scaleniem, oba z `main` i oba sprzed
+// istnienia tej bramki: `cart/cartStore.test.ts` (4 -> 5) oraz
+// `routes/publicCatchAllRoute.test.tsx` (3 -> 4). Od tego commita zapadka
+// trzyma je już w jedną stronę.
 export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/__tests__/PostGeneralOverview.test.tsx", 2],
   ["src/components/admin/__tests__/TrendingTickerPane.selection.test.tsx", 2],
@@ -44,7 +53,6 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/donations/organisms/__tests__/DonationsRecordsPanel.test.tsx", 4],
   ["src/components/admin/events/__tests__/EventAudienceGrantHistoryPanel.test.tsx", 8],
   ["src/components/admin/events/__tests__/EventAudienceGrantsPanel.test.tsx", 11],
-  ["src/components/admin/events/__tests__/eventPreviewPublicParity.gate.test.tsx", 1],
   ["src/components/admin/events/__tests__/EventsListManager.test.tsx", 10],
   ["src/components/admin/events/__tests__/MeetingStatsPanel.test.tsx", 6],
   ["src/components/admin/events/__tests__/RegistrationsListPanel.test.tsx", 7],
@@ -165,7 +173,7 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/billing/__tests__/webhookDispatch.server.test.ts", 6],
   ["src/lib/billing/__tests__/webhookRetry.functions.test.ts", 1],
   ["src/lib/builder/__tests__/eventsPrefetch.test.ts", 1],
-  ["src/lib/cart/__tests__/cartStore.test.ts", 4],
+  ["src/lib/cart/__tests__/cartStore.test.ts", 5],
   ["src/lib/chat/__tests__/conversationSettings.test.ts", 21],
   ["src/lib/chat/__tests__/messageCache.test.ts", 8],
   ["src/lib/chat/__tests__/receipts.test.ts", 3],
@@ -235,14 +243,13 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/__tests__/adminUsersRoutes.test.tsx", 4],
   ["src/routes/__tests__/adminWebStoriesRoute.test.tsx", 5],
   ["src/routes/__tests__/eventsIndexRoute.test.tsx", 3],
-  ["src/routes/__tests__/eventSlugIndexRoute.test.tsx", 3],
   ["src/routes/__tests__/liveIndexRoute.test.tsx", 1],
   ["src/routes/__tests__/membershipJoinRoute.test.tsx", 2],
   ["src/routes/__tests__/podcastsIndexRoute.test.tsx", 5],
   ["src/routes/__tests__/pricingRoute.test.tsx", 2],
   ["src/routes/__tests__/profileDashboardRoute.test.tsx", 1],
   ["src/routes/__tests__/profileMembershipRoute.test.tsx", 13],
-  ["src/routes/__tests__/publicCatchAllRoute.test.tsx", 3],
+  ["src/routes/__tests__/publicCatchAllRoute.test.tsx", 4],
   ["src/routes/__tests__/trackerChangesRoute.test.tsx", 4],
   ["src/routes/-api.public.newsletter.confirm.test.ts", 5],
   ["src/routes/api/public/-webhooks.resend.test.ts", 3],

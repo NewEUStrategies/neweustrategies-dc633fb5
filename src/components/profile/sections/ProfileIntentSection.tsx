@@ -105,7 +105,6 @@ export function ProfileIntentSection({ editable = true }: { editable?: boolean }
   const [dirty, setDirty] = useState(false);
   const [textLang, setTextLang] = useState<"pl" | "en">(lang === "en" ? "en" : "pl");
 
-
   // Serwer jest źródłem prawdy do pierwszej edycji użytkownika; po niej
   // szanujemy niezapisany szkic (odświeżenie cache nie kasuje wpisanego tekstu).
   const server = intentQ.data;
@@ -279,7 +278,6 @@ export function ProfileIntentSection({ editable = true }: { editable?: boolean }
               />
             </div>
           </div>
-
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="sm" disabled={!dirty || save.isPending} onClick={onSubmit}>

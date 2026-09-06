@@ -51,7 +51,6 @@ describe("brand token contrast (WCAG AA)", () => {
     expect(lightInk).toBe("#fa9346");
   });
 
-
   it("--brand-ink passes AA as text on the dark background", () => {
     const inks = tokenValues("--brand-ink");
     const darkInk = inks[1] ?? inks[0];
