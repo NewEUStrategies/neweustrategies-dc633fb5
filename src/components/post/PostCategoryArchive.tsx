@@ -8,7 +8,7 @@
 // x2", żeby stopka wpisu nie zamieniła się w pełne archiwum.
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight } from "@/lib/lucide-shim";
+import { ArrowRight } from "@/lib/lucide-shim";
 import { ArchivePosts } from "@/components/archive/layouts/ArchivePosts";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { taxonomyArchiveQueryOptions } from "@/lib/queries/archives";
@@ -61,7 +61,7 @@ export function PostCategoryArchive({
           className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
           {allLabel}
-          <ArrowUpRight className="h-4 w-4" aria-hidden />
+          <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
       </div>
       <ArchivePosts posts={posts} lang={lang} settings={settings} emptyText="" />
