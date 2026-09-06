@@ -73,7 +73,11 @@ import {
   Redo as LRedo,
   Loader2 as LLoader2,
   AlertTriangle as LAlertTriangle,
+  TriangleAlert as LTriangleAlert,
+  Clock3 as LClock3,
+  UserRoundCheck as LUserRoundCheck,
   Rows as LRows,
+
   Save as LSave,
   Search as LSearch,
   Send as LSend,
@@ -219,7 +223,9 @@ export const Handshake = makeIcon("Handshake", LHandshake);
 export const Ticket = makeIcon("Ticket", LTicket);
 export const Circle = makeIcon("Circle", LCircle);
 export const Clock = makeIcon("Clock", LClock);
+export const Clock3 = makeIcon("Clock3", LClock3);
 export const Columns2 = makeIcon("Columns2", LColumns2);
+
 export const Copy = makeIcon("Copy", LCopy);
 export const ExternalLink = makeIcon("ExternalLink", LExternalLink);
 export const Eye = makeIcon("Eye", LEye);
@@ -267,7 +273,9 @@ export const Redo = makeIcon("Redo", LRedo);
 export const Redo2 = Redo;
 export const Loader2 = makeIcon("Loader2", LLoader2);
 export const AlertTriangle = makeIcon("AlertTriangle", LAlertTriangle);
+export const TriangleAlert = makeIcon("TriangleAlert", LTriangleAlert);
 export const Rows = makeIcon("Rows", LRows);
+
 export const Save = makeIcon("Save", LSave);
 export const Search = makeIcon("Search", LSearch);
 export const Send = makeIcon("Send", LSend);
@@ -285,8 +293,10 @@ export const RotateCcw = makeIcon("RotateCcw", LRotateCcw);
 
 export const Upload = makeIcon("Upload", LUpload);
 export const User = makeIcon("User", LUser);
+export const UserRoundCheck = makeIcon("UserRoundCheck", LUserRoundCheck);
 export const Users = makeIcon("Users", LUsers);
 export const MessagesSquare = makeIcon("MessagesSquare", LMessagesSquare);
+
 export const Video = makeIcon("Video", LVideo);
 export const X = makeIcon("X", LX);
 export const Lock = makeIcon("Lock", LLock);
