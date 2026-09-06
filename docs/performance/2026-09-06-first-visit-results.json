@@ -1,0 +1,554 @@
+{
+  "runUrl": "https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34063722406",
+  "candidateCommit": "41eb01e2ff66bdeaa84b856e039eaa7cd5587c3e",
+  "candidateMergeCommit": "fd84c196fbb09df647a3e75e81be584719e77fb6",
+  "candidateMergeBase": "dc4de4a1325d5cc912588ca8cfe81b96ea806e75",
+  "baselineCommit": "7a18ae08ea98d6526e832bc8bbce12ad1237d1ec",
+  "conclusion": "success",
+  "method": "Desktop Chromium, unthrottled, fresh browser contexts, sequential builds on one GitHub runner; synthetic homepage and SVG; read-only API replay with 40 ms delay. InteractionComplete includes browser-driver click and assertion time, not INP. Each language has one server cache MISS followed by two HITs; only the first PL visit starts a cold server process.",
+  "baseline": [
+    {
+      "path": "/",
+      "sample": 1,
+      "cache": "MISS",
+      "serverTiming": "nes-edge;desc=\"MISS\", ssr;dur=488.0, db;dur=657.0;desc=\"n=15\"",
+      "htmlBytes": 593142,
+      "inlineCssBytes": 329722,
+      "styleBlocks": 53,
+      "beforeInteraction": {
+        "at": 2377.2999999999884,
+        "cls": 0.4058824193477631,
+        "lcp": 1208
+      },
+      "ttfbMs": 873.2999999999884,
+      "fcpMs": 1208,
+      "readyMs": 1693.5999999999767,
+      "interactionCompleteMs": 3111.4000000000233,
+      "lcpMs": 2388,
+      "cls": 0.6768859430154165,
+      "shifts": [
+        {
+          "at": 1174.7000000000116,
+          "value": 0.04897008776664733,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget=",
+            "::before. widget=",
+            "::before. widget="
+          ]
+        },
+        {
+          "at": 2134.0999999999767,
+          "value": 0.35691233158111574,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.relative w-full h-full widget=00000000-0000-0000-0000-00000000002f",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 2351.9000000000233,
+          "value": 0.2710035236676534,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "::before. widget="
+          ]
+        }
+      ],
+      "serverTitleRetained": false,
+      "jsBytes": 3277395
+    },
+    {
+      "path": "/",
+      "sample": 2,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=2554",
+      "htmlBytes": 593142,
+      "inlineCssBytes": 329722,
+      "styleBlocks": 53,
+      "beforeInteraction": {
+        "at": 1604.4000000000233,
+        "cls": 0.6556215625868903,
+        "lcp": 424
+      },
+      "ttfbMs": 15.700000000011642,
+      "fcpMs": 300,
+      "readyMs": 835.4000000000233,
+      "interactionCompleteMs": 2193.0999999999767,
+      "lcpMs": 424,
+      "cls": 0.6556215625868903,
+      "shifts": [
+        {
+          "at": 378,
+          "value": 0.04897008776664733,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget=",
+            "::before. widget=",
+            "::before. widget="
+          ]
+        },
+        {
+          "at": 1279.2000000000116,
+          "value": 0.35691233158111574,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.relative w-full h-full widget=00000000-0000-0000-0000-00000000002f",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1414.4000000000233,
+          "value": 0.052016613721847536,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.relative w-full h-full widget=00000000-0000-0000-0000-00000000002f",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget="
+          ]
+        },
+        {
+          "at": 1503.7000000000116,
+          "value": 0.19772252951727973,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "::before. widget=",
+            "::before. widget="
+          ]
+        }
+      ],
+      "serverTitleRetained": false,
+      "jsBytes": 3277395
+    },
+    {
+      "path": "/",
+      "sample": 3,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=4998",
+      "htmlBytes": 593142,
+      "inlineCssBytes": 329722,
+      "styleBlocks": 53,
+      "beforeInteraction": {
+        "at": 1442.7999999999884,
+        "cls": 0.4085733373165131,
+        "lcp": 672
+      },
+      "ttfbMs": 12.700000000011642,
+      "fcpMs": 220,
+      "readyMs": 767,
+      "interactionCompleteMs": 2104,
+      "lcpMs": 672,
+      "cls": 0.7498457152843476,
+      "shifts": [
+        {
+          "at": 627.4000000000233,
+          "value": 0.04897008776664733,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget=",
+            "::before. widget=",
+            "::before. widget="
+          ]
+        },
+        {
+          "at": 1261.4000000000233,
+          "value": 0.35691233158111574,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.relative w-full h-full widget=00000000-0000-0000-0000-00000000002f",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1387.7999999999884,
+          "value": 0.00269091796875,
+          "nodes": [
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1741.2000000000116,
+          "value": 0.3412723779678345,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "::before. widget="
+          ]
+        }
+      ],
+      "serverTitleRetained": false,
+      "jsBytes": 3260765
+    },
+    {
+      "path": "/en",
+      "sample": 1,
+      "cache": "MISS",
+      "serverTiming": "nes-edge;desc=\"MISS\", ssr;dur=85.0, db;dur=162.0;desc=\"n=4\"",
+      "htmlBytes": 589194,
+      "inlineCssBytes": 329722,
+      "styleBlocks": 53,
+      "beforeInteraction": {
+        "at": 1568,
+        "cls": 0.6981847095489502,
+        "lcp": 380
+      },
+      "ttfbMs": 97.90000000002328,
+      "fcpMs": 380,
+      "readyMs": 862.1000000000349,
+      "interactionCompleteMs": 2241.4000000000233,
+      "lcpMs": 1500,
+      "cls": 0.6981847095489502,
+      "shifts": [
+        {
+          "at": 1291.600000000035,
+          "value": 0.35691233158111574,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.relative w-full h-full widget=00000000-0000-0000-0000-00000000002f",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1478.100000000035,
+          "value": 0.3412723779678345,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "::before. widget="
+          ]
+        }
+      ],
+      "serverTitleRetained": false,
+      "jsBytes": 3339093
+    },
+    {
+      "path": "/en",
+      "sample": 2,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=2400",
+      "htmlBytes": 589194,
+      "inlineCssBytes": 329722,
+      "styleBlocks": 53,
+      "beforeInteraction": {
+        "at": 1636.5999999999767,
+        "cls": 0.35691233158111574,
+        "lcp": 360
+      },
+      "ttfbMs": 16.29999999998836,
+      "fcpMs": 276,
+      "readyMs": 955.0999999999767,
+      "interactionCompleteMs": 2529.7999999999884,
+      "lcpMs": 360,
+      "cls": 0.6423461318016053,
+      "shifts": [
+        {
+          "at": 1507.2999999999884,
+          "value": 0.35691233158111574,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.relative w-full h-full widget=00000000-0000-0000-0000-00000000002f",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1747.0999999999767,
+          "value": 0.2854338002204895,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "::before. widget="
+          ]
+        }
+      ],
+      "serverTitleRetained": false,
+      "jsBytes": 3339093
+    },
+    {
+      "path": "/en",
+      "sample": 3,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=5165",
+      "htmlBytes": 589194,
+      "inlineCssBytes": 329722,
+      "styleBlocks": 53,
+      "beforeInteraction": {
+        "at": 1682.7000000000116,
+        "cls": 0.35691233158111574,
+        "lcp": 360
+      },
+      "ttfbMs": 15.099999999976717,
+      "fcpMs": 236,
+      "readyMs": 958.7000000000116,
+      "interactionCompleteMs": 2486.7999999999884,
+      "lcpMs": 360,
+      "cls": 0.7008756275177002,
+      "shifts": [
+        {
+          "at": 1497.2000000000116,
+          "value": 0.35691233158111574,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.relative w-full h-full widget=00000000-0000-0000-0000-00000000002f",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1736.5999999999767,
+          "value": 0.00269091796875,
+          "nodes": [
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 2060.9000000000233,
+          "value": 0.3412723779678345,
+          "nodes": [
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "SECTION.min-w-0 max-w-full overflow-hidden widget=",
+            "::before. widget="
+          ]
+        }
+      ],
+      "serverTitleRetained": false,
+      "jsBytes": 3288232
+    }
+  ],
+  "candidate": [
+    {
+      "path": "/",
+      "sample": 1,
+      "cache": "MISS",
+      "serverTiming": "nes-edge;desc=\"MISS\", ssr;dur=482.0, db;dur=656.0;desc=\"n=15\", server-init;dur=21, app;dur=837",
+      "htmlBytes": 392974,
+      "inlineCssBytes": 130401,
+      "styleBlocks": 49,
+      "beforeInteraction": {
+        "at": 1876,
+        "cls": 0.00269091796875,
+        "lcp": 1208
+      },
+      "ttfbMs": 865.5,
+      "fcpMs": 1208,
+      "readyMs": 1685.8000000000466,
+      "interactionCompleteMs": 2560.600000000093,
+      "lcpMs": 1208,
+      "cls": 0.002738282945421007,
+      "shifts": [
+        {
+          "at": 1165.7000000000698,
+          "value": 0.00269091796875,
+          "nodes": [
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 2023.2000000000698,
+          "value": 0.000047364976671006943,
+          "nodes": [
+            "DIV.absolute top-0 flex h-full items-center gap-2 widget=00000000-0000-0000-0000-00000000000d"
+          ]
+        }
+      ],
+      "serverTitleRetained": true,
+      "jsBytes": 2524044
+    },
+    {
+      "path": "/",
+      "sample": 2,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=2072, server-init;dur=0, app;dur=1",
+      "htmlBytes": 392974,
+      "inlineCssBytes": 130401,
+      "styleBlocks": 49,
+      "beforeInteraction": {
+        "at": 1001.1000000000931,
+        "cls": 0.00269091796875,
+        "lcp": 288
+      },
+      "ttfbMs": 10.400000000023283,
+      "fcpMs": 204,
+      "readyMs": 799.1000000000931,
+      "interactionCompleteMs": 1688.8000000000466,
+      "lcpMs": 288,
+      "cls": 0.002738282945421007,
+      "shifts": [
+        {
+          "at": 424.20000000006985,
+          "value": 0.00269091796875,
+          "nodes": [
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1220.4000000000233,
+          "value": 0.000047364976671006943,
+          "nodes": [
+            "DIV.absolute top-0 flex h-full items-center gap-2 widget=00000000-0000-0000-0000-00000000000d"
+          ]
+        }
+      ],
+      "serverTitleRetained": true,
+      "jsBytes": 2974327
+    },
+    {
+      "path": "/",
+      "sample": 3,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=4043, server-init;dur=0, app;dur=2",
+      "htmlBytes": 392974,
+      "inlineCssBytes": 130401,
+      "styleBlocks": 49,
+      "beforeInteraction": {
+        "at": 989.5,
+        "cls": 0.00269091796875,
+        "lcp": 236
+      },
+      "ttfbMs": 10.70000000006985,
+      "fcpMs": 236,
+      "readyMs": 802.9000000000233,
+      "interactionCompleteMs": 1630.3000000000466,
+      "lcpMs": 236,
+      "cls": 0.002738282945421007,
+      "shifts": [
+        {
+          "at": 329.70000000006985,
+          "value": 0.00269091796875,
+          "nodes": [
+            "DIV.flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full justify-center widget="
+          ]
+        },
+        {
+          "at": 1156.3000000000466,
+          "value": 0.000047364976671006943,
+          "nodes": [
+            "DIV.absolute top-0 flex h-full items-center gap-2 widget=00000000-0000-0000-0000-00000000000d"
+          ]
+        }
+      ],
+      "serverTitleRetained": true,
+      "jsBytes": 2409214
+    },
+    {
+      "path": "/en",
+      "sample": 1,
+      "cache": "MISS",
+      "serverTiming": "nes-edge;desc=\"MISS\", ssr;dur=86.0, db;dur=162.0;desc=\"n=4\", server-init;dur=0, app;dur=87",
+      "htmlBytes": 390071,
+      "inlineCssBytes": 130401,
+      "styleBlocks": 49,
+      "beforeInteraction": {
+        "at": 1038.5999999999767,
+        "cls": 0,
+        "lcp": 372
+      },
+      "ttfbMs": 102.5,
+      "fcpMs": 372,
+      "readyMs": 863.6999999999534,
+      "interactionCompleteMs": 1669,
+      "lcpMs": 372,
+      "cls": 0.000047364976671006943,
+      "shifts": [
+        {
+          "at": 1191.5,
+          "value": 0.000047364976671006943,
+          "nodes": [
+            "DIV.absolute top-0 flex h-full items-center gap-2 widget=00000000-0000-0000-0000-00000000000d"
+          ]
+        }
+      ],
+      "serverTitleRetained": true,
+      "jsBytes": 2585742
+    },
+    {
+      "path": "/en",
+      "sample": 2,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=1847, server-init;dur=0, app;dur=2",
+      "htmlBytes": 390071,
+      "inlineCssBytes": 130401,
+      "styleBlocks": 49,
+      "beforeInteraction": {
+        "at": 1053.4000000000233,
+        "cls": 0,
+        "lcp": 328
+      },
+      "ttfbMs": 6.699999999953434,
+      "fcpMs": 192,
+      "readyMs": 831,
+      "interactionCompleteMs": 1703.6999999999534,
+      "lcpMs": 328,
+      "cls": 0.000047364976671006943,
+      "shifts": [
+        {
+          "at": 1222.0999999999767,
+          "value": 0.000047364976671006943,
+          "nodes": [
+            "DIV.absolute top-0 flex h-full items-center gap-2 widget=00000000-0000-0000-0000-00000000000d"
+          ]
+        }
+      ],
+      "serverTitleRetained": true,
+      "jsBytes": 2517969
+    },
+    {
+      "path": "/en",
+      "sample": 3,
+      "cache": "HIT",
+      "serverTiming": "nes-edge;desc=\"HIT\", nes-age;dur=3788, server-init;dur=0, app;dur=1",
+      "htmlBytes": 390071,
+      "inlineCssBytes": 130401,
+      "styleBlocks": 49,
+      "beforeInteraction": {
+        "at": 935.5999999999767,
+        "cls": 0,
+        "lcp": 248
+      },
+      "ttfbMs": 6.400000000023283,
+      "fcpMs": 248,
+      "readyMs": 742.5999999999767,
+      "interactionCompleteMs": 1541,
+      "lcpMs": 248,
+      "cls": 0.000047364976671006943,
+      "shifts": [
+        {
+          "at": 1119,
+          "value": 0.000047364976671006943,
+          "nodes": [
+            "DIV.absolute top-0 flex h-full items-center gap-2 widget=00000000-0000-0000-0000-00000000000d"
+          ]
+        }
+      ],
+      "serverTitleRetained": true,
+      "jsBytes": 2517969
+    }
+  ]
+}

@@ -4,6 +4,30 @@ Punkt odniesienia: `8607c8dd228aeb5aff5e44beed32b11eed5e54eb` (main po PR #339).
 Poprzednie naprawy cache, SSR i hydratacji pozostają potrzebne. Nie usunęły jednak
 dużego kosztu parsowania dokumentu i uruchamiania kodu klienta przy pierwszym wejściu.
 
+## Zaliczone porównanie buildów
+
+Przebieg [34063722406](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34063722406)
+na `41eb01e` zaliczył **9/9 testów**: 6 pierwszych wizyt PL/EN oraz 3 kontrole
+kaskady CSS. Oba buildy mierzono kolejno na tym samym runnerze. Pełne próbki
+i ograniczenia pomiaru są w [JSON](./2026-09-06-first-visit-results.json).
+
+| Pomiar                                  |      Baza |  Kandydat |
+| --------------------------------------- | --------: | --------: |
+| LCP, PL, zimny proces serwera           |   2388 ms |   1208 ms |
+| Zakończone kliknięcie, ta sama próba    |   3111 ms |   2561 ms |
+| Mediana zakończonego kliknięcia, 6 prób |   2364 ms |   1679 ms |
+| Największy CLS, 6 prób                  |   0,74985 |   0,00274 |
+| Zachowany oryginalny tytuł SSR          |       0/6 |       6/6 |
+| CSS w dokumencie testowym               | 329 722 B | 130 401 B |
+| HTML, PL, dokument testowy              | 593 142 B | 392 974 B |
+
+LCP zimnej próby poprawiło się o 49%, a mediana zakończenia kliknięcia o 29%.
+TTFB zimnego procesu pozostał podobny: 873 → 866 ms. FCP tej próby wynosiło
+1208 ms w obu wersjach. Główna poprawa dotyczy kompletności pierwszego
+wyświetlenia i usunięcia ponownego budowania treści podczas hydratacji.
+To sześć prób laboratoryjnych, nie produkcyjny p75 ani pomiar INP; nie dowodzą
+identycznej szybkości jak zero.pl. Limity bramki nie zostały podniesione.
+
 ## Zmiany
 
 - Typografia buildera grupuje identyczne deklaracje i selektory tagów o tej samej
@@ -41,6 +65,10 @@ dużego kosztu parsowania dokumentu i uruchamiania kodu klienta przy pierwszym w
   wykrył to niezmieniony limit rozmiaru. Pozostałe widgety nadal strumieniują.
 - Tytuły sliderów nie zaczynają od `opacity: 0` w animacji trwającej 600 ms.
   Są czytelne od pierwszego wyświetlenia; przejścia zdjęć pozostają.
+- Koordynator debugowania buildera nie działa w produkcji. Sam panel już
+  wcześniej był wyłączony, ale instancje nadal zapisywały się do jego magazynu
+  i wywoływały dodatkowe aktualizacje. Gałąź produkcyjna zwraca stały stan;
+  test potwierdza brak odczytu preferencji i dodatkowych renderów.
 
 ## Zmierzone lokalnie na jednakowych buildach produkcyjnych
 
@@ -93,8 +121,8 @@ próbach kandydata (0/6 w bazie). Zakończenie rzeczywistego kliknięcia trwało
 Jedyny pozostały wynik 0,324 przy zimnym procesie nadal oblał bramkę 0,1:
 trace pokazał puste miejsca po zimnych importach kodu widgetów, już przed
 hydratacją. To uzasadnia synchroniczne renderery SSR opisane wyżej. Tego
-przebiegu nie wolno przedstawiać jako zaliczenia całej bramki; wynik końcowy
-po tej dodatkowej poprawce należy odczytać z najnowszego workflow PR.
+przebiegu nie wolno przedstawiać jako zaliczenia całej bramki. Wynik po
+dodatkowej poprawce znajduje się w tabeli na początku tego dokumentu.
 
 To kontrolowane laboratorium bez throttlingu, nie produkcyjny p75 ani INP.
 Nowy kontekst oznacza zimny cache przeglądarki; kolejne próby rozgrzewają cache

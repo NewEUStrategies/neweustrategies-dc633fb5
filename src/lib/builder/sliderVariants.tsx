@@ -395,7 +395,6 @@ const truncate = (s: string, max: number) =>
   s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
 
 const SHARED_STYLES = `
-@keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
 /* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami.
    Osobna rezerwa pod dekorację jest krytyczna: bez niej overflow obcina dolne
    piksele podkreślenia ostatniej z 3 linii i optycznie zmienia jego grubość. */
@@ -1204,7 +1203,7 @@ function EditorialHeroVariant(p: VariantProps) {
         )}
       </div>
 
-      <div key={p.safeIdx} className="px-4 pt-8 pb-2 text-center">
+      <div className="px-4 pt-8 pb-2 text-center">
         {p.showTitle &&
           (href ? (
             <AppLink href={href} className="inline-block w-full">
@@ -1487,7 +1486,7 @@ function CinematicOverlayVariant(p: VariantProps) {
           }}
         />
         {/* Text */}
-        <div key={p.safeIdx} className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
+        <div className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
           <div className="max-w-3xl">
             {cat && (
               <span
@@ -1624,7 +1623,7 @@ function SplitFeatureVariant(p: VariantProps) {
           />
         )}
       </div>
-      <div key={p.safeIdx} className="px-1 md:px-2">
+      <div className="px-1 md:px-2">
         {cat && (
           <span
             className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider text-white shadow"

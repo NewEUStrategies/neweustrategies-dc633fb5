@@ -95,13 +95,26 @@ export interface BuilderDebugState {
  * happens after mount (client only), so the overlay-owning "primary" is chosen
  * deterministically and the toggle/debug CSS render exactly once per page.
  */
-export function useBuilderDebug(): BuilderDebugState {
+function useDevelopmentBuilderDebug(): BuilderDebugState {
   const token = useId();
   const debug = useSyncExternalStore(subscribe, getEnabled, getServerEnabled);
   const isPrimary = useSyncExternalStore(subscribe, () => live[0] === token, getServerEnabled);
   useEffect(() => register(token), [token]);
   return { debug, isPrimary };
 }
+
+const INACTIVE_DEBUG: BuilderDebugState = { debug: false, isPrimary: false };
+
+function useProductionBuilderDebug(): BuilderDebugState {
+  return INACTIVE_DEBUG;
+}
+
+// The overlay itself is DEV-only. Production must also avoid registering
+// renderer instances and emitting an external-store update during hydration.
+// The build-time branch removes the coordinator from the production boot path.
+export const useBuilderDebug = import.meta.env.DEV
+  ? useDevelopmentBuilderDebug
+  : useProductionBuilderDebug;
 
 /** Test-only: reset module state between cases. */
 export function __resetBuilderDebugForTests(): void {
