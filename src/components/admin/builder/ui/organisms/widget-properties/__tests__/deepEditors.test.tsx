@@ -15,6 +15,7 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 import type { Json, WidgetNode } from "@/lib/builder/types";
 import { selectWithOption, optionValues } from "@/test/builder/panels";
+import { MEGA_MENU_ICON_NAMES } from "@/lib/megaMenu/showcaseIcons";
 import { MegaMenuEditor } from "../MegaMenuEditor";
 import { SponsorsEditor } from "../SponsorsEditor";
 import { ImageSlot } from "../ImageSlot";
@@ -351,6 +352,217 @@ describe("MegaMenuEditor - karta wyróżniona", () => {
     // Pozostałe pola karty zostają - zapis jest scalający.
     expect(featured.title_pl).toBe("Tytuł");
     expect(featured.href).toBe("/promo");
+  });
+});
+
+// ── Karta wyróżniona: KAŻDE pole karty osobno ───────────────────────────────
+//
+// Wszystkie pola karty siedzą pod warunkiem `featured &&` (karty domyślnie nie
+// ma), a zapisują się SCALAJĄCO na jednym kluczu `featured`. To najgorsza
+// możliwa kombinacja dla pomyłki: pole, które nadpisuje cały obiekt zamiast go
+// scalić, kasuje pozostałe pola karty i nikt tego nie widzi, dopóki redakcja
+// nie wypełni drugiego pola. Dlatego każde pole ma tu własne przejście
+// z asercją, że sąsiednie wartości ZOSTAŁY.
+describe("MegaMenuEditor - pola karty wyróżnionej", () => {
+  const FEATURED = {
+    title_pl: "Tytuł",
+    title_en: "Title",
+    excerpt_pl: "Zajawka",
+    excerpt_en: "Excerpt",
+    href: "/promo",
+    cta_pl: "Zobacz",
+    cta_en: "See",
+    image: "https://cdn.test/a.png",
+    aspectRatio: "16/10",
+    placeholderColor: "#e5e7eb",
+    focalX: 40,
+    focalY: 60,
+  };
+  /** Kolumna BEZ linków - wtedy pola „URL" karty nie mylą się z polami linku. */
+  const withFeatured = (featured: Record<string, unknown> = FEATURED) => ({
+    columns: [{ ...LINK_COLUMN, links: [], featured }],
+  });
+
+  const featuredFrom = (written: Written): Record<string, unknown> => {
+    const cols = written.at(-1)?.[1] as Array<Record<string, unknown>> | undefined;
+    return (cols?.[0].featured ?? {}) as Record<string, unknown>;
+  };
+
+  it("adres obrazka ze slotu zapisuje się, a reszta karty zostaje", () => {
+    const { written } = renderEditor(MegaMenuEditor, withFeatured());
+    const url = document.querySelector<HTMLInputElement>(
+      'input[placeholder="builder.imageSlot.urlPlaceholder"]',
+    );
+    if (!url) throw new Error("test: brak pola adresu obrazka");
+    fireEvent.change(url, { target: { value: "https://cdn.test/nowy.png" } });
+    const featured = featuredFrom(written);
+    expect(featured.image).toBe("https://cdn.test/nowy.png");
+    expect(featured.title_pl).toBe("Tytuł");
+  });
+
+  it("punkt centralny wskazany na podglądzie zapisuje procenty obu osi", () => {
+    const { container, written } = renderEditor(MegaMenuEditor, withFeatured());
+    const canvas = container.querySelector<HTMLElement>(".cursor-crosshair");
+    if (!canvas) throw new Error("test: brak podglądu punktu centralnego");
+    // happy-dom nie liczy układu, więc wymiar podglądu podajemy wprost -
+    // bez niego procent wychodzi z dzielenia przez zero.
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 100 }) as DOMRect;
+    fireEvent.mouseDown(canvas, { clientX: 150, clientY: 25 });
+    const featured = featuredFrom(written);
+    expect(featured.focalX).toBe(75);
+    expect(featured.focalY).toBe(25);
+  });
+
+  it("procenty wpisane w pola liczbowe zapisują się na właściwej osi", () => {
+    const { written } = renderEditor(MegaMenuEditor, withFeatured());
+    const x = document.querySelector<HTMLInputElement>('input[placeholder="X%"]');
+    const y = document.querySelector<HTMLInputElement>('input[placeholder="Y%"]');
+    if (!x || !y) throw new Error("test: brak pól punktu centralnego");
+    expect(x.value).toBe("40");
+    expect(y.value).toBe("60");
+    fireEvent.change(x, { target: { value: "10" } });
+    expect(featuredFrom(written).focalX).toBe(10);
+    fireEvent.change(y, { target: { value: "90" } });
+    expect(featuredFrom(written).focalY).toBe(90);
+  });
+
+  it("punkt centralny bez zapisanych wartości startuje ze środka kadru", () => {
+    renderEditor(MegaMenuEditor, withFeatured({ title_pl: "Tytuł" }));
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="X%"]')?.value).toBe("50");
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="Y%"]')?.value).toBe("50");
+  });
+
+  it("kolor tła podkładki zdjęty z pola wraca do wartości domyślnej", () => {
+    const { written } = renderEditor(MegaMenuEditor, withFeatured());
+    const color = document.querySelector<HTMLInputElement>("input.font-mono");
+    if (!color) throw new Error("test: brak pola koloru podkładki");
+    fireEvent.change(color, { target: { value: "#123456" } });
+    expect(featuredFrom(written).placeholderColor).toBe("#123456");
+    // Puste pole to „bez własnego koloru" - karta musi dostać kolor domyślny,
+    // nie `undefined`, które przy zapisie do bazy znika z dokumentu.
+    fireEvent.change(color, { target: { value: "" } });
+    expect(featuredFrom(written).placeholderColor).toBe("#e5e7eb");
+  });
+
+  it.each([
+    ["tytuł", "builder.megaMenuEditor.titlePh(lang=PL)", "title_pl", "Nowy tytuł"],
+    ["CTA", "CTA PL", "cta_pl", "Przejdź"],
+    ["adres", "URL", "href", "/nowy-promo"],
+  ])("pole %s karty zapisuje się pod własnym kluczem", (_label, placeholder, key, value) => {
+    const { written } = renderEditor(MegaMenuEditor, withFeatured());
+    const field = document.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`);
+    if (!field) throw new Error(`test: brak pola „${placeholder}”`);
+    fireEvent.change(field, { target: { value } });
+    const featured = featuredFrom(written);
+    expect(featured[key]).toBe(value);
+    // Sąsiednie pola karty nietknięte - zapis jest scalający.
+    expect(featured.excerpt_pl).toBe("Zajawka");
+  });
+
+  it("zajawka karty zapisuje się pod klucz języka treści", () => {
+    const { written } = renderEditor(MegaMenuEditor, withFeatured(), "en");
+    const area = document.querySelector("textarea");
+    if (!area) throw new Error("test: brak pola zajawki");
+    fireEvent.change(area, { target: { value: "Short lead" } });
+    const featured = featuredFrom(written);
+    expect(featured.excerpt_en).toBe("Short lead");
+    expect(featured.excerpt_pl).toBe("Zajawka");
+  });
+
+  it.each([
+    ["16/9", "aspect-[16/9]"],
+    ["4/3", "aspect-[4/3]"],
+    ["1/1", "aspect-square"],
+    ["3/4", "aspect-[3/4]"],
+    ["16/10", "aspect-[16/10]"],
+    // Proporcja spoza katalogu (stary dokument, ręczna edycja JSON-a) nie może
+    // zostawić podglądu bez klasy proporcji - wtedy kadr ma zerową wysokość.
+    ["21/9", "aspect-[16/10]"],
+  ])("proporcja „%s” daje podglądowi klasę %s", (ratio, expected) => {
+    const { container } = renderEditor(
+      MegaMenuEditor,
+      withFeatured({ ...FEATURED, aspectRatio: ratio }),
+    );
+    const canvas = container.querySelector<HTMLElement>(".cursor-crosshair");
+    expect(canvas?.className).toContain(expected);
+  });
+});
+
+describe("MegaMenuEditor - brzegi list i pól liczbowych", () => {
+  it("adres linku zapisuje się tylko na edytowanym wierszu", () => {
+    const { written } = renderEditor(MegaMenuEditor, { columns: [LINK_COLUMN] });
+    const urls = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[placeholder="URL"]'),
+    );
+    expect(urls).toHaveLength(2);
+    fireEvent.change(urls[1], { target: { value: "/dwa-nowe" } });
+    const links = (written.at(-1)?.[1] as Array<Record<string, unknown>>)[0].links as Array<
+      Record<string, unknown>
+    >;
+    expect(links[0].href).toBe("/jeden");
+    expect(links[1].href).toBe("/dwa-nowe");
+    expect(links[1].label_pl).toBe("Drugi");
+  });
+
+  it("wybór ikony z katalogu zapisuje jej nazwę na właściwym wierszu", () => {
+    const { written } = renderEditor(MegaMenuEditor, { columns: [LINK_COLUMN] });
+    const icons = Array.from(document.querySelectorAll<HTMLSelectElement>("select")).filter((s) =>
+      s.querySelector('option[value="none"]'),
+    );
+    expect(icons).toHaveLength(2);
+    const name = MEGA_MENU_ICON_NAMES[0];
+    fireEvent.change(icons[1], { target: { value: name } });
+    const links = (written.at(-1)?.[1] as Array<Record<string, unknown>>)[0].links as Array<
+      Record<string, unknown>
+    >;
+    expect(links[0].icon).toBe("");
+    expect(links[1].icon).toBe(name);
+  });
+
+  it("wyczyszczenie szerokości stałej wraca do 1140 px, nie do dziury", () => {
+    const { written } = renderEditor(MegaMenuEditor, { width: "fixed", widthPx: 1200 });
+    const px = document.querySelector<HTMLInputElement>('input[type="number"]');
+    if (!px) throw new Error("test: brak pola szerokości");
+    fireEvent.change(px, { target: { value: "" } });
+    // Puste pole liczbowe oddaje `undefined` - zapisany do dokumentu skasowałby
+    // szerokość panelu, a renderer nie ma czym jej zastąpić.
+    expect(written.at(-1)).toEqual(["widthPx", 1140]);
+  });
+
+  it("wyczyszczenie liczby wpisów kolumny kategorii wraca do 4", async () => {
+    const { written } = renderEditor(MegaMenuEditor, { columns: [CATEGORY_COLUMN] });
+    await screen.findByRole("option", { name: "Gospodarka" });
+    const numbers = document.querySelectorAll<HTMLInputElement>('input[type="number"]');
+    fireEvent.change(numbers[numbers.length - 1], { target: { value: "" } });
+    const cols = written.at(-1)?.[1] as Array<Record<string, unknown>>;
+    expect(cols[0].postCount).toBe(4);
+  });
+
+  it("wybór konkretnej kategorii zapisuje jej slug, nie znacznik listy", async () => {
+    const { written } = renderEditor(MegaMenuEditor, {
+      columns: [{ ...CATEGORY_COLUMN, categorySlug: "" }],
+    });
+    await screen.findByRole("option", { name: "Gospodarka" });
+    const select = Array.from(document.querySelectorAll<HTMLSelectElement>("select")).find((s) =>
+      s.querySelector('option[value="gospodarka"]'),
+    );
+    if (!select) throw new Error("test: brak listy kategorii");
+    fireEvent.change(select, { target: { value: "gospodarka" } });
+    const cols = written.at(-1)?.[1] as Array<Record<string, unknown>>;
+    expect(cols[0].categorySlug).toBe("gospodarka");
+  });
+
+  it("baza oddająca PUSTKĘ zostawia listę kategorii z samym „brak”", async () => {
+    // PostgREST na pustym wyniku oddaje `data: null`. Bez straży `data ?? []`
+    // kolumna kategorii wywala panel na świeżej instalacji.
+    db.current.setResponse("categories", ok(null));
+    const { container } = renderEditor(MegaMenuEditor, { columns: [CATEGORY_COLUMN] });
+    await screen.findByRole("option", { name: "builder.megaMenuEditor.none" });
+    const select = Array.from(container.querySelectorAll<HTMLSelectElement>("select")).find((s) =>
+      s.querySelector('option[value="__none"]'),
+    );
+    expect(select?.querySelectorAll("option")).toHaveLength(1);
+    expect(container.textContent).not.toContain("undefined");
   });
 });
 

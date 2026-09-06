@@ -1287,6 +1287,199 @@ describe("warianty widoków prezentacyjnych", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// LICZNIK STATYSTYK I POZOSTAŁE GAŁĘZIE ODMOWY WIDOKÓW PREZENTACYJNYCH.
+//
+// Testy wyżej montują widoki i klikają - i tylko tyle. `StatsCounterView` jedzie
+// na `useRevealOnScroll`, a IntersectionObserver happy-doma NIGDY nie woła
+// swojego callbacku, więc licznik zostaje na stanie "static" (wartość końcowa
+// od razu) i ani gałąź "poza viewportem" (zero), ani samo odliczanie rAF nie
+// mają dowodu wykonawczego. Sterowalny obserwator + sterowalna kolejka klatek
+// zamykają obie, a przy okazji dowodzą, że odmontowanie w trakcie odliczania
+// anuluje zaplanowaną klatkę.
+type IOEntryLite = { isIntersecting: boolean };
+type IOCallbackLite = (entries: IOEntryLite[]) => void;
+
+const ioBus = { callbacks: [] as IOCallbackLite[], disconnects: 0 };
+
+class ControlledIntersectionObserver {
+  constructor(cb: IntersectionObserverCallback) {
+    ioBus.callbacks.push(cb as unknown as IOCallbackLite);
+  }
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {
+    ioBus.disconnects += 1;
+  }
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+
+const frames = {
+  queue: [] as { id: number; cb: FrameRequestCallback }[],
+  nextId: 1,
+  cancelled: [] as number[],
+};
+
+function installRevealHarness(): void {
+  ioBus.callbacks = [];
+  ioBus.disconnects = 0;
+  frames.queue = [];
+  frames.nextId = 1;
+  frames.cancelled = [];
+  vi.stubGlobal(
+    "IntersectionObserver",
+    ControlledIntersectionObserver as unknown as typeof IntersectionObserver,
+  );
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback): number => {
+    const id = frames.nextId++;
+    frames.queue.push({ id, cb });
+    return id;
+  });
+  vi.stubGlobal("cancelAnimationFrame", (id: number): void => {
+    frames.cancelled.push(id);
+    frames.queue = frames.queue.filter((f) => f.id !== id);
+  });
+}
+
+/** Strzela WSZYSTKIMI obserwatorami zamontowanego drzewa. */
+function intersect(isIntersecting: boolean): void {
+  act(() => {
+    for (const cb of [...ioBus.callbacks]) cb([{ isIntersecting }]);
+  });
+}
+
+/** Wypuszcza JEDNĄ oczekującą klatkę ze wskazanym znacznikiem czasu. */
+function flushFrame(timestamp: number): void {
+  const next = frames.queue.shift();
+  expect(next, "brak zaplanowanej klatki animacji").toBeTruthy();
+  act(() => {
+    next!.cb(timestamp);
+  });
+}
+
+describe("StatsCounterView - stany odsłonięcia licznika", () => {
+  beforeEach(installRevealHarness);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("SSR i pierwszy render pokazują wartość KOŃCOWĄ (crawler nie widzi zer)", () => {
+    const container = view(
+      <StatsCounterView items={[{ value: "120", label: "Analiz", suffix: "+" }]} duration={100} />,
+    );
+    expect(container.textContent).toContain("120");
+  });
+
+  it("pozycja POZA viewportem zeruje licznik przed odsłonięciem", () => {
+    const container = view(
+      <StatsCounterView items={[{ value: "120", label: "Analiz", suffix: "" }]} duration={100} />,
+    );
+    intersect(false);
+    expect(container.textContent).toContain("0");
+    expect(container.textContent).not.toContain("120");
+  });
+
+  it("wejście w viewport odlicza od zera do wartości docelowej i domyka ją na ostatniej klatce", () => {
+    const container = view(
+      <StatsCounterView items={[{ value: "120", label: "Analiz", suffix: "" }]} duration={100} />,
+    );
+    intersect(false);
+    expect(container.textContent).not.toContain("120");
+
+    const base = performance.now();
+    intersect(true);
+
+    // Klatka w POŁOWIE czasu: wartość jest już powyżej zera, ale jeszcze nie
+    // osiągnęła celu - to jest właśnie odliczanie, a nie skok do wyniku.
+    flushFrame(base + 50);
+    const midway = Number((container.textContent ?? "").replace(/\D/g, ""));
+    expect(midway).toBeGreaterThan(0);
+    expect(midway).toBeLessThan(120);
+
+    // Klatka PO upływie czasu domyka licznik dokładnie na wartości docelowej.
+    flushFrame(base + 500);
+    expect(container.textContent).toContain("120");
+  });
+
+  it("odmontowanie W TRAKCIE odliczania anuluje zaplanowaną klatkę", () => {
+    view(
+      <StatsCounterView items={[{ value: "80", label: "Raportów", suffix: "" }]} duration={100} />,
+    );
+    intersect(false);
+    intersect(true);
+    expect(frames.queue.length).toBeGreaterThan(0);
+    cleanup();
+    expect(frames.cancelled.length).toBeGreaterThan(0);
+  });
+
+  it("wartość ZERO nie wywraca parsowania prefiksu (0 przechodzi przez fallback liczby)", () => {
+    const container = view(
+      <StatsCounterView items={[{ value: "0", label: "Kar", suffix: "" }]} duration={100} />,
+    );
+    expect(container.textContent).toContain("0");
+    assertNoLeak(container, "licznik zero");
+  });
+});
+
+describe("widoki prezentacyjne - pozostałe gałęzie odmowy", () => {
+  it("TestimonialsView z NIE-tablicą na wejściu nie renderuje siatki", () => {
+    const container = view(<TestimonialsView items={"nie-tablica" as never} />);
+    expect(container.textContent).toBe("");
+    assertNoLeak(container, "opinie nie-tablica");
+  });
+
+  it("slider opinii: przycisk POPRZEDNIA z pierwszej opinii zawija na ostatnią", () => {
+    const container = view(
+      <TestimonialsView
+        items={[
+          { quote: "Pierwsza", author: "A" },
+          { quote: "Druga", author: "B" },
+        ]}
+        layout="slider"
+      />,
+    );
+    expect(container.textContent).toContain("Pierwsza");
+    const prev = container.querySelector('button[aria-label="Poprzednia"]');
+    expect(prev).toBeTruthy();
+    fireEvent.click(prev as HTMLButtonElement);
+    expect(container.textContent).toContain("Druga");
+    expect(container.textContent).toContain("2 / 2");
+  });
+
+  it("ocena CZĘŚCIOWA gasi gwiazdki powyżej wyniku, zamiast zapalać wszystkie", () => {
+    const container = view(
+      <TestimonialsView items={[{ quote: "Cytat", author: "A", rating: 3 }]} layout="grid" />,
+    );
+    const stars = Array.from(container.querySelectorAll('[aria-label="Ocena: 3/5"] svg'));
+    expect(stars).toHaveLength(5);
+    expect(stars.filter((s) => s.getAttribute("class")?.includes("fill-current"))).toHaveLength(3);
+    expect(stars.filter((s) => s.getAttribute("class")?.includes("opacity-25"))).toHaveLength(2);
+  });
+
+  it("plan cennika z OPISEM renderuje go jako tekst bez znaczników HTML", () => {
+    const container = view(
+      <PricingTableView
+        plans={[
+          {
+            name: "Pro",
+            price: "99",
+            period: "/mies.",
+            description: "<b>Opis planu</b>",
+            features: [],
+            ctaLabel: "",
+            ctaHref: "",
+          },
+        ]}
+      />,
+    );
+    expect(container.textContent).toContain("Opis planu");
+    expect(container.querySelector("b")).toBeNull();
+    assertNoLeak(container, "cennik z opisem");
+  });
+});
+
 describe("warianty widoków marketingowych i danych", () => {
   it.each(["left", "center"] as const)("HeroView wyrównanie %s", (align) => {
     const container = view(

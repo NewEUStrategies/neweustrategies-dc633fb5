@@ -372,3 +372,186 @@ describe("BlockCanvas - pisanie po zaznaczeniu wielu blokow", () => {
     expect(onSelectedIdsChange).toHaveBeenCalledWith([]);
   });
 });
+
+// ── SCALANIE: PRZYPADKI BRZEGOWE TRESCI ─────────────────────────────────────
+// Scalanie jest w kanwie miejscem o najwyzszej stawce: znika CALY blok, a jego
+// tresc ma dojechac do sasiada. Ponizsze przypadki to te warianty pary
+// (blok znikajacy, blok przyjmujacy), ktorych nie pokrywa scalenie dwoch
+// zwyklych akapitow wyzej - a kazdy z nich idzie inna galezia `mergeWithPrevious`.
+describe("BlockCanvas - scalanie w przypadkach brzegowych", () => {
+  it("scalenie NAGŁÓWKA z poprzednim akapitem wnosi tekst nagłówka do akapitu", () => {
+    // Odwrotna strona pary „akapit -> nagłówek": tu znikającym blokiem jest
+    // NAGŁÓWEK i to jego tekst musi dojechać do akapitu wyżej.
+    const naglowek = { id: "h2", type: "heading", data: { text: "Podtytuł", level: 3 } } as Block;
+    const { onChange, onSelect } = zamontuj([akapit("p1", "<p>alfa</p>"), naglowek], "h2");
+    fireEvent.keyDown(pole("h2"), { key: "Backspace" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(idy(next)).toEqual(["p1"]);
+    expect(html(next)[0]).toContain("alfa");
+    expect(html(next)[0]).toContain("Podtytuł");
+    expect(onSelect).toHaveBeenCalledWith("p1");
+  });
+
+  it("scalenie z PUSTYM poprzednim akapitem nie gubi treści znikającego bloku", () => {
+    // Poprzednik bez pola `html` (świeżo wstawiony akapit) - brak danych nie
+    // może zamienić scalenia w utratę tekstu, który redaktor właśnie napisał.
+    const pusty = { id: "p1", type: "paragraph", data: {} } as Block;
+    const { onChange } = zamontuj([pusty, akapit("p2", "<p>beta</p>")], "p2");
+    fireEvent.keyDown(pole("p2"), { key: "Backspace" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(idy(next)).toEqual(["p1"]);
+    expect(html(next)[0]).toContain("beta");
+  });
+
+  it("scalenie z PUSTYM poprzednim nagłówkiem nie gubi treści znikającego bloku", () => {
+    const pustyNaglowek = { id: "h1", type: "heading", data: { level: 2 } } as Block;
+    const { onChange } = zamontuj([pustyNaglowek, akapit("p2", "<p>ogon</p>")], "p2");
+    fireEvent.keyDown(pole("p2"), { key: "Backspace" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(idy(next)).toEqual(["h1"]);
+    expect(String(next.blocks[0].data.text)).toBe("ogon");
+  });
+
+  it("scalenie w dokumencie o TRZECH blokach rusza wyłącznie scalaną parę", () => {
+    // Dwa bloki to zbyt mały dowód: po scaleniu zostaje jeden i nie widać,
+    // czy pozostałe bloki przechodzą przez mapowanie NIEZMIENIONE.
+    const trzeci = akapit("p3", "<p>gamma</p>");
+    const { onChange } = zamontuj(
+      [akapit("p1", "<p>alfa</p>"), akapit("p2", "<p>beta</p>"), trzeci],
+      "p2",
+    );
+    fireEvent.keyDown(pole("p2"), { key: "Backspace" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(idy(next)).toEqual(["p1", "p3"]);
+    expect(html(next)[0]).toContain("beta");
+    // Trzeci blok wraca DOKŁADNIE tym samym obiektem - scalanie sąsiadów go
+    // nie przepisuje (przepisany blok to zmiana identyczności bez zmiany
+    // treści, czyli fałszywy krok w historii i fałszywy zapis).
+    expect(next.blocks[1]).toBe(trzeci);
+  });
+
+  it("Backspace na pustym bloku wraca na sąsiada NIETEKSTOWEGO bez karetki", () => {
+    // Sąsiadem jest separator - nie ma w nim gdzie postawić karetki, więc
+    // kanwa może go tylko ZAZNACZYĆ. Blok pusty i tak musi zniknąć.
+    const separator = { id: "s1", type: "separator", data: {} } as Block;
+    const { onChange, onSelect } = zamontuj([separator, akapit("p2", "")], "p2");
+    fireEvent.keyDown(pole("p2"), { key: "Backspace" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(idy(next)).toEqual(["s1"]);
+    expect(onSelect).toHaveBeenCalledWith("s1");
+  });
+});
+
+// ── MENU SLASH: TRANSFORMACJA Z KLAWIATURY ──────────────────────────────────
+// Menu „/" to druga - obok paska „Przekształć w" - droga do podmiany bloku,
+// i jedyna dostepna bez myszy. Idzie tym samym `replaceWith`, ale wchodzi doń
+// z INNEJ strony (z wnetrza edytora bloku, nie z paska akcji), wiec ma wlasny
+// kontrakt na karetke.
+describe("BlockCanvas - menu slash w pustym akapicie", () => {
+  function pusteDwa(): Block[] {
+    return [
+      { id: "p1", type: "paragraph", data: { html: "" } } as Block,
+      akapit("p2", "<p>beta</p>"),
+    ];
+  }
+
+  it("wybór z menu PODMIENIA pusty akapit w miejscu, nie dokłada bloku obok", () => {
+    const { onChange, onSelect } = zamontuj(pusteDwa(), "p1");
+    const p = pole("p1");
+    fireEvent.keyDown(p, { key: "/" });
+    fireEvent.keyDown(p, { key: "Enter" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks).toHaveLength(2);
+    expect(next.blocks[0].id).not.toBe("p1");
+    expect(idy(next)[1]).toBe("p2");
+    // Zaznaczenie przechodzi na blok zamiennik - piszesz dalej bez klikania.
+    expect(onSelect).toHaveBeenCalledWith(next.blocks[0].id);
+  });
+
+  it("menu slash może podmienić akapit na blok NIETEKSTOWY", () => {
+    // Trzecia pozycja palety slash to Obraz - blok bez pola pisania. Podmiana
+    // musi się wykonać, ale karetki nie ma gdzie postawić (kanwa nie może
+    // wtedy szukać pola edycji, którego w bloku nie ma).
+    const { onChange, onSelect } = zamontuj(pusteDwa(), "p1");
+    const p = pole("p1");
+    fireEvent.keyDown(p, { key: "/" });
+    fireEvent.keyDown(p, { key: "ArrowDown" });
+    fireEvent.keyDown(p, { key: "ArrowDown" });
+    fireEvent.keyDown(p, { key: "Enter" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks[0].type).toBe("image");
+    expect(idy(next)[1]).toBe("p2");
+    expect(onSelect).toHaveBeenCalledWith(next.blocks[0].id);
+  });
+
+  it("Escape zamyka menu slash bez podmiany bloku", () => {
+    const { onChange } = zamontuj(pusteDwa(), "p1");
+    const p = pole("p1");
+    fireEvent.keyDown(p, { key: "/" });
+    fireEvent.keyDown(p, { key: "Escape" });
+    fireEvent.keyDown(p, { key: "Enter" });
+    // Enter po zamknięciu menu jest zwykłym Enterem: dzieli blok, a nie
+    // podmienia go na wybrany typ.
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks[0].id).toBe("p1");
+    expect(next.blocks).toHaveLength(3);
+  });
+});
+
+// ── ESKALACJA ZAZNACZENIA Z WNETRZA BLOKU ───────────────────────────────────
+describe("BlockCanvas - Shift+strzalka na krawedzi tresci", () => {
+  it("Shift+strzałka w górę na początku bloku zaznacza blok BIEŻĄCY i POPRZEDNI", () => {
+    // Zaznaczenie tekstowe nie potrafi przekroczyć granicy bloku, więc od
+    // krawędzi zamienia się w zaznaczenie BLOKOWE (parytet z WP Gutenberg).
+    const { onSelectedIdsChange } = zamontuj(
+      [akapit("p1", "<p>alfa</p>"), akapit("p2", "<p>beta</p>")],
+      "p2",
+    );
+    fireEvent.keyDown(pole("p2"), { key: "ArrowUp", shiftKey: true });
+    expect(onSelectedIdsChange).toHaveBeenCalledWith(["p1", "p2"]);
+  });
+
+  it("Shift+strzałka w górę w PIERWSZYM bloku nie zaznacza niczego", () => {
+    // Nie ma bloku wyżej - eskalacja musi odmówić, a nie zaznaczyć bloku
+    // bieżącego „na pocieszenie" (redaktor dostałby wtedy zaznaczenie blokowe
+    // przy zwykłym Shift+strzałka w pierwszym akapicie wpisu).
+    const { onSelectedIdsChange } = zamontuj(
+      [akapit("p1", "<p>alfa</p>"), akapit("p2", "<p>beta</p>")],
+      "p1",
+    );
+    fireEvent.keyDown(pole("p1"), { key: "ArrowUp", shiftKey: true });
+    expect(onSelectedIdsChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("BlockCanvas - Enter przy zaznaczeniu wielu blokow", () => {
+  it("Enter zastępuje CAŁE zaznaczenie jednym PUSTYM akapitem", () => {
+    // Enter (w odróżnieniu od zwykłego znaku) nie wnosi treści, więc w miejsce
+    // zaznaczonych bloków wchodzi akapit bez treści - gotowy do pisania.
+    const { onChange, onSelect } = zamontuj(
+      [akapit("p1", "<p>alfa</p>"), akapit("p2", "<p>beta</p>"), akapit("p3", "<p>gamma</p>")],
+      null,
+      ["p1", "p2"],
+    );
+    const kanwa = document.querySelector("[data-block-canvas]");
+    fireEvent.keyDown(kanwa as Element, { key: "Enter" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks).toHaveLength(2);
+    expect(next.blocks[0].type).toBe("paragraph");
+    expect(next.blocks[0].data.html).toBe("");
+    expect(idy(next)[1]).toBe("p3");
+    expect(onSelect).toHaveBeenCalledWith(next.blocks[0].id);
+  });
+
+  it("Shift+Enter przy zaznaczeniu wielu bloków NIE kasuje ich treści", () => {
+    // Shift+Enter to miękki łamany wiersz - nie ma prawa zastąpić zaznaczenia.
+    const { onChange } = zamontuj(
+      [akapit("p1", "<p>alfa</p>"), akapit("p2", "<p>beta</p>")],
+      null,
+      ["p1", "p2"],
+    );
+    const kanwa = document.querySelector("[data-block-canvas]");
+    fireEvent.keyDown(kanwa as Element, { key: "Enter", shiftKey: true });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});

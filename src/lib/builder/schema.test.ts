@@ -284,3 +284,224 @@ describe("isBuilderDoc", () => {
     expect(isBuilderDoc(safeParseBuilderDoc(messy))).toBe(true);
   });
 });
+
+// ODMOWY I PODMIANY, KTORYCH NIE WIDAC W TESTACH SCIEZKI SZCZESLIWEJ.
+//
+// Parser jest CELOWO wyrozumialy: zamiast odrzucic caly dokument, naprawia go
+// wezel po wezle. Kazda taka naprawa to jednak decyzja, ktora zmienia to, co
+// zobaczy czytelnik - i ponizsze przypadki przypinaja te decyzje na wejsciach,
+// ktorych zaden test dotad nie podal:
+//
+// 1. IDENTYFIKATOR PUSTY, a nie brakujacy. `takeId` wymaga `length > 0`, wiec
+//    `id: ""` z importu albo ze zlego zapisu dostaje identyfikator wyliczony
+//    z POZYCJI. To nie kosmetyka: dwa wezly z pustym `id` bylyby dla edytora
+//    tym samym wezlem, a dla Reacta - tym samym kluczem listy.
+// 2. TRESC WIDGETU BEDACA TABLICA. `isObject` odrzuca tablice, wiec content
+//    spada do `{}`. Bez tego renderer dostalby tablice tam, gdzie siega po
+//    pola po nazwie, a `Array.prototype` dolozylby do tego wlasne skladniki.
+// 3. `isBuilderDoc` na wpisach, ktore nie sa obiektami, i na sekcji wewnetrznej
+//    z `columns` innym niz tablica.
+//
+// GRANICA DOWODU: `isBuilderDoc` NIE MA dzis ani jednego wywolania
+// produkcyjnego (jedyne uzycia sa w testach). Ponizsze przypadki opisuja wiec
+// kontrakt funkcji, a nie zachowanie widoczne na stronie - i dlatego opisana
+// nizej asymetria (kolumny sprawdzane rekurencyjnie, `columns` sekcji
+// wewnetrznej tylko po typie tablicy) jest tu przypieta jako STAN FAKTYCZNY,
+// a nie zglaszana jako defekt: nie ma powierzchni, na ktorej moglaby zaszkodzic.
+
+describe("safeParseBuilderDoc - identyfikator PUSTY zamiast brakujacego", () => {
+  it("pusty string w id sekcji zostaje zastapiony identyfikatorem z pozycji", () => {
+    const doc = safeParseBuilderDoc({
+      version: 1,
+      sections: [{ id: "", kind: "section", children: [] }],
+    });
+
+    expect(doc.sections[0].id).toBe("auto-s0");
+  });
+
+  it("pusty string w id kolumny, sekcji wewnetrznej i widgetu tez jest zastepowany", () => {
+    const doc = safeParseBuilderDoc({
+      version: 1,
+      sections: [
+        {
+          id: "s1",
+          kind: "section",
+          children: [
+            { id: "", kind: "column", children: [{ id: "", kind: "widget", type: "heading" }] },
+            { id: "", kind: "inner-section", columns: [{ id: "", kind: "column", children: [] }] },
+          ],
+        },
+      ],
+    });
+
+    const kolumna = doc.sections[0].children[0] as { id: string; children: Array<{ id: string }> };
+    const wewnetrzna = doc.sections[0].children[1] as {
+      id: string;
+      columns: Array<{ id: string }>;
+    };
+    expect(kolumna.id).toBe("auto-s0.c0");
+    expect(kolumna.children[0].id).toBe("auto-s0.c0.w0");
+    expect(wewnetrzna.id).toBe("auto-s0.c1");
+    expect(wewnetrzna.columns[0].id).toBe("auto-s0.c1.c0");
+  });
+
+  it("dwa wezly z pustym id dostaja ROZNE identyfikatory", () => {
+    // Gdyby pusty string przechodzil dalej, oba wezly mialyby ten sam klucz -
+    // zaznaczenie i usuwanie trafialyby w losowy z nich.
+    const doc = safeParseBuilderDoc({
+      version: 1,
+      sections: [
+        { id: "", kind: "section", children: [] },
+        { id: "", kind: "section", children: [] },
+      ],
+    });
+
+    expect(doc.sections[0].id).not.toBe(doc.sections[1].id);
+  });
+
+  it("identyfikator niebedacy stringiem tez jest zastepowany", () => {
+    const doc = safeParseBuilderDoc({
+      version: 1,
+      sections: [{ id: 7, kind: "section", children: [] }],
+    });
+
+    expect(doc.sections[0].id).toBe("auto-s0");
+  });
+});
+
+describe("safeParseBuilderDoc - tresc widgetu, ktora nie jest obiektem", () => {
+  const wrapWidget = (content: unknown) => ({
+    version: 1,
+    sections: [
+      {
+        id: "s1",
+        kind: "section",
+        children: [
+          {
+            id: "c1",
+            kind: "column",
+            children: [{ id: "w1", kind: "widget", type: "heading", content }],
+          },
+        ],
+      },
+    ],
+  });
+
+  const widgetZ = (raw: unknown): { content: unknown } => {
+    const doc = safeParseBuilderDoc(raw);
+    const col = doc.sections[0].children[0] as { children: Array<{ content: unknown }> };
+    return col.children[0];
+  };
+
+  it("TABLICA w content spada do pustego obiektu", () => {
+    // `isObject` jawnie odrzuca tablice. Bez tego renderer siegajacy po pola po
+    // nazwie dostalby tablice - z jej wlasnymi skladnikami (`length`, metody
+    // prototypu) w miejscu ustawien widgetu.
+    expect(widgetZ(wrapWidget([{ text_pl: "Nagłówek" }])).content).toEqual({});
+  });
+
+  it("pusta tablica w content tez spada do pustego obiektu, a nie do tablicy", () => {
+    const content = widgetZ(wrapWidget([])).content;
+
+    expect(Array.isArray(content)).toBe(false);
+    expect(content).toEqual({});
+  });
+
+  it("null, string i liczba w content tez spadaja do pustego obiektu", () => {
+    expect(widgetZ(wrapWidget(null)).content).toEqual({});
+    expect(widgetZ(wrapWidget("tekst")).content).toEqual({});
+    expect(widgetZ(wrapWidget(12)).content).toEqual({});
+  });
+});
+
+describe("coerceSpan - kazdy punkt przerwania osobno", () => {
+  it("bierze wylacznie te punkty przerwania, ktore sa liczbami", () => {
+    const doc = safeParseBuilderDoc({
+      version: 1,
+      sections: [
+        {
+          id: "s1",
+          kind: "section",
+          children: [
+            {
+              id: "c1",
+              kind: "column",
+              span: { desktop: "6", tablet: 4, mobile: null },
+              children: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const col = doc.sections[0].children[0] as unknown as { span: Record<string, number> };
+    expect(col.span).toEqual({ tablet: 4 });
+  });
+
+  it("span niebedacy obiektem daje pusty obiekt", () => {
+    const doc = safeParseBuilderDoc({
+      version: 1,
+      sections: [
+        { id: "s1", kind: "section", children: [{ id: "c1", kind: "column", span: [1, 2] }] },
+      ],
+    });
+
+    const col = doc.sections[0].children[0] as unknown as { span: Record<string, number> };
+    expect(col.span).toEqual({});
+  });
+});
+
+describe("isBuilderDoc - odmowy bez dowodu", () => {
+  it("odrzuca dokument, w ktorym wpis sekcji NIE JEST obiektem", () => {
+    expect(isBuilderDoc({ version: 1, sections: [null] })).toBe(false);
+    expect(isBuilderDoc({ version: 1, sections: ["sekcja"] })).toBe(false);
+    expect(isBuilderDoc({ version: 1, sections: [7] })).toBe(false);
+    expect(isBuilderDoc({ version: 1, sections: [[]] })).toBe(false);
+  });
+
+  it("odrzuca sekcje wewnetrzna, ktorej columns nie jest tablica", () => {
+    const doc = (columns: unknown) => ({
+      version: 1,
+      sections: [{ id: "s1", kind: "section", children: [{ kind: "inner-section", columns }] }],
+    });
+
+    expect(isBuilderDoc(doc(5))).toBe(false);
+    expect(isBuilderDoc(doc(undefined))).toBe(false);
+    expect(isBuilderDoc(doc({}))).toBe(false);
+    expect(isBuilderDoc(doc([]))).toBe(true);
+  });
+
+  it("STAN FAKTYCZNY: zawartosc columns sekcji wewnetrznej NIE jest sprawdzana", () => {
+    // Asymetria z naglowka: kolumna jest weryfikowana rekurencyjnie (kazdy
+    // widget musi miec znany typ), a sekcja wewnetrzna - tylko po tym, ze
+    // `columns` jest tablica. Wpis `null` w srodku przechodzi.
+    expect(
+      isBuilderDoc({
+        version: 1,
+        sections: [
+          { id: "s1", kind: "section", children: [{ kind: "inner-section", columns: [null] }] },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("odrzuca kolumne, w ktorej wpis dziecka nie jest obiektem", () => {
+    expect(
+      isBuilderDoc({
+        version: 1,
+        sections: [{ children: [{ kind: "column", children: [null] }] }],
+      }),
+    ).toBe(false);
+  });
+
+  it("przyjmuje sekcje wewnetrzna rozpoznana po kind, nawet gdy niesie tez children", () => {
+    // Dyskryminator wygrywa z ksztaltem: dla `isBuilderDoc` liczy sie wtedy
+    // wylacznie `columns`.
+    expect(
+      isBuilderDoc({
+        version: 1,
+        sections: [{ children: [{ kind: "inner-section", columns: [], children: "cokolwiek" }] }],
+      }),
+    ).toBe(true);
+  });
+});

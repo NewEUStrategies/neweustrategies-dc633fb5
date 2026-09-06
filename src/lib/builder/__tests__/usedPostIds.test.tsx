@@ -23,3 +23,28 @@ describe("UsedPostIds context", () => {
     expect(result.current.getSnapshot()).toEqual([]);
   });
 });
+
+describe("UsedPostIds - odmowy i stabilnosc tozsamosci", () => {
+  it("pusty identyfikator NIE wchodzi do zbioru", () => {
+    // Pusty napis trafilby potem do `excludeIds` widgetu i - jako fragment
+    // listy `.not("id","in",...)` - wyciąłby wiersz o pustym id albo zepsul
+    // sklejony filtr. Zbior ma trzymac wylacznie realne identyfikatory.
+    const { result } = renderHook(() => useUsedPostIds(), { wrapper });
+    act(() => result.current.register(["", "a", ""]));
+    expect(result.current.getSnapshot()).toEqual(["a"]);
+  });
+
+  it("obiekt api jest TEN SAM miedzy renderami rodzica, a zbior przezywa rerender", () => {
+    // Gdyby `api` bylo nowe po kazdym renderze providera, kazdy widget
+    // przeliczalby klucz zapytania (getSnapshot w zaleznosciach) i tracil
+    // rozgrzany wpis cache przy kazdej zmianie stanu wyzej.
+    const { result, rerender } = renderHook(() => useUsedPostIds(), { wrapper });
+    const przed = result.current;
+    act(() => result.current.register(["a"]));
+
+    rerender();
+
+    expect(result.current).toBe(przed);
+    expect(result.current.getSnapshot()).toEqual(["a"]);
+  });
+});

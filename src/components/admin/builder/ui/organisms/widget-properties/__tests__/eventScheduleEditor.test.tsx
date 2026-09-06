@@ -63,14 +63,14 @@ vi.mock("../ProfilePicker", () => ({
   ),
 }));
 
-function renderEditor(initial: WidgetNode["content"]) {
+function renderEditor(initial: WidgetNode["content"], lang: "pl" | "en" = "pl") {
   const written: Array<[string, Json]> = [];
   function Host() {
     const [content, setContent] = useState<WidgetNode["content"]>(initial);
     return (
       <EventScheduleEditor
         c={content}
-        lang="pl"
+        lang={lang}
         setContent={(k, v) => {
           written.push([k, v]);
           setContent((prev) => ({ ...prev, [k]: v }));
@@ -321,4 +321,275 @@ describe("EventScheduleEditor - sesja typu przerwa", () => {
     expect(sessions[0]?.kind).toBe("break");
     fireEvent.change(select, { target: { value: "session" } });
   });
+});
+
+// ── DRUGI SZEREG: pola LIŚCI harmonogramu ───────────────────────────────────
+//
+// Powyżej stoją reguły „kto wygrywa" (etykieta zastępcza, profil vs wpis
+// ręczny, kraniec listy). Poniżej idą POLA, które redakcja wypełnia najczęściej
+// i które w tabeli zbiorczej nie były ani razu tknięte, bo tabela nie wie, jak
+// wygląda sesja typu „przerwa" ani ile prelegentów potrzeba, żeby przenoszenie
+// miało sens: godziny sesji, rubryki sponsora przerwy oraz przenoszenie
+// i punktowa edycja pozycji na liście DWUELEMENTOWEJ. Ostatnie jest tu
+// najważniejsze: `map((s, j) => (j === i ? ... : s))` na liście
+// JEDNOELEMENTOWEJ nigdy nie wykona gałęzi „to nie ten wpis", a właśnie ona
+// odpowiada za to, że edycja drugiego prelegenta nie zeruje pierwszego.
+
+type FormField = HTMLInputElement | HTMLTextAreaElement;
+
+/**
+ * Pole panelu poznajemy po DOKŁADNEJ treści etykiety `PropField`, nie po
+ * pozycji w formularzu - przestawienie pól nie jest defektem, a zmiana nazwy
+ * rubryki owszem.
+ */
+function fieldsLabelled(container: HTMLElement, label: string): FormField[] {
+  const out: FormField[] = [];
+  for (const node of Array.from(container.querySelectorAll("label"))) {
+    if ((node.textContent ?? "").trim() !== label) continue;
+    const field = node.closest("div")?.querySelector<FormField>("input, textarea");
+    if (field) out.push(field);
+  }
+  return out;
+}
+
+function fieldLabelled(container: HTMLElement, label: string, index = 0): FormField {
+  const field = fieldsLabelled(container, label)[index];
+  if (!field) throw new Error(`test: brak pola o etykiecie „${label}" (#${index})`);
+  return field;
+}
+
+/** Sesje pierwszego dnia z ostatniego zapisu dokumentu. */
+const sessionsOf = (days: () => Array<Record<string, unknown>>): Array<Record<string, unknown>> =>
+  (days()[0]?.sessions ?? []) as Array<Record<string, unknown>>;
+
+/** Podlista pierwszej sesji pierwszego dnia (prelegenci albo sponsorzy). */
+const subListOf = (
+  days: () => Array<Record<string, unknown>>,
+  key: "speakers" | "sponsors",
+): Array<Record<string, unknown>> =>
+  (sessionsOf(days)[0]?.[key] ?? []) as Array<Record<string, unknown>>;
+
+describe("EventScheduleEditor - godziny sesji", () => {
+  it("godzina początku i końca zapisuje się w sesji", () => {
+    const { container, days } = renderEditor({
+      days: [dayOf({ sessions: [sessionOf({ timeStart: "", timeEnd: "" })] })],
+    });
+    fireEvent.change(fieldLabelled(container, "Od"), { target: { value: "09:30" } });
+    expect(sessionsOf(days)[0]?.timeStart).toBe("09:30");
+    fireEvent.change(fieldLabelled(container, "Do"), { target: { value: "10:45" } });
+    expect(sessionsOf(days)[0]?.timeEnd).toBe("10:45");
+  });
+
+  it("wyczyszczenie godziny zapisuje PUSTY łańcuch, a nie pomija klucza", () => {
+    // „Sesja bez godziny" jest poprawnym stanem agendy (panel dyskusyjny bez
+    // sztywnych ram). Gdyby pusty wpis nie trafiał do dokumentu, redakcja nie
+    // miałaby jak wycofać raz wpisanej godziny.
+    const { container, days } = renderEditor({
+      days: [dayOf({ sessions: [sessionOf({ timeStart: "09:00", timeEnd: "10:00" })] })],
+    });
+    fireEvent.change(fieldLabelled(container, "Od"), { target: { value: "" } });
+    expect(sessionsOf(days)[0]).toHaveProperty("timeStart", "");
+  });
+
+  it("edycja jednej z dwóch sesji nie rusza drugiej", () => {
+    const { container, days } = renderEditor({
+      days: [
+        dayOf({
+          sessions: [
+            sessionOf({ id: "s-1", title_pl: "Pierwsza", timeStart: "10:00" }),
+            sessionOf({ id: "s-2", title_pl: "Druga", timeStart: "" }),
+          ],
+        }),
+      ],
+    });
+    // DRUGIE pole „Od" należy do DRUGIEJ sesji - patch pierwszej sesji nie ma
+    // prawa przepisać tytułu drugiej.
+    fireEvent.change(fieldLabelled(container, "Od", 1), { target: { value: "12:00" } });
+    const sessions = sessionsOf(days);
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]?.title_pl).toBe("Pierwsza");
+    expect(sessions[0]?.timeStart).toBe("10:00");
+    expect(sessions[1]?.title_pl).toBe("Druga");
+    expect(sessions[1]?.timeStart).toBe("12:00");
+  });
+});
+
+describe("EventScheduleEditor - rubryki sponsora przerwy", () => {
+  const breakDayWith = (sponsors: Array<Record<string, Json>>): Record<string, Json> =>
+    dayOf({ sessions: [sessionOf({ kind: "break", title_pl: "Kawa", sponsors })] });
+
+  it("nazwa, logo i link sponsora zapisują się w sesji przerwy", () => {
+    const { container, days } = renderEditor({
+      days: [breakDayWith([{ id: "spn-1", name: "Alfa", logo: "", url: "" }])],
+    });
+    fireEvent.change(fieldLabelled(container, "Nazwa"), { target: { value: "Beta" } });
+    expect(subListOf(days, "sponsors")[0]?.name).toBe("Beta");
+
+    fireEvent.change(fieldLabelled(container, "Logo (URL)"), {
+      target: { value: "https://cdn.example.com/beta.png" },
+    });
+    expect(subListOf(days, "sponsors")[0]?.logo).toBe("https://cdn.example.com/beta.png");
+
+    fireEvent.change(fieldLabelled(container, "Link"), {
+      target: { value: "https://example.com/beta" },
+    });
+    const sponsor = subListOf(days, "sponsors")[0];
+    // Trzy rubryki - JEDEN wpis. Każdy patch scala się z poprzednim, a nie
+    // zastępuje sponsora obiektem z jednym polem.
+    expect(sponsor).toMatchObject({
+      name: "Beta",
+      logo: "https://cdn.example.com/beta.png",
+      url: "https://example.com/beta",
+    });
+  });
+
+  it("edycja drugiego sponsora nie zeruje pierwszego", () => {
+    const { container, days } = renderEditor({
+      days: [
+        breakDayWith([
+          { id: "spn-1", name: "Alfa", logo: "", url: "" },
+          { id: "spn-2", name: "Gamma", logo: "", url: "" },
+        ]),
+      ],
+    });
+    fireEvent.change(fieldLabelled(container, "Nazwa", 1), { target: { value: "Delta" } });
+    const sponsors = subListOf(days, "sponsors");
+    expect(sponsors).toHaveLength(2);
+    expect(sponsors[0]?.name).toBe("Alfa");
+    expect(sponsors[1]?.name).toBe("Delta");
+  });
+
+  it("usunięcie jednego sponsora zostawia pozostałych", () => {
+    const { container, days } = renderEditor({
+      days: [
+        breakDayWith([
+          { id: "spn-1", name: "Alfa", logo: "", url: "" },
+          { id: "spn-2", name: "Gamma", logo: "", url: "" },
+        ]),
+      ],
+    });
+    // Wiersz sponsora ma własny przycisk „Usuń" (nie `ItemFrame`), więc szukamy
+    // go po treści w obrębie ramki sponsora.
+    const removes = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter(
+      (b) => (b.textContent ?? "").trim() === "Usuń",
+    );
+    expect(removes.length).toBeGreaterThan(0);
+    fireEvent.click(removes[removes.length - 1]!);
+    const sponsors = subListOf(days, "sponsors");
+    expect(sponsors).toHaveLength(1);
+    expect(sponsors[0]?.name).toBe("Alfa");
+  });
+
+  it("angielski panel przerwy ma angielskie rubryki sponsora", () => {
+    // Wiersz sponsora ma WŁASNE `l(pl, en)` - polski przejazd nie wykonuje
+    // ani jednej angielskiej gałęzi, więc odwrócony warunek pokazywałby
+    // polskie etykiety w panelu angielskim i nikt by tego nie zauważył.
+    const { container } = renderEditor(
+      { days: [breakDayWith([{ id: "spn-1", name: "Alfa", logo: "", url: "" }])] },
+      "en",
+    );
+    expect(fieldsLabelled(container, "Name")).toHaveLength(1);
+    expect(fieldsLabelled(container, "Nazwa")).toHaveLength(0);
+    expect(container.textContent).toContain("Break sponsors");
+  });
+});
+
+describe("EventScheduleEditor - przenoszenie i edycja prelegentów sesji", () => {
+  const twoSpeakers = (): Record<string, Json> =>
+    dayOf({
+      sessions: [
+        sessionOf({
+          speakers: [
+            { id: "sp-1", name: "Pierwszy Prelegent", role_pl: "Panelista" },
+            { id: "sp-2", name: "Drugi Prelegent", role_pl: "Moderator" },
+          ],
+        }),
+      ],
+    });
+
+  it("przeniesienie prelegenta niżej zamienia go z następnym", () => {
+    const { days } = renderEditor({ days: [twoSpeakers()] });
+    // Dzień i sesja są pojedyncze, więc ich strzałki są WYŁĄCZONE - jedyny
+    // czynny „Przesuń niżej" należy do pierwszego prelegenta.
+    const down = buttonsTitled("Przesuń niżej").filter((b) => !b.disabled);
+    expect(down).toHaveLength(1);
+    fireEvent.click(down[0]!);
+    const speakers = subListOf(days, "speakers");
+    expect(speakers.map((s) => s.name)).toEqual(["Drugi Prelegent", "Pierwszy Prelegent"]);
+  });
+
+  it("edycja drugiego prelegenta nie zeruje pierwszego", () => {
+    const { container, days } = renderEditor({ days: [twoSpeakers()] });
+    fireEvent.change(fieldLabelled(container, "Imię i nazwisko", 1), {
+      target: { value: "Trzeci Prelegent" },
+    });
+    const speakers = subListOf(days, "speakers");
+    expect(speakers).toHaveLength(2);
+    expect(speakers[0]).toMatchObject({ name: "Pierwszy Prelegent", role_pl: "Panelista" });
+    expect(speakers[1]).toMatchObject({ name: "Trzeci Prelegent", role_pl: "Moderator" });
+  });
+
+  it("usunięcie prelegenta zostawia pozostałych", () => {
+    const { container, days } = renderEditor({ days: [twoSpeakers()] });
+    const removes = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter(
+      (b) => (b.textContent ?? "").trim() === "Usuń",
+    );
+    fireEvent.click(removes[0]!);
+    expect(subListOf(days, "speakers").map((s) => s.name)).toEqual(["Drugi Prelegent"]);
+  });
+});
+
+// DEFEKT: „+ DODAJ PRELEGENTA" NIE DODAJE ŻADNEGO WIERSZA DO PANELU.
+//
+// WEJŚCIE: sesja z pustą listą prelegentów; redaktor klika „+ Dodaj" nad
+//   sekcją „Prelegenci".
+// CO PSUJE: panel zapisuje pozycję z SAMYMI pustymi polami
+//   (`EventScheduleEditor.tsx:365-372`: `{ id, userId: "", name: "", role_pl:
+//   "", role_en: "", photo: "" }`), a przy następnym renderze czyta dokument
+//   przez `parseScheduleDays` -> `parseSpeaker`
+//   (`src/lib/events/schedule.ts:68`: `if (!speaker.userId && !speaker.name)
+//   return null;`). Wpis bez profilu i bez nazwiska jest ODRZUCANY, więc
+//   wiersz, który dopiero co powstał, nie dojeżdża do panelu.
+// KONSEKWENCJA: prelegenta wpisanego RĘCZNIE nie da się dodać w ogóle -
+//   kliknięcie „+ Dodaj" nie daje żadnej reakcji interfejsu, a jedyną drogą
+//   zostaje podpięcie profilu platformy albo ręczna edycja JSON-a dokumentu.
+//   Ten sam filtr jest POPRAWNY dla widoku publicznego (nie rysujemy pustych
+//   kart), ale edytor nie ma prawa go dziedziczyć.
+// WYMAGANA POPRAWKA: edytor musi pracować na WŁASNYM, nieodrzucającym
+//   parsowaniu treści (albo `parseScheduleDays` musi przyjąć tryb „redakcyjny",
+//   w którym puste pozycje zostają), a odsiew pustych wpisów ma zostać po
+//   stronie widoku.
+it.fails("DEFEKT: „+ Dodaj” prelegenta MUSI dodać wiersz widoczny w panelu", () => {
+  const { container } = renderEditor({ days: [dayOf({ sessions: [sessionOf()] })] });
+  const addSpeaker = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter(
+    (b) => (b.textContent ?? "").trim().startsWith("+"),
+  );
+  // Ostatni „+" w sesji zwykłej to „+ Dodaj" prelegenta (przerwa dokłada
+  // jeszcze sponsorów, dlatego fixture jest sesją merytoryczną).
+  fireEvent.click(addSpeaker[addSpeaker.length - 1]!);
+  expect(container.textContent).toContain("Prelegent #1");
+});
+
+// DEFEKT: „+ DODAJ SPONSORA PRZERWY" NIE DODAJE ŻADNEGO WIERSZA DO PANELU.
+//
+// WEJŚCIE: sesja typu „przerwa" z pustą listą sponsorów; redaktor klika
+//   „+ Dodaj" nad sekcją „Sponsorzy przerwy".
+// CO PSUJE: ta sama mechanika co przy prelegencie. Panel zapisuje
+//   `{ id, name: "", logo: "", url: "" }` (`EventScheduleEditor.tsx:419-422`),
+//   a `parseSponsor` (`src/lib/events/schedule.ts:79`: `if (!sponsor.name &&
+//   !sponsor.logo) return null;`) odrzuca wpis bez nazwy i bez logo.
+// KONSEKWENCJA: sponsora przerwy nie da się dopisać w panelu - a to jest
+//   pozycja, którą sprzedaje dział komercyjny, więc brak reakcji przycisku
+//   kończy się wpisywaniem sponsorów w JSON dokumentu.
+// WYMAGANA POPRAWKA: jak wyżej - odsiew pustych pozycji należy do widoku,
+//   nie do modelu, na którym pracuje edytor.
+it.fails("DEFEKT: „+ Dodaj” sponsora przerwy MUSI dodać wiersz widoczny w panelu", () => {
+  const { container } = renderEditor({
+    days: [dayOf({ sessions: [sessionOf({ kind: "break", title_pl: "Kawa", sponsors: [] })] })],
+  });
+  const adds = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((b) =>
+    (b.textContent ?? "").trim().startsWith("+"),
+  );
+  fireEvent.click(adds[adds.length - 1]!);
+  expect(container.textContent).toContain("Sponsor #1");
 });

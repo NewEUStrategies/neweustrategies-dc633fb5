@@ -127,6 +127,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -156,6 +157,32 @@ describe("degradacja rankingu popularnosci", () => {
     expect(warn()).toHaveBeenCalledTimes(1);
     expect(String(warn().mock.calls[0]?.[0])).toContain("popular_post_ids");
     expect(String(warn().mock.calls[0]?.[1])).toContain("permission denied");
+  });
+
+  it("runtime BEZ obiektu console degraduje ranking tak samo - i nie rzuca", async () => {
+    // Straznik `typeof console !== "undefined"` (postListQuery.ts:301) nie jest
+    // ozdoba: ta sciezka biegnie w loaderze SSR na brzegu, gdzie konsoli nie
+    // musi byc. Bez straznika odmowa RPC zamieniala by sie w TypeError wewnatrz
+    // queryFn, czyli w BLAD SEKCJI - i widget nie oddal by nawet listy po
+    // swiezosci, ktora cala ta degradacja ma ratowac.
+    rpc().setError("popular_post_ids", "function popular_post_ids does not exist", "42883");
+    setPosts([postRow("nowszy"), postRow("starszy")]);
+    vi.stubGlobal("console", undefined);
+
+    let rows: PostRow[] | undefined;
+    let blad: unknown;
+    try {
+      rows = await runQueryFn({ orderBy: "popular" });
+    } catch (e) {
+      blad = e;
+    } finally {
+      // Konsola wraca PRZED asercjami - inaczej niepowodzenie testu nie mialoby
+      // czym sie zaraportowac.
+      vi.unstubAllGlobals();
+    }
+
+    expect(blad).toBeUndefined();
+    expect(ids(rows ?? [])).toEqual(["nowszy", "starszy"]);
   });
 
   it("gdy ranking jest PUSTY, wynik jest pusty i zapytanie o posty w ogole nie leci", async () => {
