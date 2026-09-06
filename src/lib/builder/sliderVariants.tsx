@@ -994,7 +994,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     if (href.startsWith("http://") || href.startsWith("https://")) {
       const client = toClientHref(href);
       if (client && router) {
-        void router.navigate({ href: client } as never);
+        void router.navigate({ to: client } as never);
       } else {
         window.open(href, "_blank", "noopener,noreferrer");
       }
@@ -1002,7 +1002,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     }
     const client = toClientHref(href) ?? href;
     if (router) {
-      void router.navigate({ href: client } as never);
+      void router.navigate({ to: client } as never);
     } else {
       window.location.assign(href);
     }
