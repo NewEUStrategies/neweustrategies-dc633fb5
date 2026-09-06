@@ -1134,30 +1134,12 @@ function EditorialHeroVariant(p: VariantProps) {
     <>
       <div
         data-widget-media
-        role={href ? "link" : undefined}
-        tabIndex={href ? 0 : undefined}
-        aria-label={href ? title : undefined}
         className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...p.aspectStyle, borderRadius: 4 }}
         onPointerDown={p.onPointerDown}
         onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag}
         onPointerCancel={p.endDrag}
-        onClick={(e) => {
-          if (!href) return;
-          const d = p.dragRef.current;
-          if (Math.abs(d.lastX - d.startX) > 5) return;
-          const target = e.target as HTMLElement;
-          if (target.closest(".eh-side-nav")) return;
-          p.navigateTo(href);
-        }}
-        onKeyDown={(e) => {
-          if (!href || p.preview) return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            p.navigateTo(href);
-          }
-        }}
       >
         <div
           className="absolute inset-0"
@@ -1180,6 +1162,19 @@ function EditorialHeroVariant(p: VariantProps) {
             />
           ))}
         </div>
+        {href && (
+          <AppLink
+            href={href}
+            aria-label={title}
+            className="absolute inset-0 z-[1]"
+            onClick={(e) => {
+              const moved = Math.abs(p.dragRef.current.lastX - p.dragRef.current.startX) > 5;
+              if (moved || p.preview || e.currentTarget.closest("[data-visual-canvas]")) {
+                e.preventDefault();
+              }
+            }}
+          />
+        )}
         {p.items.length > 1 && (
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
