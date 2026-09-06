@@ -29,6 +29,11 @@ dużego kosztu parsowania dokumentu i uruchamiania kodu klienta przy pierwszym w
 - Subskrypcja zgód dla obserwowalności ma osobny komponent. Jej aktualizacja
   nie odtwarza już wartości wszystkich kontekstów w korzeniu; test na
   prawdziwym routerze wykazał i zabezpiecza zbędny render artykułu.
+- Widget bez animacji nie uruchamia aktualizacji widoczności animacji.
+  Wcześniej brak przypiętego `ref` powodował `setInView(true)` w każdym takim
+  widgecie po montażu. Test hydratacji odtworzył usunięcie przez tę aktualizację
+  treści SSR oczekującej na kod widgetu. Aktualizacje aktywnego obserwatora
+  również używają tranzycji; zachowane są tryby jednorazowy i powtarzalny.
 
 ## Zmierzone lokalnie na jednakowych buildach produkcyjnych
 

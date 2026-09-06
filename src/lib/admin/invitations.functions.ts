@@ -430,17 +430,18 @@ async function performSend(
       }
     }
 
-    // Autoakceptacja: konto (wraz z rolą) już istnieje, więc zaproszenie nie
-    // czeka na potwierdzenie - domykamy je od razu statusem `accepted`.
+    // Autoakceptacja dotyczy administracyjnego przydzielenia roli i profilu,
+    // nie potwierdzenia zaproszenia przez odbiorcę. Samo wysłanie wiadomości
+    // nigdy nie może oznaczać, że użytkownik kliknął link aktywacyjny.
     const autoAccept = meta.auto_accept === true;
     const nowIso = new Date().toISOString();
     await supabase
       .from("user_invitations")
       .update({
-        status: autoAccept ? "accepted" : "sent",
+        status: "sent",
         auth_user_id: authUserId,
         sent_at: nowIso,
-        accepted_at: autoAccept ? nowIso : null,
+        accepted_at: null,
         last_error: null,
       })
       .eq("id", invitationId);

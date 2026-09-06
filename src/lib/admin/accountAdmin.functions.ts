@@ -11,6 +11,32 @@ import { requireAdmin } from "@/integrations/supabase/require-staff";
 
 const TargetSchema = z.object({ userId: z.string().uuid() });
 
+type AccountStateInput = {
+  bannedUntil: string | null;
+  emailConfirmedAt: string | null;
+  invitedAt: string | null;
+  lastSignInAt: string | null;
+  invitationId: string | null;
+  invitationStatus: string | null;
+  invitationSentAt: string | null;
+  invitationAutoAccepted: boolean;
+};
+
+export function deriveAccountState(input: AccountStateInput): AdminAccountStatus["state"] {
+  if (input.bannedUntil) return "banned";
+  const signedInAfterInvitation = Boolean(
+    input.lastSignInAt &&
+    input.invitationSentAt &&
+    new Date(input.lastSignInAt).getTime() - new Date(input.invitationSentAt).getTime() > 30_000,
+  );
+  const invitationAccepted =
+    input.invitationStatus === "accepted" &&
+    (!input.invitationAutoAccepted || signedInAfterInvitation);
+  if (input.invitationId && !invitationAccepted) return "invited";
+  if (!input.emailConfirmedAt) return input.invitedAt ? "invited" : "pending_email";
+  return input.lastSignInAt ? "active" : "never_signed_in";
+}
+
 /** Status konta w warstwie uwierzytelniania - do prezentacji w panelu. */
 export type AdminAccountStatus = {
   exists: boolean;
@@ -24,6 +50,7 @@ export type AdminAccountStatus = {
   bannedUntil: string | null;
   providers: string[];
   hasMfa: boolean;
+  invitationId: string | null;
   invitationStatus: string | null;
   /** Skrót stanu dla UI: active | pending_email | invited | banned | never_signed_in | missing */
   state: "active" | "pending_email" | "invited" | "banned" | "never_signed_in" | "missing";
@@ -57,6 +84,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
         bannedUntil: null,
         providers: [],
         hasMfa: false,
+        invitationId: null,
         invitationStatus: null,
         state: "missing",
       };
@@ -66,28 +94,41 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     const bannedUntil =
       u.banned_until && new Date(u.banned_until).getTime() > Date.now() ? u.banned_until : null;
 
+    let invitationId: string | null = null;
     let invitationStatus: string | null = null;
+    let invitationSentAt: string | null = null;
+    let invitationAutoAccepted = false;
     if (u.email) {
       const { data: inv } = await context.supabase
         .from("user_invitations")
-        .select("status")
+        .select("id, status, sent_at, metadata")
         .ilike("email", u.email)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      invitationId = inv?.id ?? null;
       invitationStatus = inv?.status ?? null;
+      invitationSentAt = inv?.sent_at ?? null;
+      const invitationMetadata = (inv?.metadata ?? {}) as Record<string, unknown>;
+      invitationAutoAccepted = invitationMetadata.auto_accept === true;
     }
 
     const emailConfirmedAt = u.email_confirmed_at ?? null;
-    const state: AdminAccountStatus["state"] = bannedUntil
-      ? "banned"
-      : !emailConfirmedAt
-        ? u.invited_at
-          ? "invited"
-          : "pending_email"
-        : u.last_sign_in_at
-          ? "active"
-          : "never_signed_in";
+    // `auto_accept` zatwierdza przydzielenie konta przez administratora, ale nie
+    // oznacza, że odbiorca użył linku aktywacyjnego. Starsze rekordy oznaczone
+    // w ten sposób jako `accepted` pozostają zaproszeniem aż do pierwszego
+    // logowania wykonanego po wysłaniu wiadomości.
+    const state = deriveAccountState({
+      bannedUntil,
+      emailConfirmedAt,
+      invitedAt: u.invited_at ?? null,
+      lastSignInAt: u.last_sign_in_at ?? null,
+      invitationId,
+      invitationStatus,
+      invitationSentAt,
+      invitationAutoAccepted,
+    });
+    const effectiveInvitationStatus = state === "invited" ? "sent" : invitationStatus;
 
     return {
       exists: true,
@@ -105,7 +146,8 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
           ? [String(u.app_metadata.provider)]
           : [],
       hasMfa: (u.factors ?? []).some((f) => f.status === "verified"),
-      invitationStatus,
+      invitationId,
+      invitationStatus: effectiveInvitationStatus,
       state,
     };
   });
