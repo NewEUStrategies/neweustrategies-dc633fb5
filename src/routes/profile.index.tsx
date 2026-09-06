@@ -418,7 +418,7 @@ function ProfileInline() {
         </section>
 
         {/* TABS NAV */}
-        <nav className="sticky top-0 z-10 rounded-[6px] border border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <nav className="relative rounded-[6px] border border-border bg-card">
           <div className="tabs-scroller flex items-center gap-0.5 px-2">
             {tabs.map((it) => {
               const active = activeTab === it.key;
