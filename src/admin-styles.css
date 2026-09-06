@@ -1,0 +1,498 @@
+@reference "./styles.css";
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+/* @reference inherits the shared sheet's file sources. Only the candidate
+   difference injected below belongs in this sheet. */
+@source not "../src";
+@source inline("__NES_ADMIN_UTILITIES__");
+.block-canvas :is(input, textarea, [contenteditable="true"]) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.admin-compact svg,
+.admin-compact :where(a, button, [data-active], [data-state]) svg {
+  color: inherit;
+}
+.admin-compact input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.admin-compact input[type="number"]::-webkit-outer-spin-button,
+.admin-compact input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.admin-compact .block-canvas select,
+.admin-compact
+  .block-canvas
+  input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact .block-canvas textarea,
+.admin-compact [data-admin-form] select,
+.admin-compact
+  [data-admin-form]
+  input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact [data-admin-form] textarea {
+  background: var(--card, hsl(0 0% 100%));
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.admin-compact .block-canvas select,
+.admin-compact [data-admin-form] select {
+  padding-right: 1.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.75rem;
+  cursor: pointer;
+}
+.admin-compact .block-canvas select:hover,
+.admin-compact [data-admin-form] select:hover,
+.admin-compact
+  .block-canvas
+  input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  [data-admin-form]
+  input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact .block-canvas textarea:hover,
+.admin-compact [data-admin-form] textarea:hover {
+  border-color: color-mix(in oklab, var(--foreground) 30%, transparent);
+}
+.admin-compact .block-canvas select:focus,
+.admin-compact [data-admin-form] select:focus,
+.admin-compact
+  .block-canvas
+  input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  [data-admin-form]
+  input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact .block-canvas textarea:focus,
+.admin-compact [data-admin-form] textarea:focus {
+  outline: none;
+  border-color: #fdb078;
+  box-shadow: 0 0 0 2px color-mix(in oklab, #fdb078 30%, transparent);
+}
+.admin-compact .block-canvas select option,
+.admin-compact [data-admin-form] select option {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.25rem 0.5rem;
+}
+.block-canvas[data-multi-selecting="true"] {
+  caret-color: transparent;
+}
+.block-canvas[data-multi-selecting="true"] ::selection {
+  background: transparent;
+}
+.block-canvas[data-multi-selecting="true"] ::-moz-selection {
+  background: transparent;
+}
+.block-canvas :is(input, textarea, [contenteditable="true"])[data-inline="true"] {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.wp-compact {
+  font-size: 11px;
+  line-height: 1.35;
+}
+.wp-compact label {
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+.wp-compact .text-xs {
+  font-size: 11px;
+}
+.wp-compact input,
+.wp-compact textarea,
+.wp-compact select,
+.wp-compact button[role="combobox"] {
+  height: 26px;
+  font-size: 11px;
+  padding-block: 2px;
+  padding-inline: 6px;
+}
+.wp-compact textarea {
+  height: auto;
+  min-height: 56px;
+  padding-block: 6px;
+}
+.wp-compact [data-radix-select-trigger] {
+  height: 26px;
+  font-size: 11px;
+  padding-block: 2px;
+  padding-inline: 6px;
+}
+.wp-compact h4 {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.wp-compact .space-y-4 > * + * {
+  margin-top: 0.6rem;
+}
+.wp-compact .space-y-3 > * + * {
+  margin-top: 0.45rem;
+}
+.wp-compact .space-y-2 > * + * {
+  margin-top: 0.3rem;
+}
+.wp-compact section {
+  padding-top: 0.45rem;
+}
+.wp-compact .grid {
+  gap: 0.4rem;
+}
+.cms-builder-compact {
+  font-size: 11px;
+}
+.cms-builder-compact .text-xs {
+  font-size: 10.5px;
+  line-height: 1.1rem;
+}
+.cms-builder-compact .text-sm {
+  font-size: 11.5px;
+  line-height: 1.15rem;
+}
+.cms-builder-compact .text-base {
+  font-size: 12.5px;
+  line-height: 1.2rem;
+}
+.cms-builder-compact .text-\[11px\] {
+  font-size: 10px;
+}
+.cms-builder-compact .text-\[10px\] {
+  font-size: 9px;
+}
+.cms-builder-compact .text-\[9px\] {
+  font-size: 8.5px;
+}
+.cms-builder-compact h1,
+.cms-builder-compact h2,
+.cms-builder-compact h3,
+.cms-builder-compact h4 {
+  font-size: 11.5px;
+}
+.cms-builder-compact .p-3 {
+  padding: 0.5rem;
+}
+.cms-builder-compact .p-4 {
+  padding: 0.625rem;
+}
+.cms-builder-compact .px-3 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.cms-builder-compact .py-2 {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+.cms-builder-compact .py-1\.5 {
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+.cms-builder-compact .gap-2 {
+  gap: 0.35rem;
+}
+.cms-builder-compact .gap-3 {
+  gap: 0.5rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) {
+  font-size: initial;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[11px\] {
+  font-size: 11px;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[10px\] {
+  font-size: 10px;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[9px\] {
+  font-size: 9px;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) :is(h1, h2, h3, h4) {
+  font-size: revert;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .p-3 {
+  padding: 0.75rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .p-4 {
+  padding: 1rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-1\.5 {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-2 {
+  gap: 0.5rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-3 {
+  gap: 0.75rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-1 {
+  gap: 0.25rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-1\.5 {
+  gap: 0.375rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-4 {
+  gap: 1rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-6 {
+  gap: 1.5rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-1 {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-2 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-3 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-8 {
+  height: 2rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-9 {
+  height: 2.25rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-10 {
+  height: 2.5rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-11 {
+  height: 2.75rem;
+}
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-12 {
+  height: 3rem;
+}
+.cms-builder-compact input,
+.cms-builder-compact select,
+.cms-builder-compact textarea,
+.cms-builder-compact button {
+  font-size: inherit;
+}
+.cms-builder-compact .h-8 {
+  height: 1.75rem;
+}
+.admin-compact {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.admin-compact h1 {
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.admin-compact h2 {
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.admin-compact h3 {
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.admin-compact h4 {
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.admin-compact p,
+.admin-compact li,
+.admin-compact label,
+.admin-compact span:not([class*="text-"]) {
+  font-size: 13px;
+}
+.admin-compact small,
+.admin-compact .text-xs {
+  font-size: 11px !important;
+}
+.admin-compact .text-sm {
+  font-size: 12px !important;
+}
+.admin-compact .text-base {
+  font-size: 13px !important;
+}
+.admin-compact .text-lg {
+  font-size: 14px !important;
+}
+.admin-compact .text-xl {
+  font-size: 16px !important;
+}
+.admin-compact .text-2xl {
+  font-size: 18px !important;
+}
+.admin-compact .text-3xl {
+  font-size: 22px !important;
+}
+.admin-compact .text-4xl {
+  font-size: 26px !important;
+}
+.admin-compact input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.admin-compact select,
+.admin-compact textarea {
+  font-size: 12.5px;
+  min-height: 30px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.admin-compact button {
+  font-size: 12.5px;
+}
+.admin-compact .btn-sm,
+.admin-compact [data-size="sm"] {
+  font-size: 11.5px;
+}
+.admin-compact [class*="rounded-lg"][class*="border"] {
+  padding: 0.75rem;
+}
+.admin-compact .space-y-6 > * + * {
+  margin-top: 1rem;
+}
+.admin-compact .space-y-4 > * + * {
+  margin-top: 0.625rem;
+}
+.admin-compact .gap-6 {
+  gap: 0.875rem;
+}
+.admin-compact .gap-4 {
+  gap: 0.625rem;
+}
+.admin-compact table {
+  font-size: 12.5px;
+}
+.admin-compact th,
+.admin-compact td {
+  padding: 6px 8px;
+}
+.admin-compact thead th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+.admin-compact hr {
+  opacity: 0.6;
+}
+.admin-compact textarea {
+  min-height: 30px !important;
+  height: 30px !important;
+  max-height: 30px !important;
+  resize: none !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  line-height: 1.4 !important;
+  font-size: 12.5px !important;
+}
+.admin-compact .cf-shell textarea,
+.cms-builder-compact .cf-shell textarea,
+.wp-compact .cf-shell textarea,
+.block-canvas .cf-shell textarea {
+  min-height: unset !important;
+  height: auto !important;
+  max-height: none !important;
+  resize: vertical !important;
+  overflow: auto !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+.admin-compact .block-canvas textarea,
+.cms-builder-compact .block-canvas textarea,
+.wp-compact .block-canvas textarea {
+  min-height: unset !important;
+  height: auto !important;
+  max-height: none !important;
+  resize: none !important;
+  overflow: hidden !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  font-size: inherit !important;
+  line-height: 1.6 !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+.admin-compact textarea[data-multiline="true"] {
+  min-height: unset !important;
+  height: auto !important;
+  max-height: none !important;
+  resize: vertical !important;
+  overflow: auto !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  font-size: 13.5px !important;
+  line-height: 1.55 !important;
+}
+.block-canvas :is(input, textarea, [contenteditable="true"]) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.admin-compact select:not([multiple]):not([size]) {
+  min-height: 30px;
+  font-size: 12.5px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.block-canvas :is(.cms-h1, .cms-h2, .cms-h3, .cms-h4, .cms-h5) p {
+  margin: 0;
+}
+.block-canvas > div[data-block-type="paragraph"] + div[data-block-type="paragraph"] {
+  margin-top: 0.85em;
+}
+.block-canvas div[data-block-type="paragraph"] .ProseMirror p + p {
+  margin-top: 0.85em;
+}
+.block-canvas div[data-block-type="paragraph"] .ProseMirror br {
+  line-height: inherit;
+}

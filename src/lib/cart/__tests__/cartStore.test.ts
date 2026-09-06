@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   addCartItem,
@@ -8,6 +8,8 @@ import {
   parseCart,
   pruneCart,
   removeCartItem,
+  readCartStorage,
+  writeCartStorage,
   type CartItem,
 } from "@/lib/cart/cartStore";
 
@@ -30,6 +32,39 @@ function item(overrides: Partial<CartItem> = {}): CartItem {
 }
 
 describe("cartStore", () => {
+  it("ignores non-array storage and non-record items", () => {
+    expect(parseCart('{"eventId":"e1"}')).toEqual([]);
+    expect(parseCart('[null, 1, "bad", []]')).toEqual([]);
+  });
+  it("normalizes overflowing prices and absent currency/time in legacy storage", () => {
+    expect(parseCart('[{"eventId":"e1","slug":"summit","priceCents":1e400}]')).toEqual([
+      expect.objectContaining({
+        priceCents: 0,
+        currency: "PLN",
+        addedAt: "1970-01-01T00:00:00.000Z",
+      }),
+    ]);
+    expect(pruneCart([item({ addedAt: "invalid date" })], new Date("2026-08-02"))).toEqual([]);
+  });
+  it.each([
+    ["en", "Polski", "", "Polski"],
+    ["pl", "", "English", "English"],
+    ["en", "", "", "szczyt-2026"],
+  ] as const)(
+    "labels a sparse %s item using the available title or slug",
+    (lang, titlePl, titleEn, expected) => {
+      expect(cartItemLabel(item({ titlePl, titleEn }), lang)).toBe(expected);
+    },
+  );
+  it("has no browser storage dependency in SSR", () => {
+    vi.stubGlobal("window", undefined);
+    try {
+      expect(readCartStorage()).toEqual([]);
+      expect(() => writeCartStorage([item()])).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("dodanie tej samej pozycji nie duplikuje wiersza, tylko odświeża cenę", () => {
     const first = addCartItem([], item());
     const second = addCartItem(first, item({ priceCents: 24900 }));

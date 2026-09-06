@@ -64,6 +64,27 @@ describe("overallStatus", () => {
 });
 
 describe("renderDeploymentReport", () => {
+  it("labels each missing measurement unknown instead of presenting a successful release", () => {
+    const input = {
+      ...base,
+      previousRef: null,
+      unitTests: null,
+      smoke: null,
+      dbContract: null,
+      i18nParity: null,
+      widgetFidelity: null,
+    };
+    expect(overallStatus(input)).toBe("unknown");
+    const report = renderDeploymentReport(input);
+    expect(report).toContain("początek historii");
+    expect(report.match(/unknown/g)?.length).toBeGreaterThanOrEqual(5);
+  });
+  it("shows a failed suite as failed even when the external checks passed", () => {
+    const input = { ...base, unitTests: { files: 1, tests: 2, passed: 1, failed: 1, skipped: 0 } };
+    expect(overallStatus(input)).toBe("failed");
+    expect(renderDeploymentReport(input)).toContain("1/2 zielonych");
+    expect(renderDeploymentReport(input)).toContain("failed");
+  });
   it("zawiera PR-y, liczbę testów, status CI i wynik smoke", () => {
     const md = renderDeploymentReport(base);
     expect(md).toContain("Raport zgodności wdrożenia - v1.4.0");

@@ -116,24 +116,9 @@ describe("chunk-load error -> twardy reload", () => {
     expect(reloadedTo()).toHaveLength(1);
   });
 
-  // DEFEKT ZGŁOSZONY, NIE NAPRAWIONY. `looksLikeChunkLoadError`
-  // (src/lib/cacheBusting.ts:31-45) ma trzy sposoby wyciągnięcia komunikatu:
-  // `err instanceof Error && err.message`, `typeof err === "string"`, oraz
-  // `err.reason?.message`. Trzeci NIE JEST OSIĄGALNY z uchwytu odrzuconych
-  // obietnic (linia 108), bo ten podaje już `event.reason` - żeby gałąź
-  // zadziałała, powód musiałby mieć `powód.reason.message`, czyli być
-  // zdarzeniem w zdarzeniu. Wygląda na pozostałość po wersji, która
-  // przekazywała całe zdarzenie.
-  //
-  // KONSEKWENCJA: powód, który NIE JEST instancją `Error` ani tekstem, a ma
-  // `message` - czyli zwykły obiekt błędu - nie zostaje rozpoznany i czytelnik
-  // zostaje na białym ekranie. To realny kształt: `Error` z innego realmu
-  // (iframe, worker) oblewa `instanceof`, a część błędów ładowania modułów
-  // dociera jako zwykły obiekt.
-  //
-  // Naprawa to zmiana zachowania produkcyjnego (poszerzenie rozpoznawania
-  // reloadu, a więc ryzyko pętli przeładowań) - decyzja dla człowieka.
-  it.fails("powód odrzucenia z samym `message` (nie Error) jest rozpoznawany", () => {
+  // Objects from another realm must work without instanceof Error; the
+  // existing reload guard still prevents repeated refreshes.
+  it("powód odrzucenia z samym `message` (nie Error) jest rozpoznawany", () => {
     stop = startCacheBusting(fakeRouter());
     const event = new Event("unhandledrejection");
     Object.defineProperty(event, "reason", {
@@ -337,6 +322,24 @@ describe("cykl życia", () => {
     startCacheBusting(fakeRouter())();
     stop = startCacheBusting(fakeRouter());
     window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
+    expect(reloadedTo()).toHaveLength(1);
+  });
+});
+
+describe("non-Error event payloads", () => {
+  it.each([{}, { message: 500 }, { message: "", reason: {} }, { reason: { message: 42 } }])(
+    "ignores unrecognizable payload %j",
+    (error) => {
+      stop = startCacheBusting(fakeRouter());
+      window.dispatchEvent(new ErrorEvent("error", { error }));
+      expect(reloadedTo()).toEqual([]);
+    },
+  );
+  it("accepts an event-shaped loader failure once", () => {
+    stop = startCacheBusting(fakeRouter());
+    const error = { reason: { message: "ChunkLoadError" } };
+    window.dispatchEvent(new ErrorEvent("error", { error }));
+    window.dispatchEvent(new ErrorEvent("error", { error }));
     expect(reloadedTo()).toHaveLength(1);
   });
 });

@@ -36,7 +36,8 @@ const POLL_INTERVAL_MS = 5 * 60_000;
 function looksLikeChunkLoadError(err: unknown): boolean {
   if (!err) return false;
   const msg =
-    (err instanceof Error && err.message) ||
+    (typeof (err as { message?: unknown }).message === "string" &&
+      (err as { message: string }).message) ||
     (typeof err === "string" ? err : "") ||
     (typeof (err as { reason?: { message?: string } }).reason?.message === "string"
       ? (err as { reason: { message: string } }).reason.message

@@ -461,7 +461,7 @@ export function findQuerySites(file: string, source: string, distance = 0): Quer
   const clean = stripTsComments(source);
   const out: QuerySite[] = [];
   for (const match of clean.matchAll(QUERY_HOOK_RE)) {
-    const at = match.index ?? 0;
+    const at = match.index;
     const open = at + match[0].length - 1;
     const args = balancedArgs(clean, open);
     out.push({
@@ -522,7 +522,10 @@ export function routeOptionsBlock(source: string): string | null {
   // wystąpienie identyfikatora w pliku to jego IMPORT, a pierwsza klamra po
   // nim otwiera następny import - stąd pusty blok i 143 tras „bez komponentu"
   // w wersji, która szukała `indexOf("createFileRoute")`.
-  const call = /createFileRoute\s*\([^)]*\)\s*\(\s*\{/.exec(clean);
+  const call =
+    /(?:createFileRoute\s*\([^)]*\)|createRootRouteWithContext(?:\s*<[\s\S]*?>)?\s*\(\s*\))\s*\(\s*\{/.exec(
+      clean,
+    );
   if (call === null) return null;
   const open = call.index + call[0].length - 1;
   let depth = 0;
@@ -546,7 +549,7 @@ export function routeOptionsBlock(source: string): string | null {
 export function topLevelOption(block: string, name: string): string | null {
   const pattern = new RegExp(`(^|[\\s,;])${name}\\s*:`, "g");
   for (const match of block.matchAll(pattern)) {
-    const at = (match.index ?? 0) + match[0].length;
+    const at = match.index + match[0].length;
     let depth = 0;
     let inside = false;
     for (let i = 0; i < at; i += 1) {
@@ -722,7 +725,10 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
   }
   function inheritedFrom(ident: string, flags: Map<string, boolean>): string | null {
     let cursor: string | undefined = ident;
+    const seen = new Set<string>();
     while (cursor !== undefined && nodes.has(cursor)) {
+      if (seen.has(cursor)) throw new Error(`Cykl w drzewie tras: ${cursor}`);
+      seen.add(cursor);
       if (flags.get(cursor) === true) return cursor;
       cursor = nodes.get(cursor)?.parent;
     }
@@ -762,7 +768,10 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
   function chainWarmedSymbols(ident: string): Map<string, WarmSource> {
     const out = new Map<string, WarmSource>();
     let cursor: string | undefined = ident;
+    const seen = new Set<string>();
     while (cursor !== undefined && nodes.has(cursor)) {
+      if (seen.has(cursor)) throw new Error(`Cykl w drzewie tras: ${cursor}`);
+      seen.add(cursor);
       const owner: WarmSource = { ident: cursor, label: fullPath(cursor) };
       for (const symbol of warmedByRoute.get(cursor) ?? []) {
         if (!out.has(symbol)) out.set(symbol, owner);

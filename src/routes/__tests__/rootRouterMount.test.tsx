@@ -1,3 +1,4 @@
+import { RouteLoadingSkeleton } from "@/lib/ssr/RouteLoadingSkeleton";
 // KORZEŃ APLIKACJI W PRAWDZIWYM ROUTERZE - bez ani jednej atrapy routera.
 //
 // PO CO OSOBNY PLIK, obok `rootShellRender.test.tsx`. Tamten dowodzi powłoki
@@ -212,50 +213,9 @@ describe("__root jako korzeń prawdziwego RouterProvider", () => {
     rendered.unmount();
   });
 
-  // ── DEFEKT PRODUKCYJNY: `RouteLoadingSkeleton` JEST MARTWY ────────────────
-  //
-  // `__root.tsx:187` definiuje `RouteLoadingSkeleton` i osadza go jako
-  // `<Suspense fallback={<RouteLoadingSkeleton />}><Outlet /></Suspense>`
-  // (`__root.tsx:695-697`). Komentarz przy nim opisuje zamierzenie wprost:
-  // opóźnione wejście (opacity 0 -> 1 po 180 ms), żeby krótkie przejścia nie
-  // migały szkieletem, a shimmer pojawiał się „dopiero przy naprawdę wolnych
-  // ładowaniach".
-  //
-  // CZEGO ZAMIERZENIE NIE UWZGLĘDNIA: `<Outlet/>` sam zakłada WŁASNĄ granicę
-  // `Suspense` wokół dopasowania dziecka, gdy renderuje się z korzenia -
-  // `node_modules/@tanstack/react-router/dist/esm/Match.js:284-287`:
-  //   if (routeId === rootRouteId) return jsx(Suspense, { fallback: pendingElement, children: nextMatch })
-  // a `pendingElement` (`Match.js:71-72`) to
-  //   route.options.pendingComponent ?? router.options.defaultPendingComponent
-  // czyli dla korzenia UNDEFINED, bo `src/router.tsx` ustawia
-  // `defaultPendingMs`/`defaultPendingMinMs` (:78-79), ale NIE
-  // `defaultPendingComponent`. `pendingElement` wychodzi więc `null`.
-  //
-  // React wybiera NAJBLIŻSZĄ granicę, a najbliższa jest ta WEWNĘTRZNA - z
-  // fallbackiem `null`. Zawieszenie trasy nigdy nie dochodzi do granicy
-  // korzenia, więc czytelnik przy wolnym ładowaniu widzi PUSTKĘ, nie szkielet.
-  // Cały opisany mechanizm anty-migotania nie działa, a 25 wierszy szkieletu
-  // (`__root.tsx:187-212`) to kod nieosiągalny.
-  //
-  // DLACZEGO `it.fails`, A NIE NAPRAWA: naprawa jest jednolinijkowa
-  // (`defaultPendingComponent: RouteLoadingSkeleton` w `src/router.tsx` albo
-  // `wrapInSuspense`/`pendingComponent` na trasach), ale ZMIENIA ZACHOWANIE
-  // PRODUKCYJNE każdej nawigacji w serwisie - z „nic" na „szkielet po 180 ms".
-  // To decyzja produktowa (czy przy 500 ms `defaultPendingMs` szkielet w ogóle
-  // ma się pokazywać), nie porządkowa, i należy do człowieka. Zlecenie
-  // wydania 9 mówi to samo: defekt -> `it.fails` z opisem, nie zmiana
-  // zachowania pod test.
-  //
-  // UWAGA NA POKRYCIE: `rootShellRender.test.tsx` pokrywa
-  // `RouteLoadingSkeleton` ATRAPĄ `Outlet`, która zawiesza render BEZ tej
-  // wewnętrznej granicy. Tamten test dowodzi więc, że szkielet SIĘ RENDERUJE,
-  // gdy zostanie osiągnięty - a NIE że produkcja go osiąga. Ten wpis jest
-  // jedynym miejscem, które trzyma tę różnicę.
-  //
-  // GDY TEN TEST ZACZNIE PADAĆ NA „unexpectedly passed": defekt jest
-  // naprawiony (albo biblioteka przestała zakładać własną granicę) i wpis
-  // trzeba ZDJĄĆ tym samym commitem.
-  it.fails("DEFEKT: wolna trasa NIE pokazuje RouteLoadingSkeleton", async () => {
+  // The real Outlet must show the root pending component; a mocked Outlet
+  // cannot prove that its inner Suspense boundary uses the intended fallback.
+  it("wolna trasa pokazuje RouteLoadingSkeleton przez prawdziwy Outlet", async () => {
     const { renderRoute } = await import("@/test/routeHarness");
     const suspending = createRoute({
       getParentRoute: () => RootRoute,
@@ -272,12 +232,12 @@ describe("__root jako korzeń prawdziwego RouterProvider", () => {
       rootRoute: RootRoute,
       path: "/",
       initialEntry: "/",
+      pendingComponent: RouteLoadingSkeleton,
     });
 
     // `aria-busy="true"` to kontrakt dostępności szkieletu (`__root.tsx:196`).
     // Pytamy o atrybut, nie o klasy Tailwinda ani o polski literał.
-    // TA ASERCJA PADA: wewnętrzna granica `Outlet` pochłania zawieszenie
-    // z fallbackiem `null`, więc szkieletu w dokumencie NIE MA.
+    // A missing root pendingComponent would make this boundary render null.
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
     rendered.unmount();
   });

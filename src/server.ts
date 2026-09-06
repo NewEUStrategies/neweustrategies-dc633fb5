@@ -22,6 +22,7 @@ import "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { guardDocumentResponse } from "./lib/http/documentStreamGuard.server";
+import { fetchWithFrameworkPreloads } from "./lib/http/frameworkPreloads.server";
 import {
   applyDeferredDocumentStore,
   revalidationHeader,
@@ -70,14 +71,19 @@ function isH3SwallowedErrorBody(body: string): boolean {
 // Klient rozłączył się w trakcie SSR (nawigacja/refresh) - to NIE jest błąd
 // aplikacji: nie logujemy i nie renderujemy strony błędu.
 function isClientAbort(request: Request, error?: unknown): boolean {
-  if (request.signal?.aborted) return true;
-  const err = error as
-    { code?: string; name?: string; message?: string; cause?: unknown } | undefined;
-  if (!err) return false;
-  const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
-  if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))
-    return true;
-  if (err.cause && err.cause !== error) return isClientAbort(request, err.cause);
+  if (request.signal.aborted) return true;
+  // Transport wrappers can form cycles in `cause`; never recurse indefinitely
+  // while deciding how to handle the original SSR failure.
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const err = current as { code?: string; name?: string; message?: string; cause?: unknown };
+    const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
+    if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))
+      return true;
+    current = err.cause;
+  }
   return false;
 }
 
@@ -111,52 +117,11 @@ async function normalizeCatastrophicSsrResponse(
   });
 }
 
-// ANI `env`, ANI `ExecutionContext` nie jadą argumentami do handlera - i nie
-// mają czym jechać. W tym miejscu stał do 2026-09-01 komentarz twierdzący, że
-// „`env` workera jest stałe w obrębie deploymentu, więc ostatnio widziane
-// wystarcza przebiegowi w tle", a `ctx` przebiegu w tle dostaje własny
-// `REVALIDATION_CTX`. Zdanie o stałości `env` jest prawdziwe, ale przesłanka -
-// że entry KIEDYKOLWIEK te argumenty dostaje i że handler je czyta - nie była.
-//
-// 1. Ten plik wołał `handler.fetch(request, env, ctx)`. DRUGI argument należy
-//    jednak do frameworka (`RequestOptions`, patrz `ServerEntry` wyżej),
-//    a TRZECIEGO `requestHandler` nie ma w sygnaturze
-//    (@tanstack/start-server-core/src/request-response.ts:124) - `REVALIDATION_CTX`
-//    był więc kodem MARTWYM, a `env` w slocie opcji renderu KOLIZJĄ KONTRAKTU:
-//    binding albo zmienna o nazwie `inlineCss` czy `onEarlyHints` zostałaby po
-//    cichu wzięta za opcję żądania (`inlineCss: "false"` jako string jest
-//    prawdziwe, a nie-funkcja w `onEarlyHints` rzuca w środku renderu).
-// 2. Oba były do tego `undefined`. Pod presetem `cloudflare-module` entry
-//    workera to nitro (`_module-handler.mjs`), a nasz moduł jest środowiskiem
-//    „ssr" vite, wołanym JEDNYM argumentem: `fetchViteEnv("ssr", req)` ->
-//    `viteEnv.fetch(request)` (nitro/dist/runtime/internal/vite/ssr-renderer.mjs:5,
-//    nitro/dist/runtime/vite.mjs:8). W dev drugi slot istnieje, ale nitro
-//    przekazuje w nim swoje `init` żądania, a nie `env` workera
-//    (nitro/dist/runtime/internal/vite/dev-worker.mjs:84). Dlatego `fetch`
-//    niżej deklaruje TYLKO `request`: nadmiarowe argumenty runtime JS ignoruje,
-//    a sygnatura przestaje kłamać o tym, co w tych slotach jest.
-// 3. Nikt nic na tym nie traci. Bindingi env czyta cała aplikacja przez
-//    `process.env` - unenv czyta `globalThis.__env__`, ustawiane przez preset na
-//    KAŻDYM fetchu workera, czyli warstwę wyżej niż my i niezależnie od naszej
-//    sygnatury. Pracę „za odpowiedzią" rejestruje `runAfterResponse`
-//    (`cloudflare:workers`, lib/http/waitUntil.server.ts): `waitUntil` modułowy,
-//    ważny niezależnie od cyklu życia pojedynczego ExecutionContext - dokładnie
-//    to, co miał udawać `REVALIDATION_CTX`, tylko na drodze, którą framework
-//    faktycznie czyta.
-// 4. Drugi argument zostaje więc PUSTY - też świadomie, a nie z zaniechania.
-//    `responseLinkHeader` NIE jest tu addytywne: na granicy `requestHandler`
-//    h3 scala nagłówki zdarzenia na odpowiedź przez `target.set` (wyjątkiem jest
-//    tylko `set-cookie`, h3-v2/dist/h3-Bz4OPZv_.mjs:256-258), więc na 2xx nasza
-//    złączona wartość z `appendLinkHeader` NADPISUJE wartości frameworka,
-//    a na odpowiedzi !ok h3 pomija scalanie w całości (tamże :244) i ginie
-//    nasza. Włączenie flagi dałoby na 2xx zero zmian, a na 404 wysypałoby
-//    preloady tras na dokument błędu. `inlineCss` jest w tym buildzie no-opem
-//    (`server.build.inlineCss` domyślnie `false`, projekt go nie ustawia,
-//    a zbudowany manifest nie ma ani jednego wpisu `inlineCss`) i tylko zająłby
-//    drugi slot cache'a finalnego manifestu. `onEarlyHints` miałoby sens
-//    wyłącznie jako kolektor do scalenia `Link` ZA tą granicą, czego nie robimy -
-//    a poza tym jest wyłączone w dev (`TSS_DEV_SERVER`), czyli lokalnie
-//    nieweryfikowalne.
+// Nitro's runtime arguments are not RequestOptions. Only our request-scoped
+// collector is passed in slot 2. It merges manifest modulepreloads AFTER h3's
+// header merge, before the deferred L1/L2 write, preserving font/image/locale
+// hints from loaders. Inline CSS stays disabled: the split public stylesheet
+// remains cacheable between routes instead of being copied into each document.
 
 /**
  * Nagłówki syntetycznego żądania odświeżenia. Świadomie WĄSKA lista:
@@ -209,7 +174,7 @@ async function revalidateDocument(request: Request): Promise<boolean> {
     redirect: "manual",
   });
   const handler = await getServerEntry();
-  const rendered = await handler.fetch(synthetic);
+  const rendered = await fetchWithFrameworkPreloads(handler.fetch, synthetic);
   const normalized = await normalizeCatastrophicSsrResponse(synthetic, rendered);
 
   let storeWork: Promise<boolean> | null = null;
@@ -236,7 +201,7 @@ export default {
   async fetch(request: Request): Promise<Response> {
     try {
       const handler = await getServerEntry();
-      const response = await handler.fetch(request);
+      const response = await fetchWithFrameworkPreloads(handler.fetch, request);
       const normalized = await normalizeCatastrophicSsrResponse(request, response);
       // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
       // wydarzyć dopiero tutaj, ZA egzekutorem middleware TanStack Start -

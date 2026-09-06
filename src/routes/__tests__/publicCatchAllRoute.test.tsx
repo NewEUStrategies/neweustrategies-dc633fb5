@@ -536,6 +536,64 @@ describe("Route.options - powierzchnie 404 i oczekiwania trasy `/$`", () => {
 // decydują o LCP oraz o tym, jak wpis wygląda w Google Scholar i w okruszkach
 // wyniku wyszukiwania.
 describe("head() trasy `/$` - wpis", () => {
+  it.each(["pl", "en"] as const)(
+    "keeps localized metadata and generated social-card dimensions in %s",
+    (lang) => {
+      h.requestUrl = `https://example.org/${lang === "en" ? "en/" : ""}analizy/atom`;
+      const data = resolvedPost({
+        item: postItem({
+          cover_image_url: null,
+          og_image_generated_url: "https://example.org/card.png",
+        }),
+      });
+      const result = head(data);
+      expect(result.meta).toEqual(
+        expect.arrayContaining([
+          { name: "citation_title", content: lang === "en" ? "Atom in Europe" : "Atom w Europie" },
+          { property: "og:image:width", content: "1200" },
+          { property: "og:image:height", content: "630" },
+        ]),
+      );
+      expect(jsonLdOTypie(result, "NewsArticle")).toMatchObject({
+        headline: lang === "en" ? "Atom in Europe" : "Atom w Europie",
+        description: lang === "en" ? "Analysis teaser in English." : "Zapowiedź analizy po polsku.",
+      });
+    },
+  );
+  it.each(["pl", "en"] as const)(
+    "uses the other language for missing editorial metadata in %s",
+    (lang) => {
+      h.requestUrl = `https://example.org/${lang === "en" ? "en/" : ""}analizy/atom`;
+      const data = resolvedPost();
+      data.item[lang === "en" ? "title_en" : "title_pl"] = "";
+      data.item[lang === "en" ? "excerpt_en" : "excerpt_pl"] = null;
+      data.crumbs = [
+        {
+          ...CRUMBS_ODWROTNIE[1],
+          title_pl: lang === "pl" ? "" : "Sekcja PL",
+          title_en: lang === "en" ? "" : "Section EN",
+        },
+      ];
+      expect(jsonLdOTypie(head(data), "NewsArticle")).toMatchObject({
+        headline: lang === "en" ? "Atom w Europie" : "Atom in Europe",
+        description: lang === "en" ? "Zapowiedź analizy po polsku." : "Analysis teaser in English.",
+        articleSection: lang === "en" ? "Sekcja PL" : "Section EN",
+      });
+    },
+  );
+  it("tolerates a sparse legacy payload without inventing citations or breadcrumbs", () => {
+    const data = { kind: "post", item: postItem({ title_pl: "", title_en: "" }), tags: null };
+    const result = routeHead(Route, { loaderData: data, params: {} });
+    expect(result.meta?.find((m) => m.name === "citation_title")?.content).toBe("Strona");
+    expect(result.meta?.filter((m) => m.name === "citation_author")).toEqual([]);
+    expect(jsonLdOTypie(result, "NewsArticle").articleSection).toBeUndefined();
+  });
+  it("supports page metadata without post-only excerpt columns", () => {
+    const { excerpt_pl: _pl, excerpt_en: _en, ...item } = postItem();
+    const result = head({ kind: "page", item, crumbs: [] });
+    expect(result.meta?.find((m) => m.property === "og:type")?.content).toBe("website");
+    expect(result.meta?.filter((m) => m.name === "citation_title")).toEqual([]);
+  });
   /** Ładunek loadera dla wpisu: treść + deskryptor preloadu, tak jak go oddaje loader. */
   function ladunekWpisu(): Record<string, unknown> {
     return {
@@ -762,6 +820,38 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
 });
 
 describe("loader trasy `/$` - kontekst rozgrzewki silnika bloków", () => {
+  it.each(["pl", "en"] as const)(
+    "warms page blocks with page context under the %s URL",
+    async (lang) => {
+      h.requestUrl = `https://example.org/${lang === "en" ? "en/" : ""}section`;
+      stub.setResponse("posts", ok([]));
+      const { wynik, queryClient } = await runLoader("section", {
+        kind: "page",
+        parentPageId: "root",
+        crumbs: [],
+        access: null,
+        item: {
+          ...postItem(),
+          template_type: "archive_listing",
+          blocks_data: {
+            pl: { version: 1, blocks: [{ id: "related", type: "related-posts", data: {} }] },
+          },
+        },
+      });
+      expect(jakoWynik(wynik).kind).toBe("page");
+      expect(h.blocksPrefetchCtx).toEqual([
+        {
+          postId: null,
+          publishedAt: "2026-01-01T00:00:00.000Z",
+          authorId: null,
+          categorySlugs: [],
+          tagSlugs: [],
+        },
+      ]);
+      expect(queryClient.getQueryData(["archive-listing", "post-1"])).toEqual([]);
+      queryClient.clear();
+    },
+  );
   it("rozgrzewa bloki KLUCZEM WPISU: autor, kategorie i tagi bieżącej treści", async () => {
     // Bez tego wpisy rozgrzane na SSR mijają się z zapytaniami po hydracji:
     // widoki „powiązane"/„więcej"/„bio autora" liczą klucz z tego samego

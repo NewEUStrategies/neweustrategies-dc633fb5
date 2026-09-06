@@ -1,3 +1,4 @@
+import { RouteLoadingSkeleton } from "../lib/ssr/RouteLoadingSkeleton";
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import { isServer } from "@tanstack/router-core/isServer";
 import {
@@ -82,28 +83,13 @@ import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
 import { withBudget } from "../lib/asyncBudget";
+import { registerChromeWarmup } from "../lib/ssr/chromeWarmup";
 
 export const ROOT_WARM_BUDGET_MS = 2_500;
 
-/**
- * Twardy sufit DRUGIEJ fali (dekoracja chrome'u: ticker, menu, widgety headera
- * i stopki). Do 2026-09-01 fala 2 miała ten sam budżet co fala 1, a startuje
- * dopiero po jej rozstrzygnięciu (potrzebuje ustawień), więc sam korzeń mógł
- * trzymać dokument 2 × 2 500 = 5 000 ms BEZ JEDNEGO BAJTU HTML-a - na KAŻDEJ
- * trasie publicznej. Strażnik strumienia dokumentu tego okna nie mierzy: liczy
- * czas od utworzenia strumienia, a tu jesteśmy jeszcze przed renderem
- * (framework awaituje wszystkie loadery, patrz createStartHandler).
- *
- * DLACZEGO 500 ms, a NIE „nie awaituj wcale": `router.options.dehydrate`
- * (src/router.tsx:142) woła `sweepQueryCacheForSerialization` PRZED renderem
- * Reacta, a ten anuluje (`revert: true`) i usuwa każde zapytanie, które nie
- * zdążyło się rozstrzygnąć. Rozgrzewka „fire-and-forget" nie dowozi więc
- * NICZEGO: ticker renderuje null, menu maluje szkielet - dokładnie te dwie
- * regresje, które opisują komentarze niżej (ticker = najgorszy CLS serwisu,
- * menu = „Menu jest puste..." mimo skonfigurowanego menu). Krótki, ale
- * awaitowany budżet zachowuje dowóz w stanie ustalonym (wszystkie odnogi stoją
- * za `edgeTtlCache`, 60 s TTL per host najemcy) i ogranicza koszt zimnego
- * renderu do pół sekundy zamiast dwóch i pół.
+/** Header/footer data may suspend only their own render boundaries for 500 ms.
+ * The root loader starts the work without awaiting it. ChromeDataGate restarts
+ * a pending query after the pre-render serialization sweep when necessary.
  */
 export const CHROME_WARM_BUDGET_MS = 500;
 
@@ -190,35 +176,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error]);
 
   return <FriendlyErrorPage error={error} reset={reset} />;
-}
-
-function RouteLoadingSkeleton() {
-  // Delayed fade-in (opacity 0 -> 1 after 180ms) sprawia, że krótkie
-  // przejścia (<200ms, gdy trasa jest już preloadowana) nie migają
-  // szkieletem - użytkownik widzi tylko płynny cross-fade View Transitions,
-  // a shimmer pojawia się dopiero przy naprawdę wolnych ładowaniach.
-  return (
-    <div
-      className="min-h-[55vh] w-full px-4 py-8 lg:px-8 animate-[route-skeleton-in_260ms_ease-out_140ms_both]"
-      aria-busy="true"
-    >
-      <div className="mx-auto max-w-[1200px] space-y-6">
-        <div className="skeleton-shimmer h-5 w-40 rounded" />
-        <div className="skeleton-shimmer h-10 w-2/3 max-w-2xl rounded" />
-        <div className="grid gap-5 md:grid-cols-3">
-          <div className="md:col-span-2 space-y-4">
-            <div className="skeleton-shimmer aspect-[16/7] rounded-xl" />
-            <div className="skeleton-shimmer h-4 w-full rounded" />
-            <div className="skeleton-shimmer h-4 w-5/6 rounded" />
-          </div>
-          <div className="space-y-3">
-            <div className="skeleton-shimmer h-24 rounded-xl" />
-            <div className="skeleton-shimmer h-24 rounded-xl" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -329,19 +286,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // `.catch(() => null)` przy starcie, nie przy zbieraniu: obietnica leci
     // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
     // wywróciłoby proces renderu.
-    const menuWarm: Promise<unknown>[] = showsChrome
-      ? [
-          import("../lib/menus/queries")
-            .then(({ menuWithItemsQueryOptions }) =>
-              Promise.all(
-                (["main", "footer"] as const).map((key) =>
-                  context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
-                ),
-              ),
-            )
-            .catch(() => null),
-        ]
-      : [];
+    const warmMenus = async () => {
+      const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
+      await Promise.allSettled(
+        ["main", "footer"].map((key) =>
+          context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
+        ),
+      );
+    };
+    if (showsChrome) void warmMenus().catch(() => null);
 
     // FALA 1 - wyłącznie to, czego render nie ma czym zastąpić.
     //
@@ -491,11 +444,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         if (headerVisible && trending.enabled !== false) {
           chromeQueryKeys.push(headerTickerQueryOptions(trending).queryKey);
         }
-        const tickerWarm =
+        const tickerWarm = () =>
           chromeBudget > 0 && headerVisible && trending.enabled !== false
-            ? context.queryClient
-                .ensureQueryData(headerTickerQueryOptions(trending))
-                .catch(() => undefined)
+            ? context.queryClient.ensureQueryData(headerTickerQueryOptions(trending))
             : Promise.resolve();
         // Nawigacja i pozostałe data-bound widgety CHROME (header + footer to
         // pełnoprawne dokumenty buildera): bez tego SSR renderował fallback
@@ -523,21 +474,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // w stanie `pending` w dehydratowanym `$_TSR.router` - inaczej klient
         // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
         // (poniżej strażnik, który taki stan resetuje).
-        const chromeWarm: Promise<unknown>[] = [tickerWarm, ...menuWarm];
+        const chromeWarm: Array<() => Promise<unknown>> = [tickerWarm, warmMenus];
         if (headerVisible && header.builder_data) {
+          const headerDoc = header.builder_data;
           chromeQueryKeys.push(
             ...header.builder_data.sections.flatMap((section) =>
               sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
             ),
           );
           if (chromeBudget > 0)
-            chromeWarm.push(
-              prefetchCachedRouteQueries(
-                context.queryClient,
-                header.builder_data,
-                lang,
-                chromeBudget,
-              ),
+            chromeWarm.push(() =>
+              prefetchCachedRouteQueries(context.queryClient, headerDoc, lang, chromeBudget),
             );
         }
         if (footerDoc?.sections?.length) {
@@ -547,26 +494,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             ),
           );
           if (chromeBudget > 0)
-            chromeWarm.push(
+            chromeWarm.push(() =>
               prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, chromeBudget),
             );
         }
-        // Ten sam twardy budżet obowiązuje przy pierwszym SSR i przy każdej
-        // nawigacji klientowej. Menu/ticker/widget chrome są dekoracją i nie
-        // mogą zatrzymać rozwiązania trasy (objaw: URL i przyciski reagują na
-        // klik, ale ekran pozostaje bezczynny, bo jeden fetch czeka bez końca).
-        // Niedokończone zapytania pozostają w React Query i mogą uzupełnić UI
-        // po rozwiązaniu trasy; render ma bezpieczne wartości domyślne.
-        // Zero means an expired shared deadline, never an unbounded wait.
-        if (chromeBudget > 0) {
-          await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline);
-        }
-        if (
-          homeDeadline !== undefined &&
-          chromeQueryKeys.some((key) => !hasSsrQueryData(context.queryClient, key))
-        ) {
-          setCacheControlHeader(resilientCacheControl(true));
-        }
+        registerChromeWarmup(context.queryClient, {
+          ready: () => chromeQueryKeys.every((key) => hasSsrQueryData(context.queryClient, key)),
+          expired: () =>
+            homeDeadline !== undefined &&
+            remainingHomeBudget(homeDeadline, CHROME_WARM_BUDGET_MS) <= 0,
+          markDegraded: () => setCacheControlHeader(resilientCacheControl(true)),
+          warm: async () => {
+            if (chromeBudget <= 0) return;
+            await withBudget(
+              Promise.allSettled(chromeWarm.map((work) => work())),
+              CHROME_WARM_BUDGET_MS,
+              homeDeadline,
+            );
+          },
+        });
         // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
         // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
         // po hydratacji zawiesi się czekając na strumień, który już nie wróci.
@@ -593,7 +539,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         }
       } catch {
         /* chrome warm-up is best-effort decoration - never let it block the site */
-        if (homeDeadline !== undefined) setCacheControlHeader(resilientCacheControl(true));
+        setCacheControlHeader(resilientCacheControl(true));
       }
     }
     // Nothing reads the root loader's data - return null so the settings map is

@@ -4,6 +4,11 @@ import i18n from "./i18n";
 
 export const adminMonetizationPl = {
   adminMonetization: {
+    rangeError: "Wybierz poprawny zakres dat.",
+    filtersError: "Nie udało się pobrać opcji filtrów.",
+    dataError: "Nie udało się pobrać danych monetyzacji.",
+    retentionError: "Nie udało się pobrać danych retencji.",
+    dashboardLoading: "Ładowanie danych…",
     title: "Monetyzacja",
     intro:
       "Wpłaty, przydziały członkostwa i linki prezentowe jednego najemcy. Rejestr jest zawężony do domeny, na której pracujesz.",
@@ -74,6 +79,11 @@ export const adminMonetizationPl = {
 
 export const adminMonetizationEn = {
   adminMonetization: {
+    rangeError: "Choose a valid date range.",
+    filtersError: "Could not load filter options.",
+    dataError: "Could not load monetization data.",
+    retentionError: "Could not load retention data.",
+    dashboardLoading: "Loading data…",
     title: "Monetisation",
     intro:
       "Donations, membership grants and gift links for a single tenant. The ledger is scoped to the domain you are working on.",

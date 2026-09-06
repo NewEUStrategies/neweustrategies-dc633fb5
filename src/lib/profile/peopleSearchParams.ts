@@ -44,10 +44,11 @@ function text(value: unknown, max: number): string | undefined {
 /**
  * Flaga w URL-u ma dokładnie jedną kanoniczną postać ("1"), żeby dwa adresy
  * o tym samym znaczeniu nie tworzyły dwóch wpisów w cache'u zapytań.
- * `true`/"true" akceptujemy na wejściu (stare zapisy, ręczny link).
+ * Router JSON-parses query strings, so a reloaded `?verified=1` arrives as
+ * the number 1. Stored strings and legacy boolean flags stay compatible.
  */
 function flag(value: unknown): string | undefined {
-  return value === "1" || value === true || value === "true" ? "1" : undefined;
+  return value === 1 || value === "1" || value === true || value === "true" ? "1" : undefined;
 }
 
 /** Walidacja i kanonizacja stanu katalogu. Nieznane pola są odrzucane. */

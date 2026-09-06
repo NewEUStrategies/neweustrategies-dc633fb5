@@ -668,39 +668,9 @@ describe("/people - stan w ADRESIE, nie w komponencie", () => {
     });
   });
 
-  // FLAGI Z ADRESU NIE WRACAJĄ (defekt zachowania, nie testu).
-  //
-  // PLIKI I LINIE:
-  //   * `src/lib/profile/peopleSearchParams.ts` linie 49-51 - `flag()` uznaje
-  //     wyłącznie `"1"` (string), `true` i `"true"`;
-  //   * `src/routes/people.tsx` linia 99 podpina ten walidator jako
-  //     `validateSearch`, a `src/router.tsx` linia 65 tworzy router BEZ własnego
-  //     `parseSearch`, czyli z domyślnym `parseSearchWith(JSON.parse)`.
-  // MECHANIZM: przełącznik zapisuje `{ verified: "1" }`, router serializuje to
-  //   do `?verified=1`, a przy NASTĘPNYM parsowaniu adresu `JSON.parse("1")`
-  //   oddaje LICZBĘ `1`. `flag(1)` nie pasuje do żadnego z trzech warunków, więc
-  //   zwraca `undefined` - flaga wyparowuje. Sprawdzone pomiarem: mount pod
-  //   `/people?verified=1&sem=1&q=energia` daje search `{ q: "energia" }`.
-  //   Nawigacja W OBRĘBIE karty tego nie ujawnia, bo tam obiekt search nigdy nie
-  //   przechodzi przez string adresu - dlatego defekt jest niewidoczny w kliknięciach.
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: udostępniony link, odświeżenie karty i
-  //   przycisk „wstecz" MILCZĄCO gubią „tylko zweryfikowani" i tryb semantyczny.
-  //   Odbiorca linku widzi INNY zbiór osób niż nadawca i nie ma o tym żadnego
-  //   sygnału. To samo dotyczy adresu w powiadomieniu „dołączył ktoś, kogo
-  //   szukasz" - komentarz nagłówka trasy wskazuje ten href jako powód, dla
-  //   którego parametry są krótkie, więc to jest ścieżka produkcyjna, nie
-  //   hipoteza. Filtry TEKSTOWE (`specialization`, `company`, `role`,
-  //   `location`, `q`, `open`) wracają poprawnie - traci się dokładnie te dwie
-  //   flagi, co czyni defekt trudnym do zauważenia w przeglądzie.
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: dwie drogi, obie o szerokim
-  //   zasięgu. (a) Rozszerzyć `flag()` o liczbę `1` - ale ten sam walidator
-  //   czyta snapshot z `saved_searches`, gdzie flaga jest stringiem, więc trzeba
-  //   zdecydować, czy kanoniczną postacią zostaje string, i czy stare zapisy
-  //   wymagają migracji. (b) Podać routerowi własny `parseSearch`, który nie
-  //   konwertuje liczb - ale wtedy `?page=2` na trasach list przestaje być
-  //   liczbą i zmienia się kontrakt adresu KAŻDEJ trasy w aplikacji. Wybór
-  //   między nimi to decyzja o kontrakcie URL-a całego serwisu.
-  it.fails("flagi z adresu przetrwają udostępnienie linku i odświeżenie karty", async () => {
+  // Exercise the real URL parser as well as the route validator: the router
+  // parses "1" as a number before validateSearch receives it.
+  it("flagi z adresu przetrwają udostępnienie linku i odświeżenie karty", async () => {
     const view = await mount("/people?verified=1&sem=1&q=energia");
     expect(view.search()).toMatchObject({ q: "energia", verified: "1", sem: "1" });
   });

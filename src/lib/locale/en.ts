@@ -1000,6 +1000,8 @@ export const en = {
       cookieBannerLabel: "Show cookie consent banner",
     },
     dashboard: {
+      loadError: "Could not load content counts.",
+      retry: "Try again",
       title: "Dashboard",
       subtitle: "Site content overview",
     },
@@ -1288,6 +1290,7 @@ export const en = {
       meteringMeterMembers: "Meter members-only articles",
       meteringShowCounter: 'Show the "X of N" counter above articles',
       meteringSaved: "Metering settings saved",
+      readError: "Could not load settings. Please try again.",
       meteringSaveError: "Could not save metering settings.",
       meteringImpactTitle: "Impact preview for the current month",
       meteringImpactDisabled:

@@ -1,11 +1,10 @@
 // BUDŻET HYDRATACJI - wyciągnięty z `src/router.tsx`, żeby przestał być
 // nieobserwowalny.
 //
-// CO PILNUJE. Jeśli strumień zapytań z SSR nigdy nie domknie się w przeglądarce,
-// `options.hydrate` integracji router<->query nigdy się nie rozstrzyga, React nie
-// hydratuje i cała strona zostaje statycznym HTML-em: przyciski i linki nie
-// reagują, a użytkownik nie widzi żadnego błędu. Budżet przerywa oczekiwanie;
-// brakujące dane dociągają się zwykłym refetchem.
+// Bounds the promise returned by the router hydration hook. The currently
+// pinned query integration consumes queryStream in the background, so this
+// timeout does not bound that reader. The boot probe measures actual app
+// readiness; a real integration test verifies the distinction.
 //
 // DLACZEGO OSOBNY MODUŁ, A NIE `const` W ŚRODKU STRZAŁKI. Przed 2026-09-01
 // budżet był lokalną stałą wewnątrz `router.options.hydrate`, a jedynym śladem
@@ -35,7 +34,7 @@
 // `ogHydrate` (własny `hydrate` router-core) i na przyszłe wersje integracji,
 // ale nikt nie powinien opierać się na nim jako na czynnej ochronie.
 
-/** Ile wolno czekać na domknięcie strumienia zapytań przed hydratacją Reacta. */
+/** Maximum wait for the hydration hook before React hydration may proceed. */
 export const HYDRATE_BUDGET_MS = 1500;
 
 export interface HydrateBudgetBreach {

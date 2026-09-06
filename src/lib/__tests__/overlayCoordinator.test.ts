@@ -16,7 +16,55 @@ describe("overlayCoordinator", () => {
     __resetOverlayCoordinator();
   });
   afterEach(() => {
+    __resetOverlayCoordinator();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it("keeps SSR usable without browser storage", async () => {
+    vi.stubGlobal("window", undefined);
+    const release = await requestOverlaySlot("ssr", { marketing: true });
+    expect(release).toBeTypeOf("function");
+    release();
+    __resetOverlayCoordinator();
+  });
+  it.each([
+    { day: 7, count: "bad", lastTs: "bad" },
+    { day: "2026-07-10", count: 3, lastTs: 0 },
+  ])("recovers from stale or malformed persisted budgets: %j", async (budget) => {
+    window.localStorage.setItem("overlay:budget:v1", JSON.stringify(budget));
+    await requestOverlaySlot("new-day", { marketing: true });
+    expect(JSON.parse(window.localStorage.getItem("overlay:budget:v1")!)).toMatchObject({
+      day: "2026-07-11",
+      count: 1,
+    });
+  });
+  it("suppresses the fourth marketing interruption even after the minimum gap", async () => {
+    window.localStorage.setItem(
+      "overlay:budget:v1",
+      JSON.stringify({ day: "2026-07-11", count: 3, lastTs: 0 }),
+    );
+    const opened = vi.fn();
+    void requestOverlaySlot("fourth", { marketing: true }).then(opened);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(opened).not.toHaveBeenCalled();
+    cancelOverlayRequest("fourth");
+  });
+  it("preserves FIFO at equal priority and ignores a stale double release", async () => {
+    setConsentOverlayVisible(true);
+    const first = requestOverlaySlot("first", { priority: 10 });
+    const second = vi.fn();
+    void requestOverlaySlot("second", { priority: 10 }).then(second);
+    setConsentOverlayVisible(false);
+    const release = await first;
+    expect(second).not.toHaveBeenCalled();
+    release();
+    release();
+    // Re-pumping a cooldown must not schedule a second timer.
+    setConsentOverlayVisible(false);
+    expect(vi.getTimerCount()).toBe(1);
+    __resetOverlayCoordinator();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("grants the first request immediately", async () => {

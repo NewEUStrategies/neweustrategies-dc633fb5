@@ -41,6 +41,8 @@ import { Badge } from "@/components/ui/badge";
 
 import { confirmDialog } from "@/lib/appDialogs";
 import { uiLocale } from "@/lib/i18n/format";
+import { useNowMs } from "@/lib/time/useNowMs";
+import { toastError } from "@/lib/toastError";
 export const Route = createFileRoute("/admin/paywall")({ component: PaywallAdmin });
 
 function emptyPlan(): Partial<AccessPlan> {
@@ -65,29 +67,34 @@ function emptyPlan(): Partial<AccessPlan> {
 
 function PaywallAdmin() {
   const { t } = useTranslation();
-  const [plans, setPlans] = useState<AccessPlan[]>([]);
+  const qc = useQueryClient();
+  const plansQuery = useQuery({
+    queryKey: ["admin-access-plans"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("access_plans").select("*").order("sort_order");
+      if (error) throw error;
+      return (data as AccessPlan[]) ?? [];
+    },
+  });
+  const plans = plansQuery.data ?? [];
   const [draft, setDraft] = useState<Partial<AccessPlan>>(emptyPlan());
   const [busy, setBusy] = useState(false);
-
-  const load = async () => {
-    const { data } = await supabase.from("access_plans").select("*").order("sort_order");
-    setPlans((data as AccessPlan[]) ?? []);
-  };
-  useEffect(() => {
-    load();
-  }, []);
+  const load = () => qc.invalidateQueries({ queryKey: ["admin-access-plans"] });
 
   const save = async () => {
     setBusy(true);
-    const { error } = draft.id
-      ? await supabase.from("access_plans").update(draft).eq("id", draft.id)
-      : await supabase.from("access_plans").insert(draft);
-    setBusy(false);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      const { error } = draft.id
+        ? await supabase.from("access_plans").update(draft).eq("id", draft.id)
+        : await supabase.from("access_plans").insert(draft);
+      if (error) throw error;
       toast.success(t("admin.paywall.savedPlan"));
       setDraft(emptyPlan());
-      load();
+      await load();
+    } catch (error) {
+      toastError(error, "save");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -100,11 +107,13 @@ function PaywallAdmin() {
       }))
     )
       return;
-    const { error } = await supabase.from("access_plans").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      const { error } = await supabase.from("access_plans").delete().eq("id", id);
+      if (error) throw error;
       toast.success(t("admin.paywall.removed"));
-      load();
+      await load();
+    } catch (error) {
+      toastError(error, "delete");
     }
   };
 
@@ -258,16 +267,27 @@ function PaywallAdmin() {
                         <Button size="sm" variant="outline" onClick={() => setDraft(p)}>
                           {t("admin.paywall.edit")}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => remove(p.id)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={t("admin.delete")}
+                          onClick={() => remove(p.id)}
+                        >
                           <Trash className="w-4 h-4" />
                         </Button>
                       </td>
                     </tr>
                   ))}
-                  {plans.length === 0 && (
+                  {(plansQuery.isPending || plansQuery.isError || plans.length === 0) && (
                     <tr>
                       <td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">
-                        {t("admin.paywall.empty")}
+                        {plansQuery.isError ? (
+                          <span role="alert">{t("admin.paywall.readError")}</span>
+                        ) : plansQuery.isPending ? (
+                          <span role="status">{t("common.loading")}</span>
+                        ) : (
+                          t("admin.paywall.empty")
+                        )}
                       </td>
                     </tr>
                   )}
@@ -284,30 +304,34 @@ function PaywallAdmin() {
               <FieldGroup label={t("admin.paywall.groupNaming")}>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>{t("admin.paywall.namePl")}</Label>
+                    <Label htmlFor="paywall-namePl">{t("admin.paywall.namePl")}</Label>
                     <Input
+                      id="paywall-namePl"
                       value={draft.name_pl ?? ""}
                       onChange={(e) => setDraft({ ...draft, name_pl: e.target.value })}
                     />
                   </div>
                   <div>
-                    <Label>{t("admin.paywall.nameEn")}</Label>
+                    <Label htmlFor="paywall-nameEn">{t("admin.paywall.nameEn")}</Label>
                     <Input
+                      id="paywall-nameEn"
                       value={draft.name_en ?? ""}
                       onChange={(e) => setDraft({ ...draft, name_en: e.target.value })}
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <Label>{t("admin.paywall.descPl")}</Label>
+                    <Label htmlFor="paywall-descPl">{t("admin.paywall.descPl")}</Label>
                     <Textarea
+                      id="paywall-descPl"
                       rows={2}
                       value={draft.description_pl ?? ""}
                       onChange={(e) => setDraft({ ...draft, description_pl: e.target.value })}
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <Label>{t("admin.paywall.descEn")}</Label>
+                    <Label htmlFor="paywall-descEn">{t("admin.paywall.descEn")}</Label>
                     <Textarea
+                      id="paywall-descEn"
                       rows={2}
                       value={draft.description_en ?? ""}
                       onChange={(e) => setDraft({ ...draft, description_en: e.target.value })}
@@ -320,16 +344,18 @@ function PaywallAdmin() {
               <FieldGroup label={t("admin.paywall.groupPricing")}>
                 <div className="grid sm:grid-cols-3 gap-4">
                   <div>
-                    <Label>{t("admin.paywall.priceCents")}</Label>
+                    <Label htmlFor="paywall-priceCents">{t("admin.paywall.priceCents")}</Label>
                     <Input
+                      id="paywall-priceCents"
                       type="number"
                       value={draft.price_cents ?? 0}
                       onChange={(e) => setDraft({ ...draft, price_cents: Number(e.target.value) })}
                     />
                   </div>
                   <div>
-                    <Label>{t("admin.paywall.currency")}</Label>
+                    <Label htmlFor="paywall-currency">{t("admin.paywall.currency")}</Label>
                     <Input
+                      id="paywall-currency"
                       value={draft.currency ?? "PLN"}
                       onChange={(e) => setDraft({ ...draft, currency: e.target.value })}
                     />
@@ -359,8 +385,9 @@ function PaywallAdmin() {
                     </Select>
                   </div>
                   <div>
-                    <Label>{t("admin.paywall.trialDays")}</Label>
+                    <Label htmlFor="paywall-trialDays">{t("admin.paywall.trialDays")}</Label>
                     <Input
+                      id="paywall-trialDays"
                       type="number"
                       min={0}
                       value={draft.trial_days ?? 0}
@@ -388,8 +415,9 @@ function PaywallAdmin() {
                     {t("admin.paywall.highlighted")}
                   </label>
                   <div>
-                    <Label>{t("admin.paywall.sort")}</Label>
+                    <Label htmlFor="paywall-sort">{t("admin.paywall.sort")}</Label>
                     <Input
+                      id="paywall-sort"
                       type="number"
                       value={draft.sort_order ?? 0}
                       onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
@@ -398,16 +426,18 @@ function PaywallAdmin() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label>{t("admin.paywall.badgePl")}</Label>
+                      <Label htmlFor="paywall-badgePl">{t("admin.paywall.badgePl")}</Label>
                       <Input
+                        id="paywall-badgePl"
                         value={draft.badge_pl ?? ""}
                         onChange={(e) => setDraft({ ...draft, badge_pl: e.target.value })}
                         placeholder="Najpopularniejszy"
                       />
                     </div>
                     <div>
-                      <Label>{t("admin.paywall.badgeEn")}</Label>
+                      <Label htmlFor="paywall-badgeEn">{t("admin.paywall.badgeEn")}</Label>
                       <Input
+                        id="paywall-badgeEn"
                         value={draft.badge_en ?? ""}
                         onChange={(e) => setDraft({ ...draft, badge_en: e.target.value })}
                         placeholder="Most popular"
@@ -421,8 +451,9 @@ function PaywallAdmin() {
               <FieldGroup label={t("admin.paywall.groupFeatures")}>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>{t("admin.paywall.featuresPl")}</Label>
+                    <Label htmlFor="paywall-featuresPl">{t("admin.paywall.featuresPl")}</Label>
                     <Textarea
+                      id="paywall-featuresPl"
                       rows={5}
                       value={(draft.features_pl ?? []).join("\n")}
                       onChange={(e) =>
@@ -437,8 +468,9 @@ function PaywallAdmin() {
                     />
                   </div>
                   <div>
-                    <Label>{t("admin.paywall.featuresEn")}</Label>
+                    <Label htmlFor="paywall-featuresEn">{t("admin.paywall.featuresEn")}</Label>
                     <Textarea
+                      id="paywall-featuresEn"
                       rows={5}
                       value={(draft.features_en ?? []).join("\n")}
                       onChange={(e) =>
@@ -562,44 +594,45 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 function MeteringSettingsCard() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: saved, isLoading } = useMeteringSettings();
-  const [form, setForm] = useState<MeteringSettings>(DEFAULT_METERING_SETTINGS);
+  const { data: saved, isLoading, isError } = useMeteringSettings();
+  const [draft, setDraft] = useState<MeteringSettings | null>(null);
+  const form = draft ?? saved ?? DEFAULT_METERING_SETTINGS;
+  const setForm = setDraft;
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (saved) setForm(saved);
-  }, [saved]);
 
   const save = async () => {
     setBusy(true);
-    const { data: auth } = await supabase.auth
-      .getSession()
-      .then((r) => ({ data: { user: r.data.session?.user ?? null } }));
-    const { error } = await supabase.from("metering_settings").upsert(
-      {
-        enabled: form.enabled,
-        member_monthly_limit: Math.max(0, Math.min(1000, Math.round(form.member_monthly_limit))),
-        anon_monthly_limit: Math.max(0, Math.min(1000, Math.round(form.anon_monthly_limit))),
-        meter_paid: form.meter_paid,
-        meter_members: form.meter_members,
-        show_counter: form.show_counter,
-        updated_by: auth.user?.id ?? null,
-      },
-      { onConflict: "tenant_id" },
-    );
-    setBusy(false);
-    if (error) {
+    try {
+      const { data: auth, error: authError } = await supabase.auth.getSession();
+      if (authError) throw authError;
+      const { error } = await supabase.from("metering_settings").upsert(
+        {
+          enabled: form.enabled,
+          member_monthly_limit: Math.max(0, Math.min(1000, Math.round(form.member_monthly_limit))),
+          anon_monthly_limit: Math.max(0, Math.min(1000, Math.round(form.anon_monthly_limit))),
+          meter_paid: form.meter_paid,
+          meter_members: form.meter_members,
+          show_counter: form.show_counter,
+          updated_by: auth.session?.user.id ?? null,
+        },
+        { onConflict: "tenant_id" },
+      );
+      if (error) throw error;
+      toast.success(t("admin.paywall.meteringSaved"));
+      void qc.invalidateQueries({ queryKey: ["metering-settings"] });
+    } catch (error) {
+      console.error("[paywall] settings save failed", error);
       toast.error(t("admin.paywall.meteringSaveError"));
-      return;
+    } finally {
+      setBusy(false);
     }
-    toast.success(t("admin.paywall.meteringSaved"));
-    void qc.invalidateQueries({ queryKey: ["metering-settings"] });
   };
 
   const numberField = (labelKey: string, value: number, onChange: (next: number) => void) => (
     <div>
-      <Label>{t(labelKey)}</Label>
+      <Label htmlFor={labelKey}>{t(labelKey)}</Label>
       <Input
+        id={labelKey}
         type="number"
         min={0}
         max={1000}
@@ -617,7 +650,9 @@ function MeteringSettingsCard() {
       <p className="text-sm text-muted-foreground mt-1 mb-4">
         {t("admin.paywall.meteringSubtitle")}
       </p>
-      {isLoading ? (
+      {isError ? (
+        <p role="alert">{t("admin.paywall.readError")}</p>
+      ) : isLoading ? (
         <p className="text-sm text-muted-foreground">…</p>
       ) : (
         <div className="space-y-4">
@@ -713,13 +748,19 @@ function MeteringImpactPreview({
       return row ?? null;
     },
     staleTime: 30_000,
+    enabled,
   });
 
   const fmt = new Intl.NumberFormat(uiLocale(lang));
-  const monthLabel = new Intl.DateTimeFormat(uiLocale(lang), {
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
+  const now = useNowMs(60_000);
+  const monthLabel =
+    now === null
+      ? ""
+      : new Intl.DateTimeFormat(uiLocale(lang), {
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC",
+        }).format(now);
   const row = q.data;
 
   return (
@@ -834,6 +875,8 @@ async function fetchMeteringOverrides(): Promise<OverrideRow[]> {
           }>,
         }),
   ]);
+  if ("error" in posts && posts.error) throw posts.error;
+  if ("error" in pages && pages.error) throw pages.error;
   const titleById = new Map<string, { title: string; slug: string | null }>();
   for (const p of posts.data ?? []) {
     titleById.set(p.id, { title: p.title_pl || p.title_en || p.slug || p.id, slug: p.slug });
@@ -862,16 +905,17 @@ function MeteringOverridesCard() {
   });
 
   const setPolicy = async (row: OverrideRow, policy: MeteringPolicy) => {
-    const { error } = await supabase
-      .from("content_access")
-      .update({ metering_policy: policy })
-      .eq("id", row.id);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const { error } = await supabase
+        .from("content_access")
+        .update({ metering_policy: policy })
+        .eq("id", row.id);
+      if (error) throw error;
+      toast.success(t("admin.paywall.overrideSaved"));
+      await qc.invalidateQueries({ queryKey: ["metering-overrides"] });
+    } catch (error) {
+      toastError(error, "save");
     }
-    toast.success(t("admin.paywall.overrideSaved"));
-    void qc.invalidateQueries({ queryKey: ["metering-overrides"] });
   };
 
   const rows = overrides.data ?? [];
@@ -882,7 +926,11 @@ function MeteringOverridesCard() {
       <p className="text-sm text-muted-foreground mt-1 mb-4">
         {t("admin.paywall.overridesSubtitle")}
       </p>
-      {rows.length === 0 ? (
+      {overrides.isError ? (
+        <p role="alert">{t("admin.paywall.readError")}</p>
+      ) : overrides.isPending ? (
+        <p role="status">{t("common.loading")}</p>
+      ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("admin.paywall.overridesEmpty")}</p>
       ) : (
         <div className="overflow-x-auto">
@@ -959,7 +1007,7 @@ function MeteringOverridesCard() {
 function CheckoutSettingsCard() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: saved, isLoading } = useCheckoutSettings();
+  const { data: saved, isLoading, isError } = useCheckoutSettings();
   const [form, setForm] = useState<CheckoutSettings | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -972,27 +1020,29 @@ function CheckoutSettingsCard() {
   const save = async () => {
     if (!current) return;
     setBusy(true);
-    const { data: auth } = await supabase.auth
-      .getSession()
-      .then((r) => ({ data: { user: r.data.session?.user ?? null } }));
-    const { error } = await supabase.from("checkout_settings").upsert(
-      {
-        allow_promotion_codes: current.allow_promotion_codes,
-        automatic_tax: current.automatic_tax,
-        tax_id_collection: current.tax_id_collection,
-        billing_address_collection: current.billing_address_collection,
-        invoice_creation: current.invoice_creation,
-        updated_by: auth.user?.id ?? null,
-      },
-      { onConflict: "tenant_id" },
-    );
-    setBusy(false);
-    if (error) {
+    try {
+      const { data: auth, error: authError } = await supabase.auth.getSession();
+      if (authError) throw authError;
+      const { error } = await supabase.from("checkout_settings").upsert(
+        {
+          allow_promotion_codes: current.allow_promotion_codes,
+          automatic_tax: current.automatic_tax,
+          tax_id_collection: current.tax_id_collection,
+          billing_address_collection: current.billing_address_collection,
+          invoice_creation: current.invoice_creation,
+          updated_by: auth.session?.user.id ?? null,
+        },
+        { onConflict: "tenant_id" },
+      );
+      if (error) throw error;
+      toast.success(t("admin.paywall.checkoutSaved"));
+      void qc.invalidateQueries({ queryKey: CHECKOUT_SETTINGS_QUERY_KEY });
+    } catch (error) {
+      console.error("[paywall] settings save failed", error);
       toast.error(t("admin.paywall.checkoutSaveError"));
-      return;
+    } finally {
+      setBusy(false);
     }
-    toast.success(t("admin.paywall.checkoutSaved"));
-    void qc.invalidateQueries({ queryKey: CHECKOUT_SETTINGS_QUERY_KEY });
   };
 
   type CheckoutToggleKey =
@@ -1018,7 +1068,9 @@ function CheckoutSettingsCard() {
       <p className="text-sm text-muted-foreground mt-1 mb-4">
         {t("admin.paywall.checkoutSubtitle")}
       </p>
-      {isLoading || !current ? (
+      {isError ? (
+        <p role="alert">{t("admin.paywall.readError")}</p>
+      ) : isLoading || !current ? (
         <p className="text-sm text-muted-foreground">…</p>
       ) : (
         <div className="space-y-4">
