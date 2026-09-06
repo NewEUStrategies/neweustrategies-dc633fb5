@@ -151,6 +151,7 @@ export async function runJobsTick(
   meta: JobsTickMeta = {},
 ): Promise<JobsTickResult> {
   const startedAt = Date.now();
+  const tickTime = new Date(startedAt);
   const overBudget = () => Date.now() - startedAt > JOBS_TICK_DEADLINE_MS;
   const skipped = { error: "skipped_duty_cycle" } as const;
 
@@ -171,7 +172,7 @@ export async function runJobsTick(
   const push = await runJobStep(overBudget, () => processPushJobs(100));
   // Digesty mają własne okna czasowe w claim_due_digests - wystarczy zaglądać
   // co 5 minut zamiast co minutę (dwa RPC mniej na tick).
-  const digestsDue = everyNthMinute(5);
+  const digestsDue = everyNthMinute(5, tickTime);
   const digestDaily = digestsDue
     ? await runJobStep(overBudget, () => processDigests("daily", 50))
     : skipped;
@@ -184,7 +185,7 @@ export async function runJobsTick(
   const crmTaskReminders = await runJobStep(overBudget, () => runCrmTaskReminders());
   // Rotacyjny skan linków wychodzących (B7): 6 wpisów co 15 minut zamiast 3 co
   // minutę - ta sama przepustowość dzienna przy ~15x mniejszym ruchu HTTP.
-  const linkCheck = everyNthMinute(15)
+  const linkCheck = everyNthMinute(15, tickTime)
     ? await runJobStep(overBudget, async () => {
         const { runLinkCheckBatch } = await import("@/lib/server/linkCheck.server");
         return runLinkCheckBatch(admin, 6);
@@ -196,7 +197,7 @@ export async function runJobsTick(
     return runIntegrationDispatch(20);
   });
   // Warstwa semantyczna wyszukiwarki: embeddingi tytuł+zajawka, co 5 minut.
-  const semanticIndex = everyNthMinute(5)
+  const semanticIndex = everyNthMinute(5, tickTime)
     ? await runJobStep(overBudget, async () => {
         const { runSemanticIndexBatch } = await import("@/lib/server/embeddings.server");
         return runSemanticIndexBatch(admin, 24);
@@ -206,10 +207,10 @@ export async function runJobsTick(
   // zmienia się o rzędy wielkości rzadziej niż pojawia się nowa treść, a obie
   // kolejki dzielą ten sam limit bramki. Sprzątanie po opt-oucie z katalogu
   // (`prune`) jest raz na godzinę - to operacja czysto bazowa i tania.
-  const profileIndex = everyNthMinute(15)
+  const profileIndex = everyNthMinute(15, tickTime)
     ? await runJobStep(overBudget, async () => {
         const { runProfileSemanticIndexBatch } = await import("@/lib/server/embeddings.server");
-        return runProfileSemanticIndexBatch(admin, 16, { prune: everyNthMinute(60) });
+        return runProfileSemanticIndexBatch(admin, 16, { prune: everyNthMinute(60, tickTime) });
       })
     : skipped;
 
@@ -217,10 +218,10 @@ export async function runJobsTick(
   // profile, bo obie kolejki dzielą limit bramki embeddingów, a dyskusja
   // klubowa nie musi być przeszukiwalna semantycznie w minutę od publikacji.
   // Sprzątanie raz na godzinę (operacja czysto bazowa).
-  const clubThreadIndex = everyNthMinute(15)
+  const clubThreadIndex = everyNthMinute(15, tickTime)
     ? await runJobStep(overBudget, async () => {
         const { runClubThreadIndexBatch } = await import("@/lib/server/embeddings.server");
-        return runClubThreadIndexBatch(admin, 16, { prune: everyNthMinute(60) });
+        return runClubThreadIndexBatch(admin, 16, { prune: everyNthMinute(60, tickTime) });
       })
     : skipped;
 
@@ -228,7 +229,7 @@ export async function runJobsTick(
   // sensu co minutę - grupa otwierana "co do minuty" i tak czeka na najbliższy
   // tick, a kadencje ról są egzekwowane w locie przez club_effective_member_role,
   // więc ten job je tylko sprząta. Co 5 minut wystarcza.
-  const clubScheduler = everyNthMinute(5)
+  const clubScheduler = everyNthMinute(5, tickTime)
     ? await runJobStep(overBudget, async () => {
         const { data, error } = await admin.rpc("club_scheduler_tick");
         if (error) throw error;
@@ -267,19 +268,23 @@ export async function runJobsTick(
   // bez tego wpisu awaria harmonogramu jest niewidzialna. Zapis jest
   // best-effort i nie może unieważnić pracy, która już się wykonała.
   const failures = countTickFailures(result);
-  await recordJobRun(
-    {
-      source: meta.source ?? "external",
-      job: "all",
-      ok: failures.length === 0,
-      durationMs: Date.now() - startedAt,
-      result,
-      error: failures.length > 0 ? failures.join("; ") : null,
-      tenantId: meta.tenantId ?? null,
-      actorId: meta.actorId ?? null,
-    },
-    admin,
-  );
+  try {
+    await recordJobRun(
+      {
+        source: meta.source ?? "external",
+        job: "all",
+        ok: failures.length === 0,
+        durationMs: Date.now() - startedAt,
+        result,
+        error: failures.length > 0 ? failures.join("; ") : null,
+        tenantId: meta.tenantId ?? null,
+        actorId: meta.actorId ?? null,
+      },
+      admin,
+    );
+  } catch (error) {
+    console.error("[jobs-tick] recording completed work failed", error);
+  }
 
   return result;
 }

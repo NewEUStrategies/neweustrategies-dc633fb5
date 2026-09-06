@@ -523,7 +523,7 @@ describe("mirrorWpMedia - zapis: kubelek osobno, wiersz osobno", () => {
     const [path, body, options] = h.upload.mock.calls[0];
     expect(path).toMatch(/^tenant-1\/wp-import\/2026\/[0-9a-f]{64}\.png$/);
     expect(body.byteLength).toBe(PNG.byteLength);
-    expect(options).toEqual({ contentType: "image/png", upsert: true });
+    expect(options).toEqual({ contentType: "image/png", upsert: false });
 
     const row = insertedRow(db);
     expect(row).toEqual({
@@ -598,18 +598,13 @@ describe("mirrorWpMedia - zapis: kubelek osobno, wiersz osobno", () => {
     expect(h.upload).toHaveBeenCalledTimes(1);
   });
 
-  it("BLAD: nieudany odczyt dedupu jest nieodrozninalny od pustki - kod uploaduje dalej", async () => {
-    // Stan faktyczny, nie zyczenie: `const { data: existing } = await ...`
-    // (wp-media.server.ts:170-176) NIE czyta `error`, wiec odmowa RLS albo
-    // awaria bazy wygladaja jak "tego pliku jeszcze nie mamy". Konsekwencja
-    // jest w nastepnym tescie (`it.fails` o rollbacku).
+  it("błąd odczytu dedupu zatrzymuje zasób przed uploadem", async () => {
     planMedia({ existing: fail("permission denied for table media", "42501") });
-
     const result = await mirrorWpMedia(baseOptions());
-
-    expect(h.upload).toHaveBeenCalledTimes(1);
-    expect(result.mirroredCount).toBe(1);
-    expect(result.failed).toEqual([]);
+    expect(h.upload).not.toHaveBeenCalled();
+    expect(h.remove).not.toHaveBeenCalled();
+    expect(result.mirroredCount).toBe(0);
+    expect(result.failed).toHaveLength(1);
   });
 
   it("blad uploadu do kubelka nie tworzy wiersza w tabeli", async () => {
@@ -672,34 +667,16 @@ describe("mirrorWpMedia - zapis: kubelek osobno, wiersz osobno", () => {
     expect(insertedRow(db).filename).toBe("raport_o_UE__2024_.pdf");
   });
 
-  it.fails(
-    "rollback po nieudanym insercie kasuje plik nalezacy do wczesniejszego wiersza",
-    async () => {
-      // DEFEKT (zglaszany, nie naprawiany): src/lib/server/wp-media.server.ts.
-      // Mechanizm: dedup (linie 170-176) ignoruje `error`, wiec nieudany odczyt
-      // wyglada jak brak wiersza. Kod uploaduje wtedy z `upsert: true` (linia
-      // 185) NADPISUJAC istniejacy obiekt, insert pada na unikalnosci
-      // (`23505`), a galaz rollbacku (linie 200-205) robi
-      // `storage.remove([storagePath])` - czyli USUWA obiekt, ktory opisuje
-      // WCZESNIEJSZY, poprawny wiersz `media`.
-      // Konsekwencja dla uzytkownika: opublikowana strona zaczyna pokazywac
-      // puste miejsce po zdjeciu, ktore zaimportowano tygodnie wczesniej,
-      // a wiersz w bibliotece nadal twierdzi, ze plik jest.
-      // Dlaczego to decyzja czlowieka: poprawka wymaga wyboru polityki -
-      // czytac `error` dedupu i przerywac import zasobu, czy rozpoznawac `23505`
-      // i traktowac je jak reuzycie (wtedy trzeba doczytac wiersz), czy w ogole
-      // nie kasowac obiektu przy `upsert: true`. Kazda z tych opcji zmienia
-      // zachowanie importu, a nie tylko ten test.
-      planMedia({
-        existing: fail("could not connect to server", "08006"),
-        insert: fail("duplicate key value violates unique constraint", "23505"),
-      });
+  it("rollback po nieudanym insercie kasuje plik nalezacy do wczesniejszego wiersza", async () => {
+    planMedia({
+      existing: fail("could not connect to server", "08006"),
+      insert: fail("duplicate key value violates unique constraint", "23505"),
+    });
 
-      await mirrorWpMedia(baseOptions());
+    await mirrorWpMedia(baseOptions());
 
-      expect(h.remove).not.toHaveBeenCalled();
-    },
-  );
+    expect(h.remove).not.toHaveBeenCalled();
+  });
 });
 
 describe("rewriteHtml - podmiana adresow w tresci", () => {
@@ -791,22 +768,7 @@ describe("rewriteBuilderDoc - podmiana adresow w dokumencie buildera", () => {
     });
   });
 
-  it.fails("podmienia adresy takze w sekcji zagnieżdżonej (inner-section)", () => {
-    // DEFEKT (zglaszany, nie naprawiany): src/lib/server/wp-media.server.ts:274-285.
-    // Mechanizm: `rewriteBuilderDoc` wchodzi wylacznie w dzieci o `kind ===
-    // "column"` (linia 277) i oddaje KAZDE inne dziecko nietkniete (linia 283).
-    // `SectionChild` to jednak `ColumnNode | InnerSectionNode`, a
-    // `InnerSectionNode.columns[].children[]` to normalne widgety z trescia.
-    // Konsekwencja dla uzytkownika: zdjecia w sekcjach zagnieżdżonych zostaja
-    // podlinkowane do STAREJ instalacji WordPressa - dzialaja do dnia
-    // przelaczenia DNS (albo wygasniecia hostingu), po czym na opublikowanej
-    // stronie zostaja puste ramki, mimo ze plik lezy juz w naszym kubelku
-    // (mirror go sciagnal, tylko dokument nie dostal nowego adresu).
-    // Dlaczego to decyzja czlowieka: naprawa to zmiana zachowania importu
-    // (rekurencja po `inner-section`) - trzeba rozstrzygnac, czy schodzimy
-    // tylko o jeden poziom, czy rekurencyjnie, i czy zmieniamy tez
-    // `rewriteContent` dla stylu/tla sekcji (background.image te adresy tez
-    // niesie, a dzisiaj nie jest podmieniane w zadnym wariancie).
+  it("podmienia adresy takze w sekcji zagnieżdżonej (inner-section)", () => {
     const doc: BuilderDocument = {
       version: 1,
       sections: [

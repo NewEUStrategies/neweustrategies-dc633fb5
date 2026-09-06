@@ -60,9 +60,12 @@ describe("machine-readable test accounting", () => {
   it("stores the same execution ledger beside its coverage report", () => {
     const reporter = new Reporter();
     reporter.onInit({
-      config: { coverage: { enabled: true, reportsDirectory: "coverage-platform" } },
+      config: {
+        coverage: { enabled: true, reportsDirectory: "coverage-platform", provider: "istanbul" },
+      },
     });
     reporter.onTestRunEnd([module(["passed"])], []);
+    expect(report().coverageProvider).toBe("istanbul");
     expect(h.write).toHaveBeenCalledWith(
       "coverage-platform/test-accounting.json",
       h.write.mock.calls[0][1],
@@ -71,10 +74,13 @@ describe("machine-readable test accounting", () => {
   it("does not create a coverage ledger for a run without instrumentation", () => {
     const reporter = new Reporter();
     reporter.onInit({
-      config: { coverage: { enabled: false, reportsDirectory: "coverage-platform" } },
+      config: {
+        coverage: { enabled: false, reportsDirectory: "coverage-platform", provider: "istanbul" },
+      },
     });
     reporter.onTestRunEnd([module(["passed"])], []);
     expect(h.write).toHaveBeenCalledTimes(1);
+    expect(report().coverageProvider).toBeNull();
   });
 });
 

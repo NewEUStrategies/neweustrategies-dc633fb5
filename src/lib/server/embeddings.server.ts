@@ -14,6 +14,7 @@ const EMBEDDINGS_URL =
 // text-embedding-004; jedna kolumna vector(768) obsługuje oba (migracja pgvector).
 const EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || "openai/text-embedding-3-small";
 export const EMBEDDING_DIMS = 768;
+export const EMBEDDINGS_TIMEOUT_MS = 10_000;
 
 type DbClient = SupabaseClient<Database>;
 
@@ -32,7 +33,31 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
   if (!apiKey) return null;
   if (Date.now() < providerUnavailableUntil) return null;
 
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error("Embeddings gateway timeout");
+      controller.abort(error);
+      reject(error);
+    }, EMBEDDINGS_TIMEOUT_MS);
+  });
+  try {
+    // Bound both response headers and body consumption. A timeout is transient:
+    // the next tick can retry, without the one-hour provider cooldown.
+    return await Promise.race([requestEmbeddings(texts, apiKey, controller.signal), deadline]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
+async function requestEmbeddings(
+  texts: readonly string[],
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<number[][] | null> {
   const res = await fetch(EMBEDDINGS_URL, {
+    signal,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -44,6 +69,7 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
       dimensions: EMBEDDING_DIMS,
     }),
   });
+  signal.throwIfAborted();
   if (res.status === 404 || res.status === 400 || res.status === 401 || res.status === 403) {
     // Bramka bez embeddingów / zły model / brak uprawnień - to nie jest stan
     // przejściowy; wyciszamy na godzinę i działamy na czystym FTS.
@@ -57,17 +83,25 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
   const payload = (await res.json()) as {
     data?: Array<{ index?: number; embedding?: number[] }>;
   };
+  signal.throwIfAborted();
   const rows = payload.data ?? [];
-  if (rows.length !== texts.length) {
+  if (!Array.isArray(rows) || rows.length !== texts.length) {
     throw new Error(`Embeddings gateway returned ${rows.length}/${texts.length} vectors`);
   }
   const out: number[][] = new Array(texts.length);
   rows.forEach((r, i) => {
-    const vec = r.embedding ?? [];
-    if (vec.length !== EMBEDDING_DIMS) {
+    const vec = r?.embedding ?? [];
+    if (!Array.isArray(vec) || vec.length !== EMBEDDING_DIMS) {
       throw new Error(`Embedding dims ${vec.length} != ${EMBEDDING_DIMS}`);
     }
-    out[r.index ?? i] = vec;
+    if (!vec.every((value) => typeof value === "number" && Number.isFinite(value))) {
+      throw new Error("Embedding contains non-finite coordinates");
+    }
+    const index = r.index ?? i;
+    if (!Number.isInteger(index) || index < 0 || index >= texts.length || index in out) {
+      throw new Error(`Embeddings gateway invalid or duplicate index: ${index}`);
+    }
+    out[index] = vec;
   });
   return out;
 }

@@ -75,8 +75,8 @@ function pasek(nadpisania: Nadpisania = {}) {
       previewOpen={nadpisania.previewOpen ?? false}
       onTogglePreview={onTogglePreview}
       onStatusChange={onStatusChange}
-      createMode={nadpisania.createMode ?? false}
-      section={nadpisania.section ?? null}
+      createMode={nadpisania.createMode}
+      section={nadpisania.section}
     />,
   );
   return { onStatusChange, onTogglePreview, container };

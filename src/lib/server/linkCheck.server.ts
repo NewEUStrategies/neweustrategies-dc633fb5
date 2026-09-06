@@ -63,15 +63,17 @@ export function extractExternalUrls(
 
 async function probe(
   url: string,
-): Promise<{ ok: boolean; status: number | null; error: string | null }> {
+): Promise<{ ok: boolean; status: number | null; error: string | null; refused: boolean }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let permitted = false;
   try {
     // SSRF guard: refuse private/loopback/link-local/cloud-metadata targets
     // before we make the request. `redirect: "manual"` prevents a 30x from
     // bouncing to an internal host after the pre-check.
     const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
     await assertPublicHttpUrl(url);
+    permitted = true;
     // GET, nie HEAD: częsta blokada HEAD (403/405) dawałaby fałszywe alarmy.
     const res = await fetch(url, {
       method: "GET",
@@ -87,9 +89,15 @@ async function probe(
       ok: res.status < 400 || gated || redirected,
       status: res.status,
       error: null,
+      refused: false,
     };
   } catch (err) {
-    return { ok: false, status: null, error: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      status: null,
+      error: err instanceof Error ? err.message : String(err),
+      refused: !permitted,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -253,7 +261,7 @@ export async function runLinkCheckBatch(admin: DbClient, postsLimit = 3): Promis
       const snapshots = new Map<number, WaybackSnapshot | null>();
       const brokenIdx = slice
         .map((_, idx) => idx)
-        .filter((idx) => !results[idx].ok)
+        .filter((idx) => !results[idx].ok && !results[idx].refused)
         .slice(0, Math.max(0, MAX_ARCHIVE_LOOKUPS_PER_BATCH - archiveLookups));
       if (brokenIdx.length > 0) {
         archiveLookups += brokenIdx.length;
