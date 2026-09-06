@@ -142,6 +142,41 @@ describe("scanClockFreeze - plik jest bombą tylko przy WSZYSTKICH trzech warunk
     expect(wynik.bombs).toEqual([]);
   });
 
+  it("uprząż z `src/test/**` liczy się jak część testu - zegar zza niej TEŻ robi bombę", () => {
+    // Zmierzone na `-api.public.newsletter.confirm.handler.test.ts`: plik ma
+    // literały i FAKTYCZNIE padał przy CLOCK_SHIFT=1y (8 czerwonych z 20), ale
+    // kod produkcyjny wciąga przez uprząż `@/test/routeHarness`, więc dla
+    // wersji „tylko importy bezpośrednie" był NIEWIDZIALNY. Infrastruktura
+    // testowa jest logicznie częścią testu, więc jej zależności są jego.
+    const uprzaz: SourceFile = {
+      file: "src/test/uprzaz.ts",
+      source: `import { wOknie } from "@/lib/okno";\nexport const handler = () => wOknie();`,
+    };
+    const wynik = scanClockFreeze([
+      PRODUKCJA,
+      uprzaz,
+      {
+        file: "src/lib/__tests__/przezUprzaz.test.ts",
+        source: `
+          import { handler } from "@/test/uprzaz";
+          const wiersz = { expires_at: "2026-12-31T00:00:00.000Z" };
+          it("x", () => { void handler(); void wiersz; });
+        `,
+      },
+    ]);
+    expect(wynik.bombs.map((b) => b.file)).toEqual(["src/lib/__tests__/przezUprzaz.test.ts"]);
+  });
+
+  it("sama uprząż NIE jest zgłaszana jako osobna bomba - nie jest plikiem testowym", () => {
+    const uprzaz: SourceFile = {
+      file: "src/test/fabryka.ts",
+      source: `export const ADMIN_NOW = Date.parse("2026-08-18T10:00:00.000Z");`,
+    };
+    const wynik = scanClockFreeze([PRODUKCJA, uprzaz]);
+    expect(wynik.bombs).toEqual([]);
+    expect(wynik.testFiles).toBe(0);
+  });
+
   it("liczy TYLKO importy BEZPOŚREDNIE - zależność przechodnia nie robi bomby", () => {
     const posrednik: SourceFile = {
       file: "src/lib/posrednik.ts",

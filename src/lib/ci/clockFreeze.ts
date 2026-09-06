@@ -124,6 +124,31 @@ export function isTestFile(file: string): boolean {
   return /\.(test|spec)\.(ts|tsx)$/.test(file);
 }
 
+/**
+ * Moduł INFRASTRUKTURY TESTOWEJ (`src/test/**`): fabryki, atrapy, uprzęże.
+ *
+ * Traktujemy go jak CZĘŚĆ pliku testowego, który go importuje - jego literały
+ * dat i jego zależność od zegara doliczają się do tego pliku, rekurencyjnie.
+ *
+ * DLACZEGO, na dwóch zmierzonych przykładach. Obie bomby, które faktycznie
+ * padły przy CLOCK_SHIFT=1y, były dla wersji „tylko plik testowy" NIEWIDZIALNE:
+ *
+ *   * `RetentionTab.test.tsx` nie ma ANI JEDNEGO literału daty - kotwica
+ *     `ADMIN_NOW = Date.parse("2026-08-18T10:00:00.000Z")` siedzi w
+ *     `src/test/admin/pricingFixtures.ts:46` i karmi kilkanaście plików naraz;
+ *   * `-api.public.newsletter.confirm.handler.test.ts` ma literały, ale kod
+ *     produkcyjny wciąga przez uprząż `src/test/routeHarness`, więc BEZPOŚREDNI
+ *     import produkcji z niego nie wychodzi.
+ *
+ * Jeden literał w takiej fabryce jest groźniejszy niż dziesięć w jednym teście,
+ * bo tyka pod wszystkimi jej konsumentami naraz. Rozszerzenie jest OGRANICZONE
+ * do `src/test/**` - dla modułów produkcyjnych nadal patrzymy wyłącznie na
+ * import bezpośredni.
+ */
+export function isTestHelper(file: string): boolean {
+  return file.startsWith("src/test/") && !isTestFile(file);
+}
+
 /** Plik brany pod uwagę w ogóle (test albo moduł, który test może zaimportować). */
 export function isScannable(file: string): boolean {
   return /\.(ts|tsx)$/.test(file) && !file.endsWith(".d.ts");
@@ -207,27 +232,58 @@ export function scanClockFreeze(sources: readonly SourceFile[]): ClockFreezeScan
   let withLiteralAndClock = 0;
   let frozen = 0;
 
+  // Domknięcie po infrastrukturze testowej: `src/test/**` liczy się jak część
+  // pliku, który ją importuje (patrz `isTestHelper`).
+  const helperClosure = new Map<string, string[]>();
+  const closureOf = (start: string): string[] => {
+    const cached = helperClosure.get(start);
+    if (cached) return cached;
+    const seen = new Set<string>();
+    const stack = [start];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      for (const spec of importSpecifiers(stripped.get(current) ?? "")) {
+        const target = resolveSpecifier(spec, current, known);
+        if (target === null || seen.has(target) || !isTestHelper(target)) continue;
+        seen.add(target);
+        stack.push(target);
+      }
+    }
+    const list = [...seen];
+    helperClosure.set(start, list);
+    return list;
+  };
+
   for (const { file } of sources) {
     if (!isTestFile(file)) continue;
     testFiles += 1;
-    const code = stripped.get(file)!;
+    const own = stripped.get(file)!;
+    const helpers = closureOf(file);
+    // LITERAŁY liczymy z SAMEGO pliku, ZALEŻNOŚĆ OD ZEGARA - także z uprzęży.
+    // Uzasadnienie asymetrii w nagłówku `isTestHelper` i w opisie PR-a.
+    const code = own;
 
     if (file !== SELF_TEST_FILE) {
-      const anti = ANTI_PATTERN.exec(code);
-      if (anti) antiPattern.push({ file, line: lineOf(code, anti.index) });
+      // Antywzorca szukamy w SAMYM pliku - `lineOf` musi wskazywać jego linię.
+      const anti = ANTI_PATTERN.exec(own);
+      if (anti) antiPattern.push({ file, line: lineOf(own, anti.index) });
     }
 
     DATE_LITERAL.lastIndex = 0;
     const literals = code.match(DATE_LITERAL)?.length ?? 0;
     if (literals === 0) continue;
 
+    // Zegar: czytany przez sam plik, przez jego uprzęże, albo przez moduł
+    // produkcyjny zaimportowany BEZPOŚREDNIO przez plik lub przez uprząż.
     const self = CLOCK.test(code);
     const viaImport =
       !self &&
-      importSpecifiers(code).some((spec) => {
-        const target = resolveSpecifier(spec, file, known);
-        return target !== null && !isTestFile(target) && readsClock(target);
-      });
+      [file, ...helpers].some((from) =>
+        importSpecifiers(stripped.get(from) ?? "").some((spec) => {
+          const target = resolveSpecifier(spec, from, known);
+          return target !== null && !isTestFile(target) && !isTestHelper(target) && readsClock(target);
+        }),
+      );
     if (!self && !viaImport) continue;
 
     withLiteralAndClock += 1;
