@@ -137,3 +137,9 @@ wpis z rejestru długu, więc powrót niezabezpieczonych dat będzie blokowany.
 Formatowanie dwóch plików przyjętych z main usuwa wszystkie osiem błędów
 lintowania tego przebiegu. Typecheck, SQL, E2E, Lighthouse oraz build
 z boot-testami przeszły na połączonym drzewie.
+
+Kontrola pokrycia zmian z main ujawniła również brak testów nowej sekcji
+przełączników w `ThemeOptionsPane`. Dodano zapis wszystkich presetów,
+własnych wymiarów, trzech kolorów i typografii, odzyskiwanie wartości pustych
+oraz zgodność podglądu ze szkicem. Test sprawdza także zachowanie sąsiedniej
+gałęzi nagłówka po zapisie. Celowany pomiar przywraca istniejące progi panelu.
