@@ -29,19 +29,10 @@ export type AdminAccountStatus = {
   state: "active" | "pending_email" | "invited" | "banned" | "never_signed_in" | "missing";
 };
 
-async function assertSameTenant(
-  supabase: { from: (t: "profiles") => never } | never,
-  _userId: string,
-): Promise<void> {
-  void supabase;
-  void _userId;
-}
-
 export const getUserAccountStatus = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .validator((input: unknown) => TargetSchema.parse(input))
   .handler(async ({ data, context }): Promise<AdminAccountStatus> => {
-    void assertSameTenant;
     // Granica najemcy: user-scoped klient (RLS) musi widzieć profil celu.
     const { data: target, error: targetError } = await context.supabase
       .from("profiles")
