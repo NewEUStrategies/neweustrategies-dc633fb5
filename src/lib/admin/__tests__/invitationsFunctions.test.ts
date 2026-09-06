@@ -65,7 +65,7 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 
 const h = vi.hoisted(() => ({
   /** Wywołania `auth.admin.*` - kolejność i argumenty tworzenia kont. */
-  authCalls: [] as { kind: "invite" | "create"; email: string; payload: unknown }[],
+  authCalls: [] as { kind: string; email: string; payload: unknown }[],
   /** Identyfikator, jaki oddaje warstwa auth; `null` = „konto bez id". */
   authUserId: "aaaa1111-2222-4333-8444-555566667777" as string | null,
   /**
