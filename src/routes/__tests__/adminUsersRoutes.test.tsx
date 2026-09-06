@@ -220,6 +220,10 @@ vi.mock("@/lib/admin/invitations.functions", () => ({
     h.sendCalls.push(data.id);
     return h.sendResult;
   },
+  sendActivationEmailForUser: async ({ data }: { data: { userId: string } }) => {
+    h.sendCalls.push(data.userId);
+    return h.sendResult;
+  },
   revokeInvitation: async ({ data }: { data: { id: string } }) => {
     h.revokeCalls.push(data.id);
     return { ok: true };
