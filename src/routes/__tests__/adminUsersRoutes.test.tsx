@@ -2449,14 +2449,14 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     );
   });
 
-  it("wiersz pokazuje rolę, tryb i status, a brak źródła degraduje do `-`", async () => {
+  it("wiersz pokazuje rolę, tryb, przetłumaczony status i brakujące daty", async () => {
     h.invitations = [invitation({ source: null })];
     await mountInvitations();
     await waitFor(() => expect(document.body.textContent).toContain("trzecia@example.org"));
     const text = document.body.textContent ?? "";
     expect(text).toContain("author");
     expect(text).toContain("magic_link");
-    expect(text).toContain("pending");
+    expect(text).toContain("adminMiscRoutes.invitations.statusPending");
     expect(text).toContain("-");
   });
 
@@ -2466,8 +2466,10 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     );
     await mountInvitations();
     await waitFor(() => expect(document.querySelectorAll("tbody tr")).toHaveLength(4));
-    for (const status of ["sent", "accepted", "failed", "pending"]) {
-      expect(document.body.textContent, `brak statusu ${status}`).toContain(status);
+    for (const status of ["Sent", "Accepted", "Failed", "Pending"]) {
+      expect(document.body.textContent, `brak statusu ${status}`).toContain(
+        `adminMiscRoutes.invitations.status${status}`,
+      );
     }
   });
 
@@ -2582,8 +2584,15 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  it("trasa zaproszeń nie ma nagłówków SEO", async () => {
-    expect(await routeMeta(InvitationsRoute)).toEqual([]);
+  it("trasa zaproszeń ma własne kompletne nagłówki", async () => {
+    expect(await routeMeta(InvitationsRoute)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: expect.stringContaining("Zaproszenia") }),
+        expect.objectContaining({ name: "description" }),
+        expect.objectContaining({ property: "og:title" }),
+        expect.objectContaining({ name: "twitter:card" }),
+      ]),
+    );
   });
 });
 
