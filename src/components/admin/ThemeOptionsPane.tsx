@@ -39,7 +39,7 @@ import {
   Heading1,
   Palette,
   Clock,
-  ToggleRight,
+  SlidersHorizontal,
 } from "@/lib/lucide-shim";
 import { SiteSettingsHistoryDialog } from "@/components/admin/SiteSettingsHistoryDialog";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
@@ -314,7 +314,7 @@ const SECTIONS = [
   { id: "header.mobile", labelKey: "themeOptions.sections.mobileHeader", icon: LayoutDashboard },
   { id: "buttons", labelKey: "themeOptions.sections.buttons", icon: MousePointerClick },
   { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
-  { id: "toggles", labelKey: "themeOptions.sections.toggles", icon: ToggleRight },
+  { id: "toggles", labelKey: "themeOptions.sections.toggles", icon: SlidersHorizontal },
   { id: "input_colors", labelKey: "themeOptions.sections.inputColors", icon: Palette },
   { id: "icon_colors", labelKey: "themeOptions.sections.iconColors", icon: Palette },
   { id: "link_colors", labelKey: "themeOptions.sections.linkColors", icon: Palette },
