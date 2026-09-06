@@ -27,8 +27,6 @@ describe("deriveAccountState", () => {
   });
 
   it("zachowuje blokadę jako stan nadrzędny", () => {
-    expect(deriveAccountState({ ...BASE, bannedUntil: "2027-01-01T00:00:00.000Z" })).toBe(
-      "banned",
-    );
+    expect(deriveAccountState({ ...BASE, bannedUntil: "2027-01-01T00:00:00.000Z" })).toBe("banned");
   });
 });

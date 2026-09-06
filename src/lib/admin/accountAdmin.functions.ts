@@ -26,8 +26,8 @@ export function deriveAccountState(input: AccountStateInput): AdminAccountStatus
   if (input.bannedUntil) return "banned";
   const signedInAfterInvitation = Boolean(
     input.lastSignInAt &&
-      input.invitationSentAt &&
-      new Date(input.lastSignInAt).getTime() - new Date(input.invitationSentAt).getTime() > 30_000,
+    input.invitationSentAt &&
+    new Date(input.lastSignInAt).getTime() - new Date(input.invitationSentAt).getTime() > 30_000,
   );
   const invitationAccepted =
     input.invitationStatus === "accepted" &&
