@@ -143,7 +143,6 @@ const pl = {
     deleteAccountConfirmPlaceholder: "adres e-mail konta",
     deleteAccountSubmit: "Usuń na stałe",
     deleteAccountDone: "Konto zostało usunięte.",
-    cancel: "Anuluj",
     allUsers: "Wszyscy użytkownicy",
     back: "Wróć",
     expertProfileEdit: "Profil eksperta (edycja)",
