@@ -24,6 +24,7 @@ export type AdminAccountStatus = {
   bannedUntil: string | null;
   providers: string[];
   hasMfa: boolean;
+  invitationId: string | null;
   invitationStatus: string | null;
   /** Skrót stanu dla UI: active | pending_email | invited | banned | never_signed_in | missing */
   state: "active" | "pending_email" | "invited" | "banned" | "never_signed_in" | "missing";
@@ -57,6 +58,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
         bannedUntil: null,
         providers: [],
         hasMfa: false,
+        invitationId: null,
         invitationStatus: null,
         state: "missing",
       };
@@ -69,21 +71,43 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
         ? raw.banned_until
         : null;
 
+    let invitationId: string | null = null;
     let invitationStatus: string | null = null;
+    let invitationSentAt: string | null = null;
+    let invitationAutoAccepted = false;
     if (u.email) {
       const { data: inv } = await context.supabase
         .from("user_invitations")
-        .select("status")
+        .select("id, status, sent_at, metadata")
         .ilike("email", u.email)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      invitationId = inv?.id ?? null;
       invitationStatus = inv?.status ?? null;
+      invitationSentAt = inv?.sent_at ?? null;
+      const invitationMetadata = (inv?.metadata ?? {}) as Record<string, unknown>;
+      invitationAutoAccepted = invitationMetadata.auto_accept === true;
     }
 
     const emailConfirmedAt = u.email_confirmed_at ?? null;
+    const signedInAfterInvitation = Boolean(
+      u.last_sign_in_at &&
+        invitationSentAt &&
+        new Date(u.last_sign_in_at).getTime() > new Date(invitationSentAt).getTime(),
+    );
+    // `auto_accept` zatwierdza przydzielenie konta przez administratora, ale nie
+    // oznacza, że odbiorca użył linku aktywacyjnego. Starsze rekordy oznaczone
+    // w ten sposób jako `accepted` pozostają zaproszeniem aż do pierwszego
+    // logowania wykonanego po wysłaniu wiadomości.
+    const invitationAccepted =
+      invitationStatus === "accepted" && (!invitationAutoAccepted || signedInAfterInvitation);
+    const hasPendingInvitation = Boolean(invitationId) && !invitationAccepted;
+    const effectiveInvitationStatus = hasPendingInvitation ? "sent" : invitationStatus;
     const state: AdminAccountStatus["state"] = bannedUntil
       ? "banned"
+      : hasPendingInvitation
+        ? "invited"
       : !emailConfirmedAt
         ? raw.invited_at
           ? "invited"
@@ -108,7 +132,8 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
           ? [String(u.app_metadata.provider)]
           : [],
       hasMfa: (u.factors ?? []).some((f) => f.status === "verified"),
-      invitationStatus,
+      invitationId,
+      invitationStatus: effectiveInvitationStatus,
       state,
     };
   });

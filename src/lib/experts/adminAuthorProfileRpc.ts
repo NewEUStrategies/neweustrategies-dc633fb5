@@ -22,9 +22,9 @@ interface RpcThenable<T> {
 
 /** Pełny wiersz author_profiles wskazanego użytkownika - wyłącznie dla staffu. */
 export function adminGetAuthorProfile(userId: string): RpcThenable<AuthorProfileRpcRow> {
-  const rpc = supabase.rpc as unknown as (
-    fn: string,
-    args: Record<string, unknown>,
-  ) => RpcThenable<AuthorProfileRpcRow>;
-  return rpc("admin_get_author_profile", { _user_id: userId });
+  // Nie odpinamy metody `rpc` od klienta - wewnętrzna implementacja korzysta
+  // z `this.rest`, więc wywołanie niepowiązanej referencji kończy się błędem.
+  return supabase.rpc("admin_get_author_profile" as never, {
+    _user_id: userId,
+  } as never) as unknown as RpcThenable<AuthorProfileRpcRow>;
 }
