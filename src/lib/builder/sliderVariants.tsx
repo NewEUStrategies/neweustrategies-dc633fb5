@@ -1142,7 +1142,7 @@ function EditorialHeroVariant(p: VariantProps) {
         onPointerCancel={p.endDrag}
       >
         <div
-          className="absolute inset-0"
+          className="pointer-events-none absolute inset-0"
           style={{
             transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
