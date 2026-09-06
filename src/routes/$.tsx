@@ -33,6 +33,7 @@ import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import { PostOrganizationCard } from "@/components/post/PostOrganizationCard";
 import { articleJsonLdType, resolveDisclosure } from "@/lib/content/sponsored";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
+import { PostCategoryArchive } from "@/components/post/PostCategoryArchive";
 import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
 import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
