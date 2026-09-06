@@ -133,6 +133,14 @@ function UserDetail() {
 
   const fullName =
     [data.first_name, data.last_name].filter(Boolean).join(" ") || data.display_name || "-";
+  const hasSocialMedia = Boolean(
+    data.website_url ||
+    data.twitter_url ||
+    data.linkedin_url ||
+    data.facebook_url ||
+    data.instagram_url ||
+    data.spotify_url,
+  );
 
   return (
     <div className="space-y-6">
@@ -244,7 +252,7 @@ function UserDetail() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-display">
-        {/* Left: about */}
+        {/* Left: primary profile information */}
         <section className="lg:col-span-2 space-y-6">
           <Card title={t("adminUsers.details")}>
             <InfoRow
@@ -289,41 +297,21 @@ function UserDetail() {
             </Card>
           )}
 
-          <Card title={t("adminUsers.socialMedia")}>
-            <SocialRow
-              icon={<BrandIcon name="website" fallback={Globe} className="w-4 h-4" />}
-              label="Website"
-              value={data.website_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="x" fallback={XIcon} className="w-4 h-4" />}
-              label="X"
-              value={data.twitter_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="linkedin" fallback={Linkedin} className="w-4 h-4" />}
-              label="LinkedIn"
-              value={data.linkedin_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="facebook" fallback={Facebook} className="w-4 h-4" />}
-              label="Facebook"
-              value={data.facebook_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="instagram" fallback={Instagram} className="w-4 h-4" />}
-              label="Instagram"
-              value={data.instagram_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="spotify" fallback={Music2} className="w-4 h-4" />}
-              label="Spotify"
-              value={data.spotify_url}
-            />
+          <Card title={t("adminUsers.accountStatus")}>
+            <AccountStatusCard userId={data.id} locale={locale} />
           </Card>
+
+          {/* The full editor belongs to the main column so both desktop columns
+              continue independently instead of leaving a large empty area. */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4 m-0">
+              {t("adminUsers.expertProfileEdit")}
+            </h2>
+            <AuthorProfileEditor userId={data.id} tenantId={tenantId ?? null} mode="admin" />
+          </div>
         </section>
 
-        {/* Right: meta */}
+        {/* Right: compact controls and metadata */}
         <aside className="space-y-6">
           <Card title={t("adminUsers.metadata")}>
             <Field label="ID" value={data.id} mono />
@@ -341,6 +329,41 @@ function UserDetail() {
             {data.gender && <Field label={t("adminUsers.gender")} value={String(data.gender)} />}
           </Card>
 
+          {hasSocialMedia && (
+            <Card title={t("adminUsers.socialMedia")}>
+              <SocialRow
+                icon={<BrandIcon name="website" fallback={Globe} className="w-4 h-4" />}
+                label="Website"
+                value={data.website_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="x" fallback={XIcon} className="w-4 h-4" />}
+                label="X"
+                value={data.twitter_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="linkedin" fallback={Linkedin} className="w-4 h-4" />}
+                label="LinkedIn"
+                value={data.linkedin_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="facebook" fallback={Facebook} className="w-4 h-4" />}
+                label="Facebook"
+                value={data.facebook_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="instagram" fallback={Instagram} className="w-4 h-4" />}
+                label="Instagram"
+                value={data.instagram_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="spotify" fallback={Music2} className="w-4 h-4" />}
+                label="Spotify"
+                value={data.spotify_url}
+              />
+            </Card>
+          )}
+
           <Card title={t("adminUsers.professionalVerification")}>
             <VerificationAdminToggle userId={data.id} canEdit={isAdmin} />
           </Card>
@@ -355,10 +378,6 @@ function UserDetail() {
 
           <Card title={t("adminUsers.expertRequests")}>
             <ExpertRequestsAdminToggle userId={data.id} />
-          </Card>
-
-          <Card title={t("adminUsers.accountStatus")}>
-            <AccountStatusCard userId={data.id} locale={locale} />
           </Card>
 
           <Card title={t("adminUsers.actions")}>
@@ -377,15 +396,6 @@ function UserDetail() {
             <DangerZoneCard userId={data.id} email={data.email} />
           )}
         </aside>
-      </div>
-
-      {/* Edytor pełnego profilu eksperta - 1:1 te same pola co /profile/author.
-          RLS pozwala adminowi na zapis do author_profiles + profiles w tenancie. */}
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4 m-0">
-          {t("adminUsers.expertProfileEdit")}
-        </h2>
-        <AuthorProfileEditor userId={data.id} tenantId={tenantId ?? null} mode="admin" />
       </div>
     </div>
   );
