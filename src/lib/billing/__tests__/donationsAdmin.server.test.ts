@@ -16,6 +16,7 @@
 // wpłaty (`@/lib/billing/donations.server`) wykonuje się NAPRAWDĘ.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tables } from "@/integrations/supabase/types";
+import { DZIEN, GODZINA, freezeClock, relativeIso } from "@/test/time";
 
 import {
   ok,
@@ -25,6 +26,21 @@ import {
   type SupabaseFromStub,
   type SupabaseResult,
 } from "@/test/billing/fixtures";
+
+// ZAMROŻENIE NA POZIOMIE PLIKU, a nie pojedynczego testu.
+//
+// Do 2026-09-05 zamrożone były w tym pliku DWA testy - te, w których okno 24 h
+// wymuszało to natychmiast. Pozostałe stały na literałach kalendarzowych i na
+// oknie 168 h, które dawało siedem dni zwłoki: 2026-09-05 o 10:00 UTC wypadł z
+// niego literał wiersza `don-2` (jeden czerwony test), a 2026-09-06 o 10:00 UTC
+// wypadała DOMYŚLNA data fabryki `donationRow()` - zmierzone symulacją: 12
+// czerwonych z 45. Przyczyną nie była żadna z tych dat z osobna, tylko to, że
+// zamrożenie było per test zamiast per plik.
+//
+// Odtąd „teraz" jest w tym pliku stałą, a wszystkie daty fixture'ów liczą się
+// WZGLĘDEM niej - więc odległość „fixture - teraz" nie zmienia się z upływem
+// czasu i przebieg za pięć lat jest tym samym przebiegiem, co dzisiaj.
+freezeClock();
 
 const TENANT = "tenant-alfa";
 const FOREIGN_TENANT = "tenant-beta";
@@ -107,7 +123,10 @@ function donationRow(overrides: Partial<DonationRow> = {}): DonationRow {
     status: "pending",
     paid_at: null,
     environment: "live",
-    created_at: "2026-08-30T10:00:00.000Z",
+    // WZGLĘDNA, nie kalendarzowa: dwie doby wstecz leżą w każdym oknie, które
+    // ten moduł czyta (168 h uzgodnienia i 24 h wierszy osieroconych), i będą
+    // tam leżeć zawsze, bo liczą się od zamrożonego „teraz".
+    created_at: relativeIso(-2 * DZIEN),
     ...overrides,
   };
 }
@@ -279,12 +298,12 @@ describe("listAdminDonations", () => {
 
   it("czyta wyłącznie wpłaty swojego tenanta, najnowsze pierwsze", async () => {
     rows = [
-      donationRow({ id: "don-alfa", status: "paid", created_at: "2026-08-01T10:00:00.000Z" }),
+      donationRow({ id: "don-alfa", status: "paid", created_at: relativeIso(-40 * DZIEN) }),
       donationRow({
         id: "don-beta",
         tenant_id: FOREIGN_TENANT,
         provider_session_id: "cs_beta_1",
-        created_at: "2026-08-29T10:00:00.000Z",
+        created_at: relativeIso(-3 * DZIEN),
       }),
     ];
 
@@ -324,6 +343,14 @@ describe("listAdminDonations", () => {
         donor_email: "darczynca@example.org",
         message: "Powodzenia",
         provider_intent_id: "pi_1",
+        // JAWNE LITERAŁY SĄ TU POPRAWNE i celowo zostają: ten test dowodzi
+        // KONWERSJI KSZTAŁTU (`created_at` -> `createdAt`, `paid_at` ->
+        // `paidAt`, wartość przepisana bez zmiany), a nie odległości w czasie.
+        // `listAdminDonations` nie liczy ŻADNEGO okna, więc data nie ma tu
+        // zapalnika. Wcześniej wartość `createdAt` brała się z DOMYŚLNEJ daty
+        // fabryki, a asercja niosła jej kopię - dlatego ten test przewracał się
+        // przy każdej zmianie fabryki, choć o fabryce nic nie orzeka.
+        created_at: "2026-08-30T10:00:00.000Z",
         paid_at: "2026-08-30T10:05:00.000Z",
       }),
     ];
@@ -384,18 +411,54 @@ describe("syncDonationsFromStripe - bramka tenanta", () => {
   });
 
   it("okno czasowe raportu wynika z podanej liczby godzin", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-31T12:00:00.000Z"));
-    try {
-      const report = await syncDonationsFromStripe("sandbox", 24);
-      expect(report.sinceIso).toBe("2026-08-30T12:00:00.000Z");
-      expect(chain.chainsFor("donations")[0]!.argsOf("gte")).toEqual([
-        "created_at",
-        "2026-08-30T12:00:00.000Z",
-      ]);
-    } finally {
-      vi.useRealTimers();
-    }
+    // Lokalne `vi.useFakeTimers()` z `finally` zniknęło - zegar zamraża teraz
+    // cały plik. Treść asercji bez zmian: 24 godziny odejmowane są od „teraz",
+    // a wynik trafia DOKŁADNIE do filtru `gte` zapytania.
+    const oczekiwaneOkno = relativeIso(-24 * GODZINA);
+
+    const report = await syncDonationsFromStripe("sandbox", 24);
+
+    expect(report.sinceIso).toBe(oczekiwaneOkno);
+    expect(chain.chainsFor("donations")[0]!.argsOf("gte")).toEqual(["created_at", oczekiwaneOkno]);
+  });
+
+  it("wiersz SPOZA okna 168 h jest pomijany, a jego brak nie jest zgłaszany jako problem", async () => {
+    // KONTROLA DODATNIA NA SAMĄ REGUŁĘ OKNA.
+    //
+    // Do 2026-09-05 żaden test nie dowodził, że wiersz starszy niż 168 h ma
+    // zostać POMINIĘTY. Regułę „udowadniała" wyłącznie przypadkowa czerwień:
+    // gdy domyślna data fabryki wypadała z okna, część testów zaczynała padać -
+    // i to padanie było jedynym sygnałem, że filtr w ogóle działa. Sygnał
+    // pojawiał się raz na siedem dni, po czym trzeba go było gasić.
+    //
+    // Tutaj obie strony granicy są nazwane wprost i liczone od zamrożonego
+    // „teraz", więc reguła jest sprawdzana W KAŻDYM przebiegu, a nie wtedy,
+    // kiedy akurat wypadnie z kalendarza. Druga asercja jest równie ważna jak
+    // pierwsza: wiersz spoza okna ma być NIEWIDOCZNY, a nie „widoczny i
+    // zgłoszony jako kłopot" - inaczej uzgodnienie hałasowałoby ostrzeżeniem
+    // przy każdej starszej wpłacie w rejestrze.
+    rows = [
+      donationRow({
+        id: "don-w-oknie",
+        provider_session_id: "cs_alfa_1",
+        status: "pending",
+        created_at: relativeIso(-6 * DZIEN),
+      }),
+      donationRow({
+        id: "don-poza-oknem",
+        provider_session_id: "cs_alfa_2",
+        status: "pending",
+        created_at: relativeIso(-8 * DZIEN),
+      }),
+    ];
+    h.fns.sessionsRetrieve.mockImplementation(async (id: string) => stripeSession({ id }));
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.settled).toBe(1);
+    expect(rowById("don-w-oknie")).toMatchObject({ status: "paid" });
+    expect(rowById("don-poza-oknem")).toMatchObject({ status: "pending" });
+    expect(report.warnings).toEqual([]);
   });
 
   it("pusty rejestr w kształcie `null` przechodzi uzgodnienie bez zmian", async () => {
@@ -500,7 +563,7 @@ describe("syncDonationsFromStripe - domknięcie wpłat oczekujących", () => {
         id: "don-2",
         provider_session_id: "cs_alfa_2",
         status: "pending",
-        created_at: "2026-08-29T10:00:00.000Z",
+        created_at: relativeIso(-2 * DZIEN),
       }),
     ];
     h.fns.sessionsRetrieve.mockImplementation(async (id: string) => {
@@ -540,33 +603,27 @@ describe("syncDonationsFromStripe - domknięcie wpłat oczekujących", () => {
   });
 
   it("osierocony wiersz tymczasowy starszy niż doba jest anulowany", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-31T12:00:00.000Z"));
-    try {
-      rows = [
-        donationRow({
-          id: "don-stary",
-          provider_session_id: "pending:stary",
-          status: "pending",
-          created_at: "2026-08-29T12:00:00.000Z",
-        }),
-        donationRow({
-          id: "don-swiezy",
-          provider_session_id: "pending:swiezy",
-          status: "pending",
-          created_at: "2026-08-31T11:00:00.000Z",
-        }),
-      ];
+    rows = [
+      donationRow({
+        id: "don-stary",
+        provider_session_id: "pending:stary",
+        status: "pending",
+        created_at: relativeIso(-2 * DZIEN),
+      }),
+      donationRow({
+        id: "don-swiezy",
+        provider_session_id: "pending:swiezy",
+        status: "pending",
+        created_at: relativeIso(-1 * GODZINA),
+      }),
+    ];
 
-      const report = await syncDonationsFromStripe("sandbox");
+    const report = await syncDonationsFromStripe("sandbox");
 
-      expect(report.expired).toBe(1);
-      expect(rowById("don-stary")).toMatchObject({ status: "canceled" });
-      // Wpłata sprzed godziny może jeszcze zostać opłacona.
-      expect(rowById("don-swiezy")).toMatchObject({ status: "pending" });
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(report.expired).toBe(1);
+    expect(rowById("don-stary")).toMatchObject({ status: "canceled" });
+    // Wpłata sprzed godziny może jeszcze zostać opłacona.
+    expect(rowById("don-swiezy")).toMatchObject({ status: "pending" });
   });
 });
 
@@ -580,7 +637,7 @@ describe("syncDonationsFromStripe - zwroty", () => {
       donationRow({
         status: "paid",
         provider_intent_id: "pi_1",
-        paid_at: "2026-08-30T10:05:00.000Z",
+        paid_at: relativeIso(-2 * DZIEN + 5 * 60 * 1000),
       }),
     ];
     h.fns.intentsRetrieve.mockResolvedValue({ id: "pi_1", latest_charge: { id: "ch_1" } });
@@ -834,7 +891,7 @@ describe("syncDonationsFromStripe - import sesji spoza rejestru", () => {
     });
     // Wiersz istnieje, ale POZA oknem czasowym uzgodnienia, więc nie trafił
     // do zbioru znanych sesji - import zderza się z indeksem bazy.
-    rows[0]!.created_at = "2020-01-01T00:00:00.000Z";
+    rows[0]!.created_at = relativeIso(-30 * DZIEN);
 
     const report = await syncDonationsFromStripe("sandbox");
 
@@ -955,7 +1012,7 @@ describe("wiarygodność raportu i izolacja tenanta", () => {
         id: "don-1",
         status: "pending",
         provider_session_id: "pending:abc",
-        created_at: "2026-08-01T10:00:00.000Z",
+        created_at: relativeIso(-2 * DZIEN),
       }),
     ];
     writeFailure = "permission denied for table donations";
