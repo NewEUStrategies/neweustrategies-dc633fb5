@@ -93,8 +93,8 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     const emailConfirmedAt = u.email_confirmed_at ?? null;
     const signedInAfterInvitation = Boolean(
       u.last_sign_in_at &&
-        invitationSentAt &&
-        new Date(u.last_sign_in_at).getTime() > new Date(invitationSentAt).getTime(),
+      invitationSentAt &&
+      new Date(u.last_sign_in_at).getTime() > new Date(invitationSentAt).getTime(),
     );
     // `auto_accept` zatwierdza przydzielenie konta przez administratora, ale nie
     // oznacza, że odbiorca użył linku aktywacyjnego. Starsze rekordy oznaczone
@@ -108,13 +108,13 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
       ? "banned"
       : hasPendingInvitation
         ? "invited"
-      : !emailConfirmedAt
-        ? raw.invited_at
-          ? "invited"
-          : "pending_email"
-        : u.last_sign_in_at
-          ? "active"
-          : "never_signed_in";
+        : !emailConfirmedAt
+          ? raw.invited_at
+            ? "invited"
+            : "pending_email"
+          : u.last_sign_in_at
+            ? "active"
+            : "never_signed_in";
 
     return {
       exists: true,

@@ -24,7 +24,10 @@ interface RpcThenable<T> {
 export function adminGetAuthorProfile(userId: string): RpcThenable<AuthorProfileRpcRow> {
   // Nie odpinamy metody `rpc` od klienta - wewnętrzna implementacja korzysta
   // z `this.rest`, więc wywołanie niepowiązanej referencji kończy się błędem.
-  return supabase.rpc("admin_get_author_profile" as never, {
-    _user_id: userId,
-  } as never) as unknown as RpcThenable<AuthorProfileRpcRow>;
+  return supabase.rpc(
+    "admin_get_author_profile" as never,
+    {
+      _user_id: userId,
+    } as never,
+  ) as unknown as RpcThenable<AuthorProfileRpcRow>;
 }
