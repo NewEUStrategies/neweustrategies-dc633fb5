@@ -40,26 +40,97 @@ obowiązujące. Błąd importu pliku przed zebraniem przypadków jest niepełnym
 przebiegiem. Ujemne lub niepoprawne surowe liczniki LCOV odrzucają pomiar;
 nie zastępujemy ich zerami. Node 24.19.0 jest przypięty w CI, E2E i Lighthouse.
 
-## Weryfikacja w toku — dane pomocnicze
+## Weryfikacja i odtwarzanie pomiaru
 
-Pierwszy pełny CI (`34030646824`) zakończył 65 198 testów powodzeniem,
-376 oczekiwaną porażką i 50 pominięciem. Jeden moduł nie załadował się przez
-niepełną atrapę `createIsomorphicFn`; został poprawiony. Ten przebieg nie jest
-końcowym dowodem: korzystał z Node 22.23.2 i zawierał ujemne liczniki V8.
-Wykryte luki formularzy klubów zostały uzupełnione bez obniżania ich bramek.
+Źródłem ostatecznego pokrycia jest job `test` dla aktualnego commitu
+[PR #337](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/pull/337/checks).
+Artefakt `coverage-<SHA>` zawiera pełny raport i dokładne liczniki. SHA dotyczy
+commitu scalającego PR testowanego przez GitHub, a nie wyłącznie gałęzi autora.
+Opis PR podaje wynik wszystkich czterech miar i rachunek wykonania testów.
+Lokalne łączenie raportów z wybranych testów służy diagnozie luk; nie zastępuje
+tego pełnego przebiegu.
 
-Build wariantu 512 B: cały JS 4341,2 KiB gzip (limit 4351), publiczny JS
-2699,0 (2715), start 577,9 (579), największy chunk 275,3 (280), publiczny CSS
-73,2 (74), suma CSS 85,8 (87). Próba 2048 B została odrzucona: zmniejszała
-sumę JS, lecz zwiększała start powyżej limitu. Reguły łączenia chunków są
-identyczne w produkcji i smoke. Limity JS nie zostały podniesione.
+Przy odtwarzaniu użyj Node **24.19.0**, Bun **1.2.23**, `TZ=UTC` oraz zależności
+z `bun install --frozen-lockfile`. `bun run test:coverage` wykonuje pełną suitę
+z istniejącymi progami repozytorium; potem `bun run check:platform-coverage`
+weryfikuje zakres 214 plików. Alternatywne `bun run test:platform` ogranicza
+instrumentację do platformy, lecz nadal uruchamia całą suitę.
 
-Pierwszy pomiar CI na artefakcie Node `/cookies`: TTFB 9,0 ms, gotowość
-hydratacji 463 ms, FCP 240 ms; osobna para cache MISS 5045,7 ms / HIT 8,1 ms.
-To pomiar localhost z zastępczym backendem, **nie wdrożenia produkcyjnego**.
-Dwa testy przeglądarkowe wymagają powtórzenia po poprawieniu zgodności locale
-PL/EN i klasyfikacji importów na podstawie grafu Rollup. Ostateczne metryki
-pokrycia i status CI zostaną zapisane po pełnym przebiegu aktualnego kodu.
+Pierwszy przebieg (`34030646824`, Node 22.23.2) wykrył ujemne liczniki V8 oraz
+błąd importu w atrapie `createIsomorphicFn`. Nie jest dowodem osiągnięcia progu.
+Poprawiono atrapę, rachunek modułów testowych i luki formularzy klubów;
+ujemne liczniki są teraz błędem pomiaru, nie wartościami zamienianymi na zero.
+
+## Pomiary artefaktu z CI
+
+Poniższy punkt odniesienia dotyczy kodu `3b3252135e969154f97b865045f1f893d013ac39`.
+GitHub testował commit scalający `e35bd67acce97e4da03a8fdf6cd864261a80f18d`;
+oba mają identyczne drzewo `364951a249e654f1fb5fcc1229aa420cb4b2fa64`.
+
+[CI 34034344598](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34034344598)
+potwierdza zielone: `verify`, build Cloudflare, bramki rozmiaru/grafu/czystości
+wejścia, **7 testów przeglądarkowych** na buildzie Node, pgTAP
+(102 pliki, **1883 asercje**) i pięć harnessów Postgresa.
+[E2E 34034344592](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34034344592)
+ma **82 testy zakończone powodzeniem i 13 pominiętych**, a osobny przebieg
+z migracjami i seedem Supabase — **12 zakończonych powodzeniem**.
+Pomijanych testów nie zaliczamy do pozytywnego wyniku.
+
+| Rozmiar z buildu Cloudflare | KiB gzip | Limit KiB gzip |
+| --------------------------- | -------: | -------------: |
+| Cały JS                     |   4341,5 |           4351 |
+| Publiczny JS                |   2699,1 |           2715 |
+| Domknięcie startowe         |    578,0 |            579 |
+| Największy chunk            |    275,3 |            280 |
+| Publiczny CSS               |     73,2 |             74 |
+| Suma CSS                    |     85,8 |             87 |
+
+Zapasy startowego JS i publicznego CSS są małe. Każdy kolejny wzrost wymaga
+optymalizacji, a nie automatycznego podnoszenia limitu. Publiczny arkusz
+zmniejszył się z 81,3 do 73,2 KiB gzip. Suma arkuszy rośnie przez koszt
+podziału, dlatego limit całego CSS zmieniono z 82 na 87 KiB i dodano osobny
+limit publicznego CSS 74 KiB. Limity JS nie zostały podniesione.
+Próba `experimentalMinChunkSize: 2048` zmniejszała sumę JS, ale przekraczała
+limit startu; przyjęty wariant **512 B** przechodzi oba ograniczenia.
+
+`server.build.inlineCss` pozostaje wyłączone. Po podziale wspólny arkusz może
+być ponownie użyty z cache przeglądarki; osadzenie go w każdym HTML zwiększa
+rozmiar dokumentów. Nie wykonano porównania A/B uzasadniającego ten koszt.
+Opcje `handler.fetch` są poprawnie przekazywane, więc decyzja nie wynika już
+z niedziałającego drugiego argumentu.
+
+Playwright, `/cookies`, localhost, build Node, zastępczy backend:
+
+| Pomiar                              |                 Wynik |
+| ----------------------------------- | --------------------: |
+| TTFB pierwszej nawigacji            |             5019,0 ms |
+| Gotowość hydratacji od sondy w HTML |                341 ms |
+| FCP                                 |             5196,0 ms |
+| FCP minus TTFB                      |              177,0 ms |
+| Transfer JS do odczytu metryk       | 2625,4 KiB / 72 pliki |
+| Część statyczna / pozostałe importy |    1980,3 / 645,1 KiB |
+| Osobna para cache MISS / HIT        |       5025,6 / 8,7 ms |
+
+To **pomiar artefaktu na localhost**, bez modelowania sieci czytelników.
+MISS zawiera budżet niedostępnego backendu; HIT omija ponowne wykonanie SSR.
+Nie jest to obietnica odzyskania określonej liczby sekund na każdej trasie.
+Transfer nie jest porównywalny z limitem gzip: serwer Node oddaje te zasoby
+bez kompresji; `decodedBodySize` wyniósł 2604,3 KiB.
+
+[Lighthouse 34034344591](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34034344591)
+wykonał po trzy pomiary `/en` i `/blog`. Mediany z asercji: LCP **2761,1 ms**
+i **3931,0 ms**, FCP **2721,1 ms** i **2679,1 ms**. Budżety TBT i CLS przeszły,
+ale cel LCP 2500 ms nie został spełniony. LCP/FCP mają w trybie lokalnym poziom
+`warn`; zielony job nie oznacza dobrych Core Web Vitals wdrożenia.
+Raport LHR 12.6.1 potwierdza `environment.networkUserAgent` z Chrome/136,
+różny od hostowego HeadlessChrome/149. Framework klasyfikuje żądanie sieciowe
+jako przeglądarkę. Ścieżka bota wymaga oddzielnego pomiaru z jawnym UA bota.
+
+W tym przebiegu archiwum Lighthouse zawierało wyłącznie log serwera:
+`upload-artifact@v4` domyślnie pomija ukryty katalog `.lighthouseci`.
+Workflow teraz jawnie go uwzględnia, zachowuje raporty obu trybów przez 30 dni
+i usuwa historyczny raport deweloperski przed zbieraniem nowych danych.
+Wyniki kolejnych uruchomień są dostępne w ich artefaktach, wraz z SHA przebiegu.
 
 ## Dodatkowe naprawy wynikające z testów
 

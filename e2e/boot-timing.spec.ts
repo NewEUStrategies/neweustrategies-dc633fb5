@@ -3,17 +3,12 @@
 // `boot-artifact.spec.ts` i na TYM SAMYM serwerze - jeden build, jeden proces
 // `node .output/server/index.mjs`, dwa pliki testowe.
 //
-// PO CO TO ISTNIEJE, skoro repozytorium ma Lighthouse'a.
-//
-// Bo Lighthouse w tym repozytorium NIE ZMIERZYŁ ARTEFAKTU ANI RAZU:
-//   * `lighthouserc.json` startuje aplikację przez `bun run dev` - mierzy więc
-//     dev-server, gdzie nie ma ani chunków, ani minifikacji, i wszystkie jego
-//     asercje są na `warn`. Zapisane w `.lighthouseci/` liczby to LCP 31 215 ms
-//     przy budżecie 2 500 - są nieprzenoszalne i nikogo nie zatrzymały;
-//   * `lighthouserc.deployed.json` ma WSZYSTKIE asercje na `error` (LCP 2500,
-//     TBT 300), ale wymaga `LHCI_URL`, czyli ZMIENNEJ REPOZYTORIUM GitHuba.
-//     Nigdy nie była ustawiona, więc tryb blokujący nie włączył się ani razu -
-//     i nie da się tego naprawić z kodu w gałęzi.
+// Uzupełnia Lighthouse, który od 2026-09-01 również mierzy zbudowany artefakt.
+// `lighthouserc.json` blokuje regresje TBT i CLS; pozostałe metryki są na warn
+// z powodu zastępczego backendu. Raport LCP 31 215 ms zapisany historycznie
+// w `.lighthouseci/` pochodzi z dev-servera i nie opisuje aktualnego buildu.
+// `lighthouserc.deployed.json` wymusza także LCP, lecz wymaga wdrożonego URL-a
+// w zmiennej repozytorium `LHCI_URL`. Faktyczny tryb widać w logu workflow.
 //
 // Ten plik zamyka tę część luki, która JEST w naszej mocy: liczba powstaje na
 // ARTEFAKCIE (preset `node-server`, minifikacja, prawdziwe chunki), w CI, bez
@@ -74,14 +69,12 @@ import { staticBootAssets, type BootAssetChunk } from "../scripts/lib/staticBoot
 // boot-timing`) i PEŁNA konfiguracja artefaktu (`bun run test:e2e:artifact`).
 // Zmierzone wartości są wpisane przy każdej stałej i w tabeli niżej.
 //
-// SKĄD ZAPAS. Tego pomiaru NIE MA ANI RAZU Z RUNNERA GitHuba. Runner
-// `ubuntu-latest` to 2 vCPU bez gwarancji sąsiedztwa; `scripts/check-bundle-size.ts`
-// dokumentuje dla samych bajtów rozbieżność host <-> runner ~10 KB na OVERALL,
-// a dla CZASU rozbieżność jest o rząd większa i nieprzewidywalna. Dlatego progi
-// niżej NIE są ciasnym opakowaniem pomiaru z hosta - są bramką na REGRESJĘ
-// KLASOWĄ (dwucyfrowa krotność, nie kilkadziesiąt procent). PIERWSZY PRZEBIEG
-// W CI JEST PODSTAWĄ DO PRZEFLOOROWANIA i dopóki go nie ma, każde zacieśnienie
-// tych liczb byłoby zgadywaniem, które zamieni bramkę w migotanie.
+// SKĄD ZAPAS. Pierwsze progi powstały przed pomiarem na runnerze. Późniejsze
+// przebiegi CI są zapisane w kronice poniżej; aktualny dowód dla PR znajduje
+// się w docs/PLATFORM_SSR_REMEDIATION_2026-09-06.md. Czas zależy od obciążenia
+// maszyny, a transfer dynamicznych importów również od kolejności pobrań.
+// Dlatego pojedynczy szybki przebieg nie uzasadnia zacieśnienia wszystkich
+// progów. Statyczną wagę startu osobno wymusza `scripts/check-bundle-size.ts`.
 //
 // ZASADA RATCHETU (jak w `scripts/check-bundle-size.ts`): te progi wolno
 // WYŁĄCZNIE obniżać po zmierzeniu na runnerze. Podniesienie wymaga wpisu
@@ -123,9 +116,8 @@ const MAX_TTFB_MS = 8_000;
  * SKĄD AŻ TYLE ZAPASU - dwa niezależne powody, oba sprawdzone:
  *   * hydratacja jest jedyną z tych czterech liczb, która zależy WYŁĄCZNIE od
  *     CPU (parsowanie i wykonanie 33-37 plików JS, render Reacta). Runner
- *     `ubuntu-latest` ma 2 vCPU bez gwarancji sąsiedztwa, a tego pomiaru nie ma
- *     stamtąd ANI RAZU. Zacieśnianie progu przed pierwszym przebiegiem byłoby
- *     zgadywaniem, które zamienia bramkę w migotanie;
+ *     nie gwarantuje stałej wydajności CPU. Pomiary z hosta i runnera są
+ *     zapisane poniżej; próg zachowuje zapas na ich zmienność;
  *   * górna granica jest ZAKOTWICZONA, nie wybrana: sonda bootu uznaje boot za
  *     MARTWY po `BOOT_DEAD_TIMEOUT_MS` = 15 000 ms
  *     (`lib/observability/bootProbeScript`), a `boot-artifact.spec.ts` czeka na

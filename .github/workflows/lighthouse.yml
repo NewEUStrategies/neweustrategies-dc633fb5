@@ -89,6 +89,12 @@ jobs:
         with:
           bun-version: "1.2.23"
 
+      # The repository contains a historical dev-server report. Only reports
+      # collected in this job may be uploaded as evidence for its commit.
+      - name: Clear historical Lighthouse output
+        run: |
+          node -e 'require("node:fs").rmSync(".lighthouseci", { recursive: true, force: true })'
+
       # ---- TRYB A: prawdziwy wdrożony URL -> bramka blokująca ----
       # LHCI_URL audytuje stronę główną. Opcjonalna zmienna repo LHCI_EXTRA_PATHS
       # (ścieżki po przecinku, np. "/blog,/category/gospodarka") rozszerza audyt
@@ -249,14 +255,18 @@ jobs:
       # runnerze, nie na hoście). Bez tego artefaktu każde kolejne dotknięcie
       # tych liczb byłoby znowu zgadywaniem.
       - name: Upload Lighthouse reports and the artifact server log
-        if: ${{ vars.LHCI_URL == '' && !cancelled() }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: lighthouse-production-artifact
+          name: lighthouse-${{ vars.LHCI_URL != '' && 'deployed' || 'production-artifact' }}
           path: |
             .lighthouseci/
             artifact-server.log
-          if-no-files-found: warn
+          # upload-artifact v4 excludes hidden directories by default. Without
+          # this option run 34034344591 uploaded only artifact-server.log.
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Stop the production artifact
         if: ${{ always() && vars.LHCI_URL == '' }}
