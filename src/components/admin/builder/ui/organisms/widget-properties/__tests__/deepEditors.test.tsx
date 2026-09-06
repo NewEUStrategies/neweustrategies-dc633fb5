@@ -379,7 +379,7 @@ describe("MegaMenuEditor - pola karty wyróżnionej", () => {
     focalY: 60,
   };
   /** Kolumna BEZ linków - wtedy pola „URL" karty nie mylą się z polami linku. */
-  const withFeatured = (featured: Record<string, unknown> = FEATURED) => ({
+  const withFeatured = (featured: { [key: string]: Json } = FEATURED) => ({
     columns: [{ ...LINK_COLUMN, links: [], featured }],
   });
 
