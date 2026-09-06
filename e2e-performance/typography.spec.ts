@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { buildWidgetTypographyCss } from "../../src/lib/builder/typographyCss";
+import { buildWidgetTypographyCss } from "../src/lib/builder/typographyCss";
 
 // Browser-computed cascade, including !important and :is() specificity.
 // These contracts protect authored widget design while compressing its CSS.

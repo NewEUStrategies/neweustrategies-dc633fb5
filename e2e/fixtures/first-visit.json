@@ -512,7 +512,7 @@
               "kind": "section",
               "layout": {
                 "width": 1400,
-                "htmlTag": "Treść przykładowa",
+                "htmlTag": "nav",
                 "contentWidth": "full"
               },
               "children": [
@@ -597,7 +597,7 @@
               "layout": {
                 "gap": 48,
                 "width": 1400,
-                "htmlTag": "Treść przykładowa",
+                "htmlTag": "div",
                 "contentWidth": "full"
               },
               "children": [
@@ -902,7 +902,7 @@
               },
               "layout": {
                 "width": 1400,
-                "htmlTag": "Treść przykładowa",
+                "htmlTag": "div",
                 "contentWidth": "Treść przykładowa"
               },
               "children": [
@@ -1876,7 +1876,7 @@
                       }
                     },
                     "content": {
-                      "tag": "Treść przykładowa",
+                      "tag": "h2",
                       "loop": true,
                       "mode": "hover-allsides",
                       "align": "left",

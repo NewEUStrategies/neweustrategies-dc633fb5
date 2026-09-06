@@ -41,6 +41,7 @@ const emptyTables = new Set([
   "ad_zone_assignments",
   "content_access_public",
   "newsletter_settings",
+  "post_layout_settings",
 ]);
 
 function selectRows(rows: Row[], search: URLSearchParams): Row[] {
@@ -77,6 +78,17 @@ export function isFixtureBackend(url: string): boolean {
 export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): Promise<Response> {
   const url = new URL(request.url);
   const name = url.pathname.replace(/^\/rest\/v1\//, "");
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, HEAD, POST, OPTIONS",
+        "access-control-allow-headers":
+          request.headers.get("access-control-request-headers") ?? "*",
+      },
+    });
+  }
   if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
   let data: unknown;
   if (name.startsWith("rpc/")) {

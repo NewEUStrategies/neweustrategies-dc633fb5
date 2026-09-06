@@ -5,7 +5,7 @@ import {
   fixtureResponse,
   homeFixture,
   isFixtureBackend,
-} from "../../scripts/performance/homeFixture";
+} from "../scripts/performance/homeFixture";
 
 declare global {
   interface Window {
@@ -22,6 +22,7 @@ for (const [path, lang] of [
 ] as const) {
   for (const sample of [1, 2, 3]) {
     test(`first visit ${lang}, sample ${sample}`, async ({ page }, testInfo) => {
+      const errors: string[] = [];
       await page.setExtraHTTPHeaders({ "accept-language": lang });
       await page.route("**/*", async (route) => {
         const req = route.request();
@@ -33,7 +34,12 @@ for (const [path, lang] of [
               body: req.method() === "POST" ? req.postData() : undefined,
             }),
             { delayMs: 40 },
-          );
+          ).catch((error: unknown) => {
+            // Gather every missing fixture in a run, without letting an
+            // unrecorded request escape to a real backend or pass the test.
+            errors.push(String(error));
+            return Response.json({ message: String(error) }, { status: 501 });
+          });
           return route.fulfill({
             status: reply.status,
             headers: Object.fromEntries(reply.headers),
@@ -46,7 +52,6 @@ for (const [path, lang] of [
         }
         await route.continue();
       });
-      const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => {
         if (
@@ -83,6 +88,7 @@ for (const [path, lang] of [
       const html = await response!.text();
       expect(html).not.toContain("data-home-loading");
       expect(html).not.toContain("ssr-doc-guard:truncated");
+      expect(html).not.toContain("$RX(");
       expect(html).toContain("data-builder-renderer");
       const title = String(homeFixture.posts[0][lang === "pl" ? "title_pl" : "title_en"]);
       await expect(

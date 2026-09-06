@@ -39,6 +39,11 @@ Redukcja CSS wynosi 60,3%, HTML 28,6%, a gzip dokumentu 25,5%. Bajty HTML mogą
 zmieniać się wraz z serializacją i treścią; nie są stałym rozmiarem produkcji.
 Limitów rozmiaru nie podniesiono. Graf chunków po podziale jest acykliczny.
 
+Powtarzalny syntetyczny fixture dołączony do repozytorium daje osobny wynik:
+CSS 329 794 → 130 532 B, HTML 584 871 → 385 724 B, gzip HTML 65 894 → 47 191 B.
+Nie zawiera źródłowych treści, identyfikatorów ani adresów produkcji. Prosty SVG
+i syntetyczna kopia tekstów ograniczają porównywalność czasu LCP z produkcją.
+
 ## Pomiar czasu i wyglądu
 
 `bun run test:e2e:performance` uruchamia Chromium na `.output/server/index.mjs`,

@@ -7,7 +7,8 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
 
 export default defineConfig({
-  testDir: "./e2e/performance",
+  // A sibling directory keeps production timing out of the dev-server suite.
+  testDir: "./e2e-performance",
   fullyParallel: false,
   workers: 1,
   retries: 0,
