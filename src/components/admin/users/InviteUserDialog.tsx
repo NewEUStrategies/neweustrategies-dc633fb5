@@ -6,7 +6,7 @@
 // `profiles.avatar_url` / `profiles.linkedin_url` przy tworzeniu konta.
 // „Autoakceptacja” oznacza zaproszenie zamknięte od razu po utworzeniu konta
 // (status `accepted`), bez czekania na pierwsze logowanie.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-team-media";
 import { toast } from "sonner";
@@ -31,7 +31,13 @@ import {
 import { Upload, X, Loader2 } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { createInvitations, sendInvitation } from "@/lib/admin/invitations.functions";
+import {
+  createInvitations,
+  sendInvitation,
+  searchCrmCompanies,
+  createCrmCompany,
+} from "@/lib/admin/invitations.functions";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useServerFn } from "@tanstack/react-start";
 import {
   initialsFromNameParts,
@@ -63,6 +69,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   const [lastName, setLastName] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [photo, setPhoto] = useState("");
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [jobTitle, setJobTitle] = useState("");
   const [role, setRole] = useState<Role>("author");
   const [mode, setMode] = useState<Mode>("magic_link");
   const [autoAccept, setAutoAccept] = useState(true);
@@ -70,6 +79,8 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const create = useServerFn(createInvitations);
+  const findCompanies = useServerFn(searchCrmCompanies);
+  const addCompany = useServerFn(createCrmCompany);
   const send = useServerFn(sendInvitation);
 
   const initials = useMemo(() => initialsFromNameParts(firstName, lastName), [firstName, lastName]);
@@ -78,6 +89,38 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
     [firstName, lastName],
   );
   const linkedinOk = isLinkedInInputValid(linkedin);
+  const companyTerm = useDebouncedValue(companyQuery, 250);
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    void findCompanies({ data: { q: companyTerm } })
+      .then((r) => {
+        if (alive) setCompanies(r.companies);
+      })
+      .catch(() => {
+        if (alive) setCompanies([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, companyTerm, findCompanies]);
+  const exactMatch = companies.find(
+    (c) => c.name.trim().toLowerCase() === companyQuery.trim().toLowerCase(),
+  );
+
+  const createCompany = async () => {
+    const name = companyQuery.trim();
+    if (name.length < 2) return;
+    try {
+      const c = await addCompany({ data: { name } });
+      setCompanyId(c.id);
+      setCompanyQuery(c.name);
+      toast.success(t("adminTeamMedia.inviteUser.companyCreated"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const reset = () => {
     setEmail("");
@@ -85,6 +128,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
     setLastName("");
     setLinkedin("");
     setPhoto("");
+    setCompanyQuery("");
+    setCompanyId(null);
+    setJobTitle("");
     setAutoAccept(true);
   };
 
@@ -134,6 +180,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
               metadata: {
                 ...(photo ? { photo } : {}),
                 ...(linkedinUrl ? { linkedin: linkedinUrl } : {}),
+                ...(companyQuery.trim() ? { company_name: companyQuery.trim() } : {}),
+                ...(companyId ? { company_id: companyId } : {}),
+                ...(jobTitle.trim() ? { job_title: jobTitle.trim() } : {}),
                 auto_accept: autoAccept,
               },
             },
@@ -312,6 +361,53 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                   {t("adminTeamMedia.inviteUser.linkedinError")}
                 </p>
               ) : null}
+            </div>
+          </div>
+
+          <div className="grid min-w-0 gap-3 rounded-[6px] border border-border bg-muted/20 p-3">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              {t("adminTeamMedia.inviteUser.orgSection")}
+            </p>
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-1">
+                <Label htmlFor="invite-company">{t("adminTeamMedia.inviteUser.company")}</Label>
+                <Input
+                  id="invite-company"
+                  list="invite-company-options"
+                  value={companyQuery}
+                  placeholder={t("adminTeamMedia.inviteUser.companyPlaceholder")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCompanyQuery(v);
+                    const hit = companies.find((c) => c.name === v);
+                    setCompanyId(hit?.id ?? null);
+                  }}
+                />
+                <datalist id="invite-company-options">
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.name} />
+                  ))}
+                </datalist>
+                {companyQuery.trim().length >= 2 && !exactMatch ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-1 w-fit rounded-[6px]"
+                    onClick={() => void createCompany()}
+                  >
+                    {t("adminTeamMedia.inviteUser.companyCreate", { name: companyQuery.trim() })}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="grid min-w-0 gap-1">
+                <Label htmlFor="invite-job-title">{t("adminTeamMedia.inviteUser.jobTitle")}</Label>
+                <Input
+                  id="invite-job-title"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 

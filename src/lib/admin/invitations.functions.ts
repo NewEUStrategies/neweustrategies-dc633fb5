@@ -44,6 +44,14 @@ function slugify(input: string): string {
     .slice(0, 60);
 }
 
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function generateTempPassword(): string {
   // 16 znaków, alfabet unikający mylących glifów (0/O/1/l/I)
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -267,9 +275,12 @@ async function performSend(
   try {
     if (!authUserId) {
       if (inv.mode === "magic_link") {
-        const { data: created, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-          redirectTo: `${origin}/auth/callback`,
-          data: { display_name: displayName, tenant_id: inv.tenant_id },
+        // Konto zakładamy bez hasła i BEZ maila Supabase - własny e-mail
+        // (niżej) niesie link aktywacyjny wygenerowany przez generateLink.
+        const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          email_confirm: false,
+          user_metadata: { display_name: displayName, tenant_id: inv.tenant_id },
         });
         if (error) throw error;
         authUserId = created.user?.id ?? null;
@@ -305,7 +316,13 @@ async function performSend(
         bio_pl: (meta.bio_pl as string) ?? null,
         bio_en: (meta.bio_en as string) ?? null,
         phone: (meta.phone as string) ?? null,
-        job_title: (meta.position_pl as string) ?? (meta.position_en as string) ?? null,
+        job_title:
+          (meta.job_title as string) ??
+          (meta.position_pl as string) ??
+          (meta.position_en as string) ??
+          null,
+        current_company: (meta.company_name as string) ?? null,
+        current_company_id: (meta.company_id as string) ?? null,
         linkedin_url: (meta.linkedin as string) ?? null,
         facebook_url: (meta.facebook as string) ?? null,
         instagram_url: (meta.instagram as string) ?? null,
@@ -348,25 +365,65 @@ async function performSend(
         { onConflict: "user_id,role", ignoreDuplicates: true },
       );
 
-    // E-mail z hasłem (dla temp_password); magic_link wysyła Supabase Auth sam.
-    if (inv.mode === "temp_password" && tempPassword) {
+    // E-mail zaproszenia wysyłamy ZAWSZE własną ścieżką: dla trybu
+    // magic_link niesie link aktywacyjny (generateLink - Supabase go tylko
+    // generuje, nie wysyła), dla temp_password login + hasło tymczasowe.
+    let actionLink: string | null = null;
+    if (inv.mode === "magic_link") {
+      const redirectTo = `${origin}/auth/callback`;
+      const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { redirectTo },
+      });
+      if (linkErr || !linkData?.properties?.action_link) {
+        // Konto istnieje już wcześniej (resend) - wtedy invite nie przejdzie.
+        const { data: magic, error: magicErr } = await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email,
+          options: { redirectTo },
+        });
+        if (magicErr || !magic?.properties?.action_link) {
+          throw new Error(`link_failed:${(linkErr ?? magicErr)?.message ?? "unknown"}`);
+        }
+        actionLink = magic.properties.action_link;
+      } else {
+        actionLink = linkData.properties.action_link;
+      }
+    }
+
+    {
+      const orgLine = meta.company_name
+        ? `<p style="margin:0 0 8px">Organizacja: <strong>${escapeHtml(String(meta.company_name))}</strong>${
+            meta.job_title ? ` - ${escapeHtml(String(meta.job_title))}` : ""
+          }</p>`
+        : "";
       const loginUrl = `${origin}/auth?email=${encodeURIComponent(email)}`;
+      const cta = actionLink
+        ? `<p style="margin:20px 0"><a href="${actionLink}" style="display:inline-block;background:#0F172A;color:#fff;padding:12px 22px;border-radius:6px;text-decoration:none">Aktywuj konto</a></p>
+           <p style="color:#64748B;font-size:12px">Jeśli przycisk nie działa, skopiuj adres:<br><span style="word-break:break-all">${actionLink}</span></p>`
+        : `<div style="background:#F1F5F9;border-radius:6px;padding:16px;margin:16px 0;font-family:monospace;font-size:14px">
+             <div><strong>Login (e-mail):</strong> ${escapeHtml(email)}</div>
+             <div><strong>Hasło tymczasowe:</strong> ${escapeHtml(tempPassword ?? "")}</div>
+           </div>
+           <p style="margin:20px 0"><a href="${loginUrl}" style="display:inline-block;background:#0F172A;color:#fff;padding:12px 22px;border-radius:6px;text-decoration:none">Zaloguj się</a></p>`;
       const html = `
         <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0F172A">
           <h1 style="color:#0F172A;font-size:22px;margin:0 0 12px">Witamy w New European Strategies</h1>
-          <p>Cześć ${displayName},</p>
-          <p>Zostało dla Ciebie utworzone konto na platformie. Poniżej znajdziesz dane logowania:</p>
-          <div style="background:#F1F5F9;border-radius:8px;padding:16px;margin:16px 0;font-family:monospace;font-size:14px">
-            <div><strong>Login (e-mail):</strong> ${email}</div>
-            <div><strong>Hasło tymczasowe:</strong> ${tempPassword}</div>
-          </div>
-          <p><a href="${loginUrl}" style="display:inline-block;background:#0F172A;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">Zaloguj się</a></p>
-          <p style="color:#64748B;font-size:12px;margin-top:24px">Ze względów bezpieczeństwa zmień hasło zaraz po pierwszym logowaniu w panelu profilu.</p>
+          <p>Cześć ${escapeHtml(displayName)},</p>
+          <p>Zostało dla Ciebie przygotowane konto na platformie (rola: <strong>${escapeHtml(inv.role)}</strong>).</p>
+          ${orgLine}
+          ${cta}
+          <p style="color:#64748B;font-size:12px;margin-top:24px">Jeśli nie spodziewasz się tej wiadomości, po prostu ją zignoruj.</p>
         </div>`;
       const res = await sendTransactionalEmail({
         to: email,
-        subject: "Twoje konto w New European Strategies",
+        subject: actionLink
+          ? "Aktywuj swoje konto w New European Strategies"
+          : "Twoje konto w New European Strategies",
         html,
+        tenantId: inv.tenant_id,
+        tags: { kind: "user_invitation" },
       });
       if (!res.ok) {
         return { ok: false, email, error: `email_failed:${res.error}`, tempPassword };
@@ -797,4 +854,53 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
     }
 
     return { created, skipped, linked, errors };
+  });
+
+// ---------- CRM: organizacje dla zaproszeń --------------------------------
+
+export interface CrmCompanyOption {
+  id: string;
+  name: string;
+}
+
+/** Podpowiedzi organizacji z CRM (tenant wywołującego, admin-only). */
+export const searchCrmCompanies = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ q: z.string().max(120).optional() }).parse(input))
+  .handler(async ({ data, context }): Promise<{ companies: CrmCompanyOption[] }> => {
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    let query = context.supabase
+      .from("crm_companies")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .order("name")
+      .limit(20);
+    const q = data.q?.trim();
+    if (q) query = query.ilike("name", `%${q.replace(/[%_]/g, "")}%`);
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message);
+    return { companies: rows ?? [] };
+  });
+
+/** Tworzy organizację w CRM, jeśli jeszcze jej nie ma (dedup po nazwie). */
+export const createCrmCompany = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ name: z.string().min(2).max(200) }).parse(input))
+  .handler(async ({ data, context }): Promise<CrmCompanyOption> => {
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    const name = data.name.trim();
+    const { data: existing } = await context.supabase
+      .from("crm_companies")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .ilike("name", name)
+      .maybeSingle();
+    if (existing) return existing;
+    const { data: created, error } = await context.supabase
+      .from("crm_companies")
+      .insert({ tenant_id: tenantId, name, created_by: context.userId })
+      .select("id, name")
+      .single();
+    if (error) throw new Error(error.message);
+    return created;
   });
