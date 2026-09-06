@@ -239,7 +239,7 @@ body {
      tekstowe użycia (text-brand-ink) idą przez ciemniejszy atrament w tym samym
      hue (4.75:1 na --background). Tła/akcenty (bg-brand) nadal używają --brand.
      Strażnik: src/lib/__tests__/brandContrast.test.ts. */
-  --brand-ink: #b85410;
+  --brand-ink: #FA9346;
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
      rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */
@@ -259,10 +259,10 @@ body {
      Używane przez nagłówki/CTA/przyciski z variant="gradient".
      Light: jasny brand -> głęboki brand-ink (WCAG AA na tekście, brak
      mętnego przejścia w czerń). */
-  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #b85410 100%);
+  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #FA9346 100%);
   --gradient-brand-soft: linear-gradient(135deg, #fed7b5 0%, #fa9346 100%);
   --gradient-heading-stop-1: #ed6d1f;
-  --gradient-heading-stop-2: #b85410;
+  --gradient-heading-stop-2: #FA9346;
 
   /* ---- Wykresy (silnik SVG - src/components/charts) ----
      Paleta kategoryczna 8 slotów o STAŁEJ kolejności (mechanizm bezpieczeństwa

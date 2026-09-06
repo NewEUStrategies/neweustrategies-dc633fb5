@@ -146,7 +146,7 @@ export const MOBILE_BOTTOM_BAR_DEFAULTS: MobileBottomBarConfig = {
       href: "/",
       // brand-ink / brand: te same wartości, których używa reszta serwisu na
       // jasnym i ciemnym tle (kontrast AA w obu motywach).
-      color: "#b85410",
+      color: "#FA9346",
       color_dark: "#fa9346",
       badge: "none",
       enabled: true,
