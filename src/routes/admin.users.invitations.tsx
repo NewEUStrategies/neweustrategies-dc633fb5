@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle2, Clock3, Mail, Search, TriangleAlert, UserRoundCheck } from "@/lib/lucide-shim";
+import { AlertTriangle, CheckCircle2, Clock, Mail, Search, Users } from "@/lib/lucide-shim";
 import {
   listInvitations,
   sendInvitation,
@@ -118,9 +118,9 @@ function InvitationsPage() {
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["all", stats.all, Mail],
-          ["waiting", stats.waiting, Clock3],
-          ["failed", stats.failed, TriangleAlert],
-          ["accepted", stats.accepted, UserRoundCheck],
+          ["waiting", stats.waiting, Clock],
+          ["failed", stats.failed, AlertTriangle],
+          ["accepted", stats.accepted, Users],
         ].map(([key, value, Icon]) => (
           <button key={String(key)} type="button" onClick={() => setStatus(String(key))} className="flex min-h-20 items-center gap-3 rounded-[6px] border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <span className="grid size-10 shrink-0 place-items-center rounded-[6px] bg-muted"><Icon className="size-5" /></span>
