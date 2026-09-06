@@ -688,7 +688,9 @@ describe("admin.users - oferta zmiany roli per rola wywołującego", () => {
     h.roles = ["admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(2));
-    const adminMenu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"));
+    const adminMenu = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
+    );
     fireEvent.click(adminMenu[adminMenu.length - 1]);
     expect(document.body.textContent).not.toContain("adminUsers.sign");
 
@@ -696,7 +698,9 @@ describe("admin.users - oferta zmiany roli per rola wywołującego", () => {
     h.roles = ["super_admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(2));
-    const superMenu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"));
+    const superMenu = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
+    );
     fireEvent.click(superMenu[superMenu.length - 1]);
     expect(document.body.textContent).toContain("adminUsers.sign");
   });
@@ -2968,9 +2972,7 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
     h.roles = ["super_admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(1));
-    const menu = Array.from(
-      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
-    )[0];
+    const menu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"))[0];
     expect(menu).toBeTruthy();
     fireEvent.click(menu);
     const impersonate = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
@@ -3010,9 +3012,7 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
   it("edycja z menu wiersza przenosi na kartę użytkownika", async () => {
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(1));
-    const menu = Array.from(
-      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
-    )[0];
+    const menu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"))[0];
     fireEvent.click(menu);
     const edit = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((button) =>
       button.textContent?.includes("adminUsers.editAccount"),
