@@ -396,7 +396,6 @@ const truncate = (s: string, max: number) =>
 
 const SHARED_STYLES = `
 @keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
-@keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 /* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami.
    Osobna rezerwa pod dekorację jest krytyczna: bez niej overflow obcina dolne
    piksele podkreślenia ostatniej z 3 linii i optycznie zmienia jego grubość. */
@@ -1070,7 +1069,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       <style href="nes-slider-shared-v1" precedence="builder">
         {SHARED_STYLES}
       </style>
-      {instanceCss && <style>{instanceCss}</style>}
+      {instanceCss && <style data-slider-instance>{instanceCss}</style>}
       {variant === "multi-card" && <MultiCardVariant {...sharedProps} />}
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
       {variant === "split-feature" && <SplitFeatureVariant {...sharedProps} />}
@@ -1205,11 +1204,7 @@ function EditorialHeroVariant(p: VariantProps) {
         )}
       </div>
 
-      <div
-        key={p.safeIdx}
-        className="px-4 pt-8 pb-2 text-center"
-        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
-      >
+      <div key={p.safeIdx} className="px-4 pt-8 pb-2 text-center">
         {p.showTitle &&
           (href ? (
             <AppLink href={href} className="inline-block w-full">
@@ -1492,11 +1487,7 @@ function CinematicOverlayVariant(p: VariantProps) {
           }}
         />
         {/* Text */}
-        <div
-          key={p.safeIdx}
-          className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white"
-          style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
-        >
+        <div key={p.safeIdx} className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
           <div className="max-w-3xl">
             {cat && (
               <span
@@ -1633,11 +1624,7 @@ function SplitFeatureVariant(p: VariantProps) {
           />
         )}
       </div>
-      <div
-        key={p.safeIdx}
-        className="px-1 md:px-2"
-        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
-      >
+      <div key={p.safeIdx} className="px-1 md:px-2">
         {cat && (
           <span
             className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider text-white shadow"

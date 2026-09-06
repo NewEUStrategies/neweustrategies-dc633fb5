@@ -17384,6 +17384,7 @@ export type Database = {
           metadata: Json
           mode: Database["public"]["Enums"]["invitation_mode"]
           role: Database["public"]["Enums"]["app_role"]
+          send_count: number
           sent_at: string | null
           source: string | null
           status: Database["public"]["Enums"]["invitation_status"]
@@ -17403,6 +17404,7 @@ export type Database = {
           metadata?: Json
           mode?: Database["public"]["Enums"]["invitation_mode"]
           role?: Database["public"]["Enums"]["app_role"]
+          send_count?: number
           sent_at?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
@@ -17422,6 +17424,7 @@ export type Database = {
           metadata?: Json
           mode?: Database["public"]["Enums"]["invitation_mode"]
           role?: Database["public"]["Enums"]["app_role"]
+          send_count?: number
           sent_at?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
@@ -19037,6 +19040,10 @@ export type Database = {
         Returns: number
       }
       admin_assert_verification_admin: { Args: never; Returns: string }
+      admin_claim_invitation_send: {
+        Args: { p_invitation_id: string }
+        Returns: number
+      }
       admin_clear_content_password: {
         Args: {
           _entity_id: string

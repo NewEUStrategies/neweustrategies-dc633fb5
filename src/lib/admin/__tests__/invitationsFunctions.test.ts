@@ -40,7 +40,7 @@
 //   `tenant_isolation_three_tenants_test.sql`,
 //   `security_definer_tenant_scope_test.sql`.
 // - INTERFEJSU MODALEK: `src/components/admin/users/__tests__/userDialogs.test.tsx`.
-// - BRAMKI POCZTY: `sendTransactionalEmail` ma własny test; tutaj jest atrapą
+// - BRAMKI POCZTY: `enqueueRawEmail` ma własny test; tutaj jest atrapą
 //   i sprawdzamy WYŁĄCZNIE, co system zaproszeń robi z jej odmową.
 //
 // RODO: żadnych realnych danych osobowych. Adresy wyłącznie w `example.org`,
@@ -145,8 +145,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
-vi.mock("@/lib/server/email.server", () => ({
-  sendTransactionalEmail: async (input: { to: string; subject: string; html: string }) => {
+vi.mock("@/lib/email/transactional.server", () => ({
+  enqueueRawEmail: async (input: { to: string; subject: string; html: string }) => {
     h.emails.push(input);
     return h.emailOk ? { ok: true } : { ok: false, error: h.emailError };
   },

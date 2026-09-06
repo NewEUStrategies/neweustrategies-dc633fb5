@@ -34,6 +34,13 @@ dużego kosztu parsowania dokumentu i uruchamiania kodu klienta przy pierwszym w
   widgecie po montażu. Test hydratacji odtworzył usunięcie przez tę aktualizację
   treści SSR oczekującej na kod widgetu. Aktualizacje aktywnego obserwatora
   również używają tranzycji; zachowane są tryby jednorazowy i powtarzalny.
+- Główne renderery czytelnicze (listy, etykiety i obie warstwy slidera)
+  są dostępne synchronicznie podczas SSR. Rozdział `createIsomorphicFn`
+  usuwa ich importy serwerowe z kompilacji klienta. Sam warunek SSR przy
+  statycznym imporcie zostawiał skutki uboczne zależności w pakiecie startowym;
+  wykrył to niezmieniony limit rozmiaru. Pozostałe widgety nadal strumieniują.
+- Tytuły sliderów nie zaczynają od `opacity: 0` w animacji trwającej 600 ms.
+  Są czytelne od pierwszego wyświetlenia; przejścia zdjęć pozostają.
 
 ## Zmierzone lokalnie na jednakowych buildach produkcyjnych
 
@@ -78,6 +85,16 @@ elementy odpowiedzialne za przesunięcia przed interakcją.
 Transport testowy przechwytuje tylko backend i zasoby zewnętrzne. Lokalne
 CSS/JS/fonty płyną bezpośrednio z artefaktu, bez dodatkowej kolejki sterownika
 Playwright przy każdym żądaniu. Bazę i kandydata mierzy ten sam harness.
+
+Przebieg diagnostyczny [34062357673](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34062357673)
+na `8178d6c` potwierdził zachowanie oryginalnego tytułu SSR we wszystkich 6
+próbach kandydata (0/6 w bazie). Zakończenie rzeczywistego kliknięcia trwało
+1,50–2,50 s; w bazie 1,87–2,86 s. CLS spadł do 0,00005–0,049 w 5/6 prób.
+Jedyny pozostały wynik 0,324 przy zimnym procesie nadal oblał bramkę 0,1:
+trace pokazał puste miejsca po zimnych importach kodu widgetów, już przed
+hydratacją. To uzasadnia synchroniczne renderery SSR opisane wyżej. Tego
+przebiegu nie wolno przedstawiać jako zaliczenia całej bramki; wynik końcowy
+po tej dodatkowej poprawce należy odczytać z najnowszego workflow PR.
 
 To kontrolowane laboratorium bez throttlingu, nie produkcyjny p75 ani INP.
 Nowy kontekst oznacza zimny cache przeglądarki; kolejne próby rozgrzewają cache

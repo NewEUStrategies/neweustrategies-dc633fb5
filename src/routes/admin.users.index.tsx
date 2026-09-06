@@ -24,6 +24,17 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -36,18 +47,25 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  Eye,
   UserCog,
   Mail,
   Users as UsersIcon,
   Search,
   X,
   Send,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
-import { resendInvitationsForEmails } from "@/lib/admin/invitations.functions";
+import {
+  resendInvitationsForEmails,
+  sendActivationEmailForUser,
+} from "@/lib/admin/invitations.functions";
+import { deleteUserAccount, getUserAccountStatus } from "@/lib/admin/accountAdmin.functions";
 import { adminUsersQueryOptions, type AdminUserRow } from "@/lib/admin/users-query";
 import { uiLocale } from "@/lib/i18n/format";
 
@@ -855,31 +873,14 @@ function Users() {
                         className="p-3 text-right whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {isSuperAdmin && u.id !== user?.id && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title={t("adminUsers.signUser")}
-                            onClick={async () => {
-                              try {
-                                await impersonateUser(u.id, u.display_name ?? u.email ?? u.id);
-                                toast.success(t("adminUsers.impersonationActive"));
-                                window.location.assign("/profile");
-                              } catch (e) {
-                                toast.error(e instanceof Error ? e.message : "Error");
-                              }
-                            }}
-                          >
-                            <UserCog className="w-4 h-4" />
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => navigate({ to: "/admin/users/$id", params: { id: u.id } })}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                        <UserActionsMenu
+                          account={u}
+                          currentUserId={user?.id ?? null}
+                          canImpersonate={isSuperAdmin}
+                          onChanged={() => {
+                            void qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
+                          }}
+                        />
                       </td>
                     </tr>
                   );
@@ -897,5 +898,202 @@ function Users() {
         </table>
       </div>
     </div>
+  );
+}
+
+function UserActionsMenu({
+  account,
+  currentUserId,
+  canImpersonate,
+  onChanged,
+}: {
+  account: AdminUserRow;
+  currentUserId: string | null;
+  canImpersonate: boolean;
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const fetchStatus = useServerFn(getUserAccountStatus);
+  const sendActivation = useServerFn(sendActivationEmailForUser);
+  const removeAccount = useServerFn(deleteUserAccount);
+  const [open, setOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [busyAction, setBusyAction] = useState<"activation" | "delete" | null>(null);
+  const { data: status } = useQuery({
+    queryKey: ["admin-user-account-status", account.id],
+    queryFn: () => fetchStatus({ data: { userId: account.id } }),
+    enabled: open,
+  });
+  const isSelf = account.id === currentUserId;
+  const sendCount = status?.invitationSendCount ?? 0;
+  const canSendActivation = status ? status.state !== "active" && sendCount < 5 : false;
+  const activationLabel = status?.invitationId
+    ? t("adminUsers.resendActivationEmail")
+    : t("adminUsers.sendActivationEmail");
+
+  const openEditor = () => {
+    setOpen(false);
+    void navigate({ to: "/admin/users/$id", params: { id: account.id } });
+  };
+
+  const handleActivation = async () => {
+    if (!canSendActivation || busyAction) return;
+    setBusyAction("activation");
+    try {
+      const result = await sendActivation({ data: { userId: account.id } });
+      if (!result.ok) {
+        throw new Error(
+          result.error === "activation_send_limit_reached"
+            ? t("adminUsers.activationSendLimitReached")
+            : (result.error ?? t("adminUsers.activationResendError")),
+        );
+      }
+      toast.success(t("adminUsers.activationResent"));
+      await qc.invalidateQueries({ queryKey: ["admin-user-account-status", account.id] });
+      setOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("adminUsers.activationResendError"));
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!account.email || busyAction) return;
+    setBusyAction("delete");
+    try {
+      await removeAccount({ data: { userId: account.id, confirmEmail } });
+      toast.success(t("adminUsers.deleteAccountDone"));
+      setDeleteOpen(false);
+      setConfirmEmail("");
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const confirmationMatches =
+    Boolean(account.email) && confirmEmail.trim().toLowerCase() === account.email?.toLowerCase();
+
+  return (
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 rounded-[6px]"
+            aria-label={t("adminUsers.moreActions")}
+            title={t("adminUsers.moreActions")}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64 rounded-[6px] p-1.5 font-display">
+          <Button
+            variant="ghost"
+            className="h-9 w-full justify-start rounded-[4px]"
+            onClick={openEditor}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            {t("adminUsers.editAccount")}
+          </Button>
+          {status?.state !== "active" && (
+            <Button
+              variant="ghost"
+              className="h-auto min-h-9 w-full justify-start rounded-[4px] py-2"
+              disabled={!canSendActivation || busyAction === "activation"}
+              onClick={() => void handleActivation()}
+            >
+              {busyAction === "activation" ? (
+                <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-4 w-4 shrink-0" />
+              )}
+              <span className="flex min-w-0 flex-col items-start text-left">
+                <span>{activationLabel}</span>
+                {status && (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {t("adminUsers.activationSendUsage", { count: sendCount, limit: 5 })}
+                  </span>
+                )}
+              </span>
+            </Button>
+          )}
+          {canImpersonate && !isSelf && (
+            <Button
+              variant="ghost"
+              className="h-9 w-full justify-start rounded-[4px]"
+              onClick={async () => {
+                setOpen(false);
+                try {
+                  await impersonateUser(
+                    account.id,
+                    account.display_name ?? account.email ?? account.id,
+                  );
+                  toast.success(t("adminUsers.impersonationActive"));
+                  window.location.assign("/profile");
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Error");
+                }
+              }}
+            >
+              <UserCog className="mr-2 h-4 w-4" />
+              {t("adminUsers.sign")}
+            </Button>
+          )}
+          {!isSelf && (
+            <Button
+              variant="ghost"
+              className="h-9 w-full justify-start rounded-[4px] text-destructive hover:text-destructive"
+              onClick={() => {
+                setOpen(false);
+                setDeleteOpen(true);
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t("adminUsers.deleteAccount")}
+            </Button>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent className="font-display">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("adminUsers.deleteAccountConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("adminUsers.deleteAccountConfirmDesc")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={confirmEmail}
+            onChange={(event) => setConfirmEmail(event.target.value)}
+            placeholder={account.email ?? t("adminUsers.deleteAccountConfirmPlaceholder")}
+            aria-label={t("adminUsers.deleteAccountConfirmPlaceholder")}
+            className="rounded-[6px]"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("adminUsers.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!confirmationMatches || busyAction === "delete"}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDelete();
+              }}
+            >
+              {busyAction === "delete" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("adminUsers.deleteAccountSubmit")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

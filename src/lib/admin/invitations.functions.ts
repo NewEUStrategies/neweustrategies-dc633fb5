@@ -11,17 +11,15 @@
 //   - sendInvitation(id)            - tworzy konto (auth.admin.createUser lub
 //                                     inviteUserByEmail), rekordy profiles /
 //                                     author_profiles / user_roles i wysyła
-//                                     e-mail (dla temp_password przez
-//                                     sendTransactionalEmail).
+//                                     e-mail przez domenową kolejkę pocztową.
 //   - resendInvitation(id)          - jak wyżej, jeśli konto istnieje pomija.
 //   - revokeInvitation(id)          - miękkie oznaczenie statusu.
 //   - linkTeamWidgets(pageSlug)     - dopisuje authorSlug / authorUserId do
 //                                     widgetów team-member matchowanych po
 //                                     e-mailu.
 //
-// Rejestrujemy się do istniejącej infrastruktury: sendTransactionalEmail
-// (bramka Resend przez connector gateway platformy) i supabaseAdmin ładowany
-// wewnątrz .handler() (patrz reguły import-graph).
+// Rejestrujemy się do istniejącej infrastruktury pocztowej projektu i
+// supabaseAdmin ładowanego wewnątrz .handler() (patrz reguły import-graph).
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -247,7 +245,11 @@ interface SendResult {
   email: string;
   error?: string;
   tempPassword?: string;
+  sendCount?: number;
+  sendLimit?: number;
 }
+
+const ACTIVATION_SEND_LIMIT = 5;
 
 async function performSend(
   supabase: SupabaseClient<Database>,
@@ -255,7 +257,7 @@ async function performSend(
   invitationId: string,
 ): Promise<SendResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { sendTransactionalEmail } = await import("@/lib/server/email.server");
+  const { enqueueRawEmail } = await import("@/lib/email/transactional.server");
 
   const { data: inv, error: invErr } = await supabase
     .from("user_invitations")
@@ -268,6 +270,20 @@ async function performSend(
   const email = inv.email;
   const displayName = inv.display_name ?? email;
   const origin = process.env.PUBLIC_APP_URL ?? "https://neweuropeanstrategies.com";
+
+  const { data: sendCount, error: claimError } = await supabase.rpc("admin_claim_invitation_send", {
+    p_invitation_id: invitationId,
+  });
+  if (claimError) {
+    const limitReached = claimError.message.includes("activation_send_limit_reached");
+    return {
+      ok: false,
+      email,
+      error: limitReached ? "activation_send_limit_reached" : claimError.message,
+      sendCount: Number(inv.send_count ?? ACTIVATION_SEND_LIMIT),
+      sendLimit: ACTIVATION_SEND_LIMIT,
+    };
+  }
 
   let authUserId: string | null = inv.auth_user_id;
   let tempPassword: string | undefined;
@@ -416,14 +432,16 @@ async function performSend(
           ${cta}
           <p style="color:#64748B;font-size:12px;margin-top:24px">Jeśli nie spodziewasz się tej wiadomości, po prostu ją zignoruj.</p>
         </div>`;
-      const res = await sendTransactionalEmail({
+      const res = await enqueueRawEmail({
         to: email,
         subject: actionLink
           ? "Aktywuj swoje konto w New European Strategies"
           : "Twoje konto w New European Strategies",
         html,
+        label: "user_invitation",
+        idempotencyKey: `user-invitation:${invitationId}:send:${String(sendCount)}`,
+        category: "transactional",
         tenantId: inv.tenant_id,
-        tags: { kind: "user_invitation" },
       });
       if (!res.ok) {
         return { ok: false, email, error: `email_failed:${res.error}`, tempPassword };
@@ -461,7 +479,13 @@ async function performSend(
       } as never,
     });
 
-    return { ok: true, email, tempPassword };
+    return {
+      ok: true,
+      email,
+      tempPassword,
+      sendCount: typeof sendCount === "number" ? sendCount : Number(inv.send_count ?? 0) + 1,
+      sendLimit: ACTIVATION_SEND_LIMIT,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await supabase
@@ -478,6 +502,70 @@ export const sendInvitation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<SendResult> => {
     await assertAdmin(context.supabase, context.userId);
     return performSend(context.supabase, context.userId, data.id);
+  });
+
+/**
+ * Wysyła aktywację z poziomu listy użytkowników. Dla kont bez rekordu
+ * zaproszenia tworzy tenantowy rekord magic-link, a następnie korzysta z tej
+ * samej ścieżki wysyłki i atomowego limitu co ekran zaproszeń.
+ */
+export const sendActivationEmailForUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ userId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }): Promise<SendResult> => {
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    const { data: profile, error: profileError } = await context.supabase
+      .from("profiles")
+      .select("email, display_name")
+      .eq("id", data.userId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (profileError) throw new Error(profileError.message);
+    if (!profile?.email) throw new Error("activation_email_missing");
+
+    const email = profile.email.trim().toLowerCase();
+    const { data: existing, error: invitationError } = await context.supabase
+      .from("user_invitations")
+      .select("id, status")
+      .eq("tenant_id", tenantId)
+      .ilike("email", email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (invitationError) throw new Error(invitationError.message);
+
+    let invitationId = existing?.status === "accepted" ? null : (existing?.id ?? null);
+    if (!invitationId) {
+      const { data: roleRows, error: roleError } = await context.supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.userId)
+        .eq("tenant_id", tenantId)
+        .limit(1);
+      if (roleError) throw new Error(roleError.message);
+      const role = roleRows?.[0]?.role ?? "user";
+      const { data: created, error: createError } = await context.supabase
+        .from("user_invitations")
+        .insert({
+          tenant_id: tenantId,
+          email,
+          display_name: profile.display_name ?? email,
+          role,
+          mode: "magic_link",
+          status: "pending",
+          source: "admin_user_actions",
+          metadata: { activation_for_user_id: data.userId } as never,
+          invited_by: context.userId,
+          auth_user_id: data.userId,
+        })
+        .select("id")
+        .single();
+      if (createError || !created)
+        throw new Error(createError?.message ?? "invitation_create_failed");
+      invitationId = created.id;
+    }
+
+    return performSend(context.supabase, context.userId, invitationId);
   });
 
 export const sendInvitationsBulk = createServerFn({ method: "POST" })

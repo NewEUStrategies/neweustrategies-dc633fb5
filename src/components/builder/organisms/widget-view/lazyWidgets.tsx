@@ -6,12 +6,12 @@
 // web-stories / news-ticker / rated-list / tabs renderers to every visitor up
 // front, even on pages that never render them.
 //
-// Each widget below is wrapped in React.lazy + Suspense so its code lives in a
-// separate chunk loaded on demand. With TanStack Start's streaming SSR the
-// dynamic import resolves on the server, so the rendered HTML is identical -
-// only the *client* download is deferred.
+// Browser widgets use React.lazy + Suspense so their code loads on demand.
+// The principal reading renderers are eager on the server (see below): cold
+// code imports must not leave the first server shell without its articles.
+// The remaining widgets still resolve through streaming SSR.
 //
-// Runtime uses `React.lazy(() => import(...))`; types come from `import type`
+// The browser uses `React.lazy(() => import(...))`; types come from `import type`
 // so the compiler still sees widget prop shapes without dragging the widget
 // module into this file's static graph (the split boundary would otherwise
 // collapse - the earlier version imported the real implementations statically
@@ -50,6 +50,7 @@
 // wyłącznie transfer JS na kliencie.
 import { lazy, type ComponentProps, type ComponentType } from "react";
 import { withSuspense } from "./lazySuspense";
+import { createIsomorphicFn } from "@tanstack/react-start";
 
 import type { Editable as EditableImpl } from "../../molecules/Editable";
 
@@ -124,6 +125,27 @@ import type { CounterWidget as CounterWidgetImpl } from "./CounterWidget";
 // leniwy komponent dał się skonsumować bez importu całego rejestru (patrz
 // nagłówek tamtego pliku - to naprawa zakleszczenia w testach).
 
+// Reading renderers must be available in the FIRST server shell. Prefetched
+// data alone still left empty slots during cold React.lazy code imports (CLS
+// 0.324 in the artifact test). The SSR-only references are removed by Vite's
+// client build; browser renderers keep their dynamic-import boundaries.
+import { PostListView as ServerPostListView } from "./PostListView";
+import { PostsSliderWidget as ServerPostsSliderWidget } from "./PostsSliderWidget";
+import { RatedListView as ServerRatedListView } from "./RatedListView";
+import { SectionLabelWidgetView as ServerSectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
+
+// Let the Start compiler erase server imports, including their side effects.
+// A plain SSR ternary left ~20 KiB of side-effect dependencies in browser boot.
+const getServerReadingWidgets = createIsomorphicFn()
+  .server(() => ({
+    PostListView: ServerPostListView,
+    PostsSliderWidget: ServerPostsSliderWidget,
+    RatedListView: ServerRatedListView,
+    SectionLabelWidgetView: ServerSectionLabelWidgetView,
+  }))
+  .client(() => null);
+const serverReadingWidgets = getServerReadingWidgets();
+
 // --- form / interaction widgets -------------------------------------------
 const NewsletterFormLazy = lazy(() =>
   import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
@@ -139,7 +161,7 @@ export const JoinUsForm = withSuspense(JoinUsFormLazy);
 // (login/rejestracja/reset, ciągną AuthFormBlocks) renderują się pod widget
 // switchem w SimpleWidgets - a SimpleWidgets jest w EAGER-owej ścieżce chrome
 // (Header/Footer -> BuilderRenderer). Leniwe chunki zdejmują je z bundla
-// wejściowego każdej strony; SSR wypełnia boundary, więc bez CLS.
+// wejściowego każdej strony; zawartość boundary dostarcza streaming SSR.
 const ContactFormViewLazy = lazy(() =>
   import("@/components/blocks/ContactFormView").then((m) => ({ default: m.ContactFormView })),
 ) as ComponentType<ComponentProps<typeof ContactFormViewImpl>>;
@@ -230,9 +252,11 @@ const EventSponsorsViewLazy = lazy(() =>
 ) as ComponentType<ComponentProps<typeof EventSponsorsViewImpl>>;
 export const EventSponsorsView = withSuspense(EventSponsorsViewLazy);
 
-const RatedListViewLazy = lazy(() =>
-  import("./RatedListView").then((m) => ({ default: m.RatedListView })),
-) as ComponentType<ComponentProps<typeof RatedListViewImpl>>;
+const RatedListViewLazy = serverReadingWidgets
+  ? serverReadingWidgets.RatedListView
+  : (lazy(() =>
+      import("./RatedListView").then((m) => ({ default: m.RatedListView })),
+    ) as ComponentType<ComponentProps<typeof RatedListViewImpl>>);
 export const RatedListView = withSuspense(RatedListViewLazy);
 
 const TabsBlockLazy = lazy(() =>
@@ -351,9 +375,11 @@ export const MethodologyWidgetView = withSuspense(MethodologyWidgetViewLazy);
 // personalizowane must-reads i slider z wpisów mają własne - każdy ciągnie
 // inną warstwę zapytań (postListQuery / useRecommendedPosts / sliderPostsQuery)
 // i żadna z nich nie ma prawa jechać w chunku wejściowym chrome.
-const PostListViewLazy = lazy(() =>
-  import("./PostListView").then((m) => ({ default: m.PostListView })),
-) as ComponentType<ComponentProps<typeof PostListViewImpl>>;
+const PostListViewLazy = serverReadingWidgets
+  ? serverReadingWidgets.PostListView
+  : (lazy(() =>
+      import("./PostListView").then((m) => ({ default: m.PostListView })),
+    ) as ComponentType<ComponentProps<typeof PostListViewImpl>>);
 export const PostListView = withSuspense(PostListViewLazy);
 
 const TailoredMustReadsViewLazy = lazy(() =>
@@ -361,9 +387,11 @@ const TailoredMustReadsViewLazy = lazy(() =>
 ) as ComponentType<ComponentProps<typeof TailoredMustReadsViewImpl>>;
 export const TailoredMustReadsView = withSuspense(TailoredMustReadsViewLazy);
 
-const PostsSliderWidgetLazy = lazy(() =>
-  import("./PostsSliderWidget").then((m) => ({ default: m.PostsSliderWidget })),
-) as ComponentType<ComponentProps<typeof PostsSliderWidgetImpl>>;
+const PostsSliderWidgetLazy = serverReadingWidgets
+  ? serverReadingWidgets.PostsSliderWidget
+  : (lazy(() =>
+      import("./PostsSliderWidget").then((m) => ({ default: m.PostsSliderWidget })),
+    ) as ComponentType<ComponentProps<typeof PostsSliderWidgetImpl>>);
 export const PostsSliderWidget = withSuspense(PostsSliderWidgetLazy);
 
 const EventCountdownCardViewLazy = lazy(() =>
@@ -397,7 +425,7 @@ const RichHtmlViewLazy = lazy(() =>
 export const RichHtmlView = withSuspense(RichHtmlViewLazy);
 
 // --- chrome na żądanie: cięższe widgety nagłówka -----------------------------
-// SSR renderuje przycisk/menu od razu (zero CLS), a hydratacja dociąga chunk;
+// SSR dostrumieniowuje przycisk/menu, a hydratacja dociąga chunk;
 // React odtwarza kliknięcia sprzed hydratacji na granicy Suspense, więc
 // interakcja nie ginie. W entry zostają tylko lekkie chromeWidgets
 // (lang-switcher, theme-toggle) i nawigacja (menu, mega-menu).
@@ -474,11 +502,13 @@ export const AccordionWidget = withSuspense(AccordionWidgetLazy);
 
 // Etykieta sekcji: 21 wariantów wizualnych (~39 kB źródeł) - nie chrome.
 // Dogrzewane w warmWidgetChunks (etykiety sekcji na głównej ścieżce czytelniczej).
-const SectionLabelWidgetViewLazy = lazy(() =>
-  import("@/lib/builder/sectionLabelVariants").then((m) => ({
-    default: m.SectionLabelWidgetView,
-  })),
-) as ComponentType<ComponentProps<typeof SectionLabelWidgetViewImpl>>;
+const SectionLabelWidgetViewLazy = serverReadingWidgets
+  ? serverReadingWidgets.SectionLabelWidgetView
+  : (lazy(() =>
+      import("@/lib/builder/sectionLabelVariants").then((m) => ({
+        default: m.SectionLabelWidgetView,
+      })),
+    ) as ComponentType<ComponentProps<typeof SectionLabelWidgetViewImpl>>);
 export const SectionLabelWidgetView = withSuspense(SectionLabelWidgetViewLazy);
 
 // Kanwowy click-to-edit: renderuje się WYŁĄCZNIE przy canEdit (kanwa buildera),
