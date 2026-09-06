@@ -104,6 +104,12 @@ function InvitationsPage() {
     if (activated) return t("adminMiscRoutes.invitations.statusAccepted");
     return t(`adminMiscRoutes.invitations.status${value.charAt(0).toUpperCase()}${value.slice(1)}`);
   };
+  const summaryCards = [
+    { key: "all", value: stats.all, icon: Mail },
+    { key: "waiting", value: stats.waiting, icon: Clock },
+    { key: "failed", value: stats.failed, icon: AlertTriangle },
+    { key: "accepted", value: stats.accepted, icon: Users },
+  ];
 
   return (
     <div className="min-w-0 font-display">
@@ -116,15 +122,10 @@ function InvitationsPage() {
       </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["all", stats.all, Mail],
-          ["waiting", stats.waiting, Clock],
-          ["failed", stats.failed, AlertTriangle],
-          ["accepted", stats.accepted, Users],
-        ].map(([key, value, Icon]) => (
-          <button key={String(key)} type="button" onClick={() => setStatus(String(key))} className="flex min-h-20 items-center gap-3 rounded-[6px] border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {summaryCards.map(({ key, value, icon: Icon }) => (
+          <button key={key} type="button" onClick={() => setStatus(key)} className="flex min-h-20 items-center gap-3 rounded-[6px] border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <span className="grid size-10 shrink-0 place-items-center rounded-[6px] bg-muted"><Icon className="size-5" /></span>
-            <span><span className="block text-2xl font-semibold">{value}</span><span className="text-xs text-muted-foreground">{t(`adminMiscRoutes.invitations.summary${String(key).charAt(0).toUpperCase()}${String(key).slice(1)}`)}</span></span>
+            <span><span className="block text-2xl font-semibold">{value}</span><span className="text-xs text-muted-foreground">{t(`adminMiscRoutes.invitations.summary${key.charAt(0).toUpperCase()}${key.slice(1)}`)}</span></span>
           </button>
         ))}
       </div>
