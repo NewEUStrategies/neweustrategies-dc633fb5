@@ -933,7 +933,8 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
     data.state === "active" ? "default" : data.state === "banned" ? "destructive" : "secondary";
   const fmt = (v: string | null) =>
     v ? new Date(v).toLocaleString(locale) : t("adminUsers.never");
-  const canResendActivation = Boolean(data.invitationId) && data.state !== "active";
+  const canResendActivation =
+    Boolean(data.invitationId) && data.state !== "active" && data.invitationSendCount < 5;
 
   const handleResendActivation = async () => {
     if (!data.invitationId || isResending) return;
@@ -982,6 +983,14 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
           value={data.invitationStatus}
         />
       )}
+      {data.invitationId && (
+        <div className="text-xs text-muted-foreground">
+          {t("adminUsers.activationSendUsage", {
+            count: data.invitationSendCount,
+            limit: 5,
+          })}
+        </div>
+      )}
       {canResendActivation && (
         <Button
           type="button"
@@ -998,6 +1007,9 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
           )}
           {t("adminUsers.resendActivationEmail")}
         </Button>
+      )}
+      {data.invitationId && data.invitationSendCount >= 5 && (
+        <p className="text-xs text-destructive m-0">{t("adminUsers.activationSendLimitReached")}</p>
       )}
     </div>
   );
