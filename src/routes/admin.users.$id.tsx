@@ -135,11 +135,11 @@ function UserDetail() {
     [data.first_name, data.last_name].filter(Boolean).join(" ") || data.display_name || "-";
   const hasSocialMedia = Boolean(
     data.website_url ||
-      data.twitter_url ||
-      data.linkedin_url ||
-      data.facebook_url ||
-      data.instagram_url ||
-      data.spotify_url,
+    data.twitter_url ||
+    data.linkedin_url ||
+    data.facebook_url ||
+    data.instagram_url ||
+    data.spotify_url,
   );
 
   return (
