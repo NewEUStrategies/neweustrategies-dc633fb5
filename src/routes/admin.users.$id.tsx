@@ -65,6 +65,7 @@ import {
   deleteUserAccount,
   type AdminAccountStatus,
 } from "@/lib/admin/accountAdmin.functions";
+import { sendInvitation } from "@/lib/admin/invitations.functions";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import { BADGE_ORDER, badgeLabel, useUserBadges } from "@/lib/profile/badges";
 import { grantBadge, revokeUserBadge } from "@/lib/admin/badges";
@@ -907,7 +908,10 @@ function UserConsentPanel({ userId }: { userId: string }) {
 /** Status konta w warstwie logowania - odczyt przez chronioną funkcję serwerową. */
 function AccountStatusCard({ userId, locale }: { userId: string; locale: string }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const fetchStatus = useServerFn(getUserAccountStatus);
+  const resendInvitation = useServerFn(sendInvitation);
+  const [isResending, setIsResending] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["admin-user-account-status", userId],
     queryFn: () => fetchStatus({ data: { userId } }),
@@ -929,6 +933,22 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
     data.state === "active" ? "default" : data.state === "banned" ? "destructive" : "secondary";
   const fmt = (v: string | null) =>
     v ? new Date(v).toLocaleString(locale) : t("adminUsers.never");
+  const canResendActivation = Boolean(data.invitationId) && data.state !== "active";
+
+  const handleResendActivation = async () => {
+    if (!data.invitationId || isResending) return;
+    setIsResending(true);
+    try {
+      const result = await resendInvitation({ data: { id: data.invitationId } });
+      if (!result.ok) throw new Error(result.error ?? t("adminUsers.activationResendError"));
+      toast.success(t("adminUsers.activationResent"));
+      await qc.invalidateQueries({ queryKey: ["admin-user-account-status", userId] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("adminUsers.activationResendError"));
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -961,6 +981,23 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
           label={t("adminUsers.invitation")}
           value={data.invitationStatus}
         />
+      )}
+      {canResendActivation && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full sm:w-auto"
+          disabled={isResending}
+          onClick={() => void handleResendActivation()}
+        >
+          {isResending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Mail className="mr-2 h-4 w-4" />
+          )}
+          {t("adminUsers.resendActivationEmail")}
+        </Button>
       )}
     </div>
   );
