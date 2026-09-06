@@ -66,7 +66,7 @@ const IDENTITY: NavItem[] = [
 
 const CONTENT: NavItem[] = [
   { to: "/profile/interests", key: "interests", icon: Heart },
-  { to: "/profile/personality", key: "personality", icon: Sparkles },
+  { to: "/profile/personality", key: "personality", icon: ScanFace },
   { to: "/profile/bookmarks", key: "bookmarks", icon: Bookmark },
   { to: "/profile/follows", key: "follows", icon: Heart },
   // Świadomie linkują POZA profil (sieć kontaktów i centrum wiadomości).
