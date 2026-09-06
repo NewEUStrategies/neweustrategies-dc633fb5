@@ -73,7 +73,8 @@ function InvitationsPage() {
   const stats = useMemo(
     () => ({
       all: invitations.length,
-      waiting: invitations.filter((inv) => inv.status === "pending" || inv.status === "sent").length,
+      waiting: invitations.filter((inv) => inv.status === "pending" || inv.status === "sent")
+        .length,
       failed: invitations.filter((inv) => inv.status === "failed" || inv.send_count >= 5).length,
       accepted: invitations.filter((inv) => inv.status === "accepted" || inv.accepted_at).length,
     }),
@@ -98,7 +99,11 @@ function InvitationsPage() {
   }, [invitations, search, status]);
 
   const date = (value: string | null) =>
-    value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "-";
+    value
+      ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+          new Date(value),
+        )
+      : "-";
 
   const statusLabel = (value: string, activated: boolean) => {
     if (activated) return t("adminMiscRoutes.invitations.statusAccepted");
@@ -116,25 +121,62 @@ function InvitationsPage() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold">{t("adminMiscRoutes.invitations.pageTitle")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("adminMiscRoutes.invitations.intro")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t("adminMiscRoutes.invitations.intro")}
+          </p>
         </div>
-        <Button asChild variant="outline"><Link to="/admin/users">{t("adminMiscRoutes.invitations.allUsers")}</Link></Button>
+        <Button asChild variant="outline">
+          <Link to="/admin/users">{t("adminMiscRoutes.invitations.allUsers")}</Link>
+        </Button>
       </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map(({ key, value, icon: Icon }) => (
-          <button key={key} type="button" onClick={() => setStatus(key)} className="flex min-h-20 items-center gap-3 rounded-[6px] border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="grid size-10 shrink-0 place-items-center rounded-[6px] bg-muted"><Icon className="size-5" /></span>
-            <span><span className="block text-2xl font-semibold">{value}</span><span className="text-xs text-muted-foreground">{t(`adminMiscRoutes.invitations.summary${key.charAt(0).toUpperCase()}${key.slice(1)}`)}</span></span>
+          <button
+            key={key}
+            type="button"
+            onClick={() => setStatus(key)}
+            className="flex min-h-20 items-center gap-3 rounded-[6px] border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="grid size-10 shrink-0 place-items-center rounded-[6px] bg-muted">
+              <Icon className="size-5" />
+            </span>
+            <span>
+              <span className="block text-2xl font-semibold">{value}</span>
+              <span className="text-xs text-muted-foreground">
+                {t(
+                  `adminMiscRoutes.invitations.summary${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+                )}
+              </span>
+            </span>
           </button>
         ))}
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-        <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("adminMiscRoutes.invitations.searchPlaceholder")} className="pl-9" /></div>
-        <Select value={status} onValueChange={setStatus}><SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger><SelectContent>
-          {(["all", "waiting", "failed", "accepted", "revoked"] as const).map((value) => <SelectItem key={value} value={value}>{t(`adminMiscRoutes.invitations.filter${value.charAt(0).toUpperCase()}${value.slice(1)}`)}</SelectItem>)}
-        </SelectContent></Select>
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t("adminMiscRoutes.invitations.searchPlaceholder")}
+            className="pl-9"
+          />
+        </div>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="w-full sm:w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(["all", "waiting", "failed", "accepted", "revoked"] as const).map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(
+                  `adminMiscRoutes.invitations.filter${value.charAt(0).toUpperCase()}${value.slice(1)}`,
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="overflow-x-auto rounded-[6px] border border-border bg-card">
@@ -159,47 +201,71 @@ function InvitationsPage() {
               const sendCount = inv.send_count ?? 0;
               const canSend = !activated && inv.status !== "revoked" && sendCount < 5;
               return (
-              <tr key={inv.id} className="border-t border-border">
-                <td className="p-3">{inv.display_name}</td>
-                <td className="p-3 text-muted-foreground">{inv.email}</td>
-                <td className="p-3">
-                  <Badge variant="outline">{inv.role}</Badge>
-                </td>
-                <td className="p-3 text-xs">{inv.mode}</td>
-                <td className="p-3">
-                  <Badge variant={activated ? "default" : inv.status === "failed" ? "destructive" : "secondary"} className="gap-1 rounded-[6px]">
-                    {activated && <CheckCircle2 className="size-3" />}{statusLabel(inv.status, activated)}
-                  </Badge>
-                  {inv.last_error && (
-                    <div
-                      className="text-[10px] text-destructive mt-1 max-w-[200px] truncate"
-                      title={inv.last_error}
+                <tr key={inv.id} className="border-t border-border">
+                  <td className="p-3">{inv.display_name}</td>
+                  <td className="p-3 text-muted-foreground">{inv.email}</td>
+                  <td className="p-3">
+                    <Badge variant="outline">{inv.role}</Badge>
+                  </td>
+                  <td className="p-3 text-xs">{inv.mode}</td>
+                  <td className="p-3">
+                    <Badge
+                      variant={
+                        activated
+                          ? "default"
+                          : inv.status === "failed"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                      className="gap-1 rounded-[6px]"
                     >
-                      {inv.last_error}
-                    </div>
-                  )}
-                </td>
-                <td className="p-3 text-xs text-muted-foreground">{date(inv.created_at)}</td>
-                <td className="p-3 text-xs text-muted-foreground">{date(inv.sent_at)}</td>
-                <td className="p-3 text-xs text-muted-foreground">{date(inv.accepted_at)}</td>
-                <td className="p-3"><Badge variant={sendCount >= 5 ? "destructive" : "outline"} className="rounded-[6px] tabular-nums">{sendCount} / 5</Badge></td>
-                <td className="p-3 text-right whitespace-nowrap">
-                  {canSend && (
-                    <>
-                      <Button size="sm" variant="ghost" onClick={() => doResend(inv.id)}>
-                        {inv.status === "sent"
-                          ? t("adminMiscRoutes.invitations.resend")
-                          : t("adminMiscRoutes.invitations.send")}
+                      {activated && <CheckCircle2 className="size-3" />}
+                      {statusLabel(inv.status, activated)}
+                    </Badge>
+                    {inv.last_error && (
+                      <div
+                        className="text-[10px] text-destructive mt-1 max-w-[200px] truncate"
+                        title={inv.last_error}
+                      >
+                        {inv.last_error}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 text-xs text-muted-foreground">{date(inv.created_at)}</td>
+                  <td className="p-3 text-xs text-muted-foreground">{date(inv.sent_at)}</td>
+                  <td className="p-3 text-xs text-muted-foreground">{date(inv.accepted_at)}</td>
+                  <td className="p-3">
+                    <Badge
+                      variant={sendCount >= 5 ? "destructive" : "outline"}
+                      className="rounded-[6px] tabular-nums"
+                    >
+                      {sendCount} / 5
+                    </Badge>
+                  </td>
+                  <td className="p-3 text-right whitespace-nowrap">
+                    {canSend && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => doResend(inv.id)}>
+                          {inv.status === "sent"
+                            ? t("adminMiscRoutes.invitations.resend")
+                            : t("adminMiscRoutes.invitations.send")}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => doRevoke(inv.id)}>
+                          {t("adminMiscRoutes.invitations.revoke")}
+                        </Button>
+                      </>
+                    )}
+                    {inv.auth_user_id && (
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to="/admin/users/$id" params={{ id: inv.auth_user_id }}>
+                          {t("adminMiscRoutes.invitations.openAccount")}
+                        </Link>
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => doRevoke(inv.id)}>
-                        {t("adminMiscRoutes.invitations.revoke")}
-                      </Button>
-                    </>
-                  )}
-                  {inv.auth_user_id && <Button asChild size="sm" variant="ghost"><Link to="/admin/users/$id" params={{ id: inv.auth_user_id }}>{t("adminMiscRoutes.invitations.openAccount")}</Link></Button>}
-                </td>
-              </tr>
-            );})}
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {visible.length === 0 && (
               <tr>
                 <td colSpan={10} className="p-8 text-center text-sm text-muted-foreground">
