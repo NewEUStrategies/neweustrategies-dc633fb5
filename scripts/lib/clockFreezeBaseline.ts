@@ -185,7 +185,6 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/clubs/__tests__/workspaceForms.test.ts", 77],
   ["src/lib/comments/__tests__/tree.test.ts", 2],
   ["src/lib/community/calendar.test.ts", 15],
-  ["src/lib/content/__tests__/brokenLinkPolicy.test.ts", 2],
   ["src/lib/content/__tests__/previewTokens.functions.test.ts", 5],
   ["src/lib/crm/__tests__/leadListParity.test.ts", 20],
   ["src/lib/crm/__tests__/leadTimeline.test.ts", 2],

@@ -16,6 +16,9 @@
 // Atrapy silników są CELOWO głupie: wypisują to, co dostały, i odczytują
 // kontekst. Dzięki temu asercje mówią o dyspozytorze, a nie o cudzym renderze.
 import { describe, it, expect, vi } from "vitest";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 import { render } from "@testing-library/react";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { BlocksDoc } from "@/lib/blocks/types";

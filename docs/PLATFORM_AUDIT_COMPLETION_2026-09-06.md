@@ -143,3 +143,11 @@ przełączników w `ThemeOptionsPane`. Dodano zapis wszystkich presetów,
 własnych wymiarów, trzech kolorów i typografii, odzyskiwanie wartości pustych
 oraz zgodność podglądu ze szkicem. Test sprawdza także zachowanie sąsiedniej
 gałęzi nagłówka po zapisie. Celowany pomiar przywraca istniejące progi panelu.
+
+Kolejna integracja: main `5a34a0013` zawiera scalony w trakcie weryfikacji
+PR #340. Zachowano jego testy, uzupełniając przypisanie `content.functions.ts`
+do funkcjonalności zapisu CMS. Cztery pliki testowe korzystają ze wspólnego
+zamrożenia zegara; rejestr długu maleje do 219 wpisów. Fixture karty mega menu
+używa `Json` zamiast `unknown`, zgodnie z kontraktem serializowanego widgetu.
+Taksonomia i bramka zegara przechodzą. Celowany przebieg pięciu plików:
+180 sukcesów i 6 istniejących oczekiwanych porażek.
