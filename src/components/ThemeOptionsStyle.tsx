@@ -22,7 +22,18 @@ type InputsCfg = {
   focus_ring_width?: number;
 };
 
-type Cfg = { buttons?: ButtonsCfg; text_fields?: InputsCfg };
+type TogglesCfg = {
+  width?: number;
+  height?: number;
+  radius?: number;
+  on_color?: string;
+  off_color?: string;
+  thumb_color?: string;
+  label_size?: number;
+  label_weight?: number;
+};
+
+type Cfg = { buttons?: ButtonsCfg; text_fields?: InputsCfg; toggles?: TogglesCfg };
 
 const DEFAULTS: Cfg = {};
 
@@ -30,6 +41,7 @@ export function ThemeOptionsStyle() {
   const cfg = useSiteSetting<Cfg>("theme_options", DEFAULTS);
   const b = cfg.buttons ?? {};
   const i = cfg.text_fields ?? {};
+  const tg = cfg.toggles ?? {};
 
   const btnRadius = b.default_variant === "pill" ? 999 : (b.radius ?? 8);
   const buttonsCss = `
@@ -88,6 +100,54 @@ export function ThemeOptionsStyle() {
     }
   `;
 
-  const css = (buttonsCss + inputsCss).replace(/\s+/g, " ").trim();
+  const tgW = tg.width ?? 44;
+  const tgH = tg.height ?? 24;
+  const tgR = tg.radius ?? 999;
+  const thumb = Math.max(8, tgH - 4);
+  const thumbRadius = tgR >= 999 ? 999 : Math.max(0, tgR - 2);
+  const togglesCss = `
+    :root {
+      --to-toggle-w: ${tgW}px;
+      --to-toggle-h: ${tgH}px;
+      --to-toggle-radius: ${tgR}px;
+      --to-toggle-on: ${tg.on_color ?? "var(--primary)"};
+      --to-toggle-off: ${tg.off_color ?? "var(--input)"};
+      --to-toggle-thumb: ${tg.thumb_color ?? "var(--background)"};
+      --to-toggle-label-size: ${tg.label_size ?? 14}px;
+      --to-toggle-label-weight: ${tg.label_weight ?? 500};
+    }
+    button[role="switch"] {
+      width: var(--to-toggle-w);
+      height: var(--to-toggle-h);
+      border-radius: var(--to-toggle-radius);
+      display: inline-flex;
+      align-items: center;
+      padding: 2px;
+      border-width: 0;
+    }
+    button[role="switch"][data-state="unchecked"] {
+      background: var(--to-toggle-off);
+      justify-content: flex-start;
+    }
+    button[role="switch"][data-state="checked"] {
+      background: var(--to-toggle-on);
+      justify-content: flex-end;
+    }
+    button[role="switch"][data-state] > span {
+      width: ${thumb}px;
+      height: ${thumb}px;
+      border-radius: ${thumbRadius}px;
+      background: var(--to-toggle-thumb);
+      transform: none;
+    }
+    label:has(+ button[role="switch"]),
+    button[role="switch"] + label,
+    [data-toggle-label] {
+      font-size: var(--to-toggle-label-size);
+      font-weight: var(--to-toggle-label-weight);
+    }
+  `;
+
+  const css = (buttonsCss + inputsCss + togglesCss).replace(/\s+/g, " ").trim();
   return <style data-theme-options dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
 }

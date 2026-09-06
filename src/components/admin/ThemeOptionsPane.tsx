@@ -39,6 +39,7 @@ import {
   Heading1,
   Palette,
   Clock,
+  ToggleRight,
 } from "@/lib/lucide-shim";
 import { SiteSettingsHistoryDialog } from "@/components/admin/SiteSettingsHistoryDialog";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
@@ -69,6 +70,14 @@ type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
 type ButtonSize = "sm" | "md" | "lg";
 type InputStyle = "filled" | "outline" | "underline";
 type FocusRing = "none" | "brand" | "border";
+type ToggleSize = "sm" | "md" | "lg";
+
+/** Presety rozmiaru toru przełącznika (szerokość x wysokość w px). */
+export const TOGGLE_SIZE_PRESETS: Record<ToggleSize, { width: number; height: number }> = {
+  sm: { width: 32, height: 18 },
+  md: { width: 44, height: 24 },
+  lg: { width: 56, height: 30 },
+};
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
 type ThemeOptions = {
@@ -168,6 +177,17 @@ type ThemeOptions = {
     focus_ring_width: number;
     show_label_above: boolean;
   };
+  toggles: {
+    size: ToggleSize;
+    width: number;
+    height: number;
+    radius: number;
+    on_color: string;
+    off_color: string;
+    thumb_color: string;
+    label_size: number;
+    label_weight: number;
+  };
   sidebars: {
     style: SidebarStyle;
   };
@@ -265,6 +285,17 @@ const DEFAULTS: ThemeOptions = {
     focus_ring_width: 2,
     show_label_above: true,
   },
+  toggles: {
+    size: "md",
+    width: 44,
+    height: 24,
+    radius: 999,
+    on_color: "#FA9346",
+    off_color: "#d4d4d8",
+    thumb_color: "#ffffff",
+    label_size: 14,
+    label_weight: 500,
+  },
   sidebars: {
     style: "style-1",
   },
@@ -283,6 +314,7 @@ const SECTIONS = [
   { id: "header.mobile", labelKey: "themeOptions.sections.mobileHeader", icon: LayoutDashboard },
   { id: "buttons", labelKey: "themeOptions.sections.buttons", icon: MousePointerClick },
   { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
+  { id: "toggles", labelKey: "themeOptions.sections.toggles", icon: ToggleRight },
   { id: "input_colors", labelKey: "themeOptions.sections.inputColors", icon: Palette },
   { id: "icon_colors", labelKey: "themeOptions.sections.iconColors", icon: Palette },
   { id: "link_colors", labelKey: "themeOptions.sections.linkColors", icon: Palette },
@@ -354,6 +386,8 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, buttons: { ...draft.buttons, ...p } });
   const patchInputs = (p: Partial<ThemeOptions["text_fields"]>) =>
     setDraft({ ...draft, text_fields: { ...draft.text_fields, ...p } });
+  const patchToggles = (p: Partial<ThemeOptions["toggles"]>) =>
+    setDraft({ ...draft, toggles: { ...draft.toggles, ...p } });
 
   return (
     <ThemeOptionsBody
@@ -1343,6 +1377,104 @@ export function ThemeOptionsPane() {
                 <InputPreview opts={draft.text_fields} />
               </div>
             )}
+
+            {active === "toggles" && (
+              <div className="space-y-4">
+                <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+                  {t("themeOptions.toggles.hint")}
+                </div>
+                <Row label={t("themeOptions.toggles.size")}>
+                  <Select
+                    value={draft.toggles.size}
+                    onValueChange={(v) =>
+                      patchToggles({
+                        size: v as ToggleSize,
+                        ...TOGGLE_SIZE_PRESETS[v as ToggleSize],
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sm">{t("themeOptions.toggles.sizeSm")}</SelectItem>
+                      <SelectItem value="md">{t("themeOptions.toggles.sizeMd")}</SelectItem>
+                      <SelectItem value="lg">{t("themeOptions.toggles.sizeLg")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label={t("themeOptions.toggles.width")}>
+                  <Input
+                    type="number"
+                    min={24}
+                    max={96}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.toggles.width}
+                    onChange={(e) => patchToggles({ width: Number(e.target.value) || 44 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.toggles.height")}>
+                  <Input
+                    type="number"
+                    min={14}
+                    max={48}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.toggles.height}
+                    onChange={(e) => patchToggles({ height: Number(e.target.value) || 24 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.toggles.radius")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={999}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.toggles.radius}
+                    onChange={(e) => patchToggles({ radius: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.toggles.onColor")}>
+                  <AdminColorPicker
+                    value={draft.toggles.on_color}
+                    onChange={(v) => patchToggles({ on_color: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.toggles.offColor")}>
+                  <AdminColorPicker
+                    value={draft.toggles.off_color}
+                    onChange={(v) => patchToggles({ off_color: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.toggles.thumbColor")}>
+                  <AdminColorPicker
+                    value={draft.toggles.thumb_color}
+                    onChange={(v) => patchToggles({ thumb_color: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.toggles.labelSize")}>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={24}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.toggles.label_size}
+                    onChange={(e) => patchToggles({ label_size: Number(e.target.value) || 14 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.toggles.labelWeight")}>
+                  <Input
+                    type="number"
+                    min={300}
+                    max={800}
+                    step={100}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.toggles.label_weight}
+                    onChange={(e) => patchToggles({ label_weight: Number(e.target.value) || 500 })}
+                  />
+                </Row>
+                <TogglePreview opts={draft.toggles} />
+              </div>
+            )}
           </>
         )}
       </section>
@@ -1891,6 +2023,51 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
             ))}
           </ul>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Podglad przelacznika - odzwierciedla dokladnie zapisywane wartosci. */
+export function TogglePreview({ opts }: { opts: ThemeOptions["toggles"] }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
+  const thumb = Math.max(8, opts.height - 4);
+  const track = (on: boolean): React.CSSProperties => ({
+    width: opts.width,
+    height: opts.height,
+    borderRadius: opts.radius,
+    background: on ? opts.on_color : opts.off_color,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: on ? "flex-end" : "flex-start",
+    padding: 2,
+  });
+  const knob: React.CSSProperties = {
+    width: thumb,
+    height: thumb,
+    borderRadius: opts.radius >= 999 ? 999 : Math.max(0, opts.radius - 2),
+    background: opts.thumb_color,
+  };
+  const label: React.CSSProperties = {
+    fontSize: opts.label_size,
+    fontWeight: opts.label_weight,
+  };
+  return (
+    <div className="rounded-md border border-border p-4 space-y-3">
+      <div className="text-xs text-muted-foreground">{t("themeOptions.toggles.preview")}</div>
+      <div className="flex items-center gap-6">
+        <span className="inline-flex items-center gap-2">
+          <span data-preview-track="on" style={track(true)}>
+            <span style={knob} />
+          </span>
+          <span style={label}>{t("themeOptions.toggles.previewOn")}</span>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span data-preview-track="off" style={track(false)}>
+            <span style={knob} />
+          </span>
+          <span style={label}>{t("themeOptions.toggles.previewOff")}</span>
+        </span>
       </div>
     </div>
   );
