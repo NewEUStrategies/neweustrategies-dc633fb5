@@ -4,10 +4,8 @@
 // RAZ, w inicjalizatorze stanu - lista gościa jest lokalna, więc nie ma jej po
 // co odpytywać przy każdym renderze; kolejne zmiany idą przez ten stan.
 //
-// USUNIĘCIE aktualizuje NAJPIERW stan w pamięci, a zapis do magazynu jest
-// best-effort: w trybie prywatnym czytelnik nadal widzi efekt kliknięcia.
-// UWAGA: wynik zapisu jest tu IGNOROWANY - patrz `writeGuestSaved` i test
-// `it.fails` w `src/routes/__tests__/readingListRoute.test.tsx`.
+// Removal is committed only after storage accepts it. A rejected write keeps
+// the article visible and explains why the reader can retry the same action.
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -29,20 +27,31 @@ import "@/lib/i18n-reading-list";
 export function GuestSavedSection({ lang }: { lang: "pl" | "en" }) {
   const { t } = useTranslation();
   const [items, setItems] = useState<GuestSavedItem[]>(() => readGuestSaved());
+  const [saveFailed, setSaveFailed] = useState(false);
 
-  const removeItem = useCallback((url: string) => {
-    setItems((prev) => {
-      const next = withoutGuestSaved(prev, url);
-      writeGuestSaved(next);
-      return next;
-    });
-  }, []);
+  const removeItem = useCallback(
+    (url: string) => {
+      const next = withoutGuestSaved(items, url);
+      if (!writeGuestSaved(next)) {
+        setSaveFailed(true);
+        return;
+      }
+      setItems(next);
+      setSaveFailed(false);
+    },
+    [items],
+  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <p className="rounded-[6px] border border-border/60 bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">
         {t("readingList.guestSavedInfo")}
       </p>
+      {saveFailed && (
+        <p role="alert" className="text-sm text-destructive">
+          {t("readingList.guestSaveError")}
+        </p>
+      )}
       {items.length === 0 ? (
         <ReadingListEmptyState text={t("readingList.guestSavedEmpty")} />
       ) : (

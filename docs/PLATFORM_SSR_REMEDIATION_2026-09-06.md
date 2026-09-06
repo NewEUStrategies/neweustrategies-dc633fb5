@@ -3,7 +3,7 @@
 Baza zmian: `c239ab891c22b72fb329af9596394f28b9bfa85e` (`main`, 6 września 2026).
 Zakres pomiaru zachowuje wszystkie **208 plików** przypisanych do modułu 20
 w audycie. Korekta klasyfikatora nie usuwa z niego plików: dołączane są również
-wykonywalne pliki aktualnie przypisane do platformy. Łącznie pomiar obejmuje **214 plików**. Wyłączenia kodu generowanego
+wykonywalne pliki aktualnie przypisane do platformy. Po wydzieleniu `RouteLoadingSkeleton` zakres obejmuje **215 plików**. Wyłączenia kodu generowanego
 i testów pozostają takie jak w istniejącej konfiguracji V8.
 
 ## Zmiany i dowody
@@ -53,7 +53,7 @@ tego pełnego przebiegu.
 Przy odtwarzaniu użyj Node **24.19.0**, Bun **1.2.23**, `TZ=UTC` oraz zależności
 z `bun install --frozen-lockfile`. `bun run test:coverage` wykonuje pełną suitę
 z istniejącymi progami repozytorium; potem `bun run check:platform-coverage`
-weryfikuje zakres 214 plików. Alternatywne `bun run test:platform` ogranicza
+weryfikuje aktualny zakres plików. Alternatywne `bun run test:platform` ogranicza
 instrumentację do platformy, lecz nadal uruchamia całą suitę.
 
 Pierwszy przebieg (`34030646824`, Node 22.23.2) wykrył ujemne liczniki V8 oraz
@@ -174,3 +174,60 @@ Pełny cykl płatności u rzeczywistego operatora wymaga środowiska testowego
 operatora i jego poświadczeń. Testy jednostkowe oraz pgTAP nie stanowią dowodu
 takiego przebiegu. Nie wykonujemy rzeczywistych obciążeń ani zmian produkcyjnej
 bazy w ramach weryfikacji tego PR.
+
+## Punkt wznowienia — zapis na prośbę użytkownika
+
+6 września 2026: użytkownik poprosił o commit bieżącej pracy z uwagi na kończące
+się kredyty. PR pozostaje roboczy. Poniższe poprawki są zapisane, ale ostatni
+zestaw zmian wymaga pełnego przebiegu CI; nie ogłaszamy zakończenia całego modułu
+ani potwierdzonego końcowego pokrycia 95%.
+
+Ostatnia partia zmian:
+
+- Wspólny `RouteLoadingSkeleton` jest domyślnym stanem pending routera oraz
+  fallbackiem powłoki. Test montuje prawdziwy router z zawieszoną trasą.
+- Test hydratacji używa rzeczywistej integracji Query i otwartego strumienia,
+  sprawdzając zarówno zakończenie haka, jak i odbiór późniejszych danych.
+- Server-Timing odrzuca ujemne i nieskończone czasy oraz NaN, zachowując
+  pozostałe poprawne metryki.
+- Filtry katalogu osób akceptują również numeryczne `1` zwracane przez parser
+  search params routera; adres pozostaje kanoniczny.
+- Lista czytelnicza pokazuje błędy i pozwala ponawiać odpowiednie zapytania;
+  błąd zapisu localStorage nie usuwa pozycji z widoku. Sekcje mają poprawną
+  hierarchię nagłówków i teksty PL/EN.
+
+Przed zapisaniem tej partii zestaw czterech plików testowych przeszedł:
+**91/91 testów** (router, montaż korzenia, lista czytelnicza, parametry osób).
+Poprzednie uruchomienie objęło również testy trasy osób i Server-Timing.
+Końcowy typecheck wykrył zbyt szeroki typ komponentu w harnessie; został
+zawężony do `RouteComponent`. Powtórny pełny typecheck i build tej partii
+pozostają do potwierdzenia w CI.
+
+Dla wcześniejszego commita `7e41c0a014efb3b05b1616179e01972d14dbbae8`
+potwierdzono w GitHub Actions sukces verify, build (wraz z boot-testem),
+pg-harness i pgTAP. Pełny job test/coverage nadal trwał w chwili zapisu.
+Te wyniki nie są dowodem poprawności późniejszych zmian.
+
+Kolejne kroki po wznowieniu:
+
+1. Sprawdzić pełne CI najnowszego SHA, wszystkie cztery liczniki pokrycia,
+   kompletność rachunku testów i surowe LCOV. Pobrać raport z niepokrytymi
+   liniami, gałęziami i funkcjami. Diagnostyczne połączenie kilku uruchomień
+   nie zastępuje tego dowodu.
+2. Zweryfikować archiwum Lighthouse: nowe raporty HTML/JSON, asercje i log
+   serwera powinny być zachowane mimo ukrytego katalogu raportów.
+3. Dokończyć analizę istniejących `it.fails` należących do modułu. Nadal
+   otwarte są obsługa błędów w queries (`public`, `archives`, `relatedPosts`,
+   `programs`, `authorCv`, `staticPageSeo`, `blocks`), adres archiwum i kierunek
+   sąsiednich wpisów. Najpierw potwierdzić kontrakty z rzeczywistymi trasami;
+   nie usuwać oczekiwanych porażek bez naprawy i miarodajnego testu.
+4. W backendzie pozostają do oceny ustalenia dotyczące walidacji indeksów
+   embeddingów i timeoutu gatewaya, sugestii dla URL odrzuconego przez kontrolę
+   SSRF, jednolitego zegara jobs tick i odporności zapisu jego logu, paginacji
+   oraz błędów sitemap, rollbacku i zagnieżdżonych URL w wpMediaMirror,
+   błędów i kluczy cache publishedContent, polityki suppression poczty
+   transakcyjnej oraz anulowania zadań odzyskiwania sesji preview.
+5. Domknąć lokalizację pustego stanu strony głównej, ponownie sprawdzić
+   budżety produkcyjnego bundla i dopiero po pełnym potwierdzeniu zaktualizować
+   opis PR oraz gotowość do review. Cel LCP 2500 ms i pomiar wdrożenia
+   produkcyjnego nadal nie są potwierdzone.
