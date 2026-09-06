@@ -78,15 +78,16 @@
 //     widzą ciał `queryFn` - stąd 43% gałęzi na wejściu);
 //   * zachowania funkcji SQL (`trending_posts`, `page_full_path`) - jej
 //     odpowiedź jest tu WEJŚCIEM, nie tezą; dowód należy do pgTAP;
-//   * granicy strefy czasowej w archiwum i kalendarzu. `new Date(y, m-1, 1)`
-//     liczy w czasie LOKALNYM maszyny, więc wpis z okolic północy ostatniego
-//     dnia miesiąca wpada do innego wiadra pod inną strefą. Asercje w tym
-//     pliku stoją w ŚRODKU miesiąca właśnie dlatego, żeby wynik nie zależał od
-//     `TZ` przebiegu - test strefy byłby kruchy, a nie dowodowy.
+//   * osobnego pomiaru stref kalendarza. Archiwum grupuje miesiące w UTC;
+//     poniższe przypadki graniczne sprawdzają także zgodność emitowanego
+//     zakresu z parserem wyszukiwarki.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import type { SupabaseFromStub } from "@/test/supabaseChain";
 import type { SupabaseRpcStub } from "@/test/supabase/rpc";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 
 const h = vi.hoisted(() => ({
   from: null as SupabaseFromStub | null,

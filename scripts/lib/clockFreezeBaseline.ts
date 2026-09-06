@@ -210,7 +210,6 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/observability/__tests__/clientErrorsAggregate.test.ts", 14],
   ["src/lib/podcast/__tests__/queries.test.ts", 6],
   ["src/lib/queries/__tests__/blocks.test.ts", 2],
-  ["src/lib/queries/__tests__/blocksData.test.ts", 35],
   ["src/lib/queries/__tests__/liveBlogs.test.ts", 2],
   ["src/lib/realtime/__tests__/useEntityPresence.test.tsx", 10],
   ["src/lib/realtime/__tests__/useEventConfirmedMutationBranches.test.tsx", 1],

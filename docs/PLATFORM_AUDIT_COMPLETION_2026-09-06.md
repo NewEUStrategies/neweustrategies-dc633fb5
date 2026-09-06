@@ -56,8 +56,9 @@ ponowiono wszystkie jej 19 przypadków oraz oba sąsiednie pliki, 181/181).
 Pełny typecheck kodu backendu i wspólnego czytnika stron zakończył się
 sukcesem; końcowy typecheck całej partii jest również wymagany w CI.
 Nowe wykonywalne pliki są automatycznie dodawane do zakresu pomiaru przy
-zachowaniu wszystkich 208 plików zamrożonych w audycie. Bieżący zakres to
-217 plików.
+zachowaniu wszystkich 208 plików zamrożonych w audycie. Pierwsza partia
+obejmowała 217 plików; po synchronizacji z main `371fa5783` zakres wynosi
+218, ponieważ uwzględnia również nową bramkę zegara.
 
 Pełne wyniki bieżącego PR zostaną zapisane po wykonaniu CI. Źródłem liczb
 będzie artefakt `coverage-<SHA>` wraz z `test-accounting.json` i
@@ -128,3 +129,11 @@ porażki, bez błędów nieobsłużonych. Wszystkie 11 sprawdzanych progów
 per plik przechodzi. To kontrola napraw wskazanych przez CI; globalna
 bramka 95% nadal wymaga osobnego pełnego przebiegu, bez scalania raportów
 z różnych rewizji i bez obniżania progów.
+
+Synchronizacja z main `371fa5783` zachowuje zmiany scalone w trakcie pracy,
+w tym PR #338. Nowa bramka zegara wskazała `blocksData.test.ts`: plik używa
+teraz wspólnego `freezeClock()`, a 81 jego testów przechodzi. Usunięto jego
+wpis z rejestru długu, więc powrót niezabezpieczonych dat będzie blokowany.
+Formatowanie dwóch plików przyjętych z main usuwa wszystkie osiem błędów
+lintowania tego przebiegu. Typecheck, SQL, E2E, Lighthouse oraz build
+z boot-testami przeszły na połączonym drzewie.

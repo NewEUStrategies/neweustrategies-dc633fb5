@@ -4,20 +4,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  PostCategoryArchive,
-  archiveCardLimit,
-} from "@/components/post/PostCategoryArchive";
+import { PostCategoryArchive, archiveCardLimit } from "@/components/post/PostCategoryArchive";
 import { DEFAULT_ARCHIVE_LAYOUT } from "@/lib/archive-layout-settings";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    children,
-    params,
-  }: {
-    children: React.ReactNode;
-    params?: { slug?: string };
-  }) => <a href={`/category/${params?.slug ?? ""}`}>{children}</a>,
+  Link: ({ children, params }: { children: React.ReactNode; params?: { slug?: string } }) => (
+    <a href={`/category/${params?.slug ?? ""}`}>{children}</a>
+  ),
 }));
 
 const settings = { id: "s1", archive_type: "category" as const, ...DEFAULT_ARCHIVE_LAYOUT };
@@ -52,10 +45,9 @@ const posts = [
 ];
 
 vi.mock("@/lib/archive-layout-settings", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/archive-layout-settings")>(
-      "@/lib/archive-layout-settings",
-    );
+  const actual = await vi.importActual<typeof import("@/lib/archive-layout-settings")>(
+    "@/lib/archive-layout-settings",
+  );
   return {
     ...actual,
     archiveLayoutQueryOptions: () => ({
