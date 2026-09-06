@@ -985,18 +985,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // Build slide click navigation helper used across variants.
   // Client-side (TanStack Router) for internal links -> no full reload, keeps
   // header/menu mounted; window.open for external. Skipped in preview mode
-  // AND when rendered inside an EDITING surface so editing clicks don't leave
-  // the canvas. Uwaga: publiczny BuilderRenderer też ustawia
-  // [data-builder-renderer] (pusty atrybut - stylistyczny), więc blokujemy
-  // tylko prawdziwy kanwas edytora ([data-visual-canvas]) i podglądy panelu
-  // (atrybut z wartością, np. "widget-props-preview").
+  // AND when rendered inside the actual editing canvas so editing clicks don't
+  // leave it. Public BuilderRenderer uses data-builder-renderer="true", so that
+  // marker must never be treated as an editor-only signal.
   const navigateTo = (href?: string) => {
     if (!href || preview) return;
     if (rootRef.current?.closest("[data-visual-canvas]")) return;
-    const rendererAttr = rootRef.current
-      ?.closest("[data-builder-renderer]")
-      ?.getAttribute("data-builder-renderer");
-    if (rendererAttr) return;
     if (href.startsWith("http://") || href.startsWith("https://")) {
       const client = toClientHref(href);
       if (client && router) {
