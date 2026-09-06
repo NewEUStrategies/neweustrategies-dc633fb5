@@ -51,7 +51,7 @@ export default defineConfig({
       // nie powstawał wcale. Reporter nie rusza ŻADNEGO progu ani zakresu
       // pomiaru - dokłada wyłącznie drugie, sprawdzalne wyjście tych samych
       // liczb.
-      reporter: ["text-summary", "text", "html", "json-summary"],
+      reporter: ["text-summary", "text", "html", "json-summary", "json", "lcov"],
       // Raport i progi MUSZĄ powstać także na czerwonej suicie. `checkThresholds`
       // żyje wewnątrz `coverageProvider.reportCoverage()`, a vitest wychodzi
       // z niego natychmiast przy pierwszym padniętym teście

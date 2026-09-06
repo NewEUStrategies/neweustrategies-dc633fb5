@@ -11,8 +11,8 @@ import { BarChart3, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import "@/lib/i18n-admin-analytics";
-import "@/lib/i18n-admin-extras";
+import { ensureI18n as ensureAnalyticsI18n } from "@/lib/i18n-admin-analytics";
+import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
 import { getAnalyticsStatus } from "@/lib/analytics/status.functions";
 
 const VitalsBiDashboard = lazy(() =>
@@ -71,6 +71,8 @@ function Fallback() {
 }
 
 function AnalyticsBiPage() {
+  ensureAnalyticsI18n();
+  ensureExtrasI18n();
   const { t } = useTranslation();
   const fetchStatus = useServerFn(getAnalyticsStatus);
   const statusQ = useQuery({

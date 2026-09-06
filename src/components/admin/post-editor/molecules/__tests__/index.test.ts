@@ -39,6 +39,7 @@ vi.mock("@tanstack/react-start", () => {
     useServerFn: (fn: unknown) => fn,
     createServerFn: () => chain,
     createMiddleware: () => chain,
+    createIsomorphicFn: () => chain,
   };
 });
 

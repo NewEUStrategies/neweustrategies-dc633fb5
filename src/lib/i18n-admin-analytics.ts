@@ -1673,3 +1673,6 @@ const en = {
 
 i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
+
+/** A live binding lets the route splitter keep registration with its view. */
+export function ensureI18n(): void {}

@@ -259,6 +259,9 @@ function stripeSession(overrides: Record<string, unknown> = {}): Record<string, 
 const rowById = (id: string): DonationRow | undefined => rows.find((row) => row.id === id);
 
 beforeEach(() => {
+  // All dated ledger fixtures below belong to this reconciliation window.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-08-31T12:00:00.000Z"));
   chain = supabaseFromStub();
   chain.setResponse("donations", respondDonations);
   h.from = (table: string) => chain.from(table);
@@ -279,6 +282,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 

@@ -73,10 +73,62 @@ beforeEach(() => {
 
 afterEach(() => {
   setColoCacheForTests(undefined);
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
 describe("documentCacheL2 (Cache API per-colo)", () => {
+  it.each([null, { match: 1, put() {} }, { match() {}, put: 1 }])(
+    "degrades safely with an unsupported runtime cache: %j",
+    async (runtimeCache) => {
+      setColoCacheForTests(undefined);
+      vi.stubGlobal("caches", { default: runtimeCache });
+      expect(await l2Match(null, "no-host::/x")).toBeNull();
+    },
+  );
+  it.each(["v2", "  "])(
+    "reads persisted version %j and tolerates absent optional response metadata",
+    async (version) => {
+      const match = vi.fn(async (request: Request) =>
+        request.url.includes("/__nes/version")
+          ? new Response(version)
+          : new Response("body", {
+              headers: {
+                "x-nes-l2-stored-at": String(Date.now()),
+                "x-nes-l2-fresh-ms": "1000",
+                "x-nes-l2-swr-ms": "2000",
+              },
+            }),
+      );
+      setColoCacheForTests(undefined);
+      vi.stubGlobal("caches", { default: { match, put: async () => {} } });
+      const result = await l2Match(null, "no-host::/x");
+      expect(result).toMatchObject({ contentType: "text/html; charset=utf-8", cacheControl: "" });
+      const key = match.mock.calls.at(-1)![0].url;
+      expect(key).toContain(version.trim() || "0");
+      expect(match.mock.calls.filter(([r]) => r.url.includes("/__nes/version"))).toHaveLength(2);
+    },
+  );
+  it.each(["x-nes-l2-stored-at", "x-nes-l2-fresh-ms", "x-nes-l2-swr-ms"])(
+    "rejects corrupt numeric metadata %s",
+    async (header) => {
+      setColoCacheForTests({
+        put: async () => {},
+        match: async (request) =>
+          request.url.includes("/__nes/version")
+            ? undefined
+            : new Response("body", {
+                headers: {
+                  "x-nes-l2-stored-at": "100",
+                  "x-nes-l2-fresh-ms": "1000",
+                  "x-nes-l2-swr-ms": "1000",
+                  [header]: "not-a-number",
+                },
+              }),
+      });
+      expect(await l2Match("tenant-a.eu", "tenant-a.eu::/x")).toBeNull();
+    },
+  );
   it("zapisuje i odczytuje wpis dokumentu z metadanymi świeżości", async () => {
     const body = new TextEncoder().encode("<html>colo</html>");
     await l2Put("tenant-a.eu", "tenant-a.eu::/x", { ...ENTRY, body, storedAt: Date.now() });

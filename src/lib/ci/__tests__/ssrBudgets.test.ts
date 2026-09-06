@@ -572,3 +572,39 @@ describe("raport", () => {
     expect(rendered).toContain("Wszystkie trzy budżety wewnętrzne w sufitach");
   });
 });
+
+describe("platform SSR budget reporting edge cases", () => {
+  it("prints absent and unmeasurable data rather than inventing a maximum", () => {
+    const empty = renderSsrBudgetReport({
+      ...analyzeSsrBudgets({ sources: [] }),
+      rootWarmChainMs: 0,
+    });
+    expect(empty).toContain("0 ms");
+    const unresolved = analyzeSsrBudgets({
+      sources: [
+        {
+          file: "src/routes/__root.tsx",
+          source:
+            "createRootRoute({ loader: async () => { await withBudget(foo(), 15000); await withBudget(bar()); await Promise.all(unknown); } })",
+        },
+      ],
+    });
+    expect(renderSsrBudgetReport(unresolved)).toContain("NIEMIERZALNE");
+    expect(unresolved.violations.some((v) => v.detail.includes("?"))).toBe(true);
+    expect(unresolved.violations.some((v) => v.budget === "unresolvedBudget")).toBe(true);
+  });
+  it("preserves line numbers while blanking escaped, multiline and unterminated strings", () => {
+    const source = 'const value = "escaped\\"quote";\nconst text = `line1\nline2`;';
+    const blank = blankNonCode(source);
+    expect(blank.split("\n")).toHaveLength(3);
+    expect(blank).not.toContain("escaped");
+    expect(blankNonCode('const value = "unterminated')).not.toContain("unterminated");
+  });
+  it("rejects overflowing numeric constants and reports an empty measurement without crashing", () => {
+    expect(numericConstants(`const BIG = ${"9".repeat(400)};`)).toEqual(new Map());
+    const report = analyzeSsrBudgets({ sources: [] });
+    expect(ssrBudgetsFailed(report)).toBe(true);
+    expect(renderSsrBudgetReport(report)).toContain("Nie znalazłem loadera");
+    expect(dehydrationInvariants(null).every((x) => !x.present)).toBe(true);
+  });
+});

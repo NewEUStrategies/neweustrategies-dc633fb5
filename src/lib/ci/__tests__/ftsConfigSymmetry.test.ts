@@ -123,6 +123,67 @@ describe("stripSqlComments", () => {
 });
 
 describe("collectFtsFacts", () => {
+  it("never borrows a later function's body for an unsupported definition", () => {
+    const facts = collectFtsFacts([
+      {
+        file: "20260901000000.sql",
+        sql: `
+      CREATE FUNCTION unsupported_tsquery() RETURNS tsquery AS 'select null' LANGUAGE sql;
+      CREATE FUNCTION valid_tsquery() RETURNS tsquery AS $$ SELECT to_tsquery('simple', 'term') $$ LANGUAGE sql;
+      CREATE FUNCTION unfinished_tsquery() RETURNS tsquery AS $$ SELECT to_tsquery('english', 'term');
+    `,
+      },
+    ]);
+    expect([...facts.queryBuilders.keys()]).toEqual(["valid_tsquery"]);
+    expect(facts.queryBuilders.get("valid_tsquery")?.config).toBe("simple");
+  });
+  it("does not invent a config for parameterized query builders or literal vector casts", () => {
+    const facts = collectFtsFacts([
+      {
+        file: "20260901000000.sql",
+        sql: `
+      CREATE TABLE demo (search_vector tsvector GENERATED ALWAYS AS ('term'::tsvector) STORED);
+      CREATE FUNCTION parameter_tsquery(cfg regconfig, q text) RETURNS tsquery AS $$ SELECT to_tsquery(cfg, q) $$ LANGUAGE sql;
+      CREATE FUNCTION unattached() RETURNS trigger AS $$ BEGIN NEW.search_vector := to_tsvector('simple', NEW.body); RETURN NEW; END; $$ LANGUAGE plpgsql;
+      CREATE TRIGGER incomplete BEFORE INSERT ON demo;
+      CREATE TRIGGER no_table EXECUTE FUNCTION unattached();
+    `,
+      },
+    ]);
+    expect(facts.queryBuilders.size).toBe(0);
+    expect(facts.vectorColumns.size).toBe(0);
+  });
+  it("sorts unsorted files stably and uses a later vector builder as the effective dependency", () => {
+    const facts = collectFtsFacts([
+      {
+        file: "20260903000000.sql",
+        sql: "CREATE FUNCTION demo_search_vector(t text) RETURNS tsvector AS $$ SELECT to_tsvector('english', t) $$ LANGUAGE sql;",
+      },
+      {
+        file: "20260901000000.sql",
+        sql: "CREATE TABLE demo (search_vector tsvector GENERATED ALWAYS AS (demo_search_vector(body)) STORED);",
+      },
+      { file: "20260902000000.sql", sql: "" },
+      { file: "20260902000000.sql", sql: "-- second source with identical ordering key" },
+    ]);
+    expect(facts.vectorColumns.get("demo.search_vector")).toEqual({
+      config: "english",
+      file: "20260903000000.sql",
+    });
+  });
+  it("ignores an incomplete CTE instead of resolving an invented source", () => {
+    const facts = collectFtsFacts([
+      {
+        file: "20260901000000.sql",
+        sql: `CREATE FUNCTION broken_search(q text) RETURNS SETOF demo AS $$
+      WITH broken AS ( SELECT d.search_vector FROM demo d WHERE broken.search_vector @@ to_tsquery('simple', q)
+      $$ LANGUAGE sql;`,
+      },
+    ]);
+    expect(facts.searchSurfaces.get("broken_search")?.unresolvedVectorRefs).toContain(
+      "broken.search_vector",
+    );
+  });
   it("rozwiązuje budowniczego zapytań na jego konfigurację", () => {
     const facts = collectFtsFacts([builderMigration("public.nes_polish")]);
     expect(facts.queryBuilders.get("demo_tsquery")?.config).toBe("public.nes_polish");

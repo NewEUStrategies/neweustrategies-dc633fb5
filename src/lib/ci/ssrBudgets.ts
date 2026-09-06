@@ -280,7 +280,6 @@ export function routeOptionsBlockWide(source: string): string | null {
     );
   if (call === null) return null;
   const open = clean.indexOf("{", call.index + call[0].length - 1);
-  if (open === -1) return null;
   let depth = 0;
   for (let i = open; i < clean.length; i += 1) {
     const ch = clean[i];
@@ -355,7 +354,8 @@ const CACHE_WRITE_RE =
  *
  * `chainMs` jest GÓRNYM OSZACOWANIEM łańcucha szeregowego: sumuje WSZYSTKIE
  * `await withBudget(...)` w ciele loadera, także te w rozłącznych gałęziach
- * `if`. Dla sufitu to właściwy kierunek błędu (nigdy nie zaniża), i tak jest
+ * `if`, oraz wewnątrz zagnieżdżonych callbacków (także rozgrzewki w tle).
+ * To konserwatywny limit kodu, NIE pomiar krytycznej ścieżki TTFB. Dla sufitu to właściwy kierunek błędu (nigdy nie zaniża), i tak jest
  * opisane w komunikacie bramki - ale nie wolno tej liczby czytać jako
  * „tyle dokładnie czeka każdy render".
  */
@@ -382,12 +382,12 @@ export function loaderBudgetFacts(
   // wycinamy z tekstu, więc offset trzeba dodać z powrotem.
   const clean = blankNonCode(source);
   const loaderAt = clean.indexOf(loader.slice(0, Math.min(60, loader.length)));
-  const baseLine = loaderAt === -1 ? 1 : lineOf(clean, loaderAt);
+  const baseLine = lineOf(clean, loaderAt);
 
   const budgetSites: BudgetSite[] = [];
   const budgetRe = /await\s+withBudget\s*\(/g;
   for (const m of loader.matchAll(budgetRe)) {
-    const open = loader.indexOf("(", (m.index ?? 0) + m[0].length - 1);
+    const open = loader.indexOf("(", m.index + m[0].length - 1);
     const args = balancedArgs(loader, open);
     // The second argument is the phase ceiling. The optional absolute
     // deadline (third argument) can only shorten it. A trailing comma must
@@ -403,7 +403,7 @@ export function loaderBudgetFacts(
   const parallelSites: ParallelSite[] = [];
   const parallelRe = /Promise\s*\.\s*(?:all|allSettled)\s*\(/g;
   for (const m of loader.matchAll(parallelRe)) {
-    const open = loader.indexOf("(", (m.index ?? 0) + m[0].length - 1);
+    const open = loader.indexOf("(", m.index + m[0].length - 1);
     const args = balancedArgs(loader, open).trim();
     const line = baseLine + lineOf(loader, m.index ?? 0) - 1;
     if (args.startsWith("[")) {
@@ -529,13 +529,13 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
     }
     // ── BUDŻET 2: równoległe podżądania ─────────────────────────────────────
     if (loader.maxParallelArms > FROZEN_SSR_BUDGETS.parallelQueriesPerLoader) {
-      const worst = loader.parallelSites.find((s) => s.arms === loader.maxParallelArms);
+      const worst = loader.parallelSites.find((s) => s.arms === loader.maxParallelArms)!;
       violations.push({
         budget: "parallelQueriesPerLoader",
         file: loader.file,
         measured: loader.maxParallelArms,
         ceiling: FROZEN_SSR_BUDGETS.parallelQueriesPerLoader,
-        detail: `tablica Promise.all* w linii ${worst?.line ?? "?"} loadera ma ${loader.maxParallelArms} odnóg; runtime Workers odrzuca 7. subrequest`,
+        detail: `tablica Promise.all* w linii ${worst.line} loadera ma ${loader.maxParallelArms} odnóg; runtime Workers odrzuca 7. subrequest`,
       });
     }
     // ── BUDŻET 3 (proxy): wpisy do cache'u zapytań ──────────────────────────

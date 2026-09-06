@@ -38,6 +38,8 @@ function activeRequest(): Request | null {
 
 /** Doliczyć jeden round-trip DB do telemetrii bieżącego żądania. */
 export function recordDbRoundTrip(durationMs: number): void {
+  // A clock correction or invalid sample must not poison this request's sum.
+  if (!Number.isFinite(durationMs) || durationMs < 0) return;
   const request = activeRequest();
   if (!request) return;
   const entry = timings.get(request);

@@ -91,6 +91,8 @@ describe("getRouter - kontrakt opcji", () => {
     expect(r.options.defaultPreload).toBe("intent");
     expect(r.options.defaultPreloadStaleTime).toBe(0);
     expect(r.options.defaultPreloadDelay).toBe(50);
+    const Pending = r.options.defaultPendingComponent!;
+    expect(renderToStaticMarkup(<Pending />)).toContain('aria-busy="true"');
     expect(r.options.defaultPendingMs).toBe(500);
     expect(r.options.defaultPendingMinMs).toBe(250);
     expect(r.options.defaultViewTransition).toBe(true);
@@ -262,23 +264,48 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     warn.mockRestore();
   });
 
-  it.fails(
-    "budżet ścina PRAWDZIWY wiszący strumień zapytań integracji - DZIŚ NIE MA CZEGO ŚCINAĆ. " +
-      "`options.hydrate` zainstalowanej integracji (@tanstack/router-ssr-query-core) czyta " +
-      "`queryStream` przez `reader.read().then(...)` w trybie FIRE-AND-FORGET i NIE awaituje " +
-      "go, więc rozstrzyga się natychmiast: `Promise.race` w budżecie zawsze wygrywa gałęzią " +
-      "integracji, a ostrzeżenie jest w produkcji MARTWE. Zmierzone: strumień, który nigdy " +
-      "się nie domyka, i hydrate rozstrzygnięty po 10 ms. Bezpiecznik zostaje na `ogHydrate` " +
-      "router-core i na przyszłe wersje biblioteki, ale DECYZJA, czy go utrzymywać, czy " +
-      "zastąpić czymś, co realnie mierzy hydratację (punkt 10 audytu - detektor martwej " +
-      "hydratacji), należy do człowieka.",
-    async () => {
-      const { setupRouterSsrQueryIntegration } = await import("@tanstack/react-router-ssr-query");
-      // Atrapa jest tu podstawiona, więc prawdziwa integracja jest z tego testu
-      // nieosiągalna - i to jest dokładnie treść tego `it.fails`.
-      expect(setupRouterSsrQueryIntegration.length).toBe(-1);
-    },
-  );
+  it("real integration does not await an open query stream; later data still hydrates", async () => {
+    const { setupCoreRouterSsrQueryIntegration } = await import("@tanstack/router-ssr-query-core");
+    const { QueryClient, dehydrate } = await import("@tanstack/query-core");
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const integrationRouter = { isServer: false, options: {} as Record<string, unknown> };
+    const target = new QueryClient();
+    const source = new QueryClient();
+    setupCoreRouterSsrQueryIntegration({ router: integrationRouter, queryClient: target } as never);
+    let controller!: ReadableStreamDefaultController;
+    const queryStream = new ReadableStream({
+      start: (c) => {
+        controller = c;
+      },
+    });
+    h.server = false;
+    h.hydrateImpl = integrationRouter.options.hydrate as (data: unknown) => Promise<void>;
+    try {
+      let done = false;
+      const work = Promise.resolve(getRouter().options.hydrate!({ queryStream } as never)).then(
+        () => {
+          done = true;
+        },
+      );
+      await vi.advanceTimersByTimeAsync(2);
+      expect(done).toBe(true);
+      await work;
+      source.setQueryData(["late-stream-data"], { value: 42 });
+      controller.enqueue(dehydrate(source));
+      await vi.advanceTimersByTimeAsync(2);
+      expect(target.getQueryData(["late-stream-data"])).toEqual({ value: 42 });
+      await vi.advanceTimersByTimeAsync(2 * HYDRATE_BUDGET_MS);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      controller.close();
+      h.hydrateImpl = undefined;
+      target.clear();
+      source.clear();
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 
   // ── TERMINALNY ODCZYT STRUMIENIA ZAPYTAŃ: DLACZEGO LOGU NIE MA ───────────
   //

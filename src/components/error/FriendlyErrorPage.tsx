@@ -98,8 +98,8 @@ export function FriendlyErrorPage({
 
   const primaryIsLogin = kind === "unauthorized" || kind === "sessionExpired";
   const PrimaryIcon = primaryIsLogin ? LogIn : RefreshCw;
-  const primaryLabel = primaryIsLogin ? scenario.primaryAction : scenario.primaryAction;
-  const primaryAction = primaryIsLogin ? () => void router.navigate({ to: "/login" }) : handleRetry;
+  const primaryLabel = scenario.primaryAction;
+  const primaryAction = handleRetry;
 
   const eyebrow = kind === "degraded" ? copy.degradedEyebrow : copy.errorTitle;
   const contactHref = lang === "en" ? "/en/kontakt" : "/kontakt";

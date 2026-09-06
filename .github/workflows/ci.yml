@@ -13,6 +13,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Date-sensitive fixtures use a fixed runner timezone; public render tests
+# independently verify Europe/Warsaw formatting and SSR/client parity.
+env:
+  TZ: UTC
+
 # Cancel superseded runs on the same ref.
 concurrency:
   group: ci-${{ github.ref }}
@@ -127,6 +132,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      # Pin the V8 runtime used by tests and artifact measurements. The first
+      # audit run inherited Node 22 from the runner and produced negative V8
+      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -754,6 +766,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin the V8 runtime used by tests and artifact measurements. The first
+      # audit run inherited Node 22 from the runner and produced negative V8
+      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -766,7 +785,7 @@ jobs:
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 
@@ -775,6 +794,22 @@ jobs:
       # `vitest run`, so the gate was local-only and could silently rot).
       - name: Test + coverage gate
         run: bun run test:coverage
+
+      - name: Platform module — all four coverage metrics at least 95%
+        if: ${{ !cancelled() }}
+        run: bun run check:platform-coverage
+
+      - name: Preserve coverage and test accounting, including failed runs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            coverage/
+            reports/platform-coverage.json
+            reports/test-accounting.json
 
   # ── BUILD I BRAMKI ARTEFAKTU: OSOBNY JOB ────────────────────────────────────
   #
@@ -818,6 +853,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      # Pin the V8 runtime used by tests and artifact measurements. The first
+      # audit run inherited Node 22 from the runner and produced negative V8
+      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -950,20 +992,15 @@ jobs:
       # BOOT-TEST - i to jest inny instrument niż job `lighthouse`, nie jego
       # duplikat. Tamten (od 2026-09-01 też na artefakcie, nie na dev-serverze)
       # mierzy METRYKI CZYTELNIKA przez Chrome'a z emulacją sieci i CPU; ten
-      # mierzy TRZY LICZBY Z SAMEJ PRZEGLĄDARKI (TTFB dokumentu, czas od
-      # `__nesBootT0` do `__nesAppReady`, transfer ścieżki bootowania) bez
-      # emulacji, więc jest tańszy, deterministyczny i biegnie w tym samym
-      # jobie, co reszta bramek artefaktu. Tryb naprawdę blokujący Lighthouse'a
-      # (`lighthouserc.deployed.json`) wymaga zmiennej repozytorium `LHCI_URL`,
-      # która nigdy nie była ustawiona, więc nie włączył się ANI RAZU - dopóki
-      # to się nie zmieni, ten krok jest jedynym pomiarem czasu na artefakcie,
-      # który faktycznie się wykonuje.
+      # mierzy TTFB dokumentu, czas od `__nesBootT0` do `__nesAppReady`,
+      # transfer ścieżki bootowania oraz FCP bez emulacji. Biegnie w tym samym
+      # jobie co reszta bramek artefaktu. Lighthouse również wykonuje pomiary
+      # artefaktu i blokuje TBT/CLS; pomiar wdrożenia wymaga `LHCI_URL`.
       #
       # Progi w `boot-timing` są policzone na hoście deweloperskim i ŚWIADOMIE
-      # luźne - liczby z tego runnera nie istniały w chwili ich stawiania. Spec
-      # wypisuje zmierzone wartości w logu także przy zielonym przebiegu
-      # (`[boot-timing] ...`) właśnie po to, żeby PIERWSZY przebieg CI dał
-      # podstawę do przefloorowania.
+      # luźne - liczby z runnera nie istniały w chwili ich stawiania. Spec
+      # zachowuje historię późniejszych pomiarów CI i wypisuje wartości także
+      # przy zielonym przebiegu (`[boot-timing] ...`).
       - name: Boot test and first-load timing on the production artifact
         if: ${{ !cancelled() }}
         run: bun run test:e2e:artifact
@@ -1085,6 +1122,13 @@ jobs:
       # to czysty bash + psql - nie ma tu ani jednego importu z node_modules,
       # więc job CELOWO pomija `bun install` i repointowanie bun.lock. To także
       # jedyna bramka bazodanowa, która nie zależy od prywatnego rejestru npm.
+      # Pin the V8 runtime used by tests and artifact measurements. The first
+      # audit run inherited Node 22 from the runner and produced negative V8
+      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -1212,6 +1256,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Pin the V8 runtime used by tests and artifact measurements. The first
+      # audit run inherited Node 22 from the runner and produced negative V8
+      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -1221,7 +1272,7 @@ jobs:
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 

@@ -20,7 +20,7 @@ import {
   Users,
   X,
 } from "@/lib/lucide-shim";
-import "@/lib/i18n-public";
+import "@/lib/i18n-public-search-overlay";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
   addRecentSearch,

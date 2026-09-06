@@ -209,33 +209,37 @@ describe("round-trip do nagłówka: record -> read -> buildServerTimingValue", (
   });
 });
 
-describe("granica, której ten moduł nie pilnuje", () => {
-  // `buildServerTimingValue` odsiewa niefinitywny `renderMs` (`Number.isFinite`
-  // w ssrTiming.ts:31) i niefinitywny `cacheAgeMs` (:37), ale `db.totalMs`
-  // przechodzi przez `.toFixed(1)` BEZ ŻADNEJ KONTROLI (:35). Sprawdzone
-  // uruchomieniem: jeden niefinitywny pomiar daje `db;dur=NaN;desc="n=2"`, czyli
-  // NIEPOPRAWNĄ wartość nagłówka Server-Timing - a przeglądarka odrzuca wtedy
-  // CAŁY nagłówek, więc traci się także `ssr;dur=` i `nes-age;dur=`.
-  //
-  // DZIŚ NIEOSIĄGALNE Z JEDYNEGO PRODUCENTA: `tenant-host-fetch.ts:91` liczy
-  // `Date.now() - startedAt`, co jest zawsze skończone. Dlatego to NIE jest
-  // defekt do naprawienia w tym zadaniu - dołożenie strażnika jest ZMIANĄ
-  // ZACHOWANIA PRODUKCYJNEGO na module wystawiającym nagłówek każdego dokumentu,
-  // a wybór między „odsiej próbkę", „odsiej cały segment db" i „zostaw jak jest,
-  // bo nieosiągalne" należy do człowieka. Test jest przypięciem obecnego stanu:
-  // gdy ktoś strażnika dołoży, `it.fails` zacznie padać i wymusi decyzję świadomą.
-  it.fails(
-    "nie odsiewa niefinitywnej próbki czasu - decyzja o strażniku należy do człowieka",
-    () => {
+describe("invalid timing samples do not poison the header", () => {
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1])(
+    "ignores an invalid DB sample: %s",
+    (sample) => {
       const request = req();
       ctx.request = request;
+      recordDbRoundTrip(sample);
+      expect(readDbTiming(request)).toBeNull();
       recordDbRoundTrip(10);
-      recordDbRoundTrip(Number.NaN);
-
-      // Oczekiwanie POŻĄDANE, nie obecne: niefinitywna próbka nie powinna zatruć
-      // sumy ani nagłówka.
+      recordDbRoundTrip(sample);
       expect(readDbTiming(request)).toEqual({ count: 1, totalMs: 10 });
-      expect(buildServerTimingValue("MISS", 1, readDbTiming(request))).not.toContain("NaN");
+      expect(buildServerTimingValue("MISS", 1, readDbTiming(request))).toBe(
+        'nes-edge;desc="MISS", ssr;dur=1.0, db;dur=10.0;desc="n=1"',
+      );
     },
   );
+  it.each([
+    { count: 1, totalMs: Number.NaN },
+    { count: 1, totalMs: Number.POSITIVE_INFINITY },
+    { count: 1, totalMs: -1 },
+    { count: Number.POSITIVE_INFINITY, totalMs: 1 },
+    { count: 1.5, totalMs: 1 },
+    { count: 0, totalMs: 1 },
+  ])("omits only the malformed DB segment: %j", (db) => {
+    expect(buildServerTimingValue("HIT", 2, db, 3)).toBe(
+      'nes-edge;desc="HIT", ssr;dur=2.0, nes-age;dur=3',
+    );
+  });
+  it("omits a negative render duration while retaining valid measurements", () => {
+    expect(buildServerTimingValue("HIT", -1, { count: 1, totalMs: 0 }, 0)).toBe(
+      'nes-edge;desc="HIT", db;dur=0.0;desc="n=1", nes-age;dur=0',
+    );
+  });
 });

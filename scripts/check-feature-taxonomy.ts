@@ -43,6 +43,16 @@ function productionFiles(): string[] {
 const files = productionFiles();
 const problems: string[] = [];
 
+// Regex literals require one escape before a dot. Two escapes match a literal
+// backslash and silently send whole route families to the platform catch-all.
+for (const mod of MODULES) {
+  for (const pattern of mod.patterns) {
+    if (pattern.source.includes(String.raw`\\.`)) {
+      problems.push(`Podwójnie escapowany wzorzec modułu ${mod.id}: ${pattern}`);
+    }
+  }
+}
+
 // 1. Każdy plik modułu z taksonomią trafia do dokładnie jednej funkcjonalności.
 const orphans = files.filter((file) => {
   const { module } = classifyPath(file);

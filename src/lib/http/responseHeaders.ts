@@ -76,9 +76,9 @@ export const setCacheControlHeader = createIsomorphicFn()
  * widziała decyzję trasy. Na kliencie i poza zasięgiem żądania zwraca `null`.
  */
 export const readRouteCacheDirective = createIsomorphicFn()
-  .server((): string | null => {
+  .server((request?: Request): string | null => {
     try {
-      return routeCacheDirectives.get(getRequest()) ?? null;
+      return routeCacheDirectives.get(request ?? getRequest()) ?? null;
     } catch {
       /* not inside a request scope - ignore */
       return null;

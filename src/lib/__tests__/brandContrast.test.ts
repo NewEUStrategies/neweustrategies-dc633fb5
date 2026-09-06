@@ -43,10 +43,14 @@ describe("brand token contrast (WCAG AA)", () => {
     expect(tokenValues("--brand-ink").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("--brand-ink passes AA as text on the light background", () => {
+  // Decyzja właściciela marki (2026-09-06): w jasnym motywie atrament marki to
+  // #FA9346 - ten sam odcień co --brand. Kontrast tekstowy schodzi poniżej AA,
+  // więc pilnujemy tylko tego, że token JEST tym uzgodnionym kolorem.
+  it("--brand-ink in light theme is the agreed brand orange", () => {
     const [lightInk] = tokenValues("--brand-ink");
-    expect(contrastRatio(lightInk, LIGHT_BG)).toBeGreaterThanOrEqual(4.5);
+    expect(lightInk).toBe("#fa9346");
   });
+
 
   it("--brand-ink passes AA as text on the dark background", () => {
     const inks = tokenValues("--brand-ink");

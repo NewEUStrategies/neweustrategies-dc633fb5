@@ -1007,6 +1007,8 @@ export const pl = {
       cookieBannerLabel: "Pokazuj baner zgody na pliki cookie",
     },
     dashboard: {
+      loadError: "Nie udało się wczytać liczników treści.",
+      retry: "Spróbuj ponownie",
       title: "Kokpit",
       subtitle: "Przegląd treści serwisu",
     },
@@ -1298,6 +1300,7 @@ export const pl = {
       meteringMeterMembers: "Licz artykuły „tylko dla zalogowanych”",
       meteringShowCounter: "Pokazuj licznik „X z N” nad artykułem",
       meteringSaved: "Zapisano ustawienia meteringu",
+      readError: "Nie udało się wczytać ustawień. Spróbuj ponownie.",
       meteringSaveError: "Nie udało się zapisać ustawień meteringu.",
       meteringImpactTitle: "Podgląd wpływu na bieżący miesiąc",
       meteringImpactDisabled:

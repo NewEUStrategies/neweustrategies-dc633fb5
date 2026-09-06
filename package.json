@@ -11,8 +11,8 @@
     "predev": "node scripts/clean-vite-cache.mjs",
     "dev": "NODE_OPTIONS=\"--max-old-space-size=6144\" vite dev",
     "clean:vite-cache": "node scripts/clean-vite-cache.mjs",
-    "build": "NODE_OPTIONS=\"--max-old-space-size=8192\" vite build",
-    "build:dev": "NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --mode development",
+    "build": "node scripts/clean-build-output.mjs && NODE_OPTIONS=\"--max-old-space-size=8192\" vite build",
+    "build:dev": "node scripts/clean-build-output.mjs && NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "NODE_OPTIONS=\"--max-old-space-size=8192\" tsc --noEmit",
@@ -24,7 +24,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "build:smoke": "NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --config vite.smoke.config.ts",
+    "build:smoke": "node scripts/clean-build-output.mjs && NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --config vite.smoke.config.ts",
     "test:e2e:artifact": "playwright test --config playwright.artifact.config.ts",
     "measure:boot-ab": "bun run scripts/measure-boot-ab.ts",
     "db:test": "supabase test db",
@@ -80,7 +80,9 @@
     "check:events-harness": "bash scripts/events-harness/run.sh",
     "check:feature-taxonomy": "bun run scripts/check-feature-taxonomy.ts",
     "check:tenant-isolation": "bash scripts/tenant-isolation-harness/run.sh",
-    "test:pgtap-local": "bash scripts/pgtap-local/run.sh"
+    "test:pgtap-local": "bash scripts/pgtap-local/run.sh",
+    "test:platform": "vitest run --config vitest.platform.config.ts --coverage",
+    "check:platform-coverage": "bun run scripts/check-platform-coverage.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",
@@ -173,6 +175,7 @@
     "@lovable.dev/vite-tanstack-config": "2.13.1",
     "@playwright/test": "^1.61.1",
     "@resvg/resvg-wasm": "^2.6.2",
+    "@tailwindcss/oxide": "4.2.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.16.5",

@@ -103,6 +103,8 @@ export function ProfileIntentSection({ editable = true }: { editable?: boolean }
 
   const [draft, setDraft] = useState<ProfileIntentDraft>(EMPTY_INTENT_DRAFT);
   const [dirty, setDirty] = useState(false);
+  const [textLang, setTextLang] = useState<"pl" | "en">(lang === "en" ? "en" : "pl");
+
 
   // Serwer jest źródłem prawdy do pierwszej edycji użytkownika; po niej
   // szanujemy niezapisany szkic (odświeżenie cache nie kasuje wpisanego tekstu).
@@ -203,37 +205,81 @@ export function ProfileIntentSection({ editable = true }: { editable?: boolean }
             </div>
           </fieldset>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <IntentTextField
-              id={`${baseId}-seeking-pl`}
-              label={t("profileIntent.seekingLabelPl")}
-              placeholder={t("profileIntent.seekingPlaceholder")}
-              hint={t("profileIntent.seekingHint", { min: PROFILE_SEEKING_MIN })}
-              value={draft.seekingPl}
-              onChange={(next) => patch({ seekingPl: next })}
-            />
-            <IntentTextField
-              id={`${baseId}-seeking-en`}
-              label={t("profileIntent.seekingLabelEn")}
-              placeholder={t("profileIntent.seekingPlaceholder")}
-              value={draft.seekingEn}
-              onChange={(next) => patch({ seekingEn: next })}
-            />
-            <IntentTextField
-              id={`${baseId}-offering-pl`}
-              label={t("profileIntent.offeringLabelPl")}
-              placeholder={t("profileIntent.offeringPlaceholder")}
-              value={draft.offeringPl}
-              onChange={(next) => patch({ offeringPl: next })}
-            />
-            <IntentTextField
-              id={`${baseId}-offering-en`}
-              label={t("profileIntent.offeringLabelEn")}
-              placeholder={t("profileIntent.offeringPlaceholder")}
-              value={draft.offeringEn}
-              onChange={(next) => patch({ offeringEn: next })}
-            />
+          <div className="space-y-3">
+            <div
+              role="tablist"
+              aria-label={t("profileIntent.title")}
+              className="inline-flex gap-1 rounded-[6px] border border-border bg-muted/30 p-1"
+            >
+              {(["pl", "en"] as const).map((code) => {
+                const active = textLang === code;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    role="tab"
+                    id={`${baseId}-tab-${code}`}
+                    aria-selected={active}
+                    aria-controls={`${baseId}-panel-${code}`}
+                    onClick={() => setTextLang(code)}
+                    className={`rounded-[6px] px-3 py-1 text-xs font-medium uppercase tracking-wide transition-colors ${
+                      active
+                        ? "bg-background text-foreground shadow-none"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {code}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              role="tabpanel"
+              id={`${baseId}-panel-pl`}
+              aria-labelledby={`${baseId}-tab-pl`}
+              className={`grid gap-4 sm:grid-cols-2 ${textLang === "pl" ? "" : "hidden"}`}
+            >
+              <IntentTextField
+                id={`${baseId}-seeking-pl`}
+                label={t("profileIntent.seekingLabelPl")}
+                placeholder={t("profileIntent.seekingPlaceholder")}
+                hint={t("profileIntent.seekingHint", { min: PROFILE_SEEKING_MIN })}
+                value={draft.seekingPl}
+                onChange={(next) => patch({ seekingPl: next })}
+              />
+              <IntentTextField
+                id={`${baseId}-offering-pl`}
+                label={t("profileIntent.offeringLabelPl")}
+                placeholder={t("profileIntent.offeringPlaceholder")}
+                value={draft.offeringPl}
+                onChange={(next) => patch({ offeringPl: next })}
+              />
+            </div>
+
+            <div
+              role="tabpanel"
+              id={`${baseId}-panel-en`}
+              aria-labelledby={`${baseId}-tab-en`}
+              className={`grid gap-4 sm:grid-cols-2 ${textLang === "en" ? "" : "hidden"}`}
+            >
+              <IntentTextField
+                id={`${baseId}-seeking-en`}
+                label={t("profileIntent.seekingLabelEn")}
+                placeholder={t("profileIntent.seekingPlaceholder")}
+                value={draft.seekingEn}
+                onChange={(next) => patch({ seekingEn: next })}
+              />
+              <IntentTextField
+                id={`${baseId}-offering-en`}
+                label={t("profileIntent.offeringLabelEn")}
+                placeholder={t("profileIntent.offeringPlaceholder")}
+                value={draft.offeringEn}
+                onChange={(next) => patch({ offeringEn: next })}
+              />
+            </div>
           </div>
+
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="sm" disabled={!dirty || save.isPending} onClick={onSubmit}>

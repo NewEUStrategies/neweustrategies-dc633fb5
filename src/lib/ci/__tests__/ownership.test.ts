@@ -771,3 +771,92 @@ describe("poprawki ze zgłoszeń bota przeglądowego (PR #305)", () => {
     expect(() => parseRegistry(registryJson())).not.toThrow();
   });
 });
+
+describe("platform ownership input and report contracts", () => {
+  it.each([null, [], "registry"])("rejects a non-object registry %s", (value) => {
+    expect(() => parseRegistry(value)).toThrow("musi być obiektem");
+  });
+  it.each([NaN, Infinity, "2"])("rejects non-finite/nonnumeric thresholds %s", (value) => {
+    const raw = registryJson();
+    (raw.progi as Record<string, unknown>).domenyBezWlasciciela = value;
+    expect(() => parseRegistry(raw)).toThrow("musi być liczbą");
+  });
+  it.each([null, "admin.*"])("rejects a non-array route list", (value) => {
+    const raw = registryJson();
+    (raw.domeny as Record<string, unknown>[])[0].trasy = value;
+    expect(() => parseRegistry(raw)).toThrow("musi być tablicą napisów");
+  });
+  it.each([null, []])("rejects an absent or empty domain registry", (domeny) => {
+    expect(() => parseRegistry(registryJson({ domeny }))).toThrow(/domeny/);
+  });
+  it.each(["bad-date", "2026-99-01"])("rejects invalid report dates %s", (today) => {
+    expect(() => analyzeOwnership(input({ today }))).toThrow("Nieprawidłowa data");
+  });
+  it("rejects an invalid contract end date", () => {
+    const raw = registryJson();
+    (raw.kontraktUtrzymaniowy as Record<string, unknown>).obowiazujeDo = "invalid";
+    expect(() => analyzeOwnership(input({ registry: parseRegistry(raw) }))).toThrow(
+      "Nieprawidłowa data",
+    );
+  });
+  it("preserves quoted identifiers and newline locations through SQL comments/literals", () => {
+    const sql = `/* first\n second */ SELECT "club_members", 'it''s\nquoted';`;
+    expect(stripSqlNoise(sql)).toContain('"club_members"');
+    expect(stripSqlNoise(sql).split("\n")).toHaveLength(3);
+    expect(stripSqlComments(sql)).toContain("'it''s\nquoted'");
+    expect(stripSqlNoise('SELECT "unfinished')).toContain('"unfinished');
+    expect(stripSqlComments("SELECT 'unterminated")).toContain("'unterminated");
+  });
+  it("does not award domain ownership to ubiquitous infrastructure identifiers", () => {
+    const migrations = Array.from({ length: 50 }, (_, i) => ({
+      file: `${i}.sql`,
+      sql: `SELECT public.club_shared, public.unowned_table; ${i === 0 ? "SELECT public.user_roles;" : ""}`,
+    }));
+    const report = attributeMigrations(migrations, parseRegistry(registryJson()));
+    expect(report.attributions.find((x) => x.file === "0.sql")?.domain).toBe("tozsamosc");
+    expect(report.attributions.filter((x) => x.tier === "brak")).toHaveLength(49);
+  });
+  it("does not attribute unknown objects even when their names appear in dynamic SQL", () => {
+    const report = attributeMigrations(
+      [
+        { file: "a.sql", sql: "CREATE TABLE public.unowned_table (id uuid);" },
+        { file: "b.sql", sql: "SELECT 'unowned_table';" },
+      ],
+      parseRegistry(registryJson()),
+    );
+    expect(report.attributions.every((x) => x.tier === "brak")).toBe(true);
+  });
+  it("renders all blocking ownership failures instead of hiding later problems", () => {
+    const raw = registryJson();
+    const people = raw.osoby as Record<string, Record<string, unknown>>;
+    people.wlasciciel.obsadzone = false;
+    people["organizacja-nes"].organizacja = "NIEOBSADZONE";
+    const domains = raw.domeny as Record<string, unknown>[];
+    domains[0].zastepca = "missing";
+    domains[1].zastepca = "wlasciciel";
+    (raw.progi as Record<string, unknown>).migracjeBezAtrybucjiDozwolone = ["known.sql"];
+    domains[0].obiektyBazy = ["club_", ...Array.from({ length: 8 }, (_, i) => `unused_${i}_`)];
+    const report = analyzeOwnership(
+      input({
+        registry: parseRegistry(raw),
+        routeFiles: [],
+        migrations: [
+          { file: "new.sql", sql: "SELECT 1;" },
+          { file: "known.sql", sql: "SELECT public.club_members;" },
+        ],
+        documentExists: { "runbook.md": false },
+      }),
+    );
+    const output = renderOwnershipReport(report);
+    for (const detail of ["new.sql", "missing", "runbook.md", "NIEOBSADZONE", "known.sql", "…"])
+      expect(output).toContain(detail);
+    expect(ownershipFailed(report)).toBe(true);
+  });
+  it("renders a zero-sized migration corpus and missing people without throwing", () => {
+    const registry = parseRegistry(registryJson({ osoby: {} }));
+    expect(renderOwnershipReport(analyzeOwnership(input({ registry, migrations: [] })))).toContain(
+      "0 migracji",
+    );
+    expect(renderCodeowners(registry)).toContain("właściciel: ? | zastępca: ?");
+  });
+});
