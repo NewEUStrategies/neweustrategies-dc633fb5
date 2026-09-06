@@ -26,6 +26,9 @@ dużego kosztu parsowania dokumentu i uruchamiania kodu klienta przy pierwszym w
   zachowany jest ten sam element DOM. Późniejsze zmiany tożsamości i wylogowanie
   nadal działają natychmiast. Kolor motywu reaguje natychmiast także wtedy,
   gdy aktualizacja kontekstu czeka na gotowość potomka.
+- Subskrypcja zgód dla obserwowalności ma osobny komponent. Jej aktualizacja
+  nie odtwarza już wartości wszystkich kontekstów w korzeniu; test na
+  prawdziwym routerze wykazał i zabezpiecza zbędny render artykułu.
 
 ## Zmierzone lokalnie na jednakowych buildach produkcyjnych
 
@@ -67,6 +70,9 @@ gotowość <3 s, wykonana interakcja <3,5 s, CLS <0,1 oraz limity HTML/CSS.
 Kandydat musi też zachować oryginalny tytuł SSR podczas hydratacji. Raport
 CLS używa największego okna sesji (maks. 5 s, przerwa poniżej 1 s) i wskazuje
 elementy odpowiedzialne za przesunięcia przed interakcją.
+Transport testowy przechwytuje tylko backend i zasoby zewnętrzne. Lokalne
+CSS/JS/fonty płyną bezpośrednio z artefaktu, bez dodatkowej kolejki sterownika
+Playwright przy każdym żądaniu. Bazę i kandydata mierzy ten sam harness.
 
 To kontrolowane laboratorium bez throttlingu, nie produkcyjny p75 ani INP.
 Nowy kontekst oznacza zimny cache przeglądarki; kolejne próby rozgrzewają cache

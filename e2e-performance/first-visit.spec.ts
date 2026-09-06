@@ -30,34 +30,42 @@ for (const [path, lang] of [
     test(`first visit ${lang}, sample ${sample}`, async ({ page }, testInfo) => {
       const errors: string[] = [];
       await page.setExtraHTTPHeaders({ "accept-language": lang });
-      await page.route("**/*", async (route) => {
-        const req = route.request();
-        if (isFixtureBackend(req.url())) {
-          const reply = await fixtureResponse(
-            new Request(req.url(), {
-              method: req.method(),
-              headers: req.headers(),
-              body: req.method() === "POST" ? req.postData() : undefined,
-            }),
-            { delayMs: 40 },
-          ).catch((error: unknown) => {
-            // Gather every missing fixture in a run, without letting an
-            // unrecorded request escape to a real backend or pass the test.
-            errors.push(String(error));
-            return Response.json({ message: String(error) }, { status: 501 });
-          });
-          return route.fulfill({
-            status: reply.status,
-            headers: Object.fromEntries(reply.headers),
-            body: await reply.text(),
-          });
-        }
-        // Stable test image, no external CDN variance in before/after.
-        if (req.resourceType() === "image" && new URL(req.url()).hostname !== "127.0.0.1") {
-          return route.fulfill({ body: fixtureImage, contentType: homeFixture.fixture_image_type });
-        }
-        await route.continue();
-      });
+      // Local CSS/JS/fonts go directly to the artifact server. Intercepting
+      // every asset makes the Playwright driver part of the loading waterfall.
+      await page.route(
+        (url) => url.hostname !== "127.0.0.1" || isFixtureBackend(url.href),
+        async (route) => {
+          const req = route.request();
+          if (isFixtureBackend(req.url())) {
+            const reply = await fixtureResponse(
+              new Request(req.url(), {
+                method: req.method(),
+                headers: req.headers(),
+                body: req.method() === "POST" ? req.postData() : undefined,
+              }),
+              { delayMs: 40 },
+            ).catch((error: unknown) => {
+              // Gather every missing fixture in a run, without letting an
+              // unrecorded request escape to a real backend or pass the test.
+              errors.push(String(error));
+              return Response.json({ message: String(error) }, { status: 501 });
+            });
+            return route.fulfill({
+              status: reply.status,
+              headers: Object.fromEntries(reply.headers),
+              body: await reply.text(),
+            });
+          }
+          // Stable test image, no external CDN variance in before/after.
+          if (req.resourceType() === "image" && new URL(req.url()).hostname !== "127.0.0.1") {
+            return route.fulfill({
+              body: fixtureImage,
+              contentType: homeFixture.fixture_image_type,
+            });
+          }
+          await route.continue();
+        },
+      );
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => {
         if (

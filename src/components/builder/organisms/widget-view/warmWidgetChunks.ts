@@ -1,8 +1,9 @@
 // Rozgrzewanie najczęstszych leniwych chunków widgetów PO hydratacji.
 //
 // PO CO. Podział widgetów po typie (lazyWidgets) zdejmuje ich kod z chunku
-// wejściowego, a SSR wypełnia każdą granicę Suspense przy pierwszym wejściu -
-// tam nic nie miga. Luka zostaje przy nawigacji SPA: granica montowana w
+// wejściowego, a SSR dostarcza treść granic Suspense przy pierwszym wejściu.
+// Zachowanie tej treści do końca hydratacji zależy też od aktualizacji
+// kontekstów; sprawdzają je testy pierwszej wizyty. Przy nawigacji SPA granica montowana w
 // tranzycji NA NOWEJ stronie może pokazać pusty fallback, dopóki chunk się nie
 // pobierze (uwaga z recenzji PR #240). Zamiast wracać do eager (odtworzyłoby to
 // 442 kB źródeł w entry), po pierwszym malowaniu dociągamy w czasie BEZCZYNNOŚCI

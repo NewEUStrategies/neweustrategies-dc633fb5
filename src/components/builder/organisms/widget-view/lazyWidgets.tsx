@@ -17,8 +17,10 @@
 // collapse - the earlier version imported the real implementations statically
 // which defeated the whole point of the file).
 //
-// Fallback contract: on PUBLIC pages it stays `null` (SSR fills the boundary,
-// so it is ~never shown and zero layout shift is guaranteed). Inside the
+// Fallback contract: on PUBLIC pages it stays `null`. Streaming SSR fills the
+// boundary, but an urgent update before hydration can still discard that HTML;
+// first-visit tests check DOM retention and CLS instead of assuming stability.
+// Inside the
 // BUILDER canvas - a pure client render where the chunk genuinely loads on
 // first mount - `null` made the widget blink out of existence for a moment,
 // so the canvas shows a shimmer placeholder instead.
