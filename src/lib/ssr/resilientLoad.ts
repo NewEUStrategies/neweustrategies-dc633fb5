@@ -56,6 +56,8 @@ export interface ResilientLoad<TData> {
 export interface ResilientLoadOptions {
   /** Budżet oczekiwania w ms. Domyślnie `RESILIENT_LOAD_BUDGET_MS`. */
   readonly budgetMs?: number;
+  /** Absolute request deadline. Consecutive phases share the remaining time. */
+  readonly deadlineAt?: number;
   /** Etykieta do logu diagnostycznego (domyślnie serializowany klucz zapytania). */
   readonly label?: string;
 }
@@ -84,18 +86,27 @@ export async function loadResilient<
   queryClient: QueryClient,
   options: EnsureQueryDataOptions<TQueryFnData, TError, TData, TQueryKey>,
   fallback: TData,
-  { budgetMs = RESILIENT_LOAD_BUDGET_MS, label }: ResilientLoadOptions = {},
+  { budgetMs = RESILIENT_LOAD_BUDGET_MS, deadlineAt, label }: ResilientLoadOptions = {},
 ): Promise<ResilientLoad<TData>> {
   const queryKey = options.queryKey;
 
   // `.catch()` PRZED budżetem: `withBudget` z założenia dostaje obietnicę,
   // która już nie odrzuca - inaczej odrzucenie po wygaśnięciu budżetu byłoby
   // nieobsłużone i wywróciłoby proces renderu.
-  await withBudget(queryClient.ensureQueryData(options).then(noop, noop), budgetMs);
+  const remaining =
+    deadlineAt === undefined ? budgetMs : Math.min(budgetMs, deadlineAt - Date.now());
+  // withBudget(0) means UNBOUNDED, not expired. Do not even start a new
+  // upstream request when the caller's absolute deadline has already elapsed.
+  if (deadlineAt === undefined || remaining > 0) {
+    await withBudget(queryClient.ensureQueryData(options).then(noop, noop), remaining);
+  }
 
   const state = queryClient.getQueryState<TData, TError>(queryKey);
   if (state?.status === "success" && state.data !== undefined) {
-    return { data: state.data, degraded: false };
+    // Another parallel loader may have seeded this shared query. Empty data
+    // from a successful backend response is valid; updatedAt=0 is the explicit
+    // fallback contract, and must not silently become shared-cacheable.
+    return { data: state.data, degraded: state.dataUpdatedAt === 0 };
   }
 
   // Anulowanie MUSI poprzedzać zasiew (patrz punkt 2. doktryny wyżej).

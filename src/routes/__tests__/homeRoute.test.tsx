@@ -47,6 +47,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { BlogArchiveResult, BlogListItem, HomepageMode, PageData } from "@/lib/queries/public";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
+import { QueryClient } from "@tanstack/react-query";
+import { HOME_SSR_BUDGET_MS, homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
 import { axeViolations, summarize } from "@/test/axe";
 
 const h = vi.hoisted(() => ({
@@ -60,6 +62,7 @@ const h = vi.hoisted(() => ({
   server: false,
   homePage: null as PageData | null,
   homePageFails: false,
+  homePageHangs: false,
   homeMode: "" as HomepageMode,
   homeModeFails: false,
   settings: {} as Record<string, unknown>,
@@ -110,9 +113,11 @@ vi.mock("@/lib/queries/public", async (importOriginal) => ({
   homePageQueryOptions: () => ({
     queryKey: ["public", "home-page"],
     queryFn: () =>
-      h.homePageFails
-        ? Promise.reject(new Error("blip backendu: strona główna"))
-        : Promise.resolve(h.homePage),
+      h.homePageHangs
+        ? new Promise<PageData | null>(() => {})
+        : h.homePageFails
+          ? Promise.reject(new Error("blip backendu: strona główna"))
+          : Promise.resolve(h.homePage),
   }),
   homepageModeQueryOptions: () => ({
     queryKey: ["public", "home-mode"],
@@ -304,6 +309,7 @@ beforeEach(() => {
   h.server = false;
   h.homePage = null;
   h.homePageFails = false;
+  h.homePageHangs = false;
   h.homeMode = "";
   h.homeModeFails = false;
   h.settings = { reading: { posts_per_page: 2 } };
@@ -570,6 +576,94 @@ describe("/ - tryb „najnowsze wpisy”", () => {
 });
 
 describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
+  it("does not prefetch or expose a static page's SEO when the mode is unknown", async () => {
+    h.homePage = homePageData({ seo_canonical_url: "https://example.com/hidden-static-home" });
+    h.homeModeFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    expect(h.prefetch).toEqual([]);
+    expect(imagePreload(view.links())).toBeUndefined();
+    expect(linkByRel(view.links(), "canonical")).not.toContain("hidden-static-home");
+  });
+
+  it("automatically replaces hydrated stale seeds when the backend is healthy again", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(["public", "home-page"], null, { updatedAt: 0 });
+    qc.setQueryData(["public", "home-mode"], "", { updatedAt: 0 });
+    h.homeMode = "static_page";
+    h.homePage = homePageData();
+    await act(async () => {
+      await renderRoute({ route: HomeRoute, path: "/", initialEntry: "/", queryClient: qc });
+    });
+    await waitFor(() => expect(screen.getByTestId("kanwa")).toBeVisible());
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(qc.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(0);
+  });
+
+  it("recovers builder content after retry without a full page reload", async () => {
+    h.homePageFails = true;
+    h.homeModeFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    h.homePageFails = false;
+    h.homeModeFails = false;
+    h.homeMode = "static_page";
+    h.homePage = homePageData();
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+    await waitFor(() => expect(screen.getByTestId("kanwa")).toBeVisible());
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(view.queryClient.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("keeps page 2 and the configured page size when an archive refetch recovers", async () => {
+    h.homeMode = "latest_posts";
+    h.archiveFails = true;
+    await mountHome("/?page=2");
+    expect(screen.getByRole("status")).toBeVisible();
+    h.archiveFails = false;
+    h.archive = { posts: [post("recovered")], total: 4, page: 2, pageSize: 2 };
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+    await waitFor(() => expect(screen.getByRole("link", { name: /Wpis recovered/ })).toBeVisible());
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("a hanging SSR homepage stops at the shared deadline and seeds recoverable data", async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    try {
+      h.server = true;
+      h.homePageHangs = true;
+      const deadline = homeSsrDeadline(qc);
+      // Root has already used 400 ms. The home loader may not start a fresh
+      // 600 ms timer when it joins the same request later.
+      await vi.advanceTimersByTimeAsync(400);
+      type Loader = (args: {
+        context: { queryClient: QueryClient };
+        deps: { page: number };
+      }) => Promise<{
+        degraded: boolean;
+        homePage: PageData | null;
+        coverPreload: unknown;
+      }>;
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      await vi.advanceTimersByTimeAsync(HOME_SSR_BUDGET_MS - 400);
+      expect(await result).toMatchObject({ degraded: true, homePage: null, coverPreload: null });
+      expect(Date.now()).toBe(deadline);
+      expect(qc.getQueryState(["public", "home-page"])).toMatchObject({
+        status: "success",
+        fetchStatus: "idle",
+        dataUpdatedAt: 0,
+      });
+      expect(h.cacheControl.at(-1)).toBe("private, no-store");
+    } finally {
+      qc.clear();
+      vi.useRealTimers();
+    }
+  });
+
   it("awaria archiwum daje pustą siatkę I ODCINA cache współdzielony", async () => {
     // To jest różnica wobec pustego archiwum: tam wynik jest prawdziwy i wolno
     // go podać następnemu odwiedzającemu, tutaj byłaby to utrwalona awaria.
@@ -588,7 +682,8 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     // nie wyleczy się sama po powrocie backendu.
     expect(view.queryClient.getQueryData(["public", "home-page"])).toBeNull();
     expect(view.queryClient.getQueryData(["public", "home-mode"])).toBe("");
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByRole("status")).toHaveTextContent("Wczytujemy stronę główną");
+    expect(screen.queryByText(/zajrzyj wkrótce/i)).toBeNull();
     expect(h.cacheControl.at(-1)).toContain("no-store");
   });
 

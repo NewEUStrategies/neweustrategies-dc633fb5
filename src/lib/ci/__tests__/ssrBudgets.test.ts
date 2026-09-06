@@ -88,6 +88,49 @@ function analyze(extra: SsrBudgetSource[] = []) {
 }
 
 describe("blankNonCode - wygaszanie komentarzy i literałów napisowych", () => {
+  it("counts a phase ceiling when an absolute deadline is passed as argument three", () => {
+    const source = ROOT_OK.replace(
+      "withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS)",
+      "withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline)",
+    );
+    expect(loaderBudgetFacts("src/routes/__root.tsx", source)?.chainMs).toBe(3000);
+  });
+
+  it("adding a deadline cannot hide an increased ceiling or a third phase", () => {
+    const source = ROOT_OK.replace(
+      "withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS)",
+      "withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline)",
+    );
+    const report = analyzeSsrBudgets({
+      sources: [
+        { file: "src/routes/__root.tsx", source },
+        { file: "src/router.tsx", source: ROUTER_OK },
+      ],
+    });
+    expect(report.rootWarmChainMs).toBe(3000);
+    const raised = analyzeSsrBudgets({
+      sources: [
+        { file: "src/routes/__root.tsx", source: source.replace("2_500", "2_501") },
+        { file: "src/router.tsx", source: ROUTER_OK },
+      ],
+    });
+    expect(ssrBudgetsFailed(raised)).toBe(true);
+    const extraPhase = analyzeSsrBudgets({
+      sources: [
+        {
+          file: "src/routes/__root.tsx",
+          source: source.replace(
+            "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline);",
+            "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS, homeDeadline); await withBudget(extra, 1000);",
+          ),
+        },
+        { file: "src/router.tsx", source: ROUTER_OK },
+      ],
+    });
+    expect(extraPhase.rootWarmChainMs).toBe(4000);
+    expect(ssrBudgetsFailed(extraPhase)).toBe(true);
+  });
+
   it("komentarz cytujący withBudget NIE jest wywołaniem", () => {
     const facts = loaderBudgetFacts(
       "src/routes/x.tsx",

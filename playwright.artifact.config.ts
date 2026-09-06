@@ -68,7 +68,7 @@ export default defineConfig({
   // W RÓŻNYCH TRYBACH I RÓŻNYCH KOLEJNOŚCIACH. To szum hosta, nie efekt
   // rozgrzania serwera - progi z `e2e/boot-timing.spec.ts` obowiązują więc
   // niezależnie od tego, jak Playwright ustawi pliki.
-  testMatch: /boot-(artifact|timing)\.spec\.ts$/,
+  testMatch: /boot-(artifact|timing|home)\.spec\.ts$/,
   // Hojniej niż 30 s z konfiguracji dev: pierwszy render zimnego artefaktu
   // z zaślepkami Supabase idzie przez pełne budżety loaderów.
   timeout: 90_000,

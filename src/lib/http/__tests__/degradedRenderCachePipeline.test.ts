@@ -174,6 +174,22 @@ describe("render zdegradowany a ZAPIS do NES Edge Cache (kolejność potoku)", (
     expect(storedEntries()).toBe(0);
   });
 
+  it.each([true, false])(
+    "root/child opt-out wins in both completion orders (root first: %s)",
+    async (degradedFirst) => {
+      const policies = [resilientCacheControl(true), resilientCacheControl(false)];
+      if (!degradedFirst) policies.reverse();
+      const response = await documentRequest("/", () => {
+        for (const policy of policies) setCacheControlHeader(policy);
+        expect(readRouteCacheDirective()).toBe("private, no-store");
+      });
+      await response.text();
+      await settle();
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(storedEntries()).toBe(0);
+    },
+  );
+
   it("dyrektywa NIE przecieka między żądaniami (klucz to obiekt Request)", async () => {
     const degraded = await documentRequest("/blog", () => {
       setCacheControlHeader(resilientCacheControl(true));

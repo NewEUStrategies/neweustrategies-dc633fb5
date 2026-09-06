@@ -23,13 +23,13 @@ import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { homePageSearch, homeTotalPages } from "@/components/home/atoms/homePagination";
 import { blogArchiveQueryOptions, resolvePostsPerPage } from "@/lib/queries/public";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { HomeLoadingNotice } from "@/components/home/molecules/HomeLoadingNotice";
 
 export function LatestPostsHome({ lang, page }: { lang: "pl" | "en"; page: number }) {
   const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const pageSize = resolvePostsPerPage(settingsMap);
-  const {
-    data: { posts, total },
-  } = useSuspenseQuery(blogArchiveQueryOptions({ page, pageSize }));
+  const archiveQuery = useSuspenseQuery(blogArchiveQueryOptions({ page, pageSize }));
+  const { posts, total } = archiveQuery.data;
   const navigate = useNavigate();
   const router = useRouter();
   // Zmiana strony biegnie w transition - obecna siatka zostaje na ekranie
@@ -49,6 +49,10 @@ export function LatestPostsHome({ lang, page }: { lang: "pl" | "en"; page: numbe
     startTransition(() => {
       void navigate({ to: "/", search: homePageSearch(nextPage) });
     });
+
+  if (archiveQuery.dataUpdatedAt === 0) {
+    return <HomeLoadingNotice onRetry={() => void archiveQuery.refetch()} />;
+  }
 
   return (
     <div className="max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">

@@ -50,12 +50,19 @@ const routeCacheDirectives = new WeakMap<Request, string>();
 export const setCacheControlHeader = createIsomorphicFn()
   .server((value: string) => {
     try {
-      setResponseHeader("cache-control", value);
+      const request = getRequest();
+      const previous = routeCacheDirectives.get(request);
+      // Root and child loaders run in parallel. Once either opts out, a later
+      // clean loader must not make a partial document cacheable again.
+      if (previous && /(?:^|,)\s*(?:private|no-store)\s*(?:,|$|=)/i.test(previous)) {
+        value = previous;
+      }
+      routeCacheDirectives.set(request, value);
     } catch {
       /* not inside a request scope - ignore */
     }
     try {
-      routeCacheDirectives.set(getRequest(), value);
+      setResponseHeader("cache-control", value);
     } catch {
       /* not inside a request scope - ignore */
     }

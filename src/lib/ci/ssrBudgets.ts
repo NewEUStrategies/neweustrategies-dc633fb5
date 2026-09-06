@@ -389,21 +389,11 @@ export function loaderBudgetFacts(
   for (const m of loader.matchAll(budgetRe)) {
     const open = loader.indexOf("(", (m.index ?? 0) + m[0].length - 1);
     const args = balancedArgs(loader, open);
-    // Budżet jest OSTATNIM argumentem `withBudget(work, ms)`.
-    //
-    // WISZĄCY PRZECINEK JEST TU REGUŁĄ, NIE WYJĄTKIEM: prettier formatuje
-    // wielolinijkowe wywołania jako `withBudget(\n  work,\n  BUDGET_MS,\n)`,
-    // więc ostatni przecinek na poziomie 0 stoi ZA stałą, a naiwne
-    // `slice(lastComma + 1)` zwracało PUSTY łańcuch. Objaw był cichy i groźny:
-    // budżet nierozpoznany -> liczony jako 0 -> suma fal korzenia wychodziła
-    // 500 ms zamiast 3 000 i bramka była zielona z powodu własnego błędu.
-    // Dlatego bierzemy OSTATNI NIEPUSTY człon, a nie „to, co za przecinkiem".
+    // The second argument is the phase ceiling. The optional absolute
+    // deadline (third argument) can only shorten it. A trailing comma must
+    // not make either form disappear from the static report.
     const parts = splitTopLevel(args);
-    const constName =
-      parts
-        .filter((p) => p.trim() !== "")
-        .at(-1)
-        ?.trim() ?? "";
+    const constName = parts[1]?.trim() ?? "";
     const literal = /^\d[\d_]*$/.test(constName)
       ? Number(constName.replaceAll("_", ""))
       : (consts.get(constName) ?? externalConstants.get(constName) ?? null);

@@ -16,8 +16,11 @@ test("homepage boots and renders a well-formed document", async ({ page }) => {
   await expect(page).toHaveTitle(/.+/);
   await expect(page.locator("html")).toHaveAttribute("lang", /.+/);
 
-  // App actually mounted some content (not a blank document).
-  await expect(page.locator("body")).not.toBeEmpty();
+  // A body containing only scripts also passes not.toBeEmpty. Require the
+  // visible application shell, a real main area, and visible text/content.
+  await expect(page.locator("[data-site-shell]")).toBeVisible();
+  await expect(page.locator("main#main-content")).toBeVisible();
+  await expect(page.locator("main#main-content")).not.toHaveText(/^\s*$/);
 
   // No uncaught client exceptions during boot.
   expect(errors, `page errors: ${errors.join("; ")}`).toHaveLength(0);

@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { deepMerge } from "./deepMerge";
 import { edgeTtlCache } from "./ssrCache";
 
-type SettingsMap = Readonly<Record<string, unknown>>;
+export type SettingsMap = Readonly<Record<string, unknown>>;
 
 const SETTINGS_QUERY_KEY = ["site_settings_public", "all"] as const;
 
