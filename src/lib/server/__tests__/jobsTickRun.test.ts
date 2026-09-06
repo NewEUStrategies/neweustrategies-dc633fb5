@@ -89,6 +89,7 @@
 // BEZ SIECI, BEZ POCZTY, BEZ SEKRETÓW. Wszystkie granice wychodzące są
 // atrapami, żaden test nie tworzy klienta Supabase ani nie czyta env.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { advanceClock } from "@/test/time";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { JobRunReport } from "@/lib/server/jobScheduler.server";
@@ -351,7 +352,7 @@ function tickAt(minute: number, meta?: JobsTickMeta): Promise<JobsTickResult> {
 /** Job „trwa" `ms`: przesuwa zamrożony zegar w chwili startu swojej pracy. */
 function slowJob(step: string, ms: number): void {
   jobs.beforeStep = (current) => {
-    if (current === step) vi.setSystemTime(Date.now() + ms);
+    if (current === step) advanceClock(ms);
   };
 }
 

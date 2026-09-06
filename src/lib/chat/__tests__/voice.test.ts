@@ -11,6 +11,7 @@
 // (`ondataavailable` -> `stop()` -> `onstop`), bo to na tej kolejności stoi
 // zbieranie ostatniego fragmentu nagrania.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { advanceClock } from "@/test/time";
 import { act, renderHook } from "@testing-library/react";
 import { MAX_VOICE_SECONDS } from "../attachments";
 import { formatVoiceDuration, pickRecordingMime, useVoiceRecorder } from "../voice";
@@ -209,7 +210,7 @@ describe("useVoiceRecorder", () => {
     act(() => {
       lastRecorder().emitChunk(new Blob(["dzwiek"]));
       vi.advanceTimersByTime(3000);
-      vi.setSystemTime(Date.now() + 3000);
+      advanceClock(3000);
     });
     expect(result.current.elapsed).toBeGreaterThan(0);
 
@@ -308,7 +309,7 @@ describe("useVoiceRecorder", () => {
     });
 
     await act(async () => {
-      vi.setSystemTime(Date.now() + (MAX_VOICE_SECONDS + 1) * 1000);
+      advanceClock((MAX_VOICE_SECONDS + 1) * 1000);
       vi.advanceTimersByTime(250);
       await Promise.resolve();
     });

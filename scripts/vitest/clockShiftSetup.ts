@@ -61,6 +61,7 @@ const OFFSET_MS = parseShift(process.env.CLOCK_SHIFT ?? "");
 
 if (OFFSET_MS !== 0) {
   const RealDate = Date;
+  const ORIGINAL_NOW = RealDate.now;
 
   // Proxy, a nie `class ... extends Date`. Podklasa musiałaby zadeklarować
   // sygnaturę konstruktora, a `ConstructorParameters<DateConstructor>` zwija
@@ -79,7 +80,19 @@ if (OFFSET_MS !== 0) {
       return Reflect.construct(target, args, newTarget);
     },
     get(target, prop, receiver) {
-      if (prop === "now") return () => target.now() + OFFSET_MS;
+      if (prop === "now") {
+        // WAŻNE: nie wolno przykryć CUDZEJ podmiany `Date.now`.
+        //
+        // Część testów zamraża zegar przez `vi.spyOn(Date, "now")`, a nie przez
+        // `vi.useFakeTimers`. Szpieg podmienia `now` na obiekcie docelowym, więc
+        // bezwarunkowe oddawanie tu własnej funkcji ZJADAŁOBY to zamrożenie i
+        // pokazywało poprawnie zamrożony plik jako bombę. Zmierzone na
+        // `useSaveArticle.test.tsx`: 9 fałszywych czerwieni przy CLOCK_SHIFT=1y.
+        // Przesuwamy więc tylko wtedy, gdy `now` jest nadal tym oryginalnym.
+        const current = Reflect.get(target, prop, receiver) as unknown;
+        if (current !== ORIGINAL_NOW) return current;
+        return () => ORIGINAL_NOW.call(target) + OFFSET_MS;
+      }
       return Reflect.get(target, prop, receiver);
     },
   });

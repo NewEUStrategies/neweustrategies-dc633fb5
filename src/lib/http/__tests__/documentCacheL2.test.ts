@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MINUTA, advanceClock } from "@/test/time";
 
 import { NES_CACHE_HEADER } from "@/lib/http/documentCache";
 import {
@@ -180,7 +181,7 @@ describe("handleDocumentRequest z warstwą L2", () => {
 
     // Rotacja izolatu + upływ czasu poza świeżość (cap 3 min), w oknie SWR.
     resetDocumentCacheForTests();
-    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    advanceClock(10 * MINUTA);
 
     const failingNext = vi.fn(async () => {
       throw new Error("db hiccup");

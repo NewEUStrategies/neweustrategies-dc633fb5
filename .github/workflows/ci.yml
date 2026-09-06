@@ -484,6 +484,20 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:unknown-casts
 
+      # Blocking ratchet: a test carrying a calendar literal may not read the
+      # real clock. This class of defect does not show up as a red test on the
+      # day it is introduced - it shows up weeks later, when the literal falls
+      # out of a window that production computes from `Date.now()`, with an
+      # empty diff for that day. Measured on 2026-09-06: one donations test file
+      # held twelve such fuses on a single fixture default; the first fired on
+      # 2026-09-05 at 10:00 UTC, the remaining eleven were due at 10:00 UTC the
+      # next day. Frozen PER FILE: a literal count may only shrink, a file
+      # absent from the baseline must be zero, and `vi.setSystemTime(Date.now())`
+      # - a freeze that only looks like one - is a hard zero with no baseline.
+      - name: No new clock-bomb tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:clock-freeze
+
       # Blocking zero-threshold gate: `t()` may not carry a fallback string.
       # i18next reads `defaultValue` ONLY when the key is absent, and the drift
       # gate (`check:i18n-parity`) proves at every run that no key is absent -
