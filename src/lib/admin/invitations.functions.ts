@@ -11,17 +11,15 @@
 //   - sendInvitation(id)            - tworzy konto (auth.admin.createUser lub
 //                                     inviteUserByEmail), rekordy profiles /
 //                                     author_profiles / user_roles i wysyła
-//                                     e-mail (dla temp_password przez
-//                                     sendTransactionalEmail).
+//                                     e-mail przez domenową kolejkę pocztową.
 //   - resendInvitation(id)          - jak wyżej, jeśli konto istnieje pomija.
 //   - revokeInvitation(id)          - miękkie oznaczenie statusu.
 //   - linkTeamWidgets(pageSlug)     - dopisuje authorSlug / authorUserId do
 //                                     widgetów team-member matchowanych po
 //                                     e-mailu.
 //
-// Rejestrujemy się do istniejącej infrastruktury: sendTransactionalEmail
-// (bramka Resend przez connector gateway platformy) i supabaseAdmin ładowany
-// wewnątrz .handler() (patrz reguły import-graph).
+// Rejestrujemy się do istniejącej infrastruktury pocztowej projektu i
+// supabaseAdmin ładowanego wewnątrz .handler() (patrz reguły import-graph).
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -259,7 +257,7 @@ async function performSend(
   invitationId: string,
 ): Promise<SendResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { sendTransactionalEmail } = await import("@/lib/server/email.server");
+  const { enqueueRawEmail } = await import("@/lib/email/transactional.server");
 
   const { data: inv, error: invErr } = await supabase
     .from("user_invitations")
@@ -434,14 +432,16 @@ async function performSend(
           ${cta}
           <p style="color:#64748B;font-size:12px;margin-top:24px">Jeśli nie spodziewasz się tej wiadomości, po prostu ją zignoruj.</p>
         </div>`;
-      const res = await sendTransactionalEmail({
+      const res = await enqueueRawEmail({
         to: email,
         subject: actionLink
           ? "Aktywuj swoje konto w New European Strategies"
           : "Twoje konto w New European Strategies",
         html,
+        label: "user_invitation",
+        idempotencyKey: `user-invitation:${invitationId}:send:${String(sendCount)}`,
+        category: "transactional",
         tenantId: inv.tenant_id,
-        tags: { kind: "user_invitation" },
       });
       if (!res.ok) {
         return { ok: false, email, error: `email_failed:${res.error}`, tempPassword };
