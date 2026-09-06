@@ -1165,21 +1165,96 @@ const PRZYPADKI_AWARII: readonly PrzypadekAwarii[] = [
     oczekiwane: { items: [], updates: [] },
     wywolaj: () => fetchTrackerFeedSources(TENANT),
   },
+  {
+    czytnik: "tag header",
+    tabela: "tags",
+    etykieta: "feed-taxonomy",
+    oczekiwane: null,
+    wywolaj: () => fetchTaxonomyForFeed(TENANT, "tag", "ai-act"),
+  },
+  {
+    czytnik: "program header",
+    tabela: "research_programs",
+    etykieta: "feed-taxonomy",
+    oczekiwane: null,
+    wywolaj: () => fetchTaxonomyForFeed(TENANT, "program", "ai-act"),
+  },
+  {
+    czytnik: "live posts",
+    tabela: "posts",
+    etykieta: "live-entries",
+    oczekiwane: [],
+    wywolaj: () => fetchLiveCoverageEntries(TENANT),
+  },
+  {
+    czytnik: "tracker updates",
+    tabela: "eu_policy_updates",
+    etykieta: "tracker-feed",
+    oczekiwane: { items: [], updates: [] },
+    wywolaj: () => fetchTrackerFeedSources(TENANT),
+  },
+  {
+    czytnik: "program feed research_programs",
+    tabela: "research_programs",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "program", "slug"),
+  },
+  {
+    czytnik: "program feed post_categories",
+    tabela: "post_categories",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "program", "slug"),
+  },
+  {
+    czytnik: "category feed categories",
+    tabela: "categories",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "category", "slug"),
+  },
+  {
+    czytnik: "category feed post_categories",
+    tabela: "post_categories",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "category", "slug"),
+  },
+  {
+    czytnik: "tag feed post_tags",
+    tabela: "post_tags",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "tag", "slug"),
+  },
+  {
+    czytnik: "tag feed posts",
+    tabela: "posts",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "tag", "slug"),
+  },
 ];
 
 describe("degradacja odczytu - awaria zamiast 500 na powierzchni crawlera", () => {
   for (const przypadek of PRZYPADKI_AWARII) {
-    it(`${przypadek.czytnik}: zerwany odczyt daje bezpieczną wartość i ślad "${przypadek.etykieta}"`, async () => {
-      odpowiedziTowarzyszace();
-      db.setResponse(przypadek.tabela, () => {
-        throw new Error("połączenie zerwane");
-      });
-      await expect(przypadek.wywolaj()).resolves.toEqual(przypadek.oczekiwane);
-      expect(ostrzezenia).toHaveBeenCalledWith(
-        `[seo] ${przypadek.etykieta} read failed:`,
-        expect.any(Error),
-      );
-    });
+    it.each(["transport", "database"])(
+      `${przypadek.czytnik}: %s daje bezpieczną wartość i ślad "${przypadek.etykieta}"`,
+      async (kind) => {
+        odpowiedziTowarzyszace();
+        const error = new Error("połączenie zerwane");
+        db.setResponse(przypadek.tabela, () => {
+          if (kind === "transport") throw error;
+          return fail("połączenie zerwane", "42501");
+        });
+        await expect(przypadek.wywolaj()).resolves.toEqual(przypadek.oczekiwane);
+        expect(ostrzezenia).toHaveBeenCalledWith(
+          `[seo] ${przypadek.etykieta} read failed:`,
+          expect.objectContaining({ message: "połączenie zerwane" }),
+        );
+      },
+    );
   }
 });
 

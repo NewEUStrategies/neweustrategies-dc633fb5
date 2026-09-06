@@ -362,16 +362,23 @@ describe("CV autora: kolejność operatora i cisza po odmowie", () => {
     expect(cv.hobbies).toEqual([]);
   });
 
-  it("błąd odczytu jest zgłaszany: odmowa CV", async () => {
-    planujCv(fail("odmowa CV", "42501"));
-    await expect(klient().fetchQuery(authorCvQueryOptions("aut-1"))).rejects.toMatchObject({
-      message: "odmowa CV",
+  it("odpowiedź null daje pięć pustych sekcji CV", async () => {
+    planujCv(ok(null));
+    await expect(klient().fetchQuery(authorCvQueryOptions("aut-1"))).resolves.toEqual({
+      experiences: [],
+      education: [],
+      skills: [],
+      awards: [],
+      hobbies: [],
     });
   });
 
-  it("AWARIA odczytu CV POWINNA być odróżnialna od autora, który nic nie wypełnił", async () => {
-    planujCv(fail("odmowa CV", "42501"));
-    await expect(klient().fetchQuery(authorCvQueryOptions("aut-1"))).rejects.toThrow();
+  it.each(TABELE)("odmowa %s nie udaje pustego CV", async (table) => {
+    planujCv();
+    baza().setResponse(table, fail("odmowa CV", "42501"));
+    await expect(klient().fetchQuery(authorCvQueryOptions("aut-1"))).rejects.toMatchObject({
+      message: "odmowa CV",
+    });
   });
 });
 
@@ -491,6 +498,15 @@ describe("kolumna mega-menu: co pokazuje rozwijane menu nawigacji", () => {
     baza().setResponse("posts", ok(null));
     const dane = await klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl"));
     expect(dane).toEqual({ posts: [], catName: "Analizy" });
+  });
+
+  it("pusta odpowiedź powiązań zachowuje nazwę kategorii i nie pyta o wpisy", async () => {
+    baza().setResponse("categories", ok(wierszKategorii()));
+    baza().setResponse("post_categories", ok(null));
+    await expect(
+      klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl")),
+    ).resolves.toEqual({ posts: [], catName: "Analizy" });
+    expect(baza().chainsFor("posts")).toHaveLength(0);
   });
 
   it.each(["categories", "post_categories", "posts"])(
@@ -791,6 +807,13 @@ describe("seria wpisu i strona serii: kolejność części i cztery wyjścia", (
     const info = obecne(await klient().fetchQuery(postSeriesQueryOptions("w-1")), "serii wpisu");
     expect(info.parts.map((p) => p.href)).toEqual(["/analizy/slug-w-1", "/raporty/slug-w-2"]);
     expect(funkcje().callsFor("page_full_path")).toHaveLength(2);
+  });
+
+  it("nieznana ścieżka rodzica zachowuje konwencję adresu serii", async () => {
+    planujSerie({ part_number: 1, series: SERIA }, [czescSerii("w-1", 1)]);
+    funkcje().setResponse("page_full_path", ok(null));
+    const info = obecne(await klient().fetchQuery(postSeriesQueryOptions("w-1")), "serii wpisu");
+    expect(info.parts[0].href).toBe("/blog/slug-w-1");
   });
 
   it("odmowa ścieżki serii nie tworzy fałszywego adresu", async () => {

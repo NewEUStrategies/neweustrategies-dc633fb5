@@ -909,3 +909,28 @@ describe("degradacja rekomendacji: awaria wygląda jak brak powiązań", () => {
     ).rejects.toThrow("odmowa hydracji");
   });
 });
+
+describe("independent related-post failures", () => {
+  it.each([
+    ["wlasneKategorie", "both"],
+    ["wlasneTagi", "both"],
+    ["wlasnyWpis", "both"],
+    ["kandydaciZKategorii", "categories"],
+    ["kandydaciZTagow", "tags"],
+    ["kandydaciAutora", "author"],
+    ["hydracja", "both"],
+    ["kategorieKandydatow", "both"],
+    ["tagiKandydatow", "both"],
+  ] as const)("rejects %s without publishing partial recommendations", async (stage, strategy) => {
+    planuj({
+      kandydaciZKategorii: ok([{ post_id: "k-1" }]),
+      kandydaciZTagow: ok([{ post_id: "k-1" }]),
+      kandydaciAutora: ok([{ id: "k-1" }]),
+      hydracja: ok([kandydat("k-1", SWIEZY)]),
+      [stage]: fail("odmowa konkretnego etapu", "42501"),
+    });
+    await expect(
+      klient().fetchQuery(relatedPostsQueryOptions(wejscie({ strategy }))),
+    ).rejects.toThrow("odmowa konkretnego etapu");
+  });
+});

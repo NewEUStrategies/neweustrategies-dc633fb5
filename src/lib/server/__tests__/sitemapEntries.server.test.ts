@@ -754,3 +754,36 @@ describe("large sitemap collections", () => {
     expect(db.dla("rpc/page_full_path")).toEqual([]);
   });
 });
+
+describe("shared parent-path boundary", () => {
+  it("rejects a path RPC refusal with an observable section error", async () => {
+    const db = atrapaAdmina({
+      ...planStron({ "p-1": { sciezka: "analizy" } }),
+      "rpc/page_full_paths": { odmowa: { message: "path denied", code: "42501" } },
+    });
+    expect(await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages")).toEqual([]);
+    expect(ostrzezenia).toHaveBeenCalledWith(
+      '[seo] sitemap section "pages" read failed:',
+      expect.objectContaining({ message: "path denied" }),
+    );
+  });
+
+  it("ignores missing RPC rows and paths outside the tenant-scoped request", async () => {
+    const db = atrapaAdmina({
+      ...planStron({ "p-1": { sciezka: "analizy" } }),
+      "rpc/page_full_paths": {
+        wiersze: [
+          { page_id: "foreign", full_path: "private" },
+          { page_id: "p-1", full_path: "   " },
+        ],
+      },
+    });
+    expect(await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages")).toEqual([]);
+    const empty = atrapaAdmina({
+      ...planStron({ "p-1": { sciezka: "analizy" } }),
+      "rpc/page_full_paths": { wiersze: null },
+    });
+    expect(await collectSitemapSection(empty.admin, TENANT, ORIGIN, "pages")).toEqual([]);
+    expect(ostrzezenia).not.toHaveBeenCalled();
+  });
+});

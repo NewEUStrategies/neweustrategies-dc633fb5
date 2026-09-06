@@ -11,6 +11,19 @@ import {
 import { resolveTickerSource } from "@/lib/views/headerTickerQuery";
 
 describe("tickerVariants", () => {
+  it("recovers a usable active variant when every persisted variant is invalid", () => {
+    const settings = normalizeTickerSettings({ activeVariantId: "gone", variants: [null, 3] });
+    expect(settings.variants).toHaveLength(1);
+    expect(settings.activeVariantId).toBe(settings.variants[0].id);
+    expect(settings.variants[0].name).toBe("Domyślny");
+    expect(resolveActiveTickerConfig(settings).source).toBe("trending");
+  });
+
+  it("replaces malformed color schemes with readable theme defaults", () => {
+    const config = normalizeTickerConfig({ colors: { light: null, dark: "bad" } });
+    expect(config.colors).toEqual(DEFAULT_TICKER_CONFIG.colors);
+  });
+
   it("wraps legacy flat config into a single Domyślny variant", () => {
     const s = normalizeTickerSettings({
       enabled: true,

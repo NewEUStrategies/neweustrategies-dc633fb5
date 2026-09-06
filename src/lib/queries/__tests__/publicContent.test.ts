@@ -1114,3 +1114,66 @@ describe("rezolucja adresu: gałąź STRONY i dziedziczenie nagłówka microsite
     expect(kolumny).not.toContain("builder_data");
   });
 });
+
+describe("independent public query failures", () => {
+  it("rejects the configured homepage slug lookup without choosing another page", async () => {
+    baza().setResponse(
+      "site_settings",
+      ok({ value: { homepage_mode: "static_page", homepage_page_slug: "start" } }),
+    );
+    planuj({ strony: { poSlug: fail("slug denied", "42501"), home: ok({ id: "wrong-home" }) } });
+    await expect(klient().fetchQuery(homePageQueryOptions())).rejects.toMatchObject({
+      message: "slug denied",
+    });
+    expect(baza().chainsFor("pages")).toHaveLength(1);
+  });
+
+  it("rejects a failed author overlay even when profiles loaded successfully", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
+      profile: ok([wierszProfilu(ID_AUTORA)]),
+      nakladka: fail("overlay denied", "42501"),
+    });
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toMatchObject({ message: "overlay denied" });
+  });
+});
+
+it("successful empty metadata responses preserve the resolved article", async () => {
+  planuj({
+    resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+    wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
+    tagi: ok(null),
+    kategorie: ok(null),
+    wspolautorzy: ok(null),
+    profile: ok(null),
+    nakladka: ok(null),
+  });
+  const article = jakoWpis(
+    await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+  );
+  expect(article.item.id).toBe(ID_WPISU);
+  expect(article.tags).toEqual([]);
+  expect(article.categories).toEqual([]);
+});
+
+it("a missing ancestor metadata list preserves the global page header", async () => {
+  planuj({
+    okruszki: ok([okruszek("korzen", 0), okruszek(ID_STRONY, 1)]),
+    strony: { poId: ok({ id: ID_STRONY, header_override: null }), przodkowie: ok(null) },
+  });
+  const page = jakoStrona(await klient().fetchQuery(resolvedContentQueryOptions(["o-nas"])));
+  expect(page.item.header_override).toBeNull();
+});
+
+it("resolves the configured homepage slug without falling back to home", async () => {
+  baza().setResponse(
+    "site_settings",
+    ok({ value: { homepage_mode: "static_page", homepage_page_slug: "start" } }),
+  );
+  planuj({ strony: { poSlug: ok({ id: "configured-start", slug: "start" }) } });
+  expect((await klient().fetchQuery(homePageQueryOptions()))?.id).toBe("configured-start");
+  expect(baza().chainsFor("pages")).toHaveLength(1);
+});

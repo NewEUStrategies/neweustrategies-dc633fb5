@@ -389,6 +389,15 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(screen.getByTestId("kanwa")).toHaveAttribute("data-lang", "en");
   });
 
+  it("angielska strona bez tłumaczenia zajawki zachowuje polski opis", async () => {
+    h.requestUrl = "https://neweuropeanstrategies.com/en";
+    h.lang = "en";
+    h.homePage = homePageData({ excerpt_pl: "Zajawka czeka na tłumaczenie.", excerpt_en: "" });
+    const view = await mountHome();
+    expect(metaByName(view.meta(), "description")).toBe("Zajawka czeka na tłumaczenie.");
+    expect(metaByProperty(view.meta(), "og:locale")).toBe("en_US");
+  });
+
   it("okładka strony statycznej ląduje w og:image", async () => {
     h.homePage = homePageData({ cover_image_url: COVER });
     const view = await mountHome();

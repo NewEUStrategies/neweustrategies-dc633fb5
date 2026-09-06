@@ -1,6 +1,7 @@
 # Platforma — kontynuacja po scaleniu PR #337
 
 Baza: `054cda52479e9546b02d1d5ed4bd137295522529`, 6 września 2026.
+Naprawy zastąpiły 34 deklaracje `it.fails` rzeczywistymi testami regresji.
 Ten dokument aktualizuje punkt wznowienia w
 [raporcie pierwszego PR](PLATFORM_SSR_REMEDIATION_2026-09-06.md).
 
@@ -22,7 +23,8 @@ W tej kontynuacji używamy oficjalnego dostawcy `@vitest/coverage-istanbul`
 4.1.7, który instrumentuje kod bezpośrednio. Nie zerujemy błędnych liczników,
 nie zmniejszamy mianownika ani progów. Pozostają globalne i szczegółowe
 bramki repozytorium, próg 95% każdej miary modułu oraz kontrola surowego LCOV
-i kompletności testów. Wyniki różnych silników nie dowodzą przyrostu pokrycia;
+i kompletności testów. Rachunek zapisuje także nazwę silnika pokrycia.
+Wyniki różnych silników nie dowodzą przyrostu pokrycia;
 nowy wynik wymaga pełnego przebiegu na tej gałęzi.
 
 Archiwum [Lighthouse 34036599269](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34036599269)
@@ -68,3 +70,61 @@ Cel LCP 2500 ms i pomiar pod adresem wdrożenia wymagają potwierdzenia.
 Ustawienia ochrony main, prawdziwi właściciele dziewięciu domen i cykl
 płatności w środowisku operatora pozostają punktami z poprzedniego raportu.
 Testy z atrapą backendu nie zastępują tych danych ani decyzji organizacyjnych.
+
+## Pomiar pierwszego commita tej kontynuacji
+
+Commit `5ba28edf9264c29a7db401cc736b84f1b6f44db0`:
+[CI](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34043789903),
+[E2E](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34043789930),
+[Lighthouse](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34043790031).
+Verify, build, siedem testów bootu, E2E, pg-harness oraz pgTAP przeszły.
+Pełna suita wykonała 65 879 przypadków: 65 495 sukcesów, 334 oczekiwane
+porażki i 50 pominięć. Żaden przypadek nie zaginął, ale jedno nieobsłużone
+odrzucenie importu po zamknięciu środowiska unieważniło rachunek jakości.
+Nie przeszły także niektóre szczegółowe progi instrumentacji Istanbul.
+Tego przebiegu nie przedstawiamy jako spełnienia celu pokrycia modułu.
+
+| Miara artefaktu                              |              Wynik |             Istniejący limit |
+| -------------------------------------------- | -----------------: | ---------------------------: |
+| Startowy JS, gzip                            |          578,2 KiB |                      579 KiB |
+| Wszystkie chunki JS, gzip                    |         4342,6 KiB |                     4351 KiB |
+| Publiczny CSS, gzip                          |           73,2 KiB |                       74 KiB |
+| Suma CSS, gzip                               |           85,8 KiB |                       87 KiB |
+| Gotowość hydratacji `/cookies` od sondy HTML |             271 ms |             patrz test bootu |
+| TTFB `/cookies`, osobna para MISS / HIT      |    5018,8 / 2,2 ms |          patrz test MISS/HIT |
+| Lighthouse `/en`: mediana LCP / FCP          | 2713,6 / 2713,6 ms | cel LCP 2500 ms niespełniony |
+| Lighthouse `/blog`: mediana LCP / FCP        | 3865,4 / 2667,2 ms | cel LCP 2500 ms niespełniony |
+
+Lighthouse: po trzy przebiegi, LHR 12.6.1, sieciowy UA Chrome/136. TBT wyniosło
+36 i 39 ms, CLS 0. To pomiar lokalnego artefaktu z niedostępnym backendem,
+nie wdrożenia. W sprawdzonym LHR `/blog` elementem LCP jest tekst bannera
+cookies, a nie artykuł. Zmierzony widok nie zastępuje testu reprezentatywnej
+strony wypełnionej danymi. Standardowe symulowane metryki Lighthouse nie są
+bezpośrednio porównywalne z rzeczywistym TTFB nawigacji Playwright.
+
+Dalsze testy niezależnych odmów: 375/375 w sześciu plikach testowych.
+W ich lokalnym pomiarze Istanbul `authorCv`, `relatedPosts`, `pagedRows`,
+`publishedPagePaths`, `publishedContent` i `sitemapEntries` mają po 100%
+każdej miary i nie zawierają ujemnych liczników LCOV. Ten wybrany zestaw
+nie zastępuje pełnego CI ani końcowego pomiaru 217 plików.
+
+## Domknięcie problemów wskazanych przez pełne CI
+
+Opcjonalne rozgrzewanie chunków obsługuje wszystkie odrzucenia przez
+`Promise.allSettled`; awaria jednego importu nie blokuje pozostałych.
+Test z celowo odrzuconym importem działa przy aktywnej bramce błędów
+nieobsłużonych. Test dialogu importu WordPress izoluje harmonogram tej
+optymalizacji, zachowując prawdziwy renderer podglądu.
+
+Dodano dowody zachowania przy niezależnych odmowach zapytań, niepełnych
+ustawieniach tickera, braku tłumaczenia zajawki, zwijaniu szczegółów zapytania
+eksperckiego i odrzuceniu całego batcha analityki. Kontrola dodatnia llms.txt
+sprawdza przypisanie treści obu języków do adresów i kategorii tenanta.
+Usunięto niewykorzystywane wartości domyślne prywatnych parametrów i
+nieosiągalne zapasowe tablice w dokumentach konstruowanych wewnętrznie.
+
+Pomiar celowany: 17 plików testowych, 535 sukcesów i 3 istniejące oczekiwane
+porażki, bez błędów nieobsłużonych. Wszystkie 11 sprawdzanych progów
+per plik przechodzi. To kontrola napraw wskazanych przez CI; globalna
+bramka 95% nadal wymaga osobnego pełnego przebiegu, bez scalania raportów
+z różnych rewizji i bez obniżania progów.

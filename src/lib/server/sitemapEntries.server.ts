@@ -90,7 +90,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .range(from, to),
     );
     const out: SitemapEntry[] = [];
-    for (const row of data ?? []) {
+    for (const row of data) {
       const p = row as {
         slug: string;
         parent_page_id: string;
@@ -131,7 +131,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
       ),
     ]);
     const out: SitemapEntry[] = [];
-    for (const row of categories ?? []) {
+    for (const row of categories) {
       const category = row as { slug: string; created_at: string | null };
       out.push({
         loc: `${origin}/category/${category.slug}`,
@@ -140,7 +140,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         priority: "0.6",
       });
     }
-    for (const row of tags ?? []) {
+    for (const row of tags) {
       const tag = row as { slug: string; created_at: string | null };
       out.push({
         loc: `${origin}/tag/${tag.slug}`,
@@ -178,7 +178,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
       ),
     ]);
     const out: SitemapEntry[] = [];
-    for (const row of shows ?? []) {
+    for (const row of shows) {
       const sh = row as { slug: string; updated_at: string | null };
       out.push({
         loc: `${origin}/podcasts/${sh.slug}`,
@@ -187,7 +187,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         priority: "0.6",
       });
     }
-    for (const row of episodes ?? []) {
+    for (const row of episodes) {
       const ep = row as { slug: string; updated_at: string | null; published_at: string | null };
       out.push({
         loc: `${origin}/podcast/${ep.slug}`,
@@ -210,7 +210,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .order("id", { ascending: true })
         .range(from, to),
     );
-    return (data ?? []).map((row) => {
+    return data.map((row) => {
       const pr = row as { slug: string; updated_at: string | null; created_at: string | null };
       return {
         loc: `${origin}/programs/${pr.slug}`,
@@ -231,7 +231,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .order("id", { ascending: true })
         .range(from, to),
     );
-    return (data ?? []).map((row) => {
+    return data.map((row) => {
       const s = row as { slug: string; updated_at: string | null; published_at: string | null };
       return {
         loc: `${origin}/web-stories/${s.slug}`,
@@ -254,7 +254,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .order("id", { ascending: true })
         .range(from, to),
     );
-    return (data ?? []).map((row) => {
+    return data.map((row) => {
       const d = row as { slug: string; updated_at: string | null; created_at: string | null };
       return {
         loc: `${origin}/tracker/${d.slug}`,
@@ -275,7 +275,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .order("id", { ascending: true })
         .range(from, to),
     );
-    return (data ?? []).map((row) => {
+    return data.map((row) => {
       const ev = row as { slug: string; updated_at: string | null; created_at: string | null };
       return {
         loc: `${origin}/events/${ev.slug}`,
@@ -297,7 +297,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .order("id", { ascending: true })
         .range(from, to),
     );
-    return (data ?? []).map((row) => {
+    return data.map((row) => {
       const qa = row as { slug: string; updated_at: string | null; opens_at: string | null };
       return {
         loc: `${origin}/qa/${qa.slug}`,
@@ -323,7 +323,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .range(from, to),
     );
     const expertIds = Array.from(
-      new Set((expertBadges ?? []).map((b) => (b as { user_id: string }).user_id)),
+      new Set(expertBadges.map((b) => (b as { user_id: string }).user_id)),
     );
     if (expertIds.length === 0) return [];
 
@@ -346,12 +346,12 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
       ),
     ]);
     const publicIds = new Set(
-      (publicAps ?? [])
+      publicAps
         .filter((a) => (a as { is_public: boolean }).is_public)
         .map((a) => (a as { user_id: string }).user_id),
     );
     const out: SitemapEntry[] = [];
-    for (const row of expertProfiles ?? []) {
+    for (const row of expertProfiles) {
       const pr = row as { id: string; slug: string | null; updated_at: string | null };
       if (!pr.slug || !publicIds.has(pr.id)) continue;
       out.push({
