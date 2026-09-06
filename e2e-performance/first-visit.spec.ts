@@ -9,7 +9,12 @@ import {
 
 declare global {
   interface Window {
-    __firstVisit: { readyAt: number | null; lcp: number; cls: number };
+    __firstVisit: {
+      readyAt: number | null;
+      lcp: number;
+      cls: number;
+      shifts: Array<{ at: number; value: number; nodes: string[] }>;
+    };
   }
 }
 
@@ -61,7 +66,7 @@ for (const [path, lang] of [
           errors.push(message.text());
       });
       await page.addInitScript(() => {
-        window.__firstVisit = { readyAt: null, lcp: 0, cls: 0 };
+        window.__firstVisit = { readyAt: null, lcp: 0, cls: 0, shifts: [] };
         let ready = false;
         Object.defineProperty(window, "__nesAppReady", {
           configurable: true,
@@ -75,11 +80,38 @@ for (const [path, lang] of [
         new PerformanceObserver((list) => {
           for (const entry of list.getEntries()) window.__firstVisit.lcp = entry.startTime;
         }).observe({ type: "largest-contentful-paint", buffered: true });
+        let sessionStart = 0;
+        let lastShift = 0;
+        let sessionValue = 0;
         new PerformanceObserver((list) => {
           for (const entry of list.getEntries() as Array<
-            PerformanceEntry & { value: number; hadRecentInput: boolean }
+            PerformanceEntry & {
+              value: number;
+              hadRecentInput: boolean;
+              sources?: Array<{ node?: Element }>;
+            }
           >) {
-            if (!entry.hadRecentInput) window.__firstVisit.cls += entry.value;
+            if (!entry.hadRecentInput) {
+              // CLS is the largest session window: gaps below 1 s, at most
+              // 5 s per window. Keep individual entries for attribution too.
+              if (entry.startTime - lastShift < 1000 && entry.startTime - sessionStart < 5000) {
+                sessionValue += entry.value;
+              } else {
+                sessionStart = entry.startTime;
+                sessionValue = entry.value;
+              }
+              lastShift = entry.startTime;
+              window.__firstVisit.cls = Math.max(window.__firstVisit.cls, sessionValue);
+              window.__firstVisit.shifts.push({
+                at: entry.startTime,
+                value: entry.value,
+                nodes: (entry.sources ?? []).map(({ node }) =>
+                  node
+                    ? `${node.tagName}.${node.className} widget=${node.closest("[data-widget-id]")?.getAttribute("data-widget-id") ?? ""}`
+                    : "detached",
+                ),
+              });
+            }
           }
         }).observe({ type: "layout-shift", buffered: true });
       });
@@ -95,6 +127,11 @@ for (const [path, lang] of [
         page.locator("main").getByRole("heading", { name: title, exact: true }).first(),
       ).toBeVisible();
       await page.waitForFunction(() => window.__nesAppReady === true);
+      const beforeInteraction = await page.evaluate(() => ({
+        at: performance.now(),
+        cls: window.__firstVisit.cls,
+        lcp: window.__firstVisit.lcp,
+      }));
       // A painted shell/ready flag alone is insufficient: exercise its handler.
       const darkBefore = await page
         .locator("html")
@@ -121,6 +158,7 @@ for (const [path, lang] of [
           interactionCompleteMs: performance.now(),
           lcpMs: window.__firstVisit.lcp,
           cls: window.__firstVisit.cls,
+          shifts: window.__firstVisit.shifts,
           jsBytes: resources
             .filter((entry) => /\.js(?:\?|$)/.test(entry.name))
             .reduce((sum, entry) => sum + entry.encodedBodySize, 0),
@@ -137,6 +175,7 @@ for (const [path, lang] of [
         htmlBytes: Buffer.byteLength(html),
         inlineCssBytes: Buffer.byteLength(inlineStyles.join("")),
         styleBlocks: inlineStyles.length,
+        beforeInteraction,
         ...browser,
       };
       console.log("FIRST_VISIT " + JSON.stringify(result));

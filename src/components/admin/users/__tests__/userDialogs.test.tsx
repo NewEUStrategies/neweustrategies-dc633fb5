@@ -127,6 +127,11 @@ function boom(step: string): never {
 }
 
 vi.mock("@/lib/admin/invitations.functions", () => ({
+  searchCrmCompanies: async () => ({ companies: [{ id: "c1", name: "Acme" }] }),
+  createCrmCompany: async ({ data }: { data: { name: string } }) => ({
+    id: "c2",
+    name: data.name,
+  }),
   previewTeamImport: async ({ data }: { data: { pageSlug: string } }) => {
     h.previewCalls.push(data.pageSlug);
     if (h.throwOn === "preview") boom("preview");

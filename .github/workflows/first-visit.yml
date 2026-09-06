@@ -15,53 +15,78 @@ concurrency:
 jobs:
   first-visit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        version: [baseline, candidate]
+    timeout-minutes: 20
+    # Sequential measurements on ONE runner avoid comparing different CPUs.
     steps:
       - uses: actions/checkout@v4
         with:
           path: harness
       - uses: actions/checkout@v4
         with:
-          path: artifact
-          ref: ${{ matrix.version == 'baseline' && (github.event.pull_request.base.sha || github.event.before) || github.sha }}
+          path: baseline
+          ref: ${{ github.event.pull_request.base.sha || github.event.before }}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
-      - name: Install locked dependencies
-        working-directory: artifact
-        run: bun install --frozen-lockfile
-      - name: Build the actual version under comparison
-        working-directory: artifact
+      - name: Install candidate dependencies and the common browser
+        run: |
+          cd candidate
+          bun install --frozen-lockfile
+          cd ..
+          ln -s ../candidate/node_modules harness/node_modules
+          cd harness
+          bunx playwright install --with-deps chromium
+      - name: Build baseline
+        working-directory: baseline
+        run: |
+          bun install --frozen-lockfile
+          bun run build:smoke
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:4199
+          VITE_SUPABASE_PUBLISHABLE_KEY: performance-fixture
+      - name: Measure baseline with the same content and interaction assertions
+        working-directory: harness
+        run: bun run test:e2e:performance
+        env:
+          NES_PERFORMANCE_ARTIFACT_ROOT: ${{ github.workspace }}/baseline
+          NES_PERFORMANCE_BASELINE: "1"
+      - name: Upload baseline evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-visit-baseline
+          path: |
+            harness/reports/first-visit/
+            harness/reports/first-visit-playwright.json
+            harness/test-results-performance/
+          retention-days: 14
+      - name: Build candidate
+        if: ${{ !cancelled() }}
+        working-directory: candidate
         run: bun run build:smoke
         env:
           VITE_SUPABASE_URL: http://127.0.0.1:4199
           VITE_SUPABASE_PUBLISHABLE_KEY: performance-fixture
-          VITE_SUPABASE_ANON_KEY: performance-fixture
-      - name: Prepare the same browser and fixtures for both versions
-        run: |
-          ln -s ../artifact/node_modules harness/node_modules
-          cd harness
-          bunx playwright install --with-deps chromium
-      - name: Measure content, paint and an actual first interaction
+      - name: Gate candidate paint, layout and first interaction
+        if: ${{ !cancelled() }}
         working-directory: harness
-        run: bun run test:e2e:performance
+        run: |
+          rm -rf reports/first-visit
+          bun run test:e2e:performance
         env:
-          NES_PERFORMANCE_ARTIFACT_ROOT: ${{ github.workspace }}/artifact
-          # The old version is measured, the candidate is a blocking budget.
-          # Both must render content, hydrate and handle the same click.
-          NES_PERFORMANCE_BASELINE: ${{ matrix.version == 'baseline' && '1' || '0' }}
-      - name: Upload measurements and visual evidence
+          NES_PERFORMANCE_ARTIFACT_ROOT: ${{ github.workspace }}/candidate
+          NES_PERFORMANCE_BASELINE: "0"
+      - name: Upload candidate evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: first-visit-${{ matrix.version }}
+          name: first-visit-candidate
           path: |
             harness/reports/first-visit/
             harness/reports/first-visit-playwright.json

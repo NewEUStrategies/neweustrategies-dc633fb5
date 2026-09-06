@@ -20,8 +20,10 @@ import {
 } from "../src/lib/ci/workflowEnvContract";
 
 const WORKFLOWS_DIR = ".github/workflows";
-const SOURCE_ROOTS = ["src", "scripts", "e2e"];
-const SOURCE_FILES = ["vite.config.ts", "vitest.config.ts", "playwright.config.ts"];
+const SOURCE_ROOTS = ["src", "scripts", "e2e", "e2e-ab", "e2e-performance"];
+// Alternate production configs consume environment too; scanning only the
+// default Playwright config falsely classified their inputs as dead exports.
+const SOURCE_FILES = readdirSync(".").filter((file) => /\.config\.[cm]?[jt]s$/.test(file));
 const SOURCE_SUFFIXES = [".ts", ".tsx", ".js", ".mjs", ".cjs"];
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git", ".output", "coverage", "reports"]);
 

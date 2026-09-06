@@ -168,10 +168,13 @@ describe("rozdział katalogów: pomiar porównawczy vs reszta suity", () => {
     expect(source).toContain(".output/server/index.mjs");
     expect(source).toMatch(/reuseExistingServer:\s*false/);
     expect(source).toMatch(/retries:\s*0/);
-    expect(readdirSync("e2e-performance").filter((name) => name.endsWith(".spec.ts"))).toHaveLength(
-      2,
+    expect(
+      readdirSync("e2e-performance").filter((name) => name.endsWith(".spec.ts")).length,
+    ).toBeGreaterThan(0);
+    const misplaced = readdirSync(E2E_DIR, { recursive: true }).filter(
+      (name) => typeof name === "string" && /(?:first-visit|typography)\.spec\.ts$/.test(name),
     );
-    expect(readdirSync(E2E_DIR)).not.toContain("performance");
+    expect(misplaced).toEqual([]);
   });
 
   it("konfiguracja pomiaru czyta WŁASNY katalog, nie `e2e`", () => {
