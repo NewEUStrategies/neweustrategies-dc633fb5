@@ -311,6 +311,36 @@ function prop(name: string): Record<string, unknown> {
 }
 
 describe("public catch-all composition", () => {
+  it.each(["layout-1", "layout-13"])("places quick-view actions coherently in %s", (layout) => {
+    h.layout!.quick_view_info = true;
+    h.layout!.show_citation = true;
+    const data = article();
+    data.item.layout_overrides = { layout };
+    data.item.seo_canonical_url = "https://example.org/original-analysis";
+    mount(data);
+    expect(prop("QuickViewInfoBar").trailing === undefined).toBe(layout === "layout-13");
+    expect(prop("CitationBox").url).toBe("https://example.org/original-analysis");
+    expect(prop("PrintBriefHeader").url).toBe("https://example.org/original-analysis");
+  });
+  it.each([
+    ["en", { en: { version: 1, blocks: [] } }],
+    ["en", { pl: { version: 1, blocks: [] } }],
+    ["pl", { en: { version: 1, blocks: [] } }],
+    ["pl", {}],
+  ] as const)("passes the available blocks document to the %s renderer (%j)", (lang, blocks) => {
+    h.lang = lang;
+    const data = article();
+    data.item.editor = "blocks";
+    data.item.blocks_data = JSON.parse(JSON.stringify(blocks));
+    mount(data);
+    const expected = "en" in blocks ? blocks.en : "pl" in blocks ? blocks.pl : null;
+    expect(prop("ContentRenderer").blocksDoc).toEqual(expected);
+    expect(prop("ContentRenderer").lang).toBe(lang);
+  });
+  it("keeps the inherited header on builder pages without an override", () => {
+    mount(page({ editor: "builder", header_override: null }));
+    expect(prop("BuilderPageShell").headerOverride).toBeNull();
+  });
   it("renders a real not-found surface for absent content", () => {
     mount(null);
     expect(screen.getByTestId("PublicNotFound")).toBeTruthy();

@@ -1,3 +1,4 @@
+import { ensureI18n } from "@/lib/i18n-admin-monetization";
 // Dashboard monetyzacji: metered views, użycia kuponów, ustawienia checkoutu,
 // filtry po planie i organizacji. Odczyt via monetization_dashboard (RPC, staff-only).
 import { useMemo, useState } from "react";
@@ -46,7 +47,8 @@ interface DashboardShape {
 const ALL = "__all__";
 
 function AdminMonetizationPage() {
-  const { i18n } = useTranslation();
+  ensureI18n();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -187,21 +189,13 @@ function AdminMonetizationPage() {
         </CardContent>
       </Card>
 
-      {!validRange && (
-        <p role="alert">{L("Wybierz poprawny zakres dat.", "Choose a valid date range.")}</p>
-      )}
+      {!validRange && <p role="alert">{t("adminMonetization.rangeError")}</p>}
       {(plansQ.isError || orgsQ.isError) && (
-        <p role="alert">
-          {L("Nie udało się pobrać opcji filtrów.", "Could not load filter options.")}
-        </p>
+        <p role="alert">{t("adminMonetization.filtersError")}</p>
       )}
-      {dashQ.isError && (
-        <p role="alert">
-          {L("Nie udało się pobrać danych monetyzacji.", "Could not load monetization data.")}
-        </p>
-      )}
+      {dashQ.isError && <p role="alert">{t("adminMonetization.dataError")}</p>}
       {validRange && dashQ.isPending && (
-        <p role="status">{L("Ładowanie danych…", "Loading data…")}</p>
+        <p role="status">{t("adminMonetization.dashboardLoading")}</p>
       )}
       {validRange && dashQ.data && !dashQ.isError && (
         <>
@@ -299,7 +293,7 @@ function AdminMonetizationPage() {
 type RetentionFeedbackRow = Database["public"]["Tables"]["retention_feedback"]["Row"];
 
 function RetentionSummarySection() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -351,11 +345,9 @@ function RetentionSummarySection() {
       </CardHeader>
       <CardContent>
         {feedbackQ.isError ? (
-          <p role="alert">
-            {L("Nie udało się pobrać danych retencji.", "Could not load retention data.")}
-          </p>
+          <p role="alert">{t("adminMonetization.retentionError")}</p>
         ) : feedbackQ.isPending ? (
-          <p role="status">{L("Ładowanie danych…", "Loading data…")}</p>
+          <p role="status">{t("adminMonetization.dashboardLoading")}</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-md border border-border/60 px-3 py-2">

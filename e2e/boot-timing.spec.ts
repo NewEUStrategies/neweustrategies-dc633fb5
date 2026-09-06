@@ -59,6 +59,8 @@
 // to budżet zapytań SSR, a nie koszt samego pomiaru. Bez drugiego builda i bez
 // drugiego serwera; oba pliki jadą na tym samym procesie.
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { staticBootAssets, type BootAssetChunk } from "../scripts/lib/staticBootAssets";
 
 // ── PROGI ───────────────────────────────────────────────────────────────────
 //
@@ -154,8 +156,9 @@ const MAX_READY_MS = 6_000;
  * (Chromium tak klasyfikuje moduły pobrane przez skaner preloadu dokumentu,
  * nie przez wykonanie `import()`). Bramkowanie samego `script` mierzyłoby więc
  * 13% właściwej liczby i rosłoby, gdy ścieżka bootowania się KURCZY.
- * Sprawdzone też: ZERO zasobów `.js` z `initiatorType === "link"`, więc żadne
- * wiadro dla hintów `modulepreload` nie jest potrzebne.
+ * Aktualizacja 2026-09-06: po włączeniu modulepreload CI raportuje także
+ * statyczne moduły jako `script`. Podział statyczne/dynamiczne jest teraz
+ * wyprowadzany z grafu builda, nigdy z initiatorType.
  *
  * ZMIERZONA SUMA: 2 270,1 - 2 294,2 KB (statyczne stale 1 965,9 KB w 12 plikach
  * + dynamiczne 304,1 - 328,2 KB), `decoded` równe transferowi (iloraz x1,00),
@@ -605,11 +608,11 @@ interface BootTiming {
   bootJsDecodedBytes: number;
   /** Ile plików `.js` - bez tego suma nie mówi, czy to jeden plik, czy sto. */
   bootJsCount: number;
-  /** Część z domknięcia STATYCZNEGO (entry + vendory; `initiatorType !== "script"`). */
+  /** Część z domknięcia STATYCZNEGO (entry + importy zapisane w grafie builda). */
   staticGraphBytes: number;
   /** Ile plików w domknięciu statycznym. */
   staticGraphCount: number;
-  /** Część z importów DYNAMICZNYCH w trakcie bootu (`initiatorType === "script"`). */
+  /** Pozostałe chunki pobrane podczas bootu (dynamiczne importy i preloady locale). */
   dynamicImportBytes: number;
   /** Ile plików z importów dynamicznych. */
   dynamicImportCount: number;
@@ -681,19 +684,27 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
 
   // Pomiar PO gotowości: dopiero wtedy zbiór pobranych skryptów jest domknięty
   // (chunki locale i leniwe wyspy dociągają się w trakcie bootu).
-  const timing: BootTiming = await page.evaluate(() => {
+  const entries = await page
+    .locator('script[type="module"][src]')
+    .evaluateAll((scripts) => scripts.map((script) => (script as HTMLScriptElement).src));
+  const inventory = JSON.parse(readFileSync("reports/chunk-inventory.json", "utf8")) as {
+    chunks: BootAssetChunk[];
+  };
+  const staticPaths = staticBootAssets(inventory.chunks, entries);
+  const timing: BootTiming = await page.evaluate((bootPaths: string[]) => {
     const w = window as unknown as { __nesBootT0?: number; __nesReadyAt?: number };
     const nav = performance.getEntriesByType("navigation")[0] as
       PerformanceNavigationTiming | undefined;
     const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
     // WSZYSTKIE `.js`, NIEZALEŻNIE OD `initiatorType` - i to jest POPRAWKA
-    // Z POMIARU, nie ostrożność. Patrz komentarz przy `MAX_BOOT_JS_TRANSFER_KB`:
-    // domknięcie statyczne bootu przychodzi z `initiatorType === "other"`.
+    // Z POMIARU, nie ostrożność. Mechanizm pobrania (script/link/other)
+    // nie wyznacza krawędzi statycznego importu; te czytamy z grafu builda.
     const js = resources.filter((e) => new URL(e.name).pathname.endsWith(".js"));
     const bytes = (list: PerformanceResourceTiming[]) =>
       list.reduce((sum, e) => sum + e.transferSize, 0);
-    const staticGraph = js.filter((e) => e.initiatorType !== "script");
-    const dynamicImports = js.filter((e) => e.initiatorType === "script");
+    const staticSet = new Set(bootPaths);
+    const staticGraph = js.filter((e) => staticSet.has(new URL(e.name).pathname));
+    const dynamicImports = js.filter((e) => !staticSet.has(new URL(e.name).pathname));
     const paint = performance.getEntriesByName("first-contentful-paint")[0];
     const t0 = w.__nesBootT0 ?? 0;
     const readyAt = w.__nesReadyAt;
@@ -710,7 +721,7 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
       dynamicImportCount: dynamicImports.length,
       fcpMs: paint ? paint.startTime : null,
     };
-  });
+  }, staticPaths);
 
   const bootJsKb = timing.bootJsTransferBytes / 1024;
   const staticKb = timing.staticGraphBytes / 1024;

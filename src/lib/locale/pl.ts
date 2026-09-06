@@ -1007,6 +1007,8 @@ export const pl = {
       cookieBannerLabel: "Pokazuj baner zgody na pliki cookie",
     },
     dashboard: {
+      loadError: "Nie udało się wczytać liczników treści.",
+      retry: "Spróbuj ponownie",
       title: "Kokpit",
       subtitle: "Przegląd treści serwisu",
     },

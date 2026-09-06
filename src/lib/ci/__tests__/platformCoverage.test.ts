@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   evaluatePlatformCoverage,
   uncoveredLcov,
+  invalidLcovCounters,
   PLATFORM_METRICS,
   type FileCoverageCounts,
 } from "../platformCoverage";
@@ -70,4 +71,21 @@ describe("platform coverage gate", () => {
       "src/file.ts": { lines: [2], branches: ["2:0:0", "2:0:1"], functions: ["a,b"] },
     });
   });
+});
+
+it.each([
+  "DA:12,-1",
+  "BRDA:4,0,1,-2",
+  "FNDA:-3,render",
+  "DA:2,",
+  "DA:3,NaN",
+  "BRDA:1,0,0,1.5",
+  "DA:3",
+])("rejects a corrupt raw coverage counter: %s", (row) => {
+  expect(invalidLcovCounters(`SF:src/file.ts\n${row}`)).toEqual([`src/file.ts:${row}`]);
+});
+it("accepts explicit uncovered branches and nonnegative integer counters", () => {
+  expect(
+    invalidLcovCounters("TN:\nSF:a\nDA:1,0\nBRDA:1,0,0,-\nBRDA:2,1,0,2\nFNDA:1,fn\nend_of_record"),
+  ).toEqual([]);
 });

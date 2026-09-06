@@ -25,6 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin the V8 runtime used by tests and artifact measurements. The first
+      # audit run inherited Node 22 from the runner and produced negative V8
+      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -71,6 +78,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      # Pin the V8 runtime used by tests and artifact measurements. The first
+      # audit run inherited Node 22 from the runner and produced negative V8
+      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
         with:

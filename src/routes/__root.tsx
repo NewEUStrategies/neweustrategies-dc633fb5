@@ -314,17 +314,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // `.catch(() => null)` przy starcie, nie przy zbieraniu: obietnica leci
     // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
     // wywróciłoby proces renderu.
-    if (showsChrome) {
-      void import("../lib/menus/queries")
-        .then(({ menuWithItemsQueryOptions }) =>
-          Promise.all(
-            ["main", "footer"].map((key) =>
-              context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
-            ),
-          ),
-        )
-        .catch(() => null);
-    }
+    const warmMenus = async () => {
+      const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
+      await Promise.allSettled(
+        ["main", "footer"].map((key) =>
+          context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
+        ),
+      );
+    };
+    if (showsChrome) void warmMenus().catch(() => null);
 
     // FALA 1 - wyłącznie to, czego render nie ma czym zastąpić.
     //
@@ -504,17 +502,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // w stanie `pending` w dehydratowanym `$_TSR.router` - inaczej klient
         // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
         // (poniżej strażnik, który taki stan resetuje).
-        const chromeWarm: Array<() => Promise<unknown>> = [
-          tickerWarm,
-          async () => {
-            const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
-            await Promise.allSettled(
-              ["main", "footer"].map((key) =>
-                context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
-              ),
-            );
-          },
-        ];
+        const chromeWarm: Array<() => Promise<unknown>> = [tickerWarm, warmMenus];
         if (headerVisible && header.builder_data) {
           const headerDoc = header.builder_data;
           chromeQueryKeys.push(

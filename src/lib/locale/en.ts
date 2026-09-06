@@ -1000,6 +1000,8 @@ export const en = {
       cookieBannerLabel: "Show cookie consent banner",
     },
     dashboard: {
+      loadError: "Could not load content counts.",
+      retry: "Try again",
       title: "Dashboard",
       subtitle: "Site content overview",
     },

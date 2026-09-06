@@ -288,3 +288,44 @@ describe("ratchet", () => {
     expect(renderRatchetReport(report, [], 1)).toContain("OK");
   });
 });
+
+describe("platform overlay ownership and diagnostics", () => {
+  it("excludes assets and test fixtures and flattens quoted keys", () => {
+    expect(isScannable("src/a.css")).toBe(false);
+    expect(isScannable("src/x/__tests__/fixture.ts")).toBe(false);
+    expect(flattenLiteralKeys(`{ 'a': { "b": "value" }, shorthand }`)).toEqual([
+      "a.b",
+      "shorthand",
+    ]);
+    expect(flattenLiteralKeys("runtimeValue")).toEqual([]);
+  });
+  it("deduplicates a provider while preserving distinct providers and excluding core keys", () => {
+    const overlay = {
+      file: "src/lib/i18n-a.ts",
+      specifier: "@/lib/i18n-a",
+      keys: ["core.key", "extra.key"],
+    };
+    const missing = findMissingImports({
+      sources: [consumer('t("core.key"); t("extra.key")')],
+      overlays: [overlay, overlay, { ...overlay, specifier: "@/lib/i18n-b" }],
+      coreKeys: new Set(["core.key"]),
+    });
+    expect(missing).toEqual([
+      { file: "src/routes/a.tsx", key: "extra.key", providers: ["@/lib/i18n-a", "@/lib/i18n-b"] },
+    ]);
+  });
+  it("reports growth and new files separately and gives exact import instructions", () => {
+    const missing = Array.from({ length: 4 }, (_, i) => ({
+      file: "src/old.tsx",
+      key: `extra.key${i}`,
+      providers: ["@/lib/i18n-a"],
+    }));
+    expect(renderReport(missing, 1)).toContain("(+1)");
+    const grown = compareWithRatchet(missing, new Map([["src/old.tsx", 1]]));
+    expect(renderRatchetReport(grown, missing, 1)).toContain("1 -> 4");
+    const fresh = compareWithRatchet(missing, new Map());
+    expect(renderRatchetReport(fresh, missing, 0)).toContain('import "@/lib/i18n-a";');
+    const unchanged = compareWithRatchet(missing, new Map([["src/old.tsx", 4]]));
+    expect(renderRatchetReport(unchanged, missing, 1)).not.toContain("MNIEJ");
+  });
+});

@@ -20,7 +20,7 @@
 //     tytuł/opis/canonical/robots bije defaulty marki, a w trybie „najnowsze
 //     wpisy" SEO ukrytej strony NIE przecieka do listy.
 //  5. ROZGRZEWKA WIDGETÓW JEST INNA NA SERWERZE I NA KLIENCIE. SSR czeka na
-//     wszystkie sekcje, nawigacja klientowa tylko na trzy nad zgięciem -
+//     tylko trzy sekcje nad zgięciem, tak samo jak nawigacja klientowa -
 //     pomyłka tutaj to albo migający ekran po hydracji, albo przejście
 //     zatrzymane na najwolniejszym zapytaniu spod zgięcia.
 //  6. PODPOWIEDŹ LCP JEST BAJTOWO ZGODNA z malowanym obrazem (ten sam srcSet
@@ -803,4 +803,30 @@ describe("/ - dług i18n zgłoszony, nie naprawiony", () => {
     const literaly = /There's nothing here yet|Nie ma tu jeszcze treści/.test(source);
     expect({ dwujezycznyLiteralWKodzie: literaly }).toEqual({ dwujezycznyLiteralWKodzie: false });
   });
+});
+
+it("does not cache an above-fold data widget whose prefetch missed the deadline", async () => {
+  h.server = true;
+  const doc = {
+    version: 1,
+    sections: [
+      {
+        id: "s",
+        kind: "section",
+        children: [
+          {
+            id: "c",
+            kind: "column",
+            span: { desktop: 12 },
+            children: [{ id: "w", kind: "widget", type: "post-list", content: {} }],
+          },
+        ],
+      },
+    ],
+  };
+  h.homePage = homePageData({ builder_data: doc });
+  const view = await mountHome();
+  expect(h.prefetch).toEqual(["nad-zgieciem"]);
+  expect(view.queryClient.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(0);
+  expect(h.cacheControl.at(-1)).toBe("private, no-store");
 });

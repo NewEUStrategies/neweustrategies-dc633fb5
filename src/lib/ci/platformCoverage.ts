@@ -75,3 +75,28 @@ export function uncoveredLcov(lcov: string, files: ReadonlySet<string>) {
   }
   return result;
 }
+
+/** Validate raw LCOV before trusting a summary. Negative V8 execution counts
+ * are a corrupt measurement, not uncovered code and not a percentage to floor.
+ */
+export function invalidLcovCounters(lcov: string): string[] {
+  const invalid: string[] = [];
+  let file = "<unknown>";
+  for (const line of lcov.split(/\r?\n/)) {
+    if (line.startsWith("SF:")) {
+      file = line.slice(3);
+      continue;
+    }
+    let hits: string | undefined;
+    if (line.startsWith("DA:")) hits = line.slice(3).split(",")[1];
+    else if (line.startsWith("BRDA:")) {
+      hits = line.slice(5).split(",")[3];
+      if (hits === "-") continue;
+    } else if (line.startsWith("FNDA:")) hits = line.slice(5).split(",")[0];
+    else continue;
+    const value = Number(hits);
+    if (hits === undefined || hits.trim() === "" || !Number.isSafeInteger(value) || value < 0)
+      invalid.push(`${file}:${line}`);
+  }
+  return invalid;
+}

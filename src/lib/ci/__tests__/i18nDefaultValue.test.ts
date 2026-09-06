@@ -207,3 +207,39 @@ describe("bramka", () => {
     expect(isScannable("src/lib/x.css")).toBe(false);
   });
 });
+
+describe("platform default-value lexical and rewrite boundaries", () => {
+  it("handles comments and escaped quotes without splitting properties inside them", () => {
+    const parsed = parseObjectLiteral(
+      '{ first: "escaped\\\"quote", /* , ignored */ defaultValue: "value", // ignored,\n count: 2 }',
+    );
+    expect(parsed?.properties.map((x) => x.name)).toEqual(["first", "defaultValue", "count"]);
+    expect(parseObjectLiteral("{ first: 1 // EOF")).toBeNull();
+    expect(parseObjectLiteral("{ first: 1 /* EOF")).toBeNull();
+  });
+  it("ignores incomplete calls and scans options after a nonliteral second argument", () => {
+    expect(classify('t("admin.save",')).toEqual([]);
+    expect(
+      classify('t("admin.save", opts, "ignored", { count: 2 }, { defaultValue: "Save" })')[0],
+    ).toMatchObject({ key: "admin.save", verdict: "redundant" });
+    expect(classify('t("admin.save", { defaultValue: "a" + suffix })')[0].verdict).toBe(
+      "redundant",
+    );
+    expect(classify('t("admin.save", { defaultValue: x })')[0].verdict).toBe("redundant");
+  });
+  it("deduplicates overlapping rewrite ranges and removes an isolated option", () => {
+    const source = 't("admin.save", { defaultValue: "Save" })';
+    const sites = classify(source);
+    const rewritten = removeDefaultValues(source, [...sites, ...sites]);
+    expect(rewritten.source).toBe('t("admin.save")');
+    expect(rewrite('t("admin.save", {defaultValue: "Save", count: n})')).toBe(
+      't("admin.save", {count: n})',
+    );
+  });
+  it("renders a clean report and truncates long debt groups with an accurate remaining count", () => {
+    expect(renderDefaultValueReport(reportDefaultValues([]), 42)).toContain("OK - 0");
+    const sites = classify(Array.from({ length: 27 }, () => 't("admin.save", "Save")').join(";\n"));
+    expect(renderDefaultValueReport(reportDefaultValues(sites), 1)).toContain("... i 2 więcej");
+    expect(isScannable("src/x/__tests__/fixture.tsx")).toBe(false);
+  });
+});

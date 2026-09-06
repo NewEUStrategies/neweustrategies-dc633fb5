@@ -106,7 +106,7 @@ describe("monetization read contract and truthful status", () => {
       await screen.findByText("123");
       h.rpc.mockClear();
       fireEvent.change(screen.getByLabelText("Od"), { target: { value: from } });
-      expect(screen.getByRole("alert")).toHaveTextContent("Wybierz poprawny zakres dat.");
+      expect(screen.getByRole("alert")).toHaveTextContent("adminMonetization.rangeError");
       expect(screen.queryByText("123")).toBeNull();
       expect(h.rpc).not.toHaveBeenCalled();
     },
@@ -122,7 +122,7 @@ describe("monetization read contract and truthful status", () => {
     else if (source === "empty-dashboard") h.rpc.mockResolvedValue(ok(null));
     else db.setResponse(source, fail("permission denied"));
     mount();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Nie udało się pobrać");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/adminMonetization\..*Error/);
     if (source.includes("dashboard")) expect(screen.queryByText("Przychód (opłacone)")).toBeNull();
   });
   it("accepts empty filter data and hides metrics until the RPC resolves", async () => {

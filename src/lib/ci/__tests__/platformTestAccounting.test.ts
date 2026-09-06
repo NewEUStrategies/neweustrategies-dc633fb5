@@ -77,3 +77,14 @@ describe("machine-readable test accounting", () => {
     expect(h.write).toHaveBeenCalledTimes(1);
   });
 });
+
+it("does not certify a test file that failed during import before collecting tests", () => {
+  const failed = { ...module([]), state: () => "failed" };
+  new Reporter().onTestRunEnd([module(["passed"]), failed], []);
+  expect(report()).toMatchObject({ complete: false, moduleOutcomes: { failed: 1, passed: 1 } });
+  expect(process.exitCode).toBe(1);
+});
+it("treats unknown future test states as missing outcomes", () => {
+  new Reporter().onTestRunEnd([module(["unknown"])], []);
+  expect(report()).toMatchObject({ complete: false, outcomes: { pending: 1 } });
+});

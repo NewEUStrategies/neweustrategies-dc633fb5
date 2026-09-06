@@ -3,24 +3,24 @@
 Baza zmian: `c239ab891c22b72fb329af9596394f28b9bfa85e` (`main`, 6 września 2026).
 Zakres pomiaru zachowuje wszystkie **208 plików** przypisanych do modułu 20
 w audycie. Korekta klasyfikatora nie usuwa z niego plików: dołączane są również
-wykonywalne pliki aktualnie przypisane do platformy. Wyłączenia kodu generowanego
+wykonywalne pliki aktualnie przypisane do platformy. Łącznie pomiar obejmuje **214 plików**. Wyłączenia kodu generowanego
 i testów pozostają takie jak w istniejącej konfiguracji V8.
 
 ## Zmiany i dowody
 
-| Obszar                          | Stan bazy i zmiana w tym PR                                                                                                                                                                                                                                   | Dowód                                                                                                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Druga fala korzenia             | Baza miała ograniczenie 500 ms, ale nadal czekała na całą falę. Teraz loader rozpoczyna pracę bez `await`; nagłówek i stopka korzystają ze wspólnej bramki danych we własnych granicach `Suspense`. Treść trasy może opuścić serwer wcześniej.                | `platformChromeWarmup.test.tsx`: rzeczywisty `renderToPipeableStream`, treść przed rozstrzygnięciem chrome, ponowienie po czyszczeniu zapytań przez SSR, niezależność żądań. |
-| Prefetch strony głównej         | `stream` w `HomeBuilderContent`, prefetch pierwszych sekcji i wspólny budżet były już wdrożone. Zachowane; druga fala nie dodaje osobnego oczekiwania do loadera.                                                                                             | Istniejące testy `homeRoute`, budżetu strony głównej i renderera; boot PL/EN na artefakcie.                                                                                  |
-| Cache renderów zdegradowanych   | Zapis sprawdza finalny `Response`, a nie wyłącznie wcześniejsze nagłówki h3. Rejestruje żądanie i ponownie sprawdza jego sygnał degradacji po zakończeniu strumienia. Zimna granica chrome oznacza dokument jako `private, no-store` przed wysłaniem powłoki. | `platformDeferredCache.test.ts`: L1/L2, późna degradacja strumienia, 500, no-store, zachowanie Link przy HIT.                                                                |
-| Loadery publicznych powierzchni | W aktualnej bazie wskazane loadery i `useSuspenseQuery` już istnieją; powłoka wydarzenia ma head z danych i SSR JSON-LD. PR zachowuje te kontrakty.                                                                                                           | Istniejące testy tras; dodatkowe testy renderu publicznego obejmujące blokady dostępu, układy, typy treści i szablony stron.                                                 |
-| CSS                             | Panel otrzymuje osobny arkusz. Skaner Tailwind emituje w nim klasy nieobecne w części wspólnej. Publiczny renderer buildera pozostaje we wspólnym arkuszu.                                                                                                    | Test prawdziwego skanera, kontrola właściciela importu CSS oraz asercje braku arkusza panelu w publicznym HTML i po hydratacji.                                              |
-| Słownik aktywnego języka        | Mechanizm preloadu PL/EN istniał w bazie. Rozdzielono ponadto słowniki formularza logowania, wyszukiwarki i ustawień panelu, aby nie obciążały korzenia bez potrzeby.                                                                                         | Testy parytetu i18n i asercje rzeczywistego nagłówka `Link` w boot-teście PL/EN.                                                                                             |
-| Czas i język                    | Dwie pozostałe decyzje o czasie w przeglądzie wydarzenia używają `useNowMs`; początkowy SSR i hydratacja korzystają z tego samego stanu. Zapisany HTML nie zmienia decyzji wskutek upływu czasu między renderami.                                             | `renderToString` w dwóch językach, po przekroczeniu daty wydarzenia i ze zmianą strefy hosta. Pozostałe wzorce deterministycznego czasu z bazy zachowane.                    |
-| Startowy JS i raport bundla     | Próg domknięcia startowego 579 KiB istniał. Usunięto importy słowników panelu z korzenia. Raport rozróżnia publiczny CSS od sumy CSS, a aktualizacja baseline nie może ominąć czerwonej bramki.                                                               | Kontrole negatywne: wzrost wyłącznie startowego JS, nieznany arkusz publiczny, próba rozluźnienia limitu przez zmienną CI, osobne wiadra vendorów.                           |
-| Opcje `handler.fetch`           | Drugi argument otrzymuje opcje frameworka. `onEarlyHints` zbiera modulepreloady, które są scalane z Link po nałożeniu nagłówków h3 i przed odroczonym zapisem dokumentu. Tożsamość strumienia body jest zachowana.                                            | `platformPreloads.test.ts`, test wejścia serwera i odpowiedzi z uruchomionego builda Node.                                                                                   |
-| Boot na buildzie                | Oddzielny build smoke i workflow boot-testów istniały. Poprawiono negocjację języka w teście home. Każdy build czyści własne katalogi wyjściowe, żeby stare chunki nie fałszowały pomiaru.                                                                    | Boot testy produkcyjnego artefaktu; bramki grafu, rozmiaru i czystości wejścia wykonują się przed nadpisaniem `.output` buildem smoke.                                       |
-| Pomiar czasu                    | Zachowane testy czasu artefaktu, w tym osobne kryteria dla MISS/HIT. Lighthouse rozpoznawany jako bot mierzy render buforowany; wyniku nie utożsamiamy ze ścieżką strumieniową zwykłej przeglądarki.                                                          | Raport Playwright z joba build. Lokalne odczyty HTTP są diagnostyką, a nie pomiarem wydajności wdrożenia produkcyjnego.                                                      |
+| Obszar                          | Stan bazy i zmiana w tym PR                                                                                                                                                                                                                                                                  | Dowód                                                                                                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Druga fala korzenia             | Baza miała ograniczenie 500 ms, ale nadal czekała na całą falę. Teraz loader rozpoczyna pracę bez `await`; nagłówek i stopka korzystają ze wspólnej bramki danych we własnych granicach `Suspense`. Treść trasy może opuścić serwer wcześniej.                                               | `platformChromeWarmup.test.tsx`: rzeczywisty `renderToPipeableStream`, treść przed rozstrzygnięciem chrome, ponowienie po czyszczeniu zapytań przez SSR, niezależność żądań. |
+| Prefetch strony głównej         | `stream` w `HomeBuilderContent`, prefetch pierwszych sekcji i wspólny budżet były już wdrożone. Zachowane; druga fala nie dodaje osobnego oczekiwania do loadera.                                                                                                                            | Istniejące testy `homeRoute`, budżetu strony głównej i renderera; boot PL/EN na artefakcie.                                                                                  |
+| Cache renderów zdegradowanych   | Zapis sprawdza finalny `Response`, a nie wyłącznie wcześniejsze nagłówki h3. Rejestruje żądanie i ponownie sprawdza jego sygnał degradacji po zakończeniu strumienia. Zimna granica chrome oznacza dokument jako `private, no-store` przed wysłaniem powłoki.                                | `platformDeferredCache.test.ts`: L1/L2, późna degradacja strumienia, 500, no-store, zachowanie Link przy HIT.                                                                |
+| Loadery publicznych powierzchni | W aktualnej bazie wskazane loadery i `useSuspenseQuery` już istnieją; powłoka wydarzenia ma head z danych i SSR JSON-LD. PR zachowuje te kontrakty.                                                                                                                                          | Istniejące testy tras; dodatkowe testy renderu publicznego obejmujące blokady dostępu, układy, typy treści i szablony stron.                                                 |
+| CSS                             | Panel otrzymuje osobny arkusz. Skaner Tailwind emituje w nim klasy nieobecne w części wspólnej. Publiczny renderer buildera pozostaje we wspólnym arkuszu.                                                                                                                                   | Test prawdziwego skanera, kontrola właściciela importu CSS oraz asercje braku arkusza panelu w publicznym HTML i po hydratacji.                                              |
+| Słownik aktywnego języka        | Mechanizm preloadu PL/EN istniał w bazie. Rozdzielono ponadto słowniki formularza logowania, wyszukiwarki i ustawień panelu, aby nie obciążały korzenia bez potrzeby.                                                                                                                        | Testy parytetu i18n i asercje rzeczywistego nagłówka `Link` w boot-teście PL/EN.                                                                                             |
+| Czas i język                    | Dwie pozostałe decyzje o czasie w przeglądzie wydarzenia używają `useNowMs`; początkowy SSR i hydratacja korzystają z tego samego stanu. Zapisany HTML nie zmienia decyzji wskutek upływu czasu między renderami.                                                                            | `renderToString` w dwóch językach, po przekroczeniu daty wydarzenia i ze zmianą strefy hosta. Pozostałe wzorce deterministycznego czasu z bazy zachowane.                    |
+| Startowy JS i raport bundla     | Próg domknięcia startowego 579 KiB istniał. Usunięto importy słowników panelu z korzenia. Raport rozróżnia publiczny CSS od sumy CSS, a aktualizacja baseline nie może ominąć czerwonej bramki.                                                                                              | Kontrole negatywne: wzrost wyłącznie startowego JS, nieznany arkusz publiczny, próba rozluźnienia limitu przez zmienną CI, osobne wiadra vendorów.                           |
+| Opcje `handler.fetch`           | Drugi argument otrzymuje opcje frameworka. `onEarlyHints` zbiera modulepreloady, które są scalane z Link po nałożeniu nagłówków h3 i przed odroczonym zapisem dokumentu. Tożsamość strumienia body jest zachowana.                                                                           | `platformPreloads.test.ts`, test wejścia serwera i odpowiedzi z uruchomionego builda Node.                                                                                   |
+| Boot na buildzie                | Oddzielny build smoke i workflow boot-testów istniały. Poprawiono negocjację języka w teście home. Każdy build czyści własne katalogi wyjściowe, żeby stare chunki nie fałszowały pomiaru.                                                                                                   | Boot testy produkcyjnego artefaktu; bramki grafu, rozmiaru i czystości wejścia wykonują się przed nadpisaniem `.output` buildem smoke.                                       |
+| Pomiar czasu                    | Zachowane testy czasu artefaktu, w tym osobne kryteria dla MISS/HIT. Klasyfikacja Lighthouse zależy od faktycznego User-Agent: konfiguracja Lighthouse 12 w repo używa desktopowego UA Chrome, rozpoznawanego jako zwykła przeglądarka. Wyników nie przypisujemy automatycznie ścieżce bota. | Raport Playwright z joba build. Lokalne odczyty HTTP są diagnostyką, a nie pomiarem wydajności wdrożenia produkcyjnego.                                                      |
 
 ## Pokrycie i jakość pomiaru
 
@@ -36,11 +36,41 @@ CI publikuje HTML, JSON, JSON summary, LCOV oraz rachunek wykonania testów.
 niepokrytych linii, identyfikatory gałęzi i nazwy niewykonanych funkcji.
 `expectedFailed`, `failed`, `skipped` i przypadki bez wyniku są raportowane
 oddzielnie. Istniejące globalne i szczegółowe progi repozytorium pozostają
-obowiązujące.
+obowiązujące. Błąd importu pliku przed zebraniem przypadków jest niepełnym
+przebiegiem. Ujemne lub niepoprawne surowe liczniki LCOV odrzucają pomiar;
+nie zastępujemy ich zerami. Node 24.19.0 jest przypięty w CI, E2E i Lighthouse.
+
+## Weryfikacja w toku — dane pomocnicze
+
+Pierwszy pełny CI (`34030646824`) zakończył 65 198 testów powodzeniem,
+376 oczekiwaną porażką i 50 pominięciem. Jeden moduł nie załadował się przez
+niepełną atrapę `createIsomorphicFn`; został poprawiony. Ten przebieg nie jest
+końcowym dowodem: korzystał z Node 22.23.2 i zawierał ujemne liczniki V8.
+Wykryte luki formularzy klubów zostały uzupełnione bez obniżania ich bramek.
+
+Build wariantu 512 B: cały JS 4341,2 KiB gzip (limit 4351), publiczny JS
+2699,0 (2715), start 577,9 (579), największy chunk 275,3 (280), publiczny CSS
+73,2 (74), suma CSS 85,8 (87). Próba 2048 B została odrzucona: zmniejszała
+sumę JS, lecz zwiększała start powyżej limitu. Reguły łączenia chunków są
+identyczne w produkcji i smoke. Limity JS nie zostały podniesione.
+
+Pierwszy pomiar CI na artefakcie Node `/cookies`: TTFB 9,0 ms, gotowość
+hydratacji 463 ms, FCP 240 ms; osobna para cache MISS 5045,7 ms / HIT 8,1 ms.
+To pomiar localhost z zastępczym backendem, **nie wdrożenia produkcyjnego**.
+Dwa testy przeglądarkowe wymagają powtórzenia po poprawieniu zgodności locale
+PL/EN i klasyfikacji importów na podstawie grafu Rollup. Ostateczne metryki
+pokrycia i status CI zostaną zapisane po pełnym przebiegu aktualnego kodu.
 
 ## Dodatkowe naprawy wynikające z testów
 
-- Pipeline błędów uwzględnia zarówno `status`, jak i `statusCode`.
+- Pipeline błędów uwzględnia zarówno `status`, jak i `statusCode`. Rozpoznawanie
+  anulowania obsługuje także cykliczny łańcuch `cause`, bez przepełnienia stosu.
+- Strażnik dokumentu przekazuje anulowanie do źródła, a błąd źródła rejestruje
+  osobno od poprawnego zakończenia. Ucięty HTML otrzymuje sygnaturę diagnostyczną.
+- Dashboard administratora pobiera dokładne liczniki przez zapytania HEAD,
+  filtruje tenant oraz pokazuje błąd z ponowieniem zamiast fałszywych zer.
+- Odtwarzanie kontraktu bazy respektuje kolejność DROP/CREATE wewnątrz migracji;
+  zmiana nazwy obiektu schematu zarządzanego nie tworzy fikcyjnej tabeli publicznej.
 - Błąd chunka zapisany jako zwykły obiekt z `message` uruchamia właściwe odzyskanie.
 - Gateway AI zachowuje nagłówki `Request`, przestrzega ograniczenia odczytu
   strumienia przez konsumenta i zwalnia reader przy anulowaniu oraz błędzie.

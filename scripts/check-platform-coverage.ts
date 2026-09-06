@@ -4,6 +4,7 @@ import scope from "../governance/platform-coverage-scope.json";
 import { platformCoverageFiles } from "./lib/platformCoverageScope";
 import {
   evaluatePlatformCoverage,
+  invalidLcovCounters,
   uncoveredLcov,
   PLATFORM_METRICS,
   type FileCoverageCounts,
@@ -23,11 +24,17 @@ const accounting = JSON.parse(readFileSync(accountingPath, "utf8")) as {
   complete?: boolean;
   collected?: number;
   reported?: number;
+  outcomes?: { failed?: number };
+  moduleOutcomes?: { failed?: number };
+  commit?: string;
 };
 if (
   accounting.complete !== true ||
   !accounting.collected ||
-  accounting.collected !== accounting.reported
+  accounting.collected !== accounting.reported ||
+  accounting.outcomes?.failed !== 0 ||
+  accounting.moduleOutcomes?.failed !== 0 ||
+  (process.env.GITHUB_SHA !== undefined && accounting.commit !== process.env.GITHUB_SHA)
 ) {
   console.error("Platform coverage: incomplete test execution; percentages cannot pass the gate.");
   process.exit(1);
@@ -43,7 +50,13 @@ const normalized = Object.fromEntries(
 );
 const files = platformCoverageFiles();
 const result = evaluatePlatformCoverage(files, normalized);
-const uncovered = uncoveredLcov(readFileSync(lcovPath, "utf8"), new Set(files));
+const lcov = readFileSync(lcovPath, "utf8");
+const invalidRawCounters = invalidLcovCounters(lcov);
+if (invalidRawCounters.length) {
+  result.passed = false;
+  result.invalid.push(...invalidRawCounters);
+}
+const uncovered = uncoveredLcov(lcov, new Set(files));
 const report = {
   auditCommit: scope.auditCommit,
   testAccounting: accounting,

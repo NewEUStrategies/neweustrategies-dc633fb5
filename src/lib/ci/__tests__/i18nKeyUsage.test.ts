@@ -4,6 +4,8 @@
 import { describe, expect, it } from "vitest";
 import {
   auditKeyUsage,
+  parseCallArgs,
+  readKeyPrefixScopes,
   keyUsageFailed,
   maskComments,
   renderKeyUsageReport,
@@ -275,5 +277,56 @@ describe("auditKeyUsage", () => {
       en: tree,
     });
     expect(audit.missing.map((f) => f.reason)).toEqual(["missing_both"]);
+  });
+});
+
+describe("platform dictionary scanner lexical and report edge cases", () => {
+  it("parses escaped quotes and ignores delimiters inside both comment forms", () => {
+    const source = '("a\\\"b", /* ), ignored */ { count: 2 }, // ignored )\n "third")';
+    const call = parseCallArgs(source, 0);
+    expect(call?.args).toHaveLength(3);
+    expect(call?.end).toBe(source.length);
+    expect(parseCallArgs("(value // no newline", 0)).toBeNull();
+    expect(parseCallArgs("(value /* no close", 0)).toBeNull();
+    expect(maskComments("x /* unfinished")).toMatch(/^x\s+$/);
+  });
+  it("does not invent static keys from concatenation or malformed calls", () => {
+    for (const source of [
+      "t()",
+      't("network." + suffix)',
+      "t(`.${key}`)",
+      "t(`network.static` + suffix)",
+    ])
+      expect(scanTranslationCalls("x.ts", source)).toEqual([]);
+    expect(readKeyPrefixScopes('useTranslation("translation", { keyPrefix: "network"')).toEqual([
+      { at: 0, keyPrefix: null },
+    ]);
+  });
+  it("reports partial leaf parity separately from missing parent branches", () => {
+    const usages = scanTranslationCalls(
+      "x.ts",
+      't(`blocks.ui.pad_${size}`); t(`missing.ui.pad_${size}`); t("absent.key");',
+    );
+    const audit = auditKeyUsage(usages, {
+      pl: { blocks: { ui: { pad_sm: "small", pad_lg: "large" } } },
+      en: { blocks: { ui: { pad_sm: "small", pad_xl: "extra" } } },
+    });
+    expect(audit.branches.map((x) => x.reason)).toEqual([
+      "partial_mismatch",
+      "partial_parent_missing",
+    ]);
+    expect(audit.missing).toHaveLength(1);
+    const report = renderKeyUsageReport(audit);
+    expect(report).toContain("partial_parent_missing");
+    expect(report).toContain("pad_lg");
+    expect(report).toContain("absent.key");
+  });
+  it("does not treat a null, primitive or absent localized branch as an object", () => {
+    const usage = scanTranslationCalls("x.ts", "t(`blocks.ui.pad_${size}`)");
+    for (const en of [{ blocks: "plain" }, {}])
+      expect(
+        auditKeyUsage(usage, { pl: { blocks: { ui: { pad_sm: "small" } } }, en }).branches[0]
+          .reason,
+      ).toBe("partial_parent_missing");
   });
 });

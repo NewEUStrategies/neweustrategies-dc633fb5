@@ -299,6 +299,10 @@ export default defineConfig({
               // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
               // dynamic importach) pokrywa modulepreload z mapDeps.
               hoistTransitiveImports: false,
+              // Coalesce tiny automatic chunks when Rollup can preserve their
+              // loading/side-effect semantics. Keep both presets identical;
+              // startup size, graph and browser boot remain blocking gates.
+              experimentalMinChunkSize: 512,
               manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu

@@ -71,14 +71,19 @@ function isH3SwallowedErrorBody(body: string): boolean {
 // Klient rozłączył się w trakcie SSR (nawigacja/refresh) - to NIE jest błąd
 // aplikacji: nie logujemy i nie renderujemy strony błędu.
 function isClientAbort(request: Request, error?: unknown): boolean {
-  if (request.signal?.aborted) return true;
-  const err = error as
-    { code?: string; name?: string; message?: string; cause?: unknown } | undefined;
-  if (!err) return false;
-  const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
-  if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))
-    return true;
-  if (err.cause && err.cause !== error) return isClientAbort(request, err.cause);
+  if (request.signal.aborted) return true;
+  // Transport wrappers can form cycles in `cause`; never recurse indefinitely
+  // while deciding how to handle the original SSR failure.
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const err = current as { code?: string; name?: string; message?: string; cause?: unknown };
+    const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
+    if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))
+      return true;
+    current = err.cause;
+  }
   return false;
 }
 

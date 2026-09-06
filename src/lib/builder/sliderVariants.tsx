@@ -985,22 +985,16 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // Build slide click navigation helper used across variants.
   // Client-side (TanStack Router) for internal links -> no full reload, keeps
   // header/menu mounted; window.open for external. Skipped in preview mode
-  // AND when rendered inside an EDITING surface so editing clicks don't leave
-  // the canvas. Uwaga: publiczny BuilderRenderer też ustawia
-  // [data-builder-renderer] (pusty atrybut - stylistyczny), więc blokujemy
-  // tylko prawdziwy kanwas edytora ([data-visual-canvas]) i podglądy panelu
-  // (atrybut z wartością, np. "widget-props-preview").
+  // AND when rendered inside the actual editing canvas so editing clicks don't
+  // leave it. Public BuilderRenderer uses data-builder-renderer="true", so that
+  // marker must never be treated as an editor-only signal.
   const navigateTo = (href?: string) => {
     if (!href || preview) return;
     if (rootRef.current?.closest("[data-visual-canvas]")) return;
-    const rendererAttr = rootRef.current
-      ?.closest("[data-builder-renderer]")
-      ?.getAttribute("data-builder-renderer");
-    if (rendererAttr) return;
     if (href.startsWith("http://") || href.startsWith("https://")) {
       const client = toClientHref(href);
       if (client && router) {
-        void router.navigate({ href: client } as never);
+        void router.navigate({ to: client } as never);
       } else {
         window.open(href, "_blank", "noopener,noreferrer");
       }
@@ -1008,7 +1002,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     }
     const client = toClientHref(href) ?? href;
     if (router) {
-      void router.navigate({ href: client } as never);
+      void router.navigate({ to: client } as never);
     } else {
       window.location.assign(href);
     }
@@ -1140,33 +1134,15 @@ function EditorialHeroVariant(p: VariantProps) {
     <>
       <div
         data-widget-media
-        role={href ? "link" : undefined}
-        tabIndex={href ? 0 : undefined}
-        aria-label={href ? title : undefined}
         className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...p.aspectStyle, borderRadius: 4 }}
         onPointerDown={p.onPointerDown}
         onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag}
         onPointerCancel={p.endDrag}
-        onClick={(e) => {
-          if (!href) return;
-          const d = p.dragRef.current;
-          if (Math.abs(d.lastX - d.startX) > 5) return;
-          const target = e.target as HTMLElement;
-          if (target.closest(".eh-side-nav")) return;
-          p.navigateTo(href);
-        }}
-        onKeyDown={(e) => {
-          if (!href || p.preview) return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            p.navigateTo(href);
-          }
-        }}
       >
         <div
-          className="absolute inset-0"
+          className="pointer-events-none absolute inset-0"
           style={{
             transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
@@ -1186,6 +1162,19 @@ function EditorialHeroVariant(p: VariantProps) {
             />
           ))}
         </div>
+        {href && (
+          <AppLink
+            href={href}
+            aria-label={title}
+            className="absolute inset-0 z-[1]"
+            onClick={(e) => {
+              const moved = Math.abs(p.dragRef.current.lastX - p.dragRef.current.startX) > 5;
+              if (moved || p.preview || e.currentTarget.closest("[data-visual-canvas]")) {
+                e.preventDefault();
+              }
+            }}
+          />
+        )}
         {p.items.length > 1 && (
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}

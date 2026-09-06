@@ -461,7 +461,7 @@ export function findQuerySites(file: string, source: string, distance = 0): Quer
   const clean = stripTsComments(source);
   const out: QuerySite[] = [];
   for (const match of clean.matchAll(QUERY_HOOK_RE)) {
-    const at = match.index ?? 0;
+    const at = match.index;
     const open = at + match[0].length - 1;
     const args = balancedArgs(clean, open);
     out.push({
@@ -549,7 +549,7 @@ export function routeOptionsBlock(source: string): string | null {
 export function topLevelOption(block: string, name: string): string | null {
   const pattern = new RegExp(`(^|[\\s,;])${name}\\s*:`, "g");
   for (const match of block.matchAll(pattern)) {
-    const at = (match.index ?? 0) + match[0].length;
+    const at = match.index + match[0].length;
     let depth = 0;
     let inside = false;
     for (let i = 0; i < at; i += 1) {
