@@ -90,6 +90,8 @@ const h = vi.hoisted(() => ({
   /** Wysłane wiadomości - atrapa bramki poczty. */
   emails: [] as { to: string; subject: string; html: string }[],
   emailOk: true,
+  /** Awaria generatora linku aktywacyjnego. */
+  linkError: null as Error | null,
   emailError: "smtp down",
 }));
 
@@ -102,6 +104,14 @@ vi.mock("@/integrations/supabase/client.server", () => ({
           if (h.authError) return { data: { user: null }, error: h.authError };
           return {
             data: { user: h.authUserId ? { id: h.authUserId } : null },
+            error: null,
+          };
+        },
+        generateLink: async (payload: { type: string; email: string }) => {
+          h.authCalls.push({ kind: `link:${payload.type}`, email: payload.email, payload });
+          if (h.linkError) return { data: null, error: h.linkError };
+          return {
+            data: { properties: { action_link: "https://example.test/activate?token=abc" } },
             error: null,
           };
         },
@@ -938,24 +948,24 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(result.error).toBe("statement timeout");
   });
 
-  it("tryb odnośnika jednorazowego woła `inviteUserByEmail`, NIE `createUser`", async () => {
+  it("tryb odnośnika jednorazowego zakłada konto i WYSYŁA własny e-mail z linkiem", async () => {
     withInvitation(invitationRow({ mode: "magic_link" }));
     const result = await send();
     expect(result.ok).toBe(true);
-    expect(h.authCalls).toHaveLength(1);
-    expect(h.authCalls[0].kind).toBe("invite");
+    expect(h.authCalls.map((call) => call.kind)).toEqual(["create", "link:invite"]);
     expect(h.authCalls[0].email).toBe("nowa@example.org");
     // Hasła tymczasowego NIE MA - w tym trybie logowanie idzie odnośnikiem.
     expect(result.tempPassword).toBeUndefined();
-    // I nie idzie żadna nasza wiadomość - wysyła ją Supabase Auth.
-    expect(h.emails).toHaveLength(0);
+    // Wiadomość wychodzi z NASZEJ bramki i niesie link aktywacyjny.
+    expect(h.emails).toHaveLength(1);
+    expect(h.emails[0].html).toContain("https://example.test/activate?token=abc");
   });
 
   it("odnośnik jednorazowego dostępu niesie najemcę i nazwę w metadanych konta", async () => {
     withInvitation(invitationRow({ mode: "magic_link" }));
     await send();
     expect(h.authCalls[0].payload).toMatchObject({
-      data: { display_name: "Nowa Osoba", tenant_id: IDS.tenant },
+      user_metadata: { display_name: "Nowa Osoba", tenant_id: IDS.tenant },
     });
   });
 
@@ -991,7 +1001,7 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     // wysyłka pomija warstwę auth i tylko uzupełnia profil.
     withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
     const result = await send();
-    expect(h.authCalls).toHaveLength(0);
+    expect(h.authCalls.every((call) => call.kind.startsWith("link:"))).toBe(true);
     expect(result.ok).toBe(true);
     const profileWrite = h.adminWrites.find((write) => write.table === "profiles");
     expect(profileWrite?.row).toMatchObject({ id: IDS.existingUser });
@@ -1190,12 +1200,12 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(h.emails[0].html).toContain(encodeURIComponent("nowa@example.org"));
   });
 
-  it("PONOWIENIE w trybie hasła NIE wysyła wiadomości - hasła już nie ma", async () => {
-    // Konto istnieje, więc nowe hasło nie powstaje; wiadomość z pustym hasłem
-    // byłaby bezużyteczna i myląca.
+  it("PONOWIENIE w trybie hasła wysyła wiadomość, ale BEZ nowego hasła", async () => {
+    // Konto istnieje, więc nowe hasło nie powstaje - wiadomość przypomina
+    // tylko adres logowania.
     withInvitation(invitationRow({ mode: "temp_password", auth_user_id: IDS.existingUser }));
     const result = await send();
-    expect(h.emails).toHaveLength(0);
+    expect(h.emails).toHaveLength(1);
     expect(result.tempPassword).toBeUndefined();
     expect(result.ok).toBe(true);
   });
