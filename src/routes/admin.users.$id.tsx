@@ -917,7 +917,8 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
   };
   const tone =
     data.state === "active" ? "default" : data.state === "banned" ? "destructive" : "secondary";
-  const fmt = (v: string | null) => (v ? new Date(v).toLocaleString(locale) : t("adminUsers.never"));
+  const fmt = (v: string | null) =>
+    v ? new Date(v).toLocaleString(locale) : t("adminUsers.never");
 
   return (
     <div className="space-y-3">
