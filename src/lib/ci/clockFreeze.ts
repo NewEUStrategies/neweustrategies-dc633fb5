@@ -281,7 +281,9 @@ export function scanClockFreeze(sources: readonly SourceFile[]): ClockFreezeScan
       [file, ...helpers].some((from) =>
         importSpecifiers(stripped.get(from) ?? "").some((spec) => {
           const target = resolveSpecifier(spec, from, known);
-          return target !== null && !isTestFile(target) && !isTestHelper(target) && readsClock(target);
+          return (
+            target !== null && !isTestFile(target) && !isTestHelper(target) && readsClock(target)
+          );
         }),
       );
     if (!self && !viaImport) continue;
