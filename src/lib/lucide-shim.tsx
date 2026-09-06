@@ -73,7 +73,11 @@ import {
   Redo as LRedo,
   Loader2 as LLoader2,
   AlertTriangle as LAlertTriangle,
+  TriangleAlert as LTriangleAlert,
+  Clock3 as LClock3,
+  UserRoundCheck as LUserRoundCheck,
   Rows as LRows,
+
   Save as LSave,
   Search as LSearch,
   Send as LSend,
