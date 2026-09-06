@@ -52,6 +52,7 @@ export type AdminAccountStatus = {
   hasMfa: boolean;
   invitationId: string | null;
   invitationStatus: string | null;
+  invitationSendCount: number;
   /** Skrót stanu dla UI: active | pending_email | invited | banned | never_signed_in | missing */
   state: "active" | "pending_email" | "invited" | "banned" | "never_signed_in" | "missing";
 };
@@ -86,6 +87,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
         hasMfa: false,
         invitationId: null,
         invitationStatus: null,
+        invitationSendCount: 0,
         state: "missing",
       };
     }
@@ -101,10 +103,11 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     let invitationStatus: string | null = null;
     let invitationSentAt: string | null = null;
     let invitationAutoAccepted = false;
+    let invitationSendCount = 0;
     if (u.email) {
       const { data: inv } = await context.supabase
         .from("user_invitations")
-        .select("id, status, sent_at, metadata")
+        .select("id, status, sent_at, metadata, send_count")
         .ilike("email", u.email)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -112,6 +115,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
       invitationId = inv?.id ?? null;
       invitationStatus = inv?.status ?? null;
       invitationSentAt = inv?.sent_at ?? null;
+      invitationSendCount = inv?.send_count ?? 0;
       const invitationMetadata = (inv?.metadata ?? {}) as Record<string, unknown>;
       invitationAutoAccepted = invitationMetadata.auto_accept === true;
     }
@@ -151,6 +155,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
       hasMfa: (u.factors ?? []).some((f) => f.status === "verified"),
       invitationId,
       invitationStatus: effectiveInvitationStatus,
+      invitationSendCount,
       state,
     };
   });
