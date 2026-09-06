@@ -79,13 +79,7 @@
 //     wynoszona nad importy i nie wolno w niej sięgać po zaimportowane
 //     referencje (ten sam wzorzec co w `-community-cron.test.ts`).
 //
-// ZAREJESTROWANE DEFEKTY (`it.fails`, każdy z kontrolą dodatnią obok):
-//   D1. Bramki cyklu pracy czytają zegar OSOBNO, job po jobie, więc jeden tick
-//       potrafi podjąć SPRZECZNE decyzje o tym samym oknie 5-minutowym.
-//   D2. `runJobsTick` nie chroni się przed rzutem z `recordJobRun`, choć
-//       komentarz :268 obiecuje, że zapis „nie może unieważnić pracy, która
-//       już się wykonała".
-//
+// Regresje: jeden zegar ticku oraz odporność wyniku na błąd zapisu logu.
 // BEZ SIECI, BEZ POCZTY, BEZ SEKRETÓW. Wszystkie granice wychodzące są
 // atrapami, żaden test nie tworzy klienta Supabase ani nie czyta env.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -952,11 +946,8 @@ describe("heartbeat: każdy tick zostawia wpis w logu przebiegów", () => {
 // ===========================================================================
 // ZAREJESTROWANE DEFEKTY
 // ===========================================================================
-describe("D1: bramki cyklu pracy czytają zegar OSOBNO, job po jobie", () => {
+describe("D1: bramki cyklu pracy używają czasu rozpoczęcia ticku", () => {
   it("kontrola dodatnia: bez przesunięcia zegara cała czwórka 5-minutowa decyduje ZGODNIE", () => {
-    // Ta kontrola jest warunkiem sensu `it.fails` niżej: dowodzi, że mechanizm
-    // pomiaru (lista pominięć w jednej minucie) działa, więc rozjazd niżej
-    // bierze się z PRZESUNIĘCIA ZEGARA, a nie z błędu w teście.
     return tickAt(5).then((result) => {
       const skips = FIVE_MINUTE_JOBS.filter(
         (key) => jobError(slot(result, key)) === "skipped_duty_cycle",
@@ -965,38 +956,19 @@ describe("D1: bramki cyklu pracy czytają zegar OSOBNO, job po jobie", () => {
     });
   });
 
-  it.fails(
-    "DEFEKT: tick, który przekroczy minutę, podejmuje SPRZECZNE decyzje o tym samym oknie",
-    async () => {
-      // Każda bramka woła `everyNthMinute(n)` z DOMYŚLNYM `new Date()`, więc
-      // czyta zegar w chwili swojej ewaluacji, a nie w chwili startu ticku.
-      // Tick startujący pod koniec minuty 5 policzy `digestsDue` jako prawdę,
-      // a bramkę embeddingów i harmonogramu klubów - już w minucie 6 - jako
-      // fałsz. Skutek: digesty poszły „w oknie 5-minutowym", a indeks
-      // semantyczny i harmonogram klubów to okno przegapiły i czekają do
-      // minuty 10. Nie jest to hipoteza: sam dren poczty ma budżet 10 s, więc
-      // przekroczenie minuty jest w tym ticku zachowaniem NORMALNYM.
-      //
-      // Naprawa to jeden znacznik czasu na tick (`const now = new Date()`
-      // przy `startedAt` i przekazywanie go do `everyNthMinute`), a nie
-      // podnoszenie budżetów. Test ma się zapalić dopiero po tej zmianie.
-      vi.setSystemTime(at(5, 59, 500));
-      slowJob("digestDaily", 1_000);
+  it("tick przekraczający minutę zachowuje wspólne okno", async () => {
+    vi.setSystemTime(at(5, 59, 500));
+    slowJob("digestDaily", 1_000);
 
-      const result = await runJobsTick(admin);
+    const result = await runJobsTick(admin);
 
-      const skips = FIVE_MINUTE_JOBS.filter(
-        (key) => jobError(slot(result, key)) === "skipped_duty_cycle",
-      );
-      // Albo całe okno jest otwarte, albo całe zamknięte - stan pośredni
-      // znaczy, że jeden tick miał dwa różne „teraz".
-      expect(skips.length === 0 || skips.length === FIVE_MINUTE_JOBS.length).toBe(true);
-    },
-  );
+    const skips = FIVE_MINUTE_JOBS.filter(
+      (key) => jobError(slot(result, key)) === "skipped_duty_cycle",
+    );
+    expect(skips.length === 0 || skips.length === FIVE_MINUTE_JOBS.length).toBe(true);
+  });
 
-  it("pomiar defektu D1: dziś digesty ruszają, a indeks i kluby są pomijane", async () => {
-    // Kontrola dodatnia z drugiej strony - pokazuje, CO dokładnie mierzy
-    // `it.fails` wyżej, żeby po naprawie nikt nie musiał tego odtwarzać.
+  it("digesty, indeks i kluby nie tracą okna przy przekroczeniu minuty", async () => {
     vi.setSystemTime(at(5, 59, 500));
     slowJob("digestDaily", 1_000);
 
@@ -1004,45 +976,28 @@ describe("D1: bramki cyklu pracy czytają zegar OSOBNO, job po jobie", () => {
 
     expect(jobError(result.digestDaily)).toBeNull();
     expect(jobError(result.digestWeekly)).toBeNull();
-    expect(jobError(result.semanticIndex)).toBe("skipped_duty_cycle");
-    expect(jobError(result.clubScheduler)).toBe("skipped_duty_cycle");
+    expect(jobError(result.semanticIndex)).toBeNull();
+    expect(jobError(result.clubScheduler)).toBeNull();
   });
 });
 
-describe("D2: zapis heartbeatu nie jest odgrodzony od pracy, którą raportuje", () => {
+describe("D2: błąd zapisu heartbeatu nie unieważnia wykonanej pracy", () => {
   it("kontrola dodatnia: przy sprawnym zapisie tick zwraca wynik", async () => {
     const result = await tickAt(0);
 
     expect(result.push).toEqual(fixtures.push);
   });
 
-  it.fails(
-    "DEFEKT: rzut z `recordJobRun` unieważnia wynik pracy, która JUŻ się wykonała",
-    async () => {
-      // Komentarz :268 mówi wprost: „Zapis jest best-effort i nie może
-      // unieważnić pracy, która już się wykonała". W kodzie nie ma jednak
-      // ŻADNEGO `try` wokół `await recordJobRun(...)` - cała ta gwarancja jest
-      // scedowana na sąsiada, który dziś faktycznie łyka każdy wyjątek
-      // wewnątrz siebie. Dopóki tak jest, defekt jest STRUKTURALNY, nie żywy:
-      // wystarczy jednak, że sąsiad zacznie rzucać przed swoim `try` (dziś
-      // robi tam dynamiczny import klienta) albo że ktoś dołoży `throw`
-      // w warstwie klienta, i tick oddaje 500 po tym, jak wysłał całą pocztę.
-      // Cron uzna minutę za straconą, a wysyłki nie da się już „odwołać".
-      //
-      // Naprawa: `try { await recordJobRun(...) } catch (err) { console.error }`
-      // w `runJobsTick` - gwarancja ma stać tam, gdzie jest obiecana.
-      scheduler.failure = "record_job_run: connection reset";
-
-      await expect(tickAt(0)).resolves.toMatchObject({ push: fixtures.push });
-    },
-  );
-
-  it("pomiar defektu D2: praca została wykonana, a mimo to tick nie oddaje wyniku", async () => {
-    // Kontrola dodatnia: wszystkie trzynaście jobów naprawdę pobiegło, więc
-    // `it.fails` wyżej nie mierzy „ticku, który nic nie zrobił".
+  it("rzut z recordJobRun zachowuje wynik wykonanej pracy", async () => {
     scheduler.failure = "record_job_run: connection reset";
 
-    await expect(tickAt(0)).rejects.toThrow("record_job_run: connection reset");
+    await expect(tickAt(0)).resolves.toMatchObject({ push: fixtures.push });
+  });
+
+  it("mimo błędu logu wszystkie zadania mają wynik", async () => {
+    scheduler.failure = "record_job_run: connection reset";
+
+    await expect(tickAt(0)).resolves.toMatchObject({ push: fixtures.push });
     expect(jobs.steps()).toEqual([...FULL_ORDER]);
   });
 });

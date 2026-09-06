@@ -37,21 +37,23 @@ export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: 
     // so the dropdown never flashes a skeleton mid-interaction.
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<MegaMenuCategoryData> => {
-      const { data: cat } = await supabase
+      const { data: cat, error: catError } = await supabase
         .from("categories")
         .select("id, name_pl, name_en")
         .eq("slug", slug)
         .maybeSingle();
+      if (catError) throw catError;
       if (!cat?.id) return { posts: [], catName: "" };
-      const { data: pivot } = await supabase
+      const { data: pivot, error: pivotError } = await supabase
         .from("post_categories")
         .select("post_id")
         .eq("category_id", cat.id as string)
         .limit(limit * 4);
+      if (pivotError) throw pivotError;
       const ids = (pivot ?? []).map((r) => r.post_id as string);
       const catName = pickLocalized(cat as Record<string, unknown>, "name", lang);
       if (ids.length === 0) return { posts: [], catName };
-      const { data: posts } = await supabase
+      const { data: posts, error: postsError } = await supabase
         .from("posts")
         .select("id, slug, title_pl, title_en, cover_image_url, published_at")
         .in("id", ids)
@@ -59,6 +61,7 @@ export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: 
         .is("deleted_at", null)
         .order("published_at", { ascending: false })
         .limit(limit);
+      if (postsError) throw postsError;
       return {
         posts: (posts ?? []).map((p) => ({
           id: p.id as string,

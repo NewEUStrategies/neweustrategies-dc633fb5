@@ -522,7 +522,7 @@ describe("strona główna: która strona zostaje stroną główną", () => {
     expect(wynik?.id).toBe("home-1");
   });
 
-  it("STAN FAKTYCZNY: odmowa przy wskazanej stronie jest nie do odróżnienia od jej braku", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa RLS", async () => {
     // Przypięcie zachowania, nie życzenie: linie 479-487 czytają `const { data }`
     // bez `error`, więc odmowa RLS/timeout daje `data === null` i kod schodzi
     // na fallback `slug = "home"` tak samo, jakby strona nie istniała.
@@ -533,41 +533,21 @@ describe("strona główna: która strona zostaje stroną główną", () => {
     planuj({
       strony: { poId: fail("odmowa RLS", "42501"), home: ok({ id: "home-1", slug: "home" }) },
     });
-    const wynik = await klient().fetchQuery(homePageQueryOptions());
-    expect(wynik?.id).toBe("home-1");
+    await expect(klient().fetchQuery(homePageQueryOptions())).rejects.toMatchObject({
+      message: "odmowa RLS",
+    });
   });
 
-  it.fails(
-    "AWARIA odczytu wskazanej strony głównej POWINNA być odróżnialna od jej usunięcia",
-    async () => {
-      // DEFEKT. `src/lib/queries/public.ts:479-487`: `const { data } = await
-      // supabase.from("pages")...maybeSingle()` - BEZ `error`. To samo na
-      // liniach 489-498 (ścieżka po slugu).
-      // MECHANIZM: PostgREST nie rzuca wyjątkiem, więc odmowa (RLS, brak
-      // grantu, timeout puli) oddaje `data === null`. Warunek `if (data) row =
-      // data` nie odpala, `row` zostaje `null`, a linie 500-511 wchodzą w
-      // fallback `slug = "home"` - który MA sprawdzanie błędu i przechodzi.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: pod adresem „/” staje INNA strona niż ta,
-      // którą operator wskazał w Ustawieniach → Czytanie. Razem z nią idzie jej
-      // `head()`: tytuł, `canonical`, `og:image` i `seo_noindex`. Jeśli
-      // konwencjonalna strona „home” jest w tym serwisie starą stroną z
-      // `seo_noindex = true`, jedna chwilowa odmowa bazy potrafi zdeindeksować
-      // stronę główną - i nikt tego nie zauważy, bo strona się renderuje.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-      // wyjątku (cały serwis na 500, gdy jedna strona jest niedostępna) a
-      // rozróżnieniem „nie ma" od „nie wiem" w kontrakcie zwrotki (nowy stan
-      // czytany przez `src/routes/index.tsx`). Oba warianty zmieniają
-      // zachowanie produkcyjne, więc test tylko NAZYWA lukę.
-      baza().setResponse(
-        "site_settings",
-        ok({ value: { homepage_mode: "static_page", homepage_page_id: "wskazana" } }),
-      );
-      planuj({
-        strony: { poId: fail("odmowa RLS", "42501"), home: ok({ id: "home-1", slug: "home" }) },
-      });
-      await expect(klient().fetchQuery(homePageQueryOptions())).rejects.toThrow();
-    },
-  );
+  it("AWARIA odczytu wskazanej strony głównej POWINNA być odróżnialna od jej usunięcia", async () => {
+    baza().setResponse(
+      "site_settings",
+      ok({ value: { homepage_mode: "static_page", homepage_page_id: "wskazana" } }),
+    );
+    planuj({
+      strony: { poId: fail("odmowa RLS", "42501"), home: ok({ id: "home-1", slug: "home" }) },
+    });
+    await expect(klient().fetchQuery(homePageQueryOptions())).rejects.toThrow();
+  });
 });
 
 // ==========================================================================
@@ -923,7 +903,7 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     expect(wpis.authors.map((a) => a.id)).toEqual(["wsp-1"]);
   });
 
-  it("STAN FAKTYCZNY: odmowa listy współautorów zostawia sam autora głównego", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa post_authors", async () => {
     // Linia 729 domyka odmowę wyrażeniem `(coAuthorRows ?? [])`, więc lista
     // autorów kurczy się do tego jednego, którego id siedzi w wierszu wpisu.
     planuj({
@@ -932,132 +912,63 @@ describe("rezolucja adresu: gałąź WPISU", () => {
       wspolautorzy: fail("odmowa post_authors", "42501"),
       profile: ok([wierszProfilu(ID_AUTORA)]),
     });
-    const wpis = jakoWpis(
-      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-    );
-    expect(lancuch("profiles_public").argsOf("in")).toEqual(["id", [ID_AUTORA]]);
-    expect(wpis.authors.map((a) => a.id)).toEqual([ID_AUTORA]);
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toMatchObject({ message: "odmowa post_authors" });
   });
 
-  it("STAN FAKTYCZNY: odmowa taksonomii daje wpis BEZ kategorii i tagów", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa post_tags", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
       tagi: fail("odmowa post_tags", "42501"),
       kategorie: fail("odmowa post_categories", "42501"),
     });
-    const wpis = jakoWpis(
-      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-    );
-    expect(wpis.tags).toEqual([]);
-    expect(wpis.categories).toEqual([]);
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toMatchObject({ message: "odmowa post_tags" });
   });
 
-  it.fails(
-    "AWARIA taksonomii POWINNA być odróżnialna od wpisu, którego nikt nie skategoryzował",
-    async () => {
-      // DEFEKT. `src/lib/queries/public.ts:713-715`: w destrukturyzacji
-      // `Promise.all` tagi, kategorie i współautorzy są odbierane jako
-      // `{ data: tagRows }`, `{ data: catRows }`, `{ data: coAuthorRows }` -
-      // BEZ `error`, choć wiersz wpisu obok (linia 712) `error` odbiera i
-      // sprawdza (linia 736).
-      // MECHANIZM: odmowa (RLS na tabeli pivot, timeout puli) daje `data ===
-      // null`, a linie 737-743 domykają to wyrażeniami `(tagRows ?? [])` i
-      // `(catRows ?? [])`. Trzy różne stany świata - „wpis bez kategorii",
-      // „kategorie usunięte" i „baza odmówiła" - sklejają się do jednej,
-      // poprawnie wyglądającej pustej listy.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: wpis renderuje się w całości, ale bez
-      // plakietek kategorii i bez tagów, więc czytelnik nie ma dokąd pójść
-      // dalej, a `head()` traci `article:section`/`article:tag`. Dla wpisu
-      // sponsorowanego zniknięcie kategorii zabiera też kontekst ujawnienia.
-      // Nikt tego nie zgłosi - strona jest kompletna i szybka.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa oznacza wybór między rzuceniem
-      // wyjątku (cały wpis na 500 z powodu listy tagów) a przeniesieniem
-      // sygnału do kontraktu `ResolvedContent` (nowe pole czytane przez
-      // `src/routes/$.tsx` i komponenty wpisu). Oba zmieniają zachowanie
-      // produkcyjne.
-      planuj({
-        resolve: TRAFIENIE_WPISU,
-        kategorie: fail("odmowa post_categories", "42501"),
-      });
-      await expect(
-        klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-      ).rejects.toThrow();
-    },
-  );
+  it("AWARIA taksonomii POWINNA być odróżnialna od wpisu, którego nikt nie skategoryzował", async () => {
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      kategorie: fail("odmowa post_categories", "42501"),
+    });
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toThrow();
+  });
 
-  it("STAN FAKTYCZNY: odmowa odczytu profili daje wpis BEZ autora", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa profiles_public", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
       wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
       profile: fail("odmowa profiles_public", "42501"),
       nakladka: fail("odmowa nakładki", "42501"),
     });
-    const wpis = jakoWpis(
-      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-    );
-    expect(wpis.author).toBeNull();
-    expect(wpis.authors).toEqual([]);
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toMatchObject({ message: "odmowa profiles_public" });
   });
 
-  it.fails(
-    "AWARIA odczytu profili POWINNA być odróżnialna od wpisu redakcyjnego bez podpisu",
-    async () => {
-      // DEFEKT. `src/lib/queries/public.ts:748-756`: `const [{ data: profileRows },
-      // overlayRes] = await Promise.all([...])` - BEZ `error` dla obu zapytań;
-      // `overlayRes.data` na linii 761 czyta się tak samo.
-      // MECHANIZM: odmowa daje `data === null`, linia 759 domyka to
-      // `(profileRows ?? [])`, a `buildPostAuthors` nie znajduje wiersza dla
-      // żadnego id z `orderedAuthorIds` i oddaje `author: null, authors: []` -
-      // czyli DOKŁADNIE to samo, co wpis bez `author_id` i bez współautorów.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: materiał analityczny publikuje się bez
-      // podpisu autora. Znika box autora, znika nakładka (stanowisko,
-      // afiliacja, kanały), a z `<head>` znikają tagi `citation_author` - czyli
-      // wpis przestaje być cytowalny w bazach naukowych i traci atrybucję
-      // wobec czytelnika, mimo że autor jest przypisany w bazie. Dla think
-      // tanku to zarazem szkoda wizerunkowa i zafałszowanie autorstwa.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-      // wyjątku (wpis na 500 z powodu boxu autora) a rozszerzeniem kontraktu
-      // `ResolvedContent` o stan „autorstwa nie udało się odczytać" - który
-      // musiałyby obsłużyć trasa `$.tsx`, box autora i generator `<head>`.
-      planuj({
-        resolve: TRAFIENIE_WPISU,
-        wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
-        profile: fail("odmowa profiles_public", "42501"),
-      });
-      const wpis = jakoWpis(
-        await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-      );
-      expect(wpis.author).not.toBeNull();
-    },
-  );
+  it("błąd odczytu jest zgłaszany: odmowa profiles_public", async () => {
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
+      profile: fail("odmowa profiles_public", "42501"),
+    });
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toMatchObject({ message: "odmowa profiles_public" });
+  });
 
-  it("STAN FAKTYCZNY: odmowa reguły dostępu daje wpis bez reguły (`access: null`)", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa reguły", async () => {
     planuj({ resolve: TRAFIENIE_WPISU, dostep: fail("odmowa reguły", "42501") });
-    const wpis = jakoWpis(
-      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-    );
-    expect(wpis.access).toBeNull();
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toMatchObject({ message: "odmowa reguły" });
   });
 
-  it.fails("AWARIA reguły dostępu POWINNA być odróżnialna od treści bez paywalla", async () => {
-    // DEFEKT. `src/lib/queries/public.ts:76-84` (`fetchAccessRule`): linia 77
-    // to `const { data } = await supabase.from("content_access_public")...
-    // .maybeSingle()` - BEZ `error`, a linia 83 domyka to `?? null`.
-    // MECHANIZM: „ta treść jest publiczna" i „nie udało się odczytać reguły"
-    // to ta sama wartość `null`. Ciało wpisu jest bramkowane OSOBNO (RPC
-    // `get_entity_content`), więc przy odmowie reguły czytelnik bez
-    // uprawnień dostaje `access: null` RAZEM z pustym body.
-    // KONSEKWENCJA DLA UŻYTKOWNIKA: strona premium renderuje się bez
-    // paywalla, bez teasera i bez przycisku zakupu - czyli jako artykuł,
-    // który po prostu nie ma treści. Czytelnik, który zapłacił, nie widzi
-    // powodu pustki; czytelnik, który nie zapłacił, nie widzi oferty. Dla
-    // treści płatnej to wprost utracony przychód i zgłoszenie „zapłaciłem, a
-    // nic nie ma".
-    // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-    // wyjątku (cała strona na 500, gdy nie da się odczytać reguły) a
-    // rozróżnieniem „brak reguły" od „nie wiem" w typie `ContentAccessRule |
-    // null`, czytanym przez hook `useContentAccess`, komponent paywalla i
-    // `head()`. Oba warianty zmieniają zachowanie produkcyjne.
+  it("AWARIA reguły dostępu POWINNA być odróżnialna od treści bez paywalla", async () => {
     planuj({ resolve: TRAFIENIE_WPISU, dostep: fail("odmowa reguły", "42501") });
     await expect(
       klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
@@ -1164,7 +1075,7 @@ describe("rezolucja adresu: gałąź STRONY i dziedziczenie nagłówka microsite
     );
   });
 
-  it("STAN FAKTYCZNY: odmowa odczytu przodków gasi dziedziczenie nagłówka", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa przodków", async () => {
     planuj({
       resolve: TRAFIENIE_STRONY,
       okruszki: ok([okruszek("korzen", 0), okruszek(ID_STRONY, 1)]),
@@ -1173,43 +1084,22 @@ describe("rezolucja adresu: gałąź STRONY i dziedziczenie nagłówka microsite
         przodkowie: fail("odmowa przodków", "42501"),
       },
     });
-    const strona = jakoStrona(await klient().fetchQuery(resolvedContentQueryOptions(["a", "b"])));
-    expect(strona.item.header_override).toBeNull();
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["a", "b"])),
+    ).rejects.toMatchObject({ message: "odmowa przodków" });
   });
 
-  it.fails(
-    "AWARIA odczytu przodków POWINNA być odróżnialna od microsite'u bez własnego nagłówka",
-    async () => {
-      // DEFEKT. `src/lib/queries/public.ts:792-796`: `const { data: ancestorRows }
-      // = await supabase.from("pages").select("id, header_override").in("id",
-      // ancestorIds)` - BEZ `error`.
-      // MECHANIZM: odmowa daje `data === null`, linia 797-799 domyka to
-      // `(ancestorRows ?? [])`, mapa przodków jest pusta, pętla 800-806 nie
-      // znajduje niczego i `effectiveHeaderOverride` zostaje tym, czym było -
-      // czyli `null`. Stan „microsite nie ma własnego nagłówka" jest nie do
-      // odróżnienia od „nie udało się sprawdzić, czy ma".
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: podstrony microsite'u (osobny projekt,
-      // konferencja, program badawczy) tracą swój nagłówek i wracają do
-      // nagłówka globalnego serwisu - razem z jego logo, menu i identyfikacją
-      // wizualną. Odwiedzający microsite widzi obcą markę nad treścią, a że
-      // wynik trafia do `edgeTtlCache` na 60 s, jedna odmowa serwuje ten stan
-      // wszystkim kolejnym żądaniom tej ścieżki.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa oznacza wybór między rzuceniem
-      // wyjątku (cała podstrona na 500 z powodu nagłówka) a dodaniem stanu
-      // „nie wiem" do `PageData.header_override`, czyli zmianą kontraktu
-      // czytanego przez powłokę `__root.tsx`. Dodatkowo trzeba by rozstrzygnąć,
-      // czy taki wynik wolno w ogóle zapisać w cache brzegowym.
-      planuj({
-        resolve: TRAFIENIE_STRONY,
-        okruszki: ok([okruszek("korzen", 0), okruszek(ID_STRONY, 1)]),
-        strony: {
-          poId: ok({ id: ID_STRONY, header_override: null }),
-          przodkowie: fail("odmowa przodków", "42501"),
-        },
-      });
-      await expect(klient().fetchQuery(resolvedContentQueryOptions(["a", "b"]))).rejects.toThrow();
-    },
-  );
+  it("AWARIA odczytu przodków POWINNA być odróżnialna od microsite'u bez własnego nagłówka", async () => {
+    planuj({
+      resolve: TRAFIENIE_STRONY,
+      okruszki: ok([okruszek("korzen", 0), okruszek(ID_STRONY, 1)]),
+      strony: {
+        poId: ok({ id: ID_STRONY, header_override: null }),
+        przodkowie: fail("odmowa przodków", "42501"),
+      },
+    });
+    await expect(klient().fetchQuery(resolvedContentQueryOptions(["a", "b"]))).rejects.toThrow();
+  });
 
   it("strona czyta szablon i nagłówek, ale ŻADNEJ kolumny ciała", async () => {
     planuj({
@@ -1223,4 +1113,67 @@ describe("rezolucja adresu: gałąź STRONY i dziedziczenie nagłówka microsite
     expect(kolumny).not.toContain("content_pl");
     expect(kolumny).not.toContain("builder_data");
   });
+});
+
+describe("independent public query failures", () => {
+  it("rejects the configured homepage slug lookup without choosing another page", async () => {
+    baza().setResponse(
+      "site_settings",
+      ok({ value: { homepage_mode: "static_page", homepage_page_slug: "start" } }),
+    );
+    planuj({ strony: { poSlug: fail("slug denied", "42501"), home: ok({ id: "wrong-home" }) } });
+    await expect(klient().fetchQuery(homePageQueryOptions())).rejects.toMatchObject({
+      message: "slug denied",
+    });
+    expect(baza().chainsFor("pages")).toHaveLength(1);
+  });
+
+  it("rejects a failed author overlay even when profiles loaded successfully", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
+      profile: ok([wierszProfilu(ID_AUTORA)]),
+      nakladka: fail("overlay denied", "42501"),
+    });
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    ).rejects.toMatchObject({ message: "overlay denied" });
+  });
+});
+
+it("successful empty metadata responses preserve the resolved article", async () => {
+  planuj({
+    resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+    wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
+    tagi: ok(null),
+    kategorie: ok(null),
+    wspolautorzy: ok(null),
+    profile: ok(null),
+    nakladka: ok(null),
+  });
+  const article = jakoWpis(
+    await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+  );
+  expect(article.item.id).toBe(ID_WPISU);
+  expect(article.tags).toEqual([]);
+  expect(article.categories).toEqual([]);
+});
+
+it("a missing ancestor metadata list preserves the global page header", async () => {
+  planuj({
+    okruszki: ok([okruszek("korzen", 0), okruszek(ID_STRONY, 1)]),
+    strony: { poId: ok({ id: ID_STRONY, header_override: null }), przodkowie: ok(null) },
+  });
+  const page = jakoStrona(await klient().fetchQuery(resolvedContentQueryOptions(["o-nas"])));
+  expect(page.item.header_override).toBeNull();
+});
+
+it("resolves the configured homepage slug without falling back to home", async () => {
+  baza().setResponse(
+    "site_settings",
+    ok({ value: { homepage_mode: "static_page", homepage_page_slug: "start" } }),
+  );
+  planuj({ strony: { poSlug: ok({ id: "configured-start", slug: "start" }) } });
+  expect((await klient().fetchQuery(homePageQueryOptions()))?.id).toBe("configured-start");
+  expect(baza().chainsFor("pages")).toHaveLength(1);
 });

@@ -13,6 +13,8 @@
 // wysyłek, także tych krytycznych. Blokady czasowe (soft bounce) świadomie
 // przepuszczamy: transakcyjna wiadomość jest zwykle ważniejsza niż jedna
 // dodatkowa próba dostarczenia.
+import { suppressionBlocks } from "@/lib/email/suppressionPolicy";
+
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 
 export interface SendEmailInput {
@@ -34,15 +36,16 @@ export interface SendEmailInput {
 export type SendEmailResult =
   { ok: true; messageId: string | null } | { ok: false; status?: number; error: string };
 
-/** Czy adres ma TRWAŁĄ blokadę w tym tenancie (best-effort, fail-open). */
-async function isPermanentlySuppressed(tenantId: string, email: string): Promise<boolean> {
+/** Wspólna polityka blokad dla wiadomości transakcyjnych (best-effort, fail-open). */
+async function isTransactionSuppressed(tenantId: string, email: string): Promise<boolean> {
   try {
     const [{ supabaseAdmin }, { fetchSuppressedEmails }] = await Promise.all([
       import("@/integrations/supabase/client.server"),
       import("@/lib/email/suppression.server"),
     ]);
     const hits = await fetchSuppressedEmails(supabaseAdmin, tenantId, [email]);
-    return hits.get(email.trim().toLowerCase())?.scope === "permanent";
+    const hit = hits.get(email.trim().toLowerCase());
+    return hit ? suppressionBlocks({ ...hit, category: "transactional" }) : false;
   } catch (err) {
     console.error("[email] suppression check failed", err);
     return false;
@@ -55,7 +58,7 @@ export async function sendTransactionalEmail(opts: SendEmailInput): Promise<Send
   if (!LOVABLE_API_KEY || !RESEND_API_KEY) {
     return { ok: false, error: "email_not_configured" };
   }
-  if (opts.tenantId && (await isPermanentlySuppressed(opts.tenantId, opts.to))) {
+  if (opts.tenantId && (await isTransactionSuppressed(opts.tenantId, opts.to))) {
     return { ok: false, error: "recipient_suppressed" };
   }
   try {

@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Pin the V8 runtime used by tests and artifact measurements. The first
-      # audit run inherited Node 22 from the runner and produced negative V8
-      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
@@ -79,9 +79,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Pin the V8 runtime used by tests and artifact measurements. The first
-      # audit run inherited Node 22 from the runner and produced negative V8
-      # counters; local evidence uses Node 24.19.0. Bun alone does not pin Node.
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
