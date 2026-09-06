@@ -127,6 +127,27 @@ afterEach(() => {
 });
 
 describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () => {
+  it("reports current HTML handling time without relabeling cached SSR time as TTFB", async () => {
+    let now = 1000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    hoisted.render = () => {
+      now += 37;
+      return new Response(DOC, {
+        headers: { ...HTML_HEADERS, "server-timing": "ssr;dur=12", "x-nes-cache": "HIT" },
+      });
+    };
+    const response = await entryFetch(new Request("https://tenant-a.eu/"));
+    expect(response.headers.get("server-timing")).toBe("ssr;dur=12, server-init;dur=0, app;dur=37");
+    expect(await response.text()).toContain("ok");
+  });
+
+  it("does not add document timings to JSON responses", async () => {
+    hoisted.render = () => Response.json({ ok: true });
+    const response = await entryFetch(new Request("https://tenant-a.eu/api/data"));
+    expect(response.headers.get("server-timing")).toBeNull();
+    expect(await response.json()).toEqual({ ok: true });
+  });
+
   it("ścieżka czytelnika przekazuje wyłącznie kontrolowane opcje frameworka, cokolwiek dostanie od runtime'u", async () => {
     const response = await entryFetch(
       new Request("https://tenant-a.eu/blog"),

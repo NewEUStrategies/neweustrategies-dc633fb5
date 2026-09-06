@@ -1065,7 +1065,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <style>{SHARED_STYLES}</style>
+      {/* Immutable React stylesheet resource: shared across slider instances,
+          SSR streams and client navigation. Instance overrides stay local. */}
+      <style href="nes-slider-shared-v1" precedence="builder">
+        {SHARED_STYLES}
+      </style>
       {instanceCss && <style>{instanceCss}</style>}
       {variant === "multi-card" && <MultiCardVariant {...sharedProps} />}
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}

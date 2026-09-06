@@ -42,7 +42,9 @@ function w(): ReadyWindow {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   delete w().__nesAppReady;
+  delete window.__nesAppReadyAt;
 });
 
 describe("READY_FLAG_KEY - kontrakt nazwy przez granice bez importu", () => {
@@ -82,9 +84,11 @@ describe("markAppReady / isAppReady", () => {
   });
 
   it("jest idempotentny - korzeń może zamontować się ponownie", () => {
+    vi.spyOn(performance, "now").mockReturnValueOnce(1250).mockReturnValueOnce(1800);
     markAppReady();
     markAppReady();
     expect(isAppReady()).toBe(true);
+    expect(window.__nesAppReadyAt).toBe(1250);
   });
 
   it("wymaga DOKŁADNIE `true`, a nie dowolnej wartości prawdziwej", () => {

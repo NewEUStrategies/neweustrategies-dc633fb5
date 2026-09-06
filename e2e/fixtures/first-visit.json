@@ -1,0 +1,3868 @@
+{
+  "settings": [
+    {
+      "key": "general",
+      "value": {
+        "tagline": "",
+        "site_url": "",
+        "timezone": "Treść przykładowa",
+        "icon_pack": "Treść przykładowa",
+        "site_name": "Treść przykładowa",
+        "date_format": "Treść przykładowa",
+        "time_format": "Treść przykładowa",
+        "site_icon_url": "",
+        "site_logo_url": "",
+        "week_starts_on": 1,
+        "default_language": "pl"
+      }
+    },
+    {
+      "key": "reading",
+      "value": {
+        "homepage_mode": "static_page",
+        "posts_per_page": 10,
+        "homepage_page_slug": "fixture-1",
+        "search_engine_visibility": true
+      }
+    },
+    {
+      "key": "media",
+      "value": {
+        "large_h": 1536,
+        "large_w": 1536,
+        "medium_h": 768,
+        "medium_w": 768,
+        "thumbnail_h": 150,
+        "thumbnail_w": 150
+      }
+    },
+    {
+      "key": "permalinks",
+      "value": {
+        "page_base": "",
+        "post_base": "Treść przykładowa"
+      }
+    },
+    {
+      "key": "header",
+      "value": {
+        "trending": {
+          "variants": [
+            {
+              "id": "00000000-0000-0000-0000-000000000001",
+              "name": "Treść przykładowa",
+              "config": {
+                "days": 7,
+                "mode": "flip",
+                "limit": 8,
+                "colors": {
+                  "dark": {
+                    "bg": "hsl(var(--muted) / 0.3)",
+                    "dot": "Treść przykładowa",
+                    "item": "hsl(var(--foreground))",
+                    "label": "#FA9346",
+                    "border": "hsl(var(--border))",
+                    "counter": "hsl(var(--muted-foreground))",
+                    "labelBg": "#FA9346",
+                    "labelFg": "#ffffff",
+                    "itemHover": "hsl(var(--brand))"
+                  },
+                  "light": {
+                    "bg": "hsl(var(--muted) / 0.3)",
+                    "dot": "Treść przykładowa",
+                    "item": "hsl(var(--foreground))",
+                    "label": "#FA9346",
+                    "border": "hsl(var(--border))",
+                    "counter": "hsl(var(--muted-foreground))",
+                    "labelBg": "#FA9346",
+                    "labelFg": "#ffffff",
+                    "itemHover": "hsl(var(--brand))"
+                  }
+                },
+                "source": "trending",
+                "enabled": true,
+                "labelEn": "",
+                "labelPl": "",
+                "fullWidth": true,
+                "mixedFill": "Treść przykładowa",
+                "intervalSec": 4,
+                "layoutStyle": "Treść przykładowa",
+                "pinnedUntil": "",
+                "scrollSpeed": 60,
+                "visibleCount": 1,
+                "iconAnimation": "Treść przykładowa",
+                "liveDirection": "Treść przykładowa",
+                "selectedPostIds": []
+              }
+            }
+          ],
+          "activeVariantId": "00000000-0000-0000-0000-000000000001"
+        },
+        "builder_data": {
+          "version": 1,
+          "sections": [
+            {
+              "id": "00000000-0000-0000-0000-000000000002",
+              "kind": "section",
+              "layout": {
+                "marginTop": 0,
+                "contentWidth": "full",
+                "marginBottom": 0,
+                "verticalAlign": "Treść przykładowa"
+              },
+              "children": [
+                {
+                  "id": "00000000-0000-0000-0000-000000000003",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 4
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-000000000004",
+                      "kind": "widget",
+                      "type": "social-icons",
+                      "style": {
+                        "typography": {
+                          "fontSize": {
+                            "mobile": "14px",
+                            "tablet": "14px",
+                            "desktop": "14px"
+                          }
+                        }
+                      },
+                      "content": {
+                        "size": 16,
+                        "email": "",
+                        "twitter": "Treść przykładowa",
+                        "youtube": "Treść przykładowa",
+                        "facebook": "Treść przykładowa",
+                        "linkedin": "Treść przykładowa",
+                        "instagram": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "layout": "inline"
+                      }
+                    }
+                  ],
+                  "contentAlign": "center",
+                  "verticalAlign": "center"
+                },
+                {
+                  "id": "00000000-0000-0000-0000-000000000005",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 4
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-000000000006",
+                      "kind": "widget",
+                      "type": "image",
+                      "style": {
+                        "bgColor": "Treść przykładowa",
+                        "selfAlign": "center",
+                        "textColor": "Treść przykładowa",
+                        "borderColor": "Treść przykładowa",
+                        "selfJustify": "center"
+                      },
+                      "content": {
+                        "src": "https://fixture.invalid/image.svg",
+                        "href": "/",
+                        "align": "center",
+                        "alt_en": "Example content",
+                        "alt_pl": "Treść przykładowa",
+                        "srcDark": "https://fixture.invalid/image.svg",
+                        "widthPx": 0,
+                        "heightPx": 64,
+                        "maxWidth": "180px",
+                        "maxWidthPx": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "00000000-0000-0000-0000-000000000007",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 4
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-000000000008",
+                      "kind": "widget",
+                      "type": "theme-toggle",
+                      "style": {
+                        "selfAlign": "center",
+                        "selfJustify": "center"
+                      },
+                      "content": {}
+                    },
+                    {
+                      "id": "00000000-0000-0000-0000-000000000009",
+                      "kind": "widget",
+                      "type": "account-link",
+                      "style": {
+                        "typography": {
+                          "fontSize": {
+                            "mobile": "14px",
+                            "tablet": "14px",
+                            "desktop": "14px"
+                          }
+                        }
+                      },
+                      "content": {
+                        "panel_en": "Example content",
+                        "panel_pl": "Treść przykładowa",
+                        "signin_en": "Example content",
+                        "signin_pl": "Treść przykładowa",
+                        "signup_en": "Example content",
+                        "signup_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "layout": "inline"
+                      }
+                    },
+                    {
+                      "id": "00000000-0000-0000-0000-00000000000a",
+                      "kind": "widget",
+                      "type": "lang-switcher",
+                      "style": {
+                        "typography": {
+                          "fontSize": {
+                            "mobile": "14px",
+                            "tablet": "14px",
+                            "desktop": "14px"
+                          }
+                        }
+                      },
+                      "content": {
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa",
+                        "showLabel": true
+                      },
+                      "advanced": {
+                        "layout": "inline"
+                      }
+                    }
+                  ],
+                  "contentAlign": "center",
+                  "verticalAlign": "center"
+                }
+              ]
+            },
+            {
+              "id": "00000000-0000-0000-0000-00000000000b",
+              "kind": "section",
+              "layout": {
+                "height": "Treść przykładowa",
+                "marginTop": 1,
+                "heightValue": 0,
+                "contentWidth": "full",
+                "marginBottom": 0,
+                "verticalAlign": "Treść przykładowa"
+              },
+              "children": [
+                {
+                  "id": "00000000-0000-0000-0000-00000000000c",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 4
+                  },
+                  "style": {
+                    "align": {
+                      "mobile": "center",
+                      "tablet": "center",
+                      "desktop": "center"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-00000000000d",
+                      "kind": "widget",
+                      "type": "search-button",
+                      "style": {
+                        "align": {
+                          "mobile": "center",
+                          "tablet": "center",
+                          "desktop": "center"
+                        },
+                        "selfAlign": "center",
+                        "typography": {
+                          "fontSize": {
+                            "mobile": "14px",
+                            "tablet": "14px",
+                            "desktop": "14px"
+                          },
+                          "textAlign": "left",
+                          "lineHeight": "14px"
+                        },
+                        "selfJustify": "center"
+                      },
+                      "content": {
+                        "height": 32,
+                        "fontSize": 14,
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "00000000-0000-0000-0000-00000000000e",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 10
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-00000000000f",
+                      "kind": "widget",
+                      "type": "menu",
+                      "content": {
+                        "menu_key": "main"
+                      }
+                    }
+                  ],
+                  "contentAlign": "center",
+                  "verticalAlign": "center"
+                },
+                {
+                  "id": "00000000-0000-0000-0000-000000000010",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 4
+                  },
+                  "children": [],
+                  "contentAlign": "center",
+                  "verticalAlign": "center"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "mobile_bottom_bar",
+      "value": {
+        "items": [
+          {
+            "id": "Treść przykładowa",
+            "href": "/",
+            "icon": "users",
+            "badge": "Treść przykładowa",
+            "color": "#2f6df6",
+            "enabled": true,
+            "label_en": "",
+            "label_pl": "",
+            "label_key": "Treść przykładowa",
+            "color_dark": "#7aa7ff"
+          },
+          {
+            "id": "Treść przykładowa",
+            "href": "/",
+            "icon": "messages-square",
+            "badge": "Treść przykładowa",
+            "color": "#0a8f6d",
+            "enabled": true,
+            "label_en": "",
+            "label_pl": "",
+            "label_key": "Treść przykładowa",
+            "color_dark": "#3fd7ab"
+          },
+          {
+            "id": "Treść przykładowa",
+            "href": "/",
+            "icon": "home",
+            "badge": "none",
+            "color": "#fa9346",
+            "enabled": true,
+            "label_en": "",
+            "label_pl": "",
+            "label_key": "Treść przykładowa",
+            "color_dark": "#fa9346"
+          },
+          {
+            "id": "Treść przykładowa",
+            "href": "/",
+            "icon": "landmark",
+            "badge": "Treść przykładowa",
+            "color": "#6d3fd4",
+            "enabled": true,
+            "label_en": "",
+            "label_pl": "",
+            "label_key": "Treść przykładowa",
+            "color_dark": "#b79bff"
+          },
+          {
+            "id": "Treść przykładowa",
+            "href": "/",
+            "icon": "circle-user",
+            "badge": "none",
+            "color": "#be123c",
+            "enabled": true,
+            "label_en": "",
+            "label_pl": "",
+            "label_key": "Treść przykładowa",
+            "color_dark": "#fb7185"
+          }
+        ],
+        "radius": 20,
+        "enabled": true,
+        "icon_dark": "#9aa3b2",
+        "icon_light": "#6b7280",
+        "show_labels": false,
+        "offset_bottom": 12,
+        "hide_on_scroll": true,
+        "use_item_color": true,
+        "background_dark": "#111318",
+        "background_light": "#ffffff"
+      }
+    },
+    {
+      "key": "font_sizes",
+      "value": {
+        "body": {
+          "size": 13,
+          "lineHeight": 1.65
+        },
+        "code": {
+          "size": 14
+        },
+        "lead": {
+          "size": 18,
+          "lineHeight": 1.6
+        },
+        "small": {
+          "size": 14,
+          "lineHeight": 1.5
+        },
+        "spacing": {
+          "listRem": 1.5,
+          "blockquoteRem": 1.75,
+          "headingTopRem": 2,
+          "headingBottomRem": 0.75
+        },
+        "headings": {
+          "h1": {
+            "mobile": 24,
+            "weight": 800,
+            "desktop": 42,
+            "transform": "none",
+            "lineHeight": 1.15,
+            "letterSpacing": -0.5
+          },
+          "h2": {
+            "mobile": 22,
+            "weight": 700,
+            "desktop": 28,
+            "transform": "none",
+            "lineHeight": 1.2,
+            "letterSpacing": -0.25
+          },
+          "h3": {
+            "mobile": 20,
+            "weight": 700,
+            "desktop": 24,
+            "transform": "none",
+            "lineHeight": 1.25,
+            "letterSpacing": 0
+          },
+          "h4": {
+            "mobile": 17,
+            "weight": 700,
+            "desktop": 20,
+            "transform": "none",
+            "lineHeight": 1.3,
+            "letterSpacing": 0
+          },
+          "h5": {
+            "mobile": 15,
+            "weight": 600,
+            "desktop": 18,
+            "transform": "none",
+            "lineHeight": 1.4,
+            "letterSpacing": 0
+          },
+          "h6": {
+            "mobile": 14,
+            "weight": 600,
+            "desktop": 16,
+            "transform": "uppercase",
+            "lineHeight": 1.45,
+            "letterSpacing": 0.5
+          }
+        },
+        "blockquote": {
+          "size": 14,
+          "lineHeight": 1.55
+        },
+        "mobileBreakpoint": 768
+      }
+    },
+    {
+      "key": "menu_primary",
+      "value": {
+        "builder_data": {
+          "version": 1,
+          "sections": [
+            {
+              "id": "00000000-0000-0000-0000-000000000011",
+              "kind": "section",
+              "layout": {
+                "width": 1400,
+                "htmlTag": "Treść przykładowa",
+                "contentWidth": "full"
+              },
+              "children": [
+                {
+                  "id": "00000000-0000-0000-0000-000000000012",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 12
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "footer",
+      "value": {
+        "chrome": {
+          "layout": "default",
+          "show_year": true,
+          "back_to_top": true,
+          "copyright_en": "Example content",
+          "copyright_pl": "Treść przykładowa",
+          "show_separator": true
+        },
+        "builder_data": {
+          "version": 1,
+          "sections": [
+            {
+              "id": "00000000-0000-0000-0000-000000000013",
+              "kind": "section",
+              "layout": {
+                "contentWidth": "full"
+              },
+              "children": [
+                {
+                  "id": "00000000-0000-0000-0000-000000000014",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 12
+                  },
+                  "style": {
+                    "margin": {
+                      "mobile": "0",
+                      "tablet": "0",
+                      "desktop": "0"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-000000000015",
+                      "kind": "widget",
+                      "type": "divider",
+                      "style": {
+                        "typography": {
+                          "letterSpacing": "0px",
+                          "titleDescriptionGapPx": 16
+                        }
+                      },
+                      "content": {
+                        "color": "#FA9346",
+                        "variant": "line",
+                        "thickness": null
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "Treść przykładowa",
+              "kind": "section",
+              "style": {
+                "padding": {
+                  "mobile": "Treść przykładowa",
+                  "desktop": "Treść przykładowa"
+                }
+              },
+              "layout": {
+                "gap": 48,
+                "width": 1400,
+                "htmlTag": "Treść przykładowa",
+                "contentWidth": "full"
+              },
+              "children": [
+                {
+                  "id": "Treść przykładowa",
+                  "kind": "column",
+                  "span": {
+                    "mobile": 12,
+                    "tablet": 12,
+                    "desktop": 5
+                  },
+                  "children": [
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "image",
+                      "content": {
+                        "src": "https://fixture.invalid/image.svg",
+                        "href": "/",
+                        "alt_en": "Example content",
+                        "alt_pl": "Treść przykładowa",
+                        "srcDark": "https://fixture.invalid/image.svg",
+                        "maxWidth": "220px"
+                      }
+                    },
+                    {
+                      "id": "00000000-0000-0000-0000-000000000016",
+                      "kind": "widget",
+                      "type": "text",
+                      "style": {
+                        "typography": {
+                          "dark": {
+                            "descriptionFontSize": {
+                              "mobile": "1px",
+                              "tablet": "1px",
+                              "desktop": "1px"
+                            }
+                          },
+                          "light": {
+                            "descriptionFontSize": {
+                              "mobile": "12px",
+                              "tablet": "12px",
+                              "desktop": "12px"
+                            }
+                          }
+                        }
+                      },
+                      "content": {
+                        "html_en": "Example content",
+                        "html_pl": "Treść przykładowa"
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "text",
+                      "style": {
+                        "align": {
+                          "mobile": "left",
+                          "tablet": "left",
+                          "desktop": "left"
+                        },
+                        "typography": {
+                          "dark": {
+                            "descriptionFontSize": {
+                              "mobile": "1px",
+                              "tablet": "1px",
+                              "desktop": "1px"
+                            }
+                          },
+                          "light": {
+                            "descriptionFontSize": {
+                              "mobile": "12px",
+                              "tablet": "12px",
+                              "desktop": "12px"
+                            }
+                          }
+                        },
+                        "selfJustify": "start"
+                      },
+                      "content": {
+                        "html_en": "Example content",
+                        "html_pl": "Treść przykładowa"
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "social-icons",
+                      "content": {
+                        "size": 18,
+                        "email": "Treść przykładowa",
+                        "spotify": "https://fixture.invalid/image.svg",
+                        "twitter": "https://fixture.invalid/image.svg",
+                        "youtube": "https://fixture.invalid/image.svg",
+                        "facebook": "https://fixture.invalid/image.svg",
+                        "linkedin": "https://fixture.invalid/image.svg",
+                        "instagram": "https://fixture.invalid/image.svg"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "Treść przykładowa",
+                  "kind": "column",
+                  "span": {
+                    "mobile": 12,
+                    "tablet": 6,
+                    "desktop": 3
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-000000000017",
+                      "kind": "widget",
+                      "type": "section-label",
+                      "content": {
+                        "href": "",
+                        "color": "Treść przykładowa",
+                        "variant": "slanted-ribbon-rule",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa",
+                        "action_en": "",
+                        "action_pl": "",
+                        "accentColor": ""
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "style": {},
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "Treść przykładowa",
+                  "kind": "column",
+                  "span": {
+                    "mobile": 12,
+                    "tablet": 6,
+                    "desktop": 4
+                  },
+                  "children": [
+                    {
+                      "id": "00000000-0000-0000-0000-000000000018",
+                      "kind": "widget",
+                      "type": "section-label",
+                      "content": {
+                        "href": "",
+                        "color": "Treść przykładowa",
+                        "variant": "slanted-ribbon-rule",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa",
+                        "action_en": "",
+                        "action_pl": "",
+                        "accentColor": ""
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    },
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "nav-link",
+                      "content": {
+                        "href": "/",
+                        "variant": "text",
+                        "iconName": "Treść przykładowa",
+                        "label_en": "Example content",
+                        "label_pl": "Treść przykładowa"
+                      },
+                      "advanced": {
+                        "height": {
+                          "desktop": 24
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "Treść przykładowa",
+              "kind": "section",
+              "style": {
+                "padding": {
+                  "mobile": "20px",
+                  "desktop": "24px"
+                }
+              },
+              "layout": {
+                "width": 1400,
+                "htmlTag": "Treść przykładowa",
+                "contentWidth": "Treść przykładowa"
+              },
+              "children": [
+                {
+                  "id": "Treść przykładowa",
+                  "kind": "column",
+                  "span": {
+                    "desktop": 12
+                  },
+                  "children": [
+                    {
+                      "id": "Treść przykładowa",
+                      "kind": "widget",
+                      "type": "copyright",
+                      "content": {
+                        "brand": "Treść przykładowa",
+                        "text_en": "Example content",
+                        "text_pl": "Treść przykładowa",
+                        "showYear": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "theme_options",
+      "value": {
+        "logo": {
+          "main": "https://fixture.invalid/image.svg",
+          "mobile": "https://fixture.invalid/image.svg",
+          "main_dark": "https://fixture.invalid/image.svg",
+          "mobile_dark": "https://fixture.invalid/image.svg",
+          "transparent": "https://fixture.invalid/image.svg",
+          "bookmark_ios": "https://fixture.invalid/image.svg",
+          "organization": "https://fixture.invalid/image.svg",
+          "sidebar_icon": "https://fixture.invalid/image.svg",
+          "bookmark_windows": "https://fixture.invalid/image.svg",
+          "sidebar_expanded": "https://fixture.invalid/image.svg",
+          "transparent_dark": "https://fixture.invalid/image.svg",
+          "bookmark_ios_dark": "https://fixture.invalid/image.svg",
+          "organization_dark": "https://fixture.invalid/image.svg",
+          "sidebar_icon_dark": "https://fixture.invalid/image.svg",
+          "add_to_home_screen": true,
+          "bookmark_windows_dark": "https://fixture.invalid/image.svg",
+          "sidebar_expanded_dark": "https://fixture.invalid/image.svg"
+        },
+        "header": {
+          "layout": "layout-1",
+          "mobile": {
+            "sticky": true,
+            "breakpoint": 1024,
+            "show_search": true,
+            "use_mobile_logo": true
+          },
+          "search": {
+            "mode": "standalone",
+            "enabled": true,
+            "heading": "Treść przykładowa",
+            "live_limit": 5,
+            "live_results": true,
+            "more_menu_search": true
+          },
+          "signin": {
+            "enabled": true,
+            "variant": "ghost",
+            "show_signup": true,
+            "signin_label_en": "Example content",
+            "signin_label_pl": "Treść przykładowa",
+            "signup_label_en": "Example content",
+            "signup_label_pl": "Treść przykładowa"
+          },
+          "socials": {
+            "size": 16,
+            "email": "",
+            "spotify": "",
+            "twitter": "",
+            "youtube": "",
+            "facebook": "",
+            "linkedin": "",
+            "instagram": "",
+            "placement": "topbar"
+          },
+          "alert_bar": {
+            "icon": "auto",
+            "style": "Treść przykładowa",
+            "enabled": false,
+            "link_url": "",
+            "message_en": "",
+            "message_pl": "",
+            "dismissible": true,
+            "cta_label_en": "",
+            "cta_label_pl": ""
+          },
+          "main_menu": {
+            "sticky": true,
+            "glass_effect": false,
+            "hover_effect": "Treść przykładowa",
+            "icon_spacing": 5,
+            "item_spacing": 12,
+            "smart_sticky": false,
+            "submenu_bg_to": "",
+            "submenu_bg_from": ""
+          }
+        },
+        "buttons": {
+          "radius": 6,
+          "padding_x": 16,
+          "padding_y": 7,
+          "uppercase": false,
+          "font_weight": 400,
+          "default_size": "sm",
+          "letter_spacing": 0,
+          "default_variant": "solid"
+        },
+        "sidebars": {
+          "style": "Treść przykładowa"
+        },
+        "text_fields": {
+          "style": "Treść przykładowa",
+          "height": 35,
+          "radius": 6,
+          "focus_ring": "Treść przykładowa",
+          "border_width": 1,
+          "focus_ring_width": 2,
+          "show_label_above": true
+        }
+      }
+    },
+    {
+      "key": "carousel_defaults",
+      "value": {
+        "loop": true,
+        "speedMs": 600,
+        "autoplay": true,
+        "intervalMs": 4500,
+        "transition": "Treść przykładowa",
+        "pauseOnHover": true
+      }
+    },
+    {
+      "key": "theme_design",
+      "value": {
+        "metaInfo": {
+          "gap": "12px",
+          "color": "var(--gc-body-text-muted, var(--muted-foreground))",
+          "fontSize": "12px",
+          "separator": "Treść przykładowa",
+          "uppercase": false
+        },
+        "listIndex": {
+          "weight": 800,
+          "opacity": 0.18,
+          "colorDark": "var(--gc-highlight, #fa9346)",
+          "colorLight": "var(--gc-body-text, #231f20)"
+        },
+        "postTitle": {
+          "color": "var(--gc-body-text, var(--foreground))",
+          "fontSize": "16px",
+          "fontFamily": "\"Red Hat Display\", system-ui, -apple-system, Segoe UI, sans-serif",
+          "fontSizeSm": "14px",
+          "fontWeight": 600,
+          "hoverColor": "var(--gc-link-hover, var(--brand))",
+          "lineHeight": 1.3,
+          "letterSpacing": "0px",
+          "textTransform": "none"
+        },
+        "thumbnail": {
+          "radius": "8px",
+          "shadow": "none",
+          "aspectRatio": "Treść przykładowa",
+          "hoverEffect": "Treść przykładowa"
+        },
+        "postExcerpt": {
+          "color": "var(--gc-body-text-muted, var(--muted-foreground))",
+          "fontSize": "14px",
+          "marginTop": "6px",
+          "fontFamily": "\"Red Hat Display\", system-ui, -apple-system, Segoe UI, sans-serif",
+          "fontWeight": 400,
+          "lineHeight": 1.5
+        },
+        "socialIcons": {
+          "gap": "8px",
+          "size": "18px",
+          "color": "var(--gc-icon, var(--foreground))",
+          "radius": "9999px",
+          "bgColor": "Treść przykładowa",
+          "paddingX": "6px",
+          "paddingY": "6px",
+          "hoverColor": "var(--gc-icon-hover, var(--brand))",
+          "hoverBgColor": "Treść przykładowa"
+        },
+        "blockHeading": {
+          "color": "var(--gc-body-text, var(--foreground))",
+          "fontSize": "16px",
+          "underline": "none",
+          "fontWeight": 700,
+          "marginBottom": "16px",
+          "letterSpacing": "0px",
+          "textTransform": "none"
+        },
+        "modeSwitcher": {
+          "radius": "6px",
+          "trackBg": "var(--gc-input-bg, var(--muted))",
+          "activeBg": "var(--gc-surface-bg, var(--background))",
+          "showLabel": true,
+          "activeColor": "var(--gc-body-text, var(--foreground))",
+          "trackBorder": "var(--gc-input-border, var(--border))",
+          "inactiveColor": "var(--gc-body-text-muted, var(--muted-foreground))"
+        },
+        "darkOverrides": {},
+        "toolbarButton": {
+          "size": "16px",
+          "color": "var(--gc-body-text, var(--foreground))",
+          "radius": "6px",
+          "bgColor": "var(--gc-input-bg, var(--muted))",
+          "paddingX": "8px",
+          "paddingY": "6px",
+          "hoverColor": "var(--gc-body-text, var(--foreground))",
+          "activeColor": "var(--gc-btn-text, #ffffff)",
+          "hoverBgColor": "hsl(var(--muted) / 0.7)",
+          "activeBgColor": "var(--gc-btn-bg, #fa9346)"
+        },
+        "readMoreButton": {
+          "arrow": true,
+          "color": "var(--gc-btn-bg, var(--brand))",
+          "radius": "6px",
+          "bgColor": "Treść przykładowa",
+          "paddingX": "16px",
+          "paddingY": "8px",
+          "uppercase": false,
+          "fontWeight": 600,
+          "borderColor": "var(--gc-btn-bg, var(--brand))"
+        }
+      }
+    },
+    {
+      "key": "key_takeaways",
+      "value": {
+        "icon": "lightbulb",
+        "colors": {
+          "bg": "#fff4ed",
+          "icon": "#ffffff",
+          "text": "#141313",
+          "title": "#141313",
+          "accent": "#FA9346",
+          "bgDark": "#141313",
+          "border": "#FA9346",
+          "iconBg": "#FA9346",
+          "textDark": "#e5e7eb",
+          "titleDark": "#ffffff",
+          "borderDark": "#FA9346",
+          "borderWidth": 1
+        },
+        "enabled": true,
+        "labelEn": "Treść przykładowa",
+        "labelPl": "Treść przykładowa",
+        "variant": "card",
+        "numbered": true,
+        "highlight": {
+          "color": "#FA9346",
+          "indices": [3, 4, 5],
+          "offsetY": -26,
+          "indicesEn": [3, 4, 5],
+          "indicesPl": [3, 4],
+          "sizeScale": 0.6
+        }
+      }
+    },
+    {
+      "key": "community_modules",
+      "value": {
+        "qa_enabled": true,
+        "chat_enabled": true,
+        "clubs_enabled": true,
+        "polls_enabled": true,
+        "events_enabled": true,
+        "default_message_ttl_seconds": null
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "colors": [],
+      "fonts": {},
+      "scale": {},
+      "global_colors": {
+        "h1": {
+          "dark": "#F8F6F4",
+          "light": "#131822",
+          "fontSize": "30px",
+          "fontWeight": "600"
+        },
+        "h2": {
+          "dark": "#F8F6F4",
+          "light": "#131822",
+          "fontSize": "24px",
+          "fontWeight": "600"
+        },
+        "h3": {
+          "dark": "#F8F6F4",
+          "light": "#131822",
+          "fontSize": "21px",
+          "fontWeight": "600"
+        },
+        "h4": {
+          "dark": "#F8F6F4",
+          "light": "#131822",
+          "fontSize": "17px",
+          "fontWeight": "600"
+        },
+        "h5": {
+          "dark": "#F8F6F4",
+          "light": "#131822",
+          "fontSize": "15px",
+          "fontWeight": "600"
+        },
+        "h6": {
+          "dark": "#F8F6F4",
+          "light": "#131822",
+          "fontWeight": "600"
+        },
+        "icon": {
+          "dark": "#F8F6F4",
+          "light": "#2b2728"
+        },
+        "link": {
+          "dark": "#F8F6F4",
+          "light": "#231f20"
+        },
+        "btn-bg": {
+          "light": "#FA9346"
+        },
+        "fn-ref": {
+          "dark": "#fdb078"
+        },
+        "toc-bg": {
+          "dark": "#131822",
+          "light": "#F8F6F4"
+        },
+        "body-bg": {
+          "dark": "#231f20",
+          "light": "#F8F6F4"
+        },
+        "btn-text": {
+          "light": "#F8F6F4"
+        },
+        "input-bg": {
+          "dark": "#2b2728",
+          "light": "#F8F6F4"
+        },
+        "body-text": {
+          "dark": "#F8F6F4",
+          "light": "#131822"
+        },
+        "highlight": {
+          "dark": "#fdb078",
+          "light": "#fdb078"
+        },
+        "live-blog": {
+          "dark": "#EF5454",
+          "light": "#EF5454"
+        },
+        "review-bg": {
+          "dark": "#22c55e",
+          "light": "#22c55e"
+        },
+        "icon-hover": {
+          "dark": "#fff4ed",
+          "light": "#2b2728"
+        },
+        "input-text": {
+          "dark": "#F8F6F4",
+          "light": "#2b2728"
+        },
+        "link-hover": {
+          "dark": "#F8F6F4",
+          "light": "#231f20"
+        },
+        "sidebar-bg": {
+          "dark": "#231f20",
+          "light": "#F8F6F4",
+          "hoverDark": "#231f20"
+        },
+        "surface-bg": {
+          "dark": "#231f20",
+          "light": ""
+        },
+        "dark-accent": {
+          "dark": "#FA9346",
+          "light": "#FA9346"
+        },
+        "fn-backlink": {
+          "dark": "#fdb078"
+        },
+        "header-icon": {
+          "dark": "#f8f6f4",
+          "light": "#131822"
+        },
+        "icon-active": {
+          "dark": "#fdb078",
+          "light": "#fdb078"
+        },
+        "link-active": {
+          "dark": "#fdb078",
+          "light": "#fdb078"
+        },
+        "review-icon": {
+          "dark": "#F8F6F4",
+          "light": "#F8F6F4"
+        },
+        "btn-hover-bg": {
+          "light": "#FDB078",
+          "hoverDark": "#FDB078",
+          "hoverLight": "#FDB078"
+        },
+        "input-border": {
+          "dark": "#1f1f1f",
+          "light": "#e2e8f0"
+        },
+        "sidebar-icon": {
+          "dark": "#F8F6F4",
+          "light": "#231f20"
+        },
+        "sidebar-text": {
+          "light": "#231f20"
+        },
+        "sidebar-title": {
+          "dark": "#F8F6F4",
+          "light": "#231f20",
+          "hoverDark": "#F8F6F4",
+          "fontWeight": "600",
+          "hoverLight": "#231f20"
+        },
+        "sponsor-label": {
+          "dark": "#FA9346",
+          "light": "#FA9346"
+        },
+        "verified-tick": {
+          "dark": "#10b981",
+          "light": "#10b981"
+        },
+        "body-bg-single": {
+          "dark": "#231f20",
+          "light": "#F8F6F4"
+        },
+        "bookmark-hover": {
+          "dark": "#FA9346",
+          "light": "#FA9346"
+        },
+        "btn-hover-text": {
+          "light": "#F8F6F4",
+          "hoverDark": "#F8F6F4",
+          "hoverLight": "#F8F6F4"
+        },
+        "input-hover-bg": {
+          "dark": "#433d3f",
+          "light": "#fff7ed"
+        },
+        "sidebar-border": {
+          "dark": "#F8F6F4",
+          "light": "#131822",
+          "hoverDark": "#231f20",
+          "hoverLight": "#F8F6F4"
+        },
+        "sidebar-btn-bg": {
+          "dark": "#FA9346",
+          "light": "#FA9346"
+        },
+        "body-text-muted": {
+          "dark": "#F8F6F4",
+          "light": "#131822"
+        },
+        "highlight-hover": {
+          "dark": "#fdb078",
+          "light": "#FDB078"
+        },
+        "popular-counter": {
+          "dark": "#F8F6F4",
+          "light": "#131822"
+        },
+        "sidebar-btn-text": {
+          "dark": "#F8F6F4",
+          "light": "#F8F6F4"
+        },
+        "sidebar-subtitle": {
+          "dark": "#F8F6F4",
+          "light": "#231f20",
+          "hoverDark": "#F8F6F4",
+          "hoverLight": "#231f20"
+        },
+        "switcher-dark-bg": {
+          "light": "#F8F6F4"
+        },
+        "header-icon-hover": {
+          "dark": "#fdb078",
+          "light": "#fdb078"
+        },
+        "input-placeholder": {
+          "dark": "#554e50",
+          "light": "#433d3f"
+        },
+        "switcher-light-bg": {
+          "light": "#131822"
+        },
+        "input-focus-border": {
+          "dark": "#fa9346"
+        },
+        "input-hover-border": {
+          "dark": "#FDB078",
+          "light": "#FDB078"
+        },
+        "sidebar-icon-hover": {
+          "dark": "#F8F6F4",
+          "light": "#F8F6F4"
+        },
+        "switcher-dark-icon": {
+          "light": "#131822"
+        },
+        "sidebar-icon-active": {
+          "dark": "#F8F6F4",
+          "light": "#F8F6F4"
+        },
+        "switcher-light-icon": {
+          "light": "#F8F6F4"
+        },
+        "surface-secondary-bg": {
+          "dark": "#241f20",
+          "light": "#F8F6F4"
+        },
+        "sidebar-btn-hover-text": {
+          "dark": "#F8F6F4",
+          "light": "#F8F6F4",
+          "hoverDark": "#F8F6F4",
+          "hoverLight": "#F8F6F4"
+        }
+      }
+    }
+  ],
+  "pages": [
+    {
+      "id": "00000000-0000-0000-0000-000000000019",
+      "slug": "fixture-1",
+      "title_pl": "Treść przykładowa",
+      "title_en": "Example content",
+      "status": "published",
+      "parent_id": null,
+      "deleted_at": null,
+      "created_at": "2026-09-06T00:00:00Z",
+      "updated_at": "2026-09-06T00:00:00Z",
+      "editor": "builder"
+    }
+  ],
+  "home-body": [
+    {
+      "content_pl": null,
+      "content_en": null,
+      "builder_data": {
+        "version": 1,
+        "sections": [
+          {
+            "id": "00000000-0000-0000-0000-00000000001a",
+            "kind": "section",
+            "layout": {
+              "contentWidth": "full"
+            },
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-00000000001b",
+                "kind": "column",
+                "span": {
+                  "desktop": 3
+                },
+                "order": {
+                  "mobile": 2
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-00000000001c",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          },
+                          "fontWeight": "800",
+                          "descriptionFontSize": {
+                            "mobile": "12px",
+                            "tablet": "12px",
+                            "desktop": "12px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "left-border",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "Treść przykładowa",
+                      "accentColor": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-00000000001d",
+                    "kind": "widget",
+                    "type": "post-list",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "limit": 1,
+                      "columns": 1,
+                      "variant": "card",
+                      "category": null,
+                      "indexSide": "left",
+                      "indexColor": "#595958",
+                      "showAuthor": "0",
+                      "imageAspect": "16/9",
+                      "indexSizePx": 52,
+                      "showExcerpt": "0",
+                      "authorDisplay": "none",
+                      "indexColorDark": "#595958",
+                      "showAuthorLabel": "0",
+                      "showAuthorAvatar": "0"
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-00000000001e",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "1px",
+                            "tablet": "1px",
+                            "desktop": "1px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          },
+                          "descriptionFontSize": {
+                            "mobile": "12px",
+                            "tablet": "12px",
+                            "desktop": "12px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "left-border",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "Treść przykładowa",
+                      "accentColor": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-00000000001f",
+                    "kind": "widget",
+                    "type": "post-list",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          },
+                          "descriptionFontSize": {
+                            "mobile": "11px",
+                            "tablet": "11px",
+                            "desktop": "11px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          },
+                          "descriptionFontSize": {
+                            "mobile": "11px",
+                            "tablet": "11px",
+                            "desktop": "11px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "limit": 1,
+                      "columns": 1,
+                      "category": null,
+                      "imageAspect": "16/9",
+                      "showExcerpt": "0"
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "00000000-0000-0000-0000-000000000020",
+                "kind": "column",
+                "span": {
+                  "desktop": 6
+                },
+                "order": {
+                  "mobile": 1
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000021",
+                    "kind": "widget",
+                    "type": "slider",
+                    "style": {
+                      "align": {
+                        "mobile": "left",
+                        "tablet": "left",
+                        "desktop": "left"
+                      },
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "26px",
+                            "tablet": "34px",
+                            "desktop": "34px"
+                          },
+                          "titleDescriptionGapPx": 0
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "26px",
+                            "tablet": "26px",
+                            "desktop": "26px"
+                          },
+                          "descriptionFontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          },
+                          "titleDescriptionGapPx": 0
+                        }
+                      }
+                    },
+                    "content": {
+                      "items": [
+                        {
+                          "href": "",
+                          "image": "https://fixture.invalid/image.svg",
+                          "author": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "readTime": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "category_en": "",
+                          "category_pl": "",
+                          "subtitle_en": "Example content",
+                          "subtitle_pl": "Treść przykładowa",
+                          "categoryColor": ""
+                        },
+                        {
+                          "href": "",
+                          "image": "https://fixture.invalid/image.svg",
+                          "author": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "readTime": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "category_en": "",
+                          "category_pl": "",
+                          "subtitle_en": "Example content",
+                          "subtitle_pl": "Treść przykładowa",
+                          "categoryColor": ""
+                        },
+                        {
+                          "href": "",
+                          "image": "https://fixture.invalid/image.svg",
+                          "author": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "readTime": "",
+                          "title_en": "",
+                          "title_pl": "",
+                          "category_en": "",
+                          "category_pl": "",
+                          "subtitle_en": "",
+                          "subtitle_pl": "",
+                          "categoryColor": ""
+                        }
+                      ],
+                      "limit": 5,
+                      "ratio": "16/9",
+                      "cta_en": "Example content",
+                      "cta_pl": "Treść przykładowa",
+                      "source": "posts",
+                      "orderBy": "Treść przykładowa",
+                      "rounded": "md",
+                      "variant": "editorial-hero",
+                      "autoplay": true,
+                      "navSizePx": 34,
+                      "intervalMs": 4500,
+                      "navBgStyle": "Treść przykładowa",
+                      "showExcerpt": false,
+                      "authorSizePx": 12,
+                      "navRoundedPx": 5,
+                      "overlayOpacity": 0.45,
+                      "navArrowVariant": "Treść przykładowa",
+                      "authorAvatarSizePx": 20
+                    },
+                    "authorSizePx": 12,
+                    "authorAvatarSizePx": 20
+                  }
+                ]
+              },
+              {
+                "id": "00000000-0000-0000-0000-000000000022",
+                "kind": "column",
+                "span": {
+                  "desktop": 3
+                },
+                "order": {
+                  "mobile": 3
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000023",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          },
+                          "fontWeight": "800",
+                          "descriptionFontSize": {
+                            "mobile": "12px",
+                            "tablet": "12px",
+                            "desktop": "12px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "left-border",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "Treść przykładowa",
+                      "accentColor": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-000000000024",
+                    "kind": "widget",
+                    "type": "post-list",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          },
+                          "descriptionFontSize": {
+                            "mobile": "12px",
+                            "tablet": "12px",
+                            "desktop": "12px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "limit": 5,
+                      "columns": 1,
+                      "variant": "ranked",
+                      "category": null,
+                      "imageAspect": "4/3",
+                      "indexSizePx": 52,
+                      "indexColorDark": ""
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000025",
+            "kind": "section",
+            "layout": {
+              "contentWidth": "full"
+            },
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-000000000026",
+                "kind": "column",
+                "span": {
+                  "desktop": 12
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000027",
+                    "kind": "widget",
+                    "type": "animated-heading",
+                    "style": {
+                      "typography": {
+                        "fontSize": {
+                          "mobile": "34px",
+                          "tablet": "34px",
+                          "desktop": "34px"
+                        }
+                      }
+                    },
+                    "content": {
+                      "tag": "Treść przykładowa",
+                      "loop": true,
+                      "mode": "hover-allsides",
+                      "align": "left",
+                      "color": "",
+                      "shape": "Treść przykładowa",
+                      "delayMs": 200,
+                      "linkAfter": {
+                        "url": "/",
+                        "kind": "page",
+                        "refId": "00000000-0000-0000-0000-000000000028",
+                        "target": "Treść przykładowa",
+                        "nofollow": false,
+                        "refLabel": "Treść przykładowa"
+                      },
+                      "linkWhole": {
+                        "url": "/",
+                        "kind": "page",
+                        "refId": "00000000-0000-0000-0000-000000000028",
+                        "refLabel": "Treść przykładowa"
+                      },
+                      "durationMs": 1200,
+                      "accentColor": "#f97316",
+                      "highlight_en": "Example content",
+                      "highlight_pl": "Treść przykładowa",
+                      "textAfter_en": "",
+                      "textAfter_pl": "",
+                      "linkHighlight": null,
+                      "textBefore_en": "Example content",
+                      "textBefore_pl": "Treść przykładowa",
+                      "rotateWords_en": ["Example content", "Example content", "Example content"],
+                      "rotateWords_pl": [
+                        "Treść przykładowa",
+                        "Treść przykładowa",
+                        "Treść przykładowa"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000029",
+            "kind": "section",
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-00000000002a",
+                "kind": "column",
+                "span": {
+                  "desktop": 12
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-00000000002b",
+                    "kind": "widget",
+                    "type": "tailored-must-reads",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "limit": 3,
+                      "columns": 3,
+                      "audience": "Treść przykładowa",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "kicker_en": "Example content",
+                      "kicker_pl": "Treść przykładowa",
+                      "showAuthor": "1",
+                      "showKicker": "1",
+                      "fallback_en": "Example content",
+                      "fallback_pl": "Treść przykładowa",
+                      "showExcerpt": "0"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000002c",
+            "kind": "section",
+            "layout": {
+              "contentWidth": "full"
+            },
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-00000000002d",
+                "kind": "column",
+                "span": {
+                  "desktop": 6
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-00000000002e",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "fontSize": {
+                          "mobile": "22px",
+                          "tablet": "22px",
+                          "desktop": "22px"
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "double-rule-centered",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "",
+                      "action_pl": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-00000000002f",
+                    "kind": "widget",
+                    "type": "image",
+                    "content": {
+                      "src": "https://fixture.invalid/image.svg",
+                      "alt_en": "",
+                      "alt_pl": ""
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "00000000-0000-0000-0000-000000000030",
+                "kind": "column",
+                "span": {
+                  "desktop": 6
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000031",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "fontSize": {
+                          "mobile": "22px",
+                          "tablet": "22px",
+                          "desktop": "22px"
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "double-rule-centered",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "",
+                      "action_pl": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-000000000032",
+                    "kind": "widget",
+                    "type": "post-list",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "limit": 3,
+                      "columns": 3,
+                      "variant": "minimal",
+                      "category": null,
+                      "imageAspect": "4/3",
+                      "showExcerpt": "0"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000033",
+            "kind": "section",
+            "layout": {
+              "columnsGap": "default",
+              "contentWidth": "full"
+            },
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-000000000034",
+                "kind": "column",
+                "span": {
+                  "desktop": 9
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000035",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "1px",
+                            "tablet": "1px",
+                            "desktop": "1px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          },
+                          "descriptionFontSize": {
+                            "mobile": "12px",
+                            "tablet": "12px",
+                            "desktop": "12px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "left-border",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "Treść przykładowa",
+                      "accentColor": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-000000000036",
+                    "kind": "widget",
+                    "type": "slider",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "items": [
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        },
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        }
+                      ],
+                      "ratio": "16/9",
+                      "source": "manual",
+                      "rounded": "md",
+                      "variant": "multi-card",
+                      "autoplay": true,
+                      "intervalMs": 4500,
+                      "showExcerpt": false,
+                      "authorSizePx": 12,
+                      "overlayOpacity": 0.45,
+                      "authorAvatarSizePx": 20
+                    },
+                    "authorSizePx": 12,
+                    "authorAvatarSizePx": 20
+                  }
+                ]
+              },
+              {
+                "id": "00000000-0000-0000-0000-000000000037",
+                "kind": "column",
+                "span": {
+                  "desktop": 3
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000038",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "fontSize": {
+                          "mobile": "22px",
+                          "tablet": "22px",
+                          "desktop": "22px"
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "double-rule-centered",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "",
+                      "action_pl": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-000000000039",
+                    "kind": "widget",
+                    "type": "post-list",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "limit": 3,
+                      "columns": 1,
+                      "variant": "list",
+                      "category": null,
+                      "imageAspect": "16/9",
+                      "showExcerpt": "0"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000003a",
+            "kind": "section",
+            "layout": {
+              "contentWidth": "full"
+            },
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-00000000003b",
+                "kind": "column",
+                "span": {
+                  "desktop": 4
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-00000000003c",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "1px",
+                            "tablet": "1px",
+                            "desktop": "1px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "left-border",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "",
+                      "accentColor": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-00000000003d",
+                    "kind": "widget",
+                    "type": "slider",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "items": [
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        },
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        }
+                      ],
+                      "ratio": "16/9",
+                      "source": "manual",
+                      "columns": 1,
+                      "rounded": "md",
+                      "variant": "multi-card",
+                      "autoplay": true,
+                      "intervalMs": 4500,
+                      "showExcerpt": false,
+                      "authorSizePx": 12,
+                      "overlayOpacity": 0.45,
+                      "authorAvatarSizePx": 20
+                    },
+                    "advanced": {
+                      "height": {
+                        "desktop": 420
+                      }
+                    },
+                    "authorSizePx": 12,
+                    "authorAvatarSizePx": 20
+                  }
+                ]
+              },
+              {
+                "id": "00000000-0000-0000-0000-00000000003e",
+                "kind": "column",
+                "span": {
+                  "desktop": 4
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-00000000003f",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "1px",
+                            "tablet": "1px",
+                            "desktop": "1px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "left-border",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "",
+                      "accentColor": ""
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-000000000040",
+                    "kind": "widget",
+                    "type": "slider",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "items": [
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        },
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        }
+                      ],
+                      "ratio": "16/9",
+                      "source": "manual",
+                      "columns": 1,
+                      "rounded": "md",
+                      "variant": "multi-card",
+                      "autoplay": true,
+                      "intervalMs": 4500,
+                      "showExcerpt": false,
+                      "authorSizePx": 12,
+                      "overlayOpacity": 0.45,
+                      "authorAvatarSizePx": 20
+                    },
+                    "advanced": {
+                      "height": {
+                        "desktop": 420
+                      }
+                    },
+                    "authorSizePx": 12,
+                    "authorAvatarSizePx": 20
+                  }
+                ]
+              },
+              {
+                "id": "00000000-0000-0000-0000-000000000041",
+                "kind": "column",
+                "span": {
+                  "desktop": 4
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000042",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "1px",
+                            "tablet": "1px",
+                            "desktop": "1px"
+                          }
+                        },
+                        "light": {
+                          "fontSize": {
+                            "mobile": "16px",
+                            "tablet": "16px",
+                            "desktop": "16px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "left-border",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "",
+                      "accentColor": "#8269e9"
+                    }
+                  },
+                  {
+                    "id": "00000000-0000-0000-0000-000000000043",
+                    "kind": "widget",
+                    "type": "slider",
+                    "style": {
+                      "typography": {
+                        "dark": {
+                          "fontSize": {
+                            "mobile": "18px",
+                            "tablet": "18px",
+                            "desktop": "18px"
+                          }
+                        }
+                      }
+                    },
+                    "content": {
+                      "items": [
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        },
+                        {
+                          "href": "",
+                          "image": "",
+                          "cta_en": "",
+                          "cta_pl": "",
+                          "title_en": "Example content",
+                          "title_pl": "Treść przykładowa",
+                          "subtitle_en": "",
+                          "subtitle_pl": ""
+                        }
+                      ],
+                      "ratio": "16/9",
+                      "source": "manual",
+                      "columns": 1,
+                      "rounded": "md",
+                      "variant": "multi-card",
+                      "autoplay": true,
+                      "intervalMs": 4500,
+                      "showExcerpt": false,
+                      "authorSizePx": 12,
+                      "overlayOpacity": 0.45,
+                      "authorAvatarSizePx": 20
+                    },
+                    "advanced": {
+                      "height": {
+                        "desktop": 420
+                      }
+                    },
+                    "authorSizePx": 12,
+                    "authorAvatarSizePx": 20
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000044",
+            "kind": "section",
+            "layout": {
+              "contentWidth": "full"
+            },
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-000000000045",
+                "kind": "column",
+                "span": {
+                  "desktop": 12
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000046",
+                    "kind": "widget",
+                    "type": "join-us",
+                    "style": {
+                      "align": {
+                        "mobile": "center",
+                        "tablet": "center",
+                        "desktop": "center"
+                      },
+                      "bgColor": "Treść przykładowa",
+                      "selfAlign": "center",
+                      "typography": {
+                        "fontSize": {
+                          "mobile": "23px",
+                          "tablet": "23px",
+                          "desktop": "23px"
+                        },
+                        "textAlign": "center",
+                        "descriptionFontSize": {
+                          "mobile": "12px",
+                          "tablet": "12px",
+                          "desktop": "12px"
+                        }
+                      },
+                      "selfJustify": "center"
+                    },
+                    "content": {
+                      "variant": "split",
+                      "perk1_en": "Example content",
+                      "perk2_en": "Example content",
+                      "perk3_en": "Example content",
+                      "perkSize": 15,
+                      "title_en": "Example content",
+                      "title_pl": "",
+                      "labelSize": null,
+                      "showPhone": "1",
+                      "titleSize": 30,
+                      "buttonSize": null,
+                      "consentSize": 8,
+                      "showCompany": "1",
+                      "showCountry": "1",
+                      "subtitle_en": "Example content",
+                      "subtitle_pl": "",
+                      "requireEmail": "1",
+                      "requirePhone": "0",
+                      "showLastName": "1",
+                      "showLinkedin": "1",
+                      "showPosition": "0",
+                      "emailLabel_en": "Example content",
+                      "interestSlugs": [],
+                      "perkIconColor": "#FA9346",
+                      "phoneLabel_en": "Example content",
+                      "showFirstName": "1",
+                      "showInterests": "1",
+                      "consentText_en": "Example content",
+                      "requireCompany": "0",
+                      "requireCountry": "0",
+                      "submitLabel_en": "Example content",
+                      "companyLabel_en": "Example content",
+                      "countryLabel_en": "Example content",
+                      "descriptionSize": 13,
+                      "placeholderSize": null,
+                      "requireLastName": "1",
+                      "requireLinkedin": "0",
+                      "requirePosition": "0",
+                      "lastNameLabel_en": "Example content",
+                      "linkedinLabel_en": "Example content",
+                      "positionLabel_en": "Example content",
+                      "requireFirstName": "1",
+                      "requireInterests": "0",
+                      "firstNameLabel_en": "Example content",
+                      "interestsLabel_en": "Example content",
+                      "namePlaceholder_en": "Example content",
+                      "emailPlaceholder_en": "Example content",
+                      "phonePlaceholder_en": "Example content",
+                      "companyPlaceholder_en": "Example content",
+                      "countryPlaceholder_en": "Example content",
+                      "lastNamePlaceholder_en": "Example content",
+                      "linkedinPlaceholder_en": "Example content",
+                      "positionPlaceholder_en": "Example content",
+                      "firstNamePlaceholder_en": "Example content",
+                      "interestsPlaceholder_en": "Example content"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000047",
+            "kind": "section",
+            "layout": {
+              "contentWidth": "full"
+            },
+            "children": [
+              {
+                "id": "00000000-0000-0000-0000-000000000048",
+                "kind": "column",
+                "span": {
+                  "desktop": 12
+                },
+                "children": [
+                  {
+                    "id": "00000000-0000-0000-0000-000000000049",
+                    "kind": "widget",
+                    "type": "section-label",
+                    "style": {
+                      "typography": {
+                        "fontSize": {
+                          "mobile": "34px",
+                          "tablet": "34px",
+                          "desktop": "34px"
+                        },
+                        "descriptionFontSize": {
+                          "mobile": "14px",
+                          "tablet": "14px",
+                          "desktop": "14px"
+                        },
+                        "titleDescriptionGapPx": 16
+                      }
+                    },
+                    "content": {
+                      "href": "",
+                      "color": "Treść przykładowa",
+                      "variant": "centered-short-rule",
+                      "label_en": "Example content",
+                      "label_pl": "Treść przykładowa",
+                      "action_en": "Example content",
+                      "action_pl": "Treść przykładowa"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "blocks_data": null
+    }
+  ],
+  "posts": [
+    {
+      "id": "00000000-0000-0000-0000-00000000004a",
+      "slug": "fixture-2",
+      "title_pl": "Analiza 1: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 1: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000004b",
+      "slug": "fixture-3",
+      "title_pl": "Analiza 2: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 2: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000004c",
+      "slug": "fixture-4",
+      "title_pl": "Analiza 3: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 3: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000004d",
+      "slug": "fixture-5",
+      "title_pl": "Analiza 4: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 4: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000004e",
+      "slug": "fixture-6",
+      "title_pl": "Analiza 5: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 5: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000004f",
+      "slug": "fixture-7",
+      "title_pl": "Analiza 6: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 6: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000050",
+      "slug": "fixture-8",
+      "title_pl": "Analiza 7: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 7: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000051",
+      "slug": "fixture-9",
+      "title_pl": "Analiza 8: najważniejsze wydarzenia i perspektywy rozwoju w Europie",
+      "title_en": "Analysis 8: the latest developments and perspectives for the future of Europe",
+      "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
+      "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
+      "cover_image_url": "https://fixture.invalid/image.svg",
+      "published_at": "2026-09-06T00:00:00Z",
+      "author_id": null,
+      "parent_page_id": null,
+      "is_sponsored": false,
+      "deleted_at": null,
+      "status": "published",
+      "created_at": "2026-09-06T00:00:00Z"
+    }
+  ],
+  "menus": [
+    {
+      "id": "00000000-0000-0000-0000-000000000052",
+      "key": "main",
+      "name": "Treść przykładowa"
+    }
+  ],
+  "menu-items": [
+    {
+      "id": "00000000-0000-0000-0000-000000000053",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000054",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000055",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000056",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000057",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000058",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000059",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000005a",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000005b",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000005c",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": null,
+      "position": 0,
+      "item_type": "custom",
+      "ref_id": null,
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000005d",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000005e",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000005f",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000060",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000061",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000062",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000063",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000064",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000065",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "Treść przykładowa",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000005e",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000066",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000067",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000068",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000069",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000006a",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000006b",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000006c",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000006d",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000057",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000005c",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000006e",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000006f",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000070",
+      "position": 0,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000071",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000072",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000061",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000073",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000074",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": null,
+      "position": 1,
+      "item_type": "custom",
+      "ref_id": null,
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000006c",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000066",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000075",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000066",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000005c",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000076",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000077",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000054",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000078",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000079",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000005a",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000007a",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000007b",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000005e",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000007c",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000007d",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000064",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000007e",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000007f",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000006c",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000080",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000081",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000082",
+      "position": 1,
+      "item_type": "custom",
+      "ref_id": null,
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000083",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000057",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000084",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000085",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000070",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000086",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000087",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000069",
+      "position": 1,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000088",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000089",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": null,
+      "position": 2,
+      "item_type": "custom",
+      "ref_id": null,
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000008a",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000070",
+      "position": 2,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000008b",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000008c",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000082",
+      "position": 2,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000008d",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000061",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000066",
+      "position": 2,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000008e",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000008f",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000057",
+      "position": 2,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000090",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000091",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-00000000006c",
+      "position": 2,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000092",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000093",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000064",
+      "position": 2,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000094",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000095",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000061",
+      "position": 2,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000096",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000097",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000070",
+      "position": 3,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000098",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000070",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000066",
+      "position": 3,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-000000000099",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000009a",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000064",
+      "position": 3,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000009b",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000009c",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000057",
+      "position": 3,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-00000000009d",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000009e",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": null,
+      "position": 3,
+      "item_type": "custom",
+      "ref_id": null,
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000009f",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000066",
+      "position": 4,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a0",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000005a",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": null,
+      "position": 4,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a1",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000054",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000057",
+      "position": 4,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a2",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-0000000000a3",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000057",
+      "position": 5,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a4",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000069",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000066",
+      "position": 5,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a5",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-0000000000a6",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": "00000000-0000-0000-0000-000000000057",
+      "position": 6,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a7",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000064",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": null,
+      "position": 6,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a8",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000082",
+      "menu_id": "00000000-0000-0000-0000-000000000052",
+      "parent_id": null,
+      "position": 7,
+      "item_type": "Treść przykładowa",
+      "ref_id": "00000000-0000-0000-0000-0000000000a9",
+      "label_pl": "Treść przykładowa",
+      "label_en": "Example content",
+      "href": "/",
+      "target": "Treść przykładowa",
+      "css_class": "",
+      "visibility": "all",
+      "icon": "",
+      "mega_enabled": false,
+      "mega_config": {
+        "width": "Treść przykładowa",
+        "columns": [],
+        "columns_per_row": 4,
+        "featured_post_id": null
+      }
+    }
+  ],
+  "fixture_image_type": "image/svg+xml"
+}

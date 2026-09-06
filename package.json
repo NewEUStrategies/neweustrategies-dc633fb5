@@ -26,6 +26,7 @@
     "test:e2e": "playwright test",
     "build:smoke": "node scripts/clean-build-output.mjs && NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --config vite.smoke.config.ts",
     "test:e2e:artifact": "playwright test --config playwright.artifact.config.ts",
+    "test:e2e:performance": "playwright test --config playwright.performance.config.ts",
     "measure:boot-ab": "bun run scripts/measure-boot-ab.ts",
     "db:test": "supabase test db",
     "migrate:blocks-to-builder": "bun run scripts/migrate-blocks-to-builder.ts",
