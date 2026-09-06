@@ -117,19 +117,10 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     }
 
     const emailConfirmedAt = u.email_confirmed_at ?? null;
-    const signedInAfterInvitation = Boolean(
-      u.last_sign_in_at &&
-        invitationSentAt &&
-        new Date(u.last_sign_in_at).getTime() - new Date(invitationSentAt).getTime() > 30_000,
-    );
     // `auto_accept` zatwierdza przydzielenie konta przez administratora, ale nie
     // oznacza, że odbiorca użył linku aktywacyjnego. Starsze rekordy oznaczone
     // w ten sposób jako `accepted` pozostają zaproszeniem aż do pierwszego
     // logowania wykonanego po wysłaniu wiadomości.
-    const invitationAccepted =
-      invitationStatus === "accepted" && (!invitationAutoAccepted || signedInAfterInvitation);
-    const hasPendingInvitation = Boolean(invitationId) && !invitationAccepted;
-    const effectiveInvitationStatus = hasPendingInvitation ? "sent" : invitationStatus;
     const state = deriveAccountState({
       bannedUntil,
       emailConfirmedAt,
@@ -140,6 +131,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
       invitationSentAt,
       invitationAutoAccepted,
     });
+    const effectiveInvitationStatus = state === "invited" ? "sent" : invitationStatus;
 
     return {
       exists: true,
