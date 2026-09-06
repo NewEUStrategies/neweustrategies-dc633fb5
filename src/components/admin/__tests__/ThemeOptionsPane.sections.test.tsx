@@ -204,6 +204,7 @@ const SECTION_KEYS = [
   "themeOptions.sections.mobileHeader",
   "themeOptions.sections.buttons",
   "themeOptions.sections.textFields",
+  "themeOptions.sections.toggles",
   "themeOptions.sections.inputColors",
   "themeOptions.sections.iconColors",
   "themeOptions.sections.linkColors",
