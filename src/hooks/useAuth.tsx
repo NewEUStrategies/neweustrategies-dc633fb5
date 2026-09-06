@@ -82,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // tę samą sesję - drugie wywołanie musi być no-opem, żeby nie dublować
     // zapytań o `user_roles` i `profiles` przy każdym mount.
     let contextLoadedForUid: string | null = null;
+    let invitationAcceptedForUid: string | null = null;
     const ensureContext = (uid: string | null) => {
       if (uid === contextLoadedForUid) return;
       contextLoadedForUid = uid;
@@ -114,6 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           reauthorizeContent(uid);
         }
         ensureContext(uid);
+        // Domknij administracyjne zaproszenie po pierwszym poprawnym wejściu.
+        // RPC jest idempotentne i może zaakceptować wyłącznie zaproszenie
+        // przypisane do bieżącego konta, e-maila i tenanta.
+        if (
+          uid &&
+          uid !== invitationAcceptedForUid &&
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION")
+        ) {
+          invitationAcceptedForUid = uid;
+          setTimeout(() => {
+            void supabase.rpc("accept_my_user_invitation").then(({ error }) => {
+              if (error) console.warn("[auth] invitation acceptance sync failed", error.message);
+            });
+          }, 0);
+        }
         if (
           s?.user &&
           (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
