@@ -151,3 +151,24 @@ zamrożenia zegara; rejestr długu maleje do 219 wpisów. Fixture karty mega men
 używa `Json` zamiast `unknown`, zgodnie z kontraktem serializowanego widgetu.
 Taksonomia i bramka zegara przechodzą. Celowany przebieg pięciu plików:
 180 sukcesów i 6 istniejących oczekiwanych porażek.
+
+Pełne CI `34048185212` zwróciło 67 407 sukcesów, 422 oczekiwane porażki,
+9 porażek i 50 pominięć. Wszystkie 67 888 przypadków zostały rozliczone,
+bez błędów nieobsłużonych i bez nieprawidłowych liczników LCOV. Gałęzie
+modułu wyniosły 8242/8677 = 94,9867%: zaokrąglenie do 95% byłoby nieprawdą.
+Przebieg jest dowodem diagnostycznym, nie spełnieniem końcowej bramki.
+
+Dziewięć porażek pochodziło z nowych testów slidera: część oczekiwała
+argumentu `href` zamiast `to`, a część klikała kontener zamiast natywnego
+linku wariantu editorial hero. Testy sprawdzają teraz rzeczywiste elementy
+interaktywne i ich dostępność dla fokusu. Poprawiono też ujawnioną przy tym
+lukę: linki i nawigacja wariantów slidera respektują podgląd panelu.
+Kontrole dodatnie zachowują nawigację publiczną dla wszystkich czterech
+wariantów; podgląd blokuje również kliknięcie aktywowane klawiaturą.
+
+Brakujące scenariusze bramki zegara obejmują cykl uprzęży, importy względne
+i dynamiczne, re-eksport, nierozwiązywalne zależności, wybór najnowszej daty
+oraz raport poprawy bez pełnego inwentarza. Celowany przebieg: 137 sukcesów
+i 4 istniejące oczekiwane porażki. Bramka zegara i pięć testów parytetu
+konfiguracji chunków przechodzą. Zachowano także poprawkę zależności ECharts
+z main `aca7957a8`; równoważne typy fixture'a połączono bez utraty zmian.

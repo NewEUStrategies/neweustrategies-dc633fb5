@@ -990,7 +990,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // marker must never be treated as an editor-only signal.
   const navigateTo = (href?: string) => {
     if (!href || preview) return;
-    if (rootRef.current?.closest("[data-visual-canvas]")) return;
+    if (
+      rootRef.current?.closest(
+        '[data-visual-canvas], [data-builder-renderer="widget-props-preview"]',
+      )
+    )
+      return;
     if (href.startsWith("http://") || href.startsWith("https://")) {
       const client = toClientHref(href);
       if (client && router) {

@@ -64,6 +64,11 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
+    // The live editor preview renders real widgets, including native anchors.
+    // Suppress navigation there for pointer and keyboard activation alike.
+    if (event.currentTarget.closest('[data-builder-renderer="widget-props-preview"]')) {
+      event.preventDefault();
+    }
     if (event.defaultPrevented || !router || !clientHref) return;
     const elementTarget = event.currentTarget.getAttribute("target");
     const effectiveTarget = target ?? elementTarget;

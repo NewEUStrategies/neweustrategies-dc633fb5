@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   compareWithRatchet,
+  isScannable,
   isTestFile,
   ratchetFailed,
   renderReport,
@@ -42,6 +43,69 @@ function sprawdz(baseline: ReadonlyMap<string, number>, ...files: SourceFile[]) 
   const known = new Set(files.map((f) => f.file).filter(isTestFile));
   return compareWithRatchet(wynik, baseline, known);
 }
+
+describe("granice skanowania zegara i rozwiązywanie zależności", () => {
+  it.each([
+    ["src/example.ts", true],
+    ["src/example.tsx", true],
+    ["src/example.test.ts", true],
+    ["src/example.d.ts", false],
+    ["src/example.js", false],
+  ])("kwalifikuje %s do skanowania: %s", (file, expected) => {
+    expect(isScannable(file)).toBe(expected);
+  });
+
+  it("wykrywa zegar za cyklem uprzęży, re-eksportem i importem dynamicznym", () => {
+    const result = scan(
+      {
+        file: "src/test/a.ts",
+        source: 'export { read } from "./nested/../b.ts";',
+      },
+      {
+        file: "src/test/b.ts",
+        source: 'import "./a"; export const read = () => import("../lib/okno.ts");',
+      },
+      {
+        file: "src/example.test.ts",
+        source: 'import { read } from "./test/a"; const anchor = "2026-08-30";',
+      },
+    );
+    expect(result.bombs).toEqual([
+      { file: "src/example.test.ts", literals: 1, newestLiteral: "2026-08-30", via: "import" },
+    ]);
+  });
+
+  it("obcy pakiet, brakujący moduł i pusty import nie tworzą fałszywej zależności od zegara", () => {
+    const result = scan({
+      file: "src/example.test.ts",
+      source: 'import "external-package"; import "./missing"; import ""; const d = "2026-08-30";',
+    });
+    expect(result.bombs).toEqual([]);
+    expect(result.withLiteralAndClock).toBe(0);
+  });
+
+  it("wybiera najnowszą datę bez zależności od kolejności literałów", () => {
+    const result = scan({
+      file: "src/example.test.ts",
+      source:
+        'const now = new Date(); const dates = ["2026-08-30T12:00:00", "2025-01-01", "2026-08-30T13:00:00"];',
+    });
+    expect(result.bombs[0]).toEqual({
+      file: "src/example.test.ts",
+      literals: 3,
+      newestLiteral: "2026-08-30T13:00:00",
+      via: "self",
+    });
+  });
+
+  it("bez inwentarza plików raportuje zniknięcie bomby jako poprawę, nie dowód usunięcia testu", () => {
+    const report = compareWithRatchet(scan(), new Map([["src/example.test.ts", 2]]));
+    expect(report.stale).toEqual([]);
+    expect(report.improved).toEqual([{ file: "src/example.test.ts", was: 2, now: 0 }]);
+    expect(ratchetFailed(report)).toBe(false);
+    expect(renderReport(report, 1)).toContain("src/example.test.ts: 2 -> 0");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Detektor - trzy warunki naraz

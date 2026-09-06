@@ -171,6 +171,15 @@ export default defineConfig({
         "react-markdown",
         "react-easy-crop",
         "echarts-for-react",
+        // Analityka admina importuje WŁAŚNIE ten podentry (odchudzony rdzeń),
+        // a nie główny - podentry jest osobnym modułem CJS i bez wpisu tutaj
+        // dashboard wywalał się na braku exportu `default`.
+        "echarts-for-react/lib/core",
+        "echarts/core",
+        "echarts/renderers",
+        "echarts/charts",
+        "echarts/components",
+        "echarts/features",
         "qrcode",
         "i18n-iso-countries",
         "node-html-parser",
