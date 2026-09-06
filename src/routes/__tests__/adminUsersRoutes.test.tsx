@@ -688,16 +688,17 @@ describe("admin.users - oferta zmiany roli per rola wywołującego", () => {
     h.roles = ["admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(2));
-    const adminTitles = Array.from(document.querySelectorAll("button[title]")).length;
+    const adminMenu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"));
+    fireEvent.click(adminMenu[adminMenu.length - 1]);
+    expect(document.body.textContent).not.toContain("adminUsers.sign");
 
     cleanup();
     h.roles = ["super_admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(2));
-    const superTitles = Array.from(document.querySelectorAll("button[title]")).length;
-
-    // Super admin dostaje DOKŁADNIE jeden przycisk więcej - dla obcego wiersza.
-    expect(superTitles - adminTitles).toBe(1);
+    const superMenu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"));
+    fireEvent.click(superMenu[superMenu.length - 1]);
+    expect(document.body.textContent).toContain("adminUsers.sign");
   });
 });
 
@@ -2967,11 +2968,16 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
     h.roles = ["super_admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(1));
-    const impersonate = Array.from(
+    const menu = Array.from(
       document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
     )[0];
+    expect(menu).toBeTruthy();
+    fireEvent.click(menu);
+    const impersonate = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("adminUsers.sign"),
+    );
     expect(impersonate).toBeTruthy();
-    fireEvent.click(impersonate);
+    fireEvent.click(impersonate!);
     await waitFor(() => expect(h.impersonations).toHaveLength(1));
     expect(h.impersonations[0]).toEqual({ id: IDS.other, label: "Osoba Druga" });
     // Komórka akcji ma `stopPropagation` - klik nie może przenieść na kartę.
@@ -2987,23 +2993,31 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
     try {
       await mountList();
       await waitFor(() => expect(dataRows()).toHaveLength(1));
-      const impersonate = Array.from(
+      const menu = Array.from(
         document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
       )[0];
-      fireEvent.click(impersonate);
+      fireEvent.click(menu);
+      const impersonate = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+        (button) => button.textContent?.includes("adminUsers.sign"),
+      );
+      fireEvent.click(impersonate!);
       await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("otp_expired"));
     } finally {
       spy.mockRestore();
     }
   });
 
-  it("przycisk podglądu w wierszu przenosi na kartę użytkownika", async () => {
+  it("edycja z menu wiersza przenosi na kartę użytkownika", async () => {
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(1));
-    const buttons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>("tbody td:last-child button"),
+    const menu = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
+    )[0];
+    fireEvent.click(menu);
+    const edit = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((button) =>
+      button.textContent?.includes("adminUsers.editAccount"),
     );
-    fireEvent.click(buttons[buttons.length - 1]);
+    fireEvent.click(edit!);
     await waitFor(() =>
       expect(h.navigations).toEqual([{ to: "/admin/users/$id", params: { id: IDS.other } }]),
     );
