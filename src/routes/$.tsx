@@ -33,6 +33,7 @@ import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import { PostOrganizationCard } from "@/components/post/PostOrganizationCard";
 import { articleJsonLdType, resolveDisclosure } from "@/lib/content/sponsored";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
+import { PostCategoryArchive } from "@/components/post/PostCategoryArchive";
 import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
 import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
@@ -1303,6 +1304,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
                   <div className="no-print">
                     <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                  </div>
+                )}
+                {postCategories[0] && (
+                  <div className="no-print my-8">
+                    <PostCategoryArchive
+                      category={postCategories[0]}
+                      currentPostId={post.id}
+                      lang={lang}
+                    />
                   </div>
                 )}
                 {allowAd("bottom_of_post") && (
