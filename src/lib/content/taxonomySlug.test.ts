@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { slugifyTaxonomy } from "./taxonomySlug";
+import { normalizeSlugInput, slugifyTaxonomy } from "./taxonomySlug";
 
 describe("slugifyTaxonomy", () => {
   it("lowercases and dashes word separators", () => {
@@ -56,5 +56,47 @@ describe("slugifyTaxonomy", () => {
 
   it("caps the slug at 80 characters", () => {
     expect(slugifyTaxonomy("a".repeat(200))).toHaveLength(80);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `normalizeSlugInput` nie miał ANI JEDNEGO bezpośredniego testu - pokrycie
+// przychodziło ubocznie z `PostSettingsCard.test.tsx`. Kontrakt "końcowy dywiz
+// ZOSTAJE" jest tu jedyną różnicą wobec `slugifyTaxonomy` i nigdzie nie był
+// przypięty wprost, a to on decyduje, czy w polu adresu da się w ogóle wpisać
+// drugi wyraz (bez niego spacja znika przy każdym naciśnięciu klawisza).
+// ---------------------------------------------------------------------------
+describe("normalizeSlugInput", () => {
+  it("ZOSTAWIA końcowy dywiz, żeby dało się dopisać kolejny wyraz", () => {
+    expect(normalizeSlugInput("Polityka ")).toBe("polityka-");
+    expect(normalizeSlugInput("Polityka energetyczna ")).toBe("polityka-energetyczna-");
+  });
+
+  it("zdejmuje dywizy WIODĄCE - adres nie może zaczynać się od separatora", () => {
+    expect(normalizeSlugInput("  -Hello")).toBe("hello");
+    // Wejście złożone z samych separatorów nie ma czego zostawić: każdy dywiz
+    // jest tu WIODĄCY, więc zdejmowane są wszystkie i zostaje pustka.
+    expect(normalizeSlugInput("---")).toBe("");
+  });
+
+  it("transliteruje i zdejmuje diakrytyki tak samo jak slugifyTaxonomy", () => {
+    // Jedna mapa dla obu funkcji: rozjazd oznaczałby, że podpowiedź w polu
+    // różni się od adresu zapisanego po wysłaniu formularza.
+    expect(normalizeSlugInput("Łódź")).toBe("lodz");
+    expect(normalizeSlugInput("Gęślą jaźń")).toBe("gesla-jazn");
+    expect(normalizeSlugInput("Straße")).toBe("strasse");
+    expect(normalizeSlugInput("Ærø")).toBe("aero");
+  });
+
+  it("skleja ciągi znaków niealfanumerycznych w jeden dywiz", () => {
+    expect(normalizeSlugInput("a  --  b__c!!d")).toBe("a-b-c-d");
+  });
+
+  it("tnie do 80 znaków, tak jak wersja końcowa", () => {
+    expect(normalizeSlugInput("a".repeat(200))).toHaveLength(80);
+  });
+
+  it("puste wejście zostaje puste", () => {
+    expect(normalizeSlugInput("")).toBe("");
   });
 });

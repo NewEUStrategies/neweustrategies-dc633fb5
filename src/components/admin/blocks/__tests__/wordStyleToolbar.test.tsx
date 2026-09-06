@@ -17,9 +17,16 @@
 //     inline - to jest granica miedzy trescia CMS-a a wygladem motywu,
 //   * `aria-pressed` odpowiada stanowi karetki w edytorze,
 //   * cofanie/ponawianie paska jest wylaczone, dopoki edytor nie ma historii -
-//     przycisk, ktory nic nie robi, jest gorszy niz jego brak,
+//     przycisk, ktory nic nie robi, jest gorszy niz jego brak - a gdy historia
+//     JEST, oba przyciski realnie cofaja i przywracaja tresc,
 //   * paleta koloru/wyroznienia otwiera sie jako `role="dialog"`, zamyka sie po
 //     wyborze i po klikniciu na zewnatrz,
+//   * ODMOWA BARWY, czyli obie drogi ZDJECIA jej z tekstu: guzik `⌫` w kazdej
+//     palecie oraz swatch przezroczystosci w palecie wyroznienia. Bez nich
+//     redaktor nie ma jak wrocic do koloru motywu i zostaje z barwa wpisana
+//     w tresc na zawsze,
+//   * pasek nie kradnie zaznaczenia: `mousedown` jest anulowany i na przycisku,
+//     i na tle paska, i w otwartej palecie,
 //   * dialog linku: potwierdzenie zaklada `<a href>`, PUSTA wartosc zdejmuje
 //     link (a nie zaklada linku do pustego adresu), anulowanie nie robi nic,
 //   * WSTAWIANIE PRZYPISU dokleja marker `[fn]…[/fn]` OBOK zaznaczonego slowa,
@@ -32,6 +39,7 @@
 //     `lib/appDialogs`, na ktory test odpowiada jak uzytkownik,
 //   * asercji na pozycjonowanie paska (geometria; happy-dom zwraca zera).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Block } from "@/lib/blocks/types";
 import { subscribeAppDialog, type PendingDialog } from "@/lib/appDialogs";
@@ -90,6 +98,51 @@ function zamontuj(html: string, isActive = true) {
   return { onChange, view };
 }
 
+/**
+ * Akapit w STEROWANYM rodzicu - tak jak w kanwie, gdzie `BlockCanvas` trzyma
+ * dokument w stanie i oddaje bloki z powrotem w propsie. Potrzebne wszędzie,
+ * gdzie pasek czyta stan edytora przy renderze (`editor.can()`): `useEditor`
+ * z TipTapa 3 NIE przerenderowuje komponentu na każdej transakcji, więc
+ * odświeżenie przycisków cofania bierze się z przerenderowania rodzica po
+ * zapisie treści. Rodzic nieruchomy (`zamontuj`) zamrażałby te przyciski
+ * w stanie z montażu - i mierzyłby atrapę, nie panel.
+ */
+function AkapitSterowany({
+  startHtml,
+  onChange,
+}: {
+  startHtml: string;
+  onChange: (n: Block) => void;
+}) {
+  const [block, setBlock] = useState<Block>(
+    () => ({ id: "p1", type: "paragraph", data: { html: startHtml } }) as Block,
+  );
+  return (
+    <ParagraphBlock
+      block={block}
+      isActive
+      onChange={(next) => {
+        setBlock(next);
+        onChange(next);
+      }}
+      onTransform={NIC}
+      onInsertAfter={NIC}
+      onDeleteEmpty={NIC}
+      onMergeWithPrevious={FALSZ}
+      onFocusPrevious={FALSZ}
+      onFocusNext={FALSZ}
+      onSelectAllBlocks={NIC}
+      onExtendBlockSelection={FALSZ}
+    />
+  );
+}
+
+function zamontujSterowany(html: string) {
+  const onChange = vi.fn<(n: Block) => void>();
+  const view = render(<AkapitSterowany startHtml={html} onChange={onChange} />);
+  return { onChange, view };
+}
+
 function btn(nazwa: string): HTMLElement {
   return screen.getByRole("button", { name: nazwa });
 }
@@ -131,6 +184,41 @@ describe("WordStyleToolbar - widocznosc", () => {
     zamontuj("<p>Traktat</p>");
     expect(btn(t("blocks.toolbar.undo"))).toBeDisabled();
     expect(btn(t("blocks.toolbar.redo"))).toBeDisabled();
+  });
+});
+
+describe("WordStyleToolbar - cofanie i ponawianie po powstaniu historii", () => {
+  it("po zmianie treści cofanie WŁĄCZA się i zdejmuje ostatnią zmianę", () => {
+    const { onChange } = zamontujSterowany("<p>Traktat</p>");
+    zaznaczCalosc();
+    fireEvent.click(btn("Bold (⌘B)"));
+    expect(ostatniHtml(onChange)).toMatch(/<strong>/);
+
+    const cofnij = btn(t("blocks.toolbar.undo"));
+    expect(cofnij).toBeEnabled();
+    fireEvent.click(cofnij);
+
+    const html = ostatniHtml(onChange);
+    expect(html).not.toMatch(/<strong>/);
+    // Cofnięcie formatowania nie ma prawa zabrać treści.
+    expect(html).toContain("Traktat");
+  });
+
+  it("ponawianie przywraca cofniętą zmianę, a nie dokłada nowej", () => {
+    const { onChange } = zamontujSterowany("<p>Traktat</p>");
+    zaznaczCalosc();
+    fireEvent.click(btn("Bold (⌘B)"));
+    fireEvent.click(btn(t("blocks.toolbar.undo")));
+    expect(ostatniHtml(onChange)).not.toMatch(/<strong>/);
+
+    const ponow = btn(t("blocks.toolbar.redo"));
+    expect(ponow).toBeEnabled();
+    fireEvent.click(ponow);
+
+    const html = ostatniHtml(onChange);
+    expect(html).toMatch(/<strong>/);
+    expect(html.match(/<strong>/g)).toHaveLength(1);
+    expect(html).toContain("Traktat");
   });
 });
 
@@ -297,6 +385,91 @@ describe("WordStyleToolbar - paleta koloru i wyroznienia", () => {
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("wybór wyróżnienia zapisuje kolor tła w treści jako <mark>", () => {
+    const { onChange } = zamontuj("<p>Traktat</p>");
+    zaznaczCalosc();
+    fireEvent.click(btn(t("blocks.toolbar.highlight")));
+    fireEvent.click(screen.getByRole("button", { name: "#fff59d" }));
+    const html = ostatniHtml(onChange);
+    expect(html).toContain("<mark");
+    expect(html).toContain("#fff59d");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("swatch PRZEZROCZYSTOŚCI w palecie wyróżnienia ZDEJMUJE wyróżnienie", () => {
+    // Ostatnia kratka palety wyróżnienia to „brak koloru", nie kolejna barwa -
+    // bez niej redaktor nie ma jak odkleić żółtego tła od raz podświetlonego
+    // słowa.
+    const { onChange } = zamontuj('<p><mark data-color="#fff59d">Traktat</mark></p>');
+    zaznaczCalosc();
+    fireEvent.click(btn(t("blocks.toolbar.highlight")));
+    fireEvent.click(screen.getByRole("button", { name: "transparent" }));
+    const html = ostatniHtml(onChange);
+    expect(html).not.toContain("<mark");
+    expect(html).toContain("Traktat");
+  });
+
+  it("guzik ⌫ w palecie koloru zdejmuje kolor tekstu i zamyka paletę", () => {
+    const { onChange } = zamontuj('<p><span style="color: #c0392b">Traktat</span></p>');
+    zaznaczCalosc();
+    fireEvent.click(btn(t("blocks.toolbar.textColor")));
+    fireEvent.click(btn("⌫"));
+    const html = ostatniHtml(onChange);
+    expect(html).not.toContain("#c0392b");
+    expect(html).toContain("Traktat");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("guzik ⌫ w palecie wyróżnienia zdejmuje wyróżnienie i zamyka paletę", () => {
+    const { onChange } = zamontuj('<p><mark data-color="#90caf9">Traktat</mark></p>');
+    zaznaczCalosc();
+    fireEvent.click(btn(t("blocks.toolbar.highlight")));
+    fireEvent.click(btn("⌫"));
+    const html = ostatniHtml(onChange);
+    expect(html).not.toContain("<mark");
+    expect(html).toContain("Traktat");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("otwarcie palety wyróżnienia ZAMYKA paletę koloru - naraz widać jedną", () => {
+    // Dwie rozwinięte palety obok siebie zasłaniałyby akapit pod paskiem.
+    zamontuj("<p>Traktat</p>");
+    fireEvent.click(btn(t("blocks.toolbar.textColor")));
+    expect(screen.getByRole("dialog", { name: t("blocks.toolbar.textColor") })).toBeInTheDocument();
+    fireEvent.click(btn(t("blocks.toolbar.highlight")));
+    expect(screen.queryByRole("dialog", { name: t("blocks.toolbar.textColor") })).toBeNull();
+    expect(screen.getByRole("dialog", { name: t("blocks.toolbar.highlight") })).toBeInTheDocument();
+  });
+});
+
+describe("WordStyleToolbar - pasek nie kradnie zaznaczenia", () => {
+  it("wciśnięcie przycisku NIE gasi zaznaczenia w edytorze", () => {
+    // Bez `preventDefault` na `mousedown` przeglądarka przenosi fokus na
+    // przycisk i gasi zaznaczenie ZANIM dojdzie `click` - komenda paska
+    // działałaby wtedy na pustym zakresie.
+    zamontuj("<p>Traktat</p>");
+    const zdarzenie = new Event("mousedown", { bubbles: true, cancelable: true });
+    fireEvent(btn("Bold (⌘B)"), zdarzenie);
+    expect(zdarzenie.defaultPrevented).toBe(true);
+  });
+
+  it("wciśnięcie TŁA paska (obok przycisków) też nie gasi zaznaczenia", () => {
+    const { view } = zamontuj("<p>Traktat</p>");
+    const pasek = view.container.querySelector<HTMLElement>(".flex.flex-col.gap-1");
+    expect(pasek).not.toBeNull();
+    const zdarzenie = new Event("mousedown", { bubbles: true, cancelable: true });
+    fireEvent(pasek!, zdarzenie);
+    expect(zdarzenie.defaultPrevented).toBe(true);
+  });
+
+  it("wciśnięcie w OTWARTĄ paletę nie gasi zaznaczenia, więc barwa trafia na tekst", () => {
+    zamontuj("<p>Traktat</p>");
+    fireEvent.click(btn(t("blocks.toolbar.textColor")));
+    const zdarzenie = new Event("mousedown", { bubbles: true, cancelable: true });
+    fireEvent(screen.getByRole("dialog"), zdarzenie);
+    expect(zdarzenie.defaultPrevented).toBe(true);
+  });
 });
 
 describe("WordStyleToolbar - dialog linku", () => {
@@ -366,6 +539,19 @@ describe("WordStyleToolbar - wstawianie przypisu", () => {
     fireEvent.click(btn(t("blocks.toolbar.footnoteInsert")));
     await odpowiedz(null);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("przy PUSTYM zaznaczeniu (sama karetka) dialog nie podpowiada nic, a marker ląduje w kursorze", async () => {
+    // Druga gałąź `insertFootnote`: bez zaznaczenia nie ma słowa, z którego
+    // można by wziąć treść noty, więc pole startuje puste - podpowiedź
+    // „undefined" albo cały akapit byłyby tu gorsze niż pustka.
+    const { onChange } = zamontuj("<p>Traktat lizboński</p>");
+    fireEvent.click(btn(t("blocks.toolbar.footnoteInsert")));
+    const zapytanie = await odpowiedz("Dz.U. 2026 poz. 2");
+    expect(zapytanie).toMatchObject({ defaultValue: "" });
+    const html = ostatniHtml(onChange);
+    expect(html).toContain("[fn]Dz.U. 2026 poz. 2[/fn]");
+    expect(html).toContain("Traktat lizboński");
   });
 
   it("DRUGI przypis w tym samym akapicie nie zjada pierwszego", async () => {

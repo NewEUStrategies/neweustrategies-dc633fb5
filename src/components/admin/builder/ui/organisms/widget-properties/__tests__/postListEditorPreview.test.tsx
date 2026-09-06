@@ -15,6 +15,11 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, okCount, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 import type { Json, WidgetNode } from "@/lib/builder/types";
+import {
+  CAROUSEL_AUTOPLAY_DEFAULT_MS,
+  CAROUSEL_AUTOPLAY_MAX_MS,
+  CAROUSEL_AUTOPLAY_MIN_MS,
+} from "@/lib/builder/postListCarousel";
 import { PostListEditor } from "../PostListEditor";
 
 const db: { current: SupabaseFromStub } = { current: supabaseFromStub() };
@@ -303,5 +308,80 @@ describe("PostListEditor - karuzela", () => {
     // Karuzela ma własne przełączniki (autoodtwarzanie, pauza na hover,
     // strzałki, kropki), więc kontrolek jest WIĘCEJ niż w zwykłej liście.
     expect(screen.queryAllByRole("switch").length).toBeGreaterThan(listSwitches);
+  });
+});
+
+// ── Baza oddaje PUSTKĘ tam, gdzie panel liczy na tablicę ────────────────────
+//
+// PostgREST na pustym wyniku oddaje `data: null`, nie `[]`. W warstwie
+// podglądu są TRZY takie miejsca, a każde odczytuje wynik od razu przez
+// `.map(...)`: wiązania kategorii, wiązania tagów i nazwy autorów wariantu
+// rankingowego. Bez straży `?? []` panel przewraca się na świeżej instalacji
+// (kategoria bez ani jednego wpisu, wpis bez profilu autora) - czyli u nowego
+// klienta, zanim ktokolwiek zdąży cokolwiek opublikować.
+describe("PostListEditor - podgląd znosi puste odpowiedzi bazy", () => {
+  it("wiązania kategorii oddane jako pustka nie wywalają podglądu", async () => {
+    db.current.setResponse("post_categories", ok(null));
+    const { container } = renderEditor({ variant: "card", categoriesCsv: "gospodarka" });
+    openPreview();
+    await waitFor(() => expect(db.current.chainsFor("post_categories").length).toBeGreaterThan(0));
+    // Brak wiązań to zbiór PUSTY, a nie „pokaż wszystko".
+    await waitFor(() => expect(screen.queryByText("Pierwszy wpis")).toBeNull());
+    expect(container.textContent).not.toContain("undefined");
+  });
+
+  it("wiązania tagów oddane jako pustka nie wywalają podglądu", async () => {
+    db.current.setResponse("post_tags", ok(null));
+    const { container } = renderEditor({ variant: "card", tagsCsv: "brexit" });
+    openPreview();
+    await waitFor(() => expect(db.current.chainsFor("post_tags").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.queryByText("Pierwszy wpis")).toBeNull());
+    expect(container.textContent).not.toContain("undefined");
+  });
+
+  it("profile autorów oddane jako pustka zostawiają ranking bez nazwisk", async () => {
+    db.current.setResponse("profiles", ok(null));
+    const { container } = renderEditor({ variant: "ranked" });
+    openPreview(true);
+    expect(await screen.findByText("Pierwszy wpis")).toBeInTheDocument();
+    await waitFor(() => expect(db.current.chainsFor("profiles").length).toBeGreaterThan(0));
+    // Wiersz bez nazwiska ma zostać wierszem bez nazwiska - nie „undefined"
+    // ani „[object Object]" w miejscu autora.
+    expect(container.textContent).not.toContain("undefined");
+    expect(container.textContent).not.toContain("[object Object]");
+  });
+});
+
+describe("PostListEditor - odstęp autoodtwarzania karuzeli", () => {
+  it("pole odstępu pojawia się dopiero po włączeniu autoodtwarzania", () => {
+    const off = renderEditor({ variant: "card", autoplay: false }, "pl", "carousel");
+    expect(off.container.querySelectorAll('input[step="500"]')).toHaveLength(0);
+    off.unmount();
+
+    const on = renderEditor({ variant: "card", autoplay: true }, "pl", "carousel");
+    expect(on.container.querySelectorAll('input[step="500"]')).toHaveLength(1);
+  });
+
+  it("odstęp jest przycinany do zakresu, a pustka wraca do wartości domyślnej", () => {
+    const { container, written } = renderEditor(
+      { variant: "card", autoplay: true, autoplayIntervalMs: 4000 },
+      "pl",
+      "carousel",
+    );
+    const field = container.querySelector<HTMLInputElement>('input[step="500"]');
+    if (!field) throw new Error("test: brak pola odstępu autoodtwarzania");
+    expect(field.value).toBe("4000");
+
+    fireEvent.change(field, { target: { value: "9000" } });
+    expect(written.at(-1)).toEqual(["autoplayIntervalMs", 9000]);
+    // Poniżej minimum karuzela przeskakiwałaby szybciej, niż da się przeczytać.
+    fireEvent.change(field, { target: { value: "200" } });
+    expect(written.at(-1)).toEqual(["autoplayIntervalMs", CAROUSEL_AUTOPLAY_MIN_MS]);
+    fireEvent.change(field, { target: { value: "999999" } });
+    expect(written.at(-1)).toEqual(["autoplayIntervalMs", CAROUSEL_AUTOPLAY_MAX_MS]);
+    // Puste pole to brak wartości, nie zero - zero zatrzymałoby karuzelę
+    // w pętli bez przerwy.
+    fireEvent.change(field, { target: { value: "0" } });
+    expect(written.at(-1)).toEqual(["autoplayIntervalMs", CAROUSEL_AUTOPLAY_DEFAULT_MS]);
   });
 });
