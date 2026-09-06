@@ -7,11 +7,24 @@ for (const [path, lang] of [
   ["/en", "en"],
 ] as const) {
   test(`homepage SSR and hydration remain usable (${lang})`, async ({ page, request }) => {
-    const document = await request.get(path, { headers: { accept: "text/html" } });
+    // The bare homepage negotiates Accept-Language. Pin the same input for
+    // both the no-JS document request and the browser's navigation.
+    await page.setExtraHTTPHeaders({ "accept-language": lang });
+    const document = await request.get(path, {
+      headers: { accept: "text/html", "accept-language": lang },
+    });
     expect(document.status()).toBe(200);
     const html = await document.text();
     expect(html).toContain("data-site-shell");
     expect(html).toContain('id="main-content"');
+    // The admin sheet has its own total budget and must never become a
+    // public render-blocking dependency. Inspect real links, not JS strings
+    // in the router manifest (which legitimately contains every route).
+    expect(html).not.toMatch(/<link\b[^>]*href=["'][^"']*admin-styles[^"']*\.css/i);
+    expect(document.headers()["link"]).toMatch(
+      new RegExp(`/assets/${lang}-[\\w-]+\\.js[^,]*modulepreload`),
+    );
+    expect(document.headers()["link"]).toMatch(/\/assets\/index-[\w-]+\.js[^,]*modulepreload/);
     // Inspect the actual SSR body before JavaScript has a chance to repair it.
     if (html.includes("data-home-loading")) {
       expect(document.headers()["cache-control"]).toContain("no-store");
@@ -33,6 +46,7 @@ for (const [path, lang] of [
     await expect(page.locator("[data-site-shell]")).toBeVisible();
     await expect(page.locator("main#main-content")).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.__nesAppReady === true)).toBe(true);
+    await expect(page.locator('link[rel="stylesheet"][href*="admin-styles"]')).toHaveCount(0);
     const notice = page.locator("[data-home-loading]");
     if (await notice.count()) {
       await expect(notice.getByRole("status")).toBeVisible();

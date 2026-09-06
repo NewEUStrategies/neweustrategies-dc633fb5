@@ -21,6 +21,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import type { Rollup } from "vite";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
+import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 
 // `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
 // realny artefakt (różni się wyłącznie presetem: node-server zamiast
@@ -42,7 +43,7 @@ export default defineConfig({
     // dokument o innym zestawie nagłówków niż produkcja. `chunkInventoryPlugin`
     // jest tu POMINIĘTY świadomie - jest inertny bez BUNDLE_INVENTORY=1 i mierzy
     // skład bundla, a nie zachowanie bootu.
-    plugins: [localeChunkPlugin()],
+    plugins: [localeChunkPlugin(), adminCssPlugin()],
 
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the

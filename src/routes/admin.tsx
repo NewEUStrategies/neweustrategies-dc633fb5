@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { isEventStudioPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
+import adminCss from "@/admin-styles.css?url";
 
 export const Route = createFileRoute("/admin")({
   // Auth stan jest w localStorage (Supabase), więc SSR-owy render szkicu
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/admin")({
   ssr: false,
   head: () => ({
     meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Admin" }],
+    links: [{ rel: "stylesheet", href: adminCss }],
   }),
   component: AdminLayout,
 });

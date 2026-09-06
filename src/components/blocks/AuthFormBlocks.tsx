@@ -29,6 +29,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import "@/lib/i18n-public";
+import "@/lib/i18n-public-auth";
 import { Button } from "@/components/ui/button";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";

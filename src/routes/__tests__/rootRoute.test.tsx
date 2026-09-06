@@ -284,6 +284,7 @@ describe("__root loader", () => {
   it("z chrome'em grzeje menu main + footer RÓWNOLEGLE z falą 1", async () => {
     h.chrome = true;
     await runLoader(qc);
+    await vi.dynamicImportSettled();
     expect(h.menus.sort()).toEqual(["footer", "main"]);
   });
 
@@ -319,6 +320,7 @@ describe("__root loader", () => {
   it("wiszące, ale NADAL LECĄCE menu ZOSTAJE - usunięcie go byłoby utratą danych", async () => {
     h.menusHang = true;
     await runLoader(qc);
+    await vi.dynamicImportSettled();
     expect(qc.getQueryState(["menu-with-items", "main"])?.fetchStatus).toBe("fetching");
     h.menusHang = false;
   });

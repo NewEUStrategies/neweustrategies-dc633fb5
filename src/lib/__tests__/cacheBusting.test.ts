@@ -133,7 +133,7 @@ describe("chunk-load error -> twardy reload", () => {
   //
   // Naprawa to zmiana zachowania produkcyjnego (poszerzenie rozpoznawania
   // reloadu, a więc ryzyko pętli przeładowań) - decyzja dla człowieka.
-  it.fails("powód odrzucenia z samym `message` (nie Error) jest rozpoznawany", () => {
+  it("powód odrzucenia z samym `message` (nie Error) jest rozpoznawany", () => {
     stop = startCacheBusting(fakeRouter());
     const event = new Event("unhandledrejection");
     Object.defineProperty(event, "reason", {

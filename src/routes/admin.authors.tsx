@@ -60,41 +60,51 @@ function Authors() {
 
   // Wspólny cache z /admin/users - obie strony aktualizują się razem po
   // imporcie zespołu, zaproszeniach czy zmianie ról.
-  const { data: allUsers } = useQuery(adminUsersQueryOptions(tenantId));
+  const usersQ = useQuery(adminUsersQueryOptions(tenantId));
+  const authors = useMemo(
+    () => (usersQ.data ?? []).filter((user) => user.roles.some((role) => AUTHOR_ROLES.has(role))),
+    [usersQ.data],
+  );
+  const authorIds = authors.map((author) => author.id).sort();
 
-  const { data: rows, isLoading } = useQuery({
-    queryKey: ["admin-authors-posts", tenantId, (allUsers ?? []).length],
-    enabled: !!allUsers,
-    queryFn: async (): Promise<AuthorRow[]> => {
-      const authors = (allUsers ?? []).filter((r) =>
-        r.roles.some((role) => AUTHOR_ROLES.has(role)),
-      );
-      const ids = authors.map((a) => a.id);
+  const countsQ = useQuery({
+    queryKey: ["admin-authors-posts", tenantId, authorIds],
+    enabled: !!usersQ.data,
+    queryFn: async () => {
       const counts = new Map<string, number>();
-      if (ids.length > 0) {
-        const { data: postRows } = await supabase
+      if (authorIds.length > 0) {
+        const { data: postRows, error } = await supabase
           .from("posts")
           .select("author_id")
-          .in("author_id", ids)
+          .eq("tenant_id", tenantId)
+          .in("author_id", authorIds)
           .eq("status", "published")
           .is("deleted_at", null);
+        if (error) throw error;
         for (const row of postRows ?? []) {
           const key = (row as { author_id: string | null }).author_id ?? "";
           if (!key) continue;
           counts.set(key, (counts.get(key) ?? 0) + 1);
         }
       }
-      return authors.map((a) => ({
+      return Object.fromEntries(counts);
+    },
+  });
+  // Profile changes must be reflected even when the number of users is unchanged.
+  const rows = useMemo<AuthorRow[]>(
+    () =>
+      authors.map((a) => ({
         id: a.id,
         display_name: a.display_name,
         email: a.email,
         avatar_url: a.avatar_url,
         slug: a.slug,
         roles: a.roles,
-        posts_count: counts.get(a.id) ?? 0,
-      }));
-    },
-  });
+        posts_count: countsQ.data?.[a.id] ?? 0,
+      })),
+    [authors, countsQ.data],
+  );
+  const isLoading = usersQ.isPending || countsQ.isLoading;
 
   const expertById = useMemo(
     () => new Map(directory.experts.map((e) => [e.id, e] as const)),
@@ -123,11 +133,11 @@ function Authors() {
       .sort(
         (a, b) =>
           b.posts_count - a.posts_count ||
-          (a.display_name ?? "").localeCompare(b.display_name ?? "", undefined, {
+          (a.display_name ?? "").localeCompare(b.display_name ?? "", lang, {
             sensitivity: "base",
           }),
       );
-  }, [rows, q, areaId, programId, expertById]);
+  }, [rows, q, areaId, programId, expertById, lang]);
 
   const label = (key: string, pl: string, en: string) =>
     t(key, { defaultValue: lang === "pl" ? pl : en });
@@ -225,7 +235,15 @@ function Authors() {
         </div>
       )}
 
-      {isLoading ? (
+      {usersQ.isError || countsQ.isError ? (
+        <p role="alert">
+          {label(
+            "admin.authors.loadError",
+            "Nie udało się pobrać autorów i liczby publikacji.",
+            "Could not load authors and publication counts.",
+          )}
+        </p>
+      ) : isLoading ? (
         <div className="text-sm text-muted-foreground">
           {label("admin.loading", "Ładowanie...", "Loading...")}
         </div>

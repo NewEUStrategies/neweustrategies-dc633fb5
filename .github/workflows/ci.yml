@@ -13,6 +13,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Date-sensitive fixtures use a fixed runner timezone; public render tests
+# independently verify Europe/Warsaw formatting and SSR/client parity.
+env:
+  TZ: UTC
+
 # Cancel superseded runs on the same ref.
 concurrency:
   group: ci-${{ github.ref }}
@@ -752,7 +757,7 @@ jobs:
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 
@@ -761,6 +766,22 @@ jobs:
       # `vitest run`, so the gate was local-only and could silently rot).
       - name: Test + coverage gate
         run: bun run test:coverage
+
+      - name: Platform module — all four coverage metrics at least 95%
+        if: ${{ !cancelled() }}
+        run: bun run check:platform-coverage
+
+      - name: Preserve coverage and test accounting, including failed runs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            coverage/
+            reports/platform-coverage.json
+            reports/test-accounting.json
 
   # ── BUILD I BRAMKI ARTEFAKTU: OSOBNY JOB ────────────────────────────────────
   #
@@ -1207,7 +1228,7 @@ jobs:
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 

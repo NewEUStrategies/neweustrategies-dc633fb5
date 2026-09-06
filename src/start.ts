@@ -49,8 +49,8 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
     if (
       error &&
       typeof error === "object" &&
-      ("statusCode" in error || "status" in error) &&
-      typeof (error as { statusCode?: number; status?: number }).statusCode !== "undefined"
+      (typeof (error as { statusCode?: unknown }).statusCode === "number" ||
+        typeof (error as { status?: unknown }).status === "number")
     ) {
       throw error;
     }

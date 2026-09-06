@@ -1298,6 +1298,7 @@ export const pl = {
       meteringMeterMembers: "Licz artykuły „tylko dla zalogowanych”",
       meteringShowCounter: "Pokazuj licznik „X z N” nad artykułem",
       meteringSaved: "Zapisano ustawienia meteringu",
+      readError: "Nie udało się wczytać ustawień. Spróbuj ponownie.",
       meteringSaveError: "Nie udało się zapisać ustawień meteringu.",
       meteringImpactTitle: "Podgląd wpływu na bieżący miesiąc",
       meteringImpactDisabled:

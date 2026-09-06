@@ -24,8 +24,12 @@
 // przerwanie przebiegu (Ctrl+C, `--bail`) daje `reason === "interrupted"`
 // i wtedy bramka milczy, bo brak wyniku jest wówczas oczekiwany.
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
 interface ReportedTest {
   result: () => { state: string };
+  options?: { fails?: boolean };
 }
 
 interface ReportedModule {
@@ -35,6 +39,12 @@ interface ReportedModule {
 }
 
 export default class TestAccountingReporter {
+  private coverageDirectory?: string;
+
+  onInit(context: { config: { coverage: { enabled: boolean; reportsDirectory: string } } }): void {
+    if (context.config.coverage.enabled)
+      this.coverageDirectory = context.config.coverage.reportsDirectory;
+  }
   onTestRunEnd(
     testModules: ReadonlyArray<ReportedModule>,
     _unhandledErrors: ReadonlyArray<unknown>,
@@ -45,13 +55,22 @@ export default class TestAccountingReporter {
     let collected = 0;
     let reported = 0;
     const offenders: string[] = [];
+    const outcomes = { passed: 0, expectedFailed: 0, failed: 0, skipped: 0, pending: 0 };
 
     for (const mod of testModules) {
       let total = 0;
       let pending = 0;
       for (const test of mod.children.allTests()) {
         total += 1;
-        if (test.result().state === "pending") pending += 1;
+        const state = test.result().state;
+        if (state === "pending") {
+          pending += 1;
+          outcomes.pending += 1;
+        } else if (state === "passed") {
+          if (test.options?.fails) outcomes.expectedFailed += 1;
+          else outcomes.passed += 1;
+        } else if (state === "failed") outcomes.failed += 1;
+        else if (state === "skipped") outcomes.skipped += 1;
       }
       collected += total;
       reported += total - pending;
@@ -62,13 +81,39 @@ export default class TestAccountingReporter {
       }
     }
 
-    if (!offenders.length && collected === reported) return;
+    mkdirSync("reports", { recursive: true });
+    const report =
+      JSON.stringify(
+        {
+          generatedAt: new Date().toISOString(),
+          commit: process.env.GITHUB_SHA ?? null,
+          node: process.version,
+          timezone: process.env.TZ ?? null,
+          modules: testModules.length,
+          collected,
+          reported,
+          outcomes,
+          unhandledErrors: _unhandledErrors.length,
+          complete: !offenders.length && collected === reported && !_unhandledErrors.length,
+          offenders,
+        },
+        null,
+        2,
+      ) + "\n";
+    writeFileSync("reports/test-accounting.json", report);
+    if (this.coverageDirectory) {
+      mkdirSync(this.coverageDirectory, { recursive: true });
+      writeFileSync(join(this.coverageDirectory, "test-accounting.json"), report);
+    }
+
+    if (!offenders.length && collected === reported && !_unhandledErrors.length) return;
 
     const missing = collected - reported;
     const lines = [
       "",
       "⎯⎯⎯⎯⎯⎯ RACHUNEK TESTÓW SIĘ NIE DOMYKA ⎯⎯⎯⎯⎯⎯",
       `Zebrano ${collected} przypadków, wynik zwróciło ${reported}. Brakuje ${missing}.`,
+      `Nieobsłużone błędy procesu: ${_unhandledErrors.length}.`,
       "Pliki, których to dotyczy:",
       ...offenders,
       "",
