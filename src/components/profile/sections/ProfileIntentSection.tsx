@@ -103,6 +103,8 @@ export function ProfileIntentSection({ editable = true }: { editable?: boolean }
 
   const [draft, setDraft] = useState<ProfileIntentDraft>(EMPTY_INTENT_DRAFT);
   const [dirty, setDirty] = useState(false);
+  const [textLang, setTextLang] = useState<"pl" | "en">(lang === "en" ? "en" : "pl");
+
 
   // Serwer jest źródłem prawdy do pierwszej edycji użytkownika; po niej
   // szanujemy niezapisany szkic (odświeżenie cache nie kasuje wpisanego tekstu).
