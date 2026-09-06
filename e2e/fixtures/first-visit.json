@@ -348,7 +348,7 @@
       "value": {
         "items": [
           {
-            "id": "Treść przykładowa",
+            "id": "fixture-node-1",
             "href": "/",
             "icon": "users",
             "badge": "Treść przykładowa",
@@ -360,7 +360,7 @@
             "color_dark": "#7aa7ff"
           },
           {
-            "id": "Treść przykładowa",
+            "id": "fixture-node-2",
             "href": "/",
             "icon": "messages-square",
             "badge": "Treść przykładowa",
@@ -372,7 +372,7 @@
             "color_dark": "#3fd7ab"
           },
           {
-            "id": "Treść przykładowa",
+            "id": "fixture-node-3",
             "href": "/",
             "icon": "home",
             "badge": "none",
@@ -384,7 +384,7 @@
             "color_dark": "#fa9346"
           },
           {
-            "id": "Treść przykładowa",
+            "id": "fixture-node-4",
             "href": "/",
             "icon": "landmark",
             "badge": "Treść przykładowa",
@@ -396,7 +396,7 @@
             "color_dark": "#b79bff"
           },
           {
-            "id": "Treść przykładowa",
+            "id": "fixture-node-5",
             "href": "/",
             "icon": "circle-user",
             "badge": "none",
@@ -586,7 +586,7 @@
               ]
             },
             {
-              "id": "Treść przykładowa",
+              "id": "fixture-node-6",
               "kind": "section",
               "style": {
                 "padding": {
@@ -602,7 +602,7 @@
               },
               "children": [
                 {
-                  "id": "Treść przykładowa",
+                  "id": "fixture-node-7",
                   "kind": "column",
                   "span": {
                     "mobile": 12,
@@ -611,7 +611,7 @@
                   },
                   "children": [
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-8",
                       "kind": "widget",
                       "type": "image",
                       "content": {
@@ -651,7 +651,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-9",
                       "kind": "widget",
                       "type": "text",
                       "style": {
@@ -684,7 +684,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-10",
                       "kind": "widget",
                       "type": "social-icons",
                       "content": {
@@ -701,7 +701,7 @@
                   ]
                 },
                 {
-                  "id": "Treść przykładowa",
+                  "id": "fixture-node-11",
                   "kind": "column",
                   "span": {
                     "mobile": 12,
@@ -725,7 +725,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-12",
                       "kind": "widget",
                       "type": "nav-link",
                       "style": {},
@@ -743,7 +743,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-13",
                       "kind": "widget",
                       "type": "nav-link",
                       "content": {
@@ -760,7 +760,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-14",
                       "kind": "widget",
                       "type": "nav-link",
                       "content": {
@@ -777,7 +777,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-15",
                       "kind": "widget",
                       "type": "nav-link",
                       "content": {
@@ -796,7 +796,7 @@
                   ]
                 },
                 {
-                  "id": "Treść przykładowa",
+                  "id": "fixture-node-16",
                   "kind": "column",
                   "span": {
                     "mobile": 12,
@@ -820,7 +820,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-17",
                       "kind": "widget",
                       "type": "nav-link",
                       "content": {
@@ -837,7 +837,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-18",
                       "kind": "widget",
                       "type": "nav-link",
                       "content": {
@@ -854,7 +854,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-19",
                       "kind": "widget",
                       "type": "nav-link",
                       "content": {
@@ -871,7 +871,7 @@
                       }
                     },
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-20",
                       "kind": "widget",
                       "type": "nav-link",
                       "content": {
@@ -892,7 +892,7 @@
               ]
             },
             {
-              "id": "Treść przykładowa",
+              "id": "fixture-node-21",
               "kind": "section",
               "style": {
                 "padding": {
@@ -907,14 +907,14 @@
               },
               "children": [
                 {
-                  "id": "Treść przykładowa",
+                  "id": "fixture-node-22",
                   "kind": "column",
                   "span": {
                     "desktop": 12
                   },
                   "children": [
                     {
-                      "id": "Treść przykładowa",
+                      "id": "fixture-node-23",
                       "kind": "widget",
                       "type": "copyright",
                       "content": {

@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  startTransition,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -131,9 +139,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Listener już obsłużył INITIAL_SESSION dla tej samej sesji - tu tylko
         // domykamy `loading`, żeby konsument (route guards, header) mógł się
         // odpalić bez dodatkowego round-tripu.
-        setSession(data.session);
-        ensureContext(data.session?.user?.id ?? null);
-        setSessionLoading(false);
+        // Settling the initial session updates every auth consumer, including
+        // public builder sections. An urgent update here discards their SSR
+        // content if a lazy widget has not hydrated yet. Keep that content
+        // visible while React completes hydration. Logout and later identity
+        // changes below/onAuthStateChange remain immediate.
+        startTransition(() => {
+          setSession(data.session);
+          ensureContext(data.session?.user?.id ?? null);
+          setSessionLoading(false);
+        });
       });
     } catch (error) {
       console.error("[auth] Supabase client unavailable - continuing signed-out", error);

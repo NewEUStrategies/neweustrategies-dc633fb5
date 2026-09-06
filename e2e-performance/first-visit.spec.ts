@@ -14,6 +14,7 @@ declare global {
       lcp: number;
       cls: number;
       shifts: Array<{ at: number; value: number; nodes: string[] }>;
+      serverTitle?: Element;
     };
   }
 }
@@ -67,6 +68,14 @@ for (const [path, lang] of [
       });
       await page.addInitScript(() => {
         window.__firstVisit = { readyAt: null, lcp: 0, cls: 0, shifts: [] };
+        const serverContent = new MutationObserver(() => {
+          const title = document.querySelector("main .cms-post-title");
+          if (title) {
+            window.__firstVisit.serverTitle = title;
+            serverContent.disconnect();
+          }
+        });
+        serverContent.observe(document, { childList: true, subtree: true });
         let ready = false;
         Object.defineProperty(window, "__nesAppReady", {
           configurable: true,
@@ -159,6 +168,7 @@ for (const [path, lang] of [
           lcpMs: window.__firstVisit.lcp,
           cls: window.__firstVisit.cls,
           shifts: window.__firstVisit.shifts,
+          serverTitleRetained: window.__firstVisit.serverTitle?.isConnected ?? false,
           jsBytes: resources
             .filter((entry) => /\.js(?:\?|$)/.test(entry.name))
             .reduce((sum, entry) => sum + entry.encodedBodySize, 0),
@@ -193,6 +203,9 @@ for (const [path, lang] of [
       // The comparison job measures the base commit with the same content and
       // interaction assertions. Only the candidate must meet the new budgets.
       if (process.env.NES_PERFORMANCE_BASELINE === "1") return;
+      expect(result.serverTitleRetained, "hydration must retain the server-rendered article").toBe(
+        true,
+      );
       expect(
         result.inlineCssBytes,
         "inline builder CSS is part of the first document",

@@ -20,6 +20,12 @@ dużego kosztu parsowania dokumentu i uruchamiania kodu klienta przy pierwszym w
 - `Server-Timing` rozdziela inicjalizację entry od obsługi żądania. `app` obejmuje
   middleware i odczyt cache, ale nie transmisję ani późniejszy streaming body.
   `__nesAppReadyAt` zapisuje pierwszą gotowość względem początku nawigacji.
+- Domknięcie początkowego odczytu sesji i aktualizacje motywu używają tranzycji
+  React. Test hydratacji odtworzył usuwanie gotowego artykułu SSR, kiedy sesja
+  gościa rozstrzygała się przed pobraniem kodu leniwego widgetu. Po poprawce
+  zachowany jest ten sam element DOM. Późniejsze zmiany tożsamości i wylogowanie
+  nadal działają natychmiast. Kolor motywu reaguje natychmiast także wtedy,
+  gdy aktualizacja kontekstu czeka na gotowość potomka.
 
 ## Zmierzone lokalnie na jednakowych buildach produkcyjnych
 
@@ -52,10 +58,15 @@ FCP, LCP, gotowość i zakończenie kliknięcia od początku nawigacji. Nie odej
 czasu czekania na pierwszy HTML. Zapisuje JSON, screenshoty oraz trace awarii.
 Osobne testy sprawdzają obliczone style typografii dla desktop/tablet/mobile.
 
-Workflow `first-visit.yml` buduje wersję bazową i kandydata oddzielnie, ale używa
-tego samego syntetycznego układu, przeglądarki i testów. Obie wersje muszą pokazać treść i
+Workflow `first-visit.yml` buduje i mierzy wersję bazową oraz kandydata kolejno
+na jednym runnerze, z tym samym syntetycznym układem, przeglądarką i testami.
+Wcześniejsze próby na osobnych runnerach nie służą do wyliczania przyspieszenia.
+Obie wersje muszą pokazać treść i
 obsłużyć kliknięcie. Nowe budżety blokują kandydata: TTFB <2 s, FCP/LCP <2,5 s,
 gotowość <3 s, wykonana interakcja <3,5 s, CLS <0,1 oraz limity HTML/CSS.
+Kandydat musi też zachować oryginalny tytuł SSR podczas hydratacji. Raport
+CLS używa największego okna sesji (maks. 5 s, przerwa poniżej 1 s) i wskazuje
+elementy odpowiedzialne za przesunięcia przed interakcją.
 
 To kontrolowane laboratorium bez throttlingu, nie produkcyjny p75 ani INP.
 Nowy kontekst oznacza zimny cache przeglądarki; kolejne próby rozgrzewają cache
