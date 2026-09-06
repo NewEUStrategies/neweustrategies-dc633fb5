@@ -220,7 +220,7 @@ async function mountPane(stored?: Record<string, unknown>) {
   if (stored) sb().setSetting("theme_options", stored);
   const view = mountSettingsPane(<ThemeOptionsPane />, { wrapper: themeWrapper });
   await waitFor(() =>
-    expect(view.container.querySelectorAll('[data-sidebar="menu-button"]')).toHaveLength(17),
+    expect(view.container.querySelectorAll('[data-sidebar="menu-button"]')).toHaveLength(18),
   );
   return view;
 }
