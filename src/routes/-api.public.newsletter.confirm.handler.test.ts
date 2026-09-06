@@ -13,6 +13,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
 import { routeServerHandlers } from "@/test/routeHarness";
+import { DZIEN, freezeClock, relativeIso } from "@/test/time";
+
+// ZAMROŻENIE NA POZIOMIE PLIKU, nie pojedynczego testu.
+//
+// Ta trasa rozstrzyga WAŻNOŚĆ tokenu, czyli porównuje `confirmation_expires_at`
+// z prawdziwym zegarem. Fabryka `pendingRow()` nosiła termin ważności jako
+// literał kalendarzowy (`2026-12-31`), więc cały plik miał datę przydatności:
+// zmierzone przy CLOCK_SHIFT=1y - 8 czerwonych z 20, wszystkie z jednego
+// powodu („expected 410 to be 200"), bo token wygasał zanim test go użył.
+//
+// Zamrożony był DOKŁADNIE JEDEN test - ten, w którym data potwierdzenia wchodzi
+// do asercji. To ten sam wzorzec, co w darowiznach: zamrożenie stosowane tam,
+// gdzie wymuszała je asercja, a nie tam, gdzie wymagała go reguła czasu.
+freezeClock();
 
 const h = vi.hoisted(() => ({ sendTxEmail: vi.fn() }));
 
@@ -42,7 +56,9 @@ function pendingRow(overrides: Record<string, unknown> = {}): Record<string, unk
   return {
     id: "sub-1",
     status: "pending",
-    confirmation_expires_at: "2026-12-31T00:00:00.000Z",
+    // WZGLĘDNY, nie kalendarzowy: token ma być WAŻNY w każdym przebiegu, a nie
+    // do końca 2026 roku.
+    confirmation_expires_at: relativeIso(7 * DZIEN),
     tenant_id: "tenant-1",
     email: "nowy@example.test",
     language: "pl",
@@ -128,7 +144,7 @@ describe("odmowy", () => {
   it("token WYGASŁY to 410, a subskrypcja zostaje `pending`", async () => {
     db.setResponse(
       SUBSCRIBERS,
-      ok(pendingRow({ confirmation_expires_at: "2020-01-01T00:00:00Z" })),
+      ok(pendingRow({ confirmation_expires_at: relativeIso(-1 * DZIEN) })),
     );
 
     const res = await get();
@@ -170,9 +186,9 @@ describe("idempotencja ponownego kliknięcia", () => {
 
 describe("potwierdzenie", () => {
   it("ustawia status i datę potwierdzenia oraz kasuje termin ważności", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-18T10:00:00.000Z"));
-
+    // Lokalne `vi.useFakeTimers()` zniknęło - zegar zamraża cały plik. Asercja
+    // bez zmian co do treści: data potwierdzenia to DOKŁADNIE „teraz", a termin
+    // ważności zostaje wyczyszczony.
     const res = await get();
 
     expect(res.status).toBe(200);
@@ -182,10 +198,9 @@ describe("potwierdzenie", () => {
       ?.argsOf("update")?.[0];
     expect(update).toEqual({
       status: "subscribed",
-      confirmed_at: "2026-08-18T10:00:00.000Z",
+      confirmed_at: relativeIso(0),
       confirmation_expires_at: null,
     });
-    vi.useRealTimers();
   });
 
   it("aktualizuje dokładnie ten jeden wiersz", async () => {

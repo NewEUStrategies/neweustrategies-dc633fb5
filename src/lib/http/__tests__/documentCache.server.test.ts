@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MINUTA, advanceClock } from "@/test/time";
 
 import { DOCUMENT_CACHE_MAX_ENTRY_BYTES, NES_CACHE_HEADER } from "@/lib/http/documentCache";
 import {
@@ -218,7 +219,7 @@ describe("handleDocumentRequest", () => {
     });
 
     // Poza oknem świeżości (cap 3 min), wewnątrz okna SWR.
-    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    advanceClock(10 * MINUTA);
     const failingNext = vi.fn(async () => {
       throw new Error("db hiccup");
     });
@@ -271,7 +272,7 @@ describe("stale-while-revalidate za odpowiedzią", () => {
     await vi.waitFor(async () => {
       expect((await probeDocumentCache(path, "tenant-a.eu")).cached).toBe(true);
     });
-    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    advanceClock(10 * MINUTA);
   }
 
   it("czytelnik dostaje STALE bez czekania na render, a wpis odświeża się w tle", async () => {

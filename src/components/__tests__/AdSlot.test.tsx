@@ -50,6 +50,8 @@ const h = vi.hoisted(() => ({
   granted: true,
   placements: null as unknown[] | null,
   events: [] as Array<{ kind: string; slotId: string; placementId: string }>,
+  /** Propsy, z jakimi `AdSlotView` wołał ramkę - do dowodu PODŁĄCZENIA. */
+  frameProps: [] as Array<{ markup: string; title: string; onEngage?: () => void }>,
 }));
 
 vi.mock("@/lib/ads/consent", () => ({
@@ -71,6 +73,25 @@ vi.mock("@/lib/analytics/events", () => ({
   },
   beaconPopupEvent: () => {},
 }));
+
+// Ramka zostaje PRAWDZIWA - ten mock wyłącznie ZAPISUJE propsy, z jakimi
+// `AdSlotView` ją woła, i przekazuje je dalej bez zmian. Dzięki temu jeden
+// test może dowieść PODŁĄCZENIA (czy `onEngage` niesie właściwe
+// identyfikatory) bez dotykania `window.blur` ani `document.activeElement`,
+// a drugi - STABILNOŚCI TOŻSAMOŚCI tego wywołania zwrotnego między renderami.
+// Sama HEURYSTYKA SafeFrame ma własny dom i pięć przypadków w
+// `src/components/ads/__tests__/adAtoms.test.tsx` („SandboxedAdFrame - pomiar
+// interakcji (onEngage)", linie 393-455) - tutaj nie jest powtarzana.
+vi.mock("@/components/ads/atoms/SandboxedAdFrame", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/ads/atoms/SandboxedAdFrame")>();
+  const { createElement } = await import("react");
+  return {
+    SandboxedAdFrame: (props: { markup: string; title: string; onEngage?: () => void }) => {
+      h.frameProps.push(props);
+      return createElement(real.SandboxedAdFrame, props);
+    },
+  };
+});
 
 import { AdZone } from "@/components/AdSlot";
 
@@ -157,15 +178,48 @@ async function settleGates(): Promise<void> {
   });
 }
 
+/**
+ * Liczy przypięcia i odpięcia nasłuchu `blur` NA OKNIE.
+ *
+ * Po co licznik, a nie zwykłe `expect` na skutku: zdarzenie `blur` wysłane w
+ * chwili, gdy nasłuch jest właśnie przepinany, nie trafia w nikogo. Test, który
+ * sprawdza tylko skutek, jest wtedy wyścigiem - a owinięcie asercji w `waitFor`
+ * albo `retry` przechodziłoby TAKŻE wtedy, gdy nasłuch przepina się w kółko,
+ * czyli zamiatałoby dokładnie tę wadę, o którą tu chodzi. Dlatego najpierw
+ * dowodzimy, że nasłuch ISTNIEJE, i dopiero potem wysyłamy zdarzenie.
+ */
+function sledzNasluchBlur(): { live: number; adds: number; removes: number } {
+  const realAdd = window.addEventListener.bind(window);
+  const realRemove = window.removeEventListener.bind(window);
+  const stan = { live: 0, adds: 0, removes: 0 };
+  vi.spyOn(window, "addEventListener").mockImplementation((type, listener, options) => {
+    if (type === "blur") {
+      stan.live += 1;
+      stan.adds += 1;
+    }
+    return realAdd(type, listener as EventListener, options);
+  });
+  vi.spyOn(window, "removeEventListener").mockImplementation((type, listener, options) => {
+    if (type === "blur") {
+      stan.live -= 1;
+      stan.removes += 1;
+    }
+    return realRemove(type, listener as EventListener, options);
+  });
+  return stan;
+}
+
 beforeEach(() => {
   h.granted = true;
   h.placements = null;
   h.events.length = 0;
+  h.frameProps.length = 0;
   globalThis.IntersectionObserver = ImmediateIntersectionObserver;
 });
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   globalThis.IntersectionObserver = ORIGINAL_IO;
 });
 
@@ -261,13 +315,35 @@ describe("AdSlotView - pomiar zaangażowania", () => {
     expect(h.events).toEqual([]);
   });
 
-  it("interakcja z kreacją HTML w sandboxie melduje kliknięcie, choć nie bąbelkuje do strony", async () => {
+  it("kreacja HTML w sandboxie melduje kliknięcie DOKŁADNIE raz, mimo przerenderowań slotu", async () => {
+    // Ten przypadek pilnuje trzech rzeczy naraz i każda z nich była wcześniej
+    // niesprawdzona:
+    //  1. nasłuch `blur` JEST przypięty, zanim poleci zdarzenie (asercja na
+    //     obecność, nie na skutek - bez `waitFor` wokół `expect` na zdarzeniu);
+    //  2. przerenderowanie slotu NIE przepina tego nasłuchu (to jest dowód
+    //     neutralności `useCallback` z `AdSlot.tsx` - przed tą zmianą każdy
+    //     render wykonywał parę remove/add, więc `adds` rosło z każdym
+    //     przerenderowaniem i ten przypadek był CZERWONY);
+    //  3. jedno zdarzenie `blur` daje DOKŁADNIE jedno zgłoszenie kliknięcia,
+    //     czyli stabilizacja tożsamości niczego nie zdublowała.
+    const nasluch = sledzNasluchBlur();
     h.placements = [
       placement("p1", { kind: "html", html: "<b>kreacja</b>", image_url: null, image_link: null }),
     ];
 
-    renderZone();
+    const { rerender } = renderZone();
     await settleGates();
+    await waitFor(() => {
+      expect(nasluch.live).toBe(1);
+    });
+
+    // Dwa wymuszone przerenderowania rodzica. `AdSlotView` jest `memo`, więc
+    // zmiana klasy strefy jest tu najkrótszą drogą do renderu, który W
+    // PRODUKCJI wywołuje dowolna zmiana kontekstu zgody albo bramek odroczenia.
+    rerender(<AdZone position="top_of_post" pageType="post" className="strefa-a" />);
+    rerender(<AdZone position="top_of_post" pageType="post" className="strefa-b" />);
+
+    expect({ adds: nasluch.adds, removes: nasluch.removes }).toEqual({ adds: 1, removes: 0 });
 
     const frame = document.querySelector<HTMLIFrameElement>("iframe");
     expect(frame).not.toBeNull();
@@ -278,10 +354,20 @@ describe("AdSlotView - pomiar zaangażowania", () => {
       window.dispatchEvent(new Event("blur"));
     });
 
-    expect(h.events.at(-1)).toEqual({ kind: "click", slotId: "slot-1", placementId: "p1" });
+    expect(h.events.filter((zdarzenie) => zdarzenie.kind === "click")).toEqual([
+      { kind: "click", slotId: "slot-1", placementId: "p1" },
+    ]);
   });
 
-  it("kreacja skryptowa raportuje zaangażowanie tym samym kanałem co HTML", async () => {
+  it("kreacja skryptowa dostaje ten sam kanał zgłoszeń co HTML - z właściwymi identyfikatorami", async () => {
+    // PODŁĄCZENIE, nie heurystyka: tu sprawdzamy wyłącznie, że `AdSlotView`
+    // przekazuje ramce wywołanie zwrotne, które melduje kliknięcie WŁAŚCIWEGO
+    // slotu i placementu. Żadnego `window.blur`, żadnego `activeElement` -
+    // czym jest sygnał zaangażowania i kiedy wypada, dowodzi
+    // `adAtoms.test.tsx`. Rozdzielenie tych dwóch rzeczy jest całym sensem
+    // zmiany: wcześniej jeden przypadek zakładał naraz, że efekt ramki się
+    // wykonał, że fokus jest dokładnie na niej i że nic się między tym nie
+    // przerenderowało.
     h.placements = [
       placement("p1", {
         kind: "script",
@@ -294,16 +380,40 @@ describe("AdSlotView - pomiar zaangażowania", () => {
     renderZone();
     await settleGates();
 
-    const frame = document.querySelector<HTMLIFrameElement>("iframe");
-    expect(frame).not.toBeNull();
-    if (!frame) return;
+    const przekazane = h.frameProps.at(-1);
+    expect(przekazane?.markup).toBe("<script>void 0;</" + "script>");
+    expect(typeof przekazane?.onEngage).toBe("function");
+
     act(() => {
-      frame.focus();
-      window.dispatchEvent(new Event("blur"));
+      przekazane?.onEngage?.();
     });
 
-    expect(h.events.filter((e) => e.kind === "click")).toHaveLength(1);
+    expect(h.events.filter((zdarzenie) => zdarzenie.kind === "click")).toEqual([
+      { kind: "click", slotId: "slot-1", placementId: "p1" },
+    ]);
     // Skrypt kreacji nigdy nie ląduje w drzewie strony - tylko w srcdoc ramki.
     expect(document.querySelectorAll("script[src]")).toHaveLength(0);
+  });
+
+  it("wywołanie zwrotne ramki ma STAŁĄ tożsamość między renderami slotu", async () => {
+    // Druga połowa dowodu neutralności z `AdSlot.tsx`: to `useCallback` trzyma
+    // tożsamość, a nie przypadek. Bez niego każdy render tworzył nową strzałkę,
+    // co unieważniało `memo` ramki I przepinało nasłuch `blur` na oknie. Test
+    // patrzy wprost na props, więc nie zależy od żadnego zdarzenia ani zegara.
+    h.placements = [
+      placement("p1", { kind: "html", html: "<b>kreacja</b>", image_url: null, image_link: null }),
+    ];
+
+    const { rerender } = renderZone();
+    await settleGates();
+
+    const pierwsze = h.frameProps.at(-1)?.onEngage;
+    rerender(<AdZone position="top_of_post" pageType="post" className="strefa-a" />);
+    rerender(<AdZone position="top_of_post" pageType="post" className="strefa-b" />);
+    const ostatnie = h.frameProps.at(-1)?.onEngage;
+
+    expect(h.frameProps.length).toBeGreaterThan(1);
+    expect(typeof pierwsze).toBe("function");
+    expect(ostatnie).toBe(pierwsze);
   });
 });

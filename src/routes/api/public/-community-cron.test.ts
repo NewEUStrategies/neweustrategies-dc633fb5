@@ -72,6 +72,7 @@
 // i nigdy nie zapisywany na stałe. Wariant „zły sekret" ma DOKŁADNIE tę samą
 // długość co dobry, żeby odmowa nie mogła brać się z długości bufora.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { advanceClock } from "@/test/time";
 import { randomBytes } from "node:crypto";
 import type { SupabaseFromStub } from "@/test/supabaseChain";
 import type {
@@ -1167,7 +1168,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
   /** Kanał `step` "trwa" `ms` - przesuwa zamrożony zegar w chwili startu pracy. */
   function slowStep(step: string, ms: number): void {
     jobs.beforeStep = (current) => {
-      if (current === step) vi.setSystemTime(Date.now() + ms);
+      if (current === step) advanceClock(ms);
     };
   }
 
