@@ -15,6 +15,9 @@ import type { Database } from "@/integrations/supabase/types";
 import type { SitemapSection } from "@/lib/seo/sitemapIndex";
 import type { SitemapEntry } from "@/lib/seo/sitemapXml";
 
+import { readPublishedPagePaths as buildPagePaths } from "./publishedPagePaths.server";
+import { readPagedRows } from "./pagedRows.server";
+
 type DbClient = SupabaseClient<Database>;
 
 export type { SitemapEntry };
@@ -52,33 +55,6 @@ export function coreSitemapEntries(origin: string): SitemapEntry[] {
   ];
 }
 
-/**
- * Ścieżki WSZYSTKICH opublikowanych stron (strona noindex nadal jest rodzicem
- * indeksowalnych wpisów, więc zostaje w mapie ścieżek) + zbiór id stron
- * wykluczonych z własnego wpisu flagą `seo_noindex`.
- */
-async function buildPagePaths(
-  admin: DbClient,
-  tenantId: string,
-): Promise<{ paths: Map<string, string>; noindex: Set<string> }> {
-  const { data } = await admin
-    .from("pages")
-    .select("id, seo_noindex")
-    .eq("tenant_id", tenantId)
-    .eq("status", "published")
-    .is("deleted_at", null);
-  const rows = (data ?? []) as Array<{ id: string; seo_noindex: boolean }>;
-  const noindex = new Set(rows.filter((r) => r.seo_noindex).map((r) => r.id));
-  const paths = new Map<string, string>();
-  await Promise.all(
-    rows.map(async ({ id }) => {
-      const { data: p } = await admin.rpc("page_full_path", { _page_id: id });
-      if (typeof p === "string") paths.set(id, p);
-    }),
-  );
-  return { paths, noindex };
-}
-
 /** Kolektory sekcji. Każdy dostaje leniwie zbudowaną mapę ścieżek stron. */
 type SectionCollector = (ctx: {
   admin: DbClient;
@@ -102,13 +78,17 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
 
   async posts({ admin, tenantId, origin, pagePaths }) {
     const { paths } = await pagePaths();
-    const { data } = await admin
-      .from("posts")
-      .select("slug, parent_page_id, updated_at, published_at")
-      .eq("tenant_id", tenantId)
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .eq("seo_noindex", false);
+    const { data } = await readPagedRows((from, to) =>
+      admin
+        .from("posts")
+        .select("slug, parent_page_id, updated_at, published_at", { count: "exact" })
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .eq("seo_noindex", false)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     const out: SitemapEntry[] = [];
     for (const row of data ?? []) {
       const p = row as {
@@ -133,8 +113,22 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
   // zlokalizowane metadane, breadcrumbs i schema CollectionPage.
   async taxonomy({ admin, tenantId, origin }) {
     const [{ data: categories }, { data: tags }] = await Promise.all([
-      admin.from("categories").select("slug, created_at").eq("tenant_id", tenantId),
-      admin.from("tags").select("slug, created_at").eq("tenant_id", tenantId),
+      readPagedRows((from, to) =>
+        admin
+          .from("categories")
+          .select("slug, created_at", { count: "exact" })
+          .eq("tenant_id", tenantId)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
+      readPagedRows((from, to) =>
+        admin
+          .from("tags")
+          .select("slug, created_at", { count: "exact" })
+          .eq("tenant_id", tenantId)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
     ]);
     const out: SitemapEntry[] = [];
     for (const row of categories ?? []) {
@@ -162,18 +156,26 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
   // katalog audio serwisu.
   async podcasts({ admin, tenantId, origin }) {
     const [{ data: shows }, { data: episodes }] = await Promise.all([
-      admin
-        .from("podcast_shows")
-        .select("slug, updated_at")
-        .eq("tenant_id", tenantId)
-        .eq("status", "published")
-        .is("deleted_at", null),
-      admin
-        .from("podcasts")
-        .select("slug, updated_at, published_at")
-        .eq("tenant_id", tenantId)
-        .eq("status", "published")
-        .is("deleted_at", null),
+      readPagedRows((from, to) =>
+        admin
+          .from("podcast_shows")
+          .select("slug, updated_at", { count: "exact" })
+          .eq("tenant_id", tenantId)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
+      readPagedRows((from, to) =>
+        admin
+          .from("podcasts")
+          .select("slug, updated_at, published_at", { count: "exact" })
+          .eq("tenant_id", tenantId)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
     ]);
     const out: SitemapEntry[] = [];
     for (const row of shows ?? []) {
@@ -199,11 +201,15 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
 
   /** Opublikowane programy badawcze (landing page specjalizacji). */
   async programs({ admin, tenantId, origin }) {
-    const { data } = await admin
-      .from("research_programs")
-      .select("slug, updated_at, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("status", "published");
+    const { data } = await readPagedRows((from, to) =>
+      admin
+        .from("research_programs")
+        .select("slug, updated_at, created_at", { count: "exact" })
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     return (data ?? []).map((row) => {
       const pr = row as { slug: string; updated_at: string | null; created_at: string | null };
       return {
@@ -216,11 +222,15 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
   },
 
   async stories({ admin, tenantId, origin }) {
-    const { data } = await admin
-      .from("web_stories")
-      .select("slug, updated_at, published_at")
-      .eq("tenant_id", tenantId)
-      .eq("status", "published");
+    const { data } = await readPagedRows((from, to) =>
+      admin
+        .from("web_stories")
+        .select("slug, updated_at, published_at", { count: "exact" })
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     return (data ?? []).map((row) => {
       const s = row as { slug: string; updated_at: string | null; published_at: string | null };
       return {
@@ -235,11 +245,15 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
   // Dossier trackera legislacyjnego UE - tracker pozycjonuje się jako źródło
   // prawdy, każde dossier jest indeksowalną stroną.
   async tracker({ admin, tenantId, origin }) {
-    const { data } = await admin
-      .from("eu_policy_items")
-      .select("slug, updated_at, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("status", "published");
+    const { data } = await readPagedRows((from, to) =>
+      admin
+        .from("eu_policy_items")
+        .select("slug, updated_at, created_at", { count: "exact" })
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     return (data ?? []).map((row) => {
       const d = row as { slug: string; updated_at: string | null; created_at: string | null };
       return {
@@ -252,11 +266,15 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
   },
 
   async events({ admin, tenantId, origin }) {
-    const { data } = await admin
-      .from("events")
-      .select("slug, updated_at, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("status", "published");
+    const { data } = await readPagedRows((from, to) =>
+      admin
+        .from("events")
+        .select("slug, updated_at, created_at", { count: "exact" })
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     return (data ?? []).map((row) => {
       const ev = row as { slug: string; updated_at: string | null; created_at: string | null };
       return {
@@ -270,11 +288,15 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
 
   /** Publiczne sesje Q&A (poza szkicami) - strony z markupem QAPage. */
   async qa({ admin, tenantId, origin }) {
-    const { data } = await admin
-      .from("qa_sessions")
-      .select("slug, updated_at, opens_at")
-      .eq("tenant_id", tenantId)
-      .neq("status", "draft");
+    const { data } = await readPagedRows((from, to) =>
+      admin
+        .from("qa_sessions")
+        .select("slug, updated_at, opens_at", { count: "exact" })
+        .eq("tenant_id", tenantId)
+        .neq("status", "draft")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     return (data ?? []).map((row) => {
       const qa = row as { slug: string; updated_at: string | null; opens_at: string | null };
       return {
@@ -291,19 +313,37 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
    * są pełnoprawnymi landing page (indeksowalne).
    */
   async experts({ admin, tenantId, origin }) {
-    const { data: expertBadges } = await admin
-      .from("profile_badges")
-      .select("user_id")
-      .eq("tenant_id", tenantId)
-      .eq("badge", "expert");
+    const { data: expertBadges } = await readPagedRows((from, to) =>
+      admin
+        .from("profile_badges")
+        .select("user_id", { count: "exact" })
+        .eq("tenant_id", tenantId)
+        .eq("badge", "expert")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     const expertIds = Array.from(
       new Set((expertBadges ?? []).map((b) => (b as { user_id: string }).user_id)),
     );
     if (expertIds.length === 0) return [];
 
     const [{ data: expertProfiles }, { data: publicAps }] = await Promise.all([
-      admin.from("profiles").select("id, slug, updated_at").in("id", expertIds),
-      admin.from("author_profiles").select("user_id, is_public").in("user_id", expertIds),
+      readPagedRows((from, to) =>
+        admin
+          .from("profiles")
+          .select("id, slug, updated_at", { count: "exact" })
+          .in("id", expertIds)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
+      readPagedRows((from, to) =>
+        admin
+          .from("author_profiles")
+          .select("user_id, is_public", { count: "exact" })
+          .in("user_id", expertIds)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
     ]);
     const publicIds = new Set(
       (publicAps ?? [])

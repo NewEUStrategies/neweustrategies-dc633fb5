@@ -91,16 +91,16 @@ function jestOdmowa(odpowiedz: Odpowiedz): odpowiedz is { odmowa: Odmowa } {
 }
 
 /**
- * `_page_id` z ciała wywołania RPC. Strażnik zawężający w runtime, nie
+ * `_page_ids` z ciała wywołania RPC. Strażnik zawężający w runtime, nie
  * rzutowanie: ciało jest stringiem z granicy HTTP, więc test nie ma prawa
  * zakładać jego kształtu.
  */
-function pageIdZCiala(body: string): string | null {
-  if (!body) return null;
+function pageIdsZCiala(body: string): string[] {
+  if (!body) return [];
   const parsed: unknown = JSON.parse(body);
-  if (typeof parsed !== "object" || parsed === null || !("_page_id" in parsed)) return null;
-  const wartosc: unknown = parsed._page_id;
-  return typeof wartosc === "string" ? wartosc : null;
+  if (typeof parsed !== "object" || parsed === null || !("_page_ids" in parsed)) return [];
+  const wartosc: unknown = parsed._page_ids;
+  return Array.isArray(wartosc) && wartosc.every((id) => typeof id === "string") ? wartosc : [];
 }
 
 interface AtrapaAdmina {
@@ -136,7 +136,9 @@ function atrapaAdmina(plan: Plan): AtrapaAdmina {
           brakiPlanu.push(zadanie.tabela);
           return Promise.resolve(odpowiedzHttp({ wiersze: [] }));
         }
-        return Promise.resolve(odpowiedzHttp(typeof wpis === "function" ? wpis(zadanie) : wpis));
+        return Promise.resolve(
+          odpowiedzHttp(typeof wpis === "function" ? wpis(zadanie) : wpis, url.searchParams),
+        );
       },
     },
   });
@@ -147,35 +149,47 @@ function atrapaAdmina(plan: Plan): AtrapaAdmina {
   };
 }
 
-function odpowiedzHttp(odpowiedz: Odpowiedz): Response {
+function odpowiedzHttp(odpowiedz: Odpowiedz, params = new URLSearchParams()): Response {
   if (jestOdmowa(odpowiedz)) {
     return new Response(JSON.stringify({ ...odpowiedz.odmowa, details: null, hint: null }), {
       status: 403,
       headers: { "content-type": "application/json" },
     });
   }
-  return new Response(JSON.stringify(odpowiedz.wiersze), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  const rows = odpowiedz.wiersze;
+  const offset = Number(params.get("offset") ?? 0);
+  const limit = Number(params.get("limit") ?? (Array.isArray(rows) ? rows.length : 0));
+  return new Response(
+    JSON.stringify(Array.isArray(rows) ? rows.slice(offset, offset + limit) : rows),
+    {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-range": `*/${Array.isArray(rows) ? rows.length : 0}`,
+      },
+    },
+  );
 }
 
-/** Strona w planie: wynik `page_full_path` + własna flaga noindex. */
+/** Strona w planie: wynik `page_full_paths` + własna flaga noindex. */
 interface StronaPlan {
   sciezka: string | null;
   noindex?: boolean;
 }
 
-/** Plan dla `pages` + `page_full_path` (mapa ścieżek buduje się z obu). */
+/** Plan dla `pages` + `page_full_paths` (mapa ścieżek buduje się z obu). */
 function planStron(strony: Record<string, StronaPlan>): Plan {
   return {
     pages: {
       wiersze: Object.entries(strony).map(([id, s]) => ({ id, seo_noindex: s.noindex === true })),
     },
-    "rpc/page_full_path": (zadanie) => {
-      const id = pageIdZCiala(zadanie.body);
-      const wpis = id === null ? undefined : strony[id];
-      return { wiersze: wpis?.sciezka ?? null };
+    "rpc/page_full_paths": (zadanie) => {
+      return {
+        wiersze: pageIdsZCiala(zadanie.body).map((id) => ({
+          page_id: id,
+          full_path: strony[id]?.sciezka ?? null,
+        })),
+      };
     },
   };
 }
@@ -281,25 +295,7 @@ describe("sekcja pages - adresy stron z drzewa", () => {
     expect(ostrzezenia).not.toHaveBeenCalled();
   });
 
-  it.fails("strona ze slugiem pustym trafia do mapy jako duplikat strony głównej", async () => {
-    // DEFEKT (do decyzji człowieka). `sitemapEntries.server.ts:76` przyjmuje do
-    // mapy KAŻDY łańcuch, także pusty (`if (typeof p === "string")`), a kolektor
-    // `pages` (98) skleja z niego `${origin}/${path}`.
-    // MECHANIZM: `pages.slug` jest `TEXT NOT NULL` bez ograniczenia na długość
-    // (migracja 20260531182153), a `page_full_path` składa ścieżkę przez
-    // `string_agg(slug, '/')` - strona zapisana z pustym slugiem daje ścieżkę
-    // `""`, czyli adres `https://host/`. Ten sam adres wypisuje już sekcja
-    // `core` (linia 37), więc w indeksie sitemap jest DWA razy, w dwóch
-    // shardach. Bliźniacza kopia mapy ścieżek
-    // (`publishedContent.server.ts:74`) odrzuca pusty łańcuch, więc feedy
-    // widzą ten sam stan bazy inaczej niż sitemapa.
-    // KONSEKWENCJA: crawler dostaje zduplikowany `loc` (w GSC to ostrzeżenie
-    // o duplikacie w mapie), a strona z pustym slugiem nie ma w mapie własnego
-    // adresu - nigdy nie zostanie zaindeksowana pod swoim URL-em.
-    // DLACZEGO NIE NAPRAWIAM: to wybór, KTÓRA z dwóch kopii strażnika jest
-    // regułą - odrzucić stronę bez ścieżki (jak feedy) czy uznać pustą ścieżkę
-    // za korzeń serwisu. Wybór zmienia zbiór publikowanych adresów, a właściwą
-    // naprawą jest scalenie obu kopii mapy ścieżek w jedną. Decyzja projektowa.
+  it("strona z pustą ścieżką nie powiela strony głównej", async () => {
     const db = atrapaAdmina(planStron({ "p-korzen": { sciezka: "" } }));
     const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
     expect(locs(wpisy)).not.toContain(`${ORIGIN}/`);
@@ -388,34 +384,15 @@ describe("sekcja posts - adres wpisu i jego lastmod", () => {
     expect(params.get("select")).toBe("slug,parent_page_id,updated_at,published_at");
   });
 
-  it.fails(
-    "kolektor nie stronicuje odczytu wpisów - powyżej pułapu PostgREST mapa milczy",
-    async () => {
-      // DEFEKT (do decyzji człowieka). `sitemapEntries.server.ts:105-111`
-      // (kolektor `posts`; identycznie `taxonomy` 135-138, `podcasts` 164-177,
-      // `programs` 202-206, `stories` 219-223, `tracker` 238-242, `events`
-      // 255-259, `qa` 273-277) wysyła SELECT bez `.limit()` i bez `.range()`.
-      // MECHANIZM: liczbę zwróconych wierszy ustala wtedy serwer - PostgREST
-      // obcina odpowiedź na `db-max-rows` (w Supabase domyślnie 1000) i robi to
-      // po cichu: `data` jest poprawną tablicą, `error` jest nullem, nagłówek
-      // `content-range` nikogo tu nie interesuje.
-      // KONSEKWENCJA: serwis z 1001 wpisami publikuje sitemapę z 1000 adresami,
-      // a nagłówek tego pliku obiecuje shardowanie do 25 000. Brakujące wpisy
-      // nie są nigdzie zgłoszone - w GSC widać tylko "Wykryto, ale nie
-      // zaindeksowano", i to z opóźnieniem tygodni.
-      // DLACZEGO NIE NAPRAWIAM: poprawka to pętla po `.range()` z kryterium
-      // stopu (albo świadome `.limit(25_000)` z twardym progiem) - czyli nowa
-      // polityka odczytu dla ośmiu kolektorów naraz, plus decyzja, co robić po
-      // przekroczeniu shardu. To projekt, nie poprawka w teście.
-      const db = atrapaAdmina({
-        ...planStron({ "p-1": { sciezka: "analizy" } }),
-        posts: { wiersze: [wierszWpisu()] },
-      });
-      await collectSitemapSection(db.admin, TENANT, ORIGIN, "posts");
-      const params = db.dla("posts")[0].params;
-      expect(params.has("limit") || params.has("offset")).toBe(true);
-    },
-  );
+  it("kolektor stronicuje odczyt wpisów", async () => {
+    const db = atrapaAdmina({
+      ...planStron({ "p-1": { sciezka: "analizy" } }),
+      posts: { wiersze: [wierszWpisu()] },
+    });
+    await collectSitemapSection(db.admin, TENANT, ORIGIN, "posts");
+    const params = db.dla("posts")[0].params;
+    expect(params.has("limit") || params.has("offset")).toBe(true);
+  });
 });
 
 describe("sekcja taxonomy - archiwa kategorii i tagów", () => {
@@ -644,7 +621,7 @@ describe("degradacja odczytu - pustka kontra awaria", () => {
     const plan: Plan = {};
     for (const tabela of [
       "pages",
-      "rpc/page_full_path",
+      "rpc/page_full_paths",
       "posts",
       "categories",
       "tags",
@@ -668,24 +645,7 @@ describe("degradacja odczytu - pustka kontra awaria", () => {
     expect(mapa.get("core")).toHaveLength(14);
   });
 
-  it.fails("odmowa bazy jest nieodróżnialna od pustej sekcji i nie zostawia śladu", async () => {
-    // DEFEKT (do decyzji człowieka). Wszystkie kolektory czytają wyłącznie
-    // `data` (`sitemapEntries.server.ts:64, 105, 202, 219, 238, 255, 273, 294`)
-    // i porzucają `error`. MECHANIZM: klient Supabase NIE rzuca na odmowie -
-    // zwraca `{ data: null, error }`, a nawet awaria transportu (po czterech
-    // próbach w `executeWithRetry`) wraca jako `error`, nie jako wyjątek. Skoro
-    // nic nie leci wyjątkiem, `try/catch` z linii 345-355 (i bliźniaczy
-    // z 376-384) nigdy się nie odpala, `console.warn` nie zostaje wywołany,
-    // a `data ?? []` zamienia odmowę w pustą sekcję.
-    // KONSEKWENCJA: `permission denied`, timeout puli albo błąd migracji dają
-    // sitemapę, która mówi crawlerowi „ten serwis nie ma już wpisów". Google
-    // usuwa adresy z indeksu, a w logach serwera nie ma ANI JEDNEJ linii - to
-    // dokładnie ta klasa („awaria wygląda jak brak danych"), która w tym repo
-    // wystąpiła już trzy razy.
-    // DLACZEGO NIE NAPRAWIAM: poprawka to decyzja o kontrakcie powierzchni -
-    // czy odmowa ma podnieść wyjątek (wtedy `catch` loguje, ale trzeba
-    // sprawdzić, czy indeks nie policzy shardów z uciętej sekcji), czy ma
-    // zostać pustą sekcją z logiem i metryką. Wybór należy do człowieka.
+  it("odmowa bazy zostawia ślad z nazwą sekcji", async () => {
     const db = atrapaAdmina({
       ...planStron({ "p-1": { sciezka: "analizy" } }),
       posts: { odmowa: { message: "permission denied for table posts", code: "42501" } },
@@ -749,24 +709,7 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
     );
   });
 
-  it.fails("mapa ścieżek robi jedno RPC NA STRONĘ zamiast wywołania wsadowego", async () => {
-    // DEFEKT (do decyzji człowieka). `sitemapEntries.server.ts:73-78`
-    // (`buildPagePaths`) woła `page_full_path(_page_id)` w `Promise.all` po
-    // KAŻDEJ opublikowanej stronie. MECHANIZM: to N+1 na granicy HTTP - serwis
-    // z 40 stronami wysyła 41 zapytań do PostgREST na jedno żądanie sitemapy
-    // (i tyle samo drugi raz z `publishedContent.server.ts:73`, który ma
-    // własną kopię tej pętli).
-    // KONSEKWENCJA: na Cloudflare Workers obowiązuje twardy limit podzapytań na
-    // żądanie (1000). Serwis o kilkuset stronach ma więc sitemapę, która
-    // przestaje działać CAŁA, nie po kawałku - a przy mniejszej skali płaci
-    // sekundami TTFB, bo wszystkie shardy budzą tę samą pętlę.
-    // Wsadowa funkcja JUŻ ISTNIEJE: `page_full_paths(_page_ids uuid[])`
-    // (migracja 20260724150000), dodana dokładnie po to i z zachowaną
-    // semantyką ścieżek.
-    // DLACZEGO NIE NAPRAWIAM: przejście na wsad zmienia kształt odpowiedzi
-    // (tabela zamiast skalara) w DWÓCH plikach i dotyka reguły „strona bez
-    // ścieżki wypada z mapy". Zmiana jest jednolinijkowa dopiero po decyzji,
-    // czy oba czytniki mają się scalić w jeden - a to jest decyzja projektowa.
+  it("mapa ścieżek korzysta z jednego wywołania wsadowego", async () => {
     const db = atrapaAdmina(
       planStron({
         "p-1": { sciezka: "a" },
@@ -776,6 +719,38 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
     );
     await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
     expect(db.dla("rpc/page_full_paths")).toHaveLength(1);
+    expect(db.dla("rpc/page_full_path")).toEqual([]);
+  });
+});
+
+describe("large sitemap collections", () => {
+  it("includes every post beyond the PostgREST row cap", async () => {
+    const rows = Array.from({ length: 1203 }, (_, id) => wierszWpisu({ slug: `post-${id}` }));
+    const db = atrapaAdmina({
+      ...planStron({ "p-1": { sciezka: "analizy" } }),
+      posts: { wiersze: rows },
+    });
+    const entries = await collectSitemapSection(db.admin, TENANT, ORIGIN, "posts");
+    expect(entries).toHaveLength(1203);
+    expect(entries.at(-1)?.loc).toBe(`${ORIGIN}/analizy/post-1202`);
+    expect(db.dla("posts").map((request) => request.params.get("offset"))).toEqual([
+      "0",
+      "500",
+      "1000",
+    ]);
+  });
+
+  it("paginates 1,203 parents and resolves paths in bounded batches", async () => {
+    const pages = Object.fromEntries(
+      Array.from({ length: 1203 }, (_, id) => [`p-${id}`, { sciezka: `page-${id}` }]),
+    );
+    const db = atrapaAdmina(planStron(pages));
+    const entries = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(entries).toHaveLength(1203);
+    expect(db.dla("pages")).toHaveLength(3);
+    expect(
+      db.dla("rpc/page_full_paths").map((request) => pageIdsZCiala(request.body).length),
+    ).toEqual([500, 500, 203]);
     expect(db.dla("rpc/page_full_path")).toEqual([]);
   });
 });

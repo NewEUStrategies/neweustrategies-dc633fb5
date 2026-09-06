@@ -3,6 +3,7 @@
 // collide in one giant file.
 export const pl = {
   common: {
+    homeEmptyNotice: "Nie ma tu jeszcze treści - zajrzyj wkrótce.",
     retry: "Spróbuj ponownie",
     loading: "Ładowanie…",
     noPosts: "Brak wpisów do wyświetlenia.",

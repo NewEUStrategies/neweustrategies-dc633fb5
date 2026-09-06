@@ -182,6 +182,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/coverage-istanbul": "4.1.7",
     "@vitest/coverage-v8": "^4.1.7",
     "axe-core": "4.10.2",
     "eslint": "^9.32.0",

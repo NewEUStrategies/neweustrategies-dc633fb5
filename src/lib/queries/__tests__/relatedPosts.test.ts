@@ -353,41 +353,19 @@ describe("konfiguracja rekomendacji: klucz i droga odczytu", () => {
     );
   });
 
-  it("STAN FAKTYCZNY: odmowa funkcji konfiguracji daje komplet domyślnych", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa konfiguracji", async () => {
     funkcje().setError("get_related_posts_config", "odmowa konfiguracji", "42501");
-    await expect(klient().fetchQuery(relatedPostsConfigQueryOptions())).resolves.toEqual(
-      RELATED_POSTS_DEFAULTS,
-    );
+    await expect(klient().fetchQuery(relatedPostsConfigQueryOptions())).rejects.toMatchObject({
+      message: "odmowa konfiguracji",
+    });
   });
 
-  it.fails(
-    "AWARIA konfiguracji POWINNA być odróżnialna od redakcji, która widget WYŁĄCZYŁA",
-    async () => {
-      // DEFEKT. `src/lib/queries/relatedPosts.ts:35` - `const { data } = await
-      // supabase.rpc("get_related_posts_config")` BEZ `error`.
-      // MECHANIZM: odmowa (RLS, odebrany `GRANT EXECUTE`, timeout puli, błąd
-      // migracji funkcji) daje `data === null`, linia 36 robi z tego `row =
-      // null`, a linia 37 oddaje `RELATED_POSTS_DEFAULTS`. Wynik jest przy tym
-      // dla React Query SUKCESEM, więc `retry` się nie uruchamia, a
-      // `staleTime` 5 minut ZAPAMIĘTUJE tę odpowiedź.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: `RELATED_POSTS_DEFAULTS.enabled === true`,
-      // więc awaria bazy WŁĄCZA widget tenantowi, który go świadomie wyłączył -
-      // pod artykułem pojawia się blok „Powiązane wpisy" z polskim tytułem
-      // domyślnym, w układzie `grid`, strategią `both` i limitem 6, niezależnie
-      // od tego, co ustawiła redakcja. Odwrotna strona tej samej monety:
-      // tenant, który skonfigurował widget pod swój layout, dostaje przez
-      // 5 minut CUDZE ustawienia bez jednego wpisu w logu.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzutem (widget
-      // wywraca granicę błędu strony wpisu z powodu ustawień ozdoby), a
-      // rozszerzeniem kontraktu o `enabled: false` przy awarii (czyli
-      // wyciszeniem widgetu, co dla tenanta, który go WŁĄCZYŁ, też jest
-      // regresją). Obie zmieniają zachowanie produkcyjne.
-      funkcje().setError("get_related_posts_config", "odmowa konfiguracji", "42501");
-      await expect(klient().fetchQuery(relatedPostsConfigQueryOptions())).rejects.toThrow(
-        "odmowa konfiguracji",
-      );
-    },
-  );
+  it("AWARIA konfiguracji POWINNA być odróżnialna od redakcji, która widget WYŁĄCZYŁA", async () => {
+    funkcje().setError("get_related_posts_config", "odmowa konfiguracji", "42501");
+    await expect(klient().fetchQuery(relatedPostsConfigQueryOptions())).rejects.toThrow(
+      "odmowa konfiguracji",
+    );
+  });
 });
 
 // ==========================================================================
@@ -877,7 +855,7 @@ describe("adresy rekomendacji: ścieżka rodzica w href", () => {
     expect(wynik[0]?.href).toBe("/blog/slug-k-1");
   });
 
-  it("STAN FAKTYCZNY: odmowa rezolucji ścieżek daje adresy /blog/<slug> bez sygnału", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa page_full_path", async () => {
     // Ta sama klasa defektu, ten sam fallback `paths.get(…) ?? "blog"`, co
     // w `archives.ts:81`, `programs.ts:124`, `series.ts:80` i `liveBlogs.ts:72`.
     // PEŁNY zapis mechanizmu, konsekwencji i uzasadnienia „to decyzja
@@ -889,10 +867,9 @@ describe("adresy rekomendacji: ścieżka rodzica w href", () => {
       kategorieKandydatow: ok([{ post_id: "k-1", category_id: KAT_A }]),
       sciezka: fail("odmowa page_full_path", "42501"),
     });
-    const wynik = await klient().fetchQuery(
-      relatedPostsQueryOptions(wejscie({ strategy: "categories" })),
-    );
-    expect(wynik[0]?.href).toBe("/blog/slug-k-1");
+    await expect(
+      klient().fetchQuery(relatedPostsQueryOptions(wejscie({ strategy: "categories" }))),
+    ).rejects.toMatchObject({ message: "odmowa page_full_path" });
   });
 });
 
@@ -901,49 +878,28 @@ describe("adresy rekomendacji: ścieżka rodzica w href", () => {
 // ==========================================================================
 
 describe("degradacja rekomendacji: awaria wygląda jak brak powiązań", () => {
-  it("STAN FAKTYCZNY: odmowa pivotów bieżącego wpisu daje pustą listę", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa post_categories", async () => {
     planuj({
       wlasneKategorie: fail("odmowa post_categories", "42501"),
       wlasneTagi: fail("odmowa post_tags", "42501"),
       wlasnyWpis: fail("odmowa posts", "42501"),
     });
-    await expect(klient().fetchQuery(relatedPostsQueryOptions(wejscie()))).resolves.toEqual([]);
+    await expect(klient().fetchQuery(relatedPostsQueryOptions(wejscie()))).rejects.toMatchObject({
+      message: "odmowa post_categories",
+    });
   });
 
-  it("STAN FAKTYCZNY: odmowa hydracji kandydatów daje pustą listę", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa hydracji", async () => {
     planuj({
       kandydaciZKategorii: ok([{ post_id: "k-1" }]),
       hydracja: fail("odmowa hydracji", "42501"),
     });
     await expect(
       klient().fetchQuery(relatedPostsQueryOptions(wejscie({ strategy: "categories" }))),
-    ).resolves.toEqual([]);
+    ).rejects.toMatchObject({ message: "odmowa hydracji" });
   });
 
-  it.fails("AWARIA rekomendacji POWINNA być odróżnialna od wpisu bez powiązań", async () => {
-    // DEFEKT. `src/lib/queries/relatedPosts.ts` czyta `const { data }` BEZ
-    // `error` w SZEŚCIU miejscach: linie 57, 58, 82-85, 92-95, 102-110,
-    // 118-125 i 146-147. W całym `queryFn` nie ma ani jednego `if (error)`.
-    // MECHANIZM: odmowa (RLS, wygaszony grant na pivocie, timeout puli,
-    // przeciążenie) daje `data === null`, a każde `?? []` zamienia to w pusty
-    // zbiór. Awaria schodzi wtedy tą samą ścieżką co poprawny stan „ten wpis
-    // nie ma powiązań" - i, co gorsza, wychodzi z `queryFn` jako SUKCES:
-    // React Query nie ponowi (`retry` dotyczy odrzuceń), a `staleTime`
-    // 5 minut ZAPAMIĘTA pustą listę. Jedna sekunda niedostępności bazy
-    // wycisza rekomendacje na pięć minut w całym serwisie.
-    // KONSEKWENCJA DLA UŻYTKOWNIKA: `RelatedPosts` przy pustej liście zwraca
-    // `null`, więc widget NIE ZOSTAWIA ŚLADU - żadnego komunikatu, żadnego
-    // pustego bloku. Artykuł wygląda kompletnie i nie wychodzi z niego ani
-    // jeden link wewnętrzny: czytelnik kończy sesję na jednej stronie, a
-    // robot nie dostaje ścieżki do reszty serwisu. Tego nikt nie zgłosi -
-    // brak widgetu jest poprawnym stanem dla wpisu bez kategorii i tagów,
-    // więc odmowa bazy jest w tej warstwie NIEWIDOCZNA także w monitoringu.
-    // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzutem (wtedy
-    // trzeba rozstrzygnąć, czy granica błędu strony wpisu ma wywracać CAŁY
-    // artykuł z powodu widgetu pod nim), rzutem tylko z odczytów krytycznych
-    // (hydracja) przy połykaniu pobocznych, a rozszerzeniem kontraktu wyjścia
-    // o odróżnienie „pusto" od „nie wiem". Każda z tych opcji zmienia
-    // zachowanie produkcyjne strony wpisu.
+  it("AWARIA rekomendacji POWINNA być odróżnialna od wpisu bez powiązań", async () => {
     planuj({
       kandydaciZKategorii: ok([{ post_id: "k-1" }]),
       hydracja: fail("odmowa hydracji", "42501"),

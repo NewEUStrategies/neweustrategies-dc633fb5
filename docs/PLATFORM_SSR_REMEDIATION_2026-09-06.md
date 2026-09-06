@@ -1,5 +1,7 @@
 # Platforma, backend, infrastruktura i SSR — naprawy po audycie
 
+Aktualizacja po scaleniu: [kontynuacja i weryfikacja punktu wznowienia](PLATFORM_AUDIT_COMPLETION_2026-09-06.md).
+
 Baza zmian: `c239ab891c22b72fb329af9596394f28b9bfa85e` (`main`, 6 września 2026).
 Zakres pomiaru zachowuje wszystkie **208 plików** przypisanych do modułu 20
 w audycie. Korekta klasyfikatora nie usuwa z niego plików: dołączane są również

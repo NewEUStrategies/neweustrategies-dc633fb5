@@ -426,7 +426,7 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.homePage = homePageData({ builder_data: { version: 1, sections: [] } });
     await mountHome();
     expect(screen.queryByTestId("kanwa")).toBeNull();
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=pl)")).toBeTruthy();
   });
 
   it("stan pusty mówi w języku renderu, a nie zawsze po polsku", async () => {
@@ -435,14 +435,14 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.lang = "en";
     h.homePage = homePageData({ builder_data: { version: 1, sections: [] } });
     await mountHome();
-    expect(screen.getByText(/nothing here yet/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=en)")).toBeTruthy();
   });
 
   it("strona w innym edytorze niż builder też trafia na stan pusty (nie na wyjątek)", async () => {
     h.homePage = homePageData({ editor: "richtext", builder_data: builderDoc() });
     await mountHome();
     expect(screen.queryByTestId("kanwa")).toBeNull();
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=pl)")).toBeTruthy();
     // Kanwa nie wchodzi do renderu, więc rozgrzewka widgetów nie ma po co startować.
     expect(h.prefetch).toEqual([]);
   });
@@ -779,29 +779,6 @@ describe("/ - dostępność", () => {
     const view = await mountHome();
     const violations = await axeViolations(view.container);
     expect(summarize(violations)).toBe("");
-  });
-});
-
-describe("/ - dług i18n zgłoszony, nie naprawiony", () => {
-  // Zdanie stanu pustego („Nie ma tu jeszcze treści - zajrzyj wkrótce.”) jest
-  // dwujęzycznym LITERAŁEM w kodzie molekuły, a nie kluczem słownika - treść
-  // przeniesiona znak w znak z `routes/index.tsx`.
-  //
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: redakcja nie może zmienić zdania, które widzi
-  // czytelnik na PUSTEJ stronie głównej, bez wdrożenia kodu - w odróżnieniu od
-  // każdego innego tekstu w serwisie. Bramka parytetu PL/EN nie ma tu czego
-  // porównywać, więc rozjazd tłumaczeń przejdzie niezauważony.
-  //
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: strona główna nie woła żadnego
-  // `ensureI18n`, więc klucz musi albo wejść do słownika BAZOWEGO (koszt
-  // w rozmiarze wejściowego chunku najważniejszej trasy), albo strona musi
-  // zacząć dociągać nakładkę (koszt w TTFB tej samej trasy). To wybór
-  // architektoniczny, nie refaktor pod test.
-  it.fails("zdanie stanu pustego pochodzi ze słownika, nie z literału w kodzie", async () => {
-    const fs = await import("node:fs");
-    const source = fs.readFileSync("src/components/home/molecules/HomeEmptyNotice.tsx", "utf8");
-    const literaly = /There's nothing here yet|Nie ma tu jeszcze treści/.test(source);
-    expect({ dwujezycznyLiteralWKodzie: literaly }).toEqual({ dwujezycznyLiteralWKodzie: false });
   });
 });
 

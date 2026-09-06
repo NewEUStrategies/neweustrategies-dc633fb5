@@ -4,8 +4,8 @@ import ts from "typescript";
 import auditScope from "../../governance/platform-coverage-scope.json";
 import { classifyPath } from "../taxonomy/moduleMap.mjs";
 
-// The same generated artifacts excluded by the repository's existing V8
-// configuration. Do not demand counters for files V8 intentionally omits.
+// The same generated artifacts excluded by the repository's coverage
+// configuration. Do not demand counters for intentionally omitted files.
 const GENERATED = new Set([
   "src/routeTree.gen.ts",
   "src/integrations/supabase/types.ts",
@@ -14,7 +14,7 @@ const GENERATED = new Set([
 
 /** Preserve every audited file after taxonomy corrections, and automatically
  * add new executable platform files. Tests and generated/type-only code do not
- * contribute executable lines to V8's denominator.
+ * contribute executable lines to the coverage denominator.
  */
 export function platformCoverageFiles(root = process.cwd()): string[] {
   const files = new Set(auditScope.files);

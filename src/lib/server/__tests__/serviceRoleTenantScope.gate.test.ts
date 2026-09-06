@@ -613,13 +613,18 @@ describe("adres kanoniczny wpisu - ścieżka rodzica sprawdza najemcę", () => {
     const callers = serverSources()
       .filter((s) => RPC_CALL.test(maskComments(s.source)))
       .map((s) => s.file);
-    expect(callers).toEqual([PUBLISHED, SITEMAP_ENTRIES]);
+    const pathsHelper = "src/lib/server/publishedPagePaths.server.ts";
+    expect(callers).toEqual([pathsHelper]);
 
     // Sygnał POZYTYWNY: wołanie stoi tam, gdzie mówi opis, i idzie przez
     // wstrzyknięty klient `admin`, a nie przez klient przeglądarki.
-    const sitemap = read(SITEMAP_ENTRIES);
-    expect(sitemap).toMatch(/admin\.rpc\(\s*"page_full_path"/);
-    expect(sitemap).not.toMatch(/from "@\/integrations\/supabase\/client"/);
+    const paths = read(pathsHelper);
+    expect(paths).toMatch(/admin\.rpc\(\s*"page_full_paths"/);
+    expect(paths).toMatch(/\.eq\("tenant_id", tenantId\)/);
+    expect(paths).not.toMatch(/from "@\/integrations\/supabase\/client"/);
+    for (const file of [PUBLISHED, SITEMAP_ENTRIES]) {
+      expect(read(file)).toMatch(/from "\.\/publishedPagePaths\.server"/);
+    }
 
     // PROWENIENCJA UPRAWNIEŃ JEST W TRASACH, nie w kolektorze:
     // `sitemapEntries.server.ts` przyjmuje klient parametrem (`admin: DbClient`),

@@ -362,39 +362,17 @@ describe("CV autora: kolejność operatora i cisza po odmowie", () => {
     expect(cv.hobbies).toEqual([]);
   });
 
-  it("STAN FAKTYCZNY: odmowa WSZYSTKICH pięciu tabel daje kompletne, puste CV", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa CV", async () => {
     planujCv(fail("odmowa CV", "42501"));
-    const cv = await klient().fetchQuery(authorCvQueryOptions("aut-1"));
-    expect(cv).toEqual({ experiences: [], education: [], skills: [], awards: [], hobbies: [] });
+    await expect(klient().fetchQuery(authorCvQueryOptions("aut-1"))).rejects.toMatchObject({
+      message: "odmowa CV",
+    });
   });
 
-  it.fails(
-    "AWARIA odczytu CV POWINNA być odróżnialna od autora, który nic nie wypełnił",
-    async () => {
-      // DEFEKT. `src/lib/queries/authorCv.ts:70-110`: destrukturyzacja
-      // `const [exp, edu, sk, aw, ho] = await Promise.all([...])` odbiera pięć
-      // WYNIKÓW, ale linie 104-110 czytają z nich WYŁĄCZNIE `.data` - w tym
-      // pliku nie ma ani jednego `if (error)`.
-      // MECHANIZM: odmowa (RLS, odebrany grant na widoku publicznym, timeout
-      // puli) daje `data === null`, a każde `?? []` na liniach 105-109 zamienia
-      // to w pustą sekcję. Pięć niezależnych awarii sklei się w jedno,
-      // poprawnie wyglądające, puste CV.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: publiczna strona eksperta think tanku
-      // renderuje się bez doświadczenia, wykształcenia, kompetencji, nagród i
-      // zainteresowań - czyli tak, jakby autor nie miał żadnego dorobku. To
-      // wprost szkoda wizerunkowa osoby i instytucji, a dla czytelnika
-      // fałszywa informacja o wiarygodności autora analizy. Nikt tego nie
-      // zgłosi: strona jest kompletna, szybka i wygląda na poprawną.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-      // wyjątku (cała strona autora na 500 z powodu listy hobby), pominięciem
-      // tylko sekcji, która padła (wtedy trzeba rozstrzygnąć, jak odróżnić ją
-      // w interfejsie od sekcji pustej) a rozszerzeniem kontraktu `AuthorCv` o
-      // stan „nie udało się odczytać" - który musiałby obsłużyć box CV. Każdy
-      // wariant zmienia zachowanie produkcyjne.
-      planujCv(fail("odmowa CV", "42501"));
-      await expect(klient().fetchQuery(authorCvQueryOptions("aut-1"))).rejects.toThrow();
-    },
-  );
+  it("AWARIA odczytu CV POWINNA być odróżnialna od autora, który nic nie wypełnił", async () => {
+    planujCv(fail("odmowa CV", "42501"));
+    await expect(klient().fetchQuery(authorCvQueryOptions("aut-1"))).rejects.toThrow();
+  });
 });
 
 // ==========================================================================
@@ -515,23 +493,18 @@ describe("kolumna mega-menu: co pokazuje rozwijane menu nawigacji", () => {
     expect(dane).toEqual({ posts: [], catName: "Analizy" });
   });
 
-  it("STAN FAKTYCZNY: odmowa na każdym z trzech odczytów daje pustą kolumnę", async () => {
-    // Ten sam wzorzec, co w `authorCv` (linie 40, 46 i 54 czytają `const
-    // { data }` bez `error`): kolumna nawigacji milknie i wygląda jak
-    // kategoria bez materiałów. Rozstrzygnięcie identyczne jak w `it.fails`
-    // przy `staticPageSeo`, więc nie powtarzam tam całego zapisu.
-    baza().setResponse("categories", fail("odmowa kategorii", "42501"));
-    await expect(
-      klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl")),
-    ).resolves.toEqual({ posts: [], catName: "" });
-
-    baza().reset();
-    baza().setResponse("categories", ok(wierszKategorii()));
-    baza().setResponse("post_categories", fail("odmowa pivotu", "42501"));
-    await expect(
-      klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl")),
-    ).resolves.toEqual({ posts: [], catName: "Analizy" });
-  });
+  it.each(["categories", "post_categories", "posts"])(
+    "odmowa %s odrzuca odczyt menu zamiast udawać pustą kategorię",
+    async (table) => {
+      baza().setResponse("categories", ok(wierszKategorii()));
+      baza().setResponse("post_categories", ok([{ post_id: "w-1" }]));
+      baza().setResponse("posts", ok([wierszWpisu("w-1")]));
+      baza().setResponse(table, fail("odmowa odczytu", "42501"));
+      await expect(
+        klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl")),
+      ).rejects.toThrow("odmowa odczytu");
+    },
+  );
 });
 
 // ==========================================================================
@@ -687,14 +660,11 @@ describe("kolejny wpis: co doczytuje się pod materiałem", () => {
     expect(wynik.href).toBe("/analizy/slug-w-2");
   });
 
-  it("STAN FAKTYCZNY: odmowa rezolucji ścieżki daje adres z prefiksem „blog”", async () => {
-    // Ta sama klasa defektu, co `programs.ts:118` - tam stoi pełny zapis
-    // `it.fails` z konsekwencją, więc tu przypinam tylko stan faktyczny.
+  it("odmowa ścieżki kolejnego wpisu nie tworzy fałszywego adresu", async () => {
     baza().setResponse("posts", ok([wierszNastepnego()]));
     funkcje().setResponse("page_full_path", fail("odmowa ścieżki", "42501"));
     planujCialo();
-    const wynik = obecne(await fetchNextPost(WEJSCIE), "kolejnego wpisu");
-    expect(wynik.href).toBe("/blog/slug-w-2");
+    await expect(fetchNextPost(WEJSCIE)).rejects.toThrow("odmowa ścieżki");
   });
 
   it("odpowiedź nie-tekstowa z rezolucji też daje prefiks „blog”", async () => {
@@ -823,14 +793,12 @@ describe("seria wpisu i strona serii: kolejność części i cztery wyjścia", (
     expect(funkcje().callsFor("page_full_path")).toHaveLength(2);
   });
 
-  it("STAN FAKTYCZNY: odmowa rezolucji ścieżki daje częściom prefiks „blog”", async () => {
-    // Ta sama klasa defektu, co `programs.ts:118` (`series.ts:64` też czyta
-    // `const { data }` bez `error`) - pełny zapis `it.fails` z konsekwencją
-    // stoi w `programs.test.ts`, więc tu przypinam tylko stan faktyczny.
+  it("odmowa ścieżki serii nie tworzy fałszywego adresu", async () => {
     planujSerie({ part_number: 1, series: SERIA }, [czescSerii("w-1", 1)]);
     funkcje().setResponse("page_full_path", fail("odmowa ścieżki", "42501"));
-    const info = obecne(await klient().fetchQuery(postSeriesQueryOptions("w-1")), "serii wpisu");
-    expect(info.parts[0].href).toBe("/blog/slug-w-1");
+    await expect(klient().fetchQuery(postSeriesQueryOptions("w-1"))).rejects.toThrow(
+      "odmowa ścieżki",
+    );
   });
 
   it("ODMOWA odczytu części rzuca - spis serii nie może zniknąć po cichu", async () => {
@@ -1069,38 +1037,17 @@ describe("metadane stron statycznych: skąd bierze się tytuł i robots dla /pri
     await expect(klient().fetchQuery(staticPageSeoQueryOptions("pricing"))).resolves.toBeNull();
   });
 
-  it("STAN FAKTYCZNY: ODMOWA bazy daje ten sam `null`, co brak wpisu", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa metadanych", async () => {
     baza().setResponse("pages", fail("odmowa metadanych", "42501"));
-    await expect(klient().fetchQuery(staticPageSeoQueryOptions("pricing"))).resolves.toBeNull();
+    await expect(klient().fetchQuery(staticPageSeoQueryOptions("pricing"))).rejects.toMatchObject({
+      message: "odmowa metadanych",
+    });
   });
 
-  it.fails(
-    "AWARIA odczytu metadanych POWINNA być odróżnialna od strony nieopisanej w panelu",
-    async () => {
-      // DEFEKT. `src/lib/queries/staticPageSeo.ts:38`: `if (error) return null`.
-      // To jedyne miejsce w tej warstwie, gdzie błąd jest JAWNIE mapowany na
-      // brak danych - i wygląda jak decyzja, ale jej skutek sięga indeksacji.
-      // MECHANIZM: `pickStaticSeo` (linie 55-63) dla `row === null` zwraca
-      // `noindex: false` i `canonical: null`, bo to poprawna odpowiedź dla
-      // strony, której operator nigdy nie opisał. Po odmowie bazy dostaje
-      // dokładnie to samo `null`, więc oddaje te same wartości.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: strona statyczna, którą redakcja
-      // OZNACZYŁA w panelu jako `seo_noindex = true`, wychodzi do crawlera bez
-      // `robots: noindex` i ze utraconym `canonical`. Jedna odmowa bazy w
-      // trakcie renderu SSR wystarczy, żeby wpuścić do indeksu stronę, która
-      // miała z niego zniknąć (a wycofanie tego z indeksu Google trwa
-      // tygodniami). Przy okazji tytuł i opis wracają do defaultów marki, więc
-      // wynik w wyszukiwarce przestaje opisywać stronę.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-      // wyjątku (trasa `/pricing` na 500, gdy nie da się odczytać jej meta) a
-      // bezpiecznym domknięciem po stronie `pickStaticSeo` (np. `noindex: true`
-      // przy nieznanym stanie, co dla strony BEZ wpisu w panelu byłoby
-      // regresją SEO w drugą stronę). Trzeba też rozstrzygnąć, czy taki wynik
-      // wolno zapisać w cache zapytań na 60 s.
-      baza().setResponse("pages", fail("odmowa metadanych", "42501"));
-      await expect(klient().fetchQuery(staticPageSeoQueryOptions("pricing"))).rejects.toThrow();
-    },
-  );
+  it("AWARIA odczytu metadanych POWINNA być odróżnialna od strony nieopisanej w panelu", async () => {
+    baza().setResponse("pages", fail("odmowa metadanych", "42501"));
+    await expect(klient().fetchQuery(staticPageSeoQueryOptions("pricing"))).rejects.toThrow();
+  });
 
   it("brak wiersza oddaje defaulty wołającego, bez indeksowej blokady", () => {
     expect(pickStaticSeo(null, "pl", { title: "Marka", description: "Opis marki" })).toEqual({
