@@ -594,7 +594,7 @@ describe("platform SSR budget reporting edge cases", () => {
     expect(unresolved.violations.some((v) => v.budget === "unresolvedBudget")).toBe(true);
   });
   it("preserves line numbers while blanking escaped, multiline and unterminated strings", () => {
-    const source = 'const value = "escaped\\\"quote";\nconst text = `line1\nline2`;';
+    const source = 'const value = "escaped\\"quote";\nconst text = `line1\nline2`;';
     const blank = blankNonCode(source);
     expect(blank.split("\n")).toHaveLength(3);
     expect(blank).not.toContain("escaped");

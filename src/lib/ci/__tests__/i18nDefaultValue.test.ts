@@ -211,7 +211,7 @@ describe("bramka", () => {
 describe("platform default-value lexical and rewrite boundaries", () => {
   it("handles comments and escaped quotes without splitting properties inside them", () => {
     const parsed = parseObjectLiteral(
-      '{ first: "escaped\\\"quote", /* , ignored */ defaultValue: "value", // ignored,\n count: 2 }',
+      '{ first: "escaped\\"quote", /* , ignored */ defaultValue: "value", // ignored,\n count: 2 }',
     );
     expect(parsed?.properties.map((x) => x.name)).toEqual(["first", "defaultValue", "count"]);
     expect(parseObjectLiteral("{ first: 1 // EOF")).toBeNull();

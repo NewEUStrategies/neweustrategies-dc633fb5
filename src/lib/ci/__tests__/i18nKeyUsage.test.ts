@@ -282,7 +282,7 @@ describe("auditKeyUsage", () => {
 
 describe("platform dictionary scanner lexical and report edge cases", () => {
   it("parses escaped quotes and ignores delimiters inside both comment forms", () => {
-    const source = '("a\\\"b", /* ), ignored */ { count: 2 }, // ignored )\n "third")';
+    const source = '("a\\"b", /* ), ignored */ { count: 2 }, // ignored )\n "third")';
     const call = parseCallArgs(source, 0);
     expect(call?.args).toHaveLength(3);
     expect(call?.end).toBe(source.length);
