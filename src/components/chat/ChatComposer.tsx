@@ -353,7 +353,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
 
   return (
-    <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
+    <div className="border-t border-border/60 bg-card px-2 pb-2 pt-1.5">
       {replyBar.kind === "editing" && (
         <div className="mb-1.5 flex items-center justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
@@ -476,7 +476,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ) : (
         // Card-style composer: pełnej szerokości pole tekstowe, a pod nim pasek
         // narzędzi (emoji + załącznik po lewej, mikrofon/wyślij po prawej).
-        <div className="flex w-full flex-col gap-1.5 rounded-[6px] border border-input bg-muted/30 px-2 py-1.5 transition-colors focus-within:border-ring/60 focus-within:bg-background">
+        <div className="flex w-full flex-col gap-1.5 rounded-[6px] border border-input bg-card px-2 py-1.5 transition-colors">
           <input
             ref={fileInputRef}
             type="file"
