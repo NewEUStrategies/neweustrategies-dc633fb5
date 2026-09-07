@@ -154,6 +154,7 @@ describe("SiteChrome - powłoka publiczna", () => {
     expect(screen.getByTestId("strona")).toBeInTheDocument();
     expect(document.querySelector("[data-site-shell]")).not.toBeNull();
     expect(document.getElementById("main-content")).not.toBeNull();
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
   });
 
   it("strona główna zostaje edge-to-edge, pozostałe dostają odstępy", async () => {
