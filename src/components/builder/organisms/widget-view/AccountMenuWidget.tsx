@@ -753,6 +753,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           <span className="sr-only">{t("nav.account")}</span>
         </PopoverContent>
       </Popover>
+      {session ? (
+        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
+          <NotificationsBell />
+        </span>
+      ) : null}
     </div>
   );
 }
