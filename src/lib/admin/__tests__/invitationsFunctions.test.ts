@@ -142,10 +142,32 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         h.adminWrites.push({ table, row, options });
         return Promise.resolve({ data: null, error: null });
       },
-      select: () => ({
-        in: () =>
-          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null }),
-      }),
+      select: () => {
+        // Łańcuch obsługuje dwa użycia: listę profili (`.in()` → wynik) oraz
+        // pojedynczy wiersz subskrypcji zapraszanego (`.eq().in().order().limit().maybeSingle()`),
+        // po którym dobierany jest zakres obietnicy w treści maila.
+        const chain = {
+          eq: () => chain,
+          in: () =>
+            Promise.resolve({
+              data: h.adminProfilesNull ? null : h.adminProfiles,
+              error: null,
+            }) as unknown as typeof chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        };
+        return {
+          ...chain,
+          in: () => {
+            const done = Promise.resolve({
+              data: h.adminProfilesNull ? null : h.adminProfiles,
+              error: null,
+            });
+            return Object.assign(done, chain);
+          },
+        };
+      },
     }),
   },
 }));
