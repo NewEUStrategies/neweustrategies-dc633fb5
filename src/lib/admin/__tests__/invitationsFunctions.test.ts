@@ -143,30 +143,18 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         return Promise.resolve({ data: null, error: null });
       },
       select: () => {
-        // Łańcuch obsługuje dwa użycia: listę profili (`.in()` → wynik) oraz
-        // pojedynczy wiersz subskrypcji zapraszanego (`.eq().in().order().limit().maybeSingle()`),
-        // po którym dobierany jest zakres obietnicy w treści maila.
-        const chain = {
-          eq: () => chain,
-          in: () =>
-            Promise.resolve({
-              data: h.adminProfilesNull ? null : h.adminProfiles,
-              error: null,
-            }) as unknown as typeof chain,
-          order: () => chain,
-          limit: () => chain,
-          maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        };
-        return {
-          ...chain,
-          in: () => {
-            const done = Promise.resolve({
-              data: h.adminProfilesNull ? null : h.adminProfiles,
-              error: null,
-            });
-            return Object.assign(done, chain);
-          },
-        };
+        // Łańcuch obsługuje dwa użycia: listę profili (`.in()` → wynik po await)
+        // oraz wiersz subskrypcji zapraszanego (`.eq().in().order().limit().maybeSingle()`),
+        // z którego wynika zakres obietnicy w treści maila. Każde ogniwo jest
+        // jednocześnie obietnicą i łańcuchem, więc oba użycia działają.
+        const result = () =>
+          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null });
+        const chain: Record<string, unknown> = {};
+        for (const method of ["eq", "in", "order", "limit"]) {
+          chain[method] = () => Object.assign(result(), chain);
+        }
+        chain["maybeSingle"] = () => Promise.resolve({ data: null, error: null });
+        return chain;
       },
     }),
   },
