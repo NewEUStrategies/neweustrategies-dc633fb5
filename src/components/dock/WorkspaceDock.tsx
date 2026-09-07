@@ -42,6 +42,7 @@ import {
   MOBILE_BOTTOM_BAR_SETTINGS_KEY,
   visibleBottomBarItems,
   type MobileBottomBarConfig,
+  type MobileBottomBarItem,
 } from "@/lib/mobileBottomBar/config";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
@@ -115,6 +116,88 @@ function useReservedSpace(): [React.RefObject<HTMLDivElement | null>, number] {
   return [ref, height];
 }
 
+/**
+ * Mobilna pozycja skrótu (atom paska): ikona + etykieta pod spodem, jak w
+ * referencyjnej aplikacji. `center` wyróżnia Home - pełne kółko marki,
+ * niezależnie od tego, czy trasa jest aktywna.
+ */
+function MobileShortcut({
+  item,
+  activeId,
+  lang,
+  t,
+  center = false,
+}: {
+  item: MobileBottomBarItem | undefined;
+  activeId: string | undefined;
+  lang: "pl" | "en";
+  t: (key: string) => string;
+  center?: boolean;
+}) {
+  if (!item) return <span aria-hidden="true" />;
+  const label = bottomBarLabel(item, lang, (key) => t(key));
+  const active = item.id === activeId;
+  return (
+    <AppLink
+      href={bottomBarHref(item, lang)}
+      aria-current={active ? "page" : undefined}
+      aria-label={label}
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <span
+        className={cn(
+          "relative grid place-items-center rounded-full",
+          center ? "h-9 w-9 bg-primary text-primary-foreground" : "p-0.5",
+        )}
+      >
+        <DynamicIcon
+          name={item.icon || "circle"}
+          className={center ? "h-5 w-5" : "h-5 w-5"}
+          aria-hidden="true"
+        />
+        <LiveTabBadge source={item.badge} />
+      </span>
+      <span className="max-w-full truncate text-[10px] font-medium leading-tight">
+        {label}
+      </span>
+    </AppLink>
+  );
+}
+
+/** Mobilny przycisk "Zapisane" - otwiera panel zapisanych elementów. */
+function MobileSavedButton({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-pressed={active}
+      aria-label={label}
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <span className="grid place-items-center p-0.5">
+        <Bookmark className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="max-w-full truncate text-[10px] font-medium leading-tight">
+        {label}
+      </span>
+    </button>
+  );
+}
+
 export function WorkspaceDock() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
@@ -128,6 +211,12 @@ export function WorkspaceDock() {
   );
   const shortcuts = useMemo(() => visibleBottomBarItems(rawConfig), [rawConfig]);
   const activeShortcut = activeBottomBarIndex(shortcuts, pathname);
+  const shortcutById = useMemo(() => {
+    const map = new Map<string, (typeof shortcuts)[number]>();
+    for (const item of shortcuts) map.set(item.id, item);
+    return map;
+  }, [shortcuts]);
+  const activeId = activeShortcut >= 0 ? shortcuts[activeShortcut]?.id : undefined;
 
   // Ostatnie narzędzie tylko podświetlamy - nie otwieramy panelu bez akcji
   // użytkownika, żeby wejście na stronę nie przysłaniało treści.
@@ -171,7 +260,44 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4">
+        {/* Mobile: pasek jak w aplikacji - Home dokładnie na środku,
+            po lewej Network i Czat, po prawej Zapisane i Klub.
+            Pozycje, ikony i etykiety nadal pochodzą z konfiguracji
+            administratora; zmienia się tylko układ i slot "saved". */}
+        <nav
+          aria-label={t("dock.shortcuts")}
+          className="grid grid-cols-5 items-stretch px-1 py-1 sm:hidden"
+        >
+          {(["network", "chats"] as const).map((id) => (
+            <MobileShortcut
+              key={id}
+              item={shortcutById.get(id)}
+              activeId={activeId}
+              lang={lang}
+              t={t}
+            />
+          ))}
+          <MobileShortcut
+            item={shortcutById.get("home")}
+            activeId={activeId}
+            lang={lang}
+            t={t}
+            center
+          />
+          <MobileSavedButton
+            active={state.open === "saved"}
+            label={t("dock.tools.saved")}
+            onPress={() => dispatch({ type: "toggle", tool: "saved" })}
+          />
+          <MobileShortcut
+            item={shortcutById.get("clubs")}
+            activeId={activeId}
+            lang={lang}
+            t={t}
+          />
+        </nav>
+
+        <div className="hidden items-center justify-between gap-2 px-2 py-1.5 sm:flex sm:px-4">
           {/* Skróty nawigacyjne po lewej - konfigurowalne w ustawieniach. */}
           <nav aria-label={t("dock.shortcuts")} className="flex shrink-0 items-center gap-0.5">
             {shortcuts.map((item, index) => {
