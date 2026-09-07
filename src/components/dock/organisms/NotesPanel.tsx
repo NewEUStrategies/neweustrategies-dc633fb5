@@ -2,11 +2,12 @@
 // w miejscu i usuwanie (user_notes przez RLS użytkownika).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { NotebookPen, Pin, PinOff, Trash2 } from "lucide-react";
+import { FileText, Link2Off, NotebookPen, Pin, PinOff, Trash2 } from "lucide-react";
 import { DockPanelShell } from "../DockPanelShell";
 import { DockEmptyState } from "../atoms/DockEmptyState";
 import { useCreateNote, useDeleteNote, useNotes, useUpdateNote } from "@/lib/dock/useNotes";
 import { NOTE_COLORS, type NoteColor, type UserNote } from "@/lib/dock/types";
+import { useNoteContext } from "@/lib/dock/noteContext";
 import { cn } from "@/lib/utils";
 
 const SWATCH: Record<NoteColor, string> = {
@@ -94,6 +95,33 @@ function NoteCard({ note }: { note: UserNote }) {
               <Trash2 className="h-3.5 w-3.5" aria-hidden />
             </button>
           </div>
+          {note.entity_id ? (
+            <div className="flex items-center gap-1 pt-1">
+              {note.entity_url ? (
+                <a
+                  href={note.entity_url}
+                  className="inline-flex min-w-0 items-center gap-1 rounded-[6px] bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-foreground/80 hover:text-foreground"
+                >
+                  <FileText className="h-3 w-3 shrink-0" aria-hidden />
+                  <span className="truncate">{note.entity_title || t("dock.notes.linked")}</span>
+                </a>
+              ) : (
+                <span className="inline-flex min-w-0 items-center gap-1 rounded-[6px] bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-foreground/80">
+                  <FileText className="h-3 w-3 shrink-0" aria-hidden />
+                  <span className="truncate">{note.entity_title || t("dock.notes.linked")}</span>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => update.mutate({ id: note.id, patch: { entity: null } })}
+                aria-label={t("dock.notes.unlink")}
+                title={t("dock.notes.unlink")}
+                className="rounded-[6px] p-1 text-foreground/60 hover:text-foreground"
+              >
+                <Link2Off className="h-3 w-3" aria-hidden />
+              </button>
+            </div>
+          ) : null}
           {note.body ? (
             <p className="whitespace-pre-wrap break-words text-xs text-foreground/80">
               {note.body}
@@ -131,15 +159,34 @@ export function NotesPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const notesQ = useNotes();
   const create = useCreateNote();
+  const context = useNoteContext();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [attach, setAttach] = useState(true);
+  const [scope, setScope] = useState<"all" | "material">("all");
 
-  const notes = notesQ.data ?? [];
+  const all = notesQ.data ?? [];
+  const notes =
+    scope === "material" && context
+      ? all.filter((note) => note.entity_id === context.entityId)
+      : all;
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (title.trim().length === 0 && body.trim().length === 0) return;
-    create.mutate({ title, body });
+    create.mutate({
+      title,
+      body,
+      entity:
+        attach && context
+          ? {
+              entityType: context.entityType,
+              entityId: context.entityId,
+              title: context.title,
+              url: context.url,
+            }
+          : null,
+    });
     setTitle("");
     setBody("");
   };
@@ -166,6 +213,20 @@ export function NotesPanel({ onClose }: { onClose: () => void }) {
           rows={3}
           className="w-full rounded-[6px] border border-input bg-background px-3 py-2 text-sm text-foreground"
         />
+        {context ? (
+          <label className="flex items-start gap-2 rounded-[6px] bg-muted/60 px-2 py-1.5 text-[11px] text-foreground">
+            <input
+              type="checkbox"
+              checked={attach}
+              onChange={(event) => setAttach(event.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded-[4px] border-input accent-[hsl(var(--primary))]"
+            />
+            <span className="min-w-0">
+              <span className="block font-medium">{t("dock.notes.attach")}</span>
+              <span className="block truncate text-muted-foreground">{context.title}</span>
+            </span>
+          </label>
+        ) : null}
         <button
           type="submit"
           disabled={create.isPending}
@@ -174,6 +235,26 @@ export function NotesPanel({ onClose }: { onClose: () => void }) {
           {t("dock.notes.add")}
         </button>
       </form>
+
+      {context ? (
+        <div className="flex gap-1 border-b border-border px-3 py-2">
+          {(["all", "material"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setScope(value)}
+              className={cn(
+                "rounded-[6px] px-2.5 py-1 text-xs font-medium",
+                scope === value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t(`dock.notes.scope.${value}`)}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {notesQ.isError ? (
         <DockEmptyState>{t("dock.error")}</DockEmptyState>
