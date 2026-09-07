@@ -357,6 +357,13 @@ export function socialHoverGradient(plan: SocialHoverPlan, platform: string): st
 
 /** Kolor ikony po najechaniu; `undefined` = zostaw kolor podstawowy. */
 export function socialHoverIconColor(plan: SocialHoverPlan, platform: string): string | undefined {
+  const darkHoverMode = plan.mode === "brand" || plan.mode === "house" || plan.mode === "custom";
+  // Ikona X (Twitter) na ciemnym gradiencie marki MUSI być biała, nawet gdy
+  // iconMode zwróciłoby oficjalny kolor (#000000) lub zachowało kolor bazowy.
+  // Dotyczy to zarówno układu „rząd", jak i „lista" we wszystkich widgetach
+  // social-bar w całej aplikacji.
+  if (platform === "x" && darkHoverMode) return "#ffffff";
+
   switch (plan.iconMode) {
     case "light":
       return "#ffffff";
@@ -372,8 +379,7 @@ export function socialHoverIconColor(plan: SocialHoverPlan, platform: string): s
       // „Automatycznie" = dobierz do tła hovera. Na gradiencie marki / firmowym
       // ikona musi być JASNA również w light mode (tego wymaga redakcja), a na
       // delikatnym lub przezroczystym tle bierze ciemniejszy atrament marki.
-      if (plan.mode === "brand" || plan.mode === "house" || plan.mode === "custom")
-        return "#ffffff";
+      if (darkHoverMode) return "#ffffff";
       if (plan.mode === "soft" || plan.mode === "outline") return "var(--brand-ink, var(--brand))";
       return undefined;
   }
