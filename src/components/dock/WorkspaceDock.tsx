@@ -25,6 +25,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useRouterState } from "@tanstack/react-router";
 
+import { useAuth } from "@/hooks/useAuth";
 import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
@@ -204,6 +205,7 @@ export function WorkspaceDock() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [barRef, barHeight] = useReservedSpace();
+  const { user } = useAuth();
 
   const rawConfig = useSiteSetting<MobileBottomBarConfig>(
     MOBILE_BOTTOM_BAR_SETTINGS_KEY,
@@ -236,6 +238,10 @@ export function WorkspaceDock() {
   };
 
   const close = useCallback(() => dispatch({ type: "close" }), []);
+
+  // Ostateczna bramka: dock to przestrzeń robocza członka; nawet jeśli ktoś
+  // użyje komponentu poza SiteChrome, nie renderujemy go dla gości.
+  if (!user) return null;
 
   return (
     <>

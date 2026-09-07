@@ -6,9 +6,9 @@
  * przemontowuje się przy nawigacji) i celowo karmi atrapę routera pustą listą
  * dopasowań. Tu przedmiotem dowodu jest cała reszta: trzy tryby powłoki
  * (publiczna / panel admina i logowanie / trasa z własnym chrome), odczyt
- * `kind` z `loaderData` dopasowanej trasy oraz bramka doku czatu. Te decyzje
- * zapadają w jednym `select` i jednym warunku, a mylą się cicho - stąd osobne
- * przypadki na każdą gałąź.
+ * `kind` z `loaderData` dopasowanej trasy oraz bramki doku czatu i doku
+ * przestrzeni roboczej. Te decyzje zapadają w jednym `select` i jednym
+ * warunku, a mylą się cicho - stąd osobne przypadki na każdą gałąź.
  *
  * CO PRZYPINAMY.
  *  1. Trasa publiczna dostaje komplet: pasek postępu, baner impersonacji, link
@@ -26,13 +26,16 @@
  *  6. Dok czatu: slot stoi w drzewie ZAWSZE (żeby nie przemontowywać go przy
  *     przejściu panel <-> serwis), a sam czat pojawia się wyłącznie dla
  *     zalogowanego użytkownika przy włączonym module.
+ *  7. Dok przestrzeni roboczej (bottom bar): wyłącznie dla zalogowanych
+ *     użytkowników, nigdy w /admin i /login.
  *
  * CO JEST ZAATRAPOWANE: router (kontrolowana lokalizacja i dopasowania),
  * `useAuth` oraz wszystkie dzieci powłoki (Header, Footer, pasek dolny, baner,
- * link, dok czatu) - każde ma własny plik testowy, a tutaj liczy się WYŁĄCZNIE
- * to, które z nich są montowane i z jakimi propsami. Prawdziwe zostają:
- * `adPageTypeForLocation`, `useCommunityModules` (na prawdziwym `QueryClient`
- * z zasianym cache ustawień) i `React.lazy` doku czatu.
+ * link, dok czatu, dok przestrzeni roboczej) - każde ma własny plik testowy,
+ * a tutaj liczy się WYŁĄCZNIE to, które z nich są montowane i z jakimi
+ * propsami. Prawdziwe zostają: `adPageTypeForLocation`, `useCommunityModules`
+ * (na prawdziwym `QueryClient` z zasianym cache ustawień) i `React.lazy`
+ * doku czatu oraz doku przestrzeni roboczej.
  *
  * RODO: użytkownik w atrapie to zmyślony identyfikator, bez danych osobowych.
  */
@@ -90,6 +93,10 @@ vi.mock("@/components/chat/ChatDock", () => ({
   ChatDock: () => <div data-testid="chat-dock" />,
 }));
 
+vi.mock("@/components/dock/WorkspaceDock", () => ({
+  WorkspaceDock: () => <div data-testid="workspace-dock" />,
+}));
+
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ user: h.user, tenantId: null }),
 }));
@@ -116,8 +123,8 @@ function renderChrome(seed: SettingsSeed = {}) {
   );
 }
 
-/** Rozwiązanie leniwego `ChatDock` (mikrozadanie). */
-async function settleLazyChat(): Promise<void> {
+/** Rozwiązanie leniwych `ChatDock` i `WorkspaceDock` (mikrozadanie). */
+async function settleLazy(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
   });
@@ -137,7 +144,7 @@ describe("SiteChrome - powłoka publiczna", () => {
   it("opakowuje treść kompletem elementów powłoki", async () => {
     h.pathname = "/analizy";
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.getByTestId("route-progress")).toBeInTheDocument();
     expect(screen.getByTestId("impersonation-banner")).toBeInTheDocument();
@@ -147,12 +154,13 @@ describe("SiteChrome - powłoka publiczna", () => {
     expect(screen.getByTestId("strona")).toBeInTheDocument();
     expect(document.querySelector("[data-site-shell]")).not.toBeNull();
     expect(document.getElementById("main-content")).not.toBeNull();
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
   });
 
   it("strona główna zostaje edge-to-edge, pozostałe dostają odstępy", async () => {
     h.pathname = "/";
     const home = renderChrome();
-    await settleLazyChat();
+    await settleLazy();
     const homeMain = document.getElementById("main-content");
     expect(homeMain?.style.paddingTop).toBe("");
     expect(homeMain?.style.paddingBottom).toBe("");
@@ -160,13 +168,13 @@ describe("SiteChrome - powłoka publiczna", () => {
 
     h.pathname = "/en";
     const homeEn = renderChrome();
-    await settleLazyChat();
+    await settleLazy();
     expect(document.getElementById("main-content")?.style.paddingTop).toBe("");
     homeEn.unmount();
 
     h.pathname = "/analizy";
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
     const main = document.getElementById("main-content");
     expect(main?.style.paddingTop).toBe("15px");
     expect(main?.style.paddingBottom).toBe("15px");
@@ -175,7 +183,7 @@ describe("SiteChrome - powłoka publiczna", () => {
   it("typ strony reklamowej liczy się ze ścieżki", async () => {
     h.pathname = "/category/geopolityka";
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.getByTestId("header")).toHaveAttribute("data-ad-page-type", "category");
     expect(screen.getByTestId("header")).toHaveAttribute("data-content-kind", "null");
@@ -185,7 +193,7 @@ describe("SiteChrome - powłoka publiczna", () => {
     h.pathname = "/analizy/przyklad";
     h.matches = [{ loaderData: { nic: true } }, { loaderData: { kind: "post" } }];
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     const header = screen.getByTestId("header");
     expect(header).toHaveAttribute("data-content-kind", "post");
@@ -196,7 +204,7 @@ describe("SiteChrome - powłoka publiczna", () => {
     h.pathname = "/o-nas";
     h.matches = [{ loaderData: { kind: "page" } }];
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.getByTestId("header")).toHaveAttribute("data-ad-page-type", "page");
   });
@@ -205,7 +213,7 @@ describe("SiteChrome - powłoka publiczna", () => {
     h.pathname = "/wydarzenia";
     h.matches = [{}, { loaderData: undefined }];
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.getByTestId("header")).toHaveAttribute("data-content-kind", "null");
   });
@@ -215,7 +223,7 @@ describe("SiteChrome - trasy z własnym układem", () => {
   it("panel admina renderuje samą treść, bez Headera i Footera", async () => {
     h.pathname = "/admin/posts";
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.queryByTestId("header")).toBeNull();
     expect(screen.queryByTestId("footer")).toBeNull();
@@ -228,7 +236,7 @@ describe("SiteChrome - trasy z własnym układem", () => {
   it("ekran logowania też jest samodzielny", async () => {
     h.pathname = "/login";
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.queryByTestId("header")).toBeNull();
     expect(screen.getByTestId("skip-link")).toBeInTheDocument();
@@ -238,7 +246,7 @@ describe("SiteChrome - trasy z własnym układem", () => {
     h.pathname = "/strona-z-wlasnym-chrome";
     h.matches = [{ staticData: { inne: true } }, { staticData: { ownChrome: true } }];
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.queryByTestId("header")).toBeNull();
     expect(screen.queryByTestId("footer")).toBeNull();
@@ -250,7 +258,7 @@ describe("SiteChrome - trasy z własnym układem", () => {
     h.pathname = "/analizy";
     h.matches = [{ staticData: { ownChrome: false } }, {}];
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.getByTestId("header")).toBeInTheDocument();
   });
@@ -259,7 +267,7 @@ describe("SiteChrome - trasy z własnym układem", () => {
 describe("SiteChrome - dok czatu", () => {
   it("slot doku stoi w drzewie także wtedy, gdy czat się nie renderuje", async () => {
     renderChrome();
-    await settleLazyChat();
+    await settleLazy();
 
     expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
     expect(screen.queryByTestId("chat-dock")).toBeNull();
@@ -268,7 +276,7 @@ describe("SiteChrome - dok czatu", () => {
   it("zalogowany użytkownik przy włączonym module dostaje dok czatu", async () => {
     h.user = { id: "user-testowy" };
     renderChrome({ community_modules: { chat_enabled: true } });
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.getByTestId("chat-dock")).toBeInTheDocument();
   });
@@ -276,7 +284,7 @@ describe("SiteChrome - dok czatu", () => {
   it("wyłączony moduł czatu chowa dok mimo zalogowania", async () => {
     h.user = { id: "user-testowy" };
     renderChrome({ community_modules: { chat_enabled: false } });
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.queryByTestId("chat-dock")).toBeNull();
     expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
@@ -286,7 +294,7 @@ describe("SiteChrome - dok czatu", () => {
     h.user = { id: "user-testowy" };
     h.pathname = "/admin";
     renderChrome({ community_modules: { chat_enabled: true } });
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.queryByTestId("chat-dock")).toBeNull();
     expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
@@ -296,8 +304,45 @@ describe("SiteChrome - dok czatu", () => {
     h.user = { id: "user-testowy" };
     h.pathname = "/login";
     renderChrome({ community_modules: { chat_enabled: true } });
-    await settleLazyChat();
+    await settleLazy();
 
     expect(screen.queryByTestId("chat-dock")).toBeNull();
+  });
+});
+
+describe("SiteChrome - dok przestrzeni roboczej (bottom bar)", () => {
+  it("nie renderuje się dla gościa na trasie publicznej", async () => {
+    h.pathname = "/analizy";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
+  });
+
+  it("renderuje się dla zalogowanego użytkownika na trasie publicznej", async () => {
+    h.user = { id: "user-testowy" };
+    h.pathname = "/analizy";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.getByTestId("workspace-dock")).toBeInTheDocument();
+  });
+
+  it("nie wchodzi do panelu admina, nawet dla zalogowanego", async () => {
+    h.user = { id: "user-testowy" };
+    h.pathname = "/admin/posts";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
+  });
+
+  it("nie wchodzi na ekran logowania", async () => {
+    h.user = { id: "user-testowy" };
+    h.pathname = "/login";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
   });
 });
