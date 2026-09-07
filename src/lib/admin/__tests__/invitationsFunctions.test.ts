@@ -98,12 +98,16 @@ const h = vi.hoisted(() => ({
   /** Awaria generatora linku aktywacyjnego. */
   linkError: null as Error | null,
   emailError: "smtp down",
+  /** Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`. */
+  existingAuthUsers: [] as { id: string; email: string | null }[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     auth: {
       admin: {
+        // Moduł najpierw sprawdza, czy konto o tym adresie już istnieje.
+        listUsers: async () => ({ data: { users: h.existingAuthUsers ?? [] }, error: null }),
         inviteUserByEmail: async (email: string, payload: unknown) => {
           h.authCalls.push({ kind: "invite", email, payload });
           if (h.authError) return { data: { user: null }, error: h.authError };
@@ -142,10 +146,20 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         h.adminWrites.push({ table, row, options });
         return Promise.resolve({ data: null, error: null });
       },
-      select: () => ({
-        in: () =>
-          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null }),
-      }),
+      select: () => {
+        // Łańcuch obsługuje dwa użycia: listę profili (`.in()` → wynik po await)
+        // oraz wiersz subskrypcji zapraszanego (`.eq().in().order().limit().maybeSingle()`),
+        // z którego wynika zakres obietnicy w treści maila. Każde ogniwo jest
+        // jednocześnie obietnicą i łańcuchem, więc oba użycia działają.
+        const result = () =>
+          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null });
+        const chain: Record<string, unknown> = {};
+        for (const method of ["eq", "in", "order", "limit"]) {
+          chain[method] = () => Object.assign(result(), chain);
+        }
+        chain["maybeSingle"] = () => Promise.resolve({ data: null, error: null });
+        return chain;
+      },
     }),
   },
 }));

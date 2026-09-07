@@ -51,6 +51,12 @@ export interface TxSendInput {
   ctaLabel?: string;
   extra?: string | null;
   /**
+   * Akapit wstępu narzucony przez wywołującego - używany, gdy treść zależy od
+   * kontekstu odbiorcy (np. zakres dostępu w zaproszeniu). Ustawienia z panelu
+   * (`overrides`) mają pierwszeństwo, słownik `tx-body` jest ostatnią deską.
+   */
+  intro?: string | null;
+  /**
    * Zmienne personalizacji treści (plan, kwota, daty, prorata, karencja).
    * Na ich podstawie `tx-body` buduje akapity odmienione przez rodzaj
    * gramatyczny odbiorcy - bez nich mail wraca do treści ogólnej.
@@ -250,7 +256,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       ctaUrl: input.ctaUrl ?? (input.ctaPath ? `${SITE_URL}${input.ctaPath}` : undefined),
       details: input.details ?? [],
       extra: ov("extra") ?? input.extra ?? body.extra ?? null,
-      intro: ov("intro") ?? body.intro ?? null,
+      intro: ov("intro") ?? input.intro ?? body.intro ?? null,
       note: ov("note") ?? body.note ?? null,
       preview: ov("preview"),
       eyebrow: ov("eyebrow"),

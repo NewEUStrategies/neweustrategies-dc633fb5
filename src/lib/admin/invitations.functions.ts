@@ -26,6 +26,11 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  invitationIntro,
+  invitationScope,
+  tierRankByPriceId,
+} from "@/lib/email-templates/invitationScope";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type InviteMode = Database["public"]["Enums"]["invitation_mode"];
@@ -392,6 +397,14 @@ async function performSend(
     let actionLink: string | null = null;
     if (inv.mode === "magic_link") {
       const redirectTo = `${origin}/auth/callback`;
+      // Adres w mailu MUSI być na naszej domenie - patrz src/routes/auth.activate.ts.
+      // Dlatego bierzemy z odpowiedzi token (`hashed_token`), a nie gotowy
+      // `action_link` wskazujący na domenę dostawcy tożsamości.
+      const prettyLink = (props: { hashed_token?: string; verification_type?: string }) =>
+        props.hashed_token
+          ? `${origin}/auth/activate?token=${encodeURIComponent(props.hashed_token)}&type=${encodeURIComponent(props.verification_type ?? "invite")}`
+          : null;
+
       const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
         type: "invite",
         email,
@@ -407,9 +420,9 @@ async function performSend(
         if (magicErr || !magic?.properties?.action_link) {
           throw new Error(`link_failed:${(linkErr ?? magicErr)?.message ?? "unknown"}`);
         }
-        actionLink = magic.properties.action_link;
+        actionLink = prettyLink(magic.properties) ?? magic.properties.action_link;
       } else {
-        actionLink = linkData.properties.action_link;
+        actionLink = prettyLink(linkData.properties) ?? linkData.properties.action_link;
       }
     }
 
@@ -420,6 +433,24 @@ async function performSend(
       // HTML tylko po polsku, poza rejestrem szablonów.
       const lang: "pl" | "en" = meta.lang === "en" ? "en" : "pl";
       const loginUrl = `${origin}/auth?email=${encodeURIComponent(email)}`;
+
+      // Zakres obietnicy w treści maila musi odpowiadać dostępowi konta:
+      // redakcja i plany od PRO w górę dostają pełne brzmienie, zwykły
+      // użytkownik - analizy, raporty, quizy i wydarzenia.
+      const { data: subRow } = await supabaseAdmin
+        .from("subscriptions")
+        .select("price_id, status")
+        .eq("user_id", authUserId)
+        .in("status", ["active", "trialing", "past_due"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const scope = invitationScope({
+        role: inv.role,
+        tierRank: tierRankByPriceId(subRow?.price_id ?? null),
+      });
+      const intro = invitationIntro(scope, lang);
+
       const details: { label: string; value: string }[] = [
         { label: lang === "pl" ? "Adres logowania" : "Sign-in address", value: email },
         { label: lang === "pl" ? "Rola" : "Role", value: inv.role },
@@ -444,6 +475,7 @@ async function performSend(
         to: email,
         lang,
         metaName: displayName,
+        intro,
         details,
         ctaUrl: actionLink ?? loginUrl,
         ctaLabel: actionLink
