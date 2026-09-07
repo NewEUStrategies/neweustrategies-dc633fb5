@@ -65,6 +65,20 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
   const conversationsQ = useConversations();
   const nicknamesQ = useNicknames();
 
+  // Skrzynka zapytań eksperckich: RPC zwraca rekordy tylko wtedy, gdy
+  // zalogowany użytkownik jest ODBIORCĄ - czyli jest ekspertem. Zakładkę
+  // pokazujemy więc wyłącznie takim osobom, bez dodatkowego zapytania o rolę.
+  const expertRequestsQ = useMyExpertRequests("received");
+  const expertRequests = useMemo(() => expertRequestsQ.data ?? [], [expertRequestsQ.data]);
+  const isExpertRecipient = expertRequests.length > 0;
+  const pendingExpertRequests = expertRequests.filter((row) => row.status === "pending").length;
+
+  // Gdy zakładka zniknie (np. brak zapytań), nie zostawiamy pustego widoku.
+  useEffect(() => {
+    if (!isExpertRecipient) setTab((current) => (current === "requests" ? "chats" : current));
+  }, [isExpertRecipient]);
+
+
   // Wejście panelu: jedna transformacja GPU zamiast przeliczania layoutu.
   useEffect(() => {
     const frame = requestAnimationFrame(() => setEntered(true));
