@@ -94,17 +94,32 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
     minimizedChatsStore.clearRequest();
   }, [requested]);
 
+  const selectedView = useMemo(
+    () => active.find((item) => item.conversation.id === selected),
+    [active, selected],
+  );
+
   const selectedName = useMemo(() => {
-    if (!selected) return "";
-    const view = active.find((item) => item.conversation.id === selected);
-    return view ? conversationDisplay(view, peersQ.data, groupLabel).name : "";
-  }, [active, selected, peersQ.data, groupLabel]);
+    if (!selectedView) return "";
+    return conversationDisplay(selectedView, peersQ.data, groupLabel).name;
+  }, [selectedView, peersQ.data, groupLabel]);
+
+  const selectedAvatarUrl = useMemo(() => {
+    if (!selectedView || isGroupView(selectedView) || !peersQ.data) return null;
+    const peerUserId = selectedView.peers[0]?.user_id;
+    if (!peerUserId) return null;
+    return peersQ.data.get(peerUserId)?.avatar_url ?? null;
+  }, [selectedView, peersQ.data]);
 
   if (!user) return null;
 
   const minimizeSelected = () => {
     if (!selected) return;
-    minimizedChatsStore.minimize({ id: selected, name: selectedName || t("dock.chat.title") });
+    minimizedChatsStore.minimize({
+      id: selected,
+      name: selectedName || t("dock.chat.title"),
+      avatarUrl: selectedAvatarUrl,
+    });
     setSelected(null);
   };
 

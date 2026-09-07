@@ -33,4 +33,19 @@ describe("minimizedChatsStore", () => {
     minimizedChatsStore.remove("a");
     expect(minimizedChatsStore.getSnapshot()).toEqual({ minimized: [], requested: null });
   });
+
+  it("zapamiętuje i odtwarza opcjonalny avatar rozmówcy", () => {
+    minimizedChatsStore.minimize({
+      id: "a",
+      name: "Ala",
+      avatarUrl: "https://example.com/ala.jpg",
+    });
+    const state = minimizedChatsStore.getSnapshot();
+    expect(state.minimized[0]?.avatarUrl).toBe("https://example.com/ala.jpg");
+  });
+
+  it("akceptuje rozmowę bez avatara", () => {
+    minimizedChatsStore.minimize({ id: "a", name: "Ala" });
+    expect(minimizedChatsStore.getSnapshot().minimized[0]?.avatarUrl).toBeUndefined();
+  });
 });

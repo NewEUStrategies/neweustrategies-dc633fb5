@@ -30,15 +30,8 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
-import {
-  Bookmark,
-  BookOpen,
-  CalendarDays,
-  ListTodo,
-  MessageCircle,
-  NotebookPen,
-  X,
-} from "lucide-react";
+import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen, X } from "lucide-react";
 import {
   MINIMIZED_VISIBLE_LIMIT,
   minimizedChatsStore,
@@ -267,7 +260,12 @@ function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
             aria-label={t("dock.chat.restore", { name: chat.name })}
             className="flex min-w-0 items-center gap-1"
           >
-            <MessageCircle className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+            <ChatAvatar
+              name={chat.name}
+              avatarUrl={chat.avatarUrl}
+              size="xs"
+              className="shrink-0"
+            />
             <span className="truncate">{chat.name}</span>
           </button>
           <button

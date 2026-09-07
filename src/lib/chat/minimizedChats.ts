@@ -7,6 +7,8 @@ import { useSyncExternalStore } from "react";
 export interface MinimizedChat {
   id: string;
   name: string;
+  /** Opcjonalny avatar rozmówcy - dla pigułki zamiast ikony czatu. */
+  avatarUrl?: string | null;
 }
 
 /** Ile pigułek pokazujemy wprost - reszta trafia pod ikonę "+N". */
@@ -50,7 +52,10 @@ function hydrate(): void {
         typeof item === "object" &&
         item !== null &&
         typeof (item as MinimizedChat).id === "string" &&
-        typeof (item as MinimizedChat).name === "string",
+        typeof (item as MinimizedChat).name === "string" &&
+        ((item as MinimizedChat).avatarUrl === undefined ||
+          (item as MinimizedChat).avatarUrl === null ||
+          typeof (item as MinimizedChat).avatarUrl === "string"),
     );
     if (items.length > 0) state = { ...state, minimized: items };
   } catch {
