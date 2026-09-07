@@ -4508,26 +4508,25 @@ textarea::placeholder {
   }
 }
 
-/* WhatsApp-style chat wallpaper: a subtle two-tone dot lattice derived from
-   the theme tokens (brand-tinted, theme-aware via currentColor-free tokens).
-   Deliberately faint - bubbles must stay the highest-contrast element. */
+/* Domyślna tapeta rozmowy: gładki, miękki gradient z rogów, barwiony tokenami
+   motywu rozmowy (--chat-user-*), więc podąża za wybranym motywem i trybem
+   jasnym/ciemnym. Celowo bardzo subtelny - dymki zostają elementem
+   o najwyższym kontraście. */
 .chat-wallpaper {
   background-color: color-mix(in oklab, var(--muted, #f4f4f5) 45%, var(--background, #fff));
   background-image:
     radial-gradient(
-      color-mix(in oklab, var(--foreground, #111) 7%, transparent) 1px,
-      transparent 1.5px
+      110% 80% at 100% 0%,
+      color-mix(in oklab, var(--chat-user-to, #ed6d1f) 10%, transparent) 0%,
+      transparent 60%
     ),
     radial-gradient(
-      color-mix(in oklab, var(--chat-user-to, #ed6d1f) 9%, transparent) 1px,
-      transparent 1.5px
+      120% 90% at 0% 100%,
+      color-mix(in oklab, var(--chat-user-from, #fbaa6d) 12%, transparent) 0%,
+      transparent 55%
     );
-  background-size:
-    22px 22px,
-    22px 22px;
-  background-position:
-    0 0,
-    11px 11px;
+  background-size: auto;
+  background-position: 0 0;
 }
 
 /* ---- Personalizacja rozmów: motywy ----------------------------------------
@@ -4602,22 +4601,27 @@ textarea::placeholder {
 }
 
 /* ---- Personalizacja rozmów: tapety -----------------------------------------
-   Warianty nadpisują background-image bazowej .chat-wallpaper (kropki);
-   wszystkie barwione przez --chat-user-to, więc podążają za motywem. */
+   Warianty nadpisują background-image bazowej .chat-wallpaper (gładki
+   gradient); wszystkie barwione przez --chat-user-*, więc podążają za motywem. */
 .chat-wallpaper-soft {
+  /* Domyślna tapeta - identyczna z bazą; klasa zostaje dla jawnego wyboru. */
+}
+.chat-wallpaper-dots {
   background-image:
     radial-gradient(
-      110% 80% at 100% 0%,
-      color-mix(in oklab, var(--chat-user-to, #ed6d1f) 10%, transparent) 0%,
-      transparent 60%
+      color-mix(in oklab, var(--foreground, #111) 7%, transparent) 1px,
+      transparent 1.5px
     ),
     radial-gradient(
-      120% 90% at 0% 100%,
-      color-mix(in oklab, var(--chat-user-from, #fbaa6d) 12%, transparent) 0%,
-      transparent 55%
+      color-mix(in oklab, var(--chat-user-to, #ed6d1f) 9%, transparent) 1px,
+      transparent 1.5px
     );
-  background-size: auto;
-  background-position: 0 0;
+  background-size:
+    22px 22px,
+    22px 22px;
+  background-position:
+    0 0,
+    11px 11px;
 }
 .chat-wallpaper-lines {
   background-image: repeating-linear-gradient(
