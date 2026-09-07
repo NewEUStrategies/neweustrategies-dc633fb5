@@ -173,42 +173,7 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 py-1.5 sm:px-4">
-          {/* Skróty tenanta - przeniesione z dawnego mobilnego paska dolnego. */}
-          <nav
-            aria-label={t("mobileBottomBar.nav")}
-            className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            <ul className="flex items-center gap-0.5">
-              {shortcuts.map((item, index) => (
-                <li key={item.id}>
-                  <AppLink
-                    href={bottomBarHref(item, lang)}
-                    aria-current={index === activeShortcut ? "page" : undefined}
-                    className={cn(
-                      "relative flex items-center gap-2 rounded-full px-2.5 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      index === activeShortcut
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <span className="relative inline-flex">
-                      <DynamicIcon
-                        name={item.icon || "circle"}
-                        className="h-[18px] w-[18px]"
-                        aria-hidden="true"
-                      />
-                      <LiveTabBadge source={item.badge} />
-                    </span>
-                    <span className="hidden truncate lg:inline">
-                      {bottomBarLabel(item, lang, t)}
-                    </span>
-                  </AppLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
+        <div className="flex items-center justify-center gap-2 px-2 py-1.5 sm:px-4">
           {/* Narzędzia członka. */}
           <nav aria-label={t("dock.toolbar")} className="flex shrink-0 items-center gap-0.5">
             {DOCK_TOOLS.map((tool) => {
