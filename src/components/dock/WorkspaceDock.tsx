@@ -277,7 +277,7 @@ function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
           >
             <ChatAvatar
               name={chat.name}
-              avatarUrl={chat.avatarUrl}
+              avatarUrl={liveAvatars.get(chat.id) ?? chat.avatarUrl}
               size="xs"
               className="shrink-0"
             />
