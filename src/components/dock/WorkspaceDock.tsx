@@ -36,7 +36,6 @@ import {
   BookOpen,
   CalendarDays,
   ListTodo,
-  MessageCircle,
   NotebookPen,
   X,
 } from "lucide-react";
