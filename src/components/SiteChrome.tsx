@@ -14,6 +14,12 @@ const ChatDock = lazy(() =>
   import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
 );
 
+// Przestrzeń robocza członka (pasek narzędzi: czat, zadania, notatki,
+// zapisane, kalendarz, do przeczytania). Lazy - gość nie pobiera jej kodu.
+const WorkspaceDock = lazy(() =>
+  import("@/components/dock/WorkspaceDock").then((m) => ({ default: m.WorkspaceDock })),
+);
+
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
  * EXCEPT:
@@ -72,6 +78,16 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     </div>
   );
 
+  // Pasek narzędzi członka: te same bramki co czat (zalogowany, poza /admin
+  // i /login), ale bez zależności od toggle'a czatu - zadania i notatki
+  // działają nawet przy wyłączonych rozmowach.
+  const workspaceDock =
+    !user || isAdmin || isLogin ? null : (
+      <Suspense fallback={null}>
+        <WorkspaceDock />
+      </Suspense>
+    );
+
   if (isAdmin || isLogin || ownChrome) {
     return (
       <>
@@ -80,6 +96,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         <RouteProgress />
         {children}
         {chatDock}
+        {workspaceDock}
       </>
     );
   }
@@ -109,6 +126,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       <Footer />
       <MobileBottomBar />
       {chatDock}
+      {workspaceDock}
     </div>
   );
 }
