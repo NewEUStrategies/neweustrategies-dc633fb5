@@ -418,9 +418,8 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="pointer-events-none relative">
+        <div className="relative">
           <MinimizedChats onOpenInbox={() => dispatch({ type: "open", tool: "chat" })} />
-        </div>
         {/* Mobile: Home dokładnie na środku, po lewej Network i Czat,
             po prawej Zapisane i Klub - wszystkie jako rozwijane zakładki
             z odstępem 6px. */}
