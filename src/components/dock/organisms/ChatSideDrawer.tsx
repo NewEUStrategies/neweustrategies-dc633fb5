@@ -41,11 +41,27 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
+  const [entered, setEntered] = useState(false);
 
   useChatListRealtime();
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const nicknamesQ = useNicknames();
+
+  // Wejście panelu: jedna transformacja GPU zamiast przeliczania layoutu.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  // Escape zamyka skrzynkę - bez dodatkowych zapytań do serwera.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const { active } = useMemo(() => splitArchived(conversationsQ.data ?? []), [conversationsQ.data]);
   const peerIds = useMemo(
@@ -54,20 +70,22 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
   );
   const peersQ = usePeerProfiles(peerIds);
 
-  const needle = query.trim().toLowerCase();
+  // Filtrowanie w niskim priorytecie - pisanie w wyszukiwarce pozostaje płynne.
+  const deferredQuery = useDeferredValue(query);
+  const needle = deferredQuery.trim().toLowerCase();
+  const groupLabel = t("chat.group.circle");
   const rows = useMemo(() => {
     if (needle.length === 0) return active;
     return active.filter((view) =>
-      conversationDisplay(view, peersQ.data, t("chat.group.circle"))
-        .name.toLowerCase()
-        .includes(needle),
+      conversationDisplay(view, peersQ.data, groupLabel).name.toLowerCase().includes(needle),
     );
-  }, [active, needle, peersQ.data, t]);
+  }, [active, needle, peersQ.data, groupLabel]);
 
-  const direct = rows.filter((view) => !isGroupView(view));
-  const groups = rows.filter((view) => isGroupView(view));
+  const direct = useMemo(() => rows.filter((view) => !isGroupView(view)), [rows]);
+  const groups = useMemo(() => rows.filter((view) => isGroupView(view)), [rows]);
 
   if (!user) return null;
+
 
   const openConversation = (conversationId: string) => {
     setSelected(conversationId);
