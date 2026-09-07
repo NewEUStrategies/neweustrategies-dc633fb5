@@ -251,14 +251,14 @@ function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
       {visible.map((chat) => (
         <span
           key={chat.id}
-          className="flex max-w-[132px] items-center gap-1 rounded-md border border-border bg-muted/60 py-0.5 pl-2 pr-1 text-[11px] font-medium"
+          className="flex h-6 max-w-[132px] items-center gap-1 rounded-md border border-border bg-muted/60 py-0 pl-0.5 pr-0.5 text-[11px] font-medium leading-none"
         >
           <button
             type="button"
             onClick={() => restore(chat.id)}
             title={t("dock.chat.restore", { name: chat.name })}
             aria-label={t("dock.chat.restore", { name: chat.name })}
-            className="flex min-w-0 items-center gap-1"
+            className="flex h-5 min-w-0 items-center gap-1"
           >
             <ChatAvatar
               name={chat.name}
@@ -266,14 +266,14 @@ function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
               size="xs"
               className="shrink-0"
             />
-            <span className="truncate">{chat.name}</span>
+            <span className="truncate leading-none">{chat.name}</span>
           </button>
           <button
             type="button"
             onClick={() => minimizedChatsStore.remove(chat.id)}
             title={t("dock.chat.closeConversation")}
             aria-label={t("dock.chat.closeConversation")}
-            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
           >
             <X className="h-3 w-3" aria-hidden />
           </button>
@@ -285,11 +285,12 @@ function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
           onClick={onOpenInbox}
           title={t("dock.chat.minimizedMore", { count: overflow })}
           aria-label={t("dock.chat.minimizedMore", { count: overflow })}
-          className="rounded-md border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+          className="flex h-6 items-center rounded-md border border-border bg-muted/60 px-2 text-[11px] font-semibold leading-none text-muted-foreground hover:text-foreground"
         >
           +{overflow}
         </button>
       ) : null}
+
     </div>
   );
 }
