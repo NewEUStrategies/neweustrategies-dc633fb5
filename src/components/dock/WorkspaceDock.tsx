@@ -157,50 +157,53 @@ function ExpandableTab({
     <Tooltip delayDuration={200}>
       <TooltipTrigger asChild>
         <motion.button
-      type="button"
-      onClick={onPress}
-      aria-pressed={active}
-      aria-label={label}
-      initial={false}
-      animate={{
-        gap: active ? "0.375rem" : 0,
-        paddingLeft: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
-        paddingRight: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
-      }}
-      transition={tabTransition}
-      className={cn(
-        "relative flex min-w-0 items-center rounded-md py-1 text-xs font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground/80 hover:bg-muted hover:text-foreground",
-        !active && highlighted && "ring-1 ring-border",
-      )}
-    >
-      <span
-        className={cn(
-          "relative grid shrink-0 place-items-center rounded-full [&>svg]:h-4 [&>svg]:w-4",
-          center && "h-6 w-6 bg-primary text-primary-foreground [&>svg]:h-3.5 [&>svg]:w-3.5",
-        )}
-      >
-        {icon}
-        {badge}
-      </span>
-      <AnimatePresence initial={false}>
-        {active ? (
-          <motion.span
-            key="label"
-            variants={labelVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={tabTransition}
-            className={cn("overflow-hidden whitespace-nowrap", compact ? "text-[11px]" : "text-xs")}
+          type="button"
+          onClick={onPress}
+          aria-pressed={active}
+          aria-label={label}
+          initial={false}
+          animate={{
+            gap: active ? "0.375rem" : 0,
+            paddingLeft: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
+            paddingRight: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
+          }}
+          transition={tabTransition}
+          className={cn(
+            "relative flex min-w-0 items-center rounded-md py-1 text-xs font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            active
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground/80 hover:bg-muted hover:text-foreground",
+            !active && highlighted && "ring-1 ring-border",
+          )}
+        >
+          <span
+            className={cn(
+              "relative grid shrink-0 place-items-center rounded-full [&>svg]:h-4 [&>svg]:w-4",
+              center && "h-6 w-6 bg-primary text-primary-foreground [&>svg]:h-3.5 [&>svg]:w-3.5",
+            )}
           >
-            {label}
-          </motion.span>
-        ) : null}
-      </AnimatePresence>
-    </motion.button>
+            {icon}
+            {badge}
+          </span>
+          <AnimatePresence initial={false}>
+            {active ? (
+              <motion.span
+                key="label"
+                variants={labelVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={tabTransition}
+                className={cn(
+                  "overflow-hidden whitespace-nowrap",
+                  compact ? "text-[11px]" : "text-xs",
+                )}
+              >
+                {label}
+              </motion.span>
+            ) : null}
+          </AnimatePresence>
+        </motion.button>
       </TooltipTrigger>
       {/* Etykieta jest widoczna na aktywnej zakładce - tooltip tylko dla ikon. */}
       {!active ? (
