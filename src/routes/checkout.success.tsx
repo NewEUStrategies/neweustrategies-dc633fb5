@@ -16,6 +16,7 @@ import { finalizeCheckout } from "@/lib/billing/checkout.functions";
 import { safeReturnPath } from "@/lib/billing/returnPath";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { PurchaseConfirmationView } from "@/components/builder/organisms/widget-view/PurchaseConfirmationView";
+import { MembershipWelcome } from "@/components/membership/MembershipWelcome";
 import { resolvedContentQueryOptions, type PageData } from "@/lib/queries/public";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
@@ -179,6 +180,11 @@ function SuccessPage() {
       ) : (
         <PurchaseConfirmationView c={{}} lang={lang} />
       )}
+      {/* Po zmianie planu pokazujemy tę samą listę benefitów co po aktywacji konta. */}
+      <div className="mt-8">
+        <MembershipWelcome mode="upgraded" />
+      </div>
+
       {returnTo ? (
         <div className="mt-6 flex justify-center">
           <Button asChild className="h-12 rounded-[6px]">
