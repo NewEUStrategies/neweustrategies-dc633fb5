@@ -106,13 +106,6 @@ export function WorkspaceDock() {
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [barRef, barHeight] = useReservedSpace();
 
-  const config = useSiteSetting<MobileBottomBarConfig>(
-    MOBILE_BOTTOM_BAR_SETTINGS_KEY,
-    MOBILE_BOTTOM_BAR_DEFAULTS,
-  );
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const shortcuts = config.enabled ? visibleBottomBarItems(config) : [];
-  const activeShortcut = activeBottomBarIndex(shortcuts, pathname);
 
   // Ostatnie narzędzie tylko podświetlamy - nie otwieramy panelu bez akcji
   // użytkownika, żeby wejście na stronę nie przysłaniało treści.
