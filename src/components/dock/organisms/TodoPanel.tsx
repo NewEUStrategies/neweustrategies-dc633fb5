@@ -14,6 +14,13 @@ import {
   useTodos,
 } from "@/lib/dock/useTodos";
 import { TODO_PRIORITIES, type TodoPriority } from "@/lib/dock/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export function TodoPanel({ onClose }: { onClose: () => void }) {
@@ -53,18 +60,25 @@ export function TodoPanel({ onClose }: { onClose: () => void }) {
           className="w-full rounded-[6px] border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <div className="flex items-center gap-2">
-          <select
+          <Select
             value={priority}
-            onChange={(event) => setPriorityDraft(event.target.value as TodoPriority)}
-            aria-label={t("dock.todos.priority.label")}
-            className="rounded-[6px] border border-input bg-background px-2 py-1.5 text-xs text-foreground"
+            onValueChange={(value) => setPriorityDraft(value as TodoPriority)}
           >
-            {TODO_PRIORITIES.map((value) => (
-              <option key={value} value={value}>
-                {t(`dock.todos.priority.${value}`)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              aria-label={t("dock.todos.priority.label")}
+              className="h-8 w-auto gap-1 rounded-[6px] border-input bg-background px-2 py-0 text-xs text-foreground"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-[6px]">
+              {TODO_PRIORITIES.map((value) => (
+                <SelectItem key={value} value={value} className="text-xs">
+                  {t(`dock.todos.priority.${value}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <button
             type="submit"
             disabled={title.trim().length === 0 || create.isPending}
@@ -126,23 +140,26 @@ export function TodoPanel({ onClose }: { onClose: () => void }) {
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <PriorityChip priority={todo.priority} />
                   {!todo.done && (
-                    <select
+                    <Select
                       value={todo.priority}
-                      onChange={(event) =>
-                        setPriority.mutate({
-                          id: todo.id,
-                          priority: event.target.value as TodoPriority,
-                        })
+                      onValueChange={(value) =>
+                        setPriority.mutate({ id: todo.id, priority: value as TodoPriority })
                       }
-                      aria-label={t("dock.todos.priority.label")}
-                      className="rounded-[6px] border border-input bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground"
                     >
-                      {TODO_PRIORITIES.map((value) => (
-                        <option key={value} value={value}>
-                          {t(`dock.todos.priority.${value}`)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger
+                        aria-label={t("dock.todos.priority.label")}
+                        className="h-6 w-auto gap-1 rounded-[6px] border-input bg-background px-1.5 py-0 text-[11px] text-muted-foreground"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-[6px]">
+                        {TODO_PRIORITIES.map((value) => (
+                          <SelectItem key={value} value={value} className="text-xs">
+                            {t(`dock.todos.priority.${value}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>
