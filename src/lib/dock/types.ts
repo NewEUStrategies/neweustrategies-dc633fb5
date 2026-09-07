@@ -63,9 +63,7 @@ export function normalizeNoteColor(value: unknown): NoteColor {
 }
 
 export function normalizeReadLaterState(value: unknown): ReadLaterState {
-  return READ_LATER_STATES.includes(value as ReadLaterState)
-    ? (value as ReadLaterState)
-    : "unread";
+  return READ_LATER_STATES.includes(value as ReadLaterState) ? (value as ReadLaterState) : "unread";
 }
 
 /** Kolejność wyświetlania: pilne najpierw, potem termin, potem data dodania. */

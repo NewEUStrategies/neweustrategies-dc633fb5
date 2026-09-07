@@ -25,7 +25,10 @@ export function dayKey(date: Date): string {
 }
 
 export function monthRange(year: number, month: number): { from: Date; to: Date } {
-  return { from: new Date(year, month, 1, 0, 0, 0, 0), to: new Date(year, month + 1, 1, 0, 0, 0, 0) };
+  return {
+    from: new Date(year, month, 1, 0, 0, 0, 0),
+    to: new Date(year, month + 1, 1, 0, 0, 0, 0),
+  };
 }
 
 /** Siatka 6x7 zaczynająca się od poniedziałku (kalendarz PL i EN-GB). */

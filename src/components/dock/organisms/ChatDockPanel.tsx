@@ -35,7 +35,10 @@ function Section({
         aria-expanded={open}
         className="flex w-full items-center gap-2 bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
       >
-        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !open && "-rotate-90")} aria-hidden />
+        <ChevronDown
+          className={cn("h-3.5 w-3.5 transition-transform", !open && "-rotate-90")}
+          aria-hidden
+        />
         <span className="flex-1 text-left">{title}</span>
         <span>{count}</span>
       </button>
@@ -51,10 +54,7 @@ export function ChatDockPanel({ onClose }: { onClose: () => void }) {
   const peopleQ = usePeopleSearch(query.trim().length >= 2 ? query : "");
   const start = useStartConversation();
 
-  const { active } = useMemo(
-    () => splitArchived(conversationsQ.data ?? []),
-    [conversationsQ.data],
-  );
+  const { active } = useMemo(() => splitArchived(conversationsQ.data ?? []), [conversationsQ.data]);
   const peerIds = useMemo(
     () => active.flatMap((view) => view.peers.map((peer) => peer.user_id)),
     [active],
@@ -74,7 +74,10 @@ export function ChatDockPanel({ onClose }: { onClose: () => void }) {
   const renderList = (views: typeof active) => (
     <ul className="divide-y divide-border">
       {views
-        .filter((view) => needle.length === 0 || label(view.conversation.id).toLowerCase().includes(needle))
+        .filter(
+          (view) =>
+            needle.length === 0 || label(view.conversation.id).toLowerCase().includes(needle),
+        )
         .map((view) => (
           <li key={view.conversation.id}>
             <button

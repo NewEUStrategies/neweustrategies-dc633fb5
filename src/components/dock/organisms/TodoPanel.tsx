@@ -39,7 +39,11 @@ export function TodoPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <DockPanelShell title={t("dock.todos.title")} icon={<ListTodo className="h-4 w-4" />} onClose={onClose}>
+    <DockPanelShell
+      title={t("dock.todos.title")}
+      icon={<ListTodo className="h-4 w-4" />}
+      onClose={onClose}
+    >
       <form onSubmit={submit} className="space-y-2 border-b border-border p-3">
         <input
           value={title}

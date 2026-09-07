@@ -28,7 +28,9 @@ import "@/lib/i18n-dock";
 const ChatDockPanel = lazy(() =>
   import("./organisms/ChatDockPanel").then((m) => ({ default: m.ChatDockPanel })),
 );
-const TodoPanel = lazy(() => import("./organisms/TodoPanel").then((m) => ({ default: m.TodoPanel })));
+const TodoPanel = lazy(() =>
+  import("./organisms/TodoPanel").then((m) => ({ default: m.TodoPanel })),
+);
 const NotesPanel = lazy(() =>
   import("./organisms/NotesPanel").then((m) => ({ default: m.NotesPanel })),
 );
@@ -62,8 +64,7 @@ export function WorkspaceDock() {
     writeLastTool(typeof window === "undefined" ? null : window.localStorage, state.open);
   }, [state.open]);
 
-  const lastTool =
-    typeof window === "undefined" ? null : readLastTool(window.localStorage);
+  const lastTool = typeof window === "undefined" ? null : readLastTool(window.localStorage);
 
   const chatUnread = useChatUnreadTotal();
   const openTodos = useOpenTodoCount();

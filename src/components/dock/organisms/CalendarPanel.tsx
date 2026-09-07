@@ -71,9 +71,7 @@ export function CalendarPanel({ onClose, lang }: { onClose: () => void; lang: "p
                 className={cn(
                   "relative flex h-8 items-center justify-center rounded-[6px] text-xs transition-colors",
                   day.inMonth ? "text-foreground" : "text-muted-foreground/50",
-                  selected === day.key
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted",
+                  selected === day.key ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                   isToday && selected !== day.key && "ring-1 ring-primary",
                 )}
               >

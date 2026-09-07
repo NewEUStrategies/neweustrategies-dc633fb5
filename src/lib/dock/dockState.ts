@@ -10,9 +10,7 @@ export interface DockState {
 }
 
 export type DockAction =
-  | { type: "toggle"; tool: DockToolId }
-  | { type: "open"; tool: DockToolId }
-  | { type: "close" };
+  { type: "toggle"; tool: DockToolId } | { type: "open"; tool: DockToolId } | { type: "close" };
 
 export const initialDockState: DockState = { open: null };
 

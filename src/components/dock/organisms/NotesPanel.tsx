@@ -5,12 +5,7 @@ import { useTranslation } from "react-i18next";
 import { NotebookPen, Pin, PinOff, Trash2 } from "lucide-react";
 import { DockPanelShell } from "../DockPanelShell";
 import { DockEmptyState } from "../atoms/DockEmptyState";
-import {
-  useCreateNote,
-  useDeleteNote,
-  useNotes,
-  useUpdateNote,
-} from "@/lib/dock/useNotes";
+import { useCreateNote, useDeleteNote, useNotes, useUpdateNote } from "@/lib/dock/useNotes";
 import { NOTE_COLORS, type NoteColor, type UserNote } from "@/lib/dock/types";
 import { cn } from "@/lib/utils";
 
@@ -100,7 +95,9 @@ function NoteCard({ note }: { note: UserNote }) {
             </button>
           </div>
           {note.body ? (
-            <p className="whitespace-pre-wrap break-words text-xs text-foreground/80">{note.body}</p>
+            <p className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+              {note.body}
+            </p>
           ) : null}
           <div className="flex items-center gap-1 pt-1">
             {NOTE_COLORS.map((color) => (

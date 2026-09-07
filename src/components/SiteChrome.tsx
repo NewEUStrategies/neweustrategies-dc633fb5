@@ -20,7 +20,6 @@ const WorkspaceDock = lazy(() =>
   import("@/components/dock/WorkspaceDock").then((m) => ({ default: m.WorkspaceDock })),
 );
 
-
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
  * EXCEPT:
@@ -88,7 +87,6 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         <WorkspaceDock />
       </Suspense>
     );
-
 
   if (isAdmin || isLogin || ownChrome) {
     return (

@@ -5,11 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Archive, BookOpen, Check, RotateCcw, Trash2 } from "lucide-react";
 import { DockPanelShell } from "../DockPanelShell";
 import { DockEmptyState } from "../atoms/DockEmptyState";
-import {
-  useReadLater,
-  useRemoveReadLater,
-  useSetReadLaterState,
-} from "@/lib/dock/useReadLater";
+import { useReadLater, useRemoveReadLater, useSetReadLaterState } from "@/lib/dock/useReadLater";
 import { cn } from "@/lib/utils";
 
 const FILTERS = ["unread", "all", "archived"] as const;
