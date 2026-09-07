@@ -398,7 +398,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                     canInvite: false,
                     degree: 1,
                   }}
-                  compact
+                  iconOnly
                 />
               </PersonRow>
             ))}
