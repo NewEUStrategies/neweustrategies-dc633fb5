@@ -20,7 +20,7 @@ import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen } from "lucide-
 import { AppLink } from "@/components/atoms/AppLink";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
-import { DOCK_TOOLS, type DockToolId } from "@/lib/dock/types";
+import { type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useOpenTodoCount } from "@/lib/dock/useTodos";
 import { useUnreadLaterCount } from "@/lib/dock/useReadLater";
