@@ -201,6 +201,14 @@ function ExpandableTab({
         ) : null}
       </AnimatePresence>
     </motion.button>
+      </TooltipTrigger>
+      {/* Etykieta jest widoczna na aktywnej zakładce - tooltip tylko dla ikon. */}
+      {!active ? (
+        <TooltipContent side="top" sideOffset={8}>
+          {label}
+        </TooltipContent>
+      ) : null}
+    </Tooltip>
   );
 }
 
