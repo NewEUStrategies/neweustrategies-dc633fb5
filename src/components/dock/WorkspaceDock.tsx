@@ -272,7 +272,7 @@ export function WorkspaceDock() {
             administratora; zmienia się tylko układ i slot "saved". */}
         <nav
           aria-label={t("dock.shortcuts")}
-          className="grid grid-cols-5 items-stretch px-1 py-1 sm:hidden"
+          className="grid grid-cols-5 place-items-center px-1 py-1 sm:hidden"
         >
           {(["network", "chats"] as const).map((id) => (
             <MobileShortcut
@@ -303,7 +303,7 @@ export function WorkspaceDock() {
           />
         </nav>
 
-        <div className="hidden items-center justify-between gap-2 px-2 py-1.5 sm:flex sm:px-4">
+        <div className="hidden items-center justify-center gap-4 px-2 py-1.5 sm:flex sm:px-4">
           {/* Skróty nawigacyjne po lewej - konfigurowalne w ustawieniach. */}
           <nav aria-label={t("dock.shortcuts")} className="flex shrink-0 items-center gap-0.5">
             {shortcuts.map((item, index) => {
