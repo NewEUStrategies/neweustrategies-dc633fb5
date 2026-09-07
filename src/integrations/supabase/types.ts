@@ -17449,6 +17449,10 @@ export type Database = {
           body: string
           color: string
           created_at: string
+          entity_id: string | null
+          entity_title: string | null
+          entity_type: string | null
+          entity_url: string | null
           id: string
           pinned: boolean
           tenant_id: string
@@ -17460,6 +17464,10 @@ export type Database = {
           body?: string
           color?: string
           created_at?: string
+          entity_id?: string | null
+          entity_title?: string | null
+          entity_type?: string | null
+          entity_url?: string | null
           id?: string
           pinned?: boolean
           tenant_id?: string
@@ -17471,6 +17479,10 @@ export type Database = {
           body?: string
           color?: string
           created_at?: string
+          entity_id?: string | null
+          entity_title?: string | null
+          entity_type?: string | null
+          entity_url?: string | null
           id?: string
           pinned?: boolean
           tenant_id?: string
