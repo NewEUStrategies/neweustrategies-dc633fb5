@@ -281,6 +281,7 @@ import { Route as AdminNewsletterSystemEmailsRouteImport } from './routes/admin.
 import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
+import { Route as AdminNewsletterOutboxRouteImport } from './routes/admin.newsletter.outbox'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterEmailPreviewRouteImport } from './routes/admin.newsletter.email-preview'
 import { Route as AdminNewsletterEmailContentRouteImport } from './routes/admin.newsletter.email-content'
@@ -1755,6 +1756,11 @@ const AdminNewsletterOverviewRoute = AdminNewsletterOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminNewsletterOutboxRoute = AdminNewsletterOutboxRouteImport.update({
+  id: '/outbox',
+  path: '/outbox',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
 const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
   id: '/inline',
   path: '/inline',
@@ -2553,6 +2559,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -2912,6 +2919,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -3288,6 +3296,7 @@ export interface FileRoutesById {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -3665,6 +3674,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -4024,6 +4034,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -4399,6 +4410,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -6576,6 +6588,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterOverviewRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/outbox': {
+      id: '/admin/newsletter/outbox'
+      path: '/outbox'
+      fullPath: '/admin/newsletter/outbox'
+      preLoaderRoute: typeof AdminNewsletterOutboxRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/newsletter/inline': {
       id: '/admin/newsletter/inline'
       path: '/inline'
@@ -7464,6 +7483,7 @@ interface AdminNewsletterRouteChildren {
   AdminNewsletterEmailContentRoute: typeof AdminNewsletterEmailContentRoute
   AdminNewsletterEmailPreviewRoute: typeof AdminNewsletterEmailPreviewRoute
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
+  AdminNewsletterOutboxRoute: typeof AdminNewsletterOutboxRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
   AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
@@ -7478,6 +7498,7 @@ const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
   AdminNewsletterEmailContentRoute: AdminNewsletterEmailContentRoute,
   AdminNewsletterEmailPreviewRoute: AdminNewsletterEmailPreviewRoute,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
+  AdminNewsletterOutboxRoute: AdminNewsletterOutboxRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
   AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
