@@ -59,7 +59,7 @@ export function normalizeTheme(raw: string | null | undefined): ChatThemeId {
 export function normalizeWallpaper(raw: string | null | undefined): ChatWallpaperId {
   return (DB_CHAT_WALLPAPERS as ReadonlyArray<string>).includes(raw ?? "")
     ? (raw as ChatWallpaperId)
-    : "dots";
+    : "soft";
 }
 
 export function normalizeQuickEmoji(raw: string | null | undefined): string {
@@ -97,7 +97,7 @@ export function themeDbValue(theme: ChatThemeId): string | null {
   return theme === "default" ? null : theme;
 }
 
-/** DB payload value for a chosen wallpaper (dots -> NULL). */
+/** DB payload value for a chosen wallpaper (soft = default -> NULL). */
 export function wallpaperDbValue(wallpaper: ChatWallpaperId): string | null {
-  return wallpaper === "dots" ? null : wallpaper;
+  return wallpaper === "soft" ? null : wallpaper;
 }
