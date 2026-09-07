@@ -32,6 +32,10 @@ export const dockPl = {
       noPeople: "Brak osób dla tej frazy.",
       openAll: "Otwórz wiadomości",
       start: "Napisz",
+      minimize: "Zminimalizuj rozmowę",
+      closeConversation: "Zamknij rozmowę",
+      minimizedMore: "Jeszcze {{count}} zminimalizowane rozmowy",
+      restore: "Przywróć rozmowę: {{name}}",
     },
     todos: {
       title: "Zadania",
