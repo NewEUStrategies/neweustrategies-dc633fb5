@@ -6,7 +6,7 @@
 // samymi ikonami. Wszystkie elementy mają promień 6px i jednakowy odstęp
 // 6px (gap-1.5). Po lewej skróty nawigacyjne (sieć, czaty, start, kluby,
 // profil), po separatorze narzędzia członka (zadania, notatki, zapisane,
-// kalendarz, do przeczytania). Czat nie jest w narzędziach, bo jest skrótem.
+// kalendarz). Czat nie jest w narzędziach, bo jest skrótem.
 //
 // Zasady:
 //  - tylko dla zalogowanych, nigdy w /admin i /login (jak ChatDock),
