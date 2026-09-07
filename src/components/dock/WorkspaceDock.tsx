@@ -30,6 +30,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
+import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import {
   Bookmark,
   BookOpen,
