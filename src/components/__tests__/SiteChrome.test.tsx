@@ -90,6 +90,10 @@ vi.mock("@/components/chat/ChatDock", () => ({
   ChatDock: () => <div data-testid="chat-dock" />,
 }));
 
+vi.mock("@/components/dock/WorkspaceDock", () => ({
+  WorkspaceDock: () => <div data-testid="workspace-dock" />,
+}));
+
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ user: h.user, tenantId: null }),
 }));
