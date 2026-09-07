@@ -95,7 +95,6 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         <ImpersonationBanner />
         <RouteProgress />
         {children}
-        {chatDock}
         {workspaceDock}
       </>
     );
@@ -125,7 +124,6 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       </main>
       <Footer />
 
-      {chatDock}
       {workspaceDock}
     </div>
   );
