@@ -15,6 +15,7 @@ import { uiLocale } from "@/lib/i18n/format";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
 import { loadTxOverrides } from "@/lib/email/txOverrides.server";
+import { ensureUnsubscribeToken } from "@/lib/email/unsubscribeToken.server";
 import { overrideFor, resolvedField } from "@/lib/email/txOverrides";
 import { checkSendAllowed } from "@/lib/email/suppression.server";
 import {
@@ -278,6 +279,9 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
         // platformy. Losowy UUID nie istnieje w jego rejestrze i wysyłka
         // kończyła się 404 "Run not found or expired".
         message_id: messageId,
+        // Wymóg dostawcy: poczta transakcyjna bez tokenu wypisu jest odrzucana
+        // (400 `missing_unsubscribe`) - stopkę wypisu dokleja platforma.
+        unsubscribe_token: await ensureUnsubscribeToken(supabase, to),
         to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
@@ -385,6 +389,9 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
         // platformy. Losowy UUID nie istnieje w jego rejestrze i wysyłka
         // kończyła się 404 "Run not found or expired".
         message_id: messageId,
+        // Wymóg dostawcy: poczta transakcyjna bez tokenu wypisu jest odrzucana
+        // (400 `missing_unsubscribe`) - stopkę wypisu dokleja platforma.
+        unsubscribe_token: await ensureUnsubscribeToken(supabase, to),
         to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
