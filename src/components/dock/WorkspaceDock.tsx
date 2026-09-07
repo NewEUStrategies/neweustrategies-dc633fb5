@@ -205,6 +205,7 @@ export function WorkspaceDock() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [barRef, barHeight] = useReservedSpace();
+  const { user } = useAuth();
 
   const rawConfig = useSiteSetting<MobileBottomBarConfig>(
     MOBILE_BOTTOM_BAR_SETTINGS_KEY,
