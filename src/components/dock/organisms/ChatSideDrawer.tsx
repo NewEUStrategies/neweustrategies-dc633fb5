@@ -254,13 +254,36 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
 
       {selected ? (
         <div className="animate-fade-in pointer-events-auto hidden h-full w-[380px] max-w-[90vw] flex-col border-r border-border/70 bg-background/95 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:flex">
+          <div className="flex items-center gap-1 border-b border-border/70 px-2 py-1">
+            <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">
+              {selectedName}
+            </span>
+            <button
+              type="button"
+              onClick={minimizeSelected}
+              aria-label={t("dock.chat.minimize")}
+              title={t("dock.chat.minimize")}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Minus className="h-4 w-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              aria-label={t("dock.chat.closeConversation")}
+              title={t("dock.chat.closeConversation")}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
           <ChatWindow
             key={selected}
             conversationId={selected}
             variant="page"
             onBack={() => setSelected(null)}
             onClose={() => setSelected(null)}
-            className="h-full"
+            className="min-h-0 flex-1"
           />
         </div>
       ) : null}
