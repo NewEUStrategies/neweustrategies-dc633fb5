@@ -7,6 +7,8 @@ import { useSyncExternalStore } from "react";
 export interface MinimizedChat {
   id: string;
   name: string;
+  /** Opcjonalny avatar rozmówcy - dla pigułki zamiast ikony czatu. */
+  avatarUrl?: string | null;
 }
 
 /** Ile pigułek pokazujemy wprost - reszta trafia pod ikonę "+N". */
