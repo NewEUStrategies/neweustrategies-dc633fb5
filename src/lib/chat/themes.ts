@@ -25,12 +25,12 @@ export type ChatThemeId = "default" | (typeof DB_CHAT_THEMES)[number];
 
 export const CHAT_THEMES: ReadonlyArray<ChatThemeId> = ["default", ...DB_CHAT_THEMES];
 
-/** Wallpapers stored in the DB (NULL = default dots). Mirrors conversations_wallpaper_check. */
-export const DB_CHAT_WALLPAPERS = ["soft", "lines", "none"] as const;
+/** Wallpapers stored in the DB (NULL = default smooth gradient). Mirrors conversations_wallpaper_check. */
+export const DB_CHAT_WALLPAPERS = ["dots", "lines", "none"] as const;
 
-export type ChatWallpaperId = "dots" | (typeof DB_CHAT_WALLPAPERS)[number];
+export type ChatWallpaperId = "soft" | (typeof DB_CHAT_WALLPAPERS)[number];
 
-export const CHAT_WALLPAPERS: ReadonlyArray<ChatWallpaperId> = ["dots", ...DB_CHAT_WALLPAPERS];
+export const CHAT_WALLPAPERS: ReadonlyArray<ChatWallpaperId> = ["soft", ...DB_CHAT_WALLPAPERS];
 
 /** Quick-send emoji when the conversation has none configured. */
 export const DEFAULT_QUICK_EMOJI = "👍";
