@@ -20,7 +20,7 @@ export interface CrmCompanyBillingData {
   addressLine1: string | null;
   city: string | null;
   postalCode: string | null;
-  country: string | null
+  country: string | null;
   email: string | null;
   phone: string | null;
 }

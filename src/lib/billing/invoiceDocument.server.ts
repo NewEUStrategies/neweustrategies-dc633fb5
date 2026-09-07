@@ -118,7 +118,10 @@ async function loadSeller(tenantId: string): Promise<InvoiceParty> {
   };
 }
 
-function buyerFromProfile(row: Record<string, unknown> | null, fallbackEmail: string | null): InvoiceParty {
+function buyerFromProfile(
+  row: Record<string, unknown> | null,
+  fallbackEmail: string | null,
+): InvoiceParty {
   if (!row) return { name: fallbackEmail ?? "-", email: fallbackEmail };
   const company = str(row.company);
   const person = str(row.full_name);
@@ -198,7 +201,7 @@ export async function buildInvoicePdf(input: {
   return {
     ok: true,
     result: {
-      fileName: `${(input.locale === "pl" ? "faktura" : "invoice")}-${number.replace(/[^a-zA-Z0-9_-]+/g, "-")}.pdf`,
+      fileName: `${input.locale === "pl" ? "faktura" : "invoice"}-${number.replace(/[^a-zA-Z0-9_-]+/g, "-")}.pdf`,
       base64: pdfToBase64(renderInvoicePdf(data)),
       number,
       providerUrl: doc.pdf_url ?? doc.hosted_url ?? null,

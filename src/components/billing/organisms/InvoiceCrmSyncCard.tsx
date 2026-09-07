@@ -37,8 +37,7 @@ export function InvoiceCrmSyncCard() {
   const run = async (direction: Direction) => {
     setBusy(direction);
     try {
-      const result =
-        direction === "pull" ? await importMyCrmCompany() : await pushMyBillingToCrm();
+      const result = direction === "pull" ? await importMyCrmCompany() : await pushMyBillingToCrm();
       if (!result.ok) {
         toast.error(t(`invoices.crm.errors.${result.error}`, t("invoices.crm.errors.generic")));
         return;
