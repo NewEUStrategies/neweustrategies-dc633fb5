@@ -223,6 +223,66 @@ function TabSeparator() {
   return <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 bg-border/80" />;
 }
 
+/**
+ * Zminimalizowane rozmowy: maksymalnie dwie pigułki po lewej stronie paska,
+ * reszta chowa się pod ikoną "+N" (kliknięcie otwiera skrzynkę czatu).
+ */
+function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
+  const { t } = useTranslation();
+  const { minimized } = useMinimizedChats();
+  if (minimized.length === 0) return null;
+
+  const visible = minimized.slice(0, MINIMIZED_VISIBLE_LIMIT);
+  const overflow = minimized.length - visible.length;
+
+  const restore = (id: string) => {
+    minimizedChatsStore.restore(id);
+    onOpenInbox();
+  };
+
+  return (
+    <div className="pointer-events-auto absolute bottom-0 left-1.5 top-0 flex items-center gap-1.5">
+      {visible.map((chat) => (
+        <span
+          key={chat.id}
+          className="flex max-w-[132px] items-center gap-1 rounded-md border border-border bg-muted/60 py-0.5 pl-2 pr-1 text-[11px] font-medium"
+        >
+          <button
+            type="button"
+            onClick={() => restore(chat.id)}
+            title={t("dock.chat.restore", { name: chat.name })}
+            aria-label={t("dock.chat.restore", { name: chat.name })}
+            className="flex min-w-0 items-center gap-1"
+          >
+            <MessageCircle className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+            <span className="truncate">{chat.name}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => minimizedChatsStore.remove(chat.id)}
+            title={t("dock.chat.closeConversation")}
+            aria-label={t("dock.chat.closeConversation")}
+            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3 w-3" aria-hidden />
+          </button>
+        </span>
+      ))}
+      {overflow > 0 ? (
+        <button
+          type="button"
+          onClick={onOpenInbox}
+          title={t("dock.chat.minimizedMore", { count: overflow })}
+          aria-label={t("dock.chat.minimizedMore", { count: overflow })}
+          className="rounded-md border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+        >
+          +{overflow}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function WorkspaceDock() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
