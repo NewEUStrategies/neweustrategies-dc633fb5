@@ -3,7 +3,7 @@
 // wybraniu rozmowy obok otwiera się pełne okno czatu. Reużywamy istniejących
 // komponentów czatu - nie budujemy drugiej implementacji wiadomości.
 import "@/lib/i18n-chat";
-import { useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
