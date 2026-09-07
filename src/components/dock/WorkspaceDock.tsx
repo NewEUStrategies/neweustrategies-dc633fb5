@@ -342,12 +342,17 @@ export function WorkspaceDock() {
         </nav>
 
         {/* Desktop: skróty | separator | narzędzia, jedna wycentrowana grupa. */}
-        <div className="hidden items-center justify-center gap-1.5 px-4 py-1.5 sm:flex">
+        <div className="hidden items-center justify-center gap-2 px-4 py-1.5 sm:flex">
+          {/* Hierarchia: skróty nawigacyjne jako główna grupa... */}
           <nav aria-label={t("dock.shortcuts")} className="flex items-center gap-1.5">
             {shortcuts.map((item) => shortcutTab(item.id))}
           </nav>
           <TabSeparator />
-          <nav aria-label={t("dock.toolbar")} className="flex items-center gap-1.5">
+          {/* ...a narzędzia członka w wyciszonej, wydzielonej pigułce. */}
+          <nav
+            aria-label={t("dock.toolbar")}
+            className="flex items-center gap-1.5 rounded-md bg-muted/40 px-1.5 py-0.5"
+          >
             {MEMBER_TOOLS.map((tool) => toolTab(tool))}
           </nav>
         </div>
