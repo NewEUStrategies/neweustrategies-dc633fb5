@@ -42,14 +42,6 @@ function slugify(input: string): string {
     .slice(0, 60);
 }
 
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function generateTempPassword(): string {
   // 16 znaków, alfabet unikający mylących glifów (0/O/1/l/I)
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -257,7 +249,7 @@ async function performSend(
   invitationId: string,
 ): Promise<SendResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { enqueueRawEmail } = await import("@/lib/email/transactional.server");
+  const { sendTxEmail } = await import("@/lib/email/transactional.server");
 
   const { data: inv, error: invErr } = await supabase
     .from("user_invitations")
@@ -409,38 +401,53 @@ async function performSend(
     }
 
     {
-      const orgLine = meta.company_name
-        ? `<p style="margin:0 0 8px">Organizacja: <strong>${escapeHtml(String(meta.company_name))}</strong>${
-            meta.job_title ? ` - ${escapeHtml(String(meta.job_title))}` : ""
-          }</p>`
-        : "";
+      // Mail zaproszenia idzie tym samym szablonem co pozostała poczta
+      // aplikacji (App Emails -> `user_invitation`), w języku wybranym przez
+      // administratora w popupie zaproszenia. Wcześniej był to ręcznie sklejony
+      // HTML tylko po polsku, poza rejestrem szablonów.
+      const lang: "pl" | "en" = meta.lang === "en" ? "en" : "pl";
       const loginUrl = `${origin}/auth?email=${encodeURIComponent(email)}`;
-      const cta = actionLink
-        ? `<p style="margin:20px 0"><a href="${actionLink}" style="display:inline-block;background:#0F172A;color:#fff;padding:12px 22px;border-radius:6px;text-decoration:none">Aktywuj konto</a></p>
-           <p style="color:#64748B;font-size:12px">Jeśli przycisk nie działa, skopiuj adres:<br><span style="word-break:break-all">${actionLink}</span></p>`
-        : `<div style="background:#F1F5F9;border-radius:6px;padding:16px;margin:16px 0;font-family:monospace;font-size:14px">
-             <div><strong>Login (e-mail):</strong> ${escapeHtml(email)}</div>
-             <div><strong>Hasło tymczasowe:</strong> ${escapeHtml(tempPassword ?? "")}</div>
-           </div>
-           <p style="margin:20px 0"><a href="${loginUrl}" style="display:inline-block;background:#0F172A;color:#fff;padding:12px 22px;border-radius:6px;text-decoration:none">Zaloguj się</a></p>`;
-      const html = `
-        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0F172A">
-          <h1 style="color:#0F172A;font-size:22px;margin:0 0 12px">Witamy w New European Strategies</h1>
-          <p>Cześć ${escapeHtml(displayName)},</p>
-          <p>Zostało dla Ciebie przygotowane konto na platformie (rola: <strong>${escapeHtml(inv.role)}</strong>).</p>
-          ${orgLine}
-          ${cta}
-          <p style="color:#64748B;font-size:12px;margin-top:24px">Jeśli nie spodziewasz się tej wiadomości, po prostu ją zignoruj.</p>
-        </div>`;
-      const res = await enqueueRawEmail({
+      const details: { label: string; value: string }[] = [
+        { label: lang === "pl" ? "Adres logowania" : "Sign-in address", value: email },
+        { label: lang === "pl" ? "Rola" : "Role", value: inv.role },
+      ];
+      if (meta.company_name) {
+        details.push({
+          label: lang === "pl" ? "Organizacja" : "Organisation",
+          value: [String(meta.company_name), meta.job_title ? String(meta.job_title) : null]
+            .filter(Boolean)
+            .join(" - "),
+        });
+      }
+      if (!actionLink && tempPassword) {
+        details.push({
+          label: lang === "pl" ? "Hasło tymczasowe" : "Temporary password",
+          value: tempPassword,
+        });
+      }
+
+      const res = await sendTxEmail({
+        type: "user_invitation",
         to: email,
-        subject: actionLink
-          ? "Aktywuj swoje konto w New European Strategies"
-          : "Twoje konto w New European Strategies",
-        html,
-        label: "user_invitation",
+        lang,
+        metaName: displayName,
+        details,
+        ctaUrl: actionLink ?? loginUrl,
+        ctaLabel: actionLink
+          ? lang === "pl"
+            ? "Aktywuj konto"
+            : "Activate account"
+          : lang === "pl"
+            ? "Zaloguj się"
+            : "Sign in",
+        extra: actionLink
+          ? lang === "pl"
+            ? `Jeśli przycisk nie działa, skopiuj ten adres do przeglądarki: ${actionLink}`
+            : `If the button does not work, copy this address into your browser: ${actionLink}`
+          : lang === "pl"
+            ? "Po pierwszym zalogowaniu ustaw własne hasło w ustawieniach konta."
+            : "After your first sign-in, set your own password in the account settings.",
         idempotencyKey: `user-invitation:${invitationId}:send:${String(sendCount)}`,
-        category: "transactional",
         tenantId: inv.tenant_id,
       });
       if (!res.ok) {

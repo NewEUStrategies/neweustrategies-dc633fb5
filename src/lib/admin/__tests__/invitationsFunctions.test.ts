@@ -88,7 +88,12 @@ const h = vi.hoisted(() => ({
    */
   authFailsFirstOnly: false,
   /** Wysłane wiadomości - atrapa bramki poczty. */
-  emails: [] as { to: string; subject: string; html: string }[],
+  emails: [] as {
+    to: string;
+    lang: string;
+    ctaUrl?: string;
+    details?: { label: string; value: string }[];
+  }[],
   emailOk: true,
   /** Awaria generatora linku aktywacyjnego. */
   linkError: null as Error | null,
@@ -146,7 +151,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 
 vi.mock("@/lib/email/transactional.server", () => ({
-  enqueueRawEmail: async (input: { to: string; subject: string; html: string }) => {
+  sendTxEmail: async (input: {
+    to: string;
+    lang: string;
+    ctaUrl?: string;
+    details?: { label: string; value: string }[];
+  }) => {
     h.emails.push(input);
     return h.emailOk ? { ok: true } : { ok: false, error: h.emailError };
   },
@@ -959,7 +969,7 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(result.tempPassword).toBeUndefined();
     // Wiadomość wychodzi z NASZEJ bramki i niesie link aktywacyjny.
     expect(h.emails).toHaveLength(1);
-    expect(h.emails[0].html).toContain("https://example.test/activate?token=abc");
+    expect(h.emails[0].ctaUrl).toBe("https://example.test/activate?token=abc");
   });
 
   it("odnośnik jednorazowego dostępu niesie najemcę i nazwę w metadanych konta", async () => {
@@ -1196,9 +1206,9 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(h.emails).toHaveLength(1);
     expect(h.emails[0].to).toBe("nowa@example.org");
     // Hasło MUSI być w treści - to jedyny kanał, którym trafia do osoby.
-    expect(h.emails[0].html).toContain(result.tempPassword);
+    expect(JSON.stringify(h.emails[0].details)).toContain(result.tempPassword);
     // I musi być odnośnik do logowania z wypełnionym adresem.
-    expect(h.emails[0].html).toContain(encodeURIComponent("nowa@example.org"));
+    expect(h.emails[0].ctaUrl).toContain(encodeURIComponent("nowa@example.org"));
   });
 
   it("PONOWIENIE w trybie hasła wysyła wiadomość, ale BEZ nowego hasła", async () => {
@@ -2106,7 +2116,7 @@ describe("system zaproszeń - higiena danych osobowych", () => {
     const everything = JSON.stringify([db.chains.map((chain) => chain.calls), h.adminWrites]);
     expect(everything).not.toContain(password);
     // Jedyne miejsce, w którym hasło ma prawo być, to treść wiadomości.
-    expect(h.emails[0].html).toContain(password);
+    expect(JSON.stringify(h.emails[0].details)).toContain(password);
   });
 });
 
