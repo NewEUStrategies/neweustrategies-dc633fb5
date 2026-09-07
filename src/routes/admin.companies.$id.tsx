@@ -329,16 +329,65 @@ function AdminCompanyDetailPage() {
         <span className="truncate text-foreground">{c.name}</span>
         <div className="ml-auto flex items-center gap-2">
           {!editing ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={startEdit}
-              className="h-8 gap-1.5 text-[12px]"
-            >
-              <Pencil className="h-3.5 w-3.5" aria-hidden />
-              {t("Edytuj", "Edit")}
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => syncMembers.mutate()}
+                disabled={syncMembers.isPending}
+                className="h-8 gap-1.5 rounded-md text-[12px]"
+              >
+                <Users className="h-3.5 w-3.5" aria-hidden />
+                {t("Synchronizuj członków", "Sync members")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={startEdit}
+                className="h-8 gap-1.5 text-[12px]"
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                {t("Edytuj", "Edit")}
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 rounded-md text-[12px] text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    {t("Usuń", "Delete")}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-md">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {t("Usunąć firmę z CRM?", "Delete this company from CRM?")}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t(
+                        "Kartoteka zniknie z CRM. Członkowie i kontakty zostaną odpięci od firmy - ich dane pozostaną nienaruszone.",
+                        "The company record will be removed from CRM. Members and contacts are detached from it - their own data stays intact.",
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-md">
+                      {t("Anuluj", "Cancel")}
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      className="rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => removeCompany.mutate()}
+                    >
+                      {t("Usuń firmę", "Delete company")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
           ) : (
+
             <>
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
                 {t("Anuluj", "Cancel")}
