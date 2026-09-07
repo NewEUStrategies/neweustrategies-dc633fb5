@@ -19,7 +19,7 @@ export interface DegreeBadgeProps {
 }
 
 const SIZES: Record<NonNullable<DegreeBadgeProps["size"]>, string> = {
-  xs: "h-4 min-w-4 px-1 text-[10px]",
+  xs: "h-3.5 min-w-3.5 px-0.5 text-[9px]",
   sm: "h-5 min-w-5 px-1.5 text-[11px]",
 };
 

@@ -50,4 +50,9 @@ describe("DegreeBadge", () => {
     const { container } = render(<DegreeBadge degree={1} size="sm" />);
     expect(container.querySelector("[data-degree='1']")?.className).toContain("h-5");
   });
+
+  it("domyślna odznaka ma tę samą kompaktową wysokość co ikona weryfikacji", () => {
+    const { container } = render(<DegreeBadge degree={1} />);
+    expect(container.querySelector("[data-degree='1']")?.className).toContain("h-3.5");
+  });
 });
