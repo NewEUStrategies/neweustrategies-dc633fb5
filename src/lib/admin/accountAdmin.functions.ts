@@ -8,8 +8,55 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 const TargetSchema = z.object({ userId: z.string().uuid() });
+
+/**
+ * Kody błędów tłumaczone w UI (i18n) - handler nigdy nie zwraca surowego,
+ * technicznego komunikatu do administratora.
+ */
+export const ADMIN_ACCOUNT_ERROR = {
+  outsideTenant: "ADMIN_ACCOUNT/OUTSIDE_TENANT",
+  selfDelete: "ADMIN_ACCOUNT/SELF_DELETE",
+  confirmMismatch: "ADMIN_ACCOUNT/CONFIRM_MISMATCH",
+  lookupFailed: "ADMIN_ACCOUNT/LOOKUP_FAILED",
+  deleteFailed: "ADMIN_ACCOUNT/DELETE_FAILED",
+} as const;
+
+/**
+ * Granica najemcy sprawdzana jawnie: tenant wywołującego (klient RLS) musi być
+ * równy tenantowi konta docelowego (klucz serwisowy). Nie polegamy na samej
+ * widoczności RLS, bo brak wiersza może oznaczać zarówno inny tenant, jak i
+ * chwilową niedostępność polityki - a admin dostawał wtedy mylący komunikat.
+ */
+async function assertSameTenant(
+  supabase: SupabaseClient<Database>,
+  callerId: string,
+  targetId: string,
+): Promise<{ email: string | null }> {
+  const { data: caller, error: callerError } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", callerId)
+    .maybeSingle();
+  if (callerError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
+  const callerTenant = caller?.tenant_id ?? null;
+  if (!callerTenant) throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: target, error: targetError } = await supabaseAdmin
+    .from("profiles")
+    .select("id, email, tenant_id")
+    .eq("id", targetId)
+    .maybeSingle();
+  if (targetError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
+  if (!target || target.tenant_id !== callerTenant) {
+    throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
+  }
+  return { email: target.email ?? null };
+}
 
 type AccountStateInput = {
   bannedUntil: string | null;
@@ -61,14 +108,8 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .validator((input: unknown) => TargetSchema.parse(input))
   .handler(async ({ data, context }): Promise<AdminAccountStatus> => {
-    // Granica najemcy: user-scoped klient (RLS) musi widzieć profil celu.
-    const { data: target, error: targetError } = await context.supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", data.userId)
-      .maybeSingle();
-    if (targetError) throw new Error(targetError.message);
-    if (!target) throw new Error("Forbidden: user outside tenant");
+    // Granica najemcy sprawdzana jawnie (patrz assertSameTenant).
+    await assertSameTenant(context.supabase, context.userId, data.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: authUser, error } = await supabaseAdmin.auth.admin.getUserById(data.userId);
@@ -173,22 +214,17 @@ export const deleteUserAccount = createServerFn({ method: "POST" })
   .validator((input: unknown) => DeleteSchema.parse(input))
   .handler(async ({ data, context }) => {
     if (data.userId === context.userId) {
-      throw new Error("Nie można usunąć własnego konta z panelu administratora.");
+      throw new Error(ADMIN_ACCOUNT_ERROR.selfDelete);
     }
 
-    const { data: target, error: targetError } = await context.supabase
-      .from("profiles")
-      .select("id, email")
-      .eq("id", data.userId)
-      .maybeSingle();
-    if (targetError) throw new Error(targetError.message);
-    if (!target) throw new Error("Forbidden: user outside tenant");
+    const target = await assertSameTenant(context.supabase, context.userId, data.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(data.userId);
     const email = authUser?.user?.email ?? target.email ?? null;
+
     if (!email || email.trim().toLowerCase() !== data.confirmEmail.trim().toLowerCase()) {
-      throw new Error("Potwierdzenie nie zgadza się z adresem e-mail konta.");
+      throw new Error(ADMIN_ACCOUNT_ERROR.confirmMismatch);
     }
 
     const { closeBillingForUser } = await import("@/lib/billing/accountClosure.server");
@@ -198,7 +234,13 @@ export const deleteUserAccount = createServerFn({ method: "POST" })
     const retention = await retainAccountingEvidence(data.userId);
 
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
-    if (deleteError) throw new Error(`Nie udało się usunąć konta: ${deleteError.message}`);
+    if (deleteError) {
+      console.error("[deleteUserAccount] deleteUser failed", {
+        userId: data.userId,
+        message: deleteError.message,
+      });
+      throw new Error(ADMIN_ACCOUNT_ERROR.deleteFailed);
+    }
 
     return {
       ok: true as const,

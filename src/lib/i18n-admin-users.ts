@@ -151,6 +151,18 @@ const pl = {
     deleteAccountConfirmPlaceholder: "adres e-mail konta",
     deleteAccountSubmit: "Usuń na stałe",
     deleteAccountDone: "Konto zostało usunięte.",
+    accountErrOutsideTenant:
+      "To konto nie należy do Twojej organizacji, więc nie możesz nim zarządzać. Poproś administratora właściwej organizacji.",
+    accountErrSelfDelete:
+      "Nie możesz usunąć własnego konta z panelu. Poproś innego administratora.",
+    accountErrConfirmMismatch:
+      "Wpisany adres e-mail nie zgadza się z adresem tego konta. Wpisz go dokładnie tak, jak widnieje powyżej.",
+    accountErrLookupFailed:
+      "Nie udało się sprawdzić danych konta. Odśwież stronę i spróbuj ponownie.",
+    accountErrDeleteFailed:
+      "Nie udało się usunąć konta. Spróbuj ponownie za chwilę - jeśli błąd się powtórzy, skontaktuj się z pomocą techniczną.",
+    accountErrGeneric: "Operacja się nie powiodła. Spróbuj ponownie.",
+
     allUsers: "Wszyscy użytkownicy",
     back: "Wróć",
     expertProfileEdit: "Profil eksperta (edycja)",
@@ -292,6 +304,17 @@ const en = {
     deleteAccountConfirmPlaceholder: "account e-mail address",
     deleteAccountSubmit: "Delete permanently",
     deleteAccountDone: "The account has been deleted.",
+    accountErrOutsideTenant:
+      "This account does not belong to your organisation, so you cannot manage it. Ask an administrator of that organisation.",
+    accountErrSelfDelete:
+      "You cannot delete your own account from the panel. Ask another administrator.",
+    accountErrConfirmMismatch:
+      "The e-mail you typed does not match this account. Enter it exactly as shown above.",
+    accountErrLookupFailed: "We could not verify the account details. Refresh the page and retry.",
+    accountErrDeleteFailed:
+      "The account could not be deleted. Try again shortly - if it keeps failing, contact support.",
+    accountErrGeneric: "The operation failed. Please try again.",
+
     allUsers: "All users",
     back: "Back",
     expertProfileEdit: "Expert profile (edit)",

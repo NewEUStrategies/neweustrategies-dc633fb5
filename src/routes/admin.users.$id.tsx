@@ -65,6 +65,7 @@ import {
   deleteUserAccount,
   type AdminAccountStatus,
 } from "@/lib/admin/accountAdmin.functions";
+import { accountAdminErrorKey } from "@/lib/admin/accountAdminErrors";
 import { sendInvitation } from "@/lib/admin/invitations.functions";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import { BADGE_ORDER, badgeLabel, useUserBadges } from "@/lib/profile/badges";
@@ -912,10 +913,19 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
   const fetchStatus = useServerFn(getUserAccountStatus);
   const resendInvitation = useServerFn(sendInvitation);
   const [isResending, setIsResending] = useState(false);
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    error: statusError,
+  } = useQuery({
     queryKey: ["admin-user-account-status", userId],
     queryFn: () => fetchStatus({ data: { userId } }),
+    retry: false,
   });
+
+  if (statusError) {
+    return <div className="text-sm text-destructive">{t(accountAdminErrorKey(statusError))}</div>;
+  }
 
   if (isLoading || !data) {
     return <div className="text-sm text-muted-foreground">{t("adminUsers.loading")}</div>;
@@ -1050,7 +1060,7 @@ function DangerZoneCard({ userId, email }: { userId: string; email: string | nul
       toast.success(t("adminUsers.deleteAccountDone"));
       navigate({ to: "/admin/users" });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error");
+      toast.error(t(accountAdminErrorKey(e)));
     } finally {
       setBusy(false);
     }
