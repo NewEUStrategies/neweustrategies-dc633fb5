@@ -1,11 +1,8 @@
 // Przestrzeń robocza członka: JEDEN pasek na całej szerokości dolnej krawędzi
 // ekranu i JEDEN panel otwarty naraz nad paskiem.
 //
-// Pasek scala dwie warstwy, które wcześniej żyły osobno:
-//   1. skróty nawigacyjne konfigurowane przez tenanta w
-//      site_settings[key="mobile_bottom_bar"] (dawny <MobileBottomBar />),
-//   2. narzędzia członka: czat, zadania, notatki, zapisane, kalendarz,
-//      do przeczytania.
+// Pasek zawiera narzędzia członka: czat, zadania, notatki, zapisane,
+// kalendarz, do przeczytania.
 //
 // Zasady:
 //  - tylko dla zalogowanych, nigdy w /admin i /login (jak ChatDock),
@@ -15,7 +12,7 @@
 //  - ostatnio używane narzędzie zapamiętujemy lokalnie (nie w bazie).
 import { lazy, Suspense, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useRouterState } from "@tanstack/react-router";
+
 import {
   Bookmark,
   BookOpen,
@@ -24,27 +21,13 @@ import {
   MessageCircle,
   NotebookPen,
 } from "lucide-react";
-import { AppLink } from "@/components/atoms/AppLink";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
-import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
 import { DOCK_TOOLS, type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useOpenTodoCount } from "@/lib/dock/useTodos";
 import { useUnreadLaterCount } from "@/lib/dock/useReadLater";
 import { useChatUnreadTotal } from "@/lib/chat/useConversations";
-import { useSiteSetting } from "@/lib/useSiteSetting";
-import {
-  MOBILE_BOTTOM_BAR_DEFAULTS,
-  MOBILE_BOTTOM_BAR_SETTINGS_KEY,
-  activeBottomBarIndex,
-  bottomBarHref,
-  bottomBarLabel,
-  visibleBottomBarItems,
-  type MobileBottomBarConfig,
-} from "@/lib/mobileBottomBar/config";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
-import "@/lib/i18n-mobile-bottom-bar";
 
 const ChatDockPanel = lazy(() =>
   import("./organisms/ChatDockPanel").then((m) => ({ default: m.ChatDockPanel })),
@@ -120,13 +103,6 @@ export function WorkspaceDock() {
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [barRef, barHeight] = useReservedSpace();
 
-  const config = useSiteSetting<MobileBottomBarConfig>(
-    MOBILE_BOTTOM_BAR_SETTINGS_KEY,
-    MOBILE_BOTTOM_BAR_DEFAULTS,
-  );
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const shortcuts = config.enabled ? visibleBottomBarItems(config) : [];
-  const activeShortcut = activeBottomBarIndex(shortcuts, pathname);
 
   // Ostatnie narzędzie tylko podświetlamy - nie otwieramy panelu bez akcji
   // użytkownika, żeby wejście na stronę nie przysłaniało treści.
@@ -173,42 +149,7 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 py-1.5 sm:px-4">
-          {/* Skróty tenanta - przeniesione z dawnego mobilnego paska dolnego. */}
-          <nav
-            aria-label={t("mobileBottomBar.nav")}
-            className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            <ul className="flex items-center gap-0.5">
-              {shortcuts.map((item, index) => (
-                <li key={item.id}>
-                  <AppLink
-                    href={bottomBarHref(item, lang)}
-                    aria-current={index === activeShortcut ? "page" : undefined}
-                    className={cn(
-                      "relative flex items-center gap-2 rounded-full px-2.5 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      index === activeShortcut
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <span className="relative inline-flex">
-                      <DynamicIcon
-                        name={item.icon || "circle"}
-                        className="h-[18px] w-[18px]"
-                        aria-hidden="true"
-                      />
-                      <LiveTabBadge source={item.badge} />
-                    </span>
-                    <span className="hidden truncate lg:inline">
-                      {bottomBarLabel(item, lang, t)}
-                    </span>
-                  </AppLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
+        <div className="flex items-center justify-center gap-2 px-2 py-1.5 sm:px-4">
           {/* Narzędzia członka. */}
           <nav aria-label={t("dock.toolbar")} className="flex shrink-0 items-center gap-0.5">
             {DOCK_TOOLS.map((tool) => {
