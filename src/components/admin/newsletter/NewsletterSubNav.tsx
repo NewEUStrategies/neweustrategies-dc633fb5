@@ -56,6 +56,12 @@ const tabs = [
     labelKey: "adminNewsletter.nav.deliverability",
   },
   {
+    to: "/admin/newsletter/outbox",
+    key: "outbox",
+    icon: Inbox,
+    labelKey: "adminNewsletter.nav.outbox",
+  },
+  {
     to: "/admin/newsletter/system-emails",
     key: "system-emails",
     icon: MailCheck,
