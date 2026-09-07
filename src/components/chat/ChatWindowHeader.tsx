@@ -138,7 +138,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
         </span>
       </button>
     ) : (
-      <>
+      <div className="flex min-w-0 flex-1 items-end gap-2.5">
         {/* Wariant „page" też linkuje do profilu publicznego. Organizm przed
             refaktorem tego nie robił (linkował TYLKO dock), więc z /messages
             nie dało się przejść na profil rozmówcy - a z tego samego wątku
@@ -147,7 +147,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
           name={name}
           avatarUrl={avatarUrl}
           online={peerOnline}
-          size="sm"
+          size="md"
           to={slug ? `/author/${slug}` : undefined}
         />
         <div className="min-w-0 flex-1">
@@ -157,7 +157,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
           </div>
           <div className="text-[11px] text-muted-foreground">{subtitleText}</div>
         </div>
-      </>
+      </div>
     );
 
   const chrome = (
