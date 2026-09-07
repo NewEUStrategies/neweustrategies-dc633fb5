@@ -90,7 +90,7 @@ describe("tx-preview.server - lista typów podglądu", () => {
     expect([...TX_EMAIL_TYPES].sort()).toEqual([...TYPY_ZE_SLOWNIKA].sort());
     // 22 -> 26: cztery maile cyklu życia zgłoszenia formularzowego
     // (`event_registration_received/_approved/_rejected`, `event_waitlist_promoted`).
-    expect(TX_EMAIL_TYPES).toHaveLength(29);
+    expect(TX_EMAIL_TYPES).toHaveLength(30);
   });
 
   it("lista podglądu nie ma duplikatów - każdy mail jest w panelu raz", () => {
