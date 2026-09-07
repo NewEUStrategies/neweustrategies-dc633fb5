@@ -4,6 +4,17 @@
 //  - prawy sidebar: powiązania (Kontakty, Leady, Domena).
 // Widoczne dla staff (`requireStaff` w server-fn); RLS zawęża po tenancie.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -31,6 +42,7 @@ import {
   ChevronRight,
   Camera,
   Trash2,
+  Users,
   Loader2,
   Landmark,
 } from "lucide-react";
