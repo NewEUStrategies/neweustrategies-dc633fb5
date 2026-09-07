@@ -17444,6 +17444,42 @@ export type Database = {
           },
         ]
       }
+      user_notes: {
+        Row: {
+          body: string
+          color: string
+          created_at: string
+          id: string
+          pinned: boolean
+          tenant_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body?: string
+          color?: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          color?: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_pending_counters: {
         Row: {
           counter_key: string
@@ -17547,6 +17583,51 @@ export type Database = {
           post_id?: string
           read_at?: string
           tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_read_later: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          note: string | null
+          read_at: string | null
+          state: string
+          tenant_id: string
+          title: string | null
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          note?: string | null
+          read_at?: string | null
+          state?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          note?: string | null
+          read_at?: string | null
+          state?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -17676,6 +17757,56 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "access_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_todos: {
+        Row: {
+          created_at: string
+          done: boolean
+          done_at: string | null
+          due_at: string | null
+          id: string
+          priority: string
+          source_task_id: string | null
+          tenant_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_task_id?: string | null
+          tenant_id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_task_id?: string | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_todos_source_task_id_fkey"
+            columns: ["source_task_id"]
+            isOneToOne: false
+            referencedRelation: "crm_tasks"
             referencedColumns: ["id"]
           },
         ]
