@@ -68,6 +68,10 @@ export const dockPl = {
       pin: "Przypnij",
       unpin: "Odepnij",
       color: "Kolor karteczki",
+      attach: "Przypnij do tego materiału",
+      linked: "Powiązany materiał",
+      unlink: "Odłącz od materiału",
+      scope: { all: "Wszystkie", material: "Ten materiał" },
     },
     saved: {
       title: "Zapisane elementy",
@@ -165,6 +169,10 @@ export const dockEn = {
       pin: "Pin",
       unpin: "Unpin",
       color: "Note colour",
+      attach: "Attach to this item",
+      linked: "Linked item",
+      unlink: "Detach from item",
+      scope: { all: "All notes", material: "This item" },
     },
     saved: {
       title: "Saved items",
