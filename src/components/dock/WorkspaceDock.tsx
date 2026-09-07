@@ -38,6 +38,7 @@ import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/li
 import { useOpenTodoCount } from "@/lib/dock/useTodos";
 import { useUnreadLaterCount } from "@/lib/dock/useReadLater";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   activeBottomBarIndex,
   bottomBarHref,
@@ -153,58 +154,70 @@ function ExpandableTab({
   highlighted?: boolean;
 }) {
   return (
-    <motion.button
-      type="button"
-      onClick={onPress}
-      aria-pressed={active}
-      aria-label={label}
-      title={label}
-      initial={false}
-      animate={{
-        gap: active ? "0.375rem" : 0,
-        paddingLeft: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
-        paddingRight: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
-      }}
-      transition={tabTransition}
-      className={cn(
-        "relative flex min-w-0 items-center rounded-md py-1.5 text-sm font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active
-          ? "bg-muted text-primary"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        !active && highlighted && "ring-1 ring-border",
-      )}
-    >
-      <span
-        className={cn(
-          "relative grid shrink-0 place-items-center rounded-full",
-          center && "h-7 w-7 bg-primary text-primary-foreground",
-        )}
-      >
-        {icon}
-        {badge}
-      </span>
-      <AnimatePresence initial={false}>
-        {active ? (
-          <motion.span
-            key="label"
-            variants={labelVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={tabTransition}
-            className={cn("overflow-hidden whitespace-nowrap", compact ? "text-[11px]" : "text-xs")}
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <motion.button
+          type="button"
+          onClick={onPress}
+          aria-pressed={active}
+          aria-label={label}
+          initial={false}
+          animate={{
+            gap: active ? "0.375rem" : 0,
+            paddingLeft: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
+            paddingRight: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
+          }}
+          transition={tabTransition}
+          className={cn(
+            "relative flex min-w-0 items-center rounded-md py-1 text-xs font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            active
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground/80 hover:bg-muted hover:text-foreground",
+            !active && highlighted && "ring-1 ring-border",
+          )}
+        >
+          <span
+            className={cn(
+              "relative grid shrink-0 place-items-center rounded-full [&>svg]:h-4 [&>svg]:w-4",
+              center && "h-6 w-6 bg-primary text-primary-foreground [&>svg]:h-3.5 [&>svg]:w-3.5",
+            )}
           >
-            {label}
-          </motion.span>
-        ) : null}
-      </AnimatePresence>
-    </motion.button>
+            {icon}
+            {badge}
+          </span>
+          <AnimatePresence initial={false}>
+            {active ? (
+              <motion.span
+                key="label"
+                variants={labelVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={tabTransition}
+                className={cn(
+                  "overflow-hidden whitespace-nowrap",
+                  compact ? "text-[11px]" : "text-xs",
+                )}
+              >
+                {label}
+              </motion.span>
+            ) : null}
+          </AnimatePresence>
+        </motion.button>
+      </TooltipTrigger>
+      {/* Etykieta jest widoczna na aktywnej zakładce - tooltip tylko dla ikon. */}
+      {!active ? (
+        <TooltipContent side="top" sideOffset={8}>
+          {label}
+        </TooltipContent>
+      ) : null}
+    </Tooltip>
   );
 }
 
 /** Pionowy separator 6px od grup (jak w rozwijanych zakładkach). */
 function TabSeparator() {
-  return <span aria-hidden="true" className="mx-0 h-5 w-px shrink-0 bg-border" />;
+  return <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 bg-border/80" />;
 }
 
 export function WorkspaceDock() {
@@ -264,7 +277,7 @@ export function WorkspaceDock() {
         center={opts?.center}
         compact={opts?.compact}
         onPress={() => void navigate({ to: bottomBarHref(item, lang) })}
-        icon={<DynamicIcon name={item.icon || "circle"} className="h-5 w-5" aria-hidden="true" />}
+        icon={<DynamicIcon name={item.icon || "circle"} className="h-4 w-4" aria-hidden="true" />}
         badge={<LiveTabBadge source={item.badge} />}
       />
     );
@@ -282,7 +295,7 @@ export function WorkspaceDock() {
         compact={opts?.compact}
         highlighted={!active && lastTool === tool}
         onPress={() => dispatch({ type: "toggle", tool })}
-        icon={<Icon className="h-5 w-5" aria-hidden />}
+        icon={<Icon className="h-4 w-4" aria-hidden />}
         badge={
           count > 0 ? (
             <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-destructive-foreground">
@@ -332,12 +345,17 @@ export function WorkspaceDock() {
         </nav>
 
         {/* Desktop: skróty | separator | narzędzia, jedna wycentrowana grupa. */}
-        <div className="hidden items-center justify-center gap-1.5 px-4 py-1.5 sm:flex">
+        <div className="hidden items-center justify-center gap-2 px-4 py-1.5 sm:flex">
+          {/* Hierarchia: skróty nawigacyjne jako główna grupa... */}
           <nav aria-label={t("dock.shortcuts")} className="flex items-center gap-1.5">
             {shortcuts.map((item) => shortcutTab(item.id))}
           </nav>
           <TabSeparator />
-          <nav aria-label={t("dock.toolbar")} className="flex items-center gap-1.5">
+          {/* ...a narzędzia członka w wyciszonej, wydzielonej pigułce. */}
+          <nav
+            aria-label={t("dock.toolbar")}
+            className="flex items-center gap-1.5 rounded-md bg-muted/40 px-1.5 py-0.5"
+          >
             {MEMBER_TOOLS.map((tool) => toolTab(tool))}
           </nav>
         </div>
