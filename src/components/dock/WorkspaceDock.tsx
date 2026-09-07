@@ -38,6 +38,7 @@ import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/li
 import { useOpenTodoCount } from "@/lib/dock/useTodos";
 import { useUnreadLaterCount } from "@/lib/dock/useReadLater";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   activeBottomBarIndex,
   bottomBarHref,
