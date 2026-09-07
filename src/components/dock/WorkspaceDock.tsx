@@ -192,10 +192,7 @@ function ExpandableTab({
             animate="animate"
             exit="exit"
             transition={tabTransition}
-            className={cn(
-              "overflow-hidden whitespace-nowrap",
-              compact ? "text-[11px]" : "text-xs",
-            )}
+            className={cn("overflow-hidden whitespace-nowrap", compact ? "text-[11px]" : "text-xs")}
           >
             {label}
           </motion.span>
@@ -267,13 +264,7 @@ export function WorkspaceDock() {
         center={opts?.center}
         compact={opts?.compact}
         onPress={() => void navigate({ to: bottomBarHref(item, lang) })}
-        icon={
-          <DynamicIcon
-            name={item.icon || "circle"}
-            className="h-5 w-5"
-            aria-hidden="true"
-          />
-        }
+        icon={<DynamicIcon name={item.icon || "circle"} className="h-5 w-5" aria-hidden="true" />}
         badge={<LiveTabBadge source={item.badge} />}
       />
     );
