@@ -31,7 +31,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
-import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen, X } from "lucide-react";
+import { Bookmark, CalendarDays, ListTodo, NotebookPen, X } from "lucide-react";
 import {
   MINIMIZED_VISIBLE_LIMIT,
   minimizedChatsStore,
@@ -42,7 +42,6 @@ import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
 import { type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useOpenTodoCount } from "@/lib/dock/useTodos";
-import { useUnreadLaterCount } from "@/lib/dock/useReadLater";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -70,24 +69,20 @@ const SavedPanel = lazy(() =>
 const CalendarPanel = lazy(() =>
   import("./organisms/CalendarPanel").then((m) => ({ default: m.CalendarPanel })),
 );
-const ReadLaterPanel = lazy(() =>
-  import("./organisms/ReadLaterPanel").then((m) => ({ default: m.ReadLaterPanel })),
-);
 const ChatSideDrawer = lazy(() =>
   import("./organisms/ChatSideDrawer").then((m) => ({ default: m.ChatSideDrawer })),
 );
 
 // Czat ma własną, wysuwaną skrzynkę z lewej krawędzi, więc nie jest jednym
 // z narzędzi otwieranych nad paskiem.
-type MemberTool = Exclude<DockToolId, "chat">;
-const MEMBER_TOOLS: MemberTool[] = ["todos", "notes", "saved", "calendar", "readLater"];
+type MemberTool = Exclude<DockToolId, "chat" | "readLater">;
+const MEMBER_TOOLS: MemberTool[] = ["todos", "notes", "saved", "calendar"];
 
 const ICONS: Record<MemberTool, typeof ListTodo> = {
   todos: ListTodo,
   notes: NotebookPen,
   saved: Bookmark,
   calendar: CalendarDays,
-  readLater: BookOpen,
 };
 
 // Animacja rozwijanej zakładki: aktywna rośnie (padding + przerwa na tekst),
@@ -326,11 +321,9 @@ export function WorkspaceDock() {
   const lastTool = typeof window === "undefined" ? null : readLastTool(window.localStorage);
 
   const openTodos = useOpenTodoCount();
-  const unreadLater = useUnreadLaterCount();
 
   const badgeCount = (tool: MemberTool): number => {
     if (tool === "todos") return openTodos;
-    if (tool === "readLater") return unreadLater;
     return 0;
   };
 
@@ -406,7 +399,6 @@ export function WorkspaceDock() {
             {state.open === "notes" && <NotesPanel onClose={close} />}
             {state.open === "saved" && <SavedPanel onClose={close} lang={lang} />}
             {state.open === "calendar" && <CalendarPanel onClose={close} lang={lang} />}
-            {state.open === "readLater" && <ReadLaterPanel onClose={close} />}
           </Suspense>
         </div>
       ) : null}
