@@ -98,6 +98,8 @@ const h = vi.hoisted(() => ({
   /** Awaria generatora linku aktywacyjnego. */
   linkError: null as Error | null,
   emailError: "smtp down",
+  /** Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`. */
+  existingAuthUsers: [] as { id: string; email: string | null }[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
