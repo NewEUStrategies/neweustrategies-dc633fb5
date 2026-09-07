@@ -154,12 +154,13 @@ function ExpandableTab({
   highlighted?: boolean;
 }) {
   return (
-    <motion.button
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <motion.button
       type="button"
       onClick={onPress}
       aria-pressed={active}
       aria-label={label}
-      title={label}
       initial={false}
       animate={{
         gap: active ? "0.375rem" : 0,
