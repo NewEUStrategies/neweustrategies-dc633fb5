@@ -6333,11 +6333,11 @@ textarea::placeholder {
   }
 }
 
-/* Treść wpisywana w każdym oknie rozmowy ma stałe 10,5 px. Selektor celowy
+/* Treść wpisywana w każdym oknie rozmowy ma stałe 11,5 px. Selektor celowy
    neutralizuje także mobilną regułę 16 px powyżej, która chroni pozostałe pola
    formularzy przed automatycznym powiększeniem widoku przez iOS Safari. */
 textarea[data-chat-composer-input][data-chat-composer-input] {
-  font-size: 10.5px !important;
+  font-size: 11.5px !important;
 }
 
 /* -------------------------------------------------------------------------

@@ -136,7 +136,7 @@ function type(value: string): void {
   fireEvent.change(textarea(), { target: { value } });
 }
 
-it("oznacza pole wiadomości selektorem wymuszającym tekst 10,5 px", () => {
+it("oznacza pole wiadomości selektorem wymuszającym tekst 11,5 px", () => {
   renderComposer();
   expect(textarea()).toHaveAttribute("data-chat-composer-input");
 });
