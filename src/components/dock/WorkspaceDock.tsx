@@ -12,7 +12,16 @@
 //    akapit treści nigdy nie chowają się pod paskiem,
 //  - panele są lazy - pierwsze wejście nie pobiera ich kodu,
 //  - ostatnio używane narzędzie zapamiętujemy lokalnie (nie w bazie).
-import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useRouterState } from "@tanstack/react-router";
 
