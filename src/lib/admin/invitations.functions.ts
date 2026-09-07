@@ -280,7 +280,20 @@ async function performSend(
   let authUserId: string | null = inv.auth_user_id;
   let tempPassword: string | undefined;
 
+  // Konto o tym adresie mogło już powstać (wcześniejsze zaproszenie, rejestracja
+  // własna). `createUser` zwraca wtedy twardy błąd "already been registered" i
+  // całe zaproszenie ląduje jako `failed` - mimo że jedyne, czego brakuje, to
+  // ponowny link aktywacyjny. Dlatego najpierw szukamy istniejącego konta.
+  async function findAuthUserIdByEmail(): Promise<string | null> {
+    const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const target = email.toLowerCase();
+    return data?.users.find((u) => (u.email ?? "").toLowerCase() === target)?.id ?? null;
+  }
+
   try {
+    if (!authUserId) {
+      authUserId = await findAuthUserIdByEmail();
+    }
     if (!authUserId) {
       if (inv.mode === "magic_link") {
         // Konto zakładamy bez hasła i BEZ maila Supabase - własny e-mail
