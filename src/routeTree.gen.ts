@@ -153,6 +153,7 @@ import { Route as AdminNamesRouteImport } from './routes/admin.names'
 import { Route as AdminMonetizationLedgerRouteImport } from './routes/admin.monetization-ledger'
 import { Route as AdminMonetizationRouteImport } from './routes/admin.monetization'
 import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
+import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
@@ -1102,6 +1103,11 @@ const AdminMonetizationRoute = AdminMonetizationRouteImport.update({
 const AdminMembershipRoute = AdminMembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMembersRoute = AdminMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminMediaRoute = AdminMediaRouteImport.update({
@@ -2424,6 +2430,7 @@ export interface FileRoutesByFullPath {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -2790,6 +2797,7 @@ export interface FileRoutesByTo {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -3161,6 +3169,7 @@ export interface FileRoutesById {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -3539,6 +3548,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -3905,6 +3915,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -4275,6 +4286,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -5690,6 +5702,13 @@ declare module '@tanstack/react-router' {
       path: '/membership'
       fullPath: '/admin/membership'
       preLoaderRoute: typeof AdminMembershipRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/members': {
+      id: '/admin/members'
+      path: '/members'
+      fullPath: '/admin/members'
+      preLoaderRoute: typeof AdminMembersRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/media': {
@@ -7768,6 +7787,7 @@ interface AdminRouteChildren {
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
+  AdminMembersRoute: typeof AdminMembersRoute
   AdminMembershipRoute: typeof AdminMembershipRoute
   AdminMonetizationRoute: typeof AdminMonetizationRoute
   AdminMonetizationLedgerRoute: typeof AdminMonetizationLedgerRoute
@@ -7847,6 +7867,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
+  AdminMembersRoute: AdminMembersRoute,
   AdminMembershipRoute: AdminMembershipRoute,
   AdminMonetizationRoute: AdminMonetizationRoute,
   AdminMonetizationLedgerRoute: AdminMonetizationLedgerRoute,
