@@ -23,6 +23,7 @@ import {
   MessageSquareQuote,
   CalendarDays,
   ShoppingCart,
+  FileDown,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
