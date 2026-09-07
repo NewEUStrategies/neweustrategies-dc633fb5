@@ -221,9 +221,31 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   if (!input.to?.trim()) {
     return { ok: false, error: "no_recipient", permanent: true, provider: "none" };
   }
+  // Poczta aplikacji (kolejka transakcyjna) jedzie z DELEGOWANEJ subdomeny
+  // nadawczej platformy - tylko ona jest zweryfikowana. Konto Resend tej domeny
+  // nie zna i odrzuca wysyłkę 403, więc dla wiadomości z `senderDomain`
+  // nadawcą jest platforma. Resend zostaje dla kampanii (bez `senderDomain`),
+  // gdzie zwraca identyfikator wiadomości do korelacji webhooków.
+  if (input.senderDomain && platformMailerConfigured()) {
+    return sendViaPlatformMailer(input);
+  }
   if (resendConfigured()) {
     try {
-      return await sendViaResend(input);
+      const result = await sendViaResend(input);
+      // Konto Resend nie ma zweryfikowanej NASZEJ domeny nadawczej (poczta
+      // platformy jedzie z delegowanej subdomeny `notify.*`). Taki 403 to
+      // odmowa KONFIGURACYJNA, nie odrzucenie tej jednej wiadomości: Resend
+      // nic nie przyjął, więc degradacja do nadawcy platformy nie grozi
+      // podwójną wysyłką, a bez niej KAŻDY mail aplikacji lądował w DLQ.
+      if (
+        !result.ok &&
+        result.status === 403 &&
+        /domain is not verified/i.test(result.error ?? "") &&
+        platformMailerConfigured()
+      ) {
+        return await sendViaPlatformMailer(input);
+      }
+      return result;
     } catch (err) {
       // Awaria sieci/gatewaya jest przejściowa: nie degradujemy do zapasowego
       // dostawcy, bo ryzyko podwójnej wysyłki jest gorsze od jednej próby
