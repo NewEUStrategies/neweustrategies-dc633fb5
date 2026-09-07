@@ -1,11 +1,8 @@
 // Przestrzeń robocza członka: JEDEN pasek na całej szerokości dolnej krawędzi
 // ekranu i JEDEN panel otwarty naraz nad paskiem.
 //
-// Pasek scala dwie warstwy, które wcześniej żyły osobno:
-//   1. skróty nawigacyjne konfigurowane przez tenanta w
-//      site_settings[key="mobile_bottom_bar"] (dawny <MobileBottomBar />),
-//   2. narzędzia członka: czat, zadania, notatki, zapisane, kalendarz,
-//      do przeczytania.
+// Pasek zawiera narzędzia członka: czat, zadania, notatki, zapisane,
+// kalendarz, do przeczytania.
 //
 // Zasady:
 //  - tylko dla zalogowanych, nigdy w /admin i /login (jak ChatDock),
