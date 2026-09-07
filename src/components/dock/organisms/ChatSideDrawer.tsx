@@ -32,9 +32,11 @@ export interface ChatSideDrawerProps {
   onClose: () => void;
   /** Wysokość paska doku - panel nie może pod nim znikać. */
   bottomOffset: number;
+  /** Żądanie otwarcia konkretnej rozmowy (np. przycisk "Napisz" w sieci). */
+  openRequest?: { conversationId: string; nonce: number } | null;
 }
 
-export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
+export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideDrawerProps) {
   const { t, i18n } = useTranslation();
   const lang: ChatLang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { user } = useAuth();
@@ -54,6 +56,11 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
     const frame = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  // Żądanie z zewnątrz (chatDockBus) - od razu wybieramy wskazaną rozmowę.
+  useEffect(() => {
+    if (openRequest?.conversationId) setSelected(openRequest.conversationId);
+  }, [openRequest]);
 
   // Escape zamyka skrzynkę - bez dodatkowych zapytań do serwera.
   useEffect(() => {

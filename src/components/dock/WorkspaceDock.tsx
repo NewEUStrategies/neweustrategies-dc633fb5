@@ -39,6 +39,7 @@ import {
   minimizedChatsStore,
   useMinimizedChats,
 } from "@/lib/chat/minimizedChats";
+import { onOpenChatWindow } from "@/lib/chat/chatDockBus";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
 import { type DockToolId } from "@/lib/dock/types";
@@ -318,6 +319,20 @@ export function WorkspaceDock() {
   const [barRef, barHeight] = useReservedSpace();
   const { user } = useAuth();
 
+  // Jedyna powierzchnia rozmów: kliknięcie "Napisz" gdziekolwiek w serwisie
+  // (szyna chatDockBus) otwiera lewą skrzynkę z wybraną konwersacją.
+  const [pendingChat, setPendingChat] = useState<{ conversationId: string; nonce: number } | null>(
+    null,
+  );
+  useEffect(
+    () =>
+      onOpenChatWindow((request) => {
+        setPendingChat({ conversationId: request.conversationId, nonce: Date.now() });
+        dispatch({ type: "open", tool: "chat" });
+      }),
+    [],
+  );
+
   const rawConfig = useSiteSetting<MobileBottomBarConfig>(
     MOBILE_BOTTOM_BAR_SETTINGS_KEY,
     MOBILE_BOTTOM_BAR_DEFAULTS,
@@ -404,7 +419,7 @@ export function WorkspaceDock() {
     <>
       {state.open === "chat" ? (
         <Suspense fallback={null}>
-          <ChatSideDrawer onClose={close} bottomOffset={barHeight || 56} />
+          <ChatSideDrawer onClose={close} bottomOffset={barHeight || 56} openRequest={pendingChat} />
         </Suspense>
       ) : null}
 
