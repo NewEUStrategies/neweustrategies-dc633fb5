@@ -115,6 +115,7 @@ import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
+import { Route as AuthActivateRouteImport } from './routes/auth.activate'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSttRouteImport } from './routes/api/stt'
 import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
@@ -908,6 +909,11 @@ const CategorySlugRoute = CategorySlugRouteImport.update({
 const AuthorSlugRoute = AuthorSlugRouteImport.update({
   id: '/author/$slug',
   path: '/author/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthActivateRoute = AuthActivateRouteImport.update({
+  id: '/auth/activate',
+  path: '/auth/activate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -2434,6 +2440,7 @@ export interface FileRoutesByFullPath {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
@@ -2793,6 +2800,7 @@ export interface FileRoutesByTo {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
@@ -3163,6 +3171,7 @@ export interface FileRoutesById {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
@@ -3537,6 +3546,7 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
     | '/author/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
@@ -3896,6 +3906,7 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
     | '/author/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
@@ -4265,6 +4276,7 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
     | '/author/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
@@ -4566,6 +4578,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiSttRoute: typeof ApiSttRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  AuthActivateRoute: typeof AuthActivateRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
   CategorySlugRoute: typeof CategorySlugRouteWithChildren
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
@@ -5373,6 +5386,13 @@ declare module '@tanstack/react-router' {
       path: '/author/$slug'
       fullPath: '/author/$slug'
       preLoaderRoute: typeof AuthorSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/activate': {
+      id: '/auth/activate'
+      path: '/auth/activate'
+      fullPath: '/auth/activate'
+      preLoaderRoute: typeof AuthActivateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -8085,6 +8105,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiSttRoute: ApiSttRoute,
   ApiTtsRoute: ApiTtsRoute,
+  AuthActivateRoute: AuthActivateRoute,
   AuthorSlugRoute: AuthorSlugRoute,
   CategorySlugRoute: CategorySlugRouteWithChildren,
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
