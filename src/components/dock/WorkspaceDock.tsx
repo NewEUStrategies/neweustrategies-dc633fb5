@@ -268,7 +268,7 @@ function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
             aria-label={t("dock.chat.restore", { name: chat.name })}
             className="flex min-w-0 items-center gap-1"
           >
-            <MessageCircle className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+            <ChatAvatar name={chat.name} avatarUrl={chat.avatarUrl} size="xs" className="shrink-0" />
             <span className="truncate">{chat.name}</span>
           </button>
           <button
