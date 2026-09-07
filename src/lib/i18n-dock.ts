@@ -73,7 +73,7 @@ export const dockPl = {
       title: "Zapisane elementy",
       empty: "Nic jeszcze nie zapisałeś.",
       searchPlaceholder: "Szukaj w zapisanych...",
-      filters: { all: "Wszystko", post: "Artykuły", page: "Strony", event: "Wydarzenia" },
+      filters: { all: "Wszystko", post: "Artykuły", page: "Strony", event: "Wydarzenia", readLater: "Do przeczytania" },
       open: "Otwórz",
     },
     calendar: {
@@ -170,7 +170,7 @@ export const dockEn = {
       title: "Saved items",
       empty: "You have not saved anything yet.",
       searchPlaceholder: "Search saved items...",
-      filters: { all: "All", post: "Articles", page: "Pages", event: "Events" },
+      filters: { all: "All", post: "Articles", page: "Pages", event: "Events", readLater: "Read later" },
       open: "Open",
     },
     calendar: {
