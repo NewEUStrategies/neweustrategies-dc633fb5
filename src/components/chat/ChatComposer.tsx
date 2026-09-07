@@ -9,7 +9,7 @@ import {
   Mic,
   Paperclip,
   Pencil,
-  SendHorizontal,
+  Send,
   Smile,
   Trash2,
   X,
@@ -470,7 +470,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             aria-label={t("chat.voice.send")}
             title={t("chat.voice.send")}
           >
-            <SendHorizontal className="h-4 w-4" aria-hidden />
+            <Send className="h-4 w-4 text-white" aria-hidden />
           </button>
         </div>
       ) : (
@@ -613,7 +613,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 {editing ? (
                   <Check className="h-4 w-4" aria-hidden />
                 ) : (
-                  <SendHorizontal className="h-4 w-4" aria-hidden />
+                  <Send className="h-4 w-4 text-white" aria-hidden />
                 )}
                 <span className="hidden sm:inline">
                   {editing ? t("chat.saveEdit") : t("chat.send")}
