@@ -47,6 +47,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "club_application_accepted",
   "club_application_rejected",
   "club_application_more_info",
+  "user_invitation",
 ] as const;
 
 export interface TxEmailPreview {
