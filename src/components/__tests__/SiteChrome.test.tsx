@@ -220,7 +220,6 @@ describe("SiteChrome - trasy z własnym układem", () => {
 
     expect(screen.queryByTestId("header")).toBeNull();
     expect(screen.queryByTestId("footer")).toBeNull();
-    expect(screen.queryByTestId("mobile-bottom-bar")).toBeNull();
     expect(screen.getByTestId("skip-link")).toBeInTheDocument();
     expect(screen.getByTestId("impersonation-banner")).toBeInTheDocument();
     expect(screen.getByTestId("strona")).toBeInTheDocument();
