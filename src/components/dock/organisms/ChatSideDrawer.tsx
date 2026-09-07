@@ -233,7 +233,7 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
       </div>
 
       {selected ? (
-        <div className="pointer-events-auto hidden h-full w-[380px] max-w-[90vw] flex-col border-r border-border bg-background shadow-2xl sm:flex">
+        <div className="animate-fade-in pointer-events-auto hidden h-full w-[380px] max-w-[90vw] flex-col border-r border-border/70 bg-background/95 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:flex">
           <ChatWindow
             key={selected}
             conversationId={selected}
