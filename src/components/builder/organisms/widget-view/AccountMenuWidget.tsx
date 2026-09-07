@@ -617,14 +617,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
 
   // Spójne odstępy dla rzędu ikon konta (mobile-first, unifikacja z headerem).
   // gap-x-2 na <480 px, gap-x-3 od sm; pr-1.5 rezerwuje miejsce na overflow badge
-  // powiadomień (badge = -right-2.5), żeby nie nachodził na powitanie/avatar.
+  // powiadomień (badge = -right-2.5), żeby nie nachodził na sąsiedni widget.
   return (
     <div className="relative inline-flex items-center gap-x-2 sm:gap-x-3 overflow-visible">
-      {session ? (
-        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
-          <NotificationsBell />
-        </span>
-      ) : null}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
@@ -758,6 +753,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           <span className="sr-only">{t("nav.account")}</span>
         </PopoverContent>
       </Popover>
+      {session ? (
+        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
+          <NotificationsBell />
+        </span>
+      ) : null}
     </div>
   );
 }
