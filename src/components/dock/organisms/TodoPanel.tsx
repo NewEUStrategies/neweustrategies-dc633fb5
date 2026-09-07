@@ -14,7 +14,15 @@ import {
   useTodos,
 } from "@/lib/dock/useTodos";
 import { TODO_PRIORITIES, type TodoPriority } from "@/lib/dock/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
 
 export function TodoPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
