@@ -22,9 +22,6 @@ import { NotificationsBell } from "@/components/notifications/NotificationsBell"
 
 // Lazy: the chat bundle (incl. its i18n resources) loads only for signed-in
 // users, keeping the guest header untouched and the widget graph decoupled.
-const ChatBell = lazy(() =>
-  import("@/components/chat/ChatBell").then((m) => ({ default: m.ChatBell })),
-);
 
 // Sekcja „moje wydarzenia" - leniwie, bo dotyczy tylko zalogowanych i tylko po
 // otwarciu panelu; nagłówek nie ciągnie jej w swoim chunku.
@@ -623,11 +620,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   // powiadomień (badge = -right-2.5), żeby nie nachodził na powitanie/avatar.
   return (
     <div className="relative inline-flex items-center gap-x-2 sm:gap-x-3 overflow-visible">
-      {session ? (
-        <Suspense fallback={null}>
-          <ChatBell />
-        </Suspense>
-      ) : null}
       {session ? (
         <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
           <NotificationsBell />

@@ -8,7 +8,6 @@ import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
 import { useAuth } from "@/hooks/useAuth";
-import { useCommunityModules } from "@/lib/community/useCommunityModules";
 
 // Przestrzeń robocza członka (pasek narzędzi: czat, zadania, notatki,
 // zapisane, kalendarz, do przeczytania). Lazy - gość nie pobiera jej kodu.
@@ -54,7 +53,6 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     },
   });
   const { user } = useAuth();
-  const community = useCommunityModules();
 
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
