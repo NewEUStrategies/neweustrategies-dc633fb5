@@ -91,6 +91,9 @@ const FINANCE: NavItem[] = [
   { to: "/profile/membership", key: "membership", icon: Crown },
   { to: "/profile/plan", key: "plan", icon: RefreshCw },
   { to: "/profile/payments", key: "payments", icon: Receipt },
+  // Faktury mają własne wejście: „ile zapłaciłem" i „gdzie mój PDF" to dwa
+  // różne pytania, a dokumenty wymagają miejsca na pobieranie i dane nabywcy.
+  { to: "/profile/invoices", key: "invoices", icon: FileDown },
   // „Moje zgłoszenia" stoi w finansach, bo o zgłoszeniu na wydarzenie
   // rozstrzyga wynik płatności - to tu użytkownik szuka odpowiedzi „dlaczego
   // anulowano" i „gdzie mój zwrot".
