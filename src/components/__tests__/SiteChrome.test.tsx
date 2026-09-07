@@ -120,8 +120,8 @@ function renderChrome(seed: SettingsSeed = {}) {
   );
 }
 
-/** Rozwiązanie leniwego `ChatDock` (mikrozadanie). */
-async function settleLazyChat(): Promise<void> {
+/** Rozwiązanie leniwych `ChatDock` i `WorkspaceDock` (mikrozadanie). */
+async function settleLazy(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
   });
