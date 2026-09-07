@@ -50,6 +50,7 @@ import {
 } from "@/lib/mobileBottomBar/config";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
+import "@/lib/i18n-mobile-bottom-bar";
 
 const TodoPanel = lazy(() =>
   import("./organisms/TodoPanel").then((m) => ({ default: m.TodoPanel })),
