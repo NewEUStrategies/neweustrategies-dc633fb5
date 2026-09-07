@@ -77,7 +77,7 @@ describe("EmailOutboxPanel", () => {
     expect(screen.getByText(/domain not verified/)).toBeInTheDocument();
   });
 
-  it("nie wysyła sentyneli „wszystkie" jako wartości filtrów", async () => {
+  it("nie wysyła sentyneli wszystkie jako wartości filtrów", async () => {
     renderWithQueryClient(<EmailOutboxPanel />);
     await waitFor(() => expect(env.calls.length).toBeGreaterThan(0));
 
