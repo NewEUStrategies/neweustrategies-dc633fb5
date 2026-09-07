@@ -45,7 +45,10 @@ function sameContext(a: NoteContext | null, b: NoteContext | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return (
-    a.entityType === b.entityType && a.entityId === b.entityId && a.title === b.title && a.url === b.url
+    a.entityType === b.entityType &&
+    a.entityId === b.entityId &&
+    a.title === b.title &&
+    a.url === b.url
   );
 }
 

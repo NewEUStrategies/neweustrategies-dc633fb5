@@ -2,11 +2,7 @@
 // Nic nie renderuje - dzięki temu można go wstawić w dowolny widok treści
 // (artykuł, raport, wywiad, podcast, wydarzenie, strona).
 import { useEffect } from "react";
-import {
-  clearNoteContext,
-  setNoteContext,
-  type NoteEntityType,
-} from "@/lib/dock/noteContext";
+import { clearNoteContext, setNoteContext, type NoteEntityType } from "@/lib/dock/noteContext";
 
 export interface NoteContextBinderProps {
   entityType: NoteEntityType;
@@ -20,7 +16,8 @@ export function NoteContextBinder({ entityType, entityId, title, url }: NoteCont
   useEffect(() => {
     if (!entityId) return;
     const href =
-      url ?? (typeof window === "undefined" ? null : window.location.pathname + window.location.search);
+      url ??
+      (typeof window === "undefined" ? null : window.location.pathname + window.location.search);
     setNoteContext({ entityType, entityId, title, url: href });
     return () => clearNoteContext(entityId);
   }, [entityType, entityId, title, url]);

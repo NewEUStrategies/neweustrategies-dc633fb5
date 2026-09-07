@@ -78,12 +78,12 @@ export function useCreateNote() {
         body: draft.body.trim().slice(0, 20_000),
         color: normalizeNoteColor(draft.color),
         pinned: draft.pinned ?? false,
-        entity_type: draft.entity && isStorableEntityId(draft.entity.entityId)
-          ? draft.entity.entityType
-          : null,
-        entity_id: draft.entity && isStorableEntityId(draft.entity.entityId)
-          ? draft.entity.entityId
-          : null,
+        entity_type:
+          draft.entity && isStorableEntityId(draft.entity.entityId)
+            ? draft.entity.entityType
+            : null,
+        entity_id:
+          draft.entity && isStorableEntityId(draft.entity.entityId) ? draft.entity.entityId : null,
         entity_title: draft.entity ? draft.entity.title.slice(0, 300) : null,
         entity_url: draft.entity?.url ?? null,
       });
@@ -113,7 +113,8 @@ export function useUpdateNote() {
       if (patch.color !== undefined) update.color = normalizeNoteColor(patch.color);
       if (patch.pinned !== undefined) update.pinned = patch.pinned;
       if (patch.entity !== undefined) {
-        const linked = patch.entity && isStorableEntityId(patch.entity.entityId) ? patch.entity : null;
+        const linked =
+          patch.entity && isStorableEntityId(patch.entity.entityId) ? patch.entity : null;
         update.entity_type = linked ? linked.entityType : null;
         update.entity_id = linked ? linked.entityId : null;
         update.entity_title = linked ? linked.title.slice(0, 300) : null;
