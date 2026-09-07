@@ -305,7 +305,6 @@ function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
           +{overflow}
         </button>
       ) : null}
-
     </div>
   );
 }
