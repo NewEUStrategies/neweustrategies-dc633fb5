@@ -74,9 +74,6 @@ vi.mock("@/components/Footer", () => ({
   Footer: () => <footer data-testid="footer" />,
 }));
 
-vi.mock("@/components/mobile/MobileBottomBar", () => ({
-  MobileBottomBar: () => <div data-testid="mobile-bottom-bar" />,
-}));
 
 vi.mock("@/components/RouteProgress", () => ({
   RouteProgress: () => <div data-testid="route-progress" />,
