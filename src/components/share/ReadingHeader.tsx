@@ -23,7 +23,7 @@ import { LangSwitcherDropdown } from "@/components/builder/organisms/widget-view
 import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
 import { SearchButtonWidget } from "@/components/builder/organisms/widget-view/SearchButtonWidget";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
-import { ChatBell } from "@/components/chat/ChatBell";
+
 import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
@@ -420,9 +420,6 @@ export function ReadingHeader({
           />
           <div data-reading-icon className="hidden sm:flex h-7 sm:h-8 items-center">
             <NotificationsBell panelWidth={280} />
-          </div>
-          <div data-reading-icon className="hidden sm:flex h-7 sm:h-8 items-center">
-            <ChatBell panelWidth={300} />
           </div>
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div

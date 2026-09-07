@@ -8,11 +8,6 @@ import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
 import { useAuth } from "@/hooks/useAuth";
-import { useCommunityModules } from "@/lib/community/useCommunityModules";
-
-const ChatDock = lazy(() =>
-  import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
-);
 
 // Przestrzeń robocza członka (pasek narzędzi: czat, zadania, notatki,
 // zapisane, kalendarz, do przeczytania). Lazy - gość nie pobiera jej kodu.
@@ -58,25 +53,9 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     },
   });
   const { user } = useAuth();
-  const community = useCommunityModules();
 
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
-
-  // Auth-gated + globalny toggle chat_enabled z site_settings.community_modules.
-  // Superadmin może wyłączyć chat globalnie z /admin/community bez rebuildu.
-  // Renderujemy wrapper zawsze w tej samej pozycji drzewa (nawet gdy brak
-  // uprawnień => pusty div) - dzięki temu ChatDock nie jest odmontowywany przy
-  // przechodzeniu admin<->public i utrzymuje własną klatkę View Transitions.
-  const chatDock = (
-    <div data-chat-dock-slot style={{ viewTransitionName: "chat-dock" }} className="contents">
-      {!user || isAdmin || isLogin || !community.chat_enabled ? null : (
-        <Suspense fallback={null}>
-          <ChatDock />
-        </Suspense>
-      )}
-    </div>
-  );
 
   // Pasek narzędzi członka: te same bramki co czat (zalogowany, poza /admin
   // i /login), ale bez zależności od toggle'a czatu - zadania i notatki
@@ -95,7 +74,6 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         <ImpersonationBanner />
         <RouteProgress />
         {children}
-        {chatDock}
         {workspaceDock}
       </>
     );
@@ -125,7 +103,6 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       </main>
       <Footer />
 
-      {chatDock}
       {workspaceDock}
     </div>
   );
