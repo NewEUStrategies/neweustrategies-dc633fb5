@@ -1,6 +1,5 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { createPortal } from "react-dom";
 import {
   Fragment,
   Suspense,
@@ -56,7 +55,7 @@ import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { warmCommonWidgetChunks } from "./widget-view/warmWidgetChunks";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";
-import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
+import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
