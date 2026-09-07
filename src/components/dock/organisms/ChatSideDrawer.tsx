@@ -261,6 +261,27 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
               <SquarePen className="h-3.5 w-3.5" aria-hidden />
               {t("dock.chat.start")}
             </button>
+            {isExpertRecipient ? (
+              <button
+                type="button"
+                onClick={() => setTab("requests")}
+                aria-pressed={tab === "requests"}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium",
+                  tab === "requests"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Inbox className="h-3.5 w-3.5" aria-hidden />
+                {t("expertRequest.inbox.tab")}
+                {pendingExpertRequests > 0 ? (
+                  <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+                    {pendingExpertRequests}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setGroupOpen(true)}
@@ -269,6 +290,7 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
               <UsersRound className="h-3.5 w-3.5" aria-hidden />
               {t("chat.group.create")}
             </button>
+
           </div>
         </div>
 
