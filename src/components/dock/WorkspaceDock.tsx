@@ -30,7 +30,20 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
-import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
+import {
+  Bookmark,
+  BookOpen,
+  CalendarDays,
+  ListTodo,
+  MessageCircle,
+  NotebookPen,
+  X,
+} from "lucide-react";
+import {
+  MINIMIZED_VISIBLE_LIMIT,
+  minimizedChatsStore,
+  useMinimizedChats,
+} from "@/lib/chat/minimizedChats";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
 import { type DockToolId } from "@/lib/dock/types";
