@@ -4,7 +4,10 @@
 // prezentuje gotowy klucz warstwy i jej listę korzyści z membership_tiers.
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Check, Loader2, Sparkles } from "@/lib/lucide-shim";
+import { useQuery } from "@tanstack/react-query";
+import { Check, Loader2 } from "@/lib/lucide-shim";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/button";
 import {
   parseTierBenefits,
@@ -14,6 +17,37 @@ import {
   type MembershipTierRow,
   type TierBenefit,
 } from "@/lib/billing/tiers";
+
+type ThemeLogoCfg = {
+  logo?: { main?: string; main_dark?: string; mobile?: string; mobile_dark?: string };
+};
+
+/**
+ * Znak marki New European Strategies zamiast ikony dekoracyjnej. Logo pochodzi
+ * z ustawień motywu (Branding -> Logo), z wariantem dla trybu ciemnego; gdy
+ * administrator nie wgrał pliku, zostaje sam wyróżniony napis marki.
+ */
+function BrandMark() {
+  const { data: settingsMap } = useQuery(siteSettingsQueryOptions);
+  const { theme } = useTheme();
+  const cfg = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
+  const logo = cfg.logo ?? {};
+  const src =
+    theme === "dark"
+      ? logo.main_dark || logo.mobile_dark || logo.main || logo.mobile || ""
+      : logo.main || logo.mobile || logo.main_dark || logo.mobile_dark || "";
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt="New European Strategies"
+      className="h-6 w-auto shrink-0 object-contain"
+      loading="lazy"
+      decoding="async"
+      data-testid="membership-welcome-logo"
+    />
+  );
+}
 
 export type WelcomeMode = "activated" | "upgraded";
 
@@ -103,7 +137,7 @@ export function MembershipWelcome({ mode = "activated" }: { mode?: WelcomeMode }
     <section className="mx-auto w-full max-w-3xl" data-testid="membership-welcome">
       <div className="rounded-[6px] border bg-card p-6 sm:p-8">
         <div className="flex items-center gap-2 text-primary">
-          <Sparkles className="h-5 w-5" aria-hidden="true" />
+          <BrandMark />
           <span className="text-xs font-semibold uppercase tracking-[0.14em]">
             New European Strategies
           </span>
