@@ -1,8 +1,10 @@
 // Przestrzeń robocza członka: JEDEN pasek na całej szerokości dolnej krawędzi
 // ekranu i JEDEN panel otwarty naraz nad paskiem.
 //
-// Pasek zawiera narzędzia członka: czat, zadania, notatki, zapisane,
-// kalendarz, do przeczytania.
+// Lewa strona paska to skróty nawigacyjne z konfiguracji mobilnego paska
+// (sieć, czaty, start, kluby, profil). Prawa strona to narzędzia członka
+// (zadania, notatki, zapisane, kalendarz, do przeczytania). Czat nie jest
+// w narzędziach, bo czaty znajdują się już po lewej stronie jako skrót.
 //
 // Zasady:
 //  - tylko dla zalogowanych, nigdy w /admin i /login (jak ChatDock),
@@ -10,28 +12,40 @@
 //    akapit treści nigdy nie chowają się pod paskiem,
 //  - panele są lazy - pierwsze wejście nie pobiera ich kodu,
 //  - ostatnio używane narzędzie zapamiętujemy lokalnie (nie w bazie).
-import { lazy, Suspense, useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-
 import {
-  Bookmark,
-  BookOpen,
-  CalendarDays,
-  ListTodo,
-  MessageCircle,
-  NotebookPen,
-} from "lucide-react";
-import { DOCK_TOOLS, type DockToolId } from "@/lib/dock/types";
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import { useTranslation } from "react-i18next";
+import { useRouterState } from "@tanstack/react-router";
+
+import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
+import { AppLink } from "@/components/atoms/AppLink";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
+import { type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useOpenTodoCount } from "@/lib/dock/useTodos";
 import { useUnreadLaterCount } from "@/lib/dock/useReadLater";
-import { useChatUnreadTotal } from "@/lib/chat/useConversations";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+import {
+  activeBottomBarIndex,
+  bottomBarHref,
+  bottomBarLabel,
+  MOBILE_BOTTOM_BAR_DEFAULTS,
+  MOBILE_BOTTOM_BAR_SETTINGS_KEY,
+  visibleBottomBarItems,
+  type MobileBottomBarConfig,
+} from "@/lib/mobileBottomBar/config";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
 
-const ChatDockPanel = lazy(() =>
-  import("./organisms/ChatDockPanel").then((m) => ({ default: m.ChatDockPanel })),
-);
 const TodoPanel = lazy(() =>
   import("./organisms/TodoPanel").then((m) => ({ default: m.TodoPanel })),
 );
@@ -48,8 +62,12 @@ const ReadLaterPanel = lazy(() =>
   import("./organisms/ReadLaterPanel").then((m) => ({ default: m.ReadLaterPanel })),
 );
 
-const ICONS: Record<DockToolId, typeof MessageCircle> = {
-  chat: MessageCircle,
+// Czat jest dostępny po lewej stronie jako skrót /messages, więc nie
+// powtarzamy go w narzędziach po prawej.
+type MemberTool = Exclude<DockToolId, "chat">;
+const MEMBER_TOOLS: MemberTool[] = ["todos", "notes", "saved", "calendar", "readLater"];
+
+const ICONS: Record<MemberTool, typeof ListTodo> = {
   todos: ListTodo,
   notes: NotebookPen,
   saved: Bookmark,
@@ -100,9 +118,16 @@ function useReservedSpace(): [React.RefObject<HTMLDivElement | null>, number] {
 export function WorkspaceDock() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [barRef, barHeight] = useReservedSpace();
 
+  const rawConfig = useSiteSetting<MobileBottomBarConfig>(
+    MOBILE_BOTTOM_BAR_SETTINGS_KEY,
+    MOBILE_BOTTOM_BAR_DEFAULTS,
+  );
+  const shortcuts = useMemo(() => visibleBottomBarItems(rawConfig), [rawConfig]);
+  const activeShortcut = activeBottomBarIndex(shortcuts, pathname);
 
   // Ostatnie narzędzie tylko podświetlamy - nie otwieramy panelu bez akcji
   // użytkownika, żeby wejście na stronę nie przysłaniało treści.
@@ -112,12 +137,10 @@ export function WorkspaceDock() {
 
   const lastTool = typeof window === "undefined" ? null : readLastTool(window.localStorage);
 
-  const chatUnread = useChatUnreadTotal();
   const openTodos = useOpenTodoCount();
   const unreadLater = useUnreadLaterCount();
 
-  const badge = (tool: DockToolId): number => {
-    if (tool === "chat") return chatUnread;
+  const badge = (tool: MemberTool): number => {
     if (tool === "todos") return openTodos;
     if (tool === "readLater") return unreadLater;
     return 0;
@@ -133,7 +156,6 @@ export function WorkspaceDock() {
           style={{ bottom: `calc(${barHeight || 56}px + 8px)` }}
         >
           <Suspense fallback={null}>
-            {state.open === "chat" && <ChatDockPanel onClose={close} />}
             {state.open === "todos" && <TodoPanel onClose={close} />}
             {state.open === "notes" && <NotesPanel onClose={close} />}
             {state.open === "saved" && <SavedPanel onClose={close} lang={lang} />}
@@ -149,10 +171,40 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex items-center justify-center gap-2 px-2 py-1.5 sm:px-4">
-          {/* Narzędzia członka. */}
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4">
+          {/* Skróty nawigacyjne po lewej - konfigurowalne w ustawieniach. */}
+          <nav aria-label={t("dock.shortcuts")} className="flex shrink-0 items-center gap-0.5">
+            {shortcuts.map((item, index) => {
+              const label = bottomBarLabel(item, lang, (key) => t(key));
+              const active = index === activeShortcut;
+              return (
+                <AppLink
+                  key={item.id}
+                  href={bottomBarHref(item, lang)}
+                  className={cn(
+                    "relative rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                  aria-current={active ? "page" : undefined}
+                  aria-label={label}
+                  title={label}
+                >
+                  <DynamicIcon
+                    name={item.icon || "circle"}
+                    className="h-4.5 w-4.5"
+                    aria-hidden="true"
+                  />
+                  <LiveTabBadge source={item.badge} />
+                </AppLink>
+              );
+            })}
+          </nav>
+
+          {/* Narzędzia członka po prawej - czat został usunięty, bo jest po lewej. */}
           <nav aria-label={t("dock.toolbar")} className="flex shrink-0 items-center gap-0.5">
-            {DOCK_TOOLS.map((tool) => {
+            {MEMBER_TOOLS.map((tool) => {
               const Icon = ICONS[tool];
               const count = badge(tool);
               const active = state.open === tool;
