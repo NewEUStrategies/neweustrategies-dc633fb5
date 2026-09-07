@@ -309,3 +309,40 @@ describe("SiteChrome - dok czatu", () => {
     expect(screen.queryByTestId("chat-dock")).toBeNull();
   });
 });
+
+describe("SiteChrome - dok przestrzeni roboczej (bottom bar)", () => {
+  it("nie renderuje się dla gościa na trasie publicznej", async () => {
+    h.pathname = "/analizy";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
+  });
+
+  it("renderuje się dla zalogowanego użytkownika na trasie publicznej", async () => {
+    h.user = { id: "user-testowy" };
+    h.pathname = "/analizy";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.getByTestId("workspace-dock")).toBeInTheDocument();
+  });
+
+  it("nie wchodzi do panelu admina, nawet dla zalogowanego", async () => {
+    h.user = { id: "user-testowy" };
+    h.pathname = "/admin/posts";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
+  });
+
+  it("nie wchodzi na ekran logowania", async () => {
+    h.user = { id: "user-testowy" };
+    h.pathname = "/login";
+    renderChrome();
+    await settleLazy();
+
+    expect(screen.queryByTestId("workspace-dock")).toBeNull();
+  });
+});
