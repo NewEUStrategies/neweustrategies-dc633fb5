@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-
 export function TodoPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const todosQ = useTodos();
@@ -161,7 +160,6 @@ export function TodoPanel({ onClose }: { onClose: () => void }) {
                         ))}
                       </SelectContent>
                     </Select>
-
                   )}
                 </div>
               </div>
