@@ -85,7 +85,28 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
   const direct = useMemo(() => rows.filter((view) => !isGroupView(view)), [rows]);
   const groups = useMemo(() => rows.filter((view) => isGroupView(view)), [rows]);
 
+  // Kliknięcie pigułki w doku prosi o otwarcie konkretnej rozmowy.
+  const { requested } = useMinimizedChats();
+  useEffect(() => {
+    if (!requested) return;
+    setSelected(requested);
+    setTab("chats");
+    minimizedChatsStore.clearRequest();
+  }, [requested]);
+
+  const selectedName = useMemo(() => {
+    if (!selected) return "";
+    const view = active.find((item) => item.conversation.id === selected);
+    return view ? conversationDisplay(view, peersQ.data, groupLabel).name : "";
+  }, [active, selected, peersQ.data, groupLabel]);
+
   if (!user) return null;
+
+  const minimizeSelected = () => {
+    if (!selected) return;
+    minimizedChatsStore.minimize({ id: selected, name: selectedName || t("dock.chat.title") });
+    setSelected(null);
+  };
 
   const openConversation = (conversationId: string) => {
     setSelected(conversationId);
