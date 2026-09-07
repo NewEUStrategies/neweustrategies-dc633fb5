@@ -73,21 +73,21 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     returnUrl: "https://example.com/checkout/success",
   };
 
-  it("płaszczyzna MoR: kupony, NIP i managed_payments, bez automatic_tax", async () => {
+  it("płaszczyzna MoR: kupony i managed_payments, bez automatic_tax i NIP", async () => {
     const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
     const result = await createAdhocCheckoutSession({ ...base, settings: SETTINGS.managed });
     expect(result.ok).toBe(true);
 
     const payload = lastSessionPayload();
     expect(payload.allow_promotion_codes).toBe(true);
-    expect(payload.tax_id_collection).toEqual({ enabled: true });
+    expect(payload.tax_id_collection).toBeUndefined();
     expect(payload.managed_payments).toEqual({ enabled: true });
     expect(payload.billing_address_collection).toBe("auto");
     expect(payload.automatic_tax).toBeUndefined();
     expect(payload.invoice_creation).toBeUndefined();
     // Klient jest przypięty, więc customer_creation byłoby błędem API.
     expect(payload.customer_creation).toBeUndefined();
-    expect(payload.customer_update).toEqual({ name: "auto" });
+    expect(payload.customer_update).toBeUndefined();
   });
 
   it("płaszczyzna sprzedawcy: automatic_tax + faktura, bez managed_payments", async () => {
@@ -109,10 +109,10 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     const payload = lastSessionPayload();
     expect(payload.managed_payments).toEqual({ enabled: true });
     expect(payload.allow_promotion_codes).toBe(true);
-    expect(payload.tax_id_collection).toEqual({ enabled: true });
+    expect(payload.tax_id_collection).toBeUndefined();
   });
 
-  it("darowizna anonimowa bez klienta -> customer_creation=always dla NIP", async () => {
+  it("darowizna anonimowa na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
     const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
     await createAdhocCheckoutSession({
       ...base,
@@ -123,7 +123,7 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
 
     const payload = lastSessionPayload();
     expect(payload.customer).toBeUndefined();
-    expect(payload.customer_creation).toBe("always");
+    expect(payload.customer_creation).toBeUndefined();
     expect(payload.customer_update).toBeUndefined();
   });
 });
