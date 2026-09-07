@@ -353,7 +353,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
 
   return (
-    <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
+    <div className="border-t border-border/60 bg-card px-2 pb-2 pt-1.5">
       {replyBar.kind === "editing" && (
         <div className="mb-1.5 flex items-center justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
