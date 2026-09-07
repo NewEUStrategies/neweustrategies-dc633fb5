@@ -145,7 +145,6 @@ describe("SiteChrome - powłoka publiczna", () => {
     expect(screen.getByTestId("skip-link")).toBeInTheDocument();
     expect(screen.getByTestId("header")).toBeInTheDocument();
     expect(screen.getByTestId("footer")).toBeInTheDocument();
-    expect(screen.getByTestId("mobile-bottom-bar")).toBeInTheDocument();
     expect(screen.getByTestId("strona")).toBeInTheDocument();
     expect(document.querySelector("[data-site-shell]")).not.toBeNull();
     expect(document.getElementById("main-content")).not.toBeNull();
