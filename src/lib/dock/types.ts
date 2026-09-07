@@ -14,6 +14,11 @@ export type TodoPriority = (typeof TODO_PRIORITIES)[number];
 export const READ_LATER_STATES = ["unread", "read", "archived"] as const;
 export type ReadLaterState = (typeof READ_LATER_STATES)[number];
 
+import type { NoteEntityType } from "./noteContext";
+
+export type { NoteEntityType };
+export { NOTE_ENTITY_TYPES, isNoteEntityType } from "./noteContext";
+
 export const NOTE_COLORS = ["amber", "rose", "sky", "emerald", "violet", "slate"] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
@@ -23,6 +28,11 @@ export interface UserNote {
   body: string;
   color: NoteColor;
   pinned: boolean;
+  /** Materiał, do którego notatka jest przypięta (null = notatka luźna). */
+  entity_type: NoteEntityType | null;
+  entity_id: string | null;
+  entity_title: string | null;
+  entity_url: string | null;
   created_at: string;
   updated_at: string;
 }
