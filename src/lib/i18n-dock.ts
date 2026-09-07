@@ -129,6 +129,10 @@ export const dockEn = {
       noPeople: "No people match this search.",
       openAll: "Open messages",
       start: "Message",
+      minimize: "Minimize conversation",
+      closeConversation: "Close conversation",
+      minimizedMore: "{{count}} more minimized conversations",
+      restore: "Restore conversation: {{name}}",
     },
     todos: {
       title: "Tasks",
