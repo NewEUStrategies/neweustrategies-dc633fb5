@@ -7277,12 +7277,25 @@ html[data-mbb="on"] [data-site-shell] {
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+  /* TINT PRZEZ `opacity`, NIE PRZEZ `color-mix`. Powód jest mierzalny:
+     `color-mix` w tym arkuszu ciągnie za sobą zapasową regułę
+     `@supports (color: color-mix(in lab, red, red))` dokładaną przez
+     Tailwind, czyli TĘ SAMĄ deklarację dwa razy - a skoro i tak animujemy
+     `opacity`, docelowa wartość 0,1 załatwia jedno i drugie jedną
+     deklaracją.
+     UCZCIWIE O RÓŻNICY: to nie jest ta sama operacja kolorystyczna.
+     `color-mix(in oklab, ...)` interpoluje w Oklabie, a `opacity` składa
+     warstwę w przestrzeni renderowania - przy 10% jednolitego wypełnienia
+     na tle karty różnica jest nierozróżnialna, ale nie jest zerowa.
+     Skutek uboczny `opacity` (własny kontekst stosu na pseudoelemencie)
+     jest tu bez znaczenia: ten pseudoelement nie ma dzieci, a kolejność
+     trzyma `z-index: -1` przy `isolation: isolate` na przycisku. */
+  background-color: var(--primary);
   opacity: 0;
   transition: opacity var(--wd-tab-ms) var(--wd-ease);
 }
 .wd-tab[data-active="true"]::before {
-  opacity: 1;
+  opacity: 0.1;
 }
 /* Stan „ostatnio używane": obwódka bez tła, też pseudoelementem, żeby nie
    dokładać drugiego przejścia na `box-shadow` samego przycisku. */
@@ -7328,17 +7341,12 @@ html[data-mbb="on"] [data-site-shell] {
   opacity: 1;
   transform: none;
 }
-@supports not (grid-template-columns: 1fr) {
-  .wd-tab__reveal {
-    display: block;
-    max-width: 0;
-    overflow: hidden;
-    transition: max-width var(--wd-tab-ms) var(--wd-ease);
-  }
-  .wd-tab[data-active="true"] .wd-tab__reveal {
-    max-width: 12rem;
-  }
-}
+/* ZAPASU `max-width` TU NIE MA - i to jest decyzja z pomiaru, nie
+   przeoczenie. `@supports not (grid-template-columns: 1fr)` pyta o obsługę
+   DEKLARACJI, a nie o animowalność torów `fr`: każda przeglądarka, która ma
+   CSS Grid, tę deklarację obsługuje, więc blok nie zapalał się NIGDY i był
+   martwym kodem w arkuszu render-blokującym. Silnik bez animowanych torów
+   `fr` pokaże etykietę skokowo - to degradacja bez utraty funkcji. */
 /* Promocja warstwy tylko na czas ruchu - ustawiana przez komponent, gdy
    aktywna zakładka się zmienia, zdejmowana po zakończeniu przejścia. */
 .wd-nav[data-moving="true"] .wd-tab__label,

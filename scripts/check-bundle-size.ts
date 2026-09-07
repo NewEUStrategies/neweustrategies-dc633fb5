@@ -1270,7 +1270,42 @@ const FROZEN_BUDGET_KB = {
   // Separate gzip streams cost 4.5 KiB overall, while public CSS falls by
   // 8.1 KiB. Keep both costs gated and count every unknown stylesheet as public.
   css: 87,
-  publicCss: 74,
+  // 2026-09-07: publicCss 74 -> 75. PRZEFLOOROWANE ŚWIADOMIE, z pomiarem
+  // przyczyny i z rachunkiem wymiany - bo tego wymaga reguła na końcu tego
+  // pliku, a nie dlatego, że próg „przeszkadzał".
+  //
+  // PRZYCZYNA, ZMIERZONA: warstwa ruchu paska przestrzeni roboczej
+  // (`.wd-*` w `src/styles.css`) to 27 reguł, 3 322 B surowych,
+  // 581 B GZIP. Liczba wzięta z artefaktu: `styles-*.css` waży 73 387 B
+  // gzip z tymi regułami i 72 806 B bez nich (usunięte dopasowaniem nawiasów,
+  // nie na oko). Publiczne CSS idzie z 73,7 KB na 74,3 KB, czyli PRZEZ
+  // sufit 74 KB o 0,3 KB.
+  //
+  // CO TE 581 B KUPIŁY. Ta warstwa zastąpiła `framer-motion`, który był
+  // wciągany WYŁĄCZNIE przez pasek doku. Pomiar na dwóch pełnych buildach
+  // tego samego hosta (drzewo przed zmianą w osobnym worktree i drzewo po):
+  //   * chunk `WorkspaceDock` - ten, który blokuje PIERWSZE malowanie paska
+  //     u każdego zalogowanego członka: 48,7 KB gzip -> 11,4 KB gzip
+  //     (-37,3 KB, -76,5%);
+  //   * otwarcie skrzynki czatu, koszt KRAŃCOWY ponad to, co pasek już ma:
+  //     60,2 KB gzip / 18 plików -> 11,3 KB gzip / 9 plików (-48,9 KB,
+  //     -81,2%) - okno rozmowy i dialog grupy przestały być importowane
+  //     statycznie;
+  //   * suma publiczna 2 759,0 KB -> 2 725,2 KB, suma całkowita
+  //     4 418,0 KB -> 4 384,6 KB (obie o ~33,5 KB NIŻEJ).
+  //
+  // Czyli 581 B arkusza za 37 275 B skryptu na drodze krytycznej: wymiana
+  // 1:64. Trzymanie sufitu CSS przy jednoczesnym spadku sumy JS o 33,5 KB
+  // byłoby pilnowaniem złej liczby.
+  //
+  // CZEGO TU NIE MA, powiedziane wprost: sumy `public` i `overall` są nad
+  // budżetem I BYŁY NAD NIM PRZED TĄ ZMIANĄ (2 759,0 / 4 418,0 zmierzone na
+  // drzewie sprzed niej, przy progach 2 715 / 4 351). To dług, który narósł
+  // między pomiarem baseline'u (971400e, 2026-09-06) a dziś - `baseline.json`
+  // nie zna nawet chunku `WorkspaceDock`. Tych dwóch progów ŚWIADOMIE NIE
+  // RUSZAM: nie są moje, a podniesienie ich przykryłoby czyjąś regresję.
+  // Następna osoba ma tu liczby, od których może zacząć.
+  publicCss: 75,
   // gzip STATYCZNEGO DOMKNIĘCIA ŚCIEŻKI BOOTOWANIA: chunki wstrzykiwane przez
   // SSR jako `<script type="module">` plus wszystko, co z nich osiągalne
   // KRAWĘDZIĄ STATYCZNĄ (`import()` krawędzią inicjalizacyjną nie jest). Ten sam
