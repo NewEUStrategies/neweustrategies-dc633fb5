@@ -3,7 +3,7 @@ import { lazy, Suspense, type CSSProperties, type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { adPageTypeForLocation } from "@/lib/ads/pageType";
 import { Footer } from "@/components/Footer";
-import { MobileBottomBar } from "@/components/mobile/MobileBottomBar";
+
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
@@ -124,7 +124,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
-      <MobileBottomBar />
+
       {chatDock}
       {workspaceDock}
     </div>

@@ -74,10 +74,6 @@ vi.mock("@/components/Footer", () => ({
   Footer: () => <footer data-testid="footer" />,
 }));
 
-vi.mock("@/components/mobile/MobileBottomBar", () => ({
-  MobileBottomBar: () => <div data-testid="mobile-bottom-bar" />,
-}));
-
 vi.mock("@/components/RouteProgress", () => ({
   RouteProgress: () => <div data-testid="route-progress" />,
 }));
@@ -148,7 +144,6 @@ describe("SiteChrome - powłoka publiczna", () => {
     expect(screen.getByTestId("skip-link")).toBeInTheDocument();
     expect(screen.getByTestId("header")).toBeInTheDocument();
     expect(screen.getByTestId("footer")).toBeInTheDocument();
-    expect(screen.getByTestId("mobile-bottom-bar")).toBeInTheDocument();
     expect(screen.getByTestId("strona")).toBeInTheDocument();
     expect(document.querySelector("[data-site-shell]")).not.toBeNull();
     expect(document.getElementById("main-content")).not.toBeNull();
@@ -224,7 +219,6 @@ describe("SiteChrome - trasy z własnym układem", () => {
 
     expect(screen.queryByTestId("header")).toBeNull();
     expect(screen.queryByTestId("footer")).toBeNull();
-    expect(screen.queryByTestId("mobile-bottom-bar")).toBeNull();
     expect(screen.getByTestId("skip-link")).toBeInTheDocument();
     expect(screen.getByTestId("impersonation-banner")).toBeInTheDocument();
     expect(screen.getByTestId("strona")).toBeInTheDocument();
