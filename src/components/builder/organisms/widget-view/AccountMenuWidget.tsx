@@ -620,11 +620,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   // powiadomień (badge = -right-2.5), żeby nie nachodził na powitanie/avatar.
   return (
     <div className="relative inline-flex items-center gap-x-2 sm:gap-x-3 overflow-visible">
-      {session ? (
-        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
-          <NotificationsBell />
-        </span>
-      ) : null}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
