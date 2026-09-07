@@ -231,6 +231,24 @@ function TabSeparator() {
 function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
   const { t } = useTranslation();
   const { minimized } = useMinimizedChats();
+  // Zdjęcie rozmówcy bierzemy na żywo z listy rozmów (dane są już w cache
+  // React Query), a zapisany URL służy tylko jako zapas przy starcie sesji.
+  const conversationsQ = useConversations();
+  const views = useMemo(() => conversationsQ.data ?? [], [conversationsQ.data]);
+  const peerIds = useMemo(
+    () => [...new Set(views.flatMap((view) => view.peers.map((peer) => peer.user_id)))],
+    [views],
+  );
+  const peersQ = usePeerProfiles(peerIds);
+  const liveAvatars = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const view of views) {
+      const display = conversationDisplay(view, peersQ.data);
+      map.set(view.conversation.id, display.avatarUrl);
+    }
+    return map;
+  }, [views, peersQ.data]);
+
   if (minimized.length === 0) return null;
 
   const visible = minimized.slice(0, MINIMIZED_VISIBLE_LIMIT);
