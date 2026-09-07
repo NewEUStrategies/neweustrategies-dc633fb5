@@ -36,14 +36,13 @@ async function assertSameTenant(
   callerId: string,
   targetId: string,
 ): Promise<{ email: string | null }> {
-  const { data: caller, error: callerError } = await supabase
-    .from("profiles")
-    .select("tenant_id")
-    .eq("id", callerId)
-    .maybeSingle();
-  if (callerError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
-  const callerTenant = caller?.tenant_id ?? null;
-  if (!callerTenant) throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
+  // Super administrator platformy zarządza wszystkimi organizacjami, więc
+  // granica najemcy go nie ogranicza - rola jest sprawdzana przez RLS-owy
+  // klient wywołującego, nie przez klucz serwisowy.
+  const { data: isSuperAdmin } = await supabase.rpc("has_role", {
+    _user_id: callerId,
+    _role: "super_admin",
+  });
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: target, error: targetError } = await supabaseAdmin
@@ -52,7 +51,17 @@ async function assertSameTenant(
     .eq("id", targetId)
     .maybeSingle();
   if (targetError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
-  if (!target || target.tenant_id !== callerTenant) {
+  if (!target) throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
+  if (isSuperAdmin === true) return { email: target.email ?? null };
+
+  const { data: caller, error: callerError } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", callerId)
+    .maybeSingle();
+  if (callerError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
+  const callerTenant = caller?.tenant_id ?? null;
+  if (!callerTenant || target.tenant_id !== callerTenant) {
     throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
   }
   return { email: target.email ?? null };
