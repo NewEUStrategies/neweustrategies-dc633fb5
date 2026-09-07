@@ -274,7 +274,7 @@ export function WorkspaceDock() {
         center={opts?.center}
         compact={opts?.compact}
         onPress={() => void navigate({ to: bottomBarHref(item, lang) })}
-        icon={<DynamicIcon name={item.icon || "circle"} className="h-5 w-5" aria-hidden="true" />}
+        icon={<DynamicIcon name={item.icon || "circle"} className="h-4 w-4" aria-hidden="true" />}
         badge={<LiveTabBadge source={item.badge} />}
       />
     );
@@ -292,7 +292,7 @@ export function WorkspaceDock() {
         compact={opts?.compact}
         highlighted={!active && lastTool === tool}
         onPress={() => dispatch({ type: "toggle", tool })}
-        icon={<Icon className="h-5 w-5" aria-hidden />}
+        icon={<Icon className="h-4 w-4" aria-hidden />}
         badge={
           count > 0 ? (
             <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-destructive-foreground">
