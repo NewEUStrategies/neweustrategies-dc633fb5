@@ -87,6 +87,7 @@ import { Route as ProfileOrganizationRouteImport } from './routes/profile.organi
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileNotificationsRouteImport } from './routes/profile.notifications'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
+import { Route as ProfileInvoicesRouteImport } from './routes/profile.invoices'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileExpertRequestsRouteImport } from './routes/profile.expert-requests'
@@ -773,6 +774,11 @@ const ProfileNotificationsRoute = ProfileNotificationsRouteImport.update({
 const ProfileMembershipRoute = ProfileMembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileInvoicesRoute = ProfileInvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
@@ -2497,6 +2503,7 @@ export interface FileRoutesByFullPath {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -2860,6 +2867,7 @@ export interface FileRoutesByTo {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -3236,6 +3244,7 @@ export interface FileRoutesById {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -3615,6 +3624,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -3978,6 +3988,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -4353,6 +4364,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -5240,6 +5252,13 @@ declare module '@tanstack/react-router' {
       path: '/membership'
       fullPath: '/profile/membership'
       preLoaderRoute: typeof ProfileMembershipRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/invoices': {
+      id: '/profile/invoices'
+      path: '/invoices'
+      fullPath: '/profile/invoices'
+      preLoaderRoute: typeof ProfileInvoicesRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/interests': {
@@ -8021,6 +8040,7 @@ interface ProfileRouteChildren {
   ProfileExpertRequestsRoute: typeof ProfileExpertRequestsRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
+  ProfileInvoicesRoute: typeof ProfileInvoicesRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileNotificationsRoute: typeof ProfileNotificationsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
@@ -8046,6 +8066,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileExpertRequestsRoute: ProfileExpertRequestsRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
+  ProfileInvoicesRoute: ProfileInvoicesRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileNotificationsRoute: ProfileNotificationsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
