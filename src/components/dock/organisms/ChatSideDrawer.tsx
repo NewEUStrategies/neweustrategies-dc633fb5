@@ -5,7 +5,7 @@
 import "@/lib/i18n-chat";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
+import { Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -22,6 +22,7 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { minimizedChatsStore, useMinimizedChats } from "@/lib/chat/minimizedChats";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +85,28 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
   const direct = useMemo(() => rows.filter((view) => !isGroupView(view)), [rows]);
   const groups = useMemo(() => rows.filter((view) => isGroupView(view)), [rows]);
 
+  // Kliknięcie pigułki w doku prosi o otwarcie konkretnej rozmowy.
+  const { requested } = useMinimizedChats();
+  useEffect(() => {
+    if (!requested) return;
+    setSelected(requested);
+    setTab("chats");
+    minimizedChatsStore.clearRequest();
+  }, [requested]);
+
+  const selectedName = useMemo(() => {
+    if (!selected) return "";
+    const view = active.find((item) => item.conversation.id === selected);
+    return view ? conversationDisplay(view, peersQ.data, groupLabel).name : "";
+  }, [active, selected, peersQ.data, groupLabel]);
+
   if (!user) return null;
+
+  const minimizeSelected = () => {
+    if (!selected) return;
+    minimizedChatsStore.minimize({ id: selected, name: selectedName || t("dock.chat.title") });
+    setSelected(null);
+  };
 
   const openConversation = (conversationId: string) => {
     setSelected(conversationId);
@@ -232,13 +254,36 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
 
       {selected ? (
         <div className="animate-fade-in pointer-events-auto hidden h-full w-[380px] max-w-[90vw] flex-col border-r border-border/70 bg-background/95 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:flex">
+          <div className="flex items-center gap-1 border-b border-border/70 px-2 py-1">
+            <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">
+              {selectedName}
+            </span>
+            <button
+              type="button"
+              onClick={minimizeSelected}
+              aria-label={t("dock.chat.minimize")}
+              title={t("dock.chat.minimize")}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Minus className="h-4 w-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              aria-label={t("dock.chat.closeConversation")}
+              title={t("dock.chat.closeConversation")}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
           <ChatWindow
             key={selected}
             conversationId={selected}
             variant="page"
             onBack={() => setSelected(null)}
             onClose={() => setSelected(null)}
-            className="h-full"
+            className="min-h-0 flex-1"
           />
         </div>
       ) : null}

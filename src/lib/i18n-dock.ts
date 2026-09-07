@@ -32,6 +32,10 @@ export const dockPl = {
       noPeople: "Brak osób dla tej frazy.",
       openAll: "Otwórz wiadomości",
       start: "Napisz",
+      minimize: "Zminimalizuj rozmowę",
+      closeConversation: "Zamknij rozmowę",
+      minimizedMore: "Jeszcze {{count}} zminimalizowane rozmowy",
+      restore: "Przywróć rozmowę: {{name}}",
     },
     todos: {
       title: "Zadania",
@@ -125,6 +129,10 @@ export const dockEn = {
       noPeople: "No people match this search.",
       openAll: "Open messages",
       start: "Message",
+      minimize: "Minimize conversation",
+      closeConversation: "Close conversation",
+      minimizedMore: "{{count}} more minimized conversations",
+      restore: "Restore conversation: {{name}}",
     },
     todos: {
       title: "Tasks",

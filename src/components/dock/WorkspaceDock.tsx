@@ -30,7 +30,20 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
-import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
+import {
+  Bookmark,
+  BookOpen,
+  CalendarDays,
+  ListTodo,
+  MessageCircle,
+  NotebookPen,
+  X,
+} from "lucide-react";
+import {
+  MINIMIZED_VISIBLE_LIMIT,
+  minimizedChatsStore,
+  useMinimizedChats,
+} from "@/lib/chat/minimizedChats";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
 import { type DockToolId } from "@/lib/dock/types";
@@ -223,6 +236,66 @@ function TabSeparator() {
   return <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 bg-border/80" />;
 }
 
+/**
+ * Zminimalizowane rozmowy: maksymalnie dwie pigułki po lewej stronie paska,
+ * reszta chowa się pod ikoną "+N" (kliknięcie otwiera skrzynkę czatu).
+ */
+function MinimizedChats({ onOpenInbox }: { onOpenInbox: () => void }) {
+  const { t } = useTranslation();
+  const { minimized } = useMinimizedChats();
+  if (minimized.length === 0) return null;
+
+  const visible = minimized.slice(0, MINIMIZED_VISIBLE_LIMIT);
+  const overflow = minimized.length - visible.length;
+
+  const restore = (id: string) => {
+    minimizedChatsStore.restore(id);
+    onOpenInbox();
+  };
+
+  return (
+    <div className="pointer-events-auto absolute bottom-0 left-1.5 top-0 flex items-center gap-1.5">
+      {visible.map((chat) => (
+        <span
+          key={chat.id}
+          className="flex max-w-[132px] items-center gap-1 rounded-md border border-border bg-muted/60 py-0.5 pl-2 pr-1 text-[11px] font-medium"
+        >
+          <button
+            type="button"
+            onClick={() => restore(chat.id)}
+            title={t("dock.chat.restore", { name: chat.name })}
+            aria-label={t("dock.chat.restore", { name: chat.name })}
+            className="flex min-w-0 items-center gap-1"
+          >
+            <MessageCircle className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+            <span className="truncate">{chat.name}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => minimizedChatsStore.remove(chat.id)}
+            title={t("dock.chat.closeConversation")}
+            aria-label={t("dock.chat.closeConversation")}
+            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3 w-3" aria-hidden />
+          </button>
+        </span>
+      ))}
+      {overflow > 0 ? (
+        <button
+          type="button"
+          onClick={onOpenInbox}
+          title={t("dock.chat.minimizedMore", { count: overflow })}
+          aria-label={t("dock.chat.minimizedMore", { count: overflow })}
+          className="rounded-md border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+        >
+          +{overflow}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function WorkspaceDock() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
@@ -345,34 +418,37 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        {/* Mobile: Home dokładnie na środku, po lewej Network i Czat,
+        <div className="relative">
+          <MinimizedChats onOpenInbox={() => dispatch({ type: "open", tool: "chat" })} />
+          {/* Mobile: Home dokładnie na środku, po lewej Network i Czat,
             po prawej Zapisane i Klub - wszystkie jako rozwijane zakładki
             z odstępem 6px. */}
-        <nav
-          aria-label={t("dock.shortcuts")}
-          className="flex items-center justify-center gap-1.5 overflow-x-auto px-1.5 py-1 sm:hidden"
-        >
-          {shortcutTab("network", { compact: true })}
-          {shortcutTab("chats", { compact: true })}
-          {shortcutTab("home", { center: true, compact: true })}
-          {toolTab("saved", { compact: true })}
-          {shortcutTab("clubs", { compact: true })}
-        </nav>
-
-        {/* Desktop: skróty | separator | narzędzia, jedna wycentrowana grupa. */}
-        <div className="hidden items-center justify-center gap-2 px-4 py-1.5 sm:flex">
-          {/* Hierarchia: skróty nawigacyjne jako główna grupa... */}
-          <nav aria-label={t("dock.shortcuts")} className="flex items-center gap-1.5">
-            {shortcuts.map((item) => shortcutTab(item.id))}
-          </nav>
-          <TabSeparator />
-          {/* ...a narzędzia członka w wyciszonej, wydzielonej pigułce. */}
           <nav
-            aria-label={t("dock.toolbar")}
-            className="flex items-center gap-1.5 rounded-md bg-muted/40 px-1.5 py-0.5"
+            aria-label={t("dock.shortcuts")}
+            className="flex items-center justify-center gap-1.5 overflow-x-auto px-1.5 py-1 sm:hidden"
           >
-            {MEMBER_TOOLS.map((tool) => toolTab(tool))}
+            {shortcutTab("network", { compact: true })}
+            {shortcutTab("chats", { compact: true })}
+            {shortcutTab("home", { center: true, compact: true })}
+            {toolTab("saved", { compact: true })}
+            {shortcutTab("clubs", { compact: true })}
           </nav>
+
+          {/* Desktop: skróty | separator | narzędzia, jedna wycentrowana grupa. */}
+          <div className="hidden items-center justify-center gap-2 px-4 py-1.5 sm:flex">
+            {/* Hierarchia: skróty nawigacyjne jako główna grupa... */}
+            <nav aria-label={t("dock.shortcuts")} className="flex items-center gap-1.5">
+              {shortcuts.map((item) => shortcutTab(item.id))}
+            </nav>
+            <TabSeparator />
+            {/* ...a narzędzia członka w wyciszonej, wydzielonej pigułce. */}
+            <nav
+              aria-label={t("dock.toolbar")}
+              className="flex items-center gap-1.5 rounded-md bg-muted/40 px-1.5 py-0.5"
+            >
+              {MEMBER_TOOLS.map((tool) => toolTab(tool))}
+            </nav>
+          </div>
         </div>
       </div>
     </>
