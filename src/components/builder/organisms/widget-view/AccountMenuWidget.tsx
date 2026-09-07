@@ -317,7 +317,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   // Bez bramki `useHasMounted`: SSR i pierwszy client render renderują ten
   // sam guest-trigger (sesja przychodzi asynchronicznie z useAuth), więc
   // header nie miga pustką i nie czeka jednego dodatkowego renderu, zanim
-  // ChatBell/NotificationsBell zamontują swoje zapytania. Gdy sesja
+  // NotificationsBell zamontuje swoje zapytania. Gdy sesja
   // zhydratyzuje się z localStorage, trigger płynnie zamienia się na wariant
   // zalogowany, a dzwonki startują queries od razu.
   const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
