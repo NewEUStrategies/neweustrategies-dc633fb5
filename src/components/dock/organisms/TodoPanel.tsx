@@ -126,23 +126,27 @@ export function TodoPanel({ onClose }: { onClose: () => void }) {
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <PriorityChip priority={todo.priority} />
                   {!todo.done && (
-                    <select
+                    <Select
                       value={todo.priority}
-                      onChange={(event) =>
-                        setPriority.mutate({
-                          id: todo.id,
-                          priority: event.target.value as TodoPriority,
-                        })
+                      onValueChange={(value) =>
+                        setPriority.mutate({ id: todo.id, priority: value as TodoPriority })
                       }
-                      aria-label={t("dock.todos.priority.label")}
-                      className="rounded-[6px] border border-input bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground"
                     >
-                      {TODO_PRIORITIES.map((value) => (
-                        <option key={value} value={value}>
-                          {t(`dock.todos.priority.${value}`)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger
+                        aria-label={t("dock.todos.priority.label")}
+                        className="h-6 w-auto gap-1 rounded-[6px] border-input bg-background px-1.5 py-0 text-[11px] text-muted-foreground"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-[6px]">
+                        {TODO_PRIORITIES.map((value) => (
+                          <SelectItem key={value} value={value} className="text-xs">
+                            {t(`dock.todos.priority.${value}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
                   )}
                 </div>
               </div>
