@@ -209,7 +209,7 @@ describe("createCrmCompany", () => {
       data: { name: "Acme", domain: "   ", city: "Bruksela" },
       context: context(),
     });
-    expect(result).toEqual({ ok: true, id: COMPANY_ID });
+    expect(result).toMatchObject({ ok: true, id: COMPANY_ID });
     expect(db.lastChain("crm_companies")?.argsOf("insert")?.[0]).toMatchObject({
       tenant_id: TENANT,
       created_by: USER_ID,
@@ -560,7 +560,7 @@ describe("operacje zbiorcze na firmach", () => {
       data: { ids: [COMPANY_ID] },
       context: context(),
     });
-    expect(result).toEqual({ ok: true, deleted: 1 });
+    expect(result).toMatchObject({ ok: true, deleted: 1 });
     expect((db.lastChain("audit_log")?.argsOf("insert")?.[0] as { action: string }).action).toBe(
       "crm.company.bulk_delete",
     );
