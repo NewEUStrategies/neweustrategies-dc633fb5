@@ -171,7 +171,44 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4">
+        {/* Mobile: pasek jak w aplikacji - Home dokładnie na środku,
+            po lewej Network i Czat, po prawej Zapisane i Klub.
+            Pozycje, ikony i etykiety nadal pochodzą z konfiguracji
+            administratora; zmienia się tylko układ i slot "saved". */}
+        <nav
+          aria-label={t("dock.shortcuts")}
+          className="grid grid-cols-5 items-stretch px-1 py-1 sm:hidden"
+        >
+          {(["network", "chats"] as const).map((id) => (
+            <MobileShortcut
+              key={id}
+              item={shortcutById.get(id)}
+              activeId={activeId}
+              lang={lang}
+              t={t}
+            />
+          ))}
+          <MobileShortcut
+            item={shortcutById.get("home")}
+            activeId={activeId}
+            lang={lang}
+            t={t}
+            center
+          />
+          <MobileSavedButton
+            active={state.open === "saved"}
+            label={t("dock.tools.saved")}
+            onPress={() => dispatch({ type: "toggle", tool: "saved" })}
+          />
+          <MobileShortcut
+            item={shortcutById.get("clubs")}
+            activeId={activeId}
+            lang={lang}
+            t={t}
+          />
+        </nav>
+
+        <div className="hidden items-center justify-between gap-2 px-2 py-1.5 sm:flex sm:px-4">
           {/* Skróty nawigacyjne po lewej - konfigurowalne w ustawieniach. */}
           <nav aria-label={t("dock.shortcuts")} className="flex shrink-0 items-center gap-0.5">
             {shortcuts.map((item, index) => {
