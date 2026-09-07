@@ -178,8 +178,8 @@ function ExpandableTab({
     >
       <span
         className={cn(
-          "relative grid shrink-0 place-items-center rounded-full",
-          center && "h-7 w-7 bg-primary text-primary-foreground",
+          "relative grid shrink-0 place-items-center rounded-full [&>svg]:h-4 [&>svg]:w-4",
+          center && "h-6 w-6 bg-primary text-primary-foreground [&>svg]:h-3.5 [&>svg]:w-3.5",
         )}
       >
         {icon}
