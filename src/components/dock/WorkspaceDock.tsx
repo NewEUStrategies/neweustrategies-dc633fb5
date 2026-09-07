@@ -128,6 +128,12 @@ export function WorkspaceDock() {
   );
   const shortcuts = useMemo(() => visibleBottomBarItems(rawConfig), [rawConfig]);
   const activeShortcut = activeBottomBarIndex(shortcuts, pathname);
+  const shortcutById = useMemo(() => {
+    const map = new Map<string, (typeof shortcuts)[number]>();
+    for (const item of shortcuts) map.set(item.id, item);
+    return map;
+  }, [shortcuts]);
+  const activeId = activeShortcut >= 0 ? shortcuts[activeShortcut]?.id : undefined;
 
   // Ostatnie narzędzie tylko podświetlamy - nie otwieramy panelu bez akcji
   // użytkownika, żeby wejście na stronę nie przysłaniało treści.
