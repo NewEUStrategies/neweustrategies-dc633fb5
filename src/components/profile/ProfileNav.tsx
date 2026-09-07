@@ -42,6 +42,7 @@ type NavKey =
   | "organization"
   | "billing"
   | "payments"
+  | "invoices"
   | "tickets"
   | "security"
   | "privacy"
