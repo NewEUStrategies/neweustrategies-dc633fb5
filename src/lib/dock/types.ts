@@ -14,7 +14,9 @@ export type TodoPriority = (typeof TODO_PRIORITIES)[number];
 export const READ_LATER_STATES = ["unread", "read", "archived"] as const;
 export type ReadLaterState = (typeof READ_LATER_STATES)[number];
 
-export type { NoteEntityType } from "./noteContext";
+import type { NoteEntityType } from "./noteContext";
+
+export type { NoteEntityType };
 export { NOTE_ENTITY_TYPES, isNoteEntityType } from "./noteContext";
 
 export const NOTE_COLORS = ["amber", "rose", "sky", "emerald", "violet", "slate"] as const;
