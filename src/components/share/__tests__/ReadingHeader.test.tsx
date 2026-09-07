@@ -245,9 +245,6 @@ vi.mock("@/components/notifications/NotificationsBell", () => ({
   },
 }));
 
-vi.mock("@/components/chat/ChatBell", () => ({
-  ChatBell: ({ panelWidth }: { panelWidth: number }) => {
-    h.chatWidth = panelWidth;
     return <div data-testid="bell-chat" />;
   },
 }));
