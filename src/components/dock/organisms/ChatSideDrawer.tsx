@@ -5,11 +5,20 @@
 import "@/lib/i18n-chat";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
+import {
+  Inbox,
+  Minus,
+  MessageCircle,
+  Search,
+  SquarePen,
+  UsersRound,
+  X,
+} from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
+import { ExpertRequestsInbox } from "@/components/chat/ExpertRequestsInbox";
 import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,11 +31,14 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { useMyExpertRequests } from "@/lib/chat/useExpertRequests";
 import { minimizedChatsStore, useMinimizedChats } from "@/lib/chat/minimizedChats";
 import type { ChatLang } from "@/lib/chat/time";
+import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 import { cn } from "@/lib/utils";
 
-type Tab = "chats" | "new";
+type Tab = "chats" | "new" | "requests";
+
 
 export interface ChatSideDrawerProps {
   onClose: () => void;
