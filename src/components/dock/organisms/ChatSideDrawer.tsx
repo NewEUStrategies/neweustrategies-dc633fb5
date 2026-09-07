@@ -5,11 +5,12 @@
 import "@/lib/i18n-chat";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
+import { Inbox, Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
+import { ExpertRequestsInbox } from "@/components/chat/ExpertRequestsInbox";
 import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,11 +23,13 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { useMyExpertRequests } from "@/lib/chat/useExpertRequests";
 import { minimizedChatsStore, useMinimizedChats } from "@/lib/chat/minimizedChats";
 import type { ChatLang } from "@/lib/chat/time";
+import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 import { cn } from "@/lib/utils";
 
-type Tab = "chats" | "new";
+type Tab = "chats" | "new" | "requests";
 
 export interface ChatSideDrawerProps {
   onClose: () => void;
@@ -37,10 +40,12 @@ export interface ChatSideDrawerProps {
 }
 
 export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideDrawerProps) {
+  ensureExpertRequestI18n();
   const { t, i18n } = useTranslation();
   const lang: ChatLang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("chats");
+
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
@@ -50,6 +55,19 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const nicknamesQ = useNicknames();
+
+  // Skrzynka zapytań eksperckich: RPC zwraca rekordy tylko wtedy, gdy
+  // zalogowany użytkownik jest ODBIORCĄ - czyli jest ekspertem. Zakładkę
+  // pokazujemy więc wyłącznie takim osobom, bez dodatkowego zapytania o rolę.
+  const expertRequestsQ = useMyExpertRequests("received");
+  const expertRequests = useMemo(() => expertRequestsQ.data ?? [], [expertRequestsQ.data]);
+  const isExpertRecipient = expertRequests.length > 0;
+  const pendingExpertRequests = expertRequests.filter((row) => row.status === "pending").length;
+
+  // Gdy zakładka zniknie (np. brak zapytań), nie zostawiamy pustego widoku.
+  useEffect(() => {
+    if (!isExpertRecipient) setTab((current) => (current === "requests" ? "chats" : current));
+  }, [isExpertRecipient]);
 
   // Wejście panelu: jedna transformacja GPU zamiast przeliczania layoutu.
   useEffect(() => {
@@ -233,6 +251,27 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
               <SquarePen className="h-3.5 w-3.5" aria-hidden />
               {t("dock.chat.start")}
             </button>
+            {isExpertRecipient ? (
+              <button
+                type="button"
+                onClick={() => setTab("requests")}
+                aria-pressed={tab === "requests"}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium",
+                  tab === "requests"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Inbox className="h-3.5 w-3.5" aria-hidden />
+                {t("expertRequest.inbox.tab")}
+                {pendingExpertRequests > 0 ? (
+                  <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+                    {pendingExpertRequests}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setGroupOpen(true)}
@@ -245,7 +284,9 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {tab === "new" ? (
+          {tab === "requests" ? (
+            <ExpertRequestsInbox onOpenConversation={openConversation} className="p-2" />
+          ) : tab === "new" ? (
             <NewChatSearch onOpened={openConversation} />
           ) : conversationsQ.isError ? (
             <p className="p-4 text-sm text-muted-foreground">{t("dock.error")}</p>
