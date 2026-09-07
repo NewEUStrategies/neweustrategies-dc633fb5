@@ -97,7 +97,7 @@ describe("tx-preview.server - lista typów podglądu", () => {
     const unikalne = new Set(TX_EMAIL_TYPES);
 
     expect(unikalne.size).toBe(TX_EMAIL_TYPES.length);
-    expect(unikalne.size).toBe(29);
+    expect(unikalne.size).toBe(30);
   });
 });
 
