@@ -3,7 +3,7 @@
 // wybraniu rozmowy obok otwiera się pełne okno czatu. Reużywamy istniejących
 // komponentów czatu - nie budujemy drugiej implementacji wiadomości.
 import "@/lib/i18n-chat";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -41,11 +41,27 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
+  const [entered, setEntered] = useState(false);
 
   useChatListRealtime();
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const nicknamesQ = useNicknames();
+
+  // Wejście panelu: jedna transformacja GPU zamiast przeliczania layoutu.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  // Escape zamyka skrzynkę - bez dodatkowych zapytań do serwera.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const { active } = useMemo(() => splitArchived(conversationsQ.data ?? []), [conversationsQ.data]);
   const peerIds = useMemo(
@@ -54,18 +70,19 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
   );
   const peersQ = usePeerProfiles(peerIds);
 
-  const needle = query.trim().toLowerCase();
+  // Filtrowanie w niskim priorytecie - pisanie w wyszukiwarce pozostaje płynne.
+  const deferredQuery = useDeferredValue(query);
+  const needle = deferredQuery.trim().toLowerCase();
+  const groupLabel = t("chat.group.circle");
   const rows = useMemo(() => {
     if (needle.length === 0) return active;
     return active.filter((view) =>
-      conversationDisplay(view, peersQ.data, t("chat.group.circle"))
-        .name.toLowerCase()
-        .includes(needle),
+      conversationDisplay(view, peersQ.data, groupLabel).name.toLowerCase().includes(needle),
     );
-  }, [active, needle, peersQ.data, t]);
+  }, [active, needle, peersQ.data, groupLabel]);
 
-  const direct = rows.filter((view) => !isGroupView(view));
-  const groups = rows.filter((view) => isGroupView(view));
+  const direct = useMemo(() => rows.filter((view) => !isGroupView(view)), [rows]);
+  const groups = useMemo(() => rows.filter((view) => isGroupView(view)), [rows]);
 
   if (!user) return null;
 
@@ -102,7 +119,12 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
         role="dialog"
         aria-modal="false"
         aria-label={t("dock.chat.title")}
-        className="pointer-events-auto flex h-full w-[320px] max-w-[85vw] flex-col border-r border-border bg-card shadow-2xl"
+        className={cn(
+          "pointer-events-auto flex h-full w-[320px] max-w-[85vw] flex-col border-r border-border/70",
+          "bg-card/95 shadow-xl backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
+          "will-change-transform transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
+          entered ? "translate-x-0 opacity-100" : "-translate-x-3 opacity-0",
+        )}
       >
         <header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
           <MessageCircle className="h-4 w-4 text-primary" aria-hidden />
@@ -209,7 +231,7 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
       </div>
 
       {selected ? (
-        <div className="pointer-events-auto hidden h-full w-[380px] max-w-[90vw] flex-col border-r border-border bg-background shadow-2xl sm:flex">
+        <div className="animate-fade-in pointer-events-auto hidden h-full w-[380px] max-w-[90vw] flex-col border-r border-border/70 bg-background/95 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:flex">
           <ChatWindow
             key={selected}
             conversationId={selected}
