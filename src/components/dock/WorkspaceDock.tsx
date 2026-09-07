@@ -130,9 +130,10 @@ function useReservedSpace(): [React.RefObject<HTMLDivElement | null>, number] {
 }
 
 /**
- * Pojedyncza rozwijana zakładka: ikona + etykieta, która pojawia się tylko
- * na aktywnej pozycji. Nawigacja i przełączanie narzędzi idą przez ten sam
- * przycisk, więc wygląd i zachowanie są identyczne dla całego paska.
+ * Pojedyncza rozwijana zakładka: ikona + etykieta widoczna na aktywnej
+ * pozycji. Każda ikona pokazuje podpis po najechaniu (tooltip) – także
+ * aktywna, która oprócz rozwiniętej etykiety wewnątrz przycisku ma
+ * dodatkowy tekst nad paskiem.
  */
 function ExpandableTab({
   label,
@@ -205,12 +206,9 @@ function ExpandableTab({
           </AnimatePresence>
         </motion.button>
       </TooltipTrigger>
-      {/* Etykieta jest widoczna na aktywnej zakładce - tooltip tylko dla ikon. */}
-      {!active ? (
-        <TooltipContent side="top" sideOffset={8}>
-          {label}
-        </TooltipContent>
-      ) : null}
+      <TooltipContent side="top" sideOffset={8}>
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }
