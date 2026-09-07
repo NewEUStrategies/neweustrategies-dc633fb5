@@ -552,7 +552,7 @@ async function detachCompaniesFromMembers(
       .select("id, tenant_id")
       .in("id", [...ids]);
     const byTenant = new Map<string, string[]>();
-    for (const row of rowsOf({ data: rows })) {
+    for (const row of rowsOf({ data: rows, error: null })) {
       const r = row as { id?: string; tenant_id?: string };
       if (!r.id || !r.tenant_id) continue;
       byTenant.set(r.tenant_id, [...(byTenant.get(r.tenant_id) ?? []), r.id]);
