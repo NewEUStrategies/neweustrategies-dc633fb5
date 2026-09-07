@@ -181,6 +181,19 @@ export default defineConfig({
                 // ikon zmienia się rzadziej niż kod aplikacji. Domknięcie
                 // trywialne - lucide-react importuje wyłącznie React.
                 if (id.includes("/node_modules/lucide-react/")) return "vendor-lucide";
+                // Heavy controls are not required by the public header. Keep
+                // their implementations out of the shared primitive chunk;
+                // dependencies still share vendor-radix and vendor-react.
+                const radixPackage = id
+                  .split("/node_modules/")
+                  .at(-1)
+                  ?.match(
+                    /^@radix-ui\/react-(select|slider|scroll-area|menu|context-menu|dropdown-menu)\//,
+                  )?.[1];
+                if (radixPackage) {
+                  const group = radixPackage.includes("menu") ? "menu" : radixPackage;
+                  return `vendor-radix-${group}`;
+                }
                 // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
                 // w JEDNYM chunku - patrz zasada domknięcia wyżej.
                 if (

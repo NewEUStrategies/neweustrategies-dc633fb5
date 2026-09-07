@@ -130,14 +130,11 @@ function styleText(container: HTMLElement): string {
 }
 
 /**
- * Arkusz INSTANCJI, czyli drugi `<style>` widgetu. Pierwszy to wspólny
- * `SHARED_STYLES` (ten sam dla każdego slidera i zawierający własne reguły
- * `.cms-post-title`), więc bez tego rozdzielenia „brak reguły instancji"
- * byłoby nieodróżnialne od „reguła stoi w arkuszu wspólnym".
+ * Arkusz instancji ma własny znacznik. Wspólny arkusz React przenosi do head
+ * i deduplikuje; jego pozycja w DOM nie określa już numeru arkusza instancji.
  */
 function instanceCss(container: HTMLElement): string {
-  const sheets = [...container.querySelectorAll("style")];
-  return sheets.length > 1 ? (sheets[1].textContent ?? "") : "";
+  return container.querySelector("style[data-slider-instance]")?.textContent ?? "";
 }
 
 const prevButton = (root: HTMLElement) => root.querySelector<HTMLButtonElement>("button.eh-prev");
@@ -520,7 +517,8 @@ describe("SliderRender - arkusz CSS instancji: biała lista jednostek", () => {
 
   it("nie montuje arkusza instancji, gdy nie ma ani typografii, ani rozmiarów z panelu", () => {
     const { container } = renderSlider();
-    expect(container.querySelectorAll("style")).toHaveLength(1);
+    expect(container.querySelectorAll("style[data-slider-instance]")).toHaveLength(0);
+    expect(document.querySelectorAll('style[data-href="nes-slider-shared-v1"]')).toHaveLength(1);
     expect(instanceCss(container)).toBe("");
   });
 

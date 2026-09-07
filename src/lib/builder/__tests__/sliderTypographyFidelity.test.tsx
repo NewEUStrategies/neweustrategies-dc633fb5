@@ -4,6 +4,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 import { SliderRender } from "@/lib/builder/sliderVariants";
+import { renderToString } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => null,
@@ -26,6 +28,22 @@ function styleText(container: HTMLElement): string {
 }
 
 describe("SliderRender - typografia editorial-hero", () => {
+  it("ships the shared stylesheet once for several SSR sliders and retains instance sizes", () => {
+    const html = renderToString(
+      <QueryClientProvider client={new QueryClient()}>
+        {[24, 30, 36].map((size) => (
+          <SliderRender
+            key={size}
+            config={{ variant: "editorial-hero", items, titleSizePx: size }}
+            lang="pl"
+          />
+        ))}
+      </QueryClientProvider>,
+    );
+    expect(html.match(/data-href="nes-slider-shared-v1"/g)).toHaveLength(1);
+    for (const size of [24, 30, 36]) expect(html).toContain(`font-size:${size}px !important;`);
+  });
+
   it("emituje rozmiar tytułu, opisu i odstęp jako reguły instancji", () => {
     const { container } = render(
       <SliderRender

@@ -169,6 +169,38 @@ async function flushOverlays(rounds = 24): Promise<void> {
 }
 
 describe("__root jako korzeń prawdziwego RouterProvider", () => {
+  it("a consent update does not rerender the public article through root providers", async () => {
+    const { act } = await import("@testing-library/react");
+    const { useAuth } = await import("@/hooks/useAuth");
+    const { setConsentPreview, clearConsentPreview } = await import("@/lib/ads/consent");
+    const { renderRoute } = await import("@/test/routeHarness");
+    await warmOverlayModules();
+    let renders = 0;
+    function Article() {
+      useAuth();
+      renders++;
+      return <article>Visible article</article>;
+    }
+    const child = createRoute({ getParentRoute: () => RootRoute, path: "/", component: Article });
+    const rendered = await renderRoute({
+      route: child,
+      rootRoute: RootRoute,
+      path: "/",
+      initialEntry: "/",
+    });
+    try {
+      await flushOverlays();
+      const before = renders;
+      expect(before).toBeGreaterThan(0);
+      await act(async () => setConsentPreview({ functional: true, analytics: false }));
+      expect(renders).toBe(before);
+      expect(rendered.getByRole("article")).toBeVisible();
+    } finally {
+      rendered.unmount();
+      clearConsentPreview();
+    }
+  });
+
   it("montuje całą powłokę, rozstrzyga nakładki lazy i nie wpada do granicy błędu", async () => {
     grantAnalyticsConsent();
     h.platformErrors.length = 0;

@@ -200,7 +200,9 @@ setDocumentRevalidator(revalidateDocument);
 export default {
   async fetch(request: Request): Promise<Response> {
     try {
+      const startedAt = Date.now();
       const handler = await getServerEntry();
+      const initializedAt = Date.now();
       const response = await fetchWithFrameworkPreloads(handler.fetch, request);
       const normalized = await normalizeCatastrophicSsrResponse(request, response);
       // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
@@ -211,7 +213,21 @@ export default {
       const stored = applyDeferredDocumentStore(normalized);
       // Dokumenty HTML wychodzą wyłącznie przez strażnika strumienia - body
       // ZAWSZE się kończy, niezależnie od stanu serializacji frameworka.
-      return guardDocumentResponse(request, stored);
+      const guarded = guardDocumentResponse(request, stored);
+      if (!guarded.headers.get("content-type")?.includes("text/html")) return guarded;
+      // Measured outside the router's SSR budget and outside the cache write:
+      // includes current middleware and cache lookup work on both MISS/HIT.
+      // Body streaming and network transport happen later, so this is not TTFB.
+      const headers = new Headers(guarded.headers);
+      headers.append(
+        "server-timing",
+        `server-init;dur=${initializedAt - startedAt}, app;dur=${Date.now() - startedAt}`,
+      );
+      return new Response(guarded.body, {
+        status: guarded.status,
+        statusText: guarded.statusText,
+        headers,
+      });
     } catch (error) {
       if (isClientAbort(request, error)) {
         return new Response(null, { status: 499, headers: { "cache-control": "no-store" } });

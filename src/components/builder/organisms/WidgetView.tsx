@@ -220,6 +220,7 @@ export const WidgetView = memo(function WidgetView({
       : undefined;
 
   const { ref: motionRef, inView } = useInView<HTMLDivElement>({
+    enabled: !!motion,
     once: node.advanced?.animationOnce !== false,
   });
 

@@ -412,7 +412,9 @@ describe("resolveRedirectForRequest - bramki wejściowe", () => {
     expect(opsFor("redirects")).toHaveLength(1);
     // Odświeżenie indeksu jest rejestrowane w `waitUntil`, nie porzucane -
     // workerd inaczej ucina je razem z domknięciem odpowiedzi.
-    expect(mockState.background).toHaveLength(1);
+    // Both the index refresh and its shared snapshot finish under waitUntil.
+    expect(mockState.background).toHaveLength(2);
+    await Promise.all(mockState.background);
   });
 
   it("dwa RÓWNOLEGŁE żądania na zimnym izolacie dzielą jeden odczyt (single-flight)", async () => {

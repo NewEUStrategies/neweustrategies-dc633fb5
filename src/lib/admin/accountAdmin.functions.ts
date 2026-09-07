@@ -93,11 +93,8 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     }
 
     const u = authUser.user;
-    const raw = u as unknown as { banned_until?: string | null; invited_at?: string | null };
     const bannedUntil =
-      raw.banned_until && new Date(raw.banned_until).getTime() > Date.now()
-        ? raw.banned_until
-        : null;
+      u.banned_until && new Date(u.banned_until).getTime() > Date.now() ? u.banned_until : null;
 
     let invitationId: string | null = null;
     let invitationStatus: string | null = null;
@@ -128,7 +125,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     const state = deriveAccountState({
       bannedUntil,
       emailConfirmedAt,
-      invitedAt: raw.invited_at ?? null,
+      invitedAt: u.invited_at ?? null,
       lastSignInAt: u.last_sign_in_at ?? null,
       invitationId,
       invitationStatus,
@@ -145,7 +142,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
       phoneConfirmed: Boolean(u.phone_confirmed_at),
       lastSignInAt: u.last_sign_in_at ?? null,
       createdAt: u.created_at ?? null,
-      invitedAt: raw.invited_at ?? null,
+      invitedAt: u.invited_at ?? null,
       bannedUntil,
       providers: Array.isArray(u.app_metadata?.providers)
         ? (u.app_metadata.providers as string[])

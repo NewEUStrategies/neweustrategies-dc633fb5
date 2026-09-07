@@ -184,12 +184,25 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       typography: { fontSize: { desktop: "14px" }, fontFamily: "serif" },
     });
 
-    expect(css).toContain(
-      "span:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])",
-    );
-    expect(css).toContain(
-      "button:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])",
-    );
+    const selectors = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(([, selector, body]) => /font-size\s*:/.test(body) && !selector.includes("::"))
+      .map(([, selector]) => selector.trim());
+    expect(selectors.length).toBeGreaterThan(0);
+    const root = document.createElement("div");
+    root.setAttribute("data-w-id", "tm-search-button");
+    for (const tag of ["span", "button"]) {
+      const control = document.createElement(tag);
+      root.append(control);
+      expect(
+        selectors.some((selector) => control.matches(selector)),
+        tag,
+      ).toBe(true);
+      control.setAttribute("data-typography-exempt", "");
+      expect(
+        selectors.some((selector) => control.matches(selector)),
+        tag,
+      ).toBe(false);
+    }
   });
 
   it("updates the rendered typography CSS immediately from the live editor channel", async () => {

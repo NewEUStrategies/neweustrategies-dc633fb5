@@ -587,8 +587,10 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-function RootComponent() {
-  const router = useRouter();
+// Consent resolves after hydration. Keep its subscription below the root so
+// this background update cannot recreate every provider value and interrupt
+// hydration of the already visible article's lazy widgets.
+function ClientObservability() {
   const { categories, mounted: consentMounted } = useEffectiveConsent();
 
   // Client observability (Core Web Vitals RUM + global error capture) is
@@ -613,6 +615,12 @@ function RootComponent() {
       cleanup?.();
     };
   }, [consentMounted, categories.analytics]);
+
+  return null;
+}
+
+function RootComponent() {
+  const router = useRouter();
 
   useEffect(() => {
     // Preview iframe watchdog: reload when the editor preview hangs on boot
@@ -701,6 +709,7 @@ function RootComponent() {
 
   return (
     <I18nextProvider i18n={renderI18n}>
+      <ClientObservability />
       <ThemeProvider>
         <AuthProvider>
           <IconPackSync />

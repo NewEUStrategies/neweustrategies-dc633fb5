@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { deriveAccountState } from "../accountAdmin.functions";
+import { DZIEN, MINUTA, freezeClock, relativeIso } from "@/test/time";
+
+freezeClock();
 
 const BASE = {
   bannedUntil: null,
-  emailConfirmedAt: "2026-09-06T20:28:49.000Z",
+  emailConfirmedAt: relativeIso(-DZIEN),
   invitedAt: null,
-  lastSignInAt: "2026-09-06T20:28:49.000Z",
+  lastSignInAt: relativeIso(-DZIEN),
   invitationId: "11111111-1111-4111-8111-111111111111",
   invitationStatus: "accepted",
-  invitationSentAt: "2026-09-06T20:28:49.000Z",
+  invitationSentAt: relativeIso(-DZIEN),
   invitationAutoAccepted: true,
 } as const;
 
@@ -21,12 +24,12 @@ describe("deriveAccountState", () => {
     expect(
       deriveAccountState({
         ...BASE,
-        lastSignInAt: "2026-09-06T20:30:00.000Z",
+        lastSignInAt: relativeIso(-DZIEN + MINUTA),
       }),
     ).toBe("active");
   });
 
   it("zachowuje blokadę jako stan nadrzędny", () => {
-    expect(deriveAccountState({ ...BASE, bannedUntil: "2027-01-01T00:00:00.000Z" })).toBe("banned");
+    expect(deriveAccountState({ ...BASE, bannedUntil: relativeIso(DZIEN) })).toBe("banned");
   });
 });

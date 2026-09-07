@@ -82,7 +82,9 @@ function ruleWeight(css: string, declaration: string): number {
     if (!body || !body.includes(declaration)) continue;
     const weights = selector
       .replace(/^@media[^{]*/, "")
-      .split(",")
+      // Builder :is() groups contain HTML tags only (equal specificity).
+      // Their commas are not separators between independent selectors.
+      .split(/,(?![^()]*\))/)
       .map((sel) => {
         const attrs = sel.match(/\[[^\]]+\]/g)?.length ?? 0;
         const classes = sel.match(/\.[a-zA-Z_-][\w-]*/g)?.length ?? 0;

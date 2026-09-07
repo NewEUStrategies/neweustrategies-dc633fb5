@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  startTransition,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -147,9 +155,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Listener już obsłużył INITIAL_SESSION dla tej samej sesji - tu tylko
         // domykamy `loading`, żeby konsument (route guards, header) mógł się
         // odpalić bez dodatkowego round-tripu.
-        setSession(data.session);
-        ensureContext(data.session?.user?.id ?? null);
-        setSessionLoading(false);
+        // Preserve the server-rendered reading surface while lazy widgets
+        // hydrate. Initial auth settlement can wait; later identity changes
+        // and logout remain urgent.
+        startTransition(() => {
+          setSession(data.session);
+          ensureContext(data.session?.user?.id ?? null);
+          setSessionLoading(false);
+        });
       });
     } catch (error) {
       console.error("[auth] Supabase client unavailable - continuing signed-out", error);
