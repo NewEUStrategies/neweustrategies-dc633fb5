@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import {
   FileText,
+  Inbox,
   LayoutDashboard,
   Mail,
   MailCheck,
