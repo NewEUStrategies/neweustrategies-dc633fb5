@@ -138,7 +138,7 @@ describe("tx-preview.server - komplet podglądów w obu językach", () => {
 
     expect(skazone).toEqual([]);
     // 26 typów razy dwa języki.
-    expect(wszystkie).toHaveLength(58);
+    expect(wszystkie).toHaveLength(60);
   });
 
   it("każdy podgląd niesie preheader ze słownika - inaczej lista maili jest ślepa", async () => {
