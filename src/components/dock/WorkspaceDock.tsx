@@ -1,10 +1,12 @@
 // Przestrzeń robocza członka: JEDEN pasek na całej szerokości dolnej krawędzi
 // ekranu i JEDEN panel otwarty naraz nad paskiem.
 //
-// Lewa strona paska to skróty nawigacyjne z konfiguracji mobilnego paska
-// (sieć, czaty, start, kluby, profil). Prawa strona to narzędzia członka
-// (zadania, notatki, zapisane, kalendarz, do przeczytania). Czat nie jest
-// w narzędziach, bo czaty znajdują się już po lewej stronie jako skrót.
+// Pasek działa jak rozwijane zakładki (expandable tabs): aktywna pozycja
+// płynnie rozszerza się i pokazuje etykietę obok ikony, nieaktywne zostają
+// samymi ikonami. Wszystkie elementy mają promień 6px i jednakowy odstęp
+// 6px (gap-1.5). Po lewej skróty nawigacyjne (sieć, czaty, start, kluby,
+// profil), po separatorze narzędzia członka (zadania, notatki, zapisane,
+// kalendarz, do przeczytania). Czat nie jest w narzędziach, bo jest skrótem.
 //
 // Zasady:
 //  - tylko dla zalogowanych, nigdy w /admin i /login (jak ChatDock),
@@ -21,13 +23,14 @@ import {
   useReducer,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
 import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
-import { AppLink } from "@/components/atoms/AppLink";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
 import { type DockToolId } from "@/lib/dock/types";
@@ -43,7 +46,6 @@ import {
   MOBILE_BOTTOM_BAR_SETTINGS_KEY,
   visibleBottomBarItems,
   type MobileBottomBarConfig,
-  type MobileBottomBarItem,
 } from "@/lib/mobileBottomBar/config";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
@@ -64,8 +66,7 @@ const ReadLaterPanel = lazy(() =>
   import("./organisms/ReadLaterPanel").then((m) => ({ default: m.ReadLaterPanel })),
 );
 
-// Czat jest dostępny po lewej stronie jako skrót /messages, więc nie
-// powtarzamy go w narzędziach po prawej.
+// Czat jest dostępny jako skrót /messages, więc nie powtarzamy go w narzędziach.
 type MemberTool = Exclude<DockToolId, "chat">;
 const MEMBER_TOOLS: MemberTool[] = ["todos", "notes", "saved", "calendar", "readLater"];
 
@@ -75,6 +76,16 @@ const ICONS: Record<MemberTool, typeof ListTodo> = {
   saved: Bookmark,
   calendar: CalendarDays,
   readLater: BookOpen,
+};
+
+// Animacja rozwijanej zakładki: aktywna rośnie (padding + przerwa na tekst),
+// etykieta wjeżdża sprężyście. Promień i odstępy trzymamy na 6px.
+const tabTransition = { delay: 0.1, type: "spring", bounce: 0, duration: 0.6 } as const;
+
+const labelVariants = {
+  initial: { width: 0, opacity: 0 },
+  animate: { width: "auto", opacity: 1 },
+  exit: { width: 0, opacity: 0 },
 };
 
 /**
@@ -118,91 +129,92 @@ function useReservedSpace(): [React.RefObject<HTMLDivElement | null>, number] {
 }
 
 /**
- * Mobilna pozycja skrótu (atom paska): ikona + etykieta pod spodem, jak w
- * referencyjnej aplikacji. `center` wyróżnia Home - pełne kółko marki,
- * niezależnie od tego, czy trasa jest aktywna.
+ * Pojedyncza rozwijana zakładka: ikona + etykieta, która pojawia się tylko
+ * na aktywnej pozycji. Nawigacja i przełączanie narzędzi idą przez ten sam
+ * przycisk, więc wygląd i zachowanie są identyczne dla całego paska.
  */
-function MobileShortcut({
-  item,
-  activeId,
-  lang,
-  t,
-  center = false,
-}: {
-  item: MobileBottomBarItem | undefined;
-  activeId: string | undefined;
-  lang: "pl" | "en";
-  t: (key: string) => string;
-  center?: boolean;
-}) {
-  if (!item) return <span aria-hidden="true" />;
-  const label = bottomBarLabel(item, lang, (key) => t(key));
-  const active = item.id === activeId;
-  return (
-    <AppLink
-      href={bottomBarHref(item, lang)}
-      aria-current={active ? "page" : undefined}
-      aria-label={label}
-      className={cn(
-        "flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <span
-        className={cn(
-          "relative grid place-items-center rounded-full",
-          center ? "h-9 w-9 bg-primary text-primary-foreground" : "p-0.5",
-        )}
-      >
-        <DynamicIcon
-          name={item.icon || "circle"}
-          className={center ? "h-5 w-5" : "h-5 w-5"}
-          aria-hidden="true"
-        />
-        <LiveTabBadge source={item.badge} />
-      </span>
-      <span className="max-w-full truncate text-[10px] font-medium leading-tight">
-        {label}
-      </span>
-    </AppLink>
-  );
-}
-
-/** Mobilny przycisk "Zapisane" - otwiera panel zapisanych elementów. */
-function MobileSavedButton({
-  active,
+function ExpandableTab({
   label,
+  active,
   onPress,
+  icon,
+  badge,
+  center = false,
+  compact = false,
+  highlighted = false,
 }: {
-  active: boolean;
   label: string;
+  active: boolean;
   onPress: () => void;
+  icon: ReactNode;
+  badge?: ReactNode;
+  center?: boolean;
+  compact?: boolean;
+  highlighted?: boolean;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onPress}
       aria-pressed={active}
       aria-label={label}
+      title={label}
+      initial={false}
+      animate={{
+        gap: active ? "0.375rem" : 0,
+        paddingLeft: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
+        paddingRight: active ? (compact ? "0.625rem" : "0.75rem") : "0.5rem",
+      }}
+      transition={tabTransition}
       className={cn(
-        "flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+        "relative flex min-w-0 items-center rounded-md py-1.5 text-sm font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active
+          ? "bg-muted text-primary"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        !active && highlighted && "ring-1 ring-border",
       )}
     >
-      <span className="grid place-items-center p-0.5">
-        <Bookmark className="h-5 w-5" aria-hidden="true" />
+      <span
+        className={cn(
+          "relative grid shrink-0 place-items-center rounded-full",
+          center && "h-7 w-7 bg-primary text-primary-foreground",
+        )}
+      >
+        {icon}
+        {badge}
       </span>
-      <span className="max-w-full truncate text-[10px] font-medium leading-tight">
-        {label}
-      </span>
-    </button>
+      <AnimatePresence initial={false}>
+        {active ? (
+          <motion.span
+            key="label"
+            variants={labelVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={tabTransition}
+            className={cn(
+              "overflow-hidden whitespace-nowrap",
+              compact ? "text-[11px]" : "text-xs",
+            )}
+          >
+            {label}
+          </motion.span>
+        ) : null}
+      </AnimatePresence>
+    </motion.button>
   );
+}
+
+/** Pionowy separator 6px od grup (jak w rozwijanych zakładkach). */
+function TabSeparator() {
+  return <span aria-hidden="true" className="mx-0 h-5 w-px shrink-0 bg-border" />;
 }
 
 export function WorkspaceDock() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [barRef, barHeight] = useReservedSpace();
   const { user } = useAuth();
@@ -231,7 +243,7 @@ export function WorkspaceDock() {
   const openTodos = useOpenTodoCount();
   const unreadLater = useUnreadLaterCount();
 
-  const badge = (tool: MemberTool): number => {
+  const badgeCount = (tool: MemberTool): number => {
     if (tool === "todos") return openTodos;
     if (tool === "readLater") return unreadLater;
     return 0;
@@ -242,6 +254,54 @@ export function WorkspaceDock() {
   // Ostateczna bramka: dock to przestrzeń robocza członka; nawet jeśli ktoś
   // użyje komponentu poza SiteChrome, nie renderujemy go dla gości.
   if (!user) return null;
+
+  const shortcutTab = (id: string, opts?: { center?: boolean; compact?: boolean }) => {
+    const item = shortcutById.get(id);
+    if (!item) return null;
+    const label = bottomBarLabel(item, lang, (key) => t(key));
+    return (
+      <ExpandableTab
+        key={id}
+        label={label}
+        active={item.id === activeId}
+        center={opts?.center}
+        compact={opts?.compact}
+        onPress={() => void navigate({ to: bottomBarHref(item, lang) })}
+        icon={
+          <DynamicIcon
+            name={item.icon || "circle"}
+            className="h-5 w-5"
+            aria-hidden="true"
+          />
+        }
+        badge={<LiveTabBadge source={item.badge} />}
+      />
+    );
+  };
+
+  const toolTab = (tool: MemberTool, opts?: { compact?: boolean }) => {
+    const Icon = ICONS[tool];
+    const count = badgeCount(tool);
+    const active = state.open === tool;
+    return (
+      <ExpandableTab
+        key={tool}
+        label={t(`dock.tools.${tool}`)}
+        active={active}
+        compact={opts?.compact}
+        highlighted={!active && lastTool === tool}
+        onPress={() => dispatch({ type: "toggle", tool })}
+        icon={<Icon className="h-5 w-5" aria-hidden />}
+        badge={
+          count > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-destructive-foreground">
+              {count > 99 ? "99+" : count}
+            </span>
+          ) : undefined
+        }
+      />
+    );
+  };
 
   return (
     <>
@@ -266,105 +326,28 @@ export function WorkspaceDock() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        {/* Mobile: pasek jak w aplikacji - Home dokładnie na środku,
-            po lewej Network i Czat, po prawej Zapisane i Klub.
-            Pozycje, ikony i etykiety nadal pochodzą z konfiguracji
-            administratora; zmienia się tylko układ i slot "saved". */}
+        {/* Mobile: Home dokładnie na środku, po lewej Network i Czat,
+            po prawej Zapisane i Klub - wszystkie jako rozwijane zakładki
+            z odstępem 6px. */}
         <nav
           aria-label={t("dock.shortcuts")}
-          className="grid grid-cols-5 place-items-center px-1 py-1 sm:hidden"
+          className="flex items-center justify-center gap-1.5 overflow-x-auto px-1.5 py-1 sm:hidden"
         >
-          {(["network", "chats"] as const).map((id) => (
-            <MobileShortcut
-              key={id}
-              item={shortcutById.get(id)}
-              activeId={activeId}
-              lang={lang}
-              t={t}
-            />
-          ))}
-          <MobileShortcut
-            item={shortcutById.get("home")}
-            activeId={activeId}
-            lang={lang}
-            t={t}
-            center
-          />
-          <MobileSavedButton
-            active={state.open === "saved"}
-            label={t("dock.tools.saved")}
-            onPress={() => dispatch({ type: "toggle", tool: "saved" })}
-          />
-          <MobileShortcut
-            item={shortcutById.get("clubs")}
-            activeId={activeId}
-            lang={lang}
-            t={t}
-          />
+          {shortcutTab("network", { compact: true })}
+          {shortcutTab("chats", { compact: true })}
+          {shortcutTab("home", { center: true, compact: true })}
+          {toolTab("saved", { compact: true })}
+          {shortcutTab("clubs", { compact: true })}
         </nav>
 
-        <div className="hidden items-center justify-center gap-4 px-2 py-1.5 sm:flex sm:px-4">
-          {/* Skróty nawigacyjne po lewej - konfigurowalne w ustawieniach. */}
-          <nav aria-label={t("dock.shortcuts")} className="flex shrink-0 items-center gap-0.5">
-            {shortcuts.map((item, index) => {
-              const label = bottomBarLabel(item, lang, (key) => t(key));
-              const active = index === activeShortcut;
-              return (
-                <AppLink
-                  key={item.id}
-                  href={bottomBarHref(item, lang)}
-                  className={cn(
-                    "relative rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                  aria-current={active ? "page" : undefined}
-                  aria-label={label}
-                  title={label}
-                >
-                  <DynamicIcon
-                    name={item.icon || "circle"}
-                    className="h-4.5 w-4.5"
-                    aria-hidden="true"
-                  />
-                  <LiveTabBadge source={item.badge} />
-                </AppLink>
-              );
-            })}
+        {/* Desktop: skróty | separator | narzędzia, jedna wycentrowana grupa. */}
+        <div className="hidden items-center justify-center gap-1.5 px-4 py-1.5 sm:flex">
+          <nav aria-label={t("dock.shortcuts")} className="flex items-center gap-1.5">
+            {shortcuts.map((item) => shortcutTab(item.id))}
           </nav>
-
-          {/* Narzędzia członka po prawej - czat został usunięty, bo jest po lewej. */}
-          <nav aria-label={t("dock.toolbar")} className="flex shrink-0 items-center gap-0.5">
-            {MEMBER_TOOLS.map((tool) => {
-              const Icon = ICONS[tool];
-              const count = badge(tool);
-              const active = state.open === tool;
-              return (
-                <button
-                  key={tool}
-                  type="button"
-                  onClick={() => dispatch({ type: "toggle", tool })}
-                  aria-pressed={active}
-                  aria-label={t(`dock.tools.${tool}`)}
-                  title={t(`dock.tools.${tool}`)}
-                  className={cn(
-                    "relative rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    !active && lastTool === tool && "ring-1 ring-border",
-                  )}
-                >
-                  <Icon className="h-4.5 w-4.5" aria-hidden />
-                  {count > 0 ? (
-                    <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-destructive-foreground">
-                      {count > 99 ? "99+" : count}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
+          <TabSeparator />
+          <nav aria-label={t("dock.toolbar")} className="flex items-center gap-1.5">
+            {MEMBER_TOOLS.map((tool) => toolTab(tool))}
           </nav>
         </div>
       </div>
