@@ -218,9 +218,13 @@ function contentSecurityPolicy(request?: Request): string {
     /* malformed env - omit */
   }
   const preview = request ? isPreviewRequest(request) : false;
+  // Kurs EUR/PLN w koszyku pobieramy bezpośrednio z NBP (Tabela A), a Stripe.js
+  // odpytuje własne API - bez tych origin-ów CSP blokuje checkout w przeglądarce.
+  const extraOrigins = "https://api.nbp.pl https://api.stripe.com";
   const connectSrc = supabaseOrigins
-    ? `connect-src 'self' ${supabaseOrigins}${preview ? " https: wss:" : ""}`
+    ? `connect-src 'self' ${supabaseOrigins} ${extraOrigins}${preview ? " https: wss:" : ""}`
     : "connect-src 'self' https: wss:";
+
   return [
     "default-src 'self'",
     // Stripe.js MUSI pochodzić z js.stripe.com (wymóg PCI - Stripe nie
