@@ -135,8 +135,8 @@ describe("brandTile - kontrakt hover/focus", () => {
     "focus-visible:[background-image:linear-gradient(180deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.05)_38%,rgba(255,255,255,0)_62%),var(--tile-grad)]",
     "focus-visible:text-white",
     "focus-visible:ring-2",
-    "hover:[&_svg]:!text-white",
-    "focus-visible:[&_svg]:!text-white",
+    "hover:[&_svg]:[color:white]!",
+    "focus-visible:[&_svg]:[color:white]!",
   ] as const;
 
   it.each(HOVER_CONTRACT)("kafelek zawiera klasę %s", (cls) => {
