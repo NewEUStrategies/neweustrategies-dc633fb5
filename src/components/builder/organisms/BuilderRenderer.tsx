@@ -277,13 +277,11 @@ export function BuilderRenderer({
   );
 }
 
-// Single, page-wide debug overlay owned by the primary renderer. The toggle is a
-// dev affordance: it only appears in dev or when debug was explicitly enabled
-// (e.g. `?debug=1`), so production visitors never see it. The height-annotation
-// loop runs once and labels every renderer on the page.
+// Single, page-wide debug overlay owned by the primary renderer. The overlay
+// is a DEV-only affordance controlled by `?debug=1` or localStorage, so
+// production visitors never see it. The height-annotation loop runs once and
+// labels every renderer on the page.
 function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocument }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (!import.meta.env.DEV || !debug || typeof window === "undefined") return;
     const annotate = () => {
@@ -304,31 +302,10 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
     };
   }, [debug, doc]);
 
-  // The debug overlay (CSS + toggle) is a DEV-only affordance. Gating the whole
-  // output behind import.meta.env.DEV means the CSS string and the button
-  // tree-shake out of production builds entirely - they can never reach a
-  // visitor, even via ?debug=1. (The functional/responsive CSS lives in the
-  // global stylesheet, so production layout is unaffected.)
+  // Gating the whole output behind import.meta.env.DEV means the debug CSS
+  // string tree-shakes out of production builds entirely.
   if (!import.meta.env.DEV) return null;
-  const toggle = (
-    <button
-      type="button"
-      className="builder-debug-toggle"
-      data-on={debug ? "1" : "0"}
-      onClick={toggleBuilderDebug}
-    >
-      {debug ? "Debug: ON" : "Debug: OFF"}
-    </button>
-  );
-  return (
-    <>
-      {debug && <style dangerouslySetInnerHTML={{ __html: DEBUG_OVERLAY_CSS }} />}
-      {/* Portal do <body>: renderer bywa montowany wewnątrz headera/kontenerów
-          z transform|filter|contain, które tworzą nowy containing block i
-          "przyklejają" position:fixed do rodzica zamiast do viewportu. */}
-      {mounted ? createPortal(toggle, document.body) : null}
-    </>
-  );
+  return debug ? <style dangerouslySetInnerHTML={{ __html: DEBUG_OVERLAY_CSS }} /> : null;
 }
 
 const SectionsList = memo(function SectionsList({
