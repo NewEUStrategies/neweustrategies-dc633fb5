@@ -136,6 +136,11 @@ function type(value: string): void {
   fireEvent.change(textarea(), { target: { value } });
 }
 
+it("oznacza pole wiadomości selektorem wymuszającym tekst 10,5 px", () => {
+  renderComposer();
+  expect(textarea()).toHaveAttribute("data-chat-composer-input");
+});
+
 /** Plik o zadanym typie i rozmiarze bez alokowania megabajtów w teście. */
 function fileOfSize(name: string, mime: string, size: number): File {
   const file = new File(["x"], name, { type: mime });

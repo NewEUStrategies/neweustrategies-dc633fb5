@@ -6333,6 +6333,13 @@ textarea::placeholder {
   }
 }
 
+/* Treść wpisywana w każdym oknie rozmowy ma stałe 10,5 px. Selektor celowy
+   neutralizuje także mobilną regułę 16 px powyżej, która chroni pozostałe pola
+   formularzy przed automatycznym powiększeniem widoku przez iOS Safari. */
+textarea[data-chat-composer-input][data-chat-composer-input] {
+  font-size: 10.5px !important;
+}
+
 /* -------------------------------------------------------------------------
    Unified in-form hyperlinks
    -------------------------------------------------------------------------
