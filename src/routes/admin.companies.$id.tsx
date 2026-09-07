@@ -38,6 +38,8 @@ import {
 import {
   getCrmCompany,
   updateCrmCompany,
+  deleteCrmCompany,
+  syncCrmCompanyMembers,
   getCrmCompanyActivity,
   addCrmCompanyNote,
 } from "@/lib/crm-companies.functions";
@@ -139,6 +141,8 @@ function AdminCompanyDetailPage() {
   const updateFn = useServerFn(updateCrmCompany);
   const activityFn = useServerFn(getCrmCompanyActivity);
   const noteFn = useServerFn(addCrmCompanyNote);
+  const deleteFn = useServerFn(deleteCrmCompany);
+  const syncFn = useServerFn(syncCrmCompanyMembers);
 
   const query = useQuery({
     queryKey: ["admin", "crm-company", id],
@@ -207,6 +211,33 @@ function AdminCompanyDetailPage() {
       setEditing(false);
       await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
       await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
+  });
+
+  // Kartoteka firmy jest źródłem prawdy o nazwie - ręczna synchronizacja
+  // odświeża profile członków i kontakty CRM przypięte do tej firmy.
+  const syncMembers = useMutation({
+    mutationFn: async () => syncFn({ data: { id } }),
+    onSuccess: async (res) => {
+      toast.success(
+        t(
+          `Zsynchronizowano członków: ${res.profiles + res.linked}, kontakty: ${res.leads}`,
+          `Members synced: ${res.profiles + res.linked}, contacts: ${res.leads}`,
+        ),
+      );
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
+  });
+
+  const removeCompany = useMutation({
+    mutationFn: async () => deleteFn({ data: { id } }),
+    onSuccess: async () => {
+      toast.success(t("Firma usunięta", "Company deleted"));
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await rootNavigate({ to: "/admin/companies" });
     },
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
   });
