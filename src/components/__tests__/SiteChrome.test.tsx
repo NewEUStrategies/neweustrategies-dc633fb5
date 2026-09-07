@@ -31,7 +31,7 @@
  *
  * CO JEST ZAATRAPOWANE: router (kontrolowana lokalizacja i dopasowania),
  * `useAuth` oraz wszystkie dzieci powłoki (Header, Footer, pasek dolny, baner,
- * link, dok czatu, dok przestrzeni roboczej) - każde ma własny plik testowy,
+ * link, dok przestrzeni roboczej) - każde ma własny plik testowy,
  * a tutaj liczy się WYŁĄCZNIE to, które z nich są montowane i z jakimi
  * propsami. Prawdziwe zostają: `adPageTypeForLocation`, `useCommunityModules`
  * (na prawdziwym `QueryClient` z zasianym cache ustawień) i `React.lazy`
@@ -89,9 +89,6 @@ vi.mock("@/components/atoms/SkipToContentLink", () => ({
   SkipToContentLink: () => <a data-testid="skip-link" href="#main-content" />,
 }));
 
-vi.mock("@/components/chat/ChatDock", () => ({
-  ChatDock: () => <div data-testid="chat-dock" />,
-}));
 
 vi.mock("@/components/dock/WorkspaceDock", () => ({
   WorkspaceDock: () => <div data-testid="workspace-dock" />,
@@ -265,48 +262,13 @@ describe("SiteChrome - trasy z własnym układem", () => {
 });
 
 describe("SiteChrome - dok czatu", () => {
-  it("slot doku stoi w drzewie także wtedy, gdy czat się nie renderuje", async () => {
-    renderChrome();
-    await settleLazy();
-
-    expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
-    expect(screen.queryByTestId("chat-dock")).toBeNull();
-  });
-
-  it("zalogowany użytkownik przy włączonym module dostaje dok czatu", async () => {
+  it("pływający dok czatu w prawym rogu jest usunięty - rozmowy żyją tylko w WorkspaceDock", async () => {
     h.user = { id: "user-testowy" };
     renderChrome({ community_modules: { chat_enabled: true } });
     await settleLazy();
 
-    expect(screen.getByTestId("chat-dock")).toBeInTheDocument();
-  });
-
-  it("wyłączony moduł czatu chowa dok mimo zalogowania", async () => {
-    h.user = { id: "user-testowy" };
-    renderChrome({ community_modules: { chat_enabled: false } });
-    await settleLazy();
-
     expect(screen.queryByTestId("chat-dock")).toBeNull();
-    expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
-  });
-
-  it("w panelu admina dok czatu nie wchodzi, nawet dla zalogowanego", async () => {
-    h.user = { id: "user-testowy" };
-    h.pathname = "/admin";
-    renderChrome({ community_modules: { chat_enabled: true } });
-    await settleLazy();
-
-    expect(screen.queryByTestId("chat-dock")).toBeNull();
-    expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
-  });
-
-  it("na ekranie logowania dok czatu również nie wchodzi", async () => {
-    h.user = { id: "user-testowy" };
-    h.pathname = "/login";
-    renderChrome({ community_modules: { chat_enabled: true } });
-    await settleLazy();
-
-    expect(screen.queryByTestId("chat-dock")).toBeNull();
+    expect(document.querySelector("[data-chat-dock-slot]")).toBeNull();
   });
 });
 
