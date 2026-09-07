@@ -22,6 +22,7 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { minimizedChatsStore, useMinimizedChats } from "@/lib/chat/minimizedChats";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
