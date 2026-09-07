@@ -6,9 +6,9 @@
  * przemontowuje się przy nawigacji) i celowo karmi atrapę routera pustą listą
  * dopasowań. Tu przedmiotem dowodu jest cała reszta: trzy tryby powłoki
  * (publiczna / panel admina i logowanie / trasa z własnym chrome), odczyt
- * `kind` z `loaderData` dopasowanej trasy oraz bramka doku czatu. Te decyzje
- * zapadają w jednym `select` i jednym warunku, a mylą się cicho - stąd osobne
- * przypadki na każdą gałąź.
+ * `kind` z `loaderData` dopasowanej trasy oraz bramki doku czatu i doku
+ * przestrzeni roboczej. Te decyzje zapadają w jednym `select` i jednym
+ * warunku, a mylą się cicho - stąd osobne przypadki na każdą gałąź.
  *
  * CO PRZYPINAMY.
  *  1. Trasa publiczna dostaje komplet: pasek postępu, baner impersonacji, link
@@ -26,13 +26,16 @@
  *  6. Dok czatu: slot stoi w drzewie ZAWSZE (żeby nie przemontowywać go przy
  *     przejściu panel <-> serwis), a sam czat pojawia się wyłącznie dla
  *     zalogowanego użytkownika przy włączonym module.
+ *  7. Dok przestrzeni roboczej (bottom bar): wyłącznie dla zalogowanych
+ *     użytkowników, nigdy w /admin i /login.
  *
  * CO JEST ZAATRAPOWANE: router (kontrolowana lokalizacja i dopasowania),
  * `useAuth` oraz wszystkie dzieci powłoki (Header, Footer, pasek dolny, baner,
- * link, dok czatu) - każde ma własny plik testowy, a tutaj liczy się WYŁĄCZNIE
- * to, które z nich są montowane i z jakimi propsami. Prawdziwe zostają:
- * `adPageTypeForLocation`, `useCommunityModules` (na prawdziwym `QueryClient`
- * z zasianym cache ustawień) i `React.lazy` doku czatu.
+ * link, dok czatu, dok przestrzeni roboczej) - każde ma własny plik testowy,
+ * a tutaj liczy się WYŁĄCZNIE to, które z nich są montowane i z jakimi
+ * propsami. Prawdziwe zostają: `adPageTypeForLocation`, `useCommunityModules`
+ * (na prawdziwym `QueryClient` z zasianym cache ustawień) i `React.lazy`
+ * doku czatu oraz doku przestrzeni roboczej.
  *
  * RODO: użytkownik w atrapie to zmyślony identyfikator, bez danych osobowych.
  */
