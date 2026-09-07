@@ -449,6 +449,7 @@ export function WorkspaceDock() {
             {MEMBER_TOOLS.map((tool) => toolTab(tool))}
           </nav>
         </div>
+        </div>
       </div>
     </>
   );
