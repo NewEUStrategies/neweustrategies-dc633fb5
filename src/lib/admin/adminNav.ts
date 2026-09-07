@@ -31,6 +31,7 @@ import {
   FlaskConical,
   Link as LinkIcon,
   Search,
+  Send,
 } from "@/lib/lucide-shim";
 import {
   BadgePercent,
