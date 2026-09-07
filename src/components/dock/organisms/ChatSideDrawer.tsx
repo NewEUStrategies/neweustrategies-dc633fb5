@@ -295,8 +295,11 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {tab === "new" ? (
+          {tab === "requests" ? (
+            <ExpertRequestsInbox onOpenConversation={openConversation} className="p-2" />
+          ) : tab === "new" ? (
             <NewChatSearch onOpened={openConversation} />
+
           ) : conversationsQ.isError ? (
             <p className="p-4 text-sm text-muted-foreground">{t("dock.error")}</p>
           ) : rows.length === 0 ? (
