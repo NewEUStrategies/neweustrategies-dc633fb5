@@ -116,6 +116,88 @@ function useReservedSpace(): [React.RefObject<HTMLDivElement | null>, number] {
   return [ref, height];
 }
 
+/**
+ * Mobilna pozycja skrótu (atom paska): ikona + etykieta pod spodem, jak w
+ * referencyjnej aplikacji. `center` wyróżnia Home - pełne kółko marki,
+ * niezależnie od tego, czy trasa jest aktywna.
+ */
+function MobileShortcut({
+  item,
+  activeId,
+  lang,
+  t,
+  center = false,
+}: {
+  item: MobileBottomBarItem | undefined;
+  activeId: string | undefined;
+  lang: "pl" | "en";
+  t: (key: string) => string;
+  center?: boolean;
+}) {
+  if (!item) return <span aria-hidden="true" />;
+  const label = bottomBarLabel(item, lang, (key) => t(key));
+  const active = item.id === activeId;
+  return (
+    <AppLink
+      href={bottomBarHref(item, lang)}
+      aria-current={active ? "page" : undefined}
+      aria-label={label}
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <span
+        className={cn(
+          "relative grid place-items-center rounded-full",
+          center ? "h-9 w-9 bg-primary text-primary-foreground" : "p-0.5",
+        )}
+      >
+        <DynamicIcon
+          name={item.icon || "circle"}
+          className={center ? "h-5 w-5" : "h-5 w-5"}
+          aria-hidden="true"
+        />
+        <LiveTabBadge source={item.badge} />
+      </span>
+      <span className="max-w-full truncate text-[10px] font-medium leading-tight">
+        {label}
+      </span>
+    </AppLink>
+  );
+}
+
+/** Mobilny przycisk "Zapisane" - otwiera panel zapisanych elementów. */
+function MobileSavedButton({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-pressed={active}
+      aria-label={label}
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <span className="grid place-items-center p-0.5">
+        <Bookmark className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="max-w-full truncate text-[10px] font-medium leading-tight">
+        {label}
+      </span>
+    </button>
+  );
+}
+
 export function WorkspaceDock() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
