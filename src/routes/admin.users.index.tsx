@@ -66,6 +66,7 @@ import {
   sendActivationEmailForUser,
 } from "@/lib/admin/invitations.functions";
 import { deleteUserAccount, getUserAccountStatus } from "@/lib/admin/accountAdmin.functions";
+import { accountAdminErrorKey } from "@/lib/admin/accountAdminErrors";
 import { adminUsersQueryOptions, type AdminUserRow } from "@/lib/admin/users-query";
 import { uiLocale } from "@/lib/i18n/format";
 
@@ -971,7 +972,7 @@ function UserActionsMenu({
       setConfirmEmail("");
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error");
+      toast.error(t(accountAdminErrorKey(error)));
     } finally {
       setBusyAction(null);
     }
