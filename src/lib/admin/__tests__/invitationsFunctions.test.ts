@@ -104,6 +104,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     auth: {
       admin: {
+        // Moduł najpierw sprawdza, czy konto o tym adresie już istnieje.
+        listUsers: async () => ({ data: { users: h.existingAuthUsers ?? [] }, error: null }),
         inviteUserByEmail: async (email: string, payload: unknown) => {
           h.authCalls.push({ kind: "invite", email, payload });
           if (h.authError) return { data: { user: null }, error: h.authError };
