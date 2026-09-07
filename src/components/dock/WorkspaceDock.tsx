@@ -420,35 +420,35 @@ export function WorkspaceDock() {
       >
         <div className="relative">
           <MinimizedChats onOpenInbox={() => dispatch({ type: "open", tool: "chat" })} />
-        {/* Mobile: Home dokładnie na środku, po lewej Network i Czat,
+          {/* Mobile: Home dokładnie na środku, po lewej Network i Czat,
             po prawej Zapisane i Klub - wszystkie jako rozwijane zakładki
             z odstępem 6px. */}
-        <nav
-          aria-label={t("dock.shortcuts")}
-          className="flex items-center justify-center gap-1.5 overflow-x-auto px-1.5 py-1 sm:hidden"
-        >
-          {shortcutTab("network", { compact: true })}
-          {shortcutTab("chats", { compact: true })}
-          {shortcutTab("home", { center: true, compact: true })}
-          {toolTab("saved", { compact: true })}
-          {shortcutTab("clubs", { compact: true })}
-        </nav>
-
-        {/* Desktop: skróty | separator | narzędzia, jedna wycentrowana grupa. */}
-        <div className="hidden items-center justify-center gap-2 px-4 py-1.5 sm:flex">
-          {/* Hierarchia: skróty nawigacyjne jako główna grupa... */}
-          <nav aria-label={t("dock.shortcuts")} className="flex items-center gap-1.5">
-            {shortcuts.map((item) => shortcutTab(item.id))}
-          </nav>
-          <TabSeparator />
-          {/* ...a narzędzia członka w wyciszonej, wydzielonej pigułce. */}
           <nav
-            aria-label={t("dock.toolbar")}
-            className="flex items-center gap-1.5 rounded-md bg-muted/40 px-1.5 py-0.5"
+            aria-label={t("dock.shortcuts")}
+            className="flex items-center justify-center gap-1.5 overflow-x-auto px-1.5 py-1 sm:hidden"
           >
-            {MEMBER_TOOLS.map((tool) => toolTab(tool))}
+            {shortcutTab("network", { compact: true })}
+            {shortcutTab("chats", { compact: true })}
+            {shortcutTab("home", { center: true, compact: true })}
+            {toolTab("saved", { compact: true })}
+            {shortcutTab("clubs", { compact: true })}
           </nav>
-        </div>
+
+          {/* Desktop: skróty | separator | narzędzia, jedna wycentrowana grupa. */}
+          <div className="hidden items-center justify-center gap-2 px-4 py-1.5 sm:flex">
+            {/* Hierarchia: skróty nawigacyjne jako główna grupa... */}
+            <nav aria-label={t("dock.shortcuts")} className="flex items-center gap-1.5">
+              {shortcuts.map((item) => shortcutTab(item.id))}
+            </nav>
+            <TabSeparator />
+            {/* ...a narzędzia członka w wyciszonej, wydzielonej pigułce. */}
+            <nav
+              aria-label={t("dock.toolbar")}
+              className="flex items-center gap-1.5 rounded-md bg-muted/40 px-1.5 py-0.5"
+            >
+              {MEMBER_TOOLS.map((tool) => toolTab(tool))}
+            </nav>
+          </div>
         </div>
       </div>
     </>
