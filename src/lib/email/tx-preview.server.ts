@@ -47,6 +47,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "club_application_accepted",
   "club_application_rejected",
   "club_application_more_info",
+  "user_invitation",
 ] as const;
 
 export interface TxEmailPreview {
@@ -317,6 +318,22 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         subjectName: lang === "pl" ? "Energetyka" : "Energy",
         details: [],
         ctaUrl: `${SITE_URL}/club/apply`,
+      };
+    case "user_invitation":
+      return {
+        subjectName: null,
+        details: [
+          {
+            label: lang === "pl" ? "Adres logowania" : "Sign-in address",
+            value: "anna@example.com",
+          },
+          { label: lang === "pl" ? "Rola" : "Role", value: "author" },
+          {
+            label: lang === "pl" ? "Organizacja" : "Organisation",
+            value: "New European Strategies",
+          },
+        ],
+        ctaUrl: `${SITE_URL}/auth`,
       };
     case "customer_portal_link":
       return {

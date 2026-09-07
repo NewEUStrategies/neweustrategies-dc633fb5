@@ -74,6 +74,8 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   const [jobTitle, setJobTitle] = useState("");
   const [role, setRole] = useState<Role>("author");
   const [mode, setMode] = useState<Mode>("magic_link");
+  // Język maila zaproszenia (App Emails: user-invitation-pl / -en).
+  const [emailLang, setEmailLang] = useState<"pl" | "en">("pl");
   const [autoAccept, setAutoAccept] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -132,6 +134,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
     setCompanyId(null);
     setJobTitle("");
     setAutoAccept(true);
+    setEmailLang("pl");
   };
 
   const pickPhoto = async (file: File | undefined) => {
@@ -183,6 +186,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 ...(companyQuery.trim() ? { company_name: companyQuery.trim() } : {}),
                 ...(companyId ? { company_id: companyId } : {}),
                 ...(jobTitle.trim() ? { job_title: jobTitle.trim() } : {}),
+                lang: emailLang,
                 auto_accept: autoAccept,
               },
             },
@@ -263,6 +267,20 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="grid min-w-0 gap-1">
+            <Label>{t("adminTeamMedia.inviteUser.emailLang")}</Label>
+            <Select value={emailLang} onValueChange={(v) => setEmailLang(v === "en" ? "en" : "pl")}>
+              <SelectTrigger className="w-full min-w-0">
+                <SelectValue className="truncate" />
+              </SelectTrigger>
+
+              <SelectContent>
+                <SelectItem value="pl">{t("adminTeamMedia.inviteUser.emailLangPl")}</SelectItem>
+                <SelectItem value="en">{t("adminTeamMedia.inviteUser.emailLangEn")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid min-w-0 gap-3 rounded-[6px] border border-border bg-muted/20 p-3">

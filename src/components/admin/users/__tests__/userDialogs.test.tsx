@@ -387,7 +387,7 @@ describe("InviteUserDialog", () => {
         source: "manual",
         // Autoakceptacja jest domyślna - administrator tworzy konto gotowe
         // do użycia, więc zaproszenie nie zostaje w stanie „wysłane".
-        metadata: { auto_accept: true },
+        metadata: { lang: "pl", auto_accept: true },
       },
     ]);
     await waitFor(() => expect(h.sendCalls).toEqual(["inv-1"]));
@@ -511,7 +511,7 @@ describe("InviteUserDialog", () => {
 
     fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
     await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect(h.createCalls[0].items[0].metadata).toEqual({ auto_accept: true });
+    expect(h.createCalls[0].items[0].metadata).toEqual({ lang: "pl", auto_accept: true });
   });
 
   it("plik BEZ rozszerzenia ląduje w magazynie pod nazwą z `.png`", async () => {
@@ -575,7 +575,7 @@ describe("InviteUserDialog", () => {
     fireEvent.click(box);
     fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
     await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect(h.createCalls[0].items[0].metadata).toEqual({ auto_accept: false });
+    expect(h.createCalls[0].items[0].metadata).toEqual({ lang: "pl", auto_accept: false });
   });
 
   it("odmowa wysyłki pokazuje powód serwera i NIE mówi o sukcesie", async () => {
