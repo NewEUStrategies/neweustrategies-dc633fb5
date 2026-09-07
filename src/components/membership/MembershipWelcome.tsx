@@ -30,7 +30,7 @@ type ThemeLogoCfg = {
 function BrandMark() {
   const { data: settingsMap } = useQuery(siteSettingsQueryOptions);
   const { theme } = useTheme();
-  const cfg = resolveSetting<ThemeLogoCfg>(settingsMap ?? {}, "theme_options", {});
+  const cfg = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
   const logo = cfg.logo ?? {};
   const src =
     theme === "dark"
