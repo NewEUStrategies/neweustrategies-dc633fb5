@@ -235,6 +235,7 @@ export function buildAdminNavGroups({
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
         { to: "/admin/pricing", icon: BadgePercent, label: t("admin.nav.pricing") },
         { to: "/admin/membership", icon: Crown, label: t("admin.nav.membership") },
+        { to: "/admin/members", icon: Users, label: t("admin.nav.members") },
         { to: "/admin/gifting", icon: Gift, label: t("admin.nav.gifting") },
         { to: "/admin/coupons", icon: Megaphone, label: t("admin.nav.coupons") },
         { to: "/admin/library", icon: BookOpen, label: t("admin.nav.library") },
