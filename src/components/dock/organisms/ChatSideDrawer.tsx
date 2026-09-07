@@ -49,10 +49,12 @@ export interface ChatSideDrawerProps {
 }
 
 export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideDrawerProps) {
+  ensureExpertRequestI18n();
   const { t, i18n } = useTranslation();
   const lang: ChatLang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("chats");
+
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
