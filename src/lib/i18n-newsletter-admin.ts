@@ -426,6 +426,7 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
       campaigns: "Campaigns",
       subscribers: "Subscribers",
       deliverability: "Deliverability",
+      outbox: "Outbox",
       systemEmails: "System emails",
       authLogs: "Auth logs",
       emailContent: "Email content",
