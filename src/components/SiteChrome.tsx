@@ -124,7 +124,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
-      
+
       {chatDock}
       {workspaceDock}
     </div>
