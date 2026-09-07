@@ -98,6 +98,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         <RouteProgress />
         {children}
         {chatDock}
+        {workspaceDock}
       </>
     );
   }
@@ -127,6 +128,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       <Footer />
       <MobileBottomBar />
       {chatDock}
+      {workspaceDock}
     </div>
   );
 }
