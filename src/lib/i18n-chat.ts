@@ -364,9 +364,9 @@ export const chatPl = {
       },
       wallpapers: {
         dots: "Kropki",
-        soft: "Poświata",
+        soft: "Gładka",
         lines: "Linie",
-        none: "Gładka",
+        none: "Jednolita",
       },
       nicknamesSection: "Pseudonimy",
       nicknamesHint:
@@ -845,9 +845,9 @@ export const chatEn = {
       },
       wallpapers: {
         dots: "Dots",
-        soft: "Glow",
+        soft: "Smooth",
         lines: "Lines",
-        none: "Plain",
+        none: "Solid",
       },
       nicknamesSection: "Nicknames",
       nicknamesHint:

@@ -256,7 +256,7 @@ describe("ChatAppearanceDialog - katalog z themes.ts dociera do interfejsu w ca�
       }),
     });
     expect(checkedLabel(appearance.themeSection)).toBe(appearance.themes.default);
-    expect(checkedLabel(appearance.wallpaperSection)).toBe(appearance.wallpapers.dots);
+    expect(checkedLabel(appearance.wallpaperSection)).toBe(appearance.wallpapers.soft);
     expect(checkedLabel(appearance.quickEmojiSection)).toBe(DEFAULT_QUICK_EMOJI);
   });
 });
@@ -276,17 +276,17 @@ describe("ChatAppearanceDialog - zapis wyboru", () => {
     expect(h.setAppearance.calls).toEqual([{ conversationId: CHAT_IDS.conversation, theme: null }]);
   });
 
-  it("wybór tapety wysyła wartość bazową, a powrót do kropek kasuje kolumnę", () => {
+  it("wybór tapety wysyła wartość bazową, a powrót do gładkiej kasuje kolumnę", () => {
     const { unmount } = renderDialog();
-    pick(appearance.wallpaperSection, appearance.wallpapers.soft);
+    pick(appearance.wallpaperSection, appearance.wallpapers.dots);
     expect(h.setAppearance.calls).toEqual([
-      { conversationId: CHAT_IDS.conversation, wallpaper: "soft" },
+      { conversationId: CHAT_IDS.conversation, wallpaper: "dots" },
     ]);
     unmount();
 
     h.setAppearance.calls.length = 0;
-    renderDialog({ view: conversationView({ conversation: { wallpaper: "soft" } }) });
-    pick(appearance.wallpaperSection, appearance.wallpapers.dots);
+    renderDialog({ view: conversationView({ conversation: { wallpaper: "dots" } }) });
+    pick(appearance.wallpaperSection, appearance.wallpapers.soft);
     expect(h.setAppearance.calls).toEqual([
       { conversationId: CHAT_IDS.conversation, wallpaper: null },
     ]);
