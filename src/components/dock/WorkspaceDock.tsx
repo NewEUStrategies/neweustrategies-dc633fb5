@@ -67,8 +67,12 @@ const CalendarPanel = lazy(() =>
 const ReadLaterPanel = lazy(() =>
   import("./organisms/ReadLaterPanel").then((m) => ({ default: m.ReadLaterPanel })),
 );
+const ChatSideDrawer = lazy(() =>
+  import("./organisms/ChatSideDrawer").then((m) => ({ default: m.ChatSideDrawer })),
+);
 
-// Czat jest dostępny jako skrót /messages, więc nie powtarzamy go w narzędziach.
+// Czat ma własną, wysuwaną skrzynkę z lewej krawędzi, więc nie jest jednym
+// z narzędzi otwieranych nad paskiem.
 type MemberTool = Exclude<DockToolId, "chat">;
 const MEMBER_TOOLS: MemberTool[] = ["todos", "notes", "saved", "calendar", "readLater"];
 
@@ -268,14 +272,20 @@ export function WorkspaceDock() {
     const item = shortcutById.get(id);
     if (!item) return null;
     const label = bottomBarLabel(item, lang, (key) => t(key));
+    // Czat nie przenosi na osobną stronę - wysuwa skrzynkę z lewej krawędzi.
+    const isChat = item.id === "chats";
     return (
       <ExpandableTab
         key={id}
         label={label}
-        active={item.id === activeId}
+        active={isChat ? state.open === "chat" : item.id === activeId}
         center={opts?.center}
         compact={opts?.compact}
-        onPress={() => void navigate({ to: bottomBarHref(item, lang) })}
+        onPress={() =>
+          isChat
+            ? dispatch({ type: "toggle", tool: "chat" })
+            : void navigate({ to: bottomBarHref(item, lang) })
+        }
         icon={<DynamicIcon name={item.icon || "circle"} className="h-4 w-4" aria-hidden="true" />}
         badge={<LiveTabBadge source={item.badge} />}
       />
@@ -308,7 +318,13 @@ export function WorkspaceDock() {
 
   return (
     <>
-      {state.open ? (
+      {state.open === "chat" ? (
+        <Suspense fallback={null}>
+          <ChatSideDrawer onClose={close} bottomOffset={barHeight || 56} />
+        </Suspense>
+      ) : null}
+
+      {state.open && state.open !== "chat" ? (
         <div
           className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-3 sm:justify-end sm:px-4"
           style={{ bottom: `calc(${barHeight || 56}px + 8px)` }}
