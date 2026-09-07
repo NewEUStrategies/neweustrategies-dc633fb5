@@ -5,15 +5,7 @@
 import "@/lib/i18n-chat";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Inbox,
-  Minus,
-  MessageCircle,
-  Search,
-  SquarePen,
-  UsersRound,
-  X,
-} from "lucide-react";
+import { Inbox, Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -38,7 +30,6 @@ import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request
 import { cn } from "@/lib/utils";
 
 type Tab = "chats" | "new" | "requests";
-
 
 export interface ChatSideDrawerProps {
   onClose: () => void;
@@ -77,7 +68,6 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
   useEffect(() => {
     if (!isExpertRecipient) setTab((current) => (current === "requests" ? "chats" : current));
   }, [isExpertRecipient]);
-
 
   // Wejście panelu: jedna transformacja GPU zamiast przeliczania layoutu.
   useEffect(() => {
@@ -290,7 +280,6 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
               <UsersRound className="h-3.5 w-3.5" aria-hidden />
               {t("chat.group.create")}
             </button>
-
           </div>
         </div>
 
@@ -299,7 +288,6 @@ export function ChatSideDrawer({ onClose, bottomOffset, openRequest }: ChatSideD
             <ExpertRequestsInbox onOpenConversation={openConversation} className="p-2" />
           ) : tab === "new" ? (
             <NewChatSearch onOpened={openConversation} />
-
           ) : conversationsQ.isError ? (
             <p className="p-4 text-sm text-muted-foreground">{t("dock.error")}</p>
           ) : rows.length === 0 ? (
