@@ -972,6 +972,7 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
   it("tryb odnośnika jednorazowego zakłada konto i WYSYŁA własny e-mail z linkiem", async () => {
     withInvitation(invitationRow({ mode: "magic_link" }));
     const result = await send();
+    if (!result.ok) console.log("DBG_ERR", result.error);
     expect(result.ok).toBe(true);
     expect(h.authCalls.map((call) => call.kind)).toEqual(["create", "link:invite"]);
     expect(h.authCalls[0].email).toBe("nowa@example.org");
