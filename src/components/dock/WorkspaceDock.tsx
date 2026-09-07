@@ -169,10 +169,10 @@ function ExpandableTab({
       }}
       transition={tabTransition}
       className={cn(
-        "relative flex min-w-0 items-center rounded-md py-1.5 text-sm font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "relative flex min-w-0 items-center rounded-md py-1 text-xs font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
-          ? "bg-muted text-primary"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground/80 hover:bg-muted hover:text-foreground",
         !active && highlighted && "ring-1 ring-border",
       )}
     >
@@ -214,7 +214,7 @@ function ExpandableTab({
 
 /** Pionowy separator 6px od grup (jak w rozwijanych zakładkach). */
 function TabSeparator() {
-  return <span aria-hidden="true" className="mx-0 h-5 w-px shrink-0 bg-border" />;
+  return <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 bg-border/80" />;
 }
 
 export function WorkspaceDock() {
