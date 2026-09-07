@@ -511,7 +511,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             }}
             placeholder={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
             aria-label={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
-            className="max-h-[120px] w-full resize-none border-none bg-transparent px-1 py-1 text-[12px] leading-relaxed shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+            className="max-h-[120px] w-full resize-none border-none bg-transparent px-1 py-1 text-[10.5px] leading-relaxed shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           />
 
           <div className="flex items-center justify-between gap-2">
