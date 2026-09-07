@@ -31,6 +31,7 @@ import {
   FlaskConical,
   Link as LinkIcon,
   Search,
+  Send,
 } from "@/lib/lucide-shim";
 import {
   BadgePercent,
@@ -292,6 +293,12 @@ export function buildAdminNavGroups({
         { to: "/admin/workflows", icon: Workflow, label: t("admin.nav.workflows") },
         { to: "/admin/integrations", icon: Cable, label: t("admin.nav.integrations") },
         { to: "/admin/contact", icon: Inbox, label: t("admin.nav.contact") },
+        {
+          to: "/admin/newsletter/outbox",
+          icon: Send,
+          label: t("admin.nav.emailOutbox"),
+          keywords: ["maile", "wysylka", "outbox", "email", "zaproszenia", "log"],
+        },
         { to: "/admin/expert-requests", icon: Inbox, label: t("admin.nav.expertRequests") },
         { to: "/admin/careers", icon: Briefcase, label: t("admin.nav.careers") },
         { to: "/admin/hiring", icon: Briefcase, label: t("admin.nav.hiring") },
