@@ -24,6 +24,7 @@ vi.mock("@/lib/admin/membersDirectory.functions", () => ({
   getMemberBilling: {},
   setMemberTier: {},
   revokeMemberTier: {},
+  syncMembersWithCrm: {},
 }));
 
 import i18n from "@/lib/i18n";
@@ -52,6 +53,10 @@ const result = {
       currency: "PLN",
       lastPaymentAt: "2026-02-03T10:00:00.000Z",
       paymentsCount: 2,
+      crmLeadId: "33333333-3333-4333-8333-333333333333",
+      crmStage: "won",
+      crmCompanyId: "44444444-4444-4444-8444-444444444444",
+      crmCompanyName: "Nowak Consulting",
     },
   ],
   total: 1,
@@ -77,6 +82,13 @@ describe("MembersDirectoryPanel", () => {
     expect(await screen.findByText("Ana Nowak")).toBeInTheDocument();
     expect(screen.getByText("ana@example.com")).toBeInTheDocument();
     expect(screen.getByText(T("source.grant"))).toBeInTheDocument();
+  });
+
+  it("linkuje członka do kontaktu w CRM wraz z firmą", async () => {
+    await i18n.changeLanguage("pl");
+    renderWithQueryClient(<MembersDirectoryPanel />);
+    const link = await screen.findByRole("link", { name: "Nowak Consulting" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("/admin/crm/"));
   });
 
   it("nie wysyła sentyneli filtrów na serwer", async () => {

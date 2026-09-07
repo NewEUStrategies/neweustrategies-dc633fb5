@@ -17,6 +17,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
+import { syncMemberToCrm } from "@/lib/crm/memberSync.server";
 
 export interface MemberDirectoryRow {
   userId: string;
@@ -38,6 +39,11 @@ export interface MemberDirectoryRow {
   currency: string;
   lastPaymentAt: string | null;
   paymentsCount: number;
+  /** Odbicie osoby w CRM - kontakt i firma. */
+  crmLeadId: string | null;
+  crmStage: string | null;
+  crmCompanyId: string | null;
+  crmCompanyName: string | null;
 }
 
 export interface MemberDirectoryResult {
@@ -195,7 +201,11 @@ export const listMembers = createServerFn({ method: "GET" })
       };
     }
 
-    const [grantsRes, subsRes, plansRes, ordersRes] = await Promise.all([
+    const emails = (profiles ?? [])
+      .map((profile) => profile.email?.trim().toLowerCase())
+      .filter((email): email is string => Boolean(email));
+
+    const [grantsRes, subsRes, plansRes, ordersRes, leadsRes] = await Promise.all([
       supabaseAdmin
         .from("membership_grants")
         .select("id, user_id, tier_key, starts_at, expires_at, revoked_at")
@@ -213,7 +223,32 @@ export const listMembers = createServerFn({ method: "GET" })
         .eq("tenant_id", tenantId)
         .eq("status", "paid")
         .in("user_id", ids),
+      emails.length
+        ? supabaseAdmin
+            .from("crm_leads")
+            .select("id, email_norm, stage, company_id, company")
+            .eq("tenant_id", tenantId)
+            .in("email_norm", emails)
+        : Promise.resolve({ data: [] }),
     ]);
+
+    const companyIds = Array.from(
+      new Set(
+        (leadsRes.data ?? [])
+          .map((lead) => lead.company_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const companyNames = new Map<string, string>();
+    if (companyIds.length > 0) {
+      const { data: companies } = await supabaseAdmin
+        .from("crm_companies")
+        .select("id, name")
+        .eq("tenant_id", tenantId)
+        .in("id", companyIds);
+      for (const company of companies ?? []) companyNames.set(company.id, company.name);
+    }
+    const leadByEmail = new Map((leadsRes.data ?? []).map((lead) => [lead.email_norm, lead]));
 
     const planTier = new Map((plansRes.data ?? []).map((p) => [p.id, p.tier_key ?? ""]));
 
@@ -280,6 +315,7 @@ export const listMembers = createServerFn({ method: "GET" })
       const useGrant = grant !== null && (sub === null || grant.rank >= sub.rank);
       const tierKey = useGrant ? grant.tierKey : (sub?.tierKey ?? defaultTier?.key ?? "reader");
       const paid = money.get(profile.id) ?? null;
+      const lead = leadByEmail.get(profile.email?.trim().toLowerCase() ?? "") ?? null;
       return {
         userId: profile.id,
         email: profile.email ?? "",
@@ -298,6 +334,12 @@ export const listMembers = createServerFn({ method: "GET" })
         currency: paid?.currency ?? "PLN",
         lastPaymentAt: paid?.last ?? null,
         paymentsCount: paid?.count ?? 0,
+        crmLeadId: lead?.id ?? null,
+        crmStage: lead?.stage ?? null,
+        crmCompanyId: lead?.company_id ?? null,
+        crmCompanyName: lead?.company_id
+          ? (companyNames.get(lead.company_id) ?? lead.company)
+          : (lead?.company ?? null),
       };
     });
 
@@ -438,6 +480,14 @@ export const setMemberTier = createServerFn({ method: "POST" })
       metadata: { tier_key: data.tierKey, months: data.months, user_id: data.userId },
     });
 
+    await syncMemberToCrm(supabaseAdmin, {
+      userId: data.userId,
+      tenantId,
+      tierKey: data.tierKey,
+      actorId: (context as { userId: string }).userId,
+      reason: "manual_grant",
+    });
+
     return { grantId: inserted.id };
   });
 
@@ -448,12 +498,14 @@ export const revokeMemberTier = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const tenantId = await callerTenant(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
+    const { data: revoked, error } = await supabaseAdmin
       .from("membership_grants")
       .update({ revoked_at: new Date().toISOString() })
       .eq("tenant_id", tenantId)
       .eq("id", data.grantId)
-      .is("revoked_at", null);
+      .is("revoked_at", null)
+      .select("user_id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
 
     await supabaseAdmin.from("audit_log").insert({
@@ -465,5 +517,61 @@ export const revokeMemberTier = createServerFn({ method: "POST" })
       metadata: {},
     });
 
+    if (revoked?.user_id) {
+      await syncMemberToCrm(supabaseAdmin, {
+        userId: revoked.user_id,
+        tenantId,
+        tierKey: null,
+        actorId: (context as { userId: string }).userId,
+        reason: "manual_revoke",
+      });
+    }
+
     return { ok: true };
+  });
+
+/**
+ * Pełna synchronizacja katalogu członków z CRM - osoby i firmy.
+ *
+ * Uzupełnia braki narosłe zanim istniała synchronizacja przyrostowa: dla
+ * każdego profilu w tenancie tworzy lub odświeża kontakt, a nazwę firmy
+ * z profilu podnosi do katalogu firm i podpina do kontaktu.
+ */
+export const syncMembersWithCrm = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }): Promise<{ people: number; companies: number }> => {
+    const tenantId = await callerTenant(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const actorId = (context as { userId: string }).userId;
+
+    const { data: profiles } = await supabaseAdmin
+      .from("profiles")
+      .select("id, email, current_company")
+      .eq("tenant_id", tenantId)
+      .not("email", "is", null)
+      .limit(2000);
+
+    const { count: companiesBefore } = await supabaseAdmin
+      .from("crm_companies")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
+
+    let people = 0;
+    for (const profile of profiles ?? []) {
+      const snapshot = await syncMemberToCrm(supabaseAdmin, {
+        userId: profile.id,
+        tenantId,
+        tierKey: null,
+        actorId,
+        reason: "backfill",
+      });
+      if (snapshot?.leadId) people += 1;
+    }
+
+    const { count: companiesAfter } = await supabaseAdmin
+      .from("crm_companies")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
+
+    return { people, companies: (companiesAfter ?? 0) - (companiesBefore ?? 0) };
   });
