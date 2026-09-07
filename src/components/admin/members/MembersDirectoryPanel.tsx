@@ -9,7 +9,6 @@ import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { RefreshCw, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,7 @@ import {
 } from "@/lib/admin/membersDirectory.functions";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLocale } from "@/lib/i18n/format";
+import { AppLink } from "@/components/atoms/AppLink";
 import { MemberBillingDetails } from "./MemberBillingDetails";
 import { MemberTierDialog } from "./MemberTierDialog";
 import "@/lib/i18n-admin-members";
@@ -218,13 +218,12 @@ export function MembersDirectoryPanel() {
                     </td>
                     <td className="px-4 py-3">
                       {row.crmLeadId ? (
-                        <Link
-                          to="/admin/crm/$id"
-                          params={{ id: row.crmLeadId }}
+                        <AppLink
+                          href={`/admin/crm/${row.crmLeadId}`}
                           className="text-primary underline underline-offset-2"
                         >
                           {row.crmCompanyName ?? t("adminMembers.crm.open")}
-                        </Link>
+                        </AppLink>
                       ) : (
                         <span className="text-muted-foreground">
                           {t("adminMembers.crm.missing")}
