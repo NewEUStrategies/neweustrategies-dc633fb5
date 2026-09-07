@@ -4796,6 +4796,7 @@ export type Database = {
           name_norm: string | null
           phone: string | null
           postal_code: string | null
+          tax_id: string | null
           tenant_id: string
           updated_at: string
           website: string | null
@@ -4816,6 +4817,7 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
+          tax_id?: string | null
           tenant_id: string
           updated_at?: string
           website?: string | null
@@ -4836,6 +4838,7 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
+          tax_id?: string | null
           tenant_id?: string
           updated_at?: string
           website?: string | null
