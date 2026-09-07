@@ -7,8 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dockKeys } from "./keys";
 import { normalizeNoteColor, type NoteColor, type UserNote } from "./types";
+import { isNoteEntityType, isStorableEntityId, type NoteEntityType } from "./noteContext";
 
-const SELECT = "id, title, body, color, pinned, created_at, updated_at";
+const SELECT =
+  "id, title, body, color, pinned, entity_type, entity_id, entity_title, entity_url, created_at, updated_at";
 
 interface NoteRowDb {
   id: string;
@@ -16,12 +18,20 @@ interface NoteRowDb {
   body: string;
   color: string;
   pinned: boolean;
+  entity_type: string | null;
+  entity_id: string | null;
+  entity_title: string | null;
+  entity_url: string | null;
   created_at: string;
   updated_at: string;
 }
 
 function toNote(row: NoteRowDb): UserNote {
-  return { ...row, color: normalizeNoteColor(row.color) };
+  return {
+    ...row,
+    color: normalizeNoteColor(row.color),
+    entity_type: isNoteEntityType(row.entity_type) ? row.entity_type : null,
+  };
 }
 
 export function useNotes() {
@@ -47,6 +57,13 @@ export interface NoteDraft {
   body: string;
   color?: NoteColor;
   pinned?: boolean;
+  /** Powiązanie z materiałem platformy - opcjonalne, ustawiane z kontekstu strony. */
+  entity?: {
+    entityType: NoteEntityType;
+    entityId: string;
+    title: string;
+    url: string | null;
+  } | null;
 }
 
 export function useCreateNote() {
@@ -61,6 +78,14 @@ export function useCreateNote() {
         body: draft.body.trim().slice(0, 20_000),
         color: normalizeNoteColor(draft.color),
         pinned: draft.pinned ?? false,
+        entity_type: draft.entity && isStorableEntityId(draft.entity.entityId)
+          ? draft.entity.entityType
+          : null,
+        entity_id: draft.entity && isStorableEntityId(draft.entity.entityId)
+          ? draft.entity.entityId
+          : null,
+        entity_title: draft.entity ? draft.entity.title.slice(0, 300) : null,
+        entity_url: draft.entity?.url ?? null,
       });
       if (error) throw error;
     },
@@ -78,11 +103,22 @@ export function useUpdateNote() {
         body?: string;
         color?: string;
         pinned?: boolean;
+        entity_type?: string | null;
+        entity_id?: string | null;
+        entity_title?: string | null;
+        entity_url?: string | null;
       } = {};
       if (patch.title !== undefined) update.title = patch.title.trim().slice(0, 200);
       if (patch.body !== undefined) update.body = patch.body.trim().slice(0, 20_000);
       if (patch.color !== undefined) update.color = normalizeNoteColor(patch.color);
       if (patch.pinned !== undefined) update.pinned = patch.pinned;
+      if (patch.entity !== undefined) {
+        const linked = patch.entity && isStorableEntityId(patch.entity.entityId) ? patch.entity : null;
+        update.entity_type = linked ? linked.entityType : null;
+        update.entity_id = linked ? linked.entityId : null;
+        update.entity_title = linked ? linked.title.slice(0, 300) : null;
+        update.entity_url = linked ? linked.url : null;
+      }
       if (Object.keys(update).length === 0) return;
       const { error } = await supabase.from("user_notes").update(update).eq("id", id);
       if (error) throw error;
