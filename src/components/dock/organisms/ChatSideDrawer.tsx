@@ -5,7 +5,7 @@
 import "@/lib/i18n-chat";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
+import { Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { ChatWindow } from "@/components/chat/ChatWindow";
