@@ -14,6 +14,13 @@ const ChatDock = lazy(() =>
   import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
 );
 
+// Przestrzeń robocza członka (pasek narzędzi: czat, zadania, notatki,
+// zapisane, kalendarz, do przeczytania). Lazy - gość nie pobiera jej kodu.
+const WorkspaceDock = lazy(() =>
+  import("@/components/dock/WorkspaceDock").then((m) => ({ default: m.WorkspaceDock })),
+);
+
+
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
  * EXCEPT:
