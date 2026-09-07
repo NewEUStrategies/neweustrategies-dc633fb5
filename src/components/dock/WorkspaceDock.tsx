@@ -42,6 +42,7 @@ import {
   MOBILE_BOTTOM_BAR_SETTINGS_KEY,
   visibleBottomBarItems,
   type MobileBottomBarConfig,
+  type MobileBottomBarItem,
 } from "@/lib/mobileBottomBar/config";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
