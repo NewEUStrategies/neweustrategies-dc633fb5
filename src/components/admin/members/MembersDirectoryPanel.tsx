@@ -6,10 +6,12 @@
 //   3. ile zapłacił i kiedy,
 //   4. co mogę zrobić - ręczne nadanie planu bez udziału operatora płatności.
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { RefreshCw, Search } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { RefreshCw, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,7 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listMembers, type MemberDirectoryRow } from "@/lib/admin/membersDirectory.functions";
+import {
+  listMembers,
+  syncMembersWithCrm,
+  type MemberDirectoryRow,
+} from "@/lib/admin/membersDirectory.functions";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLocale } from "@/lib/i18n/format";
 import { MemberBillingDetails } from "./MemberBillingDetails";
@@ -46,6 +52,7 @@ export function MembersDirectoryPanel() {
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const membersFn = useServerFn(listMembers);
+  const crmSyncFn = useServerFn(syncMembersWithCrm);
 
   const params = useMemo(
     () => ({
@@ -66,6 +73,17 @@ export function MembersDirectoryPanel() {
     return tier === ALL ? all : all.filter((row) => row.tierKey === tier);
   }, [data, tier]);
 
+  const crmSync = useMutation({
+    mutationFn: () => crmSyncFn({ data: undefined }),
+    onSuccess: (result) => {
+      toast.success(
+        t("adminMembers.crm.synced", { people: result.people, companies: result.companies }),
+      );
+      void refetch();
+    },
+    onError: () => toast.error(t("adminMembers.crm.syncError")),
+  });
+
   const pages = Math.max(1, Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 25)));
 
   const money = (cents: number, currency: string) =>
@@ -80,16 +98,27 @@ export function MembersDirectoryPanel() {
             {t("adminMembers.subtitle")}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="rounded-[6px]"
-          onClick={() => void refetch()}
-          disabled={isFetching}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
-          {t("adminMembers.refresh")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-[6px]"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+            {t("adminMembers.refresh")}
+          </Button>
+          <Button
+            type="button"
+            className="rounded-[6px]"
+            onClick={() => crmSync.mutate()}
+            disabled={crmSync.isPending}
+          >
+            <Users className="mr-2 h-4 w-4" aria-hidden="true" />
+            {crmSync.isPending ? t("adminMembers.crm.syncing") : t("adminMembers.crm.sync")}
+          </Button>
+        </div>
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -148,19 +177,20 @@ export function MembersDirectoryPanel() {
               <th className="px-4 py-3">{t("adminMembers.table.source")}</th>
               <th className="px-4 py-3">{t("adminMembers.table.paid")}</th>
               <th className="px-4 py-3">{t("adminMembers.table.lastPayment")}</th>
+              <th className="px-4 py-3">{t("adminMembers.table.crm")}</th>
               <th className="px-4 py-3 text-right">{t("adminMembers.table.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
+                <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
                   {t("adminMembers.table.loading")}
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
+                <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
                   {t("adminMembers.table.empty")}
                 </td>
               </tr>
@@ -185,6 +215,21 @@ export function MembersDirectoryPanel() {
                       {row.lastPaymentAt
                         ? new Date(row.lastPaymentAt).toLocaleDateString(locale)
                         : t("adminMembers.table.never")}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.crmLeadId ? (
+                        <Link
+                          to="/admin/crm/$id"
+                          params={{ id: row.crmLeadId }}
+                          className="text-primary underline underline-offset-2"
+                        >
+                          {row.crmCompanyName ?? t("adminMembers.crm.open")}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {t("adminMembers.crm.missing")}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
@@ -212,7 +257,7 @@ export function MembersDirectoryPanel() {
                   </tr>
                   {expanded === row.userId ? (
                     <tr className="border-t border-border">
-                      <td colSpan={6} className="p-3">
+                      <td colSpan={7} className="p-3">
                         <MemberBillingDetails userId={row.userId} />
                       </td>
                     </tr>
