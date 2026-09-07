@@ -143,6 +143,7 @@ export const newsletterAdminPl = {
       campaigns: "Kampanie",
       subscribers: "Subskrybenci",
       deliverability: "Dostarczalność",
+      outbox: "Skrzynka wysyłek",
       systemEmails: "Maile systemowe",
       authLogs: "Logi auth",
       emailContent: "Treści maili",
