@@ -79,6 +79,17 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     </div>
   );
 
+  // Pasek narzędzi członka: te same bramki co czat (zalogowany, poza /admin
+  // i /login), ale bez zależności od toggle'a czatu - zadania i notatki
+  // działają nawet przy wyłączonych rozmowach.
+  const workspaceDock =
+    !user || isAdmin || isLogin ? null : (
+      <Suspense fallback={null}>
+        <WorkspaceDock />
+      </Suspense>
+    );
+
+
   if (isAdmin || isLogin || ownChrome) {
     return (
       <>
