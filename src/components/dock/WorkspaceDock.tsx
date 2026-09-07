@@ -31,6 +31,8 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { conversationDisplay } from "@/lib/chat/display";
+import { useConversations, usePeerProfiles } from "@/lib/chat/useConversations";
 import { Bookmark, CalendarDays, ListTodo, NotebookPen, X } from "lucide-react";
 import {
   MINIMIZED_VISIBLE_LIMIT,
