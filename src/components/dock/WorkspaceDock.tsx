@@ -24,27 +24,13 @@ import {
   MessageCircle,
   NotebookPen,
 } from "lucide-react";
-import { AppLink } from "@/components/atoms/AppLink";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
-import { LiveTabBadge } from "@/components/mobile/bottomBar/LiveTabBadge";
 import { DOCK_TOOLS, type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useOpenTodoCount } from "@/lib/dock/useTodos";
 import { useUnreadLaterCount } from "@/lib/dock/useReadLater";
 import { useChatUnreadTotal } from "@/lib/chat/useConversations";
-import { useSiteSetting } from "@/lib/useSiteSetting";
-import {
-  MOBILE_BOTTOM_BAR_DEFAULTS,
-  MOBILE_BOTTOM_BAR_SETTINGS_KEY,
-  activeBottomBarIndex,
-  bottomBarHref,
-  bottomBarLabel,
-  visibleBottomBarItems,
-  type MobileBottomBarConfig,
-} from "@/lib/mobileBottomBar/config";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
-import "@/lib/i18n-mobile-bottom-bar";
 
 const ChatDockPanel = lazy(() =>
   import("./organisms/ChatDockPanel").then((m) => ({ default: m.ChatDockPanel })),
