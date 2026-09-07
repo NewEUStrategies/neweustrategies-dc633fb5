@@ -226,7 +226,9 @@ export function EmailOutboxPanel() {
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         {stats.map((stat) => (
           <div key={stat.key} className="rounded-[6px] border border-border bg-card p-3">
-            <div className="text-xs text-muted-foreground">{t(`adminOutbox.stats.${stat.key}`)}</div>
+            <div className="text-xs text-muted-foreground">
+              {t(`adminOutbox.stats.${stat.key}`)}
+            </div>
             <div className={cn("text-2xl font-display leading-tight", stat.tone)}>{stat.value}</div>
           </div>
         ))}
@@ -243,7 +245,9 @@ export function EmailOutboxPanel() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="text-left font-medium px-3 py-2">{t("adminOutbox.table.template")}</th>
+                <th className="text-left font-medium px-3 py-2">
+                  {t("adminOutbox.table.template")}
+                </th>
                 <th className="text-left font-medium px-3 py-2">
                   {t("adminOutbox.table.recipient")}
                 </th>
