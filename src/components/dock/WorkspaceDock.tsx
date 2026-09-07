@@ -25,6 +25,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useRouterState } from "@tanstack/react-router";
 
+import { useAuth } from "@/hooks/useAuth";
 import { Bookmark, BookOpen, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
