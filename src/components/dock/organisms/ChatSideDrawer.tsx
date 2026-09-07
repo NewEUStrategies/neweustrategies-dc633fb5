@@ -120,8 +120,14 @@ export function ChatSideDrawer({ onClose, bottomOffset }: ChatSideDrawerProps) {
         role="dialog"
         aria-modal="false"
         aria-label={t("dock.chat.title")}
-        className="pointer-events-auto flex h-full w-[320px] max-w-[85vw] flex-col border-r border-border bg-card shadow-2xl"
+        className={cn(
+          "pointer-events-auto flex h-full w-[320px] max-w-[85vw] flex-col border-r border-border/70",
+          "bg-card/95 shadow-xl backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
+          "will-change-transform transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
+          entered ? "translate-x-0 opacity-100" : "-translate-x-3 opacity-0",
+        )}
       >
+
         <header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
           <MessageCircle className="h-4 w-4 text-primary" aria-hidden />
           <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{t("dock.chat.title")}</h2>
