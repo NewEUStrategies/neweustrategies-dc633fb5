@@ -419,7 +419,11 @@ export function WorkspaceDock() {
     <>
       {state.open === "chat" ? (
         <Suspense fallback={null}>
-          <ChatSideDrawer onClose={close} bottomOffset={barHeight || 56} openRequest={pendingChat} />
+          <ChatSideDrawer
+            onClose={close}
+            bottomOffset={barHeight || 56}
+            openRequest={pendingChat}
+          />
         </Suspense>
       ) : null}
 

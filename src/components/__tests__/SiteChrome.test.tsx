@@ -89,7 +89,6 @@ vi.mock("@/components/atoms/SkipToContentLink", () => ({
   SkipToContentLink: () => <a data-testid="skip-link" href="#main-content" />,
 }));
 
-
 vi.mock("@/components/dock/WorkspaceDock", () => ({
   WorkspaceDock: () => <div data-testid="workspace-dock" />,
 }));
