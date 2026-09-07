@@ -239,6 +239,10 @@ export function WorkspaceDock() {
 
   const close = useCallback(() => dispatch({ type: "close" }), []);
 
+  // Ostateczna bramka: dock to przestrzeń robocza członka; nawet jeśli ktoś
+  // użyje komponentu poza SiteChrome, nie renderujemy go dla gości.
+  if (!user) return null;
+
   return (
     <>
       {state.open ? (
