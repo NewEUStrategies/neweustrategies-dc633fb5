@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { hasAnonPersonalization, mergeAnonPersonalization } from "@/lib/personalization/anonMerge";
 import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY } from "@/lib/authSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { clearReservedSpace } from "@/lib/dock/reservedSpace";
 
 export type Role = "super_admin" | "admin" | "editor" | "author" | "user";
 
@@ -185,6 +186,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* settings unavailable - fall back to the homepage */
     }
     await supabase.auth.signOut();
+    // Rezerwacja dolnej krawędzi jest odtwarzana PRZED pierwszym malowaniem
+    // z zapamiętanej wysokości paska doku (`lib/dock/reservedSpace.ts`).
+    // Po wylogowaniu paska nie ma, więc znacznik musi zniknąć razem z sesją -
+    // inaczej każda następna strona dostałaby pas pustego miejsca pod niczym.
+    // To jedyne miejsce w kodzie, które wie o wylogowaniu.
+    clearReservedSpace();
     setSession(null);
     setRoles([]);
     setTenantId(null);

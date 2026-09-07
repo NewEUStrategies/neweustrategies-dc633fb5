@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dockKeys } from "./keys";
+import { DOCK_GC_MS, DOCK_STALE_MS } from "./queryPolicy";
 import { normalizeNoteColor, type NoteColor, type UserNote } from "./types";
 import { isNoteEntityType, isStorableEntityId, type NoteEntityType } from "./noteContext";
 
@@ -34,11 +35,12 @@ function toNote(row: NoteRowDb): UserNote {
   };
 }
 
-export function useNotes() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: dockKeys.notes(user?.id),
-    enabled: !!user,
+/** Opcje zapytania notatnika - patrz `todosQueryOptions` co do powodu. */
+export function notesQueryOptions(userId: string | undefined) {
+  return {
+    queryKey: dockKeys.notes(userId),
+    staleTime: DOCK_STALE_MS,
+    gcTime: DOCK_GC_MS,
     queryFn: async (): Promise<UserNote[]> => {
       const { data, error } = await supabase
         .from("user_notes")
@@ -49,7 +51,12 @@ export function useNotes() {
       if (error) throw error;
       return (data ?? []).map((row) => toNote(row as NoteRowDb));
     },
-  });
+  };
+}
+
+export function useNotes() {
+  const { user } = useAuth();
+  return useQuery({ ...notesQueryOptions(user?.id), enabled: !!user });
 }
 
 export interface NoteDraft {

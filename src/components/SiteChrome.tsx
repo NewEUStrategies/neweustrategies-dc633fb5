@@ -67,18 +67,6 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       </Suspense>
     );
 
-  if (isAdmin || isLogin || ownChrome) {
-    return (
-      <>
-        {(isAdmin || isLogin) && <SkipToContentLink />}
-        <ImpersonationBanner />
-        <RouteProgress />
-        {children}
-        {workspaceDock}
-      </>
-    );
-  }
-
   // Wszystkie strony poza główną dostają domyślny 15px odstęp góra/dół
   // między treścią a header/footer. Homepage zachowuje edge-to-edge hero.
   const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
@@ -87,23 +75,54 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     ...(isHome ? null : { paddingTop: 15, paddingBottom: 15 }),
   };
 
-  return (
-    // data-site-shell: stabilny uchwyt dla reguł, które muszą znać wysokość
-    // powłoki strony - m.in. rezerwacja miejsca pod mobilnym paskiem dolnym
-    // (styles.css, html[data-mbb="on"]), która obniża min-height o zajęty pas.
-    <div data-site-shell className="flex min-h-screen flex-col">
-      <SkipToContentLink />
-      <ImpersonationBanner />
-      <RouteProgress />
-      {/* contentKind idzie do headera nie tylko po reklamy: rozstrzyga, czy
-          górną krawędź przejmuje ReadingHeader wpisu (lib/layout/headerMode). */}
-      <Header adPageType={adPageTypeForLocation(pathname, contentKind)} contentKind={contentKind} />
-      <main id="main-content" className="flex-1" style={mainStyle}>
+  const body =
+    isAdmin || isLogin || ownChrome ? (
+      <>
+        {(isAdmin || isLogin) && <SkipToContentLink />}
+        <ImpersonationBanner />
+        <RouteProgress />
         {children}
-      </main>
-      <Footer />
+      </>
+    ) : (
+      // data-site-shell: stabilny uchwyt dla reguł, które muszą znać wysokość
+      // powłoki strony - m.in. rezerwacja miejsca pod paskiem doku
+      // (styles.css, html[data-mbb="on"]), która obniża min-height o zajęty pas.
+      <div data-site-shell className="flex min-h-screen flex-col">
+        <SkipToContentLink />
+        <ImpersonationBanner />
+        <RouteProgress />
+        {/* contentKind idzie do headera nie tylko po reklamy: rozstrzyga, czy
+            górną krawędź przejmuje ReadingHeader wpisu (lib/layout/headerMode). */}
+        <Header
+          adPageType={adPageTypeForLocation(pathname, contentKind)}
+          contentKind={contentKind}
+        />
+        <main id="main-content" className="flex-1" style={mainStyle}>
+          {children}
+        </main>
+        <Footer />
+      </div>
+    );
 
+  // DOK STOI W JEDNEJ, STAŁEJ POZYCJI DRZEWA - drugie dziecko tego samego
+  // fragmentu, niezależnie od wybranego wariantu powłoki.
+  //
+  // DLACZEGO TO MA ZNACZENIE. React uzgadnia drzewo po POZYCJI i typie. Dok
+  // był renderowany z dwóch strukturalnie różnych rodziców - raz z fragmentu
+  // gałęzi `admin`/`login`/`ownChrome`, raz z wnętrza `<div data-site-shell>` -
+  // więc przejście przez tę granicę było ODMONTOWANIEM i świeżym montażem,
+  // nie aktualizacją. Ścieżka jest realna: `staticData: { ownChrome: true }`
+  // niesie trasa `/quiz`, czyli wyjście z quizu na dowolną stronę treści
+  // przebudowywało dok od zera. Skutki były widoczne: otwarty panel cicho się
+  // zamykał (`state.open` wracał do `null`), a sprzątanie pomiaru zdejmowało
+  // `data-mbb` i `--mbb-space`, dając kolejną klatkę bez rezerwacji.
+  // Poprawność zależała wyłącznie od kolejności, w jakiej React zatwierdza
+  // usunięcia względem efektów nowego poddrzewa - czyli od wiedzy o wnętrzu
+  // biblioteki, a nie od czegokolwiek napisanego w kodzie.
+  return (
+    <>
+      {body}
       {workspaceDock}
-    </div>
+    </>
   );
 }

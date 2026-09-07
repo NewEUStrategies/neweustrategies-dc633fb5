@@ -368,6 +368,11 @@ describe("D10-D13: efekt layoutowy na ścieżkach SSR idzie przez wspólny hak",
     "src/components/menu/SiteMenu.tsx",
     "src/components/Footnotes.tsx",
     "src/components/mobile/bottomBar/MobileBottomBarView.tsx",
+    // Rezerwacja dolnej krawędzi paska doku: mierzy węzeł i publikuje
+    // `--mbb-space` na <html>, czyli JEST powierzchnią z pomiarem przed
+    // malowaniem. Wcześniej robiła to zwykłym `useEffect` (po malowaniu),
+    // więc pasek wchodził w jednej klatce, a rezerwacja w następnej.
+    "src/lib/dock/useDockReservedSpace.ts",
   ];
 
   it.each(SSR_SURFACES)("%s nie woła gołego useLayoutEffect", (file) => {

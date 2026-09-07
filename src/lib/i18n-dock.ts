@@ -8,6 +8,7 @@ export const dockPl = {
     close: "Zamknij",
     toolbar: "Pasek narzędzi",
     shortcuts: "Skróty nawigacyjne",
+    workspace: "Przestrzeń robocza",
     guest: "Zaloguj się, żeby korzystać z tej przestrzeni.",
     error: "Nie udało się wczytać danych. Spróbuj ponownie.",
     loading: "Wczytywanie...",
@@ -34,7 +35,15 @@ export const dockPl = {
       start: "Napisz",
       minimize: "Zminimalizuj rozmowę",
       closeConversation: "Zamknij rozmowę",
-      minimizedMore: "Jeszcze {{count}} zminimalizowane rozmowy",
+      // LICZBY MNOGIE, nie jedna forma. Klucz bez wariantów drukował „Jeszcze
+      // 1 zminimalizowane rozmowy" - i to była wartość NAJCZĘSTSZA, bo limit
+      // widocznych pigułek to 2, więc pierwsza ukryta rozmowa daje count=1.
+      // Polski wymaga czterech form, angielski dwóch (parytet zwalnia z EN
+      // tylko `_few` i `_many`; `_one` i `_other` muszą być po obu stronach).
+      minimizedMore_one: "Jeszcze {{count}} zminimalizowana rozmowa",
+      minimizedMore_few: "Jeszcze {{count}} zminimalizowane rozmowy",
+      minimizedMore_many: "Jeszcze {{count}} zminimalizowanych rozmów",
+      minimizedMore_other: "Jeszcze {{count}} zminimalizowanej rozmowy",
       restore: "Przywróć rozmowę: {{name}}",
     },
     todos: {
@@ -115,6 +124,7 @@ export const dockEn = {
     close: "Close",
     toolbar: "Tool bar",
     shortcuts: "Navigation shortcuts",
+    workspace: "Workspace",
     guest: "Sign in to use this workspace.",
     error: "Could not load the data. Please try again.",
     loading: "Loading...",
@@ -141,7 +151,8 @@ export const dockEn = {
       start: "Message",
       minimize: "Minimize conversation",
       closeConversation: "Close conversation",
-      minimizedMore: "{{count}} more minimized conversations",
+      minimizedMore_one: "{{count}} more minimized conversation",
+      minimizedMore_other: "{{count}} more minimized conversations",
       restore: "Restore conversation: {{name}}",
     },
     todos: {

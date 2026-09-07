@@ -1,11 +1,24 @@
 // Szablon panelu doku: nagłówek, przycisk zamknięcia, obszar przewijany.
 // Na telefonie panel jest pełnej szerokości, od `sm` - dokowanym oknem w rogu.
-// Escape zamyka panel, focus wchodzi do wnętrza po otwarciu (bez pułapki na
-// całą stronę - użytkownik ma móc wrócić do treści tabulatorem).
+// Ognisko uwagi wchodzi do wnętrza po otwarciu (bez pułapki na całą stronę -
+// użytkownik ma móc wrócić do treści tabulatorem), a przy zamknięciu WRACA na
+// zakładkę, która panel otworzyła (`useDockFocusReturn` w `WorkspaceDock`).
+//
+// ── ESCAPE NIE JEST JUŻ TUTAJ ────────────────────────────────────────────
+// Ten szablon miał własny nasłuch `keydown` na `document`, bez `capture`
+// i bez sprawdzenia `defaultPrevented`. W środku panelu żyją jednak warstwy
+// Radiksa (`Select` priorytetu w panelu zadań), które nasłuchują Escape
+// w fazie PRZECHWYTYWANIA i po obsłużeniu wołają `preventDefault()` - więc
+// jedno naciśnięcie zamykało listę priorytetów I cały panel razem
+// z wpisywanym zadaniem. Nasłuch mieszka teraz w `useDockDismiss`, jeden dla
+// całej powierzchni doku, w fazie bąbelkowania i z warunkiem
+// `defaultPrevented`. Panel nie ma po co znać klawiatury globalnie -
+// zamknięcie dostaje przez `onClose`.
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-dock";
 
 interface Props {
   title: string;
@@ -21,14 +34,11 @@ export function DockPanelShell({ title, icon, onClose, children, actions, classN
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
 
+  // Ognisko uwagi wchodzi do panelu po otwarciu - żeby czytnik ekranu
+  // ogłosił nową powierzchnię, a klawiatura nie została na zakładce pod nią.
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
     ref.current?.focus();
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   return (
     <div

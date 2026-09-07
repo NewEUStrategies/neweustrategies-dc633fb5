@@ -1,5 +1,19 @@
 // Czysta logika kalendarza doku: siatka miesiąca i przypisanie wpisów do dni.
 // Bez DOM i bez sieci - dzięki temu przesuwanie miesięcy testujemy jednostkowo.
+//
+// ── DZIEŃ JEST WARSZAWSKI, NIE MASZYNOWY ─────────────────────────────────
+// `dayKey` czyta `getFullYear/getMonth/getDate`, czyli strefę MASZYNY. Dla
+// wpisów kalendarza to jest właściwe: siatka miesiąca ma odpowiadać temu, co
+// czytelnik widzi jako „ten dzień" u siebie, a wpisy są w niej rozmieszczane
+// względem tej samej skali. Czym to NIE JEST właściwe, to wskazanie DNIA
+// BIEŻĄCEGO i miesiąca startowego - te muszą zgadzać się z resztą serwisu,
+// która całą swoją chronologię drukuje w strefie redakcji
+// (`SITE_TIME_ZONE`, patrz `lib/i18n/format.ts`). Bez tego czytelnik
+// w Nowym Jorku między 18:00 a 24:00 swojego czasu widziałby obwódkę „dziś"
+// na dniu, który w każdej dacie na tej samej stronie jest już dniem
+// następnym. Dlatego chwila startowa idzie przez `siteDayKey`/`siteMonth`,
+// a nie przez goły `new Date()`.
+import { SITE_TIME_ZONE } from "@/lib/i18n/format";
 
 export interface CalendarEntry {
   id: string;
@@ -9,12 +23,24 @@ export interface CalendarEntry {
   kind: "event" | "todo";
 }
 
-export interface CalendarDay {
-  /** Klucz dnia w formacie YYYY-MM-DD (czas lokalny). */
+/**
+ * Minimum, którego potrzebuje siatka. Wpis może nieść dowolne dodatkowe pola
+ * (np. dwa tytuły przed wyborem języka) - siatka patrzy tylko na chwilę
+ * rozpoczęcia, więc jest po niej sparametryzowana. Wcześniej wymagała
+ * gotowego `title`, co wymuszało wybór języka JUŻ W ZAPYTANIU i wciągało
+ * język do klucza cache.
+ */
+export interface DatedEntry {
+  id: string;
+  startsAt: string;
+}
+
+export interface CalendarDay<TEntry extends DatedEntry = CalendarEntry> {
+  /** Klucz dnia w formacie YYYY-MM-DD (czas lokalny czytelnika). */
   key: string;
   date: Date;
   inMonth: boolean;
-  entries: CalendarEntry[];
+  entries: TEntry[];
 }
 
 export function dayKey(date: Date): string {
@@ -22,6 +48,37 @@ export function dayKey(date: Date): string {
   const m = `${date.getMonth() + 1}`.padStart(2, "0");
   const d = `${date.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * Klucz dnia BIEŻĄCEGO w strefie serwisu. `en-CA` formatuje jako
+ * YYYY-MM-DD, więc wynik jest wprost w formacie `dayKey` - ten sam chwyt,
+ * którym `siteYear` liczy rok w stopce.
+ *
+ * Parametr `nowMs` istnieje po to, żeby test mógł zamrozić chwilę; kod
+ * produkcyjny woła bez argumentu.
+ */
+export function siteDayKey(nowMs: number = Date.now()): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: SITE_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(nowMs));
+  } catch {
+    // GAŁĄŹ RATUNKOWA W UTC, nie w strefie maszyny: degradacja nie może sama
+    // wprowadzać rozjazdu, którego ta funkcja ma nie dopuszczać.
+    return new Date(nowMs).toISOString().slice(0, 10);
+  }
+}
+
+/** Rok i miesiąc (0-11) chwili bieżącej w strefie serwisu - kursor startowy. */
+export function siteMonth(nowMs: number = Date.now()): [number, number] {
+  const key = siteDayKey(nowMs);
+  const year = Number.parseInt(key.slice(0, 4), 10);
+  const month = Number.parseInt(key.slice(5, 7), 10) - 1;
+  return [year, month];
 }
 
 export function monthRange(year: number, month: number): { from: Date; to: Date } {
@@ -32,12 +89,12 @@ export function monthRange(year: number, month: number): { from: Date; to: Date 
 }
 
 /** Siatka 6x7 zaczynająca się od poniedziałku (kalendarz PL i EN-GB). */
-export function monthGrid(
+export function monthGrid<TEntry extends DatedEntry>(
   year: number,
   month: number,
-  entries: readonly CalendarEntry[],
-): CalendarDay[] {
-  const byDay = new Map<string, CalendarEntry[]>();
+  entries: readonly TEntry[],
+): CalendarDay<TEntry>[] {
+  const byDay = new Map<string, TEntry[]>();
   for (const entry of entries) {
     const parsed = new Date(entry.startsAt);
     if (Number.isNaN(parsed.getTime())) continue;
