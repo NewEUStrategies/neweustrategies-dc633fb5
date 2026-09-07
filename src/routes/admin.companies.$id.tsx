@@ -399,7 +399,6 @@ function AdminCompanyDetailPage() {
               </AlertDialog>
             </>
           ) : (
-
             <>
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
                 {t("Anuluj", "Cancel")}

@@ -52,7 +52,10 @@ describe("syncCompanyToMembers", () => {
     expect(res.profiles).toBe(1);
     expect(res.leads).toBe(1);
     const updates = calls.filter((c) => c.op === "update");
-    expect(updates[0]).toMatchObject({ table: "profiles", payload: { current_company: "Nowa Nazwa" } });
+    expect(updates[0]).toMatchObject({
+      table: "profiles",
+      payload: { current_company: "Nowa Nazwa" },
+    });
     expect(updates[1]).toMatchObject({ table: "crm_leads", payload: { company: "Nowa Nazwa" } });
   });
 
@@ -82,7 +85,10 @@ describe("syncCompanyToMembers", () => {
 describe("detachCompanyFromMembers", () => {
   it("zeruje relacje na profilach i kontaktach", async () => {
     const { client, calls } = fakeClient([]);
-    const res = await detachCompanyFromMembers(client, { tenantId: "t1", companyIds: ["c1", "c1"] });
+    const res = await detachCompanyFromMembers(client, {
+      tenantId: "t1",
+      companyIds: ["c1", "c1"],
+    });
     expect(res).toEqual({ profiles: 1, leads: 1 });
     const updates = calls.filter((c) => c.op === "update");
     expect(updates[0]).toMatchObject({ table: "profiles", payload: { current_company_id: null } });

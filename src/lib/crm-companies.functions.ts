@@ -223,7 +223,6 @@ export const syncCrmCompanyMembers = createServerFn({ method: "POST" })
     return { ok: true, ...sync };
   });
 
-
 // ---- Tworzenie firmy ----------------------------------------------------
 // `crm_companies.tenant_id` jest NOT NULL bez defaultu, a polityka INSERT
 // wymaga `tenant_id = current_tenant_id() AND created_by = auth.uid()`, więc
