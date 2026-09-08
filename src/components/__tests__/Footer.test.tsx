@@ -433,7 +433,7 @@ describe("Footer - nasłuchy po odmontowaniu", () => {
 // --- Dwujęzyczność -----------------------------------------------------------
 
 describe("Footer - warianty językowe", () => {
-  const YEAR = new Date().getFullYear();
+  
 
   it("wariant PL: szablon praw autorskich i etykiety linków prawnych po polsku", () => {
     h.lang = "pl";
