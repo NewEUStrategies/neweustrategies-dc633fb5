@@ -1932,6 +1932,38 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 [data-builder-renderer][data-device="mobile"] .builder-search-widget {
   width: 100% !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Header search bar — compact premium look. The generic `.input-group > .input`
+   rule forces `border-radius: 6px !important` and a 1.5px border tuned for
+   forms; in the header the field is a quiet nav accessory, so it gets a
+   softer pill, thinner border and a subtle tinted surface instead.
+   ------------------------------------------------------------------------- */
+.builder-search-widget .input-group > .input.input {
+  border-radius: 10px !important;
+  border-width: 1px;
+  border-color: color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
+  box-shadow: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+.builder-search-widget .input-group > .input.input:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--muted) 75%, transparent);
+  border-color: var(--border);
+}
+.builder-search-widget .input-group > .input.input:focus {
+  background: var(--background);
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent);
+}
+.builder-search-widget .input-group > .user-label.user-label {
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
+}
 /* Mega menu trigger button shrinks/wraps */
 [data-builder-renderer][data-device="mobile"] [aria-haspopup="true"] {
   white-space: normal !important;
