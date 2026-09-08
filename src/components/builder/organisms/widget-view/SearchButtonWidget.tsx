@@ -331,8 +331,9 @@ export function SearchButtonWidget({
 
   // Compact by default (36px) — bell/kolumny nagłówka mają obcięcie parenta,
   // więc niższy widget + label pływający WEWNĄTRZ inputa (poniżej) chroni
-  // przed przycinaniem chipu na górnej krawędzi headera.
-  const h = Math.max(28, Math.min(120, height || 36));
+  // przed przycinaniem chipu na górnej krawędzi headera. Clamp do 44px:
+  // wysoki pasek rozjeżdżał rytm nagłówka i wyglądał jak wydmuszka.
+  const h = Math.max(28, Math.min(44, height || 36));
   const pad = Math.max(8, Math.round(h * 0.28));
 
   // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
