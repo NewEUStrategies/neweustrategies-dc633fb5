@@ -359,7 +359,6 @@ export function SearchButtonWidget({
         className="input-group"
         style={{ height: `${h}px`, minHeight: `${h}px`, overflow: "visible" }}
       >
-
         <input
           ref={inputRef}
           type="text"
