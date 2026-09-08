@@ -35,17 +35,18 @@ z dwujęzycznym interfejsem (polski i angielski) i pełną izolacją danych mię
 | -------------------------------------- | -------------------------------------- |
 | Moduły domenowe                        | **22** oraz 3 powierzchnie przekrojowe |
 | Udokumentowane funkcjonalności         | **146**                                |
-| Pliki kodu produkcyjnego               | **3 307** (692 031 linii)              |
-| Pliki testowe                          | **2 363** (65 129 przypadków)          |
-| Testy warstwy danych (pgTAP)           | 102 pliki, 1 933 asercje               |
+| Pliki kodu produkcyjnego               | **3 443** (704 287 linii)              |
+| Pliki testowe                          | **2 460**                              |
+| Testy warstwy danych (pgTAP)           | 102 pliki, 1 935 asercji               |
 | Testy ścieżek użytkownika (Playwright) | 12 plików, 75 testów                   |
-| Bramki jakości w CI (`check:*`)        | **41**                                 |
+| Bramki jakości w CI (`check:*`)        | **43**                                 |
 | Progi pokrycia per ścieżka             | **684**                                |
-| Migracje bazy danych                   | 937                                    |
-| Polityki RLS w stanie końcowym         | 620 na 258 tabelach                    |
+| Migracje bazy danych                   | 947                                    |
+| Polityki RLS w stanie końcowym         | 633 na 261 tabelach                    |
 
-Liczniki plików, migracji i polityk odzwierciedlają stan repozytorium na 2026-09-06; wskaźniki
-pokrycia pochodzą z pełnego przebiegu pomiarowego z 2026-09-05.
+Liczniki plików, testów, migracji i polityk odzwierciedlają stan repozytorium na 2026-09-08.
+Podział na moduły i funkcjonalności oraz wskaźniki pokrycia pochodzą z pomiaru audytowego
+z 2026-09-05.
 
 ## Moduły
 
@@ -102,7 +103,7 @@ pokrycia pochodzą z pełnego przebiegu pomiarowego z 2026-09-05.
 | -------------------------------- | ------------------------------------------------------------------ |
 | Powłoka panelu administracyjnego | wspólna rama panelu, atomy i molekuły interfejsu administracyjnego |
 | Design system                    | 45 komponentów bazowych w `components/ui`                          |
-| Słowniki i18n                    | 121 plików słownikowych, parytet polskiego i angielskiego          |
+| Słowniki i18n                    | 128 plików słownikowych, parytet polskiego i angielskiego          |
 
 ## Architektura
 
@@ -136,8 +137,8 @@ grupami tematycznymi wspólnych primitywów; panel buildera utrzymuje własny, k
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | Framework               | TanStack Start 1.168, TanStack Router 1.170                                         |
 | Interfejs               | React 19.2, TypeScript 5.8, Tailwind CSS 4.2                                        |
-| Dane po stronie klienta | TanStack Query 5.101 (470 plików na jednej dyscyplinie danych)                      |
-| Granica serwera         | funkcje serwerowe (`createServerFn`) w 98 plikach                                   |
+| Dane po stronie klienta | TanStack Query 5.101 (485 plików na jednej dyscyplinie danych)                      |
+| Granica serwera         | funkcje serwerowe (`createServerFn`) w 102 plikach                                  |
 | Baza danych             | PostgreSQL przez Supabase (`@supabase/supabase-js` 2.106), RLS jako granica najemcy |
 | Płatności               | Stripe 22                                                                           |
 | Internacjonalizacja     | i18next 26, react-i18next 17                                                        |
@@ -150,18 +151,19 @@ grupami tematycznymi wspólnych primitywów; panel buildera utrzymuje własny, k
 
 Repozytorium traktuje kontrakty jakości jako kod wykonywalny, nie jako zalecenia w dokumentacji.
 
-- **41 bramek `check:*` w potoku CI** pilnuje reguł domenowych, nie stylu: zakresu najemcy
+- **43 bramki `check:*` w potoku CI** pilnują reguł domenowych, nie stylu: zakresu najemcy
   w politykach RLS, zgodności snapshotu uprawnień z migracjami, jednokrotności migracji, budżetów
   rozmiaru paczek, parytetu językowego, czystości wejść i grafu chunków.
 - **684 progi pokrycia per ścieżka** działają jako zapadka jednokierunkowa: wartości wolno
   wyłącznie podnosić.
-- **102 pliki pgTAP z 1 933 asercjami** dowodzą zachowania warstwy danych: izolacji najemcy,
+- **102 pliki pgTAP z 1 935 asercjami** dowodzą zachowania warstwy danych: izolacji najemcy,
   polityk RLS, kontraktów RPC i triggerów.
-- **Pięć uprzęży odtwarzających migracje** sprawdza, że pełna historia 937 migracji wykonuje się na czystej bazie i że schemat po nich zachowuje się tak, jak deklaruje.
+- **Pięć uprzęży odtwarzających migracje** sprawdza, że pełna historia 947 migracji wykonuje się na czystej bazie i że schemat po nich zachowuje się tak, jak deklaruje.
 - **Parytet polskiego i angielskiego jest bramką**, nie konwencją: kompletność obu słowników jest
   warunkiem przejścia potoku CI.
 - Pokrycie testami mierzone providerem v8 na całym `src/`, z plikami bez testów w mianowniku:
-  **95,23% linii i 93,71% funkcji** w pomiarze z 2026-09-05.
+  **95,23% linii i 93,71% funkcji** w pomiarze z 2026-09-05, w którym wykonano 65 129 przypadków
+  testowych.
 
 Pełna metodologia i wyniki kolejnych pomiarów: `docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md`.
 
@@ -175,7 +177,7 @@ src/
   integrations/    klient bazy danych i typy generowane
   test/            fixture'y i harnessy współdzielone przez testy
 supabase/
-  migrations/      937 migracji SQL
+  migrations/      947 migracji SQL
   tests/           102 pliki pgTAP
 e2e/               ścieżki użytkownika (Playwright)
 scripts/           bramki CI, uprzęże, taksonomia modułów
@@ -240,17 +242,18 @@ interface (Polish and English) and data isolation enforced between workspaces.
 | ------------------------------- | ------------------------------------ |
 | Domain modules                  | **22** plus 3 cross-cutting surfaces |
 | Documented functionalities      | **146**                              |
-| Production source files         | **3,307** (692,031 lines)            |
-| Test files                      | **2,363** (65,129 cases)             |
-| Data-layer tests (pgTAP)        | 102 files, 1,933 assertions          |
+| Production source files         | **3,443** (704,287 lines)            |
+| Test files                      | **2,460**                            |
+| Data-layer tests (pgTAP)        | 102 files, 1,935 assertions          |
 | User-journey tests (Playwright) | 12 files, 75 tests                   |
-| Quality gates in CI (`check:*`) | **41**                               |
+| Quality gates in CI (`check:*`) | **43**                               |
 | Per-path coverage thresholds    | **684**                              |
-| Database migrations             | 937                                  |
-| RLS policies in final state     | 620 across 258 tables                |
+| Database migrations             | 947                                  |
+| RLS policies in final state     | 633 across 261 tables                |
 
-File, migration and policy counts reflect the state of the repository as of 2026-09-06; coverage
-figures come from the full measurement run of 2026-09-05.
+File, test, migration and policy counts reflect the state of the repository as of 2026-09-08.
+The module and functionality breakdown and the coverage figures come from the audit measurement
+of 2026-09-05.
 
 ## Modules
 
@@ -307,7 +310,7 @@ figures come from the full measurement run of 2026-09-05.
 | ----------------- | ---------------------------------------------------------------- |
 | Admin shell       | shared admin frame, administrative interface atoms and molecules |
 | Design system     | 45 base components in `components/ui`                            |
-| i18n dictionaries | 121 dictionary files, parity between Polish and English          |
+| i18n dictionaries | 128 dictionary files, parity between Polish and English          |
 
 ## Architecture
 
@@ -341,8 +344,8 @@ groupings of shared primitives; the builder admin UI maintains its own consisten
 | -------------------- | ----------------------------------------------------------------------------------- |
 | Framework            | TanStack Start 1.168, TanStack Router 1.170                                         |
 | Interface            | React 19.2, TypeScript 5.8, Tailwind CSS 4.2                                        |
-| Client-side data     | TanStack Query 5.101 (470 files on a single data discipline)                        |
-| Server boundary      | server functions (`createServerFn`) across 98 files                                 |
+| Client-side data     | TanStack Query 5.101 (485 files on a single data discipline)                        |
+| Server boundary      | server functions (`createServerFn`) across 102 files                                |
 | Database             | PostgreSQL via Supabase (`@supabase/supabase-js` 2.106), RLS as the tenant boundary |
 | Payments             | Stripe 22                                                                           |
 | Internationalisation | i18next 26, react-i18next 17                                                        |
@@ -355,17 +358,18 @@ groupings of shared primitives; the builder admin UI maintains its own consisten
 
 The repository treats quality contracts as executable code rather than documented recommendations.
 
-- **41 `check:*` gates in the CI pipeline** enforce domain rules rather than style: tenant scope in
+- **43 `check:*` gates in the CI pipeline** enforce domain rules rather than style: tenant scope in
   RLS policies, agreement between the permissions snapshot and migrations, migration idempotence,
   bundle size budgets, language parity, entry purity and the chunk graph.
 - **684 per-path coverage thresholds** act as a one-way ratchet: values may only be raised.
-- **102 pgTAP files with 1,933 assertions** prove data-layer behaviour: tenant isolation, RLS
+- **102 pgTAP files with 1,935 assertions** prove data-layer behaviour: tenant isolation, RLS
   policies, RPC contracts and triggers.
-- **Five migration-replay harnesses** verify that the full history of 937 migrations executes on a clean database and that the resulting schema behaves as declared.
+- **Five migration-replay harnesses** verify that the full history of 947 migrations executes on a clean database and that the resulting schema behaves as declared.
 - **Polish and English parity is a gate**, not a convention: completeness of both dictionaries is
   a condition for the pipeline to pass.
 - Test coverage is measured with the v8 provider across all of `src/`, with untested files included
-  in the denominator: **95.23% of lines and 93.71% of functions** as measured on 2026-09-05.
+  in the denominator: **95.23% of lines and 93.71% of functions** as measured on 2026-09-05, in
+  a run that executed 65,129 test cases.
 
 Full methodology and the results of successive measurements:
 `docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md`.
@@ -380,7 +384,7 @@ src/
   integrations/    database client and generated types
   test/            fixtures and harnesses shared across tests
 supabase/
-  migrations/      937 SQL migrations
+  migrations/      947 SQL migrations
   tests/           102 pgTAP files
 e2e/               user journeys (Playwright)
 scripts/           CI gates, harnesses, module taxonomy
