@@ -8656,7 +8656,7 @@ select:not([multiple]):not([size]),
 select:not([multiple]):not([size]) option,
 [data-droplist],
 [data-droplist] * {
-  font-size: 12px !important;
+  font-size: var(--fs-droplist) !important;
 }
 
 /* Compact droplist sizing: shorter triggers/items and smaller caret.
@@ -8795,13 +8795,19 @@ label,
 [role="textbox"],
 [contenteditable="true"],
 .input-group > .user-label {
-  font-size: 12px !important;
+  font-size: var(--fs-input) !important;
+}
+
+label,
+[data-slot="label"],
+.input-group > .user-label {
+  font-size: var(--fs-label) !important;
 }
 
 input::placeholder,
 textarea::placeholder,
 [contenteditable="true"]:empty::before {
-  font-size: 12px;
+  font-size: var(--fs-placeholder);
 }
 
 /* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
@@ -8809,16 +8815,19 @@ textarea::placeholder,
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
     [type="submit"]
   ):not([type="button"]),
-[data-admin-shell] textarea,
+[data-admin-shell] textarea {
+  font-size: var(--fs-input) !important;
+}
+
 [data-admin-shell] label,
 [data-admin-shell] .input-group > .user-label {
-  font-size: 12px !important;
+  font-size: var(--fs-label) !important;
 }
 
 [data-admin-shell] [role="combobox"],
 [data-admin-shell] [data-slot="select-trigger"],
 [data-admin-shell] [data-slot="select-item"] {
-  font-size: 12px !important;
+  font-size: var(--fs-droplist) !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -8831,7 +8840,7 @@ input[type="submit"],
 input[type="button"],
 input[type="reset"],
 [data-slot="button"] {
-  font-size: 12px !important;
+  font-size: var(--fs-button) !important;
 }
 
 /* Admin panel: reinforce the 12px button rule on all admin pages. */
@@ -8841,16 +8850,19 @@ input[type="reset"],
 [data-admin-shell] input[type="button"],
 [data-admin-shell] input[type="reset"],
 [data-admin-shell] [data-slot="button"] {
-  font-size: 12px !important;
+  font-size: var(--fs-button) !important;
 }
 
 /* Ujednolicenie rozmiaru pól i etykiet formularzy (także gdy widget ustawia
    font-size inline) - 12px w całym serwisie i panelu administracyjnym. */
 .input-group > input.input.input.input,
 .input-group > textarea.input.input.input,
-.input-group > select.input.input.input,
+.input-group > select.input.input.input {
+  font-size: var(--fs-input) !important;
+}
+
 .input-group > .user-label.user-label.user-label {
-  font-size: 12px !important;
+  font-size: var(--fs-label) !important;
 }
 
 /* Pola formularzy (także combobox "Kraj") mają zawsze pełną wysokość
