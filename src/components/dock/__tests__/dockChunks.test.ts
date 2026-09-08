@@ -67,6 +67,45 @@ describe("prefetchDockPanel - mapa narzędzie -> paczka", () => {
   });
 });
 
+describe("chatWindowChunk - właściciel paczki okna rozmowy", () => {
+  // TA SAMA UMOWA, CO `panelChunks`, ale osobny moduł - i osobny powód.
+  // `ChatSideDrawer` importował `ChatWindow` i `GroupCreateDialog` STATYCZNIE,
+  // więc otwarcie samej LISTY wątków ciągnęło pełne okno wiadomości
+  // (zmierzone: 80 plików / 592,7 kB źródła -> 17 plików / 141,5 kB).
+  // Powrót statycznego importu jest niewidoczny w kodzie skrzynki, dlatego
+  // granica ma własny test - a nie tylko komentarz.
+  it("eksportuje DWIE funkcje ładowania i dwa rozgrzewania", async () => {
+    const mod = await import("@/components/chat/chatWindowChunk");
+    expect(
+      Object.keys(mod)
+        .filter((name) => name.startsWith("load") || name.startsWith("prefetch"))
+        .sort(),
+    ).toEqual([
+      "loadChatWindow",
+      "loadGroupCreateDialog",
+      "prefetchChatWindow",
+      "prefetchGroupCreateDialog",
+    ]);
+  });
+
+  it("obie funkcje ładowania dają kształt wymagany przez `React.lazy`", async () => {
+    const mod = await import("@/components/chat/chatWindowChunk");
+    const loaded = await Promise.all([mod.loadChatWindow(), mod.loadGroupCreateDialog()]);
+    // Literówka w nazwie eksportu dałaby `default: undefined` i błąd dopiero
+    // przy WYBRANIU rozmowy, u użytkownika - nie tutaj.
+    for (const chunk of loaded) {
+      expect(typeof chunk.default).toBe("function");
+    }
+  });
+
+  it("oba rozgrzewania zwracają `void` - są wołane z procedury obsługi zdarzenia", async () => {
+    const mod = await import("@/components/chat/chatWindowChunk");
+    expect(mod.prefetchChatWindow()).toBeUndefined();
+    expect(mod.prefetchGroupCreateDialog()).toBeUndefined();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+});
+
 describe("połknięte odrzucenie - offline nie wywala obsługi zdarzenia", () => {
   it("prefetchDockPanel nie zostawia nieobsłużonego odrzucenia", async () => {
     vi.resetModules();
@@ -109,6 +148,31 @@ describe("połknięte odrzucenie - offline nie wywala obsługi zdarzenia", () =>
     expect(rejections).toEqual([]);
 
     vi.doUnmock("@/components/chat/ChatWindow");
+    vi.resetModules();
+  });
+
+  it("prefetchGroupCreateDialog nie zostawia nieobsłużonego odrzucenia", async () => {
+    // Dialog grupy ma WŁASNĄ paczkę i własne rozgrzewanie na najechaniu
+    // („nowa grupa"), więc połknięcie odrzucenia trzeba dowieść osobno -
+    // wspólny `.catch` nie istnieje.
+    vi.resetModules();
+    vi.doMock("@/components/chat/GroupCreateDialog", () => Promise.reject(new Error("brak sieci")));
+
+    const rejections: unknown[] = [];
+    const onRejection = (event: PromiseRejectionEvent) => {
+      rejections.push(event.reason);
+      event.preventDefault();
+    };
+    globalThis.addEventListener?.("unhandledrejection", onRejection);
+
+    const { prefetchGroupCreateDialog } = await import("@/components/chat/chatWindowChunk");
+    expect(() => prefetchGroupCreateDialog()).not.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    globalThis.removeEventListener?.("unhandledrejection", onRejection);
+    expect(rejections).toEqual([]);
+
+    vi.doUnmock("@/components/chat/GroupCreateDialog");
     vi.resetModules();
   });
 });
