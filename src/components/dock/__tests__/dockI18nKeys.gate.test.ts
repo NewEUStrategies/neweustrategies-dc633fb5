@@ -146,25 +146,32 @@ describe("słownik przestrzeni roboczej - bramka rozjazdu kod <-> PL/EN", () => 
 });
 
 describe("liczby mnogie: PL ma cztery formy, EN dwie", () => {
-  const chatPl = dockPl.dock.chat as Record<string, string>;
-  const chatEn = dockEn.dock.chat as Record<string, string>;
+  // BEZ RZUTOWANIA na `Record<string, string>` - gałąź `chat` ma zagnieżdżone
+  // `sections`, więc taki rzut jest nieprawdziwy i `tsc` słusznie go odrzuca
+  // (a `as unknown as` zabrania bramka `check:unknown-casts`). Klucze czytamy
+  // z `Object.keys`, a liście przez zwykły dostęp - typ literału obiektu i tak
+  // zna te pola, więc literówka w nazwie oblewa test na etapie kompilacji.
+  const chatPl = dockPl.dock.chat;
+  const chatEn = dockEn.dock.chat;
+  const plKeys = Object.keys(chatPl);
+  const enKeys = Object.keys(chatEn);
 
   it("`minimizedMore` ma polskie formy _one/_few/_many/_other", () => {
     // Regresja: jedna forma drukowała „Jeszcze 1 zminimalizowane rozmowy",
     // i to była wartość NAJCZĘSTSZA - limit widocznych pigułek to 2, więc
     // pierwsza ukryta rozmowa daje count=1.
     for (const suffix of ["_one", "_few", "_many", "_other"]) {
-      expect(chatPl, `brak minimizedMore${suffix} w PL`).toHaveProperty(`minimizedMore${suffix}`);
+      expect(plKeys, `brak minimizedMore${suffix} w PL`).toContain(`minimizedMore${suffix}`);
     }
     // Forma bez sufiksu MUSI zniknąć - i18next wolałby ją od wariantów.
-    expect(chatPl).not.toHaveProperty("minimizedMore");
+    expect(plKeys).not.toContain("minimizedMore");
   });
 
   it("angielski ma _one i _other, i to są DWA RÓŻNE napisy", () => {
-    expect(chatEn).toHaveProperty("minimizedMore_one");
-    expect(chatEn).toHaveProperty("minimizedMore_other");
+    expect(enKeys).toContain("minimizedMore_one");
+    expect(enKeys).toContain("minimizedMore_other");
     expect(chatEn.minimizedMore_one).not.toBe(chatEn.minimizedMore_other);
-    expect(chatEn).not.toHaveProperty("minimizedMore");
+    expect(enKeys).not.toContain("minimizedMore");
   });
 
   it("i18next FAKTYCZNIE wybiera właściwą formę dla 1, 2 i 5", () => {
@@ -172,13 +179,13 @@ describe("liczby mnogie: PL ma cztery formy, EN dwie", () => {
     // że reguła mnogości dla polskiego jest w tej instancji aktywna.
     const t = i18n.getFixedT("pl");
     expect(t("dock.chat.minimizedMore", { count: 1 })).toBe(
-      chatPl.minimizedMore_one?.replace("{{count}}", "1"),
+      chatPl.minimizedMore_one.replace("{{count}}", "1"),
     );
     expect(t("dock.chat.minimizedMore", { count: 2 })).toBe(
-      chatPl.minimizedMore_few?.replace("{{count}}", "2"),
+      chatPl.minimizedMore_few.replace("{{count}}", "2"),
     );
     expect(t("dock.chat.minimizedMore", { count: 5 })).toBe(
-      chatPl.minimizedMore_many?.replace("{{count}}", "5"),
+      chatPl.minimizedMore_many.replace("{{count}}", "5"),
     );
   });
 });

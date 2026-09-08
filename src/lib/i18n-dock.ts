@@ -27,10 +27,8 @@ export const dockPl = {
         online: "Online",
         direct: "Wiadomości prywatne",
         groups: "Kanały i grupy",
-        people: "Osoby",
       },
       empty: "Brak rozmów. Wyszukaj osobę, żeby zacząć.",
-      noPeople: "Brak osób dla tej frazy.",
       openAll: "Otwórz wiadomości",
       start: "Napisz",
       minimize: "Zminimalizuj rozmowę",
@@ -104,16 +102,15 @@ export const dockPl = {
       full: "Pełny kalendarz",
       weekdays: ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"],
     },
+    // Kolejka czytania NIE MA już własnego panelu: `ReadLaterPanel` usunięty
+    // (zero importerów), a jej elementy pokazuje panel zapisanych. Zostają
+    // więc wyłącznie klucze AKCJI, których `SavedPanel` faktycznie woła -
+    // tytuł, wyszukiwarka, filtry i pusty stan odeszły razem z panelem.
     readLater: {
-      title: "Do przeczytania później",
-      searchPlaceholder: "Szukaj w kolejce...",
-      filters: { unread: "Nieprzeczytane", all: "Wszystko", archived: "Archiwum" },
-      empty: "Kolejka jest pusta.",
       markRead: "Oznacz jako przeczytane",
       markUnread: "Oznacz jako nieprzeczytane",
       archive: "Przenieś do archiwum",
       remove: "Usuń z kolejki",
-      open: "Otwórz materiał",
     },
   },
 };
@@ -143,10 +140,8 @@ export const dockEn = {
         online: "Online",
         direct: "Direct messages",
         groups: "Channels and groups",
-        people: "People",
       },
       empty: "No conversations yet. Search for someone to start.",
-      noPeople: "No people match this search.",
       openAll: "Open messages",
       start: "Message",
       minimize: "Minimize conversation",
@@ -213,16 +208,14 @@ export const dockEn = {
       full: "Full calendar",
       weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     },
+    // Reading queue has NO panel of its own any more - `ReadLaterPanel` was
+    // removed (zero importers) and the saved-items panel shows its entries.
+    // Only the ACTION keys that `SavedPanel` actually calls remain.
     readLater: {
-      title: "Read later",
-      searchPlaceholder: "Search the queue...",
-      filters: { unread: "Unread", all: "All", archived: "Archive" },
-      empty: "The queue is empty.",
       markRead: "Mark as read",
       markUnread: "Mark as unread",
       archive: "Move to archive",
       remove: "Remove from queue",
-      open: "Open item",
     },
   },
 };

@@ -19,7 +19,7 @@
 import "@/lib/i18n-chat";
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
+import { Inbox, Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -29,6 +29,7 @@ import {
   prefetchGroupCreateDialog,
 } from "@/components/chat/chatWindowChunk";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
+import { ExpertRequestsInbox } from "@/components/chat/ExpertRequestsInbox";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { useAuth } from "@/hooks/useAuth";
 import { conversationDisplay, isGroupView } from "@/lib/chat/display";
@@ -40,16 +41,18 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { useMyExpertRequests } from "@/lib/chat/useExpertRequests";
 import { minimizedChatsStore, useMinimizedChats } from "@/lib/chat/minimizedChats";
 import type { ChatLang } from "@/lib/chat/time";
 import type { DockPresenceState } from "@/lib/dock/dockMotion";
+import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
 
 const ChatWindow = lazy(loadChatWindow);
 const GroupCreateDialog = lazy(loadGroupCreateDialog);
 
-type Tab = "chats" | "new";
+type Tab = "chats" | "new" | "requests";
 
 export interface ChatSideDrawerProps {
   onClose: () => void;
@@ -77,10 +80,12 @@ export function ChatSideDrawer({
   openRequest,
   presenceState,
 }: ChatSideDrawerProps) {
+  ensureExpertRequestI18n();
   const { t, i18n } = useTranslation();
   const lang: ChatLang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("chats");
+
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
@@ -92,6 +97,28 @@ export function ChatSideDrawer({
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const nicknamesQ = useNicknames();
+
+  // Skrzynka zapytań eksperckich: RPC zwraca rekordy tylko wtedy, gdy
+  // zalogowany użytkownik jest ODBIORCĄ - czyli jest ekspertem. Zakładkę
+  // pokazujemy więc wyłącznie takim osobom, bez dodatkowego zapytania o rolę.
+  const expertRequestsQ = useMyExpertRequests("received");
+  const expertRequests = useMemo(() => expertRequestsQ.data ?? [], [expertRequestsQ.data]);
+  const isExpertRecipient = expertRequests.length > 0;
+  const pendingExpertRequests = useMemo(
+    () => expertRequests.reduce((sum, row) => sum + (row.status === "pending" ? 1 : 0), 0),
+    [expertRequests],
+  );
+
+  // Gdy zakładka zniknie (np. brak zapytań), nie zostawiamy pustego widoku.
+  useEffect(() => {
+    if (!isExpertRecipient) setTab((current) => (current === "requests" ? "chats" : current));
+  }, [isExpertRecipient]);
+
+  // WEJŚCIE PANELU NIE JEST JUŻ TUTAJ. Gałąź `main` miała w tym miejscu
+  // `requestAnimationFrame(() => setEntered(true))` i lokalną flagę `entered`;
+  // fazę wejścia I WYJŚCIA przejął `useDockPresence` w `WorkspaceDock`, który
+  // podaje ją propem `presenceState`. Zostawienie obu dałoby dwa równoległe
+  // źródła prawdy o tym samym ruchu, a wyjścia nadal by nie było.
 
   // Żądanie z zewnątrz (chatDockBus) - od razu wybieramy wskazaną rozmowę
   // I rozgrzewamy paczkę okna, bo za chwilę będzie potrzebna.
@@ -277,6 +304,27 @@ export function ChatSideDrawer({
               <SquarePen className="h-3.5 w-3.5" aria-hidden />
               {t("dock.chat.start")}
             </button>
+            {isExpertRecipient ? (
+              <button
+                type="button"
+                onClick={() => setTab("requests")}
+                aria-pressed={tab === "requests"}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium",
+                  tab === "requests"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Inbox className="h-3.5 w-3.5" aria-hidden />
+                {t("expertRequest.inbox.tab")}
+                {pendingExpertRequests > 0 ? (
+                  <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+                    {pendingExpertRequests}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setGroupOpen(true)}
@@ -292,7 +340,9 @@ export function ChatSideDrawer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {tab === "new" ? (
+          {tab === "requests" ? (
+            <ExpertRequestsInbox onOpenConversation={openConversation} className="p-2" />
+          ) : tab === "new" ? (
             <NewChatSearch onOpened={openConversation} />
           ) : conversationsQ.isError ? (
             <p className="p-4 text-sm text-muted-foreground">{t("dock.error")}</p>

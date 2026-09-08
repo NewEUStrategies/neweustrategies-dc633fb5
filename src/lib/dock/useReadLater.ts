@@ -59,11 +59,6 @@ export function useReadLater() {
   return useQuery({ ...readLaterQueryOptions(user?.id), enabled: !!user });
 }
 
-export function useUnreadLaterCount(): number {
-  const { data } = useReadLater();
-  return (data ?? []).filter((item) => item.state === "unread").length;
-}
-
 export interface ReadLaterDraft {
   entityType: ReadLaterEntity;
   entityId: string;
