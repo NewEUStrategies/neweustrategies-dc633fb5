@@ -8831,3 +8831,12 @@ input[type="reset"],
 [data-admin-shell] [data-slot="button"] {
   font-size: 12px !important;
 }
+
+/* Ujednolicenie rozmiaru pól i etykiet formularzy (także gdy widget ustawia
+   font-size inline) - 13px w całym serwisie i panelu administracyjnym. */
+.input-group > input.input.input.input,
+.input-group > textarea.input.input.input,
+.input-group > select.input.input.input,
+.input-group > .user-label.user-label.user-label {
+  font-size: 13px !important;
+}
