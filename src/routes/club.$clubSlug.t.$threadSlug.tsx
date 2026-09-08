@@ -114,6 +114,7 @@ import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 
 import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWorkspace";
+import { ClubPageFrame } from "@/components/clubs/organisms/ClubPageFrame";
 import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
