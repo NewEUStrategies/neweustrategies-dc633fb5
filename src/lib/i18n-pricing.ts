@@ -446,7 +446,6 @@ const pricingPl = {
       cta: "Wyślij zgłoszenie",
     },
 
-
     tiers: {
       heading: "Poziomy członkostwa",
       current: "Twoje członkostwo",
@@ -923,7 +922,6 @@ const pricingEn: typeof pricingPl = {
       note: "Scope and cost are agreed after the enquiry - seats, cycle and report scope.",
       cta: "Submit enquiry",
     },
-
 
     tiers: {
       heading: "Membership tiers",

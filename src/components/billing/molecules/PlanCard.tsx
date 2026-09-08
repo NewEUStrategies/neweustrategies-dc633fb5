@@ -40,7 +40,6 @@ export function PlanCard({
   const enquiryOnly = isEnquiryOnlyPlan(plan);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
 
-
   return (
     <Card
       className={cn(
@@ -60,9 +59,7 @@ export function PlanCard({
         )}
         {enquiryOnly ? (
           <div className="pt-4">
-            <span className="text-2xl font-bold tracking-tight">
-              {t("pricing.enquiry.price")}
-            </span>
+            <span className="text-2xl font-bold tracking-tight">{t("pricing.enquiry.price")}</span>
             <p className="mt-1 text-xs text-muted-foreground">{t("pricing.enquiry.note")}</p>
           </div>
         ) : (
@@ -128,7 +125,6 @@ export function PlanCard({
           subjectLabel={planName(plan, lang)}
         />
       )}
-
     </Card>
   );
 }

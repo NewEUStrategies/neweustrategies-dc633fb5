@@ -9,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, ShieldCheck } from "lucide-react";
 
-
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { fetchMembershipTiers, parseTierBenefits, useCurrentTier } from "@/lib/billing/tiers";
@@ -31,7 +30,6 @@ import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { activeLang } from "@/lib/seo/head";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
-
 
 export const Route = createFileRoute("/plans/$planId")({
   component: PlanDetailsPage,
@@ -86,7 +84,6 @@ function PlanDetailsPage() {
   const lang = i18n.language === "en" ? "en" : "pl";
   const { planId } = Route.useParams();
   const [enquiryOpen, setEnquiryOpen] = useState(false);
-
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const tiersQ = useQuery({
@@ -184,7 +181,6 @@ function PlanDetailsPage() {
           subjectLabel={planName(plan, lang)}
         />
       )}
-
 
       {benefits.length > 0 && (
         <Card>
