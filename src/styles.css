@@ -8766,3 +8766,18 @@ select:not([multiple]):not([size]) option,
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
+
+/* ---------------------------------------------------------------------------
+   GLOBAL ATOM RULE: every input and label uses 11px text platform-wide.
+   Covers native fields, shadcn Input/Textarea, and labels (incl. floating).
+--------------------------------------------------------------------------- */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+textarea,
+label {
+  font-size: 11px !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  font-size: 11px;
+}
