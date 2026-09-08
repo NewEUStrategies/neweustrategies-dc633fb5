@@ -27,7 +27,6 @@ const Switch = React.forwardRef<
         "data-[state=checked]:translate-x-[16px] data-[state=unchecked]:translate-x-0",
       )}
     />
-
   </SwitchPrimitives.Root>
 ));
 Switch.displayName = SwitchPrimitives.Root.displayName;
