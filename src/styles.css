@@ -202,6 +202,16 @@ body {
      Override per-widget by setting these vars on the widget shell. */
   --gc-input-hover-border: #fdb078; /* light-orange hover ring, per brand */
   --gc-input-focus-border: #fdb078; /* focus uses the same orange for continuity */
+  /* TABELA ROZMIARÓW CZCIONEK (admin → Wygląd → Rozmiary czcionek).
+     Jedyne źródło prawdy dla globalnych reguł typografii UI - katalog tokenów
+     żyje w `src/lib/theme/fontScale.ts`, nadpisania tenanta wstrzykuje
+     <DesignTokensStyle />. NIE wpisuj tu wartości px bezpośrednio w regułach. */
+  --fs-label: 12px;
+  --fs-input: 12px;
+  --fs-placeholder: 12px;
+  --fs-droplist: 12px;
+  --fs-button: 12px;
+  --fs-chat-composer: 11.5px;
   --gc-label-font-size: 0.75rem; /* 12px - unified input-label size */
   --gc-input-font-size: 14px; /* unified input/select/textarea text size */
   --gc-input-line-height: 1.4;
@@ -6353,7 +6363,7 @@ textarea::placeholder {
    neutralizuje także mobilną regułę 16 px powyżej, która chroni pozostałe pola
    formularzy przed automatycznym powiększeniem widoku przez iOS Safari. */
 textarea[data-chat-composer-input][data-chat-composer-input] {
-  font-size: 12px !important;
+  font-size: var(--fs-chat-composer) !important;
 }
 
 /* -------------------------------------------------------------------------
@@ -8646,7 +8656,7 @@ select:not([multiple]):not([size]),
 select:not([multiple]):not([size]) option,
 [data-droplist],
 [data-droplist] * {
-  font-size: 12px !important;
+  font-size: var(--fs-droplist) !important;
 }
 
 /* Compact droplist sizing: shorter triggers/items and smaller caret.
@@ -8785,13 +8795,19 @@ label,
 [role="textbox"],
 [contenteditable="true"],
 .input-group > .user-label {
-  font-size: 12px !important;
+  font-size: var(--fs-input) !important;
+}
+
+label,
+[data-slot="label"],
+.input-group > .user-label {
+  font-size: var(--fs-label) !important;
 }
 
 input::placeholder,
 textarea::placeholder,
 [contenteditable="true"]:empty::before {
-  font-size: 12px;
+  font-size: var(--fs-placeholder);
 }
 
 /* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
@@ -8799,16 +8815,19 @@ textarea::placeholder,
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
     [type="submit"]
   ):not([type="button"]),
-[data-admin-shell] textarea,
+[data-admin-shell] textarea {
+  font-size: var(--fs-input) !important;
+}
+
 [data-admin-shell] label,
 [data-admin-shell] .input-group > .user-label {
-  font-size: 12px !important;
+  font-size: var(--fs-label) !important;
 }
 
 [data-admin-shell] [role="combobox"],
 [data-admin-shell] [data-slot="select-trigger"],
 [data-admin-shell] [data-slot="select-item"] {
-  font-size: 12px !important;
+  font-size: var(--fs-droplist) !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -8821,7 +8840,7 @@ input[type="submit"],
 input[type="button"],
 input[type="reset"],
 [data-slot="button"] {
-  font-size: 12px !important;
+  font-size: var(--fs-button) !important;
 }
 
 /* Admin panel: reinforce the 12px button rule on all admin pages. */
@@ -8831,16 +8850,19 @@ input[type="reset"],
 [data-admin-shell] input[type="button"],
 [data-admin-shell] input[type="reset"],
 [data-admin-shell] [data-slot="button"] {
-  font-size: 12px !important;
+  font-size: var(--fs-button) !important;
 }
 
 /* Ujednolicenie rozmiaru pól i etykiet formularzy (także gdy widget ustawia
    font-size inline) - 12px w całym serwisie i panelu administracyjnym. */
 .input-group > input.input.input.input,
 .input-group > textarea.input.input.input,
-.input-group > select.input.input.input,
+.input-group > select.input.input.input {
+  font-size: var(--fs-input) !important;
+}
+
 .input-group > .user-label.user-label.user-label {
-  font-size: 12px !important;
+  font-size: var(--fs-label) !important;
 }
 
 /* Pola formularzy (także combobox "Kraj") mają zawsze pełną wysokość

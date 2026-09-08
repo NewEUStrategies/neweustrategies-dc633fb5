@@ -57,6 +57,8 @@ export interface SiteDesignTokensRow {
   fonts: unknown;
   scale: unknown;
   global_colors: unknown;
+  /** Tabela rozmiarów czcionek (patrz lib/theme/fontScale). */
+  font_scale: unknown;
 }
 
 const DESIGN_TOKENS_ROW_TTL_MS = 60_000;
@@ -81,7 +83,7 @@ export async function fetchSiteDesignTokensRow(): Promise<SiteDesignTokensRow | 
   const load = async (): Promise<SiteDesignTokensRow | null> => {
     const { data, error } = await supabase
       .from("site_design_tokens")
-      .select("colors, fonts, scale, global_colors")
+      .select("colors, fonts, scale, global_colors, font_scale")
       .maybeSingle();
     if (error) return null;
     return (data as SiteDesignTokensRow | null) ?? null;
