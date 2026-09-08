@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import type { AccessPlan } from "@/lib/billing/types";
@@ -13,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Check } from "lucide-react";
 import { intervalLabel } from "@/lib/billing/intervalLabel";
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
+import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesDialog";
 import { cn } from "@/lib/utils";
 
 export function PlanCard({
@@ -34,6 +37,8 @@ export function PlanCard({
   const badge = planBadge(plan, lang);
   const own = planFeatures(plan, lang);
   const features = own.length > 0 ? own : (fallbackBenefits ?? []);
+  const enquiryOnly = isEnquiryOnlyPlan(plan);
+  const [enquiryOpen, setEnquiryOpen] = useState(false);
 
   return (
     <Card
@@ -52,14 +57,22 @@ export function PlanCard({
         {planDescription(plan, lang) && (
           <p className="text-sm text-muted-foreground">{planDescription(plan, lang)}</p>
         )}
-        <div className="pt-4">
-          <span className="text-4xl font-bold tracking-tight">
-            {formatMoney(plan.price_cents, plan.currency, lang)}
-          </span>
-          <span className="ml-1 text-sm text-muted-foreground">
-            {intervalLabel(plan.interval, t)}
-          </span>
-        </div>
+        {enquiryOnly ? (
+          <div className="pt-4">
+            <span className="text-2xl font-bold tracking-tight">{t("pricing.enquiry.price")}</span>
+            <p className="mt-1 text-xs text-muted-foreground">{t("pricing.enquiry.note")}</p>
+          </div>
+        ) : (
+          <div className="pt-4">
+            <span className="text-4xl font-bold tracking-tight">
+              {formatMoney(plan.price_cents, plan.currency, lang)}
+            </span>
+            <span className="ml-1 text-sm text-muted-foreground">
+              {intervalLabel(plan.interval, t)}
+            </span>
+          </div>
+        )}
+
         {plan.trial_days > 0 && (
           <p className="text-xs text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
@@ -79,6 +92,14 @@ export function PlanCard({
           <Button className="w-full" disabled variant="outline">
             {t("pricing.current")}
           </Button>
+        ) : enquiryOnly ? (
+          <Button
+            className="w-full"
+            variant={plan.highlighted ? "default" : "outline"}
+            onClick={() => setEnquiryOpen(true)}
+          >
+            {t("pricing.enquiry.cta")}
+          </Button>
         ) : (
           <Button asChild className="w-full" variant={plan.highlighted ? "default" : "outline"}>
             <Link to="/checkout/$planId" params={{ planId: plan.id }}>
@@ -86,6 +107,7 @@ export function PlanCard({
             </Link>
           </Button>
         )}
+
         {/* Pełny zakres planu (benefity, limity, porównanie) na osobnej,
             linkowalnej stronie - karta zostaje skrótowa. */}
         <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
@@ -94,6 +116,15 @@ export function PlanCard({
           </Link>
         </Button>
       </CardFooter>
+      {enquiryOnly && (
+        <ContactSalesDialog
+          open={enquiryOpen}
+          onOpenChange={setEnquiryOpen}
+          tier={null}
+          lang={lang}
+          subjectLabel={planName(plan, lang)}
+        />
+      )}
     </Card>
   );
 }

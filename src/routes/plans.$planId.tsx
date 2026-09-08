@@ -4,6 +4,7 @@
 // segmentu (ta sama matryca co na cenniku). Dane są prefetchowane w loaderze,
 // więc strona jest w pełni SSR-owalna i linkowalna (SEO + udostępnianie).
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, ShieldCheck } from "lucide-react";
@@ -24,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
+import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesDialog";
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { activeLang } from "@/lib/seo/head";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
@@ -80,6 +83,7 @@ function PlanDetailsPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const { planId } = Route.useParams();
+  const [enquiryOpen, setEnquiryOpen] = useState(false);
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const tiersQ = useQuery({
@@ -117,6 +121,7 @@ function PlanDetailsPage() {
 
   const badge = planBadge(plan, lang);
   const description = planDescription(plan, lang);
+  const enquiryOnly = isEnquiryOnlyPlan(plan);
 
   return (
     <div className="container mx-auto max-w-5xl space-y-8 px-4 py-10">
@@ -133,26 +138,49 @@ function PlanDetailsPage() {
           {badge && <Badge>{badge}</Badge>}
         </div>
         {description && <p className="max-w-2xl text-muted-foreground">{description}</p>}
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="text-4xl font-bold tracking-tight">
-            {formatMoney(plan.price_cents, plan.currency, lang)}
-          </span>
-          <span className="text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
-        </div>
-        {plan.trial_days > 0 && (
+        {enquiryOnly ? (
+          <div className="space-y-1">
+            <p className="text-2xl font-bold tracking-tight">{t("pricing.enquiry.price")}</p>
+            <p className="text-sm text-muted-foreground">{t("pricing.enquiry.note")}</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-4xl font-bold tracking-tight">
+              {formatMoney(plan.price_cents, plan.currency, lang)}
+            </span>
+            <span className="text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
+          </div>
+        )}
+        {!enquiryOnly && plan.trial_days > 0 && (
           <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
         <div className="flex flex-wrap gap-2 pt-2">
-          <Button asChild size="lg">
-            <Link to="/checkout/$planId" params={{ planId: plan.id }}>
-              {t("pricing.choose")}
-            </Link>
-          </Button>
+          {enquiryOnly ? (
+            <Button size="lg" onClick={() => setEnquiryOpen(true)}>
+              {t("pricing.enquiry.cta")}
+            </Button>
+          ) : (
+            <Button asChild size="lg">
+              <Link to="/checkout/$planId" params={{ planId: plan.id }}>
+                {t("pricing.choose")}
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="outline" size="lg">
             <Link to="/pricing">{t("pricing.compareAll")}</Link>
           </Button>
         </div>
       </header>
+
+      {enquiryOnly && (
+        <ContactSalesDialog
+          open={enquiryOpen}
+          onOpenChange={setEnquiryOpen}
+          tier={null}
+          lang={lang}
+          subjectLabel={planName(plan, lang)}
+        />
+      )}
 
       {benefits.length > 0 && (
         <Card>

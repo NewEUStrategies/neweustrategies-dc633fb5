@@ -440,6 +440,11 @@ const pricingPl = {
     passesTitle: "Przepustki i dostęp jednorazowy",
     passesSubtitle: "Bez zobowiązań: pojedynczy artykuł albo krótki dostęp na czas ważnej decyzji.",
     morePlansTitle: "Pozostałe plany",
+    enquiry: {
+      price: "Wycena indywidualna",
+      note: "Zakres i koszt ustalamy po zgłoszeniu - liczba miejsc, cykl i zakres raportu.",
+      cta: "Wyślij zgłoszenie",
+    },
 
     tiers: {
       heading: "Poziomy członkostwa",
@@ -912,6 +917,11 @@ const pricingEn: typeof pricingPl = {
     passesTitle: "Passes & one-time access",
     passesSubtitle: "No commitment: a single article or short access when a decision matters.",
     morePlansTitle: "More plans",
+    enquiry: {
+      price: "Pricing on request",
+      note: "Scope and cost are agreed after the enquiry - seats, cycle and report scope.",
+      cta: "Submit enquiry",
+    },
 
     tiers: {
       heading: "Membership tiers",
