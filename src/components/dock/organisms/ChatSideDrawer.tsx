@@ -232,13 +232,15 @@ export function ChatSideDrawer({
         aria-modal="false"
         aria-label={t("dock.chat.title")}
         data-state={presenceState}
+        data-mobile-view={selected ? "conversation" : "inbox"}
         className={cn(
           // `.wd-drawer` niesie CAŁY ruch (wejście i wyjście) z warstwy CSS
           // doku. Poprzednia wersja pinowała `will-change-transform` na
           // stałe - to trzyma warstwę kompozytora przez całe życie panelu,
           // choć ruch trwa ćwierć sekundy.
-          "wd-drawer pointer-events-auto flex h-full w-[320px] max-w-[85vw] flex-col border-r border-border/70",
+          "wd-drawer pointer-events-auto h-full w-full flex-col border-r border-border/70 sm:w-[320px] sm:max-w-[85vw]",
           "bg-card/95 shadow-xl backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
+          selected ? "hidden sm:flex" : "flex",
         )}
       >
         <header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
@@ -379,7 +381,8 @@ export function ChatSideDrawer({
       {selected ? (
         <div
           data-state={presenceState}
-          className="wd-panel pointer-events-auto hidden h-full w-[380px] max-w-[90vw] flex-col border-r border-border/70 bg-background/95 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:flex"
+          data-mobile-chat-conversation
+          className="wd-panel pointer-events-auto flex h-full w-full min-w-0 flex-col bg-background/95 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:w-[380px] sm:max-w-[90vw] sm:border-r sm:border-border/70"
         >
           <div className="flex items-center gap-1 border-b border-border/70 px-2 py-1">
             <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">
