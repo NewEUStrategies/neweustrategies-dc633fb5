@@ -114,6 +114,7 @@ import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 
 import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWorkspace";
+import { ClubPageFrame } from "@/components/clubs/organisms/ClubPageFrame";
 import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
@@ -444,8 +445,11 @@ function ClubThreadView() {
     else setReplyTo(null);
   };
 
+  // Wątek NIE jest osobną, pełnoekranową stroną: otwiera się w środkowej
+  // kolumnie klubu, dokładnie tam, gdzie stała lista tematów - szyny klubu
+  // (nawigacja po lewej, kontekst po prawej) zostają na ekranie.
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
+    <ClubPageFrame club={club} trailingCrumb={thread.title}>
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
@@ -889,7 +893,7 @@ function ClubThreadView() {
           </p>
         )}
       </ClubThreadWorkspace>
-    </div>
+    </ClubPageFrame>
   );
 }
 
