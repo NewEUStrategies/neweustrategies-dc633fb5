@@ -143,9 +143,10 @@ export function clubDossierIconBoxClass(tone: ClubDossierTone): string {
 }
 
 /**
- * Etykieta rodzaju w pasku meta. Kolor rodzaju żyje tu jako TEKST (nie jako
- * wypełniony chip i nie jako poświata) - razem z grzbietem i ikoną domyka
- * wariant „grzbiet + kolorowa meta" wybrany w audycie 2026-08-11.
+ * Etykieta rodzaju w pasku meta. Renderuje się jako mała pigułka (label),
+ * żeby rodzaj wątku był czytelny na pierwszy rzut oka i różnił się od
+ * pozostałych elementów meta (autor, data, statusy). Kolor rodzaju żyje
+ * w tle i obramowaniu przez `--dossier-tone`, a tekst pozostaje wyraźny.
  * Wymaga rodzica z ustawionym `--dossier-tone` (czyli `ClubDossierRow`).
  */
 export function ClubDossierKind({
@@ -158,7 +159,10 @@ export function ClubDossierKind({
   return (
     <span
       className={cn(
-        "font-semibold uppercase tracking-wide",
+        "inline-flex items-center rounded-md border px-1.5 font-semibold uppercase tracking-wide",
+        "text-[10px] leading-none",
+        "bg-[color-mix(in_oklab,var(--dossier-tone)_12%,transparent)]",
+        "border-[color-mix(in_oklab,var(--dossier-tone)_35%,transparent)]",
         "text-[color-mix(in_oklab,var(--dossier-tone)_78%,var(--foreground))]",
         className,
       )}
