@@ -8770,7 +8770,7 @@ select:not([multiple]):not([size]) option,
 }
 
 /* ---------------------------------------------------------------------------
-   GLOBAL ATOM RULE: every input and label uses 13px text platform-wide,
+   GLOBAL ATOM RULE: every input and label uses 12px text platform-wide,
    including the admin panel and floating (`.user-label`) labels. Covers native
    fields, shadcn Input/Textarea, labels, search fields and contenteditable.
 --------------------------------------------------------------------------- */
@@ -8785,13 +8785,13 @@ label,
 [role="textbox"],
 [contenteditable="true"],
 .input-group > .user-label {
-  font-size: 13px !important;
+  font-size: 12px !important;
 }
 
 input::placeholder,
 textarea::placeholder,
 [contenteditable="true"]:empty::before {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 /* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
@@ -8802,7 +8802,7 @@ textarea::placeholder,
 [data-admin-shell] textarea,
 [data-admin-shell] label,
 [data-admin-shell] .input-group > .user-label {
-  font-size: 13px !important;
+  font-size: 12px !important;
 }
 
 [data-admin-shell] [role="combobox"],
@@ -8835,12 +8835,12 @@ input[type="reset"],
 }
 
 /* Ujednolicenie rozmiaru pól i etykiet formularzy (także gdy widget ustawia
-   font-size inline) - 13px w całym serwisie i panelu administracyjnym. */
+   font-size inline) - 12px w całym serwisie i panelu administracyjnym. */
 .input-group > input.input.input.input,
 .input-group > textarea.input.input.input,
 .input-group > select.input.input.input,
 .input-group > .user-label.user-label.user-label {
-  font-size: 13px !important;
+  font-size: 12px !important;
 }
 
 /* Pola formularzy (także combobox "Kraj") mają zawsze pełną wysokość
