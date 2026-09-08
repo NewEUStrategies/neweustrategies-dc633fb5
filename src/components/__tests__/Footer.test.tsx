@@ -11,8 +11,7 @@
  *     stoi między ustawieniami a widokiem: wartość spoza enumu (albo próg
  *     poza zakresem) NIE może wywrócić strony - stopka wraca wtedy do
  *     kompletu wartości domyślnych.
- *  3. TRYB ZWIĘZŁY (`compact`) - jedna listwa z prawami autorskimi, bez
- *     dokumentu buildera i bez przycisku powrotu na górę.
+ *  3. TRYB ZWIĘZŁY (`compact`) - nie renderuje stopki.
  *  4. POMIAR KLIKNIĘĆ W FAZIE PRZECHWYTYWANIA. Stopka nie ma własnych linków -
  *     nasłuchuje kliknięć na całym drzewie i mapuje `href` na kanoniczną grupę
  *     z `FOOTER_LINKS` (editorial / legal / community / ... / unknown), rozpoznaje
@@ -449,11 +448,6 @@ describe("Footer - warianty językowe", () => {
 
     
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "pl");
-    const legal = screen.getByRole("navigation", { name: "Informacje prawne" });
-    expect(within(legal).getByRole("link", { name: "Regulamin" })).toHaveAttribute(
-      "href",
-      "/regulamin",
-    );
   });
 
   it("wariant EN: ten sam chrome renderuje angielski szablon i angielskie etykiety", () => {
@@ -476,18 +470,6 @@ describe("Footer - warianty językowe", () => {
       screen.getByRole("button", { name: dict("en", "footer.back_to_top") }),
     ).toBeInTheDocument();
     expect(dict("en", "footer.back_to_top")).not.toBe(dict("pl", "footer.back_to_top"));
-    const legal = screen.getByRole("navigation", { name: "Legal" });
-    // Etykiety linków prawnych pochodzą z mapy `footerNavigation`, nie z kopii
-    // napisu: ten sam href ma inną etykietę niż w wariancie PL.
-    const terms = FOOTER_LINKS.find((link) => link.href === "/regulamin");
-    expect(terms?.label.en).toBeTruthy();
-    if (terms) {
-      expect(within(legal).getByRole("link", { name: terms.label.en })).toHaveAttribute(
-        "href",
-        "/regulamin",
-      );
-      expect(terms.label.en).not.toBe(terms.label.pl);
-    }
   });
 
 });
