@@ -1966,6 +1966,22 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   letter-spacing: 0;
   color: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
 }
+
+/* Wyszukiwarka w nagłówku musi mieć wystarczająco długie pole tekstowe.
+   Globalny reset `[data-builder-renderer] * { min-width: 0; }` ma wyższą
+   specyficzność niż atom Tailwinda, dlatego wymuszamy min-width tutaj.
+   Wartość `min(..., 100%)` pilnuje, aby na wąskich kolumnach nie wystawała. */
+[data-builder-renderer] .builder-search-widget {
+  min-width: min(220px, 100%);
+  align-self: center;
+  margin-block: auto;
+}
+@media (min-width: 768px) {
+  [data-builder-renderer] .builder-search-widget {
+    min-width: min(280px, 100%);
+  }
+}
+
 /* Mega menu trigger button shrinks/wraps */
 [data-builder-renderer][data-device="mobile"] [aria-haspopup="true"] {
   white-space: normal !important;
