@@ -8913,3 +8913,14 @@ input[type="reset"],
   padding-block: 0 !important;
   padding-inline: 0.9rem !important;
 }
+
+/* Wyjątek: pasek wyszukiwania w nagłówku to akcesorium nawigacji, nie pole
+   formularza - jego wysokość pochodzi z konfiguracji widgetu (`--search-h`),
+   inaczej rozpycha rząd menu. */
+.builder-search-widget .input-group > input.input.input.input {
+  min-height: 0 !important;
+  height: var(--search-h, 36px) !important;
+  line-height: 1 !important;
+  padding-block: 0 !important;
+}
+
