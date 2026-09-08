@@ -330,7 +330,7 @@ export function SearchButtonWidget({
   };
 
   // Pasek w nagłówku pozostaje niski, zgodnie z pierwotnym układem nawigacji.
-  const h = Math.max(28, Math.min(36, height || 32));
+  const h = Math.max(28, Math.min(36, height || 36));
   const pad = Math.max(8, Math.round(h * 0.28));
 
   // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
