@@ -319,6 +319,7 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as AdminAppearanceFontSizesRouteImport } from './routes/admin.appearance.font-sizes'
 import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/admin.appearance.category-archive'
 import { Route as AdminAnalyticsBiRouteImport } from './routes/admin.analytics.bi'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -1959,6 +1960,12 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const AdminAppearanceFontSizesRoute =
+  AdminAppearanceFontSizesRouteImport.update({
+    id: '/font-sizes',
+    path: '/font-sizes',
+    getParentRoute: () => AdminAppearanceRoute,
+  } as any)
 const AdminAppearanceCategoryArchiveRoute =
   AdminAppearanceCategoryArchiveRouteImport.update({
     id: '/category-archive',
@@ -2538,6 +2545,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
+  '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -2902,6 +2910,7 @@ export interface FileRoutesByTo {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
+  '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -3279,6 +3288,7 @@ export interface FileRoutesById {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
+  '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -3659,6 +3669,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
+    | '/admin/appearance/font-sizes'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -4023,6 +4034,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
+    | '/admin/appearance/font-sizes'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -4399,6 +4411,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
+    | '/admin/appearance/font-sizes'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -6878,6 +6891,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/admin/appearance/font-sizes': {
+      id: '/admin/appearance/font-sizes'
+      path: '/font-sizes'
+      fullPath: '/admin/appearance/font-sizes'
+      preLoaderRoute: typeof AdminAppearanceFontSizesRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
     '/admin/appearance/category-archive': {
       id: '/admin/appearance/category-archive'
       path: '/category-archive'
@@ -7359,6 +7379,7 @@ const AdminAnalyticsRouteWithChildren = AdminAnalyticsRoute._addFileChildren(
 
 interface AdminAppearanceRouteChildren {
   AdminAppearanceCategoryArchiveRoute: typeof AdminAppearanceCategoryArchiveRoute
+  AdminAppearanceFontSizesRoute: typeof AdminAppearanceFontSizesRoute
   AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
   AdminAppearanceGlobalColorsRoute: typeof AdminAppearanceGlobalColorsRoute
   AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
@@ -7369,6 +7390,7 @@ interface AdminAppearanceRouteChildren {
 
 const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
   AdminAppearanceCategoryArchiveRoute: AdminAppearanceCategoryArchiveRoute,
+  AdminAppearanceFontSizesRoute: AdminAppearanceFontSizesRoute,
   AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
   AdminAppearanceGlobalColorsRoute: AdminAppearanceGlobalColorsRoute,
   AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,

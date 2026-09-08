@@ -25,6 +25,7 @@ function AppearanceLayout() {
     { to: "/admin/appearance/category-archive", label: t("archiveLayout.categoryTab") },
     { to: "/admin/appearance/tag-archive", label: t("archiveLayout.tagTab") },
     { to: "/admin/appearance/global-colors", label: t("admin.appearance.globalColors") },
+    { to: "/admin/appearance/font-sizes", label: t("fontScale.title") },
   ];
   return (
     <div className="space-y-4">
