@@ -381,6 +381,7 @@ export function SearchButtonWidget({
           aria-label={label || placeholder}
           dir="ltr"
           className="input"
+          data-typography-exempt=""
           style={{
             height: `${h}px`,
             minHeight: `${h}px`,
@@ -395,7 +396,9 @@ export function SearchButtonWidget({
             unicodeBidi: "plaintext",
           }}
         />
-        <label className="user-label">{placeholder}</label>
+        <label className="user-label" data-typography-exempt="">
+          {placeholder}
+        </label>
         <div
           className="absolute top-0 flex h-full items-center gap-2"
           style={{ right: `${pad}px` }}
