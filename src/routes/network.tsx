@@ -491,7 +491,7 @@ function RequestsTab({
               "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
           )}
         >
-          <div className="flex items-center gap-3">
+          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
             <ChatAvatar
               name={r.display_name}
               avatarUrl={r.avatar_url}
@@ -528,7 +528,7 @@ function RequestsTab({
                 {t("network.requestedAt", { date: formatDate(r.requested_at) })}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
               {direction === "in" ? (
                 <ConnectButton
                   userId={r.user_id}
@@ -543,6 +543,7 @@ function RequestsTab({
                     degree: 3,
                   }}
                   compact
+                  iconOnly
                 />
               ) : (
                 <ConnectButton
@@ -556,6 +557,7 @@ function RequestsTab({
                     degree: 3,
                   }}
                   compact
+                  iconOnly
                 />
               )}
             </div>
@@ -674,7 +676,7 @@ function SuggestionsTab() {
               compact
               iconOnly
             />
-            <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
+            <ConnectButton userId={s.user_id} displayName={s.display_name} compact iconOnly />
             <Button
               type="button"
               variant="ghost"
