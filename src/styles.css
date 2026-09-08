@@ -1940,6 +1940,12 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
    softer pill, thinner border and a subtle tinted surface instead.
    ------------------------------------------------------------------------- */
 .builder-search-widget .input-group > .input.input {
+  /* Wysokość paska w nagłówku pochodzi z konfiguracji widgetu (`--search-h`).
+     Globalny atom formularza wymusza `min-height: 3rem`, co rozpychało pole
+     ponad rząd nawigacji - tutaj kasujemy to twardo. */
+  height: var(--search-h, 36px) !important;
+  min-height: 0 !important;
+  line-height: 1 !important;
   border-radius: 10px !important;
   border-width: 1px;
   border-color: color-mix(in oklab, var(--border) 80%, transparent);
@@ -1950,6 +1956,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     border-color 160ms ease,
     box-shadow 160ms ease;
 }
+
 .builder-search-widget .input-group > .input.input:hover:not(:disabled) {
   background: color-mix(in oklab, var(--muted) 75%, transparent);
   border-color: var(--border);
@@ -8905,4 +8912,14 @@ input[type="reset"],
   height: auto !important;
   padding-block: 0 !important;
   padding-inline: 0.9rem !important;
+}
+
+/* Wyjątek: pasek wyszukiwania w nagłówku to akcesorium nawigacji, nie pole
+   formularza - jego wysokość pochodzi z konfiguracji widgetu (`--search-h`),
+   inaczej rozpycha rząd menu. */
+.builder-search-widget .input-group > input.input.input.input {
+  min-height: 0 !important;
+  height: var(--search-h, 36px) !important;
+  line-height: 1 !important;
+  padding-block: 0 !important;
 }
