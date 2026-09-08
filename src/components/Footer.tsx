@@ -11,7 +11,6 @@ import {
   type FooterChrome,
 } from "@/lib/theme/footerSettings";
 import { BackToTop } from "@/components/footer/BackToTop";
-import { CopyrightBar } from "@/components/footer/CopyrightBar";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
 import { useLang } from "@/lib/i18n/useLang";
