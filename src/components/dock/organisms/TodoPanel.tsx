@@ -1,6 +1,12 @@
 // Organizm: panel zadań (osobiste TO-DO). Szybkie dodawanie, priorytety,
 // odhaczanie i usuwanie - wszystko na user_todos przez RLS użytkownika.
-import { useState } from "react";
+//
+// STAN OCZEKIWANIA MÓWI PRAWDĘ. Panel pokazywał „Brak zadań. Dodaj pierwsze
+// powyżej", gdy zapytanie było jeszcze w drodze - czyli zapraszał do
+// dopisania zadania, które już istnieje i zaraz się pojawi. Kolejność gałęzi
+// to teraz błąd -> oczekiwanie -> puste -> lista, a wiersze oczekiwania mają
+// geometrię wiersza realnego, więc podmiana nie rusza układu.
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckSquare, ListTodo, Trash2 } from "lucide-react";
 import { DockPanelShell } from "../DockPanelShell";
@@ -22,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-dock";
 
 export function TodoPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
@@ -35,8 +42,18 @@ export function TodoPanel({ onClose }: { onClose: () => void }) {
   const [priority, setPriorityDraft] = useState<TodoPriority>("medium");
   const [tab, setTab] = useState<"open" | "done">("open");
 
-  const all = todosQ.data ?? [];
-  const items = all.filter((todo) => (tab === "open" ? !todo.done : todo.done));
+  // Zależnością jest `todosQ.data`, a NIE `data ?? []`: drugie tworzy nową
+  // tablicę przy każdym renderze, więc `useMemo` nigdy by nie trafił, a jego
+  // obecność byłaby ozdobą.
+  const todos = todosQ.data;
+  const items = useMemo(
+    () => (todos ?? []).filter((todo) => (tab === "open" ? !todo.done : todo.done)),
+    [todos, tab],
+  );
+  const openCount = useMemo(
+    () => (todos ?? []).reduce((sum, todo) => sum + (todo.done ? 0 : 1), 0),
+    [todos],
+  );
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -107,12 +124,24 @@ export function TodoPanel({ onClose }: { onClose: () => void }) {
           </button>
         ))}
         <span className="ml-auto self-center text-[11px] text-muted-foreground">
-          {t("dock.todos.openCount", { count: all.filter((todo) => !todo.done).length })}
+          {t("dock.todos.openCount", { count: openCount })}
         </span>
       </div>
 
       {todosQ.isError ? (
         <DockEmptyState>{t("dock.error")}</DockEmptyState>
+      ) : todosQ.isPending ? (
+        <ul aria-busy="true" className="divide-y divide-border">
+          {["w-11/12", "w-2/3", "w-5/6", "w-1/2"].map((width) => (
+            <li key={width} className="flex items-start gap-2 px-3 py-2">
+              <span className="skeleton-shimmer mt-1 h-4 w-4 shrink-0 rounded-[4px]" />
+              <span className="min-w-0 flex-1 space-y-1.5">
+                <span className={cn("skeleton-shimmer block h-4 rounded-[6px]", width)} />
+                <span className="skeleton-shimmer block h-4 w-16 rounded-[6px]" />
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : items.length === 0 ? (
         <DockEmptyState icon={<CheckSquare className="h-6 w-6" aria-hidden />}>
           {t("dock.todos.empty")}

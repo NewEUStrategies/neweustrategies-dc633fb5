@@ -325,9 +325,15 @@ describe("RootComponent - korzeń aplikacji zamontowany po stronie klienta", () 
     // przechwytuje rzut z dowolnego miejsca poddrzewa i podmienia je na ekran
     // błędu - a wtedy asercja o subskrypcji wyżej NADAL PRZECHODZI (efekt
     // korzenia biegnie przed renderem dzieci). Pytamy o ROLĘ i o obecność
-    // landmarku, nie o polski literał z interfejsu.
+    // znacznika powłoki, nie o polski literał z interfejsu.
+    //
+    // WCZEŚNIEJ pytaliśmy tu o `[data-chat-dock-slot]` i asercja była
+    // CZERWONA: pływający dok czatu został usunięty, bo rozmowy żyją teraz
+    // wyłącznie w `WorkspaceDock` (decyzję trzyma `SiteChrome.test.tsx`,
+    // który asertuje BRAK tego gniazda). `data-site-shell` jest znacznikiem,
+    // który `SiteChrome` renderuje w wariancie publicznym.
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
+    expect(document.querySelector("[data-site-shell]")).not.toBeNull();
 
     // KILKA CYKLI, NIE JEDEN - i to jest ustalenie z pomiaru, nie ostrożność.
     // Gdy dziecko `<Suspense>` zawiesi render, React NIE PRÓBUJE rodzeństwa

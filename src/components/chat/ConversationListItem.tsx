@@ -32,6 +32,14 @@ export interface ConversationListItemProps {
   /** Skróć podgląd treści do N znaków (ikona czatu w nagłówku: 30). */
   previewChars?: number;
   onOpen: () => void;
+  /**
+   * Zamiar otwarcia rozmowy: najechanie kursorem, wejście focusem albo
+   * dotknięcie. Wywołujący używa tego do ROZGRZANIA paczki okna rozmowy,
+   * które jest leniwe (`chat/chatWindowChunk.ts`) - kod leci wtedy równolegle
+   * z decyzją użytkownika, a nie szeregowo po kliknięciu. Opcjonalne, bo
+   * powierzchnie, które okno mają już zamontowane, nie mają czego grzać.
+   */
+  onIntent?: () => void;
 }
 
 export function ConversationListItem(props: ConversationListItemProps) {
@@ -45,6 +53,7 @@ export function ConversationListItem(props: ConversationListItemProps) {
     active = false,
     previewChars,
     onOpen,
+    onIntent,
   } = props;
   const { t } = useTranslation();
   const display = conversationDisplay(view, profiles, t("chat.group.circle"), nicknames);
@@ -100,6 +109,9 @@ export function ConversationListItem(props: ConversationListItemProps) {
     <button
       type="button"
       onClick={onOpen}
+      onPointerEnter={onIntent}
+      onPointerDown={onIntent}
+      onFocus={onIntent}
       className={cn(
         "flex w-full items-center gap-2.5 rounded-[6px] px-2 py-2 text-left transition-colors",
         active ? "bg-muted" : "hover:bg-muted/60",

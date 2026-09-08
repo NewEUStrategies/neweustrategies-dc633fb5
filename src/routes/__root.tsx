@@ -34,6 +34,7 @@ import {
 import { LOCALE_CHUNK_URLS } from "../lib/seo/localeChunks";
 import { showsSiteChrome } from "../lib/routing/siteChrome";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
+import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
 import { markAppReady } from "../lib/watchdog/appReady";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
@@ -578,6 +579,18 @@ function RootShell({ children }: { children: ReactNode }) {
           <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />
         ) : null}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Rezerwacja dolnej krawędzi PRZED pierwszym malowaniem.
+            Pasek przestrzeni roboczej członka jest `position: fixed` przy
+            dolnej krawędzi, a pojawia się PÓŹNO: sesja Supabase rozstrzyga
+            się w efekcie, potem trzeba dociągnąć leniwą powłokę doku,
+            i tylko wtedy biegnie pomiar. Bez tego skryptu dół strony
+            podskakuje sekundy po pierwszym malowaniu, a CLS nalicza się
+            przez całe życie strony.
+            Skrypt odtwarza rezerwację z wysokości ZMIERZONEJ przy poprzednim
+            wejściu. NIE czyta stanu uwierzytelnienia - wyłącznie liczbę
+            pikseli własnego paska; kontrakt, limity i czyszczenie przy
+            wylogowaniu opisuje `lib/dock/reservedSpace.ts`. */}
+        <script dangerouslySetInnerHTML={{ __html: DOCK_RESERVE_INIT_SCRIPT }} />
       </head>
       <body>
         {children}

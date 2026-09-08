@@ -148,7 +148,20 @@ describe("bundle gate on emitted artifact fixtures", () => {
     const result = gate(dir, [], { CI: "true", MAX_BOOT_KB: "99999", MAX_PUBLIC_CSS_KB: "99999" });
     expect(result.status).toBe(0);
     expect(result.output).toContain("ZIGNOROWANE");
-    expect(result.output).toContain("budget ≤ 579 KB");
-    expect(result.output).toContain("budget ≤ 74 KB");
+    // Podniesiona wartość NIE MOŻE dojść do raportu...
+    expect(result.output).not.toContain("99999 KB");
+    // ...a próg, który bramka OGŁASZA jako zamrożony, musi być DOKŁADNIE tym,
+    // którego używa w raporcie. Oba czytamy z wyjścia, zamiast wpisywać
+    // literałem: progi w `check-bundle-size.ts` przesuwają się z pomiarem
+    // (kronika przy `THRESHOLDS`), więc literał oblewałby ten test za zmianę,
+    // której on wcale nie pilnuje - a pilnuje tego, że zmienna środowiskowa
+    // nie ma wpływu. Zmierzone: tak właśnie padł przy publicCss 74 -> 75.
+    for (const name of ["MAX_BOOT_KB", "MAX_PUBLIC_CSS_KB"]) {
+      const frozen = new RegExp(`${name}=99999 ZIGNOROWANE[^(]*\\((\\d+) KB\\)`).exec(
+        result.output,
+      );
+      expect(frozen, `brak noty o zamrożonym progu ${name}`).not.toBeNull();
+      expect(result.output).toContain(`budget ≤ ${frozen?.[1]} KB`);
+    }
   });
 });

@@ -1,28 +1,66 @@
 // Organizm: mini-kalendarz doku. Siatka miesiąca (logika w calendarGrid),
 // wydarzenia i zadania z terminem, lista wybranego dnia.
+//
+// ── CZAS IDZIE PRZEZ JEDNO ŹRÓDŁO PRAWDY ─────────────────────────────────
+// Panel czytał `new Date()` i formatował miesiąc gołym
+// `new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "pl-PL", ...)`, czyli
+// bez strefy i z własną tabelką locale. Repozytorium ma na to `lib/i18n/format.ts`
+// (`SITE_TIME_ZONE`, `formatDate`, `uiLocale`) i to nie jest kwestia stylu:
+// bez przypiętej strefy „dziś" jest dniem MASZYNY CZYTELNIKA, a każda inna
+// data na tej samej stronie jest dniem redakcji (Europe/Warsaw). Czytelnik
+// spoza CET/CEST widział więc obwódkę „dziś" na dniu, który w treści obok był
+// już dniem następnym - między 22:00 a 24:00 UTC to po prostu inna data na
+// jednym ekranie. Kursor startowy i klucz „dziś" liczy teraz `siteMonth`
+// i `siteDayKey`, a etykietę miesiąca `formatDate`.
+//
+// ── PRZEWIJANIE MIESIĄCA NIE GASI SIATKI ─────────────────────────────────
+// Zmiana miesiąca zmienia klucz zapytania, więc siatka gubiła kropki, a lista
+// dnia twierdziła „brak wydarzeń tego dnia", zanim cokolwiek wiedziała.
+// `useDockCalendar` trzyma teraz poprzedni miesiąc na ekranie
+// (`placeholderData`) i zgłasza `isFetching`, a panel to pokazuje.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { DockPanelShell } from "../DockPanelShell";
 import { DockEmptyState } from "../atoms/DockEmptyState";
-import { dayKey, monthGrid, shiftMonth } from "@/lib/dock/calendarGrid";
-import { useDockCalendar } from "@/lib/dock/useDockCalendar";
+import { monthGrid, shiftMonth, siteDayKey, siteMonth } from "@/lib/dock/calendarGrid";
+import {
+  calendarEntryTitle,
+  useDockCalendar,
+  type CalendarEventEntry,
+} from "@/lib/dock/useDockCalendar";
+import { formatDateOnly } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-dock";
 
 export function CalendarPanel({ onClose, lang }: { onClose: () => void; lang: "pl" | "en" }) {
   const { t } = useTranslation();
-  const today = useMemo(() => new Date(), []);
-  const [cursor, setCursor] = useState<[number, number]>([today.getFullYear(), today.getMonth()]);
-  const [selected, setSelected] = useState<string>(dayKey(today));
-  const { entries, isError } = useDockCalendar(cursor[0], cursor[1], lang);
+  // Dzień i miesiąc BIEŻĄCY w strefie serwisu - jedno wywołanie na montaż,
+  // żeby przejście przez północ nie przestawiło kursora pod ręką użytkownika.
+  const todayKey = useMemo(() => siteDayKey(), []);
+  const [cursor, setCursor] = useState<[number, number]>(() => siteMonth());
+  const [selected, setSelected] = useState<string>(todayKey);
+  const { entries, isPending, isFetching, isError } = useDockCalendar(cursor[0], cursor[1]);
 
   const grid = useMemo(() => monthGrid(cursor[0], cursor[1], entries), [cursor, entries]);
-  const selectedDay = grid.find((day) => day.key === selected);
+  // Mapa zamiast `grid.find` - lista dnia czyta ją przy każdym renderze.
+  const byKey = useMemo(() => {
+    const map = new Map<string, CalendarEventEntry[]>();
+    for (const day of grid) map.set(day.key, day.entries);
+    return map;
+  }, [grid]);
+  const selectedEntries = byKey.get(selected);
   const weekdays = t("dock.calendar.weekdays", { returnObjects: true }) as string[];
-  const monthLabel = new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "pl-PL", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(cursor[0], cursor[1], 1));
+  // ETYKIETA MIESIĄCA IDZIE PRZEZ `formatDateOnly`, czyli UTC - a nie przez
+  // strefę serwisu. Miesiąc NIE MA CHWILI, tak samo jak kolumna DATE, więc
+  // jest to ten sam przypadek, który `DATE_ONLY_TIME_ZONE` w `format.ts`
+  // opisuje wprost. Wariant „zbuduj `new Date(rok, miesiąc, 1)` i sformatuj
+  // w strefie serwisu" jest ZŁY i daje się odtworzyć: `new Date(y, m, 1)` to
+  // lokalna północ czytelnika, więc dla TZ=Asia/Tokyo przypada ona jeszcze
+  // w POPRZEDNIM miesiącu czasu warszawskiego - nad wrześniową siatką stało
+  // „sierpień 2026". `YYYY-MM-01` sformatowane w UTC nie ma jak się przesunąć.
+  const monthIso = `${cursor[0]}-${String(cursor[1] + 1).padStart(2, "0")}-01`;
+  const monthLabel = formatDateOnly(monthIso, lang, { month: "long", year: "numeric" });
 
   return (
     <DockPanelShell
@@ -52,15 +90,23 @@ export function CalendarPanel({ onClose, lang }: { onClose: () => void; lang: "p
         </button>
       </div>
 
-      <div className="p-3">
+      {/* `aria-busy` na SIATCE, nie na całym panelu: nawigacja miesiącami musi
+          zostać klikalna, a poprzedni miesiąc jest nadal poprawną treścią -
+          tylko już nieaktualną. */}
+      <div className="p-3" aria-busy={isFetching ? "true" : undefined}>
         <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[10px] font-semibold uppercase text-muted-foreground">
           {weekdays.map((day) => (
             <span key={day}>{day}</span>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        <div
+          className={cn(
+            "grid grid-cols-7 gap-1 transition-opacity duration-150",
+            isFetching && "opacity-60",
+          )}
+        >
           {grid.map((day) => {
-            const isToday = day.key === dayKey(today);
+            const isToday = day.key === todayKey;
             return (
               <button
                 key={day.key}
@@ -93,21 +139,31 @@ export function CalendarPanel({ onClose, lang }: { onClose: () => void; lang: "p
 
       {isError ? (
         <DockEmptyState>{t("dock.error")}</DockEmptyState>
-      ) : !selectedDay || selectedDay.entries.length === 0 ? (
+      ) : isPending ? (
+        // PIERWSZE pobranie tego miesiąca: nie wiemy jeszcze nic, więc nie
+        // wolno twierdzić, że dzień jest pusty.
+        <div aria-busy="true" className="space-y-2 border-t border-border p-3">
+          <div className="skeleton-shimmer h-4 w-3/4 rounded-[6px]" />
+          <div className="skeleton-shimmer h-4 w-1/2 rounded-[6px]" />
+        </div>
+      ) : !selectedEntries || selectedEntries.length === 0 ? (
         <DockEmptyState>{t("dock.calendar.dayEmpty")}</DockEmptyState>
       ) : (
         <ul className="divide-y divide-border border-t border-border">
-          {selectedDay.entries.map((entry) => (
-            <li key={entry.id} className="px-3 py-2">
-              {entry.href ? (
-                <a href={entry.href} className="text-sm text-foreground hover:underline">
-                  {entry.title}
-                </a>
-              ) : (
-                <span className="text-sm text-foreground">{entry.title}</span>
-              )}
-            </li>
-          ))}
+          {selectedEntries.map((entry) => {
+            const title = calendarEntryTitle(entry, lang);
+            return (
+              <li key={entry.id} className="px-3 py-2">
+                {entry.href ? (
+                  <a href={entry.href} className="text-sm text-foreground hover:underline">
+                    {title}
+                  </a>
+                ) : (
+                  <span className="text-sm text-foreground">{title}</span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </DockPanelShell>

@@ -1552,9 +1552,18 @@ select option {
   /* Chat dock: mounted once w SiteChrome. Podczas View Transition musi
      pozostać w miejscu (bez cross-fade/slide), inaczej "znika i wczytuje się"
      przy każdej nawigacji. Nazwany snapshot + brak animacji = stabilna klatka
-     nakładki niezależnie od zmiany trasy. */
+     nakładki niezależnie od zmiany trasy.
+
+     PASEK PRZESTRZENI ROBOCZEJ (`workspace-dock`) DOSTAJE TO SAMO, i z tego
+     samego powodu. Bez nazwanego snapshotu pasek wchodzi do migawki korzenia,
+     czyli przy KAŻDEJ nawigacji jest przenikany razem z całą stroną - choć
+     jest nakładką, która się nie zmienia. Dla poprzednika tej powierzchni
+     defekt rozpoznano i naprawiono wpisem `chat-dock` wyżej; pasek doku
+     powstał później i tej nazwy nie dostał. */
   ::view-transition-old(chat-dock),
-  ::view-transition-new(chat-dock) {
+  ::view-transition-new(chat-dock),
+  ::view-transition-old(workspace-dock),
+  ::view-transition-new(workspace-dock) {
     animation: none !important;
     mix-blend-mode: normal;
   }
@@ -1564,13 +1573,20 @@ select option {
     opacity: 0;
     transform: translateY(-4px);
   }
-  @keyframes route-skeleton-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+}
+/* WYPROWADZONE Z WNĘTRZA `vt-fade-out`. Ta reguła stała ZAGNIEŻDŻONA w innym
+   `@keyframes`, co jest składnią nieistniejącą - przeglądarka odrzucała blok
+   wewnętrzny, więc animacja `route-skeleton-in` NIE ISTNIAŁA, a
+   `RouteLoadingSkeleton` (`animate-[route-skeleton-in_260ms_ease-out_140ms_both]`)
+   pokazywał szkielet natychmiast, wbrew własnemu komentarzowi o opóźnieniu
+   140 ms. Teraz opóźnienie działa: przejście krótsze niż 140 ms nie mruga
+   szkieletem wcale. Z tej samej klatki korzysta szkielet paneli doku. */
+@keyframes route-skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 @keyframes vt-fade-in {
@@ -7114,27 +7130,44 @@ html {
   color: var(--mbb-active);
 }
 
-/* Rezerwacja dolnej krawędzi. `--mbb-space` (wysokość paska + jego odstęp)
-   publikuje kontener na <html> po zmierzeniu paska; to JEDNA prawda, z której
-   korzysta i dopełnienie strony, i uniesienie doku czatu. Obniżenie
-   min-height powłoki o ten sam pas sprawia, że krótka strona nie dostaje
-   sztucznego paska przewijania. */
-@media (max-width: 767.98px) {
-  html[data-mbb="on"] {
-    --mbb-reserve: calc(var(--mbb-space, 72px) + env(safe-area-inset-bottom, 0px) + 8px);
-  }
-  html[data-mbb="on"] body {
-    padding-bottom: var(--mbb-reserve);
-  }
-  html[data-mbb="on"] [data-site-shell] {
-    min-height: calc(100svh - var(--mbb-reserve));
-  }
-  /* Dok czatu też jest przypięty do dołu - bez tego okna i przypięte awatary
-     chowałyby się za paskiem. */
-  html[data-mbb="on"] [data-chat-dock-slot] > div {
-    padding-bottom: var(--mbb-reserve);
-  }
+/* Rezerwacja dolnej krawędzi. `--mbb-space` publikuje kontener na <html> po
+   zmierzeniu paska (`useDockReservedSpace`), a przy powtórnym wejściu robi to
+   już skrypt sprzed pierwszego malowania (`DOCK_RESERVE_INIT_SCRIPT`) - to
+   JEDNA prawda, z której korzysta i dopełnienie strony, i uniesienie doku
+   czatu. Obniżenie min-height powłoki o ten sam pas sprawia, że krótka strona
+   nie dostaje sztucznego paska przewijania.
+
+   KONTRAKT WARTOŚCI, spisany po obu stronach, bo jego brak dał podwójne
+   liczenie: `--mbb-space` to CAŁY ZAJĘTY PAS - `offsetHeight` mierzonego
+   węzła, a ten węzeł ma `padding-bottom: env(safe-area-inset-bottom)`, więc
+   bezpieczny obszar JUŻ JEST W ŚRODKU. Dlatego tutaj `env(...)` NIE dochodzi
+   po raz drugi; wcześniej dochodziło i na iPhonie z wcięciem dawało ~34 px
+   martwego pasa nad paskiem. Zostaje samo `+ 8px` odstępu treści od paska.
+
+   BEZ ZAWĘŻENIA DO SZEROKOŚCI. Blok stał w `@media (max-width: 767.98px)` -
+   spadek po czasach, gdy dolną krawędź zajmował wyłącznie mobilny pasek
+   (`MobileBottomBarView`, dziś już tylko podgląd w panelu admina). Pasek doku
+   jest `fixed inset-x-0 bottom-0` na KAŻDEJ szerokości i ma osobny rząd
+   desktopowy, więc od 768 px w górę rezerwacji nie było wcale i pasek
+   zasłaniał ostatni pas stopki. Rezerwacja idzie teraz za paskiem, a nie za
+   punktem przełamania. */
+html[data-mbb="on"] {
+  --mbb-reserve: calc(var(--mbb-space, 40px) + 8px);
 }
+html[data-mbb="on"] body {
+  padding-bottom: var(--mbb-reserve);
+}
+html[data-mbb="on"] [data-site-shell] {
+  min-height: calc(100svh - var(--mbb-reserve));
+}
+/* REGUŁA DLA `[data-chat-dock-slot]` ZOSTAŁA USUNIĘTA, bo tego gniazda już nie
+   ma: pływający dok czatu w prawym rogu wycofano, a rozmowy żyją wyłącznie
+   w pasku przestrzeni roboczej (decyzję trzyma `SiteChrome.test.tsx`, który
+   asertuje BRAK tego gniazda). Selektor nie miał do czego się przypiąć
+   w żadnym drzewie - został po nim tylko komentarz o „doku czatu przypiętym
+   do dołu", który mylił co do bieżącej architektury. Nowa powierzchnia
+   przypięta do dolnej krawędzi ma zamiast tego skorzystać z `--mbb-reserve`
+   u siebie. */
 
 /* Ograniczony ruch: zostaje sama informacja (koło, kolor, pozycja garbu),
    znikają przejścia i rysowanie ikony. */
@@ -7149,6 +7182,266 @@ html {
   }
   .mbb__item.active .mbb__icon {
     animation: none;
+  }
+}
+
+/* --- Przestrzeń robocza członka (WorkspaceDock) -------------------------- */
+/* RUCH DOKU IDZIE Z CSS, BEZ BIBLIOTEKI ANIMACJI.
+   Ta warstwa zastąpiła `framer-motion` w `WorkspaceDock.tsx` - jedyne miejsce
+   w repozytorium, które tę bibliotekę wciągało, przy ośmiu komponentach, które
+   ŚWIADOMIE odwzorowały jej animacje w CSS (`.pc-rise-*`, `.trc-*`, `.oi-*`,
+   `WorldMap`, `AvatarGroup`, `EventSpeakerCreateDialog`) właśnie po to, żeby
+   tej zależności w projekcie nie mieć.
+
+   CO TO NAPRAWIA, KONKRETNIE. Poprzednia wersja animowała przez `motion.button`
+   WŁASNOŚCI UKŁADU - `paddingLeft`, `paddingRight`, `gap` i `width` etykiety -
+   pętlą `requestAnimationFrame` w JS. Każda klatka takiej animacji to zapis
+   stylu z JS, przeliczenie układu CAŁEGO paska (dziewięć zakładek w jednym
+   rzędzie flex) i przemalowanie. Do tego 0,6 s czasu trwania z 0,1 s
+   opóźnienia, czyli 0,7 s na reakcję zakładki - trzykrotność zakresu, w którym
+   afordancja „kliknąłem i coś się stało" czyta się jako natychmiastowa.
+
+   ZASADY TEJ WARSTWY:
+     1. Ruch DUŻYCH POWIERZCHNI (panel, skrzynka, pasek) jedzie WYŁĄCZNIE na
+        `transform` i `opacity` - kompozytor, bez układu i bez malowania.
+        Rozwinięcie etykiety zakładki JEST przejściem układu i tego się nie
+        da obejść: żeby odsłonić tekst „do zawartości", sąsiedzi muszą się
+        rozstąpić. Różnica wobec poprzedniej wersji nie polega więc na
+        zniknięciu układu, tylko na tym, KTO go liczy i ILE RAZY: przejście
+        CSS na jednym węźle tekstowym zamiast pętli `requestAnimationFrame`
+        w JS, która przy każdej klatce zapisywała cztery własności na
+        przycisku. Fundamentalnie tańsza alternatywa (stały slot na etykietę,
+        czyli zero układu) wymagałaby stałej szerokości zakładki - przy
+        dziewięciu pozycjach pasek nie zmieściłby się na telefonie, więc jest
+        odrzucona świadomie, a nie przeoczona.
+     2. Aktywne tło zakładki to PSEUDOELEMENT animowany `opacity`, a nie
+        przejście `background-color` na przycisku - to drugie przemalowuje
+        także tekst i ikonę w środku.
+     3. Rozwinięcie etykiety zostaje (to jest projekt tego paska), ale robi je
+        przeglądarka przejściem CSS na `grid-template-columns`, z zapasem na
+        `max-width` dla starszych silników. Zero JS na klatkę.
+     4. `will-change` włącza się TYLKO na czas ruchu (atrybut `data-*`), nigdy
+        na stałe - stała promocja warstwy kosztuje pamięć GPU przy każdej
+        z dziewięciu zakładek na każdej podstronie.
+     5. Każdy ruch ma wyłącznik przy `prefers-reduced-motion: reduce` na końcu
+        tego bloku - stan końcowy pojawia się od razu, nic nie mruga. */
+:root {
+  /* Wyprowadzone z krzywych, które już są w tym pliku: `--wd-ease` to ta sama
+     krzywa co pasek akcentu menu konta (`.account-menu-accent`), a
+     `--wd-ease-emphasis` to krzywa wejścia karty trasy (`.trc-rise`). Jedna
+     rodzina ruchu w całym systemie, a nie dziewiąty wariant „ease-out". */
+  --wd-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --wd-ease-emphasis: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Czasy: afordancja w miejscu 180-200 ms, wejście powierzchni 200-240 ms,
+     wyjście krótsze o ~30% od wejścia (element, który znika, nie musi się
+     przedstawiać). */
+  --wd-tab-ms: 190ms;
+  --wd-panel-in-ms: 200ms;
+  --wd-panel-out-ms: 140ms;
+  --wd-drawer-in-ms: 240ms;
+  --wd-drawer-out-ms: 160ms;
+}
+
+/* Pasek: wjeżdża spod dolnej krawędzi raz, przy zamontowaniu.
+   KLATKA, NIE PRZEJŚCIE STEROWANE ATRYBUTEM - i to jest decyzja o
+   niezawodności, nie o stylu. Wariant z `data-enter="false"` w znaczniku
+   i przestawieniem na `true` z JS ma tę własność, że gdy JS nie dojedzie
+   (błąd hydratacji, wyłączony skrypt), pasek zostaje ZEPCHNIĘTY POZA EKRAN
+   na stałe - awaria zamiast braku ozdoby. Animacja CSS odgrywa się sama,
+   a `backwards` (nie `both`) wypełnia tylko stan SPRZED ruchu, więc po
+   zakończeniu element wraca pod zwykłe reguły kaskady - ten sam wniosek,
+   który zapisano przy `.trc-rise`. */
+@keyframes wd-bar-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wd-bar {
+  animation: wd-bar-in var(--wd-panel-in-ms) var(--wd-ease) backwards;
+}
+
+/* Zakładka: kolor tekstu przechodzi na przycisku, tło jedzie pseudoelementem. */
+.wd-tab {
+  position: relative;
+  isolation: isolate;
+  transition: color var(--wd-tab-ms) var(--wd-ease);
+}
+.wd-tab::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  /* TINT PRZEZ `opacity`, NIE PRZEZ `color-mix`. Powód jest mierzalny:
+     `color-mix` w tym arkuszu ciągnie za sobą zapasową regułę
+     `@supports (color: color-mix(in lab, red, red))` dokładaną przez
+     Tailwind, czyli TĘ SAMĄ deklarację dwa razy - a skoro i tak animujemy
+     `opacity`, docelowa wartość 0,1 załatwia jedno i drugie jedną
+     deklaracją.
+     UCZCIWIE O RÓŻNICY: to nie jest ta sama operacja kolorystyczna.
+     `color-mix(in oklab, ...)` interpoluje w Oklabie, a `opacity` składa
+     warstwę w przestrzeni renderowania - przy 10% jednolitego wypełnienia
+     na tle karty różnica jest nierozróżnialna, ale nie jest zerowa.
+     Skutek uboczny `opacity` (własny kontekst stosu na pseudoelemencie)
+     jest tu bez znaczenia: ten pseudoelement nie ma dzieci, a kolejność
+     trzyma `z-index: -1` przy `isolation: isolate` na przycisku. */
+  background-color: var(--primary);
+  opacity: 0;
+  transition: opacity var(--wd-tab-ms) var(--wd-ease);
+}
+.wd-tab[data-active="true"]::before {
+  opacity: 0.1;
+}
+/* Stan „ostatnio używane": obwódka bez tła, też pseudoelementem, żeby nie
+   dokładać drugiego przejścia na `box-shadow` samego przycisku. */
+.wd-tab::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border);
+  opacity: 0;
+  transition: opacity var(--wd-tab-ms) var(--wd-ease);
+}
+.wd-tab[data-recent="true"][data-active="false"]::after {
+  opacity: 1;
+}
+
+/* Rozwinięcie etykiety. `grid-template-columns: 0fr -> 1fr` animuje sam tor
+   siatki, więc tekst nie jest skalowany ani przesuwany subpikselowo - to
+   jedyna droga do rozwinięcia „do zawartości" bez pomiaru w JS.
+   Zapas dla silników bez animowanych torów `fr`: `max-width`, który daje ten
+   sam efekt wizualny (obcięcie `overflow: hidden`), tylko z układem liczonym
+   od góry limitu. */
+.wd-tab__reveal {
+  display: grid;
+  grid-template-columns: 0fr;
+  transition: grid-template-columns var(--wd-tab-ms) var(--wd-ease);
+}
+.wd-tab[data-active="true"] .wd-tab__reveal {
+  grid-template-columns: 1fr;
+}
+.wd-tab__label {
+  overflow: hidden;
+  min-width: 0;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate3d(-2px, 0, 0);
+  transition:
+    opacity var(--wd-tab-ms) var(--wd-ease),
+    transform var(--wd-tab-ms) var(--wd-ease);
+}
+.wd-tab[data-active="true"] .wd-tab__label {
+  opacity: 1;
+  transform: none;
+}
+/* ZAPASU `max-width` TU NIE MA - i to jest decyzja z pomiaru, nie
+   przeoczenie. `@supports not (grid-template-columns: 1fr)` pyta o obsługę
+   DEKLARACJI, a nie o animowalność torów `fr`: każda przeglądarka, która ma
+   CSS Grid, tę deklarację obsługuje, więc blok nie zapalał się NIGDY i był
+   martwym kodem w arkuszu render-blokującym. Silnik bez animowanych torów
+   `fr` pokaże etykietę skokowo - to degradacja bez utraty funkcji. */
+/* Promocja warstwy tylko na czas ruchu - ustawiana przez komponent, gdy
+   aktywna zakładka się zmienia, zdejmowana po zakończeniu przejścia. */
+.wd-nav[data-moving="true"] .wd-tab__label,
+.wd-nav[data-moving="true"] .wd-tab::before {
+  will-change: opacity, transform;
+}
+
+/* Panel nad paskiem: wejście i wyjście na `transform` + `opacity`.
+   Stan `exiting` trzyma węzeł w drzewie przez czas wyjścia (hak
+   `usePanelPresence`), więc zamknięcie też ma ruch - wcześniej panel po prostu
+   znikał w jednej klatce. */
+.wd-panel {
+  transform-origin: bottom center;
+}
+.wd-panel[data-state="entering"] {
+  opacity: 0;
+  transform: translate3d(0, 8px, 0) scale(0.98);
+}
+.wd-panel[data-state="entered"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--wd-panel-in-ms) var(--wd-ease),
+    transform var(--wd-panel-in-ms) var(--wd-ease-emphasis);
+}
+.wd-panel[data-state="exiting"] {
+  opacity: 0;
+  transform: translate3d(0, 6px, 0) scale(0.985);
+  transition:
+    opacity var(--wd-panel-out-ms) var(--wd-ease),
+    transform var(--wd-panel-out-ms) var(--wd-ease);
+}
+@media (min-width: 640px) {
+  .wd-panel {
+    transform-origin: bottom right;
+  }
+}
+
+/* Skrzynka czatu przy lewej krawędzi - ta sama mechanika, poziomo. */
+.wd-drawer[data-state="entering"] {
+  opacity: 0;
+  transform: translate3d(-12px, 0, 0);
+}
+.wd-drawer[data-state="entered"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--wd-drawer-in-ms) var(--wd-ease),
+    transform var(--wd-drawer-in-ms) var(--wd-ease);
+}
+.wd-drawer[data-state="exiting"] {
+  opacity: 0;
+  transform: translate3d(-12px, 0, 0);
+  transition:
+    opacity var(--wd-drawer-out-ms) var(--wd-ease),
+    transform var(--wd-drawer-out-ms) var(--wd-ease);
+}
+
+/* Pigułka zminimalizowanej rozmowy - wejście, żeby nie wskakiwała skokiem. */
+@keyframes wd-pill-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wd-pill {
+  animation: wd-pill-in var(--wd-panel-in-ms) var(--wd-ease-emphasis) backwards;
+}
+
+/* OGRANICZONY RUCH: zostaje sama informacja (który panel jest otwarty, która
+   zakładka aktywna), znika każde przejście i każda klatka. */
+@media (prefers-reduced-motion: reduce) {
+  .wd-tab,
+  .wd-tab::before,
+  .wd-tab::after,
+  .wd-tab__reveal,
+  .wd-tab__label,
+  .wd-panel[data-state="entered"],
+  .wd-panel[data-state="exiting"],
+  .wd-drawer[data-state="entered"],
+  .wd-drawer[data-state="exiting"] {
+    transition: none;
+  }
+  .wd-bar,
+  .wd-pill {
+    animation: none;
+  }
+  .wd-panel[data-state="entering"],
+  .wd-drawer[data-state="entering"] {
+    opacity: 1;
+    transform: none;
   }
 }
 

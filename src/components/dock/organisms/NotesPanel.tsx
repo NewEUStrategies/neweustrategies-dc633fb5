@@ -1,6 +1,9 @@
 // Organizm: notatnik. Tytuł, treść, kolor karteczki, przypięcie, edycja
 // w miejscu i usuwanie (user_notes przez RLS użytkownika).
-import { useState } from "react";
+//
+// STAN OCZEKIWANIA MÓWI PRAWDĘ - jak w panelu zadań: „Notatnik jest pusty"
+// pojawiało się także wtedy, gdy notatki były jeszcze w drodze.
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, Link2Off, NotebookPen, Pin, PinOff, Trash2 } from "lucide-react";
 import { DockPanelShell } from "../DockPanelShell";
@@ -9,6 +12,7 @@ import { useCreateNote, useDeleteNote, useNotes, useUpdateNote } from "@/lib/doc
 import { NOTE_COLORS, type NoteColor, type UserNote } from "@/lib/dock/types";
 import { useNoteContext } from "@/lib/dock/noteContext";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-dock";
 
 const SWATCH: Record<NoteColor, string> = {
   amber: "bg-amber-200 dark:bg-amber-500/40",
@@ -165,11 +169,14 @@ export function NotesPanel({ onClose }: { onClose: () => void }) {
   const [attach, setAttach] = useState(true);
   const [scope, setScope] = useState<"all" | "material">("all");
 
-  const all = notesQ.data ?? [];
-  const notes =
-    scope === "material" && context
-      ? all.filter((note) => note.entity_id === context.entityId)
-      : all;
+  // Zależnością jest `notesQ.data`, a NIE `data ?? []` - patrz ten sam
+  // komentarz w panelu zadań.
+  const data = notesQ.data;
+  const notes = useMemo(() => {
+    const all = data ?? [];
+    if (scope !== "material" || !context) return all;
+    return all.filter((note) => note.entity_id === context.entityId);
+  }, [data, scope, context]);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -258,6 +265,12 @@ export function NotesPanel({ onClose }: { onClose: () => void }) {
 
       {notesQ.isError ? (
         <DockEmptyState>{t("dock.error")}</DockEmptyState>
+      ) : notesQ.isPending ? (
+        <ul aria-busy="true" className="space-y-2 p-3">
+          {["h-20", "h-16", "h-24"].map((height) => (
+            <li key={height} className={cn("skeleton-shimmer rounded-[8px]", height)} />
+          ))}
+        </ul>
       ) : notes.length === 0 ? (
         <DockEmptyState icon={<NotebookPen className="h-6 w-6" aria-hidden />}>
           {t("dock.notes.empty")}

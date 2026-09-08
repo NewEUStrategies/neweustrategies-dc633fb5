@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dockKeys } from "./keys";
+import { DOCK_GC_MS, DOCK_STALE_MS } from "./queryPolicy";
 import { normalizePriority, sortTodos, type TodoPriority, type UserTodo } from "./types";
 
 const SELECT = "id, title, priority, due_at, done, done_at, source_task_id, created_at";
@@ -19,11 +20,19 @@ interface TodoRowDb {
   created_at: string;
 }
 
-export function useTodos() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: dockKeys.todos(user?.id),
-    enabled: !!user,
+/**
+ * Opcje zapytania WYCIĄGNIĘTE Z HAKA, żeby ten sam kształt (klucz, funkcja,
+ * świeżość) mógł być użyty także do ROZGRZANIA danych przed otwarciem panelu
+ * (`prefetchDockData`). Wcześniej opcje żyły tylko w ciele haka, więc nie
+ * istniał sposób pobrania danych bez zamontowania panelu - czyli sieć
+ * startowała po kliknięciu, szeregowo za pobraniem paczki panelu.
+ * To ta sama konwencja, co `conversationsQueryOptions` w warstwie czatu.
+ */
+export function todosQueryOptions(userId: string | undefined) {
+  return {
+    queryKey: dockKeys.todos(userId),
+    staleTime: DOCK_STALE_MS,
+    gcTime: DOCK_GC_MS,
     queryFn: async (): Promise<UserTodo[]> => {
       const { data, error } = await supabase
         .from("user_todos")
@@ -37,12 +46,33 @@ export function useTodos() {
       });
       return sortTodos(rows);
     },
-  });
+  };
 }
 
+export function useTodos() {
+  const { user } = useAuth();
+  return useQuery({ ...todosQueryOptions(user?.id), enabled: !!user });
+}
+
+/**
+ * Licznik otwartych zadań przy ikonie na pasku.
+ *
+ * Liczy przez `select`, a NIE przez filtrowanie wyniku w ciele komponentu -
+ * i to jest różnica wykonawcza, nie kosmetyczna. React Query przerysowuje
+ * subskrybenta, gdy zmieni się WYNIK `select`; bez niego dok przerysowywał
+ * się przy KAŻDYM odświeżeniu listy zadań (nowa tablica = nowa referencja),
+ * także wtedy, gdy liczba otwartych pozycji była identyczna. Tu wynikiem jest
+ * liczba, więc pasek nie rusza się, dopóki licznik się nie zmieni.
+ * Wzorzec przeniesiony z `useChatUnreadTotal` w warstwie czatu.
+ */
 export function useOpenTodoCount(): number {
-  const { data } = useTodos();
-  return (data ?? []).filter((todo) => !todo.done).length;
+  const { user } = useAuth();
+  const q = useQuery({
+    ...todosQueryOptions(user?.id),
+    enabled: !!user,
+    select: (todos: UserTodo[]) => todos.reduce((sum, todo) => sum + (todo.done ? 0 : 1), 0),
+  });
+  return q.data ?? 0;
 }
 
 export interface TodoDraft {

@@ -226,9 +226,19 @@ describe("__root jako korzeń prawdziwego RouterProvider", () => {
     //    z 2026-07-20 wyglądała dokładnie odwrotnie.
     expect(rendered.getByTestId("child-route")).toBeTruthy();
 
-    // 2. GNIAZDO CHAT-DOCKU renderuje `SiteChrome` - czyli gałąź, która na
-    //    atrapie routera wpadała do `ErrorBoundary`, tutaj żyje.
-    expect(document.querySelector("[data-chat-dock-slot]")).not.toBeNull();
+    // 2. POWŁOKA PUBLICZNA (`SiteChrome`) FAKTYCZNIE SIĘ ZŁOŻYŁA - czyli
+    //    gałąź, która na atrapie routera wpadała do `ErrorBoundary`, tutaj
+    //    żyje. Pytamy o `data-site-shell`, bo to jest znacznik, który
+    //    `SiteChrome` renderuje w wariancie publicznym (i od którego zależy
+    //    rezerwacja dolnej krawędzi w `styles.css`).
+    //
+    //    WCZEŚNIEJ STAŁO TU `[data-chat-dock-slot]` i ta asercja była
+    //    CZERWONA: pływający dok czatu w prawym rogu został usunięty, bo
+    //    rozmowy żyją teraz wyłącznie w `WorkspaceDock` - decyzję trzyma
+    //    `SiteChrome.test.tsx` („pływający dok czatu (...) jest usunięty"),
+    //    który asertuje BRAK tego gniazda. Dwa testy korzenia pytały więc
+    //    o element, którego produkt świadomie nie ma.
+    expect(document.querySelector("[data-site-shell]")).not.toBeNull();
 
     // 3. FLAGA GOTOWOŚCI. `__nesAppReady` czytają OBIE bramki artefaktu
     //    (`e2e/boot-artifact.spec.ts` - żywotność, `e2e/boot-timing.spec.ts` -

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dockKeys } from "./keys";
+import { DOCK_GC_MS, DOCK_STALE_MS } from "./queryPolicy";
 import { normalizeReadLaterState, type ReadLaterItem, type ReadLaterState } from "./types";
 
 const SELECT = "id, entity_type, entity_id, title, url, state, note, read_at, created_at";
@@ -28,11 +29,12 @@ function normalizeEntity(value: string): ReadLaterEntity {
   return ENTITY_TYPES.includes(value as ReadLaterEntity) ? (value as ReadLaterEntity) : "external";
 }
 
-export function useReadLater() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: dockKeys.readLater(user?.id),
-    enabled: !!user,
+/** Opcje zapytania kolejki czytania - patrz `todosQueryOptions`. */
+export function readLaterQueryOptions(userId: string | undefined) {
+  return {
+    queryKey: dockKeys.readLater(userId),
+    staleTime: DOCK_STALE_MS,
+    gcTime: DOCK_GC_MS,
     queryFn: async (): Promise<ReadLaterItem[]> => {
       const { data, error } = await supabase
         .from("user_read_later")
@@ -49,12 +51,12 @@ export function useReadLater() {
         } satisfies ReadLaterItem;
       });
     },
-  });
+  };
 }
 
-export function useUnreadLaterCount(): number {
-  const { data } = useReadLater();
-  return (data ?? []).filter((item) => item.state === "unread").length;
+export function useReadLater() {
+  const { user } = useAuth();
+  return useQuery({ ...readLaterQueryOptions(user?.id), enabled: !!user });
 }
 
 export interface ReadLaterDraft {

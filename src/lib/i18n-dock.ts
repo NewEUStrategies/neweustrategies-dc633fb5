@@ -8,6 +8,7 @@ export const dockPl = {
     close: "Zamknij",
     toolbar: "Pasek narzędzi",
     shortcuts: "Skróty nawigacyjne",
+    workspace: "Przestrzeń robocza",
     guest: "Zaloguj się, żeby korzystać z tej przestrzeni.",
     error: "Nie udało się wczytać danych. Spróbuj ponownie.",
     loading: "Wczytywanie...",
@@ -26,15 +27,21 @@ export const dockPl = {
         online: "Online",
         direct: "Wiadomości prywatne",
         groups: "Kanały i grupy",
-        people: "Osoby",
       },
       empty: "Brak rozmów. Wyszukaj osobę, żeby zacząć.",
-      noPeople: "Brak osób dla tej frazy.",
       openAll: "Otwórz wiadomości",
       start: "Napisz",
       minimize: "Zminimalizuj rozmowę",
       closeConversation: "Zamknij rozmowę",
-      minimizedMore: "Jeszcze {{count}} zminimalizowane rozmowy",
+      // LICZBY MNOGIE, nie jedna forma. Klucz bez wariantów drukował „Jeszcze
+      // 1 zminimalizowane rozmowy" - i to była wartość NAJCZĘSTSZA, bo limit
+      // widocznych pigułek to 2, więc pierwsza ukryta rozmowa daje count=1.
+      // Polski wymaga czterech form, angielski dwóch (parytet zwalnia z EN
+      // tylko `_few` i `_many`; `_one` i `_other` muszą być po obu stronach).
+      minimizedMore_one: "Jeszcze {{count}} zminimalizowana rozmowa",
+      minimizedMore_few: "Jeszcze {{count}} zminimalizowane rozmowy",
+      minimizedMore_many: "Jeszcze {{count}} zminimalizowanych rozmów",
+      minimizedMore_other: "Jeszcze {{count}} zminimalizowanej rozmowy",
       restore: "Przywróć rozmowę: {{name}}",
     },
     todos: {
@@ -95,16 +102,15 @@ export const dockPl = {
       full: "Pełny kalendarz",
       weekdays: ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"],
     },
+    // Kolejka czytania NIE MA już własnego panelu: `ReadLaterPanel` usunięty
+    // (zero importerów), a jej elementy pokazuje panel zapisanych. Zostają
+    // więc wyłącznie klucze AKCJI, których `SavedPanel` faktycznie woła -
+    // tytuł, wyszukiwarka, filtry i pusty stan odeszły razem z panelem.
     readLater: {
-      title: "Do przeczytania później",
-      searchPlaceholder: "Szukaj w kolejce...",
-      filters: { unread: "Nieprzeczytane", all: "Wszystko", archived: "Archiwum" },
-      empty: "Kolejka jest pusta.",
       markRead: "Oznacz jako przeczytane",
       markUnread: "Oznacz jako nieprzeczytane",
       archive: "Przenieś do archiwum",
       remove: "Usuń z kolejki",
-      open: "Otwórz materiał",
     },
   },
 };
@@ -115,6 +121,7 @@ export const dockEn = {
     close: "Close",
     toolbar: "Tool bar",
     shortcuts: "Navigation shortcuts",
+    workspace: "Workspace",
     guest: "Sign in to use this workspace.",
     error: "Could not load the data. Please try again.",
     loading: "Loading...",
@@ -133,15 +140,14 @@ export const dockEn = {
         online: "Online",
         direct: "Direct messages",
         groups: "Channels and groups",
-        people: "People",
       },
       empty: "No conversations yet. Search for someone to start.",
-      noPeople: "No people match this search.",
       openAll: "Open messages",
       start: "Message",
       minimize: "Minimize conversation",
       closeConversation: "Close conversation",
-      minimizedMore: "{{count}} more minimized conversations",
+      minimizedMore_one: "{{count}} more minimized conversation",
+      minimizedMore_other: "{{count}} more minimized conversations",
       restore: "Restore conversation: {{name}}",
     },
     todos: {
@@ -202,16 +208,14 @@ export const dockEn = {
       full: "Full calendar",
       weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     },
+    // Reading queue has NO panel of its own any more - `ReadLaterPanel` was
+    // removed (zero importers) and the saved-items panel shows its entries.
+    // Only the ACTION keys that `SavedPanel` actually calls remain.
     readLater: {
-      title: "Read later",
-      searchPlaceholder: "Search the queue...",
-      filters: { unread: "Unread", all: "All", archived: "Archive" },
-      empty: "The queue is empty.",
       markRead: "Mark as read",
       markUnread: "Mark as unread",
       archive: "Move to archive",
       remove: "Remove from queue",
-      open: "Open item",
     },
   },
 };

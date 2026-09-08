@@ -2,6 +2,7 @@
 // działały w trybie jasnym i ciemnym.
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-dock";
 import type { TodoPriority } from "@/lib/dock/types";
 
 const TONE: Record<TodoPriority, string> = {

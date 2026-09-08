@@ -1,7 +1,21 @@
 // Organizm: zapisane elementy + kolejka „do przeczytania". Czyta istniejące
 // zakładki (artykuły, strony, wydarzenia) oraz kolejkę user_read_later -
 // nie tworzy drugiego magazynu zapisów.
-import { useMemo, useState } from "react";
+//
+// ── TRZY POPRAWKI ODCZUWANEJ PŁYNNOŚCI ───────────────────────────────────
+//  1. STAN OCZEKIWANIA MÓWI PRAWDĘ. Panel pokazywał „Nic jeszcze nie
+//     zapisałeś", gdy zapytanie było jeszcze w drodze - czyli podawał
+//     nieprawdę zamiast przyznać, że nie wie. Kolejność gałęzi to teraz
+//     błąd -> oczekiwanie (szkielet wiersza) -> puste -> lista.
+//  2. JEDNO SCALENIE, NIE JEDNO NA ZNAK. Scalenie dwóch źródeł i sortowanie
+//     całej listy siedziało w jednym `useMemo` razem z filtrowaniem po
+//     frazie, więc KAŻDE naciśnięcie klawisza w wyszukiwarce sortowało
+//     wszystko od nowa. Teraz scalenie zależy tylko od danych, a filtr -
+//     tylko od frazy i wybranego rodzaju.
+//  3. PISANIE ZOSTAJE PŁYNNE. Fraza idzie przez `useDeferredValue`, więc
+//     przerysowanie listy ma niski priorytet i nie blokuje pola tekstowego
+//     (ta sama technika, co w wyszukiwarce skrzynki czatu).
+import { useDeferredValue, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
@@ -16,13 +30,10 @@ import {
 } from "lucide-react";
 import { DockPanelShell } from "../DockPanelShell";
 import { DockEmptyState } from "../atoms/DockEmptyState";
-import { useSavedEntries } from "@/lib/dock/useSaved";
-import {
-  useReadLater,
-  useRemoveReadLater,
-  useSetReadLaterState,
-} from "@/lib/dock/useReadLater";
+import { savedEntryTitle, useSavedEntries } from "@/lib/dock/useSaved";
+import { useReadLater, useRemoveReadLater, useSetReadLaterState } from "@/lib/dock/useReadLater";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-dock";
 
 type SavedKind = "post" | "page" | "event" | "readLater";
 
@@ -44,24 +55,39 @@ interface SavedListItem {
   state?: "unread" | "read" | "archived";
 }
 
+/** Wiersze oczekiwania w geometrii wiersza realnego - bez przeskoku układu. */
+function PendingRows() {
+  return (
+    <ul aria-busy="true" className="divide-y divide-border">
+      {["w-11/12", "w-3/4", "w-5/6", "w-2/3", "w-10/12"].map((width) => (
+        <li key={width} className="flex items-center gap-2 px-3 py-2.5">
+          <span className="skeleton-shimmer h-4 w-4 shrink-0 rounded-full" />
+          <span className={cn("skeleton-shimmer h-4 rounded-[6px]", width)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function SavedPanel({ onClose, lang }: { onClose: () => void; lang: "pl" | "en" }) {
   const { t } = useTranslation();
-  const savedQ = useSavedEntries(lang);
+  const savedQ = useSavedEntries();
   const readLaterQ = useReadLater();
   const setState = useSetReadLaterState();
   const remove = useRemoveReadLater();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
 
-  const isLoading = savedQ.isLoading || readLaterQ.isLoading;
+  const isPending = savedQ.isPending || readLaterQ.isPending;
   const isError = savedQ.isError || readLaterQ.isError;
 
-  const entries = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+  // Scalenie + sortowanie: zależy WYŁĄCZNIE od danych i języka tytułu.
+  const merged = useMemo<SavedListItem[]>(() => {
     const saved: SavedListItem[] = (savedQ.data ?? []).map((entry) => ({
       id: entry.id,
       kind: entry.kind,
-      title: entry.title,
+      title: savedEntryTitle(entry, lang),
       href: entry.href,
       savedAt: entry.savedAt,
     }));
@@ -73,15 +99,18 @@ export function SavedPanel({ onClose, lang }: { onClose: () => void; lang: "pl" 
       savedAt: item.created_at,
       state: item.state,
     }));
-    const all = [...saved, ...readLater].sort(
-      (a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt),
-    );
-    return all.filter((entry) => {
+    return [...saved, ...readLater].sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt));
+  }, [savedQ.data, readLaterQ.data, lang]);
+
+  // Filtr: zależy tylko od frazy i rodzaju, więc pisanie nie sortuje listy.
+  const entries = useMemo(() => {
+    const needle = deferredQuery.trim().toLowerCase();
+    return merged.filter((entry) => {
       if (filter === "readLater") return entry.kind === "readLater";
       if (filter !== "all" && entry.kind !== filter) return false;
       return needle.length === 0 || entry.title.toLowerCase().includes(needle);
     });
-  }, [savedQ.data, readLaterQ.data, filter, query]);
+  }, [merged, filter, deferredQuery]);
 
   return (
     <DockPanelShell
@@ -119,8 +148,8 @@ export function SavedPanel({ onClose, lang }: { onClose: () => void; lang: "pl" 
 
       {isError ? (
         <DockEmptyState>{t("dock.error")}</DockEmptyState>
-      ) : isLoading ? (
-        <DockEmptyState>{t("dock.loading")}</DockEmptyState>
+      ) : isPending ? (
+        <PendingRows />
       ) : entries.length === 0 ? (
         <DockEmptyState icon={<Bookmark className="h-6 w-6" aria-hidden />}>
           {t("dock.saved.empty")}
@@ -131,14 +160,8 @@ export function SavedPanel({ onClose, lang }: { onClose: () => void; lang: "pl" 
             const Icon = ICON[entry.kind];
             const isReadLater = entry.kind === "readLater";
             return (
-              <li
-                key={`${entry.kind}-${entry.id}`}
-                className="flex items-center gap-2 px-3 py-2.5"
-              >
-                <Icon
-                  className="h-4 w-4 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
+              <li key={`${entry.kind}-${entry.id}`} className="flex items-center gap-2 px-3 py-2.5">
+                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 {entry.href ? (
                   <a
                     href={entry.href}
@@ -177,9 +200,7 @@ export function SavedPanel({ onClose, lang }: { onClose: () => void; lang: "pl" 
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        setState.mutate({ id: entry.id, state: "archived" })
-                      }
+                      onClick={() => setState.mutate({ id: entry.id, state: "archived" })}
                       aria-label={t("dock.readLater.archive")}
                       className="rounded-[6px] p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
