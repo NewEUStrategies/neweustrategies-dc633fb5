@@ -200,12 +200,12 @@ function PersonRow({
     <li
       ref={highlightRef(!!highlighted)}
       className={cn(
-        "flex flex-col gap-2 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+        "flex min-w-0 flex-col gap-2 overflow-hidden rounded-[6px] border border-border/60 bg-card p-2.5 transition-colors hover:border-border sm:p-3",
         highlighted && "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
       )}
       data-user-id={userId}
     >
-      <div className="flex items-center gap-3">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
         <ChatAvatar
           name={displayName}
           avatarUrl={avatarUrl}
@@ -225,7 +225,9 @@ function PersonRow({
         ) : (
           <div className="min-w-0 flex-1">{details}</div>
         )}
-        <div className="flex shrink-0 items-center gap-1.5">{children}</div>
+        <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
+          {children}
+        </div>
       </div>
       {intents && intents.length > 0 && (
         <ul className="flex flex-wrap gap-1" aria-label={t("profileIntent.openToLabel")}>
@@ -380,6 +382,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                   displayAvatar={c.avatar_url}
                   compact
                   iconOnly
+                  className="!h-8 !min-h-8 !w-8 !min-w-8 !p-0"
                   connectionState={{
                     ...NO_CONNECTION,
                     status: "connected",
@@ -399,6 +402,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                     degree: 1,
                   }}
                   iconOnly
+                  className="!h-8 !min-h-8 !w-8 !min-w-8 !p-0"
                 />
               </PersonRow>
             ))}
@@ -487,7 +491,7 @@ function RequestsTab({
               "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
           )}
         >
-          <div className="flex items-center gap-3">
+          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
             <ChatAvatar
               name={r.display_name}
               avatarUrl={r.avatar_url}
@@ -524,7 +528,7 @@ function RequestsTab({
                 {t("network.requestedAt", { date: formatDate(r.requested_at) })}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
               {direction === "in" ? (
                 <ConnectButton
                   userId={r.user_id}
@@ -539,6 +543,7 @@ function RequestsTab({
                     degree: 3,
                   }}
                   compact
+                  iconOnly
                 />
               ) : (
                 <ConnectButton
@@ -552,6 +557,7 @@ function RequestsTab({
                     degree: 3,
                   }}
                   compact
+                  iconOnly
                 />
               )}
             </div>
@@ -670,7 +676,7 @@ function SuggestionsTab() {
               compact
               iconOnly
             />
-            <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
+            <ConnectButton userId={s.user_id} displayName={s.display_name} compact iconOnly />
             <Button
               type="button"
               variant="ghost"
