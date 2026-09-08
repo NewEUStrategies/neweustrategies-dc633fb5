@@ -71,6 +71,7 @@ import { GiftBanner } from "@/components/gifting/GiftBanner";
 import { GooglePreferredSourceBadge } from "@/components/seo/GooglePreferredSourceBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { getRequestUrl } from "@/lib/seo/request";
+import { publicFacingOrigin } from "@/lib/http/host";
 import {
   buildContentHead,
   buildArticleJsonLd,
@@ -394,8 +395,12 @@ export const Route = createFileRoute("/$")({
     const it = loaderData?.item;
     if (!it) return { meta: [] };
     const splat = (params as { _splat?: string })._splat ?? "";
-    const url = getRequestUrl() || `/${splat}`;
-    const lang = activeLang(url);
+    // Adresy w <head> (canonical, og:url, JSON-LD, citation_*) zawsze na
+    // kanonicznej domenie marki - host podglądu/hostingu nigdy nie wycieka.
+    const rawUrl = getRequestUrl() || `/${splat}`;
+    const { origin: rawOrigin, path: rawPath } = splitUrl(rawUrl);
+    const url = rawOrigin ? absoluteUrl(publicFacingOrigin(rawOrigin), rawPath) : rawUrl;
+    const lang = activeLang(rawUrl);
     const isPost = loaderData.kind === "post";
     const seoSettings = loaderData.seoSettings ?? parseSeoSettings(null);
     const seoRow = it as SeoFieldsRow;
@@ -652,8 +657,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const citationUrl = useMemo(() => {
     const override = seoCanonicalOverride(it as SeoFieldsRow);
     if (override) return override;
+    // Adres pokazywany czytelnikowi (cytowanie) zawsze na domenie kanonicznej,
+    // nigdy na hoście podglądu/hostingu.
     const { origin, path } = splitUrl(getRequestUrl());
-    return absoluteUrl(origin, path);
+    return absoluteUrl(publicFacingOrigin(origin), path);
   }, [it]);
 
   // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the

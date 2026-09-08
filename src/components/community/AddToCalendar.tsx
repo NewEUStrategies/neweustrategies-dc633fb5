@@ -1,6 +1,7 @@
 // "Dodaj do kalendarza" - molekuła na detalu wydarzenia. Trzy ścieżki:
 // Google / Outlook (głębokie linki w nowej karcie) i pobranie pliku .ics
 // (Apple/Thunderbird/import ręczny). Generacja w lib/community/calendar.
+import { browserPublicOrigin } from "@/lib/http/host";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarPlus, Download, ExternalLink } from "lucide-react";
@@ -43,7 +44,7 @@ export function AddToCalendar({ event, lang }: { event: PublicEvent; lang: "pl" 
   const [open, setOpen] = useState(false);
 
   const input = useMemo(
-    () => toCalendarInput(event, lang, typeof window === "undefined" ? "" : window.location.origin),
+    () => toCalendarInput(event, lang, typeof window === "undefined" ? "" : browserPublicOrigin()),
     [event, lang],
   );
   // Wczesne zbudowanie ICS waliduje dane wejściowe zanim pokażemy opcje.

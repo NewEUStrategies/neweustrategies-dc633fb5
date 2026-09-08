@@ -67,6 +67,7 @@
 //     atrapami, a ich logika (RLS, wielotenantowość, popup logowania) ma własne
 //     pliki. RLS i RPC nie są tu badane w ogóle.
 //   * ŻADNE wywołanie nie wychodzi do sieci.
+import { toCanonicalPublicUrl } from "@/lib/http/host";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { render, waitFor, within } from "@testing-library/react";
 import { act } from "react";
@@ -1109,7 +1110,7 @@ describe("FloatingShareBar - źródło adresu", () => {
       name: "share.channel.facebook(lng=pl)",
     });
     expect(new URL(facebook.getAttribute("href") ?? "").searchParams.get("u")).toBe(
-      window.location.href,
+      toCanonicalPublicUrl(window.location.href),
     );
     expect(window.location.href).toContain("/analizy/pierwszy-wpis?utm_source=nl");
   });
@@ -1122,7 +1123,7 @@ describe("FloatingShareBar - źródło adresu", () => {
       name: "share.channel.facebook(lng=pl)",
     });
     expect(new URL(facebook.getAttribute("href") ?? "").searchParams.get("u")).toBe(
-      window.location.href,
+      toCanonicalPublicUrl(window.location.href),
     );
   });
 
@@ -1177,7 +1178,7 @@ describe("FloatingShareBar - źródło adresu", () => {
     });
 
     expect(container.querySelector("[data-listen-card]")?.getAttribute("data-post-href")).toBe(
-      window.location.href,
+      toCanonicalPublicUrl(window.location.href),
     );
     expect(window.location.href).toContain("/analizy/odsluch");
   });

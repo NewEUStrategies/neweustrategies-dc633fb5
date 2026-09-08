@@ -2,6 +2,7 @@
 // Wyodrębnione 1:1 z dawnej trasy /profile/social (teraz przekierowanie) -
 // zachowanie bez zmian: slug publiczny, bio PL/EN (kanoniczne w profiles),
 // linki społecznościowe, e-mail kontaktowy.
+import { browserPublicOrigin } from "@/lib/http/host";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -124,7 +125,7 @@ export function SocialIdentityPanel() {
           return;
         }
       }
-      if (active && typeof window !== "undefined") setOrigin(window.location.origin);
+      if (active && typeof window !== "undefined") setOrigin(browserPublicOrigin());
     })();
     return () => {
       active = false;

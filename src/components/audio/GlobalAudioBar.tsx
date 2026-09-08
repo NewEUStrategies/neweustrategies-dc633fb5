@@ -1,6 +1,7 @@
 // Trwały bottom bar globalnego odtwarzacza audio. Renderowany raz w __root,
 // widoczny tylko gdy w playerze siedzi jakiś track. Płynnie pojawia się gdy
 // user uruchomi odsłuch, przetrwa zmiany stron.
+import { browserPublicOrigin } from "@/lib/http/host";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Download, X, Share2 } from "@/lib/lucide-shim";
@@ -125,7 +126,8 @@ export function GlobalAudioBar() {
 
   const onShare = async () => {
     // Zawsze udostępniamy link do materiału (artykułu), nie plik audio.
-    const url = new URL(track.postHref, window.location.origin).toString();
+    // Origin publiczny (domena marki), nigdy host podglądu.
+    const url = new URL(track.postHref, browserPublicOrigin()).toString();
     const shareData = { title: track.title, url } as ShareData;
     try {
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {

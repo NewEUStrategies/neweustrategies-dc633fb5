@@ -38,6 +38,7 @@
 // GRANICA DOWODU: nic tutaj nie dowodzi, że backend pokazuje bilet TYLKO
 // właścicielowi - to trzyma RLS i `loadMyEventTicket` (własne testy warstwy
 // serwerowej). Ten plik odpowiada za to, co widzi posiadacz biletu.
+import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { MyEventTicket } from "@/lib/events/ticketTypes";
@@ -206,7 +207,7 @@ describe("kod QR niesie WYŁĄCZNIE numer biletu", () => {
     await waitForRows(container);
     await waitFor(() => expect(h.toDataURL).toHaveBeenCalled());
     const payload = h.toDataURL.mock.calls[0]?.[0];
-    expect(payload).toBe(ticketQrPayload(window.location.origin, "szczyt-energetyczny", CODE));
+    expect(payload).toBe(ticketQrPayload(CANONICAL_SITE_ORIGIN, "szczyt-energetyczny", CODE));
     expect(payload).toContain(CODE);
   });
 
