@@ -946,13 +946,17 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, textarea:hover, select:hover){background:var(--gc-input-hover-bg, var(--gc-input-bg, transparent));border-color:var(--gc-input-hover-border, var(--gc-input-border, currentColor));}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible, textarea:focus, textarea:focus-visible, select:focus, select:focus-visible){border-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));outline-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));}
 
-    /* Per-element hover (auto z isSlotHoverable). */
-    :where(main h1:hover, article h1:hover){color:var(--gc-h1-hover, var(--gc-h1, inherit));}
-    :where(main h2:hover, article h2:hover){color:var(--gc-h2-hover, var(--gc-h2, inherit));}
-    :where(main h3:hover, article h3:hover){color:var(--gc-h3-hover, var(--gc-h3, inherit));}
-    :where(main h4:hover, article h4:hover){color:var(--gc-h4-hover, var(--gc-h4, inherit));}
-    :where(main h5:hover, article h5:hover){color:var(--gc-h5-hover, var(--gc-h5, inherit));}
-    :where(main h6:hover, article h6:hover){color:var(--gc-h6-hover, var(--gc-h6, inherit));}
+    /* Per-element hover (auto z isSlotHoverable).
+       Gradient headings (.text-gradient-brand / .bg-clip-text) must stay
+       transparent on hover, otherwise the solid hover color would hide
+       the gradient behind an opaque foreground. */
+    :where(main h1:hover:not(.text-gradient-brand):not(.bg-clip-text), article h1:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h1-hover, var(--gc-h1, inherit));}
+    :where(main h2:hover:not(.text-gradient-brand):not(.bg-clip-text), article h2:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h2-hover, var(--gc-h2, inherit));}
+    :where(main h3:hover:not(.text-gradient-brand):not(.bg-clip-text), article h3:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h3-hover, var(--gc-h3, inherit));}
+    :where(main h4:hover:not(.text-gradient-brand):not(.bg-clip-text), article h4:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h4-hover, var(--gc-h4, inherit));}
+    :where(main h5:hover:not(.text-gradient-brand):not(.bg-clip-text), article h5:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h5-hover, var(--gc-h5, inherit));}
+    :where(main h6:hover:not(.text-gradient-brand):not(.bg-clip-text), article h6:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h6-hover, var(--gc-h6, inherit));}
+
     :where(main p:hover, article p:hover, main li:hover, article li:hover){color:var(--gc-body-text-hover, var(--gc-body-text, inherit));}
     :where(main small:hover, article small:hover, section small:hover, .text-muted:hover, .muted:hover){color:var(--gc-body-text-muted-hover, var(--gc-body-text-muted, inherit));}
     :where(.sponsor-label:hover){color:var(--gc-sponsor-label-hover, var(--gc-sponsor-label, currentColor));}
