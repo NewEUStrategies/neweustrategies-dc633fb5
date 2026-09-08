@@ -8658,6 +8658,7 @@ h3 .cms-inline-status-icon {
 [data-slot="select-label"],
 select:not([multiple]):not([size]),
 select option,
-[data-topics-droplist] button {
+[data-droplist],
+[data-droplist] * {
   font-size: 11px !important;
 }
