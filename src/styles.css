@@ -6353,7 +6353,7 @@ textarea::placeholder {
    neutralizuje także mobilną regułę 16 px powyżej, która chroni pozostałe pola
    formularzy przed automatycznym powiększeniem widoku przez iOS Safari. */
 textarea[data-chat-composer-input][data-chat-composer-input] {
-  font-size: 11.5px !important;
+  font-size: 12px !important;
 }
 
 /* -------------------------------------------------------------------------
@@ -8630,7 +8630,7 @@ h3 .cms-inline-status-icon {
 }
 
 /* ---------------------------------------------------------------------------
-   GLOBAL ATOM RULE: all dropdown lists (droplists) use 11px text and compact
+   GLOBAL ATOM RULE: all dropdown lists (droplists) use 12px text and compact
    sizing. Covers shadcn/Radix Select (trigger + content + items), native
    selects, and custom droplist triggers such as TopicsDroplist.
 --------------------------------------------------------------------------- */
@@ -8646,7 +8646,7 @@ select:not([multiple]):not([size]),
 select:not([multiple]):not([size]) option,
 [data-droplist],
 [data-droplist] * {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 /* Compact droplist sizing: shorter triggers/items and smaller caret. */
@@ -8768,7 +8768,7 @@ select:not([multiple]):not([size]) option,
 }
 
 /* ---------------------------------------------------------------------------
-   GLOBAL ATOM RULE: every input and label uses 11px text platform-wide,
+   GLOBAL ATOM RULE: every input and label uses 12px text platform-wide,
    including the admin panel. Covers native fields, shadcn Input/Textarea,
    labels (incl. floating), search fields and contenteditable editors.
 --------------------------------------------------------------------------- */
@@ -8782,13 +8782,13 @@ label,
 [data-slot="label"],
 [role="textbox"],
 [contenteditable="true"] {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 input::placeholder,
 textarea::placeholder,
 [contenteditable="true"]:empty::before {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
@@ -8801,7 +8801,7 @@ textarea::placeholder,
 [data-admin-shell] [role="combobox"],
 [data-admin-shell] [data-slot="select-trigger"],
 [data-admin-shell] [data-slot="select-item"] {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 /* ---------------------------------------------------------------------------
