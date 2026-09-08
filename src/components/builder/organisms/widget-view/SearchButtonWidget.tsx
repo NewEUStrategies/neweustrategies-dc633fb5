@@ -345,14 +345,21 @@ export function SearchButtonWidget({
     <div
       ref={wrapRef}
       className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto"
-      style={{
-        overflow: "visible",
-        fontFamily:
-          '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
-      }}
+      style={
+        {
+          overflow: "visible",
+          "--search-h": `${h}px`,
+          fontFamily:
+            '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
+        } as React.CSSProperties
+      }
     >
       {router?.state ? <SearchUrlQSync onUrlQ={setUrlQ} /> : null}
-      <div className="input-group" style={{ height: `${h}px`, overflow: "visible" }}>
+      <div
+        className="input-group"
+        style={{ height: `${h}px`, minHeight: `${h}px`, overflow: "visible" }}
+      >
+
         <input
           ref={inputRef}
           type="text"
