@@ -29,3 +29,5 @@
 
 - [x] `signal is aborted without reason` - jawny powód przerwania sondy + filtr szumu (klient i ingest)
 - [x] `[boot] undefined` - sonda bootu milknie po `__nesAppReady` i odrzuca puste komunikaty
+
+- [x] Przebudować hierarchię wątku klubowego: większy tytuł, etykiety nad nim, autor z avatarem oraz data i godzina pod tytułem.

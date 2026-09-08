@@ -505,17 +505,6 @@ function ClubThreadView() {
                   {t(`club.anchorType.${thread.anchor_type}`)}
                 </Badge>
               ) : null}
-              <span aria-hidden="true">·</span>
-              <ClubAuthorAvatar
-                name={author.name}
-                avatarUrl={author.avatarUrl}
-                size="sm"
-                muted={author.kind !== "named"}
-              />
-              <span className="truncate font-medium text-foreground">{author.name}</span>
-              <span aria-hidden="true">·</span>
-              <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
-              {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
               {thread.pinned_at !== null ? (
                 <span className="inline-flex items-center gap-1 text-primary">
                   <Pin className="h-3 w-3" aria-hidden="true" />
@@ -524,7 +513,25 @@ function ClubThreadView() {
               ) : null}
             </>
           }
-          title={<h1 className="text-base sm:text-xl [overflow-wrap:anywhere]">{thread.title}</h1>}
+          title={
+            <h1 className="text-2xl font-bold leading-tight sm:text-3xl [overflow-wrap:anywhere]">
+              {thread.title}
+            </h1>
+          }
+          byline={
+            <>
+              <ClubAuthorAvatar
+                name={author.name}
+                avatarUrl={author.avatarUrl}
+                size="sm"
+                muted={author.kind !== "named"}
+              />
+              <span className="truncate font-semibold text-foreground">{author.name}</span>
+              <span aria-hidden="true">·</span>
+              <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
+              {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
+            </>
+          }
           footer={
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
               <ClubReactionBar
