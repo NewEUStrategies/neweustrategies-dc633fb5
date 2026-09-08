@@ -8768,16 +8768,34 @@ select:not([multiple]):not([size]) option,
 }
 
 /* ---------------------------------------------------------------------------
-   GLOBAL ATOM RULE: every input and label uses 11px text platform-wide.
-   Covers native fields, shadcn Input/Textarea, and labels (incl. floating).
+   GLOBAL ATOM RULE: every input and label uses 11px text platform-wide,
+   including the admin panel. Covers native fields, shadcn Input/Textarea,
+   labels (incl. floating), search fields and contenteditable editors.
 --------------------------------------------------------------------------- */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]),
 textarea,
-label {
+label,
+[data-slot="input"],
+[data-slot="textarea"],
+[data-slot="label"],
+[role="textbox"],
+[contenteditable="true"] {
   font-size: 11px !important;
 }
 
 input::placeholder,
-textarea::placeholder {
+textarea::placeholder,
+[contenteditable="true"]:empty::before {
   font-size: 11px;
 }
+
+/* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
+[data-admin-shell] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+[data-admin-shell] textarea,
+[data-admin-shell] label,
+[data-admin-shell] [role="combobox"],
+[data-admin-shell] [data-slot="select-trigger"],
+[data-admin-shell] [data-slot="select-item"] {
+  font-size: 11px !important;
+}
+
