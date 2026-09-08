@@ -267,8 +267,8 @@ function PersonCard({
   );
 
   return (
-    <li className="flex flex-col gap-2 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border">
-      <div className="flex items-center gap-3">
+    <li className="flex min-w-0 flex-col gap-2 overflow-hidden rounded-[6px] border border-border/60 bg-card p-2.5 transition-colors hover:border-border sm:p-3">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
         <ChatAvatar
           name={person.display_name}
           avatarUrl={person.avatar_url}
@@ -288,7 +288,7 @@ function PersonCard({
         ) : (
           <div className="min-w-0 flex-1">{details}</div>
         )}
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
           {person.slug && (
             <ProfileLinkButton slug={person.slug} displayName={person.display_name} compact />
           )}
@@ -300,6 +300,7 @@ function PersonCard({
               displayName={person.display_name}
               displayAvatar={person.avatar_url}
               compact
+              iconOnly
               connectionState={connection}
             />
           )}
