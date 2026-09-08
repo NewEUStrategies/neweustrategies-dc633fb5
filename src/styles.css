@@ -8662,3 +8662,74 @@ select option,
 [data-droplist] * {
   font-size: 11px !important;
 }
+
+/* ==========================================================================
+   Karty korzyści w treści CMS (np. strona "Dołącz do newslettera").
+   Treść w bazie nie może nieść atrybutu `style` (sanitizer go usuwa), więc
+   układ premium żyje TUTAJ, a HTML w bazie podaje tylko semantyczne klasy.
+   ========================================================================== */
+.nes-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.nes-benefits__item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in oklab, var(--primary) 22%, transparent);
+  border-radius: 6px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--primary) 8%, transparent),
+    transparent 62%
+  );
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+.nes-benefits__item:hover {
+  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+  transform: translateY(-1px);
+}
+.nes-benefits__num {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklab, var(--primary) 38%, transparent);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+.nes-benefits__body {
+  display: block;
+}
+.nes-benefits__title {
+  display: block;
+  font-size: 16px;
+  line-height: 1.35;
+  margin-bottom: 5px;
+  font-weight: 700;
+}
+.nes-benefits__desc {
+  display: block;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+/* Nadtytuł sekcji w treści CMS (klasa zamiast atrybutu `style`). */
+.nes-kicker {
+  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
