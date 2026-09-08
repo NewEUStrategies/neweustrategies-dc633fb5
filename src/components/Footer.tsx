@@ -82,11 +82,7 @@ function FooterInner({ compact }: FooterProps) {
   }, []);
 
   if (compact) {
-    return (
-      <footer className="shrink-0 border-t border-border bg-card">
-        <CopyrightBar chrome={chromeCfg} lang={lang} />
-      </footer>
-    );
+    return null;
   }
 
   if (!doc?.sections?.length) {
@@ -108,7 +104,6 @@ function FooterInner({ compact }: FooterProps) {
         style={{ viewTransitionName: "site-footer" }}
       >
         <BuilderRenderer doc={doc} lang={lang} />
-        <CopyrightBar chrome={chromeCfg} lang={lang} />
       </footer>
       {chromeCfg.back_to_top ? (
         <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />
