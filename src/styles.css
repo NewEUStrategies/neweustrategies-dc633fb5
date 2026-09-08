@@ -6367,7 +6367,8 @@ textarea[data-chat-composer-input][data-chat-composer-input] {
 [role="option"][role="option"],
 [data-radix-select-viewport][data-radix-select-viewport],
 [data-radix-select-viewport] [data-radix-select-viewport] *,
-select:not([multiple]):not([multiple]) {
+select:not([multiple]):not([multiple]),
+select:not([multiple]):not([multiple]) option {
   font-size: 11px !important;
 }
 
