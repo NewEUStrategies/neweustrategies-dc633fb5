@@ -495,6 +495,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             value={text}
             rows={1}
             maxLength={MAX_BODY_LENGTH}
+            // Bez podpowiedzi menedżerów haseł/kart nad klawiaturą (iOS/Safari,
+            // 1Password, LastPass) - to pole wiadomości, nie formularz logowania.
+            name="chat-message"
+            id="chat-message-input"
+            autoComplete="off"
+            autoCorrect="on"
+            autoCapitalize="sentences"
+            spellCheck
+            inputMode="text"
+            enterKeyHint="send"
+            data-form-type="other"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-bwignore="true"
             onChange={(e) => {
               setText(e.target.value);
               resize();
