@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { dayKey, monthGrid, monthRange, shiftMonth, type CalendarEntry } from "../calendarGrid";
+import { freezeClock } from "@/test/time";
+
+// ZAMROŻENIE ZEGARA, choć asercje niżej podają WSZYSTKIE daty jawnie.
+// Powód jest w module pod testem, nie tutaj: `calendarGrid` dostał
+// `siteDayKey()` i `siteMonth()` z domyślnym argumentem `Date.now()`, czyli
+// od tej zmiany jest modułem CZYTAJĄCYM ZEGAR. Bramka `check:clock-freeze`
+// liczy taki import jak własną zależność pliku testowego - słusznie, bo
+// pierwsze wywołanie bez argumentu byłoby zależne od dnia przebiegu.
+freezeClock();
 
 const entry = (id: string, startsAt: string): CalendarEntry => ({
   id,

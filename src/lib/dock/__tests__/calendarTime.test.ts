@@ -18,6 +18,17 @@
 // dowodzenia stosuje `ssrRenderSafety.test.tsx` dla `formatDate`.
 import { afterEach, describe, expect, it } from "vitest";
 import { dayKey, monthGrid, shiftMonth, siteDayKey, siteMonth } from "../calendarGrid";
+import { freezeClock } from "@/test/time";
+
+// ZAMROŻENIE ZEGARA. Każda asercja w tym pliku podaje chwilę jawnie
+// (`MS_END_OF_SEPTEMBER`), więc „teraz" nie wchodzi do wyniku - ale
+// `siteDayKey()` i `siteMonth()` mają domyślny argument `Date.now()`, czyli
+// wywołanie bez argumentu zależałoby od dnia przebiegu. Zamrożenie jest
+// niezależne od podmiany STREFY (`underTimeZone` rusza `process.env.TZ`,
+// a nie chwilę), więc kontrola wrażliwości na strefę - `dayKey(new Date(ms))`
+// dające RÓŻNE wyniki pod Tokio i Los Angeles - nadal działa; gdyby przestała,
+// ten plik oblałby się natychmiast, bo tego właśnie wymaga.
+freezeClock();
 
 const ORIGINAL_TZ = process.env.TZ;
 
