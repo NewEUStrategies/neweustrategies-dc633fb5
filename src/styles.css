@@ -6537,6 +6537,13 @@ textarea[data-chat-composer-input][data-chat-composer-input] {
 .cms-social-list > li::marker {
   content: none;
 }
+/* Zaimportowane z WP listy społecznościowe, w których linki mają wyłącznie
+   pustą ikonę (<i></i>), renderują się jako pomarańczowe kropki. Nie niosą
+   żadnej informacji wizualnej - ukrywamy je w treści CMS. */
+.cms-social-list:has(> li > a > i:empty) {
+  display: none;
+}
+
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Site header shrink-on-scroll: po przewinięciu header zmniejsza się płynnie,
