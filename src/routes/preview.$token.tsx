@@ -33,9 +33,21 @@ const COPY = {
 
 export const Route = createFileRoute("/preview/$token")({
   loader: async ({ params }) => {
-    const post = await fetchPreviewPost({ data: { token: params.token } });
-    return { post };
+    // Token spoza formatu (za krótki, wklejony fragment, link z literówką) nie
+    // jest awarią serwera - to po prostu nieważny link podglądu. Walidator
+    // server fn odrzucał go rzutem, co dawało odpowiedź 500 i pusty ekran,
+    // więc kształt sprawdzamy TUTAJ i wtedy w ogóle nie wołamy serwera.
+    const token = params.token;
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) return { post: null };
+    try {
+      const post = await fetchPreviewPost({ data: { token } });
+      return { post };
+    } catch {
+      return { post: null };
+    }
   },
+
+
   head: () => ({
     meta: [
       { title: "Preview" },
