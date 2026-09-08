@@ -8944,3 +8944,27 @@ input[type="reset"],
   line-height: 1 !important;
   padding-block: 0 !important;
 }
+
+/* Przełączniki (Switch): globalne reguły przycisków/formularzy nie mogą
+   zmieniać ich wysokości, paddingu ani typografii. */
+[data-ui-switch],
+[data-admin-shell] [data-ui-switch] {
+  height: 22px !important;
+  min-height: 0 !important;
+  width: 38px !important;
+  padding: 2px !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  box-sizing: border-box;
+}
+
+[data-ui-switch] > span {
+  flex: 0 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-ui-switch],
+  [data-ui-switch] > span {
+    transition-duration: 0.01ms !important;
+  }
+}
