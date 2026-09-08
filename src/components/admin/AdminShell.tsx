@@ -370,7 +370,10 @@ function AdminShellInner({
   };
 
   return (
-    <div className={`admin-compact min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}>
+    <div
+      data-admin-shell=""
+      className={`admin-compact min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}
+    >
       {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
