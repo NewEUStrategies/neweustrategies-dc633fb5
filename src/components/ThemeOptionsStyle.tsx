@@ -124,7 +124,7 @@ export function ThemeOptionsStyle() {
       align-items: center;
       position: relative;
       overflow: hidden;
-      padding: 2px;
+      padding: 0;
       border-width: 0;
     }
     button[role="switch"][data-state="unchecked"] {
@@ -132,21 +132,6 @@ export function ThemeOptionsStyle() {
     }
     button[role="switch"][data-state="checked"] {
       background: var(--to-toggle-on);
-    }
-    button[role="switch"][data-state] > span {
-      position: absolute;
-      inset-inline-start: 2px;
-      top: 50%;
-      width: ${thumb}px;
-      height: ${thumb}px;
-      border-radius: ${thumbRadius}px;
-      background: var(--to-toggle-thumb);
-      transform: translate3d(0, -50%, 0);
-      transition: transform 280ms cubic-bezier(0.34, 1.2, 0.64, 1);
-      will-change: transform;
-    }
-    button[role="switch"][data-state="checked"] > span {
-      transform: translate3d(calc(var(--to-toggle-w) - var(--to-toggle-h)), -50%, 0);
     }
     label:has(+ button[role="switch"]),
     button[role="switch"] + label,
