@@ -103,8 +103,6 @@ export function ThemeOptionsStyle() {
   const tgW = tg.width ?? 44;
   const tgH = tg.height ?? 24;
   const tgR = tg.radius ?? 999;
-  const thumb = Math.max(8, tgH - 4);
-  const thumbRadius = tgR >= 999 ? 999 : Math.max(0, tgR - 2);
   const togglesCss = `
     :root {
       --to-toggle-w: ${tgW}px;
