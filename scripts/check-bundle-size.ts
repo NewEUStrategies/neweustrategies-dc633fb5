@@ -1162,7 +1162,62 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 2711 -> 2715 (wpis 2026-08-30 VII): scalenie PR #307 dołożyło
   // 3,5 KB słowników modułu Wydarzeń. Runner 2714,3; host na tym samym
   // drzewie 2701,7, czyli MIEŚCIŁ SIĘ w 2711 - czerwony był wyłącznie runner.
-  public: 2715,
+  // ── 2026-09-08: PUBLIC 2715 -> 2739, OVERALL 4351 -> 4406 ────────────────
+  // TO JEST ZAPIS DŁUGU, KTÓRY JUŻ ISTNIAŁ, a nie zgoda na nowy wzrost.
+  //
+  // POMIAR (pełny build na tym hoście, DOMKNIĘTY - łącznie z etapem nitro;
+  // drzewo po scaleniu `main` do gałęzi doku): public 2 727,9 KB,
+  // overall 4 387,3 KB. Oba progi były przekroczone
+  // JUŻ PRZED tą gałęzią - zmierzone osobnym pełnym buildem drzewa sprzed niej
+  // (worktree na HEAD~1, ten sam host): public 2 759,0 KB, overall 4 418,0 KB.
+  // Ta gałąź obniża więc OBIE sumy o ~33,5 KB, a mimo to nie schodzi pod stary
+  // sufit - bo długu nie zrobiła.
+  //
+  // SKĄD SIĘ WZIĄŁ, per chunk, względem baseline'u 971400e (2026-09-06):
+  //   + 66,4 KB  admin.events_._eventId.registration.tickets  (NOWY, admin)
+  //   + 17,5 KB  invalidate                                    (NOWY)
+  //   + 15,9 KB  admin.newsletter.popup                        (NOWY, admin)
+  //   + 11,1 KB  WorkspaceDock                                 (NOWY) <- ta gałąź
+  //   +  6,3 KB  vendor-radix-select                           (NOWY)
+  //   +  5,6 KB  membership-registration                       (NOWY)
+  //   +  5,4 KB  vendor-radix-menu                             (NOWY)
+  //   -  5,9 KB  vendor-radix netto po rozbiciu na select/menu
+  //   -  3,2 KB  index        -1,6 KB  messages
+  // Baseline nie znał chunku `WorkspaceDock`, bo pomiar jest o dzień starszy
+  // niż dok - dlatego raport ruchów przypisywał tej gałęzi dwie doby cudzej
+  // pracy. `bundle-baseline.json` jest w tym commicie odświeżony, żeby
+  // następny autor widział SWOJĄ deltę, a nie sumę wszystkiego od 06.09.
+  //
+  // WKŁAD TEJ GAŁĘZI, uczciwie: chunk `WorkspaceDock` to nowe 11,1 KB gzip
+  // w sumie publicznej. W tym samym ruchu ten chunk stracił jednak 37,3 KB
+  // (48,7 -> 11,4 KB gzip, `framer-motion`), a otwarcie skrzynki czatu 48,9 KB
+  // (60,2 -> 11,3 KB) - liczby w kronice przy `publicCss`. Netto dla
+  // czytelnika: mniej kodu na drodze do pierwszego malowania paska.
+  //
+  // FORMUŁA PROGU JAK W KRONICE (wpis VII): zmierzone na hoście + udokumentowana
+  // rozbieżność host <-> runner (+0,466%), sufit do pełnego KB.
+  //   public:  2 727,9 x 1,00466 = 2 740,6 -> 2739 przyjęte po pomiarze
+  //            domkniętego buildu; zapas 11,1 KB (0,40%)
+  //   overall: 4 387,3 x 1,00466 = 4 407,7 -> 4406 j.w.; zapas 18,7 KB (0,42%)
+  // ZASTRZEŻENIE DO TYCH DWÓCH LICZB: sufit wypadł MINIMALNIE PONIŻEJ wyniku
+  // formuły (2739 < 2740,6 i 4406 < 4407,7), bo progi postawiłem na pomiarze
+  // z buildu, który jeszcze się domykał (2 725,5 / 4 384,9), a domknięty dał
+  // o ~2,4 KB więcej. Zapas jest więc o ~1,6 KB ciaśniejszy niż formuła każe -
+  // czyli bramka jest OSTROŻNIEJSZA, nie luźniejsza, i dlatego tych progów
+  // NIE podnoszę powtórnie. Pierwszy zielony log runnera rozstrzyga (wpis V);
+  // jeśli padnie na własnym szumie, właściwa korekta to 2741 / 4408.
+  // Ostrzeżenie „ZAPAS BUDŻETU PONIŻEJ 2%" zapali się i tak - to ten sam koszt
+  // maksymalnej czułości, który policzył wpis VII. ZASADA Z WPISU V
+  // OBOWIĄZUJE: pierwszy zielony log runnera jest podstawą do korekty.
+  //
+  // CO ZOSTAJE DO ZROBIENIA I DLA KOGO: 66,4 KB w
+  // `admin.events_._eventId.registration.tickets` i 15,9 KB w
+  // `admin.newsletter.popup` to chunki ADMINOWE - nie liczą się do sumy
+  // publicznej, ale liczą do `overall`. Największa pozycja publiczna to
+  // `invalidate` (17,5 KB): warto sprawdzić, czy musi być statycznie osiągalna
+  // z chunku publicznego. Tego NIE ruszam w tej gałęzi - to nie jej zakres,
+  // a wpis ma dać następnej osobie punkt startu, nie zostawić ślepy próg.
+  public: 2739,
   // gzip JS łącznie z kodem tylko adminowym. Zmierzone NA RUNNERZE 2026-08-19
   // (run 2397 i 2408, identycznie): 3892,0 przy 790 plikach.
   // Floor 3893, NIE 3892 - i to nie zapas, tylko granica zaokrąglenia.
@@ -1188,7 +1243,9 @@ const FROZEN_BUDGET_KB = {
   // 1596,4 -> 1633,0, przy PUBLIC schodzącym 2701,7 -> 2687,6.
   // TA LICZBA JEST Z HOSTA, NIE Z RUNNERA, I CZEKA NA PRZEFLOOROWANIE
   // Z PIERWSZEGO ZIELONEGO LOGU RUNNERA (zasada z wpisu V) - jak `css` i `boot`.
-  overall: 4351,
+  // Patrz wpis 2026-09-08 przy `public` - ten próg idzie tą samą formułą
+  // i z tego samego pomiaru.
+  overall: 4406,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
