@@ -8768,9 +8768,9 @@ select:not([multiple]):not([size]) option,
 }
 
 /* ---------------------------------------------------------------------------
-   GLOBAL ATOM RULE: every input and label uses 12px text platform-wide,
-   including the admin panel. Covers native fields, shadcn Input/Textarea,
-   labels (incl. floating), search fields and contenteditable editors.
+   GLOBAL ATOM RULE: every input and label uses 13px text platform-wide,
+   including the admin panel and floating (`.user-label`) labels. Covers native
+   fields, shadcn Input/Textarea, labels, search fields and contenteditable.
 --------------------------------------------------------------------------- */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
     [type="submit"]
@@ -8781,14 +8781,15 @@ label,
 [data-slot="textarea"],
 [data-slot="label"],
 [role="textbox"],
-[contenteditable="true"] {
-  font-size: 12px !important;
+[contenteditable="true"],
+.input-group > .user-label {
+  font-size: 13px !important;
 }
 
 input::placeholder,
 textarea::placeholder,
 [contenteditable="true"]:empty::before {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
@@ -8798,6 +8799,10 @@ textarea::placeholder,
   ):not([type="button"]),
 [data-admin-shell] textarea,
 [data-admin-shell] label,
+[data-admin-shell] .input-group > .user-label {
+  font-size: 13px !important;
+}
+
 [data-admin-shell] [role="combobox"],
 [data-admin-shell] [data-slot="select-trigger"],
 [data-admin-shell] [data-slot="select-item"] {
