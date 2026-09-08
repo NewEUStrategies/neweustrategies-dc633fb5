@@ -30,11 +30,14 @@ export function ContactSalesDialog({
   onOpenChange,
   tier,
   lang,
+  subjectLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tier: MembershipTierRow | null;
   lang: string;
+  /** Nazwa oferty bez warstwy (np. plan wyceniany indywidualnie). */
+  subjectLabel?: string;
 }) {
   const { t } = useTranslation();
   const submit = useServerFn(submitContactMessage);
@@ -46,9 +49,11 @@ export function ContactSalesDialog({
   const [consent, setConsent] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const subject = tier
-    ? t("pricing.contactDialog.subject", { tier: tierName(tier, lang) })
+  const subjectName = subjectLabel ?? (tier ? tierName(tier, lang) : null);
+  const subject = subjectName
+    ? t("pricing.contactDialog.subject", { tier: subjectName })
     : t("pricing.contactDialog.subjectGeneric");
+
   const canSubmit =
     !sending &&
     name.trim().length > 0 &&
