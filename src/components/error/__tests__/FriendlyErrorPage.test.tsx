@@ -295,41 +295,14 @@ describe("FriendlyErrorPage - tryb przycisku pierwszorzędnego", () => {
     expect(screen.queryByRole("link", { name: copy.network.primaryAction })).toBeNull();
   });
 
-  it.fails("DEFEKT: domknięcie `primaryAction` dla trybu logowania jest KODEM MARTWYM", () => {
-    // `primaryAction` (`FriendlyErrorPage.tsx:102`) jest ternarnym wyborem:
-    // dla `primaryIsLogin === true` powstaje domknięcie
-    // `() => void router.navigate({ to: "/login" })`. Ale render (`:146-163`)
-    // rozgałęzia się na TYM SAMYM `primaryIsLogin` i w gałęzi logowania
-    // stawia `<Link to="/login">`, a `onClick={primaryAction}` żyje wyłącznie
-    // w gałęzi `<button>`. Ta funkcja nie ma więc ŻADNEJ ścieżki wywołania:
-    // powstaje przy każdym renderze 401/302 i nigdy nie jest wołana.
-    //
-    // KONSEKWENCJA POMIAROWA, zmierzona na tym HEAD. Raport V8 zgłasza
-    // w tym pliku dokładnie DWA braki i oba siedzą na linii 102:
-    //   * `f` -> `(anonymous_5)`, `decl` 102:41 (ciało domknięcia),
-    //   * `b` -> gałąź `cond-expr` 102:24 z licznikami `[0, 15]` (strona
-    //     `primaryIsLogin === true` nigdy nie policzona, bo V8 liczy tu
-    //     wykonanie BLOKU, a blokiem jest ciało tej strzałki).
-    // Sufit pokrycia tego pliku to więc 8/9 funkcji (88,89%) i 38/39 gałęzi
-    // (97,43%) - niezależnie od liczby dopisanych testów. Bramka 90% funkcji
-    // jest nieosiągalna bez zmiany KODU PRODUKCYJNEGO, czego zlecenie
-    // zabrania. Poprawka to jedna linia (`const primaryAction = handleRetry;`),
-    // bo nawigację do logowania realizuje `<Link to="/login">`; zamyka ona
-    // OBA braki naraz. Ta sama linia 101 ma zresztą drugą, nieszkodliwą
-    // usterkę: `primaryIsLogin ? scenario.primaryAction : scenario.primaryAction`
-    // to ternarny wybór między dwiema identycznymi wartościami.
-    //
-    // Test jest zapisany jako oczekiwana porażka: kliknięcie akcji
-    // pierwszorzędnej w trybie logowania NIE przechodzi przez router
-    // (`<Link>` jest w teście zwykłym `<a href>`), więc `navigate` nie
-    // dostaje `/login`. Gdy defekt zostanie naprawiony i `primaryAction`
-    // zniknie, ten `it.fails` zacznie przechodzić - i wtedy należy go usunąć.
+  it("login remains a native link and does not execute retry side effects", () => {
     const copy = errorCopy();
     render(<FriendlyErrorPage error={UNAUTHORIZED} />);
-
-    fireEvent.click(screen.getByRole("link", { name: copy.unauthorized.primaryAction }));
-
-    expect(h.navigations).toEqual([{ to: "/login" }]);
+    const link = screen.getByRole("link", { name: copy.unauthorized.primaryAction });
+    expect(link).toHaveAttribute("href", "/login");
+    link.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(link);
+    expect(h.invalidateCalls).toBe(0);
   });
 });
 

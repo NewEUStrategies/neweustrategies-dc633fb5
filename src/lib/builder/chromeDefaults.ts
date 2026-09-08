@@ -19,7 +19,7 @@ const col = (span: number, children: WidgetNode[]): ColumnNode => ({
   children,
 });
 
-const section = (children: ColumnNode[], opts: Partial<SectionNode> = {}): SectionNode => ({
+const section = (children: ColumnNode[], opts: Partial<SectionNode>): SectionNode => ({
   id: newId(),
   kind: "section",
   children,
@@ -42,15 +42,15 @@ function withStableIds(doc: BuilderDocument, prefix: string): BuilderDocument {
     sections: doc.sections.map((s, si) => ({
       ...s,
       id: `${prefix}-s${si}`,
-      children: (s.children ?? []).map((child, ci) => {
+      children: s.children.map((child, ci) => {
         if (child.kind === "inner-section") {
           return {
             ...child,
             id: `${prefix}-s${si}-i${ci}`,
-            columns: (child.columns ?? []).map((c, cci) => ({
+            columns: child.columns.map((c, cci) => ({
               ...c,
               id: `${prefix}-s${si}-i${ci}-c${cci}`,
-              children: (c.children ?? []).map((w, wi) => ({
+              children: c.children.map((w, wi) => ({
                 ...w,
                 id: `${prefix}-s${si}-i${ci}-c${cci}-w${wi}`,
               })),
@@ -60,7 +60,7 @@ function withStableIds(doc: BuilderDocument, prefix: string): BuilderDocument {
         return {
           ...child,
           id: `${prefix}-s${si}-c${ci}`,
-          children: (child.children ?? []).map((w, wi) => ({
+          children: child.children.map((w, wi) => ({
             ...w,
             id: `${prefix}-s${si}-c${ci}-w${wi}`,
           })),

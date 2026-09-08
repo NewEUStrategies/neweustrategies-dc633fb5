@@ -25,6 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -71,6 +78,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
         with:

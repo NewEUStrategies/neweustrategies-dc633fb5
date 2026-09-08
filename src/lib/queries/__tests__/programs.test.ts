@@ -727,46 +727,23 @@ describe("adresy wpisów programu: jedno zapytanie na RODZICA, nie na wpis", () 
     expect(ladowanie.flagshipReports[0].href).toBe("/blog/slug-w-1");
   });
 
-  it("STAN FAKTYCZNY: ODMOWA rezolucji ścieżki jest nie do odróżnienia od rodzica „blog”", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa page_full_path", async () => {
     planuj({
       pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
       wpisy: ok([wierszWpisu("w-1")]),
       sciezka: fail("odmowa page_full_path", "42501"),
     });
-    const ladowanie = jakoLadowanie(await klient().fetchQuery(programBySlugQueryOptions(SLUG)));
-    expect(ladowanie.flagshipReports[0].href).toBe("/blog/slug-w-1");
+    await expect(klient().fetchQuery(programBySlugQueryOptions(SLUG))).rejects.toMatchObject({
+      message: "odmowa page_full_path",
+    });
   });
 
-  it.fails(
-    "AWARIA rezolucji ścieżek POWINNA być odróżnialna od rodzica o ścieżce „blog”",
-    async () => {
-      // DEFEKT. `src/lib/queries/programs.ts:116-125` (`hydrateHref`): linia 118
-      // to `const { data } = await supabase.rpc("page_full_path", { _page_id:
-      // pid })` - BEZ `error`. Odmowa nie zostawia śladu: warunek `typeof data
-      // === "string"` (119) nie odpala, w mapie nie ma wpisu, a linia 124 domyka
-      // to wyrażeniem `paths.get(r.parent_page_id) ?? "blog"`.
-      // MECHANIZM: awaria rezolucji jest nie do odróżnienia od poprawnego stanu
-      // „rodzicem tego wpisu jest strona o pełnej ścieżce `blog`". Ponieważ
-      // odmowa bazy dotyka WSZYSTKICH wywołań w tym samym `Promise.all`, cała
-      // sekcja raportów flagowych i cała lista publikacji programu dostają
-      // adresy `/blog/<slug>` naraz.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: strona programu renderuje się w pełni i
-      // wygląda poprawnie, ale KAŻDY link do raportu prowadzi pod adres, który
-      // dla wpisów innego działu nie istnieje - czytelnik klikający flagowy
-      // raport dostaje 404. Dla crawlera to zestaw martwych linków wewnętrznych
-      // wyemitowanych z żywej strony, a wpisy tracą swój kanoniczny adres.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-      // wyjątku (cała strona programu na 500 z powodu jednego adresu),
-      // pominięciem wpisów bez rozwiązanej ścieżki (sekcja milcząco się kurczy)
-      // a zmianą kontraktu `BlogListItem.href` na wartość opcjonalną, którą
-      // musiałaby obsłużyć każda karta listy w repo. Wszystkie trzy warianty
-      // zmieniają zachowanie produkcyjne.
-      planuj({
-        pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
-        wpisy: ok([wierszWpisu("w-1")]),
-        sciezka: fail("odmowa page_full_path", "42501"),
-      });
-      await expect(klient().fetchQuery(programBySlugQueryOptions(SLUG))).rejects.toThrow();
-    },
-  );
+  it("AWARIA rezolucji ścieżek POWINNA być odróżnialna od rodzica o ścieżce „blog”", async () => {
+    planuj({
+      pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
+      wpisy: ok([wierszWpisu("w-1")]),
+      sciezka: fail("odmowa page_full_path", "42501"),
+    });
+    await expect(klient().fetchQuery(programBySlugQueryOptions(SLUG))).rejects.toThrow();
+  });
 });

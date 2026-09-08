@@ -12,6 +12,7 @@ import { loadEnv, type Rollup } from "vite";
 
 import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
+import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
@@ -93,7 +94,7 @@ export default defineConfig({
     // Przyrząd pomiarowy składu bundla - INERTNY, dopóki nie ustawisz
     // BUNDLE_INVENTORY=1 (patrz nagłówek wtyczki). Nie duplikuje żadnej wtyczki
     // z @lovable.dev/vite-tanstack-config: ma wyłącznie hook `generateBundle`.
-    plugins: [chunkInventoryPlugin(), localeChunkPlugin()],
+    plugins: [chunkInventoryPlugin(), localeChunkPlugin(), adminCssPlugin()],
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz
@@ -170,6 +171,15 @@ export default defineConfig({
         "react-markdown",
         "react-easy-crop",
         "echarts-for-react",
+        // Analityka admina importuje WŁAŚNIE ten podentry (odchudzony rdzeń),
+        // a nie główny - podentry jest osobnym modułem CJS i bez wpisu tutaj
+        // dashboard wywalał się na braku exportu `default`.
+        "echarts-for-react/lib/core",
+        "echarts/core",
+        "echarts/renderers",
+        "echarts/charts",
+        "echarts/components",
+        "echarts/features",
         "qrcode",
         "i18n-iso-countries",
         "node-html-parser",
@@ -298,6 +308,10 @@ export default defineConfig({
               // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
               // dynamic importach) pokrywa modulepreload z mapDeps.
               hoistTransitiveImports: false,
+              // Coalesce tiny automatic chunks when Rollup can preserve their
+              // loading/side-effect semantics. Keep both presets identical;
+              // startup size, graph and browser boot remain blocking gates.
+              experimentalMinChunkSize: 512,
               manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
@@ -366,6 +380,19 @@ export default defineConfig({
                 // ikon zmienia się rzadziej niż kod aplikacji. Domknięcie
                 // trywialne - lucide-react importuje wyłącznie React.
                 if (id.includes("/node_modules/lucide-react/")) return "vendor-lucide";
+                // Heavy controls are not required by the public header. Keep
+                // their implementations out of the shared primitive chunk;
+                // dependencies still share vendor-radix and vendor-react.
+                const radixPackage = id
+                  .split("/node_modules/")
+                  .at(-1)
+                  ?.match(
+                    /^@radix-ui\/react-(select|slider|scroll-area|menu|context-menu|dropdown-menu)\//,
+                  )?.[1];
+                if (radixPackage) {
+                  const group = radixPackage.includes("menu") ? "menu" : radixPackage;
+                  return `vendor-radix-${group}`;
+                }
                 // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
                 // w JEDNYM chunku - patrz zasada domknięcia wyżej.
                 if (

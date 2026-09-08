@@ -24,6 +24,7 @@ import {
   createRootRouteWithContext,
   createRouter,
   type AnyRoute,
+  type RouteComponent,
 } from "@tanstack/react-router";
 
 /** Kontekst routera wymagany przez loadery tras publicznych (patrz `__root.tsx`). */
@@ -85,6 +86,8 @@ export interface RenderRouteOptions {
    * test musi mieć zaatrapowane to, czego ten loader dotyka.
    */
   rootRoute?: AnyRoute;
+  /** Optional real pending UI for tests of a suspended route. */
+  pendingComponent?: RouteComponent;
 }
 
 export interface RenderedRoute extends RenderResult {
@@ -136,6 +139,7 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
     history: createMemoryHistory({ initialEntries: [options.initialEntry] }),
     context: { queryClient },
     // Testy asertują stan końcowy, nie migotanie stanów oczekiwania.
+    defaultPendingComponent: options.pendingComponent,
     defaultPendingMs: 0,
     defaultPendingMinMs: 0,
     // Loader biegnie DOKŁADNIE RAZ na montowanie. Bez tego `router.load()`

@@ -276,3 +276,50 @@ describe("podsumowania dla przebiegu CI", () => {
     expect(markdown).toContain(verdict.reason);
   });
 });
+
+describe("incomplete or corrupt renewal evidence", () => {
+  it.each([
+    { testClockId: "" },
+    { testClockId: 5 },
+    { frozenBefore: "yesterday" },
+    { previousPeriodEnd: "tomorrow" },
+    { armedAt: null },
+    { knownInvoiceIds: null },
+  ])("rejects a malformed state field: %j", (changes) => {
+    expect(parseProbeState(JSON.stringify({ ...state(), ...changes }))).toBeNull();
+  });
+  it.each(["frozenBefore", "advancedTo"])("rejects an overflowing numeric %s", (field) => {
+    const raw = JSON.stringify({ ...state(), [field]: "overflow" }).replace('"overflow"', "1e400");
+    expect(parseProbeState(raw)).toBeNull();
+  });
+  it("does not invent a billing period from incomplete subscription items", () => {
+    expect(
+      periodEndOf(subscription({ items: { data: [{}, { current_period_end: null }] } })),
+    ).toBeNull();
+  });
+  it("shows missing invoice evidence and an unchanged period in the failed report", () => {
+    const sub = subscription();
+    const verdict = classifyRenewal({ subscription: sub, invoices: [], state: state() });
+    const report = renderVerifySummary({
+      state: state(),
+      subscription: sub,
+      verdict,
+      dunningCensus: 0,
+    });
+    expect(verdict.outcome).toBe("failed");
+    expect(report).toContain("faktura odnowieniowa: brak");
+    expect(report).toContain("bez zmiany");
+  });
+  it("never classifies a null invoice status as settled", () => {
+    const sub = subscription({ items: { data: [{ current_period_end: PERIOD_END + 10 }] } });
+    const verdict = classifyRenewal({
+      subscription: sub,
+      invoices: [invoice({ status: null })],
+      state: state(),
+    });
+    expect(verdict.outcome).toBe("failed");
+    expect(
+      renderVerifySummary({ state: state(), subscription: sub, verdict, dunningCensus: 0 }),
+    ).toContain("`in_new` (-)");
+  });
+});

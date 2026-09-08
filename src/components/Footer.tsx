@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { memo, useEffect, useRef } from "react";
+import { memo, Suspense, useEffect, useRef } from "react";
+import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
@@ -24,7 +25,7 @@ interface FooterProps {
   compact?: boolean;
 }
 
-export const Footer = memo(function Footer({ compact }: FooterProps) {
+function FooterInner({ compact }: FooterProps) {
   // URL-seeded language: SSR-safe first render + synchronous re-render on
   // language switch, without the i18n.language hydration-flicker window.
   const lang = useLang();
@@ -114,6 +115,16 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
         <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />
       ) : null}
     </>
+  );
+}
+
+export const Footer = memo(function Footer(props: FooterProps) {
+  return (
+    <Suspense fallback={<footer data-site-footer aria-busy="true" className="cv-auto min-h-40" />}>
+      <ChromeDataGate>
+        <FooterInner {...props} />
+      </ChromeDataGate>
+    </Suspense>
   );
 });
 

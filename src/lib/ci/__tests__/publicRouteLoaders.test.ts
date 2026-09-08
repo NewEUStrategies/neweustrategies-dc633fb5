@@ -538,3 +538,99 @@ describe("parser routeTree.gen.ts", () => {
     ]);
   });
 });
+
+describe("platform inventory handles incomplete input and inherited evidence", () => {
+  it("does not infer a loader, SSR or HTML from a file without a route declaration", () => {
+    expect(readLoaderFacts("export const component = () => null")).toEqual({
+      hasLoader: false,
+      warms: false,
+    });
+    expect(hasSsrDisabled("const options = { ssr: false }")).toBe(false);
+    expect(rendersHtml("const x = { component: X }")).toBe(false);
+    expect(topLevelOption("loader:", "loader")).toBeNull();
+    expect(topLevelOption("loader: )", "loader")).toBe(" ");
+  });
+  it("retains unresolved routes as missing files instead of silently dropping the denominator", () => {
+    const report = analysePublicRouteLoaders({
+      routeTree: routeTree([
+        { ident: "Missing", file: "routes/missing", path: "missing", parent: "rootRouteImport" },
+      ]),
+      sources: new Map(),
+    });
+    expect(report.routes).toHaveLength(1);
+    expect(report.routes[0]).toMatchObject({
+      fullPath: "/missing",
+      exclusion: "brak-pliku",
+      file: "(nierozwiązany import)",
+    });
+    expect(staticImportClosure("src/missing.ts", new Map()).size).toBe(1);
+    expect(
+      resolveSpecifier(
+        "./.././lib//known",
+        "src/routes/a.tsx",
+        sources({ "src/lib/known.ts": "" }),
+      ),
+    ).toBe("src/lib/known.ts");
+  });
+  it("credits a typed root loader and prefers the nearest loader for the same query factory", () => {
+    const report = analysePublicRouteLoaders({
+      routeTree: routeTree([
+        { ident: "Parent", file: "routes/parent", path: "/parent", parent: "rootRouteImport" },
+        { ident: "Child", file: "routes/child", path: "/child", parent: "Parent" },
+      ]),
+      sources: sources({
+        "src/routes/__root.tsx": `export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({ loader: () => { qc.ensureQueryData(rootQueryOptions()); qc.ensureQueryData(sharedQueryOptions()); }, component: Root });`,
+        "src/routes/parent.tsx": `export const Route = createFileRoute('/parent')({ loader: () => qc.ensureQueryData(sharedQueryOptions()), component: Parent }); useQuery(sharedQueryOptions());`,
+        "src/routes/child.tsx": `export const Route = createFileRoute('/parent/child')({ loader: () => qc.ensureQueryData(sharedQueryOptions()), component: Child }); useQuery(rootQueryOptions()); useQuery(sharedQueryOptions());`,
+      }),
+    });
+    const child = report.routes.find((x) => x.fullPath === "/parent/child")!;
+    expect(child.warmQueryCount).toBe(2);
+    expect(child.warmedByAncestors).toContain("/ (__root)");
+  });
+  it("inherits ssr:false from a parent and rejects cycles in a corrupt generated tree", () => {
+    const tree = routeTree([
+      { ident: "Parent", file: "routes/parent", path: "/parent", parent: "rootRouteImport" },
+      { ident: "Child", file: "routes/child", path: "/child", parent: "Parent" },
+    ]);
+    const files = sources({
+      "src/routes/parent.tsx": `createFileRoute('/parent')({ component: Parent, ssr: false })`,
+      "src/routes/child.tsx": `createFileRoute('/child')({ component: Child })`,
+    });
+    expect(
+      analysePublicRouteLoaders({ routeTree: tree, sources: files }).routes.find(
+        (x) => x.fullPath === "/parent/child",
+      ),
+    ).toMatchObject({ exclusion: "ssr-wylaczony", exclusionFrom: "/parent" });
+    files.set("src/routes/parent.tsx", `createFileRoute('/parent')({ component: Parent })`);
+    expect(() =>
+      analysePublicRouteLoaders({
+        routeTree: tree.replace("() => rootRouteImport", "() => Child"),
+        sources: files,
+      }),
+    ).toThrow("Cykl w drzewie tras");
+  });
+  it("reports noindex, viewer identity, inherited content and truncated evidence accurately", () => {
+    const report = analysePublicRouteLoaders({
+      routeTree: routeTree([
+        { ident: "Parent", file: "routes/parent", path: "/parent", parent: "rootRouteImport" },
+        { ident: "Child", file: "routes/child", path: "/child", parent: "Parent" },
+        { ident: "Guest", file: "routes/guest", path: "/guest", parent: "rootRouteImport" },
+      ]),
+      sources: sources({
+        "src/routes/parent.tsx": `createFileRoute('/parent')({ component: Parent, loader: () => qc.ensureQueryData(parentQueryOptions()) }); useQuery(parentQueryOptions());`,
+        "src/routes/child.tsx": `import A from '@/components/a';\nimport B from '@/components/b';\ncreateFileRoute('/child')({ component: Child, head: () => ({ robots: 'noindex' }) }); useQuery(coldQueryOptions());`,
+        "src/components/a.tsx": `useQuery(aQueryOptions());\nuseQuery(secondQueryOptions());`,
+        "src/components/b.tsx": `useQuery(bQueryOptions());`,
+        "src/routes/guest.tsx": `createFileRoute('/guest')({ component: Guest }); useQuery({ queryKey: ['viewer', user.id] }); useQuery({ queryKey: ['a', user.id] }); useQuery({ queryKey: ['b', user.id] }); useQuery({ queryKey: ['c', user.id] });`,
+      }),
+    });
+    const output = renderPublicRouteLoaderReport(report);
+    expect(output).toContain("noindex");
+    expect(output).toContain("tożsamość w kluczu");
+    expect(output).toContain("… i 1 dalszych");
+    expect(report.routes.find((x) => x.fullPath === "/parent/child")?.verdict).toBe(
+      "tresc-z-przodka",
+    );
+  });
+});

@@ -127,6 +127,41 @@ vi.mock("@tanstack/react-router", async (o) => {
         return () => undefined;
       },
     }),
+    // ── DLACZEGO TE TRZY HAKI TEŻ MUSZĄ BYĆ ZAATRAPOWANE ──────────────────
+    //
+    // To jest naprawa FLAKA POD OBCIĄŻENIEM, nie kosmetyka. Nagłówek
+    // `rootRouterMount.test.tsx:6-10` opisał mechanizm, zanim ktokolwiek go
+    // tu zobaczył: gdy osiem nakładek `lazy()` korzenia REALNIE zdąży się
+    // rozstrzygnąć, ich prawdziwe komponenty sięgają po DALSZE haki routera
+    // (`useLocation`, `useNavigate`, `useMatches`) i wywracają się na
+    // `TypeError: Cannot read properties of null (reading 'isServer')`.
+    //
+    // Czy zdążą, zależy WYŁĄCZNIE od tego, ile czasu upłynie między
+    // przepłukaniami - czyli od obciążenia maszyny. Zmierzone na tym HEAD, dwa
+    // pełne przebiegi z pokryciem: przebieg 1 zielony, przebieg 2 dwa czerwone
+    // testy w tym pliku, przy identycznym kodzie. Pojedynczo plik jest zielony
+    // 6/6 zawsze. Koszt tej niedeterminacji nie kończy się na tym pliku:
+    // `report.ts` traci wtedy pokrycie trzech gałęzi (23/23 -> 20/23) i
+    // przewraca SWÓJ próg, więc zbiór naruszeń progów różni się między
+    // przebiegami.
+    //
+    // Atrapa jest zgodna z granicą tego pliku, wypisaną w jego nagłówku: on
+    // dowodzi POWŁOKI dokumentu i montażu korzenia, a nie nawigacji. Od
+    // nawigacji na PRAWDZIWYM routerze jest `rootRouterMount.test.tsx`.
+    useLocation: <TSelected,>(opts?: {
+      select?: (location: {
+        pathname: string;
+        href: string;
+        search: Record<string, unknown>;
+      }) => TSelected;
+    }) => {
+      const location = { pathname: "/", href: "/", search: {} };
+      return opts?.select ? opts.select(location) : (location as unknown as TSelected);
+    },
+    useNavigate: () => () => undefined,
+    useMatches: <TSelected,>(opts?: {
+      select?: (matches: { staticData?: unknown; loaderData?: unknown }[]) => TSelected;
+    }) => (opts?.select ? opts.select([]) : ([] as unknown as TSelected)),
   };
 });
 

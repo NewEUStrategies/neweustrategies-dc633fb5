@@ -4796,6 +4796,7 @@ export type Database = {
           name_norm: string | null
           phone: string | null
           postal_code: string | null
+          tax_id: string | null
           tenant_id: string
           updated_at: string
           website: string | null
@@ -4816,6 +4817,7 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
+          tax_id?: string | null
           tenant_id: string
           updated_at?: string
           website?: string | null
@@ -4836,6 +4838,7 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
+          tax_id?: string | null
           tenant_id?: string
           updated_at?: string
           website?: string | null
@@ -17384,6 +17387,7 @@ export type Database = {
           metadata: Json
           mode: Database["public"]["Enums"]["invitation_mode"]
           role: Database["public"]["Enums"]["app_role"]
+          send_count: number
           sent_at: string | null
           source: string | null
           status: Database["public"]["Enums"]["invitation_status"]
@@ -17403,6 +17407,7 @@ export type Database = {
           metadata?: Json
           mode?: Database["public"]["Enums"]["invitation_mode"]
           role?: Database["public"]["Enums"]["app_role"]
+          send_count?: number
           sent_at?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
@@ -17422,6 +17427,7 @@ export type Database = {
           metadata?: Json
           mode?: Database["public"]["Enums"]["invitation_mode"]
           role?: Database["public"]["Enums"]["app_role"]
+          send_count?: number
           sent_at?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
@@ -17437,6 +17443,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_notes: {
+        Row: {
+          body: string
+          color: string
+          created_at: string
+          entity_id: string | null
+          entity_title: string | null
+          entity_type: string | null
+          entity_url: string | null
+          id: string
+          pinned: boolean
+          tenant_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body?: string
+          color?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_title?: string | null
+          entity_type?: string | null
+          entity_url?: string | null
+          id?: string
+          pinned?: boolean
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          color?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_title?: string | null
+          entity_type?: string | null
+          entity_url?: string | null
+          id?: string
+          pinned?: boolean
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_pending_counters: {
         Row: {
@@ -17541,6 +17595,51 @@ export type Database = {
           post_id?: string
           read_at?: string
           tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_read_later: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          note: string | null
+          read_at: string | null
+          state: string
+          tenant_id: string
+          title: string | null
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          note?: string | null
+          read_at?: string | null
+          state?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          note?: string | null
+          read_at?: string | null
+          state?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -17670,6 +17769,56 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "access_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_todos: {
+        Row: {
+          created_at: string
+          done: boolean
+          done_at: string | null
+          due_at: string | null
+          id: string
+          priority: string
+          source_task_id: string | null
+          tenant_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_task_id?: string | null
+          tenant_id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_task_id?: string | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_todos_source_task_id_fkey"
+            columns: ["source_task_id"]
+            isOneToOne: false
+            referencedRelation: "crm_tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -19017,6 +19166,13 @@ export type Database = {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
       }
+      accept_my_user_invitation: {
+        Args: never
+        Returns: {
+          accepted_at: string
+          invitation_id: string
+        }[]
+      }
       accounting_metadata_minimum: { Args: { p_metadata: Json }; Returns: Json }
       accounting_retention_until: { Args: { p_at: string }; Returns: string }
       accounting_subject_ref: { Args: { p_user_id: string }; Returns: string }
@@ -19037,6 +19193,10 @@ export type Database = {
         Returns: number
       }
       admin_assert_verification_admin: { Args: never; Returns: string }
+      admin_claim_invitation_send: {
+        Args: { p_invitation_id: string }
+        Returns: number
+      }
       admin_clear_content_password: {
         Args: {
           _entity_id: string

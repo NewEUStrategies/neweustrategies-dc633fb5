@@ -3,6 +3,7 @@ dist
 .output
 .vinxi
 coverage
+coverage-platform
 pnpm-lock.yaml
 package-lock.json
 bun.lock

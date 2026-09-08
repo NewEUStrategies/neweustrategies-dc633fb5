@@ -31,6 +31,7 @@ import {
   FlaskConical,
   Link as LinkIcon,
   Search,
+  Send,
 } from "@/lib/lucide-shim";
 import {
   BadgePercent,
@@ -234,6 +235,7 @@ export function buildAdminNavGroups({
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
         { to: "/admin/pricing", icon: BadgePercent, label: t("admin.nav.pricing") },
         { to: "/admin/membership", icon: Crown, label: t("admin.nav.membership") },
+        { to: "/admin/members", icon: Users, label: t("admin.nav.members") },
         { to: "/admin/gifting", icon: Gift, label: t("admin.nav.gifting") },
         { to: "/admin/coupons", icon: Megaphone, label: t("admin.nav.coupons") },
         { to: "/admin/library", icon: BookOpen, label: t("admin.nav.library") },
@@ -292,6 +294,12 @@ export function buildAdminNavGroups({
         { to: "/admin/workflows", icon: Workflow, label: t("admin.nav.workflows") },
         { to: "/admin/integrations", icon: Cable, label: t("admin.nav.integrations") },
         { to: "/admin/contact", icon: Inbox, label: t("admin.nav.contact") },
+        {
+          to: "/admin/newsletter/outbox",
+          icon: Send,
+          label: t("admin.nav.emailOutbox"),
+          keywords: ["maile", "wysylka", "outbox", "email", "zaproszenia", "log"],
+        },
         { to: "/admin/expert-requests", icon: Inbox, label: t("admin.nav.expertRequests") },
         { to: "/admin/careers", icon: Briefcase, label: t("admin.nav.careers") },
         { to: "/admin/hiring", icon: Briefcase, label: t("admin.nav.hiring") },

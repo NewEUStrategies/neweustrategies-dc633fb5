@@ -16,7 +16,7 @@
 // więc treść slotu - z definicji dowolny HTML/JS wpisany w panelu - nie ma
 // dostępu do sesji czytelnika. Zamyka to stored XSS przez sloty reklamowe.
 
-import { memo, useEffect, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { beaconAdEvent } from "@/lib/analytics/events";
 import { useMarketingConsent } from "@/lib/ads/consent";
@@ -58,6 +58,34 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
     node.addEventListener("click", onClick);
     return () => node.removeEventListener("click", onClick);
   }, [blocked, shouldRender, slot.id, placement.id]);
+
+  // TOŻSAMOŚĆ TEGO WYWOŁANIA ZWROTNEGO MUSI BYĆ STAŁA MIĘDZY RENDERAMI.
+  //
+  // To nie jest mikrooptymalizacja, tylko naprawa realnego defektu emisji.
+  // `SandboxedAdFrame` trzyma nasłuch `blur` NA OKNIE w efekcie z zależnością
+  // `[onEngage]`. Dopóki ta funkcja powstawała na nowo przy każdym renderze
+  // (dwie osobne strzałki w gałęziach `html` i `script`), KAŻDY render tego
+  // komponentu wykonywał parę `removeEventListener`/`addEventListener` na
+  // oknie - a przy okazji unieważniał `memo` samej ramki, bo `onEngage` jest
+  // jej propsem. Ramka jest więc zapamiętana od 2026, ale nigdy na tym nie
+  // skorzystała.
+  //
+  // Skutek uboczny dla testów: między `focus()` a `dispatchEvent("blur")`
+  // mógł wypaść render, w którym nasłuch jest właśnie przepinany - i zdarzenie
+  // nie trafiało w nikogo. Pod obciążeniem (pełna suita, trzy forki) to się
+  // realizowało, w izolacji nie. Nazywanie tego „flakiem testu" ukrywało wadę
+  // produkcyjną, która jest tutaj.
+  //
+  // NEUTRALNOŚĆ BEHAWIORALNA: liczba zgłoszeń się nie zmienia. `engagedRef`
+  // w `SandboxedAdFrame` przepuszcza najwyżej JEDNO zgłoszenie na montaż
+  // (`if (engagedRef.current) return;`), a stabilizacja tożsamości nie tworzy
+  // ani nie usuwa montażu - zmienia wyłącznie liczbę przepięć nasłuchu z
+  // „raz na render" na „raz na montaż". Dowodzi tego test przepięć w
+  // `src/components/__tests__/AdSlot.test.tsx`, czerwony przed tą zmianą.
+  const onEngage = useCallback(
+    () => beaconAdEvent("click", slot.id, placement.id),
+    [slot.id, placement.id],
+  );
 
   const dimensions = { width: slot.width, height: slot.height };
   const label = t("ads.label");
@@ -102,11 +130,7 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
       );
     } else if (slot.kind === "html" && slot.html) {
       payload = (
-        <SandboxedAdFrame
-          markup={slot.html}
-          title={`${label}: ${slot.name}`}
-          onEngage={() => beaconAdEvent("click", slot.id, placement.id)}
-        />
+        <SandboxedAdFrame markup={slot.html} title={`${label}: ${slot.name}`} onEngage={onEngage} />
       );
     } else if (slot.kind === "script" && slot.script) {
       // Wewnątrz sandboxu <script> wykonuje się natywnie - ręczne re-tworzenie
@@ -115,7 +139,7 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
         <SandboxedAdFrame
           markup={slot.script}
           title={`${label}: ${slot.name}`}
-          onEngage={() => beaconAdEvent("click", slot.id, placement.id)}
+          onEngage={onEngage}
         />
       );
     }

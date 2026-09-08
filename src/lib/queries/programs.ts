@@ -115,7 +115,8 @@ async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<Blo
   const paths = new Map<string, string>();
   await Promise.all(
     parentIds.map(async (pid) => {
-      const { data } = await supabase.rpc("page_full_path", { _page_id: pid });
+      const { data, error: dataError } = await supabase.rpc("page_full_path", { _page_id: pid });
+      if (dataError) throw dataError;
       if (typeof data === "string") paths.set(pid, data);
     }),
   );

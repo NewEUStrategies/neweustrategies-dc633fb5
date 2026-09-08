@@ -93,6 +93,9 @@ export function suppressionSkipReason(reason: SuppressionReason): string {
 // stanu "suppression nie dotyczy tego typu".
 // ----------------------------------------------------------------------------
 export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
+  // Zaproszenie do konta: bez niego odbiorca nie wejdzie na konto założone dla
+  // niego przez administratora - poczta 1:1, nie wysyłka za zgodą.
+  user_invitation: "transactional",
   // Rozliczenia i stan subskrypcji: pieniądze i dostęp. Odbiorca musi wiedzieć,
   // co i kiedy zostanie obciążone oraz do kiedy ma dostęp.
   subscription_confirmed: "transactional",

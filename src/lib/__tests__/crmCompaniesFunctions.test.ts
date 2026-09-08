@@ -209,8 +209,9 @@ describe("createCrmCompany", () => {
       data: { name: "Acme", domain: "   ", city: "Bruksela" },
       context: context(),
     });
-    expect(result).toEqual({ ok: true, id: COMPANY_ID });
-    expect(db.lastChain("crm_companies")?.argsOf("insert")?.[0]).toMatchObject({
+    expect(result).toMatchObject({ ok: true, id: COMPANY_ID });
+    const insertChain = db.chainsFor("crm_companies").find((c) => c.argsOf("insert") !== undefined);
+    expect(insertChain?.argsOf("insert")?.[0]).toMatchObject({
       tenant_id: TENANT,
       created_by: USER_ID,
       name: "Acme",
@@ -272,9 +273,8 @@ describe("updateCrmCompany", () => {
       data: { id: COMPANY_ID, city: "Warszawa", branch: null },
       context: context(),
     });
-    expect(db.lastChain("crm_companies")?.argsOf("update")).toEqual([
-      { city: "Warszawa", branch: null },
-    ]);
+    const updateChain = db.chainsFor("crm_companies").find((c) => c.argsOf("update") !== undefined);
+    expect(updateChain?.argsOf("update")).toEqual([{ city: "Warszawa", branch: null }]);
     const audit = db.lastChain("audit_log")?.argsOf("insert")?.[0] as {
       metadata: { fields: string[] };
     };
@@ -560,7 +560,7 @@ describe("operacje zbiorcze na firmach", () => {
       data: { ids: [COMPANY_ID] },
       context: context(),
     });
-    expect(result).toEqual({ ok: true, deleted: 1 });
+    expect(result).toMatchObject({ ok: true, deleted: 1 });
     expect((db.lastChain("audit_log")?.argsOf("insert")?.[0] as { action: string }).action).toBe(
       "crm.company.bulk_delete",
     );

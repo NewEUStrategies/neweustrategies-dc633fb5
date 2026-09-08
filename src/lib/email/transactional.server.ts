@@ -15,6 +15,7 @@ import { uiLocale } from "@/lib/i18n/format";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
 import { loadTxOverrides } from "@/lib/email/txOverrides.server";
+import { ensureUnsubscribeToken } from "@/lib/email/unsubscribeToken.server";
 import { overrideFor, resolvedField } from "@/lib/email/txOverrides";
 import { checkSendAllowed } from "@/lib/email/suppression.server";
 import {
@@ -27,7 +28,11 @@ import {
 const SITE_NAME = "New European Strategies";
 const SITE_URL = "https://neweuropeanstrategies.com";
 const SENDER_DOMAIN = "notify.mail.neweuropeanstrategies.com";
-const FROM_DOMAIN = "neweuropeanstrategies.com";
+// Domena widoczna w polu From. MUSI należeć do zweryfikowanej strefy poczty
+// (`mail.neweuropeanstrategies.com` jest delegowana), inaczej dostawca odrzuca
+// wysyłkę: "domain is not verified". Root `neweuropeanstrategies.com` nie jest
+// zweryfikowany jako nadawca - taka wartość wrzucała każdy mail aplikacji do DLQ.
+const FROM_DOMAIN = SENDER_DOMAIN;
 const QUEUE = "transactional_emails";
 
 export interface TxSendInput {
@@ -45,6 +50,12 @@ export interface TxSendInput {
   ctaUrl?: string;
   ctaLabel?: string;
   extra?: string | null;
+  /**
+   * Akapit wstępu narzucony przez wywołującego - używany, gdy treść zależy od
+   * kontekstu odbiorcy (np. zakres dostępu w zaproszeniu). Ustawienia z panelu
+   * (`overrides`) mają pierwszeństwo, słownik `tx-body` jest ostatnią deską.
+   */
+  intro?: string | null;
   /**
    * Zmienne personalizacji treści (plan, kwota, daty, prorata, karencja).
    * Na ich podstawie `tx-body` buduje akapity odmienione przez rodzaj
@@ -245,7 +256,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       ctaUrl: input.ctaUrl ?? (input.ctaPath ? `${SITE_URL}${input.ctaPath}` : undefined),
       details: input.details ?? [],
       extra: ov("extra") ?? input.extra ?? body.extra ?? null,
-      intro: ov("intro") ?? body.intro ?? null,
+      intro: ov("intro") ?? input.intro ?? body.intro ?? null,
       note: ov("note") ?? body.note ?? null,
       preview: ov("preview"),
       eyebrow: ov("eyebrow"),
@@ -270,8 +281,13 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
     const { error } = await supabase.rpc("enqueue_email", {
       queue_name: QUEUE,
       payload: {
-        run_id: crypto.randomUUID(),
+        // Bez `run_id`: to pole identyfikuje PRZEBIEG po stronie dostawcy
+        // platformy. Losowy UUID nie istnieje w jego rejestrze i wysyłka
+        // kończyła się 404 "Run not found or expired".
         message_id: messageId,
+        // Wymóg dostawcy: poczta transakcyjna bez tokenu wypisu jest odrzucana
+        // (400 `missing_unsubscribe`) - stopkę wypisu dokleja platforma.
+        unsubscribe_token: await ensureUnsubscribeToken(supabase, to),
         to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
@@ -375,8 +391,13 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
     const { error } = await supabase.rpc("enqueue_email", {
       queue_name: QUEUE,
       payload: {
-        run_id: crypto.randomUUID(),
+        // Bez `run_id`: to pole identyfikuje PRZEBIEG po stronie dostawcy
+        // platformy. Losowy UUID nie istnieje w jego rejestrze i wysyłka
+        // kończyła się 404 "Run not found or expired".
         message_id: messageId,
+        // Wymóg dostawcy: poczta transakcyjna bez tokenu wypisu jest odrzucana
+        // (400 `missing_unsubscribe`) - stopkę wypisu dokleja platforma.
+        unsubscribe_token: await ensureUnsubscribeToken(supabase, to),
         to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,

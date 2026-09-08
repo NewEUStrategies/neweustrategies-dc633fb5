@@ -42,7 +42,7 @@ import type { ReactNode } from "react";
 // Nakładka wnosi `admin.analyticsSettings.status.error` i `.refresh` - dwa
 // klucze, których rdzeń słownika nie ma. Bez tego importu i18next zwróciłby
 // same identyfikatory.
-import "@/lib/i18n-admin-extras";
+import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
 
 export const Route = createFileRoute("/admin/settings/analytics")({
   head: () => ({
@@ -259,6 +259,7 @@ function Ga4ConnectDialog({
 }
 
 function AnalyticsSettings() {
+  ensureExtrasI18n();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { query, save } = useSettings<AnalyticsConfig>("analytics", defaultAnalyticsConfig());

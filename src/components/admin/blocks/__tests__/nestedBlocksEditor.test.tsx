@@ -17,7 +17,14 @@
 //     albo domyslna z rejestru, oraz oba tryby wstawiania w tym stanie,
 //   * kazda mutacja przechodzi przez `onChange` z NOWA tablica - kontener nie
 //     mutuje wlasnych dzieci w miejscu (mutacja w miejscu jest niewidoczna dla
-//     historii undo/redo, czyli cicha utrata mozliwosci cofniecia).
+//     historii undo/redo, czyli cicha utrata mozliwosci cofniecia),
+//   * ODMOWY mini-kanwy: scalenie PIERWSZEGO dziecka (nie ma poprzednika),
+//     strzalka wyprowadzajaca z kontenera, Ctrl+A i Shift+strzalka wewnatrz
+//     dziecka (zaznaczenie blokowe nalezy do kanwy glownej, nie do kontenera),
+//   * wstawianie WZORCA (wielu blokow naraz) na kazda z trzech pozycji, ktore
+//     mini-kanwa oferuje: pusty kontener, przed pierwszym dzieckiem, po n-tym,
+//   * uniwersalny pasek widgetu dziecka (`BlockWithToolbar`) pisze WYLACZNIE
+//     do swojego dziecka - sasiedzi wracaja z `onChange` nietknieci.
 //
 // CZEGO TU NIE MA
 //   * atrap warstw wlasnych - mini-kanwa renderuje prawdziwy `BlockInserter`,
@@ -25,11 +32,13 @@
 //   * przeciagania (osobny plik `blockCanvasDragDrop.test.tsx`, gdzie oba
 //     `DndContext`y sa w jednym drzewie i widac ich rozlacznosc).
 import { describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { Block } from "@/lib/blocks/types";
 import { readChildBlocks, withChildBlocks } from "@/lib/blocks/nested";
 import { NestedBlocksEditor } from "../molecules/NestedBlocksEditor";
 import { realT } from "@/test/i18nReal";
+import "@/lib/i18n-admin-blocks";
 
 const t = realT("pl");
 
@@ -307,4 +316,261 @@ describe("NestedBlocksEditor - pisanie w dzieciach kontenera", () => {
     expect(dzieci[0].id).not.toBe("c1");
     expect(dzieci[1].id).toBe("c2");
   });
+});
+
+// ── ODMOWY MINI-KANWY ────────────────────────────────────────────────────────
+// Kontener jest liscmi drzewa dokumentu: nie ma "poprzedniego dziecka" przed
+// pierwszym i nie ma wlasnego zaznaczenia blokowego. Kazda z tych granic musi
+// konczyc sie ODMOWA, a nie wyjatkiem albo cicha mutacja - dziecko kontenera
+// bywa jedyna kopia tresci redaktora.
+describe("NestedBlocksEditor - odmowy na granicach kontenera", () => {
+  it("Backspace na początku PIERWSZEGO dziecka nie scala niczego", () => {
+    // Nie ma poprzednika, wiec mini-kanwa oddaje sterowanie przeglądarce -
+    // dokument dzieci zostaje bez zmian.
+    const { onChange } = zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c1"), { key: "Backspace" });
+    for (const [dzieci] of onChange.mock.calls) {
+      expect(dzieci.map((b) => b.id)).toEqual(["c1", "c2"]);
+    }
+  });
+
+  it("strzałka w górę z PIERWSZEGO dziecka nie wyprowadza z kontenera", () => {
+    zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c1"), { key: "ArrowUp" });
+    // Zadne dziecko nie przejmuje pierscienia aktywnosci - fokus zostaje tam,
+    // gdzie byl (wyjscie z kontenera nalezy do przeglądarki, nie do mini-kanwy).
+    expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c2"]')?.className).not.toContain("ring-1");
+  });
+
+  it("strzałka w dół z OSTATNIEGO dziecka nie wyprowadza z kontenera", () => {
+    zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c2"), { key: "ArrowDown" });
+    expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
+  });
+
+  it("Ctrl+A w PUSTYM dziecku nie zaznacza blokowo wnętrza kontenera", () => {
+    // `onSelectAllBlocks` mini-kanwy jest świadomie puste: zaznaczenie blokowe
+    // zyje na kanwie glownej. Wnetrze kontenera nie moze wiec zostac zaznaczone
+    // "na blok", bo nie ma nikogo, kto by je potem usunął albo zduplikował.
+    const { onChange } = zamontuj([
+      { id: "c1", type: "paragraph", data: { html: "" } } as Block,
+      akapit("c2", "beta"),
+    ]);
+    fireEvent.keyDown(polePisania("c1"), { key: "a", ctrlKey: true });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-block-id="c2"]')?.className).not.toContain("ring-1");
+  });
+
+  it("Shift+strzałka w dziecku NIE eskaluje do zaznaczenia blokowego", () => {
+    // Wewnatrz kontenera Shift+strzalka zostaje zaznaczeniem TEKSTOWYM
+    // (`onExtendBlockSelection` oddaje `false`), wiec kontener nie zmienia
+    // ani dzieci, ani aktywnego dziecka.
+    const { onChange } = zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c2"), { key: "ArrowUp", shiftKey: true });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
+  });
+
+  it("klik w UCHWYT przeciągania nie zaznacza dziecka", () => {
+    // Uchwyt zatrzymuje propagację: gest przeciągania nie jest gestem wyboru
+    // bloku, inaczej samo złapanie dziecka zmieniałoby aktywny blok w pasku.
+    zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.click(screen.getAllByRole("button", { name: t("blocks.actions.drag") })[1]);
+    expect(document.querySelector('[data-block-id="c2"]')?.className).not.toContain("ring-1");
+    // Kontrola dodatnia: klik w sam wiersz dziecka zaznacza je.
+    fireEvent.click(document.querySelector('[data-block-id="c2"]') as Element);
+    expect(document.querySelector('[data-block-id="c2"]')?.className).toContain("ring-1");
+  });
+});
+
+// ── SCALANIE DZIECI: PRZYPADKI BRZEGOWE TRESCI ──────────────────────────────
+describe("NestedBlocksEditor - scalanie dzieci w przypadkach brzegowych", () => {
+  it("scalenie NAGŁÓWKA z poprzednim akapitem wnosi tekst nagłówka do akapitu", () => {
+    // Odwrotna strona pary "akapit -> nagłówek": tu ZNIKAJĄCYM blokiem jest
+    // nagłówek, a jego tekst musi dojechać do akapitu wyżej.
+    const naglowek = { id: "h2", type: "heading", data: { text: "Podtytuł", level: 3 } } as Block;
+    const { onChange } = zamontuj([akapit("c1", "alfa"), naglowek]);
+    fireEvent.keyDown(polePisania("h2"), { key: "Backspace" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.id)).toEqual(["c1"]);
+    expect(String(dzieci[0].data.html)).toContain("alfa");
+    expect(String(dzieci[0].data.html)).toContain("Podtytuł");
+  });
+
+  it("scalenie z PUSTYM poprzednim akapitem nie gubi treści dziecka", () => {
+    // Poprzednik bez pola `html` (świeżo wstawiony akapit) - scalenie musi
+    // przyjąć treść, a nie wywrócić się na braku danych.
+    const pusty = { id: "c1", type: "paragraph", data: {} } as Block;
+    const { onChange } = zamontuj([pusty, akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c2"), { key: "Backspace" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.id)).toEqual(["c1"]);
+    expect(String(dzieci[0].data.html)).toContain("beta");
+  });
+
+  it("scalenie z PUSTYM poprzednim nagłówkiem nie gubi treści dziecka", () => {
+    const pustyNaglowek = { id: "h1", type: "heading", data: { level: 2 } } as Block;
+    const { onChange } = zamontuj([pustyNaglowek, akapit("c2", "ogon")]);
+    fireEvent.keyDown(polePisania("c2"), { key: "Backspace" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.id)).toEqual(["h1"]);
+    expect(String(dzieci[0].data.text)).toBe("ogon");
+  });
+
+  it("scalenie w kontenerze o TRZECH dzieciach rusza tylko scalaną parę", () => {
+    // Dwa dzieci to zbyt mały dowód: po scaleniu zostaje jedno i nie widać,
+    // czy pozostałe dzieci przechodzą przez mapowanie NIEZMIENIONE.
+    const trzecie = akapit("c3", "gamma");
+    const { onChange } = zamontuj([akapit("c1", "alfa"), akapit("c2", "beta"), trzecie]);
+    fireEvent.keyDown(polePisania("c2"), { key: "Backspace" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.id)).toEqual(["c1", "c3"]);
+    expect(String(dzieci[0].data.html)).toContain("beta");
+    // Trzecie dziecko wraca DOKŁADNIE tym samym obiektem - nie jest kopiowane
+    // ani przepisywane przy okazji scalania sąsiadów.
+    expect(dzieci[1]).toBe(trzecie);
+  });
+
+  it("Backspace na PUSTYM PIERWSZYM dziecku wraca na NASTĘPNEGO sąsiada", () => {
+    // Sąsiad "w górę" nie istnieje, więc aktywność musi przejąć dziecko PO
+    // usuwanym - inaczej redaktor traci karetkę w środku kontenera.
+    const { onChange } = zamontuj([
+      { id: "c1", type: "paragraph", data: { html: "" } } as Block,
+      akapit("c2", "beta"),
+    ]);
+    fireEvent.keyDown(polePisania("c1"), { key: "Backspace" });
+    expect(onChange.mock.calls.at(-1)![0].map((b) => b.id)).toEqual(["c2"]);
+  });
+
+  it("menu slash może podmienić dziecko na blok NIETEKSTOWY", () => {
+    // Trzecia pozycja palety slash to Obraz - blok bez pola pisania. Podmiana
+    // musi się wykonać, ale karetki nie ma gdzie postawić (i o to chodzi:
+    // mini-kanwa nie może wtedy szukać pola edycji, którego nie ma).
+    const { onChange } = zamontuj([
+      { id: "c1", type: "paragraph", data: { html: "" } } as Block,
+      akapit("c2", "beta"),
+    ]);
+    const pole = polePisania("c1");
+    fireEvent.keyDown(pole, { key: "/" });
+    fireEvent.keyDown(pole, { key: "ArrowDown" });
+    fireEvent.keyDown(pole, { key: "ArrowDown" });
+    fireEvent.keyDown(pole, { key: "Enter" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci).toHaveLength(2);
+    expect(dzieci[0].type).toBe("image");
+    expect(dzieci[1].id).toBe("c2");
+  });
+});
+
+// ── WZORCE I PASEK WIDGETU DZIECKA ──────────────────────────────────────────
+/** Otwiera inserter o danym indeksie i wstawia wzorzec „Kluczowe wnioski". */
+function wstawWzorzec(idx: number): void {
+  fireEvent.click(inserter(idx));
+  fireEvent.click(screen.getByRole("button", { name: t("blocks.inserter.browseAll") }));
+  fireEvent.click(screen.getByRole("tab", { name: t("blocks.inserter.tabPatterns") }));
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: new RegExp(t("blocks.patterns.items.key-takeaways.name")),
+    }),
+  );
+}
+
+describe("NestedBlocksEditor - wzorce na wskazanej pozycji", () => {
+  it("wzorzec z insertera PRZED pierwszym dzieckiem ląduje na początku", () => {
+    const { onChange } = zamontuj([akapit("c1", "pierwsze"), akapit("c2", "drugie")]);
+    wstawWzorzec(0);
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.type)).toEqual(["heading", "list", "paragraph", "paragraph"]);
+    expect(dzieci.map((b) => b.id).slice(-2)).toEqual(["c1", "c2"]);
+  });
+
+  it("wzorzec z insertera po PIERWSZYM dziecku ląduje między dziećmi", () => {
+    const { onChange } = zamontuj([akapit("c1", "pierwsze"), akapit("c2", "drugie")]);
+    wstawWzorzec(1);
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.type)).toEqual(["paragraph", "heading", "list", "paragraph"]);
+    expect(dzieci[0].id).toBe("c1");
+    expect(dzieci[3].id).toBe("c2");
+  });
+});
+
+describe("NestedBlocksEditor - uniwersalny pasek widgetu dziecka", () => {
+  it("ustawienie z paska pisze WYŁĄCZNIE do aktywnego dziecka", () => {
+    // Cytat nie ma własnego paska (nie jest w OWN_TOOLBAR_TYPES), więc dostaje
+    // pasek uniwersalny. Jego `onChange` idzie przez mapowanie po id - gdyby
+    // mapowanie było po indeksie albo podmieniało całą tablicę, ustawienie
+    // wyrównania kasowałoby treść sąsiadów.
+    const cytat = { id: "q1", type: "quote", data: { text: "Europa", cite: "" } } as Block;
+    const sasiad = akapit("c2", "beta");
+    const { onChange } = zamontuj([cytat, sasiad]);
+    fireEvent.click(document.querySelector('[data-block-id="q1"]') as Element);
+    const pasek = document.querySelector('[data-widget-toolbar="generic"]');
+    expect(pasek).not.toBeNull();
+    fireEvent.click(
+      within(pasek as HTMLElement).getByRole("button", { name: t("blocks.toolbar.alignCenter") }),
+    );
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci).toHaveLength(2);
+    expect(dzieci[0].data.align).toBe("center");
+    expect(dzieci[0].data.text).toBe("Europa");
+    // Sąsiad wraca tym samym obiektem - pasek go nie dotknął.
+    expect(dzieci[1]).toBe(sasiad);
+  });
+});
+
+// ── DEFEKT ──────────────────────────────────────────────────────────────────
+/** Kontener STEROWANY: dzieci z `onChange` wracaja w dol, jak w drzewie wpisu. */
+function zamontujSterowany(startowe: Block[]) {
+  const onChange = vi.fn<(next: Block[]) => void>();
+  function Gospodarz() {
+    const [dzieci, setDzieci] = useState<Block[]>(startowe);
+    return (
+      <NestedBlocksEditor
+        blocks={dzieci}
+        onChange={(next) => {
+          onChange(next);
+          setDzieci(next);
+        }}
+      />
+    );
+  }
+  render(<Gospodarz />);
+  return { onChange };
+}
+
+// DEFEKT: WZORZEC WSTAWIONY DO KONTENERA NIE PRZEJMUJE AKTYWNOSCI.
+//
+// WEJSCIE: pusty kontener (np. świeża kolumna), redaktor otwiera inserter
+//   i wybiera wzorzec „Kluczowe wnioski" (nagłówek + lista).
+// CO PSUJE: sciezka wielu blokow w mini-kanwie to SUROWY `emit` -
+//   `onInsertBlocks={(list) => { emit([...blocksRef.current, ...list]); }}`
+//   (NestedBlocksEditor.tsx:175-177, to samo na :189 i :235-239). W przeciwienstwie
+//   do sciezki JEDNEGO bloku (`insertAt`, :65-72) nie ustawia `activeChildId`
+//   ani nie wola `requestBlockFocus`. Kanwa glowna robi jedno i drugie w
+//   `insertBlocksAt` (BlockCanvas.tsx:368-379), wiec ten sam gest zachowuje sie
+//   inaczej w zaleznosci od tego, czy blok stoi w kontenerze, czy nie.
+// KONSEKWENCJA: po wstawieniu wzorca do kolumny zaden blok nie jest aktywny -
+//   nie ma karetki do pisania i nie ma paska ustawien, mimo ze redaktor wlasnie
+//   wskazal, gdzie chce pracowac. Przy wstawianiu wzorca POMIEDZY dzieci jest
+//   gorzej: aktywne zostaje dziecko sprzed wstawienia, wiec pasek ustawien
+//   odnosi sie do INNEGO bloku niz ten, ktory redaktor widzi jako nowy.
+// WYMAGANA POPRAWKA: wszystkie trzy `onInsertBlocks` mini-kanwy musza przejsc
+//   przez wspolny odpowiednik `insertBlocksAt` z kanwy glownej: ustawic
+//   `activeChildId` na OSTATNI wstawiony blok i - dla typow tekstowych -
+//   poprosic o karetke przez `requestBlockFocus(id, "end")`.
+it.fails("DEFEKT: wzorzec wstawiony do kontenera POWINIEN przejac aktywnosc", () => {
+  const { onChange } = zamontujSterowany([]);
+  fireEvent.click(screen.getByRole("button", { name: t("blocks.firstBlock") }));
+  fireEvent.click(screen.getByRole("button", { name: t("blocks.inserter.browseAll") }));
+  fireEvent.click(screen.getByRole("tab", { name: t("blocks.inserter.tabPatterns") }));
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: new RegExp(t("blocks.patterns.items.key-takeaways.name")),
+    }),
+  );
+  const dzieci = onChange.mock.calls.at(-1)![0];
+  expect(dzieci).toHaveLength(2);
+  const ostatni = dzieci[dzieci.length - 1];
+  expect(document.querySelector(`[data-block-id="${ostatni.id}"]`)?.className).toContain("ring-1");
 });

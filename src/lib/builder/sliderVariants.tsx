@@ -395,8 +395,6 @@ const truncate = (s: string, max: number) =>
   s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
 
 const SHARED_STYLES = `
-@keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
-@keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 /* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami.
    Osobna rezerwa pod dekorację jest krytyczna: bez niej overflow obcina dolne
    piksele podkreślenia ostatniej z 3 linii i optycznie zmienia jego grubość. */
@@ -985,22 +983,21 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // Build slide click navigation helper used across variants.
   // Client-side (TanStack Router) for internal links -> no full reload, keeps
   // header/menu mounted; window.open for external. Skipped in preview mode
-  // AND when rendered inside an EDITING surface so editing clicks don't leave
-  // the canvas. Uwaga: publiczny BuilderRenderer też ustawia
-  // [data-builder-renderer] (pusty atrybut - stylistyczny), więc blokujemy
-  // tylko prawdziwy kanwas edytora ([data-visual-canvas]) i podglądy panelu
-  // (atrybut z wartością, np. "widget-props-preview").
+  // AND when rendered inside the actual editing canvas so editing clicks don't
+  // leave it. Public BuilderRenderer uses data-builder-renderer="true", so that
+  // marker must never be treated as an editor-only signal.
   const navigateTo = (href?: string) => {
     if (!href || preview) return;
-    if (rootRef.current?.closest("[data-visual-canvas]")) return;
-    const rendererAttr = rootRef.current
-      ?.closest("[data-builder-renderer]")
-      ?.getAttribute("data-builder-renderer");
-    if (rendererAttr) return;
+    if (
+      rootRef.current?.closest(
+        '[data-visual-canvas], [data-builder-renderer="widget-props-preview"]',
+      )
+    )
+      return;
     if (href.startsWith("http://") || href.startsWith("https://")) {
       const client = toClientHref(href);
       if (client && router) {
-        void router.navigate({ href: client } as never);
+        void router.navigate({ to: client } as never);
       } else {
         window.open(href, "_blank", "noopener,noreferrer");
       }
@@ -1008,7 +1005,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     }
     const client = toClientHref(href) ?? href;
     if (router) {
-      void router.navigate({ href: client } as never);
+      void router.navigate({ to: client } as never);
     } else {
       window.location.assign(href);
     }
@@ -1066,8 +1063,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <style>{SHARED_STYLES}</style>
-      {instanceCss && <style>{instanceCss}</style>}
+      {/* Immutable React stylesheet resource: shared across slider instances,
+          SSR streams and client navigation. Instance overrides stay local. */}
+      <style href="nes-slider-shared-v1" precedence="builder">
+        {SHARED_STYLES}
+      </style>
+      {instanceCss && <style data-slider-instance>{instanceCss}</style>}
       {variant === "multi-card" && <MultiCardVariant {...sharedProps} />}
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
       {variant === "split-feature" && <SplitFeatureVariant {...sharedProps} />}
@@ -1140,33 +1141,15 @@ function EditorialHeroVariant(p: VariantProps) {
     <>
       <div
         data-widget-media
-        role={href ? "link" : undefined}
-        tabIndex={href ? 0 : undefined}
-        aria-label={href ? title : undefined}
         className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...p.aspectStyle, borderRadius: 4 }}
         onPointerDown={p.onPointerDown}
         onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag}
         onPointerCancel={p.endDrag}
-        onClick={(e) => {
-          if (!href) return;
-          const d = p.dragRef.current;
-          if (Math.abs(d.lastX - d.startX) > 5) return;
-          const target = e.target as HTMLElement;
-          if (target.closest(".eh-side-nav")) return;
-          p.navigateTo(href);
-        }}
-        onKeyDown={(e) => {
-          if (!href || p.preview) return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            p.navigateTo(href);
-          }
-        }}
       >
         <div
-          className="absolute inset-0"
+          className="pointer-events-none absolute inset-0"
           style={{
             transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
@@ -1186,6 +1169,19 @@ function EditorialHeroVariant(p: VariantProps) {
             />
           ))}
         </div>
+        {href && (
+          <AppLink
+            href={href}
+            aria-label={title}
+            className="absolute inset-0 z-[1]"
+            onClick={(e) => {
+              const moved = Math.abs(p.dragRef.current.lastX - p.dragRef.current.startX) > 5;
+              if (moved || p.preview || e.currentTarget.closest("[data-visual-canvas]")) {
+                e.preventDefault();
+              }
+            }}
+          />
+        )}
         {p.items.length > 1 && (
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
@@ -1207,11 +1203,7 @@ function EditorialHeroVariant(p: VariantProps) {
         )}
       </div>
 
-      <div
-        key={p.safeIdx}
-        className="px-4 pt-8 pb-2 text-center"
-        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
-      >
+      <div className="px-4 pt-8 pb-2 text-center">
         {p.showTitle &&
           (href ? (
             <AppLink href={href} className="inline-block w-full">
@@ -1494,11 +1486,7 @@ function CinematicOverlayVariant(p: VariantProps) {
           }}
         />
         {/* Text */}
-        <div
-          key={p.safeIdx}
-          className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white"
-          style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
-        >
+        <div className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
           <div className="max-w-3xl">
             {cat && (
               <span
@@ -1635,11 +1623,7 @@ function SplitFeatureVariant(p: VariantProps) {
           />
         )}
       </div>
-      <div
-        key={p.safeIdx}
-        className="px-1 md:px-2"
-        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
-      >
+      <div className="px-1 md:px-2">
         {cat && (
           <span
             className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider text-white shadow"

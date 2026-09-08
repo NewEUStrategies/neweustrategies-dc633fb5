@@ -13,6 +13,7 @@ import {
   createAnchorAllocator,
   legacyAnchorVariants,
   slugifyAnchor,
+  transliterateAtomicLetters,
 } from "./anchorSlug";
 import { slugifyHeading as manualTocSlugify } from "@/lib/manualToc";
 import { slugifyHeading as tocSettingsSlugify } from "@/lib/toc/settings";
@@ -206,4 +207,87 @@ describe("cross-engine anchor parity", () => {
       }
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// `transliterateAtomicLetters` - część C (gałęziowa).
+//
+// Ta funkcja nie miała w tym pliku ANI JEDNEGO wywołania (pokrycie przychodziło
+// ubocznie z `src/lib/audio/blobCache.ts`, gdzie służy do nazwy pobieranego
+// pliku). Jest to JEDYNE miejsce w repozytorium, gdzie mapa liter atomowych
+// żyje z zachowaniem wielkości - a to ona decyduje, czy nazwa pliku „Łódź.mp3"
+// nie zjedzie do „ódź.mp3".
+// ---------------------------------------------------------------------------
+describe("transliterateAtomicLetters", () => {
+  it("zachowuje wielkość litery: Ł -> L, ł -> l", () => {
+    // Dalsze diakrytyki (ó, ź) zdejmuje dopiero NFKD u konsumenta - ta funkcja
+    // ich celowo NIE rusza.
+    expect(transliterateAtomicLetters("Łódź")).toBe("Lódź");
+    expect(transliterateAtomicLetters("łódź")).toBe("lódź");
+  });
+
+  it("dwuznak z małej litery zostaje mały, z wielkiej - tylko pierwsza litera rośnie", () => {
+    // Gałąź `char === char.toLowerCase()` w obie strony. „Þor" ma dać „Thor",
+    // a nie „THor" - inaczej nazwa pliku wygląda na krzyk.
+    expect(transliterateAtomicLetters("Straße")).toBe("Strasse");
+    expect(transliterateAtomicLetters("STRAßE")).toBe("STRAssE");
+    expect(transliterateAtomicLetters("Þor")).toBe("Thor");
+    expect(transliterateAtomicLetters("þor")).toBe("thor");
+    // `ø` też jest w mapie liter atomowych, więc „Ærø" schodzi do „Aero" -
+    // dwuznak `Æ` daje `Ae` (tylko pierwsza litera wielka), a nie `AE`.
+    expect(transliterateAtomicLetters("Ærø")).toBe("Aero");
+  });
+
+  it("wielkie ASCII `I` przechodzi NIETKNIĘTE, mimo że wpada w klasę znaków", () => {
+    // Gałąź `mapped === undefined`. Klasa znaków powstaje z kluczy mapy ORAZ
+    // ich wersji wielkich, a `"ı".toUpperCase()` daje zwykłe ASCII `I`, którego
+    // klucza `i` w mapie NIE MA. Bez tej obrony każde `I` w tytule zamieniałoby
+    // się w `undefined` w nazwie pliku.
+    expect(transliterateAtomicLetters("Instytut")).toBe("Instytut");
+    expect(transliterateAtomicLetters("III")).toBe("III");
+    // ...a turecka bezkropkowa `ı` nadal jest tłumaczona.
+    expect(transliterateAtomicLetters("ırmak")).toBe("irmak");
+  });
+
+  it("napis bez liter atomowych i napis pusty wracają bez zmian", () => {
+    expect(transliterateAtomicLetters("Raport roczny 2026")).toBe("Raport roczny 2026");
+    expect(transliterateAtomicLetters("")).toBe("");
+  });
+});
+
+describe("legacyAnchorVariants / createAnchorAllocator - gałęzie brzegowe", () => {
+  it("nagłówek bez ani jednego znaku slugowalnego NIE produkuje aliasów", () => {
+    // Gałąź `|| ANCHOR_FALLBACK`: wszyscy trzej kandydaci degradują się do
+    // kotwicy zapasowej, czyli do wartości KANONICZNEJ - a warianty równe
+    // kanonicznemu są odfiltrowane. Efekt ma być pusty, bo dokładanie
+    // `<span id="section">` przy każdym takim nagłówku produkowałoby
+    // zduplikowane identyfikatory w DOM.
+    expect(legacyAnchorVariants("!!!")).toEqual([]);
+    expect(legacyAnchorVariants("   ")).toEqual([]);
+    expect(legacyAnchorVariants("")).toEqual([]);
+    expect(slugifyAnchor("!!!")).toBe(ANCHOR_FALLBACK);
+  });
+
+  it("`allocate` z jawną kotwicą `null` wraca do sluga z treści", () => {
+    // Gałąź `explicit?.trim() ?? ""`. `null` przychodzi wprost z kolumny
+    // `anchor` w bazie, gdy autor nie podał własnej kotwicy.
+    const a = createAnchorAllocator();
+    expect(a.allocate("Tytuł sekcji", null)).toBe("tytul-sekcji");
+  });
+
+  it("jawna kotwica z samych spacji NIE staje się kotwicą", () => {
+    // Drugi człon tej samej gałęzi: `"   ".trim()` daje pustkę, więc `||`
+    // przechodzi na slug. Bez tego id nagłówka byłoby pustym napisem i
+    // `#` z odnośnika trafiałby w nic.
+    const a = createAnchorAllocator();
+    expect(a.allocate("Tytuł sekcji", "   ")).toBe("tytul-sekcji");
+    expect(a.allocate("Inny tytuł", undefined)).toBe("inny-tytul");
+    expect(a.has("tytul-sekcji")).toBe(true);
+  });
+
+  it("dwa nagłówki z pustą kotwicą jawną dedupikują się po slugu, nie po pustce", () => {
+    const a = createAnchorAllocator();
+    expect(a.allocate("Wnioski", null)).toBe("wnioski");
+    expect(a.allocate("Wnioski", "  ")).toBe("wnioski-2");
+  });
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DOC_GUARD_HEADER,
@@ -52,9 +52,18 @@ async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
 
 afterEach(() => {
   resetDocumentGuardForTests();
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("HtmlEndScanner", () => {
+  it("accepts empty chunks and remembers an already found end", () => {
+    const scanner = new HtmlEndScanner();
+    expect(scanner.push(new Uint8Array())).toBe(false);
+    expect(scanner.push(encoder.encode("</html>"))).toBe(true);
+    expect(scanner.push(encoder.encode("trailing serialization"))).toBe(true);
+  });
   it("wykrywa sentinel w jednym chunku", () => {
     const scanner = new HtmlEndScanner();
     expect(scanner.push(encoder.encode("<html><body>x</body></html>"))).toBe(true);
@@ -78,6 +87,56 @@ describe("HtmlEndScanner", () => {
 });
 
 describe("guardDocumentStream", () => {
+  it("cancels the upstream reader when the consumer disconnects", async () => {
+    const cancel = vi.fn();
+    const guarded = guardDocumentStream(new ReadableStream({ cancel }), { maxMs: 50 });
+    await guarded.cancel("client disconnected");
+    expect(cancel).toHaveBeenCalledExactlyOnceWith("client disconnected");
+    expect(getDocumentGuardSnapshot()).toMatchObject({ closedBySource: 1, incidents: [] });
+  });
+  it("settles cancellation even if upstream cleanup rejects", async () => {
+    const guarded = guardDocumentStream(
+      new ReadableStream({ cancel: () => Promise.reject(new Error("upstream gone")) }),
+    );
+    await expect(guarded.cancel()).resolves.toBeUndefined();
+  });
+  it("ignores empty chunks and does not extend grace for trailing bytes after HTML end", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array());
+        c.enqueue(encoder.encode("</html>"));
+        c.enqueue(encoder.encode("tail"));
+      },
+    });
+    const result = readAll(guardDocumentStream(stream, { sentinelGraceMs: 10 }));
+    await vi.advanceTimersByTimeAsync(11);
+    expect(await result).toBe("</html>tail");
+    expect(getDocumentGuardSnapshot().closedBySentinel).toBe(1);
+  });
+  it.each(["5", "0", "-1", "garbage"])(
+    "validates the environment's hard deadline %s",
+    async (value) => {
+      vi.useFakeTimers();
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.stubEnv("SSR_DOC_GUARD_MAX_MS", value);
+      const result = readAll(guardDocumentStream(new ReadableStream()));
+      await vi.advanceTimersByTimeAsync(value === "5" ? 6 : 20_001);
+      expect(await result).toContain('reason="timeout"');
+    },
+  );
+  it("bounds incident history and keeps the most recent route", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const reads = Array.from({ length: 52 }, (_, i) =>
+      readAll(guardDocumentStream(new ReadableStream(), { maxMs: 5, label: `route-${i}` })),
+    );
+    await vi.advanceTimersByTimeAsync(6);
+    await Promise.all(reads);
+    expect(getDocumentGuardSnapshot().incidents).toHaveLength(50);
+    expect(getDocumentGuardSnapshot().incidents[0].label).toBe("route-51");
+  });
   it("happy path: źródło zamyka się samo, bajty przechodzą nietknięte", async () => {
     const html = "<html><body>ok</body></html>";
     const out = await readAll(
@@ -220,3 +279,33 @@ describe("guardDocumentResponse", () => {
     }
   });
 });
+
+it.each([false, true])(
+  "records upstream failure separately from natural EOF (HTML complete: %s)",
+  async (complete) => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let sourceController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const source = new ReadableStream<Uint8Array>({
+      start(c) {
+        sourceController = c;
+      },
+    });
+    const reader = guardDocumentStream(source).getReader();
+    const html = complete ? "<html><body>content</body></html>" : "<html><body>content";
+    sourceController!.enqueue(encoder.encode(html));
+    expect(decoder.decode((await reader.read()).value)).toBe(html);
+    sourceController!.error(new Error("upstream transport disconnected"));
+    const tail = await reader.read();
+    if (complete) expect(tail.done).toBe(true);
+    else {
+      expect(decoder.decode(tail.value)).toContain(DOC_GUARD_TRUNCATION_MARKER);
+      expect(decoder.decode(tail.value)).toContain('reason="error"');
+      expect((await reader.read()).done).toBe(true);
+    }
+    expect(getDocumentGuardSnapshot()).toMatchObject({
+      closedBySource: 0,
+      closedByError: 1,
+      incidents: [{ reason: "error", sawHtmlEnd: complete }],
+    });
+  },
+);

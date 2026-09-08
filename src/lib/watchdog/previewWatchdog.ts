@@ -78,12 +78,14 @@ export interface WatchdogTriggerOptions {
  */
 export function triggerWatchdogReload(options: WatchdogTriggerOptions): boolean {
   const now = options.now ?? Date.now;
-  const storage =
-    options.storage !== undefined
-      ? options.storage
-      : typeof window !== "undefined"
-        ? window.sessionStorage
-        : null;
+  let storage: Storage | null = options.storage ?? null;
+  if (options.storage === undefined && typeof window !== "undefined") {
+    try {
+      storage = window.sessionStorage;
+    } catch {
+      /* The getter itself throws in storage-blocked preview frames. */
+    }
+  }
   const currentTime = now();
   const counter = readReloadCounter(storage);
   const hasActiveWindow = counter.count > 0;

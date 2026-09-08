@@ -64,3 +64,58 @@ describe("peopleColumnCount", () => {
     ).toBe(3);
   });
 });
+
+// ODMOWY OBU FUNKCJI - galezie, ktore decyduja, czy sekcja dostanie uklad
+// siatki osob, czy zwykly.
+//
+// `isPeopleSectionKind` i `peopleColumnCount` sterują WYGLADEM sekcji
+// (siatka kart osob kontra uklad domyslny), wiec ich falszywe "tak" psuje
+// gotowa strone. Testy wyzej pokrywaja potwierdzenia; ponizsze pokrywaja
+// PRZYPADKI PUSTE, ktore w obu funkcjach maja osobne galezie i ktore zdarzaja
+// sie realnie: sekcja wewnetrzna zaklada sie z zerem kolumn i dopiero potem
+// redaktor je dokłada.
+//
+// GRANICA DOWODU: `containsPeopleWidget` konczy sie zapasowym `return false`
+// (src/lib/builder/sectionKind.ts:16) dla dziecka, ktore nie jest ani kolumna,
+// ani sekcja wewnetrzna. Z typu `SectionChild` (suma DOKLADNIE tych dwoch)
+// ta linia jest NIEOSIAGALNA i swiadomie nie ma tu na nia testu - dosiegniecie
+// jej wymagaloby rzutowania, ktore dowodzilo by tylko tego, ze rzutowanie
+// dziala. Zostaje jako oslona na wypadek rozszerzenia sumy typow.
+
+describe("isPeopleSectionKind - sekcja wewnetrzna bez kolumn", () => {
+  it("sekcja wewnetrzna z PUSTA lista kolumn nie robi z sekcji siatki osob", () => {
+    // `every` na pustej tablicy zwraca prawde, wiec bez jawnego warunku
+    // `columns.length > 0` swiezo dodana, jeszcze pusta sekcja wewnetrzna
+    // przelaczalaby cala sekcje w uklad kart osob.
+    expect(isPeopleSectionKind([inner([])])).toBe(false);
+  });
+
+  it("jedna pusta sekcja wewnetrzna psuje wynik calej sekcji osob", () => {
+    expect(isPeopleSectionKind([inner([col([w("team-member")])]), inner([])])).toBe(false);
+  });
+});
+
+describe("peopleColumnCount - przypadki dajace zero", () => {
+  it("pusta lista dzieci daje zero", () => {
+    expect(peopleColumnCount([])).toBe(0);
+  });
+
+  it("sekcja wewnetrzna bez kolumn daje zero, a nie liczbe dzieci sekcji", () => {
+    // Rekurencja schodzi w `columns`, dostaje pusta liste i wraca z zerem;
+    // zero NIE moze byc uznane za "znalezione", bo wtedy funkcja zwrocilaby
+    // liczbe kolumn warstwy, ktorej wcale nie ma.
+    expect(peopleColumnCount([inner([])])).toBe(0);
+  });
+
+  it("pusta sekcja wewnetrzna nie przerywa szukania - liczy sie pierwsza warstwa z kolumnami", () => {
+    expect(peopleColumnCount([inner([]), inner([col([w("team-member")]), col([w("text")])])])).toBe(
+      2,
+    );
+  });
+
+  it("kolumna w pierwszej warstwie liczy WSZYSTKIE dzieci tej warstwy", () => {
+    // Warunek `child.kind === "column"` konczy petle przy pierwszej kolumnie
+    // i zwraca `children.length` - czyli takze sekcje wewnetrzne stojace obok.
+    expect(peopleColumnCount([col([w("team-member")]), inner([col([w("team-member")])])])).toBe(2);
+  });
+});

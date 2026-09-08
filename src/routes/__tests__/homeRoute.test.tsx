@@ -20,7 +20,7 @@
 //     tytuł/opis/canonical/robots bije defaulty marki, a w trybie „najnowsze
 //     wpisy" SEO ukrytej strony NIE przecieka do listy.
 //  5. ROZGRZEWKA WIDGETÓW JEST INNA NA SERWERZE I NA KLIENCIE. SSR czeka na
-//     wszystkie sekcje, nawigacja klientowa tylko na trzy nad zgięciem -
+//     tylko trzy sekcje nad zgięciem, tak samo jak nawigacja klientowa -
 //     pomyłka tutaj to albo migający ekran po hydracji, albo przejście
 //     zatrzymane na najwolniejszym zapytaniu spod zgięcia.
 //  6. PODPOWIEDŹ LCP JEST BAJTOWO ZGODNA z malowanym obrazem (ten sam srcSet
@@ -389,6 +389,15 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(screen.getByTestId("kanwa")).toHaveAttribute("data-lang", "en");
   });
 
+  it("angielska strona bez tłumaczenia zajawki zachowuje polski opis", async () => {
+    h.requestUrl = "https://neweuropeanstrategies.com/en";
+    h.lang = "en";
+    h.homePage = homePageData({ excerpt_pl: "Zajawka czeka na tłumaczenie.", excerpt_en: "" });
+    const view = await mountHome();
+    expect(metaByName(view.meta(), "description")).toBe("Zajawka czeka na tłumaczenie.");
+    expect(metaByProperty(view.meta(), "og:locale")).toBe("en_US");
+  });
+
   it("okładka strony statycznej ląduje w og:image", async () => {
     h.homePage = homePageData({ cover_image_url: COVER });
     const view = await mountHome();
@@ -426,7 +435,7 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.homePage = homePageData({ builder_data: { version: 1, sections: [] } });
     await mountHome();
     expect(screen.queryByTestId("kanwa")).toBeNull();
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=pl)")).toBeTruthy();
   });
 
   it("stan pusty mówi w języku renderu, a nie zawsze po polsku", async () => {
@@ -435,14 +444,14 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.lang = "en";
     h.homePage = homePageData({ builder_data: { version: 1, sections: [] } });
     await mountHome();
-    expect(screen.getByText(/nothing here yet/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=en)")).toBeTruthy();
   });
 
   it("strona w innym edytorze niż builder też trafia na stan pusty (nie na wyjątek)", async () => {
     h.homePage = homePageData({ editor: "richtext", builder_data: builderDoc() });
     await mountHome();
     expect(screen.queryByTestId("kanwa")).toBeNull();
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=pl)")).toBeTruthy();
     // Kanwa nie wchodzi do renderu, więc rozgrzewka widgetów nie ma po co startować.
     expect(h.prefetch).toEqual([]);
   });
@@ -782,25 +791,28 @@ describe("/ - dostępność", () => {
   });
 });
 
-describe("/ - dług i18n zgłoszony, nie naprawiony", () => {
-  // Zdanie stanu pustego („Nie ma tu jeszcze treści - zajrzyj wkrótce.”) jest
-  // dwujęzycznym LITERAŁEM w kodzie molekuły, a nie kluczem słownika - treść
-  // przeniesiona znak w znak z `routes/index.tsx`.
-  //
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: redakcja nie może zmienić zdania, które widzi
-  // czytelnik na PUSTEJ stronie głównej, bez wdrożenia kodu - w odróżnieniu od
-  // każdego innego tekstu w serwisie. Bramka parytetu PL/EN nie ma tu czego
-  // porównywać, więc rozjazd tłumaczeń przejdzie niezauważony.
-  //
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: strona główna nie woła żadnego
-  // `ensureI18n`, więc klucz musi albo wejść do słownika BAZOWEGO (koszt
-  // w rozmiarze wejściowego chunku najważniejszej trasy), albo strona musi
-  // zacząć dociągać nakładkę (koszt w TTFB tej samej trasy). To wybór
-  // architektoniczny, nie refaktor pod test.
-  it.fails("zdanie stanu pustego pochodzi ze słownika, nie z literału w kodzie", async () => {
-    const fs = await import("node:fs");
-    const source = fs.readFileSync("src/components/home/molecules/HomeEmptyNotice.tsx", "utf8");
-    const literaly = /There's nothing here yet|Nie ma tu jeszcze treści/.test(source);
-    expect({ dwujezycznyLiteralWKodzie: literaly }).toEqual({ dwujezycznyLiteralWKodzie: false });
-  });
+it("does not cache an above-fold data widget whose prefetch missed the deadline", async () => {
+  h.server = true;
+  const doc = {
+    version: 1,
+    sections: [
+      {
+        id: "s",
+        kind: "section",
+        children: [
+          {
+            id: "c",
+            kind: "column",
+            span: { desktop: 12 },
+            children: [{ id: "w", kind: "widget", type: "post-list", content: {} }],
+          },
+        ],
+      },
+    ],
+  };
+  h.homePage = homePageData({ builder_data: doc });
+  const view = await mountHome();
+  expect(h.prefetch).toEqual(["nad-zgieciem"]);
+  expect(view.queryClient.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(0);
+  expect(h.cacheControl.at(-1)).toBe("private, no-store");
 });

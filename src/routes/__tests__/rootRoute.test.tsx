@@ -30,6 +30,7 @@
 // `archiveRoutes.test.ts`). `src/test/routeHarness.tsx` nie da się tu użyć: buduje
 // własny, atrapowy korzeń i wiesza trasę pliku jako jego dziecko, więc prawdziwy
 // `__root` nigdy nie zostaje korzeniem.
+import { readChromeWarmup } from "@/lib/ssr/chromeWarmup";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -284,6 +285,7 @@ describe("__root loader", () => {
   it("z chrome'em grzeje menu main + footer RÓWNOLEGLE z falą 1", async () => {
     h.chrome = true;
     await runLoader(qc);
+    await vi.dynamicImportSettled();
     expect(h.menus.sort()).toEqual(["footer", "main"]);
   });
 
@@ -319,6 +321,7 @@ describe("__root loader", () => {
   it("wiszące, ale NADAL LECĄCE menu ZOSTAJE - usunięcie go byłoby utratą danych", async () => {
     h.menusHang = true;
     await runLoader(qc);
+    await vi.dynamicImportSettled();
     expect(qc.getQueryState(["menu-with-items", "main"])?.fetchStatus).toBe("fetching");
     h.menusHang = false;
   });
@@ -369,5 +372,69 @@ describe("__root wiring", () => {
     expect(typeof Route.options.component).toBe("function");
     expect(typeof Route.options.notFoundComponent).toBe("function");
     expect(typeof Route.options.errorComponent).toBe("function");
+  });
+});
+
+describe("root chrome gate uses real query freshness", () => {
+  it("marks pending chrome no-store before its Suspense fallback flushes", async () => {
+    h.menusHang = true;
+    try {
+      await runLoader(qc, "/cookies");
+      let suspended: unknown;
+      try {
+        readChromeWarmup(qc);
+      } catch (value) {
+        suspended = value;
+      }
+      expect(suspended).toBeInstanceOf(Promise);
+      expect(h.cacheControl.at(-1)).toBe("private, no-store");
+      await suspended;
+      expect(() => readChromeWarmup(qc)).not.toThrow();
+    } finally {
+      h.menusHang = false;
+      qc.clear();
+    }
+  });
+  it("does not delay a home shell after the shared deadline expires", async () => {
+    h.server = true;
+    h.menusHang = true;
+    try {
+      await runLoader(qc);
+      const now = Date.now();
+      const clock = vi.spyOn(Date, "now").mockReturnValue(now + 10_000);
+      try {
+        expect(() => readChromeWarmup(qc)).not.toThrow();
+        expect(h.cacheControl.at(-1)).toBe("private, no-store");
+      } finally {
+        clock.mockRestore();
+      }
+    } finally {
+      h.menusHang = false;
+      qc.clear();
+    }
+  });
+  it("registers configured header and footer widget queries for freshness checking", async () => {
+    const doc = {
+      version: 1,
+      sections: [
+        {
+          id: "s",
+          kind: "section",
+          children: [
+            {
+              id: "c",
+              kind: "column",
+              children: [{ id: "w", kind: "widget", type: "menu", content: { menu_key: "main" } }],
+            },
+          ],
+        },
+      ],
+    };
+    h.settings = { header: { builder_data: doc }, footer: { builder_data: doc } };
+    await runLoader(qc);
+    await vi.dynamicImportSettled();
+    expect(() => readChromeWarmup(qc)).not.toThrow();
+    expect(qc.getQueryData(["menu-with-items", "main"])).toEqual([]);
+    expect(h.prefetch).toHaveLength(2);
   });
 });

@@ -53,6 +53,7 @@ import {
   planDocumentCache,
   type NesCacheStatus,
 } from "@/lib/http/documentCache";
+import { readRouteCacheDirective } from "@/lib/http/responseHeaders";
 import { currentTenantHost, trustedPublicHost } from "@/lib/http/requestHost";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 import {
@@ -427,6 +428,7 @@ async function collectStream(
  * razem ze strumieniem.
  */
 interface DeferredDocumentStore {
+  request: Request;
   host: string | null;
   key: string;
   contentType: string;
@@ -458,6 +460,7 @@ const deferredStores = new WeakMap<ReadableStream<Uint8Array>, DeferredDocumentS
  * porównania tożsamości (`applyDeferredDocumentStore`).
  */
 function decorateMissAndDeferStore(
+  request: Request,
   host: string | null,
   key: string,
   path: string,
@@ -479,6 +482,7 @@ function decorateMissAndDeferStore(
   );
   if (policy.store && response.body) {
     deferredStores.set(response.body, {
+      request,
       host,
       key,
       contentType: response.headers.get("content-type") ?? "text/html; charset=utf-8",
@@ -517,6 +521,30 @@ export function applyDeferredDocumentStore(
   if (!record) return response;
   deferredStores.delete(response.body);
 
+  // A later middleware, h3 header merge, or a Suspense boundary may tighten
+  // cache policy after the write was registered. Recheck at BOTH boundaries:
+  // before teeing and after the document has finished streaming.
+  const canStillStore = () => {
+    const directive = readRouteCacheDirective(record.request);
+    return (
+      documentStorePolicy(
+        response.status,
+        response.headers.get("content-type"),
+        response.headers.get("cache-control"),
+      ).store &&
+      (!directive || documentStorePolicy(response.status, record.contentType, directive).store)
+    );
+  };
+  if (!canStillStore()) {
+    const headers = new Headers(response.headers);
+    headers.set("cache-control", "private, no-store");
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+
   // Nagłówek `Link` czytamy TUTAJ, nie w middleware: loadery ustawiają go przez
   // setResponseHeader na nagłówkach ZDARZENIA h3, a te scalają się z odpowiedzią
   // dopiero w toResponse() na granicy requestHandlera - czyli ZA całym łańcuchem
@@ -541,7 +569,7 @@ export function applyDeferredDocumentStore(
       );
       return false;
     }
-    if (!body) return false;
+    if (!body || !canStillStore()) return false;
     const entry: DocumentCacheEntry = {
       body,
       bytes: body.byteLength,
@@ -640,7 +668,7 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            decorateMissAndDeferStore(host, plan.key, path, rendered, Date.now(), timing),
+            decorateMissAndDeferStore(request, host, plan.key, path, rendered, Date.now(), timing),
           );
         }
         return result;
@@ -691,7 +719,7 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            decorateMissAndDeferStore(host, plan.key, path, rendered, Date.now(), timing),
+            decorateMissAndDeferStore(request, host, plan.key, path, rendered, Date.now(), timing),
           );
         }
         return result;
@@ -717,7 +745,7 @@ export async function handleDocumentRequest<T>(
   if (rendered) {
     return withMiddlewareResponse(
       result,
-      decorateMissAndDeferStore(host, plan.key, path, rendered, Date.now(), timing),
+      decorateMissAndDeferStore(request, host, plan.key, path, rendered, Date.now(), timing),
     );
   }
   return result;

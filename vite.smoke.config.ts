@@ -20,7 +20,9 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import type { Rollup } from "vite";
+import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
+import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 
 // `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
 // realny artefakt (różni się wyłącznie presetem: node-server zamiast
@@ -39,10 +41,10 @@ export default defineConfig({
   vite: {
     // Parytet z vite.config.ts: bez tej wtyczki artefakt smoke'owy nie niesie
     // hintu `modulepreload` dla rdzenia słownika, czyli boot-test mierzyłby
-    // dokument o innym zestawie nagłówków niż produkcja. `chunkInventoryPlugin`
-    // jest tu POMINIĘTY świadomie - jest inertny bez BUNDLE_INVENTORY=1 i mierzy
-    // skład bundla, a nie zachowanie bootu.
-    plugins: [localeChunkPlugin()],
+    // dokument o innym zestawie nagłówków niż produkcja. The inventory must
+    // describe THIS smoke build: browser timing classifies static imports
+    // from its graph, independently of Chromium's initiatorType labels.
+    plugins: [localeChunkPlugin(), adminCssPlugin(), chunkInventoryPlugin(true)],
 
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
@@ -107,6 +109,10 @@ export default defineConfig({
               // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
               // dynamic importach) pokrywa modulepreload z mapDeps.
               hoistTransitiveImports: false,
+              // Coalesce tiny automatic chunks when Rollup can preserve their
+              // loading/side-effect semantics. Keep both presets identical;
+              // startup size, graph and browser boot remain blocking gates.
+              experimentalMinChunkSize: 512,
               manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
@@ -175,6 +181,19 @@ export default defineConfig({
                 // ikon zmienia się rzadziej niż kod aplikacji. Domknięcie
                 // trywialne - lucide-react importuje wyłącznie React.
                 if (id.includes("/node_modules/lucide-react/")) return "vendor-lucide";
+                // Heavy controls are not required by the public header. Keep
+                // their implementations out of the shared primitive chunk;
+                // dependencies still share vendor-radix and vendor-react.
+                const radixPackage = id
+                  .split("/node_modules/")
+                  .at(-1)
+                  ?.match(
+                    /^@radix-ui\/react-(select|slider|scroll-area|menu|context-menu|dropdown-menu)\//,
+                  )?.[1];
+                if (radixPackage) {
+                  const group = radixPackage.includes("menu") ? "menu" : radixPackage;
+                  return `vendor-radix-${group}`;
+                }
                 // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
                 // w JEDNYM chunku - patrz zasada domknięcia wyżej.
                 if (

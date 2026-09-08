@@ -50,6 +50,13 @@ function source(
 }
 
 describe("enum app_role", () => {
+  it("ignores an empty enum value and splits unfinished SQL conservatively", () => {
+    expect(
+      deriveAppRoles([{ file: "001.sql", sql: "CREATE TYPE app_role AS ENUM ('', 'admin');" }]),
+    ).toEqual(["admin"]);
+    expect(splitSqlStatements(";; SELECT $1; SELECT 2")).toEqual(["SELECT $1", "SELECT 2"]);
+    expect(splitSqlStatements("CREATE FUNCTION f() RETURNS void AS $$ BEGIN;")).toHaveLength(1);
+  });
   it("składa wartości z CREATE TYPE i ALTER TYPE ADD VALUE", () => {
     expect(deriveAppRoles([ENUM_SQL])).toEqual([
       "admin",
@@ -420,6 +427,24 @@ describe("dryf snapshotu bramek", () => {
     roleGates,
     featureGates,
     stats: { migrations: 10, functions: 5, policies: 3 },
+  });
+
+  it("reports removed and added feature gates as authorization changes", () => {
+    const removed = collectAuthzSnapshotDrift(snapshot([], [featureGate()]), snapshot([]));
+    const added = collectAuthzSnapshotDrift(snapshot([]), snapshot([], [featureGate()]));
+    expect(removed[0]).toMatchObject({ kind: "feature_gate_removed", severity: "authorization" });
+    expect(added[0]).toMatchObject({ kind: "feature_gate_added", severity: "authorization" });
+    expect(formatAuthzDriftReport(removed)).toContain("ZMIANA UPRAWNIEŃ");
+    expect(formatAuthzDriftReport(removed)).not.toContain("PROVENANCE -");
+  });
+  it("reports feature provenance separately from permission changes", () => {
+    const drift = collectAuthzSnapshotDrift(
+      snapshot([], [featureGate()]),
+      snapshot([], [featureGate({ file: "later.sql" })]),
+    );
+    expect(drift[0]).toMatchObject({ kind: "feature_gate_changed", severity: "provenance" });
+    expect(formatAuthzDriftReport(drift)).not.toContain("ZMIANA UPRAWNIEŃ");
+    expect(formatAuthzDriftReport(drift)).toContain("PROVENANCE");
   });
 
   it("zgodny snapshot nie produkuje ŻADNEGO wpisu", () => {

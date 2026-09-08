@@ -7,7 +7,7 @@ import {
   UserCircle,
   UserCog,
   Heart,
-  Sparkles,
+  ScanFace,
   Bookmark,
   Users,
   Bell,
@@ -23,6 +23,7 @@ import {
   MessageSquareQuote,
   CalendarDays,
   ShoppingCart,
+  FileDown,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
@@ -41,6 +42,7 @@ type NavKey =
   | "organization"
   | "billing"
   | "payments"
+  | "invoices"
   | "tickets"
   | "security"
   | "privacy"
@@ -66,7 +68,7 @@ const IDENTITY: NavItem[] = [
 
 const CONTENT: NavItem[] = [
   { to: "/profile/interests", key: "interests", icon: Heart },
-  { to: "/profile/personality", key: "personality", icon: Sparkles },
+  { to: "/profile/personality", key: "personality", icon: ScanFace },
   { to: "/profile/bookmarks", key: "bookmarks", icon: Bookmark },
   { to: "/profile/follows", key: "follows", icon: Heart },
   // Świadomie linkują POZA profil (sieć kontaktów i centrum wiadomości).
@@ -91,6 +93,9 @@ const FINANCE: NavItem[] = [
   { to: "/profile/membership", key: "membership", icon: Crown },
   { to: "/profile/plan", key: "plan", icon: RefreshCw },
   { to: "/profile/payments", key: "payments", icon: Receipt },
+  // Faktury mają własne wejście: „ile zapłaciłem" i „gdzie mój PDF" to dwa
+  // różne pytania, a dokumenty wymagają miejsca na pobieranie i dane nabywcy.
+  { to: "/profile/invoices", key: "invoices", icon: FileDown },
   // „Moje zgłoszenia" stoi w finansach, bo o zgłoszeniu na wydarzenie
   // rozstrzyga wynik płatności - to tu użytkownik szuka odpowiedzi „dlaczego
   // anulowano" i „gdzie mój zwrot".

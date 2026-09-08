@@ -402,3 +402,94 @@ describe("listPreviewTokens / revokePreviewToken (staff)", () => {
     expect(serverFnMeta(revokePreviewToken)?.middleware).toEqual([{ __mw: "requireStaff" }]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// GAŁĘZIE WALIDATORÓW I ENTROPIA TOKENA - część C (gałęziowa).
+//
+// Każda z czterech funkcji tego pliku zaczyna się od `.parse(i ?? {})`. Człon
+// `?? {}` to jedyna bariera przed żądaniem BEZ ciała - a takie żądanie potrafi
+// przyjść z gołego `fetch` na endpoint server fn. Testy wyżej zawsze podają
+// obiekt `data`, więc ta gałąź nie była wykonana w żadnej z czterech funkcji.
+// ---------------------------------------------------------------------------
+describe("walidatory - żądanie BEZ ciała kończy się odmową walidacji", () => {
+  it.each([
+    ["createPreviewToken", () => createPreviewToken({ data: undefined })],
+    ["listPreviewTokens", () => listPreviewTokens({ data: undefined })],
+    ["revokePreviewToken", () => revokePreviewToken({ data: undefined })],
+    ["fetchPreviewPost", () => fetchPreviewPost({ data: undefined })],
+  ])("%s odrzuca brak danych, zamiast wywracać się na `undefined`", async (_name, call) => {
+    await expect(call()).rejects.toThrow();
+  });
+
+  it("odmowa walidacji `fetchPreviewPost` następuje PRZED limiterem i przed bazą", async () => {
+    // Kolejność ma znaczenie: walidator jest darmowy, limiter i baza nie.
+    await expect(fetchPreviewPost({ data: undefined })).rejects.toThrow();
+    expect(h.rateLimit).not.toHaveBeenCalled();
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("`createPreviewToken` odrzuca ttl poza zakresem 1..720 godzin", async () => {
+    await expect(createPreviewToken({ data: { postId: POST_A, ttlHours: 0 } })).rejects.toThrow();
+    await expect(createPreviewToken({ data: { postId: POST_A, ttlHours: 721 } })).rejects.toThrow();
+    await expect(createPreviewToken({ data: { postId: POST_A, ttlHours: 1.5 } })).rejects.toThrow();
+  });
+});
+
+describe("generateToken - dowód wykonawczy i entropia linku podglądu", () => {
+  beforeEach(() => {
+    db.setResponse("post_preview_tokens", (chain) => {
+      const inserted = chain.calls.find((c) => c.method === "insert")?.args[0] as
+        { token: string; expires_at: string } | undefined;
+      return ok({
+        id: "row-1",
+        token: inserted?.token ?? "",
+        expires_at: inserted?.expires_at ?? "",
+      });
+    });
+  });
+
+  it("token jest base64url BEZ wypełnienia i bez znaków wymagających kodowania w URL", async () => {
+    const { token } = await createPreviewToken({ data: { postId: POST_A } });
+    // `+`, `/` i `=` z klasycznego base64 są w adresie albo znakiem sterującym,
+    // albo wymagają procentowego kodowania - link z e-maila przestaje działać
+    // po pierwszym przepisaniu przez klienta pocztowego.
+    expect(token).not.toContain("+");
+    expect(token).not.toContain("/");
+    expect(token).not.toContain("=");
+    expect(encodeURIComponent(token)).toBe(token);
+    // 24 bajty -> 32 znaki base64 po zdjęciu wypełnienia.
+    expect(token).toHaveLength(32);
+  });
+
+  it("token mieści się w zakresie przyjmowanym przez walidator odczytu (16..64)", async () => {
+    // Kontrakt między funkcją wystawiającą a publicznym odczytem: token, który
+    // sam wygenerowaliśmy, MUSI przejść przez `fetchPreviewPost`. Rozjazd tych
+    // dwóch miejsc dawałby linki niedziałające od chwili wystawienia.
+    const { token } = await createPreviewToken({ data: { postId: POST_A } });
+    expect(token.length).toBeGreaterThanOrEqual(16);
+    expect(token.length).toBeLessThanOrEqual(64);
+
+    admin.setResponse("post_preview_tokens", () => ok(null));
+    await expect(fetchPreviewPost({ data: { token } })).resolves.toBeNull();
+    expect(h.rateLimit).toHaveBeenLastCalledWith({
+      scope: "preview.fetch",
+      subjectId: token.slice(0, 16),
+      max: 60,
+    });
+  });
+
+  it("dwadzieścia kolejnych tokenów jest PARAMI różnych - brak licznika w miejsce losowości", async () => {
+    const tokens = new Set<string>();
+    for (let i = 0; i < 20; i += 1) {
+      const { token } = await createPreviewToken({ data: { postId: POST_A } });
+      tokens.add(token);
+    }
+    expect(tokens.size).toBe(20);
+    // Żaden token nie jest przedrostkiem innego - to wykluczałoby zgadywanie
+    // kolejnego linku z jednego przechwyconego.
+    const list = [...tokens];
+    for (const a of list) {
+      expect(list.filter((b) => b !== a && b.startsWith(a.slice(0, 16)))).toHaveLength(0);
+    }
+  });
+});

@@ -7,6 +7,7 @@ import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
+import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";
@@ -550,7 +551,9 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
-        <HeaderInner adPageType={adPageType} isHome={isHome} />
+        <ChromeDataGate>
+          <HeaderInner adPageType={adPageType} isHome={isHome} />
+        </ChromeDataGate>
       </Suspense>
     </header>
   );

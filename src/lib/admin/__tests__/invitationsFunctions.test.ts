@@ -40,7 +40,7 @@
 //   `tenant_isolation_three_tenants_test.sql`,
 //   `security_definer_tenant_scope_test.sql`.
 // - INTERFEJSU MODALEK: `src/components/admin/users/__tests__/userDialogs.test.tsx`.
-// - BRAMKI POCZTY: `sendTransactionalEmail` ma własny test; tutaj jest atrapą
+// - BRAMKI POCZTY: `enqueueRawEmail` ma własny test; tutaj jest atrapą
 //   i sprawdzamy WYŁĄCZNIE, co system zaproszeń robi z jej odmową.
 //
 // RODO: żadnych realnych danych osobowych. Adresy wyłącznie w `example.org`,
@@ -65,7 +65,7 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 
 const h = vi.hoisted(() => ({
   /** Wywołania `auth.admin.*` - kolejność i argumenty tworzenia kont. */
-  authCalls: [] as { kind: "invite" | "create"; email: string; payload: unknown }[],
+  authCalls: [] as { kind: string; email: string; payload: unknown }[],
   /** Identyfikator, jaki oddaje warstwa auth; `null` = „konto bez id". */
   authUserId: "aaaa1111-2222-4333-8444-555566667777" as string | null,
   /**
@@ -88,20 +88,39 @@ const h = vi.hoisted(() => ({
    */
   authFailsFirstOnly: false,
   /** Wysłane wiadomości - atrapa bramki poczty. */
-  emails: [] as { to: string; subject: string; html: string }[],
+  emails: [] as {
+    to: string;
+    lang: string;
+    ctaUrl?: string;
+    details?: { label: string; value: string }[];
+  }[],
   emailOk: true,
+  /** Awaria generatora linku aktywacyjnego. */
+  linkError: null as Error | null,
   emailError: "smtp down",
+  /** Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`. */
+  existingAuthUsers: [] as { id: string; email: string | null }[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     auth: {
       admin: {
+        // Moduł najpierw sprawdza, czy konto o tym adresie już istnieje.
+        listUsers: async () => ({ data: { users: h.existingAuthUsers ?? [] }, error: null }),
         inviteUserByEmail: async (email: string, payload: unknown) => {
           h.authCalls.push({ kind: "invite", email, payload });
           if (h.authError) return { data: { user: null }, error: h.authError };
           return {
             data: { user: h.authUserId ? { id: h.authUserId } : null },
+            error: null,
+          };
+        },
+        generateLink: async (payload: { type: string; email: string }) => {
+          h.authCalls.push({ kind: `link:${payload.type}`, email: payload.email, payload });
+          if (h.linkError) return { data: null, error: h.linkError };
+          return {
+            data: { properties: { action_link: "https://example.test/activate?token=abc" } },
             error: null,
           };
         },
@@ -127,16 +146,31 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         h.adminWrites.push({ table, row, options });
         return Promise.resolve({ data: null, error: null });
       },
-      select: () => ({
-        in: () =>
-          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null }),
-      }),
+      select: () => {
+        // Łańcuch obsługuje dwa użycia: listę profili (`.in()` → wynik po await)
+        // oraz wiersz subskrypcji zapraszanego (`.eq().in().order().limit().maybeSingle()`),
+        // z którego wynika zakres obietnicy w treści maila. Każde ogniwo jest
+        // jednocześnie obietnicą i łańcuchem, więc oba użycia działają.
+        const result = () =>
+          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null });
+        const chain: Record<string, unknown> = {};
+        for (const method of ["eq", "in", "order", "limit"]) {
+          chain[method] = () => Object.assign(result(), chain);
+        }
+        chain["maybeSingle"] = () => Promise.resolve({ data: null, error: null });
+        return chain;
+      },
     }),
   },
 }));
 
-vi.mock("@/lib/server/email.server", () => ({
-  sendTransactionalEmail: async (input: { to: string; subject: string; html: string }) => {
+vi.mock("@/lib/email/transactional.server", () => ({
+  sendTxEmail: async (input: {
+    to: string;
+    lang: string;
+    ctaUrl?: string;
+    details?: { label: string; value: string }[];
+  }) => {
     h.emails.push(input);
     return h.emailOk ? { ok: true } : { ok: false, error: h.emailError };
   },
@@ -272,6 +306,7 @@ beforeEach(() => {
   h.authFailsFirstOnly = false;
   h.emails = [];
   h.emailOk = true;
+  h.linkError = null;
   h.emailError = "smtp down";
 });
 
@@ -938,24 +973,24 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(result.error).toBe("statement timeout");
   });
 
-  it("tryb odnośnika jednorazowego woła `inviteUserByEmail`, NIE `createUser`", async () => {
+  it("tryb odnośnika jednorazowego zakłada konto i WYSYŁA własny e-mail z linkiem", async () => {
     withInvitation(invitationRow({ mode: "magic_link" }));
     const result = await send();
     expect(result.ok).toBe(true);
-    expect(h.authCalls).toHaveLength(1);
-    expect(h.authCalls[0].kind).toBe("invite");
+    expect(h.authCalls.map((call) => call.kind)).toEqual(["create", "link:invite"]);
     expect(h.authCalls[0].email).toBe("nowa@example.org");
     // Hasła tymczasowego NIE MA - w tym trybie logowanie idzie odnośnikiem.
     expect(result.tempPassword).toBeUndefined();
-    // I nie idzie żadna nasza wiadomość - wysyła ją Supabase Auth.
-    expect(h.emails).toHaveLength(0);
+    // Wiadomość wychodzi z NASZEJ bramki i niesie link aktywacyjny.
+    expect(h.emails).toHaveLength(1);
+    expect(h.emails[0].ctaUrl).toBe("https://example.test/activate?token=abc");
   });
 
   it("odnośnik jednorazowego dostępu niesie najemcę i nazwę w metadanych konta", async () => {
     withInvitation(invitationRow({ mode: "magic_link" }));
     await send();
     expect(h.authCalls[0].payload).toMatchObject({
-      data: { display_name: "Nowa Osoba", tenant_id: IDS.tenant },
+      user_metadata: { display_name: "Nowa Osoba", tenant_id: IDS.tenant },
     });
   });
 
@@ -991,7 +1026,7 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     // wysyłka pomija warstwę auth i tylko uzupełnia profil.
     withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
     const result = await send();
-    expect(h.authCalls).toHaveLength(0);
+    expect(h.authCalls.every((call) => call.kind.startsWith("link:"))).toBe(true);
     expect(result.ok).toBe(true);
     const profileWrite = h.adminWrites.find((write) => write.table === "profiles");
     expect(profileWrite?.row).toMatchObject({ id: IDS.existingUser });
@@ -1185,17 +1220,17 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(h.emails).toHaveLength(1);
     expect(h.emails[0].to).toBe("nowa@example.org");
     // Hasło MUSI być w treści - to jedyny kanał, którym trafia do osoby.
-    expect(h.emails[0].html).toContain(result.tempPassword);
+    expect(JSON.stringify(h.emails[0].details)).toContain(result.tempPassword);
     // I musi być odnośnik do logowania z wypełnionym adresem.
-    expect(h.emails[0].html).toContain(encodeURIComponent("nowa@example.org"));
+    expect(h.emails[0].ctaUrl).toContain(encodeURIComponent("nowa@example.org"));
   });
 
-  it("PONOWIENIE w trybie hasła NIE wysyła wiadomości - hasła już nie ma", async () => {
-    // Konto istnieje, więc nowe hasło nie powstaje; wiadomość z pustym hasłem
-    // byłaby bezużyteczna i myląca.
+  it("PONOWIENIE w trybie hasła wysyła wiadomość, ale BEZ nowego hasła", async () => {
+    // Konto istnieje, więc nowe hasło nie powstaje - wiadomość przypomina
+    // tylko adres logowania.
     withInvitation(invitationRow({ mode: "temp_password", auth_user_id: IDS.existingUser }));
     const result = await send();
-    expect(h.emails).toHaveLength(0);
+    expect(h.emails).toHaveLength(1);
     expect(result.tempPassword).toBeUndefined();
     expect(result.ok).toBe(true);
   });
@@ -2095,7 +2130,7 @@ describe("system zaproszeń - higiena danych osobowych", () => {
     const everything = JSON.stringify([db.chains.map((chain) => chain.calls), h.adminWrites]);
     expect(everything).not.toContain(password);
     // Jedyne miejsce, w którym hasło ma prawo być, to treść wiadomości.
-    expect(h.emails[0].html).toContain(password);
+    expect(JSON.stringify(h.emails[0].details)).toContain(password);
   });
 });
 

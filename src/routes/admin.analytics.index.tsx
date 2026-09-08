@@ -30,7 +30,7 @@ import { getVitalsSummary } from "@/lib/observability/vitals.functions";
 import { InsightSection, type Insight } from "@/components/admin/analytics/InsightSection";
 // Nakładka wnosi gałąź `admin.analyticsPanel.*` - bez tego importu i18next
 // nie ma tych kluczy i panel renderuje surowe identyfikatory.
-import "@/lib/i18n-admin-extras";
+import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
 
 // BI dashboards are heavy (ECharts + per-widget datasets). Lazy-load them so
 // the SSR route chunk stays under V8's mark-compact ceiling during `build:dev`
@@ -618,6 +618,7 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
 // --------- Root ---------
 
 function AnalyticsPage() {
+  ensureExtrasI18n();
   const { t } = useTranslation();
   const fetchStatus = useServerFn(getAnalyticsStatus);
   const statusQ = useQuery({

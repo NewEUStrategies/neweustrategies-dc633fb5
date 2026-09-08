@@ -12,7 +12,7 @@
 //   * nieznany `event_type` rozsypuje raport NA ZAWSZE - wiersza, którego panel
 //     nie umie policzyć, nikt potem nie odczyści;
 //   * batch bez limitu długości (`MAX_EVENTS`, `MAX_BODY`, `MAX_META_BYTES`,
-//     `MAX_STRING`) to zapchanie pamięci workera JEDNYM żądaniem;
+//     limity długości pól) to zapchanie pamięci workera JEDNYM żądaniem;
 //   * `path`/`referrer` idą przez `redactUrl`, bo query string bywa nośnikiem
 //     tokenów i adresów e-mail - RODO nie kończy się na froncie.
 //
@@ -192,6 +192,17 @@ describe("zapis batcha", () => {
 
 // ---------------------------------------------------------------------------
 describe("walidacja wejścia", () => {
+  it("batch samych odrzuconych zdarzeń nie wykonuje pustego inserta", async () => {
+    const res = await post({
+      events: [
+        { name: " ", type: "cta_click" },
+        { name: "unknown", type: "unsupported" },
+      ],
+    });
+    expect(res.status).toBe(204);
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+
   it("PUSTA tablica zdarzeń nie dotyka bazy", async () => {
     const res = await post({ events: [] });
 

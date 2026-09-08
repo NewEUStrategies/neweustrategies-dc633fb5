@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 import { gridColsClass } from "@/components/readingList/atoms/gridColsClass";
 import { ReadingListEmptyState } from "@/components/readingList/molecules/ReadingListEmptyState";
+import { ReadingListErrorState } from "@/components/readingList/molecules/ReadingListErrorState";
 import {
   ReadingListPostCard,
   type ReadingListCardPost,
@@ -39,7 +40,8 @@ interface PostRow extends ReadingListCardPost {
 
 export function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" }) {
   const { t } = useTranslation();
-  const { data: bookmarks, isLoading } = useBookmarks();
+  const bookmarksQ = useBookmarks();
+  const { data: bookmarks, isLoading } = bookmarksQ;
   const postIds = (bookmarks ?? []).filter((b) => b.entity_type === "post").map((b) => b.entity_id);
   // Wcześniej sekcja pomijała zapisane STRONY (tylko entity_type === "post"),
   // więc strona zapisana z paska czytania nie pojawiała się w /reading-list -
@@ -84,6 +86,17 @@ export function SavedSection({ columns, lang }: { columns: number; lang: "pl" | 
     },
   });
 
+  if (bookmarksQ.error || postsQ.error || pagesQ.error)
+    return (
+      <ReadingListErrorState
+        message={t("readingList.savedError")}
+        onRetry={() => {
+          if (bookmarksQ.error) void bookmarksQ.refetch();
+          if (postsQ.error) void postsQ.refetch();
+          if (pagesQ.error) void pagesQ.refetch();
+        }}
+      />
+    );
   if (isLoading)
     return <p className="text-center text-muted-foreground">{t("readingList.loading")}</p>;
   if (postIds.length === 0 && pageIds.length === 0)
@@ -95,8 +108,11 @@ export function SavedSection({ columns, lang }: { columns: number; lang: "pl" | 
 
   const posts = postsQ.data ?? [];
   const pages = pagesQ.data ?? [];
+  if (posts.length === 0 && pages.length === 0)
+    return <ReadingListEmptyState text={t("readingList.savedEmpty")} />;
   return (
     <div className="space-y-8">
+      <h2 className="sr-only">{t("readingList.savedContentHeading")}</h2>
       {posts.length > 0 && (
         <div className={`grid gap-6 ${gridColsClass(columns)}`}>
           {posts.map((p) => (

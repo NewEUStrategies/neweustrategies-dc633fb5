@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
 import { Route as ZatrudniamyRouteImport } from './routes/zatrudniamy'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -86,6 +87,7 @@ import { Route as ProfileOrganizationRouteImport } from './routes/profile.organi
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileNotificationsRouteImport } from './routes/profile.notifications'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
+import { Route as ProfileInvoicesRouteImport } from './routes/profile.invoices'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileExpertRequestsRouteImport } from './routes/profile.expert-requests'
@@ -115,6 +117,8 @@ import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as AuthActivateRouteImport } from './routes/auth.activate'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSttRouteImport } from './routes/api/stt'
 import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
@@ -150,6 +154,7 @@ import { Route as AdminNamesRouteImport } from './routes/admin.names'
 import { Route as AdminMonetizationLedgerRouteImport } from './routes/admin.monetization-ledger'
 import { Route as AdminMonetizationRouteImport } from './routes/admin.monetization'
 import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
+import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
@@ -278,6 +283,7 @@ import { Route as AdminNewsletterSystemEmailsRouteImport } from './routes/admin.
 import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
+import { Route as AdminNewsletterOutboxRouteImport } from './routes/admin.newsletter.outbox'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterEmailPreviewRouteImport } from './routes/admin.newsletter.email-preview'
 import { Route as AdminNewsletterEmailContentRouteImport } from './routes/admin.newsletter.email-content'
@@ -388,6 +394,11 @@ const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
 const ZatrudniamyRoute = ZatrudniamyRouteImport.update({
   id: '/zatrudniamy',
   path: '/zatrudniamy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
@@ -765,6 +776,11 @@ const ProfileMembershipRoute = ProfileMembershipRouteImport.update({
   path: '/membership',
   getParentRoute: () => ProfileRoute,
 } as any)
+const ProfileInvoicesRoute = ProfileInvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
   id: '/interests',
   path: '/interests',
@@ -908,6 +924,16 @@ const CategorySlugRoute = CategorySlugRouteImport.update({
 const AuthorSlugRoute = AuthorSlugRouteImport.update({
   id: '/author/$slug',
   path: '/author/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthActivateRoute = AuthActivateRouteImport.update({
+  id: '/auth/activate',
+  path: '/auth/activate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -1083,6 +1109,11 @@ const AdminMonetizationRoute = AdminMonetizationRouteImport.update({
 const AdminMembershipRoute = AdminMembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMembersRoute = AdminMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminMediaRoute = AdminMediaRouteImport.update({
@@ -1737,6 +1768,11 @@ const AdminNewsletterOverviewRoute = AdminNewsletterOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminNewsletterOutboxRoute = AdminNewsletterOutboxRouteImport.update({
+  id: '/outbox',
+  path: '/outbox',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
 const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
   id: '/inline',
   path: '/inline',
@@ -2355,6 +2391,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/welcome': typeof WelcomeRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
@@ -2399,6 +2436,7 @@ export interface FileRoutesByFullPath {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -2434,6 +2472,8 @@ export interface FileRoutesByFullPath {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
@@ -2463,6 +2503,7 @@ export interface FileRoutesByFullPath {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -2532,6 +2573,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -2723,6 +2765,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/welcome': typeof WelcomeRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
@@ -2761,6 +2804,7 @@ export interface FileRoutesByTo {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -2793,6 +2837,8 @@ export interface FileRoutesByTo {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
@@ -2821,6 +2867,7 @@ export interface FileRoutesByTo {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -2888,6 +2935,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -3084,6 +3132,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/welcome': typeof WelcomeRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
@@ -3128,6 +3177,7 @@ export interface FileRoutesById {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -3163,6 +3213,8 @@ export interface FileRoutesById {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
@@ -3192,6 +3244,7 @@ export interface FileRoutesById {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -3261,6 +3314,7 @@ export interface FileRoutesById {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -3458,6 +3512,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/welcome'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
@@ -3502,6 +3557,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -3537,6 +3593,8 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
+    | '/auth/callback'
     | '/author/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
@@ -3566,6 +3624,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -3635,6 +3694,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -3826,6 +3886,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/welcome'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
@@ -3864,6 +3925,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -3896,6 +3958,8 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
+    | '/auth/callback'
     | '/author/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
@@ -3924,6 +3988,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -3991,6 +4056,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -4186,6 +4252,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/welcome'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
@@ -4230,6 +4297,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -4265,6 +4333,8 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
+    | '/auth/callback'
     | '/author/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
@@ -4294,6 +4364,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -4363,6 +4434,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -4559,6 +4631,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  WelcomeRoute: typeof WelcomeRoute
   ZatrudniamyRoute: typeof ZatrudniamyRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
@@ -4566,6 +4639,8 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiSttRoute: typeof ApiSttRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  AuthActivateRoute: typeof AuthActivateRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
   CategorySlugRoute: typeof CategorySlugRouteWithChildren
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
@@ -4645,6 +4720,13 @@ declare module '@tanstack/react-router' {
       path: '/zatrudniamy'
       fullPath: '/zatrudniamy'
       preLoaderRoute: typeof ZatrudniamyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/unsubscribe': {
@@ -5172,6 +5254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileMembershipRouteImport
       parentRoute: typeof ProfileRoute
     }
+    '/profile/invoices': {
+      id: '/profile/invoices'
+      path: '/invoices'
+      fullPath: '/profile/invoices'
+      preLoaderRoute: typeof ProfileInvoicesRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/profile/interests': {
       id: '/profile/interests'
       path: '/interests'
@@ -5373,6 +5462,20 @@ declare module '@tanstack/react-router' {
       path: '/author/$slug'
       fullPath: '/author/$slug'
       preLoaderRoute: typeof AuthorSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/activate': {
+      id: '/auth/activate'
+      path: '/auth/activate'
+      fullPath: '/auth/activate'
+      preLoaderRoute: typeof AuthActivateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -5618,6 +5721,13 @@ declare module '@tanstack/react-router' {
       path: '/membership'
       fullPath: '/admin/membership'
       preLoaderRoute: typeof AdminMembershipRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/members': {
+      id: '/admin/members'
+      path: '/members'
+      fullPath: '/admin/members'
+      preLoaderRoute: typeof AdminMembersRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/media': {
@@ -6516,6 +6626,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterOverviewRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/outbox': {
+      id: '/admin/newsletter/outbox'
+      path: '/outbox'
+      fullPath: '/admin/newsletter/outbox'
+      preLoaderRoute: typeof AdminNewsletterOutboxRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/newsletter/inline': {
       id: '/admin/newsletter/inline'
       path: '/inline'
@@ -7404,6 +7521,7 @@ interface AdminNewsletterRouteChildren {
   AdminNewsletterEmailContentRoute: typeof AdminNewsletterEmailContentRoute
   AdminNewsletterEmailPreviewRoute: typeof AdminNewsletterEmailPreviewRoute
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
+  AdminNewsletterOutboxRoute: typeof AdminNewsletterOutboxRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
   AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
@@ -7418,6 +7536,7 @@ const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
   AdminNewsletterEmailContentRoute: AdminNewsletterEmailContentRoute,
   AdminNewsletterEmailPreviewRoute: AdminNewsletterEmailPreviewRoute,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
+  AdminNewsletterOutboxRoute: AdminNewsletterOutboxRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
   AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
@@ -7687,6 +7806,7 @@ interface AdminRouteChildren {
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
+  AdminMembersRoute: typeof AdminMembersRoute
   AdminMembershipRoute: typeof AdminMembershipRoute
   AdminMonetizationRoute: typeof AdminMonetizationRoute
   AdminMonetizationLedgerRoute: typeof AdminMonetizationLedgerRoute
@@ -7766,6 +7886,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
+  AdminMembersRoute: AdminMembersRoute,
   AdminMembershipRoute: AdminMembershipRoute,
   AdminMonetizationRoute: AdminMonetizationRoute,
   AdminMonetizationLedgerRoute: AdminMonetizationLedgerRoute,
@@ -7919,6 +8040,7 @@ interface ProfileRouteChildren {
   ProfileExpertRequestsRoute: typeof ProfileExpertRequestsRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
+  ProfileInvoicesRoute: typeof ProfileInvoicesRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileNotificationsRoute: typeof ProfileNotificationsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
@@ -7944,6 +8066,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileExpertRequestsRoute: ProfileExpertRequestsRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
+  ProfileInvoicesRoute: ProfileInvoicesRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileNotificationsRoute: ProfileNotificationsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
@@ -8076,6 +8199,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  WelcomeRoute: WelcomeRoute,
   ZatrudniamyRoute: ZatrudniamyRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
@@ -8085,6 +8209,8 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiSttRoute: ApiSttRoute,
   ApiTtsRoute: ApiTtsRoute,
+  AuthActivateRoute: AuthActivateRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   AuthorSlugRoute: AuthorSlugRoute,
   CategorySlugRoute: CategorySlugRouteWithChildren,
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,

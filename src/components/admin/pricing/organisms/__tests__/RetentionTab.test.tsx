@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import {
+  ADMIN_NOW,
   isoDaysAgo,
   ok,
   radixSwitchStub,
@@ -21,7 +22,27 @@ import {
   type SupabaseFromStub,
 } from "@/test/admin/pricingFixtures";
 import { retentionReason, retentionSettings } from "@/test/billing/fixtures";
+import { freezeClock } from "@/test/time";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+
+// ZAMROŻENIE ZEGARA NA KOTWICY FIXTURE'ÓW.
+//
+// Ten plik nie niesie ANI JEDNEGO literału daty - i mimo to był bombą.
+// Literał siedzi piętro niżej, w WSPÓŁDZIELONEJ fabryce:
+// `ADMIN_NOW = Date.parse("2026-08-18T10:00:00.000Z")`
+// (`src/test/admin/pricingFixtures.ts:46`), z której `isoDaysAgo()` liczy
+// wszystkie daty wierszy. Komponent liczy swoje okno z PRAWDZIWEGO zegara, więc
+// z każdą dobą dane fixture'ów oddalały się od tego okna. Zmierzone przy
+// CLOCK_SHIFT=1y: 2 czerwone z 27, obie na odsetku wyliczanym z wierszy, które
+// wypadły z okna.
+//
+// Zamrożenie na `ADMIN_NOW` zrównuje „teraz" komponentu z kotwicą fabryki, więc
+// odległość danych do „teraz" przestaje zależeć od dnia przebiegu.
+//
+// UWAGA NA PRZYSZŁOŚĆ: tej klasy bomby NIE WIDZI bramka `check:clock-freeze` -
+// szuka literałów w PLIKU TESTOWYM, a ten leży w module fabryk. Ta sama kotwica
+// karmi kilkanaście innych plików testowych.
+freezeClock(ADMIN_NOW);
 
 let chain: SupabaseFromStub;
 

@@ -1,3 +1,4 @@
+import { readPublishedPagePaths } from "./publishedPagePaths.server";
 // Shared server-side reader for published content used by the crawler-facing
 // surfaces (sitemap, RSS feeds, Google News sitemap, llms.txt). One
 // implementation of the "post URL = parent page path + slug" rule and one
@@ -9,6 +10,7 @@
 // resolveTenantForHost). Without the explicit filter a second tenant's
 // content would leak into another site's sitemap/RSS/llms.txt.
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { createHash } from "node:crypto";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -60,20 +62,7 @@ async function fetchPagePaths(tenantId: string): Promise<Map<string, string>> {
   return edgeTtlCache(`seo:page-paths:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("page-paths", new Map<string, string>(), async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
-        .from("pages")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("status", "published")
-        .is("deleted_at", null);
-      const ids = (data ?? []).map((r) => r.id);
-      const paths = new Map<string, string>();
-      await Promise.all(
-        ids.map(async (id) => {
-          const { data: p } = await supabaseAdmin.rpc("page_full_path", { _page_id: id });
-          if (typeof p === "string" && p) paths.set(id, p);
-        }),
-      );
+      const { paths } = await readPublishedPagePaths(supabaseAdmin, tenantId);
       return paths;
     }),
   );
@@ -92,7 +81,7 @@ export async function fetchPublishedPosts(
   return edgeTtlCache(`seo:published-posts:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
     resilient("published-posts", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const [pagePaths, { data }] = await Promise.all([
+      const [pagePaths, { data, error: dataError }] = await Promise.all([
         fetchPagePaths(tenantId),
         supabaseAdmin
           .from("posts")
@@ -106,6 +95,7 @@ export async function fetchPublishedPosts(
           .order("published_at", { ascending: false })
           .limit(limit),
       ]);
+      if (dataError) throw dataError;
       const rows: PublishedPostRow[] = [];
       for (const row of data ?? []) {
         const parentPath = pagePaths.get(row.parent_page_id);
@@ -122,11 +112,12 @@ export async function fetchPublicCategories(tenantId: string): Promise<Published
   return edgeTtlCache(`seo:categories:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("categories", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("categories")
         .select("slug, name_pl, name_en, description_pl, description_en")
         .eq("tenant_id", tenantId)
         .order("name_pl");
+      if (dataError) throw dataError;
       return data ?? [];
     }),
   );
@@ -162,7 +153,7 @@ export async function fetchPublishedPodcasts(
   return edgeTtlCache(`seo:podcasts:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
     resilient("podcasts", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("podcasts")
         .select(PODCAST_RSS_COLS)
         .eq("tenant_id", tenantId)
@@ -170,6 +161,7 @@ export async function fetchPublishedPodcasts(
         .is("deleted_at", null)
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(Math.max(1, Math.min(limit, 200)));
+      if (dataError) throw dataError;
       // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
       // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
       // typach - do usunięcia przy regeneracji types.ts.
@@ -213,7 +205,7 @@ export async function fetchPublishedShowBySlug(
   return edgeTtlCache(`seo:podcast-show:${tenantId}:${slug}`, CACHE_TTL_MS, () =>
     resilient("podcast-show", null, async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("podcast_shows")
         .select(SHOW_RSS_COLS)
         .eq("tenant_id", tenantId)
@@ -221,6 +213,7 @@ export async function fetchPublishedShowBySlug(
         .eq("status", "published")
         .is("deleted_at", null)
         .maybeSingle();
+      if (dataError) throw dataError;
       // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
       // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
       // typach - do usunięcia przy regeneracji types.ts.
@@ -238,7 +231,7 @@ export async function fetchPublishedPodcastsByShow(
   return edgeTtlCache(`seo:podcasts-by-show:${tenantId}:${showId}:${limit}`, CACHE_TTL_MS, () =>
     resilient("podcasts-by-show", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("podcasts")
         .select(PODCAST_RSS_COLS)
         .eq("tenant_id", tenantId)
@@ -247,6 +240,7 @@ export async function fetchPublishedPodcastsByShow(
         .is("deleted_at", null)
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(Math.max(1, Math.min(limit, 500)));
+      if (dataError) throw dataError;
       // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
       // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
       // typach - do usunięcia przy regeneracji types.ts.
@@ -260,13 +254,14 @@ export async function fetchPublishedShows(tenantId: string): Promise<PublishedSh
   return edgeTtlCache(`seo:podcast-shows:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("podcast-shows", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("podcast_shows")
         .select(SHOW_RSS_COLS)
         .eq("tenant_id", tenantId)
         .eq("status", "published")
         .is("deleted_at", null)
         .order("sort_order", { ascending: true });
+      if (dataError) throw dataError;
       // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
       // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
       // typach - do usunięcia przy regeneracji types.ts.
@@ -295,7 +290,7 @@ export async function fetchPublishedWebStoryBySlug(
   return edgeTtlCache(`seo:web-story:${tenantId}:${slug}`, CACHE_TTL_MS, () =>
     resilient("web-story", null, async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("web_stories")
         .select(
           "slug, title_pl, title_en, description_pl, description_en, cover_url, pages, published_at, updated_at",
@@ -304,6 +299,7 @@ export async function fetchPublishedWebStoryBySlug(
         .eq("slug", slug)
         .eq("status", "published")
         .maybeSingle();
+      if (dataError) throw dataError;
       return (data ?? null) as PublishedWebStoryRow | null;
     }),
   );
@@ -321,27 +317,26 @@ export async function fetchMediaMetaByUrls(
 ): Promise<Map<string, { sizeBytes: number | null; mimeType: string | null }>> {
   const unique = Array.from(new Set(urls.filter((u) => !!u)));
   if (unique.length === 0) return new Map();
-  return edgeTtlCache(
-    `seo:media-meta:${tenantId}:${unique.slice().sort().join("|").slice(0, 512)}`,
-    CACHE_TTL_MS,
-    () =>
-      resilient("media-meta", new Map(), async () => {
-        const supabaseAdmin = await getSupabaseAdmin();
-        const { data } = await supabaseAdmin
-          .from("media")
-          .select("public_url, size_bytes, mime_type")
-          .eq("tenant_id", tenantId)
-          .in("public_url", unique);
-        const map = new Map<string, { sizeBytes: number | null; mimeType: string | null }>();
-        for (const row of (data ?? []) as Array<{
-          public_url: string;
-          size_bytes: number | null;
-          mime_type: string | null;
-        }>) {
-          map.set(row.public_url, { sizeBytes: row.size_bytes, mimeType: row.mime_type });
-        }
-        return map;
-      }),
+  const digest = createHash("sha256").update(JSON.stringify(unique.slice().sort())).digest("hex");
+  return edgeTtlCache(`seo:media-meta:${tenantId}:${digest}`, CACHE_TTL_MS, () =>
+    resilient("media-meta", new Map(), async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data, error: dataError } = await supabaseAdmin
+        .from("media")
+        .select("public_url, size_bytes, mime_type")
+        .eq("tenant_id", tenantId)
+        .in("public_url", unique);
+      if (dataError) throw dataError;
+      const map = new Map<string, { sizeBytes: number | null; mimeType: string | null }>();
+      for (const row of (data ?? []) as Array<{
+        public_url: string;
+        size_bytes: number | null;
+        mime_type: string | null;
+      }>) {
+        map.set(row.public_url, { sizeBytes: row.size_bytes, mimeType: row.mime_type });
+      }
+      return map;
+    }),
   );
 }
 
@@ -368,7 +363,7 @@ export async function fetchPodcastChannelMeta(
   return edgeTtlCache(`seo:podcast-channel-meta:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("podcast-channel-meta", null, async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("podcast_settings")
         .select(
           "itunes_author, itunes_owner_name, itunes_owner_email, itunes_category, " +
@@ -376,6 +371,7 @@ export async function fetchPodcastChannelMeta(
         )
         .eq("tenant_id", tenantId)
         .maybeSingle();
+      if (dataError) throw dataError;
       // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
       // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
       // typach - do usunięcia przy regeneracji types.ts.
@@ -389,12 +385,13 @@ export async function fetchSeoSettingsValue(tenantId: string): Promise<unknown> 
   return edgeTtlCache(`seo:settings:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("settings", null, async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("site_settings")
         .select("value")
         .eq("tenant_id", tenantId)
         .eq("key", "seo")
         .maybeSingle();
+      if (dataError) throw dataError;
       return data?.value ?? null;
     }),
   );
@@ -437,12 +434,13 @@ export async function fetchTaxonomyForFeed(
       const supabaseAdmin = await getSupabaseAdmin();
       if (kind === "tag") {
         // Tagi są jednojęzyczne (kolumna `name`) - mapujemy na oba języki.
-        const { data } = await supabaseAdmin
+        const { data, error: dataError } = await supabaseAdmin
           .from("tags")
           .select("slug, name")
           .eq("tenant_id", tenantId)
           .eq("slug", slug)
           .maybeSingle();
+        if (dataError) throw dataError;
         if (!data) return null;
         return {
           slug: data.slug,
@@ -455,13 +453,14 @@ export async function fetchTaxonomyForFeed(
       if (kind === "program") {
         // research_programs nie ma description_pl/en - opis kanalu bierzemy z
         // tagline. Tylko opublikowane programy maja feed.
-        const { data } = await supabaseAdmin
+        const { data, error: dataError } = await supabaseAdmin
           .from("research_programs")
           .select("slug, name_pl, name_en, tagline_pl, tagline_en")
           .eq("tenant_id", tenantId)
           .eq("slug", slug)
           .eq("status", "published")
           .maybeSingle();
+        if (dataError) throw dataError;
         if (!data) return null;
         return {
           slug: data.slug ?? slug,
@@ -471,12 +470,13 @@ export async function fetchTaxonomyForFeed(
           description_en: data.tagline_en ?? null,
         };
       }
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("categories")
         .select("slug, name_pl, name_en, description_pl, description_en")
         .eq("tenant_id", tenantId)
         .eq("slug", slug)
         .maybeSingle();
+      if (dataError) throw dataError;
       if (!data) return null;
       return {
         slug: data.slug ?? slug,
@@ -516,7 +516,7 @@ export async function fetchPublishedTrackerItems(
   return edgeTtlCache(`seo:tracker-items:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
     resilient("tracker-items", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data } = await supabaseAdmin
+      const { data, error: dataError } = await supabaseAdmin
         .from("eu_policy_items")
         .select(
           "slug, title_pl, title_en, summary_pl, summary_en, policy_area, stage, updated_at, created_at",
@@ -525,6 +525,7 @@ export async function fetchPublishedTrackerItems(
         .eq("status", "published")
         .order("updated_at", { ascending: false })
         .limit(limit);
+      if (dataError) throw dataError;
       return (data ?? []) as PublishedTrackerSitemapRow[];
     }),
   );
@@ -561,7 +562,7 @@ export async function fetchLiveCoverageEntries(
   return edgeTtlCache(`seo:live-entries:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
     resilient("live-entries", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data: entries } = await supabaseAdmin
+      const { data: entries, error: entriesError } = await supabaseAdmin
         .from("live_blog_entries")
         .select("id, post_id, title, body_html, lang, occurred_at")
         .eq("tenant_id", tenantId)
@@ -569,11 +570,12 @@ export async function fetchLiveCoverageEntries(
         // Z zapasem: część najświeższych wpisów może wisieć na postach, które
         // wróciły do szkicu - odfiltrowanie następuje po złączeniu niżej.
         .limit(limit * 4);
+      if (entriesError) throw entriesError;
       const rows = entries ?? [];
       if (rows.length === 0) return [];
 
       const postIds = [...new Set(rows.map((r) => r.post_id))];
-      const [pagePaths, { data: posts }] = await Promise.all([
+      const [pagePaths, { data: posts, error: postsError }] = await Promise.all([
         fetchPagePaths(tenantId),
         supabaseAdmin
           .from("posts")
@@ -584,6 +586,7 @@ export async function fetchLiveCoverageEntries(
           .eq("seo_noindex", false)
           .in("id", postIds),
       ]);
+      if (postsError) throw postsError;
       const byId = new Map(
         (posts ?? []).map((p) => [
           p.id,
@@ -633,49 +636,55 @@ export async function fetchPublishedPostsByTaxonomy(
       let joinRows: Array<{ post_id: string }> = [];
       if (kind === "program") {
         // research_programs -> category_id -> post_categories (jak landing).
-        const { data: program } = await supabaseAdmin
+        const { data: program, error: programError } = await supabaseAdmin
           .from("research_programs")
           .select("category_id")
           .eq("tenant_id", tenantId)
           .eq("slug", slug)
           .eq("status", "published")
           .maybeSingle();
+        if (programError) throw programError;
         if (!program?.category_id) return [];
-        const { data: rows } = await supabaseAdmin
+        const { data: rows, error: rowsError } = await supabaseAdmin
           .from("post_categories")
           .select("post_id")
           .eq("category_id", program.category_id);
+        if (rowsError) throw rowsError;
         joinRows = rows ?? [];
       } else if (kind === "category") {
-        const { data: tax } = await supabaseAdmin
+        const { data: tax, error: taxError } = await supabaseAdmin
           .from("categories")
           .select("id")
           .eq("tenant_id", tenantId)
           .eq("slug", slug)
           .maybeSingle();
+        if (taxError) throw taxError;
         if (!tax?.id) return [];
-        const { data: rows } = await supabaseAdmin
+        const { data: rows, error: rowsError } = await supabaseAdmin
           .from("post_categories")
           .select("post_id")
           .eq("category_id", tax.id);
+        if (rowsError) throw rowsError;
         joinRows = rows ?? [];
       } else {
-        const { data: tax } = await supabaseAdmin
+        const { data: tax, error: taxError } = await supabaseAdmin
           .from("tags")
           .select("id")
           .eq("tenant_id", tenantId)
           .eq("slug", slug)
           .maybeSingle();
+        if (taxError) throw taxError;
         if (!tax?.id) return [];
-        const { data: rows } = await supabaseAdmin
+        const { data: rows, error: rowsError } = await supabaseAdmin
           .from("post_tags")
           .select("post_id")
           .eq("tag_id", tax.id);
+        if (rowsError) throw rowsError;
         joinRows = rows ?? [];
       }
       const postIds = [...new Set(joinRows.map((r) => r.post_id))];
       if (postIds.length === 0) return [];
-      const [pagePaths, { data }] = await Promise.all([
+      const [pagePaths, { data, error: dataError }] = await Promise.all([
         fetchPagePaths(tenantId),
         supabaseAdmin
           .from("posts")
@@ -690,6 +699,7 @@ export async function fetchPublishedPostsByTaxonomy(
           .order("published_at", { ascending: false })
           .limit(limit),
       ]);
+      if (dataError) throw dataError;
       const rows: PublishedPostRow[] = [];
       for (const row of data ?? []) {
         const parentPath = pagePaths.get(row.parent_page_id);
@@ -757,7 +767,7 @@ export async function fetchTrackerFeedSources(
       // starsze dossier musi być dostępne jako kontekst swojej świeżej
       // aktualizacji (tytuł, obszar, etap) - inaczej wpis osi czasu wypadłby
       // z kanału jako "sierota".
-      const { data: itemRows } = await supabaseAdmin
+      const { data: itemRows, error: itemRowsError } = await supabaseAdmin
         .from("eu_policy_items")
         .select(
           "id, slug, title_pl, title_en, summary_pl, summary_en, policy_area, stage, created_at, updated_at",
@@ -766,10 +776,11 @@ export async function fetchTrackerFeedSources(
         .eq("status", "published")
         .order("updated_at", { ascending: false })
         .limit(Math.max(limit * 4, 100));
+      if (itemRowsError) throw itemRowsError;
       const items: PublishedTrackerItemRow[] = itemRows ?? [];
       if (items.length === 0) return { items, updates: [] };
 
-      const { data: updateRows } = await supabaseAdmin
+      const { data: updateRows, error: updateRowsError } = await supabaseAdmin
         .from("eu_policy_updates")
         .select("id, item_id, note_pl, note_en, stage_from, stage_to, happened_on, created_at")
         .eq("tenant_id", tenantId)
@@ -779,6 +790,7 @@ export async function fetchTrackerFeedSources(
         )
         .order("created_at", { ascending: false })
         .limit(limit);
+      if (updateRowsError) throw updateRowsError;
       return { items, updates: updateRows ?? [] };
     }),
   );

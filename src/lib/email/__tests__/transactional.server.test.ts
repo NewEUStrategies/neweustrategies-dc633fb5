@@ -291,7 +291,7 @@ describe("kolejkowanie wiadomości", () => {
     expect(rpc.lastCall("enqueue_email")?.arg("queue_name")).toBe("transactional_emails");
     expect(queuedPayload()).toMatchObject({
       to: "anna@example.test",
-      from: "New European Strategies <noreply@neweuropeanstrategies.com>",
+      from: "New European Strategies <noreply@notify.mail.neweuropeanstrategies.com>",
       sender_domain: "notify.mail.neweuropeanstrategies.com",
       purpose: "transactional",
       label: "payment_failed",
@@ -334,10 +334,10 @@ describe("kolejkowanie wiadomości", () => {
     expect(String(logged)).toMatch(UUID_V4);
   });
 
-  it("każde uruchomienie dostaje własny run_id do korelacji w logach drenu", async () => {
+  it("ładunek nie niesie run_id - dostawca platformy odrzuca nieznany przebieg (404)", async () => {
     await sendTxEmail(txInput());
 
-    expect(String(queuedPayload().run_id)).toMatch(UUID_V4);
+    expect(queuedPayload().run_id).toBeUndefined();
     expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
@@ -963,7 +963,7 @@ describe("enqueueRawEmail", () => {
     expect(rpc.lastCall("enqueue_email")?.arg("queue_name")).toBe("transactional_emails");
     expect(queuedPayload()).toMatchObject({
       to: "anna@example.test",
-      from: "New European Strategies <noreply@neweuropeanstrategies.com>",
+      from: "New European Strategies <noreply@notify.mail.neweuropeanstrategies.com>",
       sender_domain: "notify.mail.neweuropeanstrategies.com",
       subject: "Twoje podsumowanie dnia",
       html: "<p>Trzy nowe komentarze</p>",

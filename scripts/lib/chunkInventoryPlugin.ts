@@ -8,9 +8,9 @@
 // wymagała zgadywania. Rollup zna ten podział dokładnie (`chunk.modules`) -
 // wystarczy go zapisać.
 //
-// Wtyczka jest BEZWARUNKOWO WYŁĄCZONA, dopóki nie ustawisz `BUNDLE_INVENTORY=1`,
-// więc zwykły `bun run build` (i CI) nie płaci za nią niczym i nie produkuje
-// artefaktów. Raport czyta `scripts/chunk-inventory.ts`.
+// Enabled by BUNDLE_INVENTORY=1 for diagnostics. The smoke preset enables
+// it explicitly: browser Resource Timing needs this build's static graph.
+// Ordinary production builds retain the opt-in diagnostics behavior.
 //
 // Usage: BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -43,12 +43,12 @@ export interface ChunkInventory {
 
 const OUTPUT_PATH = "reports/chunk-inventory.json";
 
-export function chunkInventoryPlugin(): Plugin {
+export function chunkInventoryPlugin(enabled = process.env["BUNDLE_INVENTORY"] === "1"): Plugin {
   return {
     name: "nes:chunk-inventory",
     apply: "build",
     generateBundle(options, bundle) {
-      if (process.env["BUNDLE_INVENTORY"] !== "1") return;
+      if (!enabled) return;
       const outDir = options.dir ?? "";
       // Interesuje nas wyłącznie bundel przeglądarki; artefakt workera składa
       // Nitro własnym rollupem i jego skład niczego tu nie tłumaczy.

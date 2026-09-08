@@ -1,8 +1,9 @@
 // Rozgrzewanie najczęstszych leniwych chunków widgetów PO hydratacji.
 //
 // PO CO. Podział widgetów po typie (lazyWidgets) zdejmuje ich kod z chunku
-// wejściowego, a SSR wypełnia każdą granicę Suspense przy pierwszym wejściu -
-// tam nic nie miga. Luka zostaje przy nawigacji SPA: granica montowana w
+// wejściowego, a SSR dostarcza treść granic Suspense przy pierwszym wejściu.
+// Zachowanie tej treści do końca hydratacji zależy też od aktualizacji
+// kontekstów; sprawdzają je testy pierwszej wizyty. Przy nawigacji SPA granica montowana w
 // tranzycji NA NOWEJ stronie może pokazać pusty fallback, dopóki chunk się nie
 // pobierze (uwaga z recenzji PR #240). Zamiast wracać do eager (odtworzyłoby to
 // 442 kB źródeł w entry), po pierwszym malowaniu dociągamy w czasie BEZCZYNNOŚCI
@@ -47,19 +48,23 @@ export function warmCommonWidgetChunks(defer: Defer = idleDefer): void {
   defer(() => {
     // Te same specyfikatory co w rejestrze lazyWidgets - Rollup rozwiązuje je
     // do tych samych chunków, więc rozgrzanie == wypełnienie cache przeglądarki.
-    void import("./RichHtmlView");
-    void import("./PostListView");
-    void import("./DynamicTagWidgets");
-    // Ścieżka hero strony głównej: PostsSliderWidget + silnik wariantów
-    // slidera. Loader "/" rozgrzewa DANE slidera, ale bez tych chunków
-    // nawigacja SPA z artykułu na "/" montowała największy element nad
-    // zgięciem jako pusty fallback Suspense, dopóki kod się nie pobrał.
-    void import("./PostsSliderWidget");
-    void import("@/lib/builder/sliderVariants");
-    // Etykiety sekcji: od wydzielenia z SimpleWidgets (chunk wejściowy) są
-    // lazy, a występują nad zgięciem większości stron z sekcjami buildera -
-    // rozgrzanie eliminuje pusty kadr etykiety przy nawigacji SPA.
-    void import("@/lib/builder/sectionLabelVariants");
+    // Warming is optional. Offline/stale chunks must not create unhandled
+    // rejections; React.lazy will report a failure if the widget is needed.
+    void Promise.allSettled([
+      import("./RichHtmlView"),
+      import("./PostListView"),
+      import("./DynamicTagWidgets"),
+      // Ścieżka hero strony głównej: PostsSliderWidget + silnik wariantów
+      // slidera. Loader "/" rozgrzewa DANE slidera, ale bez tych chunków
+      // nawigacja SPA z artykułu na "/" montowała największy element nad
+      // zgięciem jako pusty fallback Suspense, dopóki kod się nie pobrał.
+      import("./PostsSliderWidget"),
+      import("@/lib/builder/sliderVariants"),
+      // Etykiety sekcji: od wydzielenia z SimpleWidgets (chunk wejściowy) są
+      // lazy, a występują nad zgięciem większości stron z sekcjami buildera -
+      // rozgrzanie eliminuje pusty kadr etykiety przy nawigacji SPA.
+      import("@/lib/builder/sectionLabelVariants"),
+    ]);
   });
 }
 

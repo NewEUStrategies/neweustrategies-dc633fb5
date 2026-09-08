@@ -40,7 +40,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 // Kalendarz ma własny test; tutaj potrzebne są dwa zachowania: wybór daty
 // i WYCZYSZCZENIE (wtedy komponent oddaje `undefined`, a panel musi zapisać
 // pusty łańcuch, nie dziurę w dokumencie).
-vi.mock("@/components/admin/atoms/AdminDatePicker", () => ({
+vi.mock("@/components/admin/blocks/AdminDatePicker", () => ({
   AdminDatePicker: ({
     onChange,
   }: {
@@ -235,5 +235,182 @@ describe("PostListEditor - daty i miniatury", () => {
       container.querySelectorAll<HTMLInputElement>('input[type="number"]'),
     );
     expect(numbers.some((i) => i.value === "120")).toBe(true);
+  });
+});
+
+// ── Filtry taksonomii: zdjęcie ostatniej pozycji ────────────────────────────
+//
+// Cztery listy taksonomii (kategorie, wykluczone kategorie, tagi, wykluczone
+// tagi) zapisują CSV pod cztery RÓŻNE klucze. Pomylenie klucza nie wywala
+// panelu - filtr po prostu przestaje działać, a redakcja widzi listę, która
+// ignoruje ustawienia. Dlatego każdy z nich ma tu własne przejście.
+describe("PostListEditor - filtry kategorii i tagów", () => {
+  const TAXONOMY = {
+    source: "dynamic",
+    categoriesCsv: "gospodarka",
+    excludeCategoriesCsv: "sport",
+    tagsCsv: "raport",
+    excludeTagsCsv: "archiwum",
+  };
+
+  const withTaxonomy = () => {
+    db.current.setResponse(
+      "categories",
+      ok([
+        { id: "c1", slug: "gospodarka", name_pl: "Gospodarka" },
+        { id: "c2", slug: "sport", name_pl: "Sport" },
+      ]),
+    );
+    db.current.setResponse(
+      "tags",
+      ok([
+        { id: "t1", slug: "raport", name: "Raport" },
+        { id: "t2", slug: "archiwum", name: "Archiwum" },
+      ]),
+    );
+  };
+
+  it.each([
+    ["builder.postListEditor.catsInclude", "categoriesCsv"],
+    ["builder.postListEditor.catsExclude", "excludeCategoriesCsv"],
+    ["builder.postListEditor.tagsInclude", "tagsCsv"],
+    ["builder.postListEditor.tagsExclude", "excludeTagsCsv"],
+  ])("zdjęcie ostatniej pozycji z listy „%s” zapisuje PUSTY filtr", async (label, key) => {
+    withTaxonomy();
+    const { last, getByText } = renderEditor(TAXONOMY);
+    // Plakietka wybranej pozycji pojawia się dopiero po odpowiedzi bazy -
+    // etykieta pozycji pochodzi z katalogu, nie ze slugu w treści.
+    const box = getByText(label).parentElement as HTMLElement;
+    const chip = await waitFor(() => {
+      const found = box.querySelector<HTMLButtonElement>("span button");
+      expect(found, `brak plakietki wybranej pozycji pod „${label}”`).toBeTruthy();
+      return found as HTMLButtonElement;
+    });
+    fireEvent.click(chip);
+    // Pusty łańcuch to „bez filtra”. `undefined` zniknęłoby przy zapisie do
+    // bazy, a dokument zostałby ze starym filtrem.
+    expect(last(key)).toBe("");
+  });
+});
+
+// ── Sekcja numeracji: pola widoczne tylko dla wariantów z numerem ───────────
+//
+// Cała sekcja stoi za `variant === "numbered" || variant === "ranked"`, więc
+// w wariancie kartowym (domyślnym) żadne z tych pól nie istnieje w DOM.
+// Wewnątrz są trzy rodzaje kontrolki o różnych regułach wartości pustej:
+// rozmiar (0 = „bez własnego rozmiaru”), dwa kolory (pusto = dziedzicz)
+// i przezroczystość (0 = numer niewidoczny, wartość POPRAWNA).
+describe("PostListEditor - numeracja pozycji", () => {
+  it("sekcja numeracji nie istnieje w wariancie kartowym", () => {
+    const { container } = renderEditor({ source: "dynamic", variant: "card" });
+    expect(container.querySelector('input[type="range"]')).toBeNull();
+    expect(container.querySelector('input[min="12"][max="240"]')).toBeNull();
+  });
+
+  it("rozmiar numeru zjechany do zera zapisuje ZERO, nie wartość domyślną", () => {
+    const { container, last } = renderEditor({
+      source: "dynamic",
+      variant: "numbered",
+      indexSizePx: 96,
+    });
+    const size = container.querySelector<HTMLInputElement>('input[min="12"][max="240"]');
+    if (!size) throw new Error("test: brak pola rozmiaru numeru");
+    expect(size.value).toBe("96");
+    fireEvent.change(size, { target: { value: "140" } });
+    expect(last("indexSizePx")).toBe(140);
+    // Zero znaczy „rozmiar z tokenów motywu”, a nie „wróć do 52 px”.
+    fireEvent.change(size, { target: { value: "0" } });
+    expect(last("indexSizePx")).toBe(0);
+  });
+
+  it.each([
+    ["builder.postListEditor.colorLight", "indexColor"],
+    ["builder.postListEditor.colorDark", "indexColorDark"],
+  ])("kolor numeru „%s”: wpis zapisuje wartość, zdjęcie - pusty łańcuch", (label, key) => {
+    const { last, getByText } = renderEditor({
+      source: "dynamic",
+      variant: "ranked",
+      indexColor: "#111111",
+      indexColorDark: "#eeeeee",
+    });
+    const box = getByText(label).parentElement as HTMLElement;
+    const field = box.querySelector<HTMLInputElement>("input.font-mono");
+    if (!field) throw new Error(`test: brak pola koloru pod „${label}”`);
+    fireEvent.change(field, { target: { value: "#abcdef" } });
+    expect(last(key)).toBe("#abcdef");
+    // Zdjęcie koloru oddaje `undefined`; panel MUSI zapisać pusty łańcuch,
+    // bo `undefined` znika przy zapisie i numer zostaje w starym kolorze.
+    fireEvent.change(field, { target: { value: "" } });
+    expect(last(key)).toBe("");
+  });
+
+  it("przezroczystość numeru zjechana do zera zapisuje ZERO", () => {
+    const { container, last } = renderEditor({
+      source: "dynamic",
+      variant: "ranked",
+      indexOpacity: 0.4,
+    });
+    const slider = container.querySelector<HTMLInputElement>('input[type="range"]');
+    if (!slider) throw new Error("test: brak suwaka przezroczystości numeru");
+    expect(slider.value).toBe("0.4");
+    fireEvent.change(slider, { target: { value: "0" } });
+    // Numer niewidoczny to świadomy wybór redakcji - podmiana na 0,05
+    // przywracałaby ustawienie, które właśnie zostało zdjęte.
+    expect(last("indexOpacity")).toBe(0);
+  });
+});
+
+describe("PostListEditor - okno popularności", () => {
+  it("pole dni popularności pojawia się tylko dla sortowania po popularności", () => {
+    const other = renderEditor({ source: "dynamic", orderBy: "published_at" });
+    other.openAll();
+    expect(other.container.querySelector('input[min="1"][max="365"]')).toBeNull();
+    other.unmount();
+
+    const popular = renderEditor({ source: "dynamic", orderBy: "popular" });
+    popular.openAll();
+    expect(popular.container.querySelector('input[min="1"][max="365"]')).not.toBeNull();
+  });
+
+  it("okno popularności ma dolne ograniczenie i wartość zapasową", () => {
+    const { container, openAll, last } = renderEditor({
+      source: "dynamic",
+      orderBy: "popular",
+      popularDays: 14,
+    });
+    openAll();
+    const days = container.querySelector<HTMLInputElement>('input[min="1"][max="365"]');
+    if (!days) throw new Error("test: brak pola dni popularności");
+    expect(days.value).toBe("14");
+    fireEvent.change(days, { target: { value: "60" } });
+    expect(last("popularDays")).toBe(60);
+    // Zero dni to okno, w którym nic nie może być popularne - pole oddaje
+    // wartość domyślną, a nie zero.
+    fireEvent.change(days, { target: { value: "0" } });
+    expect(last("popularDays")).toBe(30);
+  });
+});
+
+describe("PostListEditor - zakres dat po obu stronach", () => {
+  it("każde z dwóch pól daty zapisuje się pod WŁASNY klucz", () => {
+    const { container, last } = renderEditor({ source: "dynamic" });
+    const set = container.querySelectorAll<HTMLButtonElement>('[data-testid="data-ustaw"]');
+    const clear = container.querySelectorAll<HTMLButtonElement>('[data-testid="data-wyczysc"]');
+    // Dwa kalendarze: „od” i „do”. Wspólny klucz obu pól zamieniłby zakres
+    // w jedną datę i filtr nigdy nie zwróciłby ani jednego wpisu.
+    expect(set).toHaveLength(2);
+    expect(clear).toHaveLength(2);
+
+    fireEvent.click(set[0]);
+    expect(last("dateFrom")).toBe("2026-09-01");
+    fireEvent.click(set[1]);
+    expect(last("dateTo")).toBe("2026-09-01");
+
+    // Wyczyszczenie oddaje `undefined`; panel MUSI zapisać pusty łańcuch, bo
+    // `undefined` znika przy zapisie do bazy i granica zakresu zostaje stara.
+    fireEvent.click(clear[0]);
+    expect(last("dateFrom")).toBe("");
+    fireEvent.click(clear[1]);
+    expect(last("dateTo")).toBe("");
   });
 });

@@ -1,3 +1,4 @@
+import { RouteLoadingSkeleton } from "./lib/ssr/RouteLoadingSkeleton";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
@@ -75,6 +76,7 @@ export const getRouter = () => {
     defaultPreloadDelay: 50,
     // Only show pending UI for genuinely slow navigations (>500ms). Fast
     // intent-preloaded clicks resolve instantly and never flash a skeleton.
+    defaultPendingComponent: RouteLoadingSkeleton,
     defaultPendingMs: 500,
     defaultPendingMinMs: 250,
     // Modern crossfade between routes via the View Transitions API. Header
@@ -148,11 +150,9 @@ export const getRouter = () => {
       // Reacta. Zamiatanie biegnie więc PRZED renderem, nigdy po nim (mimo
       // nazwy modułu `postRenderSweep`, która też o tym kłamie).
       //
-      // Konsekwencja jest praktyczna, nie kosmetyczna: obietnica, której loader
-      // nie awaituje, zostaje tu ANULOWANA i USUNIĘTA, zanim React wyrenderuje
-      // choćby bajt. Rozgrzewka „fire-and-forget" nie dowozi w tym repozytorium
-      // NICZEGO - i to jest powód, dla którego druga fala w `__root.tsx` ma
-      // krótki budżet, a nie brak awaita.
+      // Unsettled loader work is cancelled before React renders. The chrome
+      // Suspense gate can restart its bounded warmup after this sweep, while
+      // the sibling route body is already free to stream.
       //
       // Anulujemy wiszące fetch-e i usuwamy zapytania, które nigdy się nie
       // rozstrzygną, ZANIM integracja zrobi snapshot cache'u. Inaczej seroval
@@ -187,10 +187,10 @@ export const getRouter = () => {
     // hydration begins, so this delays first paint by at most one tick.
     const integrationHydrate = router.options.hydrate;
     router.options.hydrate = async (dehydrated) => {
-      // Twardy budżet: jeśli strumień zapytań z SSR nigdy nie domknie się w
-      // przeglądarce, `integrationHydrate` nigdy się nie rozstrzyga, React nie
-      // hydratuje i cała strona zostaje statycznym HTML-em (przyciski i linki
-      // nie reagują). Brakujące dane po prostu dociągną się przez refetch.
+      // This bounds the hydration HOOK, including any upstream ogHydrate.
+      // The pinned integration reads queryStream in the background and does
+      // not await its completion. Actual application readiness is measured
+      // by the boot probe and the production-artifact browser tests.
       //
       // Mechanika mieszka w `lib/ssr/hydrateBudget.ts`: stała jest tam
       // EKSPORTOWANA, a raport WSTRZYKIWALNY, więc budżet jest kontraktem,

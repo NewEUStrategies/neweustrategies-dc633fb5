@@ -40,7 +40,11 @@ export default defineConfig({
     testTimeout: 20000,
     hookTimeout: 20000,
     coverage: {
-      provider: "v8",
+      // Full CI on Node 22 and 24 produced negative implicit-else counters
+      // with V8 remapping (PostEditor, PostBlockEditor, usePendingCounters).
+      // Instrument executable branches directly; retain every threshold and
+      // scope exclusion. Raw LCOV validation still rejects corrupt counters.
+      provider: "istanbul",
       // `json-summary` DOSZŁO 2026-09-01 i to nie jest kosmetyka. Trzy
       // dotychczasowe reportery są WYŁĄCZNIE do czytania oczami: `text` do tego
       // dokłada pułapkę - POMIJA wiersze plików pokrytych w 100%, więc
@@ -51,7 +55,7 @@ export default defineConfig({
       // nie powstawał wcale. Reporter nie rusza ŻADNEGO progu ani zakresu
       // pomiaru - dokłada wyłącznie drugie, sprawdzalne wyjście tych samych
       // liczb.
-      reporter: ["text-summary", "text", "html", "json-summary"],
+      reporter: ["text-summary", "text", "html", "json-summary", "json", "lcov"],
       // Raport i progi MUSZĄ powstać także na czerwonej suicie. `checkThresholds`
       // żyje wewnątrz `coverageProvider.reportCoverage()`, a vitest wychodzi
       // z niego natychmiast przy pierwszym padniętym teście

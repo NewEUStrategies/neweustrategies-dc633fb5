@@ -348,44 +348,16 @@ describe("lista wykluczeń: jedna gałąź od reputacji domeny", () => {
     );
   });
 
-  it.fails(
-    "DEFEKT: trwała blokada z powodu `unsubscribe` zatrzymuje pocztę TRANSAKCYJNĄ",
-    async () => {
-      // ZGŁOSZENIE DEFEKTU, nie życzenie. `sendTransactionalEmail` decyduje
-      // wyłącznie po `scope === "permanent"` i IGNORUJE `reason`, choć polityka
-      // repo ma na to osobną funkcję: `suppressionBlocks` z
-      // `src/lib/email/suppressionPolicy.ts` trzyma `unsubscribe` w zbiorze
-      // `TRANSACTIONAL_PASS_REASONS` z komentarzem „nie jest oświadczeniem
-      // «nie chcę potwierdzeń płatności»; takiej treści nie wolno nam
-      // zatrzymać".
-      //
-      // Ta ścieżka jest OSIĄGALNA: wypis jednym kliknięciem woła
-      // `email_unsubscribe_by_token`, ta `email_record_suppression`
-      // z `p_reason => 'unsubscribe'`, a SQL nadaje wtedy `scope = 'permanent'`
-      // (soft bounce jest jedynym powodem z zakresem czasowym - migracja
-      // 20260725123624, sekcja `email_record_suppression`). Skutek: kto wypisał
-      // się z newslettera, przestaje dostawać potwierdzenia i resety hasła,
-      // a poczta jest odrzucana CICHO - `recipient_suppressed` nigdzie nie
-      // trafia do operatora.
-      //
-      // NIE naprawiam tego pod test (kod produkcyjny jest poza zakresem tego
-      // zlecenia). Poprawka to przepuszczenie decyzji przez
-      // `suppressionBlocks({ reason, scope, category: "transactional" })`
-      // zamiast porównania samego zakresu. Gdy to nastąpi, ten test zmieni
-      // się w zielony i trzeba mu zdjąć `.fails`.
-      h.suppressed.mockResolvedValue(suppressionMap(hit(TO, "permanent", "unsubscribe")));
-      const result = await sendTransactionalEmail(input({ tenantId: TENANT }));
-      expect(success(result).messageId).toBe("msg_domyslny");
-      expect(h.fetchMock).toHaveBeenCalledTimes(1);
-    },
-  );
+  it("DEFEKT: trwała blokada z powodu `unsubscribe` zatrzymuje pocztę TRANSAKCYJNĄ", async () => {
+    h.suppressed.mockResolvedValue(suppressionMap(hit(TO, "permanent", "unsubscribe")));
+    const result = await sendTransactionalEmail(input({ tenantId: TENANT }));
+    expect(success(result).messageId).toBe("msg_domyslny");
+    expect(h.fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("sukces: identyfikator wiadomości u dostawcy", () => {
   it("`{ ok: true, messageId }` - identyfikator wyciągnięty z JSON i przycięty", async () => {
-    // `messageId` to jedyne, co później pozwala webhookowi dostarczalności
-    // przypisać odbicie albo skargę do KONKRETNEJ wysyłki. Bez niego zdarzenie
-    // zwrotne jest bezimienne i nie da się go powiązać z najemcą ani z akcją.
     h.fetchMock.mockResolvedValue(jsonResponse({ id: "  msg_0001  " }));
     const result = await sendTransactionalEmail(input());
     expect(success(result).messageId).toBe("msg_0001");

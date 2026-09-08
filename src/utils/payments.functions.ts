@@ -220,8 +220,7 @@ export const resolveStripeDiscount = createServerFn({ method: "POST" })
 /**
  * Podgląd kosztu zmiany planu PRZED potwierdzeniem.
  *
- * Stripe nie ma dedykowanego endpointu podglądu proraty analogicznego do
- * Paddle - korzystamy z `invoices.retrieveUpcoming` z tymczasową podmianą
+ * Korzystamy z `invoices.createPreview` z tymczasową podmianą
  * pozycji, żeby pokazać dopłatę (upgrade) albo kwotę kolejnego rozliczenia
  * (downgrade) bez faktycznego dotykania subskrypcji.
  */

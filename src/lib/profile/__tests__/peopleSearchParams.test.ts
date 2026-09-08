@@ -53,6 +53,18 @@ describe("parsePeopleSearchParams", () => {
     });
   });
 
+  it("preserves canonical flags through the router's URL serializer and parser", async () => {
+    const { defaultParseSearch, defaultStringifySearch } = await import("@tanstack/react-router");
+    const expected = parsePeopleSearchParams({ verified: "1", sem: true });
+    expect(parsePeopleSearchParams(defaultParseSearch(defaultStringifySearch(expected)))).toEqual(
+      expected,
+    );
+    expect(parsePeopleSearchParams({ verified: 0, sem: 2 })).toMatchObject({
+      verified: undefined,
+      sem: undefined,
+    });
+  });
+
   it("odsiewa nieznane kody intencji i porządkuje resztę wg katalogu", () => {
     expect(parsePeopleSearchParams({ open: "media,banana,consortium" }).open).toBe(
       "consortium,media",

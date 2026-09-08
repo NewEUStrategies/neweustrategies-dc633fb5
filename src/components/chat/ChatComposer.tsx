@@ -9,7 +9,7 @@ import {
   Mic,
   Paperclip,
   Pencil,
-  SendHorizontal,
+  Send,
   Smile,
   Trash2,
   X,
@@ -353,7 +353,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
 
   return (
-    <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
+    <div className="border-t border-border/60 bg-card px-2 pb-2 pt-1.5">
       {replyBar.kind === "editing" && (
         <div className="mb-1.5 flex items-center justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
@@ -470,13 +470,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             aria-label={t("chat.voice.send")}
             title={t("chat.voice.send")}
           >
-            <SendHorizontal className="h-4 w-4" aria-hidden />
+            <Send className="h-4 w-4 text-white" aria-hidden />
           </button>
         </div>
       ) : (
         // Card-style composer: pełnej szerokości pole tekstowe, a pod nim pasek
         // narzędzi (emoji + załącznik po lewej, mikrofon/wyślij po prawej).
-        <div className="flex w-full flex-col gap-1.5 rounded-[6px] border border-input bg-muted/30 px-2 py-1.5 transition-colors focus-within:border-ring/60 focus-within:bg-background">
+        <div className="flex w-full flex-col gap-1.5 rounded-[6px] border border-input bg-card px-2 py-1.5 transition-colors">
           <input
             ref={fileInputRef}
             type="file"
@@ -490,6 +490,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           />
 
           <textarea
+            data-chat-composer-input
             ref={textareaRef}
             value={text}
             rows={1}
@@ -511,7 +512,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             }}
             placeholder={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
             aria-label={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
-            className="max-h-[120px] w-full resize-none border-none bg-transparent px-1 py-1 text-[13px] leading-relaxed shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+            className="max-h-[120px] w-full resize-none border-none bg-transparent px-1 py-1 leading-relaxed shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           />
 
           <div className="flex items-center justify-between gap-2">
@@ -612,7 +613,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 {editing ? (
                   <Check className="h-4 w-4" aria-hidden />
                 ) : (
-                  <SendHorizontal className="h-4 w-4" aria-hidden />
+                  <Send className="h-4 w-4 text-white" aria-hidden />
                 )}
                 <span className="hidden sm:inline">
                   {editing ? t("chat.saveEdit") : t("chat.send")}

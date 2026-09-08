@@ -127,7 +127,28 @@ afterEach(() => {
 });
 
 describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () => {
-  it("ścieżka czytelnika woła handler JEDNYM argumentem, cokolwiek dostanie od runtime'u", async () => {
+  it("reports current HTML handling time without relabeling cached SSR time as TTFB", async () => {
+    let now = 1000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    hoisted.render = () => {
+      now += 37;
+      return new Response(DOC, {
+        headers: { ...HTML_HEADERS, "server-timing": "ssr;dur=12", "x-nes-cache": "HIT" },
+      });
+    };
+    const response = await entryFetch(new Request("https://tenant-a.eu/"));
+    expect(response.headers.get("server-timing")).toBe("ssr;dur=12, server-init;dur=0, app;dur=37");
+    expect(await response.text()).toContain("ok");
+  });
+
+  it("does not add document timings to JSON responses", async () => {
+    hoisted.render = () => Response.json({ ok: true });
+    const response = await entryFetch(new Request("https://tenant-a.eu/api/data"));
+    expect(response.headers.get("server-timing")).toBeNull();
+    expect(await response.json()).toEqual({ ok: true });
+  });
+
+  it("ścieżka czytelnika przekazuje wyłącznie kontrolowane opcje frameworka, cokolwiek dostanie od runtime'u", async () => {
     const response = await entryFetch(
       new Request("https://tenant-a.eu/blog"),
       HOSTILE_ENV,
@@ -140,8 +161,8 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
     // ARNOŚĆ, nie tylko wartość: `fetch(request, undefined)` też przepuściłoby
     // asercję na `call[1]`, a jawne `undefined` w slocie opcji to już decyzja
     // o kształcie wywołania, której nie chcemy podejmować za framework.
-    expect(call).toHaveLength(1);
-    expect(call[1]).toBeUndefined();
+    expect(call).toHaveLength(2);
+    expect(call[1]).toEqual({ onEarlyHints: expect.any(Function) });
   });
 
   it("żaden binding env nie może już zostać wzięty za opcję renderu", async () => {
@@ -153,7 +174,7 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
     await response.text();
 
     // Nie ma ŻADNEGO argumentu za `request` - ani `env`, ani `ctx`.
-    expect(hoisted.calls[0]!.slice(1)).toEqual([]);
+    expect(hoisted.calls[0]![1]).toEqual({ onEarlyHints: expect.any(Function) });
     // Ta sama rzecz po tożsamości obiektu: to ten konkretny `env` sprawdzamy,
     // a nie tylko długość tablicy.
     expect(hoisted.calls[0]).not.toContain(HOSTILE_ENV);
@@ -170,7 +191,7 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
       expect(response.status).toBe(200);
       expect(await response.text()).toContain("ok");
     }
-    expect(hoisted.calls.map((call) => call.length)).toEqual([1, 1, 1]);
+    expect(hoisted.calls.map((call) => call.length)).toEqual([2, 2, 2]);
   });
 });
 
@@ -190,7 +211,7 @@ describe("entry SSR: `env` dociera do czytelników drogą `process.env`", () => 
     await response.text();
 
     expect(seen).toBe("wartość-z-env");
-    expect(hoisted.calls[0]).toHaveLength(1);
+    expect(hoisted.calls[0]).toHaveLength(2);
   });
 });
 
@@ -241,7 +262,7 @@ describe("entry SSR: nagłówek `Link` przeżywa całą drogę", () => {
 });
 
 describe("entry SSR: driver rewalidacji w tle", () => {
-  it("jest zarejestrowany i też woła handler JEDNYM argumentem", async () => {
+  it("jest zarejestrowany i też przekazuje wyłącznie kontrolowane opcje frameworka", async () => {
     const revalidator = hoisted.revalidator;
     expect(revalidator).toBeTypeOf("function");
 
@@ -259,7 +280,7 @@ describe("entry SSR: driver rewalidacji w tle", () => {
     // nie biegnie), więc driver uczciwie raportuje "nie zapisałem".
     expect(stored).toBe(false);
     const call = hoisted.calls.at(-1)!;
-    expect(call).toHaveLength(1);
+    expect(call).toHaveLength(2);
 
     const synthetic = call[0];
     if (!(synthetic instanceof Request)) throw new Error("driver nie podał Requestu");

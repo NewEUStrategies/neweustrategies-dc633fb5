@@ -52,10 +52,11 @@ export async function fetchNextPost(params: {
   // The body goes through the gated RPC, never a direct column select, so a
   // members/paid "next" article is not leaked to an unentitled reader: it comes
   // back with a null body and AutoLoadNextPost renders only the headline + link.
-  const [{ data: path }, body] = await Promise.all([
+  const [{ data: path, error: pathError }, body] = await Promise.all([
     supabase.rpc("page_full_path", { _page_id: row.parent_page_id }),
     fetchGatedBody("post", row.id),
   ]);
+  if (pathError) throw pathError;
   const href = `/${typeof path === "string" ? path : "blog"}/${row.slug}`;
   return {
     ...(row as Omit<

@@ -52,6 +52,8 @@
 // `newsSitemap.test.ts`, `llms.test.ts`) - one dowodzą, jak dokument jest
 // SKŁADANY z poprawnego wejścia; ten plik dowodzi, co trasa robi, gdy wejścia
 // NIE MA.
+// Kontrola dodatnia llms.txt sprawdza również połączenie danych PL/EN z URL-ami
+// trasy: pusty zbiór nie wykrywa błędnego przypisania języka lub kategorii.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { routeServerHandlers } from "@/test/routeHarness";
 import { pgError } from "@/test/supabaseChain";
@@ -211,6 +213,7 @@ const state = vi.hoisted(() => ({
   posts: [] as FeedPostStub[],
   /** Sposób awarii czytnika kategorii (llms.txt). */
   categoriesFailure: null as "throw" | null,
+  categories: [] as NonNullable<TaxonomyStub>[],
   /** Sposób awarii kolektora sekcji sitemapy. */
   sectionsFailure: null as "throw" | "pgError" | null,
   /** Wpisy sekcji sitemapy zwracane, gdy kolektor nie zawodzi. */
@@ -299,7 +302,7 @@ vi.mock("@/lib/server/publishedContent.server", () => ({
   fetchSeoSettingsValue: () => Promise.resolve(state.settings),
   fetchPublishedPosts: () => Promise.resolve(failOrEmpty(state.postsFailure, state.posts)),
   fetchPublicCategories: () =>
-    Promise.resolve(state.categoriesFailure === "throw" ? failOrEmpty("throw", []) : []),
+    Promise.resolve(failOrEmpty(state.categoriesFailure, state.categories)),
   fetchPublishedPostsByTaxonomy: () =>
     Promise.resolve(failOrEmpty(state.postsFailure, state.taxonomyPosts)),
   fetchTaxonomyForFeed: () => Promise.resolve(state.taxonomy),
@@ -519,6 +522,7 @@ const HEALTHY = {
   postsFailure: null,
   posts: [] as FeedPostStub[],
   categoriesFailure: null,
+  categories: [] as NonNullable<TaxonomyStub>[],
   sectionsFailure: null,
   sectionEntries: [] as Array<{ loc: string; lastmod?: string }>,
   // Moduł 07 startuje ZDROWO: kanały mają treść, programy się rozwiązują.
@@ -933,6 +937,38 @@ describe("feed wyłączony w ustawieniach redakcji", () => {
     expect(res.status).toBe(404);
     expect(await res.text()).toBe("llms.txt disabled");
   });
+});
+
+it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta", async () => {
+  state.settings = { llms_txt_enabled: true };
+  state.posts = [feedPost()];
+  state.categories = [
+    {
+      slug: "analizy",
+      name_pl: "Analizy",
+      name_en: "Analyses",
+      description_pl: "Komentarze ekspertów.",
+      description_en: "Expert commentary.",
+    },
+  ];
+  const { Route } = await import("../llms[.]txt");
+  const res = await routeServerHandlers(Route).GET!({});
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+  expect(res.headers.get("cache-control")).toContain("s-maxage=60");
+  const body = await res.text();
+  expect(body).toContain(
+    "[Pierwsza analiza](https://neweuropeanstrategies.com/analizy/pierwsza-analiza)",
+  );
+  expect(body).toContain(
+    "[First analysis](https://neweuropeanstrategies.com/en/analizy/pierwsza-analiza)",
+  );
+  expect(body).toContain("Streszczenie analizy.");
+  expect(body).toContain("Analysis summary.");
+  expect(body).toContain(
+    "[Analizy / Analyses](https://neweuropeanstrategies.com/category/analizy)",
+  );
+  expect(body).toContain("Komentarze ekspertów.");
 });
 
 // ---------------------------------------------------------------------------

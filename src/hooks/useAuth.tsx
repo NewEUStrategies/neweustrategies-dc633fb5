@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  startTransition,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // tę samą sesję - drugie wywołanie musi być no-opem, żeby nie dublować
     // zapytań o `user_roles` i `profiles` przy każdym mount.
     let contextLoadedForUid: string | null = null;
+    let invitationAcceptedForUid: string | null = null;
     const ensureContext = (uid: string | null) => {
       if (uid === contextLoadedForUid) return;
       contextLoadedForUid = uid;
@@ -114,6 +123,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           reauthorizeContent(uid);
         }
         ensureContext(uid);
+        // Domknij administracyjne zaproszenie po pierwszym poprawnym wejściu.
+        // RPC jest idempotentne i może zaakceptować wyłącznie zaproszenie
+        // przypisane do bieżącego konta, e-maila i tenanta.
+        if (
+          uid &&
+          uid !== invitationAcceptedForUid &&
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION")
+        ) {
+          invitationAcceptedForUid = uid;
+          setTimeout(() => {
+            void supabase.rpc("accept_my_user_invitation").then(({ error }) => {
+              if (error) console.warn("[auth] invitation acceptance sync failed", error.message);
+            });
+          }, 0);
+        }
         if (
           s?.user &&
           (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
@@ -131,9 +155,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Listener już obsłużył INITIAL_SESSION dla tej samej sesji - tu tylko
         // domykamy `loading`, żeby konsument (route guards, header) mógł się
         // odpalić bez dodatkowego round-tripu.
-        setSession(data.session);
-        ensureContext(data.session?.user?.id ?? null);
-        setSessionLoading(false);
+        // Preserve the server-rendered reading surface while lazy widgets
+        // hydrate. Initial auth settlement can wait; later identity changes
+        // and logout remain urgent.
+        startTransition(() => {
+          setSession(data.session);
+          ensureContext(data.session?.user?.id ?? null);
+          setSessionLoading(false);
+        });
       });
     } catch (error) {
       console.error("[auth] Supabase client unavailable - continuing signed-out", error);

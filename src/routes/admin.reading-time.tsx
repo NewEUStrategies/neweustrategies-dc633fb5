@@ -136,21 +136,22 @@ function ReadingTimeAdmin() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase
-      .from("site_settings")
-      .upsert(
-        { key: READING_TIME_SETTINGS_KEY, value: parsed.data as never },
-        { onConflict: "tenant_id,key" },
-      );
-    setBusy(false);
-    if (error) {
+    try {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert(
+          { key: READING_TIME_SETTINGS_KEY, value: parsed.data as never },
+          { onConflict: "tenant_id,key" },
+        );
+      if (error) throw error;
+      // Public views read this same cache; invalidate it after a confirmed write.
+      await qc.invalidateQueries({ queryKey: siteSettingsQueryOptions.queryKey });
+      toast.success(t("admin.saved"));
+    } catch {
       toast.error(t("admin.saveError"));
-      return;
+    } finally {
+      setBusy(false);
     }
-    // Publiczny widok czyta ten sam zbiorczy cache - inwalidacja sprawia, że
-    // zmiana rzutuje na wpisy bez przeładowania.
-    await qc.invalidateQueries({ queryKey: siteSettingsQueryOptions.queryKey });
-    toast.success(t("admin.saved"));
   };
 
   const resetDefaults = () => setDraft(DEFAULT_READING_TIME_SETTINGS);

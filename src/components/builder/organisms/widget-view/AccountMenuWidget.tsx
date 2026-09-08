@@ -22,9 +22,6 @@ import { NotificationsBell } from "@/components/notifications/NotificationsBell"
 
 // Lazy: the chat bundle (incl. its i18n resources) loads only for signed-in
 // users, keeping the guest header untouched and the widget graph decoupled.
-const ChatBell = lazy(() =>
-  import("@/components/chat/ChatBell").then((m) => ({ default: m.ChatBell })),
-);
 
 // Sekcja „moje wydarzenia" - leniwie, bo dotyczy tylko zalogowanych i tylko po
 // otwarciu panelu; nagłówek nie ciągnie jej w swoim chunku.
@@ -320,7 +317,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   // Bez bramki `useHasMounted`: SSR i pierwszy client render renderują ten
   // sam guest-trigger (sesja przychodzi asynchronicznie z useAuth), więc
   // header nie miga pustką i nie czeka jednego dodatkowego renderu, zanim
-  // ChatBell/NotificationsBell zamontują swoje zapytania. Gdy sesja
+  // NotificationsBell zamontuje swoje zapytania. Gdy sesja
   // zhydratyzuje się z localStorage, trigger płynnie zamienia się na wariant
   // zalogowany, a dzwonki startują queries od razu.
   const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
@@ -620,19 +617,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
 
   // Spójne odstępy dla rzędu ikon konta (mobile-first, unifikacja z headerem).
   // gap-x-2 na <480 px, gap-x-3 od sm; pr-1.5 rezerwuje miejsce na overflow badge
-  // powiadomień (badge = -right-2.5), żeby nie nachodził na powitanie/avatar.
+  // powiadomień (badge = -right-2.5), żeby nie nachodził na sąsiedni widget.
   return (
     <div className="relative inline-flex items-center gap-x-2 sm:gap-x-3 overflow-visible">
-      {session ? (
-        <Suspense fallback={null}>
-          <ChatBell />
-        </Suspense>
-      ) : null}
-      {session ? (
-        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
-          <NotificationsBell />
-        </span>
-      ) : null}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
@@ -766,6 +753,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           <span className="sr-only">{t("nav.account")}</span>
         </PopoverContent>
       </Popover>
+      {session ? (
+        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
+          <NotificationsBell />
+        </span>
+      ) : null}
     </div>
   );
 }

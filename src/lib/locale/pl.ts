@@ -3,6 +3,7 @@
 // collide in one giant file.
 export const pl = {
   common: {
+    homeEmptyNotice: "Nie ma tu jeszcze treści - zajrzyj wkrótce.",
     retry: "Spróbuj ponownie",
     loading: "Ładowanie…",
     noPosts: "Brak wpisów do wyświetlenia.",
@@ -565,6 +566,7 @@ export const pl = {
         mobileHeader: "Nagłówek mobilny",
         buttons: "Przyciski",
         textFields: "Pola tekstowe",
+        toggles: "Przełączniki (toggle)",
         inputColors: "Kolory pól tekstowych",
         iconColors: "Kolory ikon",
         linkColors: "Kolory linków",
@@ -693,6 +695,24 @@ export const pl = {
         uppercaseHint: "Wymusza uppercase na tekście przycisków.",
         letterSpacing: "Odstęp liter (px)",
         preview: "Podgląd",
+      },
+      toggles: {
+        hint: "Globalny wygląd przełączników (toggle) na całej platformie: rozmiar, zaokrąglenie, kolory oraz rozmiar etykiety.",
+        size: "Rozmiar przełącznika",
+        sizeSm: "Mały",
+        sizeMd: "Średni",
+        sizeLg: "Duży",
+        width: "Szerokość (px)",
+        height: "Wysokość (px)",
+        radius: "Zaokrąglenie (px)",
+        onColor: "Kolor włączony",
+        offColor: "Kolor wyłączony",
+        thumbColor: "Kolor suwaka",
+        labelSize: "Rozmiar czcionki etykiety (px)",
+        labelWeight: "Grubość czcionki etykiety",
+        preview: "Podgląd",
+        previewOn: "Włączony",
+        previewOff: "Wyłączony",
       },
       inputs: {
         hint: "Globalne ustawienia kształtu pól tekstowych. Kolory (tło, tekst, placeholder, hover, focus) konfiguruj w Global Colors → Inputs / Text Fields.",
@@ -1007,6 +1027,8 @@ export const pl = {
       cookieBannerLabel: "Pokazuj baner zgody na pliki cookie",
     },
     dashboard: {
+      loadError: "Nie udało się wczytać liczników treści.",
+      retry: "Spróbuj ponownie",
       title: "Kokpit",
       subtitle: "Przegląd treści serwisu",
     },
@@ -1298,6 +1320,7 @@ export const pl = {
       meteringMeterMembers: "Licz artykuły „tylko dla zalogowanych”",
       meteringShowCounter: "Pokazuj licznik „X z N” nad artykułem",
       meteringSaved: "Zapisano ustawienia meteringu",
+      readError: "Nie udało się wczytać ustawień. Spróbuj ponownie.",
       meteringSaveError: "Nie udało się zapisać ustawień meteringu.",
       meteringImpactTitle: "Podgląd wpływu na bieżący miesiąc",
       meteringImpactDisabled:

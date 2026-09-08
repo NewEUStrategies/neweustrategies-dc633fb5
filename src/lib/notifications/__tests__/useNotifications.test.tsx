@@ -355,7 +355,7 @@ describe("useNotifications", () => {
   it("DZIELI cache z `useNotificationsInfinite` - jeden request, nie dwa", async () => {
     db().setResponse("notifications", ok([notificationRow()]));
     const { result, queryClient } = renderHookWithQueryClient(() => ({
-      flat: useNotifications({}),
+      flat: useNotifications(),
       infinite: useNotificationsInfinite({}),
     }));
 

@@ -1264,7 +1264,13 @@ const FROZEN_BUDGET_KB = {
   // zrobienia NIE jest split panelu (sufit ~8%, koszt: nowy arkusz
   // render-blocking na trasach panelu i wzrost sumy), a praca nad częścią
   // NIEREDUKOWALNĄ - 34 117 B gzip w `src/styles.css` pisanych ręcznie.
-  css: 82,
+  // 2026-09-06: split public/admin CSS. The old 82 KiB total is not the
+  // render-blocking cost of a public URL. Clean production build: 71.9 KiB
+  // shared + 1.3 KiB public renderer + 12.6 KiB admin = 85.8 KiB total.
+  // Separate gzip streams cost 4.5 KiB overall, while public CSS falls by
+  // 8.1 KiB. Keep both costs gated and count every unknown stylesheet as public.
+  css: 87,
+  publicCss: 74,
   // gzip STATYCZNEGO DOMKNIĘCIA ŚCIEŻKI BOOTOWANIA: chunki wstrzykiwane przez
   // SSR jako `<script type="module">` plus wszystko, co z nich osiągalne
   // KRAWĘDZIĄ STATYCZNĄ (`import()` krawędzią inicjalizacyjną nie jest). Ten sam
@@ -1314,6 +1320,7 @@ const MAX_CHUNK_KB = budget("chunk", "MAX_CHUNK_KB");
 const MAX_PUBLIC_KB = budget("public", "MAX_PUBLIC_KB");
 const MAX_TOTAL_KB = budget("overall", "MAX_TOTAL_KB");
 const MAX_CSS_KB = budget("css", "MAX_CSS_KB");
+const MAX_PUBLIC_CSS_KB = budget("publicCss", "MAX_PUBLIC_CSS_KB");
 const MAX_BOOT_KB = budget("boot", "MAX_BOOT_KB");
 
 /**
@@ -1369,6 +1376,7 @@ interface BaselineFile {
     readonly chunk: number;
     /** Dopisane 2026-09-01 (wpisy IX i X); starsze pliki ich nie mają. */
     readonly css?: number;
+    readonly publicCss?: number;
     readonly boot?: number;
   };
   readonly chunks: Readonly<Record<string, number>>;
@@ -1696,9 +1704,11 @@ if (cssFiles.length === 0) {
   process.exit(1);
 }
 let cssTotal = 0;
+let publicCssTotal = 0;
 for (const f of cssFiles) {
   const kb = gzipKb(f);
   cssTotal += kb;
+  if (stableChunkName(f) !== "admin-styles") publicCssTotal += kb;
   // Arkusz dostaje SUFIKS `.css` w nazwie wiadra, bo `stableChunkName` zdejmuje
   // rozszerzenie i bez sufiksu `BlocksRenderer-*.css` (1,4 KB) wpadałby do
   // wiadra chunku `BlocksRenderer-*.js` (41,9 KB w baseline'ie) - dwie klasy
@@ -1730,7 +1740,10 @@ console.log(`  overall:     ${total.toFixed(1)} KB  (budget ≤ ${MAX_TOTAL_KB} 
 console.log(`Largest chunk: ${max.toFixed(1)} KB gzip (${maxFile})  (budget ≤ ${MAX_CHUNK_KB} KB)`);
 console.log(
   `Client CSS: ${cssFiles.length} files, ${cssTotal.toFixed(1)} KB gzip  ` +
-    `(render-blocking na każdym URL-u; budget ≤ ${MAX_CSS_KB} KB)`,
+    `(all stylesheets; budget ≤ ${MAX_CSS_KB} KB)`,
+);
+console.log(
+  `  public CSS:  ${publicCssTotal.toFixed(1)} KB (shared + public route styles; budget ≤ ${MAX_PUBLIC_CSS_KB} KB)`,
 );
 console.log(
   `Boot closure: ${bootTotal.toFixed(1)} KB gzip / ${bootRaw.toFixed(1)} KB raw  ` +
@@ -1749,35 +1762,6 @@ if (process.argv.includes("--admin-proof")) {
       `  ${row.kb.toFixed(1).padStart(7)} KB  ${row.name}${row.root ? "  [korzeń]" : ""}`,
     );
   }
-}
-
-// ── Baseline: jawna aktualizacja ─────────────────────────────────────────────
-if (process.argv.includes("--update-baseline")) {
-  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
-  const snapshot: BaselineFile = {
-    measuredAt: new Date().toISOString(),
-    commit,
-    bucketConvention: BUCKET_CONVENTION,
-    totals: {
-      public: Number(publicTotal.toFixed(1)),
-      overall: Number(total.toFixed(1)),
-      chunk: Number(max.toFixed(1)),
-      css: Number(cssTotal.toFixed(1)),
-      boot: Number(bootTotal.toFixed(1)),
-    },
-    chunks: Object.fromEntries(
-      [...perChunk.entries()]
-        .filter(([, kb]) => kb >= 1)
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, kb]) => [name, Number(kb.toFixed(1))]),
-    ),
-  };
-  mkdirSync("reports", { recursive: true });
-  writeFileSync(BASELINE_PATH, `${JSON.stringify(snapshot, null, 2)}\n`);
-  console.log(
-    `✓ Baseline zapisany: ${BASELINE_PATH} (${Object.keys(snapshot.chunks).length} chunków, commit ${commit}).`,
-  );
-  process.exit(0);
 }
 
 // ── Baseline: diagnoza „PRZEZ CO", nie tylko „ILE" ───────────────────────────
@@ -1844,6 +1828,8 @@ if (publicTotal > MAX_PUBLIC_KB)
   errors.push(`public total ${publicTotal.toFixed(1)} KB > ${MAX_PUBLIC_KB} KB`);
 if (total > MAX_TOTAL_KB) errors.push(`overall total ${total.toFixed(1)} KB > ${MAX_TOTAL_KB} KB`);
 if (cssTotal > MAX_CSS_KB) errors.push(`css total ${cssTotal.toFixed(1)} KB > ${MAX_CSS_KB} KB`);
+if (publicCssTotal > MAX_PUBLIC_CSS_KB)
+  errors.push(`public css ${publicCssTotal.toFixed(1)} KB > ${MAX_PUBLIC_CSS_KB} KB`);
 if (bootTotal > MAX_BOOT_KB)
   errors.push(`boot closure ${bootTotal.toFixed(1)} KB > ${MAX_BOOT_KB} KB`);
 
@@ -1859,12 +1845,43 @@ if (errors.length) {
   process.exit(1);
 }
 
+// ── Baseline: jawna aktualizacja ─────────────────────────────────────────────
+if (process.argv.includes("--update-baseline")) {
+  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
+  const snapshot: BaselineFile = {
+    measuredAt: new Date().toISOString(),
+    commit,
+    bucketConvention: BUCKET_CONVENTION,
+    totals: {
+      public: Number(publicTotal.toFixed(1)),
+      overall: Number(total.toFixed(1)),
+      chunk: Number(max.toFixed(1)),
+      css: Number(cssTotal.toFixed(1)),
+      publicCss: Number(publicCssTotal.toFixed(1)),
+      boot: Number(bootTotal.toFixed(1)),
+    },
+    chunks: Object.fromEntries(
+      [...perChunk.entries()]
+        .filter(([, kb]) => kb >= 1)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, kb]) => [name, Number(kb.toFixed(1))]),
+    ),
+  };
+  mkdirSync("reports", { recursive: true });
+  writeFileSync(BASELINE_PATH, `${JSON.stringify(snapshot, null, 2)}\n`);
+  console.log(
+    `✓ Baseline zapisany: ${BASELINE_PATH} (${Object.keys(snapshot.chunks).length} chunków, commit ${commit}).`,
+  );
+  process.exit(0);
+}
+
 // ── Zapas: ostrzeżenie ZANIM bramka zapali się u kogoś innego ────────────────
 const headroom = [
   { name: "largest chunk", now: max, limit: MAX_CHUNK_KB },
   { name: "public total", now: publicTotal, limit: MAX_PUBLIC_KB },
   { name: "overall total", now: total, limit: MAX_TOTAL_KB },
   { name: "css total", now: cssTotal, limit: MAX_CSS_KB },
+  { name: "public css", now: publicCssTotal, limit: MAX_PUBLIC_CSS_KB },
   { name: "boot closure", now: bootTotal, limit: MAX_BOOT_KB },
 ].map((b) => ({ ...b, left: b.limit - b.now, pct: ((b.limit - b.now) / b.limit) * 100 }));
 

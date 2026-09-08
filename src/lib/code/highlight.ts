@@ -298,9 +298,9 @@ function tokenizeWithSpec(code: string, spec: LangSpec): HighlightToken[] {
   let last = 0;
   spec.pattern.lastIndex = 0;
   for (const m of code.matchAll(spec.pattern)) {
-    const idx = m.index ?? 0;
+    const idx = m.index;
     if (idx > last) out.push({ text: code.slice(last, idx), kind: null });
-    const groups = m.groups ?? {};
+    const groups = m.groups!;
     let kind: TokenKind | null = null;
     const text = m[0];
     if (groups.comment !== undefined) kind = "comment";
@@ -309,7 +309,7 @@ function tokenizeWithSpec(code: string, spec: LangSpec): HighlightToken[] {
     else if (groups.variable !== undefined) kind = "variable";
     else if (groups.number !== undefined) kind = "number";
     else if (groups.keyword !== undefined) kind = "keyword";
-    else if (groups.word !== undefined) {
+    else {
       const word = groups.word;
       const key = spec.caseInsensitiveKeywords ? word.toLowerCase() : word;
       if (spec.keywords?.has(key)) kind = "keyword";
@@ -329,7 +329,7 @@ function tokenizeMarkup(code: string): HighlightToken[] {
   const re = /(<!--[\s\S]*?-->)|(<\/?[A-Za-z][^<>]*\/?>)/g;
   let last = 0;
   for (const m of code.matchAll(re)) {
-    const idx = m.index ?? 0;
+    const idx = m.index;
     if (idx > last) out.push({ text: code.slice(last, idx), kind: null });
     if (m[1] !== undefined) {
       out.push({ text: m[1], kind: "comment" });
@@ -340,7 +340,7 @@ function tokenizeMarkup(code: string): HighlightToken[] {
         /(<\/?)([A-Za-z][\w:-]*)|([A-Za-z_][\w:-]*)(?==)|("(?:[^"\\]|\\.)*"|'[^']*')|(\/?>)/g;
       let tLast = 0;
       for (const t of tag.matchAll(inner)) {
-        const tIdx = t.index ?? 0;
+        const tIdx = t.index;
         if (tIdx > tLast) out.push({ text: tag.slice(tLast, tIdx), kind: null });
         if (t[1] !== undefined) {
           out.push({ text: t[1], kind: null });
@@ -349,12 +349,11 @@ function tokenizeMarkup(code: string): HighlightToken[] {
           out.push({ text: t[3], kind: "property" });
         } else if (t[4] !== undefined) {
           out.push({ text: t[4], kind: "string" });
-        } else if (t[5] !== undefined) {
+        } else {
           out.push({ text: t[5], kind: null });
         }
         tLast = tIdx + t[0].length;
       }
-      if (tLast < tag.length) out.push({ text: tag.slice(tLast), kind: null });
     }
     last = idx + m[0].length;
   }
@@ -366,7 +365,6 @@ function tokenizeMarkup(code: string): HighlightToken[] {
 function mergePlain(tokens: HighlightToken[]): HighlightToken[] {
   const out: HighlightToken[] = [];
   for (const t of tokens) {
-    if (t.text.length === 0) continue;
     const prev = out[out.length - 1];
     if (prev && prev.kind === null && t.kind === null) prev.text += t.text;
     else out.push({ ...t });
@@ -381,7 +379,7 @@ function mergePlain(tokens: HighlightToken[]): HighlightToken[] {
  */
 export function highlightCode(code: string, lang: string): HighlightToken[] {
   if (code.length === 0) return [];
-  const normalized = (lang ?? "").trim().toLowerCase();
+  const normalized = lang.trim().toLowerCase();
   if (MARKUP_LANGS.has(normalized)) return mergePlain(tokenizeMarkup(code));
   const spec = LANG_SPECS[LANG_ALIASES[normalized] ?? ""];
   if (!spec) return [{ text: code, kind: null }];
@@ -390,6 +388,6 @@ export function highlightCode(code: string, lang: string): HighlightToken[] {
 
 /** Języki, dla których highlighter ma realną gramatykę (etykieta w UI). */
 export function isHighlightableLang(lang: string): boolean {
-  const normalized = (lang ?? "").trim().toLowerCase();
+  const normalized = lang.trim().toLowerCase();
   return MARKUP_LANGS.has(normalized) || LANG_ALIASES[normalized] !== undefined;
 }

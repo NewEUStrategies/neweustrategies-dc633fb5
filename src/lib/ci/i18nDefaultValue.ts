@@ -170,6 +170,23 @@ export function parseObjectLiteral(text: string, offset = 0): ObjectLiteral | nu
       continue;
     }
     if (ch === '"' || ch === "'" || ch === "`") {
+      // Quoted property names are runtime keys too. Do not confuse a quoted
+      // value with a name: only accept a top-level key followed by a colon.
+      if (depth === 1 && name === null && ch !== "`") {
+        let end = index + 1;
+        while (end < text.length && text[end] !== ch) end += text[end] === "\\" ? 2 : 1;
+        if (
+          text
+            .slice(end + 1)
+            .trimStart()
+            .startsWith(":")
+        ) {
+          nameStart = index;
+          // Keep escaped quotes in a string token: the shared lightweight
+          // comment masker does not tokenize quotes inside RegExp literals.
+          name = text.slice(index + 1, end).replace(new RegExp("\\\\(['\"\\\\])", "g"), "$1");
+        }
+      }
       quote = ch;
       index += 1;
       continue;

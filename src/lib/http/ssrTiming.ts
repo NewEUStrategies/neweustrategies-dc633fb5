@@ -28,10 +28,16 @@ export function buildServerTimingValue(
   cacheAgeMs?: number,
 ): string {
   const parts = [`nes-edge;desc="${status}"`];
-  if (typeof renderMs === "number" && Number.isFinite(renderMs)) {
+  if (typeof renderMs === "number" && Number.isFinite(renderMs) && renderMs >= 0) {
     parts.push(`ssr;dur=${renderMs.toFixed(1)}`);
   }
-  if (db && db.count > 0) {
+  if (
+    db &&
+    Number.isSafeInteger(db.count) &&
+    db.count > 0 &&
+    Number.isFinite(db.totalMs) &&
+    db.totalMs >= 0
+  ) {
     parts.push(`db;dur=${db.totalMs.toFixed(1)};desc="n=${db.count}"`);
   }
   if (typeof cacheAgeMs === "number" && Number.isFinite(cacheAgeMs) && cacheAgeMs >= 0) {

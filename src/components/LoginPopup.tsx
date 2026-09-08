@@ -11,6 +11,7 @@ import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
 import { onOpenLoginPopup } from "@/lib/loginPopupBus";
 import "@/lib/i18n-public";
+import "@/lib/i18n-public-auth";
 import {
   Dialog,
   DialogContent,

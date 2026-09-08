@@ -74,12 +74,13 @@ async function fetchAccessRule(
   entityType: "post" | "page",
   entityId: string,
 ): Promise<ContentAccessRule | null> {
-  const { data } = await supabase
+  const { data, error: dataError } = await supabase
     .from("content_access_public")
     .select(ACCESS_RULE_COLS)
     .eq("entity_type", entityType)
     .eq("entity_id", entityId)
     .maybeSingle();
+  if (dataError) throw dataError;
   return (data as ContentAccessRule | null) ?? null;
 }
 
@@ -475,17 +476,18 @@ export const homePageQueryOptions = () =>
         let row: Record<string, unknown> | null = null;
         if (reading.homepage_mode === "static_page") {
           if (reading.homepage_page_id) {
-            const { data } = await supabase
+            const { data, error: dataError } = await supabase
               .from("pages")
               .select(cols)
               .eq("id", reading.homepage_page_id)
               .is("deleted_at", null)
               .eq("status", "published")
               .maybeSingle();
+            if (dataError) throw dataError;
             if (data) row = data;
           }
           if (!row && reading.homepage_page_slug) {
-            const { data } = await supabase
+            const { data, error: dataError } = await supabase
               .from("pages")
               .select(cols)
               .eq("slug", reading.homepage_page_slug)
@@ -493,6 +495,7 @@ export const homePageQueryOptions = () =>
               .is("deleted_at", null)
               .eq("status", "published")
               .maybeSingle();
+            if (dataError) throw dataError;
             if (data) row = data;
           }
         }
@@ -682,9 +685,9 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
     const [
       { data, error },
       body,
-      { data: tagRows },
-      { data: catRows },
-      { data: coAuthorRows },
+      { data: tagRows, error: tagRowsError },
+      { data: catRows, error: catRowsError },
+      { data: coAuthorRows, error: coAuthorRowsError },
       crumbs,
       access,
     ] = await Promise.all([
@@ -703,6 +706,9 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
       fetchPageBreadcrumbs(hit.page_id),
       fetchAccessRule("post", hit.post_id),
     ]);
+    if (tagRowsError) throw tagRowsError;
+    if (catRowsError) throw catRowsError;
+    if (coAuthorRowsError) throw coAuthorRowsError;
     if (error) throw error;
     if (!data) return null;
     const tags = (tagRows ?? [])
@@ -744,13 +750,15 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
             .eq("user_id", mainAuthorId)
             .maybeSingle()
         : null;
-      const [{ data: profileRows }, overlayRes] = await Promise.all([
+      const [{ data: profileRows, error: profileRowsError }, overlayRes] = await Promise.all([
         supabase
           .from("profiles_public")
           .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
           .in("id", orderedAuthorIds),
-        overlayQuery ?? Promise.resolve({ data: null } as const),
+        overlayQuery ?? Promise.resolve({ data: null, error: null } as const),
       ]);
+      if (profileRowsError) throw profileRowsError;
+      if (overlayRes.error) throw overlayRes.error;
       ({ author, authors } = buildPostAuthors({
         orderedAuthorIds,
         profileRows: (profileRows ?? []) as FullAuthorRow[],
@@ -788,10 +796,11 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
   if (!effectiveHeaderOverride && crumbs.length > 0) {
     const ancestorIds = crumbs.map((c) => c.id).filter((id) => id !== hit.page_id);
     if (ancestorIds.length > 0) {
-      const { data: ancestorRows } = await supabase
+      const { data: ancestorRows, error: ancestorRowsError } = await supabase
         .from("pages")
         .select("id, header_override")
         .in("id", ancestorIds);
+      if (ancestorRowsError) throw ancestorRowsError;
       const overrideById = new Map(
         (ancestorRows ?? []).map((row) => [row.id, row.header_override] as const),
       );

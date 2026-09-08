@@ -307,7 +307,7 @@ export function blankStringBodies(source: string): string {
   let quote: string | null = null;
   let index = 0;
   while (index < source.length) {
-    const ch = source[index] ?? "";
+    const ch = source[index];
     if (quote !== null) {
       if (ch === "\\") {
         index += 2;
@@ -330,7 +330,7 @@ export function blankStringBodies(source: string): string {
         continue;
       }
     }
-    if (opensLiteral(ch, index > 0 ? (source[index - 1] ?? "") : "")) quote = ch;
+    if (opensLiteral(ch, index > 0 ? source[index - 1] : "")) quote = ch;
     index += 1;
   }
   return out.join("");
@@ -426,15 +426,15 @@ export function scanMonolingualUserText(sources: readonly ScannedSource[]): Mono
         // do raportu i do porównań scalamy białe znaki, bo do słownika idzie
         // JEDNO zdanie, a nie jego formatowanie.
         text: text.replace(/\s+/g, " ").trim(),
-        snippet: (lines[line - 1] ?? "").trim().slice(0, 120),
+        snippet: lines[line - 1].trim().slice(0, 120),
       });
     };
 
     for (const { kind, rx } of PROP_PATTERNS) {
       for (const match of masked.matchAll(rx)) {
-        const value = match[2] ?? "";
+        const value = match[2];
         if (!isHumanText(value)) continue;
-        push(match.index ?? 0, kind, value.trim());
+        push(match.index, kind, value.trim());
       }
     }
 
@@ -444,14 +444,14 @@ export function scanMonolingualUserText(sources: readonly ScannedSource[]): Mono
     const codeOnly = blankStringBodies(masked);
     for (const rx of JSX_TEXT_PATTERNS) {
       for (const match of codeOnly.matchAll(rx)) {
-        const whole = match[0] ?? "";
-        const captured = match[1] ?? "";
+        const whole = match[0];
+        const captured = match[1];
         // Przesunięcie grupy: `>` plus białe znaki przed tekstem. Tekst
         // czytamy z maski komentarzy, nie z `codeOnly` - w `codeOnly` treść
         // literałów jest wygaszona, a dyskwalifikowało dopasowanie ich
         // POŁOŻENIE, nie treść. Dzięki temu `text` w trafieniu jest prawdziwy.
-        const lead = /^>\s*/.exec(whole)?.[0].length ?? 1;
-        const start = (match.index ?? 0) + lead;
+        const lead = /^>\s*/.exec(whole)![0].length;
+        const start = match.index + lead;
         const value = masked.slice(start, start + captured.length);
         if (!isHumanText(value)) continue;
         // Numer linii bierzemy z POCZĄTKU TEKSTU, nie z pozycji `>`: przy

@@ -39,6 +39,15 @@
 // przez `@/test/routeHarness`).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase";
 import { publicEventRow } from "@/test/events/publicEventRow";
@@ -363,6 +372,59 @@ beforeEach(() => {
 });
 
 afterEach(cleanup);
+
+describe("cached SSR time boundaries", () => {
+  it.each(["pl", "en"])(
+    "keeps initial markup stable across midnight, event expiry and host timezone in %s",
+    async (lang) => {
+      h.lang = lang;
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } },
+      });
+      queryClient.setQueryData(
+        ["public-event", SLUG],
+        publicEventRow({
+          starts_at: "2026-09-06T12:00:00Z",
+          ends_at: "2026-09-06T14:00:00Z",
+          rsvp_opens_at: "2026-09-06T10:00:00Z",
+        }),
+      );
+      const root = createRootRoute();
+      const route = createRoute({
+        getParentRoute: () => root,
+        path: "/events/$slug/",
+        component: EventOverviewRoute.options.component,
+      });
+      const router = createRouter({
+        routeTree: root.addChildren([route]),
+        history: createMemoryHistory({ initialEntries: [`/events/${SLUG}`] }),
+        isServer: true,
+      });
+      await router.load();
+      const render = () =>
+        renderToString(
+          <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+          </QueryClientProvider>,
+        );
+      try {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.stubEnv("TZ", "Pacific/Honolulu");
+        vi.setSystemTime(new Date("2026-09-06T00:00:00Z"));
+        const before = render();
+        vi.stubEnv("TZ", "Europe/Warsaw");
+        vi.setSystemTime(new Date("2026-09-08T00:00:00Z"));
+        const after = render();
+        expect(before).toContain("<h1");
+        expect(after).toBe(before);
+      } finally {
+        vi.useRealTimers();
+        vi.unstubAllEnvs();
+        queryClient.clear();
+      }
+    },
+  );
+});
 
 describe("blok zapisów - kontrolka powstaje TYLKO tam, gdzie zapis ma szansę przejść", () => {
   it("gość dostaje ZDANIE bez kontrolki wołającej bazę", async () => {

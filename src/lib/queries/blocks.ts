@@ -185,16 +185,23 @@ export const blockArchivesQueryOptions = (lang: Lang) =>
       for (const r of data ?? []) {
         if (!r.published_at) continue;
         const d = new Date(r.published_at);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (!Number.isFinite(d.getTime())) continue;
+        const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
         grouped.set(key, (grouped.get(key) ?? 0) + 1);
       }
       const fmt = new Intl.DateTimeFormat(lang === "en" ? "en" : "pl", {
         year: "numeric",
         month: "long",
+        timeZone: "UTC",
       });
       return [...grouped.entries()].map(([key, count]) => {
         const [y, mo] = key.split("-").map(Number);
-        return { label: fmt.format(new Date(y, mo - 1, 1)), href: `/archive/${key}`, count };
+        const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+        return {
+          label: fmt.format(new Date(Date.UTC(y, mo - 1, 1))),
+          href: `/search?from=${key}-01&to=${key}-${lastDay}&sort=newest`,
+          count,
+        };
       });
     },
   });
@@ -258,17 +265,18 @@ export const postNeighborQueryOptions = (input: PostNeighborInput) =>
         .eq("status", "published")
         .is("deleted_at", null)
         .neq("id", input.currentId)
-        .order("published_at", { ascending: !next })
+        .order("published_at", { ascending: next })
         .limit(1);
-      q = next ? q.lt("published_at", input.publishedAt) : q.gt("published_at", input.publishedAt);
+      q = next ? q.gt("published_at", input.publishedAt) : q.lt("published_at", input.publishedAt);
       const { data, error } = await q;
       if (error) throw error;
       const row = (data ?? [])[0];
       if (!row) return null;
       if (row.parent_page_id) {
-        const { data: path } = await supabase.rpc("page_full_path", {
+        const { data: path, error: pathError } = await supabase.rpc("page_full_path", {
           _page_id: row.parent_page_id,
         });
+        if (pathError) throw pathError;
         return {
           post: row,
           href: `/${typeof path === "string" && path ? path : "blog"}/${row.slug}`,

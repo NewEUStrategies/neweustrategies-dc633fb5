@@ -3,6 +3,7 @@
 // collide in one giant file.
 export const en = {
   common: {
+    homeEmptyNotice: "There's nothing here yet - please check back soon.",
     retry: "Try again",
     loading: "Loading…",
     noPosts: "No posts to display.",
@@ -560,6 +561,7 @@ export const en = {
         mobileHeader: "Mobile Header",
         buttons: "Buttons",
         textFields: "Text Fields",
+        toggles: "Toggles",
         inputColors: "Input Field Colors",
         iconColors: "Icon Colors",
         linkColors: "Link Colors",
@@ -688,6 +690,24 @@ export const en = {
         uppercaseHint: "Force uppercase on button text.",
         letterSpacing: "Letter spacing (px)",
         preview: "Preview",
+      },
+      toggles: {
+        hint: "Global look of toggles across the platform: size, radius, colors and label size.",
+        size: "Toggle size",
+        sizeSm: "Small",
+        sizeMd: "Medium",
+        sizeLg: "Large",
+        width: "Width (px)",
+        height: "Height (px)",
+        radius: "Border radius (px)",
+        onColor: "Checked color",
+        offColor: "Unchecked color",
+        thumbColor: "Thumb color",
+        labelSize: "Label font size (px)",
+        labelWeight: "Label font weight",
+        preview: "Preview",
+        previewOn: "On",
+        previewOff: "Off",
       },
       inputs: {
         hint: "Global text-field shape. Configure colors (background, text, placeholder, hover, focus) in Global Colors → Inputs / Text Fields.",
@@ -1000,6 +1020,8 @@ export const en = {
       cookieBannerLabel: "Show cookie consent banner",
     },
     dashboard: {
+      loadError: "Could not load content counts.",
+      retry: "Try again",
       title: "Dashboard",
       subtitle: "Site content overview",
     },
@@ -1288,6 +1310,7 @@ export const en = {
       meteringMeterMembers: "Meter members-only articles",
       meteringShowCounter: 'Show the "X of N" counter above articles',
       meteringSaved: "Metering settings saved",
+      readError: "Could not load settings. Please try again.",
       meteringSaveError: "Could not save metering settings.",
       meteringImpactTitle: "Impact preview for the current month",
       meteringImpactDisabled:

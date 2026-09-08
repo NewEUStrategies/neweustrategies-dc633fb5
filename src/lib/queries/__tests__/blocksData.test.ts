@@ -78,15 +78,16 @@
 //     widzą ciał `queryFn` - stąd 43% gałęzi na wejściu);
 //   * zachowania funkcji SQL (`trending_posts`, `page_full_path`) - jej
 //     odpowiedź jest tu WEJŚCIEM, nie tezą; dowód należy do pgTAP;
-//   * granicy strefy czasowej w archiwum i kalendarzu. `new Date(y, m-1, 1)`
-//     liczy w czasie LOKALNYM maszyny, więc wpis z okolic północy ostatniego
-//     dnia miesiąca wpada do innego wiadra pod inną strefą. Asercje w tym
-//     pliku stoją w ŚRODKU miesiąca właśnie dlatego, żeby wynik nie zależał od
-//     `TZ` przebiegu - test strefy byłby kruchy, a nie dowodowy.
+//   * osobnego pomiaru stref kalendarza. Archiwum grupuje miesiące w UTC;
+//     poniższe przypadki graniczne sprawdzają także zgodność emitowanego
+//     zakresu z parserem wyszukiwarki.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import type { SupabaseFromStub } from "@/test/supabaseChain";
 import type { SupabaseRpcStub } from "@/test/supabase/rpc";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 
 const h = vi.hoisted(() => ({
   from: null as SupabaseFromStub | null,
@@ -403,8 +404,8 @@ describe("blockArchivesQueryOptions", () => {
     );
     const wynik = await klient().fetchQuery(blockArchivesQueryOptions("pl"));
     expect(wynik.map((r) => [r.href, r.count])).toEqual([
-      ["/archive/2026-06", 2],
-      ["/archive/2026-05", 1],
+      ["/search?from=2026-06-01&to=2026-06-30&sort=newest", 2],
+      ["/search?from=2026-05-01&to=2026-05-31&sort=newest", 1],
     ]);
     expect(wynik[0]?.label).toBe("czerwiec 2026");
     const c = lancuch("posts");
@@ -427,7 +428,7 @@ describe("blockArchivesQueryOptions", () => {
     );
     const wynik = await klient().fetchQuery(blockArchivesQueryOptions("pl"));
     expect(wynik).toHaveLength(1);
-    expect(wynik[0]?.href).toBe("/archive/2026-06");
+    expect(wynik[0]?.href).toBe("/search?from=2026-06-01&to=2026-06-30&sort=newest");
   });
 
   it("odmowa bazy rzuca, a `data: null` daje pustą listę", async () => {
@@ -439,24 +440,25 @@ describe("blockArchivesQueryOptions", () => {
     await expect(klient().fetchQuery(blockArchivesQueryOptions("pl"))).resolves.toEqual([]);
   });
 
-  // DEFEKT. Widget archiwum jest jedynym w repo producentem adresów
-  // `/archive/YYYY-MM`, a router NIE MA takiej trasy: `src/routes` zawiera
-  // wyłącznie `admin.appearance.category-archive` i `...tag-archive`, więc
-  // `/archive/2026-06` spada do trasy łapiącej `/$`, która ma fallback
-  // taksonomiczny TYLKO dla jednego segmentu (`$.tsx:244-250`) - dwa segmenty
-  // idą przez rezolucję stron i kończą się 404. Sąsiedni widget w tym samym
-  // pliku (`blockCategoriesQueryOptions`) emituje `/category/<slug>`, a ta
-  // trasa istnieje (`src/routes/category.$slug.tsx`) - więc to nie konwencja
-  // repo, tylko rozjazd. SKUTEK: publiczny widget na pasku bocznym rozdaje
-  // czytelnikom i crawlerom martwe linki, a każdy z nich zużywa budżet
-  // indeksowania na stronę 404.
-  it.fails("adres z widgetu archiwum wskazuje na istniejącą trasę publiczną", async () => {
-    baza().setResponse("posts", ok([{ published_at: "2026-06-15T09:00:00.000Z" }]));
-    const [pozycja] = await klient().fetchQuery(blockArchivesQueryOptions("pl"));
-    // Poprawny adres archiwum miesięcznego musiałby korzystać z istniejącej
-    // trasy (np. `/blog?month=...`), a nie z prefiksu bez trasy.
-    expect(pozycja?.href.startsWith("/archive/")).toBe(false);
-  });
+  it.each([
+    ["2024-03-01T00:30:00+01:00", "2024-02-01", "2024-02-29"],
+    ["2026-12-31T23:59:00Z", "2026-12-01", "2026-12-31"],
+  ])(
+    "adres archiwum %s zachowuje UTC i trafia do filtrów istniejącej wyszukiwarki",
+    async (publishedAt, from, to) => {
+      baza().setResponse("posts", ok([{ published_at: publishedAt }, { published_at: "invalid" }]));
+      const [item] = await klient().fetchQuery(blockArchivesQueryOptions("pl"));
+      const url = new URL(item.href, "https://nes.example");
+      const { parseSearchParams } = await import("@/lib/search/searchParams");
+      const { urlToFilters } = await import("@/lib/search/facetModel");
+      const { searchEnabled } = await import("@/lib/queries/archives");
+      const filters = urlToFilters(parseSearchParams(Object.fromEntries(url.searchParams)));
+      expect(url.pathname).toBe("/search");
+      expect(filters).toMatchObject({ dateFrom: from, dateTo: to, sort: "newest" });
+      expect(searchEnabled(filters)).toBe(true);
+      expect(item.count).toBe(1);
+    },
+  );
 });
 
 describe("blockTagsQueryOptions", () => {
@@ -512,13 +514,13 @@ describe("postNeighborQueryOptions", () => {
     baza().setResponse("posts", (c) => (c.has("gt") ? ok([nowszy]) : ok([starszy])));
   }
 
-  it("kierunek `next` pyta o wpisy sprzed daty bieżącego, od najnowszych", async () => {
+  it("kierunek `prev` pyta o wpisy sprzed daty bieżącego, od najnowszych", async () => {
     baza().setResponse("posts", ok([wpis("stary", { published_at: "2026-06-01T00:00:00.000Z" })]));
     await klient().fetchQuery(
       postNeighborQueryOptions({
         currentId: "biezacy",
         publishedAt: "2026-06-15T09:00:00.000Z",
-        direction: "next",
+        direction: "prev",
       }),
     );
     const c = lancuch("posts");
@@ -530,13 +532,13 @@ describe("postNeighborQueryOptions", () => {
     expect(c.argsOf("limit")).toEqual([1]);
   });
 
-  it("kierunek `prev` pyta o wpisy po dacie bieżącego, od najstarszych", async () => {
+  it("kierunek `next` pyta o wpisy po dacie bieżącego, od najstarszych", async () => {
     baza().setResponse("posts", ok([wpis("nowy", { published_at: "2026-07-01T00:00:00.000Z" })]));
     await klient().fetchQuery(
       postNeighborQueryOptions({
         currentId: "biezacy",
         publishedAt: "2026-06-15T09:00:00.000Z",
-        direction: "prev",
+        direction: "next",
       }),
     );
     const c = lancuch("posts");
@@ -600,10 +602,11 @@ describe("postNeighborQueryOptions", () => {
     // Odmowa RPC nie jest tu w ogóle czytana (`error` nie jest destrukturyzowany),
     // więc awaria funkcji SQL wygląda dla czytelnika jak wpis niezagnieżdżony.
     funkcje().setError("page_full_path", "odmowa page_full_path", "42501");
-    const odmowa = await klient().fetchQuery(
-      postNeighborQueryOptions({ currentId: "x", publishedAt: "2026-06-17", direction: "next" }),
-    );
-    expect(odmowa?.href).toBe("/blog/traktat");
+    await expect(
+      klient().fetchQuery(
+        postNeighborQueryOptions({ currentId: "x", publishedAt: "2026-06-17", direction: "next" }),
+      ),
+    ).rejects.toMatchObject({ message: "odmowa page_full_path" });
   });
 
   it("odmowa odczytu wpisów rzuca", async () => {
@@ -615,19 +618,7 @@ describe("postNeighborQueryOptions", () => {
     ).rejects.toThrow("odmowa sasiada");
   });
 
-  // DEFEKT. Kierunki są odwrócone względem tego, co obiecują OBIE warstwy nad
-  // tym zapytaniem. Edytor bloku (`i18n-admin-blocks.ts:209-211`) daje wybór
-  // „Poprzedni / Następny wpis", a widok (`NavLoopViews.tsx:88-101`) rysuje
-  // „Następny →" dla `direction === "next"`. Tymczasem tutaj `next` znaczy
-  // `published_at < bieżący`, czyli wpis STARSZY.
-  //
-  // Rozstrzygający, wewnętrzny argument: na NAJNOWSZYM wpisie serwisu ten blok
-  // pokaże link „Następny →" (bo starszy wpis istnieje) i UKRYJE „← Poprzedni"
-  // (bo nowszego nie ma). Na najstarszym - dokładnie odwrotnie. Każdy blog
-  // zachowuje się przeciwnie, bo po najnowszym wpisie nie ma już następnego.
-  // SKUTEK: czytelnik klikający „Następny" wędruje w przeszłość, a strzałki
-  // w karuzeli wpisów prowadzą w odwrotne strony niż podpisy.
-  it.fails("kierunek `next` oddaje wpis NOWSZY od bieżącego", async () => {
+  it("kierunek `next` oddaje wpis NOWSZY od bieżącego", async () => {
     const starszy = wpis("starszy", { published_at: "2026-06-01T00:00:00.000Z" });
     const nowszy = wpis("nowszy", { published_at: "2026-07-01T00:00:00.000Z" });
     sasiedzi(starszy, nowszy);

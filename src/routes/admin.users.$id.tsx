@@ -41,8 +41,32 @@ import {
   Camera,
   Loader2,
   BadgeCheck,
+  ShieldCheck,
+  Trash2,
+  KeyRound,
+  Clock,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  getUserAccountStatus,
+  deleteUserAccount,
+  type AdminAccountStatus,
+} from "@/lib/admin/accountAdmin.functions";
+import { accountAdminErrorKey } from "@/lib/admin/accountAdminErrors";
+import { sendInvitation } from "@/lib/admin/invitations.functions";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import { BADGE_ORDER, badgeLabel, useUserBadges } from "@/lib/profile/badges";
 import { grantBadge, revokeUserBadge } from "@/lib/admin/badges";
@@ -111,6 +135,14 @@ function UserDetail() {
 
   const fullName =
     [data.first_name, data.last_name].filter(Boolean).join(" ") || data.display_name || "-";
+  const hasSocialMedia = Boolean(
+    data.website_url ||
+    data.twitter_url ||
+    data.linkedin_url ||
+    data.facebook_url ||
+    data.instagram_url ||
+    data.spotify_url,
+  );
 
   return (
     <div className="space-y-6">
@@ -221,8 +253,8 @@ function UserDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: about */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-display">
+        {/* Left: primary profile information */}
         <section className="lg:col-span-2 space-y-6">
           <Card title={t("adminUsers.details")}>
             <InfoRow
@@ -267,41 +299,21 @@ function UserDetail() {
             </Card>
           )}
 
-          <Card title={t("adminUsers.socialMedia")}>
-            <SocialRow
-              icon={<BrandIcon name="website" fallback={Globe} className="w-4 h-4" />}
-              label="Website"
-              value={data.website_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="x" fallback={XIcon} className="w-4 h-4" />}
-              label="X"
-              value={data.twitter_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="linkedin" fallback={Linkedin} className="w-4 h-4" />}
-              label="LinkedIn"
-              value={data.linkedin_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="facebook" fallback={Facebook} className="w-4 h-4" />}
-              label="Facebook"
-              value={data.facebook_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="instagram" fallback={Instagram} className="w-4 h-4" />}
-              label="Instagram"
-              value={data.instagram_url}
-            />
-            <SocialRow
-              icon={<BrandIcon name="spotify" fallback={Music2} className="w-4 h-4" />}
-              label="Spotify"
-              value={data.spotify_url}
-            />
+          <Card title={t("adminUsers.accountStatus")}>
+            <AccountStatusCard userId={data.id} locale={locale} />
           </Card>
+
+          {/* The full editor belongs to the main column so both desktop columns
+              continue independently instead of leaving a large empty area. */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4 m-0">
+              {t("adminUsers.expertProfileEdit")}
+            </h2>
+            <AuthorProfileEditor userId={data.id} tenantId={tenantId ?? null} mode="admin" />
+          </div>
         </section>
 
-        {/* Right: meta */}
+        {/* Right: compact controls and metadata */}
         <aside className="space-y-6">
           <Card title={t("adminUsers.metadata")}>
             <Field label="ID" value={data.id} mono />
@@ -318,6 +330,41 @@ function UserDetail() {
             )}
             {data.gender && <Field label={t("adminUsers.gender")} value={String(data.gender)} />}
           </Card>
+
+          {hasSocialMedia && (
+            <Card title={t("adminUsers.socialMedia")}>
+              <SocialRow
+                icon={<BrandIcon name="website" fallback={Globe} className="w-4 h-4" />}
+                label="Website"
+                value={data.website_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="x" fallback={XIcon} className="w-4 h-4" />}
+                label="X"
+                value={data.twitter_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="linkedin" fallback={Linkedin} className="w-4 h-4" />}
+                label="LinkedIn"
+                value={data.linkedin_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="facebook" fallback={Facebook} className="w-4 h-4" />}
+                label="Facebook"
+                value={data.facebook_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="instagram" fallback={Instagram} className="w-4 h-4" />}
+                label="Instagram"
+                value={data.instagram_url}
+              />
+              <SocialRow
+                icon={<BrandIcon name="spotify" fallback={Music2} className="w-4 h-4" />}
+                label="Spotify"
+                value={data.spotify_url}
+              />
+            </Card>
+          )}
 
           <Card title={t("adminUsers.professionalVerification")}>
             <VerificationAdminToggle userId={data.id} canEdit={isAdmin} />
@@ -346,16 +393,11 @@ function UserDetail() {
               </Button>
             </div>
           </Card>
-        </aside>
-      </div>
 
-      {/* Edytor pełnego profilu eksperta - 1:1 te same pola co /profile/author.
-          RLS pozwala adminowi na zapis do author_profiles + profiles w tenancie. */}
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4 m-0">
-          {t("adminUsers.expertProfileEdit")}
-        </h2>
-        <AuthorProfileEditor userId={data.id} tenantId={tenantId ?? null} mode="admin" />
+          {(isAdmin || isSuperAdmin) && data.id !== user?.id && (
+            <DangerZoneCard userId={data.id} email={data.email} />
+          )}
+        </aside>
       </div>
     </div>
   );
@@ -860,6 +902,214 @@ function UserConsentPanel({ userId }: { userId: string }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Status konta w warstwie logowania - odczyt przez chronioną funkcję serwerową. */
+function AccountStatusCard({ userId, locale }: { userId: string; locale: string }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const fetchStatus = useServerFn(getUserAccountStatus);
+  const resendInvitation = useServerFn(sendInvitation);
+  const [isResending, setIsResending] = useState(false);
+  const {
+    data,
+    isLoading,
+    error: statusError,
+  } = useQuery({
+    queryKey: ["admin-user-account-status", userId],
+    queryFn: () => fetchStatus({ data: { userId } }),
+    retry: false,
+  });
+
+  if (statusError) {
+    return <div className="text-sm text-destructive">{t(accountAdminErrorKey(statusError))}</div>;
+  }
+
+  if (isLoading || !data) {
+    return <div className="text-sm text-muted-foreground">{t("adminUsers.loading")}</div>;
+  }
+
+  const stateLabel: Record<AdminAccountStatus["state"], string> = {
+    active: t("adminUsers.statusActive"),
+    pending_email: t("adminUsers.statusPendingEmail"),
+    invited: t("adminUsers.statusInvited"),
+    banned: t("adminUsers.statusBanned"),
+    never_signed_in: t("adminUsers.statusNeverSignedIn"),
+    missing: t("adminUsers.statusMissing"),
+  };
+  const tone =
+    data.state === "active" ? "default" : data.state === "banned" ? "destructive" : "secondary";
+  const fmt = (v: string | null) =>
+    v ? new Date(v).toLocaleString(locale) : t("adminUsers.never");
+  const canResendActivation =
+    Boolean(data.invitationId) && data.state !== "active" && data.invitationSendCount < 5;
+
+  const handleResendActivation = async () => {
+    if (!data.invitationId || isResending) return;
+    setIsResending(true);
+    try {
+      const result = await resendInvitation({ data: { id: data.invitationId } });
+      if (!result.ok) throw new Error(result.error ?? t("adminUsers.activationResendError"));
+      toast.success(t("adminUsers.activationResent"));
+      await qc.invalidateQueries({ queryKey: ["admin-user-account-status", userId] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("adminUsers.activationResendError"));
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <Badge variant={tone} className="rounded-[6px]">
+        {stateLabel[data.state] ?? t("adminUsers.statusUnknown")}
+      </Badge>
+      <StatusRow
+        icon={<BadgeCheck className="w-4 h-4" />}
+        label={t("adminUsers.emailConfirmed")}
+        value={data.emailConfirmed ? fmt(data.emailConfirmedAt) : t("adminUsers.no")}
+      />
+      <StatusRow
+        icon={<Clock className="w-4 h-4" />}
+        label={t("adminUsers.lastSignIn")}
+        value={fmt(data.lastSignInAt)}
+      />
+      <StatusRow
+        icon={<KeyRound className="w-4 h-4" />}
+        label={t("adminUsers.signInMethods")}
+        value={data.providers.length ? data.providers.join(", ") : "-"}
+      />
+      <StatusRow
+        icon={<ShieldCheck className="w-4 h-4" />}
+        label={t("adminUsers.twoFactor")}
+        value={data.hasMfa ? t("adminUsers.yes") : t("adminUsers.no")}
+      />
+      {data.invitationStatus && (
+        <StatusRow
+          icon={<Mail className="w-4 h-4" />}
+          label={t("adminUsers.invitation")}
+          value={data.invitationStatus}
+        />
+      )}
+      {data.invitationId && (
+        <div className="text-xs text-muted-foreground">
+          {t("adminUsers.activationSendUsage", {
+            count: data.invitationSendCount,
+            limit: 5,
+          })}
+        </div>
+      )}
+      {canResendActivation && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full sm:w-auto"
+          disabled={isResending}
+          onClick={() => void handleResendActivation()}
+        >
+          {isResending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Mail className="mr-2 h-4 w-4" />
+          )}
+          {t("adminUsers.resendActivationEmail")}
+        </Button>
+      )}
+      {data.invitationId && data.invitationSendCount >= 5 && (
+        <p className="text-xs text-destructive m-0">{t("adminUsers.activationSendLimitReached")}</p>
+      )}
+    </div>
+  );
+}
+
+function StatusRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 text-sm">
+      <span className="text-muted-foreground mt-0.5">{icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="break-words">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Nieodwracalne usunięcie konta - potwierdzane adresem e-mail. */
+function DangerZoneCard({ userId, email }: { userId: string; email: string | null }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const remove = useServerFn(deleteUserAccount);
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await remove({ data: { userId, confirmEmail: confirm } });
+      toast.success(t("adminUsers.deleteAccountDone"));
+      navigate({ to: "/admin/users" });
+    } catch (e) {
+      toast.error(t(accountAdminErrorKey(e)));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const matches = Boolean(email) && confirm.trim().toLowerCase() === (email ?? "").toLowerCase();
+
+  return (
+    <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-destructive mb-2 m-0">
+        {t("adminUsers.dangerZone")}
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">{t("adminUsers.deleteAccountDesc")}</p>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="destructive" size="sm" className="rounded-[6px]">
+            <Trash2 className="w-4 h-4 mr-2" />
+            {t("adminUsers.deleteAccount")}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent className="font-display">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("adminUsers.deleteAccountConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("adminUsers.deleteAccountConfirmDesc")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder={email ?? t("adminUsers.deleteAccountConfirmPlaceholder")}
+            aria-label={t("adminUsers.deleteAccountConfirmPlaceholder")}
+            className="rounded-[6px]"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("adminUsers.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!matches || busy}
+              onClick={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {t("adminUsers.deleteAccountSubmit")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

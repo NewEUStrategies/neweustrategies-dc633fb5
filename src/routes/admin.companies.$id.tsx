@@ -4,6 +4,17 @@
 //  - prawy sidebar: powiązania (Kontakty, Leady, Domena).
 // Widoczne dla staff (`requireStaff` w server-fn); RLS zawęża po tenancie.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -31,6 +42,7 @@ import {
   ChevronRight,
   Camera,
   Trash2,
+  Users,
   Loader2,
   Landmark,
 } from "lucide-react";
@@ -38,6 +50,8 @@ import {
 import {
   getCrmCompany,
   updateCrmCompany,
+  deleteCrmCompany,
+  syncCrmCompanyMembers,
   getCrmCompanyActivity,
   addCrmCompanyNote,
 } from "@/lib/crm-companies.functions";
@@ -139,6 +153,8 @@ function AdminCompanyDetailPage() {
   const updateFn = useServerFn(updateCrmCompany);
   const activityFn = useServerFn(getCrmCompanyActivity);
   const noteFn = useServerFn(addCrmCompanyNote);
+  const deleteFn = useServerFn(deleteCrmCompany);
+  const syncFn = useServerFn(syncCrmCompanyMembers);
 
   const query = useQuery({
     queryKey: ["admin", "crm-company", id],
@@ -207,6 +223,33 @@ function AdminCompanyDetailPage() {
       setEditing(false);
       await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
       await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
+  });
+
+  // Kartoteka firmy jest źródłem prawdy o nazwie - ręczna synchronizacja
+  // odświeża profile członków i kontakty CRM przypięte do tej firmy.
+  const syncMembers = useMutation({
+    mutationFn: async () => syncFn({ data: { id } }),
+    onSuccess: async (res) => {
+      toast.success(
+        t(
+          `Zsynchronizowano członków: ${res.profiles + res.linked}, kontakty: ${res.leads}`,
+          `Members synced: ${res.profiles + res.linked}, contacts: ${res.leads}`,
+        ),
+      );
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
+  });
+
+  const removeCompany = useMutation({
+    mutationFn: async () => deleteFn({ data: { id } }),
+    onSuccess: async () => {
+      toast.success(t("Firma usunięta", "Company deleted"));
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await rootNavigate({ to: "/admin/companies" });
     },
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
   });
@@ -298,15 +341,63 @@ function AdminCompanyDetailPage() {
         <span className="truncate text-foreground">{c.name}</span>
         <div className="ml-auto flex items-center gap-2">
           {!editing ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={startEdit}
-              className="h-8 gap-1.5 text-[12px]"
-            >
-              <Pencil className="h-3.5 w-3.5" aria-hidden />
-              {t("Edytuj", "Edit")}
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => syncMembers.mutate()}
+                disabled={syncMembers.isPending}
+                className="h-8 gap-1.5 rounded-md text-[12px]"
+              >
+                <Users className="h-3.5 w-3.5" aria-hidden />
+                {t("Synchronizuj członków", "Sync members")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={startEdit}
+                className="h-8 gap-1.5 text-[12px]"
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                {t("Edytuj", "Edit")}
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 rounded-md text-[12px] text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    {t("Usuń", "Delete")}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-md">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {t("Usunąć firmę z CRM?", "Delete this company from CRM?")}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t(
+                        "Kartoteka zniknie z CRM. Członkowie i kontakty zostaną odpięci od firmy - ich dane pozostaną nienaruszone.",
+                        "The company record will be removed from CRM. Members and contacts are detached from it - their own data stays intact.",
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-md">
+                      {t("Anuluj", "Cancel")}
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      className="rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => removeCompany.mutate()}
+                    >
+                      {t("Usuń firmę", "Delete company")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
           ) : (
             <>
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>

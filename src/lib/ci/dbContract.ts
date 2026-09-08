@@ -1,3 +1,4 @@
+import { splitSqlStatements } from "./authzGates";
 // Kontrakt schematu bazy dla bramki CI "po każdym wdrożeniu".
 //
 // Migracje są forward-only, więc oczekiwany stan bazy = wszystkie obiekty
@@ -92,21 +93,25 @@ export function extractExpectedContract(files: readonly MigrationFile[]): Expect
     }
   };
 
-  for (const { file, sql } of files) {
-    runCreate(createTable, sql, file, tables, "table");
-    runCreate(createView, sql, file, views, "view");
-    runCreate(createFn, sql, file, functions, "function");
-    runDrop(dropTable, sql, tables);
-    runDrop(dropView, sql, views);
-    runDrop(dropFn, sql, functions);
+  for (const { file, sql: migration } of files) {
+    // Preserve DROP/CREATE and RENAME order within one migration.
+    for (const sql of splitSqlStatements(migration)) {
+      runCreate(createTable, sql, file, tables, "table");
+      runCreate(createView, sql, file, views, "view");
+      runCreate(createFn, sql, file, functions, "function");
+      runDrop(dropTable, sql, tables);
+      runDrop(dropView, sql, views);
+      runDrop(dropFn, sql, functions);
 
-    renameTable.lastIndex = 0;
-    let rename: RegExpExecArray | null;
-    while ((rename = renameTable.exec(sql)) !== null) {
-      const from = normalizeName(rename[1]);
-      const to = normalizeName(rename[2]);
-      if (from !== null) tables.delete(from);
-      if (to !== null) tables.set(to, { kind: "table", name: to, file });
+      renameTable.lastIndex = 0;
+      let rename: RegExpExecArray | null;
+      while ((rename = renameTable.exec(sql)) !== null) {
+        const from = normalizeName(rename[1]);
+        const to = normalizeName(rename[2]);
+        if (from === null) continue;
+        tables.delete(from);
+        if (to !== null) tables.set(to, { kind: "table", name: to, file });
+      }
     }
   }
 

@@ -23,6 +23,7 @@ import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import { useNowMs } from "@/lib/time/useNowMs";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -107,6 +108,9 @@ function EventOverview() {
   const modules = useCommunityModules();
   const { user } = useAuth();
   const qc = useQueryClient();
+  // Cached SSR HTML and the first client render must make the same decision.
+  // Live registration eligibility remains enforced by the server mutation.
+  const now = useNowMs(30_000);
 
   // TA SAMA FABRYKA, CO W POWŁOCE (jedno źródło klucza, nie dwa literały) -
   // react-query oddaje migawkę z cache, więc to nie jest drugie zapytanie ani
@@ -281,7 +285,7 @@ function EventOverview() {
   const desc =
     lang === "en" ? ev.description_en || ev.description_pl : ev.description_pl || ev.description_en;
   const startsAt = new Date(ev.starts_at);
-  const isPast = startsAt.getTime() < Date.now();
+  const isPast = now !== null && startsAt.getTime() < now;
   // Wydarzenie płatne: bezpłatny RSVP jest wtedy wyłączony - wejściówkę
   // potwierdza dopiero webhook po opłaceniu biletu.
   const ticketCents = ev.ticket_price_cents ?? 0;
@@ -337,7 +341,7 @@ function EventOverview() {
   // `registration_state` z nagłówka, który sam uwzględnia early_rsvp_rank.
   // Tutaj zostaje wyłącznie to, czego nagłówek NIE ODDAJE: `early_rsvp_rank`.
   const rsvpOpensAt = ev.rsvp_opens_at ? new Date(ev.rsvp_opens_at) : null;
-  const rsvpBeforeOpen = !!rsvpOpensAt && rsvpOpensAt.getTime() > Date.now();
+  const rsvpBeforeOpen = now !== null && !!rsvpOpensAt && rsvpOpensAt.getTime() > now;
   const earlyRank = ev.early_rsvp_rank ?? null;
   const myRank = currentTierQ.data?.rank ?? 0;
   const hasEarlyAccess = earlyRank !== null && myRank >= earlyRank;

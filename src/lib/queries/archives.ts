@@ -53,7 +53,10 @@ async function fetchParentPaths(parentIds: string[]): Promise<Map<string, string
   }
   await Promise.all(
     parentIds.map(async (pid) => {
-      const { data: single } = await supabase.rpc("page_full_path", { _page_id: pid });
+      const { data: single, error: singleError } = await supabase.rpc("page_full_path", {
+        _page_id: pid,
+      });
+      if (singleError) throw singleError;
       if (typeof single === "string") paths.set(pid, single);
     }),
   );
@@ -114,13 +117,14 @@ async function hydrateSponsored<T extends { id: string }>(
   >
 > {
   if (rows.length === 0) return [];
-  const { data } = await supabase
+  const { data, error: dataError } = await supabase
     .from("posts")
     .select(SPONSORED_LIST_COLS_WITH_ID)
     .in(
       "id",
       rows.map((r) => r.id),
     );
+  if (dataError) throw dataError;
   const byId = new Map((data ?? []).map((r) => [r.id, r]));
   return rows.map((r) => {
     const flags = byId.get(r.id);
@@ -155,11 +159,12 @@ export interface TaxonomyMeta {
 
 async function fetchFeaturedSection(templateId: string | null): Promise<SectionNode | null> {
   if (!templateId) return null;
-  const { data } = await supabase
+  const { data, error: dataError } = await supabase
     .from("builder_templates")
     .select("data")
     .eq("id", templateId)
     .maybeSingle();
+  if (dataError) throw dataError;
   const d = data?.data as SectionNode | undefined;
   if (!d || typeof d !== "object" || d.kind !== "section") return null;
   return d;
@@ -598,21 +603,20 @@ export const searchAutosuggestQueryOptions = (q: string, limit: number = 8) =>
     enabled: q.trim().length >= 2,
     staleTime: 30_000,
     queryFn: async (): Promise<AutosuggestItem[]> => {
-      try {
-        const { data } = await supabase.rpc("search_autosuggest", { _q: q.trim(), _limit: limit });
-        return (data ?? []).map((r) => ({
-          kind: r.kind as AutosuggestItem["kind"],
-          id: (r.id as string | null) ?? null,
-          slug: (r.slug as string | null) ?? null,
-          label_pl: (r.label_pl as string | null) ?? "",
-          label_en: (r.label_en as string | null) ?? "",
-          parentPageId: (r.parent_page_id as string | null) ?? null,
-          score: Number(r.score ?? 0),
-        }));
-      } catch {
-        // Odporność przed wdrożeniem migracji: brak funkcji → brak podpowiedzi.
-        return [];
-      }
+      const { data, error: dataError } = await supabase.rpc("search_autosuggest", {
+        _q: q.trim(),
+        _limit: limit,
+      });
+      if (dataError) throw dataError;
+      return (data ?? []).map((r) => ({
+        kind: r.kind as AutosuggestItem["kind"],
+        id: (r.id as string | null) ?? null,
+        slug: (r.slug as string | null) ?? null,
+        label_pl: (r.label_pl as string | null) ?? "",
+        label_en: (r.label_en as string | null) ?? "",
+        parentPageId: (r.parent_page_id as string | null) ?? null,
+        score: Number(r.score ?? 0),
+      }));
     },
   });
 
@@ -639,27 +643,23 @@ export const searchPeopleOrgsQueryOptions = (q: string, limit: number = 40) =>
     queryKey: ["public", "search-people-orgs", q.trim(), { limit }] as const,
     staleTime: 60_000,
     queryFn: async (): Promise<PeopleOrgItem[]> => {
-      try {
-        const { data } = await supabase.rpc("search_people_orgs", {
-          _q: q.trim() || undefined,
-          _limit: limit,
-        });
-        return (data ?? []).map((r) => ({
-          kind: (r.kind as PeopleOrgItem["kind"]) ?? "person",
-          id: r.id as string,
-          slug: (r.slug as string | null) ?? null,
-          label_pl: (r.label_pl as string | null) ?? "",
-          label_en: (r.label_en as string | null) ?? "",
-          sublabel_pl: (r.sublabel_pl as string | null) ?? null,
-          sublabel_en: (r.sublabel_en as string | null) ?? null,
-          avatarUrl: (r.avatar_url as string | null) ?? null,
-          logoUrl: (r.logo_url as string | null) ?? null,
-          verified: Boolean(r.verified),
-          postCount: Number(r.post_count ?? 0),
-        }));
-      } catch {
-        // Odporność przed wdrożeniem migracji: brak funkcji → pusta sekcja.
-        return [];
-      }
+      const { data, error: dataError } = await supabase.rpc("search_people_orgs", {
+        _q: q.trim() || undefined,
+        _limit: limit,
+      });
+      if (dataError) throw dataError;
+      return (data ?? []).map((r) => ({
+        kind: (r.kind as PeopleOrgItem["kind"]) ?? "person",
+        id: r.id as string,
+        slug: (r.slug as string | null) ?? null,
+        label_pl: (r.label_pl as string | null) ?? "",
+        label_en: (r.label_en as string | null) ?? "",
+        sublabel_pl: (r.sublabel_pl as string | null) ?? null,
+        sublabel_en: (r.sublabel_en as string | null) ?? null,
+        avatarUrl: (r.avatar_url as string | null) ?? null,
+        logoUrl: (r.logo_url as string | null) ?? null,
+        verified: Boolean(r.verified),
+        postCount: Number(r.post_count ?? 0),
+      }));
     },
   });

@@ -649,23 +649,7 @@ describe("runLinkCheckBatch - stan pojedynczego linku", () => {
     });
   });
 
-  it.fails("link, ktorego monitor ODMOWIL sprawdzic, nie dostaje sugestii podmiany", async () => {
-    // DEFEKT (zglaszany, nie naprawiany): src/lib/server/linkCheck.server.ts.
-    // Mechanizm: `probe` (linie 63-96) zwraca `ok: false, status: null` DLA
-    // OBU rozlacznych przypadkow - "cel odpowiedzial bledem" i "my nie
-    // wyslalismy zapytania" (bramka egress odrzuca KAZDY adres http://,
-    // linie 72-74 + egressGuard.server.ts:76, bo wymaga https). Dalej `runLinkCheckBatch`
-    // (linie 234-246) traktuje kazde `!ok` jednakowo: odpytuje archive.org
-    // i zapisuje `archive_url`.
-    // Konsekwencja dla uzytkownika: przypis http:// - w archiwalnych analizach
-    // najzwyklejszy - trafia do panelu jako martwy z gotowa podpowiedzia
-    // "podmien na migawke z 2019 r.", choc adres dziala. Redakcja podmienia
-    // zywy przypis na kopie z archiwum i traci aktualne zrodlo, a licznik
-    // `broken` (i alert progowy) liczy zdarzenia, ktorych nie bylo.
-    // Dlaczego to decyzja czlowieka: trzeba wybrac polityke - probowac
-    // https:// dla adresow http:// (zmiana zachowania sondy), czy zapisywac
-    // trzeci stan "nie sprawdzono" (zmiana schematu i panelu). Jedno i drugie
-    // wykracza poza test.
+  it("link, ktorego monitor ODMOWIL sprawdzic, nie dostaje sugestii podmiany", async () => {
     const insecure = "http://obcy.test/raport-2009.pdf";
     planDb({ queue: ok([post({ content_pl: insecure })]) });
     routeFetch({ archive: () => snapshotResponse() });
@@ -673,6 +657,8 @@ describe("runLinkCheckBatch - stan pojedynczego linku", () => {
     await runLinkCheckBatch(adminClient(db));
 
     expect(rowFor(db, insecure).archive_url).toBeNull();
+    expect(rowFor(db, insecure).archive_checked_at).toBeNull();
+    expect(h.fetchMock).not.toHaveBeenCalled();
   });
 });
 

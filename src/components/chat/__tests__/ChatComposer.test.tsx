@@ -13,6 +13,7 @@
 // RODO: żadnych prawdziwych osób ani treści - nadawcy to identyfikatory
 // z `CHAT_IDS`, adresy w domenie `example.com`, treści zmyślone.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { advanceClock } from "@/test/time";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@/lib/i18n-chat";
 import { chatPl } from "@/lib/i18n-chat";
@@ -134,6 +135,11 @@ function textarea(): HTMLTextAreaElement {
 function type(value: string): void {
   fireEvent.change(textarea(), { target: { value } });
 }
+
+it("oznacza pole wiadomości selektorem wymuszającym tekst 11,5 px", () => {
+  renderComposer();
+  expect(textarea()).toHaveAttribute("data-chat-composer-input");
+});
 
 /** Plik o zadanym typie i rozmiarze bez alokowania megabajtów w teście. */
 function fileOfSize(name: string, mime: string, size: number): File {
@@ -304,7 +310,7 @@ describe("throttling broadcastu „pisze…”", () => {
       type("abc");
       expect(props.onTyping).toHaveBeenCalledTimes(1);
 
-      vi.setSystemTime(Date.now() + 2600);
+      advanceClock(2600);
       type("abcd");
       expect(props.onTyping).toHaveBeenCalledTimes(2);
     } finally {

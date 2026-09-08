@@ -5,7 +5,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { uiLang } from "@/lib/i18n/format";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ensureI18n as ensureMobileDrawerI18n } from "@/lib/i18n-mobile-drawer";
+import { ensureI18n as ensureMobileDrawerI18n } from "@/lib/i18n-admin-mobile-drawer";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {

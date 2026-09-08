@@ -328,3 +328,82 @@ describe("submitPostFeedback - dedup, limit i zapis", () => {
     expect(meta?.hasValidator).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// GAŁĘZIE BRAKU DANYCH - część C (gałęziowa).
+//
+// Powyższe przypadki zawsze podają user-agenta i zawsze dostają z bazy TABLICĘ.
+// Poniżej wchodzimy w trzy ścieżki, które produkcja widuje, a pomiar dotąd nie:
+// żądanie bez nagłówka `user-agent`, odczyt dedupu oddający `null` zamiast
+// pustej listy oraz wywołanie funkcji BEZ pola `data`.
+// ---------------------------------------------------------------------------
+describe("sha256Hex - gałąź braku user-agenta (RODO: nadal bez danych w wyniku)", () => {
+  it("żądanie BEZ nagłówka user-agent daje poprawny skrót RÓŻNY od skrótu z UA", async () => {
+    // Gałąź `req.headers.get("user-agent") ?? ""`. Klienci bez UA to realny
+    // ruch (curl, część czytników, przeglądarki z wyciętym nagłówkiem), więc
+    // dedup musi dla nich działać, a nie wywracać się na `null`.
+    const withUa = await voteAndHash();
+
+    admin.reset();
+    seedDb();
+    h.resolveTenantIdForHost.mockResolvedValue(TENANT_A);
+    h.getRequest.mockReturnValue(requestWith({ "cf-connecting-ip": IP_DOC }));
+    await submitPostFeedback({ data: { postId: POST_ID, helpful: true } });
+    const withoutUa = insertedHash();
+
+    expect(withoutUa).toMatch(/^[0-9a-f]{64}$/);
+    expect(withoutUa).not.toBe(withUa);
+    // RODO: pusty user-agent nie może "przepuścić" adresu IP do wyniku.
+    expect(withoutUa).not.toContain(IP_DOC);
+    expect(withoutUa).not.toContain("192.0.2");
+  });
+
+  it("brak UA jest STABILNY - dwa głosy tego samego klienta dają ten sam skrót", async () => {
+    const headers = requestWith({ "cf-connecting-ip": IP_DOC });
+
+    admin.reset();
+    seedDb();
+    h.getRequest.mockReturnValue(headers);
+    await submitPostFeedback({ data: { postId: POST_ID, helpful: true } });
+    const first = insertedHash();
+
+    admin.reset();
+    seedDb();
+    h.getRequest.mockReturnValue(headers);
+    await submitPostFeedback({ data: { postId: POST_ID, helpful: false } });
+    const second = insertedHash();
+
+    expect(second).toBe(first);
+  });
+});
+
+describe("submitPostFeedback - odczyt dedupu bez tablicy i wywołanie bez danych", () => {
+  it("odczyt dedupu oddający `null` NIE blokuje zapisu głosu", async () => {
+    // Człon `existing &&`. PostgREST oddaje `data: null` przy błędzie zapytania
+    // - traktujemy to jak brak duplikatu (fail-open), bo alternatywą byłoby
+    // ciche zjadanie KAŻDEGO głosu, gdy tylko odczyt dedupu przestanie działać.
+    // To PRZYPIĘCIE decyzji, nie życzenie.
+    admin.setResponse("post_feedback", () => ok(null));
+
+    const result = await submitPostFeedback({ data: { postId: POST_ID, helpful: true } });
+
+    expect(result).toEqual({ ok: true, duplicate: false });
+    expect(admin.chainsFor("post_feedback").some((c) => c.has("insert"))).toBe(true);
+    expect(insertedHash()).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("pusta LISTA z odczytu dedupu też przepuszcza głos", async () => {
+    admin.setResponse("post_feedback", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    await expect(submitPostFeedback({ data: { postId: POST_ID, helpful: true } })).resolves.toEqual(
+      { ok: true, duplicate: false },
+    );
+  });
+
+  it("wywołanie BEZ pola `data` przechodzi przez walidator i kończy się odmową", async () => {
+    // Gałąź `i ?? {}` w walidatorze: brak ciała żądania nie może dać wyjątku
+    // typu "Cannot read properties of undefined", tylko czytelny błąd walidacji.
+    await expect(submitPostFeedback({ data: undefined })).rejects.toThrow();
+    // ...i nic nie poszło do bazy.
+    expect(admin.chains).toHaveLength(0);
+  });
+});

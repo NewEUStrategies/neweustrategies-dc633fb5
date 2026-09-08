@@ -701,6 +701,10 @@ describe("ExpertRequestsInbox - stany listy", () => {
     // Schemat spoza http(s) nie ma prawa dojechać do atrybutu `href`.
     expect(screen.queryByText(/ftp:\/\//)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: T.inbox.less })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: T.inbox.less }));
+    expect(screen.queryByText("Jak wygląda harmonogram?")).not.toBeInTheDocument();
+    expect(screen.queryByText("Lista rekomendacji.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: T.inbox.more })).toBeInTheDocument();
   });
 });
 

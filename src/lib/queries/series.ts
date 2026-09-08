@@ -61,7 +61,8 @@ async function hydratePartHrefs(rows: PartRowRaw[]): Promise<SeriesPart[]> {
   const paths = new Map<string, string>();
   await Promise.all(
     parentIds.map(async (pid) => {
-      const { data } = await supabase.rpc("page_full_path", { _page_id: pid });
+      const { data, error } = await supabase.rpc("page_full_path", { _page_id: pid });
+      if (error) throw error;
       if (typeof data === "string") paths.set(pid, data);
     }),
   );

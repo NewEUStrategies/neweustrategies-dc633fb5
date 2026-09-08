@@ -8,7 +8,7 @@
 //   4. `notifications`      -> dzwonek w aplikacji.
 // Test jedzie realną ścieżką handlera; wymieniamy tylko klienta bazy,
 // weryfikację podpisu i wysyłkę maili.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 
 interface QueryResult {
   data: unknown;
@@ -106,7 +106,13 @@ const h = vi.hoisted(() => {
 
   const event: { value: unknown } = { value: null };
   const emails = { subscription: vi.fn(async () => {}), payment: vi.fn(async () => {}) };
-  return { state, chain, client, event, emails };
+  // Praca „za odpowiedzią" + budzik do deterministycznego doczekania jej
+  // REJESTRACJI (wzorzec z `src/lib/__tests__/ssrCacheHostScope.test.ts`).
+  const afterResponse: Promise<unknown>[] = [];
+  const wake: { notify: null | (() => void) } = { notify: null };
+  const catalogSync = vi.fn(async () => {});
+
+  return { state, chain, client, event, emails, afterResponse, wake, catalogSync };
 });
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.client }));
@@ -133,7 +139,60 @@ vi.mock("@/lib/billing/notifications.server", () => ({
   notifyPaymentEmail: (...a: unknown[]) => h.emails.payment(...(a as [])),
 }));
 
+// ── DLACZEGO TE DWA MOCKI USUWAJĄ NIEDETERMINIZM POKRYCIA ─────────────────
+//
+// ZMIERZONE (wydanie 10 audytu, ten sam kod i ten sam test): próg funkcji dla
+// `webhook.ts` dawał 20% (1/5) lokalnie i 40% (2/5) na runnerze. Różnicą jest
+// DOKŁADNIE jedna strzałka - `({ ensureCatalogSynced }) => ensureCatalogSynced(env)`
+// wewnątrz `runAfterResponse(import(...))` w `webhook.ts:66-70`. W wydaniu 9
+// wykonała się 14 razy, w wydaniu 10 ani razu, przy pliku i teście NIETKNIĘTYCH.
+//
+// MECHANIZM. Ta praca jest fire-and-forget Z PREMEDYTACJĄ: kontrola odcisku
+// katalogu ma iść ZA odpowiedzią, żeby nie opóźniać ACK dla Stripe. Skutkiem
+// ubocznym jest wyścig - czy łańcuch mikrozadań importu dynamicznego zdąży się
+// rozstrzygnąć, ZANIM plik testowy się zakończy. Zdąży albo nie zdąży, i to
+// jest cała treść „niedeterministycznego pokrycia": nie brak testu, tylko brak
+// PUNKTU ZACZEPIENIA.
+//
+// Podmiana `waitUntil.server` daje ten punkt: `waitForAfterResponse()` czeka na
+// FAKT rejestracji i na rozstrzygnięcie samej obietnicy, a nie na upływ czasu.
+// Podmiana `catalogAutoSync.server` trzyma skutki uboczne tej pracy z dala od
+// atrapy Supabase - bez niej deterministyczne dokańczanie dokładałoby zapisy do
+// `h.state.ops` i psuło asercje pozostałych przypadków.
+//
+// To NIE jest zaślepka, tylko przyrząd: „odświeżenie w tle wystartowało" i
+// „odświeżenie w tle się dokończyło" to dwa różne zdania, a na Workers to
+// drugie bywa ucinane (patrz nagłówek `waitUntil.server.ts`). Dotąd nie
+// sprawdzało tego nic.
+vi.mock("@/lib/http/waitUntil.server", () => ({
+  runAfterResponse: (work: Promise<unknown>) => {
+    h.afterResponse.push(work);
+    h.wake.notify?.();
+  },
+}));
+vi.mock("@/lib/billing/catalogAutoSync.server", () => ({
+  ensureCatalogSynced: (...a: unknown[]) => h.catalogSync(...(a as [])),
+}));
+
 import { __handleForTests as handle } from "./webhook";
+
+/**
+ * Czeka na REJESTRACJĘ pracy w tle, a potem na jej ROZSTRZYGNIĘCIE.
+ * Deterministycznie: budzi ją samo wywołanie atrapy, nie zegar. Gdyby
+ * rejestracja nie nastąpiła, test padnie na `testTimeout` z widocznym
+ * komunikatem, a nie przemilczy braku.
+ */
+async function waitForAfterResponse(): Promise<void> {
+  if (h.afterResponse.length === 0) {
+    await new Promise<void>((resolve) => {
+      h.wake.notify = () => {
+        h.wake.notify = null;
+        resolve();
+      };
+    });
+  }
+  await Promise.all(h.afterResponse);
+}
 
 const PLAN = { id: "plan_pro_m", tenant_id: "ten_1", price_cents: 9900, currency: "PLN" };
 const PROFILE = {
@@ -229,6 +288,17 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     h.state.write = { data: null, error: null };
     h.emails.subscription.mockClear();
     h.emails.payment.mockClear();
+    h.afterResponse.length = 0;
+    h.wake.notify = null;
+    h.catalogSync.mockClear();
+  });
+
+  // Praca „za odpowiedzią" jest rejestrowana przy KAŻDYM żądaniu (webhook.ts:66,
+  // przed rozgałęzieniem na typ zdarzenia), więc dokańczamy ją po każdym
+  // przypadku. Dzięki temu strzałka importu wykonuje się w każdym przebiegu,
+  // a nie w losowej ich części - i próg funkcji przestaje zależeć od maszyny.
+  afterEach(async () => {
+    await Promise.all(h.afterResponse);
   });
 
   it("pauza: wstrzymuje uprawnienie, oznacza CRM i powiadamia użytkownika", async () => {
@@ -469,5 +539,31 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     expect(payload<{ status: string }>("payment_webhook_events", "update").status).toBe(
       "processed",
     );
+  });
+  it("kontrola odcisku katalogu jedzie ZA odpowiedzią i FAKTYCZNIE się dokańcza", async () => {
+    // Zdarzenie od Stripe jest najwcześniejszym sygnałem, że integracja znowu
+    // żyje, więc odtworzenie katalogu rusza od razu - ale ZA odpowiedzią, żeby
+    // nie opóźniać ACK. Dotąd nie było testu, który by tego dowodził: praca
+    // była rejestrowana i porzucana, a jej wykonanie zależało od tego, czy
+    // proces dożyje mikrozadania. Ten przypadek pilnuje OBU zdań naraz -
+    // że praca została zarejestrowana jako „po odpowiedzi" ORAZ że doszła do
+    // końca z właściwym środowiskiem.
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    h.event.value = subEvent("customer.subscription.updated", {
+      status: "active",
+      startsAt: "2026-07-01T00:00:00Z",
+      endsAt: "2026-08-01T00:00:00Z",
+    });
+
+    const res = await handle(req());
+
+    expect(res.status).toBe(200);
+    // Rejestracja nastąpiła PRZED odpowiedzią, ale praca jeszcze się nie
+    // dokończyła - to jest cały sens `runAfterResponse`.
+    expect(h.afterResponse).toHaveLength(1);
+
+    await waitForAfterResponse();
+
+    expect(h.catalogSync).toHaveBeenCalledWith("live");
   });
 });

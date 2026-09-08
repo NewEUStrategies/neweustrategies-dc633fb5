@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import type { BuilderDocument, WidgetContent, Json } from "@/lib/builder/types";
+import type { BuilderDocument, WidgetContent, Json, ColumnNode } from "@/lib/builder/types";
 
 const ALLOWED_MIME = new Set<string>([
   "image/jpeg",
@@ -171,14 +171,15 @@ export async function mirrorWpMedia(opts: MirrorOptions): Promise<MirrorResult> 
       }
       const sha = createHash("sha256").update(buf).digest("hex");
       // Dedup w bazie: filename oparty o sha ma unikalny prefix - szukamy po storage_path.
-      const year = new Date().getFullYear();
+      const year = new Date().getUTCFullYear();
       const storagePath = `${opts.tenantId}/wp-import/${year}/${sha}.${ext}`;
-      const { data: existing } = await opts.supabase
+      const { data: existing, error: lookupError } = await opts.supabase
         .from("media")
         .select("id, public_url, storage_path")
         .eq("tenant_id", opts.tenantId)
         .eq("storage_path", storagePath)
         .maybeSingle();
+      if (lookupError) throw lookupError;
       if (existing?.public_url) {
         map.set(url, { publicUrl: existing.public_url, mediaId: existing.id });
         reused++;
@@ -187,7 +188,7 @@ export async function mirrorWpMedia(opts: MirrorOptions): Promise<MirrorResult> 
       // Upload przez service-role (bypass RLS na storage.objects tylko dla uploadu).
       const { error: upErr } = await admin.storage
         .from("media")
-        .upload(storagePath, buf, { contentType: mime, upsert: true });
+        .upload(storagePath, buf, { contentType: mime, upsert: false });
       if (upErr) {
         failed.push({ url, reason: `Storage: ${upErr.message}` });
         continue;
@@ -209,7 +210,8 @@ export async function mirrorWpMedia(opts: MirrorOptions): Promise<MirrorResult> 
         .select("id")
         .single();
       if (insErr || !row) {
-        // rollback storage entry, keep going
+        // Only this invocation can own the object: upload never overwrites
+        // an existing path. A concurrent importer fails before reaching here.
         await admin.storage.from("media").remove([storagePath]);
         failed.push({ url, reason: insErr?.message ?? "Insert failed" });
         continue;
@@ -269,18 +271,22 @@ function rewriteContent(content: WidgetContent, map: MirrorMap): WidgetContent {
 /** Rewrite every media URL that lives inside a builder document. */
 export function rewriteBuilderDoc(doc: BuilderDocument, map: MirrorMap): BuilderDocument {
   if (map.size === 0) return doc;
+  const rewriteColumn = (column: ColumnNode): ColumnNode => ({
+    ...column,
+    children: column.children.map((widget) => ({
+      ...widget,
+      content: rewriteContent(widget.content, map),
+    })),
+  });
   return {
     ...doc,
     sections: doc.sections.map((s) => ({
       ...s,
       children: s.children.map((c) => {
         if (c.kind === "column") {
-          return {
-            ...c,
-            children: c.children.map((w) => ({ ...w, content: rewriteContent(w.content, map) })),
-          };
+          return rewriteColumn(c);
         }
-        return c;
+        return { ...c, columns: c.columns.map(rewriteColumn) };
       }),
     })),
   };

@@ -11,7 +11,6 @@ import { redactUrl } from "@/lib/observability/redact";
 
 const MAX_BODY = 32_000;
 const MAX_EVENTS = 40;
-const MAX_STRING = 512;
 const MAX_META_BYTES = 4_000;
 
 const ALLOWED_TYPES = new Set([
@@ -58,7 +57,7 @@ function noContent(): Response {
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }
 
-function truncate(v: unknown, n = MAX_STRING): string | null {
+function truncate(v: unknown, n: number): string | null {
   if (typeof v !== "string") return null;
   const s = v.trim();
   return s ? s.slice(0, n) : null;

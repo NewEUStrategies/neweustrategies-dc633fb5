@@ -18,6 +18,9 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
     "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
+    "assumeChangesOnlyAffectDirectDependencies": true,
 
     /* Linting */
     "skipLibCheck": true,

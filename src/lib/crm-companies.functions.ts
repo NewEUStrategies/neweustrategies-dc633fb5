@@ -181,7 +181,46 @@ export const updateCrmCompany = createServerFn({ method: "POST" })
     } catch {
       /* noop - audyt nie może blokować sukcesu mutacji */
     }
-    return { ok: true };
+    // Nazwa firmy jest kopiowana na profile członków i kontakty CRM - po
+    // edycji odbijamy ją od razu, żeby katalog członków nie pokazywał starej.
+    const sync = await syncCompanyMembersById(context, id);
+    return { ok: true, sync };
+  });
+
+/** Wspólna ścieżka: kartoteka -> członkowie (profil + kontakt CRM). */
+async function syncCompanyMembersById(
+  context: { readonly supabase: unknown },
+  companyId: string,
+): Promise<{ profiles: number; leads: number; linked: number }> {
+  const empty = { profiles: 0, leads: 0, linked: 0 };
+  try {
+    const { data: company } = await looseTable(context, "crm_companies")
+      .select("tenant_id, name")
+      .eq("id", companyId)
+      .maybeSingle();
+    const row = company as { tenant_id?: string; name?: string } | null;
+    if (!row?.tenant_id || !row.name) return empty;
+    const [{ supabaseAdmin }, { syncCompanyToMembers }] = await Promise.all([
+      import("@/integrations/supabase/client.server"),
+      import("@/lib/crm/companySync.server"),
+    ]);
+    return await syncCompanyToMembers(supabaseAdmin, {
+      tenantId: row.tenant_id,
+      companyId,
+      name: row.name,
+    });
+  } catch {
+    return empty;
+  }
+}
+
+/** Ręczne wymuszenie synchronizacji kartoteki firmy z członkami. */
+export const syncCrmCompanyMembers = createServerFn({ method: "POST" })
+  .middleware([requireCrmStaff])
+  .validator((d) => IdInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const sync = await syncCompanyMembersById(context, data.id);
+    return { ok: true, ...sync };
   });
 
 // ---- Tworzenie firmy ----------------------------------------------------
@@ -247,7 +286,11 @@ export const createCrmCompany = createServerFn({ method: "POST" })
     } catch {
       /* noop - audyt nie może blokować sukcesu mutacji */
     }
-    return { ok: true, id: hasId(row) ? row.id : null };
+    const newId = hasId(row) ? row.id : null;
+    // Nowa kartoteka od razu przejmuje członków, którzy mają tę samą nazwę
+    // firmy wpisaną ręcznie w profilu.
+    if (newId) await syncCompanyMembersById(context, newId);
+    return { ok: true, id: newId };
   });
 
 // ---- Dodawanie kontaktu (lead) powiązanego z firmą ----------------------
@@ -476,6 +519,8 @@ export const bulkDeleteCrmCompanies = createServerFn({ method: "POST" })
     ]);
     if (!isAdmin && !isSuper) throw new Error("forbidden");
 
+    const detached = await detachCompaniesFromMembers(context, data.ids);
+
     const res = await looseTable(context, "crm_companies").delete().in("id", data.ids);
     if (res.error) throw new Error(res.error.message);
     try {
@@ -489,5 +534,71 @@ export const bulkDeleteCrmCompanies = createServerFn({ method: "POST" })
     } catch {
       /* audyt best-effort */
     }
-    return { ok: true, deleted: data.ids.length };
+    return { ok: true, deleted: data.ids.length, detached };
+  });
+
+/**
+ * Odpina członków i kontakty od kartotek, które za chwilę znikną. Bez tego w
+ * katalogu członków zostawałyby wskazania na nieistniejące firmy.
+ */
+async function detachCompaniesFromMembers(
+  context: { readonly supabase: unknown },
+  ids: readonly string[],
+): Promise<{ profiles: number; leads: number }> {
+  const empty = { profiles: 0, leads: 0 };
+  try {
+    const { data: rows } = await looseTable(context, "crm_companies")
+      .select("id, tenant_id")
+      .in("id", [...ids]);
+    const byTenant = new Map<string, string[]>();
+    for (const row of rowsOf({ data: rows, error: null })) {
+      const r = row as { id?: string; tenant_id?: string };
+      if (!r.id || !r.tenant_id) continue;
+      byTenant.set(r.tenant_id, [...(byTenant.get(r.tenant_id) ?? []), r.id]);
+    }
+    if (byTenant.size === 0) return empty;
+    const [{ supabaseAdmin }, { detachCompanyFromMembers }] = await Promise.all([
+      import("@/integrations/supabase/client.server"),
+      import("@/lib/crm/companySync.server"),
+    ]);
+    const totals = { ...empty };
+    for (const [tenantId, companyIds] of byTenant) {
+      const res = await detachCompanyFromMembers(supabaseAdmin, { tenantId, companyIds });
+      totals.profiles += res.profiles;
+      totals.leads += res.leads;
+    }
+    return totals;
+  } catch {
+    return empty;
+  }
+}
+
+/** Usunięcie pojedynczej kartoteki firmy (z odpięciem członków). */
+export const deleteCrmCompany = createServerFn({ method: "POST" })
+  .middleware([requireCrmStaff])
+  .validator((d) => IdInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const client = looseClient(context);
+    const userId = (context as { userId: string }).userId;
+    const [{ data: isAdmin }, { data: isSuper }] = await Promise.all([
+      client.rpc("has_role", { _user_id: userId, _role: "admin" }),
+      client.rpc("has_role", { _user_id: userId, _role: "super_admin" }),
+    ]);
+    if (!isAdmin && !isSuper) throw new Error("forbidden");
+
+    const detached = await detachCompaniesFromMembers(context, [data.id]);
+    const res = await looseTable(context, "crm_companies").delete().eq("id", data.id);
+    if (res.error) throw new Error(res.error.message);
+    try {
+      await looseTable(context, "audit_log").insert({
+        actor_id: userId,
+        action: "crm.company.delete",
+        entity_type: "crm_company",
+        entity_id: data.id,
+        metadata: { detached },
+      });
+    } catch {
+      /* audyt best-effort */
+    }
+    return { ok: true, detached };
   });

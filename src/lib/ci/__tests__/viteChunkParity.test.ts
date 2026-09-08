@@ -47,6 +47,19 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("both presets coalesce the same minimum chunk size", () => {
+    const size = (source: string) => source.match(/experimentalMinChunkSize:\s*(\d+)/)?.[1];
+    expect(size(main)).toBeDefined();
+    expect(size(smoke)).toBe(size(main));
+    expect(
+      size(smoke.replace(/experimentalMinChunkSize:\s*\d+/, "experimentalMinChunkSize: 999")),
+    ).not.toBe(size(main));
+  });
+
+  it("smoke always emits its own graph for browser timing", () => {
+    expect(smoke).toContain("chunkInventoryPlugin(true)");
+  });
+
   it("reguła vendorowa pomija moduł WEJŚCIOWY (pułapka zapadania się chunku)", () => {
     // Bez tej linii `manualChunks` może przypisać entry do nazwanego chunku,
     // a wtedy Rollup wciąga cały ten chunk z powrotem do entry - bez ostrzeżenia.

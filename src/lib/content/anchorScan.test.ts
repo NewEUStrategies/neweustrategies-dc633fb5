@@ -162,3 +162,61 @@ describe("scanHeadings - opcje konsumentów (widget spisu treści)", () => {
     expect(items.map((i) => i.id)).toEqual(["rozdzial-2"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// GAŁĘZIE ODMOWY SKANERA - część C (gałęziowa).
+//
+// Selektor jest parametrem PUBLICZNYM (widget spisu treści buildera pozwala
+// redakcji wskazać poziomy nagłówków), więc może trafić w element, który
+// nagłówkiem h1-h5 nie jest. Skaner ma go POMINĄĆ bez nadawania `id` - inaczej
+// spis treści zacząłby linkować do akapitów, a `id` pojawiałyby się w treści
+// bez powodu.
+// ---------------------------------------------------------------------------
+describe("scanHeadings - element pasujący do selektora, który nie jest nagłówkiem", () => {
+  it("h6 złapane własnym selektorem jest pomijane i NIE dostaje id", () => {
+    const root = mount(`<h2>Dwa</h2><h6>Sześć</h6>`);
+    const items = scanHeadings(root, { selector: "h2, h6" });
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.text).toBe("Dwa");
+    expect(items[0]?.level).toBe(2);
+    expect(root.querySelector("h6")?.id).toBe("");
+  });
+
+  it("akapit złapany selektorem też jest pomijany, a nagłówki obok działają dalej", () => {
+    const root = mount(`<h2>Pierwszy</h2><p>Akapit</p><h3>Drugi</h3>`);
+    const items = scanHeadings(root, { selector: "h2, p, h3" });
+
+    expect(items.map((i) => i.text)).toEqual(["Pierwszy", "Drugi"]);
+    expect(root.querySelector("p")?.id).toBe("");
+    expect(root.querySelector("h2")?.id).toBe("pierwszy");
+    expect(root.querySelector("h3")?.id).toBe("drugi");
+  });
+
+  it("selektor trafiający WYŁĄCZNIE w nie-nagłówki daje pustą listę bez zmian w DOM", () => {
+    const root = mount(`<h6>Sześć</h6><p>Akapit</p>`);
+    const before = root.innerHTML;
+
+    expect(scanHeadings(root, { selector: "h6, p" })).toEqual([]);
+    expect(root.innerHTML).toBe(before);
+  });
+
+  it("historyczna kotwica JUŻ obecna w dokumencie nie jest dublowana aliasem", () => {
+    // Gałąź `doc.getElementById(legacyId)` w `ensureLegacyAliases`. Serwerowy
+    // silnik bloków emituje te same aliasy; gdyby skaner kliencki dołożył
+    // drugi element o tym samym `id`, dokument miałby zduplikowany identyfikator
+    // i `#kotwica` skakałaby zawsze do pierwszego trafienia.
+    const root = mount(`<h2>Wyzwania małych firm</h2>`);
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<span id="wyzwania-ma-ych-firm" data-legacy-z-serwera="1"></span>`,
+    );
+
+    const items = scanHeadings(root);
+
+    expect(items[0]?.id).toBe("wyzwania-malych-firm");
+    // Wewnątrz nagłówka NIE powstał alias - ten identyfikator już istnieje.
+    expect(root.querySelectorAll("[data-anchor-alias]")).toHaveLength(0);
+    expect(document.querySelectorAll("#wyzwania-ma-ych-firm")).toHaveLength(1);
+  });
+});

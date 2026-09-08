@@ -101,18 +101,17 @@ function buildWidgetTypographyRules(
   // Without this guard a generated `[data-w-id]... span { ... !important }`
   // rule overrides their intentional compact type, even when it is scoped.
   const notExempt = ":not([data-typography-exempt])";
-  // Keep these selectors intentionally boring. The previous compact `:is()`
-  // groups were valid in modern browsers, but one invalid/unsupported selector
-  // in an embedded preview stylesheet made everything except the dedicated
-  // title-size rule look "dead". Generating explicit selectors gives every
-  // control the same cascade path and is easier to verify in DevTools.
+  // Group only fixed HTML tag names with identical specificity. The widget
+  // scope and every exclusion remain outside :is(), so authored selectors
+  // cannot invalidate the group or change its cascade weight. In particular
+  // do not mix class/attribute selectors with tags inside these groups.
   const titleTargets = [
     `${sel} .cms-post-title`,
     `${sel} [data-title-root]`,
     `${sel}[data-title-root]`,
     `${sel} [data-typography-role="title"]`,
     `${sel}[data-typography-role="title"]`,
-    ...["h1", "h2", "h3", "h4", "h5", "h6"].map((tag) => `${sel} ${tag}${notCounters}`),
+    `${sel} :is(h1,h2,h3,h4,h5,h6)${notCounters}`,
   ];
   const descriptionTargets = [
     `${sel} .cms-post-excerpt`,
@@ -120,9 +119,7 @@ function buildWidgetTypographyRules(
     `${sel}[data-description-root]`,
     `${sel} [data-typography-role="description"]`,
     `${sel}[data-typography-role="description"]`,
-    ...["p", "li", "dd", "blockquote", "figcaption", "small"].map(
-      (tag) => `${sel} ${tag}:not(.cms-post-title)${notExempt}${notCounters}`,
-    ),
+    `${sel} :is(p,li,dd,blockquote,figcaption,small):not(.cms-post-title)${notExempt}${notCounters}`,
     `${sel} .prose p`,
   ];
   const genericTextTags = [
@@ -155,10 +152,7 @@ function buildWidgetTypographyRules(
   ];
   const genericTextTargets = [
     sel,
-    ...genericTextTags.map(
-      (tag) =>
-        `${sel} ${tag}:not(.cms-post-title):not(.cms-post-excerpt)${notExempt}${notCounters}`,
-    ),
+    `${sel} :is(${genericTextTags.join(",")}):not(.cms-post-title):not(.cms-post-excerpt)${notExempt}${notCounters}`,
     `${sel} .prose`,
     `${sel} .prose *:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`,
   ];
@@ -177,8 +171,13 @@ function buildWidgetTypographyRules(
   const lineHeight = cleanCssValue(typography.lineHeight);
   const letterSpacing = cleanCssValue(typography.letterSpacing);
 
+  // Keep the exact selectors and specificity, but emit their shared
+  // declarations together. Repeating this long selector list for each font
+  // property added hundreds of KB of inline CSS to builder documents.
+  const commonDeclarations: string[] = [];
+
   if (fontFamily) {
-    rules.push(`${allText}{font-family:${fontFamily} !important;}`);
+    commonDeclarations.push(`font-family:${fontFamily} !important;`);
     rules.push(
       `${sel} input::placeholder, ${sel} textarea::placeholder{font-family:${fontFamily} !important;}`,
     );
@@ -215,17 +214,18 @@ function buildWidgetTypographyRules(
     );
   }
 
-  if (fontWeight) rules.push(`${allText}{font-weight:${fontWeight} !important;}`);
+  if (fontWeight) commonDeclarations.push(`font-weight:${fontWeight} !important;`);
   if (typography.fontStyle)
-    rules.push(`${allText}{font-style:${typography.fontStyle} !important;}`);
-  if (lineHeight) rules.push(`${allText}{line-height:${lineHeight} !important;}`);
-  if (letterSpacing) rules.push(`${allText}{letter-spacing:${letterSpacing} !important;}`);
+    commonDeclarations.push(`font-style:${typography.fontStyle} !important;`);
+  if (lineHeight) commonDeclarations.push(`line-height:${lineHeight} !important;`);
+  if (letterSpacing) commonDeclarations.push(`letter-spacing:${letterSpacing} !important;`);
   if (typography.textTransform)
-    rules.push(`${allText}{text-transform:${typography.textTransform} !important;}`);
+    commonDeclarations.push(`text-transform:${typography.textTransform} !important;`);
   if (typography.textDecoration)
-    rules.push(`${allText}{text-decoration:${typography.textDecoration} !important;}`);
+    commonDeclarations.push(`text-decoration:${typography.textDecoration} !important;`);
   if (typography.textAlign)
-    rules.push(`${allText}{text-align:${typography.textAlign} !important;}`);
+    commonDeclarations.push(`text-align:${typography.textAlign} !important;`);
+  if (commonDeclarations.length) rules.push(`${allText}{${commonDeclarations.join("")}}`);
 
   return rules;
 }

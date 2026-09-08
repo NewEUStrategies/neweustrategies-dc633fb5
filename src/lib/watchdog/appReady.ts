@@ -29,6 +29,8 @@ export const READY_FLAG_KEY = "__nesAppReady";
 declare global {
   interface Window {
     __nesAppReady?: boolean;
+    /** Milliseconds from navigation start, including the wait for HTML. */
+    __nesAppReadyAt?: number;
   }
 }
 
@@ -36,6 +38,7 @@ declare global {
 export function markAppReady(): void {
   if (typeof window === "undefined") return;
   window[READY_FLAG_KEY] = true;
+  window.__nesAppReadyAt ??= performance.now();
 }
 
 /** Czy aplikacja zgłosiła gotowość. Czytane przez watchdog podglądu. */

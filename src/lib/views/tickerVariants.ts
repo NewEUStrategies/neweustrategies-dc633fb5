@@ -119,7 +119,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-function safeString(v: unknown, fb = ""): string {
+function safeString(v: unknown, fb: string): string {
   return typeof v === "string" ? v : fb;
 }
 

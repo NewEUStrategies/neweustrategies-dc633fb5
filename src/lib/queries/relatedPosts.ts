@@ -32,7 +32,8 @@ export const relatedPostsConfigQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "related-posts-config"] as const,
     queryFn: async (): Promise<RelatedPostsConfig> => {
-      const { data } = await supabase.rpc("get_related_posts_config");
+      const { data, error: dataError } = await supabase.rpc("get_related_posts_config");
+      if (dataError) throw dataError;
       const row = Array.isArray(data) ? data[0] : null;
       if (!row) return RELATED_POSTS_DEFAULTS;
       return { ...RELATED_POSTS_DEFAULTS, ...(row as Partial<RelatedPostsConfig>) };
@@ -53,7 +54,11 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
     enabled: !!input.postId,
     queryFn: async (): Promise<BlogListItem[]> => {
       // 1. Current post's category/tag/author IDs.
-      const [{ data: curCats }, { data: curTags }, { data: curPost }] = await Promise.all([
+      const [
+        { data: curCats, error: curCatsError },
+        { data: curTags, error: curTagsError },
+        { data: curPost, error: curPostError },
+      ] = await Promise.all([
         supabase.from("post_categories").select("category_id").eq("post_id", input.postId),
         supabase.from("post_tags").select("tag_id").eq("post_id", input.postId),
         supabase
@@ -62,6 +67,9 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
           .eq("id", input.postId)
           .maybeSingle(),
       ]);
+      if (curCatsError) throw curCatsError;
+      if (curTagsError) throw curTagsError;
+      if (curPostError) throw curPostError;
 
       const curCatSet = new Set<string>((curCats ?? []).map((r) => r.category_id as string));
       const curTagSet = new Set<string>((curTags ?? []).map((r) => r.tag_id as string));
@@ -79,27 +87,29 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
       // 2. Candidate post IDs sharing at least one signal.
       const candidateIds = new Set<string>();
       if ((input.strategy === "categories" || input.strategy === "both") && curCatSet.size > 0) {
-        const { data } = await supabase
+        const { data, error: dataError } = await supabase
           .from("post_categories")
           .select("post_id")
           .in("category_id", Array.from(curCatSet));
+        if (dataError) throw dataError;
         (data ?? []).forEach((r) => {
           const id = r.post_id as string;
           if (id !== input.postId) candidateIds.add(id);
         });
       }
       if ((input.strategy === "tags" || input.strategy === "both") && curTagSet.size > 0) {
-        const { data } = await supabase
+        const { data, error: dataError } = await supabase
           .from("post_tags")
           .select("post_id")
           .in("tag_id", Array.from(curTagSet));
+        if (dataError) throw dataError;
         (data ?? []).forEach((r) => {
           const id = r.post_id as string;
           if (id !== input.postId) candidateIds.add(id);
         });
       }
       if (input.strategy === "author" && curAuthor) {
-        const { data } = await supabase
+        const { data, error: dataError } = await supabase
           .from("posts")
           .select("id")
           .eq("author_id", curAuthor)
@@ -108,6 +118,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
           .is("deleted_at", null)
           .order("published_at", { ascending: false })
           .limit(50);
+        if (dataError) throw dataError;
         (data ?? []).forEach((r) => candidateIds.add(r.id as string));
       }
 
@@ -115,7 +126,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
 
       // 3. Hydrate candidates.
       const ids = Array.from(candidateIds).slice(0, 100);
-      const { data: posts } = await supabase
+      const { data: posts, error: postsError } = await supabase
         .from("posts")
         .select(
           `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id, ${SPONSORED_LIST_COLS}`,
@@ -123,6 +134,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
         .in("id", ids)
         .eq("status", "published")
         .is("deleted_at", null);
+      if (postsError) throw postsError;
       const rows = (posts ?? []) as Array<{
         id: string;
         slug: string;
@@ -142,10 +154,12 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
 
       // 4. Fetch category/tag membership for candidates in bulk.
       const candIds = rows.map((r) => r.id);
-      const [{ data: pc }, { data: pt }] = await Promise.all([
+      const [{ data: pc, error: pcError }, { data: pt, error: ptError }] = await Promise.all([
         supabase.from("post_categories").select("post_id, category_id").in("post_id", candIds),
         supabase.from("post_tags").select("post_id, tag_id").in("post_id", candIds),
       ]);
+      if (pcError) throw pcError;
+      if (ptError) throw ptError;
       const catsByPost = new Map<string, Set<string>>();
       (pc ?? []).forEach((r) => {
         const set = catsByPost.get(r.post_id as string) ?? new Set<string>();
@@ -164,7 +178,10 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
       const paths = new Map<string, string>();
       await Promise.all(
         parentIds.map(async (pid) => {
-          const { data: p } = await supabase.rpc("page_full_path", { _page_id: pid });
+          const { data: p, error: pError } = await supabase.rpc("page_full_path", {
+            _page_id: pid,
+          });
+          if (pError) throw pError;
           if (typeof p === "string") paths.set(pid, p);
         }),
       );
