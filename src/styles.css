@@ -6528,14 +6528,24 @@ textarea[data-chat-composer-input][data-chat-composer-input] {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-.cms-social-list > li {
+.cms-social-list > li,
+.cms-rich-content .cms-social-list.cms-social-list > li.cms-social-item {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
 }
+/* Globalny renderer list CMS (`.cms-rich-content ul > li::before`) dorysowuje
+   pomarańczową kropkę 6px. Listy social mają tylko linki-ikony, więc kropka
+   była jedynym widocznym elementem - wyłączamy ją z wyższą specyficznością. */
 .cms-social-list > li::before,
-.cms-social-list > li::marker {
-  content: none;
+.cms-social-list > li::marker,
+.cms-rich-content .cms-social-list.cms-social-list > li::before,
+.cms-rich-content .cms-social-list.cms-social-list > li::marker {
+  content: none !important;
+  display: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
