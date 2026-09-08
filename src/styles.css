@@ -8668,12 +8668,37 @@ select option,
    Treść w bazie nie może nieść atrybutu `style` (sanitizer go usuwa), więc
    układ premium żyje TUTAJ, a HTML w bazie podaje tylko semantyczne klasy.
    ========================================================================== */
-.nes-benefits {
+.prose .nes-benefits.nes-benefits {
   list-style: none;
   padding: 0;
+  padding-inline-start: 0;
   margin: 0;
   display: grid;
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+}
+/* Globalny renderer list CMS (`.cms-rich-content ul > li`) ma wysoką
+   specyficzność i własny układ siatki z kropką - podwajamy klasy, żeby
+   karty korzyści wygrały bez !important. */
+.cms-rich-content .nes-benefits.nes-benefits.nes-benefits > .nes-benefits__item.nes-benefits__item.nes-benefits__item.nes-benefits__item {
+  display: flex;
+  grid-template-columns: none;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  margin: 0;
+  list-style: none;
+}
+.cms-rich-content .nes-benefits > .nes-benefits__item::before,
+.cms-rich-content .nes-benefits > .nes-benefits__item::marker {
+  content: none;
+}
+/* Otoczka RichHtmlView w kolumnie buildera kurczy się (flex + align),
+   a lista korzyści ma wypełniać pełną szerokość kolumny. */
+.prose:has(> .nes-benefits) {
+  width: 100%;
+  max-width: 100%;
 }
 .nes-benefits__item {
   display: flex;
