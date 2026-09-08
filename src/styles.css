@@ -8649,16 +8649,18 @@ select:not([multiple]):not([size]) option,
   font-size: 12px !important;
 }
 
-/* Compact droplist sizing: shorter triggers/items and smaller caret. */
+/* Compact droplist sizing: shorter triggers/items and smaller caret.
+   Wykluczone pola formularzy (.input) - np. combobox "Kraj" w formularzu
+   "Dołącz do nas" ma pełną wysokość .input-group jak pozostałe pola. */
 [data-slot="select-trigger"],
-[role="combobox"] {
+[role="combobox"]:not(.input) {
   min-height: 1.75rem !important;
   height: auto !important;
   padding: 0.25rem 0.5rem !important;
 }
 
 [data-slot="select-trigger"] svg,
-[role="combobox"] svg {
+[role="combobox"]:not(.input) svg {
   width: 0.875rem !important;
   height: 0.875rem !important;
 }
@@ -8839,4 +8841,14 @@ input[type="reset"],
 .input-group > select.input.input.input,
 .input-group > .user-label.user-label.user-label {
   font-size: 13px !important;
+}
+
+/* Pola formularzy (także combobox "Kraj") mają zawsze pełną wysokość
+   `.input-group` - kompaktowe reguły dla list rozwijanych ich nie dotyczą. */
+.input-group > input.input.input.input,
+.input-group > select.input.input.input {
+  min-height: var(--input-group-height, 3rem) !important;
+  height: auto !important;
+  padding-block: 0 !important;
+  padding-inline: 0.9rem !important;
 }

@@ -182,17 +182,17 @@ export function CountryCombobox({
   const selectedCode = codeFor(value.trim());
 
   const flagStyle: CSSProperties = { width: FLAG_WIDTH, height: FLAG_HEIGHT };
-  // Slot flagi liczy swoje `em` od kontenera, a padding tekstu - od inputa.
-  // Zrównujemy obie bazy, inaczej przy zmianie "Pola / placeholder" flaga i
-  // wcięcie tekstu rozjeżdżałyby się i znów wchodziłyby na nazwę kraju.
-  const emBase = style?.fontSize ?? "0.95rem";
+  // Baza `em` flagi = faktyczny rozmiar tekstu pola (globalnie 13px,
+  // nadpisywany regułą !important). Dzięki temu wcięcie tekstu
+  // (`TEXT_PADDING_WITH_FLAG`, liczone w em inputa) i szerokość flagi
+  // zawsze do siebie pasują.
+  const emBase = "13px";
 
   return (
-    <div
-      ref={rootRef}
-      className={cn("input-group", className)}
-      style={{ fontSize: emBase } as CSSProperties}
-    >
+    // Bez własnego font-size na kontenerze - pole ma identyczną geometrię co
+    // pozostałe pola formularza (FloatingInput). Skala `em` dla flagi siedzi
+    // wyłącznie na slocie flagi (niżej), żeby nie obniżała wysokości pola.
+    <div ref={rootRef} className={cn("input-group", className)}>
       <input
         ref={inputRef}
         id={inputId}
@@ -236,7 +236,7 @@ export function CountryCombobox({
         <span
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-[0.5em]"
-          style={{ paddingLeft: FLAG_GUTTER }}
+          style={{ paddingLeft: FLAG_GUTTER, fontSize: emBase }}
         >
           <img
             src={`https://flagcdn.com/w40/${selectedCode}.png`}
