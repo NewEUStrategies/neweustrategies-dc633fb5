@@ -16745,6 +16745,7 @@ export type Database = {
       site_design_tokens: {
         Row: {
           colors: Json
+          font_scale: Json
           fonts: Json
           global_colors: Json
           scale: Json
@@ -16754,6 +16755,7 @@ export type Database = {
         }
         Insert: {
           colors?: Json
+          font_scale?: Json
           fonts?: Json
           global_colors?: Json
           scale?: Json
@@ -16763,6 +16765,7 @@ export type Database = {
         }
         Update: {
           colors?: Json
+          font_scale?: Json
           fonts?: Json
           global_colors?: Json
           scale?: Json
