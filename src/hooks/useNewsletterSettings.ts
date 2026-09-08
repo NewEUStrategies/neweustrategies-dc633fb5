@@ -220,7 +220,6 @@ export function useNewsletterSettings() {
   return useQuery(newsletterSettingsQueryOptions());
 }
 
-
 export function useSaveNewsletterSettings() {
   const qc = useQueryClient();
   return useMutation({
