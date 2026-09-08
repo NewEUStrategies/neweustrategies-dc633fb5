@@ -12,6 +12,7 @@
 // Kontrakt jak w /rss.xml: fail-closed na tenancie, respektowanie rss_enabled,
 // język z prefiksu URL - a dodatkowo filtr języka wpisu, bo wpisy relacji są
 // jednojęzyczne (kolumna live_blog_entries.lang).
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
@@ -30,7 +31,7 @@ async function requestContext(): Promise<{ origin: string; host: string; lang: A
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  const origin = host ? `${proto}://${host}` : "";
+  const origin = crawlerPublishOrigin(host, proto);
   let lang: AppLang = DEFAULT_LANG;
   try {
     lang = stripLangPrefix(new URL(req.url).pathname).lang ?? DEFAULT_LANG;

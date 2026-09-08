@@ -98,6 +98,64 @@ export function isPreviewHost(rawHost: string | null | undefined): boolean {
 /** Origin, na który zbiegają się wszystkie adresy publikowane crawlerom. */
 export const CANONICAL_SITE_ORIGIN = "https://neweuropeanstrategies.com";
 
+/**
+ * Sufiksy hostów warstwy hostingu/podglądu, które NIGDY nie mogą wyciec do
+ * adresu pokazywanego użytkownikowi (cytowania, udostępnienia, kody QR,
+ * linki w mailach). Adres publiczny marki to zawsze CANONICAL_SITE_ORIGIN.
+ */
+const NON_PUBLIC_HOST_SUFFIXES = [".lovableproject.com", ".lovable.app"] as const;
+
+/** True dla hostów podglądu/hostingu, które nie są publiczną domeną marki. */
+export function isNonPublicHost(rawHost: string | null | undefined): boolean {
+  const host = normalizeHost(rawHost);
+  if (!host) return false;
+  return NON_PUBLIC_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
+/**
+ * Origin używany w adresach pokazywanych użytkownikowi (cytowania, share,
+ * QR, "kopiuj link"). Domena marki i hosty podglądu zbiegają się na origin
+ * kanoniczny; własna domena tenanta zachowuje swój origin.
+ */
+export function publicFacingOrigin(rawHost: string | null | undefined): string {
+  // Akceptuje host albo pełny origin ("https://host") - oba występują u
+  // wywołań (nagłówki żądania vs splitUrl(getRequestUrl())).
+  const value = rawHost?.includes("://") ? rawHost.split("://")[1] : rawHost;
+  const host = normalizeHost(value ?? null);
+  if (!host) return CANONICAL_SITE_ORIGIN;
+  if (CANONICAL_SITE_HOSTS.has(host)) return CANONICAL_SITE_ORIGIN;
+  if (isNonPublicHost(host) || isPreviewHost(host)) return CANONICAL_SITE_ORIGIN;
+  if (isNonCanonicalPublicHost(host)) return CANONICAL_SITE_ORIGIN;
+  return `https://${host}`;
+}
+
+/** Wariant przeglądarkowy: origin bieżącej karty, zawsze bezpieczny do pokazania. */
+export function browserPublicOrigin(): string {
+  if (typeof window === "undefined") return CANONICAL_SITE_ORIGIN;
+  return publicFacingOrigin(window.location.host);
+}
+
+/**
+ * Zamienia dowolny absolutny URL wskazujący host podglądu/hostingu na ten
+ * sam adres na originie kanonicznym. Adresy na innych domenach (tenant,
+ * zewnętrzne) zwraca bez zmian.
+ */
+export function toCanonicalPublicUrl(absoluteUrl: string): string {
+  try {
+    const parsed = new URL(absoluteUrl);
+    if (
+      !isNonPublicHost(parsed.host) &&
+      !isPreviewHost(parsed.host) &&
+      !isNonCanonicalPublicHost(parsed.host)
+    ) {
+      return absoluteUrl;
+    }
+    return `${CANONICAL_SITE_ORIGIN}${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return absoluteUrl;
+  }
+}
+
 /** Hosty kanoniczne marki (apex + www). */
 export const CANONICAL_SITE_HOSTS: ReadonlySet<string> = new Set([
   "neweuropeanstrategies.com",
@@ -166,7 +224,7 @@ export function crawlerPublishOrigin(
 ): string {
   const host = normalizeHost(rawHost);
   if (!host) return "";
-  if (CANONICAL_SITE_HOSTS.has(host) || isNonCanonicalPublicHost(host)) {
+  if (CANONICAL_SITE_HOSTS.has(host) || isNonCanonicalPublicHost(host) || isNonPublicHost(host)) {
     return CANONICAL_SITE_ORIGIN;
   }
   return `${proto}://${host}`;

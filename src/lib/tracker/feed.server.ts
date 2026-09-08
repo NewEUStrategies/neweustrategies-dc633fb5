@@ -4,6 +4,7 @@
 // respektowanie ustawień SEO, język z prefiksu URL, identyczne nagłówki cache.
 // Treść pozycji buduje czysty `lib/tracker/feed.ts`, więc tutaj zostaje tylko
 // obsługa żądania.
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
@@ -27,7 +28,9 @@ async function requestContext(): Promise<{ origin: string; host: string; lang: A
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  const origin = host ? `${proto}://${host}` : "";
+  // Kanał RSS publikuje adresy na domenie kanonicznej - host podglądu/hostingu
+  // nigdy nie trafia do czytników.
+  const origin = crawlerPublishOrigin(host, proto);
   let lang: AppLang = DEFAULT_LANG;
   try {
     lang = stripLangPrefix(new URL(req.url).pathname).lang ?? DEFAULT_LANG;

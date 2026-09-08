@@ -25,7 +25,8 @@ import {
 import { LazyQuizIframe } from "@/components/quiz/LazyQuizIframe";
 import { activeLang } from "@/lib/seo/head";
 import { getOrigin, getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, splitUrl, SITE_NAME, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
+import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
+import { publicFacingOrigin, toCanonicalPublicUrl } from "@/lib/http/host";
 import { platformLandingJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { useLang } from "@/lib/i18n/useLang";
@@ -112,8 +113,8 @@ function useShareUrl() {
   // a marka zostaje wyłącznie jako ostatnia deska ratunku.
   const url =
     typeof window !== "undefined"
-      ? window.location.href
-      : `${getOrigin() || SITE_CANONICAL_ORIGIN}${localizedPath("/quiz", lang)}`;
+      ? toCanonicalPublicUrl(window.location.href)
+      : `${publicFacingOrigin(getOrigin())}${localizedPath("/quiz", lang)}`;
   const encodedUrl = encodeURIComponent(url);
   const title = t("quiz.share.title");
   // DYWIZ, NIE PAUZA. Ten ciąg jedzie do WhatsAppa jako tekst udostępnienia,

@@ -3,6 +3,7 @@
 //
 // Dane pochodzą wyłącznie z backendu (`getMyEventTicket`, RLS na własnym
 // wierszu RSVP i zamówieniu) - komponent niczego nie wylicza z ceny klienta.
+import { browserPublicOrigin } from "@/lib/http/host";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -40,7 +41,7 @@ export function EventTicketCard({ eventId, lang, enabled }: EventTicketCardProps
 
   const qrPayload = useMemo(() => {
     if (!ticket || typeof window === "undefined") return null;
-    return ticketQrPayload(window.location.origin, ticket.slug, ticket.code);
+    return ticketQrPayload(browserPublicOrigin(), ticket.slug, ticket.code);
   }, [ticket]);
 
   useEffect(() => {
