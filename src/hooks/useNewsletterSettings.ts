@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
 import { resolvePopupFields, type PopupFieldConfig } from "@/lib/newsletter/popupFields";
@@ -177,9 +177,16 @@ export function defaultNewsletterSettings(): NewsletterSettings {
   };
 }
 
-export function useNewsletterSettings() {
-  return useQuery({
-    queryKey: ["newsletter-settings"],
+/**
+ * Fabryka zapytania o ustawienia newslettera - JEDNO źródło klucza dla hooka
+ * i dla SSR-owego prefetchu widgetu (`lib/builder/prefetch`). Bez rozgrzania
+ * formularz wychodził z serwera pusty (komponent zwraca `null`, dopóki
+ * ustawienia się nie wczytają), więc czytelnik i crawler widzieli pustą kolumnę.
+ */
+export function newsletterSettingsQueryOptions() {
+  return queryOptions({
+    queryKey: ["newsletter-settings"] as const,
+
     queryFn: async (): Promise<NewsletterSettings> => {
       const { data, error } = await supabase.from("newsletter_settings").select("*").maybeSingle();
       if (error && error.code !== "PGRST116") throw error;
@@ -208,6 +215,11 @@ export function useNewsletterSettings() {
     staleTime: 60_000,
   });
 }
+
+export function useNewsletterSettings() {
+  return useQuery(newsletterSettingsQueryOptions());
+}
+
 
 export function useSaveNewsletterSettings() {
   const qc = useQueryClient();

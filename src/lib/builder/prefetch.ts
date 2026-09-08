@@ -24,6 +24,7 @@ import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/slider
 import { eventByIdQueryOptions, eventsListQueryOptions } from "@/lib/builder/eventsQuery";
 import { clubCardQueryOptions, clubThreadsQueryOptions } from "@/lib/builder/clubsQuery";
 import { categoriesQueryOptions, tagsQueryOptions } from "@/lib/builder/taxonomyQuery";
+import { newsletterSettingsQueryOptions } from "@/hooks/useNewsletterSettings";
 import {
   podcastLatestQueryOptions,
   webStoriesCarouselQueryOptions,
@@ -149,6 +150,7 @@ export type BuilderSectionQuery =
   | ReturnType<typeof categoriesQueryOptions>
   | ReturnType<typeof tagsQueryOptions>
   | ReturnType<typeof podcastLatestQueryOptions>
+  | ReturnType<typeof newsletterSettingsQueryOptions>
   | ReturnType<typeof webStoriesCarouselQueryOptions>
   | ReturnType<typeof activePlansQueryOptions>
   | ReturnType<typeof ratedListQueryOptions>
@@ -195,6 +197,12 @@ export function prefetchBuilderSectionQuery(
  *     liście DŁUGOŚCI ZERO zwraca "świeże" - brak odbicia po cichu wyłącza
  *     klientowy prefetch przy przewijaniu dla całej sekcji.
  */
+/** Warianty newslettera renderujące realny formularz (reszta to sam trigger). */
+function newsletterUsesForm(content: unknown): boolean {
+  const variant = (content as { variant?: unknown } | undefined)?.variant;
+  return variant === undefined || variant === "inline" || variant === "card";
+}
+
 export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderSectionQuery[] {
   const out: BuilderSectionQuery[] = [];
   // Nawigacja (widget "menu" w chrome i dokumentach buildera): bez SSR-owego
@@ -254,6 +262,13 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   if (widget.type === "web-stories-carousel") {
     out.push(webStoriesCarouselQueryOptions(widget.content));
   }
+  // Newsletter (warianty z formularzem): bez rozgrzania `NewsletterForm`
+  // zwraca `null` na serwerze - kolumna z zapisem wychodziła z SSR pusta,
+  // a pola pojawiały się dopiero po hydratacji.
+  if (widget.type === "newsletter" && newsletterUsesForm(widget.content)) {
+    out.push(newsletterSettingsQueryOptions());
+  }
+
   // Cennik zsynchronizowany z katalogiem: zapytanie ma WYŁĄCZNIE tryb "plans"
   // (tryb domyślny renderuje ręczne wartości z treści widgetu i danych nie
   // czyta), stąd bramka na źródło - precedens stylu to gałąź `speakers` niżej.
@@ -463,6 +478,10 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   }
   if (widget.type === "web-stories-carousel") {
     const opts = webStoriesCarouselQueryOptions(widget.content);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "newsletter" && newsletterUsesForm(widget.content)) {
+    const opts = newsletterSettingsQueryOptions();
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (widget.type === "pricing" && pricingUsesPlansSource(widget.content)) {
