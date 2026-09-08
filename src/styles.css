@@ -6357,6 +6357,21 @@ textarea[data-chat-composer-input][data-chat-composer-input] {
 }
 
 /* -------------------------------------------------------------------------
+   Dropdowns (droplisty) - 11 px na całej platformie
+   -------------------------------------------------------------------------
+   Obejmuje: przyciski otwierające Radix Select ([role="combobox"]), opcje
+   w otwartej liście ([role="option"], [data-radix-select-viewport]) oraz
+   natywne elementy <select>. Podwójny selektor podnosi specyficzność ponad
+   lokalne klasy komponentów, a `!important` neutralizuje regułę 16 px iOS. */
+[role="combobox"][role="combobox"],
+[role="option"][role="option"],
+[data-radix-select-viewport][data-radix-select-viewport],
+[data-radix-select-viewport] [data-radix-select-viewport] *,
+select:not([multiple]):not([multiple]) {
+  font-size: 11px !important;
+}
+
+/* -------------------------------------------------------------------------
    Unified in-form hyperlinks
    -------------------------------------------------------------------------
    Applied by <FormLink /> plus every consent/policy HTML injected via
