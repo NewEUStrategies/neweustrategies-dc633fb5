@@ -497,8 +497,14 @@ function ClubThreadView() {
                   {t("club.attribution.chatham")}
                 </Badge>
               ) : null}
-              {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie. */}
-              <ClubTopicChip topic={thread.topic} lang={lang} catalog={topicCatalog} size="sm" />
+              {/* Obszar tematyczny wątku - wyraźniejszy chip-label na stronie wątku. */}
+              <ClubTopicChip
+                topic={thread.topic}
+                lang={lang}
+                catalog={topicCatalog}
+                size="sm"
+                tone="outline"
+              />
               {thread.anchor_type !== null ? (
                 <Badge variant="secondary" className="gap-1 text-[10px]">
                   <Link2 className="h-3 w-3" aria-hidden="true" />
