@@ -4,9 +4,11 @@
 // segmentu (ta sama matryca co na cenniku). Dane są prefetchowane w loaderze,
 // więc strona jest w pełni SSR-owalna i linkowalna (SEO + udostępnianie).
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, ShieldCheck } from "lucide-react";
+
 
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
