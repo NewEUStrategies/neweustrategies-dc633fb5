@@ -208,6 +208,7 @@ export function ClubDossierRow({
   icon,
   meta,
   title,
+  byline,
   excerpt,
   children,
   metrics,
@@ -225,6 +226,8 @@ export function ClubDossierRow({
   /** Pasek meta nad tytułem: rodzaj, dział, temat, statusy. */
   meta?: ReactNode;
   title: ReactNode;
+  /** Autor i czas publikacji - na stronie wątku bezpośrednio pod tytułem. */
+  byline?: ReactNode;
   excerpt?: ReactNode;
   /** Pełna treść pod zajawką - używa jej strona wątku (post otwierający). */
   children?: ReactNode;
@@ -330,6 +333,12 @@ export function ClubDossierRow({
             title
           )}
         </div>
+
+        {byline !== undefined ? (
+          <div className="mt-3 flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            {byline}
+          </div>
+        ) : null}
 
         {excerpt !== undefined ? (
           <div className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">

@@ -133,6 +133,28 @@ describe("ClubDossierRow", () => {
     expect(row.className).toContain("border-primary/40");
     expect(row.getAttribute("data-tone")).toBe("post");
   });
+
+  it("renderuje autora i czas bezpośrednio pod tytułem", () => {
+    render(
+      <ClubDossierRow
+        tone="thread"
+        icon={<span>i</span>}
+        meta={<span>Ogłoszenie</span>}
+        title={<h1>Tytuł dyskusji</h1>}
+        byline={
+          <>
+            <span>Igor Miasnikow</span>
+            <time dateTime="2026-08-08T08:07:00Z">8.08.2026, 08:07</time>
+          </>
+        }
+      />,
+    );
+
+    const title = screen.getByRole("heading", { name: "Tytuł dyskusji" });
+    const author = screen.getByText("Igor Miasnikow");
+    expect(title.compareDocumentPosition(author) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("8.08.2026, 08:07")).toBeTruthy();
+  });
 });
 
 // --- Ton rodzaju wątku -------------------------------------------------------
