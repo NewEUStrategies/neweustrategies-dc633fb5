@@ -1933,12 +1933,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   width: 100% !important;
 }
 
-/* ---------------------------------------------------------------------------
-   Header search bar — compact premium look. The generic `.input-group > .input`
-   rule forces `border-radius: 6px !important` and a 1.5px border tuned for
-   forms; in the header the field is a quiet nav accessory, so it gets a
-   softer pill, thinner border and a subtle tinted surface instead.
-   ------------------------------------------------------------------------- */
+/* Header search bar - original compact navigation treatment. */
 .builder-search-widget .input-group > .input.input {
   /* Wysokość paska w nagłówku pochodzi z konfiguracji widgetu (`--search-h`).
      Globalny atom formularza wymusza `min-height: 3rem`, co rozpychało pole
@@ -1946,10 +1941,10 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   height: var(--search-h, 36px) !important;
   min-height: 0 !important;
   line-height: 1 !important;
-  border-radius: 10px !important;
+  border-radius: 6px !important;
   border-width: 1px;
-  border-color: color-mix(in oklab, var(--border) 80%, transparent);
-  background: color-mix(in oklab, var(--muted) 55%, transparent);
+  border-color: var(--border);
+  background: var(--background);
   box-shadow: none;
   transition:
     background-color 160ms ease,
@@ -1958,17 +1953,17 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 }
 
 .builder-search-widget .input-group > .input.input:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--muted) 75%, transparent);
+  background: var(--background);
   border-color: var(--border);
 }
 .builder-search-widget .input-group > .input.input:focus {
   background: var(--background);
-  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
 }
 .builder-search-widget .input-group > .user-label.user-label {
   font-size: 12px;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   color: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
 }
 /* Mega menu trigger button shrinks/wraps */
