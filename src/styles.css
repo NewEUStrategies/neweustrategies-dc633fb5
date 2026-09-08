@@ -202,6 +202,16 @@ body {
      Override per-widget by setting these vars on the widget shell. */
   --gc-input-hover-border: #fdb078; /* light-orange hover ring, per brand */
   --gc-input-focus-border: #fdb078; /* focus uses the same orange for continuity */
+  /* TABELA ROZMIARÓW CZCIONEK (admin → Wygląd → Rozmiary czcionek).
+     Jedyne źródło prawdy dla globalnych reguł typografii UI - katalog tokenów
+     żyje w `src/lib/theme/fontScale.ts`, nadpisania tenanta wstrzykuje
+     <DesignTokensStyle />. NIE wpisuj tu wartości px bezpośrednio w regułach. */
+  --fs-label: 12px;
+  --fs-input: 12px;
+  --fs-placeholder: 12px;
+  --fs-droplist: 12px;
+  --fs-button: 12px;
+  --fs-chat-composer: 11.5px;
   --gc-label-font-size: 0.75rem; /* 12px - unified input-label size */
   --gc-input-font-size: 14px; /* unified input/select/textarea text size */
   --gc-input-line-height: 1.4;
@@ -6353,7 +6363,7 @@ textarea::placeholder {
    neutralizuje także mobilną regułę 16 px powyżej, która chroni pozostałe pola
    formularzy przed automatycznym powiększeniem widoku przez iOS Safari. */
 textarea[data-chat-composer-input][data-chat-composer-input] {
-  font-size: 12px !important;
+  font-size: var(--fs-chat-composer) !important;
 }
 
 /* -------------------------------------------------------------------------
