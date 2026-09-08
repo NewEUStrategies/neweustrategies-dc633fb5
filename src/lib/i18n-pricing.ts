@@ -440,6 +440,12 @@ const pricingPl = {
     passesTitle: "Przepustki i dostęp jednorazowy",
     passesSubtitle: "Bez zobowiązań: pojedynczy artykuł albo krótki dostęp na czas ważnej decyzji.",
     morePlansTitle: "Pozostałe plany",
+    enquiry: {
+      price: "Wycena indywidualna",
+      note: "Zakres i koszt ustalamy po zgłoszeniu - liczba miejsc, cykl i zakres raportu.",
+      cta: "Wyślij zgłoszenie",
+    },
+
 
     tiers: {
       heading: "Poziomy członkostwa",
