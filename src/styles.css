@@ -5825,8 +5825,6 @@ textarea::placeholder {
   }
 }
 
-
-
 /* Globalna mechanika pasków zakładek: na mobile przewijamy w poziomie, ale
    bez "dryfowania" - snapping do krawędzi, brak łańcuchowania scrolla do
    strony i ukryty pasek przewijania. Ostatni aktywny tab zawsze dokleja się
@@ -6357,7 +6355,6 @@ textarea::placeholder {
 textarea[data-chat-composer-input][data-chat-composer-input] {
   font-size: 11.5px !important;
 }
-
 
 /* -------------------------------------------------------------------------
    Unified in-form hyperlinks
@@ -8672,7 +8669,6 @@ select:not([multiple]):not([size]) option,
   padding: 0.25rem 0.5rem !important;
 }
 
-
 /* ==========================================================================
    Karty korzyści w treści CMS (np. strona "Dołącz do newslettera").
    Treść w bazie nie może nieść atrybutu `style` (sanitizer go usuwa), więc
@@ -8691,7 +8687,9 @@ select:not([multiple]):not([size]) option,
 /* Globalny renderer list CMS (`.cms-rich-content ul > li`) ma wysoką
    specyficzność i własny układ siatki z kropką - podwajamy klasy, żeby
    karty korzyści wygrały bez !important. */
-.cms-rich-content .nes-benefits.nes-benefits.nes-benefits > .nes-benefits__item.nes-benefits__item.nes-benefits__item.nes-benefits__item {
+.cms-rich-content
+  .nes-benefits.nes-benefits.nes-benefits
+  > .nes-benefits__item.nes-benefits__item.nes-benefits__item.nes-benefits__item {
   display: flex;
   grid-template-columns: none;
   gap: 16px;
