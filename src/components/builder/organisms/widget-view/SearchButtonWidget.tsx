@@ -67,7 +67,7 @@ export function SearchButtonWidget({
   lang,
   height,
   radius,
-  fontSize,
+  fontSize: _fontSize,
 }: {
   label: string;
   mode: "standalone" | "dropdown" | "fullscreen";
@@ -385,7 +385,9 @@ export function SearchButtonWidget({
             height: `${h}px`,
             minHeight: `${h}px`,
             borderRadius: `${radius}px`,
-            fontSize: `${fontSize}px`,
+            // Rozmiar pól formularzy jest ujednolicony globalnie (13px);
+            // konfiguracja widgetu nie może rozjeżdżać typografii formularzy.
+            fontSize: "13px",
             paddingLeft: "0.9rem",
             paddingRight: `${trailingPad}px`,
             textAlign: "left",
