@@ -8803,3 +8803,26 @@ textarea::placeholder,
 [data-admin-shell] [data-slot="select-item"] {
   font-size: 11px !important;
 }
+
+/* ---------------------------------------------------------------------------
+   GLOBAL ATOM RULE: every button uses 12px text platform-wide. Covers shadcn
+   Button, native buttons, submit/reset inputs, and ARIA button roles.
+--------------------------------------------------------------------------- */
+button,
+[role="button"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+[data-slot="button"] {
+  font-size: 12px !important;
+}
+
+/* Admin panel: reinforce the 12px button rule on all admin pages. */
+[data-admin-shell] button,
+[data-admin-shell] [role="button"],
+[data-admin-shell] input[type="submit"],
+[data-admin-shell] input[type="button"],
+[data-admin-shell] input[type="reset"],
+[data-admin-shell] [data-slot="button"] {
+  font-size: 12px !important;
+}
