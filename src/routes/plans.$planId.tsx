@@ -85,6 +85,8 @@ function PlanDetailsPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const { planId } = Route.useParams();
+  const [enquiryOpen, setEnquiryOpen] = useState(false);
+
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const tiersQ = useQuery({
