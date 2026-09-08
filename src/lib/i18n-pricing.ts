@@ -918,6 +918,12 @@ const pricingEn: typeof pricingPl = {
     passesTitle: "Passes & one-time access",
     passesSubtitle: "No commitment: a single article or short access when a decision matters.",
     morePlansTitle: "More plans",
+    enquiry: {
+      price: "Pricing on request",
+      note: "Scope and cost are agreed after the enquiry - seats, cycle and report scope.",
+      cta: "Submit enquiry",
+    },
+
 
     tiers: {
       heading: "Membership tiers",
