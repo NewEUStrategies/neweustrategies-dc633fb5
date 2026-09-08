@@ -89,10 +89,7 @@ export function ClubPageFrame({
   const breadcrumbItems: BreadcrumbItem[] = [
     { label: t("club.title"), href: "/club" },
     ...(trailingCrumb !== undefined && trailingCrumb !== ""
-      ? [
-          { label: clubName, href: `/club/${clubSlug}` },
-          { label: trailingCrumb },
-        ]
+      ? [{ label: clubName, href: `/club/${clubSlug}` }, { label: trailingCrumb }]
       : [{ label: clubName }]),
   ];
 

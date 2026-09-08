@@ -451,7 +451,6 @@ function ClubThreadView() {
   return (
     <ClubPageFrame club={club} trailingCrumb={thread.title}>
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
-
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
           {pickLocalized(club, "name", lang)}
