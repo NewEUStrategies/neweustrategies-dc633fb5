@@ -341,7 +341,7 @@ export function SearchButtonWidget({
   return (
     <div
       ref={wrapRef}
-      className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto"
+      className="builder-search-widget relative flex w-full max-w-full flex-col items-center justify-center self-center my-auto min-w-[200px] sm:min-w-[240px]"
       style={
         {
           overflow: "visible",

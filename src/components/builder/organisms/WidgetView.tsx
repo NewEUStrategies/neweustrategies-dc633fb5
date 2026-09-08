@@ -379,12 +379,15 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   // Keep their renderer attached directly to the full-width widget shell.
   const isStructuralWidthWidget = node.type === "divider" || node.type === "spacer";
   const allowsFloatingChrome = node.type === "account-link";
+  const isSearchButton = node.type === "search-button";
   const needsAlignShrinkWrap =
     Boolean(styleAlignItems) && !innerShellStyle && !isStructuralWidthWidget;
   const alignShrinkWrapStyle: CSSProperties | undefined = needsAlignShrinkWrap
     ? {
         alignSelf: styleAlignItems,
-        width: "auto",
+        // Search bar must fill its column so the input area is long enough;
+        // shrinking it to the content width produces a 166 px unusable field.
+        width: isSearchButton ? "100%" : "auto",
         maxWidth: "100%",
         minWidth: 0,
         display: "flex",
