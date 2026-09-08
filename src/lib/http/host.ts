@@ -143,7 +143,11 @@ export function browserPublicOrigin(): string {
 export function toCanonicalPublicUrl(absoluteUrl: string): string {
   try {
     const parsed = new URL(absoluteUrl);
-    if (!isNonPublicHost(parsed.host) && !isPreviewHost(parsed.host) && !isNonCanonicalPublicHost(parsed.host)) {
+    if (
+      !isNonPublicHost(parsed.host) &&
+      !isPreviewHost(parsed.host) &&
+      !isNonCanonicalPublicHost(parsed.host)
+    ) {
       return absoluteUrl;
     }
     return `${CANONICAL_SITE_ORIGIN}${parsed.pathname}${parsed.search}${parsed.hash}`;
@@ -220,11 +224,7 @@ export function crawlerPublishOrigin(
 ): string {
   const host = normalizeHost(rawHost);
   if (!host) return "";
-  if (
-    CANONICAL_SITE_HOSTS.has(host) ||
-    isNonCanonicalPublicHost(host) ||
-    isNonPublicHost(host)
-  ) {
+  if (CANONICAL_SITE_HOSTS.has(host) || isNonCanonicalPublicHost(host) || isNonPublicHost(host)) {
     return CANONICAL_SITE_ORIGIN;
   }
   return `${proto}://${host}`;

@@ -101,7 +101,8 @@ const tEn = realT("en");
 /** Tytuł z kompletem znaków, które w ICS znaczą coś innego niż litera. */
 const NASTY_TITLE = "Panel: prawo, ryzyko; wersja C:\\dane";
 
-const ORIGIN = window.location.origin;
+import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
+const ORIGIN = CANONICAL_SITE_ORIGIN;
 
 function event(overrides: Partial<PublicEvent> = {}): PublicEvent {
   return publicEventRow({
