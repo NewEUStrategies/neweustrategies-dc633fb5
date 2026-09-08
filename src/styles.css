@@ -8633,22 +8633,45 @@ h3 .cms-inline-status-icon {
 }
 
 /* ---------------------------------------------------------------------------
-   GLOBAL ATOM RULE: all dropdown lists (droplists) use 11px text.
-   Covers shadcn/Radix Select (trigger + content + items), native selects,
-   and custom droplist triggers such as TopicsDroplist.
+   GLOBAL ATOM RULE: all dropdown lists (droplists) use 11px text and compact
+   sizing. Covers shadcn/Radix Select (trigger + content + items), native
+   selects, and custom droplist triggers such as TopicsDroplist.
 --------------------------------------------------------------------------- */
+[role="combobox"][role="combobox"],
 [data-slot="select-trigger"],
 [data-slot="select-trigger"] *,
+[role="option"][role="option"],
 [data-slot="select-content"],
 [data-slot="select-item"],
 [data-slot="select-item"] *,
 [data-slot="select-label"],
 select:not([multiple]):not([size]),
-select option,
+select:not([multiple]):not([size]) option,
 [data-droplist],
 [data-droplist] * {
   font-size: 11px !important;
 }
+
+/* Compact droplist sizing: shorter triggers/items and smaller caret. */
+[data-slot="select-trigger"],
+[role="combobox"] {
+  min-height: 1.75rem !important;
+  height: auto !important;
+  padding: 0.25rem 0.5rem !important;
+}
+
+[data-slot="select-trigger"] svg,
+[role="combobox"] svg {
+  width: 0.875rem !important;
+  height: 0.875rem !important;
+}
+
+[data-slot="select-item"],
+[role="option"] {
+  min-height: 1.75rem !important;
+  padding: 0.25rem 0.5rem !important;
+}
+
 
 /* ==========================================================================
    Karty korzyści w treści CMS (np. strona "Dołącz do newslettera").
