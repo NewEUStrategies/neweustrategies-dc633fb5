@@ -8644,3 +8644,21 @@ h3 .cms-inline-status-icon {
     0 10px 15px -3px rgb(0 0 0 / 0.1),
     0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
+
+/* ---------------------------------------------------------------------------
+   GLOBAL ATOM RULE: all dropdown lists (droplists) use 11px text.
+   Covers shadcn/Radix Select (trigger + content + items), native selects,
+   and custom droplist triggers such as TopicsDroplist.
+--------------------------------------------------------------------------- */
+[data-slot="select-trigger"],
+[data-slot="select-trigger"] *,
+[data-slot="select-content"],
+[data-slot="select-item"],
+[data-slot="select-item"] *,
+[data-slot="select-label"],
+select:not([multiple]):not([size]),
+select option,
+[data-droplist],
+[data-droplist] * {
+  font-size: 11px !important;
+}
