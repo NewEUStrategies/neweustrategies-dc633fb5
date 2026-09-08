@@ -893,7 +893,7 @@ function ClubThreadView() {
           </p>
         )}
       </ClubThreadWorkspace>
-    </div>
+    </ClubPageFrame>
   );
 }
 
