@@ -26,9 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
+import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesDialog";
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { activeLang } from "@/lib/seo/head";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
+
 
 export const Route = createFileRoute("/plans/$planId")({
   component: PlanDetailsPage,
