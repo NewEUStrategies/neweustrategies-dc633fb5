@@ -8772,7 +8772,9 @@ select:not([multiple]):not([size]) option,
    including the admin panel. Covers native fields, shadcn Input/Textarea,
    labels (incl. floating), search fields and contenteditable editors.
 --------------------------------------------------------------------------- */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
+    [type="submit"]
+  ):not([type="button"]),
 textarea,
 label,
 [data-slot="input"],
@@ -8790,7 +8792,10 @@ textarea::placeholder,
 }
 
 /* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
-[data-admin-shell] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+[data-admin-shell]
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
+    [type="submit"]
+  ):not([type="button"]),
 [data-admin-shell] textarea,
 [data-admin-shell] label,
 [data-admin-shell] [role="combobox"],
@@ -8798,4 +8803,3 @@ textarea::placeholder,
 [data-admin-shell] [data-slot="select-item"] {
   font-size: 11px !important;
 }
-
