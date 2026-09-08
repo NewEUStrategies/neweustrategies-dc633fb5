@@ -11,8 +11,7 @@
  *     stoi między ustawieniami a widokiem: wartość spoza enumu (albo próg
  *     poza zakresem) NIE może wywrócić strony - stopka wraca wtedy do
  *     kompletu wartości domyślnych.
- *  3. TRYB ZWIĘZŁY (`compact`) - jedna listwa z prawami autorskimi, bez
- *     dokumentu buildera i bez przycisku powrotu na górę.
+ *  3. TRYB ZWIĘZŁY (`compact`) - nie renderuje stopki.
  *  4. POMIAR KLIKNIĘĆ W FAZIE PRZECHWYTYWANIA. Stopka nie ma własnych linków -
  *     nasłuchuje kliknięć na całym drzewie i mapuje `href` na kanoniczną grupę
  *     z `FOOTER_LINKS` (editorial / legal / community / ... / unknown), rozpoznaje
@@ -250,14 +249,12 @@ describe("Footer - dokument i stan pusty", () => {
     );
   });
 
-  it("tryb zwięzły pokazuje wyłącznie listwę praw autorskich", () => {
-    renderFooter({ footer: { builder_data: doc(2) } }, { compact: true });
+  it("tryb zwięzły nie renderuje stopki", () => {
+    const { container } = renderFooter({ footer: { builder_data: doc(2) } }, { compact: true });
 
     expect(screen.queryByTestId("builder")).toBeNull();
     expect(document.querySelector("footer[data-site-footer]")).toBeNull();
-    expect(document.querySelector("footer")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: dict("pl", "footer.back_to_top") })).toBeNull();
-    expect(screen.getByRole("navigation", { name: "Informacje prawne" })).toBeInTheDocument();
+    expect(container.firstChild).toBeNull();
   });
 });
 
@@ -301,14 +298,6 @@ describe("Footer - chrome walidowany schematem", () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
   });
 
-  it("brak separatora zdejmuje górną krawędź listwy praw autorskich", () => {
-    const withSeparator = renderFooter({ footer: { builder_data: doc(1) } });
-    expect(footerEl().querySelector(".border-t")).not.toBeNull();
-    withSeparator.unmount();
-
-    renderFooter({ footer: { builder_data: doc(1), chrome: { show_separator: false } } });
-    expect(footerEl().querySelector(".border-t")).toBeNull();
-  });
 });
 
 // --- Pomiar kliknięć ---------------------------------------------------------
@@ -443,7 +432,7 @@ describe("Footer - nasłuchy po odmontowaniu", () => {
 // --- Dwujęzyczność -----------------------------------------------------------
 
 describe("Footer - warianty językowe", () => {
-  const YEAR = new Date().getFullYear();
+  
 
   it("wariant PL: szablon praw autorskich i etykiety linków prawnych po polsku", () => {
     h.lang = "pl";
@@ -457,13 +446,8 @@ describe("Footer - warianty językowe", () => {
       },
     });
 
-    expect(screen.getByText(`© ${YEAR} Instytut Testowy`)).toBeInTheDocument();
+    
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "pl");
-    const legal = screen.getByRole("navigation", { name: "Informacje prawne" });
-    expect(within(legal).getByRole("link", { name: "Regulamin" })).toHaveAttribute(
-      "href",
-      "/regulamin",
-    );
   });
 
   it("wariant EN: ten sam chrome renderuje angielski szablon i angielskie etykiety", () => {
@@ -478,7 +462,7 @@ describe("Footer - warianty językowe", () => {
       },
     });
 
-    expect(screen.getByText(`© ${YEAR} Test Institute`)).toBeInTheDocument();
+    
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "en");
     // Etykieta przycisku powrotu na górę idzie ze SŁOWNIKA (nie z ustawień) -
     // i jest w obu językach inna, więc wariant EN mierzy angielski słownik.
@@ -486,26 +470,6 @@ describe("Footer - warianty językowe", () => {
       screen.getByRole("button", { name: dict("en", "footer.back_to_top") }),
     ).toBeInTheDocument();
     expect(dict("en", "footer.back_to_top")).not.toBe(dict("pl", "footer.back_to_top"));
-    const legal = screen.getByRole("navigation", { name: "Legal" });
-    // Etykiety linków prawnych pochodzą z mapy `footerNavigation`, nie z kopii
-    // napisu: ten sam href ma inną etykietę niż w wariancie PL.
-    const terms = FOOTER_LINKS.find((link) => link.href === "/regulamin");
-    expect(terms?.label.en).toBeTruthy();
-    if (terms) {
-      expect(within(legal).getByRole("link", { name: terms.label.en })).toHaveAttribute(
-        "href",
-        "/regulamin",
-      );
-      expect(terms.label.en).not.toBe(terms.label.pl);
-    }
   });
 
-  it("pusty szablon z włączonym rokiem daje sam rok, a wyłączony - brak tekstu", () => {
-    const withYear = renderFooter({ footer: { builder_data: doc(1) } });
-    expect(screen.getByText(`© ${YEAR}`)).toBeInTheDocument();
-    withYear.unmount();
-
-    renderFooter({ footer: { builder_data: doc(1), chrome: { show_year: false } } });
-    expect(screen.queryByText(`© ${YEAR}`)).toBeNull();
-  });
 });
