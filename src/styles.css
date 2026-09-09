@@ -8928,7 +8928,8 @@ input[type="reset"],
 /* Pola formularzy (także combobox "Kraj") mają zawsze pełną wysokość
    `.input-group` - kompaktowe reguły dla list rozwijanych ich nie dotyczą. */
 .input-group > input.input.input.input,
-.input-group > select.input.input.input {
+.input-group > select.input.input.input,
+.input-group > button.input.input.input {
   min-height: var(--input-group-height, 3rem) !important;
   height: auto !important;
   padding-block: 0 !important;
