@@ -981,6 +981,7 @@ describe("PopupSignupForm: co ląduje w profilu i jak wygląda formularz", () =>
         linkedin: "https://linkedin.com/in/jan-kowalski",
         phone: "+48600000000",
       },
+      mailingLists: ["tygodnik"],
     });
     expect(h.signUp.mock.calls[0][0].options.data).toMatchObject({
       first_name: "Jan",
