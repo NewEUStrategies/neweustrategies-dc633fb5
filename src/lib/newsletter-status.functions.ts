@@ -36,13 +36,11 @@ const TopicsInput = z.object({
   mailingLists: z.array(z.string().trim().min(1).max(120)).max(30).default([]),
 });
 
-function splitList(value: unknown): string[] {
-  if (typeof value !== "string") return [];
-  return value
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-}
+import {
+  applyPreferences,
+  crmCustomFromPreferences,
+  readPreferences,
+} from "@/lib/newsletter/preferences";
 
 async function loadContext(email: string) {
   const [{ supabaseAdmin }, { resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
@@ -54,7 +52,7 @@ async function loadContext(email: string) {
   if (!tenantId) return null;
   const { data } = await supabaseAdmin
     .from("newsletter_subscribers")
-    .select("id, status, email, source_form_name, meta, created_at, confirmed_at")
+    .select("id, status, email, source_form_name, meta, created_at, confirmed_at, user_id")
     .eq("tenant_id", tenantId)
     .eq("email", email)
     .maybeSingle();
@@ -85,8 +83,8 @@ export const getMyNewsletterStatus = createServerFn({ method: "GET" })
       status: ctx.row.status ?? null,
       email: ctx.row.email,
       listName: ctx.row.source_form_name ?? null,
-      mailingLists: splitList(meta.mailing_lists),
-      topics: splitList(meta.interests),
+      mailingLists: readPreferences(meta).mailingLists,
+      topics: readPreferences(meta).topics,
       since: ctx.row.confirmed_at ?? ctx.row.created_at ?? null,
     };
   });
@@ -108,21 +106,43 @@ export const updateMyNewsletterTopics = createServerFn({ method: "POST" })
     if (ctx === null) return { ok: false, error: "not_configured" };
     if (!ctx.row) return { ok: false, error: "not_subscribed" };
 
-    const meta: Record<string, string> = {};
-    for (const [key, value] of Object.entries((ctx.row.meta ?? {}) as Record<string, unknown>)) {
-      if (typeof value === "string") meta[key] = value;
-    }
-    const mergedTopics = Array.from(new Set([...splitList(meta.interests), ...data.topics]));
-    const mergedLists = Array.from(
-      new Set([...splitList(meta.mailing_lists), ...data.mailingLists]),
-    );
-    meta.interests = mergedTopics.join(", ").slice(0, 1000);
-    if (mergedLists.length > 0) meta.mailing_lists = mergedLists.join(",").slice(0, 500);
+    const meta = applyPreferences((ctx.row.meta ?? null) as Record<string, unknown> | null, null, {
+      topics: data.topics,
+      mailingLists: data.mailingLists,
+    });
 
     const { error } = await ctx.supabaseAdmin
       .from("newsletter_subscribers")
-      .update({ meta, updated_at: new Date().toISOString() })
+      .update({
+        meta,
+        // Subskrypcja należy do zalogowanej osoby - wiążemy ją z kontem, żeby
+        // preferencje były widoczne w profilu także po zmianie adresu w formularzu.
+        ...(ctx.row.user_id ? {} : { user_id: context.userId }),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", ctx.row.id);
     if (error) return { ok: false, error: error.message };
+
+    // Te same preferencje lądują w CRM (pola custom leada). Awaria CRM nie może
+    // wywrócić zapisu preferencji - użytkownik ma je już zapisane u siebie.
+    try {
+      const prefs = readPreferences(meta);
+      const { error: crmError } = await ctx.supabaseAdmin.rpc("crm_upsert_from_form", {
+        _tenant: ctx.tenantId,
+        _email: email,
+        _first_name: "",
+        _last_name: "",
+        _phone: "",
+        _company: "",
+        _position: "",
+        _linkedin: "",
+        _country: "",
+        _source: "newsletter-preferences",
+        _custom: crmCustomFromPreferences(prefs),
+      });
+      if (crmError) console.error("[newsletter-status] crm sync failed", crmError);
+    } catch (err) {
+      console.error("[newsletter-status] crm sync threw", err);
+    }
     return { ok: true };
   });

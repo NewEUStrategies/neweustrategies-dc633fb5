@@ -300,7 +300,6 @@ export function PopupSignupForm({
         if (v.company.trim()) meta.company = v.company.trim();
         if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
         if (v.phone.trim()) meta.phone = v.phone.trim();
-        if (showLists && v.list) meta.mailing_list = v.list;
         const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [
           {
             key: "newsletter",
@@ -326,6 +325,8 @@ export function PopupSignupForm({
               source: `signup_${source}`,
               consents,
               meta: Object.keys(meta).length ? meta : undefined,
+              // Lista wysyłkowa idzie kanonicznym polem - trafia do profilu i CRM.
+              mailingLists: showLists && v.list ? [v.list] : undefined,
             },
           });
         } catch {
