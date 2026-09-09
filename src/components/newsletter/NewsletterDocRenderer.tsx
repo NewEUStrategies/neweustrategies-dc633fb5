@@ -418,7 +418,10 @@ function widgetErrorKey(w: NlWidget): string {
   }
 }
 
-const INPUT_CLS = "w-full px-3 py-2 rounded border border-input bg-background text-sm";
+// Jedna geometria dla inputów i natywnych selectów w dokumencie newslettera.
+// Bez jawnej wysokości przeglądarka rysowała select niżej od sąsiedniego pola.
+const INPUT_CLS =
+  "h-[var(--form-input-height)] min-h-[var(--form-input-height)] w-full rounded-[6px] border border-input bg-background px-3 py-0 text-sm";
 
 function RuntimeWidget({
   widget: w,
