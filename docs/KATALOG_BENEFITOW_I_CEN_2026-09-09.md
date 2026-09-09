@@ -4,6 +4,10 @@ Jeden dokument do pobrania z **pełnym zakresem benefitów każdego progu subskr
 na segmenty odbiorców (indywidualny, firmowy, akademicki — w tym kadra akademicka — oraz
 zespołowy), wraz z **cenami miesięcznymi i rocznymi**.
 
+Benefity klubu dyskusyjnego i to, co daje sama przynależność, mają osobną sekcję **§9** — z twardo
+oddzieloną częścią §9.7, w której benefity **sformułowałem sam**, bo funkcje istnieją w platformie,
+ale katalog ich nie sprzedaje.
+
 Zestawienie łączy trzy źródła prawdy, które w repozytorium żyją osobno:
 
 | Źródło                                 | Co z niego pochodzi                                                                                                     | Gdzie leży                                                                                                             |
@@ -13,7 +17,7 @@ Zestawienie łączy trzy źródła prawdy, które w repozytorium żyją osobno:
 | Baza: `access_plans`                   | **ceny faktycznie sprzedawane** i interwały (to z nich `catalogSync.server.ts` odtwarza produkty u operatora płatności) | `supabase/migrations/20260730194653_…sql`, `…20260822094000_catalog_v61_products_and_verification.sql`                 |
 
 Ceny katalogu v6.2 i ceny w `access_plans` **nie są dziś tożsame** dla progów Członek, Członek Pro
-i Zespół — rozjazd jest wypunktowany w §12. Wszędzie niżej podaję obie liczby, żeby dokument nie
+i Zespół — rozjazd jest wypunktowany w §13. Wszędzie niżej podaję obie liczby, żeby dokument nie
 udawał, że decyzja cenowa jest zamknięta.
 
 ---
@@ -26,13 +30,13 @@ udawał, że decyzja cenowa jest zamknięta.
 | ---- | -------------------------------------------------------------------------------------------------------------------- |
 | `B`  | bramka istnieje i działa — realny punkt egzekwowania w platformie (SQL `SECURITY DEFINER` / RLS / funkcja serwerowa) |
 | `B?` | bramka do dopisania — **kategoria dziś pusta**, zostaje w legendzie na przyszłe pozycje                              |
-| `P`  | zobowiązanie procesowe — pilnuje go kalendarz i redakcja, nie kod; każde ma liczbę albo termin (§10)                 |
+| `P`  | zobowiązanie procesowe — pilnuje go kalendarz i redakcja, nie kod; każde ma liczbę albo termin (§11)                 |
 | `N`  | funkcja do zbudowania — dziś obietnica bez kodu (wszystkie trzy pozycje `N` to warstwa odpowiedzi na archiwum)       |
 
 **Ranga** (`membership_tiers.rank`) jest tym, czym platforma faktycznie bramkuje kluby, wydarzenia,
 treści i zasoby biblioteki (`min_tier_rank`). Nazwa handlowa progu nie bramkuje niczego.
 
-**Flagi `features`** dzielą się na egzekwowane i dekoracyjne — pełny rejestr w §11.
+**Flagi `features`** dzielą się na egzekwowane i dekoracyjne — pełny rejestr w §12.
 
 ---
 
@@ -66,7 +70,7 @@ Przydział progów do segmentów (`seed_pricing_defaults`):
 | 3   | `pro`               | Pro                                                | Członek Pro                                        | individual | 20    | **119 zł**                        | **1 190 zł** (−17 %)       | **129 zł**                                            | **1 290 zł** (−17 %)         | `auto`                 |
 | 4   | `vip`               | VIP                                                | Rada Instytutu                                     | individual | 25    | rozmowa                           | **od 6 000 zł/rok**        | — (brak planu samoobsługowego)                        | —                            | `auto`                 |
 | 5   | `team`              | Zespół                                             | Zespół                                             | team       | 25    | **89 zł / miejsce** (3–20 miejsc) | — (rozliczenie miesięczne) | **99 zł / miejsce**; **79 zł / miejsce od 11 miejsc** | —                            | `contact`              |
-| —   | `corporate`         | Enterprise                                         | _(brak w v6.2 — patrz §12.3)_                      | business   | 30    | rozmowa                           | rozmowa                    | —                                                     | —                            | `auto`                 |
+| —   | `corporate`         | Enterprise                                         | _(brak w v6.2 — patrz §13.3)_                      | business   | 30    | rozmowa                           | rozmowa                    | —                                                     | —                            | `auto`                 |
 | —   | `business`          | Partner Biznesowy                                  | _(wycofany, ranga 28 → 30)_                        | business   | 28    | **990 zł** (oraz 590 zł / 2 tyg.) | **2 490 zł / kwartał**     | 990 zł                                                | 2 490 zł / kwartał           | `auto`                 |
 | 6   | `partner`           | Strategic Partner                                  | Partner Instytucjonalny                            | business   | 40    | rozmowa                           | **od 24 000 zł/rok**       | —                                                     | —                            | `auto`                 |
 | 7   | `partner_general`   | Partner Generalny                                  | Partner Strategiczny                               | business   | 50    | rozmowa                           | **od 60 000 zł/rok**       | —                                                     | —                            | `auto`                 |
@@ -92,7 +96,7 @@ Rangi kanoniczne (`src/lib/billing/tierRanks.ts`, parytet z seedem wymuszony tes
 | Student i Doktorant — miesięcznie | `month`     | 19,00 zł           | `student`      | brak wariantu rocznego w bazie                                                                                                                                         |
 | Kadra Akademicka — miesięcznie    | `month`     | 29,00 zł           | `educator`     | brak wariantu rocznego w bazie                                                                                                                                         |
 | Zespół — za miejsce, miesięcznie  | `month`     | 99,00 zł / miejsce | `team`         | próg wolumenowy: `volume_threshold_seats = 11`, `volume_price_cents = 7900` → **79 zł za każde miejsce w zamówieniu** od 11. miejsca (`tiers_mode volume` u operatora) |
-| Partner Biznesowy — co 2 tygodnie | `two_weeks` | 590,00 zł          | `business`     | próg wycofany (§12.4)                                                                                                                                                  |
+| Partner Biznesowy — co 2 tygodnie | `two_weeks` | 590,00 zł          | `business`     | próg wycofany (§13.4)                                                                                                                                                  |
 | Partner Biznesowy — miesięcznie   | `month`     | 990,00 zł          | `business`     | próg wycofany                                                                                                                                                          |
 | Partner Biznesowy — kwartalnie    | `quarter`   | 2 490,00 zł        | `business`     | próg wycofany                                                                                                                                                          |
 | Decision Lab — miejsce w cyklu    | `one_time`  | 16 000,00 zł       | `decision_lab` | produkt jednorazowy, nie nadaje rangi                                                                                                                                  |
@@ -448,9 +452,206 @@ własnym archiwum nie istnieje i wymaga istotnej pracy inżynierskiej.
 Osoba, której wygasło członkostwo, ale która należy do klubu, widzi swój klub, a nie cennik
 (`resolveClubHubAccess`: członkostwo bije plan). Nie zmieniać.
 
+**Pełny rozkład tego, co daje sama przynależność do klubu — role, ścieżki wejścia, dorobek, sieć
+ludzi i moderacja — jest w §9.** Tam też, w §9.7, benefity klubowe, które istnieją w platformie, ale
+których katalog dziś nie sprzedaje.
+
 ---
 
-## 9. Macierz konwenignu: bilet wliczony, reguła Chatham House, wydarzenia limitowane
+## 9. Kluby dyskusyjne i przynależność
+
+Sekcja rozstrzyga to, czego katalog v6.2 nie rozstrzyga: **co dokładnie kupuje się razem z klubem**.
+Katalog wymienia klub trzema wierszami (obserwator, pełne członkostwo, onboarding), a platforma ma
+pod nim moduł zbudowany w 38 migracjach. Dlatego sekcja jest **rozdzielona na dwie części** i granica
+jest twarda:
+
+- **§9.1–§9.6 — benefity udokumentowane.** Każda pozycja ma punkt egzekwowania w kodzie albo bazie.
+  Cytat z katalogu albo odczyt z repozytorium; nic tu nie jest moim sformułowaniem.
+- **§9.7 — benefity SFORMUŁOWANE PRZEZE MNIE.** Funkcje istnieją i są zabramkowane, ale **katalog ich
+  nie sprzedaje** — nie ma dla nich ani wiersza copy, ani przypisania do progu. Propozycje są
+  oznaczone `[PROPOZYCJA]` i wymagają decyzji redakcyjnej przed wpisaniem do cennika.
+
+### 9.1 Jak się wchodzi do klubu i co znaczy status
+
+Klub ma **dwie niezależne osie**: widoczność (`clubs.visibility`) i politykę wstępu
+(`clubs.join_policy`). Klub `public + invite` to publiczna wizytówka zamkniętego grona — kombinacja
+poprawna i częsta, której model jednoosiowy by nie wyraził.
+
+| Wymiar             | Wartości                                                | Znaczenie dla członka                                                           |
+| ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Widoczność         | `public` · `members` · `private` · `secret`             | kto w ogóle widzi, że klub istnieje i co w nim napisano                         |
+| Polityka wstępu    | `open` · `request` · `invite`                           | wchodzi się samodzielnie / przez zgłoszenie / wyłącznie z imiennego zaproszenia |
+| Próg planu         | `clubs.min_tier_rank` ∈ {0, 10, 20, 25, 30, 40, 50, 60} | od której rangi plan w ogóle obejmuje ten klub                                  |
+| Atrybucja          | `attributed` · `chatham` · `anonymous_allowed`          | czy pod wpisem stoi nazwisko, czy rygor Chatham House                           |
+| Kto zakłada tematy | `members` · `moderators` · `staff_only`                 | czy członek prowadzi własne wątki, czy odpowiada w cudzych                      |
+| Tryb moderacji     | `post` · `pre` · `trusted`                              | czy wpis idzie na tablicę od razu, czy po zatwierdzeniu                         |
+
+**Trzy ścieżki wejścia** (`B`):
+
+| Ścieżka   | Jak działa                                                                                                                                                                                                                                                                                     | Punkt egzekwowania                                                                                             |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `open`    | wejście samodzielne w granicach progu planu                                                                                                                                                                                                                                                    | `club_capabilities`, `clubs.min_tier_rank`                                                                     |
+| `request` | **zgłoszenie z profilem zawodowym** — 22 pola (stanowisko, seniority, branża, doświadczenie w latach, kompetencje, języki, specjalizacja, motywacja, cele, wkład, dostępność, źródło polecenia, zgoda). Komisja rozpatruje bez rozmowy wstępnej, dlatego formularz jest dłuższy niż kontaktowy | `club_apply_submit`, walidacja `applyValidation.ts`, panel „Zgłoszenia" (`admin.community.clubs.applications`) |
+| `invite`  | **imienne zaproszenie z tokenem** (`/club/join/:token`); cykl życia: `pending` → `accepted` / `declined` / `expired` / `revoked`; osobno zaproszenia segmentowe dla całych grup odbiorców                                                                                                      | `club_invitations` (A2), zaproszenia segmentowe (A27)                                                          |
+
+**Status członkostwa** (`club_members.status`): `active` · `pending` · `invited` · `banned` · `left`.
+
+**Kluczowy benefit przynależności, którego katalog nie nazywa (patrz §9.7):**
+**członkostwo bije plan.** Osoba, której wygasła subskrypcja, ale która należy do klubu, widzi swój
+klub, a nie cennik — `resolveClubHubAccess` i `resolveClubMinisiteAccess` rozstrzygają członkostwo i
+zaproszenie **przed** rangą planu. Bramka na liście jest miękka (dokłada panel z zachętą i **nie
+zabiera ani jednego wiersza**), twarda siedzi w `club_capabilities` w bazie.
+
+### 9.2 Głos w dyskusji: co wolno której roli
+
+Role klubowe: **`lead`** (prowadzi klub) · **`moderator`** · **`member`** · **`observer`**.
+Autoryzację rozstrzyga **wyłącznie** `public.club_capabilities()`; macierz w
+`src/lib/clubs/capabilityMatrix.ts` jest dokumentacją zachowania bazy, nie jego źródłem.
+
+| Zdolność                                | `lead`                                         | `moderator` | `member`                   | `observer`                                  | nie-członek             |
+| --------------------------------------- | ---------------------------------------------- | ----------- | -------------------------- | ------------------------------------------- | ----------------------- |
+| Czytanie (`can_read`)                   | tak                                            | tak         | tak                        | **tak**                                     | zależnie od widoczności |
+| Założenie tematu (`can_post_thread`)    | tak                                            | tak         | zależnie od `who_can_post` | **nie** (obserwator jest z definicji cichy) | nie                     |
+| Odpowiedź (`can_reply`)                 | tak                                            | tak         | tak                        | **nie**                                     | nie                     |
+| Reakcja (`can_react`)                   | tak                                            | tak         | tak                        | **nie**                                     | nie                     |
+| Moderacja (`can_moderate`)              | tak                                            | tak         | nie                        | nie                                         | nie                     |
+| Zarządzanie strukturą (`can_manage`)    | **nie** — struktura należy wyłącznie do staffu | nie         | nie                        | nie                                         | nie                     |
+| Zapraszanie (`can_invite`)              | **tak**                                        | nie         | nie                        | nie                                         | nie                     |
+| Skład klubu (`can_see_members`)         | tak                                            | tak         | tak                        | **tak**                                     | zależnie od widoczności |
+| Ujawnienie autora (`can_reveal_author`) | **nie**                                        | **nie**     | nie                        | nie                                         | nie                     |
+
+Dwie rzeczy w tej macierzy są kontrintuicyjne i obie są celowe. **Zapraszanie należy wyłącznie do
+prowadzącego klub i do staffu** — moderator moderuje, ale nie poszerza grona. **Tożsamości autora
+anonimowej wypowiedzi nie ujawnia nawet `lead`**, tylko `admin` / `super_admin`: lead jest stroną
+dyskusji, więc dostęp do tożsamości byłby konfliktem interesu.
+
+**Różnica obserwator ↔ pełny członek jest więc konkretna, nie stopniowa:** obserwator (próg Członek,
+ranga 10) **czyta klub, ale w nim nie mówi**. Pełne członkostwo (próg Członek Pro, ranga 20) daje
+głos: odpowiedzi, reakcje, własne wątki w granicach `who_can_post`.
+
+### 9.3 Czym się w klubie pracuje
+
+| Benefit                                                                                                                                                                                                             | Status | Punkt egzekwowania                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| **Sześć rodzajów wątku**: dyskusja, pytanie, **stanowisko**, materiał, ogłoszenie, **ankieta**                                                                                                                      | `B`    | `club_threads.kind`, RLS `club_threads`                                                            |
+| **Stanowiska klubu**: `support` / `oppose` / `abstain` z uzasadnieniem do 1000 znaków — mapa stanowisk, nie licznik lajków                                                                                          | `B`    | `club_stances`                                                                                     |
+| **Reakcje semantyczne** w zamkniętym słowniku: „wnosi wartość", „dowód", „pytanie", „zgoda", „sprzeciw", „dzięki" — reakcja jest tu **daną** (ranking, reputacja, mapa stanowisk), nie ekspresją jak emoji w czacie | `B`    | `club_reactions`                                                                                   |
+| **Wątek zakotwiczony** w pozycji legislacyjnej UE, wpisie albo wydarzeniu — dyskusja w rytmie procesu, nie w rytmie newsów                                                                                          | `B`    | `club_threads.anchor_type` (`eu_policy_item`, `post`, `event`)                                     |
+| **Przestrzeń robocza wątku**: materiały (dokument, zbiór danych, link, notatka, nagranie), kamienie milowe (milestone, spotkanie, termin, publikacja) i pytania do wątku (otwarte / odpowiedziane / odrzucone)      | `B`    | A28 `club_thread_*` (RPC-only)                                                                     |
+| **Wzmianki (@)** z powiadomieniem i deterministyczną kolejnością zdarzeń                                                                                                                                            | `B`    | A22, A17                                                                                           |
+| **Licznik nieprzeczytanych** i sygnał „tu coś się wydarzyło od twojej ostatniej wizyty"                                                                                                                             | `B`    | `club_my_memberships.unread_count` (A18), `membershipSignals.ts`                                   |
+| **Wpis anonimowy** tam, gdzie klub na to pozwala; tożsamości nie ujawnia ani moderator, ani prowadzący klub — wyłącznie `admin` / `super_admin`                                                                     | `B`    | `club_threads.is_anonymous`, `clubs.attribution_mode`, `can_reveal_author`, `club_anonymity_salts` |
+
+### 9.4 Dorobek klubu: materiały i produkty
+
+Podział materiał/produkt odpowiada na jedyne pytanie, które odróżnia think tank od forum: **co ten
+klub wytworzył.**
+
+| Warstwa                                         | Rodzaje                                                                                                            | Status |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------ |
+| **Materiały** (wejście do pracy klubu)          | briefing przedsesyjny, analiza, notatka ze spotkania, zbiór danych, stanowisko, materiał prawny, prezentacja, inne | `B`    |
+| **Produkty** (wyjście — powierzchnia „Dorobek") | nota z dyskusji, policy brief, scenariusz, memo, agenda badawcza, wniosek publiczny, memo decyzyjne                | `B`    |
+
+Każdy dokument ma widoczność (`club` / `moderators`), status (`draft` / `published` / `archived`),
+język (pl / en / mixed), wersję, etykietę źródła, przypięcie i licznik pobrań — `club_documents`,
+`club_documents_list` (A28, A29).
+
+**Kalendarz klubu** (`B`, `club_events` + `club_event_rsvps`): terminy w ośmiu rodzajach — spotkanie,
+briefing, deadline, konsultacja, publikacja, **głosowanie**, warsztat, inne — z RSVP i statusem
+(`scheduled` / `cancelled` / `done`). Obok niego **harmonogram etapów** (`club_milestones`): rytm
+pracy klubu rozpisany na kamienie milowe. Pojedynczy termin ma **własny próg rangi**: `club_events.min_tier_rank`, dokładany **na
+wierzchu** bramki klubu, nigdy zamiast niej. To jest punkt egzekwowania katalogowej pozycji
+**„2 Decision Laby rocznie w roli obserwatora"** dla progu Rada Instytutu (ranga 25) — bez tego progu
+jedynym sposobem zawężenia wstępu byłoby zakładanie osobnego klubu na każdy Decision Lab.
+
+**Pomiar dynamiki klubu** (`B`): klub widzi własny rytm (`insights`, A28) — pasek aktywności liczy
+się z klubu, nie z liczby pobrań strony wątku.
+
+### 9.5 Klub jako sieć ludzi, nie archiwum treści
+
+Pięć bytów dołożonych w A32/A33 — wszystkie zabramkowane tą samą bramką, co reszta modułu:
+
+| Benefit                                                                                                                                                                                                                       | Status | Punkt egzekwowania                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| **Ogłoszenia „szukam / oferuję"**: jedna linia jako pretekst do odezwania się („szukam kontaktu w MON", „mogę udostępnić analizę X"), z datą ważności i stanem „załatwione"; rozmowa idzie do DM, nie pod ogłoszenie          | `B`    | `club_board_notices` (`seeking` / `offering`, `open` / `closed` / `removed`)        |
+| **Zadeklarowana kompetencja w tym klubie** — deklaracja jest zawężona do klubu, nie globalna: ten sam człowiek jest ekspertem od amunicji w klubie obronnym i zwykłym członkiem gdzie indziej. Zasila katalog ekspertów klubu | `B`    | `club_member_expertise`, `/club/:slug/experts`                                      |
+| **„Poproś o zdanie"** — prośba o opinię ze śladem, nie zaginionym DM-em                                                                                                                                                       | `B`    | `club_expert_pings`                                                                 |
+| **„Poznaj członka"** — rotacja tygodniowa z archiwum przedstawień                                                                                                                                                             | `B`    | `club_member_spotlight`, `/club/:slug/spotlight`                                    |
+| **Skład klubu z twarzami**: kto pisze w klubie, ten w tym klubie **jest** (naprawa A32 §7 — klub referencyjny pokazywał „0 członków" przy siedmiu piszących)                                                                  | `B`    | `club_members`, roster (A34)                                                        |
+| **Specjalizacje i tematy klubu** jako osobne powierzchnie wejścia i dopasowania                                                                                                                                               | `B`    | `club_specializations`, `club_topics`, `/club/specialization/:slug`, `clubMatch.ts` |
+
+### 9.6 Prywatność, moderacja i dane osobowe
+
+| Benefit                                                                                                                                                                                                                 | Status | Punkt egzekwowania                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------- |
+| **Reguła Chatham House na dwóch poziomach**: w klubie jako tryb atrybucji (`attribution_mode = 'chatham'`) i na spotkaniu jako **bramka** (`events.chatham_house` + flaga `chatham_house_events`, od progu Członek Pro) | `B`    | `club_capabilities`, `rsvp_event`, `get_event_access`                             |
+| **Moderacja adekwatna do klubu**: `post` (po fakcie), `pre` (przed publikacją), `trusted` (bez kolejki)                                                                                                                 | `B`    | `clubs.moderation_mode`, `club_capabilities.can_moderate`                         |
+| **Zamknięta powierzchnia mutacji**: wszystkie tabele klubowe są RLS deny-all z odebranymi grantami dla `authenticated` — cały ruch idzie przez `SECURITY DEFINER` RPC                                                   | `B`    | A3/A4, A8 hardening                                                               |
+| **„Kuluary" jako realny reżim zaufania** — jedyny z pięciu działów klubu referencyjnego, który przeżył czystkę A29, bo pozostałe cztery duplikowały rodzaj wątku, kotwicę albo powierzchnię dokumentów                  | `B`    | `club_groups` (dział dziedziczy albo nadpisuje widoczność i `who_can_post` klubu) |
+| **Ślad klubowy w eksporcie RODO** (art. 15 i 20): członkostwa, tematy i odpowiedzi wołającego są w eksporcie danych osobowych i w jego manifeście                                                                       | `B`    | A23, `exportMyData`, `assertExportManifestMatches`                                |
+| **Minisite klubu**: kuratorska strona klubu zamiast operacyjnej listy wątków — próg **rangi 50** (Partner Strategiczny), ale członkostwo i zaproszenie biją plan                                                        | `B`    | `CLUB_MINISITE_TIER_RANK = TIER_RANKS.partner_general`                            |
+
+### 9.7 Benefity klubowe SFORMUŁOWANE PRZEZE MNIE — nie ma ich w katalogu
+
+Poniższe funkcje **istnieją w platformie i są zabramkowane**, ale katalog v6.2 nie ma dla nich ani
+jednego wiersza copy. To jest ta sama klasa zaniedbania, którą wdrożenie v6.2 nazwało wprost przy
+regule Chatham House i limicie miejsc: _„obie funkcje były zbudowane, przetestowane i nieużywane w
+sprzedaży"_. Formułuję je jako propozycje copy — **każda wymaga decyzji redakcyjnej**, bo katalog
+jest dokumentem handlowym, a nie inwentarzem kodu.
+
+Wszystkie propozycje są klasy `B` (bramka już istnieje), więc **żadna nie dokłada pozycji do
+kalendarza zobowiązań z §11** — to jest ich najmocniejszy argument: zwiększają wartość progu bez
+zwiększania obciążenia operacyjnego jednej osoby.
+
+| #   | `[PROPOZYCJA]` copy do katalogu                                                                                   | Próg docelowy                      | Status | Punkt egzekwowania                                                             | Dlaczego warto                                                                                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **„Twoje członkostwo klubowe zostaje z Tobą — także po wygaśnięciu składki"**                                     | Członek Pro i wyżej                | `B`    | `resolveClubHubAccess`, `resolveClubMinisiteAccess` (członkostwo bije plan)    | najmocniejszy argument retencyjny, jaki ten moduł ma, i dziś w ogóle niewypowiedziany; adresuje wprost tezę katalogu, że członkostwo utrzymuje lepiej niż subskrypcja |
+| 2   | **„Dorobek klubu: siedem rodzajów produktu — od noty z dyskusji do memo decyzyjnego"**                            | Członek Pro i wyżej                | `B`    | `club_documents.kind` (7 rodzajów produktu), powierzchnia „Dorobek"            | odpowiada na jedyne pytanie odróżniające think tank od forum; dziś katalog sprzedaje „wątki, dokumenty, ankiety, kalendarz" i milczy o wyjściu z pracy klubu          |
+| 3   | **„Tablica «szukam / oferuję»: kontakt bez pretekstu jest trudniejszy niż kontakt z pretekstem"**                 | Członek Pro i wyżej                | `B`    | `club_board_notices`                                                           | networking nie załamuje się z braku ludzi, tylko z braku pretekstu — to jest benefit, za który płaci się w sieciach zawodowych osobno                                 |
+| 4   | **„Katalog kompetencji klubu i «poproś o zdanie» — wiesz, kto realnie pracował nad sprawą"**                      | Członek Pro i wyżej                | `B`    | `club_member_expertise`, `club_expert_pings`, `/club/:slug/experts`            | najcenniejsza asymetria informacyjna w klubie; uzupełnia pozycję „korespondencja z ekspertami", która dziś mówi tylko o ekspertach NES, nie o członkach               |
+| 5   | **„Stanowisko klubu: poparcie, sprzeciw albo wstrzymanie z uzasadnieniem — mapa stanowisk, nie licznik reakcji"** | Członek Pro i wyżej                | `B`    | `club_stances`, `club_threads.kind = 'position'`                               | pokazuje, że klub produkuje pozycję, a nie tylko rozmowę                                                                                                              |
+| 6   | **„Wątek zakotwiczony w akcie prawnym UE — dyskusja w rytmie procesu legislacyjnego, nie w rytmie newsów"**       | Członek Pro i wyżej                | `B`    | `club_threads.anchor_type = 'eu_policy_item'`                                  | domyka obietnicę monitoringu regulacyjnego: tracker mówi, co się zmieniło, klub mówi, co z tym zrobić                                                                 |
+| 7   | **„Przestrzeń robocza wątku: materiały, kamienie milowe i pytania w jednym miejscu"**                             | Członek Pro i wyżej                | `B`    | A28 `club_thread_*`                                                            | odpowiada na realny zarzut wobec forów: wspólne źródła pochowane w czterdziestu odpowiedziach                                                                         |
+| 8   | **„Wpis anonimowy w klubie prowadzonym w rygorze Chatham House"**                                                 | Członek Pro i wyżej                | `B`    | `attribution_mode`, `is_anonymous`, `can_reveal_author`                        | katalog sprzedaje regułę Chatham House na spotkaniach, ale nie na tablicy klubu, choć klub ma dla niej własny tryb                                                    |
+| 9   | **„Ankiety klubowe i głosowania w kalendarzu"**                                                                   | Członek Pro i wyżej                | `B`    | `club_threads.kind = 'poll'`, `club_thread_polls`, `club_events.kind = 'vote'` | tani mechanizm zaangażowania w pierwszych 14 dniach — a to jest wskaźnik przewidujący churn 90-dniowy (§14)                                                           |
+| 10  | **„Poznaj członka: rotacja tygodniowa z archiwum przedstawień"**                                                  | Członek Pro i wyżej                | `B`    | `club_member_spotlight`                                                        | wprost pracuje na onboarding klubowy w 48 godzin, który katalog już sprzedaje jako pozycję `P`                                                                        |
+| 11  | **„Twój ślad w klubie jest w eksporcie Twoich danych"**                                                           | od Członka                         | `B`    | A23, `exportMyData`                                                            | nie jest benefitem sprzedażowym, ale jest argumentem wiarygodnościowym u odbiorcy instytucjonalnego, który pyta o RODO przed podpisem                                 |
+| 12  | **„Zgłoszenie do klubu rozpatruje komisja na podstawie profilu zawodowego"**                                      | ścieżka `request`, wszystkie progi | `B`    | `club_apply_submit`, 22 pola formularza, panel „Zgłoszenia"                    | selekcja jest wartością, nie przeszkodą: to ona odróżnia klub od grupy na komunikatorze i uzasadnia rygor Chatham House                                               |
+
+**Czego świadomie NIE proponuję jako benefitu:** zdolności moderacyjnych i zarządczych (`can_moderate`,
+`can_manage`, `can_invite`). To są **role operacyjne nadawane przez staff**, nie składniki oferty
+kupowanej za składkę — sprzedawanie „zostań moderatorem" w cenniku odwróciłoby zależność między
+zaufaniem a płatnością, a przy klubach prowadzonych w regule Chatham House jest to zależność, na
+której stoi cały mechanizm.
+
+### 9.8 Rozjazdy klubowe do rozstrzygnięcia
+
+1. **`working_groups` jest flagą dekoracyjną, a katalog sprzedaje grupę zadaniową za 60 000 zł.**
+   Flaga `working_groups` figuruje w `features` progów Pro, VIP, Enterprise i partnerskich, a rejestr
+   capabilities opisuje ją wprost: „brak bramki — obecnie czysty benefit marketingowy". Jednocześnie
+   próg Partner Strategiczny sprzedaje **„1 własną grupę zadaniową rocznie: cykl 4 spotkań zakończony
+   raportem sygnowanym wspólnie"** jako pozycję `P`. Zobowiązanie procesowe jest w kalendarzu (§11),
+   więc nie jest to obietnica bez pokrycia — ale flaga o tej nazwie na progu Pro sugeruje coś, czego
+   próg Pro nie dostaje. Do decyzji: zdjąć flagę z niższych progów albo zmienić jej nazwę.
+2. **Minisite: ranga 50 wobec obietnicy „prywatny mikroserwis klubowy dla organizacji".**
+   Stała jest już poprawna (do 22.08 wskazywała rangę 20, czyli funkcję wycenioną w progu za 60 000 zł
+   dostawał każdy Pro za 119 zł). Zostaje pytanie handlowe: czy Partner Instytucjonalny (ranga 40) ma
+   mieć minisite, bo dziś nie ma — a katalog daje mu „wszystkie kluby dyskusyjne dla osób nominowanych".
+3. **Obserwator z progu Członek wchodzi na razie do jednego klubu tematycznego, w trybie testu.**
+   Argument za szerszym otwarciem: społeczność utrzymuje najlepiej ze wszystkich benefitów. Argument
+   przeciw: dyskusja w regule Chatham House czerpie wartość z zamknięcia kręgu. Od v6.2 argument
+   przeciw ma **własną bramkę** (`chatham_house_events` od progu Pro), więc obserwator może wejść do
+   klubu, nie wchodząc na spotkania prowadzone w tej regule — otwarcie klubu przestało być decyzją
+   „wszystko albo nic". **Które** kluby są otwarte dla obserwatora, rozstrzyga wyłącznie
+   `clubs.min_tier_rank`, nie stała w kodzie.
+4. **Ranga 25 w klubach ma dziś dwóch właścicieli**: próg Rada Instytutu i próg Zespół. Klub
+   z `min_tier_rank = 25` wpuszcza więc również każde miejsce zespołowe. Jest to skutek zamierzony
+   (katalog mówi wprost „Zespół daje zakres Pro plus wejścia rangi 25"), ale przy zakładaniu klubu
+   zastrzeżonego dla Rady trzeba pamiętać, że ranga 25 nie jest tożsama z „tylko Rada".
+
+---
+
+## 10. Macierz konwenignu: bilet wliczony, reguła Chatham House, wydarzenia limitowane
 
 | Próg                                      | Bilet wliczony w plan            | Reguła Chatham House | Wydarzenia limitowane       |
 | ----------------------------------------- | -------------------------------- | -------------------- | --------------------------- |
@@ -470,7 +671,7 @@ Rok biletowy jest **członkowski (rocznicowy)**, nie kalendarzowy (`membership_y
 
 ---
 
-## 10. Kalendarz zobowiązań rocznych — 21 pozycji `P`
+## 11. Kalendarz zobowiązań rocznych — 21 pozycji `P`
 
 Dwadzieścia jeden pozycji katalogu to zobowiązania, których system nie pilnuje. Pilnuje ich ten
 kalendarz — **jeżeli pozycja nie ma tu wpisu, nie powinna znaleźć się w katalogu.**
@@ -506,7 +707,7 @@ zastępuje.
 
 ---
 
-## 11. Rejestr flag `features`: co jest bramką, a co obietnicą
+## 12. Rejestr flag `features`: co jest bramką, a co obietnicą
 
 Źródło: `src/lib/billing/capabilities.ts` (`TIER_CAPABILITIES`). Pole `enforced` jest weryfikowane
 maszynowo przez snapshot bramek (`src/lib/authz/authzSnapshot.generated.ts`) i test parytetu — bramka
@@ -553,9 +754,9 @@ dopisana bez `enforced: true` (albo odwrotnie) obleje CI.
 
 ---
 
-## 12. Rozjazdy i decyzje otwarte — czytać przed publikacją cennika
+## 13. Rozjazdy i decyzje otwarte — czytać przed publikacją cennika
 
-### 12.1 Ceny: katalog v6.2 ≠ `access_plans`
+### 13.1 Ceny: katalog v6.2 ≠ `access_plans`
 
 | Próg              | Katalog v6.2      | `access_plans` (to, co płaci klient) | Różnica                   |
 | ----------------- | ----------------- | ------------------------------------ | ------------------------- |
@@ -571,20 +772,20 @@ zostały wprowadzone do `access_plans`** — jedyną zmianą cenową z 22.08 jes
 czy sprzedajemy według v6.2 (wtedy potrzebna migracja cen + resync katalogu operatora), czy katalog
 ma być zaktualizowany do cen z bazy.
 
-### 12.2 Brak planów rocznych dla stawek ulgowych
+### 13.2 Brak planów rocznych dla stawek ulgowych
 
 Katalog liczy zniżkę biletową od **składki studenckiej 190 zł rocznie**, ale w `access_plans`
 istnieją wyłącznie plany miesięczne dla `student` (19 zł) i `educator` (29 zł). Wariant roczny
 (190 zł / 290 zł) trzeba dopisać, jeżeli ma być sprzedawany.
 
-### 12.3 Enterprise (`corporate`, ranga 30) nie ma odpowiednika w katalogu v6.2
+### 13.3 Enterprise (`corporate`, ranga 30) nie ma odpowiednika w katalogu v6.2
 
 Baza trzyma aktywny próg `corporate` w segmencie `business` z pełnym zestawem benefitów, a tabela
 progów instytucjonalnych v6.2 zaczyna się od Partnera Instytucjonalnego (ranga 40). Ranga 30 jest
 jednocześnie celem przemapowania wycofanej rangi 28. Decyzja: albo Enterprise wraca do katalogu jako
 próg wejścia dla firm, albo wiersz idzie do `active = false`.
 
-### 12.4 Nazwy handlowe w bazie ≠ nazwy w katalogu v6.2
+### 13.4 Nazwy handlowe w bazie ≠ nazwy w katalogu v6.2
 
 Karty `/pricing` renderują `name_pl` z bazy (Essential, Plus, Pro, VIP, Enterprise, Strategic
 Partner, Partner Generalny, President's Circle), a katalog i copy benefitów mówią o Czytelniku,
@@ -592,7 +793,7 @@ Członku, Członku Pro, Radzie Instytutu, Partnerze Instytucjonalnym, Partnerze 
 Założycieli. Nagłówki grup w `benefits` już używają nowej nomenklatury („Wszystko z progu
 Czytelnik…"), więc na jednej karcie stoją dziś dwie konwencje nazewnicze. To zmiana copy, nie bramek.
 
-### 12.5 Pozostałe rozstrzygnięcia z katalogu
+### 13.5 Pozostałe rozstrzygnięcia z katalogu
 
 - **Cena progu Członek** — albo schodzi do 25–29 zł jako próg masowej przynależności, albo zostaje
   39 zł i wliczony bilet oraz warstwa odpowiedzi muszą tę różnicę udźwignąć (kotwice rynkowe:
@@ -609,7 +810,7 @@ Czytelnik…"), więc na jednej karcie stoją dziś dwie konwencje nazewnicze. T
   Od v6.2 argument „Chatham House czerpie wartość z zamknięcia kręgu" ma własną bramkę
   (`chatham_house_events` od progu Pro), więc otwarcie klubu przestało być decyzją „wszystko albo nic".
 
-### 12.6 Jedna pozycja do zbudowania
+### 13.6 Jedna pozycja do zbudowania
 
 **Warstwa odpowiedzi na archiwum** — trzy wiersze katalogu (3 pytania miesięcznie dla Czytelnika,
 20 dla Członka, bez limitu od Pro), jedna funkcja, zero linii kodu. Jedyna pozycja `N` i jedyna
@@ -619,7 +820,7 @@ pobranych przez czołowego crawlera przypada jedno odesłanie zwrotne.
 
 ---
 
-## 13. Wskaźniki, bez których ten katalog jest hipotezą
+## 14. Wskaźniki, bez których ten katalog jest hipotezą
 
 | Wskaźnik                                        | Cel     | Punkt odniesienia                                            |
 | ----------------------------------------------- | ------- | ------------------------------------------------------------ |
@@ -631,7 +832,7 @@ pobranych przez czołowego crawlera przypada jedno odesłanie zwrotne.
 
 ---
 
-## 14. Gdzie to mieszka w repozytorium
+## 15. Gdzie to mieszka w repozytorium
 
 **Katalog i ceny**
 
@@ -656,8 +857,17 @@ pobranych przez czołowego crawlera przypada jedno odesłanie zwrotne.
 - `src/lib/billing/catalog.ts`, `src/lib/billing/catalogSync.server.ts` — katalog planów i synchronizacja z operatorem płatności
 - `src/lib/billing/membership.ts` — hub członkostwa: nadania (`membership_grants`), darowizny, organizacja i miejsca
 - `src/lib/clubs/planTiers.ts` — progi planu dla klubów (`CLUB_PLAN_TIER_RANK`)
-- `src/lib/clubs/hubAccess.ts` — `CLUB_TIER_RANK = 20`, `CLUB_OBSERVER_TIER_RANK = 10`
+- `src/lib/clubs/hubAccess.ts` — `CLUB_TIER_RANK = 20`, `CLUB_OBSERVER_TIER_RANK = 10`, doktryna „członkostwo bije plan"
 - `src/lib/clubs/minisiteAccess.ts` — `CLUB_MINISITE_TIER_RANK = 50`
+- `src/lib/clubs/capabilityMatrix.ts` — macierz zdolności ról klubowych (dokumentacja zachowania `club_capabilities()`)
+- `src/lib/clubs/applyValidation.ts` — 22 pola zgłoszenia do klubu; `src/lib/clubs/gateView.ts`, `accessSentence.ts` — prezentacja bramki i ustawień dostępu
+- `src/lib/clubs/membershipSignals.ts` — nieprzeczytane i sygnał „coś się wydarzyło"; `networkApi.ts`, `memberRoster.ts` — sieć ludzi i skład klubu
+- `supabase/migrations/20260808090000_discussion_clubs_a1_structure.sql` — klub, grupa, członkostwo, `club_capabilities()` jako jedno źródło prawdy o dostępie
+- `supabase/migrations/20260808092000…a2_invitations.sql`, `…20260808270000…a27_segment_invitations.sql`, `…20260811150000…a35_applications_fixes.sql` — zaproszenia i zgłoszenia
+- `supabase/migrations/20260808093000…a3_threads.sql`, `…094000…a4_interaction.sql` — wątki, reakcje semantyczne, stanowiska
+- `supabase/migrations/20260808300000…a28_workspace.sql`, `…310000…a28_thread_workspace.sql`, `…20260809000000…a29_products_and_topic_sections.sql` — dokumenty, harmonogram, dorobek (7 rodzajów produktu)
+- `supabase/migrations/20260810120000…a32_networking.sql`, `…20260810180000…a33_network_screens.sql`, `…20260810210000…a34_roster_faces.sql` — ogłoszenia, kompetencje, „poproś o zdanie", „poznaj członka", skład
+- `supabase/migrations/20260808250000…a23_gdpr_export.sql` — ślad klubowy w eksporcie danych osobowych
 - `src/components/admin/membership/**` — panel warstw: edytor progów, panel capabilities, nadania
 
 **Funkcje i tabele bazy przywoływane w katalogu**
@@ -675,4 +885,4 @@ pobranych przez czołowego crawlera przypada jedno odesłanie zwrotne.
 _Stan dokumentu: 2026-09-09. Podstawa: katalog v6.2 (22.08.2026) oraz stan migracji i kodu na branchu
 `claude/focused-goodall-rhngcr`. Dokument jest zestawieniem — źródłem prawdy o cenie pozostaje
 `access_plans`, o uprawnieniu `membership_tiers.features` i ranga, o zobowiązaniu procesowym
-kalendarz z §10._
+kalendarz z §11._
