@@ -34,7 +34,9 @@ interface SubscribePayload {
   source: string;
   consents: ConsentPayload[];
   meta?: Record<string, string>;
+  mailingLists?: string[];
 }
+
 
 interface SignUpArgs {
   email: string;
