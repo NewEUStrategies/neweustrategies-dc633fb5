@@ -644,7 +644,7 @@ describe("PopupSignupForm: wybór listy mailingowej", () => {
     await submit();
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
-    expect(h.subscribe.mock.calls[0][0].data.meta).toEqual({ mailing_list: "raporty" });
+    expect(h.subscribe.mock.calls[0][0].data.mailingLists).toEqual(["raporty"]);
   });
 
   it("lista oznaczona jako wymagana blokuje zapis, dopóki nikt jej nie wybierze", async () => {
@@ -980,8 +980,8 @@ describe("PopupSignupForm: co ląduje w profilu i jak wygląda formularz", () =>
         company: "NES",
         linkedin: "https://linkedin.com/in/jan-kowalski",
         phone: "+48600000000",
-        mailing_list: "tygodnik",
       },
+      mailingLists: ["tygodnik"],
     });
     expect(h.signUp.mock.calls[0][0].options.data).toMatchObject({
       first_name: "Jan",

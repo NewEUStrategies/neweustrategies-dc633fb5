@@ -43,6 +43,10 @@ const NewsletterInput = z.object({
   // "Wymagane" pola zadeklarowane przez widget; server merguje z tenant
   // policy floor (form_field_policies) i weryfikuje przed zapisem.
   requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
+  // Preferencje subskrybenta - jedno wejście dla WSZYSTKICH formularzy.
+  // Trafiają do meta.interests / meta.mailing_lists (profil) oraz do CRM.
+  topics: z.array(z.string().trim().min(1).max(120)).max(60).optional(),
+  mailingLists: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
   formType: z.enum(["newsletter", "join_us"]).default("newsletter"),
 });
 
@@ -236,7 +240,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // Never reset an already-confirmed subscriber.
     const { data: existing } = await supabaseAdmin
       .from("newsletter_subscribers")
-      .select("id, status")
+      .select("id, status, meta, user_id")
       .eq("tenant_id", tenantId)
       .eq("email", email)
       .maybeSingle();
@@ -296,8 +300,31 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       if (!recipientOk) return { ok: false, error: "rate_limited" };
     }
 
-    // `meta` is spread in only when present so a later signup (e.g. a plain form
-    // over a popup entry) never clobbers previously captured fields with null.
+    // Preferencje (tematy + listy) sprowadzamy do JEDNEGO kształtu i dokładamy
+    // do już zapisanych - dzięki temu profil użytkownika i CRM widzą komplet
+    // niezależnie od tego, który formularz/widget wysłał zgłoszenie.
+    const { applyPreferences, readPreferences, crmCustomFromPreferences } =
+      await import("@/lib/newsletter/preferences");
+    const mergedMeta = applyPreferences(
+      (existing?.meta ?? null) as Record<string, unknown> | null,
+      meta,
+      { topics: data.topics ?? [], mailingLists: data.mailingLists ?? [] },
+    );
+    const prefs = readPreferences(mergedMeta);
+
+    // Powiązanie z kontem: jeśli adres należy do zarejestrowanego użytkownika
+    // tego tenanta, subskrypcja jest widoczna w jego profilu (user_id).
+    let userId: string | null = existing?.user_id ?? null;
+    if (!userId) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .ilike("email", email)
+        .maybeSingle();
+      userId = profile?.id ?? null;
+    }
+
     const base = {
       tenant_id: tenantId,
       email,
@@ -311,8 +338,10 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       ip: clientIp,
       user_agent: userAgent,
       consents: data.consents ?? [],
-      ...(meta ? { meta } : {}),
+      ...(userId ? { user_id: userId } : {}),
+      ...(Object.keys(mergedMeta).length > 0 ? { meta: mergedMeta } : {}),
     };
+    const crmCustom = { ...(data.custom ?? {}), ...crmCustomFromPreferences(prefs) };
 
     if (!doi) {
       const { error } = await supabaseAdmin.from("newsletter_subscribers").upsert(
@@ -326,7 +355,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
         { onConflict: "tenant_id,email" },
       );
       if (error) return { ok: false, error: error.message };
-      await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
+      await syncToCrm(tenantId, email, data, mergedMeta, crmCustom, prefs);
       // Potwierdzenie zapisu w standardzie NES (kolejka transakcyjna).
       const { sendTxEmail } = await import("@/lib/email/transactional.server");
       await sendTxEmail({
@@ -378,7 +407,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       ? `${settings.sender_name?.trim() || "New European Strategies"} <${senderEmail}>`
       : undefined;
     const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html, from });
-    await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
+    await syncToCrm(tenantId, email, data, mergedMeta, crmCustom, prefs);
     return { ok: true, status: "pending", emailSent: send.ok };
   });
 
@@ -398,6 +427,7 @@ async function syncToCrm(
   },
   meta: Record<string, string> | null,
   custom: Record<string, string> | null,
+  prefs?: { topics: string[]; mailingLists: string[] },
 ): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -416,7 +446,40 @@ async function syncToCrm(
     });
 
     if (error) console.error("[newsletter] crm sync failed", error);
+    if (!error && prefs) await tagCrmLead(tenantId, email, prefs);
   } catch (err) {
     console.error("[newsletter] crm sync threw", err);
+  }
+}
+
+// Tematy i listy trafiają też do tagów leada, żeby dało się po nich filtrować
+// i budować segmenty w CRM. Tagi tylko DOKŁADAMY - nic nie kasujemy.
+async function tagCrmLead(
+  tenantId: string,
+  email: string,
+  prefs: { topics: string[]; mailingLists: string[] },
+): Promise<void> {
+  try {
+    const [{ supabaseAdmin }, { crmTagsFromPreferences, mergeLists }] = await Promise.all([
+      import("@/integrations/supabase/client.server"),
+      import("@/lib/newsletter/preferences"),
+    ]);
+    const incoming = crmTagsFromPreferences(prefs);
+    if (incoming.length === 0) return;
+    const { data: lead } = await supabaseAdmin
+      .from("crm_leads")
+      .select("id, tags")
+      .eq("tenant_id", tenantId)
+      .ilike("email", email)
+      .maybeSingle();
+    if (!lead) return;
+    const current = Array.isArray(lead.tags)
+      ? lead.tags.filter((t): t is string => typeof t === "string")
+      : [];
+    const next = mergeLists(current, incoming);
+    if (next.length === current.length) return;
+    await supabaseAdmin.from("crm_leads").update({ tags: next }).eq("id", lead.id);
+  } catch (err) {
+    console.error("[newsletter] crm tag sync threw", err);
   }
 }
