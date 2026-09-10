@@ -78,6 +78,10 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   // Mapa ciepła czyta kategorie jako WIERSZE, a serie jako KOLUMNY, więc
   // ten sam blok danych, który daje słupki grupowane, daje macierz.
   { value: "heatmap", labelKey: "kinds.heatmap" },
+  // Tornado czyta kategorie jako PARAMETRY, a dwie pierwsze serie jako
+  // wyniki przy wartości niskiej i wysokiej. Wynik bazowy jest osobną
+  // liczbą, nie kategorią - patrz `tornadoModelFromConfig`.
+  { value: "tornado", labelKey: "kinds.tornado" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {

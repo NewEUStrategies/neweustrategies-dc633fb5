@@ -48,6 +48,7 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "beeswarm", label: "Rój (beeswarm)" },
     { key: "scatter", label: "Punktowy" },
     { key: "heatmap", label: "Mapa ciepła" },
+    { key: "tornado", label: "Tornado" },
   ],
 };
 

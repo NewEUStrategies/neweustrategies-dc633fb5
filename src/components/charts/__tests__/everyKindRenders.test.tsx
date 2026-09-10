@@ -29,7 +29,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
-import { CHART_KINDS } from "@/lib/charts/types";
+import { CHART_KINDS, type ChartKind } from "@/lib/charts/types";
 import { parseChartConfig } from "@/lib/charts/parse";
 import { Chart } from "../Chart";
 
@@ -259,6 +259,7 @@ const WZORZEC: Record<ChartKind, WzorzecKlawiatury> = {
   beeswarm: "kontener",
   scatter: "kontener",
   heatmap: "kontener",
+  tornado: "kontener",
 };
 
 /**
@@ -279,6 +280,8 @@ const KLAWISZ_DALEJ: Record<ChartKind, string> = {
   beeswarm: "ArrowRight",
   scatter: "ArrowRight",
   heatmap: "ArrowRight",
+  // Parametry biegną w PIONIE, tak jak kategorie słupków poziomych.
+  tornado: "ArrowDown",
 };
 
 describe("każdy rodzaj jest dostępny z klawiatury", () => {

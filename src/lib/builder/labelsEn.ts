@@ -751,6 +751,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "rój punktów (rozkład)": "point swarm (distribution)",
   "punktowy (zależność)": "scatter (relationship)",
   "mapa ciepła (wrażliwość)": "heatmap (sensitivity)",
+  "tornado (wrażliwość)": "tornado (sensitivity)",
   "słupki poziome": "horizontal bars",
   "pole (area)": "area",
   "termometr pionowy": "vertical thermometer",

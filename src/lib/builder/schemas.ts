@@ -769,6 +769,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "beeswarm", label: "rój punktów (rozkład)" },
         { value: "scatter", label: "punktowy (zależność)" },
         { value: "heatmap", label: "mapa ciepła (wrażliwość)" },
+        { value: "tornado", label: "tornado (wrażliwość)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },

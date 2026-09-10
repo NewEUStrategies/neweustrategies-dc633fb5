@@ -27,11 +27,13 @@ import { BoxplotChart } from "./BoxplotChart";
 import { BeeswarmChart } from "./BeeswarmChart";
 import { ScatterChart } from "./ScatterChart";
 import { HeatmapChart } from "./HeatmapChart";
+import { TornadoChart } from "./TornadoChart";
 import { histogramModelFromConfig, histogramTable } from "@/lib/charts/kinds/histogram";
 import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot";
 import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
 import { scatterModelFromConfig, scatterTable } from "@/lib/charts/kinds/scatter";
 import { heatmapModelFromConfig, heatmapTable } from "@/lib/charts/kinds/heatmap";
+import { tornadoModelFromConfig, tornadoTable } from "@/lib/charts/kinds/tornado";
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
 
@@ -68,7 +70,11 @@ export function Chart({ config, lang, className }: ChartProps) {
   // liczby, które decydowały o przydziale koloru. Rysuje go komponent, bo
   // tylko on zna skalę; legenda serii wypisałaby tu nazwy kolumn, które
   // czytelnik ma już na osi.
-  const wlasnyKluczRysunku = jedenRozklad || config.kind === "heatmap";
+  // Tornado dokłada się do tej samej grupy: jego dwa kierunki to WARTOŚĆ
+  // NISKA i WYSOKA parametru, nie serie, a legenda serii wypisałaby tu
+  // nazwy dwóch serii wejściowych, których czytelnik na rysunku nie widzi
+  // jako osobnych obiektów.
+  const wlasnyKluczRysunku = jedenRozklad || config.kind === "heatmap" || config.kind === "tornado";
 
   const legend: LegendItem[] = useMemo(() => {
     if (isWaterfall) {
@@ -246,6 +252,7 @@ const DRAWING_BY_KIND: Record<ChartKind, KindView> = {
   beeswarm: BeeswarmChart,
   scatter: ScatterChart,
   heatmap: HeatmapChart,
+  tornado: TornadoChart,
 };
 
 /**
@@ -266,6 +273,7 @@ const TABLE_BY_KIND: Record<ChartKind, KindView> = {
   beeswarm: BeeswarmDataTable,
   scatter: ScatterDataTable,
   heatmap: HeatmapDataTable,
+  tornado: TornadoDataTable,
 };
 
 /**
@@ -309,6 +317,70 @@ const TABLE_BY_KIND: Record<ChartKind, KindView> = {
  * Komórka bez danych jedzie jako `legend.empty`, a nie jako zero: zero jest
  * wynikiem, brak danych nie jest.
  */
+/**
+ * ALTERNATYWA TEKSTOWA TORNADA - ranking, a nie zbiór wierszy.
+ *
+ * Kolejność wierszy jest tu TREŚCIĄ, nie porządkiem prezentacji: tornado
+ * istnieje po to, żeby czytelnik odczytał hierarchię wrażliwości, a ta
+ * hierarchia na rysunku jest kolejnością od najszerszego paska do
+ * najwęższego. Tabela zachowuje ją bez sortowania po swojemu i dokłada
+ * kolumnę udziału w największej rozpiętości, bo „rozpiętość 8" nie mówi, czy
+ * to dużo - mówi to dopiero „38% największej".
+ *
+ * Przypisy przy wierszu niosą dokładnie te fakty, które model wykrył
+ * arytmetycznie: parametr odwrotny (wysoka wartość obniża wynik), rozpiętość
+ * zerowa i baza poza przedziałem. Ciche zamienienie końców paska przy
+ * parametrze odwrotnym pozbawiłoby czytelnika najciekawszej zwykle
+ * informacji w całej analizie wrażliwości.
+ */
+function TornadoDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  const tabela = tornadoTable(tornadoModelFromConfig(config));
+  const liczba = (v: number | null | undefined): string =>
+    v === null || v === undefined ? "-" : formatChartValue(v, lang, config.unit);
+  const KOLUMNY = ["low", "high", "lowDelta", "highDelta", "swing"] as const;
+  return (
+    <table className={CHART_TABLE_CLS.table}>
+      <thead>
+        <tr>
+          <th scope="col" className={CHART_TABLE_CLS.th}>
+            {t("tornado.table.parameter")}
+          </th>
+          {KOLUMNY.map((k) => (
+            <th key={k} scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t(`tornado.table.${k}`)}
+            </th>
+          ))}
+          <th scope="col" className={CHART_TABLE_CLS.thNum}>
+            {t("tornado.table.spanShare")}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {tabela.rows.map((r, i) => (
+          <tr key={i}>
+            <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+              {r.label}
+              {r.notes.length > 0 && (
+                <span className="block text-[10px] font-normal text-muted-foreground">
+                  {r.notes.map((n) => t(`tornado.note.${n}`)).join("; ")}
+                </span>
+              )}
+            </th>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.low)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.high)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.lowDelta)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.highDelta)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.swing)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{formatPercent(r.spanShare, lang)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = (key: string): string => scoped(key, { lng: lang });

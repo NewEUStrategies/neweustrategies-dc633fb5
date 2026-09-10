@@ -59,6 +59,12 @@ export const CHART_KINDS = [
   // unikać" mówi: tabela liczb; mapa ciepła ma pokazać KSZTAŁT wrażliwości,
   // a nie kazać odczytywać stu komórek po kolei.
   "heatmap",
+  // WRAŻLIWOŚĆ NA WIELE PARAMETRÓW. Zamiennik serii osobnych wykresów.
+  // Sortowanie pasków po rozpiętości jest CZĘŚCIĄ FORMY, nie ozdobą:
+  // czytelnik odczytuje hierarchię wrażliwości z góry na dół i stąd bierze
+  // się kształt leja oraz nazwa rodzaju. Kategorie biegną w PIONIE, więc
+  // klawiatura obsługuje go strzałkami góra-dół, jak słupki poziome.
+  "tornado",
 ] as const;
 
 export type ChartKind = (typeof CHART_KINDS)[number];
