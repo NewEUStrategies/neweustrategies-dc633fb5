@@ -20,7 +20,17 @@
 //      jest jedyny szczebel, na którym część napisów naprawdę znika z osi
 //      (ich treść zostaje w tooltipie i w tabeli danych).
 //
-// Piąty szczebel ze specyfikacji - zamiana na słupki poziome - jest decyzją
+// ZAWINIĘCIE W DWIE LINIE (`<tspan>` z odstępem 1,2 em) wchodzi PRZED
+// przerzedzeniem, a nie po obrocie, jak każe specyfikacja - i jest to
+// odstąpienie z dowodem, nie z gustu. Na pozycji ze specyfikacji ten mechanizm
+// jest nieosiągalny: wchodzi się tam po kroku przerzedzania większym od 3,
+// czyli gdy napis jest szerszy niż TRZY pasma, a zawinięcie na dwie linie
+// wymaga, żeby każda linia zmieściła się w JEDNYM paśmie - te dwa warunki
+// wykluczają się wzajemnie. Pełny wywód stoi przy implementacji. Zawinięcie
+// nie zabiera ani jednej etykiety, więc na pozycji "zamiast przerzedzenia"
+// działa w duchu reguły nadrzędnej.
+//
+// Ostatni szczebel ze specyfikacji - zamiana na słupki poziome - jest decyzją
 // AUTORA, nie silnika: zmienia typ wykresu, a tego kod nie robi za człowieka.
 // Edytor podpowiada go w ostrzeżeniu.
 
@@ -34,7 +44,7 @@ export const LABEL_GAP = 6;
  */
 export const MAX_THIN_STEP = 3;
 
-export type CategoryLabelMode = "full" | "thinned" | "shortened" | "rotated";
+export type CategoryLabelMode = "full" | "thinned" | "shortened" | "rotated" | "wrapped";
 
 export interface CategoryLabelPlan {
   mode: CategoryLabelMode;
@@ -50,6 +60,16 @@ export interface CategoryLabelPlan {
   rotation: number;
   /** Ile pikseli etykiety potrzebują POD obszarem kreślenia. */
   bottomSpace: number;
+  /**
+   * Linie zawinięcia per indeks - WYŁĄCZNIE w trybie `wrapped`.
+   *
+   * Obecne tylko tam, gdzie mają znaczenie, a nie zawsze jako tablice
+   * jednoelementowe: gdyby były zawsze, każdy `<text>` w silniku musiałby
+   * przejść na `<tspan>`, czyli zmienilibyśmy DOM wszystkich wykresów po to,
+   * żeby obsłużyć jeden szczebel drabiny. Renderer rozgałęzia się raz, po
+   * `mode`.
+   */
+  lines?: string[][];
 }
 
 export interface PlanOptions {
@@ -139,6 +159,62 @@ export function visibleIndices(count: number, step: number): number[] {
   return out;
 }
 
+/**
+ * Odstęp między liniami zawiniętej etykiety, w jednostkach `em`.
+ *
+ * 1,2 em, nie 1,0: przy pełnej wysokości wiersza wydłużenia dolne pierwszej
+ * linii ("g", "j", "ą") dotykają wydłużeń górnych drugiej i dwie linie czytają
+ * się jako jedna plama. 1,2 em to ta sama proporcja, którą reszta silnika
+ * używa na wysokość wiersza etykiet.
+ */
+export const WRAP_LINE_EM = 1.2;
+
+/** Najwięcej linii, na jakie wolno złamać etykietę osi. */
+export const WRAP_MAX_LINES = 2;
+
+/**
+ * Zawinięcie etykiety na co najwyżej `maxLines` linii mieszczących się
+ * w `available` pikselach.
+ *
+ * ŁAMIEMY WYŁĄCZNIE NA GRANICY SŁOWA. Łamanie wewnątrz wyrazu jest tym samym
+ * defektem co ucięcie wielokropkiem - "Wielkopol / skie" i "Wielkopolska /
+ * Wschodnia" czytają się w pierwszej linii identycznie, a to dwie różne
+ * kategorie. Napis, którego nie da się złamać na słowach albo który po
+ * złamaniu wciąż nie mieści się w dostępnej szerokości, wraca jako `null` -
+ * i wtedy drabina schodzi szczebel niżej, zamiast rysować coś, czego nie da
+ * się przeczytać.
+ *
+ * ZACHŁANNIE, nie optymalnie (bez algorytmu Knutha-Plassa): przy dwóch liniach
+ * i etykiecie osi optymalizacja podziału zmienia wynik w pojedynczych
+ * przypadkach, a kod robi się nieporównanie trudniejszy w utrzymaniu.
+ */
+export function wrapLabel(
+  label: string,
+  available: number,
+  measure: (text: string) => number,
+  maxLines = WRAP_MAX_LINES,
+): string[] | null {
+  const words = label.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current === "" ? word : `${current} ${word}`;
+    if (current !== "" && measure(candidate) > available) {
+      lines.push(current);
+      current = word;
+      if (lines.length === maxLines) return null;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current !== "") lines.push(current);
+  // Jedno słowo dłuższe od dostępnej szerokości nie ma gdzie się złamać -
+  // zawinięcie nic tu nie kupuje i drabina musi wziąć inny szczebel.
+  if (lines.some((line) => measure(line) > available)) return null;
+  return lines.length <= maxLines ? lines : null;
+}
+
 /** Ile miejsca w poziomie potrzebuje etykieta obrócona o -45 stopni. */
 function rotatedHorizontalNeed(fontSize: number): number {
   // Obrócone etykiety rozdziela wysokość wiersza rzutowana na oś X:
@@ -190,6 +266,55 @@ export function planCategoryLabels(
   // jednego piksela i ladder zatrzymywałby się na szczeblu, który niczego
   // nie naprawia. Wtedy właściwą odpowiedzią jest skrót albo obrót.
   if (fullStep <= MAX_THIN_STEP && labels.length > 2) {
+    // ZAWINIĘCIE MA PIERWSZEŃSTWO PRZED PRZERZEDZENIEM, i to jest świadome
+    // odstąpienie od kolejności zapisanej w specyfikacji, gdzie zawinięcie
+    // jest szczeblem CZWARTYM (po obrocie). Powód jest arytmetyczny, nie
+    // gustowy: na czwartym szczeblu ten mechanizm jest NIEOSIĄGALNY.
+    //
+    // Dowód. Na czwarty szczebel wchodzi się dopiero wtedy, gdy krok
+    // przerzedzania przekroczył 3, czyli gdy najdłuższa etykieta jest szersza
+    // niż TRZY pasma. Zawinięcie na dwie linie wymaga, żeby KAŻDA linia
+    // zmieściła się w JEDNYM paśmie, czyli żeby cały napis (dwie linie plus
+    // spacja) był węższy niż dwa pasma z ogonkiem. Te dwa warunki wykluczają
+    // się wzajemnie - implementacja na czwartym szczeblu byłaby kodem
+    // martwym, a martwy kod obiecujący szczebel drabiny jest gorszy od jego
+    // braku.
+    //
+    // Miejsce, w którym zawinięcie realnie coś daje, jest dokładnie jedno:
+    // TAM, GDZIE ALTERNATYWĄ JEST PRZERZEDZENIE. Przerzedzenie przy kroku 2
+    // zabiera z osi połowę etykiet; zawinięcie nie zabiera żadnej i kosztuje
+    // jedną wysokość wiersza, którą drabina umie sprawdzić wobec realnego
+    // budżetu pod osią. Reguła nadrzędna tej drabiny brzmi "nie zabieraj
+    // czytelnikowi niczego bez potrzeby", więc przy wyborze między "połowa
+    // etykiet znika" i "etykiety mają dwie linie" wygrywa to drugie.
+    const wrapBottom =
+      lineHeight + Math.ceil(fontSize * WRAP_LINE_EM) * (WRAP_MAX_LINES - 1) + LABEL_GAP;
+    if (maxBottomSpace === undefined || wrapBottom <= maxBottomSpace) {
+      const wrapped = labels.map((label) => wrapLabel(label, available - LABEL_GAP, measure));
+      // WSZYSTKIE etykiety albo żadna. Oś, na której część napisów jest
+      // zawinięta, a część nie, ma dwa różne rytmy w jednym rzędzie i czyta
+      // się jako błąd renderu, nie jako decyzja.
+      //
+      // Warunek `some(len > 1)` odsiewa przypadek pusty: gdyby wszystkie
+      // etykiety mieściły się w jednej linii, "zawinięcie" byłoby zwykłym
+      // trybem pełnym pod inną nazwą - a tu jesteśmy właśnie dlatego, że się
+      // nie mieszczą.
+      if (
+        wrapped.every((lines): lines is string[] => lines !== null) &&
+        wrapped.some((lines) => lines.length > 1)
+      ) {
+        return {
+          mode: "wrapped",
+          labels: full,
+          full,
+          step: 1,
+          visible: visibleIndices(labels.length, 1),
+          rotation: 0,
+          bottomSpace: wrapBottom,
+          lines: wrapped,
+        };
+      }
+    }
     return {
       mode: "thinned",
       labels: full,
@@ -230,14 +355,15 @@ export function planCategoryLabels(
   const rotatedBottom = Math.ceil(projected + lineHeight * 0.75 + LABEL_GAP);
 
   // Szczebel 3b: obrót SIĘ NIE MIEŚCI w wysokości, jaką wykres ma pod osią.
-  // Wracamy wtedy do etykiet poziomych przerzedzonych tak mocno, jak trzeba -
-  // krok wychodzi ponad `MAX_THIN_STEP`, i to jest w porządku: ta stała mówi,
-  // kiedy WOLIMY inny szczebel od przerzedzania, a tutaj innego szczebla już
-  // nie ma. Pełna treść każdej etykiety zostaje w `<title>` i w tabeli danych,
-  // a pierwsza i ostatnia są widoczne zawsze, więc zakres osi się nie gubi.
-  // Zamiana na słupki poziome (piąty szczebel specyfikacji) należy do autora -
-  // silnik nie zmienia typu wykresu za człowieka, tylko podpowiada w edytorze.
   if (maxBottomSpace !== undefined && rotatedBottom > maxBottomSpace) {
+    // Etykiety poziome przerzedzone tak mocno, jak trzeba - krok
+    // wychodzi ponad `MAX_THIN_STEP`, i to jest w porządku: ta stała mówi,
+    // kiedy WOLIMY inny szczebel od przerzedzania, a tutaj innego szczebla już
+    // nie ma. Pełna treść każdej etykiety zostaje w `<title>` i w tabeli
+    // danych, a pierwsza i ostatnia są widoczne zawsze, więc zakres osi się
+    // nie gubi. Zamiana na słupki poziome (ostatni szczebel specyfikacji)
+    // należy do autora - silnik nie zmienia typu wykresu za człowieka, tylko
+    // podpowiada w edytorze.
     const straightStep = stepFor(rotatedSet);
     return {
       mode: changed ? "shortened" : "thinned",

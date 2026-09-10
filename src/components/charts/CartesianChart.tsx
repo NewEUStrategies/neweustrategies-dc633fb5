@@ -84,7 +84,7 @@ import {
 } from "@/lib/charts/geometry";
 import { SMOOTHING_MIN_POINTS, pathFromPoints, type Point } from "@/lib/charts/smooth";
 import { estimateLabelWidth, useLabelMetrics } from "@/lib/charts/measureText";
-import { planCategoryLabels, type CategoryLabelPlan } from "@/lib/charts/labels";
+import { WRAP_LINE_EM, planCategoryLabels, type CategoryLabelPlan } from "@/lib/charts/labels";
 import { waterfallExtent, waterfallModel } from "@/lib/charts/waterfall";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
@@ -210,6 +210,11 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
   // zależność efektu, a nowa funkcja przy każdym renderze przepisywałaby
   // nasłuch na dokumencie przy każdym ruchu wskaźnika.
   const clearActive = useCallback(() => setActiveIndex(null), []);
+  // Tapnięcie poza wykresem zdejmuje wskazanie. Nasłuch tylko przy ustawionym
+  // stanie, więc na wykresie bez interakcji nie ma go wcale. Stoi tu, PRZED
+  // wyjściem na pustym zestawie: hak wywołany po `return null` łamałby
+  // kolejność haków między renderami.
+  useTapAwayDismiss(activeIndex !== null, widthRef, clearActive);
   // Identyfikator definicji SVG tego wykresu (wzór kreskowania, gradienty).
   // `useId` zamiast stałego napisu,
   // bo na jednej stronie stoi wiele wykresów, a `url(#id)` w SVG wiąże się
@@ -441,9 +446,6 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
   // sam, żywy komponent), a nowy zestaw bywa KRÓTSZY. Bez klamry indeks
   // wskazywałby poza tablicę, a tooltip czytałby wartość z niczego.
   const active = activeIndex === null ? null : Math.max(0, Math.min(n - 1, activeIndex));
-  // Tapnięcie poza wykresem zdejmuje wskazanie. Nasłuch tylko przy ustawionym
-  // stanie, więc na wykresie bez interakcji nie ma go wcale.
-  useTapAwayDismiss(activeIndex !== null, widthRef, clearActive);
   const anchor = active === null ? null : anchorFor(active);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -531,6 +533,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     : t("a11y.chartUntitled");
 
   const hatchId = `neh-hatch-${uid}`;
+  const zoneHatchId = `neh-zone-hatch-${uid}`;
   const hintId = `neh-hint-${uid}`;
   /**
    * WARIANT WYPEŁNIENIA, rozstrzygnięty RAZ dla całego wykresu.
@@ -657,25 +660,77 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             </defs>
           )}
 
-          {/* Strefa prognozy - prostokąt za separatorem, w kolorze tuszu przy
-              kilku promilach krycia. Rysowany PRZED siatką, żeby siatka
-              pozostała czytelna także w strefie. */}
+          {/* STREFA PROGNOZY - DWA WARIANTY TEJ SAMEJ POWIERZCHNI.
+          
+              Na ekranie: prostokąt w kolorze tuszu przy kilku promilach krycia
+              (1,7-2,2%, kontrast do płyty ~1,04:1). Recesywny dokładnie tak,
+              jak ma być - strefa mówi "tu jest prognoza", a nie "patrz tutaj".
+              
+              W DRUKU: ukośne kreskowanie 45 stopni. Płaski tint tej gęstości
+              znika w skali szarości i na papierze - 2% szarości nie ma czym
+              się odbić od bieli - a wtedy prognoza traci JEDEN Z TRZECH
+              nośników odróżnienia od historii i zostaje z pasmem oraz
+              separatorem. Kreskowanie zostaje, bo linia ma krawędź. To jedyne
+              miejsce w całym silniku, gdzie tekstura jest uzasadniona, i
+              jedyna dozwolona nieciągłość: kreskowanie jest tu WYPEŁNIENIEM
+              OBSZARU, nie linią rusztowania.
+              
+              Oba prostokąty są w drzewie zawsze, a przełącza je arkusz
+              (`.neh-zone-tint` / `.neh-zone-hatch` w `@media print`). Nie da
+              się tego zrobić inaczej: identyfikator wzoru jest unikalny per
+              instancja wykresu, więc CSS nie umie go wskazać w `fill`.
+              
+              Rysowane PRZED siatką, żeby siatka pozostała czytelna w strefie. */}
           {forecastBoundary !== null && !horizontal && (
-            <rect
-              x={forecastBoundary}
-              y={padTop}
-              width={Math.max(0, padLeft + innerW - forecastBoundary)}
-              height={innerH}
-              fill="var(--chart-zone)"
-              // Krycie w `style`, NIE w atrybucie prezentacyjnym: `var()`
-              // w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązane
-              // krycie to pełna nieprzezroczystość, czyli plama na całej
-              // strefie prognozy. To ten sam powód, dla którego mapa-choropleta
-              // podaje `fill` w `style`.
-              style={{ fillOpacity: "var(--chart-zone-alpha)" }}
-              rx={clampRadius(padLeft + innerW - forecastBoundary, innerH)}
-              pointerEvents="none"
-            />
+            <>
+              <defs>
+                <pattern
+                  id={zoneHatchId}
+                  width="6"
+                  height="6"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="6"
+                    // Kolor i krycie w `style`, nie w atrybutach: `var()`
+                    // w atrybutach prezentacyjnych SVG nie jest wspierane
+                    // wszędzie, a nierozwiązany `stroke` to czerń.
+                    style={{ stroke: "var(--chart-zone)", strokeOpacity: 0.06 }}
+                    strokeWidth={1}
+                  />
+                </pattern>
+              </defs>
+              <rect
+                className="neh-zone-tint"
+                x={forecastBoundary}
+                y={padTop}
+                width={Math.max(0, padLeft + innerW - forecastBoundary)}
+                height={innerH}
+                fill="var(--chart-zone)"
+                // Krycie w `style`, NIE w atrybucie prezentacyjnym: `var()`
+                // w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązane
+                // krycie to pełna nieprzezroczystość, czyli plama na całej
+                // strefie prognozy. To ten sam powód, dla którego
+                // mapa-choropleta podaje `fill` w `style`.
+                style={{ fillOpacity: "var(--chart-zone-alpha)" }}
+                rx={clampRadius(padLeft + innerW - forecastBoundary, innerH)}
+                pointerEvents="none"
+              />
+              <rect
+                className="neh-zone-hatch"
+                x={forecastBoundary}
+                y={padTop}
+                width={Math.max(0, padLeft + innerW - forecastBoundary)}
+                height={innerH}
+                fill={`url(#${zoneHatchId})`}
+                rx={clampRadius(padLeft + innerW - forecastBoundary, innerH)}
+                pointerEvents="none"
+              />
+            </>
           )}
 
           {/* Siatka + podziałki osi wartości */}
@@ -783,6 +838,13 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 const full = config.categories[i];
                 const y = padTop + innerH + 16;
                 const rotated = (plan?.rotation ?? 0) !== 0;
+                // SZCZEBEL ZAWINIĘCIA. Linie idą `<tspan>`ami z odstępem
+                // 1,2 em - pierwszy bez `dy`, kolejne z odstępem, więc blok
+                // rośnie w dół od tej samej linii bazowej, na której stoją
+                // etykiety niezawinięte. Wysokość, jaką ten blok zajmuje,
+                // policzyła już drabina (`bottomSpace`), więc margines pod
+                // osią jest na niego przygotowany.
+                const lines = plan?.mode === "wrapped" ? plan.lines?.[i] : undefined;
                 return (
                   <text
                     key={i}
@@ -793,7 +855,13 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                     fill="var(--muted-foreground)"
                     transform={rotated ? `rotate(${plan?.rotation} ${c} ${y})` : undefined}
                   >
-                    {label}
+                    {lines
+                      ? lines.map((line, li) => (
+                          <tspan key={li} x={c} dy={li === 0 ? 0 : `${WRAP_LINE_EM}em`}>
+                            {line}
+                          </tspan>
+                        ))
+                      : label}
                     {label !== full && <title>{full}</title>}
                   </text>
                 );

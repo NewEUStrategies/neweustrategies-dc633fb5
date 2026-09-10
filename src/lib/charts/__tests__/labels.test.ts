@@ -6,9 +6,12 @@ import { describe, expect, it } from "vitest";
 import {
   LABEL_GAP,
   MAX_THIN_STEP,
+  WRAP_LINE_EM,
+  WRAP_MAX_LINES,
   planCategoryLabels,
   shortenLabel,
   visibleIndices,
+  wrapLabel,
 } from "@/lib/charts/labels";
 
 /** Heurystyka o tej samej stałej co silnik - test nie ma kanwy. */
@@ -212,5 +215,120 @@ describe("drabina - gwarancja pierwszej etykiety i budżet wysokości", () => {
     });
     expect(wynik.mode).toBe("rotated");
     expect(wynik.rotation).toBe(-45);
+  });
+});
+
+describe("labels - szczebel ZAWINIĘCIA", () => {
+  // ZAWINIĘCIE WCHODZI ZAMIAST PRZERZEDZENIA, nie po obrocie - i to jest
+  // odstąpienie od kolejności ze specyfikacji z dowodem arytmetycznym,
+  // spisanym przy implementacji: na pozycji czwartej (po obrocie) mechanizm
+  // jest nieosiągalny, bo wchodzi się tam po kroku przerzedzania większym od
+  // 3, czyli gdy napis jest szerszy niż trzy pasma, a zawinięcie na dwie
+  // linie wymaga, żeby każda linia zmieściła się w jednym paśmie.
+  //
+  // Miejsce, w którym zawinięcie realnie coś daje, jest jedno: tam, gdzie
+  // alternatywą jest przerzedzenie. Przerzedzenie przy kroku 2 zabiera z osi
+  // połowę etykiet; zawinięcie nie zabiera żadnej i kosztuje jedną wysokość
+  // wiersza, którą drabina sprawdza wobec realnego budżetu pod osią.
+
+  it("łamie WYŁĄCZNIE na granicy słowa", () => {
+    // Łamanie wewnątrz wyrazu jest tym samym defektem co ucięcie
+    // wielokropkiem: "Wielkopol / skie" i "Wielkopolska / Wschodnia" czytają
+    // się w pierwszej linii identycznie, a to dwie różne kategorie.
+    expect(wrapLabel("Polska Wschodnia", 70, measure)).toEqual(["Polska", "Wschodnia"]);
+    // Jedno słowo dłuższe od dostępnej szerokości nie ma gdzie się złamać.
+    expect(wrapLabel("Wielkopolskie", 40, measure)).toBeNull();
+    // Trzy linie to już za dużo dla osi kategorii.
+    expect(wrapLabel("Warmińsko Mazurskie Wschodnie Górne", 70, measure)).toBeNull();
+    // Napis, który mieści się w całości, wraca jedną linią.
+    expect(wrapLabel("Polska", 70, measure)).toEqual(["Polska"]);
+  });
+
+  it("wchodzi ZAMIAST przerzedzenia i nie gubi ani jednej etykiety", () => {
+    // "Polska Wschodnia" ma ~115 px, pasmo 70 px, czyli krok przerzedzania 2:
+    // bez zawinięcia z osi zniknęłaby POŁOWA etykiet. Dwie linie po ~61 px
+    // mieszczą się w paśmie, a jedna wysokość wiersza więcej (34 px zamiast
+    // 20 px) mieści się w budżecie.
+    const dwuwyrazowe = seq(12, () => "Polska Wschodnia");
+    const wynik = planCategoryLabels(dwuwyrazowe, {
+      slotWidth: 70,
+      fontSize: 11,
+      measure,
+      maxBottomSpace: 40,
+    });
+    expect(wynik.mode).toBe("wrapped");
+    expect(wynik.rotation).toBe(0);
+    expect(wynik.step).toBe(1);
+    // ŻADNA etykieta nie znika - to jest cały powód, dla którego ten szczebel
+    // stoi przed przerzedzaniem.
+    expect(wynik.visible).toHaveLength(dwuwyrazowe.length);
+    expect(wynik.lines).toHaveLength(dwuwyrazowe.length);
+    expect(wynik.lines?.[0]).toEqual(["Polska", "Wschodnia"]);
+    expect(wynik.bottomSpace).toBeLessThanOrEqual(40);
+  });
+
+  it("USTĘPUJE SKRÓTOWI I OBROTOWI, gdy przerzedzenie i tak nie wystarcza", () => {
+    // Pasmo 20 px przy napisie 115 px daje krok 6, czyli powyżej granicy,
+    // od której drabina woli inny szczebel od przerzedzania. Zawinięcia nie
+    // próbujemy wtedy wcale - i nie ma po co, bo żadna linia nie zmieściłaby
+    // się w 20 px. Dalej idzie skrót, a potem obrót.
+    const dwuwyrazowe = seq(12, () => "Polska Wschodnia");
+    const wynik = planCategoryLabels(dwuwyrazowe, {
+      slotWidth: 20,
+      fontSize: 11,
+      measure,
+      maxBottomSpace: 400,
+    });
+    expect(wynik.mode).toBe("rotated");
+    expect(wynik.lines).toBeUndefined();
+  });
+
+  it("nie odpala na etykietach, które i tak się MIESZCZĄ", () => {
+    // Zawinięcie bez potrzeby byłoby trybem pełnym pod inną nazwą - i kosztem
+    // jednej wysokości wiersza pod osią.
+    const krotkie = seq(12, (i) => `K${i}`);
+    const wynik = planCategoryLabels(krotkie, {
+      slotWidth: 70,
+      fontSize: 11,
+      measure,
+      maxBottomSpace: 40,
+    });
+    expect(wynik.mode).toBe("full");
+    expect(wynik.lines).toBeUndefined();
+  });
+
+  it("WSZYSTKIE etykiety albo żadna - oś o dwóch rytmach czyta się jak błąd", () => {
+    // Jedna kategoria jednowyrazowa i za długa: zawinięcia nie da się
+    // zastosować spójnie, więc drabina schodzi do przerzedzania, a nie zawija
+    // części napisów.
+    const mieszane = [...seq(11, () => "Polska Wschodnia"), "Zachodniopomorskie"];
+    const wynik = planCategoryLabels(mieszane, {
+      slotWidth: 70,
+      fontSize: 11,
+      measure,
+      maxBottomSpace: 40,
+    });
+    expect(wynik.mode).not.toBe("wrapped");
+    expect(wynik.lines).toBeUndefined();
+  });
+
+  it("nie wchodzi, gdy nawet dwie linie się nie mieszczą", () => {
+    const dwuwyrazowe = seq(12, () => "Polska Wschodnia");
+    const wynik = planCategoryLabels(dwuwyrazowe, {
+      slotWidth: 70,
+      fontSize: 11,
+      measure,
+      maxBottomSpace: 20,
+    });
+    expect(wynik.mode).not.toBe("wrapped");
+    expect(wynik.bottomSpace).toBeLessThanOrEqual(20);
+  });
+
+  it("odstęp linii to 1,2 em, a limit dwie linie - stałe, nie liczby w kodzie", () => {
+    // 1,2 em, nie 1,0: przy pełnej wysokości wiersza wydłużenia dolne
+    // pierwszej linii dotykają wydłużeń górnych drugiej i dwie linie czytają
+    // się jako jedna plama.
+    expect(WRAP_LINE_EM).toBe(1.2);
+    expect(WRAP_MAX_LINES).toBe(2);
   });
 });

@@ -287,10 +287,24 @@ body {
   --ring: oklch(0.18 0 0);
   --brand: #fa9346;
   --brand-foreground: oklch(1 0 0);
-  /* Marka jako TEKST na jasnym tle: #fa9346 daje ~2.2:1 (fail WCAG AA), więc
-     tekstowe użycia (text-brand-ink) idą przez ciemniejszy atrament w tym samym
-     hue (4.75:1 na --background). Tła/akcenty (bg-brand) nadal używają --brand.
-     Strażnik: src/lib/__tests__/brandContrast.test.ts. */
+  /* Marka jako TEKST na jasnym tle. UWAGA: ten token jest w motywie jasnym
+     RÓWNY --brand, czyli #fa9346 - a to jest 2,25:1 na płycie i 2,09:1 na tle
+     strony, więc NIE PRZECHODZI progu tekstowego AA. Jest to decyzja
+     właściciela marki (2026-09-06), nie przeoczenie, i strażnik
+     src/lib/__tests__/brandContrast.test.ts pilnuje wyłącznie tego, że token
+     jest tym uzgodnionym kolorem.
+
+     KONSEKWENCJA JEST PRAKTYCZNA I DOTYCZY KAŻDEGO UŻYCIA: pomarańcz marki na
+     jasnym tle nie może być JEDYNYM nośnikiem informacji ani nieść samego
+     tekstu bez podkładu. Wolno nim wypełnić powierzchnię pod ciemnym tuszem
+     (tusz na #fa9346 ma 8,06:1) i podbić element wyróżniony już pozycją albo
+     etykietą. Gdy audyt wymaga czytelnego TEKSTU w tym odcieniu na jasnym
+     tle, są na to dwa policzone warianty: --chart-accent-audit-graphic
+     (#cb7032, próg grafiki i tekstu dużego) i --chart-accent-audit (#ab5517,
+     próg tekstu normalnego). Wcześniejsza wersja tego komentarza twierdziła,
+     że token JEST już takim ciemniejszym atramentem o 4,75:1 - nie był i nie
+     jest, a komentarz obiecujący zgodność, której nie ma, jest gorszy od
+     braku komentarza. */
   --brand-ink: #fa9346;
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
@@ -418,8 +432,18 @@ body {
      10,07:1, na #fff4ed 16,78:1 - biel na pomarańczu ma 2,25:1 i jest
      wykluczona) oraz podbić element już wyróżniony pozycją lub etykietą.
      Nie wolno nim pisać liczb, etykiet osi ani podpisów na jasnym tle.
-     Wariant audytowy, gdy akcent MUSI być czytelnym tekstem na jasnym:
-     #cb7032 (3,56:1, próg grafiki i tekstu dużego) albo #ab5517 (5,19:1).
+     DWA WARIANTY AUDYTOWE, bo próg zależy od tego, czym akcent ma być:
+     --chart-accent-audit-graphic #cb7032 (3,56:1 na płycie, 3,30:1 na tle
+     strony - próg grafiki 1.4.11 i tekstu dużego) oraz --chart-accent-audit
+     #ab5517 (5,19:1 i 4,82:1 - próg tekstu normalnego 1.4.3). Oba ZAWODZĄ na
+     drugim tle sekcyjnym (2,89:1 i 4,22:1). Furtka na wypadek audytu, nie
+     podmiana tokena.
+
+     PODKŁAD #fff4ed NIE WYZNACZA POWIERZCHNI na tle strony #f8f6f4: kontrast
+     między nimi to 1,003:1, czyli identyczna jasność przy różnicy samego
+     odcienia. Taka granica znika w skali szarości, w druku i u części
+     odbiorców. Jako podkład pod ciemny tekst działa (tusz ma na nim 16,78:1),
+     ale KRAWĘDŹ musi nieść obramowanie 1 px - patrz .neh-accent-bg.
 
      Akcent koliduje z ochrą: #ed751a wobec #c6871f daje przy deuteranopii
      1,62 - praktycznie ten sam kolor. Gdy akcent jest w użyciu, ochra
@@ -429,6 +453,17 @@ body {
   --chart-accent-fill: #fdb078;
   --chart-accent-bg: #fff4ed;
   --chart-accent-audit: #ab5517;
+  --chart-accent-audit-graphic: #cb7032;
+
+  /* ---- Druga powierzchnia sekcyjna ----
+     Tło ciemniejsze od domyślnego o 1,14:1, dla sekcji, które mają odstąpić
+     od reszty strony. JEDNO OGRANICZENIE, i jest ono twarde: SERIE NIE MOGĄ
+     LEŻEĆ BEZPOŚREDNIO NA TEJ POWIERZCHNI. Ochra spada tam do 2,48:1, szałwia
+     do 2,76:1, lazur do 2,97:1, a czerwień ujemna do 2,81:1 - wszystkie
+     poniżej progu grafiki 3,0:1. Płyta wykresu zostaje BIAŁA także wtedy, gdy
+     sekcja wokół niej jest w drugim tle; token służy sekcji, nie wykresowi.
+     Bramka: SLOTS_UNSAFE_ON_SURFACE_2 w src/lib/charts/palette.ts. */
+  --chart-surface-2: #e4e8ee;
 
   /* ---- Pasmo prognozy: krycie PER SERIA, nie stała ----
      Cel: kontrast pasma do płyty 1,10-1,17:1. Poniżej pasmo jest
@@ -721,6 +756,19 @@ body {
   --chart-accent-fill: #fdb078;
   --chart-accent-bg: #262424;
   --chart-accent-audit: #fa9346;
+  /* Warianty audytowe SĄ TU RÓWNE TOKENOWI, i to nie jest przeoczenie:
+     w trybie ciemnym akcent przechodzi próg tekstowy sam (8,51:1), więc nie
+     ma czego przyciemniać. Przyciemniony #ab5517 miałby na płycie 2,50:1,
+     czyli byłby GORSZY od tokena - furtka audytowa ma tu wartość tokena
+     właśnie dlatego, że jest niepotrzebna. */
+  --chart-accent-audit-graphic: #fa9346;
+
+  /* ---- Druga powierzchnia sekcyjna: W CIEMNYM JEJ NIE MA ----
+     Ciemne tło strony jest już samym #141313, a wprowadzanie pod nie jeszcze
+     ciemniejszego stopnia zjadałoby różnicę wobec płyty (#0f0f0f). Token
+     istnieje, żeby sekcja nie musiała rozgałęziać się po motywie, i jest
+     równy tłu strony. To rozstrzygnięcie, nie brak. */
+  --chart-surface-2: #141313;
 
   /* Krycie pasma per seria - na ciemnym różnica jasności serii wobec płyty
      jest jeszcze bardziej nierówna niż na jasnym, więc stała alfa dawałaby
@@ -4398,6 +4446,14 @@ input.icon-input-with-action {
   pointer-events: none;
 }
 
+/* Kreskowanie strefy prognozy jest ALTERNATYWĄ dla płaskiego tintu, nie
+   dodatkiem: na ekranie widoczny jest tint, na papierze kreskowanie (patrz
+   blok @media print). Dwa nośniki tej samej powierzchni naraz dałyby strefę
+   ciemniejszą od zamierzonej i konkurującą z danymi. */
+.neh-chart .neh-zone-hatch {
+  display: none;
+}
+
 /* Separator strefy prognozy - pionowa, ciągła linia w kolorze osi. Prognoza
    MUSI być odróżniona wizualnie od historii, inaczej wykres podaje
    interpolację za pomiar. */
@@ -4496,6 +4552,29 @@ input.icon-input-with-action {
    nic nie nawiguje. */
 .neh-metric-trigger {
   cursor: help;
+}
+
+/* PODKŁAD AKCENTU ZAWSZE Z OBRAMOWANIEM, i to jest cała treść tej klasy.
+   Kontrast #fff4ed do tła strony #f8f6f4 wynosi 1,003:1 - identyczna jasność
+   przy różnicy samego odcienia. Taka krawędź nie istnieje w skali szarości,
+   w druku jednobarwnym ani dla odbiorcy z achromatopsją: podkład działa jako
+   podkład (ciemny tusz ma na nim 16,78:1), ale POWIERZCHNI NIE WYZNACZA.
+   Dlatego tło i obramowanie idą razem, jedną klasą - kto użyje samego tokena,
+   dostanie prostokąt bez granicy, i nie da się tego zauważyć na ekranie.
+
+   Ciekawostka użytkowa: #fff4ed na bieli daje 1,082:1, a pasmo #fa9346 przy
+   10% krycia 1,084:1 - praktycznie ten sam ton, więc oba są wymienne. */
+.neh-accent-bg {
+  background: var(--chart-accent-bg);
+  /* OBRAMOWANIE Z WARIANTU AUDYTOWEGO GRAFIKI, i to jest dokładnie ten
+     przypadek, dla którego on istnieje: linia, która ma NIEŚĆ GRANICĘ SAMA,
+     musi przejść próg 3,0:1. #cb7032 ma 3,30:1 na tle strony i 3,29:1 na
+     samym podkładzie; jaśniejszy #fdb078 miałby 1,67:1, czyli granicę tak
+     samo niewidoczną jak sama zmiana tła. W ciemnym motywie ten token jest
+     równy akcentowi (6,86:1 na podniesionej powierzchni), więc jedna
+     deklaracja obsługuje oba tryby. */
+  border: 1px solid var(--chart-accent-audit-graphic);
+  border-radius: var(--chart-radius);
 }
 
 /* Interaktywne obszary trafień - większe niż znaczniki (>=24px). */
@@ -4694,6 +4773,52 @@ input.icon-input-with-action {
   .neh-tooltip {
     display: none !important;
   }
+
+  /* ---- W DRUKU SŁUPKI I ŁUKI SĄ SOLIDNE ----
+     Wariant blady stoi na tym, że wnętrze ma do płyty 1,20-1,28:1, a granicę
+     niesie obwódka. Na papierze ten układ się rozpada: 1,2:1 nie ma czym się
+     odbić od bieli (a drukarka jeszcze to spłaszcza rastrem), więc zostaje
+     sama obwódka 1,5 px - kształt zdefiniowany wyłącznie cienkim konturem,
+     który przy kilku słupkach obok siebie czyta się jak rysunek techniczny,
+     nie jak dane. Wypełnienie w czystym tokenie drukuje się jako jednolita
+     szarość o wyraźnej wartości i porównanie długości wraca.
+
+     PRZEZ ARKUSZ, NIE PRZEZ GAŁĄŹ W JS, i to jest istotne: wariant jest
+     ustawieniem autora, a druk nie może go zmieniać w danych. Podstawienie
+     idzie własnościami `--neh-bar-token` / `--neh-arc-token`, które komponent
+     kładzie na każdym elemencie - dzięki temu jedna reguła obsługuje wszystkie
+     dziewięć slotów bez znajomości numeru. Atrybuty prezentacyjne `fill`
+     i `stroke` ustępują dowolnej regule CSS, więc nadpisanie działa. */
+  .neh-chart .neh-bar[data-style="pale"],
+  .neh-chart .neh-bar[data-style="gradient"] {
+    fill: var(--neh-bar-token);
+    stroke: none;
+  }
+  .neh-chart .neh-slice {
+    fill: var(--neh-arc-token);
+    stroke: none;
+  }
+  /* Liczba w łuku przechodzi na TUSZ SLOTU, bo leży teraz na nasyconym
+     kolorze: tusz semantyczny ma na granacie 2,25:1, a ink slotu 8,07:1.
+     Na ekranie jest odwrotnie i dlatego to nadpisanie jest tylko tutaj. */
+  .neh-chart .neh-arc-label {
+    fill: var(--neh-arc-ink);
+  }
+
+  /* ---- STREFA PROGNOZY: KRESKOWANIE ZAMIAST PŁASKIEGO TINTU ----
+     Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
+     prognoza traciła jeden z TRZECH nośników odróżnienia od historii
+     i zostawała z pasmem oraz separatorem. Kreskowanie 45 stopni zostaje, bo
+     linia ma krawędź - i jest to jedyne miejsce w silniku, gdzie tekstura jest
+     uzasadniona. Oba prostokąty są w drzewie zawsze, bo identyfikator wzoru
+     jest unikalny per instancja wykresu i CSS nie umie go wskazać w `fill`. */
+  .neh-chart .neh-zone-tint {
+    display: none;
+  }
+  .neh-chart .neh-zone-hatch {
+    display: inline;
+  }
+
   /* STAN KOŃCOWY WYMUSZONY, tak samo jak przy prefers-reduced-motion.
      Wejście wykresu jest uzbrajane klasą .neh-armed dla elementów POZA
      viewportem i odpalane obserwatorem przy wejściu w widok. Na papierze

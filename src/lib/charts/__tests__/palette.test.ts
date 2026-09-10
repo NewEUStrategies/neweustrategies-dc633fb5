@@ -37,7 +37,11 @@ import {
   relativeLuminance,
   simulateCvd,
   slotAt,
+  ACCENT_AUDIT,
   BAR_FILL_PARAMS,
+  CHART_SURFACES,
+  SEQ_RAMP,
+  SLOTS_UNSAFE_ON_SURFACE_2,
   deltaE76,
   EDGE_FACE_RANGE,
   HOVER_CONTRAST_RANGE,
@@ -723,5 +727,149 @@ describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem"
       expect(delta, `slot ${s.slot}`).toBeLessThanOrEqual(9);
       expect(pushed.c, `slot ${s.slot}`).toBeLessThanOrEqual(c + 1e-6);
     }
+  });
+});
+
+describe("palette - DRUGA POWIERZCHNIA SEKCYJNA i furtki audytowe akcentu", () => {
+  // Reguła "serie nie leżą na drugim tle" nie jest przekonaniem - wynika
+  // z liczb, więc liczby stoją w bramce. Gdy któryś odcień serii się zmieni,
+  // ten test każe wrócić do reguły, zamiast pozwolić jej cicho skłamać.
+  it("arkusz podaje drugą powierzchnię w OBU motywach, a w ciemnym równą tłu", () => {
+    expect(hexToken(LIGHT_BLOCK, "--chart-surface-2")).toBe(CHART_SURFACES.secondLight);
+    expect(hexToken(DARK_BLOCK, "--chart-surface-2")).toBe(CHART_SURFACES.secondDark);
+    // W ciemnym drugiego tła NIE MA: token jest równy tłu strony, bo pod
+    // #141313 nie ma już miejsca na ciemniejszy stopień, który nie zjadłby
+    // różnicy wobec płyty #0f0f0f.
+    expect(CHART_SURFACES.secondDark).toBe(CHART_SURFACES.pageDark);
+    expect(contrastRatio(CHART_SURFACES.pageDark, CHART_PLATE.dark)).toBeLessThan(1.15);
+  });
+
+  it("druga powierzchnia jest o 1,14:1 ciemniejsza od tła strony", () => {
+    const r = contrastRatio(CHART_SURFACES.secondLight, CHART_SURFACES.pageLight);
+    expect(r).toBeGreaterThan(1.1);
+    expect(r).toBeLessThan(1.2);
+  });
+
+  it("DOKŁADNIE wypisane sloty spadają pod próg grafiki na drugiej powierzchni", () => {
+    // Ochra 2,48:1, szałwia 2,76:1, lazur 2,97:1 - i to jest cały powód,
+    // dla którego płyta wykresu zostaje biała także w sekcji na drugim tle.
+    const unsafe = CHART_SLOTS.filter(
+      (slot) => contrastRatio(slot.light, CHART_SURFACES.secondLight) < CONTRAST_MIN.graphic,
+    ).map((slot) => slot.slot);
+    expect(unsafe).toEqual([...SLOTS_UNSAFE_ON_SURFACE_2]);
+    // Reszta slotów przechodzi - reguła dotyczy trzech odcieni, nie palety.
+    for (const slot of CHART_SLOTS.filter((s) => !SLOTS_UNSAFE_ON_SURFACE_2.includes(s.slot))) {
+      const r = contrastRatio(slot.light, CHART_SURFACES.secondLight);
+      expect(r, `slot ${slot.slot}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.graphic,
+      );
+    }
+  });
+
+  it("czerwień UJEMNA też spada pod próg na drugiej powierzchni", () => {
+    // Spec o niej nie mówi, ale to ten sam defekt: 2,81:1. Semantyka znaku nie
+    // jest slotem kategorialnym, więc nie mieści się w liście slotów - i tym
+    // bardziej musi być wypisana, bo wykres kodujący znak kolorem straciłby na
+    // drugim tle właśnie ten kolor.
+    const r = contrastRatio(CHART_SEMANTIC.negativeLight, CHART_SURFACES.secondLight);
+    expect(r).toBeLessThan(CONTRAST_MIN.graphic);
+    expect(r).toBeGreaterThan(2.5);
+  });
+
+  it("furtki audytowe akcentu trafiają w SWOJE progi, każda w swój", () => {
+    // Dwa warianty, bo dwa różne progi. Mierzone na tle strony, czyli na
+    // najgorszej jasnej powierzchni, na której akcent jako tekst wolno
+    // postawić - na płycie oba mają jeszcze więcej zapasu.
+    expect(ACCENT_AUDIT.graphic).toBe(hexToken(LIGHT_BLOCK, "--chart-accent-audit-graphic"));
+    expect(ACCENT_AUDIT.text).toBe(hexToken(LIGHT_BLOCK, "--chart-accent-audit"));
+    expect(contrastRatio(ACCENT_AUDIT.graphic, CHART_SURFACES.pageLight)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.graphic,
+    );
+    expect(contrastRatio(ACCENT_AUDIT.text, CHART_SURFACES.pageLight)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.text,
+    );
+    // Wariant grafiki NIE udaje, że przechodzi próg tekstowy.
+    expect(contrastRatio(ACCENT_AUDIT.graphic, CHART_SURFACES.pageLight)).toBeLessThan(
+      CONTRAST_MIN.text,
+    );
+  });
+
+  it("OBA warianty audytowe zawodzą na drugiej powierzchni - ta sama reguła", () => {
+    expect(contrastRatio(ACCENT_AUDIT.graphic, CHART_SURFACES.secondLight)).toBeLessThan(
+      CONTRAST_MIN.graphic,
+    );
+    expect(contrastRatio(ACCENT_AUDIT.text, CHART_SURFACES.secondLight)).toBeLessThan(
+      CONTRAST_MIN.text,
+    );
+  });
+
+  it("w motywie CIEMNYM akcent nie potrzebuje furtki, więc jej nie udaje", () => {
+    // Furtka ma tu wartość tokena właśnie dlatego, że jest niepotrzebna,
+    // i to trzeba przypiąć - inaczej ktoś "poprawi" ją na wartość z motywu
+    // jasnego i POGORSZY kontrast. Kierunek wyprowadzania wariantu jest
+    // w ciemnym trybie odwrotny: przyciemnianie idzie w stronę tła, więc to,
+    // co na jasnym tle było naprawą, tutaj jest psuciem.
+    const accent = hexToken(DARK_BLOCK, "--chart-accent");
+    expect(hexToken(DARK_BLOCK, "--chart-accent-audit")).toBe(accent);
+    expect(hexToken(DARK_BLOCK, "--chart-accent-audit-graphic")).toBe(accent);
+    expect(contrastRatio(accent, CHART_PLATE.dark)).toBeGreaterThanOrEqual(CONTRAST_MIN.text);
+    // Wersja z motywu jasnego jest na ciemnej płycie ponad dwa razy słabsza -
+    // i to jest liczba, dla której ten token nie jest przepisany między
+    // motywami.
+    expect(contrastRatio(ACCENT_AUDIT.text, CHART_PLATE.dark)).toBeLessThan(
+      contrastRatio(accent, CHART_PLATE.dark) / 2,
+    );
+  });
+
+  it("PODKŁAD AKCENTU nie wyznacza powierzchni na tle strony - stąd obramowanie", () => {
+    // 1,003:1, czyli identyczna jasność przy różnicy samego odcienia. Granica,
+    // której nie ma w skali szarości ani w druku, nie jest granicą - dlatego
+    // klasa `.neh-accent-bg` wiąże podkład z obramowaniem 1 px w wariancie
+    // audytowym grafiki (3,29:1 na samym podkładzie).
+    const bg = hexToken(LIGHT_BLOCK, "--chart-accent-bg");
+    expect(contrastRatio(bg, CHART_SURFACES.pageLight)).toBeLessThan(1.01);
+    expect(contrastRatio(ACCENT_AUDIT.graphic, bg)).toBeGreaterThanOrEqual(CONTRAST_MIN.graphic);
+    // Jaśniejszy token wypełnienia granicy NIE uniesie - 1,67:1.
+    expect(
+      contrastRatio(hexToken(LIGHT_BLOCK, "--chart-accent-fill"), CHART_SURFACES.pageLight),
+    ).toBeLessThan(2);
+  });
+});
+
+describe("palette - RAMP SEKWENCYJNY mapy", () => {
+  // Mapa koduje wartość przez `color-mix()` na tokenach, ale w silnikach bez
+  // `color-mix()` w atrybucie `fill` ląduje kolor interpolowany w JS - i te
+  // dwa hexy muszą być TĄ SAMĄ parą, co w arkuszu. Trzymane w komponencie
+  // rozjechały się: arkusz miał #e0eaf2/#00375f, a fallback #cde2fb/#0d366b.
+  // Nikt tego nie widział, bo nowa przeglądarka nigdy tej gałęzi nie wykonuje
+  // - dokładnie ten rodzaj defektu, którego nie znajdzie żaden test
+  // renderujący, a znajdzie porównanie z arkuszem.
+  it("kotwice rampu są TE SAME co w arkuszu, w obu motywach", () => {
+    expect(SEQ_RAMP.light.min).toBe(hexToken(LIGHT_BLOCK, "--chart-seq-min"));
+    expect(SEQ_RAMP.light.max).toBe(hexToken(LIGHT_BLOCK, "--chart-seq-max"));
+    expect(SEQ_RAMP.dark.min).toBe(hexToken(DARK_BLOCK, "--chart-seq-min"));
+    expect(SEQ_RAMP.dark.max).toBe(hexToken(DARK_BLOCK, "--chart-seq-max"));
+  });
+
+  it("ramp jest ODWRÓCONY w motywie ciemnym - jedna para nie wystarcza", () => {
+    // Jasny: minimum jaśniejsze od maksimum. Ciemny: odwrotnie. Użycie pary
+    // jasnej na ciemnej karcie dawałoby najniższą wartość świecącą (~11:1),
+    // a najwyższą poniżej progu 3:1 dla obiektu graficznego.
+    expect(relativeLuminance(SEQ_RAMP.light.min)).toBeGreaterThan(
+      relativeLuminance(SEQ_RAMP.light.max),
+    );
+    expect(relativeLuminance(SEQ_RAMP.dark.min)).toBeLessThan(relativeLuminance(SEQ_RAMP.dark.max));
+  });
+
+  it("oba końce rampu są widoczne na płycie SWOJEGO motywu", () => {
+    // Koniec maksymalny niesie wartość szczytową i musi przejść próg grafiki;
+    // koniec minimalny ma tylko odróżnić się od kraju BEZ danych, więc jego
+    // progu nie stawiamy - stąd kotwica 0,15 w komponencie mapy.
+    expect(contrastRatio(SEQ_RAMP.light.max, CHART_PLATE.light)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.graphic,
+    );
+    expect(contrastRatio(SEQ_RAMP.dark.max, CHART_PLATE.dark)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.graphic,
+    );
   });
 });

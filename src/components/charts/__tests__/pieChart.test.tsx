@@ -193,12 +193,8 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
     // nie pojawia się już jako `fill`: nasycona płaszczyzna pod etykietą była
     // najciemniejszym elementem wykresu i przeciągała na siebie uwagę, którą
     // ma nieść linia danych.
-    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual([
-      "var(--chart-1-inner)",
-    ]);
-    expect(slices(container).map((s) => s.getAttribute("stroke"))).toEqual([
-      "var(--chart-1-edge)",
-    ]);
+    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(["var(--chart-1-inner)"]);
+    expect(slices(container).map((s) => s.getAttribute("stroke"))).toEqual(["var(--chart-1-edge)"]);
   });
 
   it("wiodące luki NIE zwijają tarczy, a wycinki idą MALEJĄCO od godziny 12", () => {
@@ -478,9 +474,15 @@ describe("PieChart - etykiety wewnątrz wycinków", () => {
     const inks = all(container, SEL.label).map((t) => t.getAttribute("fill"));
     expect(fills).toEqual([1, 2, 3, 4, 5].map((n) => `var(--chart-${n}-inner)`));
     expect(inks).toEqual(Array.from({ length: 5 }, () => "var(--foreground)"));
-    // Żaden ink slotu nie zostaje w grafice - gdyby został, wróciłby razem
-    // z nim problem białego napisu na bladym wnętrzu.
-    expect(container.innerHTML).not.toContain("--chart-ink-");
+    // Ink slotu jest PODANY na elemencie, ale nie użyty jako `fill`: arkusz
+    // przełącza na niego dopiero w druku, gdzie łuk wraca do wariantu
+    // solidnego i ten sam napis leży na nasyconym kolorze (tusz semantyczny
+    // ma na granacie 2,25:1, a ink slotu 8,07:1). Warunek jest więc taki:
+    // ink jest dostępny, ale ŻADEN `fill` na niego nie wskazuje.
+    const grupy = [...container.querySelectorAll("g[style*='--neh-arc-ink']")];
+    expect(grupy).toHaveLength(5);
+    expect(grupy[0].getAttribute("style")).toContain("--chart-ink-1");
+    expect(container.innerHTML).not.toContain('fill="var(--chart-ink-');
   });
 
   it("przełącznik 'Etykiety wartości' dokłada DRUGĄ linię z wartością i podnosi udział", () => {
@@ -933,7 +935,9 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     );
     expect(keyRows(jedna.container)).toEqual([["Niemcy", "100%", "70 mld"]]);
 
-    const bezLegendy = render(<Chart config={cfg({ ...struktura, showLegend: false })} lang="pl" />);
+    const bezLegendy = render(
+      <Chart config={cfg({ ...struktura, showLegend: false })} lang="pl" />,
+    );
     expect(keyRows(bezLegendy.container)).toHaveLength(3);
     expect(bezLegendy.container.querySelector("ul[role='list']")).toBeNull();
   });
@@ -1162,10 +1166,7 @@ describe("PieChart - izolacja przestrzeni roboczych", () => {
     // dalej 44 szt. (sumę alfy) albo "Alfa Q1", byłby to wyciek danych
     // z poprzedniej przestrzeni roboczej. Po zejściu wskaźnika wraca do sumy
     // bety, co pilnuje test przełączania środka wyżej.
-    expect(all(container, SEL.center).map((t) => t.textContent)).toEqual([
-      "70",
-      "Beta Q1 · szt.",
-    ]);
+    expect(all(container, SEL.center).map((t) => t.textContent)).toEqual(["70", "Beta Q1 · szt."]);
     const html = container.innerHTML;
     for (const slad of ["Alfa", "alfa", "33 szt.", "11 szt.", "44 szt."]) {
       expect(html, slad).not.toContain(slad);
@@ -1252,4 +1253,3 @@ describe("PieChart - suma kontrolna udziałów", () => {
     expect(panel?.textContent).not.toContain("add up to");
   });
 });
-

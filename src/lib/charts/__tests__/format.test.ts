@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatAxisTick,
-  formatChartValue,
-  formatPercent,
-  formatPercentPoints,
-} from "../format";
+import { formatAxisTick, formatChartValue, formatPercent, formatPercentPoints } from "../format";
 
 describe("formatChartValue", () => {
   it("formats per locale with the unit appended", () => {

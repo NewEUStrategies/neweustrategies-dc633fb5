@@ -273,6 +273,103 @@ export const CHART_SEMANTIC = {
 } as const;
 
 /**
+ * POWIERZCHNIE, wobec których mierzy się kontrast - wszystkie trzy, nie tylko
+ * płyta.
+ *
+ * Płyta wykresu jest zawsze biała (jasny) albo `#0f0f0f` (ciemny) i to na niej
+ * liczy się progi serii. Ale wykres stoi w SEKCJI, a sekcja ma własne tło -
+ * i to tło bywa drugie, ciemniejsze. Trzymamy je tutaj, bo z tych liczb
+ * wynika reguła, której nie da się zapisać w samym tokenie: patrz
+ * `SLOTS_UNSAFE_ON_SURFACE_2`.
+ *
+ * W TRYBIE CIEMNYM DRUGIEGO TŁA NIE MA. Ciemne tło strony jest już samym
+ * `#141313`, a wprowadzanie pod nie jeszcze ciemniejszego stopnia zjadałoby
+ * różnicę wobec płyty (`#0f0f0f`) - dlatego `secondDark` jest po prostu tłem
+ * strony, a nie osobnym odcieniem. To nie brak, to rozstrzygnięcie.
+ */
+export const CHART_SURFACES = {
+  plateLight: CHART_PLATE.light,
+  plateDark: CHART_PLATE.dark,
+  pageLight: "#f8f6f4",
+  pageDark: "#141313",
+  secondLight: "#e4e8ee",
+  secondDark: "#141313",
+} as const;
+
+/**
+ * Sloty, które NIE MOGĄ leżeć bezpośrednio na drugim tle sekcyjnym.
+ *
+ * Drugie tło jest ciemniejsze od domyślnego o 1,14:1, i to wystarcza, żeby
+ * trzy odcienie serii spadły pod próg grafiki 3,0:1: ochra do 2,48:1, szałwia
+ * do 2,76:1, lazur do 2,97:1. Razem z nimi spada czerwień ujemna (2,81:1)
+ * i akcent marki (1,83:1, ale ten nie przechodzi progu nawet na bieli).
+ *
+ * PRAKTYCZNA KONSEKWENCJA JEST JEDNA: płyta wykresu zostaje BIAŁA także wtedy,
+ * gdy sekcja wokół niej jest w drugim tle. Nie chodzi o zakaz używania
+ * drugiego tła - chodzi o to, że wykres nie kładzie na nim serii.
+ *
+ * Ta stała jest FAKTEM PALETY dla bramki, tak samo jak
+ * `SLOTS_CLASHING_WITH_ACCENT`: silnik nie daje autorowi drogi do zmiany płyty
+ * wykresu, więc nie ma tu czego ostrzegać w edytorze. Gdyby kiedyś dał,
+ * warunek jest już policzony.
+ */
+export const SLOTS_UNSAFE_ON_SURFACE_2: readonly number[] = [2, 3, 5];
+
+/**
+ * RAMP SEKWENCYJNY mapy-choroplety - para kotwic na motyw.
+ *
+ * PO CO TO JEST W MODULE PALETY, A NIE W KOMPONENCIE MAPY. Mapa koduje wartość
+ * przez `color-mix()` na tokenach `--chart-seq-min` / `--chart-seq-max`, więc
+ * na normalnej przeglądarce żaden hex nie jest jej potrzebny. Ale
+ * `color-mix()` nie ma w starszych silnikach, a wtedy w atrybucie `fill`
+ * ląduje kolor interpolowany w JS - i te dwa hexy MUSZĄ być tą samą parą, co
+ * w arkuszu. Trzymane w komponencie żyły własnym życiem: arkusz miał
+ * `#e0eaf2` / `#00375f`, a fallback `#cde2fb` / `#0d366b`, czyli ramp awaryjny
+ * szedł w tę samą stronę, ale INNYMI kotwicami - i nikt tego nie widział, bo
+ * nowa przeglądarka nigdy tej gałęzi nie wykonuje.
+ *
+ * Tu stoi jedno źródło prawdy, a bramka `__tests__/palette.test.ts` porównuje
+ * je z arkuszem tak samo, jak porównuje wszystkie pozostałe kolory. Reguła
+ * "żadnych hexów w kodzie rysującym" nie jest o estetyce - jest o tym, że
+ * dwie kopie tej samej liczby rozjeżdżają się bez ostrzeżenia.
+ *
+ * PARA NA MOTYW, nie jedna. W trybie ciemnym ramp jest ODWRÓCONY kotwicą:
+ * jedna para (jasna) dawałaby na ciemnej karcie najniższą wartość świecącą
+ * (~11:1), a najwyższą gasnącą poniżej progu 3:1 dla obiektu graficznego.
+ */
+export const SEQ_RAMP = {
+  light: { min: "#e0eaf2", max: "#00375f" },
+  dark: { min: "#1e2935", max: "#8fbef0" },
+} as const;
+
+/**
+ * Warianty AUDYTOWE akcentu - dwa, bo próg zależy od tego, czym akcent ma być.
+ *
+ * Akcent marki nie przechodzi na jasnym tle ŻADNEGO progu WCAG (`#fa9346` ma
+ * 2,25:1 na płycie, `#ed751a` 2,93:1), więc nie może być jedynym nośnikiem
+ * informacji. Gdy audyt dostępności wymaga, żeby ten sam odcień zadziałał jako
+ * czytelny tekst na jasnym tle BEZ podkładu, trzeba go przyciemnić - i mamy
+ * dwie różne odpowiedzi na dwa różne progi:
+ *
+ *   * `graphic` - 3,56:1 na płycie i 3,30:1 na tle strony, czyli próg grafiki
+ *     (WCAG 1.4.11) i tekstu dużego;
+ *   * `text` - 5,19:1 na płycie i 4,82:1 na tle strony, czyli próg tekstu
+ *     normalnego (WCAG 1.4.3).
+ *
+ * OBA ZAWODZĄ NA DRUGIM TLE SEKCYJNYM (2,89:1 i 4,22:1), i to jest ta sama
+ * reguła co przy seriach: to nie jest powierzchnia, na której cokolwiek
+ * z rodziny akcentu jest jedynym nośnikiem.
+ *
+ * Furtka na wypadek audytu, NIE podmiana tokena: `--chart-accent` zostaje tym,
+ * czym jest, bo jest kolorem marki i jego zadaniem jest wyróżniać, a nie
+ * przechodzić progi w roli, której nie pełni.
+ */
+export const ACCENT_AUDIT = {
+  graphic: "#cb7032",
+  text: "#ab5517",
+} as const;
+
+/**
  * Sloty, które NIE MOGĄ wystąpić jako kategoria na wykresie kodującym znak
  * czerwienią. Terakota wobec czerwieni daje 15,9 / 22,1 / 16,7, czyli poniżej
  * podłogi palety - a wykres, na którym "strata" i "kategoria szósta" wyglądają

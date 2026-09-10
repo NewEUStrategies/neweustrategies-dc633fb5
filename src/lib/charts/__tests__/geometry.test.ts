@@ -301,4 +301,38 @@ describe("arkusz druku - wykres na papierze pokazuje DANE, nie stan wejścia", (
     expect(PRINT_BLOCK).toContain("[data-chart-table][hidden]");
     expect(PRINT_BLOCK).toContain("[data-chart-table-toggle]");
   });
+
+  it("w druku słupki i łuki wracają do wariantu SOLIDNEGO", () => {
+    // Wariant blady stoi na tym, że wnętrze ma do płyty 1,20-1,28:1, a granicę
+    // niesie obwódka. Na papierze 1,2:1 nie ma czym się odbić od bieli, więc
+    // zostaje sam kontur 1,5 px - kształt zdefiniowany cienką linią czyta się
+    // przy kilku słupkach jak rysunek techniczny, nie jak dane.
+    //
+    // Podstawienie idzie WŁASNOŚCIAMI z elementu (`--neh-bar-token`,
+    // `--neh-arc-token`), więc jedna reguła obsługuje wszystkie dziewięć
+    // slotów bez znajomości numeru - i wariant zostaje ustawieniem autora,
+    // a nie czymś, co druk zmienia w danych.
+    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="pale"]');
+    expect(PRINT_BLOCK).toContain("fill: var(--neh-bar-token)");
+    expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-token)");
+    // Liczba w łuku przechodzi na TUSZ SLOTU, bo leży teraz na nasyconym
+    // kolorze: tusz semantyczny ma na granacie 2,25:1, a ink slotu 8,07:1.
+    expect(PRINT_BLOCK).toContain(".neh-arc-label");
+    expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-ink)");
+  });
+
+  it("strefa prognozy zamienia płaski tint na KRESKOWANIE - i tylko w druku", () => {
+    // Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
+    // prognoza traciła jeden z TRZECH nośników odróżnienia od historii.
+    // Kreskowanie zostaje, bo linia ma krawędź - i to jedyne miejsce
+    // w silniku, gdzie tekstura jest uzasadniona.
+    expect(PRINT_BLOCK).toContain(".neh-zone-tint");
+    expect(PRINT_BLOCK).toContain(".neh-zone-hatch");
+    // Na EKRANIE jest odwrotnie: kreskowanie schowane, widoczny tint.
+    // Reguła ekranowa musi stać PRZED blokiem druku, inaczej nie ustąpiłaby
+    // kaskadzie (media query nie dodaje specyficzności).
+    const screenHatch = css.indexOf(".neh-chart .neh-zone-hatch {");
+    expect(screenHatch).toBeGreaterThan(0);
+    expect(screenHatch).toBeLessThan(PRINT_START);
+  });
 });

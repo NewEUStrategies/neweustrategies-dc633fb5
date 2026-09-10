@@ -94,7 +94,7 @@ export function Chart({ config, lang, className }: ChartProps) {
       // symulacji, więc klucz nie może twierdzić, że różni je sam odcień.
       dashed: s.colorSlot > CATEGORICAL_SAFE_SERIES,
     }));
-  }, [config, lang, isPie, isWaterfall, t]);
+  }, [config, isPie, isWaterfall, t]);
 
   const shareSumMismatch: string | null = useMemo(() => {
     if (!isPie) return null;

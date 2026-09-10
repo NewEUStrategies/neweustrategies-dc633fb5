@@ -1373,6 +1373,76 @@ describe("CartesianChart - interakcja", () => {
     expect(canvas.className).not.toContain("focus-visible:ring");
   });
 
+  it("ZAWINIĘTA etykieta jedzie tspanami z odstępem 1,2 em, a nie jednym napisem", () => {
+    // Szczebel zawinięcia wchodzi zamiast przerzedzenia: przy dwuwyrazowych
+    // etykietach szerszych od pasma z osi zniknęłaby połowa napisów, a tak
+    // zostają wszystkie, na dwóch liniach. Pierwszy tspan bez `dy`, kolejne
+    // z odstępem - blok rośnie w dół od tej samej linii bazowej, na której
+    // stoją etykiety niezawinięte.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          height: 320,
+          categories: Array.from({ length: 8 }, () => "Polska Wschodnia"),
+          series: [{ name: "A", values: Array.from({ length: 8 }, (_, i) => i + 1) }],
+        })}
+        lang="pl"
+      />,
+    );
+    const etykiety = all(container, SEL.catLabel).filter((t) => t.querySelector("tspan"));
+    expect(etykiety).toHaveLength(8);
+    const tspany = [...etykiety[0].querySelectorAll("tspan")];
+    expect(tspany.map((t) => t.textContent)).toEqual(["Polska", "Wschodnia"]);
+    // Pierwsza linia stoi na linii bazowej etykiety, druga o 1,2 em niżej.
+    expect(tspany[0].getAttribute("dy")).toBe("0");
+    expect(tspany[1].getAttribute("dy")).toBe("1.2em");
+    // Każdy tspan wraca na `x` środka kategorii - bez tego druga linia
+    // startowałaby tam, gdzie skończyła się pierwsza.
+    expect(tspany[0].getAttribute("x")).toBe(tspany[1].getAttribute("x"));
+    // Etykiety nie są obrócone: zawinięcie kupuje miejsce w poziomie inaczej.
+    expect(etykiety[0].getAttribute("transform")).toBeNull();
+  });
+
+  it("STREFA PROGNOZY ma DWA nośniki: tint na ekranie, kreskowanie w druku", () => {
+    // Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
+    // prognoza traciłaby jeden z trzech nośników odróżnienia od historii.
+    // Oba prostokąty są w drzewie zawsze - identyfikator wzoru jest unikalny
+    // per instancja wykresu, więc CSS nie umie go wskazać w `fill` i nie da
+    // się tego przełączyć samym arkuszem bez drugiego elementu.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "line",
+          categories: ["a", "b", "c", "d"],
+          series: [{ name: "A", values: [1, 2, 3, 4] }],
+          forecastFrom: 2,
+          forecastBandPct: 10,
+        })}
+        lang="pl"
+      />,
+    );
+    const tint = container.querySelector("rect.neh-zone-tint");
+    const hatch = container.querySelector("rect.neh-zone-hatch");
+    expect(tint).not.toBeNull();
+    expect(hatch).not.toBeNull();
+    // Ta sama geometria - to jedna powierzchnia w dwóch wariantach.
+    for (const attr of ["x", "y", "width", "height", "rx"]) {
+      expect(hatch?.getAttribute(attr)).toBe(tint?.getAttribute(attr));
+    }
+    // Wzór 45 stopni, odstęp 6 px, kreska 1 px w kolorze strefy.
+    const wzor = container.querySelector(`pattern#${hatch?.getAttribute("fill")?.slice(5, -1)}`);
+    expect(wzor?.getAttribute("patternTransform")).toBe("rotate(45)");
+    expect(wzor?.getAttribute("width")).toBe("6");
+    const kreska = wzor?.querySelector("line");
+    expect(kreska?.getAttribute("stroke-width")).toBe("1");
+    // Kolor i krycie w `style`, nie w atrybucie: `var()` w atrybutach
+    // prezentacyjnych SVG nie jest wspierane wszędzie, a nierozwiązany
+    // `stroke` to czerń.
+    expect(kreska?.getAttribute("style")).toContain("var(--chart-zone)");
+    expect(kreska?.getAttribute("stroke")).toBeNull();
+  });
+
   it("na wykresie liniowym wskaźnik zaokrągla do najbliższego PUNKTU, nie do pasa", () => {
     const { container } = render(
       <CartesianChart

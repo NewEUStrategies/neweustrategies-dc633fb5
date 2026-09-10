@@ -226,19 +226,29 @@ export function PieChart({ config, lang }: PieChartProps) {
                 const [lx, ly] = polar(cx, cy, rLabel, mid);
                 const dy = config.showValues ? -2 : 4;
                 return (
-                  <g key={`t${i}`} pointerEvents="none">
+                  <g
+                    key={`t${i}`}
+                    pointerEvents="none"
+                    // TUSZ SLOTU PODANY, ale NIE UŻYTY NA EKRANIE. Na bladym
+                    // wnętrzu (1,20-1,28:1 do płyty) obowiązuje tusz
+                    // semantyczny: `--chart-ink-N` jest dobrany kontrastem do
+                    // NASYCONEGO wypełnienia i na bladym bywa bielą na jasnym.
+                    // Ale w DRUKU łuk wraca do wariantu solidnego, i wtedy ten
+                    // sam napis leży na nasyconym kolorze: tusz semantyczny ma
+                    // na granacie 2,25:1, a ink slotu 8,07:1. Arkusz przełącza
+                    // to w `@media print`, więc obie wartości muszą być
+                    // dostępne na elemencie.
+                    style={{
+                      ["--neh-arc-ink" as string]: `var(--chart-ink-${s.colorSlot})`,
+                    }}
+                  >
                     <text
                       x={lx}
                       y={ly + dy}
                       textAnchor="middle"
                       fontSize={12}
-                      // TUSZ, nie `--chart-ink-N`. Ten drugi jest dobrany
-                      // kontrastem do NASYCONEGO wypełnienia i przy bladym
-                      // wnętrzu (1,20-1,28:1 do płyty) bywa bielą na jasnym.
-                      // Na bladym wnętrzu ciemny tusz ma 12,6-14,9:1, więc
-                      // liczba czyta się bez zastrzeżeń w obu motywach.
                       fill="var(--foreground)"
-                      className="neh-value-label tabular-nums"
+                      className="neh-arc-label neh-value-label tabular-nums"
                     >
                       {label}
                     </text>
@@ -249,7 +259,7 @@ export function PieChart({ config, lang }: PieChartProps) {
                         textAnchor="middle"
                         fontSize={11}
                         fill="var(--foreground)"
-                        className="neh-pie-value tabular-nums"
+                        className="neh-arc-label neh-pie-value tabular-nums"
                       >
                         {formatChartValue(s.value, lang, config.unit)}
                       </text>
