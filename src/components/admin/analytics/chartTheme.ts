@@ -590,3 +590,40 @@ export function mergeChartOption(
 }
 
 export type { ResolvedTheme };
+
+/**
+ * SKALA PORZĄDKOWA (sekwencyjna) dla map ciepła - jeden odcień, rosnąca siła.
+ *
+ * Mapa ciepła nie pokazuje KATEGORII, tylko NATĘŻENIE, więc paleta kategorialna
+ * (sześć rozłącznych odcieni) jest tu błędem odczytu: oko porównuje barwy
+ * zamiast układać je w kolejność. Stąd jeden odcień - ochra marki - i pięć
+ * przystanków rozstawionych po JASNOŚCI, bo jasność jest jedynym kanałem, który
+ * czyta się porządkowo także przy protanopii i deuteranopii.
+ *
+ * Kierunek zależy od płyty i to jest sedno poprawki:
+ *   - jasny motyw: niski poziom prawie zlewa się z kartą, wysoki jest ciemny,
+ *   - ciemny motyw: ODWROTNIE - niski siada tuż nad tłem, wysoki świeci.
+ * Poprzednia rampa indygo (`#e0e7ff` → `#312e81`) miała kierunek jasnego motywu
+ * wpisany na sztywno, więc w trybie ciemnym dni o NAJWIĘKSZEJ liczbie kliknięć
+ * były najciemniejsze - prawie niewidoczne na czarnej płycie, czyli maksimum
+ * znikało, a pusty tydzień świecił.
+ *
+ * Wartości są dosłownymi kolorami (kanwa nie rozwiązuje `var()` ani `color-mix`).
+ */
+const HEAT_RAMP_LIGHT = ["#f6efe1", "#ecd3a0", "#dda644", "#b87a1e", "#8a5310"] as const;
+const HEAT_RAMP_DARK = ["#241d12", "#59401a", "#94702b", "#c99a35", "#f2c75c"] as const;
+
+/** Rampa dopasowana do bieżącej płyty; do `visualMap.inRange.color`. */
+export function heatRamp(theme: ResolvedTheme): string[] {
+  return [...(theme.dark ? HEAT_RAMP_DARK : HEAT_RAMP_LIGHT)];
+}
+
+/**
+ * Kolor komórki BEZ pomiaru (zero) - celowo poza rampą.
+ *
+ * Zero i „prawie zero" to dwie różne informacje; gdy oba biorą pierwszy
+ * przystanek rampy, pusty dzień wygląda jak dzień z jednym kliknięciem.
+ */
+export function heatEmpty(theme: ResolvedTheme): string {
+  return theme.dark ? "#171717" : "#f2f2f0";
+}
