@@ -230,7 +230,7 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [cooc, t]);
+  }, [cooc, t, chartTheme]);
 
   const popularityScatterOption = useMemo<EChartsCoreOption>(() => {
     const rows = popRows;
