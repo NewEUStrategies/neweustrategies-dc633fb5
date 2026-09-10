@@ -457,7 +457,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     if (!sortedDateRows.length) return { series: [] };
     const sorted = sortedDateRows;
     const data = sorted.map((r) => [r.keys[0] ?? "", r.clicks]);
-    const max = Math.max(1, ...sorted.map((r) => r.clicks));
+    const max = Math.max(2, ...sorted.map((r) => r.clicks));
     const first = sorted[0]?.keys[0] ?? todayISO();
     const last = sorted[sorted.length - 1]?.keys[0] ?? todayISO();
     return {
