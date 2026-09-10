@@ -325,6 +325,7 @@ describe("readVar - rozpoznawanie formatu tokenu", () => {
 describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
   /** Motyw o rozłącznych, rozpoznawalnych kolorach - każde pole ma inny ślad. */
   const THEME: ResolvedTheme = {
+    dark: false,
     palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005", "#a10006"],
     paletteText: ["#a20001", "#a20002", "#a20003", "#a20004", "#a20005", "#a20006"],
     grid: "#f10001",
@@ -680,6 +681,7 @@ describe("izolacja tenantów", () => {
 describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu", () => {
   /** Motyw o rozłącznych kolorach - każde pole ma inny, rozpoznawalny ślad. */
   const THEME: ResolvedTheme = {
+    dark: false,
     palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005", "#a10006"],
     paletteText: ["#a20001", "#a20002", "#a20003", "#a20004", "#a20005", "#a20006"],
     grid: "#f10001",
