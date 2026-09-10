@@ -52,6 +52,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import { ChartCard } from "./ChartCard";
 import { useChartTheme } from "./useChartTheme";
+import { heatEmpty, heatRamp } from "./chartTheme";
 import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { InsightSection } from "./InsightSection";
@@ -466,11 +467,16 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           return `${p.value[0]}: <b>${p.value[1]}</b> ${t("adminAnalytics.gsc.clicksShort")}`;
         },
       },
+      // Skala PORZĄDKOWA, nie kategorialna, i zależna od płyty: rampa indygo
+      // z wpisanym na sztywno kierunkiem jasności gubiła w trybie ciemnym
+      // maksimum (najwięcej kliknięć = najciemniej = niewidocznie).
+      // Dolny przystanek zaczyna się od 1, bo zero ma własny kolor tła komórki -
+      // dzień bez pomiaru nie ma udawać dnia z jednym kliknięciem.
       visualMap: {
-        min: 0,
+        min: 1,
         max,
         show: false,
-        inRange: { color: ["#e0e7ff", "#4f46e5", "#312e81"] },
+        inRange: { color: heatRamp(chartTheme) },
       },
       calendar: {
         top: 30,
@@ -478,13 +484,26 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         right: 20,
         cellSize: ["auto", 14],
         range: [first, last],
-        itemStyle: { borderWidth: 1, borderColor: chartTheme.background },
+        itemStyle: {
+          color: heatEmpty(chartTheme),
+          borderWidth: 2,
+          borderColor: chartTheme.background,
+        },
         splitLine: { show: false },
         yearLabel: { show: false },
         dayLabel: { color: chartTheme.muted, fontSize: 10 },
         monthLabel: { color: chartTheme.muted, fontSize: 10 },
       },
-      series: [{ type: "heatmap", coordinateSystem: "calendar", data }],
+      series: [
+        {
+          type: "heatmap",
+          coordinateSystem: "calendar",
+          data,
+          // Zaokrąglone kafle z tłem płyty w szczelinie czytają się jak siatka
+          // dni, a nie jak jednolita plama.
+          itemStyle: { borderRadius: 2, borderWidth: 2, borderColor: chartTheme.background },
+        },
+      ],
     };
   }, [sortedDateRows, t, chartTheme]);
 
