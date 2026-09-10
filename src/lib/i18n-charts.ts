@@ -404,28 +404,6 @@ const pl = {
       slice: "{{label}}: {{value}} ({{share}})",
       keyboardHint: "Strzałkami przesuwasz aktywną kategorię, Escape czyści zaznaczenie.",
     },
-    editor: {
-      // Ostrzeżenia dyscypliny - nie blokują zapisu, mówią, co się psuje.
-      tooManySeries:
-        "Powyżej {{max}} kolorów kategorialnych paleta przestaje być rozdzielna dla daltonizmu. Pogrupuj serie albo podziel wykres na small multiples.",
-      tooManySlices:
-        "Tarcza powyżej {{max}} kategorii koduje kątem i powierzchnią, czyli najsłabszymi kanałami. Nadmiar zwija się w jeden wycinek zbiorczy - rozważ słupki poziome.",
-      // TRZY GRANICE PIERŚCIENIA. Wszystkie policzalne, więc nie ma sensu
-      // liczyć na czujność autora - ale żadna nie blokuje zapisu, bo każda ma
-      // wyjątki (np. dwa segmenty jako celowo minimalna ilustracja udziału).
-      pieTooFewSlices:
-        "Pierścień z dwoma albo trzema segmentami to koło z dziurą - miernik albo pojedynczy słupek 100% mówi to samo bez pytania czytelnika o kąt.",
-      pieClosePercentages:
-        "Udziały różnią się o mniej niż {{pp}} punkty procentowe, więc pierścień pokaże je jako identyczne. Do porównania weź słupki poziome - długość jest najwyżej w hierarchii percepcyjnej.",
-      signClashesWithTerracotta:
-        "Wykres koduje znak czerwienią, więc terakota (slot 6) nie może być na nim kategorią.",
-      forecastWithoutBand:
-        "Prognoza bez pasma niepewności sugeruje pewność, której nie ma. Podaj szerokość pasma.",
-      smoothingWithoutPoints:
-        "Wygładzona linia bez widocznych punktów obserwacji nie mówi, gdzie kończą się dane, a gdzie zaczyna interpolacja.",
-      missingNotes:
-        "Podpis bez zdania „czego nie pokazuje” zmienia wykres analityczny w ilustrację.",
-    },
   },
 };
 
@@ -757,24 +735,6 @@ const en = {
       chartUntitled: "Chart",
       slice: "{{label}}: {{value}} ({{share}})",
       keyboardHint: "Arrow keys move the active category, Escape clears the selection.",
-    },
-    editor: {
-      tooManySeries:
-        "Above {{max}} categorical colours the palette stops being separable for colour-blind readers. Group the series or split the chart into small multiples.",
-      tooManySlices:
-        "A pie above {{max}} categories encodes with angle and area, the weakest channels. The overflow folds into one aggregate slice - consider sorted horizontal bars.",
-      pieTooFewSlices:
-        "A ring with two or three segments is a circle with a hole - a meter or a single 100% bar says the same without asking the reader to judge an angle.",
-      pieClosePercentages:
-        "The shares differ by less than {{pp}} percentage points, so the ring will render them as identical. Use horizontal bars for the comparison - length is highest in the perceptual hierarchy.",
-      signClashesWithTerracotta:
-        "This chart encodes sign with red, so terracotta (slot 6) cannot also be a category on it.",
-      forecastWithoutBand:
-        "A forecast without an uncertainty band implies a certainty that is not there. Set the band width.",
-      smoothingWithoutPoints:
-        "A smoothed line without visible observation points does not say where the data ends and interpolation begins.",
-      missingNotes:
-        "A caption without the “what it does not show” sentence turns an analytical chart into an illustration.",
     },
   },
 };

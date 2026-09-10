@@ -40,6 +40,7 @@ import {
 import { SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-charts";
+import "@/lib/i18n-charts-editor";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { Chart } from "@/components/charts/Chart";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
