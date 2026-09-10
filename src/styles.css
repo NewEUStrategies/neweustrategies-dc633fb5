@@ -635,19 +635,47 @@ body {
 .dark {
   --background: #141414;
 
-  --foreground: oklch(0.98 0 0);
+  /* ---- TEKST NA CIEMNYM NIE JEST BIELĄ ----
+     `oklch(0.98 0 0)` to praktycznie biel (#f8f8f8) i dawała na płycie
+     18,05:1. Brzmi jak zaleta, a jest defektem czytelności: biel na czerni
+     przy pełnym kontraście HALACJE - jasne glify rozlewają się na ciemne tło,
+     cienkie kreski liter grubieją optycznie i długi tekst zaczyna migotać.
+     `#ede9e7` daje 15,89:1 na płycie i 15,27:1 na tle strony, czyli ponad
+     trzykrotny zapas nad progiem tekstowym 4,5:1, a znaki zostają ostre.
+
+     TA SAMA WARTOŚĆ, CO ATRAMENT WYKRESU. Silnik wykresów już używał
+     `#ede9e7` jako `--chart-tip-ink` i `--chart-zone`, więc aplikacja miała
+     w trybie ciemnym DWIE różne biele: jedną w interfejsie, drugą na
+     wykresie. Ta zmiana je scala, i to jest jej druga, cichsza korzyść -
+     bramka `src/lib/__tests__/darkForeground.test.ts` pilnuje, żeby znów się
+     nie rozjechały.
+
+     ZMIENIAJĄ SIĘ WYŁĄCZNIE ROLE TEKSTOWE. `--primary` i `--ring` zostają
+     przy jaśniejszej wartości, bo nie są tekstem: pierwsza jest
+     POWIERZCHNIĄ przycisku (tekst na niej to `--primary-foreground`), druga
+     wskaźnikiem fokusu, który ma być maksymalnie widoczny. Halacja dotyczy
+     glifów, nie prostokątów.
+
+     O TEMPERATURZE, UCZCIWIE. Specyfikacja uzasadnia ciepły odcień tekstu
+     ciepłym tłem - ale tło tego repo jest NEUTRALNE (#141414 i #0f0f0f mają
+     chromę 0), a ciepłe są dopiero powierzchnie wykresu (#262424, #212020).
+     `#ede9e7` ma chromę 0,005, czyli mieści się w szumie wobec neutralnej
+     szarości i nie wprowadza widocznego rozjazdu. Przetemperowanie CAŁEJ
+     ciemnej palety na ciepło jest osobną decyzją projektową dotykającą każdej
+     powierzchni aplikacji i świadomie tu nie wchodzi. */
+  --foreground: #ede9e7;
   --card: #0f0f0f;
-  --card-foreground: oklch(0.98 0 0);
+  --card-foreground: #ede9e7;
   --popover: #0f0f0f;
-  --popover-foreground: oklch(0.98 0 0);
+  --popover-foreground: #ede9e7;
   --primary: oklch(0.98 0 0);
   --primary-foreground: #141414;
   --secondary: #1f1f1f;
-  --secondary-foreground: oklch(0.98 0 0);
+  --secondary-foreground: #ede9e7;
   --muted: #0f0f0f;
   --muted-foreground: oklch(0.7 0 0);
   --accent: #1f1f1f;
-  --accent-foreground: oklch(0.98 0 0);
+  --accent-foreground: #ede9e7;
   --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(1 0 0);
   --status-success: oklch(0.72 0.17 155);
