@@ -349,6 +349,11 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
     backgroundColor: "transparent",
     textStyle: {
       color: theme.foreground,
+      // Tekst na ciemnej płycie ma być naprawdę jasny, bez sztucznego
+      // kontrastowego konturu. ECharts potrafi odziedziczyć obrys z etykiety
+      // serii, dlatego zerujemy go w bazie wszystkich wykresów.
+      textBorderWidth: 0,
+      textShadowBlur: 0,
       // Rodzina Z TOKENA, czyli z ustawienia panelu admina. Kanwa nie
       // dziedziczy czcionki dokumentu i nie rozumie `var()`, więc rozwiązany
       // napis musi tu dojechać z `resolveChartTheme` - inaczej wykres
@@ -366,7 +371,7 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       // Nazwy serii w WARIANCIE TEKSTOWYM - legenda to tekst, więc obowiązuje
       // ją próg 4,5:1, a nie 3,0:1 jak linię. Kolory próbek ECharts bierze
       // z `color`, więc próbka nadal jest w kolorze serii.
-      textStyle: { color: theme.muted, fontSize: 11 },
+      textStyle: { color: theme.foreground, fontSize: 11, textBorderWidth: 0 },
       icon: "roundRect",
       itemWidth: 10,
       itemHeight: 6,
@@ -423,15 +428,16 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       // czytelny podzbiór zamiast zlepków dat. `overflow: "truncate"` pilnuje
       // długich kategorii (ścieżki URL, nazwy krajów).
       axisLabel: {
-        color: theme.muted,
+        color: theme.foreground,
         fontSize: 11,
+        textBorderWidth: 0,
         hideOverlap: true,
         overflow: "truncate",
         width: 96,
       },
       // Nazwa osi (np. „Kliknięcia") - bez koloru bierze domyślny ECharts,
       // który w trybie ciemnym jest za ciemny; jedzie tokenem tekstu osi.
-      nameTextStyle: { color: theme.muted, fontSize: 10 },
+      nameTextStyle: { color: theme.foreground, fontSize: 10, textBorderWidth: 0 },
     },
     yAxis: {
       axisLine: { show: false },
@@ -442,8 +448,13 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       splitLine: {
         lineStyle: { color: theme.grid, type: GUIDE_DASH },
       },
-      axisLabel: { color: theme.muted, fontSize: 11, hideOverlap: true },
-      nameTextStyle: { color: theme.muted, fontSize: 10 },
+      axisLabel: {
+        color: theme.foreground,
+        fontSize: 11,
+        hideOverlap: true,
+        textBorderWidth: 0,
+      },
+      nameTextStyle: { color: theme.foreground, fontSize: 10, textBorderWidth: 0 },
     },
   };
 }

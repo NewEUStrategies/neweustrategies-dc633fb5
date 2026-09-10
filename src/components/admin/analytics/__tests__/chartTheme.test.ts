@@ -363,14 +363,14 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     expect((baseOption(THEME) as Record<string, unknown>).backgroundColor).toBe("transparent");
   });
 
-  it("legenda używa koloru wyciszonego, nie bazowego", async () => {
+  it("legenda używa jasnego tekstu bez obrysu", async () => {
     const { baseOption } = await loadChartTheme();
     const legend = (baseOption(THEME) as Record<string, unknown>).legend as {
-      textStyle: { color: string };
+      textStyle: { color: string; textBorderWidth: number };
     };
 
-    expect(legend.textStyle.color).toBe(THEME.muted);
-    expect(legend.textStyle.color).not.toBe(THEME.foreground);
+    expect(legend.textStyle.color).toBe(THEME.foreground);
+    expect(legend.textStyle.textBorderWidth).toBe(0);
   });
 
   it("dymek bierze tło z --background, ramkę z --border, a tekst z --foreground", async () => {
@@ -415,18 +415,18 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     expect(tooltip.backgroundColor).toBe(THEME.tipBg);
   });
 
-  it("obie osie: linie i podziałka w kolorze ramki, etykiety w wyciszonym", async () => {
+  it("obie osie: linie i podziałka w kolorze ramki, etykiety jasne bez obrysu", async () => {
     const { baseOption } = await loadChartTheme();
     const option = baseOption(THEME) as Record<string, unknown>;
     const xAxis = option.xAxis as {
       axisLine: { lineStyle: { color: string } };
       axisTick: { lineStyle: { color: string } };
-      axisLabel: { color: string };
+      axisLabel: { color: string; textBorderWidth: number };
       splitLine: { show: boolean };
     };
     const yAxis = option.yAxis as {
       splitLine: { lineStyle: { color: string; type: string } };
-      axisLabel: { color: string };
+      axisLabel: { color: string; textBorderWidth: number };
       axisLine: { show: boolean };
     };
 
@@ -436,9 +436,11 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     // się wyróżniać.
     expect(xAxis.axisLine.lineStyle.color).toBe(THEME.axis);
     expect(xAxis.axisTick.lineStyle.color).toBe(THEME.axis);
-    expect(xAxis.axisLabel.color).toBe(THEME.muted);
+    expect(xAxis.axisLabel.color).toBe(THEME.foreground);
+    expect(xAxis.axisLabel.textBorderWidth).toBe(0);
     expect(yAxis.splitLine.lineStyle.color).toBe(THEME.grid);
-    expect(yAxis.axisLabel.color).toBe(THEME.muted);
+    expect(yAxis.axisLabel.color).toBe(THEME.foreground);
+    expect(yAxis.axisLabel.textBorderWidth).toBe(0);
     // Siatkę rysuje TYLKO oś Y - pionowe linie na osi czasu to szum.
     expect(xAxis.splitLine.show).toBe(false);
     expect(yAxis.axisLine.show).toBe(false);
@@ -474,7 +476,6 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     // Czcionki też tu nie ma - jest napisem, nie kolorem, i sprawdza ją
     // osobny przypadek („czcionka jest jawna...").
     for (const kolor of [
-      THEME.muted,
       THEME.grid,
       THEME.axis,
       THEME.foreground,
@@ -731,7 +732,7 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
 
     expect(yAxis.type).toBe("value");
     expect(yAxis.max).toBe(100);
-    expect(yAxis.axisLabel?.color).toBe(THEME.muted);
+    expect(yAxis.axisLabel?.color).toBe(THEME.foreground);
     expect(yAxis.splitLine?.lineStyle?.color).toBe(THEME.grid);
     expect(yAxis.splitLine?.lineStyle?.type).toEqual([2, 4]);
     expect(yAxis.axisLine?.show).toBe(false);
@@ -749,7 +750,7 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     const axisLabel = (merged.yAxis as OsBazy).axisLabel;
 
     expect(axisLabel?.fontSize).toBe(10);
-    expect(axisLabel?.color).toBe(THEME.muted);
+    expect(axisLabel?.color).toBe(THEME.foreground);
     // Funkcja przechodzi TĄ SAMĄ referencją - złączenie nie klonuje formatterów.
     expect(axisLabel?.formatter).toBe(formatter);
   });
@@ -773,12 +774,12 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     expect(tooltip.extraCssText).toContain("border-radius");
   });
 
-  it("`legend` panelu z samym `top` zachowuje wyciszony kolor tekstu legendy", async () => {
+  it("`legend` panelu z samym `top` zachowuje jasny kolor tekstu legendy", async () => {
     const merged = await zloz({ legend: { top: 40 }, series: [] });
     const legend = merged.legend as { top?: number; textStyle?: { color?: string } };
 
     expect(legend.top).toBe(40);
-    expect(legend.textStyle?.color).toBe(THEME.muted);
+    expect(legend.textStyle?.color).toBe(THEME.foreground);
   });
 
   it("TABLICA osi panelu dostaje bazę do KAŻDEGO elementu - wykres o trzech osiach też jest umotywowany", async () => {
@@ -798,7 +799,7 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
 
     expect(axes).toHaveLength(3);
     for (const axis of axes) {
-      expect(axis.axisLabel?.color).toBe(THEME.muted);
+      expect(axis.axisLabel?.color).toBe(THEME.foreground);
       expect(axis.splitLine?.lineStyle?.color).toBe(THEME.grid);
     }
     expect(axes[1]?.name).toBe("wyświetlenia");
@@ -899,7 +900,6 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
 
     for (const kolor of [
       ...THEME.palette,
-      THEME.muted,
       THEME.grid,
       THEME.axis,
       THEME.foreground,
@@ -908,10 +908,10 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     ]) {
       expect(wynik).toContain(kolor);
     }
-    // Kontrola liczby: tyle samo wystąpień koloru wyciszonego co w bazie
-    // (legenda + dwie osie) - żadna sekcja nie wypadła po cichu.
+    // Kontrola liczby: tyle samo wystąpień jasnego koloru co w bazie - żadna
+    // legenda, oś ani tekst bazowy nie wypadły po cichu.
     const ile = (tekst: string, igla: string) => tekst.split(igla).length - 1;
-    expect(ile(wynik, THEME.muted)).toBe(ile(JSON.stringify(base), THEME.muted));
+    expect(ile(wynik, THEME.foreground)).toBe(ile(JSON.stringify(base), THEME.foreground));
   });
 
   it("złączenie NIE MUTUJE ani bazy, ani opcji panelu", async () => {
