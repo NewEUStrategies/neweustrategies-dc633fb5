@@ -966,7 +966,11 @@ export interface HeatmapTableRow {
  * (za mało niepustych wierszy albo kolumn), `"tie"` = różnica poniżej progu
  * rozstrzygalności.
  */
-export type HeatmapDominantAxis = "rows" | "columns" | "tie" | null;
+/** Rozstrzygalne odpowiedzi - render SKŁADA z nich klucz słownika, więc
+ *  bramka `chartDictionaryKeys.test.ts` musi móc przejść po tej liście. */
+export const HEATMAP_DOMINANT_AXES = ["rows", "columns", "tie"] as const;
+
+export type HeatmapDominantAxis = (typeof HEATMAP_DOMINANT_AXES)[number] | null;
 
 export interface HeatmapTable {
   /** Nagłówek tabeli: etykiety kolumn w kolejności rysowania. */

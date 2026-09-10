@@ -33,7 +33,31 @@ import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot
 import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
 import { scatterModelFromConfig, scatterTable } from "@/lib/charts/kinds/scatter";
 import { heatmapModelFromConfig, heatmapTable } from "@/lib/charts/kinds/heatmap";
-import { tornadoModelFromConfig, tornadoTable } from "@/lib/charts/kinds/tornado";
+import {
+  tornadoModelFromConfig,
+  tornadoTable,
+  type TornadoRowNote,
+} from "@/lib/charts/kinds/tornado";
+
+/**
+ * Przypis wiersza tornada -> klucz słownika, JAWNIE. Wcześniej klucz powstawał
+ * sklejeniem (`tornado.note.${n}`) i to nie była kosmetyka: unia ma siedem
+ * wartości, słownik miał trzy, a czterech brakujących nie widziała ani bramka
+ * parytetu PL/EN, ani bramka rozjazdu kod-słownik, bo obie czytają wyłącznie
+ * PEŁNE ścieżki. Na stronie publicznej stał w tabeli danych napis
+ * „tornado.note.oneLegged". Mapa jest wyczerpująca, więc nowa wartość unii nie
+ * skompiluje się bez klucza, a bramka `chartDictionaryKeys.test.ts` sprawdza
+ * drugą stronę: czy klucz ma treść w obu językach.
+ */
+const TORNADO_NOTE_KEYS: Record<TornadoRowNote, string> = {
+  inverted: "tornado.note.inverted",
+  zeroSpan: "tornado.note.zeroSpan",
+  oneLegged: "tornado.note.oneLegged",
+  empty: "tornado.note.empty",
+  oneSided: "tornado.note.oneSided",
+  tied: "tornado.note.tied",
+  duplicate: "tornado.note.duplicate",
+};
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
 
@@ -364,7 +388,7 @@ function TornadoDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
               {r.label}
               {r.notes.length > 0 && (
                 <span className="block text-[10px] font-normal text-muted-foreground">
-                  {r.notes.map((n) => t(`tornado.note.${n}`)).join("; ")}
+                  {r.notes.map((n) => t(TORNADO_NOTE_KEYS[n])).join("; ")}
                 </span>
               )}
             </th>
@@ -503,11 +527,14 @@ function ScatterDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
               <th scope="col" className={CHART_TABLE_CLS.th}>
                 {t("scatter.table.series")}
               </th>
+              {/* NAGŁÓWKI, nie zdania: `scatter.trend.n` i `.r2` są zdaniami
+                  z wstawką („n = {{count}}"), której nagłówek nie ma czym
+                  wypełnić - stała w nim surowa klamra. */}
               <th scope="col" className={CHART_TABLE_CLS.thNum}>
-                {t("scatter.trend.n")}
+                {t("scatter.table.n")}
               </th>
               <th scope="col" className={CHART_TABLE_CLS.thNum}>
-                {t("scatter.trend.r2")}
+                {t("scatter.table.r2")}
               </th>
               <th scope="col" className={CHART_TABLE_CLS.th}>
                 {t("scatter.trend.method")}

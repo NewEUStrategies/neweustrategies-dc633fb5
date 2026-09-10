@@ -133,7 +133,7 @@ const pl = {
         divergingDowngraded:
           "Skala dywergentna nie ma uzasadnienia, bo dane nie przechodzą przez punkt neutralny. Zeszła na sekwencyjną, żeby jasność rosła monotonicznie z wartością.",
         unorderedAxis:
-          "Siatka parametrów ma nierówne odstępy, więc szerokość komórki nie odpowiada fragmentowi zakresu, który reprezentuje. Podaj równe kroki albo nazwij osie jako porządkowe, nie liczbowe.",
+          "Etykiety liczbowe osi nie idą po kolei, więc sąsiedztwo komórek nie odpowiada sąsiedztwu wartości. Uporządkuj etykiety rosnąco albo malejąco - mapa ciepła czyta się wzdłuż osi, nie po adresach.",
       },
     },
     tornado: {
@@ -234,7 +234,7 @@ const en: typeof pl = {
         divergingDowngraded:
           "A diverging scale is not justified, because the data does not cross the neutral point. It fell back to sequential so that lightness rises monotonically with value.",
         unorderedAxis:
-          "The parameter grid has uneven steps, so cell width does not match the slice of the range it stands for. Provide equal steps, or name the axes as ordinal rather than numeric.",
+          "The numeric axis labels do not run in order, so neighbouring cells do not stand for neighbouring values. Sort the labels ascending or descending - a heatmap is read along its axes, not by address.",
       },
     },
     tornado: {

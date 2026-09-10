@@ -48,11 +48,40 @@ const edytorski = readFileSync("src/lib/i18n-charts-editor.ts", "utf8");
 function blok(src: string, odKlamry: number): string {
   let glebokosc = 0;
   let wNapisie = false;
+  let wKomentarzu: "" | "linia" | "blok" = "";
   for (let i = odKlamry; i < src.length; i += 1) {
     const c = src[i];
+    // KOMENTARZE POMIJANE, i to nie jest ostrożność na zapas. Komentarze w tym
+    // repozytorium CYTUJĄ tekst słownika, więc trafia do nich pojedynczy
+    // cudzysłów prosty (polska para to „ i ”, ale zamknięcie bywa pisane
+    // prosto). Parser liczący napisy bez pomijania komentarzy wchodził na taki
+    // cudzysłów w stan „jestem w napisie" i gubił domknięcie CAŁEGO bloku -
+    // objawem był wysyp trzech testów tego pliku po dopisaniu JEDNEGO zdania
+    // komentarza w słowniku.
+    if (wKomentarzu === "linia") {
+      if (c === "\n") wKomentarzu = "";
+      continue;
+    }
+    if (wKomentarzu === "blok") {
+      if (c === "*" && src[i + 1] === "/") {
+        wKomentarzu = "";
+        i += 1;
+      }
+      continue;
+    }
     if (wNapisie) {
       if (c === "\\") i += 1;
       else if (c === '"') wNapisie = false;
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "/") {
+      wKomentarzu = "linia";
+      i += 1;
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "*") {
+      wKomentarzu = "blok";
+      i += 1;
       continue;
     }
     if (c === '"') wNapisie = true;

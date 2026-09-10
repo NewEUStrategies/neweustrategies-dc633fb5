@@ -23,6 +23,7 @@ import { formatChartValue } from "@/lib/charts/format";
 import { BAR_EDGE_INSET, BAR_MAX } from "@/lib/charts/geometry";
 import { TORNADO_COLUMNS } from "@/lib/charts/kinds/tornado";
 import { TornadoChart } from "../TornadoChart";
+import { Chart } from "../Chart";
 
 function cfg(data: Record<string, Json>): ChartConfig {
   return parseChartConfig({ kind: "bar", animate: false, ...data });
@@ -646,5 +647,49 @@ describe("TornadoChart - dane z bazy", () => {
     const { container } = render(<TornadoChart config={cfg(ARKUSZ)} lang="pl" />);
     expect(container.innerHTML).not.toMatch(/(fill|stroke)="#/);
     expect(container.querySelector("svg")?.getAttribute("viewBox")).toBeNull();
+  });
+});
+
+describe("TornadoChart - przypisy wiersza w tabeli danych", () => {
+  // TEN BLOK POWSTAŁ Z DEFEKTU NA STRONIE PUBLICZNEJ. `Chart.tsx` składał
+  // klucz przypisu napisem (`tornado.note.${n}`), unia `TornadoRowNote` ma
+  // siedem wartości, a słownik miał trzy - więc w widocznej tabeli danych, przy
+  // nazwie parametru, stał napis „tornado.note.oneLegged". Żadna z trzech
+  // bramek i18n tego nie widziała, bo wszystkie czytają PEŁNE ścieżki.
+  //
+  // Tabela mieszka w `Chart.tsx` (TABLE_BY_KIND), a nie w renderze, więc te
+  // testy renderują `Chart`, nie `TornadoChart` - inaczej sprawdzałyby kod,
+  // którego czytelnik nie widzi.
+  const arkusz: Record<string, Json> = {
+    kind: "tornado",
+    animate: false,
+    categories: ["Wolumen", "Kurs EUR", "Marża", "Wolumen", "Koszt", "Cena"],
+    series: [
+      // Wolumen: para pełna; Kurs EUR: sama noga górna (oneLegged);
+      // Marża: obie luki (empty); Wolumen (drugi raz): duplikat nazwy;
+      // Koszt: obie nogi POWYŻEJ bazy (oneSided); Cena: rozpiętość równa
+      // pierwszemu wierszowi (tied).
+      { name: "Dolny koniec", values: [90, null, null, 96, 105, 90] },
+      { name: "Górny koniec", values: [110, 130, null, 104, 120, 110] },
+      { name: "Baza", values: [100, 100, 100, 100, 100, 100] },
+    ],
+  };
+
+  it("nie wypisuje ANI JEDNEJ surowej ścieżki słownika", () => {
+    const { container } = render(<Chart config={parseChartConfig(arkusz)} lang="pl" />);
+    const tekst = container.textContent ?? "";
+    expect(/tornado\.[a-z]+\./.test(tekst), "surowy klucz w tabeli danych").toBe(false);
+    expect(tekst.includes("{{"), "niewypełniona wstawka").toBe(false);
+  });
+
+  it("każdy przypis unii ma treść, a nie nazwę wartości", () => {
+    const { container } = render(<Chart config={parseChartConfig(arkusz)} lang="pl" />);
+    const tekst = container.textContent ?? "";
+    // Po jednym rozpoznawalnym fragmencie zdania na przypis, którego wcześniej
+    // w słowniku nie było.
+    expect(tekst).toContain("jedna noga");
+    expect(tekst).toContain("nie ma czym się odchylać");
+    expect(tekst).toContain("po tej samej stronie bazy");
+    expect(tekst).toContain("powtarza się w arkuszu");
   });
 });

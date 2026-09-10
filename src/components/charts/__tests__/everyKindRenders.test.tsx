@@ -89,6 +89,37 @@ function maloweZnacznikiem(root: HTMLElement): boolean {
   return false;
 }
 
+/**
+ * Ścieżka słownika, która wyciekła na ekran zamiast zdania. Wzorzec celuje
+ * w KSZTAŁT klucza (`rodzaj.podblok.nazwa`), a nie w konkretne nazwy, bo
+ * defekt, przez który ta asercja powstała, polegał właśnie na tym, że nikt
+ * nie wiedział, których nazw szukać: `Chart.tsx` sklejał klucz przypisu
+ * tornada z unii siedmiu wartości, słownik miał trzy, a w tabeli danych na
+ * stronie publicznej stał napis „tornado.note.oneLegged".
+ */
+const PODBLOKI_SLOWNIKA = [
+  "note",
+  "reading",
+  "honesty",
+  "advice",
+  "table",
+  "summary",
+  "axis",
+  "rule",
+  "legend",
+  "trend",
+  "dominant",
+  "rejection",
+] as const;
+const SUROWY_KLUCZ = new RegExp(`\\b[a-zA-Z]+\\.(?:${PODBLOKI_SLOWNIKA.join("|")})\\.[a-zA-Z]`);
+
+/** Wstawka, której render nie wypełnił - i18next zostawia wtedy klamry. */
+function bezSurowychKluczy(tekst: string, gdzie: string): void {
+  const klucz = SUROWY_KLUCZ.exec(tekst);
+  expect(klucz?.[0] ?? null, `${gdzie}: na ekranie ścieżka słownika zamiast zdania`).toBeNull();
+  expect(tekst.includes("{{"), `${gdzie}: na ekranie niewypełniona wstawka {{...}}`).toBe(false);
+}
+
 describe("każdy rodzaj z CHART_KINDS rysuje się i ma tabelę", () => {
   it("lista rodzajów nie jest pusta - bramka nie mierzy niczego", () => {
     // Bez tego przypadku pusta lista dałaby zieloną bramkę bez ani jednego
@@ -133,6 +164,7 @@ describe("każdy rodzaj z CHART_KINDS rysuje się i ma tabelę", () => {
         for (const zly of ["NaN", "undefined", "Infinity", "[object Object]"]) {
           expect(tekst.includes(zly), `${kind}: na ekranie napis ${zly}`).toBe(false);
         }
+        bezSurowychKluczy(tekst, kind);
       });
     });
   }
@@ -184,6 +216,7 @@ describe("każdy rodzaj znosi dane zdegenerowane bez wywrotki", () => {
         for (const zly of ["NaN", "undefined", "Infinity", "[object Object]"]) {
           expect(tekst.includes(zly), `${kind} / ${opis}: napis ${zly}`).toBe(false);
         }
+        bezSurowychKluczy(tekst, `${kind} / ${opis}`);
         // Każdy atrybut liczbowy SVG musi być skończony - `NaN` w `d` albo
         // w `cx` nie pokazuje się jako tekst, ale wycina znacznik z rysunku
         // bez śladu w konsoli.

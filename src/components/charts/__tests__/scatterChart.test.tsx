@@ -25,6 +25,7 @@ import type { ChartConfig } from "@/lib/charts/types";
 import { HIT_RADIUS_PX } from "@/lib/charts/plot";
 import { SCATTER_MARKER_R, SCATTER_MARKER_STROKE } from "@/lib/charts/kinds/scatter";
 import { ScatterChart } from "../ScatterChart";
+import { Chart } from "../Chart";
 
 function cfg(data: Record<string, Json>): ChartConfig {
   return parseChartConfig(data);
@@ -766,5 +767,37 @@ describe("ScatterChart - język jedzie propsem", () => {
       "X",
       "Y",
     ]);
+  });
+});
+
+describe("ScatterChart - tabela odcinków trendu w ramce wykresu", () => {
+  // Tabela trendów mieszka w `Chart.tsx` (TABLE_BY_KIND), więc te dwa testy
+  // renderują `Chart`. Powód jest konkretny: nagłówki kolumn brały klucze
+  // `scatter.trend.n` i `scatter.trend.r2`, które są ZDANIAMI z wstawką
+  // („n = {{count}}"), a nagłówek nie ma czym wstawki wypełnić - w nagłówku
+  // kolumny stała surowa klamra. Zdania zostają przy odcinku na rysunku,
+  // nagłówki mają własne, krótkie klucze.
+  const arkusz: Record<string, Json> = {
+    kind: "scatter",
+    animate: false,
+    categories: X_ROSNIE.map((x) => String(x)),
+    series: [{ name: "Marża", values: Y_ROSNIE }],
+  };
+
+  it("nagłówki kolumn nie mają niewypełnionej wstawki", () => {
+    const { container } = render(<Chart config={parseChartConfig(arkusz)} lang="pl" />);
+    const naglowki = all(container, "th").map((el) => el.textContent ?? "");
+    expect(naglowki.length).toBeGreaterThan(0);
+    for (const n of naglowki) {
+      expect(n.includes("{{"), `nagłówek "${n}" z niewypełnioną wstawką`).toBe(false);
+    }
+    expect(naglowki.join("|")).toContain("R²");
+  });
+
+  it("cały wykres nie wypisuje surowej ścieżki słownika", () => {
+    const { container } = render(<Chart config={parseChartConfig(arkusz)} lang="pl" />);
+    const tekst = container.textContent ?? "";
+    expect(/scatter\.[a-z]+\./.test(tekst)).toBe(false);
+    expect(tekst.includes("{{")).toBe(false);
   });
 });

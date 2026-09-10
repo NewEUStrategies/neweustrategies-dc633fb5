@@ -112,8 +112,20 @@ export const HISTOGRAM_SHAPE_MIN_OBSERVATIONS = 20;
  *   * `degenerate` - wszystkie obserwacje równe, więc zakresu nie ma;
  *   * `none` - nie ma żadnej obserwacji, model milczy.
  */
-export type HistogramRule =
-  "freedman-diaconis" | "sturges" | "explicit-edges" | "explicit-count" | "degenerate" | "none";
+export const HISTOGRAM_RULES = [
+  "freedman-diaconis",
+  "sturges",
+  "explicit-edges",
+  "explicit-count",
+  "degenerate",
+  "none",
+] as const;
+
+/** Nazwa reguły doboru przedziałów. Tablica wyżej istnieje, bo render SKŁADA
+ *  z niej klucz słownika (`histogram.rule.${rule}`), a klucza sklejonego nie
+ *  widzi ani parytet PL/EN, ani bramka rozjazdu - jedyną drogą do pełnego
+ *  pokrycia jest przejście bramki po wszystkich wartościach unii. */
+export type HistogramRule = (typeof HISTOGRAM_RULES)[number];
 
 export interface HistogramBin {
   index: number;

@@ -227,6 +227,13 @@ const pl = {
         y: "Y",
         dropped: "pominięta",
         overplotted: "plamka dzielona",
+        // NAGŁÓWKI KOLUMN, nie zdania. Tabela odcinków trendu używała jako
+        // nagłówków kluczy `trend.n` („n = {{count}}") i `trend.r2`
+        // („R² = {{value}}"), czyli ZDAŃ Z WSTAWKĄ, której nagłówek nie ma
+        // czym wypełnić - w nagłówku kolumny stała surowa klamra. Zdania
+        // zostają tam, gdzie mają sens: przy odcinku na rysunku.
+        n: "n",
+        r2: "R²",
       },
       trend: {
         label: "Linia trendu",
@@ -297,9 +304,17 @@ const pl = {
           "Etykiety wiersza albo kolumny powtarzają się, więc dwie komórki mają ten sam adres.",
         namedOk:
           "Część wierszy albo kolumn nie ma nazwy, więc nie da się odczytać, czego dotyczy komórka.",
+        // TREŚĆ ZGODNA Z TYM, CO POLE SPRAWDZA. Wcześniej mówiła o NIERÓWNYCH
+        // ODSTĘPACH, a model sprawdza MONOTONICZNOŚĆ etykiet liczbowych
+        // (`rosnie || maleje`, od trzech etykiet). Oś 1, 2, 10, 100 ma odstępy
+        // skrajnie nierówne i przechodziła orzeczenie, którego treść obiecywała
+        // ją wykryć - czyli komunikat obiecywał sprawdzenie, którego nie ma.
         orderOk:
-          "Siatka parametrów ma nierówne odstępy - szerokość komórki kłamie o fragmencie zakresu.",
-        matrixShapeOk: "Wiersze mają różną liczbę komórek, więc macierz nie jest prostokątna.",
+          "Etykiety liczbowe osi nie idą po kolei, więc sąsiedztwo komórek nie odpowiada sąsiedztwu wartości.",
+        // Pole sprawdza MINIMUM 2x2 niepustych wierszy i kolumn, a nie
+        // prostokątność - wiersze o różnej długości model i tak dopełnia.
+        matrixShapeOk:
+          "Dane nie mają kształtu macierzy: po jednej ze stron został mniej niż jeden pełny wymiar.",
         divergingJustifiedOk:
           "Skala dywergentna została użyta na danych, które nie przechodzą przez punkt neutralny.",
         signEncodedOk:
@@ -319,7 +334,7 @@ const pl = {
         divergingDowngraded:
           "Dane nie przechodzą przez punkt neutralny, więc skala jest sekwencyjna, nie dywergentna.",
         unorderedAxis:
-          "Siatka parametrów ma nierówne odstępy, więc szerokość komórki nie odpowiada fragmentowi zakresu, który reprezentuje.",
+          "Etykiety liczbowe osi nie idą po kolei, więc sąsiedztwo komórek nie odpowiada sąsiedztwu wartości.",
       },
     },
     tornado: {
@@ -346,6 +361,17 @@ const pl = {
         inverted: "parametr odwrotny: wysoka wartość obniża wynik",
         zeroSpan: "rozpiętość zerowa: parametr nie rusza wynikiem",
         baseOutside: "wynik bazowy leży poza przedziałem niska-wysoka",
+        // PIĘĆ PRZYPISÓW, KTÓRYCH TU NIE BYŁO, a `TornadoRowNote` je zwraca:
+        // tabela danych wypisywała za nie SUROWY KLUCZ („tornado.note.empty”)
+        // na stronie publicznej, bo klucz składał się napisem i żadna bramka
+        // go nie widziała. Treść jest tą samą treścią, którą niosą komunikaty
+        // uczciwości - przypis w wierszu mówi to samo krócej, bo stoi przy
+        // nazwie parametru, a nie pod rysunkiem.
+        oneLegged: "podana jedna noga: druga wartość skrajna nie ma liczby",
+        empty: "brak obu wartości skrajnych: wiersz nie ma czym się odchylać",
+        oneSided: "obie nogi po tej samej stronie bazy",
+        tied: "rozpiętość taka sama jak w innym wierszu: kolejność jest umowna",
+        duplicate: "nazwa parametru powtarza się w arkuszu",
       },
       reading: {
         // BEZ BAZY RYSUNEK JEST PUSTY, i właśnie dlatego ta obserwacja jest
@@ -576,6 +602,8 @@ const en = {
         y: "Y",
         dropped: "dropped",
         overplotted: "shared marker",
+        n: "n",
+        r2: "R²",
       },
       trend: {
         label: "Trend line",
@@ -640,8 +668,9 @@ const en = {
         uniqueOk: "Row or column labels repeat, so two cells share one address.",
         namedOk: "Some rows or columns have no name, so it cannot be read what a cell refers to.",
         orderOk:
-          "The parameter grid has uneven steps - cell width lies about the slice of the range.",
-        matrixShapeOk: "Rows hold different numbers of cells, so the matrix is not rectangular.",
+          "The numeric axis labels do not run in order, so neighbouring cells do not stand for neighbouring values.",
+        matrixShapeOk:
+          "The data has no matrix shape: one of the two dimensions is left with less than a full row or column.",
         divergingJustifiedOk:
           "A diverging scale was used on data that does not cross the neutral point.",
         signEncodedOk:
@@ -660,7 +689,7 @@ const en = {
         divergingDowngraded:
           "The data does not cross the neutral point, so the scale is sequential, not diverging.",
         unorderedAxis:
-          "The parameter grid has uneven steps, so cell width does not match the slice of the range it stands for.",
+          "The numeric axis labels do not run in order, so neighbouring cells do not stand for neighbouring values.",
       },
     },
     tornado: {
@@ -681,6 +710,11 @@ const en = {
         inverted: "inverse parameter: the high value lowers the outcome",
         zeroSpan: "zero swing: the parameter does not move the outcome",
         baseOutside: "the base outcome lies outside the low-high interval",
+        oneLegged: "one leg given: the other extreme has no number",
+        empty: "both extremes missing: the row has nothing to deviate with",
+        oneSided: "both legs fall on the same side of the base",
+        tied: "the same swing as another row: the order is arbitrary",
+        duplicate: "the parameter name repeats in the sheet",
       },
       reading: {
         noBase:

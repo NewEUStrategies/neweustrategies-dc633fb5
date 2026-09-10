@@ -1037,9 +1037,28 @@ export const TORNADO_COLUMNS = [
 
 export type TornadoColumnKey = (typeof TORNADO_COLUMNS)[number];
 
-/** Przypis przy wierszu tabeli - dokładnie te same fakty co w `honesty`. */
-export type TornadoRowNote =
-  "inverted" | "zeroSpan" | "oneLegged" | "empty" | "oneSided" | "tied" | "duplicate";
+/**
+ * Przypis przy wierszu tabeli - dokładnie te same fakty co w `honesty`.
+ *
+ * TABLICA, NIE SAMA UNIA, i to jest naprawa defektu, nie porządkowanie:
+ * `Chart.tsx` składał klucz słownika napisem (`tornado.note.${n}`), słownik
+ * miał trzy wartości z siedmiu, a czterech brakujących nie widziała żadna
+ * bramka - klucz sklejony jest dla nich niewidoczny. Skutek stał na stronie
+ * publicznej: w tabeli danych, przy wierszu, napis „tornado.note.oneLegged".
+ * Z tablicą runtime bramka `chartDictionaryKeys.test.ts` przechodzi po
+ * wszystkich wartościach i porównuje je ze słownikiem w obu językach.
+ */
+export const TORNADO_ROW_NOTES = [
+  "inverted",
+  "zeroSpan",
+  "oneLegged",
+  "empty",
+  "oneSided",
+  "tied",
+  "duplicate",
+] as const;
+
+export type TornadoRowNote = (typeof TORNADO_ROW_NOTES)[number];
 
 export interface TornadoTableRow {
   /** Pozycja w rankingu, ta sama co na rysunku. */
