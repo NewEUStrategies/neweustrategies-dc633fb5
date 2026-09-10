@@ -22,6 +22,8 @@ import { waterfallModel } from "@/lib/charts/waterfall";
 import { ChartFrame, CHART_TABLE_CLS, type ChartCaption, type LegendItem } from "./ChartFrame";
 import { CartesianChart } from "./CartesianChart";
 import { PieChart } from "./PieChart";
+import { HistogramChart } from "./HistogramChart";
+import { histogramModelFromConfig, histogramTable } from "@/lib/charts/kinds/histogram";
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
 
@@ -46,6 +48,7 @@ export function Chart({ config, lang, className }: ChartProps) {
   );
   const isPie = config.kind === "pie" || config.kind === "donut";
   const isWaterfall = config.kind === "waterfall";
+  const isHistogram = config.kind === "histogram";
 
   const legend: LegendItem[] = useMemo(() => {
     if (isWaterfall) {
@@ -100,6 +103,11 @@ export function Chart({ config, lang, className }: ChartProps) {
     // kartezjańskich i mostka; na tarczy tabela klucza jest WYMAGANYM nośnikiem
     // tożsamości w wariancie bladym, a nie ozdobą do wyłączenia.
     if (isPie) return [];
+    // HISTOGRAM NIE MA LEGENDY, i to nie jest oszczędność. Czyta JEDNĄ serię,
+    // więc klucz z jedną próbką powtarzałby tytuł wykresu, a przy dwóch
+    // seriach w danych sugerowałby, że obie są na rysunku - a druga jest
+    // pominięta (model zgłasza to jako `ignoredSeries`).
+    if (isHistogram) return [];
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
     return config.series.map((s) => ({
@@ -113,7 +121,7 @@ export function Chart({ config, lang, className }: ChartProps) {
       // symulacji, więc klucz nie może twierdzić, że różni je sam odcień.
       dashed: s.colorSlot > CATEGORICAL_SAFE_SERIES,
     }));
-  }, [config, isPie, isWaterfall, t]);
+  }, [config, isHistogram, isPie, isWaterfall, t]);
 
   const shareSumMismatch: string | null = useMemo(() => {
     if (!isPie) return null;
@@ -163,6 +171,8 @@ export function Chart({ config, lang, className }: ChartProps) {
     <WaterfallDataTable config={config} lang={lang} />
   ) : isPie ? (
     <PieDataTable config={config} lang={lang} />
+  ) : isHistogram ? (
+    <HistogramDataTable config={config} lang={lang} />
   ) : (
     <SeriesDataTable config={config} lang={lang} />
   );
@@ -181,6 +191,8 @@ export function Chart({ config, lang, className }: ChartProps) {
     >
       {isPie ? (
         <PieChart config={config} lang={lang} />
+      ) : isHistogram ? (
+        <HistogramChart config={config} lang={lang} />
       ) : (
         <CartesianChart config={config} lang={lang} />
       )}
@@ -245,6 +257,125 @@ function SeriesDataTable({ config, lang }: { config: ChartConfig; lang: ChartLan
  * wiersz to suma kontrolna: mostek, którego składniki nie sumują się do
  * różnicy stanów, jest błędem, i tabela mówi to wprost, a nie po cichu.
  */
+/**
+ * ALTERNATYWA TEKSTOWA HISTOGRAMU - i to jest miejsce, w którym najłatwiej
+ * popełnić błąd, którego zabrania kolumna "Czego unikać" z tabeli doboru
+ * formy: "średnia bez rozproszenia". Jedna liczba na dole tabeli i sprawa
+ * zamknięta. Dlatego KOMPLET POZYCYJNY (min, Q1, mediana, Q3, max, IQR
+ * i średnia) jedzie tu w całości i nie jest do wyboru wywołującego.
+ *
+ * DWIE TABELE, NIE JEDNA. Przedziały i komplet pozycyjny mówią o różnych
+ * rzeczach i mają różne nagłówki: sklejenie ich w jedną tabelę dałoby
+ * kolumny, które dla połowy wierszy nic nie znaczą, a czytnik ekranu czyta
+ * nagłówek do każdej komórki.
+ *
+ * KOLUMNA GĘSTOŚCI POJAWIA SIĘ WARUNKOWO - dokładnie wtedy, gdy to ona
+ * niesie wysokość słupka (przedziały nierówne). Przy przedziałach równych
+ * jest licznością przemnożoną przez stałą, więc nie dodaje informacji,
+ * a rozsadza tabelę.
+ */
+function HistogramDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string, values?: Record<string, string | number>): string =>
+    scoped(key, { lng: lang, ...values });
+  const model = histogramModelFromConfig(config);
+  const tabela = histogramTable(model);
+  const gestosc = tabela.valueEncodes === "density";
+  const maEtykiety = tabela.rows.some((r) => r.members.length > 0);
+  const s = tabela.summary;
+  const pozycyjne: Array<[string, number]> = [
+    [t("histogram.summary.n"), s.n],
+    [t("histogram.summary.min"), s.min],
+    [t("histogram.summary.q1"), s.q1],
+    [t("histogram.summary.median"), s.median],
+    [t("histogram.summary.q3"), s.q3],
+    [t("histogram.summary.max"), s.max],
+    [t("histogram.summary.mean"), s.mean],
+    [t("histogram.summary.iqr"), s.iqr],
+  ];
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <caption className="sr-only">
+          {t("histogram.rule.label", {
+            rule: t(`histogram.rule.${tabela.rule}`),
+            count: model.binCount,
+          })}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("histogram.table.bin")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("histogram.table.count")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("histogram.table.share")}
+            </th>
+            {gestosc && (
+              <th scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t("histogram.table.density")}
+              </th>
+            )}
+            {maEtykiety && (
+              <th scope="col" className={CHART_TABLE_CLS.th}>
+                {t("histogram.table.members")}
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {tabela.rows.map((r, i) => (
+            <tr key={i}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {r.label}
+              </th>
+              <td className={CHART_TABLE_CLS.tdNum}>{formatChartValue(r.count, lang, "")}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>{formatPercent(r.share, lang)}</td>
+              {gestosc && (
+                <td className={CHART_TABLE_CLS.tdNum}>
+                  {r.density === null ? "-" : formatChartValue(r.density, lang, "")}
+                </td>
+              )}
+              {maEtykiety && <td className={CHART_TABLE_CLS.td}>{r.members.join(", ")}</td>}
+            </tr>
+          ))}
+          <tr>
+            <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+              {t("histogram.table.total")}
+            </th>
+            <td className={CHART_TABLE_CLS.tdNum}>{formatChartValue(tabela.total, lang, "")}</td>
+            <td className={CHART_TABLE_CLS.tdNum} />
+            {gestosc && <td className={CHART_TABLE_CLS.tdNum} />}
+            {maEtykiety && <td className={CHART_TABLE_CLS.td} />}
+          </tr>
+        </tbody>
+      </table>
+
+      <table className={CHART_TABLE_CLS.table}>
+        <caption className="sr-only">{t("histogram.table.summary")}</caption>
+        <tbody>
+          {pozycyjne.map(([nazwa, wartosc]) => (
+            <tr key={nazwa}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {nazwa}
+              </th>
+              <td className={CHART_TABLE_CLS.tdNum}>
+                {formatChartValue(
+                  wartosc,
+                  lang,
+                  nazwa === t("histogram.summary.n") ? "" : config.unit,
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 function WaterfallDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
   // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
   // kod<->słownik; klucz sklejony template literalem wypada z kontroli

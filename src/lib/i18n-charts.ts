@@ -65,6 +65,78 @@ const pl = {
       fromCategory: "Prognoza od: {{category}}",
       tableFlag: "prognoza",
     },
+    histogram: {
+      // ROZKŁAD WARTOŚCI. Wiersz z tabeli doboru formy: "Rozkład wartości ->
+      // histogram, boxplot, beeswarm", a w kolumnie "Czego unikać" stoi
+      // "średnia bez rozproszenia". Dlatego tabela pod wykresem niesie komplet
+      // pozycyjny, a nie jedną liczbę.
+      axis: {
+        // Co niesie WYSOKOŚĆ słupka, i to nie jest kosmetyka podpisu: przy
+        // przedziałach nierównych wysokość musi kodować GĘSTOŚĆ, bo liczebność
+        // porównywana między przedziałami różnej szerokości kłamie - szeroki
+        // przedział zbiera więcej obserwacji tylko dlatego, że jest szeroki.
+        count: "Liczebność",
+        density: "Liczebność na jednostkę",
+        value: "Wartość",
+      },
+      // Liczba przedziałów jest WYBOREM, a każdy wybór na wykresie ma być
+      // nazwany - inaczej czytelnik nie wie, czy szczyt jest w danych, czy
+      // w doborze krawędzi.
+      rule: {
+        label: "Przedziały: {{rule}}, {{count}}",
+        "freedman-diaconis": "reguła Freedmana-Diaconisa",
+        sturges: "reguła Sturgesa",
+        "explicit-edges": "krawędzie podane przez autora",
+        "explicit-count": "liczba przedziałów podana przez autora",
+        degenerate: "brak rozproszenia",
+        none: "brak obserwacji",
+      },
+      advice: {
+        tooFew:
+          "Poniżej dwudziestu obserwacji kształt histogramu jest funkcją położenia krawędzi, nie rozkładu. Beeswarm albo wykres punktowy pokaże każdą obserwację i nie wymyśli szczytu.",
+        noSpread:
+          "Wszystkie obserwacje mają jedną wartość, więc rozkładu nie ma. Jedno zdanie w tekście mówi to samo bez rysunku.",
+        tooCoarse:
+          "Cały zakres zmieścił się w jednym przedziale, więc rysunek pokazuje słupek \u201Ewszystko\u201D. Podaj krawędzie albo liczbę przedziałów.",
+        clamped:
+          "Sufit przyciął liczbę przedziałów, więc rozdzielczość rozkładu jest ograniczona rysunkiem, a nie danymi. Przy tak długim ogonie czytelniejszy jest boxplot albo odcięcie wyrzutków NAZWANE w podpisie.",
+      },
+      table: {
+        bin: "Przedział",
+        count: "Liczebność",
+        share: "Udział",
+        density: "Liczebność na jednostkę",
+        members: "Obserwacje",
+        total: "Razem",
+        // Nagłówek bloku statystyk pozycyjnych pod tabelą przedziałów.
+        summary: "Statystyki pozycyjne",
+      },
+      summary: {
+        n: "Obserwacje",
+        min: "Minimum",
+        q1: "Kwartyl 1",
+        median: "Mediana",
+        q3: "Kwartyl 3",
+        max: "Maksimum",
+        mean: "Średnia",
+        iqr: "Rozstęp międzykwartylowy",
+        missing: "Pominięte luki",
+      },
+      honesty: {
+        // Każdy z tych komunikatów opisuje defekt DANYCH, nie formy - dlatego
+        // stoi obok rysunku, a nie w poradach dla autora.
+        outOfRange:
+          "{{count}} obserwacji nie mieści się między pierwszą i ostatnią podaną krawędzią, więc nie ma ich na rysunku. Histogram zawyża wtedy udział wszystkiego, co pokazał.",
+        checksumFailed:
+          "Suma liczebności przedziałów ({{sum}}) nie zgadza się z liczbą obserwacji ({{count}}) - część danych nie trafiła na rysunek.",
+        binWidthFailed:
+          "Wśród podanych krawędzi są dwie równe albo nieuporządkowane, więc jeden z przedziałów ma zerową szerokość i nie da się go narysować.",
+        declaredSampleFailed:
+          "W podpisie stoi n = {{declared}}, a w danych jest {{actual}} obserwacji.",
+        ignoredSeries:
+          "Histogram czyta JEDNĄ serię; pozostałe {{count}} zostały pominięte. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
+      },
+    },
     waterfall: {
       start: "Stan początkowy",
       end: "Stan końcowy",
@@ -166,6 +238,64 @@ const en = {
       band: "Uncertainty band ±{{pct}}%",
       fromCategory: "Forecast from: {{category}}",
       tableFlag: "forecast",
+    },
+    histogram: {
+      axis: {
+        count: "Count",
+        density: "Count per unit",
+        value: "Value",
+      },
+      rule: {
+        label: "Bins: {{rule}}, {{count}}",
+        "freedman-diaconis": "Freedman-Diaconis rule",
+        sturges: "Sturges rule",
+        "explicit-edges": "edges given by the author",
+        "explicit-count": "bin count given by the author",
+        degenerate: "no spread",
+        none: "no observations",
+      },
+      advice: {
+        tooFew:
+          "Below twenty observations the shape of a histogram is a function of where the edges fall, not of the distribution. A beeswarm or a scatter plot shows every observation and invents no peak.",
+        noSpread:
+          "Every observation has the same value, so there is no distribution. One sentence in the text says as much without a chart.",
+        tooCoarse:
+          "The whole range fits in a single bin, so the chart shows an \u201Ceverything\u201D bar. Provide edges or a bin count.",
+        clamped:
+          "The ceiling clamped the bin count, so the resolution of the distribution is limited by the chart rather than by the data. With a tail this long a boxplot reads better, or trim the outliers and SAY SO in the caption.",
+      },
+      table: {
+        bin: "Bin",
+        count: "Count",
+        share: "Share",
+        density: "Count per unit",
+        members: "Observations",
+        total: "Total",
+        summary: "Positional statistics",
+      },
+      summary: {
+        n: "Observations",
+        min: "Minimum",
+        q1: "1st quartile",
+        median: "Median",
+        q3: "3rd quartile",
+        max: "Maximum",
+        mean: "Mean",
+        iqr: "Interquartile range",
+        missing: "Skipped gaps",
+      },
+      honesty: {
+        outOfRange:
+          "{{count}} observations fall outside the first and last edge given, so they are not on the chart. The histogram then overstates the share of everything it does show.",
+        checksumFailed:
+          "Bin counts add up to {{sum}}, not to the {{count}} observations in the data - some of it never reached the chart.",
+        binWidthFailed:
+          "Two of the edges given are equal or out of order, so one bin has zero width and cannot be drawn.",
+        declaredSampleFailed:
+          "The caption says n = {{declared}}, the data holds {{actual}} observations.",
+        ignoredSeries:
+          "A histogram reads ONE series; the remaining {{count}} were skipped. Two distributions are compared with two panels on a shared scale, not with one chart.",
+      },
     },
     waterfall: {
       start: "Opening value",

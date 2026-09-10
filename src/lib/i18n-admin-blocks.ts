@@ -46,6 +46,7 @@ const pl = {
           pie: "Kołowy",
           donut: "Pierścień (donut)",
           waterfall: "Wodospadowy (mostek)",
+          histogram: "Histogram (rozkład)",
         },
         // ---- Uczciwość wykresu ----
         honestyLabel: "Uczciwość wykresu",
@@ -802,6 +803,7 @@ const en: typeof pl = {
           pie: "Pie",
           donut: "Donut",
           waterfall: "Waterfall (bridge)",
+          histogram: "Histogram (distribution)",
         },
       },
       dataMap: {

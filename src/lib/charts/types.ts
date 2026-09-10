@@ -32,6 +32,13 @@ export const CHART_KINDS = [
   "pie",
   "donut",
   "waterfall",
+  // ROZKŁAD WARTOŚCI. Wchodzi jako pierwszy z rodzajów sekcji 1, bo jest
+  // jedynym, który potrzebował OSI CIĄGŁEJ i niczego poza nią - dowodzi więc
+  // fundamentu (`lib/charts/plot.ts`) bez ciągnięcia za sobą drugiego
+  // wymiaru strefy trafienia. Rysuje go osobny komponent, nie
+  // `CartesianChart`: przedział ma szerokość mierzoną w jednostkach danych,
+  // a pasmo kategorii jej nie ma - patrz nagłówek `HistogramChart.tsx`.
+  "histogram",
 ] as const;
 
 export type ChartKind = (typeof CHART_KINDS)[number];

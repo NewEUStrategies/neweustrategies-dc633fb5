@@ -60,6 +60,10 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   // czego" - mostek EBITDA rok do roku, dekompozycja zmiany marży. Te same
   // dane słupkami obok siebie zmuszają czytelnika do dodawania w głowie.
   { value: "waterfall", labelKey: "kinds.waterfall" },
+  // Histogram odpowiada na pytanie "jaki jest rozkład", a nie "ile jest".
+  // Kolumna "Czego unikać" z tabeli doboru formy zabrania przy rozkładzie
+  // średniej bez rozproszenia - stąd komplet pozycyjny w tabeli danych.
+  { value: "histogram", labelKey: "kinds.histogram" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {

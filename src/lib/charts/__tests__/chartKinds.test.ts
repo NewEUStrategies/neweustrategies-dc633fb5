@@ -28,6 +28,7 @@ import { CHART_KINDS, isChartKind } from "@/lib/charts/types";
 import { parseChartConfig } from "@/lib/charts/parse";
 import { getBlockVariants } from "@/lib/blocks/variants";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import { BUILDER_LABELS_EN } from "@/lib/builder/labelsEn";
 
 const dataViz = readFileSync("src/components/admin/blocks/edit/DataVizBlocks.tsx", "utf8");
 const slownik = readFileSync("src/lib/i18n-admin-blocks.ts", "utf8");
@@ -98,6 +99,25 @@ describe("rodzaje wykresu - obecność w KAŻDEJ powierzchni autorskiej", () => 
     }
     for (const w of wartosci) {
       expect(isChartKind(w), `schemat oferuje nieznany rodzaj ${w}`).toBe(true);
+    }
+  });
+
+  it("angielskie etykiety schematu buildera znają każdy rodzaj", () => {
+    // PIĄTA POWIERZCHNIA, której ten plik wcześniej nie znał - i brakowało
+    // jej nieprzypadkowo. Schemat buildera trzyma etykietę PO POLSKU
+    // (`histogram (rozkład)`), a `BUILDER_LABELS_EN` mapuje ją na angielską.
+    // Bramka `labelsEn.test.ts` sprawdza tę mapę od strony schematu, ale nie
+    // wie nic o `CHART_KINDS`, więc rodzaj dopisany do schematu bez wpisu
+    // w mapie przewracał tamten test dopiero po fakcie, w innym pliku i pod
+    // nazwą, która nie mówi nic o rodzajach wykresu. Tu jest to jedno
+    // zdanie: każda opcja rodzaju musi mieć tłumaczenie.
+    const schemat = WIDGET_SCHEMAS.chart;
+    const pole = (schemat ?? []).find((f) => f.key === "kind");
+    for (const opcja of pole?.options ?? []) {
+      expect(
+        BUILDER_LABELS_EN[opcja.label],
+        `brak angielskiej etykiety dla opcji "${opcja.label}"`,
+      ).toBeTruthy();
     }
   });
 

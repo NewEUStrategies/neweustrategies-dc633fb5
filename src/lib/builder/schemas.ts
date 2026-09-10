@@ -764,6 +764,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         // `src/lib/charts/__tests__/chartKinds.test.ts` pilnuje, żeby ta lista
         // obejmowała każdy rodzaj z `CHART_KINDS`.
         { value: "waterfall", label: "wodospadowy (mostek)" },
+        { value: "histogram", label: "histogram (rozkład)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },
