@@ -425,6 +425,10 @@ export function HistogramChart({ config, lang }: HistogramChartProps) {
                 }
                 stroke={edged ? `var(--chart-${model.colorSlot}-edge)` : undefined}
                 className="neh-bar"
+                // UCHWYT ZAPYTANIA rodzaju: słupek histogramu jest SŁUPKIEM
+                // PRZEDZIAŁU, nie kategorii, i testy muszą umieć odróżnić go
+                // od słupka kategorialnego bez oglądania klasy wyglądu.
+                data-role="bin"
                 data-active={active === i ? "true" : undefined}
                 style={{ ["--neh-i" as string]: i }}
               />

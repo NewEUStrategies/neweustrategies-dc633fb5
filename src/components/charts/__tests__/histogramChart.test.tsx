@@ -306,10 +306,13 @@ describe("Chart - rozdzielnik oddaje rodzaj właściwemu renderowi", () => {
 
   it("histogram dostaje stykające się prostokąty przedziałów", () => {
     const { container } = render_("histogram");
-    expect(container.querySelectorAll("rect.neh-bar").length).toBeGreaterThan(1);
+    // WŁASNY UCHWYT RODZAJU, nie klasa wyglądu: `neh-bar` niesie też pudełko
+    // boxplota i słupek kategorialny, więc asercja na niej nie odróżniałaby
+    // rozkładów od siebie. `data-role="bin"` wystawia WYŁĄCZNIE histogram.
+    expect(container.querySelectorAll("[data-role='bin']").length).toBeGreaterThan(1);
     // ...i nie dostaje znaczników pozostałych dwóch rodzajów rozkładu.
     expect(container.querySelector("[data-role='median']")).toBeNull();
-    expect(container.querySelectorAll("circle.neh-bee-dot").length).toBe(0);
+    expect(container.querySelectorAll("[data-role='swarm-point']").length).toBe(0);
   });
 
   it("boxplot dostaje KRESKĘ MEDIANY - znacznik, którego nie ma żaden inny rodzaj", () => {
@@ -321,17 +324,19 @@ describe("Chart - rozdzielnik oddaje rodzaj właściwemu renderowi", () => {
     // odróżniłaby boxplota od histogramu, i asercja na niej niczego nie
     // dowodziłaby o rozdzielniku.
     expect(container.querySelector("[data-role='median']")).not.toBeNull();
-    expect(container.querySelectorAll("circle.neh-bee-dot").length).toBe(0);
+    expect(container.querySelectorAll("[data-role='swarm-point']").length).toBe(0);
+    expect(container.querySelectorAll("[data-role='bin']").length).toBe(0);
   });
 
   it("rój dostaje plamki obserwacji, po jednej na obserwację", () => {
     const { container } = render_("beeswarm");
     // Beeswarm obiecuje, że widać KAŻDĄ obserwację - liczba plamek jest więc
     // asercją o obietnicy formy, nie o szczególe implementacji.
-    expect(container.querySelectorAll("circle.neh-bee-dot").length).toBeGreaterThanOrEqual(
+    expect(container.querySelectorAll("[data-role='swarm-point']").length).toBeGreaterThanOrEqual(
       OBSERWACJE.length,
     );
     expect(container.querySelector("[data-role='median']")).toBeNull();
+    expect(container.querySelectorAll("[data-role='bin']").length).toBe(0);
   });
 
   it("każdy z trzech rodzajów rozkładu dostaje TABELĘ, nie kolumny szeregu", () => {

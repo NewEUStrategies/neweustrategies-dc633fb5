@@ -35,7 +35,7 @@
 // a NIGDY nie wysuwa łuku na zewnątrz - przesunięcie promieniowe zmienia
 // długość łuku przy zewnętrznej krawędzi i zawyża udział, czyli robi dokładnie
 // to, czego zabrania zasada o niezmiennym kodowaniu.
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig } from "@/lib/charts/types";
 import { formatChartValue, formatPercent, type ChartLang } from "@/lib/charts/format";
@@ -80,6 +80,7 @@ export function PieChart({ config, lang }: PieChartProps) {
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
   const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
   const [active, setActive] = useState<number | null>(null);
+  const hintId = useId();
   // Owijka CAŁEGO układu (pierścień plus tabela klucza): tapnięcie w tabelę
   // nie może zdejmować wskazania z łuku, bo to jeden element interfejsu
   // rozłożony na dwie części.
@@ -148,7 +149,28 @@ export function PieChart({ config, lang }: PieChartProps) {
           aria-label={
             config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled")
           }
+          aria-describedby={hintId}
+          // ESCAPE CZYŚCI WSKAZANIE, i to nie jest ozdoba: wskazanie ustawia
+          // się tu FOKUSEM (`onFocus` na wycinku), a fokus na klawiaturze
+          // zostaje tam, gdzie go zostawiono. Bez Escape czytelnik, który
+          // dojechał Tabem do wycinka, nie miał ŻADNEGO sposobu zdjęcia
+          // dymka poza tapnięciem w tło - czyli akcji wskaźnikowej, której
+          // na klawiaturze nie ma. Zdejmujemy sam stan, nie fokus: odebranie
+          // fokusu wyrzuciłoby czytelnika na początek strony.
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              clearActive();
+            }
+          }}
         >
+          {/* Wskazówka WŁASNA dla tarczy: wycinki są osobnymi elementami
+              fokusowalnymi, więc przechodzi się między nimi Tabem, a nie
+              strzałkami. Wspólny `a11y.keyboardHint` mówiłby o strzałkach,
+              które tu nic nie robią. */}
+          <span id={hintId} className="sr-only">
+            {t("a11y.keyboardHintSlices")}
+          </span>
           <svg width={width} height={height} className="block">
             <g className="neh-pie-group">
               {slices.map((s, i) => {
@@ -186,6 +208,13 @@ export function PieChart({ config, lang }: PieChartProps) {
                       share: formatPercent(s.share, lang),
                     })}
                     className="neh-slice cursor-pointer"
+                    // UCHWYT ZAPYTANIA zgodnie z konwencją repozytorium
+                    // (`chartClasses.test.ts`): nowy uchwyt idzie na
+                    // `data-role`, nie na klasę bez reguły. Tarcza była
+                    // ostatnim renderem bez ani jednego uchwytu, więc testy
+                    // rozróżniały ją po klasie `neh-slice`, czyli po
+                    // WYGLĄDZIE - a wygląd wolno zmienić bez zmiany znaczenia.
+                    data-role="slice"
                     // DOTYK: wejście wskaźnika ustawia stan (na dotyku
                     // `pointerenter` przychodzi przy dotknięciu), ale zjazd
                     // zdejmuje go wszędzie POZA dotykiem - tam `pointerleave`

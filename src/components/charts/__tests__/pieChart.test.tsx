@@ -1199,6 +1199,12 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
   });
 
   it("przełączenie motywu NIE zmienia DOM - kolory jadą tokenami, zero zapieczonego hexa", () => {
+    // Identyfikatory z `useId` LICZĄ SIĘ OD MONTOWANIA, nie od motywu: drugi
+    // render tego samego komponentu dostaje `_r_29_` tam, gdzie pierwszy miał
+    // `_r_28_`. Porównanie bajt w bajt zapaliłoby się więc na zmianie, która
+    // z motywem nie ma nic wspólnego - a pytanie tego testu brzmi wyłącznie
+    // „czy motyw zmienia rysunek". Normalizujemy je przed porównaniem.
+    const bezId = (html: string): string => html.replace(/_r_[0-9a-z]+_/g, "ID");
     const config = cfg({ kind: "donut", unit: " mld", ...CWIARTKI });
     const jasny = render(<PieChart config={config} lang="pl" />);
     const html = jasny.container.innerHTML;
@@ -1206,7 +1212,7 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
 
     document.documentElement.classList.add("dark");
     const ciemny = render(<PieChart config={config} lang="pl" />);
-    expect(ciemny.container.innerHTML).toBe(html);
+    expect(bezId(ciemny.container.innerHTML)).toBe(bezId(html));
     // Cały kolor grafiki to var(...) - inaczej motyw ciemny dostałby jasną paletę.
     expect(html).not.toMatch(/(fill|stroke)="#[0-9a-f]{3,8}"/i);
   });

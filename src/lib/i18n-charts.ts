@@ -425,6 +425,12 @@ const pl = {
       chartUntitled: "Wykres",
       slice: "{{label}}: {{value}} ({{share}})",
       keyboardHint: "Strzałkami przesuwasz aktywną kategorię, Escape czyści zaznaczenie.",
+      // OSOBNA WSKAZÓWKA DLA TARCZY, bo tarcza ma inną nawigację: każdy
+      // wycinek jest osobnym elementem fokusowalnym z własną nazwą, więc
+      // przechodzi się między nimi Tabem, a strzałki nic nie robią. Podanie
+      // tam `keyboardHint` byłoby instrukcją, która nie działa - gorszą niż
+      // brak instrukcji, bo czytelnik uzna, że wykres jest zepsuty.
+      keyboardHintSlices: "Tabem przechodzisz między wycinkami, Escape czyści zaznaczenie.",
     },
   },
 };
@@ -755,6 +761,7 @@ const en = {
       chartUntitled: "Chart",
       slice: "{{label}}: {{value}} ({{share}})",
       keyboardHint: "Arrow keys move the active category, Escape clears the selection.",
+      keyboardHintSlices: "Tab moves between slices, Escape clears the selection.",
     },
   },
 };

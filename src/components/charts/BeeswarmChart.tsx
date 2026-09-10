@@ -710,6 +710,9 @@ export function BeeswarmChart({ config, lang }: BeeswarmChartProps) {
             <circle
               key={d.key}
               className="neh-bee-dot neh-fade"
+              // Uchwyt zapytania: plamka roju to JEDNA OBSERWACJA, czyli
+              // obietnica tej formy - testy pilnują jej liczby.
+              data-role="swarm-point"
               cx={d.cx}
               cy={d.cy}
               r={active === d.i ? radius + HOVER_R_PX : radius}

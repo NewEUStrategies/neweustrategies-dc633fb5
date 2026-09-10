@@ -960,6 +960,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                       )}
                       fill={fill}
                       className={step.direction === "down" ? "neh-bar neh-bar-negative" : "neh-bar"}
+                      data-role="waterfall-step"
                       style={{ ["--neh-i" as string]: si }}
                     />
                     {/* Etykieta wartości na KAŻDYM słupku - mostek bez liczb
@@ -1103,6 +1104,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                         strokeLinejoin="round"
                         pathLength={1}
                         className={dashed ? "neh-line neh-line-pattern" : "neh-line"}
+                        data-role="series-line"
                       />
                       {/* PUNKTY OBSERWACJI TYLKO NA HISTORII. Ich brak
                           w prognozie sam mówi, że tam nie ma pomiarów - i jest
@@ -1128,6 +1130,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                               strokeWidth={1.6}
                               data-active={active === i ? "true" : undefined}
                               className="neh-dot neh-fade"
+                              data-role="series-point"
                             />
                           ),
                         )}
@@ -1211,6 +1214,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                       const bar = (
                         <path
                           d={shape}
+                          data-role="bar"
                           // Wypełnienie zależy od wariantu, ale ZAWSZE idzie
                           // przez token - w kodzie rysującym nie ma ani jednego
                           // hexa, dzięki czemu tryb ciemny i druk dostają swoje
