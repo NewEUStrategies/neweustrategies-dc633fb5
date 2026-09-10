@@ -139,6 +139,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
  * Liczba kubełków rampy SEKWENCYJNEJ.
@@ -231,17 +232,24 @@ const GAP_HATCH_PX = 6;
 const ADDRESS_SEP = " · ";
 
 /**
- * Klucze porad formy WYPISANE JAWNIE, nie sklejone z wartości modelu. Bramka
- * rozjazdu kod<->słownik i kontrola parytetu PL/EN widzą wyłącznie pełne
- * ścieżki, więc `t(\`heatmap.advice.${a}\`)` byłby dla nich niewidoczny.
+ * Klucze NOT DLA CZYTELNIKA, wypisane jawnie, a nie sklejone z wartości
+ * modelu: bramka rozjazdu kod-słownik i kontrola parytetu PL/EN widzą
+ * wyłącznie pełne ścieżki.
+ *
+ * `null` ZNACZY „ten komunikat nie ma nic dla czytelnika". Porada formy
+ * rozpada się na dwie części: OBSERWACJĘ o tym rysunku, którą czytelnik może
+ * z niego odczytać, i ZALECENIE zmiany formy albo danych, którego czytelnik
+ * opublikowanego wpisu nie ma jak wykonać. Pod rysunkiem stoi wyłącznie
+ * obserwacja (`reading.*`); zalecenie widzi autor w edytorze bloku
+ * (`advice.*` w nakładce `i18n-charts-editor.ts`).
  */
-const ADVICE_KEYS: Record<HeatmapFormAdvice, string> = {
-  notMatrix: "heatmap.advice.notMatrix",
-  tooManyCells: "heatmap.advice.tooManyCells",
-  sparse: "heatmap.advice.sparse",
-  noSpread: "heatmap.advice.noSpread",
-  divergingDowngraded: "heatmap.advice.divergingDowngraded",
-  unorderedAxis: "heatmap.advice.unorderedAxis",
+const READING_KEYS: Record<HeatmapFormAdvice, string | null> = {
+  notMatrix: "heatmap.reading.notMatrix",
+  tooManyCells: "heatmap.reading.tooManyCells",
+  sparse: "heatmap.reading.sparse",
+  noSpread: "heatmap.reading.noSpread",
+  divergingDowngraded: "heatmap.reading.divergingDowngraded",
+  unorderedAxis: "heatmap.reading.unorderedAxis",
 };
 
 /** Jeden stopień rampy. Kubełek komórki i próbka legendy czytają TĘ SAMĄ tablicę. */
@@ -670,13 +678,11 @@ export function HeatmapChart({ config, lang }: HeatmapChartProps) {
   // czytelnik właśnie widzi: "to nie jest macierz", "połowa pola to luki"
   // i "skala nie stawia punktu neutralnego na zerze" zmieniają sposób
   // czytania obrazka, a nie sam obrazek.
-  const notes: { key: string; text: string; defect: boolean }[] = heatmapFormAdvice(model).map(
-    (advice) => ({
-      key: `advice.${advice}`,
-      text: t(ADVICE_KEYS[advice], adviceValues(advice, lang)),
-      defect: false,
-    }),
-  );
+  const notes: ChartNote[] = heatmapFormAdvice(model).map((advice) => ({
+    key: `reading.${advice}`,
+    text: t(READING_KEYS[advice] ?? "", adviceValues(advice, lang)),
+    defect: false,
+  }));
   if (model.rowAxis.uniqueOk === false || model.columnAxis.uniqueOk === false) {
     notes.push({ key: "honesty.uniqueOk", text: t("heatmap.honesty.uniqueOk"), defect: true });
   }
@@ -1095,21 +1101,7 @@ export function HeatmapChart({ config, lang }: HeatmapChartProps) {
         </tfoot>
       </table>
 
-      {notes.length > 0 && (
-        <ul className="mt-2 space-y-1 text-xs">
-          {notes.map((note) => (
-            <li
-              key={note.key}
-              data-note={note.key}
-              style={{
-                color: note.defect ? "var(--chart-negative-text)" : "var(--muted-foreground)",
-              }}
-            >
-              {note.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ChartNotes notes={notes} />
     </div>
   );
 }

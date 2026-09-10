@@ -38,6 +38,8 @@ import {
   PIE_CLOSE_SHARES_PP,
 } from "@/lib/charts/honesty";
 import { SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
+import { chartFormAdvice } from "@/lib/charts/formAdvice";
+import type { ChartLang } from "@/lib/charts/format";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-charts";
 import "@/lib/i18n-charts-editor";
@@ -149,7 +151,12 @@ export function ChartBlock({ block, onChange }: Props) {
   const previewConfig = useMemo(() => parseChartConfig(block.data), [block.data]);
   // `keyPrefix` haka, nie sklejanie szablonem - inaczej bramka rozjazdu
   // kod<->słownik nie sprawdzi tych kluczy wcale.
-  const { t: ct } = useTranslation("translation", { keyPrefix: "charts" });
+  const { t: ct, i18n } = useTranslation("translation", { keyPrefix: "charts" });
+  // Język do LICZB w zaleceniach formy (próg R², udział zasłoniętych punktów).
+  // Treść zdania idzie przez `ct`, czyli w języku panelu, więc liczba
+  // sformatowana innym językiem dawałaby angielskie zdanie z polskim
+  // przecinkiem dziesiętnym.
+  const lang: ChartLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
 
   const patch = (data: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...data } });
@@ -200,6 +207,13 @@ export function ChartBlock({ block, onChange }: Props) {
   // Terakota wypada z palety TYLKO na wykresie, który koduje znak czerwienią -
   // czyli na mostku. Na zwykłych kolumnach reguła nie obowiązuje i krzyczenie
   // o niej byłoby szumem.
+  // ZALECENIA FORMY DLA AUTORA: „ten rodzaj jest tu złym wyborem, weź inny".
+  // Do tego PR-a te zdania stały POD OPUBLIKOWANYM WYKRESEM, bo pisał je
+  // render - czyli czytelnik dostawał instrukcję dla autora, której nie ma
+  // jak wykonać. Teraz render pisze wyłącznie OBSERWACJĘ (`reading.*`),
+  // a zalecenie (`advice.*`) trafia tutaj, obok pola, którym autor rodzaj
+  // zmienia. Liczone z tego samego `previewConfig`, który idzie do podglądu.
+  const formAdvice = useMemo(() => chartFormAdvice(previewConfig, lang), [previewConfig, lang]);
   const signClash =
     isWaterfall && usedSlots.some((slot) => SLOTS_CLASHING_WITH_SIGN.includes(slot));
   // OCHRA WOBEC AKCENTU NIE JEST TU OSTRZEŻENIEM, i to jest decyzja, nie
@@ -241,6 +255,12 @@ export function ChartBlock({ block, onChange }: Props) {
         <Warning text={ct("editor.pieClosePercentages", { pp: PIE_CLOSE_SHARES_PP })} />
       )}
       {signClash && <Warning text={ct("editor.signClashesWithTerracotta")} />}
+      {/* Klucz Reacta to NAZWA PORADY, nie indeks: lista zmienia się przy
+          każdej edycji arkusza, a indeks kazałby Reactowi utrzymać stan
+          ostrzeżenia, które zniknęło, na miejscu innego. */}
+      {formAdvice.map((m) => (
+        <Warning key={m.advice} text={ct(m.key, m.values)} />
+      ))}
 
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect

@@ -356,3 +356,113 @@ describe("Chart - rozdzielnik oddaje rodzaj właściwemu renderowi", () => {
     }
   });
 });
+
+describe("HistogramChart - uwagi pod rysunkiem", () => {
+  // DO TEGO PR-A HISTOGRAM MILCZAŁ CAŁKOWICIE: model liczy siedem flag
+  // uczciwości, słownik ma dla nich treści w obu językach, a render nie wołał
+  // ani jednej. Rysunek, pod którym suma liczebności nie zgadza się z liczbą
+  // obserwacji, wyglądał więc dokładnie jak rysunek bez defektu. Te testy
+  // pilnują obu rejestrów: OBSERWACJI o formie (`reading.*`) i DEFEKTÓW
+  // danych (`honesty.*`).
+  const nota = (root: HTMLElement, klucz: string): string =>
+    root.querySelector(`[data-note='${klucz}']`)?.textContent ?? "";
+
+  it("pełny arkusz nie dostaje ŻADNEJ uwagi", () => {
+    // Uwaga, którą widać zawsze, uczy ignorowania wszystkich uwag.
+    const { container } = render(<HistogramChart config={cfg(BAZA)} lang="pl" />);
+    expect(all(container, "[data-note]")).toHaveLength(0);
+  });
+
+  it("mała próbka jest NAZWANA razem z progiem", () => {
+    // Poniżej progu kształt histogramu zależy od położenia krawędzi tak samo
+    // jak od rozkładu - czytelnik musi to wiedzieć, żeby nie odczytać szczytu
+    // jako faktu o danych. Próg jedzie w zdaniu, bo „mało" bez liczby nie
+    // jest informacją.
+    const malo = [1, 2, 3, 4, 5];
+    const { container } = render(
+      <HistogramChart
+        config={cfg({
+          ...BAZA,
+          categories: malo.map((_, i) => `o-${i}`),
+          series: [{ name: "Marża", values: malo }],
+        })}
+        lang="pl"
+      />,
+    );
+    const tekst = nota(container, "reading.tooFew");
+    expect(tekst).toContain("20");
+    // WSTAWKA PODSTAWIONA, nie zostawiona jako klamry - i18next zostawia
+    // surowe `{{min}}`, gdy render nie podał liczby (tak zepsuł się rój).
+    expect(tekst).not.toContain("{{");
+  });
+
+  it("brak rozproszenia jest NAZWANY", () => {
+    const jedna = Array.from({ length: 24 }, () => 7);
+    const { container } = render(
+      <HistogramChart
+        config={cfg({
+          ...BAZA,
+          categories: jedna.map((_, i) => `o-${i}`),
+          series: [{ name: "Stała", values: jedna }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(nota(container, "reading.noSpread")).toContain("jedną wartość");
+  });
+
+  it("niezgodne `n` z podpisu jest DEFEKTEM, nie obserwacją", () => {
+    // Podpis mówi „n = 300", bo tyle ankiet zebrano, a w arkuszu siedzi
+    // dwadzieścia wierszy: rysunek jest wtedy o innej próbce niż podpis.
+    // Kolor tekstu odróżnia defekt danych od obserwacji o formie, bo lista,
+    // na której wszystko krzyczy, uczy ignorowania całej listy.
+    const { container } = render(
+      <HistogramChart config={cfg({ ...BAZA, sampleSize: 300 })} lang="pl" />,
+    );
+    const el = container.querySelector("[data-note='honesty.declaredSampleFailed']");
+    expect(el).not.toBeNull();
+    expect(el?.textContent ?? "").toContain("300");
+    expect(el?.getAttribute("style") ?? "").toContain("--chart-negative-text");
+  });
+
+  it("pominięte serie są NAZWANE, a nie ciche", () => {
+    // Histogram czyta JEDNĄ serię. Autor, który wkleił dwie, widzi rozkład
+    // pierwszej i bez tej uwagi nie ma sposobu, żeby to zauważyć.
+    const { container } = render(
+      <HistogramChart
+        config={cfg({
+          ...BAZA,
+          series: [
+            { name: "Marża", values: DWADZIESCIA },
+            { name: "Druga", values: DWADZIESCIA },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(nota(container, "honesty.ignoredSeries")).toContain("1");
+  });
+
+  it("żadna uwaga nie zostawia surowych klamer wstawki", () => {
+    // Jedna asercja na WSZYSTKIE uwagi naraz: brakująca liczba nie jest
+    // błędem kompilacji ani rozjazdem klucza, więc jedyne, co ją wyłapie, to
+    // tekst na ekranie.
+    const arkusze: Record<string, Json>[] = [
+      { ...BAZA, sampleSize: 300 },
+      { ...BAZA, categories: ["a", "b", "c"], series: [{ name: "Mała", values: [1, 2, 3] }] },
+      {
+        ...BAZA,
+        series: [
+          { name: "Marża", values: DWADZIESCIA },
+          { name: "Druga", values: DWADZIESCIA },
+        ],
+      },
+    ];
+    for (const arkusz of arkusze) {
+      const { container } = render(<HistogramChart config={cfg(arkusz)} lang="pl" />);
+      for (const el of all(container, "[data-note]")) {
+        expect(el.textContent ?? "").not.toContain("{{");
+      }
+    }
+  });
+});

@@ -52,9 +52,13 @@ import type { ChartConfig } from "@/lib/charts/types";
 import { formatAxisTick, formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { linearScale, niceScale } from "@/lib/charts/scale";
 import {
+  HISTOGRAM_MAX_BINS,
+  HISTOGRAM_SHAPE_MIN_OBSERVATIONS,
   histogramExtent,
+  histogramFormAdvice,
   histogramModelFromConfig,
   type HistogramBin,
+  type HistogramFormAdvice,
   type HistogramModel,
 } from "@/lib/charts/kinds/histogram";
 import {
@@ -76,6 +80,7 @@ import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
+import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
 
 /**
@@ -87,6 +92,27 @@ import "@/lib/i18n-charts";
  * podpisane, bo bez nich nie wiadomo, jaki zakres pokazuje rysunek.
  */
 const EDGE_LABEL_MIN_PX = 34;
+
+/**
+ * Klucze OBSERWACJI dla czytelnika, wypisane jawnie. Histogram nie ma tu
+ * żadnego `null`: każda z czterech porad formy mówi coś, co czytelnik widzi na
+ * rysunku (kształt zależny od krawędzi, jeden słupek, brak kształtu,
+ * rozdzielczość przycięta sufitem), a ZALECENIE („weź beeswarma", „podaj
+ * krawędzie") niesie osobna nakładka edytora - patrz
+ * `src/lib/charts/formAdvice.ts`.
+ *
+ * DO TEGO PR-A HISTOGRAM NIE POKAZYWAŁ ANI JEDNEGO KOMUNIKATU, i to był
+ * ubytek, nie decyzja: model liczy siedem flag uczciwości, słownik ma dla
+ * nich treści w obu językach, a render nie wołał żadnej. Rysunek, na którym
+ * suma liczebności nie zgadza się z liczbą obserwacji, milczał o tym równie
+ * dobrze jak rysunek bez defektu.
+ */
+const READING_KEYS: Record<HistogramFormAdvice, string> = {
+  tooFew: "histogram.reading.tooFew",
+  noSpread: "histogram.reading.noSpread",
+  tooCoarse: "histogram.reading.tooCoarse",
+  clamped: "histogram.reading.clamped",
+};
 
 /** Ile pikseli obwódki dzieli stykające się słupki. Patrz nagłówek pliku. */
 const TOUCHING_EDGE_PX = 1;
@@ -255,6 +281,67 @@ export function HistogramChart({ config, lang }: HistogramChartProps) {
     .filter(Boolean)
     .join(". ");
 
+  // UWAGI POD RYSUNKIEM: najpierw obserwacja o formie, potem defekty danych.
+  // Kolejność jest treścią, nie kosmetyką - „kształt zależy od krawędzi"
+  // zmienia sposób czytania CAŁEGO rysunku, a „w podpisie stoi inne n"
+  // dotyczy jednej liczby w podpisie.
+  //
+  // Liczby podajemy KOMPLETEM dla wszystkich czterech obserwacji: treść pisze
+  // słownik, i18next zignoruje te wstawki, których dane zdanie nie używa,
+  // a POMINIĘTA wstawka nie jest ignorowana - zostaje w zdaniu jako surowe
+  // `{{min}}` (tak zepsuł się `beeswarm.reading.truncated` w tej samej pracy).
+  const notes: ChartNote[] = histogramFormAdvice(model).map((a) => ({
+    key: `reading.${a}`,
+    text: t(READING_KEYS[a], {
+      min: HISTOGRAM_SHAPE_MIN_OBSERVATIONS,
+      max: HISTOGRAM_MAX_BINS,
+    }),
+    defect: false,
+  }));
+  // DEFEKTY DANYCH. Każdy z nich znaczy, że rysunek pokazuje mniej albo inaczej
+  // niż dane - i każdy ma w modelu osobną flagę, bo osobno się je naprawia.
+  if (model.inRangeOk === false) {
+    notes.push({
+      key: "honesty.outOfRange",
+      text: t("histogram.honesty.outOfRange", { count: model.outOfRange }),
+      defect: true,
+    });
+  }
+  if (model.countChecksumOk === false) {
+    notes.push({
+      key: "honesty.checksumFailed",
+      text: t("histogram.honesty.checksumFailed", {
+        sum: bins.reduce((a, b) => a + b.count, 0),
+        count: model.summary.n,
+      }),
+      defect: true,
+    });
+  }
+  if (model.binWidthOk === false) {
+    notes.push({
+      key: "honesty.binWidthFailed",
+      text: t("histogram.honesty.binWidthFailed"),
+      defect: true,
+    });
+  }
+  if (model.declaredSampleOk === false) {
+    notes.push({
+      key: "honesty.declaredSampleFailed",
+      text: t("histogram.honesty.declaredSampleFailed", {
+        declared: config.sampleSize ?? 0,
+        actual: model.summary.n,
+      }),
+      defect: true,
+    });
+  }
+  if (model.ignoredSeries > 0) {
+    notes.push({
+      key: "honesty.ignoredSeries",
+      text: t("histogram.honesty.ignoredSeries", { count: model.ignoredSeries }),
+      defect: true,
+    });
+  }
+
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
@@ -404,6 +491,8 @@ export function HistogramChart({ config, lang }: HistogramChartProps) {
           rows={tooltipRows}
         />
       </div>
+
+      <ChartNotes notes={notes} />
     </div>
   );
 }

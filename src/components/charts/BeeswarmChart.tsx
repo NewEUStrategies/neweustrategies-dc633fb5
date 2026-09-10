@@ -94,6 +94,7 @@ import {
   beeswarmExtent,
   beeswarmFormAdvice,
   beeswarmModelFromConfig,
+  type BeeswarmFormAdvice,
   type BeeswarmModel,
   type BeeswarmSummary,
 } from "@/lib/charts/kinds/beeswarm";
@@ -222,6 +223,30 @@ interface BeeswarmChartProps {
 function px(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
+
+/**
+ * Klucze NOT DLA CZYTELNIKA, wypisane jawnie, a nie sklejone z wartości
+ * modelu - i to jest zmiana wobec pierwszej wersji tego pliku, w której klucz
+ * powstawał interpolacją `t(\`beeswarm.advice.${a}\`)`. Bramka rozjazdu
+ * kod-słownik i kontrola parytetu PL/EN widzą wyłącznie pełne ścieżki, więc
+ * klucz sklejony jest dla nich niewidoczny: literówka w nazwie porady
+ * przechodziła obie bramki i objawiała się dopiero surowym kluczem na ekranie.
+ *
+ * `null` ZNACZY „ten komunikat nie ma nic dla czytelnika". Porada formy
+ * rozpada się na OBSERWACJĘ o tym rysunku i ZALECENIE zmiany formy albo
+ * danych; pod rysunkiem stoi tylko obserwacja, zalecenie widzi autor
+ * w edytorze bloku.
+ */
+const READING_KEYS: Record<BeeswarmFormAdvice, string | null> = {
+  // „Beeswarm jest formą NAJUCZCIWSZĄ, nie zamieniaj go na boxplot" mówi
+  // wyłącznie do autora i jest pochwałą jego wyboru - pod rysunkiem byłaby
+  // zdaniem, które chwali samo siebie i nic nie mówi o danych.
+  tooFew: null,
+  tooMany: "beeswarm.reading.tooMany",
+  noSpread: "beeswarm.reading.noSpread",
+  doesNotFit: "beeswarm.reading.doesNotFit",
+  truncated: "beeswarm.reading.truncated",
+};
 
 /** Ucięcie etykiety grupy; pełną treść niesie `<title>`, bo sekcja 4 zabrania
  *  wielokropka bez podpowiedzi. */
@@ -514,14 +539,27 @@ export function BeeswarmChart({ config, lang }: BeeswarmChartProps) {
   const truncated = model.swarms.reduce((a, s) => a + s.truncated, 0);
   const zadeklarowane = config.sampleSize ?? 0;
   const uwagi: string[] = [
-    ...beeswarmFormAdvice(model).map((a) =>
-      t(`beeswarm.advice.${a}`, {
-        count: model.observations,
-        min: BEESWARM_MIN_OBSERVATIONS,
-        max: BEESWARM_MAX_COMFORT,
-        truncated,
-      }),
-    ),
+    ...beeswarmFormAdvice(model)
+      .map((a) => READING_KEYS[a])
+      .filter((k): k is string => k !== null)
+      .map((k) =>
+        t(k, {
+          count: model.observations,
+          min: BEESWARM_MIN_OBSERVATIONS,
+          max: BEESWARM_MAX_COMFORT,
+          truncated,
+          // `shown`/`total` NIE SĄ powtórzeniem `drawn`/`count` z komunikatów
+          // uczciwości, tylko nazwami, których używa treść porady
+          // `truncated` - i brak tych dwóch liczb w tym worku był defektem
+          // WIDOCZNYM: i18next nie podstawia nieznanej zmiennej i zostawia
+          // w zdaniu surowe `{{shown}}`, czyli czytelnik dostawał pod
+          // rysunkiem klamry zamiast liczby obserwacji. Bramka
+          // `chartAdviceAudience.test.ts` liczy teraz miejsca wstawienia
+          // każdego komunikatu, żeby to samo nie wróciło przy nowej treści.
+          shown: model.drawn,
+          total: model.observations,
+        }),
+      ),
     ...(model.honesty.pointCountOk === false
       ? [
           t("beeswarm.honesty.pointCountOk", {

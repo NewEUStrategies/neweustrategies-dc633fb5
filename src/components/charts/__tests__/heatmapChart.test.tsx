@@ -395,7 +395,7 @@ describe("HeatmapChart - legenda z granicami kubełków", () => {
     const { container } = render(<HeatmapChart config={cfg(rowne)} lang="pl" />);
     expect(all(container, "rect[data-role='legend-swatch']")).toHaveLength(1);
     expect(all(container, "text[data-role='legend-bound']")).toHaveLength(1);
-    expect(container.querySelector("[data-note='advice.noSpread']")).not.toBeNull();
+    expect(container.querySelector("[data-note='reading.noSpread']")).not.toBeNull();
   });
 
   it("podaje `n` jako liczbę WYPEŁNIONYCH komórek, nie rozmiar siatki", () => {
@@ -757,7 +757,7 @@ describe("HeatmapChart - dane z bazy", () => {
     }
   });
 
-  it("macierz o jednym wierszu dostaje wskazanie LEPSZEJ FORMY", () => {
+  it("macierz o jednym wierszu jest NAZWANA pod rysunkiem", () => {
     // Jeden wiersz to szereg, a szereg czyta się słupkami poziomymi, w których
     // wartość koduje DŁUGOŚĆ - kanał z górnej połowy hierarchii percepcyjnej.
     // Nasycenie jest w niej przedostatnie, więc mapa z jednego wiersza to
@@ -768,7 +768,7 @@ describe("HeatmapChart - dane z bazy", () => {
         lang="pl"
       />,
     );
-    expect(container.querySelector("[data-note='advice.notMatrix']")).not.toBeNull();
+    expect(container.querySelector("[data-note='reading.notMatrix']")).not.toBeNull();
   });
 
   it("pełna macierz nie dostaje ŻADNEJ porady", () => {
@@ -789,7 +789,7 @@ describe("HeatmapChart - dane z bazy", () => {
       ],
     };
     const { container } = render(<HeatmapChart config={cfg(dziurawa)} lang="pl" />);
-    expect(container.querySelector("[data-note='advice.sparse']")).not.toBeNull();
+    expect(container.querySelector("[data-note='reading.sparse']")).not.toBeNull();
   });
 
   it("zadeklarowane `n` niezgodne z liczbą policzonych par jest widoczne", () => {

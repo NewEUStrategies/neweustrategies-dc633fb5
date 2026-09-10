@@ -218,7 +218,10 @@ describe("TornadoChart - linia bazowa", () => {
     expect(all(container, "text[data-role='param-label']")).toHaveLength(3);
     const tabela = container.textContent ?? "";
     expect(tabela).toContain(formatChartValue(130, "pl", ""));
-    expect(container.querySelector("[data-note='advice.noBase']")).not.toBeNull();
+    // OBSERWACJA, nie zalecenie: czytelnik widzi etykiety parametrów nad
+    // pustym polem i musi wiedzieć, że to brak bazy, a nie awaria. Zalecenie
+    // („podaj wartość bazową") jest w nakładce edytora.
+    expect(container.querySelector("[data-note='reading.noBase']")).not.toBeNull();
   });
 });
 
@@ -534,7 +537,7 @@ describe("TornadoChart - dane z bazy", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("jeden parametr z treścią dostaje wskazanie lepszej formy", () => {
+  it("jeden parametr z treścią jest NAZWANY pod rysunkiem", () => {
     // Jeden wiersz nie tworzy hierarchii wrażliwości, a po nią przychodzi się
     // do tornada - wystarczy zdanie z dwiema liczbami.
     const { container } = render(
@@ -550,7 +553,7 @@ describe("TornadoChart - dane z bazy", () => {
         lang="pl"
       />,
     );
-    expect(container.querySelector("[data-note='advice.singleParameter']")).not.toBeNull();
+    expect(container.querySelector("[data-note='reading.singleParameter']")).not.toBeNull();
     // Porada nie odbiera rysunku: model narysuje i jeden wiersz.
     expect(all(container, "path[data-role='leg']")).toHaveLength(2);
   });

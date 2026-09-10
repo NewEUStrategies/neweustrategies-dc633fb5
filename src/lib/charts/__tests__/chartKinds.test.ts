@@ -114,9 +114,15 @@ describe("rodzaje wykresu - obecność w KAŻDEJ powierzchni autorskiej", () => 
     const schemat = WIDGET_SCHEMAS.chart;
     const pole = (schemat ?? []).find((f) => f.key === "kind");
     for (const opcja of pole?.options ?? []) {
+      // `label` jest w typie schematu OPCJONALNA (pola w rodzaju `level`
+      // podają same wartości `h1..h6` i etykieta byłaby powtórzeniem), więc
+      // rodzaj bez etykiety to osobna usterka niż rodzaj bez tłumaczenia -
+      // i pierwsze zdanie mówi, które z dwóch zaszło.
+      const etykieta = opcja.label;
+      expect(etykieta, `opcja rodzaju "${opcja.value}" nie ma etykiety`).toBeTruthy();
       expect(
-        BUILDER_LABELS_EN[opcja.label],
-        `brak angielskiej etykiety dla opcji "${opcja.label}"`,
+        BUILDER_LABELS_EN[etykieta ?? ""],
+        `brak angielskiej etykiety dla opcji "${etykieta}"`,
       ).toBeTruthy();
     }
   });

@@ -102,6 +102,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
  * SUFIT SZEROKOŚCI PUDŁA w pikselach - jedyna proporcja, o której decyduje
@@ -140,14 +141,22 @@ const LABEL_BASELINE = 16;
 const RANGE_SEP = "–";
 
 /**
- * Klucze porad formy WYPISANE JAWNIE, a nie sklejone z wartości modelu.
- * Bramka rozjazdu kod<->słownik i kontrola parytetu PL/EN widzą wyłącznie
- * pełne ścieżki, więc `t(\`boxplot.advice.${a}\`)` byłby dla nich niewidoczny.
+ * Klucze NOT DLA CZYTELNIKA, wypisane jawnie, a nie sklejone z wartości
+ * modelu: bramka rozjazdu kod-słownik i kontrola parytetu PL/EN widzą
+ * wyłącznie pełne ścieżki.
+ *
+ * `null` ZNACZY „ten komunikat nie ma nic dla czytelnika". Porada formy
+ * rozpada się na dwie części: OBSERWACJĘ o tym rysunku, którą czytelnik może
+ * z niego odczytać, i ZALECENIE zmiany formy albo danych, którego czytelnik
+ * opublikowanego wpisu nie ma jak wykonać. Pod rysunkiem stoi wyłącznie
+ * obserwacja (`reading.*`); zalecenie widzi autor w edytorze bloku
+ * (`advice.*` w nakładce `i18n-charts-editor.ts`). Klucz z `null` nie ma
+ * połowy obserwacyjnej wcale i dlatego na stronie publicznej milczy.
  */
-const ADVICE_KEYS: Record<BoxplotFormAdvice, string> = {
-  dotsBetter: "boxplot.advice.dotsBetter",
-  tiesDominant: "boxplot.advice.tiesDominant",
-  singleGroup: "boxplot.advice.singleGroup",
+const READING_KEYS: Record<BoxplotFormAdvice, string | null> = {
+  dotsBetter: "boxplot.reading.dotsBetter",
+  tiesDominant: "boxplot.reading.tiesDominant",
+  singleGroup: "boxplot.reading.singleGroup",
 };
 
 /** Nagłówki kolumn alternatywy tekstowej - też jawnie, z tego samego powodu. */
@@ -368,12 +377,11 @@ export function BoxplotChart({ config, lang }: BoxplotChartProps) {
   // czytelnik właśnie widzi: "jedna grupa" i "jedna wartość zajmuje połowę
   // próby" zmieniają sposób czytania obrazka, a niezgodność zadeklarowanego
   // `n` z arkuszem znaczy, że podpis i wykres mówią o dwóch różnych badaniach.
-  const notes: { key: string; text: string; defect: boolean }[] = [
-    ...boxplotFormAdvice(model).map((a) => ({
-      key: `advice.${a}`,
-      text: t(ADVICE_KEYS[a]),
-      defect: false,
-    })),
+  const notes: ChartNote[] = [
+    ...boxplotFormAdvice(model)
+      .map((a) => ({ a, klucz: READING_KEYS[a] }))
+      .filter((x): x is { a: BoxplotFormAdvice; klucz: string } => x.klucz !== null)
+      .map(({ a, klucz }) => ({ key: `reading.${a}`, text: t(klucz), defect: false })),
   ];
   if (model.honesty.outlierPartitionOk === false) {
     notes.push({
@@ -786,21 +794,7 @@ export function BoxplotChart({ config, lang }: BoxplotChartProps) {
         </tbody>
       </table>
 
-      {notes.length > 0 && (
-        <ul className="mt-2 space-y-1 text-xs">
-          {notes.map((note) => (
-            <li
-              key={note.key}
-              data-note={note.key}
-              style={{
-                color: note.defect ? "var(--chart-negative-text)" : "var(--muted-foreground)",
-              }}
-            >
-              {note.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ChartNotes notes={notes} />
     </div>
   );
 }

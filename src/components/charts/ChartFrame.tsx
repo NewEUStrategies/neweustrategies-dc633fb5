@@ -240,6 +240,51 @@ export function ChartFrame({
   );
 }
 
+/**
+ * JEDEN KOMUNIKAT POD TABELĄ DANYCH: defekt danych albo obserwacja o rysunku.
+ *
+ * `key` jest jednocześnie identyfikatorem Reacta i UCHWYTEM ZAPYTANIA
+ * (`data-note`), po którym testy sprawdzają, że rysunek naprawdę powiedział
+ * to, co miał powiedzieć - dlatego jest ścieżką słownika (`reading.tooFew`,
+ * `honesty.checksumFailed`), a nie numerem porządkowym.
+ */
+export interface ChartNote {
+  key: string;
+  text: string;
+  /**
+   * `true` = defekt DANYCH (czerwień tekstowa), `false` = obserwacja
+   * o rysunku (ink recesywny). Rozróżnienie jest w kolorze, bo lista, na
+   * której wszystko krzyczy, uczy ignorowania całej listy.
+   */
+  defect: boolean;
+}
+
+/**
+ * Lista komunikatów pod tabelą danych. WYDZIELONA Z PIĘCIU RENDERÓW, w których
+ * stała bajt w bajt ta sama: histogram był piątym i przy przepisywaniu jej po
+ * raz piąty wyszło, że jedyne, co je różniło, to fakt, że histogram jej nie
+ * miał wcale (przez to nie pokazywał ANI JEDNEGO komunikatu uczciwości, choć
+ * model liczy siedem flag, a słownik ma dla nich treści w obu językach).
+ */
+export function ChartNotes({ notes }: { notes: readonly ChartNote[] }) {
+  if (notes.length === 0) return null;
+  return (
+    <ul className="mt-2 space-y-1 text-xs">
+      {notes.map((note) => (
+        <li
+          key={note.key}
+          data-note={note.key}
+          style={{
+            color: note.defect ? "var(--chart-negative-text)" : "var(--muted-foreground)",
+          }}
+        >
+          {note.text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Wspólne klasy komórek tabeli danych. */
 export const CHART_TABLE_CLS = {
   table: "w-full border-collapse text-sm",

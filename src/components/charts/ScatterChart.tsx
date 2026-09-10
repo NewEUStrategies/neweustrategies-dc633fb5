@@ -145,6 +145,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
  * Zapas na tytuł osi Y w marginesie lewym, w pikselach.
@@ -238,17 +239,27 @@ function r2ToDisplay(r2: number): number {
 }
 
 /**
- * Klucze porad formy WYPISANE JAWNIE, a nie sklejane z wartości modelu.
- * Bramka rozjazdu kod<->słownik i kontrola parytetu PL/EN widzą wyłącznie
- * pełne ścieżki, więc `t(\`scatter.advice.${a}\`)` byłby dla nich niewidoczny.
+ * Klucze NOT DLA CZYTELNIKA, wypisane jawnie, a nie sklejone z wartości
+ * modelu: bramka rozjazdu kod-słownik i kontrola parytetu PL/EN widzą
+ * wyłącznie pełne ścieżki.
+ *
+ * `null` ZNACZY „ten komunikat nie ma nic dla czytelnika". Porada formy
+ * rozpada się na dwie części: OBSERWACJĘ o tym rysunku, którą czytelnik może
+ * z niego odczytać, i ZALECENIE zmiany formy albo danych, którego czytelnik
+ * opublikowanego wpisu nie ma jak wykonać. Pod rysunkiem stoi wyłącznie
+ * obserwacja (`reading.*`); zalecenie widzi autor w edytorze bloku
+ * (`advice.*` w nakładce `i18n-charts-editor.ts`).
  */
-const ADVICE_KEYS: Record<ScatterFormAdvice, string> = {
-  tooFewPoints: "scatter.advice.tooFewPoints",
-  noXVariance: "scatter.advice.noXVariance",
-  syntheticX: "scatter.advice.syntheticX",
-  trendShowsNothing: "scatter.advice.trendShowsNothing",
-  overplotted: "scatter.advice.overplotted",
-  lineBetter: "scatter.advice.lineBetter",
+const READING_KEYS: Record<ScatterFormAdvice, string | null> = {
+  tooFewPoints: "scatter.reading.tooFewPoints",
+  noXVariance: "scatter.reading.noXVariance",
+  syntheticX: "scatter.reading.syntheticX",
+  trendShowsNothing: "scatter.reading.trendShowsNothing",
+  overplotted: "scatter.reading.overplotted",
+  // „Wykres liniowy pokaże przebieg" to zalecenie zmiany FORMY - czytelnik
+  // opublikowanego wpisu nie ma jak go wykonać, a sama obserwacja („dane mają
+  // porządek w czasie") nie mówi mu nic o tym, czego na rysunku nie widać.
+  lineBetter: null,
 };
 
 /** Nagłówki kolumn alternatywy tekstowej - też jawnie, z tego samego powodu. */
@@ -665,7 +676,7 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
   // zostają po stronie porad. Wypisujemy te, których porady nie powtarzają -
   // w tym `enoughForTrendOk`, bo porada `tooFewPoints` odpala tylko wtedy, gdy
   // KAŻDA chmura jest za mała, a to pole gdy CHOĆ JEDNA.
-  const notes: { key: string; text: string; defect: boolean }[] = [];
+  const notes: ChartNote[] = [];
   if (trends.length > 0) {
     notes.push({ key: "trend.notCausal", text: t("scatter.trend.notCausal"), defect: false });
     notes.push({ key: "trend.method", text: t("scatter.trend.method"), defect: false });
@@ -679,7 +690,9 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
     lineBetter: {},
   };
   for (const a of scatterFormAdvice(model)) {
-    notes.push({ key: `advice.${a}`, text: t(ADVICE_KEYS[a], adviceValues[a]), defect: false });
+    const klucz = READING_KEYS[a];
+    if (klucz === null) continue;
+    notes.push({ key: `reading.${a}`, text: t(klucz, adviceValues[a]), defect: false });
   }
   if (model.honesty.pairsCompleteOk === false) {
     notes.push({
@@ -1132,21 +1145,7 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
         </tbody>
       </table>
 
-      {notes.length > 0 && (
-        <ul className="mt-2 space-y-1 text-xs">
-          {notes.map((note) => (
-            <li
-              key={note.key}
-              data-note={note.key}
-              style={{
-                color: note.defect ? "var(--chart-negative-text)" : "var(--muted-foreground)",
-              }}
-            >
-              {note.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ChartNotes notes={notes} />
     </div>
   );
 }

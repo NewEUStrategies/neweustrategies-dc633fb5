@@ -138,6 +138,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
  * Rozdzielnik zakresu. Półpauza, nie myślnik: para liczb to zakres, a nie
@@ -184,15 +185,30 @@ const AXIS_BASELINE_PX = 16;
 const TEXT_MIDDLE_PX = 3.5;
 
 /**
- * Klucze porad formy WYPISANE JAWNIE, a nie sklejone z wartości modelu.
- * Bramka rozjazdu kod<->słownik i kontrola parytetu PL/EN widzą wyłącznie
- * pełne ścieżki, więc `t(\`tornado.advice.${a}\`)` byłby dla nich niewidoczny.
+ * Klucze NOT DLA CZYTELNIKA, wypisane jawnie, a nie sklejone z wartości
+ * modelu: bramka rozjazdu kod-słownik i kontrola parytetu PL/EN widzą
+ * wyłącznie pełne ścieżki.
+ *
+ * `null` ZNACZY „ten komunikat nie ma nic dla czytelnika". Porada formy
+ * rozpada się na dwie części: OBSERWACJĘ o tym rysunku, którą czytelnik może
+ * z niego odczytać, i ZALECENIE zmiany formy albo danych, którego czytelnik
+ * opublikowanego wpisu nie ma jak wykonać. Pod rysunkiem stoi wyłącznie
+ * obserwacja (`reading.*`); zalecenie widzi autor w edytorze bloku
+ * (`advice.*` w nakładce `i18n-charts-editor.ts`). Klucz z `null` nie ma
+ * połowy obserwacyjnej wcale i dlatego na stronie publicznej milczy.
  */
-const ADVICE_KEYS: Record<TornadoFormAdvice, string> = {
-  noBase: "tornado.advice.noBase",
-  singleParameter: "tornado.advice.singleParameter",
-  flatRanking: "tornado.advice.flatRanking",
-  tooManyRows: "tornado.advice.tooManyRows",
+const READING_KEYS: Record<TornadoFormAdvice, string | null> = {
+  // BEZ BAZY RYSUNEK JEST PUSTY - i dlatego ten komunikat ma wersję
+  // publiczną, choć pierwsza wersja podziału zostawiała go autorowi
+  // z uzasadnieniem „czytelnik nie widzi pasków, więc nie ma o czym go
+  // informować". To było błędne: czytelnik widzi etykiety parametrów nad
+  // pustym polem i nie wie, czy patrzy na awarię, czy na brak danych.
+  // Zalecenie („podaj wartość bazową jako pierwszą kategorię") zostaje
+  // w nakładce edytora, bo to on je wykona.
+  noBase: "tornado.reading.noBase",
+  singleParameter: "tornado.reading.singleParameter",
+  flatRanking: "tornado.reading.flatRanking",
+  tooManyRows: "tornado.reading.tooManyRows",
 };
 
 /** Nagłówki kolumn alternatywy tekstowej - też jawnie, z tego samego powodu. */
@@ -552,12 +568,15 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
   // bywają prawdą o wrażliwości, więc kolor ostrzeżenia byłby o nich
   // nieprawdą.
   const honesty = model.honesty;
-  const notes: { key: string; text: string; defect: boolean }[] = [
-    ...tornadoFormAdvice(model).map((a) => ({
-      key: `advice.${a}`,
-      text: t(ADVICE_KEYS[a], { max: TORNADO_ROWS_ADVICE_MAX }),
-      defect: false,
-    })),
+  const notes: ChartNote[] = [
+    ...tornadoFormAdvice(model)
+      .map((a) => ({ a, klucz: READING_KEYS[a] }))
+      .filter((x): x is { a: TornadoFormAdvice; klucz: string } => x.klucz !== null)
+      .map(({ a, klucz }) => ({
+        key: `reading.${a}`,
+        text: t(klucz, { max: TORNADO_ROWS_ADVICE_MAX }),
+        defect: false,
+      })),
   ];
   if (honesty.invertedLabels.length > 0) {
     notes.push({
@@ -989,21 +1008,7 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
         </tbody>
       </table>
 
-      {notes.length > 0 && (
-        <ul className="mt-2 space-y-1 text-xs">
-          {notes.map((note) => (
-            <li
-              key={note.key}
-              data-note={note.key}
-              style={{
-                color: note.defect ? "var(--chart-negative-text)" : "var(--muted-foreground)",
-              }}
-            >
-              {note.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ChartNotes notes={notes} />
     </div>
   );
 }

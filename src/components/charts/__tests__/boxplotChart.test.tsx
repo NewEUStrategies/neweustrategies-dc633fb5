@@ -21,11 +21,7 @@ import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartConfig } from "@/lib/charts/types";
 import { formatChartValue } from "@/lib/charts/format";
-import {
-  BOXPLOT_COLUMNS,
-  BOX_WIDTH_RATIO,
-  WHISKER_CAP_RATIO,
-} from "@/lib/charts/kinds/boxplot";
+import { BOXPLOT_COLUMNS, BOX_WIDTH_RATIO, WHISKER_CAP_RATIO } from "@/lib/charts/kinds/boxplot";
 import { BoxplotChart } from "../BoxplotChart";
 
 function cfg(data: Record<string, Json>): ChartConfig {
@@ -397,7 +393,9 @@ describe("BoxplotChart - klawiatura i dostępność", () => {
     // osobno przez `aria-describedby` - inaczej czytnik czytałby instrukcję
     // przed liczbami przy każdym wejściu na wykres.
     const { container } = render(<BoxplotChart config={cfg(BAZA)} lang="pl" />);
-    const id = container.querySelector<HTMLElement>("[role='img']")?.getAttribute("aria-describedby");
+    const id = container
+      .querySelector<HTMLElement>("[role='img']")
+      ?.getAttribute("aria-describedby");
     expect(id).toBeTruthy();
     expect((container.querySelector(`#${id}`)?.textContent ?? "").length).toBeGreaterThan(0);
   });
@@ -447,13 +445,17 @@ describe("BoxplotChart - alternatywa tekstowa", () => {
 });
 
 describe("BoxplotChart - porada formy i uczciwość danych", () => {
-  it("jedna grupa dostaje wskazanie lepszej formy", () => {
+  it("jedna grupa jest NAZWANA pod rysunkiem", () => {
     // Skrzynka jest formą PORZĄDKUJĄCĄ porównanie rozkładów między grupami;
     // dla jednej próby histogram mówi więcej tym samym miejscem, bo pokazuje
     // kształt, a nie pięć liczb.
+    //
+    // POD RYSUNKIEM STOI OBSERWACJA („na wykresie jest jedna grupa, więc nie
+    // ma tu porównania"), a nie zalecenie („weź histogram") - zalecenie widzi
+    // autor w edytorze bloku, bo tylko on je wykona. Stąd `reading.*`.
     const jedna = { ...BAZA, series: [{ name: "Alfa", values: CZYSTA }] };
     const { container } = render(<BoxplotChart config={cfg(jedna)} lang="pl" />);
-    expect(container.querySelector("[data-note='advice.singleGroup']")).not.toBeNull();
+    expect(container.querySelector("[data-note='reading.singleGroup']")).not.toBeNull();
   });
 
   it("dwie pełne grupy nie dostają żadnej porady", () => {
@@ -471,7 +473,7 @@ describe("BoxplotChart - porada formy i uczciwość danych", () => {
       series: [{ name: "Atom", values: [5, 5, 5, 5, 5, 5, 5, 6, 7, 8, 9, 40] }],
     };
     const { container } = render(<BoxplotChart config={cfg(atom)} lang="pl" />);
-    expect(container.querySelector("[data-note='advice.tiesDominant']")).not.toBeNull();
+    expect(container.querySelector("[data-note='reading.tiesDominant']")).not.toBeNull();
   });
 
   it("zadeklarowane `n` niezgodne z arkuszem jest widoczne pod rysunkiem", () => {
@@ -505,7 +507,10 @@ describe("BoxplotChart - dane z bazy", () => {
     // zmieniłoby pozycje i kolory kolumn w trakcie wpisywania danych.
     const zLuka = {
       ...BAZA,
-      series: [{ name: "Alfa", values: CZYSTA }, { name: "Pusta", values: [] }],
+      series: [
+        { name: "Alfa", values: CZYSTA },
+        { name: "Pusta", values: [] },
+      ],
     };
     const { container } = render(<BoxplotChart config={cfg(zLuka)} lang="pl" />);
     expect(all(container, "text[data-role='group-label']").map((e) => e.textContent)).toEqual([

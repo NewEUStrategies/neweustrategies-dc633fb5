@@ -261,7 +261,7 @@ describe("ScatterChart - odcinek trendu jest twierdzeniem i musi mieć dowód", 
     const { container } = render(<ScatterChart config={cfg(baza(X_ROSNIE, Y_SZUM))} lang="pl" />);
     expect(container.querySelector("[data-role='trend']")).toBeNull();
     expect(container.querySelector("[data-role='trend-label']")).toBeNull();
-    expect(nota(container, "advice.trendShowsNothing")).toContain("0,1");
+    expect(nota(container, "reading.trendShowsNothing")).toContain("0,1");
   });
 
   it("SKALA OBEJMUJE odcinek, więc jego koniec nie schodzi pod oś", () => {
@@ -304,7 +304,7 @@ describe("ScatterChart - odcinek trendu jest twierdzeniem i musi mieć dowód", 
       <ScatterChart config={cfg(baza([4, 4, 4, 4, 4], [1, 2, 3, 4, 5]))} lang="pl" />,
     );
     expect(container.querySelector("[data-role='trend']")).toBeNull();
-    expect(nota(container, "advice.noXVariance")).toContain("jednej kolumnie");
+    expect(nota(container, "reading.noXVariance")).toContain("jednej kolumnie");
     for (const k of punkty(container)) expect(Number.isFinite(num(k, "cx"))).toBe(true);
   });
 });
@@ -735,7 +735,10 @@ describe("ScatterChart - dane z bazy", () => {
       />,
     );
     expect(punkty(container)).toHaveLength(5);
-    expect(nota(container, "advice.syntheticX")).toContain("POZYCJA W SZEREGU");
+    // Treść dla CZYTELNIKA mówi to samo bez wersalików i bez zalecenia:
+    // wersja z „POZYCJA W SZEREGU" i radą, co zrobić, została w nakładce
+    // edytora bloku.
+    expect(nota(container, "reading.syntheticX")).toContain("pozycja w szeregu");
   });
 
   it("n zadeklarowane w podpisie sprzeczne z danymi jest zgłaszane jako defekt", () => {

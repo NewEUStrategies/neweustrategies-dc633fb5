@@ -91,16 +91,6 @@ const pl = {
         degenerate: "brak rozproszenia",
         none: "brak obserwacji",
       },
-      advice: {
-        tooFew:
-          "Poniżej dwudziestu obserwacji kształt histogramu jest funkcją położenia krawędzi, nie rozkładu. Beeswarm albo wykres punktowy pokaże każdą obserwację i nie wymyśli szczytu.",
-        noSpread:
-          "Wszystkie obserwacje mają jedną wartość, więc rozkładu nie ma. Jedno zdanie w tekście mówi to samo bez rysunku.",
-        tooCoarse:
-          "Cały zakres zmieścił się w jednym przedziale, więc rysunek pokazuje słupek \u201Ewszystko\u201D. Podaj krawędzie albo liczbę przedziałów.",
-        clamped:
-          "Sufit przyciął liczbę przedziałów, więc rozdzielczość rozkładu jest ograniczona rysunkiem, a nie danymi. Przy tak długim ogonie czytelniejszy jest boxplot albo odcięcie wyrzutków NAZWANE w podpisie.",
-      },
       table: {
         bin: "Przedział",
         count: "Liczebność",
@@ -136,6 +126,20 @@ const pl = {
         ignoredSeries:
           "Histogram czyta JEDNĄ serię; pozostałe {{count}} zostały pominięte. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
       },
+      // OBSERWACJE O TYM RYSUNKU, nie zalecenia dla autora. Ten sam podział,
+      // co w pozostałych rodzajach: „kształt zależy od położenia krawędzi"
+      // czytelnik może z rysunku sprawdzić, a „weź beeswarma" jest
+      // instrukcją, której nie wykona - i dlatego stoi w nakładce edytora.
+      reading: {
+        tooFew:
+          "Obserwacji jest mniej niż {{min}}, więc kształt histogramu zależy od położenia krawędzi tak samo jak od rozkładu.",
+        noSpread:
+          "Wszystkie obserwacje mają jedną wartość, więc rozkładu nie ma - rysunek pokazuje jeden słupek.",
+        tooCoarse:
+          "Cały zakres zmieścił się w jednym przedziale, więc słupek mówi \u201Ewszystko\u201D i nie pokazuje kształtu.",
+        clamped:
+          "Liczbę przedziałów przyciął sufit rysunku ({{max}}), więc rozdzielczość rozkładu jest ograniczona rysunkiem, a nie danymi.",
+      },
     },
     boxplot: {
       // ROZKŁAD WARTOŚCI, wariant podsumowujący. Ten sam wiersz tabeli doboru
@@ -163,14 +167,6 @@ const pl = {
         outliers: "Odstające",
         n: "n",
       },
-      advice: {
-        dotsBetter:
-          "Przy tak małej próbce pudełko podsumowuje prawie każdą obserwację osobno. Beeswarm pokaże je wszystkie i nie ukryje niczego za kwartylem.",
-        tiesDominant:
-          "Powtórzona wartość zajmuje ponad połowę obserwacji, więc kwartyle zbiegają się w jednym punkcie i pudełko robi się kreską. Histogram albo tabela liczebności powie o tych danych więcej.",
-        singleGroup:
-          "Jedna grupa nie ma z czym się porównać, a boxplot jest formą PORÓWNAWCZĄ. Do pojedynczego rozkładu czytelniejszy jest histogram albo beeswarm.",
-      },
       honesty: {
         // Podział na wąsy i obserwacje odstające jest ROZŁĄCZNY i wyczerpujący
         // z definicji reguły 1,5 IQR. Gdy przestaje być, znaczy to, że któraś
@@ -179,6 +175,12 @@ const pl = {
           "Podział obserwacji na zasięg wąsów i obserwacje odstające nie domyka się do liczby obserwacji w grupie - część danych nie jest na rysunku.",
         declaredSampleSizeOk:
           "W podpisie stoi n = {{declared}}, a w danych jest {{actual}} obserwacji.",
+      },
+      reading: {
+        dotsBetter: "Próba jest tak mała, że pudełko podsumowuje prawie każdą obserwację osobno.",
+        tiesDominant:
+          "Powtórzona wartość zajmuje ponad połowę obserwacji, więc kwartyle zbiegają się w jednym punkcie i pudełko jest kreską.",
+        singleGroup: "Na wykresie jest jedna grupa, więc nie ma tu porównania między grupami.",
       },
     },
     beeswarm: {
@@ -196,24 +198,21 @@ const pl = {
         mean: "Średnia",
         iqr: "Rozstęp międzykwartylowy",
       },
-      advice: {
-        tooFew:
-          "Przy tak małej liczbie obserwacji beeswarm jest formą NAJUCZCIWSZĄ - nie zamieniaj go na boxplot, bo pudełko z kilku punktów podsumowuje prawie każdy z nich osobno.",
-        tooMany:
-          "Powyżej {{max}} obserwacji plamki nachodzą na siebie niezależnie od rozsunięcia, więc gęstość na rysunku przestaje odpowiadać gęstości w danych. Histogram albo boxplot pokaże ten rozkład wierniej.",
-        noSpread:
-          "Wszystkie obserwacje mają jedną wartość, więc rozkładu nie ma - rój zwinie się w jedną kolumnę punktów.",
-        doesNotFit:
-          "Rozsunięcie prostopadłe nie mieści się w wysokości pola rysunku, więc część punktów siedziałaby na sobie. Zwiększ wysokość wykresu albo pogrupuj obserwacje.",
-        truncated:
-          "Rysunek pokazuje {{shown}} z {{total}} obserwacji - reszta nie zmieściła się w roju. Pełny zbiór jest w tabeli danych.",
-      },
       honesty: {
         pointCountOk:
           "Liczba plamek na rysunku ({{shown}}) nie zgadza się z liczbą obserwacji w danych ({{total}}).",
         spreadOk: "W danych nie ma rozproszenia, więc rój nie pokazuje rozkładu.",
         declaredSampleSizeOk:
           "W podpisie stoi n = {{declared}}, a w danych jest {{actual}} obserwacji.",
+      },
+      reading: {
+        tooMany:
+          "Obserwacji jest tyle, że plamki nachodzą na siebie niezależnie od rozsunięcia - gęstość na rysunku nie odpowiada gęstości w danych.",
+        noSpread: "Wszystkie obserwacje mają jedną wartość, więc rój jest jedną kolumną punktów.",
+        doesNotFit:
+          "Rozsunięcie nie mieści się w wysokości pola, więc część plamek siedzi na sobie.",
+        truncated:
+          "Rysunek pokazuje {{shown}} z {{total}} obserwacji; pełny zbiór jest w tabeli danych.",
       },
     },
     scatter: {
@@ -239,20 +238,6 @@ const pl = {
         // przyczynę - i to nie jest jego wina, tylko właściwość formy.
         notCausal: "Współzmienność, nie przyczyna: linia nie mówi, co na co działa.",
       },
-      advice: {
-        tooFewPoints:
-          "Poniżej {{min}} obserwacji linia trendu jest linią przez szum - jej nachylenie zmienia dowolny pojedynczy punkt.",
-        noXVariance:
-          "Zmienna X ma jedną wartość, więc zależności nie ma czego opisywać - wszystkie punkty stoją w jednej kolumnie.",
-        syntheticX:
-          "Na osi X stoi POZYCJA W SZEREGU, nie druga zmienna, bo autor nie podał drugiej serii. To nie jest wykres zależności, tylko szereg rozrzucony w czasie.",
-        trendShowsNothing:
-          "R² poniżej {{min}} znaczy, że linia niczego nie wyjaśnia. Zostaw punkty i napisz, czego nie widać, zamiast rysować linię, która wygląda na wniosek.",
-        overplotted:
-          "Ponad {{share}} punktów dzieli plamkę z innym, więc chmura wygląda na rzadszą, niż jest. Zmniejsz znacznik, dodaj przezroczystość albo zagreguj.",
-        lineBetter:
-          "Obserwacje mają naturalny porządek w czasie, więc wykres liniowy pokaże przebieg, którego chmura punktów nie pokazuje.",
-      },
       honesty: {
         pairsCompleteOk:
           "{{count}} par ma tylko jedną współrzędną, więc nie ma ich na rysunku. Są wypisane w tabeli danych z powodem pominięcia.",
@@ -267,6 +252,16 @@ const pl = {
           "Na osi X stoi pozycja w szeregu, a nie druga zmienna - podaj drugą serię, żeby to był wykres zależności.",
         overplotOk: "Punkty dzielą plamki, więc gęstość chmury jest myląca.",
         declaredSampleSizeOk: "W podpisie stoi n = {{declared}}, a w danych jest {{actual}} par.",
+      },
+      reading: {
+        tooFewPoints:
+          "Obserwacji jest mniej niż {{min}}, więc nachylenie linii trendu zmienia dowolny pojedynczy punkt.",
+        noXVariance: "Zmienna X ma jedną wartość, więc wszystkie punkty stoją w jednej kolumnie.",
+        syntheticX:
+          "Na osi X stoi pozycja w szeregu, nie druga zmienna - to nie jest wykres zależności.",
+        trendShowsNothing: "R2 poniżej {{min}}: linia trendu nie wyjaśnia zmienności Y.",
+        overplotted:
+          "Ponad {{share}} punktów dzieli plamkę z innym, więc chmura wygląda na rzadszą, niż jest.",
       },
     },
     heatmap: {
@@ -297,20 +292,6 @@ const pl = {
         columns: "Wynikiem mocniej rusza parametr z kolumn.",
         tie: "Oba parametry ruszają wynikiem podobnie mocno.",
       },
-      advice: {
-        notMatrix:
-          "Dane nie mają kształtu macierzy: mapa ciepła potrzebuje co najmniej {{rows}} wierszy i {{columns}} kolumn. Przy jednym wymiarze czytelniejsze są posortowane słupki poziome.",
-        tooManyCells:
-          "Powyżej {{max}} komórek żadnej pojedynczej nie da się już odczytać. Zagreguj parametry albo pokaż wycinek macierzy.",
-        sparse:
-          "Ponad {{share}} komórek jest puste, więc rysunek pokazuje głównie luki. Tabela z brzegami wierszy powie o tych danych więcej.",
-        noSpread:
-          "Wszystkie wartości są jednakowe, więc mapa ciepła będzie jednolitą płaszczyzną - to informacja na jedno zdanie, nie na rysunek.",
-        divergingDowngraded:
-          "Skala dywergentna nie ma uzasadnienia, bo dane nie przechodzą przez punkt neutralny. Zeszła na sekwencyjną, żeby jasność rosła monotonicznie z wartością.",
-        unorderedAxis:
-          "Siatka parametrów ma nierówne odstępy, więc szerokość komórki nie odpowiada fragmentowi zakresu, który reprezentuje. Podaj równe kroki albo nazwij osie jako porządkowe, nie liczbowe.",
-      },
       honesty: {
         uniqueOk:
           "Etykiety wiersza albo kolumny powtarzają się, więc dwie komórki mają ten sam adres.",
@@ -328,6 +309,17 @@ const pl = {
         inGridOk: "Część wartości nie trafiła w żadną komórkę siatki.",
         declaredSampleOk:
           "W podpisie stoi n = {{declared}}, a w macierzy jest {{actual}} wartości.",
+      },
+      reading: {
+        notMatrix:
+          "Dane nie mają kształtu macierzy, więc rysunek nie pokazuje wrażliwości na dwa parametry.",
+        tooManyCells: "Komórek jest ponad {{max}}, więc żadnej pojedynczej nie da się odczytać.",
+        sparse: "Ponad {{share}} komórek jest puste, więc rysunek pokazuje głównie luki.",
+        noSpread: "Wszystkie wartości są jednakowe, więc mapa jest jednolitą płaszczyzną.",
+        divergingDowngraded:
+          "Dane nie przechodzą przez punkt neutralny, więc skala jest sekwencyjna, nie dywergentna.",
+        unorderedAxis:
+          "Siatka parametrów ma nierówne odstępy, więc szerokość komórki nie odpowiada fragmentowi zakresu, który reprezentuje.",
       },
     },
     tornado: {
@@ -355,15 +347,19 @@ const pl = {
         zeroSpan: "rozpiętość zerowa: parametr nie rusza wynikiem",
         baseOutside: "wynik bazowy leży poza przedziałem niska-wysoka",
       },
-      advice: {
+      reading: {
+        // BEZ BAZY RYSUNEK JEST PUSTY, i właśnie dlatego ta obserwacja jest
+        // dla czytelnika. Pierwsza wersja podziału zostawiała `noBase` bez
+        // wersji publicznej z uzasadnieniem „czytelnik nie widzi pasków, więc
+        // nie ma o czym go informować" - a czytelnik widzi etykiety wierszy
+        // nad pustym polem i nie wie, czy to awaria. Zalecenie („podaj
+        // wartość bazową") zostaje w nakładce edytora.
         noBase:
-          "Bez wyniku bazowego wykres tornado nie istnieje - paski nie mają od czego się odchylać. Podaj wartość bazową jako pierwszą kategorię albo osobną serię.",
-        singleParameter:
-          "Jeden parametr nie tworzy hierarchii wrażliwości, a po nią przychodzi się do tornada. Przy jednym parametrze wystarczy zdanie z dwiema liczbami.",
-        flatRanking:
-          "Rozpiętości są prawie równe, więc kolejność pasków nie niesie informacji - a to ona jest treścią tej formy. Sprawdź, czy zakresy parametrów są porównywalne.",
+          "Wykres nie ma wyniku bazowego, więc paski nie mają od czego się odchylać i rysunek ich nie pokazuje; liczby są w tabeli danych.",
+        singleParameter: "Na wykresie jest jeden parametr, więc nie ma tu hierarchii wrażliwości.",
+        flatRanking: "Rozpiętości są prawie równe, więc kolejność pasków nie niesie informacji.",
         tooManyRows:
-          "Powyżej {{max}} parametrów paski robią się cieńsze od odstępu i ranking przestaje być czytelny. Pokaż {{max}} najmocniejszych, a resztę wypisz w tabeli.",
+          "Parametrów jest ponad {{max}}, więc paski są cieńsze od odstępu i ranking przestaje być czytelny.",
       },
     },
     waterfall: {
@@ -461,16 +457,6 @@ const en = {
         degenerate: "no spread",
         none: "no observations",
       },
-      advice: {
-        tooFew:
-          "Below twenty observations the shape of a histogram is a function of where the edges fall, not of the distribution. A beeswarm or a scatter plot shows every observation and invents no peak.",
-        noSpread:
-          "Every observation has the same value, so there is no distribution. One sentence in the text says as much without a chart.",
-        tooCoarse:
-          "The whole range fits in a single bin, so the chart shows an \u201Ceverything\u201D bar. Provide edges or a bin count.",
-        clamped:
-          "The ceiling clamped the bin count, so the resolution of the distribution is limited by the chart rather than by the data. With a tail this long a boxplot reads better, or trim the outliers and SAY SO in the caption.",
-      },
       table: {
         bin: "Bin",
         count: "Count",
@@ -503,6 +489,16 @@ const en = {
         ignoredSeries:
           "A histogram reads ONE series; the remaining {{count}} were skipped. Two distributions are compared with two panels on a shared scale, not with one chart.",
       },
+      reading: {
+        tooFew:
+          "There are fewer than {{min}} observations, so the shape of the histogram depends on where the edges fall as much as on the distribution.",
+        noSpread:
+          "All observations share one value, so there is no distribution - the chart shows a single bar.",
+        tooCoarse:
+          "The whole range fits in one bin, so the bar says \u201Ceverything\u201D and shows no shape.",
+        clamped:
+          "The bin count was clipped by the chart ceiling ({{max}}), so the resolution of the distribution is limited by the drawing, not by the data.",
+      },
     },
     boxplot: {
       axis: { value: "Value", group: "Group" },
@@ -526,19 +522,19 @@ const en = {
         outliers: "Outliers",
         n: "n",
       },
-      advice: {
-        dotsBetter:
-          "With a sample this small the box summarises almost every observation separately. A beeswarm shows them all and hides nothing behind a quartile.",
-        tiesDominant:
-          "A repeated value covers more than half the observations, so the quartiles collapse to one point and the box becomes a line. A histogram or a frequency table says more about this data.",
-        singleGroup:
-          "A single group has nothing to be compared against, and a boxplot is a COMPARATIVE form. For one distribution a histogram or a beeswarm reads better.",
-      },
       honesty: {
         outlierPartitionOk:
           "Splitting the observations into whisker range and outliers does not add up to the group size - part of the data is not on the chart.",
         declaredSampleSizeOk:
           "The caption says n = {{declared}}, the data holds {{actual}} observations.",
+      },
+      reading: {
+        dotsBetter:
+          "The sample is small enough that the box summarises almost every observation separately.",
+        tiesDominant:
+          "A repeated value covers more than half the observations, so the quartiles collapse to one point and the box is a line.",
+        singleGroup:
+          "There is one group on the chart, so there is no between-group comparison here.",
       },
     },
     beeswarm: {
@@ -554,24 +550,21 @@ const en = {
         mean: "Mean",
         iqr: "Interquartile range",
       },
-      advice: {
-        tooFew:
-          "With this few observations a beeswarm is the MOST HONEST form - do not swap it for a boxplot, whose box would summarise almost every point separately.",
-        tooMany:
-          "Above {{max}} observations the dots overlap whatever the offset, so density on the chart stops matching density in the data. A histogram or a boxplot shows this distribution more faithfully.",
-        noSpread:
-          "Every observation has the same value, so there is no distribution - the swarm collapses into one column of dots.",
-        doesNotFit:
-          "The perpendicular offset does not fit the height of the plot, so some dots would sit on top of each other. Increase the chart height or group the observations.",
-        truncated:
-          "The chart shows {{shown}} of {{total}} observations - the rest did not fit in the swarm. The full set is in the data table.",
-      },
       honesty: {
         pointCountOk:
           "The number of dots on the chart ({{shown}}) does not match the number of observations in the data ({{total}}).",
         spreadOk: "There is no spread in the data, so the swarm shows no distribution.",
         declaredSampleSizeOk:
           "The caption says n = {{declared}}, the data holds {{actual}} observations.",
+      },
+      reading: {
+        tooMany:
+          "There are so many observations that the dots overlap whatever the offset - density on the chart does not match density in the data.",
+        noSpread: "Every observation has the same value, so the swarm is one column of dots.",
+        doesNotFit:
+          "The offset does not fit the plot height, so some dots sit on top of each other.",
+        truncated:
+          "The chart shows {{shown}} of {{total}} observations; the full set is in the data table.",
       },
     },
     scatter: {
@@ -591,20 +584,6 @@ const en = {
         method: "Ordinary least squares",
         notCausal: "Covariation, not cause: the line does not say what acts on what.",
       },
-      advice: {
-        tooFewPoints:
-          "Below {{min}} observations a trend line is a line through noise - any single point changes its slope.",
-        noXVariance:
-          "Variable X has one value, so there is no relationship to describe - every point stands in one column.",
-        syntheticX:
-          "The X axis carries POSITION IN THE SERIES, not a second variable, because the author gave only one. This is not a relationship chart, it is a series scattered over time.",
-        trendShowsNothing:
-          "An R² below {{min}} means the line explains nothing. Keep the points and write down what cannot be seen, rather than drawing a line that looks like a conclusion.",
-        overplotted:
-          "More than {{share}} of the points share a marker with another, so the cloud looks sparser than it is. Shrink the marker, add transparency, or aggregate.",
-        lineBetter:
-          "The observations have a natural order in time, so a line chart shows a course that a point cloud does not.",
-      },
       honesty: {
         pairsCompleteOk:
           "{{count}} pairs have only one coordinate, so they are not on the chart. They are listed in the data table with the reason.",
@@ -621,6 +600,16 @@ const en = {
           "The X axis carries position in the series, not a second variable - provide a second series to make this a relationship chart.",
         overplotOk: "Points share markers, so the density of the cloud is misleading.",
         declaredSampleSizeOk: "The caption says n = {{declared}}, the data holds {{actual}} pairs.",
+      },
+      reading: {
+        tooFewPoints:
+          "There are fewer than {{min}} observations, so any single point changes the slope of the trend line.",
+        noXVariance: "Variable X has one value, so every point stands in one column.",
+        syntheticX:
+          "The X axis carries position in the series, not a second variable - this is not a relationship chart.",
+        trendShowsNothing: "R2 below {{min}}: the trend line does not explain the variation in Y.",
+        overplotted:
+          "More than {{share}} of the points share a marker, so the cloud looks sparser than it is.",
       },
     },
     heatmap: {
@@ -647,20 +636,6 @@ const en = {
         columns: "The column parameter moves the outcome more.",
         tie: "Both parameters move the outcome about equally.",
       },
-      advice: {
-        notMatrix:
-          "The data is not matrix shaped: a heatmap needs at least {{rows}} rows and {{columns}} columns. With one dimension, sorted horizontal bars read better.",
-        tooManyCells:
-          "Above {{max}} cells no single one can be read any more. Aggregate the parameters or show a slice of the matrix.",
-        sparse:
-          "More than {{share}} of the cells are empty, so the chart mostly shows gaps. A table with row margins says more about this data.",
-        noSpread:
-          "Every value is the same, so the heatmap will be a uniform field - that is a one-sentence fact, not a chart.",
-        divergingDowngraded:
-          "A diverging scale is not justified, because the data does not cross the neutral point. It fell back to sequential so that lightness rises monotonically with value.",
-        unorderedAxis:
-          "The parameter grid has uneven steps, so cell width does not match the slice of the range it stands for. Provide equal steps, or name the axes as ordinal rather than numeric.",
-      },
       honesty: {
         uniqueOk: "Row or column labels repeat, so two cells share one address.",
         namedOk: "Some rows or columns have no name, so it cannot be read what a cell refers to.",
@@ -675,6 +650,17 @@ const en = {
         spreadOk: "Every value is the same, so the map shows no sensitivity.",
         inGridOk: "Some values did not land in any cell of the grid.",
         declaredSampleOk: "The caption says n = {{declared}}, the matrix holds {{actual}} values.",
+      },
+      reading: {
+        notMatrix:
+          "The data is not matrix shaped, so the chart does not show sensitivity to two parameters.",
+        tooManyCells: "There are more than {{max}} cells, so no single one can be read.",
+        sparse: "More than {{share}} of the cells are empty, so the chart mostly shows gaps.",
+        noSpread: "Every value is the same, so the map is a uniform field.",
+        divergingDowngraded:
+          "The data does not cross the neutral point, so the scale is sequential, not diverging.",
+        unorderedAxis:
+          "The parameter grid has uneven steps, so cell width does not match the slice of the range it stands for.",
       },
     },
     tornado: {
@@ -696,15 +682,15 @@ const en = {
         zeroSpan: "zero swing: the parameter does not move the outcome",
         baseOutside: "the base outcome lies outside the low-high interval",
       },
-      advice: {
+      reading: {
         noBase:
-          "Without a base outcome a tornado chart does not exist - the bars have nothing to deviate from. Provide the base value as the first category or as a separate series.",
+          "The chart has no baseline outcome, so the bars have nothing to deviate from and none are drawn; the numbers are in the data table.",
         singleParameter:
-          "One parameter builds no hierarchy of sensitivity, and that hierarchy is what a tornado is for. With one parameter a sentence with two numbers is enough.",
+          "There is one parameter on the chart, so there is no hierarchy of sensitivity here.",
         flatRanking:
-          "The swings are nearly equal, so the order of the bars carries no information - and that order is the content of this form. Check whether the parameter ranges are comparable.",
+          "The swings are nearly equal, so the order of the bars carries no information.",
         tooManyRows:
-          "Above {{max}} parameters the bars get thinner than the gap and the ranking stops being readable. Show the {{max}} strongest and list the rest in the table.",
+          "There are more than {{max}} parameters, so the bars are thinner than the gap and the ranking stops being readable.",
       },
     },
     waterfall: {
