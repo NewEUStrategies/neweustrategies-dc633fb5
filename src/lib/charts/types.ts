@@ -42,6 +42,8 @@ export interface ChartSeries {
   colorSlot: number;
 }
 
+import type { BarStyle } from "./palette";
+
 export interface ChartConfig {
   kind: ChartKind;
   title: string;
@@ -71,6 +73,12 @@ export interface ChartConfig {
    * je sam, bo krzywa opowiadałaby o kształcie, którego dane nie potwierdzają.
    */
   smoothing: number;
+  /**
+   * Wariant wypełnienia słupka. Domyślnie blady (obwódka mocna, wnętrze
+   * blade); silnik zejdzie do solidnego sam wszędzie, gdzie blade wnętrze
+   * przestaje wystarczać - patrz `resolveBarStyle`.
+   */
+  barStyle: BarStyle;
 
   /**
    * Indeks PIERWSZEJ kategorii prognozowanej albo null, gdy cały szereg jest

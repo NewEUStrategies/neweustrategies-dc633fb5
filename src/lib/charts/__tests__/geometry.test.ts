@@ -112,8 +112,28 @@ describe("geometry - tokeny delikatności zgadzają się z arkuszem", () => {
     );
   });
 
-  it("prowadnice i kreskowanie serii są tokenami, nie literałami w kodzie", () => {
-    expect(token(LIGHT_BLOCK, "--chart-guide-dash")).toBe("2 4");
+  it("ŻADNE RUSZTOWANIE NIE JEST KRESKOWANE - ani token, ani reguła", () => {
+    // ZMIANA REGUŁY, nie poprawka. Wcześniej prowadnica jechała kreskowaniem
+    // 2 4 z tokena `--chart-guide-dash`; token zniknął, bo zniknęła reguła.
+    // Trzy powody, wszystkie praktyczne: kreskowana obwódka czyta się
+    // w konwencji interfejsu jako zaznaczenie do przeniesienia albo stan
+    // nieukończony; kreska 1 px na współrzędnej niecałkowitej aliasuje i przy
+    // innym DPR zamienia się w nierówny szereg plamek; a samo kreskowanie
+    // wprowadza rytm konkurujący z rytmem danych - przy siedmiu i więcej
+    // obserwacjach oko zaczyna czytać kreski jako trzeci szereg.
+    expect(css).not.toContain("--chart-guide-dash");
+    expect(() => token(LIGHT_BLOCK, "--chart-guide-dash")).toThrow();
+
+    // Prowadnica, separator strefy prognozy i łączniki mostka - wszystkie
+    // przez tę jedną klasę - są jawnie CIĄGŁE.
+    const crosshair = css.slice(css.indexOf(".neh-chart .neh-crosshair {"));
+    const rule = crosshair.slice(0, crosshair.indexOf("}"));
+    expect(rule).toContain("stroke-dasharray: none");
+
+    // Kreskowanie serii ZOSTAJE, bo nie jest rusztowaniem: to drugi nośnik
+    // różnicy dla slotów poza zestawem bezpiecznym dla daltonizmu. Jedyna
+    // dozwolona nieciągłość obok niego to tekstura strefy prognozy - a to nie
+    // jest linia, tylko wypełnienie obszaru.
     expect(token(LIGHT_BLOCK, "--chart-series-dash")).toBe("7 4");
   });
 

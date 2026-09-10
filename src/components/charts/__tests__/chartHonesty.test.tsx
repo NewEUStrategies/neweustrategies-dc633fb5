@@ -169,111 +169,55 @@ describe("CartesianChart - prognoza", () => {
     animate: false,
   };
 
-  it("prognoza dostaje WŁASNĄ kreskowaną ścieżkę, przyciętą maską prognozy", () => {
+  it("LINIA SERII ZOSTAJE CIĄGŁA - także w prognozie", () => {
+    // ZMIANA REGUŁY, nie regresja. Wcześniej prognoza jechała kreskowaniem
+    // przyciętym maską; specyfikacja mówi teraz, że prognoza jest odróżniona
+    // TRZEMA nośnikami jednocześnie (pasmo, strefa, separator z etykietą),
+    // a kreskowana linia dodaje czwarty i zaczyna wyglądać na artefakt
+    // renderu - kreska na współrzędnej niecałkowitej aliasuje przy innym DPR.
+    // Czwarty nośnik nie dodaje informacji, tylko szum.
     const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
-    const dashed = all(container, "path.neh-forecast-line");
-    expect(dashed).toHaveLength(1);
-    expect(dashed[0].getAttribute("stroke-dasharray")).toBe("6 4");
-    expect(all(container, "path.neh-line")).toHaveLength(1);
-    // Obie ścieżki są PRZYCIĘTE, każda do swojej połowy rysunku. Bez
-    // przycięcia kreskowana prognoza leżała na ciągłej linii i w przerwach
-    // kreskowania było widać podkład - prognoza wyglądała na ciągłą, czyli
-    // podział, który miał ostrzegać, nie istniał wizualnie.
-    const histClip = all(container, "path.neh-line")[0].getAttribute("clip-path") ?? "";
-    const fcClip = dashed[0].getAttribute("clip-path") ?? "";
-    expect(histClip).toMatch(/^url\(#neh-hist-/);
-    expect(fcClip).toMatch(/^url\(#neh-fc-/);
-    expect(histClip).not.toBe(fcClip);
+    const lines = all(container, "path.neh-line");
+    expect(lines).toHaveLength(1);
+    // Ani kreskowania, ani drugiej ścieżki, ani masek - te ostatnie istniały
+    // wyłącznie po to, żeby kreskowany ogon nie leżał na ciągłym podkładzie.
+    expect(lines[0].getAttribute("stroke-dasharray")).toBeNull();
+    expect(lines[0].getAttribute("clip-path")).toBeNull();
+    expect(all(container, "path.neh-forecast-line")).toHaveLength(0);
+    expect(container.querySelector("clipPath")).toBeNull();
   });
 
-  it("historia i prognoza to JEDNA geometria, nie dwie policzone osobno", () => {
-    // Policzona osobno prognoza przestaje być tą samą krzywą: krótki ogon
-    // dostaje inne styczne Hermite'a, a poniżej czterech punktów żadnego
-    // wygładzenia - więc odjeżdżałaby od historii dokładnie w miejscu,
-    // w którym powinna z niej wychodzić.
+  it("TRZY NOŚNIKI naraz: pasmo, strefa i separator z etykietą", () => {
+    // Prognoza jako pojedyncza linia bez przedziału to najczęstsza forma
+    // kłamstwa na wykresie, więc pasmo jest obowiązkowe - a strefa i separator
+    // niosą podział także tam, gdzie pasmo jest wąskie.
     const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
-    const historia = all(container, "path.neh-line")[0].getAttribute("d");
-    const prognoza = all(container, "path.neh-forecast-line")[0].getAttribute("d");
-    expect(prognoza).toBe(historia);
-    expect(historia).not.toBe("");
-  });
-
-  it("SERIA Z LUKĄ: prognoza obejmuje właściwe kategorie, a nie przesunięte o luki", () => {
-    // REGRESJA. Część prognozy była wybierana przez indeksowanie listy
-    // wszystkich niepustych wartości SERII indeksem lokalnym dla ciągu, więc
-    // przy jednej dziurze prognoza obejmowała nie te kategorie, a przy dziurze
-    // przed granicą znikała zupełnie: `d` wychodziło puste, mimo że separator
-    // "Prognoza" nadal był rysowany. Czytelnik widział wtedy po prawej stronie
-    // separatora zwykłą, ciągłą historię.
-    const { container } = render(
-      <CartesianChart
-        config={cfg({
-          ...FORECAST,
-          series: [{ name: "PKB", values: [10, 12, null, 15, 16, 18] }],
-        })}
-        lang="pl"
-      />,
-    );
+    expect(bandsOf(container).length).toBeGreaterThan(0);
+    expect(all(container, "rect[fill='var(--chart-zone)']")).toHaveLength(1);
     expect(all(container, "line.neh-forecast-divider")).toHaveLength(1);
-    const prognoza = all(container, "path.neh-forecast-line")[0];
-    expect(prognoza.getAttribute("d")).not.toBe("");
-    // Maska prognozy zaczyna się dokładnie na separatorze, więc to ona - a nie
-    // dobór punktów - decyduje, co jest kreskowane.
-    const divider = Number(all(container, "line.neh-forecast-divider")[0].getAttribute("x1"));
-    const clipId = (prognoza.getAttribute("clip-path") ?? "").replace(/^url\(#|\)$/g, "");
-    const rect = container.querySelector(`#${clipId} rect`);
-    expect(Number(rect?.getAttribute("x"))).toBeCloseTo(divider, 5);
-    expect(Number(rect?.getAttribute("width"))).toBeGreaterThan(0);
+    expect(container.textContent ?? "").toContain("Prognoza");
   });
 
-  it("pasmo NIE zamyka się przez lukę w danych", () => {
-    // REGRESJA. Obwiednia liczona z jednej listy dla całej serii przeskakiwała
-    // dziurę i domykała ją kolorem - wykres malował niepewność nad kategorią,
-    // w której nie było żadnego pomiaru. Pasmo jest teraz liczone PER CIĄG,
-    // a ciąg z definicji nie ma dziur, więc pasm jest tyle, ile ciągów.
-    const { container } = render(
-      <CartesianChart
-        config={cfg({
-          ...FORECAST,
-          categories: ["2021", "2022", "2023", "2024", "2025", "2026", "2027"],
-          series: [{ name: "PKB", values: [10, 12, 13, 15, 16, null, 20] }],
-          forecastFrom: 4,
-        })}
-        lang="pl"
-      />,
-    );
-    const bands = bandsOf(container);
-    expect(bands).toHaveLength(1);
-    // Jedno pasmo na ciąg, a ciągi są dwa (2021-2025 i 2027), więc ścieżka
-    // ma dwa domknięte podobszary. Drugi ciąg ma jeden punkt, czyli pasma nie
-    // dostaje wcale - liczba domknięć mówi, ile ciągów je dostało.
-    const d = bands[0].getAttribute("d") ?? "";
-    expect((d.match(/Z/g) ?? []).length).toBe(1);
-    // I najważniejsze: obwiednia nie przechodzi przez kategorię 2026.
-    const dots = all(container, "circle.neh-dot").map((c) => Number(c.getAttribute("cx")));
-    const lukaX = dots.at(-1);
-    expect(dots).toHaveLength(6);
-    expect(d).not.toContain(`${lukaX}`);
-  });
-
-  it("pasmo WCHODZI DO DOMENY OSI - nie jest przycinane krawędzią rysunku", () => {
-    // REGRESJA. Skala liczona z samych wartości pozwalała obwiedni +12%
-    // wyjść ponad najwyższą podziałkę i zostać uciętą - a ucięte pasmo
-    // niepewności sugeruje, że niepewność KOŃCZY SIĘ tam, gdzie kończy się
-    // obszar kreślenia.
+  it("PUNKTY OBSERWACJI TYLKO NA HISTORII - ich brak sam mówi, że tam nie ma pomiarów", () => {
+    // Nośnik mocniejszy od kreskowania, bo działa w druku, w skali szarości
+    // i na zrzucie ekranu. Kropka nad wartością prognozowaną podawała
+    // interpolację za pomiar.
     const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
-    const band = bandsOf(container)[0];
-    const ys = [...(band.getAttribute("d") ?? "").matchAll(/[ML]\s*[\d.]+\s+([\d.]+)/g)].map((m) =>
-      Number(m[1]),
+    const dots = all(container, "circle.neh-dot");
+    // Sześć kategorii, prognoza od indeksu 4 - zostają cztery kropki historii.
+    expect(dots).toHaveLength(4);
+    const divider = Number(all(container, "line.neh-forecast-divider")[0].getAttribute("x1"));
+    for (const dot of dots) {
+      expect(Number(dot.getAttribute("cx"))).toBeLessThan(divider);
+    }
+  });
+
+  it("BEZ prognozy kropki wracają na cały szereg", () => {
+    const { container } = render(
+      <CartesianChart config={cfg({ ...FORECAST, forecastFrom: null })} lang="pl" />,
     );
-    const gora = Math.min(...ys);
-    // Najwyższa podziałka osi wyznacza górną krawędź obszaru kreślenia;
-    // pasmo musi się pod nią zmieścić (y rośnie w dół, więc >=).
-    const siatka = all(container, "line[stroke='var(--chart-grid)']").map((l) =>
-      Number(l.getAttribute("y1")),
-    );
-    expect(siatka.length).toBeGreaterThan(0);
-    expect(gora).toBeGreaterThanOrEqual(Math.min(...siatka) - 0.01);
+    expect(all(container, "circle.neh-dot")).toHaveLength(6);
+    expect(all(container, "line.neh-forecast-divider")).toHaveLength(0);
   });
 
   it("separator i etykieta słowna - kreskowanie samo nie mówi 'prognoza'", () => {
@@ -288,10 +232,19 @@ describe("CartesianChart - prognoza", () => {
     const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
     const divider = Number(all(container, "line.neh-forecast-divider")[0].getAttribute("x1"));
     const dots = all(container, "circle.neh-dot").map((c) => Number(c.getAttribute("cx")));
-    // Czwarty punkt (indeks 3) to ostatnia obserwacja, piąty (indeks 4) to
-    // pierwsza prognoza - granica leży dokładnie pomiędzy nimi.
-    expect(divider).toBeGreaterThan(dots[3]);
-    expect(divider).toBeLessThan(dots[4]);
+    // Kropki są już TYLKO na historii, więc ostatnia z nich jest ostatnią
+    // obserwacją. Pierwszą prognozę bierzemy z pasma niepewności: jego
+    // obwiednia startuje na kategorii granicznej, a więc jej drugi punkt jest
+    // pierwszą kategorią prognozowaną.
+    const lastObservation = Math.max(...dots);
+    expect(divider).toBeGreaterThan(lastObservation);
+    const band = bandsOf(container)[0].getAttribute("d") ?? "";
+    const xs = [...band.matchAll(/[ML]\s*([\d.]+)/g)].map((m) => Number(m[1]));
+    const firstForecast = xs.filter((x) => x > divider).sort((a, b) => a - b)[0];
+    expect(firstForecast).toBeGreaterThan(divider);
+    // Separator leży POMIĘDZY nimi, bo pomiar z kategorii granicznej jest
+    // nadal pomiarem i separator nie może przez niego przechodzić.
+    expect(divider).toBeLessThan(firstForecast);
   });
 
   it("pasmo niepewności istnieje i ma krycie Z TOKENA slotu", () => {
@@ -320,8 +273,14 @@ describe("CartesianChart - prognoza", () => {
     const { container } = render(
       <CartesianChart config={cfg({ ...FORECAST, forecastBandPct: 0 })} lang="pl" />,
     );
-    expect(all(container, "path.neh-forecast-line")).toHaveLength(1);
+    // Bez pasma zostają DWA nośniki z trzech: strefa i separator z etykietą.
+    // Silnik nie dorysowuje wtedy trzeciego na siłę (kreskowanie linii wypadło
+    // z reguł), a brak pasma jest osobno wyłapywany przez ostrzeżenie
+    // uczciwościowe - patrz `isForecastMissingBand`.
     expect(bandsOf(container)).toHaveLength(0);
+    expect(all(container, "line.neh-forecast-divider")).toHaveLength(1);
+    expect(all(container, "rect[fill='var(--chart-zone)']")).toHaveLength(1);
+    expect(all(container, "path.neh-line")[0].getAttribute("stroke-dasharray")).toBeNull();
   });
 
   it("prognoza poza zakresem kategorii jest ODRZUCANA, nie rysowana na krawędzi", () => {

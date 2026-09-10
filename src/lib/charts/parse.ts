@@ -3,6 +3,7 @@
 // koercja, twarde klamry, zero any.
 
 import type { Json } from "@/lib/blocks/types";
+import { BAR_STYLES, type BarStyle } from "./palette";
 import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
@@ -93,6 +94,7 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     // z nowej specyfikacji bez migracji danych - a autor, który świadomie
     // chce łamaną, zapisuje 0 i to zero jest respektowane.
     smoothing: clamp01(num(data.smoothing) ?? SMOOTHING_DEFAULT),
+    barStyle: parseBarStyle(data.barStyle),
     forecastFrom: parseForecastFrom(data.forecastFrom, categories.length),
     forecastBandPct: Math.max(0, Math.min(100, num(data.forecastBandPct) ?? 0)),
     // n: zero jest wartością nieprawdziwą dla liczby obserwacji, więc
@@ -198,4 +200,14 @@ export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
     animate: data.animate !== false,
     source: String(data.source ?? ""),
   };
+}
+
+/**
+ * Wariant wypełnienia słupka. Nieznany zapis wraca do wariantu bladego, a nie
+ * rzuca: konfiguracja bloku pochodzi z treści, więc musi znieść zapis
+ * z przyszłej albo cofniętej wersji edytora bez wywracania strony.
+ */
+function parseBarStyle(raw: Json | undefined): BarStyle {
+  const value = typeof raw === "string" ? raw : "";
+  return (BAR_STYLES as readonly string[]).includes(value) ? (value as BarStyle) : "pale";
 }

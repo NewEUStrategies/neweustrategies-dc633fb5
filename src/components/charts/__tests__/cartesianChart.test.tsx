@@ -43,6 +43,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
+import { BAR_EDGE_INSET } from "@/lib/charts/geometry";
 import { defaultChartConfig, parseChartConfig } from "@/lib/charts/parse";
 import type { ChartConfig } from "@/lib/charts/types";
 import { CartesianChart } from "../CartesianChart";
@@ -139,10 +140,19 @@ describe("CartesianChart - wczesne wyjścia i filtr serii", () => {
       />,
     );
     // Dwa słupki (jedna ocalała seria x dwie kategorie), wszystkie w slocie 2 -
-    // odsianie serii NIE przenumerowuje palety.
+    // odsianie serii NIE przenumerowuje palety. Wypełnieniem jest teraz BLADE
+    // WNĘTRZE slotu (wariant domyślny przy jednej serii), a tożsamość niesie
+    // obwódka - dlatego pytamy o oba i oba muszą wskazywać slot 2.
     const bars = all(container, SEL.bar);
     expect(bars).toHaveLength(2);
-    expect(bars.map((b) => b.getAttribute("fill"))).toEqual(["var(--chart-2)", "var(--chart-2)"]);
+    expect(bars.map((b) => b.getAttribute("fill"))).toEqual([
+      "var(--chart-2-inner)",
+      "var(--chart-2-inner)",
+    ]);
+    expect(bars.map((b) => b.getAttribute("stroke"))).toEqual([
+      "var(--chart-2-edge)",
+      "var(--chart-2-edge)",
+    ]);
   });
 
   it("tytuł trafia do aria-label, a jego brak nie zostawia pustego atrybutu", () => {
@@ -174,14 +184,20 @@ describe("CartesianChart - kolumny pionowe", () => {
     const [dodatni, ujemny] = ds(container, SEL.bar);
     const zeroY = Number(all(container, SEL.axis)[0].getAttribute("y1"));
 
-    // Obie kolumny startują z tego samego Y (oś zera) - jedna idzie w górę
-    // (ujemne `v`), druga w dół (dodatnie `v`).
-    // Współrzędne x są o 2 px mniejsze niż przed zmianą, bo podłoga marginesu
-    // lewego zeszła z 34 px (wartość poza skalą odstępów) na 32 px, czyli na
-    // szczebel skali 4 px.
-    expect(dodatni.startsWith(`M132.66666666666669 ${zeroY}v-`)).toBe(true);
-    expect(ujemny.startsWith(`M358 ${zeroY}v`)).toBe(true);
-    expect(ujemny).not.toContain(`${zeroY}v-`);
+    // Obie kolumny startują na osi zera - jedna idzie w górę (ujemne `v`),
+    // druga w dół (dodatnie `v`).
+    //
+    // BAZA JEST SKORYGOWANA O WSUNIĘCIE OBWÓDKI, i to nie jest przesunięcie
+    // bazy: `stroke` leży NA ścieżce, więc kształt wsunięty o połowę grubości
+    // (0,75 px) ma ZEWNĘTRZNĄ krawędź obwódki dokładnie na zerze. Bez tej
+    // korekty obwódka zjadałaby wysokość, czyli po prostu zmniejszała wartość.
+    // Asercja pyta więc o relację, a nie o przypięty napis - inaczej zmiana
+    // grubości obwódki wywracałaby test, nie mówiąc, co się zepsuło.
+    const startY = (path: string): number => Number(/^M[\d.]+ ([\d.]+)/.exec(path)?.[1]);
+    expect(startY(dodatni)).toBeCloseTo(zeroY - BAR_EDGE_INSET, 6);
+    expect(startY(ujemny)).toBeCloseTo(zeroY + BAR_EDGE_INSET, 6);
+    expect(dodatni).toMatch(/^M[\d.]+ [\d.]+v-/);
+    expect(ujemny).toMatch(/^M[\d.]+ [\d.]+v[\d.]/);
   });
 
   it("zaokrąglenie 6px dostaje szczyt kolumny dodatniej i SPÓD ujemnej", () => {
@@ -233,11 +249,19 @@ describe("CartesianChart - kolumny pionowe", () => {
     );
     const bars = ds(container, SEL.bar);
     expect(bars).toHaveLength(2);
-    // Minimalna wysokość 0.5px - kategoria z zerem zostaje widoczna na osi.
-    expect(bars[0]).toContain("v-0.25");
-    // 278, nie 280: margines górny zszedł z 10 px na 12 px, a dolny z 26 px
-    // na 24 px - obie wartości leżą teraz na skali odstępów 4 px.
-    expect(bars[1]).toContain("v-278");
+    // ZNAKIEM KATEGORII Z ZEREM JEST OBWÓDKA, nie podłoga wysokości - i to
+    // jest zmiana na lepsze. Wcześniej silnik rysował włos 0,5 px, czyli
+    // wysokość, której w danych nie ma; teraz kształt ma wysokość dokładnie 0,
+    // a widoczną kreską jest obwódka 1,5 px stojąca DOKŁADNIE na zerze.
+    // Skutek uboczny wsunięcia okazał się właściwym mechanizmem: kreska jest
+    // w prawidłowym miejscu i nie udaje danych.
+    expect(bars[0]).toContain("v0");
+    expect(bars[0]).not.toContain("v-0.25");
+    expect(all(container, SEL.bar)[0].getAttribute("data-edged")).toBe("true");
+    // 276,5 zamiast 278: wysokość rysowana jest mniejsza o dwa wsunięcia
+    // (2 x 0,75 px), a zewnętrzna krawędź obwódki nadal sięga tam, gdzie
+    // sięgała wartość.
+    expect(bars[1]).toContain("v-276.5");
   });
 
   it("szerokość kolumny nie przekracza 24px przy garstce kategorii", () => {
@@ -247,8 +271,9 @@ describe("CartesianChart - kolumny pionowe", () => {
         lang="pl"
       />,
     );
-    // 24px = 12px prostej ścianki + 2 x 6px promienia.
-    expect(d(all(container, SEL.bar)[0])).toContain("h12");
+    // 24 px nominalnej szerokości = 1,5 px zjedzone przez wsunięcie obwódki
+    // (2 x 0,75) + 12 px na dwa promienie 6 px + 10,5 px prostej ścianki.
+    expect(d(all(container, SEL.bar)[0])).toContain("h10.5");
   });
 
   it("dwie serie grupują się w rozdzielnych slotach z 2px prześwitu", () => {
@@ -631,7 +656,14 @@ describe("CartesianChart - stack", () => {
         lang="pl"
       />,
     );
-    expect(all(container, SEL.bar)[0].getAttribute("stroke-width")).toBe("0");
+    // Prześwit w kolorze płyty istnieje tylko w prawdziwym stosie. Przy jednej
+    // ocalałej serii wariant wraca do bladego, więc obwódka jest KRAWĘDZIĄ
+    // SERII, a jej grubość niesie arkusz (`--chart-bar-edge`), nie atrybut -
+    // `var()` w atrybutach prezentacyjnych SVG nie jest wspierane wszędzie.
+    const bar = all(container, SEL.bar)[0];
+    expect(bar.getAttribute("stroke")).toBe("var(--chart-1-edge)");
+    expect(bar.getAttribute("stroke")).not.toBe("var(--card)");
+    expect(bar.getAttribute("stroke-width")).toBeNull();
   });
 
   it("`stacked` jest ignorowane dla linii - powstają dwie niezależne ścieżki", () => {
