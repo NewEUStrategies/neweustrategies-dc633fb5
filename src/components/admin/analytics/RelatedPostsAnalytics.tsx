@@ -40,6 +40,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { getRelatedInsights } from "@/lib/relatedInsights.functions";
 import { useCurrentTenantId } from "@/lib/tenant";
 import { ChartCard } from "@/components/admin/analytics/ChartCard";
+import { useChartTheme } from "@/components/admin/analytics/useChartTheme";
 import { KpiTile } from "@/components/admin/analytics/KpiTile";
 import {
   TimeRangeFilter,
@@ -68,6 +69,7 @@ function postLabel(title: string | null, postId: string, chars = 8): string {
 
 export function RelatedPostsAnalytics() {
   const { t } = useTranslation();
+  const chartTheme = useChartTheme();
   const fetchInsights = useServerFn(getRelatedInsights);
   const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("30d"));
@@ -224,11 +226,11 @@ export function RelatedPostsAnalytics() {
           type: "heatmap",
           data: cells,
           progressive: 0,
-          itemStyle: { borderRadius: 2, borderColor: "hsl(var(--background))", borderWidth: 1 },
+          itemStyle: { borderRadius: 2, borderColor: chartTheme.background, borderWidth: 1 },
         },
       ],
     };
-  }, [cooc, t]);
+  }, [cooc, t, chartTheme]);
 
   const popularityScatterOption = useMemo<EChartsCoreOption>(() => {
     const rows = popRows;

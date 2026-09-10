@@ -51,6 +51,7 @@ import {
 import type { EChartsCoreOption } from "echarts/core";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import { ChartCard } from "./ChartCard";
+import { useChartTheme } from "./useChartTheme";
 import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { InsightSection } from "./InsightSection";
@@ -97,6 +98,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const fetchSites = useServerFn(listGscSites);
   const fetchAnalytics = useServerFn(queryGscAnalytics);
   const tenantId = useCurrentTenantId();
+  const chartTheme = useChartTheme();
   const [siteUrl, setSiteUrl] = useState<string>("");
   const [days, setDays] = useState<number>(28);
   // Etykiety paska narzędzi są WIDOCZNE, ale `<label>` nie nazywa przycisku -
@@ -419,9 +421,18 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           roam: false,
           nodeClick: false,
           breadcrumb: { show: false },
-          label: { show: true, formatter: "{b}", fontSize: 10, color: "#fff" },
+          label: {
+            show: true,
+            formatter: "{b}",
+            fontSize: 10,
+            color: "#fff",
+            // Obrys pilnuje czytelności na JASNYCH kaflach palety ciemnej
+            // (ochra, oliwka), gdzie sama biel znika.
+            textBorderColor: "rgba(0,0,0,0.35)",
+            textBorderWidth: 2,
+          },
           upperLabel: { show: false },
-          itemStyle: { borderColor: "hsl(var(--background))", borderWidth: 2, gapWidth: 2 },
+          itemStyle: { borderColor: chartTheme.background, borderWidth: 2, gapWidth: 2 },
           levels: [{ colorSaturation: [0.35, 0.7] }],
           data: top.map((r) => {
             const raw = r.keys[0] ?? "/";
@@ -439,7 +450,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [pageRows, t]);
+  }, [pageRows, t, chartTheme]);
 
   const calendarOption = useMemo<EChartsCoreOption>(() => {
     if (!sortedDateRows.length) return { series: [] };
@@ -467,15 +478,15 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         right: 20,
         cellSize: ["auto", 14],
         range: [first, last],
-        itemStyle: { borderWidth: 1, borderColor: "hsl(var(--background))" },
+        itemStyle: { borderWidth: 1, borderColor: chartTheme.background },
         splitLine: { show: false },
         yearLabel: { show: false },
-        dayLabel: { color: "hsl(var(--muted-foreground))", fontSize: 10 },
-        monthLabel: { color: "hsl(var(--muted-foreground))", fontSize: 10 },
+        dayLabel: { color: chartTheme.muted, fontSize: 10 },
+        monthLabel: { color: chartTheme.muted, fontSize: 10 },
       },
       series: [{ type: "heatmap", coordinateSystem: "calendar", data }],
     };
-  }, [sortedDateRows, t]);
+  }, [sortedDateRows, t, chartTheme]);
 
   // ---- Drill-down handlers ----
   const gscRowMetrics = (r: GscRow) => [
