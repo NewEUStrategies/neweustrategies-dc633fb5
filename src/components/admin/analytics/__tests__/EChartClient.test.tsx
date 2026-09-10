@@ -416,8 +416,10 @@ describe("opcja podana silnikowi wykresów", () => {
 
     expect(motyw.muted).toBeTruthy();
     expect(yAxis.axisLabel?.color).toBe(motyw.muted);
-    expect(yAxis.splitLine?.lineStyle?.color).toBe(motyw.border);
-    expect(yAxis.splitLine?.lineStyle?.type).toBe("dashed");
+    // Siatka bierze token SIATKI, nie obramowania: oś ma do płyty 1,40:1,
+    // a siatka 1,18:1 - siatka ma być wyczuwalna, nie widoczna.
+    expect(yAxis.splitLine?.lineStyle?.color).toBe(motyw.grid);
+    expect(yAxis.splitLine?.lineStyle?.type).toEqual([2, 4]);
     expect(yAxis.axisLine?.show).toBe(false);
     expect(yAxis.axisTick?.show).toBe(false);
     // ...a to, po co panel w ogóle tę sekcję podał, zostaje jego.
@@ -446,9 +448,11 @@ describe("opcja podana silnikowi wykresów", () => {
       data?: string[];
     };
 
-    expect(tooltip.backgroundColor).toBe(motyw.background);
-    expect(tooltip.borderColor).toBe(motyw.border);
-    expect(tooltip.textStyle?.color).toBe(motyw.foreground);
+    // Dymek ma własne tokeny: w trybie jasnym jest ODWRÓCONY wobec płyty,
+    // w ciemnym PODNIESIONY - dlatego nie jest to tło strony.
+    expect(tooltip.backgroundColor).toBe(motyw.tipBg);
+    expect(tooltip.borderColor).toBe(motyw.tipBorder);
+    expect(tooltip.textStyle?.color).toBe(motyw.tipInk);
     expect(legend.textStyle?.color).toBe(motyw.muted);
     expect(xAxis.axisLine?.lineStyle?.color).toBe(motyw.border);
     expect(xAxis.axisLabel?.color).toBe(motyw.muted);

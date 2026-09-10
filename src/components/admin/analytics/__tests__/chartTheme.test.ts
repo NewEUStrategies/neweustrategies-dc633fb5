@@ -54,8 +54,16 @@ const TOKENS = [
   "--primary",
 ] as const;
 
-/** Paleta zapasowa z modułu - powielona świadomie, żeby test pilnował WARTOŚCI. */
-const FALLBACK_PALETTE = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7"];
+/**
+ * Paleta zapasowa z modułu - powielona świadomie, żeby test pilnował WARTOŚCI.
+ *
+ * SZEŚĆ SLOTÓW, nie pięć, i inne odcienie niż wcześniej: fallback pochodzi
+ * teraz z `src/lib/charts/palette.ts`, czyli z tego samego źródła, które
+ * pilnuje kontrastu i rozdzielności dla daltonizmu. Poprzednia lista pięciu
+ * hexów była drugą, niezwalidowaną kopią palety i rozjechała się z arkuszem -
+ * czego nikt nie widział, bo gałąź zapasowa odpala się tylko na serwerze.
+ */
+const FALLBACK_PALETTE = ["#00528f", "#c6871f", "#679675", "#815579", "#0e90be", "#b05125"];
 
 function setTokens(tokens: Record<string, string>): void {
   for (const [name, value] of Object.entries(tokens)) {
@@ -102,9 +110,12 @@ describe("resolveChartTheme - gałąź SSR", () => {
     vi.stubGlobal("window", realneOkno);
 
     expect(theme.palette).toEqual(FALLBACK_PALETTE);
-    expect(theme.muted).toBe("#6b7280");
-    expect(theme.border).toBe("#e5e7eb");
-    expect(theme.foreground).toBe("#111827");
+    // Neutralne wartości zapasowe też pochodzą teraz z zestawu tokenów
+    // wykresu (`--muted-foreground` / `--chart-axis` motywu jasnego), a nie
+    // z przypadkowych szarości Tailwinda.
+    expect(theme.muted).toBe("#6b7482");
+    expect(theme.border).toBe("#d9dbd4");
+    expect(theme.foreground).toBe("#12161c");
     expect(theme.background).toBe("#ffffff");
     expect(theme.primary).toBe(FALLBACK_PALETTE[0]);
     expect(szpieg).not.toHaveBeenCalled();
@@ -129,12 +140,26 @@ describe("resolveChartTheme - gałąź SSR", () => {
     expect(theme!.palette).toEqual(FALLBACK_PALETTE);
   });
 
-  it("kolory statusowe są STAŁE - nie pochodzą z tokenów i nie znikają na SSR", async () => {
-    // `success`/`warning`/`danger` są zaszyte w obu gałęziach. Kontrakt jest
-    // taki, że wykres statusowy ma ten sam zielony przed i po hydratacji -
-    // inaczej wskaźnik „dobrze/źle" mrugałby kolorem przy pierwszym malowaniu.
+  it("skala dobrze/średnio/źle jest WYPROWADZONA Z SEMANTYKI, nie z sygnalizacji świetlnej", async () => {
+    // ZMIANA ŚWIADOMA. Wcześniej `success`/`warning`/`danger` stały tu jako
+    // trzy stałe #16a34a / #f59e0b / #dc2626 - klasyczna sygnalizacja
+    // świetlna, która ma dwa MIERZALNE defekty:
+    //
+    //   * podłoga odległości po symulacji daltonizmu wynosi 14,4 i wiąże ją
+    //     para ZIELONY-CZERWONY przy deuteranopii, czyli dokładnie "dobrze"
+    //     i "źle" zbiegają się w jeden kolor u ~8% mężczyzn;
+    //   * amber #f59e0b ma na białej płycie 2,15:1, więc nie przechodzi nawet
+    //     progu grafiki (3,0:1), nie mówiąc o tekstowym.
+    //
+    // Teal/ochra/czerwień, wzięte z semantyki znaku i z palety serii, dają
+    // podłogę 25,5 na jasnym i 35,4 na ciemnym, a każdy z trzech odcieni
+    // przechodzi 3:1 (5,68 / 3,05 / 3,46).
+    //
+    // Cena: te trzy kolory jadą teraz z tokenów, więc na SSR mają wartości
+    // JASNE, a po hydratacji w trybie ciemnym - ciemne. To ten sam mechanizm,
+    // któremu podlegają `foreground`, `border` i cała paleta, i tak samo
+    // obsługuje go jedna runda odświeżenia (patrz `scheduleChartThemeRefresh`).
     const { resolveChartTheme } = await loadChartTheme();
-    setTokens({ "--chart-1": "#111111" });
     const klient = resolveChartTheme();
 
     const realneOkno = window;
@@ -142,14 +167,24 @@ describe("resolveChartTheme - gałąź SSR", () => {
     const serwer = resolveChartTheme();
     vi.stubGlobal("window", realneOkno);
 
-    expect(klient.success).toBe(serwer.success);
-    expect(klient.warning).toBe(serwer.warning);
-    expect(klient.danger).toBe(serwer.danger);
+    // Bez nadpisanych tokenów oba odczyty muszą dać to samo - tokeny
+    // w happy-dom nie są rozwiązane, więc klient też schodzi na wartości
+    // zapasowe.
     expect([klient.success, klient.warning, klient.danger]).toEqual([
-      "#16a34a",
-      "#f59e0b",
-      "#dc2626",
+      serwer.success,
+      serwer.warning,
+      serwer.danger,
     ]);
+    expect([klient.success, klient.warning, klient.danger]).toEqual([
+      "#1b6f8c",
+      "#c6871f",
+      "#ef5454",
+    ]);
+
+    // "Dobrze" to ten sam odcień co znak dodatni, a "źle" co ujemny - jedna
+    // skala znaczeń w całym silniku, nie dwie równoległe.
+    expect(klient.success).toBe(klient.positive);
+    expect(klient.danger).toBe(klient.negative);
   });
 });
 
@@ -163,6 +198,7 @@ describe("readVar - rozpoznawanie formatu tokenu", () => {
       "--chart-3": "hsl(221 83% 53%)",
       "--chart-4": "rgba(0, 0, 0, 0.5)",
       "--chart-5": "hsla(10, 20%, 30%, 0.4)",
+      "--chart-6": "oklch(0.6 0.1 250)",
     });
 
     const theme = resolveChartTheme();
@@ -173,6 +209,7 @@ describe("readVar - rozpoznawanie formatu tokenu", () => {
       "hsl(221 83% 53%)",
       "rgba(0, 0, 0, 0.5)",
       "hsla(10, 20%, 30%, 0.4)",
+      "oklch(0.6 0.1 250)",
     ]);
   });
 
@@ -198,7 +235,8 @@ describe("readVar - rozpoznawanie formatu tokenu", () => {
     // Gdyby fallback był jeden, brak dwóch tokenów dałby dwie serie w tym samym
     // kolorze - wykres nieczytelny, a nie „lekko inny".
     const { resolveChartTheme } = await loadChartTheme();
-    setTokens({ "--chart-2": "   ", "--chart-4": "#00ff00" });
+    // Slot 6 nie jest tu ustawiany, więc też musi spaść na swój własny kolor.
+    setTokens({ "--chart-2": "   ", "--chart-4": "#00ff00", "--chart-6": "" });
 
     const theme = resolveChartTheme();
 
@@ -207,7 +245,8 @@ describe("readVar - rozpoznawanie formatu tokenu", () => {
     expect(theme.palette[2]).toBe(FALLBACK_PALETTE[2]);
     expect(theme.palette[3]).toBe("#00ff00");
     expect(theme.palette[4]).toBe(FALLBACK_PALETTE[4]);
-    expect(new Set(theme.palette).size).toBe(5);
+    expect(theme.palette[5]).toBe(FALLBACK_PALETTE[5]);
+    expect(new Set(theme.palette).size).toBe(FALLBACK_PALETTE.length);
   });
 
   it("brak --primary spada na ROZWIĄZANY --chart-1, a nie na stałą z modułu", async () => {
@@ -286,7 +325,16 @@ describe("readVar - rozpoznawanie formatu tokenu", () => {
 describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
   /** Motyw o rozłącznych, rozpoznawalnych kolorach - każde pole ma inny ślad. */
   const THEME: ResolvedTheme = {
-    palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005"],
+    palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005", "#a10006"],
+    paletteText: ["#a20001", "#a20002", "#a20003", "#a20004", "#a20005", "#a20006"],
+    grid: "#f10001",
+    axis: "#f20001",
+    font: '"Red Hat Display", system-ui, sans-serif',
+    positive: "#f30001",
+    negative: "#f40001",
+    tipBg: "#f50001",
+    tipBorder: "#f60001",
+    tipInk: "#f70001",
     muted: "#b10001",
     border: "#c10001",
     foreground: "#d10001",
@@ -335,9 +383,13 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
       textStyle: { color: string };
     };
 
-    expect(tooltip.backgroundColor).toBe(THEME.background);
-    expect(tooltip.borderColor).toBe(THEME.border);
-    expect(tooltip.textStyle.color).toBe(THEME.foreground);
+    // Dymek ma WŁASNE tokeny, nie tło strony: w trybie jasnym jest odwrócony
+    // wobec płyty (ciemny prostokąt na białym tle czyta się najlepiej),
+    // a w ciemnym PODNIESIONY o stopień jasności. Lustrzane odwrócenie na
+    // ciemnym dałoby jasny prostokąt, który świeci jak latarka.
+    expect(tooltip.backgroundColor).toBe(THEME.tipBg);
+    expect(tooltip.borderColor).toBe(THEME.tipBorder);
+    expect(tooltip.textStyle.color).toBe(THEME.tipInk);
   });
 
   it("baza NIE narzuca `tooltip.trigger` - to własność TYPU WYKRESU, nie motywu", async () => {
@@ -359,7 +411,7 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
 
     expect("trigger" in tooltip).toBe(false);
     // ...a KOLORY dymka baza wnosi dalej - to jest dokładnie jej robota.
-    expect(tooltip.backgroundColor).toBe(THEME.background);
+    expect(tooltip.backgroundColor).toBe(THEME.tipBg);
   });
 
   it("obie osie: linie i podziałka w kolorze ramki, etykiety w wyciszonym", async () => {
@@ -377,15 +429,21 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
       axisLine: { show: boolean };
     };
 
-    expect(xAxis.axisLine.lineStyle.color).toBe(THEME.border);
-    expect(xAxis.axisTick.lineStyle.color).toBe(THEME.border);
+    // OŚ bierze token osi, a SIATKA token siatki - to dwie różne mocy:
+    // oś ma do płyty 1,40:1, siatka 1,18:1. Wcześniej obie jechały
+    // `--border`, więc siatka była tak samo mocna jak oś i zero przestawało
+    // się wyróżniać.
+    expect(xAxis.axisLine.lineStyle.color).toBe(THEME.axis);
+    expect(xAxis.axisTick.lineStyle.color).toBe(THEME.axis);
     expect(xAxis.axisLabel.color).toBe(THEME.muted);
-    expect(yAxis.splitLine.lineStyle.color).toBe(THEME.border);
+    expect(yAxis.splitLine.lineStyle.color).toBe(THEME.grid);
     expect(yAxis.axisLabel.color).toBe(THEME.muted);
     // Siatkę rysuje TYLKO oś Y - pionowe linie na osi czasu to szum.
     expect(xAxis.splitLine.show).toBe(false);
     expect(yAxis.axisLine.show).toBe(false);
-    expect(yAxis.splitLine.lineStyle.type).toBe("dashed");
+    // Kreskowanie 2 4 z tokena prowadnic zamiast słowa "dashed" - miękkie
+    // zamiast twardego 3 3.
+    expect(yAxis.splitLine.lineStyle.type).toEqual([2, 4]);
   });
 
   it("żaden kolor motywu nie jest zaszyty na sztywno - podmiana motywu zmienia WSZYSTKIE", async () => {
@@ -397,15 +455,32 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
       ...THEME,
       palette: THEME.palette.map((c) => c.replace("#a1", "#b2")),
       muted: "#b20001",
-      border: "#c20001",
+      grid: "#f10002",
+      axis: "#f20002",
       foreground: "#d20001",
-      background: "#e20001",
+      tipBg: "#f50002",
+      tipBorder: "#f60002",
+      tipInk: "#f70002",
+      font: "OtherFont, sans-serif",
     };
 
     const pierwszy = JSON.stringify(baseOption(THEME));
     const drugi = JSON.stringify(baseOption(inny));
 
-    for (const kolor of [THEME.muted, THEME.border, THEME.foreground, THEME.background]) {
+    // `border` i `background` NIE są już na tej liście: bazę osi obsługują
+    // tokeny `--chart-axis` i `--chart-grid`, a dymek `--chart-tip-*`, więc
+    // `--border` i `--background` nie docierają do opcji ECharts wcale.
+    // Czcionki też tu nie ma - jest napisem, nie kolorem, i sprawdza ją
+    // osobny przypadek („czcionka jest jawna...").
+    for (const kolor of [
+      THEME.muted,
+      THEME.grid,
+      THEME.axis,
+      THEME.foreground,
+      THEME.tipBg,
+      THEME.tipBorder,
+      THEME.tipInk,
+    ]) {
       expect(pierwszy).toContain(kolor);
       expect(drugi).not.toContain(kolor);
     }
@@ -422,8 +497,9 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
       }
     ).fontFamily;
 
-    expect(rodzina).toContain("Red Hat Display");
-    expect(rodzina).toContain("system-ui");
+    // Rodzina przychodzi Z MOTYWU, czyli z tokena `--chart-font`, a ten
+    // schodzi z ustawienia panelu admina. Baza nie ma prawa jej znać.
+    expect(rodzina).toBe(THEME.font);
     expect(rodzina).toContain("sans-serif");
   });
 });
@@ -604,7 +680,16 @@ describe("izolacja tenantów", () => {
 describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu", () => {
   /** Motyw o rozłącznych kolorach - każde pole ma inny, rozpoznawalny ślad. */
   const THEME: ResolvedTheme = {
-    palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005"],
+    palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005", "#a10006"],
+    paletteText: ["#a20001", "#a20002", "#a20003", "#a20004", "#a20005", "#a20006"],
+    grid: "#f10001",
+    axis: "#f20001",
+    font: '"Red Hat Display", system-ui, sans-serif',
+    positive: "#f30001",
+    negative: "#f40001",
+    tipBg: "#f50001",
+    tipBorder: "#f60001",
+    tipInk: "#f70001",
     muted: "#b10001",
     border: "#c10001",
     foreground: "#d10001",
@@ -645,8 +730,8 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     expect(yAxis.type).toBe("value");
     expect(yAxis.max).toBe(100);
     expect(yAxis.axisLabel?.color).toBe(THEME.muted);
-    expect(yAxis.splitLine?.lineStyle?.color).toBe(THEME.border);
-    expect(yAxis.splitLine?.lineStyle?.type).toBe("dashed");
+    expect(yAxis.splitLine?.lineStyle?.color).toBe(THEME.grid);
+    expect(yAxis.splitLine?.lineStyle?.type).toEqual([2, 4]);
     expect(yAxis.axisLine?.show).toBe(false);
     expect(yAxis.axisTick?.show).toBe(false);
   });
@@ -679,9 +764,9 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
       extraCssText?: string;
     };
 
-    expect(tooltip.backgroundColor).toBe(THEME.background);
-    expect(tooltip.borderColor).toBe(THEME.border);
-    expect(tooltip.textStyle?.color).toBe(THEME.foreground);
+    expect(tooltip.backgroundColor).toBe(THEME.tipBg);
+    expect(tooltip.borderColor).toBe(THEME.tipBorder);
+    expect(tooltip.textStyle?.color).toBe(THEME.tipInk);
     expect(tooltip.borderWidth).toBe(1);
     expect(tooltip.extraCssText).toContain("border-radius");
   });
@@ -712,7 +797,7 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     expect(axes).toHaveLength(3);
     for (const axis of axes) {
       expect(axis.axisLabel?.color).toBe(THEME.muted);
-      expect(axis.splitLine?.lineStyle?.color).toBe(THEME.border);
+      expect(axis.splitLine?.lineStyle?.color).toBe(THEME.grid);
     }
     expect(axes[1]?.name).toBe("wyświetlenia");
     // Wyłączenie siatki na drugiej osi PRZEŻYWA rozgłoszenie bazy.
@@ -785,7 +870,9 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
 
     expect(merged.color).toEqual(THEME.palette);
     expect(merged.backgroundColor).toBe("transparent");
-    expect(merged.animationDuration).toBe(400);
+    // 500 ms, nie 400: te same czasy co silnik SVG (`--neh-anim-ms`), żeby
+    // wykres w panelu i wykres we wpisie wchodziły jednym ruchem.
+    expect(merged.animationDuration).toBe(500);
     expect((merged.textStyle as { color: string }).color).toBe(THEME.foreground);
     expect((merged.grid as { containLabel: boolean }).containLabel).toBe(true);
   });
@@ -811,9 +898,11 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     for (const kolor of [
       ...THEME.palette,
       THEME.muted,
-      THEME.border,
+      THEME.grid,
+      THEME.axis,
       THEME.foreground,
-      THEME.background,
+      THEME.tipBg,
+      THEME.tipInk,
     ]) {
       expect(wynik).toContain(kolor);
     }

@@ -77,9 +77,26 @@ const en = {
 
 let registered = false;
 
+/**
+ * Rejestruje słownik w chunku trasy, nie w entry aplikacji. Idempotentnie, bo
+ * wołane i przy ewaluacji modułu (niżej), i z komponentów: goły import
+ * side-effectowy bywał wycinany w buildzie SSR (Rolldown/treeshake), przez co
+ * serwer renderował surowe klucze, a klient po hydracji podmieniał je na
+ * tekst - czyli React #418.
+ */
 export function ensureI18n(): void {
   if (registered) return;
   registered = true;
   i18n.addResourceBundle("pl", "translation", pl, true, true);
   i18n.addResourceBundle("en", "translation", en, true, true);
 }
+
+// WYWOŁANIE PRZY EWALUACJI MODUŁU - tak jak w każdej innej nakładce z tym
+// wzorcem (`i18n-cart`, `i18n-interests`, `i18n-participant-tickets`,
+// `i18n-admin-billing-audit`). Tutaj tej linii brakowało, a bez niej klucze
+// `fontScale.*` były dla BRAMKI PARYTETU nieistniejące: bramka
+// `src/__tests__/i18nKeyDrift.gate.test.ts` zbiera słowniki przez
+// `import.meta.glob(..., { eager: true })`, czyli importuje moduł, ale nie ma
+// jak wywołać jego funkcji - i raportowała szesnaście kluczy jako "brak w PL
+// i w EN", choć oba tłumaczenia stoją w tym pliku od początku.
+ensureI18n();

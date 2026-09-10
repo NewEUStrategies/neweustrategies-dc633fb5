@@ -143,10 +143,10 @@ export function Ga4BiDashboard({
   activeMode?: string;
 }) {
   const { t } = useTranslation();
-  // ROZWIĄZANY motyw dla pól, których `baseOption` nie zna - w tym panelu
-  // to cała siatka radaru (uzasadnienie przy `radarOption`). Referencja jest
-  // stabilna, dopóki tokeny się nie zmienią, więc wolno ją trzymać
-  // w zależnościach `useMemo`.
+  // ROZWIĄZANY motyw dla pól, których `baseOption` nie zna - w tym panelu to
+  // etykiety kalendarza, obramowania kafli treemapy i kolor etykiet na słupkach
+  // zaangażowania. Referencja jest stabilna, dopóki tokeny się nie zmienią,
+  // więc wolno ją trzymać w zależnościach `useMemo`.
   const theme = useChartTheme();
   const fetchReport = useServerFn(runGa4Report);
   const [presetId, setPresetId] = useState<Ga4PresetId>("28d");
@@ -418,60 +418,56 @@ export function Ga4BiDashboard({
     ];
   }, [engageQ.data]);
 
-  // SIATKA RADARU MA WŁASNE POLA, KTÓRYCH BAZA MOTYWU NIE ZNA. `baseOption`
-  // motywuje `xAxis`/`yAxis`, a wykres radarowy trzyma `splitLine`, `axisLine`,
-  // `splitArea` i `axisName` WEWNĄTRZ sekcji `radar` - to inne pola niż
-  // `yAxis.splitLine`, więc głębokie złączenie nie dowozi tu ani jednego
-  // koloru. Stąd hook motywu, a nie ręczne powtarzanie bazy.
+  // ---- RADAR WYSZEDŁ. SŁUPKI POZIOME, POSORTOWANE. ----
   //
-  // CO TU STAŁO: `"hsl(var(--border))"` i `"hsl(var(--muted-foreground))"`.
-  // `var()` rozwiązuje CSS, a ECharts podaje ten napis WPROST kanwie jako
-  // `strokeStyle`/`fillStyle`. Oba tokeny siedzą w `src/styles.css` jako
-  // `oklch(...)`, więc literał rozwijał się do `hsl(oklch(...))` - wartości
-  // nieparsowalnej, przy której kanwa NIE RZUCA, tylko zostaje przy poprzednim
-  // kolorze (mechanizm opisany przy `BARE_HSL_TRIPLE` w `./chartTheme.ts`).
-  // Awaria wyglądała jak „siatka radaru jest jakoś ciemna”, nie jak błąd.
-  const radarOption = useMemo<EChartsCoreOption>(() => {
+  // Radar KŁAMIE STRUKTURALNIE i nie da się tego naprawić kolorem ani opisem:
+  // powierzchnia wielokąta zależy od ARBITRALNIE wybranej kolejności osi, więc
+  // ten sam zestaw pięciu wskaźników wygląda dobrze albo źle w zależności od
+  // tego, w jakiej kolejności je wypisano. Do tego koduje wartość promieniem,
+  // czyli powierzchnią, a powierzchnia jest w hierarchii percepcyjnej
+  // Clevelanda i McGilla jednym z NAJSŁABSZYCH kanałów - przy pięciu osiach
+  // czytelnik nie porówna już żadnej pary.
+  //
+  // Zamiennik jest ten sam co w tabeli doboru formy: porównanie wartości
+  // między kategoriami to SŁUPKI POZIOME, POSORTOWANE. Pozycja na wspólnej
+  // skali to najdokładniejszy kanał, jaki jest, a sortowanie robi z wykresu
+  // ranking, którym on i tak jest.
+  //
+  // Dane, normalizacja i tabela zostają BEZ ZMIAN - to samo `radarValues`,
+  // ta sama skala 0-100, ta sama alternatywa tekstowa. Zmienia się wyłącznie
+  // forma, więc nie ma tu żadnej nowej liczby do sprawdzenia.
+  const engagementOption = useMemo<EChartsCoreOption>(() => {
+    // ECharts rysuje kategorie osi Y od dołu, więc sortowanie ROSNĄCO daje
+    // największą wartość na górze - czyli ranking czytany z góry na dół.
+    const rows = RADAR_AXES.map((key, i) => ({ name: t(key), value: radarValues[i] })).sort(
+      (a, b) => a.value - b.value,
+    );
     return {
-      // WYZWALACZ ELEMENTOWY, NIE OSIOWY - i to jest decyzja, nie domyślność.
-      // Stało tu puste `tooltip: {}`: przy płaskim złączeniu wyrzucało ono
-      // `trigger: "axis"` z bazy razem z całą sekcją, więc dymek działał
-      // PRZYPADKIEM - domyślną wartością ECharts. Baza `trigger` już nie
-      // narzuca, ale radar nie ma osi kartezjańskiej, więc wyzwalacz osiowy
-      // nie pokazałby tu nic; dymek elementowy podaje cały wielokąt (pięć osi
-      // naraz) po najechaniu na punkt serii. Deklarujemy go WPROST, bo
-      // wyzwalacz jest własnością typu wykresu.
+      // Wyzwalacz elementowy: pytamy o JEDEN słupek, nie o cały przekrój
+      // kategorii. Baza `trigger` nie narzuca, więc deklarujemy go wprost.
       tooltip: { trigger: "item" },
-      radar: {
-        indicator: RADAR_AXES.map((key) => ({ name: t(key), max: 100 })),
-        radius: "62%",
-        splitLine: { lineStyle: { color: theme.border } },
-        // Szprychy motywujemy tak samo jak pierścienie. Bez tego pola radar
-        // bierze `tokens.color.neutral20` ZASZYTE w ECharts (patrz
-        // `coord/radar/RadarModel.js`) - jedyny element siatki panelu, który
-        // nie chodziłby za motywem, a w trybie ciemnym najjaśniejszy.
-        axisLine: { lineStyle: { color: theme.border } },
-        // Naprzemienne pasy stały na `rgba(0,0,0,0.02|0.05)`: czerni na
-        // ciemnym tle nie widać wcale, więc w trybie ciemnym radar tracił
-        // czytelną skalę promienia. Kryjemy co drugi pierścień kolorem tekstu
-        // pomocniczego, a przezroczystość podajemy OSOBNYM polem `opacity`,
-        // bo tokenu nie da się rozcieńczyć w napisie (`--muted-foreground` to
-        // `oklch(...)`, a `color-mix()` w kanwie nie żyje). ECharts nakłada
-        // `opacity` z `areaStyle` na oba pasy i nadpisuje samo `fill` z
-        // tablicy kolorów (`component/radar/RadarView.js`).
-        splitArea: { areaStyle: { color: ["transparent", theme.muted], opacity: 0.06 } },
-        axisName: { color: theme.muted, fontSize: 10 },
+      grid: { left: 8, right: 32, top: 8, bottom: 8, containLabel: true },
+      xAxis: {
+        type: "value",
+        min: 0,
+        // Skala jest znormalizowana do 0-100 i MUSI mieć stały koniec:
+        // oś dociągnięta do maksimum danych zamieniałaby 40 punktów
+        // w "prawie pełny" słupek.
+        max: 100,
       },
+      yAxis: { type: "category", data: rows.map((r) => r.name) },
       series: [
         {
-          type: "radar",
-          symbol: "circle",
-          areaStyle: { opacity: 0.25 },
-          data: [{ value: radarValues, name: t("adminAnalytics.ga4.radar.seriesName", { days }) }],
+          type: "bar",
+          barMaxWidth: 24,
+          // Zaokrąglony TYLKO koniec z danymi - baza słupka zostaje prosta.
+          itemStyle: { borderRadius: [0, 6, 6, 0] },
+          label: { show: true, position: "right", color: theme.muted, fontSize: 11 },
+          data: rows.map((r) => Math.round(r.value)),
         },
       ],
     };
-  }, [radarValues, days, t, theme]);
+  }, [radarValues, t, theme]);
 
   // Rank stron MALEJĄCO i przycięty do 15 - jedno źródło dla osi wykresu,
   // drążenia i tabeli danych. Skracanie ścieżki do 40 znaków należy WYŁĄCZNIE
@@ -796,7 +792,7 @@ export function Ga4BiDashboard({
         <ChartCard
           title={t("adminAnalytics.ga4.charts.engagementTitle")}
           subtitle={t("adminAnalytics.ga4.charts.engagementSubtitle")}
-          option={radarOption}
+          option={engagementOption}
           height={320}
           csv={engagementCsv}
         />

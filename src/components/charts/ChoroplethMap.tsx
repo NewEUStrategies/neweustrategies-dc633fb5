@@ -193,10 +193,23 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
     <ChartFrame
       title={config.title}
       description={config.description}
-      source={config.source}
       lang={lang}
+      metric={null}
       legend={[]}
       showLegend={false}
+      caption={{
+        source: config.source,
+        // Mapa-choropleta nie ma osi wartości, więc nie ma czego uciąć;
+        // pozostałe pola podpisu przyjdą razem z rozszerzeniem konfiguracji
+        // mapy o `n` i datę danych.
+        sourceDate: "",
+        unit: config.unit,
+        sampleSize: null,
+        zeroBaselineBroken: false,
+        notesShows: "",
+        notesSurprising: "",
+        notesHidden: "",
+      }}
       table={table}
       className={className}
     >

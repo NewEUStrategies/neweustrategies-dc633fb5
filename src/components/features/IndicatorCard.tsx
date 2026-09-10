@@ -35,11 +35,14 @@ function sparkPath(values: number[]): { line: string; area: string } | null {
 
 export function IndicatorCard({ config, className }: Props) {
   const spark = useMemo(() => sparkPath(config.spark), [config.spark]);
+  // ZNAK, nie kategoria: delta idzie tokenami semantycznymi, a nie slotami
+  // palety. Wariant TEKSTOWY, bo to liczba i podpis - próg 4,5:1, nie 3,0:1;
+  // czerwień grafiki ma na białej płycie 3,46:1 i jako napis nie przechodzi.
   const toneColor =
     config.deltaTone === "positive"
-      ? "var(--chart-2)"
+      ? "var(--chart-positive-text)"
       : config.deltaTone === "negative"
-        ? "var(--chart-6)"
+        ? "var(--chart-negative-text)"
         : "var(--muted-foreground)";
   // Shim nie eksportuje strzałek ukośnych - obracamy ArrowRight (↑ / ↓).
   const DeltaIcon = config.deltaArrow === "none" ? Minus : ArrowRight;

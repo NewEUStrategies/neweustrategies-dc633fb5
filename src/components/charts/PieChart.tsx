@@ -8,17 +8,14 @@
 // Donut pokazuje sumę w środku.
 // Interakcja: hover/focus wycinka -> tooltip; wycinki są fokusowalne.
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChartConfig } from "@/lib/charts/types";
 import { formatChartValue, formatPercent, type ChartLang } from "@/lib/charts/format";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip } from "./ChartTooltip";
 import { pieModel } from "./pieModel";
-
-const L = {
-  pl: { total: "Suma" },
-  en: { total: "Total" },
-} as const;
+import "@/lib/i18n-charts";
 
 interface PieChartProps {
   config: ChartConfig;
@@ -52,7 +49,12 @@ export function PieChart({ config, lang }: PieChartProps) {
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
   const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
   const [active, setActive] = useState<number | null>(null);
-  const t = L[lang];
+  // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
+  // kod<->słownik; klucz sklejony template literalem wypada z kontroli
+  // parytetu PL/EN.
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string, values?: Record<string, string | number>): string =>
+    scoped(key, { lng: lang, ...values });
 
   const donut = config.kind === "donut";
   // Wysokość jest USTAWIENIEM autora (schemat: 160..640 px), nie sugestią -
@@ -81,11 +83,13 @@ export function PieChart({ config, lang }: PieChartProps) {
       <div
         ref={widthRef}
         className="relative w-full select-none"
-        style={{ height }}
+        style={{ height, borderRadius: "var(--chart-radius)" }}
         // group (nie img): wycinki w środku są fokusowalne - rola img
         // czyniłaby je prezentacyjnymi dla czytników ekranu.
         role="group"
-        aria-label={config.title || undefined}
+        aria-label={
+          config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled")
+        }
       >
         <svg width={width} height={height} className="block">
           <g className="neh-pie-group">
@@ -103,7 +107,11 @@ export function PieChart({ config, lang }: PieChartProps) {
                   strokeLinejoin="round"
                   tabIndex={0}
                   role="img"
-                  aria-label={`${s.label}: ${formatChartValue(s.value, lang, config.unit)} (${formatPercent(s.share, lang)})`}
+                  aria-label={t("a11y.slice", {
+                    label: s.label,
+                    value: formatChartValue(s.value, lang, config.unit),
+                    share: formatPercent(s.share, lang),
+                  })}
                   className="cursor-pointer outline-none"
                   onPointerEnter={() => setActive(i)}
                   onPointerLeave={() => setActive(null)}
@@ -129,9 +137,8 @@ export function PieChart({ config, lang }: PieChartProps) {
                     y={ly + dy}
                     textAnchor="middle"
                     fontSize={12}
-                    fontWeight={600}
                     fill={`var(--chart-ink-${s.colorSlot})`}
-                    className="tabular-nums"
+                    className="neh-value-label tabular-nums"
                   >
                     {formatPercent(s.share, lang)}
                   </text>
@@ -141,7 +148,6 @@ export function PieChart({ config, lang }: PieChartProps) {
                       y={ly + 11}
                       textAnchor="middle"
                       fontSize={11}
-                      fontWeight={500}
                       fill={`var(--chart-ink-${s.colorSlot})`}
                       className="neh-pie-value tabular-nums"
                     >
@@ -160,8 +166,8 @@ export function PieChart({ config, lang }: PieChartProps) {
                 y={cy - 4}
                 textAnchor="middle"
                 fontSize={22}
-                fontWeight={700}
                 fill="var(--foreground)"
+                className="neh-total-label tabular-nums"
               >
                 {formatChartValue(total, lang, config.unit)}
               </text>
@@ -172,7 +178,7 @@ export function PieChart({ config, lang }: PieChartProps) {
                 fontSize={11}
                 fill="var(--muted-foreground)"
               >
-                {t.total}
+                {t("frame.total")}
               </text>
             </g>
           )}

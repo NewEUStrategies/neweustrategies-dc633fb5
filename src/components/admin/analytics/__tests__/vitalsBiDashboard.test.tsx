@@ -637,14 +637,24 @@ describe("VitalsBiDashboard - progi Web Vitals docierają do wykresu", () => {
     }
   });
 
-  it("kolory pasm idą od zielonego przez bursztyn do czerwieni, a nie odwrotnie", async () => {
+  it("kolory pasm idą od DOBRZE przez średnio do ŹLE, a nie odwrotnie", async () => {
+    // ZMIANA ŚWIADOMA: skala zszedła z sygnalizacji świetlnej
+    // (#16a34a / #f59e0b / #dc2626) na teal/ochrę/czerwień z semantyki znaku.
+    // Powód jest mierzalny, nie estetyczny: zielony wobec czerwonego daje przy
+    // deuteranopii odległość 14,4, czyli "dobrze" i "źle" zbiegają się
+    // w jeden kolor u około 8% mężczyzn; do tego amber #f59e0b ma na białej
+    // płycie 2,15:1 i nie przechodzi nawet progu grafiki. Nowa trójka ma
+    // podłogę 25,5 i każdy odcień powyżej 3:1.
+    //
+    // KOLEJNOŚĆ jest tu tym, co test naprawdę pilnuje - odwrócona skala
+    // pokazywałaby wolne LCP jako dobre.
     panel();
     await loaded();
 
     const bands = rec(firstSeries(trendChart("LCP").option).markArea).data as Array<
       Array<{ itemStyle?: { color?: string } }>
     >;
-    expect(bands.map((b) => b[0].itemStyle?.color)).toEqual(["#16a34a", "#f59e0b", "#dc2626"]);
+    expect(bands.map((b) => b[0].itemStyle?.color)).toEqual(["#1b6f8c", "#c6871f", "#ef5454"]);
   });
 
   it("linie progowe niosą podpis Good/Poor w jednostce tej metryki", async () => {
@@ -1101,9 +1111,9 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
 
     const slices = dataOf(pieChart().option) as Array<{ name: string; value: number }>;
     expect(slices).toEqual([
-      { name: "Good", value: 15, itemStyle: { color: "#16a34a" } },
-      { name: "Needs improvement", value: 5, itemStyle: { color: "#f59e0b" } },
-      { name: "Poor", value: 5, itemStyle: { color: "#dc2626" } },
+      { name: "Good", value: 15, itemStyle: { color: "#1b6f8c" } },
+      { name: "Needs improvement", value: 5, itemStyle: { color: "#c6871f" } },
+      { name: "Poor", value: 5, itemStyle: { color: "#ef5454" } },
     ]);
     // Etykieta w środku koła to suma trzech kubełków, ze słowem ze słownika.
     expect(String(rec(firstSeries(pieChart().option).label).formatter)).toBe(

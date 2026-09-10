@@ -22,6 +22,7 @@ import {
   CHART_HEIGHT_MAX,
   CHART_HEIGHT_MIN,
   MAX_CATEGORIES,
+  defaultChartConfig,
   parseChartKind,
 } from "@/lib/charts/parse";
 import { parseChartData } from "@/lib/charts/csv";
@@ -152,6 +153,9 @@ export function ChartDataSpreadsheetDialog({
     // publikuje, a nie sztywny wariant demonstracyjny.
     const c = content ?? {};
     return {
+      // Baza z domyślnymi ustawieniami uczciwości (wygładzanie, prognoza,
+      // podpis) - podgląd musi pokazywać wykres, który autor publikuje.
+      ...defaultChartConfig(),
       kind: chartKind,
       title: title ?? "",
       description: "",

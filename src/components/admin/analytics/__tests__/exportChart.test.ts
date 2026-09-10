@@ -365,13 +365,24 @@ describe("exportPng - zrzut wykresu", () => {
     expect((await bajty(bloby[0]))[0]).toBe(0x89);
   });
 
-  it("zrzut jest w podwójnej gęstości i z NIEPRZEZROCZYSTYM tłem", () => {
-    // `pixelRatio: 2` to jedyna obrona przed rozmytym wykresem w prezentacji;
+  it("zrzut jest w podwójnej gęstości i z tłem Z MOTYWU, nie z wymuszoną bielą", () => {
+    // `pixelRatio: 2` to jedyna obrona przed rozmytym wykresem w prezentacji.
     // `backgroundColor` jest jawny, bo `baseOption` ustawia canvasowi
-    // `transparent` - PNG bez tła byłby na białym slajdzie nieczytelny.
+    // `transparent` - PNG bez tła byłby nieczytelny.
+    //
+    // ALE NIE JEST TO JUŻ BIEL NA SZTYWNO. Kanwa dostaje kolory tekstu i osi
+    // z motywu rozwiązanego w chwili renderu, więc eksport z sesji w trybie
+    // ciemnym zapisywał niemal biały tekst na wymuszonej bieli - plik
+    // otwierał się jako pusty prostokąt z samymi słupkami, a na ekranie
+    // wszystko wyglądało poprawnie. Tło idzie teraz z `--background`, czyli
+    // zawsze zgadza się z kolorem tekstu, który kanwa naprawdę namalowała.
     exportPng("wykres", atrapaWykresu(DATA_URL));
 
-    expect(wywolaniaDataUrl).toEqual([{ type: "png", pixelRatio: 2, backgroundColor: "#fff" }]);
+    expect(wywolaniaDataUrl).toHaveLength(1);
+    expect(wywolaniaDataUrl[0]).toMatchObject({ type: "png", pixelRatio: 2 });
+    const tlo = (wywolaniaDataUrl[0] as { backgroundColor?: string }).backgroundColor;
+    expect(tlo).toBeTruthy();
+    expect(tlo).not.toBe("transparent");
   });
 
   it("sufiks .png dokładany TYLKO gdy go brakuje", () => {

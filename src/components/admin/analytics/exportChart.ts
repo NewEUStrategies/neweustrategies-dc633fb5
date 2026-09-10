@@ -9,8 +9,13 @@
  * the file as UTF-8 without prompting for encoding - and because the file
  * declares a spreadsheet as its reader, cells that a spreadsheet would take for
  * a formula are neutralised on the way out (see `neutralizeFormula`).
+ *
+ * `./chartTheme` jest tu importem RUNTIME'OWYM (potrzebny `resolveChartTheme`
+ * dla tła zrzutu), ale nie łamie zasady z akapitu wyżej: tamten moduł ciągnie
+ * z ECharts wyłącznie TYP `EChartsCoreOption`, który po kompilacji znika.
  */
 import type { ECharts } from "echarts/core";
+import { resolveChartTheme } from "./chartTheme";
 
 /**
  * Znaki, od których arkusz zaczyna czytać komórkę jako FORMUŁĘ, a nie jako
@@ -106,9 +111,36 @@ export function exportCsv(
   triggerDownload(filename.endsWith(".csv") ? filename : `${filename}.csv`, blob);
 }
 
+/**
+ * Zrzut wykresu do PNG.
+ *
+ * TŁO IDZIE Z MOTYWU, NIE JEST BIELĄ NA SZTYWNO, i to jest naprawa realnej
+ * usterki. Kanwa dostaje kolory tekstu, osi i etykiet z motywu ROZWIĄZANEGO
+ * w chwili renderu, a `baseOption` ustawia jej tło `transparent`. Przy
+ * wymuszonej bieli eksport z sesji w trybie ciemnym zapisywał więc niemal
+ * biały tekst i niemal białe etykiety osi na białym tle - plik otwierał się
+ * jako pusty prostokąt z samymi słupkami. Awaria była niewidoczna dla
+ * eksportującego, bo na ekranie wykres wyglądał poprawnie.
+ *
+ * CZEGO TO NIE ZAŁATWIA - świadomie. Specyfikacja chce, żeby eksport i druk
+ * szły ZAWSZE na tokenach jasnych (wykres na ciemnym tle w prezentacji na
+ * jasnym slajdzie zużywa toner i wygląda jak dziura). Tu tego nie robimy, bo
+ * ECharts ma kolory już wpieczone w opcję: wymuszenie jasnych wymagałoby
+ * przestawienia opcji instancji, zrzutu i przywrócenia poprzedniej - czyli
+ * dwóch dodatkowych `setOption(notMerge)` na każdy eksport i ryzyka, że
+ * między nimi wykres zamiga albo zgubi stan interakcji. Zrzut CZYTELNY
+ * w motywie sesji jest tu poprawą, której koszt wynosi jedną linię;
+ * wymuszenie jasnych jest osobną zmianą, w tym samym miejscu.
+ * Druk STRONY jest już wymuszony na jasnych tokenach - patrz `@media print`
+ * w `src/styles.css`.
+ */
 export function exportPng(filename: string, instance: ECharts | null | undefined): void {
   if (!instance) return;
-  const url = instance.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: "#fff" });
+  const url = instance.getDataURL({
+    type: "png",
+    pixelRatio: 2,
+    backgroundColor: resolveChartTheme().background,
+  });
   const bin = atob(url.split(",")[1] ?? "");
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);

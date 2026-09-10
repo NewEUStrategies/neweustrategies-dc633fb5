@@ -10,23 +10,94 @@
  * - SSR-safe: `getComputedStyle` is guarded and falls back to a light-mode set.
  */
 import type { EChartsCoreOption } from "echarts/core";
+import {
+  CATEGORICAL_SAFE_MAX,
+  CHART_SEMANTIC,
+  seriesColors,
+  seriesTextColors,
+} from "@/lib/charts/palette";
 
-const FALLBACK_PALETTE = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7"] as const;
-const FALLBACK_MUTED = "#6b7280";
-const FALLBACK_BORDER = "#e5e7eb";
-const FALLBACK_FOREGROUND = "#111827";
+/**
+ * Paleta zapasowa dla SSR i dla braku tokenów. Pochodzi z `lib/charts/palette`,
+ * czyli z TEGO SAMEGO źródła, które pilnuje kontrastu i rozdzielności dla
+ * daltonizmu - wcześniej stała tu druga, niezwalidowana lista pięciu hexów,
+ * która rozjechała się z arkuszem i nikt tego nie widział, bo fallback
+ * odpala się tylko na serwerze.
+ *
+ * SZEŚĆ, nie osiem: powyżej sześciu odcieni paleta przestaje być rozdzielna
+ * dla któregoś rodzaju widzenia barw, a panel BI nie ma mechanizmu drugiego
+ * nośnika różnicy (kreskowania), którym silnik SVG ratuje sloty 7-8.
+ */
+const FALLBACK_PALETTE = seriesColors("light", CATEGORICAL_SAFE_MAX);
+const FALLBACK_PALETTE_TEXT = seriesTextColors("light", CATEGORICAL_SAFE_MAX);
+const FALLBACK_MUTED = "#6b7482";
+const FALLBACK_BORDER = "#d9dbd4";
+const FALLBACK_FOREGROUND = "#12161c";
 const FALLBACK_BG = "#ffffff";
+const FALLBACK_GRID = "#ecede8";
+const FALLBACK_AXIS = "#d9dbd4";
+const FALLBACK_TIP_BG = "#1a1f27";
+const FALLBACK_TIP_INK = "#ffffff";
+
+/**
+ * Rodzina czcionki dla KANWY. Kanwa nie dziedziczy czcionki dokumentu i nie
+ * rozumie `var()`, więc tu MUSI stać rozwiązany napis - inaczej wykres
+ * eksportowany do PNG ma inny krój niż ten na ekranie. Wartość idzie z tokena
+ * `--chart-font`, czyli z ustawienia panelu admina; poniżej stoi wyłącznie
+ * stos zapasowy dla SSR i dla tenanta, który nic nie wybrał.
+ */
+const FALLBACK_FONT =
+  '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif';
 
 interface ResolvedTheme {
+  /** Wypełnienia serii - sześć slotów rozdzielnych dla daltonizmu. */
   palette: string[];
+  /**
+   * Warianty TEKSTOWE tych samych slotów. Osobne pole, bo próg kontrastu dla
+   * tekstu to 4,5:1, a dla linii 3,0:1: etykieta pisana kolorem linii wygląda
+   * spójnie i nie przechodzi audytu dostępności.
+   */
+  paletteText: string[];
   muted: string;
   border: string;
+  /** Siatka - kontrast poniżej 1,3:1 do płyty, czyli wyczuwalna, nie widoczna. */
+  grid: string;
+  /** Oś bazowa - MOCNIEJSZA od siatki (1,40:1), bo zero jest informacją. */
+  axis: string;
   foreground: string;
   background: string;
   primary: string;
+  /** Rodzina czcionki, rozwiązana dla kanwy (patrz FALLBACK_FONT). */
+  font: string;
+  /**
+   * Semantyka znaku. Dodatni jest niebieskim tealem, nie zielenią: para
+   * czerwień/zieleń daje przy protanopii odległość 8,5, czyli zysk i strata
+   * w jednym kolorze.
+   */
+  positive: string;
+  negative: string;
+  /**
+   * Trzystopniowa skala porządkowa dobrze/średnio/źle (progi Web Vitals).
+   *
+   * WYPROWADZONA Z SEMANTYKI, NIE Z SYGNALIZACJI ŚWIETLNEJ. Klasyczne
+   * zielony/amber/czerwony ma dwa mierzalne defekty: podłoga odległości po
+   * symulacji wynosi 14,4 i wiąże ją para ZIELONY-CZERWONY przy deuteranopii
+   * (czyli dokładnie "dobrze" i "źle" w jednym kolorze), a amber #f59e0b ma
+   * na białej płycie 2,15:1, więc nie przechodzi nawet progu grafiki.
+   * Teal/ochra/czerwień daje podłogę 25,5 na jasnym i 35,4 na ciemnym, a każdy
+   * z trzech odcieni przechodzi 3:1 (5,68 / 3,05 / 3,46).
+   */
   success: string;
   warning: string;
   danger: string;
+  /**
+   * Dymek. W trybie jasnym ODWRÓCONY wobec płyty (ciemny prostokąt na białym
+   * tle jest czytelny), w ciemnym PODNIESIONY - lustrzane odwrócenie dałoby
+   * jasny prostokąt, który świeci jak latarka i rozbija wykres.
+   */
+  tipBg: string;
+  tipBorder: string;
+  tipInk: string;
 }
 
 /**
@@ -72,34 +143,62 @@ function readVar(style: CSSStyleDeclaration, name: string, fallback: string): st
   return BARE_HSL_TRIPLE.test(raw) ? `hsl(${raw})` : raw;
 }
 
+/** Numery slotów, które panel BI wolno użyć jako kategorii. */
+const SLOTS = Array.from({ length: CATEGORICAL_SAFE_MAX }, (_, i) => i + 1);
+
 export function resolveChartTheme(): ResolvedTheme {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return {
       palette: [...FALLBACK_PALETTE],
+      paletteText: [...FALLBACK_PALETTE_TEXT],
       muted: FALLBACK_MUTED,
       border: FALLBACK_BORDER,
+      grid: FALLBACK_GRID,
+      axis: FALLBACK_AXIS,
       foreground: FALLBACK_FOREGROUND,
       background: FALLBACK_BG,
       primary: FALLBACK_PALETTE[0],
-      success: "#16a34a",
-      warning: "#f59e0b",
-      danger: "#dc2626",
+      font: FALLBACK_FONT,
+      positive: CHART_SEMANTIC.positiveLight,
+      negative: CHART_SEMANTIC.negativeLight,
+      success: CHART_SEMANTIC.positiveLight,
+      warning: FALLBACK_PALETTE[1],
+      danger: CHART_SEMANTIC.negativeLight,
+      tipBg: FALLBACK_TIP_BG,
+      tipBorder: "transparent",
+      tipInk: FALLBACK_TIP_INK,
     };
   }
   const style = getComputedStyle(document.documentElement);
-  const palette = [1, 2, 3, 4, 5].map((i) =>
+  const palette = SLOTS.map((i) =>
     readVar(style, `--chart-${i}`, FALLBACK_PALETTE[(i - 1) % FALLBACK_PALETTE.length]),
   );
+  const paletteText = SLOTS.map((i) =>
+    readVar(style, `--chart-${i}t`, FALLBACK_PALETTE_TEXT[(i - 1) % FALLBACK_PALETTE_TEXT.length]),
+  );
+  const positive = readVar(style, "--chart-positive", CHART_SEMANTIC.positiveLight);
+  const negative = readVar(style, "--chart-negative", CHART_SEMANTIC.negativeLight);
   return {
     palette,
+    paletteText,
     muted: readVar(style, "--muted-foreground", FALLBACK_MUTED),
     border: readVar(style, "--border", FALLBACK_BORDER),
+    grid: readVar(style, "--chart-grid", FALLBACK_GRID),
+    axis: readVar(style, "--chart-axis", FALLBACK_AXIS),
     foreground: readVar(style, "--foreground", FALLBACK_FOREGROUND),
     background: readVar(style, "--background", FALLBACK_BG),
     primary: readVar(style, "--primary", palette[0]),
-    success: "#16a34a",
-    warning: "#f59e0b",
-    danger: "#dc2626",
+    // Czcionka wykresu schodzi z panelu admina; `--chart-font` jest aliasem
+    // `--font-sans`, a ten - ustawienia `fonts.body` tenanta.
+    font: readVar(style, "--chart-font", FALLBACK_FONT),
+    positive,
+    negative,
+    success: positive,
+    warning: palette[1],
+    danger: negative,
+    tipBg: readVar(style, "--chart-tip-bg", FALLBACK_TIP_BG),
+    tipBorder: readVar(style, "--chart-tip-border", "transparent"),
+    tipInk: readVar(style, "--chart-tip-ink", FALLBACK_TIP_INK),
   };
 }
 
@@ -136,16 +235,26 @@ let snapshot: ResolvedTheme | null = null;
 let snapshotStale = false;
 let refreshScheduled = false;
 
+/**
+ * Porównanie migawek. KAŻDE pole `ResolvedTheme` musi być tu wymienione -
+ * pole pominięte znaczy, że jego zmiana nie rozgłosi się do wykresów i panel
+ * zostanie z poprzednim kolorem po zmianie motywu. Dlatego zamiast listy
+ * warunków iterujemy po kluczach: nowe pole jest objęte automatycznie.
+ */
 function sameTheme(a: ResolvedTheme, b: ResolvedTheme): boolean {
-  return (
-    a.muted === b.muted &&
-    a.border === b.border &&
-    a.foreground === b.foreground &&
-    a.background === b.background &&
-    a.primary === b.primary &&
-    a.palette.length === b.palette.length &&
-    a.palette.every((colour, i) => colour === b.palette[i])
-  );
+  const keys = Object.keys(a) as Array<keyof ResolvedTheme>;
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const key of keys) {
+    const left = a[key];
+    const right = b[key];
+    if (Array.isArray(left) && Array.isArray(right)) {
+      if (left.length !== right.length) return false;
+      if (left.some((value, i) => value !== right[i])) return false;
+      continue;
+    }
+    if (left !== right) return false;
+  }
+  return true;
 }
 
 /**
@@ -218,13 +327,23 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
     backgroundColor: "transparent",
     textStyle: {
       color: theme.foreground,
-      fontFamily:
-        '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
+      // Rodzina Z TOKENA, czyli z ustawienia panelu admina. Kanwa nie
+      // dziedziczy czcionki dokumentu i nie rozumie `var()`, więc rozwiązany
+      // napis musi tu dojechać z `resolveChartTheme` - inaczej wykres
+      // eksportowany do PNG ma inny krój niż ten na ekranie.
+      fontFamily: theme.font,
     },
-    animationDuration: 400,
+    // Wejście 500 ms z krzywą hamującą na końcu - te same wartości co
+    // w silniku SVG (`--neh-anim-ms`), żeby wykres w panelu i wykres we wpisie
+    // wchodziły tym samym ruchem.
+    animationDuration: 500,
     animationEasing: "cubicOut",
-    grid: { left: 44, right: 20, top: 32, bottom: 32, containLabel: true },
+    // Odstępy wyłącznie ze skali 4 px (48 / 24 / 32 / 32 zamiast 44 / 20).
+    grid: { left: 48, right: 24, top: 32, bottom: 32, containLabel: true },
     legend: {
+      // Nazwy serii w WARIANCIE TEKSTOWYM - legenda to tekst, więc obowiązuje
+      // ją próg 4,5:1, a nie 3,0:1 jak linię. Kolory próbek ECharts bierze
+      // z `color`, więc próbka nadal jest w kolorze serii.
       textStyle: { color: theme.muted, fontSize: 11 },
       icon: "roundRect",
       itemWidth: 10,
@@ -258,23 +377,36 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       // dostaje domyślny dymek elementu ECharts (wartość słupka po najechaniu),
       // a wyzwalacz osiowy wraca tam jednym polem `tooltip: { trigger: "axis" }`
       // w opcji panelu.
-      backgroundColor: theme.background,
-      borderColor: theme.border,
+      // Dymek jedzie WŁASNYMI tokenami, nie tłem strony: w trybie jasnym jest
+      // odwrócony wobec płyty (ciemny prostokąt na białym tle czyta się
+      // najlepiej), a w ciemnym PODNIESIONY o jeden stopień jasności.
+      // Lustrzane odwrócenie na ciemnym dałoby jasny prostokąt, który świeci
+      // jak latarka i rozbija wykres - dlatego to nie jest `theme.background`.
+      backgroundColor: theme.tipBg,
+      borderColor: theme.tipBorder,
       borderWidth: 1,
-      padding: [8, 10],
-      textStyle: { color: theme.foreground, fontSize: 12 },
-      extraCssText: "box-shadow: 0 6px 20px -6px rgba(0,0,0,0.18); border-radius: 8px;",
+      padding: [8, 12],
+      textStyle: { color: theme.tipInk, fontSize: 12, fontFamily: theme.font },
+      // Promień z tego samego tokena co karty i słupki - jeden promień
+      // na wszystkim.
+      extraCssText:
+        "box-shadow: 0 8px 24px rgb(0 0 0 / 0.24); border-radius: var(--chart-radius, 6px);",
     },
     xAxis: {
-      axisLine: { lineStyle: { color: theme.border } },
-      axisTick: { lineStyle: { color: theme.border } },
+      axisLine: { lineStyle: { color: theme.axis } },
+      axisTick: { lineStyle: { color: theme.axis } },
       splitLine: { show: false },
       axisLabel: { color: theme.muted, fontSize: 11 },
     },
     yAxis: {
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { lineStyle: { color: theme.border, type: "dashed" } },
+      // Siatka bierze token siatki, nie obramowania: obramowanie jest
+      // MOCNIEJSZE od siatki (1,40:1 wobec 1,18:1 do płyty), a siatka ma być
+      // wyczuwalna, nie widoczna. Kreskowanie z tokena prowadnic.
+      splitLine: {
+        lineStyle: { color: theme.grid, type: [2, 4] as unknown as string },
+      },
       axisLabel: { color: theme.muted, fontSize: 11 },
     },
   };

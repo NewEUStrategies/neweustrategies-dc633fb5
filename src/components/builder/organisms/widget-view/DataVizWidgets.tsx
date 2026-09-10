@@ -11,6 +11,7 @@ import {
   CHART_HEIGHT_DEFAULT,
   CHART_HEIGHT_MAX,
   CHART_HEIGHT_MIN,
+  defaultChartConfig,
   parseChartKind,
 } from "@/lib/charts/parse";
 import { parseChartData, parseMapData } from "@/lib/charts/csv";
@@ -31,6 +32,9 @@ export function ChartWidgetView({ node, lang }: WidgetProps) {
   const c = node.content;
   const { categories, series } = parseChartData(getStr(c, "data"));
   const config: ChartConfig = {
+    // Domyślne ustawienia uczciwości (wygładzanie 0,55, brak prognozy, pusty
+    // podpis) - widget nadpisuje tylko to, co autor naprawdę ustawił.
+    ...defaultChartConfig(),
     kind: parseChartKind(getStr(c, "kind")),
     title: i18nStr(c, "title", lang),
     description: i18nStr(c, "description", lang),

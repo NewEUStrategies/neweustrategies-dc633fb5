@@ -1,29 +1,82 @@
-// Wykres kartezjański (line / area / bar / bar-horizontal, plus stacked).
+// Wykres kartezjański (line / area / bar / bar-horizontal / waterfall, plus
+// stacked).
 //
-// Specyfikacja znaczników (dataviz):
-//  - kolumny/słupki <=24px, zaokrąglony 4px TYLKO koniec z danymi, prosta baza,
-//  - 2px odstęp w kolorze powierzchni między stykającymi się znacznikami,
-//  - linie 2px round join/cap, punkty >=8px z 2px ringiem powierzchni,
-//  - pola: odcień serii ~10-12% krycia,
-//  - siatka: 1px, solid, recesywna; tekst osi w tokenach tekstu (nigdy w
-//    kolorze serii),
-//  - etykiety bezpośrednie selektywnie (koniec linii / szczyt kolumny).
+// DELIKATNOŚĆ - osiem parametrów, każdy z tokena, żaden wymyślony tutaj:
+//  - JEDEN promień 6 px (`CHART_RADIUS`) przycięty do połowy krótszego boku,
+//    bo bez przycięcia niski słupek zamienia się w owal i zaokrąglenie
+//    zaczyna zniekształcać dane; zaokrąglony jest TYLKO koniec z danymi,
+//  - grubość linii i rozmiar kropki przez `--chart-stroke` / `--chart-dot`,
+//    więc korekta irradiacji w trybie ciemnym dzieje się w CSS,
+//  - wygładzanie MONOTONICZNYM Hermite'em (Fritsch-Carlson) o sile 0,55, nie
+//    Catmull-Romem, który przestrzeliwuje i rysuje maksima, których nie było,
+//  - kropka obserwacji w kolorze PŁYTY z obwódką w kolorze serii - warunek
+//    uczciwości wygładzenia; gdy kropki się nie zmieszczą, silnik wyłącza
+//    wygładzanie, a nie kropki,
+//  - siatka i oś w tokenach o policzonym kontraście (siatka < 1,3:1),
+//  - prowadnica kreskowana 2 4 z zaokrąglonymi końcami,
+//  - odstępy wyłącznie ze skali 4 px,
+//  - kaskada animacji z budżetem 500 ms na całość.
+//
+// MARGINESY LICZONE Z POMIARU, NIE ZGADYWANE. Ucięte etykiety mają jedną
+// przyczynę: marginesy ustalono, zanim wiedziano, jak szerokie są etykiety.
+// Pomiar `canvas.measureText` wchodzi jednak PO zamontowaniu (patrz
+// `useLabelMetrics`), bo w pierwszym przejściu nie ma kanwy ani na serwerze,
+// ani w happy-dom - a marginesy policzone różnie po obu stronach rozjechałyby
+// hydratację. Render pierwszego przejścia używa więc tej samej heurystyki co
+// zawsze i dokładnie tej samej szerokości kontenera (720), czyli geometria
+// SSR jest w pełni deterministyczna; drugie malowanie dostaje piksele.
+//
+// KOLIZJE ETYKIET OSI - drabina z `lib/charts/labels.ts`, nie wielokropek:
+// przerzedź (zostawiając PIERWSZĄ I OSTATNIĄ) -> skróć semantycznie -> obróć
+// o -45 stopni. Ucięcie z wielokropkiem zostaje wyłącznie przy słupkach
+// poziomych, gdzie etykieta ma własny `<title>` z pełną treścią.
 //
 // Interakcja: crosshair przyciąga do najbliższej kategorii, jeden tooltip
 // z wartościami WSZYSTKICH serii; słupki mają hit-target = cała kolumna
 // kategorii. Klawiatura: strzałki przesuwają aktywną kategorię, Escape czyści.
 // SSR: pełny, statyczny SVG w HTML (interakcja dogrywa się po hydracji).
-import { useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
-import { linearScale, niceScale, seriesExtent, stackSeries } from "@/lib/charts/scale";
+import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
+import {
+  forecastBandExtent,
+  linearScale,
+  niceScale,
+  seriesExtent,
+  stackSeries,
+} from "@/lib/charts/scale";
 import { formatAxisTick, formatChartValue, type ChartLang } from "@/lib/charts/format";
+import {
+  BAR_GAP,
+  BAR_MAX,
+  CATEGORY_LABEL_MAX_CHARS,
+  CATEGORY_LABEL_MAX_WIDTH,
+  CHART_RADIUS,
+  FONT_AXIS,
+  MIN_INNER_H,
+  MIN_INNER_W,
+  PAD_BOTTOM,
+  PAD_LEFT_CATEGORY_MIN,
+  PAD_LEFT_MIN,
+  PAD_SIDE,
+  PAD_TOP,
+  PAD_TOP_WITH_LABELS,
+  cascadeStepMs,
+  clampRadius,
+  effectiveSmoothing,
+  shouldShowDots,
+  snapToGrid,
+  valueTickTarget,
+} from "@/lib/charts/geometry";
+import { SMOOTHING_MIN_POINTS, pathFromPoints, type Point } from "@/lib/charts/smooth";
+import { estimateLabelWidth, useLabelMetrics } from "@/lib/charts/measureText";
+import { planCategoryLabels, type CategoryLabelPlan } from "@/lib/charts/labels";
+import { waterfallExtent, waterfallModel } from "@/lib/charts/waterfall";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
-
-const FONT_AXIS = 11;
-const BAR_MAX = 24;
-const BAR_GAP = 2;
+import "@/lib/i18n-charts";
 
 interface CartesianChartProps {
   config: ChartConfig;
@@ -36,8 +89,42 @@ interface Anchor {
   y: number;
 }
 
+/**
+ * Ciąg punktów linii bez luk, RAZEM z indeksami kategorii, z których powstał.
+ *
+ * Indeksy jadą obok pikseli, bo inaczej nie da się powiedzieć, które punkty
+ * ciągu są prognozą. Odtwarzanie indeksu z pozycji w ciągu (numer punktu w
+ * liście wszystkich niepustych wartości serii) myli się o tyle pozycji, ile
+ * luk wystąpiło wcześniej - i przy serii z jedną dziurą prognoza obejmowała
+ * nie te kategorie, a przy dziurze przed granicą znikała w całości, chociaż
+ * separator "Prognoza" nadal był rysowany.
+ */
+interface LineRun {
+  points: Point[];
+  indices: number[];
+}
+
 function seriesColor(s: ChartSeries): string {
   return `var(--chart-${s.colorSlot})`;
+}
+
+/**
+ * Wariant TEKSTOWY slotu. Etykieta bezpośrednia identyfikuje serię, więc musi
+ * być w jej kolorze - ale kolorem LINII nie wolno pisać, bo próg kontrastu dla
+ * tekstu to 4,5:1, a dla linii 3,0:1. Ochra jako linia jest w porządku, jako
+ * napis nie.
+ */
+function seriesTextColor(s: ChartSeries): string {
+  return `var(--chart-${s.colorSlot}t)`;
+}
+
+/**
+ * Czy seria potrzebuje kreskowania jako DRUGIEGO nośnika różnicy. Sloty poza
+ * zestawem bezpiecznym dla daltonizmu (7-8) są od slotów 1-2 oddalone o ~10-12
+ * jednostek CIELAB po symulacji - za mało, żeby sam odcień je odróżnił.
+ */
+function needsPattern(s: ChartSeries): boolean {
+  return s.colorSlot > CATEGORICAL_SAFE_SERIES;
 }
 
 /** Prostokąt z zaokrąglonym wyłącznie końcem danych. */
@@ -49,7 +136,7 @@ function barPath(
   radius: number,
   roundedEnd: "top" | "bottom" | "left" | "right" | "none",
 ): string {
-  const r = Math.max(0, Math.min(radius, w / 2, h / 2));
+  const r = clampRadius(w, h, radius);
   if (r === 0 || roundedEnd === "none") {
     return `M${x} ${y}h${w}v${h}h${-w}Z`;
   }
@@ -66,14 +153,34 @@ function barPath(
 }
 
 export function CartesianChart({ config, lang }: CartesianChartProps) {
+  // `keyPrefix` zamiast sklejania klucza w szablonie, i to nie jest kosmetyka:
+  // bramka rozjazdu kod<->słownik (`src/lib/ci/i18nKeyUsage.ts`) rozumie
+  // WYŁĄCZNIE prefiks podany hakowi. Klucz zlepiony template literalem jest
+  // dla niej napisem `waterfall.start`, którego w słowniku nie ma - więc
+  // wszystkie klucze tego pliku wypadałyby z kontroli parytetu PL/EN.
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string, values?: Record<string, string | number>): string =>
+    scoped(key, { lng: lang, ...values });
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
   const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
   // W stanie siedzi WYŁĄCZNIE indeks kategorii, a nie gotowa kotwica: piksele
   // zależą od geometrii, a ta zmienia się z każdą podmianą configu.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  // Identyfikator masek historii i prognozy. `useId` zamiast stałego napisu,
+  // bo na jednej stronie stoi wiele wykresów, a `url(#id)` w SVG wiąże się
+  // z PIERWSZYM elementem o tym id w dokumencie - dwa wykresy z prognozą
+  // dzieliłyby wtedy jedną maskę, przyciętą do granicy tego pierwszego.
+  // Dwukropki lecą, bo React wstawia je w id, a fragmentu `url(#a:b:c)`
+  // część przeglądarek nie przechodzi.
+  //
+  // Hak stoi TUTAJ, a nie przy budowie masek, bo poniżej jest wczesny `return`
+  // dla wykresu bez danych - hak wywołany po nim łamałby regułę stałej
+  // kolejności haków między renderami.
+  const uid = useId().replace(/:/g, "");
 
   const horizontal = config.kind === "bar-horizontal";
   const isLine = config.kind === "line" || config.kind === "area";
+  const isWaterfall = config.kind === "waterfall";
   const n = config.categories.length;
   // useMemo: stała tożsamość tablicy - bez niej geometry przeliczałoby się
   // przy KAŻDYM renderze (a pointermove renderuje przy każdym ruchu myszy).
@@ -81,52 +188,116 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     () => config.series.filter((s) => s.values.some((v) => v !== null)),
     [config.series],
   );
-  const stacked = config.stacked && !isLine && series.length > 1;
-
+  const stacked = config.stacked && !isLine && !isWaterfall && series.length > 1;
   const height = config.height;
 
+  // Mostek czyta WYŁĄCZNIE pierwszą serię: nie da się dodać dwóch dekompozycji
+  // tej samej różnicy, więc druga seria na wodospadzie jest zawsze pomyłką.
+  const waterfall = useMemo(
+    () => (isWaterfall ? waterfallModel(config.categories, config.series[0]?.values ?? []) : null),
+    [isWaterfall, config.categories, config.series],
+  );
+
+  // ---- Granica prognozy. Stoi PONAD skalą, bo pasmo niepewności wchodzi
+  // do domeny osi: indeks 0 nie ma sensu (cała seria byłaby prognozą, czyli
+  // podział nic nie dzieli), indeks >= n też nie (nie ma czego oznaczyć).
+  const forecastFrom =
+    config.forecastFrom !== null && config.forecastFrom > 0 && config.forecastFrom < n
+      ? config.forecastFrom
+      : null;
+  // Szerokość pasma ma znaczenie TYLKO przy istniejącej granicy i tylko na
+  // linii - kolumny nie mają czego obwijać obwiednią.
+  const bandPct = forecastFrom !== null && isLine ? config.forecastBandPct : 0;
+
+  // ---- Skala wartości. Zależy WYŁĄCZNIE od danych i wysokości, nie od
+  // marginesów - dzięki temu etykiety podziałek są znane przed pomiarem
+  // tekstu i nie ma tu zależności cyklicznej.
+  const scaleInfo = useMemo(() => {
+    const extent = waterfall
+      ? waterfallExtent(waterfall)
+      : seriesExtent(series, n, { stacked, includeZero: !isLine });
+    // Pasmo prognozy WCHODZI DO DOMENY. Bez tego obwiednia +/- procent
+    // wychodziła ponad najwyższą podziałkę i była przycinana krawędzią
+    // rysunku, czyli wykres pokazywał niepewność jako kończącą się tam,
+    // gdzie kończy się obszar kreślenia.
+    const band = forecastBandExtent(series, forecastFrom, bandPct);
+    const min = band ? Math.min(extent.min, band.min) : extent.min;
+    const max = band ? Math.max(extent.max, band.max) : extent.max;
+    return niceScale(min, max, valueTickTarget(height, horizontal));
+  }, [waterfall, series, n, stacked, isLine, horizontal, height, forecastFrom, bandPct]);
+
+  const tickLabels = useMemo(
+    () => scaleInfo.ticks.map((tick) => formatAxisTick(tick, lang)),
+    [scaleInfo, lang],
+  );
+
+  // Pomiar POST-MOUNT. `null` w pierwszym przejściu (serwer, pierwszy render
+  // klienta, happy-dom) - wtedy marginesy liczy heurystyka.
+  const metrics = useLabelMetrics(tickLabels, config.categories, FONT_AXIS);
+
   const geometry = useMemo(() => {
-    const extent = seriesExtent(series, n, {
-      stacked,
-      includeZero: !isLine,
-    });
-    const scaleInfo = niceScale(
-      extent.min,
-      extent.max,
-      horizontal ? 5 : Math.max(3, Math.round(height / 70)),
-    );
+    // Szerokość etykiety: zmierzona, gdy pomiar wyszedł; heurystyka, gdy nie.
+    // `Math.max` z heurystyką NIE jest tu potrzebny - pomiar jest dokładniejszy
+    // w obie strony i sztuczna podłoga zostawiałaby puste marginesy.
+    const tickWidth = metrics.value ?? estimateLabelWidth(longest(tickLabels), FONT_AXIS);
+    const catWidth = metrics.category ?? estimateLabelWidth(longest(config.categories), FONT_AXIS);
 
-    // Marginesy: oś wartości mierzona z najdłuższej podziałki, oś kategorii
-    // z najdłuższej etykiety (tylko poziome słupki).
-    const tickLabels = scaleInfo.ticks.map((t) => formatAxisTick(t, lang));
-    const maxTickChars = Math.max(1, ...tickLabels.map((t) => t.length));
-    const maxCatChars = Math.max(1, ...config.categories.map((c) => c.length));
-    const charW = FONT_AXIS * 0.62;
-
-    // Etykiety bezpośrednie nie mogą wypadać poza rysunek: koniec linii i
-    // szczyt poziomego słupka dostają dodatkowy prawy margines, kolumny -
+    // Etykiety bezpośrednie nie mogą wypadać poza rysunek: koniec linii
+    // i szczyt poziomego słupka dostają dodatkowy prawy margines, kolumny -
     // górny (zamiast przycinania, którego spec zakazuje).
-    const maxValueChars = config.showValues
-      ? Math.max(
-          1,
-          ...series.flatMap((s) =>
-            s.values.map((v) => (v === null ? 0 : formatChartValue(v, lang, config.unit).length)),
-          ),
-        )
-      : 0;
-    const valueLabelW = maxValueChars * charW + 10;
+    const valueLabelW = config.showValues ? longestValueWidth(series, config, lang) + 10 : 0;
 
-    const padTop = !isLine && !horizontal && config.showValues ? 24 : 10;
-    const padRight = config.showValues && (isLine || horizontal) ? Math.max(12, valueLabelW) : 12;
-    const padBottom = 26;
+    const padTop = !isLine && !horizontal && config.showValues ? PAD_TOP_WITH_LABELS : PAD_TOP;
+    const padRight =
+      config.showValues && (isLine || horizontal) ? Math.max(PAD_SIDE, valueLabelW) : PAD_SIDE;
     const padLeft = horizontal
-      ? Math.min(180, Math.max(48, maxCatChars * charW + 12))
-      : Math.max(34, maxTickChars * charW + 10);
+      ? Math.min(CATEGORY_LABEL_MAX_WIDTH, Math.max(PAD_LEFT_CATEGORY_MIN, catWidth + PAD_SIDE))
+      : Math.max(PAD_LEFT_MIN, tickWidth + PAD_SIDE);
 
-    const innerW = Math.max(40, width - padLeft - padRight);
-    const innerH = Math.max(40, height - padTop - padBottom);
+    // Drabina etykiet osi kategorii. Potrzebuje szerokości pasma, a pasmo
+    // zależy TYLKO od marginesów bocznych, więc jedno przejście wystarcza -
+    // margines dolny nie wchodzi do tego rachunku.
+    const measureLabel = (text: string): number =>
+      metrics.category !== null && text === longest(config.categories)
+        ? metrics.category
+        : estimateLabelWidth(text, FONT_AXIS);
 
-    // Skala wartości: pion (bar/line) lub poziom (bar-horizontal).
+    // BUDŻET NA MARGINES DOLNY. Obrócone etykiety potrafią zażądać więcej,
+    // niż wykres ma wysokości; wcześniej ta nadwyżka po prostu przepadała
+    // (obszar kreślenia siadał na swojej podłodze, a `padBottom` wracał
+    // z memo niewykorzystany), więc napisy schodziły z płótna na podpis pod
+    // wykresem. Teraz limit idzie DO DRABINY: nie mieści się obrót - drabina
+    // wybiera szczebel, który się mieści, i nikt nie rysuje poza kartą.
+    const bottomBudget = Math.max(PAD_BOTTOM, height - padTop - MIN_INNER_H);
+
+    const planFor = (): { plan: CategoryLabelPlan; padBottom: number } => {
+      const innerWidth = Math.max(MIN_INNER_W, width - padLeft - padRight);
+      const slot = n > 0 ? innerWidth / (isLine && n > 1 ? Math.max(1, n - 1) : n) : innerWidth;
+      const plan = planCategoryLabels(config.categories, {
+        slotWidth: slot,
+        fontSize: FONT_AXIS,
+        measure: measureLabel,
+        maxBottomSpace: bottomBudget,
+      });
+      return { plan, padBottom: Math.max(PAD_BOTTOM, snapToGrid(plan.bottomSpace)) };
+    };
+
+    // Słupki poziome mają etykiety kategorii po lewej, więc drabina ich nie
+    // dotyczy - tam kolizji w poziomie nie ma z definicji.
+    const ladder = horizontal ? null : planFor();
+    // Zaokrąglenie do siatki 4 px mogło jeszcze przekroczyć budżet o kilka
+    // pikseli, więc domykamy go tutaj: po tej klamrze różnica
+    // `height - padTop - padBottom` NIGDY nie schodzi pod podłogę, czyli
+    // `Math.max` poniżej nie ma już czego ratować - i nie ma jak zjeść
+    // zarezerwowanego miejsca.
+    const padBottom = horizontal
+      ? PAD_BOTTOM
+      : Math.min(bottomBudget, ladder?.padBottom ?? PAD_BOTTOM);
+
+    const innerW = Math.max(MIN_INNER_W, width - padLeft - padRight);
+    const innerH = Math.max(MIN_INNER_H, height - padTop - padBottom);
+
+    // Skala wartości: pion (bar/line/waterfall) lub poziom (bar-horizontal).
     const value = horizontal
       ? linearScale(scaleInfo.min, scaleInfo.max, padLeft, padLeft + innerW)
       : linearScale(scaleInfo.min, scaleInfo.max, padTop + innerH, padTop);
@@ -135,12 +306,18 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     const catSpan = horizontal ? innerH : innerW;
     const catStart = horizontal ? padTop : padLeft;
     const band = n > 0 ? catSpan / n : catSpan;
-    const catCenter = (i: number) =>
+    const catCenter = (i: number): number =>
       isLine && n > 1 ? catStart + (catSpan * i) / (n - 1) : catStart + band * (i + 0.5);
+
+    // Odstęp między punktami decyduje, czy kropki obserwacji się zmieszczą,
+    // a od tego zależy, czy WOLNO wygładzać.
+    const pointSpacing = isLine && n > 1 ? catSpan / (n - 1) : band;
+    const smoothing = isLine
+      ? effectiveSmoothing(n, config.smoothing, pointSpacing, SMOOTHING_MIN_POINTS)
+      : 0;
 
     const stacks = stacked ? stackSeries(series, n) : null;
     return {
-      scaleInfo,
       padTop,
       padLeft,
       padBottom,
@@ -151,8 +328,12 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
       band,
       catCenter,
       stacks,
+      smoothing,
+      plan: ladder?.plan ?? null,
     };
   }, [
+    metrics,
+    tickLabels,
     series,
     n,
     stacked,
@@ -161,15 +342,27 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     height,
     width,
     lang,
-    config.categories,
-    config.showValues,
-    config.unit,
+    scaleInfo,
+    config,
   ]);
 
-  if (n === 0 || series.length === 0) return null;
+  if (n === 0 || (series.length === 0 && !waterfall)) return null;
 
-  const { scaleInfo, padTop, padLeft, innerW, innerH, value, band, catCenter, stacks } = geometry;
+  const { padTop, padLeft, innerW, innerH, value, band, catCenter, stacks, smoothing, plan } =
+    geometry;
   const zeroPos = value(Math.max(scaleInfo.min, Math.min(0, scaleInfo.max)));
+  const showDots = shouldShowDots(n, smoothing);
+
+  // ---- Prognoza: granica w pikselach, strefa i separator. ----
+  // Granica biegnie POŚRODKU między ostatnią obserwacją i pierwszą prognozą,
+  // a nie na pierwszej prognozie: pomiar z tamtej kategorii jest nadal
+  // pomiarem, więc separator nie może przez niego przechodzić.
+  const forecastBoundary =
+    forecastFrom === null
+      ? null
+      : isLine
+        ? (catCenter(forecastFrom - 1) + catCenter(forecastFrom)) / 2
+        : catCenter(forecastFrom) - band / 2;
 
   // ---- Interakcja: wspólny "najbliższy indeks kategorii". ----
   const indexFromPointer = (e: PointerEvent<SVGRectElement>): number => {
@@ -186,10 +379,12 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
 
   const anchorFor = (index: number): Anchor => {
     const c = catCenter(index);
-    const positions = series
-      .map((s) => s.values[index])
-      .filter((v): v is number => v !== null)
-      .map((v) => value(v));
+    const positions = waterfall
+      ? waterfall.steps.filter((s) => s.index === index).map((s) => value(s.to))
+      : series
+          .map((s) => s.values[index])
+          .filter((v): v is number => v !== null)
+          .map((v) => value(v));
     if (horizontal) {
       return { x: positions.length ? Math.max(...positions) : zeroPos, y: c };
     }
@@ -238,47 +433,121 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
   const tooltipRows: TooltipRow[] =
     active === null
       ? []
-      : series
-          .map((s) => ({
-            name: s.name,
-            colorSlot: s.colorSlot as number | null,
-            raw: s.values[active],
-          }))
-          .filter((r) => r.raw !== null)
-          .map((r) => ({
-            name: r.name,
-            colorSlot: r.colorSlot,
-            value: formatChartValue(r.raw as number, lang, config.unit),
-          }));
+      : waterfall
+        ? waterfall.steps
+            .filter((s) => s.index === active)
+            .map((s) => ({
+              name:
+                s.kind === "start"
+                  ? t("waterfall.start")
+                  : s.kind === "end"
+                    ? t("waterfall.end")
+                    : s.direction === "down"
+                      ? t("waterfall.decrease")
+                      : t("waterfall.increase"),
+              colorSlot: null,
+              value: formatChartValue(s.value, lang, config.unit),
+            }))
+        : series
+            .map((s) => ({
+              name: s.name,
+              colorSlot: s.colorSlot as number | null,
+              raw: s.values[active],
+            }))
+            .filter((r) => r.raw !== null)
+            .map((r) => ({
+              name: r.name,
+              colorSlot: r.colorSlot,
+              value: formatChartValue(r.raw as number, lang, config.unit),
+            }));
 
-  // ---- Etykiety osi kategorii: próbkowane, żeby się nie zderzały. ----
-  const labelEvery = horizontal ? 1 : Math.max(1, Math.ceil((n * 64) / Math.max(64, innerW)));
-
-  const barRadius = 4;
-  const groupCount = stacked ? 1 : series.length;
+  const barRadius = CHART_RADIUS;
+  const groupCount = stacked || waterfall ? 1 : series.length;
   const slotW = Math.max(2, (band * 0.72) / groupCount);
   const barW = Math.min(BAR_MAX, slotW - (groupCount > 1 ? BAR_GAP : 0));
+  const cascade = cascadeStepMs(waterfall ? waterfall.steps.length : n);
+
+  const ariaLabel = config.title
+    ? t("a11y.chart", { title: config.title })
+    : t("a11y.chartUntitled");
+
+  const historyClip = `neh-hist-${uid}`;
+  const forecastClip = `neh-fc-${uid}`;
+  // Maski sięgają poza obszar kreślenia w pionie (kreska ma grubość, a jej
+  // koniec zaokrąglenie) i o kilka pikseli w poziomie na krańcach rysunku,
+  // gdzie pierwszy i ostatni punkt linii leżą DOKŁADNIE na krawędzi.
+  const clipTop = padTop - 8;
+  const clipHeight = innerH + 16;
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
-        className="relative w-full select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card rounded-lg"
-        style={{ height }}
+        className="relative w-full select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        style={{
+          height,
+          borderRadius: "var(--chart-radius)",
+          ["--neh-step" as string]: `${cascade}ms`,
+        }}
         tabIndex={0}
         role="img"
-        aria-label={config.title || undefined}
+        aria-label={ariaLabel}
         onKeyDown={onKeyDown}
         onBlur={() => setActiveIndex(null)}
       >
         <svg width={width} height={height} className="block overflow-visible">
+          {/* Maski podziału historia/prognoza. Istnieją tylko wtedy, gdy
+              granica istnieje - pusty `<defs>` na każdym wykresie bez
+              prognozy byłby czystym kosztem. */}
+          {forecastBoundary !== null && !horizontal && (
+            <defs>
+              <clipPath id={historyClip}>
+                <rect
+                  x={padLeft - 8}
+                  y={clipTop}
+                  width={Math.max(0, forecastBoundary - padLeft + 8)}
+                  height={clipHeight}
+                />
+              </clipPath>
+              <clipPath id={forecastClip}>
+                <rect
+                  x={forecastBoundary}
+                  y={clipTop}
+                  width={Math.max(0, padLeft + innerW + 8 - forecastBoundary)}
+                  height={clipHeight}
+                />
+              </clipPath>
+            </defs>
+          )}
+
+          {/* Strefa prognozy - prostokąt za separatorem, w kolorze tuszu przy
+              kilku promilach krycia. Rysowany PRZED siatką, żeby siatka
+              pozostała czytelna także w strefie. */}
+          {forecastBoundary !== null && !horizontal && (
+            <rect
+              x={forecastBoundary}
+              y={padTop}
+              width={Math.max(0, padLeft + innerW - forecastBoundary)}
+              height={innerH}
+              fill="var(--chart-zone)"
+              // Krycie w `style`, NIE w atrybucie prezentacyjnym: `var()`
+              // w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązane
+              // krycie to pełna nieprzezroczystość, czyli plama na całej
+              // strefie prognozy. To ten sam powód, dla którego mapa-choropleta
+              // podaje `fill` w `style`.
+              style={{ fillOpacity: "var(--chart-zone-alpha)" }}
+              rx={clampRadius(padLeft + innerW - forecastBoundary, innerH)}
+              pointerEvents="none"
+            />
+          )}
+
           {/* Siatka + podziałki osi wartości */}
           {config.showGrid &&
-            scaleInfo.ticks.map((t) => {
-              const p = value(t);
+            scaleInfo.ticks.map((tick) => {
+              const p = value(tick);
               return horizontal ? (
                 <line
-                  key={t}
+                  key={tick}
                   x1={p}
                   x2={p}
                   y1={padTop}
@@ -288,7 +557,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 />
               ) : (
                 <line
-                  key={t}
+                  key={tick}
                   x1={padLeft}
                   x2={padLeft + innerW}
                   y1={p}
@@ -300,11 +569,11 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             })}
 
           {/* Etykiety osi wartości */}
-          {scaleInfo.ticks.map((t) => {
-            const p = value(t);
+          {scaleInfo.ticks.map((tick, ti) => {
+            const p = value(tick);
             return horizontal ? (
               <text
-                key={t}
+                key={tick}
                 x={p}
                 y={padTop + innerH + 16}
                 textAnchor="middle"
@@ -312,11 +581,11 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 fill="var(--muted-foreground)"
                 className="tabular-nums"
               >
-                {formatAxisTick(t, lang)}
+                {tickLabels[ti]}
               </text>
             ) : (
               <text
-                key={t}
+                key={tick}
                 x={padLeft - 8}
                 y={p + 3.5}
                 textAnchor="end"
@@ -324,7 +593,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 fill="var(--muted-foreground)"
                 className="tabular-nums"
               >
-                {formatAxisTick(t, lang)}
+                {tickLabels[ti]}
               </text>
             );
           })}
@@ -350,222 +619,392 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             />
           )}
 
-          {/* Etykiety kategorii */}
-          {config.categories.map((cat, i) => {
-            if (i % labelEvery !== 0) return null;
-            const c = catCenter(i);
-            return horizontal ? (
-              <text
-                key={i}
-                x={padLeft - 8}
-                y={c + 3.5}
-                textAnchor="end"
-                fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
-              >
-                {cat.length > 24 ? `${cat.slice(0, 23)}…` : cat}
-              </text>
-            ) : (
-              <text
-                key={i}
-                x={c}
-                y={padTop + innerH + 16}
-                textAnchor="middle"
-                fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
-              >
-                {cat.length > 12 ? `${cat.slice(0, 11)}…` : cat}
-              </text>
-            );
-          })}
+          {/* Etykiety kategorii. Poziomo: ucięcie po 24 znakach, ale z pełną
+              treścią w `<title>` - wielokropek bez tooltipa jest zakazany.
+              Pionowo: plan z drabiny (przerzedzenie, skrót, obrót). */}
+          {horizontal
+            ? config.categories.map((cat, i) => {
+                const c = catCenter(i);
+                const clipped = cat.length > CATEGORY_LABEL_MAX_CHARS;
+                return (
+                  <text
+                    key={i}
+                    x={padLeft - 8}
+                    y={c + 3.5}
+                    textAnchor="end"
+                    fontSize={FONT_AXIS}
+                    fill="var(--muted-foreground)"
+                  >
+                    {clipped ? `${cat.slice(0, CATEGORY_LABEL_MAX_CHARS - 1)}…` : cat}
+                    {clipped && <title>{cat}</title>}
+                  </text>
+                );
+              })
+            : (plan?.visible ?? []).map((i) => {
+                const c = catCenter(i);
+                const label = plan?.labels[i] ?? config.categories[i];
+                const full = config.categories[i];
+                const y = padTop + innerH + 16;
+                const rotated = (plan?.rotation ?? 0) !== 0;
+                return (
+                  <text
+                    key={i}
+                    x={c}
+                    y={y}
+                    textAnchor={rotated ? "end" : "middle"}
+                    fontSize={FONT_AXIS}
+                    fill="var(--muted-foreground)"
+                    transform={rotated ? `rotate(${plan?.rotation} ${c} ${y})` : undefined}
+                  >
+                    {label}
+                    {label !== full && <title>{full}</title>}
+                  </text>
+                );
+              })}
 
           {/* ===== Znaczniki ===== */}
-          {isLine
-            ? series.map((s, si) => {
-                const segments: string[] = [];
-                let current: string[] = [];
-                s.values.forEach((v, i) => {
-                  if (v === null) {
-                    if (current.length) segments.push(current.join(" "));
-                    current = [];
-                    return;
-                  }
-                  const x = catCenter(i);
-                  const y = value(v);
-                  current.push(
-                    `${current.length === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`,
-                  );
-                });
-                if (current.length) segments.push(current.join(" "));
-                const d = segments.join(" ");
-                const areaD =
-                  config.kind === "area" && d
-                    ? segments
-                        .map((seg) => {
-                          const first = /M([\d.]+) /.exec(seg);
-                          const lastMatch = seg.match(/L?([\d.]+) ([\d.]+)$/);
-                          const firstX = first ? Number(first[1]) : padLeft;
-                          const lastX = lastMatch ? Number(lastMatch[1]) : padLeft + innerW;
-                          return `${seg} L${lastX} ${zeroPos} L${firstX} ${zeroPos} Z`;
-                        })
-                        .join(" ")
-                    : "";
-                const showDots = n <= 24;
-                const lastIdx = lastNonNullIndex(s.values);
+          {waterfall
+            ? /* Mostek: filary na zerze, składniki wiszące, znak kodowany
+                 KOLOREM I KIERUNKIEM jednocześnie. */
+              waterfall.steps.map((step, si) => {
+                const a = value(step.from);
+                const b = value(step.to);
+                const center = catCenter(step.index);
+                const fill =
+                  step.kind === "step"
+                    ? step.direction === "down"
+                      ? "var(--chart-negative)"
+                      : "var(--chart-positive)"
+                    : "var(--chart-1)";
+                const x = center - barW / 2;
+                const y0 = Math.min(a, b);
+                const h = Math.abs(b - a);
                 return (
-                  <g key={s.colorSlot + s.name}>
-                    {areaD && (
-                      <path
-                        d={areaD}
-                        fill={seriesColor(s)}
-                        fillOpacity={0.12}
-                        className="neh-fade"
-                      />
-                    )}
+                  <g key={`w${step.index}`}>
                     <path
-                      d={d}
-                      fill="none"
-                      stroke={seriesColor(s)}
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      pathLength={1}
-                      className="neh-line"
-                    />
-                    {showDots &&
-                      s.values.map((v, i) =>
-                        v === null ? null : (
-                          <circle
-                            key={i}
-                            cx={catCenter(i)}
-                            cy={value(v)}
-                            r={active === i ? 5 : 4}
-                            fill={seriesColor(s)}
-                            stroke="var(--card)"
-                            strokeWidth={2}
-                            className="neh-fade"
-                          />
-                        ),
+                      d={barPath(
+                        x,
+                        y0,
+                        barW,
+                        Math.max(h, 0.5),
+                        barRadius,
+                        step.kind === "step" && step.direction === "down" ? "bottom" : "top",
                       )}
-                    {/* Etykieta bezpośrednia: wartość na końcu linii
-                        (y po rozsunięciu kolizji zbieżnych serii). */}
-                    {config.showValues && lastIdx >= 0 && (
-                      <text
-                        x={catCenter(lastIdx) + 8}
-                        y={(endLabelYBySeries.get(si) ?? value(s.values[lastIdx] as number)) + 3.5}
-                        fontSize={FONT_AXIS}
-                        fontWeight={600}
-                        fill="var(--foreground)"
-                        className="neh-fade tabular-nums"
-                      >
-                        {formatChartValue(s.values[lastIdx] as number, lang, config.unit)}
-                      </text>
+                      fill={fill}
+                      className={step.direction === "down" ? "neh-bar neh-bar-negative" : "neh-bar"}
+                      style={{ ["--neh-i" as string]: si }}
+                    />
+                    {/* Etykieta wartości na KAŻDYM słupku - mostek bez liczb
+                        zmusza do odczytu długości, a po to jest mostek, żeby
+                        nie trzeba było dodawać w głowie. */}
+                    <text
+                      x={center}
+                      y={y0 - 6}
+                      textAnchor="middle"
+                      fontSize={FONT_AXIS}
+                      fill="var(--foreground)"
+                      className="neh-fade neh-value-label tabular-nums"
+                    >
+                      {formatChartValue(step.value, lang, config.unit)}
+                    </text>
+                    {/* Prowadnica łącząca kolejne składniki - pokazuje, że
+                        słupek wisi na poprzednim, a nie stoi na zerze. */}
+                    {si > 0 && step.kind === "step" && (
+                      <line
+                        x1={catCenter(waterfall.steps[si - 1].index) + barW / 2}
+                        x2={center - barW / 2}
+                        y1={value(step.direction === "down" ? step.to : step.from)}
+                        y2={value(step.direction === "down" ? step.to : step.from)}
+                        className="neh-crosshair"
+                      />
                     )}
                   </g>
                 );
               })
-            : /* Słupki / kolumny */
-              series.map((s, si) => (
-                <g key={s.colorSlot + s.name}>
-                  {s.values.map((v, i) => {
-                    const cell = stacks ? stacks[si][i] : null;
-                    const from = cell ? cell.from : 0;
-                    const to = cell ? cell.to : (v ?? 0);
-                    if (v === null || (v === 0 && stacked)) return null;
-                    const a = value(from);
-                    const b = value(to);
-                    // Zaokrąglony koniec tylko dla segmentu domykajacego pas
-                    // danych (ostatnia seria stacka lub słupek pojedynczy).
-                    // Pas dodatni i ujemny rosną z tej samej bazy w PRZECIWNE
-                    // strony, więc każdy z nich domyka INNA seria - pytamy
-                    // o znak tego konkretnego segmentu.
-                    const isDataEnd =
-                      !stacked || si === lastStackIndexFor(series, stacks, i, v >= 0);
-                    const center = catCenter(i);
-                    const offset = stacked
-                      ? -barW / 2
-                      : -((series.length * slotW) / 2) + si * slotW + (slotW - barW) / 2;
-                    if (horizontal) {
-                      const y = center + offset;
-                      const x0 = Math.min(a, b);
-                      const w = Math.abs(b - a);
+            : isLine
+              ? series.map((s, si) => {
+                  // Ciągi punktów rozdzielone lukami - luka MUSI przerwać
+                  // linię, inaczej wykres zamalowuje dziurę interpolacją.
+                  // Indeks kategorii jedzie RAZEM z pikselem (patrz `LineRun`).
+                  const runs: LineRun[] = [];
+                  let current: LineRun = { points: [], indices: [] };
+                  s.values.forEach((v, i) => {
+                    if (v === null) {
+                      if (current.points.length) runs.push(current);
+                      current = { points: [], indices: [] };
+                      return;
+                    }
+                    current.points.push([catCenter(i), value(v)]);
+                    current.indices.push(i);
+                  });
+                  if (current.points.length) runs.push(current);
+
+                  // JEDNA geometria na serię. Podział historia/prognoza robi
+                  // maska, nie druga ścieżka - patrz komentarz przy rysowaniu.
+                  const d = runs
+                    .map((run) => pathFromPoints(run.points, smoothing))
+                    .filter(Boolean)
+                    .join(" ");
+                  const areaD =
+                    config.kind === "area"
+                      ? runs
+                          .map((run) => {
+                            const line = pathFromPoints(run.points, smoothing);
+                            if (!line) return "";
+                            const first = run.points[0];
+                            const last = run.points[run.points.length - 1];
+                            return `${line} L${last[0].toFixed(1)} ${zeroPos.toFixed(1)} L${first[0].toFixed(1)} ${zeroPos.toFixed(1)} Z`;
+                          })
+                          .filter(Boolean)
+                          .join(" ")
+                      : "";
+                  // Pasmo liczone PER CIĄG, nie przez całą serię: obwiednia
+                  // wyliczona z jednej listy przeskakiwała luki i zamykała
+                  // dziurę w danych kolorem, czyli pokazywała niepewność tam,
+                  // gdzie nie było żadnego pomiaru.
+                  const bandD =
+                    forecastFrom !== null && bandPct > 0
+                      ? runs
+                          .map((run) =>
+                            forecastBandPath(
+                              run,
+                              s.values,
+                              forecastFrom,
+                              bandPct,
+                              catCenter,
+                              value,
+                              smoothing,
+                            ),
+                          )
+                          .filter(Boolean)
+                          .join(" ")
+                      : "";
+                  const lastIdx = lastNonNullIndex(s.values);
+                  const dashed = needsPattern(s);
+                  const split = forecastBoundary !== null && !horizontal;
+                  return (
+                    <g key={s.colorSlot + s.name}>
+                      {areaD && (
+                        <path
+                          d={areaD}
+                          fill={seriesColor(s)}
+                          // Krycie w `style`, nie w atrybucie - patrz komentarz
+                          // przy strefie prognozy.
+                          style={{ fillOpacity: `var(--chart-band-${s.colorSlot})` }}
+                          className="neh-fade"
+                        />
+                      )}
+                      {/* Pasmo niepewności prognozy. Krycie z tokena per slot,
+                          policzone pod kontrast 1,10-1,17:1 do płyty - stała
+                          alfa dawała pasma raz niewidoczne, raz krzyczące. */}
+                      {bandD && (
+                        <path
+                          d={bandD}
+                          fill={seriesColor(s)}
+                          style={{ fillOpacity: `var(--chart-band-${s.colorSlot})` }}
+                          className="neh-fade"
+                          pointerEvents="none"
+                        />
+                      )}
+                      {/* JEDEN tor, DWIE MASKI - nie dwie ścieżki.
+                          Kreskowana prognoza rysowana NA WIERZCHU ciągłej
+                          linii wygląda na ciągłą: w przerwach kreskowania
+                          widać podkład, czyli podział, który miał ostrzegać,
+                          znika. A policzona osobno przestaje być tą samą
+                          krzywą: krótki ogon dostaje inne styczne Hermite'a
+                          (albo, poniżej czterech punktów, żadnego
+                          wygładzenia), więc prognoza odjeżdża od historii
+                          w miejscu, gdzie powinna z niej wychodzić.
+                          Maska rozwiązuje oba: geometria jest policzona raz,
+                          a każdy piksel należy do dokładnie jednej części. */}
+                      <path
+                        d={d}
+                        fill="none"
+                        stroke={seriesColor(s)}
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        pathLength={1}
+                        clipPath={split ? `url(#${historyClip})` : undefined}
+                        className={dashed ? "neh-line neh-line-pattern" : "neh-line"}
+                      />
+                      {split && (
+                        <path
+                          d={d}
+                          fill="none"
+                          stroke={seriesColor(s)}
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="6 4"
+                          clipPath={`url(#${forecastClip})`}
+                          className="neh-forecast-line neh-fade"
+                        />
+                      )}
+                      {showDots &&
+                        s.values.map((v, i) =>
+                          v === null ? null : (
+                            <circle
+                              key={i}
+                              cx={catCenter(i)}
+                              cy={value(v)}
+                              r={2.8}
+                              // Kropka w kolorze PŁYTY z obwódką w kolorze
+                              // serii, nie odwrotnie: wypełnienie płytą znika
+                              // w tle karty, więc widać sam pierścień, a on
+                              // czyta się jako "tu jest pomiar", nie jako
+                              // kolejny znacznik danych.
+                              fill="var(--card)"
+                              stroke={seriesColor(s)}
+                              strokeWidth={1.6}
+                              data-active={active === i ? "true" : undefined}
+                              className="neh-dot neh-fade"
+                            />
+                          ),
+                        )}
+                      {/* Etykieta bezpośrednia w WARIANCIE TEKSTOWYM slotu -
+                          identyfikuje serię, więc niesie jej kolor, ale nie
+                          kolor linii (próg tekstu to 4,5:1, linii 3,0:1). */}
+                      {config.showValues && lastIdx >= 0 && (
+                        <text
+                          x={catCenter(lastIdx) + 8}
+                          y={
+                            (endLabelYBySeries.get(si) ?? value(s.values[lastIdx] as number)) + 3.5
+                          }
+                          fontSize={FONT_AXIS}
+                          fill={seriesTextColor(s)}
+                          className="neh-fade neh-value-label tabular-nums"
+                        >
+                          {formatChartValue(s.values[lastIdx] as number, lang, config.unit)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })
+              : /* Słupki / kolumny */
+                series.map((s, si) => (
+                  <g key={s.colorSlot + s.name}>
+                    {s.values.map((v, i) => {
+                      const cell = stacks ? stacks[si][i] : null;
+                      const from = cell ? cell.from : 0;
+                      const to = cell ? cell.to : (v ?? 0);
+                      if (v === null || (v === 0 && stacked)) return null;
+                      const a = value(from);
+                      const b = value(to);
+                      // Zaokrąglony koniec tylko dla segmentu domykajacego pas
+                      // danych (ostatnia seria stacka lub słupek pojedynczy).
+                      // Pas dodatni i ujemny rosną z tej samej bazy w PRZECIWNE
+                      // strony, więc każdy z nich domyka INNA seria - pytamy
+                      // o znak tego konkretnego segmentu.
+                      const isDataEnd =
+                        !stacked || si === lastStackIndexFor(series, stacks, i, v >= 0);
+                      const center = catCenter(i);
+                      const offset = stacked
+                        ? -barW / 2
+                        : -((series.length * slotW) / 2) + si * slotW + (slotW - barW) / 2;
+                      const negative = v < 0;
+                      if (horizontal) {
+                        const y = center + offset;
+                        const x0 = Math.min(a, b);
+                        const w = Math.abs(b - a);
+                        return (
+                          <path
+                            key={i}
+                            d={barPath(
+                              x0,
+                              y,
+                              Math.max(w, 0.5),
+                              barW,
+                              isDataEnd ? barRadius : 0,
+                              negative ? "left" : "right",
+                            )}
+                            fill={seriesColor(s)}
+                            stroke="var(--card)"
+                            strokeWidth={stacked ? BAR_GAP / 2 : 0}
+                            className={`neh-bar-h neh-bar${negative ? " neh-bar-negative" : ""}`}
+                            style={{ ["--neh-i" as string]: i }}
+                          />
+                        );
+                      }
+                      const x = center + offset;
+                      const y0 = Math.min(a, b);
+                      const h = Math.abs(b - a);
                       return (
                         <path
                           key={i}
                           d={barPath(
-                            x0,
-                            y,
-                            Math.max(w, 0.5),
+                            x,
+                            y0,
                             barW,
+                            Math.max(h, 0.5),
                             isDataEnd ? barRadius : 0,
-                            v >= 0 ? "right" : "left",
+                            negative ? "bottom" : "top",
                           )}
                           fill={seriesColor(s)}
                           stroke="var(--card)"
                           strokeWidth={stacked ? BAR_GAP / 2 : 0}
-                          className="neh-bar-h neh-bar"
+                          className={`neh-bar${negative ? " neh-bar-negative" : ""}`}
                           style={{ ["--neh-i" as string]: i }}
                         />
                       );
-                    }
-                    const x = center + offset;
-                    const y0 = Math.min(a, b);
-                    const h = Math.abs(b - a);
-                    return (
-                      <path
-                        key={i}
-                        d={barPath(
-                          x,
-                          y0,
-                          barW,
-                          Math.max(h, 0.5),
-                          isDataEnd ? barRadius : 0,
-                          v >= 0 ? "top" : "bottom",
-                        )}
-                        fill={seriesColor(s)}
-                        stroke="var(--card)"
-                        strokeWidth={stacked ? BAR_GAP / 2 : 0}
-                        className="neh-bar"
-                        style={{ ["--neh-i" as string]: i }}
-                      />
-                    );
-                  })}
-                  {/* Etykiety na szczycie kolumn - tylko pojedyncza seria,
-                      inaczej robi się ściana liczb (dataviz: selektywnie). */}
-                  {config.showValues &&
-                    !stacked &&
-                    series.length === 1 &&
-                    s.values.map((v, i) =>
-                      v === null ? null : horizontal ? (
-                        <text
-                          key={`l${i}`}
-                          x={value(v) + (v >= 0 ? 6 : -6)}
-                          y={catCenter(i) + 3.5}
-                          textAnchor={v >= 0 ? "start" : "end"}
-                          fontSize={FONT_AXIS}
-                          fontWeight={600}
-                          fill="var(--foreground)"
-                          className="neh-fade tabular-nums"
-                        >
-                          {formatChartValue(v, lang, config.unit)}
-                        </text>
-                      ) : (
-                        <text
-                          key={`l${i}`}
-                          x={catCenter(i)}
-                          y={value(v) + (v >= 0 ? -6 : 14)}
-                          textAnchor="middle"
-                          fontSize={FONT_AXIS}
-                          fontWeight={600}
-                          fill="var(--foreground)"
-                          className="neh-fade tabular-nums"
-                        >
-                          {formatChartValue(v, lang, config.unit)}
-                        </text>
-                      ),
-                    )}
-                </g>
-              ))}
+                    })}
+                    {/* Etykiety na szczycie kolumn - tylko pojedyncza seria,
+                        inaczej robi się ściana liczb (dataviz: selektywnie). */}
+                    {config.showValues &&
+                      !stacked &&
+                      series.length === 1 &&
+                      s.values.map((v, i) =>
+                        v === null ? null : horizontal ? (
+                          <text
+                            key={`l${i}`}
+                            x={value(v) + (v >= 0 ? 6 : -6)}
+                            y={catCenter(i) + 3.5}
+                            textAnchor={v >= 0 ? "start" : "end"}
+                            fontSize={FONT_AXIS}
+                            fill="var(--foreground)"
+                            className="neh-fade neh-value-label tabular-nums"
+                          >
+                            {formatChartValue(v, lang, config.unit)}
+                          </text>
+                        ) : (
+                          <text
+                            key={`l${i}`}
+                            x={catCenter(i)}
+                            y={value(v) + (v >= 0 ? -6 : 14)}
+                            textAnchor="middle"
+                            fontSize={FONT_AXIS}
+                            fill="var(--foreground)"
+                            className="neh-fade neh-value-label tabular-nums"
+                          >
+                            {formatChartValue(v, lang, config.unit)}
+                          </text>
+                        ),
+                      )}
+                  </g>
+                ))}
+
+          {/* Separator prognozy z etykietą. Rysowany PO znacznikach, żeby
+              linia serii nie przechodziła nad granicą, i z etykietą słowną,
+              bo kreskowanie samo nie mówi "prognoza". */}
+          {forecastBoundary !== null && !horizontal && (
+            <g pointerEvents="none">
+              <line
+                x1={forecastBoundary}
+                x2={forecastBoundary}
+                y1={padTop}
+                y2={padTop + innerH}
+                className="neh-forecast-divider"
+              />
+              <text
+                x={forecastBoundary + 6}
+                y={padTop + 11}
+                fontSize={FONT_AXIS}
+                fill="var(--muted-foreground)"
+              >
+                {t("forecast.label")}
+              </text>
+            </g>
+          )}
 
           {/* Crosshair (linie/pola) lub podświetlenie pasa kategorii. */}
           {active !== null &&
@@ -620,11 +1059,37 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
           y={anchor?.y ?? 0}
           containerWidth={width}
           title={active !== null ? config.categories[active] : ""}
+          note={
+            forecastFrom !== null && active !== null && active >= forecastFrom
+              ? t("forecast.tableFlag")
+              : undefined
+          }
           rows={tooltipRows}
         />
       </div>
     </div>
   );
+}
+
+function longest(values: readonly string[]): string {
+  let out = "";
+  for (const value of values) if (value.length > out.length) out = value;
+  return out;
+}
+
+function longestValueWidth(
+  series: readonly ChartSeries[],
+  config: ChartConfig,
+  lang: ChartLang,
+): number {
+  let max = 0;
+  for (const s of series) {
+    for (const v of s.values) {
+      if (v === null) continue;
+      max = Math.max(max, estimateLabelWidth(formatChartValue(v, lang, config.unit), FONT_AXIS));
+    }
+  }
+  return max;
 }
 
 function lastNonNullIndex(values: readonly (number | null)[]): number {
@@ -635,13 +1100,54 @@ function lastNonNullIndex(values: readonly (number | null)[]): number {
 }
 
 /**
+ * Pasmo niepewności prognozy dla JEDNEGO ciągu punktów: obwiednia wartości
+ * +/- procent, zamknięta w jedną ścieżkę. Sama linia prognozy sugeruje
+ * pewność, której nie ma - dlatego pasmo jest rysowane zawsze, gdy autor
+ * podał jego szerokość.
+ *
+ * PER CIĄG, a nie per seria, i to jest cały sens tego podpisu: obwiednia
+ * policzona z jednej listy wszystkich niepustych wartości zamykała się przez
+ * lukę, czyli malowała niepewność nad kategorią, w której nie było żadnego
+ * pomiaru. Ciąg z definicji nie ma dziur, więc jego obwiednia też nie ma.
+ */
+function forecastBandPath(
+  run: LineRun,
+  values: readonly (number | null)[],
+  splitAt: number,
+  pct: number,
+  catCenter: (i: number) => number,
+  value: (v: number) => number,
+  smoothing: number,
+): string {
+  const upper: Point[] = [];
+  const lower: Point[] = [];
+  const factor = pct / 100;
+  for (const i of run.indices) {
+    if (i < splitAt - 1) continue;
+    const v = values[i];
+    if (v === null || v === undefined) continue;
+    const x = catCenter(i);
+    // Na granicy pasmo ma szerokość ZERO: ostatnia obserwacja jest pomiarem,
+    // więc nie ma wokół niej niepewności prognozy. Bez tego pasmo startowało
+    // od pełnej szerokości nad zmierzoną wartością.
+    const spread = i === splitAt - 1 ? 0 : Math.abs(v) * factor;
+    upper.push([x, value(v + spread)]);
+    lower.push([x, value(v - spread)]);
+  }
+  if (upper.length < 2) return "";
+  const top = pathFromPoints(upper, smoothing);
+  const bottom = pathFromPoints([...lower].reverse(), smoothing).replace(/^M/, "L");
+  return `${top} ${bottom} Z`;
+}
+
+/**
  * Indeks serii domykającej pas stacka O DANYM ZNAKU w danej kategorii.
  *
  * Szukanie po znaku, a nie "ostatnia seria z wartością dodatnią", bo pas
  * ujemny ma własny kursor (`stackSeries`) i domyka go ostatnia seria ujemna.
  * Fallback `series.length - 1` zostaje wyłącznie dla wykresu bez stacka -
  * w stacku wskazywałby serię, która w tej kategorii może nic nie rysować
- * (luka), i zaokrąglenie 4px przepadałoby na całym pasie.
+ * (luka), i zaokrąglenie przepadałoby na całym pasie.
  */
 function lastStackIndexFor(
   series: readonly ChartSeries[],

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { linearScale, niceScale, niceStep, seriesExtent, stackSeries } from "../scale";
+import {
+  forecastBandExtent,
+  linearScale,
+  niceScale,
+  niceStep,
+  seriesExtent,
+  stackSeries,
+} from "../scale";
 import type { ChartSeries } from "../types";
 
 const s = (values: (number | null)[], slot = 1): ChartSeries => ({
@@ -97,5 +104,43 @@ describe("stackSeries", () => {
     const stacks = stackSeries([s([null, 2]), s([3, 3], 2)], 2);
     expect(stacks[0][0].value).toBeNull();
     expect(stacks[1][0]).toEqual({ from: 0, to: 3, value: 3 });
+  });
+});
+
+describe("forecastBandExtent", () => {
+  it("rozszerza zakres o obwiednię prognozy, żeby pasma nie ucięła krawędź", () => {
+    // REGRESJA. Skala liczona z samych wartości pozwalała obwiedni wyjść ponad
+    // najwyższą podziałkę - a ucięte pasmo niepewności sugeruje, że niepewność
+    // KOŃCZY SIĘ tam, gdzie kończy się obszar kreślenia.
+    const band = forecastBandExtent([s([10, 12, 13, 100])], 3, 20);
+    expect(band).not.toBeNull();
+    expect(band?.max).toBeCloseTo(120, 6);
+    expect(band?.min).toBeCloseTo(80, 6);
+  });
+
+  it("punkt GRANICY jest pomijany - tam pasmo ma szerokość zero", () => {
+    // Ostatnia obserwacja jest pomiarem, nie prognozą, więc nie ma wokół niej
+    // niepewności prognozy i nie ma czym rozszerzać zakresu.
+    const band = forecastBandExtent([s([1000, 10])], 1, 50);
+    expect(band?.max).toBeCloseTo(15, 6);
+    expect(band?.min).toBeCloseTo(5, 6);
+  });
+
+  it("milczy, gdy nie ma czego rozszerzać", () => {
+    expect(forecastBandExtent([s([10, 12])], null, 12)).toBeNull();
+    expect(forecastBandExtent([s([10, 12])], 1, 0)).toBeNull();
+    expect(forecastBandExtent([s([10, null])], 1, 12)).toBeNull();
+    expect(forecastBandExtent([], 1, 12)).toBeNull();
+  });
+
+  it("bierze skrajne wartości ze WSZYSTKICH serii, nie z pierwszej", () => {
+    const band = forecastBandExtent([s([1, 2]), s([1, 50], 2)], 1, 10);
+    expect(band?.max).toBeCloseTo(55, 6);
+  });
+
+  it("wartości ujemne rozszerzają zakres W DÓŁ", () => {
+    const band = forecastBandExtent([s([0, -40])], 1, 25);
+    expect(band?.min).toBeCloseTo(-50, 6);
+    expect(band?.max).toBeCloseTo(-30, 6);
   });
 });
