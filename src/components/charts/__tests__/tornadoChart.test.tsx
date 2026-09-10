@@ -68,6 +68,28 @@ function para(label: string, low: number, high: number): Record<string, Json> {
   };
 }
 
+/**
+ * RENDER PRZEZ RAMKĘ KARTY, i tylko tam, gdzie sprawdzana jest TABELA DANYCH.
+ * Tabela należy do ramki (`Chart` -> `TABLE_BY_KIND`), a nie do rysunku: do
+ * tego PR-a render niósł WŁASNĄ kopię w `sr-only` i te testy czytały właśnie
+ * ją, więc po podłączeniu rodzaju do ramki czytnik ekranu dostawał te same
+ * liczby dwa razy. Kopia zniknęła, więc testy tabeli renderują `Chart` -
+ * czytają to, co naprawdę widzi czytelnik. `kind` jedzie tu jawnie, bo `cfg`
+ * domyślnie składa słupki.
+ */
+const zRamka = (dane: Record<string, Json>) =>
+  render(<Chart config={cfg({ ...dane, kind: "tornado" })} lang="pl" />);
+
+/**
+ * KOLUMNY, KTÓRE TABELA RAMKI NAPRAWDĘ MA. Model wymienia osiem pozycji
+ * (`TORNADO_COLUMNS`), ramka renderuje siedem: nie ma kolumny `span`, czyli
+ * tej rozpiętości, po której model ustawił cały ranking - a kopia `sr-only`
+ * ją wypisywała. To jest UBYTEK tabeli ramki, a nie rozstrzygnięcie tego
+ * testu, i dlatego lista powstaje przez ODJĘCIE od modelu: kolumna dołożona
+ * do `TORNADO_COLUMNS` nadal ten test wywróci.
+ */
+const KOLUMNY_RAMKI = TORNADO_COLUMNS.filter((k) => k !== "span");
+
 /** happy-dom nie mierzy elementów - bez podmiany każdy `pointermove` to NaN. */
 function stubPlotRect(hit: Element, width: number, height: number): void {
   Object.defineProperty(hit, "getBoundingClientRect", {
@@ -212,7 +234,11 @@ describe("TornadoChart - linia bazowa", () => {
     // Model milczy o geometrii, bo słupek bez linii bazowej nie ma od czego
     // się odchylać, a baza wyliczona ze średniej nóg nie jest przypadkiem
     // bazowym. Rysunek nie może wtedy udawać kompletnego.
-    const { container } = render(<TornadoChart config={cfg(BEZ_BAZY)} lang="pl" />);
+    //
+    // Render przez ramkę, bo bez ani jednego słupka TABELA RAMKI jest jedyną
+    // drogą do liczb - sam rysunek nie ma ich gdzie pokazać, odkąd nie niesie
+    // własnej kopii tabeli.
+    const { container } = zRamka(BEZ_BAZY);
     expect(all(container, "path[data-role='leg']")).toHaveLength(0);
     expect(container.querySelector("line[data-role='base-line']")).toBeNull();
     // Etykiety wierszy i liczby zostają: brak bazy nie jest brakiem danych.
@@ -477,11 +503,14 @@ describe("TornadoChart - alternatywa tekstowa", () => {
     // Tabela ma pozwolić odczytać liczbę tego paska, na który czytelnik
     // patrzy. Przy kolejności arkuszowej musiałby najpierw szukać nazwy,
     // a to jest dokładnie ten koszt, którego tornado go pozbawia.
-    const { container } = render(<TornadoChart config={cfg(ARKUSZ)} lang="pl" />);
-    expect(all(container, "table th")).toHaveLength(TORNADO_COLUMNS.length);
+    const { container } = zRamka(ARKUSZ);
+    // Nagłówki liczone w `thead`: tabela ramki daje etykiecie parametru
+    // `th scope="row"` (nazwa parametru JEST nagłówkiem swojego wiersza, nie
+    // daną), więc samo `table th` policzyłoby też wiersze.
+    expect(all(container, "table thead th")).toHaveLength(KOLUMNY_RAMKI.length);
     const wiersze = all(container, "table tbody tr");
     expect(wiersze).toHaveLength(3);
-    const pierwszy = [...wiersze[0].querySelectorAll("td")].map((td) => td.textContent);
+    const pierwszy = [...wiersze[0].querySelectorAll("th, td")].map((el) => el.textContent);
     expect(pierwszy[0]).toBe("Kurs EUR");
     expect(pierwszy).toContain(formatChartValue(40, "pl", ""));
     // Udział w największej rozpiętości: wiersz na szczycie leja ma 100%.
@@ -492,41 +521,42 @@ describe("TornadoChart - alternatywa tekstowa", () => {
     // Alternatywa tekstowa nie może być bardziej stanowcza od rysunku: skoro
     // nie ma od czego liczyć odchyleń, tabela ich nie podaje. Poziomy
     // z arkusza są uczciwe zawsze.
-    const { container } = render(<TornadoChart config={cfg(BEZ_BAZY)} lang="pl" />);
-    const komorki = [...all(container, "table tbody tr")[0].querySelectorAll("td")].map(
-      (td) => td.textContent,
+    const { container } = zRamka(BEZ_BAZY);
+    const komorki = [...all(container, "table tbody tr")[0].querySelectorAll("th, td")].map(
+      (el) => el.textContent,
     );
-    const pary = TORNADO_COLUMNS.map((k, i) => [k, komorki[i]] as const);
+    const pary = KOLUMNY_RAMKI.map((k, i) => [k, komorki[i]] as const);
     for (const [key, wartosc] of pary) {
       if (key === "lowDelta" || key === "highDelta") expect(wartosc).toBe("-");
       if (key === "low") expect(wartosc).toBe(formatChartValue(90, "pl", ""));
     }
   });
 
-  it("przypisy wiersza jadą atrybutem, więc żaden fakt nie ginie bez klucza słownika", () => {
-    // Słownik ma dziś zdania dla parametru odwrotnego, rozpiętości zerowej
-    // i bazy poza przedziałem, ale nie dla pary niekompletnej. Podpisanie
-    // takiego wiersza najbliższym istniejącym zdaniem byłoby podpisaniem go
-    // cudzą treścią, więc fakt zostaje w atrybucie.
-    const { container } = render(
-      <TornadoChart
-        config={cfg({
-          categories: ["Jednonożny", "Drugi"],
-          series: [
-            { name: "Dolny koniec", values: [null, 80] },
-            { name: "Górny koniec", values: [140, 130] },
-            { name: "Baza", values: [100, 100] },
-          ],
-        })}
-        lang="pl"
-      />,
-    );
+  it("przypis pary niekompletnej stoi PRZY SWOIM wierszu, a nie tylko gdzieś pod tabelą", () => {
+    // Fakt „podano jedną nogę" jest własnością TEGO parametru, nie całego
+    // rysunku, więc musi być czytelny razem z jego liczbami - inaczej nie
+    // wiadomo, której pustej komórki dotyczy.
+    //
+    // W kopii `sr-only` jechał ATRYBUTEM (`data-notes`), bo słownik nie miał
+    // wtedy zdania dla pary niekompletnej i wpisanie tam najbliższego
+    // istniejącego byłoby podpisaniem wiersza cudzą treścią. Tabela ramki
+    // atrybutu nie ma, ale klucze słownika już są komplet, więc niesie ten
+    // sam fakt ZDANIEM przy nazwie parametru. UBYTEK jest w formie, nie
+    // w treści: fakt przestał być czytelny maszynowo.
+    const { container } = zRamka({
+      categories: ["Jednonożny", "Drugi"],
+      series: [
+        { name: "Dolny koniec", values: [null, 80] },
+        { name: "Górny koniec", values: [140, 130] },
+        { name: "Baza", values: [100, 100] },
+      ],
+    });
     // Wiersz szukany po nazwie, nie po pozycji: w rankingu stoi tam, gdzie
     // postawiła go rozpiętość, a nie tam, gdzie autor wpisał go w arkuszu.
-    const wiersz = all(container, "table tbody tr").find(
-      (tr) => tr.querySelector("td")?.textContent === "Jednonożny",
+    const wiersz = all(container, "table tbody tr").find((tr) =>
+      (tr.querySelector("th")?.textContent ?? "").startsWith("Jednonożny"),
     );
-    expect(wiersz?.getAttribute("data-notes") ?? "").toContain("oneLegged");
+    expect(wiersz?.textContent ?? "").toContain("jedna noga");
   });
 });
 

@@ -88,27 +88,18 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig } from "@/lib/charts/types";
-import {
-  formatAxisTick,
-  formatChartValue,
-  formatPercent,
-  type ChartLang,
-} from "@/lib/charts/format";
+import { formatAxisTick, formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { linearScale, niceScale } from "@/lib/charts/scale";
 import {
-  TORNADO_COLUMNS,
   TORNADO_ROWS_ADVICE_MAX,
   tornadoExtent,
   tornadoFormAdvice,
   tornadoModelFromConfig,
-  tornadoTable,
-  type TornadoColumnKey,
   type TornadoFormAdvice,
   type TornadoLeg,
   type TornadoModel,
   type TornadoRow,
   type TornadoSide,
-  type TornadoTableRow,
 } from "@/lib/charts/kinds/tornado";
 import {
   BAR_EDGE_INSET,
@@ -209,18 +200,6 @@ const READING_KEYS: Record<TornadoFormAdvice, string | null> = {
   singleParameter: "tornado.reading.singleParameter",
   flatRanking: "tornado.reading.flatRanking",
   tooManyRows: "tornado.reading.tooManyRows",
-};
-
-/** Nagłówki kolumn alternatywy tekstowej - też jawnie, z tego samego powodu. */
-const COLUMN_KEYS: Record<TornadoColumnKey, string> = {
-  parameter: "tornado.table.parameter",
-  low: "tornado.table.low",
-  high: "tornado.table.high",
-  lowDelta: "tornado.table.lowDelta",
-  highDelta: "tornado.table.highDelta",
-  swing: "tornado.table.swing",
-  span: "tornado.table.span",
-  spanShare: "tornado.table.spanShare",
 };
 
 /** Nazwy nóg ze słownika - w dymku i w tytułach kresek końca bliskiego. */
@@ -496,7 +475,6 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
 
   const activeLane: Lane | null = active === null ? null : (lanes[active] ?? null);
   const plotBottom = padTop + innerH;
-  const table = tornadoTable(model);
 
   // DYMEK PODAJE OBA KOŃCE, OBA ODCHYLENIA I ROZPIĘTOŚĆ. Rozpiętość jest
   // wyróżniona wagą pisma, bo to ONA ustawia wiersz w rankingu - czyli jest
@@ -599,30 +577,6 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
       defect: false,
     });
   }
-
-  const cell = (row: TornadoTableRow, col: TornadoColumnKey): string => {
-    switch (col) {
-      case "parameter":
-        return row.label;
-      // POZIOMY WYNIKU MILCZĄ W TRYBIE ODCHYLEŃ BEZ PODANEJ BAZY: powtarzałyby
-      // wtedy odchylenia, czyli pokazywałyby liczbę, która wygląda na poziom,
-      // a jest odchyleniem.
-      case "low":
-        return table.hasAbsoluteLevels ? num(row.low) : "-";
-      case "high":
-        return table.hasAbsoluteLevels ? num(row.high) : "-";
-      case "lowDelta":
-        return num(row.lowDelta);
-      case "highDelta":
-        return num(row.highDelta);
-      case "swing":
-        return num(row.swing);
-      case "span":
-        return formatChartValue(row.span, lang, config.unit);
-      case "spanShare":
-        return formatPercent(row.spanShare, lang);
-    }
-  };
 
   // Budżet znaków etykiety z SZEROKOŚCI KOLUMNY, nie ze stałej: kolumna
   // zależy od pomiaru, więc stała liczba znaków albo ucinałaby etykiety,
@@ -971,42 +925,22 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
         />
       </div>
 
-      {/* ALTERNATYWA TEKSTOWA. Grafika nigdy nie jest jedyną drogą do liczby
-          (sekcja 8), a przy braku przypadku bazowego jest tu JEDYNĄ drogą, bo
-          rysunek nie ma wtedy ani jednego słupka. Tabela liczy Z TEGO SAMEGO
-          modelu co rysunek (`tornadoTable`) i w tej samej kolejności, więc
-          wiersz tabeli da się przełożyć na wiersz rysunku bez szukania nazwy.
-          `sr-only`, nie widoczna: widoczny panel danych należy do ramki karty
-          (`ChartFrame`, przełącznik "Pokaż dane") i gdy podłączenie rodzaju
-          doda tam tabelę tornada, ta kopia ma zniknąć - inaczej czytnik ekranu
-          dostanie te same liczby dwa razy. */}
-      <table className="sr-only">
-        <thead>
-          <tr>
-            {TORNADO_COLUMNS.map((colKey) => (
-              <th key={colKey} scope="col">
-                {t(COLUMN_KEYS[colKey])}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {table.rows.map((row, i) => (
-            /* Przypisy wiersza jadą ATRYBUTEM, a nie kolumną tekstu: słownik
-               ma dziś zdania dla parametru odwrotnego, rozpiętości zerowej
-               i bazy poza przedziałem, ale nie dla pary niekompletnej, remisu
-               rozpiętości ani powtórzonej etykiety. Wpisanie tam najbliższego
-               istniejącego zdania byłoby podpisaniem wiersza cudzą treścią,
-               czyli kłamstwem - a atrybut zachowuje fakt do czasu, gdy klucze
-               dojadą. */
-            <tr key={i} data-notes={row.notes.join(" ") || undefined}>
-              {TORNADO_COLUMNS.map((colKey) => (
-                <td key={colKey}>{cell(row, colKey)}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* ALTERNATYWA TEKSTOWA NIE STOI TUTAJ, i to jest rozstrzygnięcie, nie
+          brak. Do podłączenia tego rodzaju render niósł WŁASNĄ kopię tabeli
+          w `sr-only`, bo panel danych ramki (`ChartFrame`, przełącznik
+          „Pokaż dane") jest domyślnie `hidden`, czyli poza drzewem
+          dostępności. Kopia była wtedy jedyną drogą do liczby dla czytnika
+          ekranu - ale po podłączeniu rodzaju do `TABLE_BY_KIND` ramka
+          renderuje tę samą tabelę drugi raz, więc po otwarciu panelu czytnik
+          dostawał WSZYSTKIE liczby dwa razy, bez żadnego sygnału, że to ta
+          sama tabela. Dwie tabele bez różnicy są gorsze niż jedno naciśnięcie
+          przycisku: przełącznik jest zwykłym `button` z `aria-expanded`
+          i `aria-controls`, czyli wzorcem, który czytnik ekranu nazywa
+          i którym steruje. Warunek powrotu kopii jest jeden: gdyby ramka
+          przestała renderować tabelę tego rodzaju.
+
+          Tabela mieszka w `Chart.tsx` (`TABLE_BY_KIND`) i liczy Z TEGO SAMEGO
+          MODELU co rysunek - dwa liczenia to dwa źródła prawdy. */}
 
       <ChartNotes notes={notes} />
     </div>
