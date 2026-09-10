@@ -18,6 +18,7 @@ import {
   BEESWARM_DEFAULT_SPAN_RADII,
   BEESWARM_MAX_COMFORT,
   BEESWARM_MIN_OBSERVATIONS,
+  BEESWARM_SUMMARY_COLUMNS,
   POINT_CLEARANCE_RADII,
   beeswarmExtent,
   beeswarmFormAdvice,
@@ -28,6 +29,7 @@ import {
   type BeeswarmModel,
 } from "@/lib/charts/kinds/beeswarm";
 import { defaultChartConfig } from "@/lib/charts/parse";
+import { quantile } from "@/lib/charts/stats";
 import type { ChartSeries } from "@/lib/charts/types";
 
 /* -------------------------------------------------------------------------- */
@@ -653,5 +655,75 @@ describe("beeswarm: alternatywa tekstowa", () => {
     expect(tabela.groups[0].n).toBe(3);
     expect(tabela.groups[0].missing).toBe(2);
     expect(tabela.groups[0].summary?.missing).toBe(2);
+  });
+});
+
+describe("beeswarm: kwantyl ma JEDNĄ definicję, wspólną ze `stats.ts`", () => {
+  it("nie cofa pierwszego kwartyla do najmniejszej obserwacji przy końcach rzędu 1e308", () => {
+    // KONTRPRZYKŁAD Z DOWODU, uruchomiony przez model. Kopia kwantyla w tym
+    // module interpolowała różnicą (`a + (b-a)*f`), a `b - a` dla tych czterech
+    // liczb wychodzi poza podwójną precyzję; osłona `fin(..., a)` cofała wtedy
+    // wynik do `a`, więc tabela danych i nazwa dostępna roju dostawały
+    // pierwszy kwartyl RÓWNY -1e308 zamiast 5e+307 - liczbę wyglądającą
+    // dokładnie tak wiarygodnie jak policzona z danych.
+    const komplet = beeswarmModel(wejscie([-1e308, 1e308, 1e308, 1e308])).swarms[0].summary;
+    expect(komplet?.q1).toBe(5e307);
+    expect(komplet?.median).toBe(1e308);
+    expect(komplet?.q3).toBe(1e308);
+    expect(komplet?.iqr).toBe(5e307);
+  });
+
+  it("liczy medianę dwóch środkowych obserwacji, choć ich różnica przepełnia", () => {
+    // Ta próba ma medianę dokładnie zero (środek między -1e308 i 1e308) i to
+    // jest jedyna poprawna odpowiedź. Wzór z różnicą dawał tu `Infinity`,
+    // osłona cofała wynik do dolnej obserwacji i model orzekał medianę
+    // -1e308, czyli podawał jako środek próby jej najmniejszą obserwację.
+    // Zero jest tu POLICZONE, a nie podstawione - mieszanie
+    // `a*(1-t) + b*t` nie ma czym przepełnić.
+    const komplet = beeswarmModel(wejscie([-1e308, -1e308, 1e308, 1e308])).swarms[0].summary;
+    expect(komplet?.median).toBe(0);
+    expect(komplet?.q1).toBe(-1e308);
+    expect(komplet?.q3).toBe(1e308);
+  });
+
+  it("podaje te same kwartyle co wspólna `quantile`", () => {
+    // Rozjazd między modelem a wspólną definicją jest defektem samym w sobie:
+    // ten sam szereg pokazywałby wtedy inny kwartyl w roju i inny w skrzynce,
+    // choć oba podpisy mówią „linear-r7". Cztery kopie wzoru w tym silniku
+    // nie były powielonym kodem, tylko czterema definicjami.
+    const dane = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3];
+    const posortowane = [...dane].sort((a, b) => a - b);
+    const komplet = beeswarmModel(wejscie(dane)).swarms[0].summary;
+    expect(komplet?.q1).toBe(quantile(posortowane, 0.25));
+    expect(komplet?.median).toBe(quantile(posortowane, 0.5));
+    expect(komplet?.q3).toBe(quantile(posortowane, 0.75));
+  });
+
+  it("nie gubi ani jednego pola kompletu pozycyjnego, choćby dane były skrajne", () => {
+    // KOMPLET POZYCYJNY JEST DROGĄ CZYTELNIKA EKRANU DO LICZB: render składa
+    // z `BEESWARM_SUMMARY_COLUMNS` nazwę dostępną roju i nagłówki tabeli,
+    // a chmury punktów nie odczyta ani ekran czytający, ani wydruk w skali
+    // szarości. Wspólna `quantile` milczy `null`-em, a model zamienia to
+    // milczenie na `summary: null` - czyli na rój bez ani jednej liczby
+    // pozycyjnej. Ten test pinuje, że dla danych, które model wpuszcza
+    // (wyłącznie liczby skończone), milczeć nie ma o czym: każda z ośmiu
+    // kolumn jest liczbą skończoną, więc pole nie może zniknąć bez
+    // wyjaśnienia.
+    const proby = [
+      [5],
+      [0, 0],
+      [7, 7, 7, 7],
+      [-1e308, 1e308, 1e308, 1e308],
+      [-1e308, -1e308, 1e308, 1e308],
+      [Number.MIN_VALUE, 1e308],
+      [-1.5e308 / 2, 1.5e308 / 2],
+    ];
+    for (const dane of proby) {
+      const komplet = beeswarmModel(wejscie(dane)).swarms[0].summary;
+      expect(komplet).not.toBeNull();
+      for (const kolumna of BEESWARM_SUMMARY_COLUMNS) {
+        expect(Number.isFinite(komplet?.[kolumna])).toBe(true);
+      }
+    }
   });
 });

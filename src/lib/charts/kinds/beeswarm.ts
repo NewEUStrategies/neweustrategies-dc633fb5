@@ -86,6 +86,7 @@
 // arkusza transponowanego jest tryb `groupBy: "category"`. Żadne z tych dwóch
 // odczytań nie wymaga zmiany schematu bloku - propozycja jawnego pola jest
 // w raporcie.
+import { quantile } from "../stats";
 import { MAX_SERIES } from "../types";
 import type { ChartConfig, ChartSeries } from "../types";
 
@@ -186,6 +187,13 @@ export const BEESWARM_MAX_POINTS = 2000;
  * którego czytelnik sięgnie. Wybieramy metodę WERYFIKOWALNĄ i podajemy jej
  * nazwę w przypisie tabeli, bo przy tej metodzie kwartyl może być liczbą,
  * której w danych nie ma.
+ *
+ * ARYTMETYKĘ TRZYMA `quantile` ZE `stats.ts`, a ta stała jest wyłącznie NAZWĄ
+ * dla przypisu. Dopóki liczba i jej nazwa powstawały w tym samym pliku, nic
+ * nie pilnowało, żeby wszystkie rodzaje liczyły ten sam typ 7 tak samo -
+ * i nie liczyły: cztery kopie tej definicji stały w silniku w DWÓCH różnych
+ * wzorach (interpolacja różnicą i mieszaniem), więc ten sam szereg dawał różne
+ * kwartyle w różnych rodzajach, każdy podpisany jako typ 7.
  */
 export const BEESWARM_QUANTILE_METHOD = "linear-r7";
 export type BeeswarmQuantileMethod = typeof BEESWARM_QUANTILE_METHOD;
@@ -272,7 +280,11 @@ export interface BeeswarmSwarm {
   missing: number;
   /** Punkty w kolejności ROSNĄCEJ po wartości (i po indeksie przy remisie). */
   points: BeeswarmPoint[];
-  /** Komplet pozycyjny. `null` = próba pusta, czyli nie ma czego pokazać. */
+  /**
+   * Komplet pozycyjny. `null` = nie ma czego pokazać - próba pusta albo
+   * kwantyl, którego nie da się policzyć. Model milczy w obu przypadkach,
+   * zamiast wpisywać w kolumny liczbę zastępczą.
+   */
   summary: BeeswarmSummary | null;
 
   /** Środek pasma roju jako udział szerokości osi kategorii (0..1). */
@@ -512,25 +524,6 @@ function slot(raw: number | undefined, pozycja: number): number {
   const surowy = typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : pozycja + 1;
   const w1 = surowy >= 1 ? surowy : pozycja + 1;
   return ((w1 - 1) % MAX_SERIES) + 1;
-}
-
-/** Kwantyl metodą `linear-r7` na tablicy JUŻ POSORTOWANEJ rosnąco. */
-function kwantylR7(sorted: readonly number[], p: number): number {
-  const n = sorted.length;
-  if (n === 0) return 0;
-  const pierwszy = fin(sorted[0]);
-  if (n === 1) return pierwszy;
-  const pp = p < 0 ? 0 : p > 1 ? 1 : p;
-  // Bez dzielenia: pozycja to (n - 1) * p, interpolacja to a + (b - a) * f.
-  // Dzięki temu funkcja nie ma ani jednego miejsca, w którym mogłaby
-  // wyprodukować NaN z danych, które przeszły przez `liczba`.
-  const h = (n - 1) * pp;
-  const lo = Math.floor(h);
-  const hi = lo + 1 >= n ? n - 1 : lo + 1;
-  const f = h - lo;
-  const a = fin(sorted[lo]);
-  const b = fin(sorted[hi]);
-  return fin(a + (b - a) * f, a);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -801,22 +794,61 @@ export function beeswarmModel(input: BeeswarmInput, opts: BeeswarmOptions = {}):
     });
 
     const wartosci = uzyte.map((o) => o.value);
+    // KWANTYL LICZY WSPÓLNA `quantile` ZE `stats.ts`, a nie kopia w tym pliku,
+    // i jest to naprawa arytmetyki, nie sprzątanie powtórzeń.
+    //
+    // JAKI DEFEKT ZNIKA. Tutejsza kopia interpolowała RÓŻNICĄ (`a + (b-a)*f`)
+    // i miała pod spodem osłonę wyświetlania (`fin(..., a)`). Dla próby
+    // rozpiętej na cały zakres podwójnej precyzji różnica `b - a` przepełnia
+    // się do nieskończoności, więc osłona cofała wynik do `a`: dla
+    // `[-1e308, 1e308, 1e308, 1e308]` model ogłaszał pierwszy kwartyl RÓWNY
+    // NAJMNIEJSZEJ OBSERWACJI (-1e308) tam, gdzie prawdziwą odpowiedzią jest
+    // 5e+307. Ta liczba szła wprost do tabeli danych i do nazwy dostępnej
+    // roju, czyli do jedynej drogi, którą czytelnik ekranu ma do kompletu
+    // pozycyjnego - i wyglądała dokładnie tak wiarygodnie jak policzona.
+    // `quantile` interpoluje MIESZANIEM (`a*(1-t) + b*t`), które nie liczy
+    // różnicy, więc nie ma czym przepełnić.
+    const q1 = quantile(wartosci, 0.25);
+    const mediana = quantile(wartosci, 0.5);
+    const q3 = quantile(wartosci, 0.75);
+    // MILCZENIE WSPÓLNEJ FUNKCJI ZOSTAJE MILCZENIEM MODELU: `null` z któregoś
+    // kwantyla zabiera CAŁY komplet pozycyjny, zamiast podstawiać w to jedno
+    // pole liczbę zastępczą - podstawienie byłoby drugą połową tego samego
+    // defektu, czyli kwartylem, którego nie policzono, podanym jako kwartyl.
+    // Dla danych, które ten model wpuszcza, gałąź jest NIEOSIĄGALNA (`liczba`
+    // przepuszcza wyłącznie liczby skończone, a mieszanie nie wychodzi poza
+    // `[a, b]`), więc czytelnikowi ekranu nie ma jak zniknąć kolumna kompletu
+    // - pinuje to test „nie gubi ani jednego pola kompletu pozycyjnego".
     const summary: BeeswarmSummary | null =
-      wartosci.length === 0
+      wartosci.length === 0 || q1 === null || mediana === null || q3 === null
         ? null
         : {
             n: wartosci.length,
             missing: g.missing,
             min: fin(wartosci[0]),
-            q1: kwantylR7(wartosci, 0.25),
-            median: kwantylR7(wartosci, 0.5),
-            q3: kwantylR7(wartosci, 0.75),
+            // Bez `fin`: `quantile` oddaje albo liczbę skończoną, albo `null`,
+            // a osłona wyświetlania postawiona na jej wyniku byłaby dokładnie
+            // tym, co przed chwilą zdjęliśmy - drugą definicją kwantyla.
+            q1,
+            median: mediana,
+            q3,
             max: fin(wartosci[wartosci.length - 1]),
             // Suma podzielona przez długość, a nie `reduce` z dzieleniem
             // w środku: przy pustej tablicy ta gałąź się nie wykonuje, więc
             // mianownik jest zawsze dodatni.
             mean: fin(wartosci.reduce((a, v) => a + v, 0) / wartosci.length),
-            iqr: fin(kwantylR7(wartosci, 0.75) - kwantylR7(wartosci, 0.25)),
+            // RÓŻNICA KWARTYLI ZOSTAJE POD OSŁONĄ WYŚWIETLANIA i jest to
+            // świadoma granica tej poprawki, nie przeoczenie. `q3 - q1`
+            // przepełnia się, gdy kwartyle stoją po przeciwnych krańcach
+            // zakresu double (`[-1e308, -1e308, 1e308, 1e308]` daje 2e308),
+            // a `fin` zamienia to na ZERO, czyli na „rozstępu nie ma" przy
+            // danych najbardziej rozproszonych, jakie da się zapisać.
+            // Uczciwą odpowiedzią jest `null` (tak orzeka `iqr` ze
+            // `stats.ts`), ale `BeeswarmSummary.iqr` jest liczbą, którą render
+            // wstawia wprost do tabeli i do nazwy dostępnej - dopuszczenie
+            // tam `null` jest zmianą kontraktu WIDZIANĄ PRZEZ RENDER, więc nie
+            // mieści się w poprawce kwantyla i czeka na osobną.
+            iqr: fin(q3 - q1),
           };
 
     const neededHalfSpanRadii = points.length === 0 ? 0 : szczyt + 1;
@@ -1073,7 +1105,7 @@ export interface BeeswarmTableGroup {
   colorSlot: number;
   n: number;
   missing: number;
-  /** `null` = rój pusty, czyli nie ma czego streścić. */
+  /** `null` = nie ma czego streścić: rój pusty albo kwantyl niepoliczalny. */
   summary: BeeswarmSummary | null;
   /** WSZYSTKIE obserwacje roju, rosnąco - tyle samo, ile punktów na obrazku. */
   observations: BeeswarmTableObservation[];
