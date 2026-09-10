@@ -167,10 +167,20 @@ export function PolicyPositionsMap({
     <ChartFrame
       title={title}
       description={description ?? ""}
-      source=""
       lang={lang}
+      metric={null}
       legend={[]}
       showLegend={false}
+      caption={{
+        source: "",
+        sourceDate: "",
+        unit: "",
+        sampleSize: null,
+        zeroBaselineBroken: false,
+        notesShows: "",
+        notesSurprising: "",
+        notesHidden: "",
+      }}
       table={table}
       className={className}
     >

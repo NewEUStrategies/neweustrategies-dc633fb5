@@ -15,6 +15,7 @@ import { AlertTriangle, MailWarning, RefreshCw, ShieldCheck } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Chart } from "@/components/charts/Chart";
 import type { ChartConfig } from "@/lib/charts/types";
+import { defaultChartConfig } from "@/lib/charts/parse";
 import { ReputationMeter } from "@/components/molecules/ReputationMeter";
 import { ReputationStatusDot } from "@/components/atoms/ReputationStatusDot";
 import { formatRate } from "@/lib/email/reputation";
@@ -60,6 +61,7 @@ export function DeliverabilityPanel() {
         month: "short",
       });
     return {
+      ...defaultChartConfig(),
       kind: "line",
       title: t("adminDeliverability.chart.title"),
       description: "",

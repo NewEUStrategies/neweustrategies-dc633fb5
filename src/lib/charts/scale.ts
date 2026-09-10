@@ -121,6 +121,44 @@ export function seriesExtent(
   return { min, max };
 }
 
+/**
+ * Rozszerzenie zakresu o PASMO NIEPEWNOŚCI prognozy.
+ *
+ * Pasmo jest rysowane wokół wartości prognozowanych, więc jego krawędzie są
+ * pikselami tak samo jak sama linia - a skala policzona bez nich pozwala
+ * pasmu wyjść ponad najwyższą podziałkę i zostać przyciętym krawędzią
+ * rysunku. Przycięte pasmo niepewności jest gorsze od braku pasma: sugeruje,
+ * że niepewność KOŃCZY SIĘ tam, gdzie kończy się obszar kreślenia.
+ *
+ * Punkt granicy (`splitAt - 1`) jest pomijany, bo tam pasmo ma szerokość zero
+ * (ostatnia obserwacja jest pomiarem, nie prognozą), więc już mieści się
+ * w zakresie samych danych.
+ *
+ * Zwraca `null`, gdy nie ma czego rozszerzać - żeby wywołujący nie musiał
+ * odróżniać "brak prognozy" od "zakres [Infinity, -Infinity]".
+ */
+export function forecastBandExtent(
+  series: readonly ChartSeries[],
+  splitAt: number | null,
+  bandPct: number,
+): SeriesExtent | null {
+  if (splitAt === null || !(bandPct > 0)) return null;
+  const factor = bandPct / 100;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of series) {
+    for (let i = Math.max(0, splitAt); i < s.values.length; i++) {
+      const v = s.values[i];
+      if (v === null || v === undefined || !Number.isFinite(v)) continue;
+      const spread = Math.abs(v) * factor;
+      if (v - spread < min) min = v - spread;
+      if (v + spread > max) max = v + spread;
+    }
+  }
+  if (min === Infinity) return null;
+  return { min, max };
+}
+
 export interface StackedCell {
   /** Początek segmentu (wartość skumulowana przed tą serią). */
   from: number;

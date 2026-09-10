@@ -61,21 +61,48 @@ export interface StanceMeta {
 }
 
 /**
- * Kolory ze skali kategorycznej wykresów (--chart-*): zielony "za",
- * czerwony "przeciw", bursztyn "podzielone". "Brak stanowiska" dostaje
- * neutralny szary WYRAŹNIE ciemniejszy niż kraje spoza UE (--secondary),
- * żeby mapa odróżniała "śledzimy, brak deklaracji" od "poza zakresem".
+ * Kolory stanowisk. Idą z tokenów SEMANTYCZNYCH, nie z numerów slotów palety.
+ *
+ * Wcześniej stało tu `--chart-2` dla "za" i `--chart-6` dla "przeciw", czyli
+ * mapa czytała pozycję w palecie kategorialnej tak, jakby to była nazwa
+ * znaczenia - a slot 2 był wtedy zielony wyłącznie przez zbieg okoliczności.
+ * Po przebudowie palety "za" zrobiłoby się ochrą, a "przeciw" terakotą, i nic
+ * w kodzie nie miałoby jak tego zauważyć: token istnieje, kolor się rysuje,
+ * tylko znaczy co innego.
+ *
+ * "Podzielone" bierze ochrę (slot 2) jako punkt środkowy skali - ten sam,
+ * którym idzie środek macierzy ryzyka i środek skali Web Vitals, więc trzy
+ * miejsca w repo mówią o "pośrodku" jednym kolorem. "Brak stanowiska" dostaje
+ * kolor osi: neutralny, wyraźnie ciemniejszy niż kraje spoza UE
+ * (`--secondary`), żeby mapa odróżniała "śledzimy, brak deklaracji" od "poza
+ * zakresem".
+ *
+ * `hex` jest awaryjną kopią wartości JASNEJ dla miejsc, które nie umieją
+ * podać `var()` (kanwa, eksport PNG) - musi być zgodny z tokenem, więc przy
+ * zmianie palety zmienia się razem z nim.
  */
 export const STANCE_META: readonly StanceMeta[] = [
-  { key: "support", pl: "Za", en: "In favour", cssVar: "var(--chart-2)", hex: "#1baf7a" },
-  { key: "oppose", pl: "Przeciw", en: "Against", cssVar: "var(--chart-6)", hex: "#e34948" },
-  { key: "mixed", pl: "Podzielone", en: "Split", cssVar: "var(--chart-3)", hex: "#eda100" },
+  {
+    key: "support",
+    pl: "Za",
+    en: "In favour",
+    cssVar: "var(--chart-positive)",
+    hex: "#1b6f8c",
+  },
+  {
+    key: "oppose",
+    pl: "Przeciw",
+    en: "Against",
+    cssVar: "var(--chart-negative)",
+    hex: "#ef5454",
+  },
+  { key: "mixed", pl: "Podzielone", en: "Split", cssVar: "var(--chart-2)", hex: "#c6871f" },
   {
     key: "undecided",
     pl: "Brak stanowiska",
     en: "Undecided",
     cssVar: "var(--chart-axis)",
-    hex: "#a8b0ba",
+    hex: "#d9dbd4",
   },
 ] as const;
 

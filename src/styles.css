@@ -166,8 +166,50 @@ body {
   --color-cat-diplomacy: var(--cat-diplomacy);
   --color-cat-cyber: var(--cat-cyber);
   --color-hot: var(--hot);
-  --font-display: "Red Hat Display", "Red Hat Display Fallback", system-ui, sans-serif;
-  --font-sans: "Red Hat Display", "Red Hat Display Fallback", system-ui, sans-serif;
+  /* ---- CZCIONKA: DOMYŚLNA SCHODZI Z PANELU ADMINA ----
+     Panel (Wygląd -> Design -> Typografia) zapisuje dwa stosy do
+     `site_design_tokens.fonts` i `DesignTokensStyle` wystawia je jako
+     `--brand-font-heading` / `--brand-font-body`.
+
+     DO TEJ ZMIANY NIKT ICH NIE CZYTAŁ. Tokeny były emitowane i miały zero
+     konsumentów w całym repo, więc wybór czcionki w panelu nie zmieniał ani
+     jednego piksela na stronie - jedyną drogą, którą ustawienie fontu
+     realnie działało, były slots typografii (`--gc-<slot>-font`), a te są
+     zakresowane do `main`/`article` i nie dotykają tekstu w SVG. Dlatego
+     wykres zawsze rysował Red Hat Display, niezależnie od ustawień tenanta.
+
+     Teraz oba stosy są DOMYŚLNĄ WARTOŚCIĄ tokenów rodziny, a Red Hat Display
+     zostaje fallbackiem, gdy tenant nie wybrał nic. Kolejność w `var()` jest
+     tu całą treścią zmiany: ustawienie admina wygrywa, marka jest awaryjna.
+     Fallback zachowuje "Red Hat Display Fallback" - font metrycznie
+     dopasowany (size-adjust 96,03%), dzięki któremu podmiana po pobraniu
+     woff2 nie przesuwa layoutu.
+
+     `--font-heading` był ODWOŁANIEM DO NICZEGO: dwa miejsca w tym arkuszu
+     czytały `var(--font-heading)` bez fallbacku, a token nie był zdefiniowany
+     nigdzie w repo, więc te reguły nie robiły nic. Teraz jest aliasem
+     rodziny nagłówkowej. */
+  --font-display: var(
+    --brand-font-heading,
+    "Red Hat Display",
+    "Red Hat Display Fallback",
+    system-ui,
+    sans-serif
+  );
+  --font-heading: var(
+    --brand-font-heading,
+    "Red Hat Display",
+    "Red Hat Display Fallback",
+    system-ui,
+    sans-serif
+  );
+  --font-sans: var(
+    --brand-font-body,
+    "Red Hat Display",
+    "Red Hat Display Fallback",
+    system-ui,
+    sans-serif
+  );
 }
 
 /* `.light` mirrors the :root (light) tokens so an INNER scope can force light
@@ -274,44 +316,203 @@ body {
   --gradient-heading-stop-1: #ed6d1f;
   --gradient-heading-stop-2: #fa9346;
 
-  /* ---- Wykresy (silnik SVG - src/components/charts) ----
-     Paleta kategoryczna 8 slotów o STAŁEJ kolejności (mechanizm bezpieczeństwa
-     CVD - kolejność maksymalizuje separację sąsiadów dla daltonizmu; zwalidowana
-     walidatorem OKLCH/Machado wobec powierzchni --card obu trybów). Sloty
-     przypisuje się sekwencyjnie serii 1..8 - nigdy "po obwodzie".
-     Ramp sekwencyjny (mapy-choroplety): jasny -> ciemny jeden odcień. */
-  --chart-1: #2a78d6;
-  --chart-2: #1baf7a;
-  --chart-3: #eda100;
-  --chart-4: #008300;
-  --chart-5: #4a3aa7;
-  --chart-6: #e34948;
-  --chart-7: #e87ba4;
-  --chart-8: #eb6834;
-  --chart-seq-min: #cde2fb;
-  --chart-seq-max: #0d366b;
-  --chart-grid: oklch(0.92 0.004 80);
-  --chart-axis: oklch(0.8 0.005 80);
-  /* Kolor etykiety WEWNĄTRZ wypełnienia slotu (dobrany kontrastem WCAG
-     do konkretnego odcienia - jedyny wyjątek od zasady "tekst w tokenach").
+  /* ============================================================
+     WYKRESY - MOTYW JASNY (silnik SVG src/components/charts + warstwa BI
+     ECharts src/components/admin/analytics)
+     ------------------------------------------------------------
+     KAŻDA liczba w tej sekcji jest policzona, nie dobrana na oko, i ma
+     bramkę: `src/lib/charts/palette.ts` trzyma te same wartości obok metody
+     pomiaru, a `src/lib/charts/__tests__/palette.test.ts` porównuje moduł
+     z TYM arkuszem token po tokenie. Podmiana odcienia bez przeliczenia
+     całej palety oblewa bramkę - i to jest jedyny sposób, w jaki paleta może
+     być pilnowana, bo kontrast i odległość barw nie są widoczne w DOM.
 
-     SLOT 1 W MOTYWIE JASNYM MA CZERŃ PEŁNĄ, NIE #0b0b0b, I TO NIE JEST
-     NIEDBAŁOŚĆ. Etykieta udziału to 12 px / waga 600, więc nie jest "dużym
-     tekstem" i obowiązuje ją próg AA 4,5:1. Para #2a78d6 / #0b0b0b daje
-     4,458:1 - pęka o cztery setne. Czerń pełna podnosi ją do 4,756:1.
-     Zmierzone na wszystkich szesnastu parach palety: to była JEDYNA poniżej
-     progu (pozostałe od 4,945:1 do 9,090:1), a slot 1 to pierwszy wycinek
-     KAŻDEJ tarczy, czyli najczęstsza etykieta w całym silniku wykresów.
-     Alternatywą było rozjaśnienie samego `--chart-1`, ale to rusza kolor
-     serii, a nie tusz - węższa zmiana jest tutaj lepsza. */
-  --chart-ink-1: #000000;
-  --chart-ink-2: #0b0b0b;
-  --chart-ink-3: #0b0b0b;
+     METODA: kontrast wzorem WCAG 2.x na luminancji relatywnej; symulacja
+     daltonizmu macierzami Machado, Oliveira i Fernandes (2009) przy pełnym
+     nasileniu; odległość CIE76 w CIELAB (D65). Płytą odniesienia jest REALNY
+     token --card (tu #ffffff), nie abstrakcyjna biel.
+
+     DLACZEGO SZEŚĆ, A NIE OSIEM. Sloty 1-6 to paleta właściwa: podłoga
+     odległości po symulacji 19,89 (deuteranopia) / 23,12 (protanopia) /
+     16,99 (tritanopia). Sloty 7-8 to ROZSZERZENIE dla zgodności z zapisanymi
+     konfiguracjami - osiem odcieni rozdzielnych dla wszystkich trzech
+     rodzajów daltonizmu w tej rodzinie NIE ISTNIEJE (przeszukanie sRGB: dla
+     motywu ciemnego zero kandydatów utrzymujących podłogę 24,4). Podłoga
+     ośmiu spada do ~10, dlatego seriom w slotach 7-8 silnik dokłada
+     kreskowanie jako drugi nośnik różnicy, a edytor ostrzega powyżej sześciu
+     serii. Sloty przypisuje się sekwencyjnie 1..8, nigdy "po obwodzie".
+     ============================================================ */
+
+  /* Wypełnienie i linia serii. Kolejność jest mechanizmem bezpieczeństwa:
+     granat i ochra to najczęstsza para na świecie i rozchodzą się
+     jednocześnie w jasności i w odcieniu, więc różnią się nawet w skali
+     szarości. Kontrast na płycie: 8,07 / 3,05 / 3,39 / 5,98 / 3,65 / 5,19 /
+     6,28 / 7,45. */
+  --chart-1: #00528f; /* granat   */
+  --chart-2: #c6871f; /* ochra    */
+  --chart-3: #679675; /* szalwia  */
+  --chart-4: #815579; /* sliwka   */
+  --chart-5: #0e90be; /* lazur    */
+  --chart-6: #b05125; /* terakota */
+  --chart-7: #4b57b7; /* indygo - rozszerzenie  */
+  --chart-8: #455d00; /* oliwka - rozszerzenie  */
+
+  /* Wariant TEKSTOWY serii. Istnieje, bo próg kontrastu jest inny dla
+     grafiki (3,0:1, WCAG 1.4.11) i dla tekstu (4,5:1, WCAG 1.4.3): ochra
+     jako linia jest w porządku, jako podpis nie. Etykiet serii, linków i
+     legendy NIE pisz kolorem linii - to najczęstszy błąd w wykresach,
+     wygląda spójnie i nie przechodzi audytu dostępności. W motywie jasnym
+     wariant powstaje przez PRZYCIEMNIENIE odcienia serii. */
+  --chart-1t: #00528f;
+  --chart-2t: #a26900;
+  --chart-3t: #507f5f;
+  --chart-4t: #815579;
+  --chart-5t: #007daa;
+  --chart-6t: #b05125;
+  --chart-7t: #4b57b7;
+  --chart-8t: #455d00;
+
+  /* Kolor etykiety WEWNĄTRZ wypełnienia slotu - jedyny wyjątek od zasady
+     "tekst wyłącznie w tokenach tekstu", bo tu kontrast liczy się wobec
+     konkretnego odcienia, nie wobec płyty. Etykieta udziału to 12 px /
+     waga 600, więc nie jest "dużym tekstem" i obowiązuje ją AA 4,5:1.
+     Zmierzone pary: 8,07 / 5,95 / 5,35 / 5,98 / 4,97 / 5,19 / 6,28 / 7,45. */
+  --chart-ink-1: #ffffff;
+  --chart-ink-2: #12161c;
+  --chart-ink-3: #12161c;
   --chart-ink-4: #ffffff;
-  --chart-ink-5: #ffffff;
-  --chart-ink-6: #0b0b0b;
-  --chart-ink-7: #0b0b0b;
-  --chart-ink-8: #0b0b0b;
+  --chart-ink-5: #12161c;
+  --chart-ink-6: #ffffff;
+  --chart-ink-7: #ffffff;
+  --chart-ink-8: #ffffff;
+
+  /* ---- Semantyka znaku: ZNACZENIE, nie kategoria ----
+     Nigdy nie bierz jej ze slotu palety. Dodatni jest niebieskim tealem,
+     nie zielenią, i to jedyna decyzja, którą wymusiła czerwień: para
+     #ef5454 / #2d7a6a (klasyczny teal zielony) daje przy protanopii
+     odległość 8,5, czyli dla protanopa zysk i strata są tym samym kolorem.
+     Przesunięcie dodatniego w stronę niebieskiego podnosi tę odległość
+     czterokrotnie (33,9 / 59,6 deut / 106,7 trit).
+
+     ZNAK KODUJ KOLOREM I POZYCJĄ WZGLĘDEM ZERA JEDNOCZEŚNIE, NIGDY SAMYM
+     KOLOREM - około 8% mężczyzn nie odróżnia czerwieni od zieleni, a na
+     rynkach azjatyckich czerwony oznacza wzrost. Wariant tekstowy czerwieni
+     istnieje, bo #ef5454 ma na płycie 3,46:1 (grafika przechodzi, tekst
+     nie); #ae413f daje 5,79:1 w tym samym odcieniu. */
+  --chart-positive: #1b6f8c;
+  --chart-negative: #ef5454;
+  --chart-positive-text: #1b6f8c;
+  --chart-negative-text: #ae413f;
+  --chart-ink-positive: #ffffff;
+  --chart-ink-negative: #12161c;
+
+  /* ---- Akcent: OSOBNA RODZINA, nie siódmy kolor serii ----
+     Wyróżnia najważniejszy element (jeden słupek, jeden punkt) i NIGDY nie
+     oznacza kategorii. Wartości są te same co pomarańcz marki (--brand).
+
+     NA JASNYM TLE AKCENT NIE PRZECHODZI ŻADNEGO PROGU WCAG: #fa9346 ma
+     2,25:1, #ed751a ma 2,93:1 wobec wymaganych 3,0 dla grafiki i 4,5 dla
+     tekstu. To nie znaczy, że nie wolno go używać - znaczy, że na jasnym tle
+     akcent NIE MOŻE BYĆ JEDYNYM NOŚNIKIEM INFORMACJI. Wolno nim wypełnić
+     powierzchnię pod ciemnym tekstem (tusz na #fa9346 ma 8,06:1, na #fdb078
+     10,07:1, na #fff4ed 16,78:1 - biel na pomarańczu ma 2,25:1 i jest
+     wykluczona) oraz podbić element już wyróżniony pozycją lub etykietą.
+     Nie wolno nim pisać liczb, etykiet osi ani podpisów na jasnym tle.
+     Wariant audytowy, gdy akcent MUSI być czytelnym tekstem na jasnym:
+     #cb7032 (3,56:1, próg grafiki i tekstu dużego) albo #ab5517 (5,19:1).
+
+     Akcent koliduje z ochrą: #ed751a wobec #c6871f daje przy deuteranopii
+     1,62 - praktycznie ten sam kolor. Gdy akcent jest w użyciu, ochra
+     wychodzi z palety serii (patrz SLOTS_CLASHING_WITH_ACCENT). */
+  --chart-accent: #fa9346;
+  --chart-accent-text: #ed751a;
+  --chart-accent-fill: #fdb078;
+  --chart-accent-bg: #fff4ed;
+  --chart-accent-audit: #ab5517;
+
+  /* ---- Pasmo prognozy: krycie PER SERIA, nie stała ----
+     Cel: kontrast pasma do płyty 1,10-1,17:1. Poniżej pasmo jest
+     niewidoczne, powyżej konkuruje z linią. Stała alfa nie działa, bo
+     różnica jasności odcienia wobec płyty jest bardzo nierówna - przy
+     jednolitych 10% granat dawałby 1,177 (za mocno), a ochra 1,103.
+     Zmierzone po korekcie: 1,138 / 1,137 / 1,136 / 1,132 / 1,137 / 1,138 /
+     1,137 / 1,137. */
+  --chart-band-1: 0.08;
+  --chart-band-2: 0.13;
+  --chart-band-3: 0.13;
+  --chart-band-4: 0.09;
+  --chart-band-5: 0.11;
+  --chart-band-6: 0.1;
+  --chart-band-7: 0.09;
+  --chart-band-8: 0.09;
+  --chart-band-positive: 0.09;
+  --chart-band-negative: 0.11;
+
+  /* Strefa prognozy - prostokąt za pionowym separatorem. Separator ma być
+     widoczny, nie dominujący: 1,045:1 do płyty. */
+  --chart-zone: #12161c;
+  --chart-zone-alpha: 0.022;
+
+  /* Rusztowanie. Siatka ma być WYCZUWALNA, NIE WIDOCZNA - 1,177:1 do płyty,
+     poniżej progu 1,3. Oś bazowa jest od niej mocniejsza (1,397:1), bo zero
+     jest informacją, a nie tłem. Rusztowania nie zaokrąglamy i nie
+     animujemy. */
+  --chart-grid: #ecede8;
+  --chart-axis: #d9dbd4;
+
+  /* Rampa sekwencyjna (mapy-choroplety): JEDEN odcień, zmiana jasności.
+     Wyprowadzona z granatu, żeby mapa i wykres mówiły tym samym głosem.
+     Jasny motyw idzie jasny -> ciemny (min/max 10,06:1, max na płycie
+     12,27:1). */
+  --chart-seq-min: #e0eaf2;
+  --chart-seq-max: #00375f;
+
+  /* ---- Delikatność: osiem parametrów, każdy z warunkiem zmiany ----
+     JEDEN promień 6 px na wszystkim (karty, panele, tooltipy, słupki,
+     strefa prognozy) - żaden element nie ma własnej wartości. 6 px to punkt,
+     w którym kształt przestaje być twardy, a jeszcze nie mięknie w pigułkę;
+     przy 10-12 px słupki wyglądają infografikowo i tracą precyzję odczytu
+     długości. Przy słupkach silnik przycina go do połowy krótszego boku,
+     inaczej niski słupek zamienia się w owal i zaokrąglenie zaczyna
+     ZNIEKSZTAŁCAĆ DANE.
+
+     Grubość linii 2 px: cieńsza linia wygląda na precyzyjniejszą niż 2,5-3.
+     Punkt obserwacji 2,8 px z obwódką 1,6 px w kolorze płyty - punkty są
+     WARUNKIEM UCZCIWOŚCI wygładzenia, bez nich czytelnik nie wie, gdzie są
+     dane, a gdzie interpolacja.
+
+     Siła wygładzenia 0,55 dotyczy monotonicznego Hermite'a
+     (Fritsch-Carlson), nie Catmull-Roma: zwykły spline przestrzeliwuje poza
+     wartości sąsiednich punktów i rysuje maksima, których nigdy nie było.
+     Zero przy prawdziwych skokach albo poniżej czterech punktów. */
+  --chart-radius: 6px;
+  --chart-stroke: 2px;
+  --chart-dot: 2.8px;
+  --chart-dot-ring: 1.6px;
+  --chart-label-weight: 500;
+  --chart-label-weight-strong: 600;
+  --chart-label-weight-total: 700;
+  --chart-smoothing: 0.55;
+  /* Prowadnice miękkie zamiast twardego `3 3`, z zaokrąglonymi końcami. */
+  --chart-guide-dash: 2 4;
+  /* Kreskowanie serii poza zestawem bezpiecznym dla daltonizmu (sloty 7-8). */
+  --chart-series-dash: 7 4;
+  /* Cień dwuwarstwowy słaby zamiast jednego mocnego. */
+  --chart-shadow: 0 1px 2px rgb(18 22 28 / 0.04), 0 8px 24px rgb(18 22 28 / 0.05);
+
+  /* Tooltip. W motywie jasnym jest ODWRÓCONY wobec płyty (ciemny prostokąt
+     na białym tle jest czytelny); w ciemnym NIE odwracamy, tylko podnosimy
+     powierzchnię - patrz blok .dark. */
+  --chart-tip-bg: #1a1f27;
+  --chart-tip-border: transparent;
+  --chart-tip-ink: #ffffff;
+
+  /* Czcionka wykresów. Domyślnie schodzi z ustawienia panelu admina
+     (--brand-font-body -> --font-sans); wykres nie ma prawa mieć własnej
+     rodziny, bo wtedy przestaje należeć do strony. Deklarowana jako token,
+     żeby warstwa BI (ECharts rysuje po kanwie i potrzebuje NAPISU, nie
+     zmiennej) mogła ją odczytać przez getComputedStyle. */
+  --chart-font: var(--font-sans);
 }
 
 .dark {
@@ -362,28 +563,140 @@ body {
   --gradient-heading-stop-1: #ffc79a;
   --gradient-heading-stop-2: #f8934a;
 
-  /* Wykresy - te same odcienie przeskalowane do ciemnej powierzchni --card
-     (#0f0f0f) i zwalidowane jako zestaw (pasmo OKLCH 0.48-0.67, kontrast >=3:1). */
-  --chart-1: #3987e5;
-  --chart-2: #199e70;
-  --chart-3: #c98500;
-  --chart-4: #008300;
-  --chart-5: #9085e9;
-  --chart-6: #e66767;
-  --chart-7: #d55181;
-  --chart-8: #d95926;
-  --chart-seq-min: #16273f;
-  --chart-seq-max: #86b6ef;
-  --chart-grid: oklch(1 0 0 / 7%);
-  --chart-axis: oklch(1 0 0 / 16%);
-  --chart-ink-1: #0b0b0b;
-  --chart-ink-2: #0b0b0b;
-  --chart-ink-3: #0b0b0b;
-  --chart-ink-4: #ffffff;
-  --chart-ink-5: #0b0b0b;
-  --chart-ink-6: #0b0b0b;
-  --chart-ink-7: #0b0b0b;
-  --chart-ink-8: #0b0b0b;
+  /* ============================================================
+     WYKRESY - MOTYW CIEMNY
+     ------------------------------------------------------------
+     ZASADA NADRZĘDNA: PRZEŁĄCZENIE MOTYWU NIE MOŻE ZMIENIĆ ŻADNEGO WNIOSKU.
+     Ta sama seria zachowuje TEN SAM odcień (odchylenie kąta odcienia
+     w CIELAB do 10 stopni - pilnuje tego bramka), zmienia się wyłącznie
+     jasność i nasycenie. Znak dodatni zostaje tealem, ujemny czerwienią -
+     nigdy nie zamieniamy ich rolami "bo na ciemnym lepiej widać".
+
+     Progi kontrastu się NIE zmieniają (3,0:1 grafika, 4,5:1 tekst). Zmienia
+     się KIERUNEK wyprowadzania wariantu tekstowego: w jasnym przyciemniamy
+     odcień serii, w ciemnym rozjaśniamy. Zasada ta sama, wektor odwrotny.
+
+     Ta paleta jest na ciemnej płycie ROZDZIELNIEJSZA niż jasna na jasnej:
+     podłoga 24,60 (deuteranopia) / 26,19 (protanopia) / 24,44 (tritanopia)
+     wobec 19,89 / 23,12 / 16,99. Wszystkie sześć przekracza 4,6:1 na płycie
+     #0f0f0f, więc każdy odcień może pełnić rolę linii, wypełnienia i markera.
+     ============================================================ */
+  --chart-1: #287fd2; /* granat   4,62:1 */
+  --chart-2: #eda946; /* ochra    9,46:1 */
+  --chart-3: #94b99e; /* szalwia  8,85:1 */
+  --chart-4: #ad74a2; /* sliwka   5,29:1 */
+  --chart-5: #4ac1f7; /* lazur    9,37:1 */
+  --chart-6: #c96536; /* terakota 4,93:1 */
+  --chart-7: #7384c5; /* indygo - rozszerzenie 5,33:1 */
+  --chart-8: #caca88; /* oliwka - rozszerzenie 11,24:1 */
+
+  /* Warianty tekstowe, próg 4,5:1 na płycie. Trzy odcienie nie potrzebują
+     osobnej wartości, bo już go przekraczają - to nie przeoczenie, to
+     konsekwencja tego, że na ciemnym tle rozjaśnianie PODNOSI kontrast. */
+  --chart-1t: #649be7; /* 6,74:1 */
+  --chart-2t: #eda946; /* 9,46:1 - bez zmiany */
+  --chart-3t: #94b99e; /* 8,85:1 - bez zmiany */
+  --chart-4t: #b78dae; /* 6,79:1 */
+  --chart-5t: #4ac1f7; /* 9,37:1 - bez zmiany */
+  --chart-6t: #dd8156; /* 6,71:1 */
+  --chart-7t: #7384c5; /* 5,33:1 */
+  --chart-8t: #caca88; /* 11,24:1 - bez zmiany */
+
+  /* SLOT 1 MA TU CZERŃ PEŁNĄ, I TO NIE JEST NIEDBAŁOŚĆ. Granat rozjaśniony
+     do #287fd2 nie przechodzi progu 4,5:1 z ŻADNYM tuszem roboczym: #12161c
+     daje 4,37:1, biel 4,15:1. Czerń pełna daje 5,06:1 i jest jedynym
+     wyjściem, które nie rusza koloru serii. To jedyny slot w całej palecie,
+     który jej wymaga. Pozostałe pary: 8,96 / 8,38 / 5,01 / 8,87 / 4,66 /
+     5,04 / 10,64. */
+  --chart-ink-1: #000000;
+  --chart-ink-2: #12161c;
+  --chart-ink-3: #12161c;
+  --chart-ink-4: #12161c;
+  --chart-ink-5: #12161c;
+  --chart-ink-6: #12161c;
+  --chart-ink-7: #12161c;
+  --chart-ink-8: #12161c;
+
+  /* Semantyka. Dodatni to rozjaśniony odpowiednik jasnego #1b6f8c;
+     para radzi sobie na ciemnym JESZCZE lepiej niż na jasnym (50,5 / 39,1 /
+     107,5), bo oba odcienie idą w górę jasności i rozchodzą się mocniej.
+     Czerwień ma na płycie 5,54:1, więc wariantu tekstowego nie potrzebuje. */
+  --chart-positive: #6fb3c9;
+  --chart-negative: #ef5454;
+  --chart-positive-text: #6fb3c9;
+  --chart-negative-text: #ef5454;
+  --chart-ink-positive: #12161c;
+  --chart-ink-negative: #12161c;
+
+  /* W TRYBIE CIEMNYM AKCENT DZIAŁA BEZ ZASTRZEŻEŃ: #fa9346 ma na płycie
+     8,51:1, #ed751a 6,54:1 - oba przechodzą próg tekstowy. Można nimi pisać
+     liczby, rysować linie, obwodzić słupki. Podkład akcentu schodzi
+     z ciepłego #fff4ed na PODNIESIONĄ POWIERZCHNIĘ, bo pomarańczowy podkład
+     na ciemnym tle miałby ~16:1 i przestałby być podkładem - stałby się
+     plamą. */
+  --chart-accent: #fa9346;
+  --chart-accent-text: #ed751a;
+  --chart-accent-fill: #fdb078;
+  --chart-accent-bg: #262424;
+  --chart-accent-audit: #fa9346;
+
+  /* Krycie pasma per seria - na ciemnym różnica jasności serii wobec płyty
+     jest jeszcze bardziej nierówna niż na jasnym, więc stała alfa dawałaby
+     pasma raz niewidoczne, raz krzyczące. Zmierzone: 1,137 / 1,136 / 1,133 /
+     1,139 / 1,133 / 1,138 / 1,133 / 1,133. */
+  --chart-band-1: 0.14;
+  --chart-band-2: 0.09;
+  --chart-band-3: 0.09;
+  --chart-band-4: 0.12;
+  --chart-band-5: 0.09;
+  --chart-band-6: 0.13;
+  --chart-band-7: 0.12;
+  --chart-band-8: 0.08;
+  --chart-band-positive: 0.09;
+  --chart-band-negative: 0.13;
+
+  /* Strefa prognozy - nakładka ODWRÓCONA: jasny tusz przy niższej alfie daje
+     ten sam kontrast do płyty (1,045:1). */
+  --chart-zone: #ede9e7;
+  --chart-zone-alpha: 0.025;
+
+  /* Siatka i oś mają w obu motywach TEN SAM KONTRAST WZGLĘDEM PŁYTY, nie ten
+     sam kolor - to właściwe przeniesienie reguły "siatka wyczuwalna, nie
+     widoczna". Wartości są przeliczone pod płytę #0f0f0f, nie przepisane
+     z arkusza o jaśniejszej płycie: siatka 1,179:1, oś 1,400:1. */
+  --chart-grid: #212020;
+  --chart-axis: #2f2d2d;
+
+  /* Rampa sekwencyjna - kotwica przestawiona: ciemny -> jasny. Najwyższa
+     wartość zostaje najwidoczniejsza (min/max 7,58:1, max na płycie 9,85:1). */
+  --chart-seq-min: #1e2935;
+  --chart-seq-max: #8fbef0;
+
+  /* LINIA OPTYCZNIE GRUBIEJE. Jasny obiekt na ciemnym tle wydaje się większy
+     niż ciemny na jasnym o tych samych wymiarach (irradiacja). Bez tej
+     korekty wykres na ciemnym wygląda o klasę ciężej niż ten sam wykres na
+     jasnym. Geometria niezmienna w obu motywach: promień 6 px z przycięciem,
+     siła wygładzenia 0,55, kreskowanie prowadnic, skala odstępów 4 px. */
+  --chart-stroke: 1.75px;
+  --chart-dot: 2.6px;
+  --chart-dot-ring: 1.4px;
+  --chart-label-weight: 450;
+  --chart-label-weight-strong: 550;
+  --chart-label-weight-total: 650;
+
+  /* CIEŃ PRZESTAJE ISTNIEĆ. Cień symuluje przesłonięcie światła; na ciemnym
+     tle nie ma czego przesłaniać, więc box-shadow po prostu nie jest
+     widoczny. Wysokość kodujemy jaśniejszą powierzchnią plus obramowaniem
+     1 px. Wyjątek: tooltip, który realnie pływa nad treścią. */
+  --chart-shadow: none;
+
+  /* TOOLTIPA NIE ODWRACAMY, TYLKO PODNOSIMY. Lustrzane odwrócenie dałoby na
+     ciemnym jasny prostokąt, który świeci jak latarka i rozbija wykres.
+     Powierzchnia 1,242:1 nad płytą, obramowanie 1,392:1, tekst 12,80:1
+     wewnątrz tooltipa - kontrast liczy się względem JEGO tła, nie płyty. */
+  --chart-tip-bg: #262424;
+  --chart-tip-border: #2d2d2d;
+  --chart-tip-ink: #ede9e7;
 }
 
 @layer base {
@@ -3611,17 +3924,93 @@ input.icon-input-with-action {
 /* ============================================================
    Wykresy i mapy danych (silnik SVG - src/components/charts)
    ------------------------------------------------------------
-   Kolory pochodzą WYŁĄCZNIE z tokenów --chart-* / --card / --border /
-   --muted-foreground, więc tryb ciemny i wymuszony jasny canvas buildera
-   działają automatycznie. Animacje wejścia odpala hook useRevealOnScroll:
-   SSR renderuje stan KOŃCOWY (crawler/no-JS widzi pełny wykres), klasa
-   .neh-armed pojawia się dopiero gdy element jest POZA viewportem, a
-   .neh-run uruchamia przejście przy wejściu w widok. Elementy widoczne
-   od razu przy załadowaniu nigdy nie są chowane - zero migotania.
+   W KODZIE RYSUJĄCYM NIE MA ANI JEDNEGO HEXA - wszystko idzie przez tokeny
+   --chart-*, dzięki czemu tryb ciemny, wymuszony jasny canvas buildera
+   i druk działają bez jednej gałęzi w komponencie. Dlatego kropka
+   obserwacji ma `fill: var(--card)`, a nie `#fff`: przy przełączeniu motywu
+   sama staje się ciemna i nadal odcina się od linii. Jeśli w silniku pojawi
+   się hex, tryb ciemny jest już zepsuty (pilnuje tego asercja
+   `not.toMatch(/(fill|stroke)="#/)` w testach wykresów).
+
+   CZCIONKA schodzi z panelu admina: --chart-font -> --font-sans ->
+   --brand-font-body. Ustawiona RAZ na .neh-chart, więc każdy <text> w SVG
+   dziedziczy ją przez kaskadę - wykres nie ma prawa mieć własnej rodziny,
+   bo wtedy przestaje należeć do strony.
+
+   ANIMACJE: czasy i krzywe z tabeli specyfikacji, nie z wyczucia. Animacja
+   ma JEDNO uzasadnienie - utrzymać ciągłość obiektu, gdy dane się zmieniają;
+   bez tej funkcji rozprasza i po drugim obejrzeniu irytuje. Wejście
+   400-600 ms, kaskada 20-40 ms na element ale ŁĄCZNIE nie więcej niż 500 ms
+   (przy czterdziestu słupkach schodzimy do 8-12 ms - patrz --neh-step).
+   Nie animujemy osi, siatki, etykiet ani legendy.
+
+   Wejście odpala hook useRevealOnScroll: SSR renderuje stan KOŃCOWY
+   (crawler i przeglądarka bez JS widzą pełny wykres), klasa .neh-armed
+   pojawia się dopiero gdy element jest POZA viewportem, a .neh-run
+   uruchamia przejście przy wejściu w widok. Elementy widoczne od razu przy
+   załadowaniu nigdy nie są chowane - zero migotania.
    ============================================================ */
 .neh-chart {
-  --neh-anim-ms: 900ms;
-  --neh-anim-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Wejście: 500 ms mieści się w korytarzu 400-600 ms. Krzywa
+     cubic-bezier(0.22, 1, 0.36, 1) hamuje mocniej na końcu niż poprzednia
+     (0.22, 0.61, 0.36, 1), więc ruch kończy się spokojniej. */
+  --neh-anim-ms: 500ms;
+  --neh-anim-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Przejście między stanami danych: 350 ms z krzywą standardową. */
+  --neh-state-ms: 350ms;
+  --neh-state-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Podświetlenie pod kursorem i pojawienie tooltipa. */
+  --neh-hover-ms: 150ms;
+  --neh-tip-ms: 120ms;
+  /* Krok kaskady. Nadpisywany inline przez silnik, gdy słupków jest tyle,
+     że 40 ms na element przekroczyłoby budżet 500 ms na całość. */
+  --neh-step: 40ms;
+
+  font-family: var(--chart-font, var(--font-sans));
+  font-weight: var(--chart-label-weight, 500);
+}
+
+/* Karta wykresu: jeden promień z tokena i cień dwuwarstwowy. W motywie
+   ciemnym --chart-shadow jest `none`, a wysokość niesie jaśniejsza
+   powierzchnia plus obramowanie 1 px - cień symuluje przesłonięcie światła,
+   a na ciemnym tle nie ma czego przesłaniać. */
+.neh-chart {
+  border-radius: var(--chart-radius, 6px);
+  box-shadow: var(--chart-shadow, none);
+}
+
+/* GRUBOŚĆ KRESKI I ROZMIAR KROPKI IDĄ Z TOKENÓW, nie z atrybutów SVG - dzięki
+   temu korekta irradiacji w trybie ciemnym (jasny obiekt na ciemnym tle wydaje
+   się grubszy niż ciemny na jasnym o tych samych wymiarach) dzieje się bez ani
+   jednej gałęzi w JavaScripcie, a wydruk wraca do wartości jasnych sam.
+   Atrybuty w SVG niosą wartość jasną jako AWARYJNĄ: gdyby arkusz jeszcze nie
+   dojechał, linia ma grubość 2 px, a nie zero. */
+.neh-chart .neh-line {
+  stroke-width: var(--chart-stroke, 2px);
+}
+.neh-chart .neh-dot {
+  r: var(--chart-dot, 2.8px);
+  stroke-width: var(--chart-dot-ring, 1.6px);
+}
+/* Punkt pod kursorem rośnie o półtora piksela - tyle, żeby dało się go
+   zauważyć, i nie tyle, żeby przesunął odczyt pozycji. */
+.neh-chart .neh-dot[data-active="true"] {
+  r: calc(var(--chart-dot, 2.8px) + 1.5px);
+}
+/* Waga pisma z tokenów, TRZY STOPNIE, nie jeden.
+   Reguła na `text` jest podstawą (etykiety osi, kategorie), a elementy
+   mocniejsze mają WŁASNE tokeny - inaczej blankietowa reguła zdjęłaby
+   emfazę z sumy pierścienia i z etykiet wartości, bo CSS wygrywa
+   z atrybutem prezentacyjnym SVG. Na ciemnym każdy stopień jest o pół
+   kroku cieńszy (irradiacja): jasny krój na ciemnym tle wygląda grubiej. */
+.neh-chart text {
+  font-weight: var(--chart-label-weight, 500);
+}
+.neh-chart .neh-value-label {
+  font-weight: var(--chart-label-weight-strong, 600);
+}
+.neh-chart .neh-total-label {
+  font-weight: var(--chart-label-weight-total, 700);
 }
 
 /* Linie: rysowanie pociągnięciem (dash-offset). Długość ścieżki jest
@@ -3638,17 +4027,34 @@ input.icon-input-with-action {
   stroke-dashoffset: 0;
 }
 
-/* Pola (area), znaczniki punktów i etykiety: miękkie wejście. */
+/* Seria w slocie POZA zestawem bezpiecznym dla daltonizmu (7-8) dostaje
+   kreskowanie jako DRUGI nośnik różnicy: jej odcień jest od slotów 1-2
+   oddalony o ~10-12 jednostek CIELAB po symulacji, czyli za mało, żeby sam
+   kolor ją odróżnił. Kreskowanie wyłącza animację rysowania pociągnięciem -
+   dash-offset i dash-array to ta sama właściwość i nie da się mieć obu. */
+.neh-chart .neh-line-pattern,
+.neh-armed .neh-line-pattern,
+.neh-run .neh-line-pattern {
+  stroke-dasharray: var(--chart-series-dash, 7 4);
+  stroke-dashoffset: 0;
+  transition: none;
+}
+
+/* Pola (area), znaczniki punktów i etykiety: miękkie wejście. Opóźnienie
+   jest krótsze od czasu rysowania linii, więc punkty dojeżdżają razem z nią,
+   a nie po niej. */
 .neh-armed .neh-fade {
   opacity: 0;
 }
 .neh-run .neh-fade {
-  transition: opacity 600ms ease 350ms;
+  transition: opacity var(--neh-state-ms) ease var(--neh-anim-ms);
   opacity: 1;
 }
 
-/* Słupki/kolumny rosną od linii bazowej. transform-box: fill-box +
-   transform-origin sprawiają, że każdy rect skaluje się od własnej krawędzi. */
+/* Słupki/kolumny rosną od linii bazowej - wysokość NIESIE ZNACZENIE, więc
+   animujemy ją, a nie przezroczystość. transform-box: fill-box +
+   transform-origin sprawiają, że każdy znacznik skaluje się od własnej
+   krawędzi. */
 .neh-chart .neh-bar {
   transform-box: fill-box;
 }
@@ -3656,27 +4062,38 @@ input.icon-input-with-action {
   transform: scaleY(0);
   transform-origin: bottom;
 }
+/* Słupek ujemny rośnie w DRUGĄ stronę - od tej samej bazy, ale w dół.
+   Bez tego pas ujemny wjeżdżał od swojego dolnego końca, czyli od wartości,
+   a nie od zera, i przez pół sekundy pokazywał nieprawdę. */
+.neh-armed .neh-bar-negative {
+  transform-origin: top;
+}
 .neh-armed .neh-bar-h {
   transform: scaleX(0);
   transform-origin: left;
 }
+.neh-armed .neh-bar-h.neh-bar-negative {
+  transform-origin: right;
+}
 .neh-run .neh-bar,
 .neh-run .neh-bar-h {
-  transition: transform 700ms var(--neh-anim-ease);
-  transition-delay: calc(var(--neh-i, 0) * 40ms);
+  transition: transform var(--neh-anim-ms) var(--neh-anim-ease);
+  transition-delay: calc(var(--neh-i, 0) * var(--neh-step, 40ms));
   transform: scale(1);
 }
 
-/* Wykres kołowy: delikatny obrót całej tarczy + sekwencyjne wejście wycinków. */
+/* Wykres kołowy: delikatne wejście całej tarczy. Obrotu NIE animujemy
+   powyżej kilku stopni - obrót wykresu jest ruchem bez znaczenia
+   informacyjnego. */
 .neh-armed .neh-pie-group {
-  transform: rotate(-8deg) scale(0.96);
+  transform: rotate(-4deg) scale(0.97);
   transform-origin: center;
   opacity: 0;
 }
 .neh-run .neh-pie-group {
   transition:
-    transform 700ms var(--neh-anim-ease),
-    opacity 500ms ease;
+    transform var(--neh-anim-ms) var(--neh-anim-ease),
+    opacity var(--neh-state-ms) ease;
   transform: rotate(0deg) scale(1);
   opacity: 1;
 }
@@ -3686,15 +4103,15 @@ input.icon-input-with-action {
   opacity: 0;
 }
 .neh-run .neh-map-countries {
-  transition: opacity 700ms ease;
+  transition: opacity var(--neh-anim-ms) ease;
   opacity: 1;
 }
 .neh-chart .neh-country {
   stroke: var(--card);
   stroke-width: 0.6;
   transition:
-    fill-opacity 160ms ease,
-    stroke-width 160ms ease;
+    fill-opacity var(--neh-hover-ms) ease-out,
+    stroke-width var(--neh-hover-ms) ease-out;
 }
 .neh-chart .neh-country[data-active="true"] {
   stroke: var(--foreground);
@@ -3702,16 +4119,36 @@ input.icon-input-with-action {
 }
 .neh-chart .neh-country:focus-visible {
   outline: none;
-  stroke: var(--brand);
+  stroke: var(--chart-accent);
   stroke-width: 1.4;
 }
 
-/* Crosshair i tooltip. Tooltip jest pozycjonowany translate3d z JS. */
+/* Prowadnica pod kursorem: kreskowanie 2 4 z zaokrąglonymi końcami zamiast
+   twardego `3 3`. Rusztowania nie zaokrąglamy i nie animujemy, ale
+   PROWADNICA nie jest rusztowaniem - jest odpowiedzią na ruch wskaźnika. */
 .neh-chart .neh-crosshair {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  stroke-dasharray: var(--chart-guide-dash, 2 4);
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* Separator strefy prognozy - pionowa, ciągła linia w kolorze osi. Prognoza
+   MUSI być odróżniona wizualnie od historii, inaczej wykres podaje
+   interpolację za pomiar. */
+.neh-chart .neh-forecast-divider {
   stroke: var(--chart-axis);
   stroke-width: 1;
   pointer-events: none;
 }
+
+/* Tooltip. Pozycjonowany translate3d z JS. W motywie jasnym jest ODWRÓCONY
+   wobec płyty (ciemny prostokąt na białym tle jest czytelny), w ciemnym
+   PODNIESIONY, nie odwrócony - lustrzane odwrócenie dałoby jasny prostokąt,
+   który świeci jak latarka i rozbija wykres. Cień zostaje w obu motywach,
+   bo tooltip realnie pływa nad treścią i to jedyne miejsce, gdzie cień na
+   ciemnym tle ma sens jako sygnał oderwania. */
 .neh-tooltip {
   position: absolute;
   top: 0;
@@ -3719,16 +4156,82 @@ input.icon-input-with-action {
   z-index: 30;
   pointer-events: none;
   min-width: 8rem;
-  max-width: 18rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--popover);
-  color: var(--popover-foreground);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
-  padding: 0.5rem 0.65rem;
+  max-width: 20rem;
+  border: 1px solid var(--chart-tip-border, transparent);
+  border-radius: var(--chart-radius, 6px);
+  background: var(--chart-tip-bg);
+  color: var(--chart-tip-ink);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+  padding: 8px 12px;
+  font-family: var(--chart-font, var(--font-sans));
   font-size: 0.75rem;
   line-height: 1.35;
+  animation: neh-tip-in var(--neh-tip-ms, 120ms) ease-out;
   will-change: transform;
+}
+@keyframes neh-tip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Tooltip OBJAŚNIAJĄCY wskaźnik. Renderowany portalem do <body>, więc nie
+   jest w zasięgu `.neh-chart` i musi mieć własną deklarację czcionki i tokenów
+   - dziedziczenie tu nie sięga. Stałe pięć pól w siatce dwukolumnowej:
+   nazwa pola po lewej ma ustaloną szerokość, żeby wartości zaczynały się
+   w jednej linii i oko znajdowało właściwy wiersz bez czytania. */
+.neh-metric-tip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  border: 1px solid var(--chart-tip-border, var(--border));
+  border-radius: var(--chart-radius, 6px);
+  background: var(--chart-tip-bg);
+  color: var(--chart-tip-ink);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+  padding: 12px;
+  font-family: var(--chart-font, var(--font-sans));
+  font-size: 0.75rem;
+  line-height: 1.45;
+  transition: opacity var(--neh-tip-ms, 120ms) ease-out;
+}
+.neh-metric-tip-name {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.neh-metric-tip-expansion {
+  margin-top: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--chart-tip-border, var(--border));
+  opacity: 0.75;
+}
+.neh-metric-tip-rows {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+}
+.neh-metric-tip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 5.5rem) minmax(0, 1fr);
+  gap: 8px;
+}
+.neh-metric-tip-row dt {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+.neh-metric-tip-row dd {
+  margin: 0;
+}
+/* Wywołanie tooltipa objaśniającego. Kursor pomocy, bo to nie jest link -
+   nic nie nawiguje. */
+.neh-metric-trigger {
+  cursor: help;
 }
 
 /* Interaktywne obszary trafień - większe niż znaczniki (>=24px). */
@@ -3739,17 +4242,170 @@ input.icon-input-with-action {
   cursor: pointer;
 }
 .neh-chart .neh-hit:focus-visible {
-  fill: color-mix(in oklab, var(--brand) 12%, transparent);
+  fill: color-mix(in oklab, var(--chart-accent) 12%, transparent);
 }
 .neh-chart .neh-hit[data-active="true"] {
   fill: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
 
-/* Reduced motion: stan końcowy natychmiast - żadnych przejść. */
+/* Reduced motion: stan końcowy natychmiast - żadnych przejść. Obowiązkowo
+   i bez wyjątku, bo dla części czytelników animacja wywołuje realny
+   dyskomfort fizyczny. */
 @media (prefers-reduced-motion: reduce) {
   .neh-armed .neh-line {
     stroke-dasharray: none;
     stroke-dashoffset: 0;
+  }
+  .neh-armed .neh-line-pattern {
+    stroke-dasharray: var(--chart-series-dash, 7 4);
+  }
+  .neh-armed .neh-fade,
+  .neh-armed .neh-pie-group,
+  .neh-armed .neh-map-countries {
+    opacity: 1;
+    transform: none;
+  }
+  .neh-armed .neh-bar,
+  .neh-armed .neh-bar-h {
+    transform: scale(1);
+  }
+  .neh-run .neh-line,
+  .neh-run .neh-fade,
+  .neh-run .neh-bar,
+  .neh-run .neh-bar-h,
+  .neh-run .neh-pie-group,
+  .neh-run .neh-map-countries {
+    transition: none;
+  }
+  .neh-tooltip {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   DRUK I EKSPORT: WYKRES ZAWSZE NA TOKENACH JASNYCH
+   ------------------------------------------------------------
+   Wykres w trybie ciemnym drukuje się jako czarna plama - zużywa toner
+   i traci czytelność. Gorzej: arkusz druku wymusza białe tło strony, ale
+   NIE przedefiniowuje tokenów, więc przy `html.dark` etykiety osi, tytuł
+   i suma pierścienia jechały niemal białym tekstem na białym papierze.
+   Ten blok odtwarza pełny zestaw jasnych tokenów wykresu w zasięgu
+   `.dark`, więc PDF wpisu (FloatingShareBar woła window.print()) i wydruk
+   panelu wychodzą tak samo jak wykres na ekranie w trybie jasnym.
+
+   Blok stoi tutaj, PO `@layer base`, celowo: bramka palety czyta bloki
+   `:root,` i `.dark` przez cięcie pliku do `@layer base`, więc tokeny
+   druku nie mogą trafić w żaden z tych zakresów.
+
+   print-color-adjust: exact jest tu konieczne, bo przeglądarki domyślnie
+   wygaszają tła w druku - bez tego próbki legendy i pasek legendy mapy
+   znikają z papieru, czyli wykres zachowuje znaczniki i traci klucz.
+   ============================================================ */
+@media print {
+  .dark .neh-chart,
+  .dark .neh-tooltip {
+    --chart-1: #00528f;
+    --chart-2: #c6871f;
+    --chart-3: #679675;
+    --chart-4: #815579;
+    --chart-5: #0e90be;
+    --chart-6: #b05125;
+    --chart-7: #4b57b7;
+    --chart-8: #455d00;
+    --chart-1t: #00528f;
+    --chart-2t: #a26900;
+    --chart-3t: #507f5f;
+    --chart-4t: #815579;
+    --chart-5t: #007daa;
+    --chart-6t: #b05125;
+    --chart-7t: #4b57b7;
+    --chart-8t: #455d00;
+    --chart-ink-1: #ffffff;
+    --chart-ink-2: #12161c;
+    --chart-ink-3: #12161c;
+    --chart-ink-4: #ffffff;
+    --chart-ink-5: #12161c;
+    --chart-ink-6: #ffffff;
+    --chart-ink-7: #ffffff;
+    --chart-ink-8: #ffffff;
+    --chart-positive: #1b6f8c;
+    --chart-negative: #ef5454;
+    --chart-positive-text: #1b6f8c;
+    --chart-negative-text: #ae413f;
+    --chart-ink-positive: #ffffff;
+    --chart-ink-negative: #12161c;
+    --chart-accent-bg: #fff4ed;
+    --chart-band-1: 0.08;
+    --chart-band-2: 0.13;
+    --chart-band-3: 0.13;
+    --chart-band-4: 0.09;
+    --chart-band-5: 0.11;
+    --chart-band-6: 0.1;
+    --chart-band-7: 0.09;
+    --chart-band-8: 0.09;
+    --chart-band-positive: 0.09;
+    --chart-band-negative: 0.11;
+    --chart-zone: #12161c;
+    --chart-zone-alpha: 0.022;
+    --chart-grid: #ecede8;
+    --chart-axis: #d9dbd4;
+    --chart-seq-min: #e0eaf2;
+    --chart-seq-max: #00375f;
+    --chart-stroke: 2px;
+    --chart-dot: 2.8px;
+    --chart-dot-ring: 1.6px;
+    --chart-label-weight: 500;
+    --chart-label-weight-strong: 600;
+    --chart-label-weight-total: 700;
+    --chart-shadow: none;
+    --chart-tip-bg: #ffffff;
+    --chart-tip-border: #d9dbd4;
+    --chart-tip-ink: #12161c;
+    /* Powierzchnie i tekst, wobec których paleta jest zwalidowana. Bez nich
+       kropka obserwacji (fill: var(--card)) zostałaby ciemna na białym
+       papierze, a etykiety osi jechałyby jasną szarością. */
+    --card: #ffffff;
+    --popover: #ffffff;
+    --foreground: #12161c;
+    --muted-foreground: #6b7482;
+    --border: #d9dbd4;
+    --secondary: #ecede8;
+  }
+  .neh-chart {
+    box-shadow: none;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* Tabela danych jest JEDYNYM artefaktem, który przeżywa utratę koloru
+     w druku, a jako `hidden` nie trafiała na papier wcale. Na wydruku
+     pokazujemy ją zawsze - czytelnik dostaje liczby, nawet jeśli drukarka
+     jest czarno-biała. Przycisk przełącznika i tooltip na papierze nie mają
+     sensu, więc schodzą. */
+  .neh-chart [data-chart-table][hidden] {
+    display: block !important;
+  }
+  .neh-chart [data-chart-table-toggle] {
+    display: none !important;
+  }
+  .neh-tooltip {
+    display: none !important;
+  }
+  /* STAN KOŃCOWY WYMUSZONY, tak samo jak przy prefers-reduced-motion.
+     Wejście wykresu jest uzbrajane klasą .neh-armed dla elementów POZA
+     viewportem i odpalane obserwatorem przy wejściu w widok. Na papierze
+     obserwator nigdy nie odpala: drukarka nie przewija strony. Wykres
+     stojący niżej na stronie wychodził więc z drukarki jako pusta karta
+     z osiami - linia miała stroke-dasharray: 1 (czyli była niewidoczna),
+     słupki scaleY(0), a etykiety opacity: 0. Wydruk musi pokazywać dane
+     bez względu na to, co czytelnik miał na ekranie. */
+  .neh-armed .neh-line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .neh-armed .neh-line-pattern {
+    stroke-dasharray: var(--chart-series-dash, 7 4);
   }
   .neh-armed .neh-fade,
   .neh-armed .neh-pie-group,
@@ -3770,7 +4426,6 @@ input.icon-input-with-action {
     transition: none;
   }
 }
-
 /* ============================================================
    NES Digital Features (moduł interaktywnych "digital features" -
    src/components/features). Ten sam język wizualny co wykresy: kolory

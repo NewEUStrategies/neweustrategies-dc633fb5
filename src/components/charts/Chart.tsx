@@ -1,18 +1,24 @@
 // Punkt wejścia silnika wykresów: ChartFrame (karta, legenda, tabela danych,
-// źródło) + właściwy rysunek zależnie od `kind`. Konsumowany przez blok CMS
-// ("chart") i widget buildera ("chart") - jedna implementacja, obie platformy.
-import { useMemo } from "react";
+// podpis uczciwościowy) + właściwy rysunek zależnie od `kind`. Konsumowany
+// przez blok CMS ("chart") i widget buildera ("chart") - jedna implementacja,
+// obie platformy.
+//
+// TU SIĘ SKŁADA LEGENDA I TABELA, i to jest właściwe miejsce: legenda musi
+// wskazywać dokładnie te znaczniki, które rysunek naprawdę narysował, a tabela
+// musi liczyć udziały z tego samego mianownika, którym rysunek liczy kąty.
+// Trzymanie obu w rysunku rozjeżdżało grafikę z jej alternatywą tekstową.
+import { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChartConfig } from "@/lib/charts/types";
+import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
 import { formatChartValue, formatPercent, type ChartLang } from "@/lib/charts/format";
-import { ChartFrame, CHART_TABLE_CLS, type LegendItem } from "./ChartFrame";
+import { isZeroBaselineBroken } from "@/lib/charts/honesty";
+import { waterfallModel } from "@/lib/charts/waterfall";
+import { ChartFrame, CHART_TABLE_CLS, type ChartCaption, type LegendItem } from "./ChartFrame";
 import { CartesianChart } from "./CartesianChart";
 import { PieChart } from "./PieChart";
 import { pieModel, pieShare } from "./pieModel";
-
-const L = {
-  pl: { category: "Kategoria", value: "Wartość", share: "Udział", empty: "Brak danych wykresu." },
-  en: { category: "Category", value: "Value", share: "Share", empty: "No chart data." },
-} as const;
+import "@/lib/i18n-charts";
 
 interface ChartProps {
   config: ChartConfig;
@@ -21,41 +27,98 @@ interface ChartProps {
 }
 
 export function Chart({ config, lang, className }: ChartProps) {
-  const t = L[lang];
+  // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
+  // kod<->słownik; klucz sklejony template literalem wypada z kontroli
+  // parytetu PL/EN.
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  // `useCallback`, bo `t` jest ZALEŻNOŚCIĄ useMemo budującego legendę. Bez
+  // stabilnej referencji legenda przeliczałaby się przy każdym renderze -
+  // a wykres renderuje przy każdym ruchu wskaźnika nad znacznikiem.
+  const t = useCallback(
+    (key: string, values?: Record<string, string | number>): string =>
+      scoped(key, { lng: lang, ...values }),
+    [scoped, lang],
+  );
   const isPie = config.kind === "pie" || config.kind === "donut";
+  const isWaterfall = config.kind === "waterfall";
 
   const legend: LegendItem[] = useMemo(() => {
+    if (isWaterfall) {
+      // Mostek nie ma serii - ma ZNAK. Klucz mówi więc o kierunku, i to jest
+      // jedyna legenda, jaka ma tu sens; nazwy kroków niesie oś kategorii.
+      return [
+        {
+          key: "increase",
+          name: t("waterfall.increase"),
+          color: "var(--chart-positive)",
+          textColor: "var(--chart-positive-text)",
+          shape: "rect" as const,
+        },
+        {
+          key: "decrease",
+          name: t("waterfall.decrease"),
+          color: "var(--chart-negative)",
+          textColor: "var(--chart-negative-text)",
+          shape: "rect" as const,
+        },
+      ];
+    }
     if (isPie) {
       // Próbka legendy musi wskazywać DOKŁADNIE jeden wycinek, więc klucz
       // idzie z tego samego modelu, co tarcza - razem z wycinkiem zbiorczym
       // nadmiaru kategorii i bez kategorii, których tarcza nie rysuje.
       return pieModel(config, lang).slices.map((s) => ({
+        key: `slot-${s.colorSlot}-${s.label}`,
         name: s.label,
-        colorSlot: s.colorSlot,
+        color: `var(--chart-${s.colorSlot})`,
+        textColor: `var(--chart-${s.colorSlot}t)`,
         shape: "rect" as const,
       }));
     }
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
-    return config.series.map((s) => ({ name: s.name, colorSlot: s.colorSlot, shape }));
-  }, [config, lang, isPie]);
+    return config.series.map((s) => ({
+      key: `slot-${s.colorSlot}-${s.name}`,
+      name: s.name,
+      color: `var(--chart-${s.colorSlot})`,
+      textColor: `var(--chart-${s.colorSlot}t)`,
+      shape,
+      // Kreskowanie powtórzone w legendzie: seria poza zestawem bezpiecznym
+      // dla daltonizmu różni się od slotu 1-2 o ~10-12 jednostek CIELAB po
+      // symulacji, więc klucz nie może twierdzić, że różni je sam odcień.
+      dashed: s.colorSlot > CATEGORICAL_SAFE_SERIES,
+    }));
+  }, [config, lang, isPie, isWaterfall, t]);
 
   const hasData =
     config.categories.length > 0 &&
     config.series.length > 0 &&
     config.series.some((s) => s.values.some((v) => v !== null));
 
+  const caption: ChartCaption = {
+    source: config.source,
+    sourceDate: config.sourceDate,
+    unit: config.unit,
+    sampleSize: config.sampleSize,
+    zeroBaselineBroken: isZeroBaselineBroken(config),
+    notesShows: config.notesShows,
+    notesSurprising: config.notesSurprising,
+    notesHidden: config.notesHidden,
+  };
+
   if (!hasData) {
     return (
       <div
-        className={`not-prose my-6 rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground ${className ?? ""}`}
+        className={`not-prose my-6 rounded-[var(--chart-radius)] border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground ${className ?? ""}`}
       >
-        {t.empty}
+        {t("frame.empty")}
       </div>
     );
   }
 
-  const table = isPie ? (
+  const table = isWaterfall ? (
+    <WaterfallDataTable config={config} lang={lang} />
+  ) : isPie ? (
     <PieDataTable config={config} lang={lang} />
   ) : (
     <SeriesDataTable config={config} lang={lang} />
@@ -65,10 +128,11 @@ export function Chart({ config, lang, className }: ChartProps) {
     <ChartFrame
       title={config.title}
       description={config.description}
-      source={config.source}
+      metric={config.metric}
       lang={lang}
       legend={legend}
       showLegend={config.showLegend}
+      caption={caption}
       table={table}
       className={className}
     >
@@ -82,19 +146,28 @@ export function Chart({ config, lang, className }: ChartProps) {
 }
 
 function SeriesDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
-  const t = L[lang];
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  // Kolumna prognozy istnieje TYLKO wtedy, gdy prognoza istnieje - inaczej
+  // tabela sugerowałaby podział, którego w danych nie ma.
+  const forecastFrom = config.forecastFrom;
   return (
     <table className={CHART_TABLE_CLS.table}>
       <thead>
         <tr>
           <th scope="col" className={CHART_TABLE_CLS.th}>
-            {t.category}
+            {t("frame.category")}
           </th>
           {config.series.map((s) => (
             <th key={s.colorSlot + s.name} scope="col" className={CHART_TABLE_CLS.thNum}>
-              {s.name || t.value}
+              {s.name || t("frame.value")}
             </th>
           ))}
+          {forecastFrom !== null && (
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("forecast.label")}
+            </th>
+          )}
         </tr>
       </thead>
       <tbody>
@@ -110,6 +183,11 @@ function SeriesDataTable({ config, lang }: { config: ChartConfig; lang: ChartLan
                   : formatChartValue(s.values[i] as number, lang, config.unit)}
               </td>
             ))}
+            {forecastFrom !== null && (
+              <td className={CHART_TABLE_CLS.td}>
+                {i >= forecastFrom ? t("forecast.tableFlag") : ""}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -117,8 +195,68 @@ function SeriesDataTable({ config, lang }: { config: ChartConfig; lang: ChartLan
   );
 }
 
+/**
+ * Tabela mostka. Poza wkładem każdego kroku niesie POZIOM PO KROKU - to jest
+ * liczba, której wodospad nie pokazuje wprost (słupek koduje sam wkład), więc
+ * bez tej kolumny alternatywa tekstowa byłaby uboższa od grafiki. Ostatni
+ * wiersz to suma kontrolna: mostek, którego składniki nie sumują się do
+ * różnicy stanów, jest błędem, i tabela mówi to wprost, a nie po cichu.
+ */
+function WaterfallDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
+  // kod<->słownik; klucz sklejony template literalem wypada z kontroli
+  // parytetu PL/EN.
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string, values?: Record<string, string | number>): string =>
+    scoped(key, { lng: lang, ...values });
+  const model = waterfallModel(config.categories, config.series[0]?.values ?? []);
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <thead>
+          <tr>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("frame.category")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("frame.value")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("waterfall.total")}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {model.steps.map((step) => (
+            <tr key={step.index}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {step.label}
+              </th>
+              <td className={CHART_TABLE_CLS.tdNum}>
+                {formatChartValue(step.value, lang, config.unit)}
+              </td>
+              <td className={CHART_TABLE_CLS.tdNum}>
+                {formatChartValue(step.kind === "step" ? step.to : step.value, lang, config.unit)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {model.checksumOk === false && (
+        <p className="mt-2 text-xs" style={{ color: "var(--chart-negative-text)" }}>
+          {t("waterfall.checksumFailed", {
+            sum: formatChartValue(model.componentSum, lang, config.unit),
+            delta: formatChartValue(model.stateDelta, lang, config.unit),
+          })}
+        </p>
+      )}
+    </>
+  );
+}
+
 function PieDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
-  const t = L[lang];
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
   const values = config.categories.map((label, i) => ({
     label,
     value: config.series[0]?.values[i] ?? null,
@@ -134,13 +272,13 @@ function PieDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }
       <thead>
         <tr>
           <th scope="col" className={CHART_TABLE_CLS.th}>
-            {t.category}
+            {t("frame.category")}
           </th>
           <th scope="col" className={CHART_TABLE_CLS.thNum}>
-            {t.value}
+            {t("frame.value")}
           </th>
           <th scope="col" className={CHART_TABLE_CLS.thNum}>
-            {t.share}
+            {t("frame.share")}
           </th>
         </tr>
       </thead>

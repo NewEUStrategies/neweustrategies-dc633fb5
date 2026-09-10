@@ -723,18 +723,29 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     expect(format({ name: "google", value: 150, percent: 30 })).toBe("google: <b>150</b> (30.0%)");
   });
 
-  it("radar czyta raport zaangażowania i normalizuje pięć osi do skali 0-100", async () => {
+  // RADAR WYSZEDŁ Z PANELU. Powierzchnia wielokąta zależy od arbitralnie
+  // wybranej kolejności osi, więc ten sam zestaw pięciu wskaźników wygląda
+  // dobrze albo źle w zależności od tego, jak je wypisano - to nie jest
+  // kwestia stylu, to strukturalne kłamstwo formy. Do tego promień koduje
+  // wartość powierzchnią, jednym z najsłabszych kanałów percepcyjnych.
+  //
+  // Zamiennik: SŁUPKI POZIOME, POSORTOWANE (pozycja na wspólnej skali).
+  // Dane, normalizacja i tabela danych zostały BEZ ZMIAN - dlatego te trzy
+  // przypadki sprawdzają dokładnie te same liczby, tylko czytane z serii
+  // słupkowej i w kolejności ROSNĄCEJ (ECharts rysuje kategorie osi Y od
+  // dołu, więc największa wartość ląduje na górze).
+  it("słupki zaangażowania czytają raport i normalizują pięć wskaźników do 0-100", async () => {
     panel();
     await loaded();
 
     const s = seriesOf(optionOf("adminAnalytics.ga4.charts.engagementTitle"));
-    const values = numList((s[0].data as Array<{ value: number[] }>)[0].value);
+    const values = numList(s[0].data as number[]);
     // 0,9 -> 90; 150 s / 3 -> 50; 3 odsłony * 20 -> 60; retencja 100 - 25 -> 75;
-    // 2500 eventów / 50 -> 50.
-    expect(values).toEqual([90, 50, 60, 75, 50]);
+    // 2500 eventów / 50 -> 50. Posortowane rosnąco: 50, 50, 60, 75, 90.
+    expect(values).toEqual([50, 50, 60, 75, 90]);
   });
 
-  it("radar przycina osie do zakresu wskaźnika zamiast wyjść poza wykres", async () => {
+  it("słupki zaangażowania przycinają skalę do 0-100 zamiast wyjść poza wykres", async () => {
     respondWith({
       ...FULL,
       engagement: report(ENGAGE_METRICS, { totals: [1, 9000, 40, 1, 999_999] }),
@@ -742,21 +753,26 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const s = seriesOf(optionOf("adminAnalytics.ga4.charts.engagementTitle"));
-    const values = numList((s[0].data as Array<{ value: number[] }>)[0].value);
-    // Wskaźniki radaru mają `max: 100`; wartość 3000 wypchnęłaby wielokąt poza
-    // siatkę, a ujemna retencja - na drugą stronę środka.
-    expect(values).toEqual([100, 100, 100, 0, 100]);
+    const option = optionOf("adminAnalytics.ga4.charts.engagementTitle");
+    const s = seriesOf(option);
+    const values = numList(s[0].data as number[]);
+    // Wartość 3000 wypchnęłaby słupek poza obszar, a ujemna retencja - w lewo
+    // za oś. Oś ma STAŁY koniec 100, bo skala jest znormalizowana: oś
+    // dociągnięta do maksimum danych zamieniałaby 40 punktów w "prawie pełny"
+    // słupek.
+    expect(values).toEqual([0, 100, 100, 100, 100]);
+    const xAxis = rec(option.xAxis);
+    expect([xAxis.min, xAxis.max]).toEqual([0, 100]);
   });
 
-  it("radar bez raportu zaangażowania pokazuje zera, nie NaN", async () => {
+  it("słupki zaangażowania bez raportu pokazują zera, nie NaN", async () => {
     respondWith({ ...FULL, engagement: report([], { totals: [] }) });
     panel();
     await loaded();
 
     const s = seriesOf(optionOf("adminAnalytics.ga4.charts.engagementTitle"));
-    const values = numList((s[0].data as Array<{ value: number[] }>)[0].value);
-    expect(values).toEqual([0, 0, 0, 100, 0]);
+    const values = numList(s[0].data as number[]);
+    expect(values).toEqual([0, 0, 0, 0, 100]);
     expect(values.some(Number.isNaN)).toBe(false);
   });
 
@@ -1417,21 +1433,21 @@ describe("Ga4BiDashboard - dwujęzyczność", () => {
       en("adminAnalytics.ga4.activeUsers"),
       en("adminAnalytics.ga4.views"),
     ]);
-    const radar = optionOf("adminAnalytics.ga4.charts.engagementTitle", "en");
-    const indicators = (rec(radar.radar).indicator ?? []) as Array<{ name: string }>;
-    expect(indicators.map((i) => i.name)).toEqual([
-      en("adminAnalytics.ga4.radar.engagement"),
-      en("adminAnalytics.ga4.radar.sessionTime"),
-      en("adminAnalytics.ga4.radar.viewsPerSession"),
-      en("adminAnalytics.ga4.radar.retention"),
-      en("adminAnalytics.ga4.radar.events"),
-    ]);
-    expect(seriesOf(radar)[0].data).toEqual([
-      {
-        value: [90, 50, 60, 75, 50],
-        name: en("adminAnalytics.ga4.radar.seriesName", { days: 28 }),
-      },
-    ]);
+    // Nazwy wskaźników są teraz kategoriami osi Y słupków, a nie nazwami osi
+    // radaru - te same klucze słownika, inna sekcja opcji. Kolejność jest
+    // POSORTOWANA po wartości, więc czytamy ją jako zbiór, nie jako listę.
+    const engagement = optionOf("adminAnalytics.ga4.charts.engagementTitle", "en");
+    const categories = strList(rec(engagement.yAxis).data);
+    expect([...categories].sort()).toEqual(
+      [
+        en("adminAnalytics.ga4.radar.engagement"),
+        en("adminAnalytics.ga4.radar.sessionTime"),
+        en("adminAnalytics.ga4.radar.viewsPerSession"),
+        en("adminAnalytics.ga4.radar.retention"),
+        en("adminAnalytics.ga4.radar.events"),
+      ].sort(),
+    );
+    expect(seriesOf(engagement)[0].data).toEqual([50, 50, 60, 75, 90]);
   });
 
   it("wycinek „Inne” w donucie jest tłumaczony, a nie zaszyty po polsku", async () => {

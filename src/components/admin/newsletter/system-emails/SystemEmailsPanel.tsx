@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Chart } from "@/components/charts/Chart";
 import type { ChartConfig } from "@/lib/charts/types";
+import { defaultChartConfig } from "@/lib/charts/parse";
 import {
   getSystemEmailReport,
   type SystemEmailRow,
@@ -76,6 +77,7 @@ export function SystemEmailsPanel() {
     if (series.length === 0) return null;
     const values = chartValues(series);
     return {
+      ...defaultChartConfig(),
       kind: "line",
       title: t("systemEmails.chart.title"),
       description: "",

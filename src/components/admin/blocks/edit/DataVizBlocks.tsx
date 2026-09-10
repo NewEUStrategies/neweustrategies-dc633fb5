@@ -7,7 +7,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block, Json } from "@/lib/blocks/types";
-import { Plus, Trash2 } from "lucide-react";
+// `toJson` zamiast `as unknown as Json` w miejscu użycia: podwójne
+// rzutowanie omija kontrolę typów tak samo jak `as any`, tylko nie zapala
+// reguły lintera - dlatego repo trzyma ten escape-hatch w JEDNYM
+// audytowalnym miejscu, a bramka `check:unknown-casts` pilnuje, żeby nie
+// rozsypał się po komponentach.
+import { toJson } from "@/lib/content-model/json";
+import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { AdminSelect } from "../AdminSelect";
 import {
   CHART_HEIGHT_MAX,
@@ -16,7 +22,17 @@ import {
   parseChartConfig,
   parseDataMapConfig,
 } from "@/lib/charts/parse";
-import { MAX_SERIES, type ChartKind, type MapRegion } from "@/lib/charts/types";
+import {
+  CATEGORICAL_SAFE_SERIES,
+  MAX_SERIES,
+  PIE_MAX_SLICES,
+  type ChartKind,
+  type MapRegion,
+} from "@/lib/charts/types";
+import { isForecastMissingBand, seriesOverSafePalette } from "@/lib/charts/honesty";
+import { SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-charts";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { Chart } from "@/components/charts/Chart";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
@@ -33,6 +49,10 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   { value: "area", labelKey: "kinds.area" },
   { value: "pie", labelKey: "kinds.pie" },
   { value: "donut", labelKey: "kinds.donut" },
+  // Wodospad jest narzędziem DOMYŚLNYM dla każdego pytania "od czego do
+  // czego" - mostek EBITDA rok do roku, dekompozycja zmiany marży. Te same
+  // dane słupkami obok siebie zmuszają czytelnika do dodawania w głowie.
+  { value: "waterfall", labelKey: "kinds.waterfall" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
@@ -98,9 +118,57 @@ export function ChartBlock({ block, onChange }: Props) {
   const series = readSeries(block.data.series, categories.length);
   const kind = String(block.data.variant ?? block.data.kind ?? "bar");
   const previewConfig = useMemo(() => parseChartConfig(block.data), [block.data]);
+  // `keyPrefix` haka, nie sklejanie szablonem - inaczej bramka rozjazdu
+  // kod<->słownik nie sprawdzi tych kluczy wcale.
+  const { t: ct } = useTranslation("translation", { keyPrefix: "charts" });
 
   const patch = (data: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...data } });
+
+  const smoothing =
+    typeof block.data.smoothing === "number"
+      ? Math.max(0, Math.min(1, block.data.smoothing))
+      : 0.55;
+
+  const metricRaw = (block.data.metric ?? {}) as Record<string, Json>;
+  const metric = {
+    name: String(metricRaw.name ?? ""),
+    expansion: String(metricRaw.expansion ?? ""),
+    formula: String(metricRaw.formula ?? ""),
+    measures: String(metricRaw.measures ?? ""),
+    reading: String(metricRaw.reading ?? ""),
+    levers: String(metricRaw.levers ?? ""),
+    caution: String(metricRaw.caution ?? ""),
+  };
+  const patchMetric = (next: Partial<typeof metric>) =>
+    patch({ metric: toJson({ ...metric, ...next }) });
+
+  // ---- OSTRZEŻENIA DYSCYPLINY ----
+  // Reguły doboru formy i palety, których kod NIE MOŻE wymusić, bo mają
+  // wyjątki - ale których milczenie kosztuje czytelność. Liczone z tego samego
+  // configu, który idzie do podglądu, więc autor widzi ostrzeżenie obok
+  // wykresu, którego ono dotyczy.
+  const overSafePalette = seriesOverSafePalette(previewConfig, CATEGORICAL_SAFE_SERIES);
+  const usedSlots = series.map((s) => s.colorSlot);
+  const isPie = kind === "pie" || kind === "donut";
+  const isWaterfall = kind === "waterfall";
+  const sliceOverflow = isPie ? Math.max(0, categories.length - PIE_MAX_SLICES) : 0;
+  // Terakota wypada z palety TYLKO na wykresie, który koduje znak czerwienią -
+  // czyli na mostku. Na zwykłych kolumnach reguła nie obowiązuje i krzyczenie
+  // o niej byłoby szumem.
+  const signClash =
+    isWaterfall && usedSlots.some((slot) => SLOTS_CLASHING_WITH_SIGN.includes(slot));
+  // OCHRA WOBEC AKCENTU NIE JEST TU OSTRZEŻENIEM, i to jest decyzja, nie
+  // przeoczenie. Kolizja ochry z pomarańczowym akcentem marki (przy
+  // deuteranopii dystans 1,6, czyli praktycznie ten sam kolor) jest FAKTEM
+  // PALETY i pilnuje jej bramka `__tests__/palette.test.ts`. Autor nie ma
+  // jednak żadnego pola, którym wprowadza akcent do wykresu: w silniku
+  // `--chart-accent` występuje wyłącznie jako obwódka fokusu, czyli stan
+  // przelotny i sterowany klawiaturą, nigdy jako kolor danych. Ostrzeżenie
+  // odpalało się więc zawsze, gdy użyto slotu 2 - a slot 2 jest domyślnym
+  // kolorem DRUGIEJ SERII, czyli komunikat wisiał nad niemal każdym wykresem
+  // o dwóch seriach. Ostrzeżenie, które widać zawsze, uczy ignorowania
+  // wszystkich ostrzeżeń, w tym tych o realnej kolizji znaku (`signClash`).
 
   const setCategories = (next: string[], nextSeries?: SeriesDraft[]) =>
     patch({
@@ -116,6 +184,12 @@ export function ChartBlock({ block, onChange }: Props) {
       <div className="pointer-events-none">
         <Chart config={{ ...previewConfig, animate: false }} lang="pl" className="my-0" />
       </div>
+
+      {overSafePalette > 0 && (
+        <Warning text={ct("editor.tooManySeries", { max: CATEGORICAL_SAFE_SERIES })} />
+      )}
+      {sliceOverflow > 0 && <Warning text={ct("editor.tooManySlices", { max: PIE_MAX_SLICES })} />}
+      {signClash && <Warning text={ct("editor.signClashesWithTerracotta")} />}
 
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
@@ -343,13 +417,202 @@ export function ChartBlock({ block, onChange }: Props) {
           {Number(block.data.height ?? 320)}px
         </span>
       </div>
-      <input
-        className={inputCls}
-        value={String(block.data.source ?? "")}
-        placeholder={bt.editor("chart", "source")}
-        onChange={(e) => patch({ source: e.target.value })}
-      />
+      {/* ---- PODPIS UCZCIWOŚCIOWY ----
+          Jednostka, źródło, DATA DANYCH, `n` i trzy zdania. Cztery z tych pól
+          autor pominąłby, gdyby ich nie było w formie - a wykres bez nich
+          wygląda dokładnie tak samo i znaczy co innego. */}
+      <FieldGroup label={bt.editor("chart", "honestyLabel")}>
+        <input
+          className={inputCls}
+          value={String(block.data.source ?? "")}
+          placeholder={bt.editor("chart", "source")}
+          onChange={(e) => patch({ source: e.target.value })}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            className={inputCls}
+            value={String(block.data.sourceDate ?? "")}
+            placeholder={bt.editor("chart", "sourceDate")}
+            onChange={(e) => patch({ sourceDate: e.target.value })}
+          />
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            value={block.data.sampleSize == null ? "" : String(block.data.sampleSize)}
+            placeholder={bt.editor("chart", "sampleSize")}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              patch({ sampleSize: raw === "" ? null : Number(raw) });
+            }}
+          />
+        </div>
+        <input
+          className={inputCls}
+          value={String(block.data.notesShows ?? "")}
+          placeholder={bt.editor("chart", "notesShows")}
+          onChange={(e) => patch({ notesShows: e.target.value })}
+        />
+        <input
+          className={inputCls}
+          value={String(block.data.notesSurprising ?? "")}
+          placeholder={bt.editor("chart", "notesSurprising")}
+          onChange={(e) => patch({ notesSurprising: e.target.value })}
+        />
+        <input
+          className={inputCls}
+          value={String(block.data.notesHidden ?? "")}
+          placeholder={bt.editor("chart", "notesHidden")}
+          onChange={(e) => patch({ notesHidden: e.target.value })}
+        />
+        {!String(block.data.notesHidden ?? "").trim() && (
+          <Warning text={ct("editor.missingNotes")} />
+        )}
+      </FieldGroup>
+
+      {/* ---- KSZTAŁT I PROGNOZA ---- */}
+      <FieldGroup label={bt.editor("chart", "shapeLabel")}>
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={Math.round(smoothing * 100)}
+            onChange={(e) => patch({ smoothing: Number(e.target.value) / 100 })}
+            aria-label={bt.editor("chart", "smoothing")}
+          />
+          <span className="text-xs tabular-nums text-muted-foreground w-14 text-right">
+            {Math.round(smoothing * 100)}%
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground">{bt.editor("chart", "smoothingHint")}</p>
+        <div className="grid grid-cols-2 gap-2">
+          {/* NUMER KATEGORII, NIE INDEKS - i dlatego to pole przelicza w obie
+              strony. Etykieta mówi redaktorowi „od kategorii numer", a ludzie
+              liczą kategorie od jednej: pierwsza to 1. Silnik trzyma tę samą
+              wartość jako INDEKS liczony od zera (`forecastFrom` wchodzi do
+              `i >= forecastFrom` i do `catCenter(forecastFrom)`), więc bez
+              przeliczenia redaktor wpisujący 2 dostawał prognozę od TRZECIEJ
+              kategorii - o jedną za daleko, cicho i na każdym wykresie.
+              Zamiana strony zapisu na liczenie od jednej byłaby gorsza:
+              przeniosłaby korektę o jeden do silnika, czyli do kodu, który
+              indeksuje tablice. */}
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            value={
+              typeof block.data.forecastFrom === "number" ? String(block.data.forecastFrom + 1) : ""
+            }
+            placeholder={bt.editor("chart", "forecastFrom")}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              const numer = Number(raw);
+              patch({
+                forecastFrom: raw === "" || !Number.isFinite(numer) ? null : Math.round(numer) - 1,
+              });
+            }}
+          />
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            value={block.data.forecastBandPct == null ? "" : String(block.data.forecastBandPct)}
+            placeholder={bt.editor("chart", "forecastBandPct")}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              patch({ forecastBandPct: raw === "" ? 0 : Number(raw) });
+            }}
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {bt.editor("chart", "forecastFromHint")}
+        </p>
+        {isForecastMissingBand(previewConfig) && (
+          <Warning text={ct("editor.forecastWithoutBand")} />
+        )}
+      </FieldGroup>
+
+      {/* ---- WYJAŚNIENIE WSKAŹNIKA ----
+          Tooltip o STAŁYCH pięciu polach. Pozostałe pola pokazują się dopiero
+          po podaniu skrótu, bo bez nazwy nie ma czego zaczepić ikony. */}
+      <FieldGroup label={bt.editor("chart", "metricLabel")}>
+        <input
+          className={inputCls}
+          value={metric.name}
+          placeholder={bt.editor("chart", "metricName")}
+          onChange={(e) => patchMetric({ name: e.target.value })}
+        />
+        {metric.name.trim() !== "" && (
+          <>
+            <input
+              className={inputCls}
+              value={metric.expansion}
+              placeholder={bt.editor("chart", "metricExpansion")}
+              onChange={(e) => patchMetric({ expansion: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.formula}
+              placeholder={bt.editor("chart", "metricFormula")}
+              onChange={(e) => patchMetric({ formula: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.measures}
+              placeholder={bt.editor("chart", "metricMeasures")}
+              onChange={(e) => patchMetric({ measures: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.reading}
+              placeholder={bt.editor("chart", "metricReading")}
+              onChange={(e) => patchMetric({ reading: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.levers}
+              placeholder={bt.editor("chart", "metricLevers")}
+              onChange={(e) => patchMetric({ levers: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.caution}
+              placeholder={bt.editor("chart", "metricCaution")}
+              onChange={(e) => patchMetric({ caution: e.target.value })}
+            />
+          </>
+        )}
+      </FieldGroup>
     </Shell>
+  );
+}
+
+/** Sekcja formy z podpisem - grupuje pola, których autor inaczej nie znajdzie. */
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5 rounded-md border border-border/60 p-2">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Ostrzeżenie dyscypliny. NIE BLOKUJE zapisu - mówi, co się psuje, i zostawia
+ * decyzję autorowi. Blokada byłaby tu gorsza: reguły doboru formy mają
+ * wyjątki, których kod nie zna, a zablokowany autor obchodzi walidację
+ * zamiast czytać powód.
+ */
+function Warning({ text }: { text: string }) {
+  return (
+    <p
+      className="flex items-start gap-1.5 text-[11px] leading-snug"
+      style={{ color: "var(--chart-negative-text)" }}
+    >
+      <TriangleAlert className="mt-px h-3 w-3 shrink-0" aria-hidden />
+      <span>{text}</span>
+    </p>
   );
 }
 

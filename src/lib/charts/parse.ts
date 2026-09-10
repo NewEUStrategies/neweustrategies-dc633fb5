@@ -3,10 +3,12 @@
 // koercja, twarde klamry, zero any.
 
 import type { Json } from "@/lib/blocks/types";
+import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
   MAX_SERIES,
   type ChartConfig,
+  type ChartMetric,
   type ChartKind,
   type ChartSeries,
   type DataMapConfig,
@@ -86,7 +88,84 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     showValues: data.showValues === true,
     animate: data.animate !== false,
     source: String(data.source ?? ""),
+    // Wygładzanie: brak klucza znaczy DOMYŚLNE 0,55, a nie zero. Wszystkie
+    // wykresy zapisane przed wprowadzeniem tego pola dostają więc kształt
+    // z nowej specyfikacji bez migracji danych - a autor, który świadomie
+    // chce łamaną, zapisuje 0 i to zero jest respektowane.
+    smoothing: clamp01(num(data.smoothing) ?? SMOOTHING_DEFAULT),
+    forecastFrom: parseForecastFrom(data.forecastFrom, categories.length),
+    forecastBandPct: Math.max(0, Math.min(100, num(data.forecastBandPct) ?? 0)),
+    // n: zero jest wartością nieprawdziwą dla liczby obserwacji, więc
+    // traktujemy je jak brak - inaczej podpis twierdziłby "n = 0" o wykresie,
+    // który coś rysuje.
+    sampleSize: positiveIntOrNull(num(data.sampleSize)),
+    sourceDate: String(data.sourceDate ?? ""),
+    notesShows: String(data.notesShows ?? ""),
+    notesSurprising: String(data.notesSurprising ?? ""),
+    notesHidden: String(data.notesHidden ?? ""),
+    metric: parseChartMetric(data.metric),
   };
+}
+
+/**
+ * Wyjaśnienie wskaźnika. Zwraca null, gdy autor nie podał NAZWY - bez nazwy
+ * nie ma czego zaczepić ikony, a tooltip z pustym nagłówkiem i pięcioma
+ * pustymi polami jest gorszy niż jego brak. Pozostałe pola mogą zostać puste
+ * i wtedy po prostu nie są rysowane: lepiej trzy wypełnione pola w stałych
+ * miejscach niż zmyślone pięć.
+ */
+export function parseChartMetric(raw: Json | undefined): ChartMetric | null {
+  const o = asRecord(raw);
+  const name = String(o.name ?? "").trim();
+  if (!name) return null;
+  return {
+    name,
+    expansion: String(o.expansion ?? "").trim(),
+    formula: String(o.formula ?? "").trim(),
+    measures: String(o.measures ?? "").trim(),
+    reading: String(o.reading ?? "").trim(),
+    levers: String(o.levers ?? "").trim(),
+    caution: String(o.caution ?? "").trim(),
+  };
+}
+
+/**
+ * Pełny config o wartościach domyślnych - punkt wyjścia dla paneli, które
+ * budują wykres W KODZIE, a nie z Json (dashboardy newslettera, audytorium,
+ * podgląd arkusza w edytorze). Bez tego każdy taki panel musiałby wypisać
+ * wszystkie pola i przy dopisaniu kolejnego przestawałby się kompilować -
+ * albo, co gorsza, ktoś rozluźniłby typ i panel zacząłby renderować wykres
+ * z niezdefiniowanymi ustawieniami uczciwości.
+ *
+ * FUNKCJA, NIE STAŁA: config trzyma tablice (`categories`, `series`), więc
+ * współdzielona stała rozniosłaby jedną tablicę po wszystkich panelach.
+ */
+export function defaultChartConfig(): ChartConfig {
+  return parseChartConfig({});
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function positiveIntOrNull(value: number | null): number | null {
+  if (value === null) return null;
+  const rounded = Math.round(value);
+  return rounded > 0 ? rounded : null;
+}
+
+/**
+ * Indeks pierwszej kategorii prognozowanej. Zero jest ODRZUCANE świadomie:
+ * wykres, którego cały szereg jest prognozą, nie ma historii, od której
+ * prognozę odróżnia - separator stałby na lewej krawędzi i nie mówiłby nic.
+ * Taki wykres autor opisuje jako prognozę w tytule, nie strefą.
+ */
+function parseForecastFrom(raw: Json | undefined, categoriesCount: number): number | null {
+  const value = num(raw);
+  if (value === null) return null;
+  const index = Math.round(value);
+  if (index < 1 || index > categoriesCount - 1) return null;
+  return index;
 }
 
 const ISO2_RE = /^[A-Z]{2}$/;

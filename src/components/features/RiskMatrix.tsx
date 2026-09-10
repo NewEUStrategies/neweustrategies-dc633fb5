@@ -44,16 +44,31 @@ interface Props {
   className?: string;
 }
 
-/** Kolor komórki wg wyniku 1..25: zielony -> bursztyn -> czerwony. */
+/**
+ * Kolor komórki wg wyniku 1..25: DOBRZE -> średnio -> ŹLE.
+ *
+ * Skala jedzie z tokenów SEMANTYCZNYCH (`--chart-positive`, `--chart-2`,
+ * `--chart-negative`), a nie ze slotów kategorialnych, i to jest tu rzecz
+ * najważniejsza. Wcześniej stały tu `--chart-2` (wtedy zielony), `--chart-3`
+ * (wtedy bursztyn) i `--chart-6` (wtedy czerwony) - czyli macierz ryzyka
+ * czytała numery slotów palety tak, jakby to były nazwy znaczeń. Wystarczyła
+ * jedna zmiana kolejności palety, żeby "niskie ryzyko" zrobiło się ochrą,
+ * a "wysokie" terakotą, i nic w kodzie nie miałoby jak tego zauważyć.
+ *
+ * Sama trójka jest zwalidowana: podłoga odległości po symulacji daltonizmu
+ * wynosi 25,5 na jasnym i 35,4 na ciemnym. Klasyczne zielony/bursztyn/
+ * czerwony miało 14,4 i wiązała je para ZIELONY-CZERWONY przy deuteranopii,
+ * czyli dokładnie dwa końce tej skali.
+ */
 function cellColor(score: number): string {
   const share = (score - 1) / 24; // 0..1
-  // Interpolacja przez punkt środkowy (bursztyn) dla czytelnego "ciepła".
+  // Interpolacja przez punkt środkowy (ochra) dla czytelnego "ciepła".
   if (share < 0.5) {
     const k = Math.round(share * 2 * 100);
-    return `color-mix(in oklab, var(--chart-3) ${k}%, var(--chart-2))`;
+    return `color-mix(in oklab, var(--chart-2) ${k}%, var(--chart-positive))`;
   }
   const k = Math.round((share - 0.5) * 2 * 100);
-  return `color-mix(in oklab, var(--chart-6) ${k}%, var(--chart-3))`;
+  return `color-mix(in oklab, var(--chart-negative) ${k}%, var(--chart-2))`;
 }
 
 export function RiskMatrix({ config, lang, className }: Props) {

@@ -49,7 +49,7 @@ import { readFileSync } from "node:fs";
 import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartConfig } from "@/lib/charts/types";
-import { MAX_SERIES } from "@/lib/charts/types";
+import { MAX_SERIES, PIE_MAX_SLICES } from "@/lib/charts/types";
 import { axeViolations, summarize } from "@/test/axe";
 import { PieChart } from "../PieChart";
 import { Chart } from "../Chart";
@@ -136,8 +136,17 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
     ]);
   });
 
-  it("odsianie wartości NIE przenumerowuje palety - zostaje slot pozycji kategorii", () => {
-    // Kategoria nr 3 zachowuje `--chart-3`, choć dwie pierwsze wypadły.
+  it("slot idzie z POZYCJI WYCINKA, nie z indeksu kategorii w konfiguracji", () => {
+    // Jedyny rysowany wycinek dostaje slot 1, choć jego kategoria stoi na
+    // trzeciej pozycji. Liczenie po indeksie kategorii wyglądało spójniej
+    // (kategoria "trzymała" swój kolor), ale ROZWALAŁO LIMIT WYCINKÓW: limit
+    // jest wyrażony w wycinkach, więc musi je liczyć. Przy ośmiu kategoriach
+    // z wartościami tylko na pozycjach 5-8 wszystkie cztery wpadały w ogon,
+    // głowa wychodziła pusta i tarcza pokazywała JEDEN wycinek "Pozostałe"
+    // ze stoma procentami - patrz test poniżej. Slot z pozycji ma dodatkowo
+    // tę cechę, że nigdy nie wychodzi poza 1-5, czyli poza zestaw bezpieczny
+    // dla daltonizmu (sloty 7-8 wymagają kreskowania, a wycinka nie da się
+    // zakreskować).
     const { container } = render(
       <PieChart
         config={cfg({
@@ -148,7 +157,36 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
         lang="pl"
       />,
     );
-    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(["var(--chart-3)"]);
+    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(["var(--chart-1)"]);
+  });
+
+  it("wiodące luki NIE zwijają tarczy w jeden wycinek zbiorczy", () => {
+    // REGRESJA. Limit liczony po indeksie kategorii dawał tu głowę pustą
+    // (żaden indeks < 4) i cały zestaw w ogonie, czyli JEDEN wycinek
+    // "Pozostałe: 100 (100%)". Cztery odczytywalne kategorie znikały z tarczy
+    // bez śladu, a limit pięciu wycinków nie był nawet napięty.
+    const { container } = render(
+      <PieChart
+        config={cfg({
+          kind: "pie",
+          categories: ["a", "b", "c", "d", "e", "f", "g", "h"],
+          series: [{ name: "S", values: [null, null, null, null, 10, 20, 30, 40] }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(slices(container).map((s) => s.getAttribute("aria-label"))).toEqual([
+      "e: 10 (10%)",
+      "f: 20 (20%)",
+      "g: 30 (30%)",
+      "h: 40 (40%)",
+    ]);
+    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual([
+      "var(--chart-1)",
+      "var(--chart-2)",
+      "var(--chart-3)",
+      "var(--chart-4)",
+    ]);
   });
 
   it("JEDEN wycinek zamyka pełny obrót łukiem o RÓŻNYCH końcach", () => {
@@ -248,14 +286,19 @@ describe("PieChart - geometria tarczy i pierścienia", () => {
       />,
     );
     const grupa = zTytulem.container.querySelector("[role='group']");
-    expect(grupa?.getAttribute("aria-label")).toBe("Struktura eksportu");
+    // Etykieta a11y idzie ze słownika i NAZYWA RODZAJ OBIEKTU - sam tytuł
+    // nie mówi czytnikowi ekranu, że patrzy na wykres.
+    expect(grupa?.getAttribute("aria-label")).toBe("Wykres: Struktura eksportu");
 
     const bezTytulu = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
     // role="group", nie "img": wycinki w środku są fokusowalne, a rola img
     // uczyniłaby je prezentacyjnymi dla czytnika ekranu.
     const anonimowa = bezTytulu.container.querySelector("[role='group']");
     expect(anonimowa).not.toBeNull();
-    expect(anonimowa?.hasAttribute("aria-label")).toBe(false);
+    // Bez tytułu zostaje sama nazwa rodzaju obiektu: "Wykres" jest dla
+    // czytnika ekranu lepsze niż brak nazwy, a puste `aria-label` byłoby
+    // gorsze od obu.
+    expect(anonimowa?.getAttribute("aria-label")).toBe("Wykres");
   });
 });
 
@@ -380,28 +423,39 @@ describe("PieChart - paleta i nadmiar kategorii", () => {
     series: [{ name: "S", values: Array.from({ length: 10 }, () => 10) }],
   };
 
-  it("sloty idą sekwencyjnie 1..8, a nadmiar kategorii schodzi do wycinka zbiorczego", () => {
-    // Slot to POZYCJA kategorii, więc kategorie 1..7 zachowują własny kolor,
-    // a ostatni slot niesie sumę ogona (3 x 10). Ani zawijania palety (dwa
-    // wycinki jednego koloru), ani obcięcia (dane poza mianownikiem).
+  it("tarcza kończy się na PIĘCIU wycinkach, a nadmiar schodzi do zbiorczego", () => {
+    // ZMIANA ŚWIADOMA: limit zszedł z ośmiu wycinków na pięć.
+    //
+    // Tarcza koduje kątem i powierzchnią, czyli kanałami z DOLNEJ POŁOWY
+    // hierarchii percepcyjnej Clevelanda i McGilla. Przy ośmiu wycinkach
+    // czytelnik nie porówna już żadnej pary - a im więcej wycinków, tym
+    // mniejsza szansa, że którykolwiek da się odczytać. Limit pięciu jest
+    // regułą doboru formy, nie ograniczeniem technicznym.
+    //
+    // ŻADNA LICZBA NIE GINIE: ogon zwija się w jeden wycinek zbiorczy, jego
+    // wartość wchodzi do mianownika, a pełne wartości KAŻDEJ kategorii niesie
+    // tabela danych, która jest zawsze pod wykresem.
     const { container } = render(<PieChart config={cfg(dziesiec)} lang="pl" />);
     expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(
-      Array.from({ length: MAX_SERIES }, (_, i) => `var(--chart-${i + 1})`),
+      Array.from({ length: PIE_MAX_SLICES }, (_, i) => `var(--chart-${i + 1})`),
     );
     const etykiety = slices(container).map((s) => s.getAttribute("aria-label"));
-    expect(etykiety).toHaveLength(MAX_SERIES);
-    // Mianownik obejmuje CAŁY zestaw (100), a nie osiem narysowanych pozycji:
-    // 7 x 10% + 30% domyka 100%.
+    expect(etykiety).toHaveLength(PIE_MAX_SLICES);
+    // Mianownik obejmuje CAŁY zestaw (100), a nie pięć narysowanych pozycji:
+    // 4 x 10% + 60% domyka 100%.
     expect(etykiety[0]).toBe("K1: 10 (10%)");
-    expect(etykiety[MAX_SERIES - 1]).toBe("Pozostałe: 30 (30%)");
+    expect(etykiety[PIE_MAX_SLICES - 1]).toBe("Pozostałe: 60 (60%)");
   });
 
-  it("nazwa wycinka zbiorczego jest przetłumaczona, a jedyna kategoria ogona zachowuje własną", () => {
+  it("nazwa wycinka zbiorczego jest przetłumaczona; dwie dane w dziesięciu kategoriach to dwa wycinki", () => {
     const en = render(<PieChart config={cfg(dziesiec)} lang="en" />);
-    expect(slices(en.container).at(-1)?.getAttribute("aria-label")).toBe("Other: 30 (30%)");
+    expect(slices(en.container).at(-1)?.getAttribute("aria-label")).toBe("Other: 60 (60%)");
 
-    // Ogon z JEDNĄ daną nie ma czego agregować - zbiorczy wycinek zabrałby
-    // tylko nazwę, więc kategoria zostaje przy swojej.
+    // Dziesięć KATEGORII, ale tylko dwie z wartością - więc limit pięciu
+    // wycinków nie jest napięty i wycinka zbiorczego nie ma wcale. Wcześniej,
+    // przy liczeniu po indeksie kategorii, "K10" trafiało do ogona i było
+    // rysowane JAKO wycinek zbiorczy (slot 5): tarcza pokazywała realną
+    // kategorię w kolorze zarezerwowanym dla agregatu.
     const jedna = render(
       <PieChart
         config={cfg({
@@ -418,7 +472,7 @@ describe("PieChart - paleta i nadmiar kategorii", () => {
     ]);
     expect(slices(jedna.container).map((s) => s.getAttribute("fill"))).toEqual([
       "var(--chart-1)",
-      `var(--chart-${MAX_SERIES})`,
+      "var(--chart-2)",
     ]);
   });
 
@@ -833,7 +887,7 @@ describe("PieChart - izolacja przestrzeni roboczych", () => {
     // Ten sam, ŻYWY komponent - hover z alfy musi się przemalować na betę.
     expect(tip(container)?.textContent).toBe("Beta Q170%70 szt.");
     expect(container.querySelector("[role='group']")?.getAttribute("aria-label")).toBe(
-      "Leady - workspace beta",
+      "Wykres: Leady - workspace beta",
     );
     expect(all(container, SEL.center)[0].textContent).toBe("100 szt.");
     const html = container.innerHTML;

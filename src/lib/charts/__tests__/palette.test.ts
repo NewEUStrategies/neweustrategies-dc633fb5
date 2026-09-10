@@ -1,0 +1,548 @@
+// Bramka palety wykresów. Sprawdza TRZY rzeczy, które nie są widoczne w DOM
+// i których żaden test renderujący nie zobaczy:
+//
+//   1. metoda pomiaru jest ta sama, którą policzono paletę (self-check
+//      kolorymetrii wobec liczb ze specyfikacji),
+//   2. paleta spełnia progi - kontrast na płycie, kontrast tuszu w wypełnieniu,
+//      podłoga odległości barw po symulacji daltonizmu,
+//   3. tokeny w `src/styles.css` MAJĄ TE SAME WARTOŚCI co ten moduł.
+//
+// Punkt 3 jest tu najważniejszy. Bez niego moduł byłby dokumentacją, która
+// rozjeżdża się z runtime'em po pierwszej ręcznej poprawce w arkuszu: silnik
+// czyta tokeny, więc to arkusz maluje piksele, a moduł tylko twierdzi. Sklejone
+// razem: podmiana odcienia w CSS bez przeliczenia palety oblewa bramkę.
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { MAX_SERIES } from "@/lib/charts/types";
+import {
+  BAND_CONTRAST_RANGE,
+  CATEGORICAL_SAFE_MAX,
+  CHART_PLATE,
+  CHART_SEMANTIC,
+  CHART_SLOTS,
+  CONTRAST_MIN,
+  CVD_FLOOR,
+  CVD_KINDS,
+  GRID_CONTRAST_MAX,
+  SLOTS_CLASHING_WITH_ACCENT,
+  SLOTS_CLASHING_WITH_SIGN,
+  compositeOver,
+  contrastRatio,
+  cvdDistance,
+  formatHex,
+  labOf,
+  minPairwiseCvdDistance,
+  needsPatternDifferentiator,
+  parseHex,
+  relativeLuminance,
+  simulateCvd,
+  slotAt,
+} from "@/lib/charts/palette";
+
+// ---------------------------------------------------------------------------
+// Odczyt tokenów z arkusza - ten sam sposób cięcia bloków, co w
+// `src/components/charts/__tests__/pieChart.test.tsx`, żeby oba testy patrzyły
+// na dokładnie te same napisy.
+// ---------------------------------------------------------------------------
+const css = readFileSync("src/styles.css", "utf8");
+const LIGHT_BLOCK = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
+const DARK_BLOCK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
+
+function token(block: string, name: string): string {
+  const m = block.match(new RegExp(`${name}:\\s*([^;]+);`));
+  if (!m) throw new Error(`brak tokenu ${name}`);
+  return m[1].trim().toLowerCase();
+}
+
+function hexToken(block: string, name: string): string {
+  const raw = token(block, name);
+  if (!/^#[0-9a-f]{6}$/.test(raw))
+    throw new Error(`token ${name} nie jest 6-cyfrowym hexem: ${raw}`);
+  return raw;
+}
+
+function numberToken(block: string, name: string): number {
+  const raw = token(block, name);
+  const value = Number.parseFloat(raw);
+  if (!Number.isFinite(value)) throw new Error(`token ${name} nie jest liczbą: ${raw}`);
+  return value;
+}
+
+const THEMES = [
+  ["jasny", LIGHT_BLOCK, CHART_PLATE.light] as const,
+  ["ciemny", DARK_BLOCK, CHART_PLATE.dark] as const,
+];
+
+describe("palette - metoda pomiaru", () => {
+  it("kontrast odtwarza wartości referencyjne WCAG", () => {
+    expect(contrastRatio("#ffffff", "#000000")).toBeCloseTo(21, 5);
+    expect(contrastRatio("#ffffff", "#ffffff")).toBeCloseTo(1, 5);
+    // Kontrast jest symetryczny - kolejność argumentów nie może nic zmieniać.
+    expect(contrastRatio("#00528f", "#ffffff")).toBeCloseTo(
+      contrastRatio("#ffffff", "#00528f"),
+      10,
+    );
+    expect(contrastRatio("#00528f", "#ffffff")).toBeCloseTo(8.07, 2);
+  });
+
+  it("luminancja rośnie monotonicznie z jasnością", () => {
+    expect(relativeLuminance("#000000")).toBeCloseTo(0, 6);
+    expect(relativeLuminance("#ffffff")).toBeCloseTo(1, 6);
+    expect(relativeLuminance("#808080")).toBeGreaterThan(relativeLuminance("#404040"));
+  });
+
+  it("parseHex przyjmuje skrót trzycyfrowy i odrzuca śmieci", () => {
+    expect(parseHex("#fff")).toEqual([255, 255, 255]);
+    expect(parseHex("00528F")).toEqual([0, 82, 143]);
+    expect(() => parseHex("var(--chart-1)")).toThrow(/nie jest kolorem hex/);
+    expect(() => parseHex("#12345")).toThrow(/nie jest kolorem hex/);
+  });
+
+  it("formatHex przycina do zakresu kanału zamiast zawijać", () => {
+    expect(formatHex([300, -20, 128])).toBe("#ff0080");
+  });
+
+  it("CIELAB odtwarza punkty referencyjne", () => {
+    const [lWhite] = labOf("#ffffff");
+    const [lBlack] = labOf("#000000");
+    expect(lWhite).toBeCloseTo(100, 1);
+    expect(lBlack).toBeCloseTo(0, 1);
+  });
+
+  it("symulacja daltonizmu odtwarza zmierzone odległości palety", () => {
+    // Te liczby są kotwicą całej metody: jeśli macierze albo przestrzeń barw
+    // się zmienią, wszystkie pozostałe progi w tym pliku zaczną mierzyć coś
+    // innego i muszą zostać przeliczone RAZEM z nimi.
+    //
+    // RÓŻNICA WOBEC LICZB PUBLIKOWANYCH DLA TEJ PALETY (19,9 / 23,1 / 17,0
+    // i 24,6 / 26,2 / 24,4) jest ZNANA i wynosi do 0,6: `simulateCvd`
+    // zaokrągla wynik symulacji do 8-bitowego sRGB PRZED przejściem do
+    // CIELAB, bo ekran nie umie wyświetlić części kanału. Pomiar na liczbach
+    // zmiennoprzecinkowych daje dokładnie wartości publikowane. Zostaje
+    // wariant zaokrąglony, bo mierzy to, co czytelnik naprawdę widzi -
+    // a spójność wewnątrz repo jest ważniejsza niż zgodność z cudzą
+    // implementacją do drugiego miejsca.
+    const light = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.light);
+    expect(minPairwiseCvdDistance(light, "deutan")?.distance).toBeCloseTo(19.96, 1);
+    expect(minPairwiseCvdDistance(light, "protan")?.distance).toBeCloseTo(23.06, 1);
+    expect(minPairwiseCvdDistance(light, "tritan")?.distance).toBeCloseTo(17.09, 1);
+
+    const dark = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.dark);
+    expect(minPairwiseCvdDistance(dark, "deutan")?.distance).toBeCloseTo(24.0, 1);
+    expect(minPairwiseCvdDistance(dark, "protan")?.distance).toBeCloseTo(26.16, 1);
+    expect(minPairwiseCvdDistance(dark, "tritan")?.distance).toBeCloseTo(24.34, 1);
+  });
+
+  it("symulacja NIE jest wygaszeniem kanału - czerwień idzie w ochrę, nie w czerń", () => {
+    const original = relativeLuminance("#ef5454");
+    const seen = simulateCvd("#ef5454", "protan");
+    // Gdyby macierz tylko zerowała kanał czerwony, luminancja runęłaby niemal
+    // do zera. Model fizjologiczny zachowuje ponad połowę jasności (0,133
+    // wobec 0,253) i przesuwa odcień - dlatego dla protanopa czerwień wygląda
+    // jak ochra, a nie jak czerń, i dlatego zieleń przestaje się od niej
+    // różnić. Próg jest RELATYWNY do odcienia wejściowego, bo o pomyłkę
+    // "wygaszenie kanału" chodzi, nie o konkretną wartość.
+    expect(relativeLuminance(seen)).toBeGreaterThan(original * 0.4);
+    const [, a] = labOf(seen);
+    expect(a).toBeLessThan(labOf("#ef5454")[1]);
+  });
+
+  it("compositeOver zwraca tło przy alfie 0 i kolor przy alfie 1", () => {
+    expect(compositeOver("#00528f", "#ffffff", 0)).toBe("#ffffff");
+    expect(compositeOver("#00528f", "#ffffff", 1)).toBe("#00528f");
+  });
+
+  it("slotAt zawija numer na paletę, tak jak `(i % 8) + 1` w kodzie widgetów", () => {
+    expect(slotAt(1).key).toBe("granat");
+    expect(slotAt(CHART_SLOTS.length + 1).key).toBe("granat");
+    expect(slotAt(0).key).toBe(CHART_SLOTS[CHART_SLOTS.length - 1].key);
+  });
+});
+
+describe("palette - progi WCAG", () => {
+  it("każdy slot jest widoczny na płycie swojego motywu (>= 3:1)", () => {
+    for (const slot of CHART_SLOTS) {
+      const light = contrastRatio(slot.light, CHART_PLATE.light);
+      const dark = contrastRatio(slot.dark, CHART_PLATE.dark);
+      expect(light, `jasny ${slot.key}: ${light.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.graphic,
+      );
+      expect(dark, `ciemny ${slot.key}: ${dark.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.graphic,
+      );
+    }
+  });
+
+  it("wariant TEKSTOWY każdego slotu przechodzi 4,5:1 - inaczej podpisy są nieczytelne", () => {
+    for (const slot of CHART_SLOTS) {
+      const light = contrastRatio(slot.textLight, CHART_PLATE.light);
+      const dark = contrastRatio(slot.textDark, CHART_PLATE.dark);
+      expect(light, `jasny ${slot.key}t: ${light.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.text,
+      );
+      expect(dark, `ciemny ${slot.key}t: ${dark.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.text,
+      );
+    }
+  });
+
+  it("wariant tekstowy nie jest JAŚNIEJSZY od serii w motywie jasnym i nie ciemniejszy w ciemnym", () => {
+    // Kierunek wyprowadzania wariantu: w jasnym przyciemniamy, w ciemnym
+    // rozjaśniamy. Wariant o odwrotnym kierunku przechodziłby próg tylko
+    // przypadkiem i psułby spójność odcienia serii z jej podpisem.
+    for (const slot of CHART_SLOTS) {
+      expect(relativeLuminance(slot.textLight), `jasny ${slot.key}`).toBeLessThanOrEqual(
+        relativeLuminance(slot.light) + 1e-9,
+      );
+      expect(relativeLuminance(slot.textDark), `ciemny ${slot.key}`).toBeGreaterThanOrEqual(
+        relativeLuminance(slot.dark) - 1e-9,
+      );
+    }
+  });
+
+  it("tusz etykiety w wypełnieniu przechodzi 4,5:1 w każdym slocie i obu motywach", () => {
+    // Etykieta udziału to 12 px / waga 600 - nie jest "dużym tekstem", więc
+    // obowiązuje ją AA 4,5:1, nie 3:1.
+    for (const slot of CHART_SLOTS) {
+      const light = contrastRatio(slot.inkLight, slot.light);
+      const dark = contrastRatio(slot.inkDark, slot.dark);
+      expect(light, `jasny ${slot.key}: ${light.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.text,
+      );
+      expect(dark, `ciemny ${slot.key}: ${dark.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.text,
+      );
+    }
+  });
+
+  it("semantyka znaku: grafika >= 3:1, tekst >= 4,5:1 w obu motywach", () => {
+    const cases: Array<[string, string, string, number]> = [
+      ["dodatni jasny", CHART_SEMANTIC.positiveLight, CHART_PLATE.light, CONTRAST_MIN.graphic],
+      ["ujemny jasny", CHART_SEMANTIC.negativeLight, CHART_PLATE.light, CONTRAST_MIN.graphic],
+      ["dodatni ciemny", CHART_SEMANTIC.positiveDark, CHART_PLATE.dark, CONTRAST_MIN.graphic],
+      ["ujemny ciemny", CHART_SEMANTIC.negativeDark, CHART_PLATE.dark, CONTRAST_MIN.graphic],
+      [
+        "dodatni tekst jasny",
+        CHART_SEMANTIC.positiveTextLight,
+        CHART_PLATE.light,
+        CONTRAST_MIN.text,
+      ],
+      [
+        "ujemny tekst jasny",
+        CHART_SEMANTIC.negativeTextLight,
+        CHART_PLATE.light,
+        CONTRAST_MIN.text,
+      ],
+      [
+        "dodatni tekst ciemny",
+        CHART_SEMANTIC.positiveTextDark,
+        CHART_PLATE.dark,
+        CONTRAST_MIN.text,
+      ],
+      ["ujemny tekst ciemny", CHART_SEMANTIC.negativeTextDark, CHART_PLATE.dark, CONTRAST_MIN.text],
+    ];
+    for (const [name, colour, plate, threshold] of cases) {
+      const r = contrastRatio(colour, plate);
+      expect(r, `${name}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(threshold);
+    }
+  });
+
+  it("czerwień ujemna NIE przechodzi progu tekstowego na jasnym - dlatego istnieje wariant", () => {
+    // Ta asercja pilnuje POWODU istnienia `negativeTextLight`. Gdyby ktoś
+    // rozjaśnił płytę albo przyciemnił czerwień tak, że próg zaczyna
+    // przechodzić, wariant staje się zbędny i trzeba to zauważyć świadomie.
+    expect(contrastRatio(CHART_SEMANTIC.negativeLight, CHART_PLATE.light)).toBeLessThan(
+      CONTRAST_MIN.text,
+    );
+    expect(contrastRatio(CHART_SEMANTIC.negativeLight, CHART_PLATE.light)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.graphic,
+    );
+  });
+});
+
+describe("palette - rozdzielność dla daltonizmu", () => {
+  it("zestaw BEZPIECZNY (sloty 1..6) trzyma podłogę w każdym rodzaju widzenia", () => {
+    for (const theme of ["light", "dark"] as const) {
+      const hexes = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) =>
+        theme === "dark" ? s.dark : s.light,
+      );
+      for (const kind of CVD_KINDS) {
+        const closest = minPairwiseCvdDistance(hexes, kind);
+        expect(closest).not.toBeNull();
+        expect(
+          closest?.distance,
+          `${theme} ${kind}: ${closest?.distance.toFixed(2)} para ${closest?.pair.join("/")}`,
+        ).toBeGreaterThanOrEqual(CVD_FLOOR.safe[kind]);
+      }
+    }
+  });
+
+  it("zestaw PEŁNY (sloty 1..8) trzyma własną, NIŻSZĄ podłogę - i to jest udokumentowane", () => {
+    // Osiem odcieni rozdzielnych w tej rodzinie nie istnieje. Ten próg mówi
+    // wprost, ile realnie zostaje, żeby nikt nie wziął slotów 7-8 za
+    // bezpieczne. Sloty poza zestawem bezpiecznym dostają w silniku
+    // kreskowanie jako drugi nośnik różnicy.
+    for (const theme of ["light", "dark"] as const) {
+      const hexes = CHART_SLOTS.map((s) => (theme === "dark" ? s.dark : s.light));
+      for (const kind of CVD_KINDS) {
+        const closest = minPairwiseCvdDistance(hexes, kind);
+        expect(
+          closest?.distance,
+          `${theme} ${kind}: ${closest?.distance.toFixed(2)} para ${closest?.pair.join("/")}`,
+        ).toBeGreaterThanOrEqual(CVD_FLOOR.extended[kind]);
+      }
+    }
+  });
+
+  it("podłoga pełnego zestawu jest NIŻSZA od bezpiecznego - próg nie jest dekoracją", () => {
+    for (const kind of CVD_KINDS) {
+      expect(CVD_FLOOR.extended[kind], kind).toBeLessThan(CVD_FLOOR.safe[kind]);
+    }
+  });
+
+  it("dokładnie sloty poza zestawem bezpiecznym wymagają kreskowania", () => {
+    for (const slot of CHART_SLOTS) {
+      expect(needsPatternDifferentiator(slot.slot), slot.key).toBe(
+        slot.slot > CATEGORICAL_SAFE_MAX,
+      );
+      expect(slot.cvdSafe, slot.key).toBe(slot.slot <= CATEGORICAL_SAFE_MAX);
+    }
+  });
+
+  it("para dodatni/ujemny rozchodzi się we WSZYSTKICH rodzajach widzenia", () => {
+    // To jest cała treść decyzji "dodatni jest tealem, nie zielenią".
+    // Protanopia jest tu wąskim gardłem: klasyczny teal zielony #2d7a6a daje
+    // wobec tej czerwieni 8,5, czyli zysk i strata w jednym kolorze.
+    for (const kind of CVD_KINDS) {
+      const light = cvdDistance(CHART_SEMANTIC.positiveLight, CHART_SEMANTIC.negativeLight, kind);
+      const dark = cvdDistance(CHART_SEMANTIC.positiveDark, CHART_SEMANTIC.negativeDark, kind);
+      expect(light, `jasny ${kind}: ${light.toFixed(2)}`).toBeGreaterThanOrEqual(
+        CVD_FLOOR.safe[kind],
+      );
+      expect(dark, `ciemny ${kind}: ${dark.toFixed(2)}`).toBeGreaterThanOrEqual(
+        CVD_FLOOR.safe[kind],
+      );
+    }
+    expect(
+      cvdDistance(CHART_SEMANTIC.positiveLight, CHART_SEMANTIC.negativeLight, "protan"),
+    ).toBeGreaterThan(cvdDistance("#2d7a6a", CHART_SEMANTIC.negativeLight, "protan") * 3);
+  });
+
+  it("lista slotów kolidujących ze znakiem jest PRAWDZIWA, nie przepisana z notatki", () => {
+    for (const slot of SLOTS_CLASHING_WITH_SIGN) {
+      const hex = slotAt(slot).light;
+      const worst = Math.min(
+        ...CVD_KINDS.map((kind) => cvdDistance(hex, CHART_SEMANTIC.negativeLight, kind)),
+      );
+      expect(worst, `slot ${slot}: ${worst.toFixed(2)}`).toBeLessThan(CVD_FLOOR.safe.protan);
+    }
+    // I odwrotnie: slot, którego nie ma na liście, musi się od czerwieni
+    // odróżniać. Inaczej lista jest niepełna i wykres kłamie.
+    for (const slot of CHART_SLOTS.filter(
+      (s) => s.cvdSafe && !SLOTS_CLASHING_WITH_SIGN.includes(s.slot),
+    )) {
+      const worst = Math.min(
+        ...CVD_KINDS.map((kind) => cvdDistance(slot.light, CHART_SEMANTIC.negativeLight, kind)),
+      );
+      expect(worst, `slot ${slot.slot} (${slot.key}): ${worst.toFixed(2)}`).toBeGreaterThanOrEqual(
+        CVD_FLOOR.extended.deutan,
+      );
+    }
+  });
+
+  it("lista slotów kolidujących z akcentem marki jest PRAWDZIWA", () => {
+    const accentText = hexToken(LIGHT_BLOCK, "--chart-accent-text");
+    for (const slot of SLOTS_CLASHING_WITH_ACCENT) {
+      const worst = Math.min(
+        ...CVD_KINDS.map((kind) => cvdDistance(slotAt(slot).light, accentText, kind)),
+      );
+      expect(worst, `slot ${slot}: ${worst.toFixed(2)}`).toBeLessThan(CVD_FLOOR.safe.tritan);
+    }
+  });
+});
+
+describe("palette - pasmo prognozy i siatka", () => {
+  it("krycie pasma trafia w korytarz kontrastu do płyty w KAŻDYM slocie", () => {
+    // Stała alfa nie działa: różnica jasności serii wobec płyty jest nierówna,
+    // więc jedno pasmo byłoby niewidoczne, a inne konkurowałoby z linią.
+    for (const slot of CHART_SLOTS) {
+      const light = contrastRatio(
+        compositeOver(slot.light, CHART_PLATE.light, slot.bandLight),
+        CHART_PLATE.light,
+      );
+      const dark = contrastRatio(
+        compositeOver(slot.dark, CHART_PLATE.dark, slot.bandDark),
+        CHART_PLATE.dark,
+      );
+      expect(light, `jasny ${slot.key}: ${light.toFixed(3)}:1`).toBeGreaterThanOrEqual(
+        BAND_CONTRAST_RANGE.min,
+      );
+      expect(light, `jasny ${slot.key}: ${light.toFixed(3)}:1`).toBeLessThanOrEqual(
+        BAND_CONTRAST_RANGE.max,
+      );
+      expect(dark, `ciemny ${slot.key}: ${dark.toFixed(3)}:1`).toBeGreaterThanOrEqual(
+        BAND_CONTRAST_RANGE.min,
+      );
+      expect(dark, `ciemny ${slot.key}: ${dark.toFixed(3)}:1`).toBeLessThanOrEqual(
+        BAND_CONTRAST_RANGE.max,
+      );
+    }
+  });
+
+  it("krycie pasma semantyki też trafia w korytarz", () => {
+    const cases: Array<[string, string, string, number]> = [
+      [
+        "dodatni jasny",
+        CHART_SEMANTIC.positiveLight,
+        CHART_PLATE.light,
+        CHART_SEMANTIC.bandPositiveLight,
+      ],
+      [
+        "ujemny jasny",
+        CHART_SEMANTIC.negativeLight,
+        CHART_PLATE.light,
+        CHART_SEMANTIC.bandNegativeLight,
+      ],
+      [
+        "dodatni ciemny",
+        CHART_SEMANTIC.positiveDark,
+        CHART_PLATE.dark,
+        CHART_SEMANTIC.bandPositiveDark,
+      ],
+      [
+        "ujemny ciemny",
+        CHART_SEMANTIC.negativeDark,
+        CHART_PLATE.dark,
+        CHART_SEMANTIC.bandNegativeDark,
+      ],
+    ];
+    for (const [name, colour, plate, alpha] of cases) {
+      const r = contrastRatio(compositeOver(colour, plate, alpha), plate);
+      expect(r, `${name}: ${r.toFixed(3)}:1`).toBeGreaterThanOrEqual(BAND_CONTRAST_RANGE.min);
+      expect(r, `${name}: ${r.toFixed(3)}:1`).toBeLessThanOrEqual(BAND_CONTRAST_RANGE.max);
+    }
+  });
+
+  it("siatka jest wyczuwalna, nie widoczna (< 1,3:1 do płyty), a oś od niej mocniejsza", () => {
+    for (const [name, block, plate] of THEMES) {
+      const grid = contrastRatio(hexToken(block, "--chart-grid"), plate);
+      const axis = contrastRatio(hexToken(block, "--chart-axis"), plate);
+      expect(grid, `${name} siatka: ${grid.toFixed(3)}:1`).toBeLessThan(GRID_CONTRAST_MAX);
+      expect(grid, `${name} siatka: ${grid.toFixed(3)}:1`).toBeGreaterThan(1.05);
+      expect(axis, `${name} oś: ${axis.toFixed(3)}:1`).toBeGreaterThan(grid);
+      expect(axis, `${name} oś: ${axis.toFixed(3)}:1`).toBeLessThan(1.6);
+    }
+  });
+
+  it("strefa prognozy jest separatorem, nie plamą (kontrast do płyty < 1,08)", () => {
+    for (const [name, block, plate] of THEMES) {
+      const zone = hexToken(block, "--chart-zone");
+      const alpha = numberToken(block, "--chart-zone-alpha");
+      const r = contrastRatio(compositeOver(zone, plate, alpha), plate);
+      expect(r, `${name}: ${r.toFixed(3)}:1`).toBeGreaterThan(1.02);
+      expect(r, `${name}: ${r.toFixed(3)}:1`).toBeLessThan(1.08);
+    }
+  });
+});
+
+describe("palette - tokeny w styles.css zgadzają się z modułem", () => {
+  it("MAX_SERIES równa się liczbie slotów palety", () => {
+    // Gdyby te dwie liczby się rozjechały, parser przyjąłby slot bez tokenu -
+    // a brak tokenu to czarne wypełnienie albo niewidoczna kreska, po cichu.
+    expect(CHART_SLOTS).toHaveLength(MAX_SERIES);
+    expect(CHART_SLOTS.map((s) => s.slot)).toEqual(
+      Array.from({ length: MAX_SERIES }, (_, i) => i + 1),
+    );
+  });
+
+  it("wypełnienia, warianty tekstowe, tusze i krycia pasm są identyczne w CSS i w module", () => {
+    for (const slot of CHART_SLOTS) {
+      expect(hexToken(LIGHT_BLOCK, `--chart-${slot.slot}`), `jasny ${slot.key}`).toBe(slot.light);
+      expect(hexToken(DARK_BLOCK, `--chart-${slot.slot}`), `ciemny ${slot.key}`).toBe(slot.dark);
+      expect(hexToken(LIGHT_BLOCK, `--chart-${slot.slot}t`), `jasny ${slot.key}t`).toBe(
+        slot.textLight,
+      );
+      expect(hexToken(DARK_BLOCK, `--chart-${slot.slot}t`), `ciemny ${slot.key}t`).toBe(
+        slot.textDark,
+      );
+      expect(hexToken(LIGHT_BLOCK, `--chart-ink-${slot.slot}`), `jasny tusz ${slot.key}`).toBe(
+        slot.inkLight,
+      );
+      expect(hexToken(DARK_BLOCK, `--chart-ink-${slot.slot}`), `ciemny tusz ${slot.key}`).toBe(
+        slot.inkDark,
+      );
+      expect(numberToken(LIGHT_BLOCK, `--chart-band-${slot.slot}`), `jasne pasmo ${slot.key}`).toBe(
+        slot.bandLight,
+      );
+      expect(numberToken(DARK_BLOCK, `--chart-band-${slot.slot}`), `ciemne pasmo ${slot.key}`).toBe(
+        slot.bandDark,
+      );
+    }
+  });
+
+  it("semantyka znaku jest identyczna w CSS i w module", () => {
+    expect(hexToken(LIGHT_BLOCK, "--chart-positive")).toBe(CHART_SEMANTIC.positiveLight);
+    expect(hexToken(DARK_BLOCK, "--chart-positive")).toBe(CHART_SEMANTIC.positiveDark);
+    expect(hexToken(LIGHT_BLOCK, "--chart-negative")).toBe(CHART_SEMANTIC.negativeLight);
+    expect(hexToken(DARK_BLOCK, "--chart-negative")).toBe(CHART_SEMANTIC.negativeDark);
+    expect(hexToken(LIGHT_BLOCK, "--chart-positive-text")).toBe(CHART_SEMANTIC.positiveTextLight);
+    expect(hexToken(DARK_BLOCK, "--chart-positive-text")).toBe(CHART_SEMANTIC.positiveTextDark);
+    expect(hexToken(LIGHT_BLOCK, "--chart-negative-text")).toBe(CHART_SEMANTIC.negativeTextLight);
+    expect(hexToken(DARK_BLOCK, "--chart-negative-text")).toBe(CHART_SEMANTIC.negativeTextDark);
+    expect(hexToken(LIGHT_BLOCK, "--chart-ink-positive")).toBe(CHART_SEMANTIC.positiveInkLight);
+    expect(hexToken(DARK_BLOCK, "--chart-ink-positive")).toBe(CHART_SEMANTIC.positiveInkDark);
+    expect(hexToken(LIGHT_BLOCK, "--chart-ink-negative")).toBe(CHART_SEMANTIC.negativeInkLight);
+    expect(hexToken(DARK_BLOCK, "--chart-ink-negative")).toBe(CHART_SEMANTIC.negativeInkDark);
+  });
+
+  it("płyta, wobec której paleta jest mierzona, to REALNY token --card", () => {
+    // Cała walidacja liczy kontrast wobec CHART_PLATE. Gdyby ktoś zmienił
+    // --card, te liczby przestałyby opisywać to, co widzi czytelnik.
+    //
+    // Motyw jasny zapisuje biel jako `oklch(1 0 0)`, a nie `#ffffff`, więc
+    // porównujemy ZNACZENIE, nie napis: obie postacie to ta sama biel
+    // (bramka i tak liczy kontrast z CHART_PLATE.light). Lista dopuszczalnych
+    // zapisów jest krótka i jawna, żeby podmiana --card na cokolwiek innego
+    // niż biel oblała ten test.
+    expect(["#ffffff", "#fff", "oklch(1 0 0)", "white"]).toContain(token(LIGHT_BLOCK, "--card"));
+    expect(relativeLuminance(CHART_PLATE.light)).toBeCloseTo(1, 6);
+    expect(token(DARK_BLOCK, "--card")).toBe(CHART_PLATE.dark);
+  });
+
+  it("ten sam odcień serii w obu motywach - przełączenie motywu nie zmienia wniosku", () => {
+    // Warunek nadrzędny trybu ciemnego: seria zachowuje TEN SAM odcień,
+    // zmienia się tylko jasność i nasycenie. Dopuszczalne odchylenie kąta
+    // odcienia w CIELAB to 10 stopni.
+    const hueOf = (hex: string): number => {
+      const [, a, b] = labOf(hex);
+      return ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
+    };
+    for (const slot of CHART_SLOTS) {
+      const delta = Math.abs(hueOf(slot.light) - hueOf(slot.dark));
+      const shortest = Math.min(delta, 360 - delta);
+      expect(shortest, `${slot.key}: ${shortest.toFixed(1)} st.`).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it("motyw ciemny NIE odwraca ról znaku - dodatni zostaje dodatnim", () => {
+    const hueOf = (hex: string): number => {
+      const [, a, b] = labOf(hex);
+      return ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
+    };
+    // Próg dla semantyki jest o stopień luźniejszy niż dla serii (11 wobec
+    // 10) i to nie jest niedbałość: `--chart-positive` musi jednocześnie
+    // trzymać kontrast na DWÓCH bardzo różnych płytach (#ffffff i #0f0f0f)
+    // ORAZ maksymalną odległość od czerwieni przy protanopii, a te trzy
+    // warunki naraz zostawiają na kąt odcienia mniej miejsca niż seria, która
+    // odpowiada tylko za samą siebie. Zmierzone przesunięcie to 10,18 stopnia
+    // (teal #1b6f8c -> #6fb3c9). Ujemny nie przesuwa się wcale, bo w obu
+    // motywach jest tym samym #ef5454.
+    for (const [name, light, dark] of [
+      ["dodatni", CHART_SEMANTIC.positiveLight, CHART_SEMANTIC.positiveDark],
+      ["ujemny", CHART_SEMANTIC.negativeLight, CHART_SEMANTIC.negativeDark],
+    ] as const) {
+      const delta = Math.abs(hueOf(light) - hueOf(dark));
+      expect(Math.min(delta, 360 - delta), name).toBeLessThanOrEqual(11);
+    }
+  });
+});
