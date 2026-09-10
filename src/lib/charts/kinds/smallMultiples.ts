@@ -428,7 +428,11 @@ export interface SmallMultiplesScale {
   shared: SmallMultiplesDomain;
   /** Czy domena wyszła z danych, a nie została podana z zewnątrz. */
   domainFromData: boolean;
-  /** Indeks kategorii bazowej indeksu. `null` w trybie poziomu. */
+  /**
+   * Indeks kategorii bazowej indeksu. Rozstrzygnięty ZAWSZE (domyślnie
+   * pierwsza kategoria), bo kolumna indeksu w tabeli danych istnieje także
+   * w trybie poziomu; `null` tylko wtedy, gdy nie ma ani jednej kategorii.
+   */
   indexBaseAt: number | null;
   /**
    * Iloraz największego i najmniejszego POZIOMU paneli (po wartościach
@@ -995,10 +999,14 @@ export function smallMultiplesModel(
   const requestedScaleMode: SmallMultiplesScaleMode = opts.scaleMode === "free" ? "free" : "shared";
   const format = opts.formatValue ?? domyslnyFormat;
   const wspolnySlot = przytnij(Math.round(opts.colorSlot ?? 1), 1, MAX_SERIES);
+  // KATEGORIA BAZOWA JEST ROZSTRZYGNIĘTA ZAWSZE, nie tylko w trybie indeksu.
+  // Kolumna indeksu w tabeli danych istnieje także wtedy, gdy oś pokazuje
+  // poziomy - i jest tam po to, żeby czytelnik zobaczył, DLACZEGO panel
+  // wygląda płasko: "112" obok płaskiej kreski mówi, że wzrost był
+  // dwunastoprocentowy, a nie żadny. Wiązanie bazy z trybem osi odbierałoby
+  // tabeli tę kolumnę dokładnie tam, gdzie jest najbardziej potrzebna.
   const indexBaseAt =
-    mode === "index"
-      ? przytnij(Math.round(opts.indexBaseAt ?? 0), 0, Math.max(0, categoryCount - 1))
-      : null;
+    categoryCount > 0 ? przytnij(Math.round(opts.indexBaseAt ?? 0), 0, categoryCount - 1) : null;
 
   // ODCZYT DANYCH PRZED GEOMETRIĄ. Domena musi być znana, zanim policzymy
   // pozycje punktów, a kolejność paneli - zanim przypiszemy im komórki
@@ -1277,7 +1285,11 @@ export function smallMultiplesModel(
     emptyPanelsKeptOk: emptyPanels === 0 ? null : opts.dropEmptyPanels !== true,
     orderFromDataOk: drawablePanels < 2 ? null : order !== "input" && kluczeRozne,
     inGridOk: observations === 0 && valuesOutsideGrid === 0 ? null : valuesOutsideGrid === 0,
-    inDomainOk: zewnetrzna === null ? null : !poza,
+    // Domena z zewnątrz jest domeną RYSOWANIA tylko przy skali wspólnej; przy
+    // osobnej każdy panel ma własną i nic nie wychodzi poza nią z definicji.
+    // Zaświadczanie wtedy "wszystko się mieści" mówiłoby o domenie, w której
+    // rysunek i tak nie powstał - więc model milczy.
+    inDomainOk: zewnetrzna === null || scaleMode !== "shared" ? null : !poza,
     zeroBaselineOk: mark === "line" ? null : shared.includesZero,
     indexBaseOk: mode !== "index" ? null : panels.every((p) => p.empty || p.indexable),
     spreadOk,

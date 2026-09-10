@@ -9,6 +9,8 @@
 // które czytelnik odczyta z rysunku i z tabeli, a nie kolejność kroków, która
 // do nich doprowadziła.
 import { describe, expect, it } from "vitest";
+import type { Json } from "@/lib/content-model/json";
+import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartSeries } from "@/lib/charts/types";
 import {
   BOXPLOT_MIN_SAMPLE,
@@ -20,6 +22,7 @@ import {
   boxplotExtent,
   boxplotFormAdvice,
   boxplotModel,
+  boxplotModelFromConfig,
   boxplotTable,
   quantileR7,
   type BoxplotInput,

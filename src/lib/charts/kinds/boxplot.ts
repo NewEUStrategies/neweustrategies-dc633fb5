@@ -53,7 +53,7 @@
 // arkusza transponowanego jest tryb `groupBy: "category"`. Żadne z tych dwóch
 // odczytań nie wymaga zmiany schematu bloku; propozycja jawnego pola jest
 // w raporcie.
-import type { ChartSeries } from "../types";
+import type { ChartConfig, ChartSeries } from "../types";
 
 /**
  * METODA INTERPOLACJI KWANTYLI: liniowa interpolacja statystyk pozycyjnych,
@@ -839,6 +839,55 @@ function honestyOf(
     emptySamples,
     collapsedSamples,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Model z konfiguracji bloku                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Model z tego, co silnik już ma w `ChartConfig` - jedyne wejście, którego
+ * render potrzebuje, żeby nie znać konwencji odczytu arkusza.
+ *
+ * KTO JEST GRUPĄ. Konfiguracja daje `categories` i `series`, czyli JEDNĄ
+ * liczbę na przecięciu. Rozkład potrzebuje SUROWYCH OBSERWACJI, więc ten sam
+ * arkusz czytamy inaczej: jedna seria to jedna grupa, a jej `values` to
+ * obserwacje tej grupy (patrz nagłówek pliku). Etykiety kategorii są wtedy
+ * identyfikatorami wierszy, nie osią kategorii wykresu.
+ *
+ * ADAPTER NIE ZGADUJE TRYBU GRUPOWANIA, i to jest tu jedyna decyzja warta
+ * uzasadnienia. Kuszące jest wykrycie arkusza transponowanego z kształtu
+ * danych ("więcej kategorii niż serii, więc grupami są serie"), ale każda taka
+ * reguła jest zgadywaniem INTENCJI autora, a pomyłka nie wygląda na błąd -
+ * wygląda na inne dane, dokładnie jak pomyłka o jeden wiersz w mapie ciepła.
+ * Dlatego `groupBy` zostaje w `opts` z wartością domyślną "series", a wybór
+ * należy do wywołującego, który zna pole bloku.
+ *
+ * NIE FILTRUJEMY SERII BEZ DANYCH, i tym ten adapter różni się od
+ * `histogramModelFromConfig`. Histogram czyta JEDNĄ serię, więc musi wybrać
+ * pierwszą niepustą, inaczej wygaszałby rozkład z powodu wiersza dopisanego
+ * w edytorze. Skrzynka czyta WSZYSTKIE serie jako grupy, a seria bez ani
+ * jednej liczby jest GRUPĄ PUSTĄ, którą model nazywa w `honesty.emptySamples`.
+ * Odrzucenie jej tutaj uciszyłoby to sprawdzenie na zawsze i - co gorsze -
+ * przesunęłoby pasma pozostałych grup, czyli zmieniałoby pozycje i kolory
+ * kolumn w trakcie wpisywania danych.
+ *
+ * `sampleSize` jedzie w komplecie, bo bez niego `declaredSampleSizeOk` nie ma
+ * czego porównać: to sprawdzenie dotyczy DANYCH AUTORA (podpis mówi "n = 300",
+ * a w arkuszu jest dwanaście wierszy), a nie arytmetyki modelu.
+ */
+export function boxplotModelFromConfig(
+  config: ChartConfig,
+  opts: BoxplotOptions = {},
+): BoxplotModel {
+  return boxplotModel(
+    {
+      categories: config.categories,
+      series: config.series,
+      sampleSize: config.sampleSize,
+    },
+    opts,
+  );
 }
 
 /**
