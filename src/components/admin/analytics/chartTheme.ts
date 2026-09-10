@@ -155,6 +155,7 @@ const SLOTS = Array.from({ length: CATEGORICAL_SAFE_MAX }, (_, i) => i + 1);
 export function resolveChartTheme(): ResolvedTheme {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return {
+      dark: false,
       palette: [...FALLBACK_PALETTE],
       paletteText: [...FALLBACK_PALETTE_TEXT],
       muted: FALLBACK_MUTED,
@@ -185,6 +186,7 @@ export function resolveChartTheme(): ResolvedTheme {
   const positive = readVar(style, "--chart-positive", CHART_SEMANTIC.positiveLight);
   const negative = readVar(style, "--chart-negative", CHART_SEMANTIC.negativeLight);
   return {
+    dark: document.documentElement.classList.contains("dark"),
     palette,
     paletteText,
     muted: readVar(style, "--muted-foreground", FALLBACK_MUTED),
