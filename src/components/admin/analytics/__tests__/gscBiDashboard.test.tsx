@@ -732,6 +732,9 @@ describe("GscBiDashboard - dane", () => {
       expect(nodes[0].rawUrl).toBe(PAGE_ROWS[0].keys[0]);
       // Sortowanie treemapy idzie po WYŚWIETLENIACH, nie po kliknięciach.
       expect(nodes.map((n) => n.value)).toEqual([900, 300]);
+      const itemStyle = rec(seriesOf(treemapOption())[0].itemStyle);
+      expect(itemStyle.borderWidth).toBe(0.5);
+      expect(itemStyle.gapWidth).toBe(1);
     });
   });
 
@@ -750,6 +753,15 @@ describe("GscBiDashboard - dane", () => {
       // Skala koloru musi sięgać maksimum serii, inaczej najmocniejszy dzień
       // jest nieodróżnialny od średniego.
       expect(rec(o.visualMap).max).toBe(30);
+      expect(rec(o.visualMap).show).toBe(true);
+      expect(rec(o.visualMap).orient).toBe("horizontal");
+      expect(rec(o.visualMap).text).toEqual([
+        tNow()("adminAnalytics.gsc.charts.calendarIntensityHigh"),
+        tNow()("adminAnalytics.gsc.charts.calendarIntensityLow"),
+      ]);
+      expect(rec(rec(o.visualMap).textStyle).color).toBeTruthy();
+      expect(rec(o.calendar).bottom).toBe(42);
+      expect(rec(rec(o.calendar).itemStyle).borderWidth).toBe(1);
     });
   });
 

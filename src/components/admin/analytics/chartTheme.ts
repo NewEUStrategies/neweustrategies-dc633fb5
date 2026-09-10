@@ -607,7 +607,7 @@ export type { ResolvedTheme };
  *
  * Mapa ciepła nie pokazuje KATEGORII, tylko NATĘŻENIE, więc paleta kategorialna
  * (sześć rozłącznych odcieni) jest tu błędem odczytu: oko porównuje barwy
- * zamiast układać je w kolejność. Stąd jeden odcień - ochra marki - i pięć
+ * zamiast układać je w kolejność. Stąd jeden odcień - morski - i pięć
  * przystanków rozstawionych po JASNOŚCI, bo jasność jest jedynym kanałem, który
  * czyta się porządkowo także przy protanopii i deuteranopii.
  *
@@ -621,8 +621,8 @@ export type { ResolvedTheme };
  *
  * Wartości są dosłownymi kolorami (kanwa nie rozwiązuje `var()` ani `color-mix`).
  */
-const HEAT_RAMP_LIGHT = ["#f6efe1", "#ecd3a0", "#dda644", "#b87a1e", "#8a5310"] as const;
-const HEAT_RAMP_DARK = ["#241d12", "#59401a", "#94702b", "#c99a35", "#f2c75c"] as const;
+const HEAT_RAMP_LIGHT = ["#dcefee", "#a9d7d3", "#62b8b1", "#23877f", "#075e5a"] as const;
+const HEAT_RAMP_DARK = ["#183332", "#24514e", "#32736d", "#46a39a", "#7dd3c9"] as const;
 
 /** Rampa dopasowana do bieżącej płyty; do `visualMap.inRange.color`. */
 export function heatRamp(theme: ResolvedTheme): string[] {
@@ -636,5 +636,5 @@ export function heatRamp(theme: ResolvedTheme): string[] {
  * przystanek rampy, pusty dzień wygląda jak dzień z jednym kliknięciem.
  */
 export function heatEmpty(theme: ResolvedTheme): string {
-  return theme.dark ? "#171717" : "#f2f2f0";
+  return theme.dark ? "#252827" : "#e8ebe9";
 }

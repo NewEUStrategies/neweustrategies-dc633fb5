@@ -430,7 +430,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
             textBorderWidth: 0,
           },
           upperLabel: { show: false },
-          itemStyle: { borderColor: chartTheme.background, borderWidth: 2, gapWidth: 2 },
+          itemStyle: { borderColor: chartTheme.border, borderWidth: 0.5, gapWidth: 1 },
           levels: [{ colorSaturation: [0.35, 0.7] }],
           data: top.map((r) => {
             const raw = r.keys[0] ?? "/";
@@ -464,26 +464,39 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           return `${p.value[0]}: <b>${p.value[1]}</b> ${t("adminAnalytics.gsc.clicksShort")}`;
         },
       },
-      // Skala PORZĄDKOWA, nie kategorialna, i zależna od płyty: rampa indygo
-      // z wpisanym na sztywno kierunkiem jasności gubiła w trybie ciemnym
-      // maksimum (najwięcej kliknięć = najciemniej = niewidocznie).
+      // Skala PORZĄDKOWA, nie kategorialna, i zależna od płyty. Widoczna legenda
+      // wyjaśnia kierunek intensywności zamiast wymagać zgadywania znaczenia barw.
       // Dolny przystanek zaczyna się od 1, bo zero ma własny kolor tła komórki -
       // dzień bez pomiaru nie ma udawać dnia z jednym kliknięciem.
       visualMap: {
         min: 1,
         max,
-        show: false,
+        show: true,
+        type: "continuous",
+        orient: "horizontal",
+        left: "center",
+        bottom: 4,
+        itemWidth: 100,
+        itemHeight: 8,
+        calculable: false,
+        text: [
+          t("adminAnalytics.gsc.charts.calendarIntensityHigh"),
+          t("adminAnalytics.gsc.charts.calendarIntensityLow"),
+        ],
+        textGap: 8,
+        textStyle: { color: chartTheme.foreground, fontSize: 10 },
         inRange: { color: heatRamp(chartTheme) },
       },
       calendar: {
-        top: 30,
+        top: 34,
+        bottom: 42,
         left: 30,
         right: 20,
         cellSize: ["auto", 14],
         range: [first, last],
         itemStyle: {
           color: heatEmpty(chartTheme),
-          borderWidth: 2,
+          borderWidth: 1,
           borderColor: chartTheme.background,
         },
         splitLine: { show: false },
@@ -498,7 +511,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           data,
           // Zaokrąglone kafle z tłem płyty w szczelinie czytają się jak siatka
           // dni, a nie jak jednolita plama.
-          itemStyle: { borderRadius: 2, borderWidth: 2, borderColor: chartTheme.background },
+          itemStyle: { borderRadius: 2, borderWidth: 1, borderColor: chartTheme.background },
         },
       ],
     };

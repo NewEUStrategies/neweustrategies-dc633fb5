@@ -469,6 +469,8 @@ const pl = {
         pagesSubtitle: "Treemap top 20 stron (wielkość = wyświetlenia)",
         calendarTitle: "Aktywność dzienna",
         calendarSubtitle: "Heatmapa kalendarzowa - kliknięcia per dzień",
+        calendarIntensityLow: "Mniej",
+        calendarIntensityHigh: "Więcej",
       },
       insightsSubtitle: "Analiza dla właściwości {{site}} · okno {{days}} dni",
       insights: {
@@ -1299,6 +1301,8 @@ const en = {
         pagesSubtitle: "Treemap of the top 20 pages (size = impressions)",
         calendarTitle: "Daily activity",
         calendarSubtitle: "Calendar heatmap - clicks per day",
+        calendarIntensityLow: "Less",
+        calendarIntensityHigh: "More",
       },
       insightsSubtitle: "Analysis for property {{site}} · {{days}}-day window",
       insights: {
