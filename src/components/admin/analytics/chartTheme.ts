@@ -434,7 +434,8 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       splitLine: {
         lineStyle: { color: theme.grid, type: GUIDE_DASH },
       },
-      axisLabel: { color: theme.muted, fontSize: 11 },
+      axisLabel: { color: theme.muted, fontSize: 11, hideOverlap: true },
+      nameTextStyle: { color: theme.muted, fontSize: 10 },
     },
   };
 }
