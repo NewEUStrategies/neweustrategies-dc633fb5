@@ -47,7 +47,6 @@ export const Route = createFileRoute("/preview/$token")({
     }
   },
 
-
   head: () => ({
     meta: [
       { title: "Preview" },

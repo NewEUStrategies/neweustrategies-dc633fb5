@@ -138,7 +138,13 @@ function line(cursor: Cursor): void {
   cursor.ops.push(`0.85 0.85 0.85 RG 0.7 w ${LEFT} ${cursor.y} m ${RIGHT} ${cursor.y} l S`);
 }
 
-function partyBlock(cursor: Cursor, x: number, title: string, party: InvoiceParty, labels: InvoiceLabels): void {
+function partyBlock(
+  cursor: Cursor,
+  x: number,
+  title: string,
+  party: InvoiceParty,
+  labels: InvoiceLabels,
+): void {
   const startY = cursor.y;
   text(cursor, x, title, 9, true);
   cursor.y -= 14;
@@ -199,7 +205,13 @@ export function renderInvoicePdf(data: InvoiceData): Uint8Array {
   line(cursor);
   cursor.y -= 18;
   text(cursor, 320, labels.total, 11, true);
-  textRight(cursor, RIGHT, formatInvoiceMoney(invoiceTotalCents(data.lines), data.currency), 11, true);
+  textRight(
+    cursor,
+    RIGHT,
+    formatInvoiceMoney(invoiceTotalCents(data.lines), data.currency),
+    11,
+    true,
+  );
   cursor.y -= 20;
   textRight(cursor, RIGHT, labels.paid, 9);
 
