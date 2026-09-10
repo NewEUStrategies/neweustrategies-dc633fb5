@@ -919,6 +919,29 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     expect(container.querySelector("ul[role='list']")).toBeNull();
   });
 
+  it("tabela klucza ma NAGŁÓWKI KOLUMN, choć niewidoczne", () => {
+    // REGRESJA z przeglądu. Tabela startowała od `<tbody>` i miała wyłącznie
+    // nagłówki WIERSZY, więc czytelnik z czytnikiem ekranu dostawał nazwę
+    // kategorii i dwie liczby bez informacji, która jest udziałem, a która
+    // wartością bezwzględną - czyli tracił całą treść tej tabeli. Wzrokiem
+    // rozróżnia je układ i jednostka, dla czytnika układ nie istnieje.
+    //
+    // Ukrywamy TREŚĆ KOMÓREK, nie cały `<thead>`: `sr-only` to pozycja
+    // absolutna, a nałożona na grupę wierszy wyjmuje ją ze struktury tabeli
+    // i `scope="col"` przestaje cokolwiek wiązać.
+    const { container } = render(<Chart config={cfg(struktura)} lang="pl" />);
+    const tabela = container.querySelector("table.neh-pie-key");
+    const naglowki = [...(tabela?.querySelectorAll("thead th[scope='col']") ?? [])];
+    expect(naglowki.map((th) => th.textContent)).toEqual(["Kategoria", "Udział", "Wartość"]);
+    // Treść jest schowana wzrokowo, ale komórka zostaje w tabeli.
+    for (const th of naglowki) {
+      expect(th.querySelector("span")?.className).toContain("sr-only");
+    }
+    // Kolejność kolumn nagłówka odpowiada kolejności w wierszach danych.
+    const wiersz = tabela?.querySelector("tbody tr");
+    expect(wiersz?.children).toHaveLength(naglowki.length);
+  });
+
   it("tabela klucza jest ODPORNA na przełącznik legendy i na jedną kategorię", () => {
     // Klucz tarczy nie jest ozdobą do wyłączenia: przy jednym wycinku nadal
     // niesie jedyną drogę do wartości bezwzględnej widoczną bez hovera,
@@ -1119,6 +1142,33 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
     expect(container.innerHTML).not.toContain("var(--card)");
   });
 
+  it("grubość obwódki wycinka niesie ARKUSZ, i realnie ją tam podaje", () => {
+    // REGRESJA z przeglądu. Wycinek dostawał kolor obwódki, ale ani atrybutu
+    // `stroke-width`, ani reguły w arkuszu - jedyny selektor z tokenem
+    // `--chart-bar-edge` celował w `.neh-bar[data-edged="true"]`. Łuk jechał
+    // więc domyślną grubością SVG (1 px) w obu motywach, a obwódka jest
+    // w wariancie bladym JEDYNYM nośnikiem koloru serii, bo wnętrze ma do
+    // płyty 1,20-1,28:1.
+    //
+    // Test czyta ARKUSZ, nie DOM: happy-dom nie ma silnika stylów, więc
+    // renderowany wycinek nie powie, jaką grubość dostanie w przeglądarce.
+    const regula = css.slice(css.indexOf(".neh-chart .neh-slice {"));
+    const blok = regula.slice(0, regula.indexOf("}"));
+    expect(blok).toContain("stroke-width: var(--chart-bar-edge");
+    // Token jest zdefiniowany w obu motywach i w ciemnym jest CIEŃSZY:
+    // jasna linia na ciemnym tle optycznie grubieje. Czytamy go osobnym
+    // odczytem, bo `token` wyżej przyjmuje wyłącznie hexy.
+    const px = (block: string): number => {
+      const m = block.match(/--chart-bar-edge:\s*([\d.]+)px/);
+      if (!m) throw new Error("brak tokenu --chart-bar-edge");
+      return Number.parseFloat(m[1]);
+    };
+    const jasny = px(LIGHT);
+    const ciemny = px(DARK);
+    expect(jasny).toBeGreaterThan(ciemny);
+    expect(ciemny).toBeGreaterThan(1);
+  });
+
   it("przełączenie motywu NIE zmienia DOM - kolory jadą tokenami, zero zapieczonego hexa", () => {
     const config = cfg({ kind: "donut", unit: " mld", ...CWIARTKI });
     const jasny = render(<PieChart config={config} lang="pl" />);
@@ -1226,6 +1276,26 @@ describe("PieChart - suma kontrolna udziałów", () => {
     // w arkuszu byłoby ostrzeżeniem, które widać zawsze.
     const { container } = render(<Chart config={cfg(udzialy([33.3, 33.3, 33.3]))} lang="pl" />);
     expect(container.textContent).not.toContain("sumują się do");
+  });
+
+  it("UJEMNY udział nie umyka sumie kontrolnej", () => {
+    // REGRESJA z przeglądu. Suma kontrolna liczyła z MIANOWNIKA TARCZY, czyli
+    // z sumy dodatnich - a zestaw [-10, 100] daje mianownik 100, więc suma
+    // wychodziła "domknięta", choć autor podał udziały sumujące się do 90
+    // i jedna kategoria w ogóle nie weszła na tarczę. Ujemny udział jest sam
+    // w sobie bezsensem, więc ostrzeżenie jest tam tym bardziej na miejscu.
+    const { container } = render(<Chart config={cfg(udzialy([-10, 100]))} lang="pl" />);
+    expect(container.textContent).toContain("sumują się do 90,0%");
+  });
+
+  it("BRAK wartości nie jest deklaracją zera - luka nie psuje sumy", () => {
+    // Kategoria bez liczby to kategoria nieuzupełniona, a nie zerowa: gdyby
+    // luki wchodziły do sumy jako zera, każdy zestaw w trakcie wypełniania
+    // krzyczałby ostrzeżeniem. Zero podane WPROST jest deklaracją i wchodzi.
+    const zLuka = render(<Chart config={cfg(udzialy([60, 40, null]))} lang="pl" />);
+    expect(zLuka.container.textContent).not.toContain("sumują się do");
+    const zZerem = render(<Chart config={cfg(udzialy([60, 40, 0]))} lang="pl" />);
+    expect(zZerem.container.textContent).not.toContain("sumują się do");
   });
 
   it("dane, które NIE są udziałami, nie mają czego sprawdzać", () => {

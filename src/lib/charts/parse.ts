@@ -207,7 +207,7 @@ export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
  * rzuca: konfiguracja bloku pochodzi z treści, więc musi znieść zapis
  * z przyszłej albo cofniętej wersji edytora bez wywracania strony.
  */
-function parseBarStyle(raw: Json | undefined): BarStyle {
+export function parseBarStyle(raw: Json | undefined): BarStyle {
   const value = typeof raw === "string" ? raw : "";
   return (BAR_STYLES as readonly string[]).includes(value) ? (value as BarStyle) : "pale";
 }

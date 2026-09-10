@@ -26,6 +26,15 @@ const pl = {
         removeCategory: "Usuń kategorię {{name}}",
         stacked: "Skumulowany (stacked)",
         grid: "Siatka",
+        // Wariant wypełnienia słupka. Blady jest domyślny; solidny wraca
+        // automatycznie przy wielu seriach, skumulowanych i kreskowanych, bo
+        // blade wnętrze nie niesie tożsamości serii.
+        barStyle: "Wypełnienie słupków",
+        barStyles: {
+          pale: "Blade wnętrze z obwódką",
+          gradient: "Gradient z obwódką",
+          solid: "Pełne wypełnienie",
+        },
         showValues: "Etykiety wartości",
         height: "Wysokość wykresu",
         source: "Źródło danych (np. Źródło: Eurostat 2026)",
@@ -755,6 +764,12 @@ const en: typeof pl = {
         removeCategory: "Delete category {{name}}",
         stacked: "Stacked",
         grid: "Grid",
+        barStyle: "Bar fill",
+        barStyles: {
+          pale: "Pale interior with border",
+          gradient: "Gradient with border",
+          solid: "Solid fill",
+        },
         showValues: "Value labels",
         height: "Chart height",
         source: "Data source (e.g. Source: Eurostat 2026)",

@@ -331,6 +331,11 @@ export function PieChart({ config, lang }: PieChartProps) {
           active={active}
           onActivate={setActive}
           label={t("pie.keyTable")}
+          labels={{
+            category: t("frame.category"),
+            share: t("frame.share"),
+            value: t("frame.value"),
+          }}
         />
       </div>
     </div>
@@ -358,6 +363,7 @@ function PieKeyTable({
   active,
   onActivate,
   label,
+  labels,
 }: {
   slices: ReturnType<typeof pieModel>["slices"];
   lang: ChartLang;
@@ -365,6 +371,7 @@ function PieKeyTable({
   active: number | null;
   onActivate: (index: number | null) => void;
   label: string;
+  labels: { category: string; share: string; value: string };
 }) {
   return (
     <table className="neh-pie-key w-full shrink-0 table-fixed border-collapse text-xs sm:w-56">
@@ -381,6 +388,30 @@ function PieKeyTable({
         <col className="w-[22%]" />
         <col className="w-[28%]" />
       </colgroup>
+      {/* NAGŁÓWKI KOLUMN SĄ, tylko niewidoczne. Bez nich czytelnik
+          z czytnikiem ekranu dostaje w wierszu nazwę kategorii i dwie liczby,
+          i nie ma z czego odczytać, która jest udziałem, a która wartością
+          bezwzględną - a to jest cała informacja tej tabeli. Wzrokiem
+          rozróżnia je układ i jednostka przy drugiej liczbie, więc widoczny
+          nagłówek byłby tu szumem; dla czytnika układ nie istnieje.
+
+          UKRYWAMY TREŚĆ KOMÓREK, NIE CAŁY `<thead>`: `sr-only` to pozycja
+          absolutna, a nałożona na grupę wierszy tabeli wyjmuje ją ze struktury
+          tabeli i `scope="col"` przestaje cokolwiek wiązać. Komórki zostają na
+          swoich miejscach, a wiersz bez treści ma zerową wysokość. */}
+      <thead>
+        <tr>
+          <th scope="col" className="p-0">
+            <span className="sr-only">{labels.category}</span>
+          </th>
+          <th scope="col" className="p-0">
+            <span className="sr-only">{labels.share}</span>
+          </th>
+          <th scope="col" className="p-0">
+            <span className="sr-only">{labels.value}</span>
+          </th>
+        </tr>
+      </thead>
       <tbody>
         {slices.map((s, i) => (
           <tr

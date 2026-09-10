@@ -30,6 +30,7 @@ import {
   type MapRegion,
 } from "@/lib/charts/types";
 import { pieModel } from "@/components/charts/pieModel";
+import { BAR_STYLES } from "@/lib/charts/palette";
 import {
   isForecastMissingBand,
   pieFormAdvice,
@@ -238,6 +239,29 @@ export function ChartBlock({ block, onChange }: Props) {
           onChange={(e) => patch({ unit: e.target.value })}
         />
       </div>
+
+      {/* WARIANT WYPEŁNIENIA SŁUPKÓW. Bez tej kontrolki `gradient` i `solid`
+          były nieosiągalne z żadnego wspieranego interfejsu - istniały
+          w parserze i w silniku, ale autor mógł je ustawić wyłącznie ręczną
+          edycją zapisanego JSON-a. Pokazujemy ją tylko tam, gdzie są słupki:
+          tarcza i linia nie mają czego wypełniać, a mostek ma.
+          Silnik i tak wymusza `solid` przy wielu seriach, skumulowanych
+          i kreskowanych (blade wnętrze nie niesie tożsamości serii), więc
+          wybór autora jest życzeniem, nie obietnicą - i to jest zamierzone. */}
+      {(kind === "bar" || kind === "bar-horizontal" || isWaterfall) && (
+        <AdminSelect
+          className={inputCls}
+          value={String(block.data.barStyle ?? "pale")}
+          onChange={(e) => patch({ barStyle: e.target.value })}
+          aria-label={bt.editor("chart", "barStyle")}
+        >
+          {BAR_STYLES.map((style) => (
+            <option key={style} value={style}>
+              {bt.editor("chart", `barStyles.${style}`)}
+            </option>
+          ))}
+        </AdminSelect>
+      )}
       <input
         className={inputCls}
         value={String(block.data.title ?? "")}

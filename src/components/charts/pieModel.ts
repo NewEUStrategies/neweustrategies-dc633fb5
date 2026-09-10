@@ -135,12 +135,26 @@ export function pieModel(config: ChartConfig, lang: ChartLang): PieModel {
     angle += share * Math.PI * 2;
     return { ...part, share, startAngle, endAngle: angle };
   });
-  // Suma kontrolna liczona z WARTOŚCI, nie z kątów - patrz `shareSum`. Wchodzą
-  // do niej wszystkie wartości dodatnie, także te zwinięte w wycinek zbiorczy:
-  // pytanie brzmi "czy autor podał pełną strukturę", a nie "co tarcza
-  // narysowała".
+  // Suma kontrolna liczona z WARTOŚCI, nie z kątów - patrz `shareSum`.
+  //
+  // WCHODZĄ DO NIEJ WSZYSTKIE NIEPUSTE WARTOŚCI, TAKŻE UJEMNE I ZEROWE -
+  // a nie mianownik tarczy. To była realna dziura: mianownik jest sumą
+  // DODATNICH, więc zestaw [-10, 100] z jednostką "%" dawał sumę 100 i suma
+  // kontrolna milczała, choć autor podał udziały sumujące się do 90, a jedna
+  // kategoria w ogóle nie weszła na tarczę. Ujemny udział jest sam w sobie
+  // bezsensem, więc ostrzeżenie jest tam tym bardziej na miejscu.
+  //
+  // Pytanie tej sumy brzmi "czy autor podał pełną strukturę", nie "co tarcza
+  // narysowała" - dlatego liczy z arkusza, a nie z tego, co przeszło filtr
+  // rysowania. Braki (`null`) nie wchodzą, bo brak nie jest deklaracją zera:
+  // kategoria bez liczby to kategoria nieuzupełniona, a nie zerowa.
   const percentUnit = isPercentUnit(config.unit);
-  const shareSum = percentUnit && drawable.length > 0 ? round1(total) : null;
+  const declared = config.categories.reduce<number | null>((acc, _label, index) => {
+    const v = first?.values[index];
+    if (v === null || v === undefined || !Number.isFinite(v)) return acc;
+    return (acc ?? 0) + v;
+  }, null);
+  const shareSum = percentUnit && declared !== null ? round1(declared) : null;
   return {
     slices,
     total,

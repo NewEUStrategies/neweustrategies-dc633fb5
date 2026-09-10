@@ -4378,6 +4378,14 @@ input.icon-input-with-action {
    łuku przy krawędzi zewnętrznej i zawyżało udział, czyli robiło dokładnie
    to, czego zabrania zasada o niezmiennym kodowaniu. */
 .neh-chart .neh-slice {
+  /* GRUBOŚĆ OBWÓDKI Z TOKENA, tak samo jak w słupku: 1,5 px na jasnym
+     i 1,25 px na ciemnym, bo jasna linia na ciemnym tle optycznie grubieje.
+     Bez tej deklaracji łuk brał domyślną grubość SVG, czyli 1 px w obu
+     motywach - a obwódka jest w wariancie bladym JEDYNYM nośnikiem koloru
+     serii (wnętrze ma do płyty 1,20-1,28:1), więc jej ścienienie o trzecią
+     część realnie osłabia rozróżnienie kategorii. W atrybucie prezentacyjnym
+     tego podać nie można, bo `var()` nie jest tam wspierane wszędzie. */
+  stroke-width: var(--chart-bar-edge, 1.5px);
   transition:
     fill var(--neh-hover-ms) ease-out,
     stroke var(--neh-hover-ms) ease-out;
@@ -4789,12 +4797,22 @@ input.icon-input-with-action {
      kładzie na każdym elemencie - dzięki temu jedna reguła obsługuje wszystkie
      dziewięć slotów bez znajomości numeru. Atrybuty prezentacyjne `fill`
      i `stroke` ustępują dowolnej regule CSS, więc nadpisanie działa. */
+  /* STAN AKTYWNY WYPISANY OSOBNO, i to nie jest nadmiarowość. Media query
+     NIE dodaje specyficzności, więc o wyniku decyduje sam selektor:
+     `.neh-bar[data-style="pale"][data-active="true"]` z bloku ekranowego jest
+     bardziej specyficzny niż `.neh-bar[data-style="pale"]` tutaj i wygrywał.
+     Wydruk zrobiony przy podświetlonym elemencie (fokus klawiaturą, potem
+     Ctrl+P) wychodził więc z bladym wypełnieniem hover i obwódką w tokenie,
+     czyli dokładnie tym, co ten blok ma zastąpić. */
   .neh-chart .neh-bar[data-style="pale"],
-  .neh-chart .neh-bar[data-style="gradient"] {
+  .neh-chart .neh-bar[data-style="pale"][data-active="true"],
+  .neh-chart .neh-bar[data-style="gradient"],
+  .neh-chart .neh-bar[data-style="gradient"][data-active="true"] {
     fill: var(--neh-bar-token);
     stroke: none;
   }
-  .neh-chart .neh-slice {
+  .neh-chart .neh-slice,
+  .neh-chart .neh-slice[data-active="true"] {
     fill: var(--neh-arc-token);
     stroke: none;
   }

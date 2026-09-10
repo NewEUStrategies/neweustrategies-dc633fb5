@@ -321,6 +321,24 @@ describe("arkusz druku - wykres na papierze pokazuje DANE, nie stan wejścia", (
     expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-ink)");
   });
 
+  it("druk nadpisuje TAKŻE stan aktywny - inaczej przegrywa specyficzność", () => {
+    // REGRESJA z przeglądu. Media query NIE dodaje specyficzności, więc
+    // o wyniku decyduje sam selektor: `.neh-bar[data-style="pale"]
+    // [data-active="true"]` z bloku ekranowego jest bardziej specyficzny niż
+    // `.neh-bar[data-style="pale"]` w bloku druku i wygrywał. Wydruk zrobiony
+    // przy podświetlonym elemencie (fokus klawiaturą, potem Ctrl+P) wychodził
+    // z bladym wypełnieniem hover i obwódką w tokenie - czyli dokładnie tym,
+    // co blok druku ma zastąpić.
+    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="pale"][data-active="true"]');
+    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="gradient"][data-active="true"]');
+    expect(PRINT_BLOCK).toContain('.neh-slice[data-active="true"]');
+    // I to nadal PO regułach ekranowych, bo tylko kolejność w pliku rozstrzyga
+    // między selektorami o równej specyficzności.
+    const screenActive = css.indexOf('.neh-chart .neh-bar[data-style="pale"][data-active="true"]');
+    expect(screenActive).toBeGreaterThan(0);
+    expect(screenActive).toBeLessThan(PRINT_START);
+  });
+
   it("strefa prognozy zamienia płaski tint na KRESKOWANIE - i tylko w druku", () => {
     // Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
     // prognoza traciła jeden z TRZECH nośników odróżnienia od historii.

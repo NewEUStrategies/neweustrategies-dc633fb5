@@ -781,6 +781,17 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
       visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
     },
+    {
+      key: "barStyle",
+      type: "select",
+      label: "Wypełnienie słupków",
+      options: [
+        { value: "pale", label: "blade wnętrze z obwódką" },
+        { value: "gradient", label: "gradient z obwódką" },
+        { value: "solid", label: "pełne wypełnienie" },
+      ],
+      visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
+    },
     { key: "height", type: "number", label: "Wysokość (px)", min: 160, max: 640, step: 10 },
     {
       key: "showLegend",
