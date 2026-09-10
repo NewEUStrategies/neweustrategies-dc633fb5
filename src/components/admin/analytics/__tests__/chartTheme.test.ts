@@ -40,6 +40,30 @@ import { act, renderHook } from "@testing-library/react";
 
 import type { ResolvedTheme } from "../chartTheme";
 
+function themeForHeat(dark: boolean): ResolvedTheme {
+  return {
+    dark,
+    palette: [],
+    paletteText: [],
+    muted: "#777777",
+    border: "#cccccc",
+    grid: "#eeeeee",
+    axis: "#cccccc",
+    foreground: "#111111",
+    background: dark ? "#111111" : "#ffffff",
+    primary: "#006c68",
+    font: "sans-serif",
+    positive: "#006c68",
+    negative: "#b00020",
+    success: "#006c68",
+    warning: "#996000",
+    danger: "#b00020",
+    tipBg: "#111111",
+    tipBorder: "transparent",
+    tipInk: "#ffffff",
+  };
+}
+
 /** Tokeny, których dotyka `resolveChartTheme` - sprzątane po każdym przypadku. */
 const TOKENS = [
   "--chart-1",
@@ -92,6 +116,21 @@ afterEach(() => {
   for (const token of TOKENS) document.documentElement.style.removeProperty(token);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("heatRamp - czytelna skala aktywności", () => {
+  it("używa osobnych, sekwencyjnych ramp dla jasnej i ciemnej płyty", async () => {
+    const { heatEmpty, heatRamp } = await loadChartTheme();
+    const light = heatRamp(themeForHeat(false));
+    const dark = heatRamp(themeForHeat(true));
+
+    expect(light).toEqual(["#dcefee", "#a9d7d3", "#62b8b1", "#23877f", "#075e5a"]);
+    expect(dark).toEqual(["#183332", "#24514e", "#32736d", "#46a39a", "#7dd3c9"]);
+    expect(new Set(light).size).toBe(5);
+    expect(new Set(dark).size).toBe(5);
+    expect(heatEmpty(themeForHeat(false))).not.toBe(light[0]);
+    expect(heatEmpty(themeForHeat(true))).not.toBe(dark[0]);
+  });
 });
 
 // ---------------------------------------------------------------------------
