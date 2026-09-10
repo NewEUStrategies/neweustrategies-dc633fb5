@@ -23,6 +23,7 @@ import type { ChartConfig } from "@/lib/charts/types";
 import { formatChartValue } from "@/lib/charts/format";
 import { BOXPLOT_COLUMNS, BOX_WIDTH_RATIO, WHISKER_CAP_RATIO } from "@/lib/charts/kinds/boxplot";
 import { BoxplotChart } from "../BoxplotChart";
+import { Chart } from "../Chart";
 
 function cfg(data: Record<string, Json>): ChartConfig {
   return parseChartConfig(data);
@@ -402,15 +403,28 @@ describe("BoxplotChart - klawiatura i dostępność", () => {
 });
 
 describe("BoxplotChart - alternatywa tekstowa", () => {
+  /**
+   * Tabela danych należy do RAMKI karty (`Chart` -> `TABLE_BY_KIND`), a nie do
+   * rysunku. Do tego PR-a render niósł własną kopię w `sr-only` i te testy
+   * czytały właśnie ją - a po podłączeniu rodzaju do ramki czytnik ekranu
+   * dostawał te same liczby dwa razy. Kopia zniknęła, więc testy tabeli
+   * renderują `Chart`: czytają to, co naprawdę widzi czytelnik.
+   */
+  const zTabela = (dane: Record<string, Json>) =>
+    render(<Chart config={cfg({ ...dane, kind: "boxplot" })} lang="pl" />);
+
   it("ma kolumnę na każdą pozycję modelu i wiersz na każdą grupę", () => {
     // Grafika nigdy nie jest jedyną drogą do liczby (sekcja 8). Kolejność
     // kolumn jest kolejnością odczytu skrzynki od dołu do góry, więc wiersz
     // tabeli da się przełożyć na rysunek bez szukania.
-    const { container } = render(<BoxplotChart config={cfg(BAZA)} lang="pl" />);
-    expect(all(container, "table th")).toHaveLength(BOXPLOT_COLUMNS.length);
+    const { container } = zTabela(BAZA);
+    // Nagłówki liczymy w `thead`: tabela ramki daje etykiecie grupy `th
+    // scope="row"` (nazwa grupy JEST nagłówkiem swojego wiersza, nie daną),
+    // więc samo `table th` policzyłoby też wiersze.
+    expect(all(container, "table thead th")).toHaveLength(BOXPLOT_COLUMNS.length);
     const wiersze = all(container, "table tbody tr");
     expect(wiersze).toHaveLength(2);
-    const komorki = [...wiersze[0].querySelectorAll("td")].map((td) => td.textContent);
+    const komorki = [...wiersze[0].querySelectorAll("th, td")].map((el) => el.textContent);
     expect(komorki[0]).toBe("Alfa");
     expect(komorki).toContain(formatChartValue(15.5, "pl", ""));
   });
@@ -419,8 +433,8 @@ describe("BoxplotChart - alternatywa tekstowa", () => {
     // Liczba wyrzutków mówi, ile ich jest; tabela ma powiedzieć, JAKIE są -
     // bez tego "dwie obserwacje odstające" jest informacją, której nie da się
     // sprawdzić ani powtórzyć.
-    const { container } = render(<BoxplotChart config={cfg(BAZA)} lang="pl" />);
-    const ogon = [...all(container, "table tbody tr")[1].querySelectorAll("td")]
+    const { container } = zTabela(BAZA);
+    const ogon = [...all(container, "table tbody tr")[1].querySelectorAll("th, td")]
       .map((td) => td.textContent ?? "")
       .join("|");
     expect(ogon).toContain(formatChartValue(30, "pl", ""));
@@ -431,9 +445,9 @@ describe("BoxplotChart - alternatywa tekstowa", () => {
     // Alternatywa tekstowa nie może być bardziej stanowcza od rysunku: skoro
     // pudła nie ma, tabela nie podaje kwartyli.
     const mala = { ...BAZA, series: [{ name: "Mała", values: [3, 7, 11, 19] }] };
-    const { container } = render(<BoxplotChart config={cfg(mala)} lang="pl" />);
-    const komorki = [...all(container, "table tbody tr")[0].querySelectorAll("td")].map(
-      (td) => td.textContent,
+    const { container } = zTabela(mala);
+    const komorki = [...all(container, "table tbody tr")[0].querySelectorAll("th, td")].map(
+      (el) => el.textContent,
     );
     // Kolumny min i max zostają (skrajne obserwacje są uczciwe przy każdym n),
     // kwartyle i wąsy są puste.

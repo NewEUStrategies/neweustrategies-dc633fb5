@@ -71,16 +71,12 @@ import type { ChartConfig } from "@/lib/charts/types";
 import { formatAxisTick, formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { linearScale, niceScale } from "@/lib/charts/scale";
 import {
-  BOXPLOT_COLUMNS,
   boxplotExtent,
   boxplotFormAdvice,
   boxplotModelFromConfig,
-  boxplotTable,
   type BoxplotBox,
-  type BoxplotColumnKey,
   type BoxplotFormAdvice,
   type BoxplotModel,
-  type BoxplotTableRow,
 } from "@/lib/charts/kinds/boxplot";
 import {
   BAR_MAX,
@@ -159,20 +155,6 @@ const READING_KEYS: Record<BoxplotFormAdvice, string | null> = {
   singleGroup: "boxplot.reading.singleGroup",
 };
 
-/** Nagłówki kolumn alternatywy tekstowej - też jawnie, z tego samego powodu. */
-const COLUMN_KEYS: Record<BoxplotColumnKey, string> = {
-  label: "boxplot.table.label",
-  n: "boxplot.table.n",
-  min: "boxplot.table.min",
-  whiskerLow: "boxplot.table.whiskerLow",
-  q1: "boxplot.table.q1",
-  median: "boxplot.table.median",
-  q3: "boxplot.table.q3",
-  whiskerHigh: "boxplot.table.whiskerHigh",
-  max: "boxplot.table.max",
-  iqr: "boxplot.table.iqr",
-  outliers: "boxplot.table.outliers",
-};
 
 /** Geometria jednej kolumny w pikselach. Model podaje udziały, tu są piksele. */
 interface Column {
@@ -403,36 +385,6 @@ export function BoxplotChart({ config, lang }: BoxplotChartProps) {
       defect: true,
     });
   }
-
-  const table = boxplotTable(model);
-  const cell = (row: BoxplotTableRow, col: BoxplotColumnKey): string => {
-    switch (col) {
-      case "label":
-        return row.label;
-      case "n":
-        return formatChartValue(row.n, lang, "");
-      case "min":
-        return num(row.min);
-      case "whiskerLow":
-        return num(row.whiskerLow);
-      case "q1":
-        return num(row.q1);
-      case "median":
-        return num(row.median);
-      case "q3":
-        return num(row.q3);
-      case "whiskerHigh":
-        return num(row.whiskerHigh);
-      case "max":
-        return num(row.max);
-      case "iqr":
-        return num(row.iqr);
-      case "outliers":
-        return row.outliers.length === 0
-          ? "-"
-          : row.outliers.map((v) => formatChartValue(v, lang, config.unit)).join(", ");
-    }
-  };
 
   const plotBottom = PAD_TOP + innerH;
 
@@ -765,34 +717,22 @@ export function BoxplotChart({ config, lang }: BoxplotChartProps) {
         />
       </div>
 
-      {/* ALTERNATYWA TEKSTOWA. Grafika nigdy nie jest jedyną drogą do liczby
-          (sekcja 8), a dymek nie istnieje ani na klawiaturze bez wskaźnika, ani
-          w druku, ani dla czytnika ekranu. Tabela liczy Z TEGO SAMEGO MODELU co
-          rysunek (`boxplotTable`), bo dwa liczenia to dwa źródła prawdy.
-          `sr-only`, nie widoczna: widoczny panel danych należy do ramki karty
-          (`ChartFrame`, przełącznik "Pokaż dane") i gdy podłączenie rodzaju
-          doda tam `BoxplotDataTable`, ta kopia ma zniknąć - inaczej czytnik
-          ekranu dostanie te same liczby dwa razy. */}
-      <table className="sr-only">
-        <thead>
-          <tr>
-            {BOXPLOT_COLUMNS.map((colKey) => (
-              <th key={colKey} scope="col">
-                {t(COLUMN_KEYS[colKey])}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {table.rows.map((row, i) => (
-            <tr key={i}>
-              {BOXPLOT_COLUMNS.map((colKey) => (
-                <td key={colKey}>{cell(row, colKey)}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      {/* ALTERNATYWA TEKSTOWA NIE STOI TUTAJ, i to jest rozstrzygnięcie, nie
+          brak. Do podłączenia tego rodzaju render niósł WŁASNĄ kopię tabeli
+          w `sr-only`, bo panel danych ramki (`ChartFrame`, przełącznik
+          „Pokaż dane”) jest domyślnie `hidden`, czyli poza drzewem
+          dostępności - kopia była wtedy jedyną drogą do liczby dla czytnika
+          ekranu. Po podłączeniu rodzaju do `TABLE_BY_KIND` ramka renderuje tę
+          samą tabelę drugi raz, więc po otwarciu panelu czytnik dostawał
+          WSZYSTKIE liczby dwa razy, bez sygnału, że to ta sama tabela. Dwie
+          nierozróżnialne tabele są gorsze niż jedno naciśnięcie przycisku:
+          przełącznik jest zwykłym `button` z `aria-expanded` i `aria-controls`,
+          czyli wzorcem, który czytnik ekranu nazywa i którym steruje. Warunek
+          powrotu kopii jest jeden: gdyby ramka przestała renderować tabelę
+          tego rodzaju. Tabela mieszka w `Chart.tsx` (`TABLE_BY_KIND`) i liczy
+          Z TEGO SAMEGO MODELU co rysunek - dwa liczenia to dwa źródła
+          prawdy. */}
 
       <ChartNotes notes={notes} />
     </div>
