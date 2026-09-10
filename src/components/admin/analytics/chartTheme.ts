@@ -410,7 +410,20 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       axisLine: { lineStyle: { color: theme.axis } },
       axisTick: { lineStyle: { color: theme.axis } },
       splitLine: { show: false },
-      axisLabel: { color: theme.muted, fontSize: 11 },
+      // `hideOverlap` (ECharts 5.5+) przepuszcza przez sito etykiety, które
+      // nachodziłyby na sąsiednie - przy 90 punktach osi czasu zostaje
+      // czytelny podzbiór zamiast zlepków dat. `overflow: "truncate"` pilnuje
+      // długich kategorii (ścieżki URL, nazwy krajów).
+      axisLabel: {
+        color: theme.muted,
+        fontSize: 11,
+        hideOverlap: true,
+        overflow: "truncate",
+        width: 96,
+      },
+      // Nazwa osi (np. „Kliknięcia") - bez koloru bierze domyślny ECharts,
+      // który w trybie ciemnym jest za ciemny; jedzie tokenem tekstu osi.
+      nameTextStyle: { color: theme.muted, fontSize: 10 },
     },
     yAxis: {
       axisLine: { show: false },
