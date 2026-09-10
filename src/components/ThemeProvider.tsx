@@ -8,8 +8,17 @@ import {
   type ReactNode,
 } from "react";
 
-type Theme = "light" | "dark";
-const STORAGE_KEY = "theme";
+import {
+  applyTheme,
+  readThemeChoice,
+  resolveTheme,
+  subscribeSystemTheme,
+  systemPrefersDark,
+  THEME_STORAGE_KEY,
+  type Theme,
+} from "@/lib/theme/themeChoice";
+
+const STORAGE_KEY = THEME_STORAGE_KEY;
 
 const ThemeContext = createContext<{
   theme: Theme;
@@ -22,23 +31,28 @@ const ThemeContext = createContext<{
 });
 
 function systemTheme(): Theme {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return systemPrefersDark() ? "dark" : "light";
 }
 
-// Explicit user choice (localStorage) wins; otherwise follow the OS preference.
-// Mirrors the pre-hydration themeInitScript in __root.tsx - keep both in sync.
+// Jawny wybór użytkownika wygrywa z preferencją systemu. Reguła NIE JEST JUŻ
+// PISANA TUTAJ: stoi raz w `lib/theme/themeChoice.ts` i stamtąd biorą ją
+// zarówno ten komponent, jak i skrypt anty-FOUC z `<head>`, i skrypt preloadu
+// tła quizu. Komentarz „keep both in sync", który tu wcześniej był, jest teraz
+// bramką - `themeParity.test.ts` wykonuje skrypt i tę funkcję na tej samej
+// macierzy wejść i wymaga identycznego skutku na `<html>`.
 function readStored(): Theme {
   if (typeof window === "undefined") return "light";
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "dark" || stored === "light") return stored;
-  return systemTheme();
+  return resolveTheme(readThemeChoice(), systemPrefersDark());
 }
 
 function apply(theme: Theme) {
   if (typeof document === "undefined") return;
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  document.documentElement.style.colorScheme = theme;
+  // Klasa i `color-scheme` niosą ROZSTRZYGNIĘTY motyw, atrybut `data-motyw`
+  // niesie WYBÓR - dlatego wybór czytamy z magazynu, a nie wnioskujemy
+  // z `theme`. Wnioskowanie zamieniałoby „podążam za systemem, a system jest
+  // ciemny" na „wybrałem ciemny", czyli gubiłoby jedyny stan, którego klasa
+  // wyrazić nie umie.
+  applyTheme(theme, readThemeChoice(), document.documentElement);
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -77,18 +91,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Follow live OS theme changes, but only while the user has not made an
-  // explicit choice (no localStorage entry).
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      if (localStorage.getItem(STORAGE_KEY) === null)
-        startTransition(() => setThemeState(systemTheme()));
-    };
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
+  // Podążaj za ŻYWĄ zmianą motywu systemu, ale tylko dopóki użytkownik nie
+  // wybrał jawnie. Zapytanie `prefers-color-scheme` i odpięcie nasłuchu
+  // trzyma `themeChoice.ts`, bo start aplikacji i reakcja na zmianę muszą
+  // pytać system TYM SAMYM warunkiem.
+  useEffect(
+    () =>
+      subscribeSystemTheme(() => {
+        if (readThemeChoice() === null) startTransition(() => setThemeState(systemTheme()));
+      }),
+    [],
+  );
 
   const setTheme = (next: Theme) => {
     localStorage.setItem(STORAGE_KEY, next);
