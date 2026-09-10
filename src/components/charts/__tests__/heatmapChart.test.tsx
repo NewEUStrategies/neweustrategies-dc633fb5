@@ -30,6 +30,7 @@ import type { ChartConfig } from "@/lib/charts/types";
 import { formatAxisTick, formatChartValue } from "@/lib/charts/format";
 import { heatmapModelFromConfig, heatmapValueLabelFit } from "@/lib/charts/kinds/heatmap";
 import { HeatmapChart } from "../HeatmapChart";
+import { Chart } from "../Chart";
 
 function cfg(data: Record<string, Json>): ChartConfig {
   return parseChartConfig(data);
@@ -347,13 +348,16 @@ describe("HeatmapChart - liczby w komórkach", () => {
         { name: "R2", values: Array.from({ length: 18 }, (_, i) => 2 * i + 2) },
       ],
     };
-    const config = cfg(ciasna);
+    const config = cfg({ ...ciasna, kind: "heatmap" });
     // Model sam z siebie liczb nie odwołuje - to render mierzy i odwołuje.
     expect(heatmapValueLabelFit(heatmapModelFromConfig(config))).toBe(true);
-    const { container } = render(<HeatmapChart config={config} lang="pl" />);
+    // `Chart`, a nie sam rysunek: zdanie o tabeli dotyczy TABELI RAMKI karty
+    // (powód w opisie alternatywy tekstowej niżej), a rysunek jest w ramce
+    // dokładnie ten sam, więc obie połowy tego testu czytają jeden render.
+    const { container } = render(<Chart config={config} lang="pl" />);
     expect(all(container, "text[data-role='cell-value']")).toHaveLength(0);
     // Rezygnacja z liczb W KOMÓRKACH nie jest rezygnacją z liczb: komplet
-    // niesie tabela, która jest pod rysunkiem zawsze.
+    // niesie tabela, którą ramka trzyma pod przełącznikiem „Pokaż dane".
     expect(text(container.querySelector("table"))).toContain(formatChartValue(36, "pl", ""));
   });
 
@@ -361,8 +365,13 @@ describe("HeatmapChart - liczby w komórkach", () => {
     // Jednostka należy do skali, nie do każdej z kilkudziesięciu komórek:
     // powtórzona przy każdej liczbie jest szumem i jest dokładnie tym, przez
     // co liczba przestaje się mieścić. Stoi więc raz, w nagłówku legendy.
-    const { container } = render(<HeatmapChart config={cfg({ ...BAZA, unit: "%" })} lang="pl" />);
+    const { container } = render(
+      <Chart config={cfg({ ...BAZA, kind: "heatmap", unit: "%" })} lang="pl" />,
+    );
     expect(text(all(container, "text[data-role='cell-value']")[0])).toBe("10");
+    // Pierwsza `td` w `tbody`, a nie pierwsza komórka wiersza: etykieta
+    // wiersza jest `th scope="row"`, bo nazwa parametru JEST nagłówkiem
+    // swojego wiersza, a nie daną.
     expect(text(container.querySelector("table tbody td"))).toBe("10%");
     expect(text(container.querySelector("text[data-role='legend-head']"))).toContain("(%)");
   });
@@ -672,36 +681,82 @@ describe("HeatmapChart - etykiety osi", () => {
 });
 
 describe("HeatmapChart - alternatywa tekstowa", () => {
+  /**
+   * Tabela danych należy do RAMKI karty (`Chart` -> `TABLE_BY_KIND`), a nie do
+   * rysunku. Do tego PR-a render niósł WŁASNĄ kopię w `sr-only` i te testy
+   * czytały właśnie ją - a po podłączeniu rodzaju do ramki czytnik ekranu
+   * dostawał te same liczby dwa razy, bez żadnego sygnału, że to ta sama
+   * tabela. Kopia zniknęła, więc testy tabeli renderują `Chart`: czytają to,
+   * co naprawdę widzi czytelnik po naciśnięciu „Pokaż dane".
+   *
+   * BRZEGI SĄ W KOMPLECIE PO OBU STRONACH. Usunięcie kopii ujawniło, że
+   * tabela ramki miała ich mniej: brzeg wiersza dawał dwie liczby zamiast
+   * pięciu, a brzeg kolumny jeden wiersz średnich zamiast czterech statystyk.
+   * To był ubytek treści, nie uproszczenia - średnia bez rozstępu i bez
+   * skrajnych nie odróżnia kolumny, w której parametr rusza wynikiem
+   * równomiernie, od takiej, w której rusza nim w jednym wierszu, a liczba
+   * wypełnionych komórek jest jedyną drogą do rozpoznania wiersza z lukami
+   * (mapa z lukami wygląda tak samo jak mapa bez nich). Ramka niesie teraz
+   * tę samą listę statystyk dla wiersza i dla kolumny, w tej samej
+   * kolejności: ile komórek, minimum, maksimum, średnia, rozstęp.
+   */
+  const zTabela = (dane: Record<string, Json>) =>
+    render(<Chart config={cfg({ ...dane, kind: "heatmap" })} lang="pl" />);
+
   it("ma wiersz na każdy wiersz macierzy, kolumnę na każdą kolumnę i BRZEGI obu osi", () => {
     // Kolumna "Czego unikać" zabrania przy tym pytaniu tabeli liczb, więc
     // tabela pod mapą nie może być tą samą tabelą, którą mapa zastąpiła:
     // dokłada brzegi, czyli odpowiedź na pytanie o wrażliwość podaną liczbą.
-    const { container } = render(<HeatmapChart config={cfg(BAZA)} lang="pl" />);
+    const { container } = zTabela(BAZA);
     const wiersze = all(container, "table tbody tr");
+    // Trzy wiersze macierzy. Brzeg kolumn stoi w `tfoot`, bo nie jest
+    // wierszem danych - jest podsumowaniem, i czytnik ekranu ma prawo je
+    // odróżnić.
     expect(wiersze).toHaveLength(3);
-    // 1 nagłówek wiersza + 4 kolumny + 5 brzegów wiersza.
+    // 1 nagłówek wiersza + 4 kolumny + 5 statystyk brzegu wiersza.
     expect(all(container, "table thead th")).toHaveLength(10);
-    const pierwszy = [...wiersze[0].querySelectorAll("td")].map((td) => text(td));
-    expect(pierwszy.slice(0, 4)).toEqual(
+    // Brzeg kolumny: po jednym wierszu stopki na statystykę.
+    expect(all(container, "table tfoot tr")).toHaveLength(5);
+    // `th, td`, bo etykieta wiersza jest `th scope="row"` - nazwa parametru
+    // JEST nagłówkiem swojego wiersza, nie daną - więc stoi pod indeksem
+    // zerowym, a liczby zaczynają się od pierwszego.
+    const pierwszy = [...wiersze[0].querySelectorAll("th, td")].map((el) => text(el));
+    expect(pierwszy.slice(1, 5)).toEqual(
       [10, 20, 30, 40].map((v) => formatChartValue(v, "pl", "")),
     );
-    // Brzeg wiersza: cztery komórki, od 10 do 40, średnia 25, rozstęp 30.
-    expect(pierwszy).toContain(formatChartValue(25, "pl", ""));
-    expect(all(container, "table tfoot tr")).toHaveLength(4);
+    // Brzeg wiersza w komplecie: cztery komórki, od 10 do 40, średnia 25,
+    // rozstęp 30 - w tej kolejności, na końcu wiersza.
+    expect(pierwszy.slice(5)).toEqual(
+      [4, 10, 40, 25, 30].map((v) => formatChartValue(v, "pl", "")),
+    );
+    // Brzeg kolumn w stopce. Średnie kolumnowe rozjeżdżają się od 12 do 48,
+    // czyli mocniej niż wierszowe, i to z nich bierze się zdanie o dominującym
+    // parametrze; wiersz średnich jest czwarty z pięciu.
+    const stopka = all(container, "table tfoot tr");
+    const srednie = [...stopka[3].querySelectorAll("th, td")].map((el) => text(el));
+    expect(srednie.slice(1, 5)).toEqual([12, 24, 36, 48].map((v) => formatChartValue(v, "pl", "")));
   });
 
   it("luki jadą do tabeli jako LUKI, nie jako zera", () => {
     // Tabela i mapa muszą kłamać tak samo albo nie kłamać wcale - rozjazd
     // między nimi jest defektem samym w sobie, bo tabela jest tą wersją,
     // którą czytelnik uzna za dokładniejszą.
-    const { container } = render(<HeatmapChart config={cfg(LUKA)} lang="pl" />);
-    const drugi = [...all(container, "table tbody tr")[1].querySelectorAll("td")].map((td) =>
-      text(td),
+    const { container } = zTabela(LUKA);
+    const drugi = [...all(container, "table tbody tr")[1].querySelectorAll("th, td")].map((el) =>
+      text(el),
     );
-    expect(drugi[0]).toBe("-");
-    // Brzeg tego wiersza liczy DWIE komórki, nie trzy: luka nie wchodzi do
-    // średniej jako zero.
-    expect(drugi).toContain(formatChartValue(2, "pl", ""));
+    // Ramka nazywa lukę słowami (tym samym napisem, co legenda i dymek),
+    // rysunek stawia w komórce znak braku - oba mówią "nie policzono", żadne
+    // nie mówi "zero".
+    expect(drugi[1]).toBe("brak danych");
+    // Brzeg tego wiersza liczy DWIE komórki, nie trzy - i mówi to DWOMA
+    // niezależnymi liczbami: licznikiem komórek oraz średnią, która przy luce
+    // policzonej jako zero wyszłaby 5, a nie 7,5. Dwie drogi do tego samego
+    // faktu są tu warte swojego miejsca, bo luka udająca zero jest w mapie
+    // ciepła niewidoczna: kolor komórki bez wartości i komórki zerowej różni
+    // się tylko wtedy, gdy zero nie jest krańcem rampy.
+    expect(drugi).toContain(formatChartValue(7.5, "pl", ""));
+    expect(drugi.slice(-5, -4)).toEqual([formatChartValue(2, "pl", "")]);
   });
 });
 

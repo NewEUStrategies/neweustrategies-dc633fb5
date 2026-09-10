@@ -32,7 +32,11 @@ import { histogramModelFromConfig, histogramTable } from "@/lib/charts/kinds/his
 import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot";
 import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
 import { scatterModelFromConfig, scatterTable } from "@/lib/charts/kinds/scatter";
-import { heatmapModelFromConfig, heatmapTable } from "@/lib/charts/kinds/heatmap";
+import {
+  heatmapModelFromConfig,
+  heatmapTable,
+  type HeatmapMargin,
+} from "@/lib/charts/kinds/heatmap";
 import {
   tornadoModelFromConfig,
   tornadoTable,
@@ -405,6 +409,25 @@ function TornadoDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
   );
 }
 
+/**
+ * Statystyki brzegu wiersza i kolumny mapy ciepła, w jednej kolejności dla
+ * obu. Lista jest wspólna, bo brzeg wiersza i brzeg kolumny odpowiadają na to
+ * samo pytanie w dwóch kierunkach - rozjazd między nimi kazałby czytelnikowi
+ * uczyć się tabeli dwa razy.
+ *
+ * `count` jest LICZBĄ KOMÓREK, nie wartością danych, więc nie dostaje
+ * jednostki: „5 mln komórek" byłoby zdaniem o niczym.
+ */
+const MARGINESY: ReadonlyArray<
+  [string, (m: HeatmapMargin, liczba: (v: number | null) => string, lang: ChartLang) => string]
+> = [
+  ["count", (m, _liczba, lang) => formatChartValue(m.count, lang, "")],
+  ["min", (m, liczba) => liczba(m.min)],
+  ["max", (m, liczba) => liczba(m.max)],
+  ["mean", (m, liczba) => liczba(m.mean)],
+  ["range", (m, liczba) => liczba(m.range)],
+];
+
 function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = (key: string): string => scoped(key, { lng: lang });
@@ -426,12 +449,18 @@ function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
                 {c}
               </th>
             ))}
-            <th scope="col" className={CHART_TABLE_CLS.thNum}>
-              {t("heatmap.table.mean")}
-            </th>
-            <th scope="col" className={CHART_TABLE_CLS.thNum}>
-              {t("heatmap.table.range")}
-            </th>
+            {/* BRZEG WIERSZA W KOMPLECIE, nie w dwóch liczbach. Średnia
+                i rozstęp same nie odróżniają wiersza o kilku wypełnionych
+                komórkach od wiersza pełnego - a mapa ciepła z lukami wygląda
+                dokładnie tak samo jak mapa bez luk. Dlatego brzeg niesie też
+                LICZBĘ policzonych komórek oraz minimum i maksimum: to po nich
+                poznaje się wiersz o szerokim rozrzucie przy tej samej
+                średniej, czyli dokładnie to, czego z kolorów nie widać. */}
+            {MARGINESY.map(([klucz]) => (
+              <th key={klucz} scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t(`heatmap.table.${klucz}`)}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -445,23 +474,35 @@ function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
                   {liczba(c.value)}
                 </td>
               ))}
-              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.margin.mean)}</td>
-              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.margin.range)}</td>
+              {MARGINESY.map(([klucz, czytaj]) => (
+                <td key={klucz} className={CHART_TABLE_CLS.tdNum}>
+                  {czytaj(r.margin, liczba, lang)}
+                </td>
+              ))}
             </tr>
           ))}
-          <tr>
-            <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
-              {t("heatmap.table.mean")}
-            </th>
-            {tabela.columnMargins.map((m, i) => (
-              <td key={i} className={CHART_TABLE_CLS.tdNum}>
-                {liczba(m.mean)}
-              </td>
-            ))}
-            <td className={CHART_TABLE_CLS.tdNum} />
-            <td className={CHART_TABLE_CLS.tdNum} />
-          </tr>
         </tbody>
+        {/* BRZEG KOLUMNY tą samą listą co brzeg wiersza - jeden wiersz stopki
+            na statystykę. Sama średnia kolumnowa nie mówi nic o rozrzucie,
+            a to rozrzut odróżnia kolumnę, w której parametr rusza wynikiem
+            równomiernie, od takiej, w której rusza nim w jednym wierszu. */}
+        <tfoot>
+          {MARGINESY.map(([klucz, czytaj]) => (
+            <tr key={klucz}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {t(`heatmap.table.${klucz}`)}
+              </th>
+              {tabela.columnMargins.map((m, i) => (
+                <td key={i} className={CHART_TABLE_CLS.tdNum}>
+                  {czytaj(m, liczba, lang)}
+                </td>
+              ))}
+              {MARGINESY.map(([k]) => (
+                <td key={k} className={CHART_TABLE_CLS.tdNum} />
+              ))}
+            </tr>
+          ))}
+        </tfoot>
       </table>
       {dominant !== null && (
         <p className="mt-2 text-xs text-muted-foreground">{t(`heatmap.dominant.${dominant}`)}</p>

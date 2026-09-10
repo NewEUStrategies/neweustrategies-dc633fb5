@@ -1037,69 +1037,22 @@ export function HeatmapChart({ config, lang }: HeatmapChartProps) {
         </p>
       )}
 
-      {/* ALTERNATYWA TEKSTOWA. Z komórki mapy ciepła nie odczyta się wartości
-          dokładniej niż "ciemniejsza niż tamta", wydruk w skali szarości
-          spłaszcza rampę, a czytnik ekranu nie widzi koloru w ogóle. Tabela
-          liczy Z TEGO SAMEGO MODELU co rysunek (`heatmapTable`) i dokłada
-          BRZEGI obu osi - bez nich byłaby tą samą tabelą liczb, którą mapa
-          miała zastąpić. `sr-only`, nie widoczna: widoczny panel danych należy
-          do ramki karty (`ChartFrame`, przełącznik "Pokaż dane") i gdy
-          podłączenie rodzaju doda tam tabelę mapy, ta kopia ma zniknąć -
-          inaczej czytnik ekranu dostanie te same liczby dwa razy. */}
-      <table className="sr-only">
-        <thead>
-          <tr>
-            <th scope="col">{t("heatmap.table.row")}</th>
-            {table.columnLabels.map((label, c) => (
-              <th key={`h${c}`} scope="col">
-                {label}
-              </th>
-            ))}
-            <th scope="col">{t("heatmap.table.count")}</th>
-            <th scope="col">{t("heatmap.table.min")}</th>
-            <th scope="col">{t("heatmap.table.max")}</th>
-            <th scope="col">{t("heatmap.table.mean")}</th>
-            <th scope="col">{t("heatmap.table.range")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {table.rows.map((row, r) => (
-            <tr key={`t${r}`}>
-              <th scope="row">{row.label}</th>
-              {row.cells.map((cell, c) => (
-                <td key={`t${r}-${c}`}>{cell.text}</td>
-              ))}
-              <td>{formatChartValue(row.margin.count, lang, "")}</td>
-              <td>{num(row.margin.min)}</td>
-              <td>{num(row.margin.max)}</td>
-              <td>{num(row.margin.mean)}</td>
-              <td>{num(row.margin.range)}</td>
-            </tr>
-          ))}
-        </tbody>
-        {/* BRZEGI KOLUMN. Cztery wiersze stopki, a nie cztery kolumny obok
-            wierszowych: brzeg kolumny opisuje CAŁĄ kolumnę, więc musi stać
-            pod nią, inaczej czytnik ekranu przeczyta go jako wartość jednej
-            komórki. */}
-        <tfoot>
-          {(
-            [
-              ["min", "heatmap.table.min"],
-              ["max", "heatmap.table.max"],
-              ["mean", "heatmap.table.mean"],
-              ["range", "heatmap.table.range"],
-            ] as const
-          ).map(([field, key]) => (
-            <tr key={field}>
-              <th scope="row">{t(key)}</th>
-              {table.columnMargins.map((margin, c) => (
-                <td key={`${field}-${c}`}>{num(margin[field])}</td>
-              ))}
-              <td colSpan={5} />
-            </tr>
-          ))}
-        </tfoot>
-      </table>
+      {/* ALTERNATYWA TEKSTOWA NIE STOI TUTAJ, i to jest rozstrzygnięcie, nie
+          brak. Do podłączenia tego rodzaju render niósł WŁASNĄ kopię tabeli
+          w `sr-only`, bo panel danych ramki (`ChartFrame`, przełącznik
+          „Pokaż dane") jest domyślnie `hidden`, czyli poza drzewem
+          dostępności. Kopia była wtedy jedyną drogą do liczby dla czytnika
+          ekranu - ale po podłączeniu rodzaju do `TABLE_BY_KIND` ramka
+          renderuje tę samą tabelę drugi raz, więc po otwarciu panelu czytnik
+          dostawał WSZYSTKIE liczby dwa razy, bez żadnego sygnału, że to ta
+          sama tabela. Dwie tabele bez różnicy są gorsze niż jedno naciśnięcie
+          przycisku: przełącznik jest zwykłym `button` z `aria-expanded`
+          i `aria-controls`, czyli wzorcem, który czytnik ekranu nazywa
+          i którym steruje. Warunek powrotu kopii jest jeden: gdyby ramka
+          przestała renderować tabelę tego rodzaju.
+
+          Tabela mieszka w `Chart.tsx` (`TABLE_BY_KIND`) i liczy Z TEGO SAMEGO
+          MODELU co rysunek - dwa liczenia to dwa źródła prawdy. */}
 
       <ChartNotes notes={notes} />
     </div>
