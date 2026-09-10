@@ -203,7 +203,7 @@ const TICK_LABEL_MIN_PX = 34;
  * `TICK_LABEL_MIN_PX`, a pole rysunku około 660 px: przy dwunastu
  * obserwacjach średni odstęp to 55 px (etykiety mają zapas), przy dwudziestu
  * spada do 33 px i zaczynają na siebie wchodzić. Kluczowe jest to, że
- * etykiety NIE MOŻNA tu rozsunąć iteracyjnie tak, jak rozsuwa się je przy
+ * etykiet NIE MOŻNA tu rozsuwać iteracyjnie tak, jak rozsuwa się je przy
  * końcach linii: przy linii sąsiedztwo jest jednowymiarowe, a w chmurze
  * etykieta odsunięta od swojego punktu przestaje wskazywać, do którego
  * z kilku pobliskich punktów należy. Pełny zbiór nazw niesie dymek i tabela.

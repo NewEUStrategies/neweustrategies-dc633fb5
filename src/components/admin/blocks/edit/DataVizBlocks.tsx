@@ -75,6 +75,9 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   // drugiej serii model stawia na osi X pozycje w szeregu i sam to
   // zglasza, bo wtedy nie jest to wykres zaleznosci.
   { value: "scatter", labelKey: "kinds.scatter" },
+  // Mapa ciepła czyta kategorie jako WIERSZE, a serie jako KOLUMNY, więc
+  // ten sam blok danych, który daje słupki grupowane, daje macierz.
+  { value: "heatmap", labelKey: "kinds.heatmap" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {

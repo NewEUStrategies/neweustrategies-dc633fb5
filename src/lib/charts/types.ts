@@ -53,6 +53,12 @@ export const CHART_KINDS = [
   // wyrażony w kodzie, nie w komentarzu - model zwraca `mayConnectPoints:
   // false` jako pole, a render je respektuje.
   "scatter",
+  // WRAŻLIWOŚĆ NA DWA PARAMETRY. Jedyny rodzaj, w którym adresem jest PARA
+  // (wiersz, kolumna) - jedna współrzędna wskaźnika wskazuje kolumnę, nie
+  // komórkę, i to dla niego powstał `cellAddress` w `plot.ts`. Kolumna "czego
+  // unikać" mówi: tabela liczb; mapa ciepła ma pokazać KSZTAŁT wrażliwości,
+  // a nie kazać odczytywać stu komórek po kolei.
+  "heatmap",
 ] as const;
 
 export type ChartKind = (typeof CHART_KINDS)[number];

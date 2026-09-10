@@ -309,6 +309,77 @@ describe("ScatterChart - odcinek trendu jest twierdzeniem i musi mieć dowód", 
   });
 });
 
+describe("ScatterChart - dwie chmury przeciw jednej osi X", () => {
+  /** Trzy kolumny: X wspólne, dwie zmienne Y o PRZECIWNYM nachyleniu. */
+  function dwieChmury(): Record<string, Json> {
+    const x = [1, 2, 3, 4, 5, 6, 7, 8];
+    return {
+      kind: "bar",
+      categories: x.map((_, i) => `obs-${i + 1}`),
+      series: [
+        { name: "PKB per capita", values: x },
+        { name: "Zaufanie", values: x.map((v) => v * 2) },
+        { name: "Obawa", values: x.map((v) => 30 - v) },
+      ],
+      animate: false,
+    };
+  }
+
+  it("każda chmura ma WŁASNY kolor i WŁASNY odcinek trendu", () => {
+    // Regresja policzona na dwóch chmurach razem potrafi mieć nachylenie
+    // przeciwne do nachylenia każdej z nich osobno (paradoks Simpsona), czyli
+    // pokazywać zależność, której nie ma w żadnej z badanych populacji. Jeden
+    // odcinek na dwie chmury byłby dokładnie tym rysunkiem.
+    const { container } = render(<ScatterChart config={cfg(dwieChmury())} lang="pl" />);
+    expect(punkty(container)).toHaveLength(16);
+    const trendy = all(container, "[data-role='trend']");
+    expect(trendy).toHaveLength(2);
+    const kolory = new Set(trendy.map((e) => e.getAttribute("stroke")));
+    expect(kolory.size).toBe(2);
+    // Przeciwne nachylenia: jeden odcinek idzie w górę, drugi w dół. W SVG
+    // „w górę" znaczy malejące `y`, więc znaki muszą być różne.
+    const kierunki = trendy.map((e) => Math.sign(num(e, "y2") - num(e, "y1")));
+    expect(new Set(kierunki).size).toBe(2);
+  });
+
+  it("strzałka pionowa przechodzi do DRUGIEJ chmury przy najbliższym x", () => {
+    // Strzałka pozioma czyta jedną zależność, pionowa odpowiada na pytanie
+    // „co ma druga seria przy tej samej wartości X". Bez tego rozdzielenia
+    // nawigacja klawiaturą przeskakiwałaby między chmurami w środku odczytu
+    // jednej z nich i czytelnik nie wiedziałby, którą właśnie czyta.
+    const { container } = render(<ScatterChart config={cfg(dwieChmury())} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    const pierwszy = container.querySelector("circle[data-active='true']");
+    if (!pierwszy) throw new Error("brak punktu czynnego");
+    expect(pierwszy.getAttribute("data-cloud")).toBe("0");
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    const drugi = container.querySelector("circle[data-active='true']");
+    if (!drugi) throw new Error("brak punktu czynnego po zmianie chmury");
+    expect(drugi.getAttribute("data-cloud")).toBe("1");
+    // TA SAMA wartość X, czyli ta sama pozycja pozioma - inaczej pion
+    // przenosiłby czytelnika w inne miejsce zależności.
+    expect(num(drugi, "cx")).toBeCloseTo(num(pierwszy, "cx"), 6);
+  });
+
+  it("dymek nazywa serię, gdy chmur jest więcej niż jedna", () => {
+    // Przy jednej chmurze nazwa serii stoi już przy osi Y i wiersz w dymku
+    // byłby powtórzeniem; przy dwóch kolor jest jedynym nośnikiem tożsamości
+    // na rysunku, więc dymek musi powiedzieć słowem, w którą chmurę czytelnik
+    // właśnie celuje.
+    const { container } = render(<ScatterChart config={cfg(dwieChmury())} lang="pl" />);
+    const { hit } = warstwa(container);
+    const k = all(container, "circle[data-cloud='1']")[2];
+    fireEvent.pointerMove(hit, { clientX: num(k, "cx"), clientY: num(k, "cy") });
+    const tekst = dymek(container);
+    expect(tekst).toContain("Seria");
+    expect(tekst).toContain("Obawa");
+    // Tytuł osi Y przestaje być nazwą serii, bo serii jest kilka.
+    expect(container.querySelector("[data-role='axis-y-title']")?.textContent).toBe("Zmienna Y");
+  });
+});
+
 describe("ScatterChart - dwie osie, dwa własne zakresy", () => {
   it("podziałka jest na OBU osiach, ze skrajnymi wartościami podpisanymi", () => {
     // Obie osie są tu danymi i z obu odczytuje się liczbę. Podziałka tylko na

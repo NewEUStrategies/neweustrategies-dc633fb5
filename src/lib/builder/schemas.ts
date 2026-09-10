@@ -768,6 +768,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "boxplot", label: "boxplot (rozkład)" },
         { value: "beeswarm", label: "rój punktów (rozkład)" },
         { value: "scatter", label: "punktowy (zależność)" },
+        { value: "heatmap", label: "mapa ciepła (wrażliwość)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },

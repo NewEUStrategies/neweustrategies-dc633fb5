@@ -50,6 +50,7 @@ const pl = {
           boxplot: "Boxplot (rozkład)",
           beeswarm: "Rój punktów (rozkład)",
           scatter: "Punktowy (zależność)",
+          heatmap: "Mapa ciepła (wrażliwość)",
         },
         // ---- Uczciwość wykresu ----
         honestyLabel: "Uczciwość wykresu",
@@ -810,6 +811,7 @@ const en: typeof pl = {
           boxplot: "Boxplot (distribution)",
           beeswarm: "Point swarm (distribution)",
           scatter: "Scatter (relationship)",
+          heatmap: "Heatmap (sensitivity)",
         },
       },
       dataMap: {

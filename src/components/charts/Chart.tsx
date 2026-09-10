@@ -26,10 +26,12 @@ import { HistogramChart } from "./HistogramChart";
 import { BoxplotChart } from "./BoxplotChart";
 import { BeeswarmChart } from "./BeeswarmChart";
 import { ScatterChart } from "./ScatterChart";
+import { HeatmapChart } from "./HeatmapChart";
 import { histogramModelFromConfig, histogramTable } from "@/lib/charts/kinds/histogram";
 import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot";
 import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
 import { scatterModelFromConfig, scatterTable } from "@/lib/charts/kinds/scatter";
+import { heatmapModelFromConfig, heatmapTable } from "@/lib/charts/kinds/heatmap";
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
 
@@ -60,6 +62,13 @@ export function Chart({ config, lang, className }: ChartProps) {
   // obie są na rysunku - a druga jest pominięta i model zgłasza to osobno.
   const jedenRozklad =
     config.kind === "histogram" || config.kind === "boxplot" || config.kind === "beeswarm";
+  // MAPA CIEPŁA MA WŁASNY KLUCZ i to nie jest ten sam klucz co legenda serii.
+  // Legenda serii mówi "ta barwa to ta seria", a mapa ciepła koduje barwą
+  // WARTOŚĆ, nie serię - jej klucz musi podać GRANICE kubełków, czyli te same
+  // liczby, które decydowały o przydziale koloru. Rysuje go komponent, bo
+  // tylko on zna skalę; legenda serii wypisałaby tu nazwy kolumn, które
+  // czytelnik ma już na osi.
+  const wlasnyKluczRysunku = jedenRozklad || config.kind === "heatmap";
 
   const legend: LegendItem[] = useMemo(() => {
     if (isWaterfall) {
@@ -118,7 +127,7 @@ export function Chart({ config, lang, className }: ChartProps) {
     // więc klucz z jedną próbką powtarzałby tytuł wykresu, a przy dwóch
     // seriach w danych sugerowałby, że obie są na rysunku - a druga jest
     // pominięta (model zgłasza to jako `ignoredSeries`).
-    if (jedenRozklad) return [];
+    if (wlasnyKluczRysunku) return [];
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
     return config.series.map((s) => ({
@@ -132,7 +141,7 @@ export function Chart({ config, lang, className }: ChartProps) {
       // symulacji, więc klucz nie może twierdzić, że różni je sam odcień.
       dashed: s.colorSlot > CATEGORICAL_SAFE_SERIES,
     }));
-  }, [config, jedenRozklad, isPie, isWaterfall, t]);
+  }, [config, wlasnyKluczRysunku, isPie, isWaterfall, t]);
 
   const shareSumMismatch: string | null = useMemo(() => {
     if (!isPie) return null;
@@ -236,6 +245,7 @@ const DRAWING_BY_KIND: Record<ChartKind, KindView> = {
   boxplot: BoxplotChart,
   beeswarm: BeeswarmChart,
   scatter: ScatterChart,
+  heatmap: HeatmapChart,
 };
 
 /**
@@ -255,6 +265,7 @@ const TABLE_BY_KIND: Record<ChartKind, KindView> = {
   boxplot: BoxplotDataTable,
   beeswarm: BeeswarmDataTable,
   scatter: ScatterDataTable,
+  heatmap: HeatmapDataTable,
 };
 
 /**
@@ -284,6 +295,85 @@ const TABLE_BY_KIND: Record<ChartKind, KindView> = {
  * twierdzenie bez miary dopasowania i bez liczebności jest ozdobą, a wypisane
  * w tabeli bez nich wyglądałoby na fakt.
  */
+/**
+ * ALTERNATYWA TEKSTOWA MAPY CIEPŁA - macierz PLUS brzegi, bo bez brzegów
+ * tabela jest dokładnie tym, co kolumna „czego unikać" nazywa tabelą liczb.
+ *
+ * Mapa ciepła istnieje po to, żeby czytelnik zobaczył, KTÓRY z dwóch
+ * parametrów rusza wynikiem mocniej. Ta odpowiedź jest na rysunku widoczna
+ * jako kierunek gradientu, a w tabeli musi stać LICZBĄ - stąd kolumna brzegu
+ * przy każdym wierszu i wiersz brzegu pod każdą kolumną, a pod nimi zdanie
+ * `dominant.*` z modelu. Sama siatka wartości pozostawiłaby czytelnika bez
+ * rysunku z zadaniem, którego rysunek go właśnie zwalniał.
+ *
+ * Komórka bez danych jedzie jako `legend.empty`, a nie jako zero: zero jest
+ * wynikiem, brak danych nie jest.
+ */
+function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  const model = heatmapModelFromConfig(config);
+  const tabela = heatmapTable(model);
+  const liczba = (v: number | null): string =>
+    v === null ? t("heatmap.legend.empty") : formatChartValue(v, lang, config.unit);
+  const dominant = tabela.dominantAxis;
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <thead>
+          <tr>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("heatmap.table.row")}
+            </th>
+            {tabela.columnLabels.map((c, i) => (
+              <th key={i} scope="col" className={CHART_TABLE_CLS.thNum}>
+                {c}
+              </th>
+            ))}
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("heatmap.table.mean")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("heatmap.table.range")}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {tabela.rows.map((r, i) => (
+            <tr key={i}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {r.label}
+              </th>
+              {r.cells.map((c, ci) => (
+                <td key={ci} className={CHART_TABLE_CLS.tdNum}>
+                  {liczba(c.value)}
+                </td>
+              ))}
+              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.margin.mean)}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.margin.range)}</td>
+            </tr>
+          ))}
+          <tr>
+            <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+              {t("heatmap.table.mean")}
+            </th>
+            {tabela.columnMargins.map((m, i) => (
+              <td key={i} className={CHART_TABLE_CLS.tdNum}>
+                {liczba(m.mean)}
+              </td>
+            ))}
+            <td className={CHART_TABLE_CLS.tdNum} />
+            <td className={CHART_TABLE_CLS.tdNum} />
+          </tr>
+        </tbody>
+      </table>
+      {dominant !== null && (
+        <p className="mt-2 text-xs text-muted-foreground">{t(`heatmap.dominant.${dominant}`)}</p>
+      )}
+    </>
+  );
+}
+
 function ScatterDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = (key: string): string => scoped(key, { lng: lang });
