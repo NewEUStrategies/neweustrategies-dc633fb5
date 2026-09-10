@@ -25,8 +25,16 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "minimal", label: "Minimal" },
   ],
   // Szybkie przełączanie rodzaju wykresu. Toolbar zapisuje data.variant;
-  // parseChartConfig czyta variant z pierwszeństwem nad kind, a edytor
-  // wykresu utrzymuje oba klucze w zgodzie.
+  // parseChartConfig czyta variant z pierwszeństwem nad kind (o ile variant
+  // JEST znanym rodzajem), a edytor wykresu utrzymuje oba klucze w zgodzie.
+  //
+  // LISTA MUSI OBEJMOWAĆ KAŻDY RODZAJ Z `CHART_KINDS`, i nie jest to kwestia
+  // wygody. Toolbar zapisuje `variant`, a `variant` ma pierwszeństwo - więc
+  // rodzaj, którego na tej liście nie ma, jest z toolbara NIEOSIĄGALNY, a przy
+  // okazji nie da się do niego wrócić po jednym kliknięciu w inny wariant.
+  // Tak było z mostkiem: siedział w typie i w edytorze bloku, ale nie tutaj,
+  // więc toolbar pokazywał sześć wariantów i żaden nie był aktywny.
+  // Zgodności pilnuje bramka `src/lib/charts/__tests__/chartKinds.test.ts`.
   chart: [
     { key: "bar", label: "Kolumny" },
     { key: "bar-horizontal", label: "Słupki" },
@@ -34,6 +42,7 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "area", label: "Pole" },
     { key: "pie", label: "Kołowy" },
     { key: "donut", label: "Pierścień" },
+    { key: "waterfall", label: "Wodospad" },
   ],
 };
 

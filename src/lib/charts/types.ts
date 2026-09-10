@@ -2,9 +2,29 @@
 // Konfiguracja pochodzi z bloków CMS / widgetów buildera (Json) i jest
 // defensywnie parsowana w parse.ts - komponenty widzą wyłącznie te typy.
 
-export type ChartKind = "line" | "area" | "bar" | "bar-horizontal" | "pie" | "donut" | "waterfall";
-
-export const CHART_KINDS: readonly ChartKind[] = [
+/**
+ * RODZAJE WYKRESU - JEDNO ŹRÓDŁO, NIE DWA.
+ *
+ * Wcześniej stała tu unia `ChartKind` ORAZ ręcznie zsynchronizowana z nią
+ * tablica `CHART_KINDS`, i nic nie pilnowało ich zgodności: żaden `satisfies`,
+ * żadna asercja wyczerpania. Dopisanie rodzaju do jednej i zapomnienie
+ * o drugiej dawało kod, który się kompiluje, a w runtime odrzuca rodzaj jako
+ * nieznany (albo odwrotnie: przepuszcza rodzaj, którego typ nie zna).
+ *
+ * Teraz tablica jest ŹRÓDŁEM, a typ jest z niej WYPROWADZONY. Dopisanie
+ * rodzaju w jednym miejscu rozszerza jednocześnie typ i walidację, a rozjazd
+ * przestaje być wyrażalny.
+ *
+ * POZOSTAŁE KOPIE TEJ LISTY - i jest ich cztery - żyją poza tym modułem, bo są
+ * powierzchniami autorskimi i słownikami: toolbar wariantów
+ * (`src/lib/blocks/variants.ts`), edytor bloku (`KIND_OPTIONS`
+ * w `DataVizBlocks.tsx`), schemat widgetu buildera (`schemas.ts`) i słownik
+ * PL/EN (`i18n-admin-blocks.ts`). Ich zgodności z tą listą pilnuje bramka
+ * `src/lib/charts/__tests__/chartKinds.test.ts` - bo TypeScript ich nie widzi,
+ * a rozjazd między nimi już raz zaszedł: `waterfall` był w typie i w edytorze,
+ * ale nie w toolbarze wariantów ani w schemacie buildera.
+ */
+export const CHART_KINDS = [
   "line",
   "area",
   "bar",
@@ -12,7 +32,19 @@ export const CHART_KINDS: readonly ChartKind[] = [
   "pie",
   "donut",
   "waterfall",
-];
+] as const;
+
+export type ChartKind = (typeof CHART_KINDS)[number];
+
+/**
+ * Czy napis jest znanym rodzajem wykresu. Osobno od `parseChartKind`, bo
+ * tamten ZAWSZE zwraca rodzaj (degraduje nieznany zapis do słupków), a tu
+ * potrzebna jest odpowiedź "nie wiem, o czym mówisz" - patrz pierwszeństwo
+ * `variant` nad `kind` w `parse.ts`.
+ */
+export function isChartKind(raw: unknown): raw is ChartKind {
+  return typeof raw === "string" && (CHART_KINDS as readonly string[]).includes(raw);
+}
 
 /** Maksymalna liczba serii = liczba slotów palety (--chart-1..8). */
 export const MAX_SERIES = 8;

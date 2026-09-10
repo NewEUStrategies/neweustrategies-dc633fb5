@@ -759,6 +759,11 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "area", label: "pole (area)" },
         { value: "pie", label: "kołowy" },
         { value: "donut", label: "pierścień (donut)" },
+        // Mostek był w typie `ChartKind` i w edytorze bloku CMS, ale nie tutaj -
+        // czyli autor widgetu buildera nie mógł go wybrać wcale. Bramka
+        // `src/lib/charts/__tests__/chartKinds.test.ts` pilnuje, żeby ta lista
+        // obejmowała każdy rodzaj z `CHART_KINDS`.
+        { value: "waterfall", label: "wodospadowy (mostek)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },

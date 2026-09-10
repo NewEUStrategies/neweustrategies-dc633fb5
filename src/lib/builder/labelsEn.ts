@@ -745,6 +745,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   karuzela: "carousel",
   kołowy: "pie",
   "pierścień (donut)": "ring (donut)",
+  "wodospadowy (mostek)": "waterfall (bridge)",
   "słupki poziome": "horizontal bars",
   "pole (area)": "area",
   "termometr pionowy": "vertical thermometer",

@@ -7,6 +7,7 @@ import { BAR_STYLES, type BarStyle } from "./palette";
 import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
+  isChartKind,
   MAX_SERIES,
   type ChartConfig,
   type ChartMetric,
@@ -69,9 +70,19 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     .map((c) => String(c ?? ""));
   const heightRaw = num(data.height);
   // `variant` (toolbar szybkiego przełączania w edytorze bloków) ma
-  // pierwszeństwo nad `kind`; edytor utrzymuje oba klucze spójnie.
-  const kindSource =
-    typeof data.variant === "string" && data.variant !== "" ? data.variant : data.kind;
+  // pierwszeństwo nad `kind`, ale WYŁĄCZNIE gdy jest znanym rodzajem wykresu.
+  //
+  // Wcześniej wygrywał każdy niepusty napis, a to jest defekt, bo `variant`
+  // NIE JEST kluczem tego bloku: to generyczne pole wariantu STYLU, którego
+  // inne rodzaje bloków używają na wartości w rodzaju "minimal". Blok wykresu
+  // z `kind: "donut"` i odziedziczonym `variant: "minimal"` szedł więc przez
+  // `parseChartKind("minimal")`, które degraduje nieznany zapis do słupków -
+  // i pierścień cicho zamieniał się w kolumny, choć autor wybrał go wprost.
+  //
+  // Warunek "znany rodzaj" naprawia to bez odbierania toolbarowi funkcji:
+  // gdy toolbar zapisze prawdziwy rodzaj, nadal wygrywa; gdy w polu siedzi
+  // cokolwiek innego, decyduje `kind`, czyli jawny wybór autora.
+  const kindSource = isChartKind(data.variant) ? data.variant : data.kind;
   return {
     kind: parseChartKind(kindSource),
     title: String(data.title ?? ""),
