@@ -415,18 +415,18 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     expect(tooltip.backgroundColor).toBe(THEME.tipBg);
   });
 
-  it("obie osie: linie i podziałka w kolorze ramki, etykiety w wyciszonym", async () => {
+  it("obie osie: linie i podziałka w kolorze ramki, etykiety jasne bez obrysu", async () => {
     const { baseOption } = await loadChartTheme();
     const option = baseOption(THEME) as Record<string, unknown>;
     const xAxis = option.xAxis as {
       axisLine: { lineStyle: { color: string } };
       axisTick: { lineStyle: { color: string } };
-      axisLabel: { color: string };
+      axisLabel: { color: string; textBorderWidth: number };
       splitLine: { show: boolean };
     };
     const yAxis = option.yAxis as {
       splitLine: { lineStyle: { color: string; type: string } };
-      axisLabel: { color: string };
+      axisLabel: { color: string; textBorderWidth: number };
       axisLine: { show: boolean };
     };
 
@@ -436,9 +436,11 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     // się wyróżniać.
     expect(xAxis.axisLine.lineStyle.color).toBe(THEME.axis);
     expect(xAxis.axisTick.lineStyle.color).toBe(THEME.axis);
-    expect(xAxis.axisLabel.color).toBe(THEME.muted);
+    expect(xAxis.axisLabel.color).toBe(THEME.foreground);
+    expect(xAxis.axisLabel.textBorderWidth).toBe(0);
     expect(yAxis.splitLine.lineStyle.color).toBe(THEME.grid);
-    expect(yAxis.axisLabel.color).toBe(THEME.muted);
+    expect(yAxis.axisLabel.color).toBe(THEME.foreground);
+    expect(yAxis.axisLabel.textBorderWidth).toBe(0);
     // Siatkę rysuje TYLKO oś Y - pionowe linie na osi czasu to szum.
     expect(xAxis.splitLine.show).toBe(false);
     expect(yAxis.axisLine.show).toBe(false);

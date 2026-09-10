@@ -227,20 +227,20 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       legend: {
         data: [t("adminAnalytics.gsc.clicks"), t("adminAnalytics.gsc.impressions"), "CTR"],
         top: 4,
+        left: "center",
+        itemGap: 20,
       },
       tooltip: { trigger: "axis" },
-      grid: { left: 44, right: 60, top: 32, bottom: 40, containLabel: true },
+      grid: { left: 44, right: 60, top: 44, bottom: 40, containLabel: true },
       xAxis: {
         type: "category",
         data: sorted.map((r) => r.keys[0] ?? ""),
         boundaryGap: false,
       },
       yAxis: [
-        { type: "value", name: t("adminAnalytics.gsc.clicks"), nameTextStyle: { fontSize: 10 } },
+        { type: "value" },
         {
           type: "value",
-          name: t("adminAnalytics.gsc.impressions"),
-          nameTextStyle: { fontSize: 10 },
           splitLine: { show: false },
         },
         {
@@ -426,11 +426,8 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
             show: true,
             formatter: "{b}",
             fontSize: 10,
-            color: "#fff",
-            // Obrys pilnuje czytelności na JASNYCH kaflach palety ciemnej
-            // (ochra, oliwka), gdzie sama biel znika.
-            textBorderColor: "rgba(0,0,0,0.35)",
-            textBorderWidth: 2,
+            color: chartTheme.foreground,
+            textBorderWidth: 0,
           },
           upperLabel: { show: false },
           itemStyle: { borderColor: chartTheme.background, borderWidth: 2, gapWidth: 2 },

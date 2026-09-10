@@ -195,11 +195,21 @@ export function VitalsBiDashboard() {
             data: [
               {
                 yAxis: thGood,
-                label: { formatter: `Good ${fmtValue(metric, thGood)}`, fontSize: 9 },
+                label: {
+                  formatter: `Good ${fmtValue(metric, thGood)}`,
+                  fontSize: 9,
+                  color: theme.foreground,
+                  textBorderWidth: 0,
+                },
               },
               {
                 yAxis: thPoor,
-                label: { formatter: `Poor ${fmtValue(metric, thPoor)}`, fontSize: 9 },
+                label: {
+                  formatter: `Poor ${fmtValue(metric, thPoor)}`,
+                  fontSize: 9,
+                  color: theme.foreground,
+                  textBorderWidth: 0,
+                },
               },
             ],
           },
@@ -270,9 +280,8 @@ export function VitalsBiDashboard() {
             show: true,
             formatter: "{b}",
             fontSize: 11,
-            color: "#ffffff",
-            textBorderColor: "rgba(0,0,0,0.35)",
-            textBorderWidth: 2,
+            color: theme.foreground,
+            textBorderWidth: 0,
           },
           itemStyle: { borderColor: theme.background, borderWidth: 2, gapWidth: 2 },
           data: paths.map((p) => {
