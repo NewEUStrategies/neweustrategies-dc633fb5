@@ -63,6 +63,24 @@ function nieliczby(wartosc: unknown, sciezka = "model"): string[] {
   return [];
 }
 
+/**
+ * Pary jako gotowe punkty - do testów, które omijają budowę modelu i celują
+ * wprost w arytmetykę regresji. Osią X modelu jest kolumna etykiet, a etykieta
+ * przechodzi przez zapis dziesiętny, więc wartości skrajne (1e-160, 1e305)
+ * trafiłyby do `leastSquaresTrend` zaokrąglone inaczej, niż je zapisano.
+ */
+function pary(xs: readonly number[], ys: readonly number[]) {
+  return xs.map((x, i) => ({
+    index: i,
+    x,
+    y: ys[i],
+    label: "",
+    seriesIndex: 0,
+    colorSlot: 1,
+    overplotted: false,
+  }));
+}
+
 /** Model plus jego alternatywa tekstowa - obchód NaN musi objąć oba. */
 function calosc(model: ScatterModel): { model: ScatterModel; table: unknown } {
   return { model, table: scatterTable(model) };
@@ -278,6 +296,47 @@ describe("scatter - linia trendu jako twierdzenie z dowodem", () => {
     );
     expect(t?.slope).toBeCloseTo(2, 6);
     expect(t?.r2).toBeCloseTo(1, 6);
+  });
+
+  it("chmura idealnie współliniowa na danych rzędu 1e100 dostaje R2 = 1, nie zero", () => {
+    // REGRESJA defektu przepełnionego iloczynu mianowników. `sxy /
+    // Math.sqrt(sxx * syy)` liczyło `sxx * syy` = 1e402, czyli Infinity, choć
+    // oba czynniki z osobna były skończone i sprawdzone. `Math.sqrt(Infinity)`
+    // to Infinity, a dzielenie liczby skończonej przez nieskończoność daje
+    // ZERO, NIE NaN - więc żadna osłona nie miała czego złapać i te punkty,
+    // leżące co do jednego na prostej y = x, dostawały
+    // `{ slope: 1, r2: 0, meaningful: false }`. Render zachowywał się wtedy
+    // poprawnie wobec błędnej liczby: chował odcinek i pisał, że linia niczego
+    // nie wyjaśnia. Test pinuje wynik, nie kolejność dzieleń.
+    const t = leastSquaresTrend(
+      pary([-2e100, -1e100, 0, 1e100, 2e100], [-2e100, -1e100, 0, 1e100, 2e100]),
+    );
+    expect(t).not.toBeNull();
+    expect(t?.slope).toBeCloseTo(1, 10);
+    expect(t?.r).toBe(1);
+    expect(t?.r2).toBe(1);
+    expect(t?.meaningful).toBe(true);
+  });
+
+  it("nachylenie niezapisywalne w podwójnej precyzji: model MILCZY, nie kładzie prostej poziomej", () => {
+    // Ten sam defekt co wyżej, złapany w drugim miejscu: `fin(sxy / sxx)`
+    // cofało przepełniony iloraz do ZERA. Tu prawdziwe nachylenie wynosi 1e310
+    // i nie da się go zapisać, więc chmura idealnie współliniowa dostawała
+    // `slope: 0` PRZY `r2: 1` - podpis "R2 = 100%" nad linią poziomą, czyli
+    // dwa wykluczające się twierdzenia w jednym wierszu tabeli. Nachylenie
+    // jest orzeczeniem o zależności, więc odpowiedzią jest `null`.
+    const t = leastSquaresTrend(pary([-1e-160, 0, 1e-160], [-1e150, 0, 1e150]));
+    expect(t).toBeNull();
+  });
+
+  it("wyraz wolny poza podwójną precyzją: model MILCZY, nie zsuwa odcinka na zero", () => {
+    // Trzecia postać tego samego przepełnienia: nachylenie (1e308) jeszcze się
+    // mieści, ale `slope * sredniaX` już nie, więc `fin` podstawiało wyraz
+    // wolny 0. Skutek był gorszy niż sama liczba: oba końce odcinka liczą się
+    // z wyrazu wolnego, więc `from.y` i `to.y` lądowały na zerze i model
+    // oddawał POZIOMY odcinek dla danych biegnących od -1e305 do 1e305.
+    const t = leastSquaresTrend(pary([1.999, 2, 2.001], [-1e305, 0, 1e305]));
+    expect(t).toBeNull();
   });
 });
 

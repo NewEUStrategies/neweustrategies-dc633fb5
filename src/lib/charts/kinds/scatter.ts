@@ -274,9 +274,10 @@ export interface ScatterDropped {
 
 /**
  * Linia trendu. Istnieje TYLKO wtedy, gdy da się ją policzyć uczciwie - przy
- * n < `SCATTER_TREND_MIN_N` albo zerowej wariancji `x` pole `trend` chmury
- * jest `null` i model MILCZY, bo konwencja repo mówi, że `null` znaczy "nie
- * ma czego pokazać", a nie "policzone i wyszło zero".
+ * n < `SCATTER_TREND_MIN_N`, przy zerowej wariancji `x` oraz przy nachyleniu
+ * lub wyrazie wolnym poza podwójną precyzją pole `trend` chmury jest `null`
+ * i model MILCZY, bo konwencja repo mówi, że `null` znaczy "nie ma czego
+ * pokazać", a nie "policzone i wyszło zero".
  */
 export interface ScatterTrend {
   /** Nachylenie w jednostkach `y` na jednostkę `x`. */
@@ -597,11 +598,14 @@ function kategorieJakoOsX(categories: readonly string[]): (number | null)[] | nu
  * jako NaN. Wersja z odjętą średnią liczy sumy na wartościach wyśrodkowanych,
  * więc nie odejmuje wielkich liczb od siebie.
  *
- * `null` GDY REGRESJI NIE MA, w dwóch przypadkach i oba są prawdziwym brakiem,
- * nie awarią: mniej niż `SCATTER_TREND_MIN_N` par oraz zerowa (albo
- * nieskończona po przepełnieniu) wariancja `x`. Model wtedy milczy - prosta
+ * `null` GDY REGRESJI NIE MA, w trzech przypadkach i każdy jest prawdziwym
+ * brakiem, nie awarią: mniej niż `SCATTER_TREND_MIN_N` par, zerowa (albo
+ * nieskończona po przepełnieniu) wariancja `x` oraz nachylenie lub wyraz
+ * wolny, które wychodzą poza podwójną precyzję. Model wtedy milczy - prosta
  * pionowa nie jest funkcją `y(x)`, a podstawienie zerowego nachylenia
- * twierdziłoby, że `y` nie zależy od `x`, czego dane nie mówią.
+ * twierdziłoby, że `y` nie zależy od `x`, czego dane nie mówią. Trzeci
+ * przypadek jest tym samym zdaniem o niezapisywalnym wyniku: nachylenie 1e310
+ * nie jest "nachyleniem zerowym", tylko nachyleniem, którego nie da się podać.
  */
 export function leastSquaresTrend(points: readonly ScatterPoint[]): ScatterTrend | null {
   const n = points.length;
@@ -639,15 +643,50 @@ export function leastSquaresTrend(points: readonly ScatterPoint[]): ScatterTrend
   // której czytelnik mógłby zaufać.
   if (!mianownikOk(sxx)) return null;
 
-  const slope = fin(sxy / sxx);
-  const intercept = fin(sredniaY - slope * sredniaX);
+  // NACHYLENIE I WYRAZ WOLNY MUSZĄ WYJŚĆ SKOŃCZONE, inaczej TRENDU NIE MA -
+  // i to jest ta sama decyzja, którą podjęto wierszem wyżej dla `sxx`, tylko
+  // zastosowana do wyniku, a nie do mianownika. `fin(sxy / sxx)` cofało
+  // przepełniony iloraz do ZERA, czyli podstawiało prostą poziomą, która
+  // twierdzi "y nie zależy od x" - dokładnie o dane rosnące monotonicznie.
+  // Kontrprzykłady, oba policzone: dla x = [-1e-160, 0, 1e-160],
+  // y = [-1e150, 0, 1e150] (chmura IDEALNIE WSPÓŁLINIOWA, nachylenie 1e310
+  // jest niezapisywalne) wychodziło `slope: 0` przy `r2: 1` - podpis
+  // "R2 = 100%" nad linią poziomą, czyli dwa wykluczające się twierdzenia
+  // naraz. Dla x = [1.999, 2, 2.001], y = [-1e305, 0, 1e305] przepełniał się
+  // z kolei `slope * sredniaX` i osłona podstawiała wyraz wolny 0, przez co
+  // oba końce odcinka lądowały na `y = 0`. `liczba`, nie `fin`, bo nachylenie
+  // i wyraz wolny są ORZECZENIEM o zależności, a nie współrzędną rysunku.
+  const slope = liczba(sxy / sxx);
+  if (slope === null) return null;
+  const intercept = liczba(sredniaY - slope * sredniaX);
+  if (intercept === null) return null;
 
   // R2 NIEOKREŚLONE PRZY ZEROWEJ WARIANCJI `y`, i to jest rozstrzygnięcie,
   // nie zaniechanie. Wszystkie obserwacje na jednej wysokości znaczą, że nie
   // ma zmienności, którą prosta miałaby wyjaśnić: iloraz wychodzi 0/0.
   // Podstawienie jedynki ("prosta wyjaśnia wszystko") byłoby najgorszą
   // odpowiedzią, bo chmura płaska jak stół dostawałaby R2 = 1,00 w podpisie.
-  const r = mianownikOk(syy) ? fin(sxy / Math.sqrt(sxx * syy)) : null;
+  //
+  // ILOCZYNU MIANOWNIKÓW TU NIE MA i to jest cała poprawka tego wiersza.
+  // `sxy / Math.sqrt(sxx * syy)` przepełniało się na SAMYM ILOCZYNIE
+  // `sxx * syy`, choć każdy czynnik z osobna był skończony i sprawdzony przez
+  // `mianownikOk` - a `mianownikOk` sprawdza je OSOBNO, nie ich iloczyn.
+  // Skutek nie wyglądał na awarię: `Math.sqrt(Infinity)` to `Infinity`,
+  // a dzielenie liczby skończonej przez nieskończoność daje ZERO, NIE `NaN`,
+  // więc osłona nie miała czego złapać. Kontrprzykład: dla
+  // x = y = [-2e100, -1e100, 0, 1e100, 2e100] - chmury IDEALNIE
+  // WSPÓŁLINIOWEJ - wychodziło `{ slope: 1, r2: 0, meaningful: false }`,
+  // czyli render (zgodnie z własną, poprawną regułą) chował odcinek i pisał,
+  // że linia niczego nie wyjaśnia. Dzielenie po kolei przez każdy pierwiastek
+  // osobno nie ma czym przepełnić: z nierówności Schwarza
+  // |sxy| <= sqrt(sxx) * sqrt(syy), więc pierwszy iloraz jest co do modułu
+  // nie większy niż `Math.sqrt(syy)`, a drugi nie większy niż jeden.
+  //
+  // `liczba`, nie `fin`: współczynnik korelacji jest ORZECZENIEM o danych,
+  // więc odpowiedzią na niepoliczalność jest milczenie. Zero wygląda
+  // dokładnie tak samo wiarygodnie jak korelacja policzona z danych - i to
+  // właśnie podstawione zero było wyżej opisanym defektem.
+  const r = mianownikOk(syy) ? liczba(sxy / Math.sqrt(sxx) / Math.sqrt(syy)) : null;
   // Zaciśnięcie do [-1, 1] po zaokrągleniach podwójnej precyzji: bez tego
   // R2 wychodziło 1,0000000000000002, a "R2 = 100,00%" z nadmiarem jest
   // liczbą, której nie da się obronić przed czytelnikiem z arkuszem.
