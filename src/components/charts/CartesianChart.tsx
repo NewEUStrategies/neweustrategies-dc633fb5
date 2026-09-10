@@ -82,6 +82,7 @@ import {
   snapToGrid,
   valueTickTarget,
 } from "@/lib/charts/geometry";
+import { bandIndex, nearestPointIndex, pointerToPlot } from "@/lib/charts/plot";
 import { SMOOTHING_MIN_POINTS, pathFromPoints, type Point } from "@/lib/charts/smooth";
 import { estimateLabelWidth, useLabelMetrics } from "@/lib/charts/measureText";
 import { WRAP_LINE_EM, planCategoryLabels, type CategoryLabelPlan } from "@/lib/charts/labels";
@@ -415,16 +416,32 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         : catCenter(forecastFrom) - band / 2;
 
   // ---- Interakcja: wspólny "najbliższy indeks kategorii". ----
+  //
+  // ARYTMETYKA STOI W `lib/charts/plot.ts`, nie tutaj. Była domknięciem w tym
+  // pliku i umiała dokładnie jedno: czytać JEDNĄ współrzędną i zwracać JEDEN
+  // indeks kategorii. To wystarcza linii, słupkom i mostkowi, ale nie mapie
+  // ciepła (adres to para wiersz-kolumna), nie punktowemu (najbliższy punkt
+  // zależy od obu współrzędnych) i nie beeswarmowi (na jednej pozycji osi
+  // leży wiele punktów). Wyprowadzenie daje jedną implementację dla
+  // wszystkich rodzajów i - co ważniejsze - pozwala sprawdzić przypadki
+  // graniczne bez renderowania wykresu.
+  //
+  // `null` z `pointerToPlot` znaczy "element niezmierzony" i wraca tu jako
+  // pierwsza kategoria, bo w tym wykresie każde pasmo należy do jakiegoś
+  // słupka; mapa ciepła zrobi z tym `null` co innego (nie pokaże komórki).
   const indexFromPointer = (e: PointerEvent<SVGRectElement>): number => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const alongAxis = horizontal
-      ? ((e.clientY - rect.top) / rect.height) * innerH
-      : ((e.clientX - rect.left) / rect.width) * innerW;
-    if (isLine && n > 1) {
-      const step = (horizontal ? innerH : innerW) / (n - 1);
-      return Math.max(0, Math.min(n - 1, Math.round(alongAxis / step)));
-    }
-    return Math.max(0, Math.min(n - 1, Math.floor(alongAxis / band)));
+    const point = pointerToPlot(
+      e.clientX,
+      e.clientY,
+      e.currentTarget.getBoundingClientRect(),
+      innerW,
+      innerH,
+    );
+    if (point === null) return 0;
+    const alongAxis = horizontal ? point.y : point.x;
+    return isLine && n > 1
+      ? nearestPointIndex(alongAxis, horizontal ? innerH : innerW, n)
+      : bandIndex(alongAxis, band, n);
   };
 
   const anchorFor = (index: number): Anchor => {
