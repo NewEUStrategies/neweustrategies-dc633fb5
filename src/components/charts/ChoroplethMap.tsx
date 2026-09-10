@@ -206,6 +206,8 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
         unit: config.unit,
         sampleSize: null,
         zeroBaselineBroken: false,
+        // Mapa nie liczy udziałów, więc nie ma sumy kontrolnej do zgłoszenia.
+        shareSumMismatch: null,
         notesShows: "",
         notesSurprising: "",
         notesHidden: "",

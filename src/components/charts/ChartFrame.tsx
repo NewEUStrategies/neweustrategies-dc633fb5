@@ -53,6 +53,16 @@ export interface ChartCaption {
   sampleSize: number | null;
   /** Oś wartości nie zaczyna się od zera - ucięcie MUSI być nazwane. */
   zeroBaselineBroken: boolean;
+  /**
+   * Suma ZAOKRĄGLONYCH udziałów tarczy, gdy nie domyka 100% - już
+   * sformatowana, np. "99,8%". `null` znaczy "nie ma czego zgłaszać": inny
+   * rodzaj wykresu albo suma w tolerancji zaokrągleń.
+   *
+   * Tu, a nie pod tabelą danych, bo to nie jest przypis do tabeli: to
+   * ostrzeżenie o tym, że STRUKTURA POKAZANA NA RYSUNKU się nie domyka,
+   * i musi stać obok rysunku, tak samo jak ostrzeżenie o uciętej osi.
+   */
+  shareSumMismatch: string | null;
   notesShows: string;
   notesSurprising: string;
   notesHidden: string;
@@ -172,6 +182,16 @@ export function ChartFrame({
             <strong className="font-semibold">{t("caption.zeroBaselineWarning")}</strong>{" "}
             {t("caption.zeroBaselineWarningHint")}
           </span>
+        </p>
+      )}
+
+      {/* Suma kontrolna udziałów. Ta sama forma co ostrzeżenie o uciętej osi -
+          ikona PLUS tekst - bo to ten sam gatunek komunikatu: rysunek pokazuje
+          coś, czego liczby nie potwierdzają. */}
+      {caption.shareSumMismatch !== null && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>{t("pie.shareSumFailed", { sum: caption.shareSumMismatch })}</span>
         </p>
       )}
 

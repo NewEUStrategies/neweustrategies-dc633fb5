@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatAxisTick, formatChartValue, formatPercent } from "../format";
+import {
+  formatAxisTick,
+  formatChartValue,
+  formatPercent,
+  formatPercentPoints,
+} from "../format";
 
 describe("formatChartValue", () => {
   it("formats per locale with the unit appended", () => {
@@ -27,5 +32,18 @@ describe("formatPercent", () => {
     expect(formatPercent(0.42, "en")).toBe("42%");
     expect(formatPercent(0.056, "en")).toBe("5.6%");
     expect(formatPercent(0.42, "pl")).toBe("42%");
+  });
+});
+
+describe("formatPercentPoints", () => {
+  it("trzyma JEDNO miejsce po przecinku - także przy liczbach całych", () => {
+    // Suma kontrolna udziałów pokazuje dokładnie tę rozbieżność, którą
+    // wykryła, więc nie może jej zaokrąglić do zera miejsc: `formatPercent`
+    // zwracał dla 0,999 napis "100%", czyli komunikat "udziały sumują się do
+    // 100%, a nie do 100%".
+    expect(formatPercentPoints(99.9, "en")).toBe("99.9%");
+    expect(formatPercentPoints(99.9, "pl")).toBe("99,9%");
+    expect(formatPercentPoints(90, "pl")).toBe("90,0%");
+    expect(formatPercentPoints(104, "en")).toBe("104.0%");
   });
 });

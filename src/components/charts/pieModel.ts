@@ -18,10 +18,37 @@ export interface PieSlice {
 }
 
 export interface PieModel {
-  /** Wycinki w kolejności kategorii - najwyżej PIE_MAX_SLICES. */
+  /** Wycinki w kolejności MALEJĄCEJ od godziny dwunastej - najwyżej PIE_MAX_SLICES. */
   slices: PieSlice[];
   /** Mianownik udziału: suma DODATNICH. */
   total: number;
+  /**
+   * Suma udziałów PODANYCH W DANYCH, w punktach procentowych - i tylko wtedy,
+   * gdy dane są udziałami (jednostka procentowa). `null` znaczy NIE MA CZEGO
+   * SPRAWDZAĆ, więc model nie zaświadcza, że jest dobrze - milczy, dokładnie
+   * jak suma kontrolna mostka bez jawnego stanu końcowego.
+   *
+   * SPRAWDZAMY DANE AUTORA, NIE WŁASNĄ ARYTMETYKĘ, i to jest tu cała treść.
+   * Udziały policzone przez model dzielą wartości przez ich własną sumę, więc
+   * sumują się do stu procent Z DEFINICJI - sprawdzanie ich (choćby po
+   * zaokrągleniu) nie może wykryć niczego poza błędem zaokrąglenia, którego
+   * nikt nie popełnił. Realny defekt jest inny: autor wkleja gotowe udziały,
+   * które sumują się do 90% albo 104% (bo brakuje kategorii, bo dwie się
+   * nakładają, bo arkusz zaokrąglił w drugą stronę), a tarcza PRZESKALOWUJE je
+   * po cichu do pełnej całości. Wtedy liczba na łuku ("33%") jest inna niż
+   * liczba w arkuszu i w tabeli danych ("30%") - i nic tego nie mówi.
+   */
+  shareSum: number | null;
+  /** Czy podane udziały domykają 100%. `null` = nie ma czego sprawdzać. */
+  shareSumOk: boolean | null;
+  /**
+   * Ile kategorii ma wartość DODATNIĄ - czyli ile tarcza narysowałaby bez
+   * limitu wycinków. Osobne pole od `slices.length`, bo po zwinięciu ogona ta
+   * druga liczba nigdy nie przekracza limitu i nie da się z niej odczytać, że
+   * limit w ogóle był napięty. Reguła doboru formy ("powyżej pięciu kategorii
+   * weź słupek skumulowany") pyta właśnie o tę liczbę.
+   */
+  positives: number;
 }
 
 /**
@@ -76,6 +103,15 @@ export function pieModel(config: ChartConfig, lang: ChartLang): PieModel {
   // na wycinek zbiorczy, więc własny kolor zachowuje PIE_MAX_SLICES-1
   // pierwszych. Ogon ma wtedy co najmniej dwie kategorie (inaczej nadmiaru by
   // nie było), więc zbiorczy wycinek zawsze nosi nazwę zbiorczą.
+  // KOLEJNOŚĆ MALEJĄCA OD GODZINY DWUNASTEJ, ZGODNIE Z RUCHEM WSKAZÓWEK.
+  // To jedyna kolejność, w której czytelnik może porównywać SĄSIEDNIE łuki bez
+  // szukania: kąt i powierzchnia siedzą w dolnej połowie hierarchii
+  // percepcyjnej, więc porównanie dwóch wycinków oddalonych o pół obwodu jest
+  // praktycznie niewykonalne. Sortowanie stoi PRZED podziałem na głowę i ogon,
+  // dzięki czemu w wycinku zbiorczym ląduje faktyczny ogon rozkładu, a nie
+  // przypadkowe kategorie z końca arkusza.
+  drawable.sort((a, b) => b.value - a.value);
+
   const overflow = drawable.length > PIE_MAX_SLICES;
   const head = overflow ? drawable.slice(0, PIE_MAX_SLICES - 1) : drawable;
   const parts: { label: string; value: number; colorSlot: number }[] = head.map((d, pos) => ({
@@ -99,7 +135,50 @@ export function pieModel(config: ChartConfig, lang: ChartLang): PieModel {
     angle += share * Math.PI * 2;
     return { ...part, share, startAngle, endAngle: angle };
   });
-  return { slices, total };
+  // Suma kontrolna liczona z WARTOŚCI, nie z kątów - patrz `shareSum`. Wchodzą
+  // do niej wszystkie wartości dodatnie, także te zwinięte w wycinek zbiorczy:
+  // pytanie brzmi "czy autor podał pełną strukturę", a nie "co tarcza
+  // narysowała".
+  const percentUnit = isPercentUnit(config.unit);
+  const shareSum = percentUnit && drawable.length > 0 ? round1(total) : null;
+  return {
+    slices,
+    total,
+    shareSum,
+    shareSumOk: shareSum === null ? null : Math.abs(shareSum - 100) <= SHARE_TOLERANCE_PP,
+    positives: drawable.length,
+  };
+}
+
+/**
+ * Tolerancja sumy kontrolnej udziałów, w punktach procentowych.
+ *
+ * BEZWZGLĘDNA, nie względna - i to jest różnica wobec mostka. Mostek nie zna
+ * swojej skali (miliony euro albo punkty procentowe), więc jego próg musi być
+ * ułamkiem skali zmiany. Tu skala jest znana z góry i wynosi 100, bo dane SĄ
+ * udziałami. Pół punktu to granica, poniżej której mówimy o zaokrągleniu
+ * w arkuszu autora (trzy równe udziały podane jako 33,3 sumują się do 99,9),
+ * a powyżej - o brakującej albo podwójnie liczonej kategorii.
+ */
+export const SHARE_TOLERANCE_PP = 0.5;
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/**
+ * Czy dane są UDZIAŁAMI, czyli czy jest o czym mówić w sumie kontrolnej.
+ *
+ * Rozpoznajemy po jednostce, a nie po tym, że wartości sumują się blisko stu:
+ * ta druga heurystyka odpalałaby na dowolnym zestawie, który przypadkiem
+ * sumuje się do 100 (na przykład na czterech kwartałach po 25 mln), a nie
+ * odpalałaby na zestawie udziałów sumujących się do 60 - czyli dokładnie tam,
+ * gdzie ostrzeżenie jest potrzebne. Jednostka jest deklaracją autora o tym,
+ * co liczby znaczą, i to jest właściwa podstawa.
+ */
+function isPercentUnit(unit: string): boolean {
+  const u = unit.trim().toLowerCase().replace(/\s+/g, "");
+  return u === "%" || u === "pp" || u === "p.p." || u === "pkt%";
 }
 
 /** Udział z mianownika tarczy; czego tarcza nie rysuje, tego udział jest zerowy. */

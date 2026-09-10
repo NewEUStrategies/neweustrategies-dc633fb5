@@ -111,6 +111,36 @@ export const BAR_MAX = 24;
 export const BAR_GAP = 2;
 
 /**
+ * Przerwa między łukami tarczy, w PIKSELACH liczonych na osi pierścienia.
+ *
+ * Nie stały kąt i nie obrys w kolorze płyty. Obrys w kolorze płyty zajmuje
+ * miejsce, które należy się obwódce serii - a bez żadnej przerwy obwódki dwóch
+ * sąsiednich łuków stykają się i dają na granicy fałszywy trzeci kolor.
+ * Przerwa niesie granicę także w skali szarości i w druku jednobarwnym, gdzie
+ * same odcienie wypełnienia nie wystarczają.
+ *
+ * PIKSELE, NIE STOPNIE, bo ten sam kąt daje różną przerwę w różnej geometrii:
+ * przy pierścieniu o promieniu 40 px szczelina byłaby niewidoczna, a przy
+ * 160 px rozjeżdżałaby się w klin. Komponent przelicza tę wartość na kąt
+ * promieniem ŚRODKOWYM pierścienia - `(ARC_GAP_PX / 2) / r_środkowy` radianów
+ * odjęte z każdej strony - więc przerwa jest optycznie ta sama niezależnie od
+ * średnicy i grubości.
+ */
+export const ARC_GAP_PX = 2.5;
+
+/**
+ * Powietrze wokół liczby wpisanej W ŁUK - po 4 px z każdej strony.
+ *
+ * Liczba w łuku jest na tarczy podstawowym nośnikiem wartości, bo osi tu nie
+ * ma i nie do czego przypiąć etykiety. Ale napis wpisany w łuk, w którym mieści
+ * się dokładnie co do piksela, dotyka obu granic i czyta się jako część
+ * sąsiada. Dlatego próg "czy się mieści" to szerokość napisu PLUS ten zapas;
+ * gdy go zabraknie, wartość zostaje w tabeli klucza obok pierścienia, a nie
+ * wchodzi w łuk przycięta.
+ */
+export const ARC_LABEL_PAD = 8;
+
+/**
  * Skala odstępów. WYŁĄCZNIE te wartości - to jedna zmiana najbardziej
  * podnosząca wrażenie precyzji, bo oko wyłapuje 13 px obok 12 px szybciej niż
  * jakąkolwiek różnicę koloru.

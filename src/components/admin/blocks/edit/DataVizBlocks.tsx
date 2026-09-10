@@ -29,7 +29,13 @@ import {
   type ChartKind,
   type MapRegion,
 } from "@/lib/charts/types";
-import { isForecastMissingBand, seriesOverSafePalette } from "@/lib/charts/honesty";
+import { pieModel } from "@/components/charts/pieModel";
+import {
+  isForecastMissingBand,
+  pieFormAdvice,
+  seriesOverSafePalette,
+  PIE_CLOSE_SHARES_PP,
+} from "@/lib/charts/honesty";
 import { SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-charts";
@@ -153,6 +159,21 @@ export function ChartBlock({ block, onChange }: Props) {
   const isPie = kind === "pie" || kind === "donut";
   const isWaterfall = kind === "waterfall";
   const sliceOverflow = isPie ? Math.max(0, categories.length - PIE_MAX_SLICES) : 0;
+  // TRZY GRANICE PIERŚCIENIA, policzone z tego samego modelu, który rysuje
+  // tarczę - inaczej ostrzeżenie mówiłoby o innym zestawie wycinków niż ten
+  // w podglądzie obok. Udziały idą z modelu, bo mianownik (suma DODATNICH)
+  // jest jego rozstrzygnięciem, a nie regułą uczciwości.
+  const pieAdvice = useMemo(() => {
+    if (!isPie) return [];
+    // Język nie ma tu znaczenia: z modelu czytamy WYŁĄCZNIE liczby (udziały
+    // i liczbę dodatnich), a tłumaczeniu podlega jedynie nazwa wycinka
+    // zbiorczego, której to sprawdzenie nie dotyka.
+    const model = pieModel(previewConfig, "pl");
+    return pieFormAdvice(
+      model.slices.map((s) => s.share),
+      { positives: model.positives, maxSlices: PIE_MAX_SLICES },
+    );
+  }, [isPie, previewConfig]);
   // Terakota wypada z palety TYLKO na wykresie, który koduje znak czerwienią -
   // czyli na mostku. Na zwykłych kolumnach reguła nie obowiązuje i krzyczenie
   // o niej byłoby szumem.
@@ -189,6 +210,13 @@ export function ChartBlock({ block, onChange }: Props) {
         <Warning text={ct("editor.tooManySeries", { max: CATEGORICAL_SAFE_SERIES })} />
       )}
       {sliceOverflow > 0 && <Warning text={ct("editor.tooManySlices", { max: PIE_MAX_SLICES })} />}
+      {/* `tooMany` pokrywa się z `sliceOverflow` (oba mówią o przekroczeniu
+          limitu wycinków), więc go nie powtarzamy - został w module
+          uczciwości dla wywołujących bez własnego licznika kategorii. */}
+      {pieAdvice.includes("tooFew") && <Warning text={ct("editor.pieTooFewSlices")} />}
+      {pieAdvice.includes("tooClose") && (
+        <Warning text={ct("editor.pieClosePercentages", { pp: PIE_CLOSE_SHARES_PP })} />
+      )}
       {signClash && <Warning text={ct("editor.signClashesWithTerracotta")} />}
 
       <div className="grid grid-cols-2 gap-2">

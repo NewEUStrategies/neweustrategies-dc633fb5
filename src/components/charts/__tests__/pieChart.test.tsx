@@ -50,6 +50,7 @@ import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartConfig } from "@/lib/charts/types";
 import { MAX_SERIES, PIE_MAX_SLICES } from "@/lib/charts/types";
+import { ARC_GAP_PX } from "@/lib/charts/geometry";
 import { axeViolations, summarize } from "@/test/axe";
 import { PieChart } from "../PieChart";
 import { Chart } from "../Chart";
@@ -72,6 +73,36 @@ const SEL = {
   tooltip: ".neh-tooltip",
   value: "text.neh-pie-value",
 } as const;
+
+/**
+ * Kąty początku i końca ZEWNĘTRZNEGO łuku, odczytane wprost ze ścieżki.
+ *
+ * Testy geometrii tarczy porównywały wcześniej cały ciąg `d` ze wzorcem
+ * wpisanym w test. Po wprowadzeniu przerwy kątowej 2,5 px wzorzec przestał
+ * być czytelny (końce łuku wypadają na niecałkowitych współrzędnych), a co
+ * ważniejsze: był tautologią - przepisywał wynik implementacji, zamiast
+ * sprawdzać WŁASNOŚĆ, której wymaga specyfikacja. Kąty pozwalają sprawdzić
+ * to, o co naprawdę chodzi: gdzie łuk się zaczyna, gdzie kończy i ile
+ * pikseli mierzy szczelina między sąsiadami.
+ */
+function outerArc(path: string): { a0: number; a1: number } {
+  const n = (path.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+  // Koło: "M cx cy L x0 y0 A r r 0 f 1 x1 y1 Z" - punkty na 2-3 i 9-10.
+  // Pierścień: "M x0 y0 A r r 0 f 1 x1 y1 L ..." - punkty na 0-1 i 7-8.
+  const kolo = path.startsWith(`M${CX} ${CY} L`);
+  const [x0, y0] = kolo ? [n[2], n[3]] : [n[0], n[1]];
+  const [x1, y1] = kolo ? [n[9], n[10]] : [n[7], n[8]];
+  return { a0: Math.atan2(y0 - CY, x0 - CX), a1: Math.atan2(y1 - CY, x1 - CX) };
+}
+
+/**
+ * Różnica kątów zwinięta do (-pi, pi]. `atan2` zwraca kąt z tego zakresu, więc
+ * granica wypadająca na godzinie dziewiątej jest raz odczytywana jako +pi,
+ * a raz jako -pi - bez zwinięcia szczelina między tymi dwoma łukami wychodzi
+ * jako pełny obrót ze znakiem minus.
+ */
+const roznicaKatow = (a: number, b: number): number =>
+  ((a - b + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
 
 const all = (root: HTMLElement, sel: string): Element[] => [...root.querySelectorAll(sel)];
 const slices = (root: HTMLElement): Element[] => all(root, SEL.slice);
@@ -157,14 +188,35 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
         lang="pl"
       />,
     );
-    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(["var(--chart-1)"]);
+    // Wypełnienie to BLADE WNĘTRZE slotu, obwódka to jego mocna krawędź -
+    // wariant blady, ten sam co w słupkach. Sam token serii (`--chart-1`)
+    // nie pojawia się już jako `fill`: nasycona płaszczyzna pod etykietą była
+    // najciemniejszym elementem wykresu i przeciągała na siebie uwagę, którą
+    // ma nieść linia danych.
+    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual([
+      "var(--chart-1-inner)",
+    ]);
+    expect(slices(container).map((s) => s.getAttribute("stroke"))).toEqual([
+      "var(--chart-1-edge)",
+    ]);
   });
 
-  it("wiodące luki NIE zwijają tarczy w jeden wycinek zbiorczy", () => {
-    // REGRESJA. Limit liczony po indeksie kategorii dawał tu głowę pustą
-    // (żaden indeks < 4) i cały zestaw w ogonie, czyli JEDEN wycinek
+  it("wiodące luki NIE zwijają tarczy, a wycinki idą MALEJĄCO od godziny 12", () => {
+    // DWIE REGUŁY W JEDNYM ZESTAWIE.
+    //
+    // Pierwsza to regresja: limit liczony po indeksie kategorii dawał tu głowę
+    // pustą (żaden indeks < 4) i cały zestaw w ogonie, czyli JEDEN wycinek
     // "Pozostałe: 100 (100%)". Cztery odczytywalne kategorie znikały z tarczy
     // bez śladu, a limit pięciu wycinków nie był nawet napięty.
+    //
+    // Druga to kolejność. Wycinki idą teraz MALEJĄCO, zgodnie z ruchem
+    // wskazówek od godziny dwunastej, a nie w kolejności z arkusza. Kąt
+    // i powierzchnia siedzą w dolnej połowie hierarchii percepcyjnej
+    // Clevelanda i McGilla, więc porównanie dwóch wycinków oddalonych o pół
+    // obwodu jest praktycznie niewykonalne; kolejność malejąca stawia obok
+    // siebie wielkości, które czytelnik faktycznie porównuje. Sortowanie
+    // dzieje się PRZED podziałem na głowę i ogon, więc w wycinku zbiorczym
+    // ląduje faktyczny ogon rozkładu, a nie koniec arkusza.
     const { container } = render(
       <PieChart
         config={cfg({
@@ -176,16 +228,20 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
       />,
     );
     expect(slices(container).map((s) => s.getAttribute("aria-label"))).toEqual([
-      "e: 10 (10%)",
-      "f: 20 (20%)",
-      "g: 30 (30%)",
       "h: 40 (40%)",
+      "g: 30 (30%)",
+      "f: 20 (20%)",
+      "e: 10 (10%)",
     ]);
+    // Slot idzie z POZYCJI po sortowaniu, więc największy wycinek dostaje
+    // slot 1 - czyli kolor o najwyższym kontraście do płyty trafia na
+    // wielkość, która i tak jest najlepiej widoczna. To zamierzone: paleta
+    // ma identyfikować, a nie hierarchizować.
     expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual([
-      "var(--chart-1)",
-      "var(--chart-2)",
-      "var(--chart-3)",
-      "var(--chart-4)",
+      "var(--chart-1-inner)",
+      "var(--chart-2-inner)",
+      "var(--chart-3-inner)",
+      "var(--chart-4-inner)",
     ]);
   });
 
@@ -212,15 +268,59 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
 describe("PieChart - geometria tarczy i pierścienia", () => {
   it("pierwszy wycinek startuje na godzinie 12 i idzie zgodnie z ruchem wskazówek", () => {
     const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
-    const [pierwszy, drugi] = slices(container).map((s) => d(s));
-    // Start: (cx, cy - rOuter) = 12:00. Koniec pierwszej ćwiartki: 3:00.
-    expect(pierwszy).toBe(
-      `M${CX} ${CY} L${CX} ${CY - R_OUTER} A148 148 0 0 1 ${CX + R_OUTER} ${CY} Z`,
-    );
-    // Druga ćwiartka podejmuje dokładnie tam, gdzie skończyła pierwsza.
-    expect(drugi.startsWith(`M${CX} ${CY} L${CX + R_OUTER} ${CY}`)).toBe(true);
+    const luki = slices(container).map((s) => outerArc(d(s)));
+    // Przerwa kątowa odjęta z każdej strony: pół przerwy pikselowej podzielone
+    // przez promień, na którym się ją mierzy (dla koła to połowa promienia
+    // zewnętrznego). Start pierwszego wycinka leży więc o tyle ZA godziną
+    // dwunastą, a nie dokładnie na niej.
+    const rMid = R_OUTER / 2;
+    const luz = ARC_GAP_PX / 2 / rMid;
+    expect(luki[0].a0).toBeCloseTo(-Math.PI / 2 + luz, 9);
+    // Koniec pierwszej ćwiartki: godzina trzecia, minus ta sama przerwa.
+    expect(luki[0].a1).toBeCloseTo(-luz, 9);
+    // Druga ćwiartka podejmuje po drugiej stronie tej samej szczeliny.
+    expect(luki[1].a0).toBeCloseTo(luz, 9);
     // Flaga sweep = 1 w każdym wycinku: zawsze w prawo (clockwise).
     expect(slices(container).every((s) => d(s).includes("0 0 1 "))).toBe(true);
+  });
+
+  it("szczelina między sąsiednimi łukami mierzy 2,5 px NA OSI PIERŚCIENIA", () => {
+    // PIKSELE, NIE STOPNIE. Ten sam kąt daje przy różnej geometrii różną
+    // szczelinę: przy tarczy o promieniu 148 px i przy pierścieniu, którego oś
+    // leży na 119,88 px, stały kąt rozjeżdżałby się o połowę. Przerwa liczona
+    // w pikselach na osi pierścienia jest optycznie ta sama w obu.
+    //
+    // PO CO PRZERWA. Bez niej obwódki dwóch sąsiednich łuków stykają się
+    // i dają na granicy fałszywy trzeci kolor. Wcześniejsza wersja rozdzielała
+    // je obrysem w kolorze karty - ten zajmował miejsce, które należy się
+    // obwódce serii, i znikał w druku jednobarwnym razem z całą granicą.
+    for (const [kind, rMid] of [
+      ["pie", R_OUTER / 2],
+      ["donut", (R_OUTER + R_INNER) / 2],
+    ] as const) {
+      const { container } = render(<PieChart config={cfg({ kind, ...CWIARTKI })} lang="pl" />);
+      const luki = slices(container).map((s) => outerArc(d(s)));
+      for (let i = 1; i < luki.length; i++) {
+        const szczelina = roznicaKatow(luki[i].a0, luki[i - 1].a1) * rMid;
+        expect(szczelina).toBeCloseTo(ARC_GAP_PX, 5);
+      }
+    }
+  });
+
+  it("łuk nie ma zaokrąglenia na ŻADNYM końcu - oba są granicami kategorii", () => {
+    // W słupku jeden koniec jest krawędzią odniesienia (zero albo poziom
+    // skumulowany), a drugi końcem danych, więc jeden jest kwadratowy, a drugi
+    // zaokrąglony. W pierścieniu OBA końce łuku są granicami MIĘDZY
+    // KATEGORIAMI, czyli oba są krawędziami odniesienia - zaokrąglenie
+    // któregokolwiek przesuwa granicę i zaniża udział. To ta sama reguła co
+    // przy podstawie słupka, tylko zastosowana dwa razy.
+    const { container } = render(
+      <PieChart config={cfg({ kind: "donut", ...CWIARTKI })} lang="pl" />,
+    );
+    for (const wycinek of slices(container)) {
+      expect(wycinek.getAttribute("stroke-linecap")).toBeNull();
+      expect(wycinek.getAttribute("stroke-linejoin")).toBe("miter");
+    }
   });
 
   it("koło rysuje wycinki OD ŚRODKA, pierścień zostawia otwór 0,62 promienia", () => {
@@ -252,7 +352,15 @@ describe("PieChart - geometria tarczy i pierścienia", () => {
     expect(num(container.querySelector("svg") ?? undefined, "height")).toBe(640);
     // cy = 320, rOuter = min(720, 640)/2 - 12 = 308.
     expect(d(slices(container)[0])).toContain("A308 308");
-    expect(d(slices(container)[0]).startsWith("M360 320 L360 12")).toBe(true);
+    // Łuk startuje na promieniu 308 px i o pół przerwy kątowej za godziną
+    // dwunastą. Sprawdzamy promień i kąt, a nie przepisany ciąg `d`: przerwa
+    // wypada na niecałkowitych współrzędnych, a interesuje nas to, że wycinek
+    // rozpiął się na pełnej dostępnej średnicy.
+    const [x0, y0] = (d(slices(container)[0]).match(/-?\d+(?:\.\d+)?/g) ?? [])
+      .slice(2, 4)
+      .map(Number);
+    expect(Math.hypot(x0 - 360, y0 - 320)).toBeCloseTo(308, 6);
+    expect(Math.atan2(y0 - 320, x0 - 360)).toBeCloseTo(-Math.PI / 2 + ARC_GAP_PX / 2 / 154, 9);
   });
 
   it("skrajnie wąski kontener trzyma PODŁOGĘ promienia 40 px", () => {
@@ -341,9 +449,21 @@ describe("PieChart - etykiety wewnątrz wycinków", () => {
     expect(promien).toBeLessThan(R_OUTER);
   });
 
-  it("kolor etykiety bierze ink Z TEGO SAMEGO slotu co wypełnienie", () => {
-    // Rozjazd numeru daje ciemny tekst na ciemnym wypełnieniu - to jedyny
-    // wyjątek od zasady "tekst w tokenach semantycznych".
+  it("etykieta w bladym wnętrzu idzie TUSZEM, nie inkiem slotu", () => {
+    // ODWRÓCENIE WCZEŚNIEJSZEJ REGUŁY, i to świadome.
+    //
+    // Dopóki wycinek był wypełniony NASYCONYM tokenem serii, etykieta musiała
+    // brać `--chart-ink-N` z tego samego slotu: ink jest dobrany kontrastem do
+    // tego konkretnego wypełnienia i na granacie wychodzi biały, a na ochrze
+    // ciemny. Po przejściu na wariant blady wypełnienie ma do płyty
+    // 1,20-1,28:1, czyli jest niemal białe - a biały ink slotu granatowego
+    // dawał na nim około 1,2:1, czyli napis nieczytelny.
+    //
+    // Blade wnętrze jest tak jasne, że NIE POTRZEBUJE własnego tuszu: ciemny
+    // tusz semantyczny ma na nim 12,6-14,9:1 w motywie jasnym i tyle samo po
+    // odwróceniu w ciemnym. Jeden token na wszystkie sloty jest tu więc
+    // i prostszy, i bezpieczniejszy - a wyjątek "tekst w tokenach slotu"
+    // znika razem z powodem, dla którego istniał.
     const { container } = render(
       <PieChart
         config={cfg({
@@ -356,8 +476,11 @@ describe("PieChart - etykiety wewnątrz wycinków", () => {
     );
     const fills = slices(container).map((s) => s.getAttribute("fill"));
     const inks = all(container, SEL.label).map((t) => t.getAttribute("fill"));
-    expect(fills).toEqual([1, 2, 3, 4, 5].map((n) => `var(--chart-${n})`));
-    expect(inks).toEqual([1, 2, 3, 4, 5].map((n) => `var(--chart-ink-${n})`));
+    expect(fills).toEqual([1, 2, 3, 4, 5].map((n) => `var(--chart-${n}-inner)`));
+    expect(inks).toEqual(Array.from({ length: 5 }, () => "var(--foreground)"));
+    // Żaden ink slotu nie zostaje w grafice - gdyby został, wróciłby razem
+    // z nim problem białego napisu na bladym wnętrzu.
+    expect(container.innerHTML).not.toContain("--chart-ink-");
   });
 
   it("przełącznik 'Etykiety wartości' dokłada DRUGĄ linię z wartością i podnosi udział", () => {
@@ -387,13 +510,49 @@ describe("PieChart - suma w środku pierścienia", () => {
     series: [{ name: "S", values: [1200, 800] }],
   };
 
-  it("pierścień pokazuje sumę i jej podpis w obu językach", () => {
+  it("środek niesie JEDNĄ liczbę, a jednostka jest jej podpisem POD nią", () => {
+    // ROZDZIELENIE LICZBY I JEDNOSTKI. Wcześniej środek pierścienia niósł
+    // "2000 mld" w jednym napisie 22 px, a pod nim słowo "Suma". Przy dłuższej
+    // jednostce (np. "mln EUR (ceny stałe)") ten sklejony napis wychodził
+    // poza otwór pierścienia i nachodził na łuki. Środek ma niepodzielnie
+    // JEDNĄ liczbę nagłówkową; jednostka jest jej podpisem, więc schodzi
+    // linijkę niżej mniejszym stopniem i przestaje konkurować o szerokość
+    // otworu.
     const pl = render(<PieChart config={cfg(dane)} lang="pl" />);
-    expect(all(pl.container, SEL.center).map((t) => t.textContent)).toEqual(["2000 mld", "Suma"]);
+    expect(all(pl.container, SEL.center).map((t) => t.textContent)).toEqual(["2000", "Suma · mld"]);
 
     const en = render(<PieChart config={cfg(dane)} lang="en" />);
     // en-GB dokłada separator tysięcy - ten sam zestaw, inny napis.
-    expect(all(en.container, SEL.center).map((t) => t.textContent)).toEqual(["2,000 mld", "Total"]);
+    expect(all(en.container, SEL.center).map((t) => t.textContent)).toEqual([
+      "2,000",
+      "Total · mld",
+    ]);
+  });
+
+  it("bez jednostki podpisem zostaje słowo 'Suma' - w obu językach", () => {
+    // Liczba bez żadnego podpisu w środku pierścienia nie mówi, czego jest
+    // sumą, a autor nie zawsze podaje jednostkę (udziały, wskaźniki
+    // bezwymiarowe). Wtedy podpisem zostaje klucz słownika - jedyny tekst
+    // komponentu, który idzie z tłumaczeń.
+    const bez: Record<string, Json> = { ...dane, unit: "" };
+    const pl = render(<PieChart config={cfg(bez)} lang="pl" />);
+    expect(all(pl.container, SEL.center).map((t) => t.textContent)).toEqual(["2000", "Suma"]);
+    const en = render(<PieChart config={cfg(bez)} lang="en" />);
+    expect(all(en.container, SEL.center).map((t) => t.textContent)).toEqual(["2,000", "Total"]);
+  });
+
+  it("środek PRZEŁĄCZA się na wskazany segment i WRACA do sumy", () => {
+    // Wolno, bo pod dwoma warunkami, które spec nazywa wprost: podpis mówi,
+    // który stan jest widoczny (nazwa segmentu wobec "Suma"), a po zejściu
+    // wskaźnika liczba wraca do sumy. Środek, który zostaje na ostatnim
+    // segmencie, kłamie o całości - i to jest dokładnie ten defekt, przed
+    // którym broni druga połowa tego testu.
+    const { container } = render(<PieChart config={cfg(dane)} lang="pl" />);
+    expect(all(container, SEL.center).map((t) => t.textContent)).toEqual(["2000", "Suma · mld"]);
+    fireEvent.pointerEnter(slices(container)[0]);
+    expect(all(container, SEL.center).map((t) => t.textContent)).toEqual(["1200", "A · mld"]);
+    fireEvent.pointerLeave(slices(container)[0]);
+    expect(all(container, SEL.center).map((t) => t.textContent)).toEqual(["2000", "Suma · mld"]);
   });
 
   it("suma w środku liczy się z DODATNICH - tyle, ile pokazuje tarcza", () => {
@@ -407,7 +566,7 @@ describe("PieChart - suma w środku pierścienia", () => {
         lang="pl"
       />,
     );
-    expect(all(container, SEL.center)[0].textContent).toBe("2000 mld");
+    expect(all(container, SEL.center).map((t) => t.textContent)).toEqual(["2000", "Suma · mld"]);
   });
 
   it("koło NIE dostaje sumy w środku (nie ma tam otworu)", () => {
@@ -437,7 +596,7 @@ describe("PieChart - paleta i nadmiar kategorii", () => {
     // tabela danych, która jest zawsze pod wykresem.
     const { container } = render(<PieChart config={cfg(dziesiec)} lang="pl" />);
     expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(
-      Array.from({ length: PIE_MAX_SLICES }, (_, i) => `var(--chart-${i + 1})`),
+      Array.from({ length: PIE_MAX_SLICES }, (_, i) => `var(--chart-${i + 1}-inner)`),
     );
     const etykiety = slices(container).map((s) => s.getAttribute("aria-label"));
     expect(etykiety).toHaveLength(PIE_MAX_SLICES);
@@ -471,8 +630,8 @@ describe("PieChart - paleta i nadmiar kategorii", () => {
       "K10: 5 (33%)",
     ]);
     expect(slices(jedna.container).map((s) => s.getAttribute("fill"))).toEqual([
-      "var(--chart-1)",
-      "var(--chart-2)",
+      "var(--chart-1-inner)",
+      "var(--chart-2-inner)",
     ]);
   });
 
@@ -539,20 +698,65 @@ describe("PieChart - tooltip i fokus", () => {
     expect(tip(container)).toBeNull();
   });
 
-  it("FOKUS klawiaturą daje ten sam tooltip i WYSUWA wycinek o 4 px", () => {
-    // Wycinki mają `outline-none`, więc wysunięcie jest JEDYNYM wskaźnikiem
-    // fokusu - musi realnie zmieniać geometrię, nie tylko klasę.
+  it("FOKUS zmienia POWIERZCHNIĘ, a nie geometrię łuku", () => {
+    // ODWRÓCENIE WCZEŚNIEJSZEGO ZACHOWANIA, i to jest poprawka uczciwości,
+    // nie estetyki. Wskazany wycinek wysuwał się 4 px na zewnątrz po kącie
+    // środkowym. Wysunięcie zwiększa promień, na którym leży łuk zewnętrzny,
+    // więc DŁUGOŚĆ tego łuku rośnie - a to jest dokładnie ta cecha, którą oko
+    // czyta jako "większy udział". Podświetlenie nie może zmieniać kodowania:
+    // wskazanie mówi "to jest ten wycinek", a nie "ten wycinek jest większy".
+    //
+    // W zamian zmienia się POWIERZCHNIA: wypełnienie idzie o krok w stronę
+    // nasycenia, obwódka na czysty token serii (obie podstawienia przez
+    // własności `--neh-arc-*`, bo jedna reguła arkusza obsługuje wszystkie
+    // sloty), a grubość obwódki i ścieżka zostają bez zmian.
     const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
     const spoczynek = d(slices(container)[0]);
     fireEvent.focus(slices(container)[0]);
     expect(tip(container)?.textContent).toBe("A25%1");
-    const wysuniety = d(slices(container)[0]);
-    expect(wysuniety).not.toBe(spoczynek);
-    // Przesunięcie idzie po kącie środkowym: 4 px pod -45 stopni.
-    expect(wysuniety.startsWith(`M${CX + 4 * Math.cos(-Math.PI / 4)} `)).toBe(true);
+    expect(d(slices(container)[0])).toBe(spoczynek);
+    expect(slices(container)[0].getAttribute("data-active")).toBe("true");
+    // Podstawienia stanu stoją na elemencie, więc arkusz ma czym podmienić
+    // wypełnienie i obwódkę bez znajomości numeru slotu.
+    const styl = slices(container)[0].getAttribute("style") ?? "";
+    expect(styl).toContain("--neh-arc-hover: var(--chart-1-hover)");
+    expect(styl).toContain("--neh-arc-token: var(--chart-1)");
+    // POZOSTAŁE WYCINKI NIE GASNĄ. Przygaszanie tła podświetlenia zmienia
+    // wygląd danych, których czytelnik nie wskazał, a przy tarczy odbiera mu
+    // jedyne odniesienie, względem którego może ocenić wskazany udział.
+    for (const inny of slices(container).slice(1)) {
+      expect(inny.getAttribute("data-active")).toBeNull();
+      expect(inny.getAttribute("opacity")).toBeNull();
+      expect(inny.getAttribute("fill-opacity")).toBeNull();
+    }
     fireEvent.blur(slices(container)[0]);
     expect(tip(container)).toBeNull();
+    expect(slices(container)[0].getAttribute("data-active")).toBeNull();
     expect(d(slices(container)[0])).toBe(spoczynek);
+  });
+
+  it("TAPNIĘCIE trzyma stan, a tapnięcie POZA tarczą go zdejmuje", () => {
+    // Na dotyku `pointerleave` przychodzi natychmiast po podniesieniu palca,
+    // więc tarcza oparta na parze enter/leave migała tooltipem i gasła.
+    const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
+    fireEvent.pointerEnter(slices(container)[0], { pointerType: "touch" });
+    expect(tip(container)).not.toBeNull();
+    fireEvent.pointerLeave(slices(container)[0], { pointerType: "touch" });
+    expect(tip(container)).not.toBeNull();
+
+    fireEvent.pointerDown(document.body, { pointerType: "touch" });
+    expect(tip(container)).toBeNull();
+  });
+
+  it("tapnięcie w TABELĘ KLUCZA nie zdejmuje wskazania z łuku", () => {
+    // Tabela i pierścień są jednym elementem interfejsu rozłożonym na dwie
+    // części, więc nasłuch "tapnięcie poza" musi obejmować oba - inaczej
+    // przejście palcem z łuku na wiersz gasiłoby stan w połowie drogi.
+    const { container } = render(<Chart config={cfg({ kind: "donut", ...CWIARTKI })} lang="pl" />);
+    fireEvent.pointerEnter(slices(container)[0], { pointerType: "touch" });
+    const wiersz = container.querySelectorAll("table.neh-pie-key tbody tr")[0];
+    fireEvent.pointerDown(wiersz, { pointerType: "touch" });
+    expect(slices(container)[0].getAttribute("data-active")).toBe("true");
   });
 
   it("każdy wycinek jest OSIĄGALNY Z KLAWIATURY i nazwany bez pomocy koloru", () => {
@@ -610,19 +814,39 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     source: "Źródło: test",
   };
 
+  // TABELA DANYCH RAMY, nie tabela klucza przy pierścieniu. Od kiedy klucz
+  // tarczy jest tabelą obok łuków, `querySelector("table")` trafiał w niego,
+  // a nie w panel danych - i asercje o nagłówkach kolumn oblewały się na
+  // tabeli, która nagłówków kolumn nie ma. Idziemy więc przez `aria-controls`
+  // przycisku, czyli tą samą drogą, którą panel znajduje czytnik ekranu.
   const openTable = (root: HTMLElement, name: string): HTMLTableElement => {
-    fireEvent.click(within(root).getByRole("button", { name }));
-    const table = root.querySelector("table");
+    const button = within(root).getByRole("button", { name });
+    fireEvent.click(button);
+    const panel = document.getElementById(button.getAttribute("aria-controls") ?? "");
+    const table = panel?.querySelector("table");
     if (!table) throw new Error("brak tabeli danych");
     return table as HTMLTableElement;
   };
 
-  it("KAŻDA kategoria ma wiersz z wartością i udziałem - także ta bez etykiety na tarczy", () => {
+  /** Wiersze tabeli klucza obok pierścienia: nazwa, udział, wartość. */
+  const keyRows = (root: HTMLElement): string[][] =>
+    [...root.querySelectorAll("table.neh-pie-key tbody tr")].map((tr) =>
+      [...tr.children].map((cell) => cell.textContent ?? ""),
+    );
+
+  it("KAŻDA kategoria ma wiersz z wartością i udziałem - także ta bez jednostki na tarczy", () => {
     // To jest ekwiwalent `ChartDataTable` z panelu BI: grafika nigdy nie jest
-    // jedyną drogą do liczby. Wycinek 5% nie ma etykiety, więc bez tabeli
-    // jego wartość byłaby dostępna WYŁĄCZNIE przez hover.
+    // jedyną drogą do liczby. W łuku mieści się co najwyżej UDZIAŁ; wartość
+    // bezwzględna z jednostką ("5 mld") jest dostępna tylko przez tabelę albo
+    // tooltip, a tooltipa nie ma ani czytnik ekranu, ani czytelnik na papierze.
+    //
+    // Próg etykiety idzie z GEOMETRII, nie ze stałej procentowej: te same 5%
+    // mieszczą napis w pierścieniu (oś na promieniu 119,88 px daje łuk 35 px),
+    // a w kole o tej samej średnicy już nie (oś na 74 px, łuk 21 px). Dlatego
+    // pierścień pokazuje tu trzy etykiety, a koło z tego samego zestawu dwie -
+    // i jest to poprawne w obu przypadkach, bo pyta o miejsce, nie o udział.
     const { container } = render(<Chart config={cfg(struktura)} lang="pl" />);
-    expect(all(container, SEL.label).map((t) => t.textContent)).toEqual(["70%", "25%"]);
+    expect(all(container, SEL.label).map((t) => t.textContent)).toEqual(["70%", "25%", "5%"]);
     const table = openTable(container, "Pokaż dane");
     const naglowki = [...table.querySelectorAll("th[scope='col']")].map((th) => th.textContent);
     expect(naglowki).toEqual(["Kategoria", "Wartość", "Udział"]);
@@ -662,29 +886,42 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     expect(getByRole("button", { name: "Hide data" })).toBeTruthy();
   });
 
-  it("legenda jest LISTĄ tekstową przed grafiką, a próbka koloru jest schowana", () => {
-    // Legenda nie jest interaktywna (nie przełącza serii), więc nie ma jej co
-    // fokusować - dostępna jest przez drzewo a11y: role=list + nazwa TEKSTEM.
-    // Kolor to wyłącznie dekoracja klucza, dlatego aria-hidden.
-    const { container, getByRole } = render(<Chart config={cfg(struktura)} lang="pl" />);
-    const legenda = getByRole("list");
-    expect(
-      within(legenda)
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(["Niemcy", "Czechy", "drobnica"]);
-    for (const probka of legenda.querySelectorAll("span[aria-hidden]")) {
-      expect(probka.textContent).toBe("");
-    }
-    // Kolejność dokumentu: legenda PRZED tarczą (czytnik dostaje klucz pierwszy).
-    const svg = container.querySelector("svg.block");
-    expect(
-      legenda.compareDocumentPosition(svg as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+  it("klucz tarczy to TABELA obok pierścienia, a nie legenda z próbkami", () => {
+    // ODWRÓCENIE WCZEŚNIEJSZEGO ROZWIĄZANIA. Legenda podawała wyłącznie parę
+    // kolor-nazwa, więc odczyt jednej kategorii wymagał trzech skoków wzroku
+    // (łuk, próbka, nazwa) i na końcu nie dawał liczby. Tabela stawia próbkę,
+    // nazwę, udział i wartość bezwzględną w JEDNYM wierszu, w tej samej
+    // kolejności co łuki - a w wariancie bladym jest nośnikiem WYMAGANYM, bo
+    // obwódka 1,5 px na pierścieniu grubym 38 px to około 4% powierzchni łuku
+    // i z odległości koloru nie niesie.
+    const { container } = render(<Chart config={cfg(struktura)} lang="pl" />);
+    expect(keyRows(container)).toEqual([
+      ["Niemcy", "70%", "70 mld"],
+      ["Czechy", "25%", "25 mld"],
+      ["drobnica", "5%", "5 mld"],
+    ]);
+    // Nazwa w nagłówku WIERSZA - czytnik ekranu czyta liczbę razem z tym,
+    // czego dotyczy, bez pytania o kolumnę.
+    const pierwszy = container.querySelectorAll("table.neh-pie-key tbody tr")[0];
+    expect(pierwszy.firstElementChild?.tagName).toBe("TH");
+    expect(pierwszy.firstElementChild?.getAttribute("scope")).toBe("row");
+    // Próbka niesie PARĘ wnętrze plus obwódka, dokładnie jak łuk. Sama obwódka
+    // nie wskazywałaby wycinka: na łuku kolor niesie blade wnętrze.
+    const probka = pierwszy.querySelector("span[aria-hidden]");
+    const styl = probka?.getAttribute("style") ?? "";
+    expect(styl).toContain("var(--chart-1-inner)");
+    expect(styl).toContain("var(--chart-1-edge)");
+    expect(probka?.textContent).toBe("");
+    // Legendy z próbkami na tarczy NIE MA - dwa klucze do jednej grafiki
+    // byłyby dwoma miejscami, w których kolejność wycinków może się rozjechać.
+    expect(container.querySelector("ul[role='list']")).toBeNull();
   });
 
-  it("legenda znika przy JEDNEJ kategorii - tytuł nazywa jedyny kolor", () => {
-    const { queryByRole } = render(
+  it("tabela klucza jest ODPORNA na przełącznik legendy i na jedną kategorię", () => {
+    // Klucz tarczy nie jest ozdobą do wyłączenia: przy jednym wycinku nadal
+    // niesie jedyną drogę do wartości bezwzględnej widoczną bez hovera,
+    // a wyłączony przełącznik „Legenda” dotyczy legendy, której tarcza nie ma.
+    const jedna = render(
       <Chart
         config={cfg({
           ...struktura,
@@ -694,14 +931,28 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
         lang="pl"
       />,
     );
-    expect(queryByRole("list")).toBeNull();
+    expect(keyRows(jedna.container)).toEqual([["Niemcy", "100%", "70 mld"]]);
+
+    const bezLegendy = render(<Chart config={cfg({ ...struktura, showLegend: false })} lang="pl" />);
+    expect(keyRows(bezLegendy.container)).toHaveLength(3);
+    expect(bezLegendy.container.querySelector("ul[role='list']")).toBeNull();
   });
 
-  it("wyłączona legenda nie zostawia pustej listy", () => {
-    const { queryByRole } = render(
-      <Chart config={cfg({ ...struktura, showLegend: false })} lang="pl" />,
-    );
-    expect(queryByRole("list")).toBeNull();
+  it("wskazanie WIERSZA klucza podświetla łuk - i odwrotnie", () => {
+    // Klucz i grafika odpowiadają na to samo wskazanie, bo są jednym
+    // elementem interfejsu rozłożonym na dwie części. Klucz, który nie
+    // reaguje, zmusza czytelnika do szukania łuku po kolorze - czyli do tego,
+    // czego tabela miała go oszczędzić.
+    const { container } = render(<Chart config={cfg(struktura)} lang="pl" />);
+    const wiersze = [...container.querySelectorAll("table.neh-pie-key tbody tr")];
+    fireEvent.pointerEnter(wiersze[1]);
+    expect(slices(container)[1].getAttribute("data-active")).toBe("true");
+    expect(wiersze[1].getAttribute("data-active")).toBe("true");
+    fireEvent.pointerLeave(wiersze[1]);
+    expect(slices(container)[1].getAttribute("data-active")).toBeNull();
+
+    fireEvent.pointerEnter(slices(container)[2]);
+    expect(wiersze[2].getAttribute("data-active")).toBe("true");
   });
 
   it("pusty zestaw daje notę, nie pustą kartę wykresu", () => {
@@ -839,12 +1090,29 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
     }
   });
 
-  it("wycinek odcina się od powierzchni karty obrysem w kolorze karty, nie ramką", () => {
+  it("granicę wycinka niesie OBWÓDKA SERII i przerwa, a nie obrys w kolorze karty", () => {
+    // ODWRÓCENIE WCZEŚNIEJSZEJ REGUŁY. Obrys 2 px w kolorze karty rozdzielał
+    // sąsiednie łuki, ale zajmował miejsce, które w wariancie bladym należy
+    // się OBWÓDCE SERII - a obwódka jest tu jedynym nośnikiem tożsamości
+    // koloru, bo blade wnętrze go nie niesie (1,20-1,28:1 do płyty). Do tego
+    // obrys w kolorze płyty znikał razem z całą granicą wszędzie, gdzie płyta
+    // nie jest tym, co pod spodem: w druku, w eksporcie na przezroczystość,
+    // na karcie o innym tle.
+    //
+    // Granicę niosą teraz DWA nośniki naraz: obwódka w mocnym tokenie serii
+    // (jej grubość podaje arkusz tokenem `--chart-bar-edge`, bo `var()`
+    // w atrybutach prezentacyjnych SVG nie jest wspierane wszędzie)
+    // i geometryczna przerwa 2,5 px, która działa również w skali szarości.
     const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
-    for (const s of slices(container)) {
-      expect(s.getAttribute("stroke")).toBe("var(--card)");
-      expect(s.getAttribute("stroke-width")).toBe("2");
-    }
+    slices(container).forEach((s, i) => {
+      expect(s.getAttribute("stroke")).toBe(`var(--chart-${i + 1}-edge)`);
+      expect(s.getAttribute("fill")).toBe(`var(--chart-${i + 1}-inner)`);
+      // Grubość NIE stoi w atrybucie - niesie ją arkusz, więc w motywie
+      // ciemnym może zejść do 1,25 px bez gałęzi motywu w JS.
+      expect(s.getAttribute("stroke-width")).toBeNull();
+    });
+    // Kolor karty nie pojawia się już w grafice tarczy.
+    expect(container.innerHTML).not.toContain("var(--card)");
   });
 
   it("przełączenie motywu NIE zmienia DOM - kolory jadą tokenami, zero zapieczonego hexa", () => {
@@ -889,7 +1157,15 @@ describe("PieChart - izolacja przestrzeni roboczych", () => {
     expect(container.querySelector("[role='group']")?.getAttribute("aria-label")).toBe(
       "Wykres: Leady - workspace beta",
     );
-    expect(all(container, SEL.center)[0].textContent).toBe("100 szt.");
+    // Wskazanie z alfy zostaje na tej samej POZYCJI, więc środek pokazuje
+    // pierwszy segment BETY, nie sumę - i to jest poprawne: gdyby pokazywał
+    // dalej 44 szt. (sumę alfy) albo "Alfa Q1", byłby to wyciek danych
+    // z poprzedniej przestrzeni roboczej. Po zejściu wskaźnika wraca do sumy
+    // bety, co pilnuje test przełączania środka wyżej.
+    expect(all(container, SEL.center).map((t) => t.textContent)).toEqual([
+      "70",
+      "Beta Q1 · szt.",
+    ]);
     const html = container.innerHTML;
     for (const slad of ["Alfa", "alfa", "33 szt.", "11 szt.", "44 szt."]) {
       expect(html, slad).not.toContain(slad);
@@ -912,3 +1188,68 @@ describe("PieChart - izolacja przestrzeni roboczych", () => {
     expect(container.innerHTML).not.toContain("Alfa");
   });
 });
+
+describe("PieChart - suma kontrolna udziałów", () => {
+  // Ta sama reguła co suma kontrolna mostka: struktura, która się nie domyka,
+  // jest BŁĘDEM, a nie kwestią gustu - i jest to defekt sprawdzalny
+  // arytmetycznie, więc się go sprawdza, zamiast liczyć na czujność autora.
+  //
+  // SPRAWDZANE SĄ DANE AUTORA, NIE ARYTMETYKA MODELU. Udziały policzone przez
+  // model dzielą wartości przez ich własną sumę, więc sumują się do stu
+  // procent z definicji; sprawdzanie ich nie mogłoby wykryć niczego. Realny
+  // defekt jest inny: autor wkleja gotowe udziały sumujące się do 90%, a
+  // tarcza przeskalowuje je po cichu, więc liczba na łuku (33%) rozjeżdża się
+  // z liczbą w tabeli danych (30%).
+  const udzialy = (values: (number | null)[], unit = "%"): Record<string, Json> => ({
+    kind: "donut",
+    unit,
+    categories: values.map((_, i) => `K${i + 1}`),
+    series: [{ name: "Udział", values }],
+  });
+
+  it("udziały sumujące się do 90% dostają ostrzeżenie z PODANĄ sumą", () => {
+    const { container } = render(<Chart config={cfg(udzialy([30, 30, 30]))} lang="pl" />);
+    expect(container.textContent).toContain("sumują się do 90,0%");
+    // Dowód rozjazdu, o którym mówi ostrzeżenie: łuk pokazuje 33%, a tabela
+    // danych wartość podaną przez autora, czyli 30%.
+    expect(all(container, SEL.label).map((t) => t.textContent)).toEqual(["33%", "33%", "33%"]);
+  });
+
+  it("104% też jest błędem - nadmiar znaczy podwójnie liczoną kategorię", () => {
+    const { container } = render(<Chart config={cfg(udzialy([54, 30, 20]))} lang="pl" />);
+    expect(container.textContent).toContain("sumują się do 104,0%");
+  });
+
+  it("trzy równe udziały podane jako 33,3 MILCZĄ - to zaokrąglenie autora", () => {
+    // 99,9% mieści się w tolerancji pół punktu. Ostrzeżenie o zaokrągleniu
+    // w arkuszu byłoby ostrzeżeniem, które widać zawsze.
+    const { container } = render(<Chart config={cfg(udzialy([33.3, 33.3, 33.3]))} lang="pl" />);
+    expect(container.textContent).not.toContain("sumują się do");
+  });
+
+  it("dane, które NIE są udziałami, nie mają czego sprawdzać", () => {
+    // Cztery kwartały po 25 mln sumują się do 100, a cztery po 30 mln do 120 -
+    // i ani jedno, ani drugie nie jest błędem struktury. Model MILCZY
+    // (`shareSumOk === null`), zamiast zaświadczać albo ostrzegać, dokładnie
+    // jak mostek bez jawnego stanu końcowego.
+    for (const zestaw of [
+      udzialy([30, 30, 30], " mln"),
+      udzialy([25, 25, 25, 25], " mln"),
+      udzialy([30, 30, 30], ""),
+    ]) {
+      const { container } = render(<Chart config={cfg(zestaw)} lang="pl" />);
+      expect(container.textContent).not.toContain("sumują się do");
+    }
+  });
+
+  it("ostrzeżenie jest przetłumaczone i stoi PRZY RYSUNKU, nie w tabeli", () => {
+    // Nie jest to przypis do tabeli danych: mówi, że struktura POKAZANA NA
+    // RYSUNKU się nie domyka, więc musi być widoczne bez rozwijania panelu -
+    // tak samo jak ostrzeżenie o uciętej osi.
+    const { container } = render(<Chart config={cfg(udzialy([30, 30, 30]))} lang="en" />);
+    expect(container.textContent).toContain("add up to 90.0%");
+    const panel = container.querySelector("[hidden]");
+    expect(panel?.textContent).not.toContain("add up to");
+  });
+});
+

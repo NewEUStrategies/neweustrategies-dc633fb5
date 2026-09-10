@@ -38,3 +38,20 @@ export function formatPercent(share: number, lang: ChartLang): string {
     maximumFractionDigits: share < 0.1 ? 1 : 0,
   });
 }
+
+/**
+ * Punkty procentowe z JEDNYM miejscem po przecinku - dla SUMY KONTROLNEJ
+ * udziałów.
+ *
+ * Osobna funkcja od `formatPercent`, bo ta zaokrągla udziały bliskie stu
+ * procentom do liczby całkowitej: suma 99,9% wychodziła z niej jako "100%",
+ * czyli komunikat "udziały sumują się do 100%, a nie do 100%". Suma kontrolna
+ * pokazuje dokładnie tę rozbieżność, którą wykryła, więc musi mieć własne
+ * zaokrąglenie - i to takie samo (jedno miejsce), na jakim liczy ją model.
+ */
+export function formatPercentPoints(points: number, lang: ChartLang): string {
+  return `${points.toLocaleString(localeOf(lang), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}%`;
+}

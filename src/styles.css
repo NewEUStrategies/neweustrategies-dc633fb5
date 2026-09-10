@@ -4150,10 +4150,18 @@ input.icon-input-with-action {
   r: var(--chart-dot, 2.8px);
   stroke-width: var(--chart-dot-ring, 1.6px);
 }
-/* Punkt pod kursorem rośnie o półtora piksela - tyle, żeby dało się go
-   zauważyć, i nie tyle, żeby przesunął odczyt pozycji. */
+/* PROMIEŃ MARKERA JEST JEDYNĄ DOZWOLONĄ ZMIANĄ GEOMETRII pod kursorem, i to
+   dlatego, że promień markera NIE KODUJE WARTOŚCI - koduje ją jego POZYCJA.
+   Wszystko, co niesie wartość, musi zostać nieruchome: żadnego rośnięcia
+   słupka, wysuwania łuku z pierścienia, zmiany promienia zaokrąglenia ani
+   szerokości. Rosnący pod kursorem słupek przez chwilę pokazuje wartość,
+   której nie ma.
+
+   Jeden piksel, nie półtora: tyle wystarcza, żeby marker dało się zauważyć,
+   a im mniejsza zmiana, tym mniejsze ryzyko, że oko odczyta ją jako
+   przesunięcie punktu. */
 .neh-chart .neh-dot[data-active="true"] {
-  r: calc(var(--chart-dot, 2.8px) + 1.5px);
+  r: calc(var(--chart-dot, 2.8px) + 1px);
 }
 /* Waga pisma z tokenów, TRZY STOPNIE, nie jeden.
    Reguła na `text` jest podstawą (etykiety osi, kategorie), a elementy
@@ -4315,9 +4323,43 @@ input.icon-input-with-action {
   stroke-width: 1.4;
 }
 
-/* Prowadnica pod kursorem: kreskowanie 2 4 z zaokrąglonymi końcami zamiast
-   twardego `3 3`. Rusztowania nie zaokrąglamy i nie animujemy, ale
-   PROWADNICA nie jest rusztowaniem - jest odpowiedzią na ruch wskaźnika. */
+/* WYCINEK TARCZY. Wskazanie i fokus zmieniają POWIERZCHNIĘ, nie kodowanie:
+   wypełnienie idzie o jeden krok w stronę nasycenia, obwódka na czysty token
+   serii, a grubość obwódki i geometria łuku zostają bez zmian. Wcześniejsza
+   wersja wysuwała wskazany wycinek 4 px na zewnątrz - to zmieniało długość
+   łuku przy krawędzi zewnętrznej i zawyżało udział, czyli robiło dokładnie
+   to, czego zabrania zasada o niezmiennym kodowaniu. */
+.neh-chart .neh-slice {
+  transition:
+    fill var(--neh-hover-ms) ease-out,
+    stroke var(--neh-hover-ms) ease-out;
+}
+.neh-chart .neh-slice[data-active="true"] {
+  fill: var(--neh-arc-hover);
+  stroke: var(--neh-arc-token);
+}
+/* Obramowanie fokusu: linia CIĄGŁA 2 px z odstępem 2 px, wyłącznie dla
+   `:focus-visible`, więc kliknięcie wskaźnikiem go nie wywołuje. Na łuku
+   prostokąt obramowania jest tylko przybliżeniem kształtu, ale fokus MUSI
+   być widoczny niezależnie od tego, czy czytelnik rozpozna zmianę
+   powierzchni - a zmiana powierzchni jest tu identyczna jak przy hoverze,
+   więc sama nie odróżnia klawiatury od wskaźnika. */
+.neh-chart .neh-slice:focus-visible {
+  outline: 2px solid var(--muted-foreground);
+  outline-offset: 2px;
+}
+
+/* TABELA KLUCZA obok pierścienia. Wskazany wiersz oznaczony WAGĄ FONTU
+   i promocją koloru liczb z recesywnego na pełny tusz - nigdy tłem: wash pod
+   bladą próbką koloru zmieniałby przez kontrast jednoczesny jej wygląd, czyli
+   podświetlenie fałszowałoby klucz. Szerokości kolumn są stałe (`colgroup`
+   w komponencie), więc pogrubienie nie rozpycha tabeli. */
+.neh-chart .neh-pie-key tr[data-active="true"] th,
+.neh-chart .neh-pie-key tr[data-active="true"] td {
+  font-weight: 650;
+  color: var(--foreground);
+}
+
 /* PROWADNICA JEST LINIĄ CIĄGŁĄ, i to jest zmiana wobec wcześniejszej wersji
    tego arkusza, która kreskowała ją 2 4. Trzy powody, wszystkie praktyczne:
 
@@ -4341,6 +4383,18 @@ input.icon-input-with-action {
   stroke-width: 1;
   stroke-dasharray: none;
   stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* ŁĄCZNIK MIĘDZY SŁUPKAMI MOSTKA ma własną klasę, a nie klasę prowadnicy,
+   bo nie jest afordancją interakcji: rysuje się zawsze, także bez kursora,
+   i pokazuje, że słupek WISI na poprzednim, a nie stoi na zerze. Wspólna
+   klasa z prowadnicą znaczyłaby, że zmiana wyglądu podświetlenia po cichu
+   zmienia rusztowanie mostka. Linia ciągła 1 px w kolorze osi - jak każde
+   rusztowanie w tym silniku. */
+.neh-chart .neh-connector {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
   pointer-events: none;
 }
 
@@ -4451,9 +4505,34 @@ input.icon-input-with-action {
   outline: none;
   cursor: pointer;
 }
+/* OBRAMOWANIE FOCUSU: linia CIĄGŁA 2 px w tuszu trzecim, odsunięta o 2 px od
+   kształtu. Ciągła, nie kreskowana - kreskowana ramka wygląda jak zaznaczenie
+   w edytorze, nie jak wskaźnik focusu. Tusz trzeci, bo ramka musi odciąć się
+   ZARÓWNO od bladego wypełnienia słupka (1,20-1,28:1 do płyty), JAK i od samej
+   płyty; kolor akcentu tego nie robi, bo na jasnym tle ma 2,09:1.
+
+   WYŁĄCZNIE `:focus-visible`, czyli tylko przy nawigacji klawiaturą. Ramka
+   pod kursorem jest wizualnym szumem: stan jest już w pełni zakomunikowany
+   zmianą samego elementu, a druga obwódka wokół kolumny dodaje trzecią
+   krawędź do kształtu, który ma już dwie. */
+.neh-chart .neh-canvas:focus-visible,
 .neh-chart .neh-hit:focus-visible {
-  fill: color-mix(in oklab, var(--chart-accent) 12%, transparent);
+  outline: 2px solid var(--muted-foreground);
+  outline-offset: 2px;
+  border-radius: var(--chart-radius);
 }
+/* Bez `:focus-visible` obszar rysunku nie dostaje NICZEGO - ani obramowania
+   domyślnego przeglądarki (które bywa cienką kreską ginącą na płycie), ani
+   cienia. Kliknięcie wskaźnikiem w wykres nie jest nawigacją. */
+.neh-chart .neh-canvas:focus {
+  outline: none;
+}
+/* Podświetlenie pasa kategorii jest AFORDANCJĄ STREFY TRAFIENIA, nie
+   podświetleniem danych - dlatego jest dodatkiem, nigdy przygaszeniem. Wzorzec
+   "wyróżnij jeden, wygaś resztę" jest tu niedopuszczalny i wynika to z liczb,
+   nie z gustu: blade wypełnienia siedzą na 1,20-1,28:1 do płyty, więc każde
+   obniżenie krycia sprowadza je do niewidoczności, a obwódki mają nad progiem
+   3,0:1 zapas od 0,15 do 8,66 i przy części odcieni spadłyby poniżej. */
 .neh-chart .neh-hit[data-active="true"] {
   fill: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
@@ -4487,7 +4566,20 @@ input.icon-input-with-action {
   .neh-run .neh-map-countries {
     transition: none;
   }
-  .neh-tooltip {
+  /* ZNIKA PRZEJŚCIE, NIE STAN. Podświetlenie i tooltip pojawiają się
+     natychmiast - wyłączenie samej informacji zamiast animacji jest błędem,
+     który zabiera funkcję komuś, kto poprosił tylko o spokój. Dlatego tu
+     zerujemy wyłącznie `transition`, a reguły `[data-active]` zostają
+     nietknięte. */
+  .neh-chart .neh-bar,
+  .neh-chart .neh-bar[data-style="pale"],
+  .neh-chart .neh-slice,
+  .neh-chart .neh-country,
+  .neh-chart .neh-dot {
+    transition: none;
+  }
+  .neh-tooltip,
+  .neh-metric-tip {
     animation: none;
   }
 }

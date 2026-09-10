@@ -37,7 +37,15 @@
 // z wartościami WSZYSTKICH serii; słupki mają hit-target = cała kolumna
 // kategorii. Klawiatura: strzałki przesuwają aktywną kategorię, Escape czyści.
 // SSR: pełny, statyczny SVG w HTML (interakcja dogrywa się po hydracji).
-import { Fragment, useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  Fragment,
+  useCallback,
+  useId,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
@@ -79,6 +87,7 @@ import { estimateLabelWidth, useLabelMetrics } from "@/lib/charts/measureText";
 import { planCategoryLabels, type CategoryLabelPlan } from "@/lib/charts/labels";
 import { waterfallExtent, waterfallModel } from "@/lib/charts/waterfall";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
+import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
@@ -197,6 +206,10 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
   // W stanie siedzi WYŁĄCZNIE indeks kategorii, a nie gotowa kotwica: piksele
   // zależą od geometrii, a ta zmienia się z każdą podmianą configu.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  // Stabilna referencja - hak zdejmujący stan tapnięciem trzyma ją jako
+  // zależność efektu, a nowa funkcja przy każdym renderze przepisywałaby
+  // nasłuch na dokumencie przy każdym ruchu wskaźnika.
+  const clearActive = useCallback(() => setActiveIndex(null), []);
   // Identyfikator definicji SVG tego wykresu (wzór kreskowania, gradienty).
   // `useId` zamiast stałego napisu,
   // bo na jednej stronie stoi wiele wykresów, a `url(#id)` w SVG wiąże się
@@ -428,6 +441,9 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
   // sam, żywy komponent), a nowy zestaw bywa KRÓTSZY. Bez klamry indeks
   // wskazywałby poza tablicę, a tooltip czytałby wartość z niczego.
   const active = activeIndex === null ? null : Math.max(0, Math.min(n - 1, activeIndex));
+  // Tapnięcie poza wykresem zdejmuje wskazanie. Nasłuch tylko przy ustawionym
+  // stanie, więc na wykresie bez interakcji nie ma go wcale.
+  useTapAwayDismiss(activeIndex !== null, widthRef, clearActive);
   const anchor = active === null ? null : anchorFor(active);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -487,10 +503,21 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
               raw: s.values[active],
             }))
             .filter((r) => r.raw !== null)
-            .map((r) => ({
+            // SORTOWANIE MALEJĄCO PO WARTOŚCI, nie w kolejności definicji.
+            // Czytelnik porównuje wtedy dokładnie to, co widzi na prowadnicy:
+            // kolejność wiersza w dymku odpowiada kolejności serii w pionie.
+            // Kolejność definicji jest wobec danych przypadkowa i zmusza do
+            // wodzenia wzrokiem tam i z powrotem między dymkiem i wykresem.
+            .sort((a, b) => (b.raw as number) - (a.raw as number))
+            .map((r, index) => ({
               name: r.name,
               colorSlot: r.colorSlot,
               value: formatChartValue(r.raw as number, lang, config.unit),
+              // Najwyższa wartość na tej prowadnicy jest tą, na której oko
+              // stoi - i tylko ona dostaje mocniejszą wagę pisma. Wyróżnianie
+              // tłem wiersza wprowadziłoby do dymka drugą powierzchnię
+              // konkurującą z próbką koloru.
+              emphasised: index === 0 && series.length > 1,
             }));
 
   const barRadius = CHART_RADIUS;
@@ -504,6 +531,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     : t("a11y.chartUntitled");
 
   const hatchId = `neh-hatch-${uid}`;
+  const hintId = `neh-hint-${uid}`;
   /**
    * WARIANT WYPEŁNIENIA, rozstrzygnięty RAZ dla całego wykresu.
    *
@@ -564,7 +592,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
-        className="relative w-full select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        className="neh-canvas relative w-full select-none"
         style={{
           height,
           borderRadius: "var(--chart-radius)",
@@ -573,9 +601,19 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         tabIndex={0}
         role="img"
         aria-label={ariaLabel}
+        // PODPOWIEDŹ KLAWIATURY jako opis, nie jako nazwa. Nawigacja
+        // strzałkami po kategoriach jest jedynym sposobem odczytania wartości
+        // bez wskaźnika, a nic o niej nie mówiło - klucz słownika istniał
+        // i nie był używany, czyli funkcja była dostępna wyłącznie dla kogoś,
+        // kto się jej domyślił. `aria-describedby`, bo to instrukcja, a nie
+        // nazwa obiektu: nazwa mówi, CO to jest, opis - jak tego użyć.
+        aria-describedby={hintId}
         onKeyDown={onKeyDown}
         onBlur={() => setActiveIndex(null)}
       >
+        <span id={hintId} className="sr-only">
+          {t("a11y.keyboardHint")}
+        </span>
         <svg width={width} height={height} className="block overflow-visible">
           {/* Wzór kreskowania słupków. Paski w kolorze PŁYTY, nie serii, więc
               jedna definicja obsługuje każdy slot: nakładka odsłania płytę
@@ -761,6 +799,33 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 );
               })}
 
+          {/* PODŚWIETLENIE PASA KATEGORII - POD ZNACZNIKAMI, i to jest
+              poprawka, nie kolejność przypadkowa.
+              
+              Pas jest AFORDANCJĄ STREFY TRAFIENIA ("kursor jest w tej
+              kategorii"), a nie podświetleniem danych. Rysowany PO słupkach
+              kładł 5% tuszu WPROST NA WYPEŁNIENIU: blade wnętrze siedzi na
+              1,20-1,28:1 do płyty, więc pięcioprocentowa zasłona realnie je
+              przyciemniała - czyli wskazanie zmieniało wygląd zakodowanej
+              wartości, dokładnie to, czego zabrania zasada "hover zmienia stan
+              powierzchni, nigdy kodowanie". Pod znacznikami ten sam pas jest
+              tłem pasa i nie dotyka ani jednego piksela danych.
+              
+              Tylko dla słupków i mostka: przy linii tę samą rolę pełni
+              prowadnica, a pas plus prowadnica to dwa nośniki jednej
+              informacji. */}
+          {active !== null && !isLine && (
+            <rect
+              x={horizontal ? padLeft : catCenter(active) - band / 2}
+              y={horizontal ? catCenter(active) - band / 2 : padTop}
+              width={horizontal ? innerW : band}
+              height={horizontal ? band : innerH}
+              fill="var(--foreground)"
+              fillOpacity={0.05}
+              pointerEvents="none"
+            />
+          )}
+
           {/* ===== Znaczniki ===== */}
           {waterfall
             ? /* Mostek: filary na zerze, składniki wiszące, znak kodowany
@@ -814,7 +879,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                         x2={center - barW / 2}
                         y1={value(step.direction === "down" ? step.to : step.from)}
                         y2={value(step.direction === "down" ? step.to : step.from)}
-                        className="neh-crosshair"
+                        className="neh-connector"
                       />
                     )}
                   </g>
@@ -1165,41 +1230,46 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             </g>
           )}
 
-          {/* Crosshair (linie/pola) lub podświetlenie pasa kategorii. */}
-          {active !== null &&
-            (isLine ? (
-              <line
-                className="neh-crosshair"
-                x1={horizontal ? padLeft : catCenter(active)}
-                x2={horizontal ? padLeft + innerW : catCenter(active)}
-                y1={horizontal ? catCenter(active) : padTop}
-                y2={horizontal ? catCenter(active) : padTop + innerH}
-              />
-            ) : horizontal ? (
-              <rect
-                x={padLeft}
-                y={catCenter(active) - band / 2}
-                width={innerW}
-                height={band}
-                fill="var(--foreground)"
-                fillOpacity={0.05}
-                pointerEvents="none"
-              />
-            ) : (
-              <rect
-                x={catCenter(active) - band / 2}
-                y={padTop}
-                width={band}
-                height={innerH}
-                fill="var(--foreground)"
-                fillOpacity={0.05}
-                pointerEvents="none"
-              />
-            ))}
+          {/* PROWADNICA pod kursorem - tylko dla linii i pól. Rysowana PO
+              znacznikach, bo jest linią ciągłą 1 px w kolorze osi (1,40:1 do
+              płyty): schowana pod łamaną przestałaby wskazywać kategorię,
+              a przechodząc nad nią niczego nie zasłania. Podświetlenie pasa
+              kategorii jest osobną sprawą i leży POD znacznikami - patrz
+              komentarz przy nim. */}
+          {active !== null && isLine && (
+            <line
+              className="neh-crosshair"
+              x1={horizontal ? padLeft : catCenter(active)}
+              x2={horizontal ? padLeft + innerW : catCenter(active)}
+              y1={horizontal ? catCenter(active) : padTop}
+              y2={horizontal ? catCenter(active) : padTop + innerH}
+            />
+          )}
 
-          {/* Warstwa trafień: cały obszar rysunku, przyciąga do kategorii.
-              fill jako ATRYBUT (nie tylko CSS) - rect nie może stać się
-              czarny, gdy arkusz z .neh-hit jeszcze nie dotarł. */}
+          {/* WARSTWA TRAFIEŃ: cały obszar rysunku, przyciąga do najbliższej
+              kategorii. Strefa trafienia NIGDY nie jest kształtem elementu -
+              słupek o wartości 2 ma trzy piksele wysokości i jest
+              nietrafialny, a punkt linii o promieniu 2,8 px wymagałby
+              celowania. Nakładka na całą powierzchnię plus wyznaczenie
+              kategorii ze współrzędnej daje strefę wysoką na cały obszar
+              kreślenia, więc trafialna jest KATEGORIA, nie znacznik.
+              
+              `fill` jako ATRYBUT, nie tylko w CSS - rect nie może stać się
+              czarny, gdy arkusz jeszcze nie dotarł. I `transparent`, nigdy
+              `opacity: 0` na samym elemencie: zerowe krycie wyłącza też
+              zdarzenia w części silników.
+              
+              DOTYK: `pointerdown` USTAWIA stan (na dotyku nie ma hovera, więc
+              bez tego wykres jest na telefonie martwy), a `pointerleave`
+              zdejmuje go wszędzie POZA dotykiem - tam przychodzi natychmiast
+              po podniesieniu palca i gasił tooltip w tej samej chwili, w której
+              się pojawił. Tapnięcie poza wykresem zdejmuje stan przez
+              `useTapAwayDismiss`.
+              
+              Warunek na DOTYKU, nie na myszy: wyjątkiem jest dotyk, więc jego
+              trzeba nazwać. Rysik ma hover jak mysz, a środowisko, które nie
+              podaje rodzaju wskaźnika, dostaje zachowanie mysie - czyli to
+              samo, co miało przed tą zmianą. */}
           <rect
             x={padLeft}
             y={padTop}
@@ -1207,8 +1277,11 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             height={innerH}
             fill="transparent"
             className="neh-hit"
+            onPointerDown={(e) => setActiveIndex(indexFromPointer(e))}
             onPointerMove={(e) => setActiveIndex(indexFromPointer(e))}
-            onPointerLeave={() => setActiveIndex(null)}
+            onPointerLeave={(e) => {
+              if (e.pointerType !== "touch") setActiveIndex(null);
+            }}
           />
         </svg>
 

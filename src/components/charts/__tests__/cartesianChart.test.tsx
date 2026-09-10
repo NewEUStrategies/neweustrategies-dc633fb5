@@ -1066,11 +1066,40 @@ describe("CartesianChart - interakcja", () => {
     ],
   };
 
-  it("strzałka w prawo aktywuje pierwszą kategorię i pokazuje WSZYSTKIE serie w jednym tooltipie", () => {
+  it("strzałka w prawo aktywuje pierwszą kategorię i pokazuje WSZYSTKIE serie w JEDNYM tooltipie", () => {
     const { container } = render(<CartesianChart config={cfg({ ...dwieSerie })} lang="pl" />);
     fireEvent.keyDown(box(container), { key: "ArrowRight" });
     const tip = container.querySelector(SEL.tooltip);
-    expect(tip?.textContent).toBe("aAlfa1%Beta2%");
+    // SERIE SORTOWANE MALEJĄCO PO WARTOŚCI, nie w kolejności definicji - i to
+    // jest zmiana reguły. Beta ma tu 2, Alfa 1, więc Beta jest pierwsza,
+    // choć w konfiguracji stoi druga. Czytelnik porównuje wtedy dokładnie to,
+    // co widzi na prowadnicy: kolejność wiersza w dymku odpowiada kolejności
+    // serii w pionie na wykresie. Kolejność definicji jest wobec danych
+    // przypadkowa i zmusza do wodzenia wzrokiem tam i z powrotem.
+    expect(tip?.textContent).toBe("aBeta2%Alfa1%");
+  });
+
+  it("seria o NAJWYŻSZEJ wartości na prowadnicy dostaje mocniejszą wagę pisma", () => {
+    // Wyróżnienie wagą, nie tłem wiersza: tło wprowadziłoby do dymka drugą
+    // powierzchnię konkurującą z próbką koloru. Przy jednej serii nie ma czego
+    // wyróżniać, więc wyróżnienie nie powstaje.
+    const { container } = render(<CartesianChart config={cfg({ ...dwieSerie })} lang="pl" />);
+    fireEvent.keyDown(box(container), { key: "ArrowRight" });
+    const wiersze = [...(container.querySelector(SEL.tooltip)?.querySelectorAll("dd") ?? [])];
+    expect(wiersze).toHaveLength(2);
+    expect(wiersze[0].className).toContain("font-bold");
+    expect(wiersze[1].className).not.toContain("font-bold");
+  });
+
+  it("PRÓBKA W TOOLTIPIE JEST KWADRATOWA, nie kreską", () => {
+    // Kreska czyta się jako fragment linii serii, czyli jako znacznik danych;
+    // kwadrat czyta się jako klucz. Ta sama forma co próbka legendy.
+    const { container } = render(<CartesianChart config={cfg({ ...dwieSerie })} lang="pl" />);
+    fireEvent.keyDown(box(container), { key: "ArrowRight" });
+    const probka = container.querySelector(`${SEL.tooltip} dt span[aria-hidden]`);
+    expect(probka?.className).toContain("h-2");
+    expect(probka?.className).toContain("w-2");
+    expect(probka?.className).not.toContain("rounded-full");
   });
 
   it("tooltip pomija serię, która w tej kategorii ma lukę", () => {
@@ -1225,6 +1254,123 @@ describe("CartesianChart - interakcja", () => {
     expect(container.querySelector(SEL.tooltip)?.textContent).toBe("aA1");
     fireEvent.pointerLeave(hit);
     expect(container.querySelector(SEL.tooltip)).toBeNull();
+  });
+
+  it("TAPNIĘCIE ustawia stan i go TRZYMA - bez tego wykres jest na telefonie martwy", () => {
+    // Na dotyku nie ma hovera: `pointerenter`/`pointermove` przychodzą przy
+    // dotknięciu, a `pointerleave` NATYCHMIAST po podniesieniu palca. Wykres
+    // oparty wyłącznie na parze enter/leave migał więc tooltipem i gasł.
+    // Reguła: tapnięcie USTAWIA stan, tapnięcie poza elementem go ZDEJMUJE.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [1, 2, 3] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const hit = all(container, SEL.hit)[0];
+    stubPlotRect(hit, 674, 270);
+
+    // Samo dotknięcie, bez ruchu - `pointerdown` musi wystarczyć.
+    fireEvent.pointerDown(hit, { clientX: 600, clientY: 100, pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("cA3");
+    // Podniesienie palca NIE zdejmuje stanu.
+    fireEvent.pointerLeave(hit, { pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("cA3");
+    // Ale zjazd MYSZY zdejmuje - i tak samo zdejmuje go wskaźnik, którego
+    // rodzaju środowisko nie podaje (warunek nazywa DOTYK, nie mysz).
+    fireEvent.pointerLeave(hit, { pointerType: "mouse" });
+    expect(container.querySelector(SEL.tooltip)).toBeNull();
+  });
+
+  it("TAPNIĘCIE POZA wykresem zdejmuje stan ustawiony dotykiem", () => {
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [1, 2, 3] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const hit = all(container, SEL.hit)[0];
+    stubPlotRect(hit, 674, 270);
+    fireEvent.pointerDown(hit, { clientX: 600, clientY: 100, pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)).not.toBeNull();
+
+    // Tapnięcie WEWNĄTRZ wykresu stanu nie zdejmuje - inaczej dotknięcie
+    // sąsiedniej kategorii najpierw gasiłoby tooltip, a potem go zapalało.
+    fireEvent.pointerDown(hit, { clientX: 10, clientY: 100, pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("aA1");
+
+    // Tapnięcie poza - zdejmuje.
+    fireEvent.pointerDown(document.body, { pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)).toBeNull();
+  });
+
+  it("PODŚWIETLENIE PASA leży POD znacznikami, więc nie przyciemnia wypełnień", () => {
+    // Pas jest afordancją strefy trafienia ("kursor jest w tej kategorii"),
+    // a nie podświetleniem danych. Rysowany PO słupkach kładł 5% tuszu wprost
+    // na wypełnieniu: blade wnętrze siedzi na 1,20-1,28:1 do płyty, więc
+    // pięcioprocentowa zasłona realnie je przyciemniała - czyli wskazanie
+    // zmieniało wygląd zakodowanej wartości.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [1, 2, 3] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const hit = all(container, SEL.hit)[0];
+    stubPlotRect(hit, 674, 270);
+    fireEvent.pointerMove(hit, { clientX: 600, clientY: 100 });
+
+    const pas = [...container.querySelectorAll("rect[fill-opacity='0.05']")];
+    expect(pas).toHaveLength(1);
+    const slupek = container.querySelector(SEL.bar);
+    expect(slupek).not.toBeNull();
+    // Kolejność dokumentu: pas PRZED słupkiem, czyli pod nim w kolejności
+    // rysowania SVG.
+    expect(
+      pas[0].compareDocumentPosition(slupek as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("nawigacja strzałkami jest OPISANA, a obramowanie focusu idzie z arkusza", () => {
+    // Nawigacja strzałkami po kategoriach jest jedynym sposobem odczytania
+    // wartości bez wskaźnika, a nic o niej nie mówiło: klucz słownika istniał
+    // i nie był używany, czyli funkcja była dostępna wyłącznie dla kogoś, kto
+    // się jej domyślił.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b"],
+          series: [{ name: "A", values: [1, 2] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const canvas = box(container);
+    const hintId = canvas.getAttribute("aria-describedby");
+    expect(hintId).toBeTruthy();
+    expect(document.getElementById(hintId ?? "")?.textContent).toBe(
+      "Strzałkami przesuwasz aktywną kategorię, Escape czyści zaznaczenie.",
+    );
+    // OBRAMOWANIE FOCUSU W ARKUSZU, nie w klasach narzędziowych: spec żąda
+    // linii CIĄGŁEJ 2 px w tuszu trzecim odsuniętej o 2 px, a `ring-*`
+    // rysowało cień w kolorze `--ring`. Tu pilnujemy tylko tego, że kanwa
+    // nosi klasę, na której arkusz to wiesza - samego koloru nie widać
+    // w happy-dom, bo nie ma silnika stylów.
+    expect(canvas.className).toContain("neh-canvas");
+    expect(canvas.className).not.toContain("focus-visible:ring");
   });
 
   it("na wykresie liniowym wskaźnik zaokrągla do najbliższego PUNKTU, nie do pasa", () => {

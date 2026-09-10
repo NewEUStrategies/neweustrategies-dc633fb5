@@ -11,7 +11,12 @@ import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig } from "@/lib/charts/types";
 import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
-import { formatChartValue, formatPercent, type ChartLang } from "@/lib/charts/format";
+import {
+  formatChartValue,
+  formatPercent,
+  formatPercentPoints,
+  type ChartLang,
+} from "@/lib/charts/format";
 import { isZeroBaselineBroken } from "@/lib/charts/honesty";
 import { waterfallModel } from "@/lib/charts/waterfall";
 import { ChartFrame, CHART_TABLE_CLS, type ChartCaption, type LegendItem } from "./ChartFrame";
@@ -63,18 +68,19 @@ export function Chart({ config, lang, className }: ChartProps) {
         },
       ];
     }
-    if (isPie) {
-      // Próbka legendy musi wskazywać DOKŁADNIE jeden wycinek, więc klucz
-      // idzie z tego samego modelu, co tarcza - razem z wycinkiem zbiorczym
-      // nadmiaru kategorii i bez kategorii, których tarcza nie rysuje.
-      return pieModel(config, lang).slices.map((s) => ({
-        key: `slot-${s.colorSlot}-${s.label}`,
-        name: s.label,
-        color: `var(--chart-${s.colorSlot})`,
-        textColor: `var(--chart-${s.colorSlot}t)`,
-        shape: "rect" as const,
-      }));
-    }
+    // TARCZA NIE MA LEGENDY Z PRÓBKAMI, i to jest zmiana wobec wcześniejszej
+    // wersji. Klucz tarczy niesie teraz TABELA obok pierścienia
+    // (`PieKeyTable` w `PieChart`): ta sama próbka - para blade wnętrze plus
+    // mocna obwódka - ale w jednym wierszu z nazwą, udziałem i wartością
+    // bezwzględną. Legenda podawała wyłącznie parę kolor-nazwa, więc czytelnik
+    // wykonywał trzy skoki wzroku (łuk, próbka, nazwa) i wciąż nie dostawał
+    // liczby; dwa klucze do tej samej grafiki byłyby przy tym dwoma miejscami,
+    // w których ta sama kolejność wycinków może się rozjechać.
+    //
+    // Przełącznik „Legenda” zostaje w edytorze i nadal działa dla wykresów
+    // kartezjańskich i mostka; na tarczy tabela klucza jest WYMAGANYM nośnikiem
+    // tożsamości w wariancie bladym, a nie ozdobą do wyłączenia.
+    if (isPie) return [];
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
     return config.series.map((s) => ({
@@ -90,6 +96,17 @@ export function Chart({ config, lang, className }: ChartProps) {
     }));
   }, [config, lang, isPie, isWaterfall, t]);
 
+  const shareSumMismatch: string | null = useMemo(() => {
+    if (!isPie) return null;
+    const model = pieModel(config, lang);
+    // `shareSumOk === null` znaczy "nie ma czego sprawdzać" (dane nie są
+    // udziałami), a nie "jest dobrze" - i tego rozróżnienia nie wolno tu
+    // zgubić, bo `!ok` obejmowałoby oba przypadki i ostrzeżenie wisiałoby nad
+    // każdą tarczą w milionach euro.
+    if (model.shareSumOk !== false || model.shareSum === null) return null;
+    return formatPercentPoints(model.shareSum, lang);
+  }, [config, lang, isPie]);
+
   const hasData =
     config.categories.length > 0 &&
     config.series.length > 0 &&
@@ -101,6 +118,13 @@ export function Chart({ config, lang, className }: ChartProps) {
     unit: config.unit,
     sampleSize: config.sampleSize,
     zeroBaselineBroken: isZeroBaselineBroken(config),
+    // SUMA KONTROLNA UDZIAŁÓW - ta sama reguła co suma kontrolna mostka,
+    // tylko dla tarczy: udziały, które nie sumują się do 100%, są błędem,
+    // a nie kwestią gustu. Liczona na liczbach ZAOKRĄGLONYCH, czyli na tych,
+    // które czytelnik widzi - suma dokładna zawsze da 100% z definicji
+    // mianownika, więc sprawdzanie jej niczego nie wykrywa. `null` znaczy
+    // "nie ma czego zgłaszać": inny rodzaj wykresu albo suma w tolerancji.
+    shareSumMismatch,
     notesShows: config.notesShows,
     notesSurprising: config.notesSurprising,
     notesHidden: config.notesHidden,

@@ -30,6 +30,15 @@ const pl = {
       other: "Pozostałe",
       missing: "brak danych",
     },
+    pie: {
+      // Tabela obok pierścienia zastępuje legendę z próbkami: nazwa, udział
+      // i wartość bezwzględna w jednym wierszu, w tej samej kolejności co łuki.
+      keyTable: "Klucz i wartości",
+      // Suma kontrolna udziałów - ta sama reguła co w mostku. Liczona na
+      // liczbach ZAOKRĄGLONYCH, czyli na tych, które czytelnik widzi.
+      shareSumFailed:
+        "Udziały podane w danych sumują się do {{sum}}, a nie do 100%. Tarcza przeskalowuje je do pełnej całości, więc liczba na łuku jest inna niż liczba w tabeli - sprawdź, czy nie brakuje kategorii albo czy dwie się nie nakładają.",
+    },
     caption: {
       // Podpis uczciwościowy. Jednostka, n, źródło i data danych są osobnymi
       // polami, bo wykres bez nich wygląda tak samo, a znaczy co innego.
@@ -93,6 +102,13 @@ const pl = {
         "Powyżej {{max}} kolorów kategorialnych paleta przestaje być rozdzielna dla daltonizmu. Pogrupuj serie albo podziel wykres na small multiples.",
       tooManySlices:
         "Tarcza powyżej {{max}} kategorii koduje kątem i powierzchnią, czyli najsłabszymi kanałami. Nadmiar zwija się w jeden wycinek zbiorczy - rozważ słupki poziome.",
+      // TRZY GRANICE PIERŚCIENIA. Wszystkie policzalne, więc nie ma sensu
+      // liczyć na czujność autora - ale żadna nie blokuje zapisu, bo każda ma
+      // wyjątki (np. dwa segmenty jako celowo minimalna ilustracja udziału).
+      pieTooFewSlices:
+        "Pierścień z dwoma albo trzema segmentami to koło z dziurą - miernik albo pojedynczy słupek 100% mówi to samo bez pytania czytelnika o kąt.",
+      pieClosePercentages:
+        "Udziały różnią się o mniej niż {{pp}} punkty procentowe, więc pierścień pokaże je jako identyczne. Do porównania weź słupki poziome - długość jest najwyżej w hierarchii percepcyjnej.",
       signClashesWithTerracotta:
         "Wykres koduje znak czerwienią, więc terakota (slot 6) nie może być na nim kategorią.",
       forecastWithoutBand:
@@ -118,6 +134,11 @@ const en = {
       empty: "No chart data.",
       other: "Other",
       missing: "no data",
+    },
+    pie: {
+      keyTable: "Key and values",
+      shareSumFailed:
+        "The shares given in the data add up to {{sum}}, not 100%. The ring rescales them to a full whole, so the number on the arc differs from the number in the table - check for a missing category or two that overlap.",
     },
     caption: {
       unit: "Unit: {{unit}}",
@@ -172,6 +193,10 @@ const en = {
         "Above {{max}} categorical colours the palette stops being separable for colour-blind readers. Group the series or split the chart into small multiples.",
       tooManySlices:
         "A pie above {{max}} categories encodes with angle and area, the weakest channels. The overflow folds into one aggregate slice - consider sorted horizontal bars.",
+      pieTooFewSlices:
+        "A ring with two or three segments is a circle with a hole - a meter or a single 100% bar says the same without asking the reader to judge an angle.",
+      pieClosePercentages:
+        "The shares differ by less than {{pp}} percentage points, so the ring will render them as identical. Use horizontal bars for the comparison - length is highest in the perceptual hierarchy.",
       signClashesWithTerracotta:
         "This chart encodes sign with red, so terracotta (slot 6) cannot also be a category on it.",
       forecastWithoutBand:
