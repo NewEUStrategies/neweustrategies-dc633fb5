@@ -564,6 +564,22 @@ describe("GscBiDashboard - dane", () => {
     expect(numList(s[2].data)).toEqual([5, 8, 10]);
   });
 
+  it("trend rozsuwa legendę i nie powiela nazw osi pod legendą", async () => {
+    panel();
+    await loaded();
+
+    const option = trendOption();
+    const legend = rec(option.legend);
+    const grid = rec(option.grid);
+    const axes = option.yAxis as Array<Record<string, unknown>>;
+
+    expect(legend.left).toBe("center");
+    expect(legend.itemGap).toBe(20);
+    expect(grid.top).toBe(44);
+    expect(axes[0]?.name).toBeUndefined();
+    expect(axes[1]?.name).toBeUndefined();
+  });
+
   it("iskry przy KPI jadą tym samym porządkiem co trend", async () => {
     panel();
     await loaded();
