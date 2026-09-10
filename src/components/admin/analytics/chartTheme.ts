@@ -50,6 +50,12 @@ const FALLBACK_FONT =
   '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif';
 
 interface ResolvedTheme {
+  /**
+   * Tryb ciemny płyty. Trzymany W MIGAWCE, nie odczytywany przy każdym
+   * wykresie: skale porządkowe (mapa ciepła kalendarza) mają w ciemnym
+   * ODWRÓCONY kierunek jasności - niski poziom siada przy tle, wysoki świeci.
+   */
+  dark: boolean;
   /** Wypełnienia serii - sześć slotów rozdzielnych dla daltonizmu. */
   palette: string[];
   /**
