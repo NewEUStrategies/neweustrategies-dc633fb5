@@ -982,6 +982,35 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     expect(wiersze[2].getAttribute("data-active")).toBe("true");
   });
 
+  it("PODNIESIENIE PALCA z wiersza klucza nie zdejmuje wskazania", () => {
+    // Tabela klucza jest drugą połową tego samego elementu interfejsu co
+    // tarcza, więc obowiązuje ją ta sama reguła dotyku, co łuki: na dotyku
+    // `pointerleave` przychodzi NATYCHMIAST po podniesieniu palca, w tej samej
+    // chwili, w której wskazanie się pojawiło. Wiersz oparty na parze
+    // enter/leave tylko mrugał: tapnięcie w nazwę kategorii podświetlało łuk
+    // i gasiło go, zanim czytelnik zdążył spojrzeć na tarczę - czyli klucz był
+    // na telefonie martwy dokładnie tam, gdzie jest najbardziej potrzebny,
+    // bo na małym ekranie łuki są najwęższe.
+    //
+    // Warunek nazywa DOTYK, nie mysz: rysik ma hover jak mysz, a środowisko,
+    // które rodzaju wskaźnika nie podaje, ma dostać zachowanie mysie.
+    const { container } = render(
+      <PieChart config={cfg({ kind: "donut", ...CWIARTKI })} lang="pl" />,
+    );
+    const wiersze = [...container.querySelectorAll("table.neh-pie-key tbody tr")];
+    fireEvent.pointerEnter(wiersze[2]);
+    expect(slices(container)[2].getAttribute("data-active")).toBe("true");
+
+    fireEvent.pointerLeave(wiersze[2], { pointerType: "touch" });
+    expect(slices(container)[2].getAttribute("data-active")).toBe("true");
+    expect(wiersze[2].getAttribute("data-active")).toBe("true");
+
+    // Zjazd MYSZY zdejmuje - i tak samo zdejmuje wskaźnik bez podanego
+    // rodzaju, bo wyjątkiem jest dotyk.
+    fireEvent.pointerLeave(wiersze[2], { pointerType: "mouse" });
+    expect(slices(container)[2].getAttribute("data-active")).toBeNull();
+  });
+
   it("pusty zestaw daje notę, nie pustą kartę wykresu", () => {
     const pl = render(
       <Chart config={cfg({ kind: "pie", categories: [], series: [] })} lang="pl" />,

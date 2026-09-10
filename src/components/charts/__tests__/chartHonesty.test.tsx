@@ -24,6 +24,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { freezeClock } from "@/test/time";
 import { parseChartConfig } from "@/lib/charts/parse";
+import { BAR_MAX } from "@/lib/charts/geometry";
 import { Chart } from "../Chart";
 import { CartesianChart } from "../CartesianChart";
 
@@ -49,6 +50,37 @@ const bandsOf = (root: HTMLElement): Element[] =>
   all(root, "path").filter((el) =>
     (el.getAttribute("style") ?? "").includes("fill-opacity: var(--chart-band-1)"),
   );
+
+/**
+ * Kontener wykresu - jedyny element, który przyjmuje fokus i strzałki.
+ * Klawiatura jest tu drogą do stanu wskazania, a nie ozdobą: bez niej nie da
+ * się w happy-dom otworzyć dymka, bo wskaźnik wymaga podmiany prostokąta
+ * trafień (`getBoundingClientRect` oddaje zera).
+ */
+const box = (root: HTMLElement): HTMLElement => {
+  const el = root.querySelector<HTMLElement>("[role='img']");
+  if (!el) throw new Error("brak kontenera wykresu");
+  return el;
+};
+
+/**
+ * Etykiety osi kategorii.
+ *
+ * `text-anchor` jest tu FILTREM, nie kosmetyką selektora: podpis strefy
+ * prognozy ("Prognoza") jedzie tym samym kolorem `--muted-foreground` i też
+ * nie ma klasy `tabular-nums`, więc sam selektor koloru wciągałby go do
+ * zestawu etykiet i przesuwał wszystkie indeksy o jeden. Etykiety osi zawsze
+ * dostają jawne wyrównanie (`middle` albo `end` przy obrocie), podpis strefy
+ * nigdy.
+ */
+const catLabels = (root: HTMLElement): Element[] =>
+  all(root, "text[fill='var(--muted-foreground)']:not(.tabular-nums)").filter((el) =>
+    el.hasAttribute("text-anchor"),
+  );
+
+/** Współrzędne X środków kategorii, odczytane z etykiet osi. */
+const catCentersOf = (root: HTMLElement): number[] =>
+  catLabels(root).map((el) => Number(el.getAttribute("x")));
 
 const SERIES_4: Record<string, Json> = {
   kind: "line",
@@ -167,6 +199,24 @@ describe("CartesianChart - prognoza", () => {
     forecastFrom: 4,
     forecastBandPct: 12,
     animate: false,
+  };
+
+  /** Ta sama prognoza na KOLUMNACH - granica ma tam inną arytmetykę. */
+  const SLUPKI_Z_PROGNOZA: Record<string, Json> = {
+    kind: "bar",
+    categories: ["2023", "2024", "2025", "2026"],
+    series: [{ name: "Naklady", values: [10, 12, 14, 15] }],
+    forecastFrom: 2,
+    animate: false,
+  };
+
+  /**
+   * Luka PRZED granicą prognozy: pierwszy ciąg (indeksy 0-1) leży cały
+   * w historii, drugi (3-5) przechodzi przez granicę.
+   */
+  const LUKA_PRZED_PROGNOZA: Record<string, Json> = {
+    ...FORECAST,
+    series: [{ name: "PKB", values: [10, 12, null, 15, 16, 18] }],
   };
 
   it("LINIA SERII ZOSTAJE CIĄGŁA - także w prognozie", () => {
@@ -303,6 +353,106 @@ describe("CartesianChart - prognoza", () => {
     const bez = render(<Chart config={cfg({ ...FORECAST, forecastFrom: null })} lang="pl" />);
     expect(bez.container.textContent ?? "").not.toContain("prognoza");
   });
+
+  it("dymek kategorii PROGNOZOWANEJ jest oznaczony flagą, a zmierzonej NIE - i granica nie przesuwa się o jedną kategorię", () => {
+    // Trzy nośniki odróżnienia prognozy (pasmo, strefa, separator) są
+    // GRAFICZNE. Kto czyta wykres kursorem albo strzałkami, patrzy w dymek -
+    // a tam liczba 16 z kategorii prognozowanej wyglądała identycznie jak 15
+    // z kategorii zmierzonej. Dymek jest jedynym miejscem, w którym czytelnik
+    // dostaje KONKRETNĄ liczbę, więc brak flagi znaczył, że najdokładniejszy
+    // odczyt wykresu był jednocześnie jedynym pozbawionym ostrzeżenia.
+    //
+    // Test przechodzi CAŁY szereg, bo defekt, którego się tu boję, to nie
+    // „flagi nie ma", a „flaga jest o jedną kategorię za wcześnie": pomiar
+    // z kategorii granicznej (indeks `forecastFrom - 1`) jest nadal pomiarem
+    // i oznaczenie go prognozą byłoby kłamstwem w drugą stronę.
+    const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
+    const el = box(container);
+    for (let i = 0; i < 6; i++) {
+      fireEvent.keyDown(el, { key: "ArrowRight" });
+      const flaga = container.querySelector(".neh-tooltip div.uppercase");
+      expect(Boolean(flaga), `kategoria ${i}`).toBe(i >= 4);
+      if (flaga) expect(flaga.textContent).toBe("prognoza");
+    }
+  });
+
+  it("flaga prognozy jest OSOBNYM wierszem dymka i mówi językiem wykresu", () => {
+    // Sklejona z wartością ("16 prognoza") czytałaby się jak jednostka albo
+    // jak część liczby - a prognozą jest CAŁA kategoria, nie pojedynczy
+    // odczyt jednej serii. Dlatego flaga stoi nad listą serii, poza `<dd>`,
+    // i dlatego wchodzi tam przez słownik, a nie jako literał: wykres
+    // w interfejsie angielskim z polskim „prognoza" w dymku jest defektem
+    // tej samej klasy co brak flagi.
+    const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="en" />);
+    for (let i = 0; i < 5; i++) fireEvent.keyDown(box(container), { key: "ArrowRight" });
+    const tip = container.querySelector(".neh-tooltip");
+    expect(tip?.querySelector("div.uppercase")?.textContent).toBe("forecast");
+    for (const dd of tip?.querySelectorAll("dd") ?? []) {
+      expect(dd.textContent).not.toContain("forecast");
+    }
+  });
+
+  it("na KOLUMNACH granica prognozy biegnie szczeliną między pasmami, nie przez kolumnę", () => {
+    // Na linii granicę wyznacza połowa drogi między dwoma PUNKTAMI, ale
+    // kolumna zajmuje całe pasmo kategorii. Ta sama arytmetyka postawiłaby
+    // separator na środku pasma, czyli PRZEZ kolumnę - a wtedy tło strefy
+    // zamalowuje prawą połowę zmierzonej kolumny i pojedynczy pomiar zostaje
+    // rozdzielony na „historię" i „prognozę". Dla słupków granicą musi więc
+    // być KRAWĘDŹ pasma, nie jego środek.
+    const { container } = render(<CartesianChart config={cfg(SLUPKI_Z_PROGNOZA)} lang="pl" />);
+    const divider = Number(all(container, "line.neh-forecast-divider")[0].getAttribute("x1"));
+    const centers = catCentersOf(container);
+    expect(centers).toHaveLength(4);
+    const innerW = Number(all(container, "rect.neh-hit")[0].getAttribute("width"));
+    const band = innerW / centers.length;
+
+    // Dwa niezależne rachunki tej samej liczby: krawędź pasma pierwszej
+    // prognozowanej kategorii i połowa drogi między środkami sąsiadów.
+    expect(divider).toBeCloseTo(centers[2] - band / 2, 6);
+    expect(divider).toBeCloseTo((centers[1] + centers[2]) / 2, 6);
+
+    // I ta liczba leży w SZCZELINIE: kolumna jest węższa od pasma (72% pasma,
+    // najwyżej 24 px), więc separator nie dotyka ani ostatniej zmierzonej
+    // kolumny, ani pierwszej prognozowanej.
+    const barW = Math.min(BAR_MAX, band * 0.72);
+    expect(divider).toBeGreaterThan(centers[1] + barW / 2);
+    expect(divider).toBeLessThan(centers[2] - barW / 2);
+
+    // Strefa startuje na tej samej krawędzi i obejmuje DOKŁADNIE dwie
+    // prognozowane kategorie - ani piksela historii, ani uciętej prognozy.
+    const zone = all(container, "rect.neh-zone-tint")[0];
+    expect(Number(zone.getAttribute("x"))).toBeCloseTo(divider, 6);
+    expect(Number(zone.getAttribute("width"))).toBeCloseTo(2 * band, 6);
+  });
+
+  it("CIĄG LEŻĄCY CAŁY W HISTORII nie dokłada do pasma pustego domknięcia", () => {
+    // Luka przed granicą rozbija serię na dwa ciągi, a pasmo liczy się PER
+    // CIĄG (obwiednia policzona przez lukę malowałaby niepewność nad
+    // kategorią bez pomiaru). Ciąg leżący cały przed granicą nie ma z czego
+    // zrobić obwiedni - i tu jest pułapka: bez klamry na liczbie punktów
+    // `forecastBandPath` zwracał dla niego napis " Z". Pusty w treści, ale
+    // PRAWDZIWY dla `filter(Boolean)`, więc wchodził do sklejonej ścieżki
+    // i pasmo zaczynało się od bezładnego domknięcia. Przeglądarka takie
+    // domknięcie zignoruje, ale ścieżka przestaje być JEDNYM wielokątem,
+    // a jej pierwsze `M` przestaje wyznaczać początek pasma - czyli traci
+    // sens każdy odczyt geometrii pasma, w tym asercja „na granicy szerokość
+    // zero" w teście obok.
+    const { container } = render(<CartesianChart config={cfg(LUKA_PRZED_PROGNOZA)} lang="pl" />);
+    const band = bandsOf(container)[0]?.getAttribute("d") ?? "";
+    expect(band).not.toBe("");
+    expect(band.trimStart().startsWith("M")).toBe(true);
+    // Jedno domknięcie = jeden wielokąt = jedno pasmo.
+    expect((band.match(/Z/g) ?? []).length).toBe(1);
+
+    // Pasmo obejmuje kategorię graniczną i cały ogon prognozy - i nic przed
+    // granicą, bo tam nie ma prognozy, o której niepewności można by mówić.
+    // Wszystkie liczby w ścieżce chodzą parami (x, y), więc parzyste pozycje
+    // to współrzędne X.
+    const centers = catCentersOf(container);
+    const xs = (band.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number).filter((_, i) => i % 2 === 0);
+    expect(Math.min(...xs)).toBeCloseTo(centers[3], 1);
+    expect(Math.max(...xs)).toBeCloseTo(centers[5], 1);
+  });
 });
 
 describe("CartesianChart - mostek (waterfall)", () => {
@@ -389,6 +539,61 @@ describe("CartesianChart - mostek (waterfall)", () => {
       />,
     );
     expect(all(container, "path.neh-bar")).toHaveLength(5);
+  });
+
+  it("wskazanie kroku mostka NAZYWA jego rolę - filar, wzrost, spadek - a nie nazwę serii", () => {
+    // Mostek jest jedynym wykresem w silniku, na którym nazwa serii jest
+    // BEZUŻYTECZNA: wszystkie słupki pochodzą z jednej serii, więc dymek
+    // z napisem „Mostek" przy każdym kroku nie mówi nic. Znaczenie niesie
+    // ROLA kroku, a role są cztery i tylko dwie z nich widać z kształtu
+    // (filar stoi na zerze, składnik wisi); wzrostu od spadku bez koloru nie
+    // odróżni czytelnik, który koloru nie widzi. Dlatego rola idzie napisem,
+    // i to napisem ze słownika - polski dymek na wykresie angielskim jest
+    // defektem tej samej klasy co brak nazwy.
+    const { container } = render(<CartesianChart config={cfg(BRIDGE)} lang="pl" />);
+    const el = box(container);
+    const role = ["Stan początkowy", "Wzrost", "Spadek", "Spadek", "Stan końcowy"];
+    for (const [i, rola] of role.entries()) {
+      fireEvent.keyDown(el, { key: "ArrowRight" });
+      const tip = container.querySelector(".neh-tooltip");
+      expect(tip?.querySelector("dt")?.textContent, `krok ${i}`).toBe(rola);
+      // ŻADNEJ PRÓBKI KOLORU. Na mostku kolor koduje ZNAK, nie tożsamość
+      // serii, więc kwadracik obok nazwy obiecywałby klucz do legendy serii,
+      // której tu nie ma - a legenda mostka mówi właśnie o znaku.
+      expect(tip?.querySelector("dt span[aria-hidden]")).toBeNull();
+    }
+  });
+
+  it("dymek mostka pokazuje WKŁAD kroku, nie poziom, do którego krok dowiózł", () => {
+    // Cały sens mostka polega na tym, że składnik koduje długością SWÓJ
+    // wkład, a nie osiągnięty poziom - i dymek musi mówić to samo, co
+    // kształt. Trzeci krok BRIDGE wisi między 120 i 115; gdyby dymek podawał
+    // krawędź słupka, czytelnik dostałby „115" i sumowanie dekompozycji
+    // przestałoby się zgadzać z liczbami, które przed chwilą przeczytał.
+    const { container } = render(<CartesianChart config={cfg(BRIDGE)} lang="pl" />);
+    const el = box(container);
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(el, { key: "ArrowRight" });
+    const wartosc = container.querySelector(".neh-tooltip dd")?.textContent ?? "";
+    expect(wartosc).toContain("-5");
+    expect(wartosc).not.toContain("115");
+    expect(wartosc).not.toContain("120");
+  });
+
+  it("mostek NA SAMYCH KATEGORIACH, bez ani jednej liczby, rysuje filary na zerze i pisze zero", () => {
+    // Tak wygląda mostek wklejony z arkusza, w którym wypełniono nagłówki
+    // i nie wypełniono wartości - i to jest przypadek, w którym najłatwiej
+    // zgadnąć zamiast przyznać się do braku. Silnik ma wtedy narysować
+    // kompletny szkielet z zerami: trzy słupki o wysokości zera i trzy
+    // etykiety „0". Zgadnięty poziom albo puste płótno byłyby gorsze -
+    // pierwsze kłamie, drugie każe autorowi szukać, czy blok w ogóle działa.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({ kind: "waterfall", categories: ["Start", "Zmiana", "Koniec"], series: [] })}
+        lang="pl"
+      />,
+    );
+    expect(all(container, "path.neh-bar")).toHaveLength(3);
+    expect(textOf(container, "text.neh-value-label")).toEqual(["0", "0", "0"]);
   });
 });
 

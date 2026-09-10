@@ -45,6 +45,7 @@ import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { BAR_EDGE_INSET } from "@/lib/charts/geometry";
 import { defaultChartConfig, parseChartConfig } from "@/lib/charts/parse";
+import { resetTextMeasureCache } from "@/lib/charts/measureText";
 import type { ChartConfig } from "@/lib/charts/types";
 import { CartesianChart } from "../CartesianChart";
 
@@ -729,6 +730,41 @@ describe("CartesianChart - stack", () => {
     for (const bar of all(container, SEL.bar)) {
       expect(bar.getAttribute("stroke-width")).toBe("1");
     }
+  });
+
+  it("STOS O MIESZANYCH ZNAKACH zaokrągla OBA końce pasa, bo każdy domyka INNA seria", () => {
+    // Kategoria z wartościami po obu stronach zera daje DWA pasy rosnące
+    // z jednej bazy w przeciwne strony, a `stackSeries` prowadzi dla nich dwa
+    // niezależne kursory. Pytanie "która seria domyka pas" ma więc dwie
+    // odpowiedzi naraz, i to jest cały powód, dla którego szuka się jej PO
+    // ZNAKU segmentu, a nie jako "ostatniej serii z wartością". Reguła
+    // "ostatnia seria" dałaby tu zaokrąglenie serii 3 na pasie dodatnim
+    // (przypadkiem prawidłowo) i ODEBRAŁA je pasowi ujemnemu, którego szczyt
+    // przestałby mieć czytelny koniec - a czyta się z niego wartość.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          stacked: true,
+          categories: ["a"],
+          series: [
+            { name: "Dodatnia 1", values: [6] },
+            { name: "Ujemna", values: [-4] },
+            { name: "Dodatnia 2", values: [3] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const [dodatnia1, ujemna, dodatnia2] = ds(container, SEL.bar);
+    // Pas dodatni domyka OSTATNIA DODATNIA (seria 3), więc łuk skręca w górę.
+    expect(dodatnia2).toContain("q0 -6 6 -6");
+    // Segment środkowy pasa dodatniego zostaje prostokątem - dwa zaokrąglenia
+    // na jednym pasie czytałyby się jak dwa osobne słupki.
+    expect(dodatnia1).not.toContain("q");
+    // Pas ujemny domyka jedyna seria ujemna - i to W DRUGĄ STRONĘ, bo jego
+    // koniec danych jest pod bazą, nie nad nią.
+    expect(ujemna).toContain("q0 6 6 6");
   });
 
   it("etykiety wartości nie pojawiają się na stacku", () => {
@@ -1713,5 +1749,238 @@ describe("CartesianChart - odporność stanu interakcji i pas wyłącznie ujemny
     // kategorii nic nie rysuje i zabrałaby zaokrąglenie całemu pasowi.
     const [luka] = ds(container, SEL.bar);
     expect(luka).toContain("q0 6 6 6");
+  });
+});
+
+describe("CartesianChart - wariant gradientowy wypełnienia", () => {
+  /**
+   * Wektor gradientu i lista jego stopni - czysta geometria rampy, bez
+   * pośrednictwa nazwy identyfikatora (ta zawiera `useId`, więc jest inna
+   * w każdym przebiegu).
+   */
+  const rampy = (root: HTMLElement): Map<string, { v: number[]; stops: string[] }> =>
+    new Map(
+      all(root, "defs linearGradient").map((g) => [
+        g.getAttribute("id") ?? "",
+        {
+          v: ["x1", "y1", "x2", "y2"].map((a) => Number(g.getAttribute(a))),
+          stops: [...g.querySelectorAll("stop")].map(
+            (st) => `${st.getAttribute("offset")}:${st.getAttribute("stop-color")}`,
+          ),
+        },
+      ]),
+    );
+
+  /** Identyfikator rampy, którą naprawdę wypełniono dany słupek. */
+  const rampaSlupka = (root: HTMLElement, i: number): string => {
+    const fill = all(root, SEL.bar)[i].getAttribute("fill") ?? "";
+    const id = /^url\(#(.+)\)$/.exec(fill)?.[1];
+    if (!id) throw new Error(`słupek ${i} nie jest wypełniony gradientem: ${fill}`);
+    return id;
+  };
+
+  it("rampa biegnie ZA ZNAKIEM wartości: od krawędzi odniesienia do końca danych", () => {
+    // Kierunek rampy i kierunek zaokrąglenia wychodzą z JEDNEJ wartości
+    // (`dataEndOf`) i to jest cała treść tego testu. Rampa poprowadzona wbrew
+    // znakowi kładzie najjaśniejszy stopień na linii zera, a najgłębszy na
+    // końcu danych - czyli robi dokładnie odwrotnie niż mówi kształt, bo
+    // zaokrąglony koniec nadal siedzi po stronie danych. Dwie niezależne
+    // gałęzie na te dwie decyzje mogłyby się rozjechać, a rozjazd wygląda
+    // jak wybór estetyczny, nie jak błąd.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          barStyle: "gradient",
+          categories: ["zysk", "strata"],
+          series: [{ name: "Wynik", values: [10, -5] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const defs = rampy(container);
+    const [dodatni, ujemny] = ds(container, SEL.bar);
+    const rDodatni = defs.get(rampaSlupka(container, 0));
+    const rUjemny = defs.get(rampaSlupka(container, 1));
+    expect(rDodatni).toBeDefined();
+    expect(rUjemny).toBeDefined();
+
+    // Kolumna dodatnia: zaokrąglony szczyt I rampa rosnąca ku szczytowi.
+    // W układzie SVG y rośnie w dół, więc "od bazy do góry" znaczy y1 > y2.
+    expect(dodatni).toContain("q0 -6 6 -6");
+    expect(rDodatni?.v[1]).toBeGreaterThan(Number(rDodatni?.v[3]));
+    // Kolumna ujemna: zaokrąglony SPÓD i rampa odwrócona.
+    expect(ujemny).toContain("q0 6 6 6");
+    expect(rUjemny?.v[1]).toBeLessThan(Number(rUjemny?.v[3]));
+
+    // Żadna z rampek nie ma składowej poziomej - wartość mierzy się tu po
+    // osi Y, więc rampa biegnąca w poprzek słupka nie kodowałaby niczego.
+    expect(rDodatni?.v[0]).toBe(rDodatni?.v[2]);
+    expect(rUjemny?.v[0]).toBe(rUjemny?.v[2]);
+
+    // Trzy stopnie, w kolejności od odniesienia do lica, wszystkie z tokena
+    // TEGO SAMEGO slotu co obwódka. Stopień środkowy nie jest ozdobą: SVG
+    // interpoluje w sRGB, więc dwustopniowa rampa między kolorami z OKLCh
+    // przygasa w połowie i wnętrze przestaje się czytać jako gradient.
+    expect(rDodatni?.stops).toEqual([
+      "0:var(--chart-1-deep)",
+      "0.5:var(--chart-1-mid)",
+      "1:var(--chart-1-face)",
+    ]);
+    // Obwódka niesie CZYSTY token - ten sam, który stoi w legendzie. Bez niej
+    // rozmyte gradientem wnętrze nie daje ostrej pozycji końca słupka, a to
+    // z niej odczytuje się wartość.
+    expect(all(container, SEL.bar)[0].getAttribute("stroke")).toBe("var(--chart-1)");
+    expect(all(container, SEL.bar)[0].getAttribute("data-style")).toBe("gradient");
+  });
+
+  it("definicja rampy jest JEDNA na (slot, kierunek), a nie jedna na słupek", () => {
+    // Zakotwiczenie gradientu zostaje domyślne (`objectBoundingBox`), więc
+    // KAŻDY słupek dostaje pełną rampę w swoich własnych granicach - i dopiero
+    // dzięki temu wolno dzielić definicję. Zakotwiczenie globalne
+    // (`userSpaceOnUse`) sprawiłoby, że niski słupek kończy się w połowie
+    // rampy, czyli kolor zaczyna redundantnie kodować wysokość, której dane
+    // nie mówią. Dlatego pytamy o oba fakty naraz: wspólne id i brak
+    // nadpisanego `gradientUnits`.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          barStyle: "gradient",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [3, 12, 30] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const uzyte = new Set([0, 1, 2].map((i) => rampaSlupka(container, i)));
+    expect(uzyte.size).toBe(1);
+    for (const g of all(container, "defs linearGradient")) {
+      expect(g.getAttribute("gradientUnits")).toBeNull();
+    }
+
+    // Dwie serie to dwa slots, więc dwie różne rampy - inaczej gradient
+    // przestałby identyfikować serię.
+    const dwie = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          barStyle: "gradient",
+          categories: ["a"],
+          series: [
+            { name: "A", values: [10] },
+            { name: "B", values: [8] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(rampaSlupka(dwie.container, 0)).not.toBe(rampaSlupka(dwie.container, 1));
+  });
+
+  it("na SŁUPKACH POZIOMYCH rampa przestawia się na oś X - inaczej biegłaby w poprzek wartości", () => {
+    // Orientacja nie jest kosmetyką rampy: wartość słupka poziomego mierzy się
+    // po osi X, więc rampa pionowa biegłaby przez GRUBOŚĆ paska i nie miałaby
+    // żadnego związku z danymi. Zamiana orientacji musi też odwrócić się na
+    // wartości ujemnej, bo tam krawędź odniesienia jest z PRAWEJ.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar-horizontal",
+          barStyle: "gradient",
+          categories: ["Polska", "Niemcy"],
+          series: [{ name: "PKB", values: [10, -4] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const defs = rampy(container);
+    const rDodatni = defs.get(rampaSlupka(container, 0));
+    const rUjemny = defs.get(rampaSlupka(container, 1));
+
+    // Pasek dodatni: od zera (lewa) w prawo, ku zaokrąglonemu prawemu końcowi.
+    expect(ds(container, SEL.bar)[0]).toContain("q6 0 6 6");
+    expect(rDodatni?.v[0]).toBeLessThan(Number(rDodatni?.v[2]));
+    // Pasek ujemny: od zera (prawa) w lewo.
+    expect(rUjemny?.v[0]).toBeGreaterThan(Number(rUjemny?.v[2]));
+    // Ani jedna z nich nie ma składowej pionowej.
+    expect(rDodatni?.v[1]).toBe(rDodatni?.v[3]);
+    expect(rUjemny?.v[1]).toBe(rUjemny?.v[3]);
+  });
+});
+
+describe("CartesianChart - marginesy i drabina z POMIARU, nie z heurystyki", () => {
+  /**
+   * Atrapa kanwy dla `measureLabelWidth`.
+   *
+   * happy-dom ma `HTMLCanvasElement`, ale jego `getContext("2d")` oddaje
+   * `null`, więc pomiar wraca jako `null` i CAŁA reszta tego pliku pracuje na
+   * heurystyce `znaki x rozmiar x 0,62` - dokładnie tak, jak pracuje serwer
+   * i pierwszy render klienta. Ta atrapa jest jedynym miejscem, w którym
+   * widać DRUGIE malowanie, to po zamontowaniu.
+   *
+   * Sprząta po sobie dwa razy: przywraca `getContext` i zeruje cache kontekstu
+   * w module pomiaru. Bez tego drugiego atrapa wyciekłaby na kolejne testy
+   * pliku, bo kontekst siedzi w zmiennej MODUŁOWEJ, nie w komponencie - i to
+   * jest cały powód, dla którego `resetTextMeasureCache` w ogóle istnieje.
+   */
+  function zKanwa<T>(pxNaZnak: number, run: () => T): T {
+    const proto = HTMLCanvasElement.prototype as unknown as Record<string, unknown>;
+    const oryginal = Object.getOwnPropertyDescriptor(proto, "getContext");
+    Object.defineProperty(proto, "getContext", {
+      configurable: true,
+      writable: true,
+      value: () => ({
+        font: "",
+        measureText: (text: string) => ({ width: text.length * pxNaZnak }),
+      }),
+    });
+    resetTextMeasureCache();
+    try {
+      return run();
+    } finally {
+      if (oryginal) Object.defineProperty(proto, "getContext", oryginal);
+      else delete proto.getContext;
+      resetTextMeasureCache();
+    }
+  }
+
+  it("SZERSZY FONT NIŻ ZAŁOŻONY przerzedza oś, zamiast pozwolić napisom się zderzyć", () => {
+    // Heurystyka zakłada 0,62 szerokości znaku na rozmiar pisma, czyli ~6,8 px
+    // przy 11 px. To założenie, nie pomiar - a przy WŁASNYM foncie tenanta
+    // bywa nieprawdziwe w tę gorszą stronę. Wtedy drabina obliczona z
+    // heurystyki mówi "wszystko się mieści", oś rysuje sześć napisów, i one
+    // na siebie wchodzą: nie ma żadnego mechanizmu, który by to naprawił po
+    // fakcie, bo etykiety osi nie mają czym się przyciąć.
+    //
+    // Dlatego marginesy i drabina konsumują POMIAR, gdy tylko pomiar jest
+    // dostępny. Te same dane i ta sama szerokość kontenera muszą więc dać
+    // DWA różne plany osi: pełny bez kanwy i przerzedzony z kanwą mierzącą
+    // 14 px na znak (1,27 em - w granicach realnego kroju o szerokich
+    // literach).
+    const kategorie = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec"];
+    const config = cfg({
+      kind: "bar",
+      categories: kategorie,
+      series: [{ name: "A", values: [1, 2, 3, 4, 5, 6] }],
+    });
+
+    const heurystyka = render(<CartesianChart config={config} lang="pl" />);
+    expect(textOf(heurystyka.container, SEL.catLabel)).toEqual(kategorie);
+
+    const zPomiaru = zKanwa(14, () => {
+      const { container } = render(<CartesianChart config={config} lang="pl" />);
+      return textOf(container, SEL.catLabel);
+    });
+    // Coś MUSI ustąpić - i ustępują etykiety pośrednie, nie treść napisów:
+    // ucięcie wielokropkiem jest w tym silniku zakazane.
+    expect(zPomiaru.length).toBeLessThan(kategorie.length);
+    for (const napis of zPomiaru) expect(kategorie).toContain(napis);
+    // PIERWSZA I OSTATNIA zostają ZAWSZE - niosą zakres osi, a bez zakresu
+    // czytelnik nie wie, gdzie szereg się zaczyna i kończy.
+    expect(zPomiaru[0]).toBe("Styczeń");
+    expect(zPomiaru.at(-1)).toBe("Czerwiec");
+    // Znaczniki są komplet: przerzedzanie dotyczy WYŁĄCZNIE napisów osi.
+    expect(all(heurystyka.container, SEL.bar)).toHaveLength(6);
   });
 });

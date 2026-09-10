@@ -85,7 +85,12 @@ describe("rodzaje wykresu - obecność w KAŻDEJ powierzchni autorskiej", () => 
   });
 
   it("schemat widgetu buildera zna każdy rodzaj", () => {
-    const pole = WIDGET_SCHEMAS.chart.find((f) => f.key === "kind");
+    // `WIDGET_SCHEMAS` jest indeksowany napisem, więc TypeScript nie wie, że
+    // klucz `chart` istnieje - a brak schematu wykresu jest sam w sobie
+    // defektem, więc asertujemy go, zamiast zamiatać `?.`.
+    const schemat = WIDGET_SCHEMAS.chart;
+    expect(schemat, "brak schematu widgetu wykresu").toBeTruthy();
+    const pole = (schemat ?? []).find((f) => f.key === "kind");
     expect(pole, "schemat wykresu musi mieć pole kind").toBeTruthy();
     const wartosci = (pole?.options ?? []).map((o) => o.value);
     for (const kind of CHART_KINDS) {
