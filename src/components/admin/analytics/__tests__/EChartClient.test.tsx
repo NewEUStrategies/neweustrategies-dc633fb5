@@ -454,7 +454,14 @@ describe("opcja podana silnikowi wykresów", () => {
     expect(tooltip.borderColor).toBe(motyw.tipBorder);
     expect(tooltip.textStyle?.color).toBe(motyw.tipInk);
     expect(legend.textStyle?.color).toBe(motyw.muted);
-    expect(xAxis.axisLine?.lineStyle?.color).toBe(motyw.border);
+    // TOKEN OSI, NIE OBRAMOWANIA. Ta asercja mówiła `motyw.border` i mimo to
+    // przechodziła - bo zapasowe wartości obu tokenów są identyczne
+    // (`#d9dbd4`), a happy-dom nie ma silnika styli, więc migawka zawsze
+    // schodzi do zapasowych. Na ekranie te tokeny są RÓŻNE: `--border` to
+    // `oklch(0.9 0.005 80)`, a `--chart-axis` to `#d9dbd4` - czyli oś jest
+    // wyraźnie mocniejsza od obramowania interfejsu. Test, który nazywa nie
+    // ten token, nie zauważyłby podmiany jednego na drugi.
+    expect(xAxis.axisLine?.lineStyle?.color).toBe(motyw.axis);
     expect(xAxis.axisLabel?.color).toBe(motyw.muted);
     // Treść od panelu przeżywa złączenie w obie strony.
     expect(legend.data).toEqual(["a"]);

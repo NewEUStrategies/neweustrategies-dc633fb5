@@ -248,8 +248,19 @@ let refreshScheduled = false;
  * pole pominięte znaczy, że jego zmiana nie rozgłosi się do wykresów i panel
  * zostanie z poprzednim kolorem po zmianie motywu. Dlatego zamiast listy
  * warunków iterujemy po kluczach: nowe pole jest objęte automatycznie.
+ *
+ * WYEKSPORTOWANE ŚWIADOMIE, choć aplikacja woła to tylko z `adoptTheme`. Dwie
+ * osłony długości (liczba kluczy, długość tablicy palety) są z produkcyjnej
+ * ścieżki NIEOSIĄGALNE, bo obie migawki pochodzą z `resolveChartTheme`, a ten
+ * zawsze buduje ten sam kształt i paletę o stałej długości
+ * `CATEGORICAL_SAFE_MAX`. Nieosiągalne nie znaczy zbędne: dokładnie te dwie
+ * osłony trzymają niezmiennik z akapitu powyżej, gdy `ResolvedTheme` dostanie
+ * kolejne pole albo paleta przestanie być stałej długości. Alternatywy były
+ * dwie i obie gorsze - usunąć osłony (wtedy migawka z brakującym polem
+ * uchodzi za równą i panel zostaje ze starym kolorem) albo zostawić je
+ * niepokryte (wtedy nikt nigdy nie sprawdził, czy w ogóle działają).
  */
-function sameTheme(a: ResolvedTheme, b: ResolvedTheme): boolean {
+export function sameTheme(a: ResolvedTheme, b: ResolvedTheme): boolean {
   const keys = Object.keys(a) as Array<keyof ResolvedTheme>;
   if (keys.length !== Object.keys(b).length) return false;
   for (const key of keys) {
@@ -371,7 +382,15 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       // Nazwy serii w WARIANCIE TEKSTOWYM - legenda to tekst, więc obowiązuje
       // ją próg 4,5:1, a nie 3,0:1 jak linię. Kolory próbek ECharts bierze
       // z `color`, więc próbka nadal jest w kolorze serii.
-      textStyle: { color: theme.foreground, fontSize: 11, textBorderWidth: 0 },
+      //
+      // TRZECI TUSZ, NIE PIERWSZY. Legenda i etykiety osi to obudowa wykresu:
+      // mają dać się przeczytać, kiedy czytelnik ich szuka, i zniknąć, kiedy
+      // patrzy na dane. Pierwszy tusz (18,15:1 na płycie) krzyczy w każdym
+      // z tych dwóch przypadków tak samo mocno jak liczby serii. Trzeci tusz
+      // (`--muted-foreground`) daje 5,11:1 w najgorszym przypadku na ekranie
+      // i 4,72:1 na wartości wydruku - czyli nadal PONAD progiem tekstu,
+      // a wizualnie o klasę niżej niż dane.
+      textStyle: { color: theme.muted, fontSize: 11, textBorderWidth: 0 },
       icon: "roundRect",
       itemWidth: 10,
       itemHeight: 6,
@@ -428,7 +447,9 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       // czytelny podzbiór zamiast zlepków dat. `overflow: "truncate"` pilnuje
       // długich kategorii (ścieżki URL, nazwy krajów).
       axisLabel: {
-        color: theme.foreground,
+        // Trzeci tusz - patrz uzasadnienie przy `legend`. Wartość podziałki
+        // jest ODNIESIENIEM dla danych, nie danymi.
+        color: theme.muted,
         fontSize: 11,
         textBorderWidth: 0,
         hideOverlap: true,
@@ -437,6 +458,12 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       },
       // Nazwa osi (np. „Kliknięcia") - bez koloru bierze domyślny ECharts,
       // który w trybie ciemnym jest za ciemny; jedzie tokenem tekstu osi.
+      //
+      // TU ZOSTAJE PIERWSZY TUSZ, choć etykiety podziałki zeszły na trzeci.
+      // Nazwa osi mówi, CO jest mierzone, i pada raz na wykres; podziałka
+      // mówi ILE i pada kilkanaście razy. Zgaszenie nazwy razem z podziałką
+      // zabrałoby jednostkę - a to jedyna informacja, bez której liczby na
+      // osi nie znaczą nic.
       nameTextStyle: { color: theme.foreground, fontSize: 10, textBorderWidth: 0 },
     },
     yAxis: {
@@ -449,7 +476,8 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
         lineStyle: { color: theme.grid, type: GUIDE_DASH },
       },
       axisLabel: {
-        color: theme.foreground,
+        // Trzeci tusz, tak samo jak na osi poziomej.
+        color: theme.muted,
         fontSize: 11,
         hideOverlap: true,
         textBorderWidth: 0,

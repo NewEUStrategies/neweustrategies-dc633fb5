@@ -402,13 +402,23 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     expect((baseOption(THEME) as Record<string, unknown>).backgroundColor).toBe("transparent");
   });
 
-  it("legenda używa jasnego tekstu bez obrysu", async () => {
+  it("legenda używa TRZECIEGO tuszu bez obrysu", async () => {
+    // ZMIANA WZGLĘDEM POPRZEDNIEJ WERSJI I POWÓD, DLA KTÓREGO NIE JEST TO
+    // ROZLUŹNIENIE ASERCJI. Ten plik pinował `THEME.foreground`, a
+    // `EChartClient.test.tsx` w tym samym katalogu pinował `motyw.muted` na
+    // tym samym polu - dwa testy tej samej wartości mówiły dwie różne rzeczy
+    // i zestaw był czerwony niezależnie od tego, co zrobił kod. Rozstrzyga
+    // tabela neutralnych ze specyfikacji: wiersz „tekst trzeci, etykiety osi"
+    // to `#6B7482` w jasnym i `#9A9490` w ciemnym, czyli `--muted-foreground`,
+    // nie `--foreground`. Trzeci tusz nadal przechodzi próg tekstu 4,5:1
+    // (5,11:1 najgorszy przypadek na ekranie, 4,72:1 na wartości wydruku),
+    // więc obniżenie jest hierarchiczne, nie dostępnościowe.
     const { baseOption } = await loadChartTheme();
     const legend = (baseOption(THEME) as Record<string, unknown>).legend as {
       textStyle: { color: string; textBorderWidth: number };
     };
 
-    expect(legend.textStyle.color).toBe(THEME.foreground);
+    expect(legend.textStyle.color).toBe(THEME.muted);
     expect(legend.textStyle.textBorderWidth).toBe(0);
   });
 
@@ -454,18 +464,20 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     expect(tooltip.backgroundColor).toBe(THEME.tipBg);
   });
 
-  it("obie osie: linie i podziałka w kolorze ramki, etykiety jasne bez obrysu", async () => {
+  it("obie osie: linie i podziałka tokenem osi, etykiety w trzecim tuszu bez obrysu", async () => {
     const { baseOption } = await loadChartTheme();
     const option = baseOption(THEME) as Record<string, unknown>;
     const xAxis = option.xAxis as {
       axisLine: { lineStyle: { color: string } };
       axisTick: { lineStyle: { color: string } };
       axisLabel: { color: string; textBorderWidth: number };
+      nameTextStyle: { color: string };
       splitLine: { show: boolean };
     };
     const yAxis = option.yAxis as {
       splitLine: { lineStyle: { color: string; type: string } };
       axisLabel: { color: string; textBorderWidth: number };
+      nameTextStyle: { color: string };
       axisLine: { show: boolean };
     };
 
@@ -475,11 +487,16 @@ describe("baseOption - przewleczenie motywu do opcji ECharts", () => {
     // się wyróżniać.
     expect(xAxis.axisLine.lineStyle.color).toBe(THEME.axis);
     expect(xAxis.axisTick.lineStyle.color).toBe(THEME.axis);
-    expect(xAxis.axisLabel.color).toBe(THEME.foreground);
+    // Podziałka to trzeci tusz - jest ODNIESIENIEM dla danych, nie danymi.
+    expect(xAxis.axisLabel.color).toBe(THEME.muted);
     expect(xAxis.axisLabel.textBorderWidth).toBe(0);
     expect(yAxis.splitLine.lineStyle.color).toBe(THEME.grid);
-    expect(yAxis.axisLabel.color).toBe(THEME.foreground);
+    expect(yAxis.axisLabel.color).toBe(THEME.muted);
     expect(yAxis.axisLabel.textBorderWidth).toBe(0);
+    // NAZWA osi zostaje na pierwszym tuszu: pada raz i nosi jednostkę, bez
+    // której liczby na podziałce nie znaczą nic.
+    expect(xAxis.nameTextStyle.color).toBe(THEME.foreground);
+    expect(yAxis.nameTextStyle.color).toBe(THEME.foreground);
     // Siatkę rysuje TYLKO oś Y - pionowe linie na osi czasu to szum.
     expect(xAxis.splitLine.show).toBe(false);
     expect(yAxis.axisLine.show).toBe(false);
@@ -771,7 +788,7 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
 
     expect(yAxis.type).toBe("value");
     expect(yAxis.max).toBe(100);
-    expect(yAxis.axisLabel?.color).toBe(THEME.foreground);
+    expect(yAxis.axisLabel?.color).toBe(THEME.muted);
     expect(yAxis.splitLine?.lineStyle?.color).toBe(THEME.grid);
     expect(yAxis.splitLine?.lineStyle?.type).toEqual([2, 4]);
     expect(yAxis.axisLine?.show).toBe(false);
@@ -789,7 +806,7 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     const axisLabel = (merged.yAxis as OsBazy).axisLabel;
 
     expect(axisLabel?.fontSize).toBe(10);
-    expect(axisLabel?.color).toBe(THEME.foreground);
+    expect(axisLabel?.color).toBe(THEME.muted);
     // Funkcja przechodzi TĄ SAMĄ referencją - złączenie nie klonuje formatterów.
     expect(axisLabel?.formatter).toBe(formatter);
   });
@@ -813,12 +830,12 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
     expect(tooltip.extraCssText).toContain("border-radius");
   });
 
-  it("`legend` panelu z samym `top` zachowuje jasny kolor tekstu legendy", async () => {
+  it("`legend` panelu z samym `top` zachowuje trzeci tusz legendy", async () => {
     const merged = await zloz({ legend: { top: 40 }, series: [] });
     const legend = merged.legend as { top?: number; textStyle?: { color?: string } };
 
     expect(legend.top).toBe(40);
-    expect(legend.textStyle?.color).toBe(THEME.foreground);
+    expect(legend.textStyle?.color).toBe(THEME.muted);
   });
 
   it("TABLICA osi panelu dostaje bazę do KAŻDEGO elementu - wykres o trzech osiach też jest umotywowany", async () => {
@@ -838,7 +855,7 @@ describe("mergeChartOption - głębokie złączenie opcji panelu z bazą motywu"
 
     expect(axes).toHaveLength(3);
     for (const axis of axes) {
-      expect(axis.axisLabel?.color).toBe(THEME.foreground);
+      expect(axis.axisLabel?.color).toBe(THEME.muted);
       expect(axis.splitLine?.lineStyle?.color).toBe(THEME.grid);
     }
     expect(axes[1]?.name).toBe("wyświetlenia");
@@ -1122,5 +1139,70 @@ describe("useChartTheme - kontrakt hooka dla paneli", () => {
     await settle();
 
     expect(szpieg).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OSŁONY DŁUGOŚCI W `sameTheme` - JEDYNE MIEJSCE, W KTÓRYM NIEZMIENNIK MIGAWKI
+// DA SIĘ SPRAWDZIĆ.
+//
+// `sameTheme` decyduje o TOŻSAMOŚCI migawki, a od tożsamości - nie od treści -
+// zależy, czy React przerenderuje wykresy panelu. Dwie osłony długości (liczba
+// kluczy i długość palety) są z produkcyjnej ścieżki nieosiągalne, bo obie
+// migawki pochodzą z `resolveChartTheme`, a ten zawsze buduje ten sam kształt.
+// Sprawdzamy je mimo to, bo chronią dokładnie ten przypadek, w którym
+// `ResolvedTheme` dostanie kolejne pole: gdyby porównanie wtedy nie zauważyło
+// różnicy, panel po zmianie motywu zostałby ze STARYM kolorem, a żaden inny
+// test tego nie widzi - kolory w migawce byłyby nowe, tylko referencja stara.
+describe("sameTheme - osłony kształtu migawki", () => {
+  const BAZA: ResolvedTheme = {
+    dark: false,
+    palette: ["#a10001", "#a10002", "#a10003", "#a10004", "#a10005", "#a10006"],
+    paletteText: ["#a20001", "#a20002", "#a20003", "#a20004", "#a20005", "#a20006"],
+    grid: "#f10001",
+    axis: "#f20001",
+    font: '"Red Hat Display", system-ui, sans-serif',
+    positive: "#f30001",
+    negative: "#f40001",
+    tipBg: "#f50001",
+    tipBorder: "#f60001",
+    tipInk: "#f70001",
+    muted: "#b10001",
+    border: "#c10001",
+    foreground: "#d10001",
+    background: "#e10001",
+    primary: "#f10001",
+    success: "#16a34a",
+    warning: "#f59e0b",
+    danger: "#dc2626",
+  };
+
+  it("ta sama treść w dwóch obiektach jest RÓWNA - inaczej każdy odczyt renderowałby panel", async () => {
+    const { sameTheme } = await loadChartTheme();
+    expect(sameTheme(BAZA, { ...BAZA, palette: [...BAZA.palette] })).toBe(true);
+  });
+
+  it("migawka z BRAKUJĄCYM polem nie uchodzi za równą", async () => {
+    const { sameTheme } = await loadChartTheme();
+    // Kształt łamany celowo, bo cała wartość tej osłony polega na tym, że
+    // wyłapuje kształt, którego typ nie dopuszcza. Rzutowanie jest tu
+    // ASERCJĄ TESTU, nie obejściem typu w kodzie produkcyjnym.
+    const { danger: _pominiete, ...bezJednego } = BAZA;
+    expect(sameTheme(BAZA, bezJednego as ResolvedTheme)).toBe(false);
+    // I w drugą stronę: krótsza migawka po lewej też jest różna. Bez tego
+    // przejścia iteracja po kluczach `a` przepuściłaby nadmiarowe pole w `b`.
+    expect(sameTheme(bezJednego as ResolvedTheme, BAZA)).toBe(false);
+  });
+
+  it("paleta o innej DŁUGOŚCI nie uchodzi za równą, choćby wspólny prefiks był identyczny", async () => {
+    const { sameTheme } = await loadChartTheme();
+    const krotsza = { ...BAZA, palette: BAZA.palette.slice(0, 4) };
+    expect(sameTheme(BAZA, krotsza)).toBe(false);
+    expect(sameTheme(krotsza, BAZA)).toBe(false);
+    // Kontrola pozytywna dla tej samej ścieżki: różnica NA POZYCJI, przy
+    // zgodnej długości, też musi być zauważona - inaczej osłona długości
+    // maskowałaby brak porównania elementów.
+    const inny = { ...BAZA, palette: [...BAZA.palette.slice(0, 5), "#000000"] };
+    expect(sameTheme(BAZA, inny)).toBe(false);
   });
 });
