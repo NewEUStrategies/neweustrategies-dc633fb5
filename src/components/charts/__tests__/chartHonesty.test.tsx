@@ -495,6 +495,76 @@ describe("CartesianChart - mostek (waterfall)", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Wzrost");
     expect(text).toContain("Spadek");
+    // Trzeciego klucza NIE MA, bo w tych danych nie ma zerowego składnika.
+    // Klucz bezwarunkowy obiecywałby kategorię nieobecną na rysunku.
+    expect(text).not.toContain("Bez zmiany");
+  });
+
+  // SKŁADNIK O WKŁADZIE DOKŁADNIE ZEROWYM - trzeci kierunek, który model
+  // zwracał od początku (`direction: "flat"`), a render go nie znał.
+  //
+  // CO BYŁO. Wszystkie trzy miejsca pytały wyłącznie `=== "down"`, więc
+  // zerowy wkład wpadał do gałęzi "nie down": malował się kolorem DODATNIM
+  // i podpisywał w dymku "Wzrost". Wykres, który koduje znak kolorem,
+  // twierdził o wzroście, którego nie było, a mostek dekompozycji marży
+  // gubił przy tym osobną informację - pozycję, która się nie ruszyła.
+  //
+  // CZEMU TRZECI TUSZ, A NIE TOKEN OSI. Wkład zerowy nie ma znaku, więc nie
+  // może dostać koloru znaku; ale jest ZNACZNIKIEM DANYCH, więc obowiązuje go
+  // próg obiektu graficznego 3,0:1. Token osi ma do płyty 1,40:1 i kreska
+  // byłaby praktycznie niewidoczna; `--muted-foreground` daje 5,11:1
+  // w najgorszym przypadku.
+  describe("składnik o wkładzie zerowym", () => {
+    const Z_ZEREM: Record<string, Json> = {
+      kind: "waterfall",
+      categories: ["EBITDA 2024", "Cena", "Kurs walutowy", "Koszty", "EBITDA 2025"],
+      series: [{ name: "Mostek", values: [100, 20, 0, -20, 100] }],
+      unit: " mln",
+      animate: false,
+    };
+
+    it("nie dostaje koloru znaku - ani dodatniego, ani ujemnego", () => {
+      const { container } = render(<CartesianChart config={cfg(Z_ZEREM)} lang="pl" />);
+      const bars = all(container, "path.neh-bar");
+      expect(bars).toHaveLength(5);
+      expect(bars[2].getAttribute("fill")).toBe("var(--muted-foreground)");
+      expect(bars[1].getAttribute("fill")).toBe("var(--chart-positive)");
+      expect(bars[3].getAttribute("fill")).toBe("var(--chart-negative)");
+    });
+
+    it("w dymku NIE nazywa się wzrostem", () => {
+      const { container } = render(<CartesianChart config={cfg(Z_ZEREM)} lang="pl" />);
+      const hit = container.querySelector("rect.neh-hit");
+      if (!hit) throw new Error("brak warstwy trafień");
+      Object.defineProperty(hit, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({
+          x: 0,
+          y: 0,
+          left: 0,
+          top: 0,
+          right: 674,
+          bottom: 270,
+          width: 674,
+          height: 270,
+          toJSON: () => ({}),
+        }),
+      });
+      // Trzecia z pięciu kategorii, czyli środek pola trafień.
+      fireEvent.pointerMove(hit, { clientX: 674 * 0.5, clientY: 135 });
+      const dymek = container.querySelector(".neh-tooltip")?.textContent ?? "";
+      expect(dymek).toContain("Bez zmiany");
+      expect(dymek).not.toContain("Wzrost");
+    });
+
+    it("legenda dopisuje trzeci klucz TYLKO wtedy, gdy taki składnik istnieje", () => {
+      const { container } = render(<Chart config={cfg(Z_ZEREM)} lang="pl" />);
+      const text = container.textContent ?? "";
+      expect(text).toContain("Bez zmiany");
+      // Dwa pozostałe klucze zostają - zerowy składnik nie zastępuje znaku.
+      expect(text).toContain("Wzrost");
+      expect(text).toContain("Spadek");
+    });
   });
 
   it("tabela mostka niesie POZIOM PO KROKU - liczbę, której wykres nie pokazuje", () => {

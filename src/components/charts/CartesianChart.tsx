@@ -504,6 +504,12 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         ? waterfall.steps
             .filter((s) => s.index === active)
             .map((s) => ({
+              // TRZY KIERUNKI, NIE DWA. Model zwraca `flat` dla wkładu
+              // dokładnie zerowego, a ta gałąź sprawdzała wyłącznie `down`,
+              // więc składnik, który nic nie zmienił, dostawał w dymku
+              // podpis "Wzrost". To nie jest nieporadność nazewnicza, to
+              // nieprawda o danych: w mostku dekompozycji pozycja, która się
+              // nie ruszyła, jest osobną informacją.
               name:
                 s.kind === "start"
                   ? t("waterfall.start")
@@ -511,7 +517,9 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                     ? t("waterfall.end")
                     : s.direction === "down"
                       ? t("waterfall.decrease")
-                      : t("waterfall.increase"),
+                      : s.direction === "flat"
+                        ? t("waterfall.flat")
+                        : t("waterfall.increase"),
               colorSlot: null,
               value: formatChartValue(s.value, lang, config.unit),
             }))
@@ -919,11 +927,22 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 const a = value(step.from);
                 const b = value(step.to);
                 const center = catCenter(step.index);
+                // WKŁAD ZEROWY NIE MA ZNAKU, więc nie może dostać koloru
+                // znaku. Wcześniej wpadał do gałęzi "nie down", czyli malował
+                // się kolorem dodatnim - a wykres, który koduje znak kolorem,
+                // twierdził wtedy o wzroście, którego nie było. Trzeci tusz
+                // (`--muted-foreground`, 5,11:1 w najgorszym przypadku) czyta
+                // się jako kreska odniesienia, a nie jako wartość, i mimo to
+                // przechodzi próg obiektu graficznego 3,0:1 - czego nie
+                // przechodzi token osi (1,40:1), przez co znacznik zerowego
+                // wkładu byłby na płycie praktycznie niewidoczny.
                 const fill =
                   step.kind === "step"
                     ? step.direction === "down"
                       ? "var(--chart-negative)"
-                      : "var(--chart-positive)"
+                      : step.direction === "flat"
+                        ? "var(--muted-foreground)"
+                        : "var(--chart-positive)"
                     : "var(--chart-1)";
                 const x = center - barW / 2;
                 const y0 = Math.min(a, b);

@@ -51,7 +51,7 @@ export function Chart({ config, lang, className }: ChartProps) {
     if (isWaterfall) {
       // Mostek nie ma serii - ma ZNAK. Klucz mówi więc o kierunku, i to jest
       // jedyna legenda, jaka ma tu sens; nazwy kroków niesie oś kategorii.
-      return [
+      const klucze: LegendItem[] = [
         {
           key: "increase",
           name: t("waterfall.increase"),
@@ -67,6 +67,25 @@ export function Chart({ config, lang, className }: ChartProps) {
           shape: "rect" as const,
         },
       ];
+      // TRZECI KLUCZ TYLKO WTEDY, GDY JEST CO NIM OZNACZYĆ. Składnik o wkładzie
+      // dokładnie zerowym ma na rysunku własny kolor (trzeci tusz, bo wkład
+      // zerowy nie ma znaku), więc bez wpisu w kluczu czytelnik widziałby na
+      // mostku kolor, którego legenda nie zna. Wpis BEZWARUNKOWY byłby
+      // odwrotnym błędem: obiecywałby kategorię, której w tych danych nie ma -
+      // a większość mostków nie ma ani jednego zerowego składnika.
+      const maZerowy = waterfallModel(config.categories, config.series[0]?.values ?? []).steps.some(
+        (s) => s.kind === "step" && s.direction === "flat",
+      );
+      if (maZerowy) {
+        klucze.push({
+          key: "flat",
+          name: t("waterfall.flat"),
+          color: "var(--muted-foreground)",
+          textColor: "var(--muted-foreground)",
+          shape: "rect" as const,
+        });
+      }
+      return klucze;
     }
     // TARCZA NIE MA LEGENDY Z PRÓBKAMI, i to jest zmiana wobec wcześniejszej
     // wersji. Klucz tarczy niesie teraz TABELA obok pierścienia

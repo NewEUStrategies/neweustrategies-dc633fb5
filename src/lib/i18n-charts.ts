@@ -71,6 +71,13 @@ const pl = {
       total: "Suma zmian",
       increase: "Wzrost",
       decrease: "Spadek",
+      // TRZECI KIERUNEK, nie ozdoba. Model mostka zwraca `direction: "flat"`
+      // dla składnika o wkładzie DOKŁADNIE zerowym, a render nazywał go
+      // wzrostem (bo sprawdzał tylko `=== "down"`). Składnik, który nic nie
+      // zmienił, nie jest wzrostem o zero - jest brakiem zmiany, i w mostku
+      // dekompozycji zmiany marży to jest osobna informacja: pozycja, która
+      // się nie ruszyła, tłumaczy, czego NIE trzeba szukać.
+      flat: "Bez zmiany",
       // Mostek, którego składniki nie sumują się do różnicy, jest BŁĘDEM -
       // dlatego suma kontrolna jest liczona programowo i wypisywana wprost.
       checksumOk: "Suma kontrolna zgodna",
@@ -166,6 +173,7 @@ const en = {
       total: "Net change",
       increase: "Increase",
       decrease: "Decrease",
+      flat: "No change",
       checksumOk: "Checksum matches",
       checksumFailed:
         "The components ({{sum}}) do not add up to the change between states ({{delta}}) - the bridge is incomplete.",
