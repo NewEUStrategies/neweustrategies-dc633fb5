@@ -58,8 +58,17 @@ export interface WaterfallModel {
 /**
  * Tolerancja sumy kontrolnej. Względna, nie bezwzględna: mostek w milionach
  * euro i mostek w punktach procentowych nie mogą dzielić jednego progu.
- * 0,5% skali różnicy albo 1e-9 dla różnicy zerowej - poniżej tego mówimy
+ * 0,5% skali RÓŻNICY albo 1e-9 dla różnicy zerowej - poniżej tego mówimy
  * o błędzie zaokrąglenia w arkuszu autora, nie o brakującym składniku.
+ *
+ * SKALĄ JEST ZMIANA, NIE POZIOM, i to jest cała treść tego progu. Poziom
+ * końcowy wpuszczony do skali oślepia sumę kontrolną dokładnie tam, gdzie jest
+ * najbardziej potrzebna: przy dwóch dużych, bliskich sobie stanach. Mostek od
+ * 1 000 000 do 1 001 000 ze składnikami sumującymi się do ZERA ma lukę 1000,
+ * czyli nierozliczoną CAŁĄ zmianę - a przy tolerancji liczonej z poziomu
+ * (5005) wychodził jako domknięty i wykres tłumił ostrzeżenie. Procent
+ * z poziomu nie mówi nic o dekompozycji zmiany; mówi tylko, jak duże są
+ * liczby po obu stronach.
  */
 export const CHECKSUM_TOLERANCE_RATIO = 0.005;
 
@@ -139,7 +148,7 @@ export function waterfallModel(
     });
     const stateDelta = end - start;
     const gap = Math.abs(componentSum - stateDelta);
-    const scale = Math.max(Math.abs(stateDelta), Math.abs(componentSum), Math.abs(end));
+    const scale = Math.max(Math.abs(stateDelta), Math.abs(componentSum));
     const tolerance = Math.max(scale * CHECKSUM_TOLERANCE_RATIO, 1e-9);
     // SUMA KONTROLNA WYMAGA OBU STANÓW. Bez tego warunku mostek zbudowany
     // z serii, która nie ma ani jednej liczby (kategorie z arkusza, wartości

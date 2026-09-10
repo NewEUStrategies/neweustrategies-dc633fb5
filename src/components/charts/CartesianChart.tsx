@@ -35,7 +35,7 @@
 // z wartościami WSZYSTKICH serii; słupki mają hit-target = cała kolumna
 // kategorii. Klawiatura: strzałki przesuwają aktywną kategorię, Escape czyści.
 // SSR: pełny, statyczny SVG w HTML (interakcja dogrywa się po hydracji).
-import { useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { Fragment, useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
@@ -473,6 +473,16 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
 
   const historyClip = `neh-hist-${uid}`;
   const forecastClip = `neh-fc-${uid}`;
+  const hatchId = `neh-hatch-${uid}`;
+  // Czy KTÓRAKOLWIEK seria słupkowa potrzebuje kreskowania. Legenda znaczy
+  // sloty poza zestawem bezpiecznym dla daltonizmu (7-8) próbką w paski, bo ich
+  // odcień jest od slotów 1-2 oddalony o ~10-12 jednostek CIELAB po symulacji -
+  // za mało, żeby sam kolor je odróżnił. Linia dostaje na to `neh-line-pattern`
+  // z arkusza, ale słupka nie da się zakreskować `stroke-dasharray`: różnicę
+  // niesie jego WYPEŁNIENIE. Bez tego wzoru legenda pokazywała podział, którego
+  // w rysunku nie ma - a klucz obiecujący różnicę nieobecną w danych jest
+  // gorszy od klucza bez niej.
+  const barsNeedHatch = !isLine && !waterfall && series.some(needsPattern);
   // Maski sięgają poza obszar kreślenia w pionie (kreska ma grubość, a jej
   // koniec zaokrąglenie) i o kilka pikseli w poziomie na krańcach rysunku,
   // gdzie pierwszy i ostatni punkt linii leżą DOKŁADNIE na krawędzi.
@@ -496,6 +506,19 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         onBlur={() => setActiveIndex(null)}
       >
         <svg width={width} height={height} className="block overflow-visible">
+          {/* Wzór kreskowania słupków. Paski w kolorze PŁYTY, nie serii, więc
+              jedna definicja obsługuje każdy slot: nakładka odsłania płytę
+              w przerwach, dając ten sam efekt, co próbka legendy
+              (`repeating-linear-gradient`). Rytm 5/3 px jest wzięty z tej
+              próbki, żeby klucz i znacznik miały ten sam wzór. */}
+          {barsNeedHatch && (
+            <defs>
+              <pattern id={hatchId} width="8" height="8" patternUnits="userSpaceOnUse">
+                <rect x="5" y="0" width="3" height="8" fill="var(--card)" />
+              </pattern>
+            </defs>
+          )}
+
           {/* Maski podziału historia/prognoza. Istnieją tylko wtedy, gdy
               granica istnieje - pusty `<defs>` na każdym wykresie bez
               prognozy byłby czystym kosztem. */}
@@ -903,49 +926,55 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                         ? -barW / 2
                         : -((series.length * slotW) / 2) + si * slotW + (slotW - barW) / 2;
                       const negative = v < 0;
-                      if (horizontal) {
-                        const y = center + offset;
-                        const x0 = Math.min(a, b);
-                        const w = Math.abs(b - a);
-                        return (
-                          <path
-                            key={i}
-                            d={barPath(
-                              x0,
-                              y,
-                              Math.max(w, 0.5),
-                              barW,
-                              isDataEnd ? barRadius : 0,
-                              negative ? "left" : "right",
-                            )}
-                            fill={seriesColor(s)}
-                            stroke="var(--card)"
-                            strokeWidth={stacked ? BAR_GAP / 2 : 0}
-                            className={`neh-bar-h neh-bar${negative ? " neh-bar-negative" : ""}`}
-                            style={{ ["--neh-i" as string]: i }}
-                          />
-                        );
-                      }
-                      const x = center + offset;
-                      const y0 = Math.min(a, b);
-                      const h = Math.abs(b - a);
-                      return (
-                        <path
-                          key={i}
-                          d={barPath(
-                            x,
-                            y0,
+                      const hatched = needsPattern(s);
+                      const barCls = (base: string): string =>
+                        `${base}${negative ? " neh-bar-negative" : ""}`;
+                      const shape = horizontal
+                        ? barPath(
+                            Math.min(a, b),
+                            center + offset,
+                            Math.max(Math.abs(b - a), 0.5),
                             barW,
-                            Math.max(h, 0.5),
                             isDataEnd ? barRadius : 0,
+                            negative ? "left" : "right",
+                          )
+                        : barPath(
+                            center + offset,
+                            Math.min(a, b),
+                            barW,
+                            Math.max(Math.abs(b - a), 0.5),
+                            isDataEnd ? barRadius : 0,
+                            // Zaokrąglony jest koniec Z DANYMI, więc dla słupka
+                            // ujemnego jest nim dół, nie góra.
                             negative ? "bottom" : "top",
-                          )}
+                          );
+                      const cls = barCls(horizontal ? "neh-bar-h neh-bar" : "neh-bar");
+                      const bar = (
+                        <path
+                          d={shape}
                           fill={seriesColor(s)}
                           stroke="var(--card)"
                           strokeWidth={stacked ? BAR_GAP / 2 : 0}
-                          className={`neh-bar${negative ? " neh-bar-negative" : ""}`}
+                          className={cls}
                           style={{ ["--neh-i" as string]: i }}
                         />
+                      );
+                      if (!hatched) return <Fragment key={i}>{bar}</Fragment>;
+                      // Nakładka wzoru na TYM SAMYM kształcie i z tą samą klasą
+                      // animacji: gdyby klasy nie miała, paski stałyby w miejscu,
+                      // podczas gdy słupek rośnie od linii bazowej, i wzór
+                      // odklejałby się od znacznika przez pół sekundy wejścia.
+                      return (
+                        <Fragment key={i}>
+                          {bar}
+                          <path
+                            d={shape}
+                            fill={`url(#${hatchId})`}
+                            className={cls}
+                            style={{ ["--neh-i" as string]: i }}
+                            pointerEvents="none"
+                          />
+                        </Fragment>
                       );
                     })}
                     {/* Etykiety na szczycie kolumn - tylko pojedyncza seria,

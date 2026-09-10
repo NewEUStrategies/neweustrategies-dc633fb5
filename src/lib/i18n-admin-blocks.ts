@@ -50,7 +50,8 @@ const pl = {
         smoothing: "Wygładzenie linii",
         smoothingHint: "0 przy prawdziwych skokach albo w dokumencie technicznym",
         forecastFrom: "Prognoza od kategorii numer",
-        forecastFromHint: "Puste = cały szereg jest historią",
+        forecastFromHint:
+          "Puste = cały szereg jest historią. Numer 2 znaczy: prognoza od drugiej kategorii.",
         forecastBandPct: "Pasmo niepewności ±%",
         // ---- Wyjaśnienie wskaźnika ----
         metricLabel: "Wyjaśnienie wskaźnika (tooltip)",
@@ -767,7 +768,8 @@ const en: typeof pl = {
         smoothing: "Line smoothing",
         smoothingHint: "0 for real jumps or a technical document",
         forecastFrom: "Forecast from category number",
-        forecastFromHint: "Empty = the whole series is history",
+        forecastFromHint:
+          "Empty = the whole series is history. Number 2 means: forecast from the second category.",
         forecastBandPct: "Uncertainty band ±%",
         metricLabel: "Metric explanation (tooltip)",
         metricName: "Abbreviation (e.g. ROIC)",

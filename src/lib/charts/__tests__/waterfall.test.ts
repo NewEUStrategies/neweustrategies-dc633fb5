@@ -148,3 +148,61 @@ describe("waterfall - suma kontrolna MILCZY, gdy nie ma czego sprawdzać", () =>
     expect(model.checksumGap).toBeCloseTo(5, 6);
   });
 });
+
+describe("waterfall - tolerancja sumy kontrolnej mierzy ZMIANĘ, nie poziom", () => {
+  it("nierozliczona CAŁA zmiana przy dużych, bliskich stanach jest wykryta", () => {
+    // REGRESJA. Skala tolerancji obejmowała `Math.abs(end)`, więc mostek od
+    // 1 000 000 do 1 001 000 ze składnikami sumującymi się do ZERA dostawał
+    // tolerancję 5005 przy luce 1000 i wychodził jako DOMKNIĘTY - wykres tłumił
+    // ostrzeżenie o dekompozycji, która nie wyjaśnia ani jednej jednostki
+    // zmiany. Procent z poziomu nie mówi nic o dekompozycji zmiany; mówi tylko,
+    // jak duże są liczby po obu stronach. Suma kontrolna jest jedynym
+    // defektem w tym silniku sprawdzalnym arytmetycznie, więc oślepianie jej
+    // tam, gdzie jest najbardziej potrzebna, kosztuje najwięcej.
+    const model = waterfallModel(["Start", "Nic", "Koniec"], [1_000_000, 0, 1_001_000]);
+    expect(model.stateDelta).toBe(1000);
+    expect(model.componentSum).toBe(0);
+    expect(model.checksumGap).toBe(1000);
+    expect(model.checksumOk).toBe(false);
+  });
+
+  it("ta sama skala liczb DOMYKA się, gdy składnik naprawdę wyjaśnia zmianę", () => {
+    const model = waterfallModel(["Start", "Wzrost", "Koniec"], [1_000_000, 1_000, 1_001_000]);
+    expect(model.checksumGap).toBe(0);
+    expect(model.checksumOk).toBe(true);
+  });
+
+  it("zaokrąglenie w arkuszu autora nadal przechodzi - próg jest WZGLĘDNY", () => {
+    // 0,5% zmiany (1000) to 5 jednostek; rozbieżność 2 to zaokrąglenie,
+    // nie brakujący składnik.
+    const model = waterfallModel(["Start", "Wzrost", "Koniec"], [1_000_000, 998, 1_001_000]);
+    expect(model.checksumGap).toBe(2);
+    expect(model.checksumOk).toBe(true);
+  });
+});
+
+describe('waterfall - `from`/`to` są KRAWĘDZIAMI prostokąta, nie „przed/po"', () => {
+  it("dla kroku W DÓŁ poziomem wejściowym jest `to`, a nie `from`", () => {
+    // Ta asercja istnieje, żeby nikt nie „naprawił" prowadnicy mostka w błąd.
+    // Model normalizuje krawędzie przez min/max, więc dla składnika UJEMNEGO
+    // `from` to poziom PO kroku (niższy), a `to` to poziom PRZED nim. Rysunek
+    // zaczepia prowadnicę na poziomie wejściowym - czyli na `to` dla kroku
+    // w dół i na `from` dla kroku w górę - i to jest jedyny wybór, przy którym
+    // prowadnica dotyka końca POPRZEDNIEGO słupka. Ujednolicenie obu gałęzi
+    // na `from` odklejałoby ją od poprzednika i przyklejało do dna bieżącego.
+    const model = waterfallModel(["S", "W górę", "W dół", "K"], [100, 20, -5, 115]);
+    const wGore = model.steps.find((s) => s.label === "W górę");
+    const wDol = model.steps.find((s) => s.label === "W dół");
+
+    expect(wGore?.direction).toBe("up");
+    expect(wGore?.from).toBe(100); // poziom przed = wejściowy
+    expect(wGore?.to).toBe(120); // poziom po
+
+    expect(wDol?.direction).toBe("down");
+    expect(wDol?.to).toBe(120); // poziom PRZED = wejściowy, i jest to `to`
+    expect(wDol?.from).toBe(115); // poziom po
+
+    // Niezmiennik wprost: dolna krawędź nigdy nie jest wyższa od górnej.
+    for (const step of model.steps) expect(step.from).toBeLessThanOrEqual(step.to);
+  });
+});

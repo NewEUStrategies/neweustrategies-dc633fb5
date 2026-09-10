@@ -487,14 +487,29 @@ export function ChartBlock({ block, onChange }: Props) {
         </div>
         <p className="text-[10px] text-muted-foreground">{bt.editor("chart", "smoothingHint")}</p>
         <div className="grid grid-cols-2 gap-2">
+          {/* NUMER KATEGORII, NIE INDEKS - i dlatego to pole przelicza w obie
+              strony. Etykieta mówi redaktorowi „od kategorii numer", a ludzie
+              liczą kategorie od jednej: pierwsza to 1. Silnik trzyma tę samą
+              wartość jako INDEKS liczony od zera (`forecastFrom` wchodzi do
+              `i >= forecastFrom` i do `catCenter(forecastFrom)`), więc bez
+              przeliczenia redaktor wpisujący 2 dostawał prognozę od TRZECIEJ
+              kategorii - o jedną za daleko, cicho i na każdym wykresie.
+              Zamiana strony zapisu na liczenie od jednej byłaby gorsza:
+              przeniosłaby korektę o jeden do silnika, czyli do kodu, który
+              indeksuje tablice. */}
           <input
             className={inputCls}
             inputMode="numeric"
-            value={block.data.forecastFrom == null ? "" : String(block.data.forecastFrom)}
+            value={
+              typeof block.data.forecastFrom === "number" ? String(block.data.forecastFrom + 1) : ""
+            }
             placeholder={bt.editor("chart", "forecastFrom")}
             onChange={(e) => {
               const raw = e.target.value.trim();
-              patch({ forecastFrom: raw === "" ? null : Number(raw) });
+              const numer = Number(raw);
+              patch({
+                forecastFrom: raw === "" || !Number.isFinite(numer) ? null : Math.round(numer) - 1,
+              });
             }}
           />
           <input

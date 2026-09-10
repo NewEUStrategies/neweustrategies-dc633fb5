@@ -222,3 +222,53 @@ describe("skutek defektu jest UTRWALANY - dowód na zapisie", () => {
     expect(String(changes[0].data.caption)).toBe("[object Object]x");
   });
 });
+
+describe("wykres - NUMER kategorii wobec INDEKSU", () => {
+  // Etykieta pola mówi „Prognoza od kategorii numer", a ludzie liczą kategorie
+  // od jednej. Silnik trzyma tę samą wartość jako indeks liczony od zera
+  // (`forecastFrom` wchodzi do `i >= forecastFrom` i do
+  // `catCenter(forecastFrom)`). Bez przeliczenia w polu redaktor wpisujący 2
+  // dostawał prognozę od TRZECIEJ kategorii - cicho i na każdym wykresie.
+  const wykres = (data: Record<string, Json>): Block =>
+    block("chart", {
+      categories: ["2021", "2022", "2023", "2024"],
+      series: [{ name: "S", values: [1, 2, 3, 4], colorSlot: 1 }],
+      ...data,
+    });
+
+  const poleProgozy = (container: HTMLElement): HTMLInputElement => {
+    const pole = container.querySelector<HTMLInputElement>(
+      'input[placeholder="Prognoza od kategorii numer"]',
+    );
+    if (!pole) throw new Error("brak pola prognozy w edytorze wykresu");
+    return pole;
+  };
+
+  it("wpisany NUMER 3 zapisuje się jako indeks 2", () => {
+    const { container, changes } = renderEditor(ChartBlock, wykres({}));
+    fireEvent.change(poleProgozy(container), { target: { value: "3" } });
+    expect(changes.at(-1)?.data.forecastFrom).toBe(2);
+  });
+
+  it("zapisany indeks 2 wyświetla się jako NUMER 3 - przeliczenie działa w OBIE strony", () => {
+    // Jednostronne przeliczenie byłoby gorsze od żadnego: pole pokazywałoby
+    // inną kategorię niż ta, od której wykres rysuje prognozę.
+    const { container } = renderEditor(ChartBlock, wykres({ forecastFrom: 2 }));
+    expect(poleProgozy(container).value).toBe("3");
+  });
+
+  it("puste pole znaczy BRAK prognozy, a nie kategorię zerową", () => {
+    const { container, changes } = renderEditor(ChartBlock, wykres({ forecastFrom: 2 }));
+    fireEvent.change(poleProgozy(container), { target: { value: "" } });
+    expect(changes.at(-1)?.data.forecastFrom).toBeNull();
+  });
+
+  it("wejście nieliczbowe nie zapisuje NaN - pole wraca do braku", () => {
+    // `Number("abc")` to `NaN`, a `NaN` zapisany do treści bloku przechodzi
+    // przez JSON jako `null` i wraca jako cichy brak prognozy; lepiej zapisać
+    // brak wprost niż wartość, która nią zostanie po drodze.
+    const { container, changes } = renderEditor(ChartBlock, wykres({}));
+    fireEvent.change(poleProgozy(container), { target: { value: "od drugiej" } });
+    expect(changes.at(-1)?.data.forecastFrom).toBeNull();
+  });
+});

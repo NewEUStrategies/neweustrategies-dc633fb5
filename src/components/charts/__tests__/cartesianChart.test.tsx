@@ -287,9 +287,15 @@ describe("CartesianChart - kolumny pionowe", () => {
         lang="pl"
       />,
     );
-    // 8 x 40 ścieżek - żadna kategoria nie wypada, mimo że barW schodzi do 0.
-    expect(all(container, SEL.bar)).toHaveLength(320);
-    expect(d(all(container, SEL.bar)[0])).toContain("h0");
+    // 8 x 40 znaczników - żadna kategoria nie wypada, mimo że barW schodzi
+    // do 0. Sloty 7 i 8 dokładają do swoich znaczników nakładkę wzoru (drugi
+    // nośnik różnicy, bo ich odcień jest od slotów 1-2 oddalony o ~10-12
+    // jednostek CIELAB po symulacji), więc ścieżek jest 320 + 2 x 40.
+    const sciezki = all(container, SEL.bar);
+    expect(sciezki).toHaveLength(400);
+    const wypelnione = sciezki.filter((b) => (b.getAttribute("fill") ?? "").startsWith("var("));
+    expect(wypelnione).toHaveLength(320);
+    expect(d(wypelnione[0])).toContain("h0");
   });
 
   it("etykiety wartości dostaje TYLKO pojedyncza seria kolumn", () => {
@@ -1296,9 +1302,67 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
       series: Array.from({ length: 12 }, (_, i) => ({ name: `S${i}`, values: [i + 1] })),
     });
     const { container } = render(<CartesianChart config={config} lang="pl" />);
-    const fills = all(container, SEL.bar).map((b) => b.getAttribute("fill"));
+    // Nakładki wzoru (sloty 7-8) odsiane: pytamy o KOLORY serii, a wzór
+    // kolorem serii nie jest - jego paski są w kolorze płyty.
+    const fills = all(container, SEL.bar)
+      .map((b) => b.getAttribute("fill"))
+      .filter((f) => (f ?? "").startsWith("var("));
     // MAX_SERIES = 8: dziewiąta seria nie wraca na --chart-1, tylko nie istnieje.
     expect(fills).toEqual(Array.from({ length: 8 }, (_, i) => `var(--chart-${i + 1})`));
+  });
+
+  it("SŁUPEK w slocie poza zestawem bezpiecznym dostaje WZÓR, tak jak obiecuje legenda", () => {
+    // REGRESJA. Legenda znaczy sloty 7-8 próbką w paski, bo ich odcień jest od
+    // slotów 1-2 oddalony o ~10-12 jednostek CIELAB po symulacji daltonizmu -
+    // za mało, żeby sam kolor je odróżnił. Linia dostawała na to
+    // `neh-line-pattern` z arkusza, ale słupki zostawały JEDNOLITE: klucz
+    // pokazywał różnicę, której w rysunku nie było. Słupka nie da się
+    // zakreskować `stroke-dasharray` - różnicę niesie jego wypełnienie, więc
+    // wzór wchodzi nakładką na tym samym kształcie.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b"],
+          series: [
+            { name: "Bezpieczna", values: [3, 4], colorSlot: 1 },
+            { name: "Rozszerzenie", values: [5, 6], colorSlot: 7 },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const sciezki = all(container, SEL.bar);
+    const wzory = sciezki.filter((b) =>
+      (b.getAttribute("fill") ?? "").startsWith("url(#neh-hatch"),
+    );
+    // Po jednej nakładce na każdy znacznik serii ze slotu 7 - i ani jednej
+    // dla serii ze slotu 1, która różni się samym odcieniem wystarczająco.
+    expect(wzory).toHaveLength(2);
+    // Nakładka leży na TYM SAMYM kształcie, co znacznik: inny kształt znaczyłby
+    // wzór przesunięty względem słupka, czyli nowy defekt w miejscu naprawy.
+    const slupki7 = sciezki.filter((b) => b.getAttribute("fill") === "var(--chart-7)");
+    expect(slupki7).toHaveLength(2);
+    expect(wzory.map(d).sort()).toEqual(slupki7.map(d).sort());
+    // Definicja wzoru istnieje i jego paski są w kolorze PŁYTY, nie serii -
+    // dzięki temu jedna definicja obsługuje każdy slot.
+    const pattern = container.querySelector("pattern");
+    expect(pattern).not.toBeNull();
+    expect(pattern?.querySelector("rect")?.getAttribute("fill")).toBe("var(--card)");
+  });
+
+  it("wykres BEZ slotów rozszerzonych nie płaci za wzór ani jedną definicją", () => {
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a"],
+          series: [{ name: "S", values: [3], colorSlot: 2 }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(container.querySelector("pattern")).toBeNull();
   });
 
   it("slot spoza zakresu 1..8 spada na pozycję serii", () => {
