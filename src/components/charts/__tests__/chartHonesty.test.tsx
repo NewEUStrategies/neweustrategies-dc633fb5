@@ -22,9 +22,23 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
+import { freezeClock } from "@/test/time";
 import { parseChartConfig } from "@/lib/charts/parse";
 import { Chart } from "../Chart";
 import { CartesianChart } from "../CartesianChart";
+
+// ZAMROŻONY ZEGAR, bo ten plik niesie literał daty (`sourceDate`), a bramka
+// `check:clock-freeze` jest RATCHETEM: plik nieobecny na liście długu musi
+// mieć zero literałów albo zamrażać zegar, a lista może tylko maleć - dopisanie
+// się do niej jest dokładnie tym, czego bramka zabrania.
+//
+// Tutaj literał jest wejściem konwersji i etykietą: `sourceDate` jedzie
+// do podpisu i wychodzi z niego jako ten sam napis, bez porównania z „teraz".
+// Bramka nie ma jak tego odróżnić od okna liczonego z `Date.now()` i słusznie
+// nie zgaduje, więc zamrożenie jest tu zapłatą za jej niewiedzę, a nie
+// naprawą realnej bomby - ale kosztuje jedną linię i zdejmuje z pliku klasę
+// defektu „przejdzie dziś, padnie w dniu, w którym data wyjdzie z okna".
+freezeClock();
 
 const cfg = (data: Record<string, Json>) => parseChartConfig(data);
 const all = (root: HTMLElement, sel: string): Element[] => [...root.querySelectorAll(sel)];

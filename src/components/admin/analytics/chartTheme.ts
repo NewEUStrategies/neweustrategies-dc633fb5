@@ -321,6 +321,20 @@ export function scheduleChartThemeRefresh(): void {
 }
 
 /** Baseline option every chart merges over - dark-mode aware axes + tooltip. */
+/**
+ * Kreskowanie prowadnic i siatki: 2 px kreski, 4 px przerwy.
+ *
+ * ECharts przyjmuje tu tablicę liczb (własny `ZRLineType`), ale jej publiczny
+ * typ opcji dopuszcza w tym miejscu tylko napis - stąd wcześniej stało tu
+ * `[2, 4] as unknown as string`. Podwójne rzutowanie omija kontrolę typów tak
+ * samo jak `as any`, tylko nie zapala reguły lintera, i repozytorium pilnuje
+ * tego bramką `check:unknown-casts`. Stała opisana `readonly number[]` mówi
+ * prawdę o wartości, a `EChartsCoreOption` przyjmuje ją bez rzutowania, bo
+ * jego indeks jest luźny - czyli kontrakt z biblioteką nie jest niczym
+ * zasłonięty, tylko wyrażony tam, gdzie naprawdę obowiązuje.
+ */
+const GUIDE_DASH: readonly number[] = [2, 4];
+
 export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
   return {
     color: theme.palette,
@@ -405,7 +419,7 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
       // MOCNIEJSZE od siatki (1,40:1 wobec 1,18:1 do płyty), a siatka ma być
       // wyczuwalna, nie widoczna. Kreskowanie z tokena prowadnic.
       splitLine: {
-        lineStyle: { color: theme.grid, type: [2, 4] as unknown as string },
+        lineStyle: { color: theme.grid, type: GUIDE_DASH },
       },
       axisLabel: { color: theme.muted, fontSize: 11 },
     },

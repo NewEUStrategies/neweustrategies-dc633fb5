@@ -7,6 +7,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block, Json } from "@/lib/blocks/types";
+// `toJson` zamiast `as unknown as Json` w miejscu użycia: podwójne
+// rzutowanie omija kontrolę typów tak samo jak `as any`, tylko nie zapala
+// reguły lintera - dlatego repo trzyma ten escape-hatch w JEDNYM
+// audytowalnym miejscu, a bramka `check:unknown-casts` pilnuje, żeby nie
+// rozsypał się po komponentach.
+import { toJson } from "@/lib/content-model/json";
 import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { AdminSelect } from "../AdminSelect";
 import {
@@ -135,7 +141,7 @@ export function ChartBlock({ block, onChange }: Props) {
     caution: String(metricRaw.caution ?? ""),
   };
   const patchMetric = (next: Partial<typeof metric>) =>
-    patch({ metric: { ...metric, ...next } as unknown as Json });
+    patch({ metric: toJson({ ...metric, ...next }) });
 
   // ---- OSTRZEŻENIA DYSCYPLINY ----
   // Reguły doboru formy i palety, których kod NIE MOŻE wymusić, bo mają
