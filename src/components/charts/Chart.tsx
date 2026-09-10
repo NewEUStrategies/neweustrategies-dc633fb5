@@ -474,8 +474,14 @@ function ScatterDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = (key: string): string => scoped(key, { lng: lang });
   const tabela = scatterTable(scatterModelFromConfig(config));
-  const liczba = (v: number | null): string =>
-    v === null ? "-" : formatChartValue(v, lang, config.unit);
+  // JEDNOSTKA IDZIE TYLKO DO Y, i to jest ta sama reguła, którą stosuje dymek
+  // rysunku: konfiguracja ma JEDNO pole `unit` i opisuje nim wartości serii,
+  // a X pochodzi z etykiet albo z innej kolumny. Ta tabela dokleiła ją do obu
+  // kolumn, więc przy `unit: " %"` wypisywała w kolumnie X procenty przy
+  // liczbach, które procentami nie są. Zła jednostka jest gorsza niż jej brak:
+  // brak każe czytelnikowi sprawdzić w podpisie, zła każe mu uwierzyć.
+  const liczba = (v: number | null, unit: string): string =>
+    v === null ? "-" : formatChartValue(v, lang, unit);
   const przypis = (r: (typeof tabela.rows)[number]): string => {
     const noty = [
       r.dropped ? t("scatter.table.dropped") : null,
@@ -507,12 +513,15 @@ function ScatterDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
         <tbody>
           {tabela.rows.map((r, i) => (
             <tr key={i}>
+              {/* Myślnik zamiast pustego nagłówka wiersza: arkusz bez kolumny
+                  etykiet dawał czytnikowi ekranu wiersz o pustej nazwie, czyli
+                  komórkę, której nie da się zapowiedzieć. */}
               <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
-                {r.label}
+                {r.label === "" ? "-" : r.label}
               </th>
               <td className={CHART_TABLE_CLS.td}>{r.series}</td>
-              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.x)}</td>
-              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.y)}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.x, "")}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.y, config.unit)}</td>
               {maPrzypisy && <td className={CHART_TABLE_CLS.td}>{przypis(r)}</td>}
             </tr>
           ))}

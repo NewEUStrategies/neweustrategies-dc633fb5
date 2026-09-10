@@ -105,7 +105,6 @@ import {
 } from "@/lib/charts/format";
 import { linearScale, niceScale } from "@/lib/charts/scale";
 import {
-  SCATTER_COLUMNS,
   SCATTER_MARKER_R,
   SCATTER_MARKER_STROKE,
   SCATTER_OVERPLOT_SHARE,
@@ -114,13 +113,10 @@ import {
   scatterExtent,
   scatterFormAdvice,
   scatterModelFromConfig,
-  scatterTable,
   scatterTrendAt,
-  type ScatterColumnKey,
   type ScatterFormAdvice,
   type ScatterModel,
   type ScatterPoint,
-  type ScatterTableRow,
 } from "@/lib/charts/kinds/scatter";
 import {
   FONT_AXIS,
@@ -260,14 +256,6 @@ const READING_KEYS: Record<ScatterFormAdvice, string | null> = {
   // opublikowanego wpisu nie ma jak go wykonać, a sama obserwacja („dane mają
   // porządek w czasie") nie mówi mu nic o tym, czego na rysunku nie widać.
   lineBetter: null,
-};
-
-/** Nagłówki kolumn alternatywy tekstowej - też jawnie, z tego samego powodu. */
-const COLUMN_KEYS: Record<ScatterColumnKey, string> = {
-  label: "scatter.table.label",
-  series: "scatter.table.series",
-  x: "scatter.table.x",
-  y: "scatter.table.y",
 };
 
 /** Ostatnia zapora przed nie-liczbą w atrybucie SVG. */
@@ -766,26 +754,6 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
     });
   }
 
-  const table = scatterTable(model);
-  const cell = (row: ScatterTableRow, col: ScatterColumnKey): string => {
-    switch (col) {
-      case "label":
-        return row.label === "" ? "-" : row.label;
-      case "series":
-        return row.series;
-      case "x":
-        return row.x === null ? "-" : liczba(row.x, "");
-      case "y":
-        return row.y === null ? "-" : liczba(row.y, config.unit);
-    }
-  };
-  /** Dopiski wiersza tabeli: powód nieobecności na rysunku i dzielona plamka. */
-  const flagi = (row: ScatterTableRow): string =>
-    [
-      ...(row.dropped ? [t("scatter.table.dropped")] : []),
-      ...(row.overplotted ? [t("scatter.table.overplotted")] : []),
-    ].join(", ");
-
   // Kolejność rysowania: punkt czynny NA KOŃCU, czyli na wierzchu. Marker
   // powiększony o piksel inaczej chowałby się pod sąsiadem narysowanym
   // później, a wtedy podświetlenie wskazywałoby nie ten punkt, o którym mówi
@@ -1101,49 +1069,22 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
         />
       </div>
 
-      {/* ALTERNATYWA TEKSTOWA. Z plamki na przecięciu dwóch osi nie odczyta się
-          pary dokładniej niż "mniej więcej", a dymek nie istnieje ani w druku,
-          ani na zrzucie ekranu, ani dla czytnika ekranu. Tabela liczy Z TEGO
-          SAMEGO MODELU co rysunek (`scatterTable`), bo dwa liczenia to dwa
-          źródła prawdy.
+      {/* ALTERNATYWA TEKSTOWA NIE STOI TUTAJ, i to jest rozstrzygnięcie, nie
+          brak. Do podłączenia tego rodzaju render niósł WŁASNĄ kopię tabeli
+          w `sr-only`, bo panel danych ramki (`ChartFrame`, przełącznik
+          „Pokaż dane") jest domyślnie `hidden`, czyli poza drzewem
+          dostępności. Kopia była wtedy jedyną drogą do liczby dla czytnika
+          ekranu - ale po podłączeniu rodzaju do `TABLE_BY_KIND` ramka
+          renderuje tę samą tabelę drugi raz, więc po otwarciu panelu czytnik
+          dostawał WSZYSTKIE liczby dwa razy, bez żadnego sygnału, że to ta
+          sama tabela. Dwie tabele bez różnicy są gorsze niż jedno naciśnięcie
+          przycisku: przełącznik jest zwykłym `button` z `aria-expanded`
+          i `aria-controls`, czyli wzorcem, który czytnik ekranu nazywa
+          i którym steruje. Warunek powrotu kopii jest jeden: gdyby ramka
+          przestała renderować tabelę tego rodzaju.
 
-          NAJWAŻNIEJSZE SĄ TU WIERSZE ODRZUCONE: pary bez jednej współrzędnej
-          na rysunku nie ma i być nie może (punkt bez `x` nie ma gdzie stanąć),
-          więc tekst jest JEDYNYM miejscem, w którym czytelnik dowie się o ich
-          istnieniu. `sr-only`, nie widoczna: widoczny panel danych należy do
-          ramki karty i gdy podłączenie rodzaju doda tam `ScatterDataTable`, ta
-          kopia ma zniknąć. */}
-      <table className="sr-only">
-        <thead>
-          <tr>
-            {SCATTER_COLUMNS.map((colKey) => (
-              <th key={colKey} scope="col">
-                {t(COLUMN_KEYS[colKey])}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {table.rows.map((row, i) => {
-            const dopiski = flagi(row);
-            return (
-              <tr
-                key={i}
-                data-dropped={row.dropped ? "true" : undefined}
-                data-overplotted={row.overplotted ? "true" : undefined}
-              >
-                {SCATTER_COLUMNS.map((colKey) => (
-                  <td key={colKey}>
-                    {colKey === "label" && dopiski !== ""
-                      ? `${cell(row, colKey)} (${dopiski})`
-                      : cell(row, colKey)}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+          Tabela mieszka w `Chart.tsx` (`TABLE_BY_KIND`) i liczy Z TEGO SAMEGO
+          MODELU co rysunek - dwa liczenia to dwa źródła prawdy. */}
 
       <ChartNotes notes={notes} />
     </div>

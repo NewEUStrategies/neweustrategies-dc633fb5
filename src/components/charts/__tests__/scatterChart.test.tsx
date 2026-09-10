@@ -627,6 +627,24 @@ describe("ScatterChart - klawiatura i dostępność", () => {
 });
 
 describe("ScatterChart - alternatywa tekstowa i pary odrzucone", () => {
+  /**
+   * Tabela danych należy do RAMKI karty (`Chart` -> `TABLE_BY_KIND`), a nie do
+   * rysunku. Do tego PR-a render niósł własną kopię w `sr-only` i te testy
+   * czytały właśnie ją - a po podłączeniu rodzaju do ramki czytnik ekranu
+   * dostawał te same liczby dwa razy, bez sygnału, że to ta sama tabela. Kopia
+   * zniknęła, więc testy tabeli renderują `Chart`: czytają to, co naprawdę
+   * dostaje czytelnik po naciśnięciu „Pokaż dane".
+   */
+  const zTabela = (dane: Record<string, Json>) =>
+    render(<Chart config={cfg({ ...dane, kind: "scatter" })} lang="pl" />);
+
+  /** PIERWSZA tabela ramki to pary współrzędnych; druga opisuje CHMURĘ (trend). */
+  const tabelaPar = (root: HTMLElement): Element => {
+    const t = all(root, "table")[0];
+    if (!t) throw new Error("brak tabeli par w ramce");
+    return t;
+  };
+
   it("para bez jednej współrzędnej NIE JEST na rysunku, ale jest w tabeli", () => {
     // Punkt bez `x` nie ma gdzie stanąć, a bez `y` nie ma wysokości - obie
     // takie obserwacje znikają z rysunku i z regresji. Tabela jest JEDYNYM
@@ -635,12 +653,17 @@ describe("ScatterChart - alternatywa tekstowa i pary odrzucone", () => {
     const x: (number | null)[] = [...X_ROSNIE];
     const y: (number | null)[] = [...Y_ROSNIE];
     y[4] = null;
-    const { container } = render(<ScatterChart config={cfg(baza(x, y))} lang="pl" />);
+    const { container } = zTabela(baza(x, y));
     expect(punkty(container)).toHaveLength(X_ROSNIE.length - 1);
-    const odrzucone = all(container, "tr[data-dropped='true']");
+    // Wiersz odrzucony poznajemy po DOPISKU, a nie po `data-dropped`: usunięta
+    // kopia znakowała go atrybutem, a tabela ramki wypisuje powód pominięcia
+    // słowem w ostatniej kolumnie - czyli treścią, którą czytnik ekranu
+    // przeczyta. Atrybut widział tylko test, dopisek widzi czytelnik.
+    const odrzucone = [...tabelaPar(container).querySelectorAll("tbody tr")].filter((r) =>
+      (r.textContent ?? "").includes("pominięta"),
+    );
     expect(odrzucone).toHaveLength(1);
     expect(odrzucone[0].textContent ?? "").toContain("obs-5");
-    expect(odrzucone[0].textContent ?? "").toContain("pominięta");
     expect(nota(container, "honesty.pairsCompleteOk")).toContain("1");
   });
 
@@ -648,10 +671,15 @@ describe("ScatterChart - alternatywa tekstowa i pary odrzucone", () => {
     // Grafika nigdy nie jest jedyną drogą do liczby: dymek nie istnieje ani
     // w druku, ani na zrzucie ekranu, ani dla czytnika ekranu. Tabela liczy
     // z TEGO SAMEGO modelu co rysunek, bo dwa liczenia to dwa źródła prawdy.
-    const { container } = render(<ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE))} lang="pl" />);
-    const naglowki = all(container, "th").map((e) => e.textContent ?? "");
+    const { container } = zTabela(baza(X_ROSNIE, Y_ROSNIE));
+    // Nagłówki liczymy w `thead`: tabela ramki daje etykiecie obserwacji
+    // `th scope="row"` (nazwa wiersza JEST jego nagłówkiem, nie daną), więc
+    // samo `th` policzyłoby też dwanaście wierszy.
+    const naglowki = [...tabelaPar(container).querySelectorAll("thead th")].map(
+      (e) => e.textContent ?? "",
+    );
     expect(naglowki).toEqual(["Obserwacja", "Seria", "X", "Y"]);
-    expect(all(container, "tbody tr")).toHaveLength(X_ROSNIE.length);
+    expect([...tabelaPar(container).querySelectorAll("tbody tr")]).toHaveLength(X_ROSNIE.length);
   });
 });
 
@@ -759,9 +787,14 @@ describe("ScatterChart - język jedzie propsem", () => {
     // Strony publiczne są cache'owane na brzegu sieci, więc odczyt języka
     // z globalnego `i18n.language` mógłby zserwować polski tekst pod
     // angielskim adresem. Test pilnuje, że `lang` z propsa naprawdę decyduje.
-    const { container } = render(<ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE))} lang="en" />);
+    const { container } = render(
+      <Chart config={cfg({ ...baza(X_ROSNIE, Y_ROSNIE), kind: "scatter" })} lang="en" />,
+    );
     expect(nota(container, "trend.notCausal")).toContain("Covariation");
-    expect(all(container, "th").map((e) => e.textContent ?? "")).toEqual([
+    // Nagłówki z `thead` PIERWSZEJ tabeli ramki - reszta `th` to nagłówki
+    // wierszy i kolumny tabeli trendu, czyli inna treść.
+    const pary = all(container, "table")[0];
+    expect([...pary.querySelectorAll("thead th")].map((e) => e.textContent ?? "")).toEqual([
       "Observation",
       "Series",
       "X",
@@ -799,5 +832,44 @@ describe("ScatterChart - tabela odcinków trendu w ramce wykresu", () => {
     const tekst = container.textContent ?? "";
     expect(/scatter\.[a-z]+\./.test(tekst)).toBe(false);
     expect(tekst.includes("{{")).toBe(false);
+  });
+});
+
+describe("ScatterChart - jednostka w tabeli ramki należy do JEDNEJ osi", () => {
+  // REGUŁA JEST STARSZA OD TEJ TABELI i zapisana wprost przy dymku rysunku:
+  // konfiguracja ma JEDNO pole `unit` i opisuje nim wartości serii, a X
+  // pochodzi z etykiet albo z innej kolumny. Tabela ramki dokleiła jednostkę
+  // do OBU kolumn, więc przy `unit: " %"` wypisywała procenty przy liczbach,
+  // które procentami nie są. Zła jednostka jest gorsza niż jej brak: brak
+  // każe czytelnikowi sprawdzić w podpisie, zła każe mu uwierzyć.
+  const arkusz: Record<string, Json> = {
+    kind: "scatter",
+    animate: false,
+    unit: " %",
+    categories: X_ROSNIE.map((x) => String(x)),
+    series: [{ name: "Marża", values: Y_ROSNIE }],
+  };
+
+  it("kolumna X nie dostaje jednostki serii, kolumna Y dostaje", () => {
+    const { container } = render(<Chart config={parseChartConfig(arkusz)} lang="pl" />);
+    const wiersz = all(container, "table tbody tr")[0];
+    const komorki = [...wiersz.querySelectorAll("td")].map((td) => td.textContent ?? "");
+    // Kolejność kolumn: seria, X, Y (etykieta obserwacji jest `th`).
+    const [, x, y] = komorki;
+    expect(x.includes("%"), `kolumna X z cudzą jednostką: "${x}"`).toBe(false);
+    expect(y.includes("%"), `kolumna Y bez jednostki serii: "${y}"`).toBe(true);
+  });
+
+  it("obserwacja bez nazwy dostaje myślnik, nie pusty nagłówek wiersza", () => {
+    // Pusty `th scope="row"` to dla czytnika ekranu wiersz, którego nie da się
+    // zapowiedzieć - myślnik mówi wprost, że nazwy nie ma.
+    const bezNazw: Record<string, Json> = {
+      ...arkusz,
+      categories: X_ROSNIE.map(() => ""),
+    };
+    const { container } = render(<Chart config={parseChartConfig(bezNazw)} lang="pl" />);
+    const naglowki = all(container, "table tbody th").map((el) => el.textContent ?? "");
+    expect(naglowki.length).toBeGreaterThan(0);
+    for (const n of naglowki) expect(n.trim().length).toBeGreaterThan(0);
   });
 });
