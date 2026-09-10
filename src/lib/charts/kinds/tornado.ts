@@ -82,7 +82,7 @@
 // bazę z mediany albo ze średniej nóg - baza wyliczona z wyników nie jest
 // przypadkiem bazowym, tylko środkiem rozkładu, a podstawianie jednego pod
 // drugie jest dokładnie tym kłamstwem, przed którym cały ten moduł stoi.
-import type { ChartSeries } from "../types";
+import type { ChartConfig, ChartSeries } from "../types";
 
 /**
  * Tryb odczytu liczb z arkusza.
@@ -936,6 +936,58 @@ export function tornadoModel(input: TornadoInput, opts: TornadoOptions = {}): To
   };
 
   return { rows, base, mode, baseSource, maxSpan, minSpan, reordered, honesty };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Model z konfiguracji bloku                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Model z tego, co silnik już ma w `ChartConfig` - jedyne wejście, którego
+ * render potrzebuje, żeby nie znać konwencji odczytu arkusza.
+ *
+ * KTO JEST PARAMETREM. Konfiguracja daje `categories` i `series`, czyli jedną
+ * liczbę na przecięciu. Tornado czyta ten arkusz tak, jak opisuje to nagłówek
+ * pliku: jedna KATEGORIA to jeden parametr (wiersz rankingu), pierwsza seria
+ * nieuznana za bazę to noga DOLNA, druga to GÓRNA. Adapter nie robi nic poza
+ * przełożeniem nazw pól, bo cała konwencja jest już w `tornadoModel` i ma tam
+ * własne testy - druga jej kopia tutaj byłaby drugim źródłem prawdy o tym,
+ * która kolumna arkusza jest którą nogą.
+ *
+ * SKĄD BAZA, SKORO SCHEMAT BLOKU NIE MA JEJ POLA. Z serii, której NAZWA mówi,
+ * że jest bazą ("Baza", "Scenariusz bazowy", "baseline" - patrz
+ * `BASE_SERIES_STEMS`), i to jest dzisiaj jedyna droga dostępna autorowi
+ * wpisu bez zmiany schematu. Dwie pozostałe drogi (jawne `base` i tryb
+ * `deviation`) jadą przez `opts`, czyli przez wywołującego, który zna pole
+ * bloku - tam wejdzie proponowane rozszerzenie `tornadoBase`. Bez żadnej
+ * z tych trzech dróg model MILCZY o geometrii i to milczenie jest poprawną
+ * odpowiedzią: baza wyliczona ze średniej nóg nie jest przypadkiem bazowym.
+ *
+ * NIE ODSIEWAMY SERII BEZ LICZB, i tym ten adapter różni się od
+ * `histogramModelFromConfig`. Histogram czyta JEDNĄ serię, więc jej pozycja
+ * w arkuszu nie niesie niczego i pierwsza niepusta jest tak samo dobra jak
+ * pierwsza. W tornadzie POZYCJA SERII JEST JEDYNYM NOŚNIKIEM tego, która noga
+ * jest dolna, a która górna - a od tego zależy wykrycie parametru odwrotnego
+ * (patrz `resolveLegIndices` i `TornadoRow.inverted`). Usunięcie serii pustej
+ * przesunęłoby więc pozostałe: arkusz z pustą kolumną "niska" i wypełnioną
+ * "wysoka" dałby po odsianiu wykres, na którym wyniki przy wartości wysokiej
+ * są podpisane jako niska - czyli cichą zamianę znaczenia, a nie brakującą
+ * daną. Bez odsiewania ten sam arkusz daje wiersze `highOnly`, które model
+ * nazywa w `honesty.oneLeggedLabels`, i to jest prawda o danych.
+ *
+ * ADAPTER NIE ZGADUJE TRYBU. Kuszące jest rozpoznanie odchyleń z kształtu
+ * liczb ("obie nogi mają przeciwne znaki i małe wartości bezwzględne, więc to
+ * odchylenia"), ale taka reguła jest zgadywaniem INTENCJI autora, a pomyłka
+ * nie wygląda na błąd: wykres rysuje się normalnie, tylko linia bazowa stoi
+ * w zerze zamiast na poziomie wyniku, a wszystkie liczby w tabeli są o bazę
+ * przesunięte. Dlatego `mode` zostaje w `opts` z domyślnymi poziomami
+ * bezwzględnymi, a wybór należy do wywołującego.
+ */
+export function tornadoModelFromConfig(
+  config: ChartConfig,
+  opts: TornadoOptions = {},
+): TornadoModel {
+  return tornadoModel({ categories: config.categories, series: config.series }, opts);
 }
 
 /**

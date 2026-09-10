@@ -10,6 +10,8 @@
 // które czytelnik odczyta z rysunku i z tabeli, oraz orzeczenia, które
 // wejdą do podpisu - a nie kolejność kroków, która do nich doprowadziła.
 import { describe, expect, it } from "vitest";
+import type { Json } from "@/lib/content-model/json";
+import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartSeries } from "@/lib/charts/types";
 import {
   TORNADO_BAR_RATIO,
@@ -21,6 +23,7 @@ import {
   tornadoExtent,
   tornadoFormAdvice,
   tornadoModel,
+  tornadoModelFromConfig,
   tornadoTable,
   type TornadoInput,
   type TornadoModel,
@@ -916,5 +919,122 @@ describe("tornado - porady doboru formy", () => {
     // przeciwwagą dla czterech poprzednich: na danych, które są w porządku,
     // model milczy.
     expect(tornadoFormAdvice(ranking([40, 20, 8, 3]))).toEqual([]);
+  });
+});
+
+describe("tornado - adapter z konfiguracji bloku", () => {
+  /**
+   * Arkusz w takiej postaci, w jakiej wychodzi z edytora bloku: parametry
+   * w kategoriach, dwie kolumny wyników w seriach. `kind` jest tu obojętny,
+   * bo adapter czyta wyłącznie kategorie i serie - a rodzaju "tornado" nie ma
+   * jeszcze w `CHART_KINDS`, więc `parseChartConfig` zdegradowałby go do
+   * słupków i test mówiłby o czymś innym, niż wygląda.
+   */
+  function blok(data: Record<string, Json>) {
+    return parseChartConfig({ kind: "bar", animate: false, ...data });
+  }
+
+  const ARKUSZ: Record<string, Json> = {
+    categories: PARAMETRY,
+    series: [
+      { name: "Dolny koniec", values: [90, 95, 99] },
+      { name: "Górny koniec", values: [130, 108, 101] },
+    ],
+  };
+
+  it("czyta arkusz bloku bez tłumaczenia konwencji w renderze", () => {
+    // Gdyby render musiał sam wiedzieć, że kategoria to parametr, a pierwsza
+    // seria to noga dolna, ta wiedza istniałaby w dwóch miejscach i jedno
+    // z nich rozjechałoby się przy pierwszej zmianie schematu bloku.
+    const model = tornadoModelFromConfig(blok(ARKUSZ), Z_BAZA);
+    expect(model.rows.map((r) => r.label)).toEqual(["Kurs EUR", "Cena energii", "Wolumen"]);
+    expect(model.rows[0].low).toBe(90);
+    expect(model.rows[0].high).toBe(130);
+    expect(model.rows[0].legs).toHaveLength(2);
+  });
+
+  it("rozpoznaje bazę po NAZWIE serii, bo schemat bloku nie ma na nią pola", () => {
+    // To jest dzisiaj jedyna droga, którą autor wpisu może podać przypadek
+    // bazowy bez zmiany schematu. Bez niej każde tornado z edytora byłoby
+    // wykresem bez słupków - model milczy, gdy nie ma od czego odchylać.
+    const model = tornadoModelFromConfig(
+      blok({
+        ...ARKUSZ,
+        series: [
+          { name: "Dolny koniec", values: [90, 95, 99] },
+          { name: "Górny koniec", values: [130, 108, 101] },
+          { name: "Scenariusz bazowy", values: [100, 100, 100] },
+        ],
+      }),
+    );
+    expect(model.base).toBe(100);
+    expect(model.baseSource).toBe("series");
+    expect(model.honesty.baseIsSingle).toBe(true);
+    // Seria bazowa nie jest nogą: gdyby nią została, trzeci wiersz arkusza
+    // wypadłby z pary i wykres pokazałby o jedną nogę mniej, niż autor podał.
+    expect(model.honesty.extraSeriesNames).toEqual([]);
+    expect(model.rows.every((r) => r.legs.length === 2)).toBe(true);
+  });
+
+  it("bez bazy w arkuszu oddaje liczby i PORADĘ, a nie słupki", () => {
+    // Czytelnik zobaczy wtedy tabelę i jedno zdanie o brakującej wartości
+    // bazowej - a nie paski dorysowane od środka rozkładu wyników.
+    const model = tornadoModelFromConfig(blok(ARKUSZ));
+    expect(model.base).toBeNull();
+    expect(model.rows.every((r) => r.legs.length === 0)).toBe(true);
+    expect(tornadoTable(model).rows[0].low).toBe(90);
+    expect(tornadoFormAdvice(model)).toContain("noBase");
+  });
+
+  it("NIE odsiewa serii bez liczb, bo pozycja serii mówi, która noga jest która", () => {
+    // Arkusz z pustą kolumną "niska" i wypełnioną "wysoka": po odsianiu
+    // pustej seria "Wysoka" awansowałaby na nogę DOLNĄ i wykres podpisałby
+    // wyniki przy wartości wysokiej jako niskie. To cicha zamiana znaczenia,
+    // a nie brakująca dana - dlatego wiersze zostają jednonożne i model
+    // nazywa je w `oneLeggedLabels`.
+    const model = tornadoModelFromConfig(
+      blok({
+        ...ARKUSZ,
+        series: [
+          { name: "Niska", values: [null, null, null] },
+          { name: "Wysoka", values: [130, 108, 101] },
+        ],
+      }),
+      Z_BAZA,
+    );
+    expect(model.rows.every((r) => r.pair === "highOnly")).toBe(true);
+    expect(model.rows[0].high).toBe(130);
+    expect(model.honesty.pairsComplete).toBe(false);
+    expect(model.honesty.oneLeggedLabels).toHaveLength(3);
+  });
+
+  it("przekazuje opcje wywołującego, bo tryb odchyleń jest polem bloku, nie kształtem liczb", () => {
+    // Zgadywanie trybu z danych daje wykres, który rysuje się normalnie,
+    // a stoi na linii bazowej w innym miejscu - i nic tego nie zdradza.
+    // Dlatego tryb wchodzi z zewnątrz i adapter musi go przepuścić.
+    const model = tornadoModelFromConfig(
+      blok({
+        categories: ["A", "B"],
+        series: [
+          { name: "Dolny", values: [-8, -3] },
+          { name: "Górny", values: [2, 12] },
+        ],
+      }),
+      { mode: "deviation" },
+    );
+    expect(model.base).toBe(0);
+    expect(model.baseSource).toBe("zero");
+    // Kolejność malejąca po rozpiętości działa tak samo jak na poziomach:
+    // parametr B ma rozpiętość 15, A tylko 10.
+    expect(model.rows.map((r) => r.label)).toEqual(["B", "A"]);
+  });
+
+  it("blok bez kategorii i bez serii nie wywraca modelu", () => {
+    // Treść bloku pochodzi z bazy i bywa z cofniętej wersji edytora. Model
+    // nie ma prawa rzucić, bo wyjątek wywraca cały wpis, nie tylko wykres.
+    const model = tornadoModelFromConfig(blok({ categories: [], series: [] }));
+    expect(model.rows).toEqual([]);
+    expect(model.maxSpan).toBe(0);
+    expect(niedozwoloneWartosci(model)).toEqual([]);
   });
 });
