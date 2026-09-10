@@ -33,9 +33,11 @@ import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot
 import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
 import { scatterModelFromConfig, scatterTable } from "@/lib/charts/kinds/scatter";
 import {
+  HEATMAP_MARGIN_STATS,
   heatmapModelFromConfig,
   heatmapTable,
   type HeatmapMargin,
+  type HeatmapMarginStat,
 } from "@/lib/charts/kinds/heatmap";
 import {
   tornadoModelFromConfig,
@@ -418,15 +420,19 @@ function TornadoDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
  * `count` jest LICZBĄ KOMÓREK, nie wartością danych, więc nie dostaje
  * jednostki: „5 mln komórek" byłoby zdaniem o niczym.
  */
-const MARGINESY: ReadonlyArray<
-  [string, (m: HeatmapMargin, liczba: (v: number | null) => string, lang: ChartLang) => string]
-> = [
-  ["count", (m, _liczba, lang) => formatChartValue(m.count, lang, "")],
-  ["min", (m, liczba) => liczba(m.min)],
-  ["max", (m, liczba) => liczba(m.max)],
-  ["mean", (m, liczba) => liczba(m.mean)],
-  ["range", (m, liczba) => liczba(m.range)],
-];
+type OdczytBrzegu = (
+  m: HeatmapMargin,
+  liczba: (v: number | null) => string,
+  lang: ChartLang,
+) => string;
+
+const MARGINESY: Record<HeatmapMarginStat, OdczytBrzegu> = {
+  count: (m, _liczba, lang) => formatChartValue(m.count, lang, ""),
+  min: (m, liczba) => liczba(m.min),
+  max: (m, liczba) => liczba(m.max),
+  mean: (m, liczba) => liczba(m.mean),
+  range: (m, liczba) => liczba(m.range),
+};
 
 function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
@@ -456,9 +462,9 @@ function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
                 LICZBĘ policzonych komórek oraz minimum i maksimum: to po nich
                 poznaje się wiersz o szerokim rozrzucie przy tej samej
                 średniej, czyli dokładnie to, czego z kolorów nie widać. */}
-            {MARGINESY.map(([klucz]) => (
-              <th key={klucz} scope="col" className={CHART_TABLE_CLS.thNum}>
-                {t(`heatmap.table.${klucz}`)}
+            {HEATMAP_MARGIN_STATS.map((stat) => (
+              <th key={stat} scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t(`heatmap.table.${stat}`)}
               </th>
             ))}
           </tr>
@@ -474,9 +480,9 @@ function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
                   {liczba(c.value)}
                 </td>
               ))}
-              {MARGINESY.map(([klucz, czytaj]) => (
-                <td key={klucz} className={CHART_TABLE_CLS.tdNum}>
-                  {czytaj(r.margin, liczba, lang)}
+              {HEATMAP_MARGIN_STATS.map((stat) => (
+                <td key={stat} className={CHART_TABLE_CLS.tdNum}>
+                  {MARGINESY[stat](r.margin, liczba, lang)}
                 </td>
               ))}
             </tr>
@@ -487,17 +493,17 @@ function HeatmapDataTable({ config, lang }: { config: ChartConfig; lang: ChartLa
             a to rozrzut odróżnia kolumnę, w której parametr rusza wynikiem
             równomiernie, od takiej, w której rusza nim w jednym wierszu. */}
         <tfoot>
-          {MARGINESY.map(([klucz, czytaj]) => (
-            <tr key={klucz}>
+          {HEATMAP_MARGIN_STATS.map((stat) => (
+            <tr key={stat}>
               <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
-                {t(`heatmap.table.${klucz}`)}
+                {t(`heatmap.table.${stat}`)}
               </th>
               {tabela.columnMargins.map((m, i) => (
                 <td key={i} className={CHART_TABLE_CLS.tdNum}>
-                  {czytaj(m, liczba, lang)}
+                  {MARGINESY[stat](m, liczba, lang)}
                 </td>
               ))}
-              {MARGINESY.map(([k]) => (
+              {HEATMAP_MARGIN_STATS.map((k) => (
                 <td key={k} className={CHART_TABLE_CLS.tdNum} />
               ))}
             </tr>

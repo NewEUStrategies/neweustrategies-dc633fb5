@@ -33,7 +33,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { BEESWARM_SUMMARY_COLUMNS } from "@/lib/charts/kinds/beeswarm";
 import { BOXPLOT_COLUMNS } from "@/lib/charts/kinds/boxplot";
 import { HISTOGRAM_RULES } from "@/lib/charts/kinds/histogram";
-import { HEATMAP_DOMINANT_AXES } from "@/lib/charts/kinds/heatmap";
+import { HEATMAP_DOMINANT_AXES, HEATMAP_MARGIN_STATS } from "@/lib/charts/kinds/heatmap";
 import { TORNADO_COLUMNS, TORNADO_ROW_NOTES } from "@/lib/charts/kinds/tornado";
 
 const KATALOG = "src/components/charts";
@@ -48,6 +48,7 @@ const SKLEJANE: ReadonlyArray<{ prefiks: string; wartosci: readonly string[] }> 
   { prefiks: "beeswarm.summary", wartosci: BEESWARM_SUMMARY_COLUMNS },
   { prefiks: "boxplot.table", wartosci: BOXPLOT_COLUMNS },
   { prefiks: "heatmap.dominant", wartosci: HEATMAP_DOMINANT_AXES },
+  { prefiks: "heatmap.table", wartosci: HEATMAP_MARGIN_STATS },
   { prefiks: "histogram.rule", wartosci: HISTOGRAM_RULES },
   { prefiks: "tornado.table", wartosci: TORNADO_COLUMNS },
   // Tornado.note NIE JEST już sklejane (mapa `TORNADO_NOTE_KEYS`), ale zostaje

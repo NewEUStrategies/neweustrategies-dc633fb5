@@ -282,6 +282,17 @@ export interface HeatmapAxis {
  * parametry" to w praktyce pytanie, KTÓRY z dwóch parametrów rusza wynikiem
  * mocniej, a odpowiedź na nie jest różnicą rozstępów brzegowych.
  */
+/**
+ * Statystyki brzegu wiersza i kolumny, W KOLEJNOŚCI CZYTANIA. Tablica runtime,
+ * bo tabela danych SKLEJA z niej klucz słownika (`heatmap.table.${stat}`),
+ * a klucza sklejonego nie widzi ani parytet PL/EN, ani bramka rozjazdu -
+ * jedyną drogą do pełnego pokrycia jest przejście bramki po tej liście
+ * (`chartDictionaryKeys.test.ts`).
+ */
+export const HEATMAP_MARGIN_STATS = ["count", "min", "max", "mean", "range"] as const;
+
+export type HeatmapMarginStat = (typeof HEATMAP_MARGIN_STATS)[number];
+
 export interface HeatmapMargin {
   label: string;
   /** Ile komórek w tym wierszu albo kolumnie ma wartość. */
