@@ -107,6 +107,7 @@
 // PROGAMI dla renderu, nie geometrią, i wchodzą do modelu wyłącznie przez
 // `smallMultiplesFit`.
 import { niceScale } from "../scale";
+import { INDEX_BASE, baseUsable, indexAgainst } from "../stats";
 import { MAX_SERIES } from "../types";
 import type { ChartConfig } from "../types";
 
@@ -207,8 +208,16 @@ export const SMALL_MULTIPLES_FLATTENED_SHARE = 0.1;
  * indeksie (baza = 100)") i tak czyta się indeks w każdym opracowaniu
  * statystycznym - odczyt "112" jako "o 12% więcej niż w bazie" jest wtedy
  * natychmiastowy i nie wymaga podpisu.
+ *
+ * NAZWA ZOSTAJE, LICZBA PRZYCHODZI Z `stats.ts`. Defekt, który przez to
+ * znika, jest defektem rozjazdu: ta sama setka stała wcześniej osobno tutaj
+ * i osobno w modelu indeksu bazowego, a zgodności obu pilnował KOMENTARZ
+ * ("ta sama liczba stoi w modelu paneli"), czyli nic - dwa rodzaje wykresu
+ * odpowiadające na to samo pytanie analityczne mogły rozjechać się linią
+ * odniesienia, a czytelnik zobaczyłby oba w jednym opracowaniu. Teraz
+ * pilnuje jej import. Alias zostaje, bo to jego nazwy używa render i przypis.
  */
-export const SMALL_MULTIPLES_INDEX_BASE = 100;
+export const SMALL_MULTIPLES_INDEX_BASE = INDEX_BASE;
 
 /**
  * Docelowa liczba podziałek wspólnej osi wartości.
@@ -297,10 +306,13 @@ export interface SmallMultiplesPoint {
   v: number | null;
   /**
    * Wartość przeliczona na indeks (baza = `SMALL_MULTIPLES_INDEX_BASE`).
-   * `null`, gdy panel nie ma użytecznej bazy albo gdy w tym punkcie jest
-   * luka. Liczona ZAWSZE, także w trybie "level", bo tabela danych pokazuje
-   * indeks obok poziomu i wtedy czytelnik widzi, dlaczego panel wygląda
-   * płasko.
+   * `null`, gdy panel nie ma użytecznej bazy, gdy w tym punkcie jest luka
+   * albo gdy iloraz wobec bazy WYCHODZI POZA podwójną precyzję. Ten trzeci
+   * przypadek jest osobny i jest tu przez `indexAgainst`: przepełnienie
+   * przepuszczone przez osłonę wyświetlania wracało jako indeks 0, czyli
+   * jako liczba wyglądająca na policzoną i mówiąca coś przeciwnego niż dane.
+   * Liczona ZAWSZE, także w trybie "level", bo tabela danych pokazuje indeks
+   * obok poziomu i wtedy czytelnik widzi, dlaczego panel wygląda płasko.
    */
   indexed: number | null;
   /**
@@ -1051,7 +1063,14 @@ export function smallMultiplesModel(
       // ujemna ODWRACA kierunek (spadek wychodzi jako wzrost) - oba
       // przypadki są wykluczone, a nie "obsłużone", bo indeks policzony od
       // ujemnej bazy jest liczbą, której nie da się przeczytać.
-      indexable: base !== null && base > 0,
+      //
+      // O UŻYTECZNOŚCI BAZY ROZSTRZYGA `baseUsable` I NIKT INNY. Defekt,
+      // który przez to znika: ta sama decyzja stała dotąd tutaj i w modelu
+      // indeksu bazowego jako dwa niezależne warunki, a zgodności pilnował
+      // komentarz. Wspólna funkcja jest też tą samą, którą pyta
+      // `indexAgainst`, więc werdykt panelu i przeliczenie punktu nie mają
+      // się już czym rozjechać.
+      indexable: baseUsable(base) === "ok",
     };
   });
 
@@ -1091,14 +1110,20 @@ export function smallMultiplesModel(
   // DOMENA WSPÓLNA. Liczona ZAWSZE, także przy skalach osobnych, bo jest
   // jedyną miarą tego, o ile panele się rozjeżdżają, i bo tabela danych
   // podaje ją w podpisie - czytelnik ma wiedzieć, czego panele nie dzielą.
+  //
+  // PRZELICZENIE NA INDEKS LICZY `indexAgainst`, a nie ten plik, i defekt,
+  // który przez to znika, jest arytmetyczny oraz cichy. Wzór stał tu wprost
+  // i szedł przez `pewna`, czyli przez osłonę WYŚWIETLANIA, a ta mapuje
+  // nieskończoność na ZERO. Dla bazy 1e-5 i wartości 1e308 iloraz wychodzi
+  // poza podwójną precyzję, więc panel rosnący o piętnaście rzędów wielkości
+  // dostawał indeks 0 i był rysowany na samym DOLE osi - odczyt dokładnie
+  // odwrotny do prawdy, i to bez napisu "NaN", który zauważyłaby bramka.
+  // Indeks jest ORZECZENIEM o danych, więc odpowiedzią na przepełnienie jest
+  // `null`: punkt staje się luką, a linia się przerywa, zamiast schodzić
+  // do zera. Kolejność działań (dzielenie PRZED mnożeniem) też jest teraz
+  // jedna dla całego silnika, a nie przepisana z sąsiedniego pliku.
   const aktywna = (s: Surowy): (number | null)[] =>
-    mode === "index"
-      ? s.values.map((v) =>
-          v !== null && s.indexable && s.indexBase !== null
-            ? pewna((v / s.indexBase) * SMALL_MULTIPLES_INDEX_BASE)
-            : null,
-        )
-      : s.values;
+    mode === "index" ? s.values.map((v) => indexAgainst(v, s.indexBase)) : s.values;
 
   let dataMin = Infinity;
   let dataMax = -Infinity;
@@ -1178,10 +1203,9 @@ export function smallMultiplesModel(
       }
       const { v, clamped } = pozycja(aktywnaWartosc, panelDomain);
       if (clamped) poza = true;
-      const indeks =
-        poziom !== null && s.indexable && s.indexBase !== null
-          ? pewna((poziom / s.indexBase) * SMALL_MULTIPLES_INDEX_BASE)
-          : null;
+      // Ten sam `indexAgainst` co w `aktywna` - kolumna indeksu w tabeli
+      // i pozycja punktu na osi nie mogą powstawać z dwóch wzorów.
+      const indeks = indexAgainst(poziom, s.indexBase);
       return {
         category: c,
         label,

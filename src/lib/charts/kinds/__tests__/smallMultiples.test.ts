@@ -32,6 +32,7 @@ import {
   type SmallMultiplesOptions,
 } from "@/lib/charts/kinds/smallMultiples";
 import { defaultChartConfig } from "@/lib/charts/parse";
+import { INDEX_BASE, baseUsable } from "@/lib/charts/stats";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 
 /** Wszystkie liczby w strukturze, także zagnieżdżone w panelach i punktach. */
@@ -437,6 +438,74 @@ describe("spłaszczenie i indeks bazowy", () => {
       { mode: "index" },
     );
     expect(m.indexBaseAdvised).toBe(false);
+  });
+
+  it("indeks przepełniający podwójną precyzję jest luką, a NIE zerem", () => {
+    // REGRESJA NA URUCHOMIONY KONTRPRZYKŁAD. Wzór indeksu stał wcześniej
+    // w tym modelu wprost i szedł przez osłonę WYŚWIETLANIA, która
+    // nieskończoność mapuje na zero. Dla bazy 1e-5 i wartości 1e308 iloraz
+    // wychodzi poza podwójną precyzję:
+    expect((1e308 / 1e-5) * SMALL_MULTIPLES_INDEX_BASE).toBe(Infinity);
+    // ...więc panel rosnący o piętnaście rzędów wielkości dostawał
+    // `indexed: 0` i pozycję 0 na osi, czyli był rysowany NA SAMYM DOLE -
+    // odczyt odwrotny do prawdy, i to bez napisu "NaN", który zauważyłaby
+    // bramka. Uczciwą odpowiedzią jest milczenie: przerwana linia.
+    const m = model(
+      ["baza", "po"],
+      [
+        ["przepełnienie", [1e-5, 1e308]],
+        ["spokojny", [10, 20]],
+      ],
+      { mode: "index" },
+    );
+    const p = m.panels.find((x) => x.label === "przepełnienie");
+    expect(p?.indexable).toBe(true);
+    expect(p?.points[0]?.indexed).toBe(SMALL_MULTIPLES_INDEX_BASE);
+    expect(p?.points[1]?.indexed).toBeNull();
+    expect(p?.points[1]?.state).toBe("gap");
+    expect(p?.points[1]?.v).toBeNull();
+    // I - to jest druga połowa defektu - zero nie wchodzi do WSPÓLNEJ osi.
+    // Wciągnięte tam obniżało domenę wszystkich paneli do zera, czyli
+    // spłaszczało panele, którym nic nie dolegało.
+    expect(m.scale.shared.min).toBe(SMALL_MULTIPLES_INDEX_BASE);
+    expect(m.scale.shared.max).toBe(200);
+  });
+
+  it("kolumna indeksu milczy o przepełnieniu, nie zabierając poziomu", () => {
+    // W trybie poziomu ten sam iloraz idzie tylko do TABELI. Poziom jest
+    // policzalny i zostaje (punkt nadal ma wartość i etykietę), a puste jest
+    // wyłącznie to, czego nie da się orzec.
+    const m = model(["baza", "po"], [["przepełnienie", [1e-5, 1e308]]]);
+    const p = m.panels[0];
+    expect(p?.points[1]?.state).toBe("value");
+    expect(p?.points[1]?.value).toBe(1e308);
+    expect(p?.points[1]?.indexed).toBeNull();
+    const t = smallMultiplesTable(m);
+    expect(t.rows[0]?.cells[1]?.indexed).toBeNull();
+    expect(t.rows[0]?.cells[1]?.value).toBe(1e308);
+  });
+
+  it("baza = 100 jest TĄ SAMĄ liczbą, co w reszcie silnika", () => {
+    // Zgodności z modelem indeksu bazowego pilnował dotąd komentarz. Teraz
+    // pilnuje jej import, a ten test pilnuje importu: gdyby ktoś wpisał tu
+    // z powrotem własną setkę, oba rodzaje mogłyby rozjechać się linią
+    // odniesienia, którą czytelnik widzi w jednym opracowaniu.
+    expect(SMALL_MULTIPLES_INDEX_BASE).toBe(INDEX_BASE);
+  });
+
+  it("o użyteczności bazy panelu rozstrzyga ten sam werdykt, co w `stats`", () => {
+    // Trzy powody nieużyteczności są trzema różnymi zdaniami dla czytelnika,
+    // ale rozstrzygnięcie ma być JEDNO - inaczej ten sam szereg bywa
+    // indeksowalny w panelach i odrzucony w indeksie bazowym.
+    const bazy = [10, 0, -10, null];
+    const m = model(
+      ["baza", "po"],
+      bazy.map((b, i) => [`p${i}`, [b, 5]] as const),
+      { mode: "index" },
+    );
+    for (const [i, b] of bazy.entries()) {
+      expect(m.panels.find((p) => p.label === `p${i}`)?.indexable).toBe(baseUsable(b) === "ok");
+    }
   });
 
   it("liczy `n` z pomiarów, nie z punktów narysowanych w indeksie", () => {
