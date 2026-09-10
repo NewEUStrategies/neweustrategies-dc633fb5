@@ -617,3 +617,151 @@ describe("boxplot - odporność na dane z bazy", () => {
     }
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/*  Adapter z ChartConfig                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Konfiguracja przechodzi przez `parseChartConfig`, a nie jest sklejana
+ * literałem, bo to jest DOKŁADNIE ta droga, którą blok idzie z bazy do
+ * renderu: koercja liczb, przycięcie wartości do liczby kategorii i domyślne
+ * pola robią różnicę, której literał by nie pokazał. `kind` jest tu obojętny
+ * (adapter go nie czyta), więc zostaje przy rodzaju, który dziś istnieje.
+ */
+const konfig = (data: Record<string, Json>) => parseChartConfig({ kind: "bar", ...data });
+
+/** Etykiety wierszy arkusza dla próby dziewięciu obserwacji. */
+const WIERSZE_9 = PROBA_9.map((_, i) => `obs ${i + 1}`);
+
+describe("boxplot - model z konfiguracji bloku", () => {
+  it("czyta SERIĘ jako grupę, a jej wartości jako obserwacje", () => {
+    // To jest cała konwencja odczytu arkusza dla rozkładu: kolumna na grupę,
+    // wiersz na obserwację. Gdyby adapter czytał kategorie jako grupy,
+    // dziewięć obserwacji zamieniłoby się w dziewięć grup po jednej
+    // obserwacji, czyli wykres pokazałby dziewięć kropek zamiast dwóch
+    // rozkładów - i nic w konfiguracji by tego nie zdradziło.
+    const model = boxplotModelFromConfig(
+      konfig({
+        categories: WIERSZE_9,
+        series: [
+          { name: "Alfa", values: PROBA_9 },
+          { name: "Beta", values: PROBA_9.map((v) => v * 2) },
+        ],
+      }),
+    );
+    expect(model.boxes.map((b) => b.label)).toEqual(["Alfa", "Beta"]);
+    expect(model.boxes.map((b) => b.n)).toEqual([9, 9]);
+    expect(model.boxes[1].median).toBe(10);
+    expect(model.groupBy).toBe("series");
+  });
+
+  it("w trybie transponowanym grupą jest KATEGORIA, a obserwacje leżą w poprzek serii", () => {
+    // Blok w bazie może pochodzić z wykresu słupkowego, w którym seria była
+    // powtórzeniem pomiaru (pięć laboratoriów, cztery kwartały) - wtedy
+    // grupami są kategorie. Bez tego trybu ten sam arkusz dałby pięć grup po
+    // trzy obserwacje, czyli rozkład laboratoriów zamiast rozkładu pomiarów.
+    const model = boxplotModelFromConfig(
+      konfig({
+        categories: ["Q1", "Q2", "Q3"],
+        series: Array.from({ length: 5 }, (_, i) => ({
+          name: `lab ${i + 1}`,
+          values: [10 + i, 20 + i, 30 + i],
+        })),
+      }),
+      { groupBy: "category" },
+    );
+    expect(model.boxes.map((b) => b.label)).toEqual(["Q1", "Q2", "Q3"]);
+    expect(model.boxes.map((b) => b.n)).toEqual([5, 5, 5]);
+    // Pięć obserwacji to próg kwartyli, więc grupa ma pełny zestaw pięciu
+    // liczb, a nie kolumnę kropek.
+    expect(model.boxes[0].hasQuartiles).toBe(true);
+    expect(model.boxes[0].median).toBe(12);
+  });
+
+  it("seria bez ani jednej liczby zostaje PUSTĄ grupą i nie przesuwa pozostałych", () => {
+    // Odrzucenie takiej serii uciszyłoby `honesty.emptySamples` na zawsze,
+    // a przy okazji przesunęłoby pasma pozostałych grup - czyli pozycje
+    // i kolory kolumn zmieniałyby się w trakcie wpisywania danych, bo autor
+    // dopisał w edytorze wiersz, którego jeszcze nie wypełnił.
+    const model = boxplotModelFromConfig(
+      konfig({
+        categories: WIERSZE_9,
+        series: [
+          { name: "Alfa", values: PROBA_9 },
+          { name: "Pusta", values: [] },
+          { name: "Beta", values: PROBA_9 },
+        ],
+      }),
+    );
+    expect(model.boxes.map((b) => b.label)).toEqual(["Alfa", "Pusta", "Beta"]);
+    expect(model.honesty.emptySamples).toEqual(["Pusta"]);
+    // Trzy pasma po jednej trzeciej szerokości - Beta stoi na trzecim, nie na
+    // drugim.
+    expect(model.boxes[2].band.start).toBeCloseTo(2 / 3, 10);
+    expect(model.boxes[1].q1).toBeNull();
+  });
+
+  it("deklaracja `n` z podpisu dojeżdża do sprawdzenia uczciwości", () => {
+    // Sprawdzamy DANE AUTORA, nie własną arytmetykę: podpis mówi "n = 300",
+    // bo tyle ankiet zebrano, a w arkuszu jest dziewięć wierszy, bo ktoś
+    // wkleił próbkę. Adapter, który gubi `sampleSize`, wycisza to na zawsze -
+    // i nic nigdy nie zapali się na czerwono.
+    const rozjazd = boxplotModelFromConfig(
+      konfig({ categories: WIERSZE_9, series: [{ name: "A", values: PROBA_9 }], sampleSize: 300 }),
+    );
+    expect(rozjazd.honesty.declaredSampleSizeOk).toBe(false);
+
+    const zgodne = boxplotModelFromConfig(
+      konfig({ categories: WIERSZE_9, series: [{ name: "A", values: PROBA_9 }], sampleSize: 9 }),
+    );
+    expect(zgodne.honesty.declaredSampleSizeOk).toBe(true);
+
+    // Bez deklaracji model MILCZY, a nie zaświadcza zgodność.
+    const bezDeklaracji = boxplotModelFromConfig(
+      konfig({ categories: WIERSZE_9, series: [{ name: "A", values: PROBA_9 }] }),
+    );
+    expect(bezDeklaracji.honesty.declaredSampleSizeOk).toBeNull();
+  });
+
+  it("slot palety z arkusza zostaje tożsamością grupy", () => {
+    // Kolor niesie tu WYŁĄCZNIE tożsamość grupy, więc slot wybrany przez
+    // autora musi przejść przez adapter bez zmiany - inaczej ta sama grupa
+    // miałaby na dwóch wykresach dwa różne kolory i przestałaby być tą samą
+    // grupą dla czytelnika.
+    const model = boxplotModelFromConfig(
+      konfig({
+        categories: WIERSZE_9,
+        series: [
+          { name: "A", values: PROBA_9, colorSlot: 5 },
+          { name: "B", values: PROBA_9, colorSlot: 3 },
+        ],
+      }),
+    );
+    expect(model.boxes.map((b) => b.colorSlot)).toEqual([5, 3]);
+  });
+
+  it("blok świeżo dodany w edytorze nie wywraca modelu", () => {
+    // Stan początkowy bloku wykresu: zero kategorii, zero serii. Pasmo
+    // liczone przed sprawdzeniem liczby grup dałoby tu dzielenie przez zero,
+    // a `Math.max(...[])` w zakresie osi dałoby `-Infinity`.
+    const model = boxplotModelFromConfig(konfig({ categories: [], series: [] }));
+    expect(model.boxes).toEqual([]);
+    expect(model.honesty.medianInsideBox).toBeNull();
+    expect(model.honesty.sampleRatio).toBeNull();
+    expect(boxplotExtent(model)).toEqual({ min: 0, max: 1 });
+  });
+
+  it("wartości poza liczbą kategorii nie wchodzą do próby", () => {
+    // `parseChartConfig` przycina wektor wartości do liczby kategorii, więc
+    // arkusz z trzema wierszami i dziewięcioma liczbami w serii daje próbę
+    // trzech obserwacji. Adapter nie ma prawa tego obchodzić: liczby bez
+    // wiersza nie mają identyfikatora, a próba, która rośnie o dane niewidoczne
+    // w arkuszu, jest nieweryfikowalna.
+    const model = boxplotModelFromConfig(
+      konfig({ categories: ["a", "b", "c"], series: [{ name: "A", values: PROBA_9 }] }),
+    );
+    expect(model.boxes[0].n).toBe(3);
+    expect(model.boxes[0].hasQuartiles).toBe(false);
+  });
+});

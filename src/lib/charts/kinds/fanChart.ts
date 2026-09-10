@@ -1496,6 +1496,11 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
 
   let firstStepWidthShare: number | null = null;
   let constantWidth: boolean | null = null;
+  // Podejrzenie o szeroki start ma sens WYŁĄCZNIE przy co najmniej dwóch
+  // krokach prognozy z pasmem. Przy jednym kroku udział pierwszego kroku
+  // wobec maksimum wynosi 1 z definicji (pierwszy krok JEST maksimum), więc
+  // ostrzeżenie odpalałoby się zawsze i nie mówiłoby niczego o danych.
+  let porownywalnaPrognoza = false;
   const najszerszy = w.levels[0];
   if (najszerszy && w.boundary !== null) {
     const prognoza = najszerszy.steps.filter((s) => !s.isAnchor && s.isForecast);
@@ -1503,6 +1508,7 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
       firstStepWidthShare = udzial(prognoza[0].width, najszerszy.maxWidth);
     }
     if (prognoza.length >= FAN_MIN_FORECAST_STEPS) {
+      porownywalnaPrognoza = true;
       const pierwsza = prognoza[0].width;
       constantWidth = prognoza.every(
         (s) => Math.abs(s.width - pierwsza) <= tolerancja(s.width, pierwsza),
@@ -1517,8 +1523,8 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
     }
   }
   const wideAtStart =
+    porownywalnaPrognoza &&
     firstStepWidthShare !== null &&
-    constantWidth !== null &&
     firstStepWidthShare >= FAN_WIDE_START_SHARE;
 
   return {
