@@ -98,6 +98,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const fetchSites = useServerFn(listGscSites);
   const fetchAnalytics = useServerFn(queryGscAnalytics);
   const tenantId = useCurrentTenantId();
+  const chartTheme = useChartTheme();
   const [siteUrl, setSiteUrl] = useState<string>("");
   const [days, setDays] = useState<number>(28);
   // Etykiety paska narzędzi są WIDOCZNE, ale `<label>` nie nazywa przycisku -
