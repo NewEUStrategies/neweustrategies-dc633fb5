@@ -280,6 +280,103 @@ describe("histogram - sprawdzenia uczciwości", () => {
   });
 });
 
+describe("histogram - rozpiętość większa niż podwójna precyzja", () => {
+  // Cała ta grupa pilnuje JEDNEJ klasy defektu: działania, które wychodzą
+  // poza podwójną precyzję, a potem są zamiatane zaporą `pewna` na wyjściu
+  // modelu. Zamiecione przepełnienie nie wygląda na awarię - wygląda na
+  // liczbę, i to jest w nim najgorsze. Szeregi rzędu 1e308 nie są tu
+  // ćwiczeniem: treść bloku przychodzi z bazy i może być z wersji edytora,
+  // której ten kod nie zna.
+
+  it("kwartyl liczy się mieszaniem, więc nie ustawia się na skraju szeregu", () => {
+    // KONTRPRZYKŁAD, dla którego powstał wspólny `quantile` w `stats.ts`.
+    // Kopia lokalna interpolowała wzorem `a + (b-a)*t`: dla tego szeregu
+    // `b - a` wychodzi 2e308, czyli nieskończoność, a zapora na wyjściu
+    // modelu wypisywała pierwszy kwartyl jako ZERO. Zero jest liczbą
+    // wyglądającą tak samo wiarygodnie jak policzona, więc tabela pozycyjna
+    // pod wykresem podawała nieprawdę bez jednego ostrzeżenia. Prawdziwy
+    // pierwszy kwartyl tego szeregu to 5e+307.
+    const model = histogramModel([-1e308, 1e308, 1e308, 1e308]);
+    expect(model.summary.q1).toBe(5e307);
+    expect(model.summary.median).toBe(1e308);
+    expect(model.summary.q3).toBe(1e308);
+    expect(model.summary.iqr).toBe(5e307);
+  });
+
+  it("kwartyle szeregu od -1e308 do 1e308 leżą w połowie, nie w zerze", () => {
+    // Ten sam defekt na dwóch obserwacjach - i tu widać jego drugi skutek:
+    // wyzerowany rozstęp przełączał regułę doboru przedziałów na Sturgesa,
+    // bo `iqr > 0` było fałszem. Model nie tylko podawał złe kwartyle, ale
+    // i budował przedziały regułą, której nie wybrał.
+    const model = histogramModel([-1e308, 1e308]);
+    expect(model.summary.q1).toBe(-5e307);
+    expect(model.summary.q3).toBe(5e307);
+    expect(model.summary.iqr).toBe(1e308);
+    expect(model.rule).toBe("freedman-diaconis");
+  });
+
+  it("liczba przedziałów jest liczbą Z REGUŁY, a nie sufitem po przepełnieniu", () => {
+    // `(max - min) / h` dla tego szeregu daje `Infinity / h`, więc reguła
+    // "zamawiała" największą zapisywalną liczbę całkowitą i sufit przycinał
+    // ją do sześćdziesięciu, ustawiając przy tym `binCountClamped`. Wychodził
+    // z tego rysunek z pięćdziesięcioma siedmioma pustymi słupkami i pole
+    // uczciwości twierdzące, że rozdzielczość ograniczył rysunek - podczas
+    // gdy Freedman-Diaconis zamawia tu DWA przedziały. Iloraz liczony jako
+    // `max/h - min/h` jest tą samą liczbą i nie ma czym przepełnić.
+    const model = histogramModel([-1e308, 0, 1e308]);
+    expect(model.rule).toBe("freedman-diaconis");
+    expect(model.binCount).toBe(2);
+    expect(model.binCountClamped).toBe(false);
+    expect(histogramFormAdvice(model)).not.toContain("clamped");
+    expect(model.bins.every((b) => Number.isFinite(b.width) && b.width > 0)).toBe(true);
+    expect(model.binsBuiltOk).toBe(true);
+    expect(model.bins.reduce((a, b) => a + b.count, 0)).toBe(3);
+  });
+
+  it("przedział o szerokości NIEZAPISYWALNEJ jest defektem, nie słupkiem o szerokości zero", () => {
+    // Jeden przedział na całym zakresie double ma szerokość 2e308, czyli
+    // liczbę, której w podwójnej precyzji nie ma - i nie da się jej odzyskać
+    // przestawieniem działań. Model przepuszczał ją jako nieskończoność
+    // (`to - from > 0` jest wtedy prawdą), a zapora na wyjściu robiła z niej
+    // ZERO: render dostawał słupek o krawędziach oddalonych o pół osi
+    // i szerokości nic, dzielił przez tę szerokość, `binWidthOk` mówiło, że
+    // przedziały są w porządku, a `density` wychodziło zerem. Teraz taki
+    // przedział wypada z rysunku i KAŻDY skutek jest nazwany.
+    const model = histogramModel([-1e308, 0, 1e308], { binCount: 1 });
+    expect(model.bins).toEqual([]);
+    expect(model.binWidthOk).toBe(false);
+    expect(model.binsBuiltOk).toBe(false);
+    expect(model.outOfRange).toBe(3);
+    expect(model.inRangeOk).toBe(false);
+    expect(model.countChecksumOk).toBe(false);
+  });
+
+  it("te same krawędzie PODANE PRZEZ AUTORA też nie milczą", () => {
+    // Wyjście awaryjne z umownymi progami prowadzi do tego samego przedziału
+    // co reguła, więc musi prowadzić do tego samego werdyktu - inaczej ta
+    // sama arytmetyka byłaby defektem na jednej ścieżce, a rysunkiem na drugiej.
+    const model = histogramModel([0], { edges: [-1e308, 1e308] });
+    expect(model.bins).toEqual([]);
+    expect(model.binWidthOk).toBe(false);
+    expect(model.binsBuiltOk).toBe(false);
+  });
+
+  it("pusty rysunek NIE JEST milczeniem: `null` należy się wyłącznie zerowej próbce", () => {
+    // Konwencja repo: `null` znaczy "nie ma czego orzekać". Histogram, który
+    // ma obserwacje i nie potrafi ich pokazać, ma o czym orzekać - i mówi
+    // `false`. Bez tego pola pusta tablica `bins` wychodziła z modelu
+    // w ciszy: rysunek bez słupków, `rule` nadal nazwana, zero ostrzeżeń.
+    expect(histogramModel([null, null]).binsBuiltOk).toBeNull();
+    expect(histogramModel([]).binsBuiltOk).toBeNull();
+    expect(histogramModel(ROWNOMIERNE).binsBuiltOk).toBe(true);
+    // Przedziały zwyrodniałe (wszystkie obserwacje równe) DAJĄ się zbudować -
+    // dopełnienie krawędzi jest artefaktem rysunku, ale słupek istnieje.
+    expect(histogramModel([7, 7, 7]).binsBuiltOk).toBe(true);
+    // Krawędzie zdublowane: nie ma z czego zbudować ani jednego przedziału.
+    expect(histogramModel([1, 2, 3], { edges: [0, 0, 0] }).binsBuiltOk).toBe(false);
+  });
+});
+
 describe("histogram - dane z bazy nie wywracają modelu", () => {
   const przypadki: [string, () => HistogramModel][] = [
     ["pusta seria", () => histogramModel([])],
@@ -302,6 +399,20 @@ describe("histogram - dane z bazy nie wywracają modelu", () => {
     ["sufit zero", () => histogramModel(ROWNOMIERNE, { maxBins: 0 })],
     ["sufit nieskończony", () => histogramModel(ROWNOMIERNE, { maxBins: Infinity })],
     ["skrajne wielkości", () => histogramModel([-1e308, 0, 1e308])],
+    ["pełny rozrzut double", () => histogramModel([-1e308, -5e307, 0, 5e307, 1e308])],
+    // Jeden przedział na rozpiętości, której szerokość jest niezapisywalna -
+    // model ma nie wyprodukować z niej słupka o szerokości zero.
+    [
+      "jeden przedział na całym zakresie",
+      () => histogramModel([-1e308, 0, 1e308], { binCount: 1 }),
+    ],
+    // Rozstęp `q3 - q1` wychodzi tu poza podwójną precyzję, choć oba kwartyle
+    // są zapisywalne - reguła Freedmana-Diaconisa nie ma wtedy czym mierzyć
+    // i musi zejść na Sturgesa, zamiast dzielić przez nieskończoność.
+    [
+      "rozstęp poza podwójną precyzją",
+      () => histogramModel([-1.5e308, -1.5e308, 1.5e308, 1.5e308]),
+    ],
     ["wartości bliskie sobie", () => histogramModel([1, 1 + 1e-15, 1 + 2e-15])],
     ["wyrzutek przy wąskim rdzeniu", () => histogramModel([...ROWNOMIERNE, 1e9])],
   ];

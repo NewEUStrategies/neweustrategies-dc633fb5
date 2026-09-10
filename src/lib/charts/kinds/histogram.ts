@@ -63,6 +63,7 @@
 // JEDNOSTKI. `from`, `to`, `width` i `domain` są w jednostkach DANYCH (osi
 // poziomej), `count` w sztukach, `share` w zakresie 0..1, `density`
 // w jednostkach "udział na jednostkę danych". Pikseli w tym module nie ma.
+import { iqr, quantile } from "../stats";
 import type { ChartConfig } from "../types";
 
 /**
@@ -232,13 +233,31 @@ export interface HistogramModel {
    */
   inRangeOk: boolean | null;
   /**
-   * Czy każdy przedział ma dodatnią szerokość. `false` = wśród podanych
-   * krawędzi były dwie równe (albo nieuporządkowane), czyli przedział
-   * o zerowej szerokości: nie da się go narysować, a jego gęstość byłaby
-   * dzieleniem przez zero. Taki przedział wypada z rysunku, więc obserwacje
-   * z jego wnętrza gubi też suma kontrolna. `null` = nie ma czego sprawdzać.
+   * Czy każdy przedział ma szerokość dodatnią I ZAPISYWALNĄ. `false` w dwóch
+   * przypadkach: wśród krawędzi były dwie równe (albo nieuporządkowane),
+   * czyli przedział o zerowej szerokości, którego nie da się narysować,
+   * a jego gęstość byłaby dzieleniem przez zero; albo krawędzie są tak
+   * odległe, że różnica między nimi wychodzi poza podwójną precyzję (jeden
+   * przedział od -1e308 do 1e308 ma szerokość 2e308, czyli liczbę, której nie
+   * ma). Taki przedział wypada z rysunku, więc obserwacje z jego wnętrza gubi
+   * też suma kontrolna. `null` = nie ma czego sprawdzać.
    */
   binWidthOk: boolean | null;
+  /**
+   * Czy dało się zbudować CHOĆ JEDEN przedział. `false` = obserwacje są,
+   * a na rysunku nie ma ani jednego słupka.
+   *
+   * OSOBNE POLE OD `binWidthOk`, i to nie jest powielenie: tamto nazywa
+   * PRZYCZYNĘ (krawędzie), a to SKUTEK (pusty rysunek) - ten sam podział, co
+   * między `inRangeOk` i `countChecksumOk`. Bez tego pola histogram bez ani
+   * jednego przedziału wychodził z modelu w ciszy: `bins` pusta tablica,
+   * `plotMax` zero, `rule` nadal nazwana - czyli rysunek, na którym nie ma
+   * nic, i żadne pole nie mówi, że powinno tam coś być. Milczenie w tym
+   * silniku znaczy "nie ma czego orzekać" (`null`) i należy się wyłącznie
+   * zerowej próbce, a nie próbce, której nie umiemy pokazać. `null` = zero
+   * obserwacji.
+   */
+  binsBuiltOk: boolean | null;
   /**
    * Czy w danych JEST rozproszenie. `false` = wszystkie obserwacje mają jedną
    * wartość, więc rozkładu nie ma; histogram pokazuje wtedy jeden słupek
@@ -329,38 +348,32 @@ function pewna(value: number): number {
 }
 
 /**
- * Kwantyl z interpolacją liniową po pozycji `(n-1) * p` - ta sama definicja,
- * którą stosuje domyślnie R i większość arkuszy, więc IQR policzone tutaj
- * zgadza się z IQR, które autor widzi u siebie. Wejście MUSI być posortowane
- * rosnąco; tablica pusta daje zero, bo wywołujący i tak nie dochodzi do tego
- * miejsca bez obserwacji.
- */
-function kwantyl(posortowane: readonly number[], p: number): number {
-  const n = posortowane.length;
-  if (n === 0) return 0;
-  if (n === 1) return posortowane[0];
-  const pozycja = (n - 1) * Math.min(1, Math.max(0, p));
-  const dol = Math.floor(pozycja);
-  const reszta = pozycja - dol;
-  const a = posortowane[dol];
-  const b = posortowane[Math.min(n - 1, dol + 1)];
-  return a + (b - a) * reszta;
-}
-
-/**
  * Liczba przedziałów ZAMÓWIONA regułą, jeszcze przed sufitem.
  *
  * Zwracamy liczbę surową, a nie już przyciętą, bo inaczej `binCountClamped`
  * nie miałby czego porównać z sufitem i histogram o rozdzielczości narzuconej
  * rysunkiem wyglądałby na histogram o rozdzielczości wybranej regułą.
  *
- * Nieskończoność i NaN zamieniają się w największą zapisywalną liczbę
- * całkowitą, a nie w wyjątek: przy zakresie rzędu 1e300 i szerokości rzędu
- * 1e-300 iloraz wychodzi z podwójnej precyzji, a "więcej, niż da się
- * zapisać" jest tu prawdziwą odpowiedzią - sufit i tak ją przytnie.
+ * ILORAZ LICZYMY JAKO `max/h - min/h`, A NIE `(max - min)/h`, i to jest cały
+ * powód, dla którego ta funkcja bierze KOŃCE, a nie gotowy zakres. Oba wzory
+ * są tą samą liczbą w arytmetyce dokładnej, ale `max - min` dla szeregu od
+ * -1e308 do 1e308 wychodzi poza podwójną precyzję: iloraz robił się wtedy
+ * `Infinity/h` (albo `Infinity/Infinity`, czyli `NaN`) i funkcja odpowiadała
+ * "więcej, niż da się zapisać". Dla `[-1e308, 0, 1e308]` znaczyło to sufit
+ * sześćdziesięciu przedziałów z `binCountClamped = true` - czyli pięćdziesiąt
+ * siedem pustych słupków i pole uczciwości twierdzące, że rozdzielczość
+ * ograniczył rysunek, podczas gdy reguła Freedmana-Diaconisa zamawiała na tych
+ * danych DWA przedziały. Dzielenie przed odejmowaniem nie ma czym przepełnić,
+ * bo oba ilorazy leżą w zakresie zapisywalnym.
+ *
+ * Nieskończoność i NaN, które przeżyją tę ostrożność (szerokość rzędu 1e-300
+ * przy końcach rzędu 1e308), nadal zamieniają się w największą zapisywalną
+ * liczbę całkowitą, a nie w wyjątek: "więcej, niż da się zapisać" jest tam
+ * prawdziwą odpowiedzią, a sufit i tak ją przytnie.
  */
-function liczbaZSzerokosci(zakres: number, szerokosc: number): number {
-  const surowa = szerokosc > 0 ? zakres / szerokosc : Number.POSITIVE_INFINITY;
+function liczbaZSzerokosci(min: number, max: number, szerokosc: number): number {
+  if (!(szerokosc > 0)) return Number.MAX_SAFE_INTEGER;
+  const surowa = max / szerokosc - min / szerokosc;
   if (!Number.isFinite(surowa)) return Number.MAX_SAFE_INTEGER;
   return Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.ceil(surowa)));
 }
@@ -460,6 +473,7 @@ export function histogramModel(
       countChecksumOk: null,
       inRangeOk: null,
       binWidthOk: null,
+      binsBuiltOk: null,
       spreadOk: null,
       enoughObservationsOk: null,
       enoughBinsOk: null,
@@ -471,11 +485,30 @@ export function histogramModel(
   const wartosci = posortowane.map((o) => o.value);
   const min = wartosci[0];
   const max = wartosci[n - 1];
-  const zakres = max - min;
-  const q1 = kwantyl(wartosci, 0.25);
-  const median = kwantyl(wartosci, 0.5);
-  const q3 = kwantyl(wartosci, 0.75);
-  const iqr = q3 - q1;
+  // ROZPROSZENIE ROZSTRZYGA PORÓWNANIE, NIE RÓŻNICA. `max - min > 0`
+  // i `max > min` są dla dwóch liczb skończonych tym samym zdaniem (różnica
+  // dwóch różnych liczb podwójnej precyzji nigdy nie schodzi do zera), ale
+  // różnica przepełnia się dla szeregu od -1e308 do 1e308, a porównanie nie
+  // ma czym. Zmiennej `zakres` w tym pliku już nie ma, bo każde jej użycie
+  // było jednym z tych dwóch pytań: "czy jest rozproszenie" albo "ile
+  // przedziałów" - a to drugie liczy teraz `liczbaZSzerokosci` z końców.
+  const jestRozproszenie = max > min;
+  // KWANTYL ZE `stats.ts`, a nie własna kopia. Lokalna kopia interpolowała
+  // wzorem `a + (b-a)*t`, w którym `b - a` przepełnia się na szeregu
+  // rozpiętym na cały zakres double: dla `[-1e308, 1e308, 1e308, 1e308]`
+  // pierwszy kwartyl wychodził nieskończonością, a zapora `pewna` na wyjściu
+  // modelu wypisywała go w tabeli pozycyjnej jako ZERO - liczbę, której nie
+  // ma w danych i która wygląda dokładnie tak wiarygodnie jak policzona
+  // (prawdziwa odpowiedź to 5e+307). Wspólna funkcja miesza `a*(1-t) + b*t`,
+  // czyli nie liczy różnicy i nie ma czym przepełnić.
+  const q1 = quantile(wartosci, 0.25);
+  const median = quantile(wartosci, 0.5);
+  const q3 = quantile(wartosci, 0.75);
+  // `null` znaczy "rozstępu nie da się zapisać" (końce rzędu ±1,5e308), a nie
+  // "rozstęp wynosi zero" - i dlatego reguła Freedmana-Diaconisa niżej pyta
+  // o `null` OSOBNO od zera: przy zerze schodzi na Sturgesa, bo nie ma czym
+  // dzielić, a przy `null` schodzi na Sturgesa, bo nie ma czym mierzyć.
+  const rozstep = iqr(wartosci);
   // ŚREDNIA PRZYROSTOWA, nie suma przez n. Suma trzech wartości rzędu 1e308
   // wychodzi z podwójnej precyzji, więc iloraz był nieskończonością, a zapora
   // na wyjściu modelu sprowadzała go do ZERA - tabela pod wykresem podawała
@@ -511,7 +544,7 @@ export function histogramModel(
     // progu nie jest widoczna nigdzie.
     rule = "explicit-edges";
     krawedzie = podaneKrawedzie;
-  } else if (!(zakres > 0)) {
+  } else if (!jestRozproszenie) {
     // ZWYRODNIENIE: wszystkie obserwacje mają jedną wartość. Przedział
     // o zerowej szerokości byłby nierysowalny, a jego gęstość dzieleniem
     // przez zero, więc krawędzie dostają symetryczne DOPEŁNIENIE - to samo,
@@ -528,11 +561,19 @@ export function histogramModel(
     if (podanaLiczba !== null && podanaLiczba >= 1) {
       rule = "explicit-count";
       zamowione = Math.floor(podanaLiczba);
-    } else if (iqr > 0) {
+    } else if (rozstep !== null && rozstep > 0) {
       rule = "freedman-diaconis";
       // Freedman-Diaconis: h = 2 * IQR / n^(1/3). `Math.cbrt(n)` jest dla
       // n >= 1 zawsze >= 1, więc mianownik nie zeruje się nigdy.
-      zamowione = liczbaZSzerokosci(zakres, (2 * iqr) / Math.cbrt(n));
+      //
+      // DZIELIMY PRZED MNOŻENIEM: `2 * (IQR / n^(1/3))`, nie `(2 * IQR) / ...`.
+      // Rozstęp bywa rzędu 1e308 (szereg rozpięty na cały zakres double),
+      // a wtedy `2 * IQR` jest już nieskończonością i szerokość przedziału
+      // wychodziła nieskończona zanim ktokolwiek zdążył przez cokolwiek
+      // podzielić. Kolejność jest tu tylko przestawiona - dzielenie przez
+      // pierwiastek sześcienny wyniku nie zmienia, bo mnożenie przez dwa jest
+      // w podwójnej precyzji dokładne.
+      zamowione = liczbaZSzerokosci(min, max, 2 * (rozstep / Math.cbrt(n)));
     } else {
       rule = "sturges";
       // Sturges: k = ceil(log2 n) + 1. Dla n = 1 daje jeden przedział, co
@@ -554,16 +595,26 @@ export function histogramModel(
   // z obu stron - bez tego wyjątku maksimum nie należałoby do żadnego
   // przedziału i wypadałoby z rozkładu jako "poza zakresem".
   const pary: { from: number; to: number; count: number; members: string[] }[] = [];
-  let zeroSzerokosci = false;
+  let zlaSzerokosc = false;
   for (let i = 0; i < krawedzie.length - 1; i++) {
     const from = krawedzie[i];
     const to = krawedzie[i + 1];
-    if (!(to - from > 0)) {
-      // Przedział o zerowej (albo odwróconej) szerokości nie da się narysować
-      // i nie da się z niego policzyć gęstości. Wypada z rysunku, ale defekt
-      // zostaje zapisany - a obserwacje, które w nim siedziały, zgubi suma
-      // kontrolna, co jest właściwym drugim ostrzeżeniem.
-      zeroSzerokosci = true;
+    const szerokosc = to - from;
+    // SZEROKOŚĆ MUSI BYĆ DODATNIA I ZAPISYWALNA - dwa warunki, nie jeden,
+    // i drugi z nich jest tu naprawą osobnego defektu. Przedział rozpięty od
+    // -1e308 do 1e308 (jeden przedział na całym zakresie double, z `binCount:
+    // 1` albo z krawędzi podanych przez autora) ma szerokość 2e308, której
+    // w podwójnej precyzji NIE DA SIĘ ZAPISAĆ - i tego nie da się obejść
+    // przestawieniem działań, bo ta liczba po prostu nie istnieje. Test
+    // `to - from > 0` przepuszczał ją jako nieskończoność, a zapora `pewna`
+    // na wyjściu modelu zamieniała ją na ZERO: render dostawał słupek
+    // o krawędziach oddalonych o pół osi i szerokości nic, dzielił przez tę
+    // szerokość, a `binWidthOk` zaświadczało, że przedziały są w porządku.
+    // Taki przedział wypada z rysunku razem z tym, co w nim siedziało,
+    // a defekt zostaje nazwany: `binWidthOk` mówi o przyczynie, `binsBuiltOk`
+    // i suma kontrolna o skutku.
+    if (!(szerokosc > 0) || !Number.isFinite(szerokosc)) {
+      zlaSzerokosc = true;
       continue;
     }
     pary.push({ from, to, count: 0, members: [] });
@@ -641,12 +692,22 @@ export function histogramModel(
       n,
       missing,
       min: pewna(min),
-      q1: pewna(q1),
-      median: pewna(median),
-      q3: pewna(q3),
+      // `?? 0` NIE JEST TU WYBOREM WARTOŚCI ZASTĘPCZEJ, tylko przejściem
+      // z konwencji `stats.ts` (`null` = nie ma czego orzekać) na kształt
+      // tabeli pozycyjnej, w której pola są liczbami - i daje dokładnie to,
+      // co dawała dotąd zapora `pewna` na nieskończoności. Kwantyl liczony
+      // mieszaniem nie wychodzi poza `[a, b]`, więc dla q1, mediany i q3 ta
+      // gałąź jest nieosiągalna; osiągalna jest dla rozstępu, gdy sama
+      // różnica `q3 - q1` przekracza podwójną precyzję (końce rzędu
+      // ±1,5e308). Wpisania tam zera nie da się naprawić w tym pliku -
+      // wymaga dopuszczenia `null` w `HistogramSummary`, czyli zmiany
+      // kontraktu widzianej przez render.
+      q1: pewna(q1 ?? 0),
+      median: pewna(median ?? 0),
+      q3: pewna(q3 ?? 0),
       max: pewna(max),
       mean: pewna(mean),
-      iqr: pewna(iqr),
+      iqr: pewna(rozstep ?? 0),
     },
     rule,
     binCount: bins.length,
@@ -662,12 +723,13 @@ export function histogramModel(
     outOfRange,
     countChecksumOk: zsumowane === n,
     inRangeOk: outOfRange === 0,
-    binWidthOk: zeroSzerokosci ? false : bins.length > 0,
-    spreadOk: zakres > 0,
+    binWidthOk: zlaSzerokosc ? false : bins.length > 0,
+    binsBuiltOk: bins.length > 0,
+    spreadOk: jestRozproszenie,
     enoughObservationsOk: n >= HISTOGRAM_MIN_OBSERVATIONS,
     // Rozproszenia nie ma - nie ma czego dzielić na przedziały, więc pytanie
     // o ich liczbę nie ma sensu i model na nie nie odpowiada.
-    enoughBinsOk: zakres > 0 ? bins.length >= 2 : null,
+    enoughBinsOk: jestRozproszenie ? bins.length >= 2 : null,
     declaredSampleOk: declared === null ? null : Math.floor(declared) === n,
   };
 }
