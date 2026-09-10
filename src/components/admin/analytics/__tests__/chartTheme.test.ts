@@ -126,8 +126,8 @@ describe("heatRamp - czytelna skala aktywności", () => {
 
     expect(light).toEqual(["#dcefee", "#a9d7d3", "#62b8b1", "#23877f", "#075e5a"]);
     expect(dark).toEqual(["#183332", "#24514e", "#32736d", "#46a39a", "#7dd3c9"]);
-    expect(new Set(light)).toHaveLength(5);
-    expect(new Set(dark)).toHaveLength(5);
+    expect(new Set(light).size).toBe(5);
+    expect(new Set(dark).size).toBe(5);
     expect(heatEmpty(themeForHeat(false))).not.toBe(light[0]);
     expect(heatEmpty(themeForHeat(true))).not.toBe(dark[0]);
   });
