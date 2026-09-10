@@ -767,6 +767,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "histogram", label: "histogram (rozkład)" },
         { value: "boxplot", label: "boxplot (rozkład)" },
         { value: "beeswarm", label: "rój punktów (rozkład)" },
+        { value: "scatter", label: "punktowy (zależność)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },

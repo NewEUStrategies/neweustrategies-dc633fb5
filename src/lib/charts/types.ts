@@ -47,6 +47,12 @@ export const CHART_KINDS = [
   // prostopadłym, którego wykres kategorialny nie ma czym wyrazić.
   "boxplot",
   "beeswarm",
+  // ZALEŻNOŚĆ DWÓCH ZMIENNYCH - jedyny rodzaj w tym silniku, który NIE MA osi
+  // kategorii: obie osie są liczbowe i niezależne. Kolumna "czego unikać"
+  // stawia przy nim jedno hasło, linię łączącą punkty, i to jest zakaz
+  // wyrażony w kodzie, nie w komentarzu - model zwraca `mayConnectPoints:
+  // false` jako pole, a render je respektuje.
+  "scatter",
 ] as const;
 
 export type ChartKind = (typeof CHART_KINDS)[number];

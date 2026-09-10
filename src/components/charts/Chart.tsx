@@ -25,9 +25,11 @@ import { PieChart } from "./PieChart";
 import { HistogramChart } from "./HistogramChart";
 import { BoxplotChart } from "./BoxplotChart";
 import { BeeswarmChart } from "./BeeswarmChart";
+import { ScatterChart } from "./ScatterChart";
 import { histogramModelFromConfig, histogramTable } from "@/lib/charts/kinds/histogram";
 import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot";
 import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
+import { scatterModelFromConfig, scatterTable } from "@/lib/charts/kinds/scatter";
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
 
@@ -233,6 +235,7 @@ const DRAWING_BY_KIND: Record<ChartKind, KindView> = {
   histogram: HistogramChart,
   boxplot: BoxplotChart,
   beeswarm: BeeswarmChart,
+  scatter: ScatterChart,
 };
 
 /**
@@ -251,6 +254,7 @@ const TABLE_BY_KIND: Record<ChartKind, KindView> = {
   histogram: HistogramDataTable,
   boxplot: BoxplotDataTable,
   beeswarm: BeeswarmDataTable,
+  scatter: ScatterDataTable,
 };
 
 /**
@@ -263,6 +267,109 @@ const TABLE_BY_KIND: Record<ChartKind, KindView> = {
  * pokazuje je jako kropki bez etykiet, więc bez tabeli ta informacja nie ma
  * drugiej drogi.
  */
+/**
+ * ALTERNATYWA TEKSTOWA WYKRESU PUNKTOWEGO - dwie tabele, bo niosą dwie różne
+ * rzeczy.
+ *
+ * PIERWSZA to pary współrzędnych, i wypisuje TAKŻE pary NIEKOMPLETNE, z jawnym
+ * powodem pominięcia. Para, która ma tylko jedną współrzędną, nie da się
+ * narysować - ale nadal jest w danych, więc czytelnik, który liczy punkty na
+ * rysunku i porównuje z `n` w podpisie, musi mieć gdzie znaleźć różnicę.
+ * Rysunek nie ma jak o niej powiedzieć; tabela ma.
+ *
+ * DRUGA to trend, i jest osobna dlatego, że opisuje CHMURĘ, nie punkt.
+ * Nachylenie nigdy nie jedzie tu bez R2 i bez n - model gwarantuje to
+ * strukturalnie (`ScatterTableTrend` ma te pola wymagane), a tabela tę
+ * gwarancję odwzorowuje. Linia regresji jest TWIERDZENIEM o zależności;
+ * twierdzenie bez miary dopasowania i bez liczebności jest ozdobą, a wypisane
+ * w tabeli bez nich wyglądałoby na fakt.
+ */
+function ScatterDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  const tabela = scatterTable(scatterModelFromConfig(config));
+  const liczba = (v: number | null): string =>
+    v === null ? "-" : formatChartValue(v, lang, config.unit);
+  const przypis = (r: (typeof tabela.rows)[number]): string => {
+    const noty = [
+      r.dropped ? t("scatter.table.dropped") : null,
+      r.overplotted ? t("scatter.table.overplotted") : null,
+    ].filter((n): n is string => n !== null);
+    return noty.length > 0 ? noty.join(", ") : "";
+  };
+  const maPrzypisy = tabela.rows.some((r) => r.dropped || r.overplotted);
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <thead>
+          <tr>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("scatter.table.label")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("scatter.table.series")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("scatter.table.x")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("scatter.table.y")}
+            </th>
+            {maPrzypisy && <th scope="col" className={CHART_TABLE_CLS.th} />}
+          </tr>
+        </thead>
+        <tbody>
+          {tabela.rows.map((r, i) => (
+            <tr key={i}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {r.label}
+              </th>
+              <td className={CHART_TABLE_CLS.td}>{r.series}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.x)}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.y)}</td>
+              {maPrzypisy && <td className={CHART_TABLE_CLS.td}>{przypis(r)}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {tabela.trends.length > 0 && (
+        <table className={CHART_TABLE_CLS.table}>
+          <caption className="sr-only">{t("scatter.trend.label")}</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={CHART_TABLE_CLS.th}>
+                {t("scatter.table.series")}
+              </th>
+              <th scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t("scatter.trend.n")}
+              </th>
+              <th scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t("scatter.trend.r2")}
+              </th>
+              <th scope="col" className={CHART_TABLE_CLS.th}>
+                {t("scatter.trend.method")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {tabela.trends.map((tr, i) => (
+              <tr key={i}>
+                <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                  {tr.series}
+                </th>
+                <td className={CHART_TABLE_CLS.tdNum}>{formatChartValue(tr.n, lang, "")}</td>
+                <td className={CHART_TABLE_CLS.tdNum}>{tr.r2 === null ? "-" : tr.r2.toFixed(2)}</td>
+                <td className={CHART_TABLE_CLS.td}>{t("scatter.trend.notCausal")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
 function BoxplotDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = (key: string): string => scoped(key, { lng: lang });

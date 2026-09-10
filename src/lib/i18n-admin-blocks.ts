@@ -49,6 +49,7 @@ const pl = {
           histogram: "Histogram (rozkład)",
           boxplot: "Boxplot (rozkład)",
           beeswarm: "Rój punktów (rozkład)",
+          scatter: "Punktowy (zależność)",
         },
         // ---- Uczciwość wykresu ----
         honestyLabel: "Uczciwość wykresu",
@@ -808,6 +809,7 @@ const en: typeof pl = {
           histogram: "Histogram (distribution)",
           boxplot: "Boxplot (distribution)",
           beeswarm: "Point swarm (distribution)",
+          scatter: "Scatter (relationship)",
         },
       },
       dataMap: {

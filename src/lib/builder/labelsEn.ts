@@ -749,6 +749,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "histogram (rozkład)": "histogram (distribution)",
   "boxplot (rozkład)": "boxplot (distribution)",
   "rój punktów (rozkład)": "point swarm (distribution)",
+  "punktowy (zależność)": "scatter (relationship)",
   "słupki poziome": "horizontal bars",
   "pole (area)": "area",
   "termometr pionowy": "vertical thermometer",

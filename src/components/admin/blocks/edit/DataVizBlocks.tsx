@@ -71,6 +71,10 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   // i model każdego z nich doradza autorowi, kiedy ta forma jest zła.
   { value: "boxplot", labelKey: "kinds.boxplot" },
   { value: "beeswarm", labelKey: "kinds.beeswarm" },
+  // Punktowy czyta DWIE serie: pierwsza to os X, druga to os Y. Bez
+  // drugiej serii model stawia na osi X pozycje w szeregu i sam to
+  // zglasza, bo wtedy nie jest to wykres zaleznosci.
+  { value: "scatter", labelKey: "kinds.scatter" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
