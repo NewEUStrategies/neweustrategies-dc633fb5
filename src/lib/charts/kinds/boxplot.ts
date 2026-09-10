@@ -53,6 +53,7 @@
 // arkusza transponowanego jest tryb `groupBy: "category"`. Żadne z tych dwóch
 // odczytań nie wymaga zmiany schematu bloku; propozycja jawnego pola jest
 // w raporcie.
+import { quantile } from "../stats";
 import type { ChartConfig, ChartSeries } from "../types";
 
 /**
@@ -358,6 +359,19 @@ export interface BoxplotHonesty {
 
   /** Etykiety grup z próbą 1..4 - rysowane punktami, bez skrzynki. */
   smallSamples: string[];
+  /**
+   * Etykiety grup, w których kwantyl wyszedł NIEPOLICZALNY mimo próby powyżej
+   * progu - skrzynki nie ma, obserwacje idą punktami jak przy próbie za małą.
+   *
+   * OSOBNA LISTA, A NIE `smallSamples`, i to jest cała treść tego pola.
+   * Powód milczenia jest tu inny (arytmetyka nie domknęła kwantyla, a nie
+   * "za mało obserwacji"), a wpisanie takiej grupy do `smallSamples`
+   * powiedziałoby o próbie trzystu obserwacji, że ma ich mniej niż pięć -
+   * czyli osłona przestałaby milczeć i zaczęła zaświadczać nieprawdę
+   * o danych autora, dokładnie tak jak kwartyl cofnięty do najmniejszej
+   * obserwacji przed poprawką `quantileR7`.
+   */
+  unquantifiableSamples: string[];
   /** Etykiety grup bez ani jednej obserwacji - kolumna zostaje pusta. */
   emptySamples: string[];
   /** Etykiety grup o IQR = 0 - skrzynka zwinięta w linię. */
@@ -424,27 +438,34 @@ function observations(values: readonly (number | null)[]): number[] {
 }
 
 /**
- * Kwantyl metodą `linear-r7` na tablicy JUŻ POSORTOWANEJ rosnąco.
+ * Kwantyl typu 7 na tablicy JUŻ POSORTOWANEJ rosnąco - JEDNO WYWOŁANIE
+ * wspólnej `quantile` ze `stats.ts` i nic ponadto.
  *
- * Bez dzielenia: pozycja to `(n - 1) * p`, a interpolacja to `a + (b - a) * f`.
- * Dzięki temu funkcja nie ma ani jednego miejsca, w którym mogłaby
- * wyprodukować NaN z danych, które przeszły przez `observations`.
+ * NAZWA ZOSTAJE, BO JEST WEJŚCIEM DO TEGO MODUŁU: wołają ją testy i sąsiedni
+ * kod, a przemianowanie eksportu byłoby zmianą niezwiązaną z defektem, który
+ * ta poprawka usuwa. Ciało jest przekierowaniem, żeby definicja kwantyla
+ * została w repozytorium JEDNA - cztery kopie w dwóch różnych wzorach to nie
+ * powielony kod, tylko cztery definicje, z których każda daje na skrajnych
+ * danych inną liczbę.
+ *
+ * JAKI DEFEKT ZNIKA. Poprzednia postać interpolowała RÓŻNICĄ (`a + (b-a)*f`)
+ * i miała na niej osłonę wyświetlania (`fin(..., a)`). Dla
+ * `quantileR7([-1e308, 1e308, 1e308, 1e308], 0.25)` różnica `b - a`
+ * przepełniała do nieskończoności, osłona cofała wynik do `a` i funkcja
+ * ogłaszała pierwszy kwartyl RÓWNY NAJMNIEJSZEJ OBSERWACJI (-1e308) tam, gdzie
+ * poprawną odpowiedzią jest 5e+307. Nie była to awaria, którą ktoś zauważy:
+ * była to zła liczba na rysunku i w tabeli, wyglądająca dokładnie tak samo
+ * wiarygodnie jak liczba policzona z danych. `quantile` interpoluje
+ * MIESZANIEM (`a*(1-t) + b*t`), które nie liczy różnicy, więc nie ma czym
+ * przepełnić, a gdy wyniku policzyć się nie da, MILCZY (`null`) zamiast
+ * podawać wartość zastępczą.
+ *
+ * Konsekwencja kontraktu: `p` poza [0, 1] daje `null`, a nie kwantyl
+ * przycięty do skraju próby - "kwantyl rzędu -0,5" jest błędem wywołania,
+ * a nie danymi do przycięcia.
  */
 export function quantileR7(sorted: readonly number[], p: number): number | null {
-  const n = sorted.length;
-  if (n === 0) return null;
-  const first = fin(sorted[0]);
-  if (n === 1) return first;
-  const clamped = p < 0 ? 0 : p > 1 ? 1 : p;
-  const h = (n - 1) * clamped;
-  const lo = Math.floor(h);
-  const hi = lo + 1 >= n ? n - 1 : lo + 1;
-  const a = fin(sorted[lo], first);
-  const b = fin(sorted[hi], a);
-  // Różnica dwóch skrajnych liczb zmiennoprzecinkowych może przepełnić do
-  // Infinity (wartości rzędu 1e308 z uszkodzonego importu), dlatego nawet ta
-  // interpolacja ma osłonę i cofa się do dolnej statystyki pozycyjnej.
-  return fin(a + (b - a) * (h - lo), a);
+  return quantile(sorted, p);
 }
 
 /**
@@ -651,9 +672,44 @@ export function boxplotModel(input: BoxplotInput, opts: BoxplotOptions = {}): Bo
       };
     }
 
-    const q1 = fin(quantileR7(sorted, 0.25) ?? min);
-    const median = fin(quantileR7(sorted, 0.5) ?? min);
-    const q3 = fin(quantileR7(sorted, 0.75) ?? max);
+    // KWARTYL JEST ORZECZENIEM O DANYCH, NIE WSPÓŁRZĘDNĄ RYSUNKU, więc jego
+    // brak nie ma prawa cofnąć się do żadnej liczby zastępczej. Poprzednia
+    // postać (`fin(quantileR7(...) ?? min)`) domykała drugą połowę defektu
+    // opisanego przy `quantileR7`: nawet gdyby wspólna funkcja zamilkła,
+    // model wpisałby w pole `q1` najmniejszą obserwację próby i podał ją
+    // czytelnikowi jako pierwszy kwartyl. Milczenie wspólnej funkcji musi
+    // zostać milczeniem modelu.
+    const q1 = quantile(sorted, 0.25);
+    const median = quantile(sorted, 0.5);
+    const q3 = quantile(sorted, 0.75);
+
+    if (q1 === null || median === null || q3 === null) {
+      // Ta sama cisza co poniżej progu próby - kwartyle `null`, obserwacje
+      // w `points`, żeby żadna nie zniknęła z wykresu - ale NAZWANA INACZEJ
+      // w uczciwości (`unquantifiableSamples`, a nie `smallSamples`), bo
+      // próba jest tu dostatecznie liczna i powód milczenia jest inny.
+      return {
+        sorted,
+        box: {
+          ...base,
+          min,
+          max,
+          q1: null,
+          median: null,
+          q3: null,
+          iqr: null,
+          whiskerLow: null,
+          whiskerHigh: null,
+          fenceLow: null,
+          fenceHigh: null,
+          outliers: [],
+          points: spreadPoints(sorted, () => "raw"),
+          hasQuartiles: false,
+          collapsed: false,
+        },
+      };
+    }
+
     // Maksimum z zerem, bo IQR jest DŁUGOŚCIĄ: ujemny rozstęp między
     // kwartylami nie ma sensu i przy takiej wartości ogrodzenia odwróciłyby
     // się stronami, czyli cały zakres danych stałby się odstający.
@@ -762,6 +818,7 @@ function honestyOf(
   let declaredSampleSizeOk: boolean | null = null;
 
   const smallSamples: string[] = [];
+  const unquantifiableSamples: string[] = [];
   const emptySamples: string[] = [];
   const collapsedSamples: string[] = [];
   let minN = Infinity;
@@ -784,7 +841,13 @@ function honestyOf(
       declaredSampleSizeOk = (declaredSampleSizeOk ?? true) && box.n === declared;
     }
     if (!box.hasQuartiles) {
-      smallSamples.push(box.label);
+      // DWA RÓŻNE POWODY MILCZENIA, DWIE RÓŻNE LISTY. Poniżej progu to
+      // decyzja modelu o próbie ("pięć liczb z czterech obserwacji udaje
+      // statystykę rzędu"), powyżej progu - kwantyl, którego nie dało się
+      // policzyć. Jedna lista nazwałaby drugi przypadek pierwszym, czyli
+      // podałaby czytelnikowi nieprawdziwy powód.
+      if (box.n < BOXPLOT_MIN_SAMPLE) smallSamples.push(box.label);
+      else unquantifiableSamples.push(box.label);
       continue;
     }
     if (box.collapsed) collapsedSamples.push(box.label);
@@ -836,6 +899,7 @@ function honestyOf(
     sampleRatio,
     sampleSizesBalanced: sampleRatio === null ? null : sampleRatio <= BOXPLOT_SAMPLE_RATIO_MAX,
     smallSamples,
+    unquantifiableSamples,
     emptySamples,
     collapsedSamples,
   };

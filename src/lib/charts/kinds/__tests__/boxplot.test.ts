@@ -60,6 +60,48 @@ describe("boxplot - kwantyle i metoda ich liczenia", () => {
     expect(boxplotModel(wejscie([seria("A", PROBA_9)])).quantileMethod).toBe(QUANTILE_METHOD);
   });
 
+  it("kwartyl na styku skrajnych wykładników MIESZA, a nie interpoluje różnicą", () => {
+    // REGRESJA NA UDOWODNIONY DEFEKT. Poprzednia postać liczyła interpolację
+    // różnicą (`a + (b - a) * f`) i miała na niej osłonę wyświetlania: dla tej
+    // próby `b - a` przepełnia do nieskończoności, osłona cofała wynik do `a`
+    // i funkcja ogłaszała pierwszy kwartyl RÓWNY NAJMNIEJSZEJ OBSERWACJI.
+    // To nie jest awaria, którą czytelnik zauważy - to zła liczba na rysunku
+    // i w tabeli, wyglądająca dokładnie jak liczba policzona z danych.
+    const skrajna = [-1e308, 1e308, 1e308, 1e308];
+    expect(quantileR7(skrajna, 0.25)).toBe(5e307);
+    expect(quantileR7(skrajna, 0.25)).not.toBe(skrajna[0]);
+    // Mieszanie `a*(1-t) + b*t` jest kombinacją wypukłą, więc kwantyl nigdy
+    // nie wychodzi poza parę obserwacji, między którymi leży.
+    const wynik = quantileR7(skrajna, 0.25) ?? 0;
+    expect(wynik).toBeGreaterThan(-1e308);
+    expect(wynik).toBeLessThan(1e308);
+  });
+
+  it("na zwykłych próbach daje DOKŁADNIE te same liczby co przed zmianą wzoru", () => {
+    // Zmiana wzoru interpolacji ma naprawiać skrajne wykładniki i nie ruszać
+    // niczego innego: dla próby, która mieści się w podwójnej precyzji, obie
+    // postacie są tą samą liczbą co do bitu. Bez tego testu poprawka mogłaby
+    // po cichu przesunąć kwartyle na każdym wykresie w repozytorium.
+    for (const p of [0.25, 0.5, 0.75]) {
+      const roznica = (a: number, b: number, t: number) => a + (b - a) * t;
+      const proba = [1, 2, 3, 4, 5, 6, 7, 8];
+      const h = (proba.length - 1) * p;
+      const lo = Math.floor(h);
+      const hi = Math.min(lo + 1, proba.length - 1);
+      expect(quantileR7(proba, p)).toBe(roznica(proba[lo], proba[hi], h - lo));
+    }
+  });
+
+  it("rząd kwantyla spoza [0, 1] daje MILCZENIE, a nie kwantyl przycięty do skraju", () => {
+    // "Kwantyl rzędu -0,5" jest błędem wywołania, a nie danymi do przycięcia:
+    // zaciśnięcie do zakresu podawało minimum próby jako odpowiedź na pytanie,
+    // którego nikt nie zadał.
+    expect(quantileR7(PROBA_9, -0.5)).toBeNull();
+    expect(quantileR7(PROBA_9, 1.5)).toBeNull();
+    expect(quantileR7(PROBA_9, NaN)).toBeNull();
+    expect(quantileR7([], 0.5)).toBeNull();
+  });
+
   it("pięcioliczbowy zestaw na próbie dziewięciu obserwacji", () => {
     // Pin na całą arytmetykę skrzynki naraz. Gdyby ktoś przesunął pozycję
     // kwantyla o jeden (klasyczny błąd `n * p` zamiast `(n - 1) * p`), q1
@@ -540,6 +582,13 @@ const PRZYPADKI_BRZEGOWE: [string, BoxplotInput][] = [
     wejscie([seria("A", [NaN, Infinity, -Infinity, 1, 2, 3, 4, 5])]),
   ],
   ["wartości na granicy zakresu liczb", wejscie([seria("A", [-1e308, -1e308, 0, 1e308, 1e308])])],
+  [
+    // Kwantyl wypada tu MIĘDZY obserwacjami o przeciwnych skrajnych
+    // wykładnikach, czyli dokładnie tam, gdzie interpolacja różnicą
+    // przepełniała.
+    "kwartyl interpolowany między skrajnymi wykładnikami",
+    wejscie([seria("A", [-1e308, -1e308, 1e308, 1e308, 1e308, 1e308])]),
+  ],
   ["slot palety zerowy", wejscie([seria("A", PROBA_9, 0)])],
   ["kategorii więcej niż wartości", { categories: ["a", "b", "c"], series: [seria("A", [1])] }],
   ["wartości więcej niż kategorii", { categories: ["a"], series: [seria("A", PROBA_9)] }],
@@ -590,6 +639,40 @@ describe("boxplot - odporność na dane z bazy", () => {
     expect(model.boxes[0].collapsed).toBe(false);
     expect(model.honesty.collapsedSamples).toEqual([]);
     expect(model.boxes[0].iqr).toBeGreaterThan(0);
+  });
+
+  it("pierwszy kwartyl NIE cofa się do najmniejszej obserwacji przy skrajnych wykładnikach", () => {
+    // REGRESJA NA UDOWODNIONY DEFEKT, tym razem na poziomie modelu. Pozycja
+    // q1 wypada tu między -1e308 a 1e308, więc stara interpolacja różnicą
+    // przepełniała, a osłona cofała wynik do dolnej obserwacji: model podawał
+    // q1 = -1e308, czyli pierwszy kwartyl RÓWNY MINIMUM próby, w której trzy
+    // czwarte obserwacji leży po drugiej stronie zera. Poprawną odpowiedzią
+    // jest -5e+307 i to jest liczba, którą czytelnik odczyta z krawędzi pudła.
+    const box = boxplotModel(wejscie([seria("A", [-1e308, -1e308, 1e308, 1e308, 1e308, 1e308])]))
+      .boxes[0];
+    expect(box.hasQuartiles).toBe(true);
+    expect(box.q1).toBe(-5e307);
+    expect(box.q1).not.toBe(box.min);
+    expect(box.median).toBe(1e308);
+    expect(box.q3).toBe(1e308);
+    // Rozstęp liczy się tu normalnie (1,5e308 mieści się w podwójnej
+    // precyzji), więc żadna osłona nie musi się odzywać.
+    expect(box.iqr).toBe(1.5e308);
+    expect(box.collapsed).toBe(false);
+  });
+
+  it("kwartyl niepoliczalny nazywa się INACZEJ niż próba za mała", () => {
+    // Dwa różne powody milczenia nie mogą dzielić jednej listy: grupa
+    // z trzystoma obserwacjami wpisana do `smallSamples` mówiłaby podpisowi,
+    // że obserwacji jest mniej niż pięć. Dziś żadne wejście po
+    // `observations` nie potrafi zamilczeć kwantyla, więc lista jest pusta -
+    // i test pilnuje właśnie tego, żeby milczenie nie zaczęło się nazywać
+    // cudzym powodem.
+    const model = boxplotModel(
+      wejscie([seria("Duża", [-1e308, -1e308, 1e308, 1e308, 1e308, 1e308]), seria("Mała", [1, 2])]),
+    );
+    expect(model.honesty.unquantifiableSamples).toEqual([]);
+    expect(model.honesty.smallSamples).toEqual(["Mała"]);
   });
 
   it("slot palety z cofniętej wersji edytora podmienia na pozycję", () => {
