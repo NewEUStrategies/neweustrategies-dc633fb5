@@ -27,7 +27,7 @@
 //      `Intl.NumberFormat.format(NaN)` zwraca literalne "NaN", a treść bloku
 //      pochodzi z bazy.
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { CHART_KINDS } from "@/lib/charts/types";
 import { parseChartConfig } from "@/lib/charts/parse";
@@ -209,5 +209,146 @@ describe("każdy rodzaj znosi dane zdegenerowane bez wywrotki", () => {
         }
       });
     }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// KLAWIATURA - DLA KAŻDEGO RODZAJU, ALE NIE JEDNYM WZORCEM.
+//
+// PO CO. Nawigacja klawiaturą jest jedyną drogą do odczytania wartości bez
+// wskaźnika. Bez niej wykres jest dostępny wyłącznie dla myszy, a jego dane
+// istnieją dla czytelnika klawiatury tylko w tabeli.
+//
+// TA BRAMKA POWSTAŁA W WERSJI ZŁEJ I TO JEST WARTE ZAPISANIA, bo pokazuje
+// pułapkę, w którą łatwo wpaść przy dwunastu rodzajach. Pierwsza wersja
+// zakładała JEDEN wzorzec dla wszystkich: ogniskowalny kontener plus
+// `ArrowRight`. Wywróciła pięć przypadków, z czego ANI JEDEN nie był defektem
+// kodu:
+//
+//   * `bar-horizontal` nie reaguje na `ArrowRight`, bo `CartesianChart`
+//     mapuje dla orientacji poziomej `ArrowDown`/`ArrowUp` - kategorie biegną
+//     tam w PIONIE, więc strzałka w prawo przesuwałaby wzdłuż osi wartości,
+//     czyli wbrew temu, co czytelnik widzi;
+//   * tarcza i pierścień nie mają ogniskowalnego kontenera, bo stawiają
+//     `role="img"` i `tabIndex` na KAŻDYM WYCINKU, z jego własną nazwą
+//     ("Polska: 12 mln EUR (17%)"). Czytelnik Tabem trafia w wycinek
+//     i słyszy wartość wprost, zamiast wchodzić w nieprzejrzysty kontener
+//     i zgadywać, ile razy nacisnąć strzałkę.
+//
+// Gdybym "naprawił" kod pod pierwszą wersję bramki, zepsułbym dwie dobre
+// decyzje projektowe. Dlatego wzorzec i klawisz są tu DANYMI deklarowanymi
+// per rodzaj, w mapach wyczerpujących po `ChartKind`: nowy rodzaj nie
+// skompiluje się bez zadeklarowania, jak go obsługiwać, a bramka nadal
+// zabrania jedynej rzeczy naprawdę zabronionej - braku dostępu z klawiatury.
+type WzorzecKlawiatury =
+  /** Ogniskowalny kontener rysunku, strzałki przesuwają aktywny element. */
+  | "kontener"
+  /** Każdy znacznik osobno ogniskowalny i osobno nazwany; nawigacja Tabem. */
+  | "znaczniki";
+
+const WZORZEC: Record<ChartKind, WzorzecKlawiatury> = {
+  line: "kontener",
+  area: "kontener",
+  bar: "kontener",
+  "bar-horizontal": "kontener",
+  waterfall: "kontener",
+  pie: "znaczniki",
+  donut: "znaczniki",
+  histogram: "kontener",
+  boxplot: "kontener",
+  beeswarm: "kontener",
+  scatter: "kontener",
+  heatmap: "kontener",
+};
+
+/**
+ * Klawisz "dalej" zależy od tego, w którą stronę biegną kategorie. Deklaracja
+ * per rodzaj, bo orientacja jest cechą RODZAJU, nie ustawieniem: słupki
+ * poziome i tornado mają kategorie w pionie z definicji.
+ */
+const KLAWISZ_DALEJ: Record<ChartKind, string> = {
+  line: "ArrowRight",
+  area: "ArrowRight",
+  bar: "ArrowRight",
+  "bar-horizontal": "ArrowDown",
+  waterfall: "ArrowRight",
+  pie: "ArrowRight",
+  donut: "ArrowRight",
+  histogram: "ArrowRight",
+  boxplot: "ArrowRight",
+  beeswarm: "ArrowRight",
+  scatter: "ArrowRight",
+  heatmap: "ArrowRight",
+};
+
+describe("każdy rodzaj jest dostępny z klawiatury", () => {
+  for (const kind of CHART_KINDS) {
+    const render_ = () => render(<Chart config={parseChartConfig({ ...DANE, kind })} lang="pl" />);
+
+    it(`${kind}: jest CO ogniskować`, () => {
+      // Wspólne minimum obu wzorców: w drzewie istnieje choć jeden element
+      // w kolejności tabulacji. Brak takiego elementu znaczy wykres dostępny
+      // wyłącznie dla myszy - i to jest jedyna rzecz, której ta bramka
+      // zabrania bezwarunkowo.
+      const { container } = render_();
+      const ogniskowalne = container.querySelectorAll("[tabindex='0']");
+      expect(ogniskowalne.length, `${kind}: nic nie da się ogniskować`).toBeGreaterThan(0);
+    });
+
+    if (WZORZEC[kind] === "kontener") {
+      it(`${kind}: kontener niesie nazwę i OPIS obsługi`, () => {
+        const { container } = render_();
+        const box = container.querySelector<HTMLElement>("[role='img'][tabindex='0']");
+        expect(box, `${kind}: brak ogniskowalnego kontenera`).not.toBeNull();
+        expect((box?.getAttribute("aria-label") ?? "").length).toBeGreaterThan(0);
+        // Opis, nie nazwa: nazwa mówi CO to jest, opis - JAK tego użyć.
+        const opisId = box?.getAttribute("aria-describedby");
+        expect(opisId, `${kind}: brak aria-describedby z podpowiedzią`).toBeTruthy();
+        const opis = opisId ? (container.querySelector(`#${opisId}`)?.textContent ?? "") : "";
+        expect(opis.length, `${kind}: podpowiedź obsługi jest pusta`).toBeGreaterThan(0);
+      });
+
+      it(`${kind}: ${KLAWISZ_DALEJ[kind]} zmienia stan, Escape go czyści`, () => {
+        const { container } = render_();
+        const box = container.querySelector<HTMLElement>("[role='img'][tabindex='0']");
+        if (!box) throw new Error(`${kind}: brak kontenera`);
+        // Porównanie migawek HTML, bo każdy rodzaj wyróżnia aktywny element
+        // inaczej: bramka pilnuje ZASADY, nie konkretnego znacznika.
+        const przed = container.innerHTML;
+        fireEvent.keyDown(box, { key: KLAWISZ_DALEJ[kind] });
+        expect(container.innerHTML, `${kind}: strzałka nie zmienia nic`).not.toBe(przed);
+        fireEvent.keyDown(box, { key: "Escape" });
+        expect(container.innerHTML, `${kind}: Escape nie czyści zaznaczenia`).toBe(przed);
+      });
+    } else {
+      it(`${kind}: KAŻDY ogniskowalny znacznik ma własną nazwę`, () => {
+        // Przy nawigacji Tabem nazwa znacznika jest JEDYNĄ informacją, jaką
+        // dostaje czytelnik czytnika ekranu - wycinek bez nazwy jest wtedy
+        // przystankiem tabulacji, który nic nie mówi.
+        const { container } = render_();
+        const znaczniki = [...container.querySelectorAll("[tabindex='0']")];
+        expect(znaczniki.length, `${kind}: brak ogniskowalnych znaczników`).toBeGreaterThan(1);
+        for (const z of znaczniki) {
+          const nazwa = z.getAttribute("aria-label") ?? "";
+          expect(nazwa.length, `${kind}: znacznik bez nazwy`).toBeGreaterThan(0);
+          // Nazwa musi nieść LICZBĘ, nie tylko etykietę kategorii: "Polska"
+          // bez wartości nie zastępuje odczytania wycinka wzrokiem.
+          expect(/\d/.test(nazwa), `${kind}: nazwa "${nazwa}" bez liczby`).toBe(true);
+        }
+      });
+    }
+
+    it(`${kind}: klawisze nieobsługiwane nie wywracają rysunku`, () => {
+      const { container } = render_();
+      const cel = container.querySelector<HTMLElement>("[tabindex='0']");
+      if (!cel) throw new Error(`${kind}: brak celu`);
+      for (const key of ["Tab", "Enter", " ", "a", "F5", "PageDown", "Home"]) {
+        expect(
+          () => fireEvent.keyDown(cel, { key }),
+          `${kind}: klawisz ${key} rzucił`,
+        ).not.toThrow();
+      }
+      expect(container.textContent ?? "").not.toContain("NaN");
+    });
   }
 });
