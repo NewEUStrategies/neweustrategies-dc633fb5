@@ -3637,8 +3637,33 @@ textarea::placeholder {
   :where(input, textarea, select):focus {
     outline: none;
   }
+  /* OBRAMOWANIE FOKUSU JEST SOLIDNE, NIE PRZEZROCZYSTYM ODCIENIEM TEKSTU.
+     
+     Było tu `color-mix(in oklab, var(--foreground) 35%, transparent)` i to nie
+     przechodziło progu 3,0:1 dla obiektu graficznego (WCAG 1.4.11) w ŻADNYM
+     motywie ani przy ŻADNEJ z realnych wartości `--foreground`:
+       jasny  #121212 (arkusz)       2,262:1
+       jasny  #374151 (globalColors) 1,903:1 na bieli
+       ciemny #f8f8f8 (arkusz stary) 3,095:1  - jedyna, która ledwo przechodziła
+       ciemny #ede9e7 (arkusz nowy)  2,841:1
+       ciemny #d1d5db (globalColors) 2,529:1
+     Podkręcanie alfy nie jest naprawą: przy `#374151` trzeba by 57%, a wtedy
+     obramowanie przestaje być recesywne i zaczyna wyglądać jak obwódka błędu.
+     
+     Rozwiązaniem jest kolor SOLIDNY o recesywnej jasności, i takim kolorem jest
+     tekst drugorzędny: `--muted-foreground` daje najgorszy przypadek 4,71:1
+     (jasny `#6b7280` na tle strony) i 6,15:1 w ciemnym - z zapasem nad progiem
+     przy każdej z czterech realnych wartości, także po nadpisaniu z panelu
+     globalnych kolorów. To ten sam token i ta sama reguła, którą obramowanie
+     fokusu ma w silniku wykresów, więc fokus w formularzu i na wykresie
+     wygląda tak samo.
+     
+     Przezroczystość ma jeszcze jedną wadę, niezależną od liczb: `color-mix`
+     z `transparent` przepuszcza to, co jest POD obramowaniem, więc kontrast
+     zależy od tego, na czym pole stoi - a pola stoją na karcie, na tle strony
+     i na powierzchni podniesionej. Kolor solidny nie ma tego problemu. */
   :where(input, textarea, select):focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+    outline: 2px solid var(--muted-foreground);
     outline-offset: 1px;
     box-shadow: none;
   }

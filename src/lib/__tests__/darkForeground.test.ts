@@ -129,6 +129,56 @@ describe("tryb ciemny - tekst nie jest bielą, ale przechodzi próg", () => {
     }
   });
 
+  it("ARKUSZ I PANEL GLOBALNYCH KOLORÓW mówią to samo o tekście", () => {
+    // NAJWAŻNIEJSZA ASERCJA W TYM PLIKU, i najpóźniej odkryta.
+    //
+    // Slot `body-text` w `src/lib/builder/globalColors.ts` ma
+    // `overrides: ["--foreground"]`, a `globalColorsToCss` emituje jego
+    // `defaultDark` BEZWARUNKOWO - także wtedy, gdy tenant nigdy nic tu nie
+    // ustawił. Reguła leci z `DesignTokensStyle` (montowany w `__root.tsx`)
+    // PO arkuszu i w tej samej specyficzności (`.dark`), więc WYGRYWA.
+    //
+    // Znaczy to, że wartość w arkuszu jest wyłącznie fallbackiem przed
+    // hydracją, a to, co czytelnik naprawdę widzi, pochodzi z pliku TypeScript.
+    // Przez długi czas oba źródła mówiły co innego: arkusz `#f8f8f8` (18,05:1),
+    // panel `#d1d5db` (13,01:1) - i żadna bramka tego nie widziała, bo każda
+    // patrzyła tylko na swoje źródło. Ta asercja jest jedynym miejscem, w którym
+    // te dwa światy się spotykają.
+    const globalColors = readFileSync("src/lib/builder/globalColors.ts", "utf8");
+    const slot = globalColors.slice(globalColors.indexOf('key: "body-text"'));
+    const koniec = slot.indexOf('key: "body-text-muted"');
+    const bodyText = koniec > 0 ? slot.slice(0, koniec) : slot;
+    const dark = bodyText.match(/defaultDark:\s*"(#[0-9a-fA-F]{6})"/);
+    expect(dark, "brak defaultDark w slocie body-text").not.toBeNull();
+    expect(dark?.[1].toLowerCase()).toBe(hexToken("--foreground"));
+  });
+
+  it("OBRAMOWANIE FOKUSU PÓL jest solidne i przechodzi próg grafiki", () => {
+    // Było `color-mix(in oklab, var(--foreground) 35%, transparent)` i nie
+    // przechodziło 3,0:1 (WCAG 1.4.11) przy ŻADNEJ realnej wartości tokena:
+    // 2,262:1 (jasny arkusz), 1,903:1 (jasny panel), 3,095:1 (ciemny arkusz
+    // stary - jedyna, która ledwo przechodziła), 2,841:1 (ciemny arkusz nowy),
+    // 2,529:1 (ciemny panel). Przezroczystość ma przy tym wadę niezależną od
+    // liczb: przepuszcza to, co jest POD obramowaniem, więc kontrast zależy od
+    // powierzchni, na której stoi pole.
+    //
+    // Test pilnuje KSZTAŁTU reguły, nie liczby: gdyby ktoś wrócił do
+    // `color-mix` z `transparent`, asercja pada niezależnie od dobranej alfy.
+    const regula = css.slice(css.indexOf(":where(input, textarea, select):focus-visible"));
+    const blok = regula.slice(0, regula.indexOf("}"));
+    expect(blok).toContain("outline: 2px solid var(--muted-foreground)");
+    expect(blok).not.toContain("transparent");
+
+    // I liczba: tekst drugorzędny przechodzi próg grafiki na każdej ciemnej
+    // powierzchni. Wartość jasną i nadpisania z panelu sprawdza
+    // `focusOutline.test.ts` - tu jesteśmy w bloku ciemnym.
+    const drugi = value("--muted-foreground");
+    for (const powierzchnia of ["--card", "--background", "--secondary"]) {
+      const r = contrast(drugi, hexToken(powierzchnia));
+      expect(r, `${powierzchnia}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it("tekst DRUGI zostaje recesywny, ale nadal czytelny", () => {
     // `--muted-foreground` niesie podpisy i etykiety osi. Ma być wyraźnie
     // słabszy od tekstu głównego (inaczej hierarchia znika), a i tak
