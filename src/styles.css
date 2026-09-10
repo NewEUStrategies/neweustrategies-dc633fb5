@@ -4281,6 +4281,13 @@ input.icon-input-with-action {
   stroke-width: var(--chart-dot-ring, 1.6px);
   transition: r var(--neh-anim-ms, 500ms) var(--neh-anim-ease, ease-out);
 }
+/* NAZWA ROJU jest TOŻSAMOŚCIĄ grupy, nie odniesieniem, więc idzie mocniejszym
+   stopniem wagi - tym samym, co nazwa serii przy końcu linii. Liczebność roju
+   obok niej zostaje na stopniu bazowym: mówi ILE obserwacji, a nie CZEGO
+   dotyczą, i gdyby miała tę samą wagę, oko czytałoby ją jako część nazwy. */
+.neh-chart .neh-bee-label {
+  font-weight: var(--chart-label-weight-strong, 600);
+}
 /* Waga pisma z tokenów, TRZY STOPNIE, nie jeden.
    Reguła na `text` jest podstawą (etykiety osi, kategorie), a elementy
    mocniejsze mają WŁASNE tokeny - inaczej blankietowa reguła zdjęłaby
