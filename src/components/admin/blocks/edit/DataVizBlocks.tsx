@@ -64,6 +64,12 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   // Kolumna "Czego unikać" z tabeli doboru formy zabrania przy rozkładzie
   // średniej bez rozproszenia - stąd komplet pozycyjny w tabeli danych.
   { value: "histogram", labelKey: "kinds.histogram" },
+  // Trzy formy na jedno pytanie o rozkład, bo różnią się tym, ILE ukrywają:
+  // histogram grupuje w przedziały, boxplot podsumowuje pięcioma liczbami,
+  // beeswarm nie ukrywa nic. Wybór między nimi zależy od liczby obserwacji
+  // i model każdego z nich doradza autorowi, kiedy ta forma jest zła.
+  { value: "boxplot", labelKey: "kinds.boxplot" },
+  { value: "beeswarm", labelKey: "kinds.beeswarm" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {

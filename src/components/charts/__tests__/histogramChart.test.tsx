@@ -16,6 +16,7 @@ import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartConfig } from "@/lib/charts/types";
 import { HistogramChart } from "../HistogramChart";
+import { Chart } from "../Chart";
 
 function cfg(data: Record<string, Json>): ChartConfig {
   return parseChartConfig(data);
@@ -270,6 +271,88 @@ describe("HistogramChart - dane z bazy", () => {
     for (const bar of all(container, "rect.neh-bar")) {
       expect(Number.isFinite(num(bar, "x"))).toBe(true);
       expect(Number.isFinite(num(bar, "width"))).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ROZDZIELNIK RODZAJÓW - czy `Chart` naprawdę oddaje rysunek właściwemu
+// komponentowi.
+//
+// PO CO TO SPRAWDZAĆ, skoro `Record<ChartKind, ...>` jest wyczerpujący.
+// Wyczerpujący typ pilnuje, że KAŻDY rodzaj ma wpis; nie pilnuje, że wpis
+// wskazuje WŁAŚCIWY komponent. Literówka `boxplot: BeeswarmChart` kompiluje
+// się bez słowa protestu, a autor dostaje inny wykres, niż wybrał - i to jest
+// dokładnie ta klasa defektu, przed którą ten PR broni się od początku.
+//
+// Rozpoznajemy komponent po ZNACZNIKU, który tylko on rysuje, a nie po
+// nazwie klasy CSS wspólnej dla silnika.
+describe("Chart - rozdzielnik oddaje rodzaj właściwemu renderowi", () => {
+  const OBSERWACJE = [4, 8, 15, 16, 23, 42, 7, 11, 19, 27, 33, 5, 9, 14, 21];
+
+  function render_(kind: string) {
+    return render(
+      <Chart
+        config={cfg({
+          kind,
+          categories: OBSERWACJE.map((_, i) => `obs-${i + 1}`),
+          series: [{ name: "Marża", values: OBSERWACJE }],
+          animate: false,
+        })}
+        lang="pl"
+      />,
+    );
+  }
+
+  it("histogram dostaje stykające się prostokąty przedziałów", () => {
+    const { container } = render_("histogram");
+    expect(container.querySelectorAll("rect.neh-bar").length).toBeGreaterThan(1);
+    // ...i nie dostaje znaczników pozostałych dwóch rodzajów rozkładu.
+    expect(container.querySelector("[data-role='median']")).toBeNull();
+    expect(container.querySelectorAll("circle.neh-bee-dot").length).toBe(0);
+  });
+
+  it("boxplot dostaje KRESKĘ MEDIANY - znacznik, którego nie ma żaden inny rodzaj", () => {
+    const { container } = render_("boxplot");
+    // Mediana jest rysowana OSOBNĄ, mocniejszą kreską, a nie jako granica
+    // między dwoma prostokątami: czytelnik musi ją ODCZYTAĆ, nie zgadnąć.
+    // Dzięki temu jest też jednoznacznym znacznikiem tego rodzaju - pudełko
+    // dzieli klasę `neh-bar` ze słupkiem, więc sama obecność prostokąta nie
+    // odróżniłaby boxplota od histogramu, i asercja na niej niczego nie
+    // dowodziłaby o rozdzielniku.
+    expect(container.querySelector("[data-role='median']")).not.toBeNull();
+    expect(container.querySelectorAll("circle.neh-bee-dot").length).toBe(0);
+  });
+
+  it("rój dostaje plamki obserwacji, po jednej na obserwację", () => {
+    const { container } = render_("beeswarm");
+    // Beeswarm obiecuje, że widać KAŻDĄ obserwację - liczba plamek jest więc
+    // asercją o obietnicy formy, nie o szczególe implementacji.
+    expect(container.querySelectorAll("circle.neh-bee-dot").length).toBeGreaterThanOrEqual(
+      OBSERWACJE.length,
+    );
+    expect(container.querySelector("[data-role='median']")).toBeNull();
+  });
+
+  it("każdy z trzech rodzajów rozkładu dostaje TABELĘ, nie kolumny szeregu", () => {
+    // Tabela dobrana gałęzią domyślną pokazywałaby dla rozkładu kolumny
+    // szeregu czasowego, czyli liczby, których na rysunku nie ma. Mediana jest
+    // nagłówkiem, którego tabela szeregu nie zna.
+    for (const kind of ["boxplot", "beeswarm"]) {
+      const { container } = render_(kind);
+      expect(container.textContent ?? "", kind).toContain("Mediana");
+    }
+    const { container } = render_("histogram");
+    expect(container.textContent ?? "").toContain("Przedział");
+  });
+
+  it("żaden z trzech nie wypisuje nie-liczby na ekran", () => {
+    for (const kind of ["histogram", "boxplot", "beeswarm"]) {
+      const { container } = render_(kind);
+      const tekst = container.textContent ?? "";
+      expect(tekst, kind).not.toContain("NaN");
+      expect(tekst, kind).not.toContain("undefined");
+      expect(tekst, kind).not.toContain("Infinity");
     }
   });
 });

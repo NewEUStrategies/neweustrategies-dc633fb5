@@ -170,6 +170,15 @@ describe("pierwszeństwo variant nad kind", () => {
     // edytora. Wykres, który nie wie, czym jest, ma się narysować jako
     // najbezpieczniejsza forma, a nie wywrócić strony.
     expect(parseChartConfig({ categories: ["a"] }).kind).toBe("bar");
-    expect(parseChartConfig({ kind: "boxplot", categories: ["a"] }).kind).toBe("bar");
+    // PRZYKŁAD NIEZNANEGO RODZAJU TO `radar`, NIE `boxplot`, i ta zmiana jest
+    // sama w sobie dowodem, że bramka pracuje: dopóki boxplot był tylko
+    // pomysłem, stał tu jako "rodzaj z przyszłej wersji edytora", a w chwili,
+    // gdy wszedł do silnika, ten przypadek zapalił się na czerwono, bo
+    // przestał opisywać nieznany zapis. Radar nie ma tego problemu: sekcja 1
+    // zakazuje go BEZ WYJĄTKÓW (powierzchnia zależy od arbitralnej kolejności
+    // osi, więc ta sama firma wygląda dobrze albo źle w zależności od
+    // ustawienia), więc nigdy nie stanie się rodzajem znanym - a bramka wyżej
+    // pilnuje, żeby go do listy nie dopisano.
+    expect(parseChartConfig({ kind: "radar", categories: ["a"] }).kind).toBe("bar");
   });
 });

@@ -7,9 +7,9 @@
 // wskazywać dokładnie te znaczniki, które rysunek naprawdę narysował, a tabela
 // musi liczyć udziały z tego samego mianownika, którym rysunek liczy kąty.
 // Trzymanie obu w rysunku rozjeżdżało grafikę z jej alternatywą tekstową.
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import type { ChartConfig } from "@/lib/charts/types";
+import type { ChartConfig, ChartKind } from "@/lib/charts/types";
 import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
 import {
   formatChartValue,
@@ -23,7 +23,11 @@ import { ChartFrame, CHART_TABLE_CLS, type ChartCaption, type LegendItem } from 
 import { CartesianChart } from "./CartesianChart";
 import { PieChart } from "./PieChart";
 import { HistogramChart } from "./HistogramChart";
+import { BoxplotChart } from "./BoxplotChart";
+import { BeeswarmChart } from "./BeeswarmChart";
 import { histogramModelFromConfig, histogramTable } from "@/lib/charts/kinds/histogram";
+import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot";
+import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
 
@@ -48,7 +52,12 @@ export function Chart({ config, lang, className }: ChartProps) {
   );
   const isPie = config.kind === "pie" || config.kind === "donut";
   const isWaterfall = config.kind === "waterfall";
-  const isHistogram = config.kind === "histogram";
+  // JEDNA SERIA NA RYSUNKU = KLUCZ Z PRÓBKAMI NIC NIE WNOSI. Trzy rodzaje
+  // rozkładu czytają jedną serię (albo grupują ją same), więc legenda
+  // powtarzałaby tytuł wykresu, a przy dwóch seriach w danych sugerowałaby, że
+  // obie są na rysunku - a druga jest pominięta i model zgłasza to osobno.
+  const jedenRozklad =
+    config.kind === "histogram" || config.kind === "boxplot" || config.kind === "beeswarm";
 
   const legend: LegendItem[] = useMemo(() => {
     if (isWaterfall) {
@@ -107,7 +116,7 @@ export function Chart({ config, lang, className }: ChartProps) {
     // więc klucz z jedną próbką powtarzałby tytuł wykresu, a przy dwóch
     // seriach w danych sugerowałby, że obie są na rysunku - a druga jest
     // pominięta (model zgłasza to jako `ignoredSeries`).
-    if (isHistogram) return [];
+    if (jedenRozklad) return [];
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
     return config.series.map((s) => ({
@@ -121,7 +130,7 @@ export function Chart({ config, lang, className }: ChartProps) {
       // symulacji, więc klucz nie może twierdzić, że różni je sam odcień.
       dashed: s.colorSlot > CATEGORICAL_SAFE_SERIES,
     }));
-  }, [config, isHistogram, isPie, isWaterfall, t]);
+  }, [config, jedenRozklad, isPie, isWaterfall, t]);
 
   const shareSumMismatch: string | null = useMemo(() => {
     if (!isPie) return null;
@@ -167,15 +176,9 @@ export function Chart({ config, lang, className }: ChartProps) {
     );
   }
 
-  const table = isWaterfall ? (
-    <WaterfallDataTable config={config} lang={lang} />
-  ) : isPie ? (
-    <PieDataTable config={config} lang={lang} />
-  ) : isHistogram ? (
-    <HistogramDataTable config={config} lang={lang} />
-  ) : (
-    <SeriesDataTable config={config} lang={lang} />
-  );
+  const Drawing = DRAWING_BY_KIND[config.kind];
+  const DataTable = TABLE_BY_KIND[config.kind];
+  const table = <DataTable config={config} lang={lang} />;
 
   return (
     <ChartFrame
@@ -189,14 +192,204 @@ export function Chart({ config, lang, className }: ChartProps) {
       table={table}
       className={className}
     >
-      {isPie ? (
-        <PieChart config={config} lang={lang} />
-      ) : isHistogram ? (
-        <HistogramChart config={config} lang={lang} />
-      ) : (
-        <CartesianChart config={config} lang={lang} />
-      )}
+      <Drawing config={config} lang={lang} />
     </ChartFrame>
+  );
+}
+
+/**
+ * ROZDZIELNIK RODZAJÓW - `Record<ChartKind, ...>`, nie łańcuch trójargumentowy.
+ *
+ * CO TO ZMIENIA I DLACZEGO NIE JEST TO KOSMETYKA. Wcześniej rysunek i tabela
+ * wybierały się zagnieżdżonym `? :` z gałęzią domyślną na końcu. Gałąź
+ * domyślna znaczy, że rodzaj DOPISANY do `CHART_KINDS` i nieobsłużony tutaj
+ * kompiluje się bez słowa protestu i rysuje się jako wykres kartezjański -
+ * czyli autor wybiera „boxplot", a dostaje słupki. To jest dokładnie ta cicha
+ * degradacja, którą ten PR naprawiał w pierwszeństwie `variant` nad `kind`,
+ * i nie ma powodu, żeby wracała drugimi drzwiami.
+ *
+ * `Record<ChartKind, ...>` jest WYCZERPUJĄCY: brak wpisu to błąd kompilacji
+ * w tym pliku, a nie milcząca degradacja u czytelnika. Bramka
+ * `chartKinds.test.ts` pilnuje pięciu powierzchni autorskich, których
+ * TypeScript nie widzi; ten typ pilnuje szóstej, którą widzi - i lepiej,
+ * żeby robił to kompilator niż test.
+ *
+ * Wpisy powtarzające `CartesianChart` NIE SĄ redundancją do zwinięcia
+ * gałęzią domyślną: mówią wprost, że linia, pole, słupki obu orientacji
+ * i mostek dzielą jeden silnik, bo wszystkie kodują wartość długością albo
+ * położeniem na wspólnej skali kategorialnej. Rozkłady i tarcza nie kodują
+ * jej tak i dlatego mają własne komponenty.
+ */
+type KindView = (props: { config: ChartConfig; lang: ChartLang }) => ReactElement | null;
+
+const DRAWING_BY_KIND: Record<ChartKind, KindView> = {
+  line: CartesianChart,
+  area: CartesianChart,
+  bar: CartesianChart,
+  "bar-horizontal": CartesianChart,
+  waterfall: CartesianChart,
+  pie: PieChart,
+  donut: PieChart,
+  histogram: HistogramChart,
+  boxplot: BoxplotChart,
+  beeswarm: BeeswarmChart,
+};
+
+/**
+ * ALTERNATYWA TEKSTOWA per rodzaj. Ta sama reguła wyczerpania co wyżej i ten
+ * sam powód: tabela dobrana gałęzią domyślną pokazywałaby dla rozkładu
+ * kolumny szeregu czasowego, czyli liczby, których na rysunku nie ma.
+ */
+const TABLE_BY_KIND: Record<ChartKind, KindView> = {
+  line: SeriesDataTable,
+  area: SeriesDataTable,
+  bar: SeriesDataTable,
+  "bar-horizontal": SeriesDataTable,
+  waterfall: WaterfallDataTable,
+  pie: PieDataTable,
+  donut: PieDataTable,
+  histogram: HistogramDataTable,
+  boxplot: BoxplotDataTable,
+  beeswarm: BeeswarmDataTable,
+};
+
+/**
+ * ALTERNATYWA TEKSTOWA BOXPLOTA - pięć liczb pozycyjnych na grupę plus
+ * obserwacje odstające wypisane WARTOŚCIAMI, nie liczbą.
+ *
+ * Wypisanie ich wartościami jest tu decyzją, nie szczegółem: „3 obserwacje
+ * odstające" mówi czytelnikowi, że coś odstaje, a nie mówi CO - a to jest
+ * zwykle jedyna informacja, po którą przychodzi się do boxplota. Rysunek
+ * pokazuje je jako kropki bez etykiet, więc bez tabeli ta informacja nie ma
+ * drugiej drogi.
+ */
+function BoxplotDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  const tabela = boxplotTable(boxplotModelFromConfig(config));
+  const liczba = (v: number | null): string =>
+    v === null ? "-" : formatChartValue(v, lang, config.unit);
+  return (
+    <table className={CHART_TABLE_CLS.table}>
+      <thead>
+        <tr>
+          <th scope="col" className={CHART_TABLE_CLS.th}>
+            {t("boxplot.table.label")}
+          </th>
+          {(
+            ["n", "min", "whiskerLow", "q1", "median", "q3", "whiskerHigh", "max", "iqr"] as const
+          ).map((kol) => (
+            <th key={kol} scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t(`boxplot.table.${kol}`)}
+            </th>
+          ))}
+          <th scope="col" className={CHART_TABLE_CLS.th}>
+            {t("boxplot.table.outliers")}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {tabela.rows.map((r, i) => (
+          <tr key={i}>
+            <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+              {r.label}
+            </th>
+            <td className={CHART_TABLE_CLS.tdNum}>{formatChartValue(r.n, lang, "")}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.min)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.whiskerLow)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.q1)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.median)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.q3)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.whiskerHigh)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.max)}</td>
+            <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.iqr)}</td>
+            <td className={CHART_TABLE_CLS.td}>
+              {r.outliers.length === 0
+                ? "-"
+                : r.outliers.map((v) => formatChartValue(v, lang, config.unit)).join(", ")}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * ALTERNATYWA TEKSTOWA ROJU - komplet pozycyjny ORAZ pełna lista obserwacji.
+ *
+ * Sam komplet pozycyjny byłby tu za mało, i to jest różnica wobec boxplota.
+ * Beeswarm obiecuje, że widać KAŻDĄ obserwację, więc tabela musi unieść tę
+ * samą obietnicę - inaczej czytelnik, który nie widzi rysunku, dostaje mniej
+ * informacji niż ten, który go widzi, a to jest wprost odwrotność tego, po co
+ * alternatywa tekstowa istnieje.
+ */
+function BeeswarmDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  const tabela = beeswarmTable(beeswarmModelFromConfig(config));
+  const POZYCYJNE = ["n", "min", "q1", "median", "q3", "max", "mean", "iqr"] as const;
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <thead>
+          <tr>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("beeswarm.table.group")}
+            </th>
+            {POZYCYJNE.map((kol) => (
+              <th key={kol} scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t(`beeswarm.summary.${kol}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {tabela.groups.map((g, i) => (
+            <tr key={i}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {g.label}
+              </th>
+              {POZYCYJNE.map((kol) => (
+                <td key={kol} className={CHART_TABLE_CLS.tdNum}>
+                  {g.summary === null
+                    ? "-"
+                    : formatChartValue(g.summary[kol], lang, kol === "n" ? "" : config.unit)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {tabela.groups.map((g, gi) => (
+        <table key={gi} className={CHART_TABLE_CLS.table}>
+          <caption className="sr-only">{g.label}</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={CHART_TABLE_CLS.th}>
+                {t("beeswarm.table.label")}
+              </th>
+              <th scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t("beeswarm.table.value")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {g.observations.map((o, oi) => (
+              <tr key={oi}>
+                <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                  {o.label}
+                </th>
+                <td className={CHART_TABLE_CLS.tdNum}>
+                  {formatChartValue(o.value, lang, config.unit)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </>
   );
 }
 

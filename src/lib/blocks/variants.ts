@@ -44,6 +44,8 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "donut", label: "Pierścień" },
     { key: "waterfall", label: "Wodospad" },
     { key: "histogram", label: "Histogram" },
+    { key: "boxplot", label: "Boxplot" },
+    { key: "beeswarm", label: "Rój (beeswarm)" },
   ],
 };
 

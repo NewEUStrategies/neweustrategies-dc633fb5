@@ -47,6 +47,8 @@ const pl = {
           donut: "Pierścień (donut)",
           waterfall: "Wodospadowy (mostek)",
           histogram: "Histogram (rozkład)",
+          boxplot: "Boxplot (rozkład)",
+          beeswarm: "Rój punktów (rozkład)",
         },
         // ---- Uczciwość wykresu ----
         honestyLabel: "Uczciwość wykresu",
@@ -804,6 +806,8 @@ const en: typeof pl = {
           donut: "Donut",
           waterfall: "Waterfall (bridge)",
           histogram: "Histogram (distribution)",
+          boxplot: "Boxplot (distribution)",
+          beeswarm: "Point swarm (distribution)",
         },
       },
       dataMap: {

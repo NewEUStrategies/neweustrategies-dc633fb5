@@ -747,6 +747,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "pierścień (donut)": "ring (donut)",
   "wodospadowy (mostek)": "waterfall (bridge)",
   "histogram (rozkład)": "histogram (distribution)",
+  "boxplot (rozkład)": "boxplot (distribution)",
+  "rój punktów (rozkład)": "point swarm (distribution)",
   "słupki poziome": "horizontal bars",
   "pole (area)": "area",
   "termometr pionowy": "vertical thermometer",

@@ -4264,6 +4264,23 @@ input.icon-input-with-action {
 .neh-chart .neh-dot[data-active="true"] {
   r: calc(var(--chart-dot, 2.8px) + 1px);
 }
+/* PLAMKA ROJU - ta sama obwódka co marker obserwacji, ale BEZ narzuconego
+   promienia, i to jest cała różnica wobec `.neh-dot`.
+
+   `.neh-dot` dostaje `r` z tokena, bo marker linii ma jeden rozmiar dla całego
+   wykresu. Promień plamki roju liczy MODEL: przy większej liczbie obserwacji
+   plamki muszą zmaleć, żeby rój się zmieścił i nie zlał w plamę, więc wartość
+   jedzie atrybutem per punkt. Reguła CSS na `r` nadpisałaby atrybut (CSS wygrywa
+   z prezentacyjnym atrybutem SVG) i rój z pięciuset obserwacji rysowałby się
+   plamkami dla dziesięciu - czyli jednolitą kluchą.
+   
+   Obwódka w kolorze płyty rozdziela plamki nachodzące na siebie bez zmiany
+   koloru grupy; jej grubość idzie z tego samego tokena co obwódka markera,
+   żeby oba rodzaje kropek czytały się jako jeden system. */
+.neh-chart .neh-bee-dot {
+  stroke-width: var(--chart-dot-ring, 1.6px);
+  transition: r var(--neh-anim-ms, 500ms) var(--neh-anim-ease, ease-out);
+}
 /* Waga pisma z tokenów, TRZY STOPNIE, nie jeden.
    Reguła na `text` jest podstawą (etykiety osi, kategorie), a elementy
    mocniejsze mają WŁASNE tokeny - inaczej blankietowa reguła zdjęłaby
@@ -4715,7 +4732,8 @@ input.icon-input-with-action {
   .neh-chart .neh-bar[data-style="pale"],
   .neh-chart .neh-slice,
   .neh-chart .neh-country,
-  .neh-chart .neh-dot {
+  .neh-chart .neh-dot,
+  .neh-chart .neh-bee-dot {
     transition: none;
   }
   .neh-tooltip,

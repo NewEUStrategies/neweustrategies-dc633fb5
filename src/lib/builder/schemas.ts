@@ -765,6 +765,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         // obejmowała każdy rodzaj z `CHART_KINDS`.
         { value: "waterfall", label: "wodospadowy (mostek)" },
         { value: "histogram", label: "histogram (rozkład)" },
+        { value: "boxplot", label: "boxplot (rozkład)" },
+        { value: "beeswarm", label: "rój punktów (rozkład)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },

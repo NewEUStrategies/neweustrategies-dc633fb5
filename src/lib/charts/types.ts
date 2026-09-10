@@ -39,6 +39,14 @@ export const CHART_KINDS = [
   // `CartesianChart`: przedział ma szerokość mierzoną w jednostkach danych,
   // a pasmo kategorii jej nie ma - patrz nagłówek `HistogramChart.tsx`.
   "histogram",
+  // ROZKŁAD WARTOŚCI, dwie pozostałe formy z tego samego wiersza tabeli
+  // doboru: boxplot podsumowuje go pięcioma liczbami pozycyjnymi, beeswarm
+  // pokazuje KAŻDĄ obserwację. Oba rysują osobne komponenty, bo żaden nie
+  // koduje wartości długością słupka od zera: boxplot koduje ją położeniem
+  // pudełka i wąsów, beeswarm położeniem plamki plus przesunięciem
+  // prostopadłym, którego wykres kategorialny nie ma czym wyrazić.
+  "boxplot",
+  "beeswarm",
 ] as const;
 
 export type ChartKind = (typeof CHART_KINDS)[number];
