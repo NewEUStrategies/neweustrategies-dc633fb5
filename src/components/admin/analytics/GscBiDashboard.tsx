@@ -450,7 +450,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [pageRows, t]);
+  }, [pageRows, t, chartTheme]);
 
   const calendarOption = useMemo<EChartsCoreOption>(() => {
     if (!sortedDateRows.length) return { series: [] };
@@ -486,7 +486,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       },
       series: [{ type: "heatmap", coordinateSystem: "calendar", data }],
     };
-  }, [sortedDateRows, t]);
+  }, [sortedDateRows, t, chartTheme]);
 
   // ---- Drill-down handlers ----
   const gscRowMetrics = (r: GscRow) => [
