@@ -153,10 +153,16 @@ const pl = {
         flowsSubtitle:
           "Ranking {{shown}} najsilniejszych z {{total}} par - pokazuje jak rekomendacje realnie kierują ruch między wpisami",
       },
+      // Nazwy SERII, czyli zarazem nagłówki kolumn w tabeli danych silnika.
+      // Osobne dla huba i dla przejścia, bo to dwie różne wielkości: pierwsza
+      // liczy kliki W WPIS ze wszystkich źródeł, druga - kliki na JEDNEJ parze.
+      series: {
+        hubClicks: "Kliknięcia w hub",
+        flowClicks: "Kliknięcia w przejściu",
+      },
       drill: {
         source: "Źródło",
         target: "Cel",
-        clicks: "Kliknięcia",
         sources: "Różnych źródeł",
       },
       insightsTitle: "Interpretacja i rekomendacje - silnik rekomendacji",
@@ -1015,10 +1021,13 @@ const en = {
         flowsSubtitle:
           "Ranking of the {{shown}} strongest of {{total}} pairs - shows how recommendations actually route traffic between posts",
       },
+      series: {
+        hubClicks: "Clicks into the hub",
+        flowClicks: "Clicks on the transition",
+      },
       drill: {
         source: "Source",
         target: "Target",
-        clicks: "Clicks",
         sources: "Distinct sources",
       },
       insightsTitle: "Interpretation and recommendations - recommendation engine",

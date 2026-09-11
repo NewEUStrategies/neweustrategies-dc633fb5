@@ -3,15 +3,34 @@
  *
  * Wizualizuje sygnały silnika rekomendacji per tenant:
  *  - KPI: liczba wpisów, wyświetleń, klików rekomendacji, czytań
- *  - Bar: top kategorie / top tagi (liczba wpisów)
- *  - Heatmap: współwystępowanie tagów (top 25×25)
+ *  - Słupki poziome: top kategorie / top tagi (liczba wpisów)
+ *  - Heatmap: współwystępowanie tagów (macierz top tagów)
  *  - Scatter: popularność wpisów (views × uniques)
- *  - Sankey: top pary "źródło - cel" z klików w rekomendacje
- *  - Bar: hub-posty (najczęściej rekomendowane cele)
+ *  - Słupki poziome: ranking przejść „źródło → cel" z klików w rekomendacje
+ *  - Słupki poziome: hub-posty (najczęściej rekomendowane cele)
  *  - InsightSection: interpretacja + rekomendacje algorytmiczne
  *
  * Dane pochodzą z `getRelatedInsights` (RPC `related_posts_signals`).
  * Wszystko izolowane per tenant przez auth-middleware + admin gate.
+ *
+ * SILNIK ZAMIAST ECHARTS. Panel składał wcześniej `option` dla ECharts - osie,
+ * dymki, paletę, zaokrąglenia - czyli rysował DRUGIM silnikiem, o innej
+ * palecie i innych zasadach interakcji niż wykres we wpisie. Dziś każda karta
+ * dostaje `ChartConfig` z `biChart()`, a rysunek, tabelę danych, podpis i
+ * obsługę klawiatury robi nasz silnik. Panel podaje WYŁĄCZNIE to, czego silnik
+ * wiedzieć nie może: rodzaj, kategorie, serie i garść przełączników uczciwości.
+ *
+ * SANKEY WYSZEDŁ, ZOSTAŁ RANKING PRZEJŚĆ - i to jest podmiana formy, nie
+ * przeniesienie jeden do jednego. Sankey koduje wielkość SZEROKOŚCIĄ WSTĘGI,
+ * a przy kilkunastu przepływach splot wstęg jest plątaniną, w której nie da
+ * się porównać dwóch pasm ani powiedzieć, które przejście jest drugie w
+ * kolejności. Pytanie tej karty brzmi „które przejścia są najczęstsze", a na
+ * to odpowiada RANKING: pozycja na wspólnej skali jest najdokładniejszym
+ * kanałem percepcyjnym, jaki jest, a kategoria nazywa parę „skąd → dokąd",
+ * czyli dokładnie ten element, którym na sankeyu była wstęga. Ranking mieści
+ * `FLOWS_IN_RANKING` pozycji, więc podtytuł i podpis `n` mówią WPROST, ile par
+ * z ilu widać - obcięcie po cichu byłoby tym samym defektem co wykres bez
+ * liczby obserwacji.
  *
  * STANY, KTÓRE NIE SĄ POMIAREM. Panel rozdziela „trwa pomiar", „odczyt padł"
  * i „okno zostało odczytane i nic w nim nie ma" na trzy różne karty ze słownika
@@ -24,9 +43,11 @@
  * warsztatu trafiałby w ten sam wpis cache i (przy `staleTime`) malował
  * kategorie, tagi i tytuły wpisów poprzedniego bez ani jednego żądania w sieci.
  *
- * ALTERNATYWA TEKSTOWA. Każdy z sześciu wykresów dostaje `csv`, więc `ChartCard`
- * wiąże jego region z tabelą tych samych danych (`aria-describedby`) i wystawia
- * eksport CSV. Kanwa ECharts jest dla czytnika ekranu pustym prostokątem.
+ * ALTERNATYWA TEKSTOWA NALEŻY DO SILNIKA, NIE DO KARTY. Tabelę tych samych
+ * liczb rysuje rama silnika przy KAŻDYM rodzaju, więc karta jej już nie
+ * powtarza; `csv` zostaje wyłącznie jako źródło EKSPORTU, bo plik bywa
+ * bogatszy od rysunku (kolumny, których wykres nie koduje - np. liczba źródeł
+ * huba obok liczby klików).
  */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -36,11 +57,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import type { EChartsCoreOption } from "echarts/core";
 import { getRelatedInsights } from "@/lib/relatedInsights.functions";
 import { useCurrentTenantId } from "@/lib/tenant";
+import type { ChartSelection } from "@/lib/charts/selection";
+import { biChart } from "@/components/admin/analytics/biChart";
 import { ChartCard } from "@/components/admin/analytics/ChartCard";
-import { useChartTheme } from "@/components/admin/analytics/useChartTheme";
+import type { ChartDrillDetail } from "@/components/admin/analytics/ChartDrillDialog";
 import { KpiTile } from "@/components/admin/analytics/KpiTile";
 import {
   TimeRangeFilter,
@@ -49,13 +71,33 @@ import {
 } from "@/components/admin/analytics/TimeRangeFilter";
 import { InsightSection, type Insight } from "@/components/admin/analytics/InsightSection";
 
+/**
+ * Ile par „źródło → cel" mieści ranking. Powyżej kilkunastu pozycji słupki
+ * poziome przestają być rankingiem, a stają się listą - a listę czyta się
+ * lepiej w tabeli danych, którą silnik i tak rysuje. Liczba, której NIE widać,
+ * jedzie do podtytułu i do podpisu `n`, żeby przycięcie było powiedziane,
+ * a nie przemilczane.
+ */
+const FLOWS_IN_RANKING = 15;
+
+/**
+ * Ile tagów wchodzi do macierzy współwystępowania.
+ *
+ * Macierz jest KWADRATOWA, więc liczba tagów podnosi się do kwadratu: przy
+ * dawnych 25 tagach wychodziło 625 komórek, czyli więcej, niż silnik uznaje za
+ * czytelne (600) - i wtedy sam dopisuje pod rysunkiem uwagę, że komórka zeszła
+ * poniżej celu dotykowego i szerokości liczby. Dwanaście tagów to 144 komórki:
+ * liczba mieści się w komórce, a gradient nadal pokazuje kierunek.
+ */
+const COOC_TAGS = 12;
+
 function nice(n: number): string {
   if (!Number.isFinite(n)) return "-";
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
 }
 
-/** Kształt `csv` przyjmowany przez `ChartCard` (eksport + tabela danych). */
+/** Kształt `csv` przyjmowany przez `ChartCard` (eksport danych karty). */
 interface ChartCsv {
   filename: string;
   headers: string[];
@@ -69,7 +111,6 @@ function postLabel(title: string | null, postId: string, chars = 8): string {
 
 export function RelatedPostsAnalytics() {
   const { t } = useTranslation();
-  const chartTheme = useChartTheme();
   const fetchInsights = useServerFn(getRelatedInsights);
   const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("30d"));
@@ -106,66 +147,43 @@ export function RelatedPostsAnalytics() {
   }, [report]);
 
   // ---- Zbiory wierszy ----------------------------------------------------
-  // Wykres i jego tabela danych jadą z JEDNEGO przyciętego zbioru. Dwa osobne
-  // `slice`/`reverse` to dwie okazje na rozjazd: tabela czytałaby się wtedy jak
-  // inny pomiar niż słupki nad nią, przy niezmienionym wyglądzie panelu.
+  // Wykres, jego tabela danych i eksport jadą z JEDNEGO przyciętego zbioru.
+  // Dwa osobne `slice` to dwie okazje na rozjazd: tabela czytałaby się wtedy
+  // jak inny pomiar niż słupki nad nią, przy niezmienionym wyglądzie panelu.
+  //
+  // KOLEJNOŚĆ JEST RANKINGOWA (najmocniejszy pierwszy) i taka zostaje na
+  // wykresie: silnik rysuje kategorie słupków poziomych od góry w kolejności
+  // tablicy, więc ranking czyta się z góry na dół. (ECharts układał oś Y od
+  // dołu i wymagał `.reverse()` - stąd zniknięcie odwróceń przy tej samej
+  // intencji.)
   const cats = useMemo(() => (report?.top_categories ?? []).slice(0, 15), [report]);
   const tags = useMemo(() => (report?.top_tags ?? []).slice(0, 20), [report]);
   const popRows = useMemo(() => (report?.popularity ?? []).slice(0, 40), [report]);
-  const clickPairs = useMemo(() => (report?.click_pairs ?? []).slice(0, 25), [report]);
-  /** Huby w kolejności RANKINGU (najmocniejszy pierwszy); oś Y odwraca ją niżej. */
   const hubsRanked = useMemo(() => (report?.hub_targets ?? []).slice(0, 12), [report]);
-
-  // ---- Wykresy -----------------------------------------------------------
-  const topCatsOption = useMemo<EChartsCoreOption>(() => {
-    return {
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-      grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
-      xAxis: { type: "value" },
-      yAxis: {
-        type: "category",
-        data: cats.map((c) => c.name).reverse(),
-        axisLabel: { fontSize: 11, width: 140, overflow: "truncate" },
-      },
-      series: [
-        {
-          type: "bar",
-          data: cats.map((c) => c.posts_count).reverse(),
-          itemStyle: { borderRadius: [0, 4, 4, 0], color: "#2a78d6" },
-          label: { show: true, position: "right", fontSize: 10 },
-        },
-      ],
-    };
-  }, [cats]);
-
-  const topTagsOption = useMemo<EChartsCoreOption>(() => {
-    return {
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-      grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
-      xAxis: { type: "value" },
-      yAxis: {
-        type: "category",
-        data: tags.map((c) => c.name).reverse(),
-        axisLabel: { fontSize: 11, width: 140, overflow: "truncate" },
-      },
-      series: [
-        {
-          type: "bar",
-          data: tags.map((c) => c.posts_count).reverse(),
-          itemStyle: { borderRadius: [0, 4, 4, 0], color: "#1baf7a" },
-          label: { show: true, position: "right", fontSize: 10 },
-        },
-      ],
-    };
-  }, [tags]);
+  /**
+   * Wszystkie pary kliknięć MALEJĄCO. Sortowanie jest tu, a nie w zaufaniu do
+   * RPC: ranking, który nie jest posortowany, nie jest rankingiem, a kolejność
+   * z agregatu SQL jest szczegółem implementacji zapytania.
+   */
+  const clickPairsRanked = useMemo(
+    () => [...(report?.click_pairs ?? [])].sort((a, b) => b.clicks - a.clicks),
+    [report],
+  );
+  /** Ta część rankingu, która MIEŚCI SIĘ na wykresie - reszta jedzie do eksportu. */
+  const flowRows = useMemo(() => clickPairsRanked.slice(0, FLOWS_IN_RANKING), [clickPairsRanked]);
 
   /**
-   * Macierz współwystępowania: nazwy osi, komórki i pary do tabeli danych.
+   * Macierz współwystępowania: nazwy osi, wiersze i pary do eksportu.
    *
    * Jeden memo na trzy rzeczy, bo wszystkie trzy muszą wyjść z TEGO SAMEGO
-   * przycięcia do 25 tagów. Komórka wskazująca poza macierz to `undefined`
-   * w indeksie - ECharts narysowałby ją w rogu jako fałszywe współwystępowanie,
-   * a tabela wypisałaby pustą nazwę tagu.
+   * przycięcia do `COOC_TAGS` tagów. Para wskazująca poza macierz jest
+   * pomijana - bez tego wpadałaby do wiersza `undefined`, czyli do komórki,
+   * której w macierzy nie ma.
+   *
+   * LUKA NIE JEST ZEREM. Komórka pary, która nie wystąpiła, zostaje `null`:
+   * zero znaczyłoby „policzono i wyszło zero wspólnych wpisów", czyli
+   * twierdzenie o pomiarze, którego nie było. Silnik rysuje lukę teksturą,
+   * a nie najjaśniejszym stopniem rampy.
    */
   const cooc = useMemo(() => {
     const pairs = report?.tag_cooccurrence ?? [];
@@ -174,183 +192,202 @@ export function RelatedPostsAnalytics() {
       idSet.add(p.a);
       idSet.add(p.b);
     });
-    const ids = Array.from(idSet).slice(0, 25);
+    const ids = Array.from(idSet).slice(0, COOC_TAGS);
     const idx = new Map(ids.map((id, i) => [id, i]));
     const names = ids.map((id) => tagIdToName.get(id) ?? id.slice(0, 6));
-    const maxC = pairs.reduce((mx, p) => Math.max(mx, p.c), 0);
-    const cells: [number, number, number][] = [];
-    // Tabela dostaje PARY, nie komórki: macierz jest symetryczna, więc dwie
+    const grid: (number | null)[][] = ids.map(() => ids.map(() => null));
+    // Eksport dostaje PARY, nie komórki: macierz jest symetryczna, więc dwie
     // lustrzane komórki to jedna informacja, a drugi wiersz byłby duplikatem.
     const rows: Array<[string, number]> = [];
     pairs.forEach((p) => {
       const i = idx.get(p.a);
       const j = idx.get(p.b);
       if (i === undefined || j === undefined) return;
-      cells.push([i, j, p.c]);
-      cells.push([j, i, p.c]);
+      grid[i][j] = p.c;
+      grid[j][i] = p.c;
       rows.push([`${names[i]} × ${names[j]}`, p.c]);
     });
-    return { names, cells, maxC, rows };
+    return { names, grid, rows };
   }, [report, tagIdToName]);
 
-  const coocurrenceOption = useMemo<EChartsCoreOption>(() => {
-    const { names, cells, maxC } = cooc;
-    return {
-      tooltip: {
-        position: "top",
-        formatter: (raw: unknown) => {
-          const p = raw as { value: [number, number, number] };
-          const [i, j, c] = p.value;
-          return `${names[i]} × ${names[j]}<br/>${t("adminAnalytics.related.coocLabel")}<b>${c}</b>`;
-        },
-      },
-      grid: { top: 20, left: 8, right: 8, bottom: 90, containLabel: true },
-      xAxis: {
-        type: "category",
-        data: names,
-        axisLabel: { rotate: 45, fontSize: 10, interval: 0 },
-      },
-      yAxis: { type: "category", data: names, axisLabel: { fontSize: 10, interval: 0 } },
-      visualMap: {
-        min: 0,
-        max: Math.max(1, maxC),
-        calculable: false,
-        orient: "horizontal",
-        left: "center",
-        bottom: 4,
-        inRange: { color: ["#f1f5f9", "#2a78d6", "#0f172a"] },
-        textStyle: { fontSize: 10 },
-      },
-      series: [
-        {
-          type: "heatmap",
-          data: cells,
-          progressive: 0,
-          itemStyle: { borderRadius: 2, borderColor: chartTheme.background, borderWidth: 1 },
-        },
-      ],
-    };
-  }, [cooc, t, chartTheme]);
-
-  const popularityScatterOption = useMemo<EChartsCoreOption>(() => {
-    const rows = popRows;
-    return {
-      tooltip: {
-        trigger: "item",
-        formatter: (raw: unknown) => {
-          const p = raw as { value: [number, number]; name: string };
-          return `${p.name}<br/>${t("adminAnalytics.related.views")}: <b>${p.value[0]}</b><br/>${t("adminAnalytics.related.uniques")}: <b>${p.value[1]}</b>`;
-        },
-      },
-      grid: { left: 40, right: 20, top: 16, bottom: 30, containLabel: true },
-      xAxis: { type: "value", name: t("adminAnalytics.related.views"), nameGap: 22 },
-      yAxis: { type: "value", name: t("adminAnalytics.related.uniques"), nameGap: 30 },
-      series: [
-        {
-          type: "scatter",
-          symbolSize: (v: number[]) => Math.max(6, Math.min(28, Math.sqrt(v[0]) * 1.5)),
-          data: rows.map((r) => ({
-            name: postLabel(r.title, r.post_id),
-            value: [r.views, r.uniques],
-          })),
-          itemStyle: { color: "#eda100", opacity: 0.75 },
-        },
-      ],
-    };
-  }, [popRows, t]);
-
-  const sankeyOption = useMemo<EChartsCoreOption>(() => {
-    const pairs = clickPairs;
-    const nodeSet = new Set<string>();
-    pairs.forEach((p) => {
-      nodeSet.add(`s:${p.source_post_id}|${p.source_title ?? p.source_post_id.slice(0, 6)}`);
-      nodeSet.add(`t:${p.target_post_id}|${p.target_title ?? p.target_post_id.slice(0, 6)}`);
-    });
-    const nodes = Array.from(nodeSet).map((key) => {
-      const [, label] = key.split("|");
-      return { name: key, label: { formatter: label.slice(0, 32) } };
-    });
-    const links = pairs.map((p) => ({
-      source: `s:${p.source_post_id}|${p.source_title ?? p.source_post_id.slice(0, 6)}`,
-      target: `t:${p.target_post_id}|${p.target_title ?? p.target_post_id.slice(0, 6)}`,
-      value: p.clicks,
-    }));
-    return {
-      tooltip: {
-        trigger: "item",
-        formatter: (raw: unknown) => {
-          const p = raw as { dataType: string; value?: number; name?: string };
-          if (p.dataType === "edge") return `${p.value} ${t("adminAnalytics.related.clicksShort")}`;
-          return (p.name ?? "").split("|")[1] ?? "";
-        },
-      },
-      series: [
-        {
-          type: "sankey",
-          left: 10,
-          right: 120,
-          top: 12,
-          bottom: 12,
-          nodeWidth: 12,
-          nodeGap: 8,
-          label: {
-            fontSize: 10,
-            formatter: (p: { name: string }) => (p.name.split("|")[1] ?? "").slice(0, 32),
+  // ---- Konfiguracje wykresów ---------------------------------------------
+  // Liczone RAZ na zmianę danych, a nie w JSX przy każdym renderze: każda
+  // nowa referencja konfiguracji każe silnikowi przeliczyć geometrię, skalę
+  // i model uczciwości całego rysunku.
+  const topCatsConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar-horizontal",
+        categories: cats.map((c) => c.name),
+        series: [
+          {
+            name: t("adminAnalytics.related.charts.topCatsSubtitle"),
+            values: cats.map((c) => c.posts_count),
           },
-          data: nodes,
-          links,
-          lineStyle: { color: "gradient", curveness: 0.5 },
-        },
-      ],
-    };
-  }, [clickPairs, t]);
+        ],
+        // Liczba NA SŁUPKU, bo oś dociągnięta do maksimum rankingu nie mówi,
+        // czy „prawie pełny" słupek to dziesięć wpisów, czy tysiąc.
+        showValues: true,
+      }),
+    [cats, t],
+  );
 
-  const hubBarOption = useMemo<EChartsCoreOption>(() => {
-    // Oś Y rysuje kategorie od dołu, więc ranking idzie tu ODWROTNIE, a
-    // podpowiedź czyta ten sam odwrócony porządek - inaczej dymek nad słupkiem
-    // pokazywałby liczby sąsiada.
-    const rows = [...hubsRanked].reverse();
+  const topTagsConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar-horizontal",
+        categories: tags.map((tg) => tg.name),
+        series: [
+          {
+            name: t("adminAnalytics.related.charts.topTagsSubtitle"),
+            values: tags.map((tg) => tg.posts_count),
+          },
+        ],
+        showValues: true,
+      }),
+    [tags, t],
+  );
+
+  /**
+   * Macierz: SERIA JEST WIERSZEM, KATEGORIA KOLUMNĄ - tak silnik czyta mapę
+   * ciepła z konfiguracji. Obie osie niosą te same nazwy tagów, bo
+   * współwystępowanie nie ma kierunku.
+   *
+   * `sampleSize` zostaje pusty świadomie: silnik porównuje go z liczbą
+   * WYPEŁNIONYCH KOMÓREK, a tych jest dwa razy więcej niż par (symetria), więc
+   * każda podana liczba byłaby albo podwojona, albo zgłoszona jako niezgodna
+   * z rysunkiem.
+   */
+  const coocConfig = useMemo(
+    () =>
+      biChart({
+        kind: "heatmap",
+        categories: cooc.names,
+        series: cooc.names.map((name, i) => ({ name, values: cooc.grid[i] })),
+      }),
+    [cooc],
+  );
+
+  /**
+   * Popularność: dwie zmienne liczbowe, więc ROZRZUT zostaje rozrzutem -
+   * pierwsza seria jest osią X, druga osią Y, a kategoria nazywa punkt.
+   *
+   * `sampleSize` to LICZBA PUNKTÓW, a nie suma wyświetleń: silnik sprawdza tę
+   * deklarację wobec liczby par w chmurze i niezgodność wypisuje pod rysunkiem
+   * jako defekt („podpis mówi o innym badaniu niż wykres").
+   */
+  const popularityConfig = useMemo(
+    () =>
+      biChart({
+        kind: "scatter",
+        categories: popRows.map((r) => postLabel(r.title, r.post_id)),
+        series: [
+          { name: t("adminAnalytics.related.views"), values: popRows.map((r) => r.views) },
+          { name: t("adminAnalytics.related.uniques"), values: popRows.map((r) => r.uniques) },
+        ],
+        sampleSize: popRows.length,
+      }),
+    [popRows, t],
+  );
+
+  /**
+   * Przejścia „źródło → cel" jako ranking. Kategoria nazywa PARĘ, bo elementem
+   * tego wykresu jest przejście między dwoma wpisami, a nie pojedynczy wpis -
+   * dokładnie tak, jak na sankeyu elementem była wstęga, a nie węzeł.
+   */
+  const flowsConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar-horizontal",
+        categories: flowRows.map(
+          (p) =>
+            `${postLabel(p.source_title, p.source_post_id, 6)} → ${postLabel(p.target_title, p.target_post_id, 6)}`,
+        ),
+        series: [
+          {
+            // KLIKI TEGO PRZEJŚCIA, nie kliki wpisu: nazwa serii jest
+            // jednocześnie nagłówkiem kolumny w tabeli silnika, a ta sama
+            // liczba znaczy tu co innego niż na rankingu hubów obok.
+            name: t("adminAnalytics.related.series.flowClicks"),
+            values: flowRows.map((p) => p.clicks),
+          },
+        ],
+        showValues: true,
+        // Ile par WIDAĆ - obok podtytułu, który mówi, ile ich było.
+        sampleSize: flowRows.length,
+      }),
+    [flowRows, t],
+  );
+
+  const hubsConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar-horizontal",
+        categories: hubsRanked.map((hb) => postLabel(hb.title, hb.post_id)),
+        series: [
+          {
+            name: t("adminAnalytics.related.series.hubClicks"),
+            values: hubsRanked.map((hb) => hb.clicks),
+          },
+        ],
+        showValues: true,
+      }),
+    [hubsRanked, t],
+  );
+
+  // ---- Drążenie ----------------------------------------------------------
+  // LICZBA, KTÓREJ NIE MA NA RYSUNKU, MA MIEĆ GDZIE BYĆ. Słupek huba koduje
+  // wyłącznie kliknięcia, a liczba RÓŻNYCH ŹRÓDEŁ rozstrzyga, czy hub wchłania
+  // ruch z całego serwisu, czy z jednego wpisu - na sankeyu i w dawnym dymku
+  // ECharts jechała razem z kliknięciami, więc musi mieć nośnik i tutaj.
+  const hubClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    const row = sel.categoryIndex === null ? undefined : hubsRanked[sel.categoryIndex];
+    if (!row) return null;
     return {
-      tooltip: {
-        trigger: "axis",
-        axisPointer: { type: "shadow" },
-        formatter: (raw: unknown) => {
-          const arr = raw as Array<{ dataIndex: number; value: number; name: string }>;
-          if (!arr[0]) return "";
-          const row = rows[arr[0].dataIndex];
-          return `${postLabel(row.title, row.post_id)}<br/>${t("adminAnalytics.related.hubClicksLabel")}<b>${row.clicks}</b><br/>${t("adminAnalytics.related.hubSourcesLabel")}${row.sources}`;
-        },
-      },
-      grid: { left: 8, right: 24, top: 12, bottom: 20, containLabel: true },
-      xAxis: { type: "value" },
-      yAxis: {
-        type: "category",
-        data: rows.map((r) => postLabel(r.title, r.post_id)),
-        axisLabel: { fontSize: 10, width: 170, overflow: "truncate" },
-      },
-      series: [
-        {
-          type: "bar",
-          data: rows.map((r) => r.clicks),
-          itemStyle: { borderRadius: [0, 4, 4, 0], color: "#4a3aa7" },
-          label: { show: true, position: "right", fontSize: 10 },
-        },
+      title: postLabel(row.title, row.post_id),
+      subtitle: t("adminAnalytics.related.charts.hubSubtitle"),
+      metrics: [
+        { label: t("adminAnalytics.related.series.hubClicks"), value: String(row.clicks) },
+        { label: t("adminAnalytics.related.drill.sources"), value: String(row.sources) },
       ],
     };
-  }, [hubsRanked, t]);
+  };
 
-  // ---- Alternatywa tekstowa dla SZEŚCIU wykresów --------------------------
-  // `ChartCard` wiąże region wykresu z tabelą danych (`aria-describedby`)
-  // WYŁĄCZNIE wtedy, gdy dostanie `csv`. Bez niego sześć kanw tego panelu było
-  // dla czytnika ekranu sześcioma pustymi prostokątami z samą nazwą, a eksport
-  // CSV nie istniał.
+  // Kategoria rankingu przejść niesie SKRÓCONE podpisy obu wpisów (para musi
+  // zmieścić się na osi), więc okno szczegółów podaje jedno i drugie osobno
+  // i w pełnym brzmieniu - inaczej „aaaaaa → bbbbbb" byłoby jedyną dostępną
+  // postacią pary.
+  const flowClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    const row = sel.categoryIndex === null ? undefined : flowRows[sel.categoryIndex];
+    if (!row) return null;
+    return {
+      title: sel.category ?? "",
+      subtitle: t("adminAnalytics.related.charts.flowsTitle"),
+      metrics: [
+        {
+          label: t("adminAnalytics.related.drill.source"),
+          value: postLabel(row.source_title, row.source_post_id),
+        },
+        {
+          label: t("adminAnalytics.related.drill.target"),
+          value: postLabel(row.target_title, row.target_post_id),
+        },
+        { label: t("adminAnalytics.related.series.flowClicks"), value: String(row.clicks) },
+      ],
+    };
+  };
+
+  // ---- Eksport CSV dla SZEŚCIU wykresów -----------------------------------
+  // Tabelę danych rysuje silnik, więc `csv` jest tu WYŁĄCZNIE plikiem do
+  // pobrania - i wolno mu być bogatszym od rysunku. Korzystają z tego dwie
+  // karty: ranking hubów dokłada liczbę źródeł (której słupek nie koduje),
+  // a ranking przejść eksportuje WSZYSTKIE pary, nie tylko te, które weszły
+  // na wykres.
   //
-  // KOLUMNY IDĄ ZA TYM, CO JEST NA DANYM WYKRESIE. Nagłówek wymiaru bierze
-  // tytuł karty (tak samo jak pulpity GSC i GA4), a kolumny wartości - te same
-  // klucze słownika, które opisują liczby w podpowiedzi tego wykresu. Wiersze
-  // idą PORZĄDKIEM RANKINGU (najmocniejszy pierwszy), czyli tak, jak czyta się
-  // słupki poziome od góry: oś Y jest odwrócona tylko dlatego, że ECharts
-  // rysuje kategorie od dołu.
+  // Nagłówek wymiaru bierze tytuł karty (tak samo jak pulpity GSC i GA4),
+  // a kolumny wartości - te same klucze słownika, które opisują liczby na tym
+  // wykresie. Wiersze idą PORZĄDKIEM RANKINGU, czyli tak, jak czyta się słupki
+  // poziome od góry.
   const catsCsv: ChartCsv = {
     filename: "related-top-categories",
     headers: [
@@ -381,15 +418,15 @@ export function RelatedPostsAnalytics() {
     ],
     rows: popRows.map((r) => [postLabel(r.title, r.post_id), r.views, r.uniques]),
   };
-  const sankeyCsv: ChartCsv = {
+  const flowsCsv: ChartCsv = {
     filename: "related-click-paths",
     // Para „źródło → cel" jedzie w JEDNEJ kolumnie, bo jednym elementem wykresu
-    // jest tu wstęga między dwoma węzłami, a nie osobny węzeł.
+    // jest tu przejście między dwoma wpisami, a nie osobny wpis.
     headers: [
-      t("adminAnalytics.related.charts.sankeyTitle"),
+      t("adminAnalytics.related.charts.flowsTitle"),
       t("adminAnalytics.related.clicksShort"),
     ],
-    rows: clickPairs.map((p) => [
+    rows: clickPairsRanked.map((p) => [
       `${postLabel(p.source_title, p.source_post_id, 6)} → ${postLabel(p.target_title, p.target_post_id, 6)}`,
       p.clicks,
     ]),
@@ -617,14 +654,14 @@ export function RelatedPostsAnalytics() {
             <ChartCard
               title={t("adminAnalytics.related.charts.topCatsTitle")}
               subtitle={t("adminAnalytics.related.charts.topCatsSubtitle")}
-              option={topCatsOption}
+              config={topCatsConfig}
               csv={catsCsv}
               height={360}
             />
             <ChartCard
               title={t("adminAnalytics.related.charts.topTagsTitle")}
               subtitle={t("adminAnalytics.related.charts.topTagsSubtitle")}
-              option={topTagsOption}
+              config={topTagsConfig}
               csv={tagsCsv}
               height={360}
             />
@@ -632,8 +669,8 @@ export function RelatedPostsAnalytics() {
 
           <ChartCard
             title={t("adminAnalytics.related.charts.coocTitle")}
-            subtitle={t("adminAnalytics.related.charts.coocSubtitle")}
-            option={coocurrenceOption}
+            subtitle={t("adminAnalytics.related.charts.coocSubtitle", { count: COOC_TAGS })}
+            config={coocConfig}
             csv={coocCsv}
             height={440}
           />
@@ -642,25 +679,30 @@ export function RelatedPostsAnalytics() {
             <ChartCard
               title={t("adminAnalytics.related.charts.popularityTitle")}
               subtitle={t("adminAnalytics.related.charts.popularitySubtitle")}
-              option={popularityScatterOption}
+              config={popularityConfig}
               csv={popularityCsv}
               height={360}
             />
             <ChartCard
               title={t("adminAnalytics.related.charts.hubTitle")}
               subtitle={t("adminAnalytics.related.charts.hubSubtitle")}
-              option={hubBarOption}
+              config={hubsConfig}
               csv={hubsCsv}
               height={360}
+              onDataClick={hubClick}
             />
           </div>
 
           <ChartCard
-            title={t("adminAnalytics.related.charts.sankeyTitle")}
-            subtitle={t("adminAnalytics.related.charts.sankeySubtitle")}
-            option={sankeyOption}
-            csv={sankeyCsv}
+            title={t("adminAnalytics.related.charts.flowsTitle")}
+            subtitle={t("adminAnalytics.related.charts.flowsSubtitle", {
+              shown: flowRows.length,
+              total: clickPairsRanked.length,
+            })}
+            config={flowsConfig}
+            csv={flowsCsv}
             height={420}
+            onDataClick={flowClick}
           />
 
           <InsightSection
