@@ -22,11 +22,14 @@
 // testowy przy modelu. Tutaj sprawdzam wyłącznie to, czego model sprawdzić nie
 // może: czy RYSUNEK mówi to, co model policzył.
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import { FONT_AXIS } from "@/lib/charts/geometry";
 import { estimateLabelWidth } from "@/lib/charts/measureText";
+import i18n from "@/lib/i18n";
+import "@/lib/i18n-charts";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { SmallMultiplesChart, type SmallMultiplesRenderOptions } from "../SmallMultiplesChart";
 
@@ -530,20 +533,31 @@ describe("SmallMultiplesChart - i18n", () => {
       // żądanie usunięcia pustych paneli, jedna kategoria i pusty zestaw.
       [{ title: "Handel & usługi", showValues: true, showGrid: true }, { mark: "area" }],
       [
-        { series: [{ name: "A", values: [1, 2, 3, 4] }, { name: "B", values: [null, null, null, null] }] },
+        {
+          series: [
+            { name: "A", values: [1, 2, 3, 4] },
+            { name: "B", values: [null, null, null, null] },
+          ],
+        },
         { dropEmptyPanels: true },
       ],
       [
         {
           categories: ["2020"],
-          series: [{ name: "A", values: [1] }, { name: "B", values: [2] }],
+          series: [
+            { name: "A", values: [1] },
+            { name: "B", values: [2] },
+          ],
         },
         undefined,
       ],
       [
         {
           categories: ["a", "b"],
-          series: [{ name: "A", values: [null, null] }, { name: "B", values: [null, null] }],
+          series: [
+            { name: "A", values: [null, null] },
+            { name: "B", values: [null, null] },
+          ],
         },
         undefined,
       ],
@@ -662,8 +676,30 @@ describe("SmallMultiplesChart - uczciwość: każde pole modelu wtedy i tylko wt
     const tekst = nota(container, "honesty.sharedScaleReadableOk");
     expect(tekst).toContain("2 z 3");
     // Iloraz poziomów jest tu liczbą, która TŁUMACZY spłaszczenie - "panele
-    // różnią się poziomem 107-krotnie" mówi więcej niż udział osi.
-    expect(tekst).toMatch(/107/);
+    // różnią się poziomem 107-krotnie" mówi więcej niż udział osi. Pytamy
+    // o WŁASNOŚĆ tej liczby, a nie o jej zapis: iloraz jest ilorazem poziomów,
+    // więc podniesienie poziomu panelu najniższego DZIESIĘCIOKROTNIE musi
+    // zmniejszyć go dziesięciokrotnie. Przepisana stała ("107") przeszłaby
+    // także dla renderu, który wstawia w to miejsce dowolną inną liczbę
+    // modelu - na przykład udział osi albo liczbę paneli.
+    const iloraz = (t: string): number =>
+      Number(
+        (t.match(/poziomem ([\d\u00a0 ,.]+)-krotnie/)?.[1] ?? "")
+          .replace(/[\u00a0\s.]/g, "")
+          .replace(",", "."),
+      );
+    const dziesiecKrotnieWyzej = rysuj({
+      series: [
+        { name: "Wielki", values: [100, 400, 900, 1600] },
+        { name: "Mały", values: [80, 90, 110, 120] },
+        { name: "Mniejszy", values: [60, 70, 60, 90] },
+      ],
+    }).container;
+    const a = iloraz(tekst);
+    const b = iloraz(nota(dziesiecKrotnieWyzej, "honesty.sharedScaleReadableOk"));
+    expect(a).toBeGreaterThan(1);
+    expect(b).toBeGreaterThan(1);
+    expect(a / b).toBeCloseTo(10, 0);
     expect(nota(rysuj().container, "honesty.sharedScaleReadableOk")).toBe("");
   });
 
@@ -1421,5 +1457,52 @@ describe("SmallMultiplesChart - znacznik decyduje o zerze i o kropkach", () => {
     const jeden = container.querySelector("g[data-panel-label='Jeden']");
     expect(jeden?.querySelectorAll("[data-role='panel-point']").length).toBe(1);
     expect(jeden?.querySelector("[data-role='panel-line']")).toBeNull();
+  });
+});
+
+describe("SmallMultiplesChart - słownik ma treść dla KAŻDEJ ścieżki z tego renderu", () => {
+  it("każda ścieżka słownika wypisana w źródle renderu ma treść w PL I W EN", () => {
+    // Klucz bez treści nie jest błędem kompilacji: i18next oddaje wtedy WŁASNĄ
+    // NAZWĘ KLUCZA, więc na stronie publicznej staje napis
+    // "smallMultiples.note.gap". Obie bramki słownikowe silnika szukają bloku
+    // wzorcem `\n    ${kind}: {`, a blok tego rodzaju nazywa się `smallMultiples`,
+    // gdy rodzaj nazywa się `small-multiples` - i przez to OBIE ten rodzaj
+    // pomijają (zgłoszone osobno, pliki bramek są poza zakresem tej pracy).
+    // Do czasu ich naprawy to jest jedyne miejsce, które pilnuje parytetu
+    // treści dla paneli, więc lista kluczy NIE jest tu przepisana ręcznie:
+    // czytamy ją ze ŹRÓDŁA renderu.
+    const zrodlo = readFileSync("src/components/charts/SmallMultiplesChart.tsx", "utf8");
+    const sciezki = [
+      ...new Set(
+        [...zrodlo.matchAll(/"((?:smallMultiples|a11y|frame)\.[A-Za-z.]+)"/g)].map((m) => m[1]),
+      ),
+    ];
+    // Gdyby wyrażenie przestało cokolwiek znajdować, test byłby zielony,
+    // nie sprawdzając niczego - stąd podłoga na liczbie ścieżek.
+    expect(sciezki.length).toBeGreaterThan(40);
+    for (const sciezka of sciezki) {
+      for (const lng of ["pl", "en"] as const) {
+        expect(i18n.exists(`charts.${sciezka}`, { lng }), `${sciezka} (${lng})`).toBe(true);
+      }
+    }
+  });
+
+  it("KAŻDY z sześciu porządków paneli ma zdanie, a nie ścieżkę słownika", () => {
+    // Kolejność paneli jest w tej formie nośnikiem informacji, więc zdanie
+    // o niej stoi pod rysunkiem ZAWSZE. Unia ma sześć wartości i mapa
+    // `ORDER_KEYS` musi mieć sześć treści - brak jednej wychodzi surową
+    // ścieżką w miejscu, w którym czytelnik szuka klucza do pierwszego rzędu.
+    for (const order of ["mean", "max", "span", "last", "label", "input"] as const) {
+      const { container } = rysuj({}, { order });
+      const tekst = nota(container, "order");
+      expect(tekst, order).not.toMatch(/smallMultiples\./);
+      expect(tekst.length, order).toBeGreaterThan(10);
+      // Ta sama treść musi być w nazwie dostępnej - czytelnik ekranu nie widzi
+      // uwag pod rysunkiem przed samym rysunkiem.
+      expect(
+        container.querySelector("[role='img']")?.getAttribute("aria-label") ?? "",
+        order,
+      ).toContain(tekst);
+    }
   });
 });
