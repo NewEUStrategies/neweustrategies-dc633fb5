@@ -380,6 +380,7 @@ describe("MediaPickerDialog - opis alternatywny wybranego pliku", () => {
   });
 
   it("usuwa wybrany plik dopiero po potwierdzeniu", async () => {
+    Object.defineProperty(window, "confirm", { configurable: true, value: vi.fn() });
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     setup();
     await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
