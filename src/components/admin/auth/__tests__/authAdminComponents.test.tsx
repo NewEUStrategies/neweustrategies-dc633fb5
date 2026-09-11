@@ -288,7 +288,7 @@ describe("ImageUrlField (organizm)", () => {
     fireEvent.change(screen.getByPlaceholderText("adminLoginSettings.imgUrlPlaceholder"), {
       target: { value: "/media/hero.webp" },
     });
-    expect(onChange).toHaveBeenCalledWith("/media/hero.webp");
+    expect(onChange).toHaveBeenCalledWith("https://neweuropeanstrategies.com/media/hero.webp");
   });
 
   it("techniczny adres magazynu zamienia na adres domeny marki", () => {
@@ -321,7 +321,9 @@ describe("ImageUrlField (organizm)", () => {
     // `onPick` woła DWIE aktualizacje stanu (adres w górę, zamknięcie okna) -
     // bez `act` asercja na zamknięciu ściga się z przetworzeniem drugiej.
     act(() => h.pickerProps?.onPick("/media/wybrany.webp"));
-    expect(onChange).toHaveBeenCalledWith("/media/wybrany.webp");
+    expect(onChange).toHaveBeenCalledWith(
+      "https://neweuropeanstrategies.com/media/wybrany.webp",
+    );
     expect(document.querySelector('[data-testid="media-picker"]')?.getAttribute("data-open")).toBe(
       "false",
     );

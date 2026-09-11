@@ -27,6 +27,16 @@ function safeMediaPath(value: string): string | null {
 export function mediaStoragePath(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
+  // URL normalizuje segmenty `..` zanim odczytamy pathname, dlatego blokujemy
+  // je na surowym wejściu, również po jednokrotnym dekodowaniu.
+  const decodedInput = (() => {
+    try {
+      return decodeURIComponent(trimmed);
+    } catch {
+      return trimmed;
+    }
+  })();
+  if (decodedInput.split(/[\\/]/).includes("..")) return null;
 
   try {
     const url = new URL(trimmed, PUBLIC_MEDIA_ORIGIN);
