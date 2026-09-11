@@ -11,6 +11,29 @@ import {
   stanceLabel,
   stanceMeta,
 } from "@/lib/tracker/euCountries";
+import { CHART_SEMANTIC, slotAt } from "@/lib/charts/palette";
+
+describe("STANCE_META - awaryjny hex nie odkleja się od tokena", () => {
+  it("hex każdego stanowiska jest DOKŁADNIE jasną wartością swojego tokena", () => {
+    // `hex` jest kopią wartości jasnej dla miejsc, które nie umieją podać
+    // `var()` (kanwa, eksport PNG). Komentarz przy STANCE_META mówi, że przy
+    // zmianie palety zmienia się razem z tokenem - dopóki nikt tego nie
+    // sprawdza, jest to obietnica, a nie warunek: po przebudowie palety mapa
+    // na ekranie pokazywałaby nowy kolor, a wyeksportowany PNG stary.
+    const zTokena: Record<string, string> = {
+      "var(--chart-positive)": CHART_SEMANTIC.positiveLight,
+      "var(--chart-negative)": CHART_SEMANTIC.negativeLight,
+    };
+    for (const meta of STANCE_META) {
+      const slot = /^var\(--chart-(\d+)\)$/.exec(meta.cssVar);
+      const oczekiwany = slot ? slotAt(Number(slot[1])).light : zTokena[meta.cssVar];
+      // `--chart-axis` nie jest kolorem palety serii i nie ma go w module -
+      // ten wpis zostaje poza regułą, bo reguła dotyczy palety.
+      if (!oczekiwany) continue;
+      expect(meta.hex, meta.key).toBe(oczekiwany);
+    }
+  });
+});
 
 describe("EU_COUNTRIES", () => {
   it("zawiera dokładnie 27 unikalnych kodów ISO2", () => {

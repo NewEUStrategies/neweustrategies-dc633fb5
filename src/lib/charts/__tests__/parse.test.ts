@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_SERIES } from "@/lib/charts/types";
 import {
   CHART_HEIGHT_MAX,
   CHART_HEIGHT_MIN,
@@ -46,8 +47,10 @@ describe("parseChartConfig", () => {
   });
 
   it("caps series at the palette size (never cycles hues)", () => {
-    const many = Array.from({ length: 12 }, (_, i) => ({ name: `S${i}`, values: [1] }));
-    expect(parseChartConfig({ categories: ["a"], series: many }).series).toHaveLength(8);
+    // Limit czytamy ze stałej, nie z literału: paleta rośnie razem z liczbą
+    // slotów i test ma pilnować REGUŁY, a nie zapamiętanej liczby.
+    const many = Array.from({ length: MAX_SERIES + 4 }, (_, i) => ({ name: `S${i}`, values: [1] }));
+    expect(parseChartConfig({ categories: ["a"], series: many }).series).toHaveLength(MAX_SERIES);
   });
 });
 

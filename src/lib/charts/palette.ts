@@ -37,8 +37,9 @@ export type CvdKind = (typeof CVD_KINDS)[number];
  * ISTNIEJE siódmy odcień, który utrzymałby podłogę 24,4 przy kontraście >=3:1
  * na płycie (zero kandydatów), a dla jasnej utrzymują ją wyłącznie brązy i
  * ciemne czerwienie, czyli odcienie zajęte przez semantykę znaku.
- * Sloty 7 i 8 istnieją dla zgodności z zapisanymi konfiguracjami (patrz
- * MAX_SERIES) i mają WŁASNĄ, niższą podłogę - patrz CVD_FLOOR.
+ * Sloty 7-10 istnieją dla zgodności z zapisanymi konfiguracjami (patrz
+ * MAX_SERIES) i dla autorów, którzy potrzebują więcej rodzin odcienia niż
+ * sześć; mają WŁASNĄ, niższą podłogę - patrz CVD_FLOOR.
  */
 export const CATEGORICAL_SAFE_MAX = 6;
 
@@ -57,7 +58,7 @@ export const CONTRAST_MIN = {
 /**
  * Podłoga odległości barw po symulacji. Dwa różne progi, bo to dwa różne
  * zestawy: `safe` to sloty 1..CATEGORICAL_SAFE_MAX (paleta właściwa),
- * `extended` to wszystkie osiem razem (sloty 7-8 są rozszerzeniem poza
+ * `extended` to wszystkie dziesięć razem (sloty 7-10 są rozszerzeniem poza
  * dyscyplinę sześciu kolorów i tego nie ukrywamy).
  */
 export const CVD_FLOOR = {
@@ -78,7 +79,7 @@ export const BAND_CONTRAST_RANGE = { min: 1.1, max: 1.17 } as const;
 export const GRID_CONTRAST_MAX = 1.3;
 
 export interface PaletteSlot {
-  /** Numer slotu 1..8 - ta liczba jest ZAPISANA w konfiguracjach wykresów. */
+  /** Numer slotu 1..10 - ta liczba jest ZAPISANA w konfiguracjach wykresów. */
   slot: number;
   /** Nazwa odcienia (do komentarzy i paneli edytora). */
   key: string;
@@ -113,125 +114,162 @@ export const CHART_SLOTS: readonly PaletteSlot[] = [
   {
     slot: 1,
     key: "granat",
-    light: "#00528f",
-    dark: "#287fd2",
-    textLight: "#00528f",
-    textDark: "#649be7",
-    // Wypełnienie granatu jest za ciemne dla ciemnego tuszu (2,25:1), więc
-    // etykieta w środku wycinka idzie bielą.
+    light: "#01538a",
+    dark: "#449eef",
+    textLight: "#01538a",
+    textDark: "#449eef",
+    // W motywie JASNYM granat jest jedynym slotem, którego zmiękczenie
+    // praktycznie nie ruszyło, i to nie jest przeoczenie. Jest kotwicą
+    // jasności całej palety: para 1-2 (granat/ochra) rozchodzi się
+    // jednocześnie w jasności i w odcieniu, więc różni się nawet w skali
+    // szarości. Rozjaśnienie granatu do poziomu reszty zabiera tej parze
+    // różnicę jasności i dwie pierwsze serie - najczęstszy przypadek na
+    // świecie - zaczynają zależeć od samego odcienia. Zysk poszedł więc
+    // w chromę (0,121 -> 0,113), a nie w jasność. W motywie ciemnym płyta
+    // jest czarna, kotwica działa w drugą stronę i granat mógł się rozjaśnić
+    // normalnie (0,588 -> 0,682).
     inkLight: "#ffffff",
-    // W motywie ciemnym granat rozjaśnia się do #287fd2 i wtedy ŻADEN z tuszów
-    // roboczych nie przechodzi progu 4,5:1 (#12161c daje 4,37:1, biel 4,15:1).
-    // Czerń pełna daje 5,06:1 - to jedyny slot w całej palecie, który jej
-    // wymaga, i dlatego stoi tu wprost, a nie przez token tuszu.
-    inkDark: "#000000",
+    inkDark: "#12161c",
     bandLight: 0.08,
-    bandDark: 0.14,
+    bandDark: 0.1,
     cvdSafe: true,
   },
   {
     slot: 2,
     key: "ochra",
-    light: "#c6871f",
-    dark: "#eda946",
-    // Ochra jako linia ma 3,05:1 i jest w porządku; jako TEKST nie przechodzi
+    light: "#bb8b4d",
+    dark: "#e1af73",
+    // Ochra jako linia ma 3,03:1 i jest w porządku; jako TEKST nie przechodzi
     // 4,5:1, więc podpisy biorą wariant przyciemniony. To najczęstszy błąd
     // w wykresach: etykieta pisana kolorem linii wygląda spójnie i nie
-    // przechodzi audytu dostępności.
-    textLight: "#a26900",
-    textDark: "#eda946",
+    // przechodzi audytu dostępności. Po zmiękczeniu dotyczy to WIĘKSZOŚCI
+    // slotów jasnych, bo cała paleta stoi bliżej progu grafiki niż wcześniej.
+    textLight: "#9c6d2e",
+    textDark: "#e1af73",
     inkLight: "#12161c",
     inkDark: "#12161c",
     bandLight: 0.13,
-    bandDark: 0.09,
+    bandDark: 0.08,
     cvdSafe: true,
   },
   {
     slot: 3,
     key: "szalwia",
-    light: "#679675",
-    dark: "#94b99e",
-    textLight: "#507f5f",
-    textDark: "#94b99e",
+    light: "#749d88",
+    dark: "#9ac5af",
+    textLight: "#577f6b",
+    textDark: "#9ac5af",
     inkLight: "#12161c",
     inkDark: "#12161c",
     bandLight: 0.13,
-    bandDark: 0.09,
+    bandDark: 0.08,
     cvdSafe: true,
   },
   {
     slot: 4,
     key: "sliwka",
-    light: "#815579",
-    dark: "#ad74a2",
-    textLight: "#815579",
-    textDark: "#b78dae",
+    light: "#7a5b79",
+    dark: "#a587a4",
+    textLight: "#7a5b79",
+    textDark: "#a587a4",
     inkLight: "#ffffff",
     inkDark: "#12161c",
     bandLight: 0.09,
-    bandDark: 0.12,
+    bandDark: 0.11,
     cvdSafe: true,
   },
   {
     slot: 5,
     key: "lazur",
-    light: "#0e90be",
-    dark: "#4ac1f7",
-    textLight: "#007daa",
-    textDark: "#4ac1f7",
+    light: "#11a0c4",
+    dark: "#51cef6",
+    textLight: "#00819f",
+    textDark: "#51cef6",
     inkLight: "#12161c",
     inkDark: "#12161c",
-    bandLight: 0.11,
-    bandDark: 0.09,
+    bandLight: 0.12,
+    bandDark: 0.08,
     cvdSafe: true,
   },
   {
     slot: 6,
     key: "terakota",
-    light: "#b05125",
-    dark: "#c96536",
-    textLight: "#b05125",
-    textDark: "#dd8156",
-    inkLight: "#ffffff",
-    inkDark: "#12161c",
-    bandLight: 0.1,
-    bandDark: 0.13,
-    cvdSafe: true,
-  },
-  {
-    // ---- Sloty 7 i 8: ROZSZERZENIE, nie paleta. ----
-    // Osiem odcieni rozdzielnych dla wszystkich trzech rodzajów daltonizmu
-    // w tej rodzinie NIE ISTNIEJE (przeszukanie sRGB: dla motywu ciemnego zero
-    // kandydatów utrzymujących podłogę 24,4). Te dwa sloty zostają, bo numer
-    // slotu jest ZAPISANY w treści (bloki CMS, CSV widgetów) i cztery miejsca
-    // w kodzie liczą `(i % 8) + 1`; brak tokenu daje tam czarne wypełnienie
-    // albo niewidoczną kreskę, czyli awarię gorszą niż niska odległość barw.
-    // Podłoga całego zestawu ośmiu spada do ~10 (jasny) i ~15,5 (ciemny) -
-    // pilnuje jej OSOBNY, niższy próg CVD_FLOOR.extended, a silnik dokłada
-    // tym seriom kreskowanie jako drugi nośnik różnicy.
-    slot: 7,
-    key: "indygo",
-    light: "#4b57b7",
-    dark: "#7384c5",
-    textLight: "#4b57b7",
-    textDark: "#7384c5",
+    light: "#a8583c",
+    dark: "#b97b64",
+    textLight: "#a8583c",
+    textDark: "#b97b64",
     inkLight: "#ffffff",
     inkDark: "#12161c",
     bandLight: 0.09,
-    bandDark: 0.12,
+    bandDark: 0.11,
+    cvdSafe: true,
+  },
+  {
+    // ---- Sloty 7-10: ROZSZERZENIE, nie paleta. ----
+    // Dziesięć odcieni rozdzielnych dla wszystkich trzech rodzajów daltonizmu
+    // w tej rodzinie NIE ISTNIEJE - nie istnieje nawet siedem (przeszukanie
+    // sRGB: dla motywu ciemnego zero kandydatów utrzymujących podłogę 24,4).
+    // Te cztery sloty istnieją z dwóch powodów: numer slotu jest ZAPISANY
+    // w treści (bloki CMS, CSV widgetów), a autorzy potrzebują czasem więcej
+    // rodzin odcienia niż sześć. Podłoga całego zestawu dziesięciu spada do
+    // ~11 (jasny) i ~11,2 (ciemny) - pilnuje jej OSOBNY, niższy próg
+    // CVD_FLOOR.extended, a silnik dokłada tym seriom kreskowanie jako drugi
+    // nośnik różnicy.
+    slot: 7,
+    key: "indygo",
+    light: "#5f6c98",
+    dark: "#92a1ca",
+    textLight: "#5f6c98",
+    textDark: "#92a1ca",
+    inkLight: "#ffffff",
+    inkDark: "#12161c",
+    bandLight: 0.1,
+    bandDark: 0.09,
     cvdSafe: false,
   },
   {
     slot: 8,
     key: "oliwka",
-    light: "#455d00",
-    dark: "#caca88",
-    textLight: "#455d00",
-    textDark: "#caca88",
+    light: "#646e1c",
+    dark: "#ccc69b",
+    textLight: "#646e1c",
+    textDark: "#ccc69b",
     inkLight: "#ffffff",
     inkDark: "#12161c",
-    bandLight: 0.09,
+    bandLight: 0.1,
     bandDark: 0.08,
+    cvdSafe: false,
+  },
+  {
+    // Sloty 9 i 10 stoją w dwóch NAJWIĘKSZYCH lukach koła barw palety:
+    // 327-40 stopnia (73 stopnie pustki między śliwką a terakotą) i 162-221
+    // (59 stopni między szałwią a lazurem). Wolne przeszukanie całego koła,
+    // bez kotwic - z regułą minimalnego kąta zamiast nazwanych rodzin - samo
+    // wracało w te dwa miejsca i wypadało GORZEJ od nich, więc rodziny są
+    // nazwane, a nie wygenerowane po obwodzie.
+    slot: 9,
+    key: "roza",
+    light: "#936869",
+    dark: "#b28485",
+    textLight: "#936869",
+    textDark: "#b28485",
+    inkLight: "#ffffff",
+    inkDark: "#12161c",
+    bandLight: 0.1,
+    bandDark: 0.11,
+    cvdSafe: false,
+  },
+  {
+    slot: 10,
+    key: "morski",
+    light: "#4b9391",
+    dark: "#8fd3d0",
+    textLight: "#38817f",
+    textDark: "#8fd3d0",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.12,
+    bandDark: 0.07,
     cvdSafe: false,
   },
 ];
@@ -313,7 +351,7 @@ export const CHART_SURFACES = {
  * wykresu, więc nie ma tu czego ostrzegać w edytorze. Gdyby kiedyś dał,
  * warunek jest już policzony.
  */
-export const SLOTS_UNSAFE_ON_SURFACE_2: readonly number[] = [2, 3, 5];
+export const SLOTS_UNSAFE_ON_SURFACE_2: readonly number[] = [2, 3, 5, 10];
 
 /**
  * RAMP SEKWENCYJNY mapy-choroplety - para kotwic na motyw.
@@ -371,25 +409,33 @@ export const ACCENT_AUDIT = {
 
 /**
  * Sloty, które NIE MOGĄ wystąpić jako kategoria na wykresie kodującym znak
- * czerwienią. Terakota wobec czerwieni daje 15,9 / 22,1 / 16,7, czyli poniżej
- * podłogi palety - a wykres, na którym "strata" i "kategoria szósta" wyglądają
- * podobnie, nie da się odczytać.
+ * czerwienią. Terakota wobec czerwieni daje 7,7 (deuteranopia) / 11,2
+ * (protanopia) / 27,3 (tritanopia), czyli przy dwóch rodzajach widzenia jest
+ * od niej praktycznie nieodróżnialna - a wykres, na którym "strata"
+ * i "kategoria szósta" wyglądają podobnie, nie da się odczytać.
+ *
+ * Zmiękczenie palety ZBLIŻYŁO terakotę do czerwieni (było 15,9 / 22,1 / 16,7),
+ * bo oba odcienie idą w tę samą stronę koła i niższa chroma zbiera je bliżej
+ * siebie. Lista zostaje ta sama, ale powód jest teraz mocniejszy, nie słabszy.
  */
 export const SLOTS_CLASHING_WITH_SIGN: readonly number[] = [6];
 
 /**
  * Sloty, które nie mogą wystąpić, gdy w użyciu jest pomarańczowy akcent marki.
- * `#ed751a` wobec ochry `#c6871f` daje przy deuteranopii 1,6 - praktycznie ten
- * sam kolor.
+ * Po zmiękczeniu palety kolizja PRZENIOSŁA SIĘ z ochry na oliwkę i to jest
+ * dobra ilustracja, dlaczego ta lista jest liczona, a nie pamiętana: ochra
+ * odsunęła się od akcentu (18,3 przy protanopii, czyli nad podłogą), a oliwka
+ * zeszła pod nią (13,5 przy protanopii wobec 26,5 / 66,3 przy pozostałych
+ * rodzajach widzenia).
  *
  * Ta stała jest FAKTEM PALETY dla bramki, nie regułą dla edytora. Silnik nie
  * daje autorowi żadnej drogi wprowadzenia akcentu do wykresu jako koloru
  * danych (`--chart-accent` służy wyłącznie obwódce fokusu), więc ostrzeżenie
- * w edytorze odpalałoby się przy każdym użyciu slotu 2 - a slot 2 jest
- * domyślnym kolorem drugiej serii. Gdyby akcent kiedykolwiek stał się kolorem
- * danych, ostrzeżenie wraca i bierze warunek z tego, co go włącza.
+ * w edytorze odpalałoby się przy każdym użyciu slotu z listy. Gdyby akcent
+ * kiedykolwiek stał się kolorem danych, ostrzeżenie wraca i bierze warunek
+ * z tego, co go włącza.
  */
-export const SLOTS_CLASHING_WITH_ACCENT: readonly number[] = [2];
+export const SLOTS_CLASHING_WITH_ACCENT: readonly number[] = [8];
 
 // ---------------------------------------------------------------------------
 // Kolorymetria. Czyste funkcje, bez DOM - działają w SSR i w teście.

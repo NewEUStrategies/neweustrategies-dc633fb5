@@ -230,7 +230,7 @@ export interface ScatterPoint {
   label: string;
   /** Indeks serii w wejściu - do warstwy trafień i legendy. */
   seriesIndex: number;
-  /** Slot palety 1..8. */
+  /** Slot palety 1..10. */
   colorSlot: number;
   /**
    * Czy w tolerancji `SCATTER_OVERPLOT_TOLERANCE` leży inny punkt, czyli czy

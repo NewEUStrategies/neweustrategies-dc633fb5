@@ -60,6 +60,10 @@ import {
 const css = readFileSync("src/styles.css", "utf8");
 const LIGHT_BLOCK = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
 const DARK_BLOCK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
+// Blok druku stoi PO `@layer base`, czyli poza cięciem powyżej - i właśnie
+// dlatego potrzebuje własnego zakresu. Bez niego jedyny zestaw tokenów
+// wykresu, którego nikt nie pilnuje, to ten, który idzie na papier.
+const PRINT_BLOCK = css.slice(css.indexOf("@media print {"));
 
 function token(block: string, name: string): string {
   const m = block.match(new RegExp(`${name}:\\s*([^;]+);`));
@@ -136,14 +140,14 @@ describe("palette - metoda pomiaru", () => {
     // a spójność wewnątrz repo jest ważniejsza niż zgodność z cudzą
     // implementacją do drugiego miejsca.
     const light = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.light);
-    expect(minPairwiseCvdDistance(light, "deutan")?.distance).toBeCloseTo(19.96, 1);
-    expect(minPairwiseCvdDistance(light, "protan")?.distance).toBeCloseTo(23.06, 1);
-    expect(minPairwiseCvdDistance(light, "tritan")?.distance).toBeCloseTo(17.09, 1);
+    expect(minPairwiseCvdDistance(light, "deutan")?.distance).toBeCloseTo(19.57, 1);
+    expect(minPairwiseCvdDistance(light, "protan")?.distance).toBeCloseTo(23.01, 1);
+    expect(minPairwiseCvdDistance(light, "tritan")?.distance).toBeCloseTo(20.13, 1);
 
     const dark = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.dark);
-    expect(minPairwiseCvdDistance(dark, "deutan")?.distance).toBeCloseTo(24.0, 1);
-    expect(minPairwiseCvdDistance(dark, "protan")?.distance).toBeCloseTo(26.16, 1);
-    expect(minPairwiseCvdDistance(dark, "tritan")?.distance).toBeCloseTo(24.34, 1);
+    expect(minPairwiseCvdDistance(dark, "deutan")?.distance).toBeCloseTo(20.65, 1);
+    expect(minPairwiseCvdDistance(dark, "protan")?.distance).toBeCloseTo(24.75, 1);
+    expect(minPairwiseCvdDistance(dark, "tritan")?.distance).toBeCloseTo(17.01, 1);
   });
 
   it("symulacja NIE jest wygaszeniem kanału - czerwień idzie w ochrę, nie w czerń", () => {
@@ -290,9 +294,9 @@ describe("palette - rozdzielność dla daltonizmu", () => {
     }
   });
 
-  it("zestaw PEŁNY (sloty 1..8) trzyma własną, NIŻSZĄ podłogę - i to jest udokumentowane", () => {
-    // Osiem odcieni rozdzielnych w tej rodzinie nie istnieje. Ten próg mówi
-    // wprost, ile realnie zostaje, żeby nikt nie wziął slotów 7-8 za
+  it("zestaw PEŁNY (sloty 1..10) trzyma własną, NIŻSZĄ podłogę - i to jest udokumentowane", () => {
+    // Dziesięć odcieni rozdzielnych w tej rodzinie nie istnieje. Ten próg mówi
+    // wprost, ile realnie zostaje, żeby nikt nie wziął slotów 7-10 za
     // bezpieczne. Sloty poza zestawem bezpiecznym dostają w silniku
     // kreskowanie jako drugi nośnik różnicy.
     for (const theme of ["light", "dark"] as const) {
@@ -493,6 +497,26 @@ describe("palette - tokeny w styles.css zgadzają się z modułem", () => {
     }
   });
 
+  it("blok DRUKU odtwarza DOKŁADNIE tokeny jasne - inaczej wydruk kłamie kolorem", () => {
+    // Wydruk odtwarza jasne tokeny w zasięgu `.dark`, żeby wykres z trybu
+    // ciemnego nie wyszedł na papierze czarną plamą. Skoro odtwarza, to musi
+    // odtwarzać CO DO HEXA: blok przepisany ręcznie zostaje przy poprzedniej
+    // palecie po każdej zmianie kolorów i nikt tego nie widzi, bo na ekranie
+    // wygląda dobrze.
+    for (const slot of CHART_SLOTS) {
+      expect(hexToken(PRINT_BLOCK, `--chart-${slot.slot}`), `druk ${slot.key}`).toBe(slot.light);
+      expect(hexToken(PRINT_BLOCK, `--chart-${slot.slot}t`), `druk ${slot.key}t`).toBe(
+        slot.textLight,
+      );
+      expect(hexToken(PRINT_BLOCK, `--chart-ink-${slot.slot}`), `druk tusz ${slot.key}`).toBe(
+        slot.inkLight,
+      );
+      expect(numberToken(PRINT_BLOCK, `--chart-band-${slot.slot}`), `druk pasmo ${slot.key}`).toBe(
+        slot.bandLight,
+      );
+    }
+  });
+
   it("semantyka znaku jest identyczna w CSS i w module", () => {
     expect(hexToken(LIGHT_BLOCK, "--chart-positive")).toBe(CHART_SEMANTIC.positiveLight);
     expect(hexToken(DARK_BLOCK, "--chart-positive")).toBe(CHART_SEMANTIC.positiveDark);
@@ -653,13 +677,14 @@ describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem"
         const { face, deep, mid } = barFillOf(base, theme);
         const step = contrastRatio(base, face);
         // Zakres ze specyfikacji obowiązuje jej WŁASNE odcienie: sześć serii
-        // plus semantyka. Sloty 7-8 są udokumentowanym rozszerzeniem tego
-        // repozytorium i przy tej samej formule lądują nieco niżej (ciemny
-        // slot 8 daje 1,118), bo ich jasność bazowa jest inna. Pilnujemy więc
-        // zakresu specyfikacji tam, gdzie on obowiązuje, i osobnej podłogi
-        // widoczności krawędzi dla rozszerzenia - zamiast rozszerzać zakres
-        // i przestać pilnować czegokolwiek.
-        const extension = hue.name === "7" || hue.name === "8";
+        // plus semantyka. Sloty rozszerzenia są udokumentowanym dodatkiem tego
+        // repozytorium i przy tej samej formule lądują nieco niżej, bo ich
+        // jasność bazowa jest inna. Pilnujemy więc zakresu specyfikacji tam,
+        // gdzie on obowiązuje, i osobnej podłogi widoczności krawędzi dla
+        // rozszerzenia - zamiast rozszerzać zakres i przestać pilnować
+        // czegokolwiek. Warunek czytamy z `cvdSafe`, a nie z listy numerów,
+        // żeby dopisanie slotu nie wymagało poprawki w dwóch miejscach.
+        const extension = CHART_SLOTS.some((s) => String(s.slot) === hue.name && !s.cvdSafe);
         expect(step, `${theme} ${hue.name}`).toBeGreaterThanOrEqual(
           extension ? 1.11 : EDGE_FACE_RANGE.min,
         );
@@ -694,11 +719,13 @@ describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem"
 
   it("BLADE WNĘTRZE NIE NIESIE TOŻSAMOŚCI SERII - i to jest udokumentowane, nie przypadek", () => {
     // Ta asercja jest ostrzeżeniem zapisanym w wykonywalnej formie. Przy
-    // jasności 0,93 wszystkie odcienie zbiegają się praktycznie do jednego:
-    // odległość CIELAB między bladymi wypełnieniami jest o dwa rzędy niższa od
-    // podłogi palety serii (24). Dlatego wariant blady jest doskonały przy
-    // JEDNEJ serii (tożsamość niesie obwódka), a przy słupkach grupowanych
-    // wymaga drugiego nośnika: etykiety bezpośredniej albo wariantu solidnego.
+    // jasności 0,93 wszystkie odcienie zbiegają się praktycznie do jednego.
+    // Próg 8 nie jest okrągłą liczbą z sufitu: to dolna granica, przy której
+    // para kategorialna w ogóle daje się rozróżnić, i to wyłącznie z drugim
+    // nośnikiem różnicy. Blade wnętrza siedzą POD nią, więc wariant blady
+    // jest doskonały przy JEDNEJ serii (tożsamość niesie obwódka), a przy
+    // słupkach grupowanych wymaga etykiety bezpośredniej albo wariantu
+    // solidnego.
     const inners = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map(
       (s) => barFillOf(s.light, "light").inner,
     );
@@ -706,14 +733,19 @@ describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem"
     for (let i = 0; i < inners.length; i++)
       for (let j = i + 1; j < inners.length; j++)
         min = Math.min(min, deltaE76(inners[i], inners[j]));
-    expect(min).toBeLessThan(6);
-    // Dla kontrastu: same tokeny są rozdzielne z dużym zapasem.
+    expect(min).toBeLessThan(8);
+    // Dla kontrastu: same tokeny są rozdzielne z dużym zapasem. Próg 20 to
+    // dwa i pół raza granica rozróżnialności pary kategorialnej - czyli ta
+    // sama miara co wyżej, tylko po jej drugiej stronie. Krotność zamiast
+    // wartości bezwzględnej nie zadziała: obie liczby ruszają się przy każdej
+    // zmianie palety i test mówiłby wtedy o ich stosunku, a nie o tym, czy
+    // kolor niesie kategorię.
     const tokens = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.light);
     let minTok = Infinity;
     for (let i = 0; i < tokens.length; i++)
       for (let j = i + 1; j < tokens.length; j++)
         minTok = Math.min(minTok, deltaE76(tokens[i], tokens[j]));
-    expect(minTok).toBeGreaterThan(min * 4);
+    expect(minTok).toBeGreaterThan(20);
   });
 
   it("mapowanie do gamutu obniża CHROMĘ, a nie przesuwa odcienia", () => {

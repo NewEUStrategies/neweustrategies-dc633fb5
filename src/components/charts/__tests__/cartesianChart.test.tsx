@@ -46,6 +46,7 @@ import type { Json } from "@/lib/content-model/json";
 import { BAR_EDGE_INSET } from "@/lib/charts/geometry";
 import { defaultChartConfig, parseChartConfig } from "@/lib/charts/parse";
 import { resetTextMeasureCache } from "@/lib/charts/measureText";
+import { MAX_SERIES } from "@/lib/charts/types";
 import type { ChartConfig } from "@/lib/charts/types";
 import { CartesianChart } from "../CartesianChart";
 
@@ -1583,16 +1584,19 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
     const config = cfg({
       kind: "bar",
       categories: ["a"],
-      series: Array.from({ length: 12 }, (_, i) => ({ name: `S${i}`, values: [i + 1] })),
+      series: Array.from({ length: MAX_SERIES + 4 }, (_, i) => ({
+        name: `S${i}`,
+        values: [i + 1],
+      })),
     });
     const { container } = render(<CartesianChart config={config} lang="pl" />);
-    // Nakładki wzoru (sloty 7-8) odsiane: pytamy o KOLORY serii, a wzór
+    // Nakładki wzoru (sloty rozszerzenia) odsiane: pytamy o KOLORY serii, a wzór
     // kolorem serii nie jest - jego paski są w kolorze płyty.
     const fills = all(container, SEL.bar)
       .map((b) => b.getAttribute("fill"))
       .filter((f) => (f ?? "").startsWith("var("));
-    // MAX_SERIES = 8: dziewiąta seria nie wraca na --chart-1, tylko nie istnieje.
-    expect(fills).toEqual(Array.from({ length: 8 }, (_, i) => `var(--chart-${i + 1})`));
+    // Seria za `MAX_SERIES` nie wraca na --chart-1, tylko nie istnieje.
+    expect(fills).toEqual(Array.from({ length: MAX_SERIES }, (_, i) => `var(--chart-${i + 1})`));
   });
 
   it("SŁUPEK w slocie poza zestawem bezpiecznym dostaje WZÓR, tak jak obiecuje legenda", () => {

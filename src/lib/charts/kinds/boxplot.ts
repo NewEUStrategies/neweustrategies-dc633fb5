@@ -227,7 +227,7 @@ export interface BoxplotBox {
   /** Pozycja grupy w układzie (0-indeksowana) - decyduje o paśmie. */
   index: number;
   label: string;
-  /** Slot palety 1..8. Kolor niesie TOŻSAMOŚĆ grupy i nic więcej. */
+  /** Slot palety 1..10. Kolor niesie TOŻSAMOŚĆ grupy i nic więcej. */
   colorSlot: number;
   /** Liczebność próby po odfiltrowaniu luk i wartości nieskończonych. */
   n: number;

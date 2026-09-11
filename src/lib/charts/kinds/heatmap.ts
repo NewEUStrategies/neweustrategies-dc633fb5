@@ -860,9 +860,9 @@ export function heatmapModel(
  *
  * CZEGO TEN KSZTAŁT NIE WYRAŻA: nazw obu parametrów (są tytuły osi, a nie ma
  * na nie pola), jawnego punktu neutralnego innego niż zero oraz limitu
- * wierszy - `MAX_SERIES` wynosi osiem, bo tyle jest slotów palety, a mapa
+ * wierszy - `MAX_SERIES` wynosi dziesięć, bo tyle jest slotów palety, a mapa
  * ciepła slotów kategorialnych nie używa w ogóle (bierze jedną rampę), więc
- * ośmiowierszowy sufit jest dla niej ograniczeniem przypadkowym. Wszystkie
+ * dziesięciowierszowy sufit jest dla niej ograniczeniem przypadkowym. Wszystkie
  * trzy braki są opisane w raporcie jako wymaganie do silnika; model działa
  * bez nich, tylko punkt neutralny musi wtedy przyjść przez `opts`.
  *

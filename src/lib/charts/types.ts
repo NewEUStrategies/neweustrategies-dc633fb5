@@ -103,8 +103,8 @@ export function isChartKind(raw: unknown): raw is ChartKind {
   return typeof raw === "string" && (CHART_KINDS as readonly string[]).includes(raw);
 }
 
-/** Maksymalna liczba serii = liczba slotów palety (--chart-1..8). */
-export const MAX_SERIES = 8;
+/** Maksymalna liczba serii = liczba slotów palety (--chart-1..10). */
+export const MAX_SERIES = 10;
 
 /**
  * Ile slotów jest rozdzielnych dla KAŻDEGO rodzaju widzenia barw. Powyżej tej
