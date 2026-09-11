@@ -610,6 +610,24 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
   /* ---------------------------------------------------------------------- */
 
   /**
+   * CZY JAKAKOLWIEK SERIA POTRZEBUJE KRESKOWANIA - drugiego nośnika różnicy
+   * dla slotów poza zestawem rozdzielnym dla daltonizmu (7-8). W stosie
+   * tożsamość segmentu niesie wyłącznie kolor i legenda, więc bez tego wzoru
+   * legenda pokazywałaby podział, którego na rysunku nie ma.
+   *
+   * JEDNA LICZBA NA DWA PYTANIA, i to jest tu poprawka, nie skrót. Pytanie
+   * „czy schodzić z wariantu bladego" i pytanie „czy definiować wzór" mają tę
+   * samą odpowiedź, ale stały w dwóch miejscach: `patterned` liczyło się
+   * w wywołaniu niżej, a `<pattern>` wypisywał się WYŁĄCZNIE przy
+   * `barStyle === "solid"`. Autor, który wybrał wariant gradientowy i slot 7,
+   * dostawał nakładkę z `fill="url(#...-hatch)"` bez wzoru pod tym adresem -
+   * a nieistniejący serwer malowania nie jest błędem, tylko BRAKIEM
+   * wypełnienia: drugi nośnik różnicy znikał po cichu dokładnie tam, gdzie
+   * legenda go obiecuje.
+   */
+  const potrzebujeKreskowania = model.series.some((s) => s.colorSlot > CATEGORICAL_SAFE_SERIES);
+
+  /**
    * WARIANT WYPEŁNIENIA, rozstrzygnięty RAZ dla całego wykresu. Dwa warianty
    * na jednym rysunku znaczyłyby, że wnętrze raz niesie kolor serii, a raz
    * nie - czyli czytelnik musiałby wiedzieć, którą regułą czytać który
@@ -622,20 +640,6 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
    * z definicji więcej niż jeden segment i nie ma osi, do której można by
    * przypiąć każdy z nich osobno.
    */
-  // Kreskowanie jako DRUGI nośnik różnicy dla slotów poza zestawem
-  // rozdzielnym dla daltonizmu (7-8). W stosie tożsamość segmentu niesie
-  // wyłącznie kolor i legenda, więc bez tego wzoru legenda pokazywałaby
-  // podział, którego na rysunku nie ma.
-  //
-  // JEDNA LICZBA NA DWA PYTANIA, i to jest tu poprawka, nie skrót. Pytanie
-  // „czy schodzić z bladego" i pytanie „czy definiować wzór" mają tę samą
-  // odpowiedź, ale stały w dwóch miejscach: `patterned` liczyło się w wywołaniu
-  // niżej, a `<pattern>` wypisywał się WYŁĄCZNIE przy `barStyle === "solid"`.
-  // Autor, który wybrał wariant gradientowy i slot 7, dostawał nakładkę
-  // z `fill="url(#...-hatch)"` bez wzoru pod tym adresem - a nieistniejący
-  // serwer malowania nie jest błędem, tylko BRAKIEM wypełnienia: drugi nośnik
-  // różnicy znikał po cichu dokładnie tam, gdzie legenda go obiecywała.
-  const potrzebujeKreskowania = model.series.some((s) => s.colorSlot > CATEGORICAL_SAFE_SERIES);
   const barStyle: BarStyle = resolveBarStyle(config.barStyle, {
     seriesCount: model.series.length,
     stacked: true,
