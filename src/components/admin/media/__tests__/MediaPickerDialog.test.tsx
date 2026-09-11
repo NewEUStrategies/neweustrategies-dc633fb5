@@ -196,23 +196,18 @@ describe("MediaPickerDialog - filtrowanie w oknie", () => {
 
   it("lista folderów powstaje z DANYCH i jest posortowana", async () => {
     setup();
-    // Lista folderów powstaje dopiero z wczytanych wierszy - czekamy na dane,
-    // nie na sam znacznik select.
-    await waitFor(() =>
-      expect(screen.getByRole("combobox").querySelectorAll("option").length).toBeGreaterThan(1),
-    );
-    const options = Array.from(screen.getByRole("combobox").querySelectorAll("option")).map((o) =>
-      o.getAttribute("value"),
-    );
-    expect(options[0]).toBe("all");
-    expect(options.slice(1)).toEqual(["/", "/press/"]);
+    await waitFor(() => expect(screen.getByText("raport.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("combobox"));
+    const options = screen.getAllByRole("option").map((option) => option.textContent?.trim());
+    expect(options).toEqual(["Wszystkie foldery", "/", "/press/"]);
   });
 
   it("wybór folderu zawęża listę", async () => {
     setup();
     await waitFor(() => expect(screen.getByText("raport.png")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "/press/" } });
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "/press/" }));
     expect(screen.getByText("raport.png")).toBeInTheDocument();
     expect(screen.queryByText("okladka.png")).toBeNull();
   });
