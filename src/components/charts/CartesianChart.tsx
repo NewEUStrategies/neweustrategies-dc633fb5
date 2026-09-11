@@ -615,7 +615,6 @@ export function CartesianChart({
     nazwaZadana ??
     (config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"));
 
-  const hatchId = `neh-hatch-${uid}`;
   const zoneHatchId = `neh-zone-hatch-${uid}`;
   const hintId = `neh-hint-${uid}`;
   /**
@@ -664,16 +663,6 @@ export function CartesianChart({
           })),
         )
       : [];
-  // Czy KTÓRAKOLWIEK seria słupkowa potrzebuje kreskowania. Legenda znaczy
-  // sloty poza zestawem bezpiecznym dla daltonizmu (7-8) próbką w paski, bo ich
-  // odcień jest od slotów 1-2 oddalony o ~10-12 jednostek CIELAB po symulacji -
-  // za mało, żeby sam kolor je odróżnił. Linia dostaje na to `neh-line-pattern`
-  // z arkusza, ale słupka nie da się zakreskować `stroke-dasharray`: różnicę
-  // niesie jego WYPEŁNIENIE. Bez tego wzoru legenda pokazywała podział, którego
-  // w rysunku nie ma - a klucz obiecujący różnicę nieobecną w danych jest
-  // gorszy od klucza bez niej.
-  const barsNeedHatch = !isLine && !waterfall && kreskowaneSloty.size > 0;
-
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
@@ -701,11 +690,6 @@ export function CartesianChart({
           {t("a11y.keyboardHint")}
         </span>
         <svg width={width} height={height} className="block overflow-visible">
-          {/* Wzór kreskowania słupków. Paski w kolorze PŁYTY, nie serii, więc
-              jedna definicja obsługuje każdy slot: nakładka odsłania płytę
-              w przerwach, dając ten sam efekt, co próbka legendy
-              (`repeating-linear-gradient`). Rytm 5/3 px jest wzięty z tej
-              próbki, żeby klucz i znacznik miały ten sam wzór. */}
           {gradientDefs.length > 0 && (
             <defs>
               {gradientDefs.map(({ slot, end }) => {
@@ -732,14 +716,6 @@ export function CartesianChart({
                   </linearGradient>
                 );
               })}
-            </defs>
-          )}
-
-          {barsNeedHatch && (
-            <defs>
-              <pattern id={hatchId} width="8" height="8" patternUnits="userSpaceOnUse">
-                <rect x="5" y="0" width="3" height="8" fill="var(--card)" />
-              </pattern>
             </defs>
           )}
 
@@ -1284,7 +1260,6 @@ export function CartesianChart({
                         ? -barW / 2
                         : -((series.length * slotW) / 2) + si * slotW + (slotW - barW) / 2;
                       const negative = v < 0;
-                      const hatched = needsPattern(s, kreskowaneSloty);
                       const barCls = (base: string): string =>
                         `${base}${negative ? " neh-bar-negative" : ""}`;
                       // Kierunek zaokrąglenia I kierunek rampy z JEDNEJ
@@ -1373,23 +1348,7 @@ export function CartesianChart({
                           }}
                         />
                       );
-                      if (!hatched) return <Fragment key={i}>{bar}</Fragment>;
-                      // Nakładka wzoru na TYM SAMYM kształcie i z tą samą klasą
-                      // animacji: gdyby klasy nie miała, paski stałyby w miejscu,
-                      // podczas gdy słupek rośnie od linii bazowej, i wzór
-                      // odklejałby się od znacznika przez pół sekundy wejścia.
-                      return (
-                        <Fragment key={i}>
-                          {bar}
-                          <path
-                            d={shape}
-                            fill={`url(#${hatchId})`}
-                            className={cls}
-                            style={{ ["--neh-i" as string]: i }}
-                            pointerEvents="none"
-                          />
-                        </Fragment>
-                      );
+                      return <Fragment key={i}>{bar}</Fragment>;
                     })}
                     {/* Etykiety na szczycie kolumn - tylko pojedyncza seria,
                         inaczej robi się ściana liczb (dataviz: selektywnie). */}

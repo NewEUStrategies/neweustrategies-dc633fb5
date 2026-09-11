@@ -107,7 +107,6 @@ const TORNADO_NOTE_KEYS: Record<TornadoRowNote, string> = {
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
 import type { ChartSelectHandler } from "@/lib/charts/selection";
-import { slotsNeedingPattern } from "@/lib/charts/palette";
 
 interface ChartProps {
   config: ChartConfig;
@@ -224,17 +223,13 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
     if (wlasnyKluczRysunku) return [];
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
-    const kreskowane = slotsNeedingPattern(config.series.map((s) => s.colorSlot));
     return config.series.map((s) => ({
       key: `slot-${s.colorSlot}-${s.name}`,
       name: s.name,
       color: `var(--chart-${s.colorSlot})`,
       textColor: `var(--chart-${s.colorSlot}t)`,
       shape,
-      // Kreskowanie powtórzone w legendzie: gdy para slotów użytych na tym
-      // wykresie schodzi pod podłogę rozdzielności, klucz nie może twierdzić,
-      // że różni je sam odcień.
-      dashed: kreskowane.has(s.colorSlot),
+      dashed: false,
     }));
   }, [config, wlasnyKluczRysunku, isPie, isWaterfall, t]);
 
