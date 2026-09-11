@@ -940,7 +940,13 @@ const pl = {
       flat: "Bez zmiany",
       // Mostek, którego składniki nie sumują się do różnicy, jest BŁĘDEM -
       // dlatego suma kontrolna jest liczona programowo i wypisywana wprost.
-      checksumOk: "Suma kontrolna zgodna",
+      //
+      // WYPISYWANA JEST WYŁĄCZNIE PORAŻKA i tak ma zostać. Napis „suma
+      // kontrolna zgodna" stał tu obok przez rok i nie zawołał go nikt: ten
+      // silnik NAZYWA DEFEKTY, a nie zaświadcza o poprawności. Zdanie
+      // „sprawdziliśmy, zgadza się" pod każdym poprawnym mostkiem dokłada
+      // wiersz do listy uwag i uczy jej pomijania - a to jest ta sama lista,
+      // na której ma się rzucić w oczy zdanie o mostku niekompletnym.
       checksumFailed:
         "Suma składników ({{sum}}) nie zgadza się z różnicą stanów ({{delta}}) - mostek jest niekompletny.",
     },
@@ -1646,7 +1652,6 @@ const en = {
       increase: "Increase",
       decrease: "Decrease",
       flat: "No change",
-      checksumOk: "Checksum matches",
       checksumFailed:
         "The components ({{sum}}) do not add up to the change between states ({{delta}}) - the bridge is incomplete.",
     },
