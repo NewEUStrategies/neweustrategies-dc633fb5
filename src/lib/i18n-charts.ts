@@ -583,6 +583,15 @@ const pl = {
         unitless:
           "Wartości na osi są bezjednostkowe: to wartość okresu podzielona przez wartość okresu bazowego i pomnożona przez sto. Jednostka danych stoi przy kolumnie wartości źródłowych.",
       },
+      scale: {
+        // CO TEN RODZAJ ZABIERA CZYTELNIKOWI, powiedziane liczbą. Indeks
+        // sprowadza wszystkie serie do wspólnego startu, więc szereg wart
+        // trzy miliony i szereg wart trzysta leżą na jednej linii - a różnicy
+        // poziomów nie widać nigdzie na rysunku. Ta sama liczba w panelach
+        // (`smallMultiples.scale.levelRatio`) mówi to samo o wspólnej osi.
+        levelRatio:
+          "Serie różnią się poziomem {{ratio}}-krotnie. Ten wykres pokazuje TEMPO, nie poziom: linie ruszają z jednego punktu niezależnie od tego, jak daleko od siebie leżą wielkości źródłowe.",
+      },
       base: {
         // Podpis bez NAZWY okresu bazowego zostawia czytelnika bez punktu, od
         // którego liczone jest wszystko, co widzi.
@@ -1371,6 +1380,10 @@ const en = {
         index: "Index (base = 100)",
         unitless:
           "The values on this axis carry no unit: they are the value of the period divided by the value of the base period, times one hundred. The unit of the data stands with the source value column.",
+      },
+      scale: {
+        levelRatio:
+          "The series differ in level by a factor of {{ratio}}. This chart shows PACE, not level: the lines start from one point however far apart the source magnitudes are.",
       },
       base: {
         label: "Base: {{period}} = 100",

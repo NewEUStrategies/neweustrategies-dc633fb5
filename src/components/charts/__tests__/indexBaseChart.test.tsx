@@ -1436,3 +1436,57 @@ describe("IndexBaseChart - brak rysunku nie znaczy brak zastrzeżenia", () => {
     expect(punkty(container, 0)).toHaveLength(3);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/*  RÓŻNICA POZIOMÓW - TO, CO TEN RODZAJ ZABIERA                              */
+/* -------------------------------------------------------------------------- */
+
+describe("IndexBaseChart - krotność różnicy poziomów", () => {
+  // Model liczył `levelRatio` od początku, a jego własny opis mówił, że liczba
+  // „jedzie do podpisu". Nie jechała nigdzie: jedynym odbiorcą była porada
+  // `scaleComparable` dla AUTORA, i to w przypadku ODWROTNYM - gdy poziomy są
+  // podobne, więc indeks był zbędny. Czytelnik nie dowiadywał się, że linie
+  // ruszające z jednego punktu opisują wielkości różniące się o rzędy
+  // wielkości, czyli o tym, co ten rodzaj mu zabiera.
+  it("NAZYWA krotność, gdy poziomy serii różnią się o rzędy wielkości", () => {
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          categories: ["2021", "2022", "2023"],
+          series: [
+            { name: "Duża", values: [3_000_000, 3_300_000, 3_600_000] },
+            { name: "Mała", values: [300, 330, 372] },
+          ],
+          animate: false,
+        })}
+        lang="pl"
+      />,
+    );
+    const tresc = notatki(container).get("scale.levelRatio") ?? "";
+    expect(tresc).not.toBe("");
+    // Krotność JEST W ZDANIU, a nie tylko w modelu - inaczej czytelnik wie
+    // tylko tyle, że „jakaś różnica jest".
+    expect(tresc).toMatch(/10\s?000/);
+    expect(tresc).toContain("TEMPO");
+  });
+
+  it("MILCZY, gdy poziomy są porównywalne", () => {
+    // Druga strona umowy. Poniżej progu porównywalności zdanie dla czytelnika
+    // byłoby szumem, a autor dostaje w tym przypadku zalecenie `scaleComparable`
+    // w nakładce edytora - to ten sam próg, tylko z drugiej strony.
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          categories: ["2021", "2022", "2023"],
+          series: [
+            { name: "Pierwsza", values: [100, 110, 120] },
+            { name: "Druga", values: [120, 132, 149] },
+          ],
+          animate: false,
+        })}
+        lang="pl"
+      />,
+    );
+    expect(klucze(container)).not.toContain("scale.levelRatio");
+  });
+});

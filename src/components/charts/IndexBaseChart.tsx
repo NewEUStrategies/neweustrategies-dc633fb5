@@ -50,6 +50,7 @@ import { formatAxisTick, formatChartValue, type ChartLang } from "@/lib/charts/f
 import { linearScale, niceScale } from "@/lib/charts/scale";
 import { finite, orNull } from "@/lib/charts/num";
 import {
+  INDEX_BASE_COMPARABLE_RATIO,
   indexBaseExtent,
   indexBaseFormAdvice,
   indexBaseModelFromConfig,
@@ -400,6 +401,26 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
       text: t("indexBase.axis.unitless"),
       defect: false,
     });
+    // RÓŻNICA POZIOMÓW, POWIEDZIANA LICZBĄ. Model liczy ją od początku
+    // (`levelRatio`) i jego własny opis mówi, że jedzie do podpisu - a nie
+    // jechała nigdzie: jedynym odbiorcą była porada `scaleComparable` dla
+    // AUTORA, i to w przypadku ODWROTNYM (poziomy podobne, więc indeks był
+    // zbędny). Czytelnik nie dowiadywał się, że linie ruszające z jednego
+    // punktu opisują wielkości różniące się o rzędy wielkości - czyli o tym,
+    // co ten rodzaj mu zabiera.
+    //
+    // Próg ten sam, co u porady, tylko z drugiej strony: poniżej krotności
+    // porównywalnej mówi się AUTOROWI („indeks był tu zbędny"), powyżej -
+    // CZYTELNIKOWI („poziomy są różne, a rysunek tego nie pokazuje").
+    if (model.levelRatio !== null && model.levelRatio >= INDEX_BASE_COMPARABLE_RATIO) {
+      notes.push({
+        key: "scale.levelRatio",
+        text: t("indexBase.scale.levelRatio", {
+          ratio: formatChartValue(model.levelRatio, lang, ""),
+        }),
+        defect: false,
+      });
+    }
     notes.push({
       key: `base.source.${model.baseSource}`,
       text: t(BASE_SOURCE_KEYS[model.baseSource]),
