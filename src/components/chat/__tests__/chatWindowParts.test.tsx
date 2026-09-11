@@ -111,6 +111,19 @@ describe("ChatWindowHeader", () => {
     expect(screen.getByText(chatPl.chat.online)).toBeTruthy();
   });
 
+  it("wątek bezpośredni pokazuje stanowisko i firmę z profilu zamiast statusu", () => {
+    withTooltips(
+      <ChatWindowHeader {...headerProps({ profileMeta: "Analityczka - Instytut Przykładowy" })} />,
+    );
+    expect(screen.getByText("Analityczka - Instytut Przykładowy")).toBeTruthy();
+    expect(screen.queryByText(chatPl.chat.offline)).toBeNull();
+  });
+
+  it("puste dane zawodowe zachowują status dostępności", () => {
+    withTooltips(<ChatWindowHeader {...headerProps({ profileMeta: "  " })} />);
+    expect(screen.getByText(chatPl.chat.offline)).toBeTruthy();
+  });
+
   it("podtytuł kręgu podaje liczbę uczestników, a online dokłada dopiero od jedynki", () => {
     withTooltips(
       <ChatWindowHeader
