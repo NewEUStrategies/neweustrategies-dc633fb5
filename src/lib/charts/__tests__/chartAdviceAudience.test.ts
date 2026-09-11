@@ -29,6 +29,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { bezKomentarzy } from "@/lib/ci/sourceScan";
+import { bazaLiczebnika } from "@/lib/ci/i18nForms";
 import { CHART_KINDS, type ChartKind } from "@/lib/charts/types";
 import { FORM_ADVICE, chartFormAdvice } from "@/lib/charts/formAdvice";
 import { parseChartConfig } from "@/lib/charts/parse";
@@ -260,7 +261,11 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
     for (const kind of CHART_KINDS) {
       const podblok = podblokRodzaju(POLOWY_PUBLICZNE[0], przestrzen(kind), "reading");
       if (podblok === null) continue;
-      for (const porada of wpisy(podblok).keys()) {
+      // NAZWA BAZOWA, nie nazwa formy: klucz z liczebnikiem stoi w słowniku
+      // jako `_one`/`_few`/`_many`, a render woła `...reading.seriesDropped`.
+      // Porównanie znak w znak uznałoby poprawną treść za martwą - i kusiłoby,
+      // żeby „naprawić" ją usunięciem formy.
+      for (const porada of new Set([...wpisy(podblok).keys()].map(bazaLiczebnika))) {
         const klucz = `${przestrzen(kind)}.reading.${porada}`;
         expect(
           zrodla.some((z) => z.includes(`"${klucz}"`)),
@@ -276,7 +281,9 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
     for (const kind of CHART_KINDS) {
       const wpis = FORM_ADVICE[kind];
       const czytane = new Set(
-        wpisy(podblokRodzaju(POLOWY_PUBLICZNE[0], przestrzen(kind), "reading") ?? "").keys(),
+        [
+          ...wpisy(podblokRodzaju(POLOWY_PUBLICZNE[0], przestrzen(kind), "reading") ?? "").keys(),
+        ].map(bazaLiczebnika),
       );
       for (const porada of wpis.all) {
         const nazwa = `${kind}.${porada}`;
@@ -311,7 +318,7 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
         for (const [porada, tresc] of wpisy(podblok)) {
           const brakujace = wstawki(tresc);
           if (brakujace.length === 0) continue;
-          const klucz = `${przestrzen(kind)}.reading.${porada}`;
+          const klucz = `${przestrzen(kind)}.reading.${bazaLiczebnika(porada)}`;
           const [plik, zrodlo] =
             [...zrodla].find(([, z]) => z.includes(`"${klucz}"`)) ?? ([null, null] as const);
           expect(

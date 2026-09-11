@@ -29,6 +29,7 @@ import { parseChartConfig } from "@/lib/charts/parse";
 import { FONT_AXIS } from "@/lib/charts/geometry";
 import { estimateLabelWidth } from "@/lib/charts/measureText";
 import i18n from "@/lib/i18n";
+import { maTresc } from "@/lib/ci/i18nForms";
 import "@/lib/i18n-charts";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { SmallMultiplesChart, type SmallMultiplesRenderOptions } from "../SmallMultiplesChart";
@@ -1482,7 +1483,12 @@ describe("SmallMultiplesChart - słownik ma treść dla KAŻDEJ ścieżki z tego
     expect(sciezki.length).toBeGreaterThan(40);
     for (const sciezka of sciezki) {
       for (const lng of ["pl", "en"] as const) {
-        expect(i18n.exists(`charts.${sciezka}`, { lng }), `${sciezka} (${lng})`).toBe(true);
+        // Klucz z formami liczebnika stoi w słowniku pod `_one`/`_few`/`_many`,
+        // a render woła nazwę bazową - `exists` na samej bazie zwraca `false`.
+        expect(
+          maTresc((k) => i18n.exists(k, { lng }), `charts.${sciezka}`),
+          `${sciezka} (${lng})`,
+        ).toBe(true);
       }
     }
   });

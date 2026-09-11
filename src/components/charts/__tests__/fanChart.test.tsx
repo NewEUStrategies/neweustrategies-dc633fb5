@@ -26,6 +26,7 @@ import { BAND_CONTRAST_RANGE } from "@/lib/charts/palette";
 import { FONT_AXIS } from "@/lib/charts/geometry";
 import { estimateLabelWidth } from "@/lib/charts/measureText";
 import i18n from "@/lib/i18n";
+import { kluczeFormy, maTresc } from "@/lib/ci/i18nForms";
 import "@/lib/i18n-charts";
 import { FanChart } from "../FanChart";
 
@@ -1031,10 +1032,17 @@ describe("FanChart - słownik", () => {
     expect(KLUCZE_SLOWNIKA.length).toBeGreaterThan(40);
     for (const klucz of KLUCZE_SLOWNIKA) {
       for (const lng of JEZYKI) {
-        const tresc = i18n.t(`charts.${klucz}`, { lng });
-        expect(tresc, `${klucz} (${lng}) nie ma treści w słowniku`).not.toBe(`charts.${klucz}`);
-        expect(tresc, `${klucz} (${lng}) nie ma treści w słowniku`).not.toBe(klucz);
-        expect((tresc ?? "").length, `${klucz} (${lng}) jest pusty`).toBeGreaterThan(0);
+        const sciezka = `charts.${klucz}`;
+        const istnieje = (k: string) => i18n.exists(k, { lng });
+        // Klucz z formami liczebnika NIE STOI pod własną nazwą: w słowniku są
+        // `_one`/`_few`/`_many`, a render woła nazwę bazową. Porównanie znak
+        // w znak uznałoby go za klucz bez treści.
+        expect(maTresc(istnieje, sciezka), `${klucz} (${lng}) nie ma treści w słowniku`).toBe(true);
+        for (const konkretny of kluczeFormy(istnieje, sciezka)) {
+          const tresc = i18n.t(konkretny, { lng });
+          expect(tresc, `${konkretny} (${lng}) nie ma treści w słowniku`).not.toBe(konkretny);
+          expect((tresc ?? "").length, `${konkretny} (${lng}) jest pusty`).toBeGreaterThan(0);
+        }
       }
     }
   });
@@ -1047,11 +1055,17 @@ describe("FanChart - słownik", () => {
     // z punktu widzenia kodu od żadnej.
     for (const klucz of KLUCZE_SLOWNIKA) {
       for (const lng of JEZYKI) {
-        for (const w of wstawki(String(i18n.t(`charts.${klucz}`, { lng })))) {
-          expect(
-            new RegExp(`\\b${w}\\s*:`).test(ZRODLO),
-            `${klucz} (${lng}) pisze {{${w}}}, a render nie podaje tej liczby w worku`,
-          ).toBe(true);
+        // KAŻDA FORMA LICZEBNIKA OSOBNO: wstawka zgubiona w jednej z nich
+        // wychodzi surowymi klamrami dokładnie przy tej liczbie, która tę
+        // formę wybiera, i przy żadnej innej.
+        const konkretne = kluczeFormy((k) => i18n.exists(k, { lng }), `charts.${klucz}`);
+        for (const konkretny of konkretne) {
+          for (const w of wstawki(String(i18n.t(konkretny, { lng })))) {
+            expect(
+              new RegExp(`\\b${w}\\s*:`).test(ZRODLO),
+              `${konkretny} (${lng}) pisze {{${w}}}, a render nie podaje tej liczby w worku`,
+            ).toBe(true);
+          }
         }
       }
     }

@@ -115,7 +115,13 @@ const pl = {
       honesty: {
         // Każdy z tych komunikatów opisuje defekt DANYCH, nie formy - dlatego
         // stoi obok rysunku, a nie w poradach dla autora.
-        outOfRange:
+        outOfRange_one:
+          "{{count}} obserwacja nie mieści się między pierwszą i ostatnią podaną krawędzią, więc nie ma jej na rysunku. Histogram zawyża wtedy udział wszystkiego, co pokazał.",
+        outOfRange_few:
+          "{{count}} obserwacje nie mieszczą się między pierwszą i ostatnią podaną krawędzią, więc nie ma ich na rysunku. Histogram zawyża wtedy udział wszystkiego, co pokazał.",
+        outOfRange_many:
+          "{{count}} obserwacji nie mieści się między pierwszą i ostatnią podaną krawędzią, więc nie ma ich na rysunku. Histogram zawyża wtedy udział wszystkiego, co pokazał.",
+        outOfRange_other:
           "{{count}} obserwacji nie mieści się między pierwszą i ostatnią podaną krawędzią, więc nie ma ich na rysunku. Histogram zawyża wtedy udział wszystkiego, co pokazał.",
         checksumFailed:
           "Suma liczebności przedziałów ({{sum}}) nie zgadza się z liczbą obserwacji ({{count}}) - część danych nie trafiła na rysunek.",
@@ -123,8 +129,14 @@ const pl = {
           "Wśród podanych krawędzi są dwie równe albo nieuporządkowane, więc jeden z przedziałów ma zerową szerokość i nie da się go narysować.",
         declaredSampleFailed:
           "W podpisie stoi n = {{declared}}, a w danych jest {{actual}} obserwacji.",
-        ignoredSeries:
-          "Histogram czyta JEDNĄ serię; pozostałe {{count}} zostały pominięte. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
+        ignoredSeries_one:
+          "Histogram czyta JEDNĄ serię; pozostałą pominięto. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
+        ignoredSeries_few:
+          "Histogram czyta JEDNĄ serię; pozostałe {{count}} pominięto. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
+        ignoredSeries_many:
+          "Histogram czyta JEDNĄ serię; pozostałych {{count}} pominięto. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
+        ignoredSeries_other:
+          "Histogram czyta JEDNĄ serię; pozostałych {{count}} pominięto. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
         // OSTATNI KOMUNIKAT, KTÓREGO MODEL NIE MIAŁ JAK POWIEDZIEĆ. Przy
         // krawędziach równych albo tak odległych, że szerokości przedziału nie
         // da się zapisać w podwójnej precyzji, model nie budował ANI JEDNEGO
@@ -255,7 +267,13 @@ const pl = {
         notCausal: "Współzmienność, nie przyczyna: linia nie mówi, co na co działa.",
       },
       honesty: {
-        pairsCompleteOk:
+        pairsCompleteOk_one:
+          "{{count}} para ma tylko jedną współrzędną, więc nie ma jej na rysunku. Jest wypisana w tabeli danych z powodem pominięcia.",
+        pairsCompleteOk_few:
+          "{{count}} pary mają tylko jedną współrzędną, więc nie ma ich na rysunku. Są wypisane w tabeli danych z powodem pominięcia.",
+        pairsCompleteOk_many:
+          "{{count}} par ma tylko jedną współrzędną, więc nie ma ich na rysunku. Są wypisane w tabeli danych z powodem pominięcia.",
+        pairsCompleteOk_other:
           "{{count}} par ma tylko jedną współrzędną, więc nie ma ich na rysunku. Są wypisane w tabeli danych z powodem pominięcia.",
         enoughForTrendOk:
           "Linia trendu wymaga co najmniej {{min}} obserwacji - przy mniejszej liczbie nie jest rysowana.",
@@ -501,8 +519,14 @@ const pl = {
           "Pewność {{values}} nie mieści się między zerem a stoma procentami, więc ten poziom stracił etykietę pewności i nie wchodzi do sprawdzenia kolejności pasm.",
         extraSeries:
           "Wachlarz nie czyta serii {{names}}: żadna z nich nie jest ani ścieżką centralną, ani krawędzią pasma, więc ich liczb nie ma na rysunku.",
-        droppedValues:
-          "{{count}} liczb nie ma ani na rysunku, ani w tabeli: leżały poza zakresem kroków albo poza zakresem liczb, w którym arytmetyka pasm jest wykonalna.",
+        droppedValues_one:
+          "{{count}} liczba nie trafiła ani na rysunek, ani do tabeli: leżała poza zakresem kroków albo poza zakresem liczb, w którym arytmetyka pasm jest wykonalna.",
+        droppedValues_few:
+          "{{count}} liczby nie trafiły ani na rysunek, ani do tabeli: leżały poza zakresem kroków albo poza zakresem liczb, w którym arytmetyka pasm jest wykonalna.",
+        droppedValues_many:
+          "{{count}} liczb nie trafiło ani na rysunek, ani do tabeli: leżały poza zakresem kroków albo poza zakresem liczb, w którym arytmetyka pasm jest wykonalna.",
+        droppedValues_other:
+          "{{count}} liczb nie trafiło ani na rysunek, ani do tabeli: leżały poza zakresem kroków albo poza zakresem liczb, w którym arytmetyka pasm jest wykonalna.",
       },
       // KOMPLET `FanRowNote` - dziewięć wartości unii, dziewięć przypisów. Ta
       // sama treść co w `honesty`, tylko krótsza i przypięta do wiersza, przy
@@ -625,15 +649,27 @@ const pl = {
           "Serie {{names}} przechodzą przez zero, więc ich indeks jest raz dodatni, raz ujemny - indeks -40 nie znaczy wtedy spadku o czterdzieści procent.",
         spreadOk:
           "Każdy policzony indeks siedzi w setce, więc w danych nie ma różnicy temp, którą ten rysunek miałby pokazać.",
-        pointsInPeriodsOk:
+        pointsInPeriodsOk_one:
+          "{{count}} liczba leży za ostatnim okresem osi, więc nie ma jej ani na rysunku, ani w tabeli.",
+        pointsInPeriodsOk_few:
+          "{{count}} liczby leżą za ostatnim okresem osi, więc nie ma ich ani na rysunku, ani w tabeli.",
+        pointsInPeriodsOk_many:
+          "{{count}} liczb leży za ostatnim okresem osi, więc nie ma ich ani na rysunku, ani w tabeli.",
+        pointsInPeriodsOk_other:
           "{{count}} liczb leży za ostatnim okresem osi, więc nie ma ich ani na rysunku, ani w tabeli.",
         declaredSampleOk: "W podpisie stoi n = {{declared}}, a okresów z pomiarem jest {{actual}}.",
       },
       reading: {
         baseUnusable:
           "Żadnej serii nie da się zaindeksować od tego okresu, więc na rysunku nie ma ani jednej linii; wartości źródłowe są w tabeli danych.",
-        seriesDropped:
-          "{{count}} serii nie ma na rysunku, bo w okresie bazowym nie mają wartości, od której da się liczyć indeks; ich liczby zostają w tabeli danych.",
+        seriesDropped_one:
+          "{{count}} seria nie trafiła na rysunek, bo w okresie bazowym nie ma wartości, od której da się liczyć indeks; jej liczby zostają w tabeli danych.",
+        seriesDropped_few:
+          "{{count}} serie nie trafiły na rysunek, bo w okresie bazowym nie mają wartości, od której da się liczyć indeks; ich liczby zostają w tabeli danych.",
+        seriesDropped_many:
+          "{{count}} serii nie trafiło na rysunek, bo w okresie bazowym nie mają wartości, od której da się liczyć indeks; ich liczby zostają w tabeli danych.",
+        seriesDropped_other:
+          "{{count}} serii nie trafiło na rysunek, bo w okresie bazowym nie mają wartości, od której da się liczyć indeks; ich liczby zostają w tabeli danych.",
         singleSeries:
           "Na rysunku jest jedna linia, więc nie ma z czym porównać jej tempa - a indeks odebrał jej jednostkę i poziom, które są w tabeli danych.",
         shortSeries:
@@ -731,7 +767,13 @@ const pl = {
         // segmentu nie.
         roundingShift:
           "Udział wyświetlany różni się od dokładnego najwyżej o {{pp}} punktu procentowego: etykieta jest zaokrągleniem, a długość segmentu - nie.",
-        droppedValues:
+        droppedValues_one:
+          "{{count}} liczba nie ma słupka, do którego mogłaby wejść: wartość dopisano, kategorii nie.",
+        droppedValues_few:
+          "{{count}} liczby nie mają słupka, do którego mogłyby wejść: wartość dopisano, kategorii nie.",
+        droppedValues_many:
+          "{{count}} liczb nie ma słupka, do którego mogłyby wejść: wartość dopisano, kategorii nie.",
+        droppedValues_other:
           "{{count}} liczb nie ma słupka, do którego mogłyby wejść: wartość dopisano, kategorii nie.",
       },
       reading: {
@@ -812,7 +854,13 @@ const pl = {
           "Każdy panel ma własną oś wartości, więc dwie linie na tej samej wysokości mogą znaczyć wartości różniące się o rzędy wielkości. Oś, której panele nie dzielą, biegłaby od {{min}} do {{max}}.",
         freeScaleDeclaredOk:
           "Panele mają osobne osie wartości, a autor nie podał, co je rozdzieliło - z samego rysunku wychodzi obraz porównywalny, którym on nie jest.",
-        sharedScaleReadableOk:
+        sharedScaleReadableOk_one:
+          "Wspólna oś spłaszcza {{count}} z {{total}} paneli: jego zmiany mieszczą się w grubości własnej linii, więc czyta się z niego „nic się nie działo”.",
+        sharedScaleReadableOk_few:
+          "Wspólna oś spłaszcza {{count}} z {{total}} paneli: ich zmiany mieszczą się w grubości własnej linii, więc czyta się z nich „nic się nie działo”.",
+        sharedScaleReadableOk_many:
+          "Wspólna oś spłaszcza {{count}} z {{total}} paneli: ich zmiany mieszczą się w grubości własnej linii, więc czyta się z nich „nic się nie działo”.",
+        sharedScaleReadableOk_other:
           "Wspólna oś spłaszcza {{count}} z {{total}} paneli: ich zmiany mieszczą się w grubości własnej linii, więc czyta się z nich „nic się nie działo”.",
         sameUnitOk:
           "Panele mierzą w różnych jednostkach, więc wspólna oś zestawiałaby nieporównywalne; skale zostały rozdzielone i wysokości między panelami nie da się tu porównać.",
@@ -820,7 +868,13 @@ const pl = {
           "W siatce stoją panele bez ani jednej wartości: pusty panel znaczy brak danych o tym podmiocie, a nie wartości zerowe. Zażądano ich pominięcia, ale panel usunięty z siatki zabrałby podmiot razem z informacją, że danych o nim nie ma.",
         orderFromDataOk:
           "Kolejność paneli nie wynika z danych, a pierwszy rząd siatki niesie pierwsze wrażenie - tutaj to wrażenie jest kolejnością arkusza.",
-        inGridOk:
+        inGridOk_one:
+          "{{count}} liczba nie trafiła w żaden panel: leży za ostatnią kategorią, więc nie ma jej ani na rysunku, ani w tabeli.",
+        inGridOk_few:
+          "{{count}} liczby nie trafiły w żaden panel: leżą za ostatnią kategorią, więc nie ma ich ani na rysunku, ani w tabeli.",
+        inGridOk_many:
+          "{{count}} liczb nie trafiło w żaden panel: leżą za ostatnią kategorią, więc nie ma ich ani na rysunku, ani w tabeli.",
+        inGridOk_other:
           "{{count}} liczb nie trafiło w żaden panel: leżą za ostatnią kategorią, więc nie ma ich ani na rysunku, ani w tabeli.",
         inDomainOk:
           "Część wartości została przycięta do krawędzi panelu, więc punkt leży tam, gdzie danych nie ma.",
@@ -974,7 +1028,9 @@ const en = {
         missing: "Skipped gaps",
       },
       honesty: {
-        outOfRange:
+        outOfRange_one:
+          "{{count}} observation falls outside the first and last edge given, so it is not on the chart. The histogram then overstates the share of everything it does show.",
+        outOfRange_other:
           "{{count}} observations fall outside the first and last edge given, so they are not on the chart. The histogram then overstates the share of everything it does show.",
         checksumFailed:
           "Bin counts add up to {{sum}}, not to the {{count}} observations in the data - some of it never reached the chart.",
@@ -982,7 +1038,9 @@ const en = {
           "Two of the edges given are equal or out of order, so one bin has zero width and cannot be drawn.",
         declaredSampleFailed:
           "The caption says n = {{declared}}, the data holds {{actual}} observations.",
-        ignoredSeries:
+        ignoredSeries_one:
+          "A histogram reads ONE series; the remaining one was skipped. Two distributions are compared with two panels on a shared scale, not with one chart.",
+        ignoredSeries_other:
           "A histogram reads ONE series; the remaining {{count}} were skipped. Two distributions are compared with two panels on a shared scale, not with one chart.",
         binsBuiltFailed:
           "Not a single bin could be built from these observations, so the chart shows no bars - the edges are either equal or so far apart that the bin width cannot be represented.",
@@ -1085,7 +1143,9 @@ const en = {
         notCausal: "Covariation, not cause: the line does not say what acts on what.",
       },
       honesty: {
-        pairsCompleteOk:
+        pairsCompleteOk_one:
+          "{{count}} pair has only one coordinate, so it is not on the chart. It is listed in the data table with the reason.",
+        pairsCompleteOk_other:
           "{{count}} pairs have only one coordinate, so they are not on the chart. They are listed in the data table with the reason.",
         enoughForTrendOk:
           "A trend line needs at least {{min}} observations - below that it is not drawn.",
@@ -1262,7 +1322,9 @@ const en = {
           "A confidence of {{values}} does not fall between zero and one hundred percent, so that level lost its confidence label and is left out of the band ordering check.",
         extraSeries:
           "The fan does not read the series {{names}}: none of them is a central path or a band edge, so their numbers are not on the chart.",
-        droppedValues:
+        droppedValues_one:
+          "{{count}} number is neither on the chart nor in the table: it fell outside the range of steps, or outside the range of numbers in which band arithmetic holds.",
+        droppedValues_other:
           "{{count}} numbers are neither on the chart nor in the table: they fell outside the range of steps, or outside the range of numbers in which band arithmetic holds.",
       },
       note: {
@@ -1352,7 +1414,9 @@ const en = {
           "The series {{names}} cross zero, so their index is positive in some periods and negative in others - an index of -40 does not mean a fall of forty percent.",
         spreadOk:
           "Every index computed sits at one hundred, so there is no difference in pace in this data for the chart to show.",
-        pointsInPeriodsOk:
+        pointsInPeriodsOk_one:
+          "{{count}} number falls past the last period on the axis, so it is neither on the chart nor in the table.",
+        pointsInPeriodsOk_other:
           "{{count}} numbers fall past the last period on the axis, so they are neither on the chart nor in the table.",
         declaredSampleOk:
           "The caption says n = {{declared}}, and {{actual}} periods carry a measurement.",
@@ -1360,7 +1424,9 @@ const en = {
       reading: {
         baseUnusable:
           "No series can be indexed from this period, so there is not a single line on the chart; the source values are in the data table.",
-        seriesDropped:
+        seriesDropped_one:
+          "{{count}} series is not on the chart, because it has no value in the base period to index from; its numbers stay in the data table.",
+        seriesDropped_other:
           "{{count}} series are not on the chart, because they have no value in the base period to index from; their numbers stay in the data table.",
         singleSeries:
           "There is one line on the chart, so there is no other pace to compare it against - and the index took away its unit and its level, which are in the data table.",
@@ -1436,7 +1502,9 @@ const en = {
           "The series name {{names}} repeats. Segment identity here is carried only by the legend or by a direct label, so no channel separates those segments.",
         roundingShift:
           "The displayed share differs from the exact one by at most {{pp}} percentage points: the label is a rounding, the length of the segment is not.",
-        droppedValues:
+        droppedValues_one:
+          "{{count}} number has no bar to enter: the value was added, the category was not.",
+        droppedValues_other:
           "{{count}} numbers have no bar to enter: the value was added, the category was not.",
       },
       reading: {
@@ -1496,7 +1564,9 @@ const en = {
           "Each panel has its own value axis, so two lines at the same height can stand for values orders of magnitude apart. The axis the panels do not share would run from {{min}} to {{max}}.",
         freeScaleDeclaredOk:
           "The panels have separate value axes and the author gave no reason for separating them - the chart alone comes out looking comparable, which it is not.",
-        sharedScaleReadableOk:
+        sharedScaleReadableOk_one:
+          "The shared axis flattens {{count}} of {{total}} panels: its changes fit inside the thickness of its own line, so it reads as “nothing happened”.",
+        sharedScaleReadableOk_other:
           "The shared axis flattens {{count}} of {{total}} panels: their changes fit inside the thickness of their own line, so they read as “nothing happened”.",
         sameUnitOk:
           "The panels measure in different units, so a shared axis would set the incomparable side by side; the scales were separated and heights cannot be compared across panels here.",
@@ -1504,7 +1574,9 @@ const en = {
           "The grid holds panels with no value at all: an empty panel means there is no data for that subject, not that its values are zero. Dropping them was requested, but a panel removed from the grid would take the subject away along with the fact that there is no data for it.",
         orderFromDataOk:
           "The order of the panels does not come from the data, and the first row of the grid carries the first impression - here that impression is the order of the sheet.",
-        inGridOk:
+        inGridOk_one:
+          "{{count}} number did not reach any panel: it falls past the last category, so it is neither on the chart nor in the table.",
+        inGridOk_other:
           "{{count}} numbers did not reach any panel: they fall past the last category, so they are neither on the chart nor in the table.",
         inDomainOk:
           "Some values were clamped to the panel edge, so the point sits where there is no data.",

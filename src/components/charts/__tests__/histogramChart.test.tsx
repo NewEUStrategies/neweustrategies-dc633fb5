@@ -445,7 +445,31 @@ describe("HistogramChart - uwagi pod rysunkiem", () => {
         lang="pl"
       />,
     );
-    expect(nota(container, "honesty.ignoredSeries")).toContain("1");
+    // Jedna pominięta seria: polszczyzna mówi „pozostałą pominięto", bez
+    // cyfry - liczba nic tu nie dodaje, a „pozostałe 1 zostały pominięte"
+    // jest zdaniem, którego nikt nie napisał ręką.
+    const jedna = nota(container, "honesty.ignoredSeries") ?? "";
+    expect(jedna).toContain("pozostałą pominięto");
+    expect(jedna).not.toMatch(/pozostałe 1|1 seri/);
+  });
+
+  it("liczba pominiętych serii jest NAZWANA, gdy jest ich więcej niż jedna", () => {
+    // Druga strona tej samej umowy: przy dwóch i więcej liczba musi stanąć
+    // w zdaniu, bo bez niej autor nie wie, ile rozkładów mu przepadło.
+    const { container } = render(
+      <HistogramChart
+        config={cfg({
+          ...BAZA,
+          series: [
+            { name: "Marża", values: DWADZIESCIA },
+            { name: "Druga", values: DWADZIESCIA },
+            { name: "Trzecia", values: DWADZIESCIA },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(nota(container, "honesty.ignoredSeries")).toContain("2");
   });
 
   it("brak przedziałów jest NAZWANY i stoi PRZED obserwacją o formie", () => {
