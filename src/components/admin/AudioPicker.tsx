@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -162,8 +163,9 @@ export function AudioPicker({
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      onChange(data.publicUrl);
-      setUrlDraft(data.publicUrl);
+      const publicUrl = brandedMediaUrl(data.publicUrl);
+      onChange(publicUrl);
+      setUrlDraft(publicUrl);
       setDuration(probed);
       toast.success(`${t.uploadOk} · ${formatAudioTime(probed)}`);
     } catch (e) {

@@ -8,6 +8,7 @@
 // <DesignTokensStyle />. The font also appears in the global <FontPicker /> so
 // editors can use it for headings/body text just like any built-in option.
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import { notifyError } from "@/lib/notify";
 
 export interface CustomFont {
@@ -102,7 +103,7 @@ export async function uploadCustomFont(opts: {
   return {
     id,
     label: opts.label || id,
-    url: data.publicUrl,
+    url: brandedMediaUrl(data.publicUrl),
     weight: opts.weight ?? "400",
     style: opts.style ?? "normal",
     display: "swap",

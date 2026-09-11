@@ -14,6 +14,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import type { FolderRow, MediaRow } from "../types";
 
 const MEDIA_KEY = "media";
@@ -56,7 +57,9 @@ export function useMediaData(tenantId: string): UseMediaDataResult {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).filter((row) => row.tenant_id === tenantId);
+      return (data ?? [])
+        .filter((row) => row.tenant_id === tenantId)
+        .map((row) => ({ ...row, public_url: brandedMediaUrl(row.public_url) }));
     },
   });
 
