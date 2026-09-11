@@ -721,7 +721,7 @@ describe("PieChart - tooltip i fokus", () => {
     // Podstawienia stanu stoją na elemencie, więc arkusz ma czym podmienić
     // wypełnienie i obwódkę bez znajomości numeru slotu.
     const styl = slices(container)[0].getAttribute("style") ?? "";
-    expect(styl).toContain("--neh-arc-hover: var(--chart-1-hover)");
+    expect(styl).toContain("--neh-arc-hover: var(--chart-1-active, var(--chart-1-hover))");
     expect(styl).toContain("--neh-arc-token: var(--chart-1)");
     // POZOSTAŁE WYCINKI NIE GASNĄ. Przygaszanie tła podświetlenia zmienia
     // wygląd danych, których czytelnik nie wskazał, a przy tarczy odbiera mu

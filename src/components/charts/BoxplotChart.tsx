@@ -566,7 +566,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     data-style={barStyle}
                     style={{
                       ["--neh-i" as string]: i,
-                      ["--neh-bar-hover" as string]: `var(--chart-${slot}-hover)`,
+                      ["--neh-bar-hover" as string]: `var(--chart-${slot}-active, var(--chart-${slot}-hover))`,
                       ["--neh-bar-token" as string]: `var(--chart-${slot})`,
                     }}
                   />
