@@ -33,12 +33,24 @@
 //   5. SŁOWNIK PL/EN. Napisy są asertowane przez `realT("pl")` / `realT("en")`.
 //      Formatowanie liczb i dat jest tu zależne od języka (`en-GB` / `pl-PL`) -
 //      i to jest sprawdzane, a nie deklarowane.
+//   6. ALTERNATYWA TEKSTOWA. Rysunek nigdy nie jest jedyną drogą do liczby, więc
+//      trend musi mieć tabelę tych samych dni i liczb, a jego region - nazwę
+//      zbudowaną z tytułu karty.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
-// atrapą, która PRZECHWYTUJE `option`. Trend i iskra KPI są więc badane na
-// strukturze danych oddanej wykresowi - i ~1 MB biblioteki nigdy nie wchodzi do
-// procesu testowego. Atrapa łapie zarówno import `../EChart` z `ChartCard`, jak
-// i z `KpiTile`, bo oba wskazują ten sam moduł.
+// PULPIT RYSUJE NASZYM SILNIKIEM, nie ECharts - i ten plik nie podmienia go
+// atrapą, tylko PODGLĄDA. `Chart` jest opakowany szpiegiem, który zapisuje
+// `config` i `ariaLabel`, a potem woła PRAWDZIWY komponent. Dzięki temu serię
+// dzienną, rodzaj rysunku i podpis sprawdzamy na konfiguracji ODDANEJ
+// silnikowi, a nazwę regionu i tabelę danych - na tym, co silnik z niej
+// naprawdę narysował. Atrapa dowodziłaby wyłącznie tego, że panel woła funkcję:
+// zabrałaby panelowi tabelę i nazwę regionu, czyli dokładnie te dwie rzeczy,
+// których pilnuje blok dostępności niżej.
+//
+// ISKRA KPI PRZESTAŁA BYĆ WYKRESEM i dlatego nie przechodzi przez tego szpiega.
+// `KpiTile` rysuje ją glifem SVG (`data-role="sparkline"`, `aria-hidden`), bo
+// rama silnika dokłada osie, podpis i tabelę, których rysunek o wysokości
+// czterdziestu pikseli nie uniesie. Asercje o iskrze idą więc na ŚCIEŻKĘ glifu,
+// a nie na przechwyconą konfigurację.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -50,8 +62,7 @@ import {
 } from "@/lib/observability/clientErrorsAggregate";
 import { redactPii } from "@/lib/observability/redact";
 import type { AppLang } from "@/lib/i18n/localePath";
-
-type Opt = Record<string, unknown>;
+import type { ChartConfig } from "@/lib/charts/types";
 
 const TENANT_A = "tenant-alfa";
 const TENANT_B = "tenant-beta";
@@ -60,7 +71,7 @@ const h = vi.hoisted(() => ({
   fetchReport: vi.fn(),
   /** Warsztat, w którym stoi panel - zmiana tej wartości to przejście do innego. */
   tenantId: "tenant-alfa" as string | null,
-  charts: [] as Array<{ option: Record<string, unknown> }>,
+  charts: [] as Array<{ config: ChartConfig; ariaLabel?: string }>,
 }));
 
 // `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
@@ -84,12 +95,23 @@ vi.mock("@/lib/tenant", () => ({
   useCurrentTenantId: () => h.tenantId,
 }));
 
-vi.mock("../EChart", () => ({
-  EChart: ({ option }: { option: Record<string, unknown> }) => {
-    h.charts.push({ option });
-    return <div data-testid="echart" />;
-  },
-}));
+// SILNIK NIE JEST ATRAPĄ - jest PODSŁUCHANY. Atrapa zabierałaby panelowi tabelę
+// danych i nazwę regionu, czyli dokładnie to, czego pilnuje blok dostępności
+// niżej; a sam `config` bez narysowanego wykresu nie dowodzi, że panel cokolwiek
+// pokazuje - w szczególności nie odróżnia serii samych zer od okna, w którym
+// silnik rysuje komunikat „brak danych" zamiast ramy. Opakowanie oddaje jedno i
+// drugie: przechwytuje konfigurację ORAZ renderuje prawdziwy rysunek z prawdziwą
+// alternatywą tekstową.
+vi.mock("@/components/charts/Chart", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/charts/Chart")>();
+  return {
+    ...real,
+    Chart: (props: Parameters<typeof real.Chart>[0]) => {
+      h.charts.push({ config: props.config, ariaLabel: props.ariaLabel });
+      return real.Chart(props);
+    },
+  };
+});
 
 // `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
 // dowodu jest to, że napisy przychodzą ZE SŁOWNIKA.
@@ -111,6 +133,10 @@ function common(path: string, lang: AppLang = "pl"): string {
 }
 function chrome(path: string, vars: Record<string, unknown> = {}, lang: AppLang = "pl"): string {
   return realT(lang)(`adminAnalytics.chartCard.${path}`, vars);
+}
+/** Gałąź słownika należąca do SILNIKA, nie do panelu - rama, tabela, komunikaty. */
+function engine(path: string, lang: AppLang = "pl"): string {
+  return realT(lang)(`charts.${path}`);
 }
 function presetLabel(id: "24h" | "7d" | "30d" | "90d", lang: AppLang = "pl"): string {
   return realT(lang)(`adminAnalytics.timeRange.preset${id}`);
@@ -219,47 +245,88 @@ const BUSY = agg([
 // Narzędzia
 // ---------------------------------------------------------------------------
 
-function rec(v: unknown): Opt {
-  return (v ?? {}) as Opt;
-}
-function seriesOf(o: Opt): Opt[] {
-  return Array.isArray(o.series) ? (o.series as Opt[]) : [];
-}
-function numList(v: unknown): number[] {
-  return Array.isArray(v) ? (v as unknown[]).map(Number) : [];
-}
-function strList(v: unknown): string[] {
-  return Array.isArray(v) ? (v as unknown[]).map(String) : [];
+/** Nazwa regionu rysunku - `ChartCard` składa ją z tytułu swojej karty. */
+function regionName(lang: AppLang = "pl"): string {
+  return chrome("chartRegion", { title: ce("trendTitle", {}, lang) }, lang);
 }
 
-/** Wykres trendu - jedyny słupkowy w panelu. */
-function trendChart(): Opt {
+/**
+ * Konfiguracja trendu ODDANA SILNIKOWI, rozpoznana po nazwie regionu.
+ *
+ * Po nazwie, a nie „ostatni przechwycony": nazwa jest jedynym miejscem, w
+ * którym tytuł karty spotyka się z instancją wykresu, więc drugi rysunek
+ * dołożony kiedyś do tego pulpitu nie podszyje się pod trend. Bierzemy zapis
+ * OSTATNI, bo panel przerysowuje się przy każdej odpowiedzi zapytania - a
+ * pierwszy zapis powstaje jeszcze w trakcie pomiaru, z pustymi kategoriami.
+ */
+function trendConfig(lang: AppLang = "pl"): ChartConfig {
+  const name = regionName(lang);
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
-    const o = h.charts[i].option as Opt;
-    if (seriesOf(o)[0]?.type === "bar") return o;
+    if (h.charts[i].ariaLabel === name) return h.charts[i].config;
   }
-  throw new Error("test: nie przechwycono wykresu trendu");
+  throw new Error("test: karta trendu nie oddała konfiguracji silnikowi");
 }
 
-/** Wyzwalacz dymka podany przez opcję wykresu (nie przez motyw). */
-function tooltipTrigger(o: Opt): unknown {
-  return rec(o.tooltip).trigger;
+/**
+ * Tabela danych rysunku - alternatywa tekstowa, którą silnik rysuje przy KAŻDYM
+ * rodzaju. Szukamy jej od regionu w górę, do ramki silnika, i po DOM, a nie po
+ * roli `table`: panel tabeli jest zwinięty (`hidden`), więc wypada z drzewa
+ * dostępności. Pod `aria-describedby` regionu wisi co innego - podpowiedź
+ * obsługi klawiatury.
+ */
+function trendTable(lang: AppLang = "pl"): HTMLElement {
+  const region = screen.getByLabelText(regionName(lang));
+  const el = region.closest("figure")?.querySelector<HTMLElement>("[data-chart-table] table");
+  if (!el) throw new Error("test: karta trendu nie ma tabeli danych");
+  return el;
 }
 
-/** Iskra kafelka KPI - jedyna linia z ukrytą osią. */
-function sparkChart(): Opt {
-  for (let i = h.charts.length - 1; i >= 0; i -= 1) {
-    const o = h.charts[i].option as Opt;
-    if (rec(o.xAxis).show === false && seriesOf(o)[0]?.type === "line") return o;
-  }
-  throw new Error("test: nie przechwycono iskry KPI");
+function tableHeaders(table: HTMLElement): string[] {
+  return Array.from(table.querySelectorAll("thead th")).map((th) => (th.textContent ?? "").trim());
+}
+
+function tableRows(table: HTMLElement): string[][] {
+  return Array.from(table.querySelectorAll("tbody tr")).map((tr) =>
+    Array.from(tr.children).map((cell) => (cell.textContent ?? "").trim()),
+  );
+}
+
+/** Kafelek KPI o podanej etykiecie - pudełko z parą etykieta-wartość. */
+function kpiBox(label: string): HTMLElement {
+  const box = screen.getByText(label).closest("div.min-w-0");
+  if (!box) throw new Error(`test: nie znaleziono kafelka KPI "${label}"`);
+  return box as HTMLElement;
 }
 
 /** Wartość kafelka KPI stojąca przy podanej etykiecie. */
 function kpiValue(label: string): string {
-  const box = screen.getByText(label).closest("div.min-w-0");
-  if (!box) throw new Error(`test: nie znaleziono kafelka KPI "${label}"`);
-  return box.children[1]?.textContent ?? "";
+  return kpiBox(label).children[1]?.textContent ?? "";
+}
+
+/** Ścieżka iskry pod kafelkiem KPI - `null`, gdy kafelek jej nie rysuje. */
+function kpiSpark(label: string): string | null {
+  const card = kpiBox(label).parentElement?.parentElement ?? null;
+  return card?.querySelector('[data-role="sparkline"] path')?.getAttribute("d") ?? null;
+}
+
+/**
+ * Punkty obserwacji iskry, wyłuskane z jej ścieżki.
+ *
+ * `pathFromPoints` wypisuje polecenie na punkt (`M`, potem `C` albo `L`), a
+ * kotwicą każdego z nich jest OSTATNIA para liczb - przy krzywej dwie
+ * poprzedzające ją pary to punkty kontrolne Béziera, których w danych nie ma.
+ * Pomocnik nie zna geometrii kafelka i znać jej nie musi: asercje pytają o
+ * KOLEJNOŚĆ punktów, a ta jest ta sama przy każdym skalowaniu.
+ */
+function sparkPoints(label: string): Array<[number, number]> {
+  const d = kpiSpark(label);
+  if (d === null) throw new Error(`test: kafelek KPI "${label}" nie rysuje iskry`);
+  const points: Array<[number, number]> = [];
+  for (const [, , args] of d.matchAll(/([MLC])([^MLC]*)/g)) {
+    const nums = (args.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+    if (nums.length >= 2) points.push([nums[nums.length - 2], nums[nums.length - 1]]);
+  }
+  return points;
 }
 
 /** Karta "Problemy wg częstości". */
@@ -596,32 +663,59 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("ClientErrorsDashboard - wyzwalacz dymka należy do WYKRESU, nie do motywu", () => {
-  // PO CO TEN BLOK. `baseOption` w `chartTheme.ts` ustawia prymitywy motywu
-  // (kolory, siatka, animacja, czcionka) i świadomie NIE narzuca
-  // `tooltip.trigger`, bo wyzwalacz jest własnością TYPU wykresu. Ten panel był
-  // JEDYNYM w repo, który miał dymek wyłącznie z bazy - i przez to jedynym,
-  // który po rozdzieleniu tych dwóch spraw cicho tracił wyzwalacz osiowy.
-  // Utrata nie wywraca panelu: dymek nadal jest, tylko pokazuje jeden słupek
-  // bez nazwy dnia. Taka awaria nie ma jak zapalić się sama, więc ma tu
-  // własny przypadek.
-  it("trend słupkowy deklaruje wyzwalacz OSIOWY w swojej opcji", async () => {
+describe("ClientErrorsDashboard - co panel oddaje SILNIKOWI, a co silnik rysuje sam", () => {
+  // PO CO TEN BLOK. Stały tu dwa przypadki o `tooltip.trigger` z opcji ECharts:
+  // trend miał mieć wyzwalacz OSIOWY (dymek podaje cały dzień, nie sam słupek
+  // pod kursorem), a iskra KPI nie miała go dostać „dla spójności". Obu tych
+  // asercji nie da się już postawić i nie jest to obejście: panel nie ustawia
+  // dymka ani jednym polem, bo dymek, osie, siatka i formatery są decyzją
+  // SILNIKA, a nie panelu - `biChart()` przyjmuje rodzaj, kategorie i serie.
+  //
+  // Przedmiot dowodu zostaje jednak ten sam, bo dla czytelnika chodziło o jedno:
+  // żeby liczba nigdy nie stała bez DNIA, do którego należy, i żeby dni dało się
+  // porównać między sobą. Pierwszy przypadek pilnuje tego na obu końcach - na
+  // rodzaju rysunku oddanym silnikowi i na tabeli, którą silnik z niego
+  // narysował. Drugi zostaje kanarkiem rozróżnienia: iskra KPI ma NIE BYĆ
+  // wykresem, więc do silnika nie ma prawa pojechać drugi rysunek.
+  it("trend jedzie SŁUPKAMI, a każda liczba niesie swój dzień", async () => {
     panel();
     await loaded();
 
-    // Słupki nad osią dni czyta się porównawczo - dymek ma podać cały dzień,
-    // nie pojedynczy słupek pod kursorem.
-    expect(tooltipTrigger(trendChart())).toBe("axis");
+    const c = trendConfig();
+    // Szereg dzienny błędów czyta się PORÓWNAWCZO między dniami, a nie jako
+    // przebieg - stąd słupki. Linia obiecywałaby ciągłość między próbkami.
+    expect(c.kind).toBe("bar");
+    // Legenda przy jednej serii powtarzałaby tytuł karty.
+    expect(c.showLegend).toBe(false);
+    // Podpis rysunku niesie LICZBĘ OBSERWACJI: wykres bez „n" nie mówi, czy
+    // słupek wysokości 3 to trzy zgłoszenia z sześciu, czy z sześciu tysięcy.
+    expect(c.sampleSize).toBe(BUSY.total);
+    expect(BUSY.total).toBe(6);
+    // I to jest dzisiejszy nośnik tego, co obiecywał dymek osiowy: KAŻDA liczba
+    // stoi w tabeli przy swoim dniu, także wtedy, gdy czytelnik nie dotknie
+    // rysunku kursorem ani nie zobaczy go wcale.
+    expect(tableHeaders(trendTable())).toEqual([engine("frame.category"), ce("trendSeries")]);
+    expect(tableRows(trendTable())).toEqual(
+      BUSY.daily.map((d) => [d.day.slice(5), String(d.count)]),
+    );
   });
 
-  it("iskra KPI NIE dostaje wyzwalacza osiowego - nie ma osi do porównania", async () => {
+  it("iskra kafelka KPI NIE jest wykresem - do silnika jedzie jeden rysunek", async () => {
     panel();
     await loaded();
 
-    // Kanarek rozróżnienia: iskra ma `xAxis.show === false`, więc wyzwalacz
-    // osiowy byłby tam bez znaczenia. Ten przypadek pilnuje, że naprawa trendu
-    // nie została rozlana na wszystkie wykresy panelu „dla spójności”.
-    expect(tooltipTrigger(sparkChart())).toBeUndefined();
+    // Gdyby iskra szła przez `<Chart>`, dostałaby ramę: oś, podpis, przełącznik
+    // tabeli i własny region dla czytnika ekranu - czterdzieści pikseli
+    // wysokości obok liczby, którą widać w kafelku obok. Liczymy po NAZWACH
+    // regionów zapisanych przez szpiega, a nie po elementach o roli obrazka:
+    // rolę obrazka mają też wycinki tarczy, więc ich liczba mówiłaby o
+    // kategoriach w danych, a nie o liczbie rysunków na pulpicie.
+    expect([...new Set(h.charts.map((c) => c.ariaLabel))]).toEqual([regionName()]);
+    // Iskra jest glifem: jest w DOM, rysuje ścieżkę i jest schowana przed
+    // czytnikiem ekranu, bo nie niesie ani jednej liczby, której nie ma obok.
+    const sparks = document.querySelectorAll('[data-role="sparkline"]');
+    expect(sparks).toHaveLength(1);
+    expect(sparks[0].getAttribute("aria-hidden")).toBe("true");
   });
 });
 
@@ -745,33 +839,61 @@ describe("ClientErrorsDashboard - zgodność z agregatorem", () => {
     expect(rowSources(rows[1])).toEqual(["webworker_onerror"]);
   });
 
-  it("trend dzienny oddaje kanwie DOKŁADNIE serię dzienną agregatora", async () => {
+  it("trend dzienny oddaje silnikowi DOKŁADNIE serię dzienną agregatora", async () => {
     panel();
     await loaded();
 
-    const opt = trendChart();
-    expect(numList(seriesOf(opt)[0].data)).toEqual(BUSY.daily.map((d) => d.count));
+    const c = trendConfig();
+    // Silnik przyjmuje etykiety i liczby ROZDZIELNIE (`categories` plus
+    // `series[].values`), więc panel nie ma gdzie posklejać pary dzień-liczba
+    // inaczej niż po indeksie. Asercja idzie na oba pola naraz: sama seria
+    // zgodna z agregatorem, ale przesunięta względem kategorii, rysowałaby
+    // wczorajszą liczbę nad dzisiejszą podziałką.
+    expect(c.series).toHaveLength(1);
+    expect(c.series[0].values).toEqual(BUSY.daily.map((d) => d.count));
     // Etykieta osi jest skrócona do "MM-DD" - rok jest w oknie, nie w słupku.
-    expect(strList(rec(opt.xAxis).data)).toEqual(BUSY.daily.map((d) => d.day.slice(5)));
+    expect(c.categories).toEqual(BUSY.daily.map((d) => d.day.slice(5)));
     expect(BUSY.daily).toHaveLength(7);
-    expect(seriesOf(opt)[0].name).toBe(ce("trendSeries"));
+    expect(c.series[0].name).toBe(ce("trendSeries"));
   });
 
-  it("iskra kafelka KPI niesie tę samą serię dzienną co trend", async () => {
+  it("iskra kafelka KPI rysuje TEN SAM szereg dzienny i tylko przy liczbie błędów", async () => {
     panel();
     await loaded();
 
-    expect(numList(seriesOf(sparkChart())[0].data)).toEqual(BUSY.daily.map((d) => d.count));
+    // Iskra nie jeździ przez silnik, więc jej świadectwem jest ŚCIEŻKA glifu.
+    // Pytamy o to, co nie zależy od skali kafelka: ile jest punktów obserwacji
+    // i w którą stronę idą. Oś Y w SVG rośnie w dół, więc dzień o większej
+    // liczbie błędów leży WYŻEJ - odwrócenie tej zależności (albo iskra
+    // narysowana z innego szeregu, na przykład z liczby grup) oblewa asercję.
+    const points = sparkPoints(ce("kpiTotal"));
+    const counts = BUSY.daily.map((d) => d.count);
+    expect(points).toHaveLength(counts.length);
+    expect(points.slice(1).map(([, y], i) => Math.sign(y - points[i][1]))).toEqual(
+      counts.slice(1).map((count, i) => Math.sign(counts[i] - count)),
+    );
+    // Pozostałe trzy kafelki szeregu nie dostają, i słusznie: raport nie ma
+    // dziennego rozbicia ani grup, ani ścieżek, ani ostatnich 24 h, więc iskra
+    // pod nimi rysowałaby kształt nie wiadomo czego.
+    expect(kpiSpark(ce("kpiGroups"))).toBeNull();
+    expect(kpiSpark(ce("kpiPaths"))).toBeNull();
+    expect(kpiSpark(ce("kpiLast24h"))).toBeNull();
   });
 
-  it("okno bez błędów daje trend z samymi zerami, a nie wykres bez danych", async () => {
+  it("okno bez błędów daje trend z samymi zerami, a nie wykres BEZ DANYCH", async () => {
     // Zero w dniu bez błędów to uczciwy pomiar; dziura w serii czytałaby się
-    // jako "brak telemetrii".
+    // jako "brak telemetrii". Rozróżnienie ma dziś WIDOCZNY skutek, więc
+    // asercja idzie i na konfigurację, i na to, co silnik z niej narysował:
+    // seria bez ani jednej liczby (`null` albo pusta) wywraca rysunek w
+    // komunikat „Brak danych wykresu", czyli w napis mówiący, że telemetrii
+    // nie ma - dokładnie to, czego pomiar zerowy nie twierdzi.
     h.fetchReport.mockResolvedValue(EMPTY);
     panel();
     await loaded();
 
-    expect(numList(seriesOf(trendChart())[0].data)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    expect(trendConfig().series[0].values).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    expect(screen.queryByText(engine("frame.empty"))).toBeNull();
+    expect(tableRows(trendTable()).map((r) => r[1])).toEqual(["0", "0", "0", "0", "0", "0", "0"]);
   });
 });
 
@@ -1197,8 +1319,36 @@ describe("ClientErrorsDashboard - dostępność", () => {
     panel();
     await loaded();
 
-    const names = screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"));
-    expect(names).toContain(chrome("chartRegion", { title: ce("trendTitle") }));
+    // PO NAZWIE, a nie po roli: silnik daje rysunkowi kartezjańskiemu
+    // `role="img"`, ale tarczy `role="group"`, bo jej wycinki są fokusowalne -
+    // szukanie po roli wiązałoby ten przypadek z rodzajem wykresu, którym trend
+    // akurat jest, a nie z tym, czego dowodzi.
+    expect(screen.getByLabelText(regionName())).toBeInTheDocument();
+    // ...i ani jednego rysunku BEZ nazwy: bezimienny region jest dla czytnika
+    // ekranu przystankiem, który nic nie mówi. Konfiguracja ma tytuł PUSTY
+    // (nagłówek rysuje karta), więc bez tej właściwości wykres nazywałby się
+    // „Wykres".
+    expect(h.charts.map((c) => (c.ariaLabel ?? "").trim()).filter((n) => n === "")).toEqual([]);
+  });
+
+  it("rysunek ma tekstową alternatywę: tabelę tych samych liczb i podpowiedź obsługi", async () => {
+    // ECharts malował do kanwy, która dla czytnika ekranu jest pustym
+    // prostokątem, a tabelę trzeba było podać karcie osobno - ten panel podawał
+    // silnikowi tylko `csv`, czyli materiał EKSPORTU, więc na ekranie nie było
+    // ani jednej drogi do liczb trendu poza rysunkiem. Nasz silnik rysuje
+    // alternatywę przy każdym rodzaju i nie da się jej pominąć z zewnątrz.
+    //
+    // Asercja idzie na OBA końce powiązania: region wskazuje opis obsługi
+    // klawiatury, a wskazany identyfikator musi istnieć - sam atrybut bez
+    // elementu jest gorszy niż jego brak, bo czytnik obiecuje opis i milknie.
+    panel();
+    await loaded();
+
+    const id = screen.getByLabelText(regionName()).getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(id)).not.toBeNull();
+    // Tabela z co najmniej jednym wierszem - pusta byłaby obietnicą
+    // alternatywy, a nie alternatywą.
+    expect(tableRows(trendTable())).toHaveLength(BUSY.daily.length);
   });
 
   it("wypełniony panel z rozwiniętą grupą nie ma ŻADNEGO naruszenia axe", async () => {
