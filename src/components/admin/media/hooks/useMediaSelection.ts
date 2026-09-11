@@ -21,7 +21,9 @@ export interface UseMediaSelectionResult {
   selectOnly: (id: string) => void;
 }
 
-export function useMediaSelection(orderedFiles: readonly { id: string }[]): UseMediaSelectionResult {
+export function useMediaSelection(
+  orderedFiles: readonly { id: string }[],
+): UseMediaSelectionResult {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastAnchorId, setLastAnchorId] = useState<string | null>(null);
 

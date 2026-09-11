@@ -575,8 +575,8 @@ export function MediaPickerDialog({
                         dragTargetFolder === path
                           ? "bg-primary/15 text-primary ring-1 ring-primary/40"
                           : selected
-                          ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
                     >
                       <Folder className="size-3.5 shrink-0" aria-hidden />
@@ -646,7 +646,11 @@ export function MediaPickerDialog({
               disabled={!newFolderName.trim() || creatingFolder}
               onClick={() => void createNewFolder()}
             >
-              {creatingFolder ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+              {creatingFolder ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Check className="size-3.5" />
+              )}
               {t("adminTeamMedia.mediaPicker.create")}
             </Button>
             <Button
@@ -674,7 +678,11 @@ export function MediaPickerDialog({
               disabled={deleting || moving}
               onClick={() => void deleteSelected()}
             >
-              {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {deleting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
               {t("adminTeamMedia.mediaPicker.deleteSelected")}
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={clearMediaSelection}>
