@@ -22,6 +22,8 @@ const h = vi.hoisted(() => ({
   registerUpload: vi.fn(),
   updateMeta: vi.fn(),
   bulkDelete: vi.fn(),
+  bulkMove: vi.fn(),
+  createFolder: vi.fn(),
   uploadAndRegisterMedia: vi.fn(),
   toastSuccess: vi.fn(),
   toastFail: vi.fn(),
@@ -37,12 +39,22 @@ vi.mock("@/hooks/useAuth", () => ({
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) =>
-    fn === "register" ? h.registerUpload : fn === "delete" ? h.bulkDelete : h.updateMeta,
+    fn === "register"
+      ? h.registerUpload
+      : fn === "delete"
+        ? h.bulkDelete
+        : fn === "move"
+          ? h.bulkMove
+          : fn === "create-folder"
+            ? h.createFolder
+            : h.updateMeta,
 }));
 vi.mock("@/lib/media.functions", () => ({
   registerMediaUpload: "register",
   updateMediaMeta: "update",
   bulkDeleteMedia: "delete",
+  bulkMoveMedia: "move",
+  createMediaFolder: "create-folder",
 }));
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -108,12 +120,15 @@ beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   stub().reset();
   stub().setResponse("media", ok([]));
+  stub().setResponse("media_folders", ok([]));
   h.tenantId = TENANT;
   h.user = { id: "user-1" };
   for (const fn of [
     h.registerUpload,
     h.updateMeta,
     h.bulkDelete,
+    h.bulkMove,
+    h.createFolder,
     h.uploadAndRegisterMedia,
     h.toastSuccess,
     h.toastFail,

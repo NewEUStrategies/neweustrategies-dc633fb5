@@ -524,6 +524,15 @@ export function MediaPickerDialog({
                 aria-label={t("adminTeamMedia.mediaPicker.folderFilter")}
                 className="max-h-72 space-y-0.5 overflow-y-auto p-1.5"
               >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setNewFolderOpen(true)}
+                  className="h-8 w-full justify-start gap-2 rounded-[6px] px-2.5 text-xs text-primary"
+                >
+                  <FolderPlus className="size-3.5" aria-hidden />
+                  {t("adminTeamMedia.mediaPicker.createFolder")}
+                </Button>
                 {!folderQuery.trim() && (
                   <Button
                     type="button"
@@ -555,8 +564,17 @@ export function MediaPickerDialog({
                       aria-selected={selected}
                       title={path}
                       onClick={() => selectFolder(path)}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDragTargetFolder(path);
+                      }}
+                      onDragLeave={() => setDragTargetFolder(null)}
+                      onDrop={onFolderDrop(path)}
                       className={`h-8 w-full justify-start gap-2 rounded-[6px] px-2.5 text-xs ${
-                        selected
+                        dragTargetFolder === path
+                          ? "bg-primary/15 text-primary ring-1 ring-primary/40"
+                          : selected
                           ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
@@ -608,10 +626,68 @@ export function MediaPickerDialog({
           </Button>
         </div>
 
+        {newFolderOpen && (
+          <div className="flex items-center gap-2 rounded-[6px] border border-border bg-muted/30 p-2">
+            <FolderPlus className="size-4 shrink-0 text-primary" aria-hidden />
+            <Input
+              autoFocus
+              value={newFolderName}
+              onChange={(event) => setNewFolderName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void createNewFolder();
+                if (event.key === "Escape") setNewFolderOpen(false);
+              }}
+              placeholder={t("adminTeamMedia.mediaPicker.folderNamePlaceholder")}
+              className="h-8 min-w-0 flex-1 text-xs"
+            />
+            <Button
+              type="button"
+              size="sm"
+              disabled={!newFolderName.trim() || creatingFolder}
+              onClick={() => void createNewFolder()}
+            >
+              {creatingFolder ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+              {t("adminTeamMedia.mediaPicker.create")}
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={t("adminTeamMedia.mediaPicker.cancel")}
+              onClick={() => setNewFolderOpen(false)}
+              className="size-8"
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        )}
+
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-[6px] border border-primary/25 bg-primary/5 px-3 py-2">
+            <span className="mr-auto text-xs font-semibold text-foreground">
+              {t("adminTeamMedia.mediaPicker.selectedCount", { count: selectedIds.size })}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={deleting || moving}
+              onClick={() => void deleteSelected()}
+            >
+              {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {t("adminTeamMedia.mediaPicker.deleteSelected")}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={clearMediaSelection}>
+              <X className="size-3.5" />
+              {t("adminTeamMedia.mediaPicker.clearSelection")}
+            </Button>
+          </div>
+        )}
+
         <div
           onDragOver={(e) => {
             e.preventDefault();
-            setDragOver(true);
+            if (e.dataTransfer.types.includes("Files")) setDragOver(true);
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
@@ -633,18 +709,23 @@ export function MediaPickerDialog({
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
               {filtered.map((m) => {
-                const selected = pickedUrl === m.public_url;
+                const selected = selectedIds.has(m.id);
                 const isImg = m.mime_type?.startsWith("image/");
                 return (
-                  <button
+                  <Button
                     key={m.id}
                     type="button"
-                    onClick={() => handlePickRow(m)}
+                    variant="ghost"
+                    draggable
+                    aria-pressed={selected}
+                    aria-label={m.filename}
+                    onDragStart={onMediaDragStart(m.id)}
+                    onClick={(event) => selectMedia(m, event)}
                     onDoubleClick={() => {
                       onPick(brandedMediaUrl(m.public_url));
                       onOpenChange(false);
                     }}
-                    className={`relative aspect-square rounded-md border overflow-hidden text-left transition-colors ${
+                    className={`relative h-auto aspect-square rounded-[6px] border overflow-hidden p-0 text-left transition-colors ${
                       selected
                         ? "border-brand ring-2 ring-brand/40"
                         : "border-border hover:border-brand/50"
@@ -674,7 +755,7 @@ export function MediaPickerDialog({
                       )}
                       <span className="truncate">{m.filename}</span>
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
