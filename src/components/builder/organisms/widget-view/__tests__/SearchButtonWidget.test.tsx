@@ -178,6 +178,18 @@ describe("SearchButtonWidget", () => {
     cleanup();
   });
 
+  it("identyfikuje pole jako wyszukiwanie i blokuje menedżery autofill", () => {
+    const { container } = renderWidget();
+    const input = container.querySelector("input[data-mobile-search-input]");
+    expect(input).toHaveAttribute("type", "search");
+    expect(input).toHaveAttribute("name", "q");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    expect(input).toHaveAttribute("inputmode", "search");
+    expect(input).toHaveAttribute("data-1p-ignore", "true");
+    expect(input).toHaveAttribute("data-lpignore", "true");
+    expect(input).toHaveAttribute("data-bwignore", "true");
+  });
+
   it("grupuje podpowiedzi w cztery premium kubełki (organizacja w Osobach i organizacjach)", async () => {
     rpc.rows = [
       row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" }),

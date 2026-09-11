@@ -643,6 +643,7 @@ function SearchPage() {
         <form onSubmit={submit} className="search-page-form relative z-40 mb-2" role="search">
           <div className="input-group" style={{ height: "40px" }}>
             <input
+              type="search"
               ref={searchInputRef}
               value={draft}
               onChange={(e) => {
@@ -659,8 +660,20 @@ function SearchPage() {
                 height: "40px",
                 paddingLeft: "0.9rem",
                 paddingRight: "84px",
-                fontSize: "0.8125rem",
+                fontSize: "1rem",
               }}
+              name="q"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="search"
+              enterKeyHint="search"
+              data-mobile-search-input=""
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
+              data-form-type="other"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}

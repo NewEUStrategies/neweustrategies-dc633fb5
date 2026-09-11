@@ -358,7 +358,7 @@ export function SearchButtonWidget({
       >
         <input
           ref={inputRef}
-          type="text"
+          type="search"
           role="combobox"
           aria-expanded={showPopover}
           aria-controls={listboxId}
@@ -369,7 +369,8 @@ export function SearchButtonWidget({
           autoCapitalize="none"
           spellCheck={false}
           inputMode="search"
-          name="neus-search"
+          name="q"
+          data-mobile-search-input=""
           data-1p-ignore="true"
           data-lpignore="true"
           data-bwignore="true"
@@ -397,7 +398,7 @@ export function SearchButtonWidget({
             borderRadius: `${Math.min(radius, 6)}px`,
             // Rozmiar pól formularzy jest ujednolicony globalnie (13px);
             // konfiguracja widgetu nie może rozjeżdżać typografii formularzy.
-            fontSize: "13px",
+            fontSize: "16px",
             paddingLeft: "0.9rem",
             paddingRight: `${trailingPad}px`,
             textAlign: "left",
