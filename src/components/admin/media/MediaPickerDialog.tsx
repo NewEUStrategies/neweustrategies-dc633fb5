@@ -781,7 +781,7 @@ export function MediaPickerDialog({
         </div>
 
         {picked && (
-          <div className="max-h-[30dvh] overflow-y-auto border-t border-border pt-3 space-y-2">
+          <div className="shrink-0 max-h-[28dvh] overflow-y-auto border-t border-border pt-3 space-y-2">
             <label
               htmlFor="picker-filename"
               className="block text-xs text-muted-foreground font-medium"
