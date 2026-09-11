@@ -580,7 +580,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             section: "auth" as const,
             kind: "preset" as const,
             presetKey: "messages",
-            icon: "MessageCircle",
+            icon: "MessagesSquare",
           },
           href: "/messages",
           label: DEFAULT_ITEM_LABELS.messages[lang],
