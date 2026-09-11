@@ -525,10 +525,10 @@ function SearchBar({
         enterKeyHint="search"
         autoCapitalize="off"
         autoCorrect="off"
-        autoComplete="off"
+        autoComplete="one-time-code"
         spellCheck={false}
         inputMode="search"
-        name="q"
+        name="overlay_search_query"
         data-mobile-search-input=""
         data-1p-ignore="true"
         data-lpignore="true"

@@ -364,12 +364,12 @@ export function SearchButtonWidget({
           aria-controls={listboxId}
           aria-activedescendant={active >= 0 ? optionId(active) : undefined}
           aria-autocomplete="list"
-          autoComplete="off"
+          autoComplete="one-time-code"
           autoCorrect="off"
           autoCapitalize="none"
           spellCheck={false}
           inputMode="search"
-          name="q"
+          name="site_search_query"
           data-mobile-search-input=""
           data-1p-ignore="true"
           data-lpignore="true"
