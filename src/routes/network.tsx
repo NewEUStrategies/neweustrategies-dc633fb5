@@ -802,16 +802,28 @@ function NetworkInner() {
             co w poziomym scrollerze rozpychało zakładki i ucinało etykiety
             ("Otrzymane"/"Wysłane"). Tu każda zakładka ma szerokość treści. */}
         <TabsList className="grid h-auto w-full max-w-full grid-cols-2 gap-1 overflow-visible rounded-[6px] bg-muted/40 sm:inline-flex sm:h-9 sm:w-auto sm:grid-cols-none">
-          <TabsTrigger value="connections" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
+          <TabsTrigger
+            value="connections"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("connections", Number(counts?.connections ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="received" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
+          <TabsTrigger
+            value="received"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("received", Number(counts?.pending_in ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="sent" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
+          <TabsTrigger
+            value="sent"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("sent", Number(counts?.pending_out ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="suggestions" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
+          <TabsTrigger
+            value="suggestions"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("suggestions", undefined)}
           </TabsTrigger>
         </TabsList>
