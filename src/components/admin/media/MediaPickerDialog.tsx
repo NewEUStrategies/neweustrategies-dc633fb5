@@ -4,14 +4,29 @@
  * insert existing assets without leaving the current editor.
  * Supports uploading new files directly from the user's local disk.
  */
-import { useCallback, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-team-media";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
-import { bulkDeleteMedia, registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
+import {
+  bulkDeleteMedia,
+  bulkMoveMedia,
+  createMediaFolder,
+  registerMediaUpload,
+  updateMediaMeta,
+} from "@/lib/media.functions";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import {
   Dialog,
@@ -22,7 +37,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, X, Folder, Upload, Loader2, Trash2, ChevronDown } from "@/lib/lucide-shim";
+import {
+  Search,
+  Check,
+  X,
+  Folder,
+  Upload,
+  Loader2,
+  Trash2,
+  ChevronDown,
+  FolderPlus,
+} from "@/lib/lucide-shim";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
@@ -36,6 +61,10 @@ import {
   checkUploadable,
   uploadAndRegisterMedia,
 } from "@/lib/media/upload";
+import { useMediaSelection } from "@/components/admin/media/hooks/useMediaSelection";
+import { normalizePath } from "@/components/admin/media/lib/mediaPaths";
+
+const MEDIA_IDS_MIME = "application/x-media-ids";
 
 interface PickerRow {
   id: string;
