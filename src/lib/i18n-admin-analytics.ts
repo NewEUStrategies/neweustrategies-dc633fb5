@@ -143,15 +143,21 @@ const pl = {
         topTagsSubtitle: "Liczba opublikowanych wpisów z tagiem",
         coocTitle: "Współwystępowanie tagów",
         coocSubtitle:
-          "Heatmapa: ile wpisów łączy dwa tagi (im ciemniej, tym silniejsza więź w grafie rekomendacji)",
+          "Heatmapa top {{count}} tagów: ile wpisów łączy dwa tagi (im ciemniej, tym silniejsza więź w grafie rekomendacji)",
         popularityTitle: "Popularność wpisów",
         popularitySubtitle:
           "Wyświetlenia vs unikalni odwiedzający - kandydaci do wzmocnienia w silniku",
         hubTitle: "Hub-posty (najczęstsze cele klików)",
         hubSubtitle: "Wpisy w które ludzie klikają z rekomendacji",
-        sankeyTitle: "Ścieżki źródło → cel (klik w rekomendację)",
-        sankeySubtitle:
-          "Sankey top-25 par - pokazuje jak rekomendacje realnie kierują ruch między wpisami",
+        flowsTitle: "Przejścia źródło → cel (klik w rekomendację)",
+        flowsSubtitle:
+          "Ranking {{shown}} najsilniejszych z {{total}} par - pokazuje jak rekomendacje realnie kierują ruch między wpisami",
+      },
+      drill: {
+        source: "Źródło",
+        target: "Cel",
+        clicks: "Kliknięcia",
+        sources: "Różnych źródeł",
       },
       insightsTitle: "Interpretacja i rekomendacje - silnik rekomendacji",
       insightsSubtitle:
@@ -458,9 +464,21 @@ const pl = {
         ctr: "ctr",
         position: "pozycja",
       },
+      // Wiersze macierzy kalendarza. Skrót, nie pełna nazwa: etykieta stoi przy
+      // krawędzi siatki siedmiu wierszy, a „Poniedziałek" zjadałby tam szerokość
+      // dwóch kolumn tygodni.
+      weekdays: {
+        mon: "Pon",
+        tue: "Wt",
+        wed: "Śr",
+        thu: "Czw",
+        fri: "Pt",
+        sat: "Sob",
+        sun: "Nd",
+      },
       charts: {
         trendTitle: "Trend widoczności",
-        trendSubtitle: "Kliknięcia i wyświetlenia w czasie + CTR (linia przerywana)",
+        trendSubtitle: "Kliknięcia i wyświetlenia w czasie, dziennie",
         topQueriesTitle: "Top 15 zapytań",
         topQueriesSubtitle: "Rank wg kliknięć",
         positionTitle: "Rozkład pozycji SERP",
@@ -470,9 +488,9 @@ const pl = {
         devicesTitle: "Urządzenia",
         devicesSubtitle: "Kliknięcia wg typu urządzenia",
         pagesTitle: "Strony wg wyświetleń",
-        pagesSubtitle: "Treemap top 20 stron (wielkość = wyświetlenia)",
+        pagesSubtitle: "Top 20 stron wg wyświetleń, malejąco",
         calendarTitle: "Aktywność dzienna",
-        calendarSubtitle: "Heatmapa kalendarzowa - kliknięcia per dzień",
+        calendarSubtitle: "Mapa cieplna: tydzień w kolumnie, dzień tygodnia w wierszu",
         calendarIntensityLow: "Mniej",
         calendarIntensityHigh: "Więcej",
       },
@@ -644,12 +662,19 @@ const pl = {
         retention: "Retencja (100 - bounce)",
         events: "Eventy",
         seriesName: "Ostatnie {{days}} dni",
+        // JEDNOSTKA ZE SPACJĄ WIODĄCĄ: separator jest częścią jednostki, więc
+        // „62 pkt" rozdziela, a „62%" skleja. Pięć wskaźników jest tu
+        // znormalizowanych do wspólnej skali 0-100 i żaden nie jest już
+        // procentem - „pkt" mówi wprost, że to indeks, a nie pomiar.
+        unit: " pkt",
       },
       charts: {
         trendTitle: "Trend ruchu",
         trendSubtitle: "Sesje, użytkownicy i odsłony w oknie",
         engagementTitle: "Zaangażowanie",
         engagementSubtitle: "5 wymiarów jakości ruchu",
+        engagementFooter:
+          "Wskaźniki znormalizowane do wspólnej skali 0-100 pkt; liczba stoi na słupku, bo skala nie jest procentem.",
         sourcesTitle: "Źródła ruchu",
         sourcesSubtitle: "Sesje wg sessionSource",
         countriesTitle: "Kraje",
@@ -981,14 +1006,20 @@ const en = {
         topTagsSubtitle: "Number of published posts with the tag",
         coocTitle: "Tag co-occurrence",
         coocSubtitle:
-          "Heatmap: how many posts link two tags (the darker, the stronger the bond in the recommendation graph)",
+          "Heatmap of the top {{count}} tags: how many posts link two tags (the darker, the stronger the bond in the recommendation graph)",
         popularityTitle: "Post popularity",
         popularitySubtitle: "Views vs unique visitors - candidates to boost in the engine",
         hubTitle: "Hub posts (most frequent click targets)",
         hubSubtitle: "Posts people click through to from recommendations",
-        sankeyTitle: "Source → target paths (recommendation click)",
-        sankeySubtitle:
-          "Sankey of the top 25 pairs - shows how recommendations actually route traffic between posts",
+        flowsTitle: "Source → target transitions (recommendation click)",
+        flowsSubtitle:
+          "Ranking of the {{shown}} strongest of {{total}} pairs - shows how recommendations actually route traffic between posts",
+      },
+      drill: {
+        source: "Source",
+        target: "Target",
+        clicks: "Clicks",
+        sources: "Distinct sources",
       },
       insightsTitle: "Interpretation and recommendations - recommendation engine",
       insightsSubtitle:
@@ -1291,9 +1322,18 @@ const en = {
         ctr: "ctr",
         position: "position",
       },
+      weekdays: {
+        mon: "Mon",
+        tue: "Tue",
+        wed: "Wed",
+        thu: "Thu",
+        fri: "Fri",
+        sat: "Sat",
+        sun: "Sun",
+      },
       charts: {
         trendTitle: "Visibility trend",
-        trendSubtitle: "Clicks and impressions over time + CTR (dashed line)",
+        trendSubtitle: "Clicks and impressions over time, daily",
         topQueriesTitle: "Top 15 queries",
         topQueriesSubtitle: "Ranked by clicks",
         positionTitle: "SERP position distribution",
@@ -1303,9 +1343,9 @@ const en = {
         devicesTitle: "Devices",
         devicesSubtitle: "Clicks by device type",
         pagesTitle: "Pages by impressions",
-        pagesSubtitle: "Treemap of the top 20 pages (size = impressions)",
+        pagesSubtitle: "Top 20 pages by impressions, descending",
         calendarTitle: "Daily activity",
-        calendarSubtitle: "Calendar heatmap - clicks per day",
+        calendarSubtitle: "Heatmap: week in the column, weekday in the row",
         calendarIntensityLow: "Less",
         calendarIntensityHigh: "More",
       },
@@ -1479,12 +1519,15 @@ const en = {
         retention: "Retention (100 - bounce)",
         events: "Events",
         seriesName: "Last {{days}} days",
+        unit: " pts",
       },
       charts: {
         trendTitle: "Traffic trend",
         trendSubtitle: "Sessions, users and views in the window",
         engagementTitle: "Engagement",
         engagementSubtitle: "5 dimensions of traffic quality",
+        engagementFooter:
+          "Indicators normalised to a common 0-100 pts scale; the number sits on the bar because the scale is not a percentage.",
         sourcesTitle: "Traffic sources",
         sourcesSubtitle: "Sessions by sessionSource",
         countriesTitle: "Countries",

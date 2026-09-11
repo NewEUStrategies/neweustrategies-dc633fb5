@@ -28,9 +28,10 @@
  * bez ani jednego zapytania (wyciek niewidoczny w ruchu sieciowym). Zapytania
  * czekają na rozwiązanie warsztatu (`enabled`), zamiast pytać „bez warsztatu".
  *
- * KAŻDY WYKRES MA ALTERNATYWĘ TEKSTOWĄ: ECharts maluje do kanwy, więc każda
- * karta dostaje `csv` z tymi samymi danymi, a `ChartCard` robi z tego tabelę
- * powiązaną z regionem wykresu przez `aria-describedby`.
+ * KAŻDY WYKRES MA ALTERNATYWĘ TEKSTOWĄ: rysuje ją silnik przy każdym rodzaju,
+ * więc karta nie musi jej budować z `csv`. `csv` zostaje jako ŹRÓDŁO EKSPORTU -
+ * plik bywa bogatszy od rysunku (kolumny, których wykres nie koduje, jak
+ * wskaźnik zaangażowania przy rankingu stron).
  *
  * OKNO CZASOWE pochodzi z kanonicznego resolwera warstwy semantycznej
  * (`@/lib/analytics/semantic`), nie z napisów `NdaysAgo`. Dwa powody:
@@ -49,7 +50,7 @@
  *   3. Donut: źródła ruchu (sessionSource)
  *   4. Donut: kraje
  *   5. Donut: urządzenia
- *   6. Radar: zaangażowanie (5 metryk z tego samego okna)
+ *   6. Słupki poziome: zaangażowanie (5 metryk z tego samego okna)
  *   7. Bar rank: top strony wg odsłon
  */
 import { useId, useMemo, useState } from "react";
@@ -68,14 +69,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { EChartsCoreOption } from "echarts/core";
 import { runGa4Report, type Ga4Report } from "@/lib/analytics/ga4.functions";
 import { useCurrentTenantId } from "@/lib/tenant";
 import { previousWindow, resolveWindow, type WindowPresetId } from "@/lib/analytics/semantic";
 import { WindowProvenance } from "./semantic/molecules/WindowProvenance";
 import { ChartCard } from "./ChartCard";
-import { useChartTheme } from "./useChartTheme";
-import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
+import { biChart } from "./biChart";
+import type { ChartSelection } from "@/lib/charts/selection";
+import type { ChartConfig } from "@/lib/charts/types";
+import type { ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { InsightSection } from "./InsightSection";
 import { buildGa4Insights } from "./ga4Insights";
@@ -143,11 +145,6 @@ export function Ga4BiDashboard({
   activeMode?: string;
 }) {
   const { t } = useTranslation();
-  // ROZWIĄZANY motyw dla pól, których `baseOption` nie zna - w tym panelu to
-  // etykiety kalendarza, obramowania kafli treemapy i kolor etykiet na słupkach
-  // zaangażowania. Referencja jest stabilna, dopóki tokeny się nie zmienią,
-  // więc wolno ją trzymać w zależnościach `useMemo`.
-  const theme = useChartTheme();
   const fetchReport = useServerFn(runGa4Report);
   const [presetId, setPresetId] = useState<Ga4PresetId>("28d");
   // Warsztat wchodzi do KLUCZA cache, nie tylko do zapytania serwerowego -
@@ -310,43 +307,24 @@ export function Ga4BiDashboard({
     };
   }, [dateQ.data]);
 
-  const trendOption = useMemo<EChartsCoreOption>(() => {
-    return {
-      legend: {
-        top: 4,
-        data: [
-          t("adminAnalytics.ga4.sessions"),
-          t("adminAnalytics.ga4.activeUsers"),
-          t("adminAnalytics.ga4.views"),
+  const trendConfig = useMemo(
+    () =>
+      biChart({
+        kind: "line",
+        categories: trendData.dates,
+        series: [
+          { name: t("adminAnalytics.ga4.sessions"), values: trendData.sessions },
+          { name: t("adminAnalytics.ga4.activeUsers"), values: trendData.users },
+          { name: t("adminAnalytics.ga4.views"), values: trendData.views },
         ],
-      },
-      tooltip: { trigger: "axis" },
-      dataZoom: [{ type: "inside", start: 0, end: 100 }],
-      xAxis: { type: "category", data: trendData.dates, boundaryGap: false },
-      yAxis: { type: "value" },
-      series: [
-        {
-          name: t("adminAnalytics.ga4.sessions"),
-          type: "line",
-          smooth: true,
-          areaStyle: { opacity: 0.2 },
-          data: trendData.sessions,
-        },
-        {
-          name: t("adminAnalytics.ga4.activeUsers"),
-          type: "line",
-          smooth: true,
-          data: trendData.users,
-        },
-        {
-          name: t("adminAnalytics.ga4.views"),
-          type: "line",
-          smooth: true,
-          data: trendData.views,
-        },
-      ],
-    };
-  }, [trendData, t]);
+        // ŁAMANA, NIE KRZYWA. Wygładzenie dokłada między dwoma pomiarami
+        // wartości, których nie było - przy szeregu dobowym czyta się to jako
+        // płynny wzrost tam, gdzie był jeden skok.
+        smoothing: 0,
+        sampleSize: trendData.dates.length,
+      }),
+    [trendData, t],
+  );
 
   // Zwijanie donuta do `top` wycinków plus „Inne" jest CICHĄ operacją panelu,
   // więc wycinki liczymy raz i tym samym zbiorem karmimy wykres oraz tabelę.
@@ -368,36 +346,28 @@ export function Ga4BiDashboard({
     return data;
   };
 
-  const donutOption = (data: DonutSlice[] | null): EChartsCoreOption => {
-    if (data === null) return { series: [] };
-    return {
-      tooltip: {
-        trigger: "item",
-        formatter: (raw: unknown) => {
-          const p = raw as { name: string; value: number; percent: number };
-          return `${p.name}: <b>${p.value}</b> (${p.percent.toFixed(1)}%)`;
-        },
-      },
-      legend: {
-        orient: "vertical",
-        right: 4,
-        top: "middle",
-        type: "scroll",
-        textStyle: { fontSize: 11 },
-      },
-      series: [
-        {
-          type: "pie",
-          radius: ["45%", "72%"],
-          center: ["38%", "50%"],
-          label: { show: false },
-          labelLine: { show: false },
-          itemStyle: { borderRadius: 4, borderWidth: 2, borderColor: "transparent" },
-          data,
-        },
-      ],
-    };
-  };
+  /**
+   * PIERŚCIEŃ ZE WSPÓLNEGO ŹRÓDŁA. Silnik rysuje przy nim TABELĘ KLUCZA
+   * (udział plus wartość bezwzględna w wierszu) zamiast legendy przy łuku -
+   * stara legenda „scroll" po prawej stronie koła wchodziła na pierścień przy
+   * tej szerokości karty i urywała nazwy źródeł po kilku znakach.
+   *
+   * `null` znaczy „raport nie ma metryki `sessions`": pusty pierścień jest
+   * wtedy uczciwszy niż koło policzone z przypadkowej metryki.
+   */
+  const donutConfig = (data: DonutSlice[] | null): ChartConfig =>
+    biChart({
+      kind: "donut",
+      categories: (data ?? []).map((d) => d.name),
+      // ZERO SERII przy `null`, a nie jedna pusta: silnik rysuje wtedy ramkę
+      // z komunikatem o braku danych, czyli mówi wprost to, co panel wie -
+      // tego pomiaru w raporcie nie ma.
+      series:
+        data === null
+          ? []
+          : [{ name: t("adminAnalytics.ga4.sessions"), values: data.map((d) => d.value) }],
+      sampleSize: data === null ? null : data.reduce((acc, d) => acc + d.value, 0),
+    });
 
   // Pięć osi radaru w skali 0-100. Wartości liczymy osobno od opcji, bo tabela
   // danych karty podaje DOKŁADNIE te liczby - inaczej alternatywa tekstowa
@@ -436,38 +406,30 @@ export function Ga4BiDashboard({
   // Dane, normalizacja i tabela zostają BEZ ZMIAN - to samo `radarValues`,
   // ta sama skala 0-100, ta sama alternatywa tekstowa. Zmienia się wyłącznie
   // forma, więc nie ma tu żadnej nowej liczby do sprawdzenia.
-  const engagementOption = useMemo<EChartsCoreOption>(() => {
-    // ECharts rysuje kategorie osi Y od dołu, więc sortowanie ROSNĄCO daje
-    // największą wartość na górze - czyli ranking czytany z góry na dół.
+  const engagementConfig = useMemo(() => {
+    // MALEJĄCO: silnik rysuje kategorie słupków poziomych od góry w kolejności
+    // tablicy, więc ranking czyta się z góry na dół. (ECharts układał oś Y od
+    // dołu i wymagał odwrotnego sortowania - stąd zmiana kierunku przy tej
+    // samej intencji.)
     const rows = RADAR_AXES.map((key, i) => ({ name: t(key), value: radarValues[i] })).sort(
-      (a, b) => a.value - b.value,
+      (a, b) => b.value - a.value,
     );
-    return {
-      // Wyzwalacz elementowy: pytamy o JEDEN słupek, nie o cały przekrój
-      // kategorii. Baza `trigger` nie narzuca, więc deklarujemy go wprost.
-      tooltip: { trigger: "item" },
-      grid: { left: 8, right: 32, top: 8, bottom: 8, containLabel: true },
-      xAxis: {
-        type: "value",
-        min: 0,
-        // Skala jest znormalizowana do 0-100 i MUSI mieć stały koniec:
-        // oś dociągnięta do maksimum danych zamieniałaby 40 punktów
-        // w "prawie pełny" słupek.
-        max: 100,
-      },
-      yAxis: { type: "category", data: rows.map((r) => r.name) },
+    return biChart({
+      kind: "bar-horizontal",
+      categories: rows.map((r) => r.name),
       series: [
         {
-          type: "bar",
-          barMaxWidth: 24,
-          // Zaokrąglony TYLKO koniec z danymi - baza słupka zostaje prosta.
-          itemStyle: { borderRadius: [0, 6, 6, 0] },
-          label: { show: true, position: "right", color: theme.muted, fontSize: 11 },
-          data: rows.map((r) => Math.round(r.value)),
+          name: t("adminAnalytics.ga4.charts.engagementTitle"),
+          values: rows.map((r) => Math.round(r.value)),
         },
       ],
-    };
-  }, [radarValues, t, theme]);
+      // Skala jest znormalizowana do 0-100, więc wartość NA SŁUPKU mówi
+      // wszystko, czego nie mówi długość: „40" przy osi dociągniętej do
+      // maksimum danych wyglądałoby jak słupek prawie pełny.
+      showValues: true,
+      unit: t("adminAnalytics.ga4.radar.unit"),
+    });
+  }, [radarValues, t]);
 
   // Rank stron MALEJĄCO i przycięty do 15 - jedno źródło dla osi wykresu,
   // drążenia i tabeli danych. Skracanie ścieżki do 40 znaków należy WYŁĄCZNIE
@@ -487,35 +449,27 @@ export function Ga4BiDashboard({
       }));
   }, [pageQ.data]);
 
-  const topPagesOption = useMemo<EChartsCoreOption>(() => {
-    // Oś kategorii ECharts rośnie w górę, więc najmocniejsza strona jest ostatnia.
-    const top = [...topPagesRows].reverse();
-    return {
-      grid: { left: 8, right: 20, top: 8, bottom: 24, containLabel: true },
-      tooltip: { trigger: "axis" },
-      xAxis: { type: "value" },
-      yAxis: {
-        type: "category",
-        data: top.map((r) => r.path.slice(0, 40)),
-        axisLabel: { fontSize: 11 },
-      },
-      series: [
-        {
-          type: "bar",
-          data: top.map((r) => r.views),
-          itemStyle: { borderRadius: [0, 4, 4, 0] },
-        },
-      ],
-    };
-  }, [topPagesRows]);
+  const topPagesConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar-horizontal",
+        // PEŁNE ADRESY, nie ucięte do 40 znaków: przycinanie należy do
+        // renderu etykiet osi, a nie do danych - ucięty adres wchodził
+        // dokładnie tak samo do tabeli danych i do eksportu, gdzie nie da
+        // się go już otworzyć.
+        categories: topPagesRows.map((r) => r.path),
+        series: [{ name: t("adminAnalytics.ga4.views"), values: topPagesRows.map((r) => r.views) }],
+        sampleSize: topPagesRows.reduce((acc, r) => acc + r.views, 0),
+      }),
+    [topPagesRows, t],
+  );
 
   // ---- Drill-down handlers ----
-  const trendClick = (p: ChartClickParams): ChartDrillDetail | null => {
+  const trendClick = (sel: ChartSelection): ChartDrillDetail | null => {
     const rows = (dateQ.data?.rows ?? [])
       .slice()
       .sort((a, b) => (a.dims[0] ?? "").localeCompare(b.dims[0] ?? ""));
-    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
-    const row = rows[idx];
+    const row = sel.categoryIndex === null ? undefined : rows[sel.categoryIndex];
     if (!row) return null;
     const raw = row.dims[0] ?? "";
     const date =
@@ -524,7 +478,10 @@ export function Ga4BiDashboard({
     const val = (m: CoreMetric): number => parseNumber(row.metrics[headers.indexOf(m)]);
     return {
       title: t("adminAnalytics.ga4.charts.trendTitle"),
-      subtitle: p.seriesName,
+      // Wskazanie bez serii (kliknięcie w kategorię przy trzech seriach) nie
+      // ma czego dopisać w podtytule - okno pokazuje wtedy wszystkie trzy
+      // liczby dnia, czyli dokładnie to, o co pytał czytelnik.
+      subtitle: sel.seriesName ?? undefined,
       date,
       metrics: [
         { label: t("adminAnalytics.ga4.sessions"), value: val("sessions").toLocaleString("pl-PL") },
@@ -546,11 +503,10 @@ export function Ga4BiDashboard({
 
   const donutClickFrom =
     (report: Ga4Report | undefined, dimLabel: string) =>
-    (p: ChartClickParams): ChartDrillDetail | null => {
-      if (typeof p.value !== "number" && typeof (p.data as { value?: unknown })?.value !== "number")
-        return null;
-      const name = p.name ?? "?";
-      const value = typeof p.value === "number" ? p.value : (p.data as { value: number }).value;
+    (sel: ChartSelection): ChartDrillDetail | null => {
+      if (sel.category === null || sel.value === null) return null;
+      const name = sel.category;
+      const value = sel.value;
       const total = (report?.rows ?? []).reduce(
         (acc, r) => acc + parseNumber(r.metrics[(report?.metricHeaders ?? []).indexOf("sessions")]),
         0,
@@ -566,10 +522,10 @@ export function Ga4BiDashboard({
       };
     };
 
-  const topPagesClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const top = [...topPagesRows].reverse();
-    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
-    const row = top[idx];
+  const topPagesClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    // BEZ ODWRACANIA: kategorie jadą do silnika w tej samej kolejności, w
+    // jakiej stoją w rankingu, więc indeks wskazania jest indeksem wiersza.
+    const row = sel.categoryIndex === null ? undefined : topPagesRows[sel.categoryIndex];
     if (!row) return null;
     const path = row.path;
     return {
@@ -686,6 +642,13 @@ export function Ga4BiDashboard({
   const sourceSlices = donutSlices(sourceQ.data);
   const countrySlices = donutSlices(countryQ.data);
   const deviceSlices = donutSlices(deviceQ.data, 5);
+  // KONFIGURACJE LICZONE RAZ NA ZESTAW WYCINKÓW. Silnik mierzy szerokość
+  // rysunku obserwatorem i zapisuje ją w stanie; konfiguracja budowana na
+  // nowo przy KAŻDYM renderze dawała mu za każdym razem nową tożsamość
+  // obiektu, więc pomiar i render goniły się nawzajem bez końca.
+  const sourceConfig = donutConfig(sourceSlices);
+  const countryConfig = donutConfig(countrySlices);
+  const deviceConfig = donutConfig(deviceSlices);
 
   // KAFELEK NIE MALUJE ZERA, DOPÓKI NIE MA POMIARU. „0 sesji" i „jeszcze nie
   // wiem" to dwie różne informacje, a zero jest tą groźniejszą: wygląda jak
@@ -783,7 +746,7 @@ export function Ga4BiDashboard({
         <ChartCard
           title={t("adminAnalytics.ga4.charts.trendTitle")}
           subtitle={t("adminAnalytics.ga4.charts.trendSubtitle")}
-          option={trendOption}
+          config={trendConfig}
           height={320}
           className="xl:col-span-2"
           csv={trendCsv}
@@ -792,9 +755,14 @@ export function Ga4BiDashboard({
         <ChartCard
           title={t("adminAnalytics.ga4.charts.engagementTitle")}
           subtitle={t("adminAnalytics.ga4.charts.engagementSubtitle")}
-          option={engagementOption}
+          config={engagementConfig}
           height={320}
           csv={engagementCsv}
+          // SKALA POWIEDZIANA WPROST. Silnik liczy koniec osi z danych, więc
+          // przy pięciu wskaźnikach rzędu 50-90 pkt najdłuższy słupek zawsze
+          // dojedzie do krawędzi - i bez tej linii czytelnik odczytałby go
+          // jako „maksimum", a nie jako 90 ze 100.
+          footer={t("adminAnalytics.ga4.charts.engagementFooter")}
         />
       </div>
 
@@ -802,7 +770,7 @@ export function Ga4BiDashboard({
         <ChartCard
           title={t("adminAnalytics.ga4.charts.sourcesTitle")}
           subtitle={t("adminAnalytics.ga4.charts.sourcesSubtitle")}
-          option={donutOption(sourceSlices)}
+          config={sourceConfig}
           height={280}
           csv={donutCsv(sourceSlices, "ga4-sources", t("adminAnalytics.ga4.charts.sourcesTitle"))}
           onDataClick={donutClickFrom(sourceQ.data, t("adminAnalytics.ga4.charts.sourcesTitle"))}
@@ -810,7 +778,7 @@ export function Ga4BiDashboard({
         <ChartCard
           title={t("adminAnalytics.ga4.charts.countriesTitle")}
           subtitle={t("adminAnalytics.ga4.charts.countriesSubtitle")}
-          option={donutOption(countrySlices)}
+          config={countryConfig}
           height={280}
           csv={donutCsv(
             countrySlices,
@@ -822,7 +790,7 @@ export function Ga4BiDashboard({
         <ChartCard
           title={t("adminAnalytics.ga4.charts.devicesTitle")}
           subtitle={t("adminAnalytics.ga4.charts.devicesSubtitle")}
-          option={donutOption(deviceSlices)}
+          config={deviceConfig}
           height={280}
           csv={donutCsv(deviceSlices, "ga4-devices", t("adminAnalytics.ga4.charts.devicesTitle"))}
           onDataClick={donutClickFrom(deviceQ.data, t("adminAnalytics.ga4.charts.devicesTitle"))}
@@ -832,7 +800,7 @@ export function Ga4BiDashboard({
       <ChartCard
         title={t("adminAnalytics.ga4.charts.topPagesTitle")}
         subtitle={t("adminAnalytics.ga4.charts.topPagesSubtitle")}
-        option={topPagesOption}
+        config={topPagesConfig}
         height={340}
         csv={topPagesCsv}
         onDataClick={topPagesClick}

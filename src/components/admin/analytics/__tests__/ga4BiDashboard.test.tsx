@@ -31,21 +31,22 @@
 //      warsztatu nie mają prawa pojawić się w panelu drugiego - także przez
 //      CACHE, bo `QueryClient` stoi w korzeniu aplikacji i przeżywa
 //      przelogowanie, więc klucz zapytania musi nieść warsztat.
-//   6. ALTERNATYWA TEKSTOWA. ECharts maluje do kanwy, która dla czytnika
-//      ekranu jest pustym prostokątem - test liczy, ile wykresów panelu
-//      faktycznie dostaje mechanizm tabeli danych, który `ChartCard` ma.
+//   6. ALTERNATYWA TEKSTOWA. Rysunek nigdy nie jest jedyną drogą do liczby:
+//      każdy wykres panelu ma mieć nazwę regionu z tytułu karty i tabelę tych
+//      samych danych, którą silnik rysuje przy każdym rodzaju.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
-// atrapą, która PRZECHWYTUJE `option` i znakuje swój węzeł indeksem. Dzięki
-// temu asercje o agregacji idą na strukturę danych oddaną konkretnej karcie,
-// a nie na piksele.
+// PANEL RYSUJE NASZYM SILNIKIEM, a ten plik go nie podmienia, tylko PODGLĄDA:
+// `Chart` jest opakowany szpiegiem, który zapisuje `config`, `onSelect` oraz
+// nazwę regionu, a potem woła PRAWDZIWY komponent. Asercje o agregacji idą
+// więc na konfigurację oddaną konkretnej karcie, a asercje o dostępności - na
+// to, co silnik z niej naprawdę narysował. Atrapa dowodziłaby tylko tego, że
+// panel woła funkcję.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, within, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Ga4Report, Ga4Row } from "@/lib/analytics/ga4.functions";
-import type { ChartClickParams } from "../ChartDrillDialog";
-
-type Opt = Record<string, unknown>;
+import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
+import type { ChartSelection } from "@/lib/charts/selection";
 type Lang = "pl" | "en";
 
 interface ReportInput {
@@ -59,7 +60,11 @@ interface ReportInput {
 const h = vi.hoisted(() => ({
   runReport: vi.fn(),
   tenantId: "warsztat-a",
-  charts: [] as Array<{ option: Record<string, unknown>; onDataClick?: (p: unknown) => void }>,
+  charts: [] as Array<{
+    config: ChartConfig;
+    onSelect?: (selection: ChartSelection) => void;
+    ariaLabel?: string;
+  }>,
 }));
 
 // `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
@@ -82,22 +87,26 @@ vi.mock("@/lib/tenant", () => ({
   useCurrentTenantId: () => h.tenantId,
 }));
 
-// Atrapa wykresu zapisuje `option` i ZNAKUJE swój węzeł indeksem zapisu. Bez
-// tego znacznika trzech donutów panelu nie da się od siebie odróżnić - mają
-// identyczny kształt opcji, a różnią się wyłącznie kartą, na której stoją.
-vi.mock("../EChart", () => ({
-  EChart: ({
-    option,
-    onDataClick,
-  }: {
-    option: Record<string, unknown>;
-    onDataClick?: (p: unknown) => void;
-  }) => {
-    const index = h.charts.length;
-    h.charts.push({ option, onDataClick });
-    return <div data-testid="echart" data-chart-index={index} />;
-  },
-}));
+// SZPIEG, NIE ATRAPA. Zapisujemy konfigurację, obsługę wskazania i nazwę
+// regionu, a potem oddajemy sterowanie prawdziwemu silnikowi - inaczej
+// zniknęłyby z dokumentu tabele danych i nazwy rysunków, czyli dokładnie to,
+// czego pilnuje sekcja o alternatywie tekstowej. Nazwa regionu jest przy
+// okazji jedynym pewnym ROZRÓŻNIKIEM trzech donutów panelu: mają identyczny
+// kształt konfiguracji i różnią się wyłącznie kartą, na której stoją.
+vi.mock("@/components/charts/Chart", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/charts/Chart")>();
+  return {
+    ...real,
+    Chart: (props: Parameters<typeof real.Chart>[0]) => {
+      h.charts.push({
+        config: props.config,
+        onSelect: props.onSelect,
+        ariaLabel: props.ariaLabel,
+      });
+      return real.Chart(props);
+    },
+  };
+});
 
 // `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
 // dowodu jest to, że napisy przychodzą ZE SŁOWNIKA. Język przestawia się przez
@@ -257,20 +266,19 @@ function respondWith(ds: Dataset): void {
 // Narzędzia
 // ---------------------------------------------------------------------------
 
-function rec(v: unknown): Opt {
-  return (v ?? {}) as Opt;
-}
-function seriesOf(o: Opt): Opt[] {
-  return Array.isArray(o.series) ? (o.series as Opt[]) : [];
-}
-function strList(v: unknown): string[] {
-  return Array.isArray(v) ? (v as unknown[]).map(String) : [];
+function seriesOf(o: ChartConfig): ChartSeries[] {
+  return o.series;
 }
 function numList(v: unknown): number[] {
   return Array.isArray(v) ? (v as unknown[]).map(Number) : [];
 }
-function slices(o: Opt): Array<{ name: string; value: number }> {
-  return (seriesOf(o)[0]?.data ?? []) as Array<{ name: string; value: number }>;
+/**
+ * Wycinki pierścienia jako pary nazwa-wartość. Silnik nie przyjmuje rekordów
+ * wycinków, tylko kategorie i serię - a to jest ta sama informacja zapisana
+ * rozdzielnie, więc test składa ją z powrotem i pyta o to samo co dawniej.
+ */
+function slices(o: ChartConfig): Array<{ name: string; value: number }> {
+  return o.categories.map((name, i) => ({ name, value: o.series[0]?.values[i] ?? 0 }));
 }
 
 const CHART_TITLE_KEYS = [
@@ -288,39 +296,50 @@ function regionName(lang: Lang, titleKey: string): string {
 }
 
 interface Captured {
-  option: Opt;
-  onDataClick?: (p: unknown) => void;
+  config: ChartConfig;
+  onSelect?: (selection: ChartSelection) => void;
+  ariaLabel?: string;
 }
 
 /**
- * Wykres KARTY o podanym tytule. Idziemy przez region ARIA, bo to jedyne
- * miejsce, w którym tytuł karty spotyka się z instancją wykresu - trzy donuty
- * mają identyczny kształt opcji i inaczej byłyby nierozróżnialne.
+ * Wykres KARTY o podanym tytule, rozpoznany po NAZWIE REGIONU. Trzy donuty
+ * panelu mają identyczny kształt konfiguracji i różnią się wyłącznie kartą, na
+ * której stoją - nazwa jest jedynym miejscem, w którym tytuł karty spotyka się
+ * z instancją wykresu. Bierzemy zapis OSTATNI, bo panel przerysowuje się przy
+ * każdej odpowiedzi zapytania.
  */
 function chartOf(titleKey: string, lang: Lang = "pl"): Captured {
-  const region = screen.getByRole("img", { name: regionName(lang, titleKey) });
-  const node = region.querySelector("[data-chart-index]");
-  if (!node) throw new Error(`test: karta „${titleKey}" nie wyrenderowała wykresu`);
-  const captured = h.charts[Number(node.getAttribute("data-chart-index"))];
-  if (!captured) throw new Error(`test: brak zapisu opcji dla „${titleKey}"`);
-  return captured;
+  const name = regionName(lang, titleKey);
+  for (let i = h.charts.length - 1; i >= 0; i -= 1) {
+    if (h.charts[i].ariaLabel === name) return h.charts[i];
+  }
+  throw new Error(`test: karta „${titleKey}" nie wyrenderowała wykresu`);
 }
 
-function optionOf(titleKey: string, lang: Lang = "pl"): Opt {
-  return chartOf(titleKey, lang).option;
+function configOf(titleKey: string, lang: Lang = "pl"): ChartConfig {
+  return chartOf(titleKey, lang).config;
 }
 
-/** Formater podpowiedzi, który panel oddaje donutowi. */
-function tooltipFormatter(o: Opt): (raw: unknown) => string {
-  const f = rec(o.tooltip).formatter;
-  if (typeof f !== "function") throw new Error("test: donut nie ma formatera podpowiedzi");
-  return f as (raw: unknown) => string;
+/** Tabela danych rysunku - alternatywa tekstowa, którą silnik rysuje zawsze. */
+function dataTableOf(titleKey: string, lang: Lang = "pl"): HTMLElement {
+  const region = screen.getByLabelText(regionName(lang, titleKey));
+  const el = region.closest("figure")?.querySelector<HTMLElement>("[data-chart-table] table");
+  if (!el) throw new Error(`test: karta „${titleKey}" nie ma tabeli danych`);
+  return el;
 }
 
-/** Symuluje kliknięcie w element wykresu - dokładnie tak, jak robi to ECharts. */
-async function clickChart(chart: Captured, params: ChartClickParams): Promise<void> {
+/** Symuluje WSKAZANIE elementu - tak, jak oddaje je silnik. */
+async function clickChart(chart: Captured, selection: Partial<ChartSelection>): Promise<void> {
   await act(async () => {
-    chart.onDataClick?.(params);
+    chart.onSelect?.({
+      kind: chart.config.kind,
+      categoryIndex: null,
+      category: null,
+      seriesIndex: null,
+      seriesName: null,
+      value: null,
+      ...selection,
+    });
   });
 }
 
@@ -382,13 +401,22 @@ function panel(
 }
 
 /** Czeka, aż wszystkie siedem raportów odpowie i zniknie wskaźnik ładowania. */
-async function loaded(): Promise<void> {
+async function loaded(lang: Lang = "pl"): Promise<void> {
   await waitFor(() => expect(h.runReport.mock.calls.length).toBeGreaterThanOrEqual(7));
   await waitFor(() => {
     expect(screen.queryByText(realT("pl")("adminAnalytics.common.loading"))).toBeNull();
     expect(screen.queryByText(realT("en")("adminAnalytics.common.loading"))).toBeNull();
   });
-  await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(6));
+  // SZEŚĆ WYKRESÓW PO NAZWACH REGIONÓW, a nie po liczbie elementów o roli
+  // obrazka ani po liczbie ram: wycinki pierścienia też mają rolę obrazka
+  // (każdy jest osobnym celem tabulacji z własną nazwą), a wykres BEZ DANYCH
+  // nie rysuje ramy, tylko komunikat - więc obie te liczby zależą od danych,
+  // a nie od tego, czy panel się już zbudował. Nazwa regionu jest niezależna
+  // od jednego i drugiego.
+  await waitFor(() => {
+    const nazwy = new Set(h.charts.map((c) => c.ariaLabel));
+    for (const key of CHART_TITLE_KEYS) expect(nazwy.has(regionName(lang, key))).toBe(true);
+  });
 }
 
 /** Otwiera listę Radiksa klawiaturą - zdarzenia wskaźnika nie działają w happy-dom. */
@@ -420,7 +448,7 @@ describe("Ga4BiDashboard - GA4 niepodłączone", () => {
         t("adminAnalytics.ga4.notConfiguredTab") +
         t("adminAnalytics.ga4.notConfiguredPost"),
     );
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(document.querySelectorAll("figure.neh-chart")).toHaveLength(0);
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 
@@ -496,7 +524,7 @@ describe("Ga4BiDashboard - błąd Data API", () => {
       ),
     ).toBeInTheDocument();
     // Komunikat ma WYPRZEĆ liczby: siatka zer obok błędu wygląda jak pomiar.
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(document.querySelectorAll("figure.neh-chart")).toHaveLength(0);
     expect(container.textContent).not.toContain(t("adminAnalytics.ga4.charts.trendTitle"));
   });
 
@@ -533,7 +561,7 @@ describe("Ga4BiDashboard - błąd Data API", () => {
       ),
     ).toBeInTheDocument();
     // Komunikat WYPIERA liczby: siatka zer obok błędu wygląda jak pomiar.
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(document.querySelectorAll("figure.neh-chart")).toHaveLength(0);
     expect(container.textContent ?? "").toMatch(/503/);
   });
 });
@@ -606,14 +634,14 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const o = optionOf("adminAnalytics.ga4.charts.trendTitle");
+    const o = configOf("adminAnalytics.ga4.charts.trendTitle");
     // Data API oddaje `20260803` - oś musi pokazać `2026-08-03`, a wiersze
     // muszą wejść rosnąco mimo odwrotnej kolejności w odpowiedzi.
-    expect(strList(rec(o.xAxis).data)).toEqual(["2026-08-01", "2026-08-02", "2026-08-03"]);
+    expect(o.categories).toEqual(["2026-08-01", "2026-08-02", "2026-08-03"]);
     const s = seriesOf(o);
-    expect(numList(s[0].data)).toEqual([10, 20, 30]);
-    expect(numList(s[1].data)).toEqual([8, 15, 22]);
-    expect(numList(s[2].data)).toEqual([30, 60, 90]);
+    expect(numList(s[0].values)).toEqual([10, 20, 30]);
+    expect(numList(s[1].values)).toEqual([8, 15, 22]);
+    expect(numList(s[2].values)).toEqual([30, 60, 90]);
   });
 
   it("trzy serie trendu nazywają się ze słownika i jadą po tej samej osi", async () => {
@@ -621,14 +649,14 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const s = seriesOf(optionOf("adminAnalytics.ga4.charts.trendTitle"));
+    const s = seriesOf(configOf("adminAnalytics.ga4.charts.trendTitle"));
     expect(s.map((x) => x.name)).toEqual([
       t("adminAnalytics.ga4.sessions"),
       t("adminAnalytics.ga4.activeUsers"),
       t("adminAnalytics.ga4.views"),
     ]);
     // Rozjazd choć jednej serii to wykres, który wygląda poprawnie i kłamie.
-    for (const one of s) expect(numList(one.data)).toHaveLength(3);
+    for (const one of s) expect(numList(one.values)).toHaveLength(3);
   });
 
   it("donut źródeł pokazuje osiem największych, a resztę zwija w „Inne”", async () => {
@@ -636,7 +664,7 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const data = slices(optionOf("adminAnalytics.ga4.charts.sourcesTitle"));
+    const data = slices(configOf("adminAnalytics.ga4.charts.sourcesTitle"));
     expect(data).toHaveLength(9);
     expect(data.slice(0, 8).map((d) => d.name)).toEqual([
       "google",
@@ -671,7 +699,7 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const data = slices(optionOf("adminAnalytics.ga4.charts.devicesTitle"));
+    const data = slices(configOf("adminAnalytics.ga4.charts.devicesTitle"));
     expect(data.map((d) => d.name)).toEqual([
       "desktop",
       "mobile",
@@ -688,7 +716,7 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const data = slices(optionOf("adminAnalytics.ga4.charts.countriesTitle"));
+    const data = slices(configOf("adminAnalytics.ga4.charts.countriesTitle"));
     expect(data.map((d) => d.name)).toEqual(["Poland", "Germany", "France", "Czechia"]);
     expect(data.map((d) => d.name)).not.toContain(t("adminAnalytics.ga4.other"));
   });
@@ -699,7 +727,7 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     await loaded();
 
     expect(
-      slices(optionOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.value),
+      slices(configOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.value),
     ).toEqual([200, 150, 100, 50]);
   });
 
@@ -711,16 +739,27 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    // Kontrakt: `{ series: [] }`, a nie wycinki policzone z przypadkowej metryki.
-    expect(optionOf("adminAnalytics.ga4.charts.countriesTitle")).toEqual({ series: [] });
+    // Kontrakt: ZERO SERII, a nie wycinki policzone z przypadkowej metryki.
+    // Silnik rysuje wtedy ramkę z komunikatem o braku danych - czyli mówi
+    // wprost to, co panel wie: tego pomiaru w raporcie nie ma.
+    const pusty = configOf("adminAnalytics.ga4.charts.countriesTitle");
+    expect(pusty.series).toEqual([]);
+    expect(pusty.categories).toEqual([]);
   });
 
-  it("podpowiedź donuta podaje nazwę, wartość i udział z jednym miejscem po przecinku", async () => {
+  it("pierścień podaje sumę obserwacji, z której silnik liczy udziały", async () => {
     panel();
     await loaded();
 
-    const format = tooltipFormatter(optionOf("adminAnalytics.ga4.charts.sourcesTitle"));
-    expect(format({ name: "google", value: 150, percent: 30 })).toBe("google: <b>150</b> (30.0%)");
+    // UDZIAŁ LICZY SILNIK, nie panel: własny formater dymka był drugą
+    // implementacją tej samej arytmetyki i mógł rozjechać się z tabelą klucza
+    // rysowaną obok. Panel oddaje więc surowe wartości i LICZBĘ OBSERWACJI do
+    // podpisu, a procenty powstają w jednym miejscu.
+    const o = configOf("adminAnalytics.ga4.charts.sourcesTitle");
+    expect(o.kind).toBe("donut");
+    // Osiem wycinków plus „Inne" - suma jest sumą CAŁEGO raportu (500).
+    expect(o.sampleSize).toBe(500);
+    expect(slices(o).find((d) => d.name === "google")?.value).toBe(150);
   });
 
   // RADAR WYSZEDŁ Z PANELU. Powierzchnia wielokąta zależy od arbitralnie
@@ -732,17 +771,19 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
   // Zamiennik: SŁUPKI POZIOME, POSORTOWANE (pozycja na wspólnej skali).
   // Dane, normalizacja i tabela danych zostały BEZ ZMIAN - dlatego te trzy
   // przypadki sprawdzają dokładnie te same liczby, tylko czytane z serii
-  // słupkowej i w kolejności ROSNĄCEJ (ECharts rysuje kategorie osi Y od
-  // dołu, więc największa wartość ląduje na górze).
+  // słupkowej i w kolejności MALEJĄCEJ: nasz silnik rysuje kategorie słupków
+  // poziomych od góry w kolejności tablicy, więc ranking czyta się z góry na
+  // dół. (ECharts układał oś Y od dołu i wymagał sortowania odwrotnego - ta
+  // sama intencja, inny kierunek.)
   it("słupki zaangażowania czytają raport i normalizują pięć wskaźników do 0-100", async () => {
     panel();
     await loaded();
 
-    const s = seriesOf(optionOf("adminAnalytics.ga4.charts.engagementTitle"));
-    const values = numList(s[0].data as number[]);
+    const s = seriesOf(configOf("adminAnalytics.ga4.charts.engagementTitle"));
+    const values = numList(s[0].values);
     // 0,9 -> 90; 150 s / 3 -> 50; 3 odsłony * 20 -> 60; retencja 100 - 25 -> 75;
-    // 2500 eventów / 50 -> 50. Posortowane rosnąco: 50, 50, 60, 75, 90.
-    expect(values).toEqual([50, 50, 60, 75, 90]);
+    // 2500 eventów / 50 -> 50. Posortowane malejąco: 90, 75, 60, 50, 50.
+    expect(values).toEqual([90, 75, 60, 50, 50]);
   });
 
   it("słupki zaangażowania przycinają skalę do 0-100 zamiast wyjść poza wykres", async () => {
@@ -753,16 +794,17 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const option = optionOf("adminAnalytics.ga4.charts.engagementTitle");
-    const s = seriesOf(option);
-    const values = numList(s[0].data as number[]);
+    const config = configOf("adminAnalytics.ga4.charts.engagementTitle");
+    const values = numList(seriesOf(config)[0].values);
     // Wartość 3000 wypchnęłaby słupek poza obszar, a ujemna retencja - w lewo
-    // za oś. Oś ma STAŁY koniec 100, bo skala jest znormalizowana: oś
-    // dociągnięta do maksimum danych zamieniałaby 40 punktów w "prawie pełny"
-    // słupek.
-    expect(values).toEqual([0, 100, 100, 100, 100]);
-    const xAxis = rec(option.xAxis);
-    expect([xAxis.min, xAxis.max]).toEqual([0, 100]);
+    // za oś. Przycięcie do 0-100 jest więc po stronie DANYCH i zostaje.
+    expect(values).toEqual([100, 100, 100, 100, 0]);
+    // SKALA NIE MA STAŁEGO KOŃCA, bo silnik liczy ją z danych - i dlatego
+    // liczba stoi NA SŁUPKU wraz z jednostką („pkt"). Bez niej 40 punktów przy
+    // osi dociągniętej do maksimum czytałoby się jak słupek prawie pełny;
+    // z nią czytelnik ma wartość wprost, a nie z długości.
+    expect(config.showValues).toBe(true);
+    expect(config.unit).toBe(realT("pl")("adminAnalytics.ga4.radar.unit"));
   });
 
   it("słupki zaangażowania bez raportu pokazują zera, nie NaN", async () => {
@@ -770,22 +812,26 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const s = seriesOf(optionOf("adminAnalytics.ga4.charts.engagementTitle"));
-    const values = numList(s[0].data as number[]);
-    expect(values).toEqual([0, 0, 0, 0, 100]);
+    const s = seriesOf(configOf("adminAnalytics.ga4.charts.engagementTitle"));
+    const values = numList(s[0].values);
+    expect(values).toEqual([100, 0, 0, 0, 0]);
     expect(values.some(Number.isNaN)).toBe(false);
   });
 
-  it("rank stron idzie rosnąco ku górze osi i skraca etykiety do 40 znaków", async () => {
+  it("rank stron idzie malejąco od góry i niesie PEŁNE adresy, nie ucięte etykiety", async () => {
     panel();
     await loaded();
 
-    const o = optionOf("adminAnalytics.ga4.charts.topPagesTitle");
+    const o = configOf("adminAnalytics.ga4.charts.topPagesTitle");
     expect(LONG_PATH.length).toBeGreaterThan(40);
-    // Oś kategorii ECharts rośnie w górę, więc najmocniejsza strona jest
-    // OSTATNIA - odwrotna kolejność dałaby rank do góry nogami.
-    expect(strList(rec(o.yAxis).data)).toEqual(["/kontakt", "/o-nas", LONG_PATH.slice(0, 40)]);
-    expect(numList(seriesOf(o)[0].data)).toEqual([10, 40, 120]);
+    // Najmocniejsza strona jest PIERWSZA: silnik rysuje kategorie od góry
+    // w kolejności tablicy, więc ranking czyta się z góry na dół.
+    expect(o.categories).toEqual([LONG_PATH, "/o-nas", "/kontakt"]);
+    expect(numList(seriesOf(o)[0].values)).toEqual([120, 40, 10]);
+    // ADRES W CAŁOŚCI, a nie ucięty do 40 znaków. Przycinanie należy do
+    // renderu etykiet osi; wpisane do danych szło tą samą drogą do tabeli
+    // danych i do eksportu, gdzie ucięty adres prowadzi na 404.
+    expect(o.categories[0]).toBe(LONG_PATH);
   });
 
   it("rank stron przycina się do 15 pozycji i zostawia te najmocniejsze", async () => {
@@ -799,10 +845,10 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const labels = strList(rec(optionOf("adminAnalytics.ga4.charts.topPagesTitle").yAxis).data);
+    const labels = configOf("adminAnalytics.ga4.charts.topPagesTitle").categories;
     expect(labels).toHaveLength(15);
-    expect(labels[14]).toBe("/strona-18");
-    expect(labels[0]).toBe("/strona-04");
+    expect(labels[0]).toBe("/strona-18");
+    expect(labels[14]).toBe("/strona-04");
     // Trzy najsłabsze wypadają - gdyby przycinał przed sortowaniem, wypadłyby
     // przypadkowe.
     expect(labels).not.toContain("/strona-03");
@@ -821,9 +867,9 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    const s = seriesOf(optionOf("adminAnalytics.ga4.charts.trendTitle"));
-    expect(numList(s[2].data)).toEqual([0, 60]);
-    expect(numList(s[2].data).some(Number.isNaN)).toBe(false);
+    const s = seriesOf(configOf("adminAnalytics.ga4.charts.trendTitle"));
+    expect(numList(s[2].values)).toEqual([0, 60]);
+    expect(numList(s[2].values).some(Number.isNaN)).toBe(false);
   });
 
   it("wymiar spoza formatu daty GA4 idzie na oś bez przekształcenia", async () => {
@@ -839,7 +885,7 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     panel();
     await loaded();
 
-    expect(strList(rec(optionOf("adminAnalytics.ga4.charts.trendTitle").xAxis).data)).toEqual([
+    expect(configOf("adminAnalytics.ga4.charts.trendTitle").categories).toEqual([
       "(other)",
       "2026-08-01",
     ]);
@@ -859,12 +905,10 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     // Pusty wymiar to realna odpowiedź Data API (np. ruch bez przypisanego
     // kraju). Wycinek bez nazwy zniknąłby z legendy, a suma donuta przestałaby
     // zgadzać się z kafelkiem.
-    expect(slices(optionOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.name)).toEqual(
+    expect(slices(configOf("adminAnalytics.ga4.charts.countriesTitle")).map((d) => d.name)).toEqual(
       ["?", "Germany"],
     );
-    expect(strList(rec(optionOf("adminAnalytics.ga4.charts.topPagesTitle").yAxis).data)).toEqual([
-      "/",
-    ]);
+    expect(configOf("adminAnalytics.ga4.charts.topPagesTitle").categories).toEqual(["/"]);
   });
 
   it("sekcja interpretacji dostaje okno i tryb, które panel faktycznie pokazuje", async () => {
@@ -908,11 +952,9 @@ describe("Ga4BiDashboard - zero ruchu a brak konfiguracji", () => {
     await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe("0"));
     // Puste serie, nie brak wykresu - inaczej układ karty skacze przy pierwszym
     // dniu z ruchem.
-    expect(strList(rec(optionOf("adminAnalytics.ga4.charts.trendTitle").xAxis).data)).toEqual([]);
-    expect(slices(optionOf("adminAnalytics.ga4.charts.sourcesTitle"))).toEqual([]);
-    expect(strList(rec(optionOf("adminAnalytics.ga4.charts.topPagesTitle").yAxis).data)).toEqual(
-      [],
-    );
+    expect(configOf("adminAnalytics.ga4.charts.trendTitle").categories).toEqual([]);
+    expect(slices(configOf("adminAnalytics.ga4.charts.sourcesTitle"))).toEqual([]);
+    expect(configOf("adminAnalytics.ga4.charts.topPagesTitle").categories).toEqual([]);
   });
 
   it("raport z `configured: false` mówi o braku dostępu, a nie o zerze ruchu", async () => {
@@ -934,7 +976,7 @@ describe("Ga4BiDashboard - zero ruchu a brak konfiguracji", () => {
       ),
     );
     // Komunikat WYPIERA wykresy - inaczej zera stałyby obok ostrzeżenia.
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(document.querySelectorAll("figure.neh-chart")).toHaveLength(0);
   });
 
   it("przy zerze ruchu panel mówi „brak danych w oknie”, a nie tylko rysuje zera", async () => {
@@ -958,7 +1000,7 @@ describe("Ga4BiDashboard - drill-down", () => {
     await loaded();
 
     await clickChart(chartOf("adminAnalytics.ga4.charts.trendTitle"), {
-      dataIndex: 1,
+      categoryIndex: 1,
       seriesName: t("adminAnalytics.ga4.sessions"),
     });
 
@@ -975,24 +1017,25 @@ describe("Ga4BiDashboard - drill-down", () => {
     panel();
     await loaded();
 
-    await clickChart(chartOf("adminAnalytics.ga4.charts.trendTitle"), { dataIndex: 99 });
+    await clickChart(chartOf("adminAnalytics.ga4.charts.trendTitle"), { categoryIndex: 99 });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("kliknięcie legendy - zdarzenie bez indeksu punktu - nie otwiera okna", async () => {
+  it("wskazanie BEZ kategorii - rozkład, który nie wskazuje wiersza - nie otwiera okna", async () => {
     panel();
     await loaded();
 
-    // ECharts woła ten sam handler dla legendy i osi. Bez bramki na brak
-    // `dataIndex` panel otwierałby okno z danymi PIERWSZEGO dnia okna przy
-    // każdym kliknięciu w cokolwiek na wykresie.
+    // Kontrakt wskazania dopuszcza `categoryIndex: null`: tak wygląda wskazanie
+    // na rodzajach, które nie mają czego wskazać (histogram, boxplot,
+    // beeswarm), i tak wygląda wyczyszczenie zaznaczenia. Bez bramki panel
+    // otwierałby okno z danymi PIERWSZEGO dnia okna.
     await clickChart(chartOf("adminAnalytics.ga4.charts.trendTitle"), {
-      componentType: "legend",
-      name: realT("pl")("adminAnalytics.ga4.sessions"),
+      categoryIndex: null,
+      seriesName: realT("pl")("adminAnalytics.ga4.sessions"),
     });
     await clickChart(chartOf("adminAnalytics.ga4.charts.topPagesTitle"), {
-      componentType: "legend",
+      categoryIndex: null,
     });
 
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -1002,7 +1045,7 @@ describe("Ga4BiDashboard - drill-down", () => {
     panel();
     await loaded();
 
-    await clickChart(chartOf("adminAnalytics.ga4.charts.topPagesTitle"), { dataIndex: 42 });
+    await clickChart(chartOf("adminAnalytics.ga4.charts.topPagesTitle"), { categoryIndex: 42 });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -1013,7 +1056,7 @@ describe("Ga4BiDashboard - drill-down", () => {
     await loaded();
 
     await clickChart(chartOf("adminAnalytics.ga4.charts.sourcesTitle"), {
-      name: "google",
+      category: "google",
       value: 150,
     });
 
@@ -1028,20 +1071,26 @@ describe("Ga4BiDashboard - drill-down", () => {
     ).toBeInTheDocument();
   });
 
-  it("wycinek niosący wartość w `data` (tak robi ECharts dla kołowego) też się otwiera", async () => {
+  it("wskazanie wycinka niesie NAZWĘ i WARTOŚĆ - jedno bez drugiego nie otwiera okna", async () => {
     panel();
     await loaded();
 
-    // ECharts dla serii `pie` przekazuje kliknięty rekord w `params.data`,
-    // a `params.value` bywa puste. Obsłużenie tylko `value` gasiłoby drążenie
-    // po cichu - kliknięcie po prostu nic by nie robiło.
+    // Silnik oddaje wskazanie tarczy zawsze w komplecie: kategoria plus
+    // wartość. Ładunek okrojony - a taki potrafi przyjść z czyszczenia
+    // zaznaczenia - musi zgasić drążenie, a nie otworzyć okno z tytułem
+    // „undefined" albo z udziałem policzonym z niczego.
     await clickChart(chartOf("adminAnalytics.ga4.charts.countriesTitle"), {
-      data: { name: "Germany", value: 150 },
+      category: "Germany",
+      value: null,
     });
+    expect(screen.queryByRole("dialog")).toBeNull();
 
+    await clickChart(chartOf("adminAnalytics.ga4.charts.countriesTitle"), {
+      category: "Germany",
+      value: 150,
+    });
     const dialog = await screen.findByRole("dialog");
-    // Bez `params.name` tytułem jest znak zastępczy, a nie „undefined".
-    expect(within(dialog).getByRole("heading", { name: "?" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Germany" })).toBeInTheDocument();
     expect(within(dialog).getByText("150")).toBeInTheDocument();
     // 150 z 500 sesji wszystkich krajów.
     expect(within(dialog).getByText("30.0%")).toBeInTheDocument();
@@ -1056,7 +1105,7 @@ describe("Ga4BiDashboard - drill-down", () => {
     await loaded();
 
     await clickChart(chartOf("adminAnalytics.ga4.charts.countriesTitle"), {
-      name: "Poland",
+      category: "Poland",
       value: 0,
     });
 
@@ -1065,11 +1114,11 @@ describe("Ga4BiDashboard - drill-down", () => {
     expect(dialog.textContent ?? "").not.toContain("NaN");
   });
 
-  it("kliknięcie w element donuta bez wartości liczbowej nie otwiera okna", async () => {
+  it("wskazanie pierścienia bez wartości liczbowej nie otwiera okna", async () => {
     panel();
     await loaded();
 
-    await clickChart(chartOf("adminAnalytics.ga4.charts.countriesTitle"), { name: "legenda" });
+    await clickChart(chartOf("adminAnalytics.ga4.charts.countriesTitle"), { category: "legenda" });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -1079,7 +1128,8 @@ describe("Ga4BiDashboard - drill-down", () => {
     panel();
     await loaded();
 
-    await clickChart(chartOf("adminAnalytics.ga4.charts.topPagesTitle"), { dataIndex: 2 });
+    // Indeks 0 to najmocniejsza strona - ranking jedzie do silnika malejąco.
+    await clickChart(chartOf("adminAnalytics.ga4.charts.topPagesTitle"), { categoryIndex: 0 });
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: LONG_PATH })).toBeInTheDocument();
@@ -1092,11 +1142,11 @@ describe("Ga4BiDashboard - drill-down", () => {
     expect(within(dialog).getByText("75.0%")).toBeInTheDocument();
   });
 
-  it("radar nie jest klikalny - nie ma w nim czego drążyć", async () => {
+  it("słupki zaangażowania nie są klikalne - nie ma w nich czego drążyć", async () => {
     panel();
     await loaded();
 
-    expect(chartOf("adminAnalytics.ga4.charts.engagementTitle").onDataClick).toBeUndefined();
+    expect(chartOf("adminAnalytics.ga4.charts.engagementTitle").onSelect).toBeUndefined();
   });
 });
 
@@ -1302,7 +1352,13 @@ describe("Ga4BiDashboard - izolacja warsztatów", () => {
     const before = h.runReport.mock.calls.length;
     h.tenantId = "warsztat-b";
     const second = panel({ client });
-    await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(6));
+    // DRUGI panel na tym samym kliencie: czekamy na jego własne sześć nazw
+    // regionów, a nie na liczbę elementów o roli obrazka - te liczą też
+    // wycinki pierścienia OBU paneli naraz.
+    await waitFor(() => {
+      const nazwy = h.charts.map((c) => c.ariaLabel);
+      for (const key of CHART_TITLE_KEYS) expect(nazwy).toContain(regionName("pl", key));
+    });
 
     // Siedem zapytań PONOWNIE: przy wspólnym kluczu panel B nie wysłałby ani
     // jednego i pokazałby ruch warsztatu A.
@@ -1317,9 +1373,15 @@ describe("Ga4BiDashboard - dostępność", () => {
     panel();
     await loaded();
 
-    expect(screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"))).toEqual(
-      CHART_TITLE_KEYS.map((k) => regionName("pl", k)),
+    // NAZWA KAŻDEJ KARTY, a nie LICZBA elementów o roli obrazka: wycinki
+    // pierścienia też ją mają (każdy jest osobnym celem tabulacji z własną
+    // nazwą), więc suma zależy od liczby kategorii w danych. Tarcza dostaje
+    // przy tym rolę „group", bo jej wycinki są fokusowalne - stąd oba zbiory.
+    const nazwy = [...screen.getAllByRole("img"), ...screen.getAllByRole("group")].map(
+      (el) => el.getAttribute("aria-label") ?? "",
     );
+    for (const key of CHART_TITLE_KEYS) expect(nazwy).toContain(regionName("pl", key));
+    expect(nazwy.filter((n) => n.trim() === "")).toEqual([]);
   });
 
   it("karta niepodłączonej integracji jest wolna od naruszeń axe", async () => {
@@ -1340,20 +1402,24 @@ describe("Ga4BiDashboard - dostępność", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it("każdy z sześciu wykresów ma alternatywę tekstową powiązaną z regionem", async () => {
-    // PILNUJE DOSTĘPU DO DANYCH BEZ WZROKU. ECharts maluje do kanwy, która dla
-    // czytnika ekranu jest pustym prostokątem, więc sam `role="img"` z tytułem
-    // mówi tylko „tu jest wykres X". `ChartCard` buduje tabelę tych samych
-    // danych, gdy dostanie `csv`, i wiąże ją z regionem przez
-    // `aria-describedby` - liczymy regiony BEZ tego powiązania, bo każdy taki
-    // region to jeden wykres, którego treści nie da się przeczytać.
+  it("każdy z sześciu wykresów ma tabelę danych i podpowiedź obsługi", async () => {
+    // PILNUJE DOSTĘPU DO DANYCH BEZ WZROKU. Sam `role="img"` z tytułem mówi
+    // tylko „tu jest wykres X" - treść niesie tabela tych samych liczb, którą
+    // silnik rysuje przy KAŻDYM rodzaju, oraz opis obsługi klawiatury wiszący
+    // na regionie przez `aria-describedby`. Asercja idzie na OBA końce tego
+    // powiązania: wskazany identyfikator musi istnieć w dokumencie, bo sam
+    // atrybut bez elementu jest gorszy niż jego brak - czytnik obiecuje opis
+    // i milknie.
     panel();
     await loaded();
 
-    const withoutText = screen
-      .getAllByRole("img")
-      .filter((el) => !el.getAttribute("aria-describedby"));
-    expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
+    for (const key of CHART_TITLE_KEYS) {
+      const region = screen.getByLabelText(regionName("pl", key));
+      const id = region.getAttribute("aria-describedby") ?? "";
+      expect(document.getElementById(id), `wiszące aria-describedby: ${key}`).not.toBeNull();
+      const wiersze = dataTableOf(key).querySelectorAll("tbody tr");
+      expect(wiersze.length, `pusta tabela danych: ${key}`).toBeGreaterThan(0);
+    }
   });
 
   it("pole wyboru okna i przyciski kart mają dostępne nazwy, nie same ikony", async () => {
@@ -1394,9 +1460,10 @@ describe("Ga4BiDashboard - dwujęzyczność", () => {
     expect(
       screen.getByRole("button", { name: t("adminAnalytics.common.refresh") }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"))).toEqual(
-      CHART_TITLE_KEYS.map((k) => regionName("pl", k)),
+    const nazwy = [...screen.getAllByRole("img"), ...screen.getAllByRole("group")].map((el) =>
+      el.getAttribute("aria-label"),
     );
+    for (const key of CHART_TITLE_KEYS) expect(nazwy).toContain(regionName("pl", key));
   });
 
   it("ten sam panel po EN mówi po angielsku, bez ani jednego polskiego tytułu", async () => {
@@ -1404,11 +1471,15 @@ describe("Ga4BiDashboard - dwujęzyczność", () => {
     const en = realT("en");
     const pl = realT("pl");
     const { container } = panel();
-    await loaded();
+    await loaded("en");
 
-    expect(screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"))).toEqual(
-      CHART_TITLE_KEYS.map((k) => regionName("en", k)),
+    // REGIONY PO ROLI „img" I „group": silnik daje rysunkom kartezjańskim
+    // pierwszą, a tarczy drugą - jej wycinki są fokusowalne, więc rola obrazka
+    // uczyniłaby je prezentacyjnymi dla czytnika ekranu.
+    const nazwy = [...screen.getAllByRole("img"), ...screen.getAllByRole("group")].map((el) =>
+      el.getAttribute("aria-label"),
     );
+    for (const key of CHART_TITLE_KEYS) expect(nazwy).toContain(regionName("en", key));
     for (const key of CHART_TITLE_KEYS) {
       // Brak klucza EN oznaczałby cichy fallback na polski tytuł - a to wygląda
       // jak działający panel, więc nikt tego nie zgłosi.
@@ -1425,19 +1496,22 @@ describe("Ga4BiDashboard - dwujęzyczność", () => {
     await i18n.changeLanguage("en");
     const en = realT("en");
     panel();
-    await loaded();
+    await loaded("en");
 
-    const trend = optionOf("adminAnalytics.ga4.charts.trendTitle", "en");
-    expect(strList(rec(trend.legend).data)).toEqual([
+    // LEGENDĘ RYSUJE SILNIK Z NAZW SERII, więc dwujęzyczność sprawdza się na
+    // nich - osobnej listy `legend.data` po prostu nie ma i nie ma jak jej
+    // rozjechać z seriami.
+    const trend = configOf("adminAnalytics.ga4.charts.trendTitle", "en");
+    expect(seriesOf(trend).map((one) => one.name)).toEqual([
       en("adminAnalytics.ga4.sessions"),
       en("adminAnalytics.ga4.activeUsers"),
       en("adminAnalytics.ga4.views"),
     ]);
-    // Nazwy wskaźników są teraz kategoriami osi Y słupków, a nie nazwami osi
-    // radaru - te same klucze słownika, inna sekcja opcji. Kolejność jest
+    // Nazwy wskaźników są teraz kategoriami słupków, a nie nazwami osi radaru -
+    // te same klucze słownika, inne miejsce konfiguracji. Kolejność jest
     // POSORTOWANA po wartości, więc czytamy ją jako zbiór, nie jako listę.
-    const engagement = optionOf("adminAnalytics.ga4.charts.engagementTitle", "en");
-    const categories = strList(rec(engagement.yAxis).data);
+    const engagement = configOf("adminAnalytics.ga4.charts.engagementTitle", "en");
+    const categories = engagement.categories;
     expect([...categories].sort()).toEqual(
       [
         en("adminAnalytics.ga4.radar.engagement"),
@@ -1447,16 +1521,16 @@ describe("Ga4BiDashboard - dwujęzyczność", () => {
         en("adminAnalytics.ga4.radar.events"),
       ].sort(),
     );
-    expect(seriesOf(engagement)[0].data).toEqual([50, 50, 60, 75, 90]);
+    expect(seriesOf(engagement)[0].values).toEqual([90, 75, 60, 50, 50]);
   });
 
   it("wycinek „Inne” w donucie jest tłumaczony, a nie zaszyty po polsku", async () => {
     await i18n.changeLanguage("en");
     const en = realT("en");
     panel();
-    await loaded();
+    await loaded("en");
 
-    const data = slices(optionOf("adminAnalytics.ga4.charts.sourcesTitle", "en"));
+    const data = slices(configOf("adminAnalytics.ga4.charts.sourcesTitle", "en"));
     expect(data[8]).toEqual({ name: en("adminAnalytics.ga4.other"), value: 10 });
     expect(data[8].name).not.toBe(realT("pl")("adminAnalytics.ga4.other"));
   });
