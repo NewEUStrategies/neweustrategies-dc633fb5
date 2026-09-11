@@ -1,39 +1,25 @@
-// Dostępność kart wykresów BI: kanwa ECharts jest dla czytnika ekranu pusta,
-// więc region musi mieć nazwę, a dane - tekstową alternatywę.
+// Dostępność kart wykresów BI - co należy do KARTY, a co do silnika.
 //
-// Do 12.08 karta renderowała kanwę bez ani jednego atrybutu dostępności: cały
-// pulpit /admin/analytics był dla osoby niewidzącej zbiorem nieopisanych
-// prostokątów, mimo że dane do tabeli i tak jechały obok wykresu na potrzeby
-// eksportu CSV.
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-
-// EChart montuje prawdziwą instancję ECharts (kanwa + ResizeObserver) - w teście
-// zastępujemy go znacznikiem, bo przedmiotem testu jest OTOCZKA dostępności,
-// nie renderer wykresu.
-vi.mock("../EChart", () => ({
-  EChart: () => <div data-testid="echart-canvas" />,
-}));
-
-// Podmieniamy WYŁĄCZNIE `useTranslation`, resztę modułu zostawiamy prawdziwą:
-// `src/lib/i18n.ts` woła `i18n.use(initReactI18next)` przy ewaluacji, a słownik
-// analityki jest importowany przez ChartDataTable - pełny mock wywracał init.
-vi.mock("react-i18next", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("react-i18next")>()),
-  useTranslation: () => ({
-    t: (key: string, opts?: Record<string, unknown>) => {
-      if (key === "adminAnalytics.chartCard.chartRegion") return `Chart: ${String(opts?.title)}`;
-      if (key === "adminAnalytics.chartCard.dataTable") return "Chart data (table)";
-      if (key === "adminAnalytics.chartCard.dataTableHint") return "Same content as the chart.";
-      return key;
-    },
-  }),
-}));
-
-import type { ChartCardProps } from "../ChartCard";
-
-// Dynamiczny import PO `vi.mock`, żeby karta zobaczyła podmieniony `useTranslation`.
-const { ChartCard } = await import("../ChartCard");
+// CO SIĘ ZMIENIŁO. Karta rysowała wcześniej kanwę ECharts, czyli dla czytnika
+// ekranu pusty prostokąt, i sama dokładała wokół niej całą obudowę
+// dostępności: rolę „obrazek", nazwę z tytułu oraz tabelę danych zbudowaną
+// z `csv` i powiązaną przez `aria-describedby`. Ta obudowa była konieczna,
+// dopóki rysunek nie umiał o sobie nic powiedzieć.
+//
+// Dziś rysuje nasz silnik, a ten oddaje region z własną nazwą, opis obsługi
+// klawiatury i tabelę danych przy KAŻDYM rodzaju - bez pytania wywołującego
+// o zgodę i bez możliwości pominięcia. Karta przestała więc być dostawcą
+// alternatywy tekstowej i jest dostawcą JEDNEJ RZECZY: nazwy rysunku
+// zbudowanej z tytułu karty. Ten plik pilnuje dokładnie tej granicy, bo obie
+// jej strony da się złamać po cichu: karta może przestać podawać nazwę
+// (wszystkie wykresy pulpitu nazwą się wtedy „Wykres"), albo zacząć rysować
+// DRUGĄ tabelę i drugą rolę obrazka - czyli ogłaszać ten sam wykres dwa razy.
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { realT } from "@/test/i18nReal";
+import "@/lib/i18n-admin-analytics";
+import { ChartCard, type ChartCardProps } from "../ChartCard";
+import { biChart } from "../biChart";
 
 const CSV: NonNullable<ChartCardProps["csv"]> = {
   filename: "views.csv",
@@ -44,69 +30,109 @@ const CSV: NonNullable<ChartCardProps["csv"]> = {
   ],
 };
 
+const KONFIGURACJA = biChart({
+  kind: "line",
+  categories: ["2026-08-01", "2026-08-02"],
+  series: [{ name: "Odsłony", values: [1200, 1580] }],
+});
+
+const t = realT("pl");
+
+/** Nazwa regionu, którą karta buduje z tytułu. */
+function nazwa(tytul: string): string {
+  return t("adminAnalytics.chartCard.chartRegion", { title: tytul });
+}
+
 describe("ChartCard - dostępność", () => {
-  it("opisuje region wykresu nazwą zbudowaną z tytułu", () => {
-    render(<ChartCard title="Odslony wpisow" option={{}} />);
+  it("opisuje region wykresu nazwą zbudowaną z tytułu karty", () => {
+    render(<ChartCard title="Odsłony wpisów" config={KONFIGURACJA} />);
 
-    expect(screen.getByRole("img", { name: "Chart: Odslony wpisow" })).toBeTruthy();
+    // NAZWA Z KARTY, nie z konfiguracji: konfiguracja ma tytuł PUSTY, żeby
+    // nagłówek nie stał nad rysunkiem dwa razy. Bez tej właściwości wszystkie
+    // wykresy pulpitu nazywałyby się „Wykres", czyli czytnik ekranu ogłaszałby
+    // dziesięć nierozróżnialnych obrazków.
+    expect(screen.getByLabelText(nazwa("Odsłony wpisów"))).toBeTruthy();
   });
 
-  it("udostępnia dane jako tabelę z nagłówkami kolumn i wierszami", () => {
-    render(<ChartCard title="Odslony wpisow" option={{}} csv={CSV} />);
+  it("nie owija rysunku DRUGĄ rolą obrazka", () => {
+    const { container } = render(<ChartCard title="Odsłony wpisów" config={KONFIGURACJA} />);
 
-    const table = screen.getByRole("table");
-    expect(table).toBeTruthy();
-    // Nagłówki muszą być `<th scope="col">`, inaczej czytnik nie zwiąże komórki
-    // z kolumną przy nawigacji po tabeli.
-    const columnHeaders = screen.getAllByRole("columnheader");
-    expect(columnHeaders.map((h) => h.textContent)).toEqual(["Dzien", "Odslony"]);
-    expect(screen.getByText("2026-08-02")).toBeTruthy();
-    expect(screen.getByText("1,580")).toBeTruthy();
+    // Rysunek silnika sam nosi rolę i nazwę. Karta stawiała ją dodatkowo na
+    // swoim kontenerze (kanwa ECharts nie miała żadnej), a dwie role „obrazek"
+    // jedna w drugiej to ten sam wykres ogłoszony dwa razy.
+    expect(container.querySelectorAll('[role="img"]')).toHaveLength(1);
   });
 
-  it("wiąże region wykresu z tabelą przez aria-describedby", () => {
-    render(<ChartCard title="Odslony wpisow" option={{}} csv={CSV} />);
+  it("tabelę danych rysuje SILNIK - jedna na kartę, nie dwie", () => {
+    render(<ChartCard title="Odsłony wpisów" config={KONFIGURACJA} csv={CSV} />);
 
-    const region = screen.getByRole("img", { name: "Chart: Odslony wpisow" });
-    const describedBy = region.getAttribute("aria-describedby");
-    expect(describedBy).toBeTruthy();
-    expect(document.getElementById(describedBy ?? "")).toBeTruthy();
+    // `csv` zostaje WYŁĄCZNIE źródłem eksportu. Karta budowała z niego własną
+    // tabelę; obok tabeli silnika byłyby to te same liczby dwa razy, a przy
+    // rozjeździe - dwie odpowiedzi na to samo pytanie.
+    // Szukamy po DOM, a nie po roli: tabela siedzi w panelu zwiniętym
+    // (`hidden`), więc do drzewa dostępności wchodzi dopiero po rozwinięciu -
+    // i to jest właściwe zachowanie, bo osiem tabel rozwiniętych naraz
+    // zasypałoby pulpit.
+    const tabele = document.querySelectorAll("table");
+    expect(tabele).toHaveLength(1);
+    const naglowki = [...tabele[0].querySelectorAll("thead th")].map((th) => th.textContent);
+    expect(naglowki).toEqual([t("charts.frame.category"), "Odsłony"]);
+    expect(within(tabele[0] as HTMLElement).getByText("2026-08-02")).toBeTruthy();
   });
 
-  it("bez danych nie zmyśla tabeli, ale region nadal ma nazwę", () => {
-    render(<ChartCard title="Bez danych" option={{}} />);
+  it("region niesie opis obsługi, a wskazany identyfikator istnieje", () => {
+    render(<ChartCard title="Odsłony wpisów" config={KONFIGURACJA} />);
 
-    expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.getByRole("img", { name: "Chart: Bez danych" })).toBeTruthy();
+    // Sam atrybut bez elementu jest gorszy niż jego brak: czytnik obiecuje
+    // opis i milknie.
+    const region = screen.getByLabelText(nazwa("Odsłony wpisów"));
+    const opis = region.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(opis)).toBeTruthy();
   });
 
-  it.each([
-    ["puste wiersze", { filename: "e.csv", headers: ["Dzien"], rows: [] }],
-    ["puste naglowki", { filename: "e.csv", headers: [], rows: [["x"]] }],
-  ])("nie zostawia wiszącego aria-describedby przy %s", (_label, csv) => {
-    // Zgłoszone w recenzji PR #220: `csv` może ISTNIEĆ i być pusty - pulpit
-    // w trakcie ładowania albo raport, który legalnie nie ma wyników. Tabela
-    // się wtedy nie renderuje, więc atrybut wskazywałby element, którego nie ma:
-    // czytnik obiecuje opis i go nie dostarcza.
-    render(<ChartCard title="Puste" option={{}} csv={csv as NonNullable<ChartCardProps["csv"]>} />);
+  it("konfiguracja bez danych nie zmyśla rysunku ani tabeli", () => {
+    render(
+      <ChartCard
+        title="Bez danych"
+        config={biChart({ kind: "line", categories: [], series: [] })}
+      />,
+    );
 
-    expect(screen.queryByRole("table")).toBeNull();
-    const region = screen.getByRole("img", { name: "Chart: Puste" });
-    expect(region.getAttribute("aria-describedby")).toBeNull();
+    // Silnik pokazuje wtedy komunikat zamiast pustych osi - pusty układ
+    // współrzędnych wygląda jak pomiar równy zeru.
+    expect(document.querySelector("table")).toBeNull();
+    expect(screen.getByText(t("charts.frame.empty"))).toBeTruthy();
+    // Nagłówek karty zostaje: to on mówi, CZEGO brakuje.
+    expect(screen.getByText("Bez danych")).toBeTruthy();
   });
 
-  it("dwie karty na jednej stronie mają RÓŻNE id tabel", () => {
-    // slug(title) dawałby ten sam id dla dwóch kart o tym samym tytule w różnych
-    // sekcjach pulpitu, a zduplikowany id rozjeżdża aria-describedby.
+  it("dwie karty o tym samym tytule mają ROZŁĄCZNE panele tabel", () => {
+    // Identyfikatory z `slug(title)` dawałyby ten sam `id` dwóm kartom o tym
+    // samym tytule w różnych sekcjach pulpitu, a zduplikowany identyfikator
+    // rozjeżdża `aria-controls` przełącznika tabeli: jeden przycisk
+    // rozwijałby cudzą tabelę.
     render(
       <>
-        <ChartCard title="Ten sam tytul" option={{}} csv={CSV} />
-        <ChartCard title="Ten sam tytul" option={{}} csv={CSV} />
+        <ChartCard title="Ten sam tytuł" config={KONFIGURACJA} csv={CSV} />
+        <ChartCard title="Ten sam tytuł" config={KONFIGURACJA} csv={CSV} />
       </>,
     );
 
-    const ids = screen.getAllByRole("img").map((region) => region.getAttribute("aria-describedby"));
-    expect(ids[0]).not.toBe(ids[1]);
-    expect(new Set(ids).size).toBe(ids.length);
+    const przelaczniki = document.querySelectorAll("[data-chart-table-toggle]");
+    expect(przelaczniki).toHaveLength(2);
+    const idki = [...przelaczniki].map((b) => b.getAttribute("aria-controls"));
+    expect(new Set(idki).size).toBe(2);
+    for (const id of idki) expect(document.getElementById(id ?? "")).toBeTruthy();
+  });
+
+  it("wyzwalacz menu eksportu i przełącznik pełnego ekranu mają nazwy, nie same ikony", () => {
+    render(<ChartCard title="Odsłony wpisów" config={KONFIGURACJA} csv={CSV} />);
+
+    expect(
+      screen.getByRole("button", { name: t("adminAnalytics.chartCard.exportMenu") }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: t("adminAnalytics.chartCard.fullscreen") }),
+    ).toBeTruthy();
   });
 });

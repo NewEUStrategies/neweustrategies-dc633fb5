@@ -150,6 +150,11 @@ export async function exportPng(filename: string, container: HTMLElement | null)
   const plyta = getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
   const blob = await svgDoPng(svg as SVGSVGElement, {
     background: plyta === "" ? "#ffffff" : plyta,
+    // PODWÓJNA GĘSTOŚĆ WPROST, choć taka jest też domyślna: eksport z panelu
+    // ląduje w prezentacji i w raporcie dla zarządu, gdzie rozmyty wykres jest
+    // jedynym, co widać. Domyślna wartość może się kiedyś zmienić dla innego
+    // wywołującego; ta karta ma swój powód i mówi go tutaj.
+    scale: 2,
   });
   triggerDownload(filename.endsWith(".png") ? filename : `${filename}.png`, blob);
 }

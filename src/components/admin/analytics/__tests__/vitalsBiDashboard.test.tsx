@@ -295,9 +295,7 @@ function drillTone(index: number): string {
  * dokładnie ten wykres, który ma najbogatszą obsługę klawiatury.
  */
 function chartRegion(title: string): HTMLElement {
-  return screen.getByLabelText(
-    realT("pl")("adminAnalytics.chartCard.chartRegion", { title }),
-  );
+  return screen.getByLabelText(realT("pl")("adminAnalytics.chartCard.chartRegion", { title }));
 }
 
 /**
