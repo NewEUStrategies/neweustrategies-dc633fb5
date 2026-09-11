@@ -1085,7 +1085,9 @@ export function ScatterChart({
           {/* WARSTWA TRAFIEŃ - jedna na całe pole, NAD grafiką,
               `fill: transparent`. Adres liczy `nearestPointInCloud`, bo punkty
               nie stoją w pasmach: sama współrzędna pozioma nie wskazuje żadnej
-              obserwacji. */}
+              obserwacji. Ta jedna warstwa jest celowa: osobne, nakładające się
+              cele wokół punktów oddawały zdarzenie elementowi narysowanemu
+              później, nie punktowi rzeczywiście najbliższemu kursorowi. */}
           <rect
             className="neh-hit"
             data-role="hits"
@@ -1109,35 +1111,6 @@ export function ScatterChart({
             }}
           />
 
-          {/* Każdy marker ma również własny, przezroczysty cel 48 x 48 px.
-              Wspólna warstwa nadal obsługuje płynne śledzenie kursora, ale
-              bez tych celów kliknięcie w małą kropkę wymagało precyzji kilku
-              pikseli i sprawiało wrażenie, że wykres nie jest interaktywny.
-              Cele są rysowane nad warstwą wspólną, więc klik i dotyk zawsze
-              wybierają dokładnie widoczny punkt. */}
-          {markers.map((m) => (
-            <circle
-              key={`hit-${m.i}`}
-              cx={m.cx}
-              cy={m.cy}
-              r={HIT_RADIUS_PX}
-              fill="transparent"
-              className="cursor-pointer"
-              data-role="point-hit"
-              data-point-index={m.i}
-              aria-hidden="true"
-              onPointerEnter={() => setActive(m.i)}
-              onPointerMove={() => setActive(m.i)}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                setActive(m.i);
-                wskazPunkt(m.i);
-              }}
-              onPointerLeave={(e) => {
-                if (e.pointerType !== "touch") setActive(null);
-              }}
-            />
-          ))}
         </svg>
 
         <ChartTooltip

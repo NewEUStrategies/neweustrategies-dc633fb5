@@ -473,18 +473,25 @@ describe("ScatterChart - dwie osie, dwa własne zakresy", () => {
 });
 
 describe("ScatterChart - strefa trafienia ma PRÓG", () => {
-  it("każdy widoczny punkt ma własny cel kliknięcia 48 × 48 px", () => {
+  it("wspólna warstwa wskazuje dokładnie najbliższy punkt i uruchamia wybór", () => {
     const onSelect = vi.fn();
     const { container } = render(
       <ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE))} lang="pl" onSelect={onSelect} />,
     );
-    const cele = all(container, "circle[data-role='point-hit']");
-    expect(cele).toHaveLength(punkty(container).length);
-    expect(cele.every((cel) => num(cel, "r") === HIT_RADIUS_PX)).toBe(true);
-
-    fireEvent.pointerEnter(cele[3], { pointerType: "mouse" });
+    const { hit } = warstwa(container);
+    const punkt = punkty(container)[3];
+    fireEvent.pointerMove(hit, {
+      clientX: num(punkt, "cx"),
+      clientY: num(punkt, "cy"),
+      pointerType: "mouse",
+    });
     expect(container.querySelector(".neh-tooltip")).not.toBeNull();
-    fireEvent.pointerDown(cele[3], { pointerType: "mouse" });
+    expect(dymek(container)).toContain("obs-4");
+    fireEvent.pointerDown(hit, {
+      clientX: num(punkt, "cx"),
+      clientY: num(punkt, "cy"),
+      pointerType: "mouse",
+    });
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect.mock.calls[0]?.[0].category).toBe("obs-4");
   });
