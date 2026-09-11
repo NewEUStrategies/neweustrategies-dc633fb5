@@ -7,7 +7,7 @@
 // wskazywać dokładnie te znaczniki, które rysunek naprawdę narysował, a tabela
 // musi liczyć udziały z tego samego mianownika, którym rysunek liczy kąty.
 // Trzymanie obu w rysunku rozjeżdżało grafikę z jej alternatywą tekstową.
-import { useCallback, useMemo, type ReactElement } from "react";
+import { Fragment, useCallback, useMemo, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartKind } from "@/lib/charts/types";
 import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
@@ -44,6 +44,43 @@ import {
   tornadoTable,
   type TornadoRowNote,
 } from "@/lib/charts/kinds/tornado";
+import {
+  FAN_COLUMNS,
+  fanModelFromConfig,
+  fanTable,
+  type FanBandSource,
+  type FanCentralSource,
+  type FanColumnKey,
+  type FanRowNote,
+} from "@/lib/charts/kinds/fanChart";
+import {
+  INDEX_BASE_COLUMNS,
+  indexBaseModelFromConfig,
+  indexBaseTable,
+  type IndexBaseColumnKey,
+  type IndexBaseRejection,
+  type IndexBaseSeriesNote,
+  type IndexBaseSource,
+} from "@/lib/charts/kinds/indexBase";
+import {
+  PERCENT_STACKED_COLUMNS,
+  percentStackedModelFromConfig,
+  percentStackedTable,
+  type PercentStackedCellNote,
+  type PercentStackedColumnKey,
+  type PercentStackedRowNote,
+  type PercentStackedTableCell,
+  type PercentStackedTableRow,
+} from "@/lib/charts/kinds/percentStacked";
+import {
+  SMALL_MULTIPLES_SUMMARY_COLUMNS,
+  smallMultiplesModelFromConfig,
+  smallMultiplesTable,
+  type SmallMultiplesOrder,
+  type SmallMultiplesScaleMode,
+  type SmallMultiplesSummaryColumn,
+  type SmallMultiplesTableRow,
+} from "@/lib/charts/kinds/smallMultiples";
 
 /**
  * Przypis wiersza tornada -> klucz słownika, JAWNIE. Wcześniej klucz powstawał
@@ -1028,5 +1065,739 @@ function PieDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }
         ))}
       </tbody>
     </table>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * ALTERNATYWY TEKSTOWE CZTERECH RODZAJÓW BEZ RYSUNKU                  *
+ *                                                                     *
+ * Cztery tabele niżej są EKSPORTOWANE, choć nie stoi przy nich jeszcze *
+ * ani jeden wpis w `CHART_KINDS`, `DRAWING_BY_KIND` i `TABLE_BY_KIND`: *
+ * obie mapy są `Record<ChartKind, ...>`, więc dopisanie rodzaju bez    *
+ * gotowego komponentu rysującego nie skompilowałoby całego drzewa,     *
+ * a bez eksportu `noUnusedLocals` oblewałby ten plik jako martwy kod.  *
+ * Domknie to osobna zmiana, gdy rysunki będą gotowe.                   *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Przypis wiersza wachlarza -> klucz słownika, JAWNIE i wyczerpująco - ta sama
+ * reguła co `TORNADO_NOTE_KEYS` na górze pliku i z tego samego powodu: klucz
+ * sklejony z wartości unii (`fan.note.${n}`) jest niewidoczny dla trzech
+ * bramek i18n, a raz wypuścił na stronę publiczną napis
+ * „tornado.note.oneLegged".
+ *
+ * Zapis bez wywołania `t` jest tu celowy: bramka `chartDictionaryKeys` szuka
+ * sklejeń w źródle BEZ maskowania komentarzy, więc pełny cytat wzorca
+ * oblewałby ją na własnej dokumentacji.
+ */
+const FAN_NOTE_KEYS: Record<FanRowNote, string> = {
+  gap: "fan.note.gap",
+  centralOutside: "fan.note.centralOutside",
+  crossing: "fan.note.crossing",
+  zeroWidth: "fan.note.zeroWidth",
+  inverted: "fan.note.inverted",
+  bandOverHistory: "fan.note.bandOverHistory",
+  narrowing: "fan.note.narrowing",
+  anchor: "fan.note.anchor",
+  boundary: "fan.note.boundary",
+};
+
+/** Skąd wzięły się pasma - zdanie pod tabelą. Mapa jawna, nie sklejenie. */
+const FAN_BAND_SOURCE_KEYS: Record<FanBandSource, string> = {
+  series: "fan.bandSource.series",
+  levels: "fan.bandSource.levels",
+  bandPct: "fan.bandSource.bandPct",
+  none: "fan.bandSource.none",
+};
+
+/** Skąd wzięła się ścieżka centralna - drugie zdanie pod tabelą. */
+const FAN_CENTRAL_SOURCE_KEYS: Record<FanCentralSource, string> = {
+  option: "fan.centralSource.option",
+  name: "fan.centralSource.name",
+  fallback: "fan.centralSource.fallback",
+  none: "fan.centralSource.none",
+};
+
+/**
+ * Stałe kolumny wachlarza z listy modelu (`FAN_COLUMNS`) - po niej wolno
+ * iterować, ale klucz i tak idzie mapą: bramka `chartDictionaryKeys.test.ts`
+ * zna wyłącznie prefiksy wpisane na swoją listę, a tej bramki nie wolno tu
+ * zmieniać, więc sklejenie `fan.table.${k}` nie byłoby przez nic sprawdzone.
+ */
+const FAN_COLUMN_KEYS: Record<FanColumnKey, string> = {
+  step: "fan.table.step",
+  phase: "fan.table.phase",
+  central: "fan.table.central",
+};
+
+/** Które ze stałych kolumn niosą liczbę - decyduje o wyrównaniu nagłówka. */
+const FAN_COLUMN_NUM: Record<FanColumnKey, boolean> = {
+  step: false,
+  phase: false,
+  central: true,
+};
+
+/**
+ * Faza kroku. Nazwy biorę ze WSPÓLNEGO bloku `forecast.*`, a nie z osobnych
+ * kluczy wachlarza: to są dokładnie te dwa słowa, którymi cały silnik nazywa
+ * pomiar i przewidywanie (tak podpisuje strefę prognozy wykres kartezjański),
+ * a drugi komplet o tej samej treści rozjechałby się przy pierwszym
+ * przekładzie.
+ */
+const FAN_PHASE_KEYS: Record<"history" | "forecast", string> = {
+  history: "forecast.historyLabel",
+  forecast: "forecast.label",
+};
+
+/**
+ * Trójka kolumn jednego poziomu pewności. Lista jest LOKALNA, bo model jej nie
+ * eksportuje (`FAN_COLUMNS` celowo trzyma tylko kolumny STAŁE - kolumn pasm
+ * jest po trzy na poziom i ich liczba zmienia się z danymi).
+ */
+const FAN_BAND_COLUMNS = ["lower", "upper", "width"] as const;
+
+const FAN_BAND_COLUMN_KEYS: Record<(typeof FAN_BAND_COLUMNS)[number], string> = {
+  lower: "fan.table.lower",
+  upper: "fan.table.upper",
+  width: "fan.table.width",
+};
+
+/**
+ * ALTERNATYWA TEKSTOWA WACHLARZA - i to jest rodzaj, w którym tabela waży
+ * najwięcej z całego silnika.
+ *
+ * Powód stoi w nagłówku `fanTable`: krawędź pasma jest JEDYNĄ liczbą tego
+ * wykresu, której nie da się odczytać z rysunku. Pasmo ma kilkanaście procent
+ * krycia, nie ma przy sobie podziałki, a przy trzech zagnieżdżonych poziomach
+ * nikt nie odróżni na oko krawędzi 80% od 95%. Dlatego każdy poziom dostaje tu
+ * PEŁNĄ trójkę - dolną, górną i szerokość - a nie samą szerokość: szerokość
+ * mówi, ile niepewności, ale nie mówi, WOKÓŁ CZEGO ona leży.
+ *
+ * Wszystkie liczby są przepisane z gotowego modelu. Policzenie krawędzi po raz
+ * drugi (choćby z centrum i procentu) rozjechałoby tabelę z rysunkiem przy
+ * każdym pasmie podanym wprost - i nikt by tego nie zauważył, bo obie liczby
+ * wyglądałyby równie wiarygodnie.
+ */
+export function FanDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string, values?: Record<string, string | number>): string =>
+    scoped(key, { lng: lang, ...values });
+  // `centralSource` jest polem MODELU, nie tabeli, więc model zostaje pod ręką.
+  const model = fanModelFromConfig(config);
+  const tabela = fanTable(model);
+  const liczba = (v: number | null): string =>
+    v === null ? "-" : formatChartValue(v, lang, config.unit);
+  const maPasma = tabela.levels.length > 0;
+  /**
+   * Nagłówek kolumn pasma. Procent pewności wchodzi WYŁĄCZNIE wtedy, gdy autor
+   * go podał: `hasKnownConfidence === false` albo `confidence === null` znaczy,
+   * że zadeklarowana była sama szerokość (±%), a dopisanie tam „80%" byłoby
+   * liczbą, której nikt nie policzył.
+   */
+  const etykietaPasma = (confidence: number | null): string =>
+    !tabela.hasKnownConfidence || confidence === null
+      ? t("fan.band.unknown")
+      : t("fan.band.label", { confidence });
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <thead>
+          <tr>
+            {FAN_COLUMNS.map((kol) => (
+              <th
+                key={kol}
+                scope="col"
+                rowSpan={maPasma ? 2 : 1}
+                className={FAN_COLUMN_NUM[kol] ? CHART_TABLE_CLS.thNum : CHART_TABLE_CLS.th}
+              >
+                {t(FAN_COLUMN_KEYS[kol])}
+              </th>
+            ))}
+            {tabela.levels.map((poziom) => (
+              <th
+                key={poziom.key}
+                scope="colgroup"
+                colSpan={FAN_BAND_COLUMNS.length}
+                className={CHART_TABLE_CLS.thNum}
+              >
+                {etykietaPasma(poziom.confidence)}
+              </th>
+            ))}
+          </tr>
+          {maPasma && (
+            <tr>
+              {tabela.levels.map((poziom) =>
+                FAN_BAND_COLUMNS.map((kol) => (
+                  <th key={`${poziom.key}-${kol}`} scope="col" className={CHART_TABLE_CLS.thNum}>
+                    {t(FAN_BAND_COLUMN_KEYS[kol])}
+                  </th>
+                )),
+              )}
+            </tr>
+          )}
+        </thead>
+        <tbody>
+          {tabela.rows.map((r) => (
+            <tr key={r.index}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {r.label}
+                {r.notes.length > 0 && (
+                  <span className="block text-[10px] font-normal text-muted-foreground">
+                    {r.notes.map((n) => t(FAN_NOTE_KEYS[n])).join("; ")}
+                  </span>
+                )}
+              </th>
+              <td className={CHART_TABLE_CLS.td}>{t(FAN_PHASE_KEYS[r.phase])}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>{liczba(r.central)}</td>
+              {r.bands.map((b, bi) => (
+                // Krok bez pasma to `null` w krawędziach, czyli MILCZENIE
+                // modelu - i jedzie kreską. Zero wyglądałoby tu jak przedział
+                // zwężony do punktu, czyli jak twierdzenie „tę wartość znam
+                // dokładnie", a to jest mocniejsze niż cokolwiek na rysunku.
+                <Fragment key={`${b.levelKey}-${bi}`}>
+                  <td className={CHART_TABLE_CLS.tdNum}>{liczba(b.lower)}</td>
+                  <td className={CHART_TABLE_CLS.tdNum}>{liczba(b.upper)}</td>
+                  <td className={CHART_TABLE_CLS.tdNum}>{liczba(b.width)}</td>
+                </Fragment>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        {t(FAN_BAND_SOURCE_KEYS[tabela.bandSource])}{" "}
+        {t(FAN_CENTRAL_SOURCE_KEYS[model.centralSource])}
+      </p>
+      {/* Liczebność jedzie z jednostką PUSTĄ: „12 mld EUR" zamiast
+          „12 obserwacji" byłoby zdaniem fałszywym o próbce. */}
+      <p className="mt-1 text-xs text-muted-foreground">
+        {t("fan.table.observations")}: {formatChartValue(tabela.observationCount, lang, "")}
+      </p>
+    </>
+  );
+}
+
+/** Przyczyna odrzucenia serii z rysunku indeksu - mapa jawna, nie sklejenie. */
+const INDEX_BASE_REJECTION_KEYS: Record<IndexBaseRejection, string> = {
+  missingBase: "indexBase.rejection.missingBase",
+  zeroBase: "indexBase.rejection.zeroBase",
+  negativeBase: "indexBase.rejection.negativeBase",
+};
+
+/** Przypis przy serii indeksu - pięć wartości unii, pięć kluczy. */
+const INDEX_BASE_NOTE_KEYS: Record<IndexBaseSeriesNote, string> = {
+  noBase: "indexBase.note.noBase",
+  extremeBase: "indexBase.note.extremeBase",
+  mixedSign: "indexBase.note.mixedSign",
+  unrepresentable: "indexBase.note.unrepresentable",
+  flat: "indexBase.note.flat",
+};
+
+/** Skąd wziął się okres bazowy - zdanie pod tabelą. */
+const INDEX_BASE_SOURCE_KEYS: Record<IndexBaseSource, string> = {
+  explicit: "indexBase.base.source.explicit",
+  first: "indexBase.base.source.first",
+  none: "indexBase.base.source.none",
+};
+
+/** Kolumny indeksu z listy modelu - iteracja po `INDEX_BASE_COLUMNS`, klucz mapą. */
+const INDEX_BASE_COLUMN_KEYS: Record<IndexBaseColumnKey, string> = {
+  period: "indexBase.table.period",
+  source: "indexBase.table.source",
+  index: "indexBase.table.index",
+};
+
+/**
+ * Kolumny POWTARZANE przy każdej serii: `INDEX_BASE_COLUMNS` bez `period`,
+ * który jest nagłówkiem wiersza, a nie kolumną w grupie serii. Filtr zamiast
+ * drugiej listy, żeby kolejność „source obok index" miała jedno źródło.
+ */
+const INDEX_BASE_PAIR = INDEX_BASE_COLUMNS.filter(
+  (kol): kol is Exclude<IndexBaseColumnKey, "period"> => kol !== "period",
+);
+
+/**
+ * ALTERNATYWA TEKSTOWA LINII NA INDEKSIE - wartość źródłowa stoi OBOK indeksu
+ * i to jest najważniejsza cecha tej tabeli.
+ *
+ * Powód stoi przy `INDEX_BASE_COLUMNS`: rysunek pokazuje TEMPO i nie ma na nim
+ * ani jednostki, ani poziomu. Gdyby tabela powtarzała sam indeks, wartości
+ * źródłowe nie istniałyby w bloku nigdzie - a wtedy indeks przestałby być
+ * przeliczeniem danych i stałby się ich podmianą.
+ *
+ * SERIA ODRZUCONA NIE ZNIKA. Seria bez użytecznej bazy nie ma linii na
+ * rysunku, ale jej liczby źródłowe zostają w wierszach, a przyczyna stoi
+ * nazwana w tabeli statusu: seria nieobecna bez podanego powodu czyta się jak
+ * seria, której autor nie wpisał.
+ */
+export function IndexBaseDataTable({ config, lang }: { config: ChartConfig; lang: ChartLang }) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string, values?: Record<string, string | number>): string =>
+    scoped(key, { lng: lang, ...values });
+  const tabela = indexBaseTable(indexBaseModelFromConfig(config));
+  // JEDNOSTKA IDZIE WYŁĄCZNIE DO KOLUMNY ŹRÓDŁOWEJ. Indeks jest ilorazem
+  // dwóch wartości w tej samej jednostce, czyli jest bezwymiarowy - „110 mld
+  // EUR" przy indeksie byłoby zdaniem fałszywym o każdej liczbie w kolumnie,
+  // a model mówi to wprost polem `indexUnit: null`.
+  const zrodlo = (v: number | null): string =>
+    v === null ? "-" : formatChartValue(v, lang, tabela.sourceUnit);
+  const indeks = (v: number | null): string => (v === null ? "-" : formatChartValue(v, lang, ""));
+  const maJednostke = tabela.sourceUnit.trim() !== "";
+  const naglowekPary = (kol: Exclude<IndexBaseColumnKey, "period">): string =>
+    kol === "source" && maJednostke
+      ? t("indexBase.table.sourceUnit", { unit: tabela.sourceUnit.trim() })
+      : t(INDEX_BASE_COLUMN_KEYS[kol]);
+  const maSerie = tabela.series.length > 0;
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <thead>
+          <tr>
+            <th scope="col" rowSpan={maSerie ? 2 : 1} className={CHART_TABLE_CLS.th}>
+              {t(INDEX_BASE_COLUMN_KEYS.period)}
+            </th>
+            {tabela.series.map((s) => (
+              <th
+                key={s.index}
+                scope="colgroup"
+                colSpan={INDEX_BASE_PAIR.length}
+                className={CHART_TABLE_CLS.thNum}
+              >
+                {s.name}
+              </th>
+            ))}
+          </tr>
+          {maSerie && (
+            <tr>
+              {tabela.series.map((s) =>
+                INDEX_BASE_PAIR.map((kol) => (
+                  <th key={`${s.index}-${kol}`} scope="col" className={CHART_TABLE_CLS.thNum}>
+                    {naglowekPary(kol)}
+                  </th>
+                )),
+              )}
+            </tr>
+          )}
+        </thead>
+        <tbody>
+          {tabela.rows.map((r) => (
+            <tr key={r.period}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {r.label}
+                {/* WIERSZ BAZOWY OZNACZONY, bo to jedyne miejsce, w którym
+                    czytelnik widzi, wobec czego czyta cały wykres: tu każda
+                    seria z rysunku ma dokładnie sto. */}
+                {r.isBase && (
+                  <span className="block text-[10px] font-normal text-muted-foreground">
+                    {t("indexBase.table.baseRow")}
+                  </span>
+                )}
+              </th>
+              {r.cells.map((c) => (
+                <Fragment key={c.seriesIndex}>
+                  <td className={CHART_TABLE_CLS.tdNum}>{zrodlo(c.source)}</td>
+                  <td className={CHART_TABLE_CLS.tdNum}>{indeks(c.indexed)}</td>
+                </Fragment>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <table className={CHART_TABLE_CLS.table}>
+        {/* Podpis NAZYWA tabelę, a nie powtarza nazwy jednej z jej kolumn.
+            Na wspólnym kluczu `table.status` czytelnik ekranu słyszał „Status
+            serii" jako nazwę tabeli i zaraz potem jako nagłówek kolumny, więc
+            z podpisu nie dowiadywał się niczego. */}
+        <caption className="sr-only">{t("indexBase.table.bases")}</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("indexBase.table.series")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("indexBase.table.base")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.thNum}>
+              {t("indexBase.table.baseToMedian")}
+            </th>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t("indexBase.table.status")}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {tabela.series.map((s) => (
+            <tr key={s.index}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {s.name}
+              </th>
+              <td className={CHART_TABLE_CLS.tdNum}>{zrodlo(s.base)}</td>
+              {/* Stosunek bazy do mediany jest ILORAZEM, więc bez jednostki -
+                  ta sama reguła co przy samym indeksie. */}
+              <td className={CHART_TABLE_CLS.tdNum}>{indeks(s.baseToMedian)}</td>
+              <td className={CHART_TABLE_CLS.td}>
+                {[
+                  s.rejection === null ? null : t(INDEX_BASE_REJECTION_KEYS[s.rejection]),
+                  ...s.notes.map((n) => t(INDEX_BASE_NOTE_KEYS[n])),
+                ]
+                  .filter((zdanie): zdanie is string => zdanie !== null)
+                  .join("; ") || "-"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        {/* BEZ NAZWY OKRESU BAZOWEGO NIE OGŁASZAMY BAZY. `base.label` brzmi
+            „Baza: {{period}} = 100", a przy `baseSource === "none"` model daje
+            `baseLabel` pusty - wychodziło z tego „Baza:  = 100" z podwójną
+            spacją, czyli zdanie TWIERDZĄCE, że jakiś okres bazowy równa się
+            stu, postawione bezpośrednio przed zdaniem mówiącym, że okresu
+            bazowego nie ma. Sama wstawka była wypełniona, więc żadna bramka
+            i18n tego nie widziała - pustego napisu nie da się odróżnić od
+            nazwy okresu. Zostaje wtedy samo zdanie o przyczynie, które i tak
+            niesie całą treść. */}
+        {tabela.baseLabel === "" ? null : (
+          <>{t("indexBase.base.label", { period: tabela.baseLabel })} </>
+        )}
+        {t(INDEX_BASE_SOURCE_KEYS[tabela.baseSource])}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("indexBase.axis.unitless")}</p>
+    </>
+  );
+}
+
+/** Przypis komórki stosu - pięć wartości unii, pięć kluczy, mapa jawna. */
+const PERCENT_STACKED_CELL_NOTE_KEYS: Record<PercentStackedCellNote, string> = {
+  zero: "percentStacked.cellNote.zero",
+  missing: "percentStacked.cellNote.missing",
+  negative: "percentStacked.cellNote.negative",
+  tooLarge: "percentStacked.cellNote.tooLarge",
+  noShare: "percentStacked.cellNote.noShare",
+};
+
+/** Przypis wiersza stosu - sześć wartości unii, sześć kluczy. */
+const PERCENT_STACKED_ROW_NOTE_KEYS: Record<PercentStackedRowNote, string> = {
+  empty: "percentStacked.note.empty",
+  zeroTotal: "percentStacked.note.zeroTotal",
+  rejected: "percentStacked.note.rejected",
+  incomplete: "percentStacked.note.incomplete",
+  rescaled: "percentStacked.note.rescaled",
+  duplicate: "percentStacked.note.duplicate",
+};
+
+/** Kolumny stosu z listy modelu - iteracja po `PERCENT_STACKED_COLUMNS`, klucz mapą. */
+const PERCENT_STACKED_COLUMN_KEYS: Record<PercentStackedColumnKey, string> = {
+  category: "percentStacked.table.category",
+  series: "percentStacked.table.series",
+  value: "percentStacked.table.value",
+  share: "percentStacked.table.share",
+  total: "percentStacked.table.total",
+};
+
+/**
+ * Jeden wiersz tabeli stosu: para (kategoria, seria). `c === null` znaczy
+ * kategorię, w której nie ma ani jednej serii - taki wiersz zostaje, bo
+ * kategoria stojąca na osi bez słupka jest faktem o danych.
+ */
+interface ParaStosu {
+  r: PercentStackedTableRow;
+  c: PercentStackedTableCell | null;
+  pierwszy: boolean;
+}
+
+/** Które kolumny stosu niosą liczbę - decyduje o wyrównaniu nagłówka. */
+const PERCENT_STACKED_COLUMN_NUM: Record<PercentStackedColumnKey, boolean> = {
+  category: false,
+  series: false,
+  value: true,
+  share: true,
+  total: true,
+};
+
+/**
+ * ALTERNATYWA TEKSTOWA STOSU 100% - WIERSZ NA PARĘ (kategoria, seria), a nie
+ * kategoria z kolumnami serii, i ten wybór ma powód mierzalny przy ośmiu
+ * seriach.
+ *
+ * Wariant macierzowy musiałby w jednej komórce zmieścić trzy różne rzeczy
+ * (wartość bezwzględną, udział i przypis stanu), więc przy ośmiu seriach
+ * dawałby siedemnaście kolumn, z których żadna nie mieści się na telefonie,
+ * a czytnik ekranowy zapowiadałby do każdej komórki nagłówek złożony z nazwy
+ * serii i nazwy podkolumny. Wariant parowy ma PIĘĆ kolumn niezależnie od
+ * liczby serii, każdą z jednym nagłówkiem, i rośnie w dół - a w dół strona
+ * rośnie za darmo.
+ *
+ * SUMA BEZWZGLĘDNA JEST OBOWIĄZKOWA. Stos 100% z definicji wyrzuca poziom:
+ * dwa słupki o identycznej strukturze mogą różnić się rzędem wielkości
+ * i wyglądają wtedy tak samo. Tabela jest jedynym miejscem, w którym czytelnik
+ * tę różnicę zobaczy, więc kolumna sumy nie jest tu dodatkiem.
+ */
+export function PercentStackedDataTable({
+  config,
+  lang,
+}: {
+  config: ChartConfig;
+  lang: ChartLang;
+}) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  const tabela = percentStackedTable(percentStackedModelFromConfig(config));
+  /**
+   * Kategoria bez ani jednej serii nie może wypaść z tabeli: kategoria, która
+   * na osi stoi bez słupka, jest faktem o danych, a tabela bez jej wiersza
+   * mówiłaby, że autor jej nie wpisał. Taki wiersz jedzie z komórką `null`.
+   */
+  const wiersze = tabela.rows.flatMap((r): ParaStosu[] =>
+    r.cells.length > 0
+      ? r.cells.map((c, ci) => ({ r, c, pierwszy: ci === 0 }))
+      : [{ r, c: null, pierwszy: true }],
+  );
+  const maPrzypisyKomorek = tabela.rows.some((r) => r.cells.some((c) => c.notes.length > 0));
+  return (
+    <table className={CHART_TABLE_CLS.table}>
+      <thead>
+        <tr>
+          {PERCENT_STACKED_COLUMNS.map((kol) => (
+            <th
+              key={kol}
+              scope="col"
+              className={
+                PERCENT_STACKED_COLUMN_NUM[kol] ? CHART_TABLE_CLS.thNum : CHART_TABLE_CLS.th
+              }
+            >
+              {t(PERCENT_STACKED_COLUMN_KEYS[kol])}
+            </th>
+          ))}
+          {maPrzypisyKomorek && <th scope="col" className={CHART_TABLE_CLS.th} />}
+        </tr>
+      </thead>
+      <tbody>
+        {wiersze.map(({ r, c, pierwszy }, i) => {
+          // MIANOWNIK ALBO JEGO BRAK. `total` wychodzi z modelu jako zero
+          // zarówno dla słupka o sumie rzeczywiście zerowej, jak i dla słupka
+          // pustego albo odrzuconego - a to są trzy różne zdania. Udział bez
+          // mianownika nie istnieje, więc idzie kreską; zero wpisane w tę
+          // komórkę czytałoby się jak zmierzony udział zerowy.
+          const maMianownik = r.total > 0;
+          const bezSumy = r.notes.includes("empty") || r.notes.includes("rejected");
+          return (
+            <tr key={i}>
+              <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                {r.label}
+                {/* Przypis wiersza raz na kategorię, przy jej pierwszej parze:
+                    powtórzony przy każdej serii byłby ośmioma kopiami tego
+                    samego zdania w jednym słupku. */}
+                {pierwszy && r.notes.length > 0 && (
+                  <span className="block text-[10px] font-normal text-muted-foreground">
+                    {r.notes.map((n) => t(PERCENT_STACKED_ROW_NOTE_KEYS[n])).join("; ")}
+                  </span>
+                )}
+              </th>
+              <td className={CHART_TABLE_CLS.td}>{c === null ? "-" : c.seriesName}</td>
+              <td className={CHART_TABLE_CLS.tdNum}>
+                {c === null || c.value === null
+                  ? "-"
+                  : formatChartValue(c.value, lang, config.unit)}
+              </td>
+              <td className={CHART_TABLE_CLS.tdNum}>
+                {c === null || !maMianownik ? "-" : formatPercent(c.share, lang)}
+              </td>
+              <td className={CHART_TABLE_CLS.tdNum}>
+                {bezSumy ? "-" : formatChartValue(r.total, lang, config.unit)}
+              </td>
+              {maPrzypisyKomorek && (
+                <td className={CHART_TABLE_CLS.td}>
+                  {c === null
+                    ? ""
+                    : c.notes.map((n) => t(PERCENT_STACKED_CELL_NOTE_KEYS[n])).join("; ")}
+                </td>
+              )}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/** Tryb skali paneli - dwie wartości unii, dwa zdania, mapa jawna. */
+const SMALL_MULTIPLES_SCALE_KEYS: Record<SmallMultiplesScaleMode, string> = {
+  shared: "smallMultiples.scale.shared",
+  free: "smallMultiples.scale.free",
+};
+
+/** Porządek paneli - sześć wartości unii, sześć zdań. */
+const SMALL_MULTIPLES_ORDER_KEYS: Record<SmallMultiplesOrder, string> = {
+  mean: "smallMultiples.order.mean",
+  max: "smallMultiples.order.max",
+  span: "smallMultiples.order.span",
+  last: "smallMultiples.order.last",
+  label: "smallMultiples.order.label",
+  input: "smallMultiples.order.input",
+};
+
+/**
+ * Przypisy panelu. Lista jest LOKALNA i celowo węższa od bloku `note.*`
+ * w słowniku: `clamped` opisuje punkt przycięty do krawędzi panelu, a wiersz
+ * tabeli tego faktu nie niesie (`SmallMultiplesPointState` ma tylko "value"
+ * i "gap"), więc wypisanie go tutaj byłoby zdaniem bez pokrycia w modelu.
+ */
+const SMALL_MULTIPLES_NOTE_KEYS = {
+  empty: "smallMultiples.note.empty",
+  flattened: "smallMultiples.note.flattened",
+  gap: "smallMultiples.note.gap",
+  noIndexBase: "smallMultiples.note.noIndexBase",
+} as const;
+
+/** Kolumna podsumowania panelu bez `panel`, który jest nagłówkiem wiersza. */
+type SmallMultiplesValueColumn = Exclude<SmallMultiplesSummaryColumn, "panel">;
+
+const SMALL_MULTIPLES_COLUMN_KEYS: Record<SmallMultiplesSummaryColumn, string> = {
+  panel: "smallMultiples.summary.panel",
+  n: "smallMultiples.summary.n",
+  min: "smallMultiples.summary.min",
+  max: "smallMultiples.summary.max",
+  mean: "smallMultiples.summary.mean",
+  first: "smallMultiples.summary.first",
+  last: "smallMultiples.summary.last",
+  change: "smallMultiples.summary.change",
+  changePct: "smallMultiples.summary.changePct",
+  occupancy: "smallMultiples.summary.occupancy",
+};
+
+/**
+ * Odczyt jednej kolumny podsumowania - ta sama konstrukcja co `MARGINESY` przy
+ * mapie ciepła i z tego samego powodu: trzy z tych kolumn mierzą w czymś innym
+ * niż dane (liczebność, procent zmiany, udział osi), więc wspólne
+ * formatowanie po jednostce wykresu podpisałoby je fałszem.
+ */
+type OdczytPanelu = (
+  r: SmallMultiplesTableRow,
+  liczba: (v: number | null) => string,
+  lang: ChartLang,
+) => string;
+
+const PANELE: Record<SmallMultiplesValueColumn, OdczytPanelu> = {
+  // Liczebność obserwacji z jednostką PUSTĄ: „3 mld EUR" zamiast „3 punkty
+  // pomiarowe" byłoby zdaniem fałszywym o próbce panelu.
+  n: (r, _liczba, lang) => formatChartValue(r.n, lang, ""),
+  min: (r, liczba) => liczba(r.min),
+  max: (r, liczba) => liczba(r.max),
+  mean: (r, liczba) => liczba(r.mean),
+  first: (r, liczba) => liczba(r.first),
+  last: (r, liczba) => liczba(r.last),
+  change: (r, liczba) => liczba(r.change),
+  // Model oddaje zmianę W PROCENTACH pierwszej wartości (50 znaczy +50%),
+  // a `formatPercent` czyta ułamek - stąd dzielenie przez sto. `null` znaczy
+  // procent od zera albo panel krótszy niż dwa punkty i zostaje milczeniem.
+  changePct: (r, _liczba, lang) =>
+    r.changePct === null ? "-" : formatPercent(r.changePct / 100, lang),
+  occupancy: (r, _liczba, lang) => (r.occupancy === null ? "-" : formatPercent(r.occupancy, lang)),
+};
+
+/**
+ * ALTERNATYWA TEKSTOWA PANELI - i to jedyny rodzaj, w którym tabela nie jest
+ * zapisem rysunku, tylko RATUNKIEM.
+ *
+ * Panel spłaszczony przez wspólną oś pokazuje płaską kreskę: jego liczb nie da
+ * się z obrazka odczytać nawet w przybliżeniu. Dlatego kolumna `occupancy`
+ * zostaje na swoim miejscu - to jedyna liczba, która mówi czytelnikowi, JAKĄ
+ * CZĘŚĆ osi ten panel zajmuje, czyli dlaczego dziewięć paneli jest płaskich.
+ * Bez niej płaskość wygląda na własność danych, a jest własnością skali.
+ *
+ * TRYB SKALI I PORZĄDEK PANELI SĄ WYPISANE POD TABELĄ, bo od nich zależy,
+ * czy panele wolno porównywać wzrokiem: przy osobnych osiach dwie linie na tej
+ * samej wysokości mogą różnić się o rzędy wielkości, a kolejność paneli niesie
+ * pierwsze wrażenie i musi być nazwana tak samo jak przy posortowanych
+ * słupkach poziomych.
+ */
+export function SmallMultiplesDataTable({
+  config,
+  lang,
+}: {
+  config: ChartConfig;
+  lang: ChartLang;
+}) {
+  const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
+  const t = (key: string): string => scoped(key, { lng: lang });
+  // `order` jest polem MODELU, nie tabeli, więc model zostaje pod ręką.
+  const model = smallMultiplesModelFromConfig(config);
+  const tabela = smallMultiplesTable(model);
+  // JEDNOSTKA STOI PRZY NAZWIE PANELU, a nie przy każdej liczbie - tak samo,
+  // jak obiecuje zdanie `smallMultiples.reading.mixedUnits`. Panele bywają
+  // WSKAŹNIKAMI o różnych jednostkach, więc jednostka jest własnością wiersza;
+  // doklejona do sześciu liczb w wierszu byłaby sześcioma kopiami tej samej
+  // informacji, a przy kolumnach liczebności i procentu - kopiami fałszywymi.
+  const liczba = (v: number | null): string => (v === null ? "-" : formatChartValue(v, lang, ""));
+  const przypisy = (r: SmallMultiplesTableRow): string[] => {
+    const noty: string[] = [];
+    if (r.empty) noty.push(t(SMALL_MULTIPLES_NOTE_KEYS.empty));
+    if (r.flattened) noty.push(t(SMALL_MULTIPLES_NOTE_KEYS.flattened));
+    // Panel pusty ma same luki, więc przypis o lukach byłby przy nim
+    // powtórzeniem zdania, które już stoi obok.
+    if (!r.empty && r.cells.some((c) => c.state === "gap")) {
+      noty.push(t(SMALL_MULTIPLES_NOTE_KEYS.gap));
+    }
+    if (!r.empty && tabela.mode === "index" && r.indexBase === null) {
+      noty.push(t(SMALL_MULTIPLES_NOTE_KEYS.noIndexBase));
+    }
+    return noty;
+  };
+  const KOLUMNY = SMALL_MULTIPLES_SUMMARY_COLUMNS.filter(
+    (kol): kol is SmallMultiplesValueColumn => kol !== "panel",
+  );
+  return (
+    <>
+      <table className={CHART_TABLE_CLS.table}>
+        <thead>
+          <tr>
+            <th scope="col" className={CHART_TABLE_CLS.th}>
+              {t(SMALL_MULTIPLES_COLUMN_KEYS.panel)}
+            </th>
+            {KOLUMNY.map((kol) => (
+              <th key={kol} scope="col" className={CHART_TABLE_CLS.thNum}>
+                {t(SMALL_MULTIPLES_COLUMN_KEYS[kol])}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {tabela.rows.map((r) => {
+            const noty = przypisy(r);
+            return (
+              <tr key={r.position}>
+                <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
+                  {r.label}
+                  {r.unit !== null && r.unit !== "" && (
+                    <span className="block text-[10px] font-normal text-muted-foreground">
+                      {r.unit}
+                    </span>
+                  )}
+                  {noty.length > 0 && (
+                    <span className="block text-[10px] font-normal text-muted-foreground">
+                      {noty.join("; ")}
+                    </span>
+                  )}
+                </th>
+                {KOLUMNY.map((kol) => (
+                  <td key={kol} className={CHART_TABLE_CLS.tdNum}>
+                    {PANELE[kol](r, liczba, lang)}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        {t(SMALL_MULTIPLES_SCALE_KEYS[tabela.scaleMode])}{" "}
+        {t(SMALL_MULTIPLES_ORDER_KEYS[model.order])}
+      </p>
+    </>
   );
 }

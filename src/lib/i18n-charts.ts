@@ -582,6 +582,13 @@ const pl = {
         base: "Wartość bazowa",
         baseToMedian: "Baza do mediany",
         status: "Status serii",
+        // PODPIS DRUGIEJ TABELI, osobno od nagłówka kolumny `status`. Oba
+        // stały wcześniej na tym samym kluczu, więc czytelnik ekranu słyszał
+        // „Status serii" najpierw jako NAZWĘ tabeli, a potem jako nazwę
+        // jednej z jej kolumn - czyli nie dowiadywał się, czego ta tabela
+        // dotyczy. Podpis ma powiedzieć, co w niej stoi: bazy i powód
+        // pominięcia serii, której na rysunku nie ma.
+        bases: "Bazy serii i powód pominięcia",
         baseRow: "wiersz bazowy: tu każda seria z rysunku ma dokładnie sto",
       },
       // DLACZEGO SERIA WYPADŁA Z RYSUNKU. Seria nieobecna wśród obecnych czyta
@@ -1313,6 +1320,7 @@ const en = {
         base: "Base value",
         baseToMedian: "Base to median",
         status: "Series status",
+        bases: "Series bases and reason for exclusion",
         baseRow: "base row: here every series on the chart is exactly one hundred",
       },
       rejection: {
