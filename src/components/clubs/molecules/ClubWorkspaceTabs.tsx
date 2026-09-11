@@ -108,9 +108,9 @@ export function ClubWorkspaceTabs({
         // samej krawędzi po prostu na siebie nachodzą. Panel odczytuje
         // `--club-ws-stack` (ustawiane przez powłokę) i przykleja się PONIŻEJ,
         // więc jedna liczba opisuje oba paski i nie ma jak się rozjechać.
-        "sticky top-16 z-20 -mx-3 flex h-11 snap-x snap-mandatory items-center gap-1 " +
-        "overflow-x-auto border-b border-border/60 bg-background/85 px-3 backdrop-blur " +
-        "supports-[backdrop-filter]:bg-background/70 sm:-mx-5 sm:h-12 sm:px-5 lg:-mx-8 lg:px-8 " +
+        "sticky top-16 z-20 flex h-11 w-full min-w-0 max-w-full snap-x snap-mandatory items-center gap-1 " +
+        "overflow-x-auto overscroll-x-contain border-b border-border/60 bg-background/85 px-2 backdrop-blur " +
+        "supports-[backdrop-filter]:bg-background/70 sm:h-12 sm:px-3 [contain:inline-size] " +
         "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       }
     >
