@@ -374,7 +374,10 @@ export function MediaPickerDialog({
     if (!open || newFolderOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const element = event.target;
-      if (element instanceof Element && element.matches("input, textarea, [contenteditable='true']")) {
+      if (
+        element instanceof Element &&
+        element.matches("input, textarea, [contenteditable='true']")
+      ) {
         return;
       }
       const command = event.metaKey || event.ctrlKey;
