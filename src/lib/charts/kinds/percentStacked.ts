@@ -133,7 +133,13 @@
 //   * `true` znaczy sprawdzone i w porządku.
 // Listy etykiet są osobne od orzeczeń, bo podpis pod wykresem musi umieć
 // powiedzieć, KTÓRA kategoria jest wadliwa, a nie tylko że któraś jest.
-import { CATEGORICAL_SAFE_SERIES, MAX_SERIES, type ChartConfig, type ChartSeries } from "../types";
+import {
+  CATEGORICAL_SAFE_SERIES,
+  MAX_COLOR_SLOT,
+  type ChartConfig,
+  type ChartSeries,
+} from "../types";
+import { slotForSeries } from "../palette";
 
 /**
  * Całość w punktach procentowych. NIE JEST TO PRÓG, tylko definicja formy -
@@ -241,8 +247,8 @@ export const PERCENT_STACKED_TOTAL_RATIO = 10;
  * `Number.MAX_SAFE_INTEGER`, i to jest liczba z arytmetyki, nie z ostrożności:
  * powyżej 2^53-1 sąsiednie liczby całkowite przestają być rozróżnialne, więc
  * suma przestaje być mianownikiem, który ktokolwiek może sprawdzić. Sufit ma
- * też drugi skutek, ten ważniejszy: `MAX_SERIES` w `../types` wynosi 8, więc
- * suma ośmiu wartości poniżej sufitu to najwyżej ~7,2e16 - a to jest ponad
+ * też drugi skutek, ten ważniejszy: `MAX_SERIES` w `../types` wynosi 10, więc
+ * suma dziesięciu wartości poniżej sufitu to najwyżej ~9e16 - a to jest ponad
  * 290 rzędów wielkości od `Number.MAX_VALUE`. Mianownik nie może więc
  * przepełnić się do nieskończoności, przez którą dzielilibyśmy każdy udział
  * do zera, i cały słupek zszedłby do luki bez podania przyczyny.
@@ -593,7 +599,7 @@ function liczba(value: number | null | undefined): number | null {
  */
 function slotKoloru(colorSlot: number, position: number): number {
   const slot = liczba(colorSlot);
-  if (slot === null || slot < 1 || slot > MAX_SERIES) return position + 1;
+  if (slot === null || slot < 1 || slot > MAX_COLOR_SLOT) return slotForSeries(position);
   return Math.round(slot);
 }
 

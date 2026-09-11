@@ -21,6 +21,11 @@ const pl = {
         series: "Seria {{n}}",
         addSeries: "Dodaj serię",
         removeSeries: "Usuń serię {{name}}",
+        // Wybór koloru serii. Nazwa slotu, nie numer: "śliwka" mówi
+        // czytelnikowi listy, co wybiera, a "4" nie mówi nic.
+        seriesColor: "Kolor serii {{name}}",
+        seriesColorSafe: "{{key}} - rozdzielny dla daltonizmu",
+        seriesColorPlain: "{{key}}",
         categoryN: "Kategoria {{n}}",
         addCategory: "Dodaj kategorię",
         removeCategory: "Usuń kategorię {{name}}",
@@ -769,6 +774,9 @@ const en: typeof pl = {
         series: "Series {{n}}",
         addSeries: "Add series",
         removeSeries: "Delete series {{name}}",
+        seriesColor: "Colour of series {{name}}",
+        seriesColorSafe: "{{key}} - colour-blind separable",
+        seriesColorPlain: "{{key}}",
         categoryN: "Category {{n}}",
         addCategory: "Add category",
         removeCategory: "Delete category {{name}}",

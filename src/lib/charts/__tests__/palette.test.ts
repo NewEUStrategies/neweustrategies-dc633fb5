@@ -13,7 +13,7 @@
 // razem: podmiana odcienia w CSS bez przeliczenia palety oblewa bramkę.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { MAX_SERIES } from "@/lib/charts/types";
+import { CATEGORICAL_SAFE_SERIES, MAX_COLOR_SLOT, MAX_SERIES } from "@/lib/charts/types";
 import {
   BAND_CONTRAST_RANGE,
   CATEGORICAL_SAFE_MAX,
@@ -50,6 +50,11 @@ import {
   barFillOf,
   fromOklch,
   oklchOf,
+  CATEGORICAL_EXTENDED_MAX,
+  HUE_PARITY_EXCEPTIONS,
+  SLOTS_NEEDING_EDGE_FOR_SHAPE,
+  SLOTS_WITH_COMPRESSED_RAMP,
+  SLOT_SEQUENCE,
 } from "@/lib/charts/palette";
 
 // ---------------------------------------------------------------------------
@@ -139,15 +144,18 @@ describe("palette - metoda pomiaru", () => {
     // wariant zaokrąglony, bo mierzy to, co czytelnik naprawdę widzi -
     // a spójność wewnątrz repo jest ważniejsza niż zgodność z cudzą
     // implementacją do drugiego miejsca.
-    const light = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.light);
-    expect(minPairwiseCvdDistance(light, "deutan")?.distance).toBeCloseTo(19.57, 1);
-    expect(minPairwiseCvdDistance(light, "protan")?.distance).toBeCloseTo(23.01, 1);
-    expect(minPairwiseCvdDistance(light, "tritan")?.distance).toBeCloseTo(20.13, 1);
+    // Zestaw mierzony to PIERWSZE SZEŚĆ POZYCJI SEKWENCJI, a nie sloty 1..6:
+    // po podmianie kolorów te dwie rzeczy przestały być tym samym.
+    const bezpieczne = SLOT_SEQUENCE.slice(0, CATEGORICAL_SAFE_MAX).map((s) => slotAt(s));
+    const light = bezpieczne.map((s) => s.light);
+    expect(minPairwiseCvdDistance(light, "deutan")?.distance).toBeCloseTo(21.21, 1);
+    expect(minPairwiseCvdDistance(light, "protan")?.distance).toBeCloseTo(25.08, 1);
+    expect(minPairwiseCvdDistance(light, "tritan")?.distance).toBeCloseTo(16.77, 1);
 
-    const dark = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.dark);
-    expect(minPairwiseCvdDistance(dark, "deutan")?.distance).toBeCloseTo(20.65, 1);
-    expect(minPairwiseCvdDistance(dark, "protan")?.distance).toBeCloseTo(24.75, 1);
-    expect(minPairwiseCvdDistance(dark, "tritan")?.distance).toBeCloseTo(17.01, 1);
+    const dark = bezpieczne.map((s) => s.dark);
+    expect(minPairwiseCvdDistance(dark, "deutan")?.distance).toBeCloseTo(23.86, 1);
+    expect(minPairwiseCvdDistance(dark, "protan")?.distance).toBeCloseTo(30.39, 1);
+    expect(minPairwiseCvdDistance(dark, "tritan")?.distance).toBeCloseTo(20.85, 1);
   });
 
   it("symulacja NIE jest wygaszeniem kanału - czerwień idzie w ochrę, nie w czerń", () => {
@@ -177,16 +185,29 @@ describe("palette - metoda pomiaru", () => {
 });
 
 describe("palette - progi WCAG", () => {
-  it("każdy slot jest widoczny na płycie swojego motywu (>= 3:1)", () => {
-    for (const slot of CHART_SLOTS) {
-      const light = contrastRatio(slot.light, CHART_PLATE.light);
-      const dark = contrastRatio(slot.dark, CHART_PLATE.dark);
-      expect(light, `jasny ${slot.key}: ${light.toFixed(2)}:1`).toBeGreaterThanOrEqual(
-        CONTRAST_MIN.graphic,
-      );
-      expect(dark, `ciemny ${slot.key}: ${dark.toFixed(2)}:1`).toBeGreaterThanOrEqual(
-        CONTRAST_MIN.graphic,
-      );
+  it("każdy slot NIESIE KSZTAŁT na płycie swojego motywu - sam albo obwódką", () => {
+    // Reguła ma DWA wejścia, i to nie jest rozluźnienie progu, tylko opisanie
+    // tego, co naprawdę niesie kształt. Wypełnienie w kolorze marki bywa pod
+    // progiem (#fa9346 ma 2,25:1 na białej płycie) i nie wolno go podmienić,
+    // bo po to jest kolorem marki. Kształt niesie wtedy obwódka, a `barFillOf`
+    // dociąga ją do progu niezależnie od tego, ile kroków jasności to wymaga.
+    // Warunek jest więc taki: ALBO wypełnienie przechodzi samo, ALBO slot jest
+    // wypisany jako wymagający obwódki - i wtedy obwódka MUSI przejść.
+    for (const theme of ["light", "dark"] as const) {
+      const wymagaObwodki = SLOTS_NEEDING_EDGE_FOR_SHAPE[theme];
+      for (const slot of CHART_SLOTS) {
+        const base = theme === "dark" ? slot.dark : slot.light;
+        const r = contrastRatio(base, CHART_PLATE[theme]);
+        const naLiscie = wymagaObwodki.includes(slot.slot);
+        // Lista jest LICZONA: slot pod progiem musi być na niej, a slot nad
+        // progiem nie może - inaczej lista jest notatką, a nie faktem.
+        expect(naLiscie, `${theme} ${slot.key}: ${r.toFixed(2)}:1`).toBe(r < CONTRAST_MIN.graphic);
+        const obwodka = contrastRatio(barFillOf(base, theme).edge, CHART_PLATE[theme]);
+        expect(
+          obwodka,
+          `${theme} ${slot.key} obwódka: ${obwodka.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(CONTRAST_MIN.graphic);
+      }
     }
   });
 
@@ -278,10 +299,10 @@ describe("palette - progi WCAG", () => {
 });
 
 describe("palette - rozdzielność dla daltonizmu", () => {
-  it("zestaw BEZPIECZNY (sloty 1..6) trzyma podłogę w każdym rodzaju widzenia", () => {
+  it("zestaw BEZPIECZNY (sześć pierwszych pozycji sekwencji) trzyma podłogę", () => {
     for (const theme of ["light", "dark"] as const) {
-      const hexes = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) =>
-        theme === "dark" ? s.dark : s.light,
+      const hexes = SLOT_SEQUENCE.slice(0, CATEGORICAL_SAFE_MAX).map((n) =>
+        theme === "dark" ? slotAt(n).dark : slotAt(n).light,
       );
       for (const kind of CVD_KINDS) {
         const closest = minPairwiseCvdDistance(hexes, kind);
@@ -294,13 +315,14 @@ describe("palette - rozdzielność dla daltonizmu", () => {
     }
   });
 
-  it("zestaw PEŁNY (sloty 1..10) trzyma własną, NIŻSZĄ podłogę - i to jest udokumentowane", () => {
-    // Dziesięć odcieni rozdzielnych w tej rodzinie nie istnieje. Ten próg mówi
-    // wprost, ile realnie zostaje, żeby nikt nie wziął slotów 7-10 za
-    // bezpieczne. Sloty poza zestawem bezpiecznym dostają w silniku
-    // kreskowanie jako drugi nośnik różnicy.
+  it("zestaw ROZSZERZONY (osiem pierwszych pozycji) trzyma własną, NIŻSZĄ podłogę", () => {
+    // Ten próg mówi wprost, ile realnie zostaje po sześciu bezpiecznych, żeby
+    // nikt nie wziął pozycji 7-8 za bezpieczne. Sloty poza zestawem
+    // bezpiecznym dostają w silniku kreskowanie jako drugi nośnik różnicy.
     for (const theme of ["light", "dark"] as const) {
-      const hexes = CHART_SLOTS.map((s) => (theme === "dark" ? s.dark : s.light));
+      const hexes = SLOT_SEQUENCE.slice(0, CATEGORICAL_EXTENDED_MAX).map((n) =>
+        theme === "dark" ? slotAt(n).dark : slotAt(n).light,
+      );
       for (const kind of CVD_KINDS) {
         const closest = minPairwiseCvdDistance(hexes, kind);
         expect(
@@ -318,11 +340,10 @@ describe("palette - rozdzielność dla daltonizmu", () => {
   });
 
   it("dokładnie sloty poza zestawem bezpiecznym wymagają kreskowania", () => {
+    const bezpieczne = new Set(SLOT_SEQUENCE.slice(0, CATEGORICAL_SAFE_MAX));
     for (const slot of CHART_SLOTS) {
-      expect(needsPatternDifferentiator(slot.slot), slot.key).toBe(
-        slot.slot > CATEGORICAL_SAFE_MAX,
-      );
-      expect(slot.cvdSafe, slot.key).toBe(slot.slot <= CATEGORICAL_SAFE_MAX);
+      expect(slot.cvdSafe, slot.key).toBe(bezpieczne.has(slot.slot));
+      expect(needsPatternDifferentiator(slot.slot), slot.key).toBe(!bezpieczne.has(slot.slot));
     }
   });
 
@@ -463,13 +484,27 @@ describe("palette - pasmo prognozy i siatka", () => {
 });
 
 describe("palette - tokeny w styles.css zgadzają się z modułem", () => {
-  it("MAX_SERIES równa się liczbie slotów palety", () => {
-    // Gdyby te dwie liczby się rozjechały, parser przyjąłby slot bez tokenu -
-    // a brak tokenu to czarne wypełnienie albo niewidoczna kreska, po cichu.
-    expect(CHART_SLOTS).toHaveLength(MAX_SERIES);
+  it("MAX_COLOR_SLOT równa się liczbie slotów, a MAX_SERIES nie jest już tym samym", () => {
+    // Gdyby najwyższy dopuszczalny numer slotu rozjechał się z paletą, parser
+    // przyjąłby slot bez tokenu - a brak tokenu to czarne wypełnienie albo
+    // niewidoczna kreska, po cichu.
+    expect(CHART_SLOTS).toHaveLength(MAX_COLOR_SLOT);
     expect(CHART_SLOTS.map((s) => s.slot)).toEqual(
-      Array.from({ length: MAX_SERIES }, (_, i) => i + 1),
+      Array.from({ length: MAX_COLOR_SLOT }, (_, i) => i + 1),
     );
+    // A LICZBA SERII to osobna decyzja i ma być NIE WIĘKSZA: dwadzieścia siedem
+    // kolorów w palecie nie znaczy, że wykres o dwudziestu siedmiu seriach da
+    // się odczytać.
+    expect(MAX_SERIES).toBeLessThanOrEqual(MAX_COLOR_SLOT);
+    // Sekwencja przypisania musi pokrywać CAŁĄ paletę i nie powtarzać slotu,
+    // inaczej któryś kolor byłby nieosiągalny albo dwie serie dostałyby ten sam.
+    expect([...SLOT_SEQUENCE].sort((a, b) => a - b)).toEqual(CHART_SLOTS.map((s) => s.slot));
+    // Próg porady dla autora i próg palety to DWIE KOPIE tej samej liczby
+    // w dwóch modułach. Rozjazd znaczyłby, że edytor ostrzega przy innej
+    // liczbie serii, niż przy której kolor faktycznie przestaje nieść kategorię.
+    expect(CATEGORICAL_SAFE_SERIES).toBe(CATEGORICAL_SAFE_MAX);
+    expect(CATEGORICAL_EXTENDED_MAX).toBeGreaterThan(CATEGORICAL_SAFE_MAX);
+    expect(CATEGORICAL_EXTENDED_MAX).toBeLessThanOrEqual(SLOT_SEQUENCE.length);
   });
 
   it("wypełnienia, warianty tekstowe, tusze i krycia pasm są identyczne w CSS i w module", () => {
@@ -554,10 +589,21 @@ describe("palette - tokeny w styles.css zgadzają się z modułem", () => {
       const [, a, b] = labOf(hex);
       return ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
     };
+    // Cztery sloty są od tej reguły ODSTĘPSTWEM WPISANYM, nie wyłączeniem:
+    // obie wartości pary zostały zadane wprost jako kolory marki, więc
+    // przesunięcie jest ich własnością, a nie błędem wyprowadzenia. Bramka
+    // pilnuje, żeby lista odstępstw była DOKŁADNA w obie strony i żeby żadne
+    // z nich nie urosło ponad zapisaną wartość.
     for (const slot of CHART_SLOTS) {
       const delta = Math.abs(hueOf(slot.light) - hueOf(slot.dark));
       const shortest = Math.min(delta, 360 - delta);
-      expect(shortest, `${slot.key}: ${shortest.toFixed(1)} st.`).toBeLessThanOrEqual(10);
+      const wyjatek = HUE_PARITY_EXCEPTIONS[slot.slot];
+      if (wyjatek === undefined) {
+        expect(shortest, `${slot.key}: ${shortest.toFixed(1)} st.`).toBeLessThanOrEqual(10);
+      } else {
+        expect(shortest, `${slot.key} (odstępstwo): ${shortest.toFixed(1)} st.`).toBeGreaterThan(10);
+        expect(shortest, `${slot.key} (odstępstwo urosło)`).toBeLessThanOrEqual(wyjatek + 0.1);
+      }
     }
   });
 
@@ -684,11 +730,16 @@ describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem"
         // rozszerzenia - zamiast rozszerzać zakres i przestać pilnować
         // czegokolwiek. Warunek czytamy z `cvdSafe`, a nie z listy numerów,
         // żeby dopisanie slotu nie wymagało poprawki w dwóch miejscach.
-        const extension = CHART_SLOTS.some((s) => String(s.slot) === hue.name && !s.cvdSafe);
-        expect(step, `${theme} ${hue.name}`).toBeGreaterThanOrEqual(
-          extension ? 1.11 : EDGE_FACE_RANGE.min,
+        // Korytarz obowiązuje wszędzie POZA slotami, którym gamut ścisnął
+        // rampę - tam monotoniczność zostaje, a krok jest tym, co zostało.
+        const sciety = SLOTS_WITH_COMPRESSED_RAMP[theme].some((n) => String(n) === hue.name);
+        expect(sciety, `${theme} ${hue.name}: krok ${step.toFixed(3)}`).toBe(
+          step < EDGE_FACE_RANGE.min,
         );
-        expect(step, `${theme} ${hue.name}`).toBeLessThanOrEqual(EDGE_FACE_RANGE.max);
+        if (!sciety) {
+          expect(step, `${theme} ${hue.name}`).toBeGreaterThanOrEqual(EDGE_FACE_RANGE.min);
+          expect(step, `${theme} ${hue.name}`).toBeLessThanOrEqual(EDGE_FACE_RANGE.max);
+        }
         // Rampa idzie monotonicznie OD krawędzi odniesienia DO końca danych,
         // zawsze odchodząc od tła: na jasnym ciemnieje, na ciemnym rozjaśnia.
         const l = [deep, mid, face].map((h) => oklchOf(h).l);

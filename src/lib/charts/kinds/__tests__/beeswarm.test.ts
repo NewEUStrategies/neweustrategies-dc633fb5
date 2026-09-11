@@ -30,7 +30,7 @@ import {
 } from "@/lib/charts/kinds/beeswarm";
 import { defaultChartConfig } from "@/lib/charts/parse";
 import { quantile } from "@/lib/charts/stats";
-import { MAX_SERIES, type ChartSeries } from "@/lib/charts/types";
+import { MAX_COLOR_SLOT, type ChartSeries } from "@/lib/charts/types";
 
 /* -------------------------------------------------------------------------- */
 /*  Narzędzia testowe                                                         */
@@ -405,16 +405,16 @@ describe("beeswarm: dane z bazy nie mogą wysadzić modelu", () => {
 
   it("zawija slot palety poza zakresem, bo slotu za ostatnim nie ma", () => {
     // Slot z bazy może być z przyszłej wersji edytora albo zwyczajnie
-    // popsuty. Slot o numerze wyższym niż `MAX_SERIES` nie istnieje w palecie,
+    // popsuty. Slot o numerze wyższym niż `MAX_COLOR_SLOT` nie istnieje w palecie,
     // więc render sięgnąłby po `undefined` i punkt zostałby bez koloru.
     // Numer bierzemy ze stałej, bo paleta rośnie, a reguła zostaje ta sama.
     const model = beeswarmModel({
       categories: ["a"],
-      series: [seria("x", [1], MAX_SERIES + 1), seria("y", [2], 0), seria("z", [3], -4)],
+      series: [seria("x", [1], MAX_COLOR_SLOT + 1), seria("y", [2], 0), seria("z", [3], -4)],
     });
     for (const roj of model.swarms) {
       expect(roj.colorSlot).toBeGreaterThanOrEqual(1);
-      expect(roj.colorSlot).toBeLessThanOrEqual(MAX_SERIES);
+      expect(roj.colorSlot).toBeLessThanOrEqual(MAX_COLOR_SLOT);
     }
   });
 

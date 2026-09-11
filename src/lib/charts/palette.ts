@@ -31,17 +31,28 @@ export const CVD_KINDS = ["deutan", "protan", "tritan"] as const;
 export type CvdKind = (typeof CVD_KINDS)[number];
 
 /**
- * Ile slotów wolno użyć jako KATEGORII, żeby zestaw pozostał rozdzielny dla
- * każdego rodzaju widzenia barw. Sześć, i to nie jest liczba z zaokrąglenia:
- * przeszukanie całej przestrzeni sRGB pokazało, że dla palety ciemnej NIE
- * ISTNIEJE siódmy odcień, który utrzymałby podłogę 24,4 przy kontraście >=3:1
- * na płycie (zero kandydatów), a dla jasnej utrzymują ją wyłącznie brązy i
- * ciemne czerwienie, czyli odcienie zajęte przez semantykę znaku.
- * Sloty 7-10 istnieją dla zgodności z zapisanymi konfiguracjami (patrz
- * MAX_SERIES) i dla autorów, którzy potrzebują więcej rodzin odcienia niż
- * sześć; mają WŁASNĄ, niższą podłogę - patrz CVD_FLOOR.
+ * Ile PIERWSZYCH POZYCJI SEKWENCJI (patrz SLOT_SEQUENCE) wolno użyć jako
+ * kategorii, żeby zestaw pozostał rozdzielny dla każdego rodzaju widzenia barw.
+ *
+ * Sześć - i to nadal nie jest liczba z zaokrąglenia, tylko wynik dokładnego
+ * przeszukania: z dwudziestu siedmiu slotów palety największy podzbiór, który
+ * JEDNOCZEŚNIE trzyma CVD_FLOOR.safe w obu motywach i ma co najmniej 3:1 na
+ * własnej płycie w obu motywach, liczy dokładnie sześć elementów. Bez warunku
+ * widoczności dałoby się zejść po osiem, ale w tym ósemkowym zestawie siedzą
+ * #FFDAB3 (1,32:1 na białej płycie) i #FF788D (2,52:1), więc byłyby to kolory
+ * rozdzielne dla daltonisty i niewidoczne dla wszystkich.
+ *
+ * Pozycje 7 i 8 sekwencji mają WŁASNĄ, niższą podłogę, a od dziewiątej w górę
+ * nie ma żadnej - patrz CVD_FLOOR.
  */
 export const CATEGORICAL_SAFE_MAX = 6;
+
+/**
+ * Ile pierwszych pozycji sekwencji trzyma jeszcze podłogę ROZSZERZONĄ. Powyżej
+ * tej liczby kolor przestaje nieść kategorię i wykres musi ją nieść czymś
+ * innym: kreskowaniem, etykietą bezpośrednią albo panelami.
+ */
+export const CATEGORICAL_EXTENDED_MAX = 8;
 
 /**
  * Progi WCAG. Nie zmieniają się między motywami - zmienia się kierunek
@@ -56,10 +67,18 @@ export const CONTRAST_MIN = {
 } as const;
 
 /**
- * Podłoga odległości barw po symulacji. Dwa różne progi, bo to dwa różne
- * zestawy: `safe` to sloty 1..CATEGORICAL_SAFE_MAX (paleta właściwa),
- * `extended` to wszystkie dziesięć razem (sloty 7-10 są rozszerzeniem poza
- * dyscyplinę sześciu kolorów i tego nie ukrywamy).
+ * Podłoga odległości barw po symulacji. Dwa progi i JEDEN JAWNY BRAK progu, bo
+ * to trzy różne zestawy:
+ *
+ *   * `safe` - pierwsze CATEGORICAL_SAFE_MAX pozycji SLOT_SEQUENCE, czyli
+ *     paleta właściwa;
+ *   * `extended` - pierwsze CATEGORICAL_EXTENDED_MAX pozycji; rozszerzenie
+ *     poza dyscyplinę sześciu kolorów i tego nie ukrywamy;
+ *   * reszta palety - BEZ PODŁOGI, świadomie. Sloty 11-27 to kolory zadane
+ *     z zewnątrz jako kolory marki, a nie dobrane pod rozdzielność: są wśród
+ *     nich pary odległe po symulacji o 0,94 (#FF9A9A wobec #FF9D9D). Podłoga
+ *     wpisana dla tego zestawu byłaby fikcją, więc jej nie ma, a bramka pilnuje
+ *     czegoś, co jest prawdą: że silnik NIGDY nie sięga po te sloty sam.
  */
 export const CVD_FLOOR = {
   safe: { deutan: 19.5, protan: 22.5, tritan: 16.5 },
@@ -104,117 +123,108 @@ export interface PaletteSlot {
 }
 
 /**
- * Sloty w KOLEJNOŚCI PRZYPISANIA. Kolejność jest mechanizmem bezpieczeństwa,
- * nie estetyką: serie biorą sloty sekwencyjnie 1, 2, 3..., więc dwa pierwsze
- * odcienie to najczęstsza para na świecie i muszą być najdalej od siebie.
- * Granat i ochra rozchodzą się jednocześnie w jasności i w odcieniu, czyli
- * różnią się nawet w skali szarości.
+ * Sloty w KOLEJNOŚCI NUMERÓW, nie w kolejności przypisania. Te dwie rzeczy były
+ * kiedyś jednym i to działało, dopóki kolory dobierało się pod rozdzielność.
+ * Odkąd numery slotów niosą KOLORY MARKI zadane z zewnątrz, muszą się rozejść:
+ * numer slotu jest zapisany w treści (bloki CMS, CSV widgetów) i ma wskazywać
+ * ten kolor, który wskazywał, a o tym, które kolory dostaną dwie pierwsze serie
+ * wykresu, decyduje pomiar - patrz SLOT_SEQUENCE.
+ *
+ * Ile to naprawdę kosztuje, widać na jednej liczbie: gdyby serie dalej brały
+ * sloty po kolei 1, 2, 3..., druga i trzecia (#FA9346 i #58a537) miałyby po
+ * symulacji protanopii odległość 5,57 przy podłodze 22,5 - czyli dla protanopa
+ * byłyby jednym kolorem.
  */
 export const CHART_SLOTS: readonly PaletteSlot[] = [
   {
     slot: 1,
     key: "granat",
-    light: "#01538a",
-    dark: "#449eef",
-    textLight: "#01538a",
-    textDark: "#449eef",
-    // W motywie JASNYM granat jest jedynym slotem, którego zmiękczenie
-    // praktycznie nie ruszyło, i to nie jest przeoczenie. Jest kotwicą
-    // jasności całej palety: para 1-2 (granat/ochra) rozchodzi się
-    // jednocześnie w jasności i w odcieniu, więc różni się nawet w skali
-    // szarości. Rozjaśnienie granatu do poziomu reszty zabiera tej parze
-    // różnicę jasności i dwie pierwsze serie - najczęstszy przypadek na
-    // świecie - zaczynają zależeć od samego odcienia. Zysk poszedł więc
-    // w chromę (0,121 -> 0,113), a nie w jasność. W motywie ciemnym płyta
-    // jest czarna, kotwica działa w drugą stronę i granat mógł się rozjaśnić
-    // normalnie (0,588 -> 0,682).
+    light: "#03346e",
+    dark: "#2196f3",
+    textLight: "#03346e",
+    textDark: "#2196f3",
     inkLight: "#ffffff",
     inkDark: "#12161c",
-    bandLight: 0.08,
-    bandDark: 0.1,
-    cvdSafe: true,
+    bandLight: 0.07,
+    bandDark: 0.11,
+    cvdSafe: false,
   },
   {
+    // ZADANY KOLOR MARKI, i on NIE PRZECHODZI progu grafiki na białej płycie:
+    // 2,25:1 wobec wymaganych 3,0:1. Token zostaje dokładnie taki, jak zadano,
+    // bo to jest kolor marki, a kształt niesie obwódka `--chart-2-edge`
+    // (3,15:1) - ten sam mechanizm, którym wariant blady niesie tożsamość.
+    // Dlatego slot 2 NIE jest w sekwencji przypisania jako jeden z pierwszych
+    // i nie wolno go użyć jako samej linii bez obwódki.
     slot: 2,
     key: "ochra",
-    light: "#bb8b4d",
-    dark: "#e1af73",
-    // Ochra jako linia ma 3,03:1 i jest w porządku; jako TEKST nie przechodzi
-    // 4,5:1, więc podpisy biorą wariant przyciemniony. To najczęstszy błąd
-    // w wykresach: etykieta pisana kolorem linii wygląda spójnie i nie
-    // przechodzi audytu dostępności. Po zmiękczeniu dotyczy to WIĘKSZOŚCI
-    // slotów jasnych, bo cała paleta stoi bliżej progu grafiki niż wcześniej.
-    textLight: "#9c6d2e",
-    textDark: "#e1af73",
+    light: "#fa9346",
+    dark: "#fdb078",
+    textLight: "#b95e00",
+    textDark: "#fdb078",
     inkLight: "#12161c",
     inkDark: "#12161c",
-    bandLight: 0.13,
+    bandLight: 0.16,
     bandDark: 0.08,
-    cvdSafe: true,
+    cvdSafe: false,
   },
   {
+    // Jasnego partnera nie było w zadanej liście - jest WYPROWADZONY z ciemnego
+    // tą samą regułą, co wariant tekstowy: ten sam odcień i nasycenie, krok
+    // jasności do progu grafiki. Stąd #58a537, a nie dawna szałwia.
     slot: 3,
     key: "szalwia",
-    light: "#749d88",
-    dark: "#9ac5af",
-    textLight: "#577f6b",
-    textDark: "#9ac5af",
+    light: "#58a537",
+    dark: "#76c457",
+    textLight: "#3a870e",
+    textDark: "#76c457",
     inkLight: "#12161c",
     inkDark: "#12161c",
     bandLight: 0.13,
-    bandDark: 0.08,
+    bandDark: 0.09,
     cvdSafe: true,
   },
   {
     slot: 4,
     key: "sliwka",
-    light: "#7a5b79",
-    dark: "#a587a4",
-    textLight: "#7a5b79",
-    textDark: "#a587a4",
+    light: "#8c56d4",
+    dark: "#e7bcde",
+    textLight: "#8c56d4",
+    textDark: "#e7bcde",
     inkLight: "#ffffff",
     inkDark: "#12161c",
-    bandLight: 0.09,
-    bandDark: 0.11,
+    bandLight: 0.1,
+    bandDark: 0.07,
     cvdSafe: true,
   },
   {
+    // To samo co przy slocie 2: 2,28:1 na płycie jasnej, obwódka 3,19:1.
     slot: 5,
     key: "lazur",
-    light: "#11a0c4",
-    dark: "#51cef6",
-    textLight: "#00819f",
-    textDark: "#51cef6",
+    light: "#2bbbd7",
+    dark: "#92eeff",
+    textLight: "#008297",
+    textDark: "#92eeff",
     inkLight: "#12161c",
     inkDark: "#12161c",
-    bandLight: 0.12,
-    bandDark: 0.08,
-    cvdSafe: true,
+    bandLight: 0.15,
+    bandDark: 0.07,
+    cvdSafe: false,
   },
   {
     slot: 6,
     key: "terakota",
-    light: "#a8583c",
-    dark: "#b97b64",
-    textLight: "#a8583c",
-    textDark: "#b97b64",
-    inkLight: "#ffffff",
+    light: "#bb8760",
+    dark: "#ca7842",
+    textLight: "#9d6b45",
+    textDark: "#ca7842",
+    inkLight: "#12161c",
     inkDark: "#12161c",
-    bandLight: 0.09,
+    bandLight: 0.13,
     bandDark: 0.11,
-    cvdSafe: true,
+    cvdSafe: false,
   },
   {
-    // ---- Sloty 7-10: ROZSZERZENIE, nie paleta. ----
-    // Dziesięć odcieni rozdzielnych dla wszystkich trzech rodzajów daltonizmu
-    // w tej rodzinie NIE ISTNIEJE - nie istnieje nawet siedem (przeszukanie
-    // sRGB: dla motywu ciemnego zero kandydatów utrzymujących podłogę 24,4).
-    // Te cztery sloty istnieją z dwóch powodów: numer slotu jest ZAPISANY
-    // w treści (bloki CMS, CSV widgetów), a autorzy potrzebują czasem więcej
-    // rodzin odcienia niż sześć. Podłoga całego zestawu dziesięciu spada do
-    // ~11 (jasny) i ~11,2 (ciemny) - pilnuje jej OSOBNY, niższy próg
-    // CVD_FLOOR.extended, a silnik dokłada tym seriom kreskowanie jako drugi
-    // nośnik różnicy.
     slot: 7,
     key: "indygo",
     light: "#5f6c98",
@@ -230,33 +240,27 @@ export const CHART_SLOTS: readonly PaletteSlot[] = [
   {
     slot: 8,
     key: "oliwka",
-    light: "#646e1c",
-    dark: "#ccc69b",
-    textLight: "#646e1c",
-    textDark: "#ccc69b",
+    light: "#607456",
+    dark: "#8b9a6e",
+    textLight: "#607456",
+    textDark: "#8b9a6e",
     inkLight: "#ffffff",
     inkDark: "#12161c",
     bandLight: 0.1,
-    bandDark: 0.08,
-    cvdSafe: false,
+    bandDark: 0.1,
+    cvdSafe: true,
   },
   {
-    // Sloty 9 i 10 stoją w dwóch NAJWIĘKSZYCH lukach koła barw palety:
-    // 327-40 stopnia (73 stopnie pustki między śliwką a terakotą) i 162-221
-    // (59 stopni między szałwią a lazurem). Wolne przeszukanie całego koła,
-    // bez kotwic - z regułą minimalnego kąta zamiast nazwanych rodzin - samo
-    // wracało w te dwa miejsca i wypadało GORZEJ od nich, więc rodziny są
-    // nazwane, a nie wygenerowane po obwodzie.
     slot: 9,
     key: "roza",
-    light: "#936869",
-    dark: "#b28485",
-    textLight: "#936869",
-    textDark: "#b28485",
+    light: "#7b2525",
+    dark: "#ba6a4c",
+    textLight: "#7b2525",
+    textDark: "#ba6a4c",
     inkLight: "#ffffff",
     inkDark: "#12161c",
-    bandLight: 0.1,
-    bandDark: 0.11,
+    bandLight: 0.07,
+    bandDark: 0.13,
     cvdSafe: false,
   },
   {
@@ -264,7 +268,7 @@ export const CHART_SLOTS: readonly PaletteSlot[] = [
     key: "morski",
     light: "#4b9391",
     dark: "#8fd3d0",
-    textLight: "#38817f",
+    textLight: "#398180",
     textDark: "#8fd3d0",
     inkLight: "#12161c",
     inkDark: "#12161c",
@@ -272,6 +276,264 @@ export const CHART_SLOTS: readonly PaletteSlot[] = [
     bandDark: 0.07,
     cvdSafe: false,
   },
+  {
+    // ---- Sloty 11-27: PALETA BAZOWA. ----
+    // Siedemnaście par odcieni zadanych wprost. To NIE jest ciąg dalszy palety
+    // serii i nie wolno go tak czytać: wśród tych kolorów są pary, których
+    // odległość po symulacji daltonizmu wynosi 0,94 (#FF9A9A wobec #FF9D9D),
+    // czyli dla części odbiorców są tym samym kolorem. Dlatego zestaw NIE MA
+    // podłogi rozdzielności - patrz CVD_FLOOR - a silnik nigdy nie przypisuje
+    // z niego koloru sam z siebie. Wchodzą do wykresu tylko wtedy, gdy autor
+    // wybierze numer slotu wprost, i wtedy odpowiada za różnicę tak samo, jak
+    // odpowiada za kolejność kategorii.
+    // Sześć z nich trafiło do sekwencji przypisania (11, 12, 14, 20, 21 i 15),
+    // bo pomiar pokazał, że są rozdzielniejsze od części slotów serii.
+    slot: 11,
+    key: "grafit",
+    light: "#232c31",
+    dark: "#586268",
+    textLight: "#232c31",
+    textDark: "#727d83",
+    inkLight: "#ffffff",
+    inkDark: "#ffffff",
+    bandLight: 0.07,
+    bandDark: 0.17,
+    cvdSafe: false,
+  },
+  {
+    slot: 12,
+    key: "czerwien",
+    light: "#cd393b",
+    dark: "#ff9a9a",
+    textLight: "#cd393b",
+    textDark: "#ff9a9a",
+    inkLight: "#ffffff",
+    inkDark: "#12161c",
+    bandLight: 0.09,
+    bandDark: 0.08,
+    cvdSafe: false,
+  },
+  {
+    slot: 13,
+    key: "atrament",
+    light: "#15334d",
+    dark: "#446380",
+    textLight: "#15334d",
+    textDark: "#5e7e9c",
+    inkLight: "#ffffff",
+    inkDark: "#ffffff",
+    bandLight: 0.07,
+    bandDark: 0.17,
+    cvdSafe: false,
+  },
+  {
+    slot: 14,
+    key: "ametyst",
+    light: "#6929c4",
+    dark: "#b281f7",
+    textLight: "#6929c4",
+    textDark: "#b281f7",
+    inkLight: "#ffffff",
+    inkDark: "#12161c",
+    bandLight: 0.08,
+    bandDark: 0.1,
+    cvdSafe: true,
+  },
+  {
+    slot: 15,
+    key: "cytryna",
+    light: "#f7dd14",
+    dark: "#fff07d",
+    textLight: "#867700",
+    textDark: "#fff07d",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.36,
+    bandDark: 0.06,
+    cvdSafe: false,
+  },
+  {
+    slot: 16,
+    key: "bordo",
+    light: "#7f2020",
+    dark: "#ff9d9d",
+    textLight: "#7f2020",
+    textDark: "#ff9d9d",
+    inkLight: "#ffffff",
+    inkDark: "#12161c",
+    bandLight: 0.07,
+    bandDark: 0.08,
+    cvdSafe: false,
+  },
+  {
+    slot: 17,
+    key: "mech",
+    light: "#6d9e51",
+    dark: "#b5e18b",
+    textLight: "#538236",
+    textDark: "#b5e18b",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.13,
+    bandDark: 0.07,
+    cvdSafe: false,
+  },
+  {
+    slot: 18,
+    key: "morela",
+    light: "#ed985f",
+    dark: "#f7b980",
+    textLight: "#b16125",
+    textDark: "#f7b980",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.16,
+    bandDark: 0.08,
+    cvdSafe: false,
+  },
+  {
+    slot: 19,
+    key: "lodowy",
+    light: "#9cc6db",
+    dark: "#9cc6db",
+    textLight: "#547c8f",
+    textDark: "#9cc6db",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.22,
+    bandDark: 0.08,
+    cvdSafe: false,
+  },
+  {
+    slot: 20,
+    key: "fuksja",
+    light: "#c95792",
+    dark: "#c95792",
+    textLight: "#bf4e89",
+    textDark: "#c95792",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.11,
+    bandDark: 0.13,
+    cvdSafe: true,
+  },
+  {
+    slot: 21,
+    key: "malina",
+    light: "#e50046",
+    dark: "#e50046",
+    textLight: "#e50046",
+    textDark: "#ef1b4d",
+    inkLight: "#ffffff",
+    inkDark: "#ffffff",
+    bandLight: 0.07,
+    bandDark: 0.2,
+    cvdSafe: true,
+  },
+  {
+    slot: 22,
+    key: "brzoskwinia",
+    light: "#ffdab3",
+    dark: "#ffdab3",
+    textLight: "#91704c",
+    textDark: "#ffdab3",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.47,
+    bandDark: 0.07,
+    cvdSafe: false,
+  },
+  {
+    slot: 23,
+    key: "piaskowy",
+    light: "#d4bdac",
+    dark: "#d4bdac",
+    textLight: "#877363",
+    textDark: "#d4bdac",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.23,
+    bandDark: 0.08,
+    cvdSafe: false,
+  },
+  {
+    slot: 24,
+    key: "karmel",
+    light: "#dca47c",
+    dark: "#ffd3b6",
+    textLight: "#9f6b44",
+    textDark: "#ffd3b6",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.18,
+    bandDark: 0.07,
+    cvdSafe: false,
+  },
+  {
+    slot: 25,
+    key: "rubin",
+    light: "#b80000",
+    dark: "#b80000",
+    textLight: "#b80000",
+    textDark: "#e13e30",
+    inkLight: "#ffffff",
+    inkDark: "#ffffff",
+    bandLight: 0.07,
+    bandDark: 0.26,
+    cvdSafe: false,
+  },
+  {
+    slot: 26,
+    key: "koral",
+    light: "#ff788d",
+    dark: "#ff788d",
+    textLight: "#cb4961",
+    textDark: "#ff788d",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.14,
+    bandDark: 0.1,
+    cvdSafe: false,
+  },
+  {
+    slot: 27,
+    key: "miod",
+    light: "#b88950",
+    dark: "#e1b076",
+    textLight: "#9b6d34",
+    textDark: "#e1b076",
+    inkLight: "#12161c",
+    inkDark: "#12161c",
+    bandLight: 0.13,
+    bandDark: 0.08,
+    cvdSafe: false,
+  },
+];
+
+/**
+ * KOLEJNOŚĆ PRZYPISANIA slotów do serii, policzona z pomiaru.
+ *
+ * Serie bez zapisanego slotu biorą kolory w TEJ kolejności, a nie 1, 2, 3.
+ * Pierwsze `CATEGORICAL_SAFE_MAX` pozycji trzyma pełną podłogę CVD_FLOOR.safe
+ * w OBU motywach (zmierzone: 21,21 / 25,08 / 16,77 na jasnym i 23,86 / 30,39 /
+ * 20,85 na ciemnym), pierwsze osiem trzyma CVD_FLOOR.extended (12,94 / 16,49 /
+ * 16,77 oraz 12,91 / 17,61 / 20,80). Dalsze pozycje są ułożone zachłannie po
+ * malejącej odległości od już wziętych i nie mają żadnej gwarancji.
+ *
+ * KAŻDA pozycja sekwencji ma ponadto co najmniej 3:1 na własnej płycie
+ * w obu motywach - rozdzielność bez widoczności nie jest rozdzielnością.
+ * Z dwudziestu siedmiu slotów warunek "rozdzielny ORAZ widoczny" spełnia
+ * dokładnie sześć naraz i to jest powód, dla którego CATEGORICAL_SAFE_MAX
+ * został sześcioma, a nie urósł razem z paletą.
+ *
+ * Zmiana tej tablicy zmienia kolory serii, które slotu NIE mają zapisanego -
+ * czyli nowych wykresów i pulpitów BI. Wykresy z zapisanym `colorSlot` są na
+ * nią odporne i to jest cel rozdzielenia.
+ */
+export const SLOT_SEQUENCE: readonly number[] = [
+  3, 4, 8, 14, 20, 21, 11, 12, 15,
+  18, 5, 6, 26, 22, 25, 13, 9, 23,
+  17, 24, 1, 2, 7, 19, 27, 10, 16,
 ];
 
 /**
@@ -351,7 +613,9 @@ export const CHART_SURFACES = {
  * wykresu, więc nie ma tu czego ostrzegać w edytorze. Gdyby kiedyś dał,
  * warunek jest już policzony.
  */
-export const SLOTS_UNSAFE_ON_SURFACE_2: readonly number[] = [2, 3, 5, 10];
+export const SLOTS_UNSAFE_ON_SURFACE_2: readonly number[] = [
+  2, 3, 5, 6, 10, 15, 17, 18, 19, 22, 23, 24, 26, 27,
+];
 
 /**
  * RAMP SEKWENCYJNY mapy-choroplety - para kotwic na motyw.
@@ -409,24 +673,71 @@ export const ACCENT_AUDIT = {
 
 /**
  * Sloty, które NIE MOGĄ wystąpić jako kategoria na wykresie kodującym znak
- * czerwienią. Terakota wobec czerwieni daje 7,7 (deuteranopia) / 11,2
- * (protanopia) / 27,3 (tritanopia), czyli przy dwóch rodzajach widzenia jest
- * od niej praktycznie nieodróżnialna - a wykres, na którym "strata"
- * i "kategoria szósta" wyglądają podobnie, nie da się odczytać.
+ * czerwienią - a wykres, na którym "strata" i "kategoria szósta" wyglądają
+ * podobnie, nie da się odczytać.
  *
- * Zmiękczenie palety ZBLIŻYŁO terakotę do czerwieni (było 15,9 / 22,1 / 16,7),
- * bo oba odcienie idą w tę samą stronę koła i niższa chroma zbiera je bliżej
- * siebie. Lista zostaje ta sama, ale powód jest teraz mocniejszy, nie słabszy.
+ * Trzy z nich są poniżej nawet progu rozszerzonego, czyli nieodróżnialne dla
+ * części odbiorców wprost: terakota (5,45 w najgorszym rodzaju widzenia),
+ * oliwka (5,45) i mech. Pozostałe siedzą między progiem rozszerzonym
+ * a bezpiecznym. Lista jest LICZONA przez bramkę z palety, nie przepisana:
+ * po podmianie kolorów urosła z jednego slotu do dziewięciu i to jest cena
+ * palety, w której czerwienie i pomarańcze zajmują dużą część koła.
  */
-export const SLOTS_CLASHING_WITH_SIGN: readonly number[] = [6];
+/**
+ * Sloty, których WYPEŁNIENIE samo nie przechodzi progu grafiki na własnej
+ * płycie, więc kształt musi z nich nieść obwódka `--chart-N-edge`.
+ *
+ * To nie jest defekt palety, tylko konsekwencja tego, czym te kolory są: to
+ * kolory marki i pastele zadane wprost, a nie odcienie dobrane pod próg 3:1.
+ * Token zostaje dokładnie taki, jak zadano - bo po to jest - a `barFillOf`
+ * dociąga obwódkę do progu niezależnie od tego, ile kroków jasności to wymaga
+ * (dla #FFDAB3 jest to 0,24 wobec bazowych 0,09). Dlatego reguła brzmi: seria
+ * w tym slocie NIGDY nie jest samą linią ani samym markerem bez obwódki.
+ */
+/**
+ * Sloty, których RAMPA GRADIENTU jest ściśnięta przez gamut, więc krok
+ * token/lico nie mieści się w EDGE_FACE_RANGE.
+ *
+ * Wszystkie cztery to tokeny ciemnego motywu o jasności powyżej 0,89 (#92eeff,
+ * #fff07d, #ffdab3, #ffd3b6): rampa ma iść OD tła, czyli w górę jasności,
+ * a tam już nic nie ma. Rampa zostaje monotoniczna - tyle, ile zostało
+ * miejsca - a korytarz kroku przestaje obowiązywać. Lista stoi tutaj, żeby
+ * bramka dalej pilnowała korytarza dla pozostałych pięćdziesięciu wyprowadzeń,
+ * zamiast zostać rozluźniona dla wszystkich.
+ */
+export const SLOTS_WITH_COMPRESSED_RAMP = {
+  light: [] as readonly number[],
+  dark: [5, 15, 22, 24] as readonly number[],
+} as const;
+
+export const SLOTS_NEEDING_EDGE_FOR_SHAPE = {
+  light: [2, 5, 15, 18, 19, 22, 23, 24, 26] as readonly number[],
+  dark: [25] as readonly number[],
+} as const;
+
+/**
+ * Sloty, w których odcień serii przesuwa się między motywami MOCNIEJ niż
+ * o dopuszczalne 10 stopni w CIELAB, wraz ze zmierzoną wartością.
+ *
+ * Wszystkie cztery są wyborem autorskim: obie wartości pary zostały zadane
+ * wprost, a przesunięcie jest ich własnością, nie błędem wyprowadzenia.
+ * Lista stoi tutaj, żeby bramka dalej pilnowała reguły dla pozostałych
+ * dwudziestu trzech slotów, zamiast zostać wyłączona dla wszystkich.
+ */
+export const HUE_PARITY_EXCEPTIONS: Readonly<Record<number, number>> = {
+  1: 12.6,
+  4: 22.0,
+  8: 11.7,
+  9: 17.0,
+};
+
+export const SLOTS_CLASHING_WITH_SIGN: readonly number[] = [3, 6, 8, 10, 12, 17, 24, 26, 27];
 
 /**
  * Sloty, które nie mogą wystąpić, gdy w użyciu jest pomarańczowy akcent marki.
- * Po zmiękczeniu palety kolizja PRZENIOSŁA SIĘ z ochry na oliwkę i to jest
- * dobra ilustracja, dlaczego ta lista jest liczona, a nie pamiętana: ochra
- * odsunęła się od akcentu (18,3 przy protanopii, czyli nad podłogą), a oliwka
- * zeszła pod nią (13,5 przy protanopii wobec 26,5 / 66,3 przy pozostałych
- * rodzajach widzenia).
+ * Slot 2 jest tu z powodu, który widać gołym okiem: `--chart-2` to teraz
+ * #FA9346, a akcent to #ed751a - dwa pomarańcze o tej samej rodzinie odcienia.
+ * Ta lista jest liczona z palety, nie pamiętana, więc przesuwa się razem z nią.
  *
  * Ta stała jest FAKTEM PALETY dla bramki, nie regułą dla edytora. Silnik nie
  * daje autorowi żadnej drogi wprowadzenia akcentu do wykresu jako koloru
@@ -435,7 +746,7 @@ export const SLOTS_CLASHING_WITH_SIGN: readonly number[] = [6];
  * kiedykolwiek stał się kolorem danych, ostrzeżenie wraca i bierze warunek
  * z tego, co go włącza.
  */
-export const SLOTS_CLASHING_WITH_ACCENT: readonly number[] = [8];
+export const SLOTS_CLASHING_WITH_ACCENT: readonly number[] = [2, 3, 12];
 
 // ---------------------------------------------------------------------------
 // Kolorymetria. Czyste funkcje, bez DOM - działają w SSR i w teście.
@@ -586,25 +897,85 @@ export function minPairwiseCvdDistance(
 }
 
 /** Wypełnienia serii dla motywu - w kolejności slotów. */
-export function seriesColors(theme: ChartThemeName, count = CHART_SLOTS.length): string[] {
-  return CHART_SLOTS.slice(0, count).map((s) => (theme === "dark" ? s.dark : s.light));
+export function seriesColors(theme: ChartThemeName, count = SLOT_SEQUENCE.length): string[] {
+  return SLOT_SEQUENCE.slice(0, count).map((slot) =>
+    theme === "dark" ? slotAt(slot).dark : slotAt(slot).light,
+  );
 }
 
-/** Warianty tekstowe serii dla motywu - w kolejności slotów. */
-export function seriesTextColors(theme: ChartThemeName, count = CHART_SLOTS.length): string[] {
-  return CHART_SLOTS.slice(0, count).map((s) => (theme === "dark" ? s.textDark : s.textLight));
+/** Warianty tekstowe serii dla motywu - w KOLEJNOŚCI PRZYPISANIA, nie numerów. */
+export function seriesTextColors(theme: ChartThemeName, count = SLOT_SEQUENCE.length): string[] {
+  return SLOT_SEQUENCE.slice(0, count).map((slot) =>
+    theme === "dark" ? slotAt(slot).textDark : slotAt(slot).textLight,
+  );
 }
 
-/** Slot po numerze; poza zakresem zawija się na paletę (jak `(i % 8) + 1`). */
+/** Slot po numerze; poza zakresem zawija się na paletę. */
 export function slotAt(slot: number): PaletteSlot {
   const index =
     (((Math.round(slot) - 1) % CHART_SLOTS.length) + CHART_SLOTS.length) % CHART_SLOTS.length;
   return CHART_SLOTS[index];
 }
 
-/** Czy seria w tym slocie potrzebuje drugiego nośnika różnicy (kreskowania). */
+/**
+ * Numer slotu dla serii o danej POZYCJI na liście, gdy autor slotu nie zapisał.
+ *
+ * Idzie po SLOT_SEQUENCE, nie po numerach: pierwsza seria dostaje najlepiej
+ * rozdzielny kolor palety, a nie ten, który przypadkiem ma numer 1. Pozycja
+ * poza długością sekwencji zawija - tak samo, jak zawijał dawny `(i % 8) + 1`.
+ */
+export function slotForSeries(position: number): number {
+  const i = Math.max(0, Math.round(position));
+  return SLOT_SEQUENCE[i % SLOT_SEQUENCE.length];
+}
+
+/**
+ * Czy slot leży poza zestawem BEZPIECZNYM palety. Odpowiada na pytanie o slot,
+ * nie o wykres - do rozstrzygnięcia, czy KONKRETNY rysunek potrzebuje drugiego
+ * nośnika różnicy, służy `slotsNeedingPattern`.
+ */
 export function needsPatternDifferentiator(slot: number): boolean {
   return !slotAt(slot).cvdSafe;
+}
+
+/**
+ * Które sloty UŻYTE NA TYM WYKRESIE potrzebują kreskowania.
+ *
+ * Pytanie "czy slot jest bezpieczny" było dobrym przybliżeniem, dopóki serie
+ * brały sloty po kolei: zestaw użyty na wykresie był wtedy zawsze prefiksem
+ * palety. Odkąd autor wybiera numery ręcznie z dwudziestu siedmiu, przybliżenie
+ * zaczyna kłamać w obie strony - wykres na slotach 1 i 2 dostałby kreskowanie,
+ * choć granat i pomarańcz różnią się o kilkadziesiąt jednostek, a wykres na
+ * dwóch slotach bezpiecznych z różnych par mógłby go nie dostać wcale.
+ *
+ * Dlatego liczymy to, o co naprawdę chodzi: PARY faktycznie użyte. Slot trafia
+ * na listę, gdy stoi w parze, która w którymkolwiek motywie i którymkolwiek
+ * rodzaju widzenia barw schodzi pod CVD_FLOOR.extended - czyli gdy sam odcień
+ * przestaje tę parę rozdzielać.
+ */
+export function slotsNeedingPattern(slots: readonly number[]): ReadonlySet<number> {
+  const uzyte = [...new Set(slots.map((s) => slotAt(s).slot))];
+  const wymaga = new Set<number>();
+  // Kreskowanie dostaje PÓŹNIEJSZY slot kolidującej pary, nie oba: żeby
+  // rozdzielić dwa kształty, wystarczy, że jeden z nich ma drugi nośnik
+  // różnicy. Kreskowanie obu byłoby dwoma wzorami tam, gdzie wystarczy jeden,
+  // i odbierałoby wykresowi spokój bez zysku dla czytelności.
+  for (let i = 1; i < uzyte.length; i += 1) {
+    const b = slotAt(uzyte[i]);
+    for (let j = 0; j < i; j += 1) {
+      const a = slotAt(uzyte[j]);
+      const ponizej = CVD_KINDS.some(
+        (kind) =>
+          cvdDistance(a.light, b.light, kind) < CVD_FLOOR.extended[kind] ||
+          cvdDistance(a.dark, b.dark, kind) < CVD_FLOOR.extended[kind],
+      );
+      if (ponizej) {
+        wymaga.add(b.slot);
+        break;
+      }
+    }
+  }
+  return wymaga;
 }
 
 // ---------------------------------------------------------------------------
@@ -787,17 +1158,111 @@ export interface BarFill {
  * jest praktyczna, nie doktrynalna: token pod alfą przepuszcza to, co leży pod
  * słupkiem - siatkę, strefę prognozy, drugi słupek w grupie - i wnętrze
  * przestaje być jednolite. Osobny odcień jest kryjący.
+ *
+ * KROKI SĄ ADAPTACYJNE, i to jest cała różnica wobec pierwszej wersji.
+ * Stały krok jasności działa tylko wtedy, gdy wszystkie tokeny leżą w wąskim
+ * pasie jasności - przy palecie, w której obok siebie stoi #232C31 (L 0,29)
+ * i #f7dd14 (L 0,89), ten sam krok daje raz korytarz, raz wartość poza nim,
+ * bo kontrast nie jest liniowy w jasności. Dlatego krok bazowy z
+ * `BAR_FILL_PARAMS` jest tu krokiem DOMYŚLNYM: jeśli trafia w korytarz,
+ * zostaje dokładnie taki (dla dziesięciu slotów serii i dla semantyki jest
+ * tożsamością), a jeśli nie trafia, rośnie albo maleje do najbliższego, który
+ * trafia. Obwódka ma warunek własny i mocniejszy: ma przechodzić próg grafiki
+ * ZAWSZE, bo to z niej odczytuje się kształt, gdy wypełnienie jest blade albo
+ * gdy token marki nie dociąga do 3:1 samodzielnie.
  */
 export function barFillOf(base: string, theme: ChartThemeName): BarFill {
   const p = BAR_FILL_PARAMS[theme];
   const { l, c, h } = oklchOf(base);
+  const plate = CHART_PLATE[theme];
+  /** Kierunek "od tła": na jasnej płycie w dół, na ciemnej w górę. */
+  const zwrot = theme === "light" ? -1 : 1;
+  const oKrok = (krok: number) => fromOklch(l + zwrot * krok, c, h);
+
+  // LICO: krok, przy którym kontrast token/lico wpada w korytarz widoczności
+  // krawędzi na końcu danych. Rampa deep/mid trzyma stałe proporcje wobec lica.
+  const wKorytarzuLica = (krok: number) => {
+    const r = contrastRatio(base, oKrok(krok));
+    return r >= EDGE_FACE_RANGE.min && r <= EDGE_FACE_RANGE.max;
+  };
+  const krokBazowyLica = Math.abs(p.dlFace);
+  let krokLica = krokBazowyLica;
+  if (!wKorytarzuLica(krokLica)) {
+    let najblizszy = krokLica;
+    let najmniejszaOdleglosc = Infinity;
+    for (let k = 0.01; k <= 0.3; k += 0.001) {
+      if (!wKorytarzuLica(k)) continue;
+      const odleglosc = Math.abs(k - krokBazowyLica);
+      if (odleglosc < najmniejszaOdleglosc) {
+        najmniejszaOdleglosc = odleglosc;
+        najblizszy = k;
+      }
+    }
+    krokLica = najblizszy;
+  }
+  const proporcjaDeep = Math.abs(p.dlDeep / p.dlFace);
+  const proporcjaMid = Math.abs(p.dlMid / p.dlFace);
+  // SUFIT RAMPY. Token tak jasny jak #fff07d (L 0,944) nie ma na ciemnej
+  // płycie dokąd się rozjaśniać: pełna rampa wyszłaby poza gamut i trzy jej
+  // stopnie skleiłyby się w biel, czyli gradient przestałby być gradientem.
+  // Wtedy rampa jest ŚCIŚNIĘTA do tego, co zostało - monotoniczność zostaje,
+  // korytarz kroku token/lico nie, i to drugie jest wypisane w bramce jako
+  // lista slotów, a nie schowane pod rozluźnionym progiem.
+  const zapasJasnosci = theme === "light" ? l - 0.015 : 0.985 - l;
+  krokLica = Math.min(krokLica, Math.max(0.004, zapasJasnosci / proporcjaDeep));
+
+  // OBWÓDKA: co najmniej krok bazowy, a gdy przy nim nie ma progu grafiki -
+  // tyle, ile go daje. Nigdy słabsza niż krok bazowy, bo to by odwracało sens.
+  let krokObwodki = Math.abs(p.dlEdge);
+  for (let k = Math.abs(p.dlEdge); k <= 0.6; k += 0.005) {
+    krokObwodki = k;
+    if (contrastRatio(oKrok(k), plate) >= CONTRAST_MIN.graphic + 0.02) break;
+  }
+
+  // WNĘTRZE i HOVER stoją na STAŁEJ jasności - regulowana jest chroma, bo to
+  // ona decyduje, gdzie w korytarzu wyląduje kontrast do płyty.
+  let mnoznikWnetrza = p.cInner;
+  for (let i = 0; i < 60; i += 1) {
+    const r = contrastRatio(fromOklch(p.lInner, c * mnoznikWnetrza, h), plate);
+    if (r >= INNER_CONTRAST_RANGE.min && r <= INNER_CONTRAST_RANGE.max) break;
+    mnoznikWnetrza *= r > INNER_CONTRAST_RANGE.max ? 0.94 : 1.06;
+  }
+  const inner = fromOklch(p.lInner, c * mnoznikWnetrza, h);
+  // HOVER ma dwa warunki naraz (kontrast do płyty i skok wobec spokoju), więc
+  // sama chroma czasem nie wystarcza - przy zieleni #58a537 jasność 0,88 daje
+  // 1,34:1 niezależnie od nasycenia. Regulujemy więc obie wielkości: najpierw
+  // chromę, a gdy to nie domyka, jasność w stronę płyty.
+  let mnoznikHover = p.cHover;
+  let jasnoscHover = p.lHover;
+  const ocenHover = () => {
+    const kandydat = fromOklch(jasnoscHover, c * mnoznikHover, h);
+    const doPlyty = contrastRatio(kandydat, plate);
+    const skok = contrastRatio(kandydat, inner);
+    return {
+      zaMocno: doPlyty > HOVER_CONTRAST_RANGE.max || skok > HOVER_STEP_RANGE.max,
+      zaSlabo: doPlyty < HOVER_CONTRAST_RANGE.min || skok < HOVER_STEP_RANGE.min,
+    };
+  };
+  for (let i = 0; i < 60; i += 1) {
+    const { zaMocno, zaSlabo } = ocenHover();
+    if (!zaMocno && !zaSlabo) break;
+    mnoznikHover *= zaMocno ? 0.94 : 1.06;
+  }
+  for (let i = 0; i < 120; i += 1) {
+    const { zaMocno, zaSlabo } = ocenHover();
+    if (!zaMocno && !zaSlabo) break;
+    const krok = theme === "light" ? 0.004 : -0.004;
+    jasnoscHover += zaSlabo ? -krok : krok;
+    if (jasnoscHover <= 0.05 || jasnoscHover >= 0.99) break;
+  }
+
   return {
-    edge: fromOklch(l + p.dlEdge, c, h),
-    inner: fromOklch(p.lInner, c * p.cInner, h),
-    hover: fromOklch(p.lHover, c * p.cHover, h),
-    deep: fromOklch(l + p.dlDeep, c, h),
-    mid: fromOklch(l + p.dlMid, c, h),
-    face: fromOklch(l + p.dlFace, c, h),
+    edge: oKrok(krokObwodki),
+    inner,
+    hover: fromOklch(jasnoscHover, c * mnoznikHover, h),
+    deep: oKrok(krokLica * proporcjaDeep),
+    mid: oKrok(krokLica * proporcjaMid),
+    face: oKrok(krokLica),
   };
 }
 

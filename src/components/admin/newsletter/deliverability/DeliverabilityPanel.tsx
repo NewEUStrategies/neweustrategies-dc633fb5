@@ -27,6 +27,7 @@ import { SuppressionTable } from "./SuppressionTable";
 import { WebhookSetupCard } from "./WebhookSetupCard";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-newsletter-deliverability";
+import { slotForSeries } from "@/lib/charts/palette";
 
 const RANGES = [7, 30, 90] as const;
 type Range = (typeof RANGES)[number];
@@ -70,17 +71,17 @@ export function DeliverabilityPanel() {
         {
           name: t("adminDeliverability.chart.delivered"),
           values: series.map((p) => p.delivered),
-          colorSlot: 1,
+          colorSlot: slotForSeries(0),
         },
         {
           name: t("adminDeliverability.chart.bounced"),
           values: series.map((p) => p.bounced),
-          colorSlot: 2,
+          colorSlot: slotForSeries(1),
         },
         {
           name: t("adminDeliverability.chart.complained"),
           values: series.map((p) => p.complained),
-          colorSlot: 3,
+          colorSlot: slotForSeries(2),
         },
       ],
       stacked: false,

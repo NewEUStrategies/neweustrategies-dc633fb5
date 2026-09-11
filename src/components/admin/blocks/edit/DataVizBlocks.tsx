@@ -24,20 +24,20 @@ import {
 } from "@/lib/charts/parse";
 import {
   CATEGORICAL_SAFE_SERIES,
+  MAX_COLOR_SLOT,
   MAX_SERIES,
   PIE_MAX_SLICES,
   type ChartKind,
   type MapRegion,
 } from "@/lib/charts/types";
 import { pieModel } from "@/components/charts/pieModel";
-import { BAR_STYLES } from "@/lib/charts/palette";
 import {
   isForecastMissingBand,
   pieFormAdvice,
   seriesOverSafePalette,
   PIE_CLOSE_SHARES_PP,
 } from "@/lib/charts/honesty";
-import { SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
+import { CHART_SLOTS, slotForSeries, SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
 import { chartFormAdvice } from "@/lib/charts/formAdvice";
 import type { ChartLang } from "@/lib/charts/format";
 import { useTranslation } from "react-i18next";
@@ -134,9 +134,9 @@ function readSeries(raw: Json | undefined, rows: number): SeriesDraft[] {
         return null;
       }),
       colorSlot:
-        typeof o.colorSlot === "number" && o.colorSlot >= 1 && o.colorSlot <= MAX_SERIES
+        typeof o.colorSlot === "number" && o.colorSlot >= 1 && o.colorSlot <= MAX_COLOR_SLOT
           ? Math.round(o.colorSlot)
-          : si + 1,
+          : slotForSeries(si),
     };
   });
 }
@@ -336,11 +336,44 @@ export function ChartBlock({ block, onChange }: Props) {
               {series.map((s, si) => (
                 <th key={si} className="min-w-[96px] px-0">
                   <div className="flex items-center gap-1">
-                    <span
-                      aria-hidden
-                      className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
-                      style={{ background: `var(--chart-${s.colorSlot})` }}
-                    />
+                    {/* WYBÓR KOLORU SERII, nie sama próbka. Paleta ma
+                        `MAX_COLOR_SLOT` odcieni i bez tej kontrolki autor
+                        dosięgałby wyłącznie tych, które silnik przydzieli sam.
+                        Próbka zostaje - jest tłem kontrolki - więc autor widzi
+                        kolor, zanim otworzy listę. Nazwy slotów mówią, co się
+                        wybiera; przy odcieniach rozdzielnych dla daltonizmu
+                        lista mówi to wprost, bo to jedyna informacja, której
+                        nie da się odczytać z samego koloru. */}
+                    <label className="relative h-4 w-4 shrink-0">
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 rounded-[3px] border border-border"
+                        style={{ background: `var(--chart-${s.colorSlot})` }}
+                      />
+                      <select
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                        aria-label={bt.editor("chart", "seriesColor", {
+                          name: s.name || String(si + 1),
+                        })}
+                        value={s.colorSlot}
+                        onChange={(e) => {
+                          const slot = Number(e.target.value);
+                          setSeries(
+                            series.map((x, i) => (i === si ? { ...x, colorSlot: slot } : x)),
+                          );
+                        }}
+                      >
+                        {CHART_SLOTS.map((slot) => (
+                          <option key={slot.slot} value={slot.slot}>
+                            {bt.editor(
+                              "chart",
+                              slot.cvdSafe ? "seriesColorSafe" : "seriesColorPlain",
+                              { key: slot.key },
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <input
                       className={cellCls}
                       value={s.name}
@@ -375,7 +408,7 @@ export function ChartBlock({ block, onChange }: Props) {
                         {
                           name: "",
                           values: categories.map(() => null),
-                          colorSlot: series.length + 1,
+                          colorSlot: slotForSeries(series.length),
                         },
                       ])
                     }

@@ -83,7 +83,7 @@
 // i `HEATMAP_LABEL_CELL_MIN_H`) są PROGAMI dla renderu, a nie geometrią,
 // i wchodzą do modelu wyłącznie przez `heatmapValueLabelFit`.
 import type { ChartConfig } from "../types";
-import { MAX_SERIES } from "../types";
+import { MAX_COLOR_SLOT } from "../types";
 
 /**
  * Minimalny rozmiar macierzy. Dwa na dwa, bo poniżej tego nie ma dwóch
@@ -228,7 +228,7 @@ export interface HeatmapScale {
   /** Większe z odchyleń od punktu neutralnego - mianownik `signed`. */
   spread: number;
   /**
-   * Slot palety niosący ODCIEŃ rampy sekwencyjnej (1..MAX_SERIES). `null`
+   * Slot palety niosący ODCIEŃ rampy sekwencyjnej (1..MAX_COLOR_SLOT). `null`
    * przy skali rozbieżnej, bo ta bierze parę semantyczną (ujemny, dodatni),
    * a nie kolor kategorii.
    */
@@ -646,7 +646,7 @@ export function heatmapModel(
   const cellCount = rows * columns;
   const format = opts.formatValue ?? domyslnyFormat;
   const request: HeatmapScaleRequest = opts.scale ?? "auto";
-  const slot = przytnij(Math.round(opts.colorSlot ?? 1), 1, MAX_SERIES);
+  const slot = przytnij(Math.round(opts.colorSlot ?? 1), 1, MAX_COLOR_SLOT);
 
   // ODCZYT SIATKI. Osobno od rysowania, bo domena skali musi być znana,
   // zanim policzymy pozycję pierwszej komórki na rampie.

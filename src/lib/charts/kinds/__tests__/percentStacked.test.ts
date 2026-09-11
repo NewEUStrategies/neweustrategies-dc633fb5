@@ -19,6 +19,7 @@ import "@/lib/i18n-charts";
 import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import { CATEGORICAL_SAFE_SERIES, type ChartSeries } from "@/lib/charts/types";
+import { slotForSeries } from "@/lib/charts/palette";
 import {
   PERCENT_STACKED_COLUMNS,
   PERCENT_STACKED_DECLARED_TOLERANCE_PP,
@@ -967,7 +968,11 @@ describe("słupek 100% - zero NaN na ekranie", () => {
         ],
       ),
     );
-    expect(model.bars[0].segments.map((s) => s.colorSlot)).toEqual([1, 2, 3, 5]);
-    expect(model.series.map((s) => s.colorSlot)).toEqual([1, 2, 3, 5]);
+    // Slot spoza palety schodzi na slot z SEKWENCJI dla tej pozycji w stosie,
+    // a nie na numer pozycji: dwa segmenty w jednym kolorze byłyby gorsze niż
+    // segment w kolorze, którego autor nie wybrał.
+    const oczekiwane = [slotForSeries(0), slotForSeries(1), slotForSeries(2), 5];
+    expect(model.bars[0].segments.map((s) => s.colorSlot)).toEqual(oczekiwane);
+    expect(model.series.map((s) => s.colorSlot)).toEqual(oczekiwane);
   });
 });

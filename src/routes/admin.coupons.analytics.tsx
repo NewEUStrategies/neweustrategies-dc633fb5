@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
 import { Stat } from "@/components/admin/coupons/atoms/Stat";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
+import { slotForSeries } from "@/lib/charts/palette";
 
 export const Route = createFileRoute("/admin/coupons/analytics")({
   component: AnalyticsPage,
@@ -121,7 +122,7 @@ function AnalyticsPage() {
         {
           name: L("Realizacje", "Redemptions"),
           values: top10.map((r) => r.redemptions),
-          colorSlot: 1,
+          colorSlot: slotForSeries(0),
         },
       ],
       // Liczba NA SŁUPKU: karta jest rankingiem dziesięciu pozycji, a różnica

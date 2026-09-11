@@ -87,7 +87,7 @@
 // odczytań nie wymaga zmiany schematu bloku - propozycja jawnego pola jest
 // w raporcie.
 import { quantile } from "../stats";
-import { MAX_SERIES } from "../types";
+import { MAX_COLOR_SLOT } from "../types";
 import type { ChartConfig, ChartSeries } from "../types";
 
 /* -------------------------------------------------------------------------- */
@@ -279,7 +279,7 @@ export interface BeeswarmSwarm {
   /** Pozycja roju w układzie (0-indeksowana) - decyduje o pasmie. */
   index: number;
   label: string;
-  /** Slot palety 1..MAX_SERIES. Kolor niesie TOŻSAMOŚĆ grupy i nic więcej. */
+  /** Slot palety 1..MAX_COLOR_SLOT. Kolor niesie TOŻSAMOŚĆ grupy i nic więcej. */
   colorSlot: number;
   /** Liczebność próby po odfiltrowaniu luk i nieliczb. */
   n: number;
@@ -526,11 +526,11 @@ function dodatnia(raw: number | undefined, domyslna: number): number {
   return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : domyslna;
 }
 
-/** Slot palety 1..MAX_SERIES; poza zakresem zawija, bo slotu 9 nie ma. */
+/** Slot palety 1..MAX_COLOR_SLOT; poza zakresem zawija, bo takiego slotu nie ma. */
 function slot(raw: number | undefined, pozycja: number): number {
   const surowy = typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : pozycja + 1;
   const w1 = surowy >= 1 ? surowy : pozycja + 1;
-  return ((w1 - 1) % MAX_SERIES) + 1;
+  return ((w1 - 1) % MAX_COLOR_SLOT) + 1;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -184,7 +184,11 @@ export function VitalsBiDashboard() {
         {
           name: t("adminAnalytics.drillDialog.rating.poor"),
           values: metrics.map((m) => metricsByName.get(m)?.poor ?? 0),
-          colorSlot: 6,
+          // SKALA OCENY, nie kategorie: zielony - pomarańczowy - CZERWONY.
+          // Wcześniej najgorszy poziom szedł terakotą, bo czerwieni w palecie
+          // nie było; teraz jest (#cd393b) i skala kończy się kolorem, który
+          // czytelnik odczyta jako "źle" bez czytania legendy.
+          colorSlot: 12,
         },
       ],
     });

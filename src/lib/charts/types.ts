@@ -103,14 +103,31 @@ export function isChartKind(raw: unknown): raw is ChartKind {
   return typeof raw === "string" && (CHART_KINDS as readonly string[]).includes(raw);
 }
 
-/** Maksymalna liczba serii = liczba slotów palety (--chart-1..10). */
+/**
+ * Maksymalna liczba serii na jednym wykresie.
+ *
+ * To NIE JEST już to samo, co liczba slotów palety, i rozdzielenie jest tu
+ * sednem: paleta ma `MAX_COLOR_SLOT` kolorów, bo tyle ich zadano, ale wykres
+ * o dwudziestu siedmiu seriach nie byłby do odczytania przy żadnej palecie.
+ * Ile serii wolno pokazać, decyduje czytelność, a nie liczba dostępnych hexów.
+ */
 export const MAX_SERIES = 10;
 
 /**
- * Ile slotów jest rozdzielnych dla KAŻDEGO rodzaju widzenia barw. Powyżej tej
- * liczby kolor przestaje nieść kategorię: silnik dokłada kreskowanie, a edytor
- * ostrzega, żeby grupować albo iść w small multiples. Liczba jest wyprowadzona
- * z pomiaru, nie z gustu - patrz `src/lib/charts/palette.ts`.
+ * Najwyższy numer slotu, jaki wolno ZAPISAĆ w konfiguracji wykresu. Równy
+ * liczbie slotów palety - każdy numer w tym zakresie ma komplet tokenów
+ * w arkuszu, a numer spoza niego dałby czarne wypełnienie albo niewidoczną
+ * kreskę. Bramka palety pilnuje tej równości.
+ */
+export const MAX_COLOR_SLOT = 27;
+
+/**
+ * Ile PIERWSZYCH POZYCJI SEKWENCJI przypisania jest rozdzielnych dla KAŻDEGO
+ * rodzaju widzenia barw. Powyżej tej liczby kolor przestaje nieść kategorię:
+ * silnik dokłada kreskowanie, a edytor ostrzega, żeby grupować albo iść
+ * w small multiples. Liczba jest wyprowadzona z pomiaru, nie z gustu - musi
+ * się zgadzać z `CATEGORICAL_SAFE_MAX` w `src/lib/charts/palette.ts`, gdzie
+ * stoi jej wyliczenie i bramka.
  */
 export const CATEGORICAL_SAFE_SERIES = 6;
 
@@ -127,7 +144,7 @@ export interface ChartSeries {
   name: string;
   /** null = luka w danych (linia się przerywa, słupek znika). */
   values: (number | null)[];
-  /** Slot koloru 1..8; domyślnie pozycja serii. */
+  /** Slot koloru 1..MAX_COLOR_SLOT; domyślnie z SLOT_SEQUENCE po pozycji serii. */
   colorSlot: number;
 }
 

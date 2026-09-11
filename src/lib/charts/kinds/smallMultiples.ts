@@ -108,7 +108,7 @@
 // `smallMultiplesFit`.
 import { niceScale } from "../scale";
 import { INDEX_BASE, baseUsable, indexAgainst } from "../stats";
-import { MAX_SERIES } from "../types";
+import { MAX_COLOR_SLOT } from "../types";
 import type { ChartConfig } from "../types";
 
 /**
@@ -352,7 +352,7 @@ export interface SmallMultiplesPanel {
    * są jedynym przypadkiem, w którym osobne skale są uzasadnione.
    */
   unit: string | null;
-  /** Slot palety 1..MAX_SERIES. Domyślnie ten sam we wszystkich panelach. */
+  /** Slot palety 1..MAX_COLOR_SLOT. Domyślnie ten sam we wszystkich panelach. */
   colorSlot: number;
   points: SmallMultiplesPoint[];
   /** Liczba punktów Z WARTOŚCIĄ - to jest `n` panelu. */
@@ -1021,7 +1021,7 @@ export function smallMultiplesModel(
   const order: SmallMultiplesOrder = opts.order ?? "mean";
   const requestedScaleMode: SmallMultiplesScaleMode = opts.scaleMode === "free" ? "free" : "shared";
   const format = opts.formatValue ?? domyslnyFormat;
-  const wspolnySlot = przytnij(Math.round(opts.colorSlot ?? 1), 1, MAX_SERIES);
+  const wspolnySlot = przytnij(Math.round(opts.colorSlot ?? 1), 1, MAX_COLOR_SLOT);
   // KATEGORIA BAZOWA JEST ROZSTRZYGNIĘTA ZAWSZE, nie tylko w trybie indeksu.
   // Kolumna indeksu w tabeli danych istnieje także wtedy, gdy oś pokazuje
   // poziomy - i jest tam po to, żeby czytelnik zobaczył, DLACZEGO panel
@@ -1065,7 +1065,7 @@ export function smallMultiplesModel(
       unit: panel.unit ?? null,
       slot:
         opts.keepPanelSlots === true && wlasnySlot !== null
-          ? przytnij(Math.round(wlasnySlot), 1, MAX_SERIES)
+          ? przytnij(Math.round(wlasnySlot), 1, MAX_COLOR_SLOT)
           : wspolnySlot,
       values,
       stat,
@@ -1330,7 +1330,7 @@ export function smallMultiplesModel(
     spreadOk,
     declaredSampleOk:
       declared === null || observations === 0 ? null : Math.round(declared) === observations,
-    paletteWrapOk: rozneSloty ? panelCount <= MAX_SERIES : null,
+    paletteWrapOk: rozneSloty ? panelCount <= MAX_COLOR_SLOT : null,
   };
 
   return {

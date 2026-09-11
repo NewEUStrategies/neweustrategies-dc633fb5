@@ -8,6 +8,7 @@ import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
   isChartKind,
+  MAX_COLOR_SLOT,
   MAX_SERIES,
   type ChartConfig,
   type ChartMetric,
@@ -17,6 +18,7 @@ import {
   type MapDatum,
   type MapRegion,
 } from "./types";
+import { slotForSeries } from "@/lib/charts/palette";
 
 export const CHART_HEIGHT_MIN = 160;
 export const CHART_HEIGHT_MAX = 640;
@@ -56,9 +58,9 @@ export function parseChartSeries(raw: Json | undefined, categoriesCount: number)
       name: String(o.name ?? ""),
       values,
       colorSlot:
-        slotRaw !== null && slotRaw >= 1 && slotRaw <= MAX_SERIES
+        slotRaw !== null && slotRaw >= 1 && slotRaw <= MAX_COLOR_SLOT
           ? Math.round(slotRaw)
-          : out.length + 1,
+          : slotForSeries(out.length),
     });
   }
   return out;

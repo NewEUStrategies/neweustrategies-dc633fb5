@@ -48,8 +48,13 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
-import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
-import { barStyleHasEdge, resolveBarStyle, type BarStyle } from "@/lib/charts/palette";
+import {
+  barStyleHasEdge,
+  resolveBarStyle,
+  slotForSeries,
+  slotsNeedingPattern,
+  type BarStyle,
+} from "@/lib/charts/palette";
 import {
   forecastBandExtent,
   linearScale,
@@ -155,12 +160,14 @@ function seriesTextColor(s: ChartSeries): string {
 }
 
 /**
- * Czy seria potrzebuje kreskowania jako DRUGIEGO nośnika różnicy. Sloty poza
- * zestawem bezpiecznym dla daltonizmu (7-8) są od slotów 1-2 oddalone o ~10-12
- * jednostek CIELAB po symulacji - za mało, żeby sam odcień je odróżnił.
+ * Czy seria potrzebuje kreskowania jako DRUGIEGO nośnika różnicy.
+ *
+ * Pytanie dotyczy PARY, nie pojedynczej serii: kreskowanie ma sens dopiero
+ * wtedy, gdy na TYM wykresie stoi obok siebie para, której sam odcień nie
+ * rozdziela. Zbiór liczy `slotsNeedingPattern` raz dla całego rysunku.
  */
-function needsPattern(s: ChartSeries): boolean {
-  return s.colorSlot > CATEGORICAL_SAFE_SERIES;
+function needsPattern(s: ChartSeries, kreskowane: ReadonlySet<number>): boolean {
+  return kreskowane.has(s.colorSlot);
 }
 
 /** Prostokąt z zaokrąglonym wyłącznie końcem danych. */
@@ -595,6 +602,11 @@ export function CartesianChart({
     nazwaZadana ??
     (config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"));
 
+  /** Sloty, które na TYM wykresie potrzebują drugiego nośnika różnicy. */
+  const kreskowaneSloty = useMemo(
+    () => slotsNeedingPattern(series.map((s) => s.colorSlot)),
+    [series],
+  );
   const hatchId = `neh-hatch-${uid}`;
   const zoneHatchId = `neh-zone-hatch-${uid}`;
   const hintId = `neh-hint-${uid}`;
@@ -610,7 +622,7 @@ export function CartesianChart({
   const barStyle: BarStyle = resolveBarStyle(config.barStyle, {
     seriesCount: series.length,
     stacked,
-    patterned: series.some(needsPattern),
+    patterned: kreskowaneSloty.size > 0,
   });
   const edged = barStyleHasEdge(barStyle);
   /**
@@ -652,7 +664,7 @@ export function CartesianChart({
   // niesie jego WYPEŁNIENIE. Bez tego wzoru legenda pokazywała podział, którego
   // w rysunku nie ma - a klucz obiecujący różnicę nieobecną w danych jest
   // gorszy od klucza bez niej.
-  const barsNeedHatch = !isLine && !waterfall && series.some(needsPattern);
+  const barsNeedHatch = !isLine && !waterfall && kreskowaneSloty.size > 0;
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
@@ -981,7 +993,13 @@ export function CartesianChart({
                       : step.direction === "flat"
                         ? "var(--muted-foreground)"
                         : "var(--chart-positive)"
-                    : "var(--chart-1)";
+                    : // FILAR NIESIE POZIOM, NIE ZMIANĘ, więc idzie kolorem
+                      // SERII - wzięty z jej slotu, a nie z literału "1".
+                      // Numer slotu wpisany w kod rysujący jest tym samym
+                      // defektem co hex: przestaje się zgadzać z paletą
+                      // w chwili, w której paleta przestaje zaczynać się
+                      // od jedynki.
+                      `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)})`;
                 const x = center - barW / 2;
                 const y0 = Math.min(a, b);
                 const h = Math.abs(b - a);
@@ -1112,7 +1130,7 @@ export function CartesianChart({
                           .join(" ")
                       : "";
                   const lastIdx = lastNonNullIndex(s.values);
-                  const dashed = needsPattern(s);
+                  const dashed = needsPattern(s, kreskowaneSloty);
                   return (
                     <g key={s.colorSlot + s.name}>
                       {areaD && (
@@ -1239,7 +1257,7 @@ export function CartesianChart({
                         ? -barW / 2
                         : -((series.length * slotW) / 2) + si * slotW + (slotW - barW) / 2;
                       const negative = v < 0;
-                      const hatched = needsPattern(s);
+                      const hatched = needsPattern(s, kreskowaneSloty);
                       const barCls = (base: string): string =>
                         `${base}${negative ? " neh-bar-negative" : ""}`;
                       // Kierunek zaokrąglenia I kierunek rampy z JEDNEJ
