@@ -821,6 +821,36 @@ describe("FanChart - defekty danych: wtedy i tylko wtedy", () => {
     });
   }
 
+  it("cały wachlarz bierze kolor ze ŚCIEŻKI CENTRALNEJ, nie z pierwszej kolumny", () => {
+    // Kolor jest w tym systemie PRZYDZIAŁEM: ta sama wielkość ma ten sam
+    // kolor na wszystkich wykresach wpisu. Autor, który ustawił kolumny
+    // w kolejności „dolna, górna, centralna", dostawał wachlarz pomalowany
+    // slotem krawędzi - a krawędź nie jest osobną wielkością.
+    const { container } = render(
+      <FanChart
+        config={cfg({
+          categories: OKRESY,
+          forecastFrom: 5,
+          animate: false,
+          series: [
+            { name: "80% dolna", values: [N, N, N, N, 115, 115, 115, 116], colorSlot: 7 },
+            { name: "80% górna", values: [N, N, N, N, 115, 123, 131, 140], colorSlot: 7 },
+            {
+              name: "PKB centralna",
+              values: [100, 104, 107, 111, 115, 119, 123, 128],
+              colorSlot: 2,
+            },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const sciezka = container.querySelector("[data-role='central-path']");
+    expect(sciezka?.getAttribute("stroke")).toBe("var(--chart-2)");
+    const pasmo = container.querySelector("[data-role='band']");
+    expect(pasmo?.getAttribute("fill")).toBe("var(--chart-2)");
+  });
+
   it("KOTWICA AUTORSKA na ostatniej obserwacji nie jest defektem zerowej szerokości", () => {
     // `Z_KOTWICA` to wachlarz przypięty do pomiaru: krawędzie w kroku „2025"
     // są równe wartości centralnej, żeby wielokąt wychodził z danych. Zero

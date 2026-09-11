@@ -438,11 +438,17 @@ export function FanChart({ config, lang }: FanChartProps) {
    *
    * Jeden na wszystko - ścieżkę, pasma i punkty obserwacji - bo cały rysunek
    * jest o JEDNEJ wielkości, a kolumny krawędzi nie są osobnymi seriami.
-   * Bierzemy slot pierwszej serii, bo model nie oddaje indeksu serii, z której
-   * wziął ścieżkę centralną (mówi tylko `centralSource`, czyli SKĄD, a nie
-   * KTÓRA) - to jest brak po stronie modelu, opisany w wyniku pracy.
+   *
+   * Slot bierzemy ZE ŚCIEŻKI CENTRALNEJ (`model.centralIndex`), bo to ona jest
+   * tą wielkością. Slot serii pierwszej malował wachlarz kolorem KRAWĘDZI
+   * u każdego autora, który ustawił kolumny w kolejności „dolna, górna,
+   * centralna" - a kolor jest w tym systemie przydziałem, nie ozdobą: ta sama
+   * wielkość ma mieć ten sam kolor na wszystkich wykresach wpisu.
+   *
+   * Gdy ścieżki nie ma (`null`), zostaje slot pierwszej kolumny: wachlarz bez
+   * centrum i tak nie ma czego pokazać, a rysunek musi się czymś narysować.
    */
-  const colorSlot = config.series[0]?.colorSlot ?? 1;
+  const colorSlot = config.series[model.centralIndex ?? 0]?.colorSlot ?? 1;
   const kolor = `var(--chart-${colorSlot})`;
   const krycie = (layer: number): string =>
     `calc(var(--chart-band-${colorSlot}) * ${mnoznikWarstwy(

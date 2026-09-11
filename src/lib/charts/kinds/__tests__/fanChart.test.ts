@@ -435,6 +435,43 @@ describe("fanModel: uczciwość pasm", () => {
     expect(fanTable(model).rows.every((r) => !r.notes.includes("bandGap"))).toBe(true);
   });
 
+  // Bez tego testu model mówił tylko SKĄD wziął ścieżkę centralną
+  // (`centralSource`), a nie KTÓRA to seria - i renderer nie miał czym
+  // zaadresować slotu palety. Malował wtedy cały wachlarz kolorem serii
+  // PIERWSZEJ, czyli u autora z kolumnami „dolna, górna, centralna" kolorem
+  // krawędzi. Kolor jest w tym systemie przydziałem, nie ozdobą.
+  it("ODDAJE indeks serii, z której wziął ścieżkę centralną", () => {
+    // 1. Z NAZWY - centralna stoi jako trzecia kolumna.
+    const zNazwy = fanModel(
+      wejscie(OKRESY, [
+        seria("80% dolna", [null, null, null, null, 115, 115, 115, 116]),
+        seria("80% górna", [null, null, null, null, 115, 123, 131, 140]),
+        seria("PKB centralna", [100, 104, 107, 111, 115, 119, 123, 128]),
+      ]),
+      OD_PROGNOZY,
+    );
+    expect(zNazwy.centralSource).toBe("name");
+    expect(zNazwy.centralIndex).toBe(2);
+
+    // 2. Z OPCJI - wskazanie autora wygrywa z nazwą.
+    const zOpcji = fanModel(wejscie(OKRESY, [CENTRUM, seria("Druga", CENTRUM.values)]), {
+      ...OD_PROGNOZY,
+      centralSeriesIndex: 1,
+    });
+    expect(zOpcji.centralSource).toBe("option");
+    expect(zOpcji.centralIndex).toBe(1);
+
+    // 3. Z FALLBACKU - jedna seria bez nazwy mówiącej o roli.
+    const zFallbacku = fanModel(wejscie(OKRESY, [CENTRUM]), { forecastFrom: 5, bandPct: 10 });
+    expect(zFallbacku.centralSource).toBe("fallback");
+    expect(zFallbacku.centralIndex).toBe(0);
+
+    // 4. BRAK - `null` znaczy „nie ma ścieżki", a nie „pierwsza kolumna".
+    const bez = fanModel(wejscie([], []), OD_PROGNOZY);
+    expect(bez.centralSource).toBe("none");
+    expect(bez.centralIndex).toBeNull();
+  });
+
   it("MILCZY, gdy nie ma między czym szukać przerwy", () => {
     // Poziom o jednym kroku albo brak poziomów: `null` znaczy „nie ma o czym
     // orzekać", a nie „jest w porządku". Bez tego rozróżnienia pusty wykres

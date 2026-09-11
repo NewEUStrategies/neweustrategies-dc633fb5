@@ -91,6 +91,7 @@ const FAN_NOTES = klucze<FanRowNote>({
   zeroWidth: true,
   inverted: true,
   bandOverHistory: true,
+  bandGap: true,
   narrowing: true,
   anchor: true,
   boundary: true,

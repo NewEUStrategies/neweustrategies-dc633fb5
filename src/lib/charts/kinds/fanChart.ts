@@ -684,6 +684,23 @@ export interface FanModel {
   boundary: FanBoundary | null;
   bandSource: FanBandSource;
   centralSource: FanCentralSource;
+  /**
+   * Indeks serii WEJŚCIOWEJ, z której wzięta jest ścieżka centralna; `null` =
+   * nie ma ścieżki.
+   *
+   * `centralSource` mówi SKĄD (opcja, nazwa, fallback), a to pole - KTÓRA,
+   * i jedno bez drugiego nie wystarcza rendererowi. Cały wachlarz rysuje się
+   * JEDNYM slotem palety, bo jest o jednej wielkości, a kolumny krawędzi nie
+   * są osobnymi seriami - więc slot trzeba wziąć ze ścieżki centralnej.
+   * Dopóki model nie oddawał indeksu, render brał slot serii PIERWSZEJ:
+   * u autora, który ustawił kolumny w kolejności „dolna, górna, centralna",
+   * malował wachlarz kolorem krawędzi, a nie kolorem wielkości.
+   *
+   * Indeksuje tablicę PODANĄ modelowi (`FanInput.series`, czyli
+   * `config.series`), nie jakąś listę wewnętrzną - inaczej renderer nie
+   * miałby czego nim adresować.
+   */
+  centralIndex: number | null;
   honesty: FanHonesty;
 }
 
@@ -1300,6 +1317,7 @@ export function fanModel(input: FanInput, opts: FanOptions = {}): FanModel {
     boundary,
     bandSource,
     centralSource,
+    centralIndex,
     honesty,
   };
 }
