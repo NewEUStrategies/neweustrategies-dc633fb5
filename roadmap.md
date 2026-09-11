@@ -40,3 +40,8 @@
 ## Wykresy GSC
 
 - [x] Uczytelnić mapę aktywności w jasnym i ciemnym motywie oraz zmniejszyć granice treemapy stron.
+
+## Spójny wygląd wykresów
+
+- [ ] Ujednolicić jasne wnętrze i ciemniejszy obrys wszystkich słupków oraz wykresów kołowych.
+- [ ] Usunąć widoczną ramkę całego wykresu po kliknięciu, zachowując dostępny fokus klawiatury.
