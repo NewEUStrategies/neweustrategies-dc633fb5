@@ -498,6 +498,8 @@ const pl = {
           "Prognoza jest odróżniona od historii tylko przez: {{carriers}}. Jeden nośnik gubi się w druku i w skali szarości, więc przewidywanie i pomiar stoją wtedy na rysunku jako jeden szereg.",
         centralContinuousInForecast:
           "Ścieżka centralna ma luki w krokach: {{labels}}. Linia się tam przerywa, a pasmo wokół niej nie ma do czego się odnieść.",
+        centralContinuousInHistory:
+          "Ścieżka centralna ma luki nad pomiarem, w krokach: {{labels}}. Kroki obok mają wartość, więc linia przerywa się nad danymi, o których wykres twierdzi, że je zmierzono.",
         bandsContinuous:
           "Pasmo urywa się i zaczyna dalej w krokach: {{labels}}. Krok z jedną krawędzią wypada z rysunku w całości, bo pół pasma nie jest pasmem - a przerwa bez wyjaśnienia czyta się jak „tu niepewności nie ma”.",
         // Dwa pola informacyjne modelu, które orzekają o KSZTAŁCIE wachlarza.
@@ -1311,6 +1313,8 @@ const en = {
           "The forecast is set apart from history only by: {{carriers}}. A single carrier is lost in print and in greyscale, so prediction and measurement then stand on the chart as one series.",
         centralContinuousInForecast:
           "The central path has gaps at: {{labels}}. The line breaks there, and the band around it has nothing to refer to.",
+        centralContinuousInHistory:
+          "The central path has gaps over measured steps: {{labels}}. The steps around them have a value, so the line breaks over data the chart claims to have measured.",
         bandsContinuous:
           "The band breaks and resumes at: {{labels}}. A step with only one edge drops out entirely, because half a band is not a band - and an unexplained break reads as “there is no uncertainty here”.",
         wideAtStart:

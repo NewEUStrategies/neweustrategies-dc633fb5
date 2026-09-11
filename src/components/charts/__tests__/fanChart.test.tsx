@@ -72,6 +72,12 @@ const BAZA: Record<string, Json> = {
  * są równe wartości pomiaru, żeby wielokąt pasma wychodził z danych, a nie
  * zaczynał się w powietrzu pół kroku dalej.
  */
+/** Para krawędzi 80% zaczynająca się na granicy - do wierszy o innych defektach. */
+const EDGES_80: Json[] = [
+  { name: "80% dolna", values: [N, N, N, N, N, 115, 115, 116] },
+  { name: "80% górna", values: [N, N, N, N, N, 123, 131, 140] },
+];
+
 const Z_KOTWICA: Record<string, Json> = {
   ...BAZA,
   series: [
@@ -701,6 +707,15 @@ describe("FanChart - defekty danych: wtedy i tylko wtedy", () => {
       "2027",
     ],
     [
+      "honesty.centralContinuousInHistory",
+      "linia przerwana nad pomiarem mówi o BRAKU POMIARU, którego sąsiednie kroki mają",
+      {
+        ...BAZA,
+        series: [{ name: "PKB", values: [100, N, 107, 111, 115, 119, 123, 128] }, ...EDGES_80],
+      },
+      "2022",
+    ],
+    [
       "honesty.bandsContinuous",
       "przerwa w paśmie bez wyjaśnienia czyta się jak „tu niepewności nie ma”",
       {
@@ -820,6 +835,28 @@ describe("FanChart - defekty danych: wtedy i tylko wtedy", () => {
       expect(nota(dobry.container, klucz), `${klucz}: uwaga widoczna bez defektu`).toBeNull();
     });
   }
+
+  it("dwie luki, dwie uwagi - żadna nie wypisuje etykiet cudzej fazy", () => {
+    // Jedna wspólna lista luk wypisywała pod zdaniem o PROGNOZIE także kroki
+    // historii. Zdanie zostawało prawdziwe („ścieżka ma luki w krokach…"),
+    // ale czytelnik nie miał jak odróżnić, który brak je wywołał - a to jest
+    // cała treść uwagi uczciwościowej.
+    const { container } = render(
+      <FanChart
+        config={cfg({
+          ...BAZA,
+          series: [{ name: "PKB", values: [100, N, 107, 111, 115, 119, N, 128] }, ...EDGES_80],
+        })}
+        lang="pl"
+      />,
+    );
+    const prognoza = nota(container, "honesty.centralContinuousInForecast")?.textContent ?? "";
+    expect(prognoza).toContain("2027");
+    expect(prognoza).not.toContain("2022");
+    const historia = nota(container, "honesty.centralContinuousInHistory")?.textContent ?? "";
+    expect(historia).toContain("2022");
+    expect(historia).not.toContain("2027");
+  });
 
   it("cały wachlarz bierze kolor ze ŚCIEŻKI CENTRALNEJ, nie z pierwszej kolumny", () => {
     // Kolor jest w tym systemie PRZYDZIAŁEM: ta sama wielkość ma ten sam

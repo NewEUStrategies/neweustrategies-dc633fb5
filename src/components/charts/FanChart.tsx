@@ -547,8 +547,21 @@ export function FanChart({ config, lang }: FanChartProps) {
   if (honesty.centralContinuousInForecast === false) {
     notes.push({
       key: "honesty.centralContinuousInForecast",
+      // ETYKIETY TEJ SAMEJ FAZY, co orzeczenie. Jedna wspólna lista luk
+      // wypisywała pod zdaniem o prognozie także kroki historii - zdanie
+      // zostawało prawdziwe, ale czytelnik nie miał jak odróżnić, który brak
+      // je wywołał.
       text: t("fan.honesty.centralContinuousInForecast", {
-        labels: lista(honesty.centralGapLabels),
+        labels: lista(honesty.centralForecastGapLabels),
+      }),
+      defect: true,
+    });
+  }
+  if (honesty.centralContinuousInHistory === false) {
+    notes.push({
+      key: "honesty.centralContinuousInHistory",
+      text: t("fan.honesty.centralContinuousInHistory", {
+        labels: lista(honesty.centralHistoryGapLabels),
       }),
       defect: true,
     });

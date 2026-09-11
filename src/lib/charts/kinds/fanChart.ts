@@ -560,8 +560,30 @@ export interface FanHonesty {
    * do czego się odnieść. `null` = nie ma prognozy.
    */
   centralContinuousInForecast: boolean | null;
-  /** Etykiety kroków bez wartości centralnej (w obu fazach). */
-  centralGapLabels: string[];
+  /** Etykiety kroków PROGNOZY bez wartości centralnej. */
+  centralForecastGapLabels: string[];
+  /**
+   * Czy ścieżka centralna jest ciągła NA HISTORII. `false` = linia przerywa
+   * się nad danymi, które autor twierdzi, że zmierzył.
+   *
+   * To jest osobne orzeczenie, a nie ta sama luka policzona drugi raz, bo
+   * powód jest inny: w prognozie przerwa zostawia pasmo bez linii, do której
+   * miałoby się odnosić, a w historii MÓWI O POMIARZE - że go nie ma, choć
+   * sąsiednie kroki go mają. Dopóki orzeczenia nie było, luka nad pomiarem
+   * była zupełnie cicha: ten sam brak jeden krok dalej dostawał czerwoną
+   * uwagę, a nad danymi nie mówiło o nim nic.
+   *
+   * Liczone jak dziura w paśmie - MIĘDZY krokami, które wartość mają. Brak
+   * na początku albo na końcu historii znaczy „szereg zaczyna się później",
+   * a nie „ktoś zgubił pomiar", i orzeczenie zapalające się na tym byłoby
+   * widoczne na połowie poprawnych wykresów.
+   *
+   * `null` = mniej niż dwa kroki historii z wartością, więc nie ma między
+   * czym szukać przerwy.
+   */
+  centralContinuousInHistory: boolean | null;
+  /** Etykiety kroków HISTORII z dziurą w ścieżce centralnej. */
+  centralHistoryGapLabels: string[];
   /**
    * Czy każde pasmo jest CIĄGŁE na własnym zasięgu. `false` = jest krok, który
    * leży między dwoma krokami tego samego pasma, a pasma w nim nie ma - więc
@@ -1018,7 +1040,6 @@ export function fanModel(input: FanInput, opts: FanOptions = {}): FanModel {
   const centralValues = centralIndex === null ? undefined : series[centralIndex]?.values;
   const steps: FanStep[] = [];
   const centralPoints: FanCentralPoint[] = [];
-  const centralGapLabels: string[] = [];
   let observationCount = 0;
   for (let i = 0; i < count; i++) {
     const read = odczytajLiczbe(centralValues, i);
@@ -1026,8 +1047,8 @@ export function fanModel(input: FanInput, opts: FanOptions = {}): FanModel {
     const forecast = isForecast(i);
     const observation = !forecast && read.value !== null;
     if (observation) observationCount += 1;
-    if (read.value === null) centralGapLabels.push(labels[i]);
-    else centralPoints.push({ index: i, value: read.value, isForecast: forecast });
+    if (read.value !== null)
+      centralPoints.push({ index: i, value: read.value, isForecast: forecast });
     steps.push({
       index: i,
       label: labels[i],
@@ -1295,7 +1316,6 @@ export function fanModel(input: FanInput, opts: FanOptions = {}): FanModel {
     levels,
     boundary,
     centralValueByIndex,
-    centralGapLabels,
     invertedLabels,
     unpairedEdgeNames,
     duplicateEdgeNames,
@@ -1403,7 +1423,6 @@ interface WejscieUczciwosci {
   levels: readonly FanLevel[];
   boundary: FanBoundary | null;
   centralValueByIndex: ReadonlyMap<number, number>;
-  centralGapLabels: readonly string[];
   invertedLabels: readonly string[];
   unpairedEdgeNames: readonly string[];
   duplicateEdgeNames: readonly string[];
@@ -1552,11 +1571,31 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
 
   /* --- CIĄGŁOŚĆ ŚCIEŻKI W PROGNOZIE ---------------------------------- */
 
+  const centralForecastGapLabels: string[] = [];
   let centralContinuousInForecast: boolean | null = null;
   if (w.boundary !== null) {
     const prognoza = w.steps.filter((s) => s.isForecast);
+    for (const step of prognoza) {
+      if (step.central === null) centralForecastGapLabels.push(step.label);
+    }
     centralContinuousInForecast =
-      prognoza.length === 0 ? null : prognoza.every((s) => s.central !== null);
+      prognoza.length === 0 ? null : centralForecastGapLabels.length === 0;
+  }
+
+  // HISTORIA: dziury WEWNĘTRZNE, jak w paśmie. Brak na początku szeregu znaczy
+  // „pomiary zaczynają się później" i nie jest defektem; brak MIĘDZY dwoma
+  // pomiarami znaczy, że jednego zabrakło, a linia przerywa się nad danymi.
+  const centralHistoryGapLabels: string[] = [];
+  const historia = w.steps.filter((s) => !s.isForecast);
+  const zWartoscia = historia.filter((s) => s.central !== null);
+  let centralContinuousInHistory: boolean | null = null;
+  if (zWartoscia.length >= 2) {
+    const od = historia.indexOf(zWartoscia[0]);
+    const doo = historia.indexOf(zWartoscia[zWartoscia.length - 1]);
+    for (let i = od + 1; i < doo; i++) {
+      if (historia[i].central === null) centralHistoryGapLabels.push(historia[i].label);
+    }
+    centralContinuousInHistory = centralHistoryGapLabels.length === 0;
   }
 
   /* --- CIĄGŁOŚĆ PASMA ------------------------------------------------ */
@@ -1632,7 +1671,9 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
     bandsContinuous,
     bandGapLabels,
     centralContinuousInForecast,
-    centralGapLabels: [...w.centralGapLabels],
+    centralForecastGapLabels,
+    centralContinuousInHistory,
+    centralHistoryGapLabels,
     firstStepWidthShare,
     wideAtStart,
     narrowingLabels,

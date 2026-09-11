@@ -440,6 +440,42 @@ describe("fanModel: uczciwość pasm", () => {
   // zaadresować slotu palety. Malował wtedy cały wachlarz kolorem serii
   // PIERWSZEJ, czyli u autora z kolumnami „dolna, górna, centralna" kolorem
   // krawędzi. Kolor jest w tym systemie przydziałem, nie ozdobą.
+  // Bez tego testu luka NAD POMIAREM była zupełnie cicha. Ten sam brak jeden
+  // krok dalej (w prognozie) dostawał czerwoną uwagę, a nad danymi, o których
+  // wykres twierdzi, że je zmierzono, nie mówiło o nim nic.
+  it("NAZYWA lukę w ścieżce centralnej NAD POMIAREM, osobno od luki w prognozie", () => {
+    const model = fanModel(
+      wejscie(OKRESY, [
+        seria("PKB centralna", [100, null, 107, 111, 115, 119, null, 128]),
+        seria("80% dolna", [null, null, null, null, 115, 115, 115, 116]),
+        seria("80% górna", [null, null, null, null, 115, 123, 131, 140]),
+      ]),
+      OD_PROGNOZY,
+    );
+    // KAŻDA faza ma swoje etykiety, bo każda ma swój powód: w prognozie pasmo
+    // zostaje bez linii, nad pomiarem brakuje pomiaru.
+    expect(model.honesty.centralHistoryGapLabels).toEqual(["2022"]);
+    expect(model.honesty.centralContinuousInHistory).toBe(false);
+    expect(model.honesty.centralForecastGapLabels).toEqual(["2027"]);
+    expect(model.honesty.centralContinuousInForecast).toBe(false);
+  });
+
+  it("szereg zaczynający się później NIE jest luką w historii", () => {
+    // Druga strona umowy. Brak na POCZĄTKU historii znaczy „pomiary zaczynają
+    // się później" i zdarza się w połowie danych z bazy; orzeczenie zapalające
+    // się na tym byłoby widoczne wszędzie i uczyło pomijania całej listy.
+    const model = fanModel(
+      wejscie(OKRESY, [
+        seria("PKB centralna", [null, null, 107, 111, 115, 119, 123, 128]),
+        seria("80% dolna", [null, null, null, null, 115, 115, 115, 116]),
+        seria("80% górna", [null, null, null, null, 115, 123, 131, 140]),
+      ]),
+      OD_PROGNOZY,
+    );
+    expect(model.honesty.centralHistoryGapLabels).toEqual([]);
+    expect(model.honesty.centralContinuousInHistory).toBe(true);
+  });
+
   it("ODDAJE indeks serii, z której wziął ścieżkę centralną", () => {
     // 1. Z NAZWY - centralna stoi jako trzecia kolumna.
     const zNazwy = fanModel(
@@ -547,7 +583,7 @@ describe("fanModel: uczciwość pasm", () => {
       { forecastFrom: 5, bandPct: 10 },
     );
     expect(model.honesty.centralContinuousInForecast).toBe(false);
-    expect(model.honesty.centralGapLabels).toEqual(["2027"]);
+    expect(model.honesty.centralForecastGapLabels).toEqual(["2027"]);
     // Luka PRZERYWA odcinek linii, ale nie zmienia jej stylu na kreskowany:
     // trzy nośniki wystarczają, a czwarty wygląda na artefakt renderu.
     expect(model.centralSegments).toHaveLength(2);
@@ -696,7 +732,10 @@ describe("fanModel: odporność na dane z bazy", () => {
     expect(model.centralSegments).toEqual([]);
     expect(model.levels[0]?.steps ?? []).toEqual([]);
     expect(model.honesty.observationCount).toBe(0);
-    expect(model.honesty.centralGapLabels).toEqual(["I", "II", "III"]);
+    // Bez ANI JEDNEJ wartości centralnej nie ma między czym szukać przerwy:
+    // orzeczenie MILCZY, zamiast zaświadczać o ciągłości linii, której nie ma.
+    expect(model.honesty.centralHistoryGapLabels).toEqual([]);
+    expect(model.honesty.centralContinuousInHistory).toBeNull();
     expect(fanFormAdvice(model)).toContain("noCentral");
     expect(skanuj(model)).toEqual([]);
   });
