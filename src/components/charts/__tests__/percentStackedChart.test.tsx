@@ -511,12 +511,7 @@ describe("PercentStackedChart - wypełnienie segmentów", () => {
     expect(z.dol - z.gora).toBeGreaterThanOrEqual(0.5);
   });
 
-  it("slot poza zestawem bezpiecznym dla daltonizmu dostaje DRUGI nośnik różnicy", () => {
-    // W stosie tożsamość segmentu niesie wyłącznie kolor i legenda (blade
-    // wnętrze jej nie niesie, a etykieta bezpośrednia jest tylko w grubych
-    // segmentach). Sloty 7-8 są od slotów 1-2 oddalone po symulacji o 10-12
-    // jednostek CIELAB, czyli za mało - a legenda znaczy je paskami. Defekt,
-    // który to łapie: legenda obiecująca różnicę, której na rysunku nie ma.
+  it("każdy segment stosu zachowuje pełne wypełnienie bez wzoru", () => {
     const { container } = render(
       <PercentStackedChart
         config={cfg({
@@ -529,11 +524,12 @@ describe("PercentStackedChart - wypełnienie segmentów", () => {
         lang="pl"
       />,
     );
-    const nakladki = all(container, "path[fill^='url(#']").filter(
-      (e) => e.getAttribute("data-role") === null,
+    const segmenty = all(container, SEG);
+    expect(segmenty).toHaveLength(2);
+    expect(segmenty.every((segment) => segment.getAttribute("fill")?.startsWith("var(--chart-"))).toBe(
+      true,
     );
-    expect(nakladki).toHaveLength(1);
-    expect(container.querySelector("pattern")).not.toBeNull();
+    expect(container.querySelector("pattern[id$='-hatch']")).toBeNull();
   });
 
   it("nie zapieka koloru: każde wypełnienie i każda kreska idą tokenem", () => {
