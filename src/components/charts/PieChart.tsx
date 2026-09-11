@@ -23,7 +23,7 @@
 // w łuk tam, gdzie kąt na to pozwala, TABELI KLUCZA obok pierścienia
 // i kolejności malejącej od godziny dwunastej.
 //
-// TABELA OBOK, NIE LEGENDA Z PRÓBKAMI. Legenda podaje wyłącznie parę
+// TABELA POD WYKRESEM, NIE LEGENDA Z PRÓBKAMI. Legenda podaje wyłącznie parę
 // kolor-nazwa, więc czytelnik musi wykonać trzy skoki wzroku (łuk, próbka,
 // nazwa) i wciąż nie dostaje liczby. Tabela stawia w jednym wierszu próbkę,
 // nazwę, udział i wartość bezwzględną, w tej samej kolejności co łuki - czyli
@@ -161,17 +161,14 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
-      {/* TABELA KLUCZA OBOK, a poniżej progu `sm` POD pierścieniem. W jednej
-          kolumnie tarcza zjadałaby całą szerokość telefonu i tabela zeszłaby
-          do dwóch znaków na kolumnę; ułożona pod spodem zachowuje wyrównanie
-          liczb do prawej, które jest jedynym powodem, dla którego jest
-          tabelą, a nie listą. `min-w-0` na kolumnie pierścienia jest tu
-          konieczne: bez niego `flex-1` nie kurczy się poniżej wewnętrznej
-          szerokości SVG i tabela wypycha kartę. */}
-      <div ref={rootRef} className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      {/* TABELA KLUCZA ZAWSZE POD pierścieniem. Dzięki temu w wąskich kartach
+          dashboardu nie zabiera tarczy połowy szerokości: SVG dostaje pełny
+          środek karty, a klucz pozostaje czytelny poniżej. `min-w-0` i `w-full`
+          chronią oba elementy przed wypchnięciem karty przez dłuższą nazwę. */}
+      <div ref={rootRef} className="flex min-w-0 flex-col items-center gap-4">
         <div
           ref={widthRef}
-          className="relative min-w-0 flex-1 select-none"
+          className="relative w-full min-w-0 select-none"
           style={{ height, borderRadius: "var(--chart-radius)" }}
           // group (nie img): wycinki w środku są fokusowalne - rola img
           // czyniłaby je prezentacyjnymi dla czytników ekranu.
@@ -410,7 +407,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
 }
 
 /**
- * Tabela klucza obok pierścienia: próbka, nazwa, udział, wartość.
+ * Tabela klucza pod pierścieniem: próbka, nazwa, udział, wartość.
  *
  * PRAWDZIWA `<table>`, nie siatka z `div`ów. Kolumny liczb są wyrównane do
  * prawej i mają cyfry tabelaryczne, bo jedyny powód, dla którego ta tabela
@@ -441,7 +438,7 @@ function PieKeyTable({
   labels: { category: string; share: string; value: string };
 }) {
   return (
-    <table className="neh-pie-key w-full shrink-0 table-fixed border-collapse text-xs sm:w-56">
+    <table className="neh-pie-key mx-auto w-full max-w-xl table-fixed border-collapse text-xs">
       <caption className="sr-only">{label}</caption>
       {/* KOLUMNY O STAŁEJ SZEROKOŚCI, i to nie jest kwestia gustu. Wskazany
           wiersz jest oznaczony WAGĄ FONTU (tak jak wiersz serii we wspólnym
