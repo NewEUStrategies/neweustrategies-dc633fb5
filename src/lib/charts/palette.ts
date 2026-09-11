@@ -1303,13 +1303,11 @@ export const EDGE_FACE_RANGE = { min: 1.12, max: 1.16 } as const;
  * nasycone - dlatego obniżamy do solidnego tylko wtedy, gdy żądano bladego.
  */
 export function resolveBarStyle(
-  _requested: BarStyle,
-  _ctx: { seriesCount: number; stacked: boolean; patterned: boolean },
+  requested: BarStyle,
+  ctx: { seriesCount: number; stacked: boolean; patterned: boolean },
 ): BarStyle {
-  // Jedna reguła wizualna dla wszystkich wykresów słupkowych: jasne wnętrze
-  // i ciemniejsza krawędź, identycznie jak w wykresach pie/donut. Zachowujemy
-  // wejściowy typ dla zgodności ze starszymi dokumentami, ale renderer zawsze
-  // normalizuje wariant do wspólnego stylu platformy.
+  if (requested !== "pale") return requested;
+  if (ctx.stacked || ctx.seriesCount > 1 || ctx.patterned) return "solid";
   return "pale";
 }
 

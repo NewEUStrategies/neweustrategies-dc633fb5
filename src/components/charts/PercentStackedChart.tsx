@@ -1077,12 +1077,9 @@ export function PercentStackedChart({
                   const grubosc = Math.max(0, yDol - yGora);
                   // WĄSKI SEGMENT IDZIE SOLIDEM - patrz `NARROW_SEGMENT_PX`.
                   const waski = grubosc < NARROW_SEGMENT_PX;
-                  const styl: BarStyle = barStyle;
+                  const styl: BarStyle = waski ? "solid" : barStyle;
                   const obwodka = barStyleHasEdge(styl);
-                  // Bardzo cienki segment nie może stracić całego wnętrza przez
-                  // wsunięcie obrysu. Dla niego obrys leży na geometrii, ale
-                  // nadal zachowuje wspólny jasny środek i ciemną krawędź.
-                  const inset = obwodka && !waski ? BAR_EDGE_INSET : 0;
+                  const inset = obwodka ? BAR_EDGE_INSET : 0;
                   const wPoprzek = Math.max(0, barW - 2 * inset);
                   // Podłoga pół piksela: segment o dodatnim udziale MUSI być
                   // widoczny, bo zniknięty czyta się jako udział zerowy.
@@ -1112,18 +1109,32 @@ export function PercentStackedChart({
                         data-edged={obwodka ? "true" : undefined}
                         data-style={styl}
                         className="neh-bar"
-                        fill={`var(--chart-${seg.colorSlot}-inner)`}
+                        fill={
+                          styl === "gradient"
+                            ? `url(#${gradientId(seg.colorSlot)})`
+                            : `var(--chart-${seg.colorSlot})`
+                        }
                         // PRZEŚWIT STOSU W KOLORZE PŁYTY jest geometrią, nie
                         // dekoracją: bez niego dwa sąsiednie segmenty stykają
                         // się i na granicy powstaje fałszywy trzeci kolor.
                         // Segment wąski go nie dostaje, bo linia zjadłaby go
                         // w całości.
-                        stroke={`var(--chart-${seg.colorSlot}-edge)`}
-                        strokeWidth={obwodka ? undefined : SEGMENT_GAP_PX}
+                        stroke={
+                          styl === "gradient"
+                            ? `var(--chart-${seg.colorSlot})`
+                            : waski
+                              ? undefined
+                              : "var(--card)"
+                        }
+                        strokeWidth={obwodka ? undefined : waski ? 0 : SEGMENT_GAP_PX}
                         // Kaskada idzie PO SŁUPKACH, nie po segmentach:
                         // wchodzące kolumny czyta się jako rysunek, który się
                         // buduje, a wchodzące segmenty - jako rozsypany stos.
-                        style={{ ["--neh-i" as string]: bar.index }}
+                        style={{
+                          ["--neh-i" as string]: bar.index,
+                          ["--neh-unified-inner" as string]: `var(--chart-${seg.colorSlot}-inner)`,
+                          ["--neh-unified-edge" as string]: `var(--chart-${seg.colorSlot}-edge)`,
+                        }}
                       />
                       {kreskowany && (
                         <path
@@ -1161,7 +1172,6 @@ export function PercentStackedChart({
                       y={ySrodek + 3.5}
                       textAnchor="middle"
                       fontSize={FONT_AXIS}
-                      // Jasne wnętrze używa wspólnego, kontrastowego tuszu.
                       fill="var(--foreground)"
                       className="neh-fade neh-value-label tabular-nums"
                       pointerEvents="none"

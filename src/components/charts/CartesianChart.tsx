@@ -997,17 +997,17 @@ export function CartesianChart({
                 const fill =
                   step.kind === "step"
                     ? step.direction === "down"
-                      ? "var(--chart-negative-inner)"
+                      ? "var(--chart-negative)"
                       : step.direction === "flat"
                         ? "var(--muted-foreground)"
-                        : "var(--chart-positive-inner)"
+                        : "var(--chart-positive)"
                     : // FILAR NIESIE POZIOM, NIE ZMIANĘ, więc idzie kolorem
                       // SERII - wzięty z jej slotu, a nie z literału "1".
                       // Numer slotu wpisany w kod rysujący jest tym samym
                       // defektem co hex: przestaje się zgadzać z paletą
                       // w chwili, w której paleta przestaje zaczynać się
                       // od jedynki.
-                      `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)}-inner)`;
+                      `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)})`;
                 const edge =
                   step.kind === "step"
                     ? step.direction === "down"
@@ -1031,12 +1031,20 @@ export function CartesianChart({
                         step.kind === "step" && step.direction === "down" ? "bottom" : "top",
                       )}
                       fill={fill}
-                      stroke={edge}
-                      data-edged="true"
-                      data-style="pale"
+                      style={{
+                        ["--neh-i" as string]: si,
+                        ["--neh-unified-inner" as string]:
+                          step.kind === "step"
+                            ? step.direction === "down"
+                              ? "var(--chart-negative-inner)"
+                              : step.direction === "flat"
+                                ? "var(--muted)"
+                                : "var(--chart-positive-inner)"
+                            : `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)}-inner)`,
+                        ["--neh-unified-edge" as string]: edge,
+                      }}
                       className={step.direction === "down" ? "neh-bar neh-bar-negative" : "neh-bar"}
                       data-role="waterfall-step"
-                      style={{ ["--neh-i" as string]: si }}
                     />
                     {/* Etykieta wartości na KAŻDYM słupku - mostek bez liczb
                         zmusza do odczytu długości, a po to jest mostek, żeby
@@ -1360,6 +1368,8 @@ export function CartesianChart({
                             // sloty zamiast dziesięciu prawie identycznych.
                             ["--neh-bar-hover" as string]: `var(--chart-${slot}-hover)`,
                             ["--neh-bar-token" as string]: `var(--chart-${slot})`,
+                            ["--neh-unified-inner" as string]: `var(--chart-${slot}-inner)`,
+                            ["--neh-unified-edge" as string]: `var(--chart-${slot}-edge)`,
                           }}
                         />
                       );

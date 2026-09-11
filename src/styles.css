@@ -4791,6 +4791,22 @@ input.icon-input-with-action {
   fill: var(--neh-bar-hover);
   stroke: var(--neh-bar-token);
 }
+/* WSPÓLNY JĘZYK WYKRESÓW SŁUPKOWYCH: dokładnie jak pie/donut - spokojne,
+   jaśniejsze wnętrze i wyraźniejsza krawędź tej samej rodziny koloru.
+   Selektor opiera się na roli danych, więc nie obejmuje dekoracyjnych nakładek
+   wzoru ani innych prostokątów technicznych wykresu. */
+.neh-chart :is(
+    [data-role="bar"],
+    [data-role="segment"],
+    [data-role="bin"],
+    [data-role="leg"],
+    [data-role="waterfall-step"]
+  ) {
+  fill: var(--neh-unified-inner);
+  stroke: var(--neh-unified-edge);
+  stroke-width: var(--chart-bar-edge, 1.5px);
+  stroke-linejoin: round;
+}
 .neh-armed .neh-bar {
   transform: scaleY(0);
   transform-origin: bottom;
