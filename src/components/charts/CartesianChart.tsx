@@ -1366,7 +1366,7 @@ export function CartesianChart({
                             // Odcienie stanu podane JAKO WŁASNOŚCI elementu,
                             // żeby arkusz miał jedną regułę hoveru na wszystkie
                             // sloty zamiast dziesięciu prawie identycznych.
-                            ["--neh-bar-hover" as string]: `var(--chart-${slot}-hover)`,
+                            ["--neh-bar-hover" as string]: `var(--chart-${slot}-active, var(--chart-${slot}-hover))`,
                             ["--neh-bar-token" as string]: `var(--chart-${slot})`,
                             ["--neh-unified-inner" as string]: `var(--chart-${slot}-inner)`,
                             ["--neh-unified-edge" as string]: `var(--chart-${slot}-edge)`,

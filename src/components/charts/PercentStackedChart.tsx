@@ -1134,7 +1134,7 @@ export function PercentStackedChart({
                           ["--neh-i" as string]: bar.index,
                           ["--neh-unified-inner" as string]: `var(--chart-${seg.colorSlot}-inner)`,
                           ["--neh-unified-edge" as string]: `var(--chart-${seg.colorSlot}-edge)`,
-                          ["--neh-bar-hover" as string]: `var(--chart-${seg.colorSlot}-hover)`,
+                          ["--neh-bar-hover" as string]: `var(--chart-${seg.colorSlot}-active, var(--chart-${seg.colorSlot}-hover))`,
                           ["--neh-bar-token" as string]: `var(--chart-${seg.colorSlot})`,
                         }}
                       />
