@@ -1282,12 +1282,116 @@ export default defineConfig({
           lines: 99,
           branches: 99,
         },
-        // zmierzone: 100.0% linii · 100.0% fn · 97.4% gał
+        // zmierzone: 100.0% linii · 100.0% fn · 97.8% gał
         "src/components/charts/PieChart.tsx": {
           statements: 99,
           functions: 99,
           lines: 99,
           branches: 96,
+        },
+        // ── DZIESIĘĆ RENDERÓW RODZAJÓW Z SEKCJI 1: PODŁOGI ZAPADKOWE ────────────
+        // Te pliki NIE MIAŁY DO TEJ PORY ŻADNEGO progu, więc pilnował ich
+        // wyłącznie próg repo-wide (~19,5% instrukcji / 15,75% gałęzi) - czyli
+        // regresja z dziewięćdziesięciu kilku procent do dwudziestu przeszłaby
+        // bez słowa. To jest gorsze niż próg za niski: brak progu wygląda
+        // w konfiguracji identycznie jak plik, którego nikt nie musi pilnować.
+        //
+        // Podłogi stoją na WARTOŚCIACH ZMIERZONYCH (zaokrąglonych w dół), a nie
+        // na docelowych 99/96, którymi chodzą starsze komponenty ramy. Jest to
+        // świadoma różnica, nie zaniżenie: zapadka ma dziś zatrzymać regresję,
+        // a podniesienie jej wymaga dopisania testów, nie zmiany liczby. Gałęzie
+        // są najniższe (72-93%), bo te rendery mają gęste rozgałęzienia na
+        // przypadkach uczciwości danych - i to jest nazwany dług, nie sufit.
+        //
+        // Sufit 99 obowiązuje nawet przy zmierzonym 100: próg równy wydrukowanej
+        // wartości pada na własnym zaokrągleniu (lekcja z wpisu IV kroniki
+        // budżetu bundla - wydruk „100.0" znaczy „cokolwiek z [100,00; 100,05)").
+        // zmierzone: 98.9% linii · 93.9% instr · 90.5% fn · 75.6% gał
+        "src/components/charts/HistogramChart.tsx": {
+          statements: 93,
+          functions: 90,
+          lines: 98,
+          branches: 75,
+        },
+        // zmierzone: 96.3% linii · 94.8% instr · 100.0% fn · 80.7% gał
+        "src/components/charts/BoxplotChart.tsx": {
+          statements: 94,
+          functions: 99,
+          lines: 96,
+          branches: 80,
+        },
+        // zmierzone: 99.2% linii · 92.9% instr · 93.1% fn · 72.6% gał
+        "src/components/charts/BeeswarmChart.tsx": {
+          statements: 92,
+          functions: 93,
+          lines: 99,
+          branches: 72,
+        },
+        // zmierzone: 98.8% linii · 93.4% instr · 97.3% fn · 84.0% gał
+        "src/components/charts/ScatterChart.tsx": {
+          statements: 93,
+          functions: 97,
+          lines: 98,
+          branches: 84,
+        },
+        // zmierzone: 97.2% linii · 94.5% instr · 100.0% fn · 87.1% gał
+        "src/components/charts/HeatmapChart.tsx": {
+          statements: 94,
+          functions: 99,
+          lines: 97,
+          branches: 87,
+        },
+        // zmierzone: 100.0% linii · 97.9% instr · 100.0% fn · 86.5% gał
+        "src/components/charts/TornadoChart.tsx": {
+          statements: 97,
+          functions: 99,
+          lines: 99,
+          branches: 86,
+        },
+        // PODNIESIONE TESTAMI, nie zmianą liczby. Przegląd adwersarialny dołożył
+        // 785 linii testów wachlarza i zmierzone poszło z 92,8/89,8/83,3/88,1 na:
+        // zmierzone: 100.0% linii · 98.9% instr · 100.0% fn · 97.3% gał
+        "src/components/charts/FanChart.tsx": {
+          statements: 98,
+          functions: 99,
+          lines: 99,
+          branches: 97,
+        },
+        // zmierzone: 95.5% linii · 94.5% instr · 87.5% fn · 93.7% gał
+        // PODNIESIONE TESTAMI: 644 linie testów indeksu z przeglądu
+        // adwersarialnego dały pokrycie PEŁNE na wszystkich czterech metrykach
+        // (207/207 instrukcji, 160/160 gałęzi, 40/40 funkcji, 182/182 linii),
+        // czyli z 95,5/94,5/87,5/93,7 na:
+        // zmierzone: 100.0% linii · 100.0% instr · 100.0% fn · 100.0% gał
+        "src/components/charts/IndexBaseChart.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // PODNIESIONE TESTAMI: przegląd adwersarialny słupka 100% dał pokrycie
+        // pełne na trzech metrykach (210/210 instrukcji, 37/37 funkcji,
+        // 191/191 linii), czyli z 99,5/97,6/97,2/88,3 na:
+        // zmierzone: 100.0% linii · 100.0% instr · 100.0% fn · 97.6% gał
+        //
+        // Komentarz pomiarowy tego wpisu zniknął przy mojej wcześniejszej
+        // podmianie sąsiedniego bloku po numerach linii - wraca tutaj razem
+        // z podniesieniem, bo wpis progu bez zapisanego pomiaru jest liczbą
+        // bez pochodzenia, a cała ta sekcja stoi na zasadzie odwrotnej.
+        "src/components/charts/PercentStackedChart.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 97,
+        },
+        // PODNIESIONE TESTAMI: przegląd adwersarialny paneli dołożył 323 linie
+        // testów (46 -> 57 przypadków) i zmierzone poszło z 93,3/92,0/84,2/90,1 na:
+        // zmierzone: 99.5% linii · 99.6% instr · 100.0% fn · 97.6% gał
+        "src/components/charts/SmallMultiplesChart.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 97,
         },
         // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
         "src/lib/analytics/audience.functions.ts": {

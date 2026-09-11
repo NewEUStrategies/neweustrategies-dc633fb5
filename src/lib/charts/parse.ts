@@ -3,9 +3,11 @@
 // koercja, twarde klamry, zero any.
 
 import type { Json } from "@/lib/blocks/types";
+import { BAR_STYLES, type BarStyle } from "./palette";
 import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
+  isChartKind,
   MAX_SERIES,
   type ChartConfig,
   type ChartMetric,
@@ -68,9 +70,19 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     .map((c) => String(c ?? ""));
   const heightRaw = num(data.height);
   // `variant` (toolbar szybkiego przełączania w edytorze bloków) ma
-  // pierwszeństwo nad `kind`; edytor utrzymuje oba klucze spójnie.
-  const kindSource =
-    typeof data.variant === "string" && data.variant !== "" ? data.variant : data.kind;
+  // pierwszeństwo nad `kind`, ale WYŁĄCZNIE gdy jest znanym rodzajem wykresu.
+  //
+  // Wcześniej wygrywał każdy niepusty napis, a to jest defekt, bo `variant`
+  // NIE JEST kluczem tego bloku: to generyczne pole wariantu STYLU, którego
+  // inne rodzaje bloków używają na wartości w rodzaju "minimal". Blok wykresu
+  // z `kind: "donut"` i odziedziczonym `variant: "minimal"` szedł więc przez
+  // `parseChartKind("minimal")`, które degraduje nieznany zapis do słupków -
+  // i pierścień cicho zamieniał się w kolumny, choć autor wybrał go wprost.
+  //
+  // Warunek "znany rodzaj" naprawia to bez odbierania toolbarowi funkcji:
+  // gdy toolbar zapisze prawdziwy rodzaj, nadal wygrywa; gdy w polu siedzi
+  // cokolwiek innego, decyduje `kind`, czyli jawny wybór autora.
+  const kindSource = isChartKind(data.variant) ? data.variant : data.kind;
   return {
     kind: parseChartKind(kindSource),
     title: String(data.title ?? ""),
@@ -93,7 +105,10 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     // z nowej specyfikacji bez migracji danych - a autor, który świadomie
     // chce łamaną, zapisuje 0 i to zero jest respektowane.
     smoothing: clamp01(num(data.smoothing) ?? SMOOTHING_DEFAULT),
+    barStyle: parseBarStyle(data.barStyle),
     forecastFrom: parseForecastFrom(data.forecastFrom, categories.length),
+    forecastFromDeclared: parseDeclaredForecastFrom(data.forecastFrom),
+    valuesBeyondCategories: countValuesBeyondCategories(data.series, categories.length),
     forecastBandPct: Math.max(0, Math.min(100, num(data.forecastBandPct) ?? 0)),
     // n: zero jest wartością nieprawdziwą dla liczby obserwacji, więc
     // traktujemy je jak brak - inaczej podpis twierdziłby "n = 0" o wykresie,
@@ -155,6 +170,38 @@ function positiveIntOrNull(value: number | null): number | null {
 }
 
 /**
+ * Deklaracja granicy BEZ sprawdzania zakresu - do orzeczeń uczciwości.
+ *
+ * `parseForecastFrom` zwraca `null` i dla braku deklaracji, i dla deklaracji
+ * nieużywalnej; model, który ma powiedzieć „granicę odrzucono", nie ma z czego
+ * tych dwóch stanów odróżnić. Zaokrąglamy tak samo, żeby porównanie z wartością
+ * użyteczną było porównaniem tej samej liczby.
+ */
+function parseDeclaredForecastFrom(raw: Json | undefined): number | null {
+  const value = num(raw);
+  return value === null ? null : Math.round(value);
+}
+
+/**
+ * Ile liczb w seriach nie ma swojej kategorii.
+ *
+ * Liczone PRZED przycięciem, bo po przycięciu nadmiaru już nie ma - a to
+ * właśnie o nim mają powiedzieć orzeczenia modeli. Granica `MAX_SERIES` jest
+ * ta sama, co w `parseChartSeries`: seria, która i tak nie wejdzie do wykresu,
+ * nie dokłada się do licznika liczb bez kategorii, bo jej brak ma własny
+ * powód i własne zdanie.
+ */
+function countValuesBeyondCategories(raw: Json | undefined, categoriesCount: number): number {
+  if (!Array.isArray(raw)) return 0;
+  let out = 0;
+  for (const item of raw.slice(0, MAX_SERIES)) {
+    const values = asRecord(item).values;
+    if (Array.isArray(values)) out += Math.max(0, values.length - categoriesCount);
+  }
+  return out;
+}
+
+/**
  * Indeks pierwszej kategorii prognozowanej. Zero jest ODRZUCANE świadomie:
  * wykres, którego cały szereg jest prognozą, nie ma historii, od której
  * prognozę odróżnia - separator stałby na lewej krawędzi i nie mówiłby nic.
@@ -198,4 +245,14 @@ export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
     animate: data.animate !== false,
     source: String(data.source ?? ""),
   };
+}
+
+/**
+ * Wariant wypełnienia słupka. Nieznany zapis wraca do wariantu bladego, a nie
+ * rzuca: konfiguracja bloku pochodzi z treści, więc musi znieść zapis
+ * z przyszłej albo cofniętej wersji edytora bez wywracania strony.
+ */
+export function parseBarStyle(raw: Json | undefined): BarStyle {
+  const value = typeof raw === "string" ? raw : "";
+  return (BAR_STYLES as readonly string[]).includes(value) ? (value as BarStyle) : "pale";
 }

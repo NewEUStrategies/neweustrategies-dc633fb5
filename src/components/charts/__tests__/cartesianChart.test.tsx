@@ -43,7 +43,9 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
+import { BAR_EDGE_INSET } from "@/lib/charts/geometry";
 import { defaultChartConfig, parseChartConfig } from "@/lib/charts/parse";
+import { resetTextMeasureCache } from "@/lib/charts/measureText";
 import type { ChartConfig } from "@/lib/charts/types";
 import { CartesianChart } from "../CartesianChart";
 
@@ -139,10 +141,19 @@ describe("CartesianChart - wczesne wyjścia i filtr serii", () => {
       />,
     );
     // Dwa słupki (jedna ocalała seria x dwie kategorie), wszystkie w slocie 2 -
-    // odsianie serii NIE przenumerowuje palety.
+    // odsianie serii NIE przenumerowuje palety. Wypełnieniem jest teraz BLADE
+    // WNĘTRZE slotu (wariant domyślny przy jednej serii), a tożsamość niesie
+    // obwódka - dlatego pytamy o oba i oba muszą wskazywać slot 2.
     const bars = all(container, SEL.bar);
     expect(bars).toHaveLength(2);
-    expect(bars.map((b) => b.getAttribute("fill"))).toEqual(["var(--chart-2)", "var(--chart-2)"]);
+    expect(bars.map((b) => b.getAttribute("fill"))).toEqual([
+      "var(--chart-2-inner)",
+      "var(--chart-2-inner)",
+    ]);
+    expect(bars.map((b) => b.getAttribute("stroke"))).toEqual([
+      "var(--chart-2-edge)",
+      "var(--chart-2-edge)",
+    ]);
   });
 
   it("tytuł trafia do aria-label, a jego brak nie zostawia pustego atrybutu", () => {
@@ -174,14 +185,20 @@ describe("CartesianChart - kolumny pionowe", () => {
     const [dodatni, ujemny] = ds(container, SEL.bar);
     const zeroY = Number(all(container, SEL.axis)[0].getAttribute("y1"));
 
-    // Obie kolumny startują z tego samego Y (oś zera) - jedna idzie w górę
-    // (ujemne `v`), druga w dół (dodatnie `v`).
-    // Współrzędne x są o 2 px mniejsze niż przed zmianą, bo podłoga marginesu
-    // lewego zeszła z 34 px (wartość poza skalą odstępów) na 32 px, czyli na
-    // szczebel skali 4 px.
-    expect(dodatni.startsWith(`M132.66666666666669 ${zeroY}v-`)).toBe(true);
-    expect(ujemny.startsWith(`M358 ${zeroY}v`)).toBe(true);
-    expect(ujemny).not.toContain(`${zeroY}v-`);
+    // Obie kolumny startują na osi zera - jedna idzie w górę (ujemne `v`),
+    // druga w dół (dodatnie `v`).
+    //
+    // BAZA JEST SKORYGOWANA O WSUNIĘCIE OBWÓDKI, i to nie jest przesunięcie
+    // bazy: `stroke` leży NA ścieżce, więc kształt wsunięty o połowę grubości
+    // (0,75 px) ma ZEWNĘTRZNĄ krawędź obwódki dokładnie na zerze. Bez tej
+    // korekty obwódka zjadałaby wysokość, czyli po prostu zmniejszała wartość.
+    // Asercja pyta więc o relację, a nie o przypięty napis - inaczej zmiana
+    // grubości obwódki wywracałaby test, nie mówiąc, co się zepsuło.
+    const startY = (path: string): number => Number(/^M[\d.]+ ([\d.]+)/.exec(path)?.[1]);
+    expect(startY(dodatni)).toBeCloseTo(zeroY - BAR_EDGE_INSET, 6);
+    expect(startY(ujemny)).toBeCloseTo(zeroY + BAR_EDGE_INSET, 6);
+    expect(dodatni).toMatch(/^M[\d.]+ [\d.]+v-/);
+    expect(ujemny).toMatch(/^M[\d.]+ [\d.]+v[\d.]/);
   });
 
   it("zaokrąglenie 6px dostaje szczyt kolumny dodatniej i SPÓD ujemnej", () => {
@@ -233,11 +250,19 @@ describe("CartesianChart - kolumny pionowe", () => {
     );
     const bars = ds(container, SEL.bar);
     expect(bars).toHaveLength(2);
-    // Minimalna wysokość 0.5px - kategoria z zerem zostaje widoczna na osi.
-    expect(bars[0]).toContain("v-0.25");
-    // 278, nie 280: margines górny zszedł z 10 px na 12 px, a dolny z 26 px
-    // na 24 px - obie wartości leżą teraz na skali odstępów 4 px.
-    expect(bars[1]).toContain("v-278");
+    // ZNAKIEM KATEGORII Z ZEREM JEST OBWÓDKA, nie podłoga wysokości - i to
+    // jest zmiana na lepsze. Wcześniej silnik rysował włos 0,5 px, czyli
+    // wysokość, której w danych nie ma; teraz kształt ma wysokość dokładnie 0,
+    // a widoczną kreską jest obwódka 1,5 px stojąca DOKŁADNIE na zerze.
+    // Skutek uboczny wsunięcia okazał się właściwym mechanizmem: kreska jest
+    // w prawidłowym miejscu i nie udaje danych.
+    expect(bars[0]).toContain("v0");
+    expect(bars[0]).not.toContain("v-0.25");
+    expect(all(container, SEL.bar)[0].getAttribute("data-edged")).toBe("true");
+    // 276,5 zamiast 278: wysokość rysowana jest mniejsza o dwa wsunięcia
+    // (2 x 0,75 px), a zewnętrzna krawędź obwódki nadal sięga tam, gdzie
+    // sięgała wartość.
+    expect(bars[1]).toContain("v-276.5");
   });
 
   it("szerokość kolumny nie przekracza 24px przy garstce kategorii", () => {
@@ -247,8 +272,9 @@ describe("CartesianChart - kolumny pionowe", () => {
         lang="pl"
       />,
     );
-    // 24px = 12px prostej ścianki + 2 x 6px promienia.
-    expect(d(all(container, SEL.bar)[0])).toContain("h12");
+    // 24 px nominalnej szerokości = 1,5 px zjedzone przez wsunięcie obwódki
+    // (2 x 0,75) + 12 px na dwa promienie 6 px + 10,5 px prostej ścianki.
+    expect(d(all(container, SEL.bar)[0])).toContain("h10.5");
   });
 
   it("dwie serie grupują się w rozdzielnych slotach z 2px prześwitu", () => {
@@ -631,7 +657,14 @@ describe("CartesianChart - stack", () => {
         lang="pl"
       />,
     );
-    expect(all(container, SEL.bar)[0].getAttribute("stroke-width")).toBe("0");
+    // Prześwit w kolorze płyty istnieje tylko w prawdziwym stosie. Przy jednej
+    // ocalałej serii wariant wraca do bladego, więc obwódka jest KRAWĘDZIĄ
+    // SERII, a jej grubość niesie arkusz (`--chart-bar-edge`), nie atrybut -
+    // `var()` w atrybutach prezentacyjnych SVG nie jest wspierane wszędzie.
+    const bar = all(container, SEL.bar)[0];
+    expect(bar.getAttribute("stroke")).toBe("var(--chart-1-edge)");
+    expect(bar.getAttribute("stroke")).not.toBe("var(--card)");
+    expect(bar.getAttribute("stroke-width")).toBeNull();
   });
 
   it("`stacked` jest ignorowane dla linii - powstają dwie niezależne ścieżki", () => {
@@ -697,6 +730,41 @@ describe("CartesianChart - stack", () => {
     for (const bar of all(container, SEL.bar)) {
       expect(bar.getAttribute("stroke-width")).toBe("1");
     }
+  });
+
+  it("STOS O MIESZANYCH ZNAKACH zaokrągla OBA końce pasa, bo każdy domyka INNA seria", () => {
+    // Kategoria z wartościami po obu stronach zera daje DWA pasy rosnące
+    // z jednej bazy w przeciwne strony, a `stackSeries` prowadzi dla nich dwa
+    // niezależne kursory. Pytanie "która seria domyka pas" ma więc dwie
+    // odpowiedzi naraz, i to jest cały powód, dla którego szuka się jej PO
+    // ZNAKU segmentu, a nie jako "ostatniej serii z wartością". Reguła
+    // "ostatnia seria" dałaby tu zaokrąglenie serii 3 na pasie dodatnim
+    // (przypadkiem prawidłowo) i ODEBRAŁA je pasowi ujemnemu, którego szczyt
+    // przestałby mieć czytelny koniec - a czyta się z niego wartość.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          stacked: true,
+          categories: ["a"],
+          series: [
+            { name: "Dodatnia 1", values: [6] },
+            { name: "Ujemna", values: [-4] },
+            { name: "Dodatnia 2", values: [3] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const [dodatnia1, ujemna, dodatnia2] = ds(container, SEL.bar);
+    // Pas dodatni domyka OSTATNIA DODATNIA (seria 3), więc łuk skręca w górę.
+    expect(dodatnia2).toContain("q0 -6 6 -6");
+    // Segment środkowy pasa dodatniego zostaje prostokątem - dwa zaokrąglenia
+    // na jednym pasie czytałyby się jak dwa osobne słupki.
+    expect(dodatnia1).not.toContain("q");
+    // Pas ujemny domyka jedyna seria ujemna - i to W DRUGĄ STRONĘ, bo jego
+    // koniec danych jest pod bazą, nie nad nią.
+    expect(ujemna).toContain("q0 6 6 6");
   });
 
   it("etykiety wartości nie pojawiają się na stacku", () => {
@@ -1034,11 +1102,40 @@ describe("CartesianChart - interakcja", () => {
     ],
   };
 
-  it("strzałka w prawo aktywuje pierwszą kategorię i pokazuje WSZYSTKIE serie w jednym tooltipie", () => {
+  it("strzałka w prawo aktywuje pierwszą kategorię i pokazuje WSZYSTKIE serie w JEDNYM tooltipie", () => {
     const { container } = render(<CartesianChart config={cfg({ ...dwieSerie })} lang="pl" />);
     fireEvent.keyDown(box(container), { key: "ArrowRight" });
     const tip = container.querySelector(SEL.tooltip);
-    expect(tip?.textContent).toBe("aAlfa1%Beta2%");
+    // SERIE SORTOWANE MALEJĄCO PO WARTOŚCI, nie w kolejności definicji - i to
+    // jest zmiana reguły. Beta ma tu 2, Alfa 1, więc Beta jest pierwsza,
+    // choć w konfiguracji stoi druga. Czytelnik porównuje wtedy dokładnie to,
+    // co widzi na prowadnicy: kolejność wiersza w dymku odpowiada kolejności
+    // serii w pionie na wykresie. Kolejność definicji jest wobec danych
+    // przypadkowa i zmusza do wodzenia wzrokiem tam i z powrotem.
+    expect(tip?.textContent).toBe("aBeta2%Alfa1%");
+  });
+
+  it("seria o NAJWYŻSZEJ wartości na prowadnicy dostaje mocniejszą wagę pisma", () => {
+    // Wyróżnienie wagą, nie tłem wiersza: tło wprowadziłoby do dymka drugą
+    // powierzchnię konkurującą z próbką koloru. Przy jednej serii nie ma czego
+    // wyróżniać, więc wyróżnienie nie powstaje.
+    const { container } = render(<CartesianChart config={cfg({ ...dwieSerie })} lang="pl" />);
+    fireEvent.keyDown(box(container), { key: "ArrowRight" });
+    const wiersze = [...(container.querySelector(SEL.tooltip)?.querySelectorAll("dd") ?? [])];
+    expect(wiersze).toHaveLength(2);
+    expect(wiersze[0].className).toContain("font-bold");
+    expect(wiersze[1].className).not.toContain("font-bold");
+  });
+
+  it("PRÓBKA W TOOLTIPIE JEST KWADRATOWA, nie kreską", () => {
+    // Kreska czyta się jako fragment linii serii, czyli jako znacznik danych;
+    // kwadrat czyta się jako klucz. Ta sama forma co próbka legendy.
+    const { container } = render(<CartesianChart config={cfg({ ...dwieSerie })} lang="pl" />);
+    fireEvent.keyDown(box(container), { key: "ArrowRight" });
+    const probka = container.querySelector(`${SEL.tooltip} dt span[aria-hidden]`);
+    expect(probka?.className).toContain("h-2");
+    expect(probka?.className).toContain("w-2");
+    expect(probka?.className).not.toContain("rounded-full");
   });
 
   it("tooltip pomija serię, która w tej kategorii ma lukę", () => {
@@ -1193,6 +1290,193 @@ describe("CartesianChart - interakcja", () => {
     expect(container.querySelector(SEL.tooltip)?.textContent).toBe("aA1");
     fireEvent.pointerLeave(hit);
     expect(container.querySelector(SEL.tooltip)).toBeNull();
+  });
+
+  it("TAPNIĘCIE ustawia stan i go TRZYMA - bez tego wykres jest na telefonie martwy", () => {
+    // Na dotyku nie ma hovera: `pointerenter`/`pointermove` przychodzą przy
+    // dotknięciu, a `pointerleave` NATYCHMIAST po podniesieniu palca. Wykres
+    // oparty wyłącznie na parze enter/leave migał więc tooltipem i gasł.
+    // Reguła: tapnięcie USTAWIA stan, tapnięcie poza elementem go ZDEJMUJE.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [1, 2, 3] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const hit = all(container, SEL.hit)[0];
+    stubPlotRect(hit, 674, 270);
+
+    // Samo dotknięcie, bez ruchu - `pointerdown` musi wystarczyć.
+    fireEvent.pointerDown(hit, { clientX: 600, clientY: 100, pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("cA3");
+    // Podniesienie palca NIE zdejmuje stanu.
+    fireEvent.pointerLeave(hit, { pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("cA3");
+    // Ale zjazd MYSZY zdejmuje - i tak samo zdejmuje go wskaźnik, którego
+    // rodzaju środowisko nie podaje (warunek nazywa DOTYK, nie mysz).
+    fireEvent.pointerLeave(hit, { pointerType: "mouse" });
+    expect(container.querySelector(SEL.tooltip)).toBeNull();
+  });
+
+  it("TAPNIĘCIE POZA wykresem zdejmuje stan ustawiony dotykiem", () => {
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [1, 2, 3] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const hit = all(container, SEL.hit)[0];
+    stubPlotRect(hit, 674, 270);
+    fireEvent.pointerDown(hit, { clientX: 600, clientY: 100, pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)).not.toBeNull();
+
+    // Tapnięcie WEWNĄTRZ wykresu stanu nie zdejmuje - inaczej dotknięcie
+    // sąsiedniej kategorii najpierw gasiłoby tooltip, a potem go zapalało.
+    fireEvent.pointerDown(hit, { clientX: 10, clientY: 100, pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)?.textContent).toBe("aA1");
+
+    // Tapnięcie poza - zdejmuje.
+    fireEvent.pointerDown(document.body, { pointerType: "touch" });
+    expect(container.querySelector(SEL.tooltip)).toBeNull();
+  });
+
+  it("PODŚWIETLENIE PASA leży POD znacznikami, więc nie przyciemnia wypełnień", () => {
+    // Pas jest afordancją strefy trafienia ("kursor jest w tej kategorii"),
+    // a nie podświetleniem danych. Rysowany PO słupkach kładł 5% tuszu wprost
+    // na wypełnieniu: blade wnętrze siedzi na 1,20-1,28:1 do płyty, więc
+    // pięcioprocentowa zasłona realnie je przyciemniała - czyli wskazanie
+    // zmieniało wygląd zakodowanej wartości.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [1, 2, 3] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const hit = all(container, SEL.hit)[0];
+    stubPlotRect(hit, 674, 270);
+    fireEvent.pointerMove(hit, { clientX: 600, clientY: 100 });
+
+    const pas = [...container.querySelectorAll("rect[fill-opacity='0.05']")];
+    expect(pas).toHaveLength(1);
+    const slupek = container.querySelector(SEL.bar);
+    expect(slupek).not.toBeNull();
+    // Kolejność dokumentu: pas PRZED słupkiem, czyli pod nim w kolejności
+    // rysowania SVG.
+    expect(
+      pas[0].compareDocumentPosition(slupek as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("nawigacja strzałkami jest OPISANA, a obramowanie focusu idzie z arkusza", () => {
+    // Nawigacja strzałkami po kategoriach jest jedynym sposobem odczytania
+    // wartości bez wskaźnika, a nic o niej nie mówiło: klucz słownika istniał
+    // i nie był używany, czyli funkcja była dostępna wyłącznie dla kogoś, kto
+    // się jej domyślił.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b"],
+          series: [{ name: "A", values: [1, 2] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const canvas = box(container);
+    const hintId = canvas.getAttribute("aria-describedby");
+    expect(hintId).toBeTruthy();
+    expect(document.getElementById(hintId ?? "")?.textContent).toBe(
+      "Strzałkami przesuwasz aktywną kategorię, Escape czyści zaznaczenie.",
+    );
+    // OBRAMOWANIE FOCUSU W ARKUSZU, nie w klasach narzędziowych: spec żąda
+    // linii CIĄGŁEJ 2 px w tuszu trzecim odsuniętej o 2 px, a `ring-*`
+    // rysowało cień w kolorze `--ring`. Tu pilnujemy tylko tego, że kanwa
+    // nosi klasę, na której arkusz to wiesza - samego koloru nie widać
+    // w happy-dom, bo nie ma silnika stylów.
+    expect(canvas.className).toContain("neh-canvas");
+    expect(canvas.className).not.toContain("focus-visible:ring");
+  });
+
+  it("ZAWINIĘTA etykieta jedzie tspanami z odstępem 1,2 em, a nie jednym napisem", () => {
+    // Szczebel zawinięcia wchodzi zamiast przerzedzenia: przy dwuwyrazowych
+    // etykietach szerszych od pasma z osi zniknęłaby połowa napisów, a tak
+    // zostają wszystkie, na dwóch liniach. Pierwszy tspan bez `dy`, kolejne
+    // z odstępem - blok rośnie w dół od tej samej linii bazowej, na której
+    // stoją etykiety niezawinięte.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          height: 320,
+          categories: Array.from({ length: 8 }, () => "Polska Wschodnia"),
+          series: [{ name: "A", values: Array.from({ length: 8 }, (_, i) => i + 1) }],
+        })}
+        lang="pl"
+      />,
+    );
+    const etykiety = all(container, SEL.catLabel).filter((t) => t.querySelector("tspan"));
+    expect(etykiety).toHaveLength(8);
+    const tspany = [...etykiety[0].querySelectorAll("tspan")];
+    expect(tspany.map((t) => t.textContent)).toEqual(["Polska", "Wschodnia"]);
+    // Pierwsza linia stoi na linii bazowej etykiety, druga o 1,2 em niżej.
+    expect(tspany[0].getAttribute("dy")).toBe("0");
+    expect(tspany[1].getAttribute("dy")).toBe("1.2em");
+    // Każdy tspan wraca na `x` środka kategorii - bez tego druga linia
+    // startowałaby tam, gdzie skończyła się pierwsza.
+    expect(tspany[0].getAttribute("x")).toBe(tspany[1].getAttribute("x"));
+    // Etykiety nie są obrócone: zawinięcie kupuje miejsce w poziomie inaczej.
+    expect(etykiety[0].getAttribute("transform")).toBeNull();
+  });
+
+  it("STREFA PROGNOZY ma DWA nośniki: tint na ekranie, kreskowanie w druku", () => {
+    // Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
+    // prognoza traciłaby jeden z trzech nośników odróżnienia od historii.
+    // Oba prostokąty są w drzewie zawsze - identyfikator wzoru jest unikalny
+    // per instancja wykresu, więc CSS nie umie go wskazać w `fill` i nie da
+    // się tego przełączyć samym arkuszem bez drugiego elementu.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "line",
+          categories: ["a", "b", "c", "d"],
+          series: [{ name: "A", values: [1, 2, 3, 4] }],
+          forecastFrom: 2,
+          forecastBandPct: 10,
+        })}
+        lang="pl"
+      />,
+    );
+    const tint = container.querySelector("rect.neh-zone-tint");
+    const hatch = container.querySelector("rect.neh-zone-hatch");
+    expect(tint).not.toBeNull();
+    expect(hatch).not.toBeNull();
+    // Ta sama geometria - to jedna powierzchnia w dwóch wariantach.
+    for (const attr of ["x", "y", "width", "height", "rx"]) {
+      expect(hatch?.getAttribute(attr)).toBe(tint?.getAttribute(attr));
+    }
+    // Wzór 45 stopni, odstęp 6 px, kreska 1 px w kolorze strefy.
+    const wzor = container.querySelector(`pattern#${hatch?.getAttribute("fill")?.slice(5, -1)}`);
+    expect(wzor?.getAttribute("patternTransform")).toBe("rotate(45)");
+    expect(wzor?.getAttribute("width")).toBe("6");
+    const kreska = wzor?.querySelector("line");
+    expect(kreska?.getAttribute("stroke-width")).toBe("1");
+    // Kolor i krycie w `style`, nie w atrybucie: `var()` w atrybutach
+    // prezentacyjnych SVG nie jest wspierane wszędzie, a nierozwiązany
+    // `stroke` to czerń.
+    expect(kreska?.getAttribute("style")).toContain("var(--chart-zone)");
+    expect(kreska?.getAttribute("stroke")).toBeNull();
   });
 
   it("na wykresie liniowym wskaźnik zaokrągla do najbliższego PUNKTU, nie do pasa", () => {
@@ -1465,5 +1749,304 @@ describe("CartesianChart - odporność stanu interakcji i pas wyłącznie ujemny
     // kategorii nic nie rysuje i zabrałaby zaokrąglenie całemu pasowi.
     const [luka] = ds(container, SEL.bar);
     expect(luka).toContain("q0 6 6 6");
+  });
+});
+
+describe("CartesianChart - wariant gradientowy wypełnienia", () => {
+  /**
+   * Wektor gradientu i lista jego stopni - czysta geometria rampy, bez
+   * pośrednictwa nazwy identyfikatora (ta zawiera `useId`, więc jest inna
+   * w każdym przebiegu).
+   */
+  const rampy = (root: HTMLElement): Map<string, { v: number[]; stops: string[] }> =>
+    new Map(
+      all(root, "defs linearGradient").map((g) => [
+        g.getAttribute("id") ?? "",
+        {
+          v: ["x1", "y1", "x2", "y2"].map((a) => Number(g.getAttribute(a))),
+          stops: [...g.querySelectorAll("stop")].map(
+            (st) => `${st.getAttribute("offset")}:${st.getAttribute("stop-color")}`,
+          ),
+        },
+      ]),
+    );
+
+  /** Identyfikator rampy, którą naprawdę wypełniono dany słupek. */
+  const rampaSlupka = (root: HTMLElement, i: number): string => {
+    const fill = all(root, SEL.bar)[i].getAttribute("fill") ?? "";
+    const id = /^url\(#(.+)\)$/.exec(fill)?.[1];
+    if (!id) throw new Error(`słupek ${i} nie jest wypełniony gradientem: ${fill}`);
+    return id;
+  };
+
+  it("rampa biegnie ZA ZNAKIEM wartości: od krawędzi odniesienia do końca danych", () => {
+    // Kierunek rampy i kierunek zaokrąglenia wychodzą z JEDNEJ wartości
+    // (`dataEndOf`) i to jest cała treść tego testu. Rampa poprowadzona wbrew
+    // znakowi kładzie najjaśniejszy stopień na linii zera, a najgłębszy na
+    // końcu danych - czyli robi dokładnie odwrotnie niż mówi kształt, bo
+    // zaokrąglony koniec nadal siedzi po stronie danych. Dwie niezależne
+    // gałęzie na te dwie decyzje mogłyby się rozjechać, a rozjazd wygląda
+    // jak wybór estetyczny, nie jak błąd.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          barStyle: "gradient",
+          categories: ["zysk", "strata"],
+          series: [{ name: "Wynik", values: [10, -5] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const defs = rampy(container);
+    const [dodatni, ujemny] = ds(container, SEL.bar);
+    const rDodatni = defs.get(rampaSlupka(container, 0));
+    const rUjemny = defs.get(rampaSlupka(container, 1));
+    expect(rDodatni).toBeDefined();
+    expect(rUjemny).toBeDefined();
+
+    // Kolumna dodatnia: zaokrąglony szczyt I rampa rosnąca ku szczytowi.
+    // W układzie SVG y rośnie w dół, więc "od bazy do góry" znaczy y1 > y2.
+    expect(dodatni).toContain("q0 -6 6 -6");
+    expect(rDodatni?.v[1]).toBeGreaterThan(Number(rDodatni?.v[3]));
+    // Kolumna ujemna: zaokrąglony SPÓD i rampa odwrócona.
+    expect(ujemny).toContain("q0 6 6 6");
+    expect(rUjemny?.v[1]).toBeLessThan(Number(rUjemny?.v[3]));
+
+    // Żadna z rampek nie ma składowej poziomej - wartość mierzy się tu po
+    // osi Y, więc rampa biegnąca w poprzek słupka nie kodowałaby niczego.
+    expect(rDodatni?.v[0]).toBe(rDodatni?.v[2]);
+    expect(rUjemny?.v[0]).toBe(rUjemny?.v[2]);
+
+    // Trzy stopnie, w kolejności od odniesienia do lica, wszystkie z tokena
+    // TEGO SAMEGO slotu co obwódka. Stopień środkowy nie jest ozdobą: SVG
+    // interpoluje w sRGB, więc dwustopniowa rampa między kolorami z OKLCh
+    // przygasa w połowie i wnętrze przestaje się czytać jako gradient.
+    expect(rDodatni?.stops).toEqual([
+      "0:var(--chart-1-deep)",
+      "0.5:var(--chart-1-mid)",
+      "1:var(--chart-1-face)",
+    ]);
+    // Obwódka niesie CZYSTY token - ten sam, który stoi w legendzie. Bez niej
+    // rozmyte gradientem wnętrze nie daje ostrej pozycji końca słupka, a to
+    // z niej odczytuje się wartość.
+    expect(all(container, SEL.bar)[0].getAttribute("stroke")).toBe("var(--chart-1)");
+    expect(all(container, SEL.bar)[0].getAttribute("data-style")).toBe("gradient");
+  });
+
+  it("definicja rampy jest JEDNA na (slot, kierunek), a nie jedna na słupek", () => {
+    // Zakotwiczenie gradientu zostaje domyślne (`objectBoundingBox`), więc
+    // KAŻDY słupek dostaje pełną rampę w swoich własnych granicach - i dopiero
+    // dzięki temu wolno dzielić definicję. Zakotwiczenie globalne
+    // (`userSpaceOnUse`) sprawiłoby, że niski słupek kończy się w połowie
+    // rampy, czyli kolor zaczyna redundantnie kodować wysokość, której dane
+    // nie mówią. Dlatego pytamy o oba fakty naraz: wspólne id i brak
+    // nadpisanego `gradientUnits`.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          barStyle: "gradient",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [3, 12, 30] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const uzyte = new Set([0, 1, 2].map((i) => rampaSlupka(container, i)));
+    expect(uzyte.size).toBe(1);
+    for (const g of all(container, "defs linearGradient")) {
+      expect(g.getAttribute("gradientUnits")).toBeNull();
+    }
+
+    // Dwie serie to dwa slots, więc dwie różne rampy - inaczej gradient
+    // przestałby identyfikować serię.
+    const dwie = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar",
+          barStyle: "gradient",
+          categories: ["a"],
+          series: [
+            { name: "A", values: [10] },
+            { name: "B", values: [8] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(rampaSlupka(dwie.container, 0)).not.toBe(rampaSlupka(dwie.container, 1));
+  });
+
+  it("na SŁUPKACH POZIOMYCH rampa przestawia się na oś X - inaczej biegłaby w poprzek wartości", () => {
+    // Orientacja nie jest kosmetyką rampy: wartość słupka poziomego mierzy się
+    // po osi X, więc rampa pionowa biegłaby przez GRUBOŚĆ paska i nie miałaby
+    // żadnego związku z danymi. Zamiana orientacji musi też odwrócić się na
+    // wartości ujemnej, bo tam krawędź odniesienia jest z PRAWEJ.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "bar-horizontal",
+          barStyle: "gradient",
+          categories: ["Polska", "Niemcy"],
+          series: [{ name: "PKB", values: [10, -4] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const defs = rampy(container);
+    const rDodatni = defs.get(rampaSlupka(container, 0));
+    const rUjemny = defs.get(rampaSlupka(container, 1));
+
+    // Pasek dodatni: od zera (lewa) w prawo, ku zaokrąglonemu prawemu końcowi.
+    expect(ds(container, SEL.bar)[0]).toContain("q6 0 6 6");
+    expect(rDodatni?.v[0]).toBeLessThan(Number(rDodatni?.v[2]));
+    // Pasek ujemny: od zera (prawa) w lewo.
+    expect(rUjemny?.v[0]).toBeGreaterThan(Number(rUjemny?.v[2]));
+    // Ani jedna z nich nie ma składowej pionowej.
+    expect(rDodatni?.v[1]).toBe(rDodatni?.v[3]);
+    expect(rUjemny?.v[1]).toBe(rUjemny?.v[3]);
+  });
+});
+
+describe("CartesianChart - marginesy i drabina z POMIARU, nie z heurystyki", () => {
+  /**
+   * Atrapa kanwy dla `measureLabelWidth`.
+   *
+   * happy-dom ma `HTMLCanvasElement`, ale jego `getContext("2d")` oddaje
+   * `null`, więc pomiar wraca jako `null` i CAŁA reszta tego pliku pracuje na
+   * heurystyce `znaki x rozmiar x 0,62` - dokładnie tak, jak pracuje serwer
+   * i pierwszy render klienta. Ta atrapa jest jedynym miejscem, w którym
+   * widać DRUGIE malowanie, to po zamontowaniu.
+   *
+   * Sprząta po sobie dwa razy: przywraca `getContext` i zeruje cache kontekstu
+   * w module pomiaru. Bez tego drugiego atrapa wyciekłaby na kolejne testy
+   * pliku, bo kontekst siedzi w zmiennej MODUŁOWEJ, nie w komponencie - i to
+   * jest cały powód, dla którego `resetTextMeasureCache` w ogóle istnieje.
+   */
+  function zKanwa<T>(pxNaZnak: number, run: () => T): T {
+    const proto = HTMLCanvasElement.prototype as unknown as Record<string, unknown>;
+    const oryginal = Object.getOwnPropertyDescriptor(proto, "getContext");
+    Object.defineProperty(proto, "getContext", {
+      configurable: true,
+      writable: true,
+      value: () => ({
+        font: "",
+        measureText: (text: string) => ({ width: text.length * pxNaZnak }),
+      }),
+    });
+    resetTextMeasureCache();
+    try {
+      return run();
+    } finally {
+      if (oryginal) Object.defineProperty(proto, "getContext", oryginal);
+      else delete proto.getContext;
+      resetTextMeasureCache();
+    }
+  }
+
+  it("SZERSZY FONT NIŻ ZAŁOŻONY przerzedza oś, zamiast pozwolić napisom się zderzyć", () => {
+    // Heurystyka zakłada 0,62 szerokości znaku na rozmiar pisma, czyli ~6,8 px
+    // przy 11 px. To założenie, nie pomiar - a przy WŁASNYM foncie tenanta
+    // bywa nieprawdziwe w tę gorszą stronę. Wtedy drabina obliczona z
+    // heurystyki mówi "wszystko się mieści", oś rysuje sześć napisów, i one
+    // na siebie wchodzą: nie ma żadnego mechanizmu, który by to naprawił po
+    // fakcie, bo etykiety osi nie mają czym się przyciąć.
+    //
+    // Dlatego marginesy i drabina konsumują POMIAR, gdy tylko pomiar jest
+    // dostępny. Te same dane i ta sama szerokość kontenera muszą więc dać
+    // DWA różne plany osi: pełny bez kanwy i przerzedzony z kanwą mierzącą
+    // 14 px na znak (1,27 em - w granicach realnego kroju o szerokich
+    // literach).
+    const kategorie = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec"];
+    const config = cfg({
+      kind: "bar",
+      categories: kategorie,
+      series: [{ name: "A", values: [1, 2, 3, 4, 5, 6] }],
+    });
+
+    const heurystyka = render(<CartesianChart config={config} lang="pl" />);
+    expect(textOf(heurystyka.container, SEL.catLabel)).toEqual(kategorie);
+
+    const zPomiaru = zKanwa(14, () => {
+      const { container } = render(<CartesianChart config={config} lang="pl" />);
+      return textOf(container, SEL.catLabel);
+    });
+    // Coś MUSI ustąpić - i ustępują etykiety pośrednie, nie treść napisów:
+    // ucięcie wielokropkiem jest w tym silniku zakazane.
+    expect(zPomiaru.length).toBeLessThan(kategorie.length);
+    for (const napis of zPomiaru) expect(kategorie).toContain(napis);
+    // PIERWSZA I OSTATNIA zostają ZAWSZE - niosą zakres osi, a bez zakresu
+    // czytelnik nie wie, gdzie szereg się zaczyna i kończy.
+    expect(zPomiaru[0]).toBe("Styczeń");
+    expect(zPomiaru.at(-1)).toBe("Czerwiec");
+    // Znaczniki są komplet: przerzedzanie dotyczy WYŁĄCZNIE napisów osi.
+    expect(all(heurystyka.container, SEL.bar)).toHaveLength(6);
+  });
+});
+
+describe("CartesianChart - samotny pomiar nie znika z rysunku", () => {
+  // Ścieżka z JEDNEGO punktu to `M x y` bez odcinka, a taką SVG rysuje jako
+  // NIC. Dopóki kropki są włączone, pomiar niesie kropka - ale
+  // `shouldShowDots` gasi je powyżej DOTS_MAX_POINTS przy wygładzaniu
+  // zerowym. Defekt, który to łapie: szereg o trzydziestu kategoriach
+  // i jednym pomiarze między lukami znikał CAŁY, a tabela pod wykresem
+  // pokazywała liczbę - rysunek i jego alternatywa tekstowa mówiły co innego.
+  const N = null;
+  const samotny = (dlugosc: number, indeks: number, smoothing: number) =>
+    parseChartConfig({
+      kind: "line",
+      animate: false,
+      smoothing,
+      categories: Array.from({ length: dlugosc }, (_, i) => `k${i}`),
+      series: [
+        {
+          name: "S",
+          values: Array.from({ length: dlugosc }, (_, i) => (i === indeks ? 100 : N)),
+        },
+      ],
+    });
+
+  it("pomiar między lukami DOSTAJE kropkę, choć próg gasi kropki serii", () => {
+    const { container } = render(<CartesianChart config={samotny(30, 15, 0)} lang="pl" />);
+    const kropki = [...container.querySelectorAll('circle[data-role="series-point"]')];
+    expect(kropki.length, "samotny pomiar bez kropki nie istnieje na rysunku").toBe(1);
+    // ...i stoi dokładnie tam, gdzie kończy się ścieżka bez odcinka.
+    const d = container.querySelector("path.neh-line")?.getAttribute("d") ?? "";
+    const x = Number(kropki[0].getAttribute("cx"));
+    expect(d.startsWith("M")).toBe(true);
+    expect(Math.abs(x - Number(d.slice(1).split(" ")[0]))).toBeLessThan(0.2);
+  });
+
+  it("gęsta linia BEZ luk nadal nie dostaje kropek - próg działa dalej", () => {
+    // Druga strona tej samej reguły: naprawa ma dokładać kropkę wyłącznie
+    // tam, gdzie nie ma odcinka. Gdyby włączała kropki zawsze, zaśmieciłaby
+    // każdą gęstą linię, a próg `DOTS_MAX_POINTS` przestałby cokolwiek robić.
+    const pelny = parseChartConfig({
+      kind: "line",
+      animate: false,
+      smoothing: 0,
+      categories: Array.from({ length: 30 }, (_, i) => `k${i}`),
+      series: [{ name: "S", values: Array.from({ length: 30 }, (_, i) => i) }],
+    });
+    const { container } = render(<CartesianChart config={pelny} lang="pl" />);
+    expect(container.querySelectorAll('circle[data-role="series-point"]').length).toBe(0);
+  });
+
+  it("dwa samotne pomiary w jednym szeregu dostają dwie kropki", () => {
+    const dwa = parseChartConfig({
+      kind: "line",
+      animate: false,
+      smoothing: 0,
+      categories: Array.from({ length: 30 }, (_, i) => `k${i}`),
+      series: [
+        {
+          name: "S",
+          values: Array.from({ length: 30 }, (_, i) => (i === 5 || i === 20 ? 100 : N)),
+        },
+      ],
+    });
+    const { container } = render(<CartesianChart config={dwa} lang="pl" />);
+    expect(container.querySelectorAll('circle[data-role="series-point"]').length).toBe(2);
   });
 });

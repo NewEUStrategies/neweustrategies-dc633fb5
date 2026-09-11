@@ -6,7 +6,10 @@ import { parseChartConfig } from "@/lib/charts/parse";
 import {
   isForecastMissingBand,
   isZeroBaselineBroken,
+  pieFormAdvice,
   seriesOverSafePalette,
+  PIE_CLOSE_SHARES_PP,
+  PIE_SLIVER_SHARE,
 } from "@/lib/charts/honesty";
 import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
 import type { Json } from "@/lib/blocks/types";
@@ -155,5 +158,64 @@ describe("honesty - dyscyplina palety", () => {
         CATEGORICAL_SAFE_SERIES,
       ),
     ).toBe(0);
+  });
+});
+
+describe("honesty - kiedy pierścień jest złym wyborem formy", () => {
+  // Wywołanie skrócone: udziały podajemy w PROCENTACH dla czytelności testu,
+  // funkcja bierze je jako części całości.
+  const advice = (procenty: number[], opts?: { positives?: number; maxSlices?: number }) =>
+    pieFormAdvice(
+      procenty.map((p) => p / 100),
+      {
+        positives: opts?.positives ?? procenty.length,
+        maxSlices: opts?.maxSlices ?? 5,
+      },
+    );
+
+  it("dwa i trzy segmenty to koło z dziurą - miernik albo jeden słupek", () => {
+    // Pierścień dwuelementowy nie pokazuje struktury, tylko jedną liczbę
+    // owiniętą wokół dziury. Miernik mówi to samo w jednej linijce i nie pyta
+    // czytelnika o kąt.
+    expect(advice([60, 40])).toContain("tooFew");
+    expect(advice([50, 30, 20])).toContain("tooFew");
+    // Cztery segmenty o wyraźnie różnych udziałach są w porządku.
+    expect(advice([40, 30, 20, 10])).toEqual([]);
+  });
+
+  it("udziały bliższe niż trzy punkty procentowe wołają o słupki poziome", () => {
+    // Pierścień pokaże 34% i 33% jako identyczne, więc struktura, którą miał
+    // pokazać, ginie. Słupki poziome porównują DŁUGOŚCIĄ, a długość jest
+    // najwyżej w hierarchii percepcyjnej Clevelanda i McGilla.
+    expect(advice([34, 33, 20, 13])).toContain("tooClose");
+    // Dokładnie na progu jeszcze nie ostrzegamy - próg jest granicą
+    // nieodróżnialności, a nie strefą buforową.
+    expect(advice([36, 33, 18, 13])).toEqual([]);
+    expect(PIE_CLOSE_SHARES_PP).toBe(3);
+  });
+
+  it("dwie DRZAZGI w ogonie nie odpalają ostrzeżenia o bliskich udziałach", () => {
+    // Bez progu drzazgi ostrzeżenie widać na KAŻDYM rozkładzie z długim
+    // ogonem: dwie kategorie po pół procenta różnią się o pół punktu, tylko że
+    // obie są widocznie znikome i czytelnik nie ma potrzeby ich porównywać.
+    // Ostrzeżenie, które widać zawsze, uczy ignorowania wszystkich ostrzeżeń.
+    expect(advice([60, 25, 8, 3.5, 3.5])).toEqual([]);
+    // Ale dwie kategorie POWYŻEJ progu drzazgi już tak - te dwie czytelnik
+    // porównuje, bo obie są na tarczy widoczne.
+    expect(PIE_SLIVER_SHARE).toBe(0.05);
+    expect(advice([60, 18, 16, 6, 5.5])).toContain("tooClose");
+  });
+
+  it("nadmiar kategorii liczy się PRZED zwinięciem ogona", () => {
+    // Model tarczy zwija nadmiar w jeden wycinek zbiorczy, więc
+    // `slices.length` nigdy nie przekracza limitu i nie da się z niej
+    // odczytać, że limit był napięty. Dlatego liczba dodatnich jest osobnym
+    // wejściem, a nie długością tablicy udziałów.
+    expect(advice([40, 30, 15, 10, 5], { positives: 9 })).toContain("tooMany");
+    expect(advice([40, 30, 15, 10, 5], { positives: 5 })).not.toContain("tooMany");
+  });
+
+  it("pusty zestaw MILCZY - nie ma formy, o której dobór można się spierać", () => {
+    expect(advice([], { positives: 0 })).toEqual([]);
   });
 });

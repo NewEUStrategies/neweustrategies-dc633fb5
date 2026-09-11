@@ -273,6 +273,103 @@ export const CHART_SEMANTIC = {
 } as const;
 
 /**
+ * POWIERZCHNIE, wobec których mierzy się kontrast - wszystkie trzy, nie tylko
+ * płyta.
+ *
+ * Płyta wykresu jest zawsze biała (jasny) albo `#0f0f0f` (ciemny) i to na niej
+ * liczy się progi serii. Ale wykres stoi w SEKCJI, a sekcja ma własne tło -
+ * i to tło bywa drugie, ciemniejsze. Trzymamy je tutaj, bo z tych liczb
+ * wynika reguła, której nie da się zapisać w samym tokenie: patrz
+ * `SLOTS_UNSAFE_ON_SURFACE_2`.
+ *
+ * W TRYBIE CIEMNYM DRUGIEGO TŁA NIE MA. Ciemne tło strony jest już samym
+ * `#141313`, a wprowadzanie pod nie jeszcze ciemniejszego stopnia zjadałoby
+ * różnicę wobec płyty (`#0f0f0f`) - dlatego `secondDark` jest po prostu tłem
+ * strony, a nie osobnym odcieniem. To nie brak, to rozstrzygnięcie.
+ */
+export const CHART_SURFACES = {
+  plateLight: CHART_PLATE.light,
+  plateDark: CHART_PLATE.dark,
+  pageLight: "#f8f6f4",
+  pageDark: "#141313",
+  secondLight: "#e4e8ee",
+  secondDark: "#141313",
+} as const;
+
+/**
+ * Sloty, które NIE MOGĄ leżeć bezpośrednio na drugim tle sekcyjnym.
+ *
+ * Drugie tło jest ciemniejsze od domyślnego o 1,14:1, i to wystarcza, żeby
+ * trzy odcienie serii spadły pod próg grafiki 3,0:1: ochra do 2,48:1, szałwia
+ * do 2,76:1, lazur do 2,97:1. Razem z nimi spada czerwień ujemna (2,81:1)
+ * i akcent marki (1,83:1, ale ten nie przechodzi progu nawet na bieli).
+ *
+ * PRAKTYCZNA KONSEKWENCJA JEST JEDNA: płyta wykresu zostaje BIAŁA także wtedy,
+ * gdy sekcja wokół niej jest w drugim tle. Nie chodzi o zakaz używania
+ * drugiego tła - chodzi o to, że wykres nie kładzie na nim serii.
+ *
+ * Ta stała jest FAKTEM PALETY dla bramki, tak samo jak
+ * `SLOTS_CLASHING_WITH_ACCENT`: silnik nie daje autorowi drogi do zmiany płyty
+ * wykresu, więc nie ma tu czego ostrzegać w edytorze. Gdyby kiedyś dał,
+ * warunek jest już policzony.
+ */
+export const SLOTS_UNSAFE_ON_SURFACE_2: readonly number[] = [2, 3, 5];
+
+/**
+ * RAMP SEKWENCYJNY mapy-choroplety - para kotwic na motyw.
+ *
+ * PO CO TO JEST W MODULE PALETY, A NIE W KOMPONENCIE MAPY. Mapa koduje wartość
+ * przez `color-mix()` na tokenach `--chart-seq-min` / `--chart-seq-max`, więc
+ * na normalnej przeglądarce żaden hex nie jest jej potrzebny. Ale
+ * `color-mix()` nie ma w starszych silnikach, a wtedy w atrybucie `fill`
+ * ląduje kolor interpolowany w JS - i te dwa hexy MUSZĄ być tą samą parą, co
+ * w arkuszu. Trzymane w komponencie żyły własnym życiem: arkusz miał
+ * `#e0eaf2` / `#00375f`, a fallback `#cde2fb` / `#0d366b`, czyli ramp awaryjny
+ * szedł w tę samą stronę, ale INNYMI kotwicami - i nikt tego nie widział, bo
+ * nowa przeglądarka nigdy tej gałęzi nie wykonuje.
+ *
+ * Tu stoi jedno źródło prawdy, a bramka `__tests__/palette.test.ts` porównuje
+ * je z arkuszem tak samo, jak porównuje wszystkie pozostałe kolory. Reguła
+ * "żadnych hexów w kodzie rysującym" nie jest o estetyce - jest o tym, że
+ * dwie kopie tej samej liczby rozjeżdżają się bez ostrzeżenia.
+ *
+ * PARA NA MOTYW, nie jedna. W trybie ciemnym ramp jest ODWRÓCONY kotwicą:
+ * jedna para (jasna) dawałaby na ciemnej karcie najniższą wartość świecącą
+ * (~11:1), a najwyższą gasnącą poniżej progu 3:1 dla obiektu graficznego.
+ */
+export const SEQ_RAMP = {
+  light: { min: "#e0eaf2", max: "#00375f" },
+  dark: { min: "#1e2935", max: "#8fbef0" },
+} as const;
+
+/**
+ * Warianty AUDYTOWE akcentu - dwa, bo próg zależy od tego, czym akcent ma być.
+ *
+ * Akcent marki nie przechodzi na jasnym tle ŻADNEGO progu WCAG (`#fa9346` ma
+ * 2,25:1 na płycie, `#ed751a` 2,93:1), więc nie może być jedynym nośnikiem
+ * informacji. Gdy audyt dostępności wymaga, żeby ten sam odcień zadziałał jako
+ * czytelny tekst na jasnym tle BEZ podkładu, trzeba go przyciemnić - i mamy
+ * dwie różne odpowiedzi na dwa różne progi:
+ *
+ *   * `graphic` - 3,56:1 na płycie i 3,30:1 na tle strony, czyli próg grafiki
+ *     (WCAG 1.4.11) i tekstu dużego;
+ *   * `text` - 5,19:1 na płycie i 4,82:1 na tle strony, czyli próg tekstu
+ *     normalnego (WCAG 1.4.3).
+ *
+ * OBA ZAWODZĄ NA DRUGIM TLE SEKCYJNYM (2,89:1 i 4,22:1), i to jest ta sama
+ * reguła co przy seriach: to nie jest powierzchnia, na której cokolwiek
+ * z rodziny akcentu jest jedynym nośnikiem.
+ *
+ * Furtka na wypadek audytu, NIE podmiana tokena: `--chart-accent` zostaje tym,
+ * czym jest, bo jest kolorem marki i jego zadaniem jest wyróżniać, a nie
+ * przechodzić progi w roli, której nie pełni.
+ */
+export const ACCENT_AUDIT = {
+  graphic: "#cb7032",
+  text: "#ab5517",
+} as const;
+
+/**
  * Sloty, które NIE MOGĄ wystąpić jako kategoria na wykresie kodującym znak
  * czerwienią. Terakota wobec czerwieni daje 15,9 / 22,1 / 16,7, czyli poniżej
  * podłogi palety - a wykres, na którym "strata" i "kategoria szósta" wyglądają
@@ -462,4 +559,250 @@ export function slotAt(slot: number): PaletteSlot {
 /** Czy seria w tym slocie potrzebuje drugiego nośnika różnicy (kreskowania). */
 export function needsPatternDifferentiator(slot: number): boolean {
   return !slotAt(slot).cvdSafe;
+}
+
+// ---------------------------------------------------------------------------
+// OKLCh i WYPEŁNIENIA SŁUPKÓW
+//
+// PO CO OSOBNA PRZESTRZEŃ BARW, GDY WYŻEJ JEST JUŻ CIELAB. CIELAB służy tu do
+// MIERZENIA odległości (czy dwa odcienie są rozdzielne po symulacji
+// daltonizmu). OKLCh służy do WYPROWADZANIA odcieni pochodnych: krok jasności
+// przy zachowanej chromie i odcieniu. To dwie różne role i żadna z tych
+// przestrzeni nie robi dobrze obu - CIE76 w Lab jest przyzwoitą miarą
+// różnicy, ale krok jasności w Lab przesuwa też postrzegany odcień.
+//
+// DLACZEGO NIE MIESZANIE Z TUSZEM, którego ten silnik używał wcześniej.
+// Mieszanie z neutralną prawie czernią obniża nie tylko jasność, ale i chromę,
+// do 0,56-0,65x chromy tokena. Wynik nie jest głębszą wersją koloru, tylko
+// ZABRUDZONĄ - a zabrudzony ciemny czyta się cięższy niż nasycony ciemny
+// o tej samej luminancji. Gorzej: mieszanie procentowe bije najmocniej
+// w odcienie o najniższym kontraście (ochra schodziła do 2,15x własnego
+// kontrastu, granat tylko do 1,47x), czyli najjaśniejsze odcienie palety
+// ciemniały najbardziej - odwrotnie, niż powinno. Krok w OKLCh przy stałej
+// chromie daje jednolite 1,40-1,48x w motywie jasnym i 1,35-1,43x w ciemnym.
+// ---------------------------------------------------------------------------
+
+/** Macierze OKLab (Björn Ottosson). Liniowy sRGB -> LMS -> Lab. */
+const LIN_TO_LMS = [
+  [0.4122214708, 0.5363325363, 0.0514459929],
+  [0.2119034982, 0.6806995451, 0.1073969566],
+  [0.0883024619, 0.2817188376, 0.6299787005],
+] as const;
+const LMS_TO_LAB = [
+  [0.2104542553, 0.793617785, -0.0040720468],
+  [1.9779984951, -2.428592205, 0.4505937099],
+  [0.0259040371, 0.7827717662, -0.808675766],
+] as const;
+const LAB_TO_LMS = [
+  [1, 0.3963377774, 0.2158037573],
+  [1, -0.1055613458, -0.0638541728],
+  [1, -0.0894841775, -1.291485548],
+] as const;
+const LMS_TO_LIN = [
+  [4.0767416621, -3.3077115913, 0.2309699292],
+  [-1.2684380046, 2.6097574011, -0.3413193965],
+  [-0.0041960863, -0.7034186147, 1.707614701],
+] as const;
+
+function srgbToLinear(channel: number): number {
+  const c = channel / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function linearToSrgb(value: number): number {
+  const c = Math.max(0, Math.min(1, value));
+  return (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055) * 255;
+}
+
+/** Współrzędne OKLCh: jasność 0..1, chroma bezwzględna, kąt odcienia w stopniach. */
+export interface Oklch {
+  l: number;
+  c: number;
+  h: number;
+}
+
+export function oklchOf(hex: string): Oklch {
+  const [r, g, b] = parseHex(hex).map(srgbToLinear) as [number, number, number];
+  const lms = LIN_TO_LMS.map((row) => row[0] * r + row[1] * g + row[2] * b);
+  const cbrt = lms.map((v) => Math.cbrt(v));
+  const lab = LMS_TO_LAB.map((row) => row[0] * cbrt[0] + row[1] * cbrt[1] + row[2] * cbrt[2]);
+  const [l, a, bb] = lab as [number, number, number];
+  return { l, c: Math.hypot(a, bb), h: ((Math.atan2(bb, a) * 180) / Math.PI + 360) % 360 };
+}
+
+function linearFromOklch(l: number, c: number, h: number): [number, number, number] {
+  const rad = (h * Math.PI) / 180;
+  const a = c * Math.cos(rad);
+  const b = c * Math.sin(rad);
+  const lms = LAB_TO_LMS.map((row) => row[0] * l + row[1] * a + row[2] * b).map((v) => v ** 3);
+  return LMS_TO_LIN.map((row) => row[0] * lms[0] + row[1] * lms[1] + row[2] * lms[2]) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+/**
+ * OKLCh -> hex, z MAPOWANIEM DO GAMUTU przez obniżanie chromy.
+ *
+ * Tak samo, jak robi to składnia CSS `oklch(from ... )`: gdy chroma tokena nie
+ * mieści się w sRGB po zmianie jasności, obniżamy NASYCENIE, a trzymamy jasność
+ * i odcień. Odwrotna kolejność (przycięcie kanałów) zmienia odcień, czyli
+ * seria po zmianie jasności przestawałaby być tą samą serią - a reguła trybów
+ * mówi, że ten sam szereg zachowuje ten sam odcień.
+ */
+export function fromOklch(l: number, c: number, h: number): string {
+  const inside = (chroma: number): boolean =>
+    linearFromOklch(l, chroma, h).every((v) => v >= -1e-4 && v <= 1 + 1e-4);
+  let chroma = c;
+  if (!inside(chroma)) {
+    let lo = 0;
+    let hi = c;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (inside(mid)) lo = mid;
+      else hi = mid;
+    }
+    chroma = lo;
+  }
+  const rgb = linearFromOklch(l, chroma, h).map(linearToSrgb) as [number, number, number];
+  return formatHex(rgb);
+}
+
+/**
+ * Warianty wypełnienia słupka. Domyślny jest BLADY, i to nie jest kwestia
+ * gustu: obwódka niesie całą granicę kształtu (a więc odczyt wartości),
+ * a blade wnętrze zostawia miejsce na liczbę WEWNĄTRZ słupka.
+ */
+export const BAR_STYLES = ["pale", "gradient", "solid"] as const;
+export type BarStyle = (typeof BAR_STYLES)[number];
+
+/**
+ * Stałe wyprowadzenia, per motyw.
+ *
+ * JASNY IDZIE WPROST ZE SPECYFIKACJI. CIEMNY JEST PRZELICZONY, i to jest
+ * jedyne odstępstwo w całym module - specyfikacja liczy motyw ciemny wobec
+ * płyty `#1C1B1B`, a płyta tego repozytorium to `#0f0f0f` (token `--card`).
+ * Przepisanie jej liczb wprost dałoby blade wnętrza o kontraście 1,34-1,43:1
+ * zamiast docelowych 1,20-1,28:1 - czyli wnętrze zaczęłoby czytać się jako
+ * ELEMENT, a nie jako powierzchnia, tracąc dokładnie tę własność, którą
+ * specyfikacja mu wyznacza. Jasność wnętrza i hoveru jest więc rozwiązana dla
+ * prawdziwej płyty; kroki jasności obwódki i rampy zostają bez zmian, bo one
+ * są liczone wobec TOKENA, nie wobec płyty, i płyta ich nie dotyczy.
+ */
+export const BAR_FILL_PARAMS = {
+  light: {
+    /** Krok jasności obwódki wariantu bladego - ODCHODZI od tła. */
+    dlEdge: -0.09,
+    /** Jasność i mnożnik chromy bladego wnętrza. */
+    lInner: 0.93,
+    cInner: 0.5,
+    /** To samo dla stanu pod kursorem: jeden stopień w stronę nasycenia. */
+    lHover: 0.88,
+    cHover: 0.66,
+    /** Trzy stopnie rampy wariantu gradientowego. */
+    dlDeep: -0.09,
+    dlMid: -0.06,
+    dlFace: -0.034,
+    /** Grubość obwódki. Jasna linia na ciemnym tle optycznie grubieje. */
+    edgeWidth: 1.5,
+  },
+  dark: {
+    dlEdge: 0.09,
+    lInner: 0.264,
+    cInner: 0.55,
+    lHover: 0.32,
+    cHover: 0.64,
+    dlDeep: 0.09,
+    dlMid: 0.06,
+    dlFace: 0.034,
+    edgeWidth: 1.25,
+  },
+} as const;
+
+/** Sześć odcieni pochodnych jednego tokena serii. */
+export interface BarFill {
+  /** Obwódka wariantu bladego: krok jasności odchodzący od tła. */
+  edge: string;
+  /** Blade wnętrze: OSOBNY odcień, nie token pod alfą. */
+  inner: string;
+  /** Wnętrze pod kursorem: jeden stopień w stronę nasycenia. */
+  hover: string;
+  /** Rampa wariantu gradientowego, od krawędzi odniesienia do końca danych. */
+  deep: string;
+  mid: string;
+  face: string;
+}
+
+/**
+ * Wyprowadzenie wszystkich sześciu odcieni pochodnych z jednego tokena.
+ *
+ * BLADE WNĘTRZE JEST OSOBNYM ODCIENIEM, NIE TOKENEM POD ALFĄ, i ta różnica
+ * jest praktyczna, nie doktrynalna: token pod alfą przepuszcza to, co leży pod
+ * słupkiem - siatkę, strefę prognozy, drugi słupek w grupie - i wnętrze
+ * przestaje być jednolite. Osobny odcień jest kryjący.
+ */
+export function barFillOf(base: string, theme: ChartThemeName): BarFill {
+  const p = BAR_FILL_PARAMS[theme];
+  const { l, c, h } = oklchOf(base);
+  return {
+    edge: fromOklch(l + p.dlEdge, c, h),
+    inner: fromOklch(p.lInner, c * p.cInner, h),
+    hover: fromOklch(p.lHover, c * p.cHover, h),
+    deep: fromOklch(l + p.dlDeep, c, h),
+    mid: fromOklch(l + p.dlMid, c, h),
+    face: fromOklch(l + p.dlFace, c, h),
+  };
+}
+
+/**
+ * Korytarze, w których muszą wylądować odcienie pochodne. Bramka palety
+ * sprawdza je wobec PRAWDZIWEJ płyty każdego motywu, więc zmiana `--card`
+ * zapala test, zamiast po cichu przesunąć wszystkie wypełnienia.
+ */
+export const INNER_CONTRAST_RANGE = { min: 1.2, max: 1.28 } as const;
+export const HOVER_CONTRAST_RANGE = { min: 1.4, max: 1.55 } as const;
+/** Skok spokój -> hover: wyczuwalny, ale nie zmieniający wagi wykresu. */
+export const HOVER_STEP_RANGE = { min: 1.15, max: 1.22 } as const;
+/**
+ * Krok token/lico w wariancie gradientowym - widoczność krawędzi
+ * w najtrudniejszym miejscu, czyli na końcu danych.
+ */
+export const EDGE_FACE_RANGE = { min: 1.12, max: 1.16 } as const;
+
+/**
+ * Rozstrzygnięcie wariantu wypełnienia dla CAŁEGO wykresu.
+ *
+ * Wariant blady jest domyślny, ale ma warunek, bez którego staje się defektem:
+ * BLADE WNĘTRZE NIE NIESIE TOŻSAMOŚCI SERII. Przy jasności 0,93 odległość
+ * CIELAB między bladymi wypełnieniami spada do 1,1 przy widzeniu normalnym
+ * i praktycznie do zera po symulacji daltonizmu, podczas gdy podłoga palety
+ * serii to 24. Przy jednej serii to nie szkodzi, bo tożsamość niesie obwódka,
+ * a wnętrze tylko wypełnia kształt. Przy kilku seriach obok siebie albo
+ * w stosie czytelnik dostałby kilka kształtów o tym samym wnętrzu.
+ *
+ * Dlatego reguła schodzi do SOLIDNEGO, a nie ostrzega i rysuje dalej:
+ *
+ *  - kilka serii albo stos - wnętrze musi kryć kolorem, bo nie ma osi, do
+ *    której można by przypiąć każdy segment osobno;
+ *  - slot poza zestawem bezpiecznym dla daltonizmu (7-8) - jego drugim
+ *    nośnikiem różnicy jest kreskowanie w kolorze PŁYTY, a paski w kolorze
+ *    płyty nad wnętrzem o kontraście 1,2:1 są niewidoczne; kreskowanie czyta
+ *    się tylko na nasyconym wypełnieniu.
+ *
+ * Wariant gradientowy przechodzi przez oba te warunki, bo jego wnętrze JEST
+ * nasycone - dlatego obniżamy do solidnego tylko wtedy, gdy żądano bladego.
+ */
+export function resolveBarStyle(
+  requested: BarStyle,
+  ctx: { seriesCount: number; stacked: boolean; patterned: boolean },
+): BarStyle {
+  if (requested !== "pale") return requested;
+  if (ctx.stacked || ctx.seriesCount > 1 || ctx.patterned) return "solid";
+  return "pale";
+}
+
+/** Czy wariant rysuje obwódkę - od tego zależy wsunięcie kształtu i podłoga promienia. */
+export function barStyleHasEdge(style: BarStyle): boolean {
+  return style !== "solid";
 }

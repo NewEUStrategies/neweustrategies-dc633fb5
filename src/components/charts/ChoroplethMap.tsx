@@ -9,8 +9,8 @@
 // --chart-seq-max, w trybie ciemnym odwrócony kotwicą) przez color-mix() -
 // automatycznie poprawny w dark mode i wymuszonym jasnym canvasie buildera.
 // Fallback dla starszych przeglądarek: hex interpolowany w JS z pary tego
-// samego motywu (SEQ_HEX), więc ramp awaryjny idzie w tę samą stronę co
-// tokenowy.
+// samego motywu (SEQ_RAMP z modułu palety), więc ramp awaryjny idzie tymi
+// samymi kotwicami, co tokenowy - zgodności pilnuje bramka palety.
 // Kraje bez danych: neutralne --muted. Tooltip + tabela niosą pełne wartości.
 //
 // SSR: rama + tabela danych renderują się na serwerze (crawler widzi liczby);
@@ -19,6 +19,7 @@ import { useMemo, useState, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DataMapConfig, MapRegion } from "@/lib/charts/types";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
+import { SEQ_RAMP } from "@/lib/charts/palette";
 import { formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
@@ -47,27 +48,21 @@ const REGION_ASPECT: Record<MapRegion, number> = {
 };
 
 /**
- * Fallback hex dla przeglądarek bez color-mix() - PARA hexów na motyw,
- * trzymana w zgodzie z --chart-seq-min / --chart-seq-max w src/styles.css.
- * Jedna para (jasna) dawałaby w trybie ciemnym ramp ODWRÓCONY względem
- * tokenowego: najniższa wartość świeciłaby na ciemnej karcie, a najwyższa
- * gasła poniżej progu 3:1 dla obiektu graficznego.
- */
-const SEQ_HEX = {
-  light: { min: "#cde2fb", max: "#0d366b" },
-  dark: { min: "#16273f", max: "#86b6ef" },
-} as const;
-
-/**
  * Motyw czytany z klasy na <html> - tej samej, którą ustawia ThemeProvider
  * (i skrypt przedhydracyjny w __root.tsx). Fallback liczy się przy renderze
  * SVG, a ten dogrywa się WYŁĄCZNIE po hydracji, więc SSR nigdy nie zgaduje
  * motywu i nie ma czego rozjechać. W przeglądarkach z color-mix() wypełnienie
  * i tak bierze `style` (wygrywa nad atrybutem) i jedzie samymi tokenami.
+ *
+ * KOTWICE IDĄ Z MODUŁU PALETY (`SEQ_RAMP`), nie z literałów w tym pliku.
+ * Trzymane tutaj rozjechały się z arkuszem - arkusz miał `#e0eaf2`/`#00375f`,
+ * a fallback `#cde2fb`/`#0d366b` - i nikt tego nie zauważył, bo nowa
+ * przeglądarka nigdy tej gałęzi nie wykonuje. Teraz zgodności z arkuszem
+ * pilnuje bramka palety.
  */
 function seqHexPair(): { min: string; max: string } {
-  if (typeof document === "undefined") return SEQ_HEX.light;
-  return document.documentElement.classList.contains("dark") ? SEQ_HEX.dark : SEQ_HEX.light;
+  if (typeof document === "undefined") return SEQ_RAMP.light;
+  return document.documentElement.classList.contains("dark") ? SEQ_RAMP.dark : SEQ_RAMP.light;
 }
 
 function hexLerp(a: string, b: string, t: number): string {
@@ -206,6 +201,8 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
         unit: config.unit,
         sampleSize: null,
         zeroBaselineBroken: false,
+        // Mapa nie liczy udziałów, więc nie ma sumy kontrolnej do zgłoszenia.
+        shareSumMismatch: null,
         notesShows: "",
         notesSurprising: "",
         notesHidden: "",

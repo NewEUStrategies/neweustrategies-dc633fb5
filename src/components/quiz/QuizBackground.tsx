@@ -26,6 +26,7 @@ import lightMobileAvif from "@/assets/quiz/quiz-bg-light-mobile.avif.asset.json"
 import lightDesktopAvif from "@/assets/quiz/quiz-bg-light-desktop.avif.asset.json";
 import darkMobileAvif from "@/assets/quiz/quiz-bg-dark-mobile.avif.asset.json";
 import darkDesktopAvif from "@/assets/quiz/quiz-bg-dark-desktop.avif.asset.json";
+import { THEME_RESOLVE_JS } from "@/lib/theme/themeChoice";
 
 // Formaty w kolejności negocjacji: AVIF > WebP > JPG (fallback dla <img src>).
 const BG = {
@@ -167,11 +168,17 @@ export const QUIZ_BG_PRELOAD_LINKS = [
 
 /** Inline-script wstawiany do <head> trasy /quiz. Uruchamia się przed
  *  hydracją, odczytuje motyw i tylko dla trybu DARK dokłada
- *  <link rel="preload"> właściwego wariantu AVIF. */
+ *  <link rel="preload"> właściwego wariantu AVIF.
+ *
+ *  ROZSTRZYGNIĘCIE MOTYWU NIE JEST TU PISANE. Było - własną kopią wyrażenia
+ *  „jawny wybór wygrywa z systemem" - i to jest dokładnie ten rodzaj kopii,
+ *  który cicho się rozjeżdża: preload wariantu AVIF dla NIE TEGO motywu
+ *  kosztuje pobranie obrazu, którego nikt nie zobaczy, i nie zgłasza żadnego
+ *  błędu. Fragment idzie teraz z `lib/theme/themeChoice.ts`, więc reguła jest
+ *  jedna dla skryptu anty-FOUC, dla `ThemeProvider` i dla tego preloadu. */
 export const QUIZ_BG_PRELOAD_SCRIPT = `(function(){try{
-var s=localStorage.getItem('theme');
-var isDark=s==='dark'||(s!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
-if(!isDark)return;
+${THEME_RESOLVE_JS}
+if(!d)return;
 var isMobile=window.matchMedia&&window.matchMedia('(max-width: 767px)').matches;
 var href=isMobile?${JSON.stringify(BG.dark.mobile.avif)}:${JSON.stringify(BG.dark.desktop.avif)};
 var l=document.createElement('link');

@@ -287,10 +287,24 @@ body {
   --ring: oklch(0.18 0 0);
   --brand: #fa9346;
   --brand-foreground: oklch(1 0 0);
-  /* Marka jako TEKST na jasnym tle: #fa9346 daje ~2.2:1 (fail WCAG AA), więc
-     tekstowe użycia (text-brand-ink) idą przez ciemniejszy atrament w tym samym
-     hue (4.75:1 na --background). Tła/akcenty (bg-brand) nadal używają --brand.
-     Strażnik: src/lib/__tests__/brandContrast.test.ts. */
+  /* Marka jako TEKST na jasnym tle. UWAGA: ten token jest w motywie jasnym
+     RÓWNY --brand, czyli #fa9346 - a to jest 2,25:1 na płycie i 2,09:1 na tle
+     strony, więc NIE PRZECHODZI progu tekstowego AA. Jest to decyzja
+     właściciela marki (2026-09-06), nie przeoczenie, i strażnik
+     src/lib/__tests__/brandContrast.test.ts pilnuje wyłącznie tego, że token
+     jest tym uzgodnionym kolorem.
+
+     KONSEKWENCJA JEST PRAKTYCZNA I DOTYCZY KAŻDEGO UŻYCIA: pomarańcz marki na
+     jasnym tle nie może być JEDYNYM nośnikiem informacji ani nieść samego
+     tekstu bez podkładu. Wolno nim wypełnić powierzchnię pod ciemnym tuszem
+     (tusz na #fa9346 ma 8,06:1) i podbić element wyróżniony już pozycją albo
+     etykietą. Gdy audyt wymaga czytelnego TEKSTU w tym odcieniu na jasnym
+     tle, są na to dwa policzone warianty: --chart-accent-audit-graphic
+     (#cb7032, próg grafiki i tekstu dużego) i --chart-accent-audit (#ab5517,
+     próg tekstu normalnego). Wcześniejsza wersja tego komentarza twierdziła,
+     że token JEST już takim ciemniejszym atramentem o 4,75:1 - nie był i nie
+     jest, a komentarz obiecujący zgodność, której nie ma, jest gorszy od
+     braku komentarza. */
   --brand-ink: #fa9346;
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
@@ -418,8 +432,18 @@ body {
      10,07:1, na #fff4ed 16,78:1 - biel na pomarańczu ma 2,25:1 i jest
      wykluczona) oraz podbić element już wyróżniony pozycją lub etykietą.
      Nie wolno nim pisać liczb, etykiet osi ani podpisów na jasnym tle.
-     Wariant audytowy, gdy akcent MUSI być czytelnym tekstem na jasnym:
-     #cb7032 (3,56:1, próg grafiki i tekstu dużego) albo #ab5517 (5,19:1).
+     DWA WARIANTY AUDYTOWE, bo próg zależy od tego, czym akcent ma być:
+     --chart-accent-audit-graphic #cb7032 (3,56:1 na płycie, 3,30:1 na tle
+     strony - próg grafiki 1.4.11 i tekstu dużego) oraz --chart-accent-audit
+     #ab5517 (5,19:1 i 4,82:1 - próg tekstu normalnego 1.4.3). Oba ZAWODZĄ na
+     drugim tle sekcyjnym (2,89:1 i 4,22:1). Furtka na wypadek audytu, nie
+     podmiana tokena.
+
+     PODKŁAD #fff4ed NIE WYZNACZA POWIERZCHNI na tle strony #f8f6f4: kontrast
+     między nimi to 1,003:1, czyli identyczna jasność przy różnicy samego
+     odcienia. Taka granica znika w skali szarości, w druku i u części
+     odbiorców. Jako podkład pod ciemny tekst działa (tusz ma na nim 16,78:1),
+     ale KRAWĘDŹ musi nieść obramowanie 1 px - patrz .neh-accent-bg.
 
      Akcent koliduje z ochrą: #ed751a wobec #c6871f daje przy deuteranopii
      1,62 - praktycznie ten sam kolor. Gdy akcent jest w użyciu, ochra
@@ -429,6 +453,17 @@ body {
   --chart-accent-fill: #fdb078;
   --chart-accent-bg: #fff4ed;
   --chart-accent-audit: #ab5517;
+  --chart-accent-audit-graphic: #cb7032;
+
+  /* ---- Druga powierzchnia sekcyjna ----
+     Tło ciemniejsze od domyślnego o 1,14:1, dla sekcji, które mają odstąpić
+     od reszty strony. JEDNO OGRANICZENIE, i jest ono twarde: SERIE NIE MOGĄ
+     LEŻEĆ BEZPOŚREDNIO NA TEJ POWIERZCHNI. Ochra spada tam do 2,48:1, szałwia
+     do 2,76:1, lazur do 2,97:1, a czerwień ujemna do 2,81:1 - wszystkie
+     poniżej progu grafiki 3,0:1. Płyta wykresu zostaje BIAŁA także wtedy, gdy
+     sekcja wokół niej jest w drugim tle; token służy sekcji, nie wykresowi.
+     Bramka: SLOTS_UNSAFE_ON_SURFACE_2 w src/lib/charts/palette.ts. */
+  --chart-surface-2: #e4e8ee;
 
   /* ---- Pasmo prognozy: krycie PER SERIA, nie stała ----
      Cel: kontrast pasma do płyty 1,10-1,17:1. Poniżej pasmo jest
@@ -447,6 +482,89 @@ body {
   --chart-band-8: 0.09;
   --chart-band-positive: 0.09;
   --chart-band-negative: 0.11;
+
+  /* ---- WYPEŁNIENIA SŁUPKÓW (wariant blady / gradient / solid) ----
+     Odcienie pochodne WYPROWADZONE, nie dobrane: krok jasności w OKLCh przy
+     zachowanej chromie i odcieniu (`lib/charts/palette.ts`, `barFillOf`).
+     Bramka `__tests__/palette.test.ts` przelicza je z tokena i porównuje
+     z tym arkuszem, więc rozjazd zapala test, a nie przechodzi po cichu.
+
+     Obwódka `-edge` ODCHODZI od tła: na jasnym ciemnieje, na ciemnym
+     rozjaśnia się. Literalne "ciemniejsza w obu trybach" nie zadziała - na
+     ciemnym tle ciemniejsza krawędź idzie w stronę tła i przestaje być
+     krawędzią. Wnętrze `-inner` jest OSOBNYM odcieniem, nie tokenem pod alfą:
+     alfa przepuszcza siatkę i strefę prognozy, więc wnętrze przestawałoby
+     być jednolite. Rampa `-deep`/`-mid`/`-face` kończy się O STOPIEŃ przed
+     tokenem i nigdy go nie dosięga, dzięki czemu obwódka w czystym tokenie
+     odcina się od wypełnienia także na końcu danych. */
+  --chart-bar-style: pale;
+  --chart-bar-edge: 1.5px;
+  --chart-1-edge: #003a67;
+  --chart-1-inner: #d7eaff;
+  --chart-1-hover: #b9dbff;
+  --chart-1-deep: #003a67;
+  --chart-1-mid: #004274;
+  --chart-1-face: #004980;
+  --chart-2-edge: #a66d00;
+  --chart-2-inner: #ffe3c0;
+  --chart-2-hover: #fbcf96;
+  --chart-2-deep: #a66d00;
+  --chart-2-mid: #b17500;
+  --chart-2-face: #bb7d08;
+  --chart-3-edge: #4d7b5b;
+  --chart-3-inner: #d7efdd;
+  --chart-3-hover: #c1e1c9;
+  --chart-3-deep: #4d7b5b;
+  --chart-3-mid: #558464;
+  --chart-3-face: #5d8c6b;
+  --chart-4-edge: #663c5f;
+  --chart-4-inner: #f9dff3;
+  --chart-4-hover: #edcce6;
+  --chart-4-deep: #663c5f;
+  --chart-4-mid: #6f4468;
+  --chart-4-face: #774c6f;
+  --chart-5-edge: #00749a;
+  --chart-5-inner: #cdeeff;
+  --chart-5-hover: #a6e1ff;
+  --chart-5-deep: #00749a;
+  --chart-5-mid: #007da6;
+  --chart-5-face: #0085b1;
+  --chart-6-edge: #923600;
+  --chart-6-inner: #ffe0d4;
+  --chart-6-hover: #ffcab4;
+  --chart-6-deep: #923600;
+  --chart-6-mid: #9c3f0d;
+  --chart-6-face: #a54719;
+  --chart-7-edge: #353c9a;
+  --chart-7-inner: #e1e7ff;
+  --chart-7-hover: #cbd5ff;
+  --chart-7-deep: #353c9a;
+  --chart-7-mid: #3c45a3;
+  --chart-7-face: #424dac;
+  --chart-8-edge: #304300;
+  --chart-8-inner: #dfefc7;
+  --chart-8-hover: #cce1ac;
+  --chart-8-deep: #304300;
+  --chart-8-mid: #374b00;
+  --chart-8-face: #3d5300;
+  --chart-positive-edge: #00546e;
+  --chart-positive-inner: #caefff;
+  --chart-positive-hover: #afe0f5;
+  --chart-positive-deep: #00546e;
+  --chart-positive-mid: #005d79;
+  --chart-positive-face: #096582;
+  --chart-negative-edge: #cf343a;
+  --chart-negative-inner: #ffdfdc;
+  --chart-negative-hover: #ffc8c3;
+  --chart-negative-deep: #cf343a;
+  --chart-negative-mid: #d93f42;
+  --chart-negative-face: #e3484a;
+  --chart-accent-edge: #db7723;
+  --chart-accent-inner: #ffe1ce;
+  --chart-accent-hover: #ffcbaa;
+  --chart-accent-deep: #db7723;
+  --chart-accent-mid: #e58030;
+  --chart-accent-face: #ee883a;
 
   /* Strefa prognozy - prostokąt za pionowym separatorem. Separator ma być
      widoczny, nie dominujący: 1,045:1 do płyty. */
@@ -494,7 +612,6 @@ body {
   --chart-label-weight-total: 700;
   --chart-smoothing: 0.55;
   /* Prowadnice miękkie zamiast twardego `3 3`, z zaokrąglonymi końcami. */
-  --chart-guide-dash: 2 4;
   /* Kreskowanie serii poza zestawem bezpiecznym dla daltonizmu (sloty 7-8). */
   --chart-series-dash: 7 4;
   /* Cień dwuwarstwowy słaby zamiast jednego mocnego. */
@@ -518,19 +635,47 @@ body {
 .dark {
   --background: #141414;
 
-  --foreground: oklch(0.98 0 0);
+  /* ---- TEKST NA CIEMNYM NIE JEST BIELĄ ----
+     `oklch(0.98 0 0)` to praktycznie biel (#f8f8f8) i dawała na płycie
+     18,05:1. Brzmi jak zaleta, a jest defektem czytelności: biel na czerni
+     przy pełnym kontraście HALACJE - jasne glify rozlewają się na ciemne tło,
+     cienkie kreski liter grubieją optycznie i długi tekst zaczyna migotać.
+     `#ede9e7` daje 15,89:1 na płycie i 15,27:1 na tle strony, czyli ponad
+     trzykrotny zapas nad progiem tekstowym 4,5:1, a znaki zostają ostre.
+
+     TA SAMA WARTOŚĆ, CO ATRAMENT WYKRESU. Silnik wykresów już używał
+     `#ede9e7` jako `--chart-tip-ink` i `--chart-zone`, więc aplikacja miała
+     w trybie ciemnym DWIE różne biele: jedną w interfejsie, drugą na
+     wykresie. Ta zmiana je scala, i to jest jej druga, cichsza korzyść -
+     bramka `src/lib/__tests__/darkForeground.test.ts` pilnuje, żeby znów się
+     nie rozjechały.
+
+     ZMIENIAJĄ SIĘ WYŁĄCZNIE ROLE TEKSTOWE. `--primary` i `--ring` zostają
+     przy jaśniejszej wartości, bo nie są tekstem: pierwsza jest
+     POWIERZCHNIĄ przycisku (tekst na niej to `--primary-foreground`), druga
+     wskaźnikiem fokusu, który ma być maksymalnie widoczny. Halacja dotyczy
+     glifów, nie prostokątów.
+
+     O TEMPERATURZE, UCZCIWIE. Specyfikacja uzasadnia ciepły odcień tekstu
+     ciepłym tłem - ale tło tego repo jest NEUTRALNE (#141414 i #0f0f0f mają
+     chromę 0), a ciepłe są dopiero powierzchnie wykresu (#262424, #212020).
+     `#ede9e7` ma chromę 0,005, czyli mieści się w szumie wobec neutralnej
+     szarości i nie wprowadza widocznego rozjazdu. Przetemperowanie CAŁEJ
+     ciemnej palety na ciepło jest osobną decyzją projektową dotykającą każdej
+     powierzchni aplikacji i świadomie tu nie wchodzi. */
+  --foreground: #ede9e7;
   --card: #0f0f0f;
-  --card-foreground: oklch(0.98 0 0);
+  --card-foreground: #ede9e7;
   --popover: #0f0f0f;
-  --popover-foreground: oklch(0.98 0 0);
+  --popover-foreground: #ede9e7;
   --primary: oklch(0.98 0 0);
   --primary-foreground: #141414;
   --secondary: #1f1f1f;
-  --secondary-foreground: oklch(0.98 0 0);
+  --secondary-foreground: #ede9e7;
   --muted: #0f0f0f;
   --muted-foreground: oklch(0.7 0 0);
   --accent: #1f1f1f;
-  --accent-foreground: oklch(0.98 0 0);
+  --accent-foreground: #ede9e7;
   --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(1 0 0);
   --status-success: oklch(0.72 0.17 155);
@@ -639,6 +784,19 @@ body {
   --chart-accent-fill: #fdb078;
   --chart-accent-bg: #262424;
   --chart-accent-audit: #fa9346;
+  /* Warianty audytowe SĄ TU RÓWNE TOKENOWI, i to nie jest przeoczenie:
+     w trybie ciemnym akcent przechodzi próg tekstowy sam (8,51:1), więc nie
+     ma czego przyciemniać. Przyciemniony #ab5517 miałby na płycie 2,50:1,
+     czyli byłby GORSZY od tokena - furtka audytowa ma tu wartość tokena
+     właśnie dlatego, że jest niepotrzebna. */
+  --chart-accent-audit-graphic: #fa9346;
+
+  /* ---- Druga powierzchnia sekcyjna: W CIEMNYM JEJ NIE MA ----
+     Ciemne tło strony jest już samym #141313, a wprowadzanie pod nie jeszcze
+     ciemniejszego stopnia zjadałoby różnicę wobec płyty (#0f0f0f). Token
+     istnieje, żeby sekcja nie musiała rozgałęziać się po motywie, i jest
+     równy tłu strony. To rozstrzygnięcie, nie brak. */
+  --chart-surface-2: #141313;
 
   /* Krycie pasma per seria - na ciemnym różnica jasności serii wobec płyty
      jest jeszcze bardziej nierówna niż na jasnym, więc stała alfa dawałaby
@@ -654,6 +812,82 @@ body {
   --chart-band-8: 0.08;
   --chart-band-positive: 0.09;
   --chart-band-negative: 0.13;
+
+  /* ---- WYPEŁNIENIA SŁUPKÓW, motyw ciemny ----
+     Jasność wnętrza i hoveru PRZELICZONA dla płyty `#0f0f0f`, a nie wzięta
+     ze specyfikacji, która liczy motyw ciemny wobec `#1C1B1B`. Na tej płycie
+     jej wartości dawały wnętrza o kontraście 1,34-1,43:1 zamiast docelowych
+     1,20-1,28:1, czyli wnętrze zaczynało czytać się jako element, a nie jako
+     powierzchnia. Kroki jasności obwódki i rampy zostają bez zmian, bo są
+     liczone wobec TOKENA, nie wobec płyty. */
+  --chart-bar-style: pale;
+  --chart-bar-edge: 1.25px;
+  --chart-1-edge: #479bf1;
+  --chart-1-inner: #002549;
+  --chart-1-hover: #003361;
+  --chart-1-deep: #479bf1;
+  --chart-1-mid: #3d92e6;
+  --chart-1-face: #348add;
+  --chart-2-edge: #ffcb86;
+  --chart-2-inner: #352000;
+  --chart-2-hover: #472c00;
+  --chart-2-deep: #ffcb86;
+  --chart-2-mid: #ffbd62;
+  --chart-2-face: #f9b452;
+  --chart-3-edge: #b0d6ba;
+  --chart-3-inner: #19291e;
+  --chart-3-hover: #25382a;
+  --chart-3-deep: #b0d6ba;
+  --chart-3-mid: #a7ccb1;
+  --chart-3-face: #9fc4a9;
+  --chart-4-edge: #ca8fbe;
+  --chart-4-inner: #341b2f;
+  --chart-4-hover: #452640;
+  --chart-4-deep: #ca8fbe;
+  --chart-4-mid: #c086b5;
+  --chart-4-face: #b87ead;
+  --chart-5-edge: #95dbff;
+  --chart-5-inner: #00293a;
+  --chart-5-hover: #00384e;
+  --chart-5-deep: #95dbff;
+  --chart-5-mid: #7ad3ff;
+  --chart-5-face: #5fccff;
+  --chart-6-edge: #e88152;
+  --chart-6-inner: #421500;
+  --chart-6-hover: #571f02;
+  --chart-6-deep: #e88152;
+  --chart-6-mid: #de7749;
+  --chart-6-face: #d56f41;
+  --chart-7-edge: #8ea0e3;
+  --chart-7-inner: #1c2340;
+  --chart-7-hover: #283053;
+  --chart-7-deep: #8ea0e3;
+  --chart-7-mid: #8596d9;
+  --chart-7-face: #7d8ed0;
+  --chart-8-edge: #e7e7a4;
+  --chart-8-inner: #272708;
+  --chart-8-hover: #353510;
+  --chart-8-deep: #e7e7a4;
+  --chart-8-mid: #ddde9b;
+  --chart-8-face: #d5d593;
+  --chart-positive-edge: #8bd0e6;
+  --chart-positive-inner: #082933;
+  --chart-positive-hover: #103844;
+  --chart-positive-deep: #8bd0e6;
+  --chart-positive-mid: #82c6dd;
+  --chart-positive-face: #7abed4;
+  --chart-negative-edge: #ff817c;
+  --chart-negative-inner: #4c0108;
+  --chart-negative-hover: #630710;
+  --chart-negative-deep: #ff817c;
+  --chart-negative-mid: #ff6e6b;
+  --chart-negative-face: #fb5f5e;
+  --chart-accent-edge: #ffbd91;
+  --chart-accent-inner: #3d1a00;
+  --chart-accent-hover: #512500;
+  --chart-accent-deep: #ffbd91;
+  --chart-accent-mid: #ffaf78;
+  --chart-accent-face: #ffa260;
 
   /* Strefa prognozy - nakładka ODWRÓCONA: jasny tusz przy niższej alfie daje
      ten sam kontrast do płyty (1,045:1). */
@@ -3403,8 +3637,33 @@ textarea::placeholder {
   :where(input, textarea, select):focus {
     outline: none;
   }
+  /* OBRAMOWANIE FOKUSU JEST SOLIDNE, NIE PRZEZROCZYSTYM ODCIENIEM TEKSTU.
+     
+     Było tu `color-mix(in oklab, var(--foreground) 35%, transparent)` i to nie
+     przechodziło progu 3,0:1 dla obiektu graficznego (WCAG 1.4.11) w ŻADNYM
+     motywie ani przy ŻADNEJ z realnych wartości `--foreground`:
+       jasny  #121212 (arkusz)       2,262:1
+       jasny  #374151 (globalColors) 1,903:1 na bieli
+       ciemny #f8f8f8 (arkusz stary) 3,095:1  - jedyna, która ledwo przechodziła
+       ciemny #ede9e7 (arkusz nowy)  2,841:1
+       ciemny #d1d5db (globalColors) 2,529:1
+     Podkręcanie alfy nie jest naprawą: przy `#374151` trzeba by 57%, a wtedy
+     obramowanie przestaje być recesywne i zaczyna wyglądać jak obwódka błędu.
+     
+     Rozwiązaniem jest kolor SOLIDNY o recesywnej jasności, i takim kolorem jest
+     tekst drugorzędny: `--muted-foreground` daje najgorszy przypadek 4,71:1
+     (jasny `#6b7280` na tle strony) i 6,15:1 w ciemnym - z zapasem nad progiem
+     przy każdej z czterech realnych wartości, także po nadpisaniu z panelu
+     globalnych kolorów. To ten sam token i ta sama reguła, którą obramowanie
+     fokusu ma w silniku wykresów, więc fokus w formularzu i na wykresie
+     wygląda tak samo.
+     
+     Przezroczystość ma jeszcze jedną wadę, niezależną od liczb: `color-mix`
+     z `transparent` przepuszcza to, co jest POD obramowaniem, więc kontrast
+     zależy od tego, na czym pole stoi - a pola stoją na karcie, na tle strony
+     i na powierzchni podniesionej. Kolor solidny nie ma tego problemu. */
   :where(input, textarea, select):focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+    outline: 2px solid var(--muted-foreground);
     outline-offset: 1px;
     box-shadow: none;
   }
@@ -3992,10 +4251,42 @@ input.icon-input-with-action {
   r: var(--chart-dot, 2.8px);
   stroke-width: var(--chart-dot-ring, 1.6px);
 }
-/* Punkt pod kursorem rośnie o półtora piksela - tyle, żeby dało się go
-   zauważyć, i nie tyle, żeby przesunął odczyt pozycji. */
+/* PROMIEŃ MARKERA JEST JEDYNĄ DOZWOLONĄ ZMIANĄ GEOMETRII pod kursorem, i to
+   dlatego, że promień markera NIE KODUJE WARTOŚCI - koduje ją jego POZYCJA.
+   Wszystko, co niesie wartość, musi zostać nieruchome: żadnego rośnięcia
+   słupka, wysuwania łuku z pierścienia, zmiany promienia zaokrąglenia ani
+   szerokości. Rosnący pod kursorem słupek przez chwilę pokazuje wartość,
+   której nie ma.
+
+   Jeden piksel, nie półtora: tyle wystarcza, żeby marker dało się zauważyć,
+   a im mniejsza zmiana, tym mniejsze ryzyko, że oko odczyta ją jako
+   przesunięcie punktu. */
 .neh-chart .neh-dot[data-active="true"] {
-  r: calc(var(--chart-dot, 2.8px) + 1.5px);
+  r: calc(var(--chart-dot, 2.8px) + 1px);
+}
+/* PLAMKA ROJU - ta sama obwódka co marker obserwacji, ale BEZ narzuconego
+   promienia, i to jest cała różnica wobec `.neh-dot`.
+
+   `.neh-dot` dostaje `r` z tokena, bo marker linii ma jeden rozmiar dla całego
+   wykresu. Promień plamki roju liczy MODEL: przy większej liczbie obserwacji
+   plamki muszą zmaleć, żeby rój się zmieścił i nie zlał w plamę, więc wartość
+   jedzie atrybutem per punkt. Reguła CSS na `r` nadpisałaby atrybut (CSS wygrywa
+   z prezentacyjnym atrybutem SVG) i rój z pięciuset obserwacji rysowałby się
+   plamkami dla dziesięciu - czyli jednolitą kluchą.
+   
+   Obwódka w kolorze płyty rozdziela plamki nachodzące na siebie bez zmiany
+   koloru grupy; jej grubość idzie z tego samego tokena co obwódka markera,
+   żeby oba rodzaje kropek czytały się jako jeden system. */
+.neh-chart .neh-bee-dot {
+  stroke-width: var(--chart-dot-ring, 1.6px);
+  transition: r var(--neh-anim-ms, 500ms) var(--neh-anim-ease, ease-out);
+}
+/* NAZWA ROJU jest TOŻSAMOŚCIĄ grupy, nie odniesieniem, więc idzie mocniejszym
+   stopniem wagi - tym samym, co nazwa serii przy końcu linii. Liczebność roju
+   obok niej zostaje na stopniu bazowym: mówi ILE obserwacji, a nie CZEGO
+   dotyczą, i gdyby miała tę samą wagę, oko czytałoby ją jako część nazwy. */
+.neh-chart .neh-bee-label {
+  font-weight: var(--chart-label-weight-strong, 600);
 }
 /* Waga pisma z tokenów, TRZY STOPNIE, nie jeden.
    Reguła na `text` jest podstawą (etykiety osi, kategorie), a elementy
@@ -4057,6 +4348,40 @@ input.icon-input-with-action {
    krawędzi. */
 .neh-chart .neh-bar {
   transform-box: fill-box;
+}
+/* GRUBOŚĆ OBWÓDKI SŁUPKA z tokena, nie z atrybutu prezentacyjnego: `var()`
+   w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązana grubość to
+   obwódka domyślna 1 px, czyli bez korekty irradiacji. Obwódka nie jest
+   dekoracją, tylko funkcją - wypełnienie o niskim kontraście albo rozmyte
+   gradientem nie daje ostrej pozycji końca słupka, a solidna krawędź ją
+   przywraca. To z niej odczytuje się wartość. */
+.neh-chart .neh-bar[data-edged="true"] {
+  stroke-width: var(--chart-bar-edge, 1.5px);
+  stroke-linejoin: round;
+}
+/* STAN POD KURSOREM, wariant blady. Wypełnienie NIE SKACZE do tokena - to
+   byłaby zmiana tożsamości, nie stanu; idzie o jeden stopień w stronę
+   nasycenia, a obwódka na czysty token przy niezmienionej grubości. Skok
+   spokój/hover to 1,16-1,22:1, czyli wyczuwalny, ale nie zmieniający wagi
+   wizualnej wykresu.
+
+   TYLKO WARIANT BLADY, i to jest decyzja. Specyfikacja definiuje krok hoveru
+   dla bladego wnętrza; w wariancie gradientowym i solidnym wypełnienie jest
+   już nasycone, a wymyślanie dla niego własnego kroku groziłoby zmianą
+   POSTRZEGANEJ WARTOŚCI - tam afordancją zostaje podświetlenie pasa kategorii
+   i powiększony znacznik. Reguła nadrzędna mówi, że hover zmienia stan
+   powierzchni, nigdy kodowanie.
+
+   Przejście na `fill` i `stroke`, nigdy na geometrii: nic, co niesie wartość,
+   nie może się ruszyć. */
+.neh-chart .neh-bar[data-style="pale"] {
+  transition:
+    fill var(--neh-hover-ms, 150ms) ease-out,
+    stroke var(--neh-hover-ms, 150ms) ease-out;
+}
+.neh-chart .neh-bar[data-style="pale"][data-active="true"] {
+  fill: var(--neh-bar-hover);
+  stroke: var(--neh-bar-token);
 }
 .neh-armed .neh-bar {
   transform: scaleY(0);
@@ -4123,15 +4448,95 @@ input.icon-input-with-action {
   stroke-width: 1.4;
 }
 
-/* Prowadnica pod kursorem: kreskowanie 2 4 z zaokrąglonymi końcami zamiast
-   twardego `3 3`. Rusztowania nie zaokrąglamy i nie animujemy, ale
-   PROWADNICA nie jest rusztowaniem - jest odpowiedzią na ruch wskaźnika. */
+/* WYCINEK TARCZY. Wskazanie i fokus zmieniają POWIERZCHNIĘ, nie kodowanie:
+   wypełnienie idzie o jeden krok w stronę nasycenia, obwódka na czysty token
+   serii, a grubość obwódki i geometria łuku zostają bez zmian. Wcześniejsza
+   wersja wysuwała wskazany wycinek 4 px na zewnątrz - to zmieniało długość
+   łuku przy krawędzi zewnętrznej i zawyżało udział, czyli robiło dokładnie
+   to, czego zabrania zasada o niezmiennym kodowaniu. */
+.neh-chart .neh-slice {
+  /* GRUBOŚĆ OBWÓDKI Z TOKENA, tak samo jak w słupku: 1,5 px na jasnym
+     i 1,25 px na ciemnym, bo jasna linia na ciemnym tle optycznie grubieje.
+     Bez tej deklaracji łuk brał domyślną grubość SVG, czyli 1 px w obu
+     motywach - a obwódka jest w wariancie bladym JEDYNYM nośnikiem koloru
+     serii (wnętrze ma do płyty 1,20-1,28:1), więc jej ścienienie o trzecią
+     część realnie osłabia rozróżnienie kategorii. W atrybucie prezentacyjnym
+     tego podać nie można, bo `var()` nie jest tam wspierane wszędzie. */
+  stroke-width: var(--chart-bar-edge, 1.5px);
+  transition:
+    fill var(--neh-hover-ms) ease-out,
+    stroke var(--neh-hover-ms) ease-out;
+}
+.neh-chart .neh-slice[data-active="true"] {
+  fill: var(--neh-arc-hover);
+  stroke: var(--neh-arc-token);
+}
+/* Obramowanie fokusu: linia CIĄGŁA 2 px z odstępem 2 px, wyłącznie dla
+   `:focus-visible`, więc kliknięcie wskaźnikiem go nie wywołuje. Na łuku
+   prostokąt obramowania jest tylko przybliżeniem kształtu, ale fokus MUSI
+   być widoczny niezależnie od tego, czy czytelnik rozpozna zmianę
+   powierzchni - a zmiana powierzchni jest tu identyczna jak przy hoverze,
+   więc sama nie odróżnia klawiatury od wskaźnika. */
+.neh-chart .neh-slice:focus-visible {
+  outline: 2px solid var(--muted-foreground);
+  outline-offset: 2px;
+}
+
+/* TABELA KLUCZA obok pierścienia. Wskazany wiersz oznaczony WAGĄ FONTU
+   i promocją koloru liczb z recesywnego na pełny tusz - nigdy tłem: wash pod
+   bladą próbką koloru zmieniałby przez kontrast jednoczesny jej wygląd, czyli
+   podświetlenie fałszowałoby klucz. Szerokości kolumn są stałe (`colgroup`
+   w komponencie), więc pogrubienie nie rozpycha tabeli. */
+.neh-chart .neh-pie-key tr[data-active="true"] th,
+.neh-chart .neh-pie-key tr[data-active="true"] td {
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+/* PROWADNICA JEST LINIĄ CIĄGŁĄ, i to jest zmiana wobec wcześniejszej wersji
+   tego arkusza, która kreskowała ją 2 4. Trzy powody, wszystkie praktyczne:
+
+   - kreskowana obwódka wokół elementu czyta się w konwencji interfejsu jako
+     ZAZNACZENIE DO PRZENIESIENIA albo stan nieukończony, a nie jako
+     podświetlenie danych;
+   - kreska 1 px na współrzędnej niecałkowitej ALIASUJE - przy skalowaniu SVG
+     albo na ekranie o innym DPR zamienia się w nierówny szereg plamek
+     o zmiennej gęstości, co wygląda na artefakt renderu;
+   - kreskowanie wprowadza RYTM, który konkuruje z rytmem samych danych; przy
+     siedmiu i więcej punktach obserwacji oko zaczyna czytać kreski jako
+     trzeci szereg.
+
+   Kolor osi ma do płyty 1,40:1, więc linia ciągła i tak jest recesywna - nie
+   musi być przerywana, żeby nie dominowała. Ta sama reguła obejmuje separator
+   strefy prognozy, łączniki między słupkami mostka i obramowanie focusu:
+   jedyną dozwoloną nieciągłością zostaje kreskowanie strefy prognozy jako
+   TEKSTURY POWIERZCHNI, a to nie jest linia. */
 .neh-chart .neh-crosshair {
   stroke: var(--chart-axis);
   stroke-width: 1;
-  stroke-dasharray: var(--chart-guide-dash, 2 4);
+  stroke-dasharray: none;
   stroke-linecap: round;
   pointer-events: none;
+}
+
+/* ŁĄCZNIK MIĘDZY SŁUPKAMI MOSTKA ma własną klasę, a nie klasę prowadnicy,
+   bo nie jest afordancją interakcji: rysuje się zawsze, także bez kursora,
+   i pokazuje, że słupek WISI na poprzednim, a nie stoi na zerze. Wspólna
+   klasa z prowadnicą znaczyłaby, że zmiana wyglądu podświetlenia po cichu
+   zmienia rusztowanie mostka. Linia ciągła 1 px w kolorze osi - jak każde
+   rusztowanie w tym silniku. */
+.neh-chart .neh-connector {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* Kreskowanie strefy prognozy jest ALTERNATYWĄ dla płaskiego tintu, nie
+   dodatkiem: na ekranie widoczny jest tint, na papierze kreskowanie (patrz
+   blok @media print). Dwa nośniki tej samej powierzchni naraz dałyby strefę
+   ciemniejszą od zamierzonej i konkurującą z danymi. */
+.neh-chart .neh-zone-hatch {
+  display: none;
 }
 
 /* Separator strefy prognozy - pionowa, ciągła linia w kolorze osi. Prognoza
@@ -4234,6 +4639,29 @@ input.icon-input-with-action {
   cursor: help;
 }
 
+/* PODKŁAD AKCENTU ZAWSZE Z OBRAMOWANIEM, i to jest cała treść tej klasy.
+   Kontrast #fff4ed do tła strony #f8f6f4 wynosi 1,003:1 - identyczna jasność
+   przy różnicy samego odcienia. Taka krawędź nie istnieje w skali szarości,
+   w druku jednobarwnym ani dla odbiorcy z achromatopsją: podkład działa jako
+   podkład (ciemny tusz ma na nim 16,78:1), ale POWIERZCHNI NIE WYZNACZA.
+   Dlatego tło i obramowanie idą razem, jedną klasą - kto użyje samego tokena,
+   dostanie prostokąt bez granicy, i nie da się tego zauważyć na ekranie.
+
+   Ciekawostka użytkowa: #fff4ed na bieli daje 1,082:1, a pasmo #fa9346 przy
+   10% krycia 1,084:1 - praktycznie ten sam ton, więc oba są wymienne. */
+.neh-accent-bg {
+  background: var(--chart-accent-bg);
+  /* OBRAMOWANIE Z WARIANTU AUDYTOWEGO GRAFIKI, i to jest dokładnie ten
+     przypadek, dla którego on istnieje: linia, która ma NIEŚĆ GRANICĘ SAMA,
+     musi przejść próg 3,0:1. #cb7032 ma 3,30:1 na tle strony i 3,29:1 na
+     samym podkładzie; jaśniejszy #fdb078 miałby 1,67:1, czyli granicę tak
+     samo niewidoczną jak sama zmiana tła. W ciemnym motywie ten token jest
+     równy akcentowi (6,86:1 na podniesionej powierzchni), więc jedna
+     deklaracja obsługuje oba tryby. */
+  border: 1px solid var(--chart-accent-audit-graphic);
+  border-radius: var(--chart-radius);
+}
+
 /* Interaktywne obszary trafień - większe niż znaczniki (>=24px). */
 .neh-chart .neh-hit {
   fill: transparent;
@@ -4241,9 +4669,34 @@ input.icon-input-with-action {
   outline: none;
   cursor: pointer;
 }
+/* OBRAMOWANIE FOCUSU: linia CIĄGŁA 2 px w tuszu trzecim, odsunięta o 2 px od
+   kształtu. Ciągła, nie kreskowana - kreskowana ramka wygląda jak zaznaczenie
+   w edytorze, nie jak wskaźnik focusu. Tusz trzeci, bo ramka musi odciąć się
+   ZARÓWNO od bladego wypełnienia słupka (1,20-1,28:1 do płyty), JAK i od samej
+   płyty; kolor akcentu tego nie robi, bo na jasnym tle ma 2,09:1.
+
+   WYŁĄCZNIE `:focus-visible`, czyli tylko przy nawigacji klawiaturą. Ramka
+   pod kursorem jest wizualnym szumem: stan jest już w pełni zakomunikowany
+   zmianą samego elementu, a druga obwódka wokół kolumny dodaje trzecią
+   krawędź do kształtu, który ma już dwie. */
+.neh-chart .neh-canvas:focus-visible,
 .neh-chart .neh-hit:focus-visible {
-  fill: color-mix(in oklab, var(--chart-accent) 12%, transparent);
+  outline: 2px solid var(--muted-foreground);
+  outline-offset: 2px;
+  border-radius: var(--chart-radius);
 }
+/* Bez `:focus-visible` obszar rysunku nie dostaje NICZEGO - ani obramowania
+   domyślnego przeglądarki (które bywa cienką kreską ginącą na płycie), ani
+   cienia. Kliknięcie wskaźnikiem w wykres nie jest nawigacją. */
+.neh-chart .neh-canvas:focus {
+  outline: none;
+}
+/* Podświetlenie pasa kategorii jest AFORDANCJĄ STREFY TRAFIENIA, nie
+   podświetleniem danych - dlatego jest dodatkiem, nigdy przygaszeniem. Wzorzec
+   "wyróżnij jeden, wygaś resztę" jest tu niedopuszczalny i wynika to z liczb,
+   nie z gustu: blade wypełnienia siedzą na 1,20-1,28:1 do płyty, więc każde
+   obniżenie krycia sprowadza je do niewidoczności, a obwódki mają nad progiem
+   3,0:1 zapas od 0,15 do 8,66 i przy części odcieni spadłyby poniżej. */
 .neh-chart .neh-hit[data-active="true"] {
   fill: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
@@ -4277,7 +4730,21 @@ input.icon-input-with-action {
   .neh-run .neh-map-countries {
     transition: none;
   }
-  .neh-tooltip {
+  /* ZNIKA PRZEJŚCIE, NIE STAN. Podświetlenie i tooltip pojawiają się
+     natychmiast - wyłączenie samej informacji zamiast animacji jest błędem,
+     który zabiera funkcję komuś, kto poprosił tylko o spokój. Dlatego tu
+     zerujemy wyłącznie `transition`, a reguły `[data-active]` zostają
+     nietknięte. */
+  .neh-chart .neh-bar,
+  .neh-chart .neh-bar[data-style="pale"],
+  .neh-chart .neh-slice,
+  .neh-chart .neh-country,
+  .neh-chart .neh-dot,
+  .neh-chart .neh-bee-dot {
+    transition: none;
+  }
+  .neh-tooltip,
+  .neh-metric-tip {
     animation: none;
   }
 }
@@ -4392,6 +4859,62 @@ input.icon-input-with-action {
   .neh-tooltip {
     display: none !important;
   }
+
+  /* ---- W DRUKU SŁUPKI I ŁUKI SĄ SOLIDNE ----
+     Wariant blady stoi na tym, że wnętrze ma do płyty 1,20-1,28:1, a granicę
+     niesie obwódka. Na papierze ten układ się rozpada: 1,2:1 nie ma czym się
+     odbić od bieli (a drukarka jeszcze to spłaszcza rastrem), więc zostaje
+     sama obwódka 1,5 px - kształt zdefiniowany wyłącznie cienkim konturem,
+     który przy kilku słupkach obok siebie czyta się jak rysunek techniczny,
+     nie jak dane. Wypełnienie w czystym tokenie drukuje się jako jednolita
+     szarość o wyraźnej wartości i porównanie długości wraca.
+
+     PRZEZ ARKUSZ, NIE PRZEZ GAŁĄŹ W JS, i to jest istotne: wariant jest
+     ustawieniem autora, a druk nie może go zmieniać w danych. Podstawienie
+     idzie własnościami `--neh-bar-token` / `--neh-arc-token`, które komponent
+     kładzie na każdym elemencie - dzięki temu jedna reguła obsługuje wszystkie
+     dziewięć slotów bez znajomości numeru. Atrybuty prezentacyjne `fill`
+     i `stroke` ustępują dowolnej regule CSS, więc nadpisanie działa. */
+  /* STAN AKTYWNY WYPISANY OSOBNO, i to nie jest nadmiarowość. Media query
+     NIE dodaje specyficzności, więc o wyniku decyduje sam selektor:
+     `.neh-bar[data-style="pale"][data-active="true"]` z bloku ekranowego jest
+     bardziej specyficzny niż `.neh-bar[data-style="pale"]` tutaj i wygrywał.
+     Wydruk zrobiony przy podświetlonym elemencie (fokus klawiaturą, potem
+     Ctrl+P) wychodził więc z bladym wypełnieniem hover i obwódką w tokenie,
+     czyli dokładnie tym, co ten blok ma zastąpić. */
+  .neh-chart .neh-bar[data-style="pale"],
+  .neh-chart .neh-bar[data-style="pale"][data-active="true"],
+  .neh-chart .neh-bar[data-style="gradient"],
+  .neh-chart .neh-bar[data-style="gradient"][data-active="true"] {
+    fill: var(--neh-bar-token);
+    stroke: none;
+  }
+  .neh-chart .neh-slice,
+  .neh-chart .neh-slice[data-active="true"] {
+    fill: var(--neh-arc-token);
+    stroke: none;
+  }
+  /* Liczba w łuku przechodzi na TUSZ SLOTU, bo leży teraz na nasyconym
+     kolorze: tusz semantyczny ma na granacie 2,25:1, a ink slotu 8,07:1.
+     Na ekranie jest odwrotnie i dlatego to nadpisanie jest tylko tutaj. */
+  .neh-chart .neh-arc-label {
+    fill: var(--neh-arc-ink);
+  }
+
+  /* ---- STREFA PROGNOZY: KRESKOWANIE ZAMIAST PŁASKIEGO TINTU ----
+     Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
+     prognoza traciła jeden z TRZECH nośników odróżnienia od historii
+     i zostawała z pasmem oraz separatorem. Kreskowanie 45 stopni zostaje, bo
+     linia ma krawędź - i jest to jedyne miejsce w silniku, gdzie tekstura jest
+     uzasadniona. Oba prostokąty są w drzewie zawsze, bo identyfikator wzoru
+     jest unikalny per instancja wykresu i CSS nie umie go wskazać w `fill`. */
+  .neh-chart .neh-zone-tint {
+    display: none;
+  }
+  .neh-chart .neh-zone-hatch {
+    display: inline;
+  }
+
   /* STAN KOŃCOWY WYMUSZONY, tak samo jak przy prefers-reduced-motion.
      Wejście wykresu jest uzbrajane klasą .neh-armed dla elementów POZA
      viewportem i odpalane obserwatorem przy wejściu w widok. Na papierze

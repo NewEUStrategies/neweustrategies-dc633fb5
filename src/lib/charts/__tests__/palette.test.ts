@@ -37,6 +37,19 @@ import {
   relativeLuminance,
   simulateCvd,
   slotAt,
+  ACCENT_AUDIT,
+  BAR_FILL_PARAMS,
+  CHART_SURFACES,
+  SEQ_RAMP,
+  SLOTS_UNSAFE_ON_SURFACE_2,
+  deltaE76,
+  EDGE_FACE_RANGE,
+  HOVER_CONTRAST_RANGE,
+  HOVER_STEP_RANGE,
+  INNER_CONTRAST_RANGE,
+  barFillOf,
+  fromOklch,
+  oklchOf,
 } from "@/lib/charts/palette";
 
 // ---------------------------------------------------------------------------
@@ -544,5 +557,319 @@ describe("palette - tokeny w styles.css zgadzają się z modułem", () => {
       const delta = Math.abs(hueOf(light) - hueOf(dark));
       expect(Math.min(delta, 360 - delta), name).toBeLessThanOrEqual(11);
     }
+  });
+});
+
+describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem", () => {
+  // Ta bramka jest całą treścią rozdzielenia "policzone" od "przepisane".
+  // W arkuszu stoi 132 hexy odcieni pochodnych; żaden z nich nie został
+  // dobrany - każdy jest krokiem jasności w OKLCh przy zachowanej chromie
+  // i odcieniu. Bramka liczy je z tokena bazowego i porównuje z napisem
+  // w arkuszu, więc literówka w hexie albo cicha podmiana koloru zapala test.
+  // Bez niej cała maszyneria OKLCh w `palette.ts` byłaby dekoracją.
+  const HUES = [
+    ...CHART_SLOTS.map((s) => ({ name: String(s.slot), light: s.light, dark: s.dark })),
+    { name: "positive", light: CHART_SEMANTIC.positiveLight, dark: CHART_SEMANTIC.positiveDark },
+    { name: "negative", light: CHART_SEMANTIC.negativeLight, dark: CHART_SEMANTIC.negativeDark },
+  ];
+  const VARIANTS = ["edge", "inner", "hover", "deep", "mid", "face"] as const;
+
+  it.each(["light", "dark"] as const)(
+    "każdy odcień pochodny w motywie %s jest dokładnie tym, co daje krok w OKLCh",
+    (theme) => {
+      const block = theme === "light" ? LIGHT_BLOCK : DARK_BLOCK;
+      for (const hue of HUES) {
+        const derived = barFillOf(theme === "dark" ? hue.dark : hue.light, theme);
+        for (const v of VARIANTS) {
+          expect(hexToken(block, `--chart-${hue.name}-${v}`), `${theme} ${hue.name} ${v}`).toBe(
+            derived[v],
+          );
+        }
+      }
+    },
+  );
+
+  it.each(["light", "dark"] as const)(
+    "OBWÓDKA niesie całą granicę kształtu, więc przechodzi próg grafiki (%s)",
+    (theme) => {
+      // Wypełnienie o niskim kontraście nie daje ostrej pozycji końca słupka -
+      // to z obwódki odczytuje się wartość. Gdyby ona nie przechodziła 3,0:1,
+      // wariant blady przestawałby być czytelny jako kształt.
+      for (const hue of HUES) {
+        const { edge } = barFillOf(theme === "dark" ? hue.dark : hue.light, theme);
+        expect(
+          contrastRatio(edge, CHART_PLATE[theme]),
+          `${theme} ${hue.name}`,
+        ).toBeGreaterThanOrEqual(CONTRAST_MIN.graphic);
+      }
+    },
+  );
+
+  it.each(["light", "dark"] as const)(
+    "WNĘTRZE czyta się jako powierzchnia, nie jako element (%s)",
+    (theme) => {
+      // Korytarz 1,20-1,28:1 to ledwo nad kontrastem siatki (1,18:1) - i to
+      // jest właściwy poziom. Wyżej wnętrze zaczyna konkurować z danymi,
+      // niżej znika. Korytarz jest mierzony wobec PRAWDZIWEJ płyty motywu,
+      // więc zmiana `--card` zapali ten test, zamiast po cichu przesunąć
+      // wszystkie wypełnienia w silniku.
+      const plate = CHART_PLATE[theme];
+      for (const hue of HUES) {
+        const { inner } = barFillOf(theme === "dark" ? hue.dark : hue.light, theme);
+        const c = contrastRatio(inner, plate);
+        expect(c, `${theme} ${hue.name}`).toBeGreaterThanOrEqual(INNER_CONTRAST_RANGE.min);
+        expect(c, `${theme} ${hue.name}`).toBeLessThanOrEqual(INNER_CONTRAST_RANGE.max);
+      }
+    },
+  );
+
+  it.each(["light", "dark"] as const)(
+    "HOVER jest wyczuwalny, ale nie zmienia wagi wizualnej wykresu (%s)",
+    (theme) => {
+      const plate = CHART_PLATE[theme];
+      for (const hue of HUES) {
+        const { inner, hover } = barFillOf(theme === "dark" ? hue.dark : hue.light, theme);
+        const abs = contrastRatio(hover, plate);
+        const step = contrastRatio(hover, inner);
+        expect(abs, `${theme} ${hue.name} bezwzgl.`).toBeGreaterThanOrEqual(
+          HOVER_CONTRAST_RANGE.min,
+        );
+        expect(abs, `${theme} ${hue.name} bezwzgl.`).toBeLessThanOrEqual(HOVER_CONTRAST_RANGE.max);
+        expect(step, `${theme} ${hue.name} skok`).toBeGreaterThanOrEqual(HOVER_STEP_RANGE.min);
+        expect(step, `${theme} ${hue.name} skok`).toBeLessThanOrEqual(HOVER_STEP_RANGE.max);
+      }
+    },
+  );
+
+  it.each(["light", "dark"] as const)(
+    "rampa gradientu NIE DOSIĘGA tokena - krawędź odcina się także na końcu danych (%s)",
+    (theme) => {
+      // Gdyby rampa dochodziła do tokena, obwódka w czystym tokenie zlewałaby
+      // się z licem i słupek traciłby ostrą pozycję końca dokładnie tam, gdzie
+      // się ją odczytuje. Krok token/lico to widoczność krawędzi w najtrudniejszym
+      // miejscu; specyfikacja podaje 1,135-1,158 na jasnym i 1,126-1,152 na ciemnym.
+      for (const hue of HUES) {
+        const base = theme === "dark" ? hue.dark : hue.light;
+        const { face, deep, mid } = barFillOf(base, theme);
+        const step = contrastRatio(base, face);
+        // Zakres ze specyfikacji obowiązuje jej WŁASNE odcienie: sześć serii
+        // plus semantyka. Sloty 7-8 są udokumentowanym rozszerzeniem tego
+        // repozytorium i przy tej samej formule lądują nieco niżej (ciemny
+        // slot 8 daje 1,118), bo ich jasność bazowa jest inna. Pilnujemy więc
+        // zakresu specyfikacji tam, gdzie on obowiązuje, i osobnej podłogi
+        // widoczności krawędzi dla rozszerzenia - zamiast rozszerzać zakres
+        // i przestać pilnować czegokolwiek.
+        const extension = hue.name === "7" || hue.name === "8";
+        expect(step, `${theme} ${hue.name}`).toBeGreaterThanOrEqual(
+          extension ? 1.11 : EDGE_FACE_RANGE.min,
+        );
+        expect(step, `${theme} ${hue.name}`).toBeLessThanOrEqual(EDGE_FACE_RANGE.max);
+        // Rampa idzie monotonicznie OD krawędzi odniesienia DO końca danych,
+        // zawsze odchodząc od tła: na jasnym ciemnieje, na ciemnym rozjaśnia.
+        const l = [deep, mid, face].map((h) => oklchOf(h).l);
+        if (theme === "light") {
+          expect(l[0], `${theme} ${hue.name}`).toBeLessThan(l[1]);
+          expect(l[1], `${theme} ${hue.name}`).toBeLessThan(l[2]);
+        } else {
+          expect(l[0], `${theme} ${hue.name}`).toBeGreaterThan(l[1]);
+          expect(l[1], `${theme} ${hue.name}`).toBeGreaterThan(l[2]);
+        }
+      }
+    },
+  );
+
+  it("krok jasności obwódki ODCHODZI od tła w obu motywach", () => {
+    // Literalne "ciemniejsza w obu trybach" nie zadziała: na ciemnym tle
+    // ciemniejsza krawędź idzie W STRONĘ tła i przestaje być krawędzią.
+    expect(BAR_FILL_PARAMS.light.dlEdge).toBeLessThan(0);
+    expect(BAR_FILL_PARAMS.dark.dlEdge).toBeGreaterThan(0);
+    expect(BAR_FILL_PARAMS.light.dlEdge).toBe(-BAR_FILL_PARAMS.dark.dlEdge);
+  });
+
+  it("obwódka jest CIEŃSZA na ciemnym - jasna linia optycznie grubieje", () => {
+    expect(BAR_FILL_PARAMS.dark.edgeWidth).toBeLessThan(BAR_FILL_PARAMS.light.edgeWidth);
+    expect(numberToken(LIGHT_BLOCK, "--chart-bar-edge")).toBe(BAR_FILL_PARAMS.light.edgeWidth);
+    expect(numberToken(DARK_BLOCK, "--chart-bar-edge")).toBe(BAR_FILL_PARAMS.dark.edgeWidth);
+  });
+
+  it("BLADE WNĘTRZE NIE NIESIE TOŻSAMOŚCI SERII - i to jest udokumentowane, nie przypadek", () => {
+    // Ta asercja jest ostrzeżeniem zapisanym w wykonywalnej formie. Przy
+    // jasności 0,93 wszystkie odcienie zbiegają się praktycznie do jednego:
+    // odległość CIELAB między bladymi wypełnieniami jest o dwa rzędy niższa od
+    // podłogi palety serii (24). Dlatego wariant blady jest doskonały przy
+    // JEDNEJ serii (tożsamość niesie obwódka), a przy słupkach grupowanych
+    // wymaga drugiego nośnika: etykiety bezpośredniej albo wariantu solidnego.
+    const inners = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map(
+      (s) => barFillOf(s.light, "light").inner,
+    );
+    let min = Infinity;
+    for (let i = 0; i < inners.length; i++)
+      for (let j = i + 1; j < inners.length; j++)
+        min = Math.min(min, deltaE76(inners[i], inners[j]));
+    expect(min).toBeLessThan(6);
+    // Dla kontrastu: same tokeny są rozdzielne z dużym zapasem.
+    const tokens = CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX).map((s) => s.light);
+    let minTok = Infinity;
+    for (let i = 0; i < tokens.length; i++)
+      for (let j = i + 1; j < tokens.length; j++)
+        minTok = Math.min(minTok, deltaE76(tokens[i], tokens[j]));
+    expect(minTok).toBeGreaterThan(min * 4);
+  });
+
+  it("mapowanie do gamutu obniża CHROMĘ, a nie przesuwa odcienia", () => {
+    // Gdyby wychodziło przez przycięcie kanałów, seria po zmianie jasności
+    // przestawałaby być tą samą serią - a reguła trybów mówi, że ten sam
+    // szereg zachowuje ten sam odcień (odchylenie do 9 stopni).
+    for (const s of CHART_SLOTS.slice(0, CATEGORICAL_SAFE_MAX)) {
+      const { l, c, h } = oklchOf(s.light);
+      const pushed = oklchOf(fromOklch(Math.min(0.99, l + 0.4), c, h));
+      const delta = Math.abs(((pushed.h - h + 540) % 360) - 180);
+      expect(delta, `slot ${s.slot}`).toBeLessThanOrEqual(9);
+      expect(pushed.c, `slot ${s.slot}`).toBeLessThanOrEqual(c + 1e-6);
+    }
+  });
+});
+
+describe("palette - DRUGA POWIERZCHNIA SEKCYJNA i furtki audytowe akcentu", () => {
+  // Reguła "serie nie leżą na drugim tle" nie jest przekonaniem - wynika
+  // z liczb, więc liczby stoją w bramce. Gdy któryś odcień serii się zmieni,
+  // ten test każe wrócić do reguły, zamiast pozwolić jej cicho skłamać.
+  it("arkusz podaje drugą powierzchnię w OBU motywach, a w ciemnym równą tłu", () => {
+    expect(hexToken(LIGHT_BLOCK, "--chart-surface-2")).toBe(CHART_SURFACES.secondLight);
+    expect(hexToken(DARK_BLOCK, "--chart-surface-2")).toBe(CHART_SURFACES.secondDark);
+    // W ciemnym drugiego tła NIE MA: token jest równy tłu strony, bo pod
+    // #141313 nie ma już miejsca na ciemniejszy stopień, który nie zjadłby
+    // różnicy wobec płyty #0f0f0f.
+    expect(CHART_SURFACES.secondDark).toBe(CHART_SURFACES.pageDark);
+    expect(contrastRatio(CHART_SURFACES.pageDark, CHART_PLATE.dark)).toBeLessThan(1.15);
+  });
+
+  it("druga powierzchnia jest o 1,14:1 ciemniejsza od tła strony", () => {
+    const r = contrastRatio(CHART_SURFACES.secondLight, CHART_SURFACES.pageLight);
+    expect(r).toBeGreaterThan(1.1);
+    expect(r).toBeLessThan(1.2);
+  });
+
+  it("DOKŁADNIE wypisane sloty spadają pod próg grafiki na drugiej powierzchni", () => {
+    // Ochra 2,48:1, szałwia 2,76:1, lazur 2,97:1 - i to jest cały powód,
+    // dla którego płyta wykresu zostaje biała także w sekcji na drugim tle.
+    const unsafe = CHART_SLOTS.filter(
+      (slot) => contrastRatio(slot.light, CHART_SURFACES.secondLight) < CONTRAST_MIN.graphic,
+    ).map((slot) => slot.slot);
+    expect(unsafe).toEqual([...SLOTS_UNSAFE_ON_SURFACE_2]);
+    // Reszta slotów przechodzi - reguła dotyczy trzech odcieni, nie palety.
+    for (const slot of CHART_SLOTS.filter((s) => !SLOTS_UNSAFE_ON_SURFACE_2.includes(s.slot))) {
+      const r = contrastRatio(slot.light, CHART_SURFACES.secondLight);
+      expect(r, `slot ${slot.slot}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        CONTRAST_MIN.graphic,
+      );
+    }
+  });
+
+  it("czerwień UJEMNA też spada pod próg na drugiej powierzchni", () => {
+    // Spec o niej nie mówi, ale to ten sam defekt: 2,81:1. Semantyka znaku nie
+    // jest slotem kategorialnym, więc nie mieści się w liście slotów - i tym
+    // bardziej musi być wypisana, bo wykres kodujący znak kolorem straciłby na
+    // drugim tle właśnie ten kolor.
+    const r = contrastRatio(CHART_SEMANTIC.negativeLight, CHART_SURFACES.secondLight);
+    expect(r).toBeLessThan(CONTRAST_MIN.graphic);
+    expect(r).toBeGreaterThan(2.5);
+  });
+
+  it("furtki audytowe akcentu trafiają w SWOJE progi, każda w swój", () => {
+    // Dwa warianty, bo dwa różne progi. Mierzone na tle strony, czyli na
+    // najgorszej jasnej powierzchni, na której akcent jako tekst wolno
+    // postawić - na płycie oba mają jeszcze więcej zapasu.
+    expect(ACCENT_AUDIT.graphic).toBe(hexToken(LIGHT_BLOCK, "--chart-accent-audit-graphic"));
+    expect(ACCENT_AUDIT.text).toBe(hexToken(LIGHT_BLOCK, "--chart-accent-audit"));
+    expect(contrastRatio(ACCENT_AUDIT.graphic, CHART_SURFACES.pageLight)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.graphic,
+    );
+    expect(contrastRatio(ACCENT_AUDIT.text, CHART_SURFACES.pageLight)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.text,
+    );
+    // Wariant grafiki NIE udaje, że przechodzi próg tekstowy.
+    expect(contrastRatio(ACCENT_AUDIT.graphic, CHART_SURFACES.pageLight)).toBeLessThan(
+      CONTRAST_MIN.text,
+    );
+  });
+
+  it("OBA warianty audytowe zawodzą na drugiej powierzchni - ta sama reguła", () => {
+    expect(contrastRatio(ACCENT_AUDIT.graphic, CHART_SURFACES.secondLight)).toBeLessThan(
+      CONTRAST_MIN.graphic,
+    );
+    expect(contrastRatio(ACCENT_AUDIT.text, CHART_SURFACES.secondLight)).toBeLessThan(
+      CONTRAST_MIN.text,
+    );
+  });
+
+  it("w motywie CIEMNYM akcent nie potrzebuje furtki, więc jej nie udaje", () => {
+    // Furtka ma tu wartość tokena właśnie dlatego, że jest niepotrzebna,
+    // i to trzeba przypiąć - inaczej ktoś "poprawi" ją na wartość z motywu
+    // jasnego i POGORSZY kontrast. Kierunek wyprowadzania wariantu jest
+    // w ciemnym trybie odwrotny: przyciemnianie idzie w stronę tła, więc to,
+    // co na jasnym tle było naprawą, tutaj jest psuciem.
+    const accent = hexToken(DARK_BLOCK, "--chart-accent");
+    expect(hexToken(DARK_BLOCK, "--chart-accent-audit")).toBe(accent);
+    expect(hexToken(DARK_BLOCK, "--chart-accent-audit-graphic")).toBe(accent);
+    expect(contrastRatio(accent, CHART_PLATE.dark)).toBeGreaterThanOrEqual(CONTRAST_MIN.text);
+    // Wersja z motywu jasnego jest na ciemnej płycie ponad dwa razy słabsza -
+    // i to jest liczba, dla której ten token nie jest przepisany między
+    // motywami.
+    expect(contrastRatio(ACCENT_AUDIT.text, CHART_PLATE.dark)).toBeLessThan(
+      contrastRatio(accent, CHART_PLATE.dark) / 2,
+    );
+  });
+
+  it("PODKŁAD AKCENTU nie wyznacza powierzchni na tle strony - stąd obramowanie", () => {
+    // 1,003:1, czyli identyczna jasność przy różnicy samego odcienia. Granica,
+    // której nie ma w skali szarości ani w druku, nie jest granicą - dlatego
+    // klasa `.neh-accent-bg` wiąże podkład z obramowaniem 1 px w wariancie
+    // audytowym grafiki (3,29:1 na samym podkładzie).
+    const bg = hexToken(LIGHT_BLOCK, "--chart-accent-bg");
+    expect(contrastRatio(bg, CHART_SURFACES.pageLight)).toBeLessThan(1.01);
+    expect(contrastRatio(ACCENT_AUDIT.graphic, bg)).toBeGreaterThanOrEqual(CONTRAST_MIN.graphic);
+    // Jaśniejszy token wypełnienia granicy NIE uniesie - 1,67:1.
+    expect(
+      contrastRatio(hexToken(LIGHT_BLOCK, "--chart-accent-fill"), CHART_SURFACES.pageLight),
+    ).toBeLessThan(2);
+  });
+});
+
+describe("palette - RAMP SEKWENCYJNY mapy", () => {
+  // Mapa koduje wartość przez `color-mix()` na tokenach, ale w silnikach bez
+  // `color-mix()` w atrybucie `fill` ląduje kolor interpolowany w JS - i te
+  // dwa hexy muszą być TĄ SAMĄ parą, co w arkuszu. Trzymane w komponencie
+  // rozjechały się: arkusz miał #e0eaf2/#00375f, a fallback #cde2fb/#0d366b.
+  // Nikt tego nie widział, bo nowa przeglądarka nigdy tej gałęzi nie wykonuje
+  // - dokładnie ten rodzaj defektu, którego nie znajdzie żaden test
+  // renderujący, a znajdzie porównanie z arkuszem.
+  it("kotwice rampu są TE SAME co w arkuszu, w obu motywach", () => {
+    expect(SEQ_RAMP.light.min).toBe(hexToken(LIGHT_BLOCK, "--chart-seq-min"));
+    expect(SEQ_RAMP.light.max).toBe(hexToken(LIGHT_BLOCK, "--chart-seq-max"));
+    expect(SEQ_RAMP.dark.min).toBe(hexToken(DARK_BLOCK, "--chart-seq-min"));
+    expect(SEQ_RAMP.dark.max).toBe(hexToken(DARK_BLOCK, "--chart-seq-max"));
+  });
+
+  it("ramp jest ODWRÓCONY w motywie ciemnym - jedna para nie wystarcza", () => {
+    // Jasny: minimum jaśniejsze od maksimum. Ciemny: odwrotnie. Użycie pary
+    // jasnej na ciemnej karcie dawałoby najniższą wartość świecącą (~11:1),
+    // a najwyższą poniżej progu 3:1 dla obiektu graficznego.
+    expect(relativeLuminance(SEQ_RAMP.light.min)).toBeGreaterThan(
+      relativeLuminance(SEQ_RAMP.light.max),
+    );
+    expect(relativeLuminance(SEQ_RAMP.dark.min)).toBeLessThan(relativeLuminance(SEQ_RAMP.dark.max));
+  });
+
+  it("oba końce rampu są widoczne na płycie SWOJEGO motywu", () => {
+    // Koniec maksymalny niesie wartość szczytową i musi przejść próg grafiki;
+    // koniec minimalny ma tylko odróżnić się od kraju BEZ danych, więc jego
+    // progu nie stawiamy - stąd kotwica 0,15 w komponencie mapy.
+    expect(contrastRatio(SEQ_RAMP.light.max, CHART_PLATE.light)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.graphic,
+    );
+    expect(contrastRatio(SEQ_RAMP.dark.max, CHART_PLATE.dark)).toBeGreaterThanOrEqual(
+      CONTRAST_MIN.graphic,
+    );
   });
 });

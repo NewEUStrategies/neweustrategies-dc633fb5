@@ -37,7 +37,6 @@ interface SubscribePayload {
   mailingLists?: string[];
 }
 
-
 interface SignUpArgs {
   email: string;
   password: string;

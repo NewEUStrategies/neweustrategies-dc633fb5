@@ -227,6 +227,16 @@ const CASES: ReadonlyArray<VisibilityCase> = [
   },
   {
     widget: "chart",
+    keys: ["barStyle"],
+    // Ten sam warunek co skumulowanie: wariant wypelnienia dotyczy SLUPKOW,
+    // wiec pusta tresc (rodzaj jeszcze niewybrany, czyli domyslnie slupkowy)
+    // MUSI go pokazywac. Tarcza i linia nie maja czego wypelniac.
+    why: "wariant wypelnienia tylko dla slupkow - w tym dla domyslnego rodzaju",
+    visible: [{}, { kind: "bar" }, { kind: "bar-horizontal" }, { kind: "" }],
+    hidden: [{ kind: "pie" }, { kind: "donut" }, { kind: "line" }, { kind: "area" }],
+  },
+  {
+    widget: "chart",
     keys: ["showGrid"],
     why: "siatka wszedzie POZA wykresami bez osi (kolowy, pierscien)",
     visible: [{}, { kind: "bar" }, { kind: "line" }],

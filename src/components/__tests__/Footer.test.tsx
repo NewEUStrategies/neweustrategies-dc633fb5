@@ -297,7 +297,6 @@ describe("Footer - chrome walidowany schematem", () => {
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
   });
-
 });
 
 // --- Pomiar kliknięć ---------------------------------------------------------
@@ -432,8 +431,6 @@ describe("Footer - nasłuchy po odmontowaniu", () => {
 // --- Dwujęzyczność -----------------------------------------------------------
 
 describe("Footer - warianty językowe", () => {
-  
-
   it("wariant PL: szablon praw autorskich i etykiety linków prawnych po polsku", () => {
     h.lang = "pl";
     renderFooter({
@@ -446,7 +443,6 @@ describe("Footer - warianty językowe", () => {
       },
     });
 
-    
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "pl");
   });
 
@@ -462,7 +458,6 @@ describe("Footer - warianty językowe", () => {
       },
     });
 
-    
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "en");
     // Etykieta przycisku powrotu na górę idzie ze SŁOWNIKA (nie z ustawień) -
     // i jest w obu językach inna, więc wariant EN mierzy angielski słownik.
@@ -471,5 +466,4 @@ describe("Footer - warianty językowe", () => {
     ).toBeInTheDocument();
     expect(dict("en", "footer.back_to_top")).not.toBe(dict("pl", "footer.back_to_top"));
   });
-
 });

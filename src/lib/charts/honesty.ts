@@ -55,3 +55,68 @@ export function isForecastMissingBand(config: ChartConfig): boolean {
 export function seriesOverSafePalette(config: ChartConfig, safeMax: number): number {
   return Math.max(0, drawableSeries(config).length - safeMax);
 }
+/**
+ * Kiedy pierścień jest ZŁYM WYBOREM formy - trzy granice, wszystkie policzalne.
+ *
+ * Kąt i powierzchnia siedzą w dolnej połowie hierarchii percepcyjnej
+ * Clevelanda i McGilla, więc pierścień nigdy nie służy do PORÓWNYWANIA
+ * udziałów - służy do pokazania, że coś jest częścią całości, a porównanie
+ * robi wpisana w łuk liczba. Z tego wynikają trzy przypadki, w których lepszą
+ * formą jest coś innego:
+ *
+ *   * `tooFew` - dwa albo trzy segmenty. Pierścień dwuelementowy to koło
+ *     z dziurą; miernik albo jeden słupek 100% mówi to samo w jednej linijce
+ *     i bez pytania czytelnika o kąt;
+ *   * `tooClose` - udziały różniące się o mniej niż trzy punkty procentowe.
+ *     Pierścień pokaże je jako IDENTYCZNE, więc struktura, którą miał
+ *     pokazać, ginie; słupki poziome porównują długością, a długość jest
+ *     najwyżej w hierarchii percepcyjnej;
+ *   * `tooMany` - więcej kategorii, niż pierścień unosi. Powyżej limitu
+ *     grupuj albo weź słupek skumulowany 100%.
+ *
+ * FUNKCJA CZYSTA I BEZ `ChartConfig`, i to jest tu istotne. Mianownik udziału
+ * (suma DODATNICH) jest rozstrzygnięciem modelu tarczy, a nie regułą
+ * uczciwości - policzenie go po raz drugi w tym module dałoby dwa źródła
+ * prawdy o tym, co tarcza w ogóle rysuje. Wywołujący podaje więc udziały już
+ * policzone modelem; ten moduł odpowiada wyłącznie na pytanie o FORMĘ.
+ */
+export type PieFormAdvice = "tooFew" | "tooClose" | "tooMany";
+
+/** Poniżej tej różnicy udziałów (w punktach procentowych) łuki są nieodróżnialne. */
+export const PIE_CLOSE_SHARES_PP = 3;
+
+/**
+ * Udział, poniżej którego wycinek jest drzazgą i nie wchodzi do porównania par.
+ *
+ * Bez tego progu ostrzeżenie `tooClose` odpalałoby na KAŻDYM rozkładzie
+ * z długim ogonem: dwie kategorie po 0,5% różnią się o pół punktu, więc formalnie
+ * są "nieodróżnialne" - tylko że obie są widocznie znikome i czytelnik nie ma
+ * potrzeby ich porównywać. Ostrzeżenie, które widać zawsze, uczy ignorowania
+ * wszystkich ostrzeżeń; to ta sama decyzja, którą edytor podjął przy kolizji
+ * ochry z akcentem.
+ */
+export const PIE_SLIVER_SHARE = 0.05;
+
+export function pieFormAdvice(
+  shares: readonly number[],
+  opts: { positives: number; maxSlices: number },
+): PieFormAdvice[] {
+  const advice: PieFormAdvice[] = [];
+  if (opts.positives === 0) return advice;
+  if (opts.positives <= 3) advice.push("tooFew");
+  else if (opts.positives > opts.maxSlices) advice.push("tooMany");
+  // Pary liczone tylko wśród wycinków, które czytelnik realnie porównuje.
+  const znaczace = shares.filter((s) => s >= PIE_SLIVER_SHARE);
+  // RÓŻNICA LICZONA NA JEDNYM MIEJSCU PO PRZECINKU, czyli na dokładności,
+  // z jaką udział jest WYŚWIETLANY. Nie jest to kosmetyka: 0,36 - 0,33 daje
+  // w podwójnej precyzji 2,9999999999999996 punktu, więc porównanie surowe
+  // odpalało ostrzeżenie na parze różniącej się dokładnie o próg. Próg jest
+  // granicą nieodróżnialności par, które czytelnik WIDZI, więc liczymy go na
+  // tych samych liczbach, które widzi.
+  const punkty = (a: number, b: number): number => Math.round(Math.abs(a - b) * 1000) / 10;
+  const blisko = znaczace.some((a, i) =>
+    znaczace.some((b, j) => i !== j && punkty(a, b) < PIE_CLOSE_SHARES_PP),
+  );
+  if (blisko) advice.push("tooClose");
+  return advice;
+}

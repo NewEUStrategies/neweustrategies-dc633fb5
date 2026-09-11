@@ -13,7 +13,9 @@
 //    uczciwości wygładzenia; gdy kropki się nie zmieszczą, silnik wyłącza
 //    wygładzanie, a nie kropki,
 //  - siatka i oś w tokenach o policzonym kontraście (siatka < 1,3:1),
-//  - prowadnica kreskowana 2 4 z zaokrąglonymi końcami,
+//  - prowadnica, separator i łączniki mostka LINIĄ CIĄGŁĄ 1 px - kreska
+//    czyta się jako zaznaczenie, aliasuje na niecałkowitej współrzędnej
+//    i konkuruje rytmem z danymi,
 //  - odstępy wyłącznie ze skali 4 px,
 //  - kaskada animacji z budżetem 500 ms na całość.
 //
@@ -35,10 +37,19 @@
 // z wartościami WSZYSTKICH serii; słupki mają hit-target = cała kolumna
 // kategorii. Klawiatura: strzałki przesuwają aktywną kategorię, Escape czyści.
 // SSR: pełny, statyczny SVG w HTML (interakcja dogrywa się po hydracji).
-import { Fragment, useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  Fragment,
+  useCallback,
+  useId,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
+import { barStyleHasEdge, resolveBarStyle, type BarStyle } from "@/lib/charts/palette";
 import {
   forecastBandExtent,
   linearScale,
@@ -48,6 +59,7 @@ import {
 } from "@/lib/charts/scale";
 import { formatAxisTick, formatChartValue, type ChartLang } from "@/lib/charts/format";
 import {
+  BAR_EDGE_INSET,
   BAR_GAP,
   BAR_MAX,
   CATEGORY_LABEL_MAX_CHARS,
@@ -63,17 +75,20 @@ import {
   PAD_TOP,
   PAD_TOP_WITH_LABELS,
   cascadeStepMs,
+  clampBarRadius,
   clampRadius,
   effectiveSmoothing,
   shouldShowDots,
   snapToGrid,
   valueTickTarget,
 } from "@/lib/charts/geometry";
+import { bandIndex, nearestPointIndex, pointerToPlot } from "@/lib/charts/plot";
 import { SMOOTHING_MIN_POINTS, pathFromPoints, type Point } from "@/lib/charts/smooth";
 import { estimateLabelWidth, useLabelMetrics } from "@/lib/charts/measureText";
-import { planCategoryLabels, type CategoryLabelPlan } from "@/lib/charts/labels";
+import { WRAP_LINE_EM, planCategoryLabels, type CategoryLabelPlan } from "@/lib/charts/labels";
 import { waterfallExtent, waterfallModel } from "@/lib/charts/waterfall";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
+import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
@@ -128,15 +143,41 @@ function needsPattern(s: ChartSeries): boolean {
 }
 
 /** Prostokąt z zaokrąglonym wyłącznie końcem danych. */
+/** Koniec DANYCH słupka - ten, który wolno zaokrąglić. */
+type DataEnd = "top" | "bottom" | "left" | "right" | "none";
+
+/**
+ * Koniec danych wynika ze ZNAKU WARTOŚCI, nie z pionu.
+ *
+ * Kwadratowa podstawa i najgłębszy stopień wypełnienia siedzą przy krawędzi
+ * odniesienia, zaokrąglony koniec i najjaśniejszy stopień na końcu danych. Dla
+ * słupka ujemnego końcem danych jest dół (albo lewa strona przy słupkach
+ * poziomych), więc odwraca się i wypełnienie, i zaokrąglenie. Kierunek
+ * biegnący wbrew znakowi wartości jest błędem tej samej klasy co ucięta oś,
+ * dlatego oba wynikają tu z JEDNEJ wartości, a nie z dwóch niezależnych
+ * gałęzi, które mogą się rozjechać.
+ */
+function dataEndOf(horizontal: boolean, negative: boolean): DataEnd {
+  if (horizontal) return negative ? "left" : "right";
+  return negative ? "bottom" : "top";
+}
+
 function barPath(
   x: number,
   y: number,
   w: number,
   h: number,
   radius: number,
-  roundedEnd: "top" | "bottom" | "left" | "right" | "none",
+  roundedEnd: DataEnd,
+  bordered = true,
 ): string {
-  const r = clampRadius(w, h, radius);
+  // Wzdłuż osi wartości mieści się JEDEN promień (słupek jest zaokrąglony
+  // z jednej strony), więc przycięcie idzie przez `clampBarRadius`, a nie
+  // przez `clampRadius` dla kształtów czterostronnych. `bordered` rozstrzyga,
+  // czy granicę niesie obwódka (wtedy wystarcza granica wykonalności) czy
+  // sama masa wypełnienia (wtedy wraca podłoga połowy długości).
+  const alongValue = roundedEnd === "left" || roundedEnd === "right";
+  const r = radius === 0 ? 0 : clampBarRadius(alongValue ? h : w, alongValue ? w : h, { bordered });
   if (r === 0 || roundedEnd === "none") {
     return `M${x} ${y}h${w}v${h}h${-w}Z`;
   }
@@ -166,10 +207,20 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
   // W stanie siedzi WYŁĄCZNIE indeks kategorii, a nie gotowa kotwica: piksele
   // zależą od geometrii, a ta zmienia się z każdą podmianą configu.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  // Identyfikator masek historii i prognozy. `useId` zamiast stałego napisu,
+  // Stabilna referencja - hak zdejmujący stan tapnięciem trzyma ją jako
+  // zależność efektu, a nowa funkcja przy każdym renderze przepisywałaby
+  // nasłuch na dokumencie przy każdym ruchu wskaźnika.
+  const clearActive = useCallback(() => setActiveIndex(null), []);
+  // Tapnięcie poza wykresem zdejmuje wskazanie. Nasłuch tylko przy ustawionym
+  // stanie, więc na wykresie bez interakcji nie ma go wcale. Stoi tu, PRZED
+  // wyjściem na pustym zestawie: hak wywołany po `return null` łamałby
+  // kolejność haków między renderami.
+  useTapAwayDismiss(activeIndex !== null, widthRef, clearActive);
+  // Identyfikator definicji SVG tego wykresu (wzór kreskowania, gradienty).
+  // `useId` zamiast stałego napisu,
   // bo na jednej stronie stoi wiele wykresów, a `url(#id)` w SVG wiąże się
-  // z PIERWSZYM elementem o tym id w dokumencie - dwa wykresy z prognozą
-  // dzieliłyby wtedy jedną maskę, przyciętą do granicy tego pierwszego.
+  // z PIERWSZYM elementem o tym id w dokumencie - dwa wykresy na jednej
+  // stronie dzieliłyby wtedy jedną definicję, wziętą z tego pierwszego.
   // Dwukropki lecą, bo React wstawia je w id, a fragmentu `url(#a:b:c)`
   // część przeglądarek nie przechodzi.
   //
@@ -365,16 +416,32 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         : catCenter(forecastFrom) - band / 2;
 
   // ---- Interakcja: wspólny "najbliższy indeks kategorii". ----
+  //
+  // ARYTMETYKA STOI W `lib/charts/plot.ts`, nie tutaj. Była domknięciem w tym
+  // pliku i umiała dokładnie jedno: czytać JEDNĄ współrzędną i zwracać JEDEN
+  // indeks kategorii. To wystarcza linii, słupkom i mostkowi, ale nie mapie
+  // ciepła (adres to para wiersz-kolumna), nie punktowemu (najbliższy punkt
+  // zależy od obu współrzędnych) i nie beeswarmowi (na jednej pozycji osi
+  // leży wiele punktów). Wyprowadzenie daje jedną implementację dla
+  // wszystkich rodzajów i - co ważniejsze - pozwala sprawdzić przypadki
+  // graniczne bez renderowania wykresu.
+  //
+  // `null` z `pointerToPlot` znaczy "element niezmierzony" i wraca tu jako
+  // pierwsza kategoria, bo w tym wykresie każde pasmo należy do jakiegoś
+  // słupka; mapa ciepła zrobi z tym `null` co innego (nie pokaże komórki).
   const indexFromPointer = (e: PointerEvent<SVGRectElement>): number => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const alongAxis = horizontal
-      ? ((e.clientY - rect.top) / rect.height) * innerH
-      : ((e.clientX - rect.left) / rect.width) * innerW;
-    if (isLine && n > 1) {
-      const step = (horizontal ? innerH : innerW) / (n - 1);
-      return Math.max(0, Math.min(n - 1, Math.round(alongAxis / step)));
-    }
-    return Math.max(0, Math.min(n - 1, Math.floor(alongAxis / band)));
+    const point = pointerToPlot(
+      e.clientX,
+      e.clientY,
+      e.currentTarget.getBoundingClientRect(),
+      innerW,
+      innerH,
+    );
+    if (point === null) return 0;
+    const alongAxis = horizontal ? point.y : point.x;
+    return isLine && n > 1
+      ? nearestPointIndex(alongAxis, horizontal ? innerH : innerW, n)
+      : bandIndex(alongAxis, band, n);
   };
 
   const anchorFor = (index: number): Anchor => {
@@ -437,6 +504,12 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         ? waterfall.steps
             .filter((s) => s.index === active)
             .map((s) => ({
+              // TRZY KIERUNKI, NIE DWA. Model zwraca `flat` dla wkładu
+              // dokładnie zerowego, a ta gałąź sprawdzała wyłącznie `down`,
+              // więc składnik, który nic nie zmienił, dostawał w dymku
+              // podpis "Wzrost". To nie jest nieporadność nazewnicza, to
+              // nieprawda o danych: w mostku dekompozycji pozycja, która się
+              // nie ruszyła, jest osobną informacją.
               name:
                 s.kind === "start"
                   ? t("waterfall.start")
@@ -444,7 +517,9 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                     ? t("waterfall.end")
                     : s.direction === "down"
                       ? t("waterfall.decrease")
-                      : t("waterfall.increase"),
+                      : s.direction === "flat"
+                        ? t("waterfall.flat")
+                        : t("waterfall.increase"),
               colorSlot: null,
               value: formatChartValue(s.value, lang, config.unit),
             }))
@@ -455,10 +530,21 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
               raw: s.values[active],
             }))
             .filter((r) => r.raw !== null)
-            .map((r) => ({
+            // SORTOWANIE MALEJĄCO PO WARTOŚCI, nie w kolejności definicji.
+            // Czytelnik porównuje wtedy dokładnie to, co widzi na prowadnicy:
+            // kolejność wiersza w dymku odpowiada kolejności serii w pionie.
+            // Kolejność definicji jest wobec danych przypadkowa i zmusza do
+            // wodzenia wzrokiem tam i z powrotem między dymkiem i wykresem.
+            .sort((a, b) => (b.raw as number) - (a.raw as number))
+            .map((r, index) => ({
               name: r.name,
               colorSlot: r.colorSlot,
               value: formatChartValue(r.raw as number, lang, config.unit),
+              // Najwyższa wartość na tej prowadnicy jest tą, na której oko
+              // stoi - i tylko ona dostaje mocniejszą wagę pisma. Wyróżnianie
+              // tłem wiersza wprowadziłoby do dymka drugą powierzchnię
+              // konkurującą z próbką koloru.
+              emphasised: index === 0 && series.length > 1,
             }));
 
   const barRadius = CHART_RADIUS;
@@ -471,9 +557,55 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     ? t("a11y.chart", { title: config.title })
     : t("a11y.chartUntitled");
 
-  const historyClip = `neh-hist-${uid}`;
-  const forecastClip = `neh-fc-${uid}`;
   const hatchId = `neh-hatch-${uid}`;
+  const zoneHatchId = `neh-zone-hatch-${uid}`;
+  const hintId = `neh-hint-${uid}`;
+  /**
+   * WARIANT WYPEŁNIENIA, rozstrzygnięty RAZ dla całego wykresu.
+   *
+   * Nie per słupek, i to jest istotne: dwa warianty na jednym wykresie
+   * znaczyłyby, że wnętrze raz niesie kolor serii, a raz nie - czyli
+   * czytelnik musiałby wiedzieć, którą regułą czytać który słupek.
+   * `resolveBarStyle` schodzi do solidnego wszędzie, gdzie blade wnętrze
+   * przestaje wystarczać (kilka serii, stos, slot poza zestawem bezpiecznym).
+   */
+  const barStyle: BarStyle = resolveBarStyle(config.barStyle, {
+    seriesCount: series.length,
+    stacked,
+    patterned: series.some(needsPattern),
+  });
+  const edged = barStyleHasEdge(barStyle);
+  /**
+   * Gradient jest PER SŁUPEK (`objectBoundingBox`), nie globalny. Zakotwiczenie
+   * globalne sprawiłoby, że niski słupek kończy się w połowie rampy i kolor
+   * zaczyna redundantnie kodować wysokość - a tego dane nie mówią. Definicja
+   * jest za to jedna na (slot, kierunek): kierunek rampy idzie za ZNAKIEM
+   * wartości, więc słupek ujemny potrzebuje odwróconego wektora.
+   */
+  const gradientId = (slot: number, end: DataEnd): string => `neh-g-${uid}-${slot}-${end}`;
+  const gradientVector = (end: DataEnd): { x1: number; y1: number; x2: number; y2: number } => {
+    switch (end) {
+      case "top":
+        return { x1: 0, y1: 1, x2: 0, y2: 0 };
+      case "bottom":
+        return { x1: 0, y1: 0, x2: 0, y2: 1 };
+      case "right":
+        return { x1: 0, y1: 0, x2: 1, y2: 0 };
+      default:
+        return { x1: 1, y1: 0, x2: 0, y2: 0 };
+    }
+  };
+  // Definicje potrzebne tylko wtedy, gdy wariant naprawdę ich używa - jeden
+  // `<defs>` na wykres bez gradientu byłby czystym kosztem.
+  const gradientDefs =
+    barStyle === "gradient"
+      ? series.flatMap((s) =>
+          (horizontal ? (["right", "left"] as const) : (["top", "bottom"] as const)).map((end) => ({
+            slot: s.colorSlot,
+            end: end as DataEnd,
+          })),
+        )
+      : [];
   // Czy KTÓRAKOLWIEK seria słupkowa potrzebuje kreskowania. Legenda znaczy
   // sloty poza zestawem bezpiecznym dla daltonizmu (7-8) próbką w paski, bo ich
   // odcień jest od slotów 1-2 oddalony o ~10-12 jednostek CIELAB po symulacji -
@@ -483,17 +615,12 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
   // w rysunku nie ma - a klucz obiecujący różnicę nieobecną w danych jest
   // gorszy od klucza bez niej.
   const barsNeedHatch = !isLine && !waterfall && series.some(needsPattern);
-  // Maski sięgają poza obszar kreślenia w pionie (kreska ma grubość, a jej
-  // koniec zaokrąglenie) i o kilka pikseli w poziomie na krańcach rysunku,
-  // gdzie pierwszy i ostatni punkt linii leżą DOKŁADNIE na krawędzi.
-  const clipTop = padTop - 8;
-  const clipHeight = innerH + 16;
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
-        className="relative w-full select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        className="neh-canvas relative w-full select-none"
         style={{
           height,
           borderRadius: "var(--chart-radius)",
@@ -502,15 +629,54 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         tabIndex={0}
         role="img"
         aria-label={ariaLabel}
+        // PODPOWIEDŹ KLAWIATURY jako opis, nie jako nazwa. Nawigacja
+        // strzałkami po kategoriach jest jedynym sposobem odczytania wartości
+        // bez wskaźnika, a nic o niej nie mówiło - klucz słownika istniał
+        // i nie był używany, czyli funkcja była dostępna wyłącznie dla kogoś,
+        // kto się jej domyślił. `aria-describedby`, bo to instrukcja, a nie
+        // nazwa obiektu: nazwa mówi, CO to jest, opis - jak tego użyć.
+        aria-describedby={hintId}
         onKeyDown={onKeyDown}
         onBlur={() => setActiveIndex(null)}
       >
+        <span id={hintId} className="sr-only">
+          {t("a11y.keyboardHint")}
+        </span>
         <svg width={width} height={height} className="block overflow-visible">
           {/* Wzór kreskowania słupków. Paski w kolorze PŁYTY, nie serii, więc
               jedna definicja obsługuje każdy slot: nakładka odsłania płytę
               w przerwach, dając ten sam efekt, co próbka legendy
               (`repeating-linear-gradient`). Rytm 5/3 px jest wzięty z tej
               próbki, żeby klucz i znacznik miały ten sam wzór. */}
+          {gradientDefs.length > 0 && (
+            <defs>
+              {gradientDefs.map(({ slot, end }) => {
+                const v = gradientVector(end);
+                return (
+                  <linearGradient
+                    key={`${slot}-${end}`}
+                    id={gradientId(slot, end)}
+                    x1={v.x1}
+                    y1={v.y1}
+                    x2={v.x2}
+                    y2={v.y2}
+                  >
+                    {/* Stopień ŚRODKOWY nie jest ozdobą: SVG interpoluje
+                        gradient w sRGB, więc dwustopniowa rampa między
+                        stopniami policzonymi w OKLCh nie idzie ścieżką OKLCh
+                        i w połowie robi się przygaszona. Ten stop prostuje
+                        większość tej deformacji i to on odpowiada za to, że
+                        wnętrze czyta się jako gradient, a nie jako dwa kolory
+                        z rozmyciem. */}
+                    <stop offset="0" stopColor={`var(--chart-${slot}-deep)`} />
+                    <stop offset="0.5" stopColor={`var(--chart-${slot}-mid)`} />
+                    <stop offset="1" stopColor={`var(--chart-${slot}-face)`} />
+                  </linearGradient>
+                );
+              })}
+            </defs>
+          )}
+
           {barsNeedHatch && (
             <defs>
               <pattern id={hatchId} width="8" height="8" patternUnits="userSpaceOnUse">
@@ -519,49 +685,77 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             </defs>
           )}
 
-          {/* Maski podziału historia/prognoza. Istnieją tylko wtedy, gdy
-              granica istnieje - pusty `<defs>` na każdym wykresie bez
-              prognozy byłby czystym kosztem. */}
+          {/* STREFA PROGNOZY - DWA WARIANTY TEJ SAMEJ POWIERZCHNI.
+          
+              Na ekranie: prostokąt w kolorze tuszu przy kilku promilach krycia
+              (1,7-2,2%, kontrast do płyty ~1,04:1). Recesywny dokładnie tak,
+              jak ma być - strefa mówi "tu jest prognoza", a nie "patrz tutaj".
+              
+              W DRUKU: ukośne kreskowanie 45 stopni. Płaski tint tej gęstości
+              znika w skali szarości i na papierze - 2% szarości nie ma czym
+              się odbić od bieli - a wtedy prognoza traci JEDEN Z TRZECH
+              nośników odróżnienia od historii i zostaje z pasmem oraz
+              separatorem. Kreskowanie zostaje, bo linia ma krawędź. To jedyne
+              miejsce w całym silniku, gdzie tekstura jest uzasadniona, i
+              jedyna dozwolona nieciągłość: kreskowanie jest tu WYPEŁNIENIEM
+              OBSZARU, nie linią rusztowania.
+              
+              Oba prostokąty są w drzewie zawsze, a przełącza je arkusz
+              (`.neh-zone-tint` / `.neh-zone-hatch` w `@media print`). Nie da
+              się tego zrobić inaczej: identyfikator wzoru jest unikalny per
+              instancja wykresu, więc CSS nie umie go wskazać w `fill`.
+              
+              Rysowane PRZED siatką, żeby siatka pozostała czytelna w strefie. */}
           {forecastBoundary !== null && !horizontal && (
-            <defs>
-              <clipPath id={historyClip}>
-                <rect
-                  x={padLeft - 8}
-                  y={clipTop}
-                  width={Math.max(0, forecastBoundary - padLeft + 8)}
-                  height={clipHeight}
-                />
-              </clipPath>
-              <clipPath id={forecastClip}>
-                <rect
-                  x={forecastBoundary}
-                  y={clipTop}
-                  width={Math.max(0, padLeft + innerW + 8 - forecastBoundary)}
-                  height={clipHeight}
-                />
-              </clipPath>
-            </defs>
-          )}
-
-          {/* Strefa prognozy - prostokąt za separatorem, w kolorze tuszu przy
-              kilku promilach krycia. Rysowany PRZED siatką, żeby siatka
-              pozostała czytelna także w strefie. */}
-          {forecastBoundary !== null && !horizontal && (
-            <rect
-              x={forecastBoundary}
-              y={padTop}
-              width={Math.max(0, padLeft + innerW - forecastBoundary)}
-              height={innerH}
-              fill="var(--chart-zone)"
-              // Krycie w `style`, NIE w atrybucie prezentacyjnym: `var()`
-              // w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązane
-              // krycie to pełna nieprzezroczystość, czyli plama na całej
-              // strefie prognozy. To ten sam powód, dla którego mapa-choropleta
-              // podaje `fill` w `style`.
-              style={{ fillOpacity: "var(--chart-zone-alpha)" }}
-              rx={clampRadius(padLeft + innerW - forecastBoundary, innerH)}
-              pointerEvents="none"
-            />
+            <>
+              <defs>
+                <pattern
+                  id={zoneHatchId}
+                  width="6"
+                  height="6"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="6"
+                    // Kolor i krycie w `style`, nie w atrybutach: `var()`
+                    // w atrybutach prezentacyjnych SVG nie jest wspierane
+                    // wszędzie, a nierozwiązany `stroke` to czerń.
+                    style={{ stroke: "var(--chart-zone)", strokeOpacity: 0.06 }}
+                    strokeWidth={1}
+                  />
+                </pattern>
+              </defs>
+              <rect
+                className="neh-zone-tint"
+                x={forecastBoundary}
+                y={padTop}
+                width={Math.max(0, padLeft + innerW - forecastBoundary)}
+                height={innerH}
+                fill="var(--chart-zone)"
+                // Krycie w `style`, NIE w atrybucie prezentacyjnym: `var()`
+                // w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązane
+                // krycie to pełna nieprzezroczystość, czyli plama na całej
+                // strefie prognozy. To ten sam powód, dla którego
+                // mapa-choropleta podaje `fill` w `style`.
+                style={{ fillOpacity: "var(--chart-zone-alpha)" }}
+                rx={clampRadius(padLeft + innerW - forecastBoundary, innerH)}
+                pointerEvents="none"
+              />
+              <rect
+                className="neh-zone-hatch"
+                x={forecastBoundary}
+                y={padTop}
+                width={Math.max(0, padLeft + innerW - forecastBoundary)}
+                height={innerH}
+                fill={`url(#${zoneHatchId})`}
+                rx={clampRadius(padLeft + innerW - forecastBoundary, innerH)}
+                pointerEvents="none"
+              />
+            </>
           )}
 
           {/* Siatka + podziałki osi wartości */}
@@ -669,6 +863,13 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 const full = config.categories[i];
                 const y = padTop + innerH + 16;
                 const rotated = (plan?.rotation ?? 0) !== 0;
+                // SZCZEBEL ZAWINIĘCIA. Linie idą `<tspan>`ami z odstępem
+                // 1,2 em - pierwszy bez `dy`, kolejne z odstępem, więc blok
+                // rośnie w dół od tej samej linii bazowej, na której stoją
+                // etykiety niezawinięte. Wysokość, jaką ten blok zajmuje,
+                // policzyła już drabina (`bottomSpace`), więc margines pod
+                // osią jest na niego przygotowany.
+                const lines = plan?.mode === "wrapped" ? plan.lines?.[i] : undefined;
                 return (
                   <text
                     key={i}
@@ -679,11 +880,44 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                     fill="var(--muted-foreground)"
                     transform={rotated ? `rotate(${plan?.rotation} ${c} ${y})` : undefined}
                   >
-                    {label}
+                    {lines
+                      ? lines.map((line, li) => (
+                          <tspan key={li} x={c} dy={li === 0 ? 0 : `${WRAP_LINE_EM}em`}>
+                            {line}
+                          </tspan>
+                        ))
+                      : label}
                     {label !== full && <title>{full}</title>}
                   </text>
                 );
               })}
+
+          {/* PODŚWIETLENIE PASA KATEGORII - POD ZNACZNIKAMI, i to jest
+              poprawka, nie kolejność przypadkowa.
+              
+              Pas jest AFORDANCJĄ STREFY TRAFIENIA ("kursor jest w tej
+              kategorii"), a nie podświetleniem danych. Rysowany PO słupkach
+              kładł 5% tuszu WPROST NA WYPEŁNIENIU: blade wnętrze siedzi na
+              1,20-1,28:1 do płyty, więc pięcioprocentowa zasłona realnie je
+              przyciemniała - czyli wskazanie zmieniało wygląd zakodowanej
+              wartości, dokładnie to, czego zabrania zasada "hover zmienia stan
+              powierzchni, nigdy kodowanie". Pod znacznikami ten sam pas jest
+              tłem pasa i nie dotyka ani jednego piksela danych.
+              
+              Tylko dla słupków i mostka: przy linii tę samą rolę pełni
+              prowadnica, a pas plus prowadnica to dwa nośniki jednej
+              informacji. */}
+          {active !== null && !isLine && (
+            <rect
+              x={horizontal ? padLeft : catCenter(active) - band / 2}
+              y={horizontal ? catCenter(active) - band / 2 : padTop}
+              width={horizontal ? innerW : band}
+              height={horizontal ? band : innerH}
+              fill="var(--foreground)"
+              fillOpacity={0.05}
+              pointerEvents="none"
+            />
+          )}
 
           {/* ===== Znaczniki ===== */}
           {waterfall
@@ -693,11 +927,22 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                 const a = value(step.from);
                 const b = value(step.to);
                 const center = catCenter(step.index);
+                // WKŁAD ZEROWY NIE MA ZNAKU, więc nie może dostać koloru
+                // znaku. Wcześniej wpadał do gałęzi "nie down", czyli malował
+                // się kolorem dodatnim - a wykres, który koduje znak kolorem,
+                // twierdził wtedy o wzroście, którego nie było. Trzeci tusz
+                // (`--muted-foreground`, 5,11:1 w najgorszym przypadku) czyta
+                // się jako kreska odniesienia, a nie jako wartość, i mimo to
+                // przechodzi próg obiektu graficznego 3,0:1 - czego nie
+                // przechodzi token osi (1,40:1), przez co znacznik zerowego
+                // wkładu byłby na płycie praktycznie niewidoczny.
                 const fill =
                   step.kind === "step"
                     ? step.direction === "down"
                       ? "var(--chart-negative)"
-                      : "var(--chart-positive)"
+                      : step.direction === "flat"
+                        ? "var(--muted-foreground)"
+                        : "var(--chart-positive)"
                     : "var(--chart-1)";
                 const x = center - barW / 2;
                 const y0 = Math.min(a, b);
@@ -715,6 +960,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                       )}
                       fill={fill}
                       className={step.direction === "down" ? "neh-bar neh-bar-negative" : "neh-bar"}
+                      data-role="waterfall-step"
                       style={{ ["--neh-i" as string]: si }}
                     />
                     {/* Etykieta wartości na KAŻDYM słupku - mostek bez liczb
@@ -738,7 +984,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                         x2={center - barW / 2}
                         y1={value(step.direction === "down" ? step.to : step.from)}
                         y2={value(step.direction === "down" ? step.to : step.from)}
-                        className="neh-crosshair"
+                        className="neh-connector"
                       />
                     )}
                   </g>
@@ -762,8 +1008,33 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                   });
                   if (current.points.length) runs.push(current);
 
-                  // JEDNA geometria na serię. Podział historia/prognoza robi
-                  // maska, nie druga ścieżka - patrz komentarz przy rysowaniu.
+                  /**
+                   * Kategorie, w których pomiar stoi SAM - ciąg jednopunktowy
+                   * między dwiema lukami (albo przy krawędzi szeregu).
+                   *
+                   * DLACZEGO TO MUSI ISTNIEĆ. Ścieżka z jednego punktu to
+                   * `M x y` bez odcinka, a taką SVG rysuje jako NIC: przy
+                   * `stroke` i braku `L` nie ma czego pociągnąć. Dopóki
+                   * kropki są włączone, pomiar niesie kropka - ale
+                   * `shouldShowDots` gasi je powyżej `DOTS_MAX_POINTS` przy
+                   * wygładzaniu zerowym, więc szereg o trzydziestu
+                   * kategoriach i jednym pomiarze między lukami znikał
+                   * z rysunku CAŁY. Czytelnik widział pustą kratkę tam, gdzie
+                   * są dane, a tabela pod wykresem pokazywała liczbę - czyli
+                   * rysunek i jego alternatywa tekstowa mówiły co innego.
+                   *
+                   * Próg na liczbę punktów jest obroną przed ZAŚMIECENIEM
+                   * gęstej linii, a samotny pomiar nie jest śmieciem: jest
+                   * jedynym nośnikiem swojej wartości. Dlatego te kropki
+                   * wchodzą NIEZALEŻNIE od progu.
+                   */
+                  const samotne = new Set(
+                    runs.filter((r) => r.points.length === 1).map((r) => r.indices[0]),
+                  );
+
+                  // JEDNA ścieżka na serię, ciągła na całej długości. Podział
+                  // historia/prognoza niosą pasmo, strefa i separator - nie
+                  // kreskowanie linii; patrz komentarz przy rysowaniu.
                   const d = runs
                     .map((run) => pathFromPoints(run.points, smoothing))
                     .filter(Boolean)
@@ -804,7 +1075,6 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                       : "";
                   const lastIdx = lastNonNullIndex(s.values);
                   const dashed = needsPattern(s);
-                  const split = forecastBoundary !== null && !horizontal;
                   return (
                     <g key={s.colorSlot + s.name}>
                       {areaD && (
@@ -829,17 +1099,26 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                           pointerEvents="none"
                         />
                       )}
-                      {/* JEDEN tor, DWIE MASKI - nie dwie ścieżki.
-                          Kreskowana prognoza rysowana NA WIERZCHU ciągłej
-                          linii wygląda na ciągłą: w przerwach kreskowania
-                          widać podkład, czyli podział, który miał ostrzegać,
-                          znika. A policzona osobno przestaje być tą samą
-                          krzywą: krótki ogon dostaje inne styczne Hermite'a
-                          (albo, poniżej czterech punktów, żadnego
-                          wygładzenia), więc prognoza odjeżdża od historii
-                          w miejscu, gdzie powinna z niej wychodzić.
-                          Maska rozwiązuje oba: geometria jest policzona raz,
-                          a każdy piksel należy do dokładnie jednej części. */}
+                      {/* LINIA SERII ZOSTAJE CIĄGŁA NA CAŁEJ DŁUGOŚCI, także
+                          w prognozie - i to jest zmiana wobec wcześniejszej
+                          wersji tego silnika, która kreskowała prognozę przez
+                          maski.
+
+                          Prognoza jest już odróżniona TRZEMA nośnikami
+                          jednocześnie: pasmem niepewności, tłem strefy
+                          i pionowym separatorem z etykietą "Prognoza". Trzy
+                          wystarczają, a kreskowana linia dodaje czwarty
+                          i zaczyna wyglądać na artefakt renderu - zwłaszcza że
+                          kreska 1-2 px na współrzędnej niecałkowitej aliasuje
+                          przy innym DPR. Czwarty nośnik nie dodaje więc
+                          informacji, tylko szum.
+
+                          Znikają razem z nią dwie maski `clipPath`: były
+                          potrzebne wyłącznie po to, żeby kreskowany ogon nie
+                          leżał na ciągłym podkładzie. Bez kreskowania nie ma
+                          czego przycinać, a jedna ścieżka na serię jest
+                          i tańsza, i pozbawiona całej klasy defektów, które
+                          tamten podział wnosił. */}
                       <path
                         d={d}
                         fill="none"
@@ -848,25 +1127,20 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         pathLength={1}
-                        clipPath={split ? `url(#${historyClip})` : undefined}
                         className={dashed ? "neh-line neh-line-pattern" : "neh-line"}
+                        data-role="series-line"
                       />
-                      {split && (
-                        <path
-                          d={d}
-                          fill="none"
-                          stroke={seriesColor(s)}
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeDasharray="6 4"
-                          clipPath={`url(#${forecastClip})`}
-                          className="neh-forecast-line neh-fade"
-                        />
-                      )}
-                      {showDots &&
+                      {/* PUNKTY OBSERWACJI TYLKO NA HISTORII. Ich brak
+                          w prognozie sam mówi, że tam nie ma pomiarów - i jest
+                          to nośnik mocniejszy od kreskowania, bo działa
+                          w druku, w skali szarości i na zrzucie ekranu.
+                          Rysowanie kropki nad wartością prognozowaną podawało
+                          interpolację za pomiar. */}
+                      {(showDots || samotne.size > 0) &&
                         s.values.map((v, i) =>
-                          v === null ? null : (
+                          v === null ||
+                          (forecastFrom !== null && i >= forecastFrom) ||
+                          !(showDots || samotne.has(i)) ? null : (
                             <circle
                               key={i}
                               cx={catCenter(i)}
@@ -882,6 +1156,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                               strokeWidth={1.6}
                               data-active={active === i ? "true" : undefined}
                               className="neh-dot neh-fade"
+                              data-role="series-point"
                             />
                           ),
                         )}
@@ -929,34 +1204,88 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                       const hatched = needsPattern(s);
                       const barCls = (base: string): string =>
                         `${base}${negative ? " neh-bar-negative" : ""}`;
+                      // Kierunek zaokrąglenia I kierunek rampy z JEDNEJ
+                      // wartości - patrz `dataEndOf`.
+                      const dataEnd = dataEndOf(horizontal, negative);
+                      // Wsunięcie kształtu o połowę grubości obwódki: `stroke`
+                      // leży NA ścieżce, więc bez korekty obwódka zjadałaby
+                      // wysokość, czyli zmniejszała wartość. Skutek uboczny
+                      // jest pożyteczny: słupek o wartości zero zostaje
+                      // widoczną kreską obwódki zamiast zniknąć - i to jest
+                      // uczciwsze niż podłoga pół piksela udająca dane.
+                      const inset = edged ? BAR_EDGE_INSET : 0;
+                      const across = Math.max(0, barW - 2 * inset);
+                      const along = Math.max(edged ? 0 : 0.5, Math.abs(b - a) - 2 * inset);
                       const shape = horizontal
                         ? barPath(
-                            Math.min(a, b),
-                            center + offset,
-                            Math.max(Math.abs(b - a), 0.5),
-                            barW,
+                            Math.min(a, b) + inset,
+                            center + offset + inset,
+                            along,
+                            across,
                             isDataEnd ? barRadius : 0,
-                            negative ? "left" : "right",
+                            dataEnd,
+                            edged,
                           )
                         : barPath(
-                            center + offset,
-                            Math.min(a, b),
-                            barW,
-                            Math.max(Math.abs(b - a), 0.5),
+                            center + offset + inset,
+                            Math.min(a, b) + inset,
+                            across,
+                            along,
                             isDataEnd ? barRadius : 0,
-                            // Zaokrąglony jest koniec Z DANYMI, więc dla słupka
-                            // ujemnego jest nim dół, nie góra.
-                            negative ? "bottom" : "top",
+                            dataEnd,
+                            edged,
                           );
                       const cls = barCls(horizontal ? "neh-bar-h neh-bar" : "neh-bar");
+                      const slot = s.colorSlot;
                       const bar = (
                         <path
                           d={shape}
-                          fill={seriesColor(s)}
-                          stroke="var(--card)"
-                          strokeWidth={stacked ? BAR_GAP / 2 : 0}
+                          data-role="bar"
+                          // Wypełnienie zależy od wariantu, ale ZAWSZE idzie
+                          // przez token - w kodzie rysującym nie ma ani jednego
+                          // hexa, dzięki czemu tryb ciemny i druk dostają swoje
+                          // wartości bez gałęzi w JS.
+                          fill={
+                            barStyle === "pale"
+                              ? `var(--chart-${slot}-inner)`
+                              : barStyle === "gradient"
+                                ? `url(#${gradientId(slot, dataEnd)})`
+                                : seriesColor(s)
+                          }
+                          // Obwódka NIE JEST DEKORACJĄ, tylko funkcją:
+                          // wypełnienie o niskim kontraście albo rozmyte
+                          // gradientem nie daje ostrej pozycji końca słupka,
+                          // a solidna krawędź ją przywraca. To z niej odczytuje
+                          // się wartość. W wariancie bladym niesie krok
+                          // jasności odchodzący od tła, w gradientowym czysty
+                          // token - ten sam, który stoi w legendzie.
+                          stroke={
+                            barStyle === "pale"
+                              ? `var(--chart-${slot}-edge)`
+                              : barStyle === "gradient"
+                                ? seriesColor(s)
+                                : "var(--card)"
+                          }
+                          // Grubość obwódki NIE jako atrybut prezentacyjny:
+                          // `var()` w atrybutach SVG nie jest wspierane
+                          // wszędzie, a nierozwiązana grubość to obwódka
+                          // domyślna, czyli 1 px bez korekty irradiacji.
+                          // W wariancie z obwódką niesie ją arkusz
+                          // (`.neh-bar[data-edged]`), w solidnym zostaje
+                          // prześwit stosu, który jest czystą geometrią.
+                          strokeWidth={edged ? undefined : stacked ? BAR_GAP / 2 : 0}
+                          data-active={active === i ? "true" : undefined}
+                          data-edged={edged ? "true" : undefined}
+                          data-style={barStyle}
                           className={cls}
-                          style={{ ["--neh-i" as string]: i }}
+                          style={{
+                            ["--neh-i" as string]: i,
+                            // Odcienie stanu podane JAKO WŁASNOŚCI elementu,
+                            // żeby arkusz miał jedną regułę hoveru na wszystkie
+                            // sloty zamiast dziesięciu prawie identycznych.
+                            ["--neh-bar-hover" as string]: `var(--chart-${slot}-hover)`,
+                            ["--neh-bar-token" as string]: `var(--chart-${slot})`,
+                          }}
                         />
                       );
                       if (!hatched) return <Fragment key={i}>{bar}</Fragment>;
@@ -1035,41 +1364,46 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             </g>
           )}
 
-          {/* Crosshair (linie/pola) lub podświetlenie pasa kategorii. */}
-          {active !== null &&
-            (isLine ? (
-              <line
-                className="neh-crosshair"
-                x1={horizontal ? padLeft : catCenter(active)}
-                x2={horizontal ? padLeft + innerW : catCenter(active)}
-                y1={horizontal ? catCenter(active) : padTop}
-                y2={horizontal ? catCenter(active) : padTop + innerH}
-              />
-            ) : horizontal ? (
-              <rect
-                x={padLeft}
-                y={catCenter(active) - band / 2}
-                width={innerW}
-                height={band}
-                fill="var(--foreground)"
-                fillOpacity={0.05}
-                pointerEvents="none"
-              />
-            ) : (
-              <rect
-                x={catCenter(active) - band / 2}
-                y={padTop}
-                width={band}
-                height={innerH}
-                fill="var(--foreground)"
-                fillOpacity={0.05}
-                pointerEvents="none"
-              />
-            ))}
+          {/* PROWADNICA pod kursorem - tylko dla linii i pól. Rysowana PO
+              znacznikach, bo jest linią ciągłą 1 px w kolorze osi (1,40:1 do
+              płyty): schowana pod łamaną przestałaby wskazywać kategorię,
+              a przechodząc nad nią niczego nie zasłania. Podświetlenie pasa
+              kategorii jest osobną sprawą i leży POD znacznikami - patrz
+              komentarz przy nim. */}
+          {active !== null && isLine && (
+            <line
+              className="neh-crosshair"
+              x1={horizontal ? padLeft : catCenter(active)}
+              x2={horizontal ? padLeft + innerW : catCenter(active)}
+              y1={horizontal ? catCenter(active) : padTop}
+              y2={horizontal ? catCenter(active) : padTop + innerH}
+            />
+          )}
 
-          {/* Warstwa trafień: cały obszar rysunku, przyciąga do kategorii.
-              fill jako ATRYBUT (nie tylko CSS) - rect nie może stać się
-              czarny, gdy arkusz z .neh-hit jeszcze nie dotarł. */}
+          {/* WARSTWA TRAFIEŃ: cały obszar rysunku, przyciąga do najbliższej
+              kategorii. Strefa trafienia NIGDY nie jest kształtem elementu -
+              słupek o wartości 2 ma trzy piksele wysokości i jest
+              nietrafialny, a punkt linii o promieniu 2,8 px wymagałby
+              celowania. Nakładka na całą powierzchnię plus wyznaczenie
+              kategorii ze współrzędnej daje strefę wysoką na cały obszar
+              kreślenia, więc trafialna jest KATEGORIA, nie znacznik.
+              
+              `fill` jako ATRYBUT, nie tylko w CSS - rect nie może stać się
+              czarny, gdy arkusz jeszcze nie dotarł. I `transparent`, nigdy
+              `opacity: 0` na samym elemencie: zerowe krycie wyłącza też
+              zdarzenia w części silników.
+              
+              DOTYK: `pointerdown` USTAWIA stan (na dotyku nie ma hovera, więc
+              bez tego wykres jest na telefonie martwy), a `pointerleave`
+              zdejmuje go wszędzie POZA dotykiem - tam przychodzi natychmiast
+              po podniesieniu palca i gasił tooltip w tej samej chwili, w której
+              się pojawił. Tapnięcie poza wykresem zdejmuje stan przez
+              `useTapAwayDismiss`.
+              
+              Warunek na DOTYKU, nie na myszy: wyjątkiem jest dotyk, więc jego
+              trzeba nazwać. Rysik ma hover jak mysz, a środowisko, które nie
+              podaje rodzaju wskaźnika, dostaje zachowanie mysie - czyli to
+              samo, co miało przed tą zmianą. */}
           <rect
             x={padLeft}
             y={padTop}
@@ -1077,8 +1411,11 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             height={innerH}
             fill="transparent"
             className="neh-hit"
+            onPointerDown={(e) => setActiveIndex(indexFromPointer(e))}
             onPointerMove={(e) => setActiveIndex(indexFromPointer(e))}
-            onPointerLeave={() => setActiveIndex(null)}
+            onPointerLeave={(e) => {
+              if (e.pointerType !== "touch") setActiveIndex(null);
+            }}
           />
         </svg>
 

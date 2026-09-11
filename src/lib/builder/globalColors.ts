@@ -627,7 +627,22 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         description: "Kolor podstawowego tekstu (akapity, listy).",
         hasDark: true,
         defaultLight: "#374151",
-        defaultDark: "#d1d5db",
+        // WARTOŚĆ MUSI BYĆ TA SAMA, CO W ARKUSZU (blok `.dark`, `--foreground`).
+        //
+        // Ten slot nadpisuje `--foreground` BEZWARUNKOWO - `globalColorsToCss`
+        // emituje `defaultDark` także wtedy, gdy tenant nigdy nic tu nie
+        // ustawił - a reguła leci z `DesignTokensStyle` po arkuszu, w tej samej
+        // specyficzności (`.dark`). Wartość z arkusza jest więc wyłącznie
+        // fallbackiem PRZED hydracją, a to, co czytelnik widzi, pochodzi
+        // z tego pola.
+        //
+        // Wcześniej było tu `#d1d5db`: chłodna szarość o 13,01:1 na płycie,
+        // podczas gdy arkusz mówił `#f8f8f8` (18,05:1). Dwie różne wartości
+        // jednego tokena, z których widoczna była ta gorzej udokumentowana -
+        // i żadna bramka tego nie widziała, bo każda patrzyła na swoje źródło.
+        // Teraz obie są `#ede9e7` (15,89:1), a bramka
+        // `src/lib/__tests__/darkForeground.test.ts` porównuje je wprost.
+        defaultDark: "#ede9e7",
         overrides: ["--foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", "Red Hat Display Fallback", system-ui, sans-serif',

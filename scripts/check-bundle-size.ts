@@ -1148,6 +1148,103 @@ const CLIENT_DIR =
  * razem z przyczyną wzrostu i wpisem do kroniki. Poza CI nadpisanie działa -
  * do lokalnego eksperymentu „ile zejdzie, jeśli...".
  */
+// ── 2026-09-11 XIV  DZIESIĘĆ RODZAJÓW WYKRESU: 2739 -> 2826, 4406 -> 4509, ──
+//                    87 -> 93, 75 -> 80. CAŁA NADWYŻKA JEST TEJ GAŁĘZI.
+//
+// Nie ma tu ani jednego kilobajta do zrzucenia na dryf maina i nie próbuję go
+// szukać. Ruchy cudze w tym samym pomiarze prawie się znoszą
+// (ClubReactionAvatars +4,2, ClubEventForm +3,1, ColorField +1,1 przeciw
+// club._clubSlug.index -3,3 i ContactSalesDialog -2,9), a znikł jeszcze
+// useNewsletterSettings.
+//
+// POMIAR (pełny build na hoście, domknięty; drzewo 45c7fa3):
+//   public   2811,4 KB   (próg 2739)   +72,4
+//   overall  4487,0 KB   (próg 4406)   +81,0
+//   css        91,2 KB   (próg   87)    +4,2
+//   publicCss  78,6 KB   (próg   75)    +3,6
+//   największy chunk 277,1 KB (≤ 280) MIEŚCI SIĘ
+//   domknięcie bootowania 569,2 KB (≤ 579) MIEŚCI SIĘ
+//
+// DWIE OSTATNIE LINIE SĄ NAJWAŻNIEJSZE W TYM WPISIE. Dziesięć rodzajów
+// wykresu z sekcji 1 (histogram, boxplot, rój, punktowy, mapa ciepła,
+// tornado, wachlarz, indeks przy bazie 100, stos 100%, małe panele) NIE
+// WESZŁO na ścieżkę pierwszego malowania ani nie zrobiło z żadnego pliku
+// olbrzyma. Koszt jest rozłożony w sumie publicznej, czyli tam, gdzie płaci
+// za niego czytelnik, który otwiera wpis Z WYKRESEM - a nie każdy czytelnik.
+//
+// PRZYCZYNA, ZMIERZONA DO MODUŁU (`BUNDLE_INVENTORY=1` + report:chunk-inventory):
+//
+//   Chart-D0hhAYsy.js  63,3 KB gzip / 464,6 kB przed minifikacją
+//     301,3 kB  64,8%  src/components/charts   (dwanaście renderów)
+//     162,9 kB  35,1%  src/lib/charts          (czternaście modeli)
+//       0,5 kB   0,1%  src/hooks/useTapAwayDismiss.ts
+//   ZERO OBCEGO KODU. Żadnego echarts, żadnego vendora, nic wciągniętego
+//   przypadkiem - sprawdzone, bo pierwsze zapytanie o „Chart" trafiło
+//   w `EChartClient` (echarts 77,9% + zrender 20,8%) i gdybym na tym
+//   poprzestał, opisałbym tu cudzy chunk jako swój. To jest uczciwa cena
+//   dwunastu renderów i czternastu modeli, nie defekt do naprawienia.
+//
+//   ChartFrame-D3VTz-jJ.js  20,5 KB gzip / 93,4 kB przed minifikacją
+//      81,4 kB  87,2%  src/lib/i18n-charts.ts  <- SŁOWNIK
+//      12,0 kB  12,8%  src/components/charts
+//
+// I TU JEST JEDYNA ZMIERZONA NIEOPTYMALNOŚĆ, którą ten wpis zostawia
+// następnej osobie z policzonym rozmiarem. `i18n-charts.ts` trzyma OBA
+// JĘZYKI W JEDNYM MODULE, więc czytelnik polskiej strony pobiera całą
+// wersję angielską i odwrotnie. Repozytorium MA już na to wzorzec: rdzeń
+// słownika to osobne moduły `src/lib/locale/pl.ts` i `en.ts` ładowane
+// dynamicznie (zmierzone w nagłówku `localeChunkPlugin`: pl 26,0 KB gzip,
+// en 22,8 KB) - nakładka wykresów go nie stosuje. Podział po języku zdejmie
+// z każdego czytelnika połowę z 81,4 kB, czyli rzędu 10 KB gzip.
+//
+// DLACZEGO NIE ZROBIŁEM TEGO TUTAJ, skoro zasada każe naprawiać u źródła:
+// (1) 10 KB nie zamyka luki 72,4 KB, więc próg musiałby się ruszyć tak samo;
+// (2) to zmiana w SPOSOBIE ŁADOWANIA słowników, pilnowana osobną bramką
+//     (`check:i18n-overlay-imports`), a wchodzi na koniec gałęzi, która ma
+//     już 36 plików i ~11 tys. linii - wpuszczenie jej tu znaczyłoby, że
+//     recenzent czyta ją razem z dwunastoma renderami;
+// (3) dotyczy WSZYSTKICH nakładek, nie tylko wykresów, więc należy jej się
+//     własna gałąź i własny pomiar przed i po.
+//
+// CZEGO NIE ZROBIĘ NIGDY W TYM MIEJSCU: leniwego ładowania rodzajów. Bramka
+// liczy do `public` każdy chunk OSIĄGALNY z tras publicznych, więc rozbicie
+// dwunastu renderów na dwanaście plików przesunęłoby bajty między chunkami,
+// nie zdjęło ich z sumy. Dałoby ładniejszy raport i tę samą czerwień.
+//
+// CSS JEST TEŻ TEJ GAŁĘZI, sprawdzone, a nie założone. Przez dużą część
+// pracy liczby CSS (91,2 / 78,6) nie drgnęły ani o dziesiętną i wyglądały
+// na cudzy dług - dopóki nie policzyłem, że `git diff origin/main...HEAD`
+// na `src/styles.css` to +545 linii w ośmiu commitach (tokeny wykresów,
+// wypełnienia słupków, pierścień, foreground, bramka martwych klas).
+// Ruch styles.css +4,4 KB w raporcie zgadza się z tym co do rzędu. Nie ma
+// więc czego odsyłać do maina.
+//
+// FORMUŁA PROGU JAK W KRONICE (wpisy V i VII): pomiar hosta razy
+// udokumentowana rozbieżność host<->runner (+0,466%), sufit do pełnego KB,
+// plus 1 KB na granicę zaokrąglenia (mechanizm z wpisu IV: wydruk „X,0"
+// znaczy „cokolwiek z [X,00; X,05)", więc próg równy wydrukowanej wartości
+// pada na własnym zaokrągleniu).
+//   public    2811,4 x 1,00466 = 2824,5 -> 2825 -> 2826
+//   overall   4487,0 x 1,00466 = 4507,9 -> 4508 -> 4509
+//   css         91,2 x 1,00466 =   91,6 ->   92 ->   93
+//   publicCss   78,6 x 1,00466 =   79,0 ->   79 ->   80
+// Pierwszy zielony log runnera rozstrzyga - zasada z wpisu V obowiązuje.
+//
+// BASELINE'U NIE ODŚWIEŻAM I TO NIE JEST PRZEOCZENIE. Zasada z wpisu V mówi:
+// `--update-baseline` wolno puścić WYŁĄCZNIE z zielonego builda RUNNERA,
+// a ten pomiar jest z hosta. Zapisanie go teraz zabetonowałoby liczby hosta
+// w pliku, po którym następna osoba czyta SWOJĄ deltę. Skutek uboczny, który
+// trzeba znać: dopóki baseline stoi na 2765e53, raport ruchów będzie każdemu
+// pokazywał Chart +57,9 i ChartFrame +19,5 jako świeży wzrost - to jest
+// wzrost TEJ gałęzi, opisany wyżej, nie jego. Pierwszy zielony log runnera
+// jest momentem na `--update-baseline`.
+//
+// CO ZOSTAJE DO ZROBIENIA I DLA KOGO: podział `i18n-charts.ts` po języku
+// (rzędu 10 KB gzip z każdego czytelnika, wzorzec w `src/lib/locale/`),
+// a szerzej - ta sama operacja dla pozostałych nakładek `i18n-*.ts`, które
+// wszystkie trzymają PL i EN w jednym module. Pomiar przyczyny jest wyżej,
+// więc następna osoba nie startuje od zera.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -1217,7 +1314,7 @@ const FROZEN_BUDGET_KB = {
   // `invalidate` (17,5 KB): warto sprawdzić, czy musi być statycznie osiągalna
   // z chunku publicznego. Tego NIE ruszam w tej gałęzi - to nie jej zakres,
   // a wpis ma dać następnej osobie punkt startu, nie zostawić ślepy próg.
-  public: 2739,
+  public: 2826,
   // gzip JS łącznie z kodem tylko adminowym. Zmierzone NA RUNNERZE 2026-08-19
   // (run 2397 i 2408, identycznie): 3892,0 przy 790 plikach.
   // Floor 3893, NIE 3892 - i to nie zapas, tylko granica zaokrąglenia.
@@ -1245,7 +1342,7 @@ const FROZEN_BUDGET_KB = {
   // Z PIERWSZEGO ZIELONEGO LOGU RUNNERA (zasada z wpisu V) - jak `css` i `boot`.
   // Patrz wpis 2026-09-08 przy `public` - ten próg idzie tą samą formułą
   // i z tego samego pomiaru.
-  overall: 4406,
+  overall: 4509,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
@@ -1326,7 +1423,7 @@ const FROZEN_BUDGET_KB = {
   // shared + 1.3 KiB public renderer + 12.6 KiB admin = 85.8 KiB total.
   // Separate gzip streams cost 4.5 KiB overall, while public CSS falls by
   // 8.1 KiB. Keep both costs gated and count every unknown stylesheet as public.
-  css: 87,
+  css: 93,
   // 2026-09-07: publicCss 74 -> 75. PRZEFLOOROWANE ŚWIADOMIE, z pomiarem
   // przyczyny i z rachunkiem wymiany - bo tego wymaga reguła na końcu tego
   // pliku, a nie dlatego, że próg „przeszkadzał".
@@ -1362,7 +1459,7 @@ const FROZEN_BUDGET_KB = {
   // nie zna nawet chunku `WorkspaceDock`. Tych dwóch progów ŚWIADOMIE NIE
   // RUSZAM: nie są moje, a podniesienie ich przykryłoby czyjąś regresję.
   // Następna osoba ma tu liczby, od których może zacząć.
-  publicCss: 75,
+  publicCss: 80,
   // gzip STATYCZNEGO DOMKNIĘCIA ŚCIEŻKI BOOTOWANIA: chunki wstrzykiwane przez
   // SSR jako `<script type="module">` plus wszystko, co z nich osiągalne
   // KRAWĘDZIĄ STATYCZNĄ (`import()` krawędzią inicjalizacyjną nie jest). Ten sam

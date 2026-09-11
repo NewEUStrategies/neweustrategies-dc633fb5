@@ -29,10 +29,20 @@ import {
   type ChartKind,
   type MapRegion,
 } from "@/lib/charts/types";
-import { isForecastMissingBand, seriesOverSafePalette } from "@/lib/charts/honesty";
+import { pieModel } from "@/components/charts/pieModel";
+import { BAR_STYLES } from "@/lib/charts/palette";
+import {
+  isForecastMissingBand,
+  pieFormAdvice,
+  seriesOverSafePalette,
+  PIE_CLOSE_SHARES_PP,
+} from "@/lib/charts/honesty";
 import { SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
+import { chartFormAdvice } from "@/lib/charts/formAdvice";
+import type { ChartLang } from "@/lib/charts/format";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-charts";
+import "@/lib/i18n-charts-editor";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { Chart } from "@/components/charts/Chart";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
@@ -53,6 +63,35 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   // czego" - mostek EBITDA rok do roku, dekompozycja zmiany marży. Te same
   // dane słupkami obok siebie zmuszają czytelnika do dodawania w głowie.
   { value: "waterfall", labelKey: "kinds.waterfall" },
+  // Histogram odpowiada na pytanie "jaki jest rozkład", a nie "ile jest".
+  // Kolumna "Czego unikać" z tabeli doboru formy zabrania przy rozkładzie
+  // średniej bez rozproszenia - stąd komplet pozycyjny w tabeli danych.
+  { value: "histogram", labelKey: "kinds.histogram" },
+  // Trzy formy na jedno pytanie o rozkład, bo różnią się tym, ILE ukrywają:
+  // histogram grupuje w przedziały, boxplot podsumowuje pięcioma liczbami,
+  // beeswarm nie ukrywa nic. Wybór między nimi zależy od liczby obserwacji
+  // i model każdego z nich doradza autorowi, kiedy ta forma jest zła.
+  { value: "boxplot", labelKey: "kinds.boxplot" },
+  { value: "beeswarm", labelKey: "kinds.beeswarm" },
+  // Punktowy czyta DWIE serie: pierwsza to os X, druga to os Y. Bez
+  // drugiej serii model stawia na osi X pozycje w szeregu i sam to
+  // zglasza, bo wtedy nie jest to wykres zaleznosci.
+  { value: "scatter", labelKey: "kinds.scatter" },
+  // Mapa ciepła czyta kategorie jako WIERSZE, a serie jako KOLUMNY, więc
+  // ten sam blok danych, który daje słupki grupowane, daje macierz.
+  { value: "heatmap", labelKey: "kinds.heatmap" },
+  // Tornado czyta kategorie jako PARAMETRY, a dwie pierwsze serie jako
+  // wyniki przy wartości niskiej i wysokiej. Wynik bazowy jest osobną
+  // liczbą, nie kategorią - patrz `tornadoModelFromConfig`.
+  { value: "tornado", labelKey: "kinds.tornado" },
+  // CZTERY RODZAJE SEKCJI 1 DOŁOŻONE RAZEM, bo `chartKinds.test.ts` pyta
+  // w obie strony: każdy rodzaj z `CHART_KINDS` musi tu być, a każda wartość
+  // stąd musi być znanym rodzajem. Połowa podłączenia jest czerwona z obu
+  // stron naraz.
+  { value: "fan", labelKey: "kinds.fan" },
+  { value: "index-base", labelKey: "kinds.indexBase" },
+  { value: "percent-stacked", labelKey: "kinds.percentStacked" },
+  { value: "small-multiples", labelKey: "kinds.smallMultiples" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
@@ -120,7 +159,12 @@ export function ChartBlock({ block, onChange }: Props) {
   const previewConfig = useMemo(() => parseChartConfig(block.data), [block.data]);
   // `keyPrefix` haka, nie sklejanie szablonem - inaczej bramka rozjazdu
   // kod<->słownik nie sprawdzi tych kluczy wcale.
-  const { t: ct } = useTranslation("translation", { keyPrefix: "charts" });
+  const { t: ct, i18n } = useTranslation("translation", { keyPrefix: "charts" });
+  // Język do LICZB w zaleceniach formy (próg R², udział zasłoniętych punktów).
+  // Treść zdania idzie przez `ct`, czyli w języku panelu, więc liczba
+  // sformatowana innym językiem dawałaby angielskie zdanie z polskim
+  // przecinkiem dziesiętnym.
+  const lang: ChartLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
 
   const patch = (data: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...data } });
@@ -153,9 +197,31 @@ export function ChartBlock({ block, onChange }: Props) {
   const isPie = kind === "pie" || kind === "donut";
   const isWaterfall = kind === "waterfall";
   const sliceOverflow = isPie ? Math.max(0, categories.length - PIE_MAX_SLICES) : 0;
+  // TRZY GRANICE PIERŚCIENIA, policzone z tego samego modelu, który rysuje
+  // tarczę - inaczej ostrzeżenie mówiłoby o innym zestawie wycinków niż ten
+  // w podglądzie obok. Udziały idą z modelu, bo mianownik (suma DODATNICH)
+  // jest jego rozstrzygnięciem, a nie regułą uczciwości.
+  const pieAdvice = useMemo(() => {
+    if (!isPie) return [];
+    // Język nie ma tu znaczenia: z modelu czytamy WYŁĄCZNIE liczby (udziały
+    // i liczbę dodatnich), a tłumaczeniu podlega jedynie nazwa wycinka
+    // zbiorczego, której to sprawdzenie nie dotyka.
+    const model = pieModel(previewConfig, "pl");
+    return pieFormAdvice(
+      model.slices.map((s) => s.share),
+      { positives: model.positives, maxSlices: PIE_MAX_SLICES },
+    );
+  }, [isPie, previewConfig]);
   // Terakota wypada z palety TYLKO na wykresie, który koduje znak czerwienią -
   // czyli na mostku. Na zwykłych kolumnach reguła nie obowiązuje i krzyczenie
   // o niej byłoby szumem.
+  // ZALECENIA FORMY DLA AUTORA: „ten rodzaj jest tu złym wyborem, weź inny".
+  // Do tego PR-a te zdania stały POD OPUBLIKOWANYM WYKRESEM, bo pisał je
+  // render - czyli czytelnik dostawał instrukcję dla autora, której nie ma
+  // jak wykonać. Teraz render pisze wyłącznie OBSERWACJĘ (`reading.*`),
+  // a zalecenie (`advice.*`) trafia tutaj, obok pola, którym autor rodzaj
+  // zmienia. Liczone z tego samego `previewConfig`, który idzie do podglądu.
+  const formAdvice = useMemo(() => chartFormAdvice(previewConfig, lang), [previewConfig, lang]);
   const signClash =
     isWaterfall && usedSlots.some((slot) => SLOTS_CLASHING_WITH_SIGN.includes(slot));
   // OCHRA WOBEC AKCENTU NIE JEST TU OSTRZEŻENIEM, i to jest decyzja, nie
@@ -189,7 +255,20 @@ export function ChartBlock({ block, onChange }: Props) {
         <Warning text={ct("editor.tooManySeries", { max: CATEGORICAL_SAFE_SERIES })} />
       )}
       {sliceOverflow > 0 && <Warning text={ct("editor.tooManySlices", { max: PIE_MAX_SLICES })} />}
+      {/* `tooMany` pokrywa się z `sliceOverflow` (oba mówią o przekroczeniu
+          limitu wycinków), więc go nie powtarzamy - został w module
+          uczciwości dla wywołujących bez własnego licznika kategorii. */}
+      {pieAdvice.includes("tooFew") && <Warning text={ct("editor.pieTooFewSlices")} />}
+      {pieAdvice.includes("tooClose") && (
+        <Warning text={ct("editor.pieClosePercentages", { pp: PIE_CLOSE_SHARES_PP })} />
+      )}
       {signClash && <Warning text={ct("editor.signClashesWithTerracotta")} />}
+      {/* Klucz Reacta to NAZWA PORADY, nie indeks: lista zmienia się przy
+          każdej edycji arkusza, a indeks kazałby Reactowi utrzymać stan
+          ostrzeżenia, które zniknęło, na miejscu innego. */}
+      {formAdvice.map((m) => (
+        <Warning key={m.advice} text={ct(m.key, m.values)} />
+      ))}
 
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
@@ -210,6 +289,29 @@ export function ChartBlock({ block, onChange }: Props) {
           onChange={(e) => patch({ unit: e.target.value })}
         />
       </div>
+
+      {/* WARIANT WYPEŁNIENIA SŁUPKÓW. Bez tej kontrolki `gradient` i `solid`
+          były nieosiągalne z żadnego wspieranego interfejsu - istniały
+          w parserze i w silniku, ale autor mógł je ustawić wyłącznie ręczną
+          edycją zapisanego JSON-a. Pokazujemy ją tylko tam, gdzie są słupki:
+          tarcza i linia nie mają czego wypełniać, a mostek ma.
+          Silnik i tak wymusza `solid` przy wielu seriach, skumulowanych
+          i kreskowanych (blade wnętrze nie niesie tożsamości serii), więc
+          wybór autora jest życzeniem, nie obietnicą - i to jest zamierzone. */}
+      {(kind === "bar" || kind === "bar-horizontal" || isWaterfall) && (
+        <AdminSelect
+          className={inputCls}
+          value={String(block.data.barStyle ?? "pale")}
+          onChange={(e) => patch({ barStyle: e.target.value })}
+          aria-label={bt.editor("chart", "barStyle")}
+        >
+          {BAR_STYLES.map((style) => (
+            <option key={style} value={style}>
+              {bt.editor("chart", `barStyles.${style}`)}
+            </option>
+          ))}
+        </AdminSelect>
+      )}
       <input
         className={inputCls}
         value={String(block.data.title ?? "")}

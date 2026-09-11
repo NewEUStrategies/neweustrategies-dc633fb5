@@ -63,6 +63,37 @@ describe("ChartWidgetView", () => {
     );
     expect(getByText("Brak danych wykresu.")).toBeTruthy();
   });
+
+  it("czyta WARIANT WYPEŁNIENIA z treści widgetu", () => {
+    // REGRESJA z przeglądu. Wariant był w parserze i w silniku, ale żaden
+    // interfejs autorski go nie ustawiał: schemat buildera nie miał pola,
+    // a ten widok nie czytał wartości. Warianty `gradient` i `solid` były
+    // więc nieosiągalne inaczej niż ręczną edycją zapisanego JSON-a.
+    //
+    // Jedna seria, bez kreskowania i bez skumulowania - inaczej silnik
+    // słusznie wymusiłby `solid` (blade wnętrze nie niesie tożsamości serii)
+    // i test mówiłby o wymuszeniu, a nie o odczycie ustawienia.
+    const jedna = { ...content, data: "; Eksport\n2023; 10\n2024; 14" };
+    for (const style of ["pale", "gradient", "solid"] as const) {
+      const { container, unmount } = withClient(
+        <ChartWidgetView node={node("chart", { ...jedna, barStyle: style })} lang="pl" />,
+      );
+      const slupki = [...container.querySelectorAll("path.neh-bar")];
+      expect(slupki.length).toBeGreaterThan(0);
+      for (const slupek of slupki) expect(slupek.getAttribute("data-style")).toBe(style);
+      unmount();
+    }
+  });
+
+  it("nieznany wariant wypełnienia wraca do bladego, a nie wywraca strony", () => {
+    // Treść widgetu pochodzi z bazy, więc musi znieść zapis z przyszłej albo
+    // cofniętej wersji edytora.
+    const jedna = { ...content, data: "; Eksport\n2023; 10\n2024; 14" };
+    const { container } = withClient(
+      <ChartWidgetView node={node("chart", { ...jedna, barStyle: "neon" })} lang="pl" />,
+    );
+    expect(container.querySelector("path.neh-bar")?.getAttribute("data-style")).toBe("pale");
+  });
 });
 
 describe("DataMapWidgetView", () => {

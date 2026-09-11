@@ -112,8 +112,28 @@ describe("geometry - tokeny delikatności zgadzają się z arkuszem", () => {
     );
   });
 
-  it("prowadnice i kreskowanie serii są tokenami, nie literałami w kodzie", () => {
-    expect(token(LIGHT_BLOCK, "--chart-guide-dash")).toBe("2 4");
+  it("ŻADNE RUSZTOWANIE NIE JEST KRESKOWANE - ani token, ani reguła", () => {
+    // ZMIANA REGUŁY, nie poprawka. Wcześniej prowadnica jechała kreskowaniem
+    // 2 4 z tokena `--chart-guide-dash`; token zniknął, bo zniknęła reguła.
+    // Trzy powody, wszystkie praktyczne: kreskowana obwódka czyta się
+    // w konwencji interfejsu jako zaznaczenie do przeniesienia albo stan
+    // nieukończony; kreska 1 px na współrzędnej niecałkowitej aliasuje i przy
+    // innym DPR zamienia się w nierówny szereg plamek; a samo kreskowanie
+    // wprowadza rytm konkurujący z rytmem danych - przy siedmiu i więcej
+    // obserwacjach oko zaczyna czytać kreski jako trzeci szereg.
+    expect(css).not.toContain("--chart-guide-dash");
+    expect(() => token(LIGHT_BLOCK, "--chart-guide-dash")).toThrow();
+
+    // Prowadnica, separator strefy prognozy i łączniki mostka - wszystkie
+    // przez tę jedną klasę - są jawnie CIĄGŁE.
+    const crosshair = css.slice(css.indexOf(".neh-chart .neh-crosshair {"));
+    const rule = crosshair.slice(0, crosshair.indexOf("}"));
+    expect(rule).toContain("stroke-dasharray: none");
+
+    // Kreskowanie serii ZOSTAJE, bo nie jest rusztowaniem: to drugi nośnik
+    // różnicy dla slotów poza zestawem bezpiecznym dla daltonizmu. Jedyna
+    // dozwolona nieciągłość obok niego to tekstura strefy prognozy - a to nie
+    // jest linia, tylko wypełnienie obszaru.
     expect(token(LIGHT_BLOCK, "--chart-series-dash")).toBe("7 4");
   });
 
@@ -280,5 +300,57 @@ describe("arkusz druku - wykres na papierze pokazuje DANE, nie stan wejścia", (
     // a jako `hidden` nie trafiała na papier wcale.
     expect(PRINT_BLOCK).toContain("[data-chart-table][hidden]");
     expect(PRINT_BLOCK).toContain("[data-chart-table-toggle]");
+  });
+
+  it("w druku słupki i łuki wracają do wariantu SOLIDNEGO", () => {
+    // Wariant blady stoi na tym, że wnętrze ma do płyty 1,20-1,28:1, a granicę
+    // niesie obwódka. Na papierze 1,2:1 nie ma czym się odbić od bieli, więc
+    // zostaje sam kontur 1,5 px - kształt zdefiniowany cienką linią czyta się
+    // przy kilku słupkach jak rysunek techniczny, nie jak dane.
+    //
+    // Podstawienie idzie WŁASNOŚCIAMI z elementu (`--neh-bar-token`,
+    // `--neh-arc-token`), więc jedna reguła obsługuje wszystkie dziewięć
+    // slotów bez znajomości numeru - i wariant zostaje ustawieniem autora,
+    // a nie czymś, co druk zmienia w danych.
+    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="pale"]');
+    expect(PRINT_BLOCK).toContain("fill: var(--neh-bar-token)");
+    expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-token)");
+    // Liczba w łuku przechodzi na TUSZ SLOTU, bo leży teraz na nasyconym
+    // kolorze: tusz semantyczny ma na granacie 2,25:1, a ink slotu 8,07:1.
+    expect(PRINT_BLOCK).toContain(".neh-arc-label");
+    expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-ink)");
+  });
+
+  it("druk nadpisuje TAKŻE stan aktywny - inaczej przegrywa specyficzność", () => {
+    // REGRESJA z przeglądu. Media query NIE dodaje specyficzności, więc
+    // o wyniku decyduje sam selektor: `.neh-bar[data-style="pale"]
+    // [data-active="true"]` z bloku ekranowego jest bardziej specyficzny niż
+    // `.neh-bar[data-style="pale"]` w bloku druku i wygrywał. Wydruk zrobiony
+    // przy podświetlonym elemencie (fokus klawiaturą, potem Ctrl+P) wychodził
+    // z bladym wypełnieniem hover i obwódką w tokenie - czyli dokładnie tym,
+    // co blok druku ma zastąpić.
+    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="pale"][data-active="true"]');
+    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="gradient"][data-active="true"]');
+    expect(PRINT_BLOCK).toContain('.neh-slice[data-active="true"]');
+    // I to nadal PO regułach ekranowych, bo tylko kolejność w pliku rozstrzyga
+    // między selektorami o równej specyficzności.
+    const screenActive = css.indexOf('.neh-chart .neh-bar[data-style="pale"][data-active="true"]');
+    expect(screenActive).toBeGreaterThan(0);
+    expect(screenActive).toBeLessThan(PRINT_START);
+  });
+
+  it("strefa prognozy zamienia płaski tint na KRESKOWANIE - i tylko w druku", () => {
+    // Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
+    // prognoza traciła jeden z TRZECH nośników odróżnienia od historii.
+    // Kreskowanie zostaje, bo linia ma krawędź - i to jedyne miejsce
+    // w silniku, gdzie tekstura jest uzasadniona.
+    expect(PRINT_BLOCK).toContain(".neh-zone-tint");
+    expect(PRINT_BLOCK).toContain(".neh-zone-hatch");
+    // Na EKRANIE jest odwrotnie: kreskowanie schowane, widoczny tint.
+    // Reguła ekranowa musi stać PRZED blokiem druku, inaczej nie ustąpiłaby
+    // kaskadzie (media query nie dodaje specyficzności).
+    const screenHatch = css.indexOf(".neh-chart .neh-zone-hatch {");
+    expect(screenHatch).toBeGreaterThan(0);
+    expect(screenHatch).toBeLessThan(PRINT_START);
   });
 });

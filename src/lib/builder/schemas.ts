@@ -759,6 +759,21 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "area", label: "pole (area)" },
         { value: "pie", label: "kołowy" },
         { value: "donut", label: "pierścień (donut)" },
+        // Mostek był w typie `ChartKind` i w edytorze bloku CMS, ale nie tutaj -
+        // czyli autor widgetu buildera nie mógł go wybrać wcale. Bramka
+        // `src/lib/charts/__tests__/chartKinds.test.ts` pilnuje, żeby ta lista
+        // obejmowała każdy rodzaj z `CHART_KINDS`.
+        { value: "waterfall", label: "wodospadowy (mostek)" },
+        { value: "histogram", label: "histogram (rozkład)" },
+        { value: "boxplot", label: "boxplot (rozkład)" },
+        { value: "beeswarm", label: "rój punktów (rozkład)" },
+        { value: "scatter", label: "punktowy (zależność)" },
+        { value: "heatmap", label: "mapa ciepła (wrażliwość)" },
+        { value: "tornado", label: "tornado (wrażliwość)" },
+        { value: "fan", label: "wachlarz (scenariusze)" },
+        { value: "index-base", label: "indeks, baza = 100 (różne skale)" },
+        { value: "percent-stacked", label: "stos 100% (struktura)" },
+        { value: "small-multiples", label: "małe panele (wiele podmiotów)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },
@@ -778,6 +793,17 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "off", label: "nie" },
         { value: "on", label: "tak" },
+      ],
+      visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
+    },
+    {
+      key: "barStyle",
+      type: "select",
+      label: "Wypełnienie słupków",
+      options: [
+        { value: "pale", label: "blade wnętrze z obwódką" },
+        { value: "gradient", label: "gradient z obwódką" },
+        { value: "solid", label: "pełne wypełnienie" },
       ],
       visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
     },

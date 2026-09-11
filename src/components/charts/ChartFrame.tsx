@@ -53,6 +53,16 @@ export interface ChartCaption {
   sampleSize: number | null;
   /** Oś wartości nie zaczyna się od zera - ucięcie MUSI być nazwane. */
   zeroBaselineBroken: boolean;
+  /**
+   * Suma ZAOKRĄGLONYCH udziałów tarczy, gdy nie domyka 100% - już
+   * sformatowana, np. "99,8%". `null` znaczy "nie ma czego zgłaszać": inny
+   * rodzaj wykresu albo suma w tolerancji zaokrągleń.
+   *
+   * Tu, a nie pod tabelą danych, bo to nie jest przypis do tabeli: to
+   * ostrzeżenie o tym, że STRUKTURA POKAZANA NA RYSUNKU się nie domyka,
+   * i musi stać obok rysunku, tak samo jak ostrzeżenie o uciętej osi.
+   */
+  shareSumMismatch: string | null;
   notesShows: string;
   notesSurprising: string;
   notesHidden: string;
@@ -175,6 +185,16 @@ export function ChartFrame({
         </p>
       )}
 
+      {/* Suma kontrolna udziałów. Ta sama forma co ostrzeżenie o uciętej osi -
+          ikona PLUS tekst - bo to ten sam gatunek komunikatu: rysunek pokazuje
+          coś, czego liczby nie potwierdzają. */}
+      {caption.shareSumMismatch !== null && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>{t("pie.shareSumFailed", { sum: caption.shareSumMismatch })}</span>
+        </p>
+      )}
+
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 text-xs text-muted-foreground">
           {caption.source && <p className="m-0">{caption.source}</p>}
@@ -217,6 +237,51 @@ export function ChartFrame({
         </dl>
       )}
     </figure>
+  );
+}
+
+/**
+ * JEDEN KOMUNIKAT POD TABELĄ DANYCH: defekt danych albo obserwacja o rysunku.
+ *
+ * `key` jest jednocześnie identyfikatorem Reacta i UCHWYTEM ZAPYTANIA
+ * (`data-note`), po którym testy sprawdzają, że rysunek naprawdę powiedział
+ * to, co miał powiedzieć - dlatego jest ścieżką słownika (`reading.tooFew`,
+ * `honesty.checksumFailed`), a nie numerem porządkowym.
+ */
+export interface ChartNote {
+  key: string;
+  text: string;
+  /**
+   * `true` = defekt DANYCH (czerwień tekstowa), `false` = obserwacja
+   * o rysunku (ink recesywny). Rozróżnienie jest w kolorze, bo lista, na
+   * której wszystko krzyczy, uczy ignorowania całej listy.
+   */
+  defect: boolean;
+}
+
+/**
+ * Lista komunikatów pod tabelą danych. WYDZIELONA Z PIĘCIU RENDERÓW, w których
+ * stała bajt w bajt ta sama: histogram był piątym i przy przepisywaniu jej po
+ * raz piąty wyszło, że jedyne, co je różniło, to fakt, że histogram jej nie
+ * miał wcale (przez to nie pokazywał ANI JEDNEGO komunikatu uczciwości, choć
+ * model liczy siedem flag, a słownik ma dla nich treści w obu językach).
+ */
+export function ChartNotes({ notes }: { notes: readonly ChartNote[] }) {
+  if (notes.length === 0) return null;
+  return (
+    <ul className="mt-2 space-y-1 text-xs">
+      {notes.map((note) => (
+        <li
+          key={note.key}
+          data-note={note.key}
+          style={{
+            color: note.defect ? "var(--chart-negative-text)" : "var(--muted-foreground)",
+          }}
+        >
+          {note.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 
