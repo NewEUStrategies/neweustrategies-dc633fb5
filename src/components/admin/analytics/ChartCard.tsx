@@ -1,49 +1,64 @@
 /**
- * Wrapper for every BI chart on /admin/analytics. Owns:
- * - Title / subtitle / badge slot
- * - Full-screen toggle (uses the Fullscreen API when available, falls back to a
- *   fixed-position overlay so it still works in browsers that block it)
- * - CSV + PNG export (delegates to ./exportChart; the ECharts instance is
- *   captured through EChart's onReady callback)
+ * RAMA KAŻDEGO WYKRESU BI w /admin/analytics. Trzyma tytuł, podtytuł i odznakę,
+ * przełącznik pełnego ekranu, eksport (PNG + CSV) i okno szczegółów po
+ * wskazaniu elementu.
  *
- * The card keeps chart state internal - parent components pass an `option`
- * plus optional export data. That contract lets the same shell wrap any
- * ECharts option (bar, line, treemap, radar, ...) without knowing the shape.
+ * CO SIĘ ZMIENIŁO I DLACZEGO. Karta rysowała wcześniej przez ECharts, czyli
+ * przez DRUGI silnik wykresów - obok tego, który powstał wobec specyfikacji.
+ * Panel admina dostawał więc inną paletę, inną geometrię i inne zasady
+ * interakcji niż wykres we wpisie: pierścień z legendą zamiast tabeli klucza,
+ * brak wariantów wypełnienia słupka, brak przerwy na osi pierścienia. Karta
+ * przyjmuje teraz `ChartConfig` i rysuje przez `<Chart>`, więc panel i wpis
+ * mówią jednym językiem wizualnym.
+ *
+ * CZEGO KARTA JUŻ NIE ROBI: nie rysuje własnej tabeli danych. Silnik rysuje ją
+ * sam przy KAŻDYM rodzaju (sekcja 8: grafika nigdy nie jest jedyną drogą do
+ * liczby), więc druga tabela pod tą samą kartą byłaby tymi samymi liczbami
+ * dwa razy. `csv` zostaje - ale wyłącznie jako ŹRÓDŁO EKSPORTU, bo plik bywa
+ * bogatszy od rysunku (kolumny, których wykres nie koduje).
+ *
+ * NIE USTAWIA TEŻ `role="img"` NA SWOIM KONTENERZE. Robił to, bo kanwa ECharts
+ * jest dla czytnika ekranu pustym prostokątem; nasz silnik oddaje rysunek
+ * z własną nazwą i opisem obsługi, a druga rola „obrazek" wokół niego
+ * ogłaszałaby ten sam wykres dwa razy.
  */
-import { useCallback, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-analytics";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Download, Maximize2, Minimize2, MoreHorizontal } from "lucide-react";
-import type { ECharts, EChartsCoreOption } from "echarts/core";
-import { EChart } from "./EChart";
+import { Chart } from "@/components/charts/Chart";
+import type { ChartConfig } from "@/lib/charts/types";
+import { chartLangFrom } from "@/lib/charts/format";
+import type { ChartSelection } from "@/lib/charts/selection";
 import { exportCsv, exportPng } from "./exportChart";
-import { ChartDrillDialog, type ChartClickParams, type ChartDrillDetail } from "./ChartDrillDialog";
-import { ChartDataTable, hasChartTableData } from "./ChartDataTable";
+import { ChartDrillDialog, type ChartDrillDetail } from "./ChartDrillDialog";
 
 export interface ChartCardProps {
   title: string;
   subtitle?: string;
   badge?: ReactNode;
-  option: EChartsCoreOption;
+  /**
+   * Konfiguracja dla silnika. Tytuł i opis zostają PUSTE - nagłówek rysuje
+   * karta, a rama silnika pominęłaby swój własny tylko wtedy, gdy są puste;
+   * dwa nagłówki nad jednym rysunkiem to nie jest ozdoba, tylko szum.
+   */
+  config: ChartConfig;
   height?: number;
-  /** Optional CSV export data. When omitted the CSV item is hidden. */
+  /** Dane eksportu CSV. Bez nich pozycja CSV w menu nie istnieje. */
   csv?: { filename: string; headers: string[]; rows: readonly (readonly unknown[])[] };
-  /** Filename for PNG export (defaults to a slug of `title`). */
+  /** Nazwa pliku PNG; domyślnie slug tytułu. */
   pngName?: string;
   className?: string;
-  /** Extra content rendered below the chart (e.g. footer chips, legend). */
+  /** Treść pod rysunkiem (odznaki, przypisy panelu). */
   footer?: ReactNode;
-  themeVersion?: number;
   /**
-   * Map an ECharts click event to a drill-down payload. When it returns a
-   * non-null detail, the card opens a dialog with title / date / URL /
-   * description / metrics / links. Returning `null` skips the dialog (useful
-   * for elements that carry no drillable context, e.g. threshold markLines).
+   * Zamiana WSKAZANIA na ładunek okna szczegółów. Zwrócony `null` znaczy
+   * „ten element nie ma czego pokazać" i okno się nie otwiera.
    */
-  onDataClick?: (params: ChartClickParams) => ChartDrillDetail | null;
+  onDataClick?: (selection: ChartSelection) => ChartDrillDetail | null;
 }
 
 function slug(s: string): string {
@@ -57,44 +72,43 @@ export function ChartCard({
   title,
   subtitle,
   badge,
-  option,
+  config,
   height = 300,
   csv,
   pngName,
   className,
   footer,
-  themeVersion,
   onDataClick,
 }: ChartCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = chartLangFrom(i18n.language);
   const [full, setFull] = useState(false);
   const [drill, setDrill] = useState<ChartDrillDetail | null>(null);
-  // useId, nie slug(title): na /admin/analytics stoi kilkanascie kart, a dwie
-  // moga miec ten sam tytul w roznych sekcjach - zduplikowany id rozjechalby
-  // powiazanie aria-describedby.
-  const tableId = `${useId()}-chart-data`;
-  // Jeden predykat dla atrybutu i dla renderu - inaczej przy zerowym zbiorze
-  // (pulpit w trakcie ladowania, raport bez wynikow) `aria-describedby`
-  // wskazywalby element, ktorego nie ma.
-  const showTable = hasChartTableData(csv);
-  const instanceRef = useRef<ECharts | null>(null);
+  // Kontener rysunku - stąd eksport bierze WĘZEŁ SVG. Nie ma innej drogi:
+  // silnik nie wystawia uchwytu do swojego rysunku i nie powinien, bo to jest
+  // szczegół implementacji renderu, a nie część jego umowy.
+  const plotRef = useRef<HTMLDivElement | null>(null);
 
-  const handleReady = useCallback((inst: ECharts) => {
-    instanceRef.current = inst;
-  }, []);
+  // Wysokość jedzie PRZEZ KONFIGURACJĘ, a nie stylem kontenera: silnik liczy
+  // z niej geometrię (pasma, odstępy, próg etykiety w łuku), więc rysunek
+  // rozciągnięty CSS-em rozjechałby się z własnymi obliczeniami.
+  const configZWysokoscia = useMemo<ChartConfig>(
+    () => ({ ...config, title: "", description: "", height: full ? 560 : height }),
+    [config, full, height],
+  );
 
   const doPng = useCallback(() => {
-    exportPng(pngName ?? slug(title), instanceRef.current);
+    void exportPng(pngName ?? slug(title), plotRef.current);
   }, [pngName, title]);
 
   const doCsv = useCallback(() => {
     if (csv) exportCsv(csv.filename, csv.headers, csv.rows);
   }, [csv]);
 
-  const handleClick = useCallback(
-    (params: ChartClickParams) => {
+  const handleSelect = useCallback(
+    (selection: ChartSelection) => {
       if (!onDataClick) return;
-      const detail = onDataClick(params);
+      const detail = onDataClick(selection);
       if (detail) setDrill(detail);
     },
     [onDataClick],
@@ -128,8 +142,7 @@ export function ChartCard({
             <PopoverTrigger asChild>
               {/* Wyzwalacz to sama ikona „trzech kropek" - bez `aria-label`
                   czytnik ekranu ogłaszałby jedyne wejście do eksportu PNG i CSV
-                  jako bezimienny „przycisk". Nazwa idzie ze słownika, tak samo
-                  jak w sąsiednim przełączniku pełnego ekranu. */}
+                  jako bezimienny „przycisk". */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -181,27 +194,13 @@ export function ChartCard({
           </Button>
         </div>
       </div>
-      {/* Region wykresu jest OPISANY, bo ECharts renderuje do kanwy - dla
-          czytnika ekranu to pusty prostokat. `role="img"` + nazwa z tytulu daje
-          minimum („tu jest wykres X"), a `aria-describedby` prowadzi do tabeli
-          z tymi samymi danymi, jesli karta je dostala. */}
-      <div
-        className="flex-1 p-2 min-h-0"
-        role="img"
-        aria-label={t("adminAnalytics.chartCard.chartRegion", { title })}
-        aria-describedby={showTable ? tableId : undefined}
-      >
-        <EChart
-          option={option}
-          height={full ? "calc(100vh - 120px)" : height}
-          onReady={handleReady}
-          onDataClick={onDataClick ? handleClick : undefined}
-          themeVersion={themeVersion}
+      <div className="flex-1 p-2 min-h-0 overflow-auto" ref={plotRef}>
+        <Chart
+          config={configZWysokoscia}
+          lang={lang}
+          onSelect={onDataClick ? handleSelect : undefined}
         />
       </div>
-      {showTable && csv ? (
-        <ChartDataTable id={tableId} title={title} headers={csv.headers} rows={csv.rows} />
-      ) : null}
       {footer ? (
         <div className="px-4 py-2 border-t border-border/60 text-xs text-muted-foreground">
           {footer}

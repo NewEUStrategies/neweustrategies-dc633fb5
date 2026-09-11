@@ -4,6 +4,18 @@
 
 export type ChartLang = "pl" | "en";
 
+/**
+ * Język wykresu z kodu języka i18next.
+ *
+ * Jedno miejsce, bo warunek `startsWith("en")` stał już w trzech plikach
+ * i przy czwartej kopii ktoś napisałby `=== "en"` - a i18next podaje tam
+ * także "en-GB" i "en-US", więc wykres w brytyjskim angielskim wracałby po
+ * cichu do polskiego formatowania liczb.
+ */
+export function chartLangFrom(language: string | undefined | null): ChartLang {
+  return (language ?? "pl").startsWith("en") ? "en" : "pl";
+}
+
 function localeOf(lang: ChartLang): string {
   return lang === "en" ? "en-GB" : "pl-PL";
 }

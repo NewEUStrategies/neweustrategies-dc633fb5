@@ -251,6 +251,10 @@ const pl = {
       ratingsSubtitle: "Liczba próbek Good / Needs / Poor",
       ratingOverall: "Rating ogółem",
       ratingOverallSubtitle: "Cały panel próbek w oknie",
+      // PRÓG JAKO LICZBA, nie jako pas tła. Wykres rysował wcześniej trzy pasy
+      // i dwie kreskowane linie progu; próg jest liczbą, więc czyta się go
+      // dokładnie tylko wtedy, gdy jest zapisany liczbą.
+      thresholdFooter: "Próg: dobrze do {{good}}, słabo powyżej {{poor}}",
       samplesWord: "próbek",
       samplesLabel: "Próbek",
       pathsBySamples: "Ścieżki wg liczby próbek",
@@ -1085,6 +1089,7 @@ const en = {
       ratingsSubtitle: "Number of Good / Needs / Poor samples",
       ratingOverall: "Overall rating",
       ratingOverallSubtitle: "All samples in the window",
+      thresholdFooter: "Threshold: good up to {{good}}, poor above {{poor}}",
       samplesWord: "samples",
       samplesLabel: "Samples",
       pathsBySamples: "Paths by sample count",

@@ -1,8 +1,10 @@
 /**
- * Chart data export helpers. Kept dependency-free so importing them does NOT
- * drag the ECharts module graph into the SSR bundle - `exportPng` receives an
- * `ECharts` instance as a parameter (already client-side by construction) and
- * asks it for a base64 canvas via `getDataURL`, no static echarts import here.
+ * Pomocniki eksportu danych wykresu.
+ *
+ * `exportPng` dostaje KONTENER rysunku, a nie instancję biblioteki - silnik
+ * maluje SVG w drzewie strony, więc zrzut powstaje z węzła (`../../lib/charts/
+ * exportImage`), a nie z płótna. Dzięki temu moduł nie ciągnie żadnej
+ * biblioteki wykresów do pakietu SSR.
  *
  * CSV export follows RFC 4180 with CRLF line endings and quotes any cell that
  * contains a delimiter, quote, or newline. The BOM prefix makes Excel treat
@@ -10,12 +12,8 @@
  * declares a spreadsheet as its reader, cells that a spreadsheet would take for
  * a formula are neutralised on the way out (see `neutralizeFormula`).
  *
- * `./chartTheme` jest tu importem RUNTIME'OWYM (potrzebny `resolveChartTheme`
- * dla tła zrzutu), ale nie łamie zasady z akapitu wyżej: tamten moduł ciągnie
- * z ECharts wyłącznie TYP `EChartsCoreOption`, który po kompilacji znika.
  */
-import type { ECharts } from "echarts/core";
-import { resolveChartTheme } from "./chartTheme";
+import { svgDoPng } from "@/lib/charts/exportImage";
 
 /**
  * Znaki, od których arkusz zaczyna czytać komórkę jako FORMUŁĘ, a nie jako
@@ -134,18 +132,24 @@ export function exportCsv(
  * Druk STRONY jest już wymuszony na jasnych tokenach - patrz `@media print`
  * w `src/styles.css`.
  */
-export function exportPng(filename: string, instance: ECharts | null | undefined): void {
-  if (!instance) return;
-  const url = instance.getDataURL({
-    type: "png",
-    pixelRatio: 2,
-    backgroundColor: resolveChartTheme().background,
+/**
+ * Zrzut rysunku do PNG.
+ *
+ * BIERZE KONTENER, nie instancję biblioteki: silnik rysuje SVG w drzewie
+ * strony, więc jedynym uchwytem, jaki karta ma, jest węzeł. Szukamy w nim
+ * PIERWSZEGO `<svg>` - rama silnika stawia rysunek przed tabelą danych, a
+ * tabela `<svg>` nie zawiera.
+ *
+ * TŁO JEST OBOWIĄZKOWE: PNG z przezroczystym tłem wklejony do dokumentu
+ * o ciemnym tle pokazuje ciemny tusz na ciemnym, czyli nic. Bierzemy płytę
+ * karty (`--card`), bo na niej rysunek stoi na ekranie.
+ */
+export async function exportPng(filename: string, container: HTMLElement | null): Promise<void> {
+  const svg = container?.querySelector("svg") ?? null;
+  if (svg === null) return;
+  const plyta = getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
+  const blob = await svgDoPng(svg as SVGSVGElement, {
+    background: plyta === "" ? "#ffffff" : plyta,
   });
-  const bin = atob(url.split(",")[1] ?? "");
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  triggerDownload(
-    filename.endsWith(".png") ? filename : `${filename}.png`,
-    new Blob([bytes], { type: "image/png" }),
-  );
+  triggerDownload(filename.endsWith(".png") ? filename : `${filename}.png`, blob);
 }

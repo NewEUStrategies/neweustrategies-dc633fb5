@@ -58,13 +58,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import type { EChartsCoreOption } from "echarts/core";
+import { biChart } from "./biChart";
 import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import { useCurrentTenantId } from "@/lib/tenant";
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import { ChartCard } from "./ChartCard";
-import { useChartTheme } from "./useChartTheme";
-import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
+import type { ChartDrillDetail } from "./ChartDrillDialog";
+import type { ChartSelection } from "@/lib/charts/selection";
 import { KpiTile } from "./KpiTile";
 import { VitalsRecommendations } from "./VitalsRecommendations";
 import { TimeRangeFilter, buildPresetRange, type TimeRangeValue } from "./TimeRangeFilter";
@@ -108,7 +108,6 @@ export function VitalsBiDashboard() {
   // w listach `useMemo` niżej. Referencja jest stabilna, dopóki tokeny się nie
   // zmieniły (kontrakt `useChartTheme`), więc dopisanie jej do zależności nie
   // przelicza opcji ani razu więcej, niż trzeba.
-  const theme = useChartTheme();
   const fetchVitals = useServerFn(getVitalsSummary);
   const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
@@ -145,163 +144,110 @@ export function VitalsBiDashboard() {
     return map;
   }, [report]);
 
-  const trendOption = (metric: VitalName): EChartsCoreOption => {
-    const [thGood, thPoor] = VITAL_THRESHOLDS[metric];
+  /**
+   * Trend p75 jednej metryki.
+   *
+   * PROGI SCHODZĄ Z RYSUNKU DO PODPISU, i to jest zmiana świadoma. Poprzednia
+   * wersja malowała trzy pasy tła (`markArea`) i dwie linie progu
+   * (`markLine`) kreskowane - czyli pięć elementów nie-danych na wykresie
+   * o jednej serii. Specyfikacja mówi o tym wprost dwa razy: rusztowanie ma
+   * być ciągłe i ciche, a kreskowanie zostaje wyłącznie teksturą strefy
+   * prognozy. Sam próg jest LICZBĄ, a nie kształtem - i jako liczba stoi teraz
+   * w stopce karty, gdzie czyta się go dokładnie, zamiast szacować z krawędzi
+   * pasa.
+   */
+  const trendConfig = (metric: VitalName) => {
     const trend = (report?.trends ?? []).map(
-      (t) => [t.day, t.p75[metric] ?? null] as [string, number | null],
+      (d) => [d.day, d.p75[metric] ?? null] as [string, number | null],
     );
-    return {
-      tooltip: {
-        trigger: "axis",
-        formatter: (raw: unknown) => {
-          const p = (raw as Array<{ axisValue: string; value: [string, number | null] }>)[0];
-          if (!p) return "";
-          const v = p.value?.[1];
-          return `${p.axisValue}<br/>${metric} p75: <b>${v === null || v === undefined ? "-" : fmtValue(metric, v)}</b>`;
-        },
-      },
-      xAxis: { type: "category", data: trend.map((d) => d[0]), boundaryGap: false },
-      yAxis: {
-        type: "value",
-        scale: true,
-        axisLabel: {
-          formatter: (v: number) =>
-            metric === "CLS" ? v.toFixed(2) : v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${v}ms`,
-          fontSize: 10,
-        },
-      },
-      series: [
-        {
-          type: "line",
-          smooth: true,
-          symbol: "circle",
-          symbolSize: 5,
-          data: trend.map((d) => d[1]),
-          areaStyle: { opacity: 0.18 },
-          connectNulls: true,
-          markArea: {
-            silent: true,
-            itemStyle: { opacity: 0.12 },
-            data: [
-              [{ yAxis: 0, itemStyle: { color: theme.success } }, { yAxis: thGood }],
-              [{ yAxis: thGood, itemStyle: { color: theme.warning } }, { yAxis: thPoor }],
-              [{ yAxis: thPoor, itemStyle: { color: theme.danger } }, { yAxis: "max" }],
-            ],
-          },
-          markLine: {
-            silent: true,
-            symbol: "none",
-            lineStyle: { color: theme.muted, type: "dashed", width: 1 },
-            data: [
-              {
-                yAxis: thGood,
-                label: {
-                  formatter: `Good ${fmtValue(metric, thGood)}`,
-                  fontSize: 9,
-                  color: theme.foreground,
-                  textBorderWidth: 0,
-                },
-              },
-              {
-                yAxis: thPoor,
-                label: {
-                  formatter: `Poor ${fmtValue(metric, thPoor)}`,
-                  fontSize: 9,
-                  color: theme.foreground,
-                  textBorderWidth: 0,
-                },
-              },
-            ],
-          },
-        },
-      ],
-    };
+    return biChart({
+      kind: "line",
+      categories: trend.map((d) => d[0].slice(5)),
+      series: [{ name: `${metric} p75`, values: trend.map((d) => d[1]) }],
+      // CLS jest BEZWYMIAROWE - jednostka „ms" przy nim byłaby zdaniem
+      // fałszywym o każdej liczbie na osi.
+      unit: metric === "CLS" ? "" : " ms",
+      sampleSize: trend.filter((d) => d[1] !== null).length,
+      showLegend: false,
+      smoothing: 0,
+    });
   };
 
-  const ratingStackOption = useMemo<EChartsCoreOption>(() => {
+  /**
+   * Liczba próbek Good / Needs / Poor per metryka.
+   *
+   * SLOTY PALETY, NIE TOKENY ZNAKU. Poprzednia wersja brała `theme.success`,
+   * `theme.warning` i `theme.danger` - czyli kolory ZNAKU wartości (dodatnia /
+   * ujemna). Tu nie ma znaku: „Poor" nie jest wartością ujemną, tylko trzecim
+   * stopniem skali porządkowej. Sloty 3 / 2 / 6 (szałwia, ochra, terakota)
+   * czyta się jako tę samą progresję, a mają policzony kontrast w obu motywach
+   * i rozdzielność przy deuteranopii - czego para „zieleń kontra czerwień"
+   * z definicji nie ma.
+   */
+  const ratingStackConfig = useMemo(() => {
     const metrics = METRIC_ORDER.filter((m) => metricsByName.has(m));
-    return {
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-      legend: { top: 4, data: ["Good", "Needs improvement", "Poor"] },
-      grid: { left: 8, right: 8, top: 32, bottom: 24, containLabel: true },
-      xAxis: { type: "category", data: metrics },
-      yAxis: { type: "value" },
+    return biChart({
+      kind: "bar",
+      stacked: true,
+      categories: [...metrics],
       series: [
         {
-          name: "Good",
-          type: "bar",
-          stack: "rating",
-          color: theme.success,
-          data: metrics.map((m) => metricsByName.get(m)?.good ?? 0),
-          itemStyle: { borderRadius: [0, 0, 0, 0] },
+          name: t("adminAnalytics.drillDialog.rating.good"),
+          values: metrics.map((m) => metricsByName.get(m)?.good ?? 0),
+          colorSlot: 3,
         },
         {
-          name: "Needs improvement",
-          type: "bar",
-          stack: "rating",
-          color: theme.warning,
-          data: metrics.map((m) => metricsByName.get(m)?.needsImprovement ?? 0),
+          name: t("adminAnalytics.drillDialog.rating.needs"),
+          values: metrics.map((m) => metricsByName.get(m)?.needsImprovement ?? 0),
+          colorSlot: 2,
         },
         {
-          name: "Poor",
-          type: "bar",
-          stack: "rating",
-          color: theme.danger,
-          data: metrics.map((m) => metricsByName.get(m)?.poor ?? 0),
-          itemStyle: { borderRadius: [4, 4, 0, 0] },
+          name: t("adminAnalytics.drillDialog.rating.poor"),
+          values: metrics.map((m) => metricsByName.get(m)?.poor ?? 0),
+          colorSlot: 6,
         },
       ],
-    };
-  }, [metricsByName, theme]);
+    });
+  }, [metricsByName, t]);
 
-  const pathTreemapOption = useMemo<EChartsCoreOption>(() => {
+  /**
+   * Ścieżki: liczba próbek wobec LCP p75. BYŁA TU TREEMAPA i to jest podmiana
+   * formy, nie przeniesienie jeden do jednego - z trzema powodami.
+   *
+   * 1. Treemapa koduje wielkość POWIERZCHNIĄ, a powierzchnia jest kanałem
+   *    najmniej precyzyjnym z wszystkich, jakimi dysponuje wykres; ten sam
+   *    zbiór na długości czyta się o rząd wielkości dokładniej.
+   * 2. Kafle miały DWA kodowania naraz (wielkość = próbki, kolor = LCP), więc
+   *    czytelnik i tak musiał zestawiać dwie zmienne - a od tego jest rozrzut,
+   *    i to jest jego jedyne zadanie.
+   * 3. Pytanie panelu brzmi „którą ścieżkę naprawiać najpierw". Odpowiedź to
+   *    prawy górny róg rozrzutu: dużo próbek ORAZ wysokie LCP. Na treemapie
+   *    ta sama odpowiedź wymagała porównania pola kafla z jego odcieniem.
+   *
+   * Etykiety niosą PEŁNE ścieżki, nie ucięte do 26 znaków: skrócenie było
+   * ustępstwem na rzecz miejsca w kaflu, a okno szczegółów potrzebuje ścieżki
+   * prawdziwej.
+   */
+  const pathScatterConfig = useMemo(() => {
     const paths = (report?.paths ?? []).slice(0, 25);
-    const [lcpGood, lcpPoor] = VITAL_THRESHOLDS.LCP;
-    const colorFor = (lcp: number): string => {
-      if (!lcp) return theme.muted; // brak danych LCP - neutralny slate
-      if (lcp <= lcpGood) return theme.success;
-      if (lcp <= lcpPoor) return theme.warning;
-      return theme.danger;
-    };
-    return {
-      tooltip: {
-        formatter: (raw: unknown) => {
-          const p = raw as { name: string; value: number; data: { lcp: number } };
-          return `${p.name}<br/>${t("adminAnalytics.vitals.samplesLabel")}: <b>${p.value}</b><br/>LCP p75: ${p.data.lcp ? fmtValue("LCP", p.data.lcp) : "-"}`;
-        },
-      },
+    return biChart({
+      kind: "scatter",
+      categories: paths.map((p) => p.path),
       series: [
         {
-          type: "treemap",
-          roam: false,
-          nodeClick: false,
-          breadcrumb: { show: false },
-          label: {
-            show: true,
-            formatter: "{b}",
-            fontSize: 11,
-            color: theme.foreground,
-            textBorderWidth: 0,
-          },
-          itemStyle: { borderColor: theme.background, borderWidth: 2, gapWidth: 2 },
-          data: paths.map((p) => {
-            const lcp = p.metrics.find((m) => m.metric === "LCP")?.p75 ?? 0;
-            const shown = p.path.length > 26 ? p.path.slice(0, 26) + "…" : p.path;
-            return {
-              name: shown,
-              value: p.total,
-              lcp,
-              fullPath: p.path,
-              itemStyle: { color: colorFor(lcp) },
-            };
-          }),
+          name: t("adminAnalytics.vitals.samplesLabel"),
+          values: paths.map((p) => p.total),
+        },
+        {
+          name: "LCP p75",
+          values: paths.map((p) => p.metrics.find((m) => m.metric === "LCP")?.p75 ?? null),
         },
       ],
-    };
-  }, [report, t, theme]);
+      unit: " ms",
+      sampleSize: paths.reduce((a, p) => a + p.total, 0),
+    });
+  }, [report, t]);
 
-  // Kubełki ocen policzone RAZ: koło i jego tabela danych muszą podać te same
-  // trzy liczby, a dwa osobne sumowania to dwie okazje na rozjazd.
   const ratingTotals = useMemo(() => {
     const rows = report?.metrics ?? [];
     return {
@@ -311,34 +257,28 @@ export function VitalsBiDashboard() {
     };
   }, [report]);
 
-  const overallPieOption = useMemo<EChartsCoreOption>(() => {
+  /**
+   * Struktura ocen w całym oknie - PIERŚCIEŃ, bo to rodzaj, który ten silnik
+   * rysuje z tabelą klucza zamiast legendy.
+   *
+   * Legenda z próbkami stała poprzednio po prawej stronie koła i przy tej
+   * szerokości karty WCHODZIŁA NA ŁUK - trzy napisy na pierścieniu, czyli
+   * dokładnie ten defekt czytelności, dla którego specyfikacja zamieniła
+   * legendę na tabelę klucza z udziałem i wartością bezwzględną w wierszu.
+   */
+  const overallDonutConfig = useMemo(() => {
     const { good, ni, poor } = ratingTotals;
-    return {
-      tooltip: { trigger: "item" },
-      legend: { orient: "vertical", right: 4, top: "middle" },
-      series: [
-        {
-          type: "pie",
-          radius: ["55%", "78%"],
-          center: ["38%", "50%"],
-          label: {
-            show: true,
-            position: "center",
-            formatter: `{a|${good + ni + poor}}\n{b|${t("adminAnalytics.vitals.samplesWord")}}`,
-            rich: {
-              a: { fontSize: 22, fontWeight: 700, color: theme.foreground },
-              b: { fontSize: 10, color: theme.muted },
-            },
-          },
-          data: [
-            { name: "Good", value: good, itemStyle: { color: theme.success } },
-            { name: "Needs improvement", value: ni, itemStyle: { color: theme.warning } },
-            { name: "Poor", value: poor, itemStyle: { color: theme.danger } },
-          ],
-        },
+    return biChart({
+      kind: "donut",
+      categories: [
+        t("adminAnalytics.drillDialog.rating.good"),
+        t("adminAnalytics.drillDialog.rating.needs"),
+        t("adminAnalytics.drillDialog.rating.poor"),
       ],
-    };
-  }, [ratingTotals, t, theme]);
+      series: [{ name: t("adminAnalytics.vitals.samplesWord"), values: [good, ni, poor] }],
+      sampleSize: good + ni + poor,
+    });
+  }, [ratingTotals, t]);
 
   // Drill-down: click a chart element to inspect the underlying sample.
   const activeMetrics = useMemo(
@@ -416,8 +356,8 @@ export function VitalsBiDashboard() {
 
   const buildTrendClick =
     (metric: VitalName) =>
-    (p: ChartClickParams): ChartDrillDetail | null => {
-      const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    (sel: ChartSelection): ChartDrillDetail | null => {
+      const idx = sel.categoryIndex ?? -1;
       const trend = report?.trends[idx];
       const val = trend?.p75[metric] ?? null;
       if (!trend || val === null || val === undefined) return null;
@@ -449,14 +389,14 @@ export function VitalsBiDashboard() {
       };
     };
 
-  const ratingStackClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+  const ratingStackClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    const idx = sel.categoryIndex ?? -1;
     const metric = activeMetrics[idx];
     const m = metric ? metricsByName.get(metric) : undefined;
     if (!metric || !m) return null;
     return {
       title: metric,
-      subtitle: p.seriesName ?? t("adminAnalytics.vitals.ratingsSubtitle"),
+      subtitle: sel.seriesName ?? t("adminAnalytics.vitals.ratingsSubtitle"),
       metrics: [
         { label: t("adminAnalytics.drillDialog.rating.good"), value: String(m.good), tone: "good" },
         {
@@ -470,9 +410,16 @@ export function VitalsBiDashboard() {
     };
   };
 
-  const pathTreemapClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const d = p.data as { fullPath?: string; value?: number; lcp?: number } | undefined;
-    if (!d?.fullPath) return null;
+  const pathScatterClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    // Etykieta punktu NIESIE PEŁNĄ ŚCIEŻKĘ - rozrzut nie skraca jej pod
+    // rozmiar kafla, więc okno szczegółów dostaje adres, a nie jego początek.
+    const p = (report?.paths ?? []).find((x) => x.path === sel.category);
+    if (p === undefined) return null;
+    const d = {
+      fullPath: p.path,
+      value: p.total,
+      lcp: p.metrics.find((m) => m.metric === "LCP")?.p75 ?? 0,
+    };
     const [g, poor] = VITAL_THRESHOLDS.LCP;
     const lcp = d.lcp ?? 0;
     const tone: "good" | "warn" | "bad" | "neutral" = !lcp
@@ -610,10 +557,14 @@ export function VitalsBiDashboard() {
                 key={metric}
                 title={t("adminAnalytics.vitals.trendTitle", { metric })}
                 subtitle={t("adminAnalytics.vitals.trendSubtitle")}
-                option={trendOption(metric)}
+                config={trendConfig(metric)}
                 height={260}
                 csv={trendCsv(metric)}
                 onDataClick={buildTrendClick(metric)}
+                footer={t("adminAnalytics.vitals.thresholdFooter", {
+                  good: fmtValue(metric, VITAL_THRESHOLDS[metric][0]),
+                  poor: fmtValue(metric, VITAL_THRESHOLDS[metric][1]),
+                })}
               />
             ))}
           </div>
@@ -623,7 +574,7 @@ export function VitalsBiDashboard() {
             <ChartCard
               title={t("adminAnalytics.vitals.ratingsPerMetric")}
               subtitle={t("adminAnalytics.vitals.ratingsSubtitle")}
-              option={ratingStackOption}
+              config={ratingStackConfig}
               height={280}
               className="xl:col-span-2"
               csv={ratingStackCsv}
@@ -632,7 +583,7 @@ export function VitalsBiDashboard() {
             <ChartCard
               title={t("adminAnalytics.vitals.ratingOverall")}
               subtitle={t("adminAnalytics.vitals.ratingOverallSubtitle")}
-              option={overallPieOption}
+              config={overallDonutConfig}
               height={280}
               csv={overallCsv}
             />
@@ -642,10 +593,10 @@ export function VitalsBiDashboard() {
           <ChartCard
             title={t("adminAnalytics.vitals.pathsBySamples")}
             subtitle={t("adminAnalytics.vitals.pathsSubtitle")}
-            option={pathTreemapOption}
+            config={pathScatterConfig}
             height={340}
             csv={pathsCsv}
-            onDataClick={pathTreemapClick}
+            onDataClick={pathScatterClick}
           />
 
           {/* Interpretacja + rekomendacje - priorytetyzowana lista działań

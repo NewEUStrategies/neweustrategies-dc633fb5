@@ -46,7 +46,8 @@ import type {
 } from "@/lib/observability/aggregate";
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import type { AppLang } from "@/lib/i18n/localePath";
-import type { ChartClickParams } from "../ChartDrillDialog";
+import type { ChartConfig } from "@/lib/charts/types";
+import type { ChartSelection } from "@/lib/charts/selection";
 
 type Opt = Record<string, unknown>;
 
@@ -54,8 +55,8 @@ const h = vi.hoisted(() => ({
   fetchVitals: vi.fn(),
   tenantId: "tenant-rum" as string | null,
   charts: [] as Array<{
-    option: Record<string, unknown>;
-    onDataClick?: (params: unknown) => void;
+    config: ChartConfig;
+    onSelect?: (selection: ChartSelection) => void;
   }>,
 }));
 
@@ -80,18 +81,26 @@ vi.mock("@/lib/observability/vitals.functions", () => ({
   getVitalsSummary: (...args: unknown[]) => h.fetchVitals(...args),
 }));
 
-vi.mock("../EChart", () => ({
-  EChart: ({
-    option,
-    onDataClick,
-  }: {
-    option: Record<string, unknown>;
-    onDataClick?: (params: unknown) => void;
-  }) => {
-    h.charts.push({ option, onDataClick });
-    return <div data-testid="echart" />;
-  },
-}));
+// SILNIK NIE JEST ATRAPĄ - jest PODSŁUCHANY. Atrapa zabierałaby panelowi
+// tabelę danych i nazwy regionów, czyli dokładnie to, czego pilnuje blok
+// dostępności niżej; a sam `config` bez narysowanego wykresu nie dowodzi, że
+// panel cokolwiek pokazuje. Opakowanie oddaje jedno i drugie: przechwytuje
+// konfigurację ORAZ renderuje prawdziwy rysunek z prawdziwą alternatywą
+// tekstową.
+vi.mock("@/components/charts/Chart", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/charts/Chart")>();
+  return {
+    ...real,
+    Chart: (props: {
+      config: ChartConfig;
+      lang: "pl" | "en";
+      onSelect?: (selection: ChartSelection) => void;
+    }) => {
+      h.charts.push({ config: props.config, onSelect: props.onSelect });
+      return real.Chart(props);
+    },
+  };
+});
 
 // `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
 // dowodu jest to, że napisy przychodzą ZE SŁOWNIKA.
@@ -238,39 +247,26 @@ function strList(v: unknown): string[] {
 }
 
 interface Captured {
-  option: Opt;
-  onDataClick?: (params: unknown) => void;
+  config: ChartConfig;
+  onSelect?: (selection: ChartSelection) => void;
 }
 
-function lastChart(label: string, pred: (o: Opt) => boolean): Captured {
+function lastChart(label: string, pred: (c: ChartConfig) => boolean): Captured {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
-    if (pred(h.charts[i].option)) return h.charts[i];
+    if (pred(h.charts[i].config)) return h.charts[i];
   }
   throw new Error(`test: nie przechwycono wykresu „${label}”`);
 }
 
-const isTrend = (o: Opt) => Boolean(firstSeries(o).markArea);
-const isSpark = (o: Opt) => rec(o.xAxis).show === false && firstSeries(o).type === "line";
-const isRatingStack = (o: Opt) => seriesOf(o).length === 3 && firstSeries(o).stack === "rating";
-const isPie = (o: Opt) => firstSeries(o).type === "pie";
-const isTreemap = (o: Opt) => firstSeries(o).type === "treemap";
-
-/** Wykres trendu ROZPOZNANY PO PROGACH - dwie liczby jednoznaczne dla metryki. */
+/** Wykres trendu ROZPOZNANY PO NAZWIE SERII - „LCP p75" i tak dalej. */
 function trendChart(m: VitalName): Captured {
-  const [good, poor] = VITAL_THRESHOLDS[m];
-  return lastChart(`trend ${m}`, (o) => {
-    if (!isTrend(o)) return false;
-    const line = rec(firstSeries(o).markLine).data;
-    if (!Array.isArray(line)) return false;
-    const ys = (line as Array<{ yAxis?: number }>).map((d) => d.yAxis);
-    return ys[0] === good && ys[1] === poor;
-  });
+  return lastChart(`trend ${m}`, (c) => c.kind === "line" && c.series[0]?.name === `${m} p75`);
 }
 
-const ratingStack = () => lastChart("ratingi per metryka", isRatingStack);
-const pieChart = () => lastChart("rating ogolem", isPie);
-const treemap = () => lastChart("treemapa sciezek", isTreemap);
-const sparkChart = () => lastChart("iskra KPI", isSpark);
+const ratingStack = () =>
+  lastChart("ratingi per metryka", (c) => c.kind === "bar" && c.stacked && c.series.length === 3);
+const pieChart = () => lastChart("rating ogolem", (c) => c.kind === "donut");
+const pathScatter = () => lastChart("rozrzut sciezek", (c) => c.kind === "scatter");
 
 function markAreaBands(o: Opt): Array<Array<{ yAxis?: number | string }>> {
   const data = rec(firstSeries(o).markArea).data;
@@ -289,10 +285,18 @@ function tooltipFormatter(o: Opt): (raw: unknown) => string {
   return f as (raw: unknown) => string;
 }
 
-/** Symuluje kliknięcie w element wykresu - dokładnie tak, jak robi to ECharts. */
-async function clickChart(chart: Captured, params: ChartClickParams): Promise<void> {
+/** Symuluje WSKAZANIE elementu - tak, jak oddaje je silnik. */
+async function clickChart(chart: Captured, selection: Partial<ChartSelection>): Promise<void> {
   await act(async () => {
-    chart.onDataClick?.(params);
+    chart.onSelect?.({
+      kind: chart.config.kind,
+      categoryIndex: null,
+      category: null,
+      seriesIndex: null,
+      seriesName: null,
+      value: null,
+      ...selection,
+    });
   });
 }
 
@@ -619,71 +623,41 @@ describe("VitalsBiDashboard - okno czasu i wejście zapytania", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("VitalsBiDashboard - progi Web Vitals docierają do wykresu", () => {
-  it("pasma tła każdej metryki są zbudowane z KANONICZNYCH progów", async () => {
-    // Nie z literałów w komponencie: gdyby ktoś wpisał 2500 ręcznie, zmiana
-    // progu w `vitalsThresholds.ts` rozjechałaby wykres z oceną w agregacie.
+describe("VitalsBiDashboard - progi Web Vitals docierają do panelu", () => {
+  // PROGI ZESZŁY Z RYSUNKU DO PODPISU i ten blok pilnuje ich w nowym miejscu.
+  //
+  // Poprzednia wersja malowała je trzema pasami tła (`markArea`) i dwiema
+  // kreskowanymi liniami (`markLine`) - pięcioma elementami nie-danych na
+  // wykresie o jednej serii. Specyfikacja mówi o tym dwa razy: rusztowanie ma
+  // być ciągłe i ciche, a kreskowanie zostaje wyłącznie teksturą strefy
+  // prognozy. Próg jest LICZBĄ i jako liczba czyta się dokładnie; jako
+  // krawędź pasa - tylko z grubsza.
+  //
+  // Test sprawdza to, co sprawdzał wcześniej: że liczby są KANONICZNE (z
+  // `vitalsThresholds.ts`, nie z literału w komponencie) i że stoją
+  // w jednostce TEJ metryki. Zmieniło się miejsce, nie wymaganie.
+  it("stopka każdej karty trendu niesie KANONICZNE progi w jednostce metryki", async () => {
     panel();
     await loaded();
 
-    for (const m of ["LCP", "INP", "CLS", "FCP", "TTFB"] as const) {
-      const [good, poor] = VITAL_THRESHOLDS[m];
-      const bands = markAreaBands(trendChart(m).option);
-      expect(bands.map((b) => [b[0].yAxis, b[1].yAxis])).toEqual([
-        [0, good],
-        [good, poor],
-        [poor, "max"],
-      ]);
-    }
+    const stopki = screen.getAllByText(/Próg:/).map((el) => el.textContent ?? "");
+    expect(stopki).toContain("Próg: dobrze do 2.50 s, słabo powyżej 4.00 s"); // LCP
+    expect(stopki).toContain("Próg: dobrze do 200 ms, słabo powyżej 500 ms"); // INP
+    expect(stopki).toContain("Próg: dobrze do 0.100, słabo powyżej 0.250"); // CLS
+    expect(stopki).toContain("Próg: dobrze do 800 ms, słabo powyżej 1.80 s"); // TTFB
   });
 
-  it("kolory pasm idą od DOBRZE przez średnio do ŹLE, a nie odwrotnie", async () => {
-    // ZMIANA ŚWIADOMA: skala zszedła z sygnalizacji świetlnej
-    // (#16a34a / #f59e0b / #dc2626) na teal/ochrę/czerwień z semantyki znaku.
-    // Powód jest mierzalny, nie estetyczny: zielony wobec czerwonego daje przy
-    // deuteranopii odległość 14,4, czyli "dobrze" i "źle" zbiegają się
-    // w jeden kolor u około 8% mężczyzn; do tego amber #f59e0b ma na białej
-    // płycie 2,15:1 i nie przechodzi nawet progu grafiki. Nowa trójka ma
-    // podłogę 25,5 i każdy odcień powyżej 3:1.
-    //
-    // KOLEJNOŚĆ jest tu tym, co test naprawdę pilnuje - odwrócona skala
-    // pokazywałaby wolne LCP jako dobre.
+  it("jednostka wykresu jest jednostką METRYKI, a CLS nie dostaje milisekund", async () => {
+    // Ta sama liczba w złej jednostce jest gorsza niż jej brak: CLS jest
+    // bezwymiarowy, więc „0,13 ms" byłoby zdaniem fałszywym o każdym punkcie.
     panel();
     await loaded();
 
-    const bands = rec(firstSeries(trendChart("LCP").option).markArea).data as Array<
-      Array<{ itemStyle?: { color?: string } }>
-    >;
-    expect(bands.map((b) => b[0].itemStyle?.color)).toEqual(["#1b6f8c", "#c6871f", "#ef5454"]);
+    expect(trendChart("LCP").config.unit).toBe(" ms");
+    expect(trendChart("CLS").config.unit).toBe("");
   });
 
-  it("linie progowe niosą podpis Good/Poor w jednostce tej metryki", async () => {
-    // Sekundy dla LCP, milisekundy dla INP, ułamek bez jednostki dla CLS -
-    // ta sama liczba w złej jednostce jest gorsza niż jej brak.
-    panel();
-    await loaded();
-
-    expect(markLineLabels(trendChart("LCP").option)).toEqual(["Good 2.50 s", "Poor 4.00 s"]);
-    expect(markLineLabels(trendChart("INP").option)).toEqual(["Good 200 ms", "Poor 500 ms"]);
-    expect(markLineLabels(trendChart("CLS").option)).toEqual(["Good 0.100", "Poor 0.250"]);
-    expect(markLineLabels(trendChart("TTFB").option)).toEqual(["Good 800 ms", "Poor 1.80 s"]);
-  });
-
-  it("oś wartości formatuje jednostkę inaczej dla CLS, sekund i milisekund", async () => {
-    panel();
-    await loaded();
-
-    const fmtFor = (m: VitalName): ((v: number) => string) => {
-      const f = rec(rec(trendChart(m).option.yAxis).axisLabel).formatter;
-      if (typeof f !== "function") throw new Error("test: os nie ma formatera");
-      return f as (v: number) => string;
-    };
-    expect(fmtFor("CLS")(0.125)).toBe("0.13");
-    expect(fmtFor("LCP")(2500)).toBe("2.5s");
-    expect(fmtFor("LCP")(900)).toBe("900ms");
-  });
-
-  it("podpowiedź trendu podaje p75 dnia, a dla dnia bez próbki kreskę", async () => {
+  it("dzień bez próbki zostaje LUKĄ w danych, a nie zerem", async () => {
     h.fetchVitals.mockResolvedValue(
       summary({
         metrics: [metric("LCP", 2400)],
@@ -693,15 +667,28 @@ describe("VitalsBiDashboard - progi Web Vitals docierają do wykresu", () => {
     panel();
     await loaded();
 
-    const fmt = tooltipFormatter(trendChart("LCP").option);
-    expect(fmt([{ axisValue: "2026-08-01", value: ["2026-08-01", 2400] }])).toBe(
-      "2026-08-01<br/>LCP p75: <b>2.40 s</b>",
+    // `null`, nie `0`: zero znaczyłoby „zmierzono zero milisekund", czyli
+    // najlepszy możliwy wynik w dniu, w którym nie zmierzono nic.
+    expect(trendChart("LCP").config.series[0].values).toEqual([2400, null]);
+  });
+
+  it("liczba w podpisie to liczba DNI Z POMIAREM, nie długość okna", async () => {
+    // Sekcja 8 każe podać `n`. Policzenie wszystkich dni zawyżałoby próbkę
+    // o dni, w których nie zmierzono niczego.
+    h.fetchVitals.mockResolvedValue(
+      summary({
+        metrics: [metric("LCP", 2400)],
+        trends: [
+          day("2026-08-01", { LCP: 2400 }),
+          day("2026-08-02", {}),
+          day("2026-08-03", { LCP: 2600 }),
+        ],
+      }),
     );
-    // Dzień bez próbki to KRESKA, nie „0 ms".
-    expect(fmt([{ axisValue: "2026-08-02", value: ["2026-08-02", null] }])).toBe(
-      "2026-08-02<br/>LCP p75: <b>-</b>",
-    );
-    expect(fmt([])).toBe("");
+    panel();
+    await loaded();
+
+    expect(trendChart("LCP").config.sampleSize).toBe(2);
   });
 });
 
@@ -714,7 +701,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     );
     panel();
     await loaded();
-    await clickChart(trendChart(m), { dataIndex: 0 });
+    await clickChart(trendChart(m), { categoryIndex: 0 });
   }
 
   it("wartość DOKŁADNIE na progu Good jest oceniona jako dobra", async () => {
@@ -773,7 +760,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(trendChart("LCP"), { dataIndex: 1 });
+    await clickChart(trendChart("LCP"), { categoryIndex: 1 });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -782,7 +769,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(trendChart("LCP"), {});
+    await clickChart(trendChart("LCP"), { categoryIndex: null });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -801,7 +788,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
 
     // Indeks 1 to INP - kolejność osi idzie z METRIC_ORDER, nie z kolejności
     // wierszy w raporcie, więc pomyłka tutaj podstawia cudze liczby.
-    await clickChart(ratingStack(), { dataIndex: 1, seriesName: "Poor" });
+    await clickChart(ratingStack(), { categoryIndex: 1, seriesName: "Poor" });
 
     expect(within(screen.getByRole("dialog")).getByText("INP")).toBeInTheDocument();
     expect(drillMetrics()).toEqual([
@@ -816,7 +803,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(ratingStack(), { dataIndex: 99 });
+    await clickChart(ratingStack(), { categoryIndex: 99 });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -825,7 +812,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(ratingStack(), {});
+    await clickChart(ratingStack(), { categoryIndex: null });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -836,7 +823,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(ratingStack(), { dataIndex: 0 });
+    await clickChart(ratingStack(), { categoryIndex: 0 });
 
     expect(
       within(screen.getByRole("dialog")).getByText(vit("ratingsSubtitle")),
@@ -849,7 +836,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(treemap(), { data: { fullPath: long, value: 300, lcp: 5000 } });
+    await clickChart(pathScatter(), { category: long });
 
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: long })).toBeInTheDocument();
@@ -878,7 +865,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(treemap(), { data: { fullPath: "/szybka", value: 40, lcp: good } });
+    await clickChart(pathScatter(), { category: "/szybka" });
     expect(drillMetrics()).toEqual([
       [vit("samplesLabel"), "40"],
       ["LCP p75", "2.50 s"],
@@ -887,7 +874,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     expect(within(screen.getByRole("dialog")).getByText(rating("good"))).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
 
-    await clickChart(treemap(), { data: { fullPath: "/srednia", value: 40, lcp: poor } });
+    await clickChart(pathScatter(), { category: "/srednia" });
     expect(drillMetrics()).toEqual([
       [vit("samplesLabel"), "40"],
       ["LCP p75", "4.00 s"],
@@ -913,7 +900,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(treemap(), { data: { fullPath: "/srednia", value: 40, lcp: poor } });
+    await clickChart(pathScatter(), { category: "/srednia" });
 
     // Ocena „Do poprawy" musi być gdziekolwiek w oknie jako TEKST.
     expect(within(screen.getByRole("dialog")).getByText(rating("needs"))).toBeInTheDocument();
@@ -927,7 +914,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(treemap(), { data: { fullPath: "/bez-lcp", value: 40, lcp: 0 } });
+    await clickChart(pathScatter(), { category: "/bez-lcp" });
 
     const dialog = screen.getByRole("dialog");
     expect(drillMetrics()[1]).toEqual(["LCP p75", "-"]);
@@ -943,7 +930,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(treemap(), { data: { fullPath: "/pusta" } });
+    await clickChart(pathScatter(), { category: "/pusta" });
 
     expect(drillMetrics()).toEqual([
       [vit("samplesLabel"), "0"],
@@ -955,7 +942,7 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     panel();
     await loaded();
 
-    await clickChart(treemap(), { data: { value: 10 } });
+    await clickChart(pathScatter(), { category: null });
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -1046,7 +1033,7 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     panel();
     await loaded();
 
-    const cells = dataOf(treemap().option) as Array<{
+    const cells = dataOf(pathScatter().option) as Array<{
       name: string;
       itemStyle: { color: string };
     }>;
@@ -1064,7 +1051,7 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     panel();
     await loaded();
 
-    const fmt = tooltipFormatter(treemap().option);
+    const fmt = tooltipFormatter(pathScatter().option);
     expect(fmt({ name: "/bez-lcp", value: 40, data: { lcp: 0 } })).toBe(
       `/bez-lcp<br/>${vit("samplesLabel")}: <b>40</b><br/>LCP p75: -`,
     );
@@ -1076,7 +1063,7 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     panel();
     await loaded();
 
-    await clickChart(treemap(), { data: { fullPath: "/bez-lcp", value: 40, lcp: 0 } });
+    await clickChart(pathScatter(), { category: "/bez-lcp" });
 
     expect(drillMetrics()[1]).toEqual(["LCP p75", "-"]);
     expect(drillTone(1)).toContain("text-foreground");
@@ -1137,7 +1124,7 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
     panel();
     await loaded();
 
-    const cells = dataOf(treemap().option) as Array<{
+    const cells = dataOf(pathScatter().option) as Array<{
       name: string;
       value: number;
       fullPath: string;
@@ -1155,7 +1142,7 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
     panel();
     await loaded();
 
-    expect(dataOf(treemap().option)).toHaveLength(25);
+    expect(dataOf(pathScatter().option)).toHaveLength(25);
   });
 });
 
