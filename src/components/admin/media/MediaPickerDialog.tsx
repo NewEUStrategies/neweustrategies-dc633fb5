@@ -709,7 +709,7 @@ export function MediaPickerDialog({
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          className={`relative min-h-0 max-h-full overflow-y-auto overscroll-contain -mx-2 px-2 pb-[max(8px,env(safe-area-inset-bottom))] rounded-md transition-colors ${
+          className={`relative flex-1 min-h-[120px] overflow-y-auto overscroll-contain -mx-2 px-2 pb-[max(8px,env(safe-area-inset-bottom))] rounded-md transition-colors ${
             dragOver ? "outline outline-2 outline-dashed outline-primary/60 bg-primary/5" : ""
           }`}
         >
