@@ -473,6 +473,22 @@ describe("ScatterChart - dwie osie, dwa własne zakresy", () => {
 });
 
 describe("ScatterChart - strefa trafienia ma PRÓG", () => {
+  it("każdy widoczny punkt ma własny cel kliknięcia 48 × 48 px", () => {
+    const onSelect = vi.fn();
+    const { container } = render(
+      <ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE))} lang="pl" onSelect={onSelect} />,
+    );
+    const cele = all(container, "circle[data-role='point-hit']");
+    expect(cele).toHaveLength(punkty(container).length);
+    expect(cele.every((cel) => num(cel, "r") === HIT_RADIUS_PX)).toBe(true);
+
+    fireEvent.pointerEnter(cele[3], { pointerType: "mouse" });
+    expect(container.querySelector(".neh-tooltip")).not.toBeNull();
+    fireEvent.pointerDown(cele[3], { pointerType: "mouse" });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect.mock.calls[0]?.[0].category).toBe("obs-4");
+  });
+
   it("dymek nad kropką podaje obie współrzędne i nazwę obserwacji", () => {
     // Z plamki na przecięciu dwóch osi nie odczyta się pary dokładniej niż
     // "mniej więcej", więc dymek jest tu jedyną drogą do liczby pod
