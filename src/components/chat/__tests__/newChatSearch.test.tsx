@@ -8,7 +8,7 @@
 //     (użytkownik, który jeszcze nic nie wpisał, nie może dostać werdyktu
 //     o nieistniejącej frazie) i nie miga tym komunikatem przed odpowiedzią,
 //   - wpisana fraza leci do wyszukiwarki odbiorców `search_chat_contacts`
-//     PRZYCIĘTA, z limitem 12 - bez argumentu tenanta i bez argumentu
+//     PRZYCIĘTA, z limitem 30 - bez argumentu tenanta i bez argumentu
 //     użytkownika, bo zakres liczy serwer,
 //   - trafienie rysuje nazwę, stanowisko i firmę, a klik otwiera wątek przez
 //     `get_or_create_direct_conversation` i oddaje rodzicowi identyfikator,
@@ -231,7 +231,7 @@ describe("NewChatSearch - pusta fraza", () => {
 });
 
 describe("NewChatSearch - zapytanie do wyszukiwarki odbiorców", () => {
-  it("wpisana fraza leci PRZYCIĘTA do search_chat_contacts, z limitem 12", async () => {
+  it("wpisana fraza leci PRZYCIĘTA do search_chat_contacts, z limitem 30", async () => {
     contactsByQuery({ Zofia: [ZOFIA] });
     renderSearch();
 
@@ -244,7 +244,7 @@ describe("NewChatSearch - zapytanie do wyszukiwarki odbiorców", () => {
     });
     const call = rpcStub().lastCall("search_chat_contacts");
     if (!call) throw new Error("test: brak wywołania search_chat_contacts");
-    expect(call.arg("p_limit")).toBe(12);
+    expect(call.arg("p_limit")).toBe(30);
     // Białe znaki nie mogą tworzyć osobnego zapytania - inaczej każda spacja
     // to kolejny przejazd do bazy po ten sam wynik.
     expect(await personRow("Zofia Testowa")).toBeInTheDocument();
