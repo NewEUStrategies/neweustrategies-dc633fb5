@@ -1602,14 +1602,7 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
     );
   });
 
-  it("SŁUPEK w parze, której nie rozdziela odcień, dostaje WZÓR - tak jak obiecuje legenda", () => {
-    // REGRESJA. Legenda znaczy sloty 7-8 próbką w paski, bo ich odcień jest od
-    // slotów 1-2 oddalony o ~10-12 jednostek CIELAB po symulacji daltonizmu -
-    // za mało, żeby sam kolor je odróżnił. Linia dostawała na to
-    // `neh-line-pattern` z arkusza, ale słupki zostawały JEDNOLITE: klucz
-    // pokazywał różnicę, której w rysunku nie było. Słupka nie da się
-    // zakreskować `stroke-dasharray` - różnicę niesie jego wypełnienie, więc
-    // wzór wchodzi nakładką na tym samym kształcie.
+  it("SŁUPKI zawsze zachowują pełne, jednolite wypełnienie bez nakładki wzoru", () => {
     const { container } = render(
       <CartesianChart
         config={cfg({
@@ -1627,22 +1620,11 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
       />,
     );
     const sciezki = all(container, SEL.bar);
-    const wzory = sciezki.filter((b) =>
-      (b.getAttribute("fill") ?? "").startsWith("url(#neh-hatch"),
+    expect(sciezki).toHaveLength(4);
+    expect(sciezki.every((bar) => (bar.getAttribute("fill") ?? "").startsWith("var(--chart-"))).toBe(
+      true,
     );
-    // Po jednej nakładce na każdy znacznik serii ze slotu 16 - i ani jednej
-    // dla slotu 9, bo do rozdzielenia pary wystarczy wzór na jednym z nich.
-    expect(wzory).toHaveLength(2);
-    // Nakładka leży na TYM SAMYM kształcie, co znacznik: inny kształt znaczyłby
-    // wzór przesunięty względem słupka, czyli nowy defekt w miejscu naprawy.
-    const slupkiKreskowane = sciezki.filter((b) => b.getAttribute("fill") === "var(--chart-16)");
-    expect(slupkiKreskowane).toHaveLength(2);
-    expect(wzory.map(d).sort()).toEqual(slupkiKreskowane.map(d).sort());
-    // Definicja wzoru istnieje i jego paski są w kolorze PŁYTY, nie serii -
-    // dzięki temu jedna definicja obsługuje każdy slot.
-    const pattern = container.querySelector("pattern");
-    expect(pattern).not.toBeNull();
-    expect(pattern?.querySelector("rect")?.getAttribute("fill")).toBe("var(--card)");
+    expect(container.querySelector("pattern[id*='neh-hatch']")).toBeNull();
   });
 
   it("wykres BEZ slotów rozszerzonych nie płaci za wzór ani jedną definicją", () => {

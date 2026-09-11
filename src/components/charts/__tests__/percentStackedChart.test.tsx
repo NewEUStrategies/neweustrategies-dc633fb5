@@ -1274,15 +1274,7 @@ describe("PercentStackedChart - odwołania do definicji w <defs>", () => {
       .filter((v) => v.startsWith("url(#"))
       .map((v) => v.slice(5, -1));
 
-  it("KRESKOWANIE MA SWÓJ WZÓR TAKŻE W WARIANCIE GRADIENTOWYM", () => {
-    // ZNALEZIONY DEFEKT. Definicja `<pattern>` wypisywała się wyłącznie przy
-    // `barStyle === "solid"`, a nakładka kreskująca powstaje dla KAŻDEGO slotu
-    // poza zestawem rozdzielnym dla daltonizmu - niezależnie od wariantu.
-    // Autor, który wybrał gradient i slot 7, dostawał `fill="url(#...-hatch)"`
-    // bez wzoru pod tym adresem: nieistniejący serwer malowania nie jest
-    // błędem, tylko BRAKIEM wypełnienia, więc drugi nośnik różnicy znikał po
-    // cichu dokładnie tam, gdzie legenda go obiecuje. `resolveBarStyle`
-    // sprowadza do solidnego tylko wariant BLADY, więc gradientu nie ratuje.
+  it("SEGMENTY nie dostają kreskowanej nakładki także w wariancie gradientowym", () => {
     const { container } = render(
       <PercentStackedChart
         config={cfg({
@@ -1297,7 +1289,7 @@ describe("PercentStackedChart - odwołania do definicji w <defs>", () => {
       />,
     );
     const adresy = odwolania(container);
-    expect(adresy.some((id) => id.endsWith("-hatch"))).toBe(true);
+    expect(adresy.some((id) => id.endsWith("-hatch"))).toBe(false);
     // WŁASNOŚĆ: każda farba przez odwołanie ma pod tym adresem definicję.
     // Pytam o wszystkie, nie tylko o kreskowanie - ta sama pułapka czeka przy
     // każdej rampie gradientu dopisanej kiedyś warunkowo.
