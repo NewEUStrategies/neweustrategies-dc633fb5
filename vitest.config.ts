@@ -1289,6 +1289,93 @@ export default defineConfig({
           lines: 99,
           branches: 96,
         },
+        // ── DZIESIĘĆ RENDERÓW RODZAJÓW Z SEKCJI 1: PODŁOGI ZAPADKOWE ────────────
+        // Te pliki NIE MIAŁY DO TEJ PORY ŻADNEGO progu, więc pilnował ich
+        // wyłącznie próg repo-wide (~19,5% instrukcji / 15,75% gałęzi) - czyli
+        // regresja z dziewięćdziesięciu kilku procent do dwudziestu przeszłaby
+        // bez słowa. To jest gorsze niż próg za niski: brak progu wygląda
+        // w konfiguracji identycznie jak plik, którego nikt nie musi pilnować.
+        //
+        // Podłogi stoją na WARTOŚCIACH ZMIERZONYCH (zaokrąglonych w dół), a nie
+        // na docelowych 99/96, którymi chodzą starsze komponenty ramy. Jest to
+        // świadoma różnica, nie zaniżenie: zapadka ma dziś zatrzymać regresję,
+        // a podniesienie jej wymaga dopisania testów, nie zmiany liczby. Gałęzie
+        // są najniższe (72-93%), bo te rendery mają gęste rozgałęzienia na
+        // przypadkach uczciwości danych - i to jest nazwany dług, nie sufit.
+        //
+        // Sufit 99 obowiązuje nawet przy zmierzonym 100: próg równy wydrukowanej
+        // wartości pada na własnym zaokrągleniu (lekcja z wpisu IV kroniki
+        // budżetu bundla - wydruk „100.0" znaczy „cokolwiek z [100,00; 100,05)").
+        // zmierzone: 98.9% linii · 93.9% instr · 90.5% fn · 75.6% gał
+        "src/components/charts/HistogramChart.tsx": {
+          statements: 93,
+          functions: 90,
+          lines: 98,
+          branches: 75,
+        },
+        // zmierzone: 96.3% linii · 94.8% instr · 100.0% fn · 80.7% gał
+        "src/components/charts/BoxplotChart.tsx": {
+          statements: 94,
+          functions: 99,
+          lines: 96,
+          branches: 80,
+        },
+        // zmierzone: 99.2% linii · 92.9% instr · 93.1% fn · 72.6% gał
+        "src/components/charts/BeeswarmChart.tsx": {
+          statements: 92,
+          functions: 93,
+          lines: 99,
+          branches: 72,
+        },
+        // zmierzone: 98.8% linii · 93.4% instr · 97.3% fn · 84.0% gał
+        "src/components/charts/ScatterChart.tsx": {
+          statements: 93,
+          functions: 97,
+          lines: 98,
+          branches: 84,
+        },
+        // zmierzone: 97.2% linii · 94.5% instr · 100.0% fn · 87.1% gał
+        "src/components/charts/HeatmapChart.tsx": {
+          statements: 94,
+          functions: 99,
+          lines: 97,
+          branches: 87,
+        },
+        // zmierzone: 100.0% linii · 97.9% instr · 100.0% fn · 86.5% gał
+        "src/components/charts/TornadoChart.tsx": {
+          statements: 97,
+          functions: 99,
+          lines: 99,
+          branches: 86,
+        },
+        // zmierzone: 92.8% linii · 89.8% instr · 83.3% fn · 88.1% gał
+        "src/components/charts/FanChart.tsx": {
+          statements: 89,
+          functions: 83,
+          lines: 92,
+          branches: 88,
+        },
+        // zmierzone: 95.5% linii · 94.5% instr · 87.5% fn · 93.7% gał
+        "src/components/charts/IndexBaseChart.tsx": {
+          statements: 94,
+          functions: 87,
+          lines: 95,
+          branches: 93,
+        },
+        // zmierzone: 99.5% linii · 97.6% instr · 97.2% fn · 88.3% gał
+        "src/components/charts/PercentStackedChart.tsx": {
+          statements: 97,
+          functions: 97,
+          lines: 99,
+          branches: 88,
+        },
+        // zmierzone: 93.3% linii · 92.0% instr · 84.2% fn · 90.1% gał
+        "src/components/charts/SmallMultiplesChart.tsx": {
+          statements: 91,
+          functions: 84,
+          lines: 93,
+          branches: 90,
+        },
         // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
         "src/lib/analytics/audience.functions.ts": {
           statements: 99,
