@@ -369,6 +369,11 @@ export function SearchButtonWidget({
           autoCapitalize="none"
           spellCheck={false}
           inputMode="search"
+          name="neus-search"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
+          data-form-type="other"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);

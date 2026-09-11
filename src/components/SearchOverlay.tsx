@@ -524,7 +524,14 @@ function SearchBar({
         enterKeyHint="search"
         autoCapitalize="off"
         autoCorrect="off"
+        autoComplete="off"
         spellCheck={false}
+        inputMode="search"
+        name="neus-search"
+        data-1p-ignore="true"
+        data-lpignore="true"
+        data-bwignore="true"
+        data-form-type="other"
         className="flex-1 border-0 bg-transparent text-[16px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 sm:text-[13px]"
         style={{ boxShadow: "none", WebkitTapHighlightColor: "transparent" }}
       />
