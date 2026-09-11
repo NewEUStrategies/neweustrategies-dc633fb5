@@ -49,6 +49,11 @@ import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThre
 import type { AppLang } from "@/lib/i18n/localePath";
 import type { ChartConfig } from "@/lib/charts/types";
 import type { ChartSelection } from "@/lib/charts/selection";
+// Model rozrzutu WPROST, bo jeden z przypadków dowodzi kontraktu uczciwości
+// silnika (zgodności podpisu z liczebnością chmury), a nie samego kształtu
+// konfiguracji - asercja na napisie nie odróżniłaby „podpis się zgadza" od
+// „silnik nie miał czego porównać".
+import { scatterModelFromConfig } from "@/lib/charts/kinds/scatter";
 
 const h = vi.hoisted(() => ({
   fetchVitals: vi.fn(),
@@ -1029,6 +1034,36 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     // Ścieżka bez pomiaru LCP zostaje LUKĄ, a nie zerem: zero znaczyłoby
     // „zmierzono zero milisekund", czyli najszybszą stronę w zestawie.
     expect(c.series[1].values).toEqual([null, 2000, 3000, 5000]);
+  });
+
+  it("podpis rozrzutu liczy PUNKTY CHMURY, a nie sumę odczytów RUM", async () => {
+    // ZGŁOSZONE W PRZEGLĄDZIE PR #346. Podpis brał `sumę p.total`, czyli liczbę
+    // wszystkich odczytów RUM, a silnik porównuje `sampleSize` z LICZEBNOŚCIĄ
+    // KAŻDEJ NIEPUSTEJ CHMURY i zapala defekt uczciwości, gdy się rozjadą.
+    // Przy jakichkolwiek realnych danych (każda ścieżka ma więcej niż jeden
+    // odczyt) podpis mówiłby więc o innym badaniu niż rysunek - „n = 720" pod
+    // chmurą trzech plamek.
+    //
+    // Obserwacją jest tu ŚCIEŻKA: jeden punkt to jedna podstrona. Ścieżka bez
+    // LCP p75 nie ma współrzędnej pionowej, wypada z chmury i nie wolno jej
+    // liczyć w podpisie - stąd filtr na parę kompletną.
+    h.fetchVitals.mockResolvedValue(
+      summary({
+        paths: [path("/bez-lcp", 300, null), path("/szybka", 240, 2000), path("/wolna", 180, 5000)],
+      }),
+    );
+    panel();
+    await loaded();
+
+    const c = pathScatter().config;
+    expect(c.sampleSize).toBe(2);
+    // Kontrola od drugiej strony: suma odczytów to 720, więc gdyby podpis wracał
+    // do starej arytmetyki, ta asercja od razu by to pokazała.
+    expect(c.sampleSize).not.toBe(720);
+    // I dowód na samym kontrakcie silnika: przy tej deklaracji wykres NIE
+    // zgłasza rozjazdu podpisu z rysunkiem.
+    const model = scatterModelFromConfig(c);
+    expect(model.honesty.declaredSampleSizeOk).not.toBe(false);
   });
 
   it("drążenie ścieżki bez LCP pokazuje kreskę w tonie neutralnym", async () => {

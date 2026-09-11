@@ -33,10 +33,10 @@
 export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/__tests__/PostGeneralOverview.test.tsx", 2],
   ["src/components/admin/__tests__/TrendingTickerPane.selection.test.tsx", 2],
-  ["src/components/admin/analytics/__tests__/audienceSegmentsDashboard.test.tsx", 15],
+  ["src/components/admin/analytics/__tests__/audienceSegmentsDashboard.test.tsx", 8],
   ["src/components/admin/analytics/__tests__/footerAnalyticsPanel.test.tsx", 3],
   ["src/components/admin/analytics/__tests__/ga4BiDashboard.test.tsx", 5],
-  ["src/components/admin/analytics/__tests__/gscBiDashboard.test.tsx", 49],
+  ["src/components/admin/analytics/__tests__/gscBiDashboard.test.tsx", 13],
   ["src/components/admin/billing/__tests__/AdminBillingPanel.test.tsx", 6],
   ["src/components/admin/billing/__tests__/adminOrderPanels.test.tsx", 11],
   ["src/components/admin/billing/__tests__/AdminPaymentsDiagnosticsPanel.test.tsx", 4],

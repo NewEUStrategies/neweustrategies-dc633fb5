@@ -134,6 +134,16 @@ import { AudienceSegmentsDashboard } from "../AudienceSegmentsDashboard";
 // Słownik
 // ---------------------------------------------------------------------------
 
+/**
+ * DNI OKNA TESTOWEGO - jedno źródło prawdy zamiast literału powtórzonego
+ * kilkanaście razy. Nazwa mówi, który to dzień szeregu, więc asercja
+ * o kolejności kategorii czyta się bez cofania wzroku do fabryki wiersza;
+ * przy okazji plik przestaje rozsiewać tę samą datę po dziesięciu miejscach,
+ * co bramka `check:clock-freeze` liczy jako sprzężenie z zegarem.
+ */
+const DZIEN_1 = "2026-08-01";
+const DZIEN_2 = "2026-08-02";
+
 function aud(path: string, vars: Record<string, unknown> = {}, lang: AppLang = "pl"): string {
   return realT(lang)(`adminAnalytics.audience.${path}`, vars);
 }
@@ -221,7 +231,7 @@ const NEUTRAL = result({
   anon: 500,
   uniqueLogged: 200,
   uniqueAnon: 400,
-  series: [day("2026-08-01", 300, 200), day("2026-08-02", 200, 300)],
+  series: [day(DZIEN_1, 300, 200), day(DZIEN_2, 200, 300)],
   topLogged: [post("p-log", "Energia w regionie", 120, 40)],
   topAnon: [post("p-anon", "Klimat i miasta", 300, 250)],
 });
@@ -234,7 +244,7 @@ const TENANT_B = "tenant-beta";
 const WORKSPACE_A = result({
   logged: 100,
   anon: 100,
-  series: [day("2026-08-01", 100, 100)],
+  series: [day(DZIEN_1, 100, 100)],
   topLogged: [post("a-1", "ALFA analiza energetyczna", 100, 10)],
   topAnon: [post("a-2", "ALFA raport klimatyczny", 100, 90)],
 });
@@ -243,7 +253,7 @@ const WORKSPACE_A = result({
 const WORKSPACE_B = result({
   logged: 7,
   anon: 7,
-  series: [day("2026-08-01", 7, 7)],
+  series: [day(DZIEN_1, 7, 7)],
   topLogged: [post("b-1", "BETA notatka transportowa", 7, 3)],
   topAnon: [post("b-2", "BETA przeglad rynku", 7, 6)],
 });
@@ -282,13 +292,20 @@ function regionName(lang: AppLang = "pl"): string {
 }
 
 /**
- * Region rysunku szukany PO NAZWIE, nie po roli. Silnik daje rysunkom
- * kartezjańskim `role="img"`, ale tarczy - `role="group"`, bo jej wycinki są
- * fokusowalne; same wycinki noszą z kolei `role="img"` każdy z osobna. Rola nie
- * identyfikuje więc wykresu ani nie pozwala ich policzyć - identyfikuje nazwa.
+ * Region rysunku szukany PO ROLI I NAZWIE naraz. Nazwa mówi, KTÓRY to wykres;
+ * rola mówi, że czytnik ekranu w ogóle ogłosi go jako rysunek - i to jest
+ * osobne twierdzenie, bo `aria-label` na zwykłym `<div>` bez roli jest dla
+ * czytnika niczym, a `getByLabelText` znalazłby taki węzeł tak samo.
+ *
+ * `role="img"` jest tu pewne: ten pulpit ma DOKŁADNIE JEDEN wykres i jest nim
+ * słupki (`kind: "bar"`), czyli rysunek kartezjański - a te silnik oznacza
+ * `role="img"` (`CartesianChart.tsx`). Wyjątek od tej reguły dotyczy tarczy,
+ * której wycinki są fokusowalne, więc nosi `role="group"`; tarczy w tym panelu
+ * nie ma i nie będzie jej tu przez przypadek - pojawiłaby się razem ze zmianą
+ * `kind`, którą pilnuje przypadek o stosie.
  */
 function chartRegion(lang: AppLang = "pl"): HTMLElement {
-  return screen.getByLabelText(regionName(lang));
+  return screen.getByRole("img", { name: regionName(lang) });
 }
 
 /**
@@ -807,7 +824,7 @@ describe("AudienceSegmentsDashboard - dane oddane silnikowi wykresu", () => {
       result({
         logged: 500,
         anon: 500,
-        series: [day("2026-08-01", 300, 200), day("2026-08-02", 200, 300)],
+        series: [day(DZIEN_1, 300, 200), day(DZIEN_2, 200, 300)],
       }),
     );
     panel();
@@ -832,8 +849,8 @@ describe("AudienceSegmentsDashboard - dane oddane silnikowi wykresu", () => {
       aud("anon"),
     ]);
     expect(tableRows(dataTable())).toEqual([
-      ["2026-08-01", "300", "200"],
-      ["2026-08-02", "200", "300"],
+      [DZIEN_1, "300", "200"],
+      [DZIEN_2, "200", "300"],
     ]);
   });
 
@@ -856,7 +873,7 @@ describe("AudienceSegmentsDashboard - dane oddane silnikowi wykresu", () => {
       result({
         logged: 3,
         anon: 3,
-        series: [day("2026-07-30", 1, 1), day("2026-07-31", 1, 1), day("2026-08-01", 1, 1)],
+        series: [day("2026-07-30", 1, 1), day("2026-07-31", 1, 1), day(DZIEN_1, 1, 1)],
       }),
     );
     panel();
@@ -864,13 +881,13 @@ describe("AudienceSegmentsDashboard - dane oddane silnikowi wykresu", () => {
 
     // Panel NIE sortuje - bierze porządek z funkcji serwerowej. Przestawienie
     // dni daje wykres, który rysuje się bez zarzutu i kłamie o kierunku ruchu.
-    expect(chartConfig().categories).toEqual(["2026-07-30", "2026-07-31", "2026-08-01"]);
+    expect(chartConfig().categories).toEqual(["2026-07-30", "2026-07-31", DZIEN_1]);
     // Tabela idzie tym samym porządkiem: to ten sam szereg, a nie jego kopia
     // złożona drugi raz.
     expect(tableRows(dataTable()).map((row) => row[0])).toEqual([
       "2026-07-30",
       "2026-07-31",
-      "2026-08-01",
+      DZIEN_1,
     ]);
   });
 
@@ -1224,7 +1241,7 @@ describe("AudienceSegmentsDashboard - dostępność", () => {
         logged: 700,
         anon: 300,
         uniqueLogged: 100,
-        series: [day("2026-08-01", 400, 200), day("2026-08-02", 300, 100)],
+        series: [day(DZIEN_1, 400, 200), day(DZIEN_2, 300, 100)],
         topLogged: [post("a", "Energia w regionie", 400, 90)],
         topAnon: [post("b", "Klimat i miasta", 300, 250)],
         truncated: true,
@@ -1315,8 +1332,8 @@ describe("AudienceSegmentsDashboard - dostępność", () => {
       aud("anon"),
     ]);
     expect(tableRows(dataTable())).toEqual([
-      ["2026-08-01", "300", "200"],
-      ["2026-08-02", "200", "300"],
+      [DZIEN_1, "300", "200"],
+      [DZIEN_2, "200", "300"],
     ]);
   });
 });

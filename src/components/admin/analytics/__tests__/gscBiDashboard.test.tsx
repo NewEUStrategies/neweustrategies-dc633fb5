@@ -115,6 +115,29 @@ import { GscBiDashboard } from "../GscBiDashboard";
 // Dane
 // ---------------------------------------------------------------------------
 
+/**
+ * DNI OKNA TESTOWEGO - jedno źródło prawdy zamiast literału powtórzonego
+ * kilkanaście razy.
+ *
+ * PO CO NAZWY, A NIE DATY W MIEJSCU UŻYCIA. Połowa asercji tego pliku zależy
+ * od tego, w jaki DZIEŃ TYGODNIA wypada dana data: macierz kalendarza układa
+ * kolumny w tygodnie ISO, więc „sobota" i „poniedziałek" są tu treścią, a nie
+ * ozdobą. Literał `"2026-08-01"` rozsiany po pliku nie mówi nic; `SOBOTA`
+ * mówi wszystko i psuje się głośno, gdy ktoś podmieni datę na wtorek.
+ *
+ * Drugi powód jest mechaniczny: bramka `check:clock-freeze` liczy literały
+ * kalendarzowe jako miarę sprzężenia pliku z zegarem, a jedno wystąpienie
+ * zamiast dziewiętnastu to jedno miejsce do poprawienia, gdy okno się
+ * przesunie.
+ */
+const SOBOTA = "2026-08-01";
+const NIEDZIELA = "2026-08-02";
+const PONIEDZIALEK = "2026-08-03";
+/** Poniedziałek otwierający tydzień, w którym leży SOBOTA (kolumna macierzy). */
+const TYDZIEN_1 = "2026-07-27";
+/** Dzień okna POPRZEDNIEGO - baza porównania dla delt KPI. */
+const DZIEN_POPRZEDNI = "2026-07-01";
+
 const TENANT_B = "tenant-beta";
 
 const SITE_A = "sc-domain:alfa.example.com";
@@ -142,9 +165,9 @@ function keylessRow(clicks: number, impressions: number, ctr: number, position: 
 
 /** Serie dzienne CELOWO w złej kolejności - GSC nie obiecuje porządku. */
 const DATE_ROWS: GscRow[] = [
-  row("2026-08-03", 30, 300, 0.1, 8),
-  row("2026-08-01", 10, 200, 0.05, 12),
-  row("2026-08-02", 20, 250, 0.08, 10),
+  row(PONIEDZIALEK, 30, 300, 0.1, 8),
+  row(SOBOTA, 10, 200, 0.05, 12),
+  row(NIEDZIELA, 20, 250, 0.08, 10),
 ];
 const PREV_ROWS: GscRow[] = [
   row("2026-07-30", 25, 350, 0.071, 11),
@@ -595,7 +618,7 @@ describe("GscBiDashboard - dane", () => {
     await loaded();
 
     await waitFor(() =>
-      expect(configOf(TREND).categories).toEqual(["2026-08-01", "2026-08-02", "2026-08-03"]),
+      expect(configOf(TREND).categories).toEqual([SOBOTA, NIEDZIELA, PONIEDZIALEK]),
     );
     const o = configOf(TREND);
     // Kliknięcia i wyświetlenia muszą jechać PO TEJ SAMEJ osi czasu - rozjazd
@@ -603,7 +626,7 @@ describe("GscBiDashboard - dane", () => {
     expect(seriesValues(o, t("adminAnalytics.gsc.clicks"))).toEqual([10, 20, 30]);
     expect(seriesValues(o, t("adminAnalytics.gsc.impressions"))).toEqual([200, 250, 300]);
     // Te same liczby w tabeli danych: rysunek nigdy nie jest jedyną drogą.
-    expect(tableRow(TREND, "2026-08-02")).toEqual(["2026-08-02", "20", "250"]);
+    expect(tableRow(TREND, NIEDZIELA)).toEqual([NIEDZIELA, "20", "250"]);
   });
 
   it("na osi trendu stoją DWIE wielkości zliczane, a nie CTR na ukrytej osi", async () => {
@@ -820,9 +843,7 @@ describe("GscBiDashboard - dane", () => {
     panel();
     await loaded();
 
-    await waitFor(() =>
-      expect(configOf(CALENDAR).categories).toEqual(["2026-07-27", "2026-08-03"]),
-    );
+    await waitFor(() => expect(configOf(CALENDAR).categories).toEqual([TYDZIEN_1, PONIEDZIALEK]));
     const o = configOf(CALENDAR);
     expect(o.kind).toBe("heatmap");
     expect(o.series.map((s) => s.name)).toEqual([
@@ -851,14 +872,14 @@ describe("GscBiDashboard - dane", () => {
     const t = realT("pl");
     respondWith({
       ...FULL,
-      date: [row("2026-08-03", 7, 70, 0.1, 5), row("2026-08-24", 9, 90, 0.1, 5)],
+      date: [row(PONIEDZIALEK, 7, 70, 0.1, 5), row("2026-08-24", 9, 90, 0.1, 5)],
     });
     panel();
     await loaded();
 
     await waitFor(() => expect(configOf(CALENDAR).categories).toHaveLength(4));
     expect(configOf(CALENDAR).categories).toEqual([
-      "2026-08-03",
+      PONIEDZIALEK,
       "2026-08-10",
       "2026-08-17",
       "2026-08-24",
@@ -962,8 +983,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("wzrost kliknięć POWYŻEJ 20% daje listę utrwalającą trend", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 61, 1000)],
-      prev: [dayRow("2026-07-01", 50, 1000)],
+      date: [dayRow(SOBOTA, 61, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 50, 1000)],
     });
 
     expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "+22.0" }));
@@ -977,8 +998,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
     // Próg to `> 20`, nie `>= 20`. Jeden punkt procentowy mniej i rekomendacja
     // brzmi inaczej - to świadoma granica reguły, nie przeoczenie testu.
     await withData({
-      date: [dayRow("2026-08-01", 60, 1000)],
-      prev: [dayRow("2026-07-01", 50, 1000)],
+      date: [dayRow(SOBOTA, 60, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 50, 1000)],
     });
 
     expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "+20.0" }));
@@ -987,8 +1008,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("spadek kliknięć poniżej -10% zapala listę naprawczą i ocenę „do poprawy”", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 80, 1000)],
-      prev: [dayRow("2026-07-01", 100, 1000)],
+      date: [dayRow(SOBOTA, 80, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000)],
     });
 
     expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "-20.0" }));
@@ -1004,8 +1025,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("spadek DOKŁADNIE o 10% nie jest jeszcze awarią - lista zostaje stabilna", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 90, 1000)],
-      prev: [dayRow("2026-07-01", 100, 1000)],
+      date: [dayRow(SOBOTA, 90, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000)],
     });
 
     expect(insightTitle(E.clicks)).toBe(gi("clicks.titleDelta", { delta: "-10.0" }));
@@ -1017,8 +1038,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
     // Pozycja 5 -> benchmark 6%. Zmierzone 1% to luka -5 pp, czyli gałąź
     // `fixesLow`, a nie „utrzymaj stylistykę tytułów”.
     await withData({
-      date: [dayRow("2026-08-01", 10, 1000)],
-      prev: [dayRow("2026-07-01", 10, 1000)],
+      date: [dayRow(SOBOTA, 10, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 10, 1000)],
     });
 
     expect(insightTitle(E.ctr)).toBe(gi("ctr.title", { ctr: "1.00", pos: "5.0" }));
@@ -1031,8 +1052,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("pogorszenie pozycji o 4 miejsca daje interpretację spadku i listę konkurencyjną", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 100, 1000, 12)],
-      prev: [dayRow("2026-07-01", 100, 1000, 8)],
+      date: [dayRow(SOBOTA, 100, 1000, 12)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000, 8)],
     });
 
     expect(insightTitle(E.position)).toBe(gi("position.title", { pos: "12.0", delta: "+4.0" }));
@@ -1046,8 +1067,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
     // bo operator widzi je w jednym kafelku. Kafelek ostrzegawczy z poradą
     // „utrzymaj tempo” byłby alarmem i instrukcją bezczynności naraz.
     await withData({
-      date: [dayRow("2026-08-01", 100, 1000, 8.5)],
-      prev: [dayRow("2026-07-01", 100, 1000, 8)],
+      date: [dayRow(SOBOTA, 100, 1000, 8.5)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000, 8)],
     });
 
     expect(insightTitle(E.position)).toBe(gi("position.title", { pos: "8.5", delta: "+0.5" }));
@@ -1101,8 +1122,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("ruch brandowy powyżej 60% zamienia wniosek o zapytaniach na CAŁĄ inną treść", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 100, 1000)],
-      prev: [dayRow("2026-07-01", 100, 1000)],
+      date: [dayRow(SOBOTA, 100, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000)],
       query: [row("new european strategies", 70, 500, 0.14, 3), row("energia", 30, 400, 0.075, 8)],
     });
 
@@ -1113,8 +1134,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("DOKŁADNIE 60% ruchu brandowego to jeszcze wniosek o frazach bez kliknięć", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 100, 1000)],
-      prev: [dayRow("2026-07-01", 100, 1000)],
+      date: [dayRow(SOBOTA, 100, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000)],
       query: [row("new european strategies", 60, 500, 0.12, 3), row("energia", 40, 400, 0.1, 8)],
     });
 
@@ -1147,8 +1168,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("kraj powyżej 90% kliknięć dostaje rekomendację dywersyfikacji rynku", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 100, 1000)],
-      prev: [dayRow("2026-07-01", 100, 1000)],
+      date: [dayRow(SOBOTA, 100, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000)],
       country: [row("pol", 95, 900, 0.1, 5), row("deu", 5, 100, 0.05, 6)],
     });
 
@@ -1161,8 +1182,8 @@ describe("GscBiDashboard - interpretacja i rekomendacje", () => {
 
   it("DOKŁADNIE 90% na jednym kraju to jeszcze rynek uznany za rozłożony", async () => {
     await withData({
-      date: [dayRow("2026-08-01", 100, 1000)],
-      prev: [dayRow("2026-07-01", 100, 1000)],
+      date: [dayRow(SOBOTA, 100, 1000)],
+      prev: [dayRow(DZIEN_POPRZEDNI, 100, 1000)],
       country: [row("pol", 90, 900, 0.1, 5), row("deu", 10, 100, 0.1, 6)],
     });
 
@@ -1227,9 +1248,9 @@ describe("GscBiDashboard - liczby pojedynczego elementu", () => {
       t("adminAnalytics.gsc.impressions"),
     ]);
     expect(tableRows(dataTableOf(TREND))).toEqual([
-      ["2026-08-01", "10", "200"],
-      ["2026-08-02", "20", "250"],
-      ["2026-08-03", "30", "300"],
+      [SOBOTA, "10", "200"],
+      [NIEDZIELA, "20", "250"],
+      [PONIEDZIALEK, "30", "300"],
     ]);
   });
 
@@ -1270,8 +1291,8 @@ describe("GscBiDashboard - liczby pojedynczego elementu", () => {
     const naglowki = tableHeaders(dataTableOf(CALENDAR));
     expect(naglowki.slice(0, 3)).toEqual([
       realT("pl")("charts.heatmap.table.row"),
-      "2026-07-27",
-      "2026-08-03",
+      TYDZIEN_1,
+      PONIEDZIALEK,
     ]);
     // Niedziela pierwszego tygodnia to 2026-08-02 z dwudziestoma kliknięciami.
     expect(tableRow(CALENDAR, t("adminAnalytics.gsc.weekdays.sun")).slice(0, 2)).toEqual([
@@ -1308,13 +1329,13 @@ describe("GscBiDashboard - drążenie wykresów", () => {
 
     await clickChart(chartOf(TREND), {
       categoryIndex: 1,
-      category: "2026-08-02",
+      category: NIEDZIELA,
       seriesName: t("adminAnalytics.gsc.clicks"),
     });
 
     const d = screen.getByRole("dialog");
     expect(within(d).getByText(t("adminAnalytics.gsc.charts.trendTitle"))).toBeInTheDocument();
-    expect(within(d).getByText("2026-08-02")).toBeInTheDocument();
+    expect(within(d).getByText(NIEDZIELA)).toBeInTheDocument();
     expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("20");
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("250");
     expect(metricValue("CTR")).toBe("8.00%");
@@ -1431,7 +1452,7 @@ describe("GscBiDashboard - drążenie wykresów", () => {
 
     const d = screen.getByRole("dialog");
     expect(within(d).getByText(t("adminAnalytics.gsc.charts.calendarTitle"))).toBeInTheDocument();
-    expect(within(d).getByText("2026-08-03")).toBeInTheDocument();
+    expect(within(d).getByText(PONIEDZIALEK)).toBeInTheDocument();
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("300");
   });
 
@@ -1539,7 +1560,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     // po obu stronach porównania - inaczej `localeCompare` dostaje `undefined`
     // i seria ustawia się losowo.
     respondWith({
-      date: [keylessRow(5, 50, 0.1, 4), row("2026-08-01", 10, 200, 0.05, 12)],
+      date: [keylessRow(5, 50, 0.1, 4), row(SOBOTA, 10, 200, 0.05, 12)],
       query: [keylessRow(7, 70, 0.1, 4), row("fraza z kluczem", 3, 30, 0.1, 2)],
       page: [],
       country: [keylessRow(9, 90, 0.1, 4), row("pol", 4, 40, 0.1, 3)],
@@ -1549,7 +1570,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     const { container } = panel();
     await loaded();
 
-    await waitFor(() => expect(configOf(TREND).categories).toEqual(["", "2026-08-01"]));
+    await waitFor(() => expect(configOf(TREND).categories).toEqual(["", SOBOTA]));
     expect(seriesValues(configOf(TREND), t("adminAnalytics.gsc.clicks"))).toEqual([5, 10]);
     // Rank MALEJĄCO: mocniejszy jest wiersz bez klucza, więc stoi na górze.
     expect(configOf(QUERIES).categories).toEqual(["", "fraza z kluczem"]);
@@ -1565,7 +1586,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
   it("drążenie wiersza bez klucza otwiera okno z metrykami, a nie z „undefined”", async () => {
     const t = realT("pl");
     respondWith({
-      date: [keylessRow(5, 50, 0.1, 4), row("2026-08-01", 10, 200, 0.05, 12)],
+      date: [keylessRow(5, 50, 0.1, 4), row(SOBOTA, 10, 200, 0.05, 12)],
       query: [keylessRow(7, 70, 0.1, 4), row("fraza z kluczem", 3, 30, 0.1, 2)],
       page: [],
       country: [keylessRow(9, 90, 0.1, 4), row("pol", 4, 40, 0.1, 3)],
@@ -1574,7 +1595,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     });
     panel();
     await loaded();
-    await waitFor(() => expect(configOf(TREND).categories).toEqual(["", "2026-08-01"]));
+    await waitFor(() => expect(configOf(TREND).categories).toEqual(["", SOBOTA]));
 
     // Trend: pierwszy punkt to wiersz bez daty.
     await clickChart(chartOf(TREND), { categoryIndex: 0, category: "" });
@@ -1597,7 +1618,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     // Kalendarz: na siatce stoi WYŁĄCZNIE dzień z datą - 2026-08-01, sobota.
-    expect(configOf(CALENDAR).categories).toEqual(["2026-07-27"]);
+    expect(configOf(CALENDAR).categories).toEqual([TYDZIEN_1]);
     await clickChart(chartOf(CALENDAR), { categoryIndex: 0, seriesIndex: 5, value: 10 });
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("200");
   });
@@ -1887,7 +1908,7 @@ describe("GscBiDashboard - izolacja warsztatów", () => {
     h.listSites.mockResolvedValue({ sites: [site(SITE_B)], configured: true });
     respondWith({
       ...EMPTY,
-      date: [row("2026-08-01", 4, 40, 0.1, 3)],
+      date: [row(SOBOTA, 4, 40, 0.1, 3)],
       query: [row("beta fraza wlasna", 4, 40, 0.1, 3)],
     });
     h.queryAnalytics.mockClear();

@@ -315,8 +315,9 @@ function kpiSpark(label: string): string | null {
  * `pathFromPoints` wypisuje polecenie na punkt (`M`, potem `C` albo `L`), a
  * kotwicą każdego z nich jest OSTATNIA para liczb - przy krzywej dwie
  * poprzedzające ją pary to punkty kontrolne Béziera, których w danych nie ma.
- * Pomocnik nie zna geometrii kafelka i znać jej nie musi: asercje pytają o
- * KOLEJNOŚĆ punktów, a ta jest ta sama przy każdym skalowaniu.
+ * Pomocnik nie zna geometrii kafelka i znać jej nie musi: asercje normalizują
+ * wysokości ZAKRESEM samej ścieżki, a ten iloraz jest ten sam przy każdym
+ * skalowaniu.
  */
 function sparkPoints(label: string): Array<[number, number]> {
   const d = kpiSpark(label);
@@ -863,15 +864,35 @@ describe("ClientErrorsDashboard - zgodność z agregatorem", () => {
 
     // Iskra nie jeździ przez silnik, więc jej świadectwem jest ŚCIEŻKA glifu.
     // Pytamy o to, co nie zależy od skali kafelka: ile jest punktów obserwacji
-    // i w którą stronę idą. Oś Y w SVG rośnie w dół, więc dzień o większej
-    // liczbie błędów leży WYŻEJ - odwrócenie tej zależności (albo iskra
-    // narysowana z innego szeregu, na przykład z liczby grup) oblewa asercję.
+    // i GDZIE KAŻDY Z NICH LEŻY między najniższym a najwyższym. Skala pionowa
+    // iskry jest rozpięta na zakresie szeregu, więc to położenie jest dokładnie
+    // udziałem wartości dnia w rozpiętości danych - liczbą, która wychodzi ta
+    // sama przy każdej wysokości kafelka i każdym marginesie. Oś Y w SVG rośnie
+    // w dół, stąd odejmowanie od `yMax`.
+    //
+    // NIE SAM KIERUNEK ODCINKÓW. Znaki różnic między sąsiadami przechodzą dla
+    // każdego szeregu o tym samym przebiegu, w szczególności dla NARASTAJĄCEGO
+    // (`0,0,0,0,1,3,6` zamiast `0,0,0,0,1,2,3`) - a suma skumulowana rysuje
+    // kształt, którego w dziennym szeregu nie ma. Położenia to rozróżniają.
     const points = sparkPoints(ce("kpiTotal"));
     const counts = BUSY.daily.map((d) => d.count);
     expect(points).toHaveLength(counts.length);
-    expect(points.slice(1).map(([, y], i) => Math.sign(y - points[i][1]))).toEqual(
-      counts.slice(1).map((count, i) => Math.sign(counts[i] - count)),
-    );
+    const ys = points.map(([, y]) => y);
+    const yMin = Math.min(...ys);
+    const yMax = Math.max(...ys);
+    const vMin = Math.min(...counts);
+    const vMax = Math.max(...counts);
+    // Szereg płaski rysuje się prostą przez środek i normalizacja dzieliłaby
+    // przez zero - fixtura ma rozpiętość i to też jest tu twierdzeniem o niej.
+    expect(vMax).toBeGreaterThan(vMin);
+    expect(yMax).toBeGreaterThan(yMin);
+    points.forEach(([, y], i) => {
+      // Luz dwóch miejsc po przecinku znosi zaokrąglenie ścieżki do jednego
+      // (`pathFromPoints` wypisuje `toFixed(1)`), a nie znosi żadnej różnicy w
+      // danych: najmniejszy możliwy skok w tym szeregu to jedna trzecia
+      // rozpiętości.
+      expect((yMax - y) / (yMax - yMin)).toBeCloseTo((counts[i] - vMin) / (vMax - vMin), 2);
+    });
     // Pozostałe trzy kafelki szeregu nie dostają, i słusznie: raport nie ma
     // dziennego rozbicia ani grup, ani ścieżek, ani ostatnich 24 h, więc iskra
     // pod nimi rysowałaby kształt nie wiadomo czego.

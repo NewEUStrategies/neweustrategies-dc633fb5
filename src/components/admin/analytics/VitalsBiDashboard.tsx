@@ -210,6 +210,8 @@ export function VitalsBiDashboard() {
    */
   const pathScatterConfig = useMemo(() => {
     const paths = (report?.paths ?? []).slice(0, 25);
+    const lcp = (p: (typeof paths)[number]): number | null =>
+      p.metrics.find((m) => m.metric === "LCP")?.p75 ?? null;
     return biChart({
       kind: "scatter",
       categories: paths.map((p) => p.path),
@@ -218,13 +220,20 @@ export function VitalsBiDashboard() {
           name: t("adminAnalytics.vitals.samplesLabel"),
           values: paths.map((p) => p.total),
         },
-        {
-          name: "LCP p75",
-          values: paths.map((p) => p.metrics.find((m) => m.metric === "LCP")?.p75 ?? null),
-        },
+        { name: "LCP p75", values: paths.map(lcp) },
       ],
       unit: " ms",
-      sampleSize: paths.reduce((a, p) => a + p.total, 0),
+      // LICZBA PUNKTÓW W CHMURZE, nie suma odczytów RUM - i to jest różnica
+      // merytoryczna, nie kosmetyczna. Silnik porównuje `sampleSize`
+      // z liczebnością każdej niepustej chmury i zapala defekt uczciwości,
+      // gdy podpis mówi o innym badaniu niż rysunek. Obserwacją jest tu
+      // ŚCIEŻKA (jeden punkt = jedna podstrona), a nie pojedynczy odczyt -
+      // suma `total` szłaby w tysiące przy kilkunastu punktach na rysunku.
+      //
+      // Liczymy tylko ścieżki z PARĄ KOMPLETNĄ: bez LCP p75 nie ma współrzędnej
+      // pionowej, więc taka ścieżka wypada z chmury i nie wolno jej liczyć
+      // w podpisie.
+      sampleSize: paths.filter((p) => lcp(p) !== null).length,
     });
   }, [report, t]);
 
