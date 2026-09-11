@@ -10128,8 +10128,16 @@ input[type="reset"],
    fokusie. Na urządzeniach dotykowych pola wyszukiwania dostają 16px, więc
    system nie powiększa strony; desktop zostaje przy kompaktowych 13px. */
 @media (max-width: 767px), (pointer: coarse) {
-  .builder-search-widget .input-group > input.input.input.input {
+  input[data-mobile-search-input][data-mobile-search-input][data-mobile-search-input],
+  .builder-search-widget
+    .input-group
+    > input.input.input.input[data-mobile-search-input][data-mobile-search-input],
+  .search-page-form
+    .input-group
+    > input.input.input.input[data-mobile-search-input][data-mobile-search-input] {
     font-size: 16px !important;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   .builder-search-widget .input-group > .user-label.user-label {
     font-size: 13px !important;

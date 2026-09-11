@@ -511,6 +511,7 @@ function SearchBar({
     >
       <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
       <input
+        type="search"
         ref={inputRef}
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -527,7 +528,8 @@ function SearchBar({
         autoComplete="off"
         spellCheck={false}
         inputMode="search"
-        name="neus-search"
+        name="q"
+        data-mobile-search-input=""
         data-1p-ignore="true"
         data-lpignore="true"
         data-bwignore="true"
