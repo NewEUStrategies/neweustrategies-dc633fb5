@@ -50,7 +50,6 @@ import {
   barFillOf,
   fromOklch,
   oklchOf,
-  BASE_PALETTE_FROM,
   CATEGORICAL_EXTENDED_MAX,
   HUE_PARITY_EXCEPTIONS,
   SLOTS_NEEDING_EDGE_FOR_SHAPE,
@@ -688,14 +687,6 @@ describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem"
     { name: "negative", light: CHART_SEMANTIC.negativeLight, dark: CHART_SEMANTIC.negativeDark },
   ];
   const VARIANTS = ["edge", "inner", "hover", "deep", "mid", "face"] as const;
-  /**
-   * Które warianty MA dany odcień w arkuszu. Rodziny silnika i semantyka mają
-   * komplet; paleta bazowa ma wyłącznie obwódkę, bo warianty blady
-   * i gradientowy są dla niej wyłączone (patrz BASE_PALETTE_FROM) - a token,
-   * którego nikt nie użyje, jest czystym kosztem arkusza render-blocking.
-   */
-  const wariantyDla = (name: string): readonly (typeof VARIANTS)[number][] =>
-    /^\d+$/.test(name) && Number(name) >= BASE_PALETTE_FROM ? (["edge"] as const) : VARIANTS;
 
   it.each(["light", "dark"] as const)(
     "każdy odcień pochodny w motywie %s jest dokładnie tym, co daje krok w OKLCh",
@@ -703,7 +694,7 @@ describe("palette - WYPEŁNIENIA SŁUPKÓW: arkusz zgadza się z wyprowadzeniem"
       const block = theme === "light" ? LIGHT_BLOCK : DARK_BLOCK;
       for (const hue of HUES) {
         const derived = barFillOf(theme === "dark" ? hue.dark : hue.light, theme);
-        for (const v of wariantyDla(hue.name)) {
+        for (const v of VARIANTS) {
           expect(hexToken(block, `--chart-${hue.name}-${v}`), `${theme} ${hue.name} ${v}`).toBe(
             derived[v],
           );

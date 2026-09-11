@@ -37,12 +37,7 @@ import {
   seriesOverSafePalette,
   PIE_CLOSE_SHARES_PP,
 } from "@/lib/charts/honesty";
-import {
-  BAR_STYLES,
-  CHART_SLOTS,
-  slotForSeries,
-  SLOTS_CLASHING_WITH_SIGN,
-} from "@/lib/charts/palette";
+import { CHART_SLOTS, slotForSeries, SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
 import { chartFormAdvice } from "@/lib/charts/formAdvice";
 import type { ChartLang } from "@/lib/charts/format";
 import { useTranslation } from "react-i18next";

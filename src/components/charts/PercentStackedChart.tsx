@@ -702,7 +702,6 @@ export function PercentStackedChart({
     seriesCount: model.series.length,
     stacked: true,
     patterned: potrzebujeKreskowania,
-    slots: model.series.map((s) => s.colorSlot),
   });
   const hatchId = `${baseId.replace(/:/g, "")}-hatch`;
   const gradientId = (slot: number): string => `${baseId.replace(/:/g, "")}-g${slot}`;

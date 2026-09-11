@@ -623,7 +623,6 @@ export function CartesianChart({
     seriesCount: series.length,
     stacked,
     patterned: kreskowaneSloty.size > 0,
-    slots: series.map((s) => s.colorSlot),
   });
   const edged = barStyleHasEdge(barStyle);
   /**

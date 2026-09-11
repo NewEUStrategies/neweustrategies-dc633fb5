@@ -55,20 +55,6 @@ export const CATEGORICAL_SAFE_MAX = 6;
 export const CATEGORICAL_EXTENDED_MAX = 8;
 
 /**
- * Pierwszy slot PALETY BAZOWEJ. Sloty poniżej to rodziny odcienia silnika,
- * od tego numeru w górę - kolory marki zadane z zewnątrz.
- *
- * Granica jest tu po to, żeby dwie rzeczy dało się rozróżnić w kodzie:
- * rodziny silnika mają pełny komplet wariantów wypełnienia (blady, gradient),
- * paleta bazowa rysuje się WYŁĄCZNIE solidnie. To nie jest oszczędność na
- * arkuszu, tylko wniosek z pomiaru: blade wnętrze stoi na jasności 0,93,
- * a #ffdab3 ma 0,91 - "blady" wariant tego koloru jest nieodróżnialny od
- * samego tokena, więc byłby wariantem wyłącznie z nazwy. Przy #f7dd14
- * (1,37:1 do płyty) jest tak samo.
- */
-export const BASE_PALETTE_FROM = 11;
-
-/**
  * Progi WCAG. Nie zmieniają się między motywami - zmienia się kierunek
  * wyprowadzania wariantu tekstowego (w jasnym przyciemniamy odcień serii,
  * w ciemnym rozjaśniamy).
@@ -1320,15 +1306,8 @@ export const EDGE_FACE_RANGE = { min: 1.12, max: 1.16 } as const;
  */
 export function resolveBarStyle(
   requested: BarStyle,
-  ctx: { seriesCount: number; stacked: boolean; patterned: boolean; slots?: readonly number[] },
+  ctx: { seriesCount: number; stacked: boolean; patterned: boolean },
 ): BarStyle {
-  // PALETA BAZOWA RYSUJE SIĘ SOLIDNIE, i to dotyczy OBU wariantów wnętrza,
-  // nie tylko bladego. Powód stoi przy `BASE_PALETTE_FROM`: dla tokenów o
-  // jasności bliskiej wnętrzu wariant blady jest wariantem z nazwy, a rampa
-  // gradientu przy ściśniętym kroku (patrz SLOTS_WITH_COMPRESSED_RAMP) daje
-  // trzy stopnie, których czytelnik nie odróżni. Solidne wypełnienie pokazuje
-  // dokładnie ten kolor, który autor wybrał - a po to go wybierał.
-  if (ctx.slots?.some((slot) => slotAt(slot).slot >= BASE_PALETTE_FROM)) return "solid";
   if (requested !== "pale") return requested;
   if (ctx.stacked || ctx.seriesCount > 1 || ctx.patterned) return "solid";
   return "pale";
