@@ -11,7 +11,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
-import { registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
+import { bulkDeleteMedia, registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, X, Folder, Upload, Loader2 } from "@/lib/lucide-shim";
+import { Search, Check, X, Folder, Upload, Loader2, Trash2 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
 import {
@@ -64,6 +65,7 @@ export function MediaPickerDialog({
   const qc = useQueryClient();
   const registerUpload = useServerFn(registerMediaUpload);
   const updateMeta = useServerFn(updateMediaMeta);
+  const bulkDelete = useServerFn(bulkDeleteMedia);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string>("all");
@@ -71,7 +73,9 @@ export function MediaPickerDialog({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [altDraft, setAltDraft] = useState("");
-  const [savingAlt, setSavingAlt] = useState(false);
+  const [filenameDraft, setFilenameDraft] = useState("");
+  const [savingMeta, setSavingMeta] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Allowlista zamiast `image/*` / `audio/*`: wildcard obejmował także
   // `image/svg+xml`, więc UI zapraszał do wgrania typu, który serwer odrzuca -
@@ -181,23 +185,53 @@ export function MediaPickerDialog({
   );
   const pickedIsImage = !!picked?.mime_type?.startsWith("image/");
   const altDirty = picked ? (picked.alt_text ?? "") !== altDraft : false;
+  const filenameDirty = picked ? picked.filename !== filenameDraft.trim() : false;
 
   const handlePickRow = (row: PickerRow) => {
     setPickedUrl(row.public_url);
     setAltDraft(row.alt_text ?? "");
+    setFilenameDraft(row.filename);
   };
 
-  const saveAlt = async () => {
+  const saveMeta = async () => {
     if (!picked) return;
-    setSavingAlt(true);
+    const filename = filenameDraft.trim();
+    if (!filename) return;
+    setSavingMeta(true);
     try {
-      await updateMeta({ data: { mediaId: picked.id, altText: altDraft.trim() } });
+      await updateMeta({
+        data: {
+          mediaId: picked.id,
+          filename,
+          ...(pickedIsImage ? { altText: altDraft.trim() } : {}),
+        },
+      });
       await qc.invalidateQueries({ queryKey: ["media-picker"] });
-      toast.success(t("adminTeamMedia.mediaPicker.savedAlt"));
+      toast.success(t("adminTeamMedia.mediaPicker.savedMeta"));
     } catch (err) {
       toastError(err, "save");
     } finally {
-      setSavingAlt(false);
+      setSavingMeta(false);
+    }
+  };
+
+  const removePicked = async () => {
+    if (!picked) return;
+    if (!window.confirm(t("adminTeamMedia.mediaPicker.deleteConfirm", { name: picked.filename }))) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await bulkDelete({ data: { mediaIds: [picked.id] } });
+      setPickedUrl(null);
+      setFilenameDraft("");
+      setAltDraft("");
+      await qc.invalidateQueries({ queryKey: ["media-picker"] });
+      toast.success(t("adminTeamMedia.mediaPicker.deleted"));
+    } catch (err) {
+      toastError(err, "delete");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -300,7 +334,7 @@ export function MediaPickerDialog({
                     type="button"
                     onClick={() => handlePickRow(m)}
                     onDoubleClick={() => {
-                      onPick(m.public_url);
+                      onPick(brandedMediaUrl(m.public_url));
                       onOpenChange(false);
                     }}
                     className={`relative aspect-square rounded-md border overflow-hidden text-left transition-colors ${
@@ -340,33 +374,73 @@ export function MediaPickerDialog({
           )}
         </div>
 
-        {picked && pickedIsImage && (
+        {picked && (
           <div className="border-t border-border pt-3 space-y-2">
-            <label htmlFor="picker-alt" className="block text-xs text-muted-foreground font-medium">
-              {t("adminTeamMedia.mediaPicker.altLabel")}
+            <label
+              htmlFor="picker-filename"
+              className="block text-xs text-muted-foreground font-medium"
+            >
+              {t("adminTeamMedia.mediaPicker.filenameLabel")}
             </label>
-            <div className="flex items-start gap-2">
-              <textarea
-                id="picker-alt"
-                value={altDraft}
-                onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
-                rows={2}
-                placeholder={t("adminTeamMedia.mediaPicker.altPlaceholder")}
-                className="flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
-              />
+            <Input
+              id="picker-filename"
+              value={filenameDraft}
+              onChange={(e) => setFilenameDraft(e.target.value.slice(0, 255))}
+              maxLength={255}
+              className="h-8 text-xs"
+            />
+            {pickedIsImage && (
+              <>
+                <label
+                  htmlFor="picker-alt"
+                  className="block text-xs text-muted-foreground font-medium"
+                >
+                  {t("adminTeamMedia.mediaPicker.altLabel")}
+                </label>
+                <div className="flex items-start gap-2">
+                  <textarea
+                    id="picker-alt"
+                    value={altDraft}
+                    onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
+                    rows={2}
+                    placeholder={t("adminTeamMedia.mediaPicker.altPlaceholder")}
+                    className="flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+                <div className="text-[10px] text-muted-foreground">{altDraft.length}/500</div>
+              </>
+            )}
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={deleting || savingMeta}
+                onClick={() => void removePicked()}
+              >
+                {deleting ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                )}
+                {deleting
+                  ? t("adminTeamMedia.mediaPicker.deleting")
+                  : t("adminTeamMedia.mediaPicker.deleteBtn")}
+              </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={!altDirty || savingAlt}
-                onClick={saveAlt}
+                disabled={
+                  (!filenameDirty && !altDirty) || !filenameDraft.trim() || savingMeta || deleting
+                }
+                onClick={() => void saveMeta()}
               >
-                {savingAlt
-                  ? t("adminTeamMedia.mediaPicker.savingAlt")
-                  : t("adminTeamMedia.mediaPicker.saveAltBtn")}
+                {savingMeta
+                  ? t("adminTeamMedia.mediaPicker.savingMeta")
+                  : t("adminTeamMedia.mediaPicker.saveMetaBtn")}
               </Button>
             </div>
-            <div className="text-[10px] text-muted-foreground">{altDraft.length}/500</div>
           </div>
         )}
 
@@ -378,7 +452,7 @@ export function MediaPickerDialog({
             disabled={!pickedUrl}
             onClick={() => {
               if (pickedUrl) {
-                onPick(pickedUrl);
+                onPick(brandedMediaUrl(pickedUrl));
                 onOpenChange(false);
               }
             }}

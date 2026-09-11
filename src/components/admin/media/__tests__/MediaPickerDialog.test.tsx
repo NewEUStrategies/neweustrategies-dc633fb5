@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   user: { id: "user-1" } as { id: string } | null,
   registerUpload: vi.fn(),
   updateMeta: vi.fn(),
+  bulkDelete: vi.fn(),
   uploadAndRegisterMedia: vi.fn(),
   toastSuccess: vi.fn(),
   toastFail: vi.fn(),
@@ -35,11 +36,13 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: (fn: unknown) => (fn === "register" ? h.registerUpload : h.updateMeta),
+  useServerFn: (fn: unknown) =>
+    fn === "register" ? h.registerUpload : fn === "delete" ? h.bulkDelete : h.updateMeta,
 }));
 vi.mock("@/lib/media.functions", () => ({
   registerMediaUpload: "register",
   updateMediaMeta: "update",
+  bulkDeleteMedia: "delete",
 }));
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -110,6 +113,7 @@ beforeEach(() => {
   for (const fn of [
     h.registerUpload,
     h.updateMeta,
+    h.bulkDelete,
     h.uploadAndRegisterMedia,
     h.toastSuccess,
     h.toastFail,
@@ -343,7 +347,7 @@ describe("MediaPickerDialog - opis alternatywny wybranego pliku", () => {
     await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
     fireEvent.click(screen.getByText("a.png"));
 
-    const altField = screen.getAllByRole("textbox").at(-1);
+    const altField = screen.getByPlaceholderText(/opisz obraz|describe the image/i);
     if (!altField) return;
     fireEvent.change(altField, { target: { value: "  Nowy opis  " } });
 
@@ -355,9 +359,37 @@ describe("MediaPickerDialog - opis alternatywny wybranego pliku", () => {
 
     await waitFor(() =>
       expect(h.updateMeta).toHaveBeenCalledWith({
-        data: { mediaId: "a", altText: "Nowy opis" },
+        data: { mediaId: "a", filename: "a.png", altText: "Nowy opis" },
       }),
     );
+  });
+
+  it("edytuje nazwę wybranego pliku", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("a.png"));
+    fireEvent.change(screen.getByLabelText(/nazwa pliku|file name/i), {
+      target: { value: "nowa-nazwa.png" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /zapisz metadane|save metadata/i }));
+    await waitFor(() =>
+      expect(h.updateMeta).toHaveBeenCalledWith({
+        data: { mediaId: "a", filename: "nowa-nazwa.png", altText: "Stary opis" },
+      }),
+    );
+  });
+
+  it("usuwa wybrany plik dopiero po potwierdzeniu", async () => {
+    Object.defineProperty(window, "confirm", { configurable: true, value: vi.fn() });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("a.png"));
+    fireEvent.click(screen.getByRole("button", { name: /usuń plik|delete file/i }));
+    await waitFor(() => expect(h.bulkDelete).toHaveBeenCalledWith({ data: { mediaIds: ["a"] } }));
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /wstaw|insert/i })).toBeDisabled();
+    confirm.mockRestore();
   });
 });
 
