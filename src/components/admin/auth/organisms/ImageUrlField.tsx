@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { Image as ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
-import { brandedMediaUrl } from "@/lib/media/publicUrl";
+import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 // Nakładka rejestruje klucze `adminLoginSettings.*` efektem ubocznym importu.
 // Organizm woła je sam (plakietka, podpowiedzi, tytuł okna wyboru), więc słownik
 // musi trafić do chunka RAZEM z nim - inaczej ekran pokaże goły klucz w chwili,
@@ -90,7 +90,7 @@ export function ImageUrlField({
         {displayUrl ? (
           <>
             <img
-              src={displayUrl}
+              src={mediaRenderUrl(displayUrl)}
               alt={label}
               className="absolute inset-0 w-full h-full object-cover"
             />

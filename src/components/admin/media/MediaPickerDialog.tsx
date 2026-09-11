@@ -27,7 +27,7 @@ import {
   registerMediaUpload,
   updateMediaMeta,
 } from "@/lib/media.functions";
-import { brandedMediaUrl } from "@/lib/media/publicUrl";
+import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 import {
   Dialog,
   DialogContent,
@@ -752,7 +752,7 @@ export function MediaPickerDialog({
                   >
                     {isImg ? (
                       <img
-                        src={m.public_url}
+                        src={mediaRenderUrl(m.public_url)}
                         alt={m.filename}
                         loading="lazy"
                         className="w-full h-full object-cover"
