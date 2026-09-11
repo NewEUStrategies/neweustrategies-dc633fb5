@@ -22,16 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Search,
-  Check,
-  X,
-  Folder,
-  Upload,
-  Loader2,
-  Trash2,
-  ChevronDown,
-} from "@/lib/lucide-shim";
+import { Search, Check, X, Folder, Upload, Loader2, Trash2, ChevronDown } from "@/lib/lucide-shim";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
@@ -302,9 +293,7 @@ export function MediaPickerDialog({
                 <span className="flex min-w-0 items-center gap-2">
                   <Folder className="size-3.5 shrink-0 text-primary" aria-hidden />
                   <span className="truncate">
-                    {folder === "all"
-                      ? t("adminTeamMedia.mediaPicker.allFolders")
-                      : folder}
+                    {folder === "all" ? t("adminTeamMedia.mediaPicker.allFolders") : folder}
                   </span>
                 </span>
                 <ChevronDown
@@ -361,7 +350,9 @@ export function MediaPickerDialog({
                   >
                     <Folder className="size-3.5 shrink-0" aria-hidden />
                     <span className="truncate">{t("adminTeamMedia.mediaPicker.allFolders")}</span>
-                    {folder === "all" && <Check className="ml-auto size-3.5 shrink-0" aria-hidden />}
+                    {folder === "all" && (
+                      <Check className="ml-auto size-3.5 shrink-0" aria-hidden />
+                    )}
                   </Button>
                 )}
                 {filteredFolders.map((path) => {
