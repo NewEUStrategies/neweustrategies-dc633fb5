@@ -8,13 +8,39 @@
  *
  * Charts:
  *   1. KPI row (clicks, impressions, CTR, avg. position) with delta + sparkline
- *   2. Trend area chart - clicks vs impressions dual-axis
+ *   2. Trend line - clicks vs impressions, daily
  *   3. Horizontal bar rank - top 15 queries by clicks
- *   4. Position histogram (buckets 1-3 / 4-10 / 11-20 / 21-50 / 51+)
+ *   4. Position buckets (1-3 / 4-10 / 11-20 / 21-50 / 51+)
  *   5. Donut - country distribution (top 8 + "inne")
  *   6. Donut - device distribution
- *   7. Treemap - top 20 pages by impressions with CTR colour scale
+ *   7. Horizontal bar rank - top 20 pages by impressions
  *   8. Calendar heatmap - daily clicks activity
+ *
+ * RYSUJE NASZ SILNIK, NIE ECHARTS. Panel składa `ChartConfig` przez `biChart()`
+ * i oddaje go karcie; paleta, geometria, dymek, tabela danych, podpis i obsługa
+ * klawiatury są decyzją silnika. Trzy formy musiały się przy tym zmienić i
+ * każda ma powód w danych, nie w dostępności rodzaju:
+ *
+ *   1. TREEMAPA STRON WYSZŁA, SĄ SŁUPKI POZIOME POSORTOWANE. Kafel kodował
+ *      wielkość POWIERZCHNIĄ, czyli jednym z najsłabszych kanałów percepcyjnych
+ *      - a kodował nią jedną wielkość (wyświetlenia), więc cała treść rysunku
+ *      dawała się oddać długością, kanałem najdokładniejszym. Pytanie karty
+ *      („które strony zbierają najwięcej wyświetleń") to ranking, a ranking
+ *      czyta się z góry na dół: silnik rysuje kategorie słupków poziomych
+ *      w kolejności tablicy, więc tablica jedzie posortowana MALEJĄCO.
+ *   2. DRUGA OŚ Y WYSZŁA RAZEM Z NIĄ. Trend miał trzy serie na trzech osiach,
+ *      z czego dwie były niewidoczne - czytelnik nie miał jak sprawdzić, w
+ *      jakiej skali stoi która linia. Kliknięcia i wyświetlenia zostają na
+ *      JEDNEJ osi, bo są tą samą wielkością tego samego lejka (kliknięcia są
+ *      podzbiorem wyświetleń), więc odległość między liniami jest treścią.
+ *      CTR z rysunku schodzi: `ChartConfig` ma JEDNĄ jednostkę, a procent obok
+ *      zliczeń dostałby formatowanie liczby zdarzeń. CTR nie ginie - ma własny
+ *      kafelek KPI z deltą, stoi w oknie szczegółów dnia i w eksporcie CSV.
+ *   3. KALENDARZ ZOSTAJE MAPĄ CIEPLNĄ, tyle że macierzą (tydzień × dzień
+ *      tygodnia) zamiast płyty ECharts. Adresem komórki jest para parametrów,
+ *      czyli dokładnie to, do czego ten rodzaj służy. Dzień bez odczytu jest
+ *      LUKĄ, a nie zerem: silnik rysuje lukę osobnym stanem, więc „nie było
+ *      pomiaru" nie udaje „było zero kliknięć".
  *
  * IZOLACJA WARSZTATU. Każdy klucz react-query niesie identyfikator najemcy
  * (`useCurrentTenantId`), a zapytania startują dopiero po jego rozwiązaniu.
@@ -48,21 +74,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { EChartsCoreOption } from "echarts/core";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import { ChartCard } from "./ChartCard";
-import { useChartTheme } from "./useChartTheme";
-import { heatEmpty, heatRamp } from "./chartTheme";
-import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
+import { biChart } from "./biChart";
+import type { ChartSelection } from "@/lib/charts/selection";
+import type { ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { InsightSection } from "./InsightSection";
 import { buildGscInsights } from "./gscInsights";
 
+const DAY_MS = 86_400_000;
+
 function daysAgoISO(days: number): string {
-  return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  return new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10);
 }
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Kształt `csv` przyjmowany przez `ChartCard` - WYŁĄCZNIE źródło eksportu. */
+interface ChartCsv {
+  filename: string;
+  headers: string[];
+  rows: ReadonlyArray<ReadonlyArray<unknown>>;
 }
 
 interface Totals {
@@ -94,12 +128,104 @@ const POSITION_BUCKETS = [
   { label: "51+", min: 51, max: Number.POSITIVE_INFINITY },
 ];
 
+interface DonutSlice {
+  name: string;
+  value: number;
+}
+
+/**
+ * Wycinki pierścienia: ósemka największych plus ogon zwinięty w „Inne".
+ *
+ * JEDNA kolejność dla wycinków i dla „Innych": ósemka pokazana osobno i ogon
+ * muszą być rozłączne. Liczenie ogona z kolejności WEJŚCIOWEJ (`rows.slice(8)`)
+ * dawało przy niesortowanej odpowiedzi API te same kraje dwa razy - raz jako
+ * wycinek, raz w „Innych" - więc udziały przestawały sumować się do całości.
+ */
+function collapseSlices(rows: GscRow[], otherLabel: string): DonutSlice[] {
+  const sorted = rows.slice().sort((a, b) => b.clicks - a.clicks);
+  const data = sorted.slice(0, 8).map((r) => ({ name: r.keys[0] ?? "?", value: r.clicks }));
+  const otherClicks = sorted.slice(8).reduce((acc, r) => acc + r.clicks, 0);
+  if (otherClicks > 0) data.push({ name: otherLabel, value: otherClicks });
+  return data;
+}
+
+/**
+ * PIERŚCIEŃ ZE WSPÓLNEGO ŹRÓDŁA. Silnik rysuje przy nim TABELĘ KLUCZA (udział
+ * plus wartość bezwzględna w wierszu) zamiast legendy przy łuku - stara legenda
+ * „scroll" po prawej stronie koła wchodziła przy tej szerokości karty na
+ * pierścień i urywała nazwy po kilku znakach.
+ */
+function donutChart(slices: DonutSlice[], seriesName: string) {
+  return biChart({
+    kind: "donut",
+    categories: slices.map((s) => s.name),
+    series: [{ name: seriesName, values: slices.map((s) => s.value) }],
+    sampleSize: slices.reduce((acc, s) => acc + s.value, 0),
+  });
+}
+
+/**
+ * Wiersze macierzy kalendarza, w porządku ISO (poniedziałek pierwszy).
+ *
+ * Klucze stoją PEŁNYMI ŚCIEŻKAMI, a nie sklejeniem `gsc.weekdays.${dzien}`:
+ * bramki parytetu PL/EN i rozjazdu kod <-> słownik widzą wyłącznie pełny
+ * cytat klucza, więc sklejenie znika im z oczu razem z brakiem tłumaczenia.
+ */
+const WEEKDAY_KEYS = [
+  "adminAnalytics.gsc.weekdays.mon",
+  "adminAnalytics.gsc.weekdays.tue",
+  "adminAnalytics.gsc.weekdays.wed",
+  "adminAnalytics.gsc.weekdays.thu",
+  "adminAnalytics.gsc.weekdays.fri",
+  "adminAnalytics.gsc.weekdays.sat",
+  "adminAnalytics.gsc.weekdays.sun",
+] as const;
+
+/** Dzień z klucza wymiaru albo `null`, gdy wiersz nie niesie daty. */
+function dayMs(key: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
+  const ms = Date.parse(`${key}T00:00:00Z`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Numer dnia tygodnia w porządku ISO: poniedziałek 0, niedziela 6. */
+function isoWeekday(ms: number): number {
+  return (new Date(ms).getUTCDay() + 6) % 7;
+}
+
+/** Poniedziałek tygodnia, w którym stoi dzień - adres kolumny kalendarza. */
+function weekStartMs(ms: number): number {
+  return ms - isoWeekday(ms) * DAY_MS;
+}
+
+function isoOf(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Macierz kalendarza: tydzień w kolumnie, dzień tygodnia w wierszu.
+ *
+ * `startMs` to poniedziałek PIERWSZEGO tygodnia i jest jedynym punktem
+ * odniesienia adresu komórki - drążenie liczy z niego datę, zamiast trzymać
+ * drugą kopię siatki dat obok tej, którą dostał silnik.
+ */
+interface CalendarGrid {
+  startMs: number | null;
+  /** Etykiety kolumn: poniedziałek każdego tygodnia. */
+  weeks: string[];
+  /** Siedem wierszy po tyle wartości, ile tygodni; `null` = brak pomiaru. */
+  rows: (number | null)[][];
+  /** Liczba dni z pomiarem - to jest `n` tej mapy, nie rozmiar siatki. */
+  days: number;
+}
+
+const EMPTY_CALENDAR: CalendarGrid = { startMs: null, weeks: [], rows: [], days: 0 };
+
 export function GscBiDashboard({ configured }: { configured: boolean }) {
   const { t } = useTranslation();
   const fetchSites = useServerFn(listGscSites);
   const fetchAnalytics = useServerFn(queryGscAnalytics);
   const tenantId = useCurrentTenantId();
-  const chartTheme = useChartTheme();
   const [siteUrl, setSiteUrl] = useState<string>("");
   const [days, setDays] = useState<number>(28);
   // Etykiety paska narzędzi są WIDOCZNE, ale `<label>` nie nazywa przycisku -
@@ -117,7 +243,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     enabled: configured && Boolean(tenantId),
   });
 
-  const sites = sitesQ.data?.sites ?? [];
+  // ODCZYTY PRZEZ `useMemo`, nie gołym `?? []`. Zapasowa pusta tablica jest przy
+  // każdym renderze NOWĄ referencją, więc wszystko, co bierze ją do listy
+  // zależności, przeliczałoby się bez ani jednej zmiany danych - a liczą z niej
+  // wszystkie konfiguracje wykresów niżej.
+  const sites = useMemo(() => sitesQ.data?.sites ?? [], [sitesQ.data]);
   const preferredSite = useMemo(() => {
     const match = sites.find((s) => s.siteUrl.toLowerCase().includes("neweuropeanstrategies.com"));
     return match?.siteUrl ?? sites[0]?.siteUrl ?? "";
@@ -180,12 +310,12 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const readFailed = Boolean(failure);
   /** Wszystkie sześć okien odczytanych - dopiero wtedy zero jest ZMIERZONE. */
   const readComplete = queries.every((q) => q.isSuccess);
-  const dateRows = dateQ.data?.rows ?? [];
-  const queryRows = queryQ.data?.rows ?? [];
-  const pageRows = pageQ.data?.rows ?? [];
-  const countryRows = countryQ.data?.rows ?? [];
-  const deviceRows = deviceQ.data?.rows ?? [];
-  const prevRows = prevDateQ.data?.rows ?? [];
+  const dateRows = useMemo(() => dateQ.data?.rows ?? [], [dateQ.data]);
+  const queryRows = useMemo(() => queryQ.data?.rows ?? [], [queryQ.data]);
+  const pageRows = useMemo(() => pageQ.data?.rows ?? [], [pageQ.data]);
+  const countryRows = useMemo(() => countryQ.data?.rows ?? [], [countryQ.data]);
+  const deviceRows = useMemo(() => deviceQ.data?.rows ?? [], [deviceQ.data]);
+  const prevRows = useMemo(() => prevDateQ.data?.rows ?? [], [prevDateQ.data]);
 
   const totals = useMemo(() => totalsOf(dateRows), [dateRows]);
   const prevTotals = useMemo(() => totalsOf(prevRows), [prevRows]);
@@ -221,102 +351,66 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     [dateRows],
   );
 
-  const trendOption = useMemo<EChartsCoreOption>(() => {
-    const sorted = sortedDateRows;
-    return {
-      legend: {
-        data: [t("adminAnalytics.gsc.clicks"), t("adminAnalytics.gsc.impressions"), "CTR"],
-        top: 4,
-        left: "center",
-        itemGap: 20,
-      },
-      tooltip: { trigger: "axis" },
-      grid: { left: 44, right: 60, top: 44, bottom: 40, containLabel: true },
-      xAxis: {
-        type: "category",
-        data: sorted.map((r) => r.keys[0] ?? ""),
-        boundaryGap: false,
-      },
-      yAxis: [
-        { type: "value" },
-        {
-          type: "value",
-          splitLine: { show: false },
-        },
-        {
-          type: "value",
-          name: t("adminAnalytics.gsc.ctrPct"),
-          nameTextStyle: { fontSize: 10 },
-          show: false,
-          max: 100,
-        },
-      ],
-      dataZoom: [{ type: "inside", start: 0, end: 100 }],
-      series: [
-        {
-          name: t("adminAnalytics.gsc.clicks"),
-          type: "line",
-          smooth: true,
-          areaStyle: { opacity: 0.25 },
-          data: sorted.map((r) => r.clicks),
-          yAxisIndex: 0,
-          symbol: "circle",
-          symbolSize: 4,
-        },
-        {
-          name: t("adminAnalytics.gsc.impressions"),
-          type: "line",
-          smooth: true,
-          data: sorted.map((r) => r.impressions),
-          yAxisIndex: 1,
-          symbol: "circle",
-          symbolSize: 4,
-        },
-        {
-          name: "CTR",
-          type: "line",
-          smooth: true,
-          data: sorted.map((r) => Number((r.ctr * 100).toFixed(2))),
-          yAxisIndex: 2,
-          symbol: "none",
-          lineStyle: { type: "dashed", width: 1 },
-        },
-      ],
-    };
-  }, [sortedDateRows, t]);
+  /**
+   * Trend: DWIE serie zliczeń na JEDNEJ osi.
+   *
+   * Kliknięcia są podzbiorem wyświetleń, więc wspólna oś nie jest ustępstwem
+   * wobec braku drugiej osi - jest treścią: pionowa odległość między liniami
+   * to ruch, który zobaczył wynik i w niego nie wszedł. `smoothing: 0`, bo
+   * wygładzenie dokłada między dwoma pomiarami wartości, których nie było -
+   * przy szeregu dobowym czyta się to jako płynny wzrost tam, gdzie był skok.
+   */
+  const trendConfig = useMemo(
+    () =>
+      biChart({
+        kind: "line",
+        categories: sortedDateRows.map((r) => r.keys[0] ?? ""),
+        series: [
+          { name: t("adminAnalytics.gsc.clicks"), values: sortedDateRows.map((r) => r.clicks) },
+          {
+            name: t("adminAnalytics.gsc.impressions"),
+            values: sortedDateRows.map((r) => r.impressions),
+          },
+        ],
+        smoothing: 0,
+        sampleSize: sortedDateRows.length,
+      }),
+    [sortedDateRows, t],
+  );
 
-  const topQueriesOption = useMemo<EChartsCoreOption>(() => {
-    const top = queryRows
-      .slice()
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 15)
-      .reverse();
-    return {
-      grid: { left: 8, right: 20, top: 8, bottom: 24, containLabel: true },
-      tooltip: {
-        trigger: "axis",
-        formatter: (raw: unknown) => {
-          const arr = raw as Array<{ name: string; value: number; dataIndex: number }>;
-          const r = top[arr[0]?.dataIndex ?? 0];
-          if (!r) return "";
-          return `${r.keys[0] ?? ""}<br/>${t("adminAnalytics.gsc.clicksLabel")}<b>${r.clicks}</b><br/>${t("adminAnalytics.gsc.impressionsLabel")}${r.impressions}<br/>${t("adminAnalytics.gsc.ctrLabel")}${(r.ctr * 100).toFixed(2)}%<br/>${t("adminAnalytics.gsc.positionLabel")}${r.position.toFixed(1)}`;
-        },
-      },
-      xAxis: { type: "value" },
-      yAxis: {
-        type: "category",
-        data: top.map((r) => (r.keys[0] ?? "").slice(0, 40)),
-        axisLabel: { fontSize: 11 },
-      },
-      series: [
-        {
-          type: "bar",
-          data: top.map((r) => r.clicks),
-          itemStyle: { borderRadius: [0, 4, 4, 0] },
-        },
-      ],
-    };
-  }, [queryRows, t]);
+  /**
+   * Rank fraz: piętnaście najmocniejszych, MALEJĄCO. Jedno źródło dla wykresu,
+   * drążenia i eksportu - dwa niezależne sorty to dwa miejsca na rozjazd.
+   */
+  const topQueryRows = useMemo(
+    () =>
+      queryRows
+        .slice()
+        .sort((a, b) => b.clicks - a.clicks)
+        .slice(0, 15),
+    [queryRows],
+  );
+
+  const topQueriesConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar-horizontal",
+        // MALEJĄCO I BEZ ODWRACANIA: silnik układa kategorie słupków poziomych
+        // od góry w kolejności tablicy, więc ranking czyta się z góry na dół.
+        // (ECharts budował oś Y od dołu i wymagał odwrotnego sortowania - stąd
+        // zmiana kierunku przy niezmienionej intencji.)
+        //
+        // PEŁNA FRAZA, nie ucięta do 40 znaków: przycinanie należy do renderu
+        // etykiet osi, a fraza ucięta w danych wchodzi tak samo do tabeli
+        // danych i do eksportu, gdzie nie da się jej już wyszukać.
+        categories: topQueryRows.map((r) => r.keys[0] ?? ""),
+        series: [
+          { name: t("adminAnalytics.gsc.clicks"), values: topQueryRows.map((r) => r.clicks) },
+        ],
+        sampleSize: topQueryRows.reduce((acc, r) => acc + r.clicks, 0),
+      }),
+    [topQueryRows, t],
+  );
 
   /**
    * Przedziały SERP-owe policzone RAZ: z tej samej tablicy jedzie wykres i jego
@@ -334,194 +428,133 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     return buckets;
   }, [queryRows]);
 
-  const positionHistogramOption = useMemo<EChartsCoreOption>(() => {
-    const buckets = positionBuckets;
-    return {
-      legend: {
-        data: [t("adminAnalytics.gsc.impressions"), t("adminAnalytics.gsc.clicks")],
-        top: 4,
-      },
-      tooltip: { trigger: "axis" },
-      xAxis: { type: "category", data: buckets.map((b) => b.label) },
-      yAxis: [{ type: "value" }, { type: "value", splitLine: { show: false } }],
-      series: [
-        {
-          name: t("adminAnalytics.gsc.impressions"),
-          type: "bar",
-          data: buckets.map((b) => b.impressions),
-          itemStyle: { borderRadius: [4, 4, 0, 0] },
-        },
-        {
-          name: t("adminAnalytics.gsc.clicks"),
-          type: "line",
-          yAxisIndex: 1,
-          data: buckets.map((b) => b.clicks),
-          smooth: true,
-        },
-      ],
-    };
-  }, [positionBuckets, t]);
-
-  const donutOption = (rows: GscRow[], title: string): EChartsCoreOption => {
-    // JEDNA kolejność dla wycinków i dla „Innych": ósemka pokazana osobno i
-    // ogon zwinięty w „Inne" muszą być rozłączne. Liczenie ogona z kolejności
-    // WEJŚCIOWEJ (`rows.slice(8)`) dawało przy niesortowanej odpowiedzi API te
-    // same kraje dwa razy - raz jako wycinek, raz w „Innych" - więc udziały
-    // procentowe donuta przestawały sumować się do całości.
-    const sorted = rows.slice().sort((a, b) => b.clicks - a.clicks);
-    const top = sorted.slice(0, 8);
-    const otherClicks = sorted.slice(8).reduce((acc, r) => acc + r.clicks, 0);
-    const data = top.map((r) => ({ name: r.keys[0] ?? "?", value: r.clicks }));
-    if (otherClicks > 0) data.push({ name: t("adminAnalytics.gsc.other"), value: otherClicks });
-    return {
-      tooltip: {
-        trigger: "item",
-        formatter: (raw: unknown) => {
-          const p = raw as { name: string; value: number; percent: number };
-          return `${p.name}: <b>${p.value}</b> (${p.percent.toFixed(1)}%)`;
-        },
-      },
-      legend: {
-        orient: "vertical",
-        right: 4,
-        top: "middle",
-        type: "scroll",
-        textStyle: { fontSize: 11 },
-      },
-      series: [
-        {
-          name: title,
-          type: "pie",
-          radius: ["45%", "72%"],
-          center: ["38%", "50%"],
-          avoidLabelOverlap: true,
-          label: { show: false },
-          labelLine: { show: false },
-          itemStyle: { borderRadius: 4, borderWidth: 2, borderColor: "transparent" },
-          data,
-        },
-      ],
-    };
-  };
-
-  const treemapOption = useMemo<EChartsCoreOption>(() => {
-    const top = pageRows
-      .slice()
-      .sort((a, b) => b.impressions - a.impressions)
-      .slice(0, 20);
-    return {
-      tooltip: {
-        formatter: (raw: unknown) => {
-          const p = raw as { name: string; value: number; data: { ctr: number; clicks: number } };
-          return `${p.name}<br/>${t("adminAnalytics.gsc.impressionsLabel")}<b>${p.value}</b><br/>${t("adminAnalytics.gsc.clicksLabel")}${p.data.clicks}<br/>${t("adminAnalytics.gsc.ctrLabel")}${(p.data.ctr * 100).toFixed(2)}%`;
-        },
-      },
-      series: [
-        {
-          type: "treemap",
-          roam: false,
-          nodeClick: false,
-          breadcrumb: { show: false },
-          label: {
-            show: true,
-            formatter: "{b}",
-            fontSize: 10,
-            color: chartTheme.foreground,
-            textBorderWidth: 0,
+  /**
+   * Rozkład pozycji: dwie serie zliczeń, znów na jednej osi i z tego samego
+   * powodu co trend. Poprzednio kliknięcia jechały LINIĄ po drugiej, ukrytej
+   * osi - czyli ten sam znacznik co na trendzie znaczył tam co innego, a
+   * wysokość linii nad słupkiem nie znaczyła nic.
+   */
+  const positionConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar",
+        categories: positionBuckets.map((b) => b.label),
+        series: [
+          {
+            name: t("adminAnalytics.gsc.impressions"),
+            values: positionBuckets.map((b) => b.impressions),
           },
-          upperLabel: { show: false },
-          itemStyle: { borderColor: chartTheme.border, borderWidth: 0.5, gapWidth: 1 },
-          levels: [{ colorSaturation: [0.35, 0.7] }],
-          data: top.map((r) => {
-            const raw = r.keys[0] ?? "/";
-            const path = raw.replace(/^https?:\/\/[^/]+/, "");
-            return {
-              name: path.length > 30 ? path.slice(0, 30) + "…" : path,
-              value: r.impressions,
-              ctr: r.ctr,
-              clicks: r.clicks,
-              position: r.position,
-              fullPath: path,
-              rawUrl: raw,
-            };
-          }),
-        },
-      ],
-    };
-  }, [pageRows, t, chartTheme]);
-
-  const calendarOption = useMemo<EChartsCoreOption>(() => {
-    if (!sortedDateRows.length) return { series: [] };
-    const sorted = sortedDateRows;
-    const data = sorted.map((r) => [r.keys[0] ?? "", r.clicks]);
-    const max = Math.max(2, ...sorted.map((r) => r.clicks));
-    const first = sorted[0]?.keys[0] ?? todayISO();
-    const last = sorted[sorted.length - 1]?.keys[0] ?? todayISO();
-    return {
-      tooltip: {
-        formatter: (raw: unknown) => {
-          const p = raw as { value: [string, number] };
-          return `${p.value[0]}: <b>${p.value[1]}</b> ${t("adminAnalytics.gsc.clicksShort")}`;
-        },
-      },
-      // Skala PORZĄDKOWA, nie kategorialna, i zależna od płyty. Legenda jest
-      // KROKOWA (`piecewise`): ciągły `visualMap` rysuje pionowy suwak z uchwytem,
-      // który przy kalendarzu lądował na środku płyty i zasłaniał komórki.
-      // Dolny przystanek zaczyna się od 1, bo zero ma własny kolor tła komórki -
-      // dzień bez pomiaru nie ma udawać dnia z jednym kliknięciem.
-      visualMap: {
-        min: 1,
-        max,
-        show: true,
-        type: "piecewise",
-        orient: "horizontal",
-        left: "center",
-        bottom: 2,
-        itemWidth: 12,
-        itemHeight: 12,
-        itemGap: 4,
-        itemSymbol: "rect",
-        showLabel: false,
-        splitNumber: 5,
-        calculable: false,
-        selectedMode: false,
-        text: [
-          t("adminAnalytics.gsc.charts.calendarIntensityHigh"),
-          t("adminAnalytics.gsc.charts.calendarIntensityLow"),
+          { name: t("adminAnalytics.gsc.clicks"), values: positionBuckets.map((b) => b.clicks) },
         ],
-        textGap: 8,
-        textStyle: { color: chartTheme.foreground, fontSize: 10 },
-        inRange: { color: heatRamp(chartTheme) },
-      },
-      calendar: {
-        top: 40,
-        bottom: 46,
-        left: 34,
-        right: 20,
-        cellSize: ["auto", "auto"],
-        range: [first, last],
-        itemStyle: {
-          color: heatEmpty(chartTheme),
-          borderWidth: 1,
-          borderColor: chartTheme.background,
-        },
-        splitLine: { show: false },
-        yearLabel: { show: false },
-        dayLabel: { color: chartTheme.muted, fontSize: 10, margin: 6 },
-        monthLabel: { color: chartTheme.muted, fontSize: 10, margin: 8 },
-      },
-      series: [
-        {
-          type: "heatmap",
-          coordinateSystem: "calendar",
-          data,
-          // Zaokrąglone kafle z tłem płyty w szczelinie czytają się jak siatka
-          // dni, a nie jak jednolita plama.
-          itemStyle: { borderRadius: 2, borderWidth: 1, borderColor: chartTheme.background },
-        },
-      ],
-    };
-  }, [sortedDateRows, t, chartTheme]);
+        sampleSize: positionBuckets.reduce((acc, b) => acc + b.impressions, 0),
+      }),
+    [positionBuckets, t],
+  );
+
+  const otherLabel = t("adminAnalytics.gsc.other");
+  const clicksLabel = t("adminAnalytics.gsc.clicks");
+
+  const countrySlices = useMemo(
+    () => collapseSlices(countryRows, otherLabel),
+    [countryRows, otherLabel],
+  );
+  const deviceSlices = useMemo(
+    () => collapseSlices(deviceRows, otherLabel),
+    [deviceRows, otherLabel],
+  );
+  const countriesConfig = useMemo(
+    () => donutChart(countrySlices, clicksLabel),
+    [countrySlices, clicksLabel],
+  );
+  const devicesConfig = useMemo(
+    () => donutChart(deviceSlices, clicksLabel),
+    [deviceSlices, clicksLabel],
+  );
+
+  /**
+   * Dwadzieścia stron o największej liczbie wyświetleń, MALEJĄCO - jedno
+   * źródło dla słupków, drążenia i odnośnika.
+   *
+   * Domenę ze ścieżki obcinamy, bo właściwość jest jedna i ten sam prefiks
+   * w każdym wierszu nie niesie informacji; sam adres NIE JEST PRZYCINANY do
+   * trzydziestu znaków, jak w kaflu treemapy. Przycinanie należy do renderu
+   * etykiet: ucięty adres wchodziłby tak samo do tabeli danych i do eksportu,
+   * a tam nie da się go już otworzyć.
+   */
+  const topPageRows = useMemo(
+    () =>
+      pageRows
+        .slice()
+        .sort((a, b) => b.impressions - a.impressions)
+        .slice(0, 20)
+        .map((r) => {
+          const raw = r.keys[0] ?? "/";
+          return { ...r, rawUrl: raw, path: raw.replace(/^https?:\/\/[^/]+/, "") };
+        }),
+    [pageRows],
+  );
+
+  const pagesConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar-horizontal",
+        categories: topPageRows.map((r) => r.path),
+        series: [
+          {
+            name: t("adminAnalytics.gsc.impressions"),
+            values: topPageRows.map((r) => r.impressions),
+          },
+        ],
+        sampleSize: topPageRows.reduce((acc, r) => acc + r.impressions, 0),
+      }),
+    [topPageRows, t],
+  );
+
+  /**
+   * Siatka kalendarza. Tygodnie idą CIĄGIEM od pierwszego do ostatniego dnia
+   * serii, także te bez ani jednego pomiaru: pominięcie pustego tygodnia
+   * ściskałoby oś czasu i dwa odległe tygodnie stanęłyby obok siebie.
+   *
+   * Wiersz bez daty (Search Console oddaje agregat z pustym `keys`) NIE WCHODZI
+   * na siatkę - nie ma na niej miejsca, a dopisanie go do pierwszej komórki
+   * przypisałoby pomiar dniowi, którego nikt nie zmierzył.
+   */
+  const calendar = useMemo<CalendarGrid>(() => {
+    const byDay = new Map<number, number>();
+    let min: number | null = null;
+    let max: number | null = null;
+    for (const r of sortedDateRows) {
+      const ms = dayMs(r.keys[0] ?? "");
+      if (ms === null) continue;
+      byDay.set(ms, r.clicks);
+      if (min === null || ms < min) min = ms;
+      if (max === null || ms > max) max = ms;
+    }
+    if (min === null || max === null) return EMPTY_CALENDAR;
+    const startMs = weekStartMs(min);
+    const weeks: string[] = [];
+    for (let ms = startMs; ms <= weekStartMs(max); ms += 7 * DAY_MS) weeks.push(isoOf(ms));
+    const rows = WEEKDAY_KEYS.map((_key, weekday) =>
+      weeks.map((_w, week) => byDay.get(startMs + week * 7 * DAY_MS + weekday * DAY_MS) ?? null),
+    );
+    return { startMs, weeks, rows, days: byDay.size };
+  }, [sortedDateRows]);
+
+  const calendarConfig = useMemo(
+    () =>
+      biChart({
+        kind: "heatmap",
+        categories: calendar.weeks,
+        series: WEEKDAY_KEYS.map((key, i) => ({
+          name: t(key),
+          values: calendar.rows[i] ?? [],
+        })),
+        // `n` mapy cieplnej to liczba WYPEŁNIONYCH komórek, nie rozmiar siatki:
+        // tydzień ma siedem pól także wtedy, gdy odczytano z niego dwa dni.
+        sampleSize: calendar.days,
+      }),
+    [calendar, t],
+  );
 
   // ---- Drill-down handlers ----
   const gscRowMetrics = (r: GscRow) => [
@@ -531,26 +564,22 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     { label: t("adminAnalytics.gsc.avgPosition"), value: r.position.toFixed(1) },
   ];
 
-  const trendClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
-    const row = sortedDateRows[idx];
+  const trendClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    const row = sel.categoryIndex === null ? undefined : sortedDateRows[sel.categoryIndex];
     if (!row) return null;
     return {
       title: t("adminAnalytics.gsc.charts.trendTitle"),
-      subtitle: p.seriesName,
+      // Wskazanie przy dwóch seriach nie rozstrzyga, która z nich - i nie ma
+      // czego rozstrzygać: okno pokazuje wszystkie liczby tego dnia, czyli
+      // dokładnie to, o co pytał czytelnik wskazujący dzień.
+      subtitle: sel.seriesName ?? undefined,
       date: row.keys[0] ?? "",
       metrics: gscRowMetrics(row),
     };
   };
 
-  const topQueriesClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const top = queryRows
-      .slice()
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 15)
-      .reverse();
-    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
-    const row = top[idx];
+  const topQueriesClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    const row = sel.categoryIndex === null ? undefined : topQueryRows[sel.categoryIndex];
     if (!row) return null;
     return {
       title: row.keys[0] ?? "",
@@ -559,9 +588,8 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     };
   };
 
-  const positionBucketClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
-    const bucket = POSITION_BUCKETS[idx];
+  const positionBucketClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    const bucket = sel.categoryIndex === null ? undefined : POSITION_BUCKETS[sel.categoryIndex];
     if (!bucket) return null;
     let clicks = 0;
     let impressions = 0;
@@ -585,58 +613,50 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
 
   const donutClickFrom =
     (rows: GscRow[], dimLabel: string) =>
-    (p: ChartClickParams): ChartDrillDetail | null => {
-      const name = p.name ?? "?";
-      const row = rows.find((r) => (r.keys[0] ?? "?") === name);
+    (sel: ChartSelection): ChartDrillDetail | null => {
+      // „Inne" i zbiorczy wycinek silnika są WORKAMI, nie wymiarem: żaden nie
+      // ma wiersza w odpowiedzi, więc nie ma czego pokazać i okno się nie
+      // otwiera - zamiast otworzyć je na pustym wierszu.
+      const row = rows.find((r) => (r.keys[0] ?? "?") === sel.category);
       if (!row) return null;
-      return { title: name, subtitle: dimLabel, metrics: gscRowMetrics(row) };
+      return { title: row.keys[0] ?? "?", subtitle: dimLabel, metrics: gscRowMetrics(row) };
     };
 
-  const pageTreemapClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const d = p.data as
-      | {
-          fullPath?: string;
-          rawUrl?: string;
-          value?: number;
-          ctr?: number;
-          clicks?: number;
-          position?: number;
-        }
-      | undefined;
-    if (!d?.fullPath) return null;
-    const impressions = d.value ?? 0;
-    const ctr = d.ctr ?? 0;
+  const pagesClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    // BEZ ODWRACANIA: kategorie jadą do silnika w kolejności rankingu, więc
+    // indeks wskazania jest indeksem wiersza.
+    const row = sel.categoryIndex === null ? undefined : topPageRows[sel.categoryIndex];
+    if (!row) return null;
     return {
-      title: d.fullPath,
+      title: row.path,
       subtitle: t("adminAnalytics.gsc.charts.pagesTitle"),
-      url: d.rawUrl ?? d.fullPath,
-      urlLabel: d.fullPath,
-      metrics: [
-        { label: t("adminAnalytics.gsc.clicks"), value: (d.clicks ?? 0).toLocaleString("pl-PL") },
-        { label: t("adminAnalytics.gsc.impressions"), value: impressions.toLocaleString("pl-PL") },
-        { label: "CTR", value: `${(ctr * 100).toFixed(2)}%` },
-        { label: t("adminAnalytics.gsc.avgPosition"), value: (d.position ?? 0).toFixed(1) },
-      ],
+      url: row.rawUrl,
+      urlLabel: row.path,
+      metrics: gscRowMetrics(row),
       links: [
         {
-          href: d.rawUrl ?? d.fullPath,
+          href: row.rawUrl,
           label: t("adminAnalytics.drillDialog.openInNewTab"),
         },
       ],
     };
   };
 
-  const calendarClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const value = p.value as [string, number] | undefined;
-    if (!value) return null;
-    const [day, clicks] = value;
-    const row = dateRows.find((r) => (r.keys[0] ?? "") === day);
+  const calendarClick = (sel: ChartSelection): ChartDrillDetail | null => {
+    // Adres komórki to PARA (tydzień, dzień tygodnia) - stąd data liczona
+    // z poniedziałku pierwszego tygodnia, a nie z drugiej kopii siatki dat.
+    if (calendar.startMs === null || sel.categoryIndex === null || sel.seriesIndex === null) {
+      return null;
+    }
+    const iso = isoOf(calendar.startMs + sel.categoryIndex * 7 * DAY_MS + sel.seriesIndex * DAY_MS);
+    const row = dateRows.find((r) => (r.keys[0] ?? "") === iso);
+    // Komórka bez wiersza to LUKA, nie zero: okno z „0 kliknięć" twierdziłoby
+    // o dniu coś, czego nikt nie zmierzył.
+    if (!row) return null;
     return {
       title: t("adminAnalytics.gsc.charts.calendarTitle"),
-      date: day,
-      metrics: row
-        ? gscRowMetrics(row)
-        : [{ label: t("adminAnalytics.gsc.clicks"), value: String(clicks) }],
+      date: iso,
+      metrics: gscRowMetrics(row),
     };
   };
 
@@ -666,36 +686,36 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     (r.ctr * 100).toFixed(2),
     r.position.toFixed(2),
   ];
-  const trendCsv = {
+  // EKSPORT, NIE ALTERNATYWA TEKSTOWA. Tabelę danych rysuje przy każdym rodzaju
+  // sam silnik i karta nie dokłada drugiej; `csv` zostaje WYŁĄCZNIE źródłem
+  // pliku, bo plik bywa bogatszy od rysunku - trend koduje dwie wielkości,
+  // a eksport niesie wszystkie cztery metryki dnia, w tym CTR i pozycję,
+  // których na osi nie ma i być nie może.
+  const trendCsv: ChartCsv = {
     filename: "gsc-trend",
     headers: [t("adminAnalytics.gsc.csvHeaders.date"), ...metricHeaders],
-    // Tabela idzie porządkiem WYKRESU, nie kolejnością odpowiedzi API - inaczej
-    // tekstowa alternatywa czyta się jak inny pomiar niż ten na osi czasu.
+    // Plik idzie porządkiem WYKRESU, nie kolejnością odpowiedzi API - inaczej
+    // eksport czyta się jak inny pomiar niż ten na osi czasu.
     rows: sortedDateRows.map((r) => [r.keys[0] ?? "", ...metricCells(r)]),
   };
-  const queriesCsv = {
+  const queriesCsv: ChartCsv = {
     filename: "gsc-queries",
     headers: [t("adminAnalytics.gsc.csvHeaders.query"), ...metricHeaders],
     rows: queryRows.map((r) => [r.keys[0] ?? "", ...metricCells(r)]),
   };
-  // ALTERNATYWA TEKSTOWA DLA WSZYSTKICH SIEDMIU WYKRESÓW. ECharts maluje do
-  // kanwy, która dla czytnika ekranu jest pustym prostokątem - `ChartCard`
-  // wiąże region wykresu z tabelą (`aria-describedby`) tylko wtedy, gdy dostanie
-  // `csv`. Pięć kart jechało bez niego, więc rozkład pozycji, kraje, urządzenia,
-  // strony i kalendarz były dla osoby niewidzącej nieczytelne.
-  const positionCsv = {
+  const positionCsv: ChartCsv = {
     filename: "gsc-positions",
     headers: [
       t("adminAnalytics.gsc.csvHeaders.position"),
       t("adminAnalytics.gsc.csvHeaders.impressions"),
       t("adminAnalytics.gsc.csvHeaders.clicks"),
     ],
-    // Bez ani jednego zapytania przedziały są ZEROWE, nie zmierzone - tabela
-    // pięciu zer udawałaby pomiar, więc wtedy nie ma jej wcale.
+    // Bez ani jednego zapytania przedziały są ZEROWE, nie zmierzone - plik
+    // pięciu zer udawałby pomiar, więc wtedy nie ma go wcale.
     rows:
       queryRows.length === 0 ? [] : positionBuckets.map((b) => [b.label, b.impressions, b.clicks]),
   };
-  const dimensionCsv = (rows: GscRow[], filename: string, dimHeader: string) => ({
+  const dimensionCsv = (rows: GscRow[], filename: string, dimHeader: string): ChartCsv => ({
     filename,
     headers: [dimHeader, ...metricHeaders],
     rows: rows.map((r) => [r.keys[0] ?? "?", ...metricCells(r)]),
@@ -710,14 +730,14 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     "gsc-devices",
     t("adminAnalytics.gsc.charts.devicesTitle"),
   );
-  const pagesCsv = {
+  const pagesCsv: ChartCsv = {
     filename: "gsc-pages",
     headers: [t("adminAnalytics.gsc.charts.pagesTitle"), ...metricHeaders],
-    // Pełny adres, nie skrócona ścieżka z kafla: tabela jest też materiałem do
-    // eksportu, a przycięta nazwa nie identyfikuje strony.
+    // PEŁNY adres z domeną, nie sama ścieżka z osi: eksport trafia do arkusza,
+    // w którym nie ma już wyboru właściwości, więc adres musi być otwieralny.
     rows: pageRows.map((r) => [r.keys[0] ?? "/", ...metricCells(r)]),
   };
-  const calendarCsv = {
+  const calendarCsv: ChartCsv = {
     filename: "gsc-calendar",
     headers: [t("adminAnalytics.gsc.csvHeaders.date"), t("adminAnalytics.gsc.csvHeaders.clicks")],
     rows: sortedDateRows.map((r) => [r.keys[0] ?? "", r.clicks]),
@@ -841,7 +861,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         <ChartCard
           title={t("adminAnalytics.gsc.charts.trendTitle")}
           subtitle={t("adminAnalytics.gsc.charts.trendSubtitle")}
-          option={trendOption}
+          config={trendConfig}
           csv={trendCsv}
           height={320}
           onDataClick={trendClick}
@@ -849,19 +869,19 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         <ChartCard
           title={t("adminAnalytics.gsc.charts.topQueriesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.topQueriesSubtitle")}
-          option={topQueriesOption}
+          config={topQueriesConfig}
           csv={queriesCsv}
           height={320}
           onDataClick={topQueriesClick}
         />
       </div>
 
-      {/* Position histogram + donuts */}
+      {/* Position buckets + donuts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <ChartCard
           title={t("adminAnalytics.gsc.charts.positionTitle")}
           subtitle={t("adminAnalytics.gsc.charts.positionSubtitle")}
-          option={positionHistogramOption}
+          config={positionConfig}
           csv={positionCsv}
           height={280}
           onDataClick={positionBucketClick}
@@ -869,7 +889,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         <ChartCard
           title={t("adminAnalytics.gsc.charts.countriesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.countriesSubtitle")}
-          option={donutOption(countryRows, t("adminAnalytics.gsc.charts.countriesTitle"))}
+          config={countriesConfig}
           csv={countriesCsv}
           height={280}
           onDataClick={donutClickFrom(countryRows, t("adminAnalytics.gsc.charts.countriesTitle"))}
@@ -877,27 +897,27 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         <ChartCard
           title={t("adminAnalytics.gsc.charts.devicesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.devicesSubtitle")}
-          option={donutOption(deviceRows, t("adminAnalytics.gsc.charts.devicesTitle"))}
+          config={devicesConfig}
           csv={devicesCsv}
           height={280}
           onDataClick={donutClickFrom(deviceRows, t("adminAnalytics.gsc.charts.devicesTitle"))}
         />
       </div>
 
-      {/* Treemap + calendar */}
+      {/* Pages rank + calendar */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ChartCard
           title={t("adminAnalytics.gsc.charts.pagesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.pagesSubtitle")}
-          option={treemapOption}
+          config={pagesConfig}
           csv={pagesCsv}
           height={320}
-          onDataClick={pageTreemapClick}
+          onDataClick={pagesClick}
         />
         <ChartCard
           title={t("adminAnalytics.gsc.charts.calendarTitle")}
           subtitle={t("adminAnalytics.gsc.charts.calendarSubtitle")}
-          option={calendarOption}
+          config={calendarConfig}
           csv={calendarCsv}
           height={320}
           onDataClick={calendarClick}
