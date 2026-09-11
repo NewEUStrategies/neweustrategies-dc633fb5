@@ -455,6 +455,17 @@ export interface IndexBaseHonesty {
    * o próbce. `null` = autor nie podał `n` albo nie ma danych.
    */
   declaredSampleOk: boolean | null;
+  /**
+   * Liczba okresów, W KTÓRYCH COKOLWIEK ZMIERZONO - czyli dokładnie ta liczba,
+   * którą `declaredSampleOk` porównuje z `sampleSize` z konfiguracji.
+   *
+   * Pole istnieje, bo samo orzeczenie nie wystarcza do napisania zdania:
+   * „w podpisie stoi n = X, a okresów z pomiarem jest Y" nie ma skąd wziąć Y.
+   * Render liczył je sobie drugi raz tym samym `reduce`, a drugi zapis tej
+   * samej decyzji rozjeżdża się przy pierwszej zmianie definicji - i wtedy
+   * zdanie mówi co innego niż orzeczenie, które je wywołało.
+   */
+  measuredPeriods: number;
 }
 
 export interface IndexBaseModel {
@@ -521,6 +532,17 @@ export interface IndexBaseOptions {
   declaredSampleSize?: number | null;
   /** `ChartConfig.unit` - jednostka WEJŚCIA, nie osi. */
   sourceUnit?: string;
+  /**
+   * Ile liczb ODRZUCIŁ JUŻ WYWOŁUJĄCY, bo nie miały swojej kategorii.
+   *
+   * Model liczy nadmiar sam, ale widzi tylko to, co do niego dotarło - a na
+   * drodze z bloku parser przycina serie do liczby kategorii, ZANIM model je
+   * zobaczy (musi: rendery kartezjańskie chodzą po `values` bez ograniczenia,
+   * więc nadmiarowa liczba narysowałaby punkt za osią). Bez tej opcji
+   * orzeczenie o liczbach bez kategorii było na tej drodze martwe: zapalało
+   * się wyłącznie w testach, które budowały wejście z ręki.
+   */
+  valuesBeyondCategories?: number;
 }
 
 /** Liczba albo `null`. Jedno miejsce, w którym `Infinity` i `NaN` z bazy giną. */
@@ -610,7 +632,7 @@ export function indexBaseModel(input: IndexBaseInput, opts: IndexBaseOptions = {
     }
   }
 
-  let droppedValueCount = 0;
+  let droppedValueCount = Math.max(0, Math.trunc(opts.valuesBeyondCategories ?? 0));
   const series: IndexBaseSeriesModel[] = wejscie.map((s, seriesIndex) => {
     const source = Array.from({ length: periodCount }, (_, i) => liczba(s.values[i]));
     // Liczby za ostatnim okresem nie mają czym być opisane, więc nie ma ich
@@ -827,6 +849,7 @@ export function indexBaseModel(input: IndexBaseInput, opts: IndexBaseOptions = {
     droppedValueCount,
     declaredSampleOk:
       declared === null || okresyZDanymi === 0 ? null : Math.floor(declared) === okresyZDanymi,
+    measuredPeriods: okresyZDanymi,
   };
 
   const zakres = granice(series, INDEX_BASE_VALUE);
@@ -874,6 +897,7 @@ export function indexBaseModelFromConfig(
       ...opts,
       declaredSampleSize: config.sampleSize,
       sourceUnit: config.unit,
+      valuesBeyondCategories: config.valuesBeyondCategories,
     },
   );
 }

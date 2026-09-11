@@ -461,17 +461,6 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
   }
 
   const honesty = model.honesty;
-  // Liczba okresów, w których cokolwiek zmierzono - do wstawki {{actual}}.
-  // POLICZONA TU, BO MODEL JEJ NIE ODDAJE: `declaredSampleOk` porównuje ją
-  // z `sampleSize` u siebie, ale zwraca sam werdykt, więc zdanie „w podpisie
-  // stoi n = X, a okresów z pomiarem jest Y" nie ma skąd wziąć Y. To drugi
-  // zapis tej samej decyzji i zgłaszam go jako defekt modelu, a nie jako
-  // wzorzec do naśladowania.
-  const okresyZPomiarem = model.periods.reduce(
-    (a, _label, i) => a + (model.series.some((s) => s.source[i] !== null) ? 1 : 0),
-    0,
-  );
-
   if (honesty.baseInRangeOk === false) {
     notes.push({
       key: "honesty.baseInRangeOk",
@@ -543,7 +532,11 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
       key: "honesty.declaredSampleOk",
       text: t("indexBase.honesty.declaredSampleOk", {
         declared: podpisaneN,
-        actual: okresyZPomiarem,
+        // LICZBA Z MODELU, nie policzona tu drugi raz. Zdanie ma mówić
+        // dokładnie o tym, co porównało orzeczenie: drugi `reduce` o tej samej
+        // treści rozjeżdża się przy pierwszej zmianie definicji i wtedy zdanie
+        // przeczy orzeczeniu, które je wywołało.
+        actual: honesty.measuredPeriods,
       }),
       defect: true,
     });

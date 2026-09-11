@@ -915,18 +915,34 @@ describe("FanChart - defekty danych: wtedy i tylko wtedy", () => {
     expect(nota(dobry.container, "honesty.wideAtStart")).toBeNull();
   });
 
-  it("granica poza zakresem kroków NIE dociera do uwagi - odrzuca ją parser", () => {
-    // `parseChartConfig` zeruje `forecastFrom` spoza 1..count-1 ZANIM zobaczy
-    // go model, więc `honesty.boundaryDropped` nigdy nie zapala się na drodze
-    // z konfiguracji bloku. Czytelnik dostaje wtedy „wykres nie ma odcinka
-    // prognozy" i nie dowiaduje się, że autor deklarację złożył. Ten test
-    // pinuje stan FAKTYCZNY, żeby zmiana w parserze albo w modelu nie przeszła
-    // niezauważona.
+  it("granica poza zakresem kroków JEST nazwana - drogą z bloku, nie tylko z ręki", () => {
+    // Parser nadal zeruje `forecastFrom` spoza 1..count-1 i musi to robić:
+    // `forecastFrom` ma zostać liczbą, którą wolno bez sprawdzania wstawić do
+    // geometrii. Ale zerował też SAMĄ INFORMACJĘ o deklaracji, więc orzeczenie
+    // `honesty.boundaryDropped` nie mogło zapalić się nigdy na jedynej drodze,
+    // która istnieje w produkcji - a autor, który wpisał krok 40 na szeregu
+    // o ośmiu, dostawał „wykres nie ma odcinka prognozy" i ani słowa o tym,
+    // że jego deklaracja poszła do kosza.
+    //
+    // Deklaracja jedzie teraz osobnym polem (`forecastFromDeclared`), a zakres
+    // sprawdza model tą samą regułą, co parser.
     const { container } = render(
       <FanChart config={cfg({ ...BAZA, forecastFrom: 40 })} lang="pl" />,
     );
-    expect(nota(container, "honesty.boundaryDropped")).toBeNull();
+    expect(nota(container, "honesty.boundaryDropped")?.textContent ?? "").toContain(
+      "poza zakresem kroków",
+    );
     expect(nota(container, "reading.noForecast")).not.toBeNull();
+    expect(container.querySelector("[data-role='forecast-boundary']")).toBeNull();
+  });
+
+  it("granica W ZAKRESIE nie jest nazwana odrzuconą", () => {
+    // Druga strona umowy: pole deklaracji istnieje na KAŻDYM wykresie z
+    // prognozą, więc orzeczenie odczytane bez sprawdzenia zakresu zapalałoby
+    // się zawsze.
+    const { container } = render(<FanChart config={cfg(BAZA)} lang="pl" />);
+    expect(nota(container, "honesty.boundaryDropped")).toBeNull();
+    expect(container.querySelector("[data-role='forecast-boundary']")).not.toBeNull();
   });
 
   it("żadna uwaga nie zostawia surowych klamer wstawki", () => {
@@ -1684,22 +1700,6 @@ describe("FanChart - stan czynny nie przeżywa skrócenia szeregu", () => {
 /* -------------------------------------------------------------------------- */
 
 describe("FanChart - pozostałe wejścia renderu", () => {
-  it("zadeklarowana granica poza zakresem kroków JEST nazwana pod rysunkiem", () => {
-    // Konfiguracja zbudowana WPROST, bez parsera - bo to parser (a nie render)
-    // zeruje `forecastFrom` spoza 1..count-1, więc na drodze z bloku ta uwaga
-    // nigdy się nie zapala. Render musi ją jednak umieć wypisać: autor
-    // deklarację złożył i bez tego zdania dostaje „wykres nie ma odcinka
-    // prognozy" bez słowa o tym, że coś odrzucono. Rozjazd zgłoszony osobno.
-    const { container } = render(
-      <FanChart config={{ ...cfg(BAZA), forecastFrom: 40 }} lang="pl" />,
-    );
-    expect(nota(container, "honesty.boundaryDropped")?.textContent ?? "").toContain(
-      "poza zakresem kroków",
-    );
-    expect(nota(container, "reading.noForecast")).not.toBeNull();
-    expect(container.querySelector("[data-role='forecast-boundary']")).toBeNull();
-  });
-
   it("wyłączona siatka nie zostawia ani linii, ani przycięcia", () => {
     // Przycięcie bez siatki byłoby definicją, która nic nie robi - w przeglądzie
     // wygląda na mechanizm działający, a wycina z niczego.

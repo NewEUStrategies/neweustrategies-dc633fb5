@@ -540,6 +540,17 @@ export interface PercentStackedOptions {
    * rysunku; render, który zna swoją wysokość, podaje próg dokładniejszy.
    */
   labelMinShare?: number;
+  /**
+   * Ile liczb ODRZUCIŁ JUŻ WYWOŁUJĄCY, bo nie miały swojej kategorii.
+   *
+   * Model liczy nadmiar sam, ale widzi tylko to, co do niego dotarło - a na
+   * drodze z bloku parser przycina serie do liczby kategorii, ZANIM model je
+   * zobaczy (musi: rendery kartezjańskie chodzą po `values` bez ograniczenia,
+   * więc nadmiarowa liczba narysowałaby punkt za osią). Bez tej opcji
+   * orzeczenie o liczbach bez kategorii było na tej drodze martwe: zapalało
+   * się wyłącznie w testach, które budowały wejście z ręki.
+   */
+  valuesBeyondCategories?: number;
 }
 
 /**
@@ -721,7 +732,7 @@ export function percentStackedModel(
   const series = input.series.map((s) => s);
 
   // Liczby bez kategorii nie mają słupka, do którego mogłyby wejść.
-  let droppedValueCount = 0;
+  let droppedValueCount = Math.max(0, Math.trunc(opts.valuesBeyondCategories ?? 0));
   for (const s of series) {
     for (let i = categories.length; i < s.values.length; i++) {
       if (liczba(s.values[i]) !== null) droppedValueCount += 1;
@@ -977,7 +988,11 @@ export function percentStackedModelFromConfig(
 ): PercentStackedModel {
   return percentStackedModel(
     { categories: config.categories, series: config.series },
-    { ...opts, valuesAreShares: opts.valuesAreShares ?? jednostkaUdzialu(config.unit) },
+    {
+      ...opts,
+      valuesAreShares: opts.valuesAreShares ?? jednostkaUdzialu(config.unit),
+      valuesBeyondCategories: config.valuesBeyondCategories,
+    },
   );
 }
 

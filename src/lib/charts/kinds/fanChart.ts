@@ -1718,7 +1718,12 @@ export function fanModelFromConfig(config: ChartConfig, opts: FanOptions = {}): 
   return fanModel(
     { categories: config.categories, series: config.series },
     {
-      forecastFrom: opts.forecastFrom ?? config.forecastFrom,
+      // DEKLARACJA AUTORA, nie wartość przyciętą przez parser. `forecastFrom`
+      // zlewa „nie podano" i „podano poza zakresem" w jedno `null`, a model ma
+      // na drugi z tych stanów osobne orzeczenie (`honesty.boundaryDropped`) -
+      // które na tej drodze nie mogło się zapalić NIGDY. Zakres model sprawdza
+      // u siebie tą samą regułą, co parser.
+      forecastFrom: opts.forecastFrom ?? config.forecastFromDeclared ?? config.forecastFrom,
       bandPct: opts.bandPct ?? config.forecastBandPct,
       levels: opts.levels,
       centralSeriesIndex: opts.centralSeriesIndex,

@@ -178,11 +178,42 @@ export interface ChartConfig {
   forecastFrom: number | null;
 
   /**
+   * Granica prognozy TAK, JAK JĄ ZADEKLAROWAŁ AUTOR - przed sprawdzeniem
+   * zakresu; `null` = nie zadeklarował nic.
+   *
+   * Pole istnieje, bo `forecastFrom` zlewa dwa różne stany w jeden: „nie
+   * podano granicy" i „podano granicę, której nie da się użyć" dają tam tak
+   * samo `null`. Model wachlarza ma osobne orzeczenie na drugi z nich
+   * (`honesty.boundaryDropped`), ale na drodze z bloku nie mógł się o nim
+   * dowiedzieć - więc autor, który wpisał krok 40 na szeregu o dwunastu,
+   * dostawał wykres bez prognozy i ANI SŁOWA o tym, że jego deklaracja
+   * poszła do kosza.
+   *
+   * Zakres sprawdza się nadal TUTAJ, a nie w renderach: `forecastFrom` musi
+   * zostać liczbą, którą wolno bez sprawdzania wstawić do geometrii.
+   */
+  forecastFromDeclared: number | null;
+
+  /**
    * Połowa szerokości pasma niepewności prognozy, w procentach wartości
    * (0 = brak pasma). Sama linia prognozy bez pasma sugeruje pewność, której
    * nie ma - dlatego przy włączonej prognozie edytor podpowiada wartość.
    */
   forecastBandPct: number;
+
+  /**
+   * Ile liczb wypadło z serii, bo nie miały swojej kategorii.
+   *
+   * Parser przycina każdą serię do liczby kategorii i musi to robić: rendery
+   * kartezjańskie chodzą po `values` bez ograniczenia, więc nadmiarowa liczba
+   * narysowałaby punkt za osią. Ale przycięcie BEZ LICZNIKA czyni martwymi
+   * cztery orzeczenia, które powstały dokładnie po to, żeby o tym powiedzieć
+   * (`percentStacked.honesty.droppedValues`, `indexBase.honesty
+   * .pointsInPeriodsOk`, `smallMultiples.honesty.inGridOk`, `fan.honesty
+   * .droppedValues`) - modele liczą nadmiar same, tyle że na drodze z bloku
+   * nadmiar do nich nie dociera.
+   */
+  valuesBeyondCategories: number;
 
   /**
    * Liczba obserwacji na szereg. Wykres na trzech i na trzystu obserwacjach

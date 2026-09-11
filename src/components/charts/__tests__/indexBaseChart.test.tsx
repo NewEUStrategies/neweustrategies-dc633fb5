@@ -659,16 +659,21 @@ describe("IndexBaseChart - uczciwość: pole modelu wypisuje się wtedy i tylko 
   });
 
   it("pointsInPeriodsOk: liczba bez swojego okresu na osi jest policzona, nie przemilczana", () => {
-    // Konfiguracja składana RĘCZNIE na kopii wyniku parsera, i to jest tu
-    // konieczne: `parseChartSeries` przycina `values` do liczby kategorii,
-    // więc tą drogą arkusz z nadmiarem liczb nigdy nie dojdzie do modelu.
-    // Sam model liczy nadmiar poprawnie i render musi go umieć wypisać.
-    const podstawa = cfg({ ...BAZA, categories: ["I", "II"] });
-    const zNadmiarem: ChartConfig = {
-      ...podstawa,
-      series: [{ name: "Dłuższa", values: [10, 20, 30, 40], colorSlot: 1 }],
-    };
-    const { container } = render(<IndexBaseChart config={zNadmiarem} lang="pl" />);
+    // Konfiguracja idzie PRZEZ PARSER, czyli tą samą drogą, co blok na
+    // stronie. Wcześniej test musiał składać ją z ręki, bo `parseChartSeries`
+    // przycina `values` do liczby kategorii i nadmiar nigdy nie docierał do
+    // modelu - orzeczenie było więc żywe wyłącznie w teście. Parser liczy
+    // teraz odrzucone liczby (`valuesBeyondCategories`) i podaje je modelowi.
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          ...BAZA,
+          categories: ["I", "II"],
+          series: [{ name: "Dłuższa", values: [10, 20, 30, 40] }],
+        })}
+        lang="pl"
+      />,
+    );
     const tresc = notatki(container).get("honesty.pointsInPeriodsOk") ?? "";
     expect(tresc).toContain("2");
     expect(tresc).not.toContain("{{");
@@ -1378,12 +1383,16 @@ describe("IndexBaseChart - brak rysunku nie znaczy brak zastrzeżenia", () => {
     // Arkusz, w którym KAŻDA liczba leży za ostatnią kategorią: na rysunku nie
     // ma nic, a w danych są cztery pomiary. Milczenie znaczyłoby tu „blok jest
     // pusty", czyli zdanie fałszywe o arkuszu autora.
-    const podstawa = cfg({ ...BAZA, categories: ["I", "II"] });
-    const poza: ChartConfig = {
-      ...podstawa,
-      series: [{ name: "Za osią", values: [null, null, 30, 40], colorSlot: 1 }],
-    };
-    const { container } = render(<IndexBaseChart config={poza} lang="pl" />);
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          ...BAZA,
+          categories: ["I", "II"],
+          series: [{ name: "Za osią", values: [null, null, 30, 40] }],
+        })}
+        lang="pl"
+      />,
+    );
     expect(all(container, "svg")).toHaveLength(0);
     const tresc = notatki(container).get("honesty.pointsInPeriodsOk") ?? "";
     expect(tresc).toContain("2");

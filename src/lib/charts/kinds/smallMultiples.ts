@@ -701,6 +701,17 @@ export interface SmallMultiplesOptions {
   formatValue?: (value: number) => string;
   /** `ChartConfig.sampleSize` - do sprawdzenia zgodności podpisu z próbką. */
   declaredSampleSize?: number | null;
+  /**
+   * Ile liczb ODRZUCIŁ JUŻ WYWOŁUJĄCY, bo nie miały swojej kategorii.
+   *
+   * Model liczy nadmiar sam, ale widzi tylko to, co do niego dotarło - a na
+   * drodze z bloku parser przycina serie do liczby kategorii, ZANIM model je
+   * zobaczy (musi: rendery kartezjańskie chodzą po `values` bez ograniczenia,
+   * więc nadmiarowa liczba narysowałaby punkt za osią). Bez tej opcji
+   * orzeczenie `inGridOk` było na tej drodze martwe: zapalało się wyłącznie
+   * w testach, które budowały wejście z ręki.
+   */
+  valuesBeyondCategories?: number;
 }
 
 /**
@@ -1034,7 +1045,7 @@ export function smallMultiplesModel(
     indexable: boolean;
   }
 
-  let valuesOutsideGrid = 0;
+  let valuesOutsideGrid = Math.max(0, Math.trunc(opts.valuesBeyondCategories ?? 0));
   const surowe: Surowy[] = wejscie.map((panel, i) => {
     // Wartości OBCIĘTE do liczby kategorii, ale obcięcie jest LICZONE.
     // Liczba za ostatnią kategorią nie ma na osi miejsca, w które mogłaby
@@ -1448,6 +1459,7 @@ export function smallMultiplesModelFromConfig(
   const wspolne: SmallMultiplesOptions = {
     ...reszta,
     declaredSampleSize: reszta.declaredSampleSize ?? config.sampleSize,
+    valuesBeyondCategories: config.valuesBeyondCategories,
   };
 
   if (panelBy === "category") {

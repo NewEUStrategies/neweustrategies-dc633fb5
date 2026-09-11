@@ -884,3 +884,39 @@ describe("indeks - alternatywa tekstowa", () => {
     expect(tabela.series.map((s) => s.base)).toEqual(model.series.map((s) => s.base));
   });
 });
+
+describe("indexBaseModel: liczba okresów z pomiarem stoi W MODELU", () => {
+  // Orzeczenie `declaredSampleOk` porównuje `sampleSize` z liczbą okresów,
+  // w których cokolwiek zmierzono - a zdanie pod rysunkiem musi tę liczbę
+  // POKAZAĆ („w podpisie stoi n = 8, a okresów z pomiarem jest 3"). Dopóki
+  // model oddawał sam werdykt, render liczył ją sobie drugi raz tym samym
+  // `reduce`: drugi zapis tej samej decyzji rozjeżdża się przy pierwszej
+  // zmianie definicji, a wtedy zdanie przeczy orzeczeniu, które je wywołało.
+  it("oddaje DOKŁADNIE tę liczbę, którą porównuje orzeczenie", () => {
+    const model = indexBaseModel(
+      {
+        categories: ["2021", "2022", "2023", "2024"],
+        series: [
+          { name: "A", values: [100, null, 120, null], colorSlot: 1 },
+          { name: "B", values: [null, null, 60, null], colorSlot: 2 },
+        ],
+      },
+      { declaredSampleSize: 4 },
+    );
+    // Zmierzono w dwóch okresach z czterech: „2021" (A) i „2023" (A i B).
+    expect(model.honesty.measuredPeriods).toBe(2);
+    expect(model.honesty.declaredSampleOk).toBe(false);
+  });
+
+  it("zgodny podpis nie robi z liczby defektu", () => {
+    const model = indexBaseModel(
+      {
+        categories: ["2021", "2022"],
+        series: [{ name: "A", values: [100, 110], colorSlot: 1 }],
+      },
+      { declaredSampleSize: 2 },
+    );
+    expect(model.honesty.measuredPeriods).toBe(2);
+    expect(model.honesty.declaredSampleOk).toBe(true);
+  });
+});
