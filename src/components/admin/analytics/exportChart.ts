@@ -13,7 +13,7 @@
  * a formula are neutralised on the way out (see `neutralizeFormula`).
  *
  */
-import { svgDoPng } from "@/lib/charts/exportImage";
+import { svgDoPng, type WpisKlucza } from "@/lib/charts/exportImage";
 
 /**
  * Znaki, od których arkusz zaczyna czytać komórkę jako FORMUŁĘ, a nie jako
@@ -144,9 +144,73 @@ export function exportCsv(
  * o ciemnym tle pokazuje ciemny tusz na ciemnym, czyli nic. Bierzemy płytę
  * karty (`--card`), bo na niej rysunek stoi na ekranie.
  */
+/**
+ * KLUCZ RYSUNKU ODCZYTANY Z DOM-U, a nie odtworzony z konfiguracji.
+ *
+ * DLACZEGO TAK, A NIE Z `ChartConfig`. Klucz na ekranie powstaje w silniku:
+ * to on rozstrzyga, które rodzaje mają legendę serii, który ma tabelę klucza
+ * tarczy, a które nie mają żadnego (histogram, mapa cieplna, mostek ma za to
+ * klucz ZNAKU, nie serii), i to on przydziela kolory slotom. Zbudowanie
+ * drugiej takiej listy w panelu dałoby DRUGIE ŹRÓDŁO PRAWDY, które rozjedzie
+ * się z pierwszym przy najbliższej zmianie reguł - a rozjazd byłby widoczny
+ * dopiero w pobranym pliku, czyli poza zasięgiem jakiegokolwiek testu układu.
+ * Czytamy więc dokładnie to, co czytelnik ma przed oczami.
+ *
+ * Oba klucze mają tę samą budowę - próbka `aria-hidden` plus napis obok - więc
+ * jedna reguła obsługuje legendę i tabelę tarczy.
+ */
+function kluczZRysunku(container: HTMLElement): WpisKlucza[] {
+  const ramka = container.querySelector("figure");
+  if (ramka === null) return [];
+  const styl = (el: Element, wlasciwosc: string): string =>
+    getComputedStyle(el).getPropertyValue(wlasciwosc).trim();
+
+  const wiersze = [...ramka.querySelectorAll(".neh-pie-key tbody tr")];
+  if (wiersze.length > 0) {
+    return wiersze.flatMap((tr) => {
+      const probka = tr.querySelector("th span[aria-hidden]");
+      // SĄSIAD PRÓBKI, a nie „pierwszy span bez aria-hidden": ten drugi łapie
+      // opakowanie układu (`<span class="flex">`), które treść owija, ale
+      // koloru napisu nie nosi - i klucz wychodził z pustym tuszem.
+      const nazwa = probka?.nextElementSibling ?? null;
+      if (probka === null || nazwa === null) return [];
+      // Udział i wartość bezwzględną też bierzemy: tabela klucza niesie je
+      // w wierszu, a zrzut bez nich byłby uboższy od tego, co widać.
+      const liczby = [...tr.querySelectorAll("td")].map((td) => (td.textContent ?? "").trim());
+      const opis = liczby.filter(Boolean).join(" · ");
+      return [
+        {
+          label: opis === "" ? (nazwa.textContent ?? "") : `${nazwa.textContent ?? ""} — ${opis}`,
+          color: styl(probka, "background-color"),
+          textColor: styl(nazwa, "color"),
+        },
+      ];
+    });
+  }
+
+  return [...ramka.querySelectorAll(":scope > ul > li")].flatMap((li) => {
+    const probka = li.querySelector("span[aria-hidden]");
+    const nazwa = probka?.nextElementSibling ?? null;
+    if (probka === null || nazwa === null) return [];
+    return [
+      {
+        label: nazwa.textContent ?? "",
+        // Seria poza zestawem bezpiecznym dla daltonizmu ma próbkę kreskowaną
+        // (gradient), a `background-color` jest wtedy przezroczysty - bierzemy
+        // wówczas kolor napisu, żeby kwadrat nie wyszedł niewidzialny.
+        color: (() => {
+          const tlo = styl(probka, "background-color");
+          return tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? styl(nazwa, "color") : tlo;
+        })(),
+        textColor: styl(nazwa, "color"),
+      },
+    ];
+  });
+}
+
 export async function exportPng(filename: string, container: HTMLElement | null): Promise<void> {
   const svg = container?.querySelector("svg") ?? null;
-  if (svg === null) return;
+  if (svg === null || container === null) return;
   const plyta = getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
   const blob = await svgDoPng(svg as SVGSVGElement, {
     background: plyta === "" ? "#ffffff" : plyta,
@@ -155,6 +219,11 @@ export async function exportPng(filename: string, container: HTMLElement | null)
     // jedynym, co widać. Domyślna wartość może się kiedyś zmienić dla innego
     // wywołującego; ta karta ma swój powód i mówi go tutaj.
     scale: 2,
+    // KLUCZ DOKLEJONY DO PLIKU. Bez niego zrzut wykresu wieloseryjnego pokazuje
+    // kilka kolorów bez ani jednej nazwy, a zrzut pierścienia - bezimienne
+    // wycinki. Eksport z kanwy malował legendę razem z rysunkiem, więc brak
+    // klucza byłby regresją wobec stanu sprzed przeniesienia na nasz silnik.
+    klucz: kluczZRysunku(container),
   });
   triggerDownload(filename.endsWith(".png") ? filename : `${filename}.png`, blob);
 }

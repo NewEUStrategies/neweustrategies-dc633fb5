@@ -1119,7 +1119,8 @@ describe("ClientErrorsDashboard - izolacja warsztatów", () => {
     expect(container.textContent ?? "").toContain("BETA: hydration mismatch");
     expect(container.textContent ?? "").not.toContain("ALFA");
     expect(container.textContent ?? "").not.toContain("/alfa/");
-    // Ścieżki i komunikaty jadą także do eksportu CSV i do kanwy.
+    // Ścieżki i komunikaty jadą także do eksportu CSV i do konfiguracji
+    // oddanej silnikowi - żadnej kanwy tu już nie ma, jest `ChartConfig`.
     expect(JSON.stringify(h.charts)).not.toContain("ALFA");
   });
 

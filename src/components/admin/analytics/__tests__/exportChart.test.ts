@@ -31,14 +31,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   svgDoPng: vi.fn(),
-  wywolania: [] as Array<{ svg: SVGSVGElement; opcje?: { background?: string; scale?: number } }>,
+  wywolania: [] as Array<{
+    svg: SVGSVGElement;
+    opcje?: { background?: string; scale?: number; klucz?: unknown };
+  }>,
 }));
 
 // Atrapa NA SAMEJ ZAMIANIE WĘZŁA NA OBRAZ. Płótno w happy-dom nie maluje, więc
 // prawdziwe `svgDoPng` nie miałoby tu czego zwrócić - a jego poprawność (kopia
 // ze wklejoną farbą, skala, tło) jest udowodniona w teście silnika.
 vi.mock("@/lib/charts/exportImage", () => ({
-  svgDoPng: (svg: SVGSVGElement, opcje?: { background?: string; scale?: number }) => {
+  svgDoPng: (
+    svg: SVGSVGElement,
+    opcje?: { background?: string; scale?: number; klucz?: unknown },
+  ) => {
     h.wywolania.push({ svg, opcje });
     return Promise.resolve(
       new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], {
@@ -54,6 +60,47 @@ import { buildCsv, exportCsv, exportPng } from "../exportChart";
 function kontenerZRysunkiem(): HTMLElement {
   const div = document.createElement("div");
   div.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"></svg>';
+  document.body.appendChild(div);
+  return div;
+}
+
+/**
+ * Kontener z rysunkiem I KLUCZEM - ramka silnika w wariancie wieloseryjnym.
+ * Markup skopiowany z `ChartFrame`: lista kluczy to `ul > li`, a w każdym
+ * `li` próbka `aria-hidden` i napis obok.
+ */
+function kontenerZLegenda(): HTMLElement {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <figure class="neh-chart">
+      <ul role="list">
+        <li><span aria-hidden style="background: rgb(10, 20, 30)"></span><span style="color: rgb(1, 2, 3)">Sesje</span></li>
+        <li><span aria-hidden style="background: rgb(40, 50, 60)"></span><span style="color: rgb(4, 5, 6)">Odsłony</span></li>
+      </ul>
+      <svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"></svg>
+    </figure>`;
+  document.body.appendChild(div);
+  return div;
+}
+
+/**
+ * Kontener z pierścieniem: klucz niesie TABELA obok koła, a jej wiersz ma
+ * poza nazwą także udział i wartość bezwzględną.
+ */
+function kontenerZTabelaKlucza(): HTMLElement {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <figure class="neh-chart">
+      <svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"></svg>
+      <table class="neh-pie-key">
+        <tbody>
+          <tr>
+            <th><span class="flex"><span aria-hidden style="background: rgb(7, 7, 7)"></span><span style="color: rgb(9, 9, 9)">organic</span></span></th>
+            <td>64%</td><td>1 280</td>
+          </tr>
+        </tbody>
+      </table>
+    </figure>`;
   document.body.appendChild(div);
   return div;
 }
@@ -395,6 +442,39 @@ describe("exportPng - zrzut wykresu", () => {
     await exportPng("wykres", kontenerZRysunkiem());
 
     expect(h.wywolania[0].opcje?.background).toBe("#ffffff");
+  });
+
+  it("KLUCZ WIELOSERYJNY jedzie do pliku razem z rysunkiem", async () => {
+    // ZGŁOSZONE W PRZEGLĄDZIE PR #346 (P1). Rysunek silnika to samo `<svg>`;
+    // legenda serii jest obok niego zwykłym HTML-em. Zrzut zrobiony z samego
+    // węzła rysunku dawał obrazek, na którym serie różnią się kolorem, a nic
+    // nie mówi, która jest która - czyli mniej, niż widać na ekranie, i mniej
+    // niż dawał eksport z kanwy, która legendę malowała razem z wykresem.
+    await exportPng("wykres", kontenerZLegenda());
+
+    expect(h.wywolania[0].opcje?.klucz).toEqual([
+      { label: "Sesje", color: "rgb(10, 20, 30)", textColor: "rgb(1, 2, 3)" },
+      { label: "Odsłony", color: "rgb(40, 50, 60)", textColor: "rgb(4, 5, 6)" },
+    ]);
+  });
+
+  it("KLUCZ PIERŚCIENIA niesie nazwę, udział i wartość - tak jak na ekranie", async () => {
+    // Tabela klucza tarczy ma w wierszu trzy rzeczy, nie jedną. Zrzut z samą
+    // nazwą byłby uboższy od tego, co czytelnik ma przed oczami, a to jest
+    // dokładnie ta różnica, którą ten PR miał zlikwidować, a nie wprowadzić.
+    await exportPng("wykres", kontenerZTabelaKlucza());
+
+    expect(h.wywolania[0].opcje?.klucz).toEqual([
+      { label: "organic — 64% · 1 280", color: "rgb(7, 7, 7)", textColor: "rgb(9, 9, 9)" },
+    ]);
+  });
+
+  it("rodzaj BEZ klucza nie dokłada do pliku pustego paska", async () => {
+    // Histogram, mapa cieplna i wykres jednoseryjny nie mają czego nazywać.
+    // Pusty pasek pod rysunkiem byłby białą przestrzenią udającą uciętą treść.
+    await exportPng("wykres", kontenerZRysunkiem());
+
+    expect(h.wywolania[0].opcje?.klucz).toEqual([]);
   });
 
   it("sufiks .png dokładany TYLKO gdy go brakuje", async () => {
