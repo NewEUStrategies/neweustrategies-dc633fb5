@@ -252,6 +252,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
     seriesCount: boxes.length,
     stacked: false,
     patterned: false,
+    slots: boxes.map((b) => b.colorSlot),
   });
   const edged = barStyleHasEdge(barStyle);
   const cascade = cascadeStepMs(boxes.length);

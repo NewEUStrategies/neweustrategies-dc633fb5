@@ -187,6 +187,7 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
     seriesCount: 1,
     stacked: false,
     patterned: false,
+    slots: [model.colorSlot],
   });
   const edged = barStyleHasEdge(barStyle);
   const cascade = cascadeStepMs(bins.length);
