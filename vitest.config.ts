@@ -1384,12 +1384,14 @@ export default defineConfig({
           lines: 99,
           branches: 97,
         },
-        // zmierzone: 93.3% linii · 92.0% instr · 84.2% fn · 90.1% gał
+        // PODNIESIONE TESTAMI: przegląd adwersarialny paneli dołożył 323 linie
+        // testów (46 -> 57 przypadków) i zmierzone poszło z 93,3/92,0/84,2/90,1 na:
+        // zmierzone: 99.5% linii · 99.6% instr · 100.0% fn · 97.6% gał
         "src/components/charts/SmallMultiplesChart.tsx": {
-          statements: 91,
-          functions: 84,
-          lines: 93,
-          branches: 90,
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 97,
         },
         // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
         "src/lib/analytics/audience.functions.ts": {

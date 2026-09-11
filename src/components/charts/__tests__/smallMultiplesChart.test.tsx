@@ -25,6 +25,8 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
+import { FONT_AXIS } from "@/lib/charts/geometry";
+import { estimateLabelWidth } from "@/lib/charts/measureText";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { SmallMultiplesChart, type SmallMultiplesRenderOptions } from "../SmallMultiplesChart";
 
@@ -523,17 +525,56 @@ describe("SmallMultiplesChart - i18n", () => {
         },
         { panelBy: "category" },
       ],
+      // Stany, w których render SKŁADA zdania sam: tytuł w nazwie dostępnej,
+      // etykiety bezpośrednie, podpowiedzi paneli przy osobnych skalach,
+      // żądanie usunięcia pustych paneli, jedna kategoria i pusty zestaw.
+      [{ title: "Handel & usługi", showValues: true, showGrid: true }, { mark: "area" }],
+      [
+        { series: [{ name: "A", values: [1, 2, 3, 4] }, { name: "B", values: [null, null, null, null] }] },
+        { dropEmptyPanels: true },
+      ],
+      [
+        {
+          categories: ["2020"],
+          series: [{ name: "A", values: [1] }, { name: "B", values: [2] }],
+        },
+        undefined,
+      ],
+      [
+        {
+          categories: ["a", "b"],
+          series: [{ name: "A", values: [null, null] }, { name: "B", values: [null, null] }],
+        },
+        undefined,
+      ],
+      [
+        {
+          height: 160,
+          series: Array.from({ length: 12 }, (_, i) => ({
+            name: `S${i}`,
+            values: [i + 1, i + 2, i + 3, i + 4],
+          })),
+        },
+        undefined,
+      ],
     ];
     for (const [dane, opts] of przypadki) {
       for (const lang of ["pl", "en"] as const) {
         const { container } = rysuj(dane, opts, lang);
-        for (const el of all(container, "[data-note]")) {
-          const tekst = el.textContent ?? "";
-          expect(tekst, `${el.getAttribute("data-note")} (${lang})`).not.toContain("{{");
-          expect(tekst, `${el.getAttribute("data-note")} (${lang})`).not.toMatch(
-            /smallMultiples\.[a-z]/,
-          );
-        }
+        // CAŁY RYSUNEK, nie same uwagi: wstawka bez wartości wychodzi tak samo
+        // surowo w nazwie dostępnej, w podpowiedzi panelu i w podpisie osi,
+        // a te trzy miejsca są dla czytelnika ekranu CAŁYM wykresem. Zbieramy
+        // więc tekst i WSZYSTKIE wartości atrybutów.
+        const atrybuty = all(container, "*")
+          .flatMap((el) => [...el.attributes].map((a) => a.value))
+          .join(" ");
+        const wszystko = `${container.textContent ?? ""} ${atrybuty}`;
+        const gdzie = `${JSON.stringify(dane).slice(0, 60)} ${JSON.stringify(opts)} (${lang})`;
+        expect(wszystko, gdzie).not.toContain("{{");
+        // Klucz bez treści wychodzi na stronę jako własna ścieżka słownika.
+        expect(wszystko, gdzie).not.toMatch(/smallMultiples\.[a-z]/);
+        expect(wszystko, gdzie).not.toMatch(/\ba11y\.[a-z]/);
+        expect(wszystko, gdzie).not.toMatch(/\bframe\.[a-z]/);
       }
     }
   });
@@ -918,5 +959,467 @@ describe("SmallMultiplesChart - przypadki brzegowe", () => {
     const etykiety = all(container, "[data-role='category-tick']").map((e) => e.textContent);
     expect(etykiety).toContain("Polska");
     expect(etykiety).toContain("Węgry");
+  });
+});
+
+describe("SmallMultiplesChart - nazwa dostępna nie wymyśla osi", () => {
+  it("BRAK JAKIEJKOLWIEK LICZBY: nazwa dostępna nie podaje zakresu osi", () => {
+    // Defekt, który ten test wyłapuje, jest defektem WYMYŚLONEJ OSI i widać go
+    // wyłącznie z czytnika ekranu: domena pustego zestawu wychodzi z modelu
+    // jako 0..1 (skala musi mieć rozpiętość), więc nazwa dostępna niosła
+    // zdanie "Wartość: 0 mld EUR - 1 mld EUR" o zestawie, w którym nie ma ANI
+    // JEDNEJ liczby. Rysunek w tym samym stanie nie stawia ani jednej
+    // podziałki - i to jest ta sama decyzja, więc oba odczyty muszą mówić to
+    // samo.
+    const { container } = rysuj({
+      categories: ["a", "b"],
+      series: [
+        { name: "A", values: [null, null] },
+        { name: "B", values: [null, null] },
+      ],
+    });
+    const label = container.querySelector("[role='img']")?.getAttribute("aria-label") ?? "";
+    expect(all(container, "[data-role='value-tick']")).toHaveLength(0);
+    expect(label).not.toContain("Wartość:");
+    expect(label).not.toContain("0 mld EUR");
+    expect(label).not.toContain("1 mld EUR");
+    // ...a panele nadal są opisane, razem z nazwaną pustką.
+    expect(label).toContain("A: Obserwacje 0");
+    expect(label).toContain("brak danych o tym podmiocie");
+  });
+
+  it("SKALE OSOBNE: nazwa dostępna nie podaje wspólnego zakresu, a KAŻDY panel podaje własny", () => {
+    // Przy osobnych skalach wspólna domena jest policzona, ale nie opisuje
+    // żadnego panelu - dlatego rysunek nie stawia podziałek na brzegu siatki,
+    // tylko krańce osi przy KAŻDYM panelu. Nazwa dostępna podawała mimo to
+    // wspólny zakres, czyli czytelnik ekranu dostawał jedyny zakres liczbowy
+    // całego wykresu wzięty z osi, której na rysunku nie ma, i to tuż przed
+    // zdaniem "każdy panel ma własną oś".
+    const { container } = rysuj(
+      {
+        series: [
+          { name: "Wielki", values: [100, 400, 900, 1600] },
+          { name: "Mały", values: [8, 9, 11, 12] },
+        ],
+      },
+      { scaleMode: "free", freeScaleNote: "różne rzędy wielkości" },
+    );
+    const label = container.querySelector("[role='img']")?.getAttribute("aria-label") ?? "";
+    // Wspólna domena tego zestawu to 0-1800; żaden panel jej nie ma.
+    expect(label).not.toContain("1 800");
+    // Zakres osi pada dopiero PRZY PANELU, nigdy przed nim: pierwszy napis
+    // "Wartość:" stoi za nazwą pierwszego panelu, a jest ich tyle, ile paneli.
+    expect(label).toContain("Wielki: ");
+    expect(label.indexOf("Wartość:")).toBeGreaterThan(label.indexOf("Wielki:"));
+    expect(label.match(/Wartość:/g) ?? []).toHaveLength(2);
+    // ...i są to krańce WŁASNEJ osi panelu, te same, które stoją przy nim
+    // w `panel-axis` - inaczej czytelnik ekranu nie ma z czego odczytać
+    // wysokości linii.
+    expect(label).toContain("Wartość: 8 mld EUR - 12 mld EUR");
+    const krance = all(container, "g[data-panel-label='Mały'] [data-role='panel-axis'] text").map(
+      (e) => e.textContent,
+    );
+    expect(krance).toEqual(["12", "8"]);
+    // Przy osi wspólnej odwrotnie: jeden zakres na cały rysunek, PRZED
+    // panelami, i przy żadnym panelu z osobna.
+    const wspolna =
+      rysuj().container.querySelector("[role='img']")?.getAttribute("aria-label") ?? "";
+    expect(wspolna).toContain("Wykres. Wartość: 5 mld EUR - 20 mld EUR");
+    expect(wspolna.match(/Wartość:/g) ?? []).toHaveLength(1);
+  });
+
+  it("JEDNA KATEGORIA nie jest przedziałem", () => {
+    // "Kategoria: 2020 - 2020" czyta się jak przedział, a jest punktem - ten
+    // sam gatunek zdania co "panele różnią się poziomem 1-krotnie", które ten
+    // render wycisza z tego samego powodu.
+    const { container } = rysuj({
+      categories: ["2020"],
+      series: [
+        { name: "A", values: [1] },
+        { name: "B", values: [2] },
+      ],
+    });
+    const label = container.querySelector("[role='img']")?.getAttribute("aria-label") ?? "";
+    expect(label).toContain("Kategoria: 2020.");
+    expect(label).not.toContain("2020 - 2020");
+    // Forma jest wtedy zła i render to mówi wprost.
+    expect(nota(container, "reading.oneCategory")).toContain("jeden punkt");
+  });
+
+  it("TYTUŁ wpisu wchodzi do nazwy dostępnej, brak tytułu daje nazwę rodzajową", () => {
+    const zTytulem = rysuj({ title: "Handel zagraniczny" }).container;
+    expect(zTytulem.querySelector("[role='img']")?.getAttribute("aria-label") ?? "").toContain(
+      "Wykres: Handel zagraniczny.",
+    );
+    const bez = rysuj().container.querySelector("[role='img']")?.getAttribute("aria-label") ?? "";
+    expect(bez.startsWith("Wykres.")).toBe(true);
+  });
+});
+
+describe("SmallMultiplesChart - podziałka stoi tam, gdzie wartość", () => {
+  it("DOMENA BEZ ROZPIĘTOŚCI: podziałka leży na wysokości kropki, nie na dolnej krawędzi", () => {
+    // Domena podana z zewnątrz NIE przechodzi przez `niceScale` (autor podał
+    // ją dokładnie), więc `domainMin === domainMax` daje rozpiętość zero.
+    // Model stawia wtedy każdy punkt w POŁOWIE wysokości panelu, bo dolna
+    // i górna krawędź znaczą to samo. Render liczył pozycję podziałki własnym
+    // wzorem bez tej osłony: dzielenie przez zero schodziło przez `finite` na
+    // DOLNĄ krawędź pola, więc podpis "5" stał 56 px pod kropką o wartości 5.
+    // Czytelnik odmierzający kropkę tą podziałką odczytywał liczbę, której
+    // w danych nie ma.
+    const { container } = rysuj({ showGrid: true }, { domainMin: 5, domainMax: 5 });
+    const p = pole(container, "Polska");
+    const gora = num(p, "y");
+    const dol = gora + num(p, "height");
+    const kropki = all(container, "g[data-panel-label='Polska'] [data-role='panel-point']");
+    expect(kropki.length).toBeGreaterThan(0);
+    const podzialki = all(container, "g[data-panel-label='Polska'] [data-role='value-tick']");
+    expect(podzialki.length).toBeGreaterThan(0);
+    for (const t of podzialki) {
+      // Podziałka opisuje wartość 5, a wartość 5 leży w połowie wysokości.
+      expect(t.textContent).toBe("5");
+      expect(num(t, "y")).toBeGreaterThan(gora + 10);
+      expect(num(t, "y")).toBeLessThan(dol - 10);
+    }
+    // ...i leży dokładnie tam, gdzie kropka (z dokładnością do zejścia linii
+    // bazowej tekstu do środka wiersza).
+    const cy = num(kropki[0], "cy");
+    const ty = num(podzialki[0], "y");
+    expect(Math.abs(ty - cy)).toBeLessThanOrEqual(4);
+    // Siatka idzie tym samym wzorem co podziałka - inaczej linia siatki
+    // biegłaby pod podpisem, który ją nazywa.
+    const siatka = all(container, "g[data-panel-label='Polska'] line[stroke='var(--chart-grid)']")
+      .map((l) => num(l, "y1"))
+      .filter((y) => y < dol);
+    expect(siatka.length).toBeGreaterThan(0);
+    for (const y of siatka) expect(Math.abs(y - cy)).toBeLessThanOrEqual(0.5);
+  });
+
+  it("PODZIAŁKA SPOZA DOMENY nie jest rysowana", () => {
+    // `niceScale` liczy podziałki ZAOKRĄGLONE na zewnątrz podanego zakresu,
+    // więc przy domenie 10,5-13,5 model oddaje podziałki 10..14. Podziałka 10
+    // narysowana w panelu o domenie od 10,5 stałaby POD dolną krawędzią pola,
+    // czyli opisywałaby miejsce, którego panel nie pokazuje.
+    const { container } = rysuj({ showGrid: true }, { domainMin: 10.5, domainMax: 13.5 });
+    const p = pole(container, "Polska");
+    const gora = num(p, "y");
+    const dol = gora + num(p, "height");
+    const podzialki = all(container, "g[data-panel-label='Polska'] [data-role='value-tick']");
+    expect(podzialki.map((t) => t.textContent)).toEqual(["11", "12", "13"]);
+    for (const t of podzialki) {
+      expect(num(t, "y")).toBeGreaterThanOrEqual(gora);
+      expect(num(t, "y")).toBeLessThanOrEqual(dol + 4);
+    }
+  });
+});
+
+describe("SmallMultiplesChart - etykieta bezpośrednia stoi nad swoim pomiarem", () => {
+  it("ETYKIETA idzie za OSTATNIM POMIAREM, a nie za prawą krawędzią panelu", () => {
+    // Defekt, który ten test wyłapuje: etykieta przypięta do prawej krawędzi
+    // pola. Szereg urwany lukami (10, 12, brak, brak) pokazywał wtedy "12"
+    // nad ostatnią kategorią, czyli nad okresem, którego NIE ZMIERZONO -
+    // a pozycja etykiety bezpośredniej jest twierdzeniem o tym, kiedy ta
+    // liczba obowiązuje.
+    const { container } = rysuj({
+      showValues: true,
+      series: [
+        { name: "Polska", values: [10, 12, null, null] },
+        { name: "Czechy", values: [8, 9, 11, 12] },
+      ],
+    });
+    const g = container.querySelector("g[data-panel-label='Polska']");
+    const etykieta = g?.querySelector("[data-role='panel-value']");
+    const ostatniaKropka = kropka(container, "Polska", 1);
+    if (!etykieta) throw new Error("brak etykiety");
+    expect(etykieta.textContent).toBe("12 mld EUR");
+    expect(num(etykieta, "x")).toBeCloseTo(num(ostatniaKropka, "cx"), 6);
+    // Prawa krawędź pola jest daleko - etykieta nie ma prawa tam stać.
+    const p = pole(container, "Polska");
+    expect(num(etykieta, "x")).toBeLessThan(num(p, "x") + num(p, "width") - 50);
+    // Panel pełny ma etykietę dokładnie przy ostatniej kategorii, czyli na
+    // prawej krawędzi - i to nadal musi być prawdą.
+    const czechy = container.querySelector("g[data-panel-label='Czechy']");
+    const etCzechy = czechy?.querySelector("[data-role='panel-value']");
+    expect(num(etCzechy!, "x")).toBeCloseTo(num(kropka(container, "Czechy", 3), "cx"), 6);
+  });
+
+  it("ETYKIETA przy pomiarze w pierwszej kategorii nie wychodzi poza pole panelu", () => {
+    // Kotwica "end" postawiona na lewej krawędzi pola wysunęłaby napis w lewo,
+    // czyli w kolumnę podziałek albo w panel sąsiada. Napis, który wjeżdża
+    // w cudzą oś, czyta się jako jej podpis.
+    const { container } = rysuj({
+      showValues: true,
+      series: [
+        { name: "Polska", values: [42, null, null, null] },
+        { name: "Czechy", values: [8, 9, 11, 12] },
+      ],
+    });
+    const g = container.querySelector("g[data-panel-label='Polska']");
+    const etykieta = g?.querySelector("[data-role='panel-value']");
+    if (!etykieta) throw new Error("brak etykiety");
+    const p = pole(container, "Polska");
+    expect(etykieta.getAttribute("text-anchor")).toBe("start");
+    expect(num(etykieta, "x")).toBeGreaterThanOrEqual(num(p, "x"));
+  });
+});
+
+describe("SmallMultiplesChart - podpisy kategorii się nie nakładają", () => {
+  it("ŻADNE DWA PODPISY NIE ZACHODZĄ NA SIEBIE, a pierwszy i ostatni zostają", () => {
+    // Reguła "co n-tą, a ostatnia ZAWSZE" nakłada napisy na siebie i to nie
+    // teoretycznie: dwadzieścia kategorii w panelu 330 px daje krok 5, więc
+    // podpis kategorii szesnastej (kotwiczony środkiem) wchodził 32 px
+    // w podpis kategorii dwudziestej (kotwiczony końcem). Dwa napisy jeden na
+    // drugim nie są etykietą, tylko plamą - a czytelnik nie ma jak zgadnąć,
+    // który okres opisuje który koniec osi.
+    const kategorie = Array.from({ length: 20 }, (_, i) => `Kwartał ${i + 1}`);
+    const { container } = rysuj({
+      categories: kategorie,
+      series: [
+        { name: "A", values: kategorie.map((_, i) => i + 1) },
+        { name: "B", values: kategorie.map((_, i) => 20 - i) },
+      ],
+    });
+    const wszystkie = all(container, "[data-role='category-tick']");
+    const teksty = wszystkie.map((e) => e.textContent ?? "");
+    expect(teksty).toContain("Kwartał 1");
+    expect(teksty).toContain("Kwartał 20");
+    // Pola tekstu liczone z kotwicy i szerokości napisu - to jest ta sama
+    // heurystyka, z której render wylicza krok, ale sprawdzana na WYNIKU:
+    // pytamy o rozdzielność pól, a nie o powtórzenie wzoru.
+    for (const g of all(container, "g[data-role='panel']")) {
+      const wPanelu = [...g.querySelectorAll("[data-role='category-tick']")];
+      const pola = wPanelu.map((e) => {
+        const x = num(e, "x");
+        const w = estimateLabelWidth(e.textContent ?? "", FONT_AXIS);
+        const kotwica = e.getAttribute("text-anchor");
+        const lewo = kotwica === "start" ? x : kotwica === "end" ? x - w : x - w / 2;
+        return [lewo, lewo + w] as const;
+      });
+      pola.sort((a, b) => a[0] - b[0]);
+      for (let i = 1; i < pola.length; i++) {
+        expect(
+          pola[i][0] >= pola[i - 1][1],
+          `podpisy ${wPanelu[i - 1]?.textContent} i ${wPanelu[i]?.textContent} zachodzą na siebie`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("PODPIS UCIĘTY niesie pełną treść w podpowiedzi, podpis pełny jej nie powtarza", () => {
+    // Sekcja 4 zabrania wielokropka bez podpowiedzi: napis ucięty krawędzią
+    // bez sposobu na dojście do pełnej treści jest danymi, których nie ma.
+    const dlugie = [
+      "Pierwszy kwartał roku dwutysięcznego dwudziestego",
+      "b",
+      "c",
+      "Ostatni kwartał roku dwutysięcznego dwudziestego drugiego",
+    ];
+    const { container } = rysuj({
+      categories: dlugie,
+      series: [
+        { name: "A", values: [1, 2, 3, 4] },
+        { name: "B", values: [4, 3, 2, 1] },
+      ],
+    });
+    const uciete = all(container, "[data-role='category-tick']").filter((e) =>
+      (e.textContent ?? "").includes("…"),
+    );
+    expect(uciete.length).toBeGreaterThan(0);
+    for (const e of uciete) {
+      const tytul = e.querySelector("title")?.textContent ?? "";
+      expect(dlugie).toContain(tytul);
+    }
+    // Podpis panelu rządzi się tą samą regułą - pełna nazwa idzie do
+    // podpowiedzi panelu.
+    const dlugaNazwa = "Rzeczpospolita Polska w granicach obecnych i historycznych";
+    const drugi = rysuj({
+      series: [
+        { name: dlugaNazwa, values: [10, 12, 14, 18] },
+        { name: "Czechy", values: [8, 9, 11, 12] },
+      ],
+    }).container;
+    const podpis = all(drugi, "[data-role='panel-label']").map((e) => e.textContent ?? "");
+    expect(podpis.some((s) => s.endsWith("…"))).toBe(true);
+    expect(
+      drugi.querySelector(`g[data-panel-label='${dlugaNazwa}'] title`)?.textContent ?? "",
+    ).toContain(dlugaNazwa);
+  });
+});
+
+describe("SmallMultiplesChart - siatka bierze liczbę kolumn Z MODELU", () => {
+  it("PANELE PONIŻEJ PROGU: render bierze podpowiedź modelu, także gdy znaczy WIĘCEJ kolumn", () => {
+    // Sześć paneli na płycie 160 px daje przy siatce z proporcji trzy kolumny
+    // i dwa rzędy, czyli komórkę 56 px wysokości - poniżej progu
+    // `SMALL_MULTIPLES_MIN_PANEL_H`. Wysokość odzyskuje się ZMNIEJSZENIEM
+    // LICZBY RZĘDÓW, czyli zwiększeniem liczby kolumn, i dokładnie to podaje
+    // `smallMultiplesFit.suggestedColumns` (6). Render, który miałby tu własne
+    // zdanie o kierunku ("zawsze mniej kolumn"), nie narysowałby nic.
+    const { container } = rysuj({
+      height: 160,
+      series: Array.from({ length: 6 }, (_, i) => ({
+        name: `S${i}`,
+        values: [i + 1, i + 2, i + 3, i + 4],
+      })),
+    });
+    const pola = all(container, "[data-role='panel-field']");
+    expect(pola).toHaveLength(6);
+    // Jeden rząd: wszystkie panele na tej samej wysokości, każdy szerszy niż
+    // próg 96 px.
+    expect(new Set(pola.map((p) => num(p, "y"))).size).toBe(1);
+    for (const p of pola) expect(num(p, "width")).toBeGreaterThanOrEqual(96);
+    // Wymuszenia autora render NIE nadpisuje, nawet gdy skutkuje brakiem
+    // rysunku - kto podał liczbę kolumn, ten dostaje swoją.
+    const wymuszone = rysuj(
+      {
+        height: 160,
+        series: Array.from({ length: 6 }, (_, i) => ({
+          name: `S${i}`,
+          values: [i + 1, i + 2, i + 3, i + 4],
+        })),
+      },
+      { columns: 3 },
+    ).container;
+    expect(all(wymuszone, "[data-role='panel-field']")).toHaveLength(0);
+    expect(uchwyty(wymuszone)).toContain("order");
+  });
+});
+
+describe("SmallMultiplesChart - wskaźnik i stan czynny", () => {
+  it("STUKNIĘCIE ustawia panel czynny, zejście MYSZĄ go gasi, a DOTYK nie", () => {
+    // Palec schodzi z ekranu po każdym stuknięciu, więc gaszenie dymka przy
+    // opuszczeniu warstwy trafień zgasiłoby go na dotyku ZAWSZE, natychmiast
+    // po pokazaniu. Mysz odwrotnie: kursor zsunięty z rysunku musi dymek
+    // zabrać, bo inaczej zostaje na ekranie nad niczym.
+    const { container } = rysuj();
+    const hit = container.querySelector("rect.neh-hit");
+    if (!hit) throw new Error("brak warstwy trafień");
+    stubPlotRect(hit, 676, 272);
+    fireEvent.pointerDown(hit, { clientX: 100, clientY: 60 });
+    expect(container.querySelector(".neh-tooltip")?.textContent ?? "").toContain("Polska");
+    fireEvent.pointerLeave(hit, { pointerType: "touch" });
+    expect(container.querySelector(".neh-tooltip")).not.toBeNull();
+    fireEvent.pointerLeave(hit, { pointerType: "mouse" });
+    expect(container.querySelector(".neh-tooltip")).toBeNull();
+  });
+
+  it("WSKAŹNIK POZA SIATKĄ i płyta BEZ WYMIARU nie wskazują żadnego panelu", () => {
+    // Dwa stany, w których arytmetyka trafienia daje NaN albo liczbę spoza
+    // siatki: płyta niezmierzona (SSR, happy-dom, kontener bez rozmiaru)
+    // i wskaźnik poza polem. Oba muszą kończyć się BRAKIEM wskazania, a nie
+    // dymkiem nad przypadkowym panelem.
+    const { container } = rysuj();
+    const hit = container.querySelector("rect.neh-hit");
+    if (!hit) throw new Error("brak warstwy trafień");
+    // Bez podmiany `getBoundingClientRect` happy-dom oddaje zera.
+    fireEvent.pointerMove(hit, { clientX: 100, clientY: 60 });
+    expect(container.querySelector(".neh-tooltip")).toBeNull();
+    stubPlotRect(hit, 676, 272);
+    fireEvent.pointerMove(hit, { clientX: 5000, clientY: 60 });
+    expect(container.querySelector(".neh-tooltip")).toBeNull();
+    expect(container.querySelector("g[data-role='panel'][data-active='true']")).toBeNull();
+  });
+
+  it("UTRATA FOKUSU gasi panel czynny", () => {
+    // Zaznaczenie, które zostaje po odejściu z wykresu, wygląda na stan
+    // strony, a nie na ślad czytania - i następny czytelnik zastaje panel
+    // podświetlony bez powodu.
+    const { container } = rysuj();
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    expect(container.querySelector("g[data-active='true']")).not.toBeNull();
+    fireEvent.blur(box);
+    expect(container.querySelector("g[data-active='true']")).toBeNull();
+  });
+
+  it("STRZAŁKA W LEWO z pustego stanu bierze panel OSTATNI, w górę wraca kolumną", () => {
+    // Wejście strzałką wstecz musi zaczynać od KOŃCA porządku, a nie od jego
+    // początku - inaczej "w lewo" z pustego stanu i "w prawo" z pustego stanu
+    // dawałyby ten sam panel, czyli jedna z tych strzałek nic by nie znaczyła.
+    const { container } = rysuj();
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    const czynny = (): string | null =>
+      container
+        .querySelector("g[data-role='panel'][data-active='true']")
+        ?.getAttribute("data-panel-label") ?? null;
+    fireEvent.keyDown(box, { key: "ArrowLeft" });
+    expect(czynny()).toBe("Węgry"); // ostatni panel porządku
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    expect(czynny()).toBe("Polska"); // ta sama kolumna, rząd wyżej
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    expect(czynny()).toBe("Polska"); // kraniec PRZYCINAMY, nie zawijamy
+  });
+
+  it("ZMIANA DANYCH pod czynnym panelem nie zostawia dymka nad nieistniejącym", () => {
+    // Stan czynny przeżywa zmianę propsów (to ten sam komponent), więc po
+    // wymianie arkusza na krótszy indeks czynnego panelu wskazuje poza siatkę.
+    // Bez osłony dymek czytałby wtedy z `undefined`, a rysunek znikałby przy
+    // przewijaniu strony z podmienionymi danymi.
+    const { container, rerender } = rysuj();
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    expect(container.querySelector("g[data-active='true']")).not.toBeNull();
+    rerender(
+      <SmallMultiplesChart
+        config={cfg({
+          ...BAZA,
+          series: [
+            { name: "Polska", values: [10, 12, 14, 18] },
+            { name: "Czechy", values: [8, 9, 11, 12] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(all(container, "[data-role='panel-field']")).toHaveLength(2);
+    expect(container.querySelector(".neh-tooltip")).toBeNull();
+    expect(container.textContent ?? "").not.toContain("undefined");
+  });
+});
+
+describe("SmallMultiplesChart - znacznik decyduje o zerze i o kropkach", () => {
+  it("POLE (area) jest zamknięte NA ZERZE, a zero jest podpisane", () => {
+    // Znacznik kodujący POWIERZCHNIĘ wymaga zera w osi (sekcja 8), bo pole
+    // liczone od dowolnej dolnej krawędzi ma powierzchnię proporcjonalną do
+    // niczego. Test pilnuje, że domknięcie ścieżki leży na tej samej
+    // wysokości, co podziałka "0".
+    const { container } = rysuj({}, { mark: "area" });
+    const pola = all(container, "[data-role='panel-area']");
+    expect(pola.length).toBeGreaterThan(0);
+    const podzialki = all(container, "g[data-panel-label='Polska'] [data-role='value-tick']");
+    const zero = podzialki.find((t) => t.textContent === "0");
+    if (!zero) throw new Error("brak podziałki zera");
+    const d = pola[0].getAttribute("d") ?? "";
+    const liczby = [...d.matchAll(/[ML]([\d.-]+) ([\d.-]+)/g)].map((m) => Number(m[2]));
+    const podstawa = liczby[0];
+    expect(liczby[liczby.length - 1]).toBeCloseTo(podstawa, 6);
+    expect(podstawa).toBeCloseTo(num(zero, "y") - 3.5, 1);
+    // Linia jest rysowana także przy polu - pole bez obrysu gubi przebieg
+    // w miejscu, w którym dwa panele mają tę samą wysokość.
+    expect(all(container, "[data-role='panel-line']").length).toBeGreaterThan(0);
+  });
+
+  it("SZEREG GĘSTY nie dostaje kropek, ale punkt OSAMOTNIONY dostaje zawsze", () => {
+    // Kropka przy każdym pomiarze zlewa się w pasek przy gęstości powyżej
+    // progu - ale odcinek z JEDNEGO pomiaru nie ma długości, więc bez kropki
+    // panel byłby pusty, a pusty panel znaczy w tej formie "brak danych o tym
+    // podmiocie".
+    const kategorie = Array.from({ length: 25 }, (_, i) => `K${i}`);
+    const { container } = rysuj({
+      categories: kategorie,
+      series: [
+        { name: "Gęsty", values: kategorie.map((_, i) => i + 1) },
+        { name: "Jeden", values: kategorie.map((_, i) => (i === 0 ? 12 : null)) },
+      ],
+    });
+    const gesty = container.querySelector("g[data-panel-label='Gęsty']");
+    expect(gesty?.querySelectorAll("[data-role='panel-point']").length).toBe(0);
+    expect(gesty?.querySelector("[data-role='panel-line']")).not.toBeNull();
+    const jeden = container.querySelector("g[data-panel-label='Jeden']");
+    expect(jeden?.querySelectorAll("[data-role='panel-point']").length).toBe(1);
+    expect(jeden?.querySelector("[data-role='panel-line']")).toBeNull();
   });
 });

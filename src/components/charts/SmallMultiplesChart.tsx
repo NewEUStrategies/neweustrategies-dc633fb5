@@ -68,12 +68,12 @@ import {
 } from "@/lib/charts/format";
 import { finite } from "@/lib/charts/num";
 import {
-  SMALL_MULTIPLES_DEFAULT_AREA_ASPECT,
   SMALL_MULTIPLES_MAX_COMFORT,
   SMALL_MULTIPLES_SUMMARY_COLUMNS,
   smallMultiplesFit,
   smallMultiplesFormAdvice,
   smallMultiplesModelFromConfig,
+  type SmallMultiplesDomain,
   type SmallMultiplesFormAdvice,
   type SmallMultiplesMark,
   type SmallMultiplesMode,
@@ -287,6 +287,28 @@ interface PanelBox {
   zeroY: number | null;
 }
 
+/**
+ * Ułamek 0..1 OD DOŁU dla wartości w domenie panelu - jedyna kopia tego wzoru
+ * w renderze i ta sama arytmetyka, którą model stosuje do punktów (`pozycja`
+ * w `kinds/smallMultiples.ts`), włącznie z rozstrzygnięciem o domenie BEZ
+ * ROZPIĘTOŚCI.
+ *
+ * DOMENA O ZEROWEJ ROZPIĘTOŚCI NIE JEST PRZYPADKIEM TEORETYCZNYM: domena
+ * podana z zewnątrz nie przechodzi przez `niceScale` (autor podał ją
+ * dokładnie), więc `domainMin === domainMax` daje `span === 0`. Model stawia
+ * wtedy KAŻDY punkt w połowie wysokości, bo dolna i górna krawędź panelu
+ * znaczą to samo. Render miał tu własną kopię wzoru bez tej osłony i przy
+ * domenie 5..5 wychodziło z niej dzielenie przez zero: `finite` sprowadzało
+ * podziałkę „5" na DOLNĄ krawędź pola (y = 155,5 przy polu 40..152), a kropka
+ * z wartością 5 stała w połowie (y = 96). Podpis osi leżał wtedy 56 px pod
+ * wartością, którą opisywał - czyli czytelnik odmierzający kropkę podziałką
+ * odczytywał liczbę, której w danych nie ma.
+ */
+function ulamekWDomenie(value: number, dom: SmallMultiplesDomain): number {
+  if (!(dom.span > 0)) return 0.5;
+  return (value - dom.min) / dom.span;
+}
+
 /** Ucięcie etykiety do dostępnej szerokości; pełną treść niesie `<title>`. */
 function skrot(label: string, maxPx: number): string {
   const limit = Math.max(1, Math.floor(maxPx / (FONT_AXIS * 0.62)));
@@ -368,28 +390,32 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
     const padLeft = Math.max(PAD_LEFT_MIN, snapToGrid(tickW + PAD_SIDE));
     const gridW = Math.max(MIN_INNER_W, width - padLeft - PAD_SIDE);
     const gridH = Math.max(MIN_INNER_H, height - PAD_TOP_WITH_LABELS - PAD_BOTTOM);
-    const areaAspect = gridH > 0 ? gridW / gridH : SMALL_MULTIPLES_DEFAULT_AREA_ASPECT;
+    // Mianownik jest dodatni z definicji (`Math.max(MIN_INNER_H, ...)`), więc
+    // osłony na zero tu nie ma - byłaby gałęzią, której nie wykonuje nikt,
+    // a gałąź niewykonywana wygląda w przeglądzie jak sprawdzony przypadek.
+    const areaAspect = gridW / gridH;
 
     // PRZEJŚCIE PIERWSZE: siatka policzona z PRAWDZIWEJ proporcji pola.
     let model = buduj({ areaAspect });
     let fit = smallMultiplesFit(model, { width: gridW, height: gridH });
 
-    // PRZEJŚCIE DRUGIE: zwężenie siatki. Właściwą odpowiedzią na ciasne panele
-    // jest MNIEJ KOLUMN (panele stają się szersze, a siatka dłuższa w dół),
-    // a nie mniejsze panele ani usunięcie któregoś - i tę liczbę kolumn podaje
-    // model, żeby render nie wymyślał drugiej arytmetyki siatki. Wymuszenia
-    // autora nie nadpisujemy: kto podał liczbę kolumn, ten dostaje swoją.
-    if (
-      !fit.ok &&
-      columns === undefined &&
-      fit.suggestedColumns !== null &&
-      fit.suggestedColumns !== model.grid.columns
-    ) {
-      const zwezony = buduj({ areaAspect, columns: fit.suggestedColumns });
-      const fitZwezony = smallMultiplesFit(zwezony, { width: gridW, height: gridH });
-      if (fitZwezony.ok) {
-        model = zwezony;
-        fit = fitZwezony;
+    // PRZEJŚCIE DRUGIE: SIATKA Z LICZBY KOLUMN, KTÓRĄ PODAJE MODEL, i render
+    // nie ma o niej własnego zdania - także co do KIERUNKU zmiany. Pierwotny
+    // komentarz w tym miejscu obiecywał "mniej kolumn, siatka dłuższa w dół";
+    // ZMIERZONE jest odwrotnie i musi być odwrotnie: przy sześciu panelach na
+    // płycie 160 px komórka ma 56 px wysokości (próg to 72), a wysokość
+    // odzyskuje się ZMNIEJSZENIEM LICZBY RZĘDÓW, czyli zwiększeniem liczby
+    // kolumn - `suggestedColumns` daje tu 6 zamiast 3 i siatka staje się
+    // jednym rzędem paneli 104 na 88 px. Render bierze tę liczbę bez oceny,
+    // bo drugie zdanie o siatce po stronie renderu znaczyłoby dwie różne
+    // siatki z tych samych danych. Wymuszenia autora nie nadpisujemy: kto
+    // podał liczbę kolumn, ten dostaje swoją.
+    if (!fit.ok && columns === undefined && fit.suggestedColumns !== null) {
+      const przeliczony = buduj({ areaAspect, columns: fit.suggestedColumns });
+      const fitPrzeliczony = smallMultiplesFit(przeliczony, { width: gridW, height: gridH });
+      if (fitPrzeliczony.ok) {
+        model = przeliczony;
+        fit = fitPrzeliczony;
       }
     }
 
@@ -416,7 +442,7 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
       // Zero rysujemy tylko wtedy, gdy leży WEWNĄTRZ domeny. Zero na krawędzi
       // pokrywałoby się z granicą pola, więc druga linia w tym samym miejscu
       // niosłaby wyłącznie ciemniejszy piksel.
-      const zeroV = dom.span > 0 ? (0 - dom.min) / dom.span : null;
+      const zeroV = dom.span > 0 ? ulamekWDomenie(0, dom) : null;
       const zeroY = zeroV !== null && zeroV > 0 && zeroV < 1 ? pixel(zeroV) : null;
       const baseV = zeroV === null ? 0 : Math.max(0, Math.min(1, zeroV));
       const baseY = pixel(baseV);
@@ -449,6 +475,12 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
         // opisywałby inną liczbę niż ta, którą czytelnik odmierzy podziałką.
         // Dlatego przy indeksie bierzemy `indexed`, a gdy go nie ma - nie
         // wypisujemy nic.
+        //
+        // Gałąź `p.indexed === null` jest w tym miejscu NIEOSIĄGALNA (pozycja
+        // punktu w trybie indeksu powstaje z indeksu, więc punkt bez indeksu
+        // nie ma `v` i nie dochodzi tutaj), ale zostaje jawna: gdyby model
+        // kiedyś przestał tak liczyć, etykieta wypisałaby przy linii indeksu
+        // POZIOM, czyli liczbę, której czytelnik nie odmierzy podziałką.
         const zapis =
           model.scale.mode === "index"
             ? p.indexed === null
@@ -523,6 +555,13 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
 
   const { model, fit, padLeft, gridW, gridH, boxes } = geometry;
   const wolna = model.scale.scaleMode === "free";
+  /**
+   * Opis autora, dlaczego panele mają osobne skale - raz przycięty, bo idzie
+   * w TRZY miejsca (uwaga pod siatką, podpowiedź każdego panelu, sprawdzenie
+   * długości) i trzy kopie `(freeScaleNote ?? "").trim()` rozjeżdżają się przy
+   * pierwszej zmianie reguły pustego napisu.
+   */
+  const opisSkaliWolnej = (freeScaleNote ?? "").trim();
   const indeks = model.scale.mode === "index";
   // JEDNOSTKA NIE DOKLEJA SIĘ DO INDEKSU. Indeks jest ilorazem, więc "112 mld
   // EUR" byłoby zdaniem o jednostce, której ta liczba nie ma.
@@ -536,6 +575,14 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
    * model odmawia w `domenaWlasna` dla panelu pustego.
    */
   const maDane = model.observations > 0;
+
+  /**
+   * Piksel wartości w polu panelu - podziałki i siatka liczą go TYM SAMYM
+   * wzorem co punkty (`ulamekWDomenie`), bo podziałka policzona osobno
+   * opisywałaby inne miejsce niż to, w którym leży kropka.
+   */
+  const pikselWartosci = (value: number, box: PanelBox): number =>
+    finite(box.y + (1 - ulamekWDomenie(value, box.panel.domain)) * box.h, box.y + box.h);
 
   /** Zapis jednej kolumny kompletu - `null` modelu czyta się jako BRAK. */
   const zapisKolumny = (panel: SmallMultiplesPanel, col: SmallMultiplesSummaryColumn): string => {
@@ -587,7 +634,25 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
       panel.flattened ? t("smallMultiples.note.flattened") : "",
       indeks && !panel.empty && !panel.indexable ? t("smallMultiples.note.noIndexBase") : "",
     ].filter(Boolean);
-    return [`${panel.label}: ${liczby.join(", ")}`, ...uwagi].join(". ") + ".";
+    // KRAŃCE WŁASNEJ OSI PANELU TYLKO PRZY SKALACH OSOBNYCH, i to jest ta sama
+    // informacja, którą widzący dostaje w `data-role="panel-axis"`. Przy
+    // wspólnej osi zakres stoi raz, w zdaniu o osi na początku nazwy; przy
+    // osobnych stoi przy KAŻDYM panelu, bo wtedy żadne dwa panele nie mierzą
+    // tą samą miarą i jeden zakres na cały rysunek byłby zdaniem o osi,
+    // której nie ma.
+    const osWlasna =
+      wolna && maDane
+        ? `${t("smallMultiples.axis.value")}: ${formatChartValue(
+            panel.domain.min,
+            lang,
+            jednostkaOsi,
+          )} - ${formatChartValue(panel.domain.max, lang, jednostkaOsi)}`
+        : "";
+    return (
+      [`${zapisKolumny(panel, "panel")}: ${liczby.join(", ")}`, osWlasna, ...uwagi]
+        .filter(Boolean)
+        .join(". ") + "."
+    );
   };
 
   // NAZWA DOSTĘPNA JEST CAŁYM RYSUNKIEM DLA CZYTELNIKA EKRANU, więc niesie
@@ -597,18 +662,37 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
   // do zdań składanych tutaj - inaczej w odczycie pojawia się podwójna kropka.
   const ariaLabel = [
     `${config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled")}.`,
-    `${
-      indeks ? t("smallMultiples.axis.index") : t("smallMultiples.axis.value")
-    }: ${formatChartValue(model.scale.shared.min, lang, jednostkaOsi)} - ${formatChartValue(
-      model.scale.shared.max,
-      lang,
-      jednostkaOsi,
-    )}.`,
-    categoryCount > 0
+    // ZAKRES WSPÓLNEJ OSI TYLKO WTEDY, GDY TA OŚ ISTNIEJE I MA Z CZEGO POWSTAĆ.
+    // Dwa stany, w których wypisywany był wcześniej, są stanami BEZ tej osi,
+    // i oba render odmawia narysować - a nazwa dostępna jest tym samym
+    // rysunkiem, tylko czytanym:
+    //   * BRAK JAKIEJKOLWIEK LICZBY. Domena pustego zestawu wychodzi z modelu
+    //     jako 0..1 (skala musi mieć rozpiętość), więc zdanie „Wartość: 0 mld
+    //     EUR - 1 mld EUR" podawało czytelnikowi ekranu zakres, którego
+    //     w danych nie ma. Widzący nie dostaje w tym stanie ANI JEDNEJ
+    //     podziałki, dokładnie z tego powodu;
+    //   * SKALE OSOBNE. Wspólna domena jest wtedy policzona, ale nie opisuje
+    //     żadnego panelu - i podziałek na brzegu siatki też z tego powodu nie
+    //     ma. Zakres każdego panelu idzie w `opisPanelu`.
+    maDane && !wolna
+      ? `${
+          indeks ? t("smallMultiples.axis.index") : t("smallMultiples.axis.value")
+        }: ${formatChartValue(model.scale.shared.min, lang, jednostkaOsi)} - ${formatChartValue(
+          model.scale.shared.max,
+          lang,
+          jednostkaOsi,
+        )}.`
+      : "",
+    // OŚ KATEGORII JAKO ZAKRES TYLKO WTEDY, GDY MA DWA KRAŃCE. Przy jednej
+    // kategorii „2020 - 2020" czyta się jak przedział, a jest punktem - to ten
+    // sam gatunek zdania co „panele różnią się poziomem 1-krotnie".
+    categoryCount > 1
       ? `${t("smallMultiples.axis.category")}: ${model.categories[0]} - ${
           model.categories[categoryCount - 1]
         }.`
-      : "",
+      : categoryCount === 1
+        ? `${t("smallMultiples.axis.category")}: ${model.categories[0]}.`
+        : "",
     wolna ? t("smallMultiples.scale.free") : t("smallMultiples.scale.shared"),
     t(ORDER_KEYS[model.order]),
     ...model.panels.map(opisPanelu),
@@ -652,8 +736,8 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
             key: "scale.free",
             text: [
               t("smallMultiples.scale.free"),
-              (freeScaleNote ?? "").trim().length > 0
-                ? t("smallMultiples.scale.freeScaleNote", { note: (freeScaleNote ?? "").trim() })
+              opisSkaliWolnej.length > 0
+                ? t("smallMultiples.scale.freeScaleNote", { note: opisSkaliWolnej })
                 : "",
             ]
               .filter(Boolean)
@@ -832,7 +916,12 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
     notes.push({
       key: "honesty.declaredSampleOk",
       text: t("smallMultiples.honesty.declaredSampleOk", {
-        declared: config.sampleSize ?? 0,
+        // `declaredSampleOk` jest `null`, dopóki autor nie poda `sampleSize`
+        // (model o niepodanej liczbie MILCZY), więc tu jest ona liczbą.
+        // Podstawienie zera „na wszelki wypadek" wypisałoby w tym zdaniu
+        // „n = 0" - liczbę, której nikt nie zadeklarował, a która wygląda
+        // dokładnie tak wiarygodnie jak policzona.
+        declared: config.sampleSize ?? BRAK_WARTOSCI,
         actual: model.observations,
       }),
       defect: true,
@@ -940,15 +1029,45 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
   // Etykiety kategorii: bierzemy co n-tą tak, żeby sąsiednie się nie stykały.
   // Pierwsza i ostatnia ZAWSZE, bo bez nich nie wiadomo, jaki zakres pokazuje
   // panel - ta sama reguła co przy krawędziach histogramu.
-  const catLabelW = estimateMaxLabelWidth(model.categories, FONT_AXIS);
   const panelW = boxes[0].w;
-  const catStep = Math.max(
-    1,
-    Math.ceil(
-      (catLabelW + CATEGORY_LABEL_GAP_PX) /
-        Math.max(1, categoryCount > 1 ? panelW / (categoryCount - 1) : panelW),
-    ),
+  /**
+   * Szerokość podpisu kategorii mierzona NA NAPISIE, KTÓRY NAPRAWDĘ STANIE
+   * NA OSI, czyli po ucięciu do połowy szerokości panelu. Krok policzony
+   * z pełnych nazw wyrzucał podpisy przy nazwach długich (49 znaków dawało
+   * 334 px odstępu wymaganego, choć na osi stoi z nich 164 px) - czyli oś
+   * czasu gubiła punkty odniesienia z powodu tekstu, którego nikt nie widzi.
+   */
+  const catLabelW = estimateMaxLabelWidth(
+    model.categories.map((label) => skrot(label, panelW / 2)),
+    FONT_AXIS,
   );
+  const catOdstep = Math.max(1, categoryCount > 1 ? panelW / (categoryCount - 1) : panelW);
+  /**
+   * Krok podpisów osi kategorii. Wymagany prześwit to PÓŁTOREJ szerokości
+   * napisu, a nie jedna, i ta półtora bierze się z KOTWIC: podpis pierwszy
+   * jest kotwiczony początkiem, a ostatni końcem (żeby nie wystawały poza
+   * panel), więc kładą się na oś CAŁĄ szerokością w jedną stronę, podczas gdy
+   * podpisy środkowe kładą się połową w każdą. Para „skrajny + środkowy"
+   * potrzebuje więc `w + w/2`.
+   *
+   * ZMIERZONE, ile kosztowało liczenie tego jedną szerokością: dwadzieścia
+   * kategorii „Kwartał 1..20" w panelu 330 px dawało krok 5, a podpis
+   * „Kwartał 1" (32..93 px, kotwica z lewej) wchodził w podpis „Kwartał 6"
+   * (88..150 px, kotwica środkiem). Dwa napisy jeden na drugim nie są
+   * etykietą, tylko plamą.
+   */
+  const catStep = Math.max(1, Math.ceil((catLabelW * 1.5 + CATEGORY_LABEL_GAP_PX) / catOdstep));
+  /**
+   * Które kategorie dostają podpis: co `catStep`, plus OSTATNIA zawsze - ale
+   * podpis, który wypadłby bliżej niż `catStep` od ostatniego, ustępuje jemu.
+   *
+   * Bez tego ustąpienia sama reguła „co n-tą, a ostatnia zawsze" nadal kładzie
+   * napisy na siebie: przy kroku 7 podpisy stoją na 0, 7 i 14, a ostatni na
+   * 19 - czyli pięć odstępów od czternastego zamiast siedmiu. Ostatnia ma
+   * pierwszeństwo, bo bez niej nie wiadomo, gdzie szereg się kończy.
+   */
+  const podpisKategorii = (c: number): boolean =>
+    c === categoryCount - 1 || (c % catStep === 0 && categoryCount - 1 - c >= catStep);
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
@@ -1019,10 +1138,8 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
                   {[
                     `${panel.label}. ${t(SUMMARY_KEYS.n)} ${formatChartValue(panel.n, lang, "")}`,
                     wolna ? t("smallMultiples.scale.free") : "",
-                    wolna && (freeScaleNote ?? "").trim().length > 0
-                      ? t("smallMultiples.scale.freeScaleNote", {
-                          note: (freeScaleNote ?? "").trim(),
-                        })
+                    wolna && opisSkaliWolnej.length > 0
+                      ? t("smallMultiples.scale.freeScaleNote", { note: opisSkaliWolnej })
                       : "",
                   ]
                     .filter(Boolean)
@@ -1065,14 +1182,8 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
                         key={`g${tick}`}
                         x1={box.x}
                         x2={box.x + box.w}
-                        y1={finite(
-                          box.y + (1 - (tick - panel.domain.min) / panel.domain.span) * box.h,
-                          box.y + box.h,
-                        )}
-                        y2={finite(
-                          box.y + (1 - (tick - panel.domain.min) / panel.domain.span) * box.h,
-                          box.y + box.h,
-                        )}
+                        y1={pikselWartosci(tick, box)}
+                        y2={pikselWartosci(tick, box)}
                         stroke="var(--chart-grid)"
                         strokeWidth={1}
                       />
@@ -1179,9 +1290,24 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
                     dla linii 3,0:1. */}
                 {config.showValues && box.last !== null && maDane && (
                   <text
-                    x={box.x + box.w}
+                    // ETYKIETA STOI NAD SWOIM POMIAREM, nie przy prawej
+                    // krawędzi panelu. Wcześniej stała zawsze przy krawędzi,
+                    // więc szereg urwany lukami (10, 12, brak, brak) pokazywał
+                    // „12" nad OSTATNIĄ kategorią - czyli nad okresem, którego
+                    // nie zmierzono. Pozycja etykiety bezpośredniej jest
+                    // twierdzeniem o tym, KIEDY ta liczba obowiązuje, więc
+                    // musi stać tam, gdzie leży punkt.
+                    x={box.last.cx}
                     y={Math.max(box.y + FONT_AXIS, box.last.cy - LABEL_GAP_PX / 2)}
-                    textAnchor="end"
+                    // Kotwica z lewej TYLKO wtedy, gdy napis kotwiczony
+                    // z prawej wyszedłby poza pole panelu - a wyszedłby przy
+                    // szeregu, którego jedyny pomiar leży w pierwszej
+                    // kategorii, i wjechałby w kolumnę podziałek sąsiada.
+                    textAnchor={
+                      box.last.cx - estimateLabelWidth(box.last.text, FONT_AXIS) < box.x
+                        ? "start"
+                        : "end"
+                    }
                     fontSize={FONT_AXIS}
                     fill={`var(--chart-${slot}t)`}
                     className="neh-fade neh-value-label tabular-nums"
@@ -1235,12 +1361,7 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
                       <text
                         key={`t${tick}`}
                         x={box.x - LABEL_GAP_PX}
-                        y={
-                          finite(
-                            box.y + (1 - (tick - panel.domain.min) / panel.domain.span) * box.h,
-                            box.y + box.h,
-                          ) + TICK_NUDGE
-                        }
+                        y={pikselWartosci(tick, box) + TICK_NUDGE}
                         textAnchor="end"
                         fontSize={FONT_AXIS}
                         fill="var(--muted-foreground)"
@@ -1289,8 +1410,7 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
                     ma, zostałaby bez osi kategorii. */}
                 {ostatniWKolumnie &&
                   model.categories.map((label, c) => {
-                    const pokaz = c % catStep === 0 || c === categoryCount - 1;
-                    if (!pokaz) return null;
+                    if (!podpisKategorii(c)) return null;
                     const cx = finite(
                       box.x + (categoryCount > 1 ? (c / (categoryCount - 1)) * box.w : box.w / 2),
                       box.x,
