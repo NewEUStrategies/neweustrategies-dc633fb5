@@ -703,12 +703,37 @@ describe("PercentStackedChart - przypisy pod rysunkiem", () => {
   const klucze = (root: HTMLElement): (string | null)[] =>
     all(root, "[data-note]").map((el) => el.getAttribute("data-note"));
 
-  it("zdrowy arkusz dostaje TYLKO zdanie o skali", () => {
+  it("zdrowy arkusz dostaje zdanie o skali - i NIC ponad to, co z danych wynika", () => {
     // Zdanie o skali jest tu obowiązkowe, bo segment środkowy nie leży na
     // wspólnej skali i bez tego czyta się go jak segment przy krawędzi
     // odniesienia. Wszystko inne byłoby ostrzeżeniem bez powodu - a lista,
     // na której zawsze coś stoi, uczy ignorowania całej listy.
+    //
+    // Drugie zdanie NIE jest ostrzeżeniem bez powodu: sumy w `BAZA` to 100 000,
+    // 10 000 i 5 000, czyli różnią się dwudziestokrotnie, a wszystkie trzy
+    // słupki mają tę samą długość z konstrukcji rodzaju.
     const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    expect(klucze(container)).toEqual(["scaleNote", "totalRatioNote"]);
+    expect(nota(container, "totalRatioNote")).toContain("20");
+  });
+
+  it("o różnicy sum MILCZY, gdy sumy są porównywalne", () => {
+    // Druga strona umowy. Przy sumach tego samego rzędu wielkości zdanie
+    // stałoby pod prawie każdym wykresem tego rodzaju - a uwaga widoczna
+    // zawsze uczy pomijania całej listy.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg({
+          ...BAZA,
+          series: [
+            { name: "Usługi", values: [60, 55, 50] },
+            { name: "Przemysł", values: [30, 33, 35] },
+            { name: "Rolnictwo", values: [10, 12, 15] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
     expect(klucze(container)).toEqual(["scaleNote"]);
   });
 

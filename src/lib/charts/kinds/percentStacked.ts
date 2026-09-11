@@ -218,6 +218,24 @@ export const PERCENT_STACKED_MIN_BARS = 2;
 export const PERCENT_STACKED_DECLARED_TOLERANCE_PP = 0.5;
 
 /**
+ * Od tej krotności różnica SUM między słupkami jest treścią, a nie szumem.
+ *
+ * Ten rodzaj normalizuje każdy słupek do stu procent, więc WSZYSTKIE słupki
+ * mają tę samą długość z konstrukcji - a to znaczy, że długość nie mówi nic
+ * o wielkości. Słupek zbudowany z dziesięciu obserwacji wygląda dokładnie tak
+ * samo, jak słupek zbudowany z dziesięciu tysięcy, i czytelnik nie ma z czego
+ * tego odczytać: sumy stoją dopiero w tabeli danych.
+ *
+ * Dziesięć, czyli rząd wielkości - ta sama granica i to samo uzasadnienie co
+ * `INDEX_BASE_COMPARABLE_RATIO` w `./indexBase`: przy różnicy poniżej rzędu
+ * wielkości struktury porównuje się bez zastrzeżeń, powyżej - porównuje się
+ * strukturę zjawiska masowego ze strukturą przypadku jednostkowego. Zdanie
+ * wypisywane przy KAŻDEJ różnicy sum byłoby widoczne na prawie każdym
+ * wykresie tego rodzaju, a uwaga widoczna zawsze uczy pomijania całej listy.
+ */
+export const PERCENT_STACKED_TOTAL_RATIO = 10;
+
+/**
  * Powyżej tego modułu wartość nie wchodzi do mianownika.
  *
  * `Number.MAX_SAFE_INTEGER`, i to jest liczba z arytmetyki, nie z ostrożności:
@@ -480,6 +498,18 @@ export interface PercentStackedModel {
   labelMinShare: number;
   /** Czy dane BYŁY już udziałami - od tego zależy `declaredTotalsOk`. */
   valuesAreShares: boolean;
+  /**
+   * Krotność różnicy SUM między słupkami rysowanymi (największa przez
+   * najmniejszą); `null` = mniej niż dwa słupki z sumą dodatnią.
+   *
+   * Liczba istnieje po to, żeby dało się powiedzieć czytelnikowi rzecz, której
+   * z rysunku nie da się odczytać w ogóle: wszystkie słupki mają tę samą
+   * długość z konstrukcji, więc struktura zbudowana z dziesięciu obserwacji
+   * stoi obok struktury zbudowanej z dziesięciu tysięcy jako równa jej.
+   * Same sumy są w tabeli, ale tabela odpowiada na pytanie dopiero zadane -
+   * a tego pytania czytelnik nie zada, bo rysunek nie daje powodu.
+   */
+  totalRatio: number | null;
   honesty: PercentStackedHonesty;
 }
 
@@ -908,6 +938,11 @@ export function percentStackedModel(
     droppedValueCount,
   };
 
+  // KROTNOŚĆ SUM liczona z sum słupków RYSOWANYCH: słupek bez struktury nie
+  // ma sumy, którą dałoby się z czymkolwiek porównać.
+  const sumy = rysowane.map((b) => b.total).filter((t) => t > 0);
+  const totalRatio = sumy.length < 2 ? null : Math.max(...sumy) / Math.min(...sumy);
+
   return {
     bars,
     series: seriesSummary,
@@ -916,6 +951,7 @@ export function percentStackedModel(
     displayDecimals,
     labelMinShare,
     valuesAreShares,
+    totalRatio,
     honesty,
   };
 }

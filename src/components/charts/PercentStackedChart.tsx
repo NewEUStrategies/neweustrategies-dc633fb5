@@ -70,6 +70,7 @@ import {
 import { linearScale } from "@/lib/charts/scale";
 import { finite } from "@/lib/charts/num";
 import {
+  PERCENT_STACKED_TOTAL_RATIO,
   PERCENT_STACKED_WHOLE_PP,
   percentStackedExtent,
   percentStackedFormAdvice,
@@ -476,6 +477,24 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
   // żadnego słupka. Zdanie widoczne zawsze uczy ignorowania wszystkich zdań.
   if (model.drawableBars > 0 && model.filledSeries > 1) {
     notes.push({ key: "scaleNote", text: t("percentStacked.scaleNote"), defect: false });
+  }
+
+  // RÓŻNICA SUM, powiedziana liczbą. Normalizacja do stu procent robi wszystkie
+  // słupki równie długimi, więc struktura zbudowana z dziesięciu obserwacji
+  // stoi obok struktury zbudowanej z dziesięciu tysięcy jako równa jej,
+  // a rysunek nie daje powodu, żeby o to zapytać. Sumy są w tabeli, ale tabela
+  // odpowiada dopiero na pytanie zadane.
+  //
+  // Próg jest rzędem wielkości, a nie zerem: zdanie przy KAŻDEJ różnicy sum
+  // stałoby pod prawie każdym wykresem tego rodzaju.
+  if (model.totalRatio !== null && model.totalRatio >= PERCENT_STACKED_TOTAL_RATIO) {
+    notes.push({
+      key: "totalRatioNote",
+      text: t("percentStacked.totalRatioNote", {
+        ratio: formatChartValue(model.totalRatio, lang, ""),
+      }),
+      defect: false,
+    });
   }
 
   // Worek liczb podajemy KOMPLETEM dla wszystkich obserwacji: treść pisze

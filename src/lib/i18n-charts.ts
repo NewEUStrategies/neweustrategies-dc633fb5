@@ -712,6 +712,11 @@ const pl = {
       axis: { category: "Kategoria", share: "Udział w całości" },
       scaleNote:
         "Od zera zaczyna się tylko segment przy krawędzi odniesienia; pozostałe leżą na skalach przesuniętych, więc ich długość czyta się jako różnicę dwóch krawędzi. Rozpiętość udziału i przesunięcie między pierwszym a ostatnim słupkiem podaje tabela.",
+      // CO TEN RODZAJ ZABIERA, powiedziane liczbą. Normalizacja do stu procent
+      // robi wszystkie słupki równie długimi, więc długość przestaje mówić
+      // o wielkości - i nie ma na rysunku niczego, co by to zdradziło.
+      totalRatioNote:
+        "Sumy słupków różnią się {{ratio}}-krotnie. Każdy słupek ma tu tę samą długość z konstrukcji, więc rysunek porównuje WYŁĄCZNIE strukturę: o tym, jak różne są wielkości, mówi kolumna sum w tabeli.",
       table: {
         category: "Kategoria",
         series: "Seria",
@@ -1469,6 +1474,8 @@ const en = {
       axis: { category: "Category", share: "Share of the whole" },
       scaleNote:
         "Only the segment at the reference edge starts at zero; the rest lie on shifted scales, so their length is read as the difference of two edges. The span of the share and the shift between the first and the last bar are given in the table.",
+      totalRatioNote:
+        "The bar totals differ by a factor of {{ratio}}. Every bar here has the same length by construction, so the chart compares STRUCTURE only: how different the magnitudes are is told by the totals column in the table.",
       table: {
         category: "Category",
         series: "Series",
