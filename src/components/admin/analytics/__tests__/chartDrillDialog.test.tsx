@@ -276,7 +276,9 @@ describe("ChartDrillDialog - metryki", () => {
   it("metryki układają się w jedną kolumnę na wąskim ekranie i dwie na szerszym", () => {
     otworz(PELNY);
 
-    const metricsHeading = within(okno()).getByText(realT("pl")("adminAnalytics.drillDialog.metrics"));
+    const metricsHeading = within(okno()).getByText(
+      realT("pl")("adminAnalytics.drillDialog.metrics"),
+    );
     const grid = metricsHeading.nextElementSibling;
     expect(grid?.className).toContain("grid-cols-1");
     expect(grid?.className).toContain("min-[420px]:grid-cols-2");

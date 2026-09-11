@@ -208,7 +208,9 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
                       className="inline-flex max-w-full min-w-0 items-start gap-1 [overflow-wrap:anywhere] text-xs text-brand transition-colors hover:underline"
                     >
                       <span className="min-w-0">{l.label}</span>
-                      {ext ? <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" aria-hidden /> : null}
+                      {ext ? (
+                        <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                      ) : null}
                     </a>
                   </li>
                 );
