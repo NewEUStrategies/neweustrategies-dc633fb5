@@ -208,7 +208,7 @@ export function MediaPickerDialog({
       if (error) throw error;
       return (data ?? []).map((row) => ({
         ...row,
-        public_url: brandedMediaUrl(row.public_url),
+        public_url: mediaRenderUrl(row.public_url),
       }));
     },
   });
