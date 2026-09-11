@@ -202,7 +202,94 @@ export function HistogramChart({ config, lang }: HistogramChartProps) {
     if (e.key === "Escape") setActive(null);
   };
 
-  if (bins.length === 0) return null;
+  // UWAGI POD RYSUNKIEM: najpierw obserwacja o formie, potem defekty danych.
+  // Kolejność jest treścią, nie kosmetyką - „kształt zależy od krawędzi"
+  // zmienia sposób czytania CAŁEGO rysunku, a „w podpisie stoi inne n"
+  // dotyczy jednej liczby w podpisie.
+  //
+  // Liczby podajemy KOMPLETEM dla wszystkich czterech obserwacji: treść pisze
+  // słownik, i18next zignoruje te wstawki, których dane zdanie nie używa,
+  // a POMINIĘTA wstawka nie jest ignorowana - zostaje w zdaniu jako surowe
+  // `{{min}}` (tak zepsuł się `beeswarm.reading.truncated` w tej samej pracy).
+  const notes: ChartNote[] = histogramFormAdvice(model).map((a) => ({
+    key: `reading.${a}`,
+    text: t(READING_KEYS[a], {
+      min: HISTOGRAM_SHAPE_MIN_OBSERVATIONS,
+      max: HISTOGRAM_MAX_BINS,
+    }),
+    defect: false,
+  }));
+  // DEFEKTY DANYCH. Każdy z nich znaczy, że rysunek pokazuje mniej albo inaczej
+  // niż dane - i każdy ma w modelu osobną flagę, bo osobno się je naprawia.
+  //
+  // BRAK PRZEDZIAŁÓW IDZIE PIERWSZY, przed obserwacją o formie: `reading
+  // .tooCoarse` mówi „cały zakres zmieścił się w jednym przedziale", czyli
+  // opisuje JEDEN słupek, a tu nie ma żadnego. Kolejność jest treścią, bo
+  // czytelnik czyta listę od góry i pierwsze zdanie ustawia mu resztę.
+  if (model.binsBuiltOk === false) {
+    notes.unshift({
+      key: "honesty.binsBuiltFailed",
+      text: t("histogram.honesty.binsBuiltFailed"),
+      defect: true,
+    });
+  }
+  if (model.inRangeOk === false) {
+    notes.push({
+      key: "honesty.outOfRange",
+      text: t("histogram.honesty.outOfRange", { count: model.outOfRange }),
+      defect: true,
+    });
+  }
+  if (model.countChecksumOk === false) {
+    notes.push({
+      key: "honesty.checksumFailed",
+      text: t("histogram.honesty.checksumFailed", {
+        sum: bins.reduce((a, b) => a + b.count, 0),
+        count: model.summary.n,
+      }),
+      defect: true,
+    });
+  }
+  if (model.binWidthOk === false) {
+    notes.push({
+      key: "honesty.binWidthFailed",
+      text: t("histogram.honesty.binWidthFailed"),
+      defect: true,
+    });
+  }
+  if (model.declaredSampleOk === false) {
+    notes.push({
+      key: "honesty.declaredSampleFailed",
+      text: t("histogram.honesty.declaredSampleFailed", {
+        declared: config.sampleSize ?? 0,
+        actual: model.summary.n,
+      }),
+      defect: true,
+    });
+  }
+  if (model.ignoredSeries > 0) {
+    notes.push({
+      key: "honesty.ignoredSeries",
+      text: t("histogram.honesty.ignoredSeries", { count: model.ignoredSeries }),
+      defect: true,
+    });
+  }
+
+  // BRAK PRZEDZIAŁÓW NIE MOŻE ZNACZYĆ „PUSTE MIEJSCE". Rysunku nie ma czego
+  // narysować, ale to NIE JEST powód do milczenia: czytelnik widzi wtedy
+  // kartę z tytułem i podpisem nad niczym i nie wie, czy patrzy na awarię,
+  // czy na dane, z których nie da się zbudować rozkładu. Zwracamy więc same
+  // uwagi - w tym `honesty.binsBuiltFailed`, które nazywa przyczynę.
+  //
+  // Wyjście MUSI stać po wszystkich hakach (patrz `useTapAwayDismiss` wyżej)
+  // i przed geometrią, bo ta liczy na niepustą listę przedziałów.
+  if (bins.length === 0) {
+    return notes.length === 0 ? null : (
+      <div ref={revealRef} className={revealClassName(revealState)}>
+        <ChartNotes notes={notes} />
+      </div>
+    );
+  }
 
   const indexFromPointer = (e: PointerEvent<SVGRectElement>): number => {
     const point = pointerToPlot(
@@ -280,67 +367,6 @@ export function HistogramChart({ config, lang }: HistogramChartProps) {
   ]
     .filter(Boolean)
     .join(". ");
-
-  // UWAGI POD RYSUNKIEM: najpierw obserwacja o formie, potem defekty danych.
-  // Kolejność jest treścią, nie kosmetyką - „kształt zależy od krawędzi"
-  // zmienia sposób czytania CAŁEGO rysunku, a „w podpisie stoi inne n"
-  // dotyczy jednej liczby w podpisie.
-  //
-  // Liczby podajemy KOMPLETEM dla wszystkich czterech obserwacji: treść pisze
-  // słownik, i18next zignoruje te wstawki, których dane zdanie nie używa,
-  // a POMINIĘTA wstawka nie jest ignorowana - zostaje w zdaniu jako surowe
-  // `{{min}}` (tak zepsuł się `beeswarm.reading.truncated` w tej samej pracy).
-  const notes: ChartNote[] = histogramFormAdvice(model).map((a) => ({
-    key: `reading.${a}`,
-    text: t(READING_KEYS[a], {
-      min: HISTOGRAM_SHAPE_MIN_OBSERVATIONS,
-      max: HISTOGRAM_MAX_BINS,
-    }),
-    defect: false,
-  }));
-  // DEFEKTY DANYCH. Każdy z nich znaczy, że rysunek pokazuje mniej albo inaczej
-  // niż dane - i każdy ma w modelu osobną flagę, bo osobno się je naprawia.
-  if (model.inRangeOk === false) {
-    notes.push({
-      key: "honesty.outOfRange",
-      text: t("histogram.honesty.outOfRange", { count: model.outOfRange }),
-      defect: true,
-    });
-  }
-  if (model.countChecksumOk === false) {
-    notes.push({
-      key: "honesty.checksumFailed",
-      text: t("histogram.honesty.checksumFailed", {
-        sum: bins.reduce((a, b) => a + b.count, 0),
-        count: model.summary.n,
-      }),
-      defect: true,
-    });
-  }
-  if (model.binWidthOk === false) {
-    notes.push({
-      key: "honesty.binWidthFailed",
-      text: t("histogram.honesty.binWidthFailed"),
-      defect: true,
-    });
-  }
-  if (model.declaredSampleOk === false) {
-    notes.push({
-      key: "honesty.declaredSampleFailed",
-      text: t("histogram.honesty.declaredSampleFailed", {
-        declared: config.sampleSize ?? 0,
-        actual: model.summary.n,
-      }),
-      defect: true,
-    });
-  }
-  if (model.ignoredSeries > 0) {
-    notes.push({
-      key: "honesty.ignoredSeries",
-      text: t("histogram.honesty.ignoredSeries", { count: model.ignoredSeries }),
-      defect: true,
-    });
-  }
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>

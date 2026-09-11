@@ -448,6 +448,30 @@ describe("HistogramChart - uwagi pod rysunkiem", () => {
     expect(nota(container, "honesty.ignoredSeries")).toContain("1");
   });
 
+  it("brak przedziałów jest NAZWANY i stoi PRZED obserwacją o formie", () => {
+    // Dwie obserwacje rozpięte na cały zakres podwójnej precyzji: szerokości
+    // przedziału nie da się wtedy zapisać, więc model nie buduje ANI JEDNEGO
+    // i do tego PR-a milczał o tym tak samo, jak milczy rysunek bez defektu.
+    // Wartości przechodzą przez parser bloku, czyli tę samą drogę, którą
+    // wchodzi arkusz autora - to nie jest stan osiągalny wyłącznie z testu.
+    const { container } = render(
+      <HistogramChart
+        config={cfg({
+          ...BAZA,
+          categories: ["a", "b"],
+          series: [{ name: "Skrajne", values: [-1.7e308, 1.7e308] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const uwagi = all(container, "[data-note]").map((el) => el.getAttribute("data-note"));
+    expect(uwagi[0], `kolejność uwag: ${uwagi.join(", ")}`).toBe("honesty.binsBuiltFailed");
+    // Zdanie mówi, CZEGO NIE MA na rysunku, a nie „wystąpił błąd".
+    expect(container.querySelector("[data-note='honesty.binsBuiltFailed']")?.textContent).toContain(
+      "ani jednego przedziału",
+    );
+  });
+
   it("żadna uwaga nie zostawia surowych klamer wstawki", () => {
     // Jedna asercja na WSZYSTKIE uwagi naraz: brakująca liczba nie jest
     // błędem kompilacji ani rozjazdem klucza, więc jedyne, co ją wyłapie, to

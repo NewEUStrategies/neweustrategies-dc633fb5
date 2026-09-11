@@ -125,6 +125,15 @@ const pl = {
           "W podpisie stoi n = {{declared}}, a w danych jest {{actual}} obserwacji.",
         ignoredSeries:
           "Histogram czyta JEDNĄ serię; pozostałe {{count}} zostały pominięte. Rozkłady dwóch serii porównuje się dwoma panelami o wspólnej skali, nie jednym rysunkiem.",
+        // OSTATNI KOMUNIKAT, KTÓREGO MODEL NIE MIAŁ JAK POWIEDZIEĆ. Przy
+        // krawędziach równych albo tak odległych, że szerokości przedziału nie
+        // da się zapisać w podwójnej precyzji, model nie budował ANI JEDNEGO
+        // przedziału - i milczał o tym dokładnie tak samo, jak milczy rysunek
+        // bez defektu. Komunikat stoi PRZED obserwacją `reading.tooCoarse`, bo
+        // tamta mówi „cały zakres zmieścił się w jednym przedziale", czyli
+        // opisuje jeden słupek, a tu nie ma żadnego.
+        binsBuiltFailed:
+          "Z tych obserwacji nie dało się zbudować ani jednego przedziału, więc na rysunku nie ma żadnego słupka - krawędzie są albo równe, albo tak odległe, że szerokości przedziału nie da się zapisać.",
       },
       // OBSERWACJE O TYM RYSUNKU, nie zalecenia dla autora. Ten sam podział,
       // co w pozostałych rodzajach: „kształt zależy od położenia krawędzi"
@@ -968,6 +977,8 @@ const en = {
           "The caption says n = {{declared}}, the data holds {{actual}} observations.",
         ignoredSeries:
           "A histogram reads ONE series; the remaining {{count}} were skipped. Two distributions are compared with two panels on a shared scale, not with one chart.",
+        binsBuiltFailed:
+          "Not a single bin could be built from these observations, so the chart shows no bars - the edges are either equal or so far apart that the bin width cannot be represented.",
       },
       reading: {
         tooFew:
