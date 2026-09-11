@@ -406,15 +406,52 @@ describe("palette - KOLORY MARKI są w palecie, co do hexa", () => {
   // korytarza mogłyby po cichu przesunąć hex marki o kilka jednostek i żaden
   // inny test by tego nie zauważył, bo wszystkie progi dalej by przechodziły.
   const ZADANE_JASNE = [
-    "#03346e", "#fa9346", "#8c56d4", "#2bbbd7", "#bb8760", "#607456", "#7b2525",
-    "#232c31", "#cd393b", "#15334d", "#6929c4", "#f7dd14", "#7f2020", "#6d9e51",
-    "#ed985f", "#9cc6db", "#c95792", "#e50046", "#ffdab3", "#d4bdac", "#dca47c",
-    "#b80000", "#ff788d",
+    "#03346e",
+    "#fa9346",
+    "#8c56d4",
+    "#2bbbd7",
+    "#bb8760",
+    "#607456",
+    "#7b2525",
+    "#232c31",
+    "#cd393b",
+    "#15334d",
+    "#6929c4",
+    "#f7dd14",
+    "#7f2020",
+    "#6d9e51",
+    "#ed985f",
+    "#9cc6db",
+    "#c95792",
+    "#e50046",
+    "#ffdab3",
+    "#d4bdac",
+    "#dca47c",
+    "#b80000",
+    "#ff788d",
   ];
   const ZADANE_CIEMNE = [
-    "#2196f3", "#fdb078", "#76c457", "#e7bcde", "#92eeff", "#ca7842", "#8b9a6e",
-    "#ba6a4c", "#e1b076", "#b281f7", "#fff07d", "#b5e18b", "#f7b980", "#9cc6db",
-    "#ffdab3", "#ff9a9a", "#e50046", "#d4bdac", "#ffd3b6", "#b80000", "#ff9d9d",
+    "#2196f3",
+    "#fdb078",
+    "#76c457",
+    "#e7bcde",
+    "#92eeff",
+    "#ca7842",
+    "#8b9a6e",
+    "#ba6a4c",
+    "#e1b076",
+    "#b281f7",
+    "#fff07d",
+    "#b5e18b",
+    "#f7b980",
+    "#9cc6db",
+    "#ffdab3",
+    "#ff9a9a",
+    "#e50046",
+    "#d4bdac",
+    "#ffd3b6",
+    "#b80000",
+    "#ff9d9d",
   ];
 
   it("każdy zadany odcień JASNY stoi w palecie jako wartość jasna", () => {
@@ -435,8 +472,20 @@ describe("palette - KOLORY MARKI są w palecie, co do hexa", () => {
       CHART_SLOTS.flatMap((s) => [s.light.toLowerCase(), s.dark.toLowerCase()]),
     );
     for (const hex of [
-      "#ccc69b", "#9ac5af", "#449eef", "#01538a", "#bb8b4d", "#e1af73", "#a587a4",
-      "#7a5b79", "#11a0c4", "#51cef6", "#a8583c", "#b97b64", "#646e1c", "#936869",
+      "#ccc69b",
+      "#9ac5af",
+      "#449eef",
+      "#01538a",
+      "#bb8b4d",
+      "#e1af73",
+      "#a587a4",
+      "#7a5b79",
+      "#11a0c4",
+      "#51cef6",
+      "#a8583c",
+      "#b97b64",
+      "#646e1c",
+      "#936869",
       "#b28485",
     ])
       expect(wszystkie.has(hex), hex).toBe(false);
@@ -645,7 +694,9 @@ describe("palette - tokeny w styles.css zgadzają się z modułem", () => {
       if (wyjatek === undefined) {
         expect(shortest, `${slot.key}: ${shortest.toFixed(1)} st.`).toBeLessThanOrEqual(10);
       } else {
-        expect(shortest, `${slot.key} (odstępstwo): ${shortest.toFixed(1)} st.`).toBeGreaterThan(10);
+        expect(shortest, `${slot.key} (odstępstwo): ${shortest.toFixed(1)} st.`).toBeGreaterThan(
+          10,
+        );
         expect(shortest, `${slot.key} (odstępstwo urosło)`).toBeLessThanOrEqual(wyjatek + 0.1);
       }
     }

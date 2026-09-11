@@ -49,7 +49,9 @@ const textOf = (root: HTMLElement, sel: string): string[] =>
 /** Pasma i pola: krycie z tokena siedzi w `style`, nie w atrybucie. */
 const bandsOf = (root: HTMLElement): Element[] =>
   all(root, "path").filter((el) =>
-    (el.getAttribute("style") ?? "").includes(`fill-opacity: var(--chart-band-${slotForSeries(0)})`),
+    (el.getAttribute("style") ?? "").includes(
+      `fill-opacity: var(--chart-band-${slotForSeries(0)})`,
+    ),
   );
 
 /**

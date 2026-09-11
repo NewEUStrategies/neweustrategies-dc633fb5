@@ -85,7 +85,11 @@ export function SystemEmailsPanel() {
       categories: series.map((p) => dayLabel(p.day, locale)),
       series: [
         { name: t("systemEmails.chart.sent"), values: values.sent, colorSlot: slotForSeries(0) },
-        { name: t("systemEmails.chart.failed"), values: values.failed, colorSlot: slotForSeries(1) },
+        {
+          name: t("systemEmails.chart.failed"),
+          values: values.failed,
+          colorSlot: slotForSeries(1),
+        },
         {
           name: t("systemEmails.chart.suppressed"),
           values: values.suppressed,

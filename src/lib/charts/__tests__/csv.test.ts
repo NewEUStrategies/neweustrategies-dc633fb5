@@ -16,7 +16,11 @@ describe("parseChartData", () => {
       values: [120, 150.5],
       colorSlot: slotForSeries(0),
     });
-    expect(series[1]).toMatchObject({ name: "Import", values: [80, 95], colorSlot: slotForSeries(1) });
+    expect(series[1]).toMatchObject({
+      name: "Import",
+      values: [80, 95],
+      colorSlot: slotForSeries(1),
+    });
   });
 
   it("treats blank/invalid cells as gaps and skips empty lines", () => {

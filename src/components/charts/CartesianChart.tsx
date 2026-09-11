@@ -430,6 +430,19 @@ export function CartesianChart({
     config,
   ]);
 
+  /**
+   * Sloty, które na TYM wykresie potrzebują drugiego nośnika różnicy.
+   *
+   * Liczone PRZED wyjściem na pustych danych, bo `useMemo` po wcześniejszym
+   * `return` łamie stałą kolejność hooków: render, który zwraca `null`, wołałby
+   * o jeden hook mniej niż render, który rysuje. Zależy tylko od `series`,
+   * więc nic go w tym miejscu nie blokuje.
+   */
+  const kreskowaneSloty = useMemo(
+    () => slotsNeedingPattern(series.map((s) => s.colorSlot)),
+    [series],
+  );
+
   if (n === 0 || (series.length === 0 && !waterfall)) return null;
 
   const { padTop, padLeft, innerW, innerH, value, band, catCenter, stacks, smoothing, plan } =
@@ -602,11 +615,6 @@ export function CartesianChart({
     nazwaZadana ??
     (config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"));
 
-  /** Sloty, które na TYM wykresie potrzebują drugiego nośnika różnicy. */
-  const kreskowaneSloty = useMemo(
-    () => slotsNeedingPattern(series.map((s) => s.colorSlot)),
-    [series],
-  );
   const hatchId = `neh-hatch-${uid}`;
   const zoneHatchId = `neh-zone-hatch-${uid}`;
   const hintId = `neh-hint-${uid}`;

@@ -531,9 +531,7 @@ export const CHART_SLOTS: readonly PaletteSlot[] = [
  * nią odporne i to jest cel rozdzielenia.
  */
 export const SLOT_SEQUENCE: readonly number[] = [
-  3, 4, 8, 14, 20, 21, 11, 12, 15,
-  18, 5, 6, 26, 22, 25, 13, 9, 23,
-  17, 24, 1, 2, 7, 19, 27, 10, 16,
+  3, 4, 8, 14, 20, 21, 11, 12, 15, 18, 5, 6, 26, 22, 25, 13, 9, 23, 17, 24, 1, 2, 7, 19, 27, 10, 16,
 ];
 
 /**
