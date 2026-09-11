@@ -449,20 +449,18 @@ describe("PercentStackedChart - etykieta udziału wchodzi do segmentu warunkowo"
     expect(all(container, ETYKIETA)).toHaveLength(0);
   });
 
-  it("etykieta bierze TUSZ SLOTU, nie kolor serii i nie tusz semantyczny", () => {
-    // Wypełnienie segmentu jest tu nasycone (wariant blady schodzi do
-    // solidnego przez sam stos), a `--chart-ink-N` jest dobrany kontrastem
-    // właśnie do niego: na granacie wychodzi biały, na ochrze ciemny. Defekt,
-    // który to łapie: napis w kolorze serii (próg tekstu 4,5:1 wobec 3,0:1 dla
-    // wypełnienia) albo jeden tusz semantyczny na wszystkie sloty - ten ma na
-    // granacie 2,25:1.
+  it("etykieta bierze wspólny tusz semantyczny na jasnym wnętrzu segmentu", () => {
+    // Wszystkie słupki i segmenty są wizualnie normalizowane przez arkusz do
+    // jasnego wnętrza z ciemniejszym obrysem, tak jak pie/donut. Etykieta musi
+    // więc używać tuszu strony, a nie inku dobranego do dawnego, nasyconego
+    // wypełnienia slotu.
     const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
     const kolory = all(container, `${SEG}[data-bar='0']`).map((e) => e.getAttribute("fill"));
     expect(kolory).toEqual([0, 1, 2].map((i) => `var(--chart-${slotForSeries(i)})`));
     const tusze = all(container, `${ETYKIETA}`)
       .slice(0, 3)
       .map((e) => e.getAttribute("fill"));
-    expect(tusze).toEqual([0, 1, 2].map((i) => `var(--chart-ink-${slotForSeries(i)})`));
+    expect(tusze).toEqual(Array.from({ length: 3 }, () => "var(--foreground)"));
   });
 });
 
