@@ -269,6 +269,134 @@ export function MediaPickerDialog({
     setFilenameDraft(row.filename);
   };
 
+  const selectMedia = (row: PickerRow, event?: ReactMouseEvent) => {
+    toggleSelect(row.id, event);
+    if (!event?.metaKey && !event?.ctrlKey && !event?.shiftKey) {
+      handlePickRow(row);
+      return;
+    }
+    setPickedUrl(null);
+    setFilenameDraft("");
+    setAltDraft("");
+  };
+
+  const clearMediaSelection = useCallback(() => {
+    clearSelection();
+    setPickedUrl(null);
+    setFilenameDraft("");
+    setAltDraft("");
+  }, [clearSelection]);
+
+  const deleteSelected = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!window.confirm(t("adminTeamMedia.mediaPicker.deleteManyConfirm", { count: ids.length }))) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await bulkDelete({ data: { mediaIds: ids } });
+      clearMediaSelection();
+      await qc.invalidateQueries({ queryKey: ["media-picker"] });
+      toast.success(t("adminTeamMedia.mediaPicker.deletedMany", { count: ids.length }));
+    } catch (err) {
+      toastError(err, "delete");
+    } finally {
+      setDeleting(false);
+    }
+  }, [bulkDelete, clearMediaSelection, qc, selectedIds, t]);
+
+  const moveSelectedToFolder = useCallback(
+    async (targetFolder: string, ids = Array.from(selectedIds)) => {
+      if (!ids.length) return;
+      setMoving(true);
+      try {
+        await bulkMove({ data: { mediaIds: ids, folderPath: normalizePath(targetFolder) } });
+        clearMediaSelection();
+        await qc.invalidateQueries({ queryKey: ["media-picker"] });
+        toast.success(t("adminTeamMedia.mediaPicker.movedMany", { count: ids.length }));
+      } catch (err) {
+        toastError(err, "save");
+      } finally {
+        setMoving(false);
+        setDragTargetFolder(null);
+      }
+    },
+    [bulkMove, clearMediaSelection, qc, selectedIds, t],
+  );
+
+  const onMediaDragStart = (id: string) => (event: DragEvent<HTMLButtonElement>) => {
+    const ids = selectedIds.has(id) ? Array.from(selectedIds) : [id];
+    if (!selectedIds.has(id)) selectOnly(id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(MEDIA_IDS_MIME, JSON.stringify(ids));
+  };
+
+  const onFolderDrop = (targetFolder: string) => (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragTargetFolder(null);
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length) {
+      void handleFiles(files, targetFolder);
+      return;
+    }
+    try {
+      const parsed: unknown = JSON.parse(event.dataTransfer.getData(MEDIA_IDS_MIME));
+      const ids = Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === "string")
+        : [];
+      void moveSelectedToFolder(targetFolder, ids);
+    } catch {
+      return;
+    }
+  };
+
+  const createNewFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    const base = folder === "all" ? "/" : folder;
+    setCreatingFolder(true);
+    try {
+      await createFolder({ data: { path: normalizePath(`${base}${name}/`) } });
+      setNewFolderName("");
+      setNewFolderOpen(false);
+      await qc.invalidateQueries({ queryKey: ["media-picker-folders"] });
+      toast.success(t("adminTeamMedia.mediaPicker.folderCreated"));
+    } catch (err) {
+      toastError(err, "save");
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open || newFolderOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const element = event.target as HTMLElement | null;
+      if (element?.matches("input, textarea, [contenteditable='true']")) return;
+      const command = event.metaKey || event.ctrlKey;
+      if (command && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        selectAll();
+      } else if ((event.key === "Delete" || event.key === "Backspace") && selectedIds.size) {
+        event.preventDefault();
+        void deleteSelected();
+      } else if (event.key === "F2" && selectedIds.size === 1) {
+        event.preventDefault();
+        const selectedId = Array.from(selectedIds)[0];
+        const row = filtered.find((item) => item.id === selectedId);
+        if (row) handlePickRow(row);
+        requestAnimationFrame(() => document.getElementById("picker-filename")?.focus());
+      } else if (event.key === "Escape" && selectedIds.size) {
+        event.preventDefault();
+        clearMediaSelection();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [clearMediaSelection, deleteSelected, filtered, newFolderOpen, open, selectAll, selectedIds]);
+
   const saveMeta = async () => {
     if (!picked) return;
     const filename = filenameDraft.trim();
