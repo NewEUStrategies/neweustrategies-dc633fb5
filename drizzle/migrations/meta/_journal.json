@@ -8,6 +8,13 @@
       "when": 1789142382472,
       "tag": "0000_search_people_super_admin_bypass",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789150330170,
+      "tag": "0001_profiles_discoverable_default_true",
+      "breakpoints": true
     }
   ]
 }
