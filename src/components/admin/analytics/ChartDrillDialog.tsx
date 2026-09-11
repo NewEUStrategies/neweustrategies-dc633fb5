@@ -2,13 +2,14 @@
  * Drill-down dialog for BI charts.
  *
  * Every chart in the BI dashboards may accept an `onDataClick` handler that
- * translates an ECharts click event into a `ChartDrillDetail` payload. The
- * `ChartCard` shell owns the dialog state and renders the details here.
+ * translates a `ChartSelection` from the chart engine into a `ChartDrillDetail`
+ * payload. The `ChartCard` shell owns the dialog state and renders the details
+ * here.
  *
  * The payload is intentionally UI-shaped (not domain-shaped) so a single
- * component can render clicks from a treemap, a bar, a pie or a line without
- * knowing about paths, queries, metrics etc. Every field is optional except
- * the title so partial payloads still render sensibly.
+ * component can render selections from a bar, a donut, a scatter or a line
+ * without knowing about paths, queries, metrics etc. Every field is optional
+ * except the title so partial payloads still render sensibly.
  */
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -50,22 +51,6 @@ export interface ChartDrillDetail {
   description?: string;
   metrics?: ChartDrillMetric[];
   links?: ChartDrillLink[];
-}
-
-/**
- * Minimal shape of the params ECharts passes to a `click` handler. Kept
- * intentionally loose so charts can safely narrow only what they need.
- */
-export interface ChartClickParams {
-  componentType?: string;
-  seriesType?: string;
-  seriesIndex?: number;
-  seriesName?: string;
-  name?: string;
-  dataIndex?: number;
-  data?: unknown;
-  value?: unknown;
-  dataType?: string;
 }
 
 const TONE_CLS: Record<ChartDrillTone, string> = {

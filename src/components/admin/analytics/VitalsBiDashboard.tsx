@@ -21,34 +21,18 @@
  * administratorowi szukać problemu po stronie ruchu także wtedy, gdy padł
  * odczyt tabeli albo gdy raport jeszcze nie dojechał.
  *
- * ALTERNATYWA TEKSTOWA. Każdy z ośmiu wykresów dostaje `csv`, więc `ChartCard`
- * wiąże jego region z tabelą tych samych danych (`aria-describedby`) i wystawia
- * eksport CSV. Kanwa ECharts jest dla czytnika ekranu pustym prostokątem -
- * bez tabeli cały pulpit wydajności był dla osoby niewidzącej nieczytelny.
+ * ALTERNATYWA TEKSTOWA. Rysunek nigdy nie jest jedyną drogą do liczby, więc
+ * silnik rysuje tabelę tych samych danych przy KAŻDYM rodzaju - karta nie musi
+ * jej budować i nie da się jej pominąć z zewnątrz. `csv` zostaje wyłącznie
+ * ŹRÓDŁEM EKSPORTU: plik bywa bogatszy od rysunku, bo niesie kolumny, których
+ * wykres nie koduje.
  *
- * KOLOR DLA KANWY, NIE DLA CSS. ECharts nie maluje DOM-em, tylko kanwą, a
- * kanwa zmiennych CSS nie rozwiązuje: `"hsl(var(--muted-foreground))"` podane
- * jako `fillStyle` jest napisem nieparsowalnym i przeglądarka ZOSTAJE PRZY
- * POPRZEDNIEJ wartości, nie rzucając niczym - awaria wygląda jak „etykiety są
- * jakoś ciemne", nie jak błąd. W tym repo było dodatkowo gorzej, bo
- * `src/styles.css` trzyma `--foreground`, `--muted-foreground` i `--background`
- * w `oklch(...)`, więc literał rozwijał się do `hsl(oklch(...))` (mechanizm
- * opisuje komentarz `BARE_HSL_TRIPLE` w `chartTheme.ts`). Dlatego wszystkie
- * kolory idą tu z `useChartTheme()`, czyli z tokenu JUŻ ROZWIĄZANEGO.
- *
- * CZEGO PANEL NIE POWTARZA. Kolorów, które `baseOption` ustawia sam - etykiety
- * i linie osi, tło, ramka i tekst dymka, tekst legendy - panel NIE wpisuje
- * ponownie: głębokie złączenie (`mergeChartOption`) dowozi je do każdej sekcji,
- * której panel nie podał w całości, a druga kopia tej samej wartości to drugie
- * miejsce do zapomnienia. Hook obsługuje WYŁĄCZNIE pola, których baza znać nie
- * może, bo należą do jednego typu wykresu: linia progowa trendu
- * (`markLine.lineStyle`), ramki kafli treemapy (`series[].itemStyle.borderColor`)
- * i dwa styly `rich` w środku pierścienia.
- *
- * IZOLACJA WARSZTATÓW. Każdy klucz react-query niesie identyfikator najemcy,
- * a zapytanie jest wstrzymane do jego rozwiązania - inaczej dwa panele
- * liczące to samo okno dzieliłyby jeden wpis cache i raport RUM przeciekałby
- * między warsztatami bez ani jednego żądania sieciowego.
+ * KOLORY SĄ SPRAWĄ SILNIKA. Panel nie wpisuje ani jednej wartości barwy: seria
+ * dostaje NUMER SLOTU palety, a jak ten slot wygląda - w jasnym motywie,
+ * w ciemnym, przy symulacji daltonizmu - rozstrzyga arkusz. Poprzedni silnik
+ * malował kanwą, a kanwa zmiennych CSS nie rozwiązuje, więc każdy kolor
+ * musiał najpierw przejść przez osobny magazyn rozwiązanych tokenów - i każdy
+ * panel miał okazję rozwiązać go inaczej niż sąsiad.
  */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -104,10 +88,6 @@ function sparkForMetric(report: VitalsSummaryResult, metric: VitalName): number[
 
 export function VitalsBiDashboard() {
   const { t } = useTranslation();
-  // Motyw JEST zależnością każdej opcji, która wpisuje kolor - stąd `theme`
-  // w listach `useMemo` niżej. Referencja jest stabilna, dopóki tokeny się nie
-  // zmieniły (kontrakt `useChartTheme`), więc dopisanie jej do zależności nie
-  // przelicza opcji ani razu więcej, niż trzeba.
   const fetchVitals = useServerFn(getVitalsSummary);
   const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
@@ -296,12 +276,9 @@ export function VitalsBiDashboard() {
     [metricsByName],
   );
 
-  // ---- Alternatywa tekstowa dla OŚMIU wykresów ----------------------------
-  // ECharts maluje do kanwy, a kanwa jest dla czytnika ekranu pustym
-  // prostokątem: `role="img"` z tytułem karty mówi tylko „tu jest wykres X".
-  // `ChartCard` wiąże region wykresu z tabelą danych przez `aria-describedby`
-  // WYŁĄCZNIE wtedy, gdy dostanie `csv` - bez niego cały pulpit wydajności był
-  // dla osoby niewidzącej nieczytelny, a eksport CSV nie istniał.
+  // ---- Źródła eksportu dla OŚMIU wykresów ---------------------------------
+  // Tabelę danych rysuje silnik, więc `csv` nie jest już alternatywą tekstową,
+  // tylko ŹRÓDŁEM PLIKU - i dlatego bywa bogatszy od rysunku.
   //
   // KOLUMNY IDĄ ZA TYM, CO JEST NA DANYM WYKRESIE, nie za kształtem raportu:
   // trend ma dzień i p75 tej jednej metryki, słupki ratingów - trzy kubełki

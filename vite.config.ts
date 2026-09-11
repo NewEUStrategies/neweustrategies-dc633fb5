@@ -165,21 +165,15 @@ export default defineConfig({
         // kończy się "does not provide an export named 'default'" - dokładnie
         // tak wywalał się edytor wpisu (react-markdown -> style-to-js), a
         // pozostałe czekały w kolejce: kadrowanie okładki (react-easy-crop ->
-        // normalize-wheel), wykresy (echarts-for-react to CJS), bilety QR
-        // (qrcode), słownik krajów (i18n-iso-countries) i normalizacja HTML
-        // buildera (node-html-parser -> css-select -> boolbase).
+        // normalize-wheel), bilety QR (qrcode), słownik krajów
+        // (i18n-iso-countries) i normalizacja HTML buildera (node-html-parser
+        // -> css-select -> boolbase).
+        //
+        // WYKRESÓW TU JUŻ NIE MA. Pulpity rysowały przez `echarts-for-react`,
+        // czyli moduł CJS wymagający prebundlingu; nasz silnik jest zwykłym
+        // komponentem Reacta w tym repozytorium, więc nie ma czego prebundlować.
         "react-markdown",
         "react-easy-crop",
-        "echarts-for-react",
-        // Analityka admina importuje WŁAŚNIE ten podentry (odchudzony rdzeń),
-        // a nie główny - podentry jest osobnym modułem CJS i bez wpisu tutaj
-        // dashboard wywalał się na braku exportu `default`.
-        "echarts-for-react/lib/core",
-        "echarts/core",
-        "echarts/renderers",
-        "echarts/charts",
-        "echarts/components",
-        "echarts/features",
         "qrcode",
         "i18n-iso-countries",
         "node-html-parser",

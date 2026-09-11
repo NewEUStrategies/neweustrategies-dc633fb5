@@ -143,7 +143,7 @@ grupami tematycznymi wspólnych primitywów; panel buildera utrzymuje własny, k
 | Płatności               | Stripe 22                                                                           |
 | Internacjonalizacja     | i18next 26, react-i18next 17                                                        |
 | Walidacja               | Zod 3                                                                               |
-| Wykresy                 | Apache ECharts 6.1                                                                  |
+| Wykresy                 | Własny silnik SVG (`src/components/charts` + `src/lib/charts`), bez zależności      |
 | Build                   | Vite 7.3                                                                            |
 | Testy                   | Vitest 4.1, Playwright 1.61, pgTAP                                                  |
 
@@ -350,7 +350,7 @@ groupings of shared primitives; the builder admin UI maintains its own consisten
 | Payments             | Stripe 22                                                                           |
 | Internationalisation | i18next 26, react-i18next 17                                                        |
 | Validation           | Zod 3                                                                               |
-| Charts               | Apache ECharts 6.1                                                                  |
+| Charts               | In-house SVG engine (`src/components/charts` + `src/lib/charts`), no dependency     |
 | Build                | Vite 7.3                                                                            |
 | Testing              | Vitest 4.1, Playwright 1.61, pgTAP                                                  |
 
