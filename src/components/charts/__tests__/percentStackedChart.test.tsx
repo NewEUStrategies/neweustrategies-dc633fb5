@@ -1681,7 +1681,9 @@ describe("PercentStackedChart - drabina etykiet kategorii", () => {
     // Reguła silnika: nigdy skrót bez podpowiedzi. Defekt, który to łapie:
     // oś z napisami „01.01", po której nie da się dojść, którego to roku.
     const dni = Array.from({ length: 40 }, (_, i) =>
-      i < 31 ? `2024-01-${String(i + 1).padStart(2, "0")}` : `2024-02-${String(i - 30).padStart(2, "0")}`,
+      i < 31
+        ? `2024-01-${String(i + 1).padStart(2, "0")}`
+        : `2024-02-${String(i - 30).padStart(2, "0")}`,
     );
     const { container } = render(<PercentStackedChart config={cfg(arkusz(dni))} lang="pl" />);
     const teksty = podpisy(container);
@@ -1689,12 +1691,14 @@ describe("PercentStackedChart - drabina etykiet kategorii", () => {
     expect(teksty.length).toBeLessThan(dni.length);
     for (const el of teksty) {
       const tytul = el.querySelector("title")?.textContent ?? "";
-      expect(tytul).toMatch(/^2024-\d{2}-\d{2}$/);
-      // Skrót jest KRÓTSZY od pełnej treści i jest jej zapisem, a nie innym
-      // napisem: „15.01" pochodzi wprost z „2024-01-15".
+      const data = /^2024-(\d{2})-(\d{2})$/.exec(tytul);
+      if (data === null) throw new Error(`podpowiedź nie jest pełną datą: ${tytul}`);
+      // SKRÓT JEST BEZSTRATNYM ZAPISEM TEJ SAMEJ DATY, a nie innym napisem:
+      // „2024-01-15" schodzi do „15.01", więc z podpowiedzi i skrótu da się
+      // odtworzyć jedno z drugiego. Defekt, który to łapie: podpowiedź
+      // przyklejona do nie swojej etykiety (przerzedzenie zmienia indeksy).
       const skrot = (el.textContent ?? "").replace(tytul, "");
-      expect(skrot.length).toBeLessThan(tytul.length);
-      expect(tytul).toContain(skrot.split(".").reverse().join("-").slice(0, 2));
+      expect(skrot).toBe(`${data[2]}.${data[1]}`);
     }
   });
 });
