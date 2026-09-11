@@ -22,7 +22,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, X, Folder, Upload, Loader2, Trash2 } from "@/lib/lucide-shim";
+import {
+  Search,
+  Check,
+  X,
+  Folder,
+  Upload,
+  Loader2,
+  Trash2,
+  ChevronDown,
+} from "@/lib/lucide-shim";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
 import {
@@ -69,6 +79,8 @@ export function MediaPickerDialog({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string>("all");
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [folderQuery, setFolderQuery] = useState("");
   const [pickedUrl, setPickedUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -179,6 +191,18 @@ export function MediaPickerDialog({
     });
   }, [data, q, folder]);
 
+  const filteredFolders = useMemo(() => {
+    const needle = folderQuery.trim().toLocaleLowerCase();
+    if (!needle) return folders;
+    return folders.filter((path) => path.toLocaleLowerCase().includes(needle));
+  }, [folderQuery, folders]);
+
+  const selectFolder = (nextFolder: string) => {
+    setFolder(nextFolder);
+    setFolderPickerOpen(false);
+    setFolderQuery("");
+  };
+
   const picked = useMemo(
     () => (data ?? []).find((m) => m.public_url === pickedUrl) ?? null,
     [data, pickedUrl],
@@ -259,18 +283,121 @@ export function MediaPickerDialog({
               className="pl-8 h-8 text-xs placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/40"
             />
           </div>
-          <select
-            value={folder}
-            onChange={(e) => setFolder(e.target.value)}
-            className="h-8 text-xs bg-background border border-border rounded px-2"
+          <Popover
+            open={folderPickerOpen}
+            onOpenChange={(nextOpen) => {
+              setFolderPickerOpen(nextOpen);
+              if (!nextOpen) setFolderQuery("");
+            }}
           >
-            <option value="all">{t("adminTeamMedia.mediaPicker.allFolders")}</option>
-            {folders.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={folderPickerOpen}
+                aria-label={t("adminTeamMedia.mediaPicker.folderFilter")}
+                className="h-8 min-w-[190px] max-w-[260px] justify-between gap-2 rounded-[6px] border-border/70 bg-background/80 px-2.5 text-xs font-medium shadow-sm backdrop-blur-md hover:border-primary/40 hover:bg-muted/60 focus-visible:ring-primary/30"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Folder className="size-3.5 shrink-0 text-primary" aria-hidden />
+                  <span className="truncate">
+                    {folder === "all"
+                      ? t("adminTeamMedia.mediaPicker.allFolders")
+                      : folder}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={`size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${folderPickerOpen ? "rotate-180" : ""}`}
+                  aria-hidden
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={6}
+              className="w-[min(320px,calc(100vw-32px))] overflow-hidden rounded-[6px] border-border/70 bg-popover/95 p-0 shadow-xl backdrop-blur-xl"
+            >
+              <div className="border-b border-border/70 bg-muted/30 p-2">
+                <div className="relative">
+                  <Search
+                    className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    type="search"
+                    inputMode="search"
+                    name="media-folder-filter"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    value={folderQuery}
+                    onChange={(event) => setFolderQuery(event.target.value)}
+                    placeholder={t("adminTeamMedia.mediaPicker.folderSearchPlaceholder")}
+                    className="h-8 rounded-[6px] border-border/70 bg-background/70 pl-8 pr-2 text-xs placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-primary/30"
+                  />
+                </div>
+              </div>
+              <div
+                role="listbox"
+                aria-label={t("adminTeamMedia.mediaPicker.folderFilter")}
+                className="max-h-72 space-y-0.5 overflow-y-auto p-1.5"
+              >
+                {!folderQuery.trim() && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    role="option"
+                    aria-selected={folder === "all"}
+                    onClick={() => selectFolder("all")}
+                    className={`h-8 w-full justify-start gap-2 rounded-[6px] px-2.5 text-xs ${
+                      folder === "all"
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Folder className="size-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{t("adminTeamMedia.mediaPicker.allFolders")}</span>
+                    {folder === "all" && <Check className="ml-auto size-3.5 shrink-0" aria-hidden />}
+                  </Button>
+                )}
+                {filteredFolders.map((path) => {
+                  const selected = folder === path;
+                  return (
+                    <Button
+                      key={path}
+                      type="button"
+                      variant="ghost"
+                      role="option"
+                      aria-selected={selected}
+                      title={path}
+                      onClick={() => selectFolder(path)}
+                      className={`h-8 w-full justify-start gap-2 rounded-[6px] px-2.5 text-xs ${
+                        selected
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      <Folder className="size-3.5 shrink-0" aria-hidden />
+                      <span className="truncate">{path}</span>
+                      {selected && <Check className="ml-auto size-3.5 shrink-0" aria-hidden />}
+                    </Button>
+                  );
+                })}
+                {folderQuery.trim() && filteredFolders.length === 0 && (
+                  <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                    {t("adminTeamMedia.mediaPicker.noFolders")}
+                  </p>
+                )}
+              </div>
+              <div className="border-t border-border/70 bg-muted/20 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground">
+                {t("adminTeamMedia.mediaPicker.folderCount", { count: folders.length })}
+              </div>
+            </PopoverContent>
+          </Popover>
           <input
             ref={fileInputRef}
             type="file"
