@@ -257,7 +257,7 @@ export function ChatSideDrawer({
           // choć ruch trwa ćwierć sekundy.
           "wd-drawer pointer-events-auto h-full w-full flex-col border-r border-border/70 sm:w-[320px] sm:max-w-[85vw]",
           "bg-card/95 shadow-xl backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
-          selected && (inboxCollapsed || true) ? "hidden sm:flex" : "flex",
+          selected ? "hidden sm:flex" : "flex",
           inboxCollapsed && "sm:hidden",
         )}
       >
