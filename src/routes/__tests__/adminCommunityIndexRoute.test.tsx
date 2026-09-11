@@ -176,24 +176,21 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// Granica danych numer trzy: SILNIK WYKRESU paska analityki modułu 17.
-// Pulpit osadza `<AdminBiStrip days={14} />`, a ten - dwie karty `ChartCard`,
-// z których każda montuje `EChart`. `EChart` po zamontowaniu dociąga leniwie
-// `EChartClient`, czyli ~1 MB ECharts rysującego po canvasie; happy-dom canvasu
-// nie ma, więc `getContext("2d")` oddaje `null` i zrender wywala się ASYNCHRO-
-// NICZNIE, w klatce animacji i przy `dispose()` po odmontowaniu
-// (`Cannot set properties of null (setting 'dpr')`, `... reading 'clearRect'`).
-// Vitest przypisuje takie nieobsłużone wyjątki testowi, który AKURAT trwa -
-// stąd kilkanaście czerwonych przypadków bez jednej nieudanej asercji.
-// Atrapa odcina wyłącznie rysowanie: `ChartCard`, jego przyciski eksportu,
-// nagłówek `h2` paska i cała reszta drzewa biegną PRAWDZIWE, więc asercje
-// dostępności nadal mierzą to, co widzi operator. Ta sama granica i z tego
-// samego powodu stoi w `adminCouponsAnalyticsRoute.test.tsx`.
-vi.mock("@/components/admin/analytics/EChart", () => ({
-  EChart: ({ option, height }: { option: unknown; height?: number | string }) => (
-    <div data-testid="wykres" data-wysokosc={String(height)} data-opcja={JSON.stringify(option)} />
-  ),
-}));
+// GRANICY WYKRESU JUŻ TU NIE MA - i to jest zmiana, nie przeoczenie. Pulpit
+// osadza `<AdminBiStrip days={14} />`, a ten dwie karty `ChartCard`. Póki karty
+// rysowały ECharts, ten plik MUSIAŁ je odciąć atrapą: ECharts maluje po
+// canvasie, happy-dom canvasu nie ma, więc `getContext("2d")` oddawał `null`,
+// a zrender wywalał się ASYNCHRONICZNIE - w klatce animacji i przy `dispose()`
+// po odmontowaniu (`Cannot set properties of null (setting 'dpr')`,
+// `... reading 'clearRect'`). Vitest przypisywał takie nieobsłużone wyjątki
+// przypadkowi, który AKURAT trwał, więc czerwieniało kilkanaście testów bez ani
+// jednej nieudanej asercji.
+//
+// Nasz silnik rysuje SVG w drzewie dokumentu, czyli dokładnie to, co happy-dom
+// umie. Atrapa nie jest więc już potrzebna, a jej brak jest ZYSKIEM: przebieg
+// axe niżej mierzy teraz także wnętrze rysunku - nazwę regionu, podpowiedź
+// obsługi klawiatury i tabelę danych - a nie pusty `<div>` podstawiony w jego
+// miejsce.
 
 import { renderRoute, routeHead } from "@/test/routeHarness";
 import { realT } from "@/test/i18nReal";
