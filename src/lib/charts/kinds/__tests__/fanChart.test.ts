@@ -400,6 +400,62 @@ describe("fanModel: uczciwość pasm", () => {
     expect(model.honesty.bandOverHistoryLabels).toEqual([]);
   });
 
+  // Bez tego testu dziura w paśmie była CICHA. Krok z jedną krawędzią wypada
+  // z modelu w całości (pół pasma nie jest pasmem), więc wielokąt urywa się
+  // i zaczyna dalej, a żadne pole nie mówiło, że tak się stało. Luka
+  // w ścieżce centralnej ma własne orzeczenie od początku; pasmo nie miało
+  // żadnego, choć niesie tę samą informację - ile nie wiemy.
+  it("NAZYWA dziurę wewnątrz pasma, choć krok z jedną krawędzią wypada", () => {
+    const model = fanModel(
+      wejscie(OKRESY, [
+        CENTRUM,
+        seria("80% dolna", [null, null, null, null, 115, 115, null, 116]),
+        seria("80% górna", [null, null, null, null, 115, 123, 131, 140]),
+      ]),
+      OD_PROGNOZY,
+    );
+    // Krok „2027" (indeks 6) wypadł z pasma...
+    expect(model.levels[0].steps.map((s) => s.index)).toEqual([4, 5, 7]);
+    // ...i model o tym MÓWI, zamiast zostawić na rysunku niewyjaśnioną przerwę.
+    expect(model.honesty.bandGapLabels).toEqual(["2027"]);
+    expect(model.honesty.bandsContinuous).toBe(false);
+    // Wiersz tabeli niesie ten sam fakt, co uwaga pod rysunkiem.
+    const wiersz = fanTable(model).rows.find((r) => r.label === "2027");
+    expect(wiersz?.notes).toContain("bandGap");
+  });
+
+  it("pasmo zaczynające się na granicy NIE jest dziurą", () => {
+    // Druga strona umowy. Pasmo istnieje wyłącznie w prognozie i to jest
+    // REGUŁA tego rodzaju, a nie przerwa - orzeczenie liczące brakujące
+    // krańce zapalałoby się na każdym poprawnym wachlarzu, czyli uczyłoby
+    // ignorowania całej listy uwag.
+    const model = fanModel(wejscie(OKRESY, PASMA_POPRAWNE), OD_PROGNOZY);
+    expect(model.honesty.bandGapLabels).toEqual([]);
+    expect(model.honesty.bandsContinuous).toBe(true);
+    expect(fanTable(model).rows.every((r) => !r.notes.includes("bandGap"))).toBe(true);
+  });
+
+  it("MILCZY, gdy nie ma między czym szukać przerwy", () => {
+    // Poziom o jednym kroku albo brak poziomów: `null` znaczy „nie ma o czym
+    // orzekać", a nie „jest w porządku". Bez tego rozróżnienia pusty wykres
+    // zaświadczałby o ciągłości pasma, którego nie ma.
+    const pusty = fanModel(wejscie([], []), OD_PROGNOZY);
+    expect(pusty.honesty.bandsContinuous).toBeNull();
+    const jeden = fanModel(
+      wejscie(
+        ["I", "II", "III"],
+        [
+          seria("Centralna", [10, 20, 30]),
+          seria("80% dolna", [null, null, 25]),
+          seria("80% górna", [null, null, 35]),
+        ],
+      ),
+      { forecastFrom: 2 },
+    );
+    expect(jeden.levels[0].steps).toHaveLength(1);
+    expect(jeden.honesty.bandsContinuous).toBeNull();
+  });
+
   // Bez tego testu zamienione kolumny byłyby po cichu sortowane i defekt
   // danych znikał - a razem z nim informacja, że autor pomylił krawędzie.
   it("NAZYWA odwróconą parę krawędzi, choć naprawia geometrię", () => {

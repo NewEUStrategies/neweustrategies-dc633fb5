@@ -563,6 +563,26 @@ export interface FanHonesty {
   /** Etykiety kroków bez wartości centralnej (w obu fazach). */
   centralGapLabels: string[];
   /**
+   * Czy każde pasmo jest CIĄGŁE na własnym zasięgu. `false` = jest krok, który
+   * leży między dwoma krokami tego samego pasma, a pasma w nim nie ma - więc
+   * wielokąt się urywa i zaczyna dalej.
+   *
+   * Dziura w paśmie jest defektem tej samej klasy co luka w ścieżce centralnej
+   * i dlatego ma osobne orzeczenie: krok z JEDNĄ krawędzią wypada z modelu
+   * (pół pasma nie jest pasmem), więc na rysunku zostaje przerwa, której nikt
+   * nie tłumaczy. Czytelnik odczytuje ją albo jako „tu niepewności nie ma",
+   * albo wcale jej nie zauważa.
+   *
+   * Kroki PRZED pierwszym i PO ostatnim kroku pasma nie wchodzą: pasmo, które
+   * zaczyna się na granicy prognozy, jest regułą, nie dziurą.
+   *
+   * `null` = żaden poziom nie ma dwóch kroków, więc nie ma między czym szukać
+   * przerwy.
+   */
+  bandsContinuous: boolean | null;
+  /** Etykiety kroków z dziurą WEWNĄTRZ zasięgu któregoś pasma. */
+  bandGapLabels: string[];
+  /**
    * Udział szerokości pasma najszerszego w PIERWSZYM kroku prognozy wobec
    * jego szerokości największej, 0..1. `null` = nie ma czego liczyć.
    * POLE INFORMACYJNE, nie orzeczenie - patrz `FAN_WIDE_START_SHARE`.
@@ -1393,6 +1413,7 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
   const zeroWidthLabels: string[] = [];
   const narrowingLabels: string[] = [];
   const bandOverHistoryLabels: string[] = [];
+  const bandGapLabels: string[] = [];
   const misorderedConfidences: number[] = [];
 
   const etykieta = (index: number): string => w.labels[index] ?? "";
@@ -1520,6 +1541,28 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
       prognoza.length === 0 ? null : prognoza.every((s) => s.central !== null);
   }
 
+  /* --- CIĄGŁOŚĆ PASMA ------------------------------------------------ */
+
+  // Szukamy DZIUR WEWNĘTRZNYCH, a nie brakujących krańców: pasmo zaczynające
+  // się na granicy prognozy jest regułą tego rodzaju, więc krok przed jego
+  // pierwszym krokiem nie jest przerwą. Przerwą jest krok LEŻĄCY MIĘDZY
+  // dwoma krokami tego samego pasma - tam autor podał jedną krawędź zamiast
+  // dwóch (pół pasma nie jest pasmem, więc krok wypadł) albo nie podał żadnej.
+  let ciagloscSprawdzalna = 0;
+  for (const level of w.levels) {
+    const indeksy = level.steps.map((step) => step.index);
+    if (indeksy.length < 2) continue;
+    ciagloscSprawdzalna += 1;
+    const maja = new Set(indeksy);
+    const od = Math.min(...indeksy);
+    const doo = Math.max(...indeksy);
+    for (let i = od + 1; i < doo; i++) {
+      if (maja.has(i)) continue;
+      if (!bandGapLabels.includes(etykieta(i))) bandGapLabels.push(etykieta(i));
+    }
+  }
+  const bandsContinuous = ciagloscSprawdzalna === 0 ? null : bandGapLabels.length === 0;
+
   /* --- SZEROKI START, ZWĘŻANIE, STAŁA SZEROKOŚĆ ---------------------- */
 
   let firstStepWidthShare: number | null = null;
@@ -1568,6 +1611,8 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
     invertedLabels: [...w.invertedLabels],
     forecastDistinguished,
     carriers,
+    bandsContinuous,
+    bandGapLabels,
     centralContinuousInForecast,
     centralGapLabels: [...w.centralGapLabels],
     firstStepWidthShare,
@@ -1682,6 +1727,7 @@ export type FanRowNote =
   | "zeroWidth"
   | "inverted"
   | "bandOverHistory"
+  | "bandGap"
   | "narrowing"
   | "anchor"
   | "boundary";
@@ -1747,6 +1793,7 @@ export function fanTable(model: FanModel): FanTable {
   const zeroWidth = new Set(model.honesty.zeroWidthLabels);
   const inverted = new Set(model.honesty.invertedLabels);
   const overHistory = new Set(model.honesty.bandOverHistoryLabels);
+  const bandGap = new Set(model.honesty.bandGapLabels);
   const narrowing = new Set(model.honesty.narrowingLabels);
 
   const byLevel = model.levels.map((level) => {
@@ -1763,6 +1810,7 @@ export function fanTable(model: FanModel): FanTable {
     if (zeroWidth.has(step.label)) notes.push("zeroWidth");
     if (inverted.has(step.label)) notes.push("inverted");
     if (overHistory.has(step.label)) notes.push("bandOverHistory");
+    if (bandGap.has(step.label)) notes.push("bandGap");
     if (narrowing.has(step.label)) notes.push("narrowing");
     if (model.boundary !== null && step.index === model.boundary.lastObservation) {
       notes.push("boundary");

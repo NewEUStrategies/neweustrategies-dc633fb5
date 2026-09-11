@@ -498,6 +498,8 @@ const pl = {
           "Prognoza jest odróżniona od historii tylko przez: {{carriers}}. Jeden nośnik gubi się w druku i w skali szarości, więc przewidywanie i pomiar stoją wtedy na rysunku jako jeden szereg.",
         centralContinuousInForecast:
           "Ścieżka centralna ma luki w krokach: {{labels}}. Linia się tam przerywa, a pasmo wokół niej nie ma do czego się odnieść.",
+        bandsContinuous:
+          "Pasmo urywa się i zaczyna dalej w krokach: {{labels}}. Krok z jedną krawędzią wypada z rysunku w całości, bo pół pasma nie jest pasmem - a przerwa bez wyjaśnienia czyta się jak „tu niepewności nie ma”.",
         // Dwa pola informacyjne modelu, które orzekają o KSZTAŁCIE wachlarza.
         // Żadna liczba nie jest w nich fałszywa i dlatego nie są defektem -
         // ale rysunek mówi wtedy o niepewności coś, czego dane nie mówią.
@@ -539,6 +541,7 @@ const pl = {
           "pasmo o zerowej szerokości: rysunek twierdzi tu, że wartość jest znana dokładnie",
         inverted: "para krawędzi odwrócona: dolna była wyżej od górnej",
         bandOverHistory: "pasmo nad krokiem historycznym, w którym jest pomiar",
+        bandGap: "przerwa w paśmie: krok leży między krokami pasma, a pasma w nim nie ma",
         narrowing: "pasmo węższe niż w kroku poprzednim",
         anchor:
           "kotwica na granicy: pasmo wychodzi z ostatniej obserwacji i ma tu zerową szerokość",
@@ -1308,6 +1311,8 @@ const en = {
           "The forecast is set apart from history only by: {{carriers}}. A single carrier is lost in print and in greyscale, so prediction and measurement then stand on the chart as one series.",
         centralContinuousInForecast:
           "The central path has gaps at: {{labels}}. The line breaks there, and the band around it has nothing to refer to.",
+        bandsContinuous:
+          "The band breaks and resumes at: {{labels}}. A step with only one edge drops out entirely, because half a band is not a band - and an unexplained break reads as “there is no uncertainty here”.",
         wideAtStart:
           "The band already has {{share}} of its largest width in the first forecast step, so the shape of the chart does not say that uncertainty grows with the horizon.",
         constantWidth:
@@ -1334,6 +1339,7 @@ const en = {
         zeroWidth: "zero band width: the chart claims this value is known exactly",
         inverted: "the edge pair was inverted: the lower one sat above the upper one",
         bandOverHistory: "a band over a history step, where there is a measurement",
+        bandGap: "a break in the band: the step lies between band steps, and has no band",
         narrowing: "narrower than in the previous step",
         anchor: "boundary anchor: the band leaves the last observation and has zero width here",
         boundary: "last observation: the forecast starts after this step",

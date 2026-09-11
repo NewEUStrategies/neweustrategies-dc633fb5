@@ -701,6 +701,20 @@ describe("FanChart - defekty danych: wtedy i tylko wtedy", () => {
       "2027",
     ],
     [
+      "honesty.bandsContinuous",
+      "przerwa w paśmie bez wyjaśnienia czyta się jak „tu niepewności nie ma”",
+      {
+        ...BAZA,
+        series: [
+          CENTRUM,
+          // Krok „2027" ma tylko górną krawędź, więc wypada z pasma w całości.
+          { name: "80% dolna", values: [N, N, N, N, N, 115, N, 116] },
+          { name: "80% górna", values: [N, N, N, N, N, 123, 131, 140] },
+        ],
+      },
+      "2027",
+    ],
+    [
       "honesty.bandPairsOrdered",
       "odwrócona para krawędzi znaczy, że jedna z kolumn arkusza nie jest tym, co mówi jej nazwa",
       {

@@ -1109,6 +1109,7 @@ const FAN_NOTE_KEYS: Record<FanRowNote, string> = {
   zeroWidth: "fan.note.zeroWidth",
   inverted: "fan.note.inverted",
   bandOverHistory: "fan.note.bandOverHistory",
+  bandGap: "fan.note.bandGap",
   narrowing: "fan.note.narrowing",
   anchor: "fan.note.anchor",
   boundary: "fan.note.boundary",

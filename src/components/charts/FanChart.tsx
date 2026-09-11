@@ -531,6 +531,13 @@ export function FanChart({ config, lang }: FanChartProps) {
       defect: true,
     });
   }
+  if (honesty.bandsContinuous === false) {
+    notes.push({
+      key: "honesty.bandsContinuous",
+      text: t("fan.honesty.bandsContinuous", { labels: lista(honesty.bandGapLabels) }),
+      defect: true,
+    });
+  }
   if (honesty.centralContinuousInForecast === false) {
     notes.push({
       key: "honesty.centralContinuousInForecast",
