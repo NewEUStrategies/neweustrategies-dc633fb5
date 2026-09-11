@@ -4795,7 +4795,8 @@ input.icon-input-with-action {
    jaśniejsze wnętrze i wyraźniejsza krawędź tej samej rodziny koloru.
    Selektor opiera się na roli danych, więc nie obejmuje dekoracyjnych nakładek
    wzoru ani innych prostokątów technicznych wykresu. */
-.neh-chart :is(
+.neh-chart
+  :is(
     [data-role="bar"],
     [data-role="segment"],
     [data-role="bin"],
@@ -4808,7 +4809,12 @@ input.icon-input-with-action {
   stroke-linejoin: round;
 }
 .neh-chart
-  :is([data-role="bar"], [data-role="segment"], [data-role="bin"], [data-role="leg"])[data-active="true"] {
+  :is(
+    [data-role="bar"],
+    [data-role="segment"],
+    [data-role="bin"],
+    [data-role="leg"]
+  )[data-active="true"] {
   fill: var(--neh-bar-hover, var(--neh-unified-inner));
   stroke: var(--neh-bar-token, var(--neh-unified-edge));
 }
