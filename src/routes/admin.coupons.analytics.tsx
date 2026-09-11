@@ -135,6 +135,12 @@ function AnalyticsPage() {
     [rows, lang],
   );
 
+  // JEDEN NAPIS NA NAGŁÓWEK KARTY I NA NAZWĘ RYSUNKU. Czytnik ekranu ogłasza
+  // rysunek tą nazwą, a osoba widząca czyta ten sam napis nad nim - dwa
+  // literały rozjechałyby się przy pierwszej korekcie tytułu i nikt by tego nie
+  // zauważył, bo jeden z nich jest widoczny tylko w drzewie dostępności.
+  const tytulRankingu = L("TOP 10 kuponów", "TOP 10 coupons");
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 max-w-md">
@@ -164,7 +170,7 @@ function AnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{L("TOP 10 kuponów", "TOP 10 coupons")}</CardTitle>
+          <CardTitle className="text-base">{tytulRankingu}</CardTitle>
         </CardHeader>
         <CardContent>
           {q.isLoading ? (
@@ -179,11 +185,7 @@ function AnalyticsPage() {
           ) : top10.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6">{L("Brak danych.", "No data.")}</p>
           ) : (
-            <Chart
-              config={top10Config}
-              lang={chartLangFrom(lang)}
-              ariaLabel={L("TOP 10 kuponów", "TOP 10 coupons")}
-            />
+            <Chart config={top10Config} lang={chartLangFrom(lang)} ariaLabel={tytulRankingu} />
           )}
         </CardContent>
       </Card>
