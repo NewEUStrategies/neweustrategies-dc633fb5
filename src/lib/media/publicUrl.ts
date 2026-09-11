@@ -60,3 +60,18 @@ export function brandedMediaUrl(value: string): string {
     .map((segment) => encodeURIComponent(segment))
     .join("/")}`;
 }
+
+/**
+ * Adres używany wyłącznie do renderowania pliku w aplikacji. Ścieżka
+ * względna utrzymuje żądanie w bieżącym środowisku, więc świeżo dodane media
+ * działają w podglądzie jeszcze przed publikacją nowej trasy `/media/*`.
+ * W polach i schowku nadal prezentujemy pełny, markowy adres.
+ */
+export function mediaRenderUrl(value: string): string {
+  const path = mediaStoragePath(value);
+  if (!path) return value;
+  return `/media/${path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/")}`;
+}
