@@ -9,6 +9,7 @@ import { MfaChallenge } from "@/components/auth/MfaChallenge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
+import { useBrandLogoUrl } from "@/lib/brand/useBrandLogoUrl";
 import { onOpenLoginPopup } from "@/lib/loginPopupBus";
 import "@/lib/i18n-public";
 import "@/lib/i18n-public-auth";
@@ -81,13 +82,9 @@ export function LoginPopup() {
   const description =
     override.description ??
     (lang === "pl" ? settings.popup_description_pl : settings.popup_description_en);
-  // Dark theme prefers the dedicated dark-mode logo and falls back to the
-  // light one, so a site configured before the dark variant existed keeps
-  // showing its logo.
-  const logo =
-    theme === "dark"
-      ? settings.form_logo_url_dark || settings.form_logo_url
-      : settings.form_logo_url;
+  // Logo formularza: najpierw ustawienia logowania, potem globalne logo motywu
+  // (Wygląd → Opcje motywu → Logo), z wariantem dopasowanym do motywu.
+  const logo = useBrandLogoUrl(theme === "dark" ? "dark" : "light");
 
   const runPreAuthGuard = useServerFn(preAuthGuard);
 
