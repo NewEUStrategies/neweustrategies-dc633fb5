@@ -407,7 +407,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
 }
 
 /**
- * Tabela klucza obok pierścienia: próbka, nazwa, udział, wartość.
+ * Tabela klucza pod pierścieniem: próbka, nazwa, udział, wartość.
  *
  * PRAWDZIWA `<table>`, nie siatka z `div`ów. Kolumny liczb są wyrównane do
  * prawej i mają cyfry tabelaryczne, bo jedyny powód, dla którego ta tabela
