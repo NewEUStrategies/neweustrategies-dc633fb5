@@ -273,8 +273,9 @@ export function ChatSideDrawer({
           </Link>
           <button
             type="button"
-            onClick={onClose}
-            aria-label={t("dock.close")}
+            onClick={selected ? () => setInboxCollapsed(true) : onClose}
+            aria-label={t(selected ? "dock.chat.hideInbox" : "dock.close")}
+            title={t(selected ? "dock.chat.hideInbox" : "dock.close")}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" aria-hidden />
@@ -411,7 +412,7 @@ export function ChatSideDrawer({
               aria-label={t(inboxCollapsed ? "dock.chat.showInbox" : "dock.chat.hideInbox")}
               aria-expanded={!inboxCollapsed}
               title={t(inboxCollapsed ? "dock.chat.showInbox" : "dock.chat.hideInbox")}
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="hidden rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground sm:inline-flex"
             >
               {inboxCollapsed ? (
                 <PanelLeftOpen className="h-4 w-4" aria-hidden />
