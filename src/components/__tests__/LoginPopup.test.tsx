@@ -70,6 +70,12 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 vi.mock("@/lib/auth/bruteforce.functions", () => ({ preAuthGuard: {} }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.authState }));
 vi.mock("@/hooks/useAuthSettings", () => ({ useAuthSettings: () => h.settings }));
+// Logo formularza spada na globalne logo motywu - hook czytający site settings
+// zwraca w testach same defaulty (brak logo motywu), więc liczy się wyłącznie
+// konfiguracja logowania.
+vi.mock("@/lib/useSiteSetting", () => ({
+  useSiteSetting: <T,>(_key: string, defaults: T) => defaults,
+}));
 // `safeReadingListPath` (używane przez useSaveArticle) zostaje prawdziwe -
 // podmieniamy wyłącznie hook czytający ustawienia z bazy.
 vi.mock("@/hooks/usePersonalizedSettings", async (importOriginal) => ({
