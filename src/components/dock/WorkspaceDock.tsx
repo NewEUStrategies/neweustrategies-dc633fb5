@@ -421,7 +421,7 @@ export function WorkspaceDock() {
           {/* Mobile: Home dokładnie na środku, po lewej Network i Czat,
             po prawej Zapisane i Klub - wszystkie jako rozwijane zakładki
             z odstępem 6px. */}
-          <div className="wd-nav grid grid-cols-5 items-center gap-1 px-2 py-1 sm:hidden">
+          <div className="wd-nav flex items-center justify-between gap-1 px-2 py-1 sm:hidden">
             {shortcutTab("network", { compact: true })}
             {shortcutTab("chats", { compact: true })}
             {shortcutTab("home", { center: true, compact: true })}

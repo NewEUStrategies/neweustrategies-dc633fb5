@@ -8590,18 +8590,12 @@ html[data-mbb="on"] [data-site-shell] {
   transform: none;
 }
 @media (max-width: 639px) {
+  /* Mobile zachowuje się DOKŁADNIE jak desktop: aktywna zakładka rozwija
+     etykietę tą samą animacją toru siatki, a nieaktywne kurczą się do ikony.
+     Wcześniejsze nadpisania (ukryta etykieta, kolorowy krążek ikony) tworzyły
+     osobny język zachowań - zostały usunięte. */
   [data-workspace-dock] .wd-tab {
-    width: 100%;
     min-height: 36px;
-  }
-
-  [data-workspace-dock] .wd-tab__reveal {
-    display: none;
-  }
-
-  [data-workspace-dock] .wd-tab[data-active="true"] > span:first-child {
-    background-color: var(--primary);
-    color: var(--primary-foreground);
   }
 }
 /* ZAPASU `max-width` TU NIE MA - i to jest decyzja z pomiaru, nie
