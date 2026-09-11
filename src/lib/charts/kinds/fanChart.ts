@@ -1324,7 +1324,6 @@ export function fanModel(input: FanInput, opts: FanOptions = {}): FanModel {
     droppedValueCount,
     boundaryDropped,
     observationCount,
-    wszystkieZnane,
     bandSource,
   });
 
@@ -1431,7 +1430,6 @@ interface WejscieUczciwosci {
   droppedValueCount: number;
   boundaryDropped: boolean;
   observationCount: number;
-  wszystkieZnane: boolean;
   bandSource: FanBandSource;
 }
 
@@ -1495,17 +1493,37 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
 
   /* --- DEKLARACJA WOBEC ZMIERZONEJ SZEROKOŚCI ------------------------ */
 
-  // Sprawdzamy DANE AUTORA, nie własne sortowanie - dlatego warunkiem jest
-  // pełna deklaracja pewności na wszystkich poziomach. Porównanie idzie po
-  // szerokości ŚREDNIEJ, a nie maksymalnej: maksimum jest jedną liczbą z
-  // jednego kroku i wystarczy jeden odstający krok, żeby o kolejności całego
-  // pasma orzekł przypadek.
+  // Sprawdzamy DANE AUTORA, nie własne sortowanie - dlatego porównujemy
+  // WYŁĄCZNIE poziomy, które pewność ZADEKLAROWAŁY. Poziom bez deklaracji
+  // dostał swoje miejsce z pomiaru, więc pytanie „czy stoi tam, gdzie
+  // powinien" byłoby pytaniem o własne sortowanie; poziom z deklaracją niesie
+  // liczbę autora i porównanie z nią jest sprawdzeniem danych.
+  //
+  // WARUNEK BYŁ WCZEŚNIEJ MOCNIEJSZY - „wszystkie poziomy mają pewność" -
+  // i przez to wystarczyło DOŁOŻYĆ jedno pasmo bez pewności, żeby defekt
+  // deklaracji zniknął bez śladu. Sonda na tych samych dwóch pasmach (95%
+  // węższe od 80%):
+  //
+  //   deklaracja pełna:    confidenceMatchesWidth false, misordered [95, 80]
+  //   plus pasmo bez nazwy: confidenceMatchesWidth null,  misordered []
+  //
+  // a rysunek w drugim przypadku stawiał 95% najgłębiej, czyli twierdził, że
+  // deklaracja się zgadza.
+  //
+  // Porównanie idzie po szerokości ŚREDNIEJ, a nie maksymalnej: maksimum jest
+  // jedną liczbą z jednego kroku i wystarczy jeden odstający krok, żeby
+  // o kolejności całego pasma orzekł przypadek.
   let confidenceMatchesWidth: boolean | null = null;
-  if (w.wszystkieZnane && w.levels.length >= 2) {
+  const zDeklaracja = w.levels.filter((level) => level.confidence !== null);
+  if (zDeklaracja.length >= 2) {
+    // Kolejność do porównania bierzemy Z DEKLARACJI (pewność malejąco), a nie
+    // z warstw: przy deklaracji częściowej warstwy są posortowane szerokością,
+    // więc czytanie kolejności z nich znowu byłoby czytaniem własnej decyzji.
+    const wgPewnosci = [...zDeklaracja].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
     confidenceMatchesWidth = true;
-    for (let layer = 0; layer + 1 < w.levels.length; layer++) {
-      const szerszy = w.levels[layer];
-      const wezszy = w.levels[layer + 1];
+    for (let i = 0; i + 1 < wgPewnosci.length; i++) {
+      const szerszy = wgPewnosci[i];
+      const wezszy = wgPewnosci[i + 1];
       const tol = tolerancja(szerszy.meanWidth, wezszy.meanWidth);
       if (szerszy.meanWidth < wezszy.meanWidth - tol) {
         confidenceMatchesWidth = false;

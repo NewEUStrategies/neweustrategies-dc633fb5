@@ -476,6 +476,60 @@ describe("fanModel: uczciwość pasm", () => {
     expect(model.honesty.centralContinuousInHistory).toBe(true);
   });
 
+  // Bez tego testu wystarczyło DOŁOŻYĆ jedno pasmo bez zadeklarowanej
+  // pewności, żeby defekt deklaracji zniknął bez śladu. Sprawdzenie
+  // zgodności wymagało wcześniej pewności na WSZYSTKICH poziomach, a przy
+  // deklaracji częściowej milczało `null`-em - i rysunek stawiał wtedy pasmo
+  // 95% najgłębiej, czyli twierdził, że deklaracja się zgadza.
+  it("NAZYWA rozjazd deklaracji ze zmierzoną szerokością TAKŻE przy deklaracji częściowej", () => {
+    const pasma = [
+      // 80% szerokie...
+      seria("80% dolna", [null, null, null, null, 115, 110, 105, 100]),
+      seria("80% górna", [null, null, null, null, 115, 130, 140, 150]),
+      // ...a 95% WĘŻSZE od niego. To jest defekt deklaracji, nie ciekawostka.
+      seria("95% dolna", [null, null, null, null, 115, 117, 119, 122]),
+      seria("95% górna", [null, null, null, null, 115, 121, 127, 134]),
+    ];
+    const pelna = fanModel(wejscie(OKRESY, [CENTRUM, ...pasma]), OD_PROGNOZY);
+    expect(pelna.honesty.confidenceMatchesWidth).toBe(false);
+    expect([...pelna.honesty.misorderedConfidences].sort((a, b) => a - b)).toEqual([80, 95]);
+
+    // TE SAME dwa pasma plus trzecie, którego nazwa nie mówi o pewności.
+    const czesciowa = fanModel(
+      wejscie(OKRESY, [
+        CENTRUM,
+        ...pasma,
+        seria("dolna", [null, null, null, null, 115, 114, 113, 112]),
+        seria("górna", [null, null, null, null, 115, 124, 133, 142]),
+      ]),
+      OD_PROGNOZY,
+    );
+    // Poziom bez deklaracji nadal NIE jest sądzony - nie ma z czym porównać...
+    expect(czesciowa.levels.some((l) => l.confidence === null)).toBe(true);
+    // ...ale dwa zadeklarowane owszem, i orzeczenie mówi to samo, co przy
+    // deklaracji pełnej.
+    expect(czesciowa.honesty.confidenceMatchesWidth).toBe(false);
+    expect([...czesciowa.honesty.misorderedConfidences].sort((a, b) => a - b)).toEqual([80, 95]);
+  });
+
+  it("MILCZY, gdy zadeklarowany jest najwyżej JEDEN poziom", () => {
+    // Druga strona umowy: jedna pewność nie ma z czym być porównana, a
+    // orzeczenie wydane na jednym poziomie byłoby orzeczeniem o niczym.
+    const model = fanModel(
+      wejscie(OKRESY, [
+        CENTRUM,
+        seria("80% dolna", [null, null, null, null, 115, 110, 105, 100]),
+        seria("80% górna", [null, null, null, null, 115, 130, 140, 150]),
+        seria("dolna", [null, null, null, null, 115, 114, 113, 112]),
+        seria("górna", [null, null, null, null, 115, 124, 133, 142]),
+      ]),
+      OD_PROGNOZY,
+    );
+    expect(model.levels.filter((l) => l.confidence !== null)).toHaveLength(1);
+    expect(model.honesty.confidenceMatchesWidth).toBeNull();
+    expect(model.honesty.misorderedConfidences).toEqual([]);
+  });
+
   it("ODDAJE indeks serii, z której wziął ścieżkę centralną", () => {
     // 1. Z NAZWY - centralna stoi jako trzecia kolumna.
     const zNazwy = fanModel(
