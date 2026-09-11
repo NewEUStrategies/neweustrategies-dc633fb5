@@ -11,10 +11,17 @@
 // dokładnie to, co widzi na prowadnicy: kolejność w dymku odpowiada kolejności
 // w pionie na wykresie. Kolejność definicji jest przypadkowa wobec danych
 // i zmusza do wodzenia wzrokiem tam i z powrotem.
-// Pozycjonowany translate3d względem kontenera wykresu, z odbiciem przy
-// prawej krawędzi. Kolory wyłącznie z tokenów `--chart-tip-*`, więc w trybie
-// jasnym dymek jest ODWRÓCONY wobec płyty, a w ciemnym PODNIESIONY - patrz
-// komentarz przy tokenach w styles.css.
+// Pozycjonowany translate3d względem kontenera wykresu. Kolory wyłącznie
+// z tokenów `--chart-tip-*`, więc w trybie jasnym dymek jest ODWRÓCONY wobec
+// płyty, a w ciemnym PODNIESIONY - patrz komentarz przy tokenach w styles.css.
+//
+// ZACISKANIE DO KRAWĘDZI. Dymek NIGDZY nie wolno przyciąć: ani przez próg
+// odbicia (sztywne 60% szerokości nie wie, jak szeroki jest dymek, więc przy
+// wąskim wykresie wychodził poza LEWĄ krawędź), ani przez stałe -50% w pionie
+// (punkt przy górnej krawędzi ucinał dymek o połowę). Dlatego komponent mierzy
+// własny rozmiar po wyrenderowaniu i zaciska pozycję do wnętrza kontenera
+// z marginesem bezpieczeństwa - odbicie w poziomie jest WYNIKIEM braku miejsca
+// po żądanej stronie, nie stałego progu szerokości.
 //
 // `pointer-events: none` (w klasie `.neh-tooltip`) jest tu obowiązkowe:
 // dymek, który łapie kursor, odbiera zdarzenia warstwie trafień i wykres
@@ -23,7 +30,12 @@
 // Czysto wizualny duplikat danych - pełne wartości ZAWSZE niesie tabela
 // w ChartFrame, bo tooltip nie istnieje ani na klawiaturze bez focusu, ani
 // w druku, ani dla czytnika ekranu.
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+
+/** Margines bezpieczeństwa od krawędzi kontenera, w px. */
+const EDGE_PAD = 4;
+/** Odsunięcie dymka od kotwicy, w px. */
+const ANCHOR_GAP = 12;
 
 export interface TooltipRow {
   name: string;
@@ -60,15 +72,57 @@ export function ChartTooltip({
   note,
   rows,
 }: ChartTooltipProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+
+  // Pomiar PO wyrenderowaniu, przed malowaniem - dymek jest niewidzialny
+  // (opacity: 0) do czasu, aż znamy jego rozmiar i policzymy pozycję,
+  // więc czytelnik nigdy nie widzi ramki "skaczącej" z pozycji surowej.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    setSize((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
+  });
+
   if (!visible || rows.length === 0) return null;
-  const flip = x > containerWidth * 0.6;
-  const style: CSSProperties = {
-    transform: `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(${
-      flip ? "calc(-100% - 12px)" : "12px"
-    }, -50%)`,
-  };
+
+  let style: CSSProperties;
+  if (size === null || (size.w === 0 && size.h === 0)) {
+    // GAŁĄŹ AWARYJNA. Rozmiar nieznany: pierwszy przebieg przed pomiarem
+    // (ukrywany opacity: 0) ALBO środowisko bez layoutu (jsdom raportuje
+    // offsetWidth/Height = 0 zawsze). Zachowanie historyczne: odbicie przy
+    // sztywnym progu 60% szerokości i wyśrodkowanie -50% w pionie. W praw-
+    // dziwej przeglądarce pomiar zawsze dojeżdża i wygrywa gałąź zacisku.
+    const flip = x > containerWidth * 0.6;
+    style = {
+      transform: `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(${
+        flip ? "calc(-100% - 12px)" : "12px"
+      }, -50%)`,
+      ...(size === null ? { opacity: 0 } : {}),
+    };
+  } else {
+    const { w, h } = size;
+    // Kontener pozycjonujący to rodzic dymka; wysokość bierzemy z niego,
+    // bo sygnatura komponentu przekazuje wyłącznie szerokość.
+    const containerH = ref.current?.offsetParent?.clientHeight ?? h + 2 * EDGE_PAD;
+    // Poziom: preferujemy stronę prawą, chyba że dymek wyszedłby poza prawą
+    // krawędź - wtedy odbicie w lewo. Gdy NIE MIEŚCI SIĘ po żadnej stronie
+    // (bardzo wąski wykres), wygrywa zacisk do wnętrza kontenera.
+    let left = x + ANCHOR_GAP;
+    if (left + w > containerWidth - EDGE_PAD) left = x - ANCHOR_GAP - w;
+    left = Math.min(Math.max(left, EDGE_PAD), Math.max(containerWidth - w - EDGE_PAD, EDGE_PAD));
+    // Pion: wyśrodkowanie na kotwicy, zaciśnięte do wnętrza kontenera.
+    let top = y - h / 2;
+    top = Math.min(Math.max(top, EDGE_PAD), Math.max(containerH - h - EDGE_PAD, EDGE_PAD));
+    style = {
+      transform: `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`,
+    };
+  }
+
   return (
-    <div className="neh-tooltip" role="presentation" aria-hidden style={style}>
+    <div ref={ref} className="neh-tooltip" role="presentation" aria-hidden style={style}>
       {title && <div className="mb-1 font-medium opacity-80">{title}</div>}
       {note && (
         <div className="mb-1 text-[0.6875rem] uppercase tracking-wide opacity-60">{note}</div>
