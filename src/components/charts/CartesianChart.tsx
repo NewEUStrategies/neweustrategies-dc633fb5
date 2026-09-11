@@ -1008,6 +1008,14 @@ export function CartesianChart({
                       // w chwili, w której paleta przestaje zaczynać się
                       // od jedynki.
                       `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)})`;
+                const edge =
+                  step.kind === "step"
+                    ? step.direction === "down"
+                      ? "var(--chart-negative-edge)"
+                      : step.direction === "flat"
+                        ? "var(--foreground)"
+                        : "var(--chart-positive-edge)"
+                    : `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)}-edge)`;
                 const x = center - barW / 2;
                 const y0 = Math.min(a, b);
                 const h = Math.abs(b - a);
@@ -1023,9 +1031,20 @@ export function CartesianChart({
                         step.kind === "step" && step.direction === "down" ? "bottom" : "top",
                       )}
                       fill={fill}
+                      style={{
+                        ["--neh-i" as string]: si,
+                        ["--neh-unified-inner" as string]:
+                          step.kind === "step"
+                            ? step.direction === "down"
+                              ? "var(--chart-negative-inner)"
+                              : step.direction === "flat"
+                                ? "var(--muted)"
+                                : "var(--chart-positive-inner)"
+                            : `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)}-inner)`,
+                        ["--neh-unified-edge" as string]: edge,
+                      }}
                       className={step.direction === "down" ? "neh-bar neh-bar-negative" : "neh-bar"}
                       data-role="waterfall-step"
-                      style={{ ["--neh-i" as string]: si }}
                     />
                     {/* Etykieta wartości na KAŻDYM słupku - mostek bez liczb
                         zmusza do odczytu długości, a po to jest mostek, żeby
@@ -1349,6 +1368,8 @@ export function CartesianChart({
                             // sloty zamiast dziesięciu prawie identycznych.
                             ["--neh-bar-hover" as string]: `var(--chart-${slot}-hover)`,
                             ["--neh-bar-token" as string]: `var(--chart-${slot})`,
+                            ["--neh-unified-inner" as string]: `var(--chart-${slot}-inner)`,
+                            ["--neh-unified-edge" as string]: `var(--chart-${slot}-edge)`,
                           }}
                         />
                       );

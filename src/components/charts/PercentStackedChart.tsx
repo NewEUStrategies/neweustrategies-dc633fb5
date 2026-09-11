@@ -1130,7 +1130,13 @@ export function PercentStackedChart({
                         // Kaskada idzie PO SŁUPKACH, nie po segmentach:
                         // wchodzące kolumny czyta się jako rysunek, który się
                         // buduje, a wchodzące segmenty - jako rozsypany stos.
-                        style={{ ["--neh-i" as string]: bar.index }}
+                        style={{
+                          ["--neh-i" as string]: bar.index,
+                          ["--neh-unified-inner" as string]: `var(--chart-${seg.colorSlot}-inner)`,
+                          ["--neh-unified-edge" as string]: `var(--chart-${seg.colorSlot}-edge)`,
+                          ["--neh-bar-hover" as string]: `var(--chart-${seg.colorSlot}-hover)`,
+                          ["--neh-bar-token" as string]: `var(--chart-${seg.colorSlot})`,
+                        }}
                       />
                       {kreskowany && (
                         <path
@@ -1168,13 +1174,7 @@ export function PercentStackedChart({
                       y={ySrodek + 3.5}
                       textAnchor="middle"
                       fontSize={FONT_AXIS}
-                      // TUSZ SLOTU, nie tusz semantyczny: wypełnienie segmentu
-                      // jest tu NASYCONE (wariant blady schodzi do solidnego
-                      // przez sam stos), a `--chart-ink-N` jest dobrany
-                      // kontrastem właśnie do niego - na granacie wychodzi
-                      // biały, na ochrze ciemny. Tusz semantyczny miałby na
-                      // granacie 2,25:1.
-                      fill={`var(--chart-ink-${seg.colorSlot})`}
+                      fill="var(--foreground)"
                       className="neh-fade neh-value-label tabular-nums"
                       pointerEvents="none"
                     >

@@ -468,7 +468,13 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
                 // od słupka kategorialnego bez oglądania klasy wyglądu.
                 data-role="bin"
                 data-active={active === i ? "true" : undefined}
-                style={{ ["--neh-i" as string]: i }}
+                style={{
+                  ["--neh-i" as string]: i,
+                  ["--neh-unified-inner" as string]: `var(--chart-${model.colorSlot}-inner)`,
+                  ["--neh-unified-edge" as string]: `var(--chart-${model.colorSlot}-edge)`,
+                  ["--neh-bar-hover" as string]: `var(--chart-${model.colorSlot}-hover)`,
+                  ["--neh-bar-token" as string]: `var(--chart-${model.colorSlot})`,
+                }}
               />
             );
           })}

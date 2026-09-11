@@ -826,6 +826,8 @@ export function TornadoChart({
                         ["--neh-i" as string]: rank,
                         ["--neh-bar-hover" as string]: `var(--chart-${sign}-hover)`,
                         ["--neh-bar-token" as string]: `var(--chart-${sign})`,
+                        ["--neh-unified-inner" as string]: `var(--chart-${sign}-inner)`,
+                        ["--neh-unified-edge" as string]: `var(--chart-${sign}-edge)`,
                       }}
                     />
                   );
