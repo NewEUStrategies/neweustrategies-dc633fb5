@@ -1112,17 +1112,13 @@ export function PercentStackedChart({
                         data-edged={obwodka ? "true" : undefined}
                         data-style={styl}
                         className="neh-bar"
-                        fill={
-                          `var(--chart-${seg.colorSlot}-inner)`
-                        }
+                        fill={`var(--chart-${seg.colorSlot}-inner)`}
                         // PRZEŚWIT STOSU W KOLORZE PŁYTY jest geometrią, nie
                         // dekoracją: bez niego dwa sąsiednie segmenty stykają
                         // się i na granicy powstaje fałszywy trzeci kolor.
                         // Segment wąski go nie dostaje, bo linia zjadłaby go
                         // w całości.
-                        stroke={
-                          `var(--chart-${seg.colorSlot}-edge)`
-                        }
+                        stroke={`var(--chart-${seg.colorSlot}-edge)`}
                         strokeWidth={obwodka ? undefined : SEGMENT_GAP_PX}
                         // Kaskada idzie PO SŁUPKACH, nie po segmentach:
                         // wchodzące kolumny czyta się jako rysunek, który się
