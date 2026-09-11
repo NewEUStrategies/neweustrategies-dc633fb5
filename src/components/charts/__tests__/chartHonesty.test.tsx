@@ -816,16 +816,13 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
     expect(names[1]).toContain(`var(--chart-${slotForSeries(1)}t)`);
   });
 
-  it("seria z pary, której nie rozdziela odcień, dostaje KRESKOWANIE w legendzie", () => {
+  it("legenda zawsze pokazuje pełne kolory, bez kreskowania", () => {
     const { container } = render(
       <Chart
         config={cfg({
           kind: "line",
           categories: ["a", "b", "c", "d"],
           series: [
-            // Para NIEODRÓŻNIALNA po symulacji: #7b2525 i #7f2020 dzieli przy
-            // deuteranopii 2,13 jednostki CIELAB. Kreskowanie jest o PARZE,
-            // a nie o tym, czy numer slotu przekracza sześć.
             { name: "Pierwsza", values: [1, 2, 3, 4], colorSlot: 9 },
             { name: "Nieodróżnialna", values: [4, 3, 2, 1], colorSlot: 16 },
           ],
@@ -838,7 +835,9 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
       (el) => el.getAttribute("style") ?? "",
     );
     expect(swatches[0]).not.toContain("repeating-linear-gradient");
-    expect(swatches[1]).toContain("repeating-linear-gradient");
+    expect(swatches[1]).not.toContain("repeating-linear-gradient");
+    expect(swatches[0]).toContain("var(--chart-9)");
+    expect(swatches[1]).toContain("var(--chart-16)");
   });
 
   it("kreskowanie dojeżdża TAKŻE do linii na rysunku, nie tylko do legendy", () => {
