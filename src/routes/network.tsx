@@ -325,11 +325,22 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
         />
         <input
           type="search"
+          name="network-search"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          inputMode="search"
+          enterKeyHint="search"
+          data-form-type="other"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("network.searchPlaceholder")}
           aria-label={t("network.searchPlaceholder")}
-          className="h-10 w-full rounded-[6px] border border-input bg-muted/30 !pl-[42px] pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 w-full min-w-0 rounded-[6px] border border-input bg-muted/30 !pl-[42px] pr-3 text-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:pr-4 sm:text-sm"
         />
       </div>
       {connectionsQ.isError ? (
@@ -762,15 +773,15 @@ function NetworkInner() {
           </Link>
         </Button>
       </div>
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <header className="mb-4 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">
             <UsersRound className="h-5 w-5 text-[var(--brand)]" aria-hidden />
             {t("network.title")}
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{t("network.subtitle")}</p>
         </div>
-        <Button asChild variant="outline" size="sm" className="gap-1.5">
+        <Button asChild variant="outline" size="sm" className="w-fit gap-1.5">
           <Link to="/people">
             <UserPlus className="h-3.5 w-3.5" aria-hidden />
             {t("network.findPeople")}
@@ -790,17 +801,17 @@ function NetworkInner() {
         {/* `w-auto shrink-0` na wyzwalaczach: bazowy TabsTrigger ma `w-full`,
             co w poziomym scrollerze rozpychało zakładki i ucinało etykiety
             ("Otrzymane"/"Wysłane"). Tu każda zakładka ma szerokość treści. */}
-        <TabsList className="h-9 w-full max-w-full justify-start gap-1 overflow-x-auto rounded-[6px] bg-muted/40 sm:w-auto">
-          <TabsTrigger value="connections" className="w-auto shrink-0 rounded-[4px] text-xs">
+        <TabsList className="grid h-auto w-full max-w-full grid-cols-2 gap-1 overflow-visible rounded-[6px] bg-muted/40 sm:inline-flex sm:h-9 sm:w-auto sm:grid-cols-none">
+          <TabsTrigger value="connections" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
             {tabLabel("connections", Number(counts?.connections ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="received" className="w-auto shrink-0 rounded-[4px] text-xs">
+          <TabsTrigger value="received" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
             {tabLabel("received", Number(counts?.pending_in ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="sent" className="w-auto shrink-0 rounded-[4px] text-xs">
+          <TabsTrigger value="sent" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
             {tabLabel("sent", Number(counts?.pending_out ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="suggestions" className="w-auto shrink-0 rounded-[4px] text-xs">
+          <TabsTrigger value="suggestions" className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs">
             {tabLabel("suggestions", undefined)}
           </TabsTrigger>
         </TabsList>
