@@ -456,7 +456,7 @@ export function MediaPickerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="shrink-0 flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-[220px] focus-within:[&_.mp-icon]:text-primary focus-within:[&_.mp-divider]:bg-primary/40">
             <Search
               className="mp-icon pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/70 transition-colors"
