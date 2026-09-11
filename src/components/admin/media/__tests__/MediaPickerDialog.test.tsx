@@ -141,6 +141,9 @@ beforeEach(() => {
     publicUrl: "https://cdn.example/new.png",
   });
   h.updateMeta.mockResolvedValue({ ok: true });
+  h.bulkDelete.mockResolvedValue({ ok: true, deleted: 0 });
+  h.bulkMove.mockResolvedValue({ ok: true, moved: 0 });
+  h.createFolder.mockResolvedValue({ ok: true, path: "/nowy/" });
 });
 
 describe("MediaPickerDialog - odczyt biblioteki", () => {
@@ -497,5 +500,67 @@ describe("MediaPickerDialog - skróty wyboru", () => {
 
     expect(onPick).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("Cmd/Ctrl pozwala zaznaczyć kilka plików i usunąć je wspólnie", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    setup();
+    await waitFor(() => expect(screen.getByRole("button", { name: "a.png" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "a.png" }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "b.png" }), { ctrlKey: true });
+    expect(screen.getByText("Zaznaczono: 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /usuń zaznaczone/i }));
+
+    await waitFor(() =>
+      expect(h.bulkDelete).toHaveBeenCalledWith({ data: { mediaIds: ["a", "b"] } }),
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("Cmd/Ctrl+A zaznacza wszystkie widoczne pliki, a Escape czyści wybór", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByRole("button", { name: "a.png" })).toBeInTheDocument());
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+    expect(screen.getByText("Zaznaczono: 2")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByText("Zaznaczono: 2")).toBeNull();
+  });
+
+  it("tworzy folder z poziomu listy folderów", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("button", { name: /utwórz folder/i }));
+    fireEvent.change(screen.getByPlaceholderText(/nazwa folderu/i), {
+      target: { value: "Raporty" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^utwórz$/i }));
+
+    await waitFor(() =>
+      expect(h.createFolder).toHaveBeenCalledWith({ data: { path: "/Raporty/" } }),
+    );
+  });
+
+  it("przenosi przeciągnięte zaznaczenie do folderu", async () => {
+    stub().setResponse("media_folders", ok([{ path: "/press/" }]));
+    setup();
+    await waitFor(() => expect(screen.getByRole("button", { name: "a.png" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "a.png" }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("combobox"));
+    const folderOption = screen.getByRole("option", { name: "/press/" });
+    fireEvent.drop(folderOption, {
+      dataTransfer: {
+        files: [],
+        getData: () => JSON.stringify(["a"]),
+      },
+    });
+
+    await waitFor(() =>
+      expect(h.bulkMove).toHaveBeenCalledWith({
+        data: { mediaIds: ["a"], folderPath: "/press/" },
+      }),
+    );
   });
 });

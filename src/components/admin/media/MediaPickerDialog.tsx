@@ -427,9 +427,7 @@ export function MediaPickerDialog({
     setDeleting(true);
     try {
       await bulkDelete({ data: { mediaIds: [picked.id] } });
-      setPickedUrl(null);
-      setFilenameDraft("");
-      setAltDraft("");
+      clearMediaSelection();
       await qc.invalidateQueries({ queryKey: ["media-picker"] });
       toast.success(t("adminTeamMedia.mediaPicker.deleted"));
     } catch (err) {
