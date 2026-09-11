@@ -148,6 +148,85 @@ const pl = {
           "Powyżej {{max}} parametrów paski robią się cieńsze od odstępu i ranking przestaje być czytelny. Pokaż {{max}} najmocniejszych, a resztę wypisz w tabeli.",
       },
     },
+    // WACHLARZ. Wszystkie wstawki tych zaleceń są STAŁYMI MODELU, nie liczbami
+    // z arkusza - `KindFormAdvice.values` dostaje tylko nazwę porady i język,
+    // więc worek liczb nie ma skąd wziąć niczego, co zależy od danych. Liczba
+    // z arkusza (ile serii wypadło, ile kroków ma prognoza) jedzie wyłącznie do
+    // odpowiednika `reading.*`, który pisze render - ten model ma.
+    fan: {
+      advice: {
+        noForecast:
+          "Bez granicy prognozy wachlarz jest zwykłym wykresem liniowym - forma nie ma treści, po którą się po nią sięga. Podaj krok, od którego zaczyna się prognoza, albo weź wykres liniowy.",
+        noBand:
+          "Prognoza bez pasma niepewności twierdzi, że znasz przyszłą wartość, a znasz najwyżej rozkład. Podaj pary krawędzi nazwane pewnością („80% dolna”, „80% górna”), jawne poziomy pewności albo choć jedną szerokość pasma.",
+        noCentral:
+          "Pasma bez ścieżki centralnej nie mają wokół czego leżeć, a czytelnik nie ma od czego liczyć odchyleń. Dodaj serię o nazwie centrum („centralna”, „mediana”, „P50”) albo wskaż ją wprost.",
+        singleForecastStep:
+          "Jeden krok prognozy to przedział przy ostatniej obserwacji, a nie wachlarz - pasmo nie ma jak się rozejść. Wachlarz zaczyna mieć treść od {{min}} kroków.",
+        singleLevel:
+          "Jeden poziom pewności pokazuje szerokość niepewności, ale nie jej kształt. Trzy zagnieżdżone pasma (50/80/95) mówią to, po co się do tej formy przychodzi.",
+        tooManyLevels:
+          "Powyżej {{max}} zagnieżdżonych pasm kolejne stopnie krycia schodzą poniżej progu rozróżnialności powierzchni i czytelnik przestaje widzieć granicę między poziomami. Zostaw trzy poziomy, a resztę wypisz w tabeli.",
+        constantBand:
+          "Pasmo o stałej szerokości nie mówi nic o horyzoncie, a niepewność prognozy zwykle rośnie z każdym krokiem. Sprawdź, czy szerokość nie została wklejona jako jedna liczba na wszystkie kroki.",
+      },
+    },
+    indexBase: {
+      advice: {
+        baseUnusable:
+          "Żadna seria nie ma w okresie bazowym wartości dodatniej, więc wykresu nie ma - indeks nie ma czym dzielić. Wskaż inny okres bazowy: najwcześniejszy, w którym każda seria ma wartość dodatnią.",
+        seriesDropped:
+          "Część serii wypadła z rysunku, bo w okresie bazowym nie ma w nich wartości dodatniej. Przesuń okres bazowy albo usuń te serie z bloku - seria nieobecna wśród obecnych czyta się jako „nie było takiego szeregu”.",
+        singleSeries:
+          "Indeks jednej serii nie wnosi nic: przekształcenie jest liniowe, więc kształt linii jest ten sam co przy poziomach, a czytelnik traci jednostkę i poziom. Weź zwykły wykres liniowy w jednostkach autora.",
+        shortSeries:
+          "Poniżej {{min}} okresów rysunek pokazuje definicję indeksu, a nie dane - w okresie bazowym każda seria ma sto. Podaj dłuższy szereg.",
+        extremeBase:
+          "Okres bazowy odstaje od własnego szeregu dalej niż o {{factor}} rozstępu międzykwartylowego, więc jeden nietypowy okres wyolbrzymia cały indeks. Wybierz na bazę okres typowy dla tych danych.",
+        mixedSign:
+          "Szereg przechodzi przez zero, więc odczyt „procent bazy” przestaje być czytelny: indeks -40 nie znaczy spadku o czterdzieści procent. Przy takich danych uczciwsze są poziomy w jednostkach autora albo panele.",
+        noSpread:
+          "Wszystkie indeksy siedzą w setce, więc rysunek pokazuje same linie odniesienia. To informacja na jedno zdanie, nie na wykres.",
+        scaleComparable:
+          "Szeregi różnią się rzędem wielkości mniej niż {{ratio}}-krotnie, więc przesłanki z tabeli doboru form tu nie ma - wspólna oś poziomów jest czytelna i zostawia jednostkę. Indeks zostaw wtedy, gdy porównujesz TEMPO, a nie poziom.",
+        tooManySeries:
+          "Powyżej {{max}} kolorów kategorialnych paleta przestaje być rozdzielna dla daltonizmu. Przy tylu szeregach właściwa jest druga forma z tego samego wiersza tabeli doboru: small multiples.",
+      },
+    },
+    percentStacked: {
+      advice: {
+        negativeValues:
+          "Udział ujemny nie ma długości, więc stos 100% z takim składnikiem nie istnieje - słupki z wartością ujemną są odrzucane w całości, a nie sumowane po modułach. Rozłóż te dane na dwa wykresy: strukturę dodatnią i osobno pozycje ujemne.",
+        tooManySegments:
+          "Powyżej {{max}} serii kolor przestaje nieść kategorię dla każdego rodzaju widzenia barw, a w stosie tożsamości segmentu nie niesie nic poza kolorem i etykietą. Zgrupuj ogon w jedną pozycję zbiorczą albo idź w small multiples.",
+        singleSegment:
+          "Jedna seria daje w każdym słupku jeden segment o udziale sto procent, czyli rysunek pełnych słupków jednakowej długości. Wartości bezwzględne pokazuje wtedy zwykły słupek, nie stos.",
+        singleBar:
+          "Jeden słupek nie ma z czym być porównany, a stos 100% bierze się właśnie po porównanie struktur. Dla jednej całości tabela doboru formy dopuszcza pierścień do pięciu kategorii.",
+        noStructure:
+          "Żaden słupek nie ma mianownika: kategorie są puste, sumują się do zera albo zostały odrzucone. Sprawdź, czy liczby nie stoją w kolumnie, której blok nie czyta.",
+      },
+    },
+    smallMultiples: {
+      advice: {
+        singlePanel:
+          "Jeden panel to nie small multiples, tylko wykres, któremu siatka odebrała miejsce na osie i etykiety. Poniżej {{min}} paneli weź zwykły wykres liniowy albo słupkowy.",
+        tooManyPanels:
+          "Powyżej {{max}} paneli schodzą one do rozmiaru sparkline: kształt jeszcze widać, ale osi wartości już się nie odczyta. Wtedy tę samą treść niesie tabela ze sparklines, w której liczba stoi w kolumnie obok kształtu.",
+        indexBaseBetter:
+          "Wspólna oś jest uczciwa, ale przy tej różnicy poziomów bezużyteczna - wszystkie panele poza jednym są płaskimi kreskami. Odpowiedzią jest indeks bazowy (baza = 100), czyli wspólna oś TEMPA, a NIE osobne skale: te odbierają porównaniu sens.",
+        undeclaredFreeScale:
+          "Panele mają osobne osie i nikt tego nie napisał, więc rysunek wygląda na porównywalny, nie będąc. Wróć do wspólnej osi albo podaj zdanie opisujące osobne skale - render ma obowiązek je wypisać pod wykresem.",
+        mixedUnits:
+          "Panele mierzą różne rzeczy, więc wspólna oś zestawia nieporównywalne dokładnie tak, jak robią to dwie osie Y. Przy wskaźnikach o różnych jednostkach uczciwe są indeks bazowy albo osobne skale Z OPISEM.",
+        noSpread:
+          "Żaden panel nie ma rozpiętości, więc wszystkie linie są płaskie. To informacja na jedno zdanie, nie na siatkę paneli.",
+        sheetOrder:
+          "Kolejność paneli jest kolejnością arkusza, a czytelnik czyta panele rzędami i pierwsze wrażenie bierze z pierwszego rzędu - przy następnym wklejeniu danych ten sam zestaw opowie inną historię. Posortuj panele kluczem z danych: średnią, maksimum, rozpiętością albo wartością ostatnią.",
+        oneCategory:
+          "Oś kategorii ma jeden punkt, więc panel nie pokazuje ani przebiegu, ani rozkładu. Przy jednej kategorii porównanie podmiotów robi się posortowanymi słupkami poziomymi, w których wartość koduje długość.",
+      },
+    },
   },
 };
 
@@ -247,6 +326,80 @@ const en: typeof pl = {
           "The swings are nearly equal, so the order of the bars carries no information - and that order is the content of this form. Check whether the parameter ranges are comparable.",
         tooManyRows:
           "Above {{max}} parameters the bars get thinner than the gap and the ranking stops being readable. Show the {{max}} strongest and list the rest in the table.",
+      },
+    },
+    fan: {
+      advice: {
+        noForecast:
+          "Without a forecast boundary a fan is an ordinary line chart - the form has none of the content it is reached for. Give the step the forecast starts at, or use a line chart.",
+        noBand:
+          "A forecast without an uncertainty band claims you know the future value, when you know a distribution at best. Give pairs of edges named by confidence (“80% lower”, “80% upper”), explicit confidence levels, or at least one band width.",
+        noCentral:
+          "Band edges with no central path have nothing to lie around, and the reader has nothing to measure deviations from. Add a series named as the centre (“central”, “median”, “P50”) or point to it directly.",
+        singleForecastStep:
+          "One forecast step is an interval at the last observation, not a fan - the band has no room to fan out. A fan starts carrying content from {{min}} steps on.",
+        singleLevel:
+          "One confidence level shows the width of the uncertainty but not its shape. Three nested bands (50/80/95) say what this form is reached for.",
+        tooManyLevels:
+          "Above {{max}} nested bands the successive steps of opacity fall below the threshold at which surfaces stay separable, and the reader stops seeing the boundary between levels. Keep three levels and list the rest in the table.",
+        constantBand:
+          "A band of constant width says nothing about the horizon, and forecast uncertainty usually grows with every step. Check whether the width was pasted in as one number for all steps.",
+      },
+    },
+    indexBase: {
+      advice: {
+        baseUnusable:
+          "No series has a positive value in the base period, so there is no chart - the index has nothing to divide by. Point to another base period: the earliest one in which every series has a positive value.",
+        seriesDropped:
+          "Some series fell off the chart, because they have no positive value in the base period. Move the base period or drop those series from the block - a series absent among present ones reads as “there was no such series”.",
+        singleSeries:
+          "Indexing one series adds nothing: the transform is linear, so the shape of the line is the same as at levels, while the reader loses the unit and the level. Use an ordinary line chart in the author's units.",
+        shortSeries:
+          "Below {{min}} periods the chart shows the definition of an index rather than the data - in the base period every series is at one hundred. Give a longer series.",
+        extremeBase:
+          "The base period lies further from its own series than {{factor}} interquartile ranges, so one atypical period inflates the whole index. Choose a base period typical for this data.",
+        mixedSign:
+          "The series crosses zero, so reading the index as “percent of base” stops working: an index of -40 does not mean a fall of forty percent. For data like this, levels in the author's units or panels are more honest.",
+        noSpread:
+          "Every index sits at one hundred, so the chart shows nothing but reference lines. That is a one-sentence fact, not a chart.",
+        scaleComparable:
+          "The series differ in magnitude by less than a factor of {{ratio}}, so the premise from the form selection table is not there - a shared axis of levels is readable and keeps the unit. Keep the index when you are comparing PACE rather than level.",
+        tooManySeries:
+          "Above {{max}} categorical colours the palette stops being separable for colour-blind readers. With this many series the right form is the other one from the same row of the selection table: small multiples.",
+      },
+    },
+    percentStacked: {
+      advice: {
+        negativeValues:
+          "A negative share has no length, so a 100% stack with such a component does not exist - bars holding a negative value are rejected whole rather than summed by modulus. Split this data into two charts: the positive structure, and the negative items separately.",
+        tooManySegments:
+          "Above {{max}} series colour stops carrying category for every kind of colour vision, and in a stack nothing but colour and the direct label carries segment identity. Group the tail into one aggregate item or move to small multiples.",
+        singleSegment:
+          "One series gives every bar a single segment at one hundred percent, that is a chart of full bars of equal length. Absolute values are shown by an ordinary bar, not by a stack.",
+        singleBar:
+          "One bar has nothing to be compared against, and a 100% stack is reached for exactly that comparison. For a single whole the form selection table allows a ring of up to five categories.",
+        noStructure:
+          "No bar has a denominator: the categories are empty, add up to zero, or were rejected. Check whether the numbers sit in a column the block does not read.",
+      },
+    },
+    smallMultiples: {
+      advice: {
+        singlePanel:
+          "One panel is not small multiples, it is a chart the grid took the room for axes and labels away from. Below {{min}} panels use an ordinary line or bar chart.",
+        tooManyPanels:
+          "Above {{max}} panels they drop to the size of a sparkline: the shape is still visible, but the value axis can no longer be read. A table with sparklines then carries the same content, with the number in a column next to the shape.",
+        indexBaseBetter:
+          "The shared axis is honest but useless at this difference of levels - every panel but one is a flat line. The answer is an index base (base = 100), a shared axis of PACE, and NOT separate scales: those take the sense out of the comparison.",
+        undeclaredFreeScale:
+          "The panels have separate axes and nobody wrote that down, so the chart looks comparable without being comparable. Go back to a shared axis, or give the sentence describing the separate scales - the renderer is obliged to print it under the chart.",
+        mixedUnits:
+          "The panels measure different things, so a shared axis sets the incomparable side by side exactly as two Y axes do. For indicators in different units, an index base or separate scales WITH A DESCRIPTION are honest.",
+        noSpread:
+          "No panel has any span, so every line is flat. That is a one-sentence fact, not a grid of panels.",
+        sheetOrder:
+          "The order of the panels is the order of the sheet, while the reader reads panels by rows and takes the first impression from the first row - paste the data in another order and the same set tells a different story. Sort the panels by a key from the data: mean, maximum, span, or last value.",
+        oneCategory:
+          "The category axis has one point, so a panel shows neither a course nor a distribution. With one category the comparison of subjects is made with sorted horizontal bars, where length encodes the value.",
       },
     },
   },
