@@ -11,7 +11,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(5);
+SELECT plan(7);
 
 -- -- Seed (jako wlasciciel; triggery auth.users wylaczone jak w tescie RLS) --
 ALTER TABLE auth.users DISABLE TRIGGER USER;
