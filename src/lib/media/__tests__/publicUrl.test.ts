@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brandedMediaUrl, mediaStoragePath } from "@/lib/media/publicUrl";
+import { brandedMediaUrl, mediaRenderUrl, mediaStoragePath } from "@/lib/media/publicUrl";
 
 describe("publiczny adres mediów marki", () => {
   it("ukrywa techniczny host magazynu", () => {
@@ -16,6 +16,15 @@ describe("publiczny adres mediów marki", () => {
     );
     expect(brandedMediaUrl("https://neweuropeanstrategies.com/media/a/b/hero%20image.png")).toBe(
       "https://neweuropeanstrategies.com/media/a/b/hero%20image.png",
+    );
+  });
+
+  it("renderuje markowe media przez bieżące środowisko aplikacji", () => {
+    expect(
+      mediaRenderUrl("https://neweuropeanstrategies.com/media/tenant/user/hero%20image.png"),
+    ).toBe("/media/tenant/user/hero%20image.png");
+    expect(mediaRenderUrl("https://cdn.example.org/hero.png")).toBe(
+      "https://cdn.example.org/hero.png",
     );
   });
 
