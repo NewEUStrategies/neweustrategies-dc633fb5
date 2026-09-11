@@ -448,7 +448,7 @@ export function MediaPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(54dvh,480px)] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-32px)] w-[calc(100vw-16px)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:h-[min(52dvh,480px)] sm:max-h-[calc(100dvh-96px)] sm:w-[calc(100vw-32px)] sm:p-5">
+      <DialogContent className="flex h-[min(640px,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-32px))] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-32px)] w-[calc(100vw-16px)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:h-[min(640px,calc(100dvh-96px))] sm:max-h-[calc(100dvh-96px)] sm:w-[calc(100vw-32px)] sm:p-5">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{title ?? t("adminTeamMedia.mediaPicker.title")}</DialogTitle>
           <DialogDescription className="sr-only">
