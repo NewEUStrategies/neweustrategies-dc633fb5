@@ -26,7 +26,7 @@ import {
   RefreshCw,
   Route as RouteIcon,
 } from "lucide-react";
-import type { EChartsCoreOption } from "echarts/core";
+import { biChart } from "./biChart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -86,36 +86,24 @@ export function ClientErrorsDashboard() {
   const kpi = (value: number | undefined): string =>
     measured ? (value ?? 0).toLocaleString(locale) : NO_VALUE;
 
-  const trendOption = useMemo<EChartsCoreOption>(() => {
+  // SŁUPEK, ŁAMANA I ZERO: szereg dzienny błędów czyta się porównawczo między
+  // dniami, a nie jako przebieg - dlatego słupki, a nie linia.
+  //
+  // KOLOR IDZIE Z PALETY, nie z literału. Poprzednia wersja malowała słupki
+  // `#dc2626` wpisanym wprost w opcję: w motywie ciemnym ten sam hex nie ma
+  // wymaganego kontrastu do płyty, a w druku schodzi do szarości nieodróżnialnej
+  // od sąsiada. Sloty palety mają oba warianty policzone i zaudytowane.
+  const trendConfig = useMemo(() => {
     const days = report?.daily ?? [];
-    return {
-      // WYZWALACZ DYMKA DEKLARUJEMY TU, A NIE LICZYMY NA BAZĘ.
-      //
-      // `baseOption` w `chartTheme.ts` ustawia PRYMITYWY motywu (kolory, siatka,
-      // animacja, czcionka) i świadomie NIE narzuca `tooltip.trigger` - to jest
-      // własność TYPU WYKRESU, a nie motywu. Ten wykres był jedynym w repo,
-      // który miał dymek wyłącznie z bazy, więc po rozdzieleniu tych dwóch
-      // spraw stracił wyzwalacz osiowy i dostawał domyślny dymek elementu
-      // (wartość jednego słupka po najechaniu, bez nazwy dnia). Słupki nad osią
-      // dni czyta się porównawczo, więc wyzwalacz osiowy jest tu poprawny -
-      // i odtąd stoi tam, gdzie jest decyzją: w opcji wykresu.
-      tooltip: { trigger: "axis" },
-      grid: { left: 44, right: 16, top: 24, bottom: 28, containLabel: true },
-      xAxis: {
-        type: "category",
-        data: days.map((d) => d.day.slice(5)),
-      },
-      yAxis: { type: "value", minInterval: 1 },
+    return biChart({
+      kind: "bar",
+      categories: days.map((d) => d.day.slice(5)),
       series: [
-        {
-          name: t("adminAnalytics.clientErrors.trendSeries"),
-          type: "bar",
-          barMaxWidth: 26,
-          itemStyle: { borderRadius: [4, 4, 0, 0], color: "#dc2626" },
-          data: days.map((d) => d.count),
-        },
+        { name: t("adminAnalytics.clientErrors.trendSeries"), values: days.map((d) => d.count) },
       ],
-    };
+      sampleSize: days.reduce((a, d) => a + d.count, 0),
+      showLegend: false,
+    });
   }, [report, t]);
 
   const kpiSeries = useMemo(() => (report?.daily ?? []).map((d) => d.count), [report]);
@@ -208,7 +196,7 @@ export function ClientErrorsDashboard() {
       <ChartCard
         title={t("adminAnalytics.clientErrors.trendTitle")}
         subtitle={t("adminAnalytics.clientErrors.trendSubtitle")}
-        option={trendOption}
+        config={trendConfig}
         height={240}
         csv={{
           filename: "client-errors-daily",

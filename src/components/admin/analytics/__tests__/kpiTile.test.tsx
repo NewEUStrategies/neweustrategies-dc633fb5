@@ -21,22 +21,13 @@
 //   5. MIKROWYKRES POWSTAJE TYLKO Z SENSOWNEJ SERII. Jeden punkt to nie trend;
 //      linia z jednego punktu jest rysunkiem bez treści.
 //
-// ECHARTS JEST TU ZAKAZANY (nagłówek `EChart.tsx`) - atrapa przechwytuje
-// `option`, więc asercje o mikrowykresie idą na dane oddane rendererowi.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+// ISKRA JEST TU PROSTYM `<svg>`, A NIE WYKRESEM W BIBLIOTECE. Kafelek rysuje
+// jedną ścieżkę geometrią z silnika (`pathFromPoints`) i kolorem z palety,
+// więc nie ma czego podmieniać atrapą - asercje idą na atrybut `d`, czyli na
+// to, co czytelnik naprawdę widzi. Poprzednia wersja pytała atrapę o `option`
+// ECharts, czyli o kształt danych oddanych bibliotece, a nie o rysunek.
+import { describe, it, expect, afterEach } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
-
-const h = vi.hoisted(() => ({
-  wykresy: [] as Array<Record<string, unknown>>,
-}));
-
-vi.mock("../EChart", () => ({
-  EChart: ({ option, height }: { option: Record<string, unknown>; height?: number | string }) => {
-    const indeks = h.wykresy.length;
-    h.wykresy.push(option);
-    return <div data-testid="spark" data-chart-index={indeks} data-height={String(height)} />;
-  },
-}));
 
 import { axeViolations, summarize } from "@/test/axe";
 import { KpiTile, type KpiTileProps } from "../KpiTile";
@@ -48,6 +39,27 @@ function kafelek(props: Partial<KpiTileProps> = {}) {
   return render(<KpiTile label="Sesje" value="1 240" {...props} />);
 }
 
+/** Iskra kafelka - jedyny `<svg>` oznaczony rolą mikrowykresu. */
+function iskra(): SVGSVGElement {
+  const el = document.querySelector<SVGSVGElement>('svg[data-role="sparkline"]');
+  if (!el) throw new Error("test: kafelek nie narysował iskry");
+  return el;
+}
+
+/** Atrybut `d` ścieżki iskry. */
+function sciezka(): string {
+  return iskra().querySelector("path")?.getAttribute("d") ?? "";
+}
+
+/**
+ * Liczba wierzchołków ścieżki: `M` plus każde `L` albo `C`. Przy dwóch
+ * punktach silnik rysuje łamaną, przy dłuższym szeregu - krzywe, więc obie
+ * komendy liczą się tak samo: każda kończy się w kolejnym pomiarze.
+ */
+function wierzcholki(d: string): number {
+  return (d.match(/[MLC]/g) ?? []).length;
+}
+
 /** Chip delty - jedyny element kafelka z ikoną kierunku i tekstem zmiany. */
 function chip(): HTMLElement | null {
   return document.querySelector("[class*='rounded-md'][class*='bg-muted/60']");
@@ -56,10 +68,6 @@ function chip(): HTMLElement | null {
 function klasaIkony(): string {
   return chip()?.querySelector("svg")?.getAttribute("class") ?? "";
 }
-
-beforeEach(() => {
-  h.wykresy.length = 0;
-});
 
 afterEach(cleanup);
 
@@ -282,51 +290,51 @@ describe("KpiTile - mikrowykres", () => {
   it("bez serii mikrowykresu NIE MA", () => {
     kafelek();
 
-    expect(screen.queryByTestId("spark")).toBeNull();
-    expect(h.wykresy).toHaveLength(0);
+    expect(document.querySelector('svg[data-role="sparkline"]')).toBeNull();
   });
 
   it("JEDEN punkt to nie trend - wykres się nie rysuje", () => {
     kafelek({ series: [42] });
 
-    expect(screen.queryByTestId("spark")).toBeNull();
+    expect(document.querySelector('svg[data-role="sparkline"]')).toBeNull();
   });
 
   it("pusta seria też nie rysuje wykresu", () => {
     kafelek({ series: [] });
 
-    expect(screen.queryByTestId("spark")).toBeNull();
+    expect(document.querySelector('svg[data-role="sparkline"]')).toBeNull();
   });
 
-  it("dwa punkty wystarczą, a dane jadą do serii NIETKNIĘTE", () => {
-    const seria = [10, 14];
-    kafelek({ series: seria });
+  it("dwa punkty wystarczą, a iskra jest SAMĄ ścieżką - bez osi i bez punktów", () => {
+    kafelek({ series: [10, 14] });
 
-    expect(screen.getByTestId("spark")).toBeTruthy();
-    const opcja = h.wykresy[0] as {
-      series: Array<{ data: number[]; type: string; symbol: string }>;
-      xAxis: { data: number[]; show: boolean };
-      yAxis: { show: boolean };
-    };
-    expect(opcja.series[0].data).toEqual(seria);
-    expect(opcja.series[0].type).toBe("line");
-    // Mikrowykres nie ma osi ani punktów - to pasek trendu, nie wykres do czytania.
-    expect(opcja.series[0].symbol).toBe("none");
-    expect(opcja.xAxis.show).toBe(false);
-    expect(opcja.yAxis.show).toBe(false);
+    const svg = iskra();
+    // Pasek trendu, nie wykres do czytania: jeden `<path>` i nic poza nim.
+    // Oś, podziałka albo znaczniki punktów w czterdziestu pikselach wysokości
+    // byłyby nieczytelne, a liczba stoi obok, w kafelku.
+    expect(svg.querySelectorAll("path")).toHaveLength(1);
+    expect(svg.querySelectorAll("line, text, circle")).toHaveLength(0);
+    // `aria-hidden`, bo iskra nie niesie ani jednej liczby, której nie ma już
+    // w kafelku - ogłoszona przez czytnik byłaby drugim głosem o tym samym.
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("oś kategorii ma tyle pozycji, ile punktów serii", () => {
+  it("ścieżka ma tyle wierzchołków, ile punktów serii", () => {
     kafelek({ series: [1, 2, 3, 4, 5] });
 
-    const opcja = h.wykresy[0] as { xAxis: { data: number[] } };
-    expect(opcja.xAxis.data).toEqual([0, 1, 2, 3, 4]);
+    // Zgubiony wierzchołek to zgubiony pomiar: iskra pokazywałaby krótszy
+    // szereg niż ten, którym ją nakarmiono, i nikt by tego nie zauważył.
+    expect(wierzcholki(sciezka())).toBe(5);
   });
 
-  it("mikrowykres jest niski - 40 px, żeby nie rozpychał siatki kafelków", () => {
+  it("iskra jest niska - 40 px, żeby nie rozpychała siatki kafelków", () => {
     kafelek({ series: [1, 2] });
 
-    expect(screen.getByTestId("spark").getAttribute("data-height")).toBe("40");
+    expect(iskra().getAttribute("height")).toBe("40");
+    // Układ współrzędnych jest STAŁY, a szerokość bierze się z kontenera:
+    // inaczej kafelki o różnej szerokości rysowałyby ten sam szereg pod inną
+    // stromizną, czyli sugerowałyby różną dynamikę.
+    expect(iskra().getAttribute("viewBox")).toBe("0 0 100 40");
   });
 });
 
@@ -353,9 +361,14 @@ describe("KpiTile - izolacja warsztatów i dostępność", () => {
     expect(b.getByText("999")).toBeTruthy();
     expect(b.getByText("-10.0%")).toBeTruthy();
 
-    const [opcjaA, opcjaB] = h.wykresy as Array<{ series: Array<{ data: number[] }> }>;
-    expect(opcjaA.series[0].data).toEqual([1, 2, 3]);
-    expect(opcjaB.series[0].data).toEqual([9, 8, 7]);
+    // Szereg rosnący i malejący nie mogą dać tej samej ścieżki - równość
+    // znaczyłaby, że `useMemo` po `series` przecieka między instancjami.
+    const dSciezki = (el: HTMLElement): string =>
+      el.querySelector('svg[data-role="sparkline"] path')?.getAttribute("d") ?? "";
+    const dA = dSciezki(screen.getByTestId("a"));
+    const dB = dSciezki(screen.getByTestId("b"));
+    expect(dA).not.toBe("");
+    expect(dA).not.toBe(dB);
   });
 
   it("kierunek zmiany NIE jest przekazany samym kolorem - jest też znak liczby", () => {

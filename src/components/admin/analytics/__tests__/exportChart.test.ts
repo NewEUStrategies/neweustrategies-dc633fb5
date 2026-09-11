@@ -21,42 +21,96 @@
 //     usuwa. Kotwica, która zostaje, to widoczny artefakt w panelu i wyciek
 //     `blob:` URL-a przy każdym eksporcie.
 //
-// DLACZEGO NIE MA TU IMPORTU `echarts`. `exportPng` dostaje instancję wykresu
-// PARAMETREM - to jest cała treść nagłówka testowanego pliku, który zabrania
-// wciągania ~1 MB ECharts do grafu SSR. Test, który by ten moduł zaimportował
-// (choćby po typ), unieważniałby dowód. Typ parametru jest więc WYPROWADZONY z
-// sygnatury `exportPng` (`Parameters<...>`), a atrapa - obiekt z jedną metodą -
-// dostaje jedno rzutowanie przez `unknown`, bo pełny interfejs `ECharts` ma
-// ponad sto metod, z których ta funkcja woła dokładnie jedną.
+// CO ZASTĄPIŁO INSTANCJĘ BIBLIOTEKI. `exportPng` dostawał instancję ECharts
+// i wołał na niej `getDataURL`. Nasz silnik maluje SVG w drzewie strony, więc
+// funkcja dostaje KONTENER karty i szuka w nim rysunku - a zamiana węzła na
+// obraz mieszka w `@/lib/charts/exportImage` i ma tam własny test. Tutaj
+// przedmiotem dowodu jest OKABLOWANIE: czy kontener bez rysunku jest no-opem,
+// czy tło idzie z motywu i czy plik dostaje właściwą nazwę.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const h = vi.hoisted(() => ({
+  svgDoPng: vi.fn(),
+  wywolania: [] as Array<{
+    svg: SVGSVGElement;
+    opcje?: { background?: string; scale?: number; klucz?: unknown };
+  }>,
+}));
+
+// Atrapa NA SAMEJ ZAMIANIE WĘZŁA NA OBRAZ. Płótno w happy-dom nie maluje, więc
+// prawdziwe `svgDoPng` nie miałoby tu czego zwrócić - a jego poprawność (kopia
+// ze wklejoną farbą, skala, tło) jest udowodniona w teście silnika.
+vi.mock("@/lib/charts/exportImage", () => ({
+  svgDoPng: (
+    svg: SVGSVGElement,
+    opcje?: { background?: string; scale?: number; klucz?: unknown },
+  ) => {
+    h.wywolania.push({ svg, opcje });
+    return Promise.resolve(
+      new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], {
+        type: "image/png",
+      }),
+    );
+  },
+}));
 
 import { buildCsv, exportCsv, exportPng } from "../exportChart";
 
-/**
- * Typ instancji wykresu WYPROWADZONY z sygnatury, bez importu `echarts`.
- * `exportPng` przyjmuje `ECharts | null | undefined`, więc `NonNullable`
- * zdejmuje z niego dwa puste warianty.
- */
-type InstancjaWykresu = NonNullable<Parameters<typeof exportPng>[1]>;
-
-/** Jedyna metoda, której `exportPng` faktycznie używa. */
-interface AtrapaWykresu {
-  getDataURL: (opcje: { type: string; pixelRatio: number; backgroundColor: string }) => string;
+/** Kontener karty z jednym rysunkiem w środku - tak, jak buduje go `ChartCard`. */
+function kontenerZRysunkiem(): HTMLElement {
+  const div = document.createElement("div");
+  div.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"></svg>';
+  document.body.appendChild(div);
+  return div;
 }
 
-/** Wywołania `getDataURL` z ostatniej atrapy - dowód na parametry eksportu. */
-let wywolaniaDataUrl: { type: string; pixelRatio: number; backgroundColor: string }[] = [];
+/**
+ * Kontener z rysunkiem I KLUCZEM - ramka silnika w wariancie wieloseryjnym.
+ * Markup skopiowany z `ChartFrame`: lista kluczy to `ul > li`, a w każdym
+ * `li` próbka `aria-hidden` i napis obok.
+ */
+function kontenerZLegenda(): HTMLElement {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <figure class="neh-chart">
+      <ul role="list">
+        <li><span aria-hidden style="background: rgb(10, 20, 30)"></span><span style="color: rgb(1, 2, 3)">Sesje</span></li>
+        <li><span aria-hidden style="background: rgb(40, 50, 60)"></span><span style="color: rgb(4, 5, 6)">Odsłony</span></li>
+      </ul>
+      <svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"></svg>
+    </figure>`;
+  document.body.appendChild(div);
+  return div;
+}
 
-function atrapaWykresu(dataUrl: string): InstancjaWykresu {
-  const atrapa: AtrapaWykresu = {
-    getDataURL: (opcje) => {
-      wywolaniaDataUrl.push(opcje);
-      return dataUrl;
-    },
-  };
-  // Jedno rzutowanie, świadome: `ECharts` to interfejs klasy z kilkudziesięcioma
-  // metodami, a kontraktem tej funkcji jest wyłącznie `getDataURL`.
-  return atrapa as unknown as InstancjaWykresu;
+/**
+ * Kontener z pierścieniem: klucz niesie TABELA obok koła, a jej wiersz ma
+ * poza nazwą także udział i wartość bezwzględną.
+ */
+function kontenerZTabelaKlucza(): HTMLElement {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <figure class="neh-chart">
+      <svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"></svg>
+      <table class="neh-pie-key">
+        <tbody>
+          <tr>
+            <th><span class="flex"><span aria-hidden style="background: rgb(7, 7, 7)"></span><span style="color: rgb(9, 9, 9)">organic</span></span></th>
+            <td>64%</td><td>1 280</td>
+          </tr>
+        </tbody>
+      </table>
+    </figure>`;
+  document.body.appendChild(div);
+  return div;
+}
+
+/** Kontener BEZ rysunku - karta w chwili, gdy silnik pokazuje „brak danych". */
+function kontenerPusty(): HTMLElement {
+  const div = document.createElement("div");
+  div.textContent = "brak danych";
+  document.body.appendChild(div);
+  return div;
 }
 
 /** Pobranie zarejestrowane przez szpiega na `HTMLAnchorElement.prototype.click`. */
@@ -73,7 +127,7 @@ let odwolaneUrle: string[] = [];
 let licznikUrli = 0;
 
 beforeEach(() => {
-  wywolaniaDataUrl = [];
+  h.wywolania.length = 0;
   pobrania = [];
   bloby = [];
   odwolaneUrle = [];
@@ -333,82 +387,110 @@ describe("exportCsv - pobranie pliku", () => {
 
 // ---------------------------------------------------------------------------
 describe("exportPng - zrzut wykresu", () => {
-  /** Sygnatura PNG - zawiera 0x0D 0x0A, więc dowodzi też braku mielenia końców linii. */
-  const BAJTY_PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff];
-  const DATA_URL = `data:image/png;base64,${btoa(String.fromCharCode(...BAJTY_PNG))}`;
-
-  it("brak instancji (null) to no-op - żadnego pustego pliku", () => {
-    exportPng("wykres", null);
+  it("kontener `null` to no-op - żadnego pustego pliku", async () => {
+    await exportPng("wykres", null);
 
     expect(pobrania).toHaveLength(0);
     expect(bloby).toHaveLength(0);
+    expect(h.wywolania).toHaveLength(0);
   });
 
-  it("brak instancji (undefined) też - wykres bywa niegotowy w chwili kliknięcia", () => {
-    // `ChartCard` trzyma instancję w `useRef` wypełnianym z `onReady`, więc
-    // kliknięcie przed pierwszym malowaniem oddaje tu `undefined`. Kontrakt:
-    // nic się nie dzieje, zamiast pobrania zepsutego pliku o zerowej długości.
-    exportPng("wykres", undefined);
+  it("kontener BEZ rysunku też - karta bywa pusta w chwili kliknięcia", async () => {
+    // Wykres bez danych rysuje komunikat zamiast SVG, a menu eksportu stoi na
+    // karcie niezależnie od danych. Kontrakt: nic się nie dzieje, zamiast
+    // pobrania zepsutego pliku o zerowej długości.
+    await exportPng("wykres", kontenerPusty());
 
     expect(pobrania).toHaveLength(0);
-    expect(wywolaniaDataUrl).toHaveLength(0);
+    expect(h.wywolania).toHaveLength(0);
   });
 
-  it("base64 z getDataURL jest ZDEKODOWANY do bajtów bloba image/png", async () => {
-    exportPng("wykres", atrapaWykresu(DATA_URL));
+  it("do obrazu idzie RYSUNEK Z KONTENERA, nie sam kontener", async () => {
+    const kontener = kontenerZRysunkiem();
 
+    await exportPng("wykres", kontener);
+
+    expect(h.wywolania).toHaveLength(1);
+    expect(h.wywolania[0].svg).toBe(kontener.querySelector("svg"));
     expect(bloby).toHaveLength(1);
     expect(bloby[0].type).toBe("image/png");
-    expect(await bajty(bloby[0])).toEqual(BAJTY_PNG);
-    // Bajty, nie napis: gdyby blob powstał z samego data URL-a, jego pierwszy
-    // bajt byłby literą "d" (0x64), a nie sygnaturą PNG.
-    expect((await bajty(bloby[0]))[0]).toBe(0x89);
   });
 
-  it("zrzut jest w podwójnej gęstości i z tłem Z MOTYWU, nie z wymuszoną bielą", () => {
-    // `pixelRatio: 2` to jedyna obrona przed rozmytym wykresem w prezentacji.
-    // `backgroundColor` jest jawny, bo `baseOption` ustawia canvasowi
-    // `transparent` - PNG bez tła byłby nieczytelny.
+  it("zrzut jest w podwójnej gęstości i z tłem Z MOTYWU, nie z wymuszoną bielą", async () => {
+    // Podwójna skala to jedyna obrona przed rozmytym wykresem w prezentacji.
+    // Tło jest jawne, bo rysunek silnika jest przezroczysty - PNG bez tła
+    // byłby nieczytelny.
     //
-    // ALE NIE JEST TO JUŻ BIEL NA SZTYWNO. Kanwa dostaje kolory tekstu i osi
+    // ALE NIE JEST TO BIEL NA SZTYWNO. Rysunek bierze kolory tekstu i osi
     // z motywu rozwiązanego w chwili renderu, więc eksport z sesji w trybie
     // ciemnym zapisywał niemal biały tekst na wymuszonej bieli - plik
     // otwierał się jako pusty prostokąt z samymi słupkami, a na ekranie
-    // wszystko wyglądało poprawnie. Tło idzie teraz z `--background`, czyli
-    // zawsze zgadza się z kolorem tekstu, który kanwa naprawdę namalowała.
-    exportPng("wykres", atrapaWykresu(DATA_URL));
+    // wszystko wyglądało poprawnie. Tło idzie z `--card`, czyli z tej samej
+    // płyty, na której wykres stoi w panelu.
+    document.documentElement.style.setProperty("--card", "#101014");
 
-    expect(wywolaniaDataUrl).toHaveLength(1);
-    expect(wywolaniaDataUrl[0]).toMatchObject({ type: "png", pixelRatio: 2 });
-    const tlo = (wywolaniaDataUrl[0] as { backgroundColor?: string }).backgroundColor;
-    expect(tlo).toBeTruthy();
-    expect(tlo).not.toBe("transparent");
+    await exportPng("wykres", kontenerZRysunkiem());
+
+    expect(h.wywolania[0].opcje?.scale).toBe(2);
+    expect(h.wywolania[0].opcje?.background).toBe("#101014");
+    document.documentElement.style.removeProperty("--card");
   });
 
-  it("sufiks .png dokładany TYLKO gdy go brakuje", () => {
-    exportPng("bez-sufiksu", atrapaWykresu(DATA_URL));
-    exportPng("ma-sufiks.png", atrapaWykresu(DATA_URL));
+  it("bez tokenu płyty tło spada na biel, a nie na przezroczystość", async () => {
+    document.documentElement.style.removeProperty("--card");
+
+    await exportPng("wykres", kontenerZRysunkiem());
+
+    expect(h.wywolania[0].opcje?.background).toBe("#ffffff");
+  });
+
+  it("KLUCZ WIELOSERYJNY jedzie do pliku razem z rysunkiem", async () => {
+    // ZGŁOSZONE W PRZEGLĄDZIE PR #346 (P1). Rysunek silnika to samo `<svg>`;
+    // legenda serii jest obok niego zwykłym HTML-em. Zrzut zrobiony z samego
+    // węzła rysunku dawał obrazek, na którym serie różnią się kolorem, a nic
+    // nie mówi, która jest która - czyli mniej, niż widać na ekranie, i mniej
+    // niż dawał eksport z kanwy, która legendę malowała razem z wykresem.
+    await exportPng("wykres", kontenerZLegenda());
+
+    expect(h.wywolania[0].opcje?.klucz).toEqual([
+      { label: "Sesje", color: "rgb(10, 20, 30)", textColor: "rgb(1, 2, 3)" },
+      { label: "Odsłony", color: "rgb(40, 50, 60)", textColor: "rgb(4, 5, 6)" },
+    ]);
+  });
+
+  it("KLUCZ PIERŚCIENIA niesie nazwę, udział i wartość - tak jak na ekranie", async () => {
+    // Tabela klucza tarczy ma w wierszu trzy rzeczy, nie jedną. Zrzut z samą
+    // nazwą byłby uboższy od tego, co czytelnik ma przed oczami, a to jest
+    // dokładnie ta różnica, którą ten PR miał zlikwidować, a nie wprowadzić.
+    await exportPng("wykres", kontenerZTabelaKlucza());
+
+    expect(h.wywolania[0].opcje?.klucz).toEqual([
+      { label: "organic — 64% · 1 280", color: "rgb(7, 7, 7)", textColor: "rgb(9, 9, 9)" },
+    ]);
+  });
+
+  it("rodzaj BEZ klucza nie dokłada do pliku pustego paska", async () => {
+    // Histogram, mapa cieplna i wykres jednoseryjny nie mają czego nazywać.
+    // Pusty pasek pod rysunkiem byłby białą przestrzenią udającą uciętą treść.
+    await exportPng("wykres", kontenerZRysunkiem());
+
+    expect(h.wywolania[0].opcje?.klucz).toEqual([]);
+  });
+
+  it("sufiks .png dokładany TYLKO gdy go brakuje", async () => {
+    await exportPng("bez-sufiksu", kontenerZRysunkiem());
+    await exportPng("ma-sufiks.png", kontenerZRysunkiem());
 
     expect(pobrania.map((p) => p.download)).toEqual(["bez-sufiksu.png", "ma-sufiks.png"]);
   });
 
-  it("kotwica PNG też jest sprzątana, a jej URL zwalniany", () => {
-    exportPng("wykres", atrapaWykresu(DATA_URL));
+  it("kotwica PNG też jest sprzątana, a jej URL zwalniany", async () => {
+    await exportPng("wykres", kontenerZRysunkiem());
 
     expect(pobrania[0].wDokumencie).toBe(true);
     expect(document.querySelectorAll("a[download]")).toHaveLength(0);
 
     vi.advanceTimersByTime(1000);
     expect(odwolaneUrle).toEqual(["blob:nes-test-1"]);
-  });
-
-  it("data URL bez części base64 daje pusty blob, nie wyjątek", () => {
-    // Gałąź `?? ""`. Nie jest to ścieżka szczęśliwa, ale jest jedyną obroną
-    // przed wywróceniem panelu, gdyby `getDataURL` oddał napis w innym
-    // kształcie (np. z przyszłego rendererem SVG).
-    exportPng("wykres", atrapaWykresu("data:image/png;base64"));
-
-    expect(bloby).toHaveLength(1);
-    expect(bloby[0].size).toBe(0);
   });
 });

@@ -9,8 +9,15 @@
 // DLACZEGO NIE `ChartCard` Z PANELU. Tamten shell jest dobry (eksport, pełny
 // ekran), ale importuje `@/lib/i18n-admin-analytics` jako efekt uboczny -
 // czyli dokłada słownik panelu do chunka trasy PRODUKTOWEJ. Bierzemy więc sam
-// prymityw `EChart` (klient-only, leniwy - to on trzyma ECharts poza grafem
-// SSR) i opakowujemy go własną, minimalną kartą.
+// silnik (`@/components/charts`) i opakowujemy go własną, minimalną kartą.
+// Silnik nosi własne teksty w rdzeniu słownika (`charts.*`), więc ta trasa nie
+// dokłada niczego poza rysunkiem.
+//
+// TEN SAM SILNIK CO WSZĘDZIE INDZIEJ. Ekran klubu rysował wcześniej ECharts,
+// czyli DRUGĄ implementację wykresu obok tej, która powstała wobec
+// specyfikacji - z inną paletą, inną geometrią i innymi zasadami interakcji.
+// Członek klubu i redaktor panelu patrzyli więc na dwa różne języki wizualne
+// tych samych wielkości.
 //
 // CZEGO TU NIE MA: rankingu autorów w klubie pod regułą Chatham House. RPC go
 // nie odda, a ten komponent nawet nie rysuje sekcji - lista dziesięciu nazwisk
@@ -28,12 +35,14 @@ import {
   UserCheck,
   Users2,
 } from "lucide-react";
-import type { EChartsCoreOption } from "echarts/core";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { EChart } from "@/components/admin/analytics/EChart";
+import { Chart } from "@/components/charts/Chart";
+import { defaultChartConfig } from "@/lib/charts/parse";
+import { chartLangFrom } from "@/lib/charts/format";
+import { MAX_SERIES, type ChartConfig, type ChartKind } from "@/lib/charts/types";
 import { useClubActivitySeries, useClubWorkspaceStats } from "@/lib/clubs/useClubWorkspace";
 import {
   parseContributors,
@@ -72,18 +81,63 @@ function StatTile({
   );
 }
 
+/**
+ * Konfiguracja rysunku dla silnika - minimum pól, reszta z wartości domyślnych.
+ *
+ * BUDUJEMY NA `defaultChartConfig()`, a nie na literale: konfiguracja ma
+ * kilkanaście pól i nowe dochodzą, więc literał albo przestałby się
+ * kompilować przy każdym dopisaniu pola, albo - gorzej - ktoś rozluźniłby typ
+ * i ekran rysowałby wykres z niezdefiniowanymi ustawieniami uczciwości.
+ *
+ * Tytuł i opis zostają PUSTE: nagłówek rysuje karta panelu, a rama silnika
+ * pomija swój własny dokładnie wtedy, gdy oba są puste.
+ */
+function konfiguracja(input: {
+  kind: ChartKind;
+  categories: readonly string[];
+  series: readonly { name: string; values: readonly number[] }[];
+  height: number;
+  showValues?: boolean;
+  smoothing?: number;
+}): ChartConfig {
+  const base = defaultChartConfig();
+  return {
+    ...base,
+    kind: input.kind,
+    title: "",
+    description: "",
+    categories: [...input.categories],
+    // Slot palety po kolei: jest ich `MAX_SERIES`, a numer poza zakresem
+    // oznaczałby token, którego w arkuszu nie ma - czyli serię bez koloru.
+    series: input.series.map((one, i) => ({
+      name: one.name,
+      values: [...one.values],
+      colorSlot: (i % MAX_SERIES) + 1,
+    })),
+    showLegend: input.series.length > 1,
+    showValues: input.showValues ?? false,
+    smoothing: input.smoothing ?? base.smoothing,
+    height: input.height,
+    // EKRAN KLUBU NIE ANIMUJE. Widok odświeża się przy każdej zmianie zakresu,
+    // a wykres wjeżdżający za każdym razem czyta się jako zmiana danych.
+    animate: false,
+  };
+}
+
 function ChartPanel({
   title,
-  option,
+  config,
   height,
   empty,
   isEmpty,
+  lang,
 }: {
   title: string;
-  option: EChartsCoreOption;
+  config: ChartConfig;
   height: number;
   empty: string;
   isEmpty: boolean;
+  lang: string;
 }) {
   return (
     <Card className="p-3">
@@ -96,7 +150,10 @@ function ChartPanel({
           {empty}
         </p>
       ) : (
-        <EChart option={option} height={height} />
+        // Nazwa rysunku Z TYTUŁU PANELU: konfiguracja ma tytuł pusty, żeby nie
+        // stał nad wykresem dwa razy, więc bez tej właściwości wszystkie trzy
+        // wykresy ekranu nazywałyby się „Wykres".
+        <Chart config={config} lang={chartLangFrom(lang)} ariaLabel={title} />
       )}
     </Card>
   );
@@ -130,94 +187,58 @@ export function ClubInsights({ clubId }: { clubId: string }) {
 
   /** Szereg dzienny. Etykiety osi są krótkie (dzień + miesiąc), bo przy 180
    *  punktach pełna data zlewa się w pasek - `axisLabel` i tak je przerzedza. */
-  const activityOption = useMemo<EChartsCoreOption>(() => {
+  const activityConfig = useMemo<ChartConfig>(() => {
     const labels = points.map((p) =>
       formatDate(`${p.day}T12:00:00`, lang, { day: "numeric", month: "short" }),
     );
-    return {
-      tooltip: { trigger: "axis" },
-      legend: { show: true },
-      grid: { left: 8, right: 8, top: 28, bottom: 8, containLabel: true },
-      xAxis: { type: "category", data: labels, boundaryGap: false },
-      yAxis: { type: "value", minInterval: 1 },
+    return konfiguracja({
+      kind: "line",
+      categories: labels,
       series: [
-        {
-          name: t("club.insights.chart.threads"),
-          type: "line",
-          smooth: true,
-          symbol: "none",
-          areaStyle: { opacity: 0.18 },
-          lineStyle: { width: 2 },
-          data: points.map((p) => p.threads),
-        },
-        {
-          name: t("club.insights.chart.replies"),
-          type: "line",
-          smooth: true,
-          symbol: "none",
-          areaStyle: { opacity: 0.12 },
-          lineStyle: { width: 2 },
-          data: points.map((p) => p.replies),
-        },
-        {
-          name: t("club.insights.chart.participants"),
-          type: "line",
-          smooth: true,
-          symbol: "none",
-          lineStyle: { width: 2, type: "dashed" },
-          data: points.map((p) => p.participants),
-        },
+        { name: t("club.insights.chart.threads"), values: points.map((p) => p.threads) },
+        { name: t("club.insights.chart.replies"), values: points.map((p) => p.replies) },
+        { name: t("club.insights.chart.participants"), values: points.map((p) => p.participants) },
       ],
-    };
+      // ŁAMANA, NIE KRZYWA. Wygładzenie dokłada między dwoma dniami wartości,
+      // których nie było - a przy liczbie wątków wartość ułamkowa nie istnieje
+      // nawet pojęciowo.
+      smoothing: 0,
+      height: 280,
+    });
   }, [points, lang, t]);
 
   /** Rodzaje wątków - słupki POZIOME: etykiety są słowami ("ogłoszenie",
    *  "sondaż"), a pionowe słupki obracałyby je o 45 stopni. */
-  const kindOption = useMemo<EChartsCoreOption>(() => {
-    const sorted = [...kinds].sort((a, b) => a.count - b.count);
-    return {
-      tooltip: { trigger: "item" },
-      legend: { show: false },
-      grid: { left: 8, right: 24, top: 8, bottom: 8, containLabel: true },
-      xAxis: { type: "value", minInterval: 1 },
-      yAxis: {
-        type: "category",
-        data: sorted.map((slice) => t(`club.kind.${slice.key}`)),
-      },
+  const kindConfig = useMemo<ChartConfig>(() => {
+    // MALEJĄCO: silnik rysuje kategorie słupków poziomych od góry w kolejności
+    // tablicy, więc ranking czyta się z góry na dół. (ECharts układał oś Y od
+    // dołu i wymagał sortowania odwrotnego.)
+    const sorted = [...kinds].sort((a, b) => b.count - a.count);
+    return konfiguracja({
+      kind: "bar-horizontal",
+      categories: sorted.map((slice) => t(`club.kind.${slice.key}`)),
       series: [
-        {
-          type: "bar",
-          data: sorted.map((slice) => slice.count),
-          barMaxWidth: 18,
-          itemStyle: { borderRadius: [0, 4, 4, 0] },
-          label: { show: true, position: "right", fontSize: 11 },
-        },
+        { name: t("club.insights.chart.kinds"), values: sorted.map((slice) => slice.count) },
       ],
-    };
+      showValues: true,
+      height: 240,
+    });
   }, [kinds, t]);
 
   /** Działy klubu - pierścień, bo pytanie brzmi "jak rozkłada się uwaga", czyli
    *  o UDZIAŁ w całości, a nie o wartość bezwzględną. */
-  const groupOption = useMemo<EChartsCoreOption>(
-    () => ({
-      tooltip: { trigger: "item" },
-      legend: { show: true, type: "scroll", bottom: 0 },
-      series: [
-        {
-          type: "pie",
-          radius: ["45%", "70%"],
-          center: ["50%", "45%"],
-          avoidLabelOverlap: true,
-          itemStyle: { borderRadius: 4, borderWidth: 2 },
-          label: { show: false },
-          data: groups.map((slice) => ({
-            name: pickLocalized(slice, "name", lang),
-            value: slice.count,
-          })),
-        },
-      ],
-    }),
-    [groups, lang],
+  const groupConfig = useMemo<ChartConfig>(
+    () =>
+      konfiguracja({
+        kind: "donut",
+        categories: groups.map((slice) => pickLocalized(slice, "name", lang)),
+        // Silnik rysuje przy pierścieniu TABELĘ KLUCZA - udział i wartość
+        // bezwzględną w wierszu - zamiast legendy przy łuku. Stara legenda
+        // „scroll" pod kołem urywała nazwy działów po kilku znakach.
+        series: [{ name: t("club.insights.chart.groups"), values: groups.map((s) => s.count) }],
+        height: 240,
+      }),
+    [groups, lang, t],
   );
 
   if (seriesQ.isError || statsQ.isError) {
@@ -319,26 +340,29 @@ export function ClubInsights({ clubId }: { clubId: string }) {
 
       <ChartPanel
         title={t("club.insights.chart.activity")}
-        option={activityOption}
+        config={activityConfig}
         height={280}
         empty={t("club.insights.noData")}
         isEmpty={points.every((p) => p.threads === 0 && p.replies === 0)}
+        lang={i18n.language}
       />
 
       <div className="grid gap-3 lg:grid-cols-2">
         <ChartPanel
           title={t("club.insights.chart.kinds")}
-          option={kindOption}
+          config={kindConfig}
           height={240}
           empty={t("club.insights.noData")}
           isEmpty={kinds.length === 0}
+          lang={i18n.language}
         />
         <ChartPanel
           title={t("club.insights.chart.groups")}
-          option={groupOption}
+          config={groupConfig}
           height={240}
           empty={t("club.insights.noData")}
           isEmpty={groups.length === 0}
+          lang={i18n.language}
         />
       </div>
 

@@ -141,6 +141,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
@@ -294,9 +295,33 @@ interface TrendSegment {
 interface ScatterChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem w punkt albo Enterem.
+   *
+   * Rozrzut NIE MA osi kategorii, więc `categoryIndex` jest tu `null`,
+   * a `category` niesie etykietę wiersza danych - jedyną tożsamość, jaką
+   * punkt ma poza swoimi współrzędnymi. `value` to `y`: to ta zmienna,
+   * o którą pyta ten rodzaj („jak zmienia się y wraz z x").
+   */
+  onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function ScatterChart({ config, lang }: ScatterChartProps) {
+export function ScatterChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: ScatterChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -502,10 +527,34 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
     xTickStep,
   } = geometry;
 
+  /** Jeden nadawca wskazania - kliknięcie i klawisz składają TEN SAM ładunek. */
+  const wskazPunkt = (i: number): void => {
+    if (!onSelect) return;
+    const marker = markers[i];
+    if (marker === undefined) return;
+    const chmura = model.clouds[marker.cloud] ?? null;
+    onSelect({
+      kind: config.kind,
+      categoryIndex: null,
+      category: marker.point.label === "" ? null : marker.point.label,
+      seriesIndex: marker.point.seriesIndex,
+      seriesName: chmura === null ? null : chmura.name,
+      value: marker.point.y,
+    });
+  };
+
   const cascade = cascadeStepMs(markers.length);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (markers.length === 0) return;
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        wskazPunkt(active);
+      }
+      return;
+    }
     if (e.key === "Escape") {
       setActive(null);
       return;
@@ -631,27 +680,29 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
   // ani osi, ani podpisu, więc zakresy obu zmiennych, liczbę par i dowód
   // każdego trendu dostaje tutaj. Zdanie o współzmienności jedzie razem
   // z trendem, bo bez niego nachylenie czyta się jako przyczyna.
-  const ariaLabel = [
-    config.title,
-    `${xLabel}: ${formatAxisTick(model.domain.x.min, lang)} ${RANGE_SEP} ${formatAxisTick(
-      model.domain.x.max,
-      lang,
-    )}`,
-    `${yLabel}: ${formatAxisTick(model.domain.y.min, lang)} ${RANGE_SEP} ${formatAxisTick(
-      model.domain.y.max,
-      lang,
-    )}`,
-    t("scatter.trend.n", { count: model.n }),
-    ...trends.map(
-      (tr) =>
-        `${tr.name}: ${t("scatter.trend.label")}, ${t("scatter.trend.r2", {
-          value: liczba(r2ToDisplay(tr.r2), ""),
-        })}, ${t("scatter.trend.n", { count: tr.n })}`,
-    ),
-    ...(trends.length > 0 ? [t("scatter.trend.notCausal")] : []),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${xLabel}: ${formatAxisTick(model.domain.x.min, lang)} ${RANGE_SEP} ${formatAxisTick(
+        model.domain.x.max,
+        lang,
+      )}`,
+      `${yLabel}: ${formatAxisTick(model.domain.y.min, lang)} ${RANGE_SEP} ${formatAxisTick(
+        model.domain.y.max,
+        lang,
+      )}`,
+      t("scatter.trend.n", { count: model.n }),
+      ...trends.map(
+        (tr) =>
+          `${tr.name}: ${t("scatter.trend.label")}, ${t("scatter.trend.r2", {
+            value: liczba(r2ToDisplay(tr.r2), ""),
+          })}, ${t("scatter.trend.n", { count: tr.n })}`,
+      ),
+      ...(trends.length > 0 ? [t("scatter.trend.notCausal")] : []),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   // NOTY POD RYSUNKIEM. Trzy gatunki, w tej kolejności: dowód rysowanego
   // trendu (współzmienność i metoda), porada formy z modelu i defekt danych.
@@ -1043,7 +1094,11 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
             width={innerW}
             height={innerH}
             fill="transparent"
-            onPointerDown={(e) => setActive(indexFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = indexFromPointer(e);
+              setActive(i);
+              if (i !== null) wskazPunkt(i);
+            }}
             onPointerMove={(e) => setActive(indexFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi

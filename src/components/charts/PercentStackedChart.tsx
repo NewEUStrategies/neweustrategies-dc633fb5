@@ -109,6 +109,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
+import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
 /**
  * Odstęp etykiety od krawędzi segmentu - pierwszy szczebel skali odstępów
@@ -296,9 +297,33 @@ function krokPodzialki(innerH: number, target: number): number {
 interface PercentStackedChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem albo klawiszem Enter.
+   *
+   * Ten rodzaj rozstrzyga JEDNO I DRUGIE: kolumna daje kategorię, a wysokość
+   * w jej obrębie - segment, czyli serię. Dlatego ładunek niesie oba indeksy,
+   * a nie sam słupek: „kliknąłem w Usługi w Polsce" jest inną informacją niż
+   * „kliknąłem w słupek Polska".
+   */
+  onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function PercentStackedChart({ config, lang }: PercentStackedChartProps) {
+export function PercentStackedChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: PercentStackedChartProps) {
   // `keyPrefix` zamiast sklejania klucza w szablonie: bramka rozjazdu
   // kod<->słownik rozumie WYŁĄCZNIE prefiks podany hakowi, a klucz zlepiony
   // template literalem wypada z kontroli parytetu PL/EN.
@@ -415,6 +440,14 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
   // i był gałęzią, której żaden test nie mógł zaczerwienić - a osłona, której
   // nie da się wywołać, uczy czytelnika, że pusty arkusz dochodzi aż tutaj.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę.
+    if (isSelectKey(e.key)) {
+      if (activeBar !== null && onSelect) {
+        e.preventDefault();
+        wskaz(activeBar, activeSeg);
+      }
+      return;
+    }
     if (e.key === "Escape") {
       clearActive();
       return;
@@ -745,6 +778,29 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
     const segmenty = bars[i]?.segments ?? [];
     const k = segmenty.findIndex((s) => s.visible && pp >= s.from && pp <= s.to);
     setActiveSeg(k >= 0 ? k : null);
+    if (e.type === "pointerdown") wskaz(i, k >= 0 ? k : null);
+  };
+
+  /**
+   * Jeden nadawca wskazania - kliknięcie i klawisz składają TEN SAM ładunek.
+   *
+   * Segment bywa `null`, bo wskaźnik trafia też w prześwit nad stosem; wtedy
+   * czytelnik wskazał kategorię i tyle, a zmyślenie serii byłoby dopisaniem
+   * informacji, której nie podał.
+   */
+  const wskaz = (bar: number, seg: number | null): void => {
+    if (!onSelect) return;
+    const slupek = bars[bar];
+    if (slupek === undefined) return;
+    const segment = seg === null ? null : (slupek.segments[seg] ?? null);
+    onSelect({
+      kind: config.kind,
+      categoryIndex: bar,
+      category: slupek.label,
+      seriesIndex: seg,
+      seriesName: segment === null ? null : segment.seriesName,
+      value: segment === null ? null : segment.value,
+    });
   };
 
   // DYMEK: nazwa serii, jej udział, jej WARTOŚĆ BEZWZGLĘDNA i suma kategorii.
@@ -834,20 +890,22 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
   // słupków, ani tego, że jeden z nich jest całością sto razy mniejszą -
   // a dymek dla niego nie istnieje. Oś całości jest nazwana, bo procent na
   // rysunku nazywa ją wyłącznie wzrokowo.
-  const ariaLabel = [
-    config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
-    `${t("percentStacked.axis.share")}: ${formatPercent(0, lang)} - ${formatPercent(1, lang)}`,
-    `${t("percentStacked.axis.category")}: ${bars
-      .map((b) => {
-        const powod = powody(b.index);
-        return `${b.label}: ${t("percentStacked.table.total")} ${suma(b)}${
-          powod.length > 0 ? `. ${powod.join(" ")}` : ""
-        }`;
-      })
-      .join("; ")}`,
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
+      `${t("percentStacked.axis.share")}: ${formatPercent(0, lang)} - ${formatPercent(1, lang)}`,
+      `${t("percentStacked.axis.category")}: ${bars
+        .map((b) => {
+          const powod = powody(b.index);
+          return `${b.label}: ${t("percentStacked.table.total")} ${suma(b)}${
+            powod.length > 0 ? `. ${powod.join(" ")}` : ""
+          }`;
+        })
+        .join("; ")}`,
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>

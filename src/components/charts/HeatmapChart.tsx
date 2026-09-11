@@ -139,6 +139,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
@@ -402,9 +403,33 @@ function clipLabel(label: string, budget: number): { text: string; full: string 
 interface HeatmapChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem w komórkę albo Enterem.
+   *
+   * Komórka rozstrzyga OBIE osie: kolumna jest kategorią, wiersz serią.
+   * Etykiety biorą się z komórki, nie z konfiguracji - model buduje osie
+   * sam (scala duplikaty, uzupełnia braki), więc indeks w arkuszu i indeks
+   * na osi to nie zawsze ta sama liczba.
+   */
+  onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function HeatmapChart({ config, lang }: HeatmapChartProps) {
+export function HeatmapChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: HeatmapChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -480,6 +505,14 @@ export function HeatmapChart({ config, lang }: HeatmapChartProps) {
   const valueLabelsFit = heatmapValueLabelFit(model, { cellWidth: cellW, cellHeight: cellH });
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        wskazKomorke(active);
+      }
+      return;
+    }
     if (rows === 0 || columns === 0) return;
     // DWA WYMIARY, WIĘC CZTERY STRZAŁKI. To jest jedyny rodzaj, w którym
     // strzałki poziome nie wystarczają: pozioma zmienia kolumnę, pionowa
@@ -521,6 +554,21 @@ export function HeatmapChart({ config, lang }: HeatmapChartProps) {
   // STREFA TRAFIENIA: `cellAddress`, i `null` jedzie do stanu bez dociskania.
   // Patrz nagłówek pliku - docisk do skrajnej komórki twierdziłby, że
   // wskaźnik stoi nad wartością, której tam nie ma.
+  /** Jeden nadawca wskazania - kliknięcie i klawisz składają TEN SAM ładunek. */
+  const wskazKomorke = (adres: CellAddress): void => {
+    if (!onSelect) return;
+    const cell = model.cells[adres.row * model.columns + adres.col];
+    if (cell === undefined) return;
+    onSelect({
+      kind: config.kind,
+      categoryIndex: cell.column,
+      category: cell.columnLabel,
+      seriesIndex: cell.row,
+      seriesName: cell.rowLabel,
+      value: cell.value,
+    });
+  };
+
   const addressFromPointer = (e: PointerEvent<SVGRectElement>): CellAddress | null => {
     const point = pointerToPlot(
       e.clientX,
@@ -650,29 +698,31 @@ export function HeatmapChart({ config, lang }: HeatmapChartProps) {
   // ani rampy, ani etykiet osi, więc dostaje zakres skali, `n`, odpowiedź
   // o dominującym parametrze i brzeg każdego wiersza - czyli to samo, co
   // widzący czytelnik odczytuje z kierunku gradientu.
-  const ariaLabel = [
-    config.title,
-    `${legendTitle}: ${t("heatmap.legend.from", {
-      value: formatAxisTick(boundaries[0], lang),
-    })} ${t("heatmap.legend.to", {
-      value: formatAxisTick(boundaries[boundaries.length - 1], lang),
-    })}`,
-    `${t("heatmap.table.count")} ${formatChartValue(model.filled, lang, "")}`,
-    dominant,
-    ...model.rowMargins.map(
-      (margin) =>
-        `${margin.label}: ${t("heatmap.table.mean")} ${num(margin.mean)}, ${t(
-          "heatmap.table.range",
-        )} ${num(margin.range)}`,
-    ),
-  ]
-    .filter((part): part is string => Boolean(part))
-    // KROPKI STAWIA SPÓJKA, NIE TREŚĆ. Zdanie o dominującym parametrze
-    // przyjeżdża ze słownika już z kropką, a dwie kropki obok siebie czytnik
-    // ekranu czyta jako dłuższą pauzę w środku wyliczenia - czyli jako koniec
-    // wypowiedzi tam, gdzie jej nie ma.
-    .map((part) => part.replace(/\.\s*$/, ""))
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${legendTitle}: ${t("heatmap.legend.from", {
+        value: formatAxisTick(boundaries[0], lang),
+      })} ${t("heatmap.legend.to", {
+        value: formatAxisTick(boundaries[boundaries.length - 1], lang),
+      })}`,
+      `${t("heatmap.table.count")} ${formatChartValue(model.filled, lang, "")}`,
+      dominant,
+      ...model.rowMargins.map(
+        (margin) =>
+          `${margin.label}: ${t("heatmap.table.mean")} ${num(margin.mean)}, ${t(
+            "heatmap.table.range",
+          )} ${num(margin.range)}`,
+      ),
+    ]
+      .filter((part): part is string => Boolean(part))
+      // KROPKI STAWIA SPÓJKA, NIE TREŚĆ. Zdanie o dominującym parametrze
+      // przyjeżdża ze słownika już z kropką, a dwie kropki obok siebie czytnik
+      // ekranu czyta jako dłuższą pauzę w środku wyliczenia - czyli jako koniec
+      // wypowiedzi tam, gdzie jej nie ma.
+      .map((part) => part.replace(/\.\s*$/, ""))
+      .join(". ");
 
   // PORADY FORMY I DEFEKTY DANYCH stoją pod rysunkiem, bo dotyczą tego, co
   // czytelnik właśnie widzi: "to nie jest macierz", "połowa pola to luki"
@@ -997,7 +1047,11 @@ export function HeatmapChart({ config, lang }: HeatmapChartProps) {
             width={innerW}
             height={innerH}
             fill="transparent"
-            onPointerDown={(e) => setActive(addressFromPointer(e))}
+            onPointerDown={(e) => {
+              const adres = addressFromPointer(e);
+              setActive(adres);
+              if (adres !== null) wskazKomorke(adres);
+            }}
             onPointerMove={(e) => setActive(addressFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi

@@ -47,13 +47,17 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (name: string, args: unknown) => h.rpc(name, args) },
 }));
 
-// GRANICA WYKRESU. `EChart` renderuje szkielet, a po zamontowaniu dociąga
-// `EChartClient` (≈1 MB silnika rysującego po canvasie). W teście liczy się
-// nie obraz, tylko DANE, które panel na wykres wysyła - atrapa wystawia je
-// w atrybucie, żeby nie mieszały się z tekstem strony.
-vi.mock("@/components/admin/analytics/EChart", () => ({
-  EChart: ({ option, height }: { option: unknown; height?: number | string }) => (
-    <div data-testid="wykres" data-wysokosc={String(height)} data-opcja={JSON.stringify(option)} />
+// GRANICA WYKRESU. Trasa rysuje naszym silnikiem, ale przedmiotem TEGO testu
+// jest nie obraz, tylko DANE, które panel na wykres wysyła - silnik ma własne,
+// pełne testy renderu. Atrapa wystawia konfigurację w atrybucie, żeby jej
+// treść nie mieszała się z tekstem strony.
+vi.mock("@/components/charts/Chart", () => ({
+  Chart: ({ config }: { config: { height: number } }) => (
+    <div
+      data-testid="wykres"
+      data-wysokosc={String(config.height)}
+      data-opcja={JSON.stringify(config)}
+    />
   ),
 }));
 
@@ -155,32 +159,35 @@ function argumentyRpc(): { _from: string; _to: string } {
   return { _from: from, _to: to };
 }
 
-/** Dane, które panel podał wykresowi: kategorie osi i wartości serii. */
+/** Dane, które panel podał wykresowi: kategorie i wartości pierwszej serii. */
 function daneWykresu(): { kody: string[]; wartosci: number[] } {
   const surowe = screen.getByTestId("wykres").getAttribute("data-opcja");
-  if (!surowe) throw new Error("test: wykres nie dostał opcji");
-  const opcja: unknown = JSON.parse(surowe);
-  if (typeof opcja !== "object" || opcja === null || !("xAxis" in opcja) || !("series" in opcja)) {
-    throw new Error("test: opcja wykresu nie ma osi i serii");
+  if (!surowe) throw new Error("test: wykres nie dostał konfiguracji");
+  const konfiguracja: unknown = JSON.parse(surowe);
+  if (
+    typeof konfiguracja !== "object" ||
+    konfiguracja === null ||
+    !("categories" in konfiguracja) ||
+    !("series" in konfiguracja)
+  ) {
+    throw new Error("test: konfiguracja nie ma kategorii i serii");
   }
-  const os = opcja.xAxis;
-  const serie = opcja.series;
-  if (typeof os !== "object" || os === null || !("data" in os) || !Array.isArray(os.data)) {
-    throw new Error("test: oś kategorii nie niesie danych");
-  }
+  const kategorie = konfiguracja.categories;
+  const serie = konfiguracja.series;
+  if (!Array.isArray(kategorie)) throw new Error("test: kategorie nie są tablicą");
   if (!Array.isArray(serie) || serie.length === 0) throw new Error("test: brak serii wykresu");
   const pierwsza: unknown = serie[0];
   if (
     typeof pierwsza !== "object" ||
     pierwsza === null ||
-    !("data" in pierwsza) ||
-    !Array.isArray(pierwsza.data)
+    !("values" in pierwsza) ||
+    !Array.isArray(pierwsza.values)
   ) {
     throw new Error("test: seria nie niesie wartości");
   }
   return {
-    kody: os.data.map((value: unknown) => String(value)),
-    wartosci: pierwsza.data.map((value: unknown) => Number(value)),
+    kody: kategorie.map((value: unknown) => String(value)),
+    wartosci: pierwsza.values.map((value: unknown) => Number(value)),
   };
 }
 

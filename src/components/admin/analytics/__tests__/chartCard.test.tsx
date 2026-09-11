@@ -1,5 +1,5 @@
 // `ChartCard` - powłoka każdego wykresu na /admin/analytics: nagłówek, menu
-// eksportu, pełny ekran i most między kliknięciem w ECharts a oknem szczegółów.
+// eksportu, pełny ekran i most między WSKAZANIEM z silnika a oknem szczegółów.
 //
 // PO CO. Sąsiad `chartCardA11y.test.tsx` dowodzi JEDNEJ rzeczy: że kanwa
 // dostaje nazwę i tekstową alternatywę. Reszta powłoki stała nietknięta
@@ -8,40 +8,43 @@
 //
 //   1. EKSPORT WYPUSZCZA DANE Z APLIKACJI. `doPng` i `doCsv` to jedyne dwie
 //      drogi, którymi liczby warsztatu opuszczają panel jako plik. Nazwa pliku
-//      liczy się z tytułu (`slug`), a instancja wykresu jest łapana przez
-//      `onReady` - jeśli ten most się urwie, klik w „Eksport PNG" jest cichym
-//      no-opem: żadnego błędu, żadnego pliku, operator myśli, że pobrał raport.
+//      liczy się z tytułu (`slug`), a rysunek bierze się z KONTENERA karty -
+//      silnik nie wystawia uchwytu do swojego SVG i nie powinien, bo to
+//      szczegół renderu. Jeśli ten most się urwie, klik w „Eksport PNG" jest
+//      cichym no-opem: żadnego błędu, żadnego pliku, a operator myśli, że
+//      pobrał raport.
 //   2. POZYCJA CSV ISTNIEJE WARUNKOWO. Karta bez danych tabelarycznych NIE MOŻE
 //      pokazywać „Eksport CSV" - to obietnica pliku, którego nie ma.
-//   3. MOST KLIKNIĘCIA. `handleClick` jest zawijany tylko wtedy, gdy karta
-//      dostała `onDataClick`; mapowanie zwracające `null` (klik w linię progową,
-//      w tło, w legendę) NIE MOŻE otwierać pustego okna. Tu przejeżdżają trzy
-//      kształty zdarzenia, jakie ECharts naprawdę oddaje: klik w słupek serii,
-//      klik w wycinek kołowego i klik w element bez danych.
+//   3. MOST WSKAZANIA. `handleSelect` jest zawijany tylko wtedy, gdy karta
+//      dostała `onDataClick`; mapowanie zwracające `null` (wskazanie bez
+//      kategorii, wyczyszczone zaznaczenie, rodzaj bez wskazania) NIE MOŻE
+//      otwierać pustego okna. Tu przejeżdżają trzy kształty wskazania, jakie
+//      silnik naprawdę oddaje: kategoria z jedną serią, wycinek tarczy
+//      i wskazanie puste.
 //   4. PEŁNY EKRAN ZMIENIA WYSOKOŚĆ WYKRESU, nie tylko ikonę. Przełącznik bez
 //      przekazanej wysokości daje kartę na cały ekran z wykresem wielkości
 //      miniatury.
 //
-// ECHARTS JEST TU ZAKAZANY (nagłówek `EChart.tsx`). Atrapa `EChart` przechwytuje
-// `option`, `height`, `onReady` i `onDataClick`, i wystawia je testowi - dzięki
-// temu asercje idą na KONTRAKT karty z rendererem, a nie na piksele.
-// `./exportChart` też jest atrapą: jego własna poprawność ma pełny test
+// SILNIK JEST TU PODGLĄDANY, NIE PODMIENIANY. Szpieg zapisuje konfigurację,
+// obsługę wskazania i nazwę regionu, po czym oddaje sterowanie prawdziwemu
+// `Chart` - inaczej zniknęłyby z dokumentu tabela danych i nazwa rysunku,
+// czyli dokładnie to, czego dotyczy granica między kartą a silnikiem.
+// `./exportChart` zostaje atrapą: jego własna poprawność ma pełny test
 // (`exportChart.test.ts`), a tutaj przedmiotem dowodu jest OKABLOWANIE.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { EChartsCoreOption } from "echarts/core";
-import type { ChartClickParams, ChartDrillDetail } from "../ChartDrillDialog";
+import type { ChartConfig } from "@/lib/charts/types";
+import type { ChartSelection } from "@/lib/charts/selection";
+import type { ChartDrillDetail } from "../ChartDrillDialog";
 
 const h = vi.hoisted(() => ({
   exportCsv: vi.fn(),
   exportPng: vi.fn(),
   wykresy: [] as Array<{
-    option: Record<string, unknown>;
-    height?: number | string;
-    onDataClick?: (p: ChartClickParams) => void;
+    config: ChartConfig;
+    onSelect?: (selection: ChartSelection) => void;
+    ariaLabel?: string;
   }>,
-  /** Atrapa instancji ECharts oddawana przez `onReady`. */
-  instancja: { getDataURL: () => "data:image/png;base64,AAAA" },
 }));
 
 vi.mock("../exportChart", () => ({
@@ -49,29 +52,17 @@ vi.mock("../exportChart", () => ({
   exportPng: (...args: unknown[]) => h.exportPng(...args),
 }));
 
-// Atrapa renderera: zapisuje to, co karta jej podała, i NATYCHMIAST melduje
-// gotowość instancji - dokładnie tak, jak robi to `EChartClient` po `init`.
-vi.mock("../EChart", async () => {
-  const react = await import("react");
+vi.mock("@/components/charts/Chart", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/charts/Chart")>();
   return {
-    EChart: ({
-      option,
-      height,
-      onReady,
-      onDataClick,
-    }: {
-      option: Record<string, unknown>;
-      height?: number | string;
-      onReady?: (instance: unknown) => void;
-      onDataClick?: (p: ChartClickParams) => void;
-    }) => {
-      const indeks = react.useRef<number>(-1);
-      if (indeks.current === -1) indeks.current = h.wykresy.length;
-      h.wykresy[indeks.current] = { option, height, onDataClick };
-      react.useEffect(() => {
-        onReady?.(h.instancja);
-      }, [onReady]);
-      return <div data-testid="echart" data-chart-index={indeks.current} />;
+    ...real,
+    Chart: (props: Parameters<typeof real.Chart>[0]) => {
+      h.wykresy.push({
+        config: props.config,
+        onSelect: props.onSelect,
+        ariaLabel: props.ariaLabel,
+      });
+      return real.Chart(props);
     },
   };
 });
@@ -81,12 +72,17 @@ import { realT } from "@/test/i18nReal";
 import i18n from "@/lib/i18n";
 import { axeViolations, summarize } from "@/test/axe";
 import { ChartCard, type ChartCardProps } from "../ChartCard";
+import { biChart } from "../biChart";
 
 // ---------------------------------------------------------------------------
 // Dane
 // ---------------------------------------------------------------------------
 
-const OPCJA: EChartsCoreOption = { series: [{ type: "bar", data: [1, 2, 3] }] };
+const KONFIG: ChartConfig = biChart({
+  kind: "bar",
+  categories: ["2026-08-01", "2026-08-02", "2026-08-03"],
+  series: [{ name: "Odsłony", values: [1200, 1580, 1410] }],
+});
 
 const CSV: NonNullable<ChartCardProps["csv"]> = {
   filename: "odslony-wpisow.csv",
@@ -97,33 +93,41 @@ const CSV: NonNullable<ChartCardProps["csv"]> = {
   ],
 };
 
-/** Trzy kształty zdarzenia, jakie ECharts oddaje handlerowi `click`. */
-const KLIK_SERIA: ChartClickParams = {
-  componentType: "series",
-  seriesType: "bar",
+/** Trzy kształty wskazania, jakie silnik oddaje karcie. */
+const WSKAZANIE_SLUPEK: ChartSelection = {
+  kind: "bar",
+  categoryIndex: 1,
+  category: "2026-08-02",
   seriesIndex: 0,
   seriesName: "Odsłony",
-  name: "2026-08-02",
-  dataIndex: 1,
   value: 1580,
-  data: { name: "2026-08-02", value: 1580 },
 };
 
-const KLIK_WYCINEK: ChartClickParams = {
-  componentType: "series",
-  seriesType: "pie",
+const WSKAZANIE_WYCINEK: ChartSelection = {
+  kind: "donut",
+  categoryIndex: 0,
+  category: "organic",
   seriesIndex: 0,
-  name: "organic",
-  dataIndex: 0,
+  seriesName: "Sesje",
   value: 64,
-  data: { name: "organic", value: 64 },
 };
 
-/** Klik w linię progową / oś / tło - element bez własnych danych. */
-const KLIK_BEZ_DANYCH: ChartClickParams = { componentType: "markLine", seriesIndex: 0 };
+/**
+ * Wskazanie PUSTE - wyczyszczone zaznaczenie albo rodzaj, który wskazania nie
+ * oddaje (histogram, boxplot, beeswarm: wiersz danych nie odpowiada tam
+ * jednemu elementowi rysunku).
+ */
+const WSKAZANIE_BEZ_DANYCH: ChartSelection = {
+  kind: "histogram",
+  categoryIndex: null,
+  category: null,
+  seriesIndex: null,
+  seriesName: null,
+  value: null,
+};
 
 function karta(props: Partial<ChartCardProps> = {}) {
-  return render(<ChartCard title="Odsłony wpisów" option={OPCJA} {...props} />);
+  return render(<ChartCard title="Odsłony wpisów" config={KONFIG} {...props} />);
 }
 
 /**
@@ -231,9 +235,11 @@ describe("ChartCard - menu eksportu", () => {
     expect(h.exportCsv).toHaveBeenCalledWith(CSV.filename, CSV.headers, CSV.rows);
   });
 
-  it("PNG dostaje INSTANCJĘ wykresu złapaną przez `onReady`, nie `null`", async () => {
-    // To jest cały sens `handleReady`: bez niej `exportPng` dostaje `null`,
-    // wraca no-opem i klik w menu nie robi NIC - bez śladu w konsoli.
+  it("PNG dostaje KONTENER RYSUNKU, w którym stoi SVG - nie `null`", async () => {
+    // To jest cały sens `plotRef`: bez niego `exportPng` dostaje `null`, wraca
+    // no-opem i klik w menu nie robi NIC - bez śladu w konsoli. Silnik nie
+    // wystawia uchwytu do swojego SVG i nie powinien (to szczegół renderu),
+    // więc karta podaje własny kontener, a eksport znajduje rysunek w środku.
     const t = realT("pl");
     karta();
 
@@ -241,7 +247,9 @@ describe("ChartCard - menu eksportu", () => {
     fireEvent.click(m.getByRole("button", { name: t("adminAnalytics.chartCard.exportPng") }));
 
     expect(h.exportPng).toHaveBeenCalledTimes(1);
-    expect(h.exportPng.mock.calls[0][1]).toBe(h.instancja);
+    const kontener = h.exportPng.mock.calls[0][1] as HTMLElement | null;
+    expect(kontener).toBeInstanceOf(HTMLElement);
+    expect(kontener?.querySelector("svg")).toBeTruthy();
   });
 
   it("nazwa pliku PNG to SLUG tytułu - bez polskich znaków, spacji i ukośników", async () => {
@@ -300,21 +308,39 @@ describe("ChartCard - pełny ekran", () => {
   });
 
   it("pełny ekran ROZCIĄGA wykres, a nie tylko ramkę karty", () => {
-    // Bez zmiany wysokości karta zajmuje cały ekran, a wykres zostaje w
-    // rozmiarze miniatury - najczęstszy regres tego przełącznika.
+    // Bez zmiany wysokości karta zajmuje cały ekran, a wykres zostaje
+    // w rozmiarze miniatury - najczęstszy regres tego przełącznika.
+    //
+    // WYSOKOŚĆ JEDZIE PRZEZ KONFIGURACJĘ, nie stylem kontenera: silnik liczy
+    // z niej geometrię (pasma, odstępy, próg etykiety w łuku), więc rysunek
+    // rozciągnięty CSS-em rozjechałby się z własnymi obliczeniami. Stąd
+    // liczba, a nie `calc(100vh - 120px)` jak przy kanwie ECharts.
     const t = realT("pl");
     karta({ height: 240 });
-    expect(h.wykresy.at(-1)?.height).toBe(240);
+    expect(h.wykresy.at(-1)?.config.height).toBe(240);
 
     fireEvent.click(screen.getByRole("button", { name: t("adminAnalytics.chartCard.fullscreen") }));
 
-    expect(h.wykresy.at(-1)?.height).toBe("calc(100vh - 120px)");
+    expect(h.wykresy.at(-1)?.config.height).toBe(560);
   });
 
   it("domyślna wysokość wykresu to 300 px, gdy karta jej nie dostała", () => {
     karta();
 
-    expect(h.wykresy.at(-1)?.height).toBe(300);
+    expect(h.wykresy.at(-1)?.config.height).toBe(300);
+  });
+
+  it("konfiguracja idzie do silnika z PUSTYM tytułem - nagłówek rysuje karta", () => {
+    // Rama silnika pomija swój własny nagłówek dokładnie wtedy, gdy tytuł
+    // i opis są puste. Dwa nagłówki nad jednym rysunkiem to nie ozdoba, tylko
+    // szum - a nazwę rysunku dla czytnika ekranu karta i tak podaje osobno.
+    karta();
+
+    expect(h.wykresy.at(-1)?.config.title).toBe("");
+    expect(h.wykresy.at(-1)?.config.description).toBe("");
+    expect(h.wykresy.at(-1)?.ariaLabel).toBe(
+      realT("pl")("adminAnalytics.chartCard.chartRegion", { title: "Odsłony wpisów" }),
+    );
   });
 
   it("pełny ekran przypina kartę do okna, zachowując klasę wołającego", () => {
@@ -332,62 +358,66 @@ describe("ChartCard - pełny ekran", () => {
 });
 
 describe("ChartCard - most kliknięcia i okno szczegółów", () => {
-  it("bez `onDataClick` renderer NIE dostaje handlera - żadnych zbędnych nasłuchów", () => {
+  it("bez `onDataClick` silnik NIE dostaje obsługi wskazania - żadnych zbędnych nasłuchów", () => {
     karta();
 
-    expect(h.wykresy.at(-1)?.onDataClick).toBeUndefined();
+    expect(h.wykresy.at(-1)?.onSelect).toBeUndefined();
   });
 
-  it("klik w SŁUPEK serii otwiera okno z ładunkiem zbudowanym z parametrów", async () => {
-    const mapuj = vi.fn((p: ChartClickParams): ChartDrillDetail => ({
-      title: String(p.name),
-      subtitle: `${p.seriesName}: ${String(p.value)}`,
+  it("wskazanie SŁUPKA otwiera okno z ładunkiem zbudowanym ze wskazania", async () => {
+    const mapuj = vi.fn((sel: ChartSelection): ChartDrillDetail => ({
+      title: String(sel.category),
+      subtitle: `${sel.seriesName}: ${String(sel.value)}`,
     }));
     karta({ onDataClick: mapuj });
 
     await act(async () => {
-      h.wykresy.at(-1)?.onDataClick?.(KLIK_SERIA);
+      h.wykresy.at(-1)?.onSelect?.(WSKAZANIE_SLUPEK);
     });
 
-    expect(mapuj).toHaveBeenCalledWith(KLIK_SERIA);
+    expect(mapuj).toHaveBeenCalledWith(WSKAZANIE_SLUPEK);
     const okno = await screen.findByRole("dialog", { name: "2026-08-02" });
     expect(within(okno).getByText("Odsłony: 1580")).toBeTruthy();
   });
 
-  it("klik w WYCINEK kołowego otwiera to samo okno - powłoka nie zna typu serii", async () => {
+  it("wskazanie WYCINKA otwiera to samo okno - powłoka nie zna rodzaju wykresu", async () => {
     karta({
-      onDataClick: (p) => ({ title: String(p.name), subtitle: `udział ${String(p.value)}%` }),
+      onDataClick: (sel) => ({
+        title: String(sel.category),
+        subtitle: `udział ${String(sel.value)}%`,
+      }),
     });
 
     await act(async () => {
-      h.wykresy.at(-1)?.onDataClick?.(KLIK_WYCINEK);
+      h.wykresy.at(-1)?.onSelect?.(WSKAZANIE_WYCINEK);
     });
 
     const okno = await screen.findByRole("dialog", { name: "organic" });
     expect(within(okno).getByText("udział 64%")).toBeTruthy();
   });
 
-  it("klik BEZ DANYCH (mapowanie oddaje null) NIE otwiera pustego okna", async () => {
-    // Linia progowa, oś i tło też generują `click`. Okno z samym tytułem
-    // „undefined" jest gorsze niż brak reakcji.
-    const mapuj = vi.fn((p: ChartClickParams) =>
-      p.componentType === "series" ? { title: String(p.name) } : null,
+  it("wskazanie BEZ DANYCH (mapowanie oddaje null) NIE otwiera pustego okna", async () => {
+    // Wyczyszczone zaznaczenie i rodzaje, które wskazania nie oddają, też
+    // dojeżdżają tą samą drogą. Okno z samym tytułem „null" jest gorsze niż
+    // brak reakcji.
+    const mapuj = vi.fn((sel: ChartSelection) =>
+      sel.category === null ? null : { title: sel.category },
     );
     karta({ onDataClick: mapuj });
 
     await act(async () => {
-      h.wykresy.at(-1)?.onDataClick?.(KLIK_BEZ_DANYCH);
+      h.wykresy.at(-1)?.onSelect?.(WSKAZANIE_BEZ_DANYCH);
     });
 
-    expect(mapuj).toHaveBeenCalledWith(KLIK_BEZ_DANYCH);
+    expect(mapuj).toHaveBeenCalledWith(WSKAZANIE_BEZ_DANYCH);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("zamknięcie okna kasuje ładunek - kolejny klik startuje od zera", async () => {
-    karta({ onDataClick: (p) => ({ title: String(p.name) }) });
+  it("zamknięcie okna kasuje ładunek - kolejne wskazanie startuje od zera", async () => {
+    karta({ onDataClick: (sel) => ({ title: String(sel.category) }) });
 
     await act(async () => {
-      h.wykresy.at(-1)?.onDataClick?.(KLIK_SERIA);
+      h.wykresy.at(-1)?.onSelect?.(WSKAZANIE_SLUPEK);
     });
     await screen.findByRole("dialog", { name: "2026-08-02" });
 
@@ -395,19 +425,19 @@ describe("ChartCard - most kliknięcia i okno szczegółów", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     await act(async () => {
-      h.wykresy.at(-1)?.onDataClick?.(KLIK_WYCINEK);
+      h.wykresy.at(-1)?.onSelect?.(WSKAZANIE_WYCINEK);
     });
     expect(await screen.findByRole("dialog", { name: "organic" })).toBeTruthy();
   });
 
-  it("drugi klik w ten sam wykres PODMIENIA treść okna, nie dokłada drugiego", async () => {
-    karta({ onDataClick: (p) => ({ title: String(p.name) }) });
+  it("drugie wskazanie w tym samym wykresie PODMIENIA treść okna, nie dokłada drugiego", async () => {
+    karta({ onDataClick: (sel) => ({ title: String(sel.category) }) });
 
     await act(async () => {
-      h.wykresy.at(-1)?.onDataClick?.(KLIK_SERIA);
+      h.wykresy.at(-1)?.onSelect?.(WSKAZANIE_SLUPEK);
     });
     await act(async () => {
-      h.wykresy.at(-1)?.onDataClick?.(KLIK_WYCINEK);
+      h.wykresy.at(-1)?.onSelect?.(WSKAZANIE_WYCINEK);
     });
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -437,7 +467,7 @@ describe("ChartCard - izolacja warsztatów", () => {
         <div data-testid="karta-a">
           <ChartCard
             title="Warsztat A"
-            option={OPCJA}
+            config={KONFIG}
             csv={csvA}
             onDataClick={() => ({ title: "warsztat-a.example.com" })}
           />
@@ -445,7 +475,7 @@ describe("ChartCard - izolacja warsztatów", () => {
         <div data-testid="karta-b">
           <ChartCard
             title="Warsztat B"
-            option={OPCJA}
+            config={KONFIG}
             csv={csvB}
             onDataClick={() => ({ title: "warsztat-b.example.org" })}
           />
@@ -464,7 +494,7 @@ describe("ChartCard - izolacja warsztatów", () => {
 
     // Drążenie karty A otwiera JEDNO okno i tylko z tytułem A.
     await act(async () => {
-      h.wykresy[0]?.onDataClick?.(KLIK_SERIA);
+      h.wykresy[0]?.onSelect?.(WSKAZANIE_SLUPEK);
     });
     const okno = await screen.findByRole("dialog");
     expect(okno.textContent).toContain("warsztat-a.example.com");
@@ -505,17 +535,20 @@ describe("ChartCard - dwujęzyczność i dostępność", () => {
     });
     karta({ title: "Impressions" });
 
+    // Po NAZWIE, a nie po roli: silnik daje rysunkom kartezjańskim rolę
+    // „img", ale tarczy - „group", bo jej wycinki są fokusowalne.
     expect(
-      screen.getByRole("img", {
-        name: realT("en")("adminAnalytics.chartCard.chartRegion", { title: "Impressions" }),
-      }),
+      screen.getByLabelText(
+        realT("en")("adminAnalytics.chartCard.chartRegion", { title: "Impressions" }),
+      ),
     ).toBeTruthy();
   });
 
-  it("karta z pełnym wyposażeniem jest czysta w axe poza nazwą wyzwalacza menu", async () => {
-    // `button-name` wyłączone ŚWIADOMIE i tylko tutaj - to osobny, przypięty
-    // niżej defekt. Cała reszta (region wykresu, tabela danych, nagłówki
-    // kolumn, stopka) musi przechodzić bez ulg.
+  it("karta z pełnym wyposażeniem jest czysta w axe - bez ani jednej ulgi", async () => {
+    // BEZ WYŁĄCZANIA REGUŁ. Wcześniej `button-name` musiała tu być wygaszona,
+    // bo wyzwalacz menu eksportu był samą ikoną bez nazwy; defekt jest
+    // zamknięty, więc ulga zniknęła. Reszta - region wykresu, tabela danych,
+    // nagłówki kolumn, stopka - przechodziła bez ulg już wcześniej.
     const { container } = karta({
       subtitle: "Ostatnie 30 dni",
       csv: CSV,
@@ -523,8 +556,7 @@ describe("ChartCard - dwujęzyczność i dostępność", () => {
       onDataClick: () => null,
     });
 
-    const naruszenia = await axeViolations(container, { "button-name": { enabled: false } });
-    expect(summarize(naruszenia)).toBe("");
+    expect(summarize(await axeViolations(container))).toBe("");
   });
 
   it("KAŻDY przycisk powłoki ma dostępną nazwę, także wyzwalacz menu eksportu", () => {

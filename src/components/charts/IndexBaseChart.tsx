@@ -82,6 +82,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
+import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
 /**
  * OBSERWACJE DLA CZYTELNIKA, wypisane jawnie. Sklejenie
@@ -200,9 +201,32 @@ interface IndexBaseChartProps {
    * a wtedy model bierze pierwszy okres i sam to nazywa.
    */
   baseAt?: number | null;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem albo klawiszem Enter.
+   *
+   * Osobno od stanu wewnętrznego: wskazanie wskaźnikiem jest PODGLĄDEM i gaśnie
+   * samo, a wybór jest DECYZJĄ czytelnika i ma prawo otworzyć okno szczegółów.
+   */
+  onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
+export function IndexBaseChart({
+  config,
+  lang,
+  baseAt,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: IndexBaseChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -362,6 +386,15 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
   // martwym zabezpieczeniem udającym ostrożność. Przycięcie do zakresu robi
   // `Math.min`/`Math.max` niżej i ono jest osłoną realną.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę:
+    // Enter na wskazanym elemencie jest decyzją, a nie ruchem po osi.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        onSelect(categorySelection(config.kind, config.categories, config.series, active));
+      }
+      return;
+    }
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
       const delta = e.key === "ArrowRight" ? 1 : -1;
@@ -698,13 +731,15 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
             colorSlot: s.indexable ? s.colorSlot : null,
           }));
 
-  const ariaLabel = [
-    config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
-    t("indexBase.base.label", { period: model.baseLabel }),
-    t("indexBase.axis.unitless"),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
+      t("indexBase.base.label", { period: model.baseLabel }),
+      t("indexBase.axis.unitless"),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
@@ -932,7 +967,13 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
             width={innerW}
             height={innerH}
             fill="transparent"
-            onPointerDown={(e) => setActive(indexFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = indexFromPointer(e);
+              setActive(i);
+              if (i !== null && onSelect) {
+                onSelect(categorySelection(config.kind, config.categories, config.series, i));
+              }
+            }}
             onPointerMove={(e) => setActive(indexFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi

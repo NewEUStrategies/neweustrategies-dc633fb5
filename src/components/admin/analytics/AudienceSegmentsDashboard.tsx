@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { EChartsCoreOption } from "echarts/core";
+import { biChart } from "./biChart";
 import { useCurrentTenantId } from "@/lib/tenant";
 import { ChartCard } from "./ChartCard";
 import { InsightSection, type Insight } from "./InsightSection";
@@ -163,37 +163,26 @@ export function AudienceSegmentsDashboard() {
       ? undefined
       : t("adminAnalytics.audience.uniqueHint", { count: value });
 
-  const chartOption = useMemo<EChartsCoreOption>(() => {
-    const series = report?.series ?? [];
-    const dates = series.map((s) => s.day);
-    const logged = series.map((s) => s.logged);
-    const anon = series.map((s) => s.anon);
-    return {
-      tooltip: { trigger: "axis" },
-      legend: {
-        data: [t("adminAnalytics.audience.logged"), t("adminAnalytics.audience.anon")],
-        top: 0,
-      },
-      grid: { top: 32, left: 40, right: 16, bottom: 32 },
-      xAxis: { type: "category", data: dates, axisLabel: { fontSize: 10 } },
-      yAxis: { type: "value" },
+  // STOS DZIENNY: zalogowani i anonimowi sumują się do wszystkich odsłon, więc
+  // stos jest tu poprawny - segmenty są CZĘŚCIAMI jednej całości, a nie dwiema
+  // niezależnymi wielkościami.
+  //
+  // KOLORY IDĄ Z PALETY, nie z literałów OKLCh wpisanych w opcję. Tamte dwa
+  // (`oklch(0.7 0.18 145)` i `oklch(0.8 0.15 75)`) nie przechodziły przez
+  // audyt kontrastu ani przez sprawdzenie rozdzielności dla daltonizmu - a to
+  // jest dokładnie ta para, którą czytelnik ma odróżnić w jednym słupku.
+  const chartConfig = useMemo(() => {
+    const seria = report?.series ?? [];
+    return biChart({
+      kind: "bar",
+      stacked: true,
+      categories: seria.map((s) => s.day),
       series: [
-        {
-          name: t("adminAnalytics.audience.logged"),
-          type: "bar",
-          stack: "views",
-          data: logged,
-          itemStyle: { color: "oklch(0.7 0.18 145)" },
-        },
-        {
-          name: t("adminAnalytics.audience.anon"),
-          type: "bar",
-          stack: "views",
-          data: anon,
-          itemStyle: { color: "oklch(0.8 0.15 75)" },
-        },
+        { name: t("adminAnalytics.audience.logged"), values: seria.map((s) => s.logged) },
+        { name: t("adminAnalytics.audience.anon"), values: seria.map((s) => s.anon) },
       ],
-    };
+      sampleSize: seria.reduce((a, s) => a + s.logged + s.anon, 0),
+    });
   }, [report, t]);
 
   const dailyTitle = t("adminAnalytics.audience.dailyViews");
@@ -201,9 +190,9 @@ export function AudienceSegmentsDashboard() {
   /**
    * ALTERNATYWA TEKSTOWA WYKRESU: te same dane, co na kanwie.
    *
-   * Bez `csv` `ChartCard` oddaje czytnikowi ekranu prostokąt z samą nazwą;
-   * z `csv` dokłada tabelę (`ChartDataTable`) i wiąże ją z regionem wykresu
-   * przez `aria-describedby` - a przy okazji odsłania eksport CSV.
+   * Tabelę rysuje teraz SILNIK przy każdym rodzaju, więc `csv` nie jest już
+   * warunkiem dostępności - zostaje jako źródło EKSPORTU, bo plik bywa
+   * bogatszy od rysunku.
    */
   const dailyCsv = useMemo(
     () => ({
@@ -408,7 +397,7 @@ export function AudienceSegmentsDashboard() {
 
       <ChartCard
         title={dailyTitle}
-        option={chartOption}
+        config={chartConfig}
         height={280}
         csv={dailyCsv}
         badge={

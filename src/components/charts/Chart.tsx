@@ -107,14 +107,31 @@ const TORNADO_NOTE_KEYS: Record<TornadoRowNote, string> = {
 };
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
+import type { ChartSelectHandler } from "@/lib/charts/selection";
 
 interface ChartProps {
   config: ChartConfig;
   lang: ChartLang;
   className?: string;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem w znacznik albo klawiszem
+   * Enter na wskazanym elemencie.
+   *
+   * Pominięcie tej właściwości znaczy „wykres tylko do czytania" i tak jest
+   * we wpisie: czytelnik opublikowanej strony nie ma gdzie zejść głębiej.
+   * Podaje ją panel analityczny, który po wskazaniu otwiera okno szczegółów.
+   *
+   * TRZY RODZAJE ROZKŁADU WSKAZANIA NIE ODDAJĄ - patrz `BEZ_WSKAZANIA` niżej.
+   */
+  onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku, gdy tytuł jest pusty, bo nagłówek rysuje
+   * osadzenie. Bez niej wszystkie wykresy pulpitu nazywają się „Wykres".
+   */
+  ariaLabel?: string;
 }
 
-export function Chart({ config, lang, className }: ChartProps) {
+export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartProps) {
   // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
   // kod<->słownik; klucz sklejony template literalem wypada z kontroli
   // parytetu PL/EN.
@@ -280,7 +297,7 @@ export function Chart({ config, lang, className }: ChartProps) {
       table={table}
       className={className}
     >
-      <Drawing config={config} lang={lang} />
+      <Drawing config={config} lang={lang} onSelect={onSelect} ariaLabel={ariaLabel} />
     </ChartFrame>
   );
 }
@@ -308,7 +325,12 @@ export function Chart({ config, lang, className }: ChartProps) {
  * położeniem na wspólnej skali kategorialnej. Rozkłady i tarcza nie kodują
  * jej tak i dlatego mają własne komponenty.
  */
-type KindView = (props: { config: ChartConfig; lang: ChartLang }) => ReactElement | null;
+type KindView = (props: {
+  config: ChartConfig;
+  lang: ChartLang;
+  onSelect?: ChartSelectHandler;
+  ariaLabel?: string;
+}) => ReactElement | null;
 
 const DRAWING_BY_KIND: Record<ChartKind, KindView> = {
   line: CartesianChart,

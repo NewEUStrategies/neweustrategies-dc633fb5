@@ -7,20 +7,19 @@
  * same funkcje serwerowe co pełne dashboardy (`getVitalsSummary`,
  * `getClientErrorsReport`), więc liczby nigdy nie rozjadą się z /admin/analytics.
  *
- * ECharts wchodzi tu wyłącznie przez `ChartCard` -> `EChart`, czyli lazy po
- * stronie klienta - graf SSR nie dotyka echarts (patrz komentarz w EChart.tsx).
+ * Rysuje przez `ChartCard`, czyli przez ten sam silnik, co wykres we wpisie -
+ * paleta, geometria i interakcja są więc jedne dla całej platformy.
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import type { EChartsCoreOption } from "echarts/core";
 
 import "@/lib/i18n-admin-analytics";
 import { Card } from "@/components/ui/card";
 import { ChartCard } from "./ChartCard";
-import { useChartTheme } from "./useChartTheme";
+import { biChart } from "./biChart";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
 import { getClientErrorsReport } from "@/lib/observability/clientErrors.functions";
 
@@ -44,7 +43,6 @@ function KpiTile({ label, value, hint }: { label: string; value: string; hint?: 
 
 export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiStripProps) {
   const { t } = useTranslation();
-  const theme = useChartTheme();
   const fetchVitals = useServerFn(getVitalsSummary);
   const fetchErrors = useServerFn(getClientErrorsReport);
 
@@ -68,49 +66,50 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
     [vitalsQ.data],
   );
 
-  const lcpOption: EChartsCoreOption = useMemo(
-    () => ({
-      tooltip: { trigger: "axis" },
-      grid: { left: 44, right: 12, top: 16, bottom: 28 },
-      xAxis: { type: "category", data: trend.map((p) => p.day.slice(5)) },
-      yAxis: { type: "value", axisLabel: { formatter: "{value} ms" } },
-      series: [
-        {
-          type: "line",
-          smooth: true,
-          showSymbol: false,
-          data: trend.map((p) => p.value),
-          lineStyle: { width: 2, color: theme.primary },
-          itemStyle: { color: theme.primary },
-          areaStyle: { opacity: 0.12, color: theme.primary },
-          markLine: {
-            silent: true,
-            symbol: "none",
-            lineStyle: { color: theme.success, type: "dashed" },
-            data: [{ yAxis: 2500 }],
-          },
-        },
-      ],
-    }),
-    [trend, theme],
+  // LCP: szereg dzienny, więc ŁAMANA (`smoothing: 0`). Wygładzenie rysuje
+  // między pomiarami krzywą, której nikt nie zmierzył, a przy metryce
+  // wydajności to jest dokładnie ta informacja, o którą tu chodzi - czy dzień
+  // odstaje od sąsiadów.
+  const lcpConfig = useMemo(
+    () =>
+      biChart({
+        kind: "line",
+        categories: trend.map((p) => p.day.slice(5)),
+        series: [
+          { name: t("adminAnalytics.bi.charts.lcpTrend"), values: trend.map((p) => p.value) },
+        ],
+        unit: " ms",
+        sampleSize: trend.length,
+        smoothing: 0,
+        showLegend: false,
+      }),
+    [trend, t],
   );
 
-  const daily = errorsQ.data?.daily ?? [];
-  const errorsOption: EChartsCoreOption = useMemo(
-    () => ({
-      tooltip: { trigger: "axis" },
-      grid: { left: 44, right: 12, top: 16, bottom: 28 },
-      xAxis: { type: "category", data: daily.map((d) => d.day.slice(5)) },
-      yAxis: { type: "value" },
-      series: [
-        {
-          type: "bar",
-          data: daily.map((d) => d.count),
-          itemStyle: { color: theme.danger, borderRadius: [3, 3, 0, 0] },
-        },
-      ],
-    }),
-    [daily, theme],
+  // Stabilna referencja: `?? []` tworzy NOWĄ tablicę przy każdym renderze,
+  // więc bez tego `useMemo` niżej przeliczałby konfigurację w kółko - a wykres
+  // przebudowany przy każdym renderze gubi stan wskazania.
+  const daily = useMemo(() => errorsQ.data?.daily ?? [], [errorsQ.data]);
+  // Błędy klienta idą DOMYŚLNYM slotem palety, i to jest decyzja, nie
+  // przeoczenie: sloty serii niosą TOŻSAMOŚĆ, a nie ocenę. Kolor „zły" ma
+  // w tym systemie osobne tokeny (`--chart-negative`) zarezerwowane dla
+  // ZNAKU wartości, a `SLOTS_CLASHING_WITH_SIGN` wyklucza z ich sąsiedztwa
+  // nawet terakotę. Że wzrost błędów jest zły, mówi tytuł wykresu.
+  const errorsConfig = useMemo(
+    () =>
+      biChart({
+        kind: "bar",
+        categories: daily.map((d) => d.day.slice(5)),
+        series: [
+          {
+            name: t("adminAnalytics.bi.charts.errorsDaily"),
+            values: daily.map((d) => d.count),
+          },
+        ],
+        sampleSize: daily.reduce((a, d) => a + d.count, 0),
+        showLegend: false,
+      }),
+    [daily, t],
   );
 
   return (
@@ -153,7 +152,7 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
         <ChartCard
           title={t("adminAnalytics.bi.charts.lcpTrend")}
           subtitle={t("adminAnalytics.bi.charts.lcpTrendSub")}
-          option={lcpOption}
+          config={lcpConfig}
           height={220}
           csv={{
             filename: "lcp-p75",
@@ -164,7 +163,7 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
         <ChartCard
           title={t("adminAnalytics.bi.charts.errorsDaily")}
           subtitle={t("adminAnalytics.bi.charts.errorsDailySub")}
-          option={errorsOption}
+          config={errorsConfig}
           height={220}
           csv={{
             filename: "client-errors-daily",

@@ -120,9 +120,19 @@ const TOUCHING_EDGE_PX = 1;
 interface HistogramChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function HistogramChart({ config, lang }: HistogramChartProps) {
+export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: HistogramChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -356,17 +366,19 @@ export function HistogramChart({ config, lang }: HistogramChartProps) {
       ]
     : [];
 
-  const ariaLabel = [
-    config.title,
-    t("histogram.rule.label", {
-      rule: t(`histogram.rule.${model.rule}`),
-      count: model.binCount,
-    }),
-    t("histogram.summary.n"),
-    String(model.summary.n),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      t("histogram.rule.label", {
+        rule: t(`histogram.rule.${model.rule}`),
+        count: model.binCount,
+      }),
+      t("histogram.summary.n"),
+      String(model.summary.n),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>

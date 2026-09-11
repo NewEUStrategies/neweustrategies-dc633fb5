@@ -20,10 +20,11 @@
 //      personalizacja vs nic). Przesunięcie granicy albo zamiana gałęzi
 //      `if`/`else if` nie wywraca panelu - podmienia polecenie przy
 //      niezmienionym wyglądzie karty. Asercje idą na napisy ze słownika.
-//   3. SEGMENT MUSI TRAFIĆ DO SWOJEJ SERII. Wykres to dwa słupki w stosie
-//      `views`. Zamiana `logged` z `anon` (albo podpięcie tej samej tablicy
+//   3. SEGMENT MUSI TRAFIĆ DO SWOJEJ SERII. Wykres to dwa słupki w JEDNYM
+//      stosie. Zamiana `logged` z `anon` (albo podpięcie tej samej tablicy
 //      dwa razy) daje wykres, który się rysuje i kłamie. Dlatego sprawdzamy
-//      PARĘ nazwa-dane w opcji oddanej kanwie, nie sam fakt renderu.
+//      PARĘ nazwa-dane w konfiguracji oddanej silnikowi ORAZ w tabeli, którą
+//      silnik z niej narysował - nie sam fakt renderu.
 //   4. OKNO CZASU. Zmiana presetu ma przestawić WEJŚCIE funkcji serwerowej
 //      (`{ days }`), nie tylko etykietę w selekcie.
 //   5. IZOLACJA WARSZTATOW. `queryKey: ["admin","audience-segments", days]` nie
@@ -41,13 +42,26 @@
 //
 //   7. DOSTĘPNOŚĆ BEZ ULG. Oba przebiegi axe (panel z danymi i bez) asertują
 //      PEŁNĄ listę naruszeń równą pustej. Selektor okna ma nazwę ze słownika, a
-//      wykres - `role="img"` z nazwą i tabelę danych powiązaną przez
-//      `aria-describedby`, bo idzie przez `ChartCard` z `csv`.
+//      wykres - nazwę regionu zbudowaną z tytułu karty, podpowiedź obsługi
+//      klawiaturą i tabelę tych samych liczb.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
-// atrapą, która PRZECHWYTUJE `option`. Dzięki temu serie i legenda są badane na
-// strukturze danych oddanej wykresowi, a nie na pikselach - i ~1 MB biblioteki
-// nigdy nie wchodzi do procesu testowego.
+// PULPIT RYSUJE NASZYM SILNIKIEM, nie ECharts - i ten plik nie podmienia go
+// atrapą, tylko PODGLĄDA. `Chart` jest opakowany szpiegiem, który zapisuje
+// `config`, `onSelect` i `ariaLabel`, a potem woła PRAWDZIWY komponent. Dzięki
+// temu przydział segmentów do serii, stos i kolejność dni sprawdzają się na
+// konfiguracji ODDANEJ silnikowi, a nazwa regionu, klucz i tabela danych - na
+// tym, co silnik z niej NAPRAWDĘ narysował. Atrapa dowodziłaby wyłącznie tego,
+// że panel woła funkcję, i zabierałaby przy tym panelowi dokładnie te elementy,
+// których pilnuje blok dostępności niżej. Ten sam wzorzec:
+// `vitalsBiDashboard.test.tsx`, `ga4BiDashboard.test.tsx`, `gscBiDashboard.test.tsx`.
+//
+// DLACZEGO PRZEPISANIE ASERCJI NIE JEST KOSMETYKĄ. `ChartConfig` opisuje DANE,
+// nie rysunek: ma `categories` i `series[].values`, a nie `xAxis.data` ani
+// `series[].data`; o jednym stosie rozstrzyga para `kind` + `stacked`, a nie
+// łańcuch `stack: "views"` powtórzony przy każdej serii; klucz rysuje rama
+// silnika z nazw serii, więc osobnej listy `legend.data` nie ma czego rozjechać
+// z danymi. Asercja przepisana jeden do jednego ze starego kształtu opisywałaby
+// pola, których silnik w ogóle nie czyta - czyli mierzyłaby literał w teście.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
@@ -57,13 +71,17 @@ import type {
   AudienceDayPoint,
 } from "@/lib/analytics/audience.functions";
 import type { AppLang } from "@/lib/i18n/localePath";
-
-type Opt = Record<string, unknown>;
+import type { ChartConfig } from "@/lib/charts/types";
+import type { ChartSelection } from "@/lib/charts/selection";
 
 const h = vi.hoisted(() => ({
   fetchAudience: vi.fn(),
   tenantId: "tenant-alfa" as string | null,
-  charts: [] as Array<{ option: Record<string, unknown>; height?: number | string }>,
+  charts: [] as Array<{
+    config: ChartConfig;
+    onSelect?: (selection: ChartSelection) => void;
+    ariaLabel?: string;
+  }>,
 }));
 
 // `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
@@ -87,15 +105,22 @@ vi.mock("@/lib/tenant", () => ({
   useCurrentTenantId: () => h.tenantId,
 }));
 
-// Atrapa odwzorowuje to, co daje PRAWDZIWY `EChart`: element bez żadnej nazwy
-// dostępnej (na serwerze `aria-hidden` szkielet, na kliencie kanwa). Dzięki
-// temu asercja o braku tekstowej alternatywy mierzy panel, nie atrapę.
-vi.mock("../EChart", () => ({
-  EChart: ({ option, height }: { option: Record<string, unknown>; height?: number | string }) => {
-    h.charts.push({ option, height });
-    return <div data-testid="echart" />;
-  },
-}));
+// SILNIK NIE JEST ATRAPĄ - jest PODSŁUCHANY. Atrapa zabierałaby panelowi nazwę
+// regionu, klucz i tabelę danych, czyli dokładnie to, czego pilnuje blok
+// dostępności niżej; a sama konfiguracja bez narysowanego wykresu nie dowodzi,
+// że panel cokolwiek POKAZUJE. Opakowanie oddaje jedno i drugie: przechwytuje
+// `ChartConfig` ORAZ renderuje prawdziwy rysunek z prawdziwą alternatywą
+// tekstową.
+vi.mock("@/components/charts/Chart", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/charts/Chart")>();
+  return {
+    ...real,
+    Chart: (props: Parameters<typeof real.Chart>[0]) => {
+      h.charts.push({ config: props.config, onSelect: props.onSelect, ariaLabel: props.ariaLabel });
+      return real.Chart(props);
+    },
+  };
+});
 
 // `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
 // dowodu jest to, że napisy przychodzą ZE SŁOWNIKA.
@@ -108,6 +133,16 @@ import { AudienceSegmentsDashboard } from "../AudienceSegmentsDashboard";
 // ---------------------------------------------------------------------------
 // Słownik
 // ---------------------------------------------------------------------------
+
+/**
+ * DNI OKNA TESTOWEGO - jedno źródło prawdy zamiast literału powtórzonego
+ * kilkanaście razy. Nazwa mówi, który to dzień szeregu, więc asercja
+ * o kolejności kategorii czyta się bez cofania wzroku do fabryki wiersza;
+ * przy okazji plik przestaje rozsiewać tę samą datę po dziesięciu miejscach,
+ * co bramka `check:clock-freeze` liczy jako sprzężenie z zegarem.
+ */
+const DZIEN_1 = "2026-08-01";
+const DZIEN_2 = "2026-08-02";
 
 function aud(path: string, vars: Record<string, unknown> = {}, lang: AppLang = "pl"): string {
   return realT(lang)(`adminAnalytics.audience.${path}`, vars);
@@ -196,7 +231,7 @@ const NEUTRAL = result({
   anon: 500,
   uniqueLogged: 200,
   uniqueAnon: 400,
-  series: [day("2026-08-01", 300, 200), day("2026-08-02", 200, 300)],
+  series: [day(DZIEN_1, 300, 200), day(DZIEN_2, 200, 300)],
   topLogged: [post("p-log", "Energia w regionie", 120, 40)],
   topAnon: [post("p-anon", "Klimat i miasta", 300, 250)],
 });
@@ -209,7 +244,7 @@ const TENANT_B = "tenant-beta";
 const WORKSPACE_A = result({
   logged: 100,
   anon: 100,
-  series: [day("2026-08-01", 100, 100)],
+  series: [day(DZIEN_1, 100, 100)],
   topLogged: [post("a-1", "ALFA analiza energetyczna", 100, 10)],
   topAnon: [post("a-2", "ALFA raport klimatyczny", 100, 90)],
 });
@@ -218,7 +253,7 @@ const WORKSPACE_A = result({
 const WORKSPACE_B = result({
   logged: 7,
   anon: 7,
-  series: [day("2026-08-01", 7, 7)],
+  series: [day(DZIEN_1, 7, 7)],
   topLogged: [post("b-1", "BETA notatka transportowa", 7, 3)],
   topAnon: [post("b-2", "BETA przeglad rynku", 7, 6)],
 });
@@ -227,24 +262,83 @@ const WORKSPACE_B = result({
 // Narzędzia
 // ---------------------------------------------------------------------------
 
-function rec(v: unknown): Opt {
-  return (v ?? {}) as Opt;
-}
-function seriesOf(o: Opt): Opt[] {
-  return Array.isArray(o.series) ? (o.series as Opt[]) : [];
-}
-function numList(v: unknown): number[] {
-  return Array.isArray(v) ? (v as unknown[]).map(Number) : [];
-}
-function strList(v: unknown): string[] {
-  return Array.isArray(v) ? (v as unknown[]).map(String) : [];
+/**
+ * Ostatnia konfiguracja ODDANA SILNIKOWI. Panel ma dokładnie jeden wykres, ale
+ * przerysowuje się przy każdej odpowiedzi zapytania, więc liczy się zapis
+ * ostatni - pierwszy powstał jeszcze przed nadejściem raportu.
+ */
+function chartConfig(): ChartConfig {
+  const last = h.charts[h.charts.length - 1];
+  if (!last) throw new Error("test: panel nie oddal silnikowi zadnej konfiguracji");
+  return last.config;
 }
 
-/** Ostatnia opcja oddana kanwie - panel ma dokładnie jeden wykres. */
-function chartOption(): Opt {
-  const last = h.charts[h.charts.length - 1];
-  if (!last) throw new Error("test: panel nie oddal kanwie zadnej opcji");
-  return last.option as Opt;
+/**
+ * Wartości serii rozpoznanej PO NAZWIE, a nie po pozycji w tablicy: przedmiotem
+ * dowodu jest para „ten segment - te liczby", a indeks jest właśnie tym, co
+ * zamiana serii przestawia bez śladu.
+ */
+function seriesValues(config: ChartConfig, name: string): Array<number | null> {
+  const found = config.series.find((one) => one.name === name);
+  if (!found) throw new Error(`test: wykres nie ma serii "${name}"`);
+  return found.values;
+}
+
+/** Nazwa regionu rysunku - `ChartCard` buduje ją z tytułu swojej karty. */
+function regionName(lang: AppLang = "pl"): string {
+  return realT(lang)("adminAnalytics.chartCard.chartRegion", {
+    title: aud("dailyViews", {}, lang),
+  });
+}
+
+/**
+ * Region rysunku szukany PO ROLI I NAZWIE naraz. Nazwa mówi, KTÓRY to wykres;
+ * rola mówi, że czytnik ekranu w ogóle ogłosi go jako rysunek - i to jest
+ * osobne twierdzenie, bo `aria-label` na zwykłym `<div>` bez roli jest dla
+ * czytnika niczym, a `getByLabelText` znalazłby taki węzeł tak samo.
+ *
+ * `role="img"` jest tu pewne: ten pulpit ma DOKŁADNIE JEDEN wykres i jest nim
+ * słupki (`kind: "bar"`), czyli rysunek kartezjański - a te silnik oznacza
+ * `role="img"` (`CartesianChart.tsx`). Wyjątek od tej reguły dotyczy tarczy,
+ * której wycinki są fokusowalne, więc nosi `role="group"`; tarczy w tym panelu
+ * nie ma i nie będzie jej tu przez przypadek - pojawiłaby się razem ze zmianą
+ * `kind`, którą pilnuje przypadek o stosie.
+ */
+function chartRegion(lang: AppLang = "pl"): HTMLElement {
+  return screen.getByRole("img", { name: regionName(lang) });
+}
+
+/**
+ * Tabela danych rysunku - alternatywa tekstowa, którą silnik rysuje pod KAŻDYM
+ * rodzajem. Czytana PO DOM, od regionu w górę do ramki silnika, z dwóch
+ * powodów naraz: tabela siedzi w ZWINIĘTYM panelu ramki (`hidden`), więc wypada
+ * z drzewa dostępności i `getByRole("table")` jej nie widzi, a pod
+ * `aria-describedby` regionu wisi dziś podpowiedź obsługi klawiaturą, nie ona.
+ */
+function dataTable(lang: AppLang = "pl"): HTMLElement {
+  const el = chartRegion(lang)
+    .closest("figure")
+    ?.querySelector<HTMLElement>("[data-chart-table] table");
+  if (!el) throw new Error("test: wykres dzienny nie ma tabeli danych");
+  return el;
+}
+
+function tableHeaders(table: HTMLElement): string[] {
+  return Array.from(table.querySelectorAll("thead th")).map((th) => (th.textContent ?? "").trim());
+}
+
+function tableRows(table: HTMLElement): string[][] {
+  return Array.from(table.querySelectorAll("tbody tr")).map((tr) =>
+    Array.from(tr.children).map((cell) => (cell.textContent ?? "").trim()),
+  );
+}
+
+/** Podpisy klucza, który rama silnika rysuje z nazw serii - w ich kolejności. */
+function legendLabels(lang: AppLang = "pl"): string[] {
+  const frame = chartRegion(lang).closest("figure");
+  return Array.from(frame?.querySelectorAll('ul[role="list"] > li') ?? []).map((li) =>
+    (li.textContent ?? "").trim(),
+  );
 }
 
 /** Kafelek KPI stojący przy podanej etykiecie. */
@@ -724,72 +818,108 @@ describe("AudienceSegmentsDashboard - progi interpretacji", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("AudienceSegmentsDashboard - dane oddane wykresowi", () => {
+describe("AudienceSegmentsDashboard - dane oddane silnikowi wykresu", () => {
   it("każdy segment trafia do swojej serii, z nazwą ze słownika", async () => {
     h.fetchAudience.mockResolvedValue(
       result({
         logged: 500,
         anon: 500,
-        series: [day("2026-08-01", 300, 200), day("2026-08-02", 200, 300)],
+        series: [day(DZIEN_1, 300, 200), day(DZIEN_2, 200, 300)],
       }),
     );
     panel();
     await loaded();
 
-    const s = seriesOf(chartOption());
-    expect(s).toHaveLength(2);
-    expect(s[0].name).toBe(aud("logged"));
-    expect(numList(s[0].data)).toEqual([300, 200]);
-    expect(s[1].name).toBe(aud("anon"));
-    expect(numList(s[1].data)).toEqual([200, 300]);
+    // Konfiguracja trzyma etykiety i liczby ROZDZIELNIE (`categories` obok
+    // `series[].values`), więc parę „segment - jego szereg" składa dopiero
+    // czytelnik - i to jest dokładnie ta para, którą zamiana `logged` z `anon`
+    // rozspaja, nie ruszając ani jednego piksela.
+    const c = chartConfig();
+    expect(c.series.map((one) => one.name)).toEqual([aud("logged"), aud("anon")]);
+    expect(seriesValues(c, aud("logged"))).toEqual([300, 200]);
+    expect(seriesValues(c, aud("anon"))).toEqual([200, 300]);
     // Różne tablice, nie ta sama podpięta dwa razy.
-    expect(numList(s[0].data)).not.toEqual(numList(s[1].data));
+    expect(seriesValues(c, aud("logged"))).not.toEqual(seriesValues(c, aud("anon")));
+    // ...i ta sama para DOJEŻDŻA DO EKRANU. Tabela danych jest jedyną drogą do
+    // tych liczb bez wzroku, więc jej rozjazd z konfiguracją czytałoby się jako
+    // dwa różne pomiary tego samego dnia. Kolumny idą w kolejności serii.
+    expect(tableHeaders(dataTable())).toEqual([
+      realT("pl")("charts.frame.category"),
+      aud("logged"),
+      aud("anon"),
+    ]);
+    expect(tableRows(dataTable())).toEqual([
+      [DZIEN_1, "300", "200"],
+      [DZIEN_2, "200", "300"],
+    ]);
   });
 
   it("słupki stoją w JEDNYM stosie - inaczej wykres nie pokazuje sumy odsłon", async () => {
     panel();
     await loaded();
 
-    const s = seriesOf(chartOption());
-    expect(s.map((x) => x.stack)).toEqual(["views", "views"]);
-    expect(s.map((x) => x.type)).toEqual(["bar", "bar"]);
+    // Stos jest DEKLARACJĄ PANELU, a nie własnością pojedynczej serii: całym
+    // wejściem silnika w tej sprawie jest para `kind` + `stacked`. Zalogowani i
+    // anonimowi są CZĘŚCIAMI jednej całości, więc bez stosu wysokość słupka
+    // przestaje być liczbą odsłon dnia i wykres odpowiada na inne pytanie niż
+    // zadane - przy niezmienionym wyglądzie karty.
+    const c = chartConfig();
+    expect(c.kind).toBe("bar");
+    expect(c.stacked).toBe(true);
   });
 
-  it("oś X niesie dni raportu w kolejności, którą dał serwer", async () => {
+  it("oś kategorii niesie dni raportu w kolejności, którą dał serwer", async () => {
     h.fetchAudience.mockResolvedValue(
       result({
         logged: 3,
         anon: 3,
-        series: [day("2026-07-30", 1, 1), day("2026-07-31", 1, 1), day("2026-08-01", 1, 1)],
+        series: [day("2026-07-30", 1, 1), day("2026-07-31", 1, 1), day(DZIEN_1, 1, 1)],
       }),
     );
     panel();
     await loaded();
 
-    expect(strList(rec(chartOption().xAxis).data)).toEqual([
+    // Panel NIE sortuje - bierze porządek z funkcji serwerowej. Przestawienie
+    // dni daje wykres, który rysuje się bez zarzutu i kłamie o kierunku ruchu.
+    expect(chartConfig().categories).toEqual(["2026-07-30", "2026-07-31", DZIEN_1]);
+    // Tabela idzie tym samym porządkiem: to ten sam szereg, a nie jego kopia
+    // złożona drugi raz.
+    expect(tableRows(dataTable()).map((row) => row[0])).toEqual([
       "2026-07-30",
       "2026-07-31",
-      "2026-08-01",
+      DZIEN_1,
     ]);
   });
 
-  it("legenda wykresu jest dwuelementowa i zgodna z nazwami serii", async () => {
+  it("klucz wykresu jest dwuelementowy i zgodny z nazwami serii", async () => {
     panel();
     await loaded();
 
-    const opt = chartOption();
-    expect(strList(rec(opt.legend).data)).toEqual([aud("logged"), aud("anon")]);
-    expect(seriesOf(opt).map((s) => String(s.name))).toEqual([aud("logged"), aud("anon")]);
+    // Klucz rysuje RAMA SILNIKA z nazw serii, więc osobnej listy legendy nie ma
+    // już czego rozjechać z danymi. Przedmiotem dowodu zostaje to, czego panel
+    // nadal może tu zepsuć: wyłączyć klucz. Dwa nierozróżnione słupki w jednym
+    // stosie to wykres, z którego nie wynika, który segment jest który.
+    expect(chartConfig().showLegend).toBe(true);
+    expect(legendLabels()).toEqual([aud("logged"), aud("anon")]);
   });
 
-  it("brak danych daje wykres z pustymi seriami, a nie wyjątek", async () => {
+  it("okno bez odsłon nie rysuje ramy wykresu udającej zmierzone zero", async () => {
     h.fetchAudience.mockResolvedValue(EMPTY);
     panel();
     await loaded();
 
-    const s = seriesOf(chartOption());
-    expect(numList(s[0].data)).toEqual([]);
-    expect(strList(rec(chartOption().xAxis).data)).toEqual([]);
+    // Konfiguracja jedzie do silnika PUSTA, a nie z podstawionym zerem w każdym
+    // dniu okna - zero znaczyłoby „tego dnia zmierzono zero odsłon".
+    const c = chartConfig();
+    expect(c.categories).toEqual([]);
+    expect(c.series.map((one) => one.values)).toEqual([[], []]);
+    // ...a silnik odmawia narysowania z niej rysunku: zamiast ramy z osiami
+    // staje komunikat o braku danych. Rama z pustymi osiami wyglądałaby jak
+    // wykres zerowego ruchu, czyli stawiałaby twierdzenie o oknie tam, gdzie
+    // panel stawia je świadomie w jednym miejscu - we wniosku `insights.empty`.
+    expect(screen.getByText(realT("pl")("charts.frame.empty"))).toBeInTheDocument();
+    expect(document.querySelector("figure.neh-chart")).toBeNull();
+    expect(screen.queryByLabelText(regionName())).toBeNull();
   });
 });
 
@@ -1008,16 +1138,21 @@ describe("AudienceSegmentsDashboard - słownik PL/EN", () => {
     expect(screen.getByText(aud("kpi.viewsTotal", {}, "en"))).toBeInTheDocument();
     expect(screen.getByText(aud("kpi.uniqueReaders", {}, "en"))).toBeInTheDocument();
     // Tytuł wykresu jedzie dziś przez `ChartCard`, więc nie stoi w konspekcie
-    // nagłówków - stoi w NAZWIE DOSTĘPNEJ regionu kanwy i w podpisie tabeli
-    // danych. Asercja idzie na oba, czyli mocniej niż na sam `role="heading"`:
-    // dowodzi i angielskiego napisu, i tego, że alternatywa tekstowa jest z nim
-    // powiązana.
+    // nagłówków - stoi w napisie karty i w NAZWIE REGIONU rysunku, którą karta
+    // z tego napisu składa. Asercja idzie na oba, czyli mocniej niż na sam
+    // `role="heading"`: dowodzi i angielskiego napisu, i tego, że nazwa regionu
+    // nie została zaszyta osobno.
     expect(screen.getByText(aud("dailyViews", {}, "en"))).toBeInTheDocument();
-    const regionName = realT("en")("adminAnalytics.chartCard.chartRegion", {
-      title: aud("dailyViews", {}, "en"),
-    });
-    expect(screen.getByRole("img", { name: regionName })).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: regionName })).toBeInTheDocument();
+    expect(chartRegion("en")).toBeInTheDocument();
+    // Alternatywa tekstowa mówi po angielsku po OBU stronach podziału
+    // odpowiedzialności: nagłówek kolumny kategorii należy do silnika, nazwy
+    // segmentów do panelu. Polski fallback w którejkolwiek z nich zostawiłby
+    // niewidzącemu administratorowi tabelę w dwóch językach naraz.
+    expect(tableHeaders(dataTable("en"))).toEqual([
+      realT("en")("charts.frame.category"),
+      aud("logged", {}, "en"),
+      aud("anon", {}, "en"),
+    ]);
   });
 
   it("angielskie wnioski nie spadają na polski fallback", async () => {
@@ -1039,10 +1174,19 @@ describe("AudienceSegmentsDashboard - słownik PL/EN", () => {
     panel();
     await loaded();
 
-    expect(seriesOf(chartOption()).map((s) => String(s.name))).toEqual([
+    // Nazwa serii to jedyny napis, który panel wkłada do konfiguracji - i
+    // wychodzi z niej w kilku miejscach naraz (klucz, nagłówek tabeli, dymek),
+    // więc polski literał zostawiłby polskie słowo w każdym z nich. Asercja
+    // idzie i na konfigurację, i na narysowany klucz: pierwsza pokazuje, skąd
+    // napis przyszedł, druga - że dojechał do ekranu.
+    expect(chartConfig().series.map((one) => one.name)).toEqual([
       aud("logged", {}, "en"),
       aud("anon", {}, "en"),
     ]);
+    expect(legendLabels("en")).toEqual([aud("logged", {}, "en"), aud("anon", {}, "en")]);
+    // Gdyby gałąź EN spadła na fallback, asercje wyżej porównywałyby polski
+    // napis z polskim napisem i przeszłyby mimo defektu.
+    expect(legendLabels("en")).not.toEqual([aud("logged"), aud("anon")]);
   });
 
   it("okno bez odsłon po angielsku używa angielskiego komunikatu list top", async () => {
@@ -1097,7 +1241,7 @@ describe("AudienceSegmentsDashboard - dostępność", () => {
         logged: 700,
         anon: 300,
         uniqueLogged: 100,
-        series: [day("2026-08-01", 400, 200), day("2026-08-02", 300, 100)],
+        series: [day(DZIEN_1, 400, 200), day(DZIEN_2, 300, 100)],
         topLogged: [post("a", "Energia w regionie", 400, 90)],
         topAnon: [post("b", "Klimat i miasta", 300, 250)],
         truncated: true,
@@ -1158,29 +1302,38 @@ describe("AudienceSegmentsDashboard - dostępność", () => {
     expect(topCard(aud("topAnon")).querySelector("ol")).not.toBeNull();
   });
 
-  it("wykres dzienny ma nazwę regionu i tabelaryczny równoważnik", async () => {
+  it("wykres dzienny ma nazwę regionu, podpowiedź obsługi i tabelaryczny równoważnik", async () => {
     // Panel montował `EChart` wprost w `Card`, POMIJAJĄC `ChartCard`, więc kanwa
     // - dla czytnika ekranu pusty prostokąt - nie miała ani nazwy, ani
     // równoważnika tabelarycznego, a stojący obok nagłówek `h4` nie był z nią
-    // powiązany żadnym atrybutem. Dziś wykres idzie przez `ChartCard` z `csv`:
-    // region dostaje `role="img"` z nazwą z tytułu, a `aria-describedby`
-    // prowadzi do tabeli z TYMI SAMYMI liczbami.
+    // powiązany żadnym atrybutem. Dziś wykres idzie przez `ChartCard`: region
+    // dostaje nazwę zbudowaną z tytułu karty, `aria-describedby` prowadzi do
+    // PODPOWIEDZI OBSŁUGI KLAWIATURĄ (to instrukcja, nie treść), a treść niesie
+    // tabela, którą silnik rysuje sam pod każdym rodzajem.
     panel();
     await loaded();
 
-    expect(screen.queryAllByRole("img").length).toBeGreaterThan(0);
-    const region = screen.getByRole("img", {
-      name: realT("pl")("adminAnalytics.chartCard.chartRegion", { title: aud("dailyViews") }),
-    });
-    const tableId = region.getAttribute("aria-describedby");
-    expect(tableId).toBeTruthy();
-    expect(document.getElementById(tableId ?? "")).not.toBeNull();
-    // Równoważnik niesie DANE, nie samą obietnicę: nagłówki kolumn i liczby
-    // NEUTRAL-a z obu segmentów.
-    const table = screen.getByRole("table");
-    expect(table).toHaveTextContent(aud("logged"));
-    expect(table).toHaveTextContent(aud("anon"));
-    expect(table).toHaveTextContent("2026-08-01");
-    expect(table).toHaveTextContent("300");
+    const region = chartRegion();
+    // Asercja na OBU końcach powiązania: sam atrybut bez elementu jest gorszy
+    // niż jego brak, bo czytnik obiecuje opis i milknie. Nawigacja strzałkami
+    // jest jedyną drogą do wartości bez wskaźnika, więc niezapowiedziana jest
+    // dostępna wyłącznie dla kogoś, kto się jej domyślił.
+    const hintId = region.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(hintId)).not.toBeNull();
+    expect(document.getElementById(hintId)).toHaveTextContent(
+      realT("pl")("charts.a11y.keyboardHint"),
+    );
+    // Równoważnik niesie DANE, nie samą obietnicę: obie kolumny segmentów i
+    // komplet liczb NEUTRAL-a, w tym samym formacie, w jakim czyta je widzący.
+    // Pusta tabela byłaby obietnicą alternatywy, a nie alternatywą.
+    expect(tableHeaders(dataTable())).toEqual([
+      realT("pl")("charts.frame.category"),
+      aud("logged"),
+      aud("anon"),
+    ]);
+    expect(tableRows(dataTable())).toEqual([
+      [DZIEN_1, "300", "200"],
+      [DZIEN_2, "200", "300"],
+    ]);
   });
 });

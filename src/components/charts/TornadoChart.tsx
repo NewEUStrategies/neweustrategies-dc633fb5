@@ -129,6 +129,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
@@ -280,9 +281,31 @@ interface Lane {
 interface TornadoChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem albo klawiszem Enter.
+   *
+   * Osobno od stanu wewnętrznego: wskazanie wskaźnikiem jest PODGLĄDEM i gaśnie
+   * samo, a wybór jest DECYZJĄ czytelnika i ma prawo otworzyć okno szczegółów.
+   */
+  onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function TornadoChart({ config, lang }: TornadoChartProps) {
+export function TornadoChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: TornadoChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -442,6 +465,15 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
   // wzdłuż osi WARTOŚCI, na której nie ma czego wybierać - ta sama zasada, po
   // której słupki poziome w `CartesianChart` nawigują góra-dół.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę:
+    // Enter na wskazanym elemencie jest decyzją, a nie ruchem po osi.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        onSelect(categorySelection(config.kind, config.categories, config.series, active));
+      }
+      return;
+    }
     if (rows.length === 0) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -522,22 +554,24 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
   // ekranu nie widzi ani sylwetki tornada, ani linii bazowej, więc hierarchię
   // wrażliwości dostaje jako listę w tej samej kolejności, w której są
   // narysowane wiersze - to jest treść tej formy, a nie jej ozdoba.
-  const ariaLabel = [
-    config.title,
-    `${t("tornado.axis.value")}: ${formatAxisTick(scale.min, lang)} ${RANGE_SEP} ${formatAxisTick(
-      scale.max,
-      lang,
-    )}`,
-    model.base === null ? "" : t("tornado.base.label", { value: num(model.base) }),
-    ...rows.map(
-      (r) =>
-        `${r.label}: ${num(r.low)} ${RANGE_SEP} ${num(r.high)}, ${t(
-          "tornado.table.span",
-        )} ${formatChartValue(r.span, lang, config.unit)}`,
-    ),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${t("tornado.axis.value")}: ${formatAxisTick(scale.min, lang)} ${RANGE_SEP} ${formatAxisTick(
+        scale.max,
+        lang,
+      )}`,
+      model.base === null ? "" : t("tornado.base.label", { value: num(model.base) }),
+      ...rows.map(
+        (r) =>
+          `${r.label}: ${num(r.low)} ${RANGE_SEP} ${num(r.high)}, ${t(
+            "tornado.table.span",
+          )} ${formatChartValue(r.span, lang, config.unit)}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   // PRZYPISY POD RYSUNKIEM. Porady formy mówią autorowi, że pytanie lepiej
   // postawić inaczej; przypisy uczciwości mówią czytelnikowi, czego nie widzi
@@ -902,7 +936,13 @@ export function TornadoChart({ config, lang }: TornadoChartProps) {
             width={innerW}
             height={innerH}
             fill="transparent"
-            onPointerDown={(e) => setActive(indexFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = indexFromPointer(e);
+              setActive(i);
+              if (i !== null && onSelect) {
+                onSelect(categorySelection(config.kind, config.categories, config.series, i));
+              }
+            }}
             onPointerMove={(e) => setActive(indexFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi

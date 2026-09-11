@@ -13,10 +13,11 @@
 //     naprawdę nie ma danych" to trzy różne informacje dla operatora, więc
 //     każdy z tych stanów jest tu asertowany OSOBNO: panel ma na nie trzy
 //     różne karty i żadna z nich nie ma prawa wystąpić w cudzym stanie.
-//   * ODWRÓCONA AGREGACJA. Słupki poziome są odwracane (`.reverse()`), listy
-//     przycinane (15 kategorii / 20 tagów / 25 par / 40 wpisów / 12 hubów),
-//     a heatmapa symetryzowana. Przestawiony `.reverse()` daje wykres, który
-//     wygląda poprawnie i kłamie o kolejności.
+//   * ROZJECHANA AGREGACJA. Rankingi są przycinane (15 kategorii / 20 tagów /
+//     40 wpisów / 12 hubów / 15 przejść), sortowane malejąco, a macierz
+//     współwystępowania symetryzowana i przycięta do `COOC_TAGS` tagów.
+//     Przestawiona kolejność daje wykres, który wygląda poprawnie i kłamie
+//     o rankingu.
 //   * PROGI INTERPRETACJI. Siedem reguł, każda z własnym progiem liczbowym
 //     (100 wyświetleń, CTR 3% / 1%, „mniej niż 3 wpisy" razy 3 kategorie,
 //     50 wyświetleń, średnia 2 wspólnych wpisów, 5 kliknięć huba, 3 wpisy
@@ -33,10 +34,22 @@
 //     instancję i18next, którą widzi użytkownik: usunięty klucz wypada surowym
 //     `adminAnalytics.…`, a brak klucza EN cicho spada na polski fallback.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
-// atrapą, która PRZECHWYTUJE `option`. Dzięki temu asercje o kolejności,
-// przycinaniu i podpowiedziach idą na strukturę danych oddaną wykresowi, a nie
-// na piksele - i ~1 MB biblioteki nigdy nie wchodzi do procesu testowego.
+// PULPIT RYSUJE NASZYM SILNIKIEM, nie ECharts - i ten plik nie podmienia go
+// atrapą, tylko PODGLĄDA. `Chart` jest opakowany szpiegiem, który zapisuje
+// `config` i `onSelect`, a potem woła PRAWDZIWY komponent. Dzięki temu
+// kolejność, przycinanie i drążenie sprawdzamy na konfiguracji oddanej
+// silnikowi, a nazwy regionów, tabele danych i podpisy - na tym, co silnik
+// z niej naprawdę narysował. Atrapa dowodziłaby tylko, że panel woła funkcję,
+// a dawna atrapa `EChart` dowodziła tego o silniku, którego tu już nie ma.
+//
+// CZEGO TE PRZYPADKI JUŻ NIE SPRAWDZAJĄ - i dlaczego to nie jest ubytek.
+// Formatery dymków, funkcja `symbolSize`, prefiksy węzłów sankeya i skracanie
+// etykiet do 32 znaków były WNĘTRZEM ECharts: panel musiał je pisać sam, bo
+// tamten silnik nie miał ani dymka z jednostką, ani tabeli danych, ani
+// przycinania etykiet osi. Nasz silnik ma jedno i drugie i nie oddaje ich
+// panelowi do konfiguracji, więc każdy taki przypadek ma tu ZAMIENNIK na tej
+// samej prawdzie: albo asercję na konfiguracji oddanej silnikowi, albo na
+// tabeli danych, którą silnik narysował.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -51,13 +64,16 @@ import type {
   TopTag,
 } from "@/lib/relatedInsights.functions";
 import type { AppLang } from "@/lib/i18n/localePath";
-
-type Opt = Record<string, unknown>;
+import type { ChartConfig } from "@/lib/charts/types";
+import type { ChartSelection } from "@/lib/charts/selection";
 
 const h = vi.hoisted(() => ({
   fetchInsights: vi.fn(),
   tenantId: "tenant-related" as string | null,
-  charts: [] as Array<{ option: Record<string, unknown> }>,
+  charts: [] as Array<{
+    config: ChartConfig;
+    onSelect?: (selection: ChartSelection) => void;
+  }>,
 }));
 
 // Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
@@ -81,14 +97,26 @@ vi.mock("@/lib/relatedInsights.functions", () => ({
   getRelatedInsights: (...args: unknown[]) => h.fetchInsights(...args),
 }));
 
-// Atrapa wykresu zapisuje `option`. To jedyne miejsce, w którym widać, CO panel
-// policzył - i jedyny sposób na dowiedzenie kolejności bez wciągania echarts.
-vi.mock("../EChart", () => ({
-  EChart: ({ option }: { option: Record<string, unknown> }) => {
-    h.charts.push({ option });
-    return <div data-testid="echart" />;
-  },
-}));
+// SILNIK NIE JEST ATRAPĄ - jest PODSŁUCHANY. Atrapa zabierałaby panelowi
+// tabelę danych i nazwy regionów, czyli dokładnie to, czego pilnuje blok
+// dostępności niżej; a sam `config` bez narysowanego wykresu nie dowodzi, że
+// panel cokolwiek pokazuje. Opakowanie oddaje jedno i drugie: przechwytuje
+// konfigurację ORAZ renderuje prawdziwy rysunek z prawdziwą alternatywą
+// tekstową.
+vi.mock("@/components/charts/Chart", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/charts/Chart")>();
+  return {
+    ...real,
+    Chart: (props: {
+      config: ChartConfig;
+      lang: "pl" | "en";
+      onSelect?: (selection: ChartSelection) => void;
+    }) => {
+      h.charts.push({ config: props.config, onSelect: props.onSelect });
+      return real.Chart(props);
+    },
+  };
+});
 
 // `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
 // dowodu jest to, że napisy przychodzą ZE SŁOWNIKA. Język przestawia się przez
@@ -116,6 +144,11 @@ function dictList(path: string, lang: AppLang = "pl"): string[] {
 function common(path: string, lang: AppLang = "pl"): string {
   return realT(lang)(`adminAnalytics.common.${path}`);
 }
+
+/** Ile tagów wchodzi do macierzy - ta sama liczba, co `COOC_TAGS` w panelu. */
+const COOC_TAGS = 12;
+/** Ile par mieści ranking przejść - ta sama liczba, co `FLOWS_IN_RANKING`. */
+const FLOWS_IN_RANKING = 15;
 
 // ---------------------------------------------------------------------------
 // Dane
@@ -208,50 +241,103 @@ const WORKSPACE_B = report({
 // Narzędzia
 // ---------------------------------------------------------------------------
 
-function rec(v: unknown): Opt {
-  return (v ?? {}) as Opt;
-}
-function seriesOf(o: Opt): Opt[] {
-  return Array.isArray(o.series) ? (o.series as Opt[]) : [];
-}
-function firstSeries(o: Opt): Opt {
-  return seriesOf(o)[0] ?? {};
-}
-function dataOf(o: Opt): unknown[] {
-  const d = firstSeries(o).data;
-  return Array.isArray(d) ? d : [];
-}
-function strList(v: unknown): string[] {
-  return Array.isArray(v) ? (v as unknown[]).map(String) : [];
-}
-function numList(v: unknown): number[] {
-  return Array.isArray(v) ? (v as unknown[]).map(Number) : [];
+interface Captured {
+  config: ChartConfig;
+  onSelect?: (selection: ChartSelection) => void;
 }
 
 /** OSTATNI przechwycony wykres pasujący do predykatu - czyli stan po ostatnim renderze. */
-function lastOption(label: string, pred: (o: Opt) => boolean): Opt {
+function lastChart(label: string, pred: (c: ChartConfig) => boolean): Captured {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
-    if (pred(h.charts[i].option)) return h.charts[i].option;
+    if (pred(h.charts[i].config)) return h.charts[i];
   }
   throw new Error(`test: nie przechwycono wykresu „${label}"`);
 }
 
-const barColor = (color: string) => (o: Opt) =>
-  firstSeries(o).type === "bar" && rec(firstSeries(o).itemStyle).color === color;
-const isType = (type: string) => (o: Opt) => firstSeries(o).type === type;
+/**
+ * Wykresy ROZPOZNAWANE PO NAZWIE SERII, a nie po kolejności renderu: cztery
+ * rankingi tego panelu mają ten sam rodzaj (`bar-horizontal`), więc indeks
+ * w tablicy przechwyceń rozstrzygałby o tożsamości wykresu wyłącznie przez
+ * kolejność JSX - i milczałby, gdyby dwie karty zamieniły się danymi.
+ */
+const bars = (seriesName: string) => (c: ChartConfig) =>
+  c.kind === "bar-horizontal" && c.series[0]?.name === seriesName;
 
-const topCatsOption = () => lastOption("top kategorie", barColor("#2a78d6"));
-const topTagsOption = () => lastOption("top tagi", barColor("#1baf7a"));
-const hubOption = () => lastOption("hub-posty", barColor("#4a3aa7"));
-const coocOption = () => lastOption("heatmapa tagow", isType("heatmap"));
-const popularityOption = () => lastOption("popularnosc", isType("scatter"));
-const sankeyOption = () => lastOption("sankey", isType("sankey"));
+const topCatsChart = () => lastChart("top kategorie", bars(dict("charts.topCatsSubtitle")));
+const topTagsChart = () => lastChart("top tagi", bars(dict("charts.topTagsSubtitle")));
+const hubChart = () => lastChart("hub-posty", bars(dict("series.hubClicks")));
+const flowsChart = () => lastChart("przejscia zrodlo-cel", bars(dict("series.flowClicks")));
+const coocChart = () => lastChart("macierz tagow", (c) => c.kind === "heatmap");
+const popularityChart = () => lastChart("popularnosc", (c) => c.kind === "scatter");
 
-/** Formater podpowiedzi, który panel oddaje wykresowi. */
-function tooltipFormatter(o: Opt): (raw: unknown) => string {
-  const f = rec(o.tooltip).formatter;
-  if (typeof f !== "function") throw new Error("test: wykres nie ma formatera podpowiedzi");
-  return f as (raw: unknown) => string;
+/** Wartości pierwszej serii - liczby, które panel oddał silnikowi. */
+function values(chart: Captured, index = 0): (number | null)[] {
+  return chart.config.series[index]?.values ?? [];
+}
+
+/** Symuluje WSKAZANIE elementu - tak, jak oddaje je silnik. */
+async function clickChart(chart: Captured, selection: Partial<ChartSelection>): Promise<void> {
+  await act(async () => {
+    chart.onSelect?.({
+      kind: chart.config.kind,
+      categoryIndex: null,
+      category: null,
+      seriesIndex: null,
+      seriesName: null,
+      value: null,
+      ...selection,
+    });
+  });
+}
+
+/** Pary [etykieta, wartość] z siatki metryk okna drążenia, w kolejności renderu. */
+function drillMetrics(lang: AppLang = "pl"): Array<[string, string]> {
+  const dialog = screen.getByRole("dialog");
+  const head = within(dialog).getByText(realT(lang)("adminAnalytics.drillDialog.metrics"));
+  const grid = head.nextElementSibling;
+  if (!grid) throw new Error("test: okno drazenia nie ma siatki metryk");
+  return Array.from(grid.children).map((cell) => [
+    cell.children[0]?.textContent ?? "",
+    cell.children[1]?.textContent ?? "",
+  ]);
+}
+
+/**
+ * Region wykresu po dostępnej nazwie, którą `ChartCard` buduje z tytułu.
+ *
+ * Po NAZWIE, a nie po roli: silnik daje rysunkom kartezjańskim `role="img"`,
+ * ale rodzajom z fokusowalnymi elementami - `role="group"`, bo rola obrazka
+ * uczyniłaby je prezentacyjnymi. Szukanie po roli „img" gubiłoby więc
+ * dokładnie te wykresy, które mają najbogatszą obsługę klawiatury.
+ */
+function chartRegion(title: string): HTMLElement {
+  return screen.getByLabelText(realT("pl")("adminAnalytics.chartCard.chartRegion", { title }));
+}
+
+/**
+ * Tabela danych rysunku - alternatywa tekstowa, którą silnik rysuje pod
+ * KAŻDYM rodzajem. Szukamy jej od regionu w górę, do ramki silnika: karta nie
+ * rysuje już własnej tabeli, bo dwie tabele pod jednym rysunkiem to te same
+ * liczby dwa razy.
+ */
+function dataTableOf(title: string): HTMLElement {
+  const region = chartRegion(title);
+  const frame = region.closest("figure");
+  // PIERWSZA tabela panelu: rozrzut wypisuje DWIE (obserwacje i dopasowanie),
+  // a nagłówki obu sklejone w jedną listę nie opisują żadnej z nich.
+  const el = frame?.querySelector<HTMLElement>("[data-chart-table] table");
+  if (!el) throw new Error(`test: wykres „${title}" nie ma tabeli danych`);
+  return el;
+}
+
+function tableHeaders(table: HTMLElement): string[] {
+  return Array.from(table.querySelectorAll("thead th")).map((th) => (th.textContent ?? "").trim());
+}
+
+function tableRows(table: HTMLElement): string[][] {
+  return Array.from(table.querySelectorAll("tbody tr")).map((tr) =>
+    Array.from(tr.children).map((cell) => (cell.textContent ?? "").trim()),
+  );
 }
 
 /** Wejścia, z jakimi panel wołał funkcję serwerową. */
@@ -279,11 +365,11 @@ function insightCard(): HTMLElement {
 /**
  * Napisy z NAGŁÓWKÓW kart wykresów - tytuły i podtytuły.
  *
- * PO CO ZAWĘŻENIE. Tytuł i podtytuł karty są jednocześnie nagłówkami kolumn w
- * tabeli danych wykresu (alternatywa tekstowa dla kanwy), więc ten sam napis
- * występuje w dokumencie DWA RAZY i `getByText` przestał być rozstrzygalny.
- * Asercja i tak dotyczyła zawsze nagłówka karty - tu jest to powiedziane
- * wprost, zamiast liczyć na jedyność napisu w całym panelu.
+ * PO CO ZAWĘŻENIE. Nazwy serii i kategorie jadą do tabeli danych rysowanej
+ * przez silnik, więc ten sam napis potrafi wystąpić w dokumencie dwa razy
+ * i `getByText` przestaje być rozstrzygalny. Asercja i tak dotyczyła zawsze
+ * nagłówka karty - tu jest to powiedziane wprost, zamiast liczyć na jedyność
+ * napisu w całym panelu.
  */
 function cardHeaderTexts(): string[] {
   // `div.border-b > div.min-w-0` to nagłówek karty wykresu; kafelek KPI ma
@@ -364,7 +450,7 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
     // Zero i „jeszcze nie wiem" to dwie różne informacje - dopóki raport nie
     // dojedzie, panel nie ma prawa narysować ani kafelka, ani wykresu.
     expect(screen.queryByText(dict("kpi.posts"))).toBeNull();
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(h.charts).toHaveLength(0);
   });
 
   it("w trakcie pomiaru panel NIE twierdzi, że w oknie NIE MA danych", async () => {
@@ -398,23 +484,27 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
     expect(screen.getByText(common("noDataWindow"))).toBeInTheDocument();
     // Żadnego kafelka i żadnego wykresu - nie ma z czego ich zbudować.
     expect(screen.queryByText(dict("kpi.posts"))).toBeNull();
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(h.charts).toHaveLength(0);
   });
 
-  it("PUSTY raport to zera z pomiaru, a nie zmyślone węzły wykresów", async () => {
+  it("PUSTY raport to zera z pomiaru, a nie zmyślone kategorie wykresów", async () => {
     // Tenant bez ruchu ma prawo zobaczyć zera - to jest pomiar. Czego NIE MA
-    // prawa zobaczyć, to wykresów z wymyślonymi punktami.
+    // prawa zobaczyć, to wykresów z wymyślonymi kategoriami: pusta seria jest
+    // uczciwa, a jedna podstawiona kategoria „brak" byłaby pomiarem, którego
+    // nikt nie zrobił.
     h.fetchInsights.mockResolvedValue(report());
     panel();
     await loaded();
 
     expect(kpiValue(dict("kpi.posts"))).toBe("0");
     expect(kpiValue(dict("kpi.views"))).toBe("0");
-    expect(dataOf(topCatsOption())).toEqual([]);
-    expect(dataOf(coocOption())).toEqual([]);
-    expect(dataOf(popularityOption())).toEqual([]);
-    expect(firstSeries(sankeyOption()).data).toEqual([]);
-    expect(firstSeries(sankeyOption()).links).toEqual([]);
+    expect(topCatsChart().config.categories).toEqual([]);
+    expect(values(topCatsChart())).toEqual([]);
+    expect(coocChart().config.categories).toEqual([]);
+    expect(coocChart().config.series).toEqual([]);
+    expect(popularityChart().config.categories).toEqual([]);
+    expect(flowsChart().config.categories).toEqual([]);
+    expect(values(flowsChart())).toEqual([]);
     // Żaden próg interpretacji się nie zapala, więc sekcja jest w stanie pustym.
     expect(
       screen.getByText(realT("pl")("adminAnalytics.insightSection.emptyDefault")),
@@ -523,19 +613,25 @@ describe("RelatedPostsAnalytics - okno czasu i wejście zapytania", () => {
 // ---------------------------------------------------------------------------
 
 describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
-  it("słupki kategorii idą ROSNĄCO ku górze wykresu poziomego", async () => {
-    // ECharts rysuje kategorie osi Y od dołu, więc panel odwraca listę. Bez
-    // `.reverse()` najmocniejsza kategoria lądowałaby na dole - wykres wygląda
-    // tak samo i kłamie o rankingu.
+  it("ranking kategorii czyta się z GÓRY NA DÓŁ, od najmocniejszej", async () => {
+    // Silnik rysuje kategorie słupków poziomych od góry w kolejności tablicy,
+    // więc ranking jedzie tu MALEJĄCO. (ECharts układał oś Y od dołu i panel
+    // musiał listę odwracać - intencja ta sama, kierunek odwrotny, i dokładnie
+    // tu widać, czy ktoś przeniósł odwrócenie razem z kodem.)
     h.fetchInsights.mockResolvedValue(
       report({ top_categories: [cat("Pierwsza", 30), cat("Druga", 20), cat("Trzecia", 10)] }),
     );
     panel();
     await loaded();
 
-    const o = topCatsOption();
-    expect(strList(rec(o.yAxis).data)).toEqual(["Trzecia", "Druga", "Pierwsza"]);
-    expect(numList(firstSeries(o).data)).toEqual([10, 20, 30]);
+    expect(topCatsChart().config.categories).toEqual(["Pierwsza", "Druga", "Trzecia"]);
+    expect(values(topCatsChart())).toEqual([30, 20, 10]);
+    // Ta sama kolejność MUSI dojechać na ekran, nie tylko do konfiguracji.
+    expect(tableRows(dataTableOf(dict("charts.topCatsTitle"))).map((r) => r[0])).toEqual([
+      "Pierwsza",
+      "Druga",
+      "Trzecia",
+    ]);
   });
 
   it("ranking kategorii przycina się do 15 pozycji i zostawia te najmocniejsze", async () => {
@@ -544,7 +640,7 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     panel();
     await loaded();
 
-    const names = strList(rec(topCatsOption().yAxis).data);
+    const names = topCatsChart().config.categories;
     expect(names).toHaveLength(15);
     // Odcięte są OSTATNIE trzy (najsłabsze), nie pierwsze.
     expect(names).toContain("Kategoria 18");
@@ -557,12 +653,14 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     panel();
     await loaded();
 
-    expect(strList(rec(topTagsOption().yAxis).data)).toHaveLength(20);
+    expect(topTagsChart().config.categories).toHaveLength(20);
   });
 
-  it("heatmapa jest SYMETRYCZNA i tłumaczy identyfikatory tagów na nazwy", async () => {
-    // Współwystępowanie nie ma kierunku, więc każda para musi dać dwie komórki.
-    // Tag spoza `top_tags` nie ma nazwy - panel pokazuje sześć znaków id zamiast
+  it("macierz tagów jest SYMETRYCZNA i tłumaczy identyfikatory na nazwy", async () => {
+    // Współwystępowanie nie ma kierunku, więc każda para musi wypełnić dwie
+    // komórki: [wiersz a][kolumna b] i [wiersz b][kolumna a]. Seria jest
+    // wierszem, kategoria kolumną - tak silnik czyta mapę ciepła. Tag spoza
+    // `top_tags` nie ma nazwy, więc panel pokazuje sześć znaków id zamiast
     // pustki, i to też jest kontrakt.
     h.fetchInsights.mockResolvedValue(
       report({
@@ -577,57 +675,91 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     panel();
     await loaded();
 
-    const o = coocOption();
-    expect(strList(rec(o.xAxis).data)).toEqual(["Energia", "Klimat", "Bezpieczenstwo", "niezna"]);
-    // Osie są tożsame - macierz kwadratowa.
-    expect(rec(o.yAxis).data).toEqual(rec(o.xAxis).data);
-    expect(dataOf(o)).toEqual([
-      [0, 1, 5],
-      [1, 0, 5],
-      [0, 2, 1],
-      [2, 0, 1],
-      [3, 1, 2],
-      [1, 3, 2],
+    const cfg = coocChart().config;
+    expect(cfg.categories).toEqual(["Energia", "Klimat", "Bezpieczenstwo", "niezna"]);
+    // Wiersze noszą te same nazwy co kolumny - macierz jest kwadratowa.
+    expect(cfg.series.map((s) => s.name)).toEqual(cfg.categories);
+    expect(cfg.series.map((s) => s.values)).toEqual([
+      [null, 5, 1, null],
+      [5, null, null, 2],
+      [1, null, null, null],
+      [null, 2, null, null],
     ]);
-    // Skala koloru sięga najsilniejszej pary, nie stałej.
-    expect(rec(o.visualMap).max).toBe(5);
+    // Najsilniejsza para dojeżdża na ekran, a nie tylko do konfiguracji.
+    expect(dataTableOf(dict("charts.coocTitle", { count: COOC_TAGS })).textContent ?? "").toContain(
+      "Energia",
+    );
   });
 
-  it("pusta heatmapa dostaje skalę 1, a nie zero - inaczej `visualMap` się degeneruje", async () => {
+  it("para, która nie wystąpiła, zostaje LUKĄ - nigdy zerem", async () => {
+    // Zero znaczy „policzono i wyszło zero wspólnych wpisów", luka znaczy „tej
+    // pary nie policzono". Silnik rysuje jedno i drugie inaczej (najjaśniejszy
+    // stopień rampy kontra tekstura), więc podstawione zero byłoby fałszywym
+    // najsłabszym współwystępowaniem w każdej pustej komórce macierzy.
+    h.fetchInsights.mockResolvedValue(
+      report({
+        top_tags: [tag("t1", "Energia"), tag("t2", "Klimat")],
+        tag_cooccurrence: [coPair("t1", "t2", 5)],
+      }),
+    );
+    panel();
+    await loaded();
+
+    // Przekątna: tag sam ze sobą nie jest parą, więc też zostaje luką.
+    expect(coocChart().config.series.map((s) => s.values)).toEqual([
+      [null, 5],
+      [5, null],
+    ]);
+  });
+
+  it("pusta macierz nie dostaje ANI JEDNEJ zmyślonej komórki", async () => {
     h.fetchInsights.mockResolvedValue(report({ tag_cooccurrence: [] }));
     panel();
     await loaded();
 
-    expect(rec(coocOption().visualMap).max).toBe(1);
+    const cfg = coocChart().config;
+    expect(cfg.categories).toEqual([]);
+    expect(cfg.series).toEqual([]);
   });
 
-  it("heatmapa tnie się do 25 tagów i NIE zostawia komórek wskazujących poza macierz", async () => {
-    // Indeks spoza przyciętej listy to `undefined` - gdyby trafił do komórki,
-    // ECharts narysowałby ją w rogu macierzy jako fałszywe współwystępowanie.
+  it("macierz tnie się do 12 tagów i NIE zostawia komórek wskazujących poza nią", async () => {
+    // Para, której tag wypadł z przycięcia, musi ZNIKNĄĆ. Gdyby jej indeks
+    // („undefined") trafił do siatki, wartość wylądowałaby w wierszu, którego
+    // w macierzy nie ma - a przy poprzednim silniku rysowała się w rogu jako
+    // fałszywe współwystępowanie. Macierz zostaje przy tym KWADRATOWA: tyle
+    // samo wierszy co kolumn, każdy wiersz tej samej długości.
     const pairs = Array.from({ length: 30 }, (_, i) => coPair(`tag-${i}`, `tag-${i + 1}`, i + 1));
     h.fetchInsights.mockResolvedValue(report({ tag_cooccurrence: pairs }));
     panel();
     await loaded();
 
-    const o = coocOption();
-    expect(strList(rec(o.xAxis).data)).toHaveLength(25);
-    const cells = dataOf(o) as Array<[number, number, number]>;
-    expect(cells.length).toBeGreaterThan(0);
-    for (const [i, j] of cells) {
-      expect(i).toBeLessThan(25);
-      expect(j).toBeLessThan(25);
-    }
+    const cfg = coocChart().config;
+    expect(cfg.categories).toHaveLength(COOC_TAGS);
+    expect(cfg.series).toHaveLength(COOC_TAGS);
+    for (const s of cfg.series) expect(s.values).toHaveLength(COOC_TAGS);
+    // Para tagów spoza dwunastki nie zostawia po sobie żadnej wartości.
+    const wypelnione = cfg.series.flatMap((s) => s.values).filter((v) => v !== null);
+    expect(wypelnione.length).toBeGreaterThan(0);
+    expect(Math.max(...wypelnione.map(Number))).toBeLessThanOrEqual(COOC_TAGS);
   });
 
-  it("scatter popularności niesie parę (wyświetlenia, unikalni) i przycina się do 40 wpisów", async () => {
+  it("rozrzut popularności niesie parę (wyświetlenia, unikalni) i przycina się do 40 wpisów", async () => {
+    // Rozrzut zostaje rozrzutem: obie zmienne są liczbowe i niezależne, więc
+    // pierwsza seria jest osią X, druga osią Y, a kategoria nazywa punkt.
     const rows = Array.from({ length: 45 }, (_, i) => pop(`p${i}`, `Wpis ${i}`, 100 - i, 50 - i));
     h.fetchInsights.mockResolvedValue(report({ popularity: rows }));
     panel();
     await loaded();
 
-    const data = dataOf(popularityOption()) as Array<{ name: string; value: [number, number] }>;
-    expect(data).toHaveLength(40);
-    expect(data[0]).toEqual({ name: "Wpis 0", value: [100, 50] });
+    const cfg = popularityChart().config;
+    expect(cfg.categories).toHaveLength(40);
+    expect(cfg.categories[0]).toBe("Wpis 0");
+    expect(cfg.series.map((s) => s.name)).toEqual([dict("views"), dict("uniques")]);
+    expect(values(popularityChart())[0]).toBe(100);
+    expect(values(popularityChart(), 1)[0]).toBe(50);
+    // Liczba obserwacji w podpisie to LICZBA PUNKTÓW, a nie suma wyświetleń -
+    // inaczej podpis mówiłby o innym badaniu niż chmura nad nim.
+    expect(cfg.sampleSize).toBe(40);
   });
 
   it("wpis BEZ tytułu pokazuje osiem znaków identyfikatora, a nie „undefined”", async () => {
@@ -637,50 +769,50 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     panel();
     await loaded();
 
-    const data = dataOf(popularityOption()) as Array<{ name: string }>;
-    expect(data[0].name).toBe("abcdefgh");
+    expect(popularityChart().config.categories[0]).toBe("abcdefgh");
+    expect(JSON.stringify(popularityChart().config)).not.toContain("undefined");
   });
 
-  it("rozmiar punktu rośnie z pierwiastka wyświetleń i mieści się w [6, 28]", async () => {
+  it("wielkość wyświetleń jedzie POŁOŻENIEM punktu, a nie jego średnicą", async () => {
+    // Dawny silnik liczył promień z pierwiastka wyświetleń (`symbolSize`),
+    // czyli kodował TĘ SAMĄ zmienną dwa razy: raz osią X, raz powierzchnią
+    // plamki - a powierzchnia jest w hierarchii percepcyjnej jednym z
+    // najsłabszych kanałów i przy dwóch kodowaniach czytelnik nie wie, które
+    // czytać. Dziś wyświetlenia są WYŁĄCZNIE osią X, więc dowodem jest to, że
+    // obie liczby wpisu stoją na osiach i obie dojeżdżają do tabeli.
     h.fetchInsights.mockResolvedValue(report({ popularity: [pop("p", "Wpis", 100, 10)] }));
     panel();
     await loaded();
 
-    const size = firstSeries(popularityOption()).symbolSize;
-    if (typeof size !== "function") throw new Error("test: scatter nie ma funkcji rozmiaru");
-    const fn = size as (v: number[]) => number;
-    expect(fn([100, 10])).toBe(15); // sqrt(100) * 1.5
-    expect(fn([0, 0])).toBe(6); // dolne ograniczenie - punkt musi być widoczny
-    expect(fn([1_000_000, 0])).toBe(28); // górne ograniczenie - nie zasłania wykresu
+    expect(values(popularityChart())).toEqual([100]);
+    expect(values(popularityChart(), 1)).toEqual([10]);
+    const wiersz = tableRows(dataTableOf(dict("charts.popularityTitle")))[0].join(" ");
+    expect(wiersz).toContain("Wpis");
+    expect(wiersz).toContain("100");
+    expect(wiersz).toContain("10");
   });
 
-  it("sankey rozdziela ten sam wpis na węzeł ŹRÓDŁA i węzeł CELU", async () => {
-    // Bez prefiksów `s:` / `t:` wpis będący jednocześnie źródłem i celem
-    // zamknąłby cykl, a ECharts odmawia narysowania sankeya z cyklem - wykres
-    // znikałby bez śladu w konsoli.
+  it("ranking przejść nazywa PARĘ „źródło → cel”, a nie pojedynczy wpis", async () => {
+    // Elementem tego wykresu jest PRZEJŚCIE między dwoma wpisami - tak samo jak
+    // na sankeyu elementem była wstęga, a nie węzeł. Wpis będący jednocześnie
+    // celem jednej pary i źródłem drugiej ma więc wystąpić w DWÓCH różnych
+    // kategoriach i nie zlewać się w jedną (sankey wymagał do tego prefiksów
+    // `s:` / `t:`, bo cykl w grafie wywracał mu cały rysunek).
     h.fetchInsights.mockResolvedValue(
       report({ click_pairs: [clickPair("A", "B", 7), clickPair("B", "C", 3)] }),
     );
     panel();
     await loaded();
 
-    const o = sankeyOption();
-    const nodes = (firstSeries(o).data ?? []) as Array<{ name: string }>;
-    expect(nodes.map((n) => n.name)).toEqual([
-      "s:A|Zrodlo A",
-      "t:B|Cel B",
-      "s:B|Zrodlo B",
-      "t:C|Cel C",
-    ]);
-    const links = (firstSeries(o).links ?? []) as Array<{ value: number }>;
-    expect(links.map((l) => l.value)).toEqual([7, 3]);
+    expect(flowsChart().config.categories).toEqual(["Zrodlo A → Cel B", "Zrodlo B → Cel C"]);
+    expect(values(flowsChart())).toEqual([7, 3]);
   });
 
-  it("para kliknięć BEZ tytułów buduje węzły ze skróconych identyfikatorów", async () => {
+  it("para kliknięć BEZ tytułów buduje kategorię ze skróconych identyfikatorów", async () => {
     // RPC oddaje `source_title` / `target_title` jako `null` dla wpisów
-    // usuniętych albo nieopublikowanych. Węzeł musi wtedy dostać sześć znaków
-    // identyfikatora, inaczej sankey rysuje dwa węzły o nazwie „undefined"
-    // i skleja w nie ruch z różnych wpisów.
+    // usuniętych albo nieopublikowanych. Kategoria musi wtedy dostać sześć
+    // znaków identyfikatora, inaczej ranking pokazuje „undefined → undefined"
+    // i skleja w jeden słupek ruch z różnych wpisów.
     h.fetchInsights.mockResolvedValue(
       report({
         click_pairs: [
@@ -697,12 +829,48 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     panel();
     await loaded();
 
-    const nodes = (firstSeries(sankeyOption()).data ?? []) as Array<{ name: string }>;
-    expect(nodes.map((n) => n.name)).toEqual(["s:aaaaaaaa-1111|aaaaaa", "t:bbbbbbbb-2222|bbbbbb"]);
-    expect(JSON.stringify(nodes)).not.toContain("undefined");
+    expect(flowsChart().config.categories).toEqual(["aaaaaa → bbbbbb"]);
+    expect(JSON.stringify(flowsChart().config)).not.toContain("undefined");
   });
 
-  it("etykieta węzła sankeya obcina się do 32 znaków", async () => {
+  it("ranking przejść idzie MALEJĄCO, choćby RPC oddało pary w innej kolejności", async () => {
+    // Ranking, który nie jest posortowany, nie jest rankingiem - a kolejność
+    // z agregatu SQL jest szczegółem implementacji zapytania, nie kontraktem.
+    h.fetchInsights.mockResolvedValue(
+      report({
+        click_pairs: [clickPair("A", "B", 2), clickPair("C", "D", 9), clickPair("E", "F", 5)],
+      }),
+    );
+    panel();
+    await loaded();
+
+    expect(values(flowsChart())).toEqual([9, 5, 2]);
+    expect(flowsChart().config.categories[0]).toBe("Zrodlo C → Cel D");
+  });
+
+  it("ranking przejść pokazuje 15 najsilniejszych par i MÓWI, ile ich było", async () => {
+    // Sankey brał wszystkie 25 par i topił je w plątaninie wstęg; ranking
+    // mieści piętnaście. Obcięcie po cichu byłoby tym samym defektem co wykres
+    // bez liczby obserwacji, więc podtytuł podaje OBIE liczby, a podpis `n` -
+    // tę, którą widać.
+    const pairs = Array.from({ length: 22 }, (_, i) => clickPair(`s${i}`, `t${i}`, 100 - i));
+    h.fetchInsights.mockResolvedValue(report({ click_pairs: pairs }));
+    panel();
+    await loaded();
+
+    const cfg = flowsChart().config;
+    expect(cfg.categories).toHaveLength(FLOWS_IN_RANKING);
+    expect(cfg.sampleSize).toBe(FLOWS_IN_RANKING);
+    expect(cardHeaderTexts()).toContain(
+      dict("charts.flowsSubtitle", { shown: FLOWS_IN_RANKING, total: 22 }),
+    );
+  });
+
+  it("DŁUGI tytuł wpisu jedzie do danych w całości - skracanie należy do osi", async () => {
+    // Poprzedni silnik kazał panelowi ciąć etykietę do 32 znaków, bo sam tego
+    // nie umiał - i ucięty napis wchodził tą samą drogą do tabeli i do
+    // eksportu, gdzie nie identyfikuje już wpisu. Przycinanie podpisu osi jest
+    // dziś sprawą renderu, więc panel oddaje tytuł PEŁNY.
     const longTitle = "Bardzo dlugi tytul wpisu ktory nie zmiesci sie na osi wykresu";
     h.fetchInsights.mockResolvedValue(
       report({
@@ -714,34 +882,31 @@ describe("RelatedPostsAnalytics - agregacja danych w wykresach", () => {
     panel();
     await loaded();
 
-    const labelFn = rec(firstSeries(sankeyOption()).label).formatter;
-    if (typeof labelFn !== "function") throw new Error("test: sankey nie ma formatera etykiety");
-    const fn = labelFn as (p: { name: string }) => string;
-    expect(fn({ name: `s:A|${longTitle}` })).toBe(longTitle.slice(0, 32));
-    expect(fn({ name: `s:A|${longTitle}` })).toHaveLength(32);
-    // Nazwa bez separatora nie ma prawa dać „undefined" na osi.
-    expect(fn({ name: "s:A" })).toBe("");
+    expect(flowsChart().config.categories).toEqual([`${longTitle} → Krotki`]);
   });
 
-  it("hub-posty przycinają się do 12 i idą rosnąco ku górze", async () => {
+  it("hub-posty przycinają się do 12 i idą od najmocniejszego", async () => {
     const hubs = Array.from({ length: 15 }, (_, i) => hub(`h${i}`, `Hub ${i}`, 100 - i, 5));
     h.fetchInsights.mockResolvedValue(report({ hub_targets: hubs }));
     panel();
     await loaded();
 
-    const o = hubOption();
-    const names = strList(rec(o.yAxis).data);
-    expect(names).toHaveLength(12);
-    expect(names[0]).toBe("Hub 11"); // najsłabszy z dwunastki na dole
-    expect(names[11]).toBe("Hub 0"); // najmocniejszy na górze
-    expect(numList(firstSeries(o).data)[11]).toBe(100);
+    const cfg = hubChart().config;
+    expect(cfg.categories).toHaveLength(12);
+    expect(cfg.categories[0]).toBe("Hub 0"); // najmocniejszy na górze
+    expect(cfg.categories[11]).toBe("Hub 11"); // najsłabszy z dwunastki na dole
+    expect(values(hubChart())[0]).toBe(100);
   });
 });
 
 // ---------------------------------------------------------------------------
 
-describe("RelatedPostsAnalytics - podpowiedzi wykresów", () => {
-  it("podpowiedź heatmapy składa obie nazwy tagów i liczbę wspólnych wpisów", async () => {
+describe("RelatedPostsAnalytics - drążenie i tabele danych", () => {
+  it("tabela macierzy podaje obie nazwy tagów i liczbę wspólnych wpisów", async () => {
+    // Dawny dymek ECharts składał ten napis sam (`formatter`), bo tamten silnik
+    // nie miał alternatywy tekstowej. Nasz rysuje tabelę przy każdym rodzaju,
+    // więc tę samą prawdę - że komórka wie, KTÓRE dwa tagi łączy i ILE wpisów -
+    // niesie teraz tabela, i to dla czytnika ekranu, a nie tylko dla myszy.
     h.fetchInsights.mockResolvedValue(
       report({
         top_tags: [tag("t1", "Energia"), tag("t2", "Klimat")],
@@ -751,70 +916,99 @@ describe("RelatedPostsAnalytics - podpowiedzi wykresów", () => {
     panel();
     await loaded();
 
-    const html = tooltipFormatter(coocOption())({ value: [0, 1, 5] });
-    expect(html).toBe(`Energia × Klimat<br/>${dict("coocLabel")}<b>5</b>`);
-    expect(html).not.toContain("adminAnalytics.");
+    const table = dataTableOf(dict("charts.coocTitle", { count: COOC_TAGS }));
+    expect(tableHeaders(table)).toContain("Klimat");
+    const tekst = table.textContent ?? "";
+    expect(tekst).toContain("Energia");
+    expect(tekst).toContain("5");
+    expect(tekst).not.toContain("adminAnalytics.");
   });
 
-  it("podpowiedź scatteru podaje wyświetlenia i unikalnych ze słownika", async () => {
+  it("tabela rozrzutu podaje wyświetlenia i unikalnych POD NAZWAMI ze słownika", async () => {
     h.fetchInsights.mockResolvedValue(report({ popularity: [pop("p", "Wpis X", 90, 40)] }));
     panel();
     await loaded();
 
-    const html = tooltipFormatter(popularityOption())({ name: "Wpis X", value: [90, 40] });
-    expect(html).toBe(`Wpis X<br/>${dict("views")}: <b>90</b><br/>${dict("uniques")}: <b>40</b>`);
+    const table = dataTableOf(dict("charts.popularityTitle"));
+    // Nagłówki tabeli rozrzutu są SILNIKA (obserwacja / seria / X / Y), a nazwa
+    // chmury - panelu: to ona mówi, że oś X to wyświetlenia, a oś Y unikalni.
+    expect(tableHeaders(table).slice(0, 4)).toEqual([
+      realT("pl")("charts.scatter.table.label"),
+      realT("pl")("charts.scatter.table.series"),
+      realT("pl")("charts.scatter.table.x"),
+      realT("pl")("charts.scatter.table.y"),
+    ]);
+    const wiersz = tableRows(table)[0];
+    expect(wiersz[0]).toBe("Wpis X");
+    expect(wiersz.join(" ")).toContain("90");
+    expect(wiersz.join(" ")).toContain("40");
   });
 
-  it("podpowiedź sankeya rozróżnia krawędź od węzła", async () => {
+  it("wskazanie przejścia otwiera parę w PEŁNYM brzmieniu - źródło, cel, kliknięcia", async () => {
+    // Kategoria osi niesie podpisy skrócone do sześciu znaków (para musi się
+    // zmieścić), więc to drążenie jest jedynym miejscem, w którym operator
+    // dostaje oba tytuły osobno - dawniej robił to dymek sankeya, rozróżniający
+    // krawędź od węzła.
     h.fetchInsights.mockResolvedValue(report({ click_pairs: [clickPair("A", "B", 7)] }));
     panel();
     await loaded();
 
-    const fmt = tooltipFormatter(sankeyOption());
-    // Krawędź mówi o liczbie kliknięć...
-    expect(fmt({ dataType: "edge", value: 7 })).toBe(`7 ${dict("clicksShort")}`);
-    // ...a węzeł o tytule wpisu, bez technicznego prefiksu i identyfikatora.
-    expect(fmt({ dataType: "node", name: "s:A|Zrodlo A" })).toBe("Zrodlo A");
-    // Węzeł bez nazwy nie ma prawa wypisać „undefined".
-    expect(fmt({ dataType: "node" })).toBe("");
+    await clickChart(flowsChart(), { categoryIndex: 0, category: "Zrodlo A → Cel B" });
+
+    expect(drillMetrics()).toEqual([
+      [dict("drill.source"), "Zrodlo A"],
+      [dict("drill.target"), "Cel B"],
+      [dict("series.flowClicks"), "7"],
+    ]);
   });
 
-  it("podpowiedź hub-postów łączy kliknięcia i liczbę źródeł z TEGO słupka", async () => {
+  it("wskazanie huba podaje kliknięcia i liczbę źródeł Z TEGO słupka", async () => {
+    // Liczba RÓŻNYCH ŹRÓDEŁ nie jest zakodowana w słupku (ten koduje kliknięcia),
+    // więc musi mieć nośnik - dawniej dymek, dziś okno szczegółów. Asercja idzie
+    // na DRUGI wiersz rankingu, bo pomylony indeks pokazuje liczby sąsiada,
+    // a wykres wygląda wtedy tak samo.
     h.fetchInsights.mockResolvedValue(
       report({ hub_targets: [hub("h1", "Hub pierwszy", 40, 6), hub("h2", "Hub drugi", 10, 2)] }),
     );
     panel();
     await loaded();
 
-    const fmt = tooltipFormatter(hubOption());
-    // Lista jest odwrócona, więc indeks 0 to SŁABSZY hub - podpowiedź musi
-    // czytać ten sam odwrócony porządek co oś, inaczej pokaże cudze liczby.
-    expect(fmt([{ dataIndex: 0, value: 10, name: "Hub drugi" }])).toBe(
-      `Hub drugi<br/>${dict("hubClicksLabel")}<b>10</b><br/>${dict("hubSourcesLabel")}2`,
-    );
-    expect(fmt([{ dataIndex: 1, value: 40, name: "Hub pierwszy" }])).toContain("<b>40</b>");
+    await clickChart(hubChart(), { categoryIndex: 1, category: "Hub drugi" });
+
+    expect(screen.getByRole("dialog").textContent ?? "").toContain("Hub drugi");
+    expect(drillMetrics()).toEqual([
+      [dict("series.hubClicks"), "10"],
+      [dict("drill.sources"), "2"],
+    ]);
   });
 
-  it("podpowiedź huba BEZ tytułu pokazuje osiem znaków identyfikatora", async () => {
+  it("wskazanie huba BEZ tytułu pokazuje osiem znaków identyfikatora", async () => {
     // Ta sama zasada co na osi: brak tytułu ma dać skrócony identyfikator, a
-    // nie „undefined" w dymku nad słupkiem.
+    // nie „undefined" w oknie szczegółów.
     h.fetchInsights.mockResolvedValue(
       report({ hub_targets: [hub("abcdefgh-1234-5678", null, 12, 3)] }),
     );
     panel();
     await loaded();
 
-    expect(tooltipFormatter(hubOption())([{ dataIndex: 0, value: 12, name: "" }])).toContain(
-      "abcdefgh<br/>",
-    );
+    await clickChart(hubChart(), { categoryIndex: 0, category: "abcdefgh" });
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent ?? "").toContain("abcdefgh");
+    expect(dialog.textContent ?? "").not.toContain("undefined");
   });
 
-  it("podpowiedź hub-postów bez wiersza nie zmyśla treści", async () => {
+  it("wskazanie BEZ wiersza nie otwiera okna i nie zmyśla treści", async () => {
+    // Silnik oddaje wskazanie także wtedy, gdy kategoria wypadła poza zakres
+    // (np. po zmianie danych w locie). `null` z obsługi znaczy „ten element nie
+    // ma czego pokazać" i okno ma się wtedy NIE otworzyć.
     h.fetchInsights.mockResolvedValue(report({ hub_targets: [hub("h1", "Hub", 1, 1)] }));
     panel();
     await loaded();
 
-    expect(tooltipFormatter(hubOption())([])).toBe("");
+    await clickChart(hubChart(), { categoryIndex: 9 });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
@@ -1091,7 +1285,7 @@ describe("RelatedPostsAnalytics - izolacja warsztatów", () => {
     ]) {
       expect(text).not.toContain(leak);
     }
-    // Także w danych oddanych wykresom - wyciek może siedzieć w kanwie.
+    // Także w danych oddanych silnikowi - wyciek może siedzieć w konfiguracji.
     expect(JSON.stringify(h.charts)).not.toContain("Alfa");
   });
 
@@ -1165,20 +1359,37 @@ describe("RelatedPostsAnalytics - izolacja warsztatów", () => {
 
 // ---------------------------------------------------------------------------
 
+/** Tytuły sześciu kart pulpitu, w kolejności renderu. */
+function chartTitles(lang: AppLang = "pl"): string[] {
+  return [
+    dict("charts.topCatsTitle", {}, lang),
+    dict("charts.topTagsTitle", {}, lang),
+    dict("charts.coocTitle", { count: COOC_TAGS }, lang),
+    dict("charts.popularityTitle", {}, lang),
+    dict("charts.hubTitle", {}, lang),
+    dict("charts.flowsTitle", {}, lang),
+  ];
+}
+
 describe("RelatedPostsAnalytics - dostępność", () => {
   it("każdy z sześciu wykresów ma nazwę regionu zbudowaną z tytułu karty", async () => {
     const t = realT("pl");
     panel();
     await loaded();
 
-    const names = screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"));
-    expect(names).toHaveLength(6);
-    expect(names).toContain(
-      t("adminAnalytics.chartCard.chartRegion", { title: dict("charts.coocTitle") }),
+    // REGIONY ZBIERANE PO ROLI „img" I „group": silnik daje rysunkom
+    // kartezjańskim pierwszą, a rodzajom z fokusowalnymi elementami drugą -
+    // liczenie samych obrazków gubiłoby te drugie, a ich liczba zależy od
+    // danych, nie od liczby kart.
+    const names = [...screen.getAllByRole("img"), ...screen.queryAllByRole("group")].map(
+      (el) => el.getAttribute("aria-label") ?? "",
     );
-    expect(names).toContain(
-      t("adminAnalytics.chartCard.chartRegion", { title: dict("charts.sankeyTitle") }),
-    );
+    for (const title of chartTitles()) {
+      expect(names).toContain(t("adminAnalytics.chartCard.chartRegion", { title }));
+    }
+    // ...i ani jednego regionu BEZ nazwy: bezimienny obrazek jest dla czytnika
+    // ekranu przystankiem, który nic nie mówi.
+    expect(names.filter((n) => n.trim() === "")).toEqual([]);
   });
 
   it("poza nienazwanymi przyciskami panel nie ma innych naruszeń axe", async () => {
@@ -1237,51 +1448,43 @@ describe("RelatedPostsAnalytics - dostępność", () => {
   });
 
   it("KAŻDY z sześciu wykresów ma tekstową alternatywę powiązaną z regionem", async () => {
-    // `ChartCard` UMIE zbudować tabelę danych z `csv` i podpiąć ją przez
-    // `aria-describedby`, ale panel nie podawał `csv` ANI RAZU - dla czytnika
-    // ekranu wszystkie sześć wykresów było pustym prostokątem z samą nazwą.
+    // Dawniej tabelę danych budowała karta z `csv`, a panel nie podawał go ANI
+    // RAZU - dla czytnika ekranu wszystkie sześć kanw ECharts było pustym
+    // prostokątem z samą nazwą. Nasz silnik rysuje alternatywę tekstową przy
+    // KAŻDYM rodzaju i nie da się jej pominąć z zewnątrz; ten przypadek
+    // pilnuje, że żadna z sześciu kart nie wypada z tej reguły.
     //
-    // Asercja idzie na OBA końce powiązania: region musi mieć
-    // `aria-describedby`, a wskazany identyfikator musi istnieć w dokumencie.
-    // Sam atrybut bez elementu jest gorszy niż jego brak - czytnik obiecuje
-    // opis i milknie.
+    // Asercja idzie na OBA końce powiązania: region ma `aria-describedby`,
+    // a wskazany identyfikator musi istnieć w dokumencie. Sam atrybut bez
+    // elementu jest gorszy niż jego brak - czytnik obiecuje opis i milknie.
     panel();
     await loaded();
 
-    const regions = screen.getAllByRole("img");
-    expect(regions).toHaveLength(6);
-    const withoutText = regions.filter((el) => !el.getAttribute("aria-describedby"));
-    expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
-    for (const region of regions) {
+    for (const title of chartTitles()) {
+      const region = chartRegion(title);
       const id = region.getAttribute("aria-describedby") ?? "";
-      expect(document.getElementById(id), `wiszące aria-describedby: ${id}`).not.toBeNull();
+      expect(document.getElementById(id), `wiszące aria-describedby: ${title}`).not.toBeNull();
+      // Tabela z co najmniej jednym wierszem - pusta byłaby obietnicą
+      // alternatywy, a nie alternatywą.
+      expect(tableRows(dataTableOf(title)).length, `pusta tabela: ${title}`).toBeGreaterThan(0);
     }
-    // Tabela niesie te same wiersze co wykres, nie zaślepkę ze słownika.
+    // Zaślepka karty nie ma prawa wystąpić - tabele niosą wiersze raportu.
     expect(screen.queryByText(realT("pl")("adminAnalytics.chartCard.dataTableMissing"))).toBeNull();
-    expect(screen.getAllByText(realT("pl")("adminAnalytics.chartCard.dataTable"))).toHaveLength(6);
   });
 });
 
 // ---------------------------------------------------------------------------
 
 describe("RelatedPostsAnalytics - dwujęzyczność", () => {
-  const TITLE_KEYS = [
-    "charts.topCatsTitle",
-    "charts.topTagsTitle",
-    "charts.coocTitle",
-    "charts.popularityTitle",
-    "charts.hubTitle",
-    "charts.sankeyTitle",
-  ] as const;
-
   it("wszystkie sześć kart wykresów nazywa się ze słownika PL", async () => {
     panel();
     await loaded();
 
-    for (const key of TITLE_KEYS) {
-      expect(cardHeaderTexts()).toContain(dict(key));
-      expect(cardHeaderTexts()).toContain(dict(`${key.replace("Title", "Subtitle")}`));
+    for (const title of chartTitles()) {
+      expect(cardHeaderTexts()).toContain(title);
     }
+    expect(cardHeaderTexts()).toContain(dict("charts.topCatsSubtitle"));
+    expect(cardHeaderTexts()).toContain(dict("charts.coocSubtitle", { count: COOC_TAGS }));
   });
 
   it("ten sam panel po EN mówi po angielsku, bez ani jednego polskiego tytułu", async () => {
@@ -1289,9 +1492,11 @@ describe("RelatedPostsAnalytics - dwujęzyczność", () => {
     panel();
     await loaded("en");
 
-    for (const key of TITLE_KEYS) {
-      expect(cardHeaderTexts()).toContain(dict(key, {}, "en"));
-      expect(screen.queryByText(dict(key, {}, "pl"))).toBeNull();
+    for (const title of chartTitles("en")) {
+      expect(cardHeaderTexts()).toContain(title);
+    }
+    for (const title of chartTitles("pl")) {
+      expect(cardHeaderTexts()).not.toContain(title);
     }
     // Kafelki i podpis okna też, nie tylko nagłówki kart.
     expect(screen.getByText(dict("kpi.clicks", {}, "en"))).toBeInTheDocument();

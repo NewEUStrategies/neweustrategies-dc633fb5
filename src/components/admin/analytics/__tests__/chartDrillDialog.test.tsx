@@ -25,10 +25,10 @@
 // skąd przyszło" mieszkają WYŁĄCZNIE w Radiksie, a komponent podaje mu tylko
 // `open` i `onOpenChange`. Atrapa dowiodłaby, że atrapa działa.
 //
-// ECHARTS NIE WCHODZI DO TEGO PROCESU (nagłówek `EChart.tsx`) - i nie musi:
-// `ChartDrillDialog` nie dotyka renderera, przyjmuje gotowy ładunek. Kształty
-// zdarzeń, jakie ECharts potrafi oddać (klik w serię, w wycinek, w element bez
-// danych), są przejechane tam, gdzie mieszka mapowanie - w `chartCard.test.tsx`.
+// SILNIK NIE WCHODZI DO TEGO PROCESU - i nie musi: `ChartDrillDialog` nie
+// dotyka rysunku, przyjmuje gotowy ładunek. Kształty wskazania, jakie silnik
+// potrafi oddać (kategoria z serią, wycinek tarczy, wskazanie puste), są
+// przejechane tam, gdzie mieszka mapowanie - w `chartCard.test.tsx`.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 

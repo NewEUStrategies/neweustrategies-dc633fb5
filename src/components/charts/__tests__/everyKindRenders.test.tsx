@@ -32,6 +32,7 @@ import type { Json } from "@/lib/content-model/json";
 import { CHART_KINDS, type ChartKind } from "@/lib/charts/types";
 import { parseChartConfig } from "@/lib/charts/parse";
 import { Chart } from "../Chart";
+import { oddajeWskazanie, type ChartSelection } from "@/lib/charts/selection";
 
 /**
  * Jeden zestaw danych dla WSZYSTKICH rodzajów, i to jest celowe: rodzaj,
@@ -422,4 +423,70 @@ describe("każdy rodzaj jest dostępny z klawiatury", () => {
       expect(container.textContent ?? "").not.toContain("NaN");
     });
   }
+});
+
+/* -------------------------------------------------------------------------- */
+/*  WSKAZANIE ODDANE NA ZEWNĄTRZ                                              */
+/* -------------------------------------------------------------------------- */
+
+describe("każdy rodzaj ODDAJE wskazanie albo stoi na liście z powodem", () => {
+  // PO CO. Panele analityczne otwierają po wskazaniu okno szczegółów. Render,
+  // który wskazania nie oddaje, wygląda w panelu identycznie jak render, który
+  // oddaje - do chwili, w której ktoś kliknie i nic się nie stanie. Ta bramka
+  // sprawdza ZACHOWANIE, a nie obecność właściwości w typie: właściwość
+  // przyjęta i nigdy nie wywołana kompiluje się bez słowa protestu.
+  for (const kind of CHART_KINDS) {
+    const powinno = oddajeWskazanie(kind);
+
+    it(`${kind}: ${powinno ? "oddaje wskazanie klawiszem Enter" : "wskazania NIE oddaje - z powodu"}`, () => {
+      const wskazania: ChartSelection[] = [];
+      const { container } = render(
+        <Chart
+          config={parseChartConfig({ ...DANE, kind })}
+          lang="pl"
+          onSelect={(s) => wskazania.push(s)}
+        />,
+      );
+      // Droga klawiaturowa jest w teście CELOWA: nie wymaga geometrii, więc
+      // nie zależy od szerokości kontenera, której happy-dom nie zna.
+      const cel =
+        WZORZEC[kind] === "kontener"
+          ? container.querySelector<HTMLElement>("[role='img'][tabindex='0']")
+          : container.querySelector<HTMLElement>("[tabindex='0']");
+      if (!cel) throw new Error(`${kind}: nie ma czego ogniskować`);
+      if (WZORZEC[kind] === "kontener") {
+        fireEvent.keyDown(cel, { key: KLAWISZ_DALEJ[kind] });
+      } else {
+        fireEvent.focus(cel);
+      }
+      fireEvent.keyDown(cel, { key: "Enter" });
+
+      if (!powinno) {
+        expect(wskazania, `${kind}: rodzaj z listy BEZ_WSKAZANIA jednak je oddał`).toEqual([]);
+        return;
+      }
+      expect(wskazania.length, `${kind}: Enter nie oddał wskazania`).toBeGreaterThan(0);
+      const w = wskazania[wskazania.length - 1];
+      expect(w.kind, `${kind}: wskazanie podaje cudzy rodzaj`).toBe(kind);
+      // Wskazanie MUSI nieść tożsamość: sam rodzaj nie mówi panelowi niczego,
+      // czego panel by nie wiedział przed kliknięciem.
+      const maTozsamosc = w.category !== null || w.categoryIndex !== null || w.seriesName !== null;
+      expect(maTozsamosc, `${kind}: wskazanie bez ani jednej tożsamości`).toBe(true);
+    });
+  }
+
+  it("lista BEZ_WSKAZANIA nie zbiera martwych wpisów", () => {
+    // Ratchet: wpis o rodzaju, którego nie ma w `CHART_KINDS`, jest śladem po
+    // usuniętym rodzaju, a wpis o rodzaju, który wskazanie JUŻ oddaje, kłamie
+    // o stanie kodu.
+    const nieoddajace = CHART_KINDS.filter((k) => !oddajeWskazanie(k));
+    expect(
+      nieoddajace.length,
+      "lista wyjątków jest pusta - usuń ją albo mechanizm",
+    ).toBeGreaterThan(0);
+    expect(
+      nieoddajace.length,
+      "połowa rodzajów na liście wyjątków znaczy, że to nie jest wyjątek",
+    ).toBeLessThan(CHART_KINDS.length / 2);
+  });
 });

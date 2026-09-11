@@ -1,14 +1,25 @@
-// Zakładka Analityka - agregaty per kupon + wykres słupkowy TOP10.
-// Wykres przez wspólny wrapper EChart (standard analityki w tym repo):
-// SSR-safe stub + lazy EChartClient, bez wciągania silnika wykresów do grafu
-// SSR i bez dodatkowej zależności (recharts nie jest w package.json).
+// Zakładka Analityka - agregaty per kupon + ranking TOP10.
+//
+// RYSUJE NASZ SILNIK (`@/components/charts`), ten sam co wpis i pozostałe
+// pulpity. Wcześniej stał tu ECharts z własną paletą - i z kolorem słupka
+// WPISANYM NA SZTYWNO (`#2a78d6`), czyli wartością, której nie widziała żadna
+// bramka kontrastu ani motywu: w trybie ciemnym słupek zostawał tym samym
+// błękitem na ciemnej płycie.
+//
+// SŁUPKI POZIOME, NIE PIONOWE. Kod kuponu bywa długi, a pionowa oś kategorii
+// obracała etykiety o 30 stopni i ucinała je do 110 pikseli - czyli rysunek
+// przestawał identyfikować kupon, o którym mówi. Poziome słupki dają etykiecie
+// całą szerokość wiersza, a posortowane malejąco są rankingiem, którym ta
+// karta i tak jest.
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import type { EChartsCoreOption } from "echarts/core";
-import { EChart } from "@/components/admin/analytics/EChart";
+import { Chart } from "@/components/charts/Chart";
+import { defaultChartConfig } from "@/lib/charts/parse";
+import { chartLangFrom } from "@/lib/charts/format";
+import type { ChartConfig } from "@/lib/charts/types";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
@@ -93,30 +104,42 @@ function AnalyticsPage() {
     redemptions: Number(r.redemptions),
   }));
 
-  const top10Option = useMemo<EChartsCoreOption>(
+  const top10Config = useMemo<ChartConfig>(
     () => ({
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-      grid: { left: 8, right: 8, top: 16, bottom: 8, containLabel: true },
-      xAxis: {
-        type: "category",
-        data: top10.map((r) => r.code),
-        axisLabel: { rotate: 30, fontSize: 11, overflow: "truncate", width: 110 },
-      },
-      yAxis: { type: "value", axisLabel: { fontSize: 11 } },
+      // Na `defaultChartConfig()`, nie na literale: konfiguracja ma kilkanaście
+      // pól i nowe dochodzą, więc literał albo przestałby się kompilować przy
+      // każdym dopisaniu pola, albo ktoś rozluźniłby typ i trasa rysowałaby
+      // wykres z niezdefiniowanymi ustawieniami uczciwości.
+      ...defaultChartConfig(),
+      kind: "bar-horizontal",
+      // Tytuł i opis PUSTE: nagłówek rysuje karta, a rama silnika pomija swój
+      // własny dokładnie wtedy, gdy oba są puste.
+      title: "",
+      description: "",
+      categories: top10.map((r) => r.code),
       series: [
         {
           name: L("Realizacje", "Redemptions"),
-          type: "bar",
-          data: top10.map((r) => r.redemptions),
-          barMaxWidth: 36,
-          itemStyle: { borderRadius: [6, 6, 0, 0], color: "#2a78d6" },
-          label: { show: true, position: "top", fontSize: 10 },
+          values: top10.map((r) => r.redemptions),
+          colorSlot: 1,
         },
       ],
+      // Liczba NA SŁUPKU: karta jest rankingiem dziesięciu pozycji, a różnica
+      // między czwartą a piątą bywa mniejsza niż grubość kreski.
+      showValues: true,
+      sampleSize: top10.reduce((acc, r) => acc + r.redemptions, 0),
+      height: 320,
+      animate: false,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, lang],
   );
+
+  // JEDEN NAPIS NA NAGŁÓWEK KARTY I NA NAZWĘ RYSUNKU. Czytnik ekranu ogłasza
+  // rysunek tą nazwą, a osoba widząca czyta ten sam napis nad nim - dwa
+  // literały rozjechałyby się przy pierwszej korekcie tytułu i nikt by tego nie
+  // zauważył, bo jeden z nich jest widoczny tylko w drzewie dostępności.
+  const tytulRankingu = L("TOP 10 kuponów", "TOP 10 coupons");
 
   return (
     <div className="space-y-6">
@@ -147,7 +170,7 @@ function AnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{L("TOP 10 kuponów", "TOP 10 coupons")}</CardTitle>
+          <CardTitle className="text-base">{tytulRankingu}</CardTitle>
         </CardHeader>
         <CardContent>
           {q.isLoading ? (
@@ -162,7 +185,7 @@ function AnalyticsPage() {
           ) : top10.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6">{L("Brak danych.", "No data.")}</p>
           ) : (
-            <EChart option={top10Option} height={320} />
+            <Chart config={top10Config} lang={chartLangFrom(lang)} ariaLabel={tytulRankingu} />
           )}
         </CardContent>
       </Card>

@@ -1,16 +1,21 @@
 /**
  * BI KPI tile: label + big value + delta chip vs previous period + sparkline.
  *
- * The sparkline is a compact ECharts line - reuses the theme/lazy loader so it
- * matches the big charts. When `previous` is provided we compute delta % and
- * pick the delta colour by direction (higher-is-better is toggleable per KPI:
- * position/CLS are lower-is-better).
+ * ISKRA JEST GLIFEM, NIE WYKRESEM, i dlatego nie idzie przez `<Chart>`.
+ * Rysunek o wysokości czterdziestu pikseli nie ma osi, podziałek, legendy,
+ * podpisu ani tabeli danych - a rama silnika dokłada je wszystkie, bo tak ma
+ * wyglądać wykres. Iskra ma pokazać KSZTAŁT szeregu obok liczby, którą i tak
+ * widać w kafelku; liczby są w tabeli panelu, do którego kafelek prowadzi.
+ *
+ * Geometrię i kolor bierze jednak Z SILNIKA: `pathFromPoints` daje tę samą
+ * krzywą, co linia na dużym wykresie, a wypełnienie i obrys idą tokenem
+ * palety. Iskra rysowana własną matematyką i własnym kolorem rozjechałaby się
+ * z wykresem, który opisuje ten sam szereg.
  */
 import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
-import type { EChartsCoreOption } from "echarts/core";
-import { EChart } from "./EChart";
+import { pathFromPoints } from "@/lib/charts/smooth";
 
 export interface KpiTileProps {
   label: string;
@@ -80,25 +85,29 @@ export function KpiTile({
   // dwie sprzeczne rzeczy naraz.
   const DeltaIcon = neutral ? Minus : dir > 0 ? ArrowUpRight : ArrowDownRight;
 
-  const sparkOption = useMemo<EChartsCoreOption | null>(() => {
+  /**
+   * Ścieżka iskry w układzie 100x40.
+   *
+   * Skala pionowa jest ROZPIĘTA NA ZAKRESIE SZEREGU, nie od zera - iskra
+   * pokazuje kształt, a nie poziom, i zero domknięte na szeregu wokół dużej
+   * liczby spłaszczyłoby ją do prostej. Ucięcie osi jest tu więc poprawne
+   * i nie wymaga oznaczenia, bo iskra nie ma osi, z której dałoby się cokolwiek
+   * odczytać - liczbę czytelnik ma obok, w kafelku.
+   */
+  const spark = useMemo<string | null>(() => {
     if (!series || series.length < 2) return null;
-    return {
-      grid: { left: 2, right: 2, top: 2, bottom: 2, containLabel: false },
-      xAxis: { type: "category", show: false, boundaryGap: false, data: series.map((_, i) => i) },
-      yAxis: { type: "value", show: false, scale: true },
-      tooltip: { show: false },
-      legend: { show: false },
-      series: [
-        {
-          type: "line",
-          data: series,
-          smooth: true,
-          symbol: "none",
-          lineStyle: { width: 1.5 },
-          areaStyle: { opacity: 0.15 },
-        },
-      ],
-    };
+    const skonczone = series.filter((v) => Number.isFinite(v));
+    if (skonczone.length < 2) return null;
+    const min = Math.min(...skonczone);
+    const max = Math.max(...skonczone);
+    const rozpietosc = max - min;
+    const punkty = series.map((v, i): [number, number] => {
+      const x = (i / Math.max(1, series.length - 1)) * 100;
+      // Szereg płaski dzieliłby przez zero - wtedy linia idzie środkiem.
+      const y = rozpietosc === 0 ? 20 : 36 - ((v - min) / rozpietosc) * 32;
+      return [x, Number.isFinite(y) ? y : 20];
+    });
+    return pathFromPoints(punkty);
   }, [series]);
 
   return (
@@ -134,11 +143,30 @@ export function KpiTile({
           </div>
         ) : null}
       </div>
-      {sparkOption ? (
+      {spark === null ? null : (
         <div className="mt-2 -mx-1">
-          <EChart option={sparkOption} height={40} />
+          {/* `aria-hidden`, bo iskra nie niesie ani jednej liczby, której nie
+              ma już w kafelku - ogłoszona przez czytnik ekranu byłaby drugim
+              głosem o tym samym. */}
+          <svg
+            viewBox="0 0 100 40"
+            height={40}
+            className="block w-full"
+            aria-hidden="true"
+            data-role="sparkline"
+          >
+            <path
+              d={spark}
+              fill="none"
+              stroke="var(--chart-1)"
+              strokeWidth={1.5}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
         </div>
-      ) : null}
+      )}
     </Card>
   );
 }
