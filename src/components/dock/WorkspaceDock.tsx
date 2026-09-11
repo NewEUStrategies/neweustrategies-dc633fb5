@@ -310,7 +310,9 @@ export function WorkspaceDock() {
         kind="nav"
         id={id}
         label={label}
-        active={item.id === activeId}
+        // JEDEN aktywny na raz: otwarty panel/skrzynka wygasza podświetlenie
+        // trasy, żeby pasek nie pokazywał dwóch rozwiniętych zakładek.
+        active={item.id === activeId && state.open === null}
         center={opts?.center}
         compact={opts?.compact}
         href={bottomBarHref(item, lang)}
