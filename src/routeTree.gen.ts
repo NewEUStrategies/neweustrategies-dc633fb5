@@ -106,6 +106,7 @@ import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
+import { Route as MediaSplatRouteImport } from './routes/media.$'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSavedRouteImport } from './routes/events.saved'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
@@ -870,6 +871,11 @@ const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
 const MeetingsEventSlugRoute = MeetingsEventSlugRouteImport.update({
   id: '/meetings/$eventSlug',
   path: '/meetings/$eventSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MediaSplatRoute = MediaSplatRouteImport.update({
+  id: '/media/$',
+  path: '/media/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveRssDotxmlRoute = LiveRssDotxmlRouteImport.update({
@@ -2492,6 +2498,7 @@ export interface FileRoutesByFullPath {
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
+  '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -2857,6 +2864,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
+  '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -3235,6 +3243,7 @@ export interface FileRoutesById {
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
+  '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -3616,6 +3625,7 @@ export interface FileRouteTypes {
     | '/events/$slug'
     | '/events/saved'
     | '/live/rss.xml'
+    | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -3981,6 +3991,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/events/saved'
     | '/live/rss.xml'
+    | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -4358,6 +4369,7 @@ export interface FileRouteTypes {
     | '/events/$slug'
     | '/events/saved'
     | '/live_/rss.xml'
+    | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -4661,6 +4673,7 @@ export interface RootRouteChildren {
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
+  MediaSplatRoute: typeof MediaSplatRoute
   MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
@@ -5398,6 +5411,13 @@ declare module '@tanstack/react-router' {
       path: '/meetings/$eventSlug'
       fullPath: '/meetings/$eventSlug'
       preLoaderRoute: typeof MeetingsEventSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/media/$': {
+      id: '/media/$'
+      path: '/media/$'
+      fullPath: '/media/$'
+      preLoaderRoute: typeof MediaSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/live_/rss.xml': {
@@ -8240,6 +8260,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
+  MediaSplatRoute: MediaSplatRoute,
   MeetingsEventSlugRoute: MeetingsEventSlugRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,

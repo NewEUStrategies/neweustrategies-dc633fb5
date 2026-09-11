@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { Image as ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 // Nakładka rejestruje klucze `adminLoginSettings.*` efektem ubocznym importu.
 // Organizm woła je sam (plakietka, podpowiedzi, tytuł okna wyboru), więc słownik
 // musi trafić do chunka RAZEM z nim - inaczej ekran pokaże goły klucz w chwili,
@@ -61,7 +62,8 @@ export function ImageUrlField({
 
   const bgClass = previewBg ? PREVIEW_BG[previewBg] : "bg-muted border-border";
   const IconEl = icon === "dark" ? Moon : icon === "light" ? Sun : null;
-  const displayUrl = value || fallbackUrl || "";
+  const brandedValue = brandedMediaUrl(value);
+  const displayUrl = brandedValue || fallbackUrl || "";
   const isFallback = value === "" && Boolean(fallbackUrl);
 
   return (
@@ -107,8 +109,8 @@ export function ImageUrlField({
       </div>
       <div className="flex gap-2">
         <Input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          value={brandedValue}
+          onChange={(event) => onChange(brandedMediaUrl(event.target.value))}
           placeholder={t("adminLoginSettings.imgUrlPlaceholder")}
           className="flex-1"
         />
@@ -121,7 +123,7 @@ export function ImageUrlField({
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         onPick={(url) => {
-          onChange(url);
+          onChange(brandedMediaUrl(url));
           setPickerOpen(false);
         }}
         accept="image"

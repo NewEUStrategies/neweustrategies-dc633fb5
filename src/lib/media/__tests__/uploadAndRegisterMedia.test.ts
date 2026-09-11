@@ -147,7 +147,7 @@ describe("uploadAndRegisterMedia - ścieżka udana", () => {
 
     expect(result.mediaId).toBe("media-1");
     expect(result.storagePath).toBe(h.calls.upload[0]?.path);
-    expect(result.publicUrl).toBe(h.publicUrl);
+    expect(result.publicUrl).toBe("https://neweuropeanstrategies.com/media/x.png");
   });
 
   it("przekazuje do rejestracji metadane pliku, nie zgadywane wartości", async () => {
@@ -159,7 +159,7 @@ describe("uploadAndRegisterMedia - ścieżka udana", () => {
         filename: "raport.pdf",
         mimeType: "application/pdf",
         sizeBytes: 2048,
-        publicUrl: h.publicUrl,
+        publicUrl: "https://neweuropeanstrategies.com/media/x.png",
       }),
     });
   });

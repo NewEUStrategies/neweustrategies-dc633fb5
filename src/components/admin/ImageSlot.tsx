@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Upload, X } from "@/lib/lucide-shim";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import "@/lib/i18n-admin-panes-misc";
 
 export interface ImageSlotTransform {
@@ -77,7 +78,7 @@ export function ImageSlot({
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      onChange(data.publicUrl);
+      onChange(brandedMediaUrl(data.publicUrl));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("adminPanesMisc.imageSlot.uploadError"));
     } finally {
@@ -100,14 +101,14 @@ export function ImageSlot({
           }}
           data-preview-mode={previewMode}
         >
-          <img src={value} alt="" className="max-h-24 max-w-full object-contain" />
+          <img src={brandedMediaUrl(value)} alt="" className="max-h-24 max-w-full object-contain" />
         </div>
       )}
       <div className="flex items-center gap-2">
         <Input
-          value={value}
+          value={brandedMediaUrl(value)}
           placeholder={t("adminPanesMisc.imageSlot.urlPlaceholder")}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(brandedMediaUrl(e.target.value))}
           className="h-8 text-xs flex-1"
         />
         {value && (
