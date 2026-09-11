@@ -181,6 +181,26 @@ describe("ChartDrillDialog - nagłówek i chipy kontekstu", () => {
     expect(link.getAttribute("title")).toBe(PELNY.url);
   });
 
+  it("długi tytuł i adres nie mogą wypchnąć treści poza okno", () => {
+    const dlugaSciezka =
+      "/blog/co-rozpoczelo-zimna-wojne-zrodla-konfliktu-stanow-zjednoczonych-i-zwiazku-radzieckiego";
+    otworz({
+      title: dlugaSciezka,
+      subtitle: "Strony wg wyświetleń",
+      url: `https://example.com${dlugaSciezka}`,
+      urlLabel: dlugaSciezka,
+    });
+
+    const dialog = okno();
+    const title = within(dialog).getByRole("heading", { name: dlugaSciezka });
+    const link = within(dialog).getByRole("link", { name: dlugaSciezka });
+    expect(dialog.className).toContain("overflow-x-hidden");
+    expect(dialog.className).toContain("w-[calc(100vw-2rem)]");
+    expect(title.className).toContain("[overflow-wrap:anywhere]");
+    expect(link.className).toContain("min-w-0");
+    expect(link.querySelector("span")?.className).toContain("truncate");
+  });
+
   it("bez daty i bez adresu cały pasek kontekstu znika", () => {
     otworz({ title: "Tylko tytuł", description: "Opis." });
 
@@ -251,6 +271,15 @@ describe("ChartDrillDialog - metryki", () => {
     expect(w.getByText("poprzednio 350")).toBeTruthy();
     // Druga metryka (CTR) podpowiedzi nie ma - w oknie jest dokładnie jedna.
     expect(w.getAllByText(/poprzednio/)).toHaveLength(1);
+  });
+
+  it("metryki układają się w jedną kolumnę na wąskim ekranie i dwie na szerszym", () => {
+    otworz(PELNY);
+
+    const metricsHeading = within(okno()).getByText(realT("pl")("adminAnalytics.drillDialog.metrics"));
+    const grid = metricsHeading.nextElementSibling;
+    expect(grid?.className).toContain("grid-cols-1");
+    expect(grid?.className).toContain("min-[420px]:grid-cols-2");
   });
 });
 

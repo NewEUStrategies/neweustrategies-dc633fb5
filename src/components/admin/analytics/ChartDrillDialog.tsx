@@ -108,7 +108,7 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-lg rounded-[6px]"
+        className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-xl min-w-0 overflow-x-hidden overflow-y-auto rounded-[6px] p-4 sm:p-6"
         onOpenAutoFocus={zapamietajOgnisko}
         onCloseAutoFocus={przywrocOgnisko}
         // Radiks generuje id opisu ZAWSZE i wstawia je w `aria-describedby`,
@@ -117,15 +117,19 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
         // czytnik obiecuje opis i milknie. Jawne `undefined` zdejmuje atrybut.
         {...(detail.subtitle ? {} : { "aria-describedby": undefined })}
       >
-        <DialogHeader>
-          <DialogTitle className="font-display text-base leading-tight">{detail.title}</DialogTitle>
+        <DialogHeader className="min-w-0 pr-8 text-left">
+          <DialogTitle className="min-w-0 [overflow-wrap:anywhere] font-display text-base leading-snug">
+            {detail.title}
+          </DialogTitle>
           {detail.subtitle ? (
-            <DialogDescription className="text-xs">{detail.subtitle}</DialogDescription>
+            <DialogDescription className="min-w-0 [overflow-wrap:anywhere] text-xs leading-relaxed">
+              {detail.subtitle}
+            </DialogDescription>
           ) : null}
         </DialogHeader>
 
         {(detail.date || detail.url) && (
-          <div className="flex flex-wrap items-center gap-2 -mt-1">
+          <div className="-mt-1 flex min-w-0 flex-wrap items-center gap-2">
             {detail.date ? (
               <span className="inline-flex items-center gap-1 rounded-[6px] bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 <Calendar className="h-3 w-3" aria-hidden />
@@ -137,10 +141,10 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
                 href={detail.url}
                 target={external ? "_blank" : undefined}
                 rel={external ? "noopener noreferrer" : undefined}
-                className="inline-flex max-w-full items-center gap-1 truncate rounded-[6px] border border-input bg-background px-2 py-0.5 font-mono text-xs text-foreground transition-colors hover:border-brand hover:text-brand"
+                className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-[6px] border border-input bg-background px-2 py-1 font-mono text-xs text-foreground transition-colors hover:border-brand hover:text-brand"
                 title={detail.url}
               >
-                <span className="truncate">{detail.urlLabel ?? detail.url}</span>
+                <span className="min-w-0 truncate">{detail.urlLabel ?? detail.url}</span>
                 {external ? <ExternalLink className="h-3 w-3 shrink-0" aria-hidden /> : null}
               </a>
             ) : null}
@@ -148,7 +152,7 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
         )}
 
         {detail.description ? (
-          <p className="rounded-[6px] border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
+          <p className="min-w-0 [overflow-wrap:anywhere] rounded-[6px] border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
             <Info className="mr-1 inline h-3 w-3 -translate-y-0.5" aria-hidden />
             {detail.description}
           </p>
@@ -159,25 +163,27 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               {t("adminAnalytics.drillDialog.metrics")}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2">
               {detail.metrics.map((m) => (
                 <div
                   key={m.label}
-                  className="rounded-[6px] border border-border/60 bg-card px-2.5 py-2"
+                  className="min-w-0 rounded-[6px] border border-border/60 bg-card px-2.5 py-2"
                 >
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <div className="min-w-0 [overflow-wrap:anywhere] text-[10px] uppercase tracking-wide text-muted-foreground">
                     {m.label}
                   </div>
                   <div
                     className={cn(
-                      "font-display text-sm font-semibold tabular-nums",
+                      "min-w-0 [overflow-wrap:anywhere] font-display text-sm font-semibold tabular-nums",
                       TONE_CLS[m.tone ?? "neutral"],
                     )}
                   >
                     {m.value}
                   </div>
                   {m.hint ? (
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">{m.hint}</div>
+                    <div className="mt-0.5 min-w-0 [overflow-wrap:anywhere] text-[10px] text-muted-foreground">
+                      {m.hint}
+                    </div>
                   ) : null}
                 </div>
               ))}
@@ -199,10 +205,10 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
                       href={l.href}
                       target={ext ? "_blank" : undefined}
                       rel={ext ? "noopener noreferrer" : undefined}
-                      className="inline-flex items-center gap-1 text-xs text-brand transition-colors hover:underline"
+                      className="inline-flex max-w-full min-w-0 items-start gap-1 [overflow-wrap:anywhere] text-xs text-brand transition-colors hover:underline"
                     >
-                      {l.label}
-                      {ext ? <ExternalLink className="h-3 w-3" aria-hidden /> : null}
+                      <span className="min-w-0">{l.label}</span>
+                      {ext ? <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" aria-hidden /> : null}
                     </a>
                   </li>
                 );
