@@ -1348,21 +1348,27 @@ export default defineConfig({
           lines: 99,
           branches: 86,
         },
-        // zmierzone: 92.8% linii · 89.8% instr · 83.3% fn · 88.1% gał
+        // PODNIESIONE TESTAMI, nie zmianą liczby. Przegląd adwersarialny dołożył
+        // 785 linii testów wachlarza i zmierzone poszło z 92,8/89,8/83,3/88,1 na:
+        // zmierzone: 100.0% linii · 98.9% instr · 100.0% fn · 97.3% gał
         "src/components/charts/FanChart.tsx": {
-          statements: 89,
-          functions: 83,
-          lines: 92,
-          branches: 88,
+          statements: 98,
+          functions: 99,
+          lines: 99,
+          branches: 97,
         },
         // zmierzone: 95.5% linii · 94.5% instr · 87.5% fn · 93.7% gał
+        // PODNIESIONE TESTAMI: 644 linie testów indeksu z przeglądu
+        // adwersarialnego dały pokrycie PEŁNE na wszystkich czterech metrykach
+        // (207/207 instrukcji, 160/160 gałęzi, 40/40 funkcji, 182/182 linii),
+        // czyli z 95,5/94,5/87,5/93,7 na:
+        // zmierzone: 100.0% linii · 100.0% instr · 100.0% fn · 100.0% gał
         "src/components/charts/IndexBaseChart.tsx": {
-          statements: 94,
-          functions: 87,
-          lines: 95,
-          branches: 93,
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
         },
-        // zmierzone: 99.5% linii · 97.6% instr · 97.2% fn · 88.3% gał
         "src/components/charts/PercentStackedChart.tsx": {
           statements: 97,
           functions: 97,

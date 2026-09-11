@@ -273,10 +273,11 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
 
   const { scale, padLeft, innerW, innerH, value, okres } = geometry;
 
-  // Co która etykieta okresu, żeby napisy się nie stykały bokami. Pierwsza,
-  // ostatnia i BAZOWA są podpisane zawsze: bez pierwszej i ostatniej nie
-  // wiadomo, jaki odcinek czasu pokazuje rysunek, a bez bazowej nie wiadomo,
-  // wobec czego liczona jest każda wartość.
+  // Co która etykieta okresu, licząc z szerokości najszerszego napisu. To jest
+  // WSTĘPNE przerzedzenie, a nie rozstrzygnięcie: pierwsza, ostatnia i bazowa
+  // stoją poza krokiem (bez pierwszej i ostatniej nie wiadomo, jaki odcinek
+  // czasu pokazuje rysunek, a bez bazowej - wobec czego liczona jest każda
+  // wartość), więc o kolizjach rozstrzyga niżej `podpisaneOkresy`.
   const krokEtykiet = useMemo(() => {
     const n = model.periodCount;
     if (n <= 1) return 1;
@@ -284,6 +285,75 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
     const naOkres = Math.max(1, innerW / (n - 1));
     return Math.max(1, Math.ceil((najszersza + PERIOD_LABEL_GAP) / naOkres));
   }, [model.periods, model.periodCount, innerW]);
+
+  /**
+   * KTÓRE OKRESY SĄ PODPISANE - lista indeksów, po sprawdzeniu KOLIZJI.
+   *
+   * Sam krok przerzedzania nie wystarcza, bo trzy etykiety są podpisywane
+   * POZA krokiem (pierwsza, ostatnia i bazowa) i każda z nich może wypaść
+   * tuż obok etykiety przerzedzonej albo obok siebie. ZMIERZONE NA WERSJI
+   * BEZ TEGO PLANU, przy szerokości 720 px:
+   *
+   *   * trzydzieści okresów „R0"..„R29", krok 2 - „R28" (przerzedzona)
+   *     i „R29" (ostatnia) nachodziły na siebie o 7,7 px;
+   *   * dwanaście okresów „Kwartał 1 roku 2020"..., baza na drugim - napisy
+   *     „Kwartał 1 roku 2020" i „Kwartał 2 roku 2021" stały jeden na drugim
+   *     z przesunięciem czterech pikseli, czyli NIE DAŁO SIĘ PRZECZYTAĆ
+   *     ŻADNEGO.
+   *
+   * Reguła „ostatnia rysowana i koniec osi muszą być od siebie oddalone"
+   * stoi w silniku od dawna (`visibleIndices` w `labels.ts` odejmuje przed
+   * ostatnią etykietę pośrednią dokładnie z tego powodu). Tutaj jest
+   * przepisana, a nie zaimportowana, bo tamten plan zna DWIE etykiety
+   * obowiązkowe, a ten rodzaj wykresu ma TRZECIĄ - bazową, która stoi
+   * w środku osi i o której `labels.ts` nie ma jak wiedzieć.
+   *
+   * PIERWSZEŃSTWO: pierwsza, potem ostatnia, potem bazowa, na końcu
+   * przerzedzone. Bazowa ustępuje dwóm skrajnym, i to nie jest cofnięcie
+   * decyzji „baza jest podpisana zawsze": etykieta podpisana, ale leżąca na
+   * cudzym napisie, nie jest podpisana - jest plamą, która zabiera też tę
+   * drugą. Baza zostaje przy tym NAZWANA (podpis linii odniesienia
+   * „Baza: 2020 = 100") i POKAZANA (pionowa kreska przez pole), więc
+   * czytelnik nadal wie, który to okres; pierwszy i ostatni okres nie mają
+   * takiego drugiego nośnika nigdzie.
+   */
+  const podpisaneOkresy = useMemo(() => {
+    const n = model.periodCount;
+    if (n <= 1) return n === 1 ? [0] : [];
+    const waga = (i: number): number =>
+      i === 0 ? 3 : i === n - 1 ? 2 : i === model.baseAt ? 1 : 0;
+    // Zajęte miejsce liczone Z KOTWICĄ, bo etykieta skrajna nie jest
+    // wyśrodkowana na swoim okresie: pierwsza idzie w prawo od niego, ostatnia
+    // w lewo (inaczej obie wychodziłyby za płytę).
+    const przedzial = (i: number): { od: number; do: number } => {
+      const w = estimateLabelWidth(model.periods[i], FONT_AXIS);
+      const x = okres(i);
+      if (i === 0) return { od: x, do: x + w };
+      if (i === n - 1) return { od: x - w, do: x };
+      return { od: x - w / 2, do: x + w / 2 };
+    };
+    const wybrane: number[] = [];
+    for (let i = 0; i < n; i++) {
+      if (waga(i) === 0 && i % krokEtykiet !== 0) continue;
+      const p = przedzial(i);
+      let stoi = true;
+      while (wybrane.length > 0) {
+        const ostatnia = wybrane[wybrane.length - 1];
+        if (p.od >= przedzial(ostatnia).do + PERIOD_LABEL_GAP) break;
+        // Kolizja: schodzi ta o niższym pierwszeństwie. Pętla, a nie jedno
+        // sprawdzenie, bo długa etykieta obowiązkowa potrafi zająć miejsce
+        // więcej niż jednej przerzedzonej.
+        if (waga(i) > waga(ostatnia)) {
+          wybrane.pop();
+          continue;
+        }
+        stoi = false;
+        break;
+      }
+      if (stoi) wybrane.push(i);
+    }
+    return wybrane;
+  }, [model.periods, model.periodCount, model.baseAt, krokEtykiet, okres]);
 
   // BEZ BRAMKI NA PUSTĄ OŚ. Ten uchwyt wisi wyłącznie na kontenerze rysunku,
   // a rysunku nie ma wcale, gdy okresów jest zero (wyjście niżej) - warunek
@@ -335,7 +405,18 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
       text: t(BASE_SOURCE_KEYS[model.baseSource]),
       defect: false,
     });
-    if (model.axisTruncatedFromZero) {
+    // ZDANIE O UCIĘTEJ OSI ORZEKA O OSI, KTÓRA NAPRAWDĘ STOI NA RYSUNKU,
+    // a nie o zakresie danych. To nie jest to samo pytanie i rozjazd między
+    // nimi jest osiągalny: `model.axisTruncatedFromZero` mówi „najniższy
+    // indeks jest dodatni", ale podziałki liczy `niceScale`, które DOCIĄGA
+    // krańce do wielokrotności kroku - dla serii 1, 2, 5, 10 (indeksy
+    // 100..1000) krok wychodzi 200, a dolny kraniec osi zaokrągla się
+    // w DÓŁ do zera. Zmierzone przed poprawką: podziałki „0, 200, 400, 600,
+    // 800, 1000" i pod nimi zdanie „Oś nie zaczyna się od zera", czyli
+    // przypis kłamiący o rysunku, nad którym stoi. Przypis, który przeczy
+    // temu, co widać, jest gorszy od braku przypisu: podważa wszystkie
+    // pozostałe zdania na liście.
+    if (scale.min > 0) {
       notes.push({
         key: "axisTruncated",
         text: t("indexBase.axisTruncated"),
@@ -551,6 +632,24 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
       yEtykiet.set(s.index, y);
       poprzednia = y;
     }
+    // BLOK ETYKIET WRACA DO POLA RYSUNKU. Rozsuwanie idzie w dół, więc przy
+    // czterech liniach kończących się obok siebie u dna osi najniższa etykieta
+    // wypadała POD płótnem: zmierzone na seriach kończących się na
+    // 100,1..100,4 przy wysokości 200 px - ostatnia etykieta na 218 px, czyli
+    // 18 px poniżej rysunku, wprost na liście przypisów pod nim. Przesunięcie
+    // jest WSPÓLNE dla całego bloku, bo tylko wtedy zostaje zachowana
+    // kolejność serii i prześwit między napisami; pojedyncze przycięcie
+    // najniższej etykiety postawiłoby ją na sąsiedniej.
+    // Skrajne wysokości czytane Z MAPY, a nie ze zmiennej pętli z awaryjnym
+    // `?? PAD_TOP`: pusta mapa daje tu `-Infinity` i `+Infinity`, z których
+    // wychodzi przesunięcie zero, więc przypadek „nie ma czego przesuwać"
+    // obsługuje arytmetyka, a nie gałąź, której nie da się wykonać.
+    const nadmiar = Math.max(...yEtykiet.values()) - (PAD_TOP + innerH);
+    const najwyzsza = Math.min(...yEtykiet.values(), PAD_TOP + innerH);
+    const przesuniecie = Math.max(0, Math.min(nadmiar, najwyzsza - PAD_TOP));
+    if (przesuniecie > 0) {
+      for (const [seria, y] of yEtykiet) yEtykiet.set(seria, y - przesuniecie);
+    }
   }
 
   const indexFromPointer = (e: PointerEvent<SVGRectElement>): number => {
@@ -697,10 +796,9 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
             strokeWidth={1}
           />
 
-          {model.periods.map((label, i) => {
+          {podpisaneOkresy.map((i) => {
             const bazowy = i === model.baseAt;
             const ostatni = i === model.periodCount - 1;
-            if (!bazowy && !ostatni && i !== 0 && i % krokEtykiet !== 0) return null;
             return (
               <text
                 key={`p${i}`}
@@ -713,7 +811,7 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
                 fill={bazowy ? "var(--foreground)" : "var(--muted-foreground)"}
                 className="tabular-nums"
               >
-                {label}
+                {model.periods[i]}
               </text>
             );
           })}

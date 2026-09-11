@@ -20,6 +20,8 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
+import { FONT_AXIS } from "@/lib/charts/geometry";
+import { estimateLabelWidth } from "@/lib/charts/measureText";
 import type { ChartConfig } from "@/lib/charts/types";
 import {
   INDEX_BASE_VALUE,
@@ -165,6 +167,29 @@ describe("IndexBaseChart - pozycja koduje indeks, a linia odniesienia jest zerem
     expect(klucze(container)).toContain("axisTruncated");
   });
 
+  it("zdanie o uciętej osi stoi wtedy i tylko wtedy, gdy podziałki NIE mają zera", () => {
+    // ZMIERZONY DEFEKT: przypis orzekał z `model.axisTruncatedFromZero`, czyli
+    // z zakresu DANYCH, a podziałki liczy `niceScale`, które dociąga krańce do
+    // wielokrotności kroku. Dla serii 1, 2, 5, 10 (indeksy 100..1000) krok
+    // wychodzi 200, dolny kraniec zaokrągla się w dół DO ZERA - i pod
+    // podziałkami „0, 200, 400, 600, 800, 1000" stało zdanie „Oś nie zaczyna
+    // się od zera". Przypis przeczący rysunkowi podważa całą listę przypisów.
+    const zZerem = cfg({
+      categories: ["a", "b", "c", "d"],
+      series: [{ name: "Skok", values: [1, 2, 5, 10], colorSlot: 1 }],
+      animate: false,
+    });
+    const { container } = render(<IndexBaseChart config={zZerem} lang="pl" />);
+    const podzialki = all(container, "text.tabular-nums:not([data-role])").map(
+      (e) => e.textContent ?? "",
+    );
+    expect(podzialki).toContain("0");
+    expect(klucze(container)).not.toContain("axisTruncated");
+    // Model nadal mówi swoje o DANYCH - to nie jego pole jest tu błędne,
+    // tylko pytanie, które mu zadawano.
+    expect(indexBaseModelFromConfig(zZerem).axisTruncatedFromZero).toBe(true);
+  });
+
   it("luka przerywa linię, a nie jest zamalowana interpolacją", () => {
     // Zero w miejscu luki wpadłoby do indeksu jako spadek do zera, którego
     // nikt nie zmierzył; interpolacja narysowałaby pomiar, którego nie ma.
@@ -301,13 +326,22 @@ describe("IndexBaseChart - seria odrzucona nie znika po cichu", () => {
   it("seria odrzucona jest w dymku z kreską, a nie pominięta w nim", () => {
     // Seria pominięta w dymku znikałaby czytelnikowi DRUGI raz. Kreska mówi
     // „ten szereg istnieje i nie ma tu indeksu" - a to jest prawda, której
-    // pusty dymek nie powie.
+    // pusty dymek nie powie. Czytany jest WIERSZ, nie cała treść dymka:
+    // „w dymku gdzieś jest myślnik" przechodzi także wtedy, gdy myślnik stoi
+    // w cudzej nazwie albo w liczbie ujemnej, czyli nie mówi nic o serii,
+    // o którą pytamy.
     const { container } = render(<IndexBaseChart config={zBaza(0)} lang="pl" />);
     const box = container.querySelector<HTMLElement>("[role='img']");
     fireEvent.keyDown(box as HTMLElement, { key: "ArrowRight" });
-    const dymek = container.querySelector(".neh-tooltip")?.textContent ?? "";
-    expect(dymek).toContain("Deficyt");
-    expect(dymek).toContain("-");
+    const wiersze = new Map(
+      all(container, ".neh-tooltip dl > div").map((w) => [
+        w.querySelector("dt")?.textContent ?? "",
+        w.querySelector("dd")?.textContent ?? "",
+      ]),
+    );
+    expect(wiersze.get("Deficyt")).toBe("-");
+    // ...a seria, która na rysunku JEST, ma w tym samym dymku liczbę.
+    expect(wiersze.get("Eksport")).toBe("100");
   });
 
   it("przy zdrowym arkuszu żadnego przypisu o odrzuceniu NIE MA", () => {
@@ -373,6 +407,21 @@ describe("IndexBaseChart - klawiatura", () => {
     expect(container.innerHTML).not.toBe(przed);
     expect(container.querySelector("[data-role='active-period']")).not.toBeNull();
     fireEvent.keyDown(box as HTMLElement, { key: "Escape" });
+    expect(container.innerHTML).toBe(przed);
+  });
+
+  it("Escape przywraca rysunek także po wskazaniu WSKAŹNIKIEM", () => {
+    // Druga droga do tego samego stanu. Defekt, który to łapie: stan czynny
+    // zapisany przy `pointermove` w innym polu niż przy strzałce - Escape
+    // czyści wtedy jedno z dwóch i na rysunku zostaje prowadnica bez dymka
+    // albo dymek bez prowadnicy.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']") as HTMLElement;
+    const przed = container.innerHTML;
+    const hit = container.querySelector("rect.neh-hit") as Element;
+    fireEvent.pointerDown(hit, { clientX: 0, clientY: 0 });
+    expect(container.innerHTML).not.toBe(przed);
+    fireEvent.keyDown(box, { key: "Escape" });
     expect(container.innerHTML).toBe(przed);
   });
 
@@ -803,56 +852,587 @@ describe("IndexBaseChart - dane z bazy nie wywracają rysunku", () => {
   });
 });
 
-describe("SONDA2", () => {
-  it("P7 etykiety okresow nie nachodza na siebie", () => {
+/* ========================================================================== */
+/*  ŻADEN NAPIS NIE WYCHODZI SUROWY                                           */
+/* ========================================================================== */
+
+/**
+ * ARKUSZE, KTÓRE URUCHAMIAJĄ WSZYSTKIE ZDANIA TEGO RENDERU - po jednym na
+ * każdą ścieżkę słownika, którą render umie zawołać.
+ */
+const ARKUSZE: { nazwa: string; dane: Record<string, Json> }[] = [
+  { nazwa: "zdrowy", dane: BAZA },
+  { nazwa: "z tytułem", dane: { ...BAZA, title: "Tempo eksportu" } },
+  {
+    nazwa: "podpisane n obok liczby okresów z pomiarem",
+    dane: { ...BAZA, sampleSize: 9, series: [{ name: "E", values: [200, null, 240, 260, 300] }] },
+  },
+  { nazwa: "baza bez nazwy", dane: { ...BAZA, categories: ["", "b", "c", "d", "e"] } },
+  { nazwa: "baza zerowa", dane: { ...BAZA, series: [{ name: "Zero", values: [0, 1, 2, 3, 4] }] } },
+  { nazwa: "baza ujemna", dane: { ...BAZA, series: [{ name: "Neg", values: [-5, 1, 2, 3, 4] }] } },
+  {
+    nazwa: "baza pusta",
+    dane: { ...BAZA, series: [{ name: "Brak", values: [null, 1, 2, 3, 4] }] },
+  },
+  {
+    nazwa: "iloraz poza precyzją",
+    dane: { ...BAZA, categories: ["I", "II"], series: [{ name: "M", values: [1e-320, 1e10] }] },
+  },
+  {
+    nazwa: "szereg przez zero",
+    dane: {
+      ...BAZA,
+      categories: ["I", "II", "III"],
+      series: [{ name: "Marża", values: [4, -2, 3] }],
+    },
+  },
+  {
+    nazwa: "wszystko na setce",
+    dane: {
+      ...BAZA,
+      categories: ["I", "II", "III"],
+      series: [
+        { name: "A", values: [5, 5, 5] },
+        { name: "B", values: [9, 9, 9] },
+      ],
+    },
+  },
+  {
+    nazwa: "baza odstająca",
+    dane: {
+      ...BAZA,
+      categories: ["a", "b", "c", "d", "e", "f"],
+      series: [{ name: "Ruch", values: [100, 98, 20, 99, 101, 102] }],
+    },
+  },
+  {
+    nazwa: "siedem serii",
+    dane: {
+      ...BAZA,
+      categories: ["a", "b", "c"],
+      series: Array.from({ length: 7 }, (_, i) => ({
+        name: `S${i}`,
+        values: [10, 11 + i, 12 + i],
+      })),
+    },
+  },
+  {
+    nazwa: "jeden okres",
+    dane: { ...BAZA, categories: ["2020"], series: [{ name: "A", values: [5] }] },
+  },
+];
+
+describe("IndexBaseChart - wstawka podana, klucz istniejący", () => {
+  it("na żadnym arkuszu i w żadnym języku nie wychodzi ani „{{”, ani nazwa klucza", () => {
+    // DWA DEFEKTY NARAZ, oba niewidoczne dla wszystkich bramek i18n.
+    // Pominięta wstawka zostaje na stronie SUROWA („n = {{declared}}”),
+    // a klucz bez treści w słowniku wychodzi jako własna nazwa
+    // („indexBase.reading.scaleComparable”). Jedno i drugie widać wyłącznie
+    // w `textContent` gotowego rysunku, i wyłącznie wtedy, gdy zdanie w ogóle
+    // się postawi - dlatego arkusze wyżej uruchamiają każdą ścieżkę słownika,
+    // a baza jedzie także poza zakresem osi (dociśnięcie + zgłoszenie).
+    for (const { nazwa, dane } of ARKUSZE) {
+      for (const lang of ["pl", "en"] as const) {
+        for (const baza of [undefined, 2, 99]) {
+          const { container } = render(
+            <IndexBaseChart config={cfg(dane)} lang={lang} baseAt={baza} />,
+          );
+          const gdzie = `${nazwa} / ${lang} / baseAt=${String(baza)}`;
+          const tresc = container.textContent ?? "";
+          expect(tresc, gdzie).not.toContain("{{");
+          expect(tresc, gdzie).not.toContain("indexBase.");
+          expect(tresc, gdzie).not.toContain("a11y.");
+          // `aria-label` nie jest częścią `textContent`, a czyta go czytnik
+          // ekranu - surowa wstawka schowałaby się tam przed każdym testem
+          // patrzącym na tekst.
+          const nazwaDostepna =
+            container.querySelector("[role='img']")?.getAttribute("aria-label") ?? "";
+          expect(nazwaDostepna, gdzie).not.toContain("{{");
+          expect(nazwaDostepna, gdzie).not.toContain("indexBase.");
+        }
+      }
+    }
+  });
+});
+
+/* ========================================================================== */
+/*  NAZWA SERII PRZY KOŃCU LINII                                              */
+/* ========================================================================== */
+
+describe("IndexBaseChart - etykieta końca linii zostaje w płycie", () => {
+  /** Prawa krawędź napisu, mierzona TĄ SAMĄ heurystyką, z której render liczy
+   *  margines - innej miary w silniku nie ma, a marginesu nie wolno sprawdzać
+   *  linijką grubszą niż ta, którą go wyznaczono. */
+  const prawaKrawedz = (el: Element): number =>
+    // Mierzony jest WIDOCZNY napis, czyli pierwszy węzeł tekstowy: pod `<text>`
+    // stoi jeszcze `<title>` z pełną nazwą, którego nikt nie rysuje, a który
+    // wchodzi do `textContent` i zawyżyłby pomiar.
+    num(el, "x") + estimateLabelWidth(el.firstChild?.textContent ?? "", FONT_AXIS);
+
+  const zNazwa = (name: string): ChartConfig =>
+    cfg({ ...BAZA, series: [{ name, values: [200, 210, 240, 260, 300], colorSlot: 1 }] });
+
+  it("nazwa DOWOLNEJ długości kończy się przed prawą krawędzią rysunku", () => {
+    // DEFEKT ZMIERZONY PRZED POPRAWKĄ: margines prawy ma sufit
+    // (`CATEGORY_LABEL_MAX_WIDTH`), a napis stawiany był w CAŁOŚCI - przy
+    // nazwie z pięćdziesięciu znaków prawa krawędź wypadała na 894 px przy
+    // rysunku szerokim na 720 px, czyli 174 px za płytą i bez żadnego znaku,
+    // że coś ucięto. Sufitu marginesu nie wolno podnieść, bo margines odbiera
+    // miejsce POLU RYSUNKU, więc jedynym wyjściem jest ucięcie z podpowiedzią.
+    for (const dlugosc of [1, 10, 24, 25, 50, 120]) {
+      const nazwa = "N".repeat(dlugosc);
+      const { container } = render(<IndexBaseChart config={zNazwa(nazwa)} lang="pl" />);
+      const svg = container.querySelector("svg") as Element;
+      const etykieta = container.querySelector("[data-role='series-end-label']") as Element;
+      expect(prawaKrawedz(etykieta), `${dlugosc} znaków`).toBeLessThanOrEqual(num(svg, "width"));
+    }
+  });
+
+  it("ucięta nazwa niesie wielokropek i PEŁNĄ treść w <title>", () => {
+    // Wielokropek bez podpowiedzi jest zakazany (sekcja 4): „Eksport towarów
+    // i usł…” i „Eksport towarów i usługi” wyglądają identycznie, a to dwie
+    // różne serie.
+    const pelna = "Eksport towarów i usług poza Unię Europejską";
+    const { container } = render(<IndexBaseChart config={zNazwa(pelna)} lang="pl" />);
+    const etykieta = container.querySelector("[data-role='series-end-label']") as Element;
+    const napis = etykieta.firstChild?.textContent ?? "";
+    expect(napis.endsWith("…")).toBe(true);
+    expect(pelna.startsWith(napis.slice(0, -1))).toBe(true);
+    expect(etykieta.querySelector("title")?.textContent).toBe(pelna);
+  });
+
+  it("nazwa mieszcząca się NIE dostaje <title>, bo nie ma czego podpowiadać", () => {
+    // Druga połowa reguły: `<title>` powtarzający widoczny napis dokłada
+    // czytnikowi ekranu drugą kopię tej samej nazwy.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const etykiety = all(container, "[data-role='series-end-label']");
+    expect(etykiety).toHaveLength(2);
+    for (const e of etykiety) expect(e.querySelector("title")).toBeNull();
+  });
+
+  it("rozsunięty blok etykiet zostaje W POLU RYSUNKU, a nie na przypisach pod nim", () => {
+    // ZMIERZONY DEFEKT: cztery serie kończące się na 100,1..100,4 (czyli
+    // cztery linie schodzące się w jeden punkt u dna osi) przy wysokości
+    // 200 px - rozsuwanie w dół stawiało ostatnią etykietę na 218 px, czyli
+    // 18 px POD płótnem, wprost na liście przypisów. `overflow: visible` na
+    // SVG znaczy, że taki napis się RYSUJE - nie jest przycięty, tylko leży
+    // na cudzym tekście.
+    const zbiegajace = cfg({
+      categories: ["a", "b", "c"],
+      height: 200,
+      series: [100.1, 100.2, 100.3, 100.4].map((v, i) => ({
+        name: `S${i}`,
+        values: [100, 300, v],
+        colorSlot: i + 1,
+      })),
+      animate: false,
+    });
+    const { container } = render(<IndexBaseChart config={zbiegajace} lang="pl" />);
+    const hit = container.querySelector("rect.neh-hit") as Element;
+    const gora = num(hit, "y");
+    const dol = gora + num(hit, "height");
+    const y = all(container, "[data-role='series-end-label']").map((e) => num(e, "y") - 3.5);
+    expect(y).toHaveLength(4);
+    for (const v of y) {
+      expect(v).toBeGreaterThanOrEqual(gora);
+      expect(v).toBeLessThanOrEqual(dol);
+    }
+    // Przesunięcie jest WSPÓLNE, więc prześwit i kolejność serii zostają.
+    const posortowane = [...y].sort((a, b) => a - b);
+    for (let i = 1; i < posortowane.length; i++) {
+      expect(posortowane[i] - posortowane[i - 1]).toBeCloseTo(13, 6);
+    }
+  });
+
+  it("etykiety końców rozsuwają się o wiersz DOPIERO przy kolizji", () => {
+    // Rozsunięcie profilaktyczne odrywałoby etykietę od linii, którą nazywa;
+    // brak rozsunięcia przy kolizji dawałby dwa napisy jeden na drugim.
+    const blisko = cfg({
+      categories: ["a", "b", "c"],
+      height: 260,
+      series: [
+        { name: "S1", values: [100, 300, 40], colorSlot: 1 },
+        { name: "S2", values: [100, 300, 41], colorSlot: 2 },
+        { name: "S3", values: [100, 300, 42], colorSlot: 3 },
+      ],
+      animate: false,
+    });
+    const { container } = render(<IndexBaseChart config={blisko} lang="pl" />);
+    const y = all(container, "[data-role='series-end-label']")
+      .map((e) => num(e, "y"))
+      .sort((a, b) => a - b);
+    expect(y).toHaveLength(3);
+    for (let i = 1; i < y.length; i++) expect(y[i] - y[i - 1]).toBeGreaterThanOrEqual(13);
+    // A przy końcach oddalonych od siebie etykieta stoi DOKŁADNIE na
+    // wysokości ostatniego pomiaru swojej serii.
+    const { container: daleko } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    for (const e of all(daleko, "[data-role='series-end-label']")) {
+      const seria = e.getAttribute("data-series") ?? "";
+      const kropki = punkty(daleko, Number(seria));
+      expect(num(e, "y") - 3.5).toBeCloseTo(num(kropki[kropki.length - 1], "cy"), 6);
+    }
+  });
+});
+
+/* ========================================================================== */
+/*  POMIAR, KTÓREGO NIE NIESIE ODCINEK                                        */
+/* ========================================================================== */
+
+describe("IndexBaseChart - każdy pomiar ma na rysunku swój nośnik", () => {
+  /** Trzydzieści okresów, czyli POWYŻEJ progu rysowania kropek - dokładnie
+   *  tam, gdzie samotny pomiar nie ma czym się pokazać. */
+  const DUZO = Array.from({ length: 30 }, (_, i) => `R${i}`);
+  const rzadka = (indeksy: number[]): ChartConfig =>
+    cfg({
+      categories: DUZO,
+      series: [
+        {
+          name: "Rzadka",
+          values: DUZO.map((_, i) => (indeksy.includes(i) ? 100 + i : null)),
+          colorSlot: 1,
+        },
+      ],
+      animate: false,
+    });
+
+  it("pomiar otoczony lukami dostaje marker, choć kropki są wyłączone", () => {
+    // ZMIERZONY DEFEKT: dla trzydziestu okresów i pomiarów w okresie 0 i 15
+    // ścieżka serii wychodziła jako „M33.0 296.0 M360.9 12.0”, a znaczników
+    // było zero. Ścieżka z samym `M` nie rysuje NICZEGO, więc czytelnik
+    // widział pusty wykres przy danych, które są - to samo kłamstwo co seria
+    // zniknięta bez słowa, tylko o pojedynczej obserwacji.
+    const { container } = render(<IndexBaseChart config={rzadka([0, 15])} lang="pl" />);
+    const d = container.querySelector("[data-role='series-line']")?.getAttribute("d") ?? "";
+    // Warunek, z którego wynika cały ten przypadek: linia NIE MA ani jednego
+    // odcinka, bo nie ma dwóch pomiarów obok siebie.
+    expect(d).not.toContain("L");
+    expect(punkty(container, 0)).toHaveLength(2);
+  });
+
+  it("marker samotnego pomiaru stoi dokładnie nad swoim okresem", () => {
+    // Marker postawiony obok okresu kłamałby o dacie pomiaru - a to jedyny
+    // znacznik, jaki ten pomiar ma.
+    // Pomiar w okresie bazowym MUSI być, inaczej cała seria jest odrzucona
+    // i pytanie o marker nie ma sensu.
+    const { container } = render(<IndexBaseChart config={rzadka([0, 15])} lang="pl" />);
+    const hit = container.querySelector("rect.neh-hit") as Element;
+    const kropki = punkty(container, 0);
+    expect(kropki).toHaveLength(2);
+    expect(num(kropki[1], "cx")).toBeCloseTo(num(hit, "x") + (num(hit, "width") * 15) / 29, 6);
+  });
+
+  it("pomiar NIESIONY przez odcinek nie dostaje osobnego markera", () => {
+    // Druga połowa reguły. Marker przy każdym pomiarze powyżej progu zlewa
+    // trzydzieści kropek w sznur paciorków, w którym nie widać już linii -
+    // dlatego próg istnieje i nie wolno go obchodzić „na wszelki wypadek”.
+    const { container } = render(<IndexBaseChart config={rzadka([0, 1, 2, 15])} lang="pl" />);
+    const d = container.querySelector("[data-role='series-line']")?.getAttribute("d") ?? "";
+    expect(d).toContain("L");
+    const kropki = punkty(container, 0);
+    expect(kropki).toHaveLength(1);
+    expect(kropki[0].getAttribute("data-lone")).toBe("true");
+  });
+
+  it("poniżej progu kropek rysowany jest KAŻDY pomiar", () => {
+    // Trzecia połowa: przy pięciu okresach kropki są włączone i samotność
+    // pomiaru niczego nie zmienia - a marker nie może się zdublować.
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({ ...BAZA, series: [{ name: "E", values: [200, null, 240, null, 300] }] })}
+        lang="pl"
+      />,
+    );
+    expect(punkty(container, 0)).toHaveLength(3);
+  });
+
+  it("marker i linia mają wymiary także BEZ arkusza stylów", () => {
+    // `r` nie ma domyślnej wartości różnej od zera: `<circle>` bez `r` jest
+    // okręgiem o promieniu ZERO, czyli niczym. Właściwe wymiary niosą tokeny
+    // (`--chart-dot`, `--chart-stroke`) przez klasy `.neh-dot` i `.neh-line`,
+    // ale do chwili, w której arkusz zadziała - pierwsza klatka odpowiedzi
+    // z brzegu, wydruk bez CSS, zrzut czytający sam kod - rysunek stoi na
+    // atrybutach. Bez nich znika marker, a z nim cały ciąg jednopunktowy.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const kropka = punkty(container, 0)[0];
+    expect(Number(kropka.getAttribute("r"))).toBeGreaterThan(0);
+    expect(Number(kropka.getAttribute("stroke-width"))).toBeGreaterThan(0);
+    const linia = container.querySelector("[data-role='series-line']") as Element;
+    expect(Number(linia.getAttribute("stroke-width"))).toBeGreaterThan(0);
+  });
+});
+
+/* ========================================================================== */
+/*  ETYKIETY OKRESÓW                                                          */
+/* ========================================================================== */
+
+describe("IndexBaseChart - etykiety okresów nie leżą jedna na drugiej", () => {
+  /** Miejsce zajęte przez napis, liczone Z KOTWICĄ - skrajne etykiety nie są
+   *  wyśrodkowane na swoim okresie. */
+  function przedzialy(root: HTMLElement): { napis: string; od: number; do: number }[] {
+    return all(root, "[data-role='period'],[data-role='base-period']").map((e) => {
+      const napis = e.textContent ?? "";
+      const w = estimateLabelWidth(napis, FONT_AXIS);
+      const x = num(e, "x");
+      const kotwica = e.getAttribute("text-anchor");
+      const od = kotwica === "start" ? x : kotwica === "end" ? x - w : x - w / 2;
+      return { napis, od, do: od + w };
+    });
+  }
+
+  const bezKolizji = (root: HTMLElement): void => {
+    const p = przedzialy(root);
+    expect(p.length).toBeGreaterThan(1);
+    for (let i = 1; i < p.length; i++) {
+      expect(p[i].od, `„${p[i - 1].napis}” obok „${p[i].napis}”`).toBeGreaterThanOrEqual(
+        p[i - 1].do,
+      );
+    }
+  };
+
+  it("etykieta ostatniego okresu nie nachodzi na przerzedzoną przed nią", () => {
+    // ZMIERZONY DEFEKT: trzydzieści okresów „R0”..„R29”, krok przerzedzania 2,
+    // więc podpisane były wszystkie parzyste PLUS ostatni (29) - „R28” i „R29”
+    // nachodziły na siebie o 7,7 px. Ta sama reguła („ostatnia rysowana i
+    // koniec osi muszą być od siebie oddalone”) stoi w `visibleIndices`
+    // w `labels.ts`; ten render liczył przerzedzenie sam i o niej nie wiedział.
     const okresy = Array.from({ length: 30 }, (_, i) => `R${i}`);
     const { container } = render(
       <IndexBaseChart
         config={cfg({
           categories: okresy,
-          series: [{ name: "A", values: okresy.map((_, i) => 100 + i) }],
+          series: [{ name: "A", values: okresy.map((_, i) => 100 + i), colorSlot: 1 }],
           animate: false,
         })}
         lang="pl"
         baseAt={3}
       />,
     );
-    const et = all(container, "[data-role='period'],[data-role='base-period']").map((e) => {
-      const x = Number(e.getAttribute("x"));
-      const w = (e.textContent ?? "").length * 11 * 0.62;
-      const a = e.getAttribute("text-anchor");
-      const od = a === "start" ? x : a === "end" ? x - w : x - w / 2;
-      return { t: e.textContent, x, od, do: od + w, a };
-    });
-    console.log("P7", JSON.stringify(et));
-    for (let i = 1; i < et.length; i++) {
-      expect(et[i].od, `${et[i - 1].t} / ${et[i].t}`).toBeGreaterThanOrEqual(et[i - 1].do);
-    }
+    bezKolizji(container);
+    // Skrajne okresy zostają podpisane ZAWSZE - bez nich nie wiadomo, jaki
+    // odcinek czasu pokazuje rysunek.
+    const napisy = przedzialy(container).map((p) => p.napis);
+    expect(napisy[0]).toBe("R0");
+    expect(napisy[napisy.length - 1]).toBe("R29");
   });
 
-  it("P8 dluga etykieta okresu i baza obok sasiada", () => {
-    const okresy = Array.from({ length: 12 }, (_, i) => `Kwartal ${i + 1} roku 202${i % 10}`);
+  it("etykieta bazowa USTĘPUJE skrajnej, gdy się nie mieszczą - i nadal jest nazwana", () => {
+    // ZMIERZONY DEFEKT: dwanaście okresów „Kwartał 1 roku 2020”... z bazą na
+    // drugim okresie - napisy „Kwartał 1 roku 2020” i „Kwartał 2 roku 2021”
+    // stały jeden na drugim z przesunięciem czterech pikseli, czyli nie dało
+    // się przeczytać ŻADNEGO z nich. Etykieta podpisana, ale nieczytelna, nie
+    // jest podpisana: jest plamą, która zabiera też tę drugą.
+    const okresy = Array.from({ length: 12 }, (_, i) => `Kwartał ${i + 1} roku 20${20 + i}`);
     const { container } = render(
       <IndexBaseChart
         config={cfg({
           categories: okresy,
-          series: [{ name: "A", values: okresy.map((_, i) => 100 + i) }],
+          series: [{ name: "A", values: okresy.map((_, i) => 100 + i), colorSlot: 1 }],
           animate: false,
         })}
         lang="pl"
         baseAt={1}
       />,
     );
-    const et = all(container, "[data-role='period'],[data-role='base-period']").map((e) => {
-      const x = Number(e.getAttribute("x"));
-      const w = (e.textContent ?? "").length * 11 * 0.62;
-      const a = e.getAttribute("text-anchor");
-      const od = a === "start" ? x : a === "end" ? x - w : x - w / 2;
-      return { t: e.textContent, od, do: od + w };
-    });
-    console.log("P8", JSON.stringify(et));
-    for (let i = 1; i < et.length; i++) {
-      expect(et[i].od, `${et[i - 1].t} / ${et[i].t}`).toBeGreaterThanOrEqual(et[i - 1].do);
-    }
+    bezKolizji(container);
+    expect(container.querySelector("[data-role='base-period']")).toBeNull();
+    // ...a czytelnik nadal wie, który okres jest bazą: podpis linii
+    // odniesienia go NAZYWA, a pionowa kreska POKAZUJE, gdzie stoi.
+    const podpis = container.querySelector("[data-role='index-baseline-label']")?.textContent ?? "";
+    expect(podpis).toContain(okresy[1]);
+    const znacznik = container.querySelector("[data-role='base-period-marker']");
+    expect(znacznik).not.toBeNull();
+    expect(num(znacznik as Element, "x1")).toBeCloseTo(num(punkty(container, 0)[1], "cx"), 6);
+  });
+
+  it("gdy wszystko się mieści, podpisany jest KAŻDY okres, a bazowy jest wyróżniony", () => {
+    // Druga połowa: plan, który przerzedza zawsze, zabierałby etykiety także
+    // z osi, na której nic się nie stykało.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" baseAt={2} />);
+    expect(przedzialy(container).map((p) => p.napis)).toEqual(OKRESY);
+    const bazowa = container.querySelector("[data-role='base-period']") as Element;
+    expect(bazowa.textContent).toBe("2021");
+    expect(bazowa.getAttribute("font-weight")).toBe("600");
+  });
+});
+
+/* ========================================================================== */
+/*  WSKAŹNIK I WYGASZANIE WSKAZANIA                                           */
+/* ========================================================================== */
+
+/** happy-dom nie mierzy elementów, więc bez podmiany prostokąta każdy
+ *  `pointermove` trafia w ścieżkę „element niezmierzony". */
+function stubPlotRect(hit: Element): { hit: Element; x: number; w: number; y: number } {
+  const x = num(hit, "x");
+  const y = num(hit, "y");
+  const width = num(hit, "width");
+  const height = num(hit, "height");
+  Object.defineProperty(hit, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      x,
+      y,
+      left: x,
+      top: y,
+      right: x + width,
+      bottom: y + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    }),
+  });
+  return { hit, x, w: width, y };
+}
+
+describe("IndexBaseChart - wskazanie wchodzi i wychodzi bez śladu", () => {
+  it("wskaźnik wybiera okres, NAD którym stoi, a nie pierwszy z osi", () => {
+    // Defekt, który to łapie: przypisanie po środkach pasm zamiast po
+    // krawędziach. Punkty wykresu liniowego leżą na krawędziach pola
+    // (odstępów jest n-1), więc trzy czwarte szerokości to czwarty z pięciu
+    // okresów, a nie czwarte pasmo z pięciu.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const { hit, x, w, y } = stubPlotRect(container.querySelector("rect.neh-hit") as Element);
+    fireEvent.pointerMove(hit, { clientX: x + w * 0.75, clientY: y + 10 });
+    expect(container.querySelector(".neh-tooltip")?.textContent).toContain("2022");
+  });
+
+  it("element NIEZMIERZONY nie zgaduje okresu na oślep", () => {
+    // `pointerToPlot` oddaje wtedy `null` (prostokąt o zerowej szerokości -
+    // element schowany albo jeszcze niezmierzony), a render bierze pierwszy
+    // okres. Kłamstwem byłoby dopiero `Infinity` po dzieleniu przez zero,
+    // które po zaokrągleniu wygląda jak prawdziwy indeks.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const hit = container.querySelector("rect.neh-hit") as Element;
+    fireEvent.pointerDown(hit, { clientX: 500, clientY: 100 });
+    const dymek = container.querySelector(".neh-tooltip")?.textContent ?? "";
+    expect(dymek).toContain("2019");
+    expect(dymek).not.toContain("undefined");
+    expect(dymek).not.toContain("NaN");
+  });
+
+  it("zjazd MYSZĄ gasi dymek, a zejście PALCA go zostawia", () => {
+    // Palec schodzi z ekranu po każdym stuknięciu, więc gaszenie na
+    // `pointerleave` zabierałoby dotykowemu czytelnikowi dymek natychmiast po
+    // jego otwarciu; gasi go stuknięcie poza wykresem.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const hit = container.querySelector("rect.neh-hit") as Element;
+    fireEvent.pointerDown(hit, { clientX: 0, clientY: 0, pointerType: "touch" });
+    fireEvent.pointerLeave(hit, { pointerType: "touch" });
+    expect(container.querySelector("[data-role='active-period']")).not.toBeNull();
+    fireEvent.pointerLeave(hit, { pointerType: "mouse" });
+    expect(container.querySelector("[data-role='active-period']")).toBeNull();
+  });
+
+  it("utrata ogniska gasi wskazanie", () => {
+    // Wskazanie zostawione po odejściu ogniska pokazuje okres, którego
+    // czytelnik już nie wybiera - a klawiatura nie ma jak go zdjąć, bo
+    // strzałki lecą już gdzie indziej.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']") as HTMLElement;
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    expect(container.querySelector("[data-role='active-period']")).not.toBeNull();
+    fireEvent.blur(box);
+    expect(container.querySelector("[data-role='active-period']")).toBeNull();
+  });
+
+  it("klawisz spoza obsługi nie rusza rysunku ani go nie blokuje", () => {
+    // Defekt, który to łapie: `preventDefault` na wszystkim, co przyjdzie -
+    // wtedy Tab przestaje wyprowadzać ognisko z wykresu i czytelnik
+    // klawiatury zostaje w nim uwięziony.
+    const { container } = render(<IndexBaseChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']") as HTMLElement;
+    const przed = container.innerHTML;
+    const zdarzenie = fireEvent.keyDown(box, { key: "Tab" });
+    expect(zdarzenie).toBe(true);
+    expect(container.innerHTML).toBe(przed);
+  });
+});
+
+/* ========================================================================== */
+/*  WCZESNE WYJŚCIE NIE GUBI PRZYPISÓW                                        */
+/* ========================================================================== */
+
+describe("IndexBaseChart - brak rysunku nie znaczy brak zastrzeżenia", () => {
+  it("pusta seria z bezimiennym okresem bazowym nadal mówi, czego brakuje", () => {
+    // Ten sam defekt, który miał histogram: wczesne wyjście „nie ma czego
+    // rysować" stało PRZED złożeniem przypisów i zabierało ze strony wszystkie
+    // zdania o defektach danych. Tu zdanie o bezimiennej bazie nie zależy od
+    // danych, więc musi wyjść także wtedy, gdy rysunku nie ma.
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          categories: ["", "II"],
+          series: [{ name: "Pusta", values: [null, null], colorSlot: 1 }],
+          animate: false,
+        })}
+        lang="pl"
+      />,
+    );
+    expect(all(container, "svg")).toHaveLength(0);
+    expect(klucze(container)).toContain("honesty.baseNamedOk");
+    // ...i ani jednego zdania o rysunku, którego nie ma.
+    expect(klucze(container)).not.toContain("axis.unitless");
+    expect(klucze(container).filter((k) => k.startsWith("reading."))).toEqual([]);
+  });
+
+  it("liczby całkowicie poza osią okresów są policzone, choć rysunku nie ma", () => {
+    // Arkusz, w którym KAŻDA liczba leży za ostatnią kategorią: na rysunku nie
+    // ma nic, a w danych są cztery pomiary. Milczenie znaczyłoby tu „blok jest
+    // pusty", czyli zdanie fałszywe o arkuszu autora.
+    const podstawa = cfg({ ...BAZA, categories: ["I", "II"] });
+    const poza: ChartConfig = {
+      ...podstawa,
+      series: [{ name: "Za osią", values: [null, null, 30, 40], colorSlot: 1 }],
+    };
+    const { container } = render(<IndexBaseChart config={poza} lang="pl" />);
+    expect(all(container, "svg")).toHaveLength(0);
+    const tresc = notatki(container).get("honesty.pointsInPeriodsOk") ?? "";
+    expect(tresc).toContain("2");
+    expect(tresc).not.toContain("{{");
+  });
+
+  it("podpisane n bez ani jednego pomiaru NIE jest cytowane jako zero", () => {
+    // UWAGA NA TEN TEST: on NIE łapie defektu, który był - łapie defekt,
+    // którym łatwo go zastąpić. Render podstawiał pod wstawkę `{{declared}}`
+    // `config.sampleSize ?? 0`, ale zero było nieosiągalne, bo model milczy
+    // (`declaredSampleOk === null`), gdy autor nie podał `n` albo gdy nie ma
+    // ani jednego pomiaru - czyli dokładnie w tym arkuszu. Wartość zastępcza
+    // stała tam jako gałąź, której nie da się wykonać, i pierwsza poprawka
+    // przesuwająca warunek („wypisuj, gdy podano n") wpuściłaby ją na stronę
+    // jako zdanie „w podpisie stoi n = 0" o podpisie, którego nikt nie
+    // napisał. Ten test trzyma milczenie po obu stronach.
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          ...BAZA,
+          categories: ["I", "II"],
+          sampleSize: 7,
+          series: [{ name: "Pusta", values: [null, null], colorSlot: 1 }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(klucze(container)).not.toContain("honesty.declaredSampleOk");
+    expect(container.textContent ?? "").not.toContain("n = 0");
+  });
+
+  it("dwie luki obok siebie nie tworzą pustego pociągnięcia", () => {
+    // Defekt, który to łapie: wypchnięcie pustego ciągu punktów do ścieżki -
+    // `pathFromPoints([])` daje pusty napis, a ten po sklejeniu zostawia
+    // w atrybucie `d` podwójne spacje i ścieżkę, której przeglądarka nie
+    // rysuje ani w całości, ani w części.
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          categories: ["a", "b", "c", "d", "e"],
+          series: [{ name: "Dziurawa", values: [10, null, null, 12, 13], colorSlot: 1 }],
+          animate: false,
+        })}
+        lang="pl"
+      />,
+    );
+    const d = container.querySelector("[data-role='series-line']")?.getAttribute("d") ?? "";
+    expect(d.match(/M/g) ?? []).toHaveLength(2);
+    expect(d).not.toContain("  ");
+    expect(punkty(container, 0)).toHaveLength(3);
   });
 });

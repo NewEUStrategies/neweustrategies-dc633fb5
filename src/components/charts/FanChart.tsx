@@ -244,13 +244,42 @@ function wsp(value: number): string {
  * Odcinki są osobne, bo wypełnienie przeciągnięte przez lukę w danych
  * twierdziłoby, że w kroku bez pomiaru niepewność jest znana. Model tnie je
  * za nas (`FanLevel.segments`, `FanRing.segments`) i tu nie ma czego sklejać.
+ *
+ * ODCINEK JEDNOKROKOWY DOSTAJE SZEROKOŚĆ WŁASNEJ KOLUMNY, i to jest naprawa
+ * defektu, nie ozdoba. Wierzchołki wielokąta leżą w ŚRODKACH kroków, więc
+ * odcinek o jednym kroku dawał ścieżkę `M x,góra L x,dół Z` - figurę o zerowym
+ * polu, którą wypełnienie bez obwódki rysuje jako NIC. Skutki były dwa i oba
+ * kłamały: pasmo podane wyłącznie w ostatnim kroku prognozy znikało, a pasmo
+ * z luką w środku (krawędzie w krokach 5 i 7, brak w 6) rozpadało się na dwa
+ * odcinki jednokrokowe i znikało CAŁE - czytelnik dostawał pojedynczą linię
+ * prognozy, czyli dokładnie tę formę, przed którą ten rodzaj ma bronić, a model
+ * orzekał przy tym `forecastDistinguished: true`, bo nośnik "pasmo" liczy się
+ * z DANYCH, nie z pikseli.
+ *
+ * Dlaczego kolumna, a nie pionowa kreska z obwódką: obwódka wymagałaby
+ * własnego krycia (linia 1 px przy alfie 0,10 jest niewidoczna), czyli
+ * drugiego, niezależnego od palety pokrętła na tym samym rysunku. Kolumna
+ * zostaje WYPEŁNIENIEM o kryciu z tokena, a jej szerokość niczego nie dokłada:
+ * krok jest pasmem kategorii i już jest tak traktowany w strefie trafienia
+ * (`bandIndex`) i przy etykiecie osi. Interpolacja między środkami kroków
+ * zostaje dla odcinków o dwóch krokach i więcej - tam sąsiedni pomiar jest.
  */
 function wielokat(
   segment: readonly KrawedzieKroku[],
   wzdluz: (u: number) => number,
   value: (v: number) => number,
+  polKolumny: number,
 ): string {
   if (segment.length === 0) return "";
+  if (segment.length === 1) {
+    const s = segment[0];
+    const x = wzdluz(s.index);
+    const lewo = wsp(x - polKolumny);
+    const prawo = wsp(x + polKolumny);
+    const gora = wsp(value(s.upper));
+    const dol = wsp(value(s.lower));
+    return `M${lewo},${gora}L${prawo},${gora}L${prawo},${dol}L${lewo},${dol}Z`;
+  }
   const gora = segment.map((s) => `${wsp(wzdluz(s.index))},${wsp(value(s.upper))}`);
   const dol = [...segment].reverse().map((s) => `${wsp(wzdluz(s.index))},${wsp(value(s.lower))}`);
   return `M${gora.join("L")}L${dol.join("L")}Z`;
@@ -370,11 +399,11 @@ export function FanChart({ config, lang }: FanChartProps) {
       `L${wsp(padLeft + innerW)},${wsp(PAD_TOP + innerH)}` +
       `L${wsp(padLeft)},${wsp(PAD_TOP + innerH)}Z`;
     const pasma = najszersze.segments
-      .map((seg) => wielokat(seg, wzdluz, value))
+      .map((seg) => wielokat(seg, wzdluz, value, krok / 2))
       .filter(Boolean)
       .join("");
     return pasma ? pole + pasma : null;
-  }, [model, padLeft, innerW, innerH, wzdluz, value]);
+  }, [model, padLeft, innerW, innerH, wzdluz, value, krok]);
 
   // Ile etykiet kroku zmieści się bez nachodzenia. Pierwsza i OSTATNIA są
   // podpisane zawsze: bez ostatniej nie wiadomo, dokąd sięga prognoza.
@@ -386,6 +415,23 @@ export function FanChart({ config, lang }: FanChartProps) {
     }
     return Math.max(1, Math.ceil((najszersza + STEP_LABEL_GAP) / Math.max(krok, 1)));
   }, [kroki, krok]);
+
+  /**
+   * Czy krok `i` dostaje podpis.
+   *
+   * OSTATNI PODPIS WYPIERA SĄSIADA, i to jest naprawa defektu. Sam warunek
+   * `i % krokEtykiet === 0 || i === ostatni` stawia dwa napisy obok siebie,
+   * gdy ostatni krok nie wypada na siatce co `krokEtykiet`: przy dwudziestu
+   * czterech krokach i etykietach szerokości 107 px podpisy wychodziły na
+   * x = 609 i x = 694, czyli nachodziły na siebie o dwadzieścia pikseli
+   * i zlewały się w jeden nieczytelny napis. Ostatni musi zostać (bez niego
+   * nie wiadomo, dokąd sięga prognoza), więc odpada ten z siatki - odstęp
+   * `krokEtykiet * krok` jest z definicji nie mniejszy od najszerszej etykiety
+   * z prześwitem, więc po tym odjęciu żadna para nie może już nachodzić.
+   */
+  const ostatniKrok = kroki.length - 1;
+  const pokazEtykiete = (i: number): boolean =>
+    i === ostatniKrok || (i % krokEtykiet === 0 && ostatniKrok - i >= krokEtykiet);
 
   /**
    * SLOT KOLORU CAŁEGO WACHLARZA.
@@ -653,14 +699,20 @@ export function FanChart({ config, lang }: FanChartProps) {
       ]
     : [];
 
+  // BEZ OSŁON NA INDEKSACH, i to jest świadome: wyjście "brak kroków" stoi
+  // wyżej, więc `kroki[0]` i `kroki[kroki.length - 1]` tu ISTNIEJĄ, a
+  // `granica.forecastFrom` model trzyma w zakresie 1..liczba-1 (inaczej nie
+  // oddaje granicy wcale - patrz `honesty.boundaryDropped`). Dopisane `?? ""`
+  // byłoby wątpliwością, którą ten kod rozstrzygnął czterdzieści linii wyżej,
+  // i czytelnik szukałby wejścia, przy którym nazwa dostępna gubi zakres osi.
   const ariaLabel = [
     config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
-    `${t("fan.axis.step")}: ${kroki[0]?.label ?? ""} - ${kroki[kroki.length - 1]?.label ?? ""}`,
+    `${t("fan.axis.step")}: ${kroki[0].label} - ${kroki[kroki.length - 1].label}`,
     `${t("fan.axis.value")}: ${formatAxisTick(scale.min, lang)} - ${formatAxisTick(scale.max, lang)}`,
     granica === null
       ? ""
       : t("forecast.fromCategory", {
-          category: kroki[granica.forecastFrom]?.label ?? "",
+          category: kroki[granica.forecastFrom].label,
         }),
     model.levels.map((level) => etykietaPasma(level)).join(", "),
     `${t("fan.table.observations")}: ${formatChartValue(honesty.observationCount, lang, "")}`,
@@ -814,7 +866,7 @@ export function FanChart({ config, lang }: FanChartProps) {
               nieznanego. */}
           {powierzchnie.map((p) =>
             p.segmenty.map((seg, i) => {
-              const d = wielokat(seg, wzdluz, value);
+              const d = wielokat(seg, wzdluz, value, krok / 2);
               if (!d) return null;
               return (
                 <path
@@ -924,7 +976,7 @@ export function FanChart({ config, lang }: FanChartProps) {
           )}
 
           {kroki.map((s, i) =>
-            i % krokEtykiet === 0 || i === kroki.length - 1 ? (
+            pokazEtykiete(i) ? (
               <text
                 key={`e${s.index}`}
                 x={wzdluz(s.index)}
