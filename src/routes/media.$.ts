@@ -46,8 +46,8 @@ async function serveMedia(request: Request, splat: string): Promise<Response> {
 export const Route = createFileRoute("/media/$")({
   server: {
     handlers: {
-      GET: ({ request, params }) => serveMedia(request, params._splat),
-      HEAD: ({ request, params }) => serveMedia(request, params._splat),
+      GET: ({ request, params }) => serveMedia(request, params._splat ?? ""),
+      HEAD: ({ request, params }) => serveMedia(request, params._splat ?? ""),
     },
   },
 });

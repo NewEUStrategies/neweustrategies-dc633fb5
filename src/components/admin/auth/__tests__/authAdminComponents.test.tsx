@@ -291,6 +291,19 @@ describe("ImageUrlField (organizm)", () => {
     expect(onChange).toHaveBeenCalledWith("/media/hero.webp");
   });
 
+  it("techniczny adres magazynu zamienia na adres domeny marki", () => {
+    const { onChange } = mount();
+    fireEvent.change(screen.getByPlaceholderText("adminLoginSettings.imgUrlPlaceholder"), {
+      target: {
+        value:
+          "https://project.supabase.co/storage/v1/object/public/media/tenant/user/hero image.png",
+      },
+    });
+    expect(onChange).toHaveBeenCalledWith(
+      "https://neweuropeanstrategies.com/media/tenant/user/hero%20image.png",
+    );
+  });
+
   it("biblioteka mediów startuje ZAMKNIĘTA i otwiera się na żądanie", () => {
     mount();
     expect(document.querySelector('[data-testid="media-picker"]')?.getAttribute("data-open")).toBe(
