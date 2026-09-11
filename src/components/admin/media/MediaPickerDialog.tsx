@@ -373,8 +373,10 @@ export function MediaPickerDialog({
   useEffect(() => {
     if (!open || newFolderOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      const element = event.target as HTMLElement | null;
-      if (element?.matches("input, textarea, [contenteditable='true']")) return;
+      const element = event.target;
+      if (element instanceof Element && element.matches("input, textarea, [contenteditable='true']")) {
+        return;
+      }
       const command = event.metaKey || event.ctrlKey;
       if (command && event.key.toLowerCase() === "a") {
         event.preventDefault();
