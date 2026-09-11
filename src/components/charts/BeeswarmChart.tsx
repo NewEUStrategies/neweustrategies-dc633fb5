@@ -196,6 +196,13 @@ const CAPTION_TWO_LINE_MIN_PX = 26;
 /** Odstęp podpisów od pola rysunku - ten sam co w kartezjańskim. */
 const LABEL_GAP_PX = 8;
 
+/**
+ * Znak braku wartości w nazwie dostępnej - ta sama kreska, którą `format.ts`
+ * stawia za nieliczbę, a tabela danych za pole, którego model nie orzekł.
+ * Czytelnik ekranu i czytelnik tabeli muszą widzieć ten sam brak.
+ */
+const BRAK_WARTOSCI = "-";
+
 /** Jedna obserwacja gotowa do narysowania. */
 interface BeeDot {
   /** Pozycja w płaskiej liście - adres stanu czynnego i wynik trafienia. */
@@ -506,16 +513,20 @@ export function BeeswarmChart({ config, lang }: BeeswarmChartProps) {
     // KOLEJNOŚĆ Z MODELU (`BEESWARM_SUMMARY_COLUMNS`), nie własna: tabela
     // danych pod wykresem czyta z tej samej listy, więc czytelnik ekranu
     // i czytelnik tabeli dostają liczby w tym samym porządku.
-    const czesci = BEESWARM_SUMMARY_COLUMNS.map(
-      (col) =>
-        // `n` jest LICZNIKIEM obserwacji, nie wartością - jednostka przy nim
-        // ("12 mld EUR" zamiast "12 obserwacji") byłaby fałszem.
-        `${t(`beeswarm.summary.${col}`)} ${formatChartValue(
-          summary[col],
-          lang,
-          col === "n" ? "" : config.unit,
-        )}`,
-    );
+    const czesci = BEESWARM_SUMMARY_COLUMNS.map((col) => {
+      const wartosc = summary[col];
+      // POLE, KTÓREGO MODEL NIE ORZEKŁ, CZYTA SIĘ JAKO BRAK - tą samą kreską,
+      // którą pokazuje tabela i którą dostaje rój bez kompletu. Milczenie
+      // modelu (`iqr` przy kwartylach po obu krańcach zakresu double) nie ma
+      // prawa dojechać do czytelnika ekranu jako liczba.
+      const zapis =
+        wartosc === null
+          ? BRAK_WARTOSCI
+          : // `n` jest LICZNIKIEM obserwacji, nie wartością - jednostka przy nim
+            // ("12 mld EUR" zamiast "12 obserwacji") byłaby fałszem.
+            formatChartValue(wartosc, lang, col === "n" ? "" : config.unit);
+      return `${t(`beeswarm.summary.${col}`)} ${zapis}`;
+    });
     return `${label}: ${czesci.join(", ")}`;
   };
 

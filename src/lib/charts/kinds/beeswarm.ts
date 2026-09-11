@@ -264,7 +264,14 @@ export interface BeeswarmSummary {
   q3: number;
   max: number;
   mean: number;
-  iqr: number;
+  /**
+   * Rozstęp międzykwartylowy - TA SAMA LICZBA I TO SAMO MILCZENIE co `iqr`
+   * ze `stats.ts`. `null` znaczy "różnicy `q3 - q1` nie da się zapisać
+   * w podwójnej precyzji" (kwartyle po przeciwnych krańcach zakresu double),
+   * a NIE "rozstęp wynosi zero" - zero jest orzeczeniem o rozkładzie
+   * zdegenerowanym i wygląda tak samo wiarygodnie jak liczba policzona.
+   */
+  iqr: number | null;
 }
 
 /** Jeden rój: jedna grupa obserwacji. */
@@ -837,18 +844,20 @@ export function beeswarmModel(input: BeeswarmInput, opts: BeeswarmOptions = {}):
             // w środku: przy pustej tablicy ta gałąź się nie wykonuje, więc
             // mianownik jest zawsze dodatni.
             mean: fin(wartosci.reduce((a, v) => a + v, 0) / wartosci.length),
-            // RÓŻNICA KWARTYLI ZOSTAJE POD OSŁONĄ WYŚWIETLANIA i jest to
-            // świadoma granica tej poprawki, nie przeoczenie. `q3 - q1`
-            // przepełnia się, gdy kwartyle stoją po przeciwnych krańcach
-            // zakresu double (`[-1e308, -1e308, 1e308, 1e308]` daje 2e308),
-            // a `fin` zamienia to na ZERO, czyli na „rozstępu nie ma" przy
-            // danych najbardziej rozproszonych, jakie da się zapisać.
-            // Uczciwą odpowiedzią jest `null` (tak orzeka `iqr` ze
-            // `stats.ts`), ale `BeeswarmSummary.iqr` jest liczbą, którą render
-            // wstawia wprost do tabeli i do nazwy dostępnej - dopuszczenie
-            // tam `null` jest zmianą kontraktu WIDZIANĄ PRZEZ RENDER, więc nie
-            // mieści się w poprawce kwantyla i czeka na osobną.
-            iqr: fin(q3 - q1),
+            // RÓŻNICA KWARTYLI MILCZY TAK SAMO JAK `iqr` ZE `stats.ts`,
+            // a nie cofa się pod osłonę wyświetlania. `q3 - q1` przepełnia
+            // się, gdy kwartyle stoją po przeciwnych krańcach zakresu double
+            // (`[-1e308, -1e308, 1e308, 1e308]` daje 2e308), a stojące tu
+            // wcześniej `fin` zamieniało to na ZERO - czyli na „rozstępu nie
+            // ma" przy danych najbardziej rozproszonych, jakie da się
+            // zapisać. Zero szło wprost do tabeli i do nazwy dostępnej roju,
+            // więc czytelnik ekranu dostawał orzeczenie o rozkładzie
+            // zdegenerowanym, którego nikt nie policzył.
+            //
+            // `null` w tym polu jest zmianą kontraktu WIDZIANĄ PRZEZ RENDER
+            // i render ją obsługuje: komórka tabeli pokazuje wtedy kreskę
+            // braku, tę samą, którą pokazuje dla całego roju bez kompletu.
+            iqr: Number.isFinite(q3 - q1) ? q3 - q1 : null,
           };
 
     const neededHalfSpanRadii = points.length === 0 ? 0 : szczyt + 1;

@@ -704,7 +704,12 @@ function BeeswarmDataTable({ config, lang }: { config: ChartConfig; lang: ChartL
               </th>
               {POZYCYJNE.map((kol) => (
                 <td key={kol} className={CHART_TABLE_CLS.tdNum}>
-                  {g.summary === null
+                  {/* Dwa różne braki, jedna kreska: rój bez kompletu
+                      pozycyjnego i pole, którego model nie orzekł (rozstęp
+                      kwartyli leżących po obu krańcach zakresu double).
+                      Liczba zastępcza w którymkolwiek z nich byłaby
+                      twierdzeniem o danych, którego nikt nie policzył. */}
+                  {g.summary === null || g.summary[kol] === null
                     ? "-"
                     : formatChartValue(g.summary[kol], lang, kol === "n" ? "" : config.unit)}
                 </td>
@@ -828,7 +833,11 @@ function HistogramDataTable({ config, lang }: { config: ChartConfig; lang: Chart
   const gestosc = tabela.valueEncodes === "density";
   const maEtykiety = tabela.rows.some((r) => r.members.length > 0);
   const s = tabela.summary;
-  const pozycyjne: Array<[string, number]> = [
+  // `number | null`, bo rozstęp jest ORZECZENIEM i wolno mu zamilczeć:
+  // kwartyle po obu krańcach zakresu double dają różnicę, której nie da się
+  // zapisać, a wpisana tam liczba (dawniej zero) czytałaby się jak rozkład
+  // zdegenerowany.
+  const pozycyjne: Array<[string, number | null]> = [
     [t("histogram.summary.n"), s.n],
     [t("histogram.summary.min"), s.min],
     [t("histogram.summary.q1"), s.q1],
@@ -907,11 +916,13 @@ function HistogramDataTable({ config, lang }: { config: ChartConfig; lang: Chart
                 {nazwa}
               </th>
               <td className={CHART_TABLE_CLS.tdNum}>
-                {formatChartValue(
-                  wartosc,
-                  lang,
-                  nazwa === t("histogram.summary.n") ? "" : config.unit,
-                )}
+                {wartosc === null
+                  ? "-"
+                  : formatChartValue(
+                      wartosc,
+                      lang,
+                      nazwa === t("histogram.summary.n") ? "" : config.unit,
+                    )}
               </td>
             </tr>
           ))}

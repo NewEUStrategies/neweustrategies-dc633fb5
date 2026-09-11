@@ -706,9 +706,17 @@ describe("beeswarm: kwantyl ma JEDNĄ definicję, wspólną ze `stats.ts`", () =
     // szarości. Wspólna `quantile` milczy `null`-em, a model zamienia to
     // milczenie na `summary: null` - czyli na rój bez ani jednej liczby
     // pozycyjnej. Ten test pinuje, że dla danych, które model wpuszcza
-    // (wyłącznie liczby skończone), milczeć nie ma o czym: każda z ośmiu
-    // kolumn jest liczbą skończoną, więc pole nie może zniknąć bez
-    // wyjaśnienia.
+    // (wyłącznie liczby skończone), komplet nie znika, a KOLUMNY POZYCYJNE
+    // są policzalne zawsze: mieszanie nie wychodzi poza `[a, b]`, a oba
+    // końce są z założenia zapisywalne.
+    //
+    // ROZSTĘP JEST TU JEDYNYM WYJĄTKIEM I JEST NIM Z ARYTMETYKI, nie
+    // z niedbałości: `q3 - q1` dla kwartyli po przeciwnych krańcach zakresu
+    // double przekracza podwójną precyzję, więc model o nim MILCZY. Kiedyś
+    // stało tam `fin(q3 - q1)`, czyli ZERO - i ten test przechodził właśnie
+    // dlatego, że zero jest liczbą skończoną. Pinujemy więc obie rzeczy
+    // naraz: że kolumna nie znika bez powodu i że powodem nie wolno być
+    // zeru, które czyta się jako rozkład zdegenerowany.
     const proby = [
       [5],
       [0, 0],
@@ -722,7 +730,19 @@ describe("beeswarm: kwantyl ma JEDNĄ definicję, wspólną ze `stats.ts`", () =
       const komplet = beeswarmModel(wejscie(dane)).swarms[0].summary;
       expect(komplet).not.toBeNull();
       for (const kolumna of BEESWARM_SUMMARY_COLUMNS) {
+        if (kolumna === "iqr") continue;
         expect(Number.isFinite(komplet?.[kolumna])).toBe(true);
+      }
+      const posortowane = [...dane].sort((a, b) => a - b);
+      const q1 = quantile(posortowane, 0.25) ?? 0;
+      const q3 = quantile(posortowane, 0.75) ?? 0;
+      if (Number.isFinite(q3 - q1)) {
+        expect(komplet?.iqr).toBe(q3 - q1);
+      } else {
+        // Milczenie, a nie zero: zero orzekałoby brak rozproszenia o próbie
+        // rozpiętej na cały zakres podwójnej precyzji.
+        expect(komplet?.iqr).toBeNull();
+        expect(komplet?.iqr).not.toBe(0);
       }
     }
   });

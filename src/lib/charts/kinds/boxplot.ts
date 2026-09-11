@@ -256,6 +256,12 @@ export interface BoxplotBox {
   q1: number | null;
   median: number | null;
   q3: number | null;
+  /**
+   * Rozstęp międzykwartylowy - TA SAMA LICZBA I TO SAMO MILCZENIE co `iqr`
+   * ze `stats.ts`. `null` znaczy tu także "różnicy `q3 - q1` nie da się
+   * zapisać w podwójnej precyzji" (kwartyle po przeciwnych krańcach zakresu
+   * double), a nie "rozstęp wynosi zero".
+   */
   iqr: number | null;
 
   /** Końce wąsów - ZAWSZE obserwacje, nigdy ogrodzenia. */
@@ -723,6 +729,21 @@ export function boxplotModel(input: BoxplotInput, opts: BoxplotOptions = {}): Bo
     // `collapsedSamples`.
     const iqrRaw = q3 - q1;
     const iqr = Math.max(0, Number.isFinite(iqrRaw) ? iqrRaw : Number.MAX_VALUE);
+    // ROZSTĘP ROBI TU DWIE RÓŻNE ROBOTY I DLATEGO SĄ DWIE ZMIENNE.
+    //
+    // `iqr` powyżej jest WEJŚCIEM DO RYSUNKU: rozsuwa ogrodzenia, dzieli
+    // punkty na odstające i zwykłe, odpowiada na pytanie `collapsed`.
+    // Nasycenie do największej liczby skończonej jest tam właściwe, bo daje
+    // ogrodzenia szersze niż dane, czyli "nic tu nie odstaje" - odpowiedź
+    // ostrożną i zgodną z prawdą o szeregu rozpiętym na cały zakres double.
+    //
+    // `rozstepOrzeczony` jest LICZBĄ W TABELI, czyli twierdzeniem o danych,
+    // i nie wolno mu być nasyconym: 1,7976931348623157e+308 wpisane
+    // w kolumnę IQR wygląda jak pomiar, a jest sufitem arytmetyki. Tu
+    // obowiązuje konwencja `stats.ts` - milczenie - i dzięki temu ta sama
+    // próba daje tę samą liczbę na skrzynce, w histogramie i w roju
+    // (pilnuje tego `statsParity.test.ts`).
+    const rozstepOrzeczony = Number.isFinite(iqrRaw) ? iqrRaw : null;
     const fenceLow = fin(q1 - whiskerFactor * iqr, min);
     const fenceHigh = fin(q3 + whiskerFactor * iqr, max);
     const farLow = fin(q1 - FAR_OUT_IQR_FACTOR * iqr, fenceLow);
@@ -765,7 +786,7 @@ export function boxplotModel(input: BoxplotInput, opts: BoxplotOptions = {}): Bo
         q1,
         median,
         q3,
-        iqr,
+        iqr: rozstepOrzeczony,
         whiskerLow,
         whiskerHigh,
         fenceLow,

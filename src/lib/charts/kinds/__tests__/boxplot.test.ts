@@ -638,7 +638,20 @@ describe("boxplot - odporność na dane z bazy", () => {
     const model = boxplotModel(wejscie([seria("A", [-1e308, -1e308, 0, 1e308, 1e308])]));
     expect(model.boxes[0].collapsed).toBe(false);
     expect(model.honesty.collapsedSamples).toEqual([]);
-    expect(model.boxes[0].iqr).toBeGreaterThan(0);
+    // ROZSTĘP W TABELI MILCZY, ZAMIAST NASYCAĆ SIĘ DO SUFITU ARYTMETYKI.
+    // Stało tu wcześniej 1,7976931348623157e+308 - największa zapisywalna
+    // liczba, podstawiona za różnicę, której zapisać się nie da. W kolumnie
+    // IQR wygląda ona jak pomiar, a jest granicą typu `double`, i ta sama
+    // próba dawała przez to trzy różne rozstępy w trzech rodzajach wykresu
+    // (skrzynka 1,79e+308, histogram i rój 0). Nasycenie zostaje TAM, gdzie
+    // jest wejściem do rysunku - rozsuwa ogrodzenia tak, że nic nie odstaje.
+    expect(model.boxes[0].iqr).toBeNull();
+    expect(model.boxes[0].iqr).not.toBe(0);
+    // Ogrodzenie objęło całą próbę, więc żadna obserwacja nie została
+    // ogłoszona odstającą - to jest ostrożna odpowiedź, o którą tu chodzi.
+    expect(model.boxes[0].outliers).toEqual([]);
+    expect(model.boxes[0].whiskerLow).toBe(-1e308);
+    expect(model.boxes[0].whiskerHigh).toBe(1e308);
   });
 
   it("pierwszy kwartyl NIE cofa się do najmniejszej obserwacji przy skrajnych wykładnikach", () => {

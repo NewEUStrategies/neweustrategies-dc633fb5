@@ -177,7 +177,20 @@ export interface HistogramSummary {
   q3: number;
   max: number;
   mean: number;
-  iqr: number;
+  /**
+   * Rozstęp międzykwartylowy - TA SAMA LICZBA I TO SAMO MILCZENIE co `iqr`
+   * ze `stats.ts`. `null` znaczy "różnicy `q3 - q1` nie da się zapisać
+   * w podwójnej precyzji" (kwartyle po przeciwnych krańcach zakresu double),
+   * a NIE "rozstęp wynosi zero".
+   *
+   * Zero stało tu wcześniej jako wartość zastępcza po przepełnieniu i było
+   * to orzeczenie o rozkładzie ZDEGENEROWANYM wystawione danym najbardziej
+   * rozproszonym, jakie da się zapisać - a przy tym liczba wyglądająca
+   * dokładnie tak wiarygodnie jak policzona. Ta sama próba pokazywała wtedy
+   * rozstęp 0 w histogramie i 1,79e+308 na skrzynce; parytet czterech dróg
+   * pilnuje dziś `statsParity.test.ts`.
+   */
+  iqr: number | null;
 }
 
 export interface HistogramModel {
@@ -694,20 +707,22 @@ export function histogramModel(
       min: pewna(min),
       // `?? 0` NIE JEST TU WYBOREM WARTOŚCI ZASTĘPCZEJ, tylko przejściem
       // z konwencji `stats.ts` (`null` = nie ma czego orzekać) na kształt
-      // tabeli pozycyjnej, w której pola są liczbami - i daje dokładnie to,
-      // co dawała dotąd zapora `pewna` na nieskończoności. Kwantyl liczony
-      // mieszaniem nie wychodzi poza `[a, b]`, więc dla q1, mediany i q3 ta
-      // gałąź jest nieosiągalna; osiągalna jest dla rozstępu, gdy sama
-      // różnica `q3 - q1` przekracza podwójną precyzję (końce rzędu
-      // ±1,5e308). Wpisania tam zera nie da się naprawić w tym pliku -
-      // wymaga dopuszczenia `null` w `HistogramSummary`, czyli zmiany
-      // kontraktu widzianej przez render.
+      // trzech pól, które tabela pozycyjna czyta jako liczby. Kwantyl
+      // liczony mieszaniem nie wychodzi poza `[a, b]`, a `a` i `b` są
+      // z założenia skończone (`liczba` nie wpuszcza innych), więc dla q1,
+      // mediany i q3 ta gałąź jest NIEOSIĄGALNA i zero nie ma czym tu
+      // wejść. Rozstęp niżej jest inną sprawą: jego przepełnienie jest
+      // osiągalne, więc idzie ze `stats.ts` razem z milczeniem.
       q1: pewna(q1 ?? 0),
       median: pewna(median ?? 0),
       q3: pewna(q3 ?? 0),
       max: pewna(max),
       mean: pewna(mean),
-      iqr: pewna(rozstep ?? 0),
+      // ROZSTĘP IDZIE Z `stats.ts` RAZEM ZE SWOIM MILCZENIEM, bez `?? 0`
+      // i bez zapory: `pewna(rozstep ?? 0)` wpisywało w tabelę pozycyjną
+      // ZERO dla szeregu o kwartylach ±1e308, czyli ogłaszało rozkład
+      // zdegenerowany tam, gdzie rozproszenie jest największe zapisywalne.
+      iqr: rozstep,
     },
     rule,
     binCount: bins.length,
