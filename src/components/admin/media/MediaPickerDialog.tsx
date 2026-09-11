@@ -376,7 +376,10 @@ export function MediaPickerDialog({
 
         {picked && (
           <div className="border-t border-border pt-3 space-y-2">
-            <label htmlFor="picker-filename" className="block text-xs text-muted-foreground font-medium">
+            <label
+              htmlFor="picker-filename"
+              className="block text-xs text-muted-foreground font-medium"
+            >
               {t("adminTeamMedia.mediaPicker.filenameLabel")}
             </label>
             <Input
@@ -388,20 +391,23 @@ export function MediaPickerDialog({
             />
             {pickedIsImage && (
               <>
-            <label htmlFor="picker-alt" className="block text-xs text-muted-foreground font-medium">
-              {t("adminTeamMedia.mediaPicker.altLabel")}
-            </label>
-            <div className="flex items-start gap-2">
-              <textarea
-                id="picker-alt"
-                value={altDraft}
-                onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
-                rows={2}
-                placeholder={t("adminTeamMedia.mediaPicker.altPlaceholder")}
-                className="flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
-              />
-            </div>
-            <div className="text-[10px] text-muted-foreground">{altDraft.length}/500</div>
+                <label
+                  htmlFor="picker-alt"
+                  className="block text-xs text-muted-foreground font-medium"
+                >
+                  {t("adminTeamMedia.mediaPicker.altLabel")}
+                </label>
+                <div className="flex items-start gap-2">
+                  <textarea
+                    id="picker-alt"
+                    value={altDraft}
+                    onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
+                    rows={2}
+                    placeholder={t("adminTeamMedia.mediaPicker.altPlaceholder")}
+                    className="flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+                <div className="text-[10px] text-muted-foreground">{altDraft.length}/500</div>
               </>
             )}
             <div className="flex items-center justify-between gap-2 pt-1">
@@ -412,17 +418,27 @@ export function MediaPickerDialog({
                 disabled={deleting || savingMeta}
                 onClick={() => void removePicked()}
               >
-                {deleting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
-                {deleting ? t("adminTeamMedia.mediaPicker.deleting") : t("adminTeamMedia.mediaPicker.deleteBtn")}
+                {deleting ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                )}
+                {deleting
+                  ? t("adminTeamMedia.mediaPicker.deleting")
+                  : t("adminTeamMedia.mediaPicker.deleteBtn")}
               </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={(!filenameDirty && !altDirty) || !filenameDraft.trim() || savingMeta || deleting}
+                disabled={
+                  (!filenameDirty && !altDirty) || !filenameDraft.trim() || savingMeta || deleting
+                }
                 onClick={() => void saveMeta()}
               >
-                {savingMeta ? t("adminTeamMedia.mediaPicker.savingMeta") : t("adminTeamMedia.mediaPicker.saveMetaBtn")}
+                {savingMeta
+                  ? t("adminTeamMedia.mediaPicker.savingMeta")
+                  : t("adminTeamMedia.mediaPicker.saveMetaBtn")}
               </Button>
             </div>
           </div>

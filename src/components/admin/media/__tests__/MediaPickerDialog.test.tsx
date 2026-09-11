@@ -385,9 +385,7 @@ describe("MediaPickerDialog - opis alternatywny wybranego pliku", () => {
     await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
     fireEvent.click(screen.getByText("a.png"));
     fireEvent.click(screen.getByRole("button", { name: /usuń plik|delete file/i }));
-    await waitFor(() =>
-      expect(h.bulkDelete).toHaveBeenCalledWith({ data: { mediaIds: ["a"] } }),
-    );
+    await waitFor(() => expect(h.bulkDelete).toHaveBeenCalledWith({ data: { mediaIds: ["a"] } }));
     expect(confirm).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /wstaw|insert/i })).toBeDisabled();
     confirm.mockRestore();
