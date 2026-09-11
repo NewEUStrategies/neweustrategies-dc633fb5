@@ -7,7 +7,7 @@
 // media bucket and remain accessible via the standard public URL.
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { brandedMediaUrl } from "@/lib/media/publicUrl";
+import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,7 +138,11 @@ export function CoverImagePicker({
                 aspectRatio: DEVICE_FRAMES[device].aspect,
               }}
             >
-              <img src={value} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <img
+                src={mediaRenderUrl(value)}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+              />
               <button
                 type="button"
                 onClick={clear}

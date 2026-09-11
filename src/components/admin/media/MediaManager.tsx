@@ -25,6 +25,7 @@ import type { ConfirmDeleteState, ContextMenuState, MediaRow, ViewMode } from ".
 import { directChildFolders, folderName } from "./lib/mediaPaths";
 import { buildContextMenuItems, type ContextMenuDeps } from "./lib/contextMenuItems";
 import { useMediaData } from "./hooks/useMediaData";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import { useMediaSelection } from "./hooks/useMediaSelection";
 import { useMediaMutations } from "./hooks/useMediaMutations";
 import { useMarqueeSelection } from "./hooks/useMarqueeSelection";
@@ -140,7 +141,7 @@ export function MediaManager() {
     canPaste: mutations.canPaste,
     openFile: (row) => window.open(row.public_url, "_blank"),
     copyUrl: (row) => {
-      void navigator.clipboard.writeText(row.public_url);
+      void navigator.clipboard.writeText(brandedMediaUrl(row.public_url));
       toast.success(t("admin.media.urlCopied"));
     },
     download: (row) => {
