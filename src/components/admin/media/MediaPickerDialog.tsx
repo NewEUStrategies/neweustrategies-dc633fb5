@@ -448,7 +448,7 @@ export function MediaPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(72dvh,560px)] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-32px)] w-[calc(100vw-16px)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:h-[min(62dvh,560px)] sm:max-h-[calc(100dvh-96px)] sm:w-[calc(100vw-32px)] sm:p-5">
+      <DialogContent className="flex h-[min(54dvh,480px)] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-32px)] w-[calc(100vw-16px)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:h-[min(52dvh,480px)] sm:max-h-[calc(100dvh-96px)] sm:w-[calc(100vw-32px)] sm:p-5">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{title ?? t("adminTeamMedia.mediaPicker.title")}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -709,7 +709,7 @@ export function MediaPickerDialog({
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          className={`relative flex-1 min-h-[120px] overflow-y-auto overscroll-contain -mx-2 px-2 pb-[max(8px,env(safe-area-inset-bottom))] rounded-md transition-colors ${
+          className={`relative min-h-[120px] flex-1 max-h-full overflow-y-auto overscroll-contain -mx-2 px-2 pb-[max(8px,env(safe-area-inset-bottom))] [scrollbar-gutter:stable] rounded-md transition-colors ${
             dragOver ? "outline outline-2 outline-dashed outline-primary/60 bg-primary/5" : ""
           }`}
         >
@@ -781,7 +781,7 @@ export function MediaPickerDialog({
         </div>
 
         {picked && (
-          <div className="shrink-0 max-h-[28dvh] overflow-y-auto border-t border-border pt-3 space-y-2">
+          <div className="shrink-0 max-h-[24dvh] overflow-y-auto overscroll-contain border-t border-border pt-3 pr-1 space-y-2 [scrollbar-gutter:stable]">
             <label
               htmlFor="picker-filename"
               className="block text-xs text-muted-foreground font-medium"
