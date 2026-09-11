@@ -231,7 +231,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                     strokeLinejoin="miter"
                     data-active={active === i ? "true" : undefined}
                     style={{
-                      ["--neh-arc-hover" as string]: `var(--chart-${s.colorSlot}-hover)`,
+                      ["--neh-arc-hover" as string]: `var(--chart-${s.colorSlot}-active, var(--chart-${s.colorSlot}-hover))`,
                       ["--neh-arc-token" as string]: `var(--chart-${s.colorSlot})`,
                     }}
                     tabIndex={0}
