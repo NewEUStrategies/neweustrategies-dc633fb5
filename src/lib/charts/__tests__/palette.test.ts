@@ -399,6 +399,50 @@ describe("palette - rozdzielność dla daltonizmu", () => {
   });
 });
 
+describe("palette - KOLORY MARKI są w palecie, co do hexa", () => {
+  // Ta bramka nie mierzy niczego - pilnuje ZGODNOŚCI Z ZAMÓWIENIEM. Cała
+  // reszta pliku sprawdza, czy paleta trzyma progi; to sprawdza, czy trzyma
+  // kolory, które dostała. Bez niej zmiękczenie, przeliczenie albo poprawka
+  // korytarza mogłyby po cichu przesunąć hex marki o kilka jednostek i żaden
+  // inny test by tego nie zauważył, bo wszystkie progi dalej by przechodziły.
+  const ZADANE_JASNE = [
+    "#03346e", "#fa9346", "#8c56d4", "#2bbbd7", "#bb8760", "#607456", "#7b2525",
+    "#232c31", "#cd393b", "#15334d", "#6929c4", "#f7dd14", "#7f2020", "#6d9e51",
+    "#ed985f", "#9cc6db", "#c95792", "#e50046", "#ffdab3", "#d4bdac", "#dca47c",
+    "#b80000", "#ff788d",
+  ];
+  const ZADANE_CIEMNE = [
+    "#2196f3", "#fdb078", "#76c457", "#e7bcde", "#92eeff", "#ca7842", "#8b9a6e",
+    "#ba6a4c", "#e1b076", "#b281f7", "#fff07d", "#b5e18b", "#f7b980", "#9cc6db",
+    "#ffdab3", "#ff9a9a", "#e50046", "#d4bdac", "#ffd3b6", "#b80000", "#ff9d9d",
+  ];
+
+  it("każdy zadany odcień JASNY stoi w palecie jako wartość jasna", () => {
+    const jasne = new Set(CHART_SLOTS.map((s) => s.light.toLowerCase()));
+    for (const hex of ZADANE_JASNE) expect(jasne.has(hex), hex).toBe(true);
+  });
+
+  it("każdy zadany odcień CIEMNY stoi w palecie jako wartość ciemna", () => {
+    const ciemne = new Set(CHART_SLOTS.map((s) => s.dark.toLowerCase()));
+    for (const hex of ZADANE_CIEMNE) expect(ciemne.has(hex), hex).toBe(true);
+  });
+
+  it("żaden odcień PODMIENIONY nie został w palecie", () => {
+    // Podmiana, po której stary odcień gdzieś jeszcze siedzi, jest podmianą
+    // wykonaną w połowie - a połowa jest tu gorsza od zera, bo wykres
+    // pokazywałby dwa pokolenia palety naraz.
+    const wszystkie = new Set(
+      CHART_SLOTS.flatMap((s) => [s.light.toLowerCase(), s.dark.toLowerCase()]),
+    );
+    for (const hex of [
+      "#ccc69b", "#9ac5af", "#449eef", "#01538a", "#bb8b4d", "#e1af73", "#a587a4",
+      "#7a5b79", "#11a0c4", "#51cef6", "#a8583c", "#b97b64", "#646e1c", "#936869",
+      "#b28485",
+    ])
+      expect(wszystkie.has(hex), hex).toBe(false);
+  });
+});
+
 describe("palette - pasmo prognozy i siatka", () => {
   it("krycie pasma trafia w korytarz kontrastu do płyty w KAŻDYM slocie", () => {
     // Stała alfa nie działa: różnica jasności serii wobec płyty jest nierówna,
