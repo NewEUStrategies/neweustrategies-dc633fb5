@@ -100,7 +100,12 @@ import {
   valueTickTarget,
 } from "@/lib/charts/geometry";
 import { bandIndex, pointerToPlot } from "@/lib/charts/plot";
-import { barStyleHasEdge, resolveBarStyle, type BarStyle } from "@/lib/charts/palette";
+import {
+  barStyleHasEdge,
+  resolveBarStyle,
+  slotsNeedingPattern,
+  type BarStyle,
+} from "@/lib/charts/palette";
 import { estimateLabelWidth } from "@/lib/charts/measureText";
 import { WRAP_LINE_EM, planCategoryLabels } from "@/lib/charts/labels";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
@@ -677,7 +682,8 @@ export function PercentStackedChart({
    * wypełnienia: drugi nośnik różnicy znikał po cichu dokładnie tam, gdzie
    * legenda go obiecuje.
    */
-  const potrzebujeKreskowania = model.series.some((s) => s.colorSlot > CATEGORICAL_SAFE_SERIES);
+  const kreskowaneSloty = slotsNeedingPattern(model.series.map((s) => s.colorSlot));
+  const potrzebujeKreskowania = kreskowaneSloty.size > 0;
 
   /**
    * WARIANT WYPEŁNIENIA, rozstrzygnięty RAZ dla całego wykresu. Dwa warianty
@@ -1078,7 +1084,7 @@ export function PercentStackedChart({
                   // Podłoga pół piksela: segment o dodatnim udziale MUSI być
                   // widoczny, bo zniknięty czyta się jako udział zerowy.
                   const wzdluz = Math.max(0.5, grubosc - 2 * inset);
-                  const kreskowany = seg.colorSlot > CATEGORICAL_SAFE_SERIES && !waski;
+                  const kreskowany = kreskowaneSloty.has(seg.colorSlot) && !waski;
                   const shape = segmentPath(
                     x0 + inset,
                     yGora + inset,

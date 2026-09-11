@@ -33,7 +33,7 @@ import {
 } from "@/lib/charts/kinds/smallMultiples";
 import { defaultChartConfig } from "@/lib/charts/parse";
 import { INDEX_BASE, baseUsable } from "@/lib/charts/stats";
-import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
+import { MAX_COLOR_SLOT, type ChartConfig, type ChartSeries } from "@/lib/charts/types";
 
 /** Wszystkie liczby w strukturze, także zagnieżdżone w panelach i punktach. */
 function zbierzLiczby(wartosc: unknown, out: number[] = []): number[] {
@@ -906,7 +906,7 @@ describe("pozostałe sprawdzenia uczciwości", () => {
   it("zgłasza zawinięcie palety, gdy paneli z własnymi slotami jest więcej niż slotów", () => {
     // Wtedy dwa panele dostają ten sam kolor, nie będąc w żadnej relacji -
     // kolor przestaje być kluczem, a nadal wygląda jak klucz.
-    const duzo = Array.from({ length: 10 }, (_, i) => ({
+    const duzo = Array.from({ length: MAX_COLOR_SLOT + 2 }, (_, i) => ({
       label: `P${i}`,
       values: [i + 1],
       colorSlot: i + 1,

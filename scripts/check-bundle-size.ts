@@ -1423,7 +1423,35 @@ const FROZEN_BUDGET_KB = {
   // shared + 1.3 KiB public renderer + 12.6 KiB admin = 85.8 KiB total.
   // Separate gzip streams cost 4.5 KiB overall, while public CSS falls by
   // 8.1 KiB. Keep both costs gated and count every unknown stylesheet as public.
-  css: 93,
+  // 2026-09-11: css 93 -> 96. PRZEFLOOROWANE ŚWIADOMIE, decyzją zamawiającego,
+  // z pomiarem przyczyny - bo tego wymaga reguła na końcu tego pliku.
+  //
+  // PRZYCZYNA, ZMIERZONA NA JEDNEJ RZECZY: paleta wykresów urosła z dziesięciu
+  // slotów do dwudziestu siedmiu, bo tyle kolorów marki zamówiono. Same
+  // deklaracje `--chart-*` w `src/styles.css` idą z 373 linii / 2 425 B gzip
+  // na 781 linii / 4 829 B gzip. Liczby są z policzenia tych linii osobno
+  // (wyciętych wzorcem, nie na oko) i zgadzają się z pomiarem na artefakcie:
+  // arkusz kliencki poszedł z 91,5 KB na 93,9 KB, czyli PRZEZ sufit 93 o 0,9.
+  //
+  // CO PRÓBOWANO, ZANIM PRÓG RUSZYŁ. Policzono trzy cięcia: usunięcie
+  // duplikatu tokenów w bloku druku (225 B), zabranie palecie bazowej
+  // wariantów bladego i gradientowego (1 126 B) oraz usunięcie tokenów
+  // `-deep` równych `-edge` (92 B). RAZEM 1 432 B przy potrzebie 1 434 B na
+  // `publicCss` - czyli komplet cięć ląduje DOKŁADNIE na progu, bez zapasu,
+  // a dwa z nich zabierają funkcję, o którą zamawiający prosił. Zmierzone,
+  // odrzucone i opisane tutaj, żeby następna osoba nie liczyła tego od nowa.
+  //
+  // CO TE 2 404 B KUPIŁY: dwadzieścia siedem rodzin odcienia zamiast dziesięciu,
+  // każda z kompletem wyprowadzeń (wariant tekstowy, tusz, krycie pasma,
+  // sześciostopniowa rampa wypełnienia) w obu motywach. Bez tokenów w arkuszu
+  // numer slotu nie znaczy nic: `var(--chart-22)` bez definicji to czarne
+  // wypełnienie albo niewidoczna kreska, po cichu.
+  //
+  // ZAPAS PO PODNIESIENIU: 2,1 KB (2,2%), czyli nad progiem ostrzeżenia.
+  // NASTĘPNY WZROST MA SIĘ ZMIERZYĆ, NIE PRZEFLOOROWAĆ: część nieredukowalna
+  // arkusza pisanego ręcznie jest wciąż największą pozycją i to ona jest
+  // pierwszym miejscem do pracy.
+  css: 96,
   // 2026-09-07: publicCss 74 -> 75. PRZEFLOOROWANE ŚWIADOMIE, z pomiarem
   // przyczyny i z rachunkiem wymiany - bo tego wymaga reguła na końcu tego
   // pliku, a nie dlatego, że próg „przeszkadzał".
@@ -1459,7 +1487,13 @@ const FROZEN_BUDGET_KB = {
   // nie zna nawet chunku `WorkspaceDock`. Tych dwóch progów ŚWIADOMIE NIE
   // RUSZAM: nie są moje, a podniesienie ich przykryłoby czyjąś regresję.
   // Następna osoba ma tu liczby, od których może zacząć.
-  publicCss: 80,
+  // 2026-09-11: publicCss 80 -> 83. Ta sama przyczyna i ten sam rachunek co
+  // przy `css` wyżej - paleta wykresów z dziesięciu slotów na dwadzieścia
+  // siedem - tylko mierzona na arkuszu render-blocking: 79,0 KB -> 81,4 KB,
+  // czyli przez sufit 80 o 1,4 KB. Tokeny wykresu są w arkuszu WSPÓLNYM, bo
+  // silnik rysuje i na trasach publicznych, więc tego kosztu nie da się
+  // przenieść do arkusza panelu. Zapas po podniesieniu: 1,6 KB (1,9%).
+  publicCss: 83,
   // gzip STATYCZNEGO DOMKNIĘCIA ŚCIEŻKI BOOTOWANIA: chunki wstrzykiwane przez
   // SSR jako `<script type="module">` plus wszystko, co z nich osiągalne
   // KRAWĘDZIĄ STATYCZNĄ (`import()` krawędzią inicjalizacyjną nie jest). Ten sam

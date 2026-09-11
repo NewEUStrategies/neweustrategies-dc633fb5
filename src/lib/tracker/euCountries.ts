@@ -96,7 +96,7 @@ export const STANCE_META: readonly StanceMeta[] = [
     cssVar: "var(--chart-negative)",
     hex: "#ef5454",
   },
-  { key: "mixed", pl: "Podzielone", en: "Split", cssVar: "var(--chart-2)", hex: "#c6871f" },
+  { key: "mixed", pl: "Podzielone", en: "Split", cssVar: "var(--chart-2)", hex: "#fa9346" },
   {
     key: "undecided",
     pl: "Brak stanowiska",

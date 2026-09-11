@@ -29,6 +29,7 @@ import i18n from "@/lib/i18n";
 import { kluczeFormy, maTresc } from "@/lib/ci/i18nForms";
 import "@/lib/i18n-charts";
 import { FanChart } from "../FanChart";
+import { slotForSeries } from "@/lib/charts/palette";
 
 function cfg(data: Record<string, Json>): ChartConfig {
   return parseChartConfig(data);
@@ -217,7 +218,7 @@ describe("FanChart - co koduje pozycja", () => {
     expect(container.querySelector("linearGradient")).toBeNull();
     expect(container.querySelector("radialGradient")).toBeNull();
     for (const el of all(container, "[data-role='band']")) {
-      expect(el.getAttribute("fill")).toBe("var(--chart-1)");
+      expect(el.getAttribute("fill")).toBe(`var(--chart-${slotForSeries(0)})`);
     }
   });
 
@@ -1454,7 +1455,7 @@ describe("FanChart - poziomy rozkładają się na korytarzu kontrastu", () => {
       // Krycie idzie TOKENEM slotu, a nie liczbą wpisaną w kod - inaczej motyw
       // ciemny dostałby alfę policzoną dla jasnego.
       expect(all(container, "[data-role='band']")[0].getAttribute("style")).toContain(
-        "var(--chart-band-1)",
+        `var(--chart-band-${slotForSeries(0)})`,
       );
     });
   }

@@ -30,6 +30,7 @@ import { FONT_AXIS } from "@/lib/charts/geometry";
 import { WRAP_LINE_EM } from "@/lib/charts/labels";
 import { estimateLabelWidth } from "@/lib/charts/measureText";
 import { PercentStackedChart } from "../PercentStackedChart";
+import { slotForSeries } from "@/lib/charts/palette";
 
 function cfg(data: Record<string, Json>): ChartConfig {
   return parseChartConfig({ animate: false, ...data });
@@ -457,11 +458,11 @@ describe("PercentStackedChart - etykieta udziału wchodzi do segmentu warunkowo"
     // granacie 2,25:1.
     const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
     const kolory = all(container, `${SEG}[data-bar='0']`).map((e) => e.getAttribute("fill"));
-    expect(kolory).toEqual(["var(--chart-1)", "var(--chart-2)", "var(--chart-3)"]);
+    expect(kolory).toEqual([0, 1, 2].map((i) => `var(--chart-${slotForSeries(i)})`));
     const tusze = all(container, `${ETYKIETA}`)
       .slice(0, 3)
       .map((e) => e.getAttribute("fill"));
-    expect(tusze).toEqual(["var(--chart-ink-1)", "var(--chart-ink-2)", "var(--chart-ink-3)"]);
+    expect(tusze).toEqual([0, 1, 2].map((i) => `var(--chart-ink-${slotForSeries(i)})`));
   });
 });
 
@@ -523,8 +524,8 @@ describe("PercentStackedChart - wypełnienie segmentów", () => {
         config={cfg({
           categories: ["A"],
           series: [
-            { name: "X", values: [1], colorSlot: 1 },
-            { name: "Y", values: [1], colorSlot: 7 },
+            { name: "X", values: [1], colorSlot: 9 },
+            { name: "Y", values: [1], colorSlot: 16 },
           ],
         })}
         lang="pl"
@@ -1290,8 +1291,8 @@ describe("PercentStackedChart - odwołania do definicji w <defs>", () => {
           categories: ["A", "B"],
           barStyle: "gradient",
           series: [
-            { name: "X", values: [1, 1], colorSlot: 1 },
-            { name: "Y", values: [1, 1], colorSlot: 7 },
+            { name: "X", values: [1, 1], colorSlot: 9 },
+            { name: "Y", values: [1, 1], colorSlot: 16 },
           ],
         })}
         lang="pl"

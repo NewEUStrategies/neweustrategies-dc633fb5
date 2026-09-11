@@ -16,8 +16,9 @@
 // każdym dopisaniu pola - albo, gorzej, ktoś rozluźniłby typ i panel
 // renderowałby wykres z niezdefiniowanymi ustawieniami uczciwości.
 import { defaultChartConfig } from "@/lib/charts/parse";
-import { MAX_SERIES, type ChartConfig, type ChartKind, type ChartSeries } from "@/lib/charts/types";
+import { type ChartConfig, type ChartKind, type ChartSeries } from "@/lib/charts/types";
 import type { BarStyle } from "@/lib/charts/palette";
+import { slotForSeries } from "@/lib/charts/palette";
 
 export interface BiChartInput {
   kind: ChartKind;
@@ -44,10 +45,11 @@ export interface BiChartInput {
 /**
  * Numery slotów palety przydzielane po kolei, gdy panel ich nie poda.
  *
- * Slotów jest `MAX_SERIES` i liczba jedzie ze stałej, a nie z literału: paleta
- * ma osiem barw rozdzielnych dla każdego rodzaju widzenia barw, a dziewiąty
- * numer nie ma w arkuszu żadnego tokena - seria dostałaby `var(--chart-9)`,
- * czyli nic.
+ * "Po kolei" znaczy w KOLEJNOŚCI SEKWENCJI, a nie 1, 2, 3: `slotForSeries`
+ * idzie po `SLOT_SEQUENCE`, czyli po numerach ułożonych pod rozdzielność barw,
+ * a nie pod numerację tokenów. Numer spoza palety nie ma w arkuszu żadnego
+ * tokena - seria dostałaby `var(--chart-N)`, czyli nic - i dlatego numer nigdy
+ * nie jest tu liczony z literału.
  *
  * Przydział jest tu, a nie w silniku, bo silnik dostaje serie już z numerami -
  * i to jest właściwy podział: KTÓRA wielkość dostaje który kolor, jest decyzją
@@ -58,7 +60,7 @@ function zeSlotami(series: BiChartInput["series"]): ChartSeries[] {
   return series.map((s, i) => ({
     name: s.name,
     values: [...s.values],
-    colorSlot: s.colorSlot ?? (i % MAX_SERIES) + 1,
+    colorSlot: s.colorSlot ?? slotForSeries(i),
   }));
 }
 

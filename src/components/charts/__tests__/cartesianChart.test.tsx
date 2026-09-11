@@ -46,6 +46,8 @@ import type { Json } from "@/lib/content-model/json";
 import { BAR_EDGE_INSET } from "@/lib/charts/geometry";
 import { defaultChartConfig, parseChartConfig } from "@/lib/charts/parse";
 import { resetTextMeasureCache } from "@/lib/charts/measureText";
+import { MAX_SERIES } from "@/lib/charts/types";
+import { slotForSeries } from "@/lib/charts/palette";
 import type { ChartConfig } from "@/lib/charts/types";
 import { CartesianChart } from "../CartesianChart";
 
@@ -147,12 +149,12 @@ describe("CartesianChart - wczesne wyjścia i filtr serii", () => {
     const bars = all(container, SEL.bar);
     expect(bars).toHaveLength(2);
     expect(bars.map((b) => b.getAttribute("fill"))).toEqual([
-      "var(--chart-2-inner)",
-      "var(--chart-2-inner)",
+      `var(--chart-${slotForSeries(1)}-inner)`,
+      `var(--chart-${slotForSeries(1)}-inner)`,
     ]);
     expect(bars.map((b) => b.getAttribute("stroke"))).toEqual([
-      "var(--chart-2-edge)",
-      "var(--chart-2-edge)",
+      `var(--chart-${slotForSeries(1)}-edge)`,
+      `var(--chart-${slotForSeries(1)}-edge)`,
     ]);
   });
 
@@ -314,11 +316,10 @@ describe("CartesianChart - kolumny pionowe", () => {
       />,
     );
     // 8 x 40 znaczników - żadna kategoria nie wypada, mimo że barW schodzi
-    // do 0. Sloty 7 i 8 dokładają do swoich znaczników nakładkę wzoru (drugi
-    // nośnik różnicy, bo ich odcień jest od slotów 1-2 oddalony o ~10-12
-    // jednostek CIELAB po symulacji), więc ścieżek jest 320 + 2 x 40.
+    // do 0. Ani jednej nakładki wzoru: osiem pierwszych pozycji sekwencji
+    // trzyma podłogę rozszerzoną, więc sam odcień rozdziela tu wszystkie pary.
     const sciezki = all(container, SEL.bar);
-    expect(sciezki).toHaveLength(400);
+    expect(sciezki).toHaveLength(320);
     const wypelnione = sciezki.filter((b) => (b.getAttribute("fill") ?? "").startsWith("var("));
     expect(wypelnione).toHaveLength(320);
     expect(d(wypelnione[0])).toContain("h0");
@@ -662,7 +663,7 @@ describe("CartesianChart - stack", () => {
     // SERII, a jej grubość niesie arkusz (`--chart-bar-edge`), nie atrybut -
     // `var()` w atrybutach prezentacyjnych SVG nie jest wspierane wszędzie.
     const bar = all(container, SEL.bar)[0];
-    expect(bar.getAttribute("stroke")).toBe("var(--chart-1-edge)");
+    expect(bar.getAttribute("stroke")).toBe(`var(--chart-${slotForSeries(0)}-edge)`);
     expect(bar.getAttribute("stroke")).not.toBe("var(--card)");
     expect(bar.getAttribute("stroke-width")).toBeNull();
   });
@@ -836,7 +837,7 @@ describe("CartesianChart - linie i pola", () => {
     // powód, dla którego mapa-choropleta podaje `fill` w `style`.
     expect(all(container, SEL.area)[0].getAttribute("fill-opacity")).toBeNull();
     expect(all(container, SEL.area)[0].getAttribute("style")).toContain(
-      "fill-opacity: var(--chart-band-1)",
+      `fill-opacity: var(--chart-band-${slotForSeries(0)})`,
     );
   });
 
@@ -890,7 +891,7 @@ describe("CartesianChart - linie i pola", () => {
     // z tokena `--chart-dot` (2,8 px na jasnym, 2,6 px na ciemnym).
     expect(dot.getAttribute("r")).toBe("2.8");
     expect(dot.getAttribute("fill")).toBe("var(--card)");
-    expect(dot.getAttribute("stroke")).toBe("var(--chart-1)");
+    expect(dot.getAttribute("stroke")).toBe(`var(--chart-${slotForSeries(0)})`);
     expect(dot.getAttribute("class")).toContain("neh-dot");
   });
 
@@ -1583,19 +1584,25 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
     const config = cfg({
       kind: "bar",
       categories: ["a"],
-      series: Array.from({ length: 12 }, (_, i) => ({ name: `S${i}`, values: [i + 1] })),
+      series: Array.from({ length: MAX_SERIES + 4 }, (_, i) => ({
+        name: `S${i}`,
+        values: [i + 1],
+      })),
     });
     const { container } = render(<CartesianChart config={config} lang="pl" />);
-    // Nakładki wzoru (sloty 7-8) odsiane: pytamy o KOLORY serii, a wzór
+    // Nakładki wzoru (sloty rozszerzenia) odsiane: pytamy o KOLORY serii, a wzór
     // kolorem serii nie jest - jego paski są w kolorze płyty.
     const fills = all(container, SEL.bar)
       .map((b) => b.getAttribute("fill"))
       .filter((f) => (f ?? "").startsWith("var("));
-    // MAX_SERIES = 8: dziewiąta seria nie wraca na --chart-1, tylko nie istnieje.
-    expect(fills).toEqual(Array.from({ length: 8 }, (_, i) => `var(--chart-${i + 1})`));
+    // Seria za `MAX_SERIES` nie istnieje, a sloty idą z SEKWENCJI przypisania,
+    // nie po numerach: pierwsza seria bierze najlepiej rozdzielny kolor palety.
+    expect(fills).toEqual(
+      Array.from({ length: MAX_SERIES }, (_, i) => `var(--chart-${slotForSeries(i)})`),
+    );
   });
 
-  it("SŁUPEK w slocie poza zestawem bezpiecznym dostaje WZÓR, tak jak obiecuje legenda", () => {
+  it("SŁUPEK w parze, której nie rozdziela odcień, dostaje WZÓR - tak jak obiecuje legenda", () => {
     // REGRESJA. Legenda znaczy sloty 7-8 próbką w paski, bo ich odcień jest od
     // slotów 1-2 oddalony o ~10-12 jednostek CIELAB po symulacji daltonizmu -
     // za mało, żeby sam kolor je odróżnił. Linia dostawała na to
@@ -1609,8 +1616,11 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
           kind: "bar",
           categories: ["a", "b"],
           series: [
-            { name: "Bezpieczna", values: [3, 4], colorSlot: 1 },
-            { name: "Rozszerzenie", values: [5, 6], colorSlot: 7 },
+            // Para dobrana z POMIARU, nie z numerów: #7b2525 i #7f2020 dzieli
+            // po symulacji deuteranopii 2,13 jednostki CIELAB, czyli dla części
+            // odbiorców są jednym kolorem. Wzór dostaje PÓŹNIEJSZY z pary.
+            { name: "Pierwsza", values: [3, 4], colorSlot: 9 },
+            { name: "Nieodróżnialna", values: [5, 6], colorSlot: 16 },
           ],
         })}
         lang="pl"
@@ -1620,14 +1630,14 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
     const wzory = sciezki.filter((b) =>
       (b.getAttribute("fill") ?? "").startsWith("url(#neh-hatch"),
     );
-    // Po jednej nakładce na każdy znacznik serii ze slotu 7 - i ani jednej
-    // dla serii ze slotu 1, która różni się samym odcieniem wystarczająco.
+    // Po jednej nakładce na każdy znacznik serii ze slotu 16 - i ani jednej
+    // dla slotu 9, bo do rozdzielenia pary wystarczy wzór na jednym z nich.
     expect(wzory).toHaveLength(2);
     // Nakładka leży na TYM SAMYM kształcie, co znacznik: inny kształt znaczyłby
     // wzór przesunięty względem słupka, czyli nowy defekt w miejscu naprawy.
-    const slupki7 = sciezki.filter((b) => b.getAttribute("fill") === "var(--chart-7)");
-    expect(slupki7).toHaveLength(2);
-    expect(wzory.map(d).sort()).toEqual(slupki7.map(d).sort());
+    const slupkiKreskowane = sciezki.filter((b) => b.getAttribute("fill") === "var(--chart-16)");
+    expect(slupkiKreskowane).toHaveLength(2);
+    expect(wzory.map(d).sort()).toEqual(slupkiKreskowane.map(d).sort());
     // Definicja wzoru istnieje i jego paski są w kolorze PŁYTY, nie serii -
     // dzięki temu jedna definicja obsługuje każdy slot.
     const pattern = container.querySelector("pattern");
@@ -1664,7 +1674,7 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
       />,
     );
     expect(all(container, SEL.bar).map((b) => b.getAttribute("fill"))).toEqual([
-      "var(--chart-1)",
+      `var(--chart-${slotForSeries(0)})`,
       "var(--chart-5)",
     ]);
   });
@@ -1822,15 +1832,16 @@ describe("CartesianChart - wariant gradientowy wypełnienia", () => {
     // TEGO SAMEGO slotu co obwódka. Stopień środkowy nie jest ozdobą: SVG
     // interpoluje w sRGB, więc dwustopniowa rampa między kolorami z OKLCh
     // przygasa w połowie i wnętrze przestaje się czytać jako gradient.
+    const slotFali = slotForSeries(0);
     expect(rDodatni?.stops).toEqual([
-      "0:var(--chart-1-deep)",
-      "0.5:var(--chart-1-mid)",
-      "1:var(--chart-1-face)",
+      `0:var(--chart-${slotFali}-deep)`,
+      `0.5:var(--chart-${slotFali}-mid)`,
+      `1:var(--chart-${slotFali}-face)`,
     ]);
     // Obwódka niesie CZYSTY token - ten sam, który stoi w legendzie. Bez niej
     // rozmyte gradientem wnętrze nie daje ostrej pozycji końca słupka, a to
     // z niej odczytuje się wartość.
-    expect(all(container, SEL.bar)[0].getAttribute("stroke")).toBe("var(--chart-1)");
+    expect(all(container, SEL.bar)[0].getAttribute("stroke")).toBe(`var(--chart-${slotFali})`);
     expect(all(container, SEL.bar)[0].getAttribute("data-style")).toBe("gradient");
   });
 

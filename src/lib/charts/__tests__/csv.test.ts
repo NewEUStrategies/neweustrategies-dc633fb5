@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseChartData, parseMapData } from "../csv";
+import { slotForSeries } from "@/lib/charts/palette";
 
 describe("parseChartData", () => {
   it("parses the documented widget format", () => {
@@ -8,8 +9,18 @@ describe("parseChartData", () => {
     );
     expect(categories).toEqual(["2021", "2022"]);
     expect(series).toHaveLength(2);
-    expect(series[0]).toMatchObject({ name: "Eksport", values: [120, 150.5], colorSlot: 1 });
-    expect(series[1]).toMatchObject({ name: "Import", values: [80, 95], colorSlot: 2 });
+    // Slot idzie z SEKWENCJI przypisania, nie z numeru kolumny: pierwsza seria
+    // dostaje najlepiej rozdzielny kolor palety, a nie ten o numerze 1.
+    expect(series[0]).toMatchObject({
+      name: "Eksport",
+      values: [120, 150.5],
+      colorSlot: slotForSeries(0),
+    });
+    expect(series[1]).toMatchObject({
+      name: "Import",
+      values: [80, 95],
+      colorSlot: slotForSeries(1),
+    });
   });
 
   it("treats blank/invalid cells as gaps and skips empty lines", () => {

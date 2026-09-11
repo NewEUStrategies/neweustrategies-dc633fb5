@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
 import { Chart } from "@/components/charts/Chart";
 import { defaultChartConfig } from "@/lib/charts/parse";
 import { chartLangFrom } from "@/lib/charts/format";
-import { MAX_SERIES, type ChartConfig, type ChartKind } from "@/lib/charts/types";
+import { type ChartConfig, type ChartKind } from "@/lib/charts/types";
 import { useClubActivitySeries, useClubWorkspaceStats } from "@/lib/clubs/useClubWorkspace";
 import {
   parseContributors,
@@ -52,6 +52,7 @@ import {
 import { ClubInsightsSkeleton } from "@/components/clubs/atoms/ClubWorkspaceSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { formatDate, formatNumber, uiLocale, uiLang } from "@/lib/i18n/format";
+import { slotForSeries } from "@/lib/charts/palette";
 
 const RANGES = [30, 90, 180] as const;
 type Range = (typeof RANGES)[number];
@@ -107,12 +108,13 @@ function konfiguracja(input: {
     title: "",
     description: "",
     categories: [...input.categories],
-    // Slot palety po kolei: jest ich `MAX_SERIES`, a numer poza zakresem
-    // oznaczałby token, którego w arkuszu nie ma - czyli serię bez koloru.
+    // Slot palety w kolejności SEKWENCJI, nie numerów: `slotForSeries` bierze
+    // kolory ułożone pod rozdzielność barw. Numer poza paletą oznaczałby token,
+    // którego w arkuszu nie ma - czyli serię bez koloru.
     series: input.series.map((one, i) => ({
       name: one.name,
       values: [...one.values],
-      colorSlot: (i % MAX_SERIES) + 1,
+      colorSlot: slotForSeries(i),
     })),
     showLegend: input.series.length > 1,
     showValues: input.showValues ?? false,

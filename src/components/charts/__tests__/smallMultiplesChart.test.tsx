@@ -31,6 +31,7 @@ import { estimateLabelWidth } from "@/lib/charts/measureText";
 import i18n from "@/lib/i18n";
 import { maTresc } from "@/lib/ci/i18nForms";
 import "@/lib/i18n-charts";
+import { MAX_COLOR_SLOT } from "@/lib/charts/types";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { SmallMultiplesChart, type SmallMultiplesRenderOptions } from "../SmallMultiplesChart";
 
@@ -854,17 +855,17 @@ describe("SmallMultiplesChart - uczciwość: każde pole modelu wtedy i tylko wt
   });
 
   it("paletteWrapOk: zawinięta paleta przy różnych slotach jest NAZWANA", () => {
-    // Znowu stan spoza parsera (ten obcina serie do `MAX_SERIES` = 8, a próg
-    // zawinięcia to WIĘCEJ niż osiem paneli o różnych slotach). Render musi
-    // o nim mówić, bo dwa panele w tym samym kolorze, nie będąc w żadnej
+    // Znowu stan spoza parsera (ten obcina serie do limitu serii, a próg
+    // zawinięcia to WIĘCEJ paneli o różnych slotach niż liczy paleta). Render
+    // musi o nim mówić, bo dwa panele w tym samym kolorze, nie będąc w żadnej
     // relacji, robią z koloru klucz, którym on nie jest.
     const bazowa = cfg(BAZA);
     const { container } = render(
       <SmallMultiplesChart
         config={{
           ...bazowa,
-          series: Array.from({ length: 9 }, (_, i) =>
-            seria(`S${i}`, [i + 1, i + 2, i + 3, i + 4], (i % 8) + 1),
+          series: Array.from({ length: MAX_COLOR_SLOT + 1 }, (_, i) =>
+            seria(`S${i}`, [i + 1, i + 2, i + 3, i + 4], (i % MAX_COLOR_SLOT) + 1),
           ),
         }}
         lang="pl"

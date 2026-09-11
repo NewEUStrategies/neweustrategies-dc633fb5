@@ -285,7 +285,7 @@ export interface IndexBaseSeriesModel {
   /** Pozycja serii w konfiguracji. Kolejność wejściowa jest ZACHOWANA. */
   index: number;
   name: string;
-  /** Slot palety 1..8. Model oddaje slot, nigdy koloru. */
+  /** Slot palety 1..10. Model oddaje slot, nigdy koloru. */
   colorSlot: number;
   /**
    * Wartości ŹRÓDŁOWE, w jednostkach danych, tablica długości `periodCount`.

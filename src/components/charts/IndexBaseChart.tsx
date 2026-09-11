@@ -83,6 +83,7 @@ import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
 import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
+import { slotsNeedingPattern } from "@/lib/charts/palette";
 
 /**
  * OBSERWACJE DLA CZYTELNIKA, wypisane jawnie. Sklejenie
@@ -250,6 +251,11 @@ export function IndexBaseChart({
   useTapAwayDismiss(active !== null, widthRef, clearActive);
 
   const naRysunku = useMemo(() => model.series.filter((s) => s.indexable), [model]);
+  /** Sloty, które na TYM wykresie potrzebują drugiego nośnika różnicy. */
+  const kreskowaneSloty = useMemo(
+    () => slotsNeedingPattern(naRysunku.map((s) => s.colorSlot)),
+    [naRysunku],
+  );
   const bezposrednie = naRysunku.length > 0 && naRysunku.length <= DIRECT_LABEL_MAX_SERIES;
 
   const geometry = useMemo(() => {
@@ -881,7 +887,7 @@ export function IndexBaseChart({
             const samotne = new Set(
               biegi.filter((bieg) => bieg.punkty.length === 1).map((bieg) => bieg.indeksy[0]),
             );
-            const kreskowana = s.colorSlot > CATEGORICAL_SAFE_SERIES;
+            const kreskowana = kreskowaneSloty.has(s.colorSlot);
             const podpis = skrocNazwe(s.name);
             const yPodpisu = yEtykiet.get(s.index);
             return (

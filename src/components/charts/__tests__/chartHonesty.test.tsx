@@ -27,6 +27,7 @@ import { parseChartConfig } from "@/lib/charts/parse";
 import { BAR_MAX } from "@/lib/charts/geometry";
 import { Chart } from "../Chart";
 import { CartesianChart } from "../CartesianChart";
+import { slotForSeries } from "@/lib/charts/palette";
 
 // ZAMROŻONY ZEGAR, bo ten plik niesie literał daty (`sourceDate`), a bramka
 // `check:clock-freeze` jest RATCHETEM: plik nieobecny na liście długu musi
@@ -48,7 +49,9 @@ const textOf = (root: HTMLElement, sel: string): string[] =>
 /** Pasma i pola: krycie z tokena siedzi w `style`, nie w atrybucie. */
 const bandsOf = (root: HTMLElement): Element[] =>
   all(root, "path").filter((el) =>
-    (el.getAttribute("style") ?? "").includes("fill-opacity: var(--chart-band-1)"),
+    (el.getAttribute("style") ?? "").includes(
+      `fill-opacity: var(--chart-band-${slotForSeries(0)})`,
+    ),
   );
 
 /**
@@ -470,8 +473,8 @@ describe("CartesianChart - mostek (waterfall)", () => {
     expect(bars).toHaveLength(5);
     // Filary (pierwszy i ostatni) niosą POZIOM, nie zmianę - więc kolor serii,
     // nie semantyka znaku.
-    expect(bars[0].getAttribute("fill")).toBe("var(--chart-1)");
-    expect(bars[4].getAttribute("fill")).toBe("var(--chart-1)");
+    expect(bars[0].getAttribute("fill")).toBe(`var(--chart-${slotForSeries(0)})`);
+    expect(bars[4].getAttribute("fill")).toBe(`var(--chart-${slotForSeries(0)})`);
     // Składniki: dodatni tealem, ujemne czerwienią.
     expect(bars[1].getAttribute("fill")).toBe("var(--chart-positive)");
     expect(bars[2].getAttribute("fill")).toBe("var(--chart-negative)");
@@ -809,19 +812,22 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
       />,
     );
     const names = all(container, "li span:last-child").map((el) => el.getAttribute("style") ?? "");
-    expect(names[0]).toContain("var(--chart-1t)");
-    expect(names[1]).toContain("var(--chart-2t)");
+    expect(names[0]).toContain(`var(--chart-${slotForSeries(0)}t)`);
+    expect(names[1]).toContain(`var(--chart-${slotForSeries(1)}t)`);
   });
 
-  it("seria poza zestawem bezpiecznym dla daltonizmu dostaje KRESKOWANIE w legendzie", () => {
+  it("seria z pary, której nie rozdziela odcień, dostaje KRESKOWANIE w legendzie", () => {
     const { container } = render(
       <Chart
         config={cfg({
           kind: "line",
           categories: ["a", "b", "c", "d"],
           series: [
-            { name: "Bezpieczna", values: [1, 2, 3, 4], colorSlot: 1 },
-            { name: "Rozszerzenie", values: [4, 3, 2, 1], colorSlot: 7 },
+            // Para NIEODRÓŻNIALNA po symulacji: #7b2525 i #7f2020 dzieli przy
+            // deuteranopii 2,13 jednostki CIELAB. Kreskowanie jest o PARZE,
+            // a nie o tym, czy numer slotu przekracza sześć.
+            { name: "Pierwsza", values: [1, 2, 3, 4], colorSlot: 9 },
+            { name: "Nieodróżnialna", values: [4, 3, 2, 1], colorSlot: 16 },
           ],
           animate: false,
         })}
@@ -842,8 +848,8 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
           kind: "line",
           categories: ["a", "b", "c", "d"],
           series: [
-            { name: "Bezpieczna", values: [1, 2, 3, 4], colorSlot: 1 },
-            { name: "Rozszerzenie", values: [4, 3, 2, 1], colorSlot: 8 },
+            { name: "Pierwsza", values: [1, 2, 3, 4], colorSlot: 9 },
+            { name: "Nieodróżnialna", values: [4, 3, 2, 1], colorSlot: 16 },
           ],
           animate: false,
         })}
