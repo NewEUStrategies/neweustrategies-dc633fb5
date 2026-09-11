@@ -9,8 +9,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCountryIndex,
-  chartDataToText,
   fileExtension,
+  formatImportedCell,
+  needsTextCellFix,
+  safeTextCell,
   isImportableName,
   mapValuesToText,
   normaliseCountryName,
@@ -244,33 +246,12 @@ describe("import - tabela na dane mapy", () => {
 });
 
 describe("import - serializacja do textarei", () => {
-  it("wykres wraca tekstem, który textarea czyta z powrotem 1:1", () => {
-    const dane = tableToChartData([
-      ["", "Eksport", "Import"],
-      ["2021", "120", "80"],
-      ["2022", "150,5", "95"],
-    ]);
-    const tekst = chartDataToText(dane);
-    const zpowrotem = parseChartData(tekst);
-    expect(zpowrotem.categories).toEqual(dane.categories);
-    expect(zpowrotem.series.map((s) => s.name)).toEqual(dane.series.map((s) => s.name));
-    expect(zpowrotem.series.map((s) => s.values)).toEqual(dane.series.map((s) => s.values));
-  });
-
   it("mapa wraca tekstem, który parser mapy czyta z powrotem 1:1", () => {
     const wartosci = [
       { id: "PL", value: 12.5 },
       { id: "DE", value: -3 },
     ];
     expect(parseMapData(mapValuesToText(wartosci))).toEqual(wartosci);
-  });
-
-  it("luka w serii zostaje luką, a nie zerem", () => {
-    const tekst = chartDataToText({
-      categories: ["A", "B"],
-      series: [{ name: "S", values: [null, 5], colorSlot: 1 }],
-    });
-    expect(parseChartData(tekst).series[0].values).toEqual([null, 5]);
   });
 });
 
@@ -281,5 +262,146 @@ describe("import - rozpoznawanie pliku", () => {
     expect(isImportableName("dane.csv")).toBe(true);
     expect(isImportableName("dane.pdf")).toBe(false);
     expect(isImportableName("dane")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// REGRESJE Z PRZEGLĄDU ADWERSARIALNEGO
+//
+// Każdy test niżej odpowiada błędowi POTWIERDZONEMU uruchomieniem na kodzie
+// sprzed poprawki. Pięć z siedmiu gubiło dane MILCZĄCO - czyli łamało
+// deklarację z nagłówka modułu, że nic nie znika bez zgłoszenia. To jest
+// dokładnie ta klasa błędu, której nie widać w podglądzie: wykres się rysuje,
+// tylko na innych danych niż plik.
+// ---------------------------------------------------------------------------
+
+describe("import - regresje parsera tekstu", () => {
+  it("cal w niecytowanym polu NIE połyka reszty pliku", () => {
+    // Było: `"` w środku pola przełączał tryb cytowania i trzy wiersze
+    // lądowały w jednej komórce, bez ani jednego problemu w raporcie.
+    const rows = parseDelimitedText('Kraj;Wartosc\nRura 5" DN;10\nRura 8 DN;20\nRura 10 DN;30');
+    expect(rows).toHaveLength(4);
+    expect(rows[1]).toEqual(['Rura 5" DN', "10"]);
+    expect(rows[3]).toEqual(["Rura 10 DN", "30"]);
+  });
+
+  it("niedomknięty cudzysłów na końcu pliku NIE scala wierszy", () => {
+    const rows = parseDelimitedText('a;b\n"c;d\ne;f');
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+    expect(rows[0]).toEqual(["a", "b"]);
+  });
+
+  it("pole wielowierszowe w cudzysłowach nie psuje wyboru separatora", () => {
+    // RFC 4180 pozwala na znak nowej linii wewnątrz pola. Stan cytowania musi
+    // przechodzić przez końce wierszy, inaczej średnik ukryty w takim polu
+    // wygrywał z prawdziwym przecinkiem i tabela robiła się jednokolumnowa.
+    const text = 'Name,Value\n"a\nb; c; d",10\nOther,20';
+    expect(sniffDelimiter(text)).toBe(",");
+    const rows = parseDelimitedText(text);
+    expect(rows[0]).toEqual(["Name", "Value"]);
+    expect(rows[1]).toEqual(["a\nb; c; d", "10"]);
+    expect(rows[2]).toEqual(["Other", "20"]);
+  });
+
+  it("pole cytowane zachowuje spacje brzegowe, niecytowane je traci", () => {
+    const rows = parseDelimitedText('"  wcięcie  ";  luz  ');
+    expect(rows[0][0]).toBe("  wcięcie  ");
+    expect(rows[0][1]).toBe("luz");
+  });
+
+  it("CRLF nie zostawia surowego \\r wewnątrz pola wielowierszowego", () => {
+    const rows = parseDelimitedText('a;b\r\n"x\r\ny";5\r\n');
+    expect(rows[1][0]).toBe("x\ny");
+  });
+});
+
+describe("import - regresje liczb i dat", () => {
+  it("odrzuca zapis, który tylko UDAJE grupowanie tysięcy", () => {
+    // Było: 123.4 - czyli śmieć zamieniony w wiarygodnie wyglądającą liczbę.
+    expect(parseImportedNumber("1.2.3,4")).toBeNull();
+    // A prawdziwe grupowanie dalej przechodzi.
+    expect(parseImportedNumber("1.234,5")).toBe(1234.5);
+    expect(parseImportedNumber("12.345.678,9")).toBe(12345678.9);
+  });
+
+  it("data z komórki NIE przesuwa się o dzień w strefie na wschód od UTC", () => {
+    // `toISOString()` cofał dzień u polskiego redaktora: 2024-01-15 wychodziło
+    // jako „2024-01-14 23:00:00". Data jest etykietą osi, więc to nie kosmetyka.
+    expect(formatImportedCell(new Date(2024, 0, 15, 0, 0, 0))).toBe("2024-01-15");
+    expect(formatImportedCell(new Date(2024, 5, 30, 0, 0, 0))).toBe("2024-06-30");
+    // Godzina niezerowa zostaje, bo niesie informację.
+    expect(formatImportedCell(new Date(2024, 0, 15, 14, 30, 0))).toBe("2024-01-15 14:30:00");
+    // Data nieprawidłowa to pusta komórka, nie „Invalid Date" na osi.
+    expect(formatImportedCell(new Date(NaN))).toBe("");
+  });
+});
+
+describe("import - regresje mapy", () => {
+  const indeks = buildCountryIndex([
+    { id: "PL", pl: "Polska", en: "Poland" },
+    { id: "DE", pl: "Niemcy", en: "Germany" },
+  ]);
+
+  it("pierwszy kraj bez wartości NIE jest zjadany jako nagłówek", () => {
+    // Było: wiersz PL znikał bez śladu, `problems` puste.
+    const out = tableToMapValues(
+      [
+        ["PL", ""],
+        ["DE", "12"],
+      ],
+      indeks,
+    );
+    expect(out.values).toEqual([{ id: "DE", value: 12 }]);
+    expect(out.problems).toContainEqual({ code: "rowsSkipped", count: 1 });
+  });
+
+  it("pierwszy kraj z wartością nieliczbową też jest zgłaszany, nie zjadany", () => {
+    const out = tableToMapValues(
+      [
+        ["PL", "b.d."],
+        ["DE", "12"],
+      ],
+      indeks,
+    );
+    expect(out.problems).toContainEqual({ code: "rowsSkipped", count: 1 });
+  });
+
+  it("PUSTY skorowidz znaczy brak skorowidza, nie brak krajów", () => {
+    // Zasób geometrii dociąga się fetchem z `retry: 1`. Gdy nie zdążył albo
+    // padł, wywołujący przekazuje pusty indeks - i import poprawnego pliku
+    // kończył się komunikatem „nierozpoznane kraje: PL, DE".
+    const out = tableToMapValues(
+      [
+        ["PL", "1"],
+        ["DE", "2"],
+      ],
+      buildCountryIndex([]),
+    );
+    expect(out.values).toEqual([
+      { id: "PL", value: 1 },
+      { id: "DE", value: 2 },
+    ]);
+    expect(out.problems).toEqual([]);
+  });
+});
+
+describe("import - etykiety bezpieczne dla formatu średnikowego", () => {
+  it("średnik i złamanie wiersza znikają z etykiety", () => {
+    expect(safeTextCell("Kraków; Polska")).toBe("Kraków, Polska");
+    expect(safeTextCell("linia1\nlinia2")).toBe("linia1 linia2");
+  });
+
+  it("rozpoznaje, które etykiety wymagają podmiany", () => {
+    expect(needsTextCellFix("Kraków; Polska")).toBe(true);
+    expect(needsTextCellFix("linia1\nlinia2")).toBe(true);
+    expect(needsTextCellFix("Polska")).toBe(false);
+  });
+
+  it("po podmianie etykieta przeżywa round-trip przez format średnikowy", () => {
+    const kategoria = safeTextCell("Kraków; Polska");
+    const tekst = `; A\n${kategoria}; 20`;
+    const wynik = parseChartData(tekst);
+    expect(wynik.categories).toEqual([kategoria]);
+    expect(wynik.series[0].values).toEqual([20]);
   });
 });

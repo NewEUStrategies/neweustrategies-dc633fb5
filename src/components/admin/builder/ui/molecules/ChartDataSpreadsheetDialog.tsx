@@ -26,7 +26,7 @@ import {
   parseChartKind,
 } from "@/lib/charts/parse";
 import { parseChartData } from "@/lib/charts/csv";
-import { tableToChartData } from "@/lib/charts/importTable";
+import { needsTextCellFix, safeTextCell, tableToChartData } from "@/lib/charts/importTable";
 import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
 import { asBool, asNumInRange } from "@/lib/content-model/contentValue";
 
@@ -334,13 +334,25 @@ export function ChartDataSpreadsheetDialog({
             <DataImportControl
               onRows={(rows) => {
                 const dane = tableToChartData(rows);
+                // ETYKIETY MUSZĄ PRZEŻYĆ FORMAT ŚREDNIKOWY. Siatka wraca do
+                // widgetu przez `gridToCsv`, a ten format nie ma cytowania:
+                // kategoria „Kraków; Polska" rozpadłaby się na dwie kolumny
+                // i przesunęła wszystkie wartości w wierszu. Podmiana zmienia
+                // etykietę, więc jest policzona i zgłoszona, a nie cicha.
+                const poprawione = [...dane.series.map((s) => s.name), ...dane.categories].filter(
+                  needsTextCellFix,
+                ).length;
+
                 // Plik jednokolumnowy nie ma serii. Siatka bez ani jednej
                 // kolumny wartości jest nieedytowalna - nie ma gdzie kliknąć,
                 // żeby liczby wpisać - więc zostaje jedna pusta seria.
-                const nazwy = dane.series.length > 0 ? dane.series.map((s) => s.name) : ["Seria A"];
+                const nazwy =
+                  dane.series.length > 0
+                    ? dane.series.map((s) => safeTextCell(s.name))
+                    : ["Seria A"];
                 setGrid({
                   seriesNames: nazwy,
-                  categories: [...dane.categories],
+                  categories: dane.categories.map(safeTextCell),
                   cells: dane.categories.map((_, ri) =>
                     nazwy.map((_n, si) => {
                       const v = dane.series[si]?.values[ri];
@@ -348,7 +360,9 @@ export function ChartDataSpreadsheetDialog({
                     }),
                   ),
                 });
-                return dane.problems;
+                return poprawione > 0
+                  ? [...dane.problems, { code: "labelsAdjusted" as const, count: poprawione }]
+                  : dane.problems;
               }}
             />
             <div className="flex flex-wrap items-center gap-2">

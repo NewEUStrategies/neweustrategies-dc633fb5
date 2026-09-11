@@ -66,6 +66,8 @@ function problemText(
       return tr("pUnknownCountries", { labels: p.labels.join(", ") });
     case "duplicateCountries":
       return tr("pDuplicateCountries", { labels: p.labels.join(", ") });
+    case "labelsAdjusted":
+      return tr("pLabelsAdjusted", { count: p.count });
   }
 }
 

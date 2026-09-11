@@ -118,6 +118,8 @@ const pl = {
         pRowsSkipped: "Pominięto {{count}} wierszy bez kraju albo bez wartości.",
         pUnknownCountries: "Nierozpoznane kraje: {{labels}}.",
         pDuplicateCountries: "Kraje powtórzone (zostało pierwsze wystąpienie): {{labels}}.",
+        pLabelsAdjusted:
+          "{{count}} etykiet zawierało średnik albo złamanie wiersza - zamienione, bo ten format ich nie uniesie.",
       },
       conversionBlocks: {
         sectionTitle: "Tytuł sekcji (opcjonalnie)",
@@ -883,6 +885,8 @@ const en: typeof pl = {
         pRowsSkipped: "{{count}} rows without a country or without a value were skipped.",
         pUnknownCountries: "Unrecognised countries: {{labels}}.",
         pDuplicateCountries: "Duplicate countries (the first occurrence was kept): {{labels}}.",
+        pLabelsAdjusted:
+          "{{count}} labels contained a semicolon or line break - replaced, because this format cannot carry them.",
       },
       conversionBlocks: {
         sectionTitle: "Section title (optional)",

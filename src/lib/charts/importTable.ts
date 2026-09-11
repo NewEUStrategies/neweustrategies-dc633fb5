@@ -42,7 +42,8 @@ export type ImportProblem =
   | { code: "nonNumericCells"; count: number }
   | { code: "rowsSkipped"; count: number }
   | { code: "unknownCountries"; labels: readonly string[] }
-  | { code: "duplicateCountries"; labels: readonly string[] };
+  | { code: "duplicateCountries"; labels: readonly string[] }
+  | { code: "labelsAdjusted"; count: number };
 
 export interface ImportedSheet {
   name: string;
@@ -107,8 +108,10 @@ export function parseImportedNumber(raw: string): number | null {
   if (lastComma !== -1 && lastDot !== -1) {
     const decimal = lastComma > lastDot ? "," : ".";
     const thousands = decimal === "," ? "." : ",";
-    s = s.split(thousands).join("");
-    s = s.replace(decimal, ".");
+    const di = s.lastIndexOf(decimal);
+    const grupy = odgrupuj(s.slice(0, di), thousands);
+    if (grupy === null) return null;
+    s = `${grupy}.${s.slice(di + 1)}`;
   } else if (lastComma !== -1) {
     s = s.replace(",", ".");
   }
@@ -117,32 +120,75 @@ export function parseImportedNumber(raw: string): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Zdejmuje rozdzielacz tysięcy, ale tylko z zapisu, który NAPRAWDĘ grupuje po
+ * trzy. Bez tej kontroli „1.2.3,4" wychodziło jako 123,4 - czyli śmieć
+ * zamieniony w wiarygodnie wyglądającą liczbę, a to jest gorsze niż odrzucenie:
+ * liczba bez ostrzeżenia trafia na wykres i nikt jej nie kwestionuje.
+ */
+function odgrupuj(intPart: string, thousands: string): string | null {
+  const parts = intPart.split(thousands);
+  if (parts.length === 1) return parts[0];
+  if (!/^[+-]?\d{1,3}$/.test(parts[0])) return null;
+  for (let i = 1; i < parts.length; i += 1) {
+    if (!/^\d{3}$/.test(parts[i])) return null;
+  }
+  return parts.join("");
+}
+
 // ---------------------------------------------------------------------------
 // Tekst rozdzielany (csv / tsv)
 // ---------------------------------------------------------------------------
 
+/** BOM z Excela i końce linii: CRLF oraz samotny CR sprowadzone do LF. */
+function znormalizuj(text: string): string {
+  const bez = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  return bez.replace(/\r\n?/g, "\n");
+}
+
+/** Ile znaków tekstu wystarczy, żeby rozpoznać separator. */
+const SNIFF_LIMIT = 64 * 1024;
+
 /**
- * Zgaduje separator, licząc wystąpienia POZA cudzysłowami w kilku pierwszych
- * niepustych wierszach. Liczenie w całym napisie myliło się na danych, gdzie
- * przecinek siedzi w nazwie kategorii („Warszawa, Polska") - a taki plik jest
- * w praktyce średnikowy.
+ * Zgaduje separator, licząc wystąpienia POZA polami cytowanymi.
+ *
+ * STAN CYTOWANIA PRZECHODZI PRZEZ KOŃCE WIERSZY, bo RFC 4180 pozwala na znak
+ * nowej linii WEWNĄTRZ pola w cudzysłowach. Liczenie wiersz po wierszu, z
+ * zerowaniem stanu na każdym z nich, wywracało się na takim pliku: separator
+ * ukryty w wielowierszowym polu był liczony jako prawdziwy i wygrywał, a
+ * dwukolumnowa tabela wychodziła jednokolumnowa.
+ *
+ * Cudzysłów otwiera pole TYLKO na jego początku - inaczej cal w „Rura 5\" DN"
+ * przełączał tryb i reszta pliku lądowała w jednej komórce.
  */
 export function sniffDelimiter(text: string): string {
-  const lines = text
-    .split(/\r?\n/)
-    .filter((l) => l.trim() !== "")
-    .slice(0, 10);
+  const body = znormalizuj(text).slice(0, SNIFF_LIMIT);
   const candidates = [";", "\t", ","];
   let best = ";";
   let bestScore = -1;
   for (const sep of candidates) {
     let score = 0;
-    for (const line of lines) {
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i += 1) {
-        const ch = line[i];
-        if (ch === '"') inQuotes = !inQuotes;
-        else if (ch === sep && !inQuotes) score += 1;
+    let inQuotes = false;
+    let atFieldStart = true;
+    for (let i = 0; i < body.length; i += 1) {
+      const ch = body[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (body[i + 1] === '"') i += 1;
+          else inQuotes = false;
+        }
+        continue;
+      }
+      if (ch === '"' && atFieldStart) {
+        inQuotes = true;
+        atFieldStart = false;
+      } else if (ch === sep) {
+        score += 1;
+        atFieldStart = true;
+      } else if (ch === "\n") {
+        atFieldStart = true;
+      } else {
+        atFieldStart = false;
       }
     }
     if (score > bestScore) {
@@ -153,14 +199,38 @@ export function sniffDelimiter(text: string): string {
   return bestScore > 0 ? best : ";";
 }
 
-/** Parser CSV/TSV z obsługą cudzysłowów i podwojonego `""` w środku pola. */
-export function parseDelimitedText(text: string, delimiter?: string): string[][] {
-  const sep = delimiter ?? sniffDelimiter(text);
-  const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const rows: string[][] = [];
-  let row: string[] = [];
+interface Komorka {
+  text: string;
+  /** Czy pole było w cudzysłowach - wtedy spacje brzegowe są CELOWE. */
+  quoted: boolean;
+}
+
+/**
+ * Jeden przebieg tokenizacji. Zwraca `null`, gdy plik kończy się w niedomkniętym
+ * cudzysłowie - wywołujący powtarza wtedy przebieg BEZ cytowania, zamiast
+ * oddać sklejone wiersze. Ciche sklejenie jest najgorszym wyjściem: dane
+ * znikają, a wynik wygląda na poprawny.
+ */
+function tokenizuj(body: string, sep: string, honorujCudzyslow: boolean): Komorka[][] | null {
+  const rows: Komorka[][] = [];
+  let row: Komorka[] = [];
   let cell = "";
+  let cellQuoted = false;
   let inQuotes = false;
+  let atFieldStart = true;
+
+  const zamknijKomorke = () => {
+    row.push({ text: cell, quoted: cellQuoted });
+    cell = "";
+    cellQuoted = false;
+    atFieldStart = true;
+  };
+  const zamknijWiersz = () => {
+    zamknijKomorke();
+    rows.push(row);
+    row = [];
+  };
+
   for (let i = 0; i < body.length; i += 1) {
     const ch = body[i];
     if (inQuotes) {
@@ -172,34 +242,62 @@ export function parseDelimitedText(text: string, delimiter?: string): string[][]
       } else cell += ch;
       continue;
     }
-    if (ch === '"') inQuotes = true;
-    else if (ch === sep) {
-      row.push(cell);
-      cell = "";
+    if (honorujCudzyslow && ch === '"' && atFieldStart) {
+      inQuotes = true;
+      cellQuoted = true;
+      atFieldStart = false;
+    } else if (ch === sep) {
+      zamknijKomorke();
     } else if (ch === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else if (ch !== "\r") cell += ch;
+      zamknijWiersz();
+    } else {
+      cell += ch;
+      atFieldStart = false;
+    }
   }
-  row.push(cell);
-  rows.push(row);
-  return rows.map((r) => r.map((c) => c.trim())).filter((r) => r.some((c) => c !== ""));
+  if (inQuotes) return null;
+  zamknijWiersz();
+  return rows;
+}
+
+/**
+ * Parser CSV/TSV zgodny z RFC 4180 w zakresie, który spotyka się w plikach
+ * z Excela: cudzysłowy, podwojone `""`, pola wielowierszowe.
+ *
+ * Spacje brzegowe obcinamy WYŁĄCZNIE w polach niecytowanych. W cytowanych są
+ * częścią wartości - autor, który napisał `"  wcięcie  "`, poprosił o nie
+ * wprost.
+ */
+export function parseDelimitedText(text: string, delimiter?: string): string[][] {
+  const body = znormalizuj(text);
+  const sep = delimiter ?? sniffDelimiter(body);
+  const rows = tokenizuj(body, sep, true) ?? tokenizuj(body, sep, false) ?? [];
+  return rows
+    .map((r) => r.map((c) => (c.quoted ? c.text : c.text.trim())))
+    .filter((r) => r.some((c) => c !== ""));
 }
 
 // ---------------------------------------------------------------------------
 // Skoroszyt (xlsx / xls / ods)
 // ---------------------------------------------------------------------------
 
-/** Data w komórce -> ISO bez czasu; Excel i tak trzyma dzień jako liczbę. */
-function cellToString(v: unknown): string {
+/**
+ * Data w komórce -> „RRRR-MM-DD" (z godziną tylko, gdy nie jest północą).
+ *
+ * KOMPONENTY LOKALNE, NIE `toISOString()`. SheetJS buduje `Date` w czasie
+ * LOKALNYM, więc konwersja do UTC cofała dzień wszędzie na wschód od
+ * Greenwich - czyli u polskiego redaktora komórka „2024-01-15" wychodziła jako
+ * „2024-01-14 23:00:00". Etykieta kategorii z błędną datą i doklejoną
+ * godziną to nie kosmetyka: tak wygląda oś czasu na opublikowanym wykresie.
+ */
+export function formatImportedCell(v: unknown): string {
   if (v === null || v === undefined) return "";
   if (v instanceof Date) {
-    const iso = v.toISOString();
-    return iso.slice(11) === "00:00:00.000Z"
-      ? iso.slice(0, 10)
-      : iso.slice(0, 19).replace("T", " ");
+    if (Number.isNaN(v.getTime())) return "";
+    const dwie = (n: number) => String(n).padStart(2, "0");
+    const dzien = `${v.getFullYear()}-${dwie(v.getMonth() + 1)}-${dwie(v.getDate())}`;
+    if (v.getHours() === 0 && v.getMinutes() === 0 && v.getSeconds() === 0) return dzien;
+    return `${dzien} ${dwie(v.getHours())}:${dwie(v.getMinutes())}:${dwie(v.getSeconds())}`;
   }
   if (typeof v === "number") return String(v);
   if (typeof v === "boolean") return v ? "1" : "0";
@@ -244,7 +342,7 @@ export async function readWorkbook(file: File): Promise<ImportedWorkbook> {
       defval: null,
       blankrows: false,
     }) as unknown[][];
-    sheets.push({ name, rows: rectangular(raw.map((r) => r.map(cellToString))) });
+    sheets.push({ name, rows: rectangular(raw.map((r) => r.map(formatImportedCell))) });
   }
   return { sheets };
 }
@@ -355,8 +453,39 @@ export function tableToMapValues(rows: readonly string[][], index?: CountryIndex
   const duplicate: string[] = [];
   let skipped = 0;
 
-  const body =
-    rows.length > 0 && parseImportedNumber(rows[0][1] ?? "") === null ? rows.slice(1) : rows;
+  // PUSTY SKOROWIDZ ZNACZY „NIE MAM SKOROWIDZA", nie „nie ma takich krajów".
+  // Zasób geometrii dociąga się fetchem i ma `retry: 1`; gdy nie zdążył albo
+  // padł, wywołujący i tak przekazuje `buildCountryIndex([])`. Bez tej bramki
+  // import poprawnego pliku kończył się komunikatem „nierozpoznane kraje:
+  // PL, DE" - czyli odrzuceniem wszystkiego, co poprawne.
+  const idx = index !== undefined && index.ids.size > 0 ? index : undefined;
+
+  /** Czy pierwsza komórka wiersza wskazuje kraj - po kodzie albo po nazwie. */
+  const wskazujeKraj = (label: string): boolean => {
+    const upper = label.trim().toUpperCase();
+    if (idx !== undefined) {
+      return idx.ids.has(upper) || idx.byName.has(normaliseCountryName(label));
+    }
+    return ISO2.test(upper);
+  };
+
+  // NAGŁÓWEK WYMAGA OBU SYGNAŁÓW NARAZ: pierwsza komórka nie wskazuje kraju
+  // ORAZ druga nie jest liczbą.
+  //
+  // Sam test „druga komórka nie jest liczbą" zjadał pierwszy kraj MILCZĄCO,
+  // gdy plik nie miał nagłówka, a pierwszemu krajowi brakowało wartości albo
+  // stało w niej „b.d." - czyli w najczęstszym kształcie danych statystycznych.
+  // Sam test „pierwsza komórka nie wskazuje kraju" zjadał z kolei jedyny
+  // wiersz pliku, w którym kraj jest spoza wybranego regionu - a wtedy zamiast
+  // komunikatu „nierozpoznany kraj" wychodziła pustka bez wyjaśnienia.
+  // Koniunkcja nie ma obu tych dziur: wiersz z liczbą nigdy nie jest
+  // nagłówkiem, a wiersz z rozpoznanym krajem nigdy nie jest nagłówkiem.
+  const pierwszy = rows[0] ?? [];
+  const toNaglowek =
+    rows.length > 0 &&
+    !wskazujeKraj(pierwszy[0] ?? "") &&
+    parseImportedNumber(pierwszy[1] ?? "") === null;
+  const body = toNaglowek ? rows.slice(1) : rows;
 
   for (const row of body) {
     const label = (row[0] ?? "").trim();
@@ -365,9 +494,8 @@ export function tableToMapValues(rows: readonly string[][], index?: CountryIndex
 
     const upper = label.toUpperCase();
     let id: string | null = null;
-    if (ISO2.test(upper) && (index === undefined || index.ids.has(upper))) id = upper;
-    else if (index !== undefined) id = index.byName.get(normaliseCountryName(label)) ?? null;
-    else if (ISO2.test(upper)) id = upper;
+    if (ISO2.test(upper) && (idx === undefined || idx.ids.has(upper))) id = upper;
+    else if (idx !== undefined) id = idx.byName.get(normaliseCountryName(label)) ?? null;
 
     if (id === null) {
       if (label !== "") unknown.push(label);
@@ -396,22 +524,28 @@ export function tableToMapValues(rows: readonly string[][], index?: CountryIndex
 // Serializacja do textarei widgetu buildera
 // ---------------------------------------------------------------------------
 
-/** Liczba w zapisie kanonicznym: kropka dziesiętna, bez rozdzielacza tysięcy. */
-function num(v: number | null): string {
-  return v === null ? "" : String(v);
+/**
+ * Etykieta bezpieczna dla formatu średnikowego (`csv.ts`).
+ *
+ * Ten format NIE MA cytowania: dzieli wiersz po każdym średniku i łamie po
+ * każdym znaku nowej linii. Etykieta „Kraków; Polska" rozpadała się więc na
+ * dwie kolumny i przesuwała wszystkie wartości w wierszu, a kategoria
+ * wielowierszowa - legalna w CSV wg RFC 4180 i przepuszczana przez nasz
+ * parser - rozbijała jeden wiersz na dwa.
+ *
+ * Zamiana średnika na przecinek zmienia etykietę, więc NIE JEST cicha:
+ * `tableToChartData` liczy takie podmiany i zgłasza je w `problems`.
+ */
+export function safeTextCell(raw: string): string {
+  return raw
+    .replace(/;/g, ",")
+    .replace(/[\n\r]+/g, " ")
+    .trim();
 }
 
-/**
- * Dane wykresu -> tekst textarei (`csv.ts`). Kropka dziesiętna jest ŚWIADOMA:
- * `parseNumber` czyta oba znaki, więc kropka jest bezpieczna zawsze, a
- * przecinek zderzyłby się z separatorem kolumn w plikach przecinkowych.
- */
-export function chartDataToText(data: { categories: string[]; series: ChartSeries[] }): string {
-  const header = ["", ...data.series.map((s) => s.name)].join("; ");
-  const lines = data.categories.map((cat, ci) =>
-    [cat, ...data.series.map((s) => num(s.values[ci] ?? null))].join("; "),
-  );
-  return [header, ...lines].join("\n");
+/** Czy etykieta wymaga podmiany, żeby przeżyć format średnikowy. */
+export function needsTextCellFix(raw: string): boolean {
+  return safeTextCell(raw) !== raw.trim();
 }
 
 /** Dane mapy -> tekst textarei: „PL; 12.5" na wiersz. */
