@@ -96,6 +96,8 @@ export function MediaPickerDialog({
   const registerUpload = useServerFn(registerMediaUpload);
   const updateMeta = useServerFn(updateMediaMeta);
   const bulkDelete = useServerFn(bulkDeleteMedia);
+  const bulkMove = useServerFn(bulkMoveMedia);
+  const createFolder = useServerFn(createMediaFolder);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string>("all");
@@ -108,6 +110,11 @@ export function MediaPickerDialog({
   const [filenameDraft, setFilenameDraft] = useState("");
   const [savingMeta, setSavingMeta] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [dragTargetFolder, setDragTargetFolder] = useState<string | null>(null);
 
   // Allowlista zamiast `image/*` / `audio/*`: wildcard obejmował także
   // `image/svg+xml`, więc UI zapraszał do wgrania typu, który serwer odrzuca -
@@ -124,7 +131,7 @@ export function MediaPickerDialog({
         : UPLOAD_ACCEPT_ATTR;
 
   const handleFiles = useCallback(
-    async (files: FileList | File[]) => {
+    async (files: FileList | File[], targetFolder = folder === "all" ? "/" : folder) => {
       const list = Array.from(files);
       if (!list.length) return;
       if (!user) {
@@ -150,6 +157,12 @@ export function MediaPickerDialog({
             registerMedia: registerUpload,
             allowedMime,
           });
+          const normalizedTarget = normalizePath(targetFolder);
+          if (normalizedTarget !== "/") {
+            await updateMeta({
+              data: { mediaId: uploaded.mediaId, folderPath: normalizedTarget },
+            });
+          }
           lastUrl = uploaded.publicUrl;
         }
         toast.success(
@@ -166,7 +179,7 @@ export function MediaPickerDialog({
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [accept, allowedMime, qc, registerUpload, tenantId, user, t],
+    [accept, allowedMime, folder, qc, registerUpload, tenantId, updateMeta, user, t],
   );
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -196,11 +209,27 @@ export function MediaPickerDialog({
     },
   });
 
+  const { data: folderRows } = useQuery({
+    queryKey: ["media-picker-folders", tenantId],
+    enabled: open,
+    queryFn: async (): Promise<Array<{ path: string }>> => {
+      const { data, error } = await supabase
+        .from("media_folders")
+        .select("path")
+        .eq("tenant_id", tenantId)
+        .order("path");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const folders = useMemo(() => {
     const s = new Set<string>();
+    s.add("/");
+    for (const r of folderRows ?? []) s.add(r.path || "/");
     for (const r of data ?? []) s.add(r.folder_path || "/");
     return Array.from(s).sort();
-  }, [data]);
+  }, [data, folderRows]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -216,6 +245,9 @@ export function MediaPickerDialog({
     if (!needle) return folders;
     return folders.filter((path) => path.toLocaleLowerCase().includes(needle));
   }, [folderQuery, folders]);
+
+  const { selectedIds, clearSelection, toggleSelect, selectAll, selectOnly } =
+    useMediaSelection(filtered);
 
   const selectFolder = (nextFolder: string) => {
     setFolder(nextFolder);
