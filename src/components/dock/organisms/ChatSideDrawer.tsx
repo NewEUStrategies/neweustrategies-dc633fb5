@@ -341,7 +341,9 @@ export function ChatSideDrawer({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Bezpieczny obszar na dole: ostatni wiersz listy nigdy nie wchodzi
+            pod dolny pasek doku ani krawędź ekranu (safe-area). */}
+        <div className="min-h-0 flex-1 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
           {tab === "requests" ? (
             <ExpertRequestsInbox onOpenConversation={openConversation} className="p-2" />
           ) : tab === "new" ? (

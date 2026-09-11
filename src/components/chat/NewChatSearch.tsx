@@ -21,7 +21,9 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
     return () => clearTimeout(handle);
   }, [input]);
 
-  const peopleQ = usePeopleSearch(query, 12);
+  // 30 zamiast 12: lista ma wypełniać całą wysokość szuflady czatu, nie
+  // zostawiać pustego dna po kilku pierwszych osobach.
+  const peopleQ = usePeopleSearch(query, 30);
   const people = peopleQ.data ?? [];
 
   return (
@@ -43,7 +45,9 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
           />
         </label>
       </div>
-      <div className="max-h-[260px] overflow-y-auto px-1 pb-1">
+      {/* Bez sufitu wysokości: wyniki wypełniają szufladę, a przewija je
+          wspólny kontener zakładki (z bezpiecznym dołem nad dokiem). */}
+      <div className="px-1 pb-1">
         {peopleQ.isLoading ? (
           <p className="p-4 text-center text-xs text-muted-foreground">{t("common.loading")}</p>
         ) : people.length === 0 ? (
