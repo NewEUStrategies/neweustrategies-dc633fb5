@@ -155,7 +155,6 @@ const READING_KEYS: Record<BoxplotFormAdvice, string | null> = {
   singleGroup: "boxplot.reading.singleGroup",
 };
 
-
 /** Geometria jednej kolumny w pikselach. Model podaje udziały, tu są piksele. */
 interface Column {
   box: BoxplotBox;
@@ -716,7 +715,6 @@ export function BoxplotChart({ config, lang }: BoxplotChartProps) {
           rows={tooltipRows}
         />
       </div>
-
 
       {/* ALTERNATYWA TEKSTOWA NIE STOI TUTAJ, i to jest rozstrzygnięcie, nie
           brak. Do podłączenia tego rodzaju render niósł WŁASNĄ kopię tabeli
