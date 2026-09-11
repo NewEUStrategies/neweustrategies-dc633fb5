@@ -79,7 +79,21 @@ export const Route = createFileRoute("/network")({
     return { tab, c };
   },
   head: () => ({
-    meta: [{ title: "Moja sieć" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Moja sieć | New European Strategies" },
+      {
+        name: "description",
+        content: "Kontakty zawodowe i zaproszenia w społeczności New European Strategies.",
+      },
+      { property: "og:title", content: "Moja sieć | New European Strategies" },
+      {
+        property: "og:description",
+        content: "Kontakty zawodowe i zaproszenia w społeczności New European Strategies.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
 });
 
