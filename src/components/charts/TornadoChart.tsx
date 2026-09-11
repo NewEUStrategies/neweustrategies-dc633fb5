@@ -811,10 +811,8 @@ export function TornadoChart({
                       // gradientowy dzieli wypełnienie z bladym: rampa niesie
                       // tożsamość serii, a tutaj kolor niesie ZNAK, którego
                       // pozycja względem bazy koduje już drugi raz.
-                      fill={
-                        barStyle === "solid" ? `var(--chart-${sign})` : `var(--chart-${sign}-inner)`
-                      }
-                      stroke={edged ? `var(--chart-${sign}-edge)` : "var(--card)"}
+                      fill={`var(--chart-${sign}-inner)`}
+                      stroke={`var(--chart-${sign}-edge)`}
                       className={cls}
                       data-role="leg"
                       data-side={box.leg.side}

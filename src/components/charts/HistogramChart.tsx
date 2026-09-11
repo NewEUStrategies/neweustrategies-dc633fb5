@@ -456,18 +456,16 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
                 width={szerokosc}
                 height={h}
                 rx={radius}
-                fill={
-                  barStyle === "solid"
-                    ? `var(--chart-${model.colorSlot})`
-                    : `var(--chart-${model.colorSlot}-inner)`
-                }
-                stroke={edged ? `var(--chart-${model.colorSlot}-edge)` : undefined}
+                fill={`var(--chart-${model.colorSlot}-inner)`}
+                stroke={`var(--chart-${model.colorSlot}-edge)`}
                 className="neh-bar"
                 // UCHWYT ZAPYTANIA rodzaju: słupek histogramu jest SŁUPKIEM
                 // PRZEDZIAŁU, nie kategorii, i testy muszą umieć odróżnić go
                 // od słupka kategorialnego bez oglądania klasy wyglądu.
                 data-role="bin"
                 data-active={active === i ? "true" : undefined}
+                data-edged="true"
+                data-style="pale"
                 style={{ ["--neh-i" as string]: i }}
               />
             );

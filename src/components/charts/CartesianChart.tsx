@@ -997,17 +997,25 @@ export function CartesianChart({
                 const fill =
                   step.kind === "step"
                     ? step.direction === "down"
-                      ? "var(--chart-negative)"
+                      ? "var(--chart-negative-inner)"
                       : step.direction === "flat"
                         ? "var(--muted-foreground)"
-                        : "var(--chart-positive)"
+                        : "var(--chart-positive-inner)"
                     : // FILAR NIESIE POZIOM, NIE ZMIANĘ, więc idzie kolorem
                       // SERII - wzięty z jej slotu, a nie z literału "1".
                       // Numer slotu wpisany w kod rysujący jest tym samym
                       // defektem co hex: przestaje się zgadzać z paletą
                       // w chwili, w której paleta przestaje zaczynać się
                       // od jedynki.
-                      `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)})`;
+                      `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)}-inner)`;
+                const edge =
+                  step.kind === "step"
+                    ? step.direction === "down"
+                      ? "var(--chart-negative-edge)"
+                      : step.direction === "flat"
+                        ? "var(--foreground)"
+                        : "var(--chart-positive-edge)"
+                    : `var(--chart-${series[0]?.colorSlot ?? slotForSeries(0)}-edge)`;
                 const x = center - barW / 2;
                 const y0 = Math.min(a, b);
                 const h = Math.abs(b - a);
@@ -1023,6 +1031,9 @@ export function CartesianChart({
                         step.kind === "step" && step.direction === "down" ? "bottom" : "top",
                       )}
                       fill={fill}
+                      stroke={edge}
+                      data-edged="true"
+                      data-style="pale"
                       className={step.direction === "down" ? "neh-bar neh-bar-negative" : "neh-bar"}
                       data-role="waterfall-step"
                       style={{ ["--neh-i" as string]: si }}

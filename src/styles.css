@@ -4885,9 +4885,12 @@ input.icon-input-with-action {
    być widoczny niezależnie od tego, czy czytelnik rozpozna zmianę
    powierzchni - a zmiana powierzchni jest tu identyczna jak przy hoverze,
    więc sama nie odróżnia klawiatury od wskaźnika. */
+.neh-chart .neh-slice:focus {
+  outline: none;
+}
 .neh-chart .neh-slice:focus-visible {
-  outline: 2px solid var(--muted-foreground);
-  outline-offset: 2px;
+  outline: none;
+  stroke: var(--foreground);
 }
 
 /* TABELA KLUCZA obok pierścienia. Wskazany wiersz oznaczony WAGĄ FONTU
