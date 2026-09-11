@@ -684,8 +684,20 @@ describe("FanChart - defekty danych: wtedy i tylko wtedy", () => {
     [
       "honesty.bandsHaveWidth",
       "pasmo zwężone do linii twierdzi „tę wartość znam dokładnie” - twierdzenie mocniejsze niż cała reszta rysunku",
-      Z_KOTWICA,
-      "2025",
+      // Defektem jest zerowa szerokość W PROGNOZIE (krok „2027"), nie kotwica
+      // na ostatniej obserwacji - kotwica została w tych danych CELOWO, żeby
+      // było widać, że orzeczenie nadal widzi defekt na wachlarzu przypiętym
+      // do danych. Wcześniej ten wiersz podstawiał sam `Z_KOTWICA`, czyli
+      // wachlarz opisany trzy komentarze wyżej jako poprawny.
+      {
+        ...BAZA,
+        series: [
+          CENTRUM,
+          { name: "80% dolna", values: [N, N, N, N, 115, 115, 123, 116] },
+          { name: "80% górna", values: [N, N, N, N, 115, 123, 123, 140] },
+        ],
+      },
+      "2027",
     ],
     [
       "honesty.bandPairsOrdered",
@@ -793,6 +805,16 @@ describe("FanChart - defekty danych: wtedy i tylko wtedy", () => {
       expect(nota(dobry.container, klucz), `${klucz}: uwaga widoczna bez defektu`).toBeNull();
     });
   }
+
+  it("KOTWICA AUTORSKA na ostatniej obserwacji nie jest defektem zerowej szerokości", () => {
+    // `Z_KOTWICA` to wachlarz przypięty do pomiaru: krawędzie w kroku „2025"
+    // są równe wartości centralnej, żeby wielokąt wychodził z danych. Zero
+    // znaczy tam „tę wartość znam dokładnie" i tak jest naprawdę - to jest
+    // pomiar. Ten sam zapis stał wcześniej w tabeli wyżej jako PRZYKŁAD
+    // DEFEKTU, więc technika kanoniczna wypisywała czerwoną uwagę.
+    const { container } = render(<FanChart config={cfg(Z_KOTWICA)} lang="pl" />);
+    expect(nota(container, "honesty.bandsHaveWidth")).toBeNull();
+  });
 
   it("honesty.wideAtStart wypisuje się PRZY BIEGUNOWOŚCI ODWRÓCONEJ - true znaczy defekt", () => {
     // `wideAtStart` i `constantWidth` to jedyne pola `FanHonesty`, w których

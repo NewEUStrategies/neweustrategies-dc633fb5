@@ -361,6 +361,45 @@ describe("fanModel: uczciwość pasm", () => {
     expect(model.honesty.zeroWidthLabels).toEqual([]);
   });
 
+  // Bez tego testu WZORCOWY wachlarz z tego pliku dostawał czerwony przypis.
+  // `PASMA_POPRAWNE` domyka wszystkie trzy pasma na ostatniej obserwacji
+  // równymi krawędziami (115/115) - to ta sama kotwica, co na drodze
+  // procentowej, tylko postawiona ręką autora, więc bez flagi `isAnchor`.
+  // Sprawdzenie chodzące po wszystkich krokach nazywało ją defektem
+  // „pasmo ma zerową szerokość w krokach: 2025", czyli oskarżało autora
+  // o technikę, którą ten sam plik opisuje jako poprawną.
+  it("NIE liczy kotwicy PODANEJ WPROST jako pasma o zerowej szerokości", () => {
+    const model = fanModel(wejscie(OKRESY, PASMA_POPRAWNE), OD_PROGNOZY);
+    const naGranicy = model.levels.map((l) => l.steps.find((s) => s.index === 4));
+    expect(naGranicy.every((s) => s !== undefined && s.width === 0 && !s.isAnchor)).toBe(true);
+    expect(model.honesty.zeroWidthLabels).toEqual([]);
+    expect(model.honesty.bandsHaveWidth).toBe(true);
+  });
+
+  // Bez tego testu poprawka powyżej mogłaby zostać rozlana na całą prognozę
+  // i orzeczenie przestałoby cokolwiek wykrywać. Jedne dane, dwa kierunki:
+  // pasmo przylega do linii przez CAŁĄ historię (poprawnie, bo tam są
+  // pomiary) i zwęża się do linii w JEDNYM kroku prognozy (defekt).
+  it("sądzi zerową szerokość WYŁĄCZNIE w krokach prognozy", () => {
+    const model = fanModel(
+      wejscie(
+        ["I", "II", "III", "IV"],
+        [
+          seria("Centralna", [10, 20, 30, 40]),
+          seria("80% dolna", [10, 20, 30, 35]),
+          seria("80% górna", [10, 20, 30, 45]),
+        ],
+      ),
+      { forecastFrom: 2 },
+    );
+    // Historia: zero na krokach I i II jest prawdą o pomiarze, nie defektem.
+    expect(model.honesty.zeroWidthLabels).toEqual(["III"]);
+    expect(model.honesty.bandsHaveWidth).toBe(false);
+    // ...i nie przenosi się do informacji o paśmie nad historią, bo tam
+    // liczy się pasmo o DODATNIEJ szerokości.
+    expect(model.honesty.bandOverHistoryLabels).toEqual([]);
+  });
+
   // Bez tego testu zamienione kolumny byłyby po cichu sortowane i defekt
   // danych znikał - a razem z nim informacja, że autor pomylił krawędzie.
   it("NAZYWA odwróconą parę krawędzi, choć naprawia geometrię", () => {

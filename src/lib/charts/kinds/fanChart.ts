@@ -37,10 +37,12 @@
 //     `pieModel`: sprawdza się dane autora, nie własną arytmetykę;
 //   * nie wolno rysować pasma o szerokości zero na kroku prognozy. Zerowa
 //     szerokość udaje pewność, której nie ma - w kroku prognozowanym jest
-//     twierdzeniem "tę wartość znam dokładnie". Jedyne miejsce, gdzie zero
-//     jest poprawne, to KOTWICA na granicy (ostatnia obserwacja: tam wartość
-//     naprawdę jest pomiarem), i dlatego kotwica jest osobno oznaczona
-//     i wypada ze sprawdzenia (`FanBandStep.isAnchor`);
+//     twierdzeniem "tę wartość znam dokładnie". W HISTORII to samo zero jest
+//     poprawne, bo tam wartość naprawdę jest pomiarem: kanoniczny wachlarz
+//     przylega do linii przez całą historię i rozchodzi się dopiero za
+//     granicą. Dlatego sprawdzenie (`honesty.bandsHaveWidth`) sądzi WYŁĄCZNIE
+//     kroki prognozy, a kotwica na granicy ma do tego osobne oznaczenie
+//     (`FanBandStep.isAnchor`);
 //   * nie wolno symetryzować pasma po cichu. Przedział niesymetryczny wokół
 //     centrum ("w dół może spaść o 40, w górę urosnąć o 8") jest TREŚCIĄ
 //     prognozy, nie usterką kolumn w arkuszu, więc obie krawędzie liczą się
@@ -519,13 +521,20 @@ export interface FanHonesty {
   /** Pewności poziomów, które wypadły niezgodnie z deklaracją. */
   misorderedConfidences: number[];
   /**
-   * Czy każde pasmo ma w każdym kroku prognozy szerokość dodatnią. `false` =
-   * jest krok, w którym pasmo zwężyło się do linii, czyli udaje pewność,
-   * której nie ma. Kotwice na granicy nie wchodzą - tam zero jest poprawne.
-   * `null` = nie ma ani jednego niekotwicznego kroku pasma.
+   * Czy każde pasmo ma w każdym kroku PROGNOZY szerokość dodatnią. `false` =
+   * jest krok prognozy, w którym pasmo zwężyło się do linii, czyli udaje
+   * pewność, której nie ma.
+   *
+   * Kroki HISTORYCZNE nie wchodzą i to nie jest ustępstwo: nad pomiarem zero
+   * znaczy „tę wartość znam dokładnie" i tak właśnie jest. Kanoniczny
+   * wachlarz przylega do linii przez całą historię, a pasmo podane wprost
+   * domyka się na ostatniej obserwacji równymi krawędziami - to kotwica
+   * postawiona ręką autora, nie zerowa niepewność prognozy.
+   *
+   * `null` = nie ma ani jednego kroku pasma w prognozie.
    */
   bandsHaveWidth: boolean | null;
-  /** Etykiety kroków o zerowej szerokości pasma. */
+  /** Etykiety KROKÓW PROGNOZY o zerowej szerokości pasma. */
   zeroWidthLabels: string[];
   /**
    * Czy pary krawędzi są uporządkowane (dolna nie wyżej od górnej). `false` =
@@ -1456,16 +1465,35 @@ function policzUczciwosc(w: WejscieUczciwosci): FanHonesty {
   let widthCheckable = 0;
   for (const level of w.levels) {
     for (const step of level.steps) {
+      // Kotwica wypada podwójnie: przez flagę i przez pozycję (leży na
+      // ostatniej obserwacji, czyli w historii). Flaga zostaje, bo chroni
+      // przed dniem, w którym kotwicę położy się po drugiej stronie granicy.
       if (step.isAnchor) continue;
-      widthCheckable += 1;
       const tol = tolerancja(step.lower, step.upper);
+      // KROK HISTORYCZNY NIE JEST SĄDZONY ZA ZEROWĄ SZEROKOŚĆ. Nad pomiarem
+      // zero znaczy „tę wartość znam dokładnie" i to jest PRAWDA - pomiar
+      // naprawdę jest znany. Dlatego kanoniczny wachlarz przylega do linii
+      // przez całą historię i rozchodzi się dopiero za granicą, a pasmo
+      // podane WPROST domyka się na ostatniej obserwacji równymi krawędziami
+      // (to ta sama kotwica, co na drodze pochodnej, tylko postawiona ręką
+      // autora, więc bez flagi `isAnchor`).
+      //
+      // Przejście po wszystkich krokach robiło z tej techniki defekt: wzorcowy
+      // wachlarz z testu modelu (`PASMA_POPRAWNE`, krawędzie 115/115 na
+      // ostatniej obserwacji) dostawał czerwony przypis „pasmo ma zerową
+      // szerokość w krokach: 2025". Zakres „krok prognozy" stoi w kontrakcie
+      // pola, w nagłówku tego pliku i w samej treści przypisu („w kroku
+      // prognozowanym zero znaczy…") - rozjechała się z nimi pętla, nie one.
+      if (!step.isForecast) {
+        if (step.width > tol && !bandOverHistoryLabels.includes(etykieta(step.index))) {
+          bandOverHistoryLabels.push(etykieta(step.index));
+        }
+        continue;
+      }
+      widthCheckable += 1;
       if (!(step.width > tol)) {
         if (!zeroWidthLabels.includes(etykieta(step.index))) {
           zeroWidthLabels.push(etykieta(step.index));
-        }
-      } else if (!step.isForecast) {
-        if (!bandOverHistoryLabels.includes(etykieta(step.index))) {
-          bandOverHistoryLabels.push(etykieta(step.index));
         }
       }
     }
