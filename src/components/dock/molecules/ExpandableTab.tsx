@@ -167,18 +167,15 @@ function ExpandableTabBase(props: ExpandableTabProps) {
     <>
       <span
         className={cn(
-          // Kafelek ikony: KWADRAT o promieniu 6px (nigdy koło).
-          "relative grid shrink-0 place-items-center rounded-[6px] transition-colors [&>svg]:h-4 [&>svg]:w-4",
-          // Pozycja centralna (Home) zawsze ma stały kafelek, żeby środek
-          // paska nie „skakał" przy zmianie stanu.
-          center && "h-6 w-6 [&>svg]:h-3.5 [&>svg]:w-3.5",
-          // AKTYWNA zakładka - również Home - dostaje wypełnienie akcentem
-          // i ikonę w jasnym kolorze; nieaktywna zostaje przy stonowanej.
+          // Kafelek ikony: zawsze KWADRAT o promieniu 6px (nigdy koło).
+          "relative grid h-6 w-6 shrink-0 place-items-center rounded-[6px] transition-colors [&>svg]:h-4 [&>svg]:w-4",
+          // AKTYWNA zakładka - nawigacja i narzędzia, w tym Home - dostaje
+          // wypełnienie akcentem i JASNĄ ikonę. Nieaktywna pozostaje stonowana.
           active
-            ? "h-6 w-6 bg-primary text-primary-foreground"
+            ? "bg-primary text-primary-foreground"
             : center
               ? "bg-muted text-muted-foreground"
-              : null,
+              : "text-muted-foreground",
         )}
       >
         {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
