@@ -31,6 +31,8 @@ export const dockPl = {
       empty: "Brak rozmów. Wyszukaj osobę, żeby zacząć.",
       openAll: "Otwórz wiadomości",
       start: "Napisz",
+      hideInbox: "Ukryj listę rozmów",
+      showInbox: "Pokaż listę rozmów",
       minimize: "Zminimalizuj rozmowę",
       closeConversation: "Zamknij rozmowę",
       // LICZBY MNOGIE, nie jedna forma. Klucz bez wariantów drukował „Jeszcze
@@ -144,6 +146,8 @@ export const dockEn = {
       empty: "No conversations yet. Search for someone to start.",
       openAll: "Open messages",
       start: "Message",
+      hideInbox: "Hide conversation list",
+      showInbox: "Show conversation list",
       minimize: "Minimize conversation",
       closeConversation: "Close conversation",
       minimizedMore_one: "{{count}} more minimized conversation",

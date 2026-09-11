@@ -19,7 +19,17 @@
 import "@/lib/i18n-chat";
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Inbox, Minus, MessageCircle, Search, SquarePen, UsersRound, X } from "lucide-react";
+import {
+  Inbox,
+  Minus,
+  MessageCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  SquarePen,
+  UsersRound,
+  X,
+} from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -88,6 +98,7 @@ export function ChatSideDrawer({
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [inboxCollapsed, setInboxCollapsed] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
   // Dialog grupy zostaje zamontowany po pierwszym otwarciu, żeby Radix dograł
   // animację zamknięcia - ta sama zasada, co w granicy leniwej kasy.
@@ -194,6 +205,12 @@ export function ChatSideDrawer({
       name: selectedName || t("dock.chat.title"),
       avatarUrl: selectedAvatarUrl,
     });
+    setInboxCollapsed(false);
+    setSelected(null);
+  };
+
+  const closeSelected = () => {
+    setInboxCollapsed(false);
     setSelected(null);
   };
 
@@ -240,7 +257,8 @@ export function ChatSideDrawer({
           // choć ruch trwa ćwierć sekundy.
           "wd-drawer pointer-events-auto h-full w-full flex-col border-r border-border/70 sm:w-[320px] sm:max-w-[85vw]",
           "bg-card/95 shadow-xl backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
-          selected ? "hidden sm:flex" : "flex",
+          selected && (inboxCollapsed || true) ? "hidden sm:flex" : "flex",
+          inboxCollapsed && "sm:hidden",
         )}
       >
         <header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
@@ -387,6 +405,20 @@ export function ChatSideDrawer({
           className="wd-panel pointer-events-auto flex h-full w-full min-w-0 flex-col bg-background/95 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:w-[380px] sm:max-w-[90vw] sm:border-r sm:border-border/70"
         >
           <div className="flex items-center gap-1 border-b border-border/70 px-2 py-1">
+            <button
+              type="button"
+              onClick={() => setInboxCollapsed((collapsed) => !collapsed)}
+              aria-label={t(inboxCollapsed ? "dock.chat.showInbox" : "dock.chat.hideInbox")}
+              aria-expanded={!inboxCollapsed}
+              title={t(inboxCollapsed ? "dock.chat.showInbox" : "dock.chat.hideInbox")}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              {inboxCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" aria-hidden />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" aria-hidden />
+              )}
+            </button>
             <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">
               {selectedName}
             </span>
@@ -401,7 +433,7 @@ export function ChatSideDrawer({
             </button>
             <button
               type="button"
-              onClick={() => setSelected(null)}
+              onClick={closeSelected}
               aria-label={t("dock.chat.closeConversation")}
               title={t("dock.chat.closeConversation")}
               className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -433,8 +465,8 @@ export function ChatSideDrawer({
               key={selected}
               conversationId={selected}
               variant="page"
-              onBack={() => setSelected(null)}
-              onClose={() => setSelected(null)}
+              onBack={closeSelected}
+              onClose={closeSelected}
               className="min-h-0 flex-1"
             />
           </Suspense>
