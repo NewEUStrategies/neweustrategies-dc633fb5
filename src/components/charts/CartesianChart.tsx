@@ -1008,6 +1008,30 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                   });
                   if (current.points.length) runs.push(current);
 
+                  /**
+                   * Kategorie, w których pomiar stoi SAM - ciąg jednopunktowy
+                   * między dwiema lukami (albo przy krawędzi szeregu).
+                   *
+                   * DLACZEGO TO MUSI ISTNIEĆ. Ścieżka z jednego punktu to
+                   * `M x y` bez odcinka, a taką SVG rysuje jako NIC: przy
+                   * `stroke` i braku `L` nie ma czego pociągnąć. Dopóki
+                   * kropki są włączone, pomiar niesie kropka - ale
+                   * `shouldShowDots` gasi je powyżej `DOTS_MAX_POINTS` przy
+                   * wygładzaniu zerowym, więc szereg o trzydziestu
+                   * kategoriach i jednym pomiarze między lukami znikał
+                   * z rysunku CAŁY. Czytelnik widział pustą kratkę tam, gdzie
+                   * są dane, a tabela pod wykresem pokazywała liczbę - czyli
+                   * rysunek i jego alternatywa tekstowa mówiły co innego.
+                   *
+                   * Próg na liczbę punktów jest obroną przed ZAŚMIECENIEM
+                   * gęstej linii, a samotny pomiar nie jest śmieciem: jest
+                   * jedynym nośnikiem swojej wartości. Dlatego te kropki
+                   * wchodzą NIEZALEŻNIE od progu.
+                   */
+                  const samotne = new Set(
+                    runs.filter((r) => r.points.length === 1).map((r) => r.indices[0]),
+                  );
+
                   // JEDNA ścieżka na serię, ciągła na całej długości. Podział
                   // historia/prognoza niosą pasmo, strefa i separator - nie
                   // kreskowanie linii; patrz komentarz przy rysowaniu.
@@ -1112,9 +1136,11 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                           w druku, w skali szarości i na zrzucie ekranu.
                           Rysowanie kropki nad wartością prognozowaną podawało
                           interpolację za pomiar. */}
-                      {showDots &&
+                      {(showDots || samotne.size > 0) &&
                         s.values.map((v, i) =>
-                          v === null || (forecastFrom !== null && i >= forecastFrom) ? null : (
+                          v === null ||
+                          (forecastFrom !== null && i >= forecastFrom) ||
+                          !(showDots || samotne.has(i)) ? null : (
                             <circle
                               key={i}
                               cx={catCenter(i)}

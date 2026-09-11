@@ -1984,3 +1984,69 @@ describe("CartesianChart - marginesy i drabina z POMIARU, nie z heurystyki", () 
     expect(all(heurystyka.container, SEL.bar)).toHaveLength(6);
   });
 });
+
+describe("CartesianChart - samotny pomiar nie znika z rysunku", () => {
+  // Ścieżka z JEDNEGO punktu to `M x y` bez odcinka, a taką SVG rysuje jako
+  // NIC. Dopóki kropki są włączone, pomiar niesie kropka - ale
+  // `shouldShowDots` gasi je powyżej DOTS_MAX_POINTS przy wygładzaniu
+  // zerowym. Defekt, który to łapie: szereg o trzydziestu kategoriach
+  // i jednym pomiarze między lukami znikał CAŁY, a tabela pod wykresem
+  // pokazywała liczbę - rysunek i jego alternatywa tekstowa mówiły co innego.
+  const N = null;
+  const samotny = (dlugosc: number, indeks: number, smoothing: number) =>
+    parseChartConfig({
+      kind: "line",
+      animate: false,
+      smoothing,
+      categories: Array.from({ length: dlugosc }, (_, i) => `k${i}`),
+      series: [
+        {
+          name: "S",
+          values: Array.from({ length: dlugosc }, (_, i) => (i === indeks ? 100 : N)),
+        },
+      ],
+    });
+
+  it("pomiar między lukami DOSTAJE kropkę, choć próg gasi kropki serii", () => {
+    const { container } = render(<CartesianChart config={samotny(30, 15, 0)} lang="pl" />);
+    const kropki = [...container.querySelectorAll('circle[data-role="series-point"]')];
+    expect(kropki.length, "samotny pomiar bez kropki nie istnieje na rysunku").toBe(1);
+    // ...i stoi dokładnie tam, gdzie kończy się ścieżka bez odcinka.
+    const d = container.querySelector("path.neh-line")?.getAttribute("d") ?? "";
+    const x = Number(kropki[0].getAttribute("cx"));
+    expect(d.startsWith("M")).toBe(true);
+    expect(Math.abs(x - Number(d.slice(1).split(" ")[0]))).toBeLessThan(0.2);
+  });
+
+  it("gęsta linia BEZ luk nadal nie dostaje kropek - próg działa dalej", () => {
+    // Druga strona tej samej reguły: naprawa ma dokładać kropkę wyłącznie
+    // tam, gdzie nie ma odcinka. Gdyby włączała kropki zawsze, zaśmieciłaby
+    // każdą gęstą linię, a próg `DOTS_MAX_POINTS` przestałby cokolwiek robić.
+    const pelny = parseChartConfig({
+      kind: "line",
+      animate: false,
+      smoothing: 0,
+      categories: Array.from({ length: 30 }, (_, i) => `k${i}`),
+      series: [{ name: "S", values: Array.from({ length: 30 }, (_, i) => i) }],
+    });
+    const { container } = render(<CartesianChart config={pelny} lang="pl" />);
+    expect(container.querySelectorAll('circle[data-role="series-point"]').length).toBe(0);
+  });
+
+  it("dwa samotne pomiary w jednym szeregu dostają dwie kropki", () => {
+    const dwa = parseChartConfig({
+      kind: "line",
+      animate: false,
+      smoothing: 0,
+      categories: Array.from({ length: 30 }, (_, i) => `k${i}`),
+      series: [
+        {
+          name: "S",
+          values: Array.from({ length: 30 }, (_, i) => (i === 5 || i === 20 ? 100 : N)),
+        },
+      ],
+    });
+    const { container } = render(<CartesianChart config={dwa} lang="pl" />);
+    expect(container.querySelectorAll('circle[data-role="series-point"]').length).toBe(2);
+  });
+});
