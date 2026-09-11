@@ -46,11 +46,22 @@ import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip } from "./ChartTooltip";
 import { pieModel } from "./pieModel";
+import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import "@/lib/i18n-charts";
 
 interface PieChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem w wycinek albo Enterem na
+   * wycinku, który ma fokus.
+   *
+   * `categoryIndex` jest tu indeksem WYCINKA, a nie kategorii z arkusza, i to
+   * jest różnica z treścią: model tarczy zwija ogon rozkładu w jeden wycinek
+   * zbiorczy, więc wycinków bywa mniej niż kategorii. Panel dostaje to, co
+   * czytelnik naprawdę wskazał - łuk, który widzi.
+   */
+  onSelect?: ChartSelectHandler;
 }
 
 function polar(cx: number, cy: number, r: number, angle: number): [number, number] {
@@ -76,7 +87,7 @@ function slicePath(
   return `M${x0} ${y0} A${rOuter} ${rOuter} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${rInner} ${rInner} 0 ${large} 0 ${x3} ${y3} Z`;
 }
 
-export function PieChart({ config, lang }: PieChartProps) {
+export function PieChart({ config, lang, onSelect }: PieChartProps) {
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
   const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
   const [active, setActive] = useState<number | null>(null);
@@ -118,6 +129,21 @@ export function PieChart({ config, lang }: PieChartProps) {
   const rMid = (rOuter + rInner) / 2 || rOuter;
   const gap = ARC_GAP_PX / 2 / rMid;
   const activeSlice = active !== null ? slices[active] : null;
+  // JEDEN NADAWCA na kliknięcie i na klawisz: gdyby każda droga składała
+  // ładunek u siebie, panel dostawałby przy klawiaturze inny kształt niż przy
+  // myszy - a to jest dokładnie ta klasa różnicy, której nikt nie testuje.
+  const wskaz = (i: number): void => {
+    const s = slices[i];
+    if (s === undefined || !onSelect) return;
+    onSelect({
+      kind: config.kind,
+      categoryIndex: i,
+      category: s.label,
+      seriesIndex: config.series.length === 1 ? 0 : null,
+      seriesName: config.series.length === 1 ? (config.series[0]?.name ?? null) : null,
+      value: s.value,
+    });
+  };
   // Nazwa stanu PLUS jednostka, sklejone tym samym separatorem, którym rama
   // wykresu skleja fakty podpisu. Jednostki w tym silniku zaczynają się od
   // spacji (format wartości dokleja je bez separatora), więc do podpisu idzie
@@ -161,6 +187,12 @@ export function PieChart({ config, lang }: PieChartProps) {
             if (e.key === "Escape") {
               e.stopPropagation();
               clearActive();
+            } else if (isSelectKey(e.key) && active !== null && onSelect) {
+              // Wycinek jest elementem fokusowalnym, więc Enter przychodzi
+              // tutaj z ustawionym `active` - tym samym indeksem, który
+              // ustawił fokus. Bez tego wybór istniałby wyłącznie myszą.
+              e.preventDefault();
+              wskaz(active);
             }
           }}
         >
@@ -207,6 +239,7 @@ export function PieChart({ config, lang }: PieChartProps) {
                       value: formatChartValue(s.value, lang, config.unit),
                       share: formatPercent(s.share, lang),
                     })}
+                    onClick={() => wskaz(i)}
                     className="neh-slice cursor-pointer"
                     // UCHWYT ZAPYTANIA zgodnie z konwencją repozytorium
                     // (`chartClasses.test.ts`): nowy uchwyt idzie na

@@ -82,6 +82,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
+import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
 /**
  * OBSERWACJE DLA CZYTELNIKA, wypisane jawnie. Sklejenie
@@ -200,9 +201,16 @@ interface IndexBaseChartProps {
    * a wtedy model bierze pierwszy okres i sam to nazywa.
    */
   baseAt?: number | null;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem albo klawiszem Enter.
+   *
+   * Osobno od stanu wewnętrznego: wskazanie wskaźnikiem jest PODGLĄDEM i gaśnie
+   * samo, a wybór jest DECYZJĄ czytelnika i ma prawo otworzyć okno szczegółów.
+   */
+  onSelect?: ChartSelectHandler;
 }
 
-export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
+export function IndexBaseChart({ config, lang, baseAt, onSelect }: IndexBaseChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -362,6 +370,15 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
   // martwym zabezpieczeniem udającym ostrożność. Przycięcie do zakresu robi
   // `Math.min`/`Math.max` niżej i ono jest osłoną realną.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę:
+    // Enter na wskazanym elemencie jest decyzją, a nie ruchem po osi.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        onSelect(categorySelection(config.kind, config.categories, config.series, active));
+      }
+      return;
+    }
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
       const delta = e.key === "ArrowRight" ? 1 : -1;
@@ -932,7 +949,13 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
             width={innerW}
             height={innerH}
             fill="transparent"
-            onPointerDown={(e) => setActive(indexFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = indexFromPointer(e);
+              setActive(i);
+              if (i !== null && onSelect) {
+                onSelect(categorySelection(config.kind, config.categories, config.series, i));
+              }
+            }}
             onPointerMove={(e) => setActive(indexFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi

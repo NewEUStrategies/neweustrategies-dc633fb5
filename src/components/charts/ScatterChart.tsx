@@ -141,6 +141,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 
 /**
@@ -294,9 +295,18 @@ interface TrendSegment {
 interface ScatterChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem w punkt albo Enterem.
+   *
+   * Rozrzut NIE MA osi kategorii, więc `categoryIndex` jest tu `null`,
+   * a `category` niesie etykietę wiersza danych - jedyną tożsamość, jaką
+   * punkt ma poza swoimi współrzędnymi. `value` to `y`: to ta zmienna,
+   * o którą pyta ten rodzaj („jak zmienia się y wraz z x").
+   */
+  onSelect?: ChartSelectHandler;
 }
 
-export function ScatterChart({ config, lang }: ScatterChartProps) {
+export function ScatterChart({ config, lang, onSelect }: ScatterChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -502,10 +512,34 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
     xTickStep,
   } = geometry;
 
+  /** Jeden nadawca wskazania - kliknięcie i klawisz składają TEN SAM ładunek. */
+  const wskazPunkt = (i: number): void => {
+    if (!onSelect) return;
+    const marker = markers[i];
+    if (marker === undefined) return;
+    const chmura = model.clouds[marker.cloud] ?? null;
+    onSelect({
+      kind: config.kind,
+      categoryIndex: null,
+      category: marker.point.label === "" ? null : marker.point.label,
+      seriesIndex: marker.point.seriesIndex,
+      seriesName: chmura === null ? null : chmura.name,
+      value: marker.point.y,
+    });
+  };
+
   const cascade = cascadeStepMs(markers.length);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (markers.length === 0) return;
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        wskazPunkt(active);
+      }
+      return;
+    }
     if (e.key === "Escape") {
       setActive(null);
       return;
@@ -1043,7 +1077,11 @@ export function ScatterChart({ config, lang }: ScatterChartProps) {
             width={innerW}
             height={innerH}
             fill="transparent"
-            onPointerDown={(e) => setActive(indexFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = indexFromPointer(e);
+              setActive(i);
+              if (i !== null) wskazPunkt(i);
+            }}
             onPointerMove={(e) => setActive(indexFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi

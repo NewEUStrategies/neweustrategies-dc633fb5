@@ -92,10 +92,21 @@ import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
+import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
 interface CartesianChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie ODDANE NA ZEWNĄTRZ - kliknięciem albo klawiszem Enter.
+   *
+   * Osobno od stanu wewnętrznego (`activeIndex`), bo to są dwie różne rzeczy:
+   * wskazanie wskaźnikiem jest PODGLĄDEM i gaśnie samo, a wybór jest DECYZJĄ
+   * czytelnika i ma prawo otworzyć okno szczegółów. Panel analityczny dostaje
+   * więc zdarzenie wyłącznie wtedy, gdy ktoś naprawdę wybrał - a nie przy
+   * każdym przesunięciu myszy nad rysunkiem.
+   */
+  onSelect?: ChartSelectHandler;
 }
 
 /** Pozycja kotwicy tooltipa w px kontenera - liczona z indeksu przy renderze. */
@@ -193,7 +204,7 @@ function barPath(
   }
 }
 
-export function CartesianChart({ config, lang }: CartesianChartProps) {
+export function CartesianChart({ config, lang, onSelect }: CartesianChartProps) {
   // `keyPrefix` zamiast sklejania klucza w szablonie, i to nie jest kosmetyka:
   // bramka rozjazdu kod<->słownik (`src/lib/ci/i18nKeyUsage.ts`) rozumie
   // WYŁĄCZNIE prefiks podany hakowi. Klucz zlepiony template literalem jest
@@ -473,6 +484,14 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
       const delta = e.key === forwardKey ? 1 : -1;
       const next = active === null ? 0 : Math.max(0, Math.min(n - 1, active + delta));
       setActiveIndex(next);
+    } else if (isSelectKey(e.key)) {
+      // WYBÓR Z KLAWIATURY. Bez tego okno szczegółów otwierałoby się wyłącznie
+      // myszą, czyli funkcja panelu istniałaby tylko dla części czytelników -
+      // a nawigacja strzałkami po kategoriach jest tu od początku.
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        onSelect(categorySelection(config.kind, config.categories, config.series, active));
+      }
     } else if (e.key === "Escape" || e.key === "Tab") {
       setActiveIndex(null);
     }
@@ -1411,7 +1430,13 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             height={innerH}
             fill="transparent"
             className="neh-hit"
-            onPointerDown={(e) => setActiveIndex(indexFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = indexFromPointer(e);
+              setActiveIndex(i);
+              if (i !== null && onSelect) {
+                onSelect(categorySelection(config.kind, config.categories, config.series, i));
+              }
+            }}
             onPointerMove={(e) => setActiveIndex(indexFromPointer(e))}
             onPointerLeave={(e) => {
               if (e.pointerType !== "touch") setActiveIndex(null);

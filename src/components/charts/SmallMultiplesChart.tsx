@@ -108,6 +108,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
+import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
 /**
  * Wysokość wiersza podpisu panelu, w pikselach - ta sama liczba, z której
@@ -261,6 +262,14 @@ interface SmallMultiplesChartProps {
   config: ChartConfig;
   lang: ChartLang;
   options?: SmallMultiplesRenderOptions;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem w panel albo Enterem.
+   *
+   * Panelem jest tu SERIA albo KATEGORIA, zależnie od `panelBy`, więc ładunek
+   * niesie etykietę panelu, a nie indeks osi: to jedyna tożsamość, która
+   * znaczy to samo w obu układach.
+   */
+  onSelect?: ChartSelectHandler;
 }
 
 /** Jeden panel gotowy do narysowania: pole w pikselach i ścieżki znacznika. */
@@ -315,7 +324,7 @@ function skrot(label: string, maxPx: number): string {
   return label.length > limit ? `${label.slice(0, Math.max(1, limit - 1))}…` : label;
 }
 
-export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesChartProps) {
+export function SmallMultiplesChart({ config, lang, options, onSelect }: SmallMultiplesChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -971,6 +980,14 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
   // pionowe po kolumnie siatki - tak jak wzrok. Liczby panelu czytelnik ekranu
   // dostaje kompletem w nazwie dostępnej, nie po jednej strzałką.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        wskazPanel(active);
+      }
+      return;
+    }
     if (e.key === "Escape") {
       setActive(null);
       return;
@@ -995,6 +1012,21 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
       // KRAŃCAMI porządku (największy i najmniejszy średnią), więc przeskok
       // z jednego na drugi czytałby się jak zmiana danych.
       return Math.max(0, Math.min(model.panelCount - 1, next));
+    });
+  };
+
+  /** Jeden nadawca wskazania - kliknięcie i klawisz składają TEN SAM ładunek. */
+  const wskazPanel = (i: number): void => {
+    if (!onSelect) return;
+    const panel = model.panels[i];
+    if (panel === undefined) return;
+    onSelect({
+      kind: config.kind,
+      categoryIndex: null,
+      category: panel.label,
+      seriesIndex: panel.index,
+      seriesName: panel.label,
+      value: null,
     });
   };
 
@@ -1454,7 +1486,11 @@ export function SmallMultiplesChart({ config, lang, options }: SmallMultiplesCha
             width={gridW}
             height={gridH}
             fill="transparent"
-            onPointerDown={(e) => setActive(panelFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = panelFromPointer(e);
+              setActive(i);
+              if (i !== null) wskazPanel(i);
+            }}
             onPointerMove={(e) => setActive(panelFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi

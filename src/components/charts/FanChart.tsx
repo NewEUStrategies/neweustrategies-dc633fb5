@@ -97,6 +97,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
+import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
 /**
  * Znak braku wartości - ta sama kreska, którą `format.ts` stawia za nieliczbę,
@@ -288,9 +289,16 @@ function wielokat(
 interface FanChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Wskazanie oddane na zewnątrz - kliknięciem albo klawiszem Enter.
+   *
+   * Osobno od stanu wewnętrznego: wskazanie wskaźnikiem jest PODGLĄDEM i gaśnie
+   * samo, a wybór jest DECYZJĄ czytelnika i ma prawo otworzyć okno szczegółów.
+   */
+  onSelect?: ChartSelectHandler;
 }
 
-export function FanChart({ config, lang }: FanChartProps) {
+export function FanChart({ config, lang, onSelect }: FanChartProps) {
   // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
   // kod-słownik; klucz sklejony template literalem wypada z kontroli parytetu.
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
@@ -651,6 +659,15 @@ export function FanChart({ config, lang }: FanChartProps) {
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // WYBÓR Z KLAWIATURY stoi PRZED pozostałymi gałęziami i kończy obsługę:
+    // Enter na wskazanym elemencie jest decyzją, a nie ruchem po osi.
+    if (isSelectKey(e.key)) {
+      if (active !== null && onSelect) {
+        e.preventDefault();
+        onSelect(categorySelection(config.kind, config.categories, config.series, active));
+      }
+      return;
+    }
     if (e.key === "Escape") {
       setActive(null);
       return;
@@ -1025,7 +1042,13 @@ export function FanChart({ config, lang }: FanChartProps) {
             width={innerW}
             height={innerH}
             fill="transparent"
-            onPointerDown={(e) => setActive(indexFromPointer(e))}
+            onPointerDown={(e) => {
+              const i = indexFromPointer(e);
+              setActive(i);
+              if (i !== null && onSelect) {
+                onSelect(categorySelection(config.kind, config.categories, config.series, i));
+              }
+            }}
             onPointerMove={(e) => setActive(indexFromPointer(e))}
             onPointerLeave={(e) => {
               // Dotyk NIE gasi dymka przy opuszczeniu warstwy: palec schodzi
