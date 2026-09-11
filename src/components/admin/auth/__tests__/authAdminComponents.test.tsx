@@ -321,9 +321,7 @@ describe("ImageUrlField (organizm)", () => {
     // `onPick` woła DWIE aktualizacje stanu (adres w górę, zamknięcie okna) -
     // bez `act` asercja na zamknięciu ściga się z przetworzeniem drugiej.
     act(() => h.pickerProps?.onPick("/media/wybrany.webp"));
-    expect(onChange).toHaveBeenCalledWith(
-      "https://neweuropeanstrategies.com/media/wybrany.webp",
-    );
+    expect(onChange).toHaveBeenCalledWith("https://neweuropeanstrategies.com/media/wybrany.webp");
     expect(document.querySelector('[data-testid="media-picker"]')?.getAttribute("data-open")).toBe(
       "false",
     );
