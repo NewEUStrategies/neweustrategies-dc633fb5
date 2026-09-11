@@ -929,7 +929,7 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     expect(getByRole("button", { name: "Hide data" })).toBeTruthy();
   });
 
-  it("klucz tarczy to TABELA obok pierścienia, a nie legenda z próbkami", () => {
+  it("klucz tarczy to TABELA pod wyśrodkowanym pierścieniem, a nie legenda z próbkami", () => {
     // ODWRÓCENIE WCZEŚNIEJSZEGO ROZWIĄZANIA. Legenda podawała wyłącznie parę
     // kolor-nazwa, więc odczyt jednej kategorii wymagał trzech skoków wzroku
     // (łuk, próbka, nazwa) i na końcu nie dawał liczby. Tabela stawia próbkę,
@@ -958,6 +958,13 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     // Legendy z próbkami na tarczy NIE MA - dwa klucze do jednej grafiki
     // byłyby dwoma miejscami, w których kolejność wycinków może się rozjechać.
     expect(container.querySelector("ul[role='list']")).toBeNull();
+    const grupa = container.querySelector("table.neh-pie-key")?.parentElement;
+    const obszarWykresu = container.querySelector("[role='group']");
+    expect(grupa?.className).toContain("flex-col");
+    expect(grupa?.className).toContain("items-center");
+    expect(grupa?.className).not.toContain("sm:flex-row");
+    expect(obszarWykresu?.className).toContain("w-full");
+    expect(container.querySelector("table.neh-pie-key")?.className).toContain("max-w-xl");
   });
 
   it("tabela klucza ma NAGŁÓWKI KOLUMN, choć niewidoczne", () => {
