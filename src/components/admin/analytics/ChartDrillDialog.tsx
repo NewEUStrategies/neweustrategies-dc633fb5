@@ -78,13 +78,14 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
   // otwiera kliknięcie w wykres, nie `<DialogTrigger>`. Bez własnego
   // zapamiętania ognisko przepadałoby na `<body>`, a osoba nawigująca
   // klawiaturą musiałaby przejść cały panel od nowa (WCAG 2.4.3).
-  const powrotOgniskaRef = useRef<HTMLElement | null>(null);
+  const powrotOgniskaRef = useRef<HTMLElement | SVGElement | null>(null);
 
   const zapamietajOgnisko = useCallback(() => {
     // `onOpenAutoFocus` leci z `FocusScope` PRZED przeniesieniem ogniska
     // do okna, więc `activeElement` to jeszcze element wołającego.
     const aktywny = document.activeElement;
-    powrotOgniskaRef.current = aktywny instanceof HTMLElement ? aktywny : null;
+    powrotOgniskaRef.current =
+      aktywny instanceof HTMLElement || aktywny instanceof SVGElement ? aktywny : null;
   }, []);
 
   const przywrocOgnisko = useCallback((event: Event) => {
@@ -94,7 +95,11 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
     // się tym samym (`triggerRef` jest `null`), a `body.focus()` nic nie daje.
     if (!powrot || !powrot.isConnected || powrot === document.body) return;
     event.preventDefault();
-    powrot.focus();
+    // Punkty i segmenty wykresów są elementami SVG. Przywrócenie im ogniska
+    // zwykłym `focus()` przewijało najbliższy kontener (a czasem cały panel)
+    // tak, aby element znalazł się przy górnej krawędzi. Użytkownik po
+    // zamknięciu szczegółów tracił przez to miejsce, które właśnie analizował.
+    powrot.focus({ preventScroll: true });
   }, []);
 
   if (!detail) return null;
