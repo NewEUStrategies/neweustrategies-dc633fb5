@@ -169,10 +169,12 @@ function ExpandableTabBase(props: ExpandableTabProps) {
         className={cn(
           // Kafelek ikony: zawsze KWADRAT o promieniu 6px (nigdy koło).
           "relative grid h-6 w-6 shrink-0 place-items-center rounded-[6px] transition-colors [&>svg]:h-4 [&>svg]:w-4",
-          // AKTYWNA zakładka - nawigacja i narzędzia, w tym Home - dostaje
-          // wypełnienie akcentem i JASNĄ ikonę. Nieaktywna pozostaje stonowana.
+          // Aktywna zakładka wyróżnia się KOLOROWĄ ikoną bez wypełnionego
+          // kwadratu - tło zostaje na poziomie całej zakładki (::before).
+          // Nieaktywna pozostaje stonowana; Home na środku zachowuje delikatne
+          // wypełnienie, żeby wciąż wyglądał jak główny przycisk.
           active
-            ? "bg-primary text-primary-foreground"
+            ? "text-primary"
             : center
               ? "bg-muted text-muted-foreground"
               : "text-muted-foreground",
