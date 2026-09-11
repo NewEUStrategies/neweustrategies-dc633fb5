@@ -28,6 +28,10 @@ import { BeeswarmChart } from "./BeeswarmChart";
 import { ScatterChart } from "./ScatterChart";
 import { HeatmapChart } from "./HeatmapChart";
 import { TornadoChart } from "./TornadoChart";
+import { FanChart } from "./FanChart";
+import { IndexBaseChart } from "./IndexBaseChart";
+import { PercentStackedChart } from "./PercentStackedChart";
+import { SmallMultiplesChart } from "./SmallMultiplesChart";
 import { histogramModelFromConfig, histogramTable } from "@/lib/charts/kinds/histogram";
 import { boxplotModelFromConfig, boxplotTable } from "@/lib/charts/kinds/boxplot";
 import { beeswarmModelFromConfig, beeswarmTable } from "@/lib/charts/kinds/beeswarm";
@@ -320,6 +324,10 @@ const DRAWING_BY_KIND: Record<ChartKind, KindView> = {
   scatter: ScatterChart,
   heatmap: HeatmapChart,
   tornado: TornadoChart,
+  fan: FanChart,
+  "index-base": IndexBaseChart,
+  "percent-stacked": PercentStackedChart,
+  "small-multiples": SmallMultiplesChart,
 };
 
 /**
@@ -341,6 +349,10 @@ const TABLE_BY_KIND: Record<ChartKind, KindView> = {
   scatter: ScatterDataTable,
   heatmap: HeatmapDataTable,
   tornado: TornadoDataTable,
+  fan: FanDataTable,
+  "index-base": IndexBaseDataTable,
+  "percent-stacked": PercentStackedDataTable,
+  "small-multiples": SmallMultiplesDataTable,
 };
 
 /**

@@ -802,3 +802,57 @@ describe("IndexBaseChart - dane z bazy nie wywracają rysunku", () => {
     ]);
   });
 });
+
+describe("SONDA2", () => {
+  it("P7 etykiety okresow nie nachodza na siebie", () => {
+    const okresy = Array.from({ length: 30 }, (_, i) => `R${i}`);
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          categories: okresy,
+          series: [{ name: "A", values: okresy.map((_, i) => 100 + i) }],
+          animate: false,
+        })}
+        lang="pl"
+        baseAt={3}
+      />,
+    );
+    const et = all(container, "[data-role='period'],[data-role='base-period']").map((e) => {
+      const x = Number(e.getAttribute("x"));
+      const w = (e.textContent ?? "").length * 11 * 0.62;
+      const a = e.getAttribute("text-anchor");
+      const od = a === "start" ? x : a === "end" ? x - w : x - w / 2;
+      return { t: e.textContent, x, od, do: od + w, a };
+    });
+    console.log("P7", JSON.stringify(et));
+    for (let i = 1; i < et.length; i++) {
+      expect(et[i].od, `${et[i - 1].t} / ${et[i].t}`).toBeGreaterThanOrEqual(et[i - 1].do);
+    }
+  });
+
+  it("P8 dluga etykieta okresu i baza obok sasiada", () => {
+    const okresy = Array.from({ length: 12 }, (_, i) => `Kwartal ${i + 1} roku 202${i % 10}`);
+    const { container } = render(
+      <IndexBaseChart
+        config={cfg({
+          categories: okresy,
+          series: [{ name: "A", values: okresy.map((_, i) => 100 + i) }],
+          animate: false,
+        })}
+        lang="pl"
+        baseAt={1}
+      />,
+    );
+    const et = all(container, "[data-role='period'],[data-role='base-period']").map((e) => {
+      const x = Number(e.getAttribute("x"));
+      const w = (e.textContent ?? "").length * 11 * 0.62;
+      const a = e.getAttribute("text-anchor");
+      const od = a === "start" ? x : a === "end" ? x - w : x - w / 2;
+      return { t: e.textContent, od, do: od + w };
+    });
+    console.log("P8", JSON.stringify(et));
+    for (let i = 1; i < et.length; i++) {
+      expect(et[i].od, `${et[i - 1].t} / ${et[i].t}`).toBeGreaterThanOrEqual(et[i - 1].do);
+    }
+  });
+});

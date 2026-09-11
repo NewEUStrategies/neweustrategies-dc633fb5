@@ -52,6 +52,10 @@ const pl = {
           scatter: "Punktowy (zależność)",
           heatmap: "Mapa ciepła (wrażliwość)",
           tornado: "Tornado (wrażliwość)",
+          fan: "Wachlarz (scenariusze)",
+          indexBase: "Indeks, baza = 100 (różne skale)",
+          percentStacked: "Stos 100% (struktura)",
+          smallMultiples: "Małe panele (wiele podmiotów)",
         },
         // ---- Uczciwość wykresu ----
         honestyLabel: "Uczciwość wykresu",
@@ -814,6 +818,10 @@ const en: typeof pl = {
           scatter: "Scatter (relationship)",
           heatmap: "Heatmap (sensitivity)",
           tornado: "Tornado (sensitivity)",
+          fan: "Fan chart (scenarios)",
+          indexBase: "Index, base = 100 (different scales)",
+          percentStacked: "100% stacked bar (structure)",
+          smallMultiples: "Small multiples (many entities)",
         },
       },
       dataMap: {

@@ -293,6 +293,10 @@ const WZORZEC: Record<ChartKind, WzorzecKlawiatury> = {
   scatter: "kontener",
   heatmap: "kontener",
   tornado: "kontener",
+  fan: "kontener",
+  "index-base": "kontener",
+  "percent-stacked": "kontener",
+  "small-multiples": "kontener",
 };
 
 /**
@@ -315,6 +319,14 @@ const KLAWISZ_DALEJ: Record<ChartKind, string> = {
   heatmap: "ArrowRight",
   // Parametry biegną w PIONIE, tak jak kategorie słupków poziomych.
   tornado: "ArrowDown",
+  // Kroki czasu, okresy i kategorie stosu biegną w POZIOMIE, jak w każdym
+  // rodzaju z osią czasu albo osią kategorii u dołu.
+  fan: "ArrowRight",
+  "index-base": "ArrowRight",
+  "percent-stacked": "ArrowRight",
+  // Strzałka przechodzi po PANELACH, nie po punktach w panelu: panel jest tu
+  // jednostką porównania, a punkty wewnątrz odczytuje się z tabeli.
+  "small-multiples": "ArrowRight",
 };
 
 describe("każdy rodzaj jest dostępny z klawiatury", () => {
@@ -338,9 +350,32 @@ describe("każdy rodzaj jest dostępny z klawiatury", () => {
         expect(box, `${kind}: brak ogniskowalnego kontenera`).not.toBeNull();
         expect((box?.getAttribute("aria-label") ?? "").length).toBeGreaterThan(0);
         // Opis, nie nazwa: nazwa mówi CO to jest, opis - JAK tego użyć.
-        const opisId = box?.getAttribute("aria-describedby");
+        //
+        // `aria-describedby` PRZYJMUJE LISTĘ identyfikatorów rozdzieloną
+        // spacją i to nie jest przypadek brzegowy: render, który wskazuje
+        // i podpowiedź klawiatury, i podsumowanie liczbowe, jest DOKŁADNIEJSZY
+        // niż render wskazujący jedną rzecz. Ta bramka zakładała wcześniej
+        // jeden identyfikator i wkładała całą listę do selektora CSS
+        // (`#a b`), co na identyfikatorach `useId` wywracało parser selektorów
+        // - czyli karała render za lepszą dostępność, i to komunikatem
+        // o składni selektora, z którego nie wynikało nic o wykresie.
+        //
+        // Rozwiązanie idzie przez `getElementById`, bo ono bierze SUROWY
+        // identyfikator, a nie selektor - więc nie ma tu czego eskejpować.
+        const opisId = box?.getAttribute("aria-describedby") ?? "";
         expect(opisId, `${kind}: brak aria-describedby z podpowiedzią`).toBeTruthy();
-        const opis = opisId ? (container.querySelector(`#${opisId}`)?.textContent ?? "") : "";
+        const dok = container.ownerDocument;
+        const wskazane = opisId.split(/\s+/).filter((id) => id !== "");
+        for (const id of wskazane) {
+          expect(
+            dok.getElementById(id),
+            `${kind}: aria-describedby wskazuje na ${id}, którego nie ma w drzewie`,
+          ).not.toBeNull();
+        }
+        const opis = wskazane
+          .map((id) => dok.getElementById(id)?.textContent ?? "")
+          .join(" ")
+          .trim();
         expect(opis.length, `${kind}: podpowiedź obsługi jest pusta`).toBeGreaterThan(0);
       });
 

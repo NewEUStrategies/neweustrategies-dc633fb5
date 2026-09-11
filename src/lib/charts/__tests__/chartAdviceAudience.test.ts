@@ -95,6 +95,40 @@ function wpisy(src: string): Map<string, string> {
 }
 
 /** Podblok `nazwa: { ... }` rodzaju z jednej połowy nakładki, albo `null`. */
+/**
+ * PRZESTRZEŃ SŁOWNIKA rodzaju - nie to samo co nazwa rodzaju, i właśnie na tym
+ * ta bramka się przewróciła.
+ *
+ * `CHART_KINDS` trzyma nazwy w zapisie łącznikowym („index-base"), a słownik
+ * klucze w camelCase („indexBase"), bo tak indeksuje je i18next. Dopóki każdy
+ * rodzaj z poradami był JEDNOWYRAZOWY, oba zapisy były identyczne i bramka
+ * mogła szukać bloku po nazwie rodzaju, nie zauważając, że miesza dwie różne
+ * rzeczy. Pierwszy rodzaj łącznikowy z poradami ujawnił to natychmiast: blok
+ * „index-base" nie istnieje, więc bramka orzekała „brak porad w słowniku"
+ * o rodzaju, który ma ich dziewięć.
+ *
+ * Źródłem prawdy jest `ns` z tabeli porad, bo to ona buduje klucz wołany
+ * w edytorze. Dla rodzaju bez porad (`ns` puste) zostaje ta sama zamiana
+ * łącznika na wielką literę, którą robi `chartKinds.test.ts` przy etykietach
+ * admina - inaczej sprawdzenie „rodzaj bez porad nie ma treści w słowniku"
+ * pytałoby o blok pod nazwą, której słownik nie używa.
+ */
+/*
+ * REGUŁA OBOWIĄZUJĄCA W CAŁYM TYM PLIKU: klucz słownika buduje się
+ * z PRZESTRZENI (`przestrzen(kind)`), a nazwa rodzaju (`kind`) zostaje
+ * wyłącznie w komunikatach dla człowieka - tam czytelniejsze jest to, co
+ * autor wybiera w edytorze. Pomieszanie tych dwóch rzeczy dawało błąd cichy
+ * w jedną stronę i hałaśliwy w drugą: bramka szukała w renderze napisu
+ * „index-base.reading.baseUnusable", którego nikt nie woła i wołać nie
+ * powinien, i orzekała „obserwacja bez renderu jest martwa" o obserwacji
+ * wypisywanej poprawnie.
+ */
+function przestrzen(kind: ChartKind): string {
+  const ns = FORM_ADVICE[kind].ns;
+  if (ns !== "") return ns;
+  return kind.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
 function podblokRodzaju(polowa: string, kind: string, nazwa: string): string | null {
   const start = polowa.indexOf(`\n    ${kind}: {`);
   if (start < 0) return null;
@@ -127,6 +161,8 @@ const TYLKO_DLA_AUTORA: Readonly<Record<string, string>> = {
     "treść to pochwała wyboru formy („beeswarm jest tu najuczciwszy, nie zamieniaj go na boxplot”) - pod rysunkiem byłaby zdaniem, które chwali samo siebie",
   "scatter.lineBetter":
     "wykres punktowy jest poprawny i kompletny; zdanie mówi wyłącznie, że INNA forma pokazałaby więcej, a tej zmiany czytelnik nie wykona",
+  "index-base.scaleComparable":
+    "zdanie orzeka, że PRZESŁANKI DO INDEKSU TU NIE BYŁO (szeregi różnią się rzędem wielkości mniej niż dziesięciokrotnie, więc wspólna oś poziomów jest czytelna i zachowuje jednostkę) - czyli podważa dobór formy, którego czytelnik nie zmieni, a przy tym namawia go do odrzucenia rysunku, na który właśnie patrzy; liczby na tym wykresie są poprawne",
 };
 
 const JEZYKI = ["pl", "en"] as const;
@@ -175,7 +211,7 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
     for (const kind of CHART_KINDS) {
       const wpis = FORM_ADVICE[kind];
       for (const [i, jezyk] of JEZYKI.entries()) {
-        const podblok = podblokRodzaju(POLOWY_EDYTORSKIE[i], kind, "advice");
+        const podblok = podblokRodzaju(POLOWY_EDYTORSKIE[i], przestrzen(kind), "advice");
         if (wpis.all.length === 0) {
           // Rodzaj bez porad NIE MOŻE mieć treści w słowniku: martwy klucz
           // wygląda w recenzji jak funkcja, której ktoś zapomniał wywołać.
@@ -199,14 +235,14 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
       const wpis = FORM_ADVICE[kind];
       if (wpis.all.length === 0) continue;
       for (const [i, jezyk] of JEZYKI.entries()) {
-        const podblok = podblokRodzaju(POLOWY_EDYTORSKIE[i], kind, "advice") ?? "";
+        const podblok = podblokRodzaju(POLOWY_EDYTORSKIE[i], przestrzen(kind), "advice") ?? "";
         for (const [porada, tresc] of wpisy(podblok)) {
           if (wpis.onlyInPreview.includes(porada)) continue;
           const worek = Object.keys(wpis.values(porada, jezyk));
           for (const w of wstawki(tresc)) {
             expect(
               worek,
-              `${kind}.advice.${porada} (${jezyk}) pisze {{${w}}}, a worek liczb tego nie podaje ` +
+              `${przestrzen(kind)}.advice.${porada} (${jezyk}) pisze {{${w}}}, a worek liczb tego nie podaje ` +
                 "- i18next zostawi w zdaniu surowe klamry",
             ).toContain(w);
           }
@@ -222,10 +258,10 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
     // zostawionej treści w słowniku.
     const zrodla = pliki().map((p) => readFileSync(`${KATALOG}/${p}`, "utf8"));
     for (const kind of CHART_KINDS) {
-      const podblok = podblokRodzaju(POLOWY_PUBLICZNE[0], kind, "reading");
+      const podblok = podblokRodzaju(POLOWY_PUBLICZNE[0], przestrzen(kind), "reading");
       if (podblok === null) continue;
       for (const porada of wpisy(podblok).keys()) {
-        const klucz = `${kind}.reading.${porada}`;
+        const klucz = `${przestrzen(kind)}.reading.${porada}`;
         expect(
           zrodla.some((z) => z.includes(`"${klucz}"`)),
           `${klucz} stoi w słowniku, ale żaden render go nie woła`,
@@ -240,7 +276,7 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
     for (const kind of CHART_KINDS) {
       const wpis = FORM_ADVICE[kind];
       const czytane = new Set(
-        wpisy(podblokRodzaju(POLOWY_PUBLICZNE[0], kind, "reading") ?? "").keys(),
+        wpisy(podblokRodzaju(POLOWY_PUBLICZNE[0], przestrzen(kind), "reading") ?? "").keys(),
       );
       for (const porada of wpis.all) {
         const nazwa = `${kind}.${porada}`;
@@ -270,12 +306,12 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
     const zrodla = new Map(pliki().map((p) => [p, readFileSync(`${KATALOG}/${p}`, "utf8")]));
     for (const kind of CHART_KINDS) {
       for (const [i, jezyk] of JEZYKI.entries()) {
-        const podblok = podblokRodzaju(POLOWY_PUBLICZNE[i], kind, "reading");
+        const podblok = podblokRodzaju(POLOWY_PUBLICZNE[i], przestrzen(kind), "reading");
         if (podblok === null) continue;
         for (const [porada, tresc] of wpisy(podblok)) {
           const brakujace = wstawki(tresc);
           if (brakujace.length === 0) continue;
-          const klucz = `${kind}.reading.${porada}`;
+          const klucz = `${przestrzen(kind)}.reading.${porada}`;
           const [plik, zrodlo] =
             [...zrodla].find(([, z]) => z.includes(`"${klucz}"`)) ?? ([null, null] as const);
           expect(
@@ -301,7 +337,7 @@ describe("porady formy: obserwacja dla czytelnika, zalecenie dla autora", () => 
       const wpis = FORM_ADVICE[kind];
       for (const porada of wpis.onlyInPreview) {
         expect([...wpis.all], `${kind}: ${porada} nie jest poradą tego rodzaju`).toContain(porada);
-        const podblok = podblokRodzaju(POLOWY_PUBLICZNE[0], kind, "reading") ?? "";
+        const podblok = podblokRodzaju(POLOWY_PUBLICZNE[0], przestrzen(kind), "reading") ?? "";
         expect(
           [...wpisy(podblok).keys()],
           `${kind}.${porada} zostaje przy podglądzie, więc MUSI mieć wersję reading.*`,

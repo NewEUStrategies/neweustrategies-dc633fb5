@@ -49,6 +49,10 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "scatter", label: "Punktowy" },
     { key: "heatmap", label: "Mapa ciepła" },
     { key: "tornado", label: "Tornado" },
+    { key: "fan", label: "Wachlarz" },
+    { key: "index-base", label: "Indeks (baza = 100)" },
+    { key: "percent-stacked", label: "Stos 100%" },
+    { key: "small-multiples", label: "Małe panele" },
   ],
 };
 

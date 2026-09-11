@@ -48,7 +48,7 @@ import { useTranslation } from "react-i18next";
 import { CATEGORICAL_SAFE_SERIES, type ChartConfig } from "@/lib/charts/types";
 import { formatAxisTick, formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { linearScale, niceScale } from "@/lib/charts/scale";
-import { finite } from "@/lib/charts/num";
+import { finite, orNull } from "@/lib/charts/num";
 import {
   indexBaseExtent,
   indexBaseFormAdvice,
@@ -59,6 +59,7 @@ import {
   type IndexBaseSource,
 } from "@/lib/charts/kinds/indexBase";
 import {
+  CATEGORY_LABEL_MAX_CHARS,
   CATEGORY_LABEL_MAX_WIDTH,
   FONT_AXIS,
   MIN_INNER_H,
@@ -145,6 +146,49 @@ const END_LABEL_MIN_GAP = 13;
 /** Minimalny prześwit między etykietami okresów, w pikselach. */
 const PERIOD_LABEL_GAP = 8;
 
+/**
+ * Promień markera obserwacji i grubości kresek jako WARTOŚCI AWARYJNE -
+ * właściwe niosą tokeny `--chart-dot`, `--chart-dot-ring` i `--chart-stroke`
+ * przez klasy `.neh-dot` i `.neh-line` (arkusz wygrywa z atrybutem
+ * prezentacyjnym SVG, więc korekta irradiacji w trybie ciemnym dzieje się bez
+ * ani jednej gałęzi tutaj).
+ *
+ * PO CO WIĘC ATRYBUTY. Bo `r` NIE MA WARTOŚCI DOMYŚLNEJ RÓŻNEJ OD ZERA:
+ * `<circle>` bez `r` jest okręgiem o promieniu zero, czyli NICZYM. Dopóki
+ * arkusz nie dojedzie - pierwsza klatka odpowiedzi z brzegu, wydruk ze
+ * zablokowanym CSS, zrzut z narzędzia czytającego sam kod HTML - marker
+ * obserwacji nie istnieje, a razem z nim nie istnieje cały ciąg
+ * jednopunktowy, bo jego jedynym nośnikiem jest właśnie marker. Ta sama
+ * konwencja stoi w `CartesianChart`, `BoxplotChart`, `FanChart`
+ * i `SmallMultiplesChart`; ten render był jedynym, który jej nie miał.
+ */
+const DOT_R_PX = 2.8;
+const DOT_RING_PX = 1.6;
+const LINE_PX = 2;
+
+/**
+ * Nazwa serii przy końcu linii, ucięta do szerokości, która MIEŚCI SIĘ
+ * w marginesie prawym; pełną treść niesie `<title>`, bo sekcja 4 zabrania
+ * wielokropka bez podpowiedzi.
+ *
+ * DLACZEGO UCIĘCIE, A NIE SZERSZY MARGINES. Margines prawy ma sufit
+ * (`CATEGORY_LABEL_MAX_WIDTH`), bo bez niego jedna długa nazwa serii zjadałaby
+ * pole rysunku - a pole rysunku jest tym, co niesie dane. Przy nazwie
+ * szerszej od sufitu margines przestaje rosnąć, więc nazwa MIERZONA W CAŁOŚCI
+ * wychodzi za płytę: zmierzone na nazwie z pięćdziesięciu znaków przy
+ * szerokości 720 px prawa krawędź napisu wypadała na 894 px, czyli 174 px za
+ * krawędzią rysunku, i to bez żadnego znaku, że coś ucięto. Ucięcie
+ * z wielokropkiem jest widoczne, a `<title>` oddaje pełną nazwę - ten sam
+ * układ co przy nazwach rojów w `BeeswarmChart`. Liczby są dobrane parą:
+ * dwadzieścia cztery znaki przy `FONT_AXIS` to ~164 px, czyli mniej niż sufit
+ * marginesu.
+ */
+function skrocNazwe(name: string): string {
+  return name.length > CATEGORY_LABEL_MAX_CHARS
+    ? `${name.slice(0, CATEGORY_LABEL_MAX_CHARS - 1)}…`
+    : name;
+}
+
 interface IndexBaseChartProps {
   config: ChartConfig;
   lang: ChartLang;
@@ -200,7 +244,10 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
     // Etykiety końców linii potrzebują miejsca PO PRAWEJ, inaczej nazwa serii
     // wychodzi za płytę i zostaje ucięta (sekcja 1 nie dopuszcza ucięcia
     // niczego). Bez etykiet bezpośrednich margines zostaje zwykły.
-    const nazwyKoncow = bezposrednie ? naRysunku.map((s) => s.name) : [];
+    // MIERZONE NA NAZWACH UCIĘTYCH, nie na pełnych: sufit marginesu i tak nie
+    // przepuści nazwy szerszej, a pomiar pełnej nazwy dawał margines mniejszy
+    // od napisu, który w nim stoi (patrz `skrocNazwe`).
+    const nazwyKoncow = bezposrednie ? naRysunku.map((s) => skrocNazwe(s.name)) : [];
     const padRight =
       nazwyKoncow.length > 0
         ? Math.max(
@@ -238,8 +285,12 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
     return Math.max(1, Math.ceil((najszersza + PERIOD_LABEL_GAP) / naOkres));
   }, [model.periods, model.periodCount, innerW]);
 
+  // BEZ BRAMKI NA PUSTĄ OŚ. Ten uchwyt wisi wyłącznie na kontenerze rysunku,
+  // a rysunku nie ma wcale, gdy okresów jest zero (wyjście niżej) - warunek
+  // `periodCount === 0` byłby tu kodem, którego nie da się wykonać, czyli
+  // martwym zabezpieczeniem udającym ostrożność. Przycięcie do zakresu robi
+  // `Math.min`/`Math.max` niżej i ono jest osłoną realną.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
-    if (model.periodCount === 0) return;
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
       const delta = e.key === "ArrowRight" ? 1 : -1;
@@ -377,11 +428,19 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
       defect: true,
     });
   }
-  if (honesty.declaredSampleOk === false) {
+  // LICZBA Z PODPISU CYTOWANA, A NIE PODSTAWIANA. `declaredSampleOk` jest
+  // `false` wyłącznie wtedy, gdy autor podał `n` (bez `n` model milczy
+  // `null`-em), więc drugi warunek nigdy nie odrzuca zdania - stoi tu po to,
+  // żeby pod wstawkę `{{declared}}` nie dało się wpuścić zera zastępczego.
+  // Zero w zdaniu „w podpisie stoi n = 0" jest zdaniem o podpisie, którego
+  // nikt nie napisał, a wygląda dokładnie tak wiarygodnie jak liczba
+  // przeczytana z konfiguracji.
+  const podpisaneN = orNull(config.sampleSize);
+  if (honesty.declaredSampleOk === false && podpisaneN !== null) {
     notes.push({
       key: "honesty.declaredSampleOk",
       text: t("indexBase.honesty.declaredSampleOk", {
-        declared: config.sampleSize ?? 0,
+        declared: podpisaneN,
         actual: okresyZPomiarem,
       }),
       defect: true,
@@ -437,19 +496,32 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
   const pokazKropki = shouldShowDots(model.periodCount, 0);
   const cascade = cascadeStepMs(model.periodCount);
 
-  /** Ciągi punktów rozdzielone lukami - luka MUSI przerwać linię. */
-  const ciagi = (s: IndexBaseSeriesModel): Point[][] => {
-    const out: Point[][] = [];
-    let biezacy: Point[] = [];
+  /**
+   * Ciągi punktów rozdzielone lukami - luka MUSI przerwać linię.
+   *
+   * INDEKS OKRESU JEDZIE RAZEM Z PIKSELEM, bo ciąg JEDNOPUNKTOWY nie ma
+   * odcinka: `pathFromPoints` zwraca dla niego samo `M`, a ścieżka z samym
+   * `M` NIE RYSUJE NICZEGO. Bez tej informacji pomiar otoczony z obu stron
+   * lukami znikał z rysunku bez śladu wszędzie tam, gdzie kropki są
+   * wyłączone (powyżej `DOTS_MAX_POINTS` okresów) - zmierzone: trzydzieści
+   * okresów, dwa pomiary w środku szeregu, na rysunku zero znaczników i
+   * ścieżka „M33.0 296.0 M360.9 12.0". Czytelnik widział wtedy pusty wykres
+   * przy danych, które są, a to jest to samo kłamstwo co seria zniknięta bez
+   * słowa, tylko o pojedynczej obserwacji.
+   */
+  const pociagniecia = (s: IndexBaseSeriesModel): { punkty: Point[]; indeksy: number[] }[] => {
+    const out: { punkty: Point[]; indeksy: number[] }[] = [];
+    let biezacy: { punkty: Point[]; indeksy: number[] } = { punkty: [], indeksy: [] };
     s.indexed.forEach((v, i) => {
       if (v === null) {
-        if (biezacy.length > 0) out.push(biezacy);
-        biezacy = [];
+        if (biezacy.punkty.length > 0) out.push(biezacy);
+        biezacy = { punkty: [], indeksy: [] };
         return;
       }
-      biezacy.push([okres(i), value(finite(v))]);
+      biezacy.punkty.push([okres(i), value(finite(v))]);
+      biezacy.indeksy.push(i);
     });
-    if (biezacy.length > 0) out.push(biezacy);
+    if (biezacy.punkty.length > 0) out.push(biezacy);
     return out;
   };
 
@@ -463,13 +535,21 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
       .filter((s) => s.lastIndex !== null)
       .map((s) => ({ index: s.index, y: value(finite(s.lastIndex as number)) }))
       .sort((a, b) => a.y - b.y);
-    for (let i = 0; i < surowe.length; i++) {
-      const y =
-        i > 0 &&
-        surowe[i].y < (yEtykiet.get(surowe[i - 1].index) ?? surowe[i - 1].y) + END_LABEL_MIN_GAP
-          ? (yEtykiet.get(surowe[i - 1].index) ?? surowe[i - 1].y) + END_LABEL_MIN_GAP
-          : surowe[i].y;
-      yEtykiet.set(surowe[i].index, y);
+    // Wysokość poprzedniej etykiety trzymana W ZMIENNEJ, a nie odczytywana
+    // z mapy z awaryjnym `?? surowe[i-1].y`: mapa ma tę pozycję ZAWSZE (właśnie
+    // ją wpisaliśmy w poprzednim obrocie), więc odczyt awaryjny był gałęzią,
+    // której nie da się wykonać - a gałąź niewykonalna wygląda w przeglądzie
+    // jak obsłużony przypadek.
+    let poprzednia: number | null = null;
+    for (const s of surowe) {
+      // Typ wpisany JAWNIE: bez niego `tsc` widzi `y` i `poprzednia` jako parę
+      // definicji odwołujących się do siebie (TS7022) i porzuca wnioskowanie.
+      const y: number =
+        poprzednia !== null && s.y < poprzednia + END_LABEL_MIN_GAP
+          ? poprzednia + END_LABEL_MIN_GAP
+          : s.y;
+      yEtykiet.set(s.index, y);
+      poprzednia = y;
     }
   }
 
@@ -643,17 +723,27 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
               ani jedynką w mianowniku - jest wymieniona w przypisie z powodem
               i zostaje w tabeli danych z wartościami źródłowymi. */}
           {naRysunku.map((s) => {
-            const d = ciagi(s)
-              .map((ciag) => pathFromPoints(ciag, 0))
+            const biegi = pociagniecia(s);
+            const d = biegi
+              .map((bieg) => pathFromPoints(bieg.punkty, 0))
               .filter(Boolean)
               .join(" ");
+            // Okresy, których NIE NIESIE żadne pociągnięcie - patrz
+            // `pociagniecia`. Ich marker rysuje się niezależnie od progu
+            // kropek, bo jest dla nich jedynym nośnikiem pomiaru.
+            const samotne = new Set(
+              biegi.filter((bieg) => bieg.punkty.length === 1).map((bieg) => bieg.indeksy[0]),
+            );
             const kreskowana = s.colorSlot > CATEGORICAL_SAFE_SERIES;
+            const podpis = skrocNazwe(s.name);
+            const yPodpisu = yEtykiet.get(s.index);
             return (
               <g key={`s${s.index}`}>
                 <path
                   d={d}
                   fill="none"
                   stroke={`var(--chart-${s.colorSlot})`}
+                  strokeWidth={LINE_PX}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   pathLength={1}
@@ -661,41 +751,49 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
                   data-role="series-line"
                   data-series={s.index}
                 />
-                {pokazKropki &&
-                  s.indexed.map((v, i) =>
-                    v === null ? null : (
-                      <circle
-                        key={i}
-                        cx={okres(i)}
-                        cy={value(finite(v))}
-                        // Kropka w kolorze PŁYTY z obwódką w kolorze serii:
-                        // widać sam pierścień, a on czyta się jako „tu jest
-                        // pomiar", nie jako kolejny znacznik danych.
-                        fill="var(--card)"
-                        stroke={`var(--chart-${s.colorSlot})`}
-                        className="neh-dot neh-fade"
-                        data-role="series-point"
-                        data-series={s.index}
-                        data-active={czynny === i ? "true" : undefined}
-                      />
-                    ),
-                  )}
+                {s.indexed.map((v, i) =>
+                  v === null || !(pokazKropki || samotne.has(i)) ? null : (
+                    <circle
+                      key={i}
+                      cx={okres(i)}
+                      cy={value(finite(v))}
+                      r={DOT_R_PX}
+                      // Kropka w kolorze PŁYTY z obwódką w kolorze serii:
+                      // widać sam pierścień, a on czyta się jako „tu jest
+                      // pomiar", nie jako kolejny znacznik danych.
+                      fill="var(--card)"
+                      stroke={`var(--chart-${s.colorSlot})`}
+                      strokeWidth={DOT_RING_PX}
+                      className="neh-dot neh-fade"
+                      data-role="series-point"
+                      data-series={s.index}
+                      data-lone={samotne.has(i) ? "true" : undefined}
+                      data-active={czynny === i ? "true" : undefined}
+                    />
+                  ),
+                )}
                 {/* ETYKIETA BEZPOŚREDNIA przy końcu linii - w WARIANCIE
                     TEKSTOWYM slotu, bo identyfikuje serię: próg kontrastu dla
-                    tekstu to 4,5:1, dla linii 3,0:1. Pozycja pionowa idzie
-                    z `lastIndex` modelu, żeby render nie szukał ostatniego
-                    pomiaru po tablicy z lukami drugi raz. */}
-                {bezposrednie && s.lastIndex !== null && (
+                    tekstu to 4,5:1, dla linii 3,0:1. Wysokość idzie z planu
+                    antykolizyjnego wyżej; seria bez pozycji w planie nie
+                    dostaje etykiety, bo etykieta bez policzonej wysokości
+                    stanęłaby na cudzej. */}
+                {bezposrednie && yPodpisu !== undefined && (
                   <text
                     data-role="series-end-label"
                     data-series={s.index}
                     x={padLeft + innerW + 6}
-                    y={(yEtykiet.get(s.index) ?? value(finite(s.lastIndex))) + 3.5}
+                    y={yPodpisu + 3.5}
                     fontSize={FONT_AXIS}
                     fill={`var(--chart-${s.colorSlot}t)`}
                     className="neh-fade neh-value-label"
                   >
-                    {s.name}
+                    {podpis}
+                    {/* Wielokropek BEZ podpowiedzi jest zakazany (sekcja 4),
+                        więc `<title>` stoi dokładnie wtedy, gdy coś ucięto -
+                        przy nazwie mieszczącej się w marginesie powtarzałby
+                        napis, który czytelnik i tak widzi. */}
+                    {podpis !== s.name && <title>{s.name}</title>}
                   </text>
                 )}
               </g>
@@ -738,7 +836,7 @@ export function IndexBaseChart({ config, lang, baseAt }: IndexBaseChartProps) {
           x={czynny === null ? 0 : okres(czynny)}
           y={yBazy}
           containerWidth={width}
-          title={czynny === null ? "" : (model.periods[czynny] ?? "")}
+          title={czynny === null ? "" : model.periods[czynny]}
           note={
             czynny !== null && czynny === model.baseAt ? t("indexBase.table.baseRow") : undefined
           }

@@ -65,6 +65,30 @@ export const CHART_KINDS = [
   // się kształt leja oraz nazwa rodzaju. Kategorie biegną w PIONIE, więc
   // klawiatura obsługuje go strzałkami góra-dół, jak słupki poziome.
   "tornado",
+  // SCENARIUSZE W CZASIE. Wiersz tabeli doboru stawia w kolumnie „czego
+  // unikać" jedno hasło: pojedyncza linia prognozy. Cała treść tego rodzaju
+  // to KSZTAŁT niepewności, więc skala idzie z `fanExtent`, czyli obejmuje
+  // krawędzie pasm, a nie samą linię - pasmo przycięte krawędzią rysunku jest
+  // gorsze od braku pasma, bo twierdzi, że niepewność kończy się tam, gdzie
+  // kończy się obszar kreślenia.
+  "fan",
+  // KILKA SZEREGÓW O RÓŻNEJ SKALI. Ten rodzaj istnieje po to, żeby nie było
+  // drugiej osi Y - i to jest jego jedyne uzasadnienie. Oddaje TEMPO, a
+  // odbiera poziom i jednostkę, więc oś musi powiedzieć wprost, że jest
+  // bezjednostkowa, a szereg, którego nie dało się zaindeksować, nie może
+  // zniknąć bez podania przyczyny.
+  "index-base",
+  // STRUKTURA CAŁOŚCI. Wada jest wbudowana w formę: równa wysokość słupków
+  // UKRYWA różne wielkości całości, dlatego suma bezwzględna w tabeli jest
+  // obowiązkowa. Kolejność segmentów zostaje ARKUSZOWA, bo w tej formie jest
+  // decyzją analityczną autora, a nie porządkiem prezentacji.
+  "percent-stacked",
+  // WIELE PODMIOTÓW NA WIELU WSKAŹNIKACH, i zamiennik dla wykresu powyżej
+  // `CATEGORICAL_SAFE_SERIES` serii. Panele porównuje się WZROKIEM, więc
+  // wspólna skala jest domyślna, a skala wolna musi być zadeklarowana
+  // i widoczna przy każdym panelu. Panel pusty zostaje w siatce - usunięcie
+  // go przesuwa sąsiadów i zmienia czytany porządek.
+  "small-multiples",
 ] as const;
 
 export type ChartKind = (typeof CHART_KINDS)[number];

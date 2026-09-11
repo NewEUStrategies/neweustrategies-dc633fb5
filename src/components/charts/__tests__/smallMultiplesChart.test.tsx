@@ -2,10 +2,12 @@
 //
 // KONFIGURACJA BEZ KLUCZA `kind`, i to jest świadome: model paneli czyta
 // `categories` i `series`, a nie `config.kind` (`grep -n "config.kind"
-// src/lib/charts/kinds/smallMultiples.ts` nie zwraca nic), więc rodzaj
-// w konfiguracji nie ma tu żadnego znaczenia - rodzaj "small-multiples" nie
-// jest jeszcze w `CHART_KINDS`, a podlaczenia rozdzielnika pilnuje osobna
-// bramka `everyKindRenders.test.tsx`.
+// src/lib/charts/kinds/smallMultiples.ts` nie zwraca NIC), więc rodzaj
+// w konfiguracji nie ma tu żadnego znaczenia i wpisanie go sugerowałoby
+// zależność, której nie ma. Tego, czy rozdzielnik `Chart.tsx` oddaje rodzaj
+// "small-multiples" TEMU renderowi, pilnuje osobna bramka
+// `everyKindRenders.test.tsx` - i to jest jej jedyne zadanie, którego ten plik
+// nie dubluje.
 //
 // SKĄD BIORĘ LICZBY. `useContainerWidth` czyta `clientWidth`, które
 // w happy-dom wynosi 0, więc szerokość zostaje na wartości startowej 720.
@@ -196,6 +198,33 @@ describe("SmallMultiplesChart - siatka paneli", () => {
       kolumny.add(num(p, "x"));
     }
     expect(kolumny.size, "etykiety muszą być pod każdą kolumną").toBe(2);
+  });
+
+  it("ETYKIETA BEZPOŚREDNIA stoi TYLKO przy ostatnim pomiarze panelu", () => {
+    // Defekt, który ten test wyłapuje: `showValues` obsłużone tak jak
+    // w wykresie kartezjańskim, czyli liczbą przy każdym punkcie. W polu
+    // 330 na 112 px dwanaście etykiet zajmuje więcej miejsca niż linia, którą
+    // opisują, a przy panelu 96 px nie mieści się ani jedna para. Ostatni
+    // pomiar jest tym jednym, po który czytelnik sięga najczęściej.
+    const { container } = rysuj({ showValues: true });
+    const etykiety = all(container, "[data-role='panel-value']");
+    expect(etykiety).toHaveLength(3); // po jednej na panel, nie po jednej na punkt
+    expect(etykiety.map((e) => e.textContent)).toEqual(["18 mld EUR", "12 mld EUR", "9 mld EUR"]);
+    // Bez żądania autora nie ma ani jednej.
+    expect(all(rysuj().container, "[data-role='panel-value']")).toHaveLength(0);
+  });
+
+  it("ETYKIETA BEZPOŚREDNIA W TRYBIE INDEKSU pokazuje INDEKS, nie poziom", () => {
+    // Model podaje w etykiecie punktu ZAWSZE poziom (indeks stoi w osobnej
+    // kolumnie tabeli), ale w trybie indeksu linia leży na osi indeksu - więc
+    // poziom wypisany przy niej opisywałby inną liczbę niż ta, którą czytelnik
+    // odmierzy podziałką. Etykieta bezpośrednia musi zgadzać się z POZYCJĄ.
+    const { container } = rysuj({ showValues: true }, { mode: "index" });
+    const etykiety = all(container, "[data-role='panel-value']").map((e) => e.textContent);
+    // Polska: 10 -> 18, czyli indeks 180; Czechy: 8 -> 12, czyli 150.
+    expect(etykiety).toContain("180");
+    expect(etykiety).toContain("150");
+    expect(etykiety).not.toContain("18 mld EUR");
   });
 
   it("PANEL PONIŻEJ PROGU NIE JEST RYSOWANY, a uwagi zostają", () => {

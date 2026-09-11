@@ -84,6 +84,14 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   // wyniki przy wartości niskiej i wysokiej. Wynik bazowy jest osobną
   // liczbą, nie kategorią - patrz `tornadoModelFromConfig`.
   { value: "tornado", labelKey: "kinds.tornado" },
+  // CZTERY RODZAJE SEKCJI 1 DOŁOŻONE RAZEM, bo `chartKinds.test.ts` pyta
+  // w obie strony: każdy rodzaj z `CHART_KINDS` musi tu być, a każda wartość
+  // stąd musi być znanym rodzajem. Połowa podłączenia jest czerwona z obu
+  // stron naraz.
+  { value: "fan", labelKey: "kinds.fan" },
+  { value: "index-base", labelKey: "kinds.indexBase" },
+  { value: "percent-stacked", labelKey: "kinds.percentStacked" },
+  { value: "small-multiples", labelKey: "kinds.smallMultiples" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {

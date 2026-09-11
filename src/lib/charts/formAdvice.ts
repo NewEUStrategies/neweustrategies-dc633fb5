@@ -34,6 +34,7 @@
 // "pokazuje {{shown}} z {{total}} obserwacji", a render podawał `drawn`
 // i `count`, więc czytelnik dostawał pod rysunkiem surowe klamry.
 import type { ChartConfig, ChartKind } from "@/lib/charts/types";
+import { CATEGORICAL_SAFE_SERIES } from "@/lib/charts/types";
 import { formatChartValue, formatPercent, type ChartLang } from "@/lib/charts/format";
 import {
   histogramFormAdvice,
@@ -74,6 +75,33 @@ import {
   tornadoModelFromConfig,
   type TornadoFormAdvice,
 } from "@/lib/charts/kinds/tornado";
+import {
+  FAN_LEVELS_ADVICE_MAX,
+  FAN_MIN_FORECAST_STEPS,
+  fanFormAdvice,
+  fanModelFromConfig,
+  type FanFormAdvice,
+} from "@/lib/charts/kinds/fanChart";
+import {
+  INDEX_BASE_COMPARABLE_RATIO,
+  INDEX_BASE_FENCE_IQR_FACTOR,
+  INDEX_BASE_MIN_PERIODS,
+  indexBaseFormAdvice,
+  indexBaseModelFromConfig,
+  type IndexBaseFormAdvice,
+} from "@/lib/charts/kinds/indexBase";
+import {
+  percentStackedFormAdvice,
+  percentStackedModelFromConfig,
+  type PercentStackedFormAdvice,
+} from "@/lib/charts/kinds/percentStacked";
+import {
+  SMALL_MULTIPLES_MAX_COMFORT,
+  SMALL_MULTIPLES_MIN_PANELS,
+  smallMultiplesFormAdvice,
+  smallMultiplesModelFromConfig,
+  type SmallMultiplesFormAdvice,
+} from "@/lib/charts/kinds/smallMultiples";
 
 /** Liczby do wstawek `{{...}}` jednego komunikatu. */
 export type AdviceValues = Record<string, string | number>;
@@ -198,6 +226,71 @@ const TORNADO_VALUES: Record<string, (lang: ChartLang) => AdviceValues> = {
   tooManyRows: () => ({ max: TORNADO_ROWS_ADVICE_MAX }),
 };
 
+const FAN_ALL: readonly FanFormAdvice[] = [
+  "noForecast",
+  "noBand",
+  "noCentral",
+  "singleForecastStep",
+  "singleLevel",
+  "tooManyLevels",
+  "constantBand",
+];
+const FAN_VALUES: Record<string, (lang: ChartLang) => AdviceValues> = {
+  singleForecastStep: () => ({ min: FAN_MIN_FORECAST_STEPS }),
+  tooManyLevels: () => ({ max: FAN_LEVELS_ADVICE_MAX }),
+};
+
+const INDEX_BASE_ALL: readonly IndexBaseFormAdvice[] = [
+  "baseUnusable",
+  "seriesDropped",
+  "singleSeries",
+  "shortSeries",
+  "extremeBase",
+  "mixedSign",
+  "noSpread",
+  "scaleComparable",
+  "tooManySeries",
+];
+const INDEX_BASE_VALUES: Record<string, (lang: ChartLang) => AdviceValues> = {
+  shortSeries: () => ({ min: INDEX_BASE_MIN_PERIODS }),
+  // Mnożnik ogrodzenia jedzie przez formatowanie liczby, bo „1,5" po polsku
+  // i „1.5" po angielsku to dwa różne napisy, a zdanie o nietypowym okresie
+  // bazowym czyta autor w swoim języku.
+  extremeBase: (lang) => ({ factor: formatChartValue(INDEX_BASE_FENCE_IQR_FACTOR, lang, "") }),
+  scaleComparable: () => ({ ratio: INDEX_BASE_COMPARABLE_RATIO }),
+  // Próg palety, nie próg indeksu: powyżej tylu kolorów kategorialnych barwa
+  // przestaje nieść kategorię dla każdego rodzaju widzenia barw.
+  tooManySeries: () => ({ max: CATEGORICAL_SAFE_SERIES }),
+};
+
+const PERCENT_STACKED_ALL: readonly PercentStackedFormAdvice[] = [
+  "negativeValues",
+  "tooManySegments",
+  "singleSegment",
+  "singleBar",
+  "noStructure",
+];
+const PERCENT_STACKED_VALUES: Record<string, (lang: ChartLang) => AdviceValues> = {
+  // Ta sama stała co przy indeksie i ta sama przyczyna - a w stosie waży
+  // więcej, bo tożsamości segmentu nie niesie tam nic poza kolorem.
+  tooManySegments: () => ({ max: CATEGORICAL_SAFE_SERIES }),
+};
+
+const SMALL_MULTIPLES_ALL: readonly SmallMultiplesFormAdvice[] = [
+  "singlePanel",
+  "tooManyPanels",
+  "indexBaseBetter",
+  "undeclaredFreeScale",
+  "mixedUnits",
+  "noSpread",
+  "sheetOrder",
+  "oneCategory",
+];
+const SMALL_MULTIPLES_VALUES: Record<string, (lang: ChartLang) => AdviceValues> = {
+  singlePanel: () => ({ min: SMALL_MULTIPLES_MIN_PANELS }),
+  tooManyPanels: () => ({ max: SMALL_MULTIPLES_MAX_COMFORT }),
+};
+
 /**
  * Tabela porad po rodzaju. Rodzaje bez wpisu własnego dostają `BEZ_PORAD`
  * z powodem - i powód jest za każdym razem inny, dlatego nie ma tu gałęzi
@@ -270,6 +363,34 @@ export const FORM_ADVICE: Record<ChartKind, KindFormAdvice> = {
     onlyInPreview: [],
     of: (config) => tornadoFormAdvice(tornadoModelFromConfig(config)),
     values: (advice, lang) => worek(TORNADO_VALUES, advice, lang),
+  },
+  fan: {
+    ns: "fan",
+    all: FAN_ALL,
+    onlyInPreview: [],
+    of: (config) => fanFormAdvice(fanModelFromConfig(config)),
+    values: (advice, lang) => worek(FAN_VALUES, advice, lang),
+  },
+  "index-base": {
+    ns: "indexBase",
+    all: INDEX_BASE_ALL,
+    onlyInPreview: [],
+    of: (config) => indexBaseFormAdvice(indexBaseModelFromConfig(config)),
+    values: (advice, lang) => worek(INDEX_BASE_VALUES, advice, lang),
+  },
+  "percent-stacked": {
+    ns: "percentStacked",
+    all: PERCENT_STACKED_ALL,
+    onlyInPreview: [],
+    of: (config) => percentStackedFormAdvice(percentStackedModelFromConfig(config)),
+    values: (advice, lang) => worek(PERCENT_STACKED_VALUES, advice, lang),
+  },
+  "small-multiples": {
+    ns: "smallMultiples",
+    all: SMALL_MULTIPLES_ALL,
+    onlyInPreview: [],
+    of: (config) => smallMultiplesFormAdvice(smallMultiplesModelFromConfig(config)),
+    values: (advice, lang) => worek(SMALL_MULTIPLES_VALUES, advice, lang),
   },
 };
 

@@ -28,6 +28,10 @@ const RENDERY = [
   "ScatterChart",
   "HeatmapChart",
   "TornadoChart",
+  "FanChart",
+  "IndexBaseChart",
+  "PercentStackedChart",
+  "SmallMultiplesChart",
 ] as const;
 
 const zrodlo = (nazwa: string): string =>
