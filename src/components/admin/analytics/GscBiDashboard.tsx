@@ -464,21 +464,27 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           return `${p.value[0]}: <b>${p.value[1]}</b> ${t("adminAnalytics.gsc.clicksShort")}`;
         },
       },
-      // Skala PORZĄDKOWA, nie kategorialna, i zależna od płyty. Widoczna legenda
-      // wyjaśnia kierunek intensywności zamiast wymagać zgadywania znaczenia barw.
+      // Skala PORZĄDKOWA, nie kategorialna, i zależna od płyty. Legenda jest
+      // KROKOWA (`piecewise`): ciągły `visualMap` rysuje pionowy suwak z uchwytem,
+      // który przy kalendarzu lądował na środku płyty i zasłaniał komórki.
       // Dolny przystanek zaczyna się od 1, bo zero ma własny kolor tła komórki -
       // dzień bez pomiaru nie ma udawać dnia z jednym kliknięciem.
       visualMap: {
         min: 1,
         max,
         show: true,
-        type: "continuous",
+        type: "piecewise",
         orient: "horizontal",
         left: "center",
-        bottom: 4,
-        itemWidth: 100,
-        itemHeight: 8,
+        bottom: 2,
+        itemWidth: 12,
+        itemHeight: 12,
+        itemGap: 4,
+        itemSymbol: "rect",
+        showLabel: false,
+        splitNumber: 5,
         calculable: false,
+        selectedMode: false,
         text: [
           t("adminAnalytics.gsc.charts.calendarIntensityHigh"),
           t("adminAnalytics.gsc.charts.calendarIntensityLow"),
@@ -488,11 +494,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         inRange: { color: heatRamp(chartTheme) },
       },
       calendar: {
-        top: 34,
-        bottom: 42,
-        left: 30,
+        top: 40,
+        bottom: 46,
+        left: 34,
         right: 20,
-        cellSize: ["auto", 14],
+        cellSize: ["auto", "auto"],
         range: [first, last],
         itemStyle: {
           color: heatEmpty(chartTheme),
@@ -501,8 +507,8 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
         splitLine: { show: false },
         yearLabel: { show: false },
-        dayLabel: { color: chartTheme.muted, fontSize: 10 },
-        monthLabel: { color: chartTheme.muted, fontSize: 10 },
+        dayLabel: { color: chartTheme.muted, fontSize: 10, margin: 6 },
+        monthLabel: { color: chartTheme.muted, fontSize: 10, margin: 8 },
       },
       series: [
         {

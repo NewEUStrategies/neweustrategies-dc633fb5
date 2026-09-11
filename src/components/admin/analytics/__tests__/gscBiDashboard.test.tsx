@@ -760,7 +760,9 @@ describe("GscBiDashboard - dane", () => {
         tNow()("adminAnalytics.gsc.charts.calendarIntensityLow"),
       ]);
       expect(rec(rec(o.visualMap).textStyle).color).toBeTruthy();
-      expect(rec(o.calendar).bottom).toBe(42);
+      // Legenda krokowa (nie ciągły suwak z uchwytem, który zasłaniał komórki).
+      expect(rec(o.visualMap).type).toBe("piecewise");
+      expect(rec(o.calendar).bottom).toBe(46);
       expect(rec(rec(o.calendar).itemStyle).borderWidth).toBe(1);
     });
   });
