@@ -22,7 +22,10 @@ async function serveMedia(request: Request, splat: string): Promise<Response> {
     headers: request.headers.get("range") ? { Range: request.headers.get("range") ?? "" } : {},
   });
   if (!response.ok && response.status !== 206) {
-    return new Response("Not found", { status: response.status === 404 ? 404 : 502 });
+    // Magazyn zgłasza brak obiektu również statusem 400 (`NoSuchKey`), dlatego
+    // każdą odpowiedź 4xx traktujemy jako brak pliku - nie jako awarię serwera.
+    const missing = response.status >= 400 && response.status < 500;
+    return new Response("Not found", { status: missing ? 404 : 502 });
   }
 
   const headers = new Headers({
