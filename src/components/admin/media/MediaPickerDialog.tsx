@@ -448,7 +448,7 @@ export function MediaPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-16px)] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-16px)] w-[calc(100vw-16px)] max-w-4xl grid-rows-[auto_auto_auto_minmax(0,1fr)_auto_auto] gap-3 overflow-hidden p-4 sm:h-[calc(100dvh-32px)] sm:max-h-[calc(100dvh-32px)] sm:w-[calc(100vw-32px)] sm:p-5">
+      <DialogContent className="flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-24px)] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-24px)] w-[calc(100vw-16px)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:h-[calc(100dvh-48px)] sm:max-h-[calc(100dvh-48px)] sm:w-[calc(100vw-32px)] sm:p-5">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{title ?? t("adminTeamMedia.mediaPicker.title")}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -456,7 +456,7 @@ export function MediaPickerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="shrink-0 flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-[220px] focus-within:[&_.mp-icon]:text-primary focus-within:[&_.mp-divider]:bg-primary/40">
             <Search
               className="mp-icon pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/70 transition-colors"
@@ -709,7 +709,7 @@ export function MediaPickerDialog({
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          className={`relative min-h-0 max-h-full overflow-y-auto overscroll-contain -mx-2 px-2 pb-[max(8px,env(safe-area-inset-bottom))] rounded-md transition-colors ${
+          className={`relative flex-1 min-h-[120px] overflow-y-auto overscroll-contain -mx-2 px-2 pb-[max(8px,env(safe-area-inset-bottom))] rounded-md transition-colors ${
             dragOver ? "outline outline-2 outline-dashed outline-primary/60 bg-primary/5" : ""
           }`}
         >
@@ -781,7 +781,7 @@ export function MediaPickerDialog({
         </div>
 
         {picked && (
-          <div className="max-h-[30dvh] overflow-y-auto border-t border-border pt-3 space-y-2">
+          <div className="shrink-0 max-h-[28dvh] overflow-y-auto border-t border-border pt-3 space-y-2">
             <label
               htmlFor="picker-filename"
               className="block text-xs text-muted-foreground font-medium"
