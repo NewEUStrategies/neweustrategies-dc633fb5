@@ -1466,6 +1466,7 @@ const pl = {
     },
     schemaField: {
       chartDataPlaceholder: "; Seria A; Seria B\n2024; 12; 8",
+      mapDataPlaceholder: "PL; 12,5\nDE; 8",
       colorInherits: "dziedziczy z global colors (lub transparent)",
     },
     richHtmlField: {
@@ -3001,6 +3002,7 @@ const en: typeof pl = {
     },
     schemaField: {
       chartDataPlaceholder: "; Series A; Series B\n2024; 12; 8",
+      mapDataPlaceholder: "PL; 12.5\nDE; 8",
       colorInherits: "inherits from global colors (or transparent)",
     },
     richHtmlField: {

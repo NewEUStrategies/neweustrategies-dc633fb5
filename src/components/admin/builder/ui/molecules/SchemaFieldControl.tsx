@@ -19,6 +19,7 @@ import {
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
+import { MapDataField } from "./MapDataField";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
 import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
@@ -202,9 +203,26 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               kind={asString(content["kind"])}
               unit={asString(content["unit"])}
               title={asString(content[`title_${lang}`]) || asString(content["title_pl"])}
+              // Bez tego podgląd w arkuszu ignorował legendę, siatkę,
+              // skumulowanie i wysokość - czyli pokazywał INNY wykres niż
+              // kanwa, wbrew temu, co deklaruje nagłówek samego dialogu.
+              content={content}
               lang={lang}
             />
           </div>
+        </PropField>
+      );
+
+    case "mapData":
+      return (
+        <PropField label={label} hint={hint}>
+          <MapDataField
+            value={asString(read(field.key))}
+            onChange={(v) => setContent(field.key, v)}
+            region={asString(content["region"]) === "world" ? "world" : "europe"}
+            rows={field.rows}
+            placeholder={t("builder.schemaField.mapDataPlaceholder")}
+          />
         </PropField>
       );
 

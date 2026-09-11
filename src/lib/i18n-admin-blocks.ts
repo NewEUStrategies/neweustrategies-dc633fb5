@@ -99,6 +99,26 @@ const pl = {
         removeRow: "Usuń wiersz {{name}}",
         source: "Źródło danych",
       },
+      dataImport: {
+        button: "Importuj z pliku",
+        hintChart:
+          "xlsx, csv, tsv, ods - pierwszy wiersz to nazwy serii, pierwsza kolumna to kategorie",
+        hintMap:
+          "xlsx, csv, tsv, ods - pierwsza kolumna to kraj (kod ISO-2 albo nazwa), druga to wartość",
+        chooseSheet: "Skoroszyt ma kilka arkuszy - wybierz jeden:",
+        sheetRows: "{{count}} wierszy",
+        ok: "Wczytano dane z pliku.",
+        errUnsupported: "Nie umiem przeczytać tego formatu.",
+        errTooLarge: "Plik jest za duży - limit to {{mb}} MB.",
+        errRead: "Nie udało się przeczytać pliku.",
+        errEmpty: "Plik nie zawiera danych.",
+        pSeriesTruncated: "Pominięto {{count}} serii ponad limit.",
+        pCategoriesTruncated: "Pominięto {{count}} wierszy ponad limit.",
+        pNonNumeric: "{{count}} komórek nie jest liczbą - zostały jako luki.",
+        pRowsSkipped: "Pominięto {{count}} wierszy bez kraju albo bez wartości.",
+        pUnknownCountries: "Nierozpoznane kraje: {{labels}}.",
+        pDuplicateCountries: "Kraje powtórzone (zostało pierwsze wystąpienie): {{labels}}.",
+      },
       conversionBlocks: {
         sectionTitle: "Tytuł sekcji (opcjonalnie)",
         title: "Tytuł (opcjonalnie)",
@@ -843,6 +863,26 @@ const en: typeof pl = {
         addCountry: "Add country",
         removeRow: "Delete row {{name}}",
         source: "Data source",
+      },
+      dataImport: {
+        button: "Import from file",
+        hintChart:
+          "xlsx, csv, tsv, ods - first row holds series names, first column holds categories",
+        hintMap:
+          "xlsx, csv, tsv, ods - first column is the country (ISO-2 code or name), second is the value",
+        chooseSheet: "The workbook has several sheets - pick one:",
+        sheetRows: "{{count}} rows",
+        ok: "Data loaded from the file.",
+        errUnsupported: "That file format cannot be read.",
+        errTooLarge: "The file is too large - the limit is {{mb}} MB.",
+        errRead: "The file could not be read.",
+        errEmpty: "The file contains no data.",
+        pSeriesTruncated: "{{count}} series beyond the limit were dropped.",
+        pCategoriesTruncated: "{{count}} rows beyond the limit were dropped.",
+        pNonNumeric: "{{count}} cells are not numbers - kept as gaps.",
+        pRowsSkipped: "{{count}} rows without a country or without a value were skipped.",
+        pUnknownCountries: "Unrecognised countries: {{labels}}.",
+        pDuplicateCountries: "Duplicate countries (the first occurrence was kept): {{labels}}.",
       },
       conversionBlocks: {
         sectionTitle: "Section title (optional)",

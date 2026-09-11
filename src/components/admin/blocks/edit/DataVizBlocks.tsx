@@ -51,6 +51,8 @@ import "@/lib/i18n-charts-editor";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { Chart } from "@/components/charts/Chart";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
+import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
+import { buildCountryIndex, tableToChartData, tableToMapValues } from "@/lib/charts/importTable";
 
 interface Props {
   block: Block;
@@ -328,6 +330,27 @@ export function ChartBlock({ block, onChange }: Props) {
         value={String(block.data.description ?? "")}
         placeholder={bt.editor("common", "subtitle")}
         onChange={(e) => patch({ description: e.target.value })}
+      />
+
+      {/* IMPORT Z PLIKU stoi NAD arkuszem, bo go NADPISUJE w całości.
+          Pod spodem wyglądałby na „dopisz do tego, co jest" - a wczytanie
+          pliku wymienia kategorie i serie, nie dokłada ich. */}
+      <DataImportControl
+        hint={bt.editor("dataImport", "hintChart")}
+        onRows={(rows) => {
+          const dane = tableToChartData(rows);
+          patch({
+            categories: dane.categories,
+            series: seriesToJson(
+              dane.series.map((s) => ({
+                name: s.name,
+                values: [...s.values],
+                colorSlot: s.colorSlot,
+              })),
+            ),
+          });
+          return dane.problems;
+        }}
       />
 
       {/* Arkusz danych: wiersz = kategoria, kolumny = serie. */}
@@ -831,6 +854,18 @@ export function DataMapBlock({ block, onChange }: Props) {
         value={String(block.data.description ?? "")}
         placeholder={bt.editor("common", "subtitle")}
         onChange={(e) => patch({ description: e.target.value })}
+      />
+
+      {/* Skorowidz nazw powstaje z TEGO SAMEGO zasobu, który rysuje mapę,
+          więc kraj spoza wybranego regionu wyjdzie jako nierozpoznany
+          zamiast wejść do danych i nigdy się nie narysować. */}
+      <DataImportControl
+        hint={bt.editor("dataImport", "hintMap")}
+        onRows={(rowsIn) => {
+          const wynik = tableToMapValues(rowsIn, buildCountryIndex(geo.data?.countries ?? []));
+          patch({ values: wynik.values.map((v) => ({ id: v.id, value: v.value })) });
+          return wynik.problems;
+        }}
       />
 
       <div className="space-y-1.5">
