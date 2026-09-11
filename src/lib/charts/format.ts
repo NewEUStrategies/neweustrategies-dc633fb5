@@ -46,7 +46,19 @@ export function formatChartValue(value: number, lang: ChartLang, unit = ""): str
   const formatted = value.toLocaleString(localeOf(lang), {
     maximumFractionDigits: Math.abs(value) < 10 ? 2 : 1,
   });
-  return unit ? `${formatted}${unit.startsWith(" ") ? unit : `${unit}`}` : formatted;
+  // SEPARATOR JEST CZĘŚCIĄ JEDNOSTKI i to jest kontrakt tej funkcji, nie
+  // przeoczenie. Procent PRZYKLEJA się do liczby („60%"), a jednostka mianowana
+  // wymaga spacji („1500 mld EUR") - więc o odstępie rozstrzyga WYWOŁUJĄCY,
+  // podając jednostkę z wiodącą spacją albo bez niej. Żadna normalizacja tutaj
+  // nie byłaby poprawna: doklejanie spacji zawsze zrobiłoby z „60%" napis
+  // „60 %", a jej usuwanie z „1500 mld EUR" napis „1500mld EUR".
+  //
+  // Stał tu wcześniej `unit.startsWith(" ") ? unit : `${unit}`` - obie gałęzie
+  // dawały ten sam napis, więc warunek był martwy, a przy tym SUGEROWAŁ
+  // normalizację, której nie ma i mieć nie może. Wywołujący, który przyciął
+  // jednostkę (`config.unit.trim()`), dostaje liczbę sklejoną z jednostką
+  // i musi o tym wiedzieć z tego komentarza, a nie domyślać się z warunku.
+  return unit ? `${formatted}${unit}` : formatted;
 }
 
 /** Zwięzły format osi (12 345 678 -> "12,3 mln" / "12.3M"). */

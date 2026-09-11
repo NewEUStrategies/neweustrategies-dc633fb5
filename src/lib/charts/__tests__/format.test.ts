@@ -6,6 +6,23 @@ describe("formatChartValue", () => {
     expect(formatChartValue(1234.5, "en", " bn")).toBe("1,234.5 bn");
     // pl-PL: przecinek dziesiętny (grupowanie tysięcy zależy od wersji ICU).
     expect(formatChartValue(1234.5, "pl", "%")).toMatch(/^1[\s\u00a0\u202f]?234,5%$/);
+    // OBIE STRONY KONTRAKTU JEDNOSTKI, bo pinowana była dotąd tylko jedna.
+    // Liczba jest tu DWUCYFROWA celowo: pl-PL nie grupuje tysięcy poniżej
+    // pięciu cyfr, więc na 1500 to sprawdzenie mierzyłoby regułę grupowania
+    // ICU zamiast odstępu przed jednostką, o który tu chodzi.
+    //
+    // Procent przykleja się do liczby, jednostka mianowana dostaje spację -
+    // i o odstępie rozstrzyga WYWOŁUJĄCY, nie ta funkcja. Bez tej pary łatwo
+    // „naprawić" formatowanie tak, żeby zawsze wstawiało spację: wtedy każdy
+    // udział w silniku czyta się jako „60 %", a tego nie zauważy żaden test
+    // sprawdzający wyłącznie jednostki mianowane.
+    expect(formatChartValue(60, "pl", "%")).toBe("60%");
+    expect(formatChartValue(60, "pl", " mld EUR")).toBe("60 mld EUR");
+    // A jednostka PRZYCIĘTA sklei się z liczbą - to jest cena kontraktu
+    // i wywołujący musi ją znać, zamiast liczyć na normalizację w środku.
+    // Tak właśnie robi `smallMultiples` (`config.unit.trim()`), więc jego
+    // `panel.unit` nadaje się na etykietę, a nie do formatowania liczby.
+    expect(formatChartValue(60, "pl", "mld EUR")).toBe("60mld EUR");
   });
 
   it("gives small values more precision", () => {
