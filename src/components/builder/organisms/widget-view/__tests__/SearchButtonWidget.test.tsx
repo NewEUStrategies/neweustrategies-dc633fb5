@@ -182,8 +182,8 @@ describe("SearchButtonWidget", () => {
     const { container } = renderWidget();
     const input = container.querySelector("input[data-mobile-search-input]");
     expect(input).toHaveAttribute("type", "search");
-    expect(input).toHaveAttribute("name", "q");
-    expect(input).toHaveAttribute("autocomplete", "off");
+    expect(input).toHaveAttribute("name", "site_search_query");
+    expect(input).toHaveAttribute("autocomplete", "one-time-code");
     expect(input).toHaveAttribute("inputmode", "search");
     expect(input).toHaveAttribute("data-1p-ignore", "true");
     expect(input).toHaveAttribute("data-lpignore", "true");

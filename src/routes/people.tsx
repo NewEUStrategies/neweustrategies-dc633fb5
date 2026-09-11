@@ -463,14 +463,15 @@ function PeopleInner() {
         />
         <input
           type="search"
-          name="people-search"
-          autoComplete="off"
+          name="people_directory_query"
+          autoComplete="one-time-code"
           autoCorrect="off"
           autoCapitalize="none"
           spellCheck={false}
           inputMode="search"
           enterKeyHint="search"
           data-form-type="other"
+          data-mobile-search-input=""
           data-1p-ignore="true"
           data-lpignore="true"
           data-bwignore="true"

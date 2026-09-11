@@ -206,7 +206,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // Mobile viewport is declared directly in the root route so every page
         // (including error/fallback renders) carries it, even when a child route
         // overrides the rest of the meta stack.
-        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        {
+          name: "viewport",
+          content:
+            "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+        },
         ...buildRootHead(lang, getOrigin()),
       ],
       // Red Hat Display is self-hosted via @font-face in styles.css (see there),

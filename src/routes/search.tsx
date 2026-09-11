@@ -662,8 +662,8 @@ function SearchPage() {
                 paddingRight: "84px",
                 fontSize: "1rem",
               }}
-              name="q"
-              autoComplete="off"
+              name="site_search_query"
+              autoComplete="one-time-code"
               autoCorrect="off"
               autoCapitalize="none"
               spellCheck={false}
