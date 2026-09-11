@@ -407,8 +407,13 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
   // podać swojego powodu. Strzałka pionowa chodzi po wszystkich segmentach,
   // także po tych bez długości - z tego samego powodu: „składnika nie podano"
   // jest odpowiedzią, a segment o zerowej grubości nie jest trafialny.
+  //
+  // O PUSTY ARKUSZ TEN HAK NIE PYTA, i to nie jest przeoczenie: kontener
+  // z `onKeyDown` powstaje dopiero PO wyjściu „brak słupków" niżej, więc
+  // `bars.length === 0` nie ma tu jak być prawdą. Warunek stał tu wcześniej
+  // i był gałęzią, której żaden test nie mógł zaczerwienić - a osłona, której
+  // nie da się wywołać, uczy czytelnika, że pusty arkusz dochodzi aż tutaj.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
-    if (bars.length === 0) return;
     if (e.key === "Escape") {
       clearActive();
       return;
@@ -429,8 +434,18 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
     const wPionie = e.key === "ArrowUp" ? 1 : e.key === "ArrowDown" ? -1 : 0;
     if (wPionie === 0) return;
     e.preventDefault();
-    const slupek = activeBar ?? 0;
-    const ile = bars[slupek]?.segments.length ?? 0;
+    // WSKAZANIE BYWA STARSZE NIŻ ARKUSZ, więc indeks idzie przez przycięcie,
+    // a nie przez osłonę „gdy nie ma słupka, nie rób nic". Podgląd edytora
+    // podmienia konfigurację pod tym samym komponentem, a stan trzyma numery:
+    // po skróceniu arkusza z trzech kategorii do jednej `activeBar` wskazuje
+    // słupek, którego już nie ma. Z osłoną strzałka pionowa milczała wtedy
+    // w nieskończoność (segmentów pod tym numerem nie ma), czyli wskazanie
+    // dawało się zdjąć wyłącznie Escapem albo strzałką poziomą. Przycięcie
+    // LECZY stan: `setActiveBar(slupek)` niżej zapisuje numer istniejący.
+    const slupek = Math.min(bars.length - 1, Math.max(0, activeBar ?? 0));
+    const ile = bars[slupek].segments.length;
+    // Arkusz z kategoriami i bez ani jednej serii ma słupki bez segmentów -
+    // wtedy pion nie ma po czym chodzić i wskazanie zostaje tam, gdzie było.
     if (ile === 0) return;
     setActiveBar(slupek);
     setActiveSeg((prev) => {
@@ -607,18 +622,34 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
    * z definicji więcej niż jeden segment i nie ma osi, do której można by
    * przypiąć każdy z nich osobno.
    */
-  const barStyle: BarStyle = resolveBarStyle(config.barStyle, {
-    seriesCount: model.series.length,
-    stacked: true,
-    patterned: model.series.some((s) => s.colorSlot > CATEGORICAL_SAFE_SERIES),
-  });
   // Kreskowanie jako DRUGI nośnik różnicy dla slotów poza zestawem
   // rozdzielnym dla daltonizmu (7-8). W stosie tożsamość segmentu niesie
   // wyłącznie kolor i legenda, więc bez tego wzoru legenda pokazywałaby
   // podział, którego na rysunku nie ma.
+  //
+  // JEDNA LICZBA NA DWA PYTANIA, i to jest tu poprawka, nie skrót. Pytanie
+  // „czy schodzić z bladego" i pytanie „czy definiować wzór" mają tę samą
+  // odpowiedź, ale stały w dwóch miejscach: `patterned` liczyło się w wywołaniu
+  // niżej, a `<pattern>` wypisywał się WYŁĄCZNIE przy `barStyle === "solid"`.
+  // Autor, który wybrał wariant gradientowy i slot 7, dostawał nakładkę
+  // z `fill="url(#...-hatch)"` bez wzoru pod tym adresem - a nieistniejący
+  // serwer malowania nie jest błędem, tylko BRAKIEM wypełnienia: drugi nośnik
+  // różnicy znikał po cichu dokładnie tam, gdzie legenda go obiecywała.
+  const potrzebujeKreskowania = model.series.some((s) => s.colorSlot > CATEGORICAL_SAFE_SERIES);
+  const barStyle: BarStyle = resolveBarStyle(config.barStyle, {
+    seriesCount: model.series.length,
+    stacked: true,
+    patterned: potrzebujeKreskowania,
+  });
   const hatchId = `${baseId.replace(/:/g, "")}-hatch`;
   const gradientId = (slot: number): string => `${baseId.replace(/:/g, "")}-g${slot}`;
-  const gradientSlots = barStyle === "gradient" ? model.series.map((s) => s.colorSlot) : [];
+  // SLOTY BEZ POWTÓRZEŃ: rampa jest definicją PER SLOT, a dwie serie wolno
+  // autorowi posadzić na tym samym slocie (`parseChartSeries` przepuszcza
+  // każdy numer od 1 do 8). Bez odsiania powtórzeń szły do `<defs>` dwa
+  // elementy o jednym `id` - dokument z podwójnym identyfikatorem jest
+  // niepoprawny, a React dostaje na dodatek dwa dzieci o tym samym kluczu.
+  const gradientSlots =
+    barStyle === "gradient" ? [...new Set(model.series.map((s) => s.colorSlot))] : [];
   const cascade = cascadeStepMs(bars.length);
   const yZera = finite(value(0), padTop + innerH);
 
@@ -644,6 +675,29 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
   /** Etykieta udziału - liczba, którą czytelnik DODAJE do sąsiednich. */
   const napisUdzialu = (displayShare: number): string =>
     formatPercent(finite(displayShare) / PERCENT_STACKED_WHOLE_PP, lang);
+
+  /**
+   * CZY SUMY MIESZCZĄ SIĘ NAD SŁUPKAMI - pytanie zadane RAZ dla całego rzędu.
+   *
+   * Liczba nad stosem jest pisana tym samym pismem co etykieta udziału, ale
+   * mierzy się ją w poprzek PASMA, nie słupka: pasmo zwęża się z liczbą
+   * kategorii, a napis nie. Zmierzone przy domyślnej szerokości: przy
+   * czternastu kategoriach pasmo ma 47,7 px i napis „100 000" ma 47,7 px,
+   * czyli sąsiednie liczby już się stykają; przy dwudziestu pasmo ma 33 px
+   * i wchodzą jedna w drugą o czternaście pikseli. Dwie liczby napisane jedna
+   * na drugiej nie są liczbami - a etykieta wartości ma w tym silniku ustąpić
+   * tak samo, jak ustępuje etykieta udziału, gdy nie mieści się w poprzek
+   * segmentu.
+   *
+   * USTĘPUJĄ WSZYSTKIE ALBO ŻADNA, tą samą regułą, którą drabina etykiet
+   * kategorii stosuje do zawinięcia: rząd, w którym część słupków ma sumę,
+   * a część nie, czytałby się jako „tamtych nie zmierzono". Suma zostaje
+   * wtedy w dymku, w nazwie dostępnej i w tabeli danych - czyli we wszystkich
+   * trzech kanałach, którymi ta forma niesie wielkość całości.
+   */
+  const sumyMieszcza = bars.every(
+    (bar) => !bar.drawable || estimateLabelWidth(suma(bar), FONT_AXIS) + LABEL_INSET_PX <= band,
+  );
 
   /** Przypisy wiersza tego słupka, po jednym zdaniu na powód. */
   const powody = (index: number): string[] =>
@@ -817,11 +871,13 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
               ))}
             </defs>
           )}
-          {barStyle === "solid" && (
+          {potrzebujeKreskowania && (
             <defs>
               {/* Paski w kolorze PŁYTY, nie serii, więc jedna definicja
                   obsługuje każdy slot. Rytm 5/3 px jest wzięty z próbki
-                  legendy, żeby klucz i znacznik miały ten sam wzór. */}
+                  legendy, żeby klucz i znacznik miały ten sam wzór.
+                  Warunek pyta o SLOTY, nie o wariant wypełnienia - patrz
+                  `potrzebujeKreskowania`. */}
               <pattern id={hatchId} width="8" height="8" patternUnits="userSpaceOnUse">
                 <rect x="5" y="0" width="3" height="8" fill="var(--card)" />
               </pattern>
@@ -874,10 +930,20 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
           {/* PODŚWIETLENIE KOLUMNY - POD segmentami, bo jest afordancją strefy
               trafienia („kursor jest w tej kategorii"), a nie podświetleniem
               danych. Położone NA wypełnieniu przyciemniałoby zakodowany
-              udział, czyli wskazanie zmieniałoby kodowanie. */}
-          {activeBar !== null && (
+              udział, czyli wskazanie zmieniałoby kodowanie.
+
+              WARUNKIEM JEST SŁUPEK, NIE NUMER W STANIE. Stan trzyma indeks,
+              a arkusz pod komponentem się zmienia (podgląd edytora), więc
+              numer bywa starszy niż dane. Przy `activeBar !== null` kolumna
+              rysowała się wtedy pod `catCenter` poza polem: przy skróceniu
+              arkusza z trzech kategorii do jednej wychodziło x = 1376 na
+              płótnie szerokim 720 px, a `overflow-visible` wypuszcza taki
+              prostokąt NA SĄSIEDNI BLOK strony - przy dymku, którego już nie
+              ma, bo ten pyta o `czynnySlupek`. Jeden warunek na oba znaczniki
+              i podświetlenie nie ma jak wskazać kategorii, której nie ma. */}
+          {czynnySlupek !== null && (
             <rect
-              x={catCenter(activeBar) - band / 2}
+              x={catCenter(czynnySlupek.index) - band / 2}
               y={padTop}
               width={band}
               height={innerH}
@@ -1036,8 +1102,11 @@ export function PercentStackedChart({ config, lang }: PercentStackedChartProps) 
           {/* SUMA KATEGORII NAD SŁUPKIEM - jedyna liczba warta postawienia nad
               stosem 100%. Sto procent jest tautologią, a suma jest tym, co ta
               forma wyrzuca: dwa słupki o identycznej strukturze mogą różnić
-              się rzędem wielkości i wyglądają wtedy tak samo. */}
+              się rzędem wielkości i wyglądają wtedy tak samo. Rząd ustępuje
+              w całości, gdy liczby nie mieszczą się w pasmach - patrz
+              `sumyMieszcza`. */}
           {config.showValues &&
+            sumyMieszcza &&
             bars.map((bar) =>
               bar.drawable ? (
                 <text

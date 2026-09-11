@@ -1369,11 +1369,20 @@ export default defineConfig({
           lines: 99,
           branches: 99,
         },
+        // PODNIESIONE TESTAMI: przegląd adwersarialny słupka 100% dał pokrycie
+        // pełne na trzech metrykach (210/210 instrukcji, 37/37 funkcji,
+        // 191/191 linii), czyli z 99,5/97,6/97,2/88,3 na:
+        // zmierzone: 100.0% linii · 100.0% instr · 100.0% fn · 97.6% gał
+        //
+        // Komentarz pomiarowy tego wpisu zniknął przy mojej wcześniejszej
+        // podmianie sąsiedniego bloku po numerach linii - wraca tutaj razem
+        // z podniesieniem, bo wpis progu bez zapisanego pomiaru jest liczbą
+        // bez pochodzenia, a cała ta sekcja stoi na zasadzie odwrotnej.
         "src/components/charts/PercentStackedChart.tsx": {
-          statements: 97,
-          functions: 97,
+          statements: 99,
+          functions: 99,
           lines: 99,
-          branches: 88,
+          branches: 97,
         },
         // zmierzone: 93.3% linii · 92.0% instr · 84.2% fn · 90.1% gał
         "src/components/charts/SmallMultiplesChart.tsx": {

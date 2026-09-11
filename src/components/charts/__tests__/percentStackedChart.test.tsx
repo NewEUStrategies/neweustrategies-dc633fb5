@@ -26,6 +26,9 @@ import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartConfig } from "@/lib/charts/types";
 import { PERCENT_STACKED_LABEL_MIN_SHARE } from "@/lib/charts/kinds/percentStacked";
+import { FONT_AXIS } from "@/lib/charts/geometry";
+import { WRAP_LINE_EM } from "@/lib/charts/labels";
+import { estimateLabelWidth } from "@/lib/charts/measureText";
 import { PercentStackedChart } from "../PercentStackedChart";
 
 function cfg(data: Record<string, Json>): ChartConfig {
@@ -214,18 +217,48 @@ describe("PercentStackedChart - geometria: co koduje długość, gdzie jest zero
     }
   });
 
-  it("słupek jest wyśrodkowany w swoim paśmie i nie wchodzi w pasmo sąsiada", () => {
-    // Pasmo ma 668/3 px, a słupek 36 px - środek słupka musi leżeć w środku
-    // pasma, inaczej etykieta kategorii wskazuje nie na swój słupek.
+  it("słupek stoi DOKŁADNIE NAD SWOJĄ ETYKIETĄ i nie wchodzi w pasmo sąsiada", () => {
+    // WŁASNOŚĆ, NIE PRZEPISANE LICZBY. Poprzednia wersja tego testu wpisywała
+    // wprost szerokość słupka (36) i wzór na pasmo (668/3), czyli powtarzała
+    // implementację - taki test przechodzi także wtedy, gdy oba rachunki są
+    // zgodnie przesunięte. Pytanie, na które ta geometria musi odpowiadać, jest
+    // inne: czy podpis pod rysunkiem wskazuje TEN słupek, nad którym stoi,
+    // i czy dwa sąsiednie słupki się nie stykają. Pierwsze czytam z ETYKIETY
+    // KATEGORII (jedyny nośnik tożsamości słupka na rysunku), drugie z odstępu
+    // między kształtami.
     const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
-    const szerokosc = 36;
-    const band = 668 / 3;
-    for (const bar of [0, 1, 2]) {
+    const podpisy = all(container, "text[fill='var(--muted-foreground)']:not(.tabular-nums)");
+    expect(tekst(container, "text[fill='var(--muted-foreground)']:not(.tabular-nums)")).toEqual([
+      "Polska",
+      "Niemcy",
+      "Francja",
+    ]);
+    const pudelka = [0, 1, 2].map((bar) => {
       const el = container.querySelector(`${SEG}[data-bar='${bar}'][data-series='0']`);
-      if (!el) throw new Error("brak segmentu");
-      const srodek = zasieg(el).x + szerokosc / 2;
-      expect(srodek, `słupek ${bar}`).toBeCloseTo(40 + band * (bar + 0.5), 5);
+      if (!el) throw new Error(`brak segmentu ${bar}`);
+      const prosty = /^M([-\d.]+) [-\d.]+h([-\d.]+)v/.exec(el.getAttribute("d") ?? "");
+      if (prosty === null) throw new Error("segment przy krawędzi odniesienia ma być prosty");
+      const od = Number(prosty[1]);
+      const szer = Number(prosty[2]);
+      // Wszystkie segmenty jednego słupka stoją na tej samej krawędzi lewej -
+      // stos przesunięty w poprzek byłby schodkiem, a nie słupkiem.
+      for (const z of all(container, `${SEG}[data-bar='${bar}']`).map(zasieg)) {
+        expect(z.x, `słupek ${bar}`).toBeCloseTo(od, 5);
+      }
+      return { od, do: od + szer, srodek: od + szer / 2 };
+    });
+    for (const bar of [0, 1, 2]) {
+      // Podpis wskazuje TEN słupek, nad którym stoi.
+      expect(num(podpisy[bar], "x"), `słupek ${bar}`).toBeCloseTo(pudelka[bar].srodek, 5);
     }
+    // Sąsiednie słupki zostawiają między sobą prześwit: stykające się kolumny
+    // czyta się jako jedną powierzchnię, a to już inna forma.
+    expect(pudelka[1].od).toBeGreaterThan(pudelka[0].do);
+    expect(pudelka[2].od).toBeGreaterThan(pudelka[1].do);
+    // ...i wszystkie są tej samej szerokości, bo szerokość niczego tu nie
+    // koduje - kodowaniem jest wyłącznie długość segmentu.
+    expect(pudelka[1].do - pudelka[1].od).toBeCloseTo(pudelka[0].do - pudelka[0].od, 5);
+    expect(pudelka[2].do - pudelka[2].od).toBeCloseTo(pudelka[0].do - pudelka[0].od, 5);
   });
 
   it("oś całości ma podziałkę od zera DO STU, a jej gęstość zależy od wysokości", () => {
@@ -1196,5 +1229,571 @@ describe("PercentStackedChart - przypadki brzegowe arkusza", () => {
     const hit = container.querySelector("rect.neh-hit");
     expect(Number(hit?.getAttribute("height"))).toBeGreaterThanOrEqual(40);
     expect(all(container, SEG).length).toBeGreaterThan(0);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  PRZEGLĄD ADWERSARIALNY                                                    */
+/*                                                                            */
+/*  Poniższe testy powstały PO renderze, z założeniem, że coś jest zepsute,   */
+/*  i każdy z nich był CZERWONY przed poprawką, którą opisuje. Trzymam je      */
+/*  osobno, bo ich tytuły mówią o defektach, a nie o wymaganiach - a defekt    */
+/*  raz znaleziony ma zostać przypięty testem, nawet gdy wymaganie wyglądało   */
+/*  na spełnione.                                                             */
+/* -------------------------------------------------------------------------- */
+
+describe("PercentStackedChart - odwołania do definicji w <defs>", () => {
+  /** Wszystkie adresy `url(#...)` użyte jako farba na tym rysunku. */
+  const odwolania = (root: HTMLElement): string[] =>
+    all(root, "svg *")
+      .flatMap((el) => ["fill", "stroke"].map((a) => el.getAttribute(a) ?? ""))
+      .filter((v) => v.startsWith("url(#"))
+      .map((v) => v.slice(5, -1));
+
+  it("KRESKOWANIE MA SWÓJ WZÓR TAKŻE W WARIANCIE GRADIENTOWYM", () => {
+    // ZNALEZIONY DEFEKT. Definicja `<pattern>` wypisywała się wyłącznie przy
+    // `barStyle === "solid"`, a nakładka kreskująca powstaje dla KAŻDEGO slotu
+    // poza zestawem rozdzielnym dla daltonizmu - niezależnie od wariantu.
+    // Autor, który wybrał gradient i slot 7, dostawał `fill="url(#...-hatch)"`
+    // bez wzoru pod tym adresem: nieistniejący serwer malowania nie jest
+    // błędem, tylko BRAKIEM wypełnienia, więc drugi nośnik różnicy znikał po
+    // cichu dokładnie tam, gdzie legenda go obiecuje. `resolveBarStyle`
+    // sprowadza do solidnego tylko wariant BLADY, więc gradientu nie ratuje.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg({
+          categories: ["A", "B"],
+          barStyle: "gradient",
+          series: [
+            { name: "X", values: [1, 1], colorSlot: 1 },
+            { name: "Y", values: [1, 1], colorSlot: 7 },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const adresy = odwolania(container);
+    expect(adresy.some((id) => id.endsWith("-hatch"))).toBe(true);
+    // WŁASNOŚĆ: każda farba przez odwołanie ma pod tym adresem definicję.
+    // Pytam o wszystkie, nie tylko o kreskowanie - ta sama pułapka czeka przy
+    // każdej rampie gradientu dopisanej kiedyś warunkowo.
+    for (const id of adresy) {
+      expect(container.querySelector(`[id='${id}']`), id).not.toBeNull();
+    }
+  });
+
+  it("dwie serie na TYM SAMYM slocie nie dublują identyfikatora rampy", () => {
+    // ZNALEZIONY DEFEKT. `colorSlot` przepuszcza z arkusza każdy numer od 1 do
+    // 8, więc autor wolno posadzi dwie serie na jednym slocie - a rampa była
+    // wypisywana po SERIACH, nie po slotach. W dokumencie stawały wtedy dwa
+    // elementy o jednym `id` (dokument niepoprawny, a odwołanie wskazuje
+    // pierwszy z brzegu) i React dostawał dwoje dzieci o tym samym kluczu.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg({
+          categories: ["A"],
+          barStyle: "gradient",
+          series: [
+            { name: "X", values: [1], colorSlot: 3 },
+            { name: "Y", values: [1], colorSlot: 3 },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const ids = all(container, "[id]").map((e) => e.getAttribute("id"));
+    expect(ids.length).toBeGreaterThan(0);
+    expect(new Set(ids).size, ids.join(" ")).toBe(ids.length);
+    // ...a rampa dla tego slotu nadal jest, czyli odsianie powtórzeń nie
+    // zabrało definicji, której rysunek używa.
+    expect(all(container, "linearGradient")).toHaveLength(1);
+    for (const id of odwolania(container)) {
+      expect(container.querySelector(`[id='${id}']`), id).not.toBeNull();
+    }
+  });
+});
+
+describe("PercentStackedChart - wskazanie starsze niż arkusz", () => {
+  /** Arkusz skrócony do jednej kategorii i jednej serii. */
+  const KROTKI: Record<string, Json> = {
+    categories: ["Polska"],
+    series: [{ name: "Usługi", values: [7] }],
+  };
+
+  it("PODŚWIETLENIE KOLUMNY NIE ZOSTAJE POZA POLEM po skróceniu arkusza", () => {
+    // ZNALEZIONY DEFEKT. Stan trzyma numery, a podgląd edytora podmienia
+    // konfigurację pod tym samym komponentem: po skróceniu arkusza z trzech
+    // kategorii do jednej `activeBar` wskazywał słupek, którego już nie ma.
+    // Podświetlenie pytało o SAM NUMER (`activeBar !== null`), więc rysowało
+    // się pod `catCenter(2)` przy paśmie liczonym dla jednej kategorii: x =
+    // 1376 na płótnie szerokim 720 px. `overflow-visible` wypuszcza taki
+    // prostokąt na sąsiedni blok strony - i to przy dymku, którego już nie ma,
+    // bo dymek pyta o SŁUPEK. Poprawka: jeden warunek dla obu.
+    const { container, rerender } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    expect(container.querySelector("rect[fill='var(--foreground)']")).not.toBeNull();
+
+    rerender(<PercentStackedChart config={cfg(KROTKI)} lang="pl" />);
+    // Kategorii numer trzy nie ma, więc nie ma czego podświetlać.
+    expect(container.querySelector("rect[fill='var(--foreground)']")).toBeNull();
+    expect(container.querySelector(".neh-tooltip")).toBeNull();
+    // WŁASNOŚĆ OGÓLNA: żaden prostokąt nie wychodzi poza płótno. Rysunek
+    // z `overflow-visible` nie ma krawędzi, która by go przycięła, więc to
+    // jedyne miejsce, w którym da się to sprawdzić.
+    const plotno = Number(container.querySelector("svg")?.getAttribute("width"));
+    for (const r of all(container, "svg rect")) {
+      expect(num(r, "x"), r.getAttribute("class") ?? "").toBeGreaterThanOrEqual(0);
+      expect(num(r, "x") + num(r, "width")).toBeLessThanOrEqual(plotno);
+    }
+  });
+
+  it("STRZAŁKA PIONOWA DAJE SIĘ RUSZYĆ po skróceniu arkusza", () => {
+    // ZNALEZIONY DEFEKT, druga strona tego samego. Pion czytał segmenty spod
+    // `activeBar ?? 0` przez osłonę „nie ma słupka - nic nie rób", więc po
+    // skróceniu arkusza strzałka pionowa milczała w nieskończoność: wskazanie
+    // dawało się zdjąć wyłącznie Escapem albo strzałką poziomą. Przycięcie
+    // indeksu do zakresu LECZY stan zamiast go omijać.
+    const { container, rerender } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    rerender(<PercentStackedChart config={cfg(KROTKI)} lang="pl" />);
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    const czynny = container.querySelector("[data-role='segment'][data-active='true']");
+    expect(czynny?.getAttribute("data-bar")).toBe("0");
+    expect(container.querySelector(".neh-tooltip")?.textContent).toContain("Polska");
+  });
+
+  it("segment spoza skróconego stosu nie wypisuje cudzej liczby", () => {
+    // Ten sam mechanizm na drugiej osi: po skróceniu listy serii `activeSeg`
+    // wskazuje segment, którego nie ma. Dymek ma wtedy pokazać sumę kategorii
+    // (to jedyne, co o tym słupku nadal wiadomo), a nie liczbę z pamięci.
+    const { container, rerender } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    rerender(
+      <PercentStackedChart
+        config={cfg({ ...BAZA, series: [{ name: "Usługi", values: [60000, 5000, 2000] }] })}
+        lang="pl"
+      />,
+    );
+    const dymek = container.querySelector(".neh-tooltip")?.textContent ?? "";
+    expect(dymek).toContain("Polska");
+    expect(dymek).toContain("Suma kategorii");
+    expect(dymek).not.toContain("Rolnictwo");
+  });
+});
+
+describe("PercentStackedChart - etykieta sumy ustępuje, gdy nie ma dla niej pasma", () => {
+  /** Arkusz o zadanej liczbie kategorii i sumie 100 000 w każdej. */
+  const arkusz = (ile: number): Record<string, Json> => ({
+    showValues: true,
+    categories: Array.from({ length: ile }, (_, i) => `k${i}`),
+    series: [
+      { name: "A", values: Array.from({ length: ile }, () => 60000) },
+      { name: "B", values: Array.from({ length: ile }, () => 40000) },
+    ],
+  });
+
+  it("sąsiednie sumy NIE NACHODZĄ NA SIEBIE, gdy kategorii jest niewiele", () => {
+    // Własność, nie liczba: pudełka napisów liczone z narysowanego `x`
+    // i zmierzonej szerokości tekstu muszą być rozłączne.
+    const { container } = render(<PercentStackedChart config={cfg(arkusz(6))} lang="pl" />);
+    const sumy = all(container, "[data-role='bar-total']");
+    expect(sumy).toHaveLength(6);
+    const pudelka = sumy.map((el) => {
+      const w = estimateLabelWidth(el.textContent ?? "", FONT_AXIS);
+      return { od: num(el, "x") - w / 2, do: num(el, "x") + w / 2 };
+    });
+    for (let i = 1; i < pudelka.length; i += 1) {
+      expect(pudelka[i].od, `sumy ${i - 1} i ${i}`).toBeGreaterThan(pudelka[i - 1].do);
+    }
+  });
+
+  it("PRZY WIELU KATEGORIACH ZNIKA CAŁY RZĄD, a liczba zostaje w dymku", () => {
+    // ZNALEZIONY DEFEKT. Etykieta udziału ustępuje, gdy nie mieści się
+    // w poprzek segmentu, ale suma nad słupkiem nie pytała o nic: przy
+    // dwudziestu kategoriach pasmo ma 33 px, a napis „100 000" 47,7 px, więc
+    // sąsiednie liczby wchodziły jedna w drugą o czternaście pikseli i nie dało
+    // się przeczytać żadnej. Ustępują WSZYSTKIE, bo rząd, w którym część
+    // słupków ma sumę, a część nie, czytałby się jako „tamtych nie zmierzono".
+    const { container } = render(<PercentStackedChart config={cfg(arkusz(20))} lang="pl" />);
+    expect(all(container, SEG).length).toBeGreaterThan(0);
+    expect(all(container, "[data-role='bar-total']")).toHaveLength(0);
+    // Liczba nie ginie: wszystkie trzy kanały sumy bezwzględnej stoją.
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    expect(box.getAttribute("aria-label")).toContain("100 000");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    expect(container.querySelector(".neh-tooltip")?.textContent).toContain("100 000");
+  });
+});
+
+describe("PercentStackedChart - wskaźnik na polu rysunku", () => {
+  it("wskaźnik nad polem NIEZMIERZONYM nie wskazuje niczego", () => {
+    // Przed pierwszym układem (i w SSR) prostokąt trafień ma zerowe wymiary,
+    // więc przeliczenie na punkty procentowe dzieliłoby przez zero. Defekt,
+    // który to łapie: dymek o kategorii wybranej z nie-liczby.
+    const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    const hit = container.querySelector("rect.neh-hit");
+    if (!hit) throw new Error("brak warstwy trafień");
+    fireEvent.pointerMove(hit, { clientX: 100, clientY: 100 });
+    expect(container.querySelector(".neh-tooltip")).toBeNull();
+    expect(container.querySelector("[data-active='true']")).toBeNull();
+  });
+
+  it("wskaźnik nad LUKĄ podaje powód, a nie segment sąsiada", () => {
+    // Kolumna bez struktury jest pełnoprawnym celem: strefa trafienia to CAŁE
+    // pasmo, więc nad luką dymek musi powiedzieć, czego tam nie ma. Defekt,
+    // który to łapie: wskazanie „przyklejone" do ostatniego trafionego
+    // segmentu, czyli liczba z sąsiedniej kategorii pod kursorem w tej.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg({
+          categories: ["Dobra", "Pusta"],
+          series: [
+            { name: "X", values: [60, null] },
+            { name: "Y", values: [40, null] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const hit = container.querySelector("rect.neh-hit");
+    if (!hit) throw new Error("brak warstwy trafień");
+    stubPlotRect(hit, 668, INNER_H);
+    fireEvent.pointerMove(hit, { clientX: 100, clientY: 100 });
+    expect(container.querySelector(".neh-tooltip")?.textContent).toContain("Dobra");
+    fireEvent.pointerMove(hit, { clientX: 500, clientY: 100 });
+    const dymek = container.querySelector(".neh-tooltip")?.textContent ?? "";
+    expect(dymek).toContain("Pusta");
+    expect(dymek).toContain("żadna seria nie podała");
+    // Suma kategorii bez ani jednej liczby to KRESKA, nie zero.
+    expect(dymek).toContain("-");
+    expect(container.querySelector("[data-role='segment'][data-active='true']")).toBeNull();
+  });
+
+  it("MYSZKA opuszczająca pole gasi dymek, w odróżnieniu od palca", () => {
+    // Dwa urządzenia, dwie reguły: mysz ma kursor, który naprawdę wyszedł poza
+    // wykres, a palec schodzi z ekranu po każdym stuknięciu. Defekt, który to
+    // łapie: jedna reguła dla obu, czyli dymek, który albo zostaje po wyjściu
+    // kursora, albo gaśnie natychmiast po stuknięciu.
+    const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    const hit = container.querySelector("rect.neh-hit");
+    if (!hit) throw new Error("brak warstwy trafień");
+    stubPlotRect(hit, 668, INNER_H);
+    fireEvent.pointerMove(hit, { clientX: 100, clientY: 100, pointerType: "mouse" });
+    expect(container.querySelector(".neh-tooltip")).not.toBeNull();
+    fireEvent.pointerLeave(hit, { pointerType: "mouse" });
+    expect(container.querySelector(".neh-tooltip")).toBeNull();
+    expect(container.querySelector("rect[fill='var(--foreground)']")).toBeNull();
+  });
+});
+
+describe("PercentStackedChart - klawiatura wchodzi z obu stron", () => {
+  const dymek = (root: HTMLElement): string =>
+    root.querySelector(".neh-tooltip")?.textContent ?? "";
+
+  it("ArrowLeft z pustego wskazania wchodzi od KOŃCA osi", () => {
+    // Wejście od lewej zawsze w pierwszy słupek znaczyłoby, że strzałka
+    // w lewo z niczego robi to samo co strzałka w prawo - a kierunek ma tu
+    // znaczyć kierunek.
+    const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowLeft" });
+    expect(dymek(container)).toContain("Francja");
+  });
+
+  it("strzałka PIONOWA bez wcześniejszej poziomej wchodzi w pierwszy słupek", () => {
+    // Czytelnik klawiatury nie musi wiedzieć, że najpierw trzeba wybrać
+    // kolumnę: pion bez wybranej kolumny ma wejść w pierwszą, a nie milczeć.
+    const { container } = render(<PercentStackedChart config={cfg(BAZA)} lang="pl" />);
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    const czynny = container.querySelector("[data-role='segment'][data-active='true']");
+    expect(czynny?.getAttribute("data-bar")).toBe("0");
+    expect(czynny?.getAttribute("data-series")).toBe("0");
+    // ...a wejście od góry wskazuje szczyt stosu, nie krawędź odniesienia.
+    fireEvent.keyDown(box, { key: "Escape" });
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(
+      container
+        .querySelector("[data-role='segment'][data-active='true']")
+        ?.getAttribute("data-series"),
+    ).toBe("2");
+  });
+
+  it("ARKUSZ BEZ ANI JEDNEJ SERII: pion nie ma po czym chodzić i nic nie wybucha", () => {
+    // Kategorie bez serii to legalna treść bloku (autor wpisał nagłówki
+    // i jeszcze nie wpisał liczb). Słupek nie ma wtedy segmentów, więc pion
+    // nie ma czego wskazać - ale musi o tym MILCZEĆ, a nie rzucić.
+    const { container } = render(
+      <PercentStackedChart config={cfg({ categories: ["A", "B"], series: [] })} lang="pl" />,
+    );
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    expect(all(container, "[data-role='gap']")).toHaveLength(2);
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    expect(container.querySelector("[data-active='true']")).toBeNull();
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(container.querySelector("[data-active='true']")).toBeNull();
+    // ...a strzałka pozioma nadal chodzi po słupkach, bo „dlaczego tu nic nie
+    // ma" jest pytaniem, na które ten rysunek musi odpowiedzieć.
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    expect(dymek(container)).toContain("A");
+    expect(container.textContent ?? "").not.toContain("NaN");
+  });
+});
+
+describe("PercentStackedChart - milczenie modelu zostaje kreską", () => {
+  it("SERIA BEZ UDZIAŁU w jakimkolwiek słupku ma w opisie KRESKI, nie zera", () => {
+    // Seria, która wszędzie wpisała zero, nie ma udziału najmniejszego ani
+    // największego - model milczy (`null`). Zero wyświetlone w tym miejscu
+    // wygląda tak samo wiarygodnie jak liczba policzona i twierdzi, że udział
+    // ZMIERZONO i wynosi on zero procent.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg({
+          categories: ["A", "B"],
+          series: [
+            { name: "Jest", values: [10, 10] },
+            { name: "Pusta", values: [0, 0] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    const opis = (box?.getAttribute("aria-describedby") ?? "").split(" ")[1];
+    const brzeg = container.querySelector(`#${opis}`)?.textContent ?? "";
+    const pusta = brzeg.slice(brzeg.indexOf("Seria Pusta"));
+    expect(pusta).toContain("Udział najmniejszy -");
+    expect(pusta).toContain("Rozpiętość udziału -");
+    expect(pusta).toContain("Przesunięcie -");
+    expect(pusta).not.toContain("Udział najmniejszy 0");
+    // ...a seria, która udział ma, dostaje liczbę - więc kreska niesie
+    // różnicę, a nie jest domyślnym napisem.
+    expect(brzeg).toContain("Udział najmniejszy 100%");
+  });
+
+  it("SEGMENT BEZ LICZBY ma w dymku kreskę przy wartości, a nie zero", () => {
+    // Brak nie jest zerem: zero jest pomiarem, brak nieuzupełnionym polem.
+    // Wartość bezwzględna wypisana jako „0" przy niewypełnionym polu jest
+    // liczbą, której nikt nie zmierzył.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg({
+          categories: ["A", "B"],
+          series: [
+            { name: "Jest", values: [10, 10] },
+            { name: "Brak", values: [10, null] },
+          ],
+        })}
+        lang="pl"
+      />,
+    );
+    const box = container.querySelector<HTMLElement>("[role='img']");
+    if (!box) throw new Error("brak kontenera");
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowRight" });
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    const dymek = container.querySelector(".neh-tooltip")?.textContent ?? "";
+    expect(dymek).toContain("Brak");
+    expect(dymek).toContain("liczby nie podano");
+    expect(dymek).not.toContain("0%");
+    // Wiersz wartości i wiersz udziału są OBA kreską - segment bez liczby nie
+    // ma ani jednego, ani drugiego.
+    expect(dymek.match(/-/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("PercentStackedChart - drabina etykiet kategorii", () => {
+  const podpisy = (root: HTMLElement): Element[] =>
+    all(root, "text[fill='var(--muted-foreground)']:not(.tabular-nums)");
+  const arkusz = (etykiety: string[], height = 320): Record<string, Json> => ({
+    height,
+    categories: etykiety,
+    series: [
+      { name: "X", values: etykiety.map(() => 1) },
+      { name: "Y", values: etykiety.map(() => 1) },
+    ],
+  });
+
+  it("etykieta szersza od pasma ZAWIJA SIĘ, zamiast zniknąć", () => {
+    // Przerzedzenie zabiera z osi połowę etykiet, a zawinięcie nie zabiera
+    // żadnej. Defekt, który to łapie: render rysujący `plan.labels` jednym
+    // `<text>` także w trybie zawiniętym - napis stoi wtedy w jednej linii
+    // szerszej niż pasmo i wchodzi na sąsiada.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg(arkusz(Array.from({ length: 6 }, (_, i) => `Polska Wschodnia ${i + 1}`)))}
+        lang="pl"
+      />,
+    );
+    const teksty = podpisy(container);
+    expect(teksty).toHaveLength(6);
+    for (const el of teksty) {
+      const linie = [...el.querySelectorAll("tspan")];
+      expect(linie.length).toBeGreaterThan(1);
+      // Druga linia jest PRZESUNIĘTA W DÓŁ i wraca na tę samą pionową oś -
+      // bez `x` na każdym `tspan` druga linia ucieka w prawo.
+      expect(linie[1].getAttribute("dy")).toBe(`${WRAP_LINE_EM}em`);
+      expect(linie[1].getAttribute("x")).toBe(linie[0].getAttribute("x"));
+    }
+  });
+
+  it("gdy zawinięcie nie wystarcza, etykiety OBRACAJĄ SIĘ wokół swojego punktu", () => {
+    // Obrót kupuje miejsce w poziomie za miejsce w pionie. Defekt, który to
+    // łapie: obrót wokół początku układu zamiast wokół punktu etykiety -
+    // napisy lądują wtedy w zupełnie innym miejscu rysunku.
+    const { container } = render(
+      <PercentStackedChart
+        config={cfg(arkusz(Array.from({ length: 12 }, (_, i) => `Województwo mazowieckie ${i}`)))}
+        lang="pl"
+      />,
+    );
+    const teksty = podpisy(container);
+    expect(teksty.length).toBeGreaterThan(0);
+    for (const el of teksty) {
+      const transform = el.getAttribute("transform") ?? "";
+      expect(transform).toMatch(/^rotate\(-45 /);
+      // Punkt obrotu to punkt etykiety, co do piksela.
+      expect(transform).toContain(`${el.getAttribute("x")} ${el.getAttribute("y")}`);
+      expect(el.getAttribute("text-anchor")).toBe("end");
+    }
+  });
+
+  it("etykieta SKRÓCONA niesie pełną treść w <title>", () => {
+    // Reguła silnika: nigdy skrót bez podpowiedzi. Defekt, który to łapie:
+    // oś z napisami „01.01", po której nie da się dojść, którego to roku.
+    const dni = Array.from({ length: 40 }, (_, i) =>
+      i < 31 ? `2024-01-${String(i + 1).padStart(2, "0")}` : `2024-02-${String(i - 30).padStart(2, "0")}`,
+    );
+    const { container } = render(<PercentStackedChart config={cfg(arkusz(dni))} lang="pl" />);
+    const teksty = podpisy(container);
+    expect(teksty.length).toBeGreaterThan(0);
+    expect(teksty.length).toBeLessThan(dni.length);
+    for (const el of teksty) {
+      const tytul = el.querySelector("title")?.textContent ?? "";
+      expect(tytul).toMatch(/^2024-\d{2}-\d{2}$/);
+      // Skrót jest KRÓTSZY od pełnej treści i jest jej zapisem, a nie innym
+      // napisem: „15.01" pochodzi wprost z „2024-01-15".
+      const skrot = (el.textContent ?? "").replace(tytul, "");
+      expect(skrot.length).toBeLessThan(tytul.length);
+      expect(tytul).toContain(skrot.split(".").reverse().join("-").slice(0, 2));
+    }
+  });
+});
+
+describe("PercentStackedChart - ani jedna wstawka nie wychodzi surowa", () => {
+  /**
+   * ARKUSZE DOBRANE TAK, ŻEBY ODPALIĆ KAŻDE ZDANIE, które ten render umie
+   * wypisać: wszystkie przypisy uczciwości, wszystkie obserwacje o formie,
+   * oba dopiski dymka i nazwę dostępną w obu wariantach (z tytułem i bez).
+   */
+  const ARKUSZE: Record<string, Json>[] = [
+    { ...BAZA, title: "Struktura", showValues: true },
+    BAZA,
+    { categories: ["A", "B"], series: [{ name: "X", values: [1, -2] }] },
+    { categories: ["A", "B"], series: [{ name: "X", values: [0, 0] }] },
+    { categories: ["A", "B"], series: [{ name: "X", values: [null, null] }] },
+    {
+      categories: ["A", "A"],
+      series: [
+        { name: "S", values: [1, 1] },
+        { name: "S", values: [1, 1] },
+      ],
+    },
+    {
+      categories: ["A", "B"],
+      unit: "%",
+      series: [
+        { name: "X", values: [40, 50] },
+        { name: "Y", values: [56, 50] },
+      ],
+    },
+    { categories: ["A"], series: [{ name: "X", values: [1e300] }] },
+    {
+      categories: ["A", "B"],
+      series: [
+        { name: "X", values: [10, 10] },
+        { name: "Y", values: [10, null] },
+      ],
+    },
+    {
+      categories: ["A"],
+      height: 640,
+      series: [
+        { name: "X", values: [49] },
+        { name: "Y", values: [351] },
+      ],
+    },
+    {
+      categories: ["A", "B"],
+      series: Array.from({ length: 8 }, (_, i) => ({
+        name: `S${i}`,
+        values: [1, 2],
+        colorSlot: i + 1,
+      })),
+    },
+  ];
+
+  it("NIGDZIE NA STRONIE NIE MA CIĄGU {{ - ani w tekście, ani w atrybucie", () => {
+    // TO JEST NAJTAŃSZY SPOSÓB, ŻEBY TEN SILNIK SKŁAMAŁ. i18next nie
+    // podstawia wstawki, której nie dostał, i ZOSTAWIA ją w zdaniu surową -
+    // klucz istnieje, tłumaczenie istnieje, brakuje wyłącznie liczby, więc
+    // ani typy, ani bramka parytetu PL/EN, ani bramka rozjazdu kod-słownik
+    // tego nie widzą. Jedyne, co to łapie, to napis na ekranie.
+    //
+    // Pytam o WSZYSTKIE atrybuty, nie tylko o tekst: nazwa dostępna
+    // (`aria-label`) niesie tu tytuł przez wstawkę `{{title}}`, a jej treść
+    // w `textContent` nie występuje.
+    for (const lang of ["pl", "en"] as const) {
+      for (const arkusz of ARKUSZE) {
+        const config = cfg(arkusz);
+        const { container } = render(<PercentStackedChart config={config} lang={lang} />);
+        const box = container.querySelector<HTMLElement>("[role='img']");
+        const gdzie = `${lang} ${JSON.stringify(arkusz).slice(0, 70)}`;
+        /** Wszystko, co w tej chwili widać: tekst plus KAŻDY atrybut. */
+        const napisy = (): string =>
+          [
+            container.textContent ?? "",
+            ...all(container, "*").flatMap((el) => [...el.attributes].map((a) => a.value)),
+          ].join(" | ");
+        const sprawdz = (co: string): void => {
+          expect(napisy().includes("{{"), `${gdzie} ${co}`).toBe(false);
+          // ...i żadna ŚCIEŻKA SŁOWNIKA nie wyszła na wierzch zamiast zdania.
+          // Klucz bez treści i18next zwraca jako własną nazwę, więc pod
+          // rysunkiem stanęłoby „percentStacked.note.rescaled".
+          expect(/percentStacked\.|a11y\./.test(napisy()), `${gdzie} ${co}`).toBe(false);
+        };
+        sprawdz("bez wskazania");
+        // DYMEK I JEGO DOPISEK POWSTAJĄ DOPIERO PO WSKAZANIU, a zdań jest
+        // tam tyle, ile stanów segmentu - więc obchodzę KAŻDY słupek i KAŻDY
+        // segment. Jedno wskazanie sprawdzałoby jedno zdanie z kilkunastu.
+        for (let b = 0; box !== null && b < config.categories.length; b += 1) {
+          fireEvent.keyDown(box, { key: "ArrowRight" });
+          sprawdz(`słupek ${b}`);
+          for (let s = 0; s < config.series.length; s += 1) {
+            fireEvent.keyDown(box, { key: "ArrowUp" });
+            sprawdz(`słupek ${b}, segment ${s}`);
+          }
+        }
+      }
+    }
   });
 });
