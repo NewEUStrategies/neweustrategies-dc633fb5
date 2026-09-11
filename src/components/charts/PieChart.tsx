@@ -62,6 +62,10 @@ interface PieChartProps {
    * czytelnik naprawdę wskazał - łuk, który widzi.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ - patrz `CartesianChart`.
+   */
+  ariaLabel?: string;
 }
 
 function polar(cx: number, cy: number, r: number, angle: number): [number, number] {
@@ -87,7 +91,7 @@ function slicePath(
   return `M${x0} ${y0} A${rOuter} ${rOuter} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${rInner} ${rInner} 0 ${large} 0 ${x3} ${y3} Z`;
 }
 
-export function PieChart({ config, lang, onSelect }: PieChartProps) {
+export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
   const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
   const [active, setActive] = useState<number | null>(null);
@@ -173,7 +177,8 @@ export function PieChart({ config, lang, onSelect }: PieChartProps) {
           // czyniłaby je prezentacyjnymi dla czytników ekranu.
           role="group"
           aria-label={
-            config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled")
+            ariaLabel ??
+            (config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"))
           }
           aria-describedby={hintId}
           // ESCAPE CZYŚCI WSKAZANIE, i to nie jest ozdoba: wskazanie ustawia

@@ -296,9 +296,19 @@ interface FanChartProps {
    * samo, a wybór jest DECYZJĄ czytelnika i ma prawo otworzyć okno szczegółów.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function FanChart({ config, lang, onSelect }: FanChartProps) {
+export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: FanChartProps) {
   // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
   // kod-słownik; klucz sklejony template literalem wypada z kontroli parytetu.
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
@@ -748,20 +758,22 @@ export function FanChart({ config, lang, onSelect }: FanChartProps) {
   // oddaje granicy wcale - patrz `honesty.boundaryDropped`). Dopisane `?? ""`
   // byłoby wątpliwością, którą ten kod rozstrzygnął czterdzieści linii wyżej,
   // i czytelnik szukałby wejścia, przy którym nazwa dostępna gubi zakres osi.
-  const ariaLabel = [
-    config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
-    `${t("fan.axis.step")}: ${kroki[0].label} - ${kroki[kroki.length - 1].label}`,
-    `${t("fan.axis.value")}: ${formatAxisTick(scale.min, lang)} - ${formatAxisTick(scale.max, lang)}`,
-    granica === null
-      ? ""
-      : t("forecast.fromCategory", {
-          category: kroki[granica.forecastFrom].label,
-        }),
-    model.levels.map((level) => etykietaPasma(level)).join(", "),
-    `${t("fan.table.observations")}: ${formatChartValue(honesty.observationCount, lang, "")}`,
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
+      `${t("fan.axis.step")}: ${kroki[0].label} - ${kroki[kroki.length - 1].label}`,
+      `${t("fan.axis.value")}: ${formatAxisTick(scale.min, lang)} - ${formatAxisTick(scale.max, lang)}`,
+      granica === null
+        ? ""
+        : t("forecast.fromCategory", {
+            category: kroki[granica.forecastFrom].label,
+          }),
+      model.levels.map((level) => etykietaPasma(level)).join(", "),
+      `${t("fan.table.observations")}: ${formatChartValue(honesty.observationCount, lang, "")}`,
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   // OPIS DOSTĘPNY: wskazówka klawiatury ORAZ pochodzenie krawędzi i ścieżki.
   // Pochodzenie stoi tutaj, a nie na liście uwag, bo jest prawdziwe na KAŻDYM

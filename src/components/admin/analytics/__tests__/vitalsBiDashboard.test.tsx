@@ -26,19 +26,20 @@
 //      czeka na jego rozwiązanie. Testy dowodzą tego z trzech stron: świeży
 //      klient, klient współdzielony z przesuniętym oknem i klient
 //      współdzielony przy PRZEŁĄCZENIU WARSZTATU w tej samej klatce zegara.
-//   6. ALTERNATYWA TEKSTOWA. Kanwa ECharts jest dla czytnika ekranu pustym
-//      prostokątem, więc każdy wykres musi dostać tabelę tych samych danych
-//      powiązaną z regionem przez `aria-describedby`.
+//   6. ALTERNATYWA TEKSTOWA. Rysunek nigdy nie jest jedyną drogą do liczby,
+//      więc każdy wykres musi mieć tabelę tych samych danych, a jego region -
+//      nazwę i opis obsługi klawiatury.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
-// atrapą, która PRZECHWYTUJE `option` oraz `onDataClick`. Dzięki temu progi,
-// serie i drążenie sprawdzamy na strukturze danych oddanej wykresowi, a nie na
-// pikselach - i ~1 MB biblioteki nigdy nie wchodzi do procesu testowego.
+// PULPIT RYSUJE NASZYM SILNIKIEM, nie ECharts - i ten plik nie podmienia go
+// atrapą, tylko PODGLĄDA. `Chart` jest opakowany szpiegiem, który zapisuje
+// `config` i `onSelect`, a potem woła PRAWDZIWY komponent. Dzięki temu progi,
+// serie i drążenie sprawdzamy na konfiguracji oddanej silnikowi, a nazwy
+// regionów, tabele danych i podpisy - na tym, co silnik z niej naprawdę
+// narysował. Atrapa dowodziłaby tylko, że panel woła funkcję.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";
-import { chartThemeSnapshot } from "../chartTheme";
 import type {
   VitalMetricSummary,
   VitalPathRow,
@@ -48,8 +49,6 @@ import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThre
 import type { AppLang } from "@/lib/i18n/localePath";
 import type { ChartConfig } from "@/lib/charts/types";
 import type { ChartSelection } from "@/lib/charts/selection";
-
-type Opt = Record<string, unknown>;
 
 const h = vi.hoisted(() => ({
   fetchVitals: vi.fn(),
@@ -229,23 +228,6 @@ const WORKSPACE_B = summary({
 // Narzędzia
 // ---------------------------------------------------------------------------
 
-function rec(v: unknown): Opt {
-  return (v ?? {}) as Opt;
-}
-function seriesOf(o: Opt): Opt[] {
-  return Array.isArray(o.series) ? (o.series as Opt[]) : [];
-}
-function firstSeries(o: Opt): Opt {
-  return seriesOf(o)[0] ?? {};
-}
-function dataOf(o: Opt): unknown[] {
-  const d = firstSeries(o).data;
-  return Array.isArray(d) ? d : [];
-}
-function strList(v: unknown): string[] {
-  return Array.isArray(v) ? (v as unknown[]).map(String) : [];
-}
-
 interface Captured {
   config: ChartConfig;
   onSelect?: (selection: ChartSelection) => void;
@@ -267,23 +249,6 @@ const ratingStack = () =>
   lastChart("ratingi per metryka", (c) => c.kind === "bar" && c.stacked && c.series.length === 3);
 const pieChart = () => lastChart("rating ogolem", (c) => c.kind === "donut");
 const pathScatter = () => lastChart("rozrzut sciezek", (c) => c.kind === "scatter");
-
-function markAreaBands(o: Opt): Array<Array<{ yAxis?: number | string }>> {
-  const data = rec(firstSeries(o).markArea).data;
-  return Array.isArray(data) ? (data as Array<Array<{ yAxis?: number | string }>>) : [];
-}
-
-function markLineLabels(o: Opt): string[] {
-  const data = rec(firstSeries(o).markLine).data;
-  if (!Array.isArray(data)) return [];
-  return (data as Array<{ label?: { formatter?: string } }>).map((d) => d.label?.formatter ?? "");
-}
-
-function tooltipFormatter(o: Opt): (raw: unknown) => string {
-  const f = rec(o.tooltip).formatter;
-  if (typeof f !== "function") throw new Error("test: wykres nie ma formatera podpowiedzi");
-  return f as (raw: unknown) => string;
-}
 
 /** Symuluje WSKAZANIE elementu - tak, jak oddaje je silnik. */
 async function clickChart(chart: Captured, selection: Partial<ChartSelection>): Promise<void> {
@@ -321,18 +286,32 @@ function drillTone(index: number): string {
   return grid.children[index]?.children[1]?.className ?? "";
 }
 
-/** Region wykresu po dostępnej nazwie, którą `ChartCard` buduje z tytułu. */
+/**
+ * Region wykresu po dostępnej nazwie, którą `ChartCard` buduje z tytułu.
+ *
+ * Po NAZWIE, a nie po roli: silnik daje kartezjańskim rysunkom `role="img"`,
+ * ale tarczy - `role="group"`, bo jej wycinki są fokusowalne i rola obrazka
+ * uczyniłaby je prezentacyjnymi. Szukanie po roli „img" gubiłoby więc
+ * dokładnie ten wykres, który ma najbogatszą obsługę klawiatury.
+ */
 function chartRegion(title: string): HTMLElement {
-  return screen.getByRole("img", {
-    name: realT("pl")("adminAnalytics.chartCard.chartRegion", { title }),
-  });
+  return screen.getByLabelText(
+    realT("pl")("adminAnalytics.chartCard.chartRegion", { title }),
+  );
 }
 
-/** Tabela danych POWIĄZANA z regionem wykresu - alternatywa tekstowa kanwy. */
+/**
+ * Tabela danych rysunku - alternatywa tekstowa, którą silnik rysuje pod
+ * KAŻDYM rodzajem. Szukamy jej od regionu w górę, do ramki silnika: karta nie
+ * wiąże już tabeli z rysunkiem przez `aria-describedby`, bo ten opis należy
+ * teraz do podpowiedzi klawiatury, a tabela siedzi w rozwijanym panelu ramki.
+ */
 function dataTableOf(title: string): HTMLElement {
   const region = chartRegion(title);
-  const id = region.getAttribute("aria-describedby") ?? "";
-  const el = document.getElementById(id);
+  const frame = region.closest("figure");
+  // PIERWSZA tabela panelu: rozrzut wypisuje DWIE (obserwacje i dopasowanie),
+  // a nagłówki obu sklejone w jedną listę nie opisują żadnej z nich.
+  const el = frame?.querySelector<HTMLElement>("[data-chart-table] table");
   if (!el) throw new Error(`test: wykres „${title}” nie ma tabeli danych`);
   return el;
 }
@@ -861,7 +840,15 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     // nimi (zielona liczba z podpisem „Słabo") byłby gorszy niż brak jednego.
     // Sąsiedni przypadek pilnuje samego istnienia nośnika tekstowego.
     const [good, poor] = VITAL_THRESHOLDS.LCP;
-    h.fetchVitals.mockResolvedValue(summary({ paths: [path("/szybka", 40, good)] }));
+    // OBIE ŚCIEŻKI MUSZĄ BYĆ W RAPORCIE. Stary ładunek kliknięcia niósł dane
+    // kafla ze sobą (`fullPath`, `value`, `lcp`), więc okno otwierało się także
+    // dla ścieżki, której w raporcie nie było. Nasz silnik oddaje WSKAZANIE -
+    // rodzaj, kategorię, serię i wartość - a panel dociąga resztę z raportu.
+    // To jest ta sama zasada, co w reszcie migracji: dane mieszkają w jednym
+    // miejscu, a rysunek wskazuje, o który wiersz chodzi.
+    h.fetchVitals.mockResolvedValue(
+      summary({ paths: [path("/szybka", 40, good), path("/srednia", 40, poor)] }),
+    );
     panel();
     await loaded();
 
@@ -923,10 +910,11 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
     }
   });
 
-  it("kafel bez liczby próbek pokazuje zero, a nie puste pole", async () => {
-    // `value` i `lcp` przychodzą z danych serii - kafel zbudowany ze ścieżki
-    // bez metryk nie ma ich wcale. Puste pole w oknie drążenia wygląda jak
+  it("punkt bez liczby próbek pokazuje zero, a nie puste pole", async () => {
+    // Liczba próbek i LCP p75 przychodzą z wiersza raportu - ścieżka bez
+    // żadnej metryki nie ma ich wcale. Puste pole w oknie drążenia wygląda jak
     // błąd renderu, zero mówi wprost „tyle zebrano".
+    h.fetchVitals.mockResolvedValue(summary({ paths: [path("/pusta", 0, null)] }));
     panel();
     await loaded();
 
@@ -980,7 +968,7 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     panel();
     await loaded();
 
-    expect(strList(rec(ratingStack().option.xAxis).data)).toEqual(["LCP"]);
+    expect(ratingStack().config.categories).toEqual(["LCP"]);
     expect(() => trendChart("INP")).toThrow();
   });
 
@@ -989,37 +977,40 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     panel();
     await loaded();
 
-    const o = trendChart("LCP").option;
-    expect(strList(rec(o.xAxis).data)).toEqual(["2026-08-01", "2026-08-02", "2026-08-03"]);
-    expect(firstSeries(o).data).toEqual([2400, null, 2600]);
-    expect(firstSeries(o).connectNulls).toBe(true);
+    const c = trendChart("LCP").config;
+    // Etykieta osi to sam dzień i miesiąc - rok jest w filtrze okna nad
+    // pulpitem, a powtarzany przy każdej podziałce zjadałby miejsce etykiet.
+    expect(c.categories).toEqual(["08-01", "08-02", "08-03"]);
+    // `null`, nie `0`: silnik rysuje przez lukę odcinkiem i NIE stawia w niej
+    // punktu obserwacji, bo obserwacji tam nie było.
+    expect(c.series[0].values).toEqual([2400, null, 2600]);
   });
 
-  it("iskra przy kafelku KPI POMIJA dzień bez próbki, a nie wstawia za niego zera", async () => {
-    // NAPRAWIONE. `sparkForMetric` robiło `t.p75[metric] ?? 0`, podczas gdy
-    // wykres trendu - z tego samego raportu i tego samego pola - robi `?? null`.
-    // Skutek był taki, że miniatura pod kafelkiem LCP NURKOWAŁA DO ZERA w dniu,
-    // w którym po prostu nie było ani jednej próbki, i pokazywała spadek czasu
-    // ładowania do zera jako sukces. `filter(Number.isFinite)` tego nie ratował,
-    // bo zero jest liczbą skończoną - odsiew musi iść po TYPIE, nie po wartości.
-    //
-    // Dziś dzień bez pomiaru WYPADA z serii. `KpiTileProps.series` przyjmuje
-    // `number[]`, więc luki nie da się w niej wyrazić inaczej niż pominięciem
-    // punktu - i to jest poprawne, bo iskra jest wskaźnikiem KSZTAŁTU, nie
-    // datowanym wykresem. Sąsiedni przypadek pilnuje drugiej połowy tej samej
-    // reguły: duży wykres trendu zostawia lukę JAWNIE, przez `null`
-    // i `connectNulls`, bo tam oś X jest datowana i pominięcie punktu
-    // przesunęłoby daty.
+  it("iskra przy kafelku KPI jest GLIFEM ukrytym przed czytnikiem ekranu", async () => {
+    // ISKRA PRZESTAŁA BYĆ WYKRESEM i to jest zmiana świadoma. Rysunek
+    // o wysokości czterdziestu pikseli nie ma osi, podziałek ani tabeli - a
+    // rama silnika dokłada je wszystkie. Iskra pokazuje KSZTAŁT obok liczby,
+    // którą czytelnik i tak widzi w kafelku, więc niesie zero informacji
+    // własnej i jest przed czytnikiem ekranu ukryta.
     h.fetchVitals.mockResolvedValue(ONLY_LCP);
     panel();
     await loaded();
 
-    expect(firstSeries(sparkChart().option).data).toEqual([2400, 2600]);
+    const iskry = document.querySelectorAll('[data-role="sparkline"] path');
+    expect(iskry.length).toBeGreaterThan(0);
+    for (const iskra of iskry) {
+      const d = iskra.getAttribute("d") ?? "";
+      // Ścieżka z silnika (`pathFromPoints`), a nie własna matematyka kafelka.
+      expect(d.startsWith("M")).toBe(true);
+      expect(d).not.toContain("NaN");
+    }
   });
 
-  it("ścieżka bez pomiaru LCP dostaje neutralny kolor, a nie zielony", async () => {
-    // `colorFor(0)` musi dać slate. Zielony oznaczałby „szybko" na ścieżce,
-    // której nikt nie zmierzył.
+  it("rozrzut ścieżek ma DWIE serie: próbki na osi X i LCP na osi Y", async () => {
+    // TREEMAPA KODOWAŁA OCENĘ KOLOREM KAFLA (zielony / amber / czerwony), czyli
+    // trzecim kanałem obok powierzchni i etykiety. Rozrzut nie potrzebuje
+    // trzeciego kanału: „dużo próbek ORAZ wysokie LCP" to prawy górny róg,
+    // a ocena wraca w oknie szczegółów - NAPISEM, nie samym kolorem.
     h.fetchVitals.mockResolvedValue(
       summary({
         paths: [
@@ -1033,29 +1024,13 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
     panel();
     await loaded();
 
-    const cells = dataOf(pathScatter().option) as Array<{
-      name: string;
-      itemStyle: { color: string };
-    }>;
-    const theme = chartThemeSnapshot();
-    expect(cells.map((c) => c.itemStyle.color)).toEqual([
-      theme.muted,
-      theme.success,
-      theme.warning,
-      theme.danger,
-    ]);
-  });
-
-  it("podpowiedź treemapy dla ścieżki bez LCP pokazuje kreskę", async () => {
-    h.fetchVitals.mockResolvedValue(summary({ paths: [path("/bez-lcp", 40, null)] }));
-    panel();
-    await loaded();
-
-    const fmt = tooltipFormatter(pathScatter().option);
-    expect(fmt({ name: "/bez-lcp", value: 40, data: { lcp: 0 } })).toBe(
-      `/bez-lcp<br/>${vit("samplesLabel")}: <b>40</b><br/>LCP p75: -`,
-    );
-    expect(fmt({ name: "/z-lcp", value: 40, data: { lcp: 2000 } })).toContain("LCP p75: 2.00 s");
+    const c = pathScatter().config;
+    expect(c.categories).toEqual(["/bez-lcp", "/szybka", "/srednia", "/wolna"]);
+    expect(c.series).toHaveLength(2);
+    expect(c.series[0].values).toEqual([40, 40, 40, 40]);
+    // Ścieżka bez pomiaru LCP zostaje LUKĄ, a nie zerem: zero znaczyłoby
+    // „zmierzono zero milisekund", czyli najszybszą stronę w zestawie.
+    expect(c.series[1].values).toEqual([null, 2000, 3000, 5000]);
   });
 
   it("drążenie ścieżki bez LCP pokazuje kreskę w tonie neutralnym", async () => {
@@ -1096,16 +1071,12 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
     panel();
     await loaded();
 
-    const slices = dataOf(pieChart().option) as Array<{ name: string; value: number }>;
-    expect(slices).toEqual([
-      { name: "Good", value: 15, itemStyle: { color: "#1b6f8c" } },
-      { name: "Needs improvement", value: 5, itemStyle: { color: "#c6871f" } },
-      { name: "Poor", value: 5, itemStyle: { color: "#ef5454" } },
-    ]);
-    // Etykieta w środku koła to suma trzech kubełków, ze słowem ze słownika.
-    expect(String(rec(firstSeries(pieChart().option).label).formatter)).toBe(
-      `{a|25}\n{b|${vit("samplesWord")}}`,
-    );
+    const c = pieChart().config;
+    expect(c.categories).toEqual([rating("good"), rating("needs"), rating("poor")]);
+    expect(c.series[0].values).toEqual([15, 5, 5]);
+    // Liczba w środku pierścienia jest SUMĄ i rysuje ją silnik - panel podaje
+    // wyłącznie trzy kubełki, a suma nie jest osobną daną do przepisania.
+    expect(c.sampleSize).toBe(25);
   });
 
   it("oś słupków ratingów idzie kolejnością METRIC_ORDER, nie kolejnością raportu", async () => {
@@ -1115,25 +1086,22 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
     panel();
     await loaded();
 
-    expect(strList(rec(ratingStack().option.xAxis).data)).toEqual(["LCP", "CLS", "TTFB"]);
+    expect(ratingStack().config.categories).toEqual(["LCP", "CLS", "TTFB"]);
   });
 
-  it("treemapa skraca długie ścieżki na etykiecie, ale zachowuje pełną w danych", async () => {
+  it("rozrzut niesie PEŁNE ścieżki, bez skracania pod rozmiar kafla", async () => {
+    // TREEMAPA SKRACAŁA ETYKIETĘ do 26 znaków, bo dłuższa nie mieściła się
+    // w kaflu, i trzymała pełną ścieżkę osobno w danych. Rozrzut nie ma kafla,
+    // więc nie ma czego przycinać - a okno szczegółów dostaje adres, a nie
+    // jego początek.
     const long = "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie";
     h.fetchVitals.mockResolvedValue(summary({ paths: [path(long, 300, 2000)] }));
     panel();
     await loaded();
 
-    const cells = dataOf(pathScatter().option) as Array<{
-      name: string;
-      value: number;
-      fullPath: string;
-    }>;
-    expect(cells[0].name).toBe(long.slice(0, 26) + "…");
-    expect(cells[0].name).toHaveLength(27);
-    // Skrócenie jest TYLKO na etykiecie - drążenie musi znać pełną ścieżkę.
-    expect(cells[0].fullPath).toBe(long);
-    expect(cells[0].value).toBe(300);
+    const c = pathScatter().config;
+    expect(c.categories).toEqual([long]);
+    expect(c.series[0].values).toEqual([300]);
   });
 
   it("treemapa przycina się do 25 ścieżek", async () => {
@@ -1142,7 +1110,7 @@ describe("VitalsBiDashboard - agregaty panelu", () => {
     panel();
     await loaded();
 
-    expect(dataOf(pathScatter().option)).toHaveLength(25);
+    expect(pathScatter().config.categories).toHaveLength(25);
   });
 });
 
@@ -1375,12 +1343,19 @@ describe("VitalsBiDashboard - raport z niepełną metryką", () => {
     panel();
     await loaded();
 
-    const series = seriesOf(ratingStack().option);
-    expect(series.map((one) => one.name)).toEqual(["Good", "Needs improvement", "Poor"]);
-    // `undefined` w `data` ECharts rysuje jako przerwę w stosie, czyli słupek
-    // BEZ jednego kubełka - a to wygląda identycznie jak zmierzone zero i
-    // rozjeżdża wysokość całej kolumny względem sąsiednich metryk.
-    expect(series.map((one) => one.data)).toEqual([[0], [0], [0]]);
+    const series = ratingStack().config.series;
+    // NAZWY SERII ZE SŁOWNIKA, nie surowe nazwy kubełków z API: legenda,
+    // tabela danych i dymek biorą je wprost z konfiguracji, więc „Good" stałby
+    // po angielsku na polskim pulpicie.
+    expect(series.map((one) => one.name)).toEqual([
+      rating("good"),
+      rating("needs"),
+      rating("poor"),
+    ]);
+    // `null` w wartościach silnik rysuje jako LUKĘ, czyli słupek BEZ jednego
+    // kubełka - a to wygląda identycznie jak zmierzone zero i rozjeżdża
+    // wysokość całej kolumny względem sąsiednich metryk.
+    expect(series.map((one) => one.values)).toEqual([[0], [0], [0]]);
   });
 
   it("tabela danych pod słupkami podaje te same zera co kanwa", async () => {
@@ -1396,32 +1371,29 @@ describe("VitalsBiDashboard - raport z niepełną metryką", () => {
     expect(tableRows(table)).toEqual([["LCP", "0", "0", "0"]]);
   });
 
-  it.fails(
-    "DEFEKT: koło ratingów NIE ma strażnika słupków - niepełny wiersz daje „NaN próbek”",
-    async () => {
-      // PRZYCZYNA. `ratingStackOption` i `ratingStackCsv` czytają kubełki przez
-      // `?? 0`, a `ratingTotals` sumuje je GOŁYM dodawaniem:
-      // `rows.reduce((acc, m) => acc + m.good, 0)`. Jedno brakujące pole zamienia
-      // sumę w `NaN`, a `NaN` idzie prosto do etykiety w środku koła
-      // (`{a|NaN}`) i do wartości wszystkich trzech wycinków.
-      //
-      // SKUTEK W PRODUKCIE. Ten sam raport daje na jednym wykresie uczciwe zera,
-      // a na sąsiednim napis „NaN próbek" - operator widzi dwa sprzeczne stany
-      // tego samego pomiaru obok siebie i nie ma jak rozstrzygnąć, który jest
-      // prawdziwy. Komentarz nad `ratingTotals` mówi wprost, że koło i jego
-      // tabela „muszą podać te same trzy liczby"; strażnik jest w jednym z
-      // trzech miejsc, w których te liczby powstają.
-      //
-      // NAPRAWA (poza zakresem tej porcji - to zmiana w kodzie produkcyjnym):
-      // `acc + (m.good ?? 0)` w każdej z trzech redukcji `ratingTotals`.
-      h.fetchVitals.mockResolvedValue(NULL_BUCKETS);
-      panel();
-      await loaded();
+  it("pierścień ratingów ma strażnik kubełków - niepełny wiersz daje zera, nie NaN", async () => {
+    // NAPRAWIONE W TEJ PORCJI. `ratingStackConfig` i eksport CSV czytały
+    // kubełki przez `?? 0`, a `ratingTotals` sumował je GOŁYM dodawaniem:
+    // `rows.reduce((acc, m) => acc + m.good, 0)`. Jedno brakujące pole
+    // zamieniało sumę w `NaN`, a `NaN` szedł do wartości wszystkich trzech
+    // wycinków i do podpisu w środku pierścienia.
+    //
+    // SKUTEK, KTÓRY TO ZNOSI. Ten sam raport dawał na jednym wykresie uczciwe
+    // zera, a na sąsiednim „NaN próbek" - operator widział dwa sprzeczne stany
+    // tego samego pomiaru obok siebie i nie miał jak rozstrzygnąć, który jest
+    // prawdziwy. Pierścień i jego tabela muszą podać te same trzy liczby.
+    //
+    // ASERCJA NA KONFIGURACJI, nie na napisie: silnik i tak wypisałby `NaN`
+    // jako kreskę, więc rysunek MASKOWAŁBY defekt, zamiast go pokazać - a do
+    // eksportu CSV i tak poszłaby wartość, nie kreska.
+    h.fetchVitals.mockResolvedValue(NULL_BUCKETS);
+    panel();
+    await loaded();
 
-      const label = String(rec(firstSeries(pieChart().option).label).formatter);
-      expect(label).toBe(`{a|0}\n{b|${vit("samplesWord")}}`);
-    },
-  );
+    const wartosci = pieChart().config.series[0]?.values ?? [];
+    expect(wartosci).toEqual([0, 0, 0]);
+    expect(wartosci.some((v) => Number.isNaN(v))).toBe(false);
+  });
 
   it.fails("DEFEKT: raport bez pola `trends` wywraca CAŁY pulpit", async () => {
     // PRZYCZYNA. `sparkForMetric` woła `report.trends.map(...)` BEZ strażnika,
@@ -1467,15 +1439,35 @@ describe("VitalsBiDashboard - dostępność", () => {
     panel();
     await loaded();
 
-    const names = screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"));
-    // Pięć trendów + ratingi + koło + treemapa.
-    expect(names).toHaveLength(8);
-    expect(names).toContain(
-      t("adminAnalytics.chartCard.chartRegion", { title: vit("trendTitle", { metric: "LCP" }) }),
+    // REGIONY ZBIERANE PO ROLI „img" I „group": silnik daje rysunkom
+    // kartezjańskim pierwszą, a tarczy drugą - jej wycinki są fokusowalne,
+    // więc rola obrazka uczyniłaby je prezentacyjnymi.
+    const names = [...screen.getAllByRole("img"), ...screen.getAllByRole("group")].map(
+      (el) => el.getAttribute("aria-label") ?? "",
     );
+    // NAZWA KAŻDEJ KARTY, a nie ich LICZBA. Liczenie elementów o roli obrazka
+    // było policzeniem nie tego, co trzeba: wycinki pierścienia też ją mają
+    // (każdy jest osobnym celem tabulacji z własną nazwą), więc suma zależy od
+    // liczby kategorii w danych, a nie od liczby wykresów na pulpicie.
+    for (const metric of ["LCP", "INP", "CLS", "FCP", "TTFB"] as const) {
+      expect(names).toContain(
+        t("adminAnalytics.chartCard.chartRegion", {
+          title: vit("trendTitle", { metric }),
+        }),
+      );
+    }
     expect(names).toContain(
       t("adminAnalytics.chartCard.chartRegion", { title: vit("pathsBySamples") }),
     );
+    expect(names).toContain(
+      t("adminAnalytics.chartCard.chartRegion", { title: vit("ratingsPerMetric") }),
+    );
+    expect(names).toContain(
+      t("adminAnalytics.chartCard.chartRegion", { title: vit("ratingOverall") }),
+    );
+    // ...i ani jednego regionu BEZ nazwy: bezimienny obrazek jest dla czytnika
+    // ekranu przystankiem, który nic nie mówi.
+    expect(names.filter((n) => n.trim() === "")).toEqual([]);
   });
 
   it("przycisk odświeżania ma dostępną nazwę ze słownika, nie samą ikonę", async () => {
@@ -1523,29 +1515,39 @@ describe("VitalsBiDashboard - dostępność", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it("KAŻDY z ośmiu wykresów ma tekstową alternatywę powiązaną z regionem", async () => {
-    // ECharts maluje do kanwy, która dla czytnika ekranu jest pustym
-    // prostokątem. `ChartCard` UMIE zbudować tabelę danych z `csv` i podpiąć ją
-    // przez `aria-describedby`, ale panel nie podawał `csv` ANI RAZU - cały
-    // pulpit wydajności był dla czytnika nieczytelny.
+  it("KAŻDY z ośmiu wykresów ma tekstową alternatywę i podpowiedź obsługi", async () => {
+    // ECharts malował do kanwy, która dla czytnika ekranu jest pustym
+    // prostokątem, a tabelę trzeba było podać karcie osobno przez `csv` -
+    // panel nie podał jej ANI RAZU, więc cały pulpit wydajności był dla
+    // czytnika nieczytelny. Nasz silnik rysuje alternatywę tekstową przy
+    // KAŻDYM rodzaju i nie da się jej pominąć z zewnątrz; ten przypadek
+    // pilnuje, że żadna z ośmiu kart tego pulpitu nie wypada z tej reguły.
     //
-    // Asercja idzie na OBA końce powiązania: region musi mieć
-    // `aria-describedby`, a wskazany identyfikator musi istnieć w dokumencie.
+    // Asercja idzie na OBA końce powiązania: region ma `aria-describedby`
+    // z podpowiedzią klawiatury, a wskazany identyfikator musi istnieć.
     // Sam atrybut bez elementu jest gorszy niż jego brak - czytnik obiecuje
     // opis i milknie.
     panel();
     await loaded();
 
-    const regions = screen.getAllByRole("img");
-    expect(regions).toHaveLength(8);
-    const withoutText = regions.filter((el) => !el.getAttribute("aria-describedby"));
-    expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
-    for (const region of regions) {
+    const tytuly = [
+      ...(["LCP", "INP", "CLS", "FCP", "TTFB"] as const).map((metric) =>
+        vit("trendTitle", { metric }),
+      ),
+      vit("ratingsPerMetric"),
+      vit("ratingOverall"),
+      vit("pathsBySamples"),
+    ];
+    expect(tytuly).toHaveLength(8);
+
+    for (const tytul of tytuly) {
+      const region = chartRegion(tytul);
       const id = region.getAttribute("aria-describedby") ?? "";
-      expect(document.getElementById(id), `wiszące aria-describedby: ${id}`).not.toBeNull();
+      expect(document.getElementById(id), `wiszące aria-describedby: ${tytul}`).not.toBeNull();
+      // Tabela z co najmniej jednym wierszem - pusta byłaby obietnicą
+      // alternatywy, a nie alternatywą.
+      expect(tableRows(dataTableOf(tytul)).length, `pusta tabela: ${tytul}`).toBeGreaterThan(0);
     }
-    expect(screen.queryByText(realT("pl")("adminAnalytics.chartCard.dataTableMissing"))).toBeNull();
-    expect(screen.getAllByText(realT("pl")("adminAnalytics.chartCard.dataTable"))).toHaveLength(8);
   });
 
   it("tabela trendu podaje p75 W JEDNOSTCE METRYKI, a dzień bez próbki jako kreskę", async () => {
@@ -1564,17 +1566,23 @@ describe("VitalsBiDashboard - dostępność", () => {
     await loaded();
 
     const table = dataTableOf(vit("trendTitle", { metric: "LCP" }));
-    expect(tableHeaders(table)).toEqual([
-      realT("pl")("adminAnalytics.gsc.csvHeaders.date"),
-      "LCP p75",
-    ]);
+    // Nagłówek kolumny kategorii jest silnika („Kategoria"), a nie panelu:
+    // tabela danych należy do rysunku i ma tę samą postać pod wykresem
+    // w artykule co pod kartą pulpitu.
+    expect(tableHeaders(table)).toEqual([realT("pl")("charts.frame.category"), "LCP p75"]);
+    // JEDNOSTKA PRZY KAŻDEJ LICZBIE, bo sama „2400" nie mówi, czy to
+    // milisekundy, sekundy, czy bezwymiarowy CLS. Dzień bez próbki zostaje
+    // KRESKĄ - podstawione zero rysowałoby czas ładowania spadający do zera,
+    // czyli sukces tam, gdzie pomiaru nie było.
     expect(tableRows(table)).toEqual([
-      ["2026-08-01", "2.40 s"],
-      ["2026-08-02", "-"],
+      // Oś dnia jest skrócona do „MM-DD": rok jest w zakresie dat paska
+      // narzędzi i powtarzany przy każdej kategorii tylko zabierałby miejsce.
+      ["08-01", "2400 ms"],
+      ["08-02", "-"],
     ]);
   });
 
-  it("tabela treemapy niesie PEŁNĄ ścieżkę, liczbę próbek i LCP p75", async () => {
+  it("tabela rozrzutu ścieżek niesie PEŁNY adres, liczbę próbek i LCP p75", async () => {
     const long = "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie";
     h.fetchVitals.mockResolvedValue(
       summary({ paths: [path(long, 300, 5000), path("/bez-lcp", 40, null)] }),
@@ -1583,13 +1591,22 @@ describe("VitalsBiDashboard - dostępność", () => {
     await loaded();
 
     const table = dataTableOf(vit("pathsBySamples"));
-    expect(tableHeaders(table)).toEqual([vit("scopePath"), vit("samplesLabel"), "LCP p75"]);
-    // Etykieta kafla jest przycięta do 26 znaków, tabela - nie: przycięty adres
-    // nie identyfikuje podstrony, a tabela jest też materiałem do eksportu.
-    expect(tableRows(table)).toEqual([
-      [long, "300", "5.00 s"],
-      ["/bez-lcp", "40", "-"],
+    // Tabela rozrzutu ma postać silnika: obserwacja, seria, X, Y - plus
+    // kolumna przypisów, gdy któraś para wypadła z chmury.
+    expect(tableHeaders(table).slice(0, 4)).toEqual([
+      realT("pl")("charts.scatter.table.label"),
+      realT("pl")("charts.scatter.table.series"),
+      realT("pl")("charts.scatter.table.x"),
+      realT("pl")("charts.scatter.table.y"),
     ]);
+    const rows = tableRows(table);
+    // Etykieta punktu bywa przycięta, tabela - nie: przycięty adres nie
+    // identyfikuje podstrony, a tabela jest też materiałem do eksportu.
+    expect(rows.map((r) => r[0])).toEqual([long, "/bez-lcp"]);
+    expect(rows[0]?.slice(1, 4)).toEqual(["LCP p75", "300", "5000 ms"]);
+    // Ścieżka bez pomiaru LCP zostaje KRESKĄ i wypada z chmury - podstawione
+    // zero rysowałoby podstronę najszybszą z całego serwisu.
+    expect(rows[1]?.slice(1, 4)).toEqual(["LCP p75", "40", "-"]);
   });
 });
 

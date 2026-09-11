@@ -270,6 +270,16 @@ interface SmallMultiplesChartProps {
    * znaczy to samo w obu układach.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
 /** Jeden panel gotowy do narysowania: pole w pikselach i ścieżki znacznika. */
@@ -324,7 +334,13 @@ function skrot(label: string, maxPx: number): string {
   return label.length > limit ? `${label.slice(0, Math.max(1, limit - 1))}…` : label;
 }
 
-export function SmallMultiplesChart({ config, lang, options, onSelect }: SmallMultiplesChartProps) {
+export function SmallMultiplesChart({
+  config,
+  lang,
+  options,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: SmallMultiplesChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -669,45 +685,47 @@ export function SmallMultiplesChart({ config, lang, options, onSelect }: SmallMu
   // deklarację porządku i komplet liczb KAŻDEGO panelu. Zdania ze słownika
   // kończą się kropką same, dlatego łączymy spacją, a kropkę dokładamy tylko
   // do zdań składanych tutaj - inaczej w odczycie pojawia się podwójna kropka.
-  const ariaLabel = [
-    `${config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled")}.`,
-    // ZAKRES WSPÓLNEJ OSI TYLKO WTEDY, GDY TA OŚ ISTNIEJE I MA Z CZEGO POWSTAĆ.
-    // Dwa stany, w których wypisywany był wcześniej, są stanami BEZ tej osi,
-    // i oba render odmawia narysować - a nazwa dostępna jest tym samym
-    // rysunkiem, tylko czytanym:
-    //   * BRAK JAKIEJKOLWIEK LICZBY. Domena pustego zestawu wychodzi z modelu
-    //     jako 0..1 (skala musi mieć rozpiętość), więc zdanie „Wartość: 0 mld
-    //     EUR - 1 mld EUR" podawało czytelnikowi ekranu zakres, którego
-    //     w danych nie ma. Widzący nie dostaje w tym stanie ANI JEDNEJ
-    //     podziałki, dokładnie z tego powodu;
-    //   * SKALE OSOBNE. Wspólna domena jest wtedy policzona, ale nie opisuje
-    //     żadnego panelu - i podziałek na brzegu siatki też z tego powodu nie
-    //     ma. Zakres każdego panelu idzie w `opisPanelu`.
-    maDane && !wolna
-      ? `${
-          indeks ? t("smallMultiples.axis.index") : t("smallMultiples.axis.value")
-        }: ${formatChartValue(model.scale.shared.min, lang, jednostkaOsi)} - ${formatChartValue(
-          model.scale.shared.max,
-          lang,
-          jednostkaOsi,
-        )}.`
-      : "",
-    // OŚ KATEGORII JAKO ZAKRES TYLKO WTEDY, GDY MA DWA KRAŃCE. Przy jednej
-    // kategorii „2020 - 2020" czyta się jak przedział, a jest punktem - to ten
-    // sam gatunek zdania co „panele różnią się poziomem 1-krotnie".
-    categoryCount > 1
-      ? `${t("smallMultiples.axis.category")}: ${model.categories[0]} - ${
-          model.categories[categoryCount - 1]
-        }.`
-      : categoryCount === 1
-        ? `${t("smallMultiples.axis.category")}: ${model.categories[0]}.`
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      `${config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled")}.`,
+      // ZAKRES WSPÓLNEJ OSI TYLKO WTEDY, GDY TA OŚ ISTNIEJE I MA Z CZEGO POWSTAĆ.
+      // Dwa stany, w których wypisywany był wcześniej, są stanami BEZ tej osi,
+      // i oba render odmawia narysować - a nazwa dostępna jest tym samym
+      // rysunkiem, tylko czytanym:
+      //   * BRAK JAKIEJKOLWIEK LICZBY. Domena pustego zestawu wychodzi z modelu
+      //     jako 0..1 (skala musi mieć rozpiętość), więc zdanie „Wartość: 0 mld
+      //     EUR - 1 mld EUR" podawało czytelnikowi ekranu zakres, którego
+      //     w danych nie ma. Widzący nie dostaje w tym stanie ANI JEDNEJ
+      //     podziałki, dokładnie z tego powodu;
+      //   * SKALE OSOBNE. Wspólna domena jest wtedy policzona, ale nie opisuje
+      //     żadnego panelu - i podziałek na brzegu siatki też z tego powodu nie
+      //     ma. Zakres każdego panelu idzie w `opisPanelu`.
+      maDane && !wolna
+        ? `${
+            indeks ? t("smallMultiples.axis.index") : t("smallMultiples.axis.value")
+          }: ${formatChartValue(model.scale.shared.min, lang, jednostkaOsi)} - ${formatChartValue(
+            model.scale.shared.max,
+            lang,
+            jednostkaOsi,
+          )}.`
         : "",
-    wolna ? t("smallMultiples.scale.free") : t("smallMultiples.scale.shared"),
-    t(ORDER_KEYS[model.order]),
-    ...model.panels.map(opisPanelu),
-  ]
-    .filter(Boolean)
-    .join(" ");
+      // OŚ KATEGORII JAKO ZAKRES TYLKO WTEDY, GDY MA DWA KRAŃCE. Przy jednej
+      // kategorii „2020 - 2020" czyta się jak przedział, a jest punktem - to ten
+      // sam gatunek zdania co „panele różnią się poziomem 1-krotnie".
+      categoryCount > 1
+        ? `${t("smallMultiples.axis.category")}: ${model.categories[0]} - ${
+            model.categories[categoryCount - 1]
+          }.`
+        : categoryCount === 1
+          ? `${t("smallMultiples.axis.category")}: ${model.categories[0]}.`
+          : "",
+      wolna ? t("smallMultiples.scale.free") : t("smallMultiples.scale.shared"),
+      t(ORDER_KEYS[model.order]),
+      ...model.panels.map(opisPanelu),
+    ]
+      .filter(Boolean)
+      .join(" ");
 
   // ===== UWAGI POD RYSUNKIEM =====
   //

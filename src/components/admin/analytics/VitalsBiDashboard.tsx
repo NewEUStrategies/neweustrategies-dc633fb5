@@ -248,12 +248,22 @@ export function VitalsBiDashboard() {
     });
   }, [report, t]);
 
+  /**
+   * Sumy kubełków w całym oknie. `?? 0` PRZY KAŻDYM SKŁADNIKU, tak samo jak
+   * przy słupkach i w eksporcie: gołe dodawanie zamieniało jeden brakujący
+   * kubełek w `NaN`, a `NaN` szedł do wszystkich trzech wycinków pierścienia
+   * i do jego podpisu. Operator widział wtedy na jednym wykresie uczciwe zera,
+   * a na sąsiednim - „NaN próbek", czyli dwa sprzeczne stany tego samego
+   * pomiaru obok siebie, bez sposobu rozstrzygnięcia który jest prawdziwy.
+   * Pierścień i jego tabela muszą podać te same trzy liczby, więc strażnik
+   * stoi we WSZYSTKICH trzech miejscach, w których one powstają.
+   */
   const ratingTotals = useMemo(() => {
     const rows = report?.metrics ?? [];
     return {
-      good: rows.reduce((acc, m) => acc + m.good, 0),
-      ni: rows.reduce((acc, m) => acc + m.needsImprovement, 0),
-      poor: rows.reduce((acc, m) => acc + m.poor, 0),
+      good: rows.reduce((acc, m) => acc + (m.good ?? 0), 0),
+      ni: rows.reduce((acc, m) => acc + (m.needsImprovement ?? 0), 0),
+      poor: rows.reduce((acc, m) => acc + (m.poor ?? 0), 0),
     };
   }, [report]);
 

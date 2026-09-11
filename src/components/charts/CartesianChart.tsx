@@ -107,6 +107,16 @@ interface CartesianChartProps {
    * każdym przesunięciu myszy nad rysunkiem.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
 /** Pozycja kotwicy tooltipa w px kontenera - liczona z indeksu przy renderze. */
@@ -204,7 +214,12 @@ function barPath(
   }
 }
 
-export function CartesianChart({ config, lang, onSelect }: CartesianChartProps) {
+export function CartesianChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: CartesianChartProps) {
   // `keyPrefix` zamiast sklejania klucza w szablonie, i to nie jest kosmetyka:
   // bramka rozjazdu kod<->słownik (`src/lib/ci/i18nKeyUsage.ts`) rozumie
   // WYŁĄCZNIE prefiks podany hakowi. Klucz zlepiony template literalem jest
@@ -572,9 +587,13 @@ export function CartesianChart({ config, lang, onSelect }: CartesianChartProps) 
   const barW = Math.min(BAR_MAX, slotW - (groupCount > 1 ? BAR_GAP : 0));
   const cascade = cascadeStepMs(waterfall ? waterfall.steps.length : n);
 
-  const ariaLabel = config.title
-    ? t("a11y.chart", { title: config.title })
-    : t("a11y.chartUntitled");
+  // NAZWA RYSUNKU. `nazwaZadana` jest nazwą GOTOWĄ, a nie tytułem do wklejenia
+  // w szablon: karta panelu trzyma tytuł u siebie i zna kontekst, którego
+  // konfiguracja nie ma. Dlatego wygrywa w całości, a szablon `a11y.chart`
+  // obsługuje wyłącznie przypadek bez niej.
+  const ariaLabel =
+    nazwaZadana ??
+    (config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"));
 
   const hatchId = `neh-hatch-${uid}`;
   const zoneHatchId = `neh-zone-hatch-${uid}`;

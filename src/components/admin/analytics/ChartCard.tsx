@@ -198,6 +198,11 @@ export function ChartCard({
         <Chart
           config={configZWysokoscia}
           lang={lang}
+          // NAZWA RYSUNKU Z TYTUŁU KARTY. Konfiguracja ma tytuł pusty, żeby nie
+          // było go dwa razy - bez tej właściwości wszystkie wykresy pulpitu
+          // nazywałyby się „Wykres", czyli czytnik ekranu ogłaszałby dziesięć
+          // nierozróżnialnych obrazków.
+          ariaLabel={t("adminAnalytics.chartCard.chartRegion", { title })}
           onSelect={onDataClick ? handleSelect : undefined}
         />
       </div>

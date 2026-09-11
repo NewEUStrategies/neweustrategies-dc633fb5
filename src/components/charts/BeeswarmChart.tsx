@@ -224,6 +224,16 @@ interface BeeDot {
 interface BeeswarmChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
 /** Liczba skończona albo wartość zastępcza - patrz "ZERO NaN NA EKRANIE". */
@@ -263,7 +273,7 @@ function clipLabel(label: string): string {
     : label;
 }
 
-export function BeeswarmChart({ config, lang }: BeeswarmChartProps) {
+export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: BeeswarmChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -530,16 +540,18 @@ export function BeeswarmChart({ config, lang }: BeeswarmChartProps) {
     return `${label}: ${czesci.join(", ")}`;
   };
 
-  const ariaLabel = [
-    config.title,
-    `${t("beeswarm.axis.value")}: ${formatAxisTick(scale.min, lang)} - ${formatAxisTick(
-      scale.max,
-      lang,
-    )}`,
-    ...model.swarms.map((s) => opisRoju(s.label, s.summary)),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${t("beeswarm.axis.value")}: ${formatAxisTick(scale.min, lang)} - ${formatAxisTick(
+        scale.max,
+        lang,
+      )}`,
+      ...model.swarms.map((s) => opisRoju(s.label, s.summary)),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   // UWAGI: porada formy i defekty danych. Idą do OPISU wykresu, a nie na
   // płytę, i to jest wybór, nie brak miejsca: porada formy jest zdaniem

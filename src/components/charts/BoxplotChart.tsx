@@ -172,9 +172,19 @@ interface Column {
 interface BoxplotChartProps {
   config: ChartConfig;
   lang: ChartLang;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function BoxplotChart({ config, lang }: BoxplotChartProps) {
+export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -336,23 +346,25 @@ export function BoxplotChart({ config, lang }: BoxplotChartProps) {
   // ani osi, ani podpisu pod rysunkiem, więc medianę i `n` każdej grupy dostaje
   // tutaj - to jest ta sama treść, którą widzący czytelnik odczytuje z pozycji
   // kreski i z etykiety pod kolumną.
-  const ariaLabel = [
-    config.title,
-    `${t("boxplot.axis.value")}: ${formatAxisTick(scale.min, lang)} ${RANGE_SEP} ${formatAxisTick(
-      scale.max,
-      lang,
-    )}`,
-    ...boxes.map(
-      (b) =>
-        `${b.label}: ${t("boxplot.table.median")} ${num(b.median)}, ${t("boxplot.table.n")} ${formatChartValue(
-          b.n,
-          lang,
-          "",
-        )}`,
-    ),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${t("boxplot.axis.value")}: ${formatAxisTick(scale.min, lang)} ${RANGE_SEP} ${formatAxisTick(
+        scale.max,
+        lang,
+      )}`,
+      ...boxes.map(
+        (b) =>
+          `${b.label}: ${t("boxplot.table.median")} ${num(b.median)}, ${t("boxplot.table.n")} ${formatChartValue(
+            b.n,
+            lang,
+            "",
+          )}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   // PORADY FORMY I DEFEKTY DANYCH stoją pod rysunkiem, bo dotyczą tego, co
   // czytelnik właśnie widzi: "jedna grupa" i "jedna wartość zajmuje połowę

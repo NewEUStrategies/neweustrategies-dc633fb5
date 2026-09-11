@@ -124,9 +124,14 @@ interface ChartProps {
    * TRZY RODZAJE ROZKŁADU WSKAZANIA NIE ODDAJĄ - patrz `BEZ_WSKAZANIA` niżej.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku, gdy tytuł jest pusty, bo nagłówek rysuje
+   * osadzenie. Bez niej wszystkie wykresy pulpitu nazywają się „Wykres".
+   */
+  ariaLabel?: string;
 }
 
-export function Chart({ config, lang, className, onSelect }: ChartProps) {
+export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartProps) {
   // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
   // kod<->słownik; klucz sklejony template literalem wypada z kontroli
   // parytetu PL/EN.
@@ -292,7 +297,7 @@ export function Chart({ config, lang, className, onSelect }: ChartProps) {
       table={table}
       className={className}
     >
-      <Drawing config={config} lang={lang} onSelect={onSelect} />
+      <Drawing config={config} lang={lang} onSelect={onSelect} ariaLabel={ariaLabel} />
     </ChartFrame>
   );
 }
@@ -324,6 +329,7 @@ type KindView = (props: {
   config: ChartConfig;
   lang: ChartLang;
   onSelect?: ChartSelectHandler;
+  ariaLabel?: string;
 }) => ReactElement | null;
 
 const DRAWING_BY_KIND: Record<ChartKind, KindView> = {

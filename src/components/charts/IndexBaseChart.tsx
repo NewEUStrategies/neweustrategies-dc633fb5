@@ -208,9 +208,25 @@ interface IndexBaseChartProps {
    * samo, a wybór jest DECYZJĄ czytelnika i ma prawo otworzyć okno szczegółów.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function IndexBaseChart({ config, lang, baseAt, onSelect }: IndexBaseChartProps) {
+export function IndexBaseChart({
+  config,
+  lang,
+  baseAt,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: IndexBaseChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -715,13 +731,15 @@ export function IndexBaseChart({ config, lang, baseAt, onSelect }: IndexBaseChar
             colorSlot: s.indexable ? s.colorSlot : null,
           }));
 
-  const ariaLabel = [
-    config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
-    t("indexBase.base.label", { period: model.baseLabel }),
-    t("indexBase.axis.unitless"),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
+      t("indexBase.base.label", { period: model.baseLabel }),
+      t("indexBase.axis.unitless"),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>

@@ -288,9 +288,24 @@ interface TornadoChartProps {
    * samo, a wybór jest DECYZJĄ czytelnika i ma prawo otworzyć okno szczegółów.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function TornadoChart({ config, lang, onSelect }: TornadoChartProps) {
+export function TornadoChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: TornadoChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -539,22 +554,24 @@ export function TornadoChart({ config, lang, onSelect }: TornadoChartProps) {
   // ekranu nie widzi ani sylwetki tornada, ani linii bazowej, więc hierarchię
   // wrażliwości dostaje jako listę w tej samej kolejności, w której są
   // narysowane wiersze - to jest treść tej formy, a nie jej ozdoba.
-  const ariaLabel = [
-    config.title,
-    `${t("tornado.axis.value")}: ${formatAxisTick(scale.min, lang)} ${RANGE_SEP} ${formatAxisTick(
-      scale.max,
-      lang,
-    )}`,
-    model.base === null ? "" : t("tornado.base.label", { value: num(model.base) }),
-    ...rows.map(
-      (r) =>
-        `${r.label}: ${num(r.low)} ${RANGE_SEP} ${num(r.high)}, ${t(
-          "tornado.table.span",
-        )} ${formatChartValue(r.span, lang, config.unit)}`,
-    ),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${t("tornado.axis.value")}: ${formatAxisTick(scale.min, lang)} ${RANGE_SEP} ${formatAxisTick(
+        scale.max,
+        lang,
+      )}`,
+      model.base === null ? "" : t("tornado.base.label", { value: num(model.base) }),
+      ...rows.map(
+        (r) =>
+          `${r.label}: ${num(r.low)} ${RANGE_SEP} ${num(r.high)}, ${t(
+            "tornado.table.span",
+          )} ${formatChartValue(r.span, lang, config.unit)}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   // PRZYPISY POD RYSUNKIEM. Porady formy mówią autorowi, że pytanie lepiej
   // postawić inaczej; przypisy uczciwości mówią czytelnikowi, czego nie widzi

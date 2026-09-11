@@ -304,9 +304,24 @@ interface ScatterChartProps {
    * o którą pyta ten rodzaj („jak zmienia się y wraz z x").
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function ScatterChart({ config, lang, onSelect }: ScatterChartProps) {
+export function ScatterChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: ScatterChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -665,27 +680,29 @@ export function ScatterChart({ config, lang, onSelect }: ScatterChartProps) {
   // ani osi, ani podpisu, więc zakresy obu zmiennych, liczbę par i dowód
   // każdego trendu dostaje tutaj. Zdanie o współzmienności jedzie razem
   // z trendem, bo bez niego nachylenie czyta się jako przyczyna.
-  const ariaLabel = [
-    config.title,
-    `${xLabel}: ${formatAxisTick(model.domain.x.min, lang)} ${RANGE_SEP} ${formatAxisTick(
-      model.domain.x.max,
-      lang,
-    )}`,
-    `${yLabel}: ${formatAxisTick(model.domain.y.min, lang)} ${RANGE_SEP} ${formatAxisTick(
-      model.domain.y.max,
-      lang,
-    )}`,
-    t("scatter.trend.n", { count: model.n }),
-    ...trends.map(
-      (tr) =>
-        `${tr.name}: ${t("scatter.trend.label")}, ${t("scatter.trend.r2", {
-          value: liczba(r2ToDisplay(tr.r2), ""),
-        })}, ${t("scatter.trend.n", { count: tr.n })}`,
-    ),
-    ...(trends.length > 0 ? [t("scatter.trend.notCausal")] : []),
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${xLabel}: ${formatAxisTick(model.domain.x.min, lang)} ${RANGE_SEP} ${formatAxisTick(
+        model.domain.x.max,
+        lang,
+      )}`,
+      `${yLabel}: ${formatAxisTick(model.domain.y.min, lang)} ${RANGE_SEP} ${formatAxisTick(
+        model.domain.y.max,
+        lang,
+      )}`,
+      t("scatter.trend.n", { count: model.n }),
+      ...trends.map(
+        (tr) =>
+          `${tr.name}: ${t("scatter.trend.label")}, ${t("scatter.trend.r2", {
+            value: liczba(r2ToDisplay(tr.r2), ""),
+          })}, ${t("scatter.trend.n", { count: tr.n })}`,
+      ),
+      ...(trends.length > 0 ? [t("scatter.trend.notCausal")] : []),
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   // NOTY POD RYSUNKIEM. Trzy gatunki, w tej kolejności: dowód rysowanego
   // trendu (współzmienność i metoda), porada formy z modelu i defekt danych.

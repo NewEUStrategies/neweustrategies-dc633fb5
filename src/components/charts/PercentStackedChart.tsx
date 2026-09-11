@@ -306,9 +306,24 @@ interface PercentStackedChartProps {
    * „kliknąłem w słupek Polska".
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function PercentStackedChart({ config, lang, onSelect }: PercentStackedChartProps) {
+export function PercentStackedChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: PercentStackedChartProps) {
   // `keyPrefix` zamiast sklejania klucza w szablonie: bramka rozjazdu
   // kod<->słownik rozumie WYŁĄCZNIE prefiks podany hakowi, a klucz zlepiony
   // template literalem wypada z kontroli parytetu PL/EN.
@@ -875,20 +890,22 @@ export function PercentStackedChart({ config, lang, onSelect }: PercentStackedCh
   // słupków, ani tego, że jeden z nich jest całością sto razy mniejszą -
   // a dymek dla niego nie istnieje. Oś całości jest nazwana, bo procent na
   // rysunku nazywa ją wyłącznie wzrokowo.
-  const ariaLabel = [
-    config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
-    `${t("percentStacked.axis.share")}: ${formatPercent(0, lang)} - ${formatPercent(1, lang)}`,
-    `${t("percentStacked.axis.category")}: ${bars
-      .map((b) => {
-        const powod = powody(b.index);
-        return `${b.label}: ${t("percentStacked.table.total")} ${suma(b)}${
-          powod.length > 0 ? `. ${powod.join(" ")}` : ""
-        }`;
-      })
-      .join("; ")}`,
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title ? t("a11y.chart", { title: config.title }) : t("a11y.chartUntitled"),
+      `${t("percentStacked.axis.share")}: ${formatPercent(0, lang)} - ${formatPercent(1, lang)}`,
+      `${t("percentStacked.axis.category")}: ${bars
+        .map((b) => {
+          const powod = powody(b.index);
+          return `${b.label}: ${t("percentStacked.table.total")} ${suma(b)}${
+            powod.length > 0 ? `. ${powod.join(" ")}` : ""
+          }`;
+        })
+        .join("; ")}`,
+    ]
+      .filter(Boolean)
+      .join(". ");
 
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>

@@ -412,9 +412,24 @@ interface HeatmapChartProps {
    * na osi to nie zawsze ta sama liczba.
    */
   onSelect?: ChartSelectHandler;
+  /**
+   * Nazwa dostępna rysunku PODANA Z ZEWNĄTRZ.
+   *
+   * Domyślnie buduje ją render z tytułu w konfiguracji. Osadzenie, które
+   * rysuje własny nagłówek (karta panelu analitycznego), zostawia tytuł
+   * w konfiguracji pusty - żeby nie było go dwa razy - i wtedy rysunek
+   * nazywałby się „Wykres", czyli tak samo jak dziesięć sąsiadów na tym samym
+   * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
+   */
+  ariaLabel?: string;
 }
 
-export function HeatmapChart({ config, lang, onSelect }: HeatmapChartProps) {
+export function HeatmapChart({
+  config,
+  lang,
+  onSelect,
+  ariaLabel: nazwaZadana,
+}: HeatmapChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
     (key: string, values?: Record<string, string | number>): string =>
@@ -683,29 +698,31 @@ export function HeatmapChart({ config, lang, onSelect }: HeatmapChartProps) {
   // ani rampy, ani etykiet osi, więc dostaje zakres skali, `n`, odpowiedź
   // o dominującym parametrze i brzeg każdego wiersza - czyli to samo, co
   // widzący czytelnik odczytuje z kierunku gradientu.
-  const ariaLabel = [
-    config.title,
-    `${legendTitle}: ${t("heatmap.legend.from", {
-      value: formatAxisTick(boundaries[0], lang),
-    })} ${t("heatmap.legend.to", {
-      value: formatAxisTick(boundaries[boundaries.length - 1], lang),
-    })}`,
-    `${t("heatmap.table.count")} ${formatChartValue(model.filled, lang, "")}`,
-    dominant,
-    ...model.rowMargins.map(
-      (margin) =>
-        `${margin.label}: ${t("heatmap.table.mean")} ${num(margin.mean)}, ${t(
-          "heatmap.table.range",
-        )} ${num(margin.range)}`,
-    ),
-  ]
-    .filter((part): part is string => Boolean(part))
-    // KROPKI STAWIA SPÓJKA, NIE TREŚĆ. Zdanie o dominującym parametrze
-    // przyjeżdża ze słownika już z kropką, a dwie kropki obok siebie czytnik
-    // ekranu czyta jako dłuższą pauzę w środku wyliczenia - czyli jako koniec
-    // wypowiedzi tam, gdzie jej nie ma.
-    .map((part) => part.replace(/\.\s*$/, ""))
-    .join(". ");
+  const ariaLabel =
+    nazwaZadana ??
+    [
+      config.title,
+      `${legendTitle}: ${t("heatmap.legend.from", {
+        value: formatAxisTick(boundaries[0], lang),
+      })} ${t("heatmap.legend.to", {
+        value: formatAxisTick(boundaries[boundaries.length - 1], lang),
+      })}`,
+      `${t("heatmap.table.count")} ${formatChartValue(model.filled, lang, "")}`,
+      dominant,
+      ...model.rowMargins.map(
+        (margin) =>
+          `${margin.label}: ${t("heatmap.table.mean")} ${num(margin.mean)}, ${t(
+            "heatmap.table.range",
+          )} ${num(margin.range)}`,
+      ),
+    ]
+      .filter((part): part is string => Boolean(part))
+      // KROPKI STAWIA SPÓJKA, NIE TREŚĆ. Zdanie o dominującym parametrze
+      // przyjeżdża ze słownika już z kropką, a dwie kropki obok siebie czytnik
+      // ekranu czyta jako dłuższą pauzę w środku wyliczenia - czyli jako koniec
+      // wypowiedzi tam, gdzie jej nie ma.
+      .map((part) => part.replace(/\.\s*$/, ""))
+      .join(". ");
 
   // PORADY FORMY I DEFEKTY DANYCH stoją pod rysunkiem, bo dotyczą tego, co
   // czytelnik właśnie widzi: "to nie jest macierz", "połowa pola to luki"
