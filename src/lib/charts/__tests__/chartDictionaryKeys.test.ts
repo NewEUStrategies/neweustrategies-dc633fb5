@@ -30,6 +30,7 @@
 // mapę o tej samej treści co lista kolumn.
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
+import { bezKomentarzy } from "@/lib/ci/sourceScan";
 import { BEESWARM_SUMMARY_COLUMNS } from "@/lib/charts/kinds/beeswarm";
 import { BOXPLOT_COLUMNS } from "@/lib/charts/kinds/boxplot";
 import { HISTOGRAM_RULES } from "@/lib/charts/kinds/histogram";
@@ -84,6 +85,22 @@ function maKlucz(polowa: string, prefiks: string, wartosc: string): boolean {
   );
 }
 
+/**
+ * Prefiksy kluczy SKLEJANYCH w źródle renderu - `t(`prefiks.${...}`)`, gdzie
+ * prefiks to wszystko przed pierwszą wstawką.
+ *
+ * Wydzielone z testu po to, żeby test syntetyczny niżej sprawdzał TĘ SAMĄ
+ * funkcję, a nie własną kopię wzorca. Kopia rozjechałaby się przy pierwszej
+ * zmianie wzorca i bramka sprawdzałaby wtedy coś innego, niż dowodzi test.
+ */
+function sklejanePrefiksy(zrodlo: string): string[] {
+  // ŹRÓDŁO BEZ KOMENTARZY, i to nie jest ostrożność na zapas: skan idzie
+  // wyrażeniem regularnym po tekście, więc komentarz CYTUJĄCY wzorzec
+  // sklejanego klucza wywracał tę bramkę na jej własnej dokumentacji.
+  const czyste = bezKomentarzy(zrodlo);
+  return [...czyste.matchAll(/\bt\(\s*`([a-zA-Z][\w.]*)\.\$\{/g)].map((m) => m[1]);
+}
+
 describe("klucze słownika składane z unii", () => {
   it("każda wartość unii ma treść w obu językach", () => {
     const braki: string[] = [];
@@ -106,10 +123,16 @@ describe("klucze słownika składane z unii", () => {
     const nieznane: string[] = [];
     for (const plik of readdirSync(KATALOG)) {
       if (!plik.endsWith(".tsx")) continue;
-      const zrodlo = readFileSync(`${KATALOG}/${plik}`, "utf8");
-      // `t(`prefiks.${...}`)` - prefiks to wszystko przed pierwszą wstawką.
-      for (const m of zrodlo.matchAll(/\bt\(\s*`([a-zA-Z][\w.]*)\.\$\{/g)) {
-        if (!znane.has(m[1])) nieznane.push(`${plik}: ${m[1]}`);
+      // ŹRÓDŁO BEZ KOMENTARZY, i to nie jest ostrożność na zapas. Skan idzie
+      // wyrażeniem regularnym po tekście, więc komentarz CYTUJĄCY wzorzec
+      // sklejanego klucza wywracał tę bramkę na jej własnej dokumentacji -
+      // trafiłem w to, pisząc komentarz przy mapie przypisów wachlarza.
+      // Objaw jest podstępny, bo „naprawa" polega wtedy na przeredagowaniu
+      // komentarza, czyli na usunięciu zdania, które wyjaśniało, czego ta
+      // bramka pilnuje. Siostrzana `chartAdviceAudience` maskowała komentarze
+      // od początku; teraz obie robią to TYM SAMYM pomocnikiem.
+      for (const prefiks of sklejanePrefiksy(readFileSync(`${KATALOG}/${plik}`, "utf8"))) {
+        if (!znane.has(prefiks)) nieznane.push(`${plik}: ${prefiks}`);
       }
     }
     expect(
@@ -117,5 +140,25 @@ describe("klucze słownika składane z unii", () => {
       "prefiks sklejany bez wpisu w SKLEJANE nie jest przez nic sprawdzony - " +
         "dopisz go z tablicą runtime unii albo wypisz klucze jawnie mapą",
     ).toEqual([]);
+  });
+
+  it("nie oblewa się na WŁASNEJ DOKUMENTACJI, ale nadal widzi prawdziwe sklejenie", () => {
+    // Ta bramka raz już padła nie na defekcie, lecz na komentarzu, który
+    // CYTOWAŁ zakazany wzorzec, żeby go wyjaśnić. „Naprawa" polegała wtedy na
+    // przeredagowaniu komentarza, czyli na usunięciu zdania tłumaczącego,
+    // czego bramka pilnuje - a sam defekt nadal by przeszedł.
+    //
+    // Test pyta o OBA kierunki naraz, bo osobno każdy da się spełnić źle:
+    // maskowanie wszystkiego uciszyłoby bramkę na głucho (najgroźniejszy tryb
+    // awarii, bo cicho zielona bramka wygląda jak spełniony inwariant),
+    // a maskowanie niczego wraca do stanu wyjściowego.
+    const zakaz = "// zakaz: nigdy t(`fan.note.${n}`) - unia ma dziewięć wartości";
+    expect(sklejanePrefiksy(zakaz)).toEqual([]);
+
+    const naprawde = "const x = t(`fan.note.${n}`);";
+    expect(sklejanePrefiksy(naprawde)).toEqual(["fan.note"]);
+
+    // I jedno obok drugiego, czyli realny plik: komentarz milczy, kod mówi.
+    expect(sklejanePrefiksy(`${zakaz}\n${naprawde}\n`)).toEqual(["fan.note"]);
   });
 });

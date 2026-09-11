@@ -28,13 +28,19 @@
 // a nie obecność klucza.
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
+import { bezKomentarzy } from "@/lib/ci/sourceScan";
 import { CHART_KINDS, type ChartKind } from "@/lib/charts/types";
 import { FORM_ADVICE, chartFormAdvice } from "@/lib/charts/formAdvice";
 import { parseChartConfig } from "@/lib/charts/parse";
 
 const KATALOG = "src/components/charts";
-const publiczny = readFileSync("src/lib/i18n-charts.ts", "utf8");
-const edytorski = readFileSync("src/lib/i18n-charts-editor.ts", "utf8");
+// SŁOWNIKI CZYTANE BEZ KOMENTARZY. Komentarze w tym repozytorium cytują treść
+// kluczy, więc trafia do nich cudzysłów prosty i nawias klamrowy - jedno i
+// drugie mylił licznik klamer niżej. Maskowanie stało wcześniej WEWNĄTRZ tego
+// licznika, czyli w jednej z dwóch bramek czytających te same pliki; teraz
+// obie używają tego samego pomocnika i nie mogą się rozjechać.
+const publiczny = bezKomentarzy(readFileSync("src/lib/i18n-charts.ts", "utf8"));
+const edytorski = bezKomentarzy(readFileSync("src/lib/i18n-charts-editor.ts", "utf8"));
 
 /* -------------------------------------------------------------------------- */
 /*  Czytanie nakładek                                                         */
@@ -48,40 +54,17 @@ const edytorski = readFileSync("src/lib/i18n-charts-editor.ts", "utf8");
 function blok(src: string, odKlamry: number): string {
   let glebokosc = 0;
   let wNapisie = false;
-  let wKomentarzu: "" | "linia" | "blok" = "";
   for (let i = odKlamry; i < src.length; i += 1) {
     const c = src[i];
-    // KOMENTARZE POMIJANE, i to nie jest ostrożność na zapas. Komentarze w tym
-    // repozytorium CYTUJĄ tekst słownika, więc trafia do nich pojedynczy
-    // cudzysłów prosty (polska para to „ i ”, ale zamknięcie bywa pisane
-    // prosto). Parser liczący napisy bez pomijania komentarzy wchodził na taki
-    // cudzysłów w stan „jestem w napisie" i gubił domknięcie CAŁEGO bloku -
-    // objawem był wysyp trzech testów tego pliku po dopisaniu JEDNEGO zdania
-    // komentarza w słowniku.
-    if (wKomentarzu === "linia") {
-      if (c === "\n") wKomentarzu = "";
-      continue;
-    }
-    if (wKomentarzu === "blok") {
-      if (c === "*" && src[i + 1] === "/") {
-        wKomentarzu = "";
-        i += 1;
-      }
-      continue;
-    }
+    // KLAMRY LICZONE POZA NAPISAMI: treści porad zawierają `{{max}}`, więc
+    // naiwny licznik gubiłby domknięcie i zwracał resztę pliku. Komentarzy ta
+    // pętla już nie rozpoznaje i nie musi - wchodzą tu zamaskowane przez
+    // `bezKomentarzy` przy odczycie pliku. Wcześniej maskowanie siedziało
+    // właśnie tutaj i była to jedyna kopia tej wiedzy w repozytorium; bramka
+    // obok czytała źródło surowo i oblewała się na własnym komentarzu.
     if (wNapisie) {
       if (c === "\\") i += 1;
       else if (c === '"') wNapisie = false;
-      continue;
-    }
-    if (c === "/" && src[i + 1] === "/") {
-      wKomentarzu = "linia";
-      i += 1;
-      continue;
-    }
-    if (c === "/" && src[i + 1] === "*") {
-      wKomentarzu = "blok";
-      i += 1;
       continue;
     }
     if (c === '"') wNapisie = true;
