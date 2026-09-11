@@ -4807,6 +4807,11 @@ input.icon-input-with-action {
   stroke-width: var(--chart-bar-edge, 1.5px);
   stroke-linejoin: round;
 }
+.neh-chart
+  :is([data-role="bar"], [data-role="segment"], [data-role="bin"], [data-role="leg"])[data-active="true"] {
+  fill: var(--neh-bar-hover, var(--neh-unified-inner));
+  stroke: var(--neh-bar-token, var(--neh-unified-edge));
+}
 .neh-armed .neh-bar {
   transform: scaleY(0);
   transform-origin: bottom;

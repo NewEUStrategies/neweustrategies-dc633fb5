@@ -472,6 +472,8 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
                   ["--neh-i" as string]: i,
                   ["--neh-unified-inner" as string]: `var(--chart-${model.colorSlot}-inner)`,
                   ["--neh-unified-edge" as string]: `var(--chart-${model.colorSlot}-edge)`,
+                  ["--neh-bar-hover" as string]: `var(--chart-${model.colorSlot}-hover)`,
+                  ["--neh-bar-token" as string]: `var(--chart-${model.colorSlot})`,
                 }}
               />
             );
