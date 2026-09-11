@@ -153,14 +153,14 @@ function ExpandableTabBase(props: ExpandableTabProps) {
   const prefetch = useCallback(() => onPrefetch?.(id), [onPrefetch, id]);
 
   const className = cn(
-    "wd-tab flex min-w-0 items-center rounded-md py-1 text-xs font-medium no-underline",
+    "wd-tab flex min-w-0 items-center justify-center rounded-md py-1 text-xs font-medium no-underline",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     // Wcięcia i przerwa NIE są animowane - to były najdroższe własności
     // w poprzedniej wersji. Aktywna zakładka dostaje je skokowo, a ruch,
     // który widać, robi rozwijana etykieta.
     active
-      ? cn("gap-1.5 text-primary", compact ? "px-2.5" : "px-3")
-      : "gap-0 px-2 text-muted-foreground/80 hover:text-foreground",
+      ? cn("gap-1.5 text-primary", compact ? "px-1" : "px-3")
+      : cn("gap-0 text-muted-foreground/80 hover:text-foreground", compact ? "px-1" : "px-2"),
   );
 
   const inner = (

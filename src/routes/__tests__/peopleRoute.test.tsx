@@ -347,7 +347,12 @@ describe("/people - kontrakt adresu i nagłówka", () => {
     // Lista imion, firm i lokalizacji zarejestrowanych osób nie jest treścią
     // publiczną - `nofollow` domyka też linki do profili.
     const meta = await routeMeta(PeopleRoute);
-    expect(meta).toEqual([{ title: "Osoby" }, { name: "robots", content: "noindex, nofollow" }]);
+    expect(meta).toEqual(
+      expect.arrayContaining([
+        { title: "Osoby | New European Strategies" },
+        { name: "robots", content: "noindex, nofollow" },
+      ]),
+    );
   });
 
   it("trasa używa TEGO SAMEGO walidatora, co przywracanie zapisanego wyszukiwania", async () => {

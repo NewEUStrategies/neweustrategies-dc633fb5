@@ -8589,6 +8589,21 @@ html[data-mbb="on"] [data-site-shell] {
   opacity: 1;
   transform: none;
 }
+@media (max-width: 639px) {
+  [data-workspace-dock] .wd-tab {
+    width: 100%;
+    min-height: 36px;
+  }
+
+  [data-workspace-dock] .wd-tab__reveal {
+    display: none;
+  }
+
+  [data-workspace-dock] .wd-tab[data-active="true"] > span:first-child {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
 /* ZAPASU `max-width` TU NIE MA - i to jest decyzja z pomiaru, nie
    przeoczenie. `@supports not (grid-template-columns: 1fr)` pyta o obsługę
    DEKLARACJI, a nie o animowalność torów `fr`: każda przeglądarka, która ma
