@@ -177,6 +177,7 @@ export function PolicyPositionsMap({
         unit: "",
         sampleSize: null,
         zeroBaselineBroken: false,
+        shareSumMismatch: null,
         notesShows: "",
         notesSurprising: "",
         notesHidden: "",
