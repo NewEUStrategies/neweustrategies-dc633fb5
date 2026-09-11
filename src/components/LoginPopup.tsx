@@ -9,6 +9,7 @@ import { MfaChallenge } from "@/components/auth/MfaChallenge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
+import { useBrandLogoUrl } from "@/lib/brand/useBrandLogoUrl";
 import { onOpenLoginPopup } from "@/lib/loginPopupBus";
 import "@/lib/i18n-public";
 import "@/lib/i18n-public-auth";
