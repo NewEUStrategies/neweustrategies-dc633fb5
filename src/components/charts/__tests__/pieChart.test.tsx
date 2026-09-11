@@ -779,6 +779,47 @@ describe("PieChart - tooltip i fokus", () => {
       "Przeciw: 40% (40%)",
     ]);
   });
+
+  it("ESCAPE zdejmuje dymek, ale NIE zabiera fokusu z wycinka", () => {
+    // Na tarczy wskazanie ustawia się FOKUSEM, a fokus na klawiaturze zostaje
+    // tam, gdzie go zostawiono. Bez Escape czytelnik, który dojechał Tabem do
+    // wycinka, nie miał żadnego sposobu zdjęcia dymka poza tapnięciem w tło -
+    // czyli akcją wskaźnikową, której na klawiaturze nie ma.
+    const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
+    const wycinek = slices(container)[0] as SVGElement;
+    fireEvent.focus(wycinek);
+    expect(tip(container)).not.toBeNull();
+
+    fireEvent.keyDown(wycinek, { key: "Escape" });
+    expect(tip(container)).toBeNull();
+    // Fokus zostaje: odebranie go wyrzuciłoby czytelnika na początek strony,
+    // a zdejmowaliśmy sam stan wskazania.
+    expect(wycinek.getAttribute("tabindex")).toBe("0");
+    expect(container.querySelectorAll("[data-active='true']")).toHaveLength(0);
+  });
+
+  it("INNY KLAWISZ nie gasi wskazania, a Escape nie ucieka poza wykres", () => {
+    // Dwie rzeczy naraz, bo obie są tą samą decyzją: Escape na tarczy dotyczy
+    // TARCZY. Strzałka nie ma tu nic do roboty (między wycinkami chodzi się
+    // Tabem), więc nie może zdejmować stanu; a Escape nie ma prawa zamknąć
+    // przy okazji modala albo szuflady, w której wykres stoi.
+    const naZewnatrz = vi.fn();
+    const { container } = render(
+      <div onKeyDown={naZewnatrz}>
+        <PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />
+      </div>,
+    );
+    const wycinek = slices(container)[0] as SVGElement;
+    fireEvent.focus(wycinek);
+
+    fireEvent.keyDown(wycinek, { key: "ArrowRight" });
+    expect(tip(container)).not.toBeNull();
+    expect(naZewnatrz).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(wycinek, { key: "Escape" });
+    expect(tip(container)).toBeNull();
+    expect(naZewnatrz).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("PieChart - i18n liczb (pl-PL vs en-GB)", () => {

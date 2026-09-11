@@ -1282,7 +1282,7 @@ export default defineConfig({
           lines: 99,
           branches: 99,
         },
-        // zmierzone: 100.0% linii · 100.0% fn · 97.4% gał
+        // zmierzone: 100.0% linii · 100.0% fn · 97.8% gał
         "src/components/charts/PieChart.tsx": {
           statements: 99,
           functions: 99,
