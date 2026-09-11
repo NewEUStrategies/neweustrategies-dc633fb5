@@ -695,7 +695,7 @@ export function MediaPickerDialog({
         <div
           onDragOver={(e) => {
             e.preventDefault();
-            if (e.dataTransfer.types.includes("Files")) setDragOver(true);
+            if (!e.dataTransfer || e.dataTransfer.types.includes("Files")) setDragOver(true);
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
