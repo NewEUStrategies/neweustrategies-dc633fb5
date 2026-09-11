@@ -113,9 +113,7 @@ describe("ChatWindowHeader", () => {
 
   it("wątek bezpośredni pokazuje stanowisko i firmę z profilu zamiast statusu", () => {
     withTooltips(
-      <ChatWindowHeader
-        {...headerProps({ profileMeta: "Analityczka - Instytut Przykładowy" })}
-      />,
+      <ChatWindowHeader {...headerProps({ profileMeta: "Analityczka - Instytut Przykładowy" })} />,
     );
     expect(screen.getByText("Analityczka - Instytut Przykładowy")).toBeTruthy();
     expect(screen.queryByText(chatPl.chat.offline)).toBeNull();
