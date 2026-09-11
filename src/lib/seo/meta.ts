@@ -280,7 +280,11 @@ export function buildRootHead(
   const alt = socialDefaultsFor(origin).imageAlt;
   const meta: Array<Record<string, string>> = [
     { charSet: "utf-8" },
-    { name: "viewport", content: "width=device-width, initial-scale=1" },
+    {
+      name: "viewport",
+      content:
+        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+    },
     { title },
     { name: "description", content: description },
     { name: "google-site-verification", content: "F4uS74OW4AztK0xOVBDNbWSwkpo7fXJ6txlYBmK2Cug" },
