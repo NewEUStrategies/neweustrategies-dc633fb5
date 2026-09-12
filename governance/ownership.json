@@ -460,6 +460,7 @@
       "zespolGithub": "@NewEUStrategies",
       "trasy": ["admin.tsx", "admin.index.tsx", "admin.performance.tsx", "admin.i18n.tsx"],
       "obiektyBazy": [
+        "missing_schema_objects$",
         "buckets$",
         "claim_",
         "client_errors",

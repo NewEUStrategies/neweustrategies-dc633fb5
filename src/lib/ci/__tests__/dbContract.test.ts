@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  classifyProbe,
-  contractFailed,
-  extractExpectedContract,
-  renderContractReport,
-} from "../dbContract";
+import { contractFailed, extractExpectedContract, renderContractReport } from "../dbContract";
 
 describe("extractExpectedContract", () => {
   it("recreates an object dropped earlier in the same migration", () => {
@@ -72,49 +67,6 @@ describe("extractExpectedContract", () => {
   });
 });
 
-describe("classifyProbe", () => {
-  it.each([409, 422, 500])(
-    "recognizes a domain response %i as proof of an existing endpoint",
-    (status) => {
-      expect(classifyProbe(status, null)).toBe("present");
-    },
-  );
-  it.each([301, 429, 502, 504])("leaves infrastructure response %i inconclusive", (status) => {
-    expect(classifyProbe(status, null)).toBe("inconclusive");
-  });
-  it("PGRST205 oznacza brak tabeli/widoku", () => {
-    expect(classifyProbe(404, "PGRST205")).toBe("missing");
-  });
-
-  it("PGRST202 z podpowiedzią innej funkcji = brak RPC", () => {
-    expect(
-      classifyProbe(
-        404,
-        "PGRST202",
-        "Perhaps you meant to call the function public.delete_my_meeting_slot",
-      ),
-    ).toBe("missing");
-  });
-
-  it("PGRST202 bez podpowiedzi = funkcja istnieje, tylko inna sygnatura", () => {
-    // Sondujemy bez argumentów (żeby nic nie wywołać), więc funkcje z parametrami
-    // zawsze zwracają PGRST202 - z pustym hintem, bo nazwa pasuje.
-    expect(classifyProbe(404, "PGRST202", null)).toBe("present");
-    expect(classifyProbe(404, "PGRST202", "")).toBe("present");
-  });
-
-  it("brak uprawnień oznacza, że obiekt istnieje", () => {
-    expect(classifyProbe(401, "42501")).toBe("present");
-    expect(classifyProbe(403, null)).toBe("present");
-    expect(classifyProbe(400, "PGRST203")).toBe("present");
-  });
-
-  it("2xx to obecność, gołe 404 nie rozstrzyga", () => {
-    expect(classifyProbe(200, null)).toBe("present");
-    expect(classifyProbe(404, null)).toBe("inconclusive");
-  });
-});
-
 describe("raport kontraktu", () => {
   it("distinguishes an inconclusive probe from a proven missing object", () => {
     const report = {
@@ -122,14 +74,14 @@ describe("raport kontraktu", () => {
       missing: [],
       inconclusive: [{ kind: "view" as const, name: "public_feed", file: "001.sql" }],
     };
-    expect(contractFailed(report)).toBe(false);
+    expect(contractFailed(report)).toBe(true);
     expect(renderContractReport(report)).toContain("view public_feed");
     expect(renderContractReport(report)).toContain("Nierozstrzygnięte");
     expect(renderContractReport({ checked: 0, missing: [], inconclusive: [] })).not.toContain(
       "Brakujące obiekty",
     );
   });
-  it("czerwony tylko przy brakujących obiektach", () => {
+  it("blocks missing objects and an empty contract", () => {
     expect(contractFailed({ checked: 3, missing: [], inconclusive: [] })).toBe(false);
     const failing = {
       checked: 3,
@@ -137,6 +89,7 @@ describe("raport kontraktu", () => {
       inconclusive: [],
     };
     expect(contractFailed(failing)).toBe(true);
+    expect(contractFailed({ checked: 0, missing: [], inconclusive: [] })).toBe(true);
     expect(renderContractReport(failing)).toContain("table posts");
   });
 });
