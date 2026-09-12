@@ -310,6 +310,25 @@ function prop(name: string): Record<string, unknown> {
   return p!;
 }
 
+it.each(["page", "post"])("keeps %s widget context stable through unrelated renders", (kind) => {
+  const data = kind === "page" ? page() : article();
+  const view = mount(data);
+  const initial = prop("ContentRenderer").currentPostCtx;
+  const Component = Route.options.component!;
+  const rerender = () =>
+    view.rerender(
+      <QueryClientProvider client={qc}>
+        <Component />
+      </QueryClientProvider>,
+    );
+  h.allowAds = true;
+  rerender();
+  expect(prop("ContentRenderer").currentPostCtx).toBe(initial);
+  h.lang = "en";
+  rerender();
+  expect(prop("ContentRenderer").currentPostCtx).not.toBe(initial);
+});
+
 describe("public catch-all composition", () => {
   it.each(["layout-1", "layout-13"])("places quick-view actions coherently in %s", (layout) => {
     h.layout!.quick_view_info = true;

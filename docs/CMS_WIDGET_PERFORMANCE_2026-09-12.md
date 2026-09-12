@@ -274,6 +274,13 @@ autoryzacji, czyszczenia cache ani pilności wylogowania. Test oczekującego
 formularza obejmuje teraz brak dostawcy, motyw oraz sesję anonimową.
 Wraz z istniejącymi testami uwierzytelniania zalicza 23/23 przypadki.
 
+Pomiar `34718850464` nadal wykrył zastąpienie formularza Elementora.
+Testy rzeczywistej trasy odtworzyły następną niestabilność: `currentPostCtx`
+powstawał od nowa po aktualizacji niezwiązanej z treścią. Memoizacja obejmuje
+teraz ten kontekst oraz wejściową listę kategorii (także pustą listę strony).
+Nowy język nadal tworzy nowy kontekst. Zestaw trasy zalicza 42/42 testy;
+ostateczny dowód zachowania formularza pozostaje kontrolą przeglądarkową.
+
 ## Odbiór implementacji
 
 Etap 1 jest zaimplementowany. Etap 2 obejmuje stanowisko A/B oraz naprawy

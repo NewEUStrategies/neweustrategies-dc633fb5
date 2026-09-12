@@ -43,6 +43,19 @@ jobs:
           cd harness
           bunx playwright install --with-deps chromium
           bun run test:cms-performance-harness
+      - name: Archive browser runtime for CMS hydration reproduction
+        if: matrix.engine == 'builder' && matrix.variant == 'form'
+        run: |
+          for cms_browser_dir in "$HOME"/.cache/ms-playwright/chromium_headless_shell-*; do
+            tar -C "$HOME/.cache/ms-playwright" -czf "$RUNNER_TEMP/cms-chromium.tar.gz" "${cms_browser_dir##*/}"
+          done
+      - name: Preserve browser runtime for CMS hydration reproduction
+        if: matrix.engine == 'builder' && matrix.variant == 'form'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cms-chromium-runtime
+          path: ${{ runner.temp }}/cms-chromium.tar.gz
+          retention-days: 1
       - name: Build baseline production artifact
         working-directory: baseline
         run: |
