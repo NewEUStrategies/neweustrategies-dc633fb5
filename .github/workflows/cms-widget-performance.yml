@@ -52,6 +52,10 @@ jobs:
           VITE_SUPABASE_URL: http://127.0.0.1:4199
           VITE_SUPABASE_PUBLISHABLE_KEY: performance-fixture
       - name: Measure baseline - 24 independent samples
+        id: measure_baseline
+        # Collect candidate diagnostics even when the historical version fails.
+        # The final step still fails the job for a failed baseline.
+        continue-on-error: true
         working-directory: harness
         run: bun run test:e2e:cms-performance ${{ matrix.engine }} ${{ matrix.variant }}
         env:
@@ -86,6 +90,9 @@ jobs:
       - name: Compare equivalent samples
         working-directory: harness
         run: node scripts/performance/compare-cms-widgets.mjs ${{ matrix.engine }} ${{ matrix.variant }}
+      - name: Require baseline correctness
+        if: ${{ !cancelled() && steps.measure_baseline.outcome == 'failure' }}
+        run: exit 1
       - name: Preserve candidate and comparison evidence
         if: ${{ !cancelled() && steps.measure_candidate.outcome != 'skipped' }}
         uses: actions/upload-artifact@v4

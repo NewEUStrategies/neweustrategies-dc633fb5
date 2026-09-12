@@ -19,6 +19,12 @@ declare global {
       title?: Element;
       form?: Element;
       titleRemoved: boolean;
+      formEvents: Array<{ at: number; event: string; node: string; parent: string }>;
+      layoutShifts: Array<{
+        at: number;
+        value: number;
+        sources: Array<{ node: string; previous: DOMRectReadOnly; current: DOMRectReadOnly }>;
+      }>;
     };
   }
 }
@@ -100,13 +106,40 @@ for (const engine of CMS_ENGINES)
                   cls: 0,
                   longTasks: [],
                   titleRemoved: false,
+                  formEvents: [],
+                  layoutShifts: [],
                 };
                 const state = window.__cmsVisit;
+                const describe = (node: Node | null | undefined): string =>
+                  node instanceof Element
+                    ? node.tagName.toLowerCase() + " " + node.outerHTML.slice(0, 350)
+                    : (node?.nodeName ?? "unknown");
+                let lastForm: Element | null = null;
+                let formRemoved = false;
                 new MutationObserver(() => {
                   state.title ??= Array.from(document.querySelectorAll("main h2")).find(
                     (node) => node.textContent === title,
                   );
-                  state.form ??= document.querySelector("main form") ?? undefined;
+                  const currentForm = document.querySelector("main form");
+                  state.form ??= currentForm ?? undefined;
+                  if (currentForm !== lastForm) {
+                    state.formEvents.push({
+                      at: performance.now(),
+                      event: currentForm ? "observed" : "absent",
+                      node: describe(currentForm),
+                      parent: describe(currentForm?.parentElement),
+                    });
+                    lastForm = currentForm;
+                  }
+                  if (state.form && !state.form.isConnected && !formRemoved) {
+                    formRemoved = true;
+                    state.formEvents.push({
+                      at: performance.now(),
+                      event: "original-removed",
+                      node: describe(state.form),
+                      parent: describe(state.form.parentElement),
+                    });
+                  }
                   if (state.title && !state.title.isConnected) state.titleRemoved = true;
                 }).observe(document, { childList: true, subtree: true });
                 let ready = false;
@@ -126,9 +159,26 @@ for (const engine of CMS_ENGINES)
                   value = 0;
                 new PerformanceObserver((list) => {
                   for (const entry of list.getEntries() as Array<
-                    PerformanceEntry & { value: number; hadRecentInput: boolean }
+                    PerformanceEntry & {
+                      value: number;
+                      hadRecentInput: boolean;
+                      sources?: Array<{
+                        node?: Node;
+                        previousRect: DOMRectReadOnly;
+                        currentRect: DOMRectReadOnly;
+                      }>;
+                    }
                   >) {
                     if (entry.hadRecentInput) continue;
+                    state.layoutShifts.push({
+                      at: entry.startTime,
+                      value: entry.value,
+                      sources: (entry.sources ?? []).map((source) => ({
+                        node: describe(source.node),
+                        previous: source.previousRect.toJSON(),
+                        current: source.currentRect.toJSON(),
+                      })),
+                    });
                     if (entry.startTime - last < 1000 && entry.startTime - start < 5000)
                       value += entry.value;
                     else {
@@ -148,9 +198,12 @@ for (const engine of CMS_ENGINES)
             );
             const path = `${lang === "en" ? "/en" : ""}/cms-${engine}-${variant}`;
             if (serverCache === "warm") {
-              const warmup = await request.get(path, { headers: { "accept-language": lang } });
+              const warmup = await request.get(path, {
+                headers: { "accept-language": lang, accept: "text/html" },
+              });
               expect(warmup.status()).toBe(200);
               expect(warmup.headers()["x-nes-cache"]).toBe("MISS");
+              expect(warmup.headers()["cache-control"]).toContain("public");
             }
             const response = await page.goto(path, { waitUntil: "domcontentloaded" });
             expect(response?.status()).toBe(200);
@@ -203,6 +256,8 @@ for (const engine of CMS_ENGINES)
                 hydrationReadyMs: state.readyAt,
                 serverTitleRetained: !!state.title?.isConnected && !state.titleRemoved,
                 serverFormRetained: state.form?.isConnected ?? false,
+                formEvents: state.formEvents,
+                layoutShifts: state.layoutShifts,
                 longTasks: state.longTasks,
                 longTaskMs: state.longTasks.reduce((sum, task) => sum + task.duration, 0),
                 jsBodyBytes: scripts.reduce((sum, script) => sum + script.bodyBytes, 0),
