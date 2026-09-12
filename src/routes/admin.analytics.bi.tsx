@@ -13,8 +13,17 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { ensureI18n as ensureAnalyticsI18n } from "@/lib/i18n-admin-analytics";
 import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
+import { ensureI18n as ensureDashboardI18n } from "@/lib/i18n-admin-dashboard";
 import { getAnalyticsStatus } from "@/lib/analytics/status.functions";
 
+// RUCH WŁASNY NA POCZĄTKU LISTY, przed Web Vitals. Kolejność dashboardów na
+// tym ekranie jest kolejnością pytań: najpierw ILU ludzi przyszło i skąd,
+// potem czy strona była dla nich szybka i czy się nie psuła.
+const TrafficGeoDashboard = lazy(() =>
+  import("@/components/admin/analytics/TrafficGeoDashboard").then((m) => ({
+    default: m.TrafficGeoDashboard,
+  })),
+);
 const VitalsBiDashboard = lazy(() =>
   import("@/components/admin/analytics/VitalsBiDashboard").then((m) => ({
     default: m.VitalsBiDashboard,
@@ -73,6 +82,8 @@ function Fallback() {
 function AnalyticsBiPage() {
   ensureAnalyticsI18n();
   ensureExtrasI18n();
+  // Panele ruchu i mapy są współdzielone z pulpitem, więc niosą jego słownik.
+  ensureDashboardI18n();
   const { t } = useTranslation();
   const fetchStatus = useServerFn(getAnalyticsStatus);
   const statusQ = useQuery({
@@ -90,6 +101,10 @@ function AnalyticsBiPage() {
         </h1>
         <p className="text-sm text-muted-foreground mt-1">{t("adminAnalytics.bi.subtitle")}</p>
       </header>
+
+      <Suspense fallback={<Fallback />}>
+        <TrafficGeoDashboard />
+      </Suspense>
 
       <Suspense fallback={<Fallback />}>
         <VitalsBiDashboard />

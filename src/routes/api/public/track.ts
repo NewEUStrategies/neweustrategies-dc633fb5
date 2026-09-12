@@ -8,6 +8,7 @@ import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { redactUrl } from "@/lib/observability/redact";
+import { countryFromHeaders } from "@/lib/analytics/geoHeaders";
 
 const MAX_BODY = 32_000;
 const MAX_EVENTS = 40;
@@ -95,6 +96,11 @@ export const Route = createFileRoute("/api/public/track")({
           }
 
           const ua = truncate(req.headers.get("user-agent"), 300);
+          // Kraj bierze się z nagłówka warstwy brzegowej, jeden raz na
+          // partię: wszystkie zdarzenia jednego beaconu pochodzą z tego
+          // samego żądania, więc liczenie go per wiersz byłoby tą samą
+          // odpowiedzią policzoną czterdzieści razy.
+          const country = countryFromHeaders(req.headers);
           const rows: Record<string, unknown>[] = [];
           for (const e of events) {
             const name = truncate(e.name, 120);
@@ -116,6 +122,7 @@ export const Route = createFileRoute("/api/public/track")({
               lang: truncate(e.lang, 8),
               meta: safeMeta(e.meta),
               ua,
+              ...(country ? { country } : {}),
               ...(tenantId ? { tenant_id: tenantId } : {}),
             });
           }
