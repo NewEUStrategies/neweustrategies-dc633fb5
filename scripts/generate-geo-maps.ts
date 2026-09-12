@@ -6,6 +6,24 @@
 // JSON and paints <path d>. Country display names (PL/EN) are embedded at
 // build time from i18n-iso-countries, so no locale data ships to the client.
 //
+// Generuje SIEDEM zasobów:
+//   world-110m.v2.json          świat, Natural Earth I, bez Antarktydy
+//   europe-50m.v2.json          LAEA (52, 10),    okno -25..50,5 / 34..72
+//   africa-50m.v1.json          LAEA (0, 15),     okno -26..58 / -35,5..37,5
+//   asia-50m.v1.json            LAEA (35, 100),   okno 25..191 / -11,5..82
+//   north-america-50m.v1.json   LAEA (45, -105),  okno -190..-10 / 6,5..84
+//   south-america-50m.v1.json   LAEA (-20, -60),  okno -93..-33 / -56..13
+//   oceania-50m.v1.json         LAEA (-25, 172,5) okno 110..240 / -48..21
+//
+// Wszystkie mapy regionalne idą z countries-50m.json, nie ze 110m. Powód nie
+// jest estetyczny: przy 110m z zasobu WYPADAJĄ CAŁE KRAJE, a nie szczegóły -
+// Oceania miałaby 7 krajów zamiast 24 (nie ma FM, MH, PW, KI, NR, TO, WS, GU,
+// MP, CK, NU, WF, NF, PN, PF), Ameryka Płn. 18 zamiast 38 (bez niemal całych
+// Karaibów), Azja traci BH, HK, MO, MV, SG i XN, Afryka CV, KM, MU, SC, ST
+// i SH. Dla mapy-choroplety brak kraju to brak miejsca na daną, więc rozmiar
+// kontroluje upraszczanie geometrii (Douglas-Peucker), a nie rozdzielczość
+// źródła.
+//
 // Usage:
 //   bun run scripts/generate-geo-maps.ts <dir-with-world-atlas-json>
 //
@@ -154,6 +172,13 @@ function makeLaea(lat0Deg: number, lon0Deg: number) {
 // ----------------------------------------------------------------------------
 
 interface ClipWindow {
+  /**
+   * Granice w stopniach. `lonMax` WOLNO przekroczyć 180 - okno Azji sięga 191,
+   * a Oceanii 240 - bo oba kontynenty leżą okrakiem na antypołudniku.
+   * Długości spoza [-180, 180] wprowadza `recenterRing`; sama projekcja LAEA
+   * radzi sobie z nimi bez zmian, bo liczy `sin/cos` z różnicy długości,
+   * a te są okresowe co 360 stopni.
+   */
   lonMin: number;
   lonMax: number;
   latMin: number;
@@ -202,6 +227,39 @@ function splitAtAntimeridian(ring: Ring, latMin: number, latMax: number): Ring[]
   );
   if (shifted.length >= 3) pieces.push(shifted);
   return pieces;
+}
+
+/**
+ * Przesuń CAŁY pierścień o wielokrotność 360 stopni tak, żeby wypadł możliwie
+ * blisko środka okna. Wołać PO `unwrapRing`.
+ *
+ * PO CO TO JEST. `unwrapRing` naprawia skok WEWNĄTRZ pierścienia, ale nie
+ * rusza pierścienia, który żadnego skoku nie ma - a przy Azji i Oceanii
+ * problem jest odwrotny niż na mapie świata: to nie pierścień przechodzi przez
+ * antypołudnik, tylko OKNO. Samoa (-172,8 do -171,4) nie ma w sobie żadnego
+ * skoku, więc po unwrapie dalej leży przy -172 i po prostu nie trafia w okno
+ * Oceanii (110 do 240). `clipRing` zwracał pustą tablicę, pętla budująca
+ * pomijała feature i kraj ZNIKAŁ BEZ SŁOWA. Zmierzone na 50m: bez tej funkcji
+ * z Oceanii wypadały AS, TO, WF i WS, a Czukotka była ucinana równo na 180
+ * stopniach (sztuczna pionowa krawędź długości 42 px w poprzek Rosji).
+ *
+ * `splitAtAntimeridian` tego NIE ROZWIĄZUJE i nie miało rozwiązywać - tamto
+ * tnie pierścień względem [-180, 180] na potrzeby mapy świata, gdzie projekcja
+ * naturalEarth1 jest NIEOKRESOWA (długość wchodzi do wzoru liniowo) i bez
+ * cięcia Rosja robi poziomą smugę przez całą mapę. Tu projekcja jest
+ * azymutalna i okresowa, więc ciąć nie ma czego - trzeba tylko dowieźć
+ * pierścień do właściwej „kopii" globu.
+ *
+ * Wybieramy przesunięcie NAJBLIŻSZE ŚRODKOWI OKNA, a nie pierwsze mieszczące
+ * się w [lonMin, lonMin+360). Przy oknie Europy (-25 do 50,5) ta druga reguła
+ * przerzuciłaby Grenlandię z -50 na +310 i wycięła ją z mapy Europy, na której
+ * jest od zawsze.
+ */
+function recenterRing(ring: Ring, lonCenter: number): Ring {
+  if (ring.length === 0) return ring;
+  const shift = Math.round((lonCenter - ring[0][0]) / 360);
+  if (shift === 0) return ring;
+  return ring.map(([lon, lat]): [number, number] => [lon + shift * 360, lat]);
 }
 
 function clipRing(ring: Ring, w: ClipWindow): Ring {
@@ -330,14 +388,108 @@ function projectAndFit(
   };
 }
 
-/** Drop points that move less than `epsilon` px - cheap, shape-preserving. */
-function thinRing(ring: number[][], epsilon: number): number[][] {
-  const out: number[][] = [];
-  for (const p of ring) {
-    const last = out[out.length - 1];
-    if (!last || Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) >= epsilon) out.push(p);
+/**
+ * Douglas-Peucker: zostawia punkt tylko wtedy, gdy jego odległość PROSTOPADŁA
+ * od cięciwy łączącej końce upraszczanego odcinka przekracza tolerancję.
+ *
+ * DLACZEGO NIE PRZERZEDZANIE PO SĄSIEDZIE, KTÓRE TU STAŁO WCZEŚNIEJ. Poprzednia
+ * wersja (`thinRing`) odrzucała punkt, gdy jego odległość L1 od POPRZEDNIKA była
+ * mniejsza od progu. Taki filtr nie ogranicza błędu kształtu w ŻADEN sposób:
+ * sto kolejnych punktów po 0,49 px każdy zostaje odrzuconych, a linia brzegowa
+ * dryfuje przez ten czas o 49 px - czyli o jedną dwudziestą szerokości mapy.
+ * W drugą stronę ten sam filtr ZOSTAWIAŁ punkt oddalony o 0,6 px, choć leżał
+ * dokładnie na cięciwie i nie wnosił nic poza bajtami.
+ *
+ * Douglas-Peucker przy TYM SAMYM progu 0,5 px ogranicza błąd prostopadły do
+ * 0,5 px, więc jest jednocześnie WIERNIEJSZY i dużo oszczędniejszy. Zmierzone
+ * na world-atlas 2.0.2: europe-50m 198 KiB -> 82 KiB, world-110m 131 KiB ->
+ * 87 KiB, a pięć kontynentów zmieściło się w 279 KiB zamiast 827 KiB. To była
+ * jedyna dźwignia rozmiaru, która cokolwiek dała - filtrowanie mikrowysp po
+ * polu (próg 4 px^2) ścinało z Azji 295 podścieżek i tylko 8% bajtów, bo
+ * rozmiar robią DŁUGIE LINIE BRZEGOWE (Kanada, Rosja, Indonezja), a nie liczba
+ * wysepek.
+ */
+function douglasPeucker(pts: number[][], tolerance: number): number[][] {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length);
+  keep[0] = 1;
+  keep[pts.length - 1] = 1;
+  const tol2 = tolerance * tolerance;
+  // Iteracyjnie, nie rekurencyjnie: pierścień Kanady ma 11,5 tys. punktów,
+  // a rekurencja na takiej długości potrafi rozwalić stos.
+  const stack: [number, number][] = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop() as [number, number];
+    if (b - a < 2) continue;
+    const [ax, ay] = pts[a];
+    const [bx, by] = pts[b];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    let far = -1;
+    let farD2 = -1;
+    for (let i = a + 1; i < b; i++) {
+      const [px, py] = pts[i];
+      let d2: number;
+      if (len2 === 0) {
+        // Cięciwa zdegenerowana do punktu - mierz odległość wprost od niego.
+        const ex = px - ax;
+        const ey = py - ay;
+        d2 = ex * ex + ey * ey;
+      } else {
+        // Rzut na ODCINEK (t przycięte do [0,1]), nie na prostą: bez tego
+        // punkt za końcem cięciwy dostaje zaniżoną odległość.
+        let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const ex = px - (ax + t * dx);
+        const ey = py - (ay + t * dy);
+        d2 = ex * ex + ey * ey;
+      }
+      if (d2 > farD2) {
+        farD2 = d2;
+        far = i;
+      }
+    }
+    if (farD2 > tol2) {
+      keep[far] = 1;
+      stack.push([a, far], [far, b]);
+    }
   }
+  const out: number[][] = [];
+  for (let i = 0; i < pts.length; i++) if (keep[i]) out.push(pts[i]);
   return out;
+}
+
+/**
+ * Upraszczanie ZAMKNIĘTEGO pierścienia.
+ *
+ * Douglas-Peucker puszczony na całym pierścieniu ścina go do jednego odcinka:
+ * pierwszy i ostatni punkt pierścienia to TEN SAM punkt, więc cięciwa ma
+ * zerową długość i cała reszta wypada „blisko" niej. Dlatego pierścień idzie
+ * na dwie połówki (podział w indeksie n/2) i każda upraszcza się osobno.
+ *
+ * Pierścienie z world-atlas są zamknięte (sprawdzone: 1629 na 1629 w 50m ma
+ * ostatni punkt równy pierwszemu), więc odcięcie ostatniego punktu każdej
+ * połówki niczego nie gubi - `Z` w ścieżce SVG domyka figurę samo.
+ */
+function simplifyRing(ring: number[][], epsilon: number): number[][] {
+  if (ring.length < 4) return ring;
+  const mid = Math.floor(ring.length / 2);
+  const head = douglasPeucker(ring.slice(0, mid + 1), epsilon);
+  const tail = douglasPeucker(ring.slice(mid), epsilon);
+  return [...head.slice(0, -1), ...tail.slice(0, -1)];
+}
+
+/** Pole pierścienia (wzór na pole wielokąta), bezwzględne - do wyboru
+ *  największego kawałka kraju w fallbacku `polygonsToPath`. */
+function ringArea(ring: number[][]): number {
+  let acc = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    acc += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(acc) / 2;
 }
 
 function ringToPath(ring: number[][]): string {
@@ -353,9 +505,35 @@ function polygonsToPath(polys: number[][][][], epsilon: number): string {
   let d = "";
   for (const rings of polys) {
     for (const ring of rings) {
-      const thin = thinRing(ring, epsilon);
+      const thin = simplifyRing(ring, epsilon);
       if (thin.length >= 3) d += ringToPath(thin);
     }
+  }
+  // FALLBACK: kraj MNIEJSZY OD PROGU UPRASZCZANIA znikał z zasobu bez śladu.
+  // Upraszczanie mogło zejść poniżej trzech punktów, `d` wychodziło puste,
+  // a `buildAsset` pomijał taki kraj przez `if (!d) continue` - cicho, bez
+  // ostrzeżenia. Tak właśnie WYPADŁ WATYKAN z europe-50m.v2.json: zasób miał
+  // 64 kraje zamiast 65 i nikt tego nie zauważył, bo San Marino, Monako,
+  // Liechtenstein, Andora i Malta są odrobinę większe i przechodziły.
+  // Przy kontynentach problem urósłby: bez tego fallbacku ginęły MO, MV
+  // (Azja), BL, MS (Ameryka Płn.), NR, NF (Oceania).
+  //
+  // Dlatego gdy nie przetrwało NIC, wracamy do NAJWIĘKSZEGO pierścienia
+  // BEZ upraszczania. Kosztuje kilkadziesiąt bajtów na taki kraj i daje
+  // gwarancję: lista krajów w zasobie == lista krajów na wejściu.
+  if (!d) {
+    let best: number[][] | null = null;
+    let bestArea = -1;
+    for (const rings of polys) {
+      for (const ring of rings) {
+        const area = ringArea(ring);
+        if (area > bestArea) {
+          bestArea = area;
+          best = ring;
+        }
+      }
+    }
+    if (best && best.length >= 3) d = ringToPath(best);
   }
   return d;
 }
@@ -424,7 +602,16 @@ function buildAsset(
   epsilon: number,
 ): GeoAsset {
   const { projected, height, fit } = projectAndFit(features, project, width, 8);
-  const countries: OutCountry[] = [];
+  // JEDEN WPIS NA KRAJ, NIE NA FEATURE. world-atlas potrafi mieć dwa osobne
+  // feature'y o tym samym numerze ISO - w 50m są to „Australia" i „Ashmore and
+  // Cartier Is.", oba z numerem 036. Wcześniejsze `countries.push()` per feature
+  // dawało w zasobie Oceanii DWA wpisy o id "AU", a runtime (ChoroplethMap)
+  // renderuje kraje przez `key={c.id}`: React dostawał zduplikowany klucz,
+  // a kraj z danymi rysował się dwa razy. Błąd był przy tym zależny od progu
+  // upraszczania - mniejszy feature raz znikał, raz nie - więc łatwo go było
+  // przeoczyć. Scalamy po `identity.id`, doklejając ścieżkę: `fill-rule`
+  // evenodd i tak traktuje kolejne podścieżki jak kawałki tej samej figury.
+  const byId = new Map<string, OutCountry>();
   for (const f of features) {
     const identity = identify(f);
     if (!identity) continue;
@@ -432,8 +619,11 @@ function buildAsset(
     if (!polys) continue;
     const d = polygonsToPath(polys, epsilon);
     if (!d) continue;
-    countries.push({ ...identity, d });
+    const prev = byId.get(identity.id);
+    if (prev) prev.d += d;
+    else byId.set(identity.id, { ...identity, d });
   }
+  const countries = [...byId.values()];
   countries.sort((a, b) => a.id.localeCompare(b.id));
   return {
     v: 1,
@@ -469,7 +659,22 @@ countriesLib.registerLocale(require("i18n-iso-countries/langs/en.json"));
 const outDir = join(import.meta.dirname, "..", "public", "geo");
 mkdirSync(outDir, { recursive: true });
 
-// --- World (110m, Natural Earth I, Antarctica dropped) ---
+const written: { file: string; asset: GeoAsset; bytes: number }[] = [];
+
+function emit(file: string, asset: GeoAsset): void {
+  const json = JSON.stringify(asset);
+  writeFileSync(join(outDir, file), json);
+  // Buffer.byteLength, NIE json.length: to drugie liczy jednostki kodowe
+  // UTF-16, a nazwy krajów mają polskie znaki diakrytyczne. Dla Europy
+  // rozjazd wynosił kilkanaście bajtów - mało, ale budżet rozmiaru musi
+  // pilnować tego, co naprawdę ląduje na dysku i w transferze.
+  written.push({ file, asset, bytes: Buffer.byteLength(json, "utf8") });
+}
+
+// ----------------------------------------------------------------------------
+// Mapa świata (110m, Natural Earth I, bez Antarktydy)
+// ----------------------------------------------------------------------------
+
 const world110 = JSON.parse(
   readFileSync(join(inputDir, "countries-110m.json"), "utf8"),
 ) as Topology;
@@ -479,47 +684,378 @@ const worldFeatures = decodeCountries(world110)
     ...f,
     // Rozetnij pierścienie na antypołudniku (Rosja, Fidżi) - inaczej wychodzi
     // pozioma smuga przez całą mapę. fill-rule=evenodd zachowuje dziury.
+    // Tylko TUTAJ, bo tylko naturalEarth1 jest projekcją nieokresową; mapy
+    // kontynentów (LAEA) rozwiązują antypołudnik przez `recenterRing`.
     polygons: f.polygons.map((polygon) =>
       polygon.flatMap((ring) => splitAtAntimeridian(ring, -90, 90)),
     ),
   }));
-const worldAsset = buildAsset(worldFeatures, naturalEarth1, { type: "naturalEarth1" }, 960, 0.4);
-writeFileSync(join(outDir, "world-110m.v1.json"), JSON.stringify(worldAsset));
+emit(
+  "world-110m.v2.json",
+  buildAsset(worldFeatures, naturalEarth1, { type: "naturalEarth1" }, 960, 0.4),
+);
 
-// --- Europe (50m detail, LAEA "EU-style", clipped to the Europe window) ---
-const EUROPE_WINDOW: ClipWindow = { lonMin: -25, lonMax: 50.5, latMin: 34, latMax: 72 };
-const world50 = JSON.parse(readFileSync(join(inputDir, "countries-50m.json"), "utf8")) as Topology;
-const europeFeatures: CountryFeature[] = [];
-for (const f of decodeCountries(world50)) {
-  const polygons: Polygon[] = [];
-  for (const polygon of f.polygons) {
-    // Unwrap przed klipem - pierścień Rosji przecina antypołudnik i bez tego
-    // zostawia poziomy pas w poprzek całego okna Europy.
-    const clipped = polygon
-      .map((ring) => clipRing(unwrapRing(ring), EUROPE_WINDOW))
-      .filter((ring) => ring.length >= 3);
-    // Keep the polygon only if its exterior ring survived the clip.
-    if (clipped.length && clipRing(unwrapRing(polygon[0]), EUROPE_WINDOW).length >= 3) {
-      polygons.push(clipped);
-    }
-  }
-  if (polygons.length) europeFeatures.push({ ...f, polygons });
+// ----------------------------------------------------------------------------
+// Mapy regionalne (50m, LAEA, przycięte oknem)
+// ----------------------------------------------------------------------------
+
+interface RegionSpec {
+  /** Nazwa pliku bez rozszerzenia - runtime adresuje zasób po niej. */
+  file: string;
+  window: ClipWindow;
+  /** Środek LAEA. */
+  lat0: number;
+  lon0: number;
+  /**
+   * Lista ISO alpha-2 albo `null` = bierz wszystko, co wpadło w okno.
+   * Europa jedzie bez listy (patrz komentarz przy EUROPE_WINDOW).
+   */
+  iso: readonly string[] | null;
 }
-const europeAsset = buildAsset(
-  europeFeatures,
-  makeLaea(52, 10),
-  { type: "laea", lat0: 52, lon0: 10 },
-  960,
-  0.5,
-);
-writeFileSync(join(outDir, "europe-50m.v1.json"), JSON.stringify(europeAsset));
 
-const worldKb = (JSON.stringify(worldAsset).length / 1024).toFixed(1);
-const europeKb = (JSON.stringify(europeAsset).length / 1024).toFixed(1);
-console.log(`geo assets written to public/geo/`);
-console.log(
-  `  world-110m.v1.json  ${worldKb} KB (${worldAsset.countries.length} countries, ${worldAsset.viewBox})`,
-);
-console.log(
-  `  europe-50m.v1.json  ${europeKb} KB (${europeAsset.countries.length} countries, ${europeAsset.viewBox})`,
-);
+/**
+ * PO CO OKNO, SKORO JEST LISTA KRAJÓW. Lista mówi, KTÓRE kraje należą do
+ * kontynentu; okno mówi, JAKI KAWAŁEK świata pokazujemy - i te dwie rzeczy się
+ * nie pokrywają. Okno robi trzy rzeczy, których lista nie zrobi:
+ *
+ *  1. Przycina Rosję na granicy Europa/Azja. Rosja jest na OBU mapach i na
+ *     każdej ma INNY KSZTAŁT: w Europie ucięta na 50,5 stopnia E, w Azji na 25.
+ *     Zakresy się nachodzą, więc ten sam `id="RU"` niesie w dwóch zasobach
+ *     różną geometrię - to jest zamierzone, nie rozjazd. Tak samo robią
+ *     urzędowe mapy poglądowe UE i tak samo są już przycięte w Europie
+ *     Turcja, Kazachstan i Iran.
+ *  2. Odcina terytoria zamorskie krajów Z LISTY, które rozciągnęłyby kadr na
+ *     pusty ocean: Wyspy Księcia Edwarda przy RPA (47 stopni S), Wyspę
+ *     Wielkanocną przy Chile (109 stopni W), Macquarie przy Australii.
+ *     `projectAndFit` liczy kadr z sumy WSZYSTKICH punktów, więc jedna taka
+ *     wysepka potrafi zmniejszyć cały kontynent o kilkanaście procent.
+ *  3. Ustala kadr i proporcje zasobu.
+ *
+ * A po co lista, skoro jest okno: bo samo okno wpuszcza sąsiadów. Zmierzone
+ * na 50m - w oknie Afryki ląduje 24 kraje spoza Afryki (z połową Półwyspu
+ * Arabskiego: SA, YE, OM, plus ES, IT, GR, TR, IR, IQ), w oknie Azji 40,
+ * w oknie Ameryki Płn. 22 (z Afryką Zachodnią i Wyspami Zielonego Przylądka).
+ * Dla mapy-choroplety, gdzie każdy kraj jest fokusowalny i ma nazwę
+ * w `<title>`, „pół Arabii Saudyjskiej" w mapie Afryki to błąd merytoryczny.
+ */
+const REGIONS: RegionSpec[] = [
+  {
+    // Europa bez listy krajów - świadomie. Okno jest wąskie, więc sąsiedzi
+    // wchodzą tylko wąskim marginesem (DZ, MA, TN, IQ, IR, KZ, SY, LB) i są
+    // KONTEKSTEM przyciętym krawędzią, dokładnie jak na urzędowych mapach UE.
+    // Ten sam trik nie skaluje się na Afrykę czy Azję - stąd listy niżej.
+    file: "europe-50m.v2.json",
+    window: { lonMin: -25, lonMax: 50.5, latMin: 34, latMax: 72 },
+    lat0: 52,
+    lon0: 10,
+    iso: null,
+  },
+  {
+    // lonMin -26: Wyspy Zielonego Przylądka (Santo Antao, -25,4).
+    // lonMax 58: Mauritius (57,8) i Seszele - wariant obcięty na 52 gubił oba,
+    //   a przy tym wychodził WIĘKSZY (48,0 wobec 46,5 KiB), bo węższe okno
+    //   podnosi skalę i zostawia więcej punktów po upraszczaniu.
+    // latMax 37,5: Cap Angela w Tunezji (37,35), najdalszy punkt Afryki.
+    // latMin -35,5: Przylądek Igielny (-34,8); świadomie ODCINA Wyspy Księcia
+    //   Edwarda (RPA, -47), które rozciągnęłyby kadr o 12 stopni na południe.
+    file: "africa-50m.v1.json",
+    window: { lonMin: -26, lonMax: 58, latMin: -35.5, latMax: 37.5 },
+    lat0: 0,
+    lon0: 15,
+    iso: [
+      "AO",
+      "BF",
+      "BI",
+      "BJ",
+      "BW",
+      "CD",
+      "CF",
+      "CG",
+      "CI",
+      "CM",
+      "CV",
+      "DJ",
+      "DZ",
+      "EG",
+      "EH",
+      "ER",
+      "ET",
+      "GA",
+      "GH",
+      "GM",
+      "GN",
+      "GQ",
+      "GW",
+      "KE",
+      "KM",
+      "LR",
+      "LS",
+      "LY",
+      "MA",
+      "MG",
+      "ML",
+      "MR",
+      "MU",
+      "MW",
+      "MZ",
+      "NA",
+      "NE",
+      "NG",
+      "RW",
+      "SC",
+      "SD",
+      "SH",
+      "SL",
+      "SN",
+      "SO",
+      "SS",
+      "ST",
+      "SZ",
+      "TD",
+      "TG",
+      "TN",
+      "TZ",
+      "UG",
+      "XS",
+      "ZA",
+      "ZM",
+      "ZW",
+    ],
+  },
+  {
+    // lonMin 25 jest WYMUSZONE przez Turcję (25,7) i Cypr. Sprawdzone: przy
+    //   lonMin 40 z mapy wypadają CY, IL, JO, LB, PS, SY i XN.
+    // lonMax 191: Czukotka - pierścień Rosji po unwrapie sięga 190,3.
+    // latMax 82: Ziemia Franciszka Józefa (81,9).
+    // latMin -11,5: Indonezja (Roti, -10,9) i Timor Wschodni.
+    file: "asia-50m.v1.json",
+    window: { lonMin: 25, lonMax: 191, latMin: -11.5, latMax: 82 },
+    lat0: 35,
+    lon0: 100,
+    iso: [
+      "AE",
+      "AF",
+      "AM",
+      "AZ",
+      "BD",
+      "BH",
+      "BN",
+      "BT",
+      "CN",
+      "CY",
+      "GE",
+      "HK",
+      "ID",
+      "IL",
+      "IN",
+      "IO",
+      "IQ",
+      "IR",
+      "JO",
+      "JP",
+      "KG",
+      "KH",
+      "KP",
+      "KR",
+      "KW",
+      "KZ",
+      "LA",
+      "LB",
+      "LK",
+      "MM",
+      "MN",
+      "MO",
+      "MV",
+      "MY",
+      "NP",
+      "OM",
+      "PH",
+      "PK",
+      "PS",
+      "QA",
+      "RU",
+      "SA",
+      "SG",
+      "SY",
+      "TH",
+      "TJ",
+      "TL",
+      "TM",
+      "TR",
+      "TW",
+      "UZ",
+      "VN",
+      "XN",
+      "YE",
+    ],
+  },
+  {
+    // lonMin -190 (czyli 170 stopni E po przesunięciu): Aleuty. Ich zachodnie
+    //   wyspy leżą przy 179,8 E i dopiero `recenterRing` sprowadza je na
+    //   -180,2 - bez tego wypadałyby z kadru Ameryki.
+    // lonMax -10: północno-wschodni cypel Grenlandii (-11,4).
+    // latMax 84: Kap Morris Jesup (83,6), najdalszy punkt lądu na północy.
+    // latMin 6,5: Panama (7,2); Kolumbia jest już Ameryką Południową.
+    file: "north-america-50m.v1.json",
+    window: { lonMin: -190, lonMax: -10, latMin: 6.5, latMax: 84 },
+    lat0: 45,
+    lon0: -105,
+    iso: [
+      "AG",
+      "AI",
+      "AW",
+      "BB",
+      "BL",
+      "BM",
+      "BS",
+      "BZ",
+      "CA",
+      "CR",
+      "CU",
+      "CW",
+      "DM",
+      "DO",
+      "GD",
+      "GL",
+      "GT",
+      "HN",
+      "HT",
+      "JM",
+      "KN",
+      "KY",
+      "LC",
+      "MF",
+      "MS",
+      "MX",
+      "NI",
+      "PA",
+      "PM",
+      "PR",
+      "SV",
+      "SX",
+      "TC",
+      "TT",
+      "US",
+      "VC",
+      "VG",
+      "VI",
+    ],
+  },
+  {
+    // lonMin -93: Galapagos (-91,7). Wariant bez nich (-82) wychodził WIĘKSZY
+    //   (45,6 wobec 40,6 KiB) i dawał kadr 960x1396, czyli proporcję 1,45 -
+    //   nie do ułożenia na stronie. Wyspa Wielkanocna (Chile, -109,4) zostaje
+    //   odcięta świadomie, bo rozciągnęłaby kadr o kolejne 17 stopni.
+    // lonMax -33: Fernando de Noronha (-32,4) i Ponta do Seixas.
+    // latMin -56: Przylądek Horn (-55,9) i Georgia Południowa (-54,9).
+    // latMax 13: Punta Gallinas w Kolumbii (12,5).
+    file: "south-america-50m.v1.json",
+    window: { lonMin: -93, lonMax: -33, latMin: -56, latMax: 13 },
+    lat0: -20,
+    lon0: -60,
+    iso: ["AR", "BO", "BR", "CL", "CO", "EC", "FK", "GS", "GY", "PE", "PY", "SR", "UY", "VE"],
+  },
+  {
+    // lonMin 110: Steep Point w Australii (112,9).
+    // lonMax 240 (czyli -120): Pitcairn (-124) i Gambiery (Polinezja Fr.).
+    //   Wariant obcięty na 190 gubił CK, NU, PF i PN, a wychodził WIĘKSZY
+    //   (22,4 wobec 19,1 KiB) - patrz ta sama zależność co przy Afryce.
+    // latMin -48: Wyspa Stewart i Chatham; świadomie odcina Campbell (-52,6)
+    //   i Macquarie (-54,7).
+    // latMax 21: Mariany Północne (20,5).
+    //
+    // CZEGO NIE MA I DLACZEGO NIE POMOŻE DOPISANIE DO LISTY: Tuvalu (TV),
+    // Tokelau (TK) i Minor Outlying Islands (UM) NIE ISTNIEJĄ w źródle -
+    // Natural Earth nie wydziela ich jako osobnych geometrii ani w 50m, ani
+    // w 110m (sprawdzone po numerycznym ISO i po nazwie). Lista poniżej
+    // zawiera KOMPLET tego, co w źródle jest; dopisanie do niej TV zmieniłoby
+    // tylko tyle, że kod wyglądałby, jakby Tuvalu dało się narysować.
+    // Postawienie ich na mapie wymaga innego źródła geometrii, nie innej
+    // listy - i jest osobną decyzją.
+    file: "oceania-50m.v1.json",
+    window: { lonMin: 110, lonMax: 240, latMin: -48, latMax: 21 },
+    lat0: -25,
+    lon0: 172.5,
+    iso: [
+      "AS",
+      "AU",
+      "CK",
+      "FJ",
+      "FM",
+      "GU",
+      "KI",
+      "MH",
+      "MP",
+      "NC",
+      "NF",
+      "NR",
+      "NU",
+      "NZ",
+      "PF",
+      "PG",
+      "PN",
+      "PW",
+      "SB",
+      "TO",
+      "VU",
+      "WF",
+      "WS",
+    ],
+  },
+];
+
+const world50 = JSON.parse(readFileSync(join(inputDir, "countries-50m.json"), "utf8")) as Topology;
+const world50Features = decodeCountries(world50);
+
+for (const region of REGIONS) {
+  const allowed = region.iso ? new Set(region.iso) : null;
+  const lonCenter = (region.window.lonMin + region.window.lonMax) / 2;
+  const features: CountryFeature[] = [];
+  for (const f of world50Features) {
+    if (allowed) {
+      const identity = identify(f);
+      if (!identity || !allowed.has(identity.id)) continue;
+    }
+    const polygons: Polygon[] = [];
+    for (const polygon of f.polygons) {
+      // Unwrap przed klipem - pierścień Rosji przecina antypołudnik i bez tego
+      // zostawia poziomy pas w poprzek całego okna. Recenter PO unwrapie -
+      // dowozi pierścień do właściwej kopii globu (patrz `recenterRing`).
+      const prepared = polygon.map((ring) => recenterRing(unwrapRing(ring), lonCenter));
+      const clipped = prepared
+        .map((ring) => clipRing(ring, region.window))
+        .filter((ring) => ring.length >= 3);
+      // Zostaw wielokąt tylko, gdy przetrwał jego pierścień ZEWNĘTRZNY -
+      // inaczej z kraju przyciętego krawędzią zostałyby same dziury.
+      if (clipped.length && clipRing(prepared[0], region.window).length >= 3) {
+        polygons.push(clipped);
+      }
+    }
+    if (polygons.length) features.push({ ...f, polygons });
+  }
+  emit(
+    region.file,
+    buildAsset(
+      features,
+      makeLaea(region.lat0, region.lon0),
+      { type: "laea", lat0: region.lat0, lon0: region.lon0 },
+      960,
+      0.5,
+    ),
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Podsumowanie
+// ----------------------------------------------------------------------------
+
+let totalBytes = 0;
+console.log("geo assets written to public/geo/");
+for (const { file, asset, bytes } of written) {
+  totalBytes += bytes;
+  console.log(
+    `  ${file.padEnd(26)} ${(bytes / 1024).toFixed(1).padStart(7)} KiB  ` +
+      `${String(asset.countries.length).padStart(3)} krajów  viewBox ${asset.viewBox}`,
+  );
+}
+console.log(`  ${"RAZEM".padEnd(26)} ${(totalBytes / 1024).toFixed(1).padStart(7)} KiB`);

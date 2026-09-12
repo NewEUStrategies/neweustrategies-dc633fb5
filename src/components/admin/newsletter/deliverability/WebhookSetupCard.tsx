@@ -4,7 +4,7 @@
 // niepodłączony webhook. Kafel mówi wprost: czy sekret jest ustawiony, jaki
 // adres wkleić u dostawcy poczty, na jakie zdarzenia nasłuchiwać i kiedy
 // ostatnio COKOLWIEK przyszło (bo skonfigurowany != działający).
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Copy, AlertTriangle, Webhook } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,24 @@ interface WebhookSetupCardProps {
 export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copyTimer.current !== null) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
   const healthy = setup.webhookConfigured && setup.lastEventAt !== null;
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(setup.webhookUrl);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      if (copyTimer.current !== null) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => {
+        setCopied(false);
+        copyTimer.current = null;
+      }, 2000);
     } catch {
       // Schowek bywa niedostępny (brak HTTPS / uprawnień) - adres i tak jest
       // widoczny na ekranie i można go zaznaczyć ręcznie.

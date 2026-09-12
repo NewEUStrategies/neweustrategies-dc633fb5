@@ -2,6 +2,7 @@
 
 Baza audytu: `b9c3fca6c9dd25604b6f0e6b891b044eaa518fb4`.
 Baza integracji: aktualny `main` po PR #348 (`3ee6d78`). Zmiany importu danych wykresów zachowano; kolidujące atrapy mediów połączono.
+Kontynuacja obejmuje również `main` po PR #349 (`3b8c374`), w tym nowe regiony i zasoby map.
 Gałąź: `fix/main-recovery-2026-09-12`.
 
 ## Zakres zmian
@@ -16,6 +17,9 @@ Gałąź: `fix/main-recovery-2026-09-12`.
 - SheetJS 0.20.3 z oficjalnego archiwum; podgląd w workerze, limit 20 MiB, 10 arkuszy, 1000 wierszy, 100 kolumn, 2 MiB HTML i 10 sekund. Dokument ponad limit wymaga pobrania i otwarcia lokalnie. Wynik nadal przechodzi DOMPurify.
 - Jeden budżet 4 sekund dla loadera bloga; ustawienia mają najwyżej 500 ms, a odpowiedź zdegradowana nie trafia do wspólnego cache.
 - Pomiary pierwszej wizyty: osobne cold/warm PL/EN, po trzy próbki na wariant, identyczny serwer i dane, porównanie median baseline/candidate oraz dotychczasowe limity bezwzględne.
+- Formularze popupu rejestracji i renderer dokumentu newslettera pobierają się dopiero po otwarciu odpowiedniego wariantu. Wyzwalacze, koordynacja nakładek i zamykanie pozostają w lekkiej obudowie; stan ładowania ma własną granicę Suspense.
+- Testy odczytów i mutacji doku obejmują błędy bazy, wylogowanie, kontekst notatek, sortowanie, nieistniejące zakładki, zmianę miesiąca oraz brak powtórnego pobierania świeżych danych przy ponownym wskazaniu panelu.
+- Timer potwierdzenia kopiowania adresu webhooka jest odnawiany po kolejnym kliknięciu i usuwany przy odmontowaniu. Test nie polega już na przypadkowym upływie dwóch sekund podczas innych testów.
 - Cztery shardy testów, scalenie wszystkich raportów i egzekwowanie istniejących progów w wymaganym jobie `test`. Kontrola kompletności czterech raportów i sukcesu każdego sharda.
 - Własność wszystkich dziewięciu domen przypisana do Fundacji New European Strategies zgodnie z dyspozycją właściciela z 12.09.2026; aktywny CODEOWNERS @NewEUStrategies. Wspólny status `Required release checks` oraz gotowy plik reguł ochrony `main`.
 

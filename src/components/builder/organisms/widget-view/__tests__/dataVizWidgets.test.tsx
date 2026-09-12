@@ -129,7 +129,7 @@ describe("DataMapWidgetView", () => {
       />,
     );
 
-    expect(fetchMock).toHaveBeenCalledWith("/geo/europe-50m.v1.json");
+    expect(fetchMock).toHaveBeenCalledWith("/geo/europe-50m.v2.json");
     await waitFor(() => {
       expect(container.querySelectorAll("path.neh-country").length).toBe(3);
     });

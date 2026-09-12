@@ -3,7 +3,7 @@
 // Wzorzec "EU Coalition Explorer" (ECFR): mapa choropletowa Europy koduje
 // stanowisko każdego państwa (za / przeciw / podzielone / brak stanowiska)
 // kolorem kategorycznym z palety wykresów. Geometria NIE podróżuje w bundlu -
-// współdzielimy pre-projektowany zasób public/geo/europe-50m.v1.json
+// współdzielimy pre-projektowany zasób public/geo/europe-50m.v2.json
 // z ChoroplethMap (fetch + cache React Query, ISO2 = klucz kraju).
 //
 // Dostępność jak w ChoroplethMap: kraje ze stanowiskiem są fokusowalne

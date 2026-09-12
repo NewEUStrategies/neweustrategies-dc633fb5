@@ -89,8 +89,20 @@ const pl = {
       },
       dataMap: {
         shellLabel: "Mapa danych",
+        // NAZWY REGIONÓW. Klucze są camelCase'owym odpowiednikiem
+        // identyfikatora regionu (`north-america` -> `northAmerica`) - tę samą
+        // konwersję liczy `mapRegionLabelKey`, z którego korzysta edytor, więc
+        // nikt tu nie zgaduje kształtu klucza. Obecności wszystkich siedmiu
+        // w OBU językach pilnuje `src/lib/charts/__tests__/mapRegions.test.ts`;
+        // bez niej brakujący wpis wychodzi na ekran jako surowy klucz
+        // `blocks.editors.dataMap.asia` w liście wyboru.
         europe: "Europa",
         world: "Świat",
+        africa: "Afryka",
+        asia: "Azja",
+        northAmerica: "Ameryka Północna",
+        southAmerica: "Ameryka Południowa",
+        oceania: "Oceania",
         unit: "Jednostka (np. %, mln)",
         title: "Tytuł mapy",
         selectCountry: "- wybierz kraj -",
@@ -858,6 +870,11 @@ const en: typeof pl = {
         shellLabel: "Data map",
         europe: "Europe",
         world: "World",
+        africa: "Africa",
+        asia: "Asia",
+        northAmerica: "North America",
+        southAmerica: "South America",
+        oceania: "Oceania",
         unit: "Unit (e.g. %, M)",
         title: "Map title",
         selectCountry: "- select a country -",
