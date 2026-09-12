@@ -275,7 +275,6 @@ export type Database = {
       analytics_events: {
         Row: {
           anon_id: string | null
-          country: string | null
           created_at: string
           entity_id: string | null
           entity_type: string | null
@@ -293,7 +292,6 @@ export type Database = {
         }
         Insert: {
           anon_id?: string | null
-          country?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string | null
@@ -311,7 +309,6 @@ export type Database = {
         }
         Update: {
           anon_id?: string | null
-          country?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string | null
@@ -19834,73 +19831,6 @@ export type Database = {
           granted: number
           last_event_at: string
         }[]
-      }
-      admin_dashboard_audience: {
-        Args: {
-          p_bucket?: string
-          p_offset_minutes?: number
-          p_prev_since: string
-          p_prev_until: string
-          p_since: string
-          p_until: string
-        }
-        Returns: Json
-      }
-      admin_dashboard_bucket: {
-        Args: { p_bucket: string }
-        Returns: string
-      }
-      admin_dashboard_content: {
-        Args: {
-          p_lang?: string
-          p_prev_since: string
-          p_prev_until: string
-          p_since: string
-          p_until: string
-        }
-        Returns: Json
-      }
-      admin_dashboard_crm: {
-        Args: {
-          p_bucket?: string
-          p_offset_minutes?: number
-          p_prev_since: string
-          p_prev_until: string
-          p_since: string
-          p_until: string
-        }
-        Returns: Json
-      }
-      admin_dashboard_marketing: {
-        Args: {
-          p_bucket?: string
-          p_offset_minutes?: number
-          p_prev_since: string
-          p_prev_until: string
-          p_since: string
-          p_until: string
-        }
-        Returns: Json
-      }
-      admin_dashboard_realtime: {
-        Args: { p_active_minutes?: number; p_window_minutes?: number }
-        Returns: Json
-      }
-      admin_dashboard_tenant: {
-        Args: never
-        Returns: string
-      }
-      admin_dashboard_traffic: {
-        Args: {
-          p_bucket?: string
-          p_limit?: number
-          p_offset_minutes?: number
-          p_prev_since: string
-          p_prev_until: string
-          p_since: string
-          p_until: string
-        }
-        Returns: Json
       }
       admin_delete_speaker_profile: {
         Args: { p_user_id: string }
