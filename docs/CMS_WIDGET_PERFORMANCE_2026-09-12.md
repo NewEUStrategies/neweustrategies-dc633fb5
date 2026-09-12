@@ -209,7 +209,6 @@ dla syntetycznego tenanta oraz test kontraktu. To poprawka stanowiska pomiaroweg
 nie jest poprawą czasu ładowania produktu. Typy nowego speca i konfiguracji
 Playwright są odtąd sprawdzane także przez komendę harnessu w CI.
 
-
 ## Wyniki diagnostyki i poprawki po pierwszym pomiarze
 
 Przebieg Actions `34714349499` nie zaliczył bramki. Zmniejszenie rozmiaru
@@ -248,10 +247,38 @@ handler obowiązują obie wersje. To jawne rozróżnienie diagnozy historycznej
 wersji od kryteriów odbioru poprawki. Budżety czasu, bajtów i CLS < 0,1 nie
 uległy zmianie. Wynik końcowy wymaga ponownej pełnej macierzy.
 
-
 Dodatkowy test odtworzył usuwanie oczekującego formularza przez zwykłą
 aktualizację rodzica, nawet gdy właściwości widgetu nie zmieniały się.
 Obie fabryki granic Suspense stosują teraz React.memo. Niezmienione pola
 formularza nie unieważniają trwającej hydratacji; rzeczywista zmiana props
 nadal aktualizuje widget. Kontrola eksportów rejestru rozpoznaje zarówno
 komponenty funkcyjne, jak i poprawne komponenty memo.
+
+Przebieg `34717651184` zebrał wszystkie 96 próbek historycznej bazy. Trzy
+grupy kandydata (tekst obu builderów i formularz Gutenberg) zaliczyły po 24
+próby oraz porównania wszystkich ośmiu wariantów. Formularz Elementora nadal
+był odtwarzany; niskie CLS nie wystarczyło do zaliczenia jego grupy.
+
+Rozszerzony test odtworzył brakujący przypadek: aktualizacja rodzica odtwarzała
+wartość kontekstu `ThemeProvider`, mimo niezmienionego motywu. Taka propagacja
+kontekstu przerywała hydratację formularza także pod `React.memo`. Dostawca
+ma teraz stabilne callbacki i wartość memoizowaną względem rzeczywistego
+motywu. Test zachowania formularza przechodzi z dostawcą motywu i bez niego;
+testy przełączania motywu nadal wymagają natychmiastowej reakcji CSS oraz
+zachowania widocznej treści przy oczekującym imporcie.
+
+## Odbiór implementacji
+
+Etap 1 jest zaimplementowany. Etap 2 obejmuje stanowisko A/B oraz naprawy
+wykrytych defektów SSR, hydratacji i stabilności układu. Odbiór wymaga zielonej
+pełnej macierzy `CMS widget performance` oraz istniejących bramek CI dla
+aktualnej wersji kodu. Bieżący wynik, identyfikator mierzonego commita i
+artefakty są podane w [PR #352](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/pull/352).
+
+Etap 3 pozostaje warunkowy. Nie wprowadzono kolejnej warstwy hydratacji ani
+odraczania statycznej treści. Profil syntetycznych stron nie uzasadnia zmiany
+mechanizmu dogrzewania dla nawigacji SPA bez osobnego pomiaru tej nawigacji.
+Pełny katalog ikon (~450 kB odpowiedzi JS) w tym zestawie jest dodatkowo
+wywoływany przez zastępcze, niekanoniczne nazwy ikon w odziedziczonej fixture
+chrome. Ten koszt nie dowodzi, że rzeczywisty widget potrzebuje całego katalogu;
+nie należy na jego podstawie wdrażać optymalizacji dobranej tylko do fixture.

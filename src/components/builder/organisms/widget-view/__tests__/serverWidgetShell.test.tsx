@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createElement, type ComponentType } from "react";
 import { renderToString } from "react-dom/server";
 
 // Keep the real split registry and Suspense wrappers. The leaves stand in for
@@ -36,18 +35,16 @@ describe("reading widgets in the first server shell", () => {
     vi.resetModules();
     const widgets = await import("../lazyWidgets");
     const cases = [
-      [widgets.PostListView, "post-list"],
-      [widgets.RichHtmlView, "rich-html"],
-      [widgets.ContactFormView, "contact"],
-      [widgets.PostsSliderWidget, "posts-slider"],
-      [widgets.RatedListView, "rated-list"],
-      [widgets.SectionLabelWidgetView, "section-label"],
-      [widgets.SliderRender, "slider"],
+      [<widgets.PostListView c={{}} lang="pl" />, "post-list"],
+      [<widgets.RichHtmlView html="<p>rich-html</p>" />, "rich-html"],
+      [<widgets.ContactFormView data={{}} lang="pl" />, "contact"],
+      [<widgets.PostsSliderWidget c={{}} lang="pl" />, "posts-slider"],
+      [<widgets.RatedListView c={{}} lang="pl" />, "rated-list"],
+      [<widgets.SectionLabelWidgetView content={{}} lang="pl" theme="light" />, "section-label"],
+      [<widgets.SliderRender config={{ items: [] }} lang="pl" />, "slider"],
     ] as const;
-    for (const [Widget, content] of cases) {
-      // The mocked leaves have no props; real props remain checked at every
-      // production call site and by the full artifact render.
-      const html = renderToString(createElement(Widget as ComponentType));
+    for (const [widget, content] of cases) {
+      const html = renderToString(widget);
       expect(html.includes(`<p>${content}</p>`), content).toBe(ssr);
       expect(html.includes("<!--$!-->"), content).toBe(!ssr);
     }
