@@ -100,11 +100,7 @@ import {
   valueTickTarget,
 } from "@/lib/charts/geometry";
 import { bandIndex, pointerToPlot } from "@/lib/charts/plot";
-import {
-  barStyleHasEdge,
-  resolveBarStyle,
-  type BarStyle,
-} from "@/lib/charts/palette";
+import { barStyleHasEdge, resolveBarStyle, type BarStyle } from "@/lib/charts/palette";
 import { estimateLabelWidth } from "@/lib/charts/measureText";
 import { WRAP_LINE_EM, planCategoryLabels } from "@/lib/charts/labels";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
