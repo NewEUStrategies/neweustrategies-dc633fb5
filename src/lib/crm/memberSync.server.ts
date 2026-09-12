@@ -60,7 +60,7 @@ export async function ensureCrmCompany(
   const { data, error } = await supabaseAdmin.rpc("crm_ensure_member_company", {
     p_tenant_id: tenantId,
     p_name: rawName,
-    p_actor_id: createdBy,
+    p_actor_id: createdBy ?? undefined,
   });
   if (error) throw error;
   return data?.[0]?.id ?? null;
@@ -88,8 +88,8 @@ export async function syncMemberToCrm(
     const { data, error } = await supabaseAdmin.rpc("crm_sync_member", {
       p_user_id: input.userId,
       p_tenant_id: input.tenantId,
-      p_tier_key: input.tierKey,
-      p_actor_id: input.actorId,
+      p_tier_key: input.tierKey as unknown as string,
+      p_actor_id: input.actorId as unknown as string,
       p_reason: input.reason,
     });
     if (error) throw error;

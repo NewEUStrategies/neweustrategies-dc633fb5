@@ -10809,6 +10809,68 @@ export type Database = {
           },
         ]
       }
+      member_crm_sync_pending: {
+        Row: {
+          actor_id: string | null
+          attempts: number
+          last_error_code: string | null
+          reason: string
+          requested_at: string
+          tenant_id: string
+          tier_key: string | null
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          attempts?: number
+          last_error_code?: string | null
+          reason: string
+          requested_at?: string
+          tenant_id: string
+          tier_key?: string | null
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          attempts?: number
+          last_error_code?: string | null
+          reason?: string
+          requested_at?: string
+          tenant_id?: string
+          tier_key?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_crm_sync_pending_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_crm_sync_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "member_crm_sync_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_crm_sync_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_organizations: {
         Row: {
           brand_accent: string | null
@@ -11006,39 +11068,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      member_crm_sync_pending: {
-        Row: {
-          tenant_id: string
-          user_id: string
-          tier_key: string | null
-          actor_id: string | null
-          reason: string
-          requested_at: string
-          attempts: number
-          last_error_code: string | null
-        }
-        Insert: {
-          tenant_id: string
-          user_id: string
-          tier_key?: string | null
-          actor_id?: string | null
-          reason: string
-          requested_at?: string
-          attempts?: number
-          last_error_code?: string | null
-        }
-        Update: {
-          tenant_id?: string
-          user_id?: string
-          tier_key?: string | null
-          actor_id?: string | null
-          reason?: string
-          requested_at?: string
-          attempts?: number
-          last_error_code?: string | null
-        }
-        Relationships: []
       }
       membership_grants: {
         Row: {
@@ -23511,6 +23540,13 @@ export type Database = {
         Args: { p_endpoint_id?: string; p_lead_id: string }
         Returns: number
       }
+      crm_ensure_member_company: {
+        Args: { p_actor_id?: string; p_name: string; p_tenant_id: string }
+        Returns: {
+          created: boolean
+          id: string
+        }[]
+      }
       crm_funnel_stats: {
         Args: never
         Returns: {
@@ -23533,14 +23569,7 @@ export type Database = {
         Args: { p_rows: Json; p_source?: string }
         Returns: Json
       }
-      crm_ensure_member_company: {
-        Args: { p_tenant_id: string; p_name: string; p_actor_id?: string | null }
-        Returns: { id: string; created: boolean }[]
-      }
-      crm_sync_member: {
-        Args: { p_user_id: string; p_tenant_id: string; p_tier_key: string | null; p_actor_id: string | null; p_reason: string }
-        Returns: Json
-      }
+      crm_member_company_key: { Args: { p_name: string }; Returns: string }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_score_touch_user: {
         Args: { p_tenant: string; p_user: string }
@@ -23550,6 +23579,16 @@ export type Database = {
       crm_set_merydian_secret: {
         Args: { _kind: string; _plaintext: string }
         Returns: undefined
+      }
+      crm_sync_member: {
+        Args: {
+          p_actor_id: string
+          p_reason: string
+          p_tenant_id: string
+          p_tier_key: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       crm_upsert_from_form:
         | {

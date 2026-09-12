@@ -15,6 +15,13 @@
       "when": 1789150330170,
       "tag": "0001_profiles_discoverable_default_true",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789227676028,
+      "tag": "0002_pr350_member_crm_sync_and_chat_compat",
+      "breakpoints": true
     }
   ]
 }
