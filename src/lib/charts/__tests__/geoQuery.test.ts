@@ -6,7 +6,7 @@
 //
 //   1. KLUCZ JEST WSPÓLNY I BEZ NAJEMCY. `["public", "geo", region]` nie ma
 //      identyfikatora najemcy ani języka - i to jest POPRAWNE, bo zasób to
-//      wersjonowany plik statyczny (`/geo/europe-50m.v1.json`), identyczny dla
+//      wersjonowany plik statyczny (`/geo/europe-50m.v2.json`), identyczny dla
 //      każdego obszaru roboczego. Dorzucenie do klucza czegokolwiek zmiennego
 //      zwielokrotniłoby pobrania TEGO SAMEGO pliku (setki kilobajtów geometrii)
 //      raz na najemcę i raz na język. Klucz musi też RÓŻNICOWAĆ regiony -

@@ -1,7 +1,7 @@
 // Czysty moduł domeny stanowisk państw członkowskich UE (explorer trackera).
 // Zero zależności od React/Supabase - kody ISO2 muszą pokrywać się z CHECK-iem
 // kolumny eu_policy_positions.country_code ORAZ z identyfikatorami krajów w
-// zasobie geometrii public/geo/europe-50m.v1.json (oba używają ISO 3166-1
+// zasobie geometrii public/geo/europe-50m.v2.json (oba używają ISO 3166-1
 // alpha-2), czego pilnuje test jednostkowy.
 
 export interface EuCountry {

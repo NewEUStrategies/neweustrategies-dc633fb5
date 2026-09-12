@@ -362,7 +362,7 @@ export interface DataMapConfig {
   source: string;
 }
 
-/** Kształt statycznego zasobu geometrii z public/geo/*.v1.json. */
+/** Kształt statycznego zasobu geometrii z public/geo/*.json. */
 export interface GeoAssetCountry {
   id: string;
   pl: string;
@@ -397,14 +397,24 @@ export interface GeoAsset {
 }
 
 /**
- * Adres zasobu geometrii per region. Wersja siedzi W NAZWIE PLIKU (`.v1.`),
- * więc zasób nigdy nie twardnieje w cache'u - patrz `staleTime: Infinity`
- * w `geoQuery.ts`. Świat jedzie na 110m (mniej szczegółu wystarczy przy tej
- * skali i oszczędza setki kilobajtów), kontynenty na 50m.
+ * Adres zasobu geometrii per region. Wersja siedzi W NAZWIE PLIKU, więc zasób
+ * nigdy nie twardnieje w cache'u - patrz `staleTime: Infinity` w `geoQuery.ts`.
+ * Świat jedzie na 110m (mniej szczegółu wystarczy przy tej skali i oszczędza
+ * setki kilobajtów), kontynenty na 50m.
+ *
+ * DLACZEGO EUROPA I ŚWIAT SĄ NA `.v2.`, A RESZTA NA `.v1.`. Numer w nazwie
+ * jest JEDYNYM mechanizmem unieważnienia i działa tylko wtedy, gdy zmiana
+ * TREŚCI pociąga zmianę NAZWY. Te dwa zasoby przeszły na inny upraszczacz
+ * geometrii (Douglas-Peucker) i odzyskały Watykan, czyli zmieniły się co do
+ * bajtu; zostawienie ich pod `.v1.` znaczyłoby, że przeglądarka albo CDN
+ * z zapamiętaną kopią dalej serwuje STARĄ Europę - bez Watykanu, którego ta
+ * zmiana miała przywrócić. Pięć nowych kontynentów rusza od `.v1.`, bo pod
+ * tymi nazwami nigdy nic nie leżało. Reguła na przyszłość: zmieniasz treść
+ * zasobu - podbijasz numer w nazwie; dokładasz nowy - zaczynasz od `.v1.`.
  */
 export const GEO_ASSET_URL: Record<MapRegion, string> = {
-  europe: "/geo/europe-50m.v1.json",
-  world: "/geo/world-110m.v1.json",
+  europe: "/geo/europe-50m.v2.json",
+  world: "/geo/world-110m.v2.json",
   africa: "/geo/africa-50m.v1.json",
   asia: "/geo/asia-50m.v1.json",
   "north-america": "/geo/north-america-50m.v1.json",

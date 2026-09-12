@@ -106,7 +106,7 @@ eksperci". Trzy decyzje warte zapamiętania:
 
 - **Kropki lądu nie liczą się w przeglądarce.** Pierwowzór używa biblioteki
   `dotted-map`; tutaj siatkę wylicza `scripts/generate-dotted-world.ts` z tego
-  samego zasobu `public/geo/world-110m.v1.json`, a wynik (`public/geo/world-dots.v1.svg`,
+  samego zasobu `public/geo/world-110m.v2.json`, a wynik (`public/geo/world-dots.v1.svg`,
   ~545 KB / ~40 KB gzip, 15 952 kropek na siatce 1°) jest **maską luminancji
   wewnątrz SVG** (`<mask>` + `<image>` + prostokąt w kolorze kropek). Dzięki temu
   jeden plik obsługuje tryb jasny, ciemny, kolor z panelu **oraz** dowolne

@@ -2,7 +2,7 @@
 // (lista regionów: `MAP_REGIONS` w `lib/charts/types.ts`).
 //
 // Geometria NIE podróżuje w bundlu JS: pre-projektowane ścieżki SVG leżą w
-// public/geo/*.v1.json (generator: scripts/generate-geo-maps.ts) i są
+// public/geo/*.json (generator: scripts/generate-geo-maps.ts) i są
 // dociągane fetchem + cache'owane przez CDN i React Query. Nazwy krajów
 // (PL/EN) są wbudowane w zasób, więc klient nie ładuje żadnych locale.
 //

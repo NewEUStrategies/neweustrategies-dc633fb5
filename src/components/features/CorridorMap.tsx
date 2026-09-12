@@ -1,5 +1,5 @@
 // Mapa korytarzy transportowych/infrastrukturalnych - tło choropletowe
-// (te same zasoby public/geo/*.v1.json co ChoroplethMap) z narysowanymi
+// (te same zasoby public/geo/*.json co ChoroplethMap) z narysowanymi
 // korytarzami (linie lon/lat rzutowane metadanymi `proj` zasobu) i markerami
 // węzłowymi. Podświetlone kraje dostają akcent marki. Legenda korytarzy pod
 // mapą; pełna lista korytarzy + węzłów w tabeli dostępności.

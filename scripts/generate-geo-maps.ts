@@ -7,8 +7,8 @@
 // build time from i18n-iso-countries, so no locale data ships to the client.
 //
 // Generuje SIEDEM zasobów:
-//   world-110m.v1.json          świat, Natural Earth I, bez Antarktydy
-//   europe-50m.v1.json          LAEA (52, 10),    okno -25..50,5 / 34..72
+//   world-110m.v2.json          świat, Natural Earth I, bez Antarktydy
+//   europe-50m.v2.json          LAEA (52, 10),    okno -25..50,5 / 34..72
 //   africa-50m.v1.json          LAEA (0, 15),     okno -26..58 / -35,5..37,5
 //   asia-50m.v1.json            LAEA (35, 100),   okno 25..191 / -11,5..82
 //   north-america-50m.v1.json   LAEA (45, -105),  okno -190..-10 / 6,5..84
@@ -512,7 +512,7 @@ function polygonsToPath(polys: number[][][][], epsilon: number): string {
   // FALLBACK: kraj MNIEJSZY OD PROGU UPRASZCZANIA znikał z zasobu bez śladu.
   // Upraszczanie mogło zejść poniżej trzech punktów, `d` wychodziło puste,
   // a `buildAsset` pomijał taki kraj przez `if (!d) continue` - cicho, bez
-  // ostrzeżenia. Tak właśnie WYPADŁ WATYKAN z europe-50m.v1.json: zasób miał
+  // ostrzeżenia. Tak właśnie WYPADŁ WATYKAN z europe-50m.v2.json: zasób miał
   // 64 kraje zamiast 65 i nikt tego nie zauważył, bo San Marino, Monako,
   // Liechtenstein, Andora i Malta są odrobinę większe i przechodziły.
   // Przy kontynentach problem urósłby: bez tego fallbacku ginęły MO, MV
@@ -691,7 +691,7 @@ const worldFeatures = decodeCountries(world110)
     ),
   }));
 emit(
-  "world-110m.v1.json",
+  "world-110m.v2.json",
   buildAsset(worldFeatures, naturalEarth1, { type: "naturalEarth1" }, 960, 0.4),
 );
 
@@ -744,7 +744,7 @@ const REGIONS: RegionSpec[] = [
     // wchodzą tylko wąskim marginesem (DZ, MA, TN, IQ, IR, KZ, SY, LB) i są
     // KONTEKSTEM przyciętym krawędzią, dokładnie jak na urzędowych mapach UE.
     // Ten sam trik nie skaluje się na Afrykę czy Azję - stąd listy niżej.
-    file: "europe-50m.v1.json",
+    file: "europe-50m.v2.json",
     window: { lonMin: -25, lonMax: 50.5, latMin: 34, latMax: 72 },
     lat0: 52,
     lon0: 10,
@@ -963,6 +963,15 @@ const REGIONS: RegionSpec[] = [
     // latMin -48: Wyspa Stewart i Chatham; świadomie odcina Campbell (-52,6)
     //   i Macquarie (-54,7).
     // latMax 21: Mariany Północne (20,5).
+    //
+    // CZEGO NIE MA I DLACZEGO NIE POMOŻE DOPISANIE DO LISTY: Tuvalu (TV),
+    // Tokelau (TK) i Minor Outlying Islands (UM) NIE ISTNIEJĄ w źródle -
+    // Natural Earth nie wydziela ich jako osobnych geometrii ani w 50m, ani
+    // w 110m (sprawdzone po numerycznym ISO i po nazwie). Lista poniżej
+    // zawiera KOMPLET tego, co w źródle jest; dopisanie do niej TV zmieniłoby
+    // tylko tyle, że kod wyglądałby, jakby Tuvalu dało się narysować.
+    // Postawienie ich na mapie wymaga innego źródła geometrii, nie innej
+    // listy - i jest osobną decyzją.
     file: "oceania-50m.v1.json",
     window: { lonMin: 110, lonMax: 240, latMin: -48, latMax: 21 },
     lat0: -25,

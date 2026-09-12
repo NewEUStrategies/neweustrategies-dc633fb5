@@ -51,7 +51,7 @@ describe("EU_COUNTRIES", () => {
   });
 
   it("każdy kod istnieje w zasobie geometrii europe-50m (mapa musi umieć go namalować)", () => {
-    const raw = readFileSync(join(process.cwd(), "public/geo/europe-50m.v1.json"), "utf8");
+    const raw = readFileSync(join(process.cwd(), "public/geo/europe-50m.v2.json"), "utf8");
     const asset = JSON.parse(raw) as { countries: { id: string }[] };
     const ids = new Set(asset.countries.map((c) => c.id));
     const missing = EU_COUNTRIES.filter((c) => !ids.has(c.code)).map((c) => c.code);

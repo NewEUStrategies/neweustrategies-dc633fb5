@@ -28,9 +28,16 @@ import { type GeoAsset, type MapRegion } from "./types";
  * tamta decydowała o wysokości GOTOWEJ mapy, więc jej rozjazd z generatorem
  * zostawał na ekranie na stałe. Ta odpowiada za jedną klatkę - gdy zasób
  * przyjdzie, aspekt liczy się z jego `viewBox` i ewentualna nieścisłość
- * kończy się jednorazowym dociągnięciem wysokości o kilka procent. Wartości
- * dla Europy i świata są dokładne (przepisane z wygenerowanych zasobów),
- * pozostałe to zaokrąglone proporcje ramek kontynentów.
+ * kończy się jednorazowym dociągnięciem wysokości o kilka procent.
+ *
+ * MIMO TO WSZYSTKIE WARTOŚCI SĄ DOKŁADNE - przepisane z `viewBox`
+ * wygenerowanych zasobów, a nie oszacowane z ramki regionu. Pierwsza wersja
+ * szacowała i to był błąd w samym celu tej tablicy: Azja stała tu na 0,78,
+ * a zasób ma 925/960 ≈ 0,96, więc na kontenerze 720 px blok podskakiwał
+ * o ~132 px dokładnie w chwili, w której ta liczba miała skok wyeliminować.
+ * Przybliżenie byłoby tu wprawdzie dopuszczalne (błąd żyje jedną klatkę), ale
+ * nie ma powodu przybliżać czegoś, co stoi wprost w pliku - i jest bramka
+ * (`geoAspect.test.ts`), która pilnuje zgodności z zasobem na dysku.
  *
  * `Record<MapRegion, number>` jest tu istotą, a nie ozdobą typu: region
  * dopisany do `MAP_REGIONS` bez wpisu tutaj NIE SKOMPILUJE SIĘ, więc tej
@@ -39,14 +46,14 @@ import { type GeoAsset, type MapRegion } from "./types";
 export const REGION_ASPECT_FALLBACK: Record<MapRegion, number> = {
   europe: 825 / 960,
   world: 427 / 960,
-  africa: 1.05,
-  asia: 0.78,
-  "north-america": 0.85,
+  africa: 876 / 960,
+  asia: 925 / 960,
+  "north-america": 814 / 960,
   // JEDYNY REGION PORTRETOWY - wysokość większa od szerokości. Stoi tu
   // osobnym komentarzem, bo przez lata każda mapa w tym silniku była pozioma
   // i „szerokość razy aspekt" czytało się jako „coś niższego niż szerokie".
-  "south-america": 1.19,
-  oceania: 0.58,
+  "south-america": 1143 / 960,
+  oceania: 609 / 960,
 };
 
 /**
