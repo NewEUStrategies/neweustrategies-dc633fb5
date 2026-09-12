@@ -6,7 +6,7 @@
 import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 // Header/Footer are owned by SiteChrome (mounted in __root.tsx) so they
 // persist across navigations - never re-import them here.

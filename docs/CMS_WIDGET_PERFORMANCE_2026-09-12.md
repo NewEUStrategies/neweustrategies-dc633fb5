@@ -247,3 +247,11 @@ formularz w każdej próbie; tytuł SSR, pełna treść, brak błędów i dział
 handler obowiązują obie wersje. To jawne rozróżnienie diagnozy historycznej
 wersji od kryteriów odbioru poprawki. Budżety czasu, bajtów i CLS < 0,1 nie
 uległy zmianie. Wynik końcowy wymaga ponownej pełnej macierzy.
+
+
+Dodatkowy test odtworzył usuwanie oczekującego formularza przez zwykłą
+aktualizację rodzica, nawet gdy właściwości widgetu nie zmieniały się.
+Obie fabryki granic Suspense stosują teraz React.memo. Niezmienione pola
+formularza nie unieważniają trwającej hydratacji; rzeczywista zmiana props
+nadal aktualizuje widget. Kontrola eksportów rejestru rozpoznaje zarówno
+komponenty funkcyjne, jak i poprawne komponenty memo.
