@@ -15,9 +15,16 @@
 // Dlatego niżej stoją asercje na KSZTAŁT wejścia (jednolinijkowe opcje, złamana
 // deklaracja), a nie na wynik przebiegu.
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+import { PUBLIC_DOCUMENT_DENY_PREFIXES } from "@/lib/http/documentCache";
 import {
   analysePublicRouteLoaders,
   balancedArgs,
+  COLD_CACHED_ROUTES_2026_09_01,
+  COLD_PUBLIC_ROUTES_2026_09_01,
+  FROZEN_COLD_CACHED_ROUTES,
+  FROZEN_COLD_PUBLIC_ROUTES,
   findQuerySites,
   keyFactorySymbols,
   loaderWarmedSymbols,
@@ -633,4 +640,133 @@ describe("platform inventory handles incomplete input and inherited evidence", (
       "tresc-z-przodka",
     );
   });
+});
+
+// ===========================================================================
+// RATCHET NA PRAWDZIWYM DRZEWIE TRAS (punkt A8 zlecenia wydania 10)
+// ===========================================================================
+//
+// PO CO, SKORO 34 TESTY WYŻEJ JUŻ ISTNIEJĄ. Bo one wszystkie sprawdzają
+// ANALIZATOR NA ATRAPACH - a to jest właściwa konwencja dla inwariantu i tak
+// ma zostać. Czego nie sprawdzały: LICZBY W TYM REPOZYTORIUM. Moduł mówi
+// o sobie wprost, że jest narzędziem pomiarowym, nie bramką
+// (`publicRouteLoaders.ts:1`), a jego `--gate` był opt-in i nie biegł nigdzie -
+// więc JEDNA NOWA TRASA BEZ LOADERA nie zapalała niczego. I tak się właśnie
+// stało: między 2026-09-01 a 2026-09-12 lista urosła z 21 na 29 (gałąź
+// minisite'ów klubowych), a repozytorium się o tym nie dowiedziało.
+//
+// KOSZT: analiza czyta całe `src/` i zajmuje ~48 s. To jedyny przypadek w tym
+// pliku, który dotyka dysku, i dlatego stoi osobno na końcu - reszta zostaje
+// milisekundowa.
+
+const SCAN_ROOT = "src";
+const SKIP_DIRS = new Set(["node_modules", "dist", ".git", "coverage"]);
+
+function walkReal(dir: string, out: string[]): string[] {
+  for (const entry of readdirSync(dir)) {
+    if (SKIP_DIRS.has(entry)) continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walkReal(full, out);
+    else out.push(full);
+  }
+  return out;
+}
+
+function realSources(): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const path of walkReal(SCAN_ROOT, [])) {
+    const file = relative(process.cwd(), path).replaceAll("\\", "/");
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    out.set(file, readFileSync(file, "utf8"));
+  }
+  return out;
+}
+
+/**
+ * Analiza CAŁEGO `src/` kosztuje ~44 s, a dwa przypadki niżej pytają o ten sam
+ * stan drzewa. Jedno przeliczenie zamiast dwóch to ~44 s mniej w kroku
+ * `check:ci-gates` - liczba, która przy bramce biegnącej na każdy push ma
+ * znaczenie. Kontrola negatywna musi liczyć osobno, bo zmienia WEJŚCIE.
+ */
+let baseAnalysis: ReturnType<typeof analyseRealTreeUncached> | null = null;
+
+function analyseRealTree(): ReturnType<typeof analyseRealTreeUncached> {
+  baseAnalysis ??= analyseRealTreeUncached();
+  return baseAnalysis;
+}
+
+function analyseRealTreeUncached(
+  extra: Record<string, string> = {},
+  extraTree = "",
+): {
+  cold: readonly { fullPath: string }[];
+  cachedCold: readonly { fullPath: string }[];
+} {
+  const files = realSources();
+  for (const [file, source] of Object.entries(extra)) files.set(file, source);
+  const tree = (files.get("src/routeTree.gen.ts") ?? "") + extraTree;
+  const report = analysePublicRouteLoaders({ routeTree: tree, sources: files });
+  const cold = routesMissingWarmedLoader(report);
+  const cachedCold = cold.filter(
+    (route) =>
+      !PUBLIC_DOCUMENT_DENY_PREFIXES.some(
+        (prefix) => route.fullPath === prefix || route.fullPath.startsWith(`${prefix}/`),
+      ),
+  );
+  return { cold, cachedCold };
+}
+
+describe("ratchet na prawdziwym drzewie tras", () => {
+  it("lista tras publicznych bez rozgrzanej treści NIE ROŚNIE", { timeout: 180_000 }, () => {
+    const { cold, cachedCold } = analyseRealTree();
+    // Sufity wolno WYŁĄCZNIE OBNIŻAĆ - kronika pomiaru i uzasadnienie stoją
+    // przy `FROZEN_COLD_PUBLIC_ROUTES` w `../publicRouteLoaders`.
+    expect(
+      cold.length,
+      `trasy o samych zimnych kluczach: ${cold.map((r) => r.fullPath).join(", ")}`,
+    ).toBeLessThanOrEqual(FROZEN_COLD_PUBLIC_ROUTES);
+    expect(cachedCold.length).toBeLessThanOrEqual(FROZEN_COLD_CACHED_ROUTES);
+  });
+
+  it(
+    "KONTROLA NEGATYWNA: atrapowa trasa z `useQuery` bez loadera OBLEWA ratchet",
+    { timeout: 180_000 },
+    () => {
+      // Bez tego przypadku nie wiadomo, czy ratchet w ogóle potrafi wzrosnąć:
+      // bramka, która zawsze widzi tę samą liczbę, jest napisem.
+      const { cold, cachedCold } = analyseRealTreeUncached(
+        {
+          "src/routes/ratchet-probe.tsx": `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('/ratchet-probe')({ component: Probe });
+function Probe() { const q = useQuery(probeQueryOptions()); return <div>{q.data}</div>; }`,
+        },
+        `\n${routeTree([
+          {
+            ident: "RatchetProbe",
+            file: "routes/ratchet-probe",
+            path: "/ratchet-probe",
+            parent: "rootRouteImport",
+          },
+        ])}\n`,
+      );
+      expect(cold.length).toBeGreaterThan(FROZEN_COLD_PUBLIC_ROUTES);
+      expect(cachedCold.length).toBeGreaterThan(FROZEN_COLD_CACHED_ROUTES);
+    },
+  );
+
+  it.fails(
+    "REGRES ZAREJESTROWANY: lista urosła ponad stan zamrożony 2026-09-01 (21/16)",
+    { timeout: 180_000 },
+    () => {
+      // To NIE jest test do naprawienia zmianą progu. To wpis w rejestrze:
+      // między 2026-09-01 a 2026-09-12 doszło jedenaście tras
+      // `/club/$clubSlug/**`, z których żadna nie grzeje swoich kluczy, i nic
+      // tego nie zauważyło, bo `--gate` był opt-in. Wpis padnie sam, gdy te
+      // trasy dostaną loadery - i wtedy MA zostać zdjęty razem z obniżeniem
+      // `FROZEN_COLD_PUBLIC_ROUTES`.
+      const { cold, cachedCold } = analyseRealTree();
+      expect(cold.length).toBeLessThanOrEqual(COLD_PUBLIC_ROUTES_2026_09_01);
+      expect(cachedCold.length).toBeLessThanOrEqual(COLD_CACHED_ROUTES_2026_09_01);
+    },
+  );
 });

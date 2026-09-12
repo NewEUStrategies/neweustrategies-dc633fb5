@@ -162,7 +162,9 @@ import {
   type TaxonomyRedirect,
 } from "@/lib/routing/resolvePublicPath";
 
-import { withBudget } from "@/lib/asyncBudget";
+import { BUDGET_LAPSED, settleWithinBudget, withBudget } from "@/lib/asyncBudget";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
 
 // Wall-clock cap on secondary prefetches (blocks data, related config). The
 // primary content query is already awaited; these warmers are best-effort and
@@ -290,7 +292,20 @@ export const Route = createFileRoute("/$")({
     // serve stale-while-revalidate from the CDN. The language lives in the URL
     // path (PL at the bare path, EN under "/en"), so each language is its own
     // cache entry - no cookie-driven personalization, no language poisoning.
-    setCacheControlHeader(contentCacheControl());
+    //
+    // NAGŁÓWEK NIE WYCHODZI TUTAJ, I TO JEST NAPRAWA, NIE STYL. Do 2026-09-12
+    // ta linia ustawiała `contentCacheControl()` PRZED prefetchem wtórnym -
+    // czyli przed jedyną pracą tego loadera, która może zdegradować po cichu.
+    // Awaria GŁÓWNEJ treści była obsłużona poprawnie (NO_STORE na każdej
+    // z czterech gałęzi wyżej); cicho degradował dopiero prefetch pod budżetem
+    // 3 000 ms - a jego produkt to CAŁA treść stron sekcyjnych, bloków
+    // i sekcji nad zgięciem. To się na tej trasie już raz zdarzyło: patrz
+    // komentarz przy `archiveListingQueryOptions` niżej (HTML stron sekcyjnych
+    // wchodził do NES Edge Cache na dobę). Naprawa dodała wtedy prefetch,
+    // a NIE zabramkowała nagłówka. Decyzja wychodzi teraz DOPIERO po pracy,
+    // przez `resilientCacheControl` - tę samą drogę, którą idzie szesnaście
+    // pozostałych tras ustawiających `Cache-Control` (doktryna:
+    // `src/lib/ssr/resilientLoad.ts:123-138`).
     const url = getRequestUrl() || `/${splat}`;
     const lang: "pl" | "en" = activeLang(url) === "en" ? "en" : "pl";
     const doc = parseBuilderDoc(data.item.builder_data);
@@ -305,7 +320,7 @@ export const Route = createFileRoute("/$")({
     // Secondary prefetches are best-effort and wall-clock-bounded. A slow
     // upstream (blocks_data / related config) must never abort the SSR stream
     // - views fall back to their own client fetch.
-    await withBudget(
+    const secondary = await settleWithinBudget(
       Promise.allSettled([
         // Także dla STRON, nie tylko wpisów: `ContentAreaStyle` renderuje
         // typografię prozy (`.post-content`, odstępy akapitów, style linków)
@@ -357,6 +372,13 @@ export const Route = createFileRoute("/$")({
       ]),
       SECONDARY_PREFETCH_BUDGET_MS,
     );
+    // DWA POWODY, DLA KTÓRYCH TEN RENDER JEST NIEPEŁNY, i oba znaczą to samo
+    // dla brzegu: budżet minął (odnoga nie zdążyła) albo odnoga odrzuciła.
+    // `Promise.allSettled` nie rzuca, więc bez tego odczytu degradacja była
+    // NIEWIDOCZNA dla nagłówka - dokładnie ta klasa, którą opisuje punkt 4
+    // doktryny `resilientLoad`.
+    const secondaryDegraded =
+      secondary === BUDGET_LAPSED || secondary.some((r) => r.status === "rejected");
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own.
@@ -369,9 +391,32 @@ export const Route = createFileRoute("/$")({
       context.queryClient.getQueryData<Record<string, unknown>>(
         siteSettingsQueryOptions.queryKey,
       ) ?? emptySettings;
+    // Brak ustawień serwisu to też degradacja, a nie kosmetyka: `head()` traci
+    // wtedy sufiks tytułu, `twitter:site` i logo wydawcy, a ten `<head>`
+    // wszedłby do wspólnego cache'u na 15 minut świeżości plus dobę okna stale.
+    // `hasSsrQueryData`, a nie `getQueryData`: zasiew fallbackowy ma
+    // `dataUpdatedAt === 0` i jest degradacją, mimo że wartość „jest".
+    // Korzeń stosuje ten sam predykat, ale TYLKO na ścieżce strony głównej
+    // (`__root.tsx:357-367`) - na trasie łapiącej wszystko ta dziura została.
+    const settingsDegraded = !hasSsrQueryData(
+      context.queryClient,
+      siteSettingsQueryOptions.queryKey,
+    );
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settingsMap);
+      // `updatedAt: 0` - ZASIEW MUSI RODZIĆ SIĘ PRZETERMINOWANY. Bez tego
+      // argumentu `setQueryData` stempluje wpis `Date.now()`, a `staleTime`
+      // tego zapytania liczy się w minutach: jedna czkawka bazy przypinałaby
+      // PUSTE ustawienia w cache'u klienta na cały ten czas i przeglądarka
+      // nigdy nie dociągnęłaby prawdziwych. Ta sama reguła stoi w korzeniu
+      // (`__root.tsx`, komentarz przy zasiewie fali 1) i w `blog.index.tsx:64`;
+      // tutaj jej brakowało.
+      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settingsMap, {
+        updatedAt: 0,
+      });
     }
+    // JEDYNE miejsce, w którym ta trasa ogłasza politykę cache'u czystego
+    // renderu - po CAŁEJ pracy, która może zdegradować.
+    setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
     const seoSettings = parseSeoSettings(settingsMap["seo"]);
     // Posts: attach the LCP cover preload so head() can emit it. The layout
     // settings were just warmed above, so this reads from cache (no extra

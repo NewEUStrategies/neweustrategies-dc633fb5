@@ -25,6 +25,7 @@
 import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { readBootstrapSnapshot, writeBootstrapSnapshot } from "@/lib/http/bootstrapCache.server";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 
 export interface TenantDirectoryEntry {
   id: string;
@@ -39,6 +40,30 @@ export interface TenantDirectory {
 }
 
 const CACHE_TTL_MS = 60_000;
+
+/**
+ * TERMIN round-tripu katalogu tenantów - stała W KODZIE, nie w zmiennej
+ * środowiskowej (ta sama zasada, co przy podłogach `check:bundle`: budżet,
+ * który wolno rozluźnić jedną zmienną w workflow, nie jest budżetem).
+ *
+ * DLACZEGO W OGÓLE. Ten odczyt biegnie PRZED routerem i przed
+ * `documentCacheMiddleware` (pozycja 10 w `requestMiddleware`), więc dopóki
+ * nie ma terminu, ŻADNE trafienie w cache dokumentów nie ratuje czytelnika:
+ * zawieszone połączenie nie rzuca, tylko czeka, a `try/catch` niżej broni
+ * wyłącznie przed BŁĘDEM. Do 2026-09-12 ten odcinek nie miał terminu w ogóle -
+ * ani `withBudget`, ani `AbortSignal`, ani własnego `fetch` w
+ * `src/integrations/supabase/client.server.ts`.
+ *
+ * DLACZEGO 1 500 ms. To odczyt po indeksie ograniczony do 500 wierszy, a nie
+ * raport: zdrowy round-trip mieści się w dziesiątkach ms, więc 1 500 ms to
+ * ~1-2 rzędy zapasu na zimny izolat (uzgodnienie TLS) i jednocześnie sufit,
+ * który wchodzi do budżetu przed pierwszym bajtem obok 3 000 ms rozgrzewki
+ * korzenia. Zejście po przekroczeniu terminu to TA SAMA gałąź, co dla błędu
+ * (nieświeży katalog albo `EMPTY_DIRECTORY`) - nowe jest wyłącznie to, że
+ * lapsus terminu ma WŁASNĄ telemetrię, bo inaczej pierwsza produkcyjna awaria
+ * powolności byłaby nieodróżnialna od dwudziestu poprzednich awarii błędu.
+ */
+export const TENANT_DIRECTORY_BUDGET_MS = 1_500;
 
 interface DirectoryCache {
   at: number;
@@ -92,10 +117,12 @@ async function loadDirectory(): Promise<DirectoryCache> {
       if (snapshot) return { at: snapshot.at, directory: buildDirectory(snapshot.value) };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("tenants")
-      .select("id, slug, domain, is_default")
-      .limit(500);
+    const settled = await settleWithinBudget(
+      supabaseAdmin.from("tenants").select("id, slug, domain, is_default").limit(500),
+      TENANT_DIRECTORY_BUDGET_MS,
+    );
+    if (settled === BUDGET_LAPSED) return degradedDirectory("timeout");
+    const { data, error } = settled;
     if (error) throw error;
     const rows = (data ?? []).map((t) => ({
       id: t.id,
@@ -108,10 +135,26 @@ async function loadDirectory(): Promise<DirectoryCache> {
     return { at, directory: buildDirectory(rows) };
   } catch (e) {
     console.warn("[tenant] directory load failed:", e);
-    // Preserve the existing local retry backoff during a database outage.
-    // Never publish that stale fallback as a fresh shared snapshot.
-    return { at: Date.now(), directory: cache?.directory ?? EMPTY_DIRECTORY };
+    return degradedDirectory("error");
   }
+}
+
+/**
+ * Jedno zejście dla OBU przyczyn degradacji - i jedyne miejsce, które je
+ * ROZRÓŻNIA w logu. `failed` to odpowiedź bazy, której nie da się użyć;
+ * `timed out` to brak odpowiedzi w terminie, czyli zupełnie inna awaria
+ * (połączenie wisi, a nie zwraca błąd) i zupełnie inna naprawa.
+ * Zachowanie jest w obu przypadkach identyczne: lokalny backoff retry przez
+ * TTL, nieświeży katalog zamiast pustego, gdy jakiś jest, i ZERO publikacji
+ * tego fallbacku jako świeżej migawki współdzielonej.
+ */
+function degradedDirectory(reason: "error" | "timeout"): DirectoryCache {
+  if (reason === "timeout") {
+    console.warn(
+      `[tenant] directory load timed out after ${TENANT_DIRECTORY_BUDGET_MS}ms (budget lapsed, no database error)`,
+    );
+  }
+  return { at: Date.now(), directory: cache?.directory ?? EMPTY_DIRECTORY };
 }
 
 /**

@@ -1052,6 +1052,53 @@ const EXCLUSION_ORDER: readonly RouteExclusion[] = [
 ];
 
 /** Trasy, które NAPRAWDĘ potrzebują loadera i go nie mają (lista do roboty). */
+/**
+ * RATCHET: sufity listy „SSR bez treści". Wolno je WYŁĄCZNIE OBNIŻAĆ.
+ *
+ * PO CO TU, A NIE W SKRYPCIE. Do 2026-09-12 te dwie liczby żyły jako stałe
+ * lokalne `scripts/report-public-route-loaders.ts`, a `--gate` był opt-in
+ * i nie biegł NIGDZIE. Ten moduł mówił o sobie wprost, że jest narzędziem
+ * pomiarowym, nie bramką, a jego 34 testy sprawdzały ANALIZATOR NA ATRAPACH,
+ * nie liczbę w repozytorium - więc nowa trasa bez loadera nie zapalała niczego.
+ * Eksport stąd daje jedno źródło prawdy dla skryptu i dla ratchetu w suicie
+ * (`__tests__/publicRouteLoaders.test.ts`), czyli liczbę, która wreszcie
+ * biegnie w `bun run test`.
+ *
+ * KRONIKA POMIARU - i to jest najważniejsza treść tego komentarza, bo pokazuje
+ * dokładnie tę regresję, której brak zapadki nie wychwycił:
+ *
+ *   2026-09-01 (HEAD 1e3e1a4): 368 tras -> 82 publiczne strony SSR
+ *                              -> 21 o samych zimnych kluczach, 16 w cache.
+ *   2026-09-12 (ten HEAD):     378 tras -> 82 publiczne strony SSR
+ *                              -> 29 o samych zimnych kluczach (9 bez loadera
+ *                              w łańcuchu + 20 z loaderem, który tych kluczy
+ *                              nie grzeje), 26 w cache dokumentów.
+ *
+ * Przyrost +8 / +10 przyniosła gałąź minisite'ów klubowych
+ * (`/club/$clubSlug/**`, jedenaście tras) - dokładnie scenariusz, przed którym
+ * ratchet ma bronić i którego przy opt-inowym `--gate` nikt nie zobaczył.
+ *
+ * SPROSTOWANIE DO ZLECENIA WYDANIA 10. Punkt A8 podawał „11 bez loadera + 6
+ * z loaderem = 17, z czego 12 w cache" i kazał zamrozić właśnie te liczby.
+ * ŻADNA z nich nie odtwarza się na tym drzewie: ani jako dzisiejszy pomiar
+ * (29/26), ani jako stan zamrożony 2026-09-01 (21/16). Zamrażamy POMIAR,
+ * nie liczbę ze zlecenia - sufit ustawiony poniżej rzeczywistości byłby
+ * czerwony na wejściu, a bramka czerwona na wejściu nie pilnuje niczego.
+ * Regres wobec 21/16 jest zarejestrowany osobno, jako `it.fails`.
+ */
+export const FROZEN_COLD_PUBLIC_ROUTES = 29;
+
+/** Ta część listy, której pusty dokument NAPRAWDĘ wchodzi do NES Edge Cache. */
+export const FROZEN_COLD_CACHED_ROUTES = 26;
+
+/**
+ * Stan zamrożony z 2026-09-01 - zachowany JAKO ZAPIS, nie jako próg. Służy
+ * wyłącznie temu, żeby przyrost od tamtej daty miał w suicie własny, nazwany
+ * wpis (`it.fails`), zamiast rozpłynąć się w podniesionym suficie.
+ */
+export const COLD_PUBLIC_ROUTES_2026_09_01 = 21;
+export const COLD_CACHED_ROUTES_2026_09_01 = 16;
+
 export function routesMissingWarmedLoader(report: PublicRouteLoaderReport): readonly RouteFacts[] {
   return report.routes.filter(
     (route) => route.verdict === "brak-loadera" || route.verdict === "loader-trywialny",

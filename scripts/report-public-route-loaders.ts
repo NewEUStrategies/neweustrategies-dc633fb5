@@ -72,6 +72,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   analysePublicRouteLoaders,
+  FROZEN_COLD_CACHED_ROUTES,
+  FROZEN_COLD_PUBLIC_ROUTES,
   renderPublicRouteLoaderReport,
   routesMissingWarmedLoader,
   type RouteFacts,
@@ -82,10 +84,12 @@ const SCAN_ROOT = "src";
 const ROUTE_TREE = "src/routeTree.gen.ts";
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git", "coverage"]);
 const SCANNABLE = /\.(ts|tsx)$/;
-/** Stan wejściowy całej listy „SSR bez treści" - sufit dla `--gate`. Obniżaj przy naprawach. */
-const FROZEN_MISSING = 21;
-/** Ta część listy, której pusty dokument NAPRAWDĘ wchodzi do NES Edge Cache. */
-const FROZEN_CACHEABLE = 16;
+// SUFITY MIESZKAJĄ W `src/lib/ci/publicRouteLoaders.ts` (od 2026-09-12) - tam,
+// gdzie czyta je RÓWNIEŻ ratchet w suicie testowej. Dwie kopie tej liczby
+// znaczyłyby, że `bun run test` i `--gate` mogą się rozjechać, a to jest
+// dokładnie ta klasa cichej dziury, przed którą ten spis ma bronić.
+const FROZEN_MISSING = FROZEN_COLD_PUBLIC_ROUTES;
+const FROZEN_CACHEABLE = FROZEN_COLD_CACHED_ROUTES;
 const RULE = "-".repeat(78);
 
 function walk(dir: string, out: string[]): string[] {

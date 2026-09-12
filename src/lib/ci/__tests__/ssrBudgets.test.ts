@@ -19,6 +19,7 @@ import {
   blankNonCode,
   dehydrationInvariants,
   FROZEN_SSR_BUDGETS,
+  FROZEN_UNGATED_CACHE_CONTROL,
   FROZEN_UNMEASURABLE_PARALLEL,
   loaderBudgetFacts,
   numericConstants,
@@ -360,6 +361,131 @@ export const Route = createFileRoute("/seven")({
   });
 });
 
+describe("budżet 4 - loader degradowalny MUSI bramkować `Cache-Control`", () => {
+  /** Loader z pracą mogącą zdegradować po cichu i z nagłówkiem po niej. */
+  const GATED = `
+export const Route = createFileRoute("/gated")({
+  loader: async ({ context }) => {
+    const r = await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
+    setCacheControlHeader(resilientCacheControl(r.some((x) => x.status === "rejected")));
+  },
+});
+`;
+
+  /** Ten sam loader, ale nagłówek NIE potrafi wydać `no-store`. */
+  const UNGATED = `
+export const Route = createFileRoute("/ungated")({
+  loader: async ({ context }) => {
+    setCacheControlHeader(contentCacheControl());
+    await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
+  },
+});
+`;
+
+  it("ZIELONO, gdy wartość przechodzi przez resilientCacheControl", () => {
+    const report = analyze([{ file: "src/routes/gated.tsx", source: GATED }]);
+    expect(report.loaders.find((l) => l.file === "src/routes/gated.tsx")?.canDegrade).toBe(true);
+    expect(ssrBudgetsFailed(report)).toBe(false);
+  });
+
+  it("KONTROLA NEGATYWNA: bezwarunkowy `contentCacheControl()` OBLEWA bramkę", () => {
+    const report = analyze([{ file: "src/routes/ungated.tsx", source: UNGATED }]);
+    expect(ssrBudgetsFailed(report)).toBe(true);
+    const rendered = renderSsrBudgetReport(report);
+    expect(rendered).toContain("degradedCacheControl = 1 > 0");
+    expect(rendered).toContain("PRZEKROCZONE O 1");
+  });
+
+  it("KONTROLA NEGATYWNA: nagłówek przez ALIAS polityki wspólnej też OBLEWA", () => {
+    // Bramka na samym wywołaniu `contentCacheControl()` omijałoby się jedną
+    // stałą modułu - dlatego aliasy są rozwiązywane.
+    const report = analyze([
+      {
+        file: "src/routes/alias.tsx",
+        source: `
+const SHARED = contentCacheControl();
+export const Route = createFileRoute("/alias")({
+  loader: async ({ context }) => {
+    await withBudget(context.queryClient.ensureQueryData(a), 1000);
+    setCacheControlHeader(SHARED);
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(true);
+  });
+
+  it("RĘCZNY warunek z gałęzią `no-store` jest bramką - to NIE jest fałszywa czerwień", () => {
+    // Sprostowanie do kształtu reguły z zlecenia: `author.$slug.tsx`,
+    // `blog.index.tsx` i `tracker.index.tsx` bramkują nagłówek ternarnym
+    // warunkiem, a nie `resilientCacheControl`. Doktryna jest zachowana,
+    // więc bramka MUSI je przepuścić - inaczej zapaliłaby się na pięciu
+    // plikach zamiast na dwóch i nauczyłaby zespół ignorować swój komunikat.
+    const report = analyze([
+      {
+        file: "src/routes/manual.tsx",
+        source: `
+const NO_STORE = contentCacheControl({ preview: true });
+export const Route = createFileRoute("/manual")({
+  loader: async ({ context }) => {
+    let degraded = false;
+    await withBudget(context.queryClient.ensureQueryData(a), 1000);
+    if (!context.queryClient.getQueryData(a.queryKey)) degraded = true;
+    setCacheControlHeader(degraded ? NO_STORE : contentCacheControl());
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(false);
+  });
+
+  it("loader BEZ pracy degradowalnej nie jest przedmiotem tej reguły", () => {
+    // Gołe `await ensureQueryData` degraduje wyłącznie RZUTEM, a rzut staje
+    // się statusem, którego wspólny cache i tak nie zapisze. Zapalanie się na
+    // takim loaderze byłoby czerwienią o czymś innym, niż reguła nazywa.
+    const report = analyze([
+      {
+        file: "src/routes/plain.tsx",
+        source: `
+export const Route = createFileRoute("/plain")({
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(a);
+    setCacheControlHeader(contentCacheControl());
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(false);
+  });
+
+  it("`settleWithinBudget` liczy się do łańcucha TAK SAMO jak `withBudget`", () => {
+    // Bez tego budżet dałoby się schować przed sufitem (1b) samą zamianą
+    // prymitywu - zmierzone na `src/routes/$.tsx`: 13 000 -> 10 000 ms bez
+    // skrócenia ani jednego budżetu.
+    const facts = loaderBudgetFacts(
+      "src/routes/mixed.tsx",
+      `
+const A_MS = 5_000;
+const B_MS = 3_000;
+export const Route = createFileRoute("/mixed")({
+  loader: async () => {
+    await withBudget(one, A_MS);
+    await settleWithinBudget(two, B_MS);
+  },
+});
+`,
+    );
+    expect(facts?.chainMs).toBe(8_000);
+  });
+
+  it("lista zamrożonych dziur jest PUSTA - każde takie wywołanie oblewa", () => {
+    expect(Object.keys(FROZEN_UNGATED_CACHE_CONTROL)).toEqual([]);
+  });
+});
+
 describe("budżet 3 - dehydratowany stan", () => {
   it("ZIELONO, gdy trzy inwarianty są obecne i w poprawnej kolejności", () => {
     const invariants = dehydrationInvariants(ROUTER_OK);
@@ -569,7 +695,8 @@ describe("raport", () => {
     expect(rendered).toContain("najdłuższy łańcuch");
     expect(rendered).toContain("równoległe podżądania");
     expect(rendered).toContain("wpisy do dehydracji");
-    expect(rendered).toContain("Wszystkie trzy budżety wewnętrzne w sufitach");
+    expect(rendered).toContain("degradowalne loadery");
+    expect(rendered).toContain("Wszystkie cztery budżety wewnętrzne w sufitach");
   });
 });
 

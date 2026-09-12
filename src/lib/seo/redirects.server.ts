@@ -24,6 +24,7 @@
 import { resolveTenantForHost } from "@/lib/server/tenant.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { readBootstrapSnapshot, writeBootstrapSnapshot } from "@/lib/http/bootstrapCache.server";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 import {
   buildRedirectIndex,
   isProtectedPath,
@@ -43,6 +44,35 @@ interface CachedIndex {
 }
 
 const REDIRECT_CACHE_TTL_MS = 30_000;
+
+/**
+ * TERMIN round-tripu indeksu przekierowań - stała W KODZIE, nie w zmiennej
+ * środowiskowej.
+ *
+ * `redirectMiddleware` stoi na pozycji 6 w `requestMiddleware`, czyli PRZED
+ * `documentCacheMiddleware` (pozycja 10). Dopóki ten odczyt nie miał terminu,
+ * zawieszone połączenie z bazą czekało PRZED konsultacją cache'u dokumentów -
+ * więc nawet gorący wpis nie ratował czytelnika i cała logika „HIT to
+ * mikrosekundy" się przewracała. `try/catch` niżej broni przed BŁĘDEM;
+ * zawieszenie nie rzuca, ono czeka.
+ *
+ * DLACZEGO 1 500 ms, tak samo jak w katalogu tenantów: to odczyt po indeksie
+ * (`tenant_id`, `is_enabled`), a nie raport. Dwa terminy tej płaszczyzny są
+ * SZEREGOWE (najpierw host -> tenant, potem reguły), więc wspólny sufit tej
+ * warstwy to 3 000 ms - tyle, co cała rozgrzewka korzenia. Zejście po terminie
+ * to TA SAMA gałąź, co dla błędu (nieświeży indeks albo pusty).
+ */
+const REDIRECT_INDEX_BUDGET_MS = 1_500;
+
+/**
+ * Twardy limit wierszy zapytania. ROZSTRZYGNIĘCIE (2026-09-12, punkt A9.4
+ * zlecenia): liczba ZOSTAJE, bo jej obniżenie CICHO wyłączyłoby część reguł
+ * 301 - a cicho zepsuta 301-ka jest gorsza od wolnego odczytu. Zmienia się
+ * natomiast to, że osiągnięcie limitu przestaje być niewidoczne: przy pełnym
+ * wyniku logujemy ostrzeżenie, bo od 5 000. wiersza reguły są obcinane bez
+ * żadnego sygnału. Koszt czasu ogranicza dziś termin wyżej, nie limit.
+ */
+const REDIRECT_ROW_LIMIT = 5000;
 const cache = new Map<string, CachedIndex>();
 const inflight = new Map<string, Promise<RedirectIndex>>();
 let sharedSnapshotsAllowed = true;
@@ -87,13 +117,23 @@ async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
       }
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("redirects")
-      .select("id, source_path, target_path, status_code")
-      .eq("tenant_id", tenantId)
-      .eq("is_enabled", true)
-      .limit(5000);
+    const settled = await settleWithinBudget(
+      supabaseAdmin
+        .from("redirects")
+        .select("id, source_path, target_path, status_code")
+        .eq("tenant_id", tenantId)
+        .eq("is_enabled", true)
+        .limit(REDIRECT_ROW_LIMIT),
+      REDIRECT_INDEX_BUDGET_MS,
+    );
+    if (settled === BUDGET_LAPSED) return degradedIndex(tenantId, "timeout");
+    const { data, error } = settled;
     if (error) throw error;
+    if ((data?.length ?? 0) >= REDIRECT_ROW_LIMIT) {
+      console.warn(
+        `[redirects] rule set hit the ${REDIRECT_ROW_LIMIT}-row read limit for tenant ${tenantId} - rules beyond it are SILENTLY not served`,
+      );
+    }
     const rules: RedirectRule[] = (data ?? []).map((row) => ({
       id: row.id as string,
       source_path: row.source_path as string,
@@ -108,17 +148,31 @@ async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
     return { at, index, count: index.exact.size + index.wildcards.length };
   } catch (e) {
     console.warn("[redirects] index load failed:", e);
-    // Stale cache is preferable to hard-failing every request while Supabase
-    // is degraded; empty when nothing is cached yet.
-    const previous = cache.get(tenantId);
-    // Local retry backoff must survive an outage; shared snapshots are only
-    // written after a successful database read above.
-    return {
-      at: Date.now(),
-      index: previous?.index ?? buildRedirectIndex([]),
-      count: previous?.count ?? 0,
-    };
+    return degradedIndex(tenantId, "error");
   }
+}
+
+/**
+ * Jedno zejście dla OBU przyczyn degradacji - i jedyne miejsce, które je
+ * ROZRÓŻNIA w logu. „failed" to odpowiedź bazy, której nie da się użyć;
+ * „timed out" to brak odpowiedzi w terminie: inna awaria, inna naprawa,
+ * a do 2026-09-12 obie kończyły się tym samym `console.warn`. Zachowanie
+ * pozostaje identyczne: nieświeży indeks jest lepszy od twardej awarii
+ * każdego żądania, pusty gdy nic jeszcze nie ma; migawka współdzielona
+ * powstaje wyłącznie po UDANYM odczycie z bazy.
+ */
+function degradedIndex(tenantId: string, reason: "error" | "timeout"): CachedIndex {
+  if (reason === "timeout") {
+    console.warn(
+      `[redirects] index load timed out after ${REDIRECT_INDEX_BUDGET_MS}ms (budget lapsed, no database error)`,
+    );
+  }
+  const previous = cache.get(tenantId);
+  return {
+    at: Date.now(),
+    index: previous?.index ?? buildRedirectIndex([]),
+    count: previous?.count ?? 0,
+  };
 }
 
 /**
