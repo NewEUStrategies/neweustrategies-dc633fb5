@@ -25102,6 +25102,7 @@ export type Database = {
         Args: { _versions: string[] }
         Returns: string[]
       }
+      missing_schema_objects: { Args: { _objects: Json }; Returns: Json }
       monetization_dashboard: {
         Args: {
           _from?: string
