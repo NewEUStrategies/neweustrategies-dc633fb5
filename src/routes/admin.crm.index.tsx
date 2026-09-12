@@ -6,7 +6,7 @@
 // exact total. Super Admins can switch to a cross-tenant view via the scope
 // toggle.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -22,25 +22,6 @@ import {
 } from "@/lib/crm.functions";
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
 import { listSavedViews, upsertSavedView, deleteSavedView } from "@/lib/crm-saved-views.functions";
-// STATYSTYKI CRM WCHODZĄ LENIWIE, i to nie jest mikrooptymalizacja.
-//
-// Panel ciągnie za sobą silnik wykresów, sześć zapytań pulpitu i słownik
-// `i18n-admin-dashboard`. Zaciągnięty ZWYCZAJNYM importem wchodzi do grafu
-// startowego tej trasy - a trasa kontaktów jest narzędziem pracy, otwieranym
-// po to, żeby wyszukać rekord, i nie ma powodu płacić przy tym za wykresy,
-// których panel domyślnie nawet nie rozwija.
-//
-// Drugi, twardszy powód: słownik sięga po `@/lib/i18n`, czyli po moduł
-// importujący `react-i18next`. `adminCrmInboxRoute.test.tsx` ATRAPUJE
-// `react-i18next` i importuje tę trasę - przy imporcie zwyczajnym cykl
-// inicjalizacji domyka się tak, że plik testowy nie pada, tylko stoi do
-// timeoutu. Import dynamiczny wykonuje się PO rozwiązaniu fabryki atrapy, więc
-// pułapka znika. Tak samo robi `admin.analytics.bi.tsx` z każdym swoim
-// dashboardem.
-const CrmStatsPanel = lazy(() =>
-  import("@/components/admin/crm/CrmStatsPanel").then((m) => ({ default: m.CrmStatsPanel })),
-);
-
 import { BulkActionBar } from "@/components/molecules/BulkActionBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -719,12 +700,6 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
 
   return (
     <div className="space-y-3">
-      {/* Statystyki lejka i pozyskania - zwinięte, żeby nie spychać listy.
-          Patrz nagłówek `CrmStatsPanel`. Migotka ma wysokość zwiniętego paska,
-          więc lista nie podskakuje, gdy panel się doczyta. */}
-      <Suspense fallback={<div className="h-9 rounded-xl border bg-card shadow" />}>
-        <CrmStatsPanel />
-      </Suspense>
       <LeadViewTabs
         lang={lang}
         activeId={activeViewId}
