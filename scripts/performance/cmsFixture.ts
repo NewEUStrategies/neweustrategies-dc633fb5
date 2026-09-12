@@ -135,6 +135,14 @@ export async function cmsFixtureResponse(request: Request): Promise<Response> {
         ? metadata
         : [metadata];
     } else handled = false;
+  } else if (["rpc/current_membership_tier", "rpc/get_related_posts_config"].includes(name)) {
+    // Anonymous tenant without a tier override or custom recommendation rules.
+    data = [];
+  } else if (["metering_settings", "post_custom_meta_defs"].includes(name)) {
+    // Optional public content settings queried after hydration of $.tsx.
+    if (!["GET", "HEAD"].includes(request.method))
+      throw new Error("Fixture rejects database writes");
+    data = request.headers.get("accept")?.includes("application/vnd.pgrst.object+json") ? null : [];
   } else handled = false;
   if (!handled) return fixtureResponse(request, { delayMs: 40 });
   await new Promise((resolve) => setTimeout(resolve, 40));

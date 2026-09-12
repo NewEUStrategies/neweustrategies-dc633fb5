@@ -101,3 +101,25 @@ test("median ignores one outlier but catches a transfer regression", () => {
     false,
   );
 });
+
+test("content-route hydration reads have explicit empty response shapes", async () => {
+  for (const name of ["current_membership_tier", "get_related_posts_config"]) {
+    assert.deepEqual(await (await rpc(name, {})).json(), []);
+  }
+  for (const name of ["metering_settings", "post_custom_meta_defs"]) {
+    const url = `http://127.0.0.1:4199/rest/v1/${name}`;
+    assert.deepEqual(await (await cmsFixtureResponse(new Request(url))).json(), []);
+    assert.equal(
+      await (
+        await cmsFixtureResponse(
+          new Request(url, { headers: { accept: "application/vnd.pgrst.object+json" } }),
+        )
+      ).json(),
+      null,
+    );
+    await assert.rejects(
+      cmsFixtureResponse(new Request(url, { method: "POST", body: "{}" })),
+      /rejects database writes/,
+    );
+  }
+});

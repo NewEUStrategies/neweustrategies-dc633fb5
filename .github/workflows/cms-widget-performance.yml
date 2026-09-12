@@ -77,6 +77,7 @@ jobs:
           VITE_SUPABASE_URL: http://127.0.0.1:4199
           VITE_SUPABASE_PUBLISHABLE_KEY: performance-fixture
       - name: Measure candidate - 24 independent samples
+        id: measure_candidate
         working-directory: harness
         run: bun run test:e2e:cms-performance ${{ matrix.engine }} ${{ matrix.variant }}
         env:
@@ -86,7 +87,7 @@ jobs:
         working-directory: harness
         run: node scripts/performance/compare-cms-widgets.mjs ${{ matrix.engine }} ${{ matrix.variant }}
       - name: Preserve candidate and comparison evidence
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.measure_candidate.outcome != 'skipped' }}
         uses: actions/upload-artifact@v4
         with:
           name: cms-candidate-${{ matrix.engine }}-${{ matrix.variant }}

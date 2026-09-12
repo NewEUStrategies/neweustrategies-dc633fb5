@@ -10,6 +10,7 @@ import { fixtureImage, homeFixture, isFixtureBackend } from "../scripts/performa
 
 declare global {
   interface Window {
+    __nesAppReady?: boolean;
     __cmsVisit: {
       readyAt: number | null;
       lcp: number;
@@ -266,6 +267,10 @@ for (const engine of CMS_ENGINES)
               interactionMs,
               ...measured,
             };
+            console.log(
+              "CMS_VISIT " +
+                JSON.stringify({ ...result, scripts: undefined, longTasks: undefined }),
+            );
             mkdirSync("reports/cms-widgets", { recursive: true });
             const name = `${engine}-${variant}-${lang}-${testInfo.project.name}-${serverCache}-${sample}`;
             writeFileSync(

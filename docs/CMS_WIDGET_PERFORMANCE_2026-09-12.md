@@ -190,7 +190,7 @@ runnerze dla każdej pary silnik/dokument. Raporty JSON, porównania, zrzuty i �
 nieudanych prób są zachowywane jako artefakty Actions przez 14 dni.
 
 Weryfikacja lokalna nowego stanowiska: produkcyjny build Node, typecheck skryptów,
-lint oraz cztery testy integralności zestawu i porównywarki zaliczone. Playwright
+lint oraz pięć testów integralności zestawu i porównywarki zaliczone. Playwright
 odkrywa dokładnie 96 testów. Osiem odpowiedzi SSR (obie wersje językowe czterech
 dokumentów) ma HTTP 200/MISS, pełną treść do znacznika końcowego i formularz
 w odpowiednich wariantach, bez przerwania strumienia `$RX`.
@@ -200,3 +200,11 @@ przeglądarkowe wymagają ukończonego workflow. Nie deklarujemy jeszcze poprawy
 Etap 3 pozostaje zależny od wyników A/B. Kandydatem do profilowania jest obecne
 bezwarunkowe dogrzewanie sześciu modułów w `warmCommonWidgetChunks`; jego zmiana
 musi również zachować płynność nawigacji SPA, której ten mechanizm służy.
+
+Pełne `verify:static` po aktualizacji o main: **28/28 kontroli zaliczonych**.
+Pierwszy przebieg nowego workflow wykrył cztery brakujące odpowiedzi w zestawie
+testowym po hydratacji publicznej trasy treści (warstwa członkostwa, konfiguracja
+rekomendacji, metering i definicje metadanych). Uzupełniono ich jawne odpowiedzi
+dla syntetycznego tenanta oraz test kontraktu. To poprawka stanowiska pomiarowego;
+nie jest poprawą czasu ładowania produktu. Typy nowego speca i konfiguracji
+Playwright są odtąd sprawdzane także przez komendę harnessu w CI.

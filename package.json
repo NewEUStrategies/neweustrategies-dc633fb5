@@ -88,7 +88,7 @@
     "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
     "check:first-visit-regression": "node scripts/performance/compare-first-visit.mjs",
     "test:e2e:cms-performance": "node scripts/performance/run-cms-widgets.mjs",
-    "test:cms-performance-harness": "node --test scripts/performance/cms-harness.test.mjs"
+    "test:cms-performance-harness": "tsc --noEmit -p tsconfig.cms-performance.json && node --test scripts/performance/cms-harness.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",
