@@ -136,3 +136,67 @@ Kolejny krok to zamknięcie niezależnej bramki CRM, a następnie pomiar pierwsz
 wizyty na docelowych dokumentach obu CMS. Ten PR nie uzasadnia deklaracji,
 że LCP skrócił się o określoną liczbę milisekund ani że każdy widget wymaga
 osobnego mechanizmu hydratacji.
+
+## Kontynuacja etapu 2 - pomiar dokumentów obu CMS
+
+Gałąź zaktualizowano o `main` z merge PR #351 (`42667a8`). Opisana wyżej
+porażka kontroli CRM dotyczy historycznej bazy etapu 1, nie aktualnego main.
+W Actions dla etapu 1 przeszły: build i boot artefaktu, wszystkie cztery shardy
+oraz agregacja testów/coverage, E2E, Lighthouse i istniejący first-visit.
+
+Dodany zestaw `test:e2e:cms-performance` obejmuje 96 prób na każdy artefakt:
+2 silniki x 2 dokumenty (tekst / formularz kontaktowy) x 2 języki x 2 profile
+urządzenia x 2 stany cache serwera x 3 próbki. Każda próba uruchamia własny
+proces serwera produkcyjnego i nowy kontekst Chromium. Scenariusze używają
+publicznej trasy treści, prawdziwego ContentRenderer i prawdziwych formularzy.
+Backend jest syntetyczny, wspólny dla SSR i klienta, z opóźnieniem 40 ms.
+Żadne testowe trasy ani przełączniki nie trafiają do kodu aplikacji.
+
+Zakres pomiaru i jego ograniczenia:
+
+- LCP, FCP, TTFB, CLS z oknami sesji, żądania, transfer JS, rozmiar treści
+  odpowiedzi JS oraz długie zadania głównego wątku. Transfer i rozmiar treści
+  są odrębnymi polami; nie są sumą gzip z wcześniejszego audytu chunków.
+- `hydrationReadyMs` to czas od nawigacji do efektu korzenia sygnalizującego
+  gotowość. Nie jest czasem CPU samego `hydrateRoot` ani dowodem ukończenia
+  wszystkich granic Suspense. Osobno testowane są zachowanie węzłów SSR oraz
+  rzeczywisty handler przełącznika motywu i walidacja formularza.
+- Okno obserwacji trwa co najmniej 5 sekund po gotowości, potem czeka na
+  ukończenie żądań JS. Obejmuje istniejące automatyczne dogrzewanie widgetów
+  (timeout requestIdleCallback do 4 s / fallback 1,5 s). Interakcja następuje
+  po odczycie LCP/CLS, żeby wcześniej nie zamknąć obserwacji LCP.
+- `cold` / `warm` oznacza cache SERWERA, z wymaganym nagłówkiem MISS / HIT.
+  Cache przeglądarki pozostaje zimny; Playwright routing wyłącza HTTP cache.
+  Powracający użytkownik z ciepłym cache przeglądarki wymaga osobnego pomiaru.
+- Mobile emuluje viewport i dotyk Pixel 7 w Chromium. Nie emuluje procesora
+  telefonu ani sieci komórkowej. Wynik nie zastępuje rzeczywistego p75 RUM.
+- Kontrole treści SSR, braku błędów hydratacji i działania formularza obowiązują
+  baseline oraz candidate. Porównanie odrzuca brakujące, zdublowane, nieliczbowe
+  i pomieszane próbki. Stosuje te same tolerancje czasu i rozmiaru co istniejący
+  first-visit; liczba żądań i long tasks służą również do diagnozy.
+
+Reprodukcja:
+
+```sh
+npm run build:smoke
+npm run test:cms-performance-harness
+npm run test:e2e:cms-performance
+# Pojedyncza ćwiartka macierzy: 24 próbki
+npm run test:e2e:cms-performance -- blocks form
+```
+
+Workflow `CMS widget performance` porównuje bazę PR i kandydata na tym samym
+runnerze dla każdej pary silnik/dokument. Raporty JSON, porównania, zrzuty i ślady
+nieudanych prób są zachowywane jako artefakty Actions przez 14 dni.
+
+Weryfikacja lokalna nowego stanowiska: produkcyjny build Node, typecheck skryptów,
+lint oraz cztery testy integralności zestawu i porównywarki zaliczone. Playwright
+odkrywa dokładnie 96 testów. Osiem odpowiedzi SSR (obie wersje językowe czterech
+dokumentów) ma HTTP 200/MISS, pełną treść do znacznika końcowego i formularz
+w odpowiednich wariantach, bez przerwania strumienia `$RX`.
+Lokalna instalacja Chromium nie powiodła się z powodu dostępu do CDN; wyniki
+przeglądarkowe wymagają ukończonego workflow. Nie deklarujemy jeszcze poprawy LCP.
+
+Etap 3 pozostaje zależny od wyników A/B. Kandydatem do profilowania jest obecne
+bezwarunkowe dogrzewanie sześciu modułów w `warmCommonWidgetChunks`; jego zmiana
+musi również zachować płynność nawigacji SPA, której ten mechanizm służy.

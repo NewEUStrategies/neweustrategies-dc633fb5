@@ -92,3 +92,6 @@ tsconfig.agentcheck.json
 
 # Vitest shard reports are CI artifacts.
 .vitest-reports/
+
+# CMS performance traces are workflow artifacts.
+test-results-cms-performance/

@@ -86,7 +86,9 @@
     "test:platform": "vitest run --config vitest.platform.config.ts --coverage",
     "check:platform-coverage": "bun run scripts/check-platform-coverage.ts",
     "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
-    "check:first-visit-regression": "node scripts/performance/compare-first-visit.mjs"
+    "check:first-visit-regression": "node scripts/performance/compare-first-visit.mjs",
+    "test:e2e:cms-performance": "node scripts/performance/run-cms-widgets.mjs",
+    "test:cms-performance-harness": "node --test scripts/performance/cms-harness.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",

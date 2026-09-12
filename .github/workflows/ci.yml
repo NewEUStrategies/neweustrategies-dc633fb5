@@ -685,7 +685,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: widget-fidelity-report
-          path: reports/widget-fidelity.txt
+          path: |
+            reports/widget-fidelity.txt
+            reports/widget-fidelity.json
           if-no-files-found: ignore
 
       # Blokujący kontrakt SEO: og:image / og:title / viewport / lang, kanoniki
@@ -848,6 +850,14 @@ jobs:
             coverage/
             reports/platform-coverage.json
             reports/test-accounting.json
+
+      - name: Preserve release test totals
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-test-report
+          path: reports/test-accounting.json
+          if-no-files-found: error
 
   # ── BUILD I BRAMKI ARTEFAKTU: OSOBNY JOB ────────────────────────────────────
   #
@@ -1276,16 +1286,13 @@ jobs:
   # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,
   # smoke). Uruchamiany na push do main i ręcznie - PR-y nie dotykają produkcji.
   post-deploy:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    # `build` i `test` dołączone po wydzieleniu ich z `verify` (2026-08-30):
-    # bramki artefaktu (budżet bundla, acykliczność grafu chunków, czystość
-    # ścieżki startowej) przeniosły się do `build` razem z `Build`, a suita
-    # z coverage do `test`. Bez tych dwóch zależności `post-deploy` ruszałby,
-    # nie wiedząc ani czy artefakt przeszedł, ani czy testy w ogóle zdały -
-    # a jego produktem jest RAPORT ZGODNOŚCI WDROŻENIA, który podaje liczbę
-    # testów i status CI. Raport wystawiony obok czerwonej suity kłamałby
-    # dokładnie w tym, po co powstał.
-    needs: [verify, test, build, pgtap]
+    # Read-only diagnostics still run when a code gate fails. The report uses
+    # the release gate result, never this job's transient status.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [release-gate]
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -1314,25 +1321,59 @@ jobs:
         env:
           npm_config_registry: https://registry.npmjs.org
 
-      # Sonduje Data API: PGRST205 (tabela/widok) i PGRST202 (RPC) to jedyne
-      # kody oznaczające brak obiektu; 401/403 znaczy "istnieje, ale RLS".
+      # Resolve both existing naming conventions; absent configuration fails
+      # explicitly and is preserved in the report. No placeholder production DB.
       - name: Database contract (tables / views / RPC)
         run: bun run check:db-contract
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      # Bramka obiektowa wyżej nie widzi migracji, ktore niczego nie tworza -
-      # ALTER, polityka RLS, GRANT, CREATE OR REPLACE, seed. Ta porownuje sam
-      # rejestr: pliki supabase/migrations ⇄ supabase_migrations.schema_migrations
-      # (przez RPC missing_migration_versions, ktore odpowiada tylko na pytanie
-      # o podane wersje). Dokladnie ten typ luki przepuscil PR #286.
       - name: Migration ledger (branch migrations actually applied)
-        if: always()
+        if: ${{ !cancelled() }}
         run: bun run check:migration-ledger
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Download release test totals
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@v4
+        with:
+          name: release-test-report
+          path: reports
+
+      - name: Download widget fidelity report
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@v4
+        with:
+          name: widget-fidelity-report
+          path: reports
+
+      - name: Read E2E results for this commit
+        if: ${{ !cancelled() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const { owner, repo } = context.repo;
+            let checks = { e2e: 'unknown', 'e2e-seeded': 'unknown' };
+            let runUrl = null;
+            for (let attempt = 0; attempt < 20; attempt++) {
+              const { data } = await github.rest.actions.listWorkflowRuns({ owner, repo,
+                workflow_id: 'e2e.yml', head_sha: context.sha, branch: 'main', event: 'push', per_page: 5 });
+              const run = data.workflow_runs.find(r => r.head_sha === context.sha);
+              if (run?.status === 'completed') {
+                runUrl = run.html_url;
+                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { owner, repo, run_id: run.id });
+                for (const name of Object.keys(checks)) checks[name] = jobs.find(j => j.name === name)?.conclusion ?? 'unknown';
+                break;
+              }
+              if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 15000));
+            }
+            fs.mkdirSync('reports', { recursive: true });
+            fs.writeFileSync('reports/e2e-status.json', JSON.stringify({ commit: context.sha, checks, runUrl }));
+            if (Object.values(checks).some(value => value !== 'success')) core.setFailed('E2E evidence for this commit is missing or unsuccessful');
 
       - name: Download i18n parity report
         if: always()
@@ -1346,7 +1387,8 @@ jobs:
         if: always()
         run: bun run report:deployment
         env:
-          CI_STATUS: ${{ job.status }}
+          CI_STATUS: ${{ needs.release-gate.result }}
+          DEPLOYMENT_STATUS: ${{ job.status }}
 
       - name: Upload deployment compliance report
         if: always()
@@ -1358,6 +1400,10 @@ jobs:
             reports/deployment-report.json
             reports/db-contract.json
             reports/migration-ledger.json
+            reports/test-accounting.json
+            reports/e2e-status.json
+            reports/widget-fidelity.json
+            reports/i18n-parity.json
           if-no-files-found: ignore
 
   release-gate:
