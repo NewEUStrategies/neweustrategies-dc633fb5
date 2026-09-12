@@ -281,6 +281,15 @@ teraz ten kontekst oraz wejściową listę kategorii (także pustą listę stron
 Nowy język nadal tworzy nowy kontekst. Zestaw trasy zalicza 42/42 testy;
 ostateczny dowód zachowania formularza pozostaje kontrolą przeglądarkową.
 
+Odtworzenie lokalne pełnego artefaktu z Chromium 149 z runnera potwierdziło
+zachowanie formularza SSR i działającą walidację po poprawce kontekstu treści:
+PL/desktop/cold oraz EN/mobile/warm. Drugi scenariusz zaliczył cały test
+(CLS 0). Pierwszy zachował formularz, lecz przekroczył lokalne budżety FCP/LCP
+i gotowości, więc nie jest zaliczonym pomiarem wydajności. Te próbki służą
+diagnozie funkcjonalnej; porównanie A/B wymaga wspólnego runnera CI.
+Jednorazowy eksport runtime przeglądarki usunięto ze workflow po odtworzeniu
+błędu. Stały workflow zachowuje wyłącznie raporty, zrzuty oraz ślady testów.
+
 ## Odbiór implementacji
 
 Etap 1 jest zaimplementowany. Etap 2 obejmuje stanowisko A/B oraz naprawy
