@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { makeGeoProjector, corridorPath } from "../geoProject";
 import type { GeoProjectionMeta } from "@/lib/charts/types";
 
-// Metadane projekcji Europy - odczytane z public/geo/europe-50m.v1.json
+// Metadane projekcji Europy - odczytane z public/geo/europe-50m.v2.json
 // (LAEA, środek 52°N/10°E). Trzymać w zgodzie z generatorem, gdyby fit się zmienił.
 const EUROPE_PROJ: GeoProjectionMeta = {
   type: "laea",

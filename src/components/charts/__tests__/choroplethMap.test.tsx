@@ -30,7 +30,9 @@
 //
 // SKĄD BIORĘ LICZBY. `useContainerWidth` czyta `clientWidth`, w happy-dom
 // zerowe, więc szerokość zostaje na starcie 720 px. Wysokość liczy aspekt
-// zasobu: europe 825/960 -> 619 px, world 427/960 -> 320 px.
+// Z VIEWBOXU ZASOBU (atrapa niżej podaje `0 0 960 825`, czyli 720 * 825/960 ->
+// 619 px); dopóki zasób nie dojedzie, wchodzi aspekt startowy regionu
+// z `REGION_ASPECT_FALLBACK`.
 // `getBoundingClientRect()` zwraca w happy-dom zera, więc `clientX` wskaźnika
 // jest wprost współrzędną kotwicy tooltipa.
 //
@@ -46,6 +48,7 @@ import type { ReactNode } from "react";
 import type { GeoAsset, DataMapConfig } from "@/lib/charts/types";
 import type { Json } from "@/lib/content-model/json";
 import { parseDataMapConfig } from "@/lib/charts/parse";
+import { REGION_ASPECT_FALLBACK } from "@/lib/charts/geoAspect";
 import { axeViolations, summarize } from "@/test/axe";
 
 const h = vi.hoisted(() => ({ geo: null as unknown, fail: false }));
@@ -214,16 +217,42 @@ describe("ChoroplethMap - pusty zestaw", () => {
 });
 
 describe("ChoroplethMap - płótno i cykl życia zasobu geometrii", () => {
-  it("wysokość wynika z ASPEKTU regionu, nie z domysłu", async () => {
+  it("wysokość wynika z ASPEKTU ZASOBU, nie ze stałej per region", async () => {
+    // REGRESJA. Aspekt był tu wcześniej tablicą stałych przepisanych z
+    // generatora („trzymać w zgodzie z generatorem"), a generator liczy
+    // wysokość z zasięgu danych - więc zmiana ramki regionu albo paddingu
+    // cicho rozjeżdżała pudełko z rysunkiem i zostawiała pas pustego miejsca.
+    // Teraz liczbę podaje `viewBox` TEGO zasobu, który się narysował.
     const europa = await mapa(EUROPA);
     // 720 * 825/960 = 618,75 -> 619.
     expect(europa.container.querySelector("svg.block")?.getAttribute("height")).toBe("619");
     expect(europa.container.querySelector("svg.block")?.getAttribute("width")).toBe("720");
     europa.unmount();
 
-    const swiat = await mapa({ ...EUROPA, region: "world" });
-    // 720 * 427/960 = 320,25 -> 320.
-    expect(swiat.container.querySelector("svg.block")?.getAttribute("height")).toBe("320");
+    // Ten sam region, INNY zasób - wysokość idzie za zasobem, bo to on wie,
+    // jak wysoki jest rysunek. 720 * 400/500 = 576.
+    h.geo = geoAsset(["PL", "DE"], "0 0 500 400");
+    const inny = await mapa(EUROPA);
+    expect(inny.container.querySelector("svg.block")?.getAttribute("height")).toBe("576");
+    inny.unmount();
+
+    // Region PORTRETOWY (Ameryka Południowa): pudełko jest WYŻSZE niż szerokie
+    // i layout ma to znieść. 720 * 1140/960 = 855.
+    h.geo = geoAsset(["BR", "AR"], "0 0 960 1140");
+    const poludnie = await mapa({ ...EUROPA, region: "south-america" });
+    expect(poludnie.container.querySelector("svg.block")?.getAttribute("height")).toBe("855");
+  });
+
+  it("PRZED zasobem migotka ma wysokość z aspektu startowego REGIONU", async () => {
+    // Bez tego pudełko byłoby zerowej wysokości do czasu fetcha, a mapa
+    // wskakiwałaby w layout skokiem. Aspekt startowy jest per region, bo
+    // jedna wspólna liczba dawałaby przy Ameryce Południowej (portret) skok
+    // o dwie trzecie wysokości.
+    h.geo = null;
+    const { container } = await mapa({ ...EUROPA, region: "south-america" }, { awaitSvg: false });
+    const box = container.querySelector<HTMLElement>(".skeleton-shimmer")?.parentElement;
+    const oczekiwana = Math.round(720 * REGION_ASPECT_FALLBACK["south-america"]);
+    expect(box?.style.height).toBe(`${oczekiwana}px`);
   });
 
   it("viewBox przychodzi Z ZASOBU - mapa nie zakłada własnej projekcji", async () => {

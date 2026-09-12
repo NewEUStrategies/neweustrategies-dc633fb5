@@ -1,4 +1,4 @@
-// Rzutowanie lon/lat na canvas zasobu geo (public/geo/*.v1.json) przy użyciu
+// Rzutowanie lon/lat na canvas zasobu geo (public/geo/*.json) przy użyciu
 // metadanych `proj` osadzonych przez generator. Dzięki temu mapa korytarzy
 // rysuje linie i markery DOKŁADNIE na tym samym układzie współrzędnych co
 // choropleta krajów - bez duplikowania kodu projekcji (i ryzyka dryfu).

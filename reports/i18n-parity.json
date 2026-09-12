@@ -90,6 +90,7 @@
     "blocks.editors.common.logo",
     "blocks.editors.common.plan",
     "blocks.editors.cta.gradient",
+    "blocks.editors.dataMap.oceania",
     "blocks.editors.embed.urlPh",
     "blocks.editors.group.padding",
     "blocks.editors.hero.title",
@@ -205,6 +206,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 537
+    "untranslated": 538
   }
 }

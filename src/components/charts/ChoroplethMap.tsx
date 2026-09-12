@@ -1,7 +1,8 @@
-// Interaktywna mapa danych (choropleta) Europy / świata.
+// Interaktywna mapa danych (choropleta): Europa, świat i pięć kontynentów
+// (lista regionów: `MAP_REGIONS` w `lib/charts/types.ts`).
 //
 // Geometria NIE podróżuje w bundlu JS: pre-projektowane ścieżki SVG leżą w
-// public/geo/*.v1.json (generator: scripts/generate-geo-maps.ts) i są
+// public/geo/*.json (generator: scripts/generate-geo-maps.ts) i są
 // dociągane fetchem + cache'owane przez CDN i React Query. Nazwy krajów
 // (PL/EN) są wbudowane w zasób, więc klient nie ładuje żadnych locale.
 //
@@ -14,11 +15,13 @@
 // Kraje bez danych: neutralne --muted. Tooltip + tabela niosą pełne wartości.
 //
 // SSR: rama + tabela danych renderują się na serwerze (crawler widzi liczby);
-// sam SVG dogrywa się po stronie klienta w miejsce shimmera o stałym aspekcie.
+// sam SVG dogrywa się po stronie klienta w miejsce migotki, której wysokość
+// bierze się z aspektu startowego regionu (patrz `geoAspect.ts`).
 import { useMemo, useState, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { DataMapConfig, MapRegion } from "@/lib/charts/types";
+import type { DataMapConfig } from "@/lib/charts/types";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
+import { mapAspect } from "@/lib/charts/geoAspect";
 import { SEQ_RAMP } from "@/lib/charts/palette";
 import { formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
@@ -40,12 +43,6 @@ const L = {
     loadError: "Map failed to load.",
   },
 } as const;
-
-/** Aspekt viewBoxu wygenerowanych zasobów - trzymać w zgodzie z generatorem. */
-const REGION_ASPECT: Record<MapRegion, number> = {
-  world: 427 / 960,
-  europe: 825 / 960,
-};
 
 /**
  * Motyw czytany z klasy na <html> - tej samej, którą ustawia ThemeProvider
@@ -142,7 +139,10 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
     );
   }
 
-  const aspect = REGION_ASPECT[config.region];
+  // Aspekt Z ZASOBU (jego `viewBox`), a nie ze stałej przepisanej
+  // z generatora - dlaczego, tłumaczy nagłówek `geoAspect.ts`. Do czasu
+  // dojechania zasobu (czyli pod migotką) wchodzi wartość startowa regionu.
+  const aspect = mapAspect(config.region, geo.data);
   const mapHeight = Math.round(width * aspect);
   const seqHex = seqHexPair();
 
