@@ -40,8 +40,14 @@ function Dashboard() {
   // inaczej migotka pod spodem wypisałaby surowy klucz zamiast "Wczytywanie".
   ensureI18n();
 
+  // ZASIĘG TYPOGRAFII MOTYWU STOI NA TRASIE, nie w leniwym komponencie, i to
+  // jest różnica zachowania, a nie porządki. Wewnątrz `AdminDashboard` obejmuje
+  // sam pulpit, a pasek kondycji pod nim zostaje POZA nim - czyli dwa bloki
+  // jednego ekranu składałyby się innym krojem i innym rytmem linii. Bramka
+  // `themeTypographyScope` sprawdza ten plik właśnie dlatego, że to on jest
+  // korzeniem widoku.
   return (
-    <>
+    <div data-theme-typography>
       <Suspense fallback={<Fallback />}>
         <AdminDashboard />
       </Suspense>
@@ -51,6 +57,6 @@ function Dashboard() {
           pulpit, w ogóle działa. Nad nimi stoją teraz pytania biznesowe, a nie
           odwrotnie - ale usunięcie ich byłoby stratą, nie uproszczeniem. */}
       <AdminBiStrip days={14} className="mt-6" />
-    </>
+    </div>
   );
 }

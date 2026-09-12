@@ -30,6 +30,8 @@ import {
   getDashboardTraffic,
 } from "@/lib/admin/dashboard/dashboard.functions";
 import { chartLangFrom } from "@/lib/charts/format";
+import { useRequiredTenant } from "@/hooks/useAuth";
+import { dashboardQueryKey, realtimeQueryKey } from "@/lib/admin/dashboard/queryKeys";
 
 /**
  * Okno bieżące dla zakładki, odświeżane w rytmie jej kwantu.
@@ -62,22 +64,15 @@ function windowPayload(range: DashboardRange) {
   };
 }
 
-/**
- * Klucz zapytania. Zawiera OBIE granice okna, bo dwa okresy mogą zacząć się
- * w tym samym momencie i różnić końcem (kwartał i półrocze 1 stycznia).
- */
-function windowKey(range: DashboardRange) {
-  return [range.period, range.current.sinceIso, range.current.untilIso] as const;
-}
-
 // Okno już minione nie zmieni się nigdy, więc jego odczyt może leżeć w cache
 // dowolnie długo; okno rosnące trzeba odświeżać. `complete` mówi, które to które.
 const staleFor = (range: DashboardRange) => (range.complete ? 30 * 60_000 : 60_000);
 
 export function useTrafficQuery(range: DashboardRange) {
   const fetch = useServerFn(getDashboardTraffic);
+  const tenantId = useRequiredTenant();
   return useQuery({
-    queryKey: ["admin-dashboard", "traffic", ...windowKey(range)],
+    queryKey: dashboardQueryKey(tenantId, "traffic", range),
     queryFn: () => fetch({ data: windowPayload(range) }),
     staleTime: staleFor(range),
   });
@@ -85,8 +80,9 @@ export function useTrafficQuery(range: DashboardRange) {
 
 export function useCrmQuery(range: DashboardRange) {
   const fetch = useServerFn(getDashboardCrm);
+  const tenantId = useRequiredTenant();
   return useQuery({
-    queryKey: ["admin-dashboard", "crm", ...windowKey(range)],
+    queryKey: dashboardQueryKey(tenantId, "crm", range),
     queryFn: () => fetch({ data: windowPayload(range) }),
     staleTime: staleFor(range),
   });
@@ -94,8 +90,9 @@ export function useCrmQuery(range: DashboardRange) {
 
 export function useMarketingQuery(range: DashboardRange) {
   const fetch = useServerFn(getDashboardMarketing);
+  const tenantId = useRequiredTenant();
   return useQuery({
-    queryKey: ["admin-dashboard", "marketing", ...windowKey(range)],
+    queryKey: dashboardQueryKey(tenantId, "marketing", range),
     queryFn: () => fetch({ data: windowPayload(range) }),
     staleTime: staleFor(range),
   });
@@ -103,8 +100,9 @@ export function useMarketingQuery(range: DashboardRange) {
 
 export function useAudienceQuery(range: DashboardRange) {
   const fetch = useServerFn(getDashboardAudience);
+  const tenantId = useRequiredTenant();
   return useQuery({
-    queryKey: ["admin-dashboard", "audience", ...windowKey(range)],
+    queryKey: dashboardQueryKey(tenantId, "audience", range),
     queryFn: () => fetch({ data: windowPayload(range) }),
     staleTime: staleFor(range),
   });
@@ -112,12 +110,13 @@ export function useAudienceQuery(range: DashboardRange) {
 
 export function useContentQuery(range: DashboardRange) {
   const fetch = useServerFn(getDashboardContent);
+  const tenantId = useRequiredTenant();
   const { i18n } = useTranslation();
   // Tytuły wpisów wracają w języku panelu, więc język JEST częścią klucza -
   // bez niego przełączenie PL/EN pokazywałoby czołówkę z poprzedniego języka.
   const lang = chartLangFrom(i18n.language);
   return useQuery({
-    queryKey: ["admin-dashboard", "content", lang, ...windowKey(range)],
+    queryKey: dashboardQueryKey(tenantId, "content", range, [lang]),
     queryFn: () => fetch({ data: { ...windowPayload(range), lang } }),
     staleTime: staleFor(range),
   });
@@ -131,8 +130,9 @@ export function useContentQuery(range: DashboardRange) {
  */
 export function useRealtimeQuery() {
   const fetch = useServerFn(getDashboardRealtime);
+  const tenantId = useRequiredTenant();
   return useQuery({
-    queryKey: ["admin-dashboard", "realtime", REALTIME_ACTIVE_MINUTES, REALTIME_WINDOW_MINUTES],
+    queryKey: realtimeQueryKey(tenantId, REALTIME_ACTIVE_MINUTES, REALTIME_WINDOW_MINUTES),
     queryFn: () =>
       fetch({
         data: {

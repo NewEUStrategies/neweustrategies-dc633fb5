@@ -55,7 +55,7 @@ export function AdminDashboard() {
   const liveOnly = period === "realtime";
 
   return (
-    <div data-theme-typography className="space-y-6">
+    <div className="space-y-6">
       <header className="space-y-3">
         <div>
           <h1 className="font-display text-xl font-bold">{t("adminDashboard.title")}</h1>
