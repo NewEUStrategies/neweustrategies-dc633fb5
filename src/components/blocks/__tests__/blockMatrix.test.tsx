@@ -119,11 +119,14 @@ vi.mock("@tanstack/react-start", async (importOriginal) => {
 // ten sam wzorzec, którym `@/test/eagerWidgetChunks` odblokowuje widgety
 // buildera.
 vi.mock("@/components/blocks/renderer/lazyBlockViews", async () => {
-  const [dataViz, poll, calendar, liveblog] = await Promise.all([
+  const [dataViz, poll, calendar, liveblog, auth, newsletter, contact] = await Promise.all([
     import("@/components/blocks/DataVizViews"),
     import("@/components/blocks/PollBlockView"),
     import("@/components/blocks/CalendarView"),
     import("@/components/blocks/LiveBlogBlock"),
+    import("@/components/blocks/AuthFormBlocks"),
+    import("@/components/NewsletterForm"),
+    import("@/components/blocks/MarketingContactFormView"),
   ]);
   return {
     ChartBlockView: dataViz.ChartBlockView,
@@ -131,6 +134,12 @@ vi.mock("@/components/blocks/renderer/lazyBlockViews", async () => {
     PollBlockView: poll.PollBlockView,
     CalendarView: calendar.CalendarView,
     LiveBlogBlock: liveblog.LiveBlogBlock,
+    LoginFormView: auth.LoginFormView,
+    RegisterFormView: auth.RegisterFormView,
+    LostPasswordFormView: auth.LostPasswordFormView,
+    ResetPasswordFormView: auth.ResetPasswordFormView,
+    NewsletterForm: newsletter.NewsletterForm,
+    ContactFormView: contact.ContactFormView,
   };
 });
 

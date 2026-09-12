@@ -1,8 +1,10 @@
 import {
   createContext,
   startTransition,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -103,23 +105,27 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const setTheme = (next: Theme) => {
+  const setTheme = useCallback((next: Theme) => {
     localStorage.setItem(STORAGE_KEY, next);
     apply(next);
     // The CSS class responds immediately. Keep already visible content while
     // a lazy descendant finishes hydrating under the new theme; an urgent
     // context update can otherwise replace it with a null Suspense fallback.
     startTransition(() => setThemeState(next));
-  };
+  }, []);
 
   // A second click may arrive while the React transition is pending. The DOM
   // class already reflects the last explicit choice, unlike the deferred state.
-  const toggle = () =>
-    setTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
-
-  return (
-    <ThemeContext.Provider value={{ theme, toggle, setTheme }}>{children}</ThemeContext.Provider>
+  const toggle = useCallback(
+    () => setTheme(document.documentElement.classList.contains("dark") ? "light" : "dark"),
+    [setTheme],
   );
+
+  // Unrelated root updates must not broadcast a new context during hydration.
+  // A context update can discard a still-pending widget's SSR boundary even
+  // when that widget's props and the actual theme remain unchanged.
+  const value = useMemo(() => ({ theme, toggle, setTheme }), [theme, toggle, setTheme]);
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export const useTheme = () => useContext(ThemeContext);

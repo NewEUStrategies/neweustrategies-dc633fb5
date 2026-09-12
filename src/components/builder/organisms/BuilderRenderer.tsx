@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  startTransition,
   type ComponentType,
   type CSSProperties,
   type ElementType,
@@ -214,7 +215,9 @@ export function BuilderRenderer({
   // "mobile" (rozjazd hydratacji + CLS). Rzeczywiste urzadzenie ustawia
   // useIsomorphicLayoutEffect ponizej (przed malowaniem na kliencie).
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? "desktop");
-  const safeDoc = safeParseBuilderDoc(doc);
+  // Keep normalized node identities stable through viewport/context updates.
+  // Editors replace the document immutably when its content changes.
+  const safeDoc = useMemo(() => safeParseBuilderDoc(doc), [doc]);
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
@@ -229,7 +232,10 @@ export function BuilderRenderer({
     // preview frame in the admin). Fall back to window width.
     const measure = () => {
       const w = el?.clientWidth && el.clientWidth > 0 ? el.clientWidth : window.innerWidth;
-      setViewportDevice(deviceForWidth(w));
+      // A viewport correction can arrive before a lazy widget hydrates.
+      // Keep its server DOM while React waits for the chunk; an urgent update
+      // would discard the boundary and temporarily show its empty fallback.
+      startTransition(() => setViewportDevice(deviceForWidth(w)));
     };
     measure();
     let ro: ResizeObserver | null = null;

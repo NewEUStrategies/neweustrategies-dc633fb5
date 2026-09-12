@@ -127,6 +127,11 @@ export default defineConfig({
                 // `index-*.js` mimo pozornie poprawnej konfiguracji. Chunk po
                 // prostu nigdy nie powstawał - bez ostrzeżenia.
                 if (meta.getModuleInfo(id)?.isEntry) return undefined;
+                // Keep the archive engine isolated from tiny public modules.
+                // Automatic min-size merging otherwise packed a 312-byte auth
+                // server-function stub with JSZip, pulling the whole archive
+                // engine into the article's static dependency graph.
+                if (id.includes("/node_modules/jszip/")) return "vendor-jszip";
                 // ZASADA (incydent 2026-07-20, martwa hydratacja na KAŻDEJ
                 // stronie): chunk vendorowy musi zawierać DOMKNIĘCIE
                 // zależności swoich pakietów spoza vendor-react. Rozdzielenie

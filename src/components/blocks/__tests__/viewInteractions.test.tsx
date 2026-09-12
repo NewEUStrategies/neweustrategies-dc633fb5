@@ -126,13 +126,8 @@ import {
   PricingTableView,
   TimelineView,
 } from "../PresentationViews";
-import {
-  HeroView,
-  CtaSectionView,
-  ImageCarouselView,
-  ContactFormView as MarketingContactFormView,
-  MapView,
-} from "../MarketingViews";
+import { HeroView, CtaSectionView, ImageCarouselView, MapView } from "../MarketingViews";
+import { ContactFormView as MarketingContactFormView } from "../MarketingContactFormView";
 import {
   TeamGridView,
   LogoGridView,

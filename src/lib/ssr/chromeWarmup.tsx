@@ -14,12 +14,15 @@ interface ChromeWarmup {
 // tenant's settings or a degradation flag between requests.
 const warmups = new WeakMap<QueryClient, ChromeWarmup>();
 
-export function registerChromeWarmup(client: QueryClient, warmup: ChromeWarmup): void {
+export function registerChromeWarmup(client: QueryClient, warmup: ChromeWarmup): Promise<void> {
   warmups.set(client, warmup);
-  // Begin while sibling loaders run, without putting decoration on the root
-  // loader's critical path. The serialization sweep may cancel these queries;
-  // the render gate below can restart them safely after that sweep.
-  void warmup.warm().catch(warmup.markDegraded);
+  // Begin while sibling loaders run. The caller can await this bounded work
+  // to include navigation in the first shell. If it does not, the serialization
+  // sweep may cancel queries; the render gate can restart them safely.
+  return warmup
+    .warm()
+    .then(() => undefined)
+    .catch(warmup.markDegraded);
 }
 
 export function readChromeWarmup(client: QueryClient): void {

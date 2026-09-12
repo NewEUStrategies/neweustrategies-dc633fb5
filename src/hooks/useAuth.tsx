@@ -1,8 +1,10 @@
 import {
   createContext,
   startTransition,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -172,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub?.subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     // Resolve the admin-configured post-logout destination BEFORE clearing the
     // cache (the bulk settings map is almost always already cached, so this is
     // a cache read, not a round-trip). Only internal paths are honoured -
@@ -203,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // logout a full reload is even desirable: it guarantees no per-user state
     // survives in memory.
     if (typeof window !== "undefined") window.location.assign(target);
-  };
+  }, [queryClient]);
 
   const isSuperAdmin = roles.includes("super_admin");
   const isAdmin = isSuperAdmin || roles.includes("admin");
@@ -212,23 +214,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // half-hydrated identity (session present, roles empty).
   const loading = sessionLoading || (session !== null && rolesLoading);
 
-  return (
-    <Ctx.Provider
-      value={{
-        session,
-        user: session?.user ?? null,
-        roles,
-        tenantId,
-        loading,
-        isStaff,
-        isAdmin,
-        isSuperAdmin,
-        signOut,
-      }}
-    >
-      {children}
-    </Ctx.Provider>
+  // Unrelated root renders must not rebroadcast unchanged auth state through
+  // pending SSR widget boundaries. Identity/role/loading changes still notify
+  // every consumer, and logout keeps its existing urgent cache invalidation.
+  const value = useMemo<AuthCtx>(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      roles,
+      tenantId,
+      loading,
+      isStaff,
+      isAdmin,
+      isSuperAdmin,
+      signOut,
+    }),
+    [session, roles, tenantId, loading, isStaff, isAdmin, isSuperAdmin, signOut],
   );
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export const useAuth = () => useContext(Ctx);
