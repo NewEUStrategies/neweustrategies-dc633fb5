@@ -284,14 +284,20 @@ for (const engine of CMS_ENGINES)
             const darkBefore = await page
               .locator("html")
               .evaluate((node) => node.classList.contains("dark"));
+            // The compact mobile header exposes one neutral toggle label;
+            // the builder-authored desktop header names the target theme.
             const themeLabel =
-              lang === "pl"
-                ? darkBefore
-                  ? "Tryb jasny"
-                  : "Tryb ciemny"
-                : darkBefore
-                  ? "Light mode"
-                  : "Dark mode";
+              testInfo.project.name === "mobile"
+                ? lang === "pl"
+                  ? "Przełącz motyw"
+                  : "Toggle theme"
+                : lang === "pl"
+                  ? darkBefore
+                    ? "Tryb jasny"
+                    : "Tryb ciemny"
+                  : darkBefore
+                    ? "Light mode"
+                    : "Dark mode";
             const interactionStart = await page.evaluate(() => performance.now());
             await page.getByRole("button", { name: themeLabel, exact: true }).first().click();
             await expect
