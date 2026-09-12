@@ -15,8 +15,8 @@
     "build:dev": "node scripts/clean-build-output.mjs && NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "typecheck": "tsgo --noEmit",
-    "typecheck:tsc": "NODE_OPTIONS=\"--max-old-space-size=8192\" tsc --noEmit",
+    "typecheck": "npm run typecheck:tsc && npm run typecheck:scripts",
+    "typecheck:tsc": "NODE_OPTIONS=\"--max-old-space-size=8192\" tsc --noEmit --incremental false",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:static": "bun run scripts/verify-static.ts",
@@ -27,7 +27,7 @@
     "test:e2e": "playwright test",
     "build:smoke": "node scripts/clean-build-output.mjs && NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --config vite.smoke.config.ts",
     "test:e2e:artifact": "playwright test --config playwright.artifact.config.ts",
-    "test:e2e:performance": "playwright test --config playwright.performance.config.ts",
+    "test:e2e:performance": "node scripts/performance/run-first-visit.mjs",
     "measure:boot-ab": "bun run scripts/measure-boot-ab.ts",
     "db:test": "supabase test db",
     "migrate:blocks-to-builder": "bun run scripts/migrate-blocks-to-builder.ts",
@@ -84,7 +84,9 @@
     "check:tenant-isolation": "bash scripts/tenant-isolation-harness/run.sh",
     "test:pgtap-local": "bash scripts/pgtap-local/run.sh",
     "test:platform": "vitest run --config vitest.platform.config.ts --coverage",
-    "check:platform-coverage": "bun run scripts/check-platform-coverage.ts"
+    "check:platform-coverage": "bun run scripts/check-platform-coverage.ts",
+    "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
+    "check:first-visit-regression": "node scripts/performance/compare-first-visit.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",
@@ -166,7 +168,7 @@
     "tailwindcss": "^4.2.1",
     "tw-animate-css": "^1.3.4",
     "vite-tsconfig-paths": "^6.1.1",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "yet-another-react-lightbox": "^3.32.0",
     "zod": "^3.23.8"
   },

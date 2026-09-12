@@ -494,3 +494,26 @@ describe("exportPng - zrzut wykresu", () => {
     expect(odwolaneUrle).toEqual(["blob:nes-test-1"]);
   });
 });
+
+describe("export legend recovery", () => {
+  it("omits incomplete pie legend rows and preserves labels without numeric cells", async () => {
+    const container = kontenerZTabelaKlucza();
+    const body = container.querySelector("tbody");
+    if (!body) throw new Error("missing legend");
+    body.innerHTML =
+      "<tr><th>incomplete</th></tr><tr><th><span aria-hidden></span></th></tr><tr><th><span aria-hidden></span><span>Label only</span></th><td></td></tr>";
+    await exportPng("legend", container);
+    expect(h.wywolania[0].opcje?.klucz).toEqual([expect.objectContaining({ label: "Label only" })]);
+  });
+  it("omits incomplete series and uses text ink for transparent swatches", async () => {
+    const container = kontenerZLegenda();
+    const list = container.querySelector("ul");
+    if (!list) throw new Error("missing legend");
+    list.innerHTML =
+      '<li>incomplete</li><li><span aria-hidden></span></li><li><span aria-hidden style="background-color: rgba(0, 0, 0, 0)"></span><span style="color: rgb(1, 2, 3)">Pattern</span></li>';
+    await exportPng("legend", container);
+    expect(h.wywolania[0].opcje?.klucz).toEqual([
+      expect.objectContaining({ label: "Pattern", color: "rgb(1, 2, 3)" }),
+    ]);
+  });
+});

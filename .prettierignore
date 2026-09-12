@@ -68,3 +68,6 @@ reports
 # formatowanie treści, której nie piszemy i która wraca przy każdym wydaniu,
 # jest szumem, a jako bramka blokująca - awarią.
 src/integrations/supabase/previewAuthStorage.ts
+
+# PostgreSQL psql includes are SQL, not HTML/PHP .inc files.
+**/*.sql.inc

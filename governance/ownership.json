@@ -1,15 +1,15 @@
 {
   "meta": {
     "wersja": 1,
-    "obowiazujeOd": "2026-08-29",
+    "obowiazujeOd": "2026-09-12",
     "opis": "Rejestr własnicielstwa technicznego: każda trasa administracyjna i każda migracja bazy ma wskazaną domenę, a każda domena ma właściciela, zastępcę i klasę SLA. Bramka `bun run check:ownership` egzekwuje, że rejestr pokrywa 100% obu powierzchni.",
     "jakEdytowac": "governance/README.md"
   },
   "kontraktUtrzymaniowy": {
     "dokument": "docs/UMOWA_UTRZYMANIOWA.md",
     "runbookCiaglosci": "docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md",
-    "zamawiajacy": "New European Strategies",
-    "wykonawca": "NIEOBSADZONE",
+    "zamawiajacy": "Fundacja New European Strategies",
+    "wykonawca": "Fundacja New European Strategies",
     "obowiazujeOd": "2026-08-29",
     "obowiazujeDo": "2027-08-31",
     "ostrzegajOdDni": 60,
@@ -39,8 +39,8 @@
   },
   "osoby": {
     "organizacja-nes": {
-      "rola": "Zamawiający - właściciel biznesowy platformy",
-      "organizacja": "New European Strategies",
+      "rola": "Fundacja New European Strategies - właściciel platformy",
+      "organizacja": "Fundacja New European Strategies",
       "kontakt": "office@neweuropeanstrategies.com",
       "github": "@NewEUStrategies",
       "obsadzone": true,
@@ -48,31 +48,31 @@
     },
     "redakcja-nes": {
       "rola": "Kontakt redakcyjny i marketingowy",
-      "organizacja": "New European Strategies",
+      "organizacja": "Fundacja New European Strategies",
       "kontakt": "marketing@neweuropeanstrategies.com",
       "github": null,
       "obsadzone": true,
       "zrodlo": ".env.example (VAPID_SUBJECT), git shortlog"
     },
-    "wt-nieobsadzony": {
-      "rola": "Właściciel techniczny domeny - DO OBSADZENIA",
-      "organizacja": "NIEOBSADZONE",
-      "kontakt": null,
-      "github": null,
-      "obsadzone": false,
-      "zrodlo": "brak - w repo nie ma ANI JEDNEGO indywidualnego uchwytu GitHub ani osobowego adresu e-mail"
+    "fundacja-utrzymanie": {
+      "rola": "Fundacja New European Strategies - utrzymanie techniczne",
+      "organizacja": "Fundacja New European Strategies",
+      "kontakt": "office@neweuropeanstrategies.com",
+      "github": "@NewEUStrategies",
+      "obsadzone": true,
+      "zrodlo": "Dyspozycja właściciela repozytorium z 2026-09-12: ownership wszystkich domen po stronie Fundacji New European Strategies."
     },
-    "zastepca-nieobsadzony": {
-      "rola": "Zastępca właściciela technicznego - DO OBSADZENIA",
-      "organizacja": "NIEOBSADZONE",
-      "kontakt": null,
-      "github": null,
-      "obsadzone": false,
-      "zrodlo": "brak"
+    "fundacja-zastepstwo": {
+      "rola": "Fundacja New European Strategies - zastępstwo operacyjne",
+      "organizacja": "Fundacja New European Strategies",
+      "kontakt": "office@neweuropeanstrategies.com",
+      "github": "@NewEUStrategies",
+      "obsadzone": true,
+      "zrodlo": "Dyspozycja właściciela z 2026-09-12. Rola instytucjonalna w tej samej Fundacji; nie oznacza niezależnego wykonawcy."
     }
   },
   "progi": {
-    "domenyBezWlasciciela": 9,
+    "domenyBezWlasciciela": 0,
     "martweWzorceTras": 0,
     "migracjeBezAtrybucjiDozwolone": [
       "20260628221009_5a12c332-ac42-4ce9-b15e-abcae6db6cad.sql",
@@ -104,11 +104,11 @@
       "slug": "spolecznosc-i-kluby",
       "nazwa": "Społeczność i kluby",
       "zakres": "Kluby dyskusyjne, czat, wiadomości prywatne, sieć kontaktów, ankiety, Q&A, odznaki i moderacja komentarzy.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-1",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-spolecznosc-i-kluby",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": ["admin.community.*", "admin.comments.tsx"],
       "obiektyBazy": [
         "auto_connect_experts$",
@@ -152,18 +152,19 @@
         "user_blocks",
         "user_connections",
         "user_follows",
-        "user_reports"
+        "user_reports",
+        "user_notes$"
       ]
     },
     {
       "slug": "wydarzenia",
       "nazwa": "Wydarzenia",
       "zakres": "Katalog wydarzeń, studio pojedynczego wydarzenia, rejestracje, bilety, obsługa na miejscu i live blog.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-1",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-wydarzenia",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": [
         "admin.events_.$eventId.*",
         "admin.events_.new.tsx",
@@ -187,11 +188,11 @@
       "slug": "monetyzacja-i-platnosci",
       "nazwa": "Monetyzacja i płatności",
       "zakres": "Paywall, cenniki, warstwy członkostwa, kupony, prezenty, reklamy oraz Stripe, rekoncyliacja i audyt księgowy.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-1",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-monetyzacja-i-platnosci",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": [
         "admin.coupons.*",
         "admin.organizations.*",
@@ -204,7 +205,8 @@
         "admin.library.tsx",
         "admin.ads.tsx",
         "admin.billing*",
-        "admin.donations.tsx"
+        "admin.donations.tsx",
+        "admin.members.tsx"
       ],
       "obiektyBazy": [
         "access_entity_type$",
@@ -244,11 +246,11 @@
       "slug": "crm-i-marketing",
       "nazwa": "CRM i marketing",
       "zakres": "Kontakty, firmy, lejek, automatyzacje i integracje wychodzące oraz newsletter, popupy, SEO, analityka i monitoring linków.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-2",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-crm-i-marketing",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": [
         "admin.crm.*",
         "admin.companies.*",
@@ -282,18 +284,19 @@
         "saved_views",
         "search_query_log",
         "seo_",
-        "suppressed_emails"
+        "suppressed_emails",
+        "member_crm_sync_pending$"
       ]
     },
     {
       "slug": "kariera-i-programy",
       "nazwa": "Kariera i programy",
       "zakres": "Ogłoszenia i zgłoszenia rekrutacyjne, CV, wnioski ekspertów oraz programy badawcze.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-3",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-kariera-i-programy",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": [
         "admin.careers.tsx",
         "admin.hiring.tsx",
@@ -314,11 +317,11 @@
       "slug": "tresc-i-edytory",
       "nazwa": "Treść i edytory",
       "zakres": "Wpisy, strony, media, taksonomie, oba silniki edycji (bloki i builder) oraz warstwa wyglądu i motywu.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-1",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-tresc-i-edytory",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": [
         "admin.posts.*",
         "admin.pages.*",
@@ -395,11 +398,11 @@
       "slug": "zgodnosc-i-prywatnosc",
       "nazwa": "Zgodność i prywatność",
       "zakres": "Zgody, banner cookie, dokumenty prawne, retencja i usuwanie danych, dziennik audytowy, wypisy.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-1",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-zgodnosc-i-prywatnosc",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": ["admin.settings.privacy.tsx", "admin.settings.cookie-banner.tsx"],
       "obiektyBazy": [
         "audit_log$",
@@ -416,11 +419,11 @@
       "slug": "tozsamosc-i-uprawnienia",
       "nazwa": "Tożsamość i uprawnienia",
       "zakres": "Konta, role, macierz uprawnień, zaproszenia, weryfikacja domen, izolacja tenanta i ustawienia instancji.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-1",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-tozsamosc-i-uprawnienia",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": [
         "admin.settings.*",
         "admin.users.*",
@@ -450,11 +453,11 @@
       "slug": "platforma-i-baza",
       "nazwa": "Platforma i baza",
       "zakres": "Powłoka panelu, harmonogram zadań, kolejki i powiadomienia, storage, wyszukiwarka, i18n, telemetria oraz sama warstwa migracji.",
-      "wlasciciel": "wt-nieobsadzony",
-      "zastepca": "zastepca-nieobsadzony",
+      "wlasciciel": "fundacja-utrzymanie",
+      "zastepca": "fundacja-zastepstwo",
       "eskalacja": "organizacja-nes",
       "klasaSla": "sla-1",
-      "zespolGithub": "@NewEUStrategies/utrzymanie-platforma-i-baza",
+      "zespolGithub": "@NewEUStrategies",
       "trasy": ["admin.tsx", "admin.index.tsx", "admin.performance.tsx", "admin.i18n.tsx"],
       "obiektyBazy": [
         "buckets$",

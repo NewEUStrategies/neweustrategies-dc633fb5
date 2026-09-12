@@ -1765,12 +1765,11 @@ describe("moduł 07: kanał EN kontra kanał PL", () => {
     expect(body).toContain("Digital policy");
   });
 
-  it("schemat adresów bierze się z x-forwarded-proto, nie ze zgadywania", async () => {
-    // Kanał za terminatorem TLS, który podaje `http`, nie może reklamować
-    // adresów `https` - czytnik dostałby link, którego origin nie odpowiada.
+  it("kanoniczna domena publiczna pozostaje HTTPS także za wewnętrznym proxy HTTP", async () => {
+    // Wewnętrzny protokół proxy nie zmienia kanonicznego publicznego adresu.
     state.requestHeaders = { host: "neweuropeanstrategies.com", "x-forwarded-proto": "http" };
     const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
-    expect(body).toContain("<link>http://neweuropeanstrategies.com/podcast/");
+    expect(body).toContain("<link>https://neweuropeanstrategies.com/podcast/");
   });
 });
 

@@ -9,18 +9,33 @@
 // firma), CRM jest jego odbiciem. Synchronizacja jest idempotentna: dedup
 // osoby po `email_norm`, dedup firmy po znormalizowanej nazwie w tenancie.
 //
-// ODPORNOŚĆ. Funkcje nigdy nie rzucają - nieudany zapis do CRM nie może cofnąć
+// ODPORNOŚĆ. syncMemberToCrm nigdy nie rzuca - nieudany zapis CRM nie może cofnąć
 // nadania planu, które już zapisało się w `membership_grants`.
+import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
 type Admin = SupabaseClient<Database>;
+
+const syncResult = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("synced"),
+    leadId: z.string().uuid(),
+    stage: z.string(),
+    companyId: z.string().uuid().nullable(),
+    companyName: z.string().nullable(),
+    companyCreated: z.boolean(),
+  }),
+  z.object({ status: z.literal("skipped") }),
+  z.object({ status: z.literal("failed"), errorCode: z.string() }),
+]);
 
 export interface MemberCrmSnapshot {
   leadId: string | null;
   stage: string | null;
   companyId: string | null;
   companyName: string | null;
+  companyCreated: boolean;
 }
 
 /** Nazwa firmy sprowadzona do postaci porównywalnej (dedup w obrębie tenanta). */
@@ -41,28 +56,14 @@ export async function ensureCrmCompany(
   rawName: string | null,
   createdBy: string | null,
 ): Promise<string | null> {
-  const name = rawName?.trim();
-  if (!name) return null;
-  const normalized = normalizeCompanyName(name);
-  if (!normalized) return null;
-
-  const { data: candidates } = await supabaseAdmin
-    .from("crm_companies")
-    .select("id, name")
-    .eq("tenant_id", tenantId)
-    .ilike("name", `%${normalized.slice(0, 40).replace(/[%_]/g, " ")}%`)
-    .limit(20);
-
-  const hit = (candidates ?? []).find((row) => normalizeCompanyName(row.name) === normalized);
-  if (hit) return hit.id;
-
-  const { data: created, error } = await supabaseAdmin
-    .from("crm_companies")
-    .insert({ tenant_id: tenantId, name, created_by: createdBy })
-    .select("id")
-    .single();
-  if (error || !created) return null;
-  return created.id;
+  if (!rawName?.trim() || !normalizeCompanyName(rawName)) return null;
+  const { data, error } = await supabaseAdmin.rpc("crm_ensure_member_company", {
+    p_tenant_id: tenantId,
+    p_name: rawName,
+    p_actor_id: createdBy,
+  });
+  if (error) throw error;
+  return data?.[0]?.id ?? null;
 }
 
 interface SyncInput {
@@ -84,99 +85,26 @@ export async function syncMemberToCrm(
   input: SyncInput,
 ): Promise<MemberCrmSnapshot | null> {
   try {
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select(
-        "email, first_name, last_name, display_name, job_title, current_company, linkedin_url, phone, tenant_id",
-      )
-      .eq("id", input.userId)
-      .eq("tenant_id", input.tenantId)
-      .maybeSingle();
-
-    const email = profile?.email?.trim().toLowerCase();
-    if (!email) return null;
-
-    const companyId = await ensureCrmCompany(
-      supabaseAdmin,
-      input.tenantId,
-      profile?.current_company ?? null,
-      input.actorId,
-    );
-
-    const planTag = input.tierKey ? `plan:${input.tierKey}` : null;
-    const now = new Date().toISOString();
-
-    const { data: lead } = await supabaseAdmin
-      .from("crm_leads")
-      .select("id, tags, stage, company_id")
-      .eq("tenant_id", input.tenantId)
-      .eq("email_norm", email)
-      .maybeSingle();
-
-    // Tagi planu są rozłączne: przy zmianie warstwy stary `plan:*` znika, żeby
-    // segmentacja nie pokazywała jednej osoby w dwóch planach naraz.
-    // Uzupełnianie danych (backfill) nie zmienia etapu ani tagów planu - to
-    // odświeżenie profilu osoby i firmy, a nie zdarzenie sprzedażowe.
-    const keptTags =
-      input.reason === "backfill"
-        ? (lead?.tags ?? [])
-        : (lead?.tags ?? []).filter(
-            (tag) => !tag.startsWith("plan:") && tag !== "membership:manual",
-          );
-    const tags = Array.from(
-      new Set([...keptTags, ...(planTag ? [planTag, "membership:manual"] : [])]),
-    );
-
-    const shared = {
-      first_name: profile?.first_name ?? null,
-      last_name: profile?.last_name ?? null,
-      position: profile?.job_title ?? null,
-      company: profile?.current_company ?? null,
-      company_id: companyId ?? lead?.company_id ?? null,
-      linkedin_url: profile?.linkedin_url ?? null,
-      phone: profile?.phone ?? null,
-      tags,
-      last_activity_at: now,
-    };
-
-    if (lead) {
-      const stage =
-        input.reason === "manual_grant"
-          ? "won"
-          : input.reason === "manual_revoke" && lead.stage === "won"
-            ? "qualified"
-            : lead.stage;
-      await supabaseAdmin
-        .from("crm_leads")
-        .update({ ...shared, stage })
-        .eq("id", lead.id);
-      return {
-        leadId: lead.id,
-        stage,
-        companyId: shared.company_id,
-        companyName: profile?.current_company ?? null,
-      };
+    const { data, error } = await supabaseAdmin.rpc("crm_sync_member", {
+      p_user_id: input.userId,
+      p_tenant_id: input.tenantId,
+      p_tier_key: input.tierKey,
+      p_actor_id: input.actorId,
+      p_reason: input.reason,
+    });
+    if (error) throw error;
+    const result = syncResult.parse(data);
+    if (result.status === "failed") {
+      console.error("[members] crm sync pending", { userId: input.userId, code: result.errorCode });
+      return null;
     }
-
-    const { data: created } = await supabaseAdmin
-      .from("crm_leads")
-      .insert({
-        ...shared,
-        tenant_id: input.tenantId,
-        email,
-        email_norm: email,
-        stage: input.reason === "manual_grant" ? "won" : "new",
-        // Zbiór dozwolonych wartości pilnuje CHECK w bazie.
-        source_type: "other",
-      })
-      .select("id, stage")
-      .maybeSingle();
-
+    if (result.status === "skipped") return null;
     return {
-      leadId: created?.id ?? null,
-      stage: created?.stage ?? null,
-      companyId: shared.company_id,
-      companyName: profile?.current_company ?? null,
+      leadId: result.leadId,
+      stage: result.stage,
+      companyId: result.companyId,
+      companyName: result.companyName,
+      companyCreated: result.companyCreated,
     };
   } catch (err) {
     console.error("[members] crm sync failed", err);

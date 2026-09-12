@@ -72,6 +72,8 @@ const pl = {
       syncing: "Synchronizuję...",
       synced: "Zsynchronizowano: {{people}} osób, nowych firm: {{companies}}.",
       syncError: "Synchronizacja z CRM nie powiodła się.",
+      pending:
+        "Część danych CRM wymaga ponowienia synchronizacji. Zapisane zmiany planów są zachowane - użyj przycisku Synchronizuj z CRM.",
     },
     error: "Nie udało się wczytać listy członków.",
   },
@@ -146,6 +148,8 @@ const en = {
       syncing: "Syncing...",
       synced: "Synced {{people}} people, {{companies}} new companies.",
       syncError: "CRM sync failed.",
+      pending:
+        "Some CRM data needs another sync attempt. Saved plan changes are preserved - use Sync with CRM.",
     },
     error: "Could not load the member list.",
   },

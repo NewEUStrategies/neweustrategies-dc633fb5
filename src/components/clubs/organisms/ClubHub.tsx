@@ -171,7 +171,8 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   // Dokumenty idą tym samym zawężeniem, co strumień: panel działu ma pokazywać
   // materiały TEGO działu, a nie całego klubu.
   const documentsQ = useClubDocuments({ clubId: club.id, groupId, limit: 6 });
-  const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
+  const [eventsFrom] = useState(() => new Date().toISOString());
+  const eventsQ = useClubEvents({ clubId: club.id, from: eventsFrom, limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
   // Ściana (A31). Wpisy idą tym samym zawężeniem działu, co strumień - inaczej
   // wybrany dział pokazywałby wątki jednego działu i wpisy całego klubu.

@@ -8,6 +8,7 @@
 // WSZYSTKIE BIBLIOTEKI SĄ ŁADOWANE LENIWIE. mammoth/xlsx/jszip to razem
 // kilkaset kilobajtów; ktoś, kto nigdy nie otworzy .docx, nie ma prawa ich
 // pobrać. Import żyje więc wewnątrz funkcji, nie na górze modułu.
+import { runSpreadsheetWorker } from "./spreadsheetWorker";
 import DOMPurify from "dompurify";
 import type JSZipType from "jszip";
 
@@ -52,17 +53,12 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<DocxResult> {
   return { html: sanitize(result.value), warnings: result.messages.map((m) => m.message) };
 }
 
-export async function parseSpreadsheet(buffer: ArrayBuffer): Promise<SheetResult[]> {
-  const XLSX = await import("xlsx");
-  const book = XLSX.read(buffer, { type: "array" });
-  return book.SheetNames.map((name) => {
-    const sheet = book.Sheets[name];
-    if (sheet === undefined) return { name, html: "", rows: 0 };
-    const html = XLSX.utils.sheet_to_html(sheet, { editable: false });
-    const range = sheet["!ref"];
-    const rows = range === undefined ? 0 : XLSX.utils.decode_range(range).e.r + 1;
-    return { name, html: sanitize(html), rows };
-  });
+export async function parseSpreadsheet(
+  buffer: ArrayBuffer,
+  signal?: AbortSignal,
+): Promise<SheetResult[]> {
+  const sheets = await runSpreadsheetWorker(buffer, signal);
+  return sheets.map((sheet) => ({ ...sheet, html: sanitize(sheet.html) }));
 }
 
 /**

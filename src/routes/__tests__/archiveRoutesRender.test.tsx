@@ -9,6 +9,7 @@
 //
 // Harness montuje PRAWDZIWĄ trasę pliku w routerze pamięciowym - ten sam krok,
 // który w produkcji robi generator drzewa (patrz src/test/routeHarness.tsx).
+import { freezeClock } from "@/test/time";
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -18,6 +19,8 @@ import type { BlogListItem } from "@/lib/queries/public";
 import { CARD_IMAGE_SIZES, FEATURED_CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { SEARCH_PAGE_SIZE } from "@/lib/queries/archives";
 import { DEFAULT_ARCHIVE_LAYOUT } from "@/lib/archive-layout-settings";
+
+freezeClock();
 
 const data = vi.hoisted(() => ({
   blog: null as { posts: unknown[]; total: number; page: number; pageSize: number } | null,

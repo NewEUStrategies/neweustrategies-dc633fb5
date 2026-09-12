@@ -896,3 +896,18 @@ describe("ScatterChart - jednostka w tabeli ramki należy do JEDNEJ osi", () => 
     for (const n of naglowki) expect(n.trim().length).toBeGreaterThan(0);
   });
 });
+
+it("keyboard navigation respects the first and last point boundaries", () => {
+  const { container } = render(<ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE))} lang="pl" />);
+  const box = container.querySelector<HTMLElement>("[role='img']");
+  if (!box) throw new Error("missing chart");
+  fireEvent.keyDown(box, { key: "ArrowLeft" });
+  expect(container.querySelector(".neh-tooltip")).not.toBeNull();
+  fireEvent.keyDown(box, { key: "ArrowRight" });
+  expect(container.querySelector(".neh-tooltip")).not.toBeNull();
+  fireEvent.keyDown(box, { key: "Escape" });
+  fireEvent.keyDown(box, { key: "ArrowUp" });
+  expect(container.querySelector(".neh-tooltip")).not.toBeNull();
+  fireEvent.keyDown(box, { key: "x" });
+  expect(container.querySelector(".neh-tooltip")).not.toBeNull();
+});

@@ -6,18 +6,14 @@
 // Triggery: delay / scroll / exit-intent. Frequency gating w localStorage.
 // Paleta: ciemna / jasna / automatyczna (motyw strony) - patrz popupDesign.
 // Mountowany globalnie w __root.tsx.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
-import { NewsletterForm } from "@/components/NewsletterForm";
-import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
-import { SignupPopupPanel } from "@/components/popups/SignupPopupPanel";
 import "@/lib/i18n-signup-popup";
-import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useTheme } from "@/components/ThemeProvider";
@@ -28,6 +24,27 @@ import {
   resolvePopupDesign,
   resolvePopupPalette,
 } from "@/lib/newsletter/popupDesign";
+
+const NewsletterForm = lazy(() =>
+  import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
+);
+const PopupSignupForm = lazy(() =>
+  import("@/components/PopupSignupForm").then((m) => ({ default: m.PopupSignupForm })),
+);
+const SignupPopupPanel = lazy(() =>
+  import("@/components/popups/SignupPopupPanel").then((m) => ({ default: m.SignupPopupPanel })),
+);
+const NewsletterDocRenderer = lazy(() =>
+  import("@/components/newsletter/NewsletterDocRenderer").then((m) => ({
+    default: m.NewsletterDocRenderer,
+  })),
+);
+
+// Forms are downloaded only when the popup actually opens. Trigger timing,
+// consent coordination and the close controls remain available in this shell.
+const popupFallback = (
+  <div aria-busy="true" className="h-24 rounded-md bg-muted/40 animate-pulse" />
+);
 
 const LS_KEY = "nl_popup_last";
 
@@ -214,14 +231,16 @@ export function NewsletterPopup() {
           style={{ maxWidth: `${design.panel.maxWidthPx}px` }}
           onClick={(e) => e.stopPropagation()}
         >
-          <SignupPopupPanel
-            settings={s}
-            lang={lang}
-            mode={mode}
-            onClose={close}
-            onSuccess={onSuccess}
-            titleId="nl-popup-title"
-          />
+          <Suspense fallback={popupFallback}>
+            <SignupPopupPanel
+              settings={s}
+              lang={lang}
+              mode={mode}
+              onClose={close}
+              onSuccess={onSuccess}
+              titleId="nl-popup-title"
+            />
+          </Suspense>
         </div>
       ) : (
         <div
@@ -248,7 +267,9 @@ export function NewsletterPopup() {
 
           {s.popup_doc ? (
             <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
-              <NewsletterDocRenderer doc={s.popup_doc} settings={s} lang={lang} source="popup" />
+              <Suspense fallback={popupFallback}>
+                <NewsletterDocRenderer doc={s.popup_doc} settings={s} lang={lang} source="popup" />
+              </Suspense>
             </div>
           ) : split ? (
             <>
@@ -298,7 +319,9 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
+                <Suspense fallback={popupFallback}>
+                  <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
+                </Suspense>
               </div>
             </>
           ) : (
@@ -323,9 +346,13 @@ export function NewsletterPopup() {
                 {s.popup_extended_fields ||
                 s.popup_mailing_lists.length > 0 ||
                 s.popup_require_terms ? (
-                  <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
+                  <Suspense fallback={popupFallback}>
+                    <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
+                  </Suspense>
                 ) : (
-                  <NewsletterForm lang={lang} source="popup" variant="inline" />
+                  <Suspense fallback={popupFallback}>
+                    <NewsletterForm lang={lang} source="popup" variant="inline" />
+                  </Suspense>
                 )}
               </div>
             </>

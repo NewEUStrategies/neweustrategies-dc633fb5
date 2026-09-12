@@ -731,3 +731,37 @@ describe("adres linku potwierdzającego (bezpieczeństwo)", () => {
     expect(String(sentMail().html)).not.toContain("undefined/newsletter");
   });
 });
+
+describe("newsletter preference tags in CRM", () => {
+  it.each([null, [], ["existing", 7], ["topic:energia"]])(
+    "merges incoming tags without deleting prior CRM tags (%j)",
+    async (tags) => {
+      db.setResponse("crm_leads", (chain) =>
+        chain.has("update") ? ok(null) : ok({ id: "lead-1", tags }),
+      );
+      const result = await subscribeToNewsletter({
+        data: input({ meta: { interests: "energia", mailing_lists: "Analizy" } }),
+      });
+      expect(result).toMatchObject({ ok: true });
+      const update = db.chainsFor("crm_leads").find((c) => c.has("update"));
+      expect(update?.argsOf("update")?.[0]).toMatchObject({
+        tags: expect.arrayContaining([
+          expect.stringContaining("energia"),
+          expect.stringContaining("Analizy"),
+        ]),
+      });
+      if (Array.isArray(tags) && tags.includes("existing"))
+        expect(update?.argsOf("update")?.[0]).toMatchObject({
+          tags: expect.arrayContaining(["existing"]),
+        });
+    },
+  );
+  it("ignores tag sync transport failures after saving the subscription", async () => {
+    db.setResponse("crm_leads", () => {
+      throw new Error("offline");
+    });
+    const result = await subscribeToNewsletter({ data: input({ meta: { interests: "energia" } }) });
+    expect(result).toMatchObject({ ok: true });
+    expect(errorSpy).toHaveBeenCalledWith("[newsletter] crm tag sync threw", expect.any(Error));
+  });
+});

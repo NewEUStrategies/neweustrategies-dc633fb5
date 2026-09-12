@@ -5,7 +5,7 @@
 //   2. jaki ma plan i skąd ten plan wynika (kolumna „Podstawa"),
 //   3. ile zapłacił i kiedy,
 //   4. co mogę zrobić - ręczne nadanie planu bez udziału operatora płatności.
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
@@ -73,12 +73,38 @@ export function MembersDirectoryPanel() {
     return tier === ALL ? all : all.filter((row) => row.tierKey === tier);
   }, [data, tier]);
 
+  const syncCursor = useRef<string | null>(null);
+  const syncTotals = useRef({ people: 0, companies: 0, skipped: 0 });
+  const syncController = useRef<AbortController | null>(null);
+  useEffect(() => () => syncController.current?.abort(), []);
   const crmSync = useMutation({
-    mutationFn: () => crmSyncFn({ data: undefined }),
+    mutationFn: async () => {
+      const controller = new AbortController();
+      syncController.current = controller;
+      while (!controller.signal.aborted) {
+        const result = await crmSyncFn({ data: { cursor: syncCursor.current, batchSize: 25 } });
+        syncTotals.current.people += result.people;
+        syncTotals.current.companies += result.companies;
+        syncTotals.current.skipped += result.skipped;
+        const advanced = result.nextCursor !== syncCursor.current;
+        syncCursor.current = result.nextCursor;
+        if (result.errors > 0) return { ...syncTotals.current, errors: result.errors };
+        if (result.done) {
+          const total = { ...syncTotals.current, errors: 0 };
+          syncCursor.current = null;
+          syncTotals.current = { people: 0, companies: 0, skipped: 0 };
+          return total;
+        }
+        if (!advanced) throw new Error("CRM sync did not advance its cursor");
+      }
+      throw new Error("CRM sync interrupted");
+    },
     onSuccess: (result) => {
-      toast.success(
-        t("adminMembers.crm.synced", { people: result.people, companies: result.companies }),
-      );
+      if (result.errors > 0) toast.warning(t("adminMembers.crm.pending"));
+      else
+        toast.success(
+          t("adminMembers.crm.synced", { people: result.people, companies: result.companies }),
+        );
       void refetch();
     },
     onError: () => toast.error(t("adminMembers.crm.syncError")),

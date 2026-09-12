@@ -470,3 +470,24 @@ describe("useRequiredTenant()", () => {
     await waitFor(() => expect(screen.getByTestId("tenant")).toHaveTextContent("tenant-42"));
   });
 });
+
+it("keeps the signed-in context when invitation acceptance returns an error", async () => {
+  const session = makeSession("u1");
+  h.getSessionResult = { data: { session } };
+  h.rpc.mockResolvedValue({ data: null, error: { message: "temporarily unavailable" } });
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  try {
+    renderProbe();
+    act(() => h.authCb!("INITIAL_SESSION", session));
+    await waitFor(() =>
+      expect(warning).toHaveBeenCalledWith(
+        "[auth] invitation acceptance sync failed",
+        "temporarily unavailable",
+      ),
+    );
+    expect(screen.getByTestId("uid")).toHaveTextContent("u1");
+    expect(screen.getByTestId("loading")).toHaveTextContent("false");
+  } finally {
+    warning.mockRestore();
+  }
+});

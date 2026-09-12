@@ -21,6 +21,7 @@
 // Rejestrujemy się do istniejącej infrastruktury pocztowej projektu i
 // supabaseAdmin ładowanego wewnątrz .handler() (patrz reguły import-graph).
 
+import { invitationCopy } from "@/lib/locale/invitation";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -432,6 +433,7 @@ async function performSend(
       // administratora w popupie zaproszenia. Wcześniej był to ręcznie sklejony
       // HTML tylko po polsku, poza rejestrem szablonów.
       const lang: "pl" | "en" = meta.lang === "en" ? "en" : "pl";
+      const copy = invitationCopy[lang];
       const loginUrl = `${origin}/auth?email=${encodeURIComponent(email)}`;
 
       // Zakres obietnicy w treści maila musi odpowiadać dostępowi konta:
@@ -452,12 +454,12 @@ async function performSend(
       const intro = invitationIntro(scope, lang);
 
       const details: { label: string; value: string }[] = [
-        { label: lang === "pl" ? "Adres logowania" : "Sign-in address", value: email },
-        { label: lang === "pl" ? "Rola" : "Role", value: inv.role },
+        { label: copy.loginAddress, value: email },
+        { label: copy.role, value: inv.role },
       ];
       if (meta.company_name) {
         details.push({
-          label: lang === "pl" ? "Organizacja" : "Organisation",
+          label: copy.organisation,
           value: [String(meta.company_name), meta.job_title ? String(meta.job_title) : null]
             .filter(Boolean)
             .join(" - "),
@@ -465,7 +467,7 @@ async function performSend(
       }
       if (!actionLink && tempPassword) {
         details.push({
-          label: lang === "pl" ? "Hasło tymczasowe" : "Temporary password",
+          label: copy.temporaryPassword,
           value: tempPassword,
         });
       }
@@ -478,20 +480,8 @@ async function performSend(
         intro,
         details,
         ctaUrl: actionLink ?? loginUrl,
-        ctaLabel: actionLink
-          ? lang === "pl"
-            ? "Aktywuj konto"
-            : "Activate account"
-          : lang === "pl"
-            ? "Zaloguj się"
-            : "Sign in",
-        extra: actionLink
-          ? lang === "pl"
-            ? `Jeśli przycisk nie działa, skopiuj ten adres do przeglądarki: ${actionLink}`
-            : `If the button does not work, copy this address into your browser: ${actionLink}`
-          : lang === "pl"
-            ? "Po pierwszym zalogowaniu ustaw własne hasło w ustawieniach konta."
-            : "After your first sign-in, set your own password in the account settings.",
+        ctaLabel: actionLink ? copy.activate : copy.signIn,
+        extra: actionLink ? `${copy.copyLink} ${actionLink}` : copy.changePassword,
         idempotencyKey: `user-invitation:${invitationId}:send:${String(sendCount)}`,
         tenantId: inv.tenant_id,
       });

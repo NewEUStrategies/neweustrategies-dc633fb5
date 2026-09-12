@@ -65,6 +65,9 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 
 const h = vi.hoisted(() => ({
   /** Wywołania `auth.admin.*` - kolejność i argumenty tworzenia kont. */
+  claimError: null as { message: string } | null,
+  inviteLinkFails: false,
+  hashedToken: null as string | null,
   authCalls: [] as { kind: string; email: string; payload: unknown }[],
   /** Identyfikator, jaki oddaje warstwa auth; `null` = „konto bez id". */
   authUserId: "aaaa1111-2222-4333-8444-555566667777" as string | null,
@@ -118,9 +121,15 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         },
         generateLink: async (payload: { type: string; email: string }) => {
           h.authCalls.push({ kind: `link:${payload.type}`, email: payload.email, payload });
-          if (h.linkError) return { data: null, error: h.linkError };
+          if (h.linkError || (h.inviteLinkFails && payload.type === "invite"))
+            return { data: null, error: h.linkError ?? new Error("already invited") };
           return {
-            data: { properties: { action_link: "https://example.test/activate?token=abc" } },
+            data: {
+              properties: {
+                action_link: "https://example.test/activate?token=abc",
+                ...(h.hashedToken ? { hashed_token: h.hashedToken } : {}),
+              },
+            },
             error: null,
           };
         },
@@ -178,6 +187,9 @@ vi.mock("@/lib/email/transactional.server", () => ({
 
 import {
   createInvitations,
+  searchCrmCompanies,
+  createCrmCompany,
+  sendActivationEmailForUser,
   linkTeamWidgets,
   listInvitations,
   previewTeamImport,
@@ -223,6 +235,8 @@ function client(): { from: (table: string) => unknown; rpc: (name: string) => Pr
     from: (table: string) => db.from(table),
     rpc: (name: string, args?: unknown) => {
       rpcCalls.push({ name, args });
+      if (name === "admin_claim_invitation_send" && h.claimError)
+        return Promise.resolve({ data: null, error: h.claimError });
       return Promise.resolve({ data: rpcUsers, error: null });
     },
   };
@@ -294,6 +308,10 @@ function invitationRow(overrides: Partial<InvitationRow> = {}): InvitationRow {
 }
 
 beforeEach(() => {
+  h.existingAuthUsers = [];
+  h.claimError = null;
+  h.inviteLinkFails = false;
+  h.hashedToken = null;
   db = supabaseFromStub();
   rpcCalls = [];
   rpcUsers = [];
@@ -2187,5 +2205,259 @@ describe("kanarek harnessu", () => {
     );
     await callServerFn(listInvitations, { context: context() });
     expect(db.lastChain("user_invitations")?.has("select")).toBe(true);
+  });
+});
+
+describe("CRM company suggestions for invitations", () => {
+  it.each([undefined, "", "  New%_  "])(
+    "limits search to the administrator tenant (%s)",
+    async (q) => {
+      grantAdmin();
+      db.setResponse("crm_companies", ok([{ id: "company", name: "New" }]));
+      expect(await callServerFn(searchCrmCompanies, { data: { q }, context: context() })).toEqual({
+        companies: [{ id: "company", name: "New" }],
+      });
+      const chain = db.chainsFor("crm_companies")[0];
+      expect(chain.calls).toContainEqual({ method: "eq", args: ["tenant_id", IDS.tenant] });
+      expect(chain.argsOf("limit")).toEqual([20]);
+      if (q?.trim()) expect(chain.argsOf("ilike")).toEqual(["name", "%New%"]);
+      else expect(chain.has("ilike")).toBe(false);
+    },
+  );
+  it("returns an empty result for null data and propagates database errors", async () => {
+    grantAdmin();
+    db.setResponse("crm_companies", ok(null));
+    expect(await callServerFn(searchCrmCompanies, { data: {}, context: context() })).toEqual({
+      companies: [],
+    });
+    db.setResponse("crm_companies", fail("unavailable"));
+    await expect(
+      callServerFn(searchCrmCompanies, { data: {}, context: context() }),
+    ).rejects.toThrow("unavailable");
+  });
+  it("reuses an existing company without inserting a duplicate", async () => {
+    grantAdmin();
+    db.setResponse("crm_companies", ok({ id: "company", name: "New" }));
+    expect(
+      await callServerFn(createCrmCompany, { data: { name: " New " }, context: context() }),
+    ).toEqual({ id: "company", name: "New" });
+    expect(db.chainsFor("crm_companies").some((c) => c.has("insert"))).toBe(false);
+  });
+  it("creates a missing company in the caller tenant and propagates insertion errors", async () => {
+    grantAdmin();
+    db.setResponse("crm_companies", (chain) =>
+      chain.has("insert") ? ok({ id: "new-company", name: "New" }) : ok(null),
+    );
+    expect(
+      await callServerFn(createCrmCompany, { data: { name: " New " }, context: context() }),
+    ).toEqual({ id: "new-company", name: "New" });
+    expect(db.chainsFor("crm_companies")[1].argsOf("insert")).toEqual([
+      { tenant_id: IDS.tenant, name: "New", created_by: IDS.caller },
+    ]);
+    db.setResponse("crm_companies", (chain) =>
+      chain.has("insert") ? fail("write denied") : ok(null),
+    );
+    await expect(
+      callServerFn(createCrmCompany, { data: { name: "New" }, context: context() }),
+    ).rejects.toThrow("write denied");
+  });
+});
+
+describe("activation from the member directory", () => {
+  function profile(result: SupabaseResult): void {
+    grantAdmin();
+    db.setResponse("profiles", (chain) =>
+      chain.calls.some((c) => c.method === "eq" && c.args[1] === IDS.existingUser)
+        ? result
+        : ok({ tenant_id: IDS.tenant }),
+    );
+  }
+  it.each([fail("profile unavailable"), ok(null), ok({ email: "" })])(
+    "rejects missing or unreadable recipient data",
+    async (result) => {
+      profile(result);
+      await expect(
+        callServerFn(sendActivationEmailForUser, {
+          data: { userId: IDS.existingUser },
+          context: context(),
+        }),
+      ).rejects.toThrow();
+      expect(h.emails).toHaveLength(0);
+    },
+  );
+  it("propagates invitation lookup failure", async () => {
+    profile(ok({ email: "member@example.org", display_name: "Member" }));
+    db.setResponse("user_invitations", fail("lookup unavailable"));
+    await expect(
+      callServerFn(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      }),
+    ).rejects.toThrow("lookup unavailable");
+  });
+  it.each([null, { id: IDS.invitation, status: "accepted" }])(
+    "creates a new activation record when no reusable invitation exists",
+    async (existing) => {
+      profile(ok({ email: " MEMBER@example.org ", display_name: null }));
+      db.setResponse("user_invitations", (chain) =>
+        chain.has("insert")
+          ? ok({ id: IDS.invitationB })
+          : chain.argsOf("select")?.[0] === "id, status"
+            ? ok(existing)
+            : ok(invitationRow({ id: IDS.invitationB, email: "member@example.org" })),
+      );
+      const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      });
+      expect(result.ok).toBe(true);
+      const inserted = db.chainsFor("user_invitations").find((c) => c.has("insert"));
+      expect(inserted?.argsOf("insert")?.[0]).toMatchObject({
+        tenant_id: IDS.tenant,
+        email: "member@example.org",
+        source: "admin_user_actions",
+        auth_user_id: IDS.existingUser,
+      });
+    },
+  );
+});
+
+describe("invitation delivery recovery branches", () => {
+  function prepare(overrides: Partial<InvitationRow> = {}) {
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow(overrides)),
+    );
+  }
+  it.each(["activation_send_limit_reached", "database unavailable"])(
+    "does not send when the atomic claim fails (%s)",
+    async (message) => {
+      prepare();
+      h.claimError = { message };
+      const result = await callServerFn(sendInvitation, {
+        data: { id: IDS.invitation },
+        context: context(),
+      });
+      expect(result).toMatchObject({ ok: false, error: message, sendLimit: 5 });
+      expect(h.emails).toHaveLength(0);
+      expect(h.authCalls).toHaveLength(0);
+    },
+  );
+  it("reuses an existing auth identity and skips contacts without email", async () => {
+    prepare();
+    h.existingAuthUsers = [
+      { id: "invalid", email: null },
+      { id: IDS.existingUser, email: "NOWA@example.org" },
+    ];
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(h.authCalls.some((c) => c.kind === "create")).toBe(false);
+  });
+  it.each([false, true])("falls back from invite to magic link (hashed %s)", async (hashed) => {
+    prepare();
+    h.inviteLinkFails = true;
+    h.hashedToken = hashed ? "token/value" : null;
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(h.authCalls.map((c) => c.kind)).toContain("link:magiclink");
+    expect(h.emails[0].ctaUrl).toContain(hashed ? "token=token%2Fvalue&type=invite" : "token=abc");
+  });
+  it.each([undefined, "Analyst"])(
+    "includes the selected organization in the invitation (%s)",
+    async (job_title) => {
+      prepare({ metadata: { company_name: "Fundacja New European Strategies", job_title } });
+      await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+      expect(h.emails[0].details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            value: job_title
+              ? "Fundacja New European Strategies - Analyst"
+              : "Fundacja New European Strategies",
+          }),
+        ]),
+      );
+    },
+  );
+  it("reports password identity provisioning errors without sending mail", async () => {
+    prepare({ mode: "password" });
+    h.authError = new Error("auth unavailable");
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: false, error: "auth unavailable" });
+    expect(h.emails).toHaveLength(0);
+  });
+});
+
+describe("activation record persistence failures", () => {
+  function profileReady() {
+    grantAdmin();
+    db.setResponse("profiles", (chain) =>
+      chain.calls.some((c) => c.method === "eq" && c.args[1] === IDS.existingUser)
+        ? ok({ email: "member@example.org", display_name: "Member" })
+        : ok({ tenant_id: IDS.tenant }),
+    );
+  }
+  it("propagates role lookup failure before creating an activation record", async () => {
+    profileReady();
+    db.setResponse("user_invitations", ok(null));
+    db.setResponse("user_roles", (chain) =>
+      chain.has("limit") ? fail("roles unavailable") : ok([{ role: "admin" }]),
+    );
+    await expect(
+      callServerFn(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      }),
+    ).rejects.toThrow("roles unavailable");
+    expect(h.emails).toHaveLength(0);
+  });
+  it.each([fail("insert unavailable"), ok(null)])(
+    "rejects a missing activation record after insertion",
+    async (insertion) => {
+      profileReady();
+      db.setResponse("user_roles", (chain) =>
+        chain.has("limit") ? ok(null) : ok([{ role: "admin" }]),
+      );
+      db.setResponse("user_invitations", (chain) => (chain.has("insert") ? insertion : ok(null)));
+      await expect(
+        callServerFn(sendActivationEmailForUser, {
+          data: { userId: IDS.existingUser },
+          context: context(),
+        }),
+      ).rejects.toThrow(insertion.error?.message ?? "invitation_create_failed");
+      expect(
+        db
+          .chainsFor("user_invitations")
+          .find((c) => c.has("insert"))
+          ?.argsOf("insert")?.[0],
+      ).toMatchObject({ role: "user" });
+      expect(h.emails).toHaveLength(0);
+    },
+  );
+  it("reuses a pending invitation and reports a failed activation-link fallback", async () => {
+    profileReady();
+    h.linkError = new Error("link service unavailable");
+    db.setResponse("user_invitations", (chain) =>
+      chain.argsOf("select")?.[0] === "id, status"
+        ? ok({ id: IDS.invitation, status: "pending" })
+        : chain.has("update")
+          ? ok(null)
+          : ok(invitationRow()),
+    );
+    const result = await callServerFn(sendActivationEmailForUser, {
+      data: { userId: IDS.existingUser },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: false, error: "link_failed:link service unavailable" });
+    expect(db.chainsFor("user_invitations").some((c) => c.has("insert"))).toBe(false);
+    expect(h.emails).toHaveLength(0);
   });
 });

@@ -47,10 +47,13 @@ export const Route = createFileRoute("/blog/")({
   // czytania (posts_per_page) - ustawienia są już ciepłe z root loadera,
   // więc to odczyt z cache, nie dodatkowy fetch.
   loader: async ({ context, deps }) => {
+    const deadlineAt = Date.now() + BLOG_LOADER_BUDGET_MS;
     await withBudget(
       context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
-      BLOG_LOADER_BUDGET_MS,
+      500,
+      deadlineAt,
     );
+    const hasSettings = !!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey);
     const settings =
       context.queryClient.getQueryData<Record<string, unknown>>(
         siteSettingsQueryOptions.queryKey,
@@ -66,6 +69,7 @@ export const Route = createFileRoute("/blog/")({
     await withBudget(
       context.queryClient.ensureQueryData(listOptions).catch(() => undefined),
       BLOG_LOADER_BUDGET_MS,
+      deadlineAt,
     );
     const data = context.queryClient.getQueryData<BlogArchiveResult>(listOptions.queryKey);
     if (!data) {
@@ -79,7 +83,7 @@ export const Route = createFileRoute("/blog/")({
       setCacheControlHeader(NO_STORE);
       return { page: deps.page, total: 0, coverPreload: null };
     }
-    setCacheControlHeader(contentCacheControl());
+    setCacheControlHeader(hasSettings ? contentCacheControl() : NO_STORE);
     // Preload LCP pierwszej karty siatki (PaginatedPostGrid oznacza ją
     // priority) - deskryptor dla head() + nagłówek HTTP `Link` utrwalany
     // przez NES Edge Cache na HIT/STALE.

@@ -130,7 +130,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
   // nie stały kąt. Stały kąt dawałby przy pierścieniu wąskim przerwę
   // niewidoczną, a przy szerokim rozjeżdżającą się szczelinę; przerwa
   // wyrażona w pikselach jest tą samą przerwą w każdej geometrii.
-  const rMid = (rOuter + rInner) / 2 || rOuter;
+  const rMid = (rOuter + rInner) / 2;
   const gap = ARC_GAP_PX / 2 / rMid;
   const activeSlice = active !== null ? slices[active] : null;
   // JEDEN NADAWCA na kliknięcie i na klawisz: gdyby każda droga składała
@@ -144,7 +144,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
       categoryIndex: i,
       category: s.label,
       seriesIndex: config.series.length === 1 ? 0 : null,
-      seriesName: config.series.length === 1 ? (config.series[0]?.name ?? null) : null,
+      seriesName: config.series.length === 1 ? config.series[0].name : null,
       value: s.value,
     });
   };

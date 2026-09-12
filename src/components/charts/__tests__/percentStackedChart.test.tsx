@@ -20,7 +20,7 @@
 // słupków, brzeg serii, sumy kontrolne) ma własny plik testowy przy modelu.
 // Tutaj sprawdzam wyłącznie to, czego model sprawdzić nie może: czy RYSUNEK
 // mówi to, co model policzył.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
@@ -1812,4 +1812,46 @@ describe("PercentStackedChart - ani jedna wstawka nie wychodzi surowa", () => {
       }
     }
   });
+});
+
+it("emits the category and segment selected by touch", () => {
+  const selected = vi.fn();
+  const { container } = render(
+    <PercentStackedChart config={cfg(BAZA)} lang="pl" onSelect={selected} />,
+  );
+  const hit = container.querySelector("rect.neh-hit");
+  if (!hit) throw new Error("missing hit layer");
+  stubPlotRect(hit, 668, INNER_H);
+  fireEvent.pointerDown(hit, { clientX: 100, clientY: 100, pointerType: "touch" });
+  expect(selected).toHaveBeenCalledWith(
+    expect.objectContaining({ categoryIndex: 0, seriesName: "Przemysł" }),
+  );
+});
+
+it("selects a whole category from the keyboard without inventing a segment", () => {
+  const selected = vi.fn();
+  const { container } = render(
+    <PercentStackedChart config={cfg(BAZA)} lang="pl" onSelect={selected} />,
+  );
+  const chart = container.querySelector('[role="img"]');
+  if (!chart) throw new Error("missing chart");
+  fireEvent.keyDown(chart, { key: "ArrowRight" });
+  fireEvent.keyDown(chart, { key: "Enter" });
+  expect(selected).toHaveBeenCalledWith(
+    expect.objectContaining({ categoryIndex: 0, seriesIndex: null, seriesName: null, value: null }),
+  );
+});
+
+it("selects only the category when a captured pointer moves above the stack", () => {
+  const selected = vi.fn();
+  const { container } = render(
+    <PercentStackedChart config={cfg(BAZA)} lang="pl" onSelect={selected} />,
+  );
+  const hit = container.querySelector("rect.neh-hit");
+  if (!hit) throw new Error("missing hit layer");
+  stubPlotRect(hit, 668, INNER_H);
+  fireEvent.pointerDown(hit, { clientX: -10, clientY: -10, pointerType: "touch" });
+  expect(selected).toHaveBeenCalledWith(
+    expect.objectContaining({ categoryIndex: 0, seriesIndex: null, seriesName: null, value: null }),
+  );
 });

@@ -51,17 +51,14 @@ const STATE_FILE = process.env.PROBE_STATE_FILE ?? "/tmp/billing-renewal-probe.j
 const REPORT_FILE = process.env.PROBE_REPORT_FILE ?? "reports/billing-renewal-probe.json";
 const STRICT = /^(1|true|yes)$/i.test(process.env.PROBE_STRICT ?? "");
 
-/** Sufit czekania na Test Clock i odstęp odpytywania (tryb `wait`). */
-const WAIT_TIMEOUT_MS = Number(process.env.PROBE_WAIT_TIMEOUT_MS ?? 40 * 60 * 1000);
-const WAIT_POLL_MS = Number(process.env.PROBE_WAIT_POLL_MS ?? 30 * 1000);
-
-interface ProbeState {
-  subscriptionId: string;
-  testClockId: string;
-  armedAt: string;
-  advancedTo: number;
-  previousPeriodEnd: number | null;
-}
+const WAIT_TIMEOUT_MS = positiveNumber(
+  process.env.PROBE_WAIT_TIMEOUT_MS,
+  positiveNumber(process.env.PROBE_WAIT_TIMEOUT_S, 20 * 60) * 1000,
+);
+const WAIT_POLL_MS = positiveNumber(process.env.PROBE_WAIT_POLL_MS, 5_000);
+const REQUEST_TIMEOUT_MS = positiveNumber(process.env.PROBE_REQUEST_TIMEOUT_MS, 15_000);
+const RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 interface Auth {
   readonly connection: string;
@@ -268,7 +265,7 @@ async function awaitClock(auth: Auth): Promise<StepOutcome> {
   if (!state) return "skipped";
 
   const startedAt = Date.now();
-  let delay = 5_000;
+  let delay = WAIT_POLL_MS;
 
   for (;;) {
     const clock = await api<StripeTestClock>(`/test_helpers/test_clocks/${state.testClockId}`, {
@@ -301,7 +298,7 @@ async function awaitClock(auth: Auth): Promise<StepOutcome> {
       return "pending";
     }
 
-    await sleep(delay);
+    await sleep(Math.min(delay, Math.max(0, WAIT_TIMEOUT_MS - (Date.now() - startedAt))));
     // Łagodny backoff: gęsto na starcie (typowy przypadek to kilkadziesiąt
     // sekund), rzadziej przy dłuższym przeliczaniu.
     delay = Math.min(delay * 2, 30_000);
@@ -385,71 +382,39 @@ async function verify(auth: Auth): Promise<StepOutcome> {
 type Mode = "arm" | "await" | "verify";
 
 function resolveMode(argument: string | undefined): Mode {
+  if (argument === "wait") return "await";
+  if (argument === undefined || argument === "arm") return "arm";
   if (argument === "await" || argument === "verify") return argument;
-  return "arm";
-}
-
-/**
- * Czeka, aż Test Clock skończy przeliczanie - zamiast ślepego `sleep`.
- *
- * PRZYCZYNA ZMIANY: krok „Poczekaj na naliczenie" robił `for i in $(seq 1 40);
- * do sleep 60; done`, czyli **40 minut runnera dziennie** niezależnie od tego,
- * czy Stripe skończył po dwóch minutach, czy nie skończył wcale. Odpytywanie
- * kończy przebieg, gdy zegar jest gotowy, a gdy nie zdąży - mówi to wprost,
- * zamiast oddawać sterowanie weryfikacji, która i tak wypisze „pominięte".
- */
-async function wait(auth: Auth): Promise<number> {
-  let state: ProbeState;
-  try {
-    state = JSON.parse(readFileSync(STATE_FILE, "utf8")) as ProbeState;
-  } catch {
-    summary("::warning title=Brak stanu sondy::Krok `arm` nic nie uzbroił - czekanie pominięte.");
-    return 0;
-  }
-
-  const deadline = Date.now() + WAIT_TIMEOUT_MS;
-  let last = "";
-  while (Date.now() < deadline) {
-    const clock = await api<StripeTestClock>(`/test_helpers/test_clocks/${state.testClockId}`, {
-      auth,
-    });
-    last = clock.status;
-    if (clock.status !== "advancing") {
-      summary(
-        `Test Clock gotowy po ${Math.round((WAIT_TIMEOUT_MS - (deadline - Date.now())) / 1000)} s (status: ${clock.status}).`,
-      );
-      return 0;
-    }
-    await new Promise((resolve) => setTimeout(resolve, WAIT_POLL_MS));
-  }
-
-  summary(
-    `::warning title=Test Clock nie zdążył::Po ${Math.round(WAIT_TIMEOUT_MS / 60000)} min status to nadal \`${last}\`. Weryfikacja i tak sprawdzi stan.`,
-  );
-  return 0;
+  throw new Error(`Unknown probe mode: ${argument}. Use arm, wait or verify.`);
 }
 
 async function main(): Promise<void> {
   const mode = resolveMode(process.argv[2]);
   const auth = keys();
-
+  const strict = STRICT || process.env.PROBE_REQUIRE_CONFIG === "true";
   if (!auth) {
-    // Brak sekretów NIE MOŻE wyglądać jak sukces na przebiegu nocnym: to jedyna
-    // weryfikacja odnowienia i dunningu, jaką mamy, więc „nieskonfigurowana"
-    // musi być odróżnialne od „rozliczenia działają". Na uruchomieniu ręcznym
-    // (fork, świeży klon) zostaje ostrzeżenie - tam brak sekretów jest normą.
-    const required = process.env.PROBE_REQUIRE_CONFIG === "true";
-    summary(
-      `::${required ? "error" : "warning"} title=Sonda rozliczeń nieskonfigurowana::Ustaw secrets.STRIPE_SANDBOX_API_KEY oraz secrets.LOVABLE_API_KEY, żeby nocna sonda odnowienia działała.`,
+    annotate(
+      strict ? "error" : "warning",
+      "Sonda rozliczeń nieskonfigurowana",
+      "Ustaw STRIPE_SANDBOX_API_KEY oraz LOVABLE_API_KEY.",
     );
-    if (required) process.exitCode = 1;
+    setOutput("outcome", "skipped");
+    if (strict) process.exitCode = 1;
     return;
   }
-  const arg = process.argv[2];
-  const mode = arg === "verify" || arg === "wait" ? arg : "arm";
-  const code =
-    mode === "verify" ? await verify(auth) : mode === "wait" ? await wait(auth) : await arm(auth);
-  if (code !== 0) process.exitCode = code;
+  const outcome =
+    mode === "verify"
+      ? await verify(auth)
+      : mode === "await"
+        ? await awaitClock(auth)
+        : await arm(auth);
+  setOutput("outcome", outcome);
+  if (
+    (outcome !== "armed" && outcome !== "ready" && isFailure(outcome)) ||
+    (strict && (outcome === "skipped" || outcome === "pending"))
+  ) {
+    process.exitCode = 1;
+  }
 }
 
 void main().catch((error: unknown) => {

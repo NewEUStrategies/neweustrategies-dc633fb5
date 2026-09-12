@@ -78,6 +78,8 @@ const h = vi.hoisted(() => ({
   rpcCalls: [] as { name: string; args: Record<string, unknown> }[],
   /** Odpowiedzi RPC per nazwa funkcji. */
   rpcResponses: new Map<string, () => SupabaseResult>(),
+  accountStatus: vi.fn(),
+  deleteAccount: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
@@ -207,6 +209,12 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useServerFn: (fn: unknown) => fn,
+}));
+
+vi.mock("@/lib/admin/accountAdmin.functions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/admin/accountAdmin.functions")>()),
+  getUserAccountStatus: h.accountStatus,
+  deleteUserAccount: h.deleteAccount,
 }));
 
 vi.mock("@/lib/admin/invitations.functions", () => ({
@@ -562,6 +570,24 @@ beforeEach(() => {
   h.navigations = [];
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
+  h.accountStatus.mockReset().mockResolvedValue({
+    exists: true,
+    email: "druga@example.org",
+    emailConfirmed: false,
+    emailConfirmedAt: null,
+    phoneConfirmed: false,
+    lastSignInAt: null,
+    createdAt: BASE_ISO,
+    invitedAt: BASE_ISO,
+    bannedUntil: null,
+    providers: ["email"],
+    hasMfa: false,
+    invitationId: "invite-1",
+    invitationStatus: "pending",
+    invitationSendCount: 1,
+    state: "invited",
+  });
+  h.deleteAccount.mockReset().mockResolvedValue({ ok: true });
   h.toastInfo.mockReset();
   // Domyślne, „szczęśliwe" odpowiedzi - każdy test nadpisuje to, co bada.
   setRpc("admin_list_users", ok([userRow()]));
@@ -3167,4 +3193,176 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
     await waitFor(() => expect(h.props.ImageCropDialog.open).toBe(true));
     expect(h.props.ImageCropDialog.file).not.toBeNull();
   });
+});
+
+describe("member account recovery actions", () => {
+  async function openActions() {
+    await mountList();
+    await waitFor(() => expect(dataRows()).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "adminUsers.moreActions" }));
+    await waitFor(() => expect(h.accountStatus).toHaveBeenCalled());
+  }
+  it("sends activation from the directory and closes the menu", async () => {
+    await openActions();
+    const button = await screen.findByRole("button", { name: /adminUsers.resendActivationEmail/ });
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(button);
+    await waitFor(() => expect(h.sendCalls).toContain(IDS.other));
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminUsers.activationResent");
+  });
+  it.each(["activation_send_limit_reached", "smtp unavailable", undefined])(
+    "shows activation failure (%s) and permits retry",
+    async (error) => {
+      h.sendResult = { ok: false, error };
+      await openActions();
+      const button = await screen.findByRole("button", {
+        name: /adminUsers.resendActivationEmail/,
+      });
+      await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+      expect(button.hasAttribute("disabled")).toBe(false);
+    },
+  );
+  it.each([false, true])("requires matching email before deletion (failure %s)", async (fails) => {
+    if (fails) h.deleteAccount.mockRejectedValue(new Error("ADMIN_ACCOUNT/DELETE_FAILED"));
+    await openActions();
+    fireEvent.click(screen.getByRole("button", { name: "adminUsers.deleteAccount" }));
+    const submit = await screen.findByRole("button", { name: "adminUsers.deleteAccountSubmit" });
+    expect(submit.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "adminUsers.deleteAccountConfirmPlaceholder" }),
+      { target: { value: " DRUGA@example.org " } },
+    );
+    expect(submit.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(h.deleteAccount).toHaveBeenCalledWith({
+        data: { userId: IDS.other, confirmEmail: " DRUGA@example.org " },
+      }),
+    );
+    await waitFor(() => expect(fails ? h.toastError : h.toastSuccess).toHaveBeenCalled());
+  });
+  it("resends activation from the account detail", async () => {
+    await mountDetail();
+    const button = await screen.findByRole("button", { name: /adminUsers.resendActivationEmail/ });
+    fireEvent.click(button);
+    await waitFor(() => expect(h.sendCalls).toContain("invite-1"));
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminUsers.activationResent");
+  });
+});
+
+it.each([false, true])(
+  "deletes from account detail only after confirmation (failure %s)",
+  async (fails) => {
+    if (fails) h.deleteAccount.mockRejectedValue(new Error("ADMIN_ACCOUNT/DELETE_FAILED"));
+    await mountDetail();
+    fireEvent.click(await screen.findByRole("button", { name: "adminUsers.deleteAccount" }));
+    const submit = await screen.findByRole("button", { name: "adminUsers.deleteAccountSubmit" });
+    expect(submit.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "adminUsers.deleteAccountConfirmPlaceholder" }),
+      { target: { value: "druga@example.org" } },
+    );
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(h.deleteAccount).toHaveBeenCalledWith({
+        data: { userId: IDS.other, confirmEmail: "druga@example.org" },
+      }),
+    );
+    await waitFor(() => expect(fails ? h.toastError : h.toastSuccess).toHaveBeenCalled());
+    if (!fails) expect(h.navigations).toContainEqual({ to: "/admin/users" });
+  },
+);
+
+it("opens the account by clicking its table row", async () => {
+  await mountList();
+  await waitFor(() => expect(dataRows()).toHaveLength(1));
+  fireEvent.click(dataRows()[0]);
+  expect(h.navigations).toContainEqual({ to: "/admin/users/$id", params: { id: IDS.other } });
+});
+
+it.each(["error", "missing-error"])(
+  "reports account detail activation failure (%s)",
+  async (kind) => {
+    h.sendResult = { ok: false, ...(kind === "error" ? { error: "smtp unavailable" } : {}) };
+    await mountDetail();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /adminUsers.resendActivationEmail/ }),
+    );
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        kind === "error" ? "smtp unavailable" : "adminUsers.activationResendError",
+      ),
+    );
+  },
+);
+
+it.each(["active", "banned", "missing"])("renders the account status %s", async (state) => {
+  h.accountStatus.mockResolvedValue({
+    exists: true,
+    email: "druga@example.org",
+    emailConfirmed: true,
+    emailConfirmedAt: BASE_ISO,
+    phoneConfirmed: true,
+    lastSignInAt: BASE_ISO,
+    createdAt: BASE_ISO,
+    invitedAt: null,
+    bannedUntil: state === "banned" ? BASE_ISO : null,
+    providers: [],
+    hasMfa: true,
+    invitationId: null,
+    invitationStatus: null,
+    invitationSendCount: 5,
+    state,
+  });
+  await mountDetail();
+  expect(
+    await screen.findByText(`adminUsers.status${state[0].toUpperCase()}${state.slice(1)}`),
+  ).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /adminUsers.resendActivationEmail/ })).toBeNull();
+});
+
+it("filters invitation records by summary, status, email and display name", async () => {
+  h.invitations = ["pending", "sent", "accepted", "failed", "revoked"].map((status, i) => ({
+    id: `inv-${i}`,
+    email: `member${i}@example.org`,
+    display_name: i === 4 ? null : `Person ${i}`,
+    role: "author",
+    mode: "magic_link",
+    status,
+    source: "manual",
+    sent_at: null,
+    last_error: null,
+    send_count: i === 3 ? 5 : 0,
+    accepted_at: null,
+  }));
+  await renderRoute({
+    route: InvitationsRoute,
+    path: "/admin/users/invitations",
+    initialEntry: "/admin/users/invitations",
+  });
+  await screen.findByText("member0@example.org");
+  fireEvent.click(
+    screen.getByRole("button", { name: /adminMiscRoutes.invitations.summaryWaiting/ }),
+  );
+  expect(screen.queryByText("member2@example.org")).toBeNull();
+  const filter = document.querySelector("select");
+  if (!filter) throw new Error("missing status filter");
+  for (const [status, member] of [
+    ["accepted", 2],
+    ["failed", 3],
+    ["revoked", 4],
+  ] as const) {
+    fireEvent.change(filter, { target: { value: status } });
+    expect(screen.getByText(`member${member}@example.org`)).toBeTruthy();
+    expect(screen.queryByText("member0@example.org")).toBeNull();
+  }
+  fireEvent.change(filter, { target: { value: "all" } });
+  const search = screen.getByPlaceholderText("adminMiscRoutes.invitations.searchPlaceholder");
+  fireEvent.change(search, { target: { value: "Person 1" } });
+  expect(screen.getByText("member1@example.org")).toBeTruthy();
+  expect(screen.queryByText("member4@example.org")).toBeNull();
+  fireEvent.change(search, { target: { value: "member4@" } });
+  expect(screen.getByText("member4@example.org")).toBeTruthy();
 });

@@ -83,7 +83,15 @@ export function useClubDocuments(params: {
     limit = 50,
   } = params;
   return useQuery({
-    queryKey: clubKeys.libraryDocuments(clubId ?? "none", groupId, kind, search, offset, scope),
+    queryKey: clubKeys.libraryDocuments(
+      clubId ?? "none",
+      groupId,
+      kind,
+      search,
+      offset,
+      scope,
+      limit,
+    ),
     queryFn: () =>
       fetchClubDocuments({
         clubId: clubId ?? "",
@@ -132,7 +140,7 @@ export function useClubEvents(params: {
 }): UseQueryResult<ClubEventRow[], Error> {
   const { clubId, from = null, to = null, kind = null, limit = 200 } = params;
   return useQuery({
-    queryKey: clubKeys.events(clubId ?? "none", from, to, kind),
+    queryKey: clubKeys.events(clubId ?? "none", from, to, kind, limit),
     queryFn: () => fetchClubEvents({ clubId: clubId ?? "", from, to, kind, limit }),
     enabled: clubId !== undefined && clubId !== "",
     staleTime: 30_000,

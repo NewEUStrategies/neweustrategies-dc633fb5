@@ -159,7 +159,7 @@ describe("bramka gęstości asercji - moduł 11", () => {
       (c) => `${c.file}:${c.line} ${c.name}`,
     );
 
-    expect(cienkie).toEqual([]);
+    expect(cienkie, cienkie.join("\n")).toEqual([]);
     expect(cienkie).toHaveLength(0);
   });
 

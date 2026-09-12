@@ -756,7 +756,9 @@ export function PercentStackedChart({
     const i = bandIndex(point.x, band, bars.length);
     setActiveBar(i);
     const pp = PERCENT_STACKED_WHOLE_PP * (1 - point.y / Math.max(1, innerH));
-    const segmenty = bars[i]?.segments ?? [];
+    // Empty charts return before rendering the hit layer; bandIndex clamps
+    // the pointer to an existing category, including outside its horizontal edge.
+    const segmenty = bars[i].segments;
     const k = segmenty.findIndex((s) => s.visible && pp >= s.from && pp <= s.to);
     setActiveSeg(k >= 0 ? k : null);
     if (e.type === "pointerdown") wskaz(i, k >= 0 ? k : null);

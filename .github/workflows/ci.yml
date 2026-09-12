@@ -742,27 +742,13 @@ jobs:
   # `src/components/profile/**`. To osobny dług, tej samej klasy co floor
   # bundla: progi ustawiono, gdy bramka jeszcze jechała, a potem przez dwa
   # tygodnie dokładano kod przy bramce, która nie ruszyła ani razu.
-  test:
+  test-shards:
     runs-on: ubuntu-latest
-    # ZMIERZONE TRZY RAZY TEGO SAMEGO DNIA, NA PRAKTYCZNIE TEJ SAMEJ TREŚCI -
-    # i to jest najważniejsza liczba w tym komentarzu, bo nie jest jedna:
-    #   26:10  przebieg 2753, `verify` (d0ee497)
-    #   22:44  przebieg 2755, `verify` na `main` (01ecda0b)
-    #   16:05  przebieg 2756+, ten job (1de66e8), plus 20 s setupu
-    #   25:39  przebieg po scaleniu maina 145a1ff (fdd4c94)
-    # Rozrzut 1,6x na współdzielonych runnerach GitHuba. Budżet stawiamy więc
-    # od NAJDŁUŻSZEGO pomiaru, nie od średniej ani od najkrótszego: 40 minut
-    # to ~1,5x wobec 26:10 - ta sama proporcja, którą przyjęto dla `verify`
-    # przy przejściu 20 -> 35. Kto zobaczy w logu 16 minut i uzna, że limit
-    # da się ściąć do dwudziestu, ustawi go PONIŻEJ pomiaru sprzed dwóch
-    # godzin.
-    #
-    # WZROST NIE JEST HIPOTETYCZNY: scalenie PR #307 (moduł Wydarzeń) dołożyło
-    # 69 plików testowych, a tamta gałąź zmierzyła na nich suitę na 26:21
-    # (przebieg 33320445217) - najwyższy dotąd pomiar i jedyny zrobiony JUŻ
-    # z tymi testami. 40 minut daje wobec niego ~1,5x. Gdy ten zapas zacznie
-    # topnieć, następnym krokiem jest shardowanie, nie liczba w tej linii.
-    timeout-minutes: 40
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -789,11 +775,63 @@ jobs:
         env:
           npm_config_registry: https://registry.npmjs.org
 
-      # Tests run WITH the coverage gate so the per-file thresholds in
-      # vitest.config.ts actually block merges (previously CI ran plain
-      # `vitest run`, so the gate was local-only and could silently rot).
+      - name: Run test shard with coverage and accounting
+        run: bunx vitest run --config vitest.shard.config.ts --coverage --shard=${{ matrix.shard }}/4 --reporter=default --reporter=blob --reporter=./scripts/vitest/testAccountingReporter.ts
+      - name: Preserve shard evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-shard-${{ matrix.shard }}
+          path: .vitest-reports/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    needs: [test-shards]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      # Ten sam repoint co w `verify` i `build` - `bun.lock` przypina tarbally
+      # do prywatnego cache GAR, nieosiągalnego z publicznego CI. Edycja
+      # wyłącznie w CI, nigdy commitowana.
+      - name: Repoint lockfile to the public npm registry
+        run: |
+          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        env:
+          npm_config_registry: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vitest-shard-*
+          path: .vitest-reports
+          merge-multiple: true
+      - name: Require all four shard reports
+        run: node -e "const fs=require('node:fs'); if(fs.readdirSync('.vitest-reports').filter(f=>f.endsWith('.json')).length!==4) process.exit(1)"
       - name: Test + coverage gate
-        run: bun run test:coverage
+        run: bun run test:coverage --merge-reports
+      - name: Require every shard to succeed
+        if: ${{ !cancelled() }}
+        env:
+          SHARDS_RESULT: ${{ needs.test-shards.result }}
+        run: test "$SHARDS_RESULT" = success
 
       - name: Platform module — all four coverage metrics at least 95%
         if: ${{ !cancelled() }}
@@ -1321,3 +1359,15 @@ jobs:
             reports/db-contract.json
             reports/migration-ledger.json
           if-no-files-found: ignore
+
+  release-gate:
+    name: Required release checks
+    if: ${{ !cancelled() }}
+    needs: [verify, test, build, pgtap, pg-harness]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful checks
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const checks=JSON.parse(process.env.CHECK_RESULTS); if(Object.values(checks).some(check=>check.result!=="success")) process.exit(1)'

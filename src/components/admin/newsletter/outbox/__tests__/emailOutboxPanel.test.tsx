@@ -103,6 +103,7 @@ describe("EmailOutboxPanel", () => {
     env.result = { ...result, truncated: true };
     renderWithQueryClient(<EmailOutboxPanel />);
     expect(await screen.findByText(T("truncated"))).toBeInTheDocument();
+    expect(env.calls.length).toBeGreaterThan(0);
   });
 
   it("tłumaczy interfejs na angielski", async () => {
