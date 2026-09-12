@@ -19846,10 +19846,7 @@ export type Database = {
         }
         Returns: Json
       }
-      admin_dashboard_bucket: {
-        Args: { p_bucket: string }
-        Returns: string
-      }
+      admin_dashboard_bucket: { Args: { p_bucket: string }; Returns: string }
       admin_dashboard_content: {
         Args: {
           p_lang?: string
@@ -19886,10 +19883,7 @@ export type Database = {
         Args: { p_active_minutes?: number; p_window_minutes?: number }
         Returns: Json
       }
-      admin_dashboard_tenant: {
-        Args: never
-        Returns: string
-      }
+      admin_dashboard_tenant: { Args: never; Returns: string }
       admin_dashboard_traffic: {
         Args: {
           p_bucket?: string
