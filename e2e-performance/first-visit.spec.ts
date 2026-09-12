@@ -121,7 +121,7 @@ for (const [path, lang] of [
               PerformanceEntry & {
                 value: number;
                 hadRecentInput: boolean;
-                sources?: Array<{ node?: Element }>;
+                sources?: Array<{ node?: Node }>;
               }
             >) {
               if (!entry.hadRecentInput) {
@@ -138,11 +138,14 @@ for (const [path, lang] of [
                 window.__firstVisit.shifts.push({
                   at: entry.startTime,
                   value: entry.value,
-                  nodes: (entry.sources ?? []).map(({ node }) =>
-                    node
-                      ? `${node.tagName}.${node.className} widget=${node.closest("[data-widget-id]")?.getAttribute("data-widget-id") ?? ""}`
-                      : "detached",
-                  ),
+                  nodes: (entry.sources ?? []).map(({ node }) => {
+                    // LayoutShiftAttribution may point to a text node, which
+                    // has no closest(). Attribute it to its containing element.
+                    const element = node instanceof Element ? node : node?.parentElement;
+                    return element
+                      ? `${element.tagName}.${element.className} widget=${element.closest("[data-widget-id]")?.getAttribute("data-widget-id") ?? ""}`
+                      : "detached";
+                  }),
                 });
               }
             }
