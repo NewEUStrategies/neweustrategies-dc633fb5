@@ -414,10 +414,17 @@ nigdy nie uruchomione w teście.
 
 ---
 
-## 3. Pokrycie per funkcjonalność (146 funkcjonalności w 22 modułach)
+## 3. Pokrycie per funkcjonalność (146 funkcjonalności w 22 modułach) - pomiar WYDANIA 10
 
 Każdy wiersz to FUNKCJA PRODUKTU, nie katalog: lista plików ją realizujących jest zdefiniowana
 wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w plikach tej funkcjonalności.
+
+> **Zakotwiczenie tego rozdziału.** Liczby poniżej pochodzą z pomiaru **wydania 10** (HEAD `5fd13461c`,
+> provider `v8`) i **nie** zostały przeliczone na wydanie 11. Piszę to wprost, bo pozycja 11 rachunku
+> sumienia (rozdz. 8.5) opisuje dokładnie ten błąd: tabelę, która twierdziła, że opisuje bieżące wydanie,
+> a niosła liczby poprzedniego. Aktualny pomiar tej samej warstwy - **173 definicje na HEAD `7a780b1d0`,
+> provider `istanbul`** - stoi w **rozdz. 15.5.1**. Ten rozdział zostaje jako zapis wydania 10, bo zmiana
+> providera czyni przepisanie liczb operacją, która zatarłaby granicę między pracą zespołu a zmianą narzędzia.
 
 ### MODUŁ 1 — Wpisy: doświadczenie czytelnika · linie 84,65% · funkcje 82,10%
 
@@ -6654,6 +6661,386 @@ administracja konta (39), powłoka panelu - nawigacja i dialogi (8), pozostała 
 komponenty widoku buildera (5), pozostała logika wpisu (5), wykresy - własna warstwa SVG (wiersz
 istniał już wcześniej i łapie tę warstwę bez zmian).
 
+**Pełna tabela wszystkich 173 wierszy z pomiarem wydania 11 stoi w rozdz. 15.5.1** - z podziałem na moduły,
+z gałęziami i z kolumną „martwe funkcje nazwane". Każda jej liczba jest wyprowadzona wprost
+z `coverage/coverage-summary.json` skryptem weryfikującym (866 asercji, 866 zielonych), nie przepisana
+z pliku pośredniego.
+
+### 15.5.1. Tabela 173 funkcjonalności - pomiar wydania 11
+
+Rozdział 3 tego dokumentu niesie tę samą warstwę zmierzoną w wydaniu 10 (146 definicji, provider `v8`)
+i zostaje jako zapis. Poniżej ta sama warstwa na dzisiejszym HEAD `7a780b1d0` providerem `istanbul`,
+z 27 dopisanymi definicjami. Kolumna „martwe fn." to **funkcje nazwane, których nie wywołał ani jeden test** -
+miara ostrzejsza od procentu linii, bo linia może się wykonać przy okazji renderu, a nazwana funkcja musi
+zostać wywołana. Moduł przy nowych wierszach wyznacza taksonomia repozytorium (`classifyPath`) większością
+plików, nie moja intuicja - dlatego „API publiczne" stoi przy module 17: większość tras `api/public`
+to dziś telemetria.
+
+Dwie liczby są własnością **definicji**, nie pomiaru, i podaję je wprost: plików trafiających w więcej niż
+jeden wiersz jest **304** (17 216 linii, liczone w każdym wierszu, w który trafiają),
+a plików poza wszystkimi wierszami **446** (14 960 linii). Jedna definicja
+wydania 10 jest martwa - „LOGIN: formularze auth w CMS (bloki + widget)" nie łapie dziś ani jednego pliku -
+i zostaje w tabeli jawnie, bo ciche usunięcie zawyżyłoby pokrycie taksonomii.
+
+#### MODUŁ 1 - Wpisy: doświadczenie czytelnika · linie 90,4% · funkcje 88,1%
+
+9 funkcjonalności · 223 linii bez testu · 4 plików na zerze · 10 martwych funkcji nazwanych
+
+| Funkcjonalność                     |          Plików | LOC mierz. |      Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ---------------------------------- | --------------: | ---------: | ---------: | ----: | ------: | --------: | ---------: |
+| Paywall / bramka dostępu           |  5 (2 na zerze) |        152 |  **71,7%** | 73,9% |   78,8% |     26/33 |          2 |
+| Audio wpisu (TTS)                  | 16 (1 na zerze) |        763 |  **86,8%** | 79,2% |   83,4% |   126/151 |          4 |
+| Układy wpisu + render              |              30 |        515 |  **87,8%** | 74,2% |   77,7% |   129/166 |          4 |
+| Powiązane wpisy / rekomendacje     |  7 (1 na zerze) |        163 |  **91,4%** | 78,5% |   95,7% |     45/47 |          0 |
+| Key takeaways + cytowania          |               5 |        171 |  **99,4%** | 92,4% |  100,0% |     41/41 |          0 |
+| Spis treści (TOC) + przypisy       |               6 |        253 |  **99,6%** | 87,1% |   98,5% |     67/68 |          0 |
+| Metering „N darmowych/mies.”       |               3 |         85 | **100,0%** | 94,8% |  100,0% |     23/23 |          0 |
+| Licznik odsłon / zapisane artykuły |               3 |        103 | **100,0%** | 96,7% |   92,9% |     26/28 |          0 |
+| Lista lektur (UI czytelnika)       |              18 |        129 | **100,0%** | 97,5% |  100,0% |     63/63 |          0 |
+
+#### MODUŁ 2 - Edytor wpisów i workflow redakcyjny · linie 99,2% · funkcje 98,6%
+
+5 funkcjonalności · 13 linii bez testu · zero plików na zerze · 2 martwych funkcji nazwanych
+
+| Funkcjonalność                  | Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------- | -----: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Rewizje i przywracanie          |     12 |        286 |  **97,9%** |  90,1% |   96,3% |   105/109 |          0 |
+| Edytor wpisu (panele)           |     61 |      1 078 |  **99,4%** |  95,6% |   99,1% |   422/426 |          2 |
+| Workflow draft→review→published |     10 |        214 |  **99,5%** |  95,6% |   99,0% |     96/97 |          0 |
+| Autozapis wpisu                 |      3 |         85 | **100,0%** |  96,0% |  100,0% |     20/20 |          0 |
+| Obecność edytorska (presence)   |      2 |          6 | **100,0%** | 100,0% |  100,0% |       3/3 |          0 |
+
+#### MODUŁ 3 - Silniki treści: bloki + page builder · linie 98,9% · funkcje 97,9%
+
+17 funkcjonalności · 310 linii bez testu · zero plików na zerze · 3 martwych funkcji nazwanych
+
+| Funkcjonalność                                         | Plików | LOC mierz. |      Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------------------------ | -----: | ---------: | ---------: | ----: | ------: | --------: | ---------: |
+| CMS: sanityzacja HTML                                  |      4 |        157 |  **97,5%** | 88,1% |   90,6% |     29/32 |          0 |
+| Edytor blokow: UI panelu admina                        |     94 |      3 437 |  **97,7%** | 89,7% |   96,6% | 1393/1442 |          0 |
+| Builder: komponenty widoku                             |     61 |      3 772 |  **98,7%** | 91,5% |   96,7% |   803/830 |          0 |
+| CMS: render bloków (publiczny)                         |     37 |      1 921 |  **98,8%** | 93,8% |   96,7% |   497/514 |          0 |
+| CMS: widgety buildera - render publiczny               |     57 |      3 603 |  **98,8%** | 91,3% |   96,8% |   767/792 |          0 |
+| CMS: panele właściwości widgetów                       |    103 |      4 695 |  **98,8%** | 95,1% |   97,9% | 2043/2086 |          0 |
+| CMS: silnik bloków (typ Gutenberg) - rdzeń             |      9 |        359 |  **98,9%** | 94,1% |  100,0% |   148/148 |          0 |
+| CMS: zapytania danych widgetów                         |      8 |        520 |  **99,0%** | 98,2% |   99,3% |   149/150 |          1 |
+| CMS: builder sidebara + wzorce                         |      6 |        239 |  **99,2%** | 91,4% |  100,0% |   133/133 |          0 |
+| Builder: rdzen biblioteki                              |     88 |      3 920 |  **99,2%** | 94,7% |   99,4% | 1146/1153 |          1 |
+| CMS: warstwa content-model (rozdział bloki⇄builder)    |      7 |        150 |  **99,3%** | 85,5% |  100,0% |     32/32 |          0 |
+| Bloki: pozostala logika biblioteki                     |     28 |      1 704 |  **99,5%** | 93,8% |   99,5% |   416/418 |          1 |
+| CMS: design tokens / kolory globalne / typografia      |      6 |        258 |  **99,6%** | 99,3% |   97,5% |     39/40 |          0 |
+| CMS: page builder (typ Elementor) - schemat i operacje |     11 |        656 |  **99,7%** | 96,8% |  100,0% |   299/299 |          0 |
+| CMS: import z Gutenberga / WordPressa                  |     10 |      1 309 |  **99,8%** | 94,2% |   99,6% |   249/250 |          0 |
+| CMS: edycja bloków (selekcja, focus, schowek, undo)    |      6 |        236 | **100,0%** | 94,2% |  100,0% |     45/45 |          0 |
+| CMS: silnik treści publicznej (contentEngine)          |     20 |        533 | **100,0%** | 98,6% |  100,0% |   121/121 |          0 |
+
+#### MODUŁ 4 - Strony, wygląd, motyw, media, import · linie 97,8% · funkcje 96,1%
+
+4 funkcjonalności · 56 linii bez testu · zero plików na zerze · zero martwych funkcji nazwanych
+
+| Funkcjonalność                  | Plików | LOC mierz. |      Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------- | -----: | ---------: | ---------: | ----: | ------: | --------: | ---------: |
+| Media: upload, crop, biblioteka |     41 |      1 611 |  **97,0%** | 88,6% |   94,3% |   382/405 |          0 |
+| Motyw / wygląd / global colors  |     46 |        679 |  **99,0%** | 91,2% |   97,7% |   208/213 |          0 |
+| Szablony stron i archiwów       |      6 |        111 | **100,0%** | 93,8% |  100,0% |     63/63 |          0 |
+| Ikony / marka                   |      6 |        129 | **100,0%** | 95,0% |  100,0% |     29/29 |          0 |
+
+#### MODUŁ 5 - Strona główna, archiwa, chrome · linie 97,1% · funkcje 93,8%
+
+5 funkcjonalności · 40 linii bez testu · zero plików na zerze · 2 martwych funkcji nazwanych
+
+| Funkcjonalność                       | Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------ | -----: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Mega menu                            |      3 |        135 |  **88,1%** |  66,0% |   79,5% |     31/39 |          0 |
+| Chrome mobilny (drawer, dolny pasek) |     10 |        168 |  **96,4%** |  88,5% |   87,2% |     41/47 |          1 |
+| Nagłówek / stopka / menu             |     20 |        867 |  **97,9%** |  85,8% |   94,8% |   330/348 |          1 |
+| Strona główna: sekcje i układ        |      9 |         37 | **100,0%** | 100,0% |  100,0% |     15/15 |          0 |
+| Archiwa kategorii/tagów              |     15 |        189 | **100,0%** |  85,0% |  100,0% |     67/67 |          0 |
+
+#### MODUŁ 6 - Wyszukiwarka · linie 98,3% · funkcje 98,3%
+
+2 funkcjonalności · 16 linii bez testu · zero plików na zerze · zero martwych funkcji nazwanych
+
+| Funkcjonalność                               | Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| -------------------------------------------- | -----: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Wyszukiwarka: indeks i zapytania             |     11 |        516 | **98,3%** | 89,6% |   98,1% |   103/105 |          0 |
+| Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        411 | **98,3%** | 93,3% |   98,5% |   130/132 |          0 |
+
+#### MODUŁ 7 - Typy treści specjalne · linie 99,4% · funkcje 98,9%
+
+7 funkcjonalności · 13 linii bez testu · 1 plików na zerze · zero martwych funkcji nazwanych
+
+| Funkcjonalność       |          Plików | LOC mierz. |      Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| -------------------- | --------------: | ---------: | ---------: | ----: | ------: | --------: | ---------: |
+| Biblioteka plików    | 10 (1 na zerze) |        291 |  **98,3%** | 90,0% |   98,8% |     85/86 |          0 |
+| Podcast              |              14 |        514 |  **98,4%** | 93,3% |   97,3% |   284/292 |          0 |
+| Tracker legislacyjny |               9 |        240 | **100,0%** | 95,2% |  100,0% |   100/100 |          0 |
+| Huby ekspertów       |              26 |        822 | **100,0%** | 92,4% |  100,0% |   255/255 |          0 |
+| Programy badawcze    |               4 |         31 | **100,0%** | 96,6% |  100,0% |     14/14 |          0 |
+| Web stories          |               3 |         98 | **100,0%** | 96,3% |  100,0% |     30/30 |          0 |
+| Quiz / mapy          |               5 |        251 | **100,0%** | 96,5% |  100,0% |     62/62 |          0 |
+
+#### MODUŁ 8 - SEO, feedy, dane strukturalne · linie 97,8% · funkcje 97,4%
+
+5 funkcjonalności · 44 linii bez testu · 2 plików na zerze · 4 martwych funkcji nazwanych
+
+| Funkcjonalność                                   |         Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------------------ | -------------: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Feedy i sitemapy                                 | 8 (2 na zerze) |        130 |  **70,0%** |  55,3% |   58,3% |     14/24 |          2 |
+| SEO: meta, JSON-LD, hreflang                     |             48 |      1 421 |  **99,6%** |  96,8% |   99,3% |   305/307 |          2 |
+| Udostępnianie / OG                               |              5 |        215 | **100,0%** |  98,0% |  100,0% |     65/65 |          0 |
+| Monitor linków                                   |              2 |         18 | **100,0%** | 100,0% |  100,0% |       8/8 |          0 |
+| Panel admina: SEO (panel, walidacje, linkowanie) |             11 |        213 | **100,0%** |  97,8% |  100,0% |     52/52 |          0 |
+
+#### MODUŁ 9 - Czat / komunikator · linie 97,9% · funkcje 96,3%
+
+5 funkcjonalności · 78 linii bez testu · zero plików na zerze · 3 martwych funkcji nazwanych
+
+| Funkcjonalność                                  | Plików | LOC mierz. |      Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ----------------------------------------------- | -----: | ---------: | ---------: | ----: | ------: | --------: | ---------: |
+| Czat: kompozytor + wzmianki                     |     10 |        229 |  **88,6%** | 72,2% |   78,9% |     45/57 |          3 |
+| Czat: warstwa danych (rozmowy, wiadomości)      |      2 |        377 |  **97,6%** | 83,6% |   95,6% |   130/136 |          0 |
+| Czat: okno rozmowy i atomy UI                   |     36 |      1 504 |  **98,3%** | 90,3% |   96,8% |   512/529 |          0 |
+| Czat: logika domenowa                           |     37 |      1 491 |  **98,8%** | 89,9% |   98,0% |   448/457 |          0 |
+| Czat: reguły wątku (kolejność, separator, skok) |      5 |        159 | **100,0%** | 98,5% |   97,5% |     39/40 |          0 |
+
+#### MODUŁ 10 - Sieć / networking · linie 98,5% · funkcje 98,0%
+
+1 funkcjonalności · 11 linii bez testu · 1 plików na zerze · 1 martwych funkcji nazwanych
+
+| Funkcjonalność                             |          Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------------ | --------------: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Sieć kontaktów (zaproszenia, obserwowanie) | 30 (1 na zerze) |        712 | **98,5%** | 85,6% |   98,0% |   248/253 |          1 |
+
+#### MODUŁ 11 - Newsletter i e-mail · linie 99,2% · funkcje 98,8%
+
+14 funkcjonalności · 40 linii bez testu · 1 plików na zerze · zero martwych funkcji nazwanych
+
+| Funkcjonalność                                     |          Plików | LOC mierz. |      Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| -------------------------------------------------- | --------------: | ---------: | ---------: | ----: | ------: | --------: | ---------: |
+| Newsletter: telemetria (open/click, engagement)    |               8 |        119 |  **98,3%** | 96,1% |  100,0% |     28/28 |          0 |
+| Newsletter: panel admina                           | 51 (1 na zerze) |      1 620 |  **98,5%** | 91,3% |   98,0% |   723/738 |          0 |
+| Newsletter: doręczalność (SPF/DKIM, bounces)       |               2 |         85 |  **98,8%** | 95,6% |   95,7% |     22/23 |          0 |
+| POPUP: host i wyświetlanie (reguły, częstotliwość) |               2 |        197 |  **99,0%** | 93,6% |  100,0% |     49/49 |          0 |
+| E-maile systemowe / transakcyjne                   |              40 |      1 051 |  **99,2%** | 97,5% |   99,6% |   276/277 |          0 |
+| Poczta platformy: trasy i szablony operacyjne      |              11 |        343 |  **99,7%** | 94,0% |  100,0% |     23/23 |          0 |
+| Newsletter: kampanie i wysyłka                     |               3 |        375 |  **99,7%** | 98,7% |  100,0% |     67/67 |          0 |
+| Newsletter: zapis + double opt-in + potwierdzenie  |               4 |        196 | **100,0%** | 92,9% |   96,3% |     26/27 |          0 |
+| Newsletter: wypis (unsubscribe)                    |               3 |        109 | **100,0%** | 93,2% |   90,0% |     18/20 |          0 |
+| Newsletter: builder maila (dokument + render HTML) |               7 |        423 | **100,0%** | 98,5% |  100,0% |   102/102 |          0 |
+| POPUP: panel zapisu (formularz + zgody)            |               3 |        199 | **100,0%** | 97,4% |  100,0% |     42/42 |          0 |
+| POPUP: edytor popupu w adminie                     |              14 |        399 | **100,0%** | 92,6% |  100,0% |   225/225 |          0 |
+| POPUP: wygląd (design tokens popupu)               |               1 |         85 | **100,0%** | 91,8% |  100,0% |     27/27 |          0 |
+| POPUP: telemetria zdarzeń                          |               2 |         62 | **100,0%** | 92,3% |  100,0% |     11/11 |          0 |
+
+#### MODUŁ 12 - Realtime / powiadomienia / web-push · linie 98,0% · funkcje 97,1%
+
+2 funkcjonalności · 23 linii bez testu · zero plików na zerze · 1 martwych funkcji nazwanych
+
+| Funkcjonalność              | Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| --------------------------- | -----: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Powiadomienia + web-push    |     19 |        863 | **97,6%** | 91,7% |   96,2% |   229/238 |          0 |
+| Realtime (kanały, presence) |     10 |        295 | **99,3%** | 93,9% |   98,5% |   135/137 |          1 |
+
+#### MODUŁ 13 - Monetyzacja: checkout / subskrypcje / billing · linie 94,7% · funkcje 95,0%
+
+5 funkcjonalności · 280 linii bez testu · 4 plików na zerze · 16 martwych funkcji nazwanych
+
+| Funkcjonalność                              |           Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------------- | ---------------: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Webhook płatności                           |                1 |         37 | **67,6%** | 63,3% |   40,0% |       2/5 |          0 |
+| Checkout (Stripe) + intencja                |  15 (1 na zerze) |        202 | **77,7%** | 65,7% |   74,5% |     41/55 |          4 |
+| Billing: rekoncyliacja i panel              | 123 (3 na zerze) |      4 241 | **95,1%** | 89,2% |   96,2% |   843/876 |         12 |
+| Dołączenie do członkostwa (membership join) |                9 |         65 | **96,9%** | 90,2% |   93,8% |     30/32 |          0 |
+| Subskrypcje / plany / cennik                |               33 |        763 | **98,0%** | 93,1% |   95,9% |   353/368 |          0 |
+
+#### MODUŁ 14 - Monetyzacja: kupony / darowizny / prezenty / reklamy · linie 92,2% · funkcje 90,0%
+
+4 funkcjonalności · 87 linii bez testu · zero plików na zerze · 4 martwych funkcji nazwanych
+
+| Funkcjonalność               | Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ---------------------------- | -----: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Darowizny                    |      3 |        119 | **85,7%** | 76,2% |   71,4% |     15/21 |          1 |
+| Reklamy / sponsoring         |     15 |        444 | **91,0%** | 81,9% |   88,3% |   106/120 |          3 |
+| Kupony                       |     12 |        326 | **91,1%** | 84,0% |   90,4% |    94/104 |          0 |
+| Prezenty artykułów (gifting) |     10 |        232 | **99,6%** | 94,9% |   98,4% |     63/64 |          0 |
+
+#### MODUŁ 15 - Profil i konto · linie 97,2% · funkcje 93,4%
+
+13 funkcjonalności · 98 linii bez testu · 1 plików na zerze · zero martwych funkcji nazwanych
+
+| Funkcjonalność                                |          Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| --------------------------------------------- | --------------: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Profil użytkownika                            | 41 (1 na zerze) |      1 459 |  **94,0%** |  88,8% |   89,3% |   460/515 |          0 |
+| LOGIN: formularze auth w CMS (bloki + widget) |               3 |        365 |  **98,1%** |  89,7% |   93,8% |     75/80 |          0 |
+| Konto: dane, RODO, eksport                    |               3 |        118 |  **98,3%** |  96,8% |   91,2% |     31/34 |          0 |
+| Zainteresowania / personalizacja              |               7 |        647 |  **99,8%** |  94,5% |   98,6% |   145/147 |          0 |
+| LOGIN: portal logowania (hasło, magic link)   |               4 |        225 | **100,0%** |  98,6% |  100,0% |     55/55 |          0 |
+| REJESTRACJA: pola, walidacja, panel sukcesu   |               2 |         46 | **100,0%** |  96,2% |  100,0% |     16/16 |          0 |
+| LOGIN/LOGOUT: sesja i kontekst użytkownika    |               4 |        125 | **100,0%** |  97,6% |   96,7% |     29/30 |          0 |
+| LOGIN: MFA (2FA)                              |               2 |         44 | **100,0%** |  97,1% |  100,0% |     14/14 |          0 |
+| LOGIN: ochrona przed brute force              |               1 |         53 | **100,0%** | 100,0% |  100,0% |       9/9 |          0 |
+| LOGIN: reset hasła                            |               1 |         52 | **100,0%** |  98,4% |  100,0% |     16/16 |          0 |
+| LOGIN: ustawienia logowania (admin)           |               4 |        110 | **100,0%** | 100,0% |  100,0% |     34/34 |          0 |
+| Retencja / onboarding                         |               7 |        180 | **100,0%** |  97,8% |  100,0% |     38/38 |          0 |
+| Panel admina: pola rejestracji i auth         |               5 |         45 | **100,0%** | 100,0% |  100,0% |     18/18 |          0 |
+
+#### MODUŁ 16 - Społeczność: kluby, komentarze, moderacja · linie 99,7% · funkcje 99,5%
+
+12 funkcjonalności · 33 linii bez testu · 1 plików na zerze · 7 martwych funkcji nazwanych
+
+| Funkcjonalność                                     |          Plików | LOC mierz. |      Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| -------------------------------------------------- | --------------: | ---------: | ---------: | ----: | ------: | --------: | ---------: |
+| KLUBY: API i zapytania (klub, posty, wątki)        |              10 |        605 |  **99,0%** | 98,2% |   99,6% |   230/231 |          0 |
+| KLUBY: dostęp i uprawnienia (gate, macierz, plany) |               7 |        152 |  **99,3%** | 96,8% |  100,0% |     43/43 |          0 |
+| Kluby: logika domenowa                             | 95 (1 na zerze) |      2 957 |  **99,4%** | 97,2% |   99,3% | 1232/1241 |          5 |
+| KLUBY: reguły widoków wyprowadzone z JSX-a         |              12 |        380 |  **99,5%** | 97,0% |   98,7% |   151/153 |          2 |
+| KLUBY: trasy publiczne klubu                       |              20 |        683 |  **99,7%** | 97,6% |   99,2% |   247/249 |          0 |
+| Społeczność: odznaki, zaangażowanie, Q&A, ankiety  |              21 |        685 |  **99,7%** | 94,6% |   98,8% |   243/246 |          0 |
+| KLUBY: UI (atomy/molekuły/organizmy)               |             106 |      2 305 |  **99,9%** | 99,3% |   99,8% |   980/982 |          0 |
+| KLUBY: zgłoszenia członkowskie (apply)             |               5 |        183 | **100,0%** | 97,3% |  100,0% |     61/61 |          0 |
+| KLUBY: wątki dyskusyjne (dynamika, puls, źródła)   |               8 |        256 | **100,0%** | 92,6% |  100,0% |     93/93 |          0 |
+| KLUBY: tematy, specjalizacje, obszary polityk      |              10 |        166 | **100,0%** | 95,1% |   98,3% |     59/60 |          0 |
+| KLUBY: panel admina                                |              77 |      1 634 | **100,0%** | 98,8% |  100,0% |   782/782 |          0 |
+| Komentarze i moderacja                             |               6 |        239 | **100,0%** | 93,2% |  100,0% |     75/75 |          0 |
+
+#### MODUŁ 17 - Analityka i BI · linie 97,2% · funkcje 97,1%
+
+6 funkcjonalności · 407 linii bez testu · 3 plików na zerze · 17 martwych funkcji nazwanych
+
+| Funkcjonalność                                     |          Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| -------------------------------------------------- | --------------: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Analityka: zbieranie zdarzeń i liczniki            |              22 |        762 | **87,9%** | 81,4% |   80,4% |   135/168 |          6 |
+| API publiczne (trasy /api/public)                  | 18 (2 na zerze) |        659 | **91,8%** | 88,9% |   88,0% |     73/83 |          1 |
+| Observability / RUM / web vitals                   |              13 |        506 | **97,6%** | 94,2% |   98,7% |     75/76 |          1 |
+| Wykresy: wlasna warstwa (SVG) - komponenty i skale |              49 |      5 562 | **97,9%** | 92,2% |   98,3% | 1302/1325 |          4 |
+| Wykresy i panel BI                                 | 78 (1 na zerze) |      6 792 | **98,1%** | 93,1% |   98,0% | 1764/1800 |          5 |
+| Analityka: warstwa semantyczna                     |               6 |        240 | **99,2%** | 93,8% |  100,0% |     60/60 |          0 |
+
+#### MODUŁ 18 - CRM · linie 97,1% · funkcje 97,1%
+
+3 funkcjonalności · 63 linii bez testu · zero plików na zerze · 1 martwych funkcji nazwanych
+
+| Funkcjonalność                        | Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------- | -----: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| CRM: UI panelu                        |     19 |        567 | **95,9%** | 83,6% |   96,5% |   279/289 |          0 |
+| CRM: kontakty, firmy, lejek, zadania  |     28 |      1 220 | **96,8%** | 87,5% |   97,9% |   284/290 |          1 |
+| CRM: import/eksport CSV + organizacje |      7 |        361 | **99,7%** | 91,2% |   96,4% |     80/83 |          0 |
+
+#### MODUŁ 19 - Ustawienia / integracje / users / multi-tenant / RODO · linie 84,4% · funkcje 80,3%
+
+8 funkcjonalności · 521 linii bez testu · 15 plików na zerze · 48 martwych funkcji nazwanych
+
+| Funkcjonalność                                              |          Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ----------------------------------------------------------- | --------------: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Ustawienia serwisu (panele)                                 |  5 (1 na zerze) |        112 | **71,4%** | 41,5% |   59,6% |     31/52 |          3 |
+| Administracja konta i operacje na uzytkownikach (lib/admin) | 45 (6 na zerze) |      1 740 | **77,2%** | 73,1% |   77,2% |   370/479 |         33 |
+| Zgody / cookie banner / GPC / RODO                          | 27 (3 na zerze) |        460 | **90,9%** | 80,4% |   82,1% |   124/151 |          4 |
+| Integracje zewnętrzne                                       |  3 (1 na zerze) |        181 | **91,7%** | 94,0% |   67,6% |     23/34 |          1 |
+| Autoryzacja / macierz uprawnień (authz)                     | 19 (4 na zerze) |        207 | **91,8%** | 89,8% |   85,2% |     75/88 |          5 |
+| Multi-tenant (izolacja tenanta w kodzie)                    |               6 |        290 | **95,9%** | 89,6% |   88,7% |     63/71 |          1 |
+| Feature flags                                               |               3 |        163 | **96,9%** | 90,3% |   97,2% |     35/36 |          1 |
+| Użytkownicy i role (admin)                                  |               2 |        193 | **99,0%** | 95,9% |  100,0% |     52/52 |          0 |
+
+#### MODUŁ 20 - Platforma / backend / infrastruktura / SSR · linie 95,8% · funkcje 91,7%
+
+11 funkcjonalności · 388 linii bez testu · 4 plików na zerze · 19 martwych funkcji nazwanych
+
+| Funkcjonalność                                      |          Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| --------------------------------------------------- | --------------: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Dok roboczy (WorkspaceDock): panele, stan, prefetch | 32 (4 na zerze) |        757 |  **65,3%** |  60,4% |   58,7% |   175/298 |         11 |
+| Routing / trasy publiczne (powłoka)                 |               8 |        451 |  **96,9%** |  94,6% |   92,3% |   108/117 |          2 |
+| SSR / hydracja / cache brzegowy                     |              38 |      1 285 |  **97,0%** |  92,5% |   95,6% |   240/251 |          2 |
+| A11y / watchdog / MCP                               |              10 |        170 |  **98,2%** |  95,7% |  100,0% |     31/31 |          0 |
+| Obsługa błędów / error boundary                     |               7 |        115 |  **98,3%** |  94,1% |  100,0% |     28/28 |          0 |
+| Bramki CI (rejestry, kontrakty)                     |              40 |      4 099 |  **98,6%** |  95,1% |   96,4% |   694/720 |          4 |
+| Warstwa serwerowa (server fns)                      |              21 |      1 062 |  **99,2%** |  98,3% |  100,0% |   240/240 |          0 |
+| Podgląd sesji / heartbeat                           |               2 |        163 |  **99,4%** |  94,5% |  100,0% |     28/28 |          0 |
+| Klient Supabase / zapytania                         |              28 |      1 038 |  **99,7%** |  98,3% |   99,6% |   279/280 |          0 |
+| Lista lektur / kolekcje (warstwa reguł)             |               2 |         10 | **100,0%** | 100,0% |  100,0% |       8/8 |          0 |
+| Wpis: pozostala logika domenowa (lib/post)          |               5 |        136 | **100,0%** |  97,1% |  100,0% |     35/35 |          0 |
+
+#### MODUŁ 21 - Rekrutacja / kariera · linie 100,0% · funkcje 100,0%
+
+7 funkcjonalności · 0 linii bez testu · zero plików na zerze · zero martwych funkcji nazwanych
+
+| Funkcjonalność                                          | Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------------------------- | -----: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Kariera: zgłoszenie kandydata (walidacja, CV, retencja) |      3 |        104 | **100,0%** |  95,6% |  100,0% |     38/38 |          0 |
+| Kariera: lejek rekrutacyjny (etapy, decyzje)            |      2 |         82 | **100,0%** |  99,0% |  100,0% |     24/24 |          0 |
+| Kariera: katalog ogłoszeń i warstwa treści strony       |      5 |         80 | **100,0%** | 100,0% |  100,0% |     44/44 |          0 |
+| Kariera: publiczna strona ofert (UI)                    |     16 |        312 | **100,0%** |  94,9% |  100,0% |   123/123 |          0 |
+| Kariera: panel ogłoszeń (/admin/hiring)                 |      1 |        148 | **100,0%** | 100,0% |  100,0% |     81/81 |          0 |
+| Kariera: panel zgłoszeń i dostęp do CV (/admin/careers) |      1 |        109 | **100,0%** |  98,7% |  100,0% |     42/42 |          0 |
+| Zadania tła: harmonogram i tick                         |      2 |         54 | **100,0%** | 100,0% |  100,0% |       7/7 |          0 |
+
+#### MODUŁ 22 - Wydarzenia: event builder, rejestracja, onsite · linie 98,7% · funkcje 98,8%
+
+15 funkcjonalności · 145 linii bez testu · 2 plików na zerze · 6 martwych funkcji nazwanych
+
+| Funkcjonalność                                  |          Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ----------------------------------------------- | --------------: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Studio wydarzenia: rama, moduły, gotowość       |              28 |        579 |  **96,9%** |  86,7% |   94,9% |   203/214 |          0 |
+| Agenda: sesje, ścieżki, sale, konflikty         |              28 |      1 054 |  **97,2%** |  88,1% |   99,0% |   409/413 |          3 |
+| Powierzchnia uczestnika (moje wydarzenie)       | 21 (1 na zerze) |        445 |  **97,5%** |  91,0% |   97,6% |   163/167 |          0 |
+| Giełda spotkań 1-1                              | 32 (1 na zerze) |        950 |  **97,9%** |  93,4% |   98,0% |   383/391 |          2 |
+| Katalog wydarzeń, typy, tworzenie               |              24 |        632 |  **98,4%** |  93,4% |   97,1% |   265/273 |          1 |
+| Publiczny portal wydarzenia                     |              60 |      1 151 |  **98,9%** |  90,5% |   98,3% |   415/422 |          0 |
+| Rejestracja: formularz, pola, zgody, decyzje    |              38 |      1 325 |  **99,1%** |  92,1% |  100,0% |   404/404 |          0 |
+| Odprawa na miejscu: skan, identyfikatory, leady |              49 |      1 595 |  **99,2%** |  96,4% |   99,8% |   561/562 |          0 |
+| Widgety wydarzeń w builderze stron              |              10 |        550 |  **99,3%** |  90,2% |   98,3% |   176/179 |          0 |
+| Branding, strony i menu wydarzenia              |              12 |        441 |  **99,3%** |  95,3% |  100,0% |   189/189 |          0 |
+| Bilety, pakiety, wejściówki (pieniądze)         |              29 |        964 |  **99,4%** |  94,6% |   99,1% |   323/326 |          0 |
+| Regulaminy, grupy i uprawnienia uczestników     |              18 |        492 |  **99,4%** |  96,4% |  100,0% |   226/226 |          0 |
+| Informacje ogólne, strefa czasowa, adres        |              10 |        290 |  **99,7%** |  97,6% |   99,1% |   105/106 |          0 |
+| Sponsorzy i partnerzy                           |              16 |        596 |  **99,7%** |  91,9% |  100,0% |   264/264 |          0 |
+| Analityka, komunikacja, integracje wydarzenia   |               4 |         33 | **100,0%** | 100,0% |  100,0% |       9/9 |          0 |
+
+#### PRZEKROJOWE - PRZEKROJOWE: powłoka panelu admin + atomy/molekuły · linie 88,9% · funkcje 86,8%
+
+10 funkcjonalności · 578 linii bez testu · 21 plików na zerze · 48 martwych funkcji nazwanych
+
+| Funkcjonalność                                           |           Plików | LOC mierz. |      Linie |   Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| -------------------------------------------------------- | ---------------: | ---------: | ---------: | -----: | ------: | --------: | ---------: |
+| Panel admina: pulpit i agregaty dashboardu               | 20 (14 na zerze) |        398 |  **35,7%** |  37,3% |   24,9% |    45/181 |         31 |
+| Panel admina: atomy, molekuly i hooki powloki            |  23 (2 na zerze) |        226 |  **81,9%** |  77,4% |   84,1% |     69/82 |          2 |
+| Atomy i molekuly wspoldzielone (biblioteka UI aplikacji) |  52 (2 na zerze) |        879 |  **86,1%** |  71,1% |   75,6% |   177/234 |          7 |
+| Hooki aplikacji (wspoldzielone)                          |  39 (3 na zerze) |        989 |  **86,5%** |  73,6% |   87,6% |   234/267 |          8 |
+| Panel admina: reklamy                                    |                8 |        161 |  **92,5%** |  88,3% |   83,3% |     60/72 |          0 |
+| Panel admina: czlonkostwa i plany                        |               15 |        205 |  **97,1%** |  87,6% |   94,8% |   109/115 |          0 |
+| Powloka panelu admina: nawigacja, paski, dialogi         |               33 |      1 953 |  **99,6%** |  92,9% |   99,9% |   790/791 |          0 |
+| Panel admina: doswiadczenie wpisu (postExperience)       |               30 |        239 | **100,0%** |  99,0% |  100,0% |   147/147 |          0 |
+| Panel admina: prezenty (gifting)                         |               10 |        108 | **100,0%** |  98,5% |  100,0% |     42/42 |          0 |
+| Panel admina: monetyzacja (przeglad)                     |                9 |         55 | **100,0%** | 100,0% |  100,0% |     22/22 |          0 |
+
+#### PRZEKROJOWE - PRZEKROJOWE: design system (components/ui) · linie 81,5% · funkcje 75,0%
+
+1 funkcjonalności · 138 linii bez testu · 3 plików na zerze · 2 martwych funkcji nazwanych
+
+| Funkcjonalność                                   |          Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ------------------------------------------------ | --------------: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| Design system: komponenty bazowe (components/ui) | 45 (3 na zerze) |        746 | **81,5%** | 63,6% |   75,0% |   177/236 |          2 |
+
+#### PRZEKROJOWE - PRZEKROJOWE: słowniki i18n · linie 92,5% · funkcje 91,5%
+
+1 funkcjonalności · 34 linii bez testu · zero plików na zerze · 4 martwych funkcji nazwanych
+
+| Funkcjonalność                                        | Plików | LOC mierz. |     Linie |  Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| ----------------------------------------------------- | -----: | ---------: | --------: | ----: | ------: | --------: | ---------: |
+| i18n: warstwa uruchomieniowa (loader, chunki, locale) |     16 |        451 | **92,5%** | 78,4% |   91,5% |     86/94 |          4 |
+
+#### PRZEKROJOWE - X-other · linie n/d · funkcje n/d
+
+1 funkcjonalności · 0 linii bez testu · zero plików na zerze · zero martwych funkcji nazwanych
+
+| Funkcjonalność                                            | Plików | LOC mierz. |   Linie | Gał. | Funkcje | fn (szt.) | Martwe fn. |
+| --------------------------------------------------------- | -----: | ---------: | ------: | ---: | ------: | --------: | ---------: |
+| Harness testowy i fixture wspoldzielone (definicja pusta) |      0 |          0 | **n/d** |  n/d |     n/d |       0/0 |          0 |
+
+**Martwych funkcji nazwanych w całej tabeli: 177.** Nie każda jest defektem - część to
+gałęzie odmowy, których żaden test jeszcze nie wywołał, i to jest dokładnie ta lista, z której warto brać
+kolejne przypadki.
+
 ### 15.6. Rodzaj testu per moduł - gdzie dowód jest jednostronny
 
 Rodzaj testu waży więcej niż liczba (argument z rozdz. 7.1). Poniżej **liczba plików testowych
@@ -7181,7 +7568,10 @@ Wydanie 11 nie jest wyłącznie pomiarem - trzy rzeczy zostały naprawione w tra
 
 1. **Taksonomia funkcjonalności** rozszerzona ze 146 na 173 definicje; pokrycie taksonomią plików
    produkcyjnych wzrosło z 68,3% na **87,3%**, a największe skupiska sierot (dok, pulpit, członkostwa,
-   prezenty, reklamy, edytor bloków, builder, kluby, czat) mają wreszcie własne wiersze.
+   prezenty, reklamy, edytor bloków, builder, kluby, czat) mają wreszcie własne wiersze. Cała tabela
+   została **zmierzona na nowo i wpisana do dokumentu** (rozdz. 15.5.1), a rozdz. 3 - który niesie pomiar
+   wydania 10 - jest od tego wydania **jawnie zakotwiczony w swoim HEAD i providerze**, żeby nie powtórzyła
+   się pozycja 11 rachunku sumienia.
 2. **`README.md`** - poprawiony provider pokrycia i wszystkie liczniki przeliczone na dzisiejszy HEAD,
    w obu wersjach językowych.
 3. **Dwa własne błędy pomiarowe sprostowane w tekście** (bramka `check:first-visit-regression` jest
