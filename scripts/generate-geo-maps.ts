@@ -656,7 +656,7 @@ countriesLib.registerLocale(require("i18n-iso-countries/langs/pl.json"));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 countriesLib.registerLocale(require("i18n-iso-countries/langs/en.json"));
 
-const outDir = join(import.meta.dir, "..", "public", "geo");
+const outDir = join(import.meta.dirname, "..", "public", "geo");
 mkdirSync(outDir, { recursive: true });
 
 const written: { file: string; asset: GeoAsset; bytes: number }[] = [];

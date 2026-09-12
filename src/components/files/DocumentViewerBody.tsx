@@ -141,7 +141,10 @@ function SheetView({ source }: { source: ViewerSource }) {
   useEffect(() => {
     if (buffer === null) return;
     let alive = true;
-    parseSpreadsheet(buffer)
+    const controller = new AbortController();
+    setSheets(null);
+    setParseError(false);
+    parseSpreadsheet(buffer, controller.signal)
       .then((result) => {
         if (alive) setSheets(result);
       })
@@ -150,6 +153,7 @@ function SheetView({ source }: { source: ViewerSource }) {
       });
     return () => {
       alive = false;
+      controller.abort();
     };
   }, [buffer]);
 

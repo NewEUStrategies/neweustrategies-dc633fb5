@@ -57,6 +57,7 @@ jobs:
     env:
       STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
       LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
+      PROBE_WAIT_TIMEOUT_MS: "1200000"
       PROBE_STATE_FILE: ${{ github.workspace }}/billing-renewal-probe.json
       # Nocny przebieg to monitoring produkcyjny - brak sekretów ma być czerwony.
       PROBE_REQUIRE_CONFIG: ${{ github.event_name == 'schedule' }}
@@ -73,6 +74,7 @@ jobs:
 
       # Odpytywanie Test Clocka z warunkiem wyjścia (sufit 40 min, próba co 30 s).
       - name: Poczekaj na naliczenie
+        if: steps.arm.outputs.outcome == 'armed'
         run: bun scripts/billing-renewal-probe.ts wait
 
       - name: Zweryfikuj odnowienie i dunning

@@ -358,7 +358,7 @@ describe("RegistrationManagePanel", () => {
 
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(
-        `${window.location.origin}/events/${SLUG}/manage?token=${TOKEN}`,
+        `https://neweuropeanstrategies.com/events/${SLUG}/manage?token=${TOKEN}`,
       ),
     );
     expect(toast.success).toHaveBeenCalledWith("eventFront.manage.copied");

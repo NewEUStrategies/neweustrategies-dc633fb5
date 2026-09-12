@@ -62,8 +62,8 @@ vi.mock("@tanstack/react-start", async (importOriginal) => {
 // niezwiązanym z tym, co się zepsuło. Atrapa musi pokrywać PEŁNY zestaw
 // importów komponentu, nie ten, który akurat był potrzebny przy jej pisaniu.
 vi.mock("@/lib/media.functions", () => ({
-  bulkDeleteMedia: async () => ({}),
-  bulkMoveMedia: async () => ({}),
+  bulkDeleteMedia: async () => ({ deleted: 0 }),
+  bulkMoveMedia: async () => ({ moved: 0 }),
   createMediaFolder: async () => ({}),
   registerMediaUpload: async () => ({}),
   updateMediaMeta: async () => ({}),

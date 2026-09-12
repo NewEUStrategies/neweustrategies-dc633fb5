@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatAxisTick, formatChartValue, formatPercent, formatPercentPoints } from "../format";
+import {
+  chartLangFrom,
+  formatAxisTick,
+  formatChartValue,
+  formatPercent,
+  formatPercentPoints,
+} from "../format";
 
 describe("formatChartValue", () => {
   it("formats per locale with the unit appended", () => {
@@ -106,4 +112,10 @@ describe("osłona przed NaN i nieskończonością", () => {
     expect(formatPercent(0, "pl")).toBe("0%");
     expect(formatPercentPoints(0, "pl")).toBe("0,0%");
   });
+});
+
+it("defaults missing chart language to Polish and recognizes regional English", () => {
+  expect(chartLangFrom(null)).toBe("pl");
+  expect(chartLangFrom(undefined)).toBe("pl");
+  expect(chartLangFrom("en-GB")).toBe("en");
 });

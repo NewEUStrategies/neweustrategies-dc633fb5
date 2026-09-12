@@ -89,3 +89,6 @@ package-lock.json
 # konfiguracje projektowa (np. `tsconfig.node.json`).
 tsconfig.*-check.json
 tsconfig.agentcheck.json
+
+# Vitest shard reports are CI artifacts.
+.vitest-reports/

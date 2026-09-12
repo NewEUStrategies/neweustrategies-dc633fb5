@@ -1,3 +1,4 @@
+import "@/lib/i18n-builder";
 // Molecule: renders a single content field based on its declarative schema entry.
 // Used by ContentFields to drive simple widget editors from `WIDGET_SCHEMAS`.
 import { useState } from "react";

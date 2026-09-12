@@ -157,6 +157,7 @@ async function mount(over: Partial<NewsletterSettings> = {}) {
 async function openByDelay(over: Partial<NewsletterSettings> = {}) {
   const view = await mount(over);
   await advance(15_000);
+  await act(() => vi.dynamicImportSettled());
   return view;
 }
 

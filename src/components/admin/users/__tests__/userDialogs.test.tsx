@@ -57,6 +57,8 @@ import type { ReactNode } from "react";
 import type { TeamImportCandidate } from "@/lib/admin/invitations.functions";
 
 const h = vi.hoisted(() => ({
+  companySearch: vi.fn(),
+  companyCreate: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
@@ -127,11 +129,8 @@ function boom(step: string): never {
 }
 
 vi.mock("@/lib/admin/invitations.functions", () => ({
-  searchCrmCompanies: async () => ({ companies: [{ id: "c1", name: "Acme" }] }),
-  createCrmCompany: async ({ data }: { data: { name: string } }) => ({
-    id: "c2",
-    name: data.name,
-  }),
+  searchCrmCompanies: h.companySearch,
+  createCrmCompany: h.companyCreate,
   previewTeamImport: async ({ data }: { data: { pageSlug: string } }) => {
     h.previewCalls.push(data.pageSlug);
     if (h.throwOn === "preview") boom("preview");
@@ -276,6 +275,11 @@ function buttonWith(fragment: string): HTMLButtonElement {
 
 beforeEach(() => {
   cleanup();
+  h.companySearch.mockReset().mockResolvedValue({ companies: [{ id: "c1", name: "Acme" }] });
+  h.companyCreate.mockReset().mockImplementation(async ({ data }: { data: { name: string } }) => ({
+    id: "c2",
+    name: data.name,
+  }));
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.toastInfo.mockReset();
@@ -1126,5 +1130,70 @@ describe("TeamImportDialog", () => {
     mount({ pageSlug: "zespol" });
     await waitFor(() => expect(h.previewCalls).toHaveLength(1));
     expect(document.querySelector("h2")?.textContent).toContain("slug=zespol");
+  });
+});
+
+describe("invitation company selection", () => {
+  it("selects an existing company without creating a duplicate", async () => {
+    render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(document.querySelector('option[value="Acme"]')).not.toBeNull());
+    fireEvent.change(screen.getByLabelText("adminTeamMedia.inviteUser.company"), {
+      target: { value: "Acme" },
+    });
+    fireEvent.change(screen.getByLabelText("adminTeamMedia.inviteUser.jobTitle"), {
+      target: { value: "Analyst" },
+    });
+    expect(screen.queryByRole("button", { name: /companyCreate/ })).toBeNull();
+    expect(h.companyCreate).not.toHaveBeenCalled();
+  });
+  it.each(["success", "error", "raw"])("handles company creation outcome: %s", async (outcome) => {
+    if (outcome === "error") h.companyCreate.mockRejectedValue(new Error("write failed"));
+    if (outcome === "raw") h.companyCreate.mockRejectedValue("offline");
+    render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("adminTeamMedia.inviteUser.company"), {
+      target: { value: " New Company " },
+    });
+    fireEvent.click(buttonWith("companyCreate"));
+    await waitFor(() =>
+      expect(h.companyCreate).toHaveBeenCalledWith({ data: { name: "New Company" } }),
+    );
+    await waitFor(() =>
+      expect(outcome === "success" ? h.toastSuccess : h.toastError).toHaveBeenCalled(),
+    );
+    if (outcome === "success")
+      expect(
+        screen.getByLabelText<HTMLInputElement>("adminTeamMedia.inviteUser.company").value,
+      ).toBe("New Company");
+  });
+  it("clears company suggestions when lookup fails", async () => {
+    h.companySearch.mockRejectedValue(new Error("offline"));
+    render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(h.companySearch).toHaveBeenCalled());
+    expect(document.querySelectorAll("#invite-company-options option")).toHaveLength(0);
+  });
+});
+
+it.each(["en", "pl"])("submits the selected company, job and email language (%s)", async (lang) => {
+  render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+  await waitFor(() => expect(document.querySelector('option[value="Acme"]')).not.toBeNull());
+  for (const [id, value] of [
+    ["invite-email", "member@example.org"],
+    ["invite-first-name", "Test"],
+    ["invite-last-name", "Member"],
+    ["invite-company", "Acme"],
+    ["invite-job-title", "Analyst"],
+  ]) {
+    const field = document.getElementById(id);
+    if (!field) throw new Error(`missing ${id}`);
+    fireEvent.change(field, { target: { value } });
+  }
+  fireEvent.change(selects()[2], { target: { value: lang } });
+  fireEvent.click(buttonWith("inviteUser.send"));
+  await waitFor(() => expect(h.createCalls).toHaveLength(1));
+  expect(h.createCalls[0].items[0].metadata).toMatchObject({
+    company_name: "Acme",
+    company_id: "c1",
+    job_title: "Analyst",
+    lang,
   });
 });

@@ -12,17 +12,7 @@
 // ZAKOŃCZONEJ nawigacji. Bez tych progów pasek albo migocze przy każdym
 // kliknięciu, albo stoi na 100% nad stroną, która się jeszcze ładuje.
 //
-// CAŁY PLIK BIEGNIE NA ZEGARZE UDAWANYM, I NIE TYLKO Z POWODU PROGÓW. Progi są
-// w milisekundach, więc test na prawdziwym czasie mierzyłby obciążenie maszyny,
-// a nie zachowanie komponentu - ale drugi powód jest twardszy. Komponent NIE
-// SPRZĄTA swoich zegarów przy odmontowaniu (patrz `it.fails` na końcu pliku),
-// więc każdy render przy „trwa nawigacja" zostawia po sobie `setTimeout(120 ms)`
-// żyjący dłużej niż test. Na prawdziwym zegarze taki takt dobija PO rozbiórce
-// środowiska pliku i wywala przebieg nieobsłużonym `ReferenceError: window is
-// not defined` (zmierzone: przebieg z pokryciem, gdzie worker żyje dłużej).
-// Zegar udawany, zdejmowany w `afterEach`, zabiera zaległe takty ze sobą - więc
-// defekt produkcyjny zostaje UDOKUMENTOWANY jednym `it.fails`, a nie rozlewa
-// się losową awarią na cały pakiet.
+// Fake timers verify the navigation delay, completion and cleanup deterministically.
 //
 // Router i i18n są zamockowane celowo: przedmiotem testu jest zachowanie paska
 // wobec flagi „trwa nawigacja", nie integracja z routerem. Tłumacz jest
@@ -262,30 +252,39 @@ describe("pasek zwleka, pełznie i gaśnie", () => {
     expect(width(container)).toBe(8);
   });
 
-  it.fails("ZNALEZISKO: odmontowanie w trakcie nawigacji ZOSTAWIA takt pełzania", () => {
-    // Kontrakt: efekt sprząta swoje zegary w funkcji czyszczącej. Tymczasem
-    // OBIE gałęzie efektu zwracają `() => undefined`, a `clearInterval`
-    // wywoływane jest dopiero przy NASTĘPNYM przebiegu efektu - którego po
-    // odmontowaniu już nie ma. Zostaje `setInterval` bijący co 220 ms przez
-    // resztę życia karty.
-    //
-    // CZYM TO SZKODZI, A CZYM NIE. `setProgress` na odmontowanym komponencie
-    // jest w Reakcie 18+ (tu 19) CICHYM NIC - nie ma ani ostrzeżenia, ani
-    // wyjątku, więc nikt tego w konsoli nie zobaczy. Szkodą jest sam
-    // niezatrzymany zegar: budzi kartę co 220 ms i trzyma przy życiu domknięcie
-    // odmontowanego drzewa. Dlatego asercja jest na LICZBIE ŻYWYCH ZEGARÓW,
-    // a nie na ostrzeżeniu Reacta - to jedyny mierzalny skutek.
-    //
-    // GDZIE TO BIJE W APLIKACJI: `SiteChrome` renderuje `RouteProgress` w DWÓCH
-    // różnych miejscach drzewa - w gałęzi powłoki publicznej i w gałęzi
-    // admin/login - więc przejście ze strony publicznej do `/admin` albo
-    // `/login` w trakcie trwającej nawigacji odmontowuje pasek razem z jego
-    // zegarem.
+  it("clears the crawl timer when unmounted during navigation", () => {
     const { unmount } = render(<RouteProgress />);
     advance(SHOW_DELAY);
 
     unmount();
 
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("clears the pending show and completion timers on unmount", () => {
+    const first = render(<RouteProgress />);
+    first.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    const second = render(<RouteProgress />);
+    advance(SHOW_DELAY);
+    h.routerState = { isLoading: false, status: "idle" };
+    second.rerender(<RouteProgress />);
+    second.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("restarts crawling when navigation resumes during the completion fade", () => {
+    const { container, rerender, unmount } = render(<RouteProgress />);
+    advance(SHOW_DELAY);
+    h.routerState = { isLoading: false, status: "idle" };
+    rerender(<RouteProgress />);
+    advance(FADE - 1);
+    h.routerState = { isLoading: true, status: "pending" };
+    rerender(<RouteProgress />);
+    advance(TICK * 2);
+    expect(opacity(container)).toBe("1");
+    expect(width(container)).toBeGreaterThan(8);
+    expect(width(container)).toBeLessThanOrEqual(90);
+    unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
 });

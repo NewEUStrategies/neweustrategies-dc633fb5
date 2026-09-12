@@ -1,3 +1,5 @@
+import "@/lib/i18n-profile";
+import "@/lib/i18n-pricing";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";

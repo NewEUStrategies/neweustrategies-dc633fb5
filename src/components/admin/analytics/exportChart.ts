@@ -176,11 +176,11 @@ function kluczZRysunku(container: HTMLElement): WpisKlucza[] {
       if (probka === null || nazwa === null) return [];
       // Udział i wartość bezwzględną też bierzemy: tabela klucza niesie je
       // w wierszu, a zrzut bez nich byłby uboższy od tego, co widać.
-      const liczby = [...tr.querySelectorAll("td")].map((td) => (td.textContent ?? "").trim());
+      const liczby = [...tr.querySelectorAll("td")].map((td) => td.textContent!.trim());
       const opis = liczby.filter(Boolean).join(" · ");
       return [
         {
-          label: opis === "" ? (nazwa.textContent ?? "") : `${nazwa.textContent ?? ""} — ${opis}`,
+          label: opis === "" ? nazwa.textContent! : `${nazwa.textContent} — ${opis}`,
           color: styl(probka, "background-color"),
           textColor: styl(nazwa, "color"),
         },
@@ -194,7 +194,7 @@ function kluczZRysunku(container: HTMLElement): WpisKlucza[] {
     if (probka === null || nazwa === null) return [];
     return [
       {
-        label: nazwa.textContent ?? "",
+        label: nazwa.textContent!,
         // Seria poza zestawem bezpiecznym dla daltonizmu ma próbkę kreskowaną
         // (gradient), a `background-color` jest wtedy przezroczysty - bierzemy
         // wówczas kolor napisu, żeby kwadrat nie wyszedł niewidzialny.

@@ -40,6 +40,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/crm-companies.functions", () => ({
+  deleteCrmCompany: async () => ({ ok: true }),
+  syncCrmCompanyMembers: async () => ({ profiles: 0, leads: 0, linked: 0 }),
   listCrmCompanies: async (input: unknown) => {
     h.listArgs.push(input);
     return { json: JSON.stringify(h.companies) };

@@ -81,6 +81,14 @@ vi.mock("@/lib/platform-error-reporting", () => ({
   },
 }));
 
+// Background services have their own lifecycle tests; this suite owns the shell.
+vi.mock("@/lib/observability", () => ({ initObservability: vi.fn(() => vi.fn()) }));
+vi.mock("@/lib/webVitals", () => ({ markWebVitalsPage: vi.fn() }));
+vi.mock("@/lib/analytics/track", () => ({ trackPageView: vi.fn() }));
+vi.mock("@/lib/cacheBusting", () => ({ startCacheBusting: vi.fn(() => vi.fn()) }));
+vi.mock("@/lib/preview/sessionHeartbeat", () => ({ startPreviewHeartbeat: vi.fn(() => vi.fn()) }));
+vi.mock("@/lib/watchdog/previewWatchdog", () => ({ startPreviewWatchdog: vi.fn(() => vi.fn()) }));
+
 vi.mock("@tanstack/react-router", async (o) => {
   const actual = await o<typeof import("@tanstack/react-router")>();
   const { RouterLinkStub } = await import("@/test/routerLinkStub");

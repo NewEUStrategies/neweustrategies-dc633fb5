@@ -407,11 +407,11 @@ describe("trasa /quiz - adresy generowane serwerowo trzymają host żądania", (
       fs.readFileSync("src/routes/quiz.tsx", "utf8"),
     );
 
-    expect(source).toContain("getOrigin() || SITE_CANONICAL_ORIGIN");
+    expect(source).toContain("publicFacingOrigin(getOrigin())");
     expect(source).not.toMatch(/`\$\{SITE_CANONICAL_ORIGIN\}\$\{localizedPath/);
   });
 
-  it("po hydratacji adres do udostępnienia jest adresem OTWARTEJ strony", async () => {
+  it("po hydratacji adres udostępnienia zachowuje ścieżkę, ale nie upublicznia hosta podglądu", async () => {
     // Druga gałąź tego samego wyrażenia: w przeglądarce autorytetem jest
     // `window.location.href`, bo czytelnik mógł dojść tu z parametrami kampanii,
     // które powinny pojechać w udostępnionym linku.
@@ -420,7 +420,11 @@ describe("trasa /quiz - adresy generowane serwerowo trzymają host żądania", (
     const linkedin = screen.getAllByLabelText("LinkedIn")[0];
     expect(linkedin).toHaveAttribute(
       "href",
-      expect.stringContaining(encodeURIComponent(window.location.href)),
+      expect.stringContaining(
+        encodeURIComponent(
+          `https://neweuropeanstrategies.com${window.location.pathname}${window.location.search}${window.location.hash}`,
+        ),
+      ),
     );
   });
 });

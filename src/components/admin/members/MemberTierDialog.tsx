@@ -1,3 +1,4 @@
+import "@/lib/i18n-admin-members";
 // Molekuła: ręczna zmiana planu członka. Nadanie zapisuje się w bazie i ma
 // pierwszeństwo przed subskrypcją, więc działa bez operatora płatności.
 import { useState } from "react";
@@ -58,7 +59,7 @@ export function MemberTierDialog({ member, tiers, onOpenChange }: Props) {
   const grant = useMutation({
     mutationFn: async () => {
       if (!member) return;
-      await grantFn({
+      return grantFn({
         data: {
           userId: member.userId,
           tierKey: tierKey || member.tierKey,
@@ -67,8 +68,9 @@ export function MemberTierDialog({ member, tiers, onOpenChange }: Props) {
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(t("adminMembers.grant.success"));
+      if (result?.crmSynced === false) toast.warning(t("adminMembers.crm.pending"));
       invalidate();
       onOpenChange(false);
     },
@@ -78,10 +80,11 @@ export function MemberTierDialog({ member, tiers, onOpenChange }: Props) {
   const revoke = useMutation({
     mutationFn: async () => {
       if (!member?.grantId) return;
-      await revokeFn({ data: { grantId: member.grantId } });
+      return revokeFn({ data: { grantId: member.grantId } });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(t("adminMembers.grant.revoked"));
+      if (result?.crmSynced === false) toast.warning(t("adminMembers.crm.pending"));
       invalidate();
       onOpenChange(false);
     },

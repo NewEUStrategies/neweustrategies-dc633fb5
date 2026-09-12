@@ -103,7 +103,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/lib/email-templates/recovery.tsx", 1],
   ["src/lib/email-templates/signup.tsx", 1],
   ["src/lib/email-templates/tx-body.ts", 1],
-  ["src/lib/email/tx-preview.server.ts", 32],
+  ["src/lib/email/tx-preview.server.ts", 29],
   ["src/lib/newsletter-campaigns.functions.ts", 1],
   ["src/lib/newsletter/renderEmailHtml.ts", 1],
   ["src/lib/organizations/teamSeats.server.ts", 7],

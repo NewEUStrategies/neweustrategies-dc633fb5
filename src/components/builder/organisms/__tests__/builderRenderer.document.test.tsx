@@ -42,7 +42,7 @@
 //     `tabsEnabled` wymaga niepustej listy, więc efekt kończy się wcześniej.
 // Nie ma tu żadnej gałęzi funkcjonalnej bez dowodu.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 // Prawdziwa instancja i18n: szkielet strumieniowanej sekcji woła
@@ -50,7 +50,7 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 // zakleszcza plik (patrz nagłówek `src/test/i18nReal.ts`).
 import "@/test/i18nReal";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { __resetBuilderDebugForTests } from "@/lib/builder/builderDebug";
+import { __resetBuilderDebugForTests, toggleBuilderDebug } from "@/lib/builder/builderDebug";
 import { BuilderRenderer } from "../BuilderRenderer";
 import {
   column,
@@ -264,19 +264,12 @@ describe("nakładka debug", () => {
         <BuilderRenderer doc={doc([simpleSection("b")])} lang="pl" />
       </>,
     );
-    // Nakładkę renderuje DOKŁADNIE JEDNA instancja („pierwotna"), inaczej
-    // strona główna dostawała trzy przyciski jeden na drugim.
-    const przyciski = screen.getAllByRole("button", { name: /Debug/ });
-    expect(przyciski).toHaveLength(1);
-
-    act(() => {
-      fireEvent.click(przyciski[0]);
-    });
+    act(() => toggleBuilderDebug());
 
     const korzenie = [...container.querySelectorAll("[data-builder-renderer]")];
     expect(korzenie).toHaveLength(2);
     expect(korzenie.map((el) => el.getAttribute("data-debug"))).toEqual(["1", "1"]);
-    expect(screen.getByRole("button", { name: "Debug: ON" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Debug/ })).toBeNull();
     expect(window.localStorage.getItem("builder-debug")).toBe("1");
   });
 

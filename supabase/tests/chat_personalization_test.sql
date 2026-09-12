@@ -11,7 +11,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(17);
+SELECT plan(19);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -64,15 +64,24 @@ GRANT SELECT ON persgroup TO authenticated;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-00000000d4a1","role":"authenticated"}', true);
-SELECT public.chat_set_appearance((SELECT id FROM persconv), 'ocean', 'soft', '🔥');
+SELECT public.chat_set_appearance((SELECT id FROM persconv), 'ocean', 'dots', '🔥');
 
 RESET ROLE;
 SELECT is(
   (SELECT theme || '/' || wallpaper || '/' || quick_emoji
      FROM public.conversations WHERE id = (SELECT id FROM persconv)),
-  'ocean/soft/🔥',
+  'ocean/dots/🔥',
   'chat_set_appearance zapisuje motyw, tapetę i szybką emotkę'
 );
+
+-- Legacy clients can still send soft; its UI meaning is the NULL default.
+SET LOCAL ROLE authenticated;
+SELECT public.chat_set_appearance((SELECT id FROM persconv), p_wallpaper => 'soft');
+RESET ROLE;
+SELECT ok((SELECT wallpaper IS NULL FROM public.conversations WHERE id = (SELECT id FROM persconv)), 'legacy soft maps to default');
+SET LOCAL ROLE authenticated;
+SELECT public.chat_set_appearance((SELECT id FROM persconv), p_wallpaper => 'dots');
+RESET ROLE;
 
 -- ── 2) Sentinel keep: drugi uczestnik zmienia tylko motyw ───────────────────
 SET LOCAL ROLE authenticated;
@@ -89,7 +98,7 @@ SELECT is(
 SELECT is(
   (SELECT wallpaper || '/' || quick_emoji
      FROM public.conversations WHERE id = (SELECT id FROM persconv)),
-  'soft/🔥',
+  'dots/🔥',
   'sentinel keep nie nadpisuje pozostałych pól'
 );
 
@@ -219,6 +228,15 @@ SELECT is(
   'Rozmowy o strategii energetycznej UE',
   'opis kręgu zapisany'
 );
+
+-- Reproduce an upgrade from populated legacy storage before CHECK validation.
+RESET ROLE;
+ALTER TABLE public.conversations DROP CONSTRAINT conversations_wallpaper_check;
+UPDATE public.conversations SET wallpaper = 'soft' WHERE id = (SELECT id FROM persconv);
+\ir support/chat-wallpaper-preflight.sql.inc
+ALTER TABLE public.conversations ADD CONSTRAINT conversations_wallpaper_check
+  CHECK (wallpaper IS NULL OR wallpaper IN ('dots', 'lines', 'none'));
+SELECT ok((SELECT wallpaper IS NULL FROM public.conversations WHERE id = (SELECT id FROM persconv)), 'upgrade normalizes legacy rows before validating the new constraint');
 
 SELECT * FROM finish();
 ROLLBACK;

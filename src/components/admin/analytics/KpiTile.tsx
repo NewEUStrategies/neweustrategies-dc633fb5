@@ -42,7 +42,6 @@ function formatDelta(
   absolute: boolean,
   suffix?: string,
 ): string {
-  if (!Number.isFinite(current) || !Number.isFinite(previous)) return "-";
   if (absolute) {
     const d = current - previous;
     const sign = d > 0 ? "+" : "";
@@ -70,7 +69,7 @@ export function KpiTile({
     typeof previous === "number" &&
     Number.isFinite(current) &&
     Number.isFinite(previous);
-  const dir = hasDelta ? Math.sign((current ?? 0) - (previous ?? 0)) : 0;
+  const dir = hasDelta ? Math.sign(current - previous) : 0;
   const good = higherIsBetter ? dir > 0 : dir < 0;
   const neutral = dir === 0;
   const deltaColor = neutral
@@ -139,7 +138,7 @@ export function KpiTile({
             }
           >
             <DeltaIcon className="w-3 h-3" />
-            {formatDelta(current ?? 0, previous ?? 0, Boolean(absoluteDelta), deltaSuffix)}
+            {formatDelta(current, previous, Boolean(absoluteDelta), deltaSuffix)}
           </div>
         ) : null}
       </div>

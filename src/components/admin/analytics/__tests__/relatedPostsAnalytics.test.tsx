@@ -1550,3 +1550,24 @@ describe("RelatedPostsAnalytics - odświeżanie", () => {
     expect(btn).toBeEnabled();
   });
 });
+
+describe("stale chart drill selections", () => {
+  it.each([null, 999])("ignores a missing category index (%s)", async (categoryIndex) => {
+    h.fetchInsights.mockResolvedValue(
+      report({ click_pairs: [clickPair("A", "B", 7)], hub_targets: [hub("h1", "Hub", 10, 2)] }),
+    );
+    panel();
+    await loaded();
+    await clickChart(flowsChart(), { categoryIndex });
+    await clickChart(hubChart(), { categoryIndex });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+it("uses an empty drill title when selection has no category label", async () => {
+  h.fetchInsights.mockResolvedValue(report({ click_pairs: [clickPair("A", "B", 7)] }));
+  panel();
+  await loaded();
+  await clickChart(flowsChart(), { categoryIndex: 0, category: null });
+  expect(drillMetrics()).toContainEqual([dict("series.flowClicks"), "7"]);
+});

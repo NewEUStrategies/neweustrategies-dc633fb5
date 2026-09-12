@@ -135,7 +135,8 @@ describe("bundle gate on emitted artifact fixtures", () => {
     const dir = fixture();
     for (const name of ["vendor-react-AbCd1234.js", "vendor-tw-merge-EfGh5678.js"])
       put(dir, `assets/${name}`, `export const data="${entropy().slice(0, 6000)}";`);
-    expect(gate(dir, ["--update-baseline"]).status).toBe(0);
+    const result = gate(dir, ["--update-baseline"]);
+    expect(result.status, result.output).toBe(0);
     const baseline = JSON.parse(readFileSync(join(dir, "reports/bundle-baseline.json"), "utf8"));
     expect(baseline.bucketConvention).toBe(2);
     expect(baseline.chunks).toHaveProperty("vendor-react");

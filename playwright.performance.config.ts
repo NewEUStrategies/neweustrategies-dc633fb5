@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const artifactRoot = process.env.NES_PERFORMANCE_ARTIFACT_ROOT ?? process.cwd();
 const port = 4192;
+const measurementCase = process.env.NES_PERFORMANCE_CASE ?? "manual";
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
 
@@ -12,10 +13,13 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  outputDir: "test-results-performance",
+  outputDir: `test-results-performance/${measurementCase}`,
   timeout: 30_000,
   expect: { timeout: 5000 },
-  reporter: [["list"], ["json", { outputFile: "reports/first-visit-playwright.json" }]],
+  reporter: [
+    ["list"],
+    ["json", { outputFile: `reports/first-visit-playwright/${measurementCase}.json` }],
+  ],
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     trace: "retain-on-failure",

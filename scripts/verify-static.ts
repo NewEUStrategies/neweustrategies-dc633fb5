@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 
 /** Bramki, które NIE należą do zestawu statycznego - klucz: powód. */
 const EXCLUDED: Readonly<Record<string, string>> = {
+  "check:first-visit-regression": "porównuje artefakty Playwright - workflow first-visit",
   "check:bundle": "mierzy artefakt buildu (.output) - wymaga `bun run build`",
   "check:chunks": "graf chunków z artefaktu buildu",
   "check:entry-purity": "chunk startowy z artefaktu buildu",
