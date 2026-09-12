@@ -48,6 +48,31 @@ describe("non-blocking chrome warmup", () => {
     expect(() => readChromeWarmup(qc)).not.toThrow();
     qc.clear();
   });
+  it("awaited loader warmup survives the pre-render sweep without a degraded shell", async () => {
+    const qc = client();
+    const work = pending();
+    const options = {
+      queryKey: ["chrome", "loader"],
+      queryFn: async () => {
+        await work.promise;
+        return ["navigation"];
+      },
+    };
+    const markDegraded = vi.fn();
+    const initial = registerChromeWarmup(qc, {
+      ready: () => !!qc.getQueryData(options.queryKey),
+      expired: () => false,
+      warm: () => qc.ensureQueryData(options),
+      markDegraded,
+    });
+    work.resolve();
+    await initial;
+    expect(sweepQueryCacheForSerialization(qc, { quiet: true }).cancelled).toBe(0);
+    expect(() => readChromeWarmup(qc)).not.toThrow();
+    expect(qc.getQueryData(options.queryKey)).toEqual(["navigation"]);
+    expect(markDegraded).not.toHaveBeenCalled();
+    qc.clear();
+  });
   it("keeps a settled, fully warmed document cacheable", async () => {
     const qc = client();
     const markDegraded = vi.fn();

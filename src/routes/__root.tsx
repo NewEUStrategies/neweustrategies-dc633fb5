@@ -504,7 +504,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
               prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, chromeBudget),
             );
         }
-        registerChromeWarmup(context.queryClient, {
+        const initialChromeWarmup = registerChromeWarmup(context.queryClient, {
           ready: () => chromeQueryKeys.every((key) => hasSsrQueryData(context.queryClient, key)),
           expired: () =>
             homeDeadline !== undefined &&
@@ -519,6 +519,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             );
           },
         });
+        // Content routes must carry navigation in the first shell. Otherwise
+        // the pre-render sweep cancels this work and HeaderSkeleton later
+        // grows by ~180 px (CMS artifact trace). The existing 500 ms budget
+        // still bounds the wait. Homepage retains its shared deadline.
+        if (isServer && homeDeadline === undefined) await initialChromeWarmup;
         // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
         // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
         // po hydratacji zawiesi się czekając na strumień, który już nie wróci.

@@ -197,13 +197,26 @@ for (const engine of CMS_ENGINES)
               { title: CMS_TITLES[lang] },
             );
             const path = `${lang === "en" ? "/en" : ""}/cms-${engine}-${variant}`;
+            const warmupResponses: Array<{ cache?: string; cacheControl?: string }> = [];
             if (serverCache === "warm") {
-              const warmup = await request.get(path, {
-                headers: { "accept-language": lang, accept: "text/html" },
-              });
-              expect(warmup.status()).toBe(200);
-              expect(warmup.headers()["x-nes-cache"]).toBe("MISS");
-              expect(warmup.headers()["cache-control"]).toContain("public");
+              // A cold historical artifact can mark its first chrome render
+              // no-store. Warm until a COMPLETE cached HTML response exists,
+              // with a bounded attempt count. Never count a MISS as a warm visit.
+              for (let attempt = 0; attempt < 5; attempt++) {
+                const warmup = await request.get(path, {
+                  headers: { "accept-language": lang, accept: "text/html" },
+                });
+                expect(warmup.status()).toBe(200);
+                const headers = warmup.headers();
+                warmupResponses.push({
+                  cache: headers["x-nes-cache"],
+                  cacheControl: headers["cache-control"],
+                });
+                if (attempt === 0) expect(headers["x-nes-cache"]).toBe("MISS");
+                if (headers["x-nes-cache"] === "HIT") break;
+              }
+              expect(warmupResponses.at(-1)?.cache).toBe("HIT");
+              expect(warmupResponses.at(-1)?.cacheControl).toContain("public");
             }
             const response = await page.goto(path, { waitUntil: "domcontentloaded" });
             expect(response?.status()).toBe(200);
@@ -316,6 +329,8 @@ for (const engine of CMS_ENGINES)
               sample,
               path,
               cache: response!.headers()["x-nes-cache"],
+              cacheControl: response!.headers()["cache-control"],
+              warmupResponses,
               serverTiming: response!.headers()["server-timing"],
               htmlBytes: Buffer.byteLength(html),
               requestCount: firstVisitRequestCount,
@@ -324,7 +339,14 @@ for (const engine of CMS_ENGINES)
             };
             console.log(
               "CMS_VISIT " +
-                JSON.stringify({ ...result, scripts: undefined, longTasks: undefined }),
+                JSON.stringify({
+                  ...result,
+                  scripts: undefined,
+                  longTasks: undefined,
+                  largestScripts: [...result.scripts]
+                    .sort((a, b) => b.bodyBytes - a.bodyBytes)
+                    .slice(0, 15),
+                }),
             );
             mkdirSync("reports/cms-widgets", { recursive: true });
             const name = `${engine}-${variant}-${lang}-${testInfo.project.name}-${serverCache}-${sample}`;
@@ -337,9 +359,14 @@ for (const engine of CMS_ENGINES)
               contentType: "application/json",
             });
             await page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
-            // Content/handler/SSR checks apply equally to baseline and candidate.
             expect(measured.serverTitleRetained).toBe(true);
-            if (variant === "form") expect(measured.serverFormRetained).toBe(true);
+            // The baseline has a reproduced historical form-remount defect.
+            // Record it explicitly; only the candidate may satisfy this gate.
+            // Both versions still require complete SSR and working handlers.
+            if (variant === "form" && process.env.NES_PERFORMANCE_BASELINE === "1") {
+              if (!measured.serverFormRetained)
+                console.warn("CMS_BASELINE_DEFECT: original SSR form was replaced");
+            } else if (variant === "form") expect(measured.serverFormRetained).toBe(true);
             expect(measured.jsRequests).toBeGreaterThan(0);
             expect(measured.jsBodyBytes).toBeGreaterThan(0);
             if (process.env.NES_PERFORMANCE_BASELINE === "1") return;

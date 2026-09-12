@@ -130,6 +130,8 @@ import type { CounterWidget as CounterWidgetImpl } from "./CounterWidget";
 // 0.324 in the artifact test). The SSR-only references are removed by Vite's
 // client build; browser renderers keep their dynamic-import boundaries.
 import { PostListView as ServerPostListView } from "./PostListView";
+import { RichHtmlView as ServerRichHtmlView } from "./RichHtmlView";
+import { ContactFormView as ServerContactFormView } from "@/components/blocks/ContactFormView";
 import { PostsSliderWidget as ServerPostsSliderWidget } from "./PostsSliderWidget";
 import { RatedListView as ServerRatedListView } from "./RatedListView";
 import { SectionLabelWidgetView as ServerSectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
@@ -139,6 +141,8 @@ import { SectionLabelWidgetView as ServerSectionLabelWidgetView } from "@/lib/bu
 const getServerReadingWidgets = createIsomorphicFn()
   .server(() => ({
     PostListView: ServerPostListView,
+    RichHtmlView: ServerRichHtmlView,
+    ContactFormView: ServerContactFormView,
     PostsSliderWidget: ServerPostsSliderWidget,
     RatedListView: ServerRatedListView,
     SectionLabelWidgetView: ServerSectionLabelWidgetView,
@@ -162,9 +166,11 @@ export const JoinUsForm = withSuspense(JoinUsFormLazy);
 // switchem w SimpleWidgets - a SimpleWidgets jest w EAGER-owej ścieżce chrome
 // (Header/Footer -> BuilderRenderer). Leniwe chunki zdejmują je z bundla
 // wejściowego każdej strony; zawartość boundary dostarcza streaming SSR.
-const ContactFormViewLazy = lazy(() =>
-  import("@/components/blocks/ContactFormView").then((m) => ({ default: m.ContactFormView })),
-) as ComponentType<ComponentProps<typeof ContactFormViewImpl>>;
+const ContactFormViewLazy = serverReadingWidgets
+  ? serverReadingWidgets.ContactFormView
+  : (lazy(() =>
+      import("@/components/blocks/ContactFormView").then((m) => ({ default: m.ContactFormView })),
+    ) as ComponentType<ComponentProps<typeof ContactFormViewImpl>>);
 export const ContactFormView = withSuspense(ContactFormViewLazy);
 
 const AuthFormWidgetLazy = lazy(() =>
@@ -419,9 +425,14 @@ export const ProgressCarouselView = withSuspense(ProgressCarouselViewLazy);
 // Widget `text`: sam shell zostaje w WidgetView, ale renderer HTML idzie lazy,
 // bo normalizeBuilderRichHtml ciągnie node-html-parser (202 kB źródła) i silnik
 // przypisów - najcięższa pojedyncza pozycja entry z inwentarza 2026-08-06.
-const RichHtmlViewLazy = lazy(() =>
-  import("./RichHtmlView").then((m) => ({ default: m.RichHtmlView })),
-) as ComponentType<ComponentProps<typeof RichHtmlViewImpl>>;
+// Text is the reading surface: cold server imports produced 24 px empty
+// sections that expanded to 88 px after the first shell (CLS > 0.23).
+// Only the server is eager; the browser keeps the same lazy chunk boundary.
+const RichHtmlViewLazy = serverReadingWidgets
+  ? serverReadingWidgets.RichHtmlView
+  : (lazy(() =>
+      import("./RichHtmlView").then((m) => ({ default: m.RichHtmlView })),
+    ) as ComponentType<ComponentProps<typeof RichHtmlViewImpl>>);
 export const RichHtmlView = withSuspense(RichHtmlViewLazy);
 
 // --- chrome na żądanie: cięższe widgety nagłówka -----------------------------

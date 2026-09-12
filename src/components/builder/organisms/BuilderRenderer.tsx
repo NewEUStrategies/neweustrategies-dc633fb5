@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  startTransition,
   type ComponentType,
   type CSSProperties,
   type ElementType,
@@ -231,7 +232,10 @@ export function BuilderRenderer({
     // preview frame in the admin). Fall back to window width.
     const measure = () => {
       const w = el?.clientWidth && el.clientWidth > 0 ? el.clientWidth : window.innerWidth;
-      setViewportDevice(deviceForWidth(w));
+      // A viewport correction can arrive before a lazy widget hydrates.
+      // Keep its server DOM while React waits for the chunk; an urgent update
+      // would discard the boundary and temporarily show its empty fallback.
+      startTransition(() => setViewportDevice(deviceForWidth(w)));
     };
     measure();
     let ro: ResizeObserver | null = null;

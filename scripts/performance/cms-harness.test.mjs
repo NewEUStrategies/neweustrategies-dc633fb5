@@ -123,3 +123,21 @@ test("content-route hydration reads have explicit empty response shapes", async 
     );
   }
 });
+
+test("historical form replacement is reported, while candidate replacement fails", () => {
+  const formCase = { ...expected, variant: "form" };
+  const baseline = samples().map((sample) => ({
+    ...sample,
+    variant: "form",
+    serverFormRetained: false,
+  }));
+  const candidate = samples().map((sample) => ({
+    ...sample,
+    variant: "form",
+    serverFormRetained: true,
+  }));
+  const rows = compareSamples(baseline, candidate, formCase);
+  assert.ok(rows.every((row) => row.pass && row.baselineFormReplacements === 3));
+  candidate[0].serverFormRetained = false;
+  assert.throws(() => compareSamples(baseline, candidate, formCase), /SSR content was replaced/);
+});

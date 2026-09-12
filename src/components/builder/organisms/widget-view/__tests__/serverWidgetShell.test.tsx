@@ -4,6 +4,8 @@ import { renderToString } from "react-dom/server";
 
 // Keep the real split registry and Suspense wrappers. The leaves stand in for
 // already-prefetched data so this test isolates first-shell code availability.
+vi.mock("../RichHtmlView", () => ({ RichHtmlView: () => <p>rich-html</p> }));
+vi.mock("@/components/blocks/ContactFormView", () => ({ ContactFormView: () => <p>contact</p> }));
 vi.mock("../PostListView", () => ({ PostListView: () => <p>post-list</p> }));
 vi.mock("../PostsSliderWidget", () => ({ PostsSliderWidget: () => <p>posts-slider</p> }));
 vi.mock("../RatedListView", () => ({ RatedListView: () => <p>rated-list</p> }));
@@ -35,6 +37,8 @@ describe("reading widgets in the first server shell", () => {
     const widgets = await import("../lazyWidgets");
     const cases = [
       [widgets.PostListView, "post-list"],
+      [widgets.RichHtmlView, "rich-html"],
+      [widgets.ContactFormView, "contact"],
       [widgets.PostsSliderWidget, "posts-slider"],
       [widgets.RatedListView, "rated-list"],
       [widgets.SectionLabelWidgetView, "section-label"],

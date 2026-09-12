@@ -22,7 +22,12 @@ export function compareSamples(baseline, candidate, expected) {
         row.browserCache !== "cold-routing-disables-http-cache"
       )
         throw new Error("Incomparable CMS sample");
-      if (!row.serverTitleRetained || (expected.variant === "form" && !row.serverFormRetained))
+      if (expected.variant === "form" && typeof row.serverFormRetained !== "boolean")
+        throw new Error("Missing form retention observation");
+      if (
+        !row.serverTitleRetained ||
+        (samples === candidate && expected.variant === "form" && !row.serverFormRetained)
+      )
         throw new Error("SSR content was replaced");
       for (const metric of [
         ...Object.keys(timingNoise),
@@ -64,6 +69,9 @@ export function compareSamples(baseline, candidate, expected) {
     return {
       ...expected,
       metric,
+      baselineFormReplacements: baseline.filter(
+        (sample) => expected.variant === "form" && !sample.serverFormRetained,
+      ).length,
       before,
       after,
       delta: after - before,

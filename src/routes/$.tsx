@@ -454,8 +454,8 @@ export const Route = createFileRoute("/$")({
     // Emit the JSON-LD graph in <head> (not the body) so crawlers parse the
     // structured data early, before the full document streams. The article
     // node carries the AEO layer (section, keywords, abstract, speakable);
-    // BreadcrumbList is SSR-emitted here because the body breadcrumbs only
-    // exist after hydration.
+    // BreadcrumbList and the visible breadcrumb trail both derive from the
+    // loader data, so crawlers and the first paint receive the same hierarchy.
     // Jeden seam dla wpisów i STRON (lib/keyTakeaways/resolve.ts) - to samo
     // rozstrzygnięcie zasila JSON-LD tutaj i sekcję w body niżej.
     const takeaways = resolveTakeaways(it, lang);
@@ -737,7 +737,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   );
   const body = pickBody(bodyBeforeGift, gifted.body);
 
-  const rawDoc = parseBuilderDoc(body.builder_data);
+  // Keep renderer memoization effective when membership, metadata or theme
+  // queries update without changing the document. Content unlocks replace
+  // these inputs and therefore still invalidate the preparation immediately.
+  const rawDoc = useMemo(() => parseBuilderDoc(body.builder_data), [body.builder_data]);
   const rawHtml =
     lang === "en" ? body.content_en || body.content_pl : body.content_pl || body.content_en;
 
@@ -750,13 +753,17 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // Jedno wejście: builder + html rozwijane pod wspólnym licznikiem, manualny
   // <!--TOC--> generowany po drodze. Ta sama funkcja zasila /preview i homepage,
   // więc redaktor widzi to samo w każdym miejscu.
-  const prepared = prepareContentForRender({
-    editor: it.editor,
-    builderDoc: rawDoc,
-    blocksDoc,
-    rawHtml: rawHtml ?? "",
-    lang,
-  });
+  const prepared = useMemo(
+    () =>
+      prepareContentForRender({
+        editor: it.editor,
+        builderDoc: rawDoc,
+        blocksDoc,
+        rawHtml: rawHtml ?? "",
+        lang,
+      }),
+    [it.editor, rawDoc, blocksDoc, rawHtml, lang],
+  );
   const doc = prepared.builderDoc;
   const processedHtml = prepared.html;
   const notes = prepared.footnotes;
@@ -835,10 +842,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const prevPost = toNeighbor(adjacentPosts?.prev);
   const nextPost = toNeighbor(adjacentPosts?.next);
 
-  const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
-  useEffect(() => {
-    setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
-  }, [data, lang, title, isPost]);
+  // Breadcrumbs are derived from loader data and must occupy their final
+  // space in SSR. An effect inserted them after hydration (43 px in the CMS
+  // visit trace) and also invalidated pending form Suspense boundaries.
+  const crumbs = useMemo<BreadcrumbItem[]>(
+    () => buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined),
+    [data.crumbs, lang, title, isPost],
+  );
 
   // JSON-LD is emitted in <head> via the route head() above, not in the body.
 

@@ -208,3 +208,42 @@ rekomendacji, metering i definicje metadanych). Uzupełniono ich jawne odpowiedz
 dla syntetycznego tenanta oraz test kontraktu. To poprawka stanowiska pomiarowego;
 nie jest poprawą czasu ładowania produktu. Typy nowego speca i konfiguracji
 Playwright są odtąd sprawdzane także przez komendę harnessu w CI.
+
+
+## Wyniki diagnostyki i poprawki po pierwszym pomiarze
+
+Przebieg Actions `34714349499` nie zaliczył bramki. Zmniejszenie rozmiaru
+odpowiedzi JavaScript w PL/desktop/cold (tekst: 3 575 860 -> 3 498 533 B,
+134 -> 126 żądań JS) nie wystarcza do odbioru: były to niepełne serie,
+a CLS i zachowanie formularzy ujawniły rzeczywiste defekty.
+
+- Nagłówek zmieniał pozycję początku `main` z 61 do 240,75 px. Rozgrzewka
+  chrome była anulowana przed renderem i startowała ponownie pod Suspense.
+  Trasy poza stroną główną oczekują teraz na jej istniejący budżet 500 ms,
+  dzięki czemu ukończone dane przechodzą do pierwszego HTML. Awaria nadal
+  degraduje stronę i zabrania zapisu do publicznego cache.
+- Zimne importy tekstu buildera zostawiały sekcje o wysokości 24 px,
+  rozwijane następnie do 88,31 px. RichHtmlView i formularz kontaktowy są
+  dostępne synchronicznie na serwerze, przy zachowaniu leniwego importu
+  przeglądarkowego i parytetu drzew Suspense.
+- Korekta urządzenia w rendererze mogła usunąć oczekujący widget SSR.
+  Test hydratacji odtwarzał utratę formularza przy 390 px; aktualizacja
+  przez startTransition zachowuje węzeł do rozwiązania importu.
+- Breadcrumbs dodawane dopiero efektem przesuwały treść Gutenberg o 43,25 px.
+  Są teraz obliczane z danych loadera w SSR. Parsowanie dokumentu i pre-pass
+  trasy mają memoizację, aby aktualizacje danych pomocniczych nie kasowały
+  stabilnych referencji rendererów.
+
+Stanowisko zapisuje źródła CLS, zdarzenia usunięcia formularza oraz przebieg
+rozgrzewania cache. Pierwsza odpowiedź historycznej bazy może być `no-store`:
+rozgrzewanie jest ograniczone do pięciu pełnych żądań HTML i musi zakończyć
+się `HIT`. Właściwy pomiar ciepłej wizyty zawsze wymaga `HIT`; próby `MISS`
+nie są zaliczane do tej grupy. Cold nadal uruchamia nowy proces serwera.
+
+Historyczna baza `42667a8` ma potwierdzony defekt odtwarzania formularza SSR.
+Pomiar zapisuje go jako `CMS_BASELINE_DEFECT` i liczy wystąpienia w porównaniu.
+Nie zmienia kodu bazy ani jej wyników. Kandydat nadal musi zachować pierwotny
+formularz w każdej próbie; tytuł SSR, pełna treść, brak błędów i działający
+handler obowiązują obie wersje. To jawne rozróżnienie diagnozy historycznej
+wersji od kryteriów odbioru poprawki. Budżety czasu, bajtów i CLS < 0,1 nie
+uległy zmianie. Wynik końcowy wymaga ponownej pełnej macierzy.
