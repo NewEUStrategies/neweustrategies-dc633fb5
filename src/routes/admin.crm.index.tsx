@@ -22,6 +22,7 @@ import {
 } from "@/lib/crm.functions";
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
 import { listSavedViews, upsertSavedView, deleteSavedView } from "@/lib/crm-saved-views.functions";
+import { CrmStatsPanel } from "@/components/admin/crm/CrmStatsPanel";
 import { BulkActionBar } from "@/components/molecules/BulkActionBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -700,6 +701,9 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
 
   return (
     <div className="space-y-3">
+      {/* Statystyki lejka i pozyskania - zwinięte, żeby nie spychać listy.
+          Patrz nagłówek `CrmStatsPanel`. */}
+      <CrmStatsPanel />
       <LeadViewTabs
         lang={lang}
         activeId={activeViewId}

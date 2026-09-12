@@ -28,6 +28,12 @@ const GATED_PREFIXES = [
   "countryCompare",
   "adminBlocks",
   "adminThemeDesign",
+  // Kokpit (/admin) jest pierwszym ekranem panelu i ma dwie pełne wersje
+  // językowe od pierwszego commita, więc wchodzi pod twardą bramkę od razu -
+  // zanim zdąży narosnąć dług, który potem trzeba by odrabiać ratchetem.
+  // Brakujący klucz wypisałby na kafelku surowe `adminDashboard.traffic.sessions`
+  // zamiast liczby z etykietą.
+  "adminDashboard",
   // Macierz uprawnień renderuje etykiety z kluczy technicznych (wiersze bramek,
   // flagi warstw), więc brak tłumaczenia oznaczałby surowy klucz na ekranie
   // audytu - to musi być bramkowane, nie tylko raportowane.
