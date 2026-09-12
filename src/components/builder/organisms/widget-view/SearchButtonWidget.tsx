@@ -475,7 +475,7 @@ export function SearchButtonWidget({
 
       {showPopover && (
         <div
-          className="builder-search-megabox absolute left-0 right-0 top-[calc(100%+12px)] z-[70] overflow-hidden rounded-[10px] border border-border/70 bg-popover text-popover-foreground shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35),0_8px_24px_-12px_rgba(0,0,0,0.25)] ring-1 ring-black/[0.04] backdrop-blur-xl animate-in fade-in-0 zoom-in-[0.99] slide-in-from-top-1 duration-150"
+          className="builder-search-megabox absolute left-0 right-0 top-[calc(100%+10px)] z-[70] origin-top overflow-hidden rounded-[14px] border border-border/80 bg-popover/95 text-popover-foreground shadow-[0_24px_70px_-18px_rgba(0,0,0,0.28),0_10px_30px_-12px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.06] backdrop-blur-2xl animate-in fade-in-0 zoom-in-[0.99] slide-in-from-top-1 duration-200"
           style={{
             fontFamily:
               '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -487,7 +487,7 @@ export function SearchButtonWidget({
             <div
               role="tablist"
               aria-label={t("categories")}
-              className="flex items-center gap-1 border-b border-border/60 bg-muted/30 px-2.5 py-1.5"
+              className="flex items-center gap-1.5 border-b border-border/50 bg-muted/50 px-3 py-2"
             >
               {(["all", ...SUGGEST_BUCKET_ORDER] as const).map((k) => {
                 const count =
@@ -506,18 +506,18 @@ export function SearchButtonWidget({
                       setTab(k);
                       setActive(-1);
                     }}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium leading-none transition-all ${
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-medium leading-none transition-all ${
                       isActive
-                        ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
-                        : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                        ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
+                        : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
                     }`}
                   >
                     {tabLabel}
                     <span
-                      className={`inline-flex min-w-[14px] items-center justify-center rounded px-1 text-[8px] font-semibold tabular-nums ${
+                      className={`inline-flex min-w-[16px] items-center justify-center rounded-full px-1.5 py-px text-[8px] font-semibold tabular-nums ${
                         isActive
-                          ? "bg-[color-mix(in_oklab,var(--brand)_16%,transparent)] text-[var(--brand-ink)]"
-                          : "bg-muted/60 text-muted-foreground/80"
+                          ? "bg-[color-mix(in_oklab,var(--brand)_14%,transparent)] text-[var(--brand-ink)]"
+                          : "bg-muted/70 text-muted-foreground/80"
                       }`}
                     >
                       {count}
@@ -528,13 +528,13 @@ export function SearchButtonWidget({
             </div>
           )}
 
-          <div className="max-h-[460px] overflow-y-auto">
+          <div className="max-h-[min(520px,70vh)] overflow-y-auto overscroll-contain">
             {/* ============= Ostatnie wyszukiwania (puste pole) ============= */}
             {showRecent && (
-              <div className="px-3 pt-3 pb-2">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    <LucideIcons.Clock className="w-2.5 h-2.5" aria-hidden />
+              <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
+                <div className="mb-2.5 flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <LucideIcons.Clock className="w-3 h-3 text-[var(--brand)]" aria-hidden />
                     {t("recent")}
                   </span>
                   <button
@@ -544,12 +544,12 @@ export function SearchButtonWidget({
                       clearRecentSearches();
                       setRecent([]);
                     }}
-                    className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
+                    className="shrink-0 text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
                   >
                     {t("recent_clear")}
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {recent.map((term) => (
                     <button
                       key={term}
@@ -561,10 +561,10 @@ export function SearchButtonWidget({
                         setFocused(false);
                         navigateToHref(`/search?q=${encodeURIComponent(term)}`);
                       }}
-                      className="group inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[10px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)] hover:text-[var(--brand-ink)]"
+                      className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background px-2.5 py-1.5 text-[11px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_7%,transparent)] hover:text-[var(--brand-ink)]"
                     >
                       <LucideIcons.Clock
-                        className="w-2.5 h-2.5 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
+                        className="w-3 h-3 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
                         aria-hidden
                       />
                       <span className="max-w-[180px] truncate">{term}</span>
@@ -595,11 +595,11 @@ export function SearchButtonWidget({
             )}
 
             {focused && hasQuery && !loading && showEmpty && (
-              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60">
-                  <LucideIcons.Search className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/70">
+                  <LucideIcons.Search className="h-5 w-5 text-muted-foreground" aria-hidden />
                 </div>
-                <div className="text-[13px] text-foreground">
+                <div className="max-w-[18rem] text-[13px] leading-snug text-foreground">
                   {t("no_results")}
                   <span className="font-semibold">„{q.trim()}"</span>
                 </div>
@@ -616,23 +616,23 @@ export function SearchButtonWidget({
                   const Icon = iconFor(bucket);
                   return (
                     <div key={bucket} className="pb-1">
-                      <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+                      <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
                         <span
-                          className="flex h-4 w-4 items-center justify-center rounded-sm"
+                          className="flex h-5 w-5 items-center justify-center rounded-[5px]"
                           style={{
-                            backgroundColor: "color-mix(in oklab, var(--brand) 12%, transparent)",
+                            backgroundColor: "color-mix(in oklab, var(--brand) 14%, transparent)",
                           }}
                         >
                           <Icon
-                            className="h-2.5 w-2.5"
+                            className="h-3 w-3"
                             aria-hidden
                             style={{ color: "var(--brand)" }}
                           />
                         </span>
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                           {bucketLabel(bucket)}
                         </span>
-                        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 text-[8px] font-semibold tabular-nums text-muted-foreground">
+                        <span className="ml-auto rounded-full bg-muted/70 px-2 py-0.5 text-[8px] font-semibold tabular-nums text-muted-foreground">
                           {entries.length}
                         </span>
                       </div>
@@ -655,36 +655,36 @@ export function SearchButtonWidget({
                                 tabIndex={-1}
                                 onClick={goToResult}
                                 onMouseEnter={() => setActive(i)}
-                                className={`group relative mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] leading-[1.4] transition-all ${
+                                className={`group relative mx-1.5 flex items-center gap-3 rounded-[10px] px-3 py-2 text-[12px] leading-[1.45] transition-all ${
                                   isActive
-                                    ? "bg-[color-mix(in_oklab,var(--brand)_8%,transparent)] text-foreground"
+                                    ? "bg-[color-mix(in_oklab,var(--brand)_10%,transparent)] text-foreground"
                                     : "text-foreground hover:bg-muted/60"
                                 }`}
                                 style={{ overflow: "visible" }}
                               >
                                 <span
                                   aria-hidden
-                                  className={`absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-r-full transition-opacity ${
+                                  className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full transition-opacity ${
                                     isActive ? "opacity-100" : "opacity-0"
                                   }`}
                                   style={{ backgroundColor: "var(--brand)" }}
                                 />
                                 {it.kind === "author" && it.id && authorAvatars[it.id] ? (
                                   <img
-                                    src={buildAvatarSrc(authorAvatars[it.id] as string, 28)}
+                                    src={buildAvatarSrc(authorAvatars[it.id] as string, 32)}
                                     srcSet={
-                                      buildAvatarSrcSet(authorAvatars[it.id] as string, 28) ||
+                                      buildAvatarSrcSet(authorAvatars[it.id] as string, 32) ||
                                       undefined
                                     }
                                     alt=""
                                     aria-hidden
                                     loading="lazy"
                                     decoding="async"
-                                    className="h-7 w-7 shrink-0 rounded-md border border-border/60 object-cover"
+                                    className="h-8 w-8 shrink-0 rounded-[9px] border border-border/60 object-cover"
                                   />
                                 ) : (
                                   <span
-                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all ${
+                                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border transition-all ${
                                       isActive
                                         ? "border-transparent"
                                         : "border-border/60 bg-background/60 group-hover:border-border"
@@ -693,13 +693,13 @@ export function SearchButtonWidget({
                                       isActive
                                         ? {
                                             backgroundColor:
-                                              "color-mix(in oklab, var(--brand) 14%, transparent)",
+                                              "color-mix(in oklab, var(--brand) 16%, transparent)",
                                           }
                                         : undefined
                                     }
                                   >
                                     <Icon
-                                      className="h-3.5 w-3.5"
+                                      className="h-4 w-4"
                                       aria-hidden
                                       style={{
                                         color: isActive
@@ -709,27 +709,27 @@ export function SearchButtonWidget({
                                     />
                                   </span>
                                 )}
-                                <span className="min-w-0 flex-1 truncate">{itemLabel(it)}</span>
+                                <span className="min-w-0 flex-1 truncate font-medium">{itemLabel(it)}</span>
                                 {kindLabel && (
                                   <span
                                     data-typography-exempt
-                                    className={`search-kind-label hidden shrink-0 items-center rounded-md px-1 py-px font-semibold uppercase sm:inline-flex ${
+                                    className={`search-kind-label hidden shrink-0 items-center rounded-full px-1.5 py-px font-semibold uppercase sm:inline-flex ${
                                       isActive ? "text-[var(--brand-ink)]" : "text-muted-foreground"
                                     }`}
                                     style={{
                                       backgroundColor: isActive
                                         ? "color-mix(in oklab, var(--brand) 14%, transparent)"
-                                        : "color-mix(in oklab, var(--muted-foreground) 10%, transparent)",
+                                        : "color-mix(in oklab, var(--muted-foreground) 12%, transparent)",
                                     }}
                                   >
                                     {kindLabel}
                                   </span>
                                 )}
                                 <LucideIcons.ArrowRight
-                                  className={`h-3.5 w-3.5 shrink-0 transition-all ${
+                                  className={`h-4 w-4 shrink-0 transition-all ${
                                     isActive
                                       ? "translate-x-0 opacity-100"
-                                      : "-translate-x-0.5 opacity-0 group-hover:translate-x-0 group-hover:opacity-70"
+                                      : "-translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-70"
                                   }`}
                                   aria-hidden
                                   style={{ color: "var(--brand)" }}
@@ -753,16 +753,16 @@ export function SearchButtonWidget({
                   addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="group flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[10px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
+                className="group flex items-center justify-between gap-2 border-t border-border/60 bg-muted/30 px-4 py-2.5 text-[11px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_7%,transparent)]"
                 style={{ color: "var(--brand)" }}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <LucideIcons.Search className="h-3.5 w-3.5" aria-hidden />
+                  <LucideIcons.Search className="h-4 w-4" aria-hidden />
                   {t("view_all")}
                   <span className="font-bold">„{q.trim()}"</span>
                 </span>
                 <LucideIcons.ArrowRight
-                  className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                  className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5"
                   aria-hidden
                 />
               </AppLink>
@@ -771,7 +771,7 @@ export function SearchButtonWidget({
 
           {/* Footer: operators + keyboard hints + advanced search */}
           {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 bg-muted/60 px-4 py-3">
               <div className="flex flex-wrap items-center gap-1">
                 <span
                   data-typography-exempt
@@ -805,7 +805,7 @@ export function SearchButtonWidget({
                         el.setSelectionRange(pos, pos);
                       });
                     }}
-                    className="search-operator-button inline-flex items-center rounded-md border border-border/60 bg-background px-1 py-px font-mono font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                    className="search-operator-button inline-flex items-center rounded-full border border-border/60 bg-background px-2 py-0.5 font-mono font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
                   >
                     {op}
                   </button>

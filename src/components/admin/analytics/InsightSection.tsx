@@ -149,8 +149,11 @@ export function InsightSection({
                   {i.fixes.length > 0 ? (
                     <ul className="mt-2 space-y-1 text-xs">
                       {i.fixes.map((fix, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="flex items-center h-4 text-primary leading-none shrink-0">
+                        <li key={idx} className="flex items-center gap-2">
+                          <span
+                            className="flex h-4 shrink-0 items-center justify-center self-center text-primary leading-none"
+                            aria-hidden="true"
+                          >
                             →
                           </span>
                           <span className="leading-4">{fix}</span>
