@@ -5,14 +5,13 @@
 // mapą; pełna lista korytarzy + węzłów w tabeli dostępności.
 //
 // SSR: rama renderuje się na serwerze; sam SVG (geometria) dogrywa po hydracji
-// w miejsce migotki o aspekcie startowym regionu - identycznie jak
-// w ChoroplethMap, tą samą funkcją (`mapAspect`).
+// w miejsce shimmera o stałym aspekcie - identycznie jak w ChoroplethMap.
 import { useMemo, useState, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { CorridorMapConfig, FeatureLang } from "@/lib/features/types";
 import { pickBi } from "@/lib/features/types";
+import type { MapRegion } from "@/lib/charts/types";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
-import { mapAspect } from "@/lib/charts/geoAspect";
 import { makeGeoProjector, corridorPath } from "@/lib/features/geoProject";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
@@ -37,6 +36,11 @@ const L = {
     data: "Show corridors and nodes",
   },
 } as const;
+
+const REGION_ASPECT: Record<MapRegion, number> = {
+  world: 427 / 960,
+  europe: 825 / 960,
+};
 
 interface Props {
   config: CorridorMapConfig;
@@ -76,10 +80,7 @@ export function CorridorMap({ config, lang, className }: Props) {
     );
   }
 
-  // Ten sam aspekt, co w `ChoroplethMap`, i z tego samego miejsca: z `viewBox`
-  // zasobu. Druga kopia tablicy stałych stała właśnie tutaj i była o jedno
-  // przeoczenie od rozjazdu z pierwszą.
-  const aspect = mapAspect(config.region, geo.data);
+  const aspect = REGION_ASPECT[config.region];
   const mapHeight = Math.round(width * aspect);
   const viewW = geo.data ? Number(geo.data.viewBox.split(" ")[2]) || 960 : 960;
 

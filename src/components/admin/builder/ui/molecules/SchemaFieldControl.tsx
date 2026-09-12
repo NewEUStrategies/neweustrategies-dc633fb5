@@ -20,10 +20,6 @@ import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MapDataField } from "./MapDataField";
-// Region pola danych mapy idzie tym samym parserem, co render - porównanie
-// z dwoma literałami podawało skorowidzowi nazw Europę dla każdego regionu
-// spoza pary, więc kraje Azji wychodziły z importu jako NIEROZPOZNANE.
-import { parseMapRegion } from "@/lib/charts/parse";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
 import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
@@ -223,7 +219,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           <MapDataField
             value={asString(read(field.key))}
             onChange={(v) => setContent(field.key, v)}
-            region={parseMapRegion(asString(content["region"]))}
+            region={asString(content["region"]) === "world" ? "world" : "europe"}
             rows={field.rows}
             placeholder={t("builder.schemaField.mapDataPlaceholder")}
           />

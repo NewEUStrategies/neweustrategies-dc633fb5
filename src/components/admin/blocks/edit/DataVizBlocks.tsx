@@ -21,12 +21,9 @@ import {
   MAX_CATEGORIES,
   parseChartConfig,
   parseDataMapConfig,
-  parseMapRegion,
 } from "@/lib/charts/parse";
 import {
   CATEGORICAL_SAFE_SERIES,
-  MAP_REGIONS,
-  mapRegionLabelKey,
   MAX_COLOR_SLOT,
   MAX_SERIES,
   PIE_MAX_SLICES,
@@ -803,11 +800,7 @@ function readMapValues(raw: Json | undefined): MapRowDraft[] {
 
 export function DataMapBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  // Region idzie przez parser bloku, a nie przez porównanie z dwoma literałami:
-  // ta sama droga, co w renderze publicznym, więc podgląd nad formą pokazuje
-  // DOKŁADNIE to, co zobaczy czytelnik - także wtedy, gdy w treści siedzi
-  // region z nowszej wersji edytora.
-  const region: MapRegion = parseMapRegion(block.data.region);
+  const region: MapRegion = String(block.data.region ?? "europe") === "world" ? "world" : "europe";
   const rows = readMapValues(block.data.values);
   const previewConfig = useMemo(() => parseDataMapConfig(block.data), [block.data]);
 
@@ -840,15 +833,8 @@ export function DataMapBlock({ block, onChange }: Props) {
           value={region}
           onChange={(e) => patch({ region: e.target.value })}
         >
-          {/* Opcje WYPROWADZONE ze źródła regionów - wcześniej stały tu dwa
-              ręcznie wpisane `<option>`, więc dołożenie regionu wymagało
-              dotknięcia edytora i było o jedno przeoczenie od regionu, którego
-              autor nie mógł wybrać, choć silnik już go umiał narysować. */}
-          {MAP_REGIONS.map((r) => (
-            <option key={r} value={r}>
-              {bt.editor("dataMap", mapRegionLabelKey(r))}
-            </option>
-          ))}
+          <option value="europe">{bt.editor("dataMap", "europe")}</option>
+          <option value="world">{bt.editor("dataMap", "world")}</option>
         </AdminSelect>
         <input
           className={inputCls}

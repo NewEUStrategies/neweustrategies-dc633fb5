@@ -8,13 +8,6 @@
 // zapisu "PL|EN" w jednej komórce (liczby żyją raz, tłumaczenie inline);
 // tytuły/opisy/źródła widgetu to zwykłe pola *_pl/_en rozwiązywane w
 // adapterze buildera.
-//
-// Region mapy korytarzy NIE jest osobną listą: korytarze rysują się na tych
-// samych zasobach geometrii, co choropleta, więc typ idzie ze źródła regionów
-// w silniku wykresów (`MAP_REGIONS`). Własna unia dwóch literałów stała tu
-// wcześniej i zatrzymywała ten widget na Europie i świecie, mimo że zasoby
-// pięciu kontynentów były już na dysku.
-import type { MapRegion } from "@/lib/charts/types";
 
 /** Tekst dwujęzyczny z komórki "PL|EN"; en spada do pl gdy brak "|". */
 export interface BiText {
@@ -163,7 +156,7 @@ export interface CorridorMarker extends CorridorPoint {
 }
 
 export interface CorridorMapConfig extends FeatureFrameConfig {
-  region: MapRegion;
+  region: "europe" | "world";
   corridors: Corridor[];
   markers: CorridorMarker[];
   /** Kody ISO-2 krajów do podświetlenia. */

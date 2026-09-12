@@ -303,13 +303,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   Pętla: "Loop",
   Świat: "World",
   Europa: "Europe",
-  // Regiony map. Oceanii tu nie ma, bo w obu językach brzmi tak samo, a wpis
-  // identyczny z oryginałem to dla `builderLabel` żadna zmiana - fallback i tak
-  // oddaje napis źródłowy.
-  Afryka: "Africa",
-  Azja: "Asia",
-  "Ameryka Północna": "North America",
-  "Ameryka Południowa": "South America",
 
   // --------------------------------------------------------------- structure
   "Tag (SEO)": "Tag (SEO)",

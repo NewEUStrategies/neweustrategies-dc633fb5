@@ -8,11 +8,7 @@
 //
 // SKOROWIDZ IDZIE Z REGIONU WIDGETU, nie z globalnej listy krajów: kraj,
 // którego wybrany region nie rysuje, ma wyjść jako nierozpoznany, a nie wejść
-// cicho do danych i zniknąć na mapie. Region przychodzi tu JUŻ SPARSOWANY
-// (`parseMapRegion` w `SchemaFieldControl`), więc typ `MapRegion` jest
-// prawdziwy, a nie życzeniowy - wcześniej wołający zawężał go porównaniem
-// z dwoma literałami i skorowidz dostawał Europę dla każdego regionu spoza
-// tej pary.
+// cicho do danych i zniknąć na mapie.
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";

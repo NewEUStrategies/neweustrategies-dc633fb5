@@ -8,7 +8,6 @@ import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
   isChartKind,
-  isMapRegion,
   MAX_COLOR_SLOT,
   MAX_SERIES,
   type ChartConfig,
@@ -235,26 +234,11 @@ export function parseMapValues(raw: Json | undefined): MapDatum[] {
   return out;
 }
 
-/**
- * Region mapy z zapisu w treści. Nieznany zapis wraca do Europy, a NIE rzuca -
- * tak samo, jak nieznany wariant słupka niżej: konfiguracja bloku pochodzi
- * z bazy i bywa z przyszłej albo cofniętej wersji edytora, a mapa jest blokiem
- * treści redakcyjnej, więc jej rzut wywraca cały wpis.
- *
- * Wcześniej stało tu `regionRaw === "world" ? "world" : "europe"`. To NIE JEST
- * ta sama funkcja: porównanie z dwoma literałami degraduje do Europy każdy
- * region, którego akurat nie wymieniono - więc po dopisaniu Azji do typu,
- * edytora i słownika mapa i tak rysowałaby Europę, bez jednego błędu
- * kompilacji po drodze.
- */
-export function parseMapRegion(raw: Json | undefined): MapRegion {
-  const value = String(raw ?? "");
-  return isMapRegion(value) ? value : "europe";
-}
-
 export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
+  const regionRaw = String(data.region ?? "");
+  const region: MapRegion = regionRaw === "world" ? "world" : "europe";
   return {
-    region: parseMapRegion(data.region),
+    region,
     title: String(data.title ?? ""),
     description: String(data.description ?? ""),
     unit: String(data.unit ?? ""),

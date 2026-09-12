@@ -24,12 +24,9 @@
 // plikiem; atrapa w tym miejscu dowodziłaby wyłącznie własnej treści.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
-import { GEO_ASSET_URL, MAP_REGIONS, type GeoAsset } from "@/lib/charts/types";
+import { GEO_ASSET_URL, type GeoAsset, type MapRegion } from "@/lib/charts/types";
 
-// Lista idzie ze ŹRÓDŁA, a nie z dwóch literałów przepisanych tutaj: każdy
-// region dodany do `MAP_REGIONS` ma od razu przejść te same trzy własności
-// klucza i czasów życia, zamiast czekać, aż ktoś dopisze go także w tym pliku.
-const REGIONS = MAP_REGIONS;
+const REGIONS: MapRegion[] = ["europe", "world"];
 
 function asset(): GeoAsset {
   return {
@@ -115,9 +112,8 @@ describe("pobranie zasobu", () => {
     }
   });
 
-  it("adresy regionów są RÓŻNE - jeden plik dla dwóch byłby błędem danych", () => {
-    const adresy = REGIONS.map((r) => GEO_ASSET_URL[r]);
-    expect(new Set(adresy).size).toBe(REGIONS.length);
+  it("adresy obu regionów są RÓŻNE - jeden plik dla obu byłby błędem danych", () => {
+    expect(GEO_ASSET_URL.europe).not.toBe(GEO_ASSET_URL.world);
   });
 
   it("poprawna odpowiedź oddaje sparsowany zasób, a nie samą `Response`", async () => {

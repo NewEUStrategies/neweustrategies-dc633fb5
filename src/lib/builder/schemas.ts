@@ -4,38 +4,6 @@
 import type { WidgetType } from "./types";
 import { asBool } from "@/lib/content-model/contentValue";
 import { SOCIAL_IDLE_ICON_COLOR } from "./socialBrand";
-import { MAP_REGIONS, type MapRegion } from "@/lib/charts/types";
-
-/**
- * Regiony map (`data-map`, `feature-corridor-map`) - opcje WYPROWADZONE
- * z `MAP_REGIONS`, nie wpisane ręcznie.
- *
- * Schemat sam w sobie wymaga literałów: to zwykłe dane, a `options` nie ma
- * jak wiedzieć, że akurat te napisy są regionami. Ale literałem musi być tylko
- * ETYKIETA, i to wystarczy, żeby TypeScript przypilnował całości: tablica jest
- * typowana `Record<MapRegion, string>`, więc region dopisany do źródła bez
- * polskiej etykiety NIE SKOMPILUJE SIĘ, a etykieta dla regionu, którego nie ma
- * w źródle, jest niewyrażalna. Bramka
- * `src/lib/charts/__tests__/mapRegions.test.ts` sprawdza to samo od strony
- * PANELU (czy opcja rzeczywiście dojeżdża do pola `region` obu widgetów) -
- * kompilator pilnuje tablicy, bramka pilnuje tego, że ktoś jej użył.
- *
- * Etykiety są po polsku, bo schemat trzyma napisy ŹRÓDŁOWE; na angielskie
- * mapuje je `BUILDER_LABELS_EN` (i pilnuje tego bramka `labelsEn.test.ts`).
- */
-const MAP_REGION_LABEL_PL: Record<MapRegion, string> = {
-  europe: "Europa",
-  world: "Świat",
-  africa: "Afryka",
-  asia: "Azja",
-  "north-america": "Ameryka Północna",
-  "south-america": "Ameryka Południowa",
-  oceania: "Oceania",
-};
-
-const MAP_REGION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = MAP_REGIONS.map(
-  (value) => ({ value, label: MAP_REGION_LABEL_PL[value] }),
-);
 
 /**
  * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
@@ -884,7 +852,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "source", type: "i18nText", label: "Źródło danych" },
   ],
   "data-map": [
-    { key: "region", type: "select", label: "Region", options: MAP_REGION_OPTIONS },
+    {
+      key: "region",
+      type: "select",
+      label: "Region",
+      options: [
+        { value: "europe", label: "Europa" },
+        { value: "world", label: "Świat" },
+      ],
+    },
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
     {
@@ -1121,7 +1097,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   "feature-corridor-map": [
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
-    { key: "region", type: "select", label: "Region", options: MAP_REGION_OPTIONS },
+    {
+      key: "region",
+      type: "select",
+      label: "Region",
+      options: [
+        { value: "europe", label: "Europa" },
+        { value: "world", label: "Świat" },
+      ],
+    },
     {
       key: "corridors",
       type: "textarea",

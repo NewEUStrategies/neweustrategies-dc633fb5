@@ -289,61 +289,7 @@ export interface ChartMetric {
   caution: string;
 }
 
-/**
- * REGIONY MAPY - JEDNO ŹRÓDŁO, DOKŁADNIE TYM SAMYM WZORCEM CO `CHART_KINDS`
- * WYŻEJ (i z tego samego powodu - patrz tamten komentarz).
- *
- * Wcześniej stała tu unia dwóch literałów, a lista regionów żyła jeszcze
- * w pięciu miejscach poza typem. Dopisanie regionu nie wywoływało w nich ani
- * jednego błędu kompilacji, a każda z tych powierzchni psuła się inaczej:
- * edytor bloku po prostu nie oferował regionu, parser degradował go do Europy
- * (autor widział Europę zamiast Azji, bez słowa ostrzeżenia), a słownik
- * pokazywał surowy klucz.
- *
- * Tablica jest ŹRÓDŁEM, typ jest z niej WYPROWADZONY. `GEO_ASSET_URL` niżej
- * i `REGION_ASPECT_FALLBACK` w `geoAspect.ts` są typowane `Record<MapRegion,
- * ...>`, więc region bez adresu zasobu albo bez aspektu startowego NIE
- * SKOMPILUJE SIĘ - tych dwóch kopii nie trzeba niczym pilnować.
- *
- * POZOSTAŁE KOPIE TEJ LISTY - cztery - są poza zasięgiem TypeScriptu, bo to
- * powierzchnie autorskie i słowniki: edytor bloku CMS (`DataMapBlock`
- * w `DataVizBlocks.tsx`), schemat widgetu buildera (`schemas.ts`) oraz słownik
- * PL i EN (`i18n-admin-blocks.ts`). Ich zgodności z tą listą pilnuje bramka
- * `src/lib/charts/__tests__/mapRegions.test.ts`.
- */
-export const MAP_REGIONS = [
-  "europe",
-  "world",
-  "africa",
-  "asia",
-  "north-america",
-  "south-america",
-  "oceania",
-] as const;
-
-export type MapRegion = (typeof MAP_REGIONS)[number];
-
-/**
- * Czy napis jest znanym regionem mapy. Osobno od `parseMapRegion`, bo tamten
- * ZAWSZE zwraca region (degraduje nieznany zapis do Europy), a tu potrzebna
- * jest odpowiedź "nie wiem, o czym mówisz" - używa jej bramka regionów, która
- * sprawdza powierzchnie autorskie W DRUGĄ STRONĘ: czy nie oferują regionu,
- * którego typ nie zna.
- */
-export function isMapRegion(raw: unknown): raw is MapRegion {
-  return typeof raw === "string" && (MAP_REGIONS as readonly string[]).includes(raw);
-}
-
-/**
- * Klucz słownikowy regionu. Identyfikatory są w kebab-case (jadą do treści
- * bloku), a klucze i18n w camelCase - konwersja jest CZĘŚCIĄ KONTRAKTU, tak
- * samo jak przy rodzajach wykresu (`bar-horizontal` -> `barHorizontal`).
- * Stoi tu, a nie w edytorze, żeby bramka i edytor liczyły ten sam klucz
- * z tej samej funkcji, zamiast dwa razy zgadywać tę samą regułę.
- */
-export function mapRegionLabelKey(region: MapRegion): string {
-  return region.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-}
+export type MapRegion = "europe" | "world";
 
 export interface MapDatum {
   /** ISO 3166-1 alpha-2 (wielkie litery). */
@@ -396,18 +342,7 @@ export interface GeoAsset {
   countries: GeoAssetCountry[];
 }
 
-/**
- * Adres zasobu geometrii per region. Wersja siedzi W NAZWIE PLIKU (`.v1.`),
- * więc zasób nigdy nie twardnieje w cache'u - patrz `staleTime: Infinity`
- * w `geoQuery.ts`. Świat jedzie na 110m (mniej szczegółu wystarczy przy tej
- * skali i oszczędza setki kilobajtów), kontynenty na 50m.
- */
 export const GEO_ASSET_URL: Record<MapRegion, string> = {
   europe: "/geo/europe-50m.v1.json",
   world: "/geo/world-110m.v1.json",
-  africa: "/geo/africa-50m.v1.json",
-  asia: "/geo/asia-50m.v1.json",
-  "north-america": "/geo/north-america-50m.v1.json",
-  "south-america": "/geo/south-america-50m.v1.json",
-  oceania: "/geo/oceania-50m.v1.json",
 };
