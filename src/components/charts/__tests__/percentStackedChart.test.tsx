@@ -526,9 +526,9 @@ describe("PercentStackedChart - wypełnienie segmentów", () => {
     );
     const segmenty = all(container, SEG);
     expect(segmenty).toHaveLength(2);
-    expect(segmenty.every((segment) => segment.getAttribute("fill")?.startsWith("var(--chart-"))).toBe(
-      true,
-    );
+    expect(
+      segmenty.every((segment) => segment.getAttribute("fill")?.startsWith("var(--chart-")),
+    ).toBe(true);
     expect(container.querySelector("pattern[id$='-hatch']")).toBeNull();
   });
 

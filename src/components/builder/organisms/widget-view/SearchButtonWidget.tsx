@@ -623,11 +623,7 @@ export function SearchButtonWidget({
                             backgroundColor: "color-mix(in oklab, var(--brand) 14%, transparent)",
                           }}
                         >
-                          <Icon
-                            className="h-3 w-3"
-                            aria-hidden
-                            style={{ color: "var(--brand)" }}
-                          />
+                          <Icon className="h-3 w-3" aria-hidden style={{ color: "var(--brand)" }} />
                         </span>
                         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                           {bucketLabel(bucket)}
@@ -709,7 +705,9 @@ export function SearchButtonWidget({
                                     />
                                   </span>
                                 )}
-                                <span className="min-w-0 flex-1 truncate font-medium">{itemLabel(it)}</span>
+                                <span className="min-w-0 flex-1 truncate font-medium">
+                                  {itemLabel(it)}
+                                </span>
                                 {kindLabel && (
                                   <span
                                     data-typography-exempt

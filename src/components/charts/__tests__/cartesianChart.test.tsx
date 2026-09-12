@@ -1621,9 +1621,9 @@ describe("CartesianChart - paleta i izolacja konfiguracji", () => {
     );
     const sciezki = all(container, SEL.bar);
     expect(sciezki).toHaveLength(4);
-    expect(sciezki.every((bar) => (bar.getAttribute("fill") ?? "").startsWith("var(--chart-"))).toBe(
-      true,
-    );
+    expect(
+      sciezki.every((bar) => (bar.getAttribute("fill") ?? "").startsWith("var(--chart-")),
+    ).toBe(true);
     expect(container.querySelector("pattern[id*='neh-hatch']")).toBeNull();
   });
 

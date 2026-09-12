@@ -67,7 +67,14 @@ vi.mock("@tanstack/react-start", async (importOriginal) => {
   const { serverFnStubModule } = await import("@/test/serverFnHarness");
   return { ...actual, ...serverFnStubModule(), useServerFn: () => async () => ({}) };
 });
+// `MediaPickerDialog` woła też `bulkDeleteMedia` i `bulkMoveMedia`. Atrapa,
+// która ich nie definiuje, wywraca KAŻDY test montujący cokolwiek z pickerem
+// w środku - a nie sam picker, więc komunikat pada w miejscu zupełnie
+// niezwiązanym z tym, co się zepsuło. Atrapa musi pokrywać PEŁNY zestaw
+// importów komponentu, nie ten, który akurat był potrzebny przy jej pisaniu.
 vi.mock("@/lib/media.functions", () => ({
+  bulkDeleteMedia: async () => ({}),
+  bulkMoveMedia: async () => ({}),
   createMediaFolder: async () => ({}),
   registerMediaUpload: async () => ({}),
   updateMediaMeta: async () => ({}),

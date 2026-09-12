@@ -26,6 +26,8 @@ import {
   parseChartKind,
 } from "@/lib/charts/parse";
 import { parseChartData } from "@/lib/charts/csv";
+import { needsTextCellFix, safeTextCell, tableToChartData } from "@/lib/charts/importTable";
+import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
 import { asBool, asNumInRange } from "@/lib/content-model/contentValue";
 
 interface Props {
@@ -324,6 +326,45 @@ export function ChartDataSpreadsheetDialog({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-0 max-h-[70vh]">
           {/* Spreadsheet pane */}
           <div className="border-r overflow-auto p-4 space-y-3">
+            {/* IMPORT WYMIENIA CAŁĄ SIATKĘ, więc siedzi nad nią, a nie obok
+                „Dodaj wiersz". Ten dialog synchronizuje się z widgetem NA
+                ŻYWO (debounce 150 ms), więc import trafia do treści od razu -
+                drogą powrotną jest „Przywróć", który wraca do stanu z chwili
+                otwarcia arkusza. */}
+            <DataImportControl
+              onRows={(rows) => {
+                const dane = tableToChartData(rows);
+                // ETYKIETY MUSZĄ PRZEŻYĆ FORMAT ŚREDNIKOWY. Siatka wraca do
+                // widgetu przez `gridToCsv`, a ten format nie ma cytowania:
+                // kategoria „Kraków; Polska" rozpadłaby się na dwie kolumny
+                // i przesunęła wszystkie wartości w wierszu. Podmiana zmienia
+                // etykietę, więc jest policzona i zgłoszona, a nie cicha.
+                const poprawione = [...dane.series.map((s) => s.name), ...dane.categories].filter(
+                  needsTextCellFix,
+                ).length;
+
+                // Plik jednokolumnowy nie ma serii. Siatka bez ani jednej
+                // kolumny wartości jest nieedytowalna - nie ma gdzie kliknąć,
+                // żeby liczby wpisać - więc zostaje jedna pusta seria.
+                const nazwy =
+                  dane.series.length > 0
+                    ? dane.series.map((s) => safeTextCell(s.name))
+                    : ["Seria A"];
+                setGrid({
+                  seriesNames: nazwy,
+                  categories: dane.categories.map(safeTextCell),
+                  cells: dane.categories.map((_, ri) =>
+                    nazwy.map((_n, si) => {
+                      const v = dane.series[si]?.values[ri];
+                      return v === null || v === undefined ? "" : String(v);
+                    }),
+                  ),
+                });
+                return poprawione > 0
+                  ? [...dane.problems, { code: "labelsAdjusted" as const, count: poprawione }]
+                  : dane.problems;
+              }}
+            />
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"

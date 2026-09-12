@@ -1110,7 +1110,6 @@ export function ScatterChart({
               if (e.pointerType !== "touch") setActive(null);
             }}
           />
-
         </svg>
 
         <ChartTooltip

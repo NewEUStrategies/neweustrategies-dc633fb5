@@ -26,6 +26,7 @@ type FieldType =
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
+  | "mapData" // textarea "KOD; wartość" + import z pliku (xlsx/csv)
   | "stringArray" // textarea with one item per line
   | "i18nStringArray"; // textarea with one item per line, stored as `${key}_pl|_en`
 
@@ -864,7 +865,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
     {
       key: "data",
-      type: "textarea",
+      type: "mapData",
       label: "Dane per kraj",
       rows: 6,
       hint: 'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).',
