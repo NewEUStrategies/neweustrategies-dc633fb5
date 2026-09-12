@@ -2,13 +2,25 @@ import { lazy, useEffect, useState, type ComponentType } from "react";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { act } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { withSuspense } from "../lazySuspense";
 import { ThemeProvider, useTheme } from "@/components/ThemeProvider";
 
-it.each([false, true])(
-  "unrelated parent updates retain the pending SSR form (theme=%s)",
-  async (withTheme) => {
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    auth: {
+      getSession: async () => ({ data: { session: null } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+  },
+}));
+
+it.each(["none", "theme", "auth"])(
+  "unrelated parent updates retain the pending SSR form (provider=%s)",
+  async (provider) => {
+    const queryClient = new QueryClient();
     function Form({ title }: { title: string }) {
       return (
         <form aria-label={title}>
@@ -23,10 +35,16 @@ it.each([false, true])(
       }, []);
       return (
         <main data-ready={ready}>
-          {withTheme ? (
+          {provider === "theme" ? (
             <ThemeProvider>
               <ThemedWidget Widget={Widget} />
             </ThemeProvider>
+          ) : provider === "auth" ? (
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <AuthWidget Widget={Widget} />
+              </AuthProvider>
+            </QueryClientProvider>
           ) : (
             <Widget title="Contact" />
           )}
@@ -37,6 +55,14 @@ it.each([false, true])(
       const { theme } = useTheme();
       return (
         <div data-theme={theme}>
+          <Widget title="Contact" />
+        </div>
+      );
+    }
+    function AuthWidget({ Widget }: { Widget: ComponentType<{ title: string }> }) {
+      const { loading } = useAuth();
+      return (
+        <div data-loading={loading}>
           <Widget title="Contact" />
         </div>
       );
@@ -69,6 +95,7 @@ it.each([false, true])(
     } finally {
       release({ default: Form });
       await act(async () => root.unmount());
+      queryClient.clear();
       host.remove();
     }
   },

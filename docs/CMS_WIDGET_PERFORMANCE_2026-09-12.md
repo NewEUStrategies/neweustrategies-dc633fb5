@@ -267,6 +267,13 @@ motywu. Test zachowania formularza przechodzi z dostawcą motywu i bez niego;
 testy przełączania motywu nadal wymagają natychmiastowej reakcji CSS oraz
 zachowania widocznej treści przy oczekującym imporcie.
 
+Ta sama regresja została odtworzona dla niezmienionego kontekstu `AuthProvider`.
+Wartość i callback wylogowania mają stabilne referencje; zmiany sesji, ról,
+tenanta i stanu ładowania nadal powiadamiają konsumentów. Nie zmieniono zasad
+autoryzacji, czyszczenia cache ani pilności wylogowania. Test oczekującego
+formularza obejmuje teraz brak dostawcy, motyw oraz sesję anonimową.
+Wraz z istniejącymi testami uwierzytelniania zalicza 23/23 przypadki.
+
 ## Odbiór implementacji
 
 Etap 1 jest zaimplementowany. Etap 2 obejmuje stanowisko A/B oraz naprawy
