@@ -52,7 +52,16 @@
  *
  * Usage: bun run scripts/check-bundle-size.ts   (run after `bun run build`)
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
+import { spawnSync } from "node:child_process";
+import {
+  type Dirent,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, join } from "node:path";
 
 // The client build dir differs by adapter (Nitro/TanStack Start -> .output/public,
@@ -1714,7 +1723,7 @@ function isAdminRoot(file: string): boolean {
  */
 function walkAssets(dir: string, ext: string): string[] {
   let out: string[] = [];
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
@@ -1738,7 +1747,7 @@ function walkCss(dir: string): string[] {
 }
 
 function gzipKb(file: string): number {
-  return Bun.gzipSync(readFileSync(file)).length / 1024;
+  return gzipSync(readFileSync(file)).length / 1024;
 }
 
 /**
@@ -2070,7 +2079,9 @@ if (errors.length) {
 
 // ── Baseline: jawna aktualizacja ─────────────────────────────────────────────
 if (process.argv.includes("--update-baseline")) {
-  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
+  const revision = spawnSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" });
+  // Standalone artifact fixtures have no repository; do not invent a revision.
+  const commit = revision.status === 0 ? revision.stdout.trim() : "unversioned";
   const snapshot: BaselineFile = {
     measuredAt: new Date().toISOString(),
     commit,

@@ -123,7 +123,9 @@ describe("stopka maili systemowych czyta te same adresy", () => {
 });
 
 describe("PARYTET: migracja stopki wpisuje dokladnie te adresy", () => {
-  const sql = readFileSync(FOOTER_MIGRATION, "utf8");
+  const sql =
+    readFileSync(FOOTER_MIGRATION, "utf8") +
+    readFileSync("supabase/migrations/20260912102000_footer_youtube_profile.sql", "utf8");
 
   it("kazdy znany profil pojawia sie w migracji doslownie", () => {
     for (const platform of NES_SOCIAL_PLATFORMS) {

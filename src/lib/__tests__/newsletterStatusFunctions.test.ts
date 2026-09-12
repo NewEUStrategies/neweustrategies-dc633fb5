@@ -23,6 +23,7 @@ import { ok, fail, supabaseFromStub, type RecordedChain } from "@/test/supabaseC
 import { callServerFn, serverFnMiddlewareNames } from "@/test/serverFnHarness";
 
 const h = vi.hoisted(() => ({
+  rpc: vi.fn(),
   resolveTenantIdForHost: vi.fn(),
   currentTenantHost: vi.fn(),
 }));
@@ -34,7 +35,7 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (table: string) => db.from(table) },
+  supabaseAdmin: { from: (table: string) => db.from(table), rpc: h.rpc },
 }));
 vi.mock("@/lib/server/tenant.server", () => ({
   resolveTenantIdForHost: h.resolveTenantIdForHost,
@@ -87,6 +88,7 @@ const PUSTY: MyNewsletterStatus = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.rpc.mockReset().mockResolvedValue({ data: null, error: null });
   db.reset();
   db.setResponse(SUBSCRIBERS, (chain: RecordedChain) =>
     chain.has("update") ? ok(null) : ok(wiersz()),
@@ -432,4 +434,20 @@ describe("dopisanie tematów do własnej subskrypcji", () => {
     ).rejects.toThrow();
     expect(db.chains).toHaveLength(0);
   });
+});
+
+it("keeps saved preferences when CRM returns an error", async () => {
+  h.rpc.mockResolvedValue({ data: null, error: { message: "CRM unavailable" } });
+  db.setResponse(SUBSCRIBERS, (chain) =>
+    chain.has("update") ? ok(null) : ok(wiersz({ user_id: "member" })),
+  );
+  const result = await callServerFn(updateMyNewsletterTopics, {
+    data: { topics: ["energia"] },
+    context: { ...sesja(), userId: "member" },
+  });
+  expect(result).toEqual({ ok: true });
+  expect(h.rpc).toHaveBeenCalledWith(
+    "crm_upsert_from_form",
+    expect.objectContaining({ _email: "anna.nowak@example.test" }),
+  );
 });

@@ -436,3 +436,14 @@ describe("KpiTile - izolacja warsztatów i dostępność", () => {
     expect(summarize(naruszenia)).toBe("");
   });
 });
+
+describe("incomplete sparkline observations", () => {
+  it("omits a trend when fewer than two finite observations remain", () => {
+    const { container } = kafelek({ series: [NaN, 2, Infinity] });
+    expect(container.querySelector('svg[data-role="sparkline"]')).toBeNull();
+  });
+  it("keeps mixed finite and missing observations from emitting invalid SVG", () => {
+    kafelek({ series: [1, NaN, 3] });
+    expect(sciezka()).not.toMatch(/NaN|Infinity/);
+  });
+});

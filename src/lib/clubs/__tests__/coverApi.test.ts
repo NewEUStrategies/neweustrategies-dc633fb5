@@ -347,7 +347,9 @@ describe("wgranie okładki: ścieżka szczęśliwa", () => {
     expect(clubRpc.names()).toEqual(["club_set_cover"]);
     const wywolanie = clubRpc.lastCall("club_set_cover");
     expect(wywolanie?.arg("p_club_id")).toBe(CLUB_IDS.club);
-    expect(wywolanie?.arg("p_url")).toBe(url);
+    expect(wywolanie?.arg("p_url")).toBe(
+      `https://neweuropeanstrategies.com/media/club-covers/${CLUB_IDS.club}/nowa.png`,
+    );
     expect(wywolanie?.keys()).toEqual(["p_club_id", "p_url"]);
   });
 

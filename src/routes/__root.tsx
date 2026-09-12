@@ -1,3 +1,4 @@
+import { createBackgroundScope } from "@/lib/backgroundScope";
 import { RouteLoadingSkeleton } from "../lib/ssr/RouteLoadingSkeleton";
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import { isServer } from "@tanstack/router-core/isServer";
@@ -617,19 +618,17 @@ function ClientObservability() {
   // consent (RODO/GDPR).
   useEffect(() => {
     if (!consentMounted || !categories.analytics) return;
-    let cleanup: (() => void) | undefined;
-    let cancelled = false;
+    const background = createBackgroundScope();
     // Prerender (Speculation Rules) nie jest wizytą: telemetria startuje
     // dopiero przy aktywacji strony, inaczej hover zawyżałby RUM.
     const stopPrerenderWait = afterPrerendering(() => {
-      void import("../lib/observability").then((m) => {
-        if (!cancelled) cleanup = m.initObservability();
+      void background.run(import("../lib/observability"), (m) => {
+        return m.initObservability();
       });
     });
     return () => {
-      cancelled = true;
+      background.dispose();
       stopPrerenderWait();
-      cleanup?.();
     };
   }, [consentMounted, categories.analytics]);
 
@@ -640,12 +639,12 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    const background = createBackgroundScope();
     // Preview iframe watchdog: reload when the editor preview hangs on boot
     // or the main thread freezes for too long. No-op outside iframes - dlatego
     // ten sam test co wewnątrz modułu wykonujemy PRZED importem: produkcyjny
     // czytelnik (poza iframe'em edytora) nie pobiera i nie parsuje chunku,
     // który i tak zrobiłby no-op w oknie tuż po hydratacji.
-    let stopWatchdog: (() => void) | undefined;
     const inPreviewIframe = (() => {
       try {
         return window.self !== window.top;
@@ -663,8 +662,8 @@ function RootComponent() {
     // strona nigdy nie jest przeładowywana pod prawdziwym czytelnikiem.
     markAppReady();
     if (inPreviewIframe) {
-      void import("../lib/watchdog/previewWatchdog").then((m) => {
-        stopWatchdog = m.startPreviewWatchdog();
+      void background.run(import("../lib/watchdog/previewWatchdog"), (m) => {
+        return m.startPreviewWatchdog();
       });
     }
     // Attribute Web Vitals to the correct subpage on soft navigations
@@ -672,7 +671,7 @@ function RootComponent() {
     // accumulators before switching so LCP/CLS/INP land per URL.
     let lastPath = typeof window !== "undefined" ? window.location.pathname : "/";
     const unsub = router.subscribe("onResolved", () => {
-      void import("../lib/webVitals").then((m) => {
+      void background.run(import("../lib/webVitals"), (m) => {
         const nextPath = window.location.pathname;
         if (nextPath !== lastPath) {
           m.markWebVitalsPage(nextPath);
@@ -681,7 +680,9 @@ function RootComponent() {
       });
       // Silnik analityki: page_view przy każdym rozwiązanym routingu
       // (SPA + first paint). Fire-and-forget, respektuje zgodę analytics.
-      void import("../lib/analytics/track").then((m) => m.trackPageView());
+      void background.run(import("../lib/analytics/track"), (m) => {
+        m.trackPageView();
+      });
     });
 
     // Cache-busting: chunk-load errors -> jednorazowy hard reload; polling
@@ -689,10 +690,9 @@ function RootComponent() {
     // się nowy deploy. Odroczone do bezczynności (whenIdle): setup pollingu
     // nie ma żadnej pilności w pierwszych sekundach wizyty, a jego fetch+parse
     // konkurował z dekodowaniem LCP i fontami tuż po hydratacji.
-    let stopCacheBusting: (() => void) | undefined;
     const cancelCacheBustingIdle = whenIdle(() => {
-      void import("../lib/cacheBusting").then((m) => {
-        stopCacheBusting = m.startCacheBusting(router);
+      void background.run(import("../lib/cacheBusting"), (m) => {
+        return m.startCacheBusting(router);
       });
     }, 3000);
 
@@ -702,20 +702,17 @@ function RootComponent() {
     // > 30 s, sam prosi powłokę o wznowienie, a w ostateczności przeładowuje
     // dokument z odtworzeniem trasy i pozycji scrolla. Poza kontekstem podglądu
     // (produkcyjna domena, nie w iframie) nie startuje w ogóle.
-    let stopPreviewHeartbeat: (() => void) | undefined;
     const cancelHeartbeatIdle = whenIdle(() => {
-      void import("../lib/preview/sessionHeartbeat").then((m) => {
-        stopPreviewHeartbeat = m.startPreviewHeartbeat(router);
+      void background.run(import("../lib/preview/sessionHeartbeat"), (m) => {
+        return m.startPreviewHeartbeat(router);
       });
     }, 3000);
 
     return () => {
+      background.dispose();
       unsub();
       cancelCacheBustingIdle();
       cancelHeartbeatIdle();
-      stopWatchdog?.();
-      stopCacheBusting?.();
-      stopPreviewHeartbeat?.();
     };
   }, [router]);
 

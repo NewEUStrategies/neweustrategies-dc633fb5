@@ -11007,6 +11007,39 @@ export type Database = {
           },
         ]
       }
+      member_crm_sync_pending: {
+        Row: {
+          tenant_id: string
+          user_id: string
+          tier_key: string | null
+          actor_id: string | null
+          reason: string
+          requested_at: string
+          attempts: number
+          last_error_code: string | null
+        }
+        Insert: {
+          tenant_id: string
+          user_id: string
+          tier_key?: string | null
+          actor_id?: string | null
+          reason: string
+          requested_at?: string
+          attempts?: number
+          last_error_code?: string | null
+        }
+        Update: {
+          tenant_id?: string
+          user_id?: string
+          tier_key?: string | null
+          actor_id?: string | null
+          reason?: string
+          requested_at?: string
+          attempts?: number
+          last_error_code?: string | null
+        }
+        Relationships: []
+      }
       membership_grants: {
         Row: {
           created_at: string
@@ -23498,6 +23531,14 @@ export type Database = {
       }
       crm_import_leads: {
         Args: { p_rows: Json; p_source?: string }
+        Returns: Json
+      }
+      crm_ensure_member_company: {
+        Args: { p_tenant_id: string; p_name: string; p_actor_id?: string | null }
+        Returns: { id: string; created: boolean }[]
+      }
+      crm_sync_member: {
+        Args: { p_user_id: string; p_tenant_id: string; p_tier_key: string | null; p_actor_id: string | null; p_reason: string }
         Returns: Json
       }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }

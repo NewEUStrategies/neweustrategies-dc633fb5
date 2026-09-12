@@ -217,6 +217,10 @@ vi.mock("@/lib/clubs/publicClub", () => ({
     return Promise.resolve(h.loaded);
   },
 }));
+// The route owns the thread; the club frame has its own integration tests.
+vi.mock("@/components/clubs/organisms/ClubPageFrame", () => ({
+  ClubPageFrame: ({ children }: { children: import("react").ReactNode }) => <>{children}</>,
+}));
 vi.mock("@/lib/clubs/useClubTopics", () => ({ useClubTopics: () => ({ topics: h.topics }) }));
 vi.mock("@/lib/clubs/useClubWorkspace", () => ({
   useClubThreadWorkspace: (threadId?: string) => {

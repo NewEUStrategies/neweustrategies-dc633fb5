@@ -1,3 +1,4 @@
+import "@/lib/i18n-club";
 // Powłoka strony klubu dla widoków SZCZEGÓŁOWYCH (np. wątku).
 //
 // Hub klubu (`ClubHub`) rysuje trzy kolumny: nawigację, strumień i kontekst.
@@ -6,7 +7,7 @@
 // same dwie szyny, a w środku - zamiast kompozytora i strumienia - stawia
 // treść przekazaną w `children`. Dzięki temu wątek otwiera się DOKŁADNIE
 // w miejscu, w którym stała lista, a kontekst klubu zostaje na ekranie.
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ClubHubIdentity } from "@/components/clubs/molecules/ClubHubIdentity";
@@ -54,7 +55,8 @@ export function ClubPageFrame({
 
   const groupsQ = useClubGroups(club.id);
   const documentsQ = useClubDocuments({ clubId: club.id, groupId: null, limit: 6 });
-  const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
+  const [eventsFrom] = useState(() => new Date().toISOString());
+  const eventsQ = useClubEvents({ clubId: club.id, from: eventsFrom, limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
 
   const groups = useMemo(() => groupsQ.data ?? [], [groupsQ.data]);

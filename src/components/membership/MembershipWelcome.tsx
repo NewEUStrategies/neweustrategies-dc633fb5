@@ -18,6 +18,8 @@ import {
   type TierBenefit,
 } from "@/lib/billing/tiers";
 
+const BRAND_NAME = "New European Strategies";
+
 type ThemeLogoCfg = {
   logo?: { main?: string; main_dark?: string; mobile?: string; mobile_dark?: string };
 };
@@ -40,7 +42,7 @@ function BrandMark() {
   return (
     <img
       src={src}
-      alt="New European Strategies"
+      alt={BRAND_NAME}
       className="h-6 w-auto shrink-0 object-contain"
       loading="lazy"
       decoding="async"
@@ -138,9 +140,7 @@ export function MembershipWelcome({ mode = "activated" }: { mode?: WelcomeMode }
       <div className="rounded-[6px] border bg-card p-6 sm:p-8">
         <div className="flex items-center gap-2 text-primary">
           <BrandMark />
-          <span className="text-xs font-semibold uppercase tracking-[0.14em]">
-            New European Strategies
-          </span>
+          <span className="text-xs font-semibold uppercase tracking-[0.14em]">{BRAND_NAME}</span>
         </div>
         <h1 className="mt-3 text-2xl font-semibold leading-tight sm:text-3xl">{copy.title}</h1>
         <p className="mt-2 text-muted-foreground">{copy.subtitle}</p>

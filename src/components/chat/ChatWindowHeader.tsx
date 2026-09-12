@@ -129,6 +129,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
           </div>
           <div className="truncate text-[11px] leading-tight text-muted-foreground">
             {directSubtitleText}
+            {profileMeta?.trim() ? <span className="sr-only">{subtitleText}</span> : null}
           </div>
         </div>
       </>
@@ -171,7 +172,10 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
             <span className="truncate">{name}</span>
             {badges}
           </div>
-          <div className="truncate text-[11px] text-muted-foreground">{directSubtitleText}</div>
+          <div className="truncate text-[11px] text-muted-foreground">
+            {directSubtitleText}
+            {profileMeta?.trim() ? <span className="sr-only">{subtitleText}</span> : null}
+          </div>
         </div>
       </div>
     );

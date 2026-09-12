@@ -216,6 +216,7 @@ export const clubKeys = {
     /** Zakres rodzajow (A29): produkty vs materialy. Musi byc CZESCIA klucza -
      *  bez tego "Dorobek" i "Materialy" czytalyby ten sam wpis cache. */
     scope: string = "all",
+    limit: number = 50,
   ) =>
     [
       ...clubKeys.club(clubId),
@@ -225,6 +226,7 @@ export const clubKeys = {
       search,
       offset,
       scope,
+      limit,
     ] as const,
   /** Prefiks wszystkich wariantow biblioteki - mutacja nie zna filtrow,
    *  ktore czytelnik ma otwarte. */
@@ -243,8 +245,14 @@ export const clubKeys = {
 
   /** Kalendarz. Zakres jest czescia klucza, bo przejscie na kolejny miesiac
    *  to INNE zapytanie, a nie odswiezenie tego samego. */
-  events: (clubId: string, from: string | null, to: string | null, kind: string | null) =>
-    [...clubKeys.club(clubId), "events", from ?? "any", to ?? "any", kind ?? "all"] as const,
+  events: (
+    clubId: string,
+    from: string | null,
+    to: string | null,
+    kind: string | null,
+    limit: number = 200,
+  ) =>
+    [...clubKeys.club(clubId), "events", from ?? "any", to ?? "any", kind ?? "all", limit] as const,
   eventsAll: (clubId: string) => [...clubKeys.club(clubId), "events"] as const,
 
   clubMilestones: (clubId: string) => [...clubKeys.club(clubId), "milestones"] as const,

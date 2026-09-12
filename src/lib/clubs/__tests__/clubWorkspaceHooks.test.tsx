@@ -1508,3 +1508,29 @@ describe("wymuszony refetch bez identyfikatora klubu - warstwa sieci", () => {
     expect(networkApiMock.fetchClubEventAttendees).toHaveBeenCalledWith("", 12);
   });
 });
+
+describe("workspace page sizes have independent cache entries", () => {
+  it("fetches the full library after the six-document preview is cached", async () => {
+    const { wrapper } = harness();
+    workspaceApiMock.fetchClubDocuments.mockImplementation(async ({ limit }) => ({
+      rows: [],
+      total: limit ?? 50,
+    }));
+    const preview = renderHook(() => useClubDocuments({ clubId: CLUB, limit: 6 }), { wrapper });
+    await waitFor(() => expect(preview.result.current.data?.total).toBe(6));
+    const library = renderHook(() => useClubDocuments({ clubId: CLUB, limit: 30 }), { wrapper });
+    await waitFor(() => expect(library.result.current.data?.total).toBe(30));
+    expect(preview.result.current.data?.total).toBe(6);
+    expect(workspaceApiMock.fetchClubDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an event preview separate from the complete calendar", async () => {
+    const { wrapper } = harness();
+    workspaceApiMock.fetchClubEvents.mockResolvedValue([]);
+    const preview = renderHook(() => useClubEvents({ clubId: CLUB, limit: 12 }), { wrapper });
+    await waitFor(() => expect(preview.result.current.isSuccess).toBe(true));
+    const calendar = renderHook(() => useClubEvents({ clubId: CLUB, limit: 200 }), { wrapper });
+    await waitFor(() => expect(calendar.result.current.isSuccess).toBe(true));
+    expect(workspaceApiMock.fetchClubEvents).toHaveBeenCalledTimes(2);
+  });
+});

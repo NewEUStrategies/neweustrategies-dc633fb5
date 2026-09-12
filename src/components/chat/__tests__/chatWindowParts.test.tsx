@@ -116,7 +116,7 @@ describe("ChatWindowHeader", () => {
       <ChatWindowHeader {...headerProps({ profileMeta: "Analityczka - Instytut Przykładowy" })} />,
     );
     expect(screen.getByText("Analityczka - Instytut Przykładowy")).toBeTruthy();
-    expect(screen.queryByText(chatPl.chat.offline)).toBeNull();
+    expect(screen.getByText(chatPl.chat.offline).classList.contains("sr-only")).toBe(true);
   });
 
   it("puste dane zawodowe zachowują status dostępności", () => {

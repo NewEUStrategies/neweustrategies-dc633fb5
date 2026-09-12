@@ -713,9 +713,10 @@ describe("poprawki z przeglądu adwersaryjnego", () => {
     expect(tozsamosc).toBeLessThan(kluby);
   });
 
-  it("CODEOWNERS nie zawiera aktywnej reguły wskazującej samą organizację", () => {
+  it("CODEOWNERS aktywuje wskazane konto właściciela biznesowego", () => {
     const rendered = renderCodeowners(parseRegistry(registryJson()));
-    expect(rendered).not.toMatch(/^\/governance\/ @NewEUStrategies$/m);
+    expect(rendered).toMatch(/^\/governance\/ @NewEUStrategies$/m);
+    expect(rendered).toMatch(/^\* @NewEUStrategies$/m);
   });
 });
 

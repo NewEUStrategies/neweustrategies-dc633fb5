@@ -17,6 +17,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
+import { runMemberSyncBatch, type MemberSyncBatchResult } from "@/lib/crm/memberSyncBatch";
 import { syncMemberToCrm } from "@/lib/crm/memberSync.server";
 
 export interface MemberDirectoryRow {
@@ -410,7 +411,7 @@ export const getMemberBilling = createServerFn({ method: "GET" })
 export const setMemberTier = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => GrantSchema.parse(input))
-  .handler(async ({ data, context }): Promise<{ grantId: string }> => {
+  .handler(async ({ data, context }): Promise<{ grantId: string; crmSynced: boolean }> => {
     const tenantId = await callerTenant(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -480,7 +481,7 @@ export const setMemberTier = createServerFn({ method: "POST" })
       metadata: { tier_key: data.tierKey, months: data.months, user_id: data.userId },
     });
 
-    await syncMemberToCrm(supabaseAdmin, {
+    const crm = await syncMemberToCrm(supabaseAdmin, {
       userId: data.userId,
       tenantId,
       tierKey: data.tierKey,
@@ -488,14 +489,14 @@ export const setMemberTier = createServerFn({ method: "POST" })
       reason: "manual_grant",
     });
 
-    return { grantId: inserted.id };
+    return { grantId: inserted.id, crmSynced: crm !== null };
   });
 
 /** Cofnięcie ręcznego nadania - warstwa wraca do wyniku subskrypcji/progu domyślnego. */
 export const revokeMemberTier = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => z.object({ grantId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+  .handler(async ({ data, context }): Promise<{ ok: true; crmSynced: boolean }> => {
     const tenantId = await callerTenant(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: revoked, error } = await supabaseAdmin
@@ -517,17 +518,19 @@ export const revokeMemberTier = createServerFn({ method: "POST" })
       metadata: {},
     });
 
+    let crmSynced = true;
     if (revoked?.user_id) {
-      await syncMemberToCrm(supabaseAdmin, {
+      const crm = await syncMemberToCrm(supabaseAdmin, {
         userId: revoked.user_id,
         tenantId,
         tierKey: null,
         actorId: (context as { userId: string }).userId,
         reason: "manual_revoke",
       });
+      crmSynced = crm !== null;
     }
 
-    return { ok: true };
+    return { ok: true, crmSynced };
   });
 
 /**
@@ -539,39 +542,40 @@ export const revokeMemberTier = createServerFn({ method: "POST" })
  */
 export const syncMembersWithCrm = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .handler(async ({ context }): Promise<{ people: number; companies: number }> => {
+  .validator((input: unknown) =>
+    z
+      .object({
+        cursor: z.string().uuid().nullable().default(null),
+        batchSize: z.number().int().min(1).max(100).default(25),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }): Promise<MemberSyncBatchResult> => {
     const tenantId = await callerTenant(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const actorId = (context as { userId: string }).userId;
-
-    const { data: profiles } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email, current_company")
-      .eq("tenant_id", tenantId)
-      .not("email", "is", null)
-      .limit(2000);
-
-    const { count: companiesBefore } = await supabaseAdmin
-      .from("crm_companies")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId);
-
-    let people = 0;
-    for (const profile of profiles ?? []) {
-      const snapshot = await syncMemberToCrm(supabaseAdmin, {
-        userId: profile.id,
-        tenantId,
-        tierKey: null,
-        actorId,
-        reason: "backfill",
-      });
-      if (snapshot?.leadId) people += 1;
-    }
-
-    const { count: companiesAfter } = await supabaseAdmin
-      .from("crm_companies")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId);
-
-    return { people, companies: (companiesAfter ?? 0) - (companiesBefore ?? 0) };
+    const actorId = context.userId;
+    return runMemberSyncBatch({
+      cursor: data.cursor,
+      limit: data.batchSize,
+      readPage: async (cursor, limit) => {
+        let query = supabaseAdmin
+          .from("profiles")
+          .select("id, email")
+          .eq("tenant_id", tenantId)
+          .order("id", { ascending: true })
+          .limit(limit);
+        if (cursor) query = query.gt("id", cursor);
+        const { data: profiles, error } = await query;
+        if (error) throw error;
+        return profiles ?? [];
+      },
+      sync: (userId) =>
+        syncMemberToCrm(supabaseAdmin, {
+          userId,
+          tenantId,
+          tierKey: null,
+          actorId,
+          reason: "backfill",
+        }),
+    });
   });

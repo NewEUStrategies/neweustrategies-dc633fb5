@@ -1406,3 +1406,43 @@ describe("PieChart - suma kontrolna udziałów", () => {
     expect(panel?.textContent).not.toContain("add up to");
   });
 });
+
+describe("pie selection payload", () => {
+  it.each([1, 2])("identifies the selected category with %i configured series", (count) => {
+    const selected = vi.fn();
+    const { container } = render(
+      <PieChart
+        lang="pl"
+        config={cfg({
+          kind: "pie",
+          categories: ["A", "B"],
+          series: Array.from({ length: count }, (_, i) => ({ name: `S${i}`, values: [60, 40] })),
+        })}
+        onSelect={selected}
+      />,
+    );
+    const slice = container.querySelector('[data-role="slice"]');
+    if (!slice) throw new Error("missing pie slice");
+    fireEvent.click(slice);
+    expect(selected).toHaveBeenCalledWith(
+      expect.objectContaining({
+        categoryIndex: 0,
+        seriesIndex: count === 1 ? 0 : null,
+        seriesName: count === 1 ? "S0" : null,
+      }),
+    );
+    expect(selected.mock.calls[0][0].value).toBeGreaterThan(0);
+  });
+});
+
+it("accepts a slice click when no selection callback is configured", () => {
+  const { container } = render(
+    <PieChart
+      lang="pl"
+      config={cfg({ kind: "pie", categories: ["A"], series: [{ name: "S", values: [1] }] })}
+    />,
+  );
+  const slice = container.querySelector('[data-role="slice"]');
+  if (!slice) throw new Error("missing slice");
+  expect(() => fireEvent.click(slice)).not.toThrow();
+});

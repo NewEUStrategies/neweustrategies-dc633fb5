@@ -1840,3 +1840,15 @@ describe("FanChart - dymek milczy zamiast podstawiać zero", () => {
     }
   });
 });
+
+it("emits the selected forecast column on pointer down", () => {
+  const selected = vi.fn();
+  const { container } = render(<FanChart config={cfg(BAZA)} lang="pl" onSelect={selected} />);
+  const hit = warstwaTrafien(container);
+  fireEvent.pointerDown(hit, {
+    clientX: num(hit, "x") + 1,
+    clientY: num(hit, "y") + 1,
+    pointerType: "mouse",
+  });
+  expect(selected).toHaveBeenCalledWith(expect.objectContaining({ categoryIndex: 0 }));
+});

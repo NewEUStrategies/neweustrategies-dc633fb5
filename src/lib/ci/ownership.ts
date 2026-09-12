@@ -1204,8 +1204,8 @@ export function renderCodeowners(registry: OwnershipRegistry): string {
     "# Bramka spójności: bun run check:codeowners",
     "#",
     `# ${routePatternCount} wzorców tras administracyjnych w ${registry.domeny.length} domenach.`,
-    "# Ten plik pokrywa WYŁĄCZNIE trasy. Własnicielstwo migracji bazy nie da się",
-    "# wyrazić ścieżką (nazwy to znaczniki czasu i UUID-y) - egzekwuje je bramka",
+    "# Domyślny właściciel obejmuje repozytorium; poniżej przypisania tras.",
+    "# Atrybucję domenową migracji bazy (znaczniki czasu i UUID-y) egzekwuje bramka",
     "# `bun run check:ownership` na podstawie tego samego rejestru.",
     "#",
     "# UWAGA NA KOLEJNOŚĆ: GitHub stosuje regułę OSTATNIEGO trafienia, a rejestr",
@@ -1248,17 +1248,13 @@ export function renderCodeowners(registry: OwnershipRegistry): string {
     lines.push("");
   }
 
-  // Sam rejestr: reguła zostaje ZAKOMENTOWANA, dopóki nie wskazuje zespołu.
-  // `@NewEUStrategies` to uchwyt ORGANIZACJI, a nie użytkownika ani zespołu -
-  // GitHub odrzuca taki wpis jako błąd składni i podświetla CAŁY plik, więc
-  // aktywna wersja musi poczekać na `@NewEUStrategies/<zespół>`.
+  // The verified repository owner is a GitHub USER, not an organization.
+  // Business review is active while technical positions remain unstaffed.
   const steward = registry.osoby["organizacja-nes"];
-  lines.push(
-    "# ── Rejestr własnicielstwa pilnuje sam siebie ──",
-    `# Zmiana rejestru wymaga zgody właściciela biznesowego (${registry.kontraktUtrzymaniowy.zamawiajacy}).`,
-    `# Odkomentuj, gdy powstanie zespół: /governance/ ${steward?.github ?? "@NewEUStrategies"}/<zespół>`,
-    "",
-  );
+  if (steward?.obsadzone && steward.github) {
+    lines.unshift(`* ${steward.github}`, "");
+    lines.push(`/governance/ ${steward.github}`, `/.github/ ${steward.github}`, "");
+  }
 
   return lines.join("\n");
 }

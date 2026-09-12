@@ -478,3 +478,11 @@ describe("sendEmail - zapasowy nadawca platformy", () => {
     expect(res.provider).toBe("platform");
   });
 });
+
+it("falls back to the platform only for an unverified sender domain", async () => {
+  withResend();
+  fetchMock.mockResolvedValue(new Response("The domain is not verified", { status: 403 }));
+  h.sendLovableEmail.mockResolvedValue({});
+  expect(await sendEmail(input())).toEqual({ ok: true, messageId: null, provider: "platform" });
+  expect(h.sendLovableEmail).toHaveBeenCalledTimes(1);
+});

@@ -1,3 +1,4 @@
+import { invitationCopy } from "@/lib/locale/invitation";
 // Renderowanie szablonów maili transakcyjnych (subskrypcje, wydarzenia,
 // newsletter) do HTML na potrzeby podglądu w panelu admina.
 // Plik server-only: React Email `render` nie może trafić do bundla klienta.
@@ -324,12 +325,12 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         subjectName: null,
         details: [
           {
-            label: lang === "pl" ? "Adres logowania" : "Sign-in address",
+            label: invitationCopy[lang].loginAddress,
             value: "anna@example.com",
           },
-          { label: lang === "pl" ? "Rola" : "Role", value: "author" },
+          { label: invitationCopy[lang].role, value: "author" },
           {
-            label: lang === "pl" ? "Organizacja" : "Organisation",
+            label: invitationCopy[lang].organisation,
             value: "New European Strategies",
           },
         ],
@@ -348,7 +349,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
       return {
         subjectName: "Acme Group",
         details: [
-          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
+          { label: invitationCopy[lang].organisation, value: "Acme Group" },
           { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
         ],
         ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
@@ -357,7 +358,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
       return {
         subjectName: "Acme Group",
         details: [
-          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
+          { label: invitationCopy[lang].organisation, value: "Acme Group" },
           { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
           {
             label: lang === "pl" ? "Pozostało" : "Time left",
@@ -369,7 +370,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
     case "team_seat_access_ended":
       return {
         subjectName: "Acme Group",
-        details: [{ label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" }],
+        details: [{ label: invitationCopy[lang].organisation, value: "Acme Group" }],
         ctaUrl: `${SITE_URL}/pricing`,
       };
   }
