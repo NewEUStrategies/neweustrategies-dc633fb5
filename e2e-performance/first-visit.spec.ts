@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Request as BrowserRequest } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
 import {
   fixtureImage,
@@ -33,6 +33,18 @@ for (const [path, lang] of [
         request,
       }, testInfo) => {
         const errors: string[] = [];
+        const pendingScripts = new Set<BrowserRequest>();
+        let lastScriptActivity = Date.now();
+        page.on("request", (request) => {
+          if (request.resourceType() !== "script") return;
+          pendingScripts.add(request);
+          lastScriptActivity = Date.now();
+        });
+        const scriptFinished = (request: BrowserRequest) => {
+          if (pendingScripts.delete(request)) lastScriptActivity = Date.now();
+        };
+        page.on("requestfinished", scriptFinished);
+        page.on("requestfailed", scriptFinished);
         await page.setExtraHTTPHeaders({ "accept-language": lang });
         // Local CSS/JS/fonts go directly to the artifact server. Intercepting
         // every asset makes the Playwright driver part of the loading waterfall.
@@ -177,7 +189,6 @@ for (const [path, lang] of [
           .toBe(!darkBefore);
         const browser = await page.evaluate(() => {
           const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming;
-          const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
           return {
             ttfbMs: nav.responseStart,
             fcpMs: performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? 0,
@@ -187,9 +198,33 @@ for (const [path, lang] of [
             cls: window.__firstVisit.cls,
             shifts: window.__firstVisit.shifts,
             serverTitleRetained: window.__firstVisit.serverTitle?.isConnected ?? false,
-            jsBytes: resources
-              .filter((entry) => /\.js(?:\?|$)/.test(entry.name))
-              .reduce((sum, entry) => sum + entry.encodedBodySize, 0),
+          };
+        });
+        // ResourceTiming only contains completed requests. Reading it at the
+        // click boundary randomly omitted ~450 kB of lazy modules even between
+        // identical baseline samples. Keep the interaction clock above, then
+        // account for the full script waterfall after 500 ms of script quiet.
+        // Do not wait for unrelated analytics/heartbeat requests to become idle.
+        await expect
+          .poll(() => pendingScripts.size === 0 && Date.now() - lastScriptActivity >= 500, {
+            timeout: 10_000,
+            message: "initial JavaScript requests must finish before byte accounting",
+          })
+          .toBe(true);
+        const scriptAccounting = await page.evaluate(() => {
+          const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+          const scripts = resources
+            .filter((entry) => /\.js(?:\?|$)/.test(entry.name))
+            .map((entry) => ({
+              url: entry.name,
+              bytes: entry.encodedBodySize,
+              startMs: entry.startTime,
+              endMs: entry.responseEnd,
+            }));
+          return {
+            jsAccountingAtMs: performance.now(),
+            jsBytes: scripts.reduce((sum, entry) => sum + entry.bytes, 0),
+            scripts,
           };
         });
         const inlineStyles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(
@@ -206,6 +241,7 @@ for (const [path, lang] of [
           styleBlocks: inlineStyles.length,
           beforeInteraction,
           ...browser,
+          ...scriptAccounting,
         };
         console.log("FIRST_VISIT " + JSON.stringify(result));
         mkdirSync("reports/first-visit", { recursive: true });

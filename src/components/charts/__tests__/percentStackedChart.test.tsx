@@ -1841,3 +1841,17 @@ it("selects a whole category from the keyboard without inventing a segment", () 
     expect.objectContaining({ categoryIndex: 0, seriesIndex: null, seriesName: null, value: null }),
   );
 });
+
+it("selects only the category when a captured pointer moves above the stack", () => {
+  const selected = vi.fn();
+  const { container } = render(
+    <PercentStackedChart config={cfg(BAZA)} lang="pl" onSelect={selected} />,
+  );
+  const hit = container.querySelector("rect.neh-hit");
+  if (!hit) throw new Error("missing hit layer");
+  stubPlotRect(hit, 668, INNER_H);
+  fireEvent.pointerDown(hit, { clientX: -10, clientY: -10, pointerType: "touch" });
+  expect(selected).toHaveBeenCalledWith(
+    expect.objectContaining({ categoryIndex: 0, seriesIndex: null, seriesName: null, value: null }),
+  );
+});

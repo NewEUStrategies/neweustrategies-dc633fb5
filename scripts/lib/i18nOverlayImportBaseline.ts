@@ -42,7 +42,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/archiveLayout/ArchiveLivePreview.tsx", 2],
   ["src/components/admin/AutosaveBar.tsx", 9],
   ["src/components/admin/blocks/AutoFootnotesPreview.tsx", 11],
-  ["src/components/admin/builder/ui/molecules/SchemaFieldControl.tsx", 4],
   ["src/components/admin/builder/ui/organisms/widget-properties/DisplayLivePreview.tsx", 1],
   ["src/components/admin/builder/ui/organisms/WidgetLivePreview.tsx", 3],
   ["src/components/admin/BulkActionsBar.tsx", 1],

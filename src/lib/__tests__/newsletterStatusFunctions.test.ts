@@ -451,3 +451,22 @@ it("keeps saved preferences when CRM returns an error", async () => {
     expect.objectContaining({ _email: "anna.nowak@example.test" }),
   );
 });
+
+it("keeps saved preferences when the CRM transport rejects", async () => {
+  const error = new Error("connection reset");
+  h.rpc.mockRejectedValue(error);
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const result = await callServerFn(updateMyNewsletterTopics, {
+      data: { topics: ["energia"] },
+      context: { ...sesja(), userId: "member" },
+    });
+    expect(result).toEqual({ ok: true });
+    expect(db.lastChain(SUBSCRIBERS)?.argsOf("update")?.[0]).toEqual(
+      expect.objectContaining({ user_id: "member" }),
+    );
+    expect(log).toHaveBeenCalledWith("[newsletter-status] crm sync threw", error);
+  } finally {
+    log.mockRestore();
+  }
+});
