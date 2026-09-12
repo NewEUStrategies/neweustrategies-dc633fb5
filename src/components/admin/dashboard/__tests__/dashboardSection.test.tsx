@@ -17,6 +17,15 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => k
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
 }));
+// NAKŁADKA SŁOWNIKA MUSI BYĆ ATRAPOWANA, i to nie jest ostrożność na wyrost.
+// `DashboardSection` importuje `@/lib/i18n-admin-dashboard` efektem ubocznym
+// (tego wymaga bramka `check:i18n-overlay-imports`), a nakładka sięga po
+// `@/lib/i18n`, czyli po moduł, który importuje WŁAŚNIE ATRAPOWANY
+// `react-i18next`. Cykl inicjalizacji domyka się wtedy tak, że plik testowy
+// nie pada - tylko STOI do timeoutu, bez żadnego komunikatu. Ta sama pułapka
+// jest opisana w `VerificationDomainsCard.test.tsx` i rozbrojona tak samo
+// w `zeroClickSection.test.tsx`.
+vi.mock("@/lib/i18n-admin-dashboard", () => ({ ensureI18n: () => {} }));
 
 import { DashboardSection } from "../DashboardSection";
 
