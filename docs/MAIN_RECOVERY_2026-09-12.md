@@ -47,3 +47,65 @@ Plik `governance/release/main-ruleset.json` jest gotowym payloadem dla API regu�
 Reguła wymaga niezależnego review, Code Ownera, aktualnej bazy PR i zielonych kontroli. Konto autora nie może zatwierdzić własnego PR; przy jednoosobowej obsadzie potrzebny jest drugi uprawniony recenzent. Utrzymanie i zastępstwo są rolami instytucjonalnymi Fundacji New European Strategies, a nie deklaracją dwóch niezależnych wykonawców.
 
 Dowody wykonania i ostateczne statusy CI znajdują się w PR tej gałęzi. Nie traktować samego istnienia workflow jako dowodu włączenia ochrony gałęzi ani pomiarów na fixture jako metryk produkcyjnych.
+
+## Kontrola po scaleniu #350 (main 9934c01)
+
+Właściciel: **Fundacja New European Strategies**.
+
+Potwierdzono scalenie #350 i późniejszą zmianę wdrożeniową `9934c01`.
+Na tym commicie CI ma jedną czerwoną kontrolę źródeł: dwa nowe rzutowania
+w `memberSync.server.ts`. Ownership, i18n, Typecheck, Format, Lint, snapshot
+i parytet uprawnień, build, pełna suita z coverage, pgTAP, E2E, Lighthouse
+i pierwsza wizyta są zielone. Wcześniejszy `post-deploy` na `d2b1804`
+zatrzymał się z powodu pustych `SUPABASE_URL` i `SUPABASE_PUBLISHABLE_KEY`;
+nie jest to dowód brakujących obiektów bazy. Na `9934c01` został pominięty.
+
+### Wykonane uzupełnienia
+
+1. Kontrakt nullable argumentów CRM przeniesiono poza generowany plik typów.
+   Test z rzeczywistym klientem Supabase sprawdza body HTTP: wymagane parametry
+   cofnięcia planu i backfill pozostają `null`, nie znikają z żądania.
+2. Kontrola bazy używa katalogów PostgreSQL przez `missing_schema_objects`,
+   zamiast wywoływać domenowe RPC z pustymi argumentami. Funkcja jest STABLE,
+   przyjmuje tylko nazwy obiektów public, zwraca wyłącznie brakujący podzbiór
+   i dopuszcza maksymalnie 100 obiektów. Klient używa GET, partii po 40,
+   limitu 10 sekund i nie przekazuje klucza przez przekierowania. Dla obecnego
+   kontraktu 1130 obiektów oznacza to 29 żądań zamiast 1130 osobnych sond
+   (97,4% mniej; liczba wyliczona z repo, nie pomiar czasu sieci).
+3. Niepełna lub błędna odpowiedź, timeout, brak konfiguracji oraz pusty
+   kontrakt blokują kontrolę. Rejestr migracji waliduje cały zwrócony podzbiór;
+   błędne elementy nie są już po cichu pomijane. Obie kontrole zapisują
+   raport także przy błędzie transportu lub konfiguracji.
+4. `post-deploy` czyta oba warianty nazw SUPABASE/VITE_SUPABASE z secrets
+   lub variables. Diagnostyka na main uruchamia się również po czerwonej
+   bramce kodu. Oddzielnie raportuje status kontroli wydania i wdrożenia.
+5. Raport otrzymuje kompletne sumy czterech shardów i JSON wierności widgetów,
+   uwzględnia rejestr migracji oraz wyniki obu jobów E2E dla tego samego SHA.
+   Brak danych nie staje się sukcesem. Mały artefakt sum testów eliminuje
+   potrzebę pobierania całego coverage do raportu wdrożenia.
+6. Payload ochrony main wymaga także istniejącego statusu `lighthouse`.
+   Wszystkie dotychczasowe progi jakości i baseline rejestru migracji pozostają.
+
+### Domknięcie wdrożenia
+
+- Przed uruchomieniem nowej kontroli zastosować migrację
+  `20260912170000_read_only_schema_contract.sql`. Dla pipeline Drizzle
+  przygotowano identyczną `0003_read_only_schema_contract.sql`; test porównuje
+  oba pliki bajt w bajt. Procedura nie zmienia danych biznesowych.
+- Ustawić rzeczywisty adres i klucz publikowalny bazy produkcyjnej w GitHub
+  Actions. Brakujące wartości nie są zastępowane fixture ani adresem testowym.
+- Nie wpisywać fikcyjnych wersji do rejestru i nie podnosić baseline, aby
+  uzyskać zielony wynik. Drizzle i Supabase mają odrębne rejestry; samo
+  wykonanie `0002` w Drizzle nie dowodzi obecności wersji w rejestrze Supabase.
+  Ewentualne uzgodnienie wymaga sprawdzenia faktycznie zastosowanego SQL.
+- Włączyć `governance/release/main-ruleset.json` na koncie administratora.
+  Odczyt GitHub po scaleniu nadal zwraca `protected: false` i pustą listę reguł.
+  Używane połączenie nie udostępnia ustawiania ochrony ani secrets/variables.
+- Po konfiguracji i migracji uruchomić CI na main i wymagać zielonego
+  `post-deploy` z raportem dla wdrożonego SHA. Zielony PR potwierdza kod,
+  nie potwierdza stanu produkcyjnej bazy.
+
+Dowody: [CI main 9934c01](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34703349658),
+[CI po scaleniu #350](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34702379810).
+Transakcje GET/HEAD są wymuszane jako read-only przez
+[PostgREST](https://docs.postgrest.org/en/stable/references/transactions.html).

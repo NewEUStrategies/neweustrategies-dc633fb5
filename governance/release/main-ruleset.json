@@ -2,21 +2,41 @@
   "name": "main-release-quality",
   "target": "branch",
   "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
   "bypass_actors": [],
   "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" },
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
     {
       "type": "required_status_checks",
       "parameters": {
         "strict_required_status_checks_policy": true,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          { "context": "Required release checks" },
-          { "context": "e2e" },
-          { "context": "e2e-seeded" },
-          { "context": "first-visit" }
+          {
+            "context": "Required release checks"
+          },
+          {
+            "context": "e2e"
+          },
+          {
+            "context": "e2e-seeded"
+          },
+          {
+            "context": "first-visit"
+          },
+          {
+            "context": "lighthouse"
+          }
         ]
       }
     },

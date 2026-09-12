@@ -22,6 +22,20 @@
       "when": 1789227676028,
       "tag": "0002_pr350_member_crm_sync_and_chat_compat",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789232400000,
+      "tag": "0003_read_only_schema_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789237916330,
+      "tag": "0004_read_only_schema_contract",
+      "breakpoints": true
     }
   ]
 }

@@ -115,7 +115,17 @@ jobs:
       - name: Start local Supabase (migrations + seed)
         run: supabase start
 
+      # Execute the real production probe over PostgREST before merge. This
+      # catches protocol and migration-parser errors that pgTAP alone cannot.
+      - name: Verify database contract through local Data API
+        run: |
+          eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+          bun run check:db-contract
+
       - name: Run seeded E2E (user paths)
+        if: ${{ !cancelled() }}
         run: |
           eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
           export VITE_SUPABASE_URL="$API_URL"

@@ -17,6 +17,21 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Admin = SupabaseClient<Database>;
 
+// The generator cannot infer nullable PostgreSQL function arguments. Keep this
+// SQL contract outside types.ts so regenerating it cannot turn revoke/backfill
+// nulls into unsafe casts or omitted required arguments.
+type Functions = Database["public"]["Functions"];
+type SyncArgs = Omit<Functions["crm_sync_member"]["Args"], "p_tier_key" | "p_actor_id"> & {
+  p_tier_key: string | null;
+  p_actor_id: string | null;
+};
+type CrmSchema = Omit<Database["public"], "Functions"> & {
+  Functions: Omit<Functions, "crm_sync_member"> & {
+    crm_sync_member: Omit<Functions["crm_sync_member"], "Args"> & { Args: SyncArgs };
+  };
+};
+type CrmAdmin = SupabaseClient<Omit<Database, "public"> & { public: CrmSchema }>;
+
 const syncResult = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("synced"),
@@ -85,11 +100,11 @@ export async function syncMemberToCrm(
   input: SyncInput,
 ): Promise<MemberCrmSnapshot | null> {
   try {
-    const { data, error } = await supabaseAdmin.rpc("crm_sync_member", {
+    const { data, error } = await (supabaseAdmin as CrmAdmin).rpc("crm_sync_member", {
       p_user_id: input.userId,
       p_tenant_id: input.tenantId,
-      p_tier_key: input.tierKey as unknown as string,
-      p_actor_id: input.actorId as unknown as string,
+      p_tier_key: input.tierKey,
+      p_actor_id: input.actorId,
       p_reason: input.reason,
     });
     if (error) throw error;
