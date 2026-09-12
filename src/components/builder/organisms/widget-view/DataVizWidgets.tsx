@@ -14,6 +14,7 @@ import {
   defaultChartConfig,
   parseBarStyle,
   parseChartKind,
+  parseMapRegion,
 } from "@/lib/charts/parse";
 import { parseChartData, parseMapData } from "@/lib/charts/csv";
 import { Chart } from "@/components/charts/Chart";
@@ -62,7 +63,10 @@ export function ChartWidgetView({ node, lang }: WidgetProps) {
 
 export function DataMapWidgetView({ node, lang }: WidgetProps) {
   const c = node.content;
-  const region: MapRegion = getStr(c, "region") === "world" ? "world" : "europe";
+  // Region przez parser - ta sama droga, co w bloku CMS. Porównanie z dwoma
+  // literałami degradowało do Europy KAŻDY region spoza tej pary, więc widget
+  // buildera ignorowałby wybór autora z własnego schematu.
+  const region: MapRegion = parseMapRegion(getStr(c, "region"));
   const config: DataMapConfig = {
     region,
     title: i18nStr(c, "title", lang),
