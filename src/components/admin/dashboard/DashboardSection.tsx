@@ -8,6 +8,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 import { AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -29,7 +30,12 @@ export interface DashboardSectionProps {
   onRetry?: () => void;
   /** Funkcja agregująca nie istnieje jeszcze w tej bazie (migracja w drodze). */
   unavailable?: boolean;
-  children: ReactNode;
+  /**
+   * Treść sekcji. OPCJONALNA, bo sekcja bywa sama sobie treścią: w stanie
+   * ładowania i awarii body i tak się nie renderuje, a sekcja pokazująca samą
+   * informację o braku źródła nie ma czego pod nią postawić.
+   */
+  children?: ReactNode;
   className?: string;
 }
 

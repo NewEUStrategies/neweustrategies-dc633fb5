@@ -13,6 +13,7 @@
 // nie płaci za mapę, dopóki jej nie pokaże.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";

@@ -9,6 +9,7 @@
 // z newslettera i wzrost zapisów mają tę samą strzałkę, a przeciwną wymowę -
 // patrz `MetricPolarity` w `lib/admin/dashboard/compare.ts`.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Minus } from "lucide-react";
 
 import { cn } from "@/lib/utils";

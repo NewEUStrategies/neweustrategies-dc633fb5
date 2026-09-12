@@ -6,6 +6,7 @@
 // dymek, tabela danych i obsługa klawiatury są decyzją silnika.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 import { Eye, Globe2, UserCheck, Users } from "lucide-react";
 
 import { Card } from "@/components/ui/card";

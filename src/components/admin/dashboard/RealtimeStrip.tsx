@@ -12,6 +12,7 @@
 // i obiecywanie sekundowej precyzji byłoby nieuczciwe.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 import { Radio } from "lucide-react";
 
 import { cn } from "@/lib/utils";

@@ -6,6 +6,7 @@
 // narastający rośnie zawsze, więc jego "+3%" nie niosłoby żadnej decyzji.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 import { CalendarCheck, MessageSquare, ShieldCheck, UserPlus, Users } from "lucide-react";
 
 import { Card } from "@/components/ui/card";

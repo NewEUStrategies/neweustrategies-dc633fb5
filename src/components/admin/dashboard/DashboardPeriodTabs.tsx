@@ -9,6 +9,7 @@
 // powtórzona przy trzydziestu kafelkach byłaby szumem. Raz, pod przełącznikiem,
 // który tym okresem steruje - dokładnie tam, gdzie powstaje pytanie.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 
 import { cn } from "@/lib/utils";
 import {

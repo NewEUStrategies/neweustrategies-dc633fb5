@@ -1,6 +1,7 @@
 // SEKCJA "CRM": pozyskanie, lejek i obsługa.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 import { Building2, CheckCircle2, Flame, Timer, UserPlus } from "lucide-react";
 
 import { Card } from "@/components/ui/card";

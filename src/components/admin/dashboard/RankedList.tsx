@@ -10,6 +10,7 @@
 // drugiemu do pierwszego", a nie "jaki to ułamek całości" - tę drugą wielkość
 // niesie procent obok liczby, i tylko wtedy, gdy wołający poda mianownik.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 
 import { cn } from "@/lib/utils";
 import { chartLangFrom } from "@/lib/charts/format";

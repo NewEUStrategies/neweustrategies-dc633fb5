@@ -4,6 +4,7 @@
 // w `analytics_events` - tam odsłona wpisu jest jedną z wielu ścieżek i trzeba
 // by ją rozpoznawać po adresie, a tu jest wprost wierszem o wpisie.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-dashboard";
 import { FileText, Eye, PencilLine } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
