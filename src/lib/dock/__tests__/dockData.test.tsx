@@ -3,6 +3,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
+import { freezeClock } from "@/test/time";
 import {
   notesQueryOptions,
   useNotes,
@@ -35,6 +36,8 @@ import {
 import { dockKeys } from "../keys";
 import { sortTodos, type UserTodo } from "../types";
 import { prefetchDockData } from "../prefetchDockData";
+
+freezeClock("2026-09-12T10:00:00.000Z");
 
 const auth = vi.hoisted(() => ({ user: { id: "member" } as { id: string } | null }));
 const db = supabaseFromStub();
