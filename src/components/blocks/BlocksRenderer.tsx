@@ -7,7 +7,7 @@
 // rejestr). Dzięki temu dodanie bloku to jeden wpis w rejestrze, a nie edycja
 // wielkiego `switch`.
 
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import "@/lib/i18n-public";
@@ -41,25 +41,19 @@ interface Props {
 export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) {
   const { t } = useTranslation();
   const articleRef = useRef<HTMLElement | null>(null);
-  if (!doc?.blocks?.length) return null;
-  const safe = safeParseBlocks(doc);
-  if (!safe.blocks.length) return null;
-  // Importowane wpisy WordPress mogą nadal zawierać dawną, rozwijaną listę
-  // przypisów rozbitą na kilka bloków HTML. Jedynym źródłem listy końcowej jest
-  // sekcja generowana niżej z `fn.notes`, więc stare fragmenty pomijamy.
-  const contentBlocks = safe.blocks.filter(
-    (block) => !(block.type === "html" && isLegacyFootnoteReferenceHtml(block.data.html)),
-  );
-  // Pre-pass: zbierz przypisy (i przekształcony HTML) PRZED renderem, żeby
-  // sekcja przypisów była znana od pierwszego malowania / w SSR. Wcześniej
-  // kolektor był mutowany podczas renderu dziecka, więc rodzic widział
-  // `fn.notes.length === 0` i sekcja nigdy się nie pojawiała.
-  // Kolektor wspólny z silnikiem builder/html (lib/footnotes), więc numeracja
-  // pochodzi z jednego miejsca, a `id` przypisu jest jawne - nie wyprowadzane
-  // z indeksu tablicy w widoku.
-  const fn: FootnoteCollector = createCounter(1);
-  const fnHtml = new Map<string, string>();
-  precomputeFootnotes(contentBlocks, fn, fnHtml);
+  // Validation and footnotes depend on document content, not language/context
+  // rerenders. This cache belongs to this renderer, never to another request.
+  const { contentBlocks, fn, fnHtml, hasBlocks } = useMemo(() => {
+    const safe = safeParseBlocks(doc);
+    const contentBlocks = safe.blocks.filter(
+      (block) => !(block.type === "html" && isLegacyFootnoteReferenceHtml(block.data.html)),
+    );
+    const fn: FootnoteCollector = createCounter(1);
+    const fnHtml = new Map<string, string>();
+    precomputeFootnotes(contentBlocks, fn, fnHtml);
+    return { contentBlocks, fn, fnHtml, hasBlocks: safe.blocks.length > 0 };
+  }, [doc]);
+  if (!hasBlocks) return null;
   const tooltipNotes: Footnote[] = fn.notes;
   const L = { title: t("blocksUi.footnotesTitle"), back: t("blocksUi.footnotesBack") };
   return (

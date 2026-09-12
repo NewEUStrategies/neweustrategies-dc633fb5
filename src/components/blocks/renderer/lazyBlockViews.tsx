@@ -79,3 +79,25 @@ const DataMapBlockViewLazy = lazy(() =>
   import("../DataVizViews").then((m) => ({ default: m.DataMapBlockView })),
 ) as ComponentType<ComponentProps<typeof DataMapBlockViewImpl>>;
 export const DataMapBlockView = withSuspense(DataMapBlockViewLazy);
+
+// Forms keep their server-rendered HTML, but pages without these blocks do not
+// statically load validation, auth controls or submission code. Auth variants
+// deliberately share one module rather than creating four tiny chunks.
+export const NewsletterForm = withSuspense(
+  lazy(() => import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm }))),
+);
+export const ContactFormView = withSuspense(
+  lazy(() => import("../MarketingContactFormView").then((m) => ({ default: m.ContactFormView }))),
+);
+export const LoginFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.LoginFormView }))),
+);
+export const RegisterFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.RegisterFormView }))),
+);
+export const LostPasswordFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.LostPasswordFormView }))),
+);
+export const ResetPasswordFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.ResetPasswordFormView }))),
+);

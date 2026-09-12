@@ -214,7 +214,9 @@ export function BuilderRenderer({
   // "mobile" (rozjazd hydratacji + CLS). Rzeczywiste urzadzenie ustawia
   // useIsomorphicLayoutEffect ponizej (przed malowaniem na kliencie).
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? "desktop");
-  const safeDoc = safeParseBuilderDoc(doc);
+  // Keep normalized node identities stable through viewport/context updates.
+  // Editors replace the document immutably when its content changes.
+  const safeDoc = useMemo(() => safeParseBuilderDoc(doc), [doc]);
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();

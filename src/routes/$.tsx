@@ -6,7 +6,7 @@
 import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 // Header/Footer are owned by SiteChrome (mounted in __root.tsx) so they
 // persist across navigations - never re-import them here.
@@ -112,7 +112,10 @@ import { CommentsSection } from "@/components/comments/CommentsSection";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
-import { NewsletterForm } from "@/components/NewsletterForm";
+// The bottom newsletter is optional; keep its code outside the static page graph.
+const NewsletterForm = lazy(() =>
+  import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
+);
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 import { resolveTakeaways } from "@/lib/keyTakeaways/resolve";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
@@ -1333,7 +1336,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 )}
                 {merged.show_bottom_newsletter && (
                   <div className="no-print">
-                    <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                    <Suspense fallback={null}>
+                      <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                    </Suspense>
                   </div>
                 )}
                 <div className="no-print">
