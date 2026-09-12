@@ -14,6 +14,8 @@ import {
   defaultChartConfig,
   parseBarStyle,
   parseChartKind,
+  parseMapColorMode,
+  parseMapRampColor,
   parseMapRegion,
 } from "@/lib/charts/parse";
 import { parseChartData, parseMapData } from "@/lib/charts/csv";
@@ -76,6 +78,10 @@ export function DataMapWidgetView({ node, lang }: WidgetProps) {
     showLegend: getStr(c, "showLegend") !== "off",
     animate: getStr(c, "animate") !== "off",
     source: i18nStr(c, "source", lang),
+    // Przez te same parsery, co blok CMS: obie powierzchnie mają rozumieć
+    // zapis identycznie, także ten z nowszej albo cofniętej wersji panelu.
+    colorMode: parseMapColorMode(getStr(c, "colorMode")),
+    rampColor: parseMapRampColor(getStr(c, "rampColor")),
   };
   return <ChoroplethMap config={config} lang={lang} className="my-0" />;
 }

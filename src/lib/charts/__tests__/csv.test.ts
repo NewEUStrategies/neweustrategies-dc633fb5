@@ -50,3 +50,20 @@ describe("parseMapData", () => {
     expect(parseMapData("PL; 1\nPL; 2")).toEqual([{ id: "PL", value: 1 }]);
   });
 });
+
+describe("parseMapData - trzecia kolumna z kolorem", () => {
+  it("czyta kolor z trzeciej kolumny", () => {
+    expect(parseMapData("PL; 12,5; #3366CC")).toEqual([
+      { id: "PL", value: 12.5, color: "#3366cc" },
+    ]);
+  });
+
+  it("bez trzeciej kolumny nie dokłada pola - brak barwy to brak pola", () => {
+    expect(parseMapData("PL; 12,5")).toEqual([{ id: "PL", value: 12.5 }]);
+  });
+
+  it("literówka w kolorze kasuje BARWĘ, a nie wiersz", () => {
+    expect(parseMapData("PL; 12,5; niebieski")).toEqual([{ id: "PL", value: 12.5 }]);
+    expect(parseMapData("PL; 12,5; #f00")).toEqual([{ id: "PL", value: 12.5 }]);
+  });
+});

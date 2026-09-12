@@ -888,11 +888,35 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
     {
+      // PRZEŁĄCZNIK, NIE DWA NIEZALEŻNE USTAWIENIA - powód przy
+      // `MAP_COLOR_MODES` w `charts/types.ts`. Pola niżej pokazują się
+      // rozłącznie przez `visibleWhen`, więc panel nie potrafi pokazać obu
+      // naraz i autor nie musi zgadywać, które wygrywa.
+      key: "colorMode",
+      type: "select",
+      label: "Skąd kolor",
+      options: [
+        { value: "ramp", label: "wielkość (jedna barwa, nasycenie niesie liczbę)" },
+        { value: "manual", label: "przynależność (barwa per kraj)" },
+      ],
+    },
+    {
+      key: "rampColor",
+      type: "color",
+      label: "Barwa bazowa",
+      hint: "Puste = barwy motywu. Im większa wartość, tym bliżej barwy pełnej; im mniejsza, tym bliżej tła.",
+      visibleWhen: (c) => String(c.colorMode ?? "ramp") !== "manual",
+    },
+    {
+      // JEDNO pole na dane, nie dwa różniące się `visibleWhen`: klucz `data`
+      // jest tu adresem treści, a dwa wpisy pod jednym adresem to zaproszenie
+      // do tego, żeby panel i renderer rozumiały go inaczej. Trzecia kolumna
+      // jest opcjonalna w obu trybach - po prostu czyta ją tylko jeden.
       key: "data",
       type: "mapData",
       label: "Dane per kraj",
       rows: 6,
-      hint: 'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).',
+      hint: 'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5). W trybie przynależności dochodzi trzecia kolumna z kolorem: "PL; 12,5; #3366cc".',
     },
     { key: "unit", type: "text", label: "Jednostka (np. %, mln)" },
     {

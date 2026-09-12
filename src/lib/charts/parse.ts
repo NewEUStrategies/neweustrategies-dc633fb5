@@ -16,6 +16,8 @@ import {
   type ChartKind,
   type ChartSeries,
   type DataMapConfig,
+  type MapColorMode,
+  isMapColorMode,
   type MapDatum,
   type MapRegion,
 } from "./types";
@@ -220,6 +222,21 @@ function parseForecastFrom(raw: Json | undefined, categoriesCount: number): numb
 
 const ISO2_RE = /^[A-Z]{2}$/;
 
+/**
+ * Kolor z treści albo `undefined`.
+ *
+ * PRZEPUSZCZAMY WYŁĄCZNIE `#rrggbb`, i to nie z pedanterii: ta wartość trafia
+ * prosto do `fill` i do `color-mix()`, a treść bloku bierze się z bazy, więc
+ * jest wejściem, którego nie pisaliśmy. Skrót `#abc` i nazwy CSS odpadają
+ * świadomie - przy jednym dozwolonym zapisie porównanie „ile RÓŻNYCH barw
+ * wybrał autor" jest porównaniem napisów, a nie zgadywanką, czy `#ff0000`,
+ * `#f00` i `red` to trzy kolory czy jeden.
+ */
+function mapColor(raw: Json | undefined): string | undefined {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return /^#[0-9a-f]{6}$/.test(v) ? v : undefined;
+}
+
 export function parseMapValues(raw: Json | undefined): MapDatum[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
@@ -230,9 +247,29 @@ export function parseMapValues(raw: Json | undefined): MapDatum[] {
     const value = num(o.value);
     if (!ISO2_RE.test(id) || value === null || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, value });
+    const color = mapColor(o.color);
+    out.push(color === undefined ? { id, value } : { id, value, color });
   }
   return out;
+}
+
+/**
+ * Tryb koloru z treści. Nieznany zapis wraca do rampy - tej samej ścieżki,
+ * którą mapa jechała, zanim tryb ręczny w ogóle istniał, więc treść sprzed
+ * tej zmiany (bez pola `colorMode`) rysuje się dokładnie jak dotąd.
+ */
+export function parseMapColorMode(raw: Json | undefined): MapColorMode {
+  return isMapColorMode(raw) ? raw : "ramp";
+}
+
+/**
+ * Barwa bazowa rampy. Pusty napis znaczy „jedź tokenami motywu" i jest
+ * wartością DOMYŚLNĄ, nie awaryjną - zapis spoza `#rrggbb` też do niej wraca,
+ * bo mapa bez koloru bazowego jest poprawna, a mapa z `fill: "javascript:…"`
+ * nie jest.
+ */
+export function parseMapRampColor(raw: Json | undefined): string {
+  return mapColor(raw) ?? "";
 }
 
 /**
@@ -262,6 +299,8 @@ export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
     showLegend: data.showLegend !== false,
     animate: data.animate !== false,
     source: String(data.source ?? ""),
+    colorMode: parseMapColorMode(data.colorMode),
+    rampColor: parseMapRampColor(data.rampColor),
   };
 }
 

@@ -301,6 +301,17 @@ const CASES: ReadonlyArray<VisibilityCase> = [
     hidden: [{ variant: "list" }],
   },
 
+  // ---- mapa danych ----
+  {
+    widget: "data-map",
+    keys: ["rampColor"],
+    why: "barwa bazowa tylko w trybie wielkosci - w trybie przynaleznosci nie ma rampy, ktora mialaby ja uzywac",
+    // Brak pola znaczy tryb rampy: tresc sprzed wprowadzenia przelacznika ma
+    // POKAZYWAC barwe bazowa, a nie chowac ustawienie, ktorego autor nie widzi.
+    visible: [{}, { colorMode: "ramp" }, { colorMode: "cokolwiek" }, { colorMode: null }],
+    hidden: [{ colorMode: "manual" }],
+  },
+
   // ---- ikony social ----
   {
     widget: "social-icons",

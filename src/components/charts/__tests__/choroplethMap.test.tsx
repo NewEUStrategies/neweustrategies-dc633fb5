@@ -914,3 +914,84 @@ describe("ChoroplethMap - izolacja przestrzeni roboczych", () => {
     expect(view.container.innerHTML).not.toContain("11 szt.");
   });
 });
+
+describe("ChoroplethMap - model koloru", () => {
+  beforeEach(() => {
+    h.geo = geoAsset();
+    h.fail = false;
+  });
+
+  const DANE: Record<string, Json> = {
+    region: "europe",
+    unit: " %",
+    values: [
+      { id: "PL", value: 10, color: "#3366cc" },
+      { id: "DE", value: 90, color: "#cc3366" },
+      { id: "FR", value: 50 },
+    ],
+  };
+
+  const fillOf = (view: { container: HTMLElement }, id: string): string => {
+    const path = view.container.querySelector(`path[aria-label^="${id} "]`);
+    return (path as SVGElement | null)?.getAttribute("style") ?? "";
+  };
+
+  it("w trybie wielkości barwa własna kraju NIE ma wpływu", async () => {
+    // PL i DE mają w treści różne barwy własne, ale różne WARTOŚCI też - więc
+    // dowodem jest to, że oba jadą rampą (color-mix z barwą bazową), a nie
+    // swoimi hexami.
+    const view = await mapa({ ...DANE, colorMode: "ramp", rampColor: "#008800" });
+    expect(fillOf(view, "PL")).toContain("#008800");
+    expect(fillOf(view, "DE")).toContain("#008800");
+    expect(fillOf(view, "PL")).not.toContain("#3366cc");
+  });
+
+  it("bez barwy bazowej ramp jedzie tokenami motywu - jak przed tą zmianą", async () => {
+    const view = await mapa({ ...DANE, colorMode: "ramp" });
+    expect(fillOf(view, "PL")).toContain("var(--chart-seq-max)");
+  });
+
+  it("w trybie przynależności wartość NIE ma wpływu, liczy się barwa", async () => {
+    const view = await mapa({ ...DANE, colorMode: "manual", rampColor: "#008800" });
+    expect(fillOf(view, "PL")).toBe("fill: #3366cc;");
+    expect(fillOf(view, "DE")).toBe("fill: #cc3366;");
+    expect(fillOf(view, "PL")).not.toContain("#008800");
+  });
+
+  it("kraj z danymi bez barwy nie wygląda jak kraj bez danych", async () => {
+    const view = await mapa({ ...DANE, colorMode: "manual" });
+    expect(fillOf(view, "FR")).toBe("fill: var(--chart-seq-min);");
+    // CZ nie ma danych w ogóle - i to jest ta druga, inna wiadomość.
+    const bezDanych = view.container.querySelector("path.neh-country:not([tabindex])");
+    expect(bezDanych?.getAttribute("style")).toBe("fill: var(--secondary);");
+  });
+
+  it("legenda mówi to, co robi tryb: gradient z liczbami albo klucz barw", async () => {
+    const rampa = await mapa({ ...DANE, colorMode: "ramp" });
+    // Gradient niesie wielkość, więc muszą przy nim stać granice domeny.
+    expect(rampa.container.textContent).toContain("10");
+    expect(rampa.container.textContent).toContain("90");
+    rampa.unmount();
+
+    const reczny = await mapa({ ...DANE, colorMode: "manual" });
+    // Klucz niesie przynależność: przy próbce stoją kraje, które ją dzielą,
+    // a granice domeny nie mają czego opisywać.
+    const klucz = reczny.container.querySelector("ul");
+    expect(klucz).not.toBeNull();
+    expect(klucz?.textContent).toContain("PL po polsku");
+    expect(klucz?.textContent).toContain("DE po polsku");
+    // Kraj bez przypisanej barwy nie tworzy grupy w kluczu.
+    expect(klucz?.textContent).not.toContain("FR po polsku");
+  });
+
+  it("tabela niesie wartości w OBU trybach - kolor nigdy nie jest jedynym kanałem", async () => {
+    for (const colorMode of ["ramp", "manual"] as const) {
+      const view = await mapa({ ...DANE, colorMode });
+      const tabela = view.container.querySelector("table");
+      expect(tabela?.textContent).toContain("10");
+      expect(tabela?.textContent).toContain("90");
+      expect(tabela?.textContent).toContain("50");
+      view.unmount();
+    }
+  });
+});

@@ -19,10 +19,16 @@
 // bierze się z aspektu startowego regionu (patrz `geoAspect.ts`).
 import { useMemo, useState, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { DataMapConfig } from "@/lib/charts/types";
+import type { DataMapConfig, MapDatum } from "@/lib/charts/types";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { mapAspect } from "@/lib/charts/geoAspect";
-import { SEQ_RAMP } from "@/lib/charts/palette";
+import {
+  countryFill,
+  manualLegend,
+  rampFill,
+  RAMP_FLOOR,
+  type ThemeName,
+} from "@/lib/charts/mapFill";
 import { formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
@@ -46,27 +52,19 @@ const L = {
 
 /**
  * Motyw czytany z klasy na <html> - tej samej, którą ustawia ThemeProvider
- * (i skrypt przedhydracyjny w __root.tsx). Fallback liczy się przy renderze
- * SVG, a ten dogrywa się WYŁĄCZNIE po hydracji, więc SSR nigdy nie zgaduje
- * motywu i nie ma czego rozjechać. W przeglądarkach z color-mix() wypełnienie
- * i tak bierze `style` (wygrywa nad atrybutem) i jedzie samymi tokenami.
+ * (i skrypt przedhydracyjny w __root.tsx). Ścieżka awaryjna liczy się przy
+ * renderze SVG, a ten dogrywa się WYŁĄCZNIE po hydracji, więc SSR nigdy nie
+ * zgaduje motywu i nie ma czego rozjechać. W przeglądarkach z color-mix()
+ * wypełnienie i tak bierze `style` (wygrywa nad atrybutem) i jedzie tokenami.
  *
- * KOTWICE IDĄ Z MODUŁU PALETY (`SEQ_RAMP`), nie z literałów w tym pliku.
- * Trzymane tutaj rozjechały się z arkuszem - arkusz miał `#e0eaf2`/`#00375f`,
- * a fallback `#cde2fb`/`#0d366b` - i nikt tego nie zauważył, bo nowa
- * przeglądarka nigdy tej gałęzi nie wykonuje. Teraz zgodności z arkuszem
- * pilnuje bramka palety.
+ * Same kotwice i powierzchnie siedzą w module palety, nie w literałach tutaj.
+ * Trzymane w tym pliku rozjechały się z arkuszem - arkusz miał
+ * `#e0eaf2`/`#00375f`, a ścieżka awaryjna `#cde2fb`/`#0d366b` - i nikt tego
+ * nie zauważył, bo nowa przeglądarka nigdy tej gałęzi nie wykonuje.
  */
-function seqHexPair(): { min: string; max: string } {
-  if (typeof document === "undefined") return SEQ_RAMP.light;
-  return document.documentElement.classList.contains("dark") ? SEQ_RAMP.dark : SEQ_RAMP.light;
-}
-
-function hexLerp(a: string, b: string, t: number): string {
-  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
-  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
-  const mix = pa.map((v, i) => Math.round(v + (pb[i] - v) * t));
-  return `#${mix.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+function currentTheme(): ThemeName {
+  if (typeof document === "undefined") return "light";
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
 interface DataMapProps {
@@ -94,9 +92,12 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
     enabled: typeof window !== "undefined",
   });
 
-  const valueById = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const v of config.values) m.set(v.id, v.value);
+  // Cały wpis, nie sama liczba: w trybie ręcznym wypełnienie bierze się
+  // z `color` tego samego wiersza, więc rozbicie na dwie mapy znaczyłoby
+  // tylko tyle, że da się je rozjechać.
+  const datumById = useMemo(() => {
+    const m = new Map<string, MapDatum>();
+    for (const v of config.values) m.set(v.id, v);
     return m;
   }, [config.values]);
 
@@ -129,6 +130,10 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
   }, [geo.data, lang]);
   const nameOf = (id: string): string => namesById.get(id) ?? id;
 
+  // Klucz legendy ręcznej. Liczony zawsze, nie tylko w swoim trybie: hook nie
+  // może siedzieć za `if`, a koszt to przebiegnięcie listy krajów.
+  const legendGroups = useMemo(() => manualLegend(config.values), [config.values]);
+
   if (config.values.length === 0) {
     return (
       <div
@@ -144,7 +149,7 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
   // dojechania zasobu (czyli pod migotką) wchodzi wartość startowa regionu.
   const aspect = mapAspect(config.region, geo.data);
   const mapHeight = Math.round(width * aspect);
-  const seqHex = seqHexPair();
+  const theme = currentTheme();
 
   const onPointerMove = (e: PointerEvent<SVGPathElement>, id: string) => {
     const host = e.currentTarget.ownerSVGElement?.parentElement;
@@ -182,7 +187,7 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
     </table>
   );
 
-  const activeValue = active !== null ? valueById.get(active.id) : undefined;
+  const activeValue = active !== null ? datumById.get(active.id)?.value : undefined;
 
   return (
     <ChartFrame
@@ -231,7 +236,7 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
                 {/* Najpierw kraje bez danych (tło), potem z danymi - obrys
                     aktywnego kraju nigdy nie chowa się pod sąsiadami. */}
                 {geo.data.countries
-                  .filter((c) => !valueById.has(c.id))
+                  .filter((c) => !datumById.has(c.id))
                   .map((c) => (
                     <path
                       key={c.id}
@@ -248,23 +253,25 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
                     </path>
                   ))}
                 {geo.data.countries
-                  .filter((c) => valueById.has(c.id))
+                  .filter((c) => datumById.has(c.id))
                   .map((c) => {
-                    const value = valueById.get(c.id) as number;
-                    // 0.15 dolnej kotwicy: najniższa wartość wciąż odróżnia
-                    // się od krajów bez danych.
-                    const share = 0.15 + 0.85 * (span > 0 ? (value - min) / span : 0);
-                    const pct = Math.round(share * 100);
+                    const datum = datumById.get(c.id) as MapDatum;
+                    const value = datum.value;
+                    const fill = countryFill(datum, {
+                      mode: config.colorMode,
+                      rampColor: config.rampColor,
+                      min,
+                      span,
+                      theme,
+                    });
                     return (
                       <path
                         key={c.id}
                         d={c.d}
                         className="neh-country"
                         data-active={active?.id === c.id || undefined}
-                        fill={hexLerp(seqHex.min, seqHex.max, share)}
-                        style={{
-                          fill: `color-mix(in oklab, var(--chart-seq-max) ${pct}%, var(--chart-seq-min))`,
-                        }}
+                        fill={fill.attr}
+                        style={{ fill: fill.style }}
                         fillRule="evenodd"
                         tabIndex={0}
                         role="img"
@@ -322,35 +329,61 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
           />
         </div>
 
-        {/* Legenda sekwencyjna: gradient min -> max. Przy zdegenerowanej
-            domenie (jeden region albo wszystkie wartości równe) nie ma czego
-            rozciągać - zostaje jedna próbka w kolorze, który te regiony
-            faktycznie dostały (dolna kotwica, 15% rampy), i JEDNA liczba.
-            Gradient z drugą granicą obiecywałby zakres, w którym nikogo nie
-            ma. */}
-        {config.showLegend && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {formatChartValue(min, lang, config.unit)}
-            </span>
-            <span
-              aria-hidden
-              className={
-                singleValue ? "h-2 w-6 rounded-full" : "h-2 flex-1 max-w-[240px] rounded-full"
-              }
-              style={{
-                background: singleValue
-                  ? "color-mix(in oklab, var(--chart-seq-max) 15%, var(--chart-seq-min))"
-                  : "linear-gradient(to right, color-mix(in oklab, var(--chart-seq-max) 15%, var(--chart-seq-min)), var(--chart-seq-max))",
-              }}
-            />
-            {!singleValue && (
+        {/* LEGENDA MÓWI TO, CO ROBI TRYB, i nie ma tu wspólnego wariantu.
+
+            W trybie rampy kolor niesie WIELKOŚĆ, więc legendą jest gradient
+            z dwiema liczbami. Przy zdegenerowanej domenie (jeden kraj albo
+            wszystkie wartości równe) nie ma czego rozciągać: zostaje jedna
+            próbka w kolorze, który te kraje faktycznie dostały (dolna
+            kotwica), i JEDNA liczba - gradient z drugą granicą obiecywałby
+            zakres, w którym nikogo nie ma.
+
+            W trybie ręcznym kolor niesie PRZYNALEŻNOŚĆ, więc ten sam gradient
+            byłby zwyczajnie nieprawdziwy: sugerowałby porządek tam, gdzie
+            autor mógł pomalować Polskę i Portugalię jednym kolorem, bo należą
+            do tej samej grupy, a nie dlatego, że mają podobne liczby.
+            Legendą jest wtedy klucz: próbka i kraje, które ją dzielą. */}
+        {config.showLegend &&
+          (config.colorMode === "manual" ? (
+            legendGroups.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 p-0 m-0 list-none">
+                {legendGroups.map((g) => (
+                  <li key={g.color} className="flex items-center gap-1.5 text-xs">
+                    <span
+                      aria-hidden
+                      className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                      style={{ background: g.color }}
+                    />
+                    <span className="text-muted-foreground">
+                      {g.ids.map((id) => nameOf(id)).join(", ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <div className="mt-3 flex items-center gap-2">
               <span className="text-xs tabular-nums text-muted-foreground">
-                {formatChartValue(max, lang, config.unit)}
+                {formatChartValue(min, lang, config.unit)}
               </span>
-            )}
-          </div>
-        )}
+              <span
+                aria-hidden
+                className={
+                  singleValue ? "h-2 w-6 rounded-full" : "h-2 flex-1 max-w-[240px] rounded-full"
+                }
+                style={{
+                  background: singleValue
+                    ? rampFill(RAMP_FLOOR, config.rampColor, theme).style
+                    : `linear-gradient(to right, ${rampFill(RAMP_FLOOR, config.rampColor, theme).style}, ${rampFill(1, config.rampColor, theme).style})`,
+                }}
+              />
+              {!singleValue && (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {formatChartValue(max, lang, config.unit)}
+                </span>
+              )}
+            </div>
+          ))}
       </div>
     </ChartFrame>
   );

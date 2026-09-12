@@ -21,10 +21,13 @@ import {
   MAX_CATEGORIES,
   parseChartConfig,
   parseDataMapConfig,
+  parseMapColorMode,
+  parseMapRampColor,
   parseMapRegion,
 } from "@/lib/charts/parse";
 import {
   CATEGORICAL_SAFE_SERIES,
+  MAP_MANUAL_COLOR_WARN_AT,
   MAP_REGIONS,
   mapRegionLabelKey,
   MAX_COLOR_SLOT,
@@ -33,6 +36,8 @@ import {
   type ChartKind,
   type MapRegion,
 } from "@/lib/charts/types";
+import { manualColorCount } from "@/lib/charts/mapFill";
+import { AdminColorPicker } from "../AdminColorPicker";
 import { pieModel } from "@/components/charts/pieModel";
 import {
   isForecastMissingBand,
@@ -787,6 +792,8 @@ function Warning({ text }: { text: string }) {
 interface MapRowDraft {
   id: string;
   value: number | null;
+  /** Pusty napis = „bez przypisanej barwy", nie „biały". */
+  color: string;
 }
 
 function readMapValues(raw: Json | undefined): MapRowDraft[] {
@@ -797,6 +804,7 @@ function readMapValues(raw: Json | undefined): MapRowDraft[] {
     return {
       id: String(o.id ?? "").toUpperCase(),
       value: typeof v === "number" && Number.isFinite(v) ? v : null,
+      color: typeof o.color === "string" ? o.color : "",
     };
   });
 }
@@ -809,7 +817,13 @@ export function DataMapBlock({ block, onChange }: Props) {
   // region z nowszej wersji edytora.
   const region: MapRegion = parseMapRegion(block.data.region);
   const rows = readMapValues(block.data.values);
+  const colorMode = parseMapColorMode(block.data.colorMode);
+  const rampColor = parseMapRampColor(block.data.rampColor);
   const previewConfig = useMemo(() => parseDataMapConfig(block.data), [block.data]);
+  // Liczone z TREŚCI PO PARSOWANIU, nie z wierszy formy: próg ma mówić
+  // o barwach, które naprawdę trafią na mapę, a forma trzyma też zapisy
+  // odrzucone przez parser (np. w trakcie wpisywania).
+  const manualColors = manualColorCount(previewConfig.values);
 
   // Lista krajów z tego samego statycznego zasobu, który rysuje mapę -
   // zero dodatkowych danych w bundlu, opcje zawsze zgodne z geometrią.
@@ -825,8 +839,17 @@ export function DataMapBlock({ block, onChange }: Props) {
   const patch = (data: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...data } });
 
+  // Barwa zapisuje się TYLKO wtedy, gdy autor ją wybrał: pusty napis
+  // w treści byłby trzecim stanem obok „brak pola" i „kolor", a parser i tak
+  // musiałby go odrzucić. Brak pola jest jednoznaczny.
   const setRows = (next: MapRowDraft[]) =>
-    patch({ values: next.map((r) => ({ id: r.id, value: r.value })) });
+    patch({
+      values: next.map((r) => {
+        const wpis: Record<string, Json> = { id: r.id, value: r.value };
+        if (r.color !== "") wpis.color = r.color;
+        return wpis;
+      }),
+    });
 
   return (
     <Shell label={bt.editor("dataMap", "shellLabel")}>
@@ -869,6 +892,52 @@ export function DataMapBlock({ block, onChange }: Props) {
         placeholder={bt.editor("common", "subtitle")}
         onChange={(e) => patch({ description: e.target.value })}
       />
+
+      {/* PRZEŁĄCZNIK, A NIE DWA NIEZALEŻNE USTAWIENIA - powód stoi przy
+          `MAP_COLOR_MODES` w `charts/types.ts`: kolor może nieść wielkość
+          ALBO przynależność, a mapa, w której niesie oba naraz, nie ma
+          legendy, którą dałoby się uczciwie napisać. Pole rampy i kolumna
+          barw pokazują się więc rozłącznie, zamiast stać obok siebie
+          i zostawiać autorowi rozstrzygnięcie, które z nich wygrywa. */}
+      <div className="space-y-1.5">
+        <AdminSelect
+          className={inputCls}
+          aria-label={bt.editor("dataMap", "colorMode")}
+          value={colorMode}
+          onChange={(e) => patch({ colorMode: e.target.value })}
+        >
+          <option value="ramp">{bt.editor("dataMap", "colorModeRamp")}</option>
+          <option value="manual">{bt.editor("dataMap", "colorModeManual")}</option>
+        </AdminSelect>
+        {colorMode === "ramp" ? (
+          <div className="flex items-center gap-2">
+            <AdminColorPicker
+              value={rampColor}
+              onChange={(v) => patch({ rampColor: v ?? "" })}
+              ariaLabel={bt.editor("dataMap", "rampColor")}
+              allowReset
+            />
+            <span className="text-[11px] leading-snug text-muted-foreground">
+              {bt.editor("dataMap", "rampColorHint")}
+            </span>
+          </div>
+        ) : (
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            {bt.editor("dataMap", "manualHint")}
+          </p>
+        )}
+        {/* Ostrzeżenie, nie blokada - ta sama zasada, co przy doborze formy
+            wykresu: reguła ma wyjątki, których kod nie zna, a zablokowany
+            autor obchodzi walidację zamiast przeczytać powód. */}
+        {colorMode === "manual" && manualColors >= MAP_MANUAL_COLOR_WARN_AT && (
+          <Warning
+            text={bt.editor("dataMap", "tooManyColors", {
+              count: manualColors,
+              limit: MAP_MANUAL_COLOR_WARN_AT,
+            })}
+          />
+        )}
+      </div>
 
       {/* Skorowidz nazw powstaje z TEGO SAMEGO zasobu, który rysuje mapę,
           więc kraj spoza wybranego regionu wyjdzie jako nierozpoznany
@@ -918,6 +987,16 @@ export function DataMapBlock({ block, onChange }: Props) {
                 );
               }}
             />
+            {colorMode === "manual" && (
+              <AdminColorPicker
+                value={row.color}
+                onChange={(v) =>
+                  setRows(rows.map((r, i) => (i === ri ? { ...r, color: v ?? "" } : r)))
+                }
+                ariaLabel={bt.editor("dataMap", "countryColor", { name: row.id || ri + 1 })}
+                allowReset
+              />
+            )}
             <button
               type="button"
               className="text-muted-foreground hover:text-destructive"
@@ -931,7 +1010,7 @@ export function DataMapBlock({ block, onChange }: Props) {
         <button
           type="button"
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
-          onClick={() => setRows([...rows, { id: "", value: null }])}
+          onClick={() => setRows([...rows, { id: "", value: null, color: "" }])}
         >
           <Plus className="w-3.5 h-3.5" /> {bt.editor("dataMap", "addCountry")}
         </button>

@@ -997,8 +997,15 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "On a pie chart the value is placed under the percentage share, in slices of 8% and above.",
   'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony).':
     'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed).',
-  'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).':
-    'One country per row: "CODE; value" (ISO-2 code, e.g. PL; 12.5).',
+  'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5). W trybie przynależności dochodzi trzecia kolumna z kolorem: "PL; 12,5; #3366cc".':
+    'One country per row: "CODE; value" (ISO-2 code, e.g. PL; 12.5). In membership mode a third column carries the colour: "PL; 12.5; #3366cc".',
+  "Skąd kolor": "Colour source",
+  "wielkość (jedna barwa, nasycenie niesie liczbę)":
+    "magnitude (one hue, saturation carries the number)",
+  "przynależność (barwa per kraj)": "membership (a colour per country)",
+  "Barwa bazowa": "Base colour",
+  "Puste = barwy motywu. Im większa wartość, tym bliżej barwy pełnej; im mniejsza, tym bliżej tła.":
+    "Empty = theme colours. The larger the value, the closer to the full colour; the smaller, the closer to the background.",
   'Jeden wiersz na wydarzenie: "Data; Tytuł|Title; Opis|Description; slot(1-8, opc.)". Separator ";", tłumaczenie po "|".':
     'One row per event: "Date; Tytuł|Title; Opis|Description; slot (1-8, optional)". Separator ";", translation after "|".',
   'Jeden wiersz na przepływ: "Źródło|Source; Cel|Target; wartość". Wartości > 0.':

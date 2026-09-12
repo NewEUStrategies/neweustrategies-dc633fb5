@@ -47,17 +47,26 @@ export function parseChartData(text: string): ParsedChartData {
   return { categories, series };
 }
 
-/** Parsuje textarea mapy danych: "PL; 12,5" per wiersz. */
+/**
+ * Parsuje textarea mapy danych: `"PL; 12,5"` albo `"PL; 12,5; #3366cc"`.
+ *
+ * TRZECIA KOLUMNA JEST OPCJONALNA i czyta ją wyłącznie tryb ręczny - wiersz
+ * bez niej znaczy „kraj bez przypisanej barwy", a nie „biały". Zapis spoza
+ * `#rrggbb` odpada po cichu razem z barwą, ale WIERSZ ZOSTAJE: autor, który
+ * wpisze `PL; 12,5; niebieski`, ma stracić kolor, a nie dane - inaczej jedna
+ * literówka w trzeciej kolumnie kasuje kraj z mapy i nikt nie wie dlaczego.
+ */
 export function parseMapData(text: string): MapDatum[] {
   const out: MapDatum[] = [];
   const seen = new Set<string>();
   for (const line of text.split(/\r?\n/)) {
-    const [idRaw, valueRaw] = splitLine(line);
+    const [idRaw, valueRaw, colorRaw] = splitLine(line);
     const id = (idRaw ?? "").toUpperCase();
     const value = parseNumber(valueRaw ?? "");
     if (!/^[A-Z]{2}$/.test(id) || value === null || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, value });
+    const color = (colorRaw ?? "").trim().toLowerCase();
+    out.push(/^#[0-9a-f]{6}$/.test(color) ? { id, value, color } : { id, value });
   }
   return out;
 }

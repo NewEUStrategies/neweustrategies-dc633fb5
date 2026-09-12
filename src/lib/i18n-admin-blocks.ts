@@ -110,6 +110,17 @@ const pl = {
         addCountry: "Dodaj kraj",
         removeRow: "Usuń wiersz {{name}}",
         source: "Źródło danych",
+        colorMode: "Skąd kolor",
+        colorModeRamp: "wielkość (jedna barwa, nasycenie niesie liczbę)",
+        colorModeManual: "przynależność (barwa per kraj)",
+        rampColor: "Barwa bazowa",
+        rampColorHint:
+          "Puste = barwy motywu. Im większa wartość, tym bliżej barwy pełnej; im mniejsza, tym bliżej tła.",
+        countryColor: "Kolor kraju {{name}}",
+        manualHint:
+          "W tym trybie kolor nie mówi nic o wielkości - wartości zostają i niosą je dymek oraz tabela.",
+        tooManyColors:
+          "Użyto {{count}} różnych barw. Jednocześnie rozróżnialnych przy najczęstszych wadach widzenia barw jest {{limit}} - powyżej tego czytelnik nie odróżni wszystkich plam i przynależność musi nieść podpis albo tabela.",
       },
       dataImport: {
         button: "Importuj z pliku",
@@ -882,6 +893,17 @@ const en: typeof pl = {
         addCountry: "Add country",
         removeRow: "Delete row {{name}}",
         source: "Data source",
+        colorMode: "Colour source",
+        colorModeRamp: "magnitude (one hue, saturation carries the number)",
+        colorModeManual: "membership (a colour per country)",
+        rampColor: "Base colour",
+        rampColorHint:
+          "Empty = theme colours. The larger the value, the closer to the full colour; the smaller, the closer to the background.",
+        countryColor: "Colour for {{name}}",
+        manualHint:
+          "In this mode colour says nothing about magnitude - values stay, carried by the tooltip and the table.",
+        tooManyColors:
+          "{{count}} distinct colours in use. Only {{limit}} stay distinguishable at once under the most common colour-vision deficiencies - beyond that a reader cannot tell every patch apart and membership has to be carried by a label or the table.",
       },
       dataImport: {
         button: "Import from file",

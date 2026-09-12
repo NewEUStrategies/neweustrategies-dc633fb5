@@ -349,7 +349,48 @@ export interface MapDatum {
   /** ISO 3166-1 alpha-2 (wielkie litery). */
   id: string;
   value: number;
+  /**
+   * Kolor własny kraju (hex `#rrggbb`). CZYTANY WYŁĄCZNIE w trybie `manual` -
+   * w trybie `ramp` wypełnienie liczy się z wartości i nic tu nie zagląda.
+   * Pole zostaje w treści po przełączeniu trybu, więc powrót do palety
+   * ręcznej odzyskuje wybory autora zamiast kasować je przy każdym kliknięciu.
+   */
+  color?: string;
 }
+
+/**
+ * Skąd mapa bierze kolor kraju. TRYBY SIĘ WYKLUCZAJĄ i to jest decyzja,
+ * a nie uproszczenie implementacji.
+ *
+ * `ramp`   - jedna barwa bazowa, nasycenie niesie WIELKOŚĆ: im większa
+ *            wartość, tym bliżej barwy pełnej, im mniejsza - tym bliżej
+ *            powierzchni. Kolor koduje wtedy liczbę.
+ * `manual` - autor przypisuje barwę każdemu krajowi z osobna. Kolor koduje
+ *            wtedy PRZYNALEŻNOŚĆ (blok, grupa, status), a nie wielkość.
+ *
+ * Mieszanka tych dwóch rzeczy w jednym rysunku nie ma legendy, którą dałoby
+ * się uczciwie napisać: ta sama plama raz znaczyłaby „dużo", raz „należy do
+ * grupy zielonej". Dlatego przełącznik, a nie dwa niezależne ustawienia.
+ */
+export const MAP_COLOR_MODES = ["ramp", "manual"] as const;
+export type MapColorMode = (typeof MAP_COLOR_MODES)[number];
+
+export function isMapColorMode(raw: unknown): raw is MapColorMode {
+  return typeof raw === "string" && (MAP_COLOR_MODES as readonly string[]).includes(raw);
+}
+
+/**
+ * Od ilu RÓŻNYCH barw w trybie ręcznym ostrzegamy autora.
+ *
+ * Nie jest to limit - autor ma prawo pomalować dwadzieścia krajów dwudziestoma
+ * barwami i czasem ma po temu powód (mapa polityczna nie jest wykresem).
+ * Jest to próg, od którego przestaje być prawdą, że czytelnik ODRÓŻNI wszystkie
+ * plamy: z palety serii jednocześnie rozróżnialnych przy najczęstszych
+ * wadach widzenia barw jest osiem. Powyżej ósmej barwy identyczność
+ * przestaje wynikać z koloru i musi ją nieść podpis albo tabela - i dokładnie
+ * to mówi ostrzeżenie.
+ */
+export const MAP_MANUAL_COLOR_WARN_AT = 8;
 
 export interface DataMapConfig {
   region: MapRegion;
@@ -360,6 +401,15 @@ export interface DataMapConfig {
   showLegend: boolean;
   animate: boolean;
   source: string;
+  colorMode: MapColorMode;
+  /**
+   * Barwa bazowa rampy (hex `#rrggbb`) albo pusty napis.
+   *
+   * PUSTY ZNACZY „MOTYW", a nie „biały": mapa jedzie wtedy parą tokenów
+   * `--chart-seq-min/max` dokładnie jak dotąd, więc treść sprzed tej zmiany
+   * wygląda po niej tak samo. Czytane WYŁĄCZNIE w trybie `ramp`.
+   */
+  rampColor: string;
 }
 
 /** Kształt statycznego zasobu geometrii z public/geo/*.json. */

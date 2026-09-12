@@ -2,20 +2,20 @@
 //
 // MAPA-CHOROPLETA NA ŚCIEŻCE SERWEROWEJ.
 //
-// PO CO OSOBNY PLIK ZE ŚRODOWISKIEM `node`. `ChoroplethMap` liczy awaryjny
-// hex rampy przez `seqHexPair()`, a ta funkcja zaczyna się od strażnika
+// PO CO OSOBNY PLIK ZE ŚRODOWISKIEM `node`. `ChoroplethMap` odczytuje motyw
+// przez `currentTheme()`, a ta funkcja zaczyna się od strażnika
 // `typeof document === "undefined"`. W happy-dom ta gałąź jest NIEOSIĄGALNA -
 // dokument istnieje zawsze - więc w pliku obok stała jako jedyna niepokryta
 // i wyglądała na dług, którym nie jest.
 //
-// CO SIĘ STANIE BEZ NIEJ. Wywołanie `seqHexPair()` NIE siedzi w gałęzi
+// CO SIĘ STANIE BEZ NIEJ. Wywołanie `currentTheme()` NIE siedzi w gałęzi
 // klienckiej: leci w ciele renderu, zaraz za wczesnym wyjściem dla pustego
 // zestawu, czyli TAKŻE na serwerze. Sięgnięcie po `document.documentElement`
 // bez okna to ReferenceError w RENDERZE - a mapa jest blokiem treści
 // redakcyjnej, więc padłby cały artykuł: HTTP 500 zamiast strony, i to na
 // ścieżce, którą odwiedza crawler. Nie „mapa bez koloru".
 //
-// Jasna para hexów jest na serwerze jedyną poprawną odpowiedzią: motyw
+// Motyw jasny jest na serwerze jedyną poprawną odpowiedzią: motyw
 // mieszka w klasie na <html>, którą ustawia skrypt przedhydracyjny, więc
 // serwer nie ma go z czego odczytać. I tak nie ma to skutku w markupie -
 // SVG dogrywa się dopiero po hydracji - a to jest właśnie kontrakt SSR

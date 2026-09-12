@@ -154,3 +154,40 @@ describe("parse - ścieżki obronne przy danych z bazy", () => {
     expect(values.some((v) => v.id === "")).toBe(false);
   });
 });
+
+describe("model koloru mapy w treści", () => {
+  it("treść sprzed tej zmiany wraca do rampy na tokenach motywu", () => {
+    const c = parseDataMapConfig({ values: [{ id: "PL", value: 1 }] });
+    expect(c.colorMode).toBe("ramp");
+    expect(c.rampColor).toBe("");
+    expect(c.values[0].color).toBeUndefined();
+  });
+
+  it("nieznany tryb wraca do rampy, a nie wywraca bloku", () => {
+    expect(parseDataMapConfig({ colorMode: "rainbow" }).colorMode).toBe("ramp");
+    expect(parseDataMapConfig({ colorMode: 7 }).colorMode).toBe("ramp");
+  });
+
+  it("kolor spoza #rrggbb odpada - to wartość, która idzie prosto do fill", () => {
+    const c = parseDataMapConfig({
+      colorMode: "manual",
+      rampColor: "javascript:alert(1)",
+      values: [
+        { id: "PL", value: 1, color: "#3366CC" },
+        { id: "DE", value: 2, color: "red" },
+        { id: "FR", value: 3, color: "#f00" },
+        { id: "ES", value: 4, color: "url(#x)" },
+      ],
+    });
+    expect(c.rampColor).toBe("");
+    expect(c.values.map((v) => v.color)).toEqual(["#3366cc", undefined, undefined, undefined]);
+  });
+
+  it("odrzucony kolor NIE kasuje wiersza - autor traci barwę, nie dane", () => {
+    const c = parseDataMapConfig({
+      colorMode: "manual",
+      values: [{ id: "DE", value: 42, color: "niebieski" }],
+    });
+    expect(c.values).toEqual([{ id: "DE", value: 42 }]);
+  });
+});
