@@ -1,3 +1,39 @@
+-- pg-harness: exclude
+--   Znacznik dla `scripts/pg-harness/run.sh` (harness modulu Discussion Club).
+--
+--   DLACZEGO SELEKTOR TO LAPIE. Harness dobiera migracje PO TRESCI:
+--   `grep -lE 'public\.(club_|admin_club_)'`. Ten plik ma DOKLADNIE JEDNO
+--   takie trafienie - `count(*) FROM public.club_members` w jednym polu
+--   `admin_dashboard_audience` (kafelek "czlonkowie klubow" na pulpicie).
+--   To jest ODCZYT, a nie udzial w module.
+--
+--   DLACZEGO NIE DA SIE GO TU ZAAPLIKOWAC. Atrapa harnessu odtwarza
+--   POWIERZCHNIE STYKU MODULU KLUBOW i nic poza nia (patrz README: "to nie jest
+--   replika bazy produkcyjnej"). Ten plik zaczyna od `ALTER TABLE
+--   public.analytics_events`, a dalej czyta `crm_leads`, `newsletter_*`,
+--   `payment_orders`, `donations`, `posts` i `post_views` - czyli powierzchnie,
+--   ktorej harness klubowy CELOWO nie stawia. Stad `relation
+--   "public.analytics_events" does not exist` i wywrocony caly przebieg.
+--
+--   WYKLUCZENIE NIE TRACI POKRYCIA KLUBOWEGO - ZERO, nie "niewiele". Plik nie
+--   tworzy ani nie zmienia ZADNEGO obiektu klubowego: zero `CREATE FUNCTION`,
+--   `CREATE TABLE`, `CREATE VIEW` i `CREATE POLICY` dotykajacych `public.club_`
+--   albo `public.admin_club_`. Harness ma dowodzic, ze migracje modulu klubow
+--   WYKONUJA sie na jego powierzchni; ta do modulu nie nalezy i nie ma czego
+--   dolozyc do tego dowodu.
+--
+--   ROZSZERZANIE ATRAPY BYLOBY ZLYM LEKARSTWEM. Zeby ten plik przeszedl,
+--   harness klubowy musialby postawic kilkanascie tabel analitycznych,
+--   sprzedazowych i platniczych - czyli przestac byc atrapa modulu i stac sie
+--   replika bazy, ktora README wprost odrzuca.
+--
+--   CZEGO TO WYKLUCZENIE NIE ZALATWIA, powiedziane wprost: agregaty pulpitu nie
+--   maja wlasnego harnessu wykonaniowego w CI. Bramki `check:sql-*` czytaja je
+--   jako tekst, a wiec nie zlapia bledu, ktory ujawnia sie dopiero przy
+--   wywolaniu. Wlasciwym miejscem na ten dowod jest osobny harness pulpitu
+--   (wzorem `scripts/careers-harness` i `scripts/events-harness`), a nie
+--   doklejenie sie do harnessu cudzego modulu.
+
 -- PULPIT ADMINA: kraj odwiedzającego + agregaty okresowe.
 --
 -- DLACZEGO AGREGAT SIEDZI W BAZIE, A NIE W FUNKCJI SERWEROWEJ. Pulpit liczy
