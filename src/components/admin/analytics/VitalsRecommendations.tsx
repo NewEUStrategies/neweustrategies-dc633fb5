@@ -243,9 +243,14 @@ export function VitalsRecommendations({ report }: { report: VitalsSummaryResult 
                   <p className="text-xs text-muted-foreground mt-1">{f.detail}</p>
                   <ul className="mt-2 space-y-1 text-xs">
                     {f.fixes.map((fix, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-primary mt-1">→</span>
-                        <span>{fix}</span>
+                      <li key={i} className="flex items-center gap-2">
+                        <span
+                          className="flex h-4 shrink-0 items-center justify-center self-center text-primary leading-none"
+                          aria-hidden="true"
+                        >
+                          →
+                        </span>
+                        <span className="leading-4">{fix}</span>
                       </li>
                     ))}
                   </ul>
