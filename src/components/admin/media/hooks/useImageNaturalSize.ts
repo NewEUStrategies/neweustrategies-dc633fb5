@@ -4,6 +4,7 @@
  * re-measures whenever the target image changes.
  */
 import { useEffect, useState } from "react";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import type { ImageSize, MediaRow } from "../types";
 
 export function useImageNaturalSize(target: MediaRow | null): ImageSize | null {
@@ -17,7 +18,7 @@ export function useImageNaturalSize(target: MediaRow | null): ImageSize | null {
     img.onload = () => {
       if (!cancelled) setSize({ w: img.naturalWidth, h: img.naturalHeight });
     };
-    img.src = target.public_url;
+    img.src = mediaRenderUrl(target.public_url);
     return () => {
       cancelled = true;
     };

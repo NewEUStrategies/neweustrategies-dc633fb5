@@ -511,12 +511,7 @@ describe("PercentStackedChart - wypełnienie segmentów", () => {
     expect(z.dol - z.gora).toBeGreaterThanOrEqual(0.5);
   });
 
-  it("slot poza zestawem bezpiecznym dla daltonizmu dostaje DRUGI nośnik różnicy", () => {
-    // W stosie tożsamość segmentu niesie wyłącznie kolor i legenda (blade
-    // wnętrze jej nie niesie, a etykieta bezpośrednia jest tylko w grubych
-    // segmentach). Sloty 7-8 są od slotów 1-2 oddalone po symulacji o 10-12
-    // jednostek CIELAB, czyli za mało - a legenda znaczy je paskami. Defekt,
-    // który to łapie: legenda obiecująca różnicę, której na rysunku nie ma.
+  it("każdy segment stosu zachowuje pełne wypełnienie bez wzoru", () => {
     const { container } = render(
       <PercentStackedChart
         config={cfg({
@@ -529,11 +524,12 @@ describe("PercentStackedChart - wypełnienie segmentów", () => {
         lang="pl"
       />,
     );
-    const nakladki = all(container, "path[fill^='url(#']").filter(
-      (e) => e.getAttribute("data-role") === null,
+    const segmenty = all(container, SEG);
+    expect(segmenty).toHaveLength(2);
+    expect(segmenty.every((segment) => segment.getAttribute("fill")?.startsWith("var(--chart-"))).toBe(
+      true,
     );
-    expect(nakladki).toHaveLength(1);
-    expect(container.querySelector("pattern")).not.toBeNull();
+    expect(container.querySelector("pattern[id$='-hatch']")).toBeNull();
   });
 
   it("nie zapieka koloru: każde wypełnienie i każda kreska idą tokenem", () => {
@@ -1274,15 +1270,7 @@ describe("PercentStackedChart - odwołania do definicji w <defs>", () => {
       .filter((v) => v.startsWith("url(#"))
       .map((v) => v.slice(5, -1));
 
-  it("KRESKOWANIE MA SWÓJ WZÓR TAKŻE W WARIANCIE GRADIENTOWYM", () => {
-    // ZNALEZIONY DEFEKT. Definicja `<pattern>` wypisywała się wyłącznie przy
-    // `barStyle === "solid"`, a nakładka kreskująca powstaje dla KAŻDEGO slotu
-    // poza zestawem rozdzielnym dla daltonizmu - niezależnie od wariantu.
-    // Autor, który wybrał gradient i slot 7, dostawał `fill="url(#...-hatch)"`
-    // bez wzoru pod tym adresem: nieistniejący serwer malowania nie jest
-    // błędem, tylko BRAKIEM wypełnienia, więc drugi nośnik różnicy znikał po
-    // cichu dokładnie tam, gdzie legenda go obiecuje. `resolveBarStyle`
-    // sprowadza do solidnego tylko wariant BLADY, więc gradientu nie ratuje.
+  it("SEGMENTY nie dostają kreskowanej nakładki także w wariancie gradientowym", () => {
     const { container } = render(
       <PercentStackedChart
         config={cfg({
@@ -1297,7 +1285,7 @@ describe("PercentStackedChart - odwołania do definicji w <defs>", () => {
       />,
     );
     const adresy = odwolania(container);
-    expect(adresy.some((id) => id.endsWith("-hatch"))).toBe(true);
+    expect(adresy.some((id) => id.endsWith("-hatch"))).toBe(false);
     // WŁASNOŚĆ: każda farba przez odwołanie ma pod tym adresem definicję.
     // Pytam o wszystkie, nie tylko o kreskowanie - ta sama pułapka czeka przy
     // każdej rampie gradientu dopisanej kiedyś warunkowo.

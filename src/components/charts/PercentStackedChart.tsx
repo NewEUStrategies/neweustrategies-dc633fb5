@@ -103,7 +103,6 @@ import { bandIndex, pointerToPlot } from "@/lib/charts/plot";
 import {
   barStyleHasEdge,
   resolveBarStyle,
-  slotsNeedingPattern,
   type BarStyle,
 } from "@/lib/charts/palette";
 import { estimateLabelWidth } from "@/lib/charts/measureText";
@@ -667,25 +666,6 @@ export function PercentStackedChart({
   /* ---------------------------------------------------------------------- */
 
   /**
-   * CZY JAKAKOLWIEK SERIA POTRZEBUJE KRESKOWANIA - drugiego nośnika różnicy
-   * dla slotów poza zestawem rozdzielnym dla daltonizmu (7-8). W stosie
-   * tożsamość segmentu niesie wyłącznie kolor i legenda, więc bez tego wzoru
-   * legenda pokazywałaby podział, którego na rysunku nie ma.
-   *
-   * JEDNA LICZBA NA DWA PYTANIA, i to jest tu poprawka, nie skrót. Pytanie
-   * „czy schodzić z wariantu bladego" i pytanie „czy definiować wzór" mają tę
-   * samą odpowiedź, ale stały w dwóch miejscach: `patterned` liczyło się
-   * w wywołaniu niżej, a `<pattern>` wypisywał się WYŁĄCZNIE przy
-   * `barStyle === "solid"`. Autor, który wybrał wariant gradientowy i slot 7,
-   * dostawał nakładkę z `fill="url(#...-hatch)"` bez wzoru pod tym adresem -
-   * a nieistniejący serwer malowania nie jest błędem, tylko BRAKIEM
-   * wypełnienia: drugi nośnik różnicy znikał po cichu dokładnie tam, gdzie
-   * legenda go obiecuje.
-   */
-  const kreskowaneSloty = slotsNeedingPattern(model.series.map((s) => s.colorSlot));
-  const potrzebujeKreskowania = kreskowaneSloty.size > 0;
-
-  /**
    * WARIANT WYPEŁNIENIA, rozstrzygnięty RAZ dla całego wykresu. Dwa warianty
    * na jednym rysunku znaczyłyby, że wnętrze raz niesie kolor serii, a raz
    * nie - czyli czytelnik musiałby wiedzieć, którą regułą czytać który
@@ -701,9 +681,8 @@ export function PercentStackedChart({
   const barStyle: BarStyle = resolveBarStyle(config.barStyle, {
     seriesCount: model.series.length,
     stacked: true,
-    patterned: potrzebujeKreskowania,
+    patterned: false,
   });
-  const hatchId = `${baseId.replace(/:/g, "")}-hatch`;
   const gradientId = (slot: number): string => `${baseId.replace(/:/g, "")}-g${slot}`;
   // SLOTY BEZ POWTÓRZEŃ: rampa jest definicją PER SLOT, a dwie serie wolno
   // autorowi posadzić na tym samym slocie (`parseChartSeries` przepuszcza
@@ -958,19 +937,6 @@ export function PercentStackedChart({
               ))}
             </defs>
           )}
-          {potrzebujeKreskowania && (
-            <defs>
-              {/* Paski w kolorze PŁYTY, nie serii, więc jedna definicja
-                  obsługuje każdy slot. Rytm 5/3 px jest wzięty z próbki
-                  legendy, żeby klucz i znacznik miały ten sam wzór.
-                  Warunek pyta o SLOTY, nie o wariant wypełnienia - patrz
-                  `potrzebujeKreskowania`. */}
-              <pattern id={hatchId} width="8" height="8" patternUnits="userSpaceOnUse">
-                <rect x="5" y="0" width="3" height="8" fill="var(--card)" />
-              </pattern>
-            </defs>
-          )}
-
           {/* Siatka podziałki całości. Rusztowanie zostaje cienkie
               i recesywne (sekcja 3). */}
           {config.showGrid &&
@@ -1084,7 +1050,6 @@ export function PercentStackedChart({
                   // Podłoga pół piksela: segment o dodatnim udziale MUSI być
                   // widoczny, bo zniknięty czyta się jako udział zerowy.
                   const wzdluz = Math.max(0.5, grubosc - 2 * inset);
-                  const kreskowany = kreskowaneSloty.has(seg.colorSlot) && !waski;
                   const shape = segmentPath(
                     x0 + inset,
                     yGora + inset,
@@ -1138,15 +1103,6 @@ export function PercentStackedChart({
                           ["--neh-bar-token" as string]: `var(--chart-${seg.colorSlot})`,
                         }}
                       />
-                      {kreskowany && (
-                        <path
-                          d={shape}
-                          fill={`url(#${hatchId})`}
-                          className="neh-bar"
-                          style={{ ["--neh-i" as string]: bar.index }}
-                          pointerEvents="none"
-                        />
-                      )}
                     </g>
                   );
                 })}

@@ -9,6 +9,7 @@
 // przechodzi jeszcze przez `club_set_cover`, które sprawdza uprawnienie do
 // TEGO klubu i akceptuje wyłącznie adresy z naszego magazynu.
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import type { Database } from "@/integrations/supabase/types";
 
 type SetCoverArgs = Database["public"]["Functions"]["club_set_cover"]["Args"];
@@ -77,7 +78,7 @@ export async function uploadClubCover(args: { clubId: string; file: File }): Pro
   if (upErr) throw upErr;
 
   const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
-  const publicUrl = urlData?.publicUrl ?? "";
+  const publicUrl = brandedMediaUrl(urlData?.publicUrl ?? "");
 
   try {
     if (publicUrl === "") throw new Error("storage_public_url_missing");

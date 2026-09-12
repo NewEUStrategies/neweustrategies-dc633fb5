@@ -153,15 +153,7 @@ export function ChartFrame({
                 className={
                   item.shape === "line" ? "h-[3px] w-4 rounded-full" : "h-2.5 w-2.5 rounded-[3px]"
                 }
-                style={{
-                  // Klucz serii poza zestawem bezpiecznym dla daltonizmu
-                  // POWTARZA kreskowanie znacznika - inaczej legenda
-                  // twierdziłaby, że serie różni sam odcień, a ich odległość
-                  // po symulacji jest na to za mała.
-                  background: item.dashed
-                    ? `repeating-linear-gradient(90deg, ${item.color} 0 5px, transparent 5px 8px)`
-                    : item.color,
-                }}
+                style={{ background: item.color }}
               />
               <span className="text-xs" style={{ color: item.textColor }}>
                 {item.name}

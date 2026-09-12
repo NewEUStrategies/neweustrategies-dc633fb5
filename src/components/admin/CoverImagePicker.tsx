@@ -7,6 +7,7 @@
 // media bucket and remain accessible via the standard public URL.
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,8 +75,9 @@ export function CoverImagePicker({
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      onChange(data.publicUrl);
-      setUrlDraft(data.publicUrl);
+      const publicUrl = brandedMediaUrl(data.publicUrl);
+      onChange(publicUrl);
+      setUrlDraft(publicUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload error");
     } finally {
@@ -90,7 +92,8 @@ export function CoverImagePicker({
 
   const commitUrl = () => {
     const v = urlDraft.trim();
-    if (v !== value) onChange(v);
+    const publicUrl = brandedMediaUrl(v);
+    if (publicUrl !== value) onChange(publicUrl);
   };
 
   return (
@@ -135,7 +138,11 @@ export function CoverImagePicker({
                 aspectRatio: DEVICE_FRAMES[device].aspect,
               }}
             >
-              <img src={value} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <img
+                src={mediaRenderUrl(value)}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+              />
               <button
                 type="button"
                 onClick={clear}

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,7 +108,7 @@ export function AudioPicker({
       return;
     }
     let cancelled = false;
-    void probeAudioDuration(value).then((d) => {
+    void probeAudioDuration(mediaRenderUrl(value)).then((d) => {
       if (!cancelled) setDuration(d);
     });
     return () => {
@@ -162,8 +163,9 @@ export function AudioPicker({
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      onChange(data.publicUrl);
-      setUrlDraft(data.publicUrl);
+      const publicUrl = brandedMediaUrl(data.publicUrl);
+      onChange(publicUrl);
+      setUrlDraft(publicUrl);
       setDuration(probed);
       toast.success(`${t.uploadOk} · ${formatAudioTime(probed)}`);
     } catch (e) {
@@ -218,7 +220,7 @@ export function AudioPicker({
               </span>
             </div>
           )}
-          <audio src={value} controls preload="metadata" className="w-full h-8" />
+          <audio src={mediaRenderUrl(value)} controls preload="metadata" className="w-full h-8" />
         </div>
       ) : (
         <div className="rounded-md border border-dashed border-border p-3 text-[11px] text-muted-foreground text-center">

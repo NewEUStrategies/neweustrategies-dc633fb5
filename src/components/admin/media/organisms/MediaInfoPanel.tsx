@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { MoreVertical } from "@/lib/lucide-shim";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import type { ImageSize, MediaRow } from "../types";
 import { formatBytes } from "../lib/mediaFormat";
 import { InfoRow } from "../atoms/InfoRow";
@@ -38,7 +39,7 @@ export function MediaInfoPanel({ target, imgSize, onSaveAlt }: MediaInfoPanelPro
     <div className="space-y-3">
       {isImage ? (
         <img
-          src={target.public_url}
+          src={mediaRenderUrl(target.public_url)}
           alt={target.alt_text || target.filename}
           className="w-full rounded border border-border object-contain max-h-56 bg-muted/20"
         />
