@@ -237,6 +237,16 @@ function mapColor(raw: Json | undefined): string | undefined {
   return /^#[0-9a-f]{6}$/.test(v) ? v : undefined;
 }
 
+/**
+ * Wpisy mapy z treści.
+ *
+ * WPIS BEZ WARTOŚCI PRZEŻYWA TYLKO Z BARWĄ. Kraj, przy którym nie ma ani
+ * liczby, ani koloru, nie niesie żadnej wiadomości - to pusty wiersz, który
+ * autor zostawił w formie, a nie dana. Kraj z samą barwą jest za to sensowną
+ * pozycją mapy politycznej i wcześniej wypadał z mapy CAŁKOWICIE: warunek
+ * `value === null` odrzucał wiersz razem z kolorem, więc trybu „przynależność"
+ * nie dało się użyć do tego, do czego powstał.
+ */
 export function parseMapValues(raw: Json | undefined): MapDatum[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
@@ -245,9 +255,10 @@ export function parseMapValues(raw: Json | undefined): MapDatum[] {
     const o = asRecord(item);
     const id = String(o.id ?? "").toUpperCase();
     const value = num(o.value);
-    if (!ISO2_RE.test(id) || value === null || seen.has(id)) continue;
-    seen.add(id);
     const color = mapColor(o.color);
+    if (!ISO2_RE.test(id) || seen.has(id)) continue;
+    if (value === null && color === undefined) continue;
+    seen.add(id);
     out.push(color === undefined ? { id, value } : { id, value, color });
   }
   return out;

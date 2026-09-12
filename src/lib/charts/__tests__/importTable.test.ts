@@ -405,3 +405,46 @@ describe("import - etykiety bezpieczne dla formatu średnikowego", () => {
     expect(wynik.series[0].values).toEqual([20]);
   });
 });
+
+describe("import nie kasuje barw przypisanych ręcznie", () => {
+  const poprzednie = [
+    { id: "PL", value: 10, color: "#3366cc" },
+    { id: "DE", value: 20, color: "#cc3366" },
+    { id: "FR", value: 30 },
+  ];
+
+  it("odświeżenie liczb z pliku ZACHOWUJE barwy po kodzie kraju", () => {
+    const wynik = tableToMapValues(
+      [
+        ["PL", "11"],
+        ["DE", "21"],
+        ["FR", "31"],
+      ],
+      undefined,
+      poprzednie,
+    );
+    expect(wynik.values).toEqual([
+      { id: "PL", value: 11, color: "#3366cc" },
+      { id: "DE", value: 21, color: "#cc3366" },
+      { id: "FR", value: 31 },
+    ]);
+  });
+
+  it("kraj, którego w pliku NIE MA, traci barwę - i autor się o tym dowiaduje", () => {
+    const wynik = tableToMapValues([["PL", "11"]], undefined, poprzednie);
+    expect(wynik.values).toEqual([{ id: "PL", value: 11, color: "#3366cc" }]);
+    expect(wynik.problems).toContainEqual({ code: "colorsDropped", labels: ["DE"] });
+  });
+
+  it("bez poprzednich wpisów zachowuje się jak dotąd", () => {
+    expect(tableToMapValues([["PL", "11"]]).values).toEqual([{ id: "PL", value: 11 }]);
+  });
+
+  it("serializacja do textarei widgetu WYPISUJE barwę, inaczej import ją gubi", () => {
+    expect(mapValuesToText(poprzednie)).toBe("PL; 10; #3366cc\nDE; 20; #cc3366\nFR; 30");
+  });
+
+  it("wpis bez wartości zapisuje się z pustą kolumną, a nie z 'null'", () => {
+    expect(mapValuesToText([{ id: "PL", value: null, color: "#3366cc" }])).toBe("PL; ; #3366cc");
+  });
+});

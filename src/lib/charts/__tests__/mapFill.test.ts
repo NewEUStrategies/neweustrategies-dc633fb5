@@ -16,7 +16,8 @@ import {
   rampShare,
   RAMP_FLOOR,
 } from "../mapFill";
-import { CHART_PLATE, SEQ_RAMP } from "../palette";
+import { CHART_PLATE, SEQ_RAMP, deltaE76 } from "../palette";
+import { mixOklab } from "../mapColorAdvice";
 import type { MapDatum } from "../types";
 
 describe("rampShare", () => {
@@ -146,5 +147,67 @@ describe("hexLerp", () => {
     expect(hexLerp("#000000", "#ffffff", 0)).toBe("#000000");
     expect(hexLerp("#000000", "#ffffff", 1)).toBe("#ffffff");
     expect(hexLerp("#000000", "#ffffff", 0.5)).toBe("#808080");
+  });
+});
+
+describe("ścieżka awaryjna kontra docelowa - ŚRODEK rampy", () => {
+  // PIERWSZA WERSJA TEJ BRAMKI NIE PILNOWAŁA NICZEGO. Wszystkie asercje stały
+  // na `share` 0 albo 1, czyli w punktach, w których `hexLerp(a, b, 0) === a`
+  // z definicji - obie postacie były tam równe niezależnie od tego, co robi
+  // kod. Rozjazd może powstać WYŁĄCZNIE w środku, bo tam jedna strona liczy
+  // w oklab (przeglądarka), a druga w sRGB (nasz `hexLerp`).
+  //
+  // CZEGO TA BRAMKA NIE TWIERDZI: że obie postacie są równe. Nie są i nie mogą
+  // być - to dwie różne przestrzenie. Twierdzi, że rozjazd jest OGRANICZONY,
+  // więc przeglądarka bez `color-mix()` pokazuje ten sam kolor z dokładnością
+  // do odcienia, a nie inną mapę.
+  const GRANICA = 8;
+
+  it.each([
+    ["#3366cc", "light"],
+    ["#3366cc", "dark"],
+    ["#fa9346", "light"],
+    ["#fa9346", "dark"],
+    ["#01112f", "light"],
+  ] as const)("%s w motywie %s trzyma się granicy na całej rampie", (kolor, theme) => {
+    for (const share of [0.15, 0.3, 0.5, 0.7, 0.85]) {
+      const f = rampFill(share, kolor, theme);
+      const docelowy = mixOklab(kolor, CHART_PLATE[theme], share);
+      expect(deltaE76(f.attr, docelowy)).toBeLessThan(GRANICA);
+    }
+  });
+
+  it("ścieżka tokenowa też - i to ona jest punktem odniesienia", () => {
+    for (const theme of ["light", "dark"] as const) {
+      for (const share of [0.15, 0.5, 0.85]) {
+        const f = rampFill(share, "", theme);
+        const docelowy = mixOklab(SEQ_RAMP[theme].max, SEQ_RAMP[theme].min, share);
+        expect(deltaE76(f.attr, docelowy)).toBeLessThan(GRANICA);
+      }
+    }
+  });
+});
+
+describe("wpis bez wartości", () => {
+  it("w trybie wielkości NIE udaje najmniejszej wartości", () => {
+    const opts = {
+      mode: "ramp" as const,
+      rampColor: "#3366cc",
+      min: 0,
+      span: 100,
+      theme: "light" as const,
+    };
+    const bezWartosci = countryFill({ value: null }, opts);
+    const najmniejsza = countryFill({ value: 0 }, opts);
+    expect(bezWartosci).not.toEqual(najmniejsza);
+    expect(bezWartosci.style).toBe("var(--chart-seq-min)");
+  });
+
+  it("w trybie przynależności rysuje się swoją barwą", () => {
+    const f = countryFill(
+      { value: null, color: "#ff8800" },
+      { mode: "manual", rampColor: "", min: 0, span: 0, theme: "light" },
+    );
+    expect(f.attr).toBe("#ff8800");
   });
 });

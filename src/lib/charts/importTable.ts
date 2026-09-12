@@ -43,7 +43,8 @@ export type ImportProblem =
   | { code: "rowsSkipped"; count: number }
   | { code: "unknownCountries"; labels: readonly string[] }
   | { code: "duplicateCountries"; labels: readonly string[] }
-  | { code: "labelsAdjusted"; count: number };
+  | { code: "labelsAdjusted"; count: number }
+  | { code: "colorsDropped"; labels: readonly string[] };
 
 export interface ImportedSheet {
   name: string;
@@ -445,9 +446,29 @@ export function buildCountryIndex(
  * z TEGO SAMEGO zasobu geometrii, który rysuje mapę. Dzięki temu nie da się
  * zaimportować kraju, którego wybrany region i tak nie narysuje.
  */
-export function tableToMapValues(rows: readonly string[][], index?: CountryIndex): ImportedMapData {
+/**
+ * Wpisy mapy z tabeli importu.
+ *
+ * `poprzednie` TO NIE OZDOBNIK, tylko obrona przed cichą utratą pracy. Import
+ * zastępuje dane, a plik ze statystyki nie niesie barw - bez tego parametru
+ * odświeżenie liczb kasowało WSZYSTKIE barwy przypisane ręcznie, w obu
+ * powierzchniach i bez jednego słowa. Autor, który pokolorował dwadzieścia
+ * krajów i kliknął „Importuj", tracił całą tę pracę i dowiadywał się o tym
+ * dopiero z podglądu. Barwę przenosimy po KODZIE KRAJU, bo tylko on jest
+ * wspólny między starą treścią a nowym plikiem; kraj, którego w pliku nie ma,
+ * znika razem z barwą - i to wychodzi jako `colorsDropped`.
+ */
+export function tableToMapValues(
+  rows: readonly string[][],
+  index?: CountryIndex,
+  poprzednie?: readonly MapDatum[],
+): ImportedMapData {
   const problems: ImportProblem[] = [];
   const values: MapDatum[] = [];
+  const barwy = new Map<string, string>();
+  for (const v of poprzednie ?? []) {
+    if (v.color !== undefined) barwy.set(v.id, v.color);
+  }
   const seen = new Set<string>();
   const unknown: string[] = [];
   const duplicate: string[] = [];
@@ -511,12 +532,19 @@ export function tableToMapValues(rows: readonly string[][], index?: CountryIndex
       continue;
     }
     seen.add(id);
-    values.push({ id, value });
+    const color = barwy.get(id);
+    values.push(color === undefined ? { id, value } : { id, value, color });
   }
+
+  // Kraje, które MIAŁY barwę, a w pliku ich nie ma - ich barwa przepada razem
+  // z wierszem. Milczenie w tym miejscu jest dokładnie tą klasą błędu, przed
+  // którą broni reszta tego modułu.
+  const utracone = [...barwy.keys()].filter((id) => !seen.has(id));
 
   if (unknown.length > 0) problems.push({ code: "unknownCountries", labels: unknown });
   if (duplicate.length > 0) problems.push({ code: "duplicateCountries", labels: duplicate });
   if (skipped > 0) problems.push({ code: "rowsSkipped", count: skipped });
+  if (utracone.length > 0) problems.push({ code: "colorsDropped", labels: utracone });
   return { values, problems };
 }
 
@@ -550,5 +578,12 @@ export function needsTextCellFix(raw: string): boolean {
 
 /** Dane mapy -> tekst textarei: „PL; 12.5" na wiersz. */
 export function mapValuesToText(values: readonly MapDatum[]): string {
-  return values.map((v) => `${v.id}; ${v.value}`).join("\n");
+  // Trzecia kolumna WYCHODZI, gdy barwa istnieje: inaczej serializacja po
+  // imporcie kasowałaby to, co `tableToMapValues` właśnie ocaliło.
+  return values
+    .map((v) => {
+      const liczba = v.value === null ? "" : String(v.value);
+      return v.color === undefined ? `${v.id}; ${liczba}` : `${v.id}; ${liczba}; ${v.color}`;
+    })
+    .join("\n");
 }

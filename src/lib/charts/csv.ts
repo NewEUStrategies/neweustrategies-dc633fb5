@@ -63,10 +63,14 @@ export function parseMapData(text: string): MapDatum[] {
     const [idRaw, valueRaw, colorRaw] = splitLine(line);
     const id = (idRaw ?? "").toUpperCase();
     const value = parseNumber(valueRaw ?? "");
-    if (!/^[A-Z]{2}$/.test(id) || value === null || seen.has(id)) continue;
+    const colorRawTrim = (colorRaw ?? "").trim().toLowerCase();
+    const color = /^#[0-9a-f]{6}$/.test(colorRawTrim) ? colorRawTrim : undefined;
+    if (!/^[A-Z]{2}$/.test(id) || seen.has(id)) continue;
+    // Sama barwa wystarczy: "PL; ; #3366cc" to poprawna pozycja mapy
+    // politycznej. Wiersz bez liczby I bez barwy nie niesie niczego.
+    if (value === null && color === undefined) continue;
     seen.add(id);
-    const color = (colorRaw ?? "").trim().toLowerCase();
-    out.push(/^#[0-9a-f]{6}$/.test(color) ? { id, value, color } : { id, value });
+    out.push(color === undefined ? { id, value } : { id, value, color });
   }
   return out;
 }

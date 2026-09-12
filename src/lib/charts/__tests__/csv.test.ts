@@ -67,3 +67,14 @@ describe("parseMapData - trzecia kolumna z kolorem", () => {
     expect(parseMapData("PL; 12,5; #f00")).toEqual([{ id: "PL", value: 12.5 }]);
   });
 });
+
+describe("parseMapData - wpis bez wartości", () => {
+  it("sama barwa wystarczy: to poprawna pozycja mapy politycznej", () => {
+    expect(parseMapData("PL; ; #3366cc")).toEqual([{ id: "PL", value: null, color: "#3366cc" }]);
+  });
+
+  it("ani liczby, ani barwy - wiersz nie niesie niczego i odpada", () => {
+    expect(parseMapData("PL; ")).toEqual([]);
+    expect(parseMapData("PL; b.d.")).toEqual([]);
+  });
+});

@@ -68,6 +68,8 @@ function problemText(
       return tr("pDuplicateCountries", { labels: p.labels.join(", ") });
     case "labelsAdjusted":
       return tr("pLabelsAdjusted", { count: p.count });
+    case "colorsDropped":
+      return tr("pColorsDropped", { labels: p.labels.join(", ") });
   }
 }
 

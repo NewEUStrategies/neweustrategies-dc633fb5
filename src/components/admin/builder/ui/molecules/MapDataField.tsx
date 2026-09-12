@@ -15,12 +15,15 @@
 // tej pary.
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { TriangleAlert } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { buildCountryIndex, mapValuesToText, tableToMapValues } from "@/lib/charts/importTable";
+import { parseMapData } from "@/lib/charts/csv";
+import { manualColorAdvice } from "@/lib/charts/mapColorAdvice";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
-import type { MapRegion } from "@/lib/charts/types";
+import { MAP_MANUAL_COLOR_WARN_AT, type MapRegion } from "@/lib/charts/types";
 import "@/lib/i18n-admin-blocks";
 
 interface Props {
@@ -35,6 +38,12 @@ export function MapDataField({ value, onChange, region, rows, placeholder }: Pro
   const bt = useBlocksI18n();
   const geo = useQuery(geoAssetQueryOptions(region));
   const index = useMemo(() => buildCountryIndex(geo.data?.countries ?? []), [geo.data]);
+  // Te same ostrzeżenia, co w bloku CMS. Bez nich autor widgetu mógł pomalować
+  // trzydzieści krajów trzydziestoma barwami i nie dostać sygnału, który druga
+  // powierzchnia uznaje za na tyle ważny, że go pokazuje - a rozjazd między
+  // powierzchniami to dokładnie ta klasa błędu, którą ten moduł ma zamykać.
+  const wpisy = useMemo(() => parseMapData(value), [value]);
+  const rada = useMemo(() => manualColorAdvice(wpisy), [wpisy]);
 
   return (
     <div className="space-y-2">
@@ -48,11 +57,44 @@ export function MapDataField({ value, onChange, region, rows, placeholder }: Pro
       <DataImportControl
         hint={bt.editor("dataImport", "hintMap")}
         onRows={(table) => {
-          const wynik = tableToMapValues(table, index);
+          // Poprzednie wpisy WCHODZĄ do importu: plik ze statystyki nie niesie
+          // barw, więc bez nich odświeżenie liczb kasowało całe kolorowanie.
+          const wynik = tableToMapValues(table, index, wpisy);
           onChange(mapValuesToText(wynik.values));
           return wynik.problems;
         }}
       />
+      {rada.tooMany !== null && (
+        <Ostrzezenie
+          text={bt.editor("dataMap", "tooManyColors", {
+            count: rada.tooMany,
+            limit: MAP_MANUAL_COLOR_WARN_AT,
+          })}
+        />
+      )}
+      {rada.cvdPairs.map((para) => (
+        <Ostrzezenie
+          key={`${para.a}-${para.b}-${para.kind}`}
+          text={bt.editor("dataMap", "cvdPair", {
+            a: para.a,
+            b: para.b,
+            kind: bt.editor("dataMap", `cvd_${para.kind}`),
+          })}
+        />
+      ))}
     </div>
+  );
+}
+
+/** Ostrzeżenie dyscypliny - mówi, co się psuje, i NIE blokuje zapisu. */
+function Ostrzezenie({ text }: { text: string }) {
+  return (
+    <p
+      className="flex items-start gap-1.5 text-[11px] leading-snug"
+      style={{ color: "var(--chart-negative-text)" }}
+    >
+      <TriangleAlert className="mt-px h-3 w-3 shrink-0" aria-hidden />
+      <span>{text}</span>
+    </p>
   );
 }

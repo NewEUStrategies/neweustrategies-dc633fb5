@@ -348,7 +348,19 @@ export function mapRegionLabelKey(region: MapRegion): string {
 export interface MapDatum {
   /** ISO 3166-1 alpha-2 (wielkie litery). */
   id: string;
-  value: number;
+  /**
+   * Wartość albo `null`, gdy autor jej nie podał.
+   *
+   * `null` JEST POPRAWNYM WPISEM, a nie brakiem wpisu, i wyłącznie w trybie
+   * `manual`. Mapa polityczna - „ten blok, tamta grupa, ten status" - z
+   * definicji nie ma liczby, a wymuszanie jej znaczyłoby, że autor musi
+   * wpisać zmyśloną wartość, żeby pomalować kraj. Kraj z `null` rysuje się
+   * swoją barwą, nie wchodzi do domeny rampy i pokazuje w tabeli kreskę.
+   *
+   * W trybie `ramp` wpis bez wartości nie ma czego zakodować, więc parser go
+   * odrzuca - patrz `parseMapValues`.
+   */
+  value: number | null;
   /**
    * Kolor własny kraju (hex `#rrggbb`). CZYTANY WYŁĄCZNIE w trybie `manual` -
    * w trybie `ramp` wypełnienie liczy się z wartości i nic tu nie zagląda.

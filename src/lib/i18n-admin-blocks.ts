@@ -120,7 +120,16 @@ const pl = {
         manualHint:
           "W tym trybie kolor nie mówi nic o wielkości - wartości zostają i niosą je dymek oraz tabela.",
         tooManyColors:
-          "Użyto {{count}} różnych barw. Jednocześnie rozróżnialnych przy najczęstszych wadach widzenia barw jest {{limit}} - powyżej tego czytelnik nie odróżni wszystkich plam i przynależność musi nieść podpis albo tabela.",
+          "Użyto {{count}} różnych barw, czyli tyle, ile wynosi granica rozróżnialności przy najczęstszych wadach widzenia barw ({{limit}}). Od tego miejsca przynależność musi nieść podpis albo tabela, bo sam kolor przestaje wystarczać.",
+        cvdPair:
+          '{{a}} i {{b}} zlewają się w jedną barwę przy wadzie widzenia „{{kind}}". Liczba barw nie ma tu znaczenia - te dwie są nieodróżnialne same z siebie.',
+        cvd_deutan: "deuteranopia (najczęstsza)",
+        cvd_protan: "protanopia",
+        cvd_tritan: "tritanopia",
+        rampClashesWithNoData:
+          "Przy tej barwie bazowej kraj z NAJNIŻSZĄ wartością wygląda jak kraj bez danych ({{themes}}). Podniesienie progu tego nie naprawi - barwy bliskie neutralnej nie oddalają się od tła. Wybierz barwę bardziej nasyconą albo ciemniejszą.",
+        themeLight: "motyw jasny",
+        themeDark: "motyw ciemny",
       },
       dataImport: {
         button: "Importuj z pliku",
@@ -134,6 +143,8 @@ const pl = {
         errUnsupported: "Nie umiem przeczytać tego formatu.",
         errTooLarge: "Plik jest za duży - limit to {{mb}} MB.",
         errRead: "Nie udało się przeczytać pliku.",
+        pColorsDropped:
+          "Te kraje miały przypisaną barwę, a w pliku ich nie ma - barwa przepadła razem z wierszem: {{labels}}.",
         errEmpty: "Plik nie zawiera danych.",
         pSeriesTruncated: "Pominięto {{count}} serii ponad limit.",
         pCategoriesTruncated: "Pominięto {{count}} wierszy ponad limit.",
@@ -903,7 +914,16 @@ const en: typeof pl = {
         manualHint:
           "In this mode colour says nothing about magnitude - values stay, carried by the tooltip and the table.",
         tooManyColors:
-          "{{count}} distinct colours in use. Only {{limit}} stay distinguishable at once under the most common colour-vision deficiencies - beyond that a reader cannot tell every patch apart and membership has to be carried by a label or the table.",
+          "{{count}} distinct colours in use - exactly the limit of what stays distinguishable under the most common colour-vision deficiencies ({{limit}}). From here on membership has to be carried by a label or the table, because colour alone stops being enough.",
+        cvdPair:
+          '{{a}} and {{b}} collapse into one colour under "{{kind}}". The number of colours is irrelevant here - these two are indistinguishable on their own.',
+        cvd_deutan: "deuteranopia (the most common)",
+        cvd_protan: "protanopia",
+        cvd_tritan: "tritanopia",
+        rampClashesWithNoData:
+          "With this base colour, the country with the LOWEST value looks like a country with no data ({{themes}}). Raising the floor will not fix it - colours close to the neutral do not move away from the background. Pick a more saturated or a darker base colour.",
+        themeLight: "light theme",
+        themeDark: "dark theme",
       },
       dataImport: {
         button: "Import from file",
@@ -917,6 +937,8 @@ const en: typeof pl = {
         errUnsupported: "That file format cannot be read.",
         errTooLarge: "The file is too large - the limit is {{mb}} MB.",
         errRead: "The file could not be read.",
+        pColorsDropped:
+          "These countries had a colour assigned and are absent from the file - the colour went with the row: {{labels}}.",
         errEmpty: "The file contains no data.",
         pSeriesTruncated: "{{count}} series beyond the limit were dropped.",
         pCategoriesTruncated: "{{count}} rows beyond the limit were dropped.",

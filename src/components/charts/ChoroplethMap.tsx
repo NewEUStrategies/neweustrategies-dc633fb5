@@ -41,12 +41,16 @@ const L = {
     value: "Wartość",
     empty: "Brak danych mapy.",
     loadError: "Nie udało się wczytać mapy.",
+    noValue: "bez wartości",
+    legendKey: "Klucz kolorów mapy",
   },
   en: {
     country: "Country",
     value: "Value",
     empty: "No map data.",
     loadError: "Map failed to load.",
+    noValue: "no value",
+    legendKey: "Map colour key",
   },
 } as const;
 
@@ -111,6 +115,9 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
     let lo = Infinity;
     let hi = -Infinity;
     for (const v of config.values) {
+      // Wpis bez wartości (sama barwa, tryb przynależności) nie ma czego
+      // wnieść do domeny - i nie wolno mu jej rozciągnąć zerem.
+      if (v.value === null) continue;
       if (v.value < lo) lo = v.value;
       if (v.value > hi) hi = v.value;
     }
@@ -172,14 +179,16 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
       </thead>
       <tbody>
         {[...config.values]
-          .sort((a, b) => b.value - a.value)
+          // Wpisy bez wartości na koniec: tabela jest posortowana malejąco po
+          // liczbie, a kraj bez liczby nie ma miejsca w tym porządku.
+          .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity))
           .map((v) => (
             <tr key={v.id}>
               <th scope="row" className={`${CHART_TABLE_CLS.td} font-medium`}>
                 {nameOf(v.id)}
               </th>
               <td className={CHART_TABLE_CLS.tdNum}>
-                {formatChartValue(v.value, lang, config.unit)}
+                {v.value === null ? t.noValue : formatChartValue(v.value, lang, config.unit)}
               </td>
             </tr>
           ))}
@@ -187,7 +196,7 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
     </table>
   );
 
-  const activeValue = active !== null ? datumById.get(active.id)?.value : undefined;
+  const activeValue = active !== null ? (datumById.get(active.id)?.value ?? undefined) : undefined;
 
   return (
     <ChartFrame
@@ -280,7 +289,7 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
                         // regionu na obrazku - bez fallbacku czytnik ogłaszał
                         // "wartość bez podmiotu". Tabela i tooltip idą tą samą
                         // drogą, więc nazwa jest wszędzie ta sama.
-                        aria-label={`${nameOf(c.id)}: ${formatChartValue(value, lang, config.unit)}`}
+                        aria-label={`${nameOf(c.id)}: ${value === null ? t.noValue : formatChartValue(value, lang, config.unit)}`}
                         onPointerMove={(e) => onPointerMove(e, c.id)}
                         onPointerLeave={() => setActive(null)}
                         onFocus={(e) => {
@@ -346,7 +355,13 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
         {config.showLegend &&
           (config.colorMode === "manual" ? (
             legendGroups.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 p-0 m-0 list-none">
+              // Lista MA nazwę: sama próbka jest `aria-hidden`, więc bez
+              // etykiety czytnik ogłaszałby gołe „Polska, Hiszpania" bez
+              // informacji, czym ta lista jest.
+              <ul
+                aria-label={t.legendKey}
+                className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 p-0 m-0 list-none"
+              >
                 {legendGroups.map((g) => (
                   <li key={g.color} className="flex items-center gap-1.5 text-xs">
                     <span

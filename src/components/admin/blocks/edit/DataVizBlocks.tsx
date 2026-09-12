@@ -36,7 +36,7 @@ import {
   type ChartKind,
   type MapRegion,
 } from "@/lib/charts/types";
-import { manualColorCount } from "@/lib/charts/mapFill";
+import { manualColorAdvice, rampColorClashesWithNoData } from "@/lib/charts/mapColorAdvice";
 import { AdminColorPicker } from "../AdminColorPicker";
 import { pieModel } from "@/components/charts/pieModel";
 import {
@@ -820,10 +820,14 @@ export function DataMapBlock({ block, onChange }: Props) {
   const colorMode = parseMapColorMode(block.data.colorMode);
   const rampColor = parseMapRampColor(block.data.rampColor);
   const previewConfig = useMemo(() => parseDataMapConfig(block.data), [block.data]);
-  // Liczone z TREŚCI PO PARSOWANIU, nie z wierszy formy: próg ma mówić
-  // o barwach, które naprawdę trafią na mapę, a forma trzyma też zapisy
+  // Liczone z TREŚCI PO PARSOWANIU, nie z wierszy formy: ostrzeżenia mają
+  // mówić o barwach, które naprawdę trafią na mapę, a forma trzyma też zapisy
   // odrzucone przez parser (np. w trakcie wpisywania).
-  const manualColors = manualColorCount(previewConfig.values);
+  const rada = useMemo(() => manualColorAdvice(previewConfig.values), [previewConfig.values]);
+  const kolizjaZBrakiem = useMemo(
+    () => rampColorClashesWithNoData(previewConfig.rampColor),
+    [previewConfig.rampColor],
+  );
 
   // Lista krajów z tego samego statycznego zasobu, który rysuje mapę -
   // zero dodatkowych danych w bundlu, opcje zawsze zgodne z geometrią.
@@ -911,10 +915,14 @@ export function DataMapBlock({ block, onChange }: Props) {
         </AdminSelect>
         {colorMode === "ramp" ? (
           <div className="flex items-center gap-2">
+            {/* allowTransparent={false}: „transparent" i `var(--…)` NIE
+                przechodzą przez filtr `#rrggbb` w parserze, więc picker, który
+                je oferuje, obiecuje coś, co renderer po cichu wyrzuci. */}
             <AdminColorPicker
               value={rampColor}
               onChange={(v) => patch({ rampColor: v ?? "" })}
               ariaLabel={bt.editor("dataMap", "rampColor")}
+              allowTransparent={false}
               allowReset
             />
             <span className="text-[11px] leading-snug text-muted-foreground">
@@ -929,11 +937,34 @@ export function DataMapBlock({ block, onChange }: Props) {
         {/* Ostrzeżenie, nie blokada - ta sama zasada, co przy doborze formy
             wykresu: reguła ma wyjątki, których kod nie zna, a zablokowany
             autor obchodzi walidację zamiast przeczytać powód. */}
-        {colorMode === "manual" && manualColors >= MAP_MANUAL_COLOR_WARN_AT && (
+        {colorMode === "manual" && rada.tooMany !== null && (
           <Warning
             text={bt.editor("dataMap", "tooManyColors", {
-              count: manualColors,
+              count: rada.tooMany,
               limit: MAP_MANUAL_COLOR_WARN_AT,
+            })}
+          />
+        )}
+        {/* DRUGIE, OSOBNE PYTANIE: nie „ile ich jest", tylko „czy da się je od
+            siebie odróżnić". Dwie barwy wystarczą, żeby zlały się w jedną przy
+            deuteranopii - wtedy licznik wyżej milczy, bo barw są dwie. */}
+        {colorMode === "manual" &&
+          rada.cvdPairs.map((para) => (
+            <Warning
+              key={`${para.a}-${para.b}-${para.kind}`}
+              text={bt.editor("dataMap", "cvdPair", {
+                a: para.a,
+                b: para.b,
+                kind: bt.editor("dataMap", `cvd_${para.kind}`),
+              })}
+            />
+          ))}
+        {colorMode === "ramp" && kolizjaZBrakiem.length > 0 && (
+          <Warning
+            text={bt.editor("dataMap", "rampClashesWithNoData", {
+              themes: kolizjaZBrakiem
+                .map((m) => bt.editor("dataMap", m === "dark" ? "themeDark" : "themeLight"))
+                .join(", "),
             })}
           />
         )}
@@ -945,8 +976,20 @@ export function DataMapBlock({ block, onChange }: Props) {
       <DataImportControl
         hint={bt.editor("dataImport", "hintMap")}
         onRows={(rowsIn) => {
-          const wynik = tableToMapValues(rowsIn, buildCountryIndex(geo.data?.countries ?? []));
-          patch({ values: wynik.values.map((v) => ({ id: v.id, value: v.value })) });
+          // Poprzednie wpisy WCHODZĄ do importu: plik ze statystyki nie niesie
+          // barw, więc bez nich odświeżenie liczb kasowało całe kolorowanie.
+          const wynik = tableToMapValues(
+            rowsIn,
+            buildCountryIndex(geo.data?.countries ?? []),
+            previewConfig.values,
+          );
+          patch({
+            values: wynik.values.map((v) => {
+              const wpis: Record<string, Json> = { id: v.id, value: v.value };
+              if (v.color !== undefined) wpis.color = v.color;
+              return wpis;
+            }),
+          });
           return wynik.problems;
         }}
       />
@@ -994,6 +1037,7 @@ export function DataMapBlock({ block, onChange }: Props) {
                   setRows(rows.map((r, i) => (i === ri ? { ...r, color: v ?? "" } : r)))
                 }
                 ariaLabel={bt.editor("dataMap", "countryColor", { name: row.id || ri + 1 })}
+                allowTransparent={false}
                 allowReset
               />
             )}

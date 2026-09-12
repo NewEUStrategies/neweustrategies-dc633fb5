@@ -191,3 +191,19 @@ describe("model koloru mapy w treści", () => {
     expect(c.values).toEqual([{ id: "DE", value: 42 }]);
   });
 });
+
+describe("wpis mapy bez wartości", () => {
+  it("sama barwa przeżywa parsowanie treści bloku", () => {
+    const c = parseDataMapConfig({
+      colorMode: "manual",
+      values: [{ id: "PL", color: "#3366cc" }],
+    });
+    expect(c.values).toEqual([{ id: "PL", value: null, color: "#3366cc" }]);
+  });
+
+  it("pusty wiersz formy - bez liczby i bez barwy - nie wchodzi do treści", () => {
+    expect(
+      parseDataMapConfig({ values: [{ id: "PL" }, { id: "DE", value: null }] }).values,
+    ).toEqual([]);
+  });
+});

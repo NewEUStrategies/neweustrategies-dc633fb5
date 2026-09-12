@@ -40,6 +40,10 @@ export const RAMP_FLOOR = 0.15;
  * liczbę i jedną próbkę, więc mapa musi pokazać dokładnie ten sam odcień.
  */
 export function rampShare(value: number, min: number, span: number): number {
+  // Strażnik na NIESKOŃCZONOŚĆ, nie na brak wartości: brak obsługuje
+  // `countryFill` wyżej, a parsery odsiewają NaN i Infinity, zanim tu dojdą.
+  // Zostaje, bo dzielenie przez `span` przy zatrutej domenie dałoby NaN
+  // w atrybucie `fill`, czyli kraj bez wypełnienia i bez śladu w konsoli.
   if (!Number.isFinite(value)) return RAMP_FLOOR;
   const t = span > 0 ? (value - min) / span : 0;
   return RAMP_FLOOR + (1 - RAMP_FLOOR) * Math.min(1, Math.max(0, t));
@@ -114,6 +118,13 @@ export function countryFill(
   opts: { mode: MapColorMode; rampColor: string; min: number; span: number; theme: ThemeName },
 ): MapFill {
   if (opts.mode === "manual") return manualFill(datum.color, opts.theme);
+  // WPIS BEZ WARTOŚCI W TRYBIE WIELKOŚCI nie ma czego zakodować. Nie schodzi
+  // na dolną kotwicę rampy, bo ta znaczy „najmniejsza wartość" - a to byłaby
+  // liczba, której autor nie podał. Dostaje ten sam wygląd, co kraj bez
+  // przypisanej barwy w trybie ręcznym: „mam wpis, nie mam czym go zmierzyć".
+  // Sytuacja powstaje po przełączeniu trybu na mapie politycznej i ma być
+  // widoczna, a nie udawać danych.
+  if (datum.value === null) return manualFill(undefined, opts.theme);
   return rampFill(rampShare(datum.value, opts.min, opts.span), opts.rampColor, opts.theme);
 }
 
