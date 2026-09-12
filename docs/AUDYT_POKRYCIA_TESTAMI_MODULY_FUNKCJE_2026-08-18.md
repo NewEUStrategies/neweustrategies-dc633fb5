@@ -1,4 +1,38 @@
-# Audyt pokrycia testami: moduł po module, funkcja po funkcji (2026-09-05)
+# Audyt pokrycia testami: moduł po module, funkcja po funkcji (2026-09-12)
+
+**WYDANIE 11 - audyt całościowy: nie tylko ile jest przetestowane, ale co w ogóle jest w platformie.**
+Pomiar na HEAD `7a780b1d0`, okno od scalenia wydania 10 (`8c89595e9`): cztery dni, **458 commitów**,
++41 233 linie kodu produkcyjnego. Po raz pierwszy w tej serii inwentarz modułów, funkcji
+i funkcjonalności powstał z udziałem agentów mapujących (po jednym na każdy z 22 modułów i 3 przekroje,
+każdy z osobnym agentem adwersaryjnym) oraz siedmiu agentów przekrojowych - a każde znalezisko
+zostało następnie sprawdzone skryptem albo odczytem kodu, zanim weszło do dokumentu.
+Pełny rozbiór: **rozdział 15**.
+
+**Linie 96,21%, funkcje 94,65%, instrukcje 95,15%, gałęzie 90,41%** na 3 424 plikach w mianowniku -
+ale z zastrzeżeniem metodologicznym, które jest ważniejsze od samej liczby: **pokrycie mierzy dziś
+provider `istanbul`, nie `v8`** (`vitest.config.ts:47`, zmiana z 2026-09-06), więc porównanie
+z 95,23% wydania 10 nie mierzy pracy testowej. Uczciwy wniosek z tego zestawienia brzmi: po 458
+commitach pokrycie **nie osunęło się**. Przebieg: 2 541 plików zielonych, **1 czerwony** (flak
+obciążeniowy - ten sam plik w izolacji przechodzi 22/22 w 762 ms), 70 070 zielonych przypadków,
+419 „expected fail", **2 naruszenia progów** na jednej ścieżce (`src/routes/__root.tsx`).
+Plików na zerze **97** (1 746 linii), niepokrytych linii **4 413**.
+
+**Dziesięć znalezisk, w tym trzy krytyczne** (rozdz. 15.7 i 15.11). Dwa pasy migracji trzymają
+**sprzeczny stan domyślnej widoczności profilu** i pas `drizzle/` nie jest czytany przez żadną bramkę
+SQL; „Zaloguj jako" pozwala super-adminowi jednej organizacji **przejąć konto w drugiej**, bo między
+bramką tenantową a globalnym `getUserById` nie ma porównania najemcy; rola `author` może przekierować
+crona platformy na własny host i **odebrać jego sekrety**. Do tego trzy wycieki między najemcami,
+blokada rdzenia serwera na kilkanaście sekund z jednej liczby w danych wykresu, dwa inwarianty,
+które **nie wykonują się nigdzie**, i bramka zegarowa, która **nie wykryłaby bomby, dla której powstała**.
+
+**Trzy rzeczy naprawiono w trakcie tego wydania:** taksonomia funkcjonalności rozszerzona ze 146
+na 173 definicje (pokrycie taksonomią plików produkcyjnych 68,3% → **87,3%**), `README.md` przeliczony
+na dzisiejszy HEAD w obu wersjach językowych wraz z poprawką o providerze, oraz dwa **własne** błędy
+pomiarowe sprostowane w tekście zamiast po cichu poprawione.
+
+---
+
+## Wydanie 10 (2026-09-05) - nagłówek poprzedniego wydania
 
 **Wydanie 10 pomiaru - pierwsze po wykonaniu zleceń tego audytu.** Rodowód: wydanie 1 (2026-08-18)
 musiało wykluczyć 39 plików testowych wiszących w kolekcji; wydanie 2 (19.08) było pierwszym
@@ -6447,3 +6481,709 @@ bramce zamiast o regresji bundla.
    wreszcie istnieje.
 10. **Liczba w zleceniu ma nieść HEAD.** Każda liczba w `PROMPT_*.md` z hashem, na którym powstała;
     plik zlecenia w repozytorium, nie w czacie.
+
+## 15. WYDANIE 11 - audyt całościowy po 458 commitach: moduły, funkcje, funkcjonalności i dziesięć rzeczy, które trzeba naprawić
+
+**Pomiar:** HEAD `7a780b1d0` (2026-09-12), okno od `8c89595e9` (scalenie wydania 10, 2026-09-08).
+Cztery dni, **458 commitów**, 9 scalonych pull requestów i 322 commity bezpośrednie z narzędzia
+`gpt-engineer-app[bot]`. To najszybsze okno w całej serii: +41 233 linie kodu produkcyjnego,
+czyli ponad dziesięć tysięcy linii dziennie.
+
+To wydanie różni się od dziesięciu poprzednich zakresem pytania. Dotychczasowe wydania pytały
+„ile z tego jest przetestowane". To pyta dodatkowo: **co w ogóle jest w tej platformie, z czego
+składa się każdy moduł, jakie funkcje i funkcjonalności on niesie, i co konkretnie trzeba naprawić.**
+Do odpowiedzi na pierwszą część zaprzęgnięto 25 agentów mapujących (po jednym na moduł i przekrój),
+każdy z osobnym agentem adwersaryjnym, którego jedynym zadaniem było podważyć zgłoszone defekty;
+do drugiej - siedmiu agentów przekrojowych. **Każde znalezisko wchodzące do tego rozdziału
+sprawdziłem następnie sam, skryptem albo odczytem kodu, i dwa z nich musiałem sprostować.**
+
+### 15.1. Trzy korekty metodologiczne, które trzeba postawić przed liczbami
+
+**Pierwsza: pokrycie mierzy dziś `istanbul`, nie `v8`.** `vitest.config.ts:47` ustawia
+`provider: "istanbul"` z uzasadnieniem w komentarzu (pełne CI na Node 22 i 24 produkowało ujemne
+liczniki gałęzi przy remapowaniu V8 dla `PostEditor`, `PostBlockEditor` i `usePendingCounters`).
+Zmiana weszła **przed** scaleniem wydania 10 - zmierzyłem to, zakładając drzewo robocze na commicie
+`8c89595e9` i uruchamiając tam ten sam skrypt: provider był już wtedy `istanbul`. Oznacza to, że
+rozdział 0 tego dokumentu oraz `README.md`, który sam pisałem cztery dni temu, mówiły o v8 wbrew stanowi
+repozytorium. Instrumentacja gałęzi wykonywalnych daje inne liczniki niż remapowanie z V8, więc
+**porównania z wydaniami 1-9 obarczam tym zastrzeżeniem i nie wyciągam z nich trendu co do dziesiątych części punktu.**
+
+**Druga: delty w tym wydaniu są liczone jedną metryką na dwóch HEAD-ach, nie cytowane z poprzedniej tabeli.**
+Założyłem drzewo robocze (`git worktree`) na commicie scalenia wydania 10 i uruchomiłem na nim
+identyczne skrypty, co na dzisiejszym HEAD. Wszystkie kolumny „Δ" w tym rozdziale pochodzą z takiego
+podwójnego pomiaru. Tam, gdzie definicja skryptu różni się od definicji użytej w poprzednich wydaniach,
+piszę to wprost przy tabeli.
+
+**Trzecia: jedna liczba, którą podałem w trakcie prac, była błędna, i prostuję ją tutaj.**
+Zgłosiłem, że bramka `check:first-visit-regression` „nie jest wpięta nigdzie". Jest wpięta -
+w `.github/workflows/first-visit.yml:91`. Listę plików workflow pobrałem przed przestawieniem gałęzi
+na dzisiejszy main i zaszyłem ją w skrypcie na sztywno; `first-visit.yml` doszedł w tym oknie
+i mojego sprawdzenia nie widział. Stan faktyczny: **44 bramki `check:*`, 43 wołane w `ci.yml`,
+jedna w `first-visit.yml`**, a meta-bramka `check:gate-coverage` czyta wszystkie pliki
+`.github/workflows/*.yml` (`scripts/check-gate-coverage.ts:38-47`), więc przepuszcza ją słusznie.
+
+### 15.2. Skala platformy i delta okna - jedną metryką na dwóch HEAD-ach
+
+| Metryka                                | Wydanie 10 (`8c89595e9`) | Wydanie 11 (`7a780b1d0`) |        Δ |
+| -------------------------------------- | -----------------------: | -----------------------: | -------: |
+| Pliki kodu produkcyjnego               |                    3 454 |                **3 534** |      +80 |
+| Linie kodu produkcyjnego               |                  705 801 |              **747 034** |  +41 233 |
+| Pliki testowe                          |                    2 470 |                **2 545** |      +75 |
+| Linie testów                           |                  882 822 |              **916 248** |  +33 426 |
+| Przypadki testowe (skan statyczny)     |                   53 469 |               **55 276** |   +1 807 |
+| Asercje (skan statyczny)               |                  109 862 |              **114 830** |   +4 968 |
+| Gęstość asercji na przypadek           |                    2,055 |                **2,077** |   +0,022 |
+| Pliki bez ani jednej atrapy            |                    1 143 |                **1 217** |      +74 |
+| Progi pokrycia per ścieżka             |                      684 |                  **694** |      +10 |
+| Migracje (`supabase/migrations`)       |                      948 |                  **958** |      +10 |
+| Pliki pgTAP / asercje `plan(N)`        |              102 / 1 935 |          **104 / 1 973** | +2 / +38 |
+| Pliki e2e / testy                      |                  13 / 80 |              **13 / 80** |    0 / 0 |
+| Polityki RLS w stanie końcowym / tabel |                633 / 258 |            **634 / 261** |  +1 / +3 |
+| Rejestr defektów `it.fails` / plików   |                412 / 228 |            **409 / 226** |  -3 / -2 |
+| Bramki `check:*`                       |                       43 |                   **44** |       +1 |
+| Trasy (pliki w `src/routes`)           |                      377 |                  **379** |       +2 |
+| Komponenty design-systemu              |                       45 |                   **45** |        0 |
+| Pliki słownikowe i18n                  |                      128 |                  **132** |       +4 |
+
+**Dwie rzeczy w tej tabeli są ważniejsze od reszty.** Pierwsza: **suita rośnie wolniej niż kod.**
+Kod produkcyjny urósł o 5,8% linii, testy o 3,8%. Przy takim tempie różnica kumuluje się w tygodniach,
+nie miesiącach - i to jest mechanizm, który w tej serii już raz doprowadził do spadku pokrycia o kilka
+punktów. Druga: **warstwa ścieżek użytkownika stoi w miejscu od trzech wydań** - 13 plików e2e i 80 testów,
+bez ruchu, przy 199 trasach panelu administracyjnego i 148 publicznych.
+
+### 15.3. Co przyszło w tym oknie - trzy zmiany architektoniczne
+
+**Drugi silnik wykresów wyszedł z repozytorium.** `echarts` i `echarts-for-react` zniknęły z zależności;
+wykresy rysuje dziś własna warstwa: `src/lib/charts/` (22 moduły czystej matematyki plus 10 modeli
+per rodzaj) i `src/components/charts/` (18 modułów renderu, 17 rodzajów wykresu plus mapa-choropleta).
+Migracja w kodzie wykonywalnym jest czysta - `grep -rIn echarts src/ scripts/ e2e/ vite.config.ts`
+nie zwraca ani jednego wiersza kodu. Zostały natomiast komentarze i bramki opisujące świat sprzed
+usunięcia; wracam do nich w 15.7.
+
+**Doszedł drugi pas migracji.** Katalog `drizzle/` z konfiguracją wskazującą na `LOVABLE_DB_MIGRATION_URL`
+(`drizzle.config.ts:8`) i sześcioma plikami SQL. To jest źródło najpoważniejszego znaleziska tego
+wydania - rozdział 15.6.
+
+**Panel administracyjny dostał nowy pulpit.** PR #353 dołożył `src/components/admin/dashboard/`
+(14 plików) i `src/lib/admin/dashboard/` (7 plików) plus agregaty po stronie bazy
+(`admin_dashboard_tenant()`, `admin_dashboard_bucket(text)` i sześć innych funkcji, indeks
+`analytics_events_tenant_country_created_idx`). `src/components/admin` i `src/lib/charts` to dwa
+najbardziej ruszane katalogi okna - odpowiednio 85 i 69 zmian plików.
+
+### 15.4. Z czego składa się platforma: 22 moduły, 3 przekroje, 379 tras
+
+Taksonomia modułów żyje dziś jako kod (`scripts/taxonomy/moduleMap.mjs`, 586 wierszy) i jest
+pilnowana bramką `check:feature-taxonomy`. Poniższa tabela to **stan na dzisiejszym HEAD**,
+policzony tą samą funkcją `classifyPath`, której używa bramka.
+
+|   # | Moduł                                                 | Pliki prod. |   Linie | Pliki testowe | Trasy |
+| --: | ----------------------------------------------------- | ----------: | ------: | ------------: | ----: |
+|   1 | Wpisy: doświadczenie czytelnika                       |         106 |  13 896 |            42 |    10 |
+|   2 | Edytor wpisów i workflow redakcyjny                   |         103 |  14 771 |            81 |     6 |
+|   3 | Silniki treści: bloki + page builder                  |         474 | 117 228 |           375 |     9 |
+|   4 | Strony, wygląd, motyw, media, import                  |         137 |  17 852 |            70 |    22 |
+|   5 | Strona główna, archiwa, chrome                        |          65 |  10 186 |            29 |     9 |
+|   6 | Wyszukiwarka                                          |          25 |   4 696 |            19 |     3 |
+|   7 | Typy treści specjalne                                 |         110 |  25 151 |            79 |    39 |
+|   8 | SEO, feedy, dane strukturalne                         |          78 |  11 133 |            69 |    13 |
+|   9 | Czat / komunikator                                    |          86 |  16 285 |            64 |     4 |
+|  10 | Sieć / networking                                     |          32 |   5 206 |            23 |     5 |
+|  11 | Newsletter i e-mail                                   |         153 |  30 176 |           110 |    34 |
+|  12 | Realtime / powiadomienia / web-push                   |          31 |   5 623 |            36 |     2 |
+|  13 | Monetyzacja: checkout / subskrypcje / billing         |         197 |  30 001 |           136 |    18 |
+|  14 | Monetyzacja: kupony / darowizny / prezenty / reklamy  |          44 |   6 408 |            27 |     4 |
+|  15 | Profil i konto                                        |         100 |  20 630 |            67 |    26 |
+|  16 | Społeczność: kluby, komentarze, moderacja             |         308 |  59 462 |           222 |    33 |
+|  17 | Analityka i BI                                        |         129 |  51 524 |           112 |    11 |
+|  18 | CRM                                                   |          62 |  16 803 |            33 |     9 |
+|  19 | Ustawienia / integracje / users / multi-tenant / RODO |         147 |  28 484 |            61 |    28 |
+|  20 | Platforma / backend / infrastruktura / SSR            |         245 |  74 134 |           420 |    32 |
+|  21 | Rekrutacja / kariera                                  |          30 |   5 351 |            20 |     6 |
+|  22 | Wydarzenia: event builder, rejestracja, onsite        |         364 |  68 287 |           274 |    69 |
+|   X | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |         256 |  38 743 |           153 |     - |
+|   X | PRZEKROJOWE: słowniki i18n                            |         149 |  60 307 |             6 |     - |
+|   X | PRZEKROJOWE: design system (`components/ui`)          |          45 |   4 792 |             2 |     - |
+|   - | poza taksonomią                                       |          58 |   9 905 |            15 |     - |
+
+Trasy dzielą się tak: **199 panelu administracyjnego, 148 publicznych, 20 endpointów API,
+6 operacyjnych platformy, 5 integracji, 1 układ główny.** Największym modułem tras są wydarzenia (69),
+potem typy treści specjalne (39), newsletter (34) i społeczność (33).
+
+**Największy pojedynczy problem tej tabeli nie jest w kolumnie z liczbami, tylko w przedostatnim wierszu.**
+Powierzchnia „PRZEKROJOWE: powłoka panelu admin + atomy/molekuły" ma 256 plików i 38 743 linie,
+ale **tylko 73 pliki (7 767 linii) trafiają tam z reguł, które ta nazwa opisuje** - czyli z wzorców
+`components/(atoms|molecules|forms|features)`, `components/admin/(atoms|molecules|hooks)` i `lib/(features|hooks)`.
+Pozostałe **183 pliki i 30 976 linii (80% powierzchni) wpada tam z dwóch łapaczy na końcu reguły:
+`^src/components/` i `^src/hooks/`** (`scripts/taxonomy/moduleMap.mjs`, sekcja `CROSS_CUTTING`).
+Co tam faktycznie siedzi:
+
+| Katalog w łapaczu                         | Pliki | Linie | Do jakiego modułu należy merytorycznie |
+| ----------------------------------------- | ----: | ----: | -------------------------------------- |
+| `src/components/admin/postExperience`     |    30 | 2 186 | 1 / 2 (doświadczenie wpisu)            |
+| `src/components/admin/membership`         |    15 | 1 609 | 13 (członkostwa)                       |
+| `src/components/admin/dashboard`          |    14 | 1 969 | 17 albo 19 (pulpit)                    |
+| `src/components/dock/organisms` + `atoms` |     9 | 1 604 | 20 (dok roboczy)                       |
+| `src/components/admin/gifting`            |    10 |   801 | 14 (prezenty)                          |
+| `src/components/admin/monetization`       |     9 |   478 | 13/14 (monetyzacja)                    |
+| `src/components/admin/ads`                |     8 |   913 | 14 (reklamy)                           |
+
+Etykieta mówi „powłoka i atomy", a w środku leżą panele monetyzacji, członkostw, prezentów, reklam,
+pulpit administracyjny i cały dok roboczy. **Czytelnik tabeli modułów dostaje więc zaniżony obraz
+modułów 13, 14, 17 i 20 - ich interfejs administracyjny jest policzony gdzie indziej.**
+
+### 15.5. Funkcjonalności: z 146 na 173 definicje, z 68% na 87% pokrycia taksonomią
+
+Tabela funkcjonalności wydania 10 miała 146 definicji. Sprawdziłem, ile plików produkcyjnych one
+faktycznie obejmują na dzisiejszym HEAD: **2 414 z 3 534, czyli 1 120 sierot (31,7%)**. Największe
+skupiska sierot to nie drobiazgi, tylko całe powierzchnie produktu: `components/admin/blocks` (95 plików),
+`lib/builder` (60), `lib/admin` (46), `components/ui` (45), `lib/clubs` (31), `lib/chat` (30),
+dok roboczy (32 w dwóch katalogach). Jedna definicja była przy tym martwa - „LOGIN: formularze auth
+w CMS (bloki + widget)" nie łapie dziś ani jednego pliku.
+
+Dopisałem **27 definicji** domykających te skupiska. Po nich tabela obejmuje **3 085 z 3 534 plików
+(87,3%)**, a 449 sierot, które zostały, rozkłada się na drobne grupy (największa liczy 8 plików),
+czyli jest wreszcie ogonem, a nie kontynentem. Nowe wiersze:
+
+pulpit i agregaty panelu admina (21 plików), dok roboczy WorkspaceDock (32), doświadczenie wpisu
+w panelu (30), członkostwa i plany (15), prezenty (10), monetyzacja - przegląd (9), reklamy (8),
+SEO w panelu (11), pola rejestracji i auth (5), UI edytora bloków (95), rdzeń buildera (60),
+logika domenowa klubów (31), logika domenowa czatu (30), poczta platformy - trasy (11),
+API publiczne (5), atomy i molekuły współdzielone (50), atomy/molekuły/hooki powłoki admina (20),
+hooki aplikacji (19), harness testowy i fixture (58), design system (45), warstwa uruchomieniowa i18n (12),
+administracja konta (39), powłoka panelu - nawigacja i dialogi (8), pozostała logika bloków (9),
+komponenty widoku buildera (5), pozostała logika wpisu (5), wykresy - własna warstwa SVG (wiersz
+istniał już wcześniej i łapie tę warstwę bez zmian).
+
+### 15.6. Rodzaj testu per moduł - gdzie dowód jest jednostronny
+
+Rodzaj testu waży więcej niż liczba (argument z rozdz. 7.1). Poniżej **liczba plików testowych
+każdego rodzaju w każdym module**, policzona jednym klasyfikatorem na dzisiejszym HEAD.
+Reguła pierwszeństwa jest jawna: nazwa pliku (`*.gate.*`, `*.invariant.*`, `*parity*`, `*smoke*`,
+`*integration*`), potem treść (`axe` → dostępności, `renderHook` → hooka, `supabaseFromStub` →
+warstwy danych, `createServerFn` → funkcji serwerowej, `@testing-library/react` + `render(` →
+komponentowy), a na końcu jednostkowy.
+
+| Moduł                   | jednostk. | komponent. | dostępn. | warstwy danych | hooka | serwer. | bramki | parytetu |
+| ----------------------- | --------: | ---------: | -------: | -------------: | ----: | ------: | -----: | -------: |
+| 1 Wpisy                 |        25 |         10 |        1 |              1 |     5 |       0 |      0 |        0 |
+| 2 Edytor                |        25 |         39 |        0 |              8 |     7 |       0 |      1 |        1 |
+| 3 Silniki treści        |       174 |        132 |       12 |             22 |    18 |       3 |      3 |       10 |
+| 4 Strony i wygląd       |        26 |         30 |        0 |              2 |    11 |       0 |      0 |        1 |
+| 5 Strona główna         |        13 |         12 |        1 |              2 |     0 |       0 |      0 |        1 |
+| 6 Wyszukiwarka          |         7 |          9 |        0 |              2 |     1 |       0 |      0 |        0 |
+| 7 Typy treści           |        28 |         20 |       19 |              8 |     2 |       0 |      0 |        0 |
+| 8 SEO                   |        53 |          5 |        8 |              1 |     2 |       0 |      0 |        0 |
+| 9 Czat                  |        28 |         22 |        1 |              0 |    13 |       0 |      0 |        0 |
+| 10 Sieć                 |        10 |          9 |        0 |              0 |     3 |       0 |      1 |        0 |
+| 11 Newsletter           |        76 |         16 |        1 |             15 |     2 |       0 |      0 |        0 |
+| 12 Realtime             |        22 |          0 |        4 |              1 |     8 |       1 |      0 |        0 |
+| 13 Billing              |        82 |         13 |        4 |             35 |     1 |       0 |      0 |        1 |
+| 14 Kupony i darowizny   |         8 |          6 |        4 |              4 |     4 |       0 |      0 |        1 |
+| 15 Profil               |        26 |         15 |       13 |              3 |     5 |       1 |      4 |        0 |
+| 16 Społeczność          |       112 |         71 |       16 |              4 |     8 |       7 |      3 |        1 |
+| 17 Analityka i BI       |        68 |         18 |       19 |              4 |     2 |       0 |      0 |        1 |
+| 18 CRM                  |        27 |          3 |        0 |              1 |     1 |       0 |      0 |        1 |
+| 19 Ustawienia i najemcy |        45 |          3 |        0 |              8 |     3 |       0 |      1 |        1 |
+| 20 Platforma i SSR      |       269 |         25 |       26 |             79 |     5 |       5 |      6 |        4 |
+| 21 Kariera              |         9 |          0 |       10 |              1 |     0 |       0 |      0 |        0 |
+| 22 Wydarzenia           |       111 |         55 |       71 |              4 |    15 |       4 |      7 |        7 |
+| X powłoka admina        |        22 |         71 |       21 |             17 |    17 |       2 |      3 |        0 |
+| X design system         |         0 |          2 |        0 |              0 |     0 |       0 |      0 |        0 |
+| X słowniki i18n         |         6 |          0 |        0 |              0 |     0 |       0 |      0 |        0 |
+
+**Cztery wiersze tej tabeli są ostrzeżeniem, a nie statystyką:**
+
+- **Design system: 45 komponentów bazowych, 2 pliki testowe.** To biblioteka, z której korzysta
+  cały panel i cała strona publiczna. Regresja w niej wychodzi wszędzie naraz, a dowodzą jej dwa pliki.
+- **Słowniki i18n: 149 plików, 60 307 linii, 6 plików testowych.** Parytetu pilnują bramki
+  (`check:i18n-parity`, `check:i18n-hardcoded`, `check:i18n-overlay-imports`), więc warstwa nie jest
+  bezbronna - ale bramka parytetu twardo egzekwuje **28 wypisanych prefiksów**, a resztę tylko loguje.
+- **CRM i Ustawienia: zero plików dostępnościowych** przy 9 i 28 trasach panelu. Moduł 19 to dodatkowo
+  wielonajemność i RODO - powierzchnia, na której błąd kosztuje najwięcej.
+- **Moduł 12 (realtime) i 21 (kariera): zero testów komponentowych.** W module 12 to częściowo
+  uzasadnione (warstwa jest w większości bezinterfejsowa), w module 21 - nie, bo `src/routes/careers*`
+  to sześć tras publicznych z formularzem kandydata.
+
+### 15.7. Co trzeba naprawić: znaleziska Z1-Z8, każde potwierdzone niezależnie
+
+Poniższe znaleziska pochodzą z pracy agentów, ale **żadne nie weszło do tego rozdziału na słowo agenta**.
+Każde sprawdziłem sam - odczytem kodu, migracji albo uruchomieniem funkcji - i przy dwóch musiałem
+skorygować opis mechanizmu. Kolejność: od najcięższego.
+
+#### Z1 (KRYTYCZNE). Dwa pasy migracji trzymają sprzeczny stan prywatności profilu
+
+Repozytorium ma dziś dwa niezależne pasy zmian schematu: `supabase/migrations` (958 plików)
+i `drizzle/migrations` (6 plików), wskazujący na `LOVABLE_DB_MIGRATION_URL` (`drizzle.config.ts:8`,
+jedyne wystąpienie tej zmiennej w repozytorium).
+
+`drizzle/migrations/0001_profiles_discoverable_default_true.sql:5-10` robi to:
+
+```sql
+ALTER TABLE public.profiles
+  ALTER COLUMN discoverable SET DEFAULT true;
+
+UPDATE public.profiles
+   SET discoverable = true
+ WHERE discoverable = false;
+```
+
+**Bliźniaka w pasie supabase nie ma** - `grep "ALTER COLUMN discoverable" supabase/migrations/`
+daje zero trafień w 958 plikach. Pas supabase trzyma stan przeciwny: `discoverable boolean NOT NULL
+DEFAULT false` (`20260710092108_495ab0fd...:8`), a dwie późniejsze migracje opierają na tym decyzję
+prywatnościową i cytują ją w komentarzu: _„`profiles.discoverable` ma `NOT NULL DEFAULT false`
+(20260710092108:8) - człowiek, który nigdy nie zdecydował, jest niewidoczny"_
+(`20260827065944_fbf90e88...:19` oraz `20260826182500_event_attendees_and_discussions.sql:19`).
+
+Drugi rozjazd w tym samym pasie: `0002_pr350_member_crm_sync_and_chat_compat.sql` nie zawiera naprawy
+danych, którą pas supabase wykonuje - `UPDATE public.conversations SET wallpaper = NULL WHERE
+wallpaper = 'soft'` (`20260912101000_chat_wallpaper_compatibility.sql:3`). Drizzle ma samo mapowanie
+w ciele funkcji (linia 145), więc wiersze zapisane historycznie zostają z wartością spoza dziedziny.
+
+**Czego tego nie pilnuje.** Żaden workflow ani skrypt w `scripts/` nie czyta katalogu `drizzle/` -
+wszystkie bramki SQL idą przez `MIGRATIONS_DIR = "supabase/migrations"` (`scripts/lib/sqlMigrations.ts:17`):
+replay, zakres najemcy, regresja wiązania polityk, zakres właścicielski, anonimowy INSERT, literały ról,
+kontrakt RPC, kontrakt bazy, kronika migracji, świeżość typów, własnicielstwo i snapshot autoryzacji.
+Baza pgTAP w CI powstaje z `supabase db start` (`.github/workflows/ci.yml:1087`), więc **pas drizzle
+nigdy nie wykonuje się w CI**. Jedyny test parytetu obu pasów - `src/lib/ci/__tests__/releaseWorkflow.test.ts:102-106`
+
+- pokrywa jedną parę z sześciu i pinuje plik `0003`, podczas gdy ostatnim słowem pasa drizzle dla tej
+  funkcji jest `0004` (nieprzypilnowana re-emisja `0003`).
+
+**Naprawa.** (1) Bramka strukturalna: każdy plik w `drizzle/migrations` musi mieć bliźniaka
+w `supabase/migrations` po normalizacji komentarzy, a plik bez bliźniaka to czerwień. (2) Rozstrzygnąć
+`0001` w jedną stronę - albo wprowadzić tę zmianę do pasa supabase i poprawić komentarze dwóch migracji,
+które powołują się na `DEFAULT false`, albo wycofać ją z drizzle. Stan sprzeczny dotyczy domyślnej
+widoczności profilu, czyli sprawy o ciężarze RODO. (3) Dopisać brakujący `UPDATE` albo usunąć go
+z drugiej strony. (4) Usunąć `0004` albo przepiąć na niego test parytetu.
+
+#### Z2 (KRYTYCZNE). Przejęcie konta w obcym najemcy przez „Zaloguj jako"
+
+`src/lib/admin/impersonation.functions.ts:33-75`. Jedyna autoryzacja to `context.supabase.rpc("is_super_admin")`
+(linie 34-37), a ta funkcja jest **tenantowa**: `WHERE user_id = _user_id AND role = 'super_admin'
+AND tenant_id = public.current_tenant_id()` (`20260824074231_4a952090...:48-54`). Zaraz potem kod woła
+`supabaseAdmin.auth.admin.getUserById(data.targetUserId)` (linia 45) - zapytanie globalne, ponad RLS -
+i generuje magic link na adres celu (linia 58), zwracając `hashed_token` klientowi. **Między jednym
+a drugim nie ma ani jednego porównania najemcy celu z najemcą aktora.**
+
+Wiersz audytu dostaje przy tym `tenant_id: actorProfile?.tenant_id` (linia 71), czyli najemcę
+napastnika - w dzienniku najemcy ofiary nie zostaje ślad.
+
+**Naprawa.** Przed `getUserById` odczytać `profiles.tenant_id` celu i odrzucić przy niezgodności;
+wzorzec `assertSameTenant` istnieje już w tym samym katalogu (`src/lib/admin/accountAdmin.functions.ts:34-67`).
+Jeśli praca cross-tenant ma być świadomą zdolnością, wymaga osobnej roli **platformowej** (nie tenantowej)
+i zapisu audytu w najemcy **celu**.
+
+#### Z3 (KRYTYCZNE). Rola `author` przekierowuje crona platformy i przejmuje jego sekrety
+
+Łańcuch jest czterokrokowy i każdy krok jest w repozytorium:
+
+1. `updateJobRunnerSettings` (`src/lib/newsletter-admin.functions.ts:223-233`) stoi za `.middleware([requireStaff])`
+   i zapisuje `base_url` przez `supabaseAdmin`, czyli ponad RLS.
+2. `requireStaff` to `["admin", "editor", "author"]` (`src/integrations/supabase/require-staff.ts:19`).
+3. `job_runner_settings` to globalny singleton **bez kolumny `tenant_id`**
+   (`20260713170000_newsletter_async_and_job_runner.sql:41-47`), a `public.job_runner_base_url()`
+   bierze jego `base_url` jako pierwszą gałąź `COALESCE` (`20260731081100_e2a00e07...:251-257`).
+4. pg_cron wysyła pod ten adres sekrety w nagłówkach: `x-jobs-secret`
+   (`20260731210000_community_cron_db_schedule.sql:188`) i `x-community-cron-secret` (`:305`).
+
+Autor treści w dowolnym najemcy ustawia własny host, po najbliższym ticku odbiera sekrety crona
+i może nimi wołać `/api/public/jobs-tick`, `/api/public/billing-cron` i `/api/public/community-cron`.
+Ten sam zapis z `enabled: false` gasi pocztę i zadania tła całej platformy.
+
+**Naprawa.** Podnieść bramkę do roli platformowej, zawęzić `base_url` do domen z `public.tenants`,
+a zapis wykonać klientem użytkownika pod polityką RLS zamiast `supabaseAdmin`. Osobno:
+`getJobRunnerSettings` (`:154-166, 196`) wydaje pod `requireStaff` sześć pierwszych znaków sekretu -
+powinno zwracać `secret_set: boolean`, nie fragment wartości.
+
+#### Z4 (WYSOKIE). Trzy wycieki między najemcami w panelu administracyjnym
+
+**a) `email_send_log` - adresy odbiorców wszystkich najemców.** Tabela nie ma kolumny `tenant_id`:
+definicja `20260728154925_email_infra.sql:27-36` i wygenerowany typ `src/integrations/supabase/types.ts`
+zgodnie tego dowodzą (jedyny późniejszy `ADD COLUMN` dokłada `message_id`). Odczyty idą przez
+`supabaseAdmin` pod bramką tenantową: `src/lib/admin/emailOutbox.functions.ts:135` i
+`src/lib/email/system-log.server.ts:163`. Admin najemcy A widzi, do kogo platforma pisała w imieniu najemcy B.
+
+**b) `listStaffUsers` zawsze schodzi na gałąź bez filtru najemcy.** `src/lib/crm.functions.ts:1025-1045`
+czyta `claims.tenant_id`, ale w repozytorium **nie ma** `custom_access_token_hook`
+(`grep custom_access_token_hook supabase/migrations/` = 0 trafień), a middleware przekazuje surowe
+`getClaims(token)` (`src/integrations/supabase/auth-middleware.ts:57-69`). `tenantId` jest więc zawsze
+`null` i warunek z linii 1041 zawsze wybiera zapytanie bez `.eq("tenant_id", ...)`. Komentarz nad funkcją
+obiecuje „w bieżącym tenancie"; kod tego nie robi. Skutek: lista pracowników całej platformy razem
+z ich `tenant_id` - czyli gotowa lista celów dla Z2.
+
+**c) Ładunki webhooków płatności czytane i odtwarzane po `id` bez najemcy.**
+`src/lib/billing/webhookRetry.functions.ts:63-70` i `:152-157`: `assertAdmin` jest bramką tenantową,
+a zaraz po niej `supabaseAdmin.from("payment_webhook_events").select("... payload ...").eq("id", data.id)`
+
+- bez filtru, mimo że tabela ma `tenant_id`. `retryWebhookEvent` dodatkowo **odtwarza** zdarzenie
+  obcego najemcy, czyli wykonuje na nim skutki rozliczeniowe.
+
+#### Z5 (WYSOKIE). Jedna skrajna liczba w danych wykresu blokuje rdzeń na kilkanaście sekund
+
+`src/lib/charts/scale.ts:31-41`. Uruchomiłem funkcję wprost, w tym samym środowisku, w którym
+biegnie produkcja:
+
+| Wywołanie                                           | Wynik                              |          Czas |
+| --------------------------------------------------- | ---------------------------------- | ------------: |
+| `niceScale(-Number.MAX_VALUE, Number.MAX_VALUE, 5)` | `RangeError: Invalid array length` | **45 391 ms** |
+| `niceScale(0, Number.MAX_VALUE, 5)`                 | `RangeError: Invalid array length` | **13 833 ms** |
+
+Mechanizm: `max - min` przepełnia się do `Infinity`, strażnik w `niceStep` cofa się wtedy do kroku 1,
+a granice pozostają rzędu 1e308, więc pętla z linii 39 dokłada podziałki, aż tablica przekroczy
+maksymalną długość tablicy JS. **To nie jest nieskończona pętla** (tak opisał ją agent i to sprostowałem),
+tylko kilkanaście do kilkudziesięciu sekund zajętego rdzenia zakończone nieobsłużonym wyjątkiem.
+**Wystarczy jedna skrajna granica**, nie dwie - `niceScale(0, MAX_VALUE)` pada po 13,8 s.
+
+Droga wejścia jest otwarta: `src/lib/charts/parse.ts` przepuszcza każdą liczbę skończoną, a `importTable.ts`
+wciąga arkusze XLSX i CSV, gdzie `1E+308` jest wartością legalną. `niceScale` jest przy tym wołane
+także z `honesty.ts:37`, które wykonuje się przy każdym renderze - **również serwerowym**. Blokada
+trafia więc w pętlę zdarzeń procesu obsługującego żądania, a nie w jedną kartę przeglądarki.
+
+Drugi, łagodniejszy defekt w tym samym pliku (`roundToStep`, `scale.ts:54-57`, twardy sufit
+`Math.min(10, ...)`): dla kroku poniżej 1e-10 wszystkie podziałki zaokrąglają się do tej samej liczby.
+Zmierzone: `niceScale(0, 1e-10)` → `[0, 0, 1e-10, 1e-10]`, `niceScale(0, 1e-11)` → **sześć zer**.
+Wykres wartości rzędu 1e-11 pokazuje sześć identycznych podpisów „0" przy różnych wysokościach siatki -
+wygląda jak dane zerowe, nie jak awaria.
+
+**Naprawa.** Odrzucić nieskończoną rozpiętość przed liczeniem kroku, dołożyć twardy sufit liczby
+podziałek w pętli, a w `roundToStep` zejść z sufitu 10 miejsc na reprezentację wykładniczą.
+Dopisać do `scale.test.ts` dwa przypadki: `niceScale(0, Number.MAX_VALUE)` kończy się szybko,
+a `niceScale(0, 1e-11)` zwraca podziałki parami różne.
+
+#### Z6 (ŚREDNIE, strukturalne). Renderowanie surowego HTML nie ma żadnej bramki
+
+Tu musiałem skorygować ocenę agenta w drugą stronę, na korzyść repozytorium. Zgrubny skan pokazuje
+70 plików z `dangerouslySetInnerHTML`, ale po usunięciu komentarzy zostaje **52 pliki i 75 realnych
+miejsc** - część trafień to pliki, które mają to słowo **wyłącznie w komentarzu wyjaśniającym,
+że świadomie go nie używają** (`MentionText.tsx:5`, `SearchSnippet.tsx:3`). Przejrzałem każde
+z 15 miejsc, w których w tym samym pliku nie ma wywołania sanityzatora: to stałe skrypty i CSS
+(`dismissScript`, `previewCss`, `ringCss`, `keyframes`, `THEME_INIT_SCRIPT`, `BOOT_PROBE_SCRIPT`),
+JSON-LD przez dedykowany `safeJsonLd(...)`, `renderFootnoteHtml(...)` - który zwraca `sanitize(text)`
+(`src/components/blocks/renderer/footnotes.ts:49-51`) - i `citations.chicago`, gdzie `formatChicago`
+escapuje każdą część pochodzącą od użytkownika (`escapeHtml`, linia 170).
+**Nie znalazłem miejsca, w którym treść od użytkownika trafia do `__html` bez sanityzacji albo escapowania.**
+
+Realnym brakiem jest co innego: **żadna z 44 bramek nie pilnuje tej dyscypliny.**
+`grep -rl "dangerouslySetInnerHTML" scripts/ src/lib/ci/` nie zwraca ani jednego pliku. Repozytorium
+ma osiem zapadek skanujących źródła (`check:unknown-casts`, `check:i18n-hardcoded`, `check:db-row-casts`,
+`check:clock-freeze` i dalsze), więc bramka „każde `dangerouslySetInnerHTML` dostaje wartość z listy
+dozwolonych źródeł, linia bazowa 75 miejsc i tylko w dół" ma dokładnie ten kształt kodu, który już tu działa.
+Ryzyko nie polega na dziurze, która dziś istnieje, tylko na tym, że **nic nie utrzyma tego stanu**:
+siedemdziesiąte szóste miejsce może przyjść z dowolnego PR-a i nie zapali niczego.
+
+#### Z7 (WYSOKIE). Dziennik impersonacji czytelny dla super-admina każdej organizacji
+
+Tabela `impersonation_sessions` ma kolumnę `tenant_id`, `actor_user_id`, `target_user_id`, `ip`,
+`user_agent` i `reason`, a jej jedyna polityka brzmi:
+
+```sql
+CREATE POLICY "super_admin_read_impersonation"
+  ON public.impersonation_sessions
+  FOR SELECT TO authenticated
+  USING (public.is_super_admin());
+```
+
+(`20260628214246_9168ccd6...:15-19`)
+
+`is_super_admin()` potwierdza rolę wywołującego **w jego własnym najemcy** i nie porównuje `tenant_id`
+wiersza. Super-admin organizacji A czyta więc cały dziennik impersonacji platformy - razem z adresami IP
+i uzasadnieniami z obcych organizacji. W parze ze Z2 (gdzie wiersz audytu trafia do najemcy napastnika)
+daje to dziennik, który jest jednocześnie zbyt szeroko czytelny i niepełny tam, gdzie powinien być pełny.
+
+**Naprawa.** `USING (tenant_id = public.current_tenant_id() AND public.is_super_admin())`.
+
+#### Z8 (ŚREDNIE). Fraza z wyszukiwarki trafia do telemetrii bez redakcji PII
+
+`src/routes/api/public/track.ts` importuje z modułu redakcji **tylko** `redactUrl` (linia 10)
+i stosuje go do `path` i `referrer` (linie 118-119). Dwa pozostałe pola idą surowe:
+`entity_id: truncate(e.entity_id, 120)` (linia 117) i `meta: safeMeta(e.meta)` (linia 123),
+gdzie `safeMeta` (linie 67-76) robi wyłącznie round-trip JSON z limitem 4 kB.
+
+Nagłówek `src/lib/observability/redact.ts:7-9` stawia regułę wprost: każdy łańcuch trafiający
+do telemetrii musi przejść przez `redactPii`, a kontekst strukturalny przez `redactMeta`.
+Sąsiedni endpoint stosuje się do niej co do joty (`src/routes/api/public/client-errors.ts:11,45,54,65`),
+`track.ts` jest jedynym, który nie.
+
+Wektor nie jest hipotetyczny. `trackSearch` (`src/lib/analytics/track.ts:173-181`) wysyła frazę
+wpisaną przez użytkownika **dwa razy**: jako `entityId` (120 znaków, zmniejszone litery) i w `meta.q`
+(200 znaków). Adres e-mail, numer telefonu albo token wklejony w wyszukiwarkę serwisu ląduje
+w `analytics_events` obok `anon_id`, `session_id`, `ua` i `country`.
+
+**Naprawa.** `entity_id: redactPii(...)` i `meta: redactMeta(safeMeta(e.meta))` w `track.ts` -
+dwie linie, ta sama biblioteka, która już jest zaimportowana obok.
+
+#### Z9 (WYSOKIE). Dwa inwarianty, które nie wykonują się nigdzie - a konfiguracja twierdzi, że przechodzą w CI
+
+W repozytorium są dwa pliki testowe pod warunkowym `describe.skip`:
+`src/__tests__/db-schema-invariant.test.ts` (wymagane tabele osiągalne przez Data API oraz
+niezmienność modelu danych renderera bloków) i `src/__tests__/lang-parity.test.ts`
+(treść PL i EN dla wpisów i stron, brak duplikatów stron po aktualizacji tłumaczeń).
+Oba mają ten sam strażnik:
+
+```ts
+const shouldRun = Boolean(SUPABASE_URL && SUPABASE_KEY);
+const d = shouldRun ? describe : describe.skip;
+```
+
+(`db-schema-invariant.test.ts:19-24`)
+
+`vitest.config.ts:5628-5632` tłumaczy to zdaniem: _„odpytują HOSTOWANĄ bazę przez anon Data API
+i padają lokalnie na zaślepce `.env`. (…) w CI, z prawdziwymi poświadczeniami, **przechodzą**"_.
+
+**To zdanie jest nieprawdziwe.** Job, który uruchamia vitesta (`test-shards`, `.github/workflows/ci.yml:747`),
+nie ma bloku `env:` ani na poziomie jobu (linie 747-753 to wyłącznie `runs-on`, `timeout-minutes`
+i `strategy`), ani na kroku uruchamiającym suitę (`:780-781`). Blok `env:` ma w tym jobie tylko krok
+instalacji zależności. W repozytorium nie ma pliku `.env`, `vitest.setup.ts` go nie ładuje,
+a `vitest.config.ts` nie ma ani `loadEnv`, ani `envDir`.
+
+Wniosek: `shouldRun` jest w CI **zawsze fałszywe**, więc oba pliki są **pomijane zawsze i wszędzie** -
+lokalnie i na runnerze. Inwariant „wygenerowane typy opisują realny schemat bazy" oraz bramka
+parytetu treści PL/EN nie są dziś wykonywane nigdzie. To gorsze niż brak testu, bo komentarz
+w konfiguracji zapewnia czytelnika, że test istnieje i przechodzi.
+
+Drugi, węższy problem tego samego strażnika: `Boolean(URL && KEY)` przepuszcza dowolny niepusty napis.
+Gdyby do kroku testowego trafiły wartości zastępcze używane przy buildzie
+(`https://placeholder.supabase.co`, `placeholder-anon-key`), suity ruszyłyby przeciwko zaślepce
+i padły - zamiast się pominąć.
+
+**Naprawa.** Albo dołożyć poświadczenia do kroku testowego i zmienić strażnik na sprawdzenie
+kształtu wartości (nie samej niepustości), albo - jeśli te dwa inwarianty mają zostać poza suitą
+jednostkową - przenieść je do joba `post-deploy`, który już dziś sonduje wdrożoną bazę
+(`check:db-contract`, `ci.yml:1327`), i skreślić nieprawdziwe zdanie z `vitest.config.ts`.
+
+### 15.8. Wynik pomiaru: 96,21% linii, 94,65% funkcji, jedna czerwień z obciążenia
+
+Przebieg: `TZ=UTC npx vitest run --coverage` na HEAD `7a780b1d0`, provider `istanbul`,
+**3 049 sekund** (50 minut 49 sekund), cztery rdzenie, `pool: forks`, `maxForks 3`.
+
+| Metryka             | Pokryte / wszystkie |      Wynik |
+| ------------------- | ------------------: | ---------: |
+| Linie               |   111 991 / 116 404 | **96,21%** |
+| Instrukcje          |   126 845 / 133 312 | **95,15%** |
+| Funkcje             |     34 921 / 36 893 | **94,65%** |
+| Gałęzie             |   108 933 / 120 490 | **90,41%** |
+| Plików w mianowniku |                     |  **3 424** |
+
+| Przebieg                      |                                                                          Wynik |
+| ----------------------------- | -----------------------------------------------------------------------------: |
+| Pliki testowe                 |                           2 541 zielonych, **1 czerwony**, 2 pominięte (2 545) |
+| Przypadki                     | 70 070 zielonych, **1 czerwony**, 419 „expected fail", 50 pominiętych (70 542) |
+| Naruszenia progów per-ścieżka |                                         **2**, obie na `src/routes/__root.tsx` |
+| Niepokryte linie              |                                                                      **4 413** |
+| Pliki na zerze                |                                                           **97** (1 746 linii) |
+
+**Porównanie z wydaniem 10 wymaga zastrzeżenia i je stawiam.** Wydanie 10 podało 95,23% linii
+i 93,71% funkcji - ale providerem **v8**, na mianowniku 3 307 plików. Dzisiejsze 96,21% i 94,65%
+pochodzą z **istanbula** i mianownika 3 424 plików. Instrumentacja gałęzi wykonywalnych liczy inaczej
+niż remapowanie z V8, więc **różnicy +0,98 pp linii nie wolno czytać jako przyrostu pracy testowej.**
+Jedyne, co z tego zestawienia wynika uczciwie: po 458 commitach i 41 tysiącach nowych linii kodu
+pokrycie **nie osunęło się** - a to przy takim tempie jest wynikiem samym w sobie.
+
+**Jedyna czerwień jest flakiem obciążeniowym i mam na to dowód.**
+`src/components/network/__tests__/RequestIntroductionDialog.test.tsx` → „notka dłuższa niż limit jest
+ucinana przy wpisywaniu" raportuje **165 001 ms** i kończy się komunikatem
+`Error: Worker exited unexpectedly` z puli forków. Przy `testTimeout: 20000` w konfiguracji oznacza to,
+że proces roboczy padł, a nie że asercja nie przeszła. Uruchomiłem ten sam plik w izolacji:
+**22/22 zielone w 762 ms.** Maszyna w czasie przebiegu obsługiwała równolegle siedmiu agentów audytu
+na czterech rdzeniach - i to jest dokładnie ta klasa czerwieni, o której mówi rozdział o determinizmie:
+awaria bez commita, wyłącznie z koperty zasobów.
+
+**Dwa naruszenia progów to jedna ścieżka.** `src/routes/__root.tsx`: funkcje 85,24% wobec progu 87%,
+instrukcje 88,76% wobec 90%. Linie i gałęzie przechodzą. To jest zapadka działająca zgodnie
+z projektem - próg podniesiono, gdy plik był wyżej, i dziś pilnuje regresji.
+
+### 15.9. Pokrycie per moduł - cała tabela
+
+|   # | Moduł                                                 | Plików |       Linie |    Funkcje | Zer | Niepokrytych linii |
+| --: | ----------------------------------------------------- | -----: | ----------: | ---------: | --: | -----------------: |
+|  21 | Rekrutacja / kariera                                  |     30 | **100,00%** |    100,00% |   0 |                  0 |
+|  16 | Społeczność: kluby, komentarze, moderacja             |    307 |  **99,71%** |     99,56% |   1 |                 24 |
+|   2 | Edytor wpisów i workflow redakcyjny                   |     96 |  **99,35%** |     98,85% |   0 |                 15 |
+|  11 | Newsletter i e-mail                                   |    150 |  **99,19%** |     98,82% |   1 |                 41 |
+|   3 | Silniki treści: bloki + page builder                  |    457 |  **98,83%** |     97,88% |   0 |                255 |
+|  22 | Wydarzenia: event builder, rejestracja, onsite        |    363 |  **98,68%** |     98,81% |   1 |                139 |
+|  20 | Platforma / backend / infrastruktura / SSR            |    242 |  **98,20%** |     96,88% |   9 |                199 |
+|  12 | Realtime / powiadomienia / web-push                   |     31 |  **98,05%** |     97,13% |   0 |                 23 |
+|   8 | SEO, feedy, dane strukturalne                         |     78 |  **97,64%** |     97,27% |   3 |                 50 |
+|   9 | Czat / komunikator                                    |     85 |  **97,59%** |     95,68% |   0 |                 81 |
+|  18 | CRM                                                   |     62 |  **97,49%** |     97,44% |   0 |                 78 |
+|   6 | Wyszukiwarka                                          |     25 |  **97,38%** |     95,24% |   0 |                 29 |
+|  17 | Analityka i BI                                        |    128 |  **96,93%** |     96,03% |   2 |                264 |
+|   5 | Strona główna, archiwa, chrome                        |     64 |  **96,19%** |     93,30% |   2 |                 62 |
+|  15 | Profil i konto                                        |     99 |  **96,19%** |     93,82% |   5 |                145 |
+|  13 | Monetyzacja: checkout / subskrypcje / billing         |    197 |  **94,91%** |     95,20% |   7 |                295 |
+|   X | PRZEKROJOWE: słowniki i18n                            |    149 |  **94,07%** | **66,51%** |   1 |                 62 |
+|   7 | Typy treści specjalne                                 |    110 |  **93,00%** |     85,84% |   3 |                308 |
+|  14 | Monetyzacja: kupony / darowizny / prezenty / reklamy  |     44 |  **92,91%** |     90,45% |   1 |                 82 |
+|   4 | Strony, wygląd, motyw, media, import                  |    127 |  **92,51%** |     89,59% |   4 |                272 |
+|  19 | Ustawienia / integracje / users / multi-tenant / RODO |    141 |  **89,38%** |     87,36% |  16 |                554 |
+|   X | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |    256 |  **87,85%** |     83,45% |  22 |            **766** |
+|   1 | Wpisy: doświadczenie czytelnika                       |    106 |  **84,78%** |     82,28% |  13 |                394 |
+|  10 | Sieć / networking                                     |     32 |  **83,65%** |     81,85% |   3 |                137 |
+|   X | PRZEKROJOWE: design system (`components/ui`)          |     45 |  **81,50%** | **75,00%** |   3 |                138 |
+
+**Cztery rzeczy z tej tabeli, których nie widać z globalnego 96,21%:**
+
+**Pierwsza: design system jest najsłabszą powierzchnią platformy i jednocześnie najszerzej używaną.**
+45 komponentów bazowych, **81,50% linii i 75,00% funkcji**, trzy pliki na zerze - a testują je dwa pliki
+(rozdz. 15.6). Regresja w `components/ui` wychodzi w panelu i na stronie publicznej naraz.
+
+**Druga: słowniki i18n mają 94,07% linii przy 66,51% funkcji.** Ta rozbieżność nie jest przypadkowa:
+pliki słownikowe to w większości dane, a funkcje w nich to nakładki `ensure*I18n()`, których nikt
+nie woła w teście. Jedna trzecia funkcji tej powierzchni nie została wykonana ani razu.
+
+**Trzecia: worek „powłoka admina" niesie największą pojedynczą pulę długu - 766 niepokrytych linii
+i 22 pliki na zerze.** To jest ten sam worek, który w 15.4 okazał się łapaczem na 183 pliki paneli
+domenowych. Dług nie jest więc „w powłoce" - jest w monetyzacji, członkostwach, pulpicie i doku,
+tylko policzony pod cudzą etykietą.
+
+**Czwarta: moduł 1 (wpisy - doświadczenie czytelnika) to 13 plików na zerze przy 106 plikach.**
+Moduł obsługujący czytelnika ma najgorszy stosunek zer do rozmiaru w całej tabeli.
+
+### 15.10. Gdzie test nie dotarł wcale: 97 plików na zerze
+
+97 plików ma zmierzone linie i **ani jednej wykonanej**. Razem 1 746 linii, czyli 40% całego długu
+pokrycia (4 413 niepokrytych linii). Osiemnaście największych:
+
+| Linie | Moduł | Plik                                                 |
+| ----: | ----- | ---------------------------------------------------- |
+|   133 | 19    | `src/lib/admin/membersDirectory.functions.ts`        |
+|   104 | 10    | `src/routes/network.tsx`                             |
+|    55 | 13    | `src/lib/billing/invoiceCrm.server.ts`               |
+|    53 | 1     | `src/components/author/AuthorCvSections.tsx`         |
+|    50 | 4     | `src/routes/admin.content-area.tsx`                  |
+|    50 | 4     | `src/routes/admin.custom-meta.tsx`                   |
+|    45 | 1     | `src/routes/api/stt.ts`                              |
+|    43 | 15    | `src/lib/profile/export.functions.ts`                |
+|    41 | 1     | `src/components/author/CvPrintSheet.tsx`             |
+|    39 | 19    | `src/lib/admin/emailOutbox.functions.ts`             |
+|    38 | 1     | `src/hooks/usePasswordUnlock.ts`                     |
+|    36 | 4     | `src/routes/admin.tags.tsx`                          |
+|    34 | 19    | `src/lib/admin/dashboard/dashboard.functions.ts`     |
+|    34 | X     | `src/components/admin/dashboard/useDashboardData.ts` |
+|    31 | X     | `src/components/admin/dashboard/MarketingPanel.tsx`  |
+|    31 | X     | `src/components/dock/organisms/TodoPanel.tsx`        |
+|    30 | 15    | `src/routes/auth.callback.tsx`                       |
+|    29 | 1     | `src/routes/api/public/related-click.ts`             |
+
+Do tego największe dziury częściowe, gdzie plik jest mierzony, ale prawie nietknięty:
+`src/components/dock/organisms/ChatSideDrawer.tsx` (**84 niepokryte linie z 86**),
+`src/lib/views/postViews.functions.ts` (79 z 94), `src/routes/admin.research-programs.tsx` (78 z 249),
+`src/lib/charts/exportImage.ts` (58 z 80), `src/lib/admin/accountAdmin.functions.ts` (56 z 67),
+`src/components/dock/organisms/NotesPanel.tsx` (47 z 48).
+
+**Wzorzec jest jednoznaczny i jest najważniejszym wnioskiem operacyjnym tego wydania: dwie
+powierzchnie, które weszły w tym oknie, weszły bez testów.** Dok roboczy (`TodoPanel` na zerze,
+`NotesPanel` 47 z 48, `ChatSideDrawer` 84 z 86) i pulpit administracyjny (`useDashboardData` na zerze,
+`MarketingPanel` na zerze, `dashboard.functions.ts` na zerze) to razem sześć plików z górnej części
+listy długu. Obie powierzchnie są nowe, obie są w panelu, obie mają po kilkadziesiąt linii logiki
+i zero wykonanych. Bramka pokrycia tego nie złapała, bo próg globalny przechodzi z zapasem,
+a progu per-ścieżka te pliki jeszcze nie mają - **próg dostaje się po napisaniu testów, więc kod bez
+testów jest dokładnie tym kodem, którego zapadka nie pilnuje.**
+
+**Dla porównania: `membersDirectory.functions.ts` (133 linie, moduł 19) i `network.tsx` (104 linie,
+moduł 10) stoją na zerze od wydań, nie od dni** - i to one ciągną w dół dwa najsłabsze moduły tabeli 15.9.
+
+### 15.11. Determinizm suity: zlecenie wykonane, bramka ma dziurę w kształcie defektu, który ją zrodził
+
+Zlecenie `docs/PROMPT_BOMBY_ZEGAROWE_DETERMINIZM.md` zostało wykonane (PR #338, scalony 2026-09-06).
+Rozliczenie dziesięciopunktowej tabeli odbioru: **siedem pozycji wdrożonych, dwie częściowo, jedna
+niewdrożona i uczciwie zadeklarowana**.
+
+**Co działa.** Bomba w rozliczeniach darowizn jest naprawiona po stronie testu, bez ruszania produkcji:
+`freezeClock()` na poziomie modułu (`src/lib/billing/__tests__/donationsAdmin.server.test.ts:43`)
+i daty fixture'ów przez `relativeIso()`. Plik przechodzi **46/46 przy zegarze prawdziwym oraz przy
+`CLOCK_SHIFT=1d`, `1y` i `5y`**. Flak `AdSlot` naprawiono po stronie produkcji, jednym `useCallback`
+(`src/components/AdSlot.tsx:85-88`) z dowodem neutralności w komentarzu. Zapadka wytrzymała
+858 commitów: **zero wpisów dopisanych, zero podniesionych**, dwa usunięte i dwa obniżone.
+Wszystkie 218 plików z bazy przeszło przy zegarze przesuniętym o rok (8 681 zielonych, zero czerwieni)
+
+- baza jest więc rejestrem **ryzyka**, nie rejestrem defektów.
+
+**Czego bramka nie złapie - i to jest znalezisko Z10.** Wzorzec zamrożenia jest testowany
+na **całym pliku** (`src/lib/ci/clockFreeze.ts:292` - `if (FREEZE.test(code))`), więc **jedno**
+`vi.useFakeTimers()` w pliku o czterdziestu testach zdejmuje z listy cały plik. To jest dokładnie
+kształt defektu, dla którego bramka powstała: w wersji sprzed naprawy plik darowizn miał dwa lokalne
+`vi.useFakeTimers()` przy 45 testach - i skaner puszczony na tamtą wersję **nie zgłasza go jako bomby**.
+Skutek widać dziś: bramka melduje jako „rozbrojony" plik
+`src/components/admin/newsletter/deliverability/__tests__/deliverabilityPanels.test.tsx`,
+który ma 39 testów, **jedno** `vi.useFakeTimers()` (linia 248, do przewinięcia debounce'a, bez ustawiania
+daty) i **pięć literałów daty nadal na prawdziwym zegarze**.
+
+Trzy dalsze obejścia, wszystkie sprawdzone doświadczalnie na skanerze: `vi.setSystemTime(new Date(Date.now()))`
+przechodzi (antywzorzec łapie tylko postać dosłowną), literał jako epoch (`new Date(1756549200000)`)
+i przez konstruktor (`new Date(2026, 7, 30)`) przechodzi, a sam napis `"freezeClock("` gdziekolwiek
+w pliku wystarczy za zamrożenie. Po wyłączeniu gołego `vi.useFakeTimers()` z definicji zamrożenia
+lista bomb rośnie z 218 na **229 - jedenaście plików ukrytych**.
+
+**Naprawa Z10.** Testować zamrożenie **per blok testowy**, nie per plik (najtaniej: wymagać
+`freezeClock()`/`setSystemTime` w `beforeEach` albo na poziomie modułu, a lokalne `useFakeTimers`
+przestać liczyć jako zamrożenie), i rozszerzyć antywzorzec o `new Date(Date.now())`.
+Osobno: dopisać kontrolę negatywną uruchamiającą **runner jako proces** - dziś wszystkie pięć kontroli
+woła funkcje biblioteki bezpośrednio, więc podmiana `process.exit(1)` na `console.error` przeszłaby
+przez nie na zielono.
+
+**Otwarte źródła niedeterminizmu poza zegarem** (do zaadresowania osobnym zleceniem):
+siedem asercji na czasie ściennym, z których najostrzejsza daje 50 ms marginesu na operację o budżecie
+1 ms (`src/lib/builder/__tests__/prefetchBranches.test.ts:406`); 85 realnych `sleep`-ów, w tym 1 300 ms
+przy karencji 1 200 ms (`inlineSizeToolbar.test.tsx:455`); **21 plików podmieniających globalne
+`navigator.sendBeacon`**, przez co zbiór naruszeń progów zależy od kolejności plików w przebiegu;
+oraz **brak przypiętego `TZ`** - nie ma go ani w konfiguracji vitesta, ani w `package.json`, ani w CI,
+przy 66 wywołaniach `toLocale*` w testach.
+
+### 15.12. Plan naprawczy: co robić i w jakiej kolejności
+
+Kolejność jest z ryzyka, nie z wygody. Przy każdej pozycji podaję, co dokładnie zamyka.
+
+**Teraz (bezpieczeństwo i spójność danych)**
+
+|   # | Co                                                                                                                                                           | Zamyka                                            |
+| --: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+|   1 | Porównanie najemcy celu z najemcą aktora w `impersonation.functions.ts` przed `getUserById`; audyt do najemcy celu                                           | Z2 - przejęcie konta między organizacjami         |
+|   2 | `updateJobRunnerSettings` na rolę platformową, `base_url` z listy domen `public.tenants`, zapis pod RLS; `getJobRunnerSettings` zwraca `secret_set: boolean` | Z3 - przejęcie sekretów crona przez rolę `author` |
+|   3 | Rozstrzygnięcie `drizzle/migrations/0001` w jedną stronę + bramka parytetu obu pasów migracji                                                                | Z1 - sprzeczny stan `profiles.discoverable`       |
+|   4 | Filtr najemcy w `webhookRetry.functions.ts` (odczyt i odtworzenie), `tenant_id` w `email_send_log`, najemca z profilu w `listStaffUsers`                     | Z4 - trzy wycieki między najemcami                |
+|   5 | `USING (tenant_id = current_tenant_id() AND is_super_admin())` na `impersonation_sessions`                                                                   | Z7 - dziennik impersonacji                        |
+|   6 | `redactPii` i `redactMeta` w `src/routes/api/public/track.ts`                                                                                                | Z8 - fraza z wyszukiwarki w telemetrii            |
+
+**Zaraz potem (stabilność i wiarygodność pomiaru)**
+
+|   # | Co                                                                                                                                                | Zamyka                                                |
+| --: | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+|   7 | Sufit liczby podziałek i odrzucenie nieskończonej rozpiętości w `scale.ts`; `roundToStep` na reprezentację wykładniczą                            | Z5 - blokada rdzenia z jednej liczby w danych wykresu |
+|   8 | Poświadczenia dla kroku testowego albo przeniesienie obu inwariantów do `post-deploy`; skreślenie nieprawdziwego zdania z `vitest.config.ts:5632` | Z9 - dwa inwarianty, które nie biegną nigdzie         |
+|   9 | Zamrożenie per blok zamiast per plik w `clockFreeze.ts` + antywzorzec `new Date(Date.now())` + kontrola negatywna na runnerze                     | Z10 - bramka nie wykryłaby bomby, dla której powstała |
+|  10 | Przypięcie `TZ=UTC` w konfiguracji vitesta i w CI                                                                                                 | rozjazd `toLocale*` między maszyną a runnerem         |
+
+**Dług testowy, w kolejności rozmiaru pojedynczej wygranej**
+
+|   # | Powierzchnia                                             | Stan                                                                    | Co zrobić                                                                                                       |
+| --: | -------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+|  11 | Dok roboczy (`components/dock`, `lib/dock`)              | `TodoPanel` 0%, `NotesPanel` 47 z 48, `ChatSideDrawer` 84 z 86          | testy komponentowe trzech paneli + próg per-ścieżka po ich napisaniu                                            |
+|  12 | Pulpit admina (`admin/dashboard`, `lib/admin/dashboard`) | `useDashboardData`, `MarketingPanel`, `dashboard.functions.ts` na zerze | test hooka danych i dwóch paneli; agregaty mają już funkcje w bazie, więc warstwa danych jest testowalna atrapą |
+|  13 | Design system (`components/ui`)                          | 81,50% linii / 75,00% funkcji, 2 pliki testowe na 45 komponentów        | po jednym teście kontraktu na komponent z interakcją; to najszerzej używana biblioteka w repo                   |
+|  14 | Moduł 19 (ustawienia, najemcy, RODO)                     | 89,38% linii, 16 zer, 554 niepokryte linie                              | zacząć od `membersDirectory.functions.ts` (133 linie na zerze) i `emailOutbox.functions.ts` (39)                |
+|  15 | Moduł 1 (doświadczenie czytelnika)                       | 84,78% linii, 13 zer                                                    | `AuthorCvSections` (53), `CvPrintSheet` (41), `usePasswordUnlock` (38), `api/stt.ts` (45)                       |
+|  16 | Moduł 10 (sieć)                                          | 83,65% linii, `routes/network.tsx` 104 linie na zerze                   | jedna trasa zamyka 104 z 137 niepokrytych linii modułu                                                          |
+
+**Higiena dokumentacji (tania, a psuje zaufanie do reszty)**
+
+17. `README.md` - provider `istanbul` zamiast v8 i przeliczenie wszystkich liczników (zrobione w tym wydaniu, patrz 15.13).
+18. `docs/ARCHITECTURE.md` §3 - opis potoku CI (dziś liniowy, w rzeczywistości pięć równoległych zadań spiętych `release-gate`, lint **przed** testami) i sześć budżetów paczki zamiast trzech, z wartościami z `FROZEN_BUDGET_KB`.
+19. `docs/UMOWA_UTRZYMANIOWA.md` i `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md` - albo przeliczyć (918 → 958 migracji, 193 → 199 tras, 99 → 104 pliki pgTAP), albo usunąć liczby z prozy i zostawić odwołanie do `bun run check:ownership`, który jest jedynym wiążącym źródłem.
+20. Siedem plików `PROMPT_*.md` - dopisać status wykonania; dziś czytają się jak stan bieżący („main jest dzisiaj czerwony").
+21. Bramka jednokierunkowa i18n: dopisać kierunek „klucz w słowniku bez odwołania w kodzie" - dziś `i18nKeyDrift.gate.test.ts` sprawdza wyłącznie kierunek kod → słownik, przez co po usunięciu komponentu zostają martwe klucze (`i18n-admin-analytics.ts:84-86` i `:949-951`).
+22. Bramka na `dangerouslySetInnerHTML` z listą dozwolonych źródeł, linia bazowa 75 miejsc i tylko w dół (Z6).
+
+### 15.13. Co poprawiono w tym wydaniu
+
+Wydanie 11 nie jest wyłącznie pomiarem - trzy rzeczy zostały naprawione w trakcie:
+
+1. **Taksonomia funkcjonalności** rozszerzona ze 146 na 173 definicje; pokrycie taksonomią plików
+   produkcyjnych wzrosło z 68,3% na **87,3%**, a największe skupiska sierot (dok, pulpit, członkostwa,
+   prezenty, reklamy, edytor bloków, builder, kluby, czat) mają wreszcie własne wiersze.
+2. **`README.md`** - poprawiony provider pokrycia i wszystkie liczniki przeliczone na dzisiejszy HEAD,
+   w obu wersjach językowych.
+3. **Dwa własne błędy pomiarowe sprostowane w tekście** (bramka `check:first-visit-regression` jest
+   wpięta; liczba testów e2e to 108, nie 80) - oba wyszły z pracy agentów weryfikujących i oba
+   zostały zapisane, zamiast po cichu poprawione.
