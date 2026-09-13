@@ -35,7 +35,7 @@ import { TRACKER_FEED_PATH } from "@/lib/tracker/feed";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { withBudget } from "@/lib/asyncBudget";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import {
   POLICY_STAGES,
   POLICY_AREAS,
@@ -102,9 +102,9 @@ export const Route = createFileRoute("/tracker/")({
     // ISR-owy nagłówek NA KOŃCU, bramkowany czystym renderem (wzorzec "/"):
     // zdegradowany render nigdy nie trafia do współdzielonego cache - kolejne
     // żądanie renderuje świeżo zamiast utrwalać mrugnięcie backendu na CDN.
-    setCacheControlHeader(
-      degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl(),
-    );
+    // Jw. - `resilientCacheControl(degraded)` daje dokładnie te same dwie
+    // wartości, a bramka widzi, KTÓRA gałąź jest gałęzią degradacji.
+    setCacheControlHeader(resilientCacheControl(degraded));
 
     // Szczupła projekcja pod head() (ItemList JSON-LD): loaderData jest
     // serializowane do payloadu SSR, a pełne wiersze podróżują już w

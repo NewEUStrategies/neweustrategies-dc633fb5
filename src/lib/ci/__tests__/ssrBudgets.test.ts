@@ -416,12 +416,66 @@ export const Route = createFileRoute("/alias")({
     expect(ssrBudgetsFailed(report)).toBe(true);
   });
 
-  it("RĘCZNY warunek z gałęzią `no-store` jest bramką - to NIE jest fałszywa czerwień", () => {
-    // Sprostowanie do kształtu reguły z zlecenia: `author.$slug.tsx`,
-    // `blog.index.tsx` i `tracker.index.tsx` bramkują nagłówek ternarnym
-    // warunkiem, a nie `resilientCacheControl`. Doktryna jest zachowana,
-    // więc bramka MUSI je przepuścić - inaczej zapaliłaby się na pięciu
-    // plikach zamiast na dwóch i nauczyłaby zespół ignorować swój komunikat.
+  // ── RĘCZNY TERNAR NIE JEST BRAMKĄ (sprostowanie po recenzji PR #357, P2) ──
+  //
+  // Pierwsza wersja tej reguły przepuszczała każde wywołanie, którego argument
+  // WSPOMINAŁ o polityce `no-store`, nie sprawdzając, KTÓRY warunek ją wybiera.
+  // Trzy przypadki niżej pokazują, dlaczego to było za mało - i że dzisiejsza
+  // reguła (wymóg `resilientCacheControl`) łapie każdy z nich.
+
+  it("KONTROLA NEGATYWNA: ODWRÓCONY ternar OBLEWA - to jest dokładnie ta regresja", () => {
+    // `degraded ? contentCacheControl() : NO_STORE` cache'uje WSPÓLNIE render
+    // ZDEGRADOWANY. Pierwsza wersja reguły przepuszczała to bez słowa, bo
+    // argument „widocznie wybierał" między dwiema politykami.
+    const report = analyze([
+      {
+        file: "src/routes/inverted.tsx",
+        source: `
+const NO_STORE = contentCacheControl({ preview: true });
+export const Route = createFileRoute("/inverted")({
+  loader: async ({ context }) => {
+    let degraded = false;
+    await withBudget(context.queryClient.ensureQueryData(a), 1000);
+    if (!context.queryClient.getQueryData(a.queryKey)) degraded = true;
+    setCacheControlHeader(degraded ? contentCacheControl() : NO_STORE);
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(true);
+    expect(renderSsrBudgetReport(report)).toContain("degradedCacheControl = 1 > 0");
+  });
+
+  it("KONTROLA NEGATYWNA: ternar o CZYMŚ INNYM niż degradacja też OBLEWA", () => {
+    // `preview ? NO_STORE : contentCacheControl()` jest poprawnym warunkiem -
+    // tylko o podglądzie, nie o degradacji. Render zdegradowany wychodzi z tego
+    // wywołania cache'owalny, a stara reguła widziała „wybór" i milczała.
+    const report = analyze([
+      {
+        file: "src/routes/unrelated.tsx",
+        source: `
+const NO_STORE = contentCacheControl({ preview: true });
+export const Route = createFileRoute("/unrelated")({
+  loader: async ({ context, search }) => {
+    await withBudget(context.queryClient.ensureQueryData(a), 1000);
+    setCacheControlHeader(search.preview ? NO_STORE : contentCacheControl());
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(true);
+  });
+
+  it("ręczny ternar Z WŁAŚCIWYM kierunkiem również OBLEWA - jedna droga, nie dwie", () => {
+    // Ten kod jest SEMANTYCZNIE poprawny, a mimo to bramka go odrzuca - i to
+    // jest świadomy koszt. Rozstrzygnięcie, która gałąź ternara jest gałęzią
+    // degradacji, wymaga analizy przepływu; wymóg jednej funkcji ustala
+    // kierunek sygnaturą i jest sprawdzalny dopasowaniem wzorca. Trzy trasy,
+    // które tak pisały (`author.$slug`, `blog.index`, `tracker.index`),
+    // przełożono na `resilientCacheControl` tym samym commitem - bez zmiany
+    // ani jednej wartości nagłówka.
     const report = analyze([
       {
         file: "src/routes/manual.tsx",
@@ -433,6 +487,24 @@ export const Route = createFileRoute("/manual")({
     await withBudget(context.queryClient.ensureQueryData(a), 1000);
     if (!context.queryClient.getQueryData(a.queryKey)) degraded = true;
     setCacheControlHeader(degraded ? NO_STORE : contentCacheControl());
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(true);
+  });
+
+  it("stała złożona z `resilientCacheControl` jest bramką także przez alias", () => {
+    const report = analyze([
+      {
+        file: "src/routes/aliasGated.tsx",
+        source: `
+export const Route = createFileRoute("/alias-gated")({
+  loader: async ({ context }) => {
+    const r = await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
+    const policy = resilientCacheControl(r.some((x) => x.status === "rejected"));
+    setCacheControlHeader(policy);
   },
 });
 `,

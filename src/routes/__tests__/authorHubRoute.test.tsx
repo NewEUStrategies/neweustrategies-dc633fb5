@@ -171,7 +171,12 @@ vi.mock("@/lib/queries/podcasts", () => ({
 }));
 // Degradacja jest STANEM LOADERA, nie awarią zapytania - atrapa pozwala nim
 // sterować bez czekania na realny budżet czasu.
-vi.mock("@/lib/ssr/resilientLoad", () => ({
+vi.mock("@/lib/ssr/resilientLoad", async (importOriginal) => ({
+  // `resilientCacheControl` zostaje PRAWDZIWE (atrapa jest cząstkowa):
+  // asercje tego pliku na nagłówek cache'a mają mierzyć produkcyjną politykę,
+  // a nie wartość wymyśloną w atrapie. Podmieniamy wyłącznie `loadResilient`,
+  // bo to jego czas oczekiwania test chce omijać.
+  ...(await importOriginal<typeof import("@/lib/ssr/resilientLoad")>()),
   loadResilient: async (
     _client: unknown,
     options: { queryFn: () => Promise<unknown> },

@@ -410,12 +410,29 @@ const DEGRADABLE_WORK_RE =
 const SHARED_CACHE_POLICY_RE = /\b(contentCacheControl|liveCacheControl)\s*\(\s*\)/;
 
 /**
- * Polityki, które ZABRANIAJĄ wspólnego zapisu: `resilientCacheControl(...)`,
- * `cacheControlHeader({ cacheable: false })` oraz `contentCacheControl({...})`
- * z jakimkolwiek opt-outem (`preview` / `personalized`).
+ * JEDYNA droga do nagłówka renderu, który MOŻE być zdegradowany.
+ *
+ * DLACZEGO TYLKO TA FUNKCJA, a nie „jakikolwiek widoczny wybór między polityką
+ * wspólną a `no-store`" - sprostowanie po recenzji PR #357 (P2). Pierwsza
+ * wersja tej reguły przepuszczała każde wywołanie, którego argument WSPOMINAŁ
+ * o polityce `no-store`, nie sprawdzając, KTÓRY warunek ją wybiera. Przez to
+ * przechodził ternar ODWRÓCONY -
+ * `setCacheControlHeader(degraded ? contentCacheControl() : NO_STORE)` -
+ * czyli dokładnie ta regresja, której bramka ma bronić, tylko zapisana na
+ * opak. Przechodził też warunek o czymś zupełnie innym, który przypadkiem
+ * niósł `no-store` w drugiej gałęzi.
+ *
+ * Strukturalne sprawdzanie, która gałąź ternara jest gałęzią degradacji,
+ * wymagałoby analizy przepływu, a nie dopasowania wzorca - a bramka, która
+ * obiecuje więcej, niż mierzy, jest gorsza od jej braku. Zamiast tego
+ * wymagamy JEDNEJ funkcji, której sygnatura sama ustala kierunek:
+ * `resilientCacheControl(degraded)` oddaje `no-store` WTEDY I TYLKO WTEDY,
+ * gdy argument jest prawdą (`src/lib/ssr/resilientLoad.ts:151-156`). Trzy
+ * trasy bramkujące dotąd ręcznym warunkiem (`author.$slug.tsx`,
+ * `blog.index.tsx`, `tracker.index.tsx`) zostały na nią przełożone tym samym
+ * commitem - wartości nagłówka nie zmieniła ani jedna.
  */
-const NO_STORE_POLICY_RE =
-  /\bresilientCacheControl\s*\(|cacheable\s*:\s*false|\b(?:contentCacheControl|liveCacheControl)\s*\(\s*\{/;
+const GATED_POLICY_RE = /\bresilientCacheControl\s*\(/;
 
 /**
  * Nazwy stałych MODUŁU związanych z polityką wspólnego cache'u
@@ -426,21 +443,21 @@ const NO_STORE_POLICY_RE =
  */
 export function sharedCachePolicyAliases(cleanSource: string): {
   shared: Set<string>;
-  noStore: Set<string>;
+  gated: Set<string>;
 } {
   const shared = new Set<string>();
-  const noStore = new Set<string>();
+  const gated = new Set<string>();
   const re = /\b(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*([^;\n]+)/g;
   for (const m of cleanSource.matchAll(re)) {
     const name = m[1];
     const value = m[2] ?? "";
     if (name === undefined) continue;
-    // Kolejność ma znaczenie: `NO_STORE = contentCacheControl({ preview: true })`
-    // pasuje do OBU wzorców patrząc naiwnie, a jest opt-outem.
-    if (NO_STORE_POLICY_RE.test(value)) noStore.add(name);
+    // Kolejność ma znaczenie: stała złożona z `resilientCacheControl(...)`
+    // pasuje do OBU wzorców patrząc naiwnie, a jest bramkowana.
+    if (GATED_POLICY_RE.test(value)) gated.add(name);
     else if (SHARED_CACHE_POLICY_RE.test(value)) shared.add(name);
   }
-  return { shared, noStore };
+  return { shared, gated };
 }
 
 /**
@@ -453,7 +470,7 @@ export function sharedCachePolicyAliases(cleanSource: string): {
 export function ungatedCacheControlSites(
   loaderBody: string,
   baseLine: number,
-  aliases: { shared: ReadonlySet<string>; noStore: ReadonlySet<string> },
+  aliases: { shared: ReadonlySet<string>; gated: ReadonlySet<string> },
 ): number[] {
   const out: number[] = [];
   const re = /setCacheControlHeader\s*\(/g;
@@ -464,19 +481,11 @@ export function ungatedCacheControlSites(
     const arg = balancedArgs(loaderBody, open).trim();
     const setsSharedCache = SHARED_CACHE_POLICY_RE.test(arg) || mentions(arg, aliases.shared);
     if (!setsSharedCache) continue;
-    // BRAMKĄ JEST WIDOCZNY WYBÓR, nie konkretna funkcja - i to jest
-    // SPROSTOWANIE do kształtu reguły podanego w zleceniu wydania 10.
-    // Zlecenie mówiło „zapali się na dwóch plikach"; dosłowna reguła
-    // („`contentCacheControl()` bez `resilientCacheControl`") zapala się na
-    // PIĘCIU, bo `author.$slug.tsx:170`, `blog.index.tsx:86`
-    // i `tracker.index.tsx:105` bramkują nagłówek RĘCZNYM warunkiem
-    // (`degraded ? NO_STORE : contentCacheControl()`) - poprawnie i zgodnie
-    // z doktryną, tylko bez tej jednej funkcji. Oblewanie ich byłoby
-    // fałszywą czerwienią, a fałszywa czerwień zabija prawdziwą.
-    // Przedmiotem dowodu jest więc: czy TO wywołanie potrafi wydać
-    // `no-store`. Bezwarunkowe `contentCacheControl()` - nie potrafi.
-    const canOptOut = NO_STORE_POLICY_RE.test(arg) || mentions(arg, aliases.noStore);
-    if (canOptOut) continue;
+    // Wartość MUSI przejść przez `resilientCacheControl` - patrz uzasadnienie
+    // przy `GATED_POLICY_RE`. Wywołanie z aliasem polityki `no-store`
+    // (`setCacheControlHeader(NO_STORE)`) nie dochodzi tu w ogóle: nie ustawia
+    // polityki wspólnej, więc odsiewa je warunek wyżej.
+    if (GATED_POLICY_RE.test(arg) || mentions(arg, aliases.gated)) continue;
     out.push(baseLine + lineOf(loaderBody, m.index ?? 0) - 1);
   }
   return out;
