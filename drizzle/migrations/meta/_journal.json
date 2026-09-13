@@ -43,6 +43,13 @@
       "when": 1789241481684,
       "tag": "0005_pr353_admin_dashboard_aggregates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789327881684,
+      "tag": "0006_profiles_discoverable_opt_in_restore",
+      "breakpoints": true
     }
   ]
 }
