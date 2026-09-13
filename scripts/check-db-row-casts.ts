@@ -111,11 +111,6 @@ const ROW_CAST_EXCEPTIONS: readonly RowCastException[] = [
     reason: "rpc get_page_for_edit - kształt formularza, nie wiersz tabeli",
   },
   {
-    file: "src/routes/network.mutual.$userId.tsx",
-    type: "MutualRow",
-    reason: "rpc mutual_connections - RETURNS TABLE kłamie o nullowalności",
-  },
-  {
     file: "src/routes/admin.monetization.tsx",
     type: "DashboardShape",
     reason: "rpc monetization_dashboard - zwraca jsonb, nie wiersz",
