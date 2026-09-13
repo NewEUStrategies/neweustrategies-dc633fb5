@@ -16,6 +16,25 @@
 // klientem serwisowym - ale dopiero PO potwierdzeniu roli admina/edytora przez
 // `requireAdminEditor`. Klient serwisowy jest importowany wewnątrz handlera:
 // moduł `*.functions.ts` trafia do grafu klienta, importy modułowe nie.
+//
+// ZAKRES DANYCH - LUKA ZNANA, JESZCZE NIEZAMKNIĘTA. Rola jest liczona w
+// TENANCIE WYWOŁUJĄCEGO (`requireAdminEditor` sprawdza `user_roles` po
+// `profiles.tenant_id`), ale zapytanie niżej granicy najemcy NIE STAWIA:
+// `email_send_log` nie ma kolumny `tenant_id` (20260728154925_email_infra.sql
+// :27-36), a `metadata` nie wypełnia ŻADNA ze ścieżek zapisu - w dzienniku nie
+// ma więc czego filtrować. Skutek: admin albo edytor jednego najemcy widzi w
+// tym panelu adresy odbiorców i komunikaty błędów dostawcy WSZYSTKICH
+// najemców. Potwierdzenie roli w tenancie X nie jest zgodą na dane tenanta Y -
+// to jest miejsce, w którym te dwie rzeczy mają zostać związane.
+//
+// DOMKNIĘCIE WYMAGA TRZECH KROKÓW W TEJ KOLEJNOŚCI (dwa pierwsze są poza tym
+// plikiem): (1) migracja dodająca `tenant_id` z backfillem i indeksem
+// `(tenant_id, created_at DESC)`, (2) wypełnianie kolumny na ścieżkach zapisu
+// (`transactional.server.ts`, `queueDrain.server.ts`, trasy
+// `/platform/email/*`), (3) dopiero wtedy `.eq("tenant_id", …)` w zapytaniu
+// niżej, z odmową przy nieznanym najemcy zamiast zapytania bez filtra.
+// Odwrócenie (1) i (3) czyści operatorowi panel z całej historii, bo każdy
+// wiersz sprzed migracji ma `tenant_id IS NULL`.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdminEditor } from "@/integrations/supabase/require-staff";

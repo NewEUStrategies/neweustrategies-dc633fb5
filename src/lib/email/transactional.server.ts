@@ -35,6 +35,38 @@ const SENDER_DOMAIN = "notify.mail.neweuropeanstrategies.com";
 const FROM_DOMAIN = SENDER_DOMAIN;
 const QUEUE = "transactional_emails";
 
+/**
+ * Nazwa kolumny najemcy podana jako `string`, a nie literał.
+ *
+ * PO CO W OGÓLE ZAPISUJEMY NAJEMCĘ. Raport poczty systemowej filtruje dziennik
+ * RÓWNOŚCIOWO po `tenant_id` (`fetchSystemEmailReport`), a wiersz bez najemcy
+ * nie należy do nikogo - jest niewidoczny dla operatora KAŻDEJ organizacji.
+ * Gdyby producenci nadal wstawiali wiersze bez tej kolumny, panel pokazywałby
+ * wyłącznie zamrożoną historię sprzed migracji 20260913101000: pending, sent,
+ * failed i suppressed powstałe po wdrożeniu znikałyby po cichu. Diagnostyka
+ * poczty zniknęłaby dokładnie w dniu, w którym zaczyna być potrzebna.
+ *
+ * KTÓREGO NAJEMCĘ. Tego, w którego kontekście podjęto decyzję o wysyłce -
+ * `gate.tenantId` z bramy listy wykluczeń. To ten sam najemca, który jedzie
+ * w ładunku kolejki (`tenant_id`) i w tagu u dostawcy (`tags.tenant`), więc
+ * wiersz dziennika, wiadomość w kolejce i zdarzenie zwrotne od dostawcy opisują
+ * JEDNĄ organizację. Wybranie tu czegokolwiek innego rozjechałoby te trzy ślady.
+ *
+ * DLACZEGO `string`, A NIE LITERAŁ. Kolumna wchodzi migracją 20260913101000,
+ * a `src/integrations/supabase/types.ts` jest GENEROWANY z bazy - do najbliższej
+ * regeneracji jej tam nie ma. Stała typu `string` wystarcza dla `.eq()`, które
+ * i tak przyjmuje nazwę kolumny jako tekst (tak używa jej `system-log.server.ts`).
+ *
+ * W ŁADUNKU `insert` TO NIE WYSTARCZA i trzeba `as never`: klucz wyliczany nie
+ * omija kontroli nadmiarowych właściwości, bo `insert` sprawdza CAŁY kształt
+ * obiektu wobec wygenerowanego typu wiersza. `as never` jest tu idiomem repo
+ * (ten sam zapis w `newsletter-admin.functions.ts`), a `check:stale-never-casts`
+ * dopilnuje, żeby rzutowanie zniknęło: bramka zapala się, gdy rzutowana nazwa
+ * JEST już w wygenerowanych typach, czyli przy pierwszej regeneracji po tej
+ * migracji. Stała i rzutowania znikają wtedy razem.
+ */
+const TENANT_COLUMN: string = "tenant_id";
+
 export interface TxSendInput {
   type: TxEmailType;
   to: string;
@@ -144,7 +176,8 @@ async function suppressionGate(
     recipient_email: args.to,
     status: "suppressed",
     error_message: reason,
-  });
+    [TENANT_COLUMN]: gate.tenantId,
+  } as never);
   return { allowed: false, reason, tenantId: gate.tenantId };
 }
 
@@ -276,7 +309,8 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       template_name: input.type,
       recipient_email: to,
       status: "pending",
-    });
+      [TENANT_COLUMN]: gate.tenantId,
+    } as never);
 
     const { error } = await supabase.rpc("enqueue_email", {
       queue_name: QUEUE,
@@ -312,7 +346,8 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
         recipient_email: to,
         status: "failed",
         error_message: error.message,
-      });
+        [TENANT_COLUMN]: gate.tenantId,
+      } as never);
       return { ok: false, error: error.message };
     }
 
@@ -386,7 +421,8 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
       template_name: input.label,
       recipient_email: to,
       status: "pending",
-    });
+      [TENANT_COLUMN]: gate.tenantId,
+    } as never);
 
     const { error } = await supabase.rpc("enqueue_email", {
       queue_name: QUEUE,
@@ -420,7 +456,8 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
         recipient_email: to,
         status: "failed",
         error_message: error.message,
-      });
+        [TENANT_COLUMN]: gate.tenantId,
+      } as never);
       return { ok: false, error: error.message };
     }
     return { ok: true };

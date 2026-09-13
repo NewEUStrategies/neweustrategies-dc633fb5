@@ -36,12 +36,21 @@ import type {
 import type { WebhookRetryResult } from "@/lib/billing/webhookRetry.functions";
 
 const h = vi.hoisted(() => ({
+  superAdmin: { current: true },
   audit: vi.fn(),
   exportAudit: vi.fn(),
   retry: vi.fn(),
   health: vi.fn(),
   resend: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+// Ponowienie zdarzenia webhooka stoi po stronie serwera za rolą `super_admin`
+// (odtwarza drugi człon polityki RLS na `payment_webhook_events`). Trasa tylko
+// to odwzorowuje, więc rola musi być sterowalna z testu - inaczej nie da się
+// sprawdzić, że admin najemcy NIE dostaje przycisku prowadzącego do odmowy.
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ isSuperAdmin: h.superAdmin.current }),
 }));
 
 // Granice serwerowe trasy. Rola `admin` jest weryfikowana po stronie serwera,
@@ -190,6 +199,7 @@ const auditWindow = () => screen.getByLabelText("Zakres (godziny)");
 const auditEventFilter = () => screen.getByLabelText("Wydarzenie (UUID, opcjonalnie)");
 
 beforeEach(async () => {
+  h.superAdmin.current = true;
   await i18n.changeLanguage("pl");
   h.audit.mockReset().mockResolvedValue(report());
   h.exportAudit.mockReset().mockResolvedValue(exportFile());

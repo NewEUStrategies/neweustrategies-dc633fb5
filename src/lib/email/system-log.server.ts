@@ -4,9 +4,25 @@
 // dispatcher kolejki. Jeden e-mail generuje wiele wierszy (pending -> sent/dlq),
 // więc KAŻDE zliczenie deduplikujemy po message_id, biorąc najnowszy wiersz.
 //
-// Tabela jest dostępna wyłącznie dla service_role (RLS), dlatego odczyt idzie
-// przez klienta admina - wywołujący jest wcześniej weryfikowany rolą admina
-// w middleware server function.
+// Odczyt idzie klientem admina, bo dziennik ma RLS dopuszczający `service_role`
+// (niesie surowe adresy odbiorców), a klient serwisowy RLS OMIJA. Dlatego rola
+// wołającego to dopiero POŁOWA autoryzacji - druga połowa jest niżej.
+//
+// ZAKRES DANYCH. Bramka roli odpowiada wyłącznie na pytanie „czy to admin", i to
+// admin liczony we WŁASNYM najemcy wołającego. Na pytanie „czyje to wiersze"
+// odpowiada `tenant_id` w `email_send_log` (migracja 20260913101000) i JAWNY
+// filtr w zapytaniu niżej: potwierdzenie roli w najemcy X nie jest zgodą na dane
+// najemcy Y. Najemca przychodzi w `SystemEmailQuery`, z kontekstu middleware -
+// nie z ładunku klienta i nie z hosta żądania, bo host da się podrobić, a rozjazd
+// „rola po najemcy domowym, dane po najemcy z nagłówka" to osobna klasa dziury
+// (scripts/check-sql-tenant-scope.ts).
+//
+// PUSTY NAJEMCA TO ODMOWA, nie zapytanie bez filtra. Degradacja do zapytania bez
+// `.eq` przywracałaby wyciek dokładnie wtedy, gdy coś poszło nie tak.
+//
+// WIERSZE HISTORYCZNE bez najemcy (backfill migracji nie umiał ich rozstrzygnąć)
+// są świadomie NIEWIDOCZNE dla każdego najemcy - uzasadnienie w komentarzu
+// migracji. Nie wolno ich odzyskiwać przez `.or("tenant_id.is.null,…")`.
 
 export type SystemEmailStatus =
   "pending" | "sent" | "dlq" | "suppressed" | "failed" | "bounced" | "complained";
@@ -49,6 +65,8 @@ export interface SystemEmailReport {
 }
 
 export interface SystemEmailQuery {
+  /** Najemca wołającego - granica danych raportu, nie filtr prezentacyjny. */
+  tenantId: string;
   days: number;
   template: string | null;
   status: SystemEmailStatus | null;
@@ -58,6 +76,21 @@ export interface SystemEmailQuery {
 }
 
 const FAILED: readonly SystemEmailStatus[] = ["dlq", "failed", "bounced", "complained"];
+
+/**
+ * Nazwa kolumny najemcy podana jako `string`, a nie literał.
+ *
+ * PO CO. `email_send_log.tenant_id` wchodzi migracją 20260913101000, a
+ * `src/integrations/supabase/types.ts` jest GENEROWANY z bazy - do najbliższej
+ * regeneracji kolumny w typach nie ma, więc `.eq("tenant_id", …)` z literałem
+ * nie kompiluje się. Sygnatura `eq` przyjmuje zwykły `string`, gdy nazwa nie
+ * jest literałem, więc wystarczy zdjąć zawężenie do literału - i nie trzeba ani
+ * `as never`, ani `as unknown as`, których repo pilnuje ratchetami
+ * (`check:stale-never-casts`, `check:unknown-casts`). Stała znika razem
+ * z regeneracją typów; do tego czasu jest JEDYNYM miejscem, w którym nazwa tej
+ * kolumny żyje bez ochrony kompilatora.
+ */
+const TENANT_COLUMN: string = "tenant_id";
 
 function statusOf(value: unknown): SystemEmailStatus {
   const allowed: readonly string[] = [
@@ -154,6 +187,11 @@ function buildSeries(rows: SystemEmailRow[], days: number): SystemEmailDayPoint[
 }
 
 export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<SystemEmailReport> {
+  // Fail closed PRZED dotknięciem bazy: brak najemcy to odmowa, nie zapytanie
+  // bez granicy. Klient serwisowy omija RLS, więc to jedyne miejsce, w którym
+  // ta odpowiedź jeszcze istnieje.
+  if (!query.tenantId) throw new Error("Forbidden: brak kontekstu najemcy");
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - (query.days - 1));
@@ -162,6 +200,7 @@ export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<S
   const { data, error } = await supabaseAdmin
     .from("email_send_log")
     .select("message_id, template_name, recipient_email, status, error_message, created_at")
+    .eq(TENANT_COLUMN, query.tenantId)
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: false })
     .limit(5000);
@@ -207,10 +246,18 @@ export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<S
   // Liczba AKTYWNYCH wykluczeń z listy kanonicznej. Wcześniej liczyliśmy wiersze
   // zaszłej tabeli `suppressed_emails`, która nie znała wygaśnięcia ani zdjęcia
   // blokady - raport pokazywał więc adresy, na które od dawna wolno już wysyłać.
+  //
+  // LICZNIK JEST NAJEMCY, NIE PLATFORMY. Bez `.eq("tenant_id", …)` ten agregat
+  // psuł dwie rzeczy naraz: przeciekał między najemcami ORAZ fałszował własną
+  // metrykę panelu, bo `suppressedRecipients` pokazywał sumę całej platformy.
+  // Kolumna jest tu NOT NULL od początku (20260725120000:313) i siedzi
+  // w wygenerowanych typach, więc filtr był dostępny od ręki - brakowało
+  // wyłącznie najemcy wołającego, którego ta funkcja wcześniej nie dostawała.
   let suppressedRecipients = 0;
   const { count } = await supabaseAdmin
     .from("email_suppressions")
     .select("id", { count: "exact", head: true })
+    .eq("tenant_id", query.tenantId)
     .is("released_at", null)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
   if (typeof count === "number") suppressedRecipients = count;

@@ -6,21 +6,25 @@ import { callServerFn, asSpec } from "@/test/serverFn";
 vi.mock("@tanstack/react-start", async () => (await import("@/test/serverFn")).reactStartStub());
 vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 
-const assertAdmin = vi.fn(async () => undefined);
-const loadMonetizationLedger = vi.fn(async (input: { environment: string; limit: number }) => ({
-  donations: [],
-  grants: [],
-  giftLinks: [],
-  environment: input.environment,
-  summary: {
-    paidTotals: [],
-    donationCount: 0,
-    pendingCount: 0,
-    activeGrants: 0,
-    activeGiftLinks: 0,
-  },
-  tenantResolved: true,
-}));
+/** Najemca wołającego - bramka ODDAJE go handlerowi (profil, nie host). */
+const NAJEMCA = "77777777-7777-4777-8777-777777777777";
+const assertAdmin = vi.fn(async () => ({ tenantId: NAJEMCA }));
+const loadMonetizationLedger = vi.fn(
+  async (input: { environment: string; limit: number; tenantId: string }) => ({
+    donations: [],
+    grants: [],
+    giftLinks: [],
+    environment: input.environment,
+    summary: {
+      paidTotals: [],
+      donationCount: 0,
+      pendingCount: 0,
+      activeGrants: 0,
+      activeGiftLinks: 0,
+    },
+    tenantResolved: true,
+  }),
+);
 
 vi.mock("@/lib/billing/diagnostics.server", () => ({ assertAdmin }));
 vi.mock("@/lib/admin/monetization/ledger.server", () => ({ loadMonetizationLedger }));
@@ -39,12 +43,22 @@ describe("listMonetizationLedger", () => {
   it("weryfikuje rolę admina przed odczytem", async () => {
     await callServerFn(asSpec(listMonetizationLedger), { environment: "all", limit: 20 }, ctx());
     expect(assertAdmin).toHaveBeenCalledTimes(1);
-    expect(loadMonetizationLedger).toHaveBeenCalledWith({ environment: "all", limit: 20 });
+    // Najemca jedzie do warstwy danych Z BRAMKI - moduł danych nie pyta już
+    // o hosta, więc to jedyne wejście zakresu.
+    expect(loadMonetizationLedger).toHaveBeenCalledWith({
+      environment: "all",
+      limit: 20,
+      tenantId: NAJEMCA,
+    });
   });
 
   it("stosuje wartości domyślne", async () => {
     await callServerFn(asSpec(listMonetizationLedger), {}, ctx());
-    expect(loadMonetizationLedger).toHaveBeenCalledWith({ environment: "all", limit: 50 });
+    expect(loadMonetizationLedger).toHaveBeenCalledWith({
+      environment: "all",
+      limit: 50,
+      tenantId: NAJEMCA,
+    });
   });
 
   it("odrzuca nieznane środowisko i limit poza zakresem", async () => {

@@ -27,6 +27,7 @@ import type { WebhookEventRow } from "@/test/billing/fixtures";
 
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
+  superAdmin: { current: true },
   rows: { current: [] as WebhookEventRow[] },
   readError: { current: false },
   retry: vi.fn(),
@@ -59,6 +60,14 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (table: string) => h.chain!.from(table) },
 }));
 
+// Ponowienie zdarzenia stoi po stronie serwera za rolą `super_admin` (drugi
+// człon polityki RLS na `payment_webhook_events`). Panel tylko to odwzorowuje,
+// więc rola musi być sterowalna z testu - inaczej nie da się sprawdzić, że
+// admin najemcy NIE dostaje przycisku prowadzącego do gołego „forbidden".
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ isSuperAdmin: h.superAdmin.current }),
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: (m: string, opts?: unknown) => h.toastSuccess(m, opts),
@@ -84,6 +93,7 @@ const envFilter = () => screen.getAllByRole("combobox")[1];
 const searchBox = () => screen.getByPlaceholderText("adminBilling.searchTypeIdUser");
 
 beforeEach(() => {
+  h.superAdmin.current = true;
   h.lang.current = "pl";
   h.readError.current = false;
   h.retry.mockReset().mockResolvedValue({
@@ -508,5 +518,32 @@ describe("AdminWebhookLogPanel - PONOWIENIE zdarzenia", () => {
     await waitFor(() =>
       expect(h.chain!.chainsFor("payment_webhook_events").length).toBeGreaterThan(before),
     );
+  });
+});
+
+describe("AdminWebhookLogPanel - PONOWIENIE widoczne tylko dla super_admina", () => {
+  it("admin najemcy NIE dostaje przycisku ponowienia", async () => {
+    // Bramką jest serwer (`retryWebhookEvent` sprawdza rolę `super_admin`,
+    // odtwarzając drugi człon polityki RLS), ale przycisk prowadzący wyłącznie
+    // do odmowy jest gorszy niż jego brak: operator klika i dostaje komunikat,
+    // którego nie umie naprawić.
+    h.superAdmin.current = false;
+    h.rows.current = [webhookEvent({ id: "evt-brak-roli" })];
+    render();
+    await awaitRows();
+
+    expect(screen.queryByText("adminBilling.retry2")).toBeNull();
+    expect(h.retry).not.toHaveBeenCalled();
+  });
+
+  it("super_admin przycisk dostaje", async () => {
+    h.superAdmin.current = true;
+    h.rows.current = [webhookEvent({ id: "evt-z-rola" })];
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByText("adminBilling.retry2"));
+
+    await waitFor(() => expect(h.retry).toHaveBeenCalledWith({ data: { id: "evt-z-rola" } }));
   });
 });

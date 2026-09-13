@@ -2,7 +2,8 @@
 //
 // PO CO TEN PLIK ISTNIEJE. `require-staff.ts` jest importowany przez 46 plików
 // produkcyjnych i do 04.09.2026 miał 0,00% GAŁĘZI: 9/30 linii, 1/2 funkcji.
-// Pokryta była sama FABRYKA (woła się cztery razy na poziomie modułu), a ciało
+// Pokryta była sama FABRYKA (woła się raz na każdą bramkę, na poziomie
+// modułu), a ciało
 // `.server(async ...)` - czyli KAŻDA ścieżka odmowy - nie wykonało się ani raz.
 //
 // Zero nie brało się z braku testów, a z ich rodzaju: `@/integrations/supabase/
@@ -36,8 +37,8 @@
 // wyłącznie fabryka `createMiddleware` z frameworka (`@/test/middlewareHarness`),
 // bo bez niej ciało middleware jest niewywoływalne z testu - to instrument
 // pomiarowy, nie zastępstwo dowodu. `roleMiddleware`, `STAFF_ROLES`,
-// `CRM_STAFF_ROLES`, `ADMIN_ROLES`, składanie komunikatów i kolejność zapytań
-// są PRAWDZIWE.
+// `CRM_STAFF_ROLES`, `ADMIN_ROLES`, `PLATFORM_ADMIN_ROLES`, składanie
+// komunikatów i kolejność zapytań są PRAWDZIWE.
 //
 // WIERNOŚĆ ATRAPY KLIENTA JEST WARUNKIEM SENSU DOWODU. Atrapa `user_roles`
 // symuluje FILTROWANIE PostgREST (`.eq("user_id")`, `.eq("tenant_id")`,
@@ -63,7 +64,13 @@ import {
 } from "@/test/middlewareHarness";
 import { supabaseFromStub, fail, ok, type SupabaseResult } from "@/test/supabaseChain";
 import { requireSupabaseAuth } from "../auth-middleware";
-import { requireAdmin, requireAdminEditor, requireCrmStaff, requireStaff } from "../require-staff";
+import {
+  requireAdmin,
+  requireAdminEditor,
+  requireCrmStaff,
+  requirePlatformAdmin,
+  requireStaff,
+} from "../require-staff";
 
 // --- dane syntetyczne (RODO: żadnych prawdziwych identyfikatorów) -----------
 
@@ -93,6 +100,12 @@ function harness(opts: {
   profile?: SupabaseResult;
   roles?: RoleRow[];
   rolesError?: SupabaseResult;
+  /**
+   * Wiersz `public.tenants` czytany WYŁĄCZNIE przez bramkę platformową
+   * (`requireDefaultTenant`). Domyślnie najemca domyślny - dzięki temu test
+   * bramki platformowej mówi o roli, a test najemcy podmienia to jawnie.
+   */
+  tenant?: SupabaseResult;
   mfa?: { data?: unknown; error?: { message: string; code?: string } | null };
 }): Harness {
   const stub = supabaseFromStub();
@@ -100,6 +113,7 @@ function harness(opts: {
     "profiles",
     opts.profile ?? ok({ tenant_id: TENANT } as Record<string, unknown>),
   );
+  stub.setResponse("tenants", opts.tenant ?? ok({ is_default: true } as Record<string, unknown>));
   stub.setResponse("user_roles", (chain) => {
     if (opts.rolesError) return opts.rolesError;
     // Symulacja filtrów PostgREST. `eq` występuje dwa razy (user_id, tenant_id),
@@ -161,18 +175,30 @@ afterEach(() => {
 });
 
 describe("premisa: autoryzacja stoi NA uwierzytelnieniu", () => {
-  it("każda z czterech bramek deklaruje `requireSupabaseAuth` w łańcuchu w górę", () => {
+  it("każda z pięciu bramek deklaruje `requireSupabaseAuth` w łańcuchu w górę", () => {
     // Bez tego ogniwa `context.supabase` / `context.userId` byłyby nieustawione,
     // a bramka roli sprawdzałaby rolę anonimowego wywołującego.
-    for (const gate of [requireStaff, requireCrmStaff, requireAdminEditor, requireAdmin]) {
+    for (const gate of [
+      requireStaff,
+      requireCrmStaff,
+      requireAdminEditor,
+      requireAdmin,
+      requirePlatformAdmin,
+    ]) {
       expect(declaredMiddleware(gate)).toContain(requireSupabaseAuth);
     }
   });
 
-  it("każda z czterech bramek REJESTRUJE ciało `.server()` - jest co mierzyć", () => {
+  it("każda z pięciu bramek REJESTRUJE ciało `.server()` - jest co mierzyć", () => {
     // Gdyby fabryka przestała rejestrować ciało, wszystkie dowody niżej
     // zamieniłyby się w dowody o atrapie.
-    for (const gate of [requireStaff, requireCrmStaff, requireAdminEditor, requireAdmin]) {
+    for (const gate of [
+      requireStaff,
+      requireCrmStaff,
+      requireAdminEditor,
+      requireAdmin,
+      requirePlatformAdmin,
+    ]) {
       expect(typeof capturedServer(gate)).toBe("function");
     }
   });
@@ -347,7 +373,7 @@ describe("ścieżka odmowy 7/7: `mfa_required` - drugi czynnik ISTNIEJE, ale nie
   });
 });
 
-describe("zestawy ról: cztery bramki NIE są synonimami", () => {
+describe("zestawy ról: pięć bramek NIE jest synonimami", () => {
   const withRole = (role: string) =>
     harness({ roles: [{ user_id: USER, tenant_id: TENANT, role }], mfa: { data: false } });
 
@@ -439,6 +465,103 @@ describe("zawężenie NAJEMCĄ: rola z innego tenanta nie jest rolą", () => {
     await runMiddleware(requireAdmin, { context: context(h, "aal2") });
     expect(h.stub.lastChain("profiles")?.argsOf("eq")).toEqual(["id", USER]);
     expect(h.stub.lastChain("profiles")?.has("maybeSingle")).toBe(true);
+  });
+});
+
+describe("bramka PLATFORMOWA: rola to za mało, liczy się najemca domyślny", () => {
+  // PO CO OSOBNA KLASA. `job_runner_settings` to JEDEN wiersz bez `tenant_id`:
+  // adres, pod który pg_cron wysyła sekret operatora, i kill switch poczty
+  // WSZYSTKICH najemców. `super_admin` jest natomiast rolą PER NAJEMCA, więc
+  // sama rola nie wyraża „operatora instalacji" - dopiero `tenants.is_default`
+  // rozstrzyga, kto rusza zasób wspólny.
+  const platform = (role: string, isDefault: boolean, mfa: unknown = false) =>
+    harness({
+      roles: [{ user_id: USER, tenant_id: TENANT, role }],
+      tenant: ok({ is_default: isDefault } as Record<string, unknown>),
+      mfa: { data: mfa },
+    });
+
+  it("`super_admin` W NAJEMCY DOMYŚLNYM przechodzi", async () => {
+    const h = platform("super_admin", true);
+    const run = await runMiddleware(requirePlatformAdmin, { context: context(h, "aal2") });
+    expect(run.nextCalls).toHaveLength(1);
+  });
+
+  it("`super_admin` w najemcy NIEDOMYŚLNYM jest odrzucany", async () => {
+    // To jest cały sens tej bramki: rola nadana w organizacji klienta nie może
+    // otwierać ustawień instalacji, bo ten sam wiersz gasi pocztę pozostałym.
+    const h = platform("super_admin", false);
+    const err = await denial(requirePlatformAdmin, context(h, "aal2"));
+    expect(err.message).toBe("Forbidden: platform admin role (super_admin) required");
+  });
+
+  it("brak wiersza najemcy (`maybeSingle` -> null) też odmawia", async () => {
+    const h = harness({
+      roles: [{ user_id: USER, tenant_id: TENANT, role: "super_admin" }],
+      tenant: ok(null),
+      mfa: { data: false },
+    });
+    const err = await denial(requirePlatformAdmin, context(h, "aal2"));
+    expect(err.message).toBe("Forbidden: platform admin role (super_admin) required");
+  });
+
+  it.each([["admin"], ["editor"], ["author"]])(
+    "staff najemcy (`%s`) NIE jest operatorem platformy",
+    async (role) => {
+      // Te trzy role są w najemcy DOMYŚLNYM, więc odmowa pada wyłącznie na
+      // zestawie ról - inaczej test dowodziłby czegoś o najemcy, nie o roli.
+      const h = platform(role, true);
+      const err = await denial(requirePlatformAdmin, context(h, "aal2"));
+      expect(err.message).toBe("Forbidden: platform admin role (super_admin) required");
+    },
+  );
+
+  it("odmowa NA NAJEMCY nie pyta o MFA - kolejność kroków jest przedmiotem dowodu", async () => {
+    // Wywołujący MA zweryfikowany drugi czynnik i `aal1`, więc gdyby blok MFA
+    // stał PRZED sprawdzeniem najemcy, komunikat brzmiałby `mfa_required`.
+    // Ten test odróżnia te dwa porządki, których asercja o samym „Forbidden"
+    // nie odróżnia.
+    const h = platform("super_admin", false, true);
+    const outcome = await attemptDenial(requirePlatformAdmin, context(h, "aal1"));
+    const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+    expect(message).toBe("Forbidden: platform admin role (super_admin) required");
+    expect(h.supabase.rpc).not.toHaveBeenCalled();
+    expect(outcome.nextCalls).toEqual([]);
+  });
+
+  it("błąd odczytu `tenants` ODMAWIA i niesie komunikat bazy", async () => {
+    // Fail closed: niedostępny katalog najemców nie może zamienić bramki
+    // platformowej w bramkę samej roli.
+    const h = harness({
+      roles: [{ user_id: USER, tenant_id: TENANT, role: "super_admin" }],
+      tenant: fail("permission denied for table tenants", "42501"),
+      mfa: { data: false },
+    });
+    const err = await denial(requirePlatformAdmin, context(h, "aal2"));
+    expect(err.message).toBe(
+      "Forbidden: could not verify platform admin role (super_admin) (permission denied for table tenants)",
+    );
+  });
+
+  it("najemca czytany jest po `id` Z PROFILU, nie z żądania", async () => {
+    const h = platform("super_admin", true);
+    await runMiddleware(requirePlatformAdmin, { context: context(h, "aal2") });
+    expect(h.stub.lastChain("tenants")?.argsOf("eq")).toEqual(["id", TENANT]);
+    expect(h.stub.lastChain("tenants")?.has("maybeSingle")).toBe(true);
+  });
+
+  it("cztery bramki NAJEMCY nie płacą za zapytanie o `tenants`", async () => {
+    // `requireDefaultTenant` jest domyślnie wyłączone - gdyby przestało,
+    // KAŻDE żądanie panelu dokładałoby okrągły czas bazy, a instalacja bez
+    // wiersza najemcy zostałaby odcięta od własnego panelu.
+    for (const gate of [requireStaff, requireCrmStaff, requireAdminEditor, requireAdmin]) {
+      const h = harness({
+        roles: [{ user_id: USER, tenant_id: TENANT, role: "admin" }],
+        mfa: { data: false },
+      });
+      await runMiddleware(gate, { context: context(h, "aal2") });
+      expect(h.stub.chainsFor("tenants")).toHaveLength(0);
+    }
   });
 });
 

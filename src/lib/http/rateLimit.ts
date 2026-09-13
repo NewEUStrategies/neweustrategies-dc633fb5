@@ -65,15 +65,50 @@ export function createRateLimiter(opts: RateLimitOptions) {
 }
 
 /**
- * Best-effort client IP for rate-limiting. Reads the proxy-forwarded headers
- * (correct behind the edge proxy / any CDN); falls back to a constant so
- * an IP-less request still shares one bucket rather than bypassing the limit.
+ * Adres dzwoniącego na potrzeby kubełka limitu - JEDYNA definicja „kto dzwoni"
+ * w tym repozytorium.
+ *
+ * Za Cloudflare `x-forwarded-for` jest listą, do której klient dopisuje własny
+ * prefiks - Cloudflare NIE zastępuje wartości klienta, tylko dokleja adres
+ * połączenia na KOŃCU. Pierwszy wpis jest więc DEKLARACJĄ KLIENTA, nie adresem,
+ * a kubełek po nim kluczowany rotuje się jednym nagłówkiem. Jedynym nagłówkiem,
+ * którego klient nie podrobi, jest `cf-connecting-ip` (ta sama zasada, co w
+ * `rateSubject.server.ts:29-31`). Ostatni wpis XFF to zapas dla wdrożeń bez
+ * Cloudflare - nadal pochodzi od proxy, nie od przeglądarki. UWAGA:
+ * docs/ANALIZA_MODULOW_DOGLEBNA_2026-08-12.md:5268 twierdzi, że „na Workers to
+ * w porządku" - to jest nieprawda i przez to zalecenie z :5273 leżało
+ * niezrealizowane.
+ *
+ * Puste i białoznakowe wpisy odrzucamy na KAŻDYM kroku, bo `x-forwarded-for`
+ * równy " " dawał wcześniej pusty string udający adres - a ten schodził dalej
+ * jako „brak adresu" i znosił kubełek IP w całości.
+ *
+ * UWAGA WDROŻENIOWA (jak w `api/public/fx-rate.ts:59-62`): zmiana źródła adresu
+ * zmienia KLUCZ kubełka, więc jedno okno każdego limitu rusza po wdrożeniu od
+ * zera. Dotyczy `rate_limits` (auth_*_ip, content_password_ip,
+ * newsletter.*, contact.submit) i wszystkich limiterów in-memory.
  */
 export function clientIpFromHeaders(headers: Headers): string {
-  const xff = headers.get("x-forwarded-for");
-  if (xff) {
-    const first = xff.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return headers.get("x-real-ip")?.trim() || "unknown";
+  const cf = headers.get("cf-connecting-ip")?.trim();
+  if (cf) return cf;
+  const real = headers.get("x-real-ip")?.trim();
+  if (real) return real;
+  const chain = (headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return chain[chain.length - 1] ?? "unknown";
+}
+
+/**
+ * Ten sam odczyt pod nazwą mówiącą, PO CO się go woła: to jest podmiot kubełka
+ * limitu. Cienki alias, a nie druga kolejność precedencji - dwie kolejności
+ * oznaczałyby dwa różne kubełki na to samo żądanie.
+ *
+ * Gwarancja: nigdy nie zwraca wartości pustej. Żądanie „nie wiadomo od kogo"
+ * dostaje wspólny, LEGALNY kubełek "unknown" - dzieli go z resztą ruchu bez
+ * rozpoznawalnego adresu, zamiast wymykać się limitowi.
+ */
+export function rateLimitIpSubject(headers: Headers): string {
+  return clientIpFromHeaders(headers);
 }

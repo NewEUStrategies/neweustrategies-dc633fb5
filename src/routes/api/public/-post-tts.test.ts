@@ -163,7 +163,6 @@ vi.mock("@supabase/supabase-js", () => ({
     };
   },
 }));
-vi.mock("@tanstack/react-start/server", () => ({ getRequestIP: () => "203.0.113.7" }));
 vi.mock("@/lib/server/rate-limit.server", () => ({
   rateLimit: async (input: {
     scope: string;
@@ -594,6 +593,51 @@ describe("post-tts - dławienie", () => {
     expect(h.state.rateLimitCalls.find((c) => c.scope === "post-tts:post:hour")?.subjectId).toBe(
       `${POST_ID}:en`,
     );
+  });
+
+  it("PODMIOT LIMITU jest odporny na podrabiany `x-forwarded-for`", async () => {
+    // `getRequestIP({ xForwardedFor: true })` honorował PIERWSZY wpis XFF ponad
+    // adres połączenia, więc rotacja jednego nagłówka resetowała OBA kubełki
+    // bramkujące PŁATNĄ syntezę. Kubełek musi zależeć od `cf-connecting-ip`,
+    // którego klient za Cloudflare nie podrobi.
+    await handle(
+      req(
+        { postId: POST_ID, lang: "pl" },
+        { "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "1.1.1.1" },
+      ),
+    );
+    await handle(
+      req(
+        { postId: POST_ID, lang: "pl" },
+        { "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "2.2.2.2, 3.3.3.3" },
+      ),
+    );
+
+    const hourly = h.state.rateLimitCalls.filter((c) => c.scope === "post-tts:ip:hour");
+    expect(hourly).toHaveLength(2);
+    expect(hourly[0].subjectId).toBe(hourly[1].subjectId);
+  });
+
+  it("RÓŻNI dzwoniący mają RÓŻNE kubełki, a podmiot jest solonym skrótem, nie adresem", async () => {
+    // Gdyby wszyscy wpadali do jednego kubełka, limit 15/h odciąłby czytelników
+    // nawzajem; gdyby podmiotem był surowy adres, `rate_limits` stałaby się
+    // rejestrem „kto i kiedy słuchał artykułu".
+    await handle(req({ postId: POST_ID, lang: "pl" }, { "cf-connecting-ip": "203.0.113.7" }));
+    await handle(req({ postId: POST_ID, lang: "pl" }, { "cf-connecting-ip": "198.51.100.9" }));
+
+    const hourly = h.state.rateLimitCalls.filter((c) => c.scope === "post-tts:ip:hour");
+    expect(hourly[0].subjectId).not.toBe(hourly[1].subjectId);
+    expect(hourly[0].subjectId).not.toContain("203.0.113.7");
+    expect(hourly[0].subjectId).toMatch(/^ip:[0-9a-f]{32}$/);
+  });
+
+  it("ŻĄDANIE BEZ ROZPOZNAWALNEGO ADRESU wpada do wspólnego kubełka, a nie omija limitu", async () => {
+    await handle(req({ postId: POST_ID, lang: "pl" }, { "x-forwarded-for": "   " }));
+    await handle(req({ postId: POST_ID, lang: "pl" }));
+
+    const hourly = h.state.rateLimitCalls.filter((c) => c.scope === "post-tts:ip:hour");
+    expect(hourly).toHaveLength(2);
+    expect(hourly[0].subjectId).toBe(hourly[1].subjectId);
   });
 
   it("TRAFIENIE W CACHE nie uruchamia limitów budżetowych (nic nie kosztuje)", async () => {

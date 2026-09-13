@@ -341,3 +341,68 @@ export async function crawlerDegradeIsSafe(rawHost: string | null | undefined): 
   const host = normalizeHost(rawHost);
   return isPreviewHost(host) || directory.byDomain.size === 0;
 }
+
+// ── Właściwość Google Search Console -> najemca ────────────────────────────
+//
+// PO CO. Konektor GSC jest JEDEN na wdrożenie (klucze ze środowiska), więc
+// bramka roli nie zawęża niczego: admin dowolnego najemcy, podając `siteUrl`
+// w ładunku, czytałby zapytania, kliknięcia i pozycje CUDZEJ domeny. Zakres
+// danych musi więc pochodzić z `tenants.domain` najemcy wołającego, a nie
+// z wejścia. Definicja „czyj to adres" mieszka tutaj, przy katalogu domen,
+// żeby nie powstała druga - rozjeżdżająca się - kopia w warstwie analityki.
+
+/** Prefiks właściwości domenowej GSC (druga forma to zwykły URL prefiksowy). */
+const GSC_DOMAIN_PREFIX = "sc-domain:";
+
+/**
+ * Host właściwości Search Console - JEDNA normalizacja dla OBU form, którymi
+ * GSC nazywa właściwość: `sc-domain:example.com` (właściwość domenowa) oraz
+ * `https://example.com/` (właściwość prefiksowa). `null` = nie da się odczytać
+ * hosta, czyli wartość nie pasuje do ŻADNEJ domeny.
+ */
+function gscSiteHost(siteUrl: string): string | null {
+  const raw = siteUrl.trim();
+  if (!raw) return null;
+  if (raw.toLowerCase().startsWith(GSC_DOMAIN_PREFIX)) {
+    return normalizeHost(raw.slice(GSC_DOMAIN_PREFIX.length));
+  }
+  try {
+    return normalizeHost(new URL(raw).hostname);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Czy właściwość GSC należy do domeny tego najemcy (alias www/apex jak wszędzie
+ * indziej w tym module).
+ *
+ * GAŁĄŹ „NIE WIEM" JEST OBOWIĄZKOWA i przepuszcza. Dwa przypadki, w których
+ * katalog domen NIE jest dowodem obcości adresu:
+ *   * katalog niezasiedlony - żaden najemca nie zajął jeszcze domeny (albo
+ *     katalog był nieosiągalny); instalacja sprzed multi-domain nie ma czego
+ *     cross-tenantowo pomylić,
+ *   * najemca bez `tenants.domain` - nie ma z czym porównywać.
+ * Odmowa w tych przypadkach odebrałaby panel Search Console instalacjom, które
+ * nigdy nie miały problemu, który ta funkcja zamyka.
+ */
+export async function siteUrlBelongsToTenant(siteUrl: string, tenantId: string): Promise<boolean> {
+  const directory = await getTenantDirectory();
+  if (directory.byDomain.size === 0) return true;
+  const tenantHasDomain = [...directory.byDomain.values()].some((t) => t.id === tenantId);
+  if (!tenantHasDomain) return true;
+  return matchDomain(directory, gscSiteHost(siteUrl))?.id === tenantId;
+}
+
+/**
+ * Wariant rzucający dla wywołań, które mają ODMÓWIĆ przed dotknięciem bramki
+ * konektora. Komunikat jest jeden i nie zdradza, czyja jest właściwość.
+ */
+export async function assertSiteUrlBelongsToTenant(
+  siteUrl: string,
+  tenantId: string,
+): Promise<void> {
+  if (!(await siteUrlBelongsToTenant(siteUrl, tenantId))) {
+    throw new Error("Forbidden: site not owned by tenant");
+  }
+}

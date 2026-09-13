@@ -216,14 +216,18 @@ describe("submitPostFeedback - rozpoznawanie adresu i najemcy", () => {
     });
   });
 
-  it("z `x-forwarded-for` bierzemy PIERWSZY adres i przycinamy spacje", async () => {
+  it("z `x-forwarded-for` bierzemy OSTATNI adres i przycinamy spacje", async () => {
+    // Pierwszy wpis listy pochodzi od KLIENTA (edge proxy tylko dokleja swój
+    // adres na końcu), więc kubełek po nim kluczowany rotuje się jednym
+    // nagłówkiem. Podmiotem limitu jest ogon - jedyna część, której klient
+    // nie wpisuje sam.
     h.getRequest.mockReturnValue(
-      requestWith({ "x-forwarded-for": `  ${IP_DOC_OTHER} , 203.0.113.9`, "user-agent": UA_DOC }),
+      requestWith({ "x-forwarded-for": `  ${IP_DOC_OTHER} , 203.0.113.9  `, "user-agent": UA_DOC }),
     );
     await submitPostFeedback({ data: { postId: POST_ID, helpful: true } });
     expect(h.rateLimit).toHaveBeenCalledWith({
       scope: "post.feedback",
-      subjectId: IP_DOC_OTHER,
+      subjectId: "203.0.113.9",
       max: 20,
     });
   });

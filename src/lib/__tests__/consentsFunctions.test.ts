@@ -19,9 +19,9 @@
 //   3. SYGNAŁ WOBEC ISTNIEJĄCEJ ZGODY: co wygrywa. Odczytane z kodu i zapisane
 //      testem - `resolveGpcForWrite` nie patrzy na wcześniejszą zgodę wcale,
 //      a klamrowanie runtime jest osobną warstwą (`gpc.ts`, własne testy).
-//   4. IP I USER-AGENT: kolejność nośników (`x-forwarded-for` przed
-//      `cf-connecting-ip` i `x-real-ip`), pierwszy adres z listy proxy,
-//      obcięcie UA do 500 znaków.
+//   4. IP I USER-AGENT: kolejność nośników (`cf-connecting-ip`, potem
+//      `x-real-ip`, na końcu OSTATNI wpis `x-forwarded-for`), brak
+//      wiarygodnego źródła jako NULL, obcięcie UA do 500 znaków.
 //   5. WALIDATORY: klucz spoza katalogu odrzucony, wersja wymagana, limit
 //      partii, `decisionId` musi być UUID, `pageUrl` obcięty limitem.
 //   6. PARTIA: sygnał rozstrzygany RAZ na całe żądanie (inaczej audyt
@@ -279,24 +279,41 @@ describe("resolveGpcForWrite - fail-closed w stronę prywatności", () => {
 // ---------------------------------------------------------------------------
 
 describe("readIp - kolejność nośników adresu", () => {
-  it("`x-forwarded-for` jest pierwszy i bierzemy PIERWSZY adres z listy", () => {
-    // Lista `x-forwarded-for` rośnie od klienta w stronę serwera, więc adresem
-    // podmiotu jest ten PIERWSZY. Wzięcie ostatniego zapisałoby w dowodzie
-    // zgody adres własnego proxy - czyli dowód o niczym.
+  // Adres w rekordzie zgody jest DOWODEM, kto i skąd wyraził zgodę. Pierwszy
+  // wpis `x-forwarded-for` dopisuje KLIENT (proxy dokleja adres połączenia na
+  // KOŃCU listy), więc dowód oparty na nim nie ma wartości dowodowej. Kolejność
+  // jest ta sama, co w `clientIpFromHeaders`: `cf-connecting-ip` ->
+  // `x-real-ip` -> OSTATNI niepusty wpis XFF -> NULL.
+  it("`cf-connecting-ip` WYGRYWA z `x-forwarded-for`", () => {
+    const ip = readIp(
+      request({ "cf-connecting-ip": DOC_IP.edge, "x-forwarded-for": `${DOC_IP.client}, 1.2.3.4` }),
+    );
+    expect(ip).toBe(DOC_IP.edge);
+  });
+
+  it("bez Cloudflare `x-real-ip` bije `x-forwarded-for`", () => {
+    expect(
+      readIp(request({ "x-real-ip": DOC_IP.proxyHop, "x-forwarded-for": DOC_IP.client })),
+    ).toBe(DOC_IP.proxyHop);
+  });
+
+  it("z samego `x-forwarded-for` bierzemy OSTATNI wpis, nie deklarację klienta", () => {
     const ip = readIp(
       request({ "x-forwarded-for": `${DOC_IP.client}, ${DOC_IP.proxyHop}, ${DOC_IP.edge}` }),
     );
-    expect(ip).toBe(DOC_IP.client);
+    expect(ip).toBe(DOC_IP.edge);
   });
 
   it("obcina spacje wokół adresu", () => {
     expect(readIp(request({ "x-forwarded-for": `  ${DOC_IP.client}  ` }))).toBe(DOC_IP.client);
+    expect(readIp(request({ "cf-connecting-ip": `  ${DOC_IP.edge} ` }))).toBe(DOC_IP.edge);
   });
 
-  it("PUSTY `x-forwarded-for` schodzi na kolejne nagłówki", () => {
-    expect(
-      readIp(request({ "x-forwarded-for": " , ", "cf-connecting-ip": DOC_IP.edge })),
-    ).toBeNull();
+  it("PUSTY `x-forwarded-for` schodzi na nagłówki wiarygodniejsze, nie na pusty string", () => {
+    expect(readIp(request({ "x-forwarded-for": " , ", "cf-connecting-ip": DOC_IP.edge }))).toBe(
+      DOC_IP.edge,
+    );
+    expect(readIp(request({ "x-forwarded-for": " , " }))).toBeNull();
   });
 
   it("bez `x-forwarded-for` czyta `cf-connecting-ip`, potem `x-real-ip`", () => {
@@ -308,9 +325,13 @@ describe("readIp - kolejność nośników adresu", () => {
     );
   });
 
-  it("bez żadnego nagłówka i bez żądania oddaje `null`", () => {
+  it("brak wiarygodnego źródła zapisujemy jako NULL, a nie jako „unknown”", () => {
+    // Różnica wobec kubełków limitu: tam „unknown" jest legalnym WSPÓLNYM
+    // kluczem, tu byłby dowodem o wartości zero wpisanym w kolumnę, którą
+    // czyta audyt RODO. Brak dowodu jest uczciwszy niż dowód pozorny.
     expect(readIp(request())).toBeNull();
     expect(readIp(null)).toBeNull();
+    expect(readIp(request({ "x-forwarded-for": " " }))).toBeNull();
   });
 });
 

@@ -17,11 +17,17 @@ function wantsHtml(accept: string | null): boolean {
 // Abuse guard: publiczny, niewymagający auth endpoint z zapisem do bazy -
 // cap per IP (jak newsletter.subscribe); brak IP -> fail-open (nie blokujemy
 // prawdziwych klików zza nietypowych proxy).
+//
+// Adres bierze się z JEDNEJ definicji „kto dzwoni" (`@/lib/http/rateLimit`):
+// `cf-connecting-ip` -> `x-real-ip` -> OSTATNI wpis `x-forwarded-for`. Pierwszy
+// wpis XFF dopisuje klient, więc kubełek po nim kluczowany rotował się jednym
+// nagłówkiem. "unknown" traktujemy tu jak BRAK adresu, bo ten endpoint jest
+// świadomie fail-OPEN: wypis z listy to obowiązek prawny, nie funkcja
+// opcjonalna, i nie wolno go odciąć człowiekowi zza nietypowego proxy.
 async function passesRateLimit(request: Request): Promise<boolean> {
-  const fwd = request.headers.get("x-forwarded-for");
-  const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
-  const clientIp =
-    request.headers.get("cf-connecting-ip") ?? fwdFirst ?? request.headers.get("x-real-ip");
+  const { rateLimitIpSubject } = await import("@/lib/http/rateLimit");
+  const subject = rateLimitIpSubject(request.headers);
+  const clientIp = subject === "unknown" ? null : subject;
   if (!clientIp) return true;
   const { rateLimit } = await import("@/lib/server/rate-limit.server");
   return rateLimit({
@@ -106,7 +112,12 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
           })
           .eq("id", sub.id);
         if (updErr) {
-          return Response.json({ ok: false, error: updErr.message }, { status: 500 });
+          // Komunikat Postgresa niesie nazwy tabel, kolumn i ograniczeń - na
+          // ścieżce dostępnej bez sesji to darmowa mapa schematu. Do klienta
+          // idzie stały kod, do logu workera pełna treść; bez tego logu
+          // tracimy diagnostykę nieudanych wypisów, których nikt nie zgłosi.
+          console.error("[newsletter.unsubscribe] update failed", updErr.message);
+          return Response.json({ ok: false, error: "update_failed" }, { status: 500 });
         }
         return Response.json({ ok: true });
       },

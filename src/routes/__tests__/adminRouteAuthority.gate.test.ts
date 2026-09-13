@@ -850,8 +850,11 @@ describe("panel newslettera - autorytet dostępu", () => {
     for (const file of NEWSLETTER_SERVER_FNS) {
       const source = read(file);
       const ilePublicznych = (source.match(/createServerFn\(/g) ?? []).length;
+      // `requirePlatformAdmin` jest w tej liście, bo to bramka WYŻSZA niż
+      // personel najemcy (super_admin w najemcy domyślnym) - stoi przy zapisie
+      // konfiguracji runnera, czyli przy singletonie instalacji.
       const ileZBramka = (
-        source.match(/\.middleware\(\[require(Staff|AdminEditor|Admin)\]\)/g) ?? []
+        source.match(/\.middleware\(\[require(Staff|AdminEditor|PlatformAdmin|Admin)\]\)/g) ?? []
       ).length;
       expect(
         ilePublicznych,

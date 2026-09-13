@@ -646,17 +646,19 @@ describe("limiter po adresie klienta", () => {
     expect(jobs.calls).toHaveLength(CAPACITY + 1);
   });
 
-  it("adres bierze się z PIERWSZEGO wpisu `x-forwarded-for`, nie z całej listy", async () => {
-    // Za edge proxy nagłówek jest listą: `klient, proxy1, proxy2`. Gdyby
-    // kluczem był cały nagłówek, wystarczyłoby dopisać dowolne proxy, żeby
-    // dostać świeży kubełek - czyli limitu by nie było.
-    const klient = "198.51.100.16";
+  it("adres bierze się z OSTATNIEGO wpisu `x-forwarded-for`, nie z prefiksu klienta", async () => {
+    // Za edge proxy nagłówek jest listą, do której klient dopisuje własny
+    // prefiks, a proxy DOKLEJA adres połączenia na KOŃCU. Gdyby kluczem był
+    // pierwszy wpis albo cały nagłówek, wystarczyłoby zmienić prefiks, żeby
+    // dostać świeży kubełek - czyli limitu by nie było. Podmiotem jest ogon,
+    // więc rotowanie prefiksu NIE odnawia budżetu.
+    const proxy = "10.0.1.7";
     for (let i = 0; i < CAPACITY; i += 1) {
-      const res = await tick({ forwardedFor: `${klient}, 10.0.0.${i + 1}` });
+      const res = await tick({ forwardedFor: `198.51.100.${i + 1}, ${proxy}` });
       expect(res.status).toBe(200);
     }
 
-    const res = await tick({ forwardedFor: `${klient}, 10.0.0.99, 10.0.1.7` });
+    const res = await tick({ forwardedFor: `203.0.113.77, 10.0.0.99, ${proxy}` });
 
     expect(res.status).toBe(429);
   });

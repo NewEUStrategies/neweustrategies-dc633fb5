@@ -34,20 +34,36 @@
 //     (typowa dla świeżo dodanej własności) musi dać `[]`, a nie `undefined`
 //     przepuszczone do komponentu, który zaraz zrobi na tym `.map`.
 //
-// IZOLACJA NAJEMCÓW. Jedyny odczyt z bazy w tym module to `has_role` - i leci
-// klientem WOŁAJĄCEGO, więc `current_tenant_id()` z jego JWT decyduje, czy
-// rola w ogóle istnieje. Testy przepuszczają admina najemcy B przez klienta
-// najemcy A i wymagają odmowy PRZED dotknięciem sieci. Świadoma granica tego
-// dowodu: klucze bramki są GLOBALNE, więc każdy admin dowolnego najemcy pyta
-// Google tym samym kontem konektora - zawężenie do własności robi wyłącznie
-// `siteUrl` z wejścia. To własność architektury konektora, nie tego pliku,
-// ale trzeba ją tu wypowiedzieć, żeby zieleń nie sugerowała więcej, niż jest.
+// IZOLACJA NAJEMCÓW - DWIE OSOBNE GRANICE. `has_role` leci klientem
+// WOŁAJĄCEGO, więc `current_tenant_id()` z jego JWT decyduje, czy rola w ogóle
+// istnieje; testy przepuszczają admina najemcy B przez klienta najemcy A
+// i wymagają odmowy PRZED dotknięciem sieci.
+//
+// Bramka roli NIE zawęża jednak DANYCH: klucze konektora są GLOBALNE (jeden
+// konektor na wdrożenie), więc każdy admin każdego najemcy pyta Google tym
+// samym kontem, a właściwość wybiera `siteUrl` z ŁADUNKU. Dlatego zakres
+// danych wyznacza dopiero związanie `siteUrl` z `tenants.domain` najemcy
+// wołającego (`assertSiteUrlBelongsToTenant`) - i to jest druga rzecz, której
+// ten plik pilnuje: odmowa PRZED `gwFetch` dla cudzej właściwości, odsiew
+// cudzych własności z listy ORAZ obowiązkowa gałąź „nie wiem" (pusty katalog
+// domen albo najemca bez domeny), bez której instalacja sprzed multi-domain
+// straciłaby panel Search Console.
+//
+// Katalog domen jest PRAWDZIWY (`tenant.server.ts` nad atrapą `supabaseAdmin`),
+// a profil wołającego czyta się przez REALNIE FILTRUJĄCĄ atrapę `profiles` -
+// atrapa oddająca stały najemcę „dowodziłaby" izolacji, której by nie było.
 //
 // ZERO SIECI, ZERO SEKRETÓW. `fetch` jest atrapą, oba klucze to jawnie testowe
 // napisy generowane w tym pliku, wszystkie adresy z example.com.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { callServerFn, validateServerFnInput, type ServerFnContext } from "@/test/serverFnHarness";
+import { DZIEN, freezeClock, relativeIso } from "@/test/time";
+import { invalidateTenantDirectoryCache } from "@/lib/server/tenant.server";
+
+// Zegar zamrożony, bo katalog domen (`tenant.server.ts`) trzyma wpis z TTL
+// liczonym z `Date.now()`, a zakres dat kwerendy wyprowadzamy z „teraz".
+freezeClock();
 
 vi.mock("@tanstack/react-start", async () => {
   const { serverFnStubModule } = await import("@/test/serverFnHarness");
@@ -55,6 +71,19 @@ vi.mock("@tanstack/react-start", async () => {
 });
 vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
+}));
+
+/** Katalog domen (`tenants`) - jedyne źródło prawdy o tym, czyja to własność. */
+const katalog = vi.hoisted(() => ({
+  rows: [] as Array<{ id: string; slug: string; domain: string | null; is_default: boolean }>,
+}));
+
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: {
+    from: () => ({
+      select: () => ({ limit: () => Promise.resolve({ data: katalog.rows, error: null }) }),
+    }),
+  },
 }));
 
 const { inspectGscUrl, listGscSites, queryGscAnalytics } = await import("../gsc.functions");
@@ -73,7 +102,23 @@ const REDAKTOR_A = "55555555-5555-4555-8555-555555555555";
 /** Kto jest adminem i W KTÓRYM najemcy - odpowiednik filtra `current_tenant_id()`. */
 const ROLA_ADMINA: Record<string, string> = { [ADMIN_A]: TENANT_A, [ADMIN_B]: TENANT_B };
 
-const WITRYNA = "sc-domain:example.com";
+/** `profiles.tenant_id` - autorytet zakresu DANYCH (ta sama płaszczyzna co rola). */
+const PROFIL: Record<string, string> = {
+  [ADMIN_A]: TENANT_A,
+  [ADMIN_B]: TENANT_B,
+  [REDAKTOR_A]: TENANT_A,
+};
+
+const DOMENA_A = "example.com";
+const DOMENA_B = "b.example.org";
+
+function tenantRow(id: string, slug: string, domain: string | null, is_default = false) {
+  return { id, slug, domain, is_default };
+}
+
+/** Własność należąca do najemcy A (forma domenowa) i do najemcy B. */
+const WITRYNA = `sc-domain:${DOMENA_A}`;
+const WITRYNA_B = `sc-domain:${DOMENA_B}`;
 
 const fetchMock = vi.fn<(input: string | URL, init?: RequestInit) => Promise<Response>>();
 
@@ -85,15 +130,37 @@ interface Najemca {
 function najemca(tenant: string, userId: string, hasRoleError?: string): Najemca {
   const rpcCalls: Najemca["rpcCalls"] = [];
   const supabase = {
-    from: (table: string) => ({
-      select: () => ({
-        eq: () =>
-          Promise.resolve({
-            data: null,
-            error: { message: `test: ten moduł nie ma prawa czytać tabeli "${table}"` },
+    from: (table: string) => {
+      if (table !== "profiles") {
+        return {
+          select: () => ({
+            eq: () =>
+              Promise.resolve({
+                data: null,
+                error: { message: `test: ten moduł nie ma prawa czytać tabeli "${table}"` },
+              }),
           }),
-      }),
-    }),
+        };
+      }
+      // Atrapa profilu REALNIE filtruje po `.eq("id", …)`: test padnie także
+      // wtedy, gdy kod zapyta o cudzy profil albo o nikogo.
+      let id: string | null = null;
+      const builder = {
+        select: () => builder,
+        eq: (column: string, value: string) => {
+          if (column === "id") id = value;
+          return builder;
+        },
+        maybeSingle: () => {
+          const najemcaProfilu = id !== null ? (PROFIL[id] ?? null) : null;
+          return Promise.resolve({
+            data: najemcaProfilu === null ? null : { tenant_id: najemcaProfilu },
+            error: null,
+          });
+        },
+      };
+      return builder;
+    },
     rpc: (fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
       if (hasRoleError) return Promise.resolve({ data: null, error: { message: hasRoleError } });
@@ -158,10 +225,15 @@ function pytaj(data: unknown, n: Najemca = ADMIN()) {
   return callServerFn<{ rows: unknown[] }>(queryGscAnalytics, { data, context: n.ctx });
 }
 
+/** Zakres kwerendy liczony WZGLĘDEM zamrożonego „teraz" (GSC chce YYYY-MM-DD). */
+const dzien = (offsetDni: number): string => relativeIso(offsetDni * DZIEN).slice(0, 10);
+const START = dzien(-28);
+const KONIEC = dzien(-1);
+
 const ZAPYTANIE = {
   siteUrl: WITRYNA,
-  startDate: "2026-08-01",
-  endDate: "2026-08-28",
+  startDate: START,
+  endDate: KONIEC,
 };
 
 function inspekcja(data: unknown, n: Najemca = ADMIN()) {
@@ -179,6 +251,8 @@ beforeEach(() => {
   fetchMock.mockReset();
   json({});
   vi.stubGlobal("fetch", fetchMock);
+  katalog.rows = [tenantRow(TENANT_A, "a", DOMENA_A, true), tenantRow(TENANT_B, "b", DOMENA_B)];
+  invalidateTenantDirectoryCache();
 });
 
 afterEach(() => {
@@ -338,16 +412,16 @@ describe("listGscSites", () => {
   it("mapuje siteEntry na listę własności z poziomem uprawnień", async () => {
     json({
       siteEntry: [
-        { siteUrl: "sc-domain:example.com", permissionLevel: "siteOwner" },
-        { siteUrl: "https://blog.example.org/", permissionLevel: "siteFullUser" },
+        { siteUrl: `sc-domain:${DOMENA_A}`, permissionLevel: "siteOwner" },
+        { siteUrl: `https://www.${DOMENA_A}/`, permissionLevel: "siteFullUser" },
       ],
     });
 
     await expect(listuj()).resolves.toEqual({
       configured: true,
       sites: [
-        { siteUrl: "sc-domain:example.com", permissionLevel: "siteOwner" },
-        { siteUrl: "https://blog.example.org/", permissionLevel: "siteFullUser" },
+        { siteUrl: `sc-domain:${DOMENA_A}`, permissionLevel: "siteOwner" },
+        { siteUrl: `https://www.${DOMENA_A}/`, permissionLevel: "siteFullUser" },
       ],
     });
   });
@@ -438,7 +512,7 @@ describe("queryGscAnalytics - walidacja wejścia", () => {
   it("odrzuca datę spoza formatu YYYY-MM-DD", () => {
     expect(() => waliduj({ ...ZAPYTANIE, startDate: "2026-8-1" })).toThrow();
     expect(() => waliduj({ ...ZAPYTANIE, endDate: "wczoraj" })).toThrow();
-    expect(() => waliduj({ ...ZAPYTANIE, endDate: "2026-08-28T00:00:00Z" })).toThrow();
+    expect(() => waliduj({ ...ZAPYTANIE, endDate: `${KONIEC}T00:00:00Z` })).toThrow();
   });
 
   it("odrzuca pusty adres własności", () => {
@@ -490,10 +564,13 @@ describe("queryGscAnalytics - żądanie i odpowiedź", () => {
   it("koduje także własność podaną adresem z ukośnikami", async () => {
     json({ rows: [] });
 
-    await pytaj({ ...ZAPYTANIE, siteUrl: "https://blog.example.org/" });
+    // Własność prefiksowa na aliasie www tej samej domeny - forma z ukośnikami
+    // i kropkami, którą musi przeżyć zarówno kodowanie, jak i związanie
+    // z `tenants.domain`.
+    await pytaj({ ...ZAPYTANIE, siteUrl: `https://www.${DOMENA_A}/` });
 
     expect(zadanie().url).toBe(
-      `${BRAMKA}/webmasters/v3/sites/https%3A%2F%2Fblog.example.org%2F/searchAnalytics/query`,
+      `${BRAMKA}/webmasters/v3/sites/https%3A%2F%2Fwww.example.com%2F/searchAnalytics/query`,
     );
   });
 
@@ -504,8 +581,8 @@ describe("queryGscAnalytics - żądanie i odpowiedź", () => {
 
     expect(zadanie().init.method).toBe("POST");
     expect(cialo()).toEqual({
-      startDate: "2026-08-01",
-      endDate: "2026-08-28",
+      startDate: START,
+      endDate: KONIEC,
       dimensions: ["query", "page"],
       rowLimit: 25,
     });
@@ -526,8 +603,8 @@ describe("queryGscAnalytics - żądanie i odpowiedź", () => {
 
   it("przenosi wiersze z bramki bez przekształceń", async () => {
     const wiersze = [
-      { keys: ["2026-08-01"], clicks: 12, impressions: 340, ctr: 0.0353, position: 8.4 },
-      { keys: ["2026-08-02"], clicks: 0, impressions: 5, ctr: 0, position: 41 },
+      { keys: [START], clicks: 12, impressions: 340, ctr: 0.0353, position: 8.4 },
+      { keys: [dzien(-27)], clicks: 0, impressions: 5, ctr: 0, position: 41 },
     ];
     json({ rows: wiersze });
 
@@ -561,10 +638,10 @@ describe("queryGscAnalytics - żądanie i odpowiedź", () => {
   it("dwaj adminowie dwóch najemców pytają o SWOJE własności", async () => {
     json({ rows: [] });
 
-    await pytaj({ ...ZAPYTANIE, siteUrl: "sc-domain:a.example.com" }, najemca(TENANT_A, ADMIN_A));
-    await pytaj({ ...ZAPYTANIE, siteUrl: "sc-domain:b.example.org" }, najemca(TENANT_B, ADMIN_B));
+    await pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA }, najemca(TENANT_A, ADMIN_A));
+    await pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B }, najemca(TENANT_B, ADMIN_B));
 
-    expect(zadanie(0).url).toContain("sc-domain%3Aa.example.com");
+    expect(zadanie(0).url).toContain(`sc-domain%3A${DOMENA_A}`);
     expect(zadanie(1).url).toContain("sc-domain%3Ab.example.org");
   });
 });
@@ -623,5 +700,153 @@ describe("inspectGscUrl", () => {
     expect(blad.message).toBe("GSC 429: quota exceeded");
     expect(blad.message).not.toContain(LOVABLE_KEY);
     expect(blad.message).not.toContain(GSC_KEY);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("związanie siteUrl z domeną najemcy", () => {
+  it("kwerenda CUDZEJ własności jest odrzucana PRZED wywołaniem bramki", async () => {
+    const blad = await przechwycBlad(pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B }));
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("odmowa nie zdradza, CZYJA jest własność - jeden komunikat dla wszystkich", async () => {
+    const obca = await przechwycBlad(pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B }));
+    const nieznana = await przechwycBlad(
+      pytaj({ ...ZAPYTANIE, siteUrl: "sc-domain:nieznana.example" }),
+    );
+
+    expect(obca.message).toBe(nieznana.message);
+  });
+
+  it("rozumie OBIE formy GSC - domenową i prefiksową, z aliasem www/apex", async () => {
+    json({ rows: [] });
+
+    await pytaj({ ...ZAPYTANIE, siteUrl: `sc-domain:${DOMENA_A}` });
+    await pytaj({ ...ZAPYTANIE, siteUrl: `https://${DOMENA_A}/` });
+    await pytaj({ ...ZAPYTANIE, siteUrl: `https://www.${DOMENA_A}/` });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("prefiks własności nie da się rozszerzyć doklejeniem cudzej domeny", async () => {
+    // `https://example.com.zlosliwy.test/` NIE jest `example.com`.
+    const blad = await przechwycBlad(
+      pytaj({ ...ZAPYTANIE, siteUrl: `https://${DOMENA_A}.zlosliwy.test/` }),
+    );
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("inspekcja sprawdza OBA pola - własność i adres inspekcjonowanej strony", async () => {
+    json({});
+
+    // Własność własna, ale adres z cudzej domeny - to też odmowa.
+    const blad = await przechwycBlad(
+      inspekcja({ siteUrl: WITRYNA, inspectionUrl: `https://${DOMENA_B}/artykul` }),
+    );
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("inspekcja odrzuca cudzą własność nawet przy własnym adresie strony", async () => {
+    const blad = await przechwycBlad(
+      inspekcja({ siteUrl: WITRYNA_B, inspectionUrl: `https://${DOMENA_A}/artykul` }),
+    );
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("admin najemcy B pyta o SWOJĄ własność i przechodzi", async () => {
+    json({ rows: [] });
+
+    await pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B }, najemca(TENANT_B, ADMIN_B));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("lista własności ODSIEWA cudze - panel nie enumeruje domen innych najemców", async () => {
+    json({
+      siteEntry: [
+        { siteUrl: WITRYNA, permissionLevel: "siteOwner" },
+        { siteUrl: WITRYNA_B, permissionLevel: "siteOwner" },
+        { siteUrl: "https://zupelnie.obca.example/", permissionLevel: "siteFullUser" },
+      ],
+    });
+
+    await expect(listuj()).resolves.toEqual({
+      configured: true,
+      sites: [{ siteUrl: WITRYNA, permissionLevel: "siteOwner" }],
+    });
+  });
+
+  it("profil bez najemcy zamyka wszystkie trzy funkcje", async () => {
+    // Fail-closed: bez najemcy nie ma z czym porównać własności.
+    const bezProfilu = najemca(TENANT_A, ADMIN_A);
+    delete PROFIL[ADMIN_A];
+    try {
+      await expect(listuj(bezProfilu)).rejects.toThrow("No tenant for current user");
+      await expect(pytaj(ZAPYTANIE, bezProfilu)).rejects.toThrow("No tenant for current user");
+      await expect(inspekcja(INSPEKCJA, bezProfilu)).rejects.toThrow("No tenant for current user");
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      PROFIL[ADMIN_A] = TENANT_A;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("gałąź „nie wiem” - instalacje bez katalogu domen", () => {
+  it("PUSTY katalog domen przepuszcza kwerendę dowolnej własności", async () => {
+    // Antyregresja: instalacja sprzed multi-domain nie ma `tenants.domain`,
+    // więc odmowa odebrałaby jej panel Search Console w całości.
+    katalog.rows = [];
+    invalidateTenantDirectoryCache();
+    json({ rows: [] });
+
+    await expect(pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B })).resolves.toEqual({ rows: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("PUSTY katalog domen nie odsiewa niczego z listy własności", async () => {
+    katalog.rows = [];
+    invalidateTenantDirectoryCache();
+    json({
+      siteEntry: [
+        { siteUrl: WITRYNA, permissionLevel: "siteOwner" },
+        { siteUrl: WITRYNA_B, permissionLevel: "siteOwner" },
+      ],
+    });
+
+    const wynik = await listuj();
+
+    expect(wynik.sites).toHaveLength(2);
+  });
+
+  it("najemca BEZ własnej domeny też jest przepuszczany", async () => {
+    // Katalog zasiedlony (najemca B ma domenę), ale wołający jej nie ma -
+    // nie ma z czym porównywać, więc gałąź „nie wiem" obowiązuje dalej.
+    katalog.rows = [tenantRow(TENANT_A, "a", null, true), tenantRow(TENANT_B, "b", DOMENA_B)];
+    invalidateTenantDirectoryCache();
+    json({ rows: [] });
+
+    await expect(pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B })).resolves.toEqual({ rows: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ale najemca Z domeną już NIE korzysta z tej gałęzi", async () => {
+    // Kontrapunkt: gdyby „nie wiem" wyciekło na instalacje z katalogiem,
+    // cała poprawka byłaby dekoracją.
+    katalog.rows = [tenantRow(TENANT_A, "a", DOMENA_A, true)];
+    invalidateTenantDirectoryCache();
+
+    const blad = await przechwycBlad(pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B }));
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
   });
 });

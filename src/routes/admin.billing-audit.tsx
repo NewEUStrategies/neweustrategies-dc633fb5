@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { getBillingAudit, exportBillingAudit } from "@/lib/billing/audit.functions";
 import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
+import { useAuth } from "@/hooks/useAuth";
 import type { AuditOrderRow, AuditReport } from "@/lib/billing/audit.server";
 import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
 import { WebhookHealthPanel } from "@/components/admin/billing/WebhookHealthPanel";
@@ -105,6 +106,11 @@ function AdminBillingAudit() {
     onSuccess: (file) => downloadBase64(file.fileName, file.mimeType, file.base64),
   });
 
+  // Ponowienie stoi po stronie serwera za rolą `super_admin` (odtwarza drugi
+  // człon polityki RLS na `payment_webhook_events`). Przycisk, który dla admina
+  // najemcy prowadzi wyłącznie do odmowy, jest gorszy niż jego brak - bramką
+  // pozostaje serwer, to jest tylko ergonomia.
+  const { isSuperAdmin } = useAuth();
   const retry = useMutation({
     mutationFn: (id: string) => retryWebhookEvent({ data: { id } }),
     onSuccess: (result) =>
@@ -354,16 +360,18 @@ function AdminBillingAudit() {
                         {outcomes[row.id] ?? row.error ?? "-"}
                       </td>
                       <td className="p-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={retry.isPending}
-                          onClick={() => retry.mutate(row.id)}
-                        >
-                          {retry.isPending && retry.variables === row.id
-                            ? t("adminBillingAudit.webhooks.retrying")
-                            : t("adminBillingAudit.webhooks.retry")}
-                        </Button>
+                        {isSuperAdmin && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={retry.isPending}
+                            onClick={() => retry.mutate(row.id)}
+                          >
+                            {retry.isPending && retry.variables === row.id
+                              ? t("adminBillingAudit.webhooks.retrying")
+                              : t("adminBillingAudit.webhooks.retry")}
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}

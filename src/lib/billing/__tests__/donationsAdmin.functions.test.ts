@@ -57,6 +57,12 @@ import {
 } from "@/lib/billing/donationsAdmin.functions";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
+/**
+ * Najemca wołającego. Pochodzi z BRAMKI (profil administratora), a nie z hosta
+ * żądania - to jest cała różnica między „rola w obszarze A, dane z obszaru B"
+ * a jedną granicą.
+ */
+const NAJEMCA = "77777777-7777-4777-8777-777777777777";
 
 /** Znaczniki tożsamości - dowodzą przekazania TEGO SAMEGO obiektu, nie kopii. */
 const WIERSZE = [{ marker: "wiersz-rejestru" }];
@@ -78,7 +84,7 @@ function kontekst() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.assertAdmin.mockResolvedValue(undefined);
+  h.assertAdmin.mockResolvedValue({ tenantId: NAJEMCA });
   h.listAdminDonations.mockResolvedValue(WIERSZE);
   h.syncDonationsFromStripe.mockResolvedValue(RAPORT_SYNC);
 });
@@ -257,7 +263,7 @@ describe("handler listy - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.listAdminDonations).toHaveBeenCalledWith(7);
+    expect(h.listAdminDonations).toHaveBeenCalledWith(7, NAJEMCA);
     // `toBe`, nie `toEqual`: opakowanie nie ma prawa filtrować ani kopiować
     // listy (kopia gubiłaby pola dodane po stronie implementacji).
     expect(wynik).toBe(WIERSZE);
@@ -269,7 +275,7 @@ describe("handler listy - co robi z argumentami", () => {
     // przestałby być widoczny w jednym miejscu.
     await callServerFn(listDonationRecords, { data: {}, context: kontekst() });
 
-    expect(h.listAdminDonations).toHaveBeenCalledWith(50);
+    expect(h.listAdminDonations).toHaveBeenCalledWith(50, NAJEMCA);
   });
 });
 
@@ -295,7 +301,7 @@ describe("handler synchronizacji - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.syncDonationsFromStripe).toHaveBeenCalledWith("live", 24);
+    expect(h.syncDonationsFromStripe).toHaveBeenCalledWith("live", 24, NAJEMCA);
   });
 
   it("domyślne okno 168 h dojeżdża do implementacji", async () => {
@@ -304,7 +310,7 @@ describe("handler synchronizacji - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.syncDonationsFromStripe).toHaveBeenCalledWith("sandbox", 168);
+    expect(h.syncDonationsFromStripe).toHaveBeenCalledWith("sandbox", 168, NAJEMCA);
   });
 
   it("oddaje raport implementacji bez własnego przetwarzania", async () => {

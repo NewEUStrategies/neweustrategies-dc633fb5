@@ -1,10 +1,16 @@
-// Warstwa danych rejestru monetyzacji: izolacja najemcy (host, nie parametr),
-// filtr środowiska i mapowanie wierszy. Klient serwisowy omija RLS, więc
-// zawężenie `tenant_id` MUSI być dowiedzione testem.
+// Warstwa danych rejestru monetyzacji: izolacja najemcy, filtr środowiska
+// i mapowanie wierszy. Klient serwisowy omija RLS, więc zawężenie `tenant_id`
+// MUSI być dowiedzione testem.
+//
+// NAJEMCA JEST ARGUMENTEM, NIE ROZSTRZYGNIĘCIEM Z HOSTA. Podaje go wołający,
+// a jedynym legalnym źródłem jest bramka `assertAdmin` (profil administratora)
+// - to samo pole, po którym autoryzuje się rola. Wcześniej moduł pytał o hosta
+// sam, więc admin obszaru A na domenie obszaru B przechodził bramkę w A
+// i dostawał rejestr B. Atrapy `currentTenantHost` i `resolveTenantIdForHost`
+// zniknęły stąd razem z tamtym kontraktem.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state: {
-  host: string | null;
   tenantId: string | null;
   donations: Record<string, unknown>[];
   grants: Record<string, unknown>[];
@@ -12,7 +18,6 @@ const state: {
   errors: Partial<Record<string, { message: string }>>;
   queries: Array<{ table: string; tenantId: string | null; limit: number }>;
 } = {
-  host: "example.test",
   tenantId: "t-1",
   donations: [],
   grants: [],
@@ -20,14 +25,6 @@ const state: {
   errors: {},
   queries: [],
 };
-
-vi.mock("@/lib/http/requestHost", () => ({
-  currentTenantHost: async () => state.host,
-}));
-
-vi.mock("@/lib/server/tenant.server", () => ({
-  resolveTenantIdForHost: async (host: string | null) => (host ? state.tenantId : null),
-}));
 
 vi.mock("@/integrations/supabase/client.server", () => {
   function builder(table: string) {
@@ -61,7 +58,15 @@ vi.mock("@/integrations/supabase/client.server", () => {
   return { supabaseAdmin: { from: (table: string) => builder(table) } };
 });
 
-import { loadMonetizationLedger } from "@/lib/admin/monetization/ledger.server";
+import { loadMonetizationLedger as loadMonetizationLedgerRaw } from "@/lib/admin/monetization/ledger.server";
+
+// Wołanie takie jak w handlerze: najemca z bramki, polem wejścia. Pusty
+// identyfikator odwzorowuje wartość, której bramka nigdy nie wypuści -
+// zostaje jako dowód bezpiecznika (pusty zakres to pusty rejestr).
+const loadMonetizationLedger = (input: {
+  environment: "all" | "live" | "sandbox";
+  limit: number;
+}) => loadMonetizationLedgerRaw({ ...input, tenantId: state.tenantId ?? "" });
 
 function donationRow(over: Record<string, unknown> = {}) {
   return {
@@ -109,7 +114,6 @@ function linkRow(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  state.host = "example.test";
   state.tenantId = "t-1";
   state.donations = [donationRow()];
   state.grants = [grantRow()];
@@ -119,7 +123,7 @@ beforeEach(() => {
 });
 
 describe("loadMonetizationLedger", () => {
-  it("zawęża każdą tabelę do najemcy rozstrzygniętego z hosta", async () => {
+  it("zawęża każdą tabelę do najemcy podanego przez wołającego", async () => {
     await loadMonetizationLedger({ environment: "all", limit: 50 });
     expect(state.queries.map((q) => q.table).sort()).toEqual([
       "donations",
@@ -129,8 +133,8 @@ describe("loadMonetizationLedger", () => {
     expect(state.queries.every((q) => q.tenantId === "t-1")).toBe(true);
   });
 
-  it("brak najemcy dla hosta = pusty rejestr, bez zapytań", async () => {
-    state.host = null;
+  it("pusty najemca = pusty rejestr, bez zapytań", async () => {
+    state.tenantId = null;
     const result = await loadMonetizationLedger({ environment: "all", limit: 50 });
     expect(result.tenantResolved).toBe(false);
     expect(result.donations).toEqual([]);

@@ -371,16 +371,47 @@ describe("limity nadużyć", () => {
     expect(upserted().ip).toBe("203.0.113.7");
   });
 
-  it("bez cf-connecting-ip bierzemy PIERWSZY adres z x-forwarded-for", async () => {
+  it("bez cf-connecting-ip bierzemy OSTATNI adres z x-forwarded-for", async () => {
+    // Lista rośnie od klienta w stronę serwera: pierwszy wpis dopisuje KLIENT,
+    // a proxy dokleja adres połączenia na KOŃCU. Kubełek kluczowany pierwszym
+    // wpisem rotował się jednym nagłówkiem.
     h.getRequest.mockReturnValue(
       new Request("https://example.test/zapis", {
-        headers: { "x-forwarded-for": "198.51.100.1, 10.0.0.1" },
+        headers: { "x-forwarded-for": "198.51.100.1, 203.0.113.9" },
       }),
     );
 
     await subscribeToNewsletter({ data: input() });
 
-    expect(upserted().ip).toBe("198.51.100.1");
+    expect(upserted().ip).toBe("203.0.113.9");
+  });
+
+  it("rotacja prefiksu `x-forwarded-for` NIE daje nowego kubełka", async () => {
+    const podmioty: unknown[] = [];
+    for (const prefiks of ["1.2.3.4", "8.8.8.8"]) {
+      h.rateLimit.mockClear();
+      h.getRequest.mockReturnValue(
+        new Request("https://example.test/zapis", {
+          headers: { "x-forwarded-for": `${prefiks}, 203.0.113.9` },
+        }),
+      );
+      await subscribeToNewsletter({ data: input() });
+      podmioty.push(h.rateLimit.mock.calls[0]?.[0]?.subjectId);
+    }
+
+    expect(podmioty[0]).toBe("203.0.113.9");
+    expect(podmioty[1]).toBe(podmioty[0]);
+  });
+
+  it("puste `x-forwarded-for` nie udaje adresu - wspólny kubełek, NULL w wierszu", async () => {
+    h.getRequest.mockReturnValue(
+      new Request("https://example.test/zapis", { headers: { "x-forwarded-for": " " } }),
+    );
+
+    await subscribeToNewsletter({ data: input() });
+
+    expect(upserted().ip).toBeNull();
+    expect(h.rateLimit.mock.calls[0]?.[0]).toMatchObject({ subjectId: "unknown-ip" });
   });
 
   it("brak kontekstu żądania nie wywraca zapisu", async () => {

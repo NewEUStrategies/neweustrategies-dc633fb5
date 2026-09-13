@@ -20,10 +20,17 @@
 //      nawet z POPRAWNYM podpisem - czyli nie da się tą trasą przemycić
 //      ścieżki ani wzorca do filtra.
 //   4. KONTRAKT ODPOWIEDZI, na którym stoi wołający (CI / cron): 404 dla
-//      nieistniejącego sluga, 500 z komunikatem bazy, 200 z `{ok, slug,
-//      version}`, gdzie `version` pochodzi z `updated_at` WIERSZA (a przy jego
-//      braku - z bieżącego czasu), oraz IDEMPOTENCJA: dwa identyczne żądania
-//      to dwa `update` i ZERO `insert`.
+//      nieistniejącego sluga, 500 ze STAŁYM kodem (komunikat Postgresa idzie do
+//      logu workera, nie do anonimowego klienta), 200 z `{ok, slug, version}`,
+//      gdzie `version` pochodzi z `updated_at` WIERSZA (a przy jego braku - z
+//      bieżącego czasu), oraz IDEMPOTENCJA: dwa identyczne żądania to dwa
+//      `update` i ZERO `insert`.
+//
+// Podpis obejmuje dziś `${timestamp}.${slug}` (nagłówek `x-og-timestamp`), więc
+// wszystkie żądania w tym pliku go niosą. Samo OKNO WAŻNOŚCI, gałąź zgodności
+// (stary podpis nad samym slugiem) i limit powtórzeń per slug mają własny plik:
+// `src/routes/api/public/-hooks.refresh-og-image.test.ts` - tutaj ich nie
+// dublujemy.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE
 //
@@ -53,6 +60,10 @@ const stan = vi.hoisted(() => ({
   dostepyDoKlienta: 0,
 }));
 
+// Limiter powtórzeń per slug stoi PO bramce podpisu i ma własne pokrycie w
+// `-hooks.refresh-og-image.test.ts`. Tutaj przepuszcza, żeby dowody o bramkach
+// i kontrakcie odpowiedzi nie zależały od licznika w bazie.
+vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: async () => true }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   get supabaseAdmin() {
     stan.dostepyDoKlienta += 1;
@@ -68,14 +79,23 @@ const SEKRET = "sekret-webhooka-og-2026";
 const SLUG = "anna-kowalska";
 const ADRES = "https://neweuropeanstrategies.com/api/public/hooks/refresh-og-image";
 
-/** Prawdziwy HMAC-SHA256 nad slugiem - hexa nie zapisujemy ręcznie. */
-function podpis(slug: string, sekret: string = SEKRET): string {
-  return createHmac("sha256", sekret).update(slug).digest("hex");
+/** Prawdziwy HMAC-SHA256 - hexa nie zapisujemy ręcznie. */
+function podpis(payload: string, sekret: string = SEKRET): string {
+  return createHmac("sha256", sekret).update(payload).digest("hex");
 }
 
-/** Żądanie webhooka; `sygnatura: null` = brak nagłówka `x-og-signature`. */
+/** Znacznik czasu z ustalonego zegara (sekundy) - jak u zewnętrznego wołającego. */
+function znacznik(): string {
+  return String(Math.floor(Date.now() / 1000));
+}
+
+/**
+ * Żądanie webhooka; `sygnatura: null` = brak nagłówka `x-og-signature`.
+ * Znacznik czasu jest zawsze świeży - to bieżący kontrakt podpisu.
+ */
 function zadanie(cialo: string, sygnatura: string | null): Request {
   const headers = new Headers({ "Content-Type": "application/json" });
+  headers.set("x-og-timestamp", znacznik());
   if (sygnatura !== null) headers.set("x-og-signature", sygnatura);
   return new Request(ADRES, { method: "POST", headers, body: cialo });
 }
@@ -86,7 +106,7 @@ function wyslij(request: Request): Promise<Response> {
 
 /** Żądanie poprawne pod każdym względem - punkt wyjścia dla ścieżki zdrowej. */
 function poprawneZadanie(slug: string = SLUG): Request {
-  return zadanie(JSON.stringify({ slug }), podpis(slug));
+  return zadanie(JSON.stringify({ slug }), podpis(`${znacznik()}.${slug}`));
 }
 
 /** Łańcuch PostgREST dla `profiles` - z wyjaśnieniem, gdy trasa go nie tknęła. */
@@ -151,8 +171,11 @@ describe("webhook refresh-og-image - bramka podpisu", () => {
     // `timingSafeEqual` RZUCA na buforach różnej długości - stąd `ab.length
     // === bb.length` w kodzie. Bez tej gałęzi trasa oddawałaby 500 zamiast 401.
     ["hex o INNEJ długości", podpis(SLUG).slice(0, 32)],
+    // Stary kontrakt (podpis nad SAMYM slugiem) podany RAZEM ze znacznikiem
+    // czasu nie ma prawa przejść - inaczej znacznik byłby ozdobą.
     ["pusty napis", ""],
     ["napis, który nie jest hexem", "zzzz"],
+    ["podpis nad samym slugiem (stary kontrakt)", podpis(SLUG)],
     ["podpis INNEGO sluga", podpis("jan-nowak")],
     ["podpis z innego sekretu", podpis(SLUG, "podrobiony-sekret")],
   ])("%s -> 401 i zero zapisu", async (_opis, sygnatura) => {
@@ -236,13 +259,20 @@ describe("webhook refresh-og-image - kontrakt odpowiedzi", () => {
     expect(lancuchProfili().argsOf("eq")).toEqual(["slug", "nie-ma-takiego-autora"]);
   });
 
-  it("błąd bazy: 500 z komunikatem PostgREST", async () => {
+  it("błąd bazy: 500 ze STAŁYM kodem - komunikat Postgresa tylko do logu", async () => {
+    // Nazwy tabel, kolumn i ograniczeń z komunikatu PostgREST to mapa schematu.
+    // Klient dostaje `update_failed`, diagnostyka zostaje w logu workera.
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     db.setResponse("profiles", fail("permission denied for table profiles", "42501"));
 
     const res = await wyslij(poprawneZadanie());
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "permission denied for table profiles" });
+    expect(await res.json()).toEqual({ error: "update_failed" });
+    expect(log).toHaveBeenCalledWith(
+      "[og-refresh] update failed",
+      "permission denied for table profiles",
+    );
   });
 });
 
