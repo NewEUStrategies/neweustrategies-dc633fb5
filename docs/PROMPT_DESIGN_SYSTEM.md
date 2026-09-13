@@ -32,7 +32,8 @@ egresu organizacji odrzuca ten host odpowiedzią **403 na CONNECT**. Bez `node_m
    pokrycia, więc ich dowód nie zależy od instalacji zależności. Każdy przeszedł **niezależną
    próbę obalenia przez osobnego agenta**, a wszystkie cztery sprawdziłem dodatkowo ręcznie.
 4. **Żaden defekt nie został obalony, ale próba obalenia zmieniła treść trzech z czterech.**
-   W A1 zmieniła opis objawu (kliknięcie nie jest zgubione, tylko odroczone). W A2 **obaliła
+   W A1 zmieniła opis objawu (kliknięcie nie jest zgubione, tylko odroczone) i wskazała wariant
+   **trwale** martwy, którego zgłoszenie nie miało. W A2 **obaliła
    większość uzasadnienia wagi**: formularze logowania, rejestracji i kontaktu oraz cały panel
    administracyjny są poza defektem, a realna powierzchnia to siedem plików, nie „ponad trzydzieści".
    W A4 obniżyła wagę do niskiej i wykazała, że miejsc jest pięć, nie cztery. Te sprostowania
@@ -148,8 +149,24 @@ i pętla wystartuje. Objaw dla użytkownika jest więc taki: **kliknięcie nie r
 przeskakuje dopiero po odsunięciu kursora od karuzeli.** Dla obsługi klawiaturą odpowiednikiem
 jest utrata ogniska. To jest zachowanie bardziej mylące niż zwykły brak reakcji, nie mniej.
 
-Wyjątek: przy `reducedMotion` klik działa poprawnie, bo `handleButtonClick` woła wtedy `setActive`
-bezpośrednio. Defekt dotyczy więc ustawienia domyślnego, czyli większości użytkowników.
+**Trzy zastrzeżenia do zasięgu, dwa zawężające i jedno rozszerzające.** Dwa pierwsze wskazała
+niezależna próba obalenia, trzecie jest w niej najważniejsze i pierwsza redakcja go nie miała:
+
+1. Przy `reducedMotion` klik działa poprawnie, bo `handleButtonClick` woła wtedy `setActive`
+   bezpośrednio. Defekt dotyczy ustawienia domyślnego, czyli większości użytkowników.
+2. Dla slajdów z odsyłaczem `handleButtonClick` w ogóle nie jest wołany: wewnętrzna kotwica
+   w `ProgressCarouselView.tsx:120` zatrzymuje zdarzenie przed obsługą przycisku. Tam kliknięcie
+   jest nawigacją, nie zmianą slajdu.
+3. **Istnieje wariant trwale martwy, gorszy od opisanego: `paused = true`** (podgląd w edytorze).
+   Wtedy `autoPlay` jest `false` **niezależnie** od `hovered`, więc opuszczenie karuzeli niczego
+   nie zmienia, zależności efektu nigdy się nie przeliczają i `fastTarget` wisi bez końca.
+   W tym wariancie nawigacja nie jest odroczona, tylko całkowicie nieczynna.
+
+**Uwaga o wadze:** agent rozpoznania ocenił pozycję jako blokującą przy założeniu, że treść jest
+nieosiągalna. Po sprostowaniu z punktu wyżej adekwatna ocena to **wysoka, ale nie „treść
+nieosiągalna"**: na stronie publicznej kontrolka jest zepsuta i myląca, a w podglądzie edytora
+martwa. Zostawiam ją w rozdziale pozycji blokujących, bo dotyczy jedynej nawigacji widgetu
+na powierzchni publicznej.
 
 **Polecenie dowodu:**
 

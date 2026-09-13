@@ -9,13 +9,13 @@
 > **TO ZLECENIE JEST NA TĘ UWAGĘ SZCZEGÓLNIE WRAŻLIWE.** W odróżnieniu od dwóch pozostałych zleceń
 > tej serii, ta powierzchnia **ruszyła się** między `7a780b1` (origin/main) a `967cec9`: zmieniły się
 > trzy pliki produkcyjne, w tym **`src/routes/$.tsx` i `src/routes/__root.tsx`, których dotyczą
-> pozycje A1 i A3**. Zanim zaczniesz, wykonaj:
+> pozycje A1 i A4**. Zanim zaczniesz, wykonaj:
 >
 > ```bash
 > git diff --name-only 967cec9..HEAD -- src/routes/ src/lib/server/ src/lib/http/ src/lib/ssr/ src/lib/queries/ src/start.ts
 > ```
 >
-> Jeżeli wypisze `$.tsx` albo `__root.tsx`, **przeczytaj te pliki od nowa przed pracą nad A1 i A3**.
+> Jeżeli wypisze `$.tsx` albo `__root.tsx`, **przeczytaj te pliki od nowa przed pracą nad A1 i A4**.
 
 ---
 
@@ -32,12 +32,15 @@ potem `node scripts/taxonomy/report.mjs --module 20`.
 
 **Liczby statyczne rozdz. 0 oraz wszystkie sześć defektów rozdz. 1-2 są zweryfikowane czytaniem
 kodu na `967cec9`** i nie zależą od instalacji zależności. Każdy defekt przeszedł **niezależną próbę
-obalenia przez osobnego agenta**, a A1, A2, A3, A5 i A6 sprawdziłem dodatkowo ręcznie przy redakcji.
+obalenia przez osobnego agenta**, a wszystkie sześć sprawdziłem dodatkowo ręcznie przy redakcji.
 
-**Żaden z sześciu defektów nie został obalony, ale próba obalenia zmieniła treść czterech z nich** -
-w A2 obaliła główny argument pierwszej redakcji, w A1 i A5 zawęziła zasięg szkody, w A6 osłabiła
-narrację o ścieżce użytkownika. Te sprostowania stoją w treści pozycji, opisane wprost. Czytaj je:
-to jest różnica między defektem, który da się naprawić, a defektem, którego opis wyśle Cię w złą stronę.
+**Żaden z sześciu defektów nie został obalony, ale próba obalenia zmieniła treść pięciu z nich,
+a jednemu podniosła wagę.** W A2 obaliła główny argument pierwszej redakcji (podgląd panelu
+nie potwierdza zmiany, bo nie czyta tego pola). W **A3 wykazała, że naprawa opisana w pierwszej
+redakcji nie zamknęłaby wycieku** - i dlatego ta pozycja jest dziś blokująca, a nie średnia.
+W A1, A4 i A5 zawęziła zasięg szkody, w A6 osłabiła narrację o ścieżce użytkownika.
+Te sprostowania stoją w treści pozycji, opisane wprost. Czytaj je: to jest różnica między defektem,
+który da się naprawić, a defektem, którego opis wyśle Cię w złą stronę.
 
 ---
 
@@ -105,7 +108,7 @@ Najgrubsze pliki powierzchni produktowej bez żadnej bramki:
 | `src/lib/server/tenant.server.ts`            |     344 |
 
 **Dwie pozycje z tej listy zasługują na osobne zdanie.** `documentCache.server.ts` (915 wierszy)
-jest warstwą, której dotyczy defekt A3 z tego zlecenia, a `tenant.server.ts` (344 wiersze) to
+jest warstwą, której dotyczy defekt A4 z tego zlecenia, a `tenant.server.ts` (344 wiersze) to
 warstwa izolacji najemcy. Obie stoją dziś wyłącznie pod progiem globalnym.
 
 ---
@@ -268,55 +271,47 @@ nie zwraca nic.
 
 ---
 
-## 2. Pozycje zwykłe
+### A3. Katalog wydarzeń członkowskich jest czytelny bez konta, a sitemapa dokłada do tego listę adresów
 
-### A3. Zdegradowana powłoka trafia do współdzielonego cache jako dokument bez nagłówka serwisu
+**Gdzie:** `src/lib/server/sitemapEntries.server.ts:268-287` (kolektor),
+`supabase/migrations/20260824094815_e95da8f7-2932-4a9f-9574-0461fa0c7c4c.sql:44-81` i `:258`
+(funkcja i nadanie), `supabase/migrations/20260823170000_event_front_binding.sql:779` (wcześniejsze
+nadanie), `src/routes/events.$slug.tsx:144` i `:219-251` (loader i `head()`).
+Polityka odniesienia: `supabase/migrations/20260812103500_community_events_anon_visibility.sql:41-42`.
 
-**Gdzie:** `src/routes/__root.tsx:355-368` (bramka `homeDeadline !== undefined`), `:381-385`
-(zasiew pustego fallbacku), `:241` (powstanie `homeDeadline`); skutek w `src/components/Header.tsx:141-142`.
+**Ta pozycja została przy redakcji przepisana i podniesiona z wagi średniej do blokującej.**
+Zgłoszenie mówiło o samej sitemapie. Niezależna próba obalenia wykazała, że **naprawa samego
+kolektora nie zamknęłaby niczego**, i sprawdziłem to ręcznie. Zapisuję to wprost, bo wykonawca,
+który naprawi tylko kolektor, odhaczy pozycję i zostawi wyciek.
 
-**Co jest:** loader korzenia rozgrzewa `site_settings`, `designTokens` i `globalColors` pod budżetem.
-Gdy rozgrzewka nie dowiezie danych, rezygnacja ze współdzielonego cache
-(`setCacheControlHeader(resilientCacheControl(true))`) wykonuje się **wyłącznie wewnątrz**
-`if (homeDeadline !== undefined)`, a `homeDeadline` powstaje **tylko dla strony głównej**.
-Dla każdej innej trasy kod idzie prosto do zasiewu pustego obiektu i nie zapala żadnej flagi
-degradacji.
+**Warstwa pierwsza - właściwy wyciek.** `public.event_page_header(p_slug text)` jest funkcją
+`SECURITY DEFINER` z nadaniem:
 
-Drugi mechanizm degradacji też nie zadziała: przy pustej mapie ustawień `header.builder_data`
-jest `undefined`, więc nagłówek uznawany jest za niewidoczny i `readChromeWarmup` wraca bez
-wywołania `markDegraded`.
-
-**Przeczytaj komentarz nad tą bramką, zanim ją ruszysz, bo broni ona czegoś realnego:**
-
-```
-// Only homepage SSR opts into early cancellation. Another route may be
-// awaiting this same settings promise and retains its existing contract.
+```sql
+GRANT EXECUTE ON FUNCTION public.event_page_header(text) TO anon, authenticated, service_role;
 ```
 
-Komentarz uzasadnia zawężenie **anulowania zapytań** (`cancelQueries`) do strony głównej i to
-uzasadnienie jest trafne: inna trasa może czekać na tę samą obietnicę. **Nie uzasadnia natomiast
-zawężenia rezygnacji z cache**, która stoi w tym samym bloku wyłącznie dlatego, że tam ją napisano.
-To są dwie różne decyzje sklejone jedną instrukcją warunkową, i na tym polega ten defekt.
+a jej jedyny warunek doboru wiersza brzmi:
 
-**Dlaczego to jest defekt:** jedna czkawka bazy przy zimnym chybieniu cache produkuje dokument
-**bez nagłówka i bez nawigacji**, który zamiast być `no-store` zostaje wpisem współdzielonym
-i jest podawany kolejnym czytelnikom przez pełne okno świeżości (180 s), a w oknie nieświeżym
-dłużej. Crawler, który trafi w to okno, indeksuje stronę bez linkowania wewnętrznego.
+```sql
+WHERE e.tenant_id = v_tenant
+  AND e.slug = v_slug
+  AND e.status = 'published';
+```
 
-**Co zrobić:** wyprowadzić rezygnację z cache poza bramkę `homeDeadline` i sprawdzać obecność
-danych ustawień **bezwarunkowo**, dla każdej trasy.
+**Nie ma tam `visibility` ani `min_tier_rank`** - obu tych kolumn funkcja nie filtruje, choć zwraca
+je w wyniku. Anonimowy wywołujący, który zna slug, dostaje więc tytuł, opis, termin, miejsce,
+okładkę, pojemność, liczbę wolnych miejsc i liczniki prelegentów, sesji i sponsorów **dla każdego
+opublikowanego wydarzenia, także członkowskiego i oznaczonego regułą Chatham House**. Loader trasy
+świadomie nie rzuca `notFound()` dla wydarzenia bramkowanego, a `head()` wystawia z tego prawdziwy
+`<title>`, `meta description` i `og:image`.
 
-**Kryterium odbioru:** rozszerzenie `src/lib/ssr/__tests__/platformChromeWarmup.test.tsx`:
-dla ścieżki innej niż `/` i `/en`, gdy rozgrzewka ustawień odrzuca, dyrektywa cache zawiera
-`no-store`.
+To jest sprzeczne z polityką `events public read`, ustanowioną migracją z 12 sierpnia wyłącznie po to,
+żeby zamknąć wydarzenia członkowskie. Polityka wymaga `visibility = 'public'` **oraz**
+`COALESCE(min_tier_rank, 0) = 0`; `SECURITY DEFINER` omija ją w całości.
 
-### A4. Sitemapa wydarzeń reklamuje crawlerom wydarzenia bramkowane, których RLS nie oddaje anonimowemu czytelnikowi
-
-**Gdzie:** `src/lib/server/sitemapEntries.server.ts:268-287`. Polityka odniesienia:
-`supabase/migrations/20260812103500_community_events_anon_visibility.sql`.
-
-**Co jest:** kolektor sekcji `events` czyta tabelę rolą serwisową (omija RLS) i za kryterium
-publiczności bierze **wyłącznie** `status = 'published'`:
+**Warstwa druga - odkrywalność.** Kolektor sekcji `events` w sitemapie bierze za kryterium
+publiczności **wyłącznie** `status = 'published'`:
 
 ```ts
 .from("events")
@@ -325,25 +320,116 @@ publiczności bierze **wyłącznie** `status = 'published'`:
 .eq("status", "published")
 ```
 
-Tymczasem polityka anonimowego odczytu, ustanowiona wprost po to, żeby zamknąć wydarzenia
-członkowskie, wymaga jeszcze dwóch warunków: `visibility = 'public'` **oraz**
-`COALESCE(min_tier_rank, 0) = 0`. Ten sam próg egzekwują `rsvp_event` i `get_event_access`,
-a loader trasy potwierdza to w komentarzu (`src/routes/events.$slug.tsx:154-156`).
+Shard `/sitemaps/events.xml` (ścieżkę składa `src/lib/seo/sitemapIndex.ts:72-74`; **nie jest to
+`/sitemap-events.xml`**) wydaje więc crawlerom kompletną listę slugów wydarzeń zamkniętych.
+Sitemapa nie odsłania treści - ona **dostarcza klucze** do warstwy pierwszej i zamienia wyciek
+wymagający znajomości sluga w wyciek indeksowalny.
 
-**Dlaczego to jest defekt:** `/sitemap-events.xml` jest publiczny i wydaje kompletną listę adresów
-wydarzeń zamkniętych, których ta sama platforma świadomie nie pokazuje gościowi na `/events`.
-To odwrócenie decyzji produktowej zapisanej w migracji: benefit członkowski przestaje być ukryty,
-bo jego katalog można przeczytać bez konta. Dodatkowo crawler dostaje pod tymi adresami ekran
+**Polecenie dowodu:**
+
+```bash
+grep -n "GRANT EXECUTE ON FUNCTION public.event_page_header" supabase/migrations/*.sql
+awk '/CREATE FUNCTION public.event_page_header/,/\$\$;/' \
+  supabase/migrations/20260824094815_e95da8f7-2932-4a9f-9574-0461fa0c7c4c.sql | grep -n "WHERE" -A3
+sed -n '268,287p' src/lib/server/sitemapEntries.server.ts
+sed -n '36,43p' supabase/migrations/20260812103500_community_events_anon_visibility.sql
+```
+
+**Dlaczego to jest blokujące:** benefit członkowski przestaje być benefitem, jeżeli jego katalog
+czyta się bez konta. Dotyczy to także spotkań prowadzonych w regule Chatham House, czyli formatu,
+którego sensem jest zamknięcie kręgu uczestników. Dodatkowo crawler dostaje pod tymi adresami ekran
 zachęty zamiast treści, więc budżet indeksowania idzie na strony bramkowane.
 
-**Co zrobić:** dołożyć w kolektorze te same dwa warunki, które egzekwuje polityka. Docelowo
-wyciągnąć ten predykat do jednego miejsca używanego przez kolektor sitemapy i przez odczyty
-publiczne, żeby nie rozjechał się po raz drugi.
+**Co zrobić - obie warstwy, w tej kolejności:**
 
-**Kryterium odbioru:** rozszerzenie `src/lib/server/__tests__/sitemapEntries.server.test.ts`:
-dla zestawu zawierającego wydarzenie `status='published', visibility='members'` oraz
-`status='published', visibility='public', min_tier_rank=2` kolektor zwraca **wyłącznie** adres
-wydarzenia faktycznie publicznego.
+1. **Domknąć `event_page_header`**: albo dołożyć do jej warunku `visibility = 'public'
+AND COALESCE(min_tier_rank, 0) = 0` dla wywołującego bez uprawnień, albo zwracać dla wydarzenia
+   bramkowanego **okrojony** zestaw pól (sam fakt istnienia i zaproszenie do logowania), zamiast
+   pełnego nagłówka. Decyzję, która z tych dwóch dróg jest zgodna z intencją produktu, podejmij
+   z właścicielem produktu i zapisz w PR-ze: pierwsza czyni bramkowane wydarzenie nieistniejącym
+   dla gościa, druga zostawia mu stronę zachęty.
+2. **Domknąć kolektor sitemapy**: dołożyć te same dwa warunki, które egzekwuje polityka
+   `events public read`. Docelowo wyciągnąć ten predykat do jednego miejsca używanego przez
+   kolektor i przez odczyty publiczne, żeby nie rozjechał się po raz trzeci.
+
+**Czego NIE robić:** nie naprawiaj wyłącznie kolektora. Po takiej naprawie strona bramkowanego
+wydarzenia nadal zwróci anonimowi 200 z kompletem metadanych, a Ty będziesz miał wrażenie,
+że pozycja jest zamknięta.
+
+**Uwaga o cudzym uzasadnieniu, żeby go nie powielać:** nagłówek `sitemapEntries.server.ts:11-12`
+**nie** deklaruje, że odczyty rolą serwisową mają odwzorowywać widoczność - żąda wyłącznie
+zawężenia do najemcy hosta. Jedyna zapisana w tym pliku reguła parytetu jest węższa i dotyczy
+`noindex` (wiersze 71-73). Nie powołuj się na tę pierwszą, bo jej tam nie ma.
+
+**Kryterium odbioru:** test pgTAP, w którym anonimowy wywołujący pyta `event_page_header` o slug
+wydarzenia `status='published', visibility='members'` i **nie** dostaje pełnego nagłówka; oraz
+rozszerzenie `src/lib/server/__tests__/sitemapEntries.server.test.ts`, w którym dla zestawu
+zawierającego `visibility='members'` i `min_tier_rank=2` kolektor zwraca wyłącznie adres wydarzenia
+faktycznie publicznego.
+
+---
+
+## 2. Pozycje zwykłe
+
+### A4. Zdegradowana powłoka trafia do współdzielonego cache bez nagłówka serwisu
+
+**Gdzie:** `src/routes/__root.tsx:355-368` (bramka `homeDeadline !== undefined`), `:381-385`
+(zasiew pustego fallbacku), `:241` (powstanie `homeDeadline`). Trasy podatne: `$.tsx:293`,
+`category.$slug.tsx:64`, `tag.$slug.tsx`, `author.$slug.tsx:170`. Wzorzec poprawny:
+`src/routes/blog.index.tsx:56` i `:86`.
+
+**Co jest:** loader korzenia rozgrzewa `site_settings`, `designTokens` i `globalColors` pod budżetem.
+Gdy rozgrzewka nie dowiezie danych, rezygnacja ze współdzielonego cache
+(`setCacheControlHeader(resilientCacheControl(true))`) wykonuje się **wyłącznie wewnątrz**
+`if (homeDeadline !== undefined)`, a `homeDeadline` powstaje **tylko dla strony głównej**.
+
+**Przeczytaj komentarz nad tą bramką, zanim ją ruszysz, bo broni ona czegoś realnego:**
+
+```
+// Only homepage SSR opts into early cancellation. Another route may be
+// awaiting this same settings promise and retains its existing contract.
+```
+
+Komentarz uzasadnia zawężenie **anulowania zapytań** do strony głównej i to uzasadnienie jest
+trafne: inna trasa może czekać na tę samą obietnicę. **Nie uzasadnia natomiast zawężenia rezygnacji
+z cache**, która stoi w tym samym bloku wyłącznie dlatego, że tam ją napisano. To są dwie różne
+decyzje sklejone jedną instrukcją warunkową, i na tym polega ten defekt.
+
+**Trzy uściślenia, bo pierwsza redakcja tej pozycji zawyżyła ją w każdym wymiarze.** Niezależna
+próba obalenia wskazała je, a ja sprawdziłem dwa pierwsze ręcznie:
+
+1. **To nie jest „każda trasa poza stroną główną".** `blog.index.tsx` ma dokładnie ten brakujący
+   guard: `setCacheControlHeader(hasSettings ? contentCacheControl() : NO_STORE)`, gdzie
+   `hasSettings` czyta obecność `site_settings` w pamięci podręcznej. Podatne są trasy, które
+   nadają czystą politykę **bezwarunkowo po udanym załadowaniu własnej treści**: `$.tsx:293`,
+   `category.$slug.tsx:64`, `tag.$slug.tsx`, `author.$slug.tsx:170`. Poprawne sformułowanie brzmi:
+   **każda trasa, która nie bramkuje polityki cache obecnością `site_settings`**.
+2. **Dokument nie jest pozbawiony nawigacji.** Zewnętrzny `<header data-site-header>` renderuje się
+   bezwarunkowo (`Header.tsx:539`; jedyny `return null` w tym pliku stoi w `:142`, wewnątrz
+   `HeaderInner` pod `<Suspense>`), więc w dokumencie jest **pusta skorupa nagłówka**. Stopka przy
+   pustych ustawieniach degraduje do dokumentu domyślnego (`Footer.tsx:41-44`), więc dokument
+   **nadal niesie kilkanaście wewnętrznych odsyłaczy** plus komplet linków z treści trasy.
+   Argument „crawler zaindeksuje stronę bez linkowania wewnętrznego" jest więc zawyżony. Realny
+   skutek to **brak nawigacji głównej i logo oraz skok układu po hydratacji**.
+3. **Scenariusz wyzwalający jest węższy niż „jedna czkawka bazy"** - wymaga zbiegu zimnego izolatu
+   albo wyjścia poza okno podawania nieświeżej odpowiedzi z awarią odczytu ustawień.
+
+Drugi mechanizm degradacji też nie zadziała: przy pustej mapie ustawień `header.builder_data`
+jest `undefined`, więc nagłówek uznawany jest za niewidoczny i `readChromeWarmup` wraca bez
+wywołania `markDegraded`.
+
+**Dlaczego to mimo zawężenia jest defekt:** dokument z pustą skorupą nagłówka, zamiast być
+`no-store`, zostaje wpisem współdzielonym i jest podawany kolejnym czytelnikom przez pełne okno
+świeżości. Koszt jednej awarii odczytu nie kończy się więc na jednym żądaniu, tylko rozlewa się
+na wszystkich, którzy trafią w to okno.
+
+**Co zrobić:** wyprowadzić rezygnację z cache poza bramkę `homeDeadline` i sprawdzać obecność
+danych ustawień **bezwarunkowo**, dla każdej trasy - dokładnie tak, jak robi to `blog.index.tsx`.
+Anulowanie zapytań zostaw tam, gdzie jest, razem z jego komentarzem.
+
+**Kryterium odbioru:** rozszerzenie `src/lib/ssr/__tests__/platformChromeWarmup.test.tsx`:
+dla ścieżki innej niż `/` i `/en`, gdy rozgrzewka ustawień odrzuca, dyrektywa cache zawiera
+`no-store`. Drugi test dla trasy, która dziś jest poprawna (`/blog`), żeby naprawa jej nie zepsuła.
 
 ### A5. Przegląd SEO nie odróżnia awarii odczytu od braku problemów, a stan ładowania wygląda w nim tak samo jak sukces
 
@@ -519,8 +605,10 @@ liczby są tu właściwą miarą, a nie 0,8%. Zmierz je sam przed startem.
 
 ## 7. Kryterium odbioru całości
 
-1. **A1 i A2 zamknięte** (blokujące), każdy z uzasadnieniem wybranej drogi w opisie PR-a.
-2. **A3, A4, A5 i A6 zamknięte** albo świadomie odłożone z uzasadnieniem w PR-ze.
+1. **A1, A2 i A3 zamknięte** (blokujące), każdy z uzasadnieniem wybranej drogi w opisie PR-a.
+   Przy A3 pamiętaj, że pozycja ma **dwie warstwy** i zamknięcie samego kolektora sitemapy
+   nie zamyka pozycji.
+2. **A4, A5 i A6 zamknięte** albo świadomie odłożone z uzasadnieniem w PR-ze.
 3. **Progi per-ścieżka dla plików dotkniętych tą pracą** (B1) oraz dla `tenant.server.ts` (B2).
 4. **Pokrycie linii modułu nie niższe niż 90%** i **funkcji nie niższe niż 88%**, zmierzone
    poleceniem z rozdz. 0. Progi są niższe niż w dwóch pozostałych zleceniach tej serii świadomie:
