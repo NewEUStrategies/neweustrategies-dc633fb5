@@ -12,6 +12,7 @@ import {
   analyzeMigrationLanes,
   executableSql,
   laneParityFailed,
+  readFileOrNull,
   renderLaneReport,
   type LaneEntry,
 } from "../migrationLaneParity";
@@ -192,6 +193,67 @@ describe("analyzeMigrationLanes", () => {
     expect(sql).toContain("'<proza>'");
     // Gdyby skaner zgubił escape, druga instrukcja wpadłaby do literału.
     expect(sql).toContain("ALTER TABLE z");
+  });
+
+  // -------------------------------------------------------------------------
+  // SQL USZKODZONY. Skaner nie parsuje składni, tylko cytowanie, więc plik
+  // z niezamkniętym literałem MUSI się skończyć - a nie zawiesić pętli ani
+  // rzucić. Bramka, która wywraca się na wejściu, jest bramką wyłączoną, a
+  // niezamknięty literał w migracji to dokładnie ten przypadek, w którym
+  // ktoś najbardziej potrzebuje odpowiedzi.
+  // -------------------------------------------------------------------------
+  it("niezamknięty literał pojedynczy domyka się na końcu pliku", () => {
+    const sql = executableSql("ALTER TABLE t ADD COLUMN c text; SELECT 'bez konca");
+    expect(sql).toContain("ALTER TABLE t ADD COLUMN c text;");
+    expect(sql).toContain("'bez konca");
+  });
+
+  it("niezamknięte ciało cytowane dolarami domyka się na końcu pliku", () => {
+    const sql = executableSql("CREATE FUNCTION f() AS $fn$ SELECT 1;");
+    expect(sql).toContain("$fn$");
+    expect(sql).toContain("SELECT 1;");
+  });
+
+  it("niezamknięty identyfikator cytowany domyka się na końcu pliku", () => {
+    const sql = executableSql('ALTER TABLE t RENAME TO "bez konca');
+    expect(sql).toContain("ALTER TABLE t RENAME TO");
+    expect(sql).toContain('"bez konca');
+  });
+
+  it("`$1` NIE jest otwarciem cytowania dolarami - to placeholder", () => {
+    // `$` w SQL-u to najczęściej odwołanie do parametru, a nie tag cytowania.
+    // Wzięcie `$1` za otwarcie zjadłoby resztę pliku jako „ciało funkcji".
+    const sql = executableSql("SELECT * FROM t WHERE a = $1 AND b = 'x'; ALTER TABLE z;");
+    expect(sql).toContain("$1");
+    // Dowód, że skaner nie połknął reszty: dalsza instrukcja jest widoczna.
+    expect(sql).toContain("ALTER TABLE z;");
+  });
+
+  it("pusty plik i sam biały znak dają pusty odcisk", () => {
+    expect(executableSql("")).toBe("");
+    expect(executableSql("\n\n   \n")).toBe("");
+  });
+
+  it("readFileOrNull oddaje null zamiast rzucać na brakującym pliku", () => {
+    // Kontrakt tej funkcji jest tym, na czym stoi rozróżnienie „brak pliku"
+    // od „plik pusty" w raporcie.
+    expect(readFileOrNull("drizzle/migrations/nie-ma-takiego-pliku.sql")).toBeNull();
+    // Kontrola przeciwna, żeby test nie przechodził przy funkcji zawsze-null.
+    expect(readFileOrNull(`${DRIZZLE_DIR}/${MIGRATION_LANES[0]!.tag}.sql`)).not.toBeNull();
+  });
+
+  it("znikniętego pliku drizzle nie raportuje dwa razy", () => {
+    // Wpis wskazuje bliźniaka, ale pliku pasa drizzle nie ma. To łapie pętla
+    // `wpis-bez-pliku`, więc gałąź bliźniaka ma go PRZEPUŚCIĆ, a nie dokładać
+    // drugiego naruszenia o tym samym.
+    const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_x.sql" }];
+    const report = analyzeMigrationLanes(
+      ["0000_x"],
+      entries,
+      fromMap({ "supabase/migrations/20260101000000_x.sql": "ALTER TABLE a;" }),
+    );
+    expect(report.violations).toHaveLength(0);
+    expect(report.twins).toBe(1);
   });
 
   it("raport nazywa każde naruszenie po tagu", () => {
