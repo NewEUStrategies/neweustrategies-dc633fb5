@@ -9,6 +9,7 @@ import type {
 import type { Lang } from "@/lib/builder/postListQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
+import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
 import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
 // Z sliderFallbackQuery (nie sliderVariants): prefetch trafia do bundla
@@ -586,6 +587,34 @@ export const ABOVE_FOLD_SECTION_COUNT = 3;
  */
 const ABOVE_FOLD_PREFETCH_BUDGET_MS = 2500;
 
+/**
+ * Wynik rozgrzewki sekcji nad zgięciem.
+ *
+ * PO CO SYGNAŁ, SKORO FUNKCJA NIGDY NIE RZUCA - i to jest sedno defektu
+ * zgłoszonego w recenzji PR #357 (P1, `src/routes/$.tsx:381`). Ta funkcja ma
+ * WŁASNY budżet 2 500 ms i po jego przekroczeniu rozstrzyga się NORMALNIE,
+ * zostawiając zapytania w locie. Wołający opakowywał ją w `Promise.allSettled`
+ * pod budżetem 3 000 ms i czytał degradację z ODRZUCENIA - którego tu z zasady
+ * nie ma. Skutek: najczęstszy realny kształt awarii (wolny upstream, wewnętrzny
+ * budżet mija pierwszy) dawał wynik `fulfilled`, render bez treści nad zgięciem
+ * szedł z nagłówkiem wspólnego cache'u i utrwalał się na brzegu.
+ *
+ * `degraded` odpowiada więc na pytanie, które jedyne ma tu znaczenie: CZY
+ * WSZYSTKIE zapytania, które ta rozgrzewka miała dowieźć, wylądowały świeżym
+ * sukcesem. Predykat jest ten sam, którego używa korzeń (`hasSsrQueryData`),
+ * więc zasiew fallbackowy (`dataUpdatedAt === 0`) też liczy się jako
+ * degradacja.
+ *
+ * CZEGO NIE OBEJMUJE, powiedziane wprost: łańcuchowej rozgrzewki bylinu
+ * slidera (`sliderAuthorsQueryOptions`), bo jej klucz powstaje dopiero
+ * z WYNIKU zapytania o wpisy i `widgetQueryOptionsList` go nie zna. Awaria
+ * samego bylinu nie zapali więc tego sygnału. To jest luka zmierzona i
+ * zapisana, a nie przemilczana.
+ */
+export interface AboveFoldPrefetchResult {
+  readonly degraded: boolean;
+}
+
 export interface AboveFoldPrefetchOptions {
   /** Leading sections to prefetch. Defaults to {@link ABOVE_FOLD_SECTION_COUNT}. */
   sections?: number;
@@ -641,18 +670,32 @@ export async function prefetchAboveFoldQueries(
   doc: BuilderDocument,
   lang: Lang,
   options: AboveFoldPrefetchOptions = {},
-): Promise<void> {
+): Promise<AboveFoldPrefetchResult> {
   const sectionCount = options.sections ?? ABOVE_FOLD_SECTION_COUNT;
   const widgets = collectAboveFoldWidgets(doc, sectionCount);
-  if (widgets.length === 0) return;
+  if (widgets.length === 0) return { degraded: false };
 
   const work = prefetchWidgets(queryClient, widgets, lang);
   const budgetMs = options.budgetMs ?? ABOVE_FOLD_PREFETCH_BUDGET_MS;
   if (!Number.isFinite(budgetMs) || budgetMs <= 0) {
     await work;
-    return;
+  } else {
+    await raceBudget(work, budgetMs);
   }
-  await raceBudget(work, budgetMs);
+  // TA SAMA funkcja, którą `prefetchWidgets` wylicza zadania, więc zbiór
+  // kluczy zgadza się Z KONSTRUKCJI, a nie przez utrzymywanie dwóch list.
+  const degraded = widgets.some((widget) => {
+    let optionsList: BuilderSectionQuery[] = [];
+    try {
+      optionsList = widgetQueryOptionsList(widget, lang);
+    } catch {
+      // Widget, którego `prefetchWidgets` też pominął - nie jest degradacją,
+      // bo nic z niego nie miało dojechać.
+      return false;
+    }
+    return optionsList.some((opts) => !hasSsrQueryData(queryClient, opts.queryKey));
+  });
+  return { degraded };
 }
 
 /**

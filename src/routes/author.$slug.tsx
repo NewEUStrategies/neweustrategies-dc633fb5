@@ -69,6 +69,7 @@ import { isIndexableProfile, profileRobots } from "@/lib/experts/publicVisibilit
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { loadResilient } from "@/lib/ssr/resilientLoad";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import type { ExpertHubData } from "@/lib/experts/types";
@@ -167,7 +168,11 @@ export const Route = createFileRoute("/author/$slug")({
       () => true,
     );
     // Non-indexable profile robots still share the same cacheable shell.
-    setCacheControlHeader(materials ? NO_STORE : contentCacheControl());
+    // `resilientCacheControl` zamiast ręcznego warunku (2026-09-13): wartość
+    // jest bajt w bajt ta sama, ale bramka `check:ssr-budgets` weryfikuje
+    // STRUKTURALNIE, że to sygnał degradacji wybiera `no-store` - ręczny
+    // ternar przepuszczał też wersję ODWRÓCONĄ (patrz recenzja PR #357, P2).
+    setCacheControlHeader(resilientCacheControl(materials));
     return {
       hub: data,
       degraded: false,

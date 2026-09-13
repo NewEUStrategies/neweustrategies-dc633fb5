@@ -47,6 +47,19 @@
  *       liczby wpisów: ile razy loader pisze do cache'u zapytań. To jest
  *       PROXY, nie pomiar bajtów, i jest tu opisane jako proxy.
  *
+ *   (4) REGUŁA „LOADER, KTÓRY MOŻE ZDEGRADOWAĆ, BRAMKUJE SWÓJ `Cache-Control`" -
+ *       dołożona 2026-09-12, bo była JEDYNĄ pozycją punktu A4 zlecenia
+ *       wydania 10, której bramka nie pilnowała, i jednocześnie najtańszą.
+ *       TAK, da się statycznie i bez żadnego przybliżenia: „może zdegradować"
+ *       to obecność `withBudget` / `settleWithinBudget` / `loadResilient` /
+ *       `Promise.allSettled` w ciele loadera, a „bramkuje" to przejście
+ *       wartości nagłówka przez `resilientCacheControl(...)`. Doktryna jest
+ *       w repozytorium napisana wzorowo (`src/lib/ssr/resilientLoad.ts:123-138`)
+ *       i mechanizm istnieje od dawna - brakowało wyłącznie zapadki. Dwie
+ *       trasy jej nie stosowały (`src/routes/$.tsx`, `src/routes/sitemap.tsx`)
+ *       i obie mogły utrwalić render niepełny na 15 minut świeżości plus dobę
+ *       okna stale; obie naprawione tym samym commitem, co ta reguła.
+ *
  * DLACZEGO PODŁOGI SĄ ZAMROŻONE W KODZIE, a nie w zmiennej środowiskowej:
  * ta sama zasada, co w `scripts/check-bundle-size.ts` - „bramka, którą wolno
  * rozluźnić jedną zmienną w workflow, nie jest bramką". Tutaj idziemy o krok
@@ -154,6 +167,21 @@ export const FROZEN_UNMEASURABLE_PARALLEL: Readonly<Record<string, number>> = {
   "src/routes/__root.tsx": 2,
 };
 
+/**
+ * ZAMROŻONE trasy, które ustawiają WSPÓLNY `Cache-Control` mimo pracy mogącej
+ * zdegradować - plik -> liczba takich wywołań w jego loaderze.
+ *
+ * LISTA JEST PUSTA I TO JEST JEJ TREŚĆ. W chwili powstania tej reguły
+ * (2026-09-12) dziur było DWIE - `src/routes/$.tsx:288` i
+ * `src/routes/sitemap.tsx:59` - i obie zostały zamknięte tym samym commitem,
+ * a nie wpisane tutaj. Pusty rekord znaczy: KAŻDE takie wywołanie oblewa
+ * bramkę. Gdyby kiedykolwiek trzeba było tu coś dopisać, wpis MUSI nieść
+ * uzasadnienie, dlaczego ten konkretny render nie może utrwalić niepełnej
+ * treści - bo to jest awaria, której promień rażenia liczy się w dobach
+ * okna `stale-while-revalidate`, a nie w jednym żądaniu.
+ */
+export const FROZEN_UNGATED_CACHE_CONTROL: Readonly<Record<string, number>> = {};
+
 /** Plik źródłowy w kształcie, w którym bramka go czyta. */
 export interface SsrBudgetSource {
   readonly file: string;
@@ -186,6 +214,19 @@ export interface LoaderBudgetFacts {
   readonly parallelSites: readonly ParallelSite[];
   readonly maxParallelArms: number;
   readonly cacheWrites: number;
+  /**
+   * Czy loader niesie pracę, która MOŻE ZDEGRADOWAĆ PO CICHU: budżet czasu
+   * (`withBudget` / `settleWithinBudget` / `loadResilient`) albo
+   * `Promise.allSettled`, które z definicji nie rzuca. Loader bez żadnej
+   * z tych rzeczy degraduje wyłącznie RZUTEM, a rzut zamienia się w status,
+   * którego wspólny cache i tak nie zapisze.
+   */
+  readonly canDegrade: boolean;
+  /**
+   * Linie, w których loader ustawia WSPÓLNY (cache'owalny) `Cache-Control`
+   * NIE przepuszczając wartości przez `resilientCacheControl`.
+   */
+  readonly ungatedCacheControlLines: readonly number[];
 }
 
 /** Inwariant strukturalny dehydracji w `src/router.tsx`. */
@@ -350,6 +391,107 @@ const CACHE_WRITE_RE =
   /\b(?:ensureQueryData|prefetchQuery|fetchQuery|setQueryData|loadResilient|prefetch[A-Za-z]*Queries)\s*\(/g;
 
 /**
+ * Wywołania, które znaczą „ta praca może zdegradować PO CICHU" - czyli wrócić
+ * bez danych, NIE rzucając. Rzut jest bezpieczny: zamienia się w status, a
+ * `documentStorePolicy` i tak nie zapisuje odpowiedzi non-2xx.
+ */
+// BEZ flagi `g`: `RegExp.test` z `g` jest STANOWY (`lastIndex` przenosi się
+// między wywołaniami), więc ta sama bramka dawałaby różne wyniki w zależności
+// od kolejności plików - dokładnie ta klasa błędu, której bramka ma pilnować.
+const DEGRADABLE_WORK_RE =
+  /\b(?:withBudget|settleWithinBudget|loadResilient)\s*\(|Promise\s*\.\s*allSettled\s*\(/;
+
+/**
+ * Polityki, które POZWALAJĄ WSPÓLNEMU cache'owi zapisać dokument. Wołane BEZ
+ * argumentu, bo `contentCacheControl({ preview: true })` /
+ * `({ personalized: true })` zwracają `private, no-store` - czyli są
+ * przeciwieństwem tego, czego ta reguła pilnuje.
+ */
+const SHARED_CACHE_POLICY_RE = /\b(contentCacheControl|liveCacheControl)\s*\(\s*\)/;
+
+/**
+ * JEDYNA droga do nagłówka renderu, który MOŻE być zdegradowany.
+ *
+ * DLACZEGO TYLKO TA FUNKCJA, a nie „jakikolwiek widoczny wybór między polityką
+ * wspólną a `no-store`" - sprostowanie po recenzji PR #357 (P2). Pierwsza
+ * wersja tej reguły przepuszczała każde wywołanie, którego argument WSPOMINAŁ
+ * o polityce `no-store`, nie sprawdzając, KTÓRY warunek ją wybiera. Przez to
+ * przechodził ternar ODWRÓCONY -
+ * `setCacheControlHeader(degraded ? contentCacheControl() : NO_STORE)` -
+ * czyli dokładnie ta regresja, której bramka ma bronić, tylko zapisana na
+ * opak. Przechodził też warunek o czymś zupełnie innym, który przypadkiem
+ * niósł `no-store` w drugiej gałęzi.
+ *
+ * Strukturalne sprawdzanie, która gałąź ternara jest gałęzią degradacji,
+ * wymagałoby analizy przepływu, a nie dopasowania wzorca - a bramka, która
+ * obiecuje więcej, niż mierzy, jest gorsza od jej braku. Zamiast tego
+ * wymagamy JEDNEJ funkcji, której sygnatura sama ustala kierunek:
+ * `resilientCacheControl(degraded)` oddaje `no-store` WTEDY I TYLKO WTEDY,
+ * gdy argument jest prawdą (`src/lib/ssr/resilientLoad.ts:151-156`). Trzy
+ * trasy bramkujące dotąd ręcznym warunkiem (`author.$slug.tsx`,
+ * `blog.index.tsx`, `tracker.index.tsx`) zostały na nią przełożone tym samym
+ * commitem - wartości nagłówka nie zmieniła ani jedna.
+ */
+const GATED_POLICY_RE = /\bresilientCacheControl\s*\(/;
+
+/**
+ * Nazwy stałych MODUŁU związanych z polityką wspólnego cache'u
+ * (`const CONTENT = contentCacheControl();`). Bez tego kroku bramkę omijałoby
+ * się jednym aliasem - a `src/routes/$.tsx` trzyma w takiej stałej politykę
+ * PRZECIWNĄ (`NO_STORE = contentCacheControl({ preview: true })`), więc
+ * rozróżnienie „z argumentem / bez" jest tu konieczne, a nie kosmetyczne.
+ */
+export function sharedCachePolicyAliases(cleanSource: string): {
+  shared: Set<string>;
+  gated: Set<string>;
+} {
+  const shared = new Set<string>();
+  const gated = new Set<string>();
+  const re = /\b(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*([^;\n]+)/g;
+  for (const m of cleanSource.matchAll(re)) {
+    const name = m[1];
+    const value = m[2] ?? "";
+    if (name === undefined) continue;
+    // Kolejność ma znaczenie: stała złożona z `resilientCacheControl(...)`
+    // pasuje do OBU wzorców patrząc naiwnie, a jest bramkowana.
+    if (GATED_POLICY_RE.test(value)) gated.add(name);
+    else if (SHARED_CACHE_POLICY_RE.test(value)) shared.add(name);
+  }
+  return { shared, gated };
+}
+
+/**
+ * Linie `setCacheControlHeader(...)` w ciele loadera, których argument ustawia
+ * politykę WSPÓLNEGO cache'u, a NIE przechodzi przez `resilientCacheControl`.
+ *
+ * Wołanie z aliasem polityki `no-store` (`setCacheControlHeader(NO_STORE)`)
+ * nie jest tu liczone: opt-out jest właśnie tym, czego ta reguła chce.
+ */
+export function ungatedCacheControlSites(
+  loaderBody: string,
+  baseLine: number,
+  aliases: { shared: ReadonlySet<string>; gated: ReadonlySet<string> },
+): number[] {
+  const out: number[] = [];
+  const re = /setCacheControlHeader\s*\(/g;
+  const mentions = (arg: string, names: ReadonlySet<string>): boolean =>
+    [...names].some((name) => new RegExp(`\\b${name}\\b`).test(arg));
+  for (const m of loaderBody.matchAll(re)) {
+    const open = loaderBody.indexOf("(", (m.index ?? 0) + m[0].length - 1);
+    const arg = balancedArgs(loaderBody, open).trim();
+    const setsSharedCache = SHARED_CACHE_POLICY_RE.test(arg) || mentions(arg, aliases.shared);
+    if (!setsSharedCache) continue;
+    // Wartość MUSI przejść przez `resilientCacheControl` - patrz uzasadnienie
+    // przy `GATED_POLICY_RE`. Wywołanie z aliasem polityki `no-store`
+    // (`setCacheControlHeader(NO_STORE)`) nie dochodzi tu w ogóle: nie ustawia
+    // polityki wspólnej, więc odsiewa je warunek wyżej.
+    if (GATED_POLICY_RE.test(arg) || mentions(arg, aliases.gated)) continue;
+    out.push(baseLine + lineOf(loaderBody, m.index ?? 0) - 1);
+  }
+  return out;
+}
+
+/**
  * Fakty budżetowe JEDNEGO loadera.
  *
  * `chainMs` jest GÓRNYM OSZACOWANIEM łańcucha szeregowego: sumuje WSZYSTKIE
@@ -385,7 +527,13 @@ export function loaderBudgetFacts(
   const baseLine = lineOf(clean, loaderAt);
 
   const budgetSites: BudgetSite[] = [];
-  const budgetRe = /await\s+withBudget\s*\(/g;
+  // `settleWithinBudget` TAK SAMO jak `withBudget` - to ten sam termin, tylko
+  // zwracający wartość zamiast `void` (`src/lib/asyncBudget.ts`). Bez tej
+  // alternatywy budżet dałoby się „schować" przed sufitem (1b) przez zwykłą
+  // zmianę prymitywu: zmierzone na `src/routes/$.tsx`, gdzie zamiana jednego
+  // wywołania zbiła raportowany łańcuch z 13 000 na 10 000 ms bez skrócenia
+  // ani jednego budżetu.
+  const budgetRe = /await\s+(?:withBudget|settleWithinBudget)\s*\(/g;
   for (const m of loader.matchAll(budgetRe)) {
     const open = loader.indexOf("(", m.index + m[0].length - 1);
     const args = balancedArgs(loader, open);
@@ -423,6 +571,12 @@ export function loaderBudgetFacts(
     parallelSites,
     maxParallelArms: armCounts.length > 0 ? Math.max(...armCounts) : 0,
     cacheWrites: [...loader.matchAll(CACHE_WRITE_RE)].length,
+    canDegrade: DEGRADABLE_WORK_RE.test(loader),
+    ungatedCacheControlLines: ungatedCacheControlSites(
+      loader,
+      baseLine,
+      sharedCachePolicyAliases(clean),
+    ),
   };
 }
 
@@ -536,6 +690,24 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
         measured: loader.maxParallelArms,
         ceiling: FROZEN_SSR_BUDGETS.parallelQueriesPerLoader,
         detail: `tablica Promise.all* w linii ${worst.line} loadera ma ${loader.maxParallelArms} odnóg; runtime Workers odrzuca 7. subrequest`,
+      });
+    }
+    // ── BUDŻET 4: loader degradowalny MUSI bramkować `Cache-Control` ────────
+    //
+    // Reguła jest WĄSKA z premedytacją i dlatego nie daje fałszywej czerwieni:
+    // zapala się WYŁĄCZNIE tam, gdzie loader (a) niesie pracę mogącą wrócić
+    // bez danych NIE rzucając, i (b) ogłasza politykę pozwalającą WSPÓLNEMU
+    // cache'owi zapisać dokument, i (c) nie przepuszcza jej przez
+    // `resilientCacheControl`. Loader bez (a) degraduje tylko rzutem - a rzut
+    // zamienia się w status, którego `documentStorePolicy` i tak nie zapisze.
+    const ungatedAllowed = FROZEN_UNGATED_CACHE_CONTROL[loader.file] ?? 0;
+    if (loader.canDegrade && loader.ungatedCacheControlLines.length > ungatedAllowed) {
+      violations.push({
+        budget: "degradedCacheControl",
+        file: loader.file,
+        measured: loader.ungatedCacheControlLines.length,
+        ceiling: ungatedAllowed,
+        detail: `wspólny Cache-Control ustawiany w liniach ${loader.ungatedCacheControlLines.join(", ")} mimo pracy mogącej zdegradować po cichu - render niepełny utrwaliłby się na brzegu na czas świeżości PLUS okno stale; przepuść wartość przez resilientCacheControl(degraded) (doktryna: src/lib/ssr/resilientLoad.ts:123-138)`,
       });
     }
     // ── BUDŻET 3 (proxy): wpisy do cache'u zapytań ──────────────────────────
@@ -664,6 +836,11 @@ export function renderSsrBudgetReport(report: SsrBudgetReport): string {
   lines.push(
     `  wpisy do dehydracji:     ${worstWrites?.cacheWrites ?? 0}     (sufit ${FROZEN_SSR_BUDGETS.dehydrationWritesPerLoader}, ${worstWrites?.file ?? "-"})`,
   );
+  const degradable = report.loaders.filter((l) => l.canDegrade);
+  const ungated = degradable.filter((l) => l.ungatedCacheControlLines.length > 0);
+  lines.push(
+    `  degradowalne loadery:    ${degradable.length}     (z niebramkowanym Cache-Control: ${ungated.length}, sufit ${Object.keys(FROZEN_UNGATED_CACHE_CONTROL).length})`,
+  );
   for (const inv of report.dehydrationInvariants) {
     lines.push(`  ${inv.present ? "✓" : "✗"} ${inv.name}`);
   }
@@ -678,7 +855,7 @@ export function renderSsrBudgetReport(report: SsrBudgetReport): string {
 
   if (report.violations.length === 0) {
     lines.push("");
-    lines.push("✓ Wszystkie trzy budżety wewnętrzne w sufitach.");
+    lines.push("✓ Wszystkie cztery budżety wewnętrzne w sufitach.");
     return lines.join("\n");
   }
 

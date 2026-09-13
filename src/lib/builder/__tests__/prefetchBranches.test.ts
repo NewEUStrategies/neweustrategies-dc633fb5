@@ -437,9 +437,14 @@ describe("izolacja bledow i czapka czasu", () => {
       sections: [sectionOf([widget("post-list")], "s0")],
     } as unknown as BuilderDocument;
 
-    await expect(
-      prefetchAboveFoldQueries(qc, doc, "pl", { budgetMs: 500 }),
-    ).resolves.toBeUndefined();
+    // Przedmiotem dowodu jest BRAK rzutu na runtime bez `unref`, a nie wartość
+    // zwracana - ale od 2026-09-13 funkcja oddaje sygnał degradacji
+    // (`{ degraded }`, recenzja PR #357), więc asercja pyta o kształt wyniku
+    // zamiast o `undefined`. `degraded: true`, bo atrapa `prefetchQuery` nic
+    // nie zapisuje do cache'u: żaden klucz nie ląduje świeżym sukcesem.
+    await expect(prefetchAboveFoldQueries(qc, doc, "pl", { budgetMs: 500 })).resolves.toEqual({
+      degraded: true,
+    });
     expect(spy).toHaveBeenCalledTimes(1);
   });
 });

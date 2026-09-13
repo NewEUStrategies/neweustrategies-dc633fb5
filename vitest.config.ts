@@ -536,6 +536,55 @@ export default defineConfig({
           lines: 100,
           branches: 95,
         },
+        // ── SZEW IZOLACJI NAJEMCY: serwerowa połowa host -> tenant ───────────
+        //
+        // Te progi są NOWE (2026-09-12, punkt B4 zlecenia
+        // `docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md`) i mają własną historię, bo
+        // zero na tych plikach NIE BYŁO zaniedbaniem, tylko KSZTAŁTEM
+        // ŚRODOWISKA: `environment: "happy-dom"` wyżej sprawia, że `window`
+        // istnieje, `import.meta.env.SSR` jest fałszywe, a gałąź serwerowa
+        // `requestHost.ts` jest nieosiągalna z definicji. Pokrycie odblokował
+        // jeden plik z dyrektywą `// @vitest-environment node`
+        // (`src/lib/http/__tests__/requestHostServer.node.test.ts`).
+        //
+        // ZMIERZONE 2026-09-12 (sam ten plik testowy, `--coverage`):
+        //   requestHost.server.ts         0/16 linii, 0/4 funkcji ->
+        //                                 16/16 (100%), 4/4 (100%),
+        //                                 19/19 instrukcji, 6/6 gałęzi
+        //   tenantAssertionCookie.server  1/16 linii, 0/2 funkcji ->
+        //                                 16/16 (100%), 2/2 (100%),
+        //                                 18/19 instrukcji, 8/10 gałęzi
+        //   requestHost.ts                2/20 linii, 2/4 funkcji ->
+        //                                 18/20 (90%), 4/4 (100%),
+        //                                 18/23 instrukcji, 7/12 gałęzi
+        //
+        // Progi = zmierzone minus ~2 pp (reguła per-plik). Pomiar jest
+        // IZOLOWANY - w pełnym przebiegu te pliki mogą tylko zyskać (gałęzie
+        // przeglądarkowe `requestHost.ts` wykonują się w setkach testów pod
+        // happy-dom), więc próg nie może się przez to zapalić.
+        "src/lib/http/requestHost.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/http/tenantAssertionCookie.server.ts": {
+          statements: 92,
+          functions: 100,
+          lines: 98,
+          branches: 78,
+        },
+        // `requestHost.ts` zostaje NIŻEJ od swojej serwerowej połowy i to jest
+        // opisane, a nie przemilczane: gałęzie `typeof window !== "undefined"`
+        // i `!import.meta.env.SSR` są w JEDNYM przebiegu wzajemnie wykluczające
+        // się z gałęzią serwerową. Warunkiem odbioru B4 była gałąź ZEJŚCIA
+        // `trustedPublicHost` (`:47-51`) - ta jest pokryta.
+        "src/lib/http/requestHost.ts": {
+          statements: 76,
+          functions: 98,
+          lines: 88,
+          branches: 56,
+        },
         "src/lib/builder/schema.ts": { statements: 98, functions: 100, lines: 100, branches: 95 },
         // ── DESIGN TOKENS / KOLORY GLOBALNE / TYPOGRAFIA ─────────────────────
         // Audyt 2026-08-18 wskazał tę powierzchnię jako „najtańsze pokrycie

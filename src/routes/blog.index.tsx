@@ -31,6 +31,7 @@ import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 
 const BLOG_LOADER_BUDGET_MS = 4_000;
 const NO_STORE = contentCacheControl({ preview: true });
@@ -83,7 +84,9 @@ export const Route = createFileRoute("/blog/")({
       setCacheControlHeader(NO_STORE);
       return { page: deps.page, total: 0, coverPreload: null };
     }
-    setCacheControlHeader(hasSettings ? contentCacheControl() : NO_STORE);
+    // Jw. - jedna droga do nagłówka renderu zdegradowanego, weryfikowalna
+    // strukturalnie przez bramkę. Wartość bez zmian.
+    setCacheControlHeader(resilientCacheControl(!hasSettings));
     // Preload LCP pierwszej karty siatki (PaginatedPostGrid oznacza ją
     // priority) - deskryptor dla head() + nagłówek HTTP `Link` utrwalany
     // przez NES Edge Cache na HIT/STALE.
