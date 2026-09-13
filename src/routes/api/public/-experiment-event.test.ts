@@ -128,6 +128,18 @@ describe("zapis zdarzenia", () => {
     expect(h.insert.mock.calls[0]![0]).toMatchObject({ path: null });
   });
 
+  it("QUERY STRING ze ścieżki NIE trafia do tabeli", async () => {
+    // Schemat przyjmuje `z.string().max(2000)` od DOWOLNEGO klienta na trasie
+    // bez sesji; shipowany klient posyła samo `location.pathname`, ale tabela
+    // nie ma prawa zależeć od jego dobrej woli.
+    await post(body({ path: "/cennik?token=abcdef0123456789abcdef01&email=jan@example.org" }));
+
+    const { path } = h.insert.mock.calls[0]![0] as { path: string };
+    expect(path).not.toContain("abcdef0123456789abcdef01");
+    expect(path).not.toContain("jan@example.org");
+    expect(path.startsWith("/cennik")).toBe(true);
+  });
+
   it("identyfikator gościa z fallbacku base36 (bez myślników) też przechodzi", async () => {
     // `getVisitorId()` ma dwa źródła: crypto.randomUUID i fallback base36.
     await post(body({ visitorId: "m4k2p9x1q7" }));

@@ -18,6 +18,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createHash } from "crypto";
+import { redactUrl } from "@/lib/observability/redact";
 
 // visitorId: crypto.randomUUID() albo fallback base36 z getVisitorId() -
 // oba mieszczą się w [a-z0-9-]{8,64}.
@@ -86,7 +87,12 @@ export const Route = createFileRoute("/api/public/experiment-event")({
           variant: parsed.data.variant,
           event: parsed.data.event,
           visitor_id: parsed.data.visitorId,
-          path: parsed.data.path ?? null,
+          // `path` przez `redactUrl`, jak w /api/public/track, /vitals i
+          // /ad-event. Wysyłający klient (src/lib/builder/experiments.ts) podaje
+          // samo `location.pathname`, ale schemat przyjmuje `z.string().max(2000)`
+          // od DOWOLNEGO klienta na trasie bez sesji - query string z tokenem
+          // albo adresem e-mail wchodziłby do tabeli w całości.
+          path: redactUrl(parsed.data.path ?? null),
         });
         if (insErr) return new Response(insErr.message, { status: 500 });
 

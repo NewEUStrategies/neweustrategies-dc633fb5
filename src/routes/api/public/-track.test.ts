@@ -13,8 +13,11 @@
 //     nie umie policzyć, nikt potem nie odczyści;
 //   * batch bez limitu długości (`MAX_EVENTS`, `MAX_BODY`, `MAX_META_BYTES`,
 //     limity długości pól) to zapchanie pamięci workera JEDNYM żądaniem;
-//   * `path`/`referrer` idą przez `redactUrl`, bo query string bywa nośnikiem
-//     tokenów i adresów e-mail - RODO nie kończy się na froncie.
+//   * KOMPLET redaktorów: `path`/`referrer` przez `redactUrl`, `entity_id`
+//     przez `redactPii`, `meta` przez `redactMeta`. Query string bywa nośnikiem
+//     tokenów, a `entity_id` niesie frazę z wyszukiwarki wewnętrznej - wpisaną
+//     z klawiatury, obok NIEWYGASAJĄCEGO `anon_id` w tym samym wierszu.
+//     RODO nie kończy się na froncie.
 //
 // Czwarta, wspólna dla wszystkich beaconów: KAŻDA ścieżka oddaje 204 i połyka
 // błąd. Beacon nie ma jak obsłużyć odpowiedzi, a 5xx w odpowiedzi na
@@ -288,7 +291,10 @@ describe("walidacja wejścia", () => {
   it("wszystkie napisy są przycinane do limitów kolumn", async () => {
     await postOne({
       name: "n".repeat(300),
-      entity_id: "e".repeat(300),
+      // Fraza, nie jednolity ciąg: `"e".repeat(300)` po przycięciu wpada
+      // w regułę długiego ciągu `redactPii` i wychodzi jako „[redacted]",
+      // więc mierzyłby redakcję, a nie przycięcie.
+      entity_id: "fraza ".repeat(40),
       session_id: "s".repeat(300),
       anon_id: "a".repeat(300),
       lang: "pl-PL-x-long",
@@ -331,7 +337,9 @@ describe("walidacja wejścia", () => {
   it("META TUŻ PONIŻEJ limitu przechodzi w całości - próg nie jest ustawiony o jeden za nisko", async () => {
     // Granica liczona jest na SERIALIZACJI, nie na długości wartości: sam
     // `{"pad":"…"}` dokłada 11 znaków.
-    const pad = "z".repeat(3_980);
+    // Pad ze słów, nie jednolity ciąg: `"z".repeat(3_980)` wychodzi
+    // z `redactMeta` jako „[redacted]" i test mierzyłby redakcję zamiast progu.
+    const pad = "zzz ".repeat(995);
     await postOne({ meta: { pad } });
 
     expect(insertedRows()[0]!.meta).toEqual({ pad });
@@ -362,7 +370,7 @@ describe("walidacja wejścia", () => {
 });
 
 // ---------------------------------------------------------------------------
-describe("RODO: redakcja adresów", () => {
+describe("RODO: redakcja adresów i treści", () => {
   it("QUERY STRING ze ścieżki jest wycinany - w kolumnie nie ma oryginału", async () => {
     // Query string bywa nośnikiem tokenu resetu hasła i adresu e-mail.
     await postOne({ path: "/konto?token=abc123def456ghi789jkl&email=jan.kowalski@example.com" });
@@ -389,6 +397,102 @@ describe("RODO: redakcja adresów", () => {
     const path = insertedRows()[0]!.path as string;
     expect(path).not.toContain("jan.kowalski@example.org");
     expect(path).toContain("[redacted-email]");
+  });
+
+  it("FRAZA z wyszukiwarki będąca adresem e-mail NIE trafia do `entity_id`", async () => {
+    // `entity_id` to jedyne pole tego endpointu wypełniane Z KLAWIATURY
+    // odwiedzającego (trackSearch), a wiersz niesie obok niego `anon_id`,
+    // który nie wygasa. Do naprawy szła tu fraza surowa.
+    await postOne({
+      type: "search",
+      name: "internal_search",
+      entity_type: "search_query",
+      entity_id: "jan.kowalski@example.com",
+    });
+
+    const entityId = insertedRows()[0]!.entity_id as string;
+    expect(entityId).not.toContain("jan.kowalski@example.com");
+    expect(entityId).not.toContain("@");
+    expect(entityId).toContain("[redacted-email]");
+  });
+
+  it("FRAZA wpisana w `meta` jest skrubowana GŁĘBOKO - zagnieżdżone pole też", async () => {
+    await postOne({
+      meta: {
+        q: "jan.kowalski@example.com",
+        ctx: { fraza: "napisz na jan@example.org" },
+        results: 3,
+      },
+    });
+
+    const meta = insertedRows()[0]!.meta as Record<string, unknown>;
+    const json = JSON.stringify(meta);
+    expect(json).not.toContain("jan.kowalski@example.com");
+    expect(json).not.toContain("jan@example.org");
+    expect(json).toContain("[redacted-email]");
+    // Struktura przeżywa skrubowanie: raport nadal ma po czym liczyć.
+    expect(meta).toMatchObject({ results: 3 });
+  });
+
+  it("TOKEN i ADRES IP w `meta` NIE trafiają do tabeli", async () => {
+    await postOne({ meta: { note: "token=abcdef0123456789abcdef01 z 192.168.13.240" } });
+
+    const json = JSON.stringify(insertedRows()[0]!.meta);
+    expect(json).not.toContain("abcdef0123456789abcdef01");
+    expect(json).not.toContain("192.168.13.240");
+    expect(json).toContain("[redacted]");
+    expect(json).toContain("[redacted-ip]");
+  });
+
+  it("`entity_id` NIE jest traktowany jak adres - fraza nie dostaje ukośnika ani kodowania procentowego", async () => {
+    // Gdyby ktoś podmienił `redactPii` na `redactUrl` (bo tak wygląda sąsiedni
+    // `path`), wyszłoby „/polityka%20sp%C3%B3jno%C5%9Bci" - klucz grupowania,
+    // którego nikt nie wpisał (ZMIERZONE).
+    await postOne({ entity_type: "search_query", entity_id: "polityka spójności" });
+
+    expect(insertedRows()[0]!.entity_id).toBe("polityka spójności");
+  });
+
+  it("HREF stopki w `meta` i `entity_id` przechodzi BEZ ZMIAN - raport stopki nie może się rozjechać", async () => {
+    // `getFooterAnalytics` (src/lib/analytics/footerAnalytics.functions.ts)
+    // kubełkuje po `meta.href` z `entity_id` jako zapasem; rozjazd tych dwóch
+    // pól rozbiłby jeden link na dwa wiersze raportu.
+    const href = "/dolacz-do-newslettera?utm_source=stopka";
+    await postOne({
+      entity_id: href,
+      meta: { href, label: "Newsletter", group: "legal", external: false },
+    });
+
+    const row = insertedRows()[0]!;
+    expect(row.entity_id).toBe(href);
+    expect(row.meta).toEqual({ href, label: "Newsletter", group: "legal", external: false });
+  });
+
+  it("UUID encji przeżywa redakcję - `tier_id`/`plan_id` nadal grupują", async () => {
+    // Myślniki trzymają każdy ciąg heksowy poniżej progów 24/40 znaków.
+    const tierId = "3f2b9c1a-7d4e-4a11-9b0c-2e5f8a6d1c93";
+    await postOne({
+      entity_type: "tier",
+      entity_id: tierId,
+      meta: { tier_id: tierId, amount_cents: 12_900 },
+    });
+
+    const row = insertedRows()[0]!;
+    expect(row.entity_id).toBe(tierId);
+    expect(row.meta).toEqual({ tier_id: tierId, amount_cents: 12_900 });
+  });
+
+  it("`event_name` ŚWIADOMIE NIE jest redagowane - klucz grupowania zostaje kluczem", async () => {
+    // Wyłączenie celowe, przypięte testem: `redactPii` zlewa ciągi
+    // [A-Za-z0-9_-] od 40 znaków w „[redacted]", więc objęcie nim nazw zdarzeń
+    // wrzuciłoby KAŻDĄ dłuższą nazwę do jednego kubełka każdego raportu.
+    // Nazwa pochodzi z naszego kodu, nie z klawiatury odwiedzającego.
+    const name = "a_very_long_business_event_name_over_forty";
+    expect(name.length).toBeGreaterThan(40);
+
+    await postOne({ name });
+
+    expect(insertedRows()[0]!.event_name).toBe(name);
   });
 });
 
