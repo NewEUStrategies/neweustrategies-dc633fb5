@@ -24,7 +24,7 @@
 -- ręczne wstawienie profilu padłoby na kluczu głównym przed pierwszą asercją.
 
 BEGIN;
-SELECT plan(7);
+SELECT plan(8);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 

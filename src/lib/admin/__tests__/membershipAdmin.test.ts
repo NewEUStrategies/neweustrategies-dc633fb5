@@ -1,5 +1,5 @@
 // PANEL CZŁONKOSTWA - WARSTWA DANYCH (`src/lib/admin/membership-admin.ts`).
-// 155 linii, 11 funkcji, ZERO pokrycia przed tym plikiem.
+// 199 linii, 11 funkcji, ZERO pokrycia przed tym plikiem.
 //
 // CO TEN PLIK DOWODZI. Nadania warstwy (`membership_grants`) i miejsca
 // w organizacjach członkowskich to DRUGA, bezpłatna droga do praw premium -
@@ -19,6 +19,13 @@
 //      przejść - stąd pełna tabela ramion.
 //   4. ODWOŁANIE NADANIA to UPDATE ze stemplem czasu, nie DELETE - ślad musi
 //      zostać. Test pilnuje ustalonej daty bazowej, nie „jakiejś” daty.
+//   5. OPTIMISTIC-LOCK ZAPISU ORGANIZACJI. Karta panelu wysyła CAŁY wiersz,
+//      więc zapis bez porównania wersji cicho cofa każdą zmianę, która weszła
+//      w międzyczasie - także tę zrobioną funkcją serwerową miejsc. Dowodzimy
+//      trzech rzeczy naraz: `.eq("updated_at", …)` dokłada się WYŁĄCZNIE przy
+//      podanej bazie wersji, zero trafionych wierszy jest ROZRÓŻNIANE
+//      (konflikt kontra odmowa RLS), a zwrócony `updated_at` jest bazą dla
+//      NASTĘPNEGO zapisu w tej samej sesji.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - AUTORYTETU BAZY: czy `admin_grant_membership` sprawdza rolę i najemcę,
@@ -31,6 +38,7 @@
 // RODO: adresy wyłącznie w domenie `example.com`, identyfikatory umowne.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecordedChain, SupabaseFromStub, SupabaseResult } from "@/test/supabaseChain";
+import { EDIT_CONFLICT_CODE } from "@/lib/content/saveConflict";
 
 const BASE_NOW = new Date("2026-03-15T12:00:00.000Z");
 
@@ -265,6 +273,23 @@ describe("organizacje członkowskie - odczyt", () => {
 });
 
 describe("organizacje członkowskie - zapis", () => {
+  /** Wersja wiersza, którą klient OSTATNIO WIDZIAŁ (baza optimistic-locka). */
+  const SEEN_VERSION = "2026-03-14T09:00:00.000Z";
+  /** Wersja ostemplowana przez bazę przy udanym zapisie. */
+  const SAVED_VERSION = "2026-03-15T12:00:00.000Z";
+  /** Odpowiedź na `update … select("id, updated_at")` przy trafieniu w wiersz. */
+  const SAVED_ROW = ok([{ id: "org-1", updated_at: SAVED_VERSION }]);
+
+  /**
+   * Argumenty WSZYSTKICH ogniw `eq` - `argsOf` oddaje tylko pierwsze, a tu
+   * przedmiotem dowodu jest właśnie DRUGIE ogniwo (warunek wersji).
+   */
+  function eqArgs(table: string): ReadonlyArray<unknown>[] {
+    return chain(table)
+      .calls.filter((call) => call.method === "eq")
+      .map((call) => call.args);
+  }
+
   const INPUT = {
     name: "Instytut Spraw Europejskich",
     tier_key: "corporate",
@@ -291,14 +316,81 @@ describe("organizacje członkowskie - zapis", () => {
     ]);
   });
 
-  it("aktualizacja przekazuje łatkę po id (także wartości zerujące)", async () => {
-    db().setResponse("member_organizations", ok(null));
-    await updateOrganization("org-1", { seats_limit: 0, note: null, name: "" });
-    expect(links("member_organizations")).toEqual(["update", "eq"]);
+  it("aktualizacja przekazuje łatkę po id (także wartości zerujące) i oddaje nową wersję", async () => {
+    // PRZEPISANE PO NAPRAWIE. Wcześniej test przyjmował, że zapis niczego nie
+    // odczytuje po sobie. Tak nie wolno: PostgREST na warunku, który nie trafił
+    // w żaden wiersz, oddaje ZERO wierszy i `error: null`, więc bez
+    // `.select("id, updated_at")` panel meldowałby „zapisano" po zapisie, który
+    // nic nie zapisał. Zwrócony `updated_at` jest przy okazji bazą
+    // optimistic-locka dla NASTĘPNEGO zapisu w tej samej sesji.
+    db().setResponse("member_organizations", SAVED_ROW);
+    await expect(
+      updateOrganization("org-1", { seats_limit: 0, note: null, name: "" }),
+    ).resolves.toBe(SAVED_VERSION);
+    expect(links("member_organizations")).toEqual(["update", "eq", "select"]);
     expect(chain("member_organizations").argsOf("update")).toEqual([
       { seats_limit: 0, note: null, name: "" },
     ]);
-    expect(chain("member_organizations").argsOf("eq")).toEqual(["id", "org-1"]);
+    expect(chain("member_organizations").argsOf("select")).toEqual(["id, updated_at"]);
+    // BEZ `baseUpdatedAt` NIE MA ogniwa wersji - to celowe: ścieżki zmieniające
+    // jedną kolumnę (przełącznik statusu na liście) nie trzymają draftu, więc
+    // nie mają się z czym zderzyć, a dołożony warunek tylko by je oblewał.
+    expect(eqArgs("member_organizations")).toEqual([["id", "org-1"]]);
+  });
+
+  it("z `baseUpdatedAt` zapis trafia ALBO w tę wersję wiersza, ALBO w żadną", async () => {
+    // `.eq("updated_at", …)` jest atomowy po stronie bazy - nie ma okna między
+    // „sprawdź wersję" a „zapisz", w które zmieściłby się cudzy zapis.
+    db().setResponse("member_organizations", SAVED_ROW);
+    await expect(updateOrganization("org-1", { name: "Nowa" }, SEEN_VERSION)).resolves.toBe(
+      SAVED_VERSION,
+    );
+    expect(links("member_organizations")).toEqual(["update", "eq", "eq", "select"]);
+    expect(eqArgs("member_organizations")).toEqual([
+      ["id", "org-1"],
+      ["updated_at", SEEN_VERSION],
+    ]);
+  });
+
+  it("NIETRAFIONA wersja przy ISTNIEJĄCYM wierszu to KONFLIKT, nie odmowa uprawnień", async () => {
+    // Zero wierszy ma dwie przyczyny i tylko doczytanie je rozróżnia. Pomylenie
+    // ich wysyła administratora w złą stronę: szuka uprawnień, zamiast odświeżyć
+    // kartę i zobaczyć, co ktoś zapisał przed nim.
+    db().setResponse("member_organizations", (recorded) =>
+      recorded.has("update") ? ok([]) : ok({ id: "org-1" }),
+    );
+    await expect(updateOrganization("org-1", { name: "Nowa" }, SEEN_VERSION)).rejects.toThrow(
+      // Prefiks to KOD rozpoznawany przez klienta, reszta to nazwa encji -
+      // ten sam kontrakt, co przy zapisie wpisów i stron.
+      new RegExp(`${EDIT_CONFLICT_CODE}.*tę organizację`),
+    );
+    expect(db().chainsFor("member_organizations")).toHaveLength(2);
+    // Doczytanie pyta o SAM identyfikator: sprawdzamy istnienie wiersza, nie
+    // ciągniemy jego treści (i tak nie mielibyśmy co z nią zrobić).
+    expect(links("member_organizations")).toEqual(["select", "eq", "maybeSingle"]);
+    expect(chain("member_organizations").argsOf("select")).toEqual(["id"]);
+  });
+
+  it("ZERO wierszy i wiersza NIE MA: odmowa uprawnień, nie konflikt", async () => {
+    // Druga gałąź tego samego rozróżnienia: wiersz niewidoczny dla tej roli
+    // (RLS `orgs admin all`) albo skasowany. „Ktoś zapisał przed Tobą" byłoby
+    // tu kłamstwem - nie ma czego odświeżać.
+    db().setResponse("member_organizations", (recorded) =>
+      recorded.has("update") ? ok([]) : ok(null),
+    );
+    await expect(updateOrganization("org-1", { name: "Nowa" }, SEEN_VERSION)).rejects.toThrow(
+      "do not have permission",
+    );
+  });
+
+  it("BEZ `baseUpdatedAt` zero wierszy to OD RAZU odmowa - bez doczytywania", async () => {
+    // Bez warunku wersji zero wierszy ma tylko jedną przyczynę, więc dodatkowe
+    // zapytanie byłoby kosztem bez informacji.
+    db().setResponse("member_organizations", ok([]));
+    await expect(updateOrganization("org-1", { name: "Nowa" })).rejects.toThrow(
+      "do not have permission",
+    );
+    expect(db().chainsFor("member_organizations")).toHaveLength(1);
   });
 
   it("kasowanie po id", async () => {
