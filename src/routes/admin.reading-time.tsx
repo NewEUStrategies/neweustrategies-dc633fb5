@@ -40,11 +40,24 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Clock, RotateCcw, ShieldAlert } from "lucide-react";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/admin/reading-time")({
-  head: () => ({
-    meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Czas czytania - admin" }],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`. Trasy /admin są
+    // w NON_LOCALIZED_PREFIXES, więc w praktyce rozstrzyga ciasteczko języka; to
+    // jednak ta sama wartość, którą widzi ciało strony, a o zgodność karty
+    // przeglądarki z interfejsem tu właśnie chodzi.
+    const lang = activeLang(getRequestUrl() || "/admin/reading-time");
+    return {
+      meta: [
+        { name: "robots", content: "noindex, nofollow" },
+        { title: lang === "en" ? "Reading time - admin" : "Czas czytania - admin" },
+      ],
+    };
+  },
   component: ReadingTimeAdmin,
 });
 

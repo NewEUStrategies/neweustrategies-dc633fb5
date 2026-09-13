@@ -21,6 +21,9 @@ import { PUBLIC_DOCUMENT_DENY_PREFIXES } from "@/lib/http/documentCache";
 import {
   analysePublicRouteLoaders,
   balancedArgs,
+  coldRouteRatchetFailed,
+  compareColdRouteRatchet,
+  renderColdRouteRatchet,
   COLD_CACHED_ROUTES_2026_09_01,
   COLD_PUBLIC_ROUTES_2026_09_01,
   FROZEN_COLD_CACHED_ROUTES,
@@ -41,7 +44,9 @@ import {
   staticImportSpecifiers,
   topLevelOption,
   type PublicRouteLoaderInput,
+  type PublicRouteLoaderReport,
 } from "../publicRouteLoaders";
+import { COLD_PUBLIC_ROUTE_BASELINE } from "../../../../scripts/lib/coldPublicRouteBaseline";
 
 function sources(entries: Record<string, string>): Map<string, string> {
   return new Map(Object.entries(entries));
@@ -701,19 +706,22 @@ function analyseRealTreeUncached(
 ): {
   cold: readonly { fullPath: string }[];
   cachedCold: readonly { fullPath: string }[];
+  report: PublicRouteLoaderReport;
 } {
   const files = realSources();
   for (const [file, source] of Object.entries(extra)) files.set(file, source);
   const tree = (files.get("src/routeTree.gen.ts") ?? "") + extraTree;
   const report = analysePublicRouteLoaders({ routeTree: tree, sources: files });
   const cold = routesMissingWarmedLoader(report);
-  const cachedCold = cold.filter(
-    (route) =>
-      !PUBLIC_DOCUMENT_DENY_PREFIXES.some(
-        (prefix) => route.fullPath === prefix || route.fullPath.startsWith(`${prefix}/`),
-      ),
+  const cachedCold = cold.filter((route) => wchodziDoCache(route.fullPath));
+  return { cold, cachedCold, report };
+}
+
+/** Ta sama reguła co `isDeniedPath` w `lib/http/documentCache`, na ścieżce trasy. */
+function wchodziDoCache(fullPath: string): boolean {
+  return !PUBLIC_DOCUMENT_DENY_PREFIXES.some(
+    (prefix) => fullPath === prefix || fullPath.startsWith(`${prefix}/`),
   );
-  return { cold, cachedCold };
 }
 
 describe("ratchet na prawdziwym drzewie tras", () => {
@@ -726,6 +734,80 @@ describe("ratchet na prawdziwym drzewie tras", () => {
       `trasy o samych zimnych kluczach: ${cold.map((r) => r.fullPath).join(", ")}`,
     ).toBeLessThanOrEqual(FROZEN_COLD_PUBLIC_ROUTES);
     expect(cachedCold.length).toBeLessThanOrEqual(FROZEN_COLD_CACHED_ROUTES);
+  });
+
+  it("ŻADNA trasa spoza ZAMROŻONEJ LISTY nie jest zimna", { timeout: 180_000 }, () => {
+    // Sufit wyżej pilnuje OBJĘTOŚCI długu, ta lista - jego TOŻSAMOŚCI. Sam
+    // licznik przepuszcza kompensację: naprawa `/qa` w tym samym PR-ze
+    // „opłaca" nową zimną trasę i liczba stoi w miejscu, a CI nigdy nie
+    // nazwie tej nowej. Pełne uzasadnienie: sekcja „RATCHET PER TRASA"
+    // w `../publicRouteLoaders`.
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, COLD_PUBLIC_ROUTE_BASELINE);
+
+    expect(ratchet.fresh, renderColdRouteRatchet(ratchet, wchodziDoCache)).toEqual([]);
+    expect(coldRouteRatchetFailed(ratchet)).toBe(false);
+  });
+
+  it("lista jest AKTUALNA - nie ma na niej tras już naprawionych", { timeout: 180_000 }, () => {
+    // `fixed` nie OBLEWA bramki (naprawa nie może być porażką), ale lista,
+    // z której nikt nie zdejmuje naprawionych tras, po kilku PR-ach przestaje
+    // cokolwiek znaczyć. Ten przypadek każe ją skrócić razem z sufitem.
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, COLD_PUBLIC_ROUTE_BASELINE);
+
+    expect(ratchet.fixed, renderColdRouteRatchet(ratchet, wchodziDoCache)).toEqual([]);
+    expect(ratchet.moved).toEqual([]);
+  });
+
+  it(
+    "KONTROLA NEGATYWNA: atrapowa trasa spoza listy OBLEWA ratchet per trasa",
+    { timeout: 180_000 },
+    () => {
+      // Bez tego przypadku nie wiadomo, czy lista w ogóle potrafi zapalić się
+      // na czerwono - a bramka, która zawsze widzi to samo, jest napisem.
+      const { report } = analyseRealTreeUncached(
+        {
+          "src/routes/ratchet-probe.tsx": `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('/ratchet-probe')({ component: Probe });
+function Probe() { const q = useQuery(probeQueryOptions()); return <div>{q.data}</div>; }`,
+        },
+        `\n${routeTree([
+          {
+            ident: "RatchetProbe",
+            file: "routes/ratchet-probe",
+            path: "/ratchet-probe",
+            parent: "rootRouteImport",
+          },
+        ])}\n`,
+      );
+      const ratchet = compareColdRouteRatchet(report, COLD_PUBLIC_ROUTE_BASELINE);
+
+      expect(coldRouteRatchetFailed(ratchet)).toBe(true);
+      expect(ratchet.fresh.map((r) => r.fullPath)).toEqual(["/ratchet-probe"]);
+      // Komunikat MUSI nazywać trasę - to jest cała przewaga nad licznikiem.
+      expect(renderColdRouteRatchet(ratchet, wchodziDoCache)).toContain("/ratchet-probe");
+    },
+  );
+
+  it("PRZENIESIENIE pliku trasy nie jest nowym długiem", { timeout: 180_000 }, () => {
+    // Dopasowanie po DWÓCH kluczach (plik i adres). Przy jednym kluczu zwykła
+    // zmiana nazwy pliku dawałaby JEDNOCZEŚNIE `fresh` i `fixed` dla tej samej
+    // trasy, czyli bramka obwiniałaby refaktor za dług, którego nie przybyło.
+    const [[plik, adres]] = COLD_PUBLIC_ROUTE_BASELINE;
+    const podmieniona = COLD_PUBLIC_ROUTE_BASELINE.map(([f, a]) =>
+      f === plik
+        ? ([`src/routes/przeniesiona-${f.slice("src/routes/".length)}`, a] as const)
+        : ([f, a] as const),
+    );
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, podmieniona);
+
+    expect(ratchet.fresh).toEqual([]);
+    expect(ratchet.fixed).toEqual([]);
+    expect(ratchet.moved).toHaveLength(1);
+    const przeniesiona = ratchet.moved[0];
+    expect(przeniesiona?.kind).toBe("plik");
+    if (przeniesiona?.kind !== "plik") throw new Error("test: oczekiwano przeniesienia PLIKU");
+    expect(przeniesiona.fullPath).toBe(adres);
+    expect(przeniesiona.now).toBe(plik);
   });
 
   it(

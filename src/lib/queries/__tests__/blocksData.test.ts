@@ -153,6 +153,19 @@ function lancuch(tabela: string): RecordedChain {
   return c;
 }
 
+/**
+ * Ogniwa `.in(...)` niosące listę identyfikatorów WPISÓW - po naprawie A2/A3/A4
+ * ma ich nie być ANI JEDNEGO.
+ *
+ * Zwykłe `expect(chain.has("in")).toBe(false)` byłoby tu BŁĘDNE: zawężenie
+ * przez osadzenie legalnie używa `.in(...)` na kolumnie TERMINU
+ * (`post_categories.category_id`). Defektem jest wyłącznie lista po `"id"`,
+ * bo tylko ona rośnie razem z liczbą wpisów.
+ */
+function listaIdWpisow(chain: RecordedChain): ReadonlyArray<ReadonlyArray<unknown>> {
+  return chain.calls.filter((c) => c.method === "in" && c.args[0] === "id").map((c) => c.args);
+}
+
 /** Świeży klient bez współdzielonego cache'u - `fetchQuery` naprawdę woła
  *  `queryFn`, a odmowa bazy nie jest ponawiana (inaczej test czeka na backoff). */
 function klient(): QueryClient {
@@ -185,11 +198,18 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// postIdsForCategorySlug - prywatna, ale to ONA decyduje o zawężeniu trzech
-// bloków listowych; wchodzimy w nią przez `latest-posts`.
+// categoryIdForSlug - prywatna, ale to ONA decyduje o zawężeniu trzech bloków
+// listowych; wchodzimy w nią przez `latest-posts`.
+//
+// CO SIĘ ZMIENIŁO 13.09.2026. Poprzedniczka (`postIdsForCategorySlug`) czytała
+// CAŁĄ tabelę pośrednią bez `.limit()` i oddawała listę identyfikatorów WPISÓW
+// do `.in("id", ...)`. Zawężenie robi teraz baza (osadzenie `!inner`), więc
+// zapytań jest o jedno mniej, a linia żądania ma stałą długość niezależnie od
+// tego, ile wpisów ma kategoria. Odczyt sluga ZOSTAJE osobny - dzięki temu
+// nieznany slug nadal kończy się pustką BEZ pytania o wpisy.
 // ---------------------------------------------------------------------------
 
-describe("zawężenie kategorią (postIdsForCategorySlug)", () => {
+describe("zawężenie kategorią (categoryIdForSlug)", () => {
   it("bez kategorii nie pyta o taksonomię i nie zawęża listy", async () => {
     baza().setResponse("posts", ok([wpis("1")]));
     const wynik = await klient().fetchQuery(
@@ -202,20 +222,43 @@ describe("zawężenie kategorią (postIdsForCategorySlug)", () => {
     expect(lancuch("posts").has("in")).toBe(false);
   });
 
-  it("kategoria przechodzi w listę id wpisów, bez duplikatów", async () => {
+  it("slug kategorii przechodzi w OSADZENIE, a nie w listę id wpisów", async () => {
     baza().setResponse("categories", ok({ id: "kat-1" }));
-    // Ten sam wpis w dwóch wierszach (wpis w podkategorii i w kategorii) MUSI
-    // wejść do `.in()` raz - inaczej PostgREST dostaje rosnącą listę duplikatów.
-    baza().setResponse(
-      "post_categories",
-      ok([{ post_id: "p-1" }, { post_id: "p-2" }, { post_id: "p-1" }]),
-    );
     baza().setResponse("posts", ok([wpis("p-1")]));
     await klient().fetchQuery(latestPostsBlockQueryOptions({ count: 5, category: "europa" }));
     expect(lancuch("categories").argsOf("eq")).toEqual(["slug", "europa"]);
     expect(lancuch("categories").has("maybeSingle")).toBe(true);
-    expect(lancuch("post_categories").argsOf("eq")).toEqual(["category_id", "kat-1"]);
-    expect(lancuch("posts").argsOf("in")).toEqual(["id", ["p-1", "p-2"]]);
+    // Zawężenie jest częścią zapytania o wpisy - tabela pośrednia nie jest
+    // już czytana osobno, więc nie ma czego deduplikować ani czego przewozić.
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_categories!inner(category_id)");
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", ["kat-1"]]);
+    expect(listaIdWpisow(posty)).toEqual([]);
+    expect(baza().chainsFor("post_categories")).toEqual([]);
+  });
+
+  it("zapytanie NIE rośnie razem z kategorią - 1 a 3000 przypisań daje IDENTYCZNY łańcuch", async () => {
+    // Rozmiar MUSI siedzieć w odpowiedzi tabeli POŚREDNIEJ, a nie w liście
+    // wpisów: liczba wierszy `posts` jest konsumowana PO zapisaniu łańcucha,
+    // więc przypadek oparty na niej przechodzi także na kodzie sprzed naprawy.
+    // Pełne wyjaśnienie przy bliźniaczym przypadku w `archives.test.ts`.
+    baza().setResponse("categories", ok({ id: "kat-1" }));
+    baza().setResponse("post_categories", ok([{ post_id: "p-1" }]));
+    baza().setResponse("posts", ok([wpis("p-1")]));
+    await klient().fetchQuery(latestPostsBlockQueryOptions({ count: 5, category: "europa" }));
+    const male = JSON.stringify(lancuch("posts").calls);
+
+    baza().reset();
+    baza().setResponse("categories", ok({ id: "kat-1" }));
+    baza().setResponse(
+      "post_categories",
+      ok(Array.from({ length: 3000 }, (_, i) => ({ post_id: `p-${i}` }))),
+    );
+    baza().setResponse("posts", ok([wpis("p-1")]));
+    await klient().fetchQuery(latestPostsBlockQueryOptions({ count: 5, category: "europa" }));
+
+    expect(JSON.stringify(lancuch("posts").calls)).toBe(male);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
   });
 
   it("kategoria, której nie ma w bazie, daje pustkę BEZ zapytania o wpisy", async () => {
@@ -227,14 +270,18 @@ describe("zawężenie kategorią (postIdsForCategorySlug)", () => {
     expect(baza().chainsFor("posts")).toEqual([]);
   });
 
-  it("kategoria bez przypisanych wpisów daje pustkę BEZ zapytania o wpisy", async () => {
+  it("kategoria bez przypisanych wpisów daje pustą listę z JEDNEGO zapytania", async () => {
+    // ZMIANA WOBEC POPRZEDNIEJ WERSJI. Wcześniej pusty odczyt tabeli pośredniej
+    // pozwalał pominąć zapytanie o wpisy i przypadek nazywał się „BEZ zapytania
+    // o wpisy". Zapytanie jest teraz jedno i zawsze leci - pustka wychodzi
+    // z niego samego. Przypadek mówi to, co zachodzi, zamiast utrwalać
+    // optymalizację, której już nie ma.
     baza().setResponse("categories", ok({ id: "kat-1" }));
-    // `data: null` z PostgREST-a (nie pusta tablica) - i to też jest „zero wpisów".
-    baza().setResponse("post_categories", ok(null));
+    baza().setResponse("posts", ok([]));
     await expect(
       klient().fetchQuery(latestPostsBlockQueryOptions({ count: 5, category: "pusta" })),
     ).resolves.toEqual([]);
-    expect(baza().chainsFor("posts")).toEqual([]);
+    expect(baza().chainsFor("post_categories")).toEqual([]);
   });
 
   it("odmowa odczytu kategorii rzuca (widok wchodzi w błąd, nie w pustkę)", async () => {
@@ -244,12 +291,12 @@ describe("zawężenie kategorią (postIdsForCategorySlug)", () => {
     ).rejects.toThrow("odmowa categories");
   });
 
-  it("odmowa odczytu przypisań kategorii rzuca", async () => {
+  it("odmowa odczytu wpisów rzuca - zawężona lista też nie udaje pustki", async () => {
     baza().setResponse("categories", ok({ id: "kat-1" }));
-    baza().setResponse("post_categories", fail("odmowa post_categories"));
+    baza().setResponse("posts", fail("odmowa posts"));
     await expect(
       klient().fetchQuery(latestPostsBlockQueryOptions({ count: 5, category: "europa" })),
-    ).rejects.toThrow("odmowa post_categories");
+    ).rejects.toThrow("odmowa posts");
   });
 });
 
@@ -674,18 +721,20 @@ describe("queryLoopBlockQueryOptions", () => {
     expect(lancuch("posts").argsOf("limit")).toEqual([1]);
   });
 
-  it("zawęża kategorią, a kategoria bez wpisów kończy się pustką bez zapytania", async () => {
+  it("zawęża kategorią przez osadzenie, a kategoria bez wpisów kończy się pustką", async () => {
     baza().setResponse("categories", ok({ id: "kat-1" }));
-    baza().setResponse("post_categories", ok([{ post_id: "p-1" }]));
     baza().setResponse("posts", ok([wpis("p-1")]));
     await klient().fetchQuery(
       queryLoopBlockQueryOptions({ categorySlug: "swiat", limit: 6, orderBy: "date", lang: "pl" }),
     );
-    expect(lancuch("posts").argsOf("in")).toEqual(["id", ["p-1"]]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_categories!inner(category_id)");
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", ["kat-1"]]);
+    expect(listaIdWpisow(posty)).toEqual([]);
 
     baza().reset();
     baza().setResponse("categories", ok({ id: "kat-2" }));
-    baza().setResponse("post_categories", ok([]));
+    baza().setResponse("posts", ok([]));
     await expect(
       klient().fetchQuery(
         queryLoopBlockQueryOptions({
@@ -696,7 +745,7 @@ describe("queryLoopBlockQueryOptions", () => {
         }),
       ),
     ).resolves.toEqual([]);
-    expect(baza().chainsFor("posts")).toEqual([]);
+    expect(baza().chainsFor("post_categories")).toEqual([]);
   });
 
   it("odmowa bazy rzuca, a `data: null` daje pustą pętlę", async () => {
@@ -729,18 +778,20 @@ describe("relatedPostsBlockQueryOptions", () => {
     limit: 3,
   };
 
-  it("strategia kategorii idzie przez slugi -> id kategorii -> id wpisów", async () => {
+  it("strategia kategorii idzie przez slugi -> id KATEGORII, i na tym koniec", async () => {
+    // Lista w `.in(...)` niesie identyfikatory kategorii wybranych w widżecie
+    // (ograniczone konfiguracją bloku), a nie identyfikatory wpisów (rosnące
+    // z danymi). To jest cała różnica naprawiana w A3.
     baza().setResponse("categories", ok([{ id: "kat-1" }, { id: "kat-2" }]));
-    baza().setResponse(
-      "post_categories",
-      ok([{ post_id: "p-1" }, { post_id: "p-2" }, { post_id: "p-1" }]),
-    );
     baza().setResponse("posts", ok([wpis("p-1")]));
     await klient().fetchQuery(relatedPostsBlockQueryOptions(bazowe));
     expect(lancuch("categories").argsOf("in")).toEqual(["slug", ["europa"]]);
-    expect(lancuch("post_categories").argsOf("in")).toEqual(["category_id", ["kat-1", "kat-2"]]);
-    expect(lancuch("posts").argsOf("in")).toEqual(["id", ["p-1", "p-2"]]);
-    expect(lancuch("posts").argsOf("neq")).toEqual(["id", "biezacy"]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_categories!inner(category_id)");
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", ["kat-1", "kat-2"]]);
+    expect(listaIdWpisow(posty)).toEqual([]);
+    expect(baza().chainsFor("post_categories")).toEqual([]);
+    expect(posty.argsOf("neq")).toEqual(["id", "biezacy"]);
   });
 
   it("slugi kategorii bez odpowiednika w bazie kończą się pustką, a nie najnowszymi wpisami", async () => {
@@ -755,7 +806,9 @@ describe("relatedPostsBlockQueryOptions", () => {
     baza().setResponse("posts", ok([wpis("nie-powinien-wyjsc")]));
     await expect(klient().fetchQuery(relatedPostsBlockQueryOptions(bazowe))).resolves.toEqual([]);
     expect(baza().chainsFor("post_categories")).toEqual([]);
-    expect(lancuch("posts").has("in")).toBe(false);
+    // Po naprawie zwrot następuje PRZED zbudowaniem buildera `posts`, więc
+    // atrapa nie zapisuje już nawet porzuconego ogniwa.
+    expect(baza().chainsFor("posts")).toEqual([]);
   });
 
   it("PUSTA lista slugów NIE zawęża - blok na stronie bez kategorii pokazuje najnowsze", async () => {
@@ -773,23 +826,27 @@ describe("relatedPostsBlockQueryOptions", () => {
       "odmowa kategorii",
     );
     baza().reset();
+    // Krok drugi to już samo zapytanie o wpisy - odmowa na nim też nie może
+    // wyglądać jak „brak powiązanych".
     baza().setResponse("categories", ok([{ id: "kat-1" }]));
-    baza().setResponse("post_categories", fail("odmowa przypisan"));
+    baza().setResponse("posts", fail("odmowa wpisow"));
     await expect(klient().fetchQuery(relatedPostsBlockQueryOptions(bazowe))).rejects.toThrow(
-      "odmowa przypisan",
+      "odmowa wpisow",
     );
   });
 
-  it("strategia tagu idzie przez slugi tagów -> id tagów -> id wpisów", async () => {
+  it("strategia tagu idzie przez slugi tagów -> id TAGÓW, i na tym koniec", async () => {
     baza().setResponse("tags", ok([{ id: "tag-1" }]));
-    baza().setResponse("post_tags", ok([{ post_id: "p-9" }]));
     baza().setResponse("posts", ok([wpis("p-9")]));
     await klient().fetchQuery(
       relatedPostsBlockQueryOptions({ ...bazowe, strategy: "tag", tagSlugs: ["ue", "nato"] }),
     );
     expect(lancuch("tags").argsOf("in")).toEqual(["slug", ["ue", "nato"]]);
-    expect(lancuch("post_tags").argsOf("in")).toEqual(["tag_id", ["tag-1"]]);
-    expect(lancuch("posts").argsOf("in")).toEqual(["id", ["p-9"]]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_tags!inner(tag_id)");
+    expect(posty.argsOf("in")).toEqual(["post_tags.tag_id", ["tag-1"]]);
+    expect(listaIdWpisow(posty)).toEqual([]);
+    expect(baza().chainsFor("post_tags")).toEqual([]);
     // Ścieżka tagowa NIE MOŻE dotykać tabel kategorii.
     expect(baza().chainsFor("categories")).toEqual([]);
   });
@@ -814,12 +871,12 @@ describe("relatedPostsBlockQueryOptions", () => {
 
     baza().reset();
     baza().setResponse("tags", ok([{ id: "tag-1" }]));
-    baza().setResponse("post_tags", fail("odmowa post_tags"));
+    baza().setResponse("posts", fail("odmowa wpisow tagu"));
     await expect(
       klient().fetchQuery(
         relatedPostsBlockQueryOptions({ ...bazowe, strategy: "tag", tagSlugs: ["ue"] }),
       ),
-    ).rejects.toThrow("odmowa post_tags");
+    ).rejects.toThrow("odmowa wpisow tagu");
   });
 
   it("`data: null` na tabelach taksonomii znaczy ZERO trafień, a nie brak zawężenia", async () => {
@@ -829,9 +886,7 @@ describe("relatedPostsBlockQueryOptions", () => {
     // na `.map` - blok „powiązane" wywalałby CAŁY widok wpisu.
     const przypadki: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
       ["kategorie null", { categories: null }],
-      ["przypisania kategorii null", { categories: [{ id: "kat-1" }], post_categories: null }],
       ["tagi null", { tags: null }],
-      ["przypisania tagów null", { tags: [{ id: "tag-1" }], post_tags: null }],
     ];
     for (const [nazwa, plan] of przypadki) {
       baza().reset();
@@ -1051,14 +1106,17 @@ describe("morePostsBlockQueryOptions", () => {
     expect(lancuch("posts").argsOf("limit")).toEqual([13]);
   });
 
-  it("tryb `category` zawęża kategorią z kontekstu wpisu", async () => {
+  it("tryb `category` zawęża kategorią z kontekstu wpisu - przez osadzenie", async () => {
     baza().setResponse("categories", ok({ id: "kat-1" }));
-    baza().setResponse("post_categories", ok([{ post_id: "p-1" }]));
     baza().setResponse("posts", ok([wpis("p-1")]));
     await klient().fetchQuery(
       morePostsBlockQueryOptions({ strategy: "category", limit: 4, categorySlug: "europa" }),
     );
-    expect(lancuch("posts").argsOf("in")).toEqual(["id", ["p-1"]]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_categories!inner(category_id)");
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", ["kat-1"]]);
+    expect(listaIdWpisow(posty)).toEqual([]);
+    expect(baza().chainsFor("post_categories")).toEqual([]);
   });
 
   it("tryb `category` BEZ kategorii w kontekście nie wykonuje żadnego zapytania", async () => {
@@ -1074,13 +1132,13 @@ describe("morePostsBlockQueryOptions", () => {
 
   it("tryb `category` z kategorią bez wpisów też kończy się pustką", async () => {
     baza().setResponse("categories", ok({ id: "kat-1" }));
-    baza().setResponse("post_categories", ok([]));
+    baza().setResponse("posts", ok([]));
     await expect(
       klient().fetchQuery(
         morePostsBlockQueryOptions({ strategy: "category", limit: 4, categorySlug: "pusta" }),
       ),
     ).resolves.toEqual([]);
-    expect(baza().chainsFor("posts")).toEqual([]);
+    expect(baza().chainsFor("post_categories")).toEqual([]);
   });
 
   it("tryb `latest` nie zawęża, a odmowa bazy rzuca", async () => {

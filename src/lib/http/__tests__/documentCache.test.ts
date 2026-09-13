@@ -39,6 +39,32 @@ describe("parseCacheControl", () => {
     expect(parseCacheControl("s-maxage=abc").sMaxAge).toBeNull();
     expect(parseCacheControl("private, no-store")).toMatchObject({ private: true, noStore: true });
   });
+
+  it("models no-cache and must-revalidate instead of silently dropping them", () => {
+    // A silent `default: break` meant "may be served without validation" - and
+    // this cache cannot validate. Modelling them lets the policy refuse.
+    const parsed = parseCacheControl("public, s-maxage=600, no-cache, must-revalidate");
+    expect(parsed.noCache).toBe(true);
+    expect(parsed.mustRevalidate).toBe(true);
+    expect(parsed.public).toBe(true);
+    expect(parsed.sMaxAge).toBe(600);
+  });
+
+  it("leaves both validation flags false for the header this app actually emits", () => {
+    expect(
+      parseCacheControl("public, max-age=60, s-maxage=900, stale-while-revalidate=86400"),
+    ).toMatchObject({ noCache: false, mustRevalidate: false });
+  });
+
+  it('reads a qualified no-cache="field" as an unqualified one', () => {
+    // This store cannot strip individual headers from a replayed response, so
+    // the qualified form has to be read the strict way.
+    expect(parseCacheControl('public, s-maxage=600, no-cache="set-cookie"').noCache).toBe(true);
+  });
+
+  it("treats proxy-revalidate like must-revalidate - this cache IS a shared cache", () => {
+    expect(parseCacheControl("public, s-maxage=600, proxy-revalidate").mustRevalidate).toBe(true);
+  });
 });
 
 describe("stripLangPrefix", () => {
@@ -134,5 +160,36 @@ describe("documentStorePolicy", () => {
     const short = documentStorePolicy(200, html, "public, s-maxage=30, stale-while-revalidate=10");
     expect(short.freshMs).toBe(30_000);
     expect(short.swrMs).toBe(10_000);
+  });
+
+  it("refuses to store a no-cache document - it cannot revalidate before reuse", () => {
+    // `freshMs = 0` is not a middle ground here: the entry would be served
+    // STALE from the first millisecond, i.e. the exact inverse of no-cache.
+    expect(documentStorePolicy(200, html, "public, s-maxage=600, no-cache").store).toBe(false);
+    expect(
+      documentStorePolicy(200, html, "public, s-maxage=900, stale-while-revalidate=86400, no-cache")
+        .store,
+    ).toBe(false);
+  });
+
+  it("keeps freshness but drops the stale window for must-revalidate", () => {
+    const policy = documentStorePolicy(
+      200,
+      html,
+      "public, s-maxage=30, stale-while-revalidate=600, must-revalidate",
+    );
+    expect(policy.store).toBe(true);
+    expect(policy.freshMs).toBe(30_000);
+    // Expiry becomes a plain MISS (full render) instead of a stale serve.
+    expect(policy.swrMs).toBe(0);
+  });
+
+  it("leaves today's emitted header untouched - this is a latent hole, not a behaviour change", () => {
+    const policy = documentStorePolicy(
+      200,
+      html,
+      "public, s-maxage=30, stale-while-revalidate=600",
+    );
+    expect(policy).toEqual({ store: true, freshMs: 30_000, swrMs: 600_000 });
   });
 });

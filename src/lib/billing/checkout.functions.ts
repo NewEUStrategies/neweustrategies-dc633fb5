@@ -611,10 +611,21 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     // Tryb mock - brak dostawcy. Zwracamy adres sukcesu, żeby dało się
     // przetestować lejek w dev.
+    //
+    // TEN SAM ADRES, TA SAMA BRAMKA. Wcześniej `data.success_path` szło tu
+    // wprost do interpolacji, bez żadnego parsowania - czyli ostatnie miejsce
+    // na tej powierzchni, w którym ścieżka od klienta stawała się adresem bez
+    // sprawdzenia originu. Tryb mock jest w produkcji fail-closed
+    // (`mockMode.server.ts`), więc nie był to otwór wykorzystywalny, ale był to
+    // ten sam kształt - a zostawianie jednej kopii defektu „bo i tak nieczynna"
+    // to dokładnie sposób, w jaki wraca druga.
+    const mockUrl = new URL(resolveReturnUrl(data.success_path));
+    mockUrl.searchParams.set("order", order.id);
+    mockUrl.searchParams.set("mock", "1");
     return {
       ok: true as const,
       mode: "mock" as const,
-      url: `${data.success_path}?order=${order.id}&mock=1`,
+      url: mockUrl.toString(),
       orderId: order.id,
     };
   });

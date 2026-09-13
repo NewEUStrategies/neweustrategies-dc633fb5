@@ -301,6 +301,12 @@ beforeEach(() => {
 
   // Bramka SKONFIGUROWANA - wartości syntetyczne, nigdzie nie wychodzą:
   // klient operatora jest atrapą, więc żadne żądanie sieciowe nie powstaje.
+  // Host wdrożenia testowego MUSI być zadeklarowany, odkąd `resolveReturnUrl`
+  // przechodzi przez bramkę dozwolonych hostów (`lib/billing/returnUrl.server`).
+  // Bez tej linii przypadki o adresie powrotu dowodziłyby tylko tego, że
+  // `kasa.example.org` NIE jest naszą domeną - a mają dowodzić, że klient nie
+  // wybiera domeny powrotu.
+  vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "klucz-testowy-piaskownicy");
 
@@ -363,6 +369,16 @@ describe("createCheckoutOrder - subskrypcja idzie CENĄ KATALOGOWĄ", () => {
     await call(planPayload({ success_path: "https://zlodziej.example.com/przejmij" }));
 
     expect(lastSession()?.return_url).toBe("https://kasa.example.org/przejmij");
+  });
+
+  it("KONTRPRZYKŁAD: host żądania SPOZA listy nie zostaje originem powrotu", async () => {
+    // Sam fakt, że ścieżka pochodzi z hosta żądania, nie wystarcza - host też
+    // podaje klient. Bez deklaracji wdrożenia wracamy na origin kanoniczny.
+    vi.stubEnv("BILLING_RETURN_HOSTS", "");
+
+    await call(planPayload({ success_path: "https://zlodziej.example.com/przejmij" }));
+
+    expect(lastSession()?.return_url).toBe("https://neweuropeanstrategies.com/przejmij");
   });
 
   it("okres próbny planu trafia do sesji - bez tego karta jest obciążana od razu", async () => {

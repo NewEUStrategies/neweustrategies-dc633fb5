@@ -251,6 +251,12 @@ beforeEach(() => {
   rpcResponses = new Map<string, SupabaseResult>();
 
   // Bramka płatności NIESKONFIGUROWANA - handler kończy w trybie mock.
+  // Bramka adresu powrotu czyta konfigurację wdrożenia. Bez wyzerowania obu
+  // zmiennych przypadek o adresie trybu mock dowodziłby konfiguracji maszyny CI.
+  vi.stubEnv("PUBLIC_SITE_URL", "");
+  vi.stubEnv("SITE_URL", "");
+  vi.stubEnv("URL", "");
+  vi.stubEnv("BILLING_RETURN_HOSTS", "");
   vi.stubEnv("LOVABLE_API_KEY", "");
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "");
   vi.stubEnv("STRIPE_LIVE_API_KEY", "");
@@ -891,8 +897,22 @@ describe("createCheckoutOrder - tryb bez skonfigurowanego dostawcy", () => {
     expect(result).toEqual({
       ok: true,
       mode: "mock",
-      url: "/checkout/sukces?order=order-1&mock=1",
+      // Adres jest BEZWZGLĘDNY i na NASZYM originie, odkąd gałąź trybu mock
+      // też przechodzi przez bramkę adresu powrotu. Wcześniej ścieżka klienta
+      // szła tu wprost do interpolacji - ten sam kształt otwartego
+      // przekierowania co w A1, tyle że na powierzchni fail-closed w produkcji.
+      url: "https://neweuropeanstrategies.com/checkout/sukces?order=order-1&mock=1",
       orderId: "order-1",
+    });
+  });
+
+  it("KONTRPRZYKŁAD: ścieżka sukcesu z obcym hostem nie przenosi adresu trybu mock", async () => {
+    const result = await call(
+      planPayload({ success_path: "https://zlodziej.example.com/przejmij" }),
+    );
+
+    expect(result).toMatchObject({
+      url: "https://neweuropeanstrategies.com/przejmij?order=order-1&mock=1",
     });
   });
 

@@ -1,6 +1,12 @@
 // Budowa bezwzględnego adresu powrotu dla operatora płatności (`return_url`
 // portalu klienta i sesji checkoutu - patrz `utils/payments.functions`).
 //
+// DWIE POWIERZCHNIE, JEDNA BRAMKA. `absoluteReturnUrl` obsługuje portal klienta
+// (wejście: ŚCIEŻKA względna), a `trustedReturnOrigin` jest dodatkowo eksportowane
+// dla `lib/http/resolveReturnUrl`, czyli Stripe Embedded Checkout (wejście: PEŁNY
+// URL od klienta). Dzielą wyłącznie połowę ORIGIN - połowa ŚCIEŻKI różni się
+// kontraktem, więc `safeReturnPath` zostaje przy portalu.
+//
 // ADRES SKŁADA SIĘ Z DWÓCH POŁÓWEK I OBIE POCHODZĄ Z ZEWNĄTRZ:
 //   * ŚCIEŻKA - z ładunku żądania, sanityzowana przez `safeReturnPath`
 //     (`lib/billing/returnPath`),
@@ -84,9 +90,25 @@ function parseHttpOrigin(
   return host ? { origin: url.origin, host } : null;
 }
 
-/** Origin kanoniczny serwisu: konfiguracja wdrożenia albo wbudowana domena. */
+/**
+ * Origin kanoniczny serwisu: konfiguracja wdrożenia albo wbudowana domena.
+ *
+ * TRZY ZMIENNE, NIE JEDNA. `.env.example` (sekcja „Site URL") mówi wprost:
+ * „The app reads the first of PUBLIC_SITE_URL / SITE_URL / URL that is set;
+ * in most hosting environments one of these is provided automatically" - i tak
+ * robią `lib/newsletter.functions` oraz `lib/admin/scheduler.functions`. Ta
+ * bramka czytała TYLKO `PUBLIC_SITE_URL`, więc wdrożenie skonfigurowane przez
+ * `SITE_URL` albo `URL` (wg `.env.example` przypadek częsty) schodziło na
+ * wbudowaną domenę marki - czyli odsyłało kupujących na cudzy adres. Dopisanie
+ * dwóch pozostałych zmiennych tylko POSZERZA zbiór hostów wdrożenia o te, które
+ * wdrożenie samo zadeklarowało; nagłówek żądania nadal nie ma tu nic do rzeczy.
+ */
 function canonicalOrigin(): string {
-  return parseHttpOrigin(process.env.PUBLIC_SITE_URL)?.origin ?? FALLBACK_ORIGIN;
+  for (const candidate of [process.env.PUBLIC_SITE_URL, process.env.SITE_URL, process.env.URL]) {
+    const parsed = parseHttpOrigin(candidate);
+    if (parsed) return parsed.origin;
+  }
+  return FALLBACK_ORIGIN;
 }
 
 /**
@@ -151,8 +173,17 @@ export function requestOrigin(): string {
   return originCandidates()[0] ?? canonicalOrigin();
 }
 
-/** Pierwszy origin żądania, który przechodzi bramkę; inaczej origin kanoniczny. */
-function trustedReturnOrigin(): string {
+/**
+ * Pierwszy origin żądania, który przechodzi bramkę; inaczej origin kanoniczny.
+ *
+ * EKSPORTOWANA, bo DRUGI silnik checkoutu (`lib/http/resolveReturnUrl`, czyli
+ * Stripe Embedded Checkout dla planu, kwoty ad-hoc i darowizny) do 13.09.2026
+ * sklejał adres powrotu z tych samych nagłówków, ale BEZ tej bramki - ta sama
+ * dziura, tylko na drugiej powierzchni. Bramka ma być JEDNA: dwie listy
+ * dozwolonych hostów rozjechałyby się przy pierwszej zmianie, a rozjazd tutaj
+ * to open redirect po zapłaconej transakcji.
+ */
+export function trustedReturnOrigin(): string {
   for (const candidate of originCandidates()) {
     const parsed = parseHttpOrigin(candidate);
     if (parsed && returnHostIsAllowed(parsed.host)) return parsed.origin;
