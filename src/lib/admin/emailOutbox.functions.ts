@@ -9,13 +9,22 @@
 // DEDUPLIKACJA. Jedna wiadomość zostawia w dzienniku KILKA wierszy o tym samym
 // `message_id` ('pending' -> 'sent' albo 'dlq'). Liczenie wierszy zawyżałoby
 // statystyki dwu-, trzykrotnie, więc wszystkie liczby i tabela biorą wyłącznie
-// NAJNOWSZY wiersz dla danego `message_id`.
+// NAJNOWSZY wiersz dla danego `message_id`. Okno skanu (`MAX_SCAN_ROWS`) jest
+// od czasu zawężenia po najemcy budżetem JEDNEGO najemcy, a nie całej
+// instalacji - dopiero teraz `truncated` znaczy to, co mówi.
 //
 // AUTORYZACJA. `email_send_log` ma RLS dopuszczający wyłącznie `service_role`
 // (dziennik zawiera adresy odbiorców i treść błędów dostawcy), więc odczyt idzie
 // klientem serwisowym - ale dopiero PO potwierdzeniu roli admina/edytora przez
 // `requireAdminEditor`. Klient serwisowy jest importowany wewnątrz handlera:
 // moduł `*.functions.ts` trafia do grafu klienta, importy modułowe nie.
+//
+// ROLA NIE JEST GRANICĄ DANYCH - i to była tu przyczyna źródłowa. Klient
+// serwisowy omija RLS, więc po przejściu bramki roli nie zostawała ŻADNA zapora:
+// administrator serwisu A czytał adresy odbiorców serwisu B. Odczyt jest teraz
+// dodatkowo przypięty do najemcy wywołującego (`callerTenant`), a brak tenanta
+// w profilu to ODMOWA, nie pusty wynik - fail-closed, bo cichy pusty wynik
+// wygląda w panelu identycznie jak „nic nie wysłaliśmy".
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdminEditor } from "@/integrations/supabase/require-staff";
@@ -87,6 +96,41 @@ const inputSchema = z
 
 export type OutboxQuery = z.infer<typeof inputSchema>;
 
+/**
+ * Tenant wywołującego - jedyna dopuszczalna granica danych dla klienta
+ * serwisowego. Helper jest LOKALNY, jak w każdym `*.functions.ts` tego repo
+ * (`membersDirectory.functions.ts`, `invitations.functions.ts`,
+ * `media.functions.ts`): `roleMiddleware` czyta `profiles.tenant_id`, ale kończy
+ * zwykłym `next()` i nie publikuje tenanta do kontekstu handlera, a import
+ * między modułami `*.functions.ts` wciągnąłby obcą funkcję serwerową do grafu.
+ */
+async function callerTenant(context: {
+  supabase: { from: (t: string) => never } | unknown;
+  userId: string;
+}): Promise<string> {
+  const ctx = context as {
+    supabase: {
+      from: (table: "profiles") => {
+        select: (cols: string) => {
+          eq: (
+            col: string,
+            value: string,
+          ) => { maybeSingle: () => Promise<{ data: { tenant_id: string | null } | null }> };
+        };
+      };
+    };
+    userId: string;
+  };
+  const { data } = await ctx.supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", ctx.userId)
+    .maybeSingle();
+  const tenantId = data?.tenant_id ?? null;
+  if (!tenantId) throw new Error("Forbidden: missing tenant");
+  return tenantId;
+}
+
 /** Granice okna czasu: jawny zakres ma pierwszeństwo przed presetem dni. */
 function resolveWindow(data: OutboxQuery): { from: string; to: string } {
   const to = data.to ?? new Date().toISOString();
@@ -127,13 +171,17 @@ function statsOf(rows: OutboxRow[]): OutboxStats {
 export const getEmailOutbox = createServerFn({ method: "GET" })
   .middleware([requireAdminEditor])
   .validator((data: unknown) => inputSchema.parse(data ?? {}))
-  .handler(async ({ data }): Promise<OutboxResult> => {
+  .handler(async ({ data, context }): Promise<OutboxResult> => {
+    // Tenant rozstrzygany PRZED sięgnięciem po klienta serwisowego: na ścieżce
+    // odmowy klucz service-role nie ma prawa nawet zostać użyty.
+    const tenantId = await callerTenant(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const window = resolveWindow(data);
 
     const { data: raw, error } = await supabaseAdmin
       .from("email_send_log")
       .select("id, message_id, template_name, recipient_email, status, error_message, created_at")
+      .eq("tenant_id", tenantId)
       .gte("created_at", window.from)
       .lte("created_at", window.to)
       .order("created_at", { ascending: false })

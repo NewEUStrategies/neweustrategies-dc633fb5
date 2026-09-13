@@ -201,6 +201,39 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+        // NAJEMCA MAILA AUTORYZACYJNEGO. To jedyna ścieżka wysyłki w platformie,
+        // która nie ma ani sesji, ani bramki listy wykluczeń - tenant nie bierze
+        // się tu znikąd, a wiersz dziennika bez tenanta jest widoczny dla
+        // operatora KAŻDEGO serwisu (`email_send_log` czyta się klientem
+        // serwisowym, który RLS omija).
+        //
+        // Najpierw host powrotu: `redirect_to` wskazuje serwis, na który
+        // użytkownik właśnie się zapisuje. `resolveDomainBinding` dopasowuje
+        // ŚCIŚLE, bez zjeżdżania na tenanta domyślnego - i o to chodzi, bo to
+        // właśnie milczący fallback na tenanta domyślnego produkuje ten wyciek.
+        // Dopiero gdy host nic nie mówi, pytamy adres tą samą funkcją, z której
+        // korzysta wypis i webhook dostarczalności.
+        //
+        // CZEGO TO NIE NAPRAWIA: przy świeżej rejestracji adres nie istnieje ani
+        // w `newsletter_subscribers`, ani w `profiles`, więc bez `redirect_to`
+        // rozstrzygnięcie schodzi na tenanta domyślnego. To ZAWĘŻENIE (operator
+        // innego serwisu zobaczy mniej niż dotąd), nie wyciek.
+        // Try/catch jak przy `resolveRecipientName` niżej i z tego samego
+        // powodu: to jest ATRYBUCJA, nie warunek wysyłki. Link do logowania ma
+        // wyjść nawet wtedy, gdy katalog domen albo rozstrzygacz adresu padnie -
+        // najemcę dopnie wtedy trigger `trg_email_send_log_bind_tenant`.
+        let tenantId: string | null = null;
+        try {
+          const [{ resolveDomainBinding }, { resolveTenantForAddress }] = await Promise.all([
+            import("@/lib/server/tenant.server"),
+            import("@/lib/email/suppression.server"),
+          ]);
+          const bound = (await resolveDomainBinding(hostOf(payload.data.redirect_to))).tenant;
+          tenantId = bound?.id ?? (await resolveTenantForAddress(supabase, payload.data.email));
+        } catch (err) {
+          console.error("Failed to resolve auth email tenant", err);
+        }
+
         let firstName = metaName;
         let gender = metaGender;
         let vocativePl: string | null = null;
@@ -248,6 +281,7 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
           template_name: emailType,
           recipient_email: payload.data.email,
           status: "pending",
+          tenant_id: tenantId,
         });
 
         const fromAddress = `${SITE_NAME} <noreply@${FROM_DOMAIN}>`;
@@ -287,6 +321,11 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
             text,
             purpose: "transactional",
             label: emailType,
+            // Tenant w ładunku, tak jak u producentów transakcyjnych: dren
+            // wywozi wiadomość do DLQ (zepsuty ładunek, TTL, ponowienia) ZANIM
+            // dojdzie do bramki, więc bez tego pola wiersz 'dlq' maila
+            // autoryzacyjnego nie miałby najemcy z żadnego źródła.
+            tenant_id: tenantId,
             queued_at: new Date().toISOString(),
           },
         });
@@ -299,6 +338,7 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
             recipient_email: payload.data.email,
             status: "failed",
             error_message: "Failed to enqueue email",
+            tenant_id: tenantId,
           });
           await logAuthEvent(supabase, {
             ...diagnostics,

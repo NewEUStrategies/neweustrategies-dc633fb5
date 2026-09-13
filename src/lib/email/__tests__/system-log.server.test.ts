@@ -9,6 +9,12 @@
 //
 // Druga reguła: liczba prób (`attempts`) MA zliczać wszystkie wiersze, bo to
 // ona mówi, ile razy kolejka biła się o tę wiadomość.
+//
+// Trzecia, dopisana po wycieku: GRANICA NAJEMCY. Oba zapytania tej warstwy idą
+// klientem serwisowym, który RLS omija, więc jedyną zaporą jest filtr wpisany
+// ręcznie. Bez niego administrator jednego serwisu czytał adresy odbiorców
+// wszystkich pozostałych - i nie widział tego ani w typach, ani w żadnym teście,
+// bo żaden test nie miał dwóch najemców.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fail, ok, okCount, supabaseFromStub } from "@/test/supabaseChain";
 import type { SystemEmailQuery } from "@/lib/email/system-log.server";
@@ -23,9 +29,11 @@ import { fetchSystemEmailReport } from "@/lib/email/system-log.server";
 
 const LOG = "email_send_log";
 const SUPPRESSIONS = "email_suppressions";
+const TENANT_A = "11111111-1111-4111-8111-111111111111";
 
 function query(overrides: Partial<SystemEmailQuery> = {}): SystemEmailQuery {
   return {
+    tenantId: TENANT_A,
     days: 7,
     template: null,
     status: null,
@@ -458,5 +466,34 @@ describe("stan infrastruktury", () => {
 
     await expect(fetchSystemEmailReport(query())).rejects.toThrow(/permission denied/);
     expect(db.chainsFor(SUPPRESSIONS)).toHaveLength(0);
+  });
+});
+
+describe("granica najemcy", () => {
+  it("raport czyta WYŁĄCZNIE dziennik swojego najemcy", async () => {
+    // Klient serwisowy omija RLS. Ten filtr jest CAŁĄ zaporą między
+    // administratorem jednego serwisu a adresami odbiorców drugiego.
+    db.setResponse(LOG, ok([logRow()]));
+
+    await fetchSystemEmailReport(query());
+
+    expect(db.lastChain(LOG)?.argsOf("eq")).toEqual(["tenant_id", TENANT_A]);
+    // Filtr musi pójść do BAZY, nie zostać zastosowany po odczycie: zapytanie
+    // bez predykatu ściąga cudze adresy do pamięci procesu, choćby je potem
+    // odsiało.
+    expect(db.chainsFor(LOG).length).toBeGreaterThan(0);
+  });
+
+  it("licznik aktywnych wykluczeń jest licznikiem NAJEMCY, nie instancji", async () => {
+    // Sąsiedni wyciek w tej samej funkcji: `email_suppressions.tenant_id` jest
+    // NOT NULL, więc było po czym filtrować od początku. Bez tego przypadku
+    // jednolinijkową poprawkę da się cofnąć bez czerwonego testu.
+    db.setResponse(LOG, ok([]));
+    db.setResponse(SUPPRESSIONS, okCount(4));
+
+    const report = await fetchSystemEmailReport(query());
+
+    expect(db.lastChain(SUPPRESSIONS)?.argsOf("eq")).toEqual(["tenant_id", TENANT_A]);
+    expect(report.suppressedRecipients).toBe(4);
   });
 });

@@ -38,6 +38,8 @@ const h = vi.hoisted(() => {
     render: vi.fn(),
     createClient: vi.fn(),
     rpc: vi.fn(),
+    resolveDomainBinding: vi.fn(),
+    resolveTenantForAddress: vi.fn(),
   };
 });
 
@@ -50,8 +52,22 @@ vi.mock("@lovable.dev/webhooks-js", () => ({
 vi.mock("@lovable.dev/email-js", () => ({ parseEmailWebhookPayload: h.parseEmailWebhookPayload }));
 vi.mock("@react-email/render", () => ({ render: h.render }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: h.createClient }));
+// Dwa źródła najemca maila autoryzacyjnego. Atrapy, bo katalog domen czyta bazę
+// przez klienta serwisowego, a rozstrzygacz adresu - przez RPC; tu przedmiotem
+// dowodu jest KOLEJNOŚĆ i to, że wynik ląduje w dzienniku, nie ich wnętrze.
+vi.mock("@/lib/server/tenant.server", () => ({
+  resolveDomainBinding: h.resolveDomainBinding,
+}));
+vi.mock("@/lib/email/suppression.server", () => ({
+  resolveTenantForAddress: h.resolveTenantForAddress,
+}));
 
 import { Route } from "@/routes/platform/email/auth/webhook";
+
+/** Najemca, do którego należy domena z `redirect_to`. */
+const TENANT_B = "22222222-2222-4222-8222-222222222222";
+/** Najemca rozstrzygnięty z ADRESU, gdy host powrotu nic nie mówi. */
+const TENANT_Z_ADRESU = "33333333-3333-4333-8333-333333333333";
 
 const db = supabaseFromStub();
 
@@ -101,6 +117,11 @@ beforeEach(() => {
   db.setResponse("name_dictionary", ok(null));
 
   h.rpc.mockResolvedValue({ error: null });
+  h.resolveDomainBinding.mockResolvedValue({
+    tenant: { id: TENANT_B, slug: "b", domain: "example.test", isDefault: false },
+    directoryPopulated: true,
+  });
+  h.resolveTenantForAddress.mockResolvedValue(TENANT_Z_ADRESU);
   h.createClient.mockReturnValue({ from: db.from, rpc: h.rpc });
   h.render.mockResolvedValue("<html>mail</html>");
   h.verifyWebhookRequest.mockResolvedValue({ payload: payload() });
@@ -411,5 +432,95 @@ describe("porażka kolejkowania", () => {
 
     expect(res.status).toBe(200);
     expect(errorSpy).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Najemca maila autoryzacyjnego
+//
+// To JEDYNA ścieżka wysyłki w platformie bez sesji i bez bramki listy wykluczeń,
+// więc tenant nie bierze się tu znikąd - a `email_send_log` niesie adresy
+// odbiorców i czytają go panele operatorów per najemca. Wiersz bez stempla widzi
+// operator KAŻDEGO serwisu.
+// ---------------------------------------------------------------------------
+describe("najemca maila autoryzacyjnego", () => {
+  it("mail jest przypisany do serwisu z ADRESU POWROTU", async () => {
+    await post();
+
+    // Do katalogu idzie sam host, nie cały URL.
+    expect(h.resolveDomainBinding).toHaveBeenCalledWith("example.test");
+    expect(lastInsert("email_send_log")).toMatchObject({
+      status: "pending",
+      tenant_id: TENANT_B,
+    });
+  });
+
+  it("ten sam najemca jedzie w ładunku kolejki", async () => {
+    // Dren wywozi wiadomość do DLQ (zepsuty ładunek, TTL, ponowienia) ZANIM
+    // rozstrzygnie tenanta, więc bez tego pola wiersz 'dlq' maila
+    // autoryzacyjnego nie miałby najemcy z żadnego źródła.
+    await post();
+
+    const [, args] = h.rpc.mock.calls[0] as [string, Record<string, unknown>];
+    expect((args.payload as Record<string, unknown>).tenant_id).toBe(TENANT_B);
+    // Ładunek i wiersz dziennika muszą nieść TEN SAM najemca - rozjazd między
+    // nimi znaczy, że DLQ i panel przypiszą tę samą wiadomość dwóm serwisom.
+    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_B);
+  });
+
+  it("host powrotu ma pierwszeństwo - adresu nie pytamy niepotrzebnie", async () => {
+    await post();
+
+    expect(h.resolveTenantForAddress).not.toHaveBeenCalled();
+    // Pierwszeństwo ma być WIDOCZNE w wyniku, nie tylko w liczbie wywołań:
+    // najemca pochodzi z hosta powrotu.
+    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_B);
+  });
+
+  it("nieznany host powrotu spada na rozstrzygnięcie z ADRESU, nie na tenanta domyślnego", async () => {
+    // `resolveDomainBinding` dopasowuje ŚCIŚLE i to jest sedno: cichy fallback
+    // na tenanta domyślnego jest dokładnie tym, co wyprodukowało ten wyciek.
+    h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: true });
+
+    await post();
+
+    expect(h.resolveTenantForAddress).toHaveBeenCalledTimes(1);
+    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_Z_ADRESU);
+  });
+
+  it("awaria rozstrzygania najemcy NIE zatrzymuje maila z linkiem do logowania", async () => {
+    // Atrybucja nie jest warunkiem wysyłki. Padnięty katalog domen ma kosztować
+    // stempel, a nie dostęp użytkownika do konta.
+    h.resolveDomainBinding.mockRejectedValue(new Error("katalog domen padł"));
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    expect(lastInsert("email_send_log").tenant_id).toBeNull();
+    expect(errorSpy).toHaveBeenCalledWith("Failed to resolve auth email tenant", expect.any(Error));
+  });
+
+  it("gdy ani host, ani adres nic nie mówią, wysyłka i tak idzie", async () => {
+    // Link do logowania jest ważniejszy niż stempel; najemcę dopina wtedy
+    // trigger bazy `trg_email_send_log_bind_tenant`.
+    h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: false });
+    h.resolveTenantForAddress.mockResolvedValue(null);
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    expect(lastInsert("email_send_log").tenant_id).toBeNull();
+  });
+
+  it("wiersz 'failed' po odmowie kolejki niesie TEN SAM najemca", async () => {
+    h.rpc.mockResolvedValue({ error: { message: "queue full" } });
+
+    await post();
+
+    expect(h.rpc).toHaveBeenCalled();
+    expect(lastInsert("email_send_log")).toMatchObject({
+      status: "failed",
+      tenant_id: TENANT_B,
+    });
   });
 });

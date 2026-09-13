@@ -7,6 +7,13 @@
 // Tabela jest dostępna wyłącznie dla service_role (RLS), dlatego odczyt idzie
 // przez klienta admina - wywołujący jest wcześniej weryfikowany rolą admina
 // w middleware server function.
+//
+// ROLA NIE JEST GRANICĄ DANYCH. Klient admina omija RLS, więc po bramce roli nie
+// zostawała tu ŻADNA zapora: administrator jednego serwisu czytał adresy
+// odbiorców wszystkich pozostałych. Zapytania biorą teraz `query.tenantId`,
+// który wrapper (`system-emails.functions.ts`) rozstrzyga z profilu
+// wywołującego. Ta warstwa zostaje czystą funkcją swojego zapytania - nie zna
+// żądania i nie ma skąd wziąć tenanta sama.
 
 export type SystemEmailStatus =
   "pending" | "sent" | "dlq" | "suppressed" | "failed" | "bounced" | "complained";
@@ -49,6 +56,8 @@ export interface SystemEmailReport {
 }
 
 export interface SystemEmailQuery {
+  /** Granica najemcy - klient serwisowy omija RLS, więc filtr jest jedyną zaporą. */
+  tenantId: string;
   days: number;
   template: string | null;
   status: SystemEmailStatus | null;
@@ -162,6 +171,7 @@ export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<S
   const { data, error } = await supabaseAdmin
     .from("email_send_log")
     .select("message_id, template_name, recipient_email, status, error_message, created_at")
+    .eq("tenant_id", query.tenantId)
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: false })
     .limit(5000);
@@ -207,10 +217,15 @@ export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<S
   // Liczba AKTYWNYCH wykluczeń z listy kanonicznej. Wcześniej liczyliśmy wiersze
   // zaszłej tabeli `suppressed_emails`, która nie znała wygaśnięcia ani zdjęcia
   // blokady - raport pokazywał więc adresy, na które od dawna wolno już wysyłać.
+  //
+  // Licznik jest licznikiem NAJEMCY, nie instancji. `email_suppressions.tenant_id`
+  // jest NOT NULL, więc było po czym filtrować od początku - brak filtru pokazywał
+  // administratorowi jednego serwisu skalę blokad wszystkich pozostałych.
   let suppressedRecipients = 0;
   const { count } = await supabaseAdmin
     .from("email_suppressions")
     .select("id", { count: "exact", head: true })
+    .eq("tenant_id", query.tenantId)
     .is("released_at", null)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
   if (typeof count === "number") suppressedRecipients = count;

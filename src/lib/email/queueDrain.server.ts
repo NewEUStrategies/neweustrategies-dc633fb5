@@ -227,6 +227,17 @@ async function readBatch(
   return out;
 }
 
+/**
+ * Jedyne miejsce, w którym dren pisze do dziennika wysyłek.
+ *
+ * `tenantId` jest wymagany JAWNIE (a nie opcjonalny), bo panel wysyłek czyta
+ * dziennik w granicach jednego najemcy: wiersz bez stempla jest niewidoczny dla
+ * KAŻDEGO operatora. Cztery ścieżki po bramce listy wykluczeń mają tenanta
+ * rozstrzygniętego (`gate.tenantId`); trzy ścieżki wywózki do DLQ biegną PRZED
+ * bramką (zepsuty ładunek, przekroczony TTL, wyczerpane ponowienia) i mają
+ * wyłącznie to, co włożył producent - gdy nie wiedział, wiersz idzie bez
+ * tenanta, a trigger `trg_email_send_log_bind_tenant` dopina go z adresu.
+ */
 async function logSend(
   admin: DbClient,
   row: {
@@ -235,6 +246,7 @@ async function logSend(
     to: string;
     status: "sent" | "failed" | "suppressed" | "dlq";
     error?: string | null;
+    tenantId: string | null;
   },
 ): Promise<void> {
   const { error } = await admin.from("email_send_log").insert({
@@ -243,6 +255,10 @@ async function logSend(
     recipient_email: row.to,
     status: row.status,
     error_message: row.error ? row.error.slice(0, 1000) : null,
+    // `?? undefined`, nie `?? null`: kolumna jest NOT NULL, a DEFAULT odpala się
+    // wyłącznie przy POMINIĘTYM kluczu. Jawny `null` zostawiałby wysyłkę bez
+    // wiersza w dzienniku - już po tym, jak mail wyszedł.
+    tenant_id: row.tenantId ?? undefined,
   });
   // Wysyłka już się stała - nieudany zapis logu nie może jej „odkręcić", ale
   // musi być widoczny, bo psuje raport dostarczalności.
@@ -262,6 +278,7 @@ async function moveToDlq(
   queue: EmailQueueName,
   msg: QueueMessage,
   reason: string,
+  tenantId: string | null,
 ): Promise<void> {
   await logSend(admin, {
     messageId: nullableText(msg.payload.message_id),
@@ -269,6 +286,7 @@ async function moveToDlq(
     to: text(msg.payload.to),
     status: "dlq",
     error: reason,
+    tenantId,
   });
   const { error } = await rpcClient(admin).rpc("move_to_dlq", {
     source_queue: queue,
@@ -284,6 +302,11 @@ async function moveToDlq(
  * zapytanie zamiast N). Budżet ponowień liczymy po realnych porażkach, a nie po
  * `pgmq.read_ct`, bo odczyt zakończony pominięciem (cooldown, blokada adresu)
  * nie jest próbą wysyłki i nie może zbliżać wiadomości do DLQ.
+ *
+ * BEZ FILTRU NAJEMCY - ŚWIADOMIE, jak `alreadySent` niżej: kluczem jest
+ * `message_id`, deterministyczny UUID z SHA-256, globalnie unikatowy. To licznik
+ * wewnętrzny workera, nie treść dla człowieka; predykat po najemcy dałby
+ * chwilowemu rozjazdowi rozstrzygnięcia tenanta moc zerowania budżetu ponowień.
  */
 async function loadFailedAttempts(
   admin: DbClient,
@@ -308,7 +331,15 @@ async function loadFailedAttempts(
   return counts;
 }
 
-/** Czy inny worker zdążył już wysłać tę wiadomość (wyścig po wygaśnięciu VT). */
+/**
+ * Czy inny worker zdążył już wysłać tę wiadomość (wyścig po wygaśnięciu VT).
+ *
+ * BEZ FILTRU NAJEMCY - ŚWIADOMIE. To jest zabezpieczenie przed PODWÓJNĄ
+ * WYSYŁKĄ, oparte na globalnie unikatowym `message_id` i wsparte unikalnym
+ * indeksem `idx_email_send_log_message_sent_unique`. Predykat po najemcy
+ * zamieniłby chwilowy rozjazd rozstrzygnięcia tenanta w drugiego maila
+ * w skrzynce odbiorcy - czyli byłby ściśle gorszy niż jego brak.
+ */
 async function alreadySent(admin: DbClient, messageId: string): Promise<boolean> {
   const { data } = await admin
     .from("email_send_log")
@@ -394,7 +425,13 @@ export async function drainEmailQueues(
       // Wiadomość bez adresu albo bez treści nigdy nie wyjdzie - ponawianie jej
       // przez pięć cykli to tylko hałas w logu.
       if (!to || !text(payload.subject)) {
-        await moveToDlq(admin, queue, msg, "invalid_payload (missing recipient or subject)");
+        await moveToDlq(
+          admin,
+          queue,
+          msg,
+          "invalid_payload (missing recipient or subject)",
+          payloadTenantId(payload.tenant_id),
+        );
         result.dlq += 1;
         continue;
       }
@@ -405,7 +442,13 @@ export async function drainEmailQueues(
         const queuedMs = Date.parse(queuedAt);
         const ttlMs = config.ttlMinutes[queue] * 60_000;
         if (Number.isFinite(queuedMs) && Date.now() - queuedMs > ttlMs) {
-          await moveToDlq(admin, queue, msg, `TTL exceeded (${config.ttlMinutes[queue]} minutes)`);
+          await moveToDlq(
+            admin,
+            queue,
+            msg,
+            `TTL exceeded (${config.ttlMinutes[queue]} minutes)`,
+            payloadTenantId(payload.tenant_id),
+          );
           result.dlq += 1;
           continue;
         }
@@ -413,7 +456,13 @@ export async function drainEmailQueues(
 
       const attempts = messageId ? (failedAttempts.get(messageId) ?? 0) : msg.readCount;
       if (attempts >= MAX_RETRIES) {
-        await moveToDlq(admin, queue, msg, `Max retries (${MAX_RETRIES}) exceeded`);
+        await moveToDlq(
+          admin,
+          queue,
+          msg,
+          `Max retries (${MAX_RETRIES}) exceeded`,
+          payloadTenantId(payload.tenant_id),
+        );
         result.dlq += 1;
         continue;
       }
@@ -440,6 +489,7 @@ export async function drainEmailQueues(
           to,
           status: "suppressed",
           error: gate.hit ? suppressionSkipReason(gate.hit.reason) : "suppressed",
+          tenantId: gate.tenantId,
         });
         await deleteMessage(admin, queue, msg.msgId);
         result.suppressed += 1;
@@ -470,7 +520,7 @@ export async function drainEmailQueues(
       budget -= 1;
 
       if (sendResult.ok) {
-        await logSend(admin, { messageId, label, to, status: "sent" });
+        await logSend(admin, { messageId, label, to, status: "sent", tenantId: gate.tenantId });
         await deleteMessage(admin, queue, msg.msgId);
         result.sent += 1;
       } else if (sendResult.rateLimited) {
@@ -483,6 +533,7 @@ export async function drainEmailQueues(
           to,
           status: "failed",
           error: sendResult.error ?? "rate_limited",
+          tenantId: gate.tenantId,
         });
         await startCooldown(admin, sendResult.retryAfterSeconds ?? 60);
         result.failed += 1;
@@ -493,6 +544,9 @@ export async function drainEmailQueues(
           queue,
           msg,
           sendResult.error ?? `http_${sendResult.status ?? "4xx"}`,
+          // Ta wywózka JEDYNA biegnie po bramce, więc niesie najemcę
+          // rozstrzygniętego, a nie tylko to, co włożył producent.
+          gate.tenantId,
         );
         result.dlq += 1;
       } else {
@@ -502,6 +556,7 @@ export async function drainEmailQueues(
           to,
           status: "failed",
           error: sendResult.error ?? `http_${sendResult.status ?? "unknown"}`,
+          tenantId: gate.tenantId,
         });
         if (messageId) failedAttempts.set(messageId, attempts + 1);
         result.failed += 1;

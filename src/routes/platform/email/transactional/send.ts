@@ -213,6 +213,13 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
             recipient_email: effectiveRecipient,
             status: "suppressed",
             error_message: reason,
+            // Każdy z siedmiu wierszy dziennika tej trasy niesie najemcę
+            // z bramki - panel wysyłek czyta dziennik w granicach JEDNEGO
+            // najemcy, więc wiersz bez stempla jest niewidoczny dla operatora,
+            // który ma nim wytłumaczyć brak maila. Gdy bramka nie rozstrzygnęła
+            // tenanta, `null` przechodzi do triggera
+            // `trg_email_send_log_bind_tenant`, a ten dopina go z adresu.
+            tenant_id: gate.tenantId,
           });
 
           console.log("Email suppressed", {
@@ -245,6 +252,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
             recipient_email: effectiveRecipient,
             status: "failed",
             error_message: "Failed to look up unsubscribe token",
+            tenant_id: gate.tenantId,
           });
           return Response.json({ error: "Failed to prepare email" }, { status: 500 });
         }
@@ -272,6 +280,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
               recipient_email: effectiveRecipient,
               status: "failed",
               error_message: "Failed to create unsubscribe token",
+              tenant_id: gate.tenantId,
             });
             return Response.json({ error: "Failed to prepare email" }, { status: 500 });
           }
@@ -295,6 +304,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
               recipient_email: effectiveRecipient,
               status: "failed",
               error_message: "Failed to confirm unsubscribe token storage",
+              tenant_id: gate.tenantId,
             });
             return Response.json({ error: "Failed to prepare email" }, { status: 500 });
           }
@@ -329,6 +339,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
               recipient_email: effectiveRecipient,
               status: "failed",
               error_message: "Failed to rotate unsubscribe token",
+              tenant_id: gate.tenantId,
             });
             return Response.json({ error: "Failed to prepare email" }, { status: 500 });
           }
@@ -354,6 +365,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
           template_name: templateName,
           recipient_email: effectiveRecipient,
           status: "pending",
+          tenant_id: gate.tenantId,
         });
 
         const { error: enqueueError } = await supabase.rpc("enqueue_email", {
@@ -391,6 +403,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
             recipient_email: effectiveRecipient,
             status: "failed",
             error_message: "Failed to enqueue email",
+            tenant_id: gate.tenantId,
           });
 
           return Response.json({ error: "Failed to enqueue email" }, { status: 500 });

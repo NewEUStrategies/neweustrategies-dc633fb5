@@ -50,6 +50,13 @@ import { Route } from "@/routes/platform/email/transactional/send";
 const db = supabaseFromStub();
 const LOG = "email_send_log";
 const TOKENS = "email_unsubscribe_tokens";
+/**
+ * Znacznik zużycia tokenu wypisu - JEDNA stała, nie literał powtórzony przy
+ * każdej gałęzi. Wartość jest nieporównywana (liczy się samo „pole niepuste"),
+ * a bramka `check:clock-freeze` liczy literały daty per plik: trzy kopie tej
+ * samej daty to trzy pozycje długu za jedną informację.
+ */
+const TOKEN_ZUZYTY_AT = "2026-01-01T00:00:00Z";
 const ROLES = "user_roles";
 
 function post(body: unknown, headers: Record<string, string> = {}): Promise<Response> {
@@ -402,7 +409,7 @@ describe("cykl życia tokenu wypisu", () => {
   it("ZUŻYTY token jest rotowany, a mail i tak wychodzi", async () => {
     // Regresja: kiedyś ta gałąź odmawiała wysyłki, gubiąc maile o pieniądzach
     // i dostępie. Wypis z marketingu nie jest odmową potwierdzenia płatności.
-    db.setResponse(TOKENS, ok({ token: "tok-zuzyty", used_at: "2026-01-01T00:00:00Z" }));
+    db.setResponse(TOKENS, ok({ token: "tok-zuzyty", used_at: TOKEN_ZUZYTY_AT }));
 
     const res = await post(body());
 
@@ -456,7 +463,7 @@ describe("cykl życia tokenu wypisu", () => {
     db.setResponse(TOKENS, (chain) =>
       chain.has("update")
         ? fail("rotate failed")
-        : ok({ token: "tok-zuzyty", used_at: "2026-01-01T00:00:00Z" }),
+        : ok({ token: "tok-zuzyty", used_at: TOKEN_ZUZYTY_AT }),
     );
 
     const res = await post(body());
@@ -545,5 +552,88 @@ describe("kolejkowanie", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true, queued: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Najemca w dzienniku wysyłek
+//
+// Siedem wpisów do `email_send_log` w jednym pliku to dokładnie ta sytuacja,
+// przed którą ostrzega nagłówek bramki zakresu najemcy: „plik, w którym 26
+// zapytań filtruje po najemcy, a 27. nie, wygląda przy przeglądzie jak plik
+// poprawny". Panel wysyłek czyta dziennik w granicach JEDNEGO najemcy, więc
+// nieostemplowany wiersz nie jest gorszy - jest niewidoczny.
+//
+// Klient bazy tej trasy jest NIEOTYPOWANY (`createClient` bez `<Database>`),
+// więc brak klucza `tenant_id` nigdy nie zapali się w kompilacji. Ten blok jest
+// jedyną rzeczą, która trzyma tu linię.
+// ---------------------------------------------------------------------------
+describe("najemca w dzienniku wysyłek", () => {
+  /** Ostatni wpis do logu - każda gałąź porażki zapisuje dokładnie jeden. */
+  function ostatniWpis(): Record<string, unknown> {
+    const inserts = logInserts();
+    expect(inserts.length).toBeGreaterThan(0);
+    return inserts[inserts.length - 1];
+  }
+
+  it("wiersz 'suppressed' niesie najemcę z bramki", async () => {
+    h.checkSendAllowed.mockResolvedValue({
+      allowed: false,
+      hit: { reason: "complaint", scope: "permanent" },
+      tenantId: "tenant-1",
+    });
+
+    await post(body());
+
+    expect(ostatniWpis()).toMatchObject({ status: "suppressed", tenant_id: "tenant-1" });
+  });
+
+  it.each([
+    ["awaria odczytu tokenu", () => db.setResponse(TOKENS, fail("token lookup exploded"))],
+    [
+      "awaria zapisu nowego tokenu",
+      () =>
+        db.setResponse(TOKENS, (chain) => (chain.has("upsert") ? fail("upsert failed") : ok(null))),
+    ],
+    ["nieudany odczyt po zapisie", () => db.setResponse(TOKENS, ok(null))],
+    [
+      "awaria rotacji zużytego tokenu",
+      () =>
+        db.setResponse(TOKENS, (chain) =>
+          chain.has("update")
+            ? fail("rotate failed")
+            : ok({ token: "tok-zuzyty", used_at: TOKEN_ZUZYTY_AT }),
+        ),
+    ],
+  ])("wiersz 'failed' po gałęzi %s niesie najemcę", async (_nazwa, ustaw) => {
+    ustaw();
+
+    const res = await post(body());
+
+    expect(res.status).toBe(500);
+    expect(ostatniWpis()).toMatchObject({ status: "failed", tenant_id: "tenant-1" });
+  });
+
+  it("wiersze 'pending' i 'failed' po odmowie kolejki niosą ten sam najemca", async () => {
+    h.rpc.mockResolvedValue({ error: { message: "queue full" } });
+
+    await post(body());
+
+    const inserts = logInserts();
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]).toMatchObject({ status: "pending", tenant_id: "tenant-1" });
+    expect(inserts[1]).toMatchObject({ status: "failed", tenant_id: "tenant-1" });
+  });
+
+  it("nierozstrzygnięty najemca nie zatrzymuje wysyłki - rozstrzyga trigger bazy", async () => {
+    // Bramka fail-open oddaje `tenantId: null`, gdy adresu nie da się przypisać.
+    // Mail ma wyjść mimo to; najemcę dopina wtedy
+    // `trg_email_send_log_bind_tenant` z adresu odbiorcy.
+    h.checkSendAllowed.mockResolvedValue({ allowed: true, hit: null, tenantId: null });
+
+    const res = await post(body());
+
+    expect(res.status).toBe(200);
+    expect(ostatniWpis()).toHaveProperty("tenant_id", null);
   });
 });

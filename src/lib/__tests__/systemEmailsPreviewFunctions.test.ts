@@ -49,12 +49,30 @@ function middlewareNames(fn: unknown): string[] {
   return (serverFnMeta(fn)?.middleware ?? []).map((m) => (m as { name?: string }).name ?? "");
 }
 
+const TENANT = "11111111-1111-4111-8111-111111111111";
+
+/**
+ * Klient użytkownika z kontekstu middleware - stąd i TYLKO stąd bierze się
+ * najemca wywołującego. `tenant_id` czytane z `profiles` pod RLS: warstwa danych
+ * sięga do `email_send_log` klientem serwisowym, więc granicę stawia wyłącznie
+ * filtr, a filtr musi pochodzić z ŻĄDANIA, nie z zapytania.
+ */
+function supabaseWithTenant(tenantId: string | null): unknown {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: { tenant_id: tenantId } }) }),
+      }),
+    }),
+  };
+}
+
 beforeEach(() => {
   h.fetchReport.mockReset();
   h.renderPreviews.mockReset();
   h.fetchReport.mockResolvedValue({ rows: [], total: 0, byDay: [] });
   h.renderPreviews.mockResolvedValue([]);
-  setServerFnContext({ supabase: null });
+  setServerFnContext({ supabase: supabaseWithTenant(TENANT), userId: "admin-1" });
 });
 
 describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
@@ -66,6 +84,7 @@ describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
 
     expect(h.fetchReport).toHaveBeenCalledTimes(1);
     expect(h.fetchReport).toHaveBeenCalledWith({
+      tenantId: TENANT,
       days: 7,
       template: null,
       status: null,
@@ -88,6 +107,7 @@ describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
     });
 
     expect(h.fetchReport).toHaveBeenCalledWith({
+      tenantId: TENANT,
       days: 30,
       template: "payment_failed",
       status: "dlq",
@@ -134,6 +154,26 @@ describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
 
     await expect(getSystemEmailReport()).resolves.toBe(raport);
     expect(h.fetchReport).toHaveBeenCalledTimes(1);
+  });
+
+  it("przypina raport do najemcy WYWOŁUJĄCEGO, nie do parametru żądania", async () => {
+    // ROLA NIE JEST GRANICĄ DANYCH. Warstwa niżej czyta `email_send_log`
+    // klientem serwisowym, czyli z pominięciem RLS, więc po bramce roli nie
+    // zostaje żadna zapora poza tym filtrem. Najemca MUSI pochodzić z profilu
+    // wywołującego - gdyby dało się go podać w `data`, administrator serwisu A
+    // zamówiłby adresy odbiorców serwisu B jednym parametrem.
+    await getSystemEmailReport({ data: { tenantId: "99999999-9999-4999-8999-999999999999" } });
+
+    expect(h.fetchReport).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT }));
+  });
+
+  it("brak najemcy w profilu to ODMOWA, nie raport bez filtru", async () => {
+    // Fail-closed. Cichy raport „wszystkich najemców" wygląda w panelu
+    // identycznie jak poprawny, a to właśnie ten defekt.
+    setServerFnContext({ supabase: supabaseWithTenant(null), userId: "admin-1" });
+
+    await expect(getSystemEmailReport()).rejects.toBeTruthy();
+    expect(h.fetchReport).not.toHaveBeenCalled();
   });
 
   it("wymaga ADMINA, nie samego zalogowania - raport pokazuje adresy odbiorców", () => {

@@ -111,7 +111,10 @@ function serviceClient(): SupabaseClient<Database> | null {
  *
  * Pominięcie ZAWSZE zostawia ślad w `email_send_log` ze statusem 'suppressed' -
  * cisza w skrzynce odbiorcy musi być widoczna w panelu, inaczej nie da się
- * odróżnić „nie wysłaliśmy świadomie" od „potok się zepsuł".
+ * odróżnić „nie wysłaliśmy świadomie" od „potok się zepsuł". Ślad niesie też
+ * NAJEMCĘ (`gate.tenantId`): panel wysyłek czyta dziennik w granicach jednego
+ * najemcy, więc wiersz bez stempla jest niewidoczny dokładnie dla tego
+ * operatora, który ma nim wytłumaczyć ciszę w skrzynce.
  */
 async function suppressionGate(
   supabase: SupabaseClient<Database>,
@@ -144,6 +147,14 @@ async function suppressionGate(
     recipient_email: args.to,
     status: "suppressed",
     error_message: reason,
+    // `?? undefined`, nie `?? null` - i to jest w tym pliku load-bearing.
+    // Kolumna jest NOT NULL z triggerem BEFORE INSERT, który dopina najemcę
+    // z adresu; trigger łapie też jawny NULL, ale POMINIĘTY klucz jest jedyną
+    // formą, przy której PostgREST nie wysyła `null` do kolumny, dla której
+    // nadawca nie ma odpowiedzi. Zamiana na `null` nic by nie zepsuła dziś,
+    // ale zamiana na pominięcie triggera - tak: mail już poszedł, a INSERT
+    // padłby na ograniczeniu.
+    tenant_id: gate.tenantId ?? undefined,
   });
   return { allowed: false, reason, tenantId: gate.tenantId };
 }
@@ -165,6 +176,13 @@ async function suppressionGate(
  * Zapytanie zwraca listę z LIMIT 1, a nie `maybeSingle()`: log ma z natury
  * WIELE wierszy na `message_id` (pending -> sent, kolejne próby), a
  * `maybeSingle()` traktuje to jako błąd i po cichu degraduje do „nie ma".
+ *
+ * BEZ FILTRU NAJEMCY - ŚWIADOMIE. `message_id` jest deterministycznym UUID-em
+ * z SHA-256 klucza idempotencji, więc globalnie unikatowym; to sprawdzenie jest
+ * wewnętrzne dla nadawcy i nie oddaje człowiekowi żadnej treści. Dopisanie
+ * predykatu po najemcy dałoby chwilowemu rozjazdowi rozstrzygnięcia tenanta moc
+ * obejścia zabezpieczenia przed podwójną wysyłką (a stoi za nim unikalny indeks
+ * `idx_email_send_log_message_sent_unique`) - czyli byłoby ściśle gorsze.
  */
 async function alreadyHandled(
   supabase: SupabaseClient<Database>,
@@ -276,6 +294,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       template_name: input.type,
       recipient_email: to,
       status: "pending",
+      tenant_id: gate.tenantId ?? undefined,
     });
 
     const { error } = await supabase.rpc("enqueue_email", {
@@ -312,6 +331,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
         recipient_email: to,
         status: "failed",
         error_message: error.message,
+        tenant_id: gate.tenantId ?? undefined,
       });
       return { ok: false, error: error.message };
     }
@@ -386,6 +406,7 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
       template_name: input.label,
       recipient_email: to,
       status: "pending",
+      tenant_id: gate.tenantId ?? undefined,
     });
 
     const { error } = await supabase.rpc("enqueue_email", {
@@ -420,6 +441,7 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
         recipient_email: to,
         status: "failed",
         error_message: error.message,
+        tenant_id: gate.tenantId ?? undefined,
       });
       return { ok: false, error: error.message };
     }
