@@ -7590,6 +7590,16 @@ Wydanie 11 nie jest wyłącznie pomiarem - trzy rzeczy zostały naprawione w tra
    wpięta; liczba testów e2e to 108, nie 80) - oba wyszły z pracy agentów weryfikujących i oba
    zostały zapisane, zamiast po cichu poprawione.
 
+4. **Pięć błędów własnych narzędzi pomiarowych, złapanych przed publikacją** (rozdz. 15.14 i errata
+   artefaktu): matcher progów wołany przez `Array.filter` zwracał obiekt zamiast wartości logicznej
+   i dawał „100% plików pod progiem"; skan sierot nie rozpoznawał importów ubocznych i produkował
+   72 fałszywe alarmy; kontrola cytowań szukała dowodu tylko w jednym pliku i odrzuciła 51 ze 128 zgłoszeń,
+   w tym prawdziwe; kolumna „Trasy" sumowała się do 392 przy nagłówku 379; licznik wierszy doliczał
+   pusty ogon po ostatnim znaku nowej linii.
+5. **Jeden błąd własny sprostowany PO publikacji**: twierdzenie o sześciu nieegzekwowanych modułach
+   bramek - w rzeczywistości dwa, bo cztery są egzekwowane testami `*.gate.test.ts`, czyli mechanizmem,
+   który ten dokument sam opisuje jako bramkę.
+
 ### 15.14. Domknięcie wydania 11: co wyszło z dokończenia pracy agentów
 
 Praca agentów mapujących i mierzących przerwała się na limicie sesji. Dokończyłem ją ręcznie
@@ -7611,17 +7621,26 @@ go jako `returnState` i zwraca wtedy **obiekt** zamiast wartości logicznej. Obi
 więc wynik brzmiał „każdy próg obejmuje wszystkie 3 424 pliki, pokrycie progami 100%". Jedno wywołanie
 w postaci `filter((f) => dopasuj(f))` przywraca 63,2%.
 
-#### 15.14.2. Sześć modułów logiki bramek, których nie uruchamia żadna bramka
+#### 15.14.2. Dwa moduły logiki bramek, których nie uruchamia nic
 
-`src/lib/ci/` ma 40 modułów z regułami, które bramki `check:*` mają egzekwować. **Sześć z nich nie ma
-ani jednego konsumenta poza własnym testem jednostkowym**: `ftsConfigSymmetry` (802 wiersze),
-`serviceRoleTenantScope` (309), `sourceScan` (159), `staticAssetShadowing` (142),
-`profileDomainParity` (123) i `i18nForms` (54). Ich reguły są przetestowane - i nie są egzekwowane:
-żaden skrypt w `scripts/` i żaden plik w `src/` poza `__tests__` nie wymienia ich nazwy.
+`src/lib/ci/` ma 40 modułów z regułami, które bramki mają egzekwować. **Dwa nie mają ani jednego
+konsumenta poza własnym testem jednostkowym**: `ftsConfigSymmetry` (802 wiersze - symetria konfiguracji
+wyszukiwania pełnotekstowego między migracjami a kodem) i `staticAssetShadowing` (142 - czy plik statyczny
+nie przesłania zadeklarowanej trasy). Ich reguły są przetestowane i **nieegzekwowane**: żaden skrypt
+w `scripts/`, żaden workflow i żaden inny plik w `src/` nie wymienia ich nazwy.
 
-To jest gorszy tryb awarii niż brak testu, bo **pokrycie takiego modułu wygląda wzorowo**. Najpoważniejszy
-z szóstki jest `serviceRoleTenantScope`: audytuje, czy kwerendy roli serwisowej filtrują po najemcy -
-czyli dokładnie tę regułę, której złamanie dało w wydaniu 7 uprząż `tenant-isolation-harness`.
+To jest gorszy tryb awarii niż brak testu, bo **pokrycie takiego modułu wygląda wzorowo** - 93% i 98% linii
+przy zerowym wpływie na CI. Liczba w tabeli rośnie, a reguła nie działa.
+
+> **Prostuję tu własne twierdzenie, które zdążyłem opublikować.** Pierwsza wersja tego podrozdziału mówiła
+> o **sześciu** takich modułach. Mój filtr uznawał każdy plik w katalogu `__tests__` za „tylko test" -
+> a w tym repozytorium **część bramek JEST testami**: pliki `*.gate.test.ts` to warstwa, którą sam nazywam
+> w rozdz. 7 „bramką (meta-inwariantem CI)". Cztery z sześciu są egzekwowane dokładnie tak:
+> `serviceRoleTenantScope` przez `src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts`,
+> `profileDomainParity` przez `profileIntentCatalog.gate.test.ts`, a `sourceScan` i `i18nForms` są używane
+> przez osiem testów warstwy wykresów i i18n. Zostają dwa - i to jest wersja, której da się bronić.
+> Lekcja jest ta sama, co w pozycji 6 erraty: **zarzut, który nie broni się po sprawdzeniu, jest gorszy
+> niż brak zarzutu**, bo uczy zespół ignorować audyt.
 
 #### 15.14.3. Warstwa ścieżek użytkownika jest o połowę większa, niż podawałem - i prostuję to drugi raz
 
