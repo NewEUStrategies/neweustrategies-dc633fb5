@@ -8,7 +8,11 @@
 //   - `repairReconcileIssue` idzie tą samą ścieżką co webhook
 //     (`normalizeStripeEvent` -> `claimWebhookEvent` -> `dispatchWebhookEvent`
 //     -> `finishWebhookEvent`) i używa DETERMINISTYCZNEGO klucza dziennika,
-//   - rozjazd nienaprawialny nie może po cichu zapisać czegokolwiek.
+//   - rozjazd nienaprawialny nie może po cichu zapisać czegokolwiek,
+//   - ZAKRES NAJEMCY: oba wejścia (raport i naprawa) biegną spod `service_role`,
+//     czyli z pominięciem RLS, a `reference` przychodzi wprost od klienta -
+//     jedynym zakresem jest filtr w zapytaniu i sprawdzenie przynależności
+//     obiektu pobranego od operatora.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 // --- Atrapa klienta service_role ------------------------------------------
@@ -118,6 +122,10 @@ const GRACE = "2026-08-06T11:45:00.000Z";
 const EVENT_CREATED = Math.floor(Date.UTC(2026, 7, 5, 9, 30, 0) / 1000);
 const EVENT_CREATED_ISO = "2026-08-05T09:30:00.000Z";
 
+/** Najemca wołającego (z bramki `assertAdminWithTenant`) i najemca obcy. */
+const TENANT = "tenant-alfa";
+const FOREIGN_TENANT = "tenant-beta";
+
 const setRows = (table: string, data: unknown, error: { message: string } | null = null) => {
   db.state.results[table] = { data, error };
 };
@@ -132,7 +140,7 @@ const stripeEvent = (id: string, type: string) => ({
   id,
   type,
   created: EVENT_CREATED,
-  data: { object: { id: `obj_${id}` } },
+  data: { object: { id: `obj_${id}`, customer: "cus_1" } },
 });
 
 beforeEach(() => {
@@ -158,6 +166,10 @@ beforeEach(() => {
   hook.finish.mockResolvedValue(undefined);
   hook.normalize.mockReturnValue({ eventType: "transaction.completed", data: { id: "obj_1" } });
   hook.dispatch.mockResolvedValue("processed");
+  // Domyślnie obiekt pobrany od operatora NALEŻY do najemcy wołającego - inaczej
+  // każda naprawa kończyłaby się `skipped` i przypadki ścieżki naprawy nie
+  // dowodziłyby niczego. Brak dopasowania jest osobnym, jawnym przypadkiem.
+  setSingle("subscriptions", { id: "sub-wiersz-najemcy" });
 });
 
 afterEach(() => {
@@ -166,7 +178,7 @@ afterEach(() => {
 
 describe("buildReconcileReport - sonda zdarzeń", () => {
   it("zwraca pusty raport i NICZEGO nie zapisuje, gdy stan lokalny zgadza się z operatorem", async () => {
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report).toEqual({
       environment: "sandbox",
@@ -199,7 +211,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
       { event_id: "evt_skip", status: "skipped" },
     ]);
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues).toEqual([]);
     // `payout.paid` nie jest obsługiwany, więc nie wchodzi nawet do licznika.
@@ -212,7 +224,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
       has_more: false,
     });
 
-    const report = await buildReconcileReport("live", 72);
+    const report = await buildReconcileReport("live", 72, TENANT);
 
     expect(report.issues).toEqual([
       {
@@ -239,7 +251,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
       { event_id: "evt_r", status: "received" },
     ]);
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues.map((i) => [i.reference, i.reason])).toEqual([
       ["evt_f", "event_failed"],
@@ -249,7 +261,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
   });
 
   it("ogranicza okno skanu do przedziału <1h, 30 dni>", async () => {
-    const short = await buildReconcileReport("sandbox", 0);
+    const short = await buildReconcileReport("sandbox", 0, TENANT);
     expect(short.sinceIso).toBe("2026-08-06T11:00:00.000Z");
     expect(stripe.eventsList.mock.calls[0][0]).toMatchObject({
       limit: 100,
@@ -257,7 +269,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
     });
 
     stripe.eventsList.mockClear();
-    const long = await buildReconcileReport("sandbox", 10_000);
+    const long = await buildReconcileReport("sandbox", 10_000, TENANT);
     expect(long.sinceIso).toBe("2026-07-07T12:00:00.000Z");
     expect(stripe.eventsList.mock.calls[0][0]).toMatchObject({
       created: { gte: Math.floor((NOW - 720 * 3600_000) / 1000) },
@@ -269,7 +281,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
       .mockResolvedValueOnce({ data: [stripeEvent("evt_a", "invoice.paid")], has_more: true })
       .mockResolvedValueOnce({ data: [stripeEvent("evt_b", "invoice.paid")], has_more: false });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(stripe.eventsList).toHaveBeenCalledTimes(2);
     expect(stripe.eventsList.mock.calls[1][0]).toMatchObject({ starting_after: "evt_a" });
@@ -283,7 +295,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
       has_more: true,
     });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(stripe.eventsList).toHaveBeenCalledTimes(3);
     expect(report.warnings).toEqual(["events_truncated"]);
@@ -292,7 +304,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
   it("kończy skan bez ostrzeżenia, gdy operator odda pustą stronę mimo has_more", async () => {
     stripe.eventsList.mockResolvedValue({ data: [], has_more: true });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(stripe.eventsList).toHaveBeenCalledTimes(1);
     expect(report.warnings).toEqual([]);
@@ -305,7 +317,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
       has_more: false,
     });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues[0]).toMatchObject({ reference: "evt_1", occurredAt: null });
   });
@@ -319,7 +331,7 @@ describe("buildReconcileReport - sonda zdarzeń", () => {
       has_more: false,
     });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.scannedOrders).toBe(0);
     expect(report.scannedSubscriptions).toBe(0);
@@ -340,7 +352,7 @@ describe("buildReconcileReport - sonda zamówień", () => {
     setRows("payment_orders", [order]);
     stripe.sessionRetrieve.mockResolvedValue({ id: "cs_1", payment_status: "paid" });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(stripe.sessionRetrieve).toHaveBeenCalledWith("cs_1");
     expect(report.issues).toEqual([
@@ -361,9 +373,10 @@ describe("buildReconcileReport - sonda zamówień", () => {
   it("szuka wyłącznie zamówień Stripe z tego środowiska, poza oknem karencji", async () => {
     setRows("payment_orders", []);
 
-    await buildReconcileReport("live", 72);
+    await buildReconcileReport("live", 72, TENANT);
 
     expect(argsOf("payment_orders", "eq")).toEqual([
+      ["tenant_id", TENANT],
       ["environment", "live"],
       ["provider", "stripe"],
     ]);
@@ -379,7 +392,7 @@ describe("buildReconcileReport - sonda zamówień", () => {
     setRows("payment_orders", [order]);
     stripe.sessionRetrieve.mockResolvedValue({ id: "cs_1", payment_status: "unpaid" });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues).toEqual([]);
     expect(report.scannedOrders).toBe(1);
@@ -391,7 +404,7 @@ describe("buildReconcileReport - sonda zamówień", () => {
       .mockRejectedValueOnce(new Error("No such checkout.session: cs_1"))
       .mockRejectedValueOnce("gateway 502");
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues).toEqual([
       {
@@ -421,7 +434,7 @@ describe("buildReconcileReport - sonda zamówień", () => {
   it("wiersz bez identyfikatora sesji jest pomijany, mimo filtra w zapytaniu", async () => {
     setRows("payment_orders", [{ ...order, provider_session_id: null }]);
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(stripe.sessionRetrieve).not.toHaveBeenCalled();
     expect(report.issues).toEqual([]);
@@ -441,7 +454,7 @@ describe("buildReconcileReport - sonda subskrypcji", () => {
     setRows("subscriptions", [sub]);
     stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_1", status: "past_due" });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues).toEqual([
       {
@@ -464,7 +477,7 @@ describe("buildReconcileReport - sonda subskrypcji", () => {
     setRows("subscriptions", [sub]);
     stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_1", status: "active" });
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues).toEqual([]);
     expect(report.scannedSubscriptions).toBe(1);
@@ -476,7 +489,7 @@ describe("buildReconcileReport - sonda subskrypcji", () => {
       .mockRejectedValueOnce(new Error("No such subscription: sub_1"))
       .mockRejectedValueOnce("sieć padła");
 
-    const report = await buildReconcileReport("sandbox", 72);
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
 
     expect(report.issues).toHaveLength(2);
     expect(report.issues[0]).toMatchObject({
@@ -495,28 +508,34 @@ describe("buildReconcileReport - sonda subskrypcji", () => {
 describe("buildReconcileReport - propagacja błędów bazy", () => {
   it("rzuca, gdy dziennik zdarzeń jest nieczytelny", async () => {
     setRows("payment_webhook_events", null, { message: "permission denied" });
-    await expect(buildReconcileReport("sandbox", 72)).rejects.toThrow(
+    await expect(buildReconcileReport("sandbox", 72, TENANT)).rejects.toThrow(
       /dziennika zdarzeń: permission denied/,
     );
   });
 
   it("rzuca, gdy zamówienia są nieczytelne", async () => {
     setRows("payment_orders", null, { message: "timeout" });
-    await expect(buildReconcileReport("sandbox", 72)).rejects.toThrow(/zamówień: timeout/);
+    await expect(buildReconcileReport("sandbox", 72, TENANT)).rejects.toThrow(/zamówień: timeout/);
   });
 
   it("rzuca, gdy subskrypcje są nieczytelne", async () => {
     setRows("subscriptions", null, { message: "rls" });
-    await expect(buildReconcileReport("sandbox", 72)).rejects.toThrow(/subskrypcji: rls/);
+    await expect(buildReconcileReport("sandbox", 72, TENANT)).rejects.toThrow(/subskrypcji: rls/);
   });
 
   it("czyta dziennik i subskrypcje w granicach jednego środowiska", async () => {
-    await buildReconcileReport("live", 72);
+    await buildReconcileReport("live", 72, TENANT);
 
     expect(stripe.envs).toEqual(["live"]);
-    expect(argsOf("payment_webhook_events", "eq")).toEqual([["environment", "live"]]);
+    expect(argsOf("payment_webhook_events", "eq")).toEqual([
+      ["tenant_id", TENANT],
+      ["environment", "live"],
+    ]);
     expect(argsOf("payment_webhook_events", "gte")).toEqual([["created_at", SINCE_72H]]);
-    expect(argsOf("subscriptions", "eq")).toEqual([["environment", "live"]]);
+    expect(argsOf("subscriptions", "eq")).toEqual([
+      ["tenant_id", TENANT],
+      ["environment", "live"],
+    ]);
   });
 });
 
@@ -525,14 +544,14 @@ describe("repairReconcileIssue - zdarzenie", () => {
     id: "evt_1",
     type: "invoice.paid",
     created: EVENT_CREATED,
-    data: { object: { id: "in_1" } },
+    data: { object: { id: "in_1", customer: "cus_1" } },
   };
 
   it("odtwarza zdarzenie tą samą ścieżką co webhook i domyka dziennik", async () => {
     stripe.eventsRetrieve.mockResolvedValue(event);
     hook.normalize.mockReturnValue({ eventType: "transaction.completed", data: { id: "in_1" } });
 
-    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1");
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
 
     expect(stripe.eventsRetrieve).toHaveBeenCalledWith("evt_1");
     expect(hook.normalize).toHaveBeenCalledWith(event);
@@ -563,7 +582,7 @@ describe("repairReconcileIssue - zdarzenie", () => {
     stripe.eventsRetrieve.mockResolvedValue(event);
     hook.dispatch.mockResolvedValue("skipped");
 
-    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1");
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
 
     expect(outcome).toEqual({ reference: "evt_1", status: "skipped", error: null });
     expect(hook.finish.mock.calls[0][1]).toBe("skipped");
@@ -573,7 +592,7 @@ describe("repairReconcileIssue - zdarzenie", () => {
     stripe.eventsRetrieve.mockResolvedValue(event);
     hook.normalize.mockReturnValue(null);
 
-    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1");
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
 
     expect(outcome).toEqual({ reference: "evt_1", status: "skipped", error: null });
     expect(hook.claim).not.toHaveBeenCalled();
@@ -585,7 +604,7 @@ describe("repairReconcileIssue - zdarzenie", () => {
     stripe.eventsRetrieve.mockResolvedValue(event);
     hook.dispatch.mockRejectedValue(new Error("grant failed"));
 
-    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1");
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
 
     expect(outcome).toEqual({ reference: "evt_1", status: "failed", error: "grant failed" });
     expect(hook.finish).toHaveBeenCalledWith(
@@ -602,7 +621,7 @@ describe("repairReconcileIssue - zdarzenie", () => {
     stripe.eventsRetrieve.mockResolvedValue(event);
     hook.dispatch.mockRejectedValue({ code: "23505" });
 
-    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1");
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
 
     expect(outcome).toEqual({
       reference: "evt_1",
@@ -615,7 +634,7 @@ describe("repairReconcileIssue - zdarzenie", () => {
   it("zdarzenie bez znacznika czasu księguje się czasem naprawy", async () => {
     stripe.eventsRetrieve.mockResolvedValue({ ...event, created: undefined });
 
-    await repairReconcileIssue("sandbox", "event", "evt_1");
+    await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
 
     expect(hook.claim.mock.calls[0][0]).toMatchObject({
       occurredAt: new Date(NOW).toISOString(),
@@ -625,7 +644,7 @@ describe("repairReconcileIssue - zdarzenie", () => {
   it("błąd pobrania zdarzenia od operatora propaguje się do wołającego", async () => {
     stripe.eventsRetrieve.mockRejectedValue(new Error("No such event: evt_x"));
 
-    await expect(repairReconcileIssue("sandbox", "event", "evt_x")).rejects.toThrow(
+    await expect(repairReconcileIssue("sandbox", "event", "evt_x", TENANT)).rejects.toThrow(
       /No such event: evt_x/,
     );
     expect(hook.claim).not.toHaveBeenCalled();
@@ -641,7 +660,7 @@ describe("repairReconcileIssue - zamówienie", () => {
     setSingle("payment_orders", orderRow);
     stripe.sessionRetrieve.mockResolvedValue(session);
 
-    const outcome = await repairReconcileIssue("sandbox", "order", "ord_1");
+    const outcome = await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
 
     expect(hook.normalize).toHaveBeenCalledWith({
       id: "reconcile_cs_1",
@@ -657,11 +676,12 @@ describe("repairReconcileIssue - zamówienie", () => {
   it("zamówienie czytane jest tylko z własnego środowiska", async () => {
     setSingle("payment_orders", null);
 
-    await repairReconcileIssue("live", "order", "ord_1");
+    await repairReconcileIssue("live", "order", "ord_1", TENANT);
 
     expect(stripe.envs).toEqual(["live"]);
     expect(argsOf("payment_orders", "eq")).toEqual([
       ["id", "ord_1"],
+      ["tenant_id", TENANT],
       ["environment", "live"],
     ]);
   });
@@ -670,7 +690,7 @@ describe("repairReconcileIssue - zamówienie", () => {
     setSingle("payment_orders", orderRow);
     stripe.sessionRetrieve.mockResolvedValue({ ...session, payment_status: "unpaid" });
 
-    await repairReconcileIssue("sandbox", "order", "ord_1");
+    await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
 
     expect(hook.normalize.mock.calls[0][0]).toMatchObject({
       type: "checkout.session.async_payment_failed",
@@ -680,7 +700,7 @@ describe("repairReconcileIssue - zamówienie", () => {
   it("brak zamówienia kończy się 'skipped' bez dotykania operatora", async () => {
     setSingle("payment_orders", null);
 
-    const outcome = await repairReconcileIssue("sandbox", "order", "ord_nieznane");
+    const outcome = await repairReconcileIssue("sandbox", "order", "ord_nieznane", TENANT);
 
     expect(outcome).toEqual({ reference: "ord_nieznane", status: "skipped", error: null });
     expect(stripe.sessionRetrieve).not.toHaveBeenCalled();
@@ -691,7 +711,7 @@ describe("repairReconcileIssue - zamówienie", () => {
   it("zamówienie bez sesji operatora kończy się 'skipped'", async () => {
     setSingle("payment_orders", { ...orderRow, provider_session_id: null });
 
-    const outcome = await repairReconcileIssue("sandbox", "order", "ord_1");
+    const outcome = await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
 
     expect(outcome).toEqual({ reference: "ord_1", status: "skipped", error: null });
     expect(stripe.sessionRetrieve).not.toHaveBeenCalled();
@@ -701,7 +721,7 @@ describe("repairReconcileIssue - zamówienie", () => {
   it("błąd odczytu zamówienia propaguje się i nic nie zostaje odtworzone", async () => {
     setSingle("payment_orders", null, { message: "connection reset" });
 
-    await expect(repairReconcileIssue("sandbox", "order", "ord_1")).rejects.toThrow(
+    await expect(repairReconcileIssue("sandbox", "order", "ord_1", TENANT)).rejects.toThrow(
       /nie udało się odczytać zamówienia: connection reset/,
     );
     expect(hook.claim).not.toHaveBeenCalled();
@@ -715,7 +735,7 @@ describe("repairReconcileIssue - zamówienie", () => {
     setSingle("payment_orders", orderRow);
     stripe.sessionRetrieve.mockRejectedValue(new Error("No such checkout.session: cs_1"));
 
-    await expect(repairReconcileIssue("sandbox", "order", "ord_1")).rejects.toThrow(
+    await expect(repairReconcileIssue("sandbox", "order", "ord_1", TENANT)).rejects.toThrow(
       /No such checkout.session/,
     );
     expect(hook.claim).not.toHaveBeenCalled();
@@ -728,7 +748,7 @@ describe("repairReconcileIssue - subskrypcja", () => {
   it("buduje syntetyczne customer.subscription.updated ze stanem od operatora", async () => {
     stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_1", status: "past_due" });
 
-    const outcome = await repairReconcileIssue("sandbox", "subscription", "sub_1");
+    const outcome = await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
 
     expect(stripe.subscriptionRetrieve).toHaveBeenCalledWith("sub_1");
     expect(hook.normalize).toHaveBeenCalledWith({
@@ -745,7 +765,7 @@ describe("repairReconcileIssue - subskrypcja", () => {
   it("rozjazd NIENAPRAWIALNY (subskrypcja nieczytelna) przerywa naprawę bez zapisu", async () => {
     stripe.subscriptionRetrieve.mockRejectedValue(new Error("No such subscription: sub_x"));
 
-    await expect(repairReconcileIssue("sandbox", "subscription", "sub_x")).rejects.toThrow(
+    await expect(repairReconcileIssue("sandbox", "subscription", "sub_x", TENANT)).rejects.toThrow(
       /No such subscription/,
     );
     expect(hook.claim).not.toHaveBeenCalled();
@@ -765,16 +785,16 @@ describe("repairReconcileIssue - idempotencja", () => {
       id: "evt_1",
       type: "invoice.paid",
       created: EVENT_CREATED,
-      data: { object: { id: "in_1" } },
+      data: { object: { id: "in_1", customer: "cus_1" } },
     });
     stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_1", status: "active" });
 
-    await repairReconcileIssue("sandbox", "order", "ord_1");
-    await repairReconcileIssue("sandbox", "order", "ord_1");
-    await repairReconcileIssue("sandbox", "event", "evt_1");
-    await repairReconcileIssue("sandbox", "event", "evt_1");
-    await repairReconcileIssue("sandbox", "subscription", "sub_1");
-    await repairReconcileIssue("sandbox", "subscription", "sub_1");
+    await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
+    await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
+    await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
+    await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
+    await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
+    await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
 
     const keys = hook.claim.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
     expect(keys).toEqual([
@@ -797,12 +817,12 @@ describe("repairReconcileIssue - idempotencja", () => {
       id: "evt_1",
       type: "invoice.paid",
       created: EVENT_CREATED,
-      data: { object: { id: "in_1" } },
+      data: { object: { id: "in_1", customer: "cus_1" } },
     });
     hook.claim.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
-    const first = await repairReconcileIssue("sandbox", "event", "evt_1");
-    const second = await repairReconcileIssue("sandbox", "event", "evt_1");
+    const first = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
+    const second = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
 
     expect(first.status).toBe("processed");
     expect(second.status).toBe("skipped");
@@ -810,5 +830,113 @@ describe("repairReconcileIssue - idempotencja", () => {
     // Druga próba nie dotyka ani dyspozytora, ani domknięcia wpisu.
     expect(hook.dispatch).toHaveBeenCalledTimes(1);
     expect(hook.finish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("izolacja najemcy w uzgadnianiu", () => {
+  // DEFEKT NAPRAWIONY (kod produkcyjny).
+  //
+  // CO BYŁO ZŁE. Oba wejścia stały na `assertAdmin`, czyli na samej ROLI, a
+  // wszystkie zapytania szły klientem `service_role`, który OMIJA RLS.
+  // `buildReconcileReport` filtrował wyłącznie po środowisku i oknie czasu,
+  // a `repairReconcileIssue` brał `reference` wprost od klienta
+  // (`z.string().max(255)`) i - dla `kind: "event"` oraz `kind: "subscription"`
+  // - pobierał obiekt WPROST ZE STRIPE'A, bez sprawdzenia, czyj on jest.
+  //
+  // JAKIE TO BYŁO RYZYKO. Raport rozbieżności jednego obszaru roboczego
+  // wypisywał `event_id`, identyfikatory zamówień i subskrypcji pozostałych -
+  // każdy z gotowym przyciskiem „Napraw". Kliknięcie przepuszczało cudze
+  // rozliczenie przez `dispatchWebhookEvent`, czyli pełen zestaw skutków
+  // (uprawnienia, miejsca, zwroty, dokumenty, poczta). Wektor był SZERSZY niż
+  // w ponowieniu z dziennika: nie trzeba było znać UUID wiersza u nas,
+  // wystarczył identyfikator Stripe'a.
+  //
+  // JAK NAPRAWIONE. Najemca jest wymaganym parametrem obu funkcji i pochodzi
+  // z bramki `assertAdminWithTenant` (tożsamość wołającego). Zapytania raportu
+  // filtrują po `tenant_id`, a naprawa rozstrzyga przynależność obiektu po
+  // NASZYCH tabelach najemcowych; brak dopasowania to `skipped` o kształcie
+  // nieodróżnialnym od braku danych.
+  const tenantFilters = (table: string) =>
+    db.state.calls
+      .filter((c) => c.table === table && c.method === "eq" && c.args[0] === "tenant_id")
+      .map((c) => c.args[1]);
+
+  it("raport filtruje po najemcy w KAŻDEJ z trzech sond", async () => {
+    // Asercja stoi na kontrakcie ZAPYTANIA, bo moduł nie wybiera kolumny
+    // `tenant_id` - po samym wyniku nie da się odróżnić najemców.
+    await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(tenantFilters("payment_webhook_events")).toEqual([TENANT]);
+    expect(tenantFilters("payment_orders")).toEqual([TENANT]);
+    expect(tenantFilters("subscriptions")).toEqual([TENANT]);
+  });
+
+  it("naprawa ZAMÓWIENIA nie widzi wiersza obcego najemcy", async () => {
+    // Zapytanie z filtrem najemcy nie odda cudzego zamówienia, więc ścieżka
+    // kończy się tak samo jak przy literówce w identyfikatorze: `skipped`,
+    // bez dotykania operatora. Osobny komunikat potwierdzałby istnienie
+    // zamówienia o podanym identyfikatorze.
+    setSingle("payment_orders", null);
+
+    const outcome = await repairReconcileIssue("sandbox", "order", "ord_obcy", TENANT);
+
+    expect(outcome).toEqual({ reference: "ord_obcy", status: "skipped", error: null });
+    expect(tenantFilters("payment_orders")).toEqual([TENANT]);
+    expect(stripe.sessionRetrieve).not.toHaveBeenCalled();
+    expect(hook.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("naprawa ZDARZENIA obcego obiektu nie dociera do dyspozytora", async () => {
+    // Obiekt jest pobierany ze Stripe'a po identyfikatorze OD KLIENTA, więc
+    // przynależność rozstrzygamy po naszych tabelach. Żadnego dopasowania =
+    // żadnego odtworzenia: bez tego wystarczyło znać `evt_...` cudzego obszaru.
+    stripe.eventsRetrieve.mockResolvedValue({
+      id: "evt_obcy",
+      type: "invoice.paid",
+      created: EVENT_CREATED,
+      data: { object: { id: "in_obcy", customer: "cus_obcy" } },
+    });
+    setSingle("subscriptions", null);
+    setSingle("payment_orders", null);
+
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_obcy", TENANT);
+
+    expect(outcome).toEqual({ reference: "evt_obcy", status: "skipped", error: null });
+    expect(hook.claim).not.toHaveBeenCalled();
+    expect(hook.dispatch).not.toHaveBeenCalled();
+    expect(hook.finish).not.toHaveBeenCalled();
+  });
+
+  it("naprawa SUBSKRYPCJI obcego obiektu też kończy się `skipped`", async () => {
+    stripe.subscriptionRetrieve.mockResolvedValue({
+      id: "sub_obcy",
+      status: "past_due",
+      customer: "cus_obcy",
+    });
+    setSingle("subscriptions", null);
+    setSingle("payment_orders", null);
+
+    const outcome = await repairReconcileIssue("sandbox", "subscription", "sub_obcy", TENANT);
+
+    expect(outcome).toEqual({ reference: "sub_obcy", status: "skipped", error: null });
+    expect(hook.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("sonda przynależności pyta o NAJEMCĘ WOŁAJĄCEGO, a nie o dowolnego", async () => {
+    // Gdyby sonda nie filtrowała po najemcy, dopasowałaby dowolny wiersz w
+    // bazie i „potwierdziła" cudzą własność - czyli nie sprawdzałaby niczego.
+    stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_1", status: "active" });
+
+    await repairReconcileIssue("sandbox", "subscription", "sub_1", FOREIGN_TENANT);
+
+    expect(tenantFilters("subscriptions")).toEqual([FOREIGN_TENANT]);
+    expect(
+      db.state.calls.filter(
+        (c) =>
+          c.table === "subscriptions" &&
+          c.method === "eq" &&
+          c.args[0] === "provider_subscription_id",
+      ),
+    ).toHaveLength(1);
   });
 });

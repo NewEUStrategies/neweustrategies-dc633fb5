@@ -10,7 +10,14 @@
 //  - podpis nie jest tu weryfikowany, bo ładunek pochodzi z naszej bazy, a nie
 //    z sieci - dlatego funkcja nigdy nie przyjmuje ładunku od klienta, tylko
 //    identyfikator wiersza,
-//  - obsługa jest idempotentna, więc powtórka nie dubluje maili ani uprawnień.
+//  - obsługa jest idempotentna, więc powtórka nie dubluje maili ani uprawnień,
+//  - zakres NAJEMCY: bramka `assertAdminWithTenant` oddaje najemcę wołającego,
+//    a oba zapytania (odczyt i zapis) filtrują po `tenant_id`. Klient
+//    `service_role` omija RLS, więc polityka "payment_webhook_events admin
+//    read" (tenant + super_admin) na tej ścieżce NIE DZIAŁA - jedynym zakresem
+//    jest filtr w zapytaniu. Bez niego admin jednego obszaru roboczego czytał
+//    surowy ładunek Stripe'a (e-mail, adres, kwoty) i ODTWARZAŁ zdarzenie
+//    rozliczeniowe cudzego obszaru.
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -60,14 +67,15 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }): Promise<WebhookRetryResult> => {
-    const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { assertAdminWithTenant } = await import("@/lib/billing/diagnostics.server");
+    const { tenantId } = await assertAdminWithTenant(context.supabase, context.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("payment_webhook_events")
       .select("id, event_id, event_type, environment, occurred_at, payload, retry_count")
       .eq("id", data.id)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error) throw new Error(`nie udało się odczytać zdarzenia: ${error.message}`);
     if (!row) throw new Error("Zdarzenie nie istnieje.");
@@ -132,7 +140,11 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
         last_retried_at: new Date().toISOString(),
         retried_by: context.userId,
       })
-      .eq("id", row.id);
+      // Filtr najemcy na ZAPISIE jest osobnym wymogiem, nie powtórzeniem
+      // odczytu: gdyby kiedyś rozdzielono te dwa zapytania, sam filtr na
+      // odczycie przestałby chronić stempel `retried_by` w cudzym wierszu.
+      .eq("id", row.id)
+      .eq("tenant_id", tenantId);
 
     return {
       id: row.id,
@@ -149,8 +161,8 @@ export const readWebhookEventPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { assertAdminWithTenant } = await import("@/lib/billing/diagnostics.server");
+    const { tenantId } = await assertAdminWithTenant(context.supabase, context.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
@@ -159,7 +171,10 @@ export const readWebhookEventPayload = createServerFn({ method: "POST" })
         "id, event_id, event_type, environment, status, error, occurred_at, processed_at, duration_ms, retry_count, last_retried_at, payload",
       )
       .eq("id", data.id)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
+    // Wiersz cudzego najemcy ma być NIEODRÓŻNIALNY od nieistniejącego: osobny
+    // komunikat potwierdzałby istnienie zdarzenia o podanym identyfikatorze.
     if (!row) throw new Error("Zdarzenie nie istnieje.");
     return row;
   });

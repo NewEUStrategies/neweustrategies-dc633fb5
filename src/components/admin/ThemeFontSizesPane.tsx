@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { NumberInput } from "@/components/admin/builder/ui/atoms";
+import { hardenStyleCss } from "@/lib/sanitizePure";
 import {
   useFontSizes,
   useSaveFontSizes,
@@ -68,9 +69,15 @@ export function ThemeFontSizesPane() {
   // renders after <ThemeFontSizesStyle /> in the DOM, so same-specificity
   // cascade wins and takes precedence until the pane unmounts or the draft
   // is saved.
+  // `hardenStyleCss` zrównuje politykę z bliźniaczym ThemeFontSizesStyle.tsx:13-15,
+  // który renderuje TE SAME dane: dwa sinki na jednych danych nie mogą mieć
+  // dwóch różnych polityk, bo pierwsze poluzowanie schematu (np. dodanie
+  // `fontFamily: z.string()`) otwiera przypadek z sanitizePure.ts:189-193.
   const previewCss = useMemo(
     () =>
-      `${fontSizesToCss(draft)}\n.post-content.post-content p,.blocks-content.blocks-content p,.single-post-content.single-post-content p{margin-bottom:${paragraphSpacing}rem;}[data-builder-renderer]{--cms-paragraph-spacing:${paragraphSpacing}rem;}`,
+      hardenStyleCss(
+        `${fontSizesToCss(draft)}\n.post-content.post-content p,.blocks-content.blocks-content p,.single-post-content.single-post-content p{margin-bottom:${paragraphSpacing}rem;}[data-builder-renderer]{--cms-paragraph-spacing:${paragraphSpacing}rem;}`,
+      ),
     [draft, paragraphSpacing],
   );
 

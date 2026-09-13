@@ -102,10 +102,18 @@ async function listStripeEvents(
 /**
  * Buduje raport rozbieżności. Operacja wyłącznie odczytowa - niczego nie
  * zmienia ani u Stripe, ani w bazie.
+ *
+ * `tenantId` jest parametrem WYMAGANYM i pochodzi z bramki
+ * `assertAdminWithTenant` (tożsamość wołającego), nigdy z ładunku klienta ani
+ * z hosta żądania. Wszystkie trzy sondy czytają spod `service_role`, czyli
+ * z pominięciem RLS - bez jawnego filtra raport rozbieżności jednego obszaru
+ * roboczego wypisywał `event_id`, identyfikatory zamówień i subskrypcji
+ * pozostałych, a każda taka pozycja niosła gotowy przycisk „Napraw".
  */
 export async function buildReconcileReport(
   environment: StripeEnv,
   sinceHours: number,
+  tenantId: string,
 ): Promise<ReconcileReport> {
   const hours = Math.min(Math.max(Math.round(sinceHours), 1), 24 * 30);
   const sinceMs = Date.now() - hours * 3600_000;
@@ -125,6 +133,7 @@ export async function buildReconcileReport(
   const { data: loggedRows, error: logErr } = await supabase
     .from("payment_webhook_events")
     .select("event_id, status")
+    .eq("tenant_id", tenantId)
     .eq("environment", environment)
     .gte("created_at", sinceIso);
   if (logErr) throw new Error(`nie udało się odczytać dziennika zdarzeń: ${logErr.message}`);
@@ -151,6 +160,7 @@ export async function buildReconcileReport(
   const { data: orders, error: orderErr } = await supabase
     .from("payment_orders")
     .select("id, status, provider_session_id, created_at")
+    .eq("tenant_id", tenantId)
     .eq("environment", environment)
     .eq("provider", "stripe")
     .in("status", ["pending", "processing"])
@@ -194,6 +204,7 @@ export async function buildReconcileReport(
   const { data: subs, error: subErr } = await supabase
     .from("subscriptions")
     .select("provider_subscription_id, status, updated_at")
+    .eq("tenant_id", tenantId)
     .eq("environment", environment)
     .not("status", "in", "(canceled)")
     .order("updated_at", { ascending: false })
@@ -299,16 +310,122 @@ async function replayEvent(
   }
 }
 
-/** Naprawia pojedynczą rozbieżność z raportu. */
+/** Identyfikatory operatora, po których da się rozstrzygnąć przynależność. */
+interface TenantRefs {
+  sessionId?: string | null;
+  subscriptionId?: string | null;
+  customerId?: string | null;
+}
+
+/** Wyciąga identyfikatory wiążące z obiektu zdarzenia przysłanego przez Stripe. */
+function refsOfStripeObject(object: Record<string, unknown>): TenantRefs {
+  const id = typeof object.id === "string" ? object.id : null;
+  const kind = typeof object.object === "string" ? object.object : null;
+  return {
+    sessionId: kind === "checkout.session" ? id : null,
+    subscriptionId:
+      typeof object.subscription === "string"
+        ? object.subscription
+        : kind === "subscription"
+          ? id
+          : null,
+    customerId: typeof object.customer === "string" ? object.customer : null,
+  };
+}
+
+/**
+ * Czy obiekt POBRANY OD OPERATORA należy do obszaru roboczego wołającego?
+ *
+ * Dla `kind: "event"` i `kind: "subscription"` identyfikator przychodzi wprost
+ * od klienta (`reconcile.functions.ts`, `z.string().max(255)`), a obiekt jest
+ * pobierany ze Stripe'a - czyli poza naszą bazą i poza RLS. Bez tego sprawdzenia
+ * admin jednego obszaru odtwarzał przez `dispatchWebhookEvent` cudze rozliczenie
+ * (uprawnienia, miejsca, zwroty, dokumenty, poczta), znając sam identyfikator
+ * Stripe'a - wektor SZERSZY niż ponowienie z dziennika, bo nie wymagał znajomości
+ * UUID wiersza u nas.
+ *
+ * Przynależność czytamy z NASZYCH tabel najemcowych (`payment_orders`,
+ * `subscriptions`), bo tylko one niosą `tenant_id`. Brak dopasowania to ODMOWA
+ * (fail-closed) o kształcie nieodróżnialnym od braku danych.
+ */
+async function belongsToTenant(
+  environment: StripeEnv,
+  tenantId: string,
+  refs: TenantRefs,
+): Promise<boolean> {
+  const supabase = await admin();
+
+  if (refs.sessionId) {
+    const { data } = await supabase
+      .from("payment_orders")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("environment", environment)
+      .eq("provider_session_id", refs.sessionId)
+      .limit(1)
+      .maybeSingle();
+    if (data) return true;
+  }
+
+  if (refs.subscriptionId) {
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("environment", environment)
+      .eq("provider_subscription_id", refs.subscriptionId)
+      .limit(1)
+      .maybeSingle();
+    if (data) return true;
+  }
+
+  if (refs.customerId) {
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("environment", environment)
+      .eq("provider_customer_id", refs.customerId)
+      .limit(1)
+      .maybeSingle();
+    if (sub) return true;
+
+    const { data: order } = await supabase
+      .from("payment_orders")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("environment", environment)
+      .eq("provider_customer_id", refs.customerId)
+      .limit(1)
+      .maybeSingle();
+    if (order) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Naprawia pojedynczą rozbieżność z raportu.
+ *
+ * `tenantId` jest parametrem WYMAGANYM - pochodzi z bramki
+ * `assertAdminWithTenant`, nigdy z ładunku klienta.
+ */
 export async function repairReconcileIssue(
   environment: StripeEnv,
   kind: ReconcileKind,
   reference: string,
+  tenantId: string,
 ): Promise<RepairOutcome> {
   const stripe = createStripeClient(environment);
 
   if (kind === "event") {
     const event = (await stripe.events.retrieve(reference)) as unknown as VerifiedWebhookEvent;
+    const object = event?.data?.object;
+    const owned =
+      object && typeof object === "object"
+        ? await belongsToTenant(environment, tenantId, refsOfStripeObject(object))
+        : false;
+    if (!owned) return { reference, status: "skipped", error: null };
     return replayEvent(event, environment, reference);
   }
 
@@ -318,6 +435,9 @@ export async function repairReconcileIssue(
       .from("payment_orders")
       .select("id, provider_session_id, environment")
       .eq("id", reference)
+      // Zamówienie cudzego obszaru ma wyjść jako „brak danych", a nie jako
+      // odmowa - inaczej sam komunikat potwierdzałby istnienie zamówienia.
+      .eq("tenant_id", tenantId)
       .eq("environment", environment)
       .maybeSingle();
     if (error) throw new Error(`nie udało się odczytać zamówienia: ${error.message}`);
@@ -339,6 +459,11 @@ export async function repairReconcileIssue(
   }
 
   const subscription = await stripe.subscriptions.retrieve(reference);
+  const ownsSubscription = await belongsToTenant(environment, tenantId, {
+    subscriptionId: reference,
+    customerId: typeof subscription.customer === "string" ? subscription.customer : null,
+  });
+  if (!ownsSubscription) return { reference, status: "skipped", error: null };
   const synthetic: VerifiedWebhookEvent = {
     id: `reconcile_${subscription.id}_${subscription.status}`,
     type: "customer.subscription.updated",

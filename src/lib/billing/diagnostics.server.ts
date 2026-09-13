@@ -87,6 +87,37 @@ export async function assertAdmin(
   if (data !== true) throw new Error("forbidden");
 }
 
+/**
+ * Bramka roli, ktora ODDAJE najemce wolajacego.
+ *
+ * `assertAdmin` zwraca `void`, wiec handler musial pamietac o zakresie
+ * z wlasnej glowy - i nie pamietal (dziennik webhookow czytany po samym `id`).
+ * Tu najemca jest CZESCIA WYNIKU bramki: zapytanie spod `service_role` nie ma
+ * jak zapomniec o `.eq("tenant_id", ...)`, bo wartosc lezy tuz obok.
+ *
+ * Najemca pochodzi z `current_tenant_id()`, czyli DOKLADNIE z tej plaszczyzny,
+ * po ktorej autoryzuje `has_role()` (obie funkcje czytaja `profiles.tenant_id`
+ * wolajacego). NIE z hosta zadania: `pickTrustedHost` przyjmuje kazda domene
+ * z `tenants.domain`, wiec host da sie podstawic, a rozjazd "rola po najemcy
+ * domowym, dane po najemcy z naglowka" to osobna klasa dziury
+ * (scripts/check-sql-tenant-scope.ts). NIE z ladunku klienta - z oczywistych
+ * powodow.
+ *
+ * Kolejnosc jest wiazaca: rola PRZED rozwiazaniem najemcy. Inaczej zwykly
+ * zalogowany dotykalby bazy zanim dostanie odmowe.
+ */
+export async function assertAdminWithTenant(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<{ tenantId: string }> {
+  await assertAdmin(supabase, userId);
+  const { data, error } = await supabase.rpc("current_tenant_id");
+  // Brak rozwiazanego najemcy to ODMOWA, nie zgoda na wszystko (fail-closed).
+  if (error || typeof data !== "string" || data === "")
+    throw new Error("forbidden: brak kontekstu najemcy");
+  return { tenantId: data };
+}
+
 async function readDestinations(env: StripeEnv) {
   const { createStripeClient } = await import("@/lib/stripe.server");
   try {
@@ -180,12 +211,20 @@ async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
   return rows;
 }
 
-async function readWebhookHealth(env: StripeEnv): Promise<WebhookHealth> {
+/**
+ * Kondycja dziennika webhookow - ZAWSZE w zakresie jednego najemcy.
+ *
+ * Klient jest serwisowy, wiec omija RLS: bez jawnego `.eq("tenant_id", ...)`
+ * kontrolki `webhook_failures` i `webhook_traffic` liczyly ruch wszystkich
+ * obszarow roboczych, a `lastEventAt` oddawal znacznik cudzego zdarzenia.
+ */
+async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<WebhookHealth> {
   const supabase = await admin();
   const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
   const { data } = await supabase
     .from("payment_webhook_events")
     .select("status, created_at, duration_ms")
+    .eq("tenant_id", tenantId)
     .eq("environment", env)
     .gte("created_at", since)
     .order("created_at", { ascending: false })
@@ -209,8 +248,17 @@ async function readWebhookHealth(env: StripeEnv): Promise<WebhookHealth> {
   };
 }
 
-/** Pełny raport diagnostyczny dla wskazanego środowiska. */
-export async function buildPaymentsDiagnostics(env: StripeEnv): Promise<PaymentsDiagnostics> {
+/**
+ * Pełny raport diagnostyczny dla wskazanego środowiska I NAJEMCY.
+ *
+ * `tenantId` jest parametrem WYMAGANYM, bo jedyny bezpieczny sposób jego
+ * podania to wynik bramki `assertAdminWithTenant` w warstwie server fn -
+ * parametr opcjonalny zamieniłby pominięcie zakresu w cichy wyciek.
+ */
+export async function buildPaymentsDiagnostics(
+  env: StripeEnv,
+  tenantId: string,
+): Promise<PaymentsDiagnostics> {
   const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
   const configured = paymentsConfiguredServer();
 
@@ -218,7 +266,7 @@ export async function buildPaymentsDiagnostics(env: StripeEnv): Promise<Payments
     configured ? readDestinations(env) : Promise.resolve([]),
     configured ? readCatalog(env) : Promise.resolve([]),
     readCoupons(env),
-    readWebhookHealth(env),
+    readWebhookHealth(env, tenantId),
   ]);
 
   const missingPrices = catalog.filter((c) => !c.providerPriceId);

@@ -1,5 +1,5 @@
 // PODSZYWANIE SIĘ POD KONTO - WARSTWA SERWEROWA
-// (`src/lib/admin/impersonation.functions.ts`). 113 linii, dwie funkcje,
+// (`src/lib/admin/impersonation.functions.ts`) - dwie funkcje serwerowe,
 // ZERO wykonanych linii przed tym plikiem.
 //
 // CO TEN PLIK DOWODZI I DLACZEGO WŁAŚNIE TO. To jedyne miejsce w platformie,
@@ -12,16 +12,24 @@
 //   1. BRAMKA ROLI (`is_super_admin`) jest PIERWSZA i przy każdej odmowie
 //      handler NIE TYKA niczego dalej: żadnego odczytu konta celu, żadnego
 //      tokenu, żadnego wiersza audytu. Odmowa musi wyprzedzić pracę.
-//   2. BRAK TOKENU BEZ ŚLADU. Gdy zapis do `impersonation_sessions` padnie,
+//   2. GRANICA NAJEMCY JEST SPRAWDZANA JAWNIE I PRZED PRACĄ (sekcja 5).
+//      `is_super_admin()` odpowiada wyłącznie o tenancie WOŁAJĄCEGO, a dalej
+//      pracuje klucz serwisowy, czyli poza RLS - więc bez osobnego porównania
+//      profilu aktora z profilem celu super admin tenanta A wystawiał sobie
+//      token logowania do konta w tenancie B. Porównanie stoi PRZED
+//      `generateLink`, bo magic link jest ważny niezależnie od tego, czy
+//      handler go odda. Brak profilu i obcy tenant dają JEDEN komunikat -
+//      inaczej funkcja jest wyrocznią o istnieniu kont w cudzym tenancie.
+//   3. BRAK TOKENU BEZ ŚLADU. Gdy zapis do `impersonation_sessions` padnie,
 //      handler MUSI odmówić - token magic link już istnieje, ale bez wiersza
 //      audytowego nikt nie wie, kto się pod kogo podszył. Osobna asercja
 //      pilnuje, że w tej sytuacji token NIE wychodzi z funkcji.
-//   3. ZAMKNIĘCIE SESJI JEST ZAWĘŻONE DO AKTORA. `endImpersonation` nie ma
+//   4. ZAMKNIĘCIE SESJI JEST ZAWĘŻONE DO AKTORA. `endImpersonation` nie ma
 //      bramki roli (świadomie - patrz komentarz produkcyjny), więc jej jedyną
 //      obroną są DWA filtry: `id` ORAZ `actor_user_id = context.userId`.
 //      Bez drugiego każdy zalogowany użytkownik zamykałby dowolny wiersz
 //      audytu, czyli fałszował ślad. Test czyta ogniwa łańcucha, nie wynik.
-//   4. WARTOŚCI FAŁSZYWE, ALE PRAWIDŁOWE: konto z adresem `""`, token `""`,
+//   5. WARTOŚCI FAŁSZYWE, ALE PRAWIDŁOWE: konto z adresem `""`, token `""`,
 //      powód `""`, błąd z komunikatem `""`. To tutaj `??` i `?.` decydują,
 //      czy funkcja odmówi, czy wpuści.
 //
@@ -76,6 +84,12 @@ const h = vi.hoisted(() => ({
   userResponse: null as AdminUserResponse | null,
   /** Wynik generowania tokenu magic link. */
   linkResponse: null as GenerateLinkResponse | null,
+  /**
+   * Nagłówki żądania widziane przez handler. `null` = BRAK kontekstu żądania
+   * (`getRequest()` rzuca) - handler ma wtedy zapisać wiersz audytu bez `ip`
+   * i `user_agent`, a nie odmówić.
+   */
+  headers: null as Record<string, string> | null,
 }));
 
 vi.mock("@tanstack/react-start", async () => {
@@ -85,6 +99,14 @@ vi.mock("@tanstack/react-start", async () => {
 
 vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
+}));
+
+vi.mock("@tanstack/react-start/server", () => ({
+  getRequest: () => {
+    const headers = h.headers;
+    if (!headers) throw new Error("test: brak kontekstu żądania");
+    return { headers: { get: (name: string) => headers[name.toLowerCase()] ?? null } };
+  },
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -123,6 +145,8 @@ const IDS = {
   actor: "11111111-1111-4111-8111-111111111111",
   target: "22222222-2222-4222-8222-222222222222",
   tenant: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  /** Najemca OBCY wobec aktora - cała sekcja 5 stoi na tym rozróżnieniu. */
+  otherTenant: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   session: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
 } as const;
 
@@ -207,15 +231,32 @@ function context(userId: string = IDS.actor): ServerFnContext {
   };
 }
 
-/** Ustawia całą szczęśliwą ścieżkę: super admin, konto z adresem, token, zapis. */
-function happyPath(options: { tenantId?: string | null; profile?: SupabaseResult } = {}): void {
+/**
+ * Ustawia całą szczęśliwą ścieżkę: super admin, oba profile w TYM SAMYM
+ * najemcy, konto z adresem, token, zapis.
+ *
+ * Dwa odczyty `profiles` (aktor, potem cel) muszą być zaplanowane OSOBNO -
+ * atrapa odpowiada per tabela, a bez rozróżnienia po filtrze `eq("id", …)`
+ * drugi odczyt dostałby odpowiedź pierwszego. Responder czyta zapisany łańcuch
+ * (`TableResponder`), więc atrapa REALNIE FILTRUJE po identyfikatorze, zamiast
+ * zwracać stałą - inaczej test „czyta profil celu" nie dowodziłby niczego.
+ */
+function happyPath(
+  options: {
+    tenantId?: string | null;
+    actorProfile?: SupabaseResult;
+    targetProfile?: SupabaseResult;
+  } = {},
+): void {
   rpcResult = { data: true, error: null };
   h.userResponse = { data: { user: { email: TARGET_EMAIL } }, error: null };
   h.linkResponse = { data: { properties: { hashed_token: TOKEN_HASH } }, error: null };
-  db().setResponse(
-    "profiles",
-    options.profile ?? ok({ tenant_id: options.tenantId ?? IDS.tenant }),
-  );
+  const actor = options.actorProfile ?? ok({ tenant_id: options.tenantId ?? IDS.tenant });
+  const target = options.targetProfile ?? ok({ tenant_id: options.tenantId ?? IDS.tenant });
+  db().setResponse("profiles", (recorded) => {
+    const [, id] = recorded.argsOf("eq") ?? [];
+    return id === IDS.actor ? actor : target;
+  });
   db().setResponse("impersonation_sessions", ok({ id: IDS.session }));
 }
 
@@ -229,6 +270,7 @@ beforeEach(() => {
   h.authCalls = [];
   h.userResponse = null;
   h.linkResponse = null;
+  h.headers = {};
   rpcCalls = [];
   rpcResult = { data: true, error: null };
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -461,49 +503,136 @@ describe("podszycie - konto celu", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. NAJEMCA AKTORA W WIERSZU AUDYTU.
+// 5. GRANICA NAJEMCY - CEL W TYM SAMYM TENANCIE.
 // ---------------------------------------------------------------------------
 
-describe("podszycie - najemca aktora we wpisie audytowym", () => {
-  const TENANTS: readonly { label: string; profile: SupabaseResult; expected: string | null }[] = [
-    {
-      label: "profil aktora z najemcą",
-      profile: ok({ tenant_id: IDS.tenant }),
-      expected: IDS.tenant,
-    },
-    { label: "profil z `tenant_id: null`", profile: ok({ tenant_id: null }), expected: null },
-    { label: "brak wiersza profilu", profile: ok(null), expected: null },
-    {
-      label: "odczyt profilu PADŁ - handler i tak kontynuuje",
-      profile: fail("connection reset"),
-      expected: null,
-    },
-  ];
+describe("podszycie - granica najemcy", () => {
+  const CROSS_TENANT = "Forbidden: target user is outside your tenant";
+  const UNVERIFIED = "Forbidden: could not verify tenant";
 
-  it.each(TENANTS)("$label daje `tenant_id` = $expected", async ({ profile, expected }) => {
-    // `actorProfile?.tenant_id ?? null` - trzy różne kształty odczytu dają
-    // ten sam zapis. Czwarty przypadek to świadomy stan faktyczny: błąd
-    // odczytu profilu NIE blokuje podszycia, tylko odbiera wpisowi zakres
-    // najemcy. Wpis powstaje - i to jest tu ważniejsze niż jego kompletność.
-    happyPath({ profile });
-    await callServerFn(startImpersonation, { data: startInput(), context: context() });
-    expect(insertedRow().tenant_id).toBe(expected);
+  it("odmawia, gdy cel jest w INNYM tenancie", async () => {
+    // REGRESJA ZGŁOSZONEJ DZIURY. `is_super_admin()` mówi wyłącznie
+    // „wołający jest super adminem WE WŁASNYM tenancie" - o celu nie mówi nic.
+    // Dalej pracuje klucz serwisowy, czyli poza RLS, więc bez tego porównania
+    // super admin tenanta A wystawiał sobie token logowania do konta z B.
+    happyPath({ targetProfile: ok({ tenant_id: IDS.otherTenant }) });
+    await expect(
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    ).rejects.toThrow(CROSS_TENANT);
   });
 
-  it("czyta profil AKTORA, nie celu - po `id` z kontekstu", async () => {
-    // Pomyłka tutaj wpisałaby do audytu najemcę osoby, pod którą się
-    // podszywamy, czyli wskazywała nie tego, kto ponosi odpowiedzialność.
+  it("przy celu z obcego tenanta NIE czyta konta, NIE generuje tokenu, NIE pisze audytu", async () => {
+    // NAJWAŻNIEJSZA ASERCJA SEKCJI: magic link ma NIE POWSTAĆ. Token jest ważny
+    // niezależnie od tego, czy handler go odda, więc odmowa musi wyprzedzić
+    // pracę - sprawdzenie granicy stoi PRZED `generateLink`.
+    happyPath({ targetProfile: ok({ tenant_id: IDS.otherTenant }) });
+    await expect(
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    ).rejects.toThrow();
+    expect(h.authCalls).toEqual([]);
+    expect(db().chainsFor("impersonation_sessions")).toEqual([]);
+  });
+
+  it("komunikat dla braku profilu celu jest IDENTYCZNY jak dla obcego tenanta", async () => {
+    // ZAKAZ WYROCZNI: gdyby „nie ma takiego profilu" brzmiało inaczej niż
+    // „inny tenant", funkcja potwierdzałaby istnienie identyfikatora w obcym
+    // tenancie - czyli oddawała informację, której wołający nie ma prawa mieć.
+    happyPath({ targetProfile: ok(null) });
+    const missing = await rejection(() =>
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    );
+    db().reset();
+    h.authCalls = [];
+    happyPath({ targetProfile: ok({ tenant_id: IDS.otherTenant }) });
+    const foreign = await rejection(() =>
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    );
+    expect(errorMessage(missing)).toBe(CROSS_TENANT);
+    expect(errorMessage(missing)).toBe(errorMessage(foreign));
+  });
+
+  it("odmawia, gdy odczyt profilu CELU padł", async () => {
+    // Fail closed: brak odpowiedzi bazy o najemcy celu nie może znaczyć „pewnie
+    // swój". Komunikat jest INNY niż przy obcym tenancie, bo nie mówi nic
+    // o istnieniu konta - mówi o niedostępności weryfikacji.
+    happyPath({ targetProfile: fail("connection reset") });
+    await expect(
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    ).rejects.toThrow(UNVERIFIED);
+    expect(h.authCalls).toEqual([]);
+    expect(db().chainsFor("impersonation_sessions")).toEqual([]);
+  });
+
+  const ACTOR_DENIALS: readonly { label: string; profile: SupabaseResult }[] = [
+    { label: "brak wiersza profilu aktora", profile: ok(null) },
+    { label: "profil aktora z `tenant_id: null`", profile: ok({ tenant_id: null }) },
+    { label: "odczyt profilu aktora PADŁ", profile: fail("connection reset") },
+  ];
+
+  it.each(ACTOR_DENIALS)("odmawia, gdy $label", async ({ profile }) => {
+    // ZMIANA KONTRAKTU WOBEC POPRZEDNIEJ WERSJI TEGO PLIKU, świadoma: dopóki
+    // najemca był TYLKO etykietą wiersza audytu, błąd odczytu profilu mógł nie
+    // blokować podszycia (wpis powstawał z `tenant_id = null`). Odkąd najemca
+    // jest PREDYKATEM BEZPIECZEŃSTWA - to z nim porównujemy tenant celu - brak
+    // odpowiedzi znaczy odmowę. `profiles.tenant_id` jest w schemacie NOT NULL,
+    // więc zaostrzenie nie odbiera żadnej działającej ścieżki.
+    happyPath({ actorProfile: profile });
+    await expect(
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    ).rejects.toThrow(UNVERIFIED);
+    expect(h.authCalls).toEqual([]);
+    expect(db().chainsFor("impersonation_sessions")).toEqual([]);
+  });
+
+  it("ścieżka zgodna: oba profile w tym samym tenancie", async () => {
     happyPath();
     await callServerFn(startImpersonation, { data: startInput(), context: context() });
-    const profiles = chain("profiles");
-    expect(profiles.argsOf("select")).toEqual(["tenant_id"]);
-    expect(profiles.argsOf("eq")).toEqual(["id", IDS.actor]);
-    expect(profiles.has("maybeSingle")).toBe(true);
+    expect(insertedRow().tenant_id).toBe(IDS.tenant);
+  });
+
+  it("pyta o profil aktora PIERWSZY, potem o profil celu", async () => {
+    // Kolejność jest tu treścią reguły: najemca aktora jest punktem odniesienia,
+    // więc musi być znany, zanim cokolwiek porównamy z celem.
+    happyPath();
+    await callServerFn(startImpersonation, { data: startInput(), context: context() });
+    const [first, second] = db().chainsFor("profiles");
+    expect(first?.argsOf("eq")).toEqual(["id", IDS.actor]);
+    expect(second?.argsOf("eq")).toEqual(["id", IDS.target]);
+    expect(second?.argsOf("select")).toEqual(["tenant_id"]);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 6. TOKEN MAGIC LINK.
+// 6. NAJEMCA AKTORA W WIERSZU AUDYTU.
+// ---------------------------------------------------------------------------
+
+describe("podszycie - najemca aktora we wpisie audytowym", () => {
+  it("profil aktora z najemcą daje `tenant_id` = najemca aktora", async () => {
+    // Po zamknięciu granicy najemca aktora JEST najemcą celu, więc jedna
+    // kolumna w audycie wystarcza - i nigdy nie jest `null`. Pozostałe kształty
+    // odczytu (brak wiersza, `tenant_id: null`, błąd) są teraz ODMOWĄ i mieszkają
+    // w sekcji 5.
+    happyPath();
+    await callServerFn(startImpersonation, { data: startInput(), context: context() });
+    expect(insertedRow().tenant_id).toBe(IDS.tenant);
+  });
+
+  it("czyta profil aktora PIERWSZY - po `id` z kontekstu", async () => {
+    // Pomyłka tutaj wpisałaby do audytu najemcę osoby, pod którą się
+    // podszywamy, czyli wskazywała nie tego, kto ponosi odpowiedzialność.
+    // Bierzemy PIERWSZY łańcuch `profiles` świadomie: ostatni jest teraz
+    // odczytem profilu CELU.
+    happyPath();
+    await callServerFn(startImpersonation, { data: startInput(), context: context() });
+    const profiles = db().chainsFor("profiles")[0];
+    expect(profiles?.argsOf("select")).toEqual(["tenant_id"]);
+    expect(profiles?.argsOf("eq")).toEqual(["id", IDS.actor]);
+    expect(profiles?.has("maybeSingle")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. TOKEN MAGIC LINK.
 // ---------------------------------------------------------------------------
 
 describe("podszycie - token magic link", () => {
@@ -593,12 +722,16 @@ describe("podszycie - token magic link", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7. WIERSZ AUDYTU I WYNIK.
+// 8. WIERSZ AUDYTU I WYNIK.
 // ---------------------------------------------------------------------------
 
 describe("podszycie - wpis audytowy i wynik", () => {
-  it("wstawia DOKŁADNIE cztery pola i pyta o `id`", async () => {
+  it("wstawia DOKŁADNIE sześć pól i pyta o `id`", async () => {
     happyPath();
+    h.headers = {
+      "x-forwarded-for": "203.0.113.7, 70.41.3.18",
+      "user-agent": "Mozilla/5.0 (test)",
+    };
     await callServerFn(startImpersonation, {
       data: startInput({ reason: "zgłoszenie 42" }),
       context: context(),
@@ -608,10 +741,76 @@ describe("podszycie - wpis audytowy i wynik", () => {
       target_user_id: IDS.target,
       tenant_id: IDS.tenant,
       reason: "zgłoszenie 42",
+      ip: "203.0.113.7",
+      user_agent: "Mozilla/5.0 (test)",
     });
     const sessions = chain("impersonation_sessions");
     expect(sessions.argsOf("select")).toEqual(["id"]);
     expect(sessions.has("single")).toBe(true);
+  });
+
+  const ORIGINS: readonly {
+    label: string;
+    headers: Record<string, string> | null;
+    ip: string | null;
+    userAgent: string | null;
+  }[] = [
+    {
+      label: "`cf-connecting-ip` wygrywa z `x-forwarded-for`",
+      headers: { "cf-connecting-ip": "198.51.100.9", "x-forwarded-for": "203.0.113.7" },
+      ip: "198.51.100.9",
+      userAgent: null,
+    },
+    {
+      label: "z `x-forwarded-for` bierzemy PIERWSZY adres - klienta, nie proxy",
+      headers: { "x-forwarded-for": "203.0.113.7, 70.41.3.18" },
+      ip: "203.0.113.7",
+      userAgent: null,
+    },
+    {
+      label: "`x-real-ip` jako ostatnia deska ratunku",
+      headers: { "x-real-ip": "192.0.2.44" },
+      ip: "192.0.2.44",
+      userAgent: null,
+    },
+    {
+      label: 'pusty `x-forwarded-for` (FAŁSZYWY, ale PRAWIDŁOWY) daje `null`, nie `""`',
+      headers: { "x-forwarded-for": "" },
+      ip: null,
+      userAgent: null,
+    },
+    {
+      label: "brak nagłówków - wiersz powstaje bez `ip` i `user_agent`",
+      headers: {},
+      ip: null,
+      userAgent: null,
+    },
+    {
+      label: "BRAK kontekstu żądania - `getRequest()` rzuca, wiersz i tak powstaje",
+      headers: null,
+      ip: null,
+      userAgent: null,
+    },
+  ];
+
+  it.each(ORIGINS)("$label", async ({ headers, ip, userAgent }) => {
+    // Dziennik podszyć ma odpowiadać na pytanie „skąd”, ale metadane są
+    // best-effort: brak nagłówka albo brak kontekstu żądania NIE MOŻE blokować
+    // zapisu śladu. Odmowa należy się za brak granicy najemcy, nie za brak UA.
+    happyPath();
+    h.headers = headers;
+    await callServerFn(startImpersonation, { data: startInput(), context: context() });
+    expect(insertedRow().ip).toBe(ip);
+    expect(insertedRow().user_agent).toBe(userAgent);
+  });
+
+  it("obcina `user_agent` do 500 znaków", async () => {
+    // Kolumna jest tekstowa i bez limitu, ale nagłówek przychodzi od klienta -
+    // bez obcięcia dowolnie długi UA rośnie w dzienniku audytu bez granicy.
+    happyPath();
+    h.headers = { "user-agent": "u".repeat(900) };
+    await callServerFn(startImpersonation, { data: startInput(), context: context() });
+    expect(insertedRow().user_agent).toHaveLength(500);
   });
 
   const REASON_ROWS: readonly { label: string; reason: unknown; stored: string | null }[] = [
@@ -701,19 +900,25 @@ describe("podszycie - wpis audytowy i wynik", () => {
     expect(result.tokenHash).not.toContain("example.com");
   });
 
-  it("kolejność kroków: rola, konto celu, profil aktora, token, audyt", async () => {
+  it("kolejność kroków: rola, profil aktora, profil celu, konto celu, token, audyt", async () => {
     // Kolejność JEST regułą, nie szczegółem: każdy krok dalej jest droższy
-    // i bardziej nieodwracalny od poprzedniego.
+    // i bardziej nieodwracalny od poprzedniego. Oba odczyty `profiles` stoją
+    // PRZED `generateLink`, więc odmowa za obcy tenant wyprzedza powstanie
+    // magic linku - a nie tylko jego zwrócenie.
     happyPath();
     await callServerFn(startImpersonation, { data: startInput(), context: context() });
     expect(rpcCalls.map((call) => call.name)).toEqual(["is_super_admin"]);
     expect(h.authCalls.map((call) => call.step)).toEqual(["getUserById", "generateLink"]);
-    expect(db().chains.map((entry) => entry.table)).toEqual(["profiles", "impersonation_sessions"]);
+    expect(db().chains.map((entry) => entry.table)).toEqual([
+      "profiles",
+      "profiles",
+      "impersonation_sessions",
+    ]);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 8. `endImpersonation` - zamknięcie śladu.
+// 9. `endImpersonation` - zamknięcie śladu.
 // ---------------------------------------------------------------------------
 
 describe("podszycie - endImpersonation", () => {

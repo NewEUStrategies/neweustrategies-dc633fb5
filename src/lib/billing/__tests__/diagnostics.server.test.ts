@@ -25,6 +25,9 @@ const h = vi.hoisted(() => {
   const state = {
     configured: { current: true },
     hasRole: { current: true as unknown },
+    // Najemca wołającego oddawany przez RPC `current_tenant_id` - ta sama
+    // płaszczyzna, po której autoryzuje `has_role`.
+    tenant: { current: "tenant-alfa" as unknown },
     rpc: vi.fn(),
     // `null` jest tu równie prawdziwym kształtem co pusta tablica: PostgREST
     // oddaje `data: null` przy zerowym wyniku, a diagnostyka MUSI to przeżyć.
@@ -70,7 +73,11 @@ const h = vi.hoisted(() => {
     },
     rpc: (fn: string, args?: Record<string, unknown>) => {
       state.rpc(fn, args);
-      return Promise.resolve({ data: state.hasRole.current, error: null });
+      return Promise.resolve(
+        fn === "current_tenant_id"
+          ? { data: state.tenant.current, error: null }
+          : { data: state.hasRole.current, error: null },
+      );
     },
   };
 
@@ -155,6 +162,7 @@ vi.mock("@/lib/billing/mockMode.server", () => ({
 
 import {
   assertAdmin,
+  assertAdminWithTenant,
   buildPaymentsDiagnostics,
   syncCouponDiscounts,
 } from "@/lib/billing/diagnostics.server";
@@ -166,6 +174,9 @@ function adminClient(): Parameters<typeof assertAdmin>[0] {
 }
 
 const APP_WEBHOOK_URL = "https://example.test/api/public/payments/webhook";
+
+/** Najemca wołającego - diagnostyka jest liczona WYŁĄCZNIE w jego zakresie. */
+const TENANT = "tenant-alfa";
 
 const checkById = (diag: Awaited<ReturnType<typeof buildPaymentsDiagnostics>>, id: string) =>
   diag.checks.find((check) => check.id === id)!;
@@ -180,6 +191,7 @@ beforeEach(() => {
   vi.stubEnv("LOVABLE_API_KEY", "platforma-syntetyczna");
   h.configured.current = true;
   h.hasRole.current = true;
+  h.tenant.current = TENANT;
   h.rpc.mockReset();
   h.coupons.current = [];
   h.webhookRows.current = [];
@@ -229,9 +241,59 @@ describe("assertAdmin - bramka dostępu do diagnostyki", () => {
   });
 });
 
+describe("assertAdminWithTenant - bramka, która ODDAJE najemcę", () => {
+  // CO BYŁO ZŁE. `assertAdmin` zwraca `void`, więc handler musiał pamiętać
+  // o zakresie najemcy z własnej głowy - i nie pamiętał: kondycja dziennika
+  // webhooków była liczona po CAŁEJ tabeli, spod `service_role`, czyli
+  // z pominięciem RLS.
+  //
+  // JAKIE TO BYŁO RYZYKO. Kontrolki `webhook_failures` i `webhook_traffic`
+  // pokazywały ruch i awarie wszystkich obszarów roboczych, a `lastEventAt`
+  // oddawał znacznik cudzego zdarzenia. Mniej niż wyciek ładunku, ale ta sama
+  // klasa: autoryzacja po jednym najemcy, dane z wszystkich.
+  //
+  // JAK NAPRAWIONE. Najemca jest CZĘŚCIĄ WYNIKU bramki, więc zapytanie nie ma
+  // jak o nim zapomnieć - wartość leży tuż obok wywołania.
+  it("oddaje najemcę z `current_tenant_id`, dopiero PO kontroli roli", async () => {
+    await expect(assertAdminWithTenant(adminClient(), "user-admin")).resolves.toEqual({
+      tenantId: TENANT,
+    });
+
+    expect(h.rpc.mock.calls.map((call) => call[0])).toEqual(["has_role", "current_tenant_id"]);
+  });
+
+  it("brak roli admina NIE pyta nawet o najemcę", async () => {
+    // Kolejność jest wiążąca: zwykły zalogowany ma dostać odmowę, zanim
+    // cokolwiek pójdzie do bazy.
+    h.hasRole.current = false;
+
+    await expect(assertAdminWithTenant(adminClient(), "user-me")).rejects.toThrow("forbidden");
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("nierozwiązany najemca to ODMOWA, nie zgoda na wszystko", async () => {
+    // Fail-closed. Gdyby brak najemcy przechodził, admin bez profilu dostawałby
+    // diagnostykę liczoną po wszystkich obszarach - czyli dokładnie ten stan,
+    // który ta bramka ma zamknąć.
+    h.tenant.current = null;
+
+    await expect(assertAdminWithTenant(adminClient(), "user-admin")).rejects.toThrow(
+      "brak kontekstu najemcy",
+    );
+  });
+
+  it("pusty identyfikator najemcy też nie przechodzi", async () => {
+    h.tenant.current = "";
+
+    await expect(assertAdminWithTenant(adminClient(), "user-admin")).rejects.toThrow(
+      "brak kontekstu najemcy",
+    );
+  });
+});
+
 describe("buildPaymentsDiagnostics - kontrola bramki płatności", () => {
   it("skonfigurowana bramka daje stan „ok” z nazwą środowiska", async () => {
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(checkById(diag, "gateway_configured")).toMatchObject({
       state: "ok",
@@ -243,7 +305,7 @@ describe("buildPaymentsDiagnostics - kontrola bramki płatności", () => {
   it("BRAK KLUCZY to `error`, nie ostrzeżenie", async () => {
     h.configured.current = false;
 
-    const diag = await buildPaymentsDiagnostics("live");
+    const diag = await buildPaymentsDiagnostics("live", TENANT);
 
     expect(checkById(diag, "gateway_configured")).toMatchObject({
       state: "error",
@@ -255,7 +317,7 @@ describe("buildPaymentsDiagnostics - kontrola bramki płatności", () => {
   it("bez kluczy NIE pyta operatora o katalog ani odbiorniki", async () => {
     h.configured.current = false;
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.catalog).toEqual([]);
     expect(diag.destinations).toEqual([]);
@@ -268,7 +330,7 @@ describe("buildPaymentsDiagnostics - kontrola odbiornika zdarzeń", () => {
       { id: "we_1", url: APP_WEBHOOK_URL, status: "enabled", enabled_events: ["a", "b"] },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(checkById(diag, "webhook_endpoint")).toMatchObject({
       state: "ok",
@@ -282,7 +344,7 @@ describe("buildPaymentsDiagnostics - kontrola odbiornika zdarzeń", () => {
       { id: "we_1", url: APP_WEBHOOK_URL, status: "disabled", enabled_events: [] },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(checkById(diag, "webhook_endpoint").state).toBe("warn");
     expect(diag.destinations[0].active).toBe(false);
@@ -293,7 +355,7 @@ describe("buildPaymentsDiagnostics - kontrola odbiornika zdarzeń", () => {
       { id: "we_obcy", url: "https://obcy.test/hook", status: "enabled", enabled_events: ["x"] },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(checkById(diag, "webhook_endpoint")).toMatchObject({ state: "error", detail: "1" });
     expect(diag.destinations).toHaveLength(1);
@@ -303,7 +365,7 @@ describe("buildPaymentsDiagnostics - kontrola odbiornika zdarzeń", () => {
     h.endpointsThrow.current = true;
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.destinations).toEqual([]);
     expect(checkById(diag, "webhook_endpoint")).toMatchObject({ state: "error", detail: "0" });
@@ -313,7 +375,7 @@ describe("buildPaymentsDiagnostics - kontrola odbiornika zdarzeń", () => {
   it("odbiornik bez adresu nie wywraca dopasowania", async () => {
     h.endpoints.current = [{ id: "we_1", url: null, status: "enabled", enabled_events: null }];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.destinations[0]).toMatchObject({ url: "", events: 0 });
     expect(checkById(diag, "webhook_endpoint").state).toBe("error");
@@ -322,7 +384,7 @@ describe("buildPaymentsDiagnostics - kontrola odbiornika zdarzeń", () => {
 
 describe("buildPaymentsDiagnostics - kontrola katalogu cen", () => {
   it("kompletny katalog daje „ok” i licznik pełny", async () => {
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
     const total = BILLING_CATALOG.length;
 
     expect(checkById(diag, "catalog")).toMatchObject({
@@ -338,7 +400,7 @@ describe("buildPaymentsDiagnostics - kontrola katalogu cen", () => {
       rest.map((entry) => [entry.priceId, { id: `price_${entry.priceId}` }]),
     );
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
     const total = BILLING_CATALOG.length;
 
     expect(checkById(diag, "catalog")).toMatchObject({
@@ -354,7 +416,7 @@ describe("buildPaymentsDiagnostics - kontrola katalogu cen", () => {
     h.pricesThrow.current = true;
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.catalog.every((entry) => entry.providerPriceId === null)).toBe(true);
     expect(checkById(diag, "catalog").state).toBe("error");
@@ -362,7 +424,7 @@ describe("buildPaymentsDiagnostics - kontrola katalogu cen", () => {
   });
 
   it("każdy wpis katalogu niesie warstwę i cykl - bez tego braku nie da się naprawić", async () => {
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.catalog[0]).toMatchObject({
       priceId: BILLING_CATALOG[0].priceId,
@@ -375,7 +437,7 @@ describe("buildPaymentsDiagnostics - kontrola katalogu cen", () => {
 
 describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
   it("brak zdarzeń: błędów zero („ok”), ale RUCH ostrzega", async () => {
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(checkById(diag, "webhook_failures")).toMatchObject({ state: "ok", detail: "0/0" });
     // Cisza w dzienniku znaczy „nie wiem, czy działa" - to ostrzeżenie.
@@ -391,7 +453,7 @@ describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
       { status: "received", created_at: "2026-08-18T06:00:00.000Z", duration_ms: -1 },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.webhooks).toMatchObject({
       total: 5,
@@ -410,7 +472,7 @@ describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
       { status: "processed", created_at: "2026-08-18T10:00:00.000Z", duration_ms: null },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.webhooks.avgDurationMs).toBeNull();
     expect(diag.webhooks.total).toBe(1);
@@ -422,18 +484,28 @@ describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
       { status: "failed", created_at: "2026-08-18T09:00:00.000Z", duration_ms: 10 },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(checkById(diag, "webhook_failures")).toMatchObject({ state: "error", detail: "1/2" });
     expect(checkById(diag, "webhook_traffic").state).toBe("ok");
   });
 
   it("dziennik czytany jest per ŚRODOWISKO i tylko z ostatniego tygodnia", async () => {
-    await buildPaymentsDiagnostics("live");
+    await buildPaymentsDiagnostics("live", TENANT);
 
     const chain = h.chains.find((entry) => entry.table === "payment_webhook_events")!;
     expect(chain.filters).toContainEqual(["environment", "live"]);
     expect(chain.filters.some(([column]) => column === "created_at")).toBe(true);
+  });
+
+  it("dziennik jest też zawężony do NAJEMCY, nie tylko do środowiska", async () => {
+    // Klient jest serwisowy, więc omija RLS - jedynym zakresem jest ten filtr.
+    // Asercja stoi na kontrakcie ZAPYTANIA, bo moduł nie wybiera kolumny
+    // `tenant_id`: po samym wyniku nie da się odróżnić najemców.
+    await buildPaymentsDiagnostics("live", TENANT);
+
+    const chain = h.chains.find((entry) => entry.table === "payment_webhook_events")!;
+    expect(chain.filters).toContainEqual(["tenant_id", TENANT]);
   });
 });
 
@@ -449,7 +521,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
       },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0]).toMatchObject({
       code: "NES10",
@@ -462,7 +534,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
   it("KOD jest normalizowany do wielkich liter (klucz naturalny po obu stronach)", async () => {
     h.coupons.current = [{ code: "mixedCase", active: true, discount_kind: "percent" }];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0].code).toBe("MIXEDCASE");
     expect(diag.coupons[0].code).not.toBe("mixedCase");
@@ -479,7 +551,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
       },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0]).toMatchObject({
       discountKind: "fixed",
@@ -491,7 +563,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
   it("BRAK RABATU u operatora to `null`, nie błąd - powstaje przy pierwszym użyciu", async () => {
     h.coupons.current = [{ code: "NOWY", active: true, discount_kind: "percent" }];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0].providerDiscountId).toBeNull();
     expect(diag.coupons).toHaveLength(1);
@@ -501,7 +573,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
     h.coupons.current = [{ code: "ZNANY", active: true, discount_kind: "percent" }];
     h.promoByCode.current.set("ZNANY", "promo_znany");
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0].providerDiscountId).toBe("promo_znany");
   });
@@ -510,7 +582,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
     h.coupons.current = [{ code: "PADNIETY", active: true, discount_kind: "percent" }];
     h.promoThrows.current = true;
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0].providerDiscountId).toBeNull();
     expect(diag.coupons[0].code).toBe("PADNIETY");
@@ -527,7 +599,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
       },
     ];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0]).toMatchObject({ grantsTierKey: "member", grantsDurationDays: 90 });
   });
@@ -535,7 +607,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
   it("kupon nieaktywny jest oznaczony jako nieaktywny, nie pomijany", async () => {
     h.coupons.current = [{ code: "STARY", active: false, discount_kind: "percent" }];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0].active).toBe(false);
     expect(diag.coupons).toHaveLength(1);
@@ -544,7 +616,7 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
   it("kupon z pustym kodem nie jest pytany u operatora", async () => {
     h.coupons.current = [{ code: "", active: true, discount_kind: "percent" }];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons[0].providerDiscountId).toBeNull();
     expect(diag.coupons[0].code).toBe("");
@@ -697,7 +769,7 @@ describe("PUSTA odpowiedź bazy - `null` zamiast tablicy", () => {
   it("brak wierszy dziennika zdarzeń daje zerową kondycję, nie wyjątek", async () => {
     h.webhookRows.current = null;
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.webhooks.total).toBe(0);
     expect(diag.webhooks.lastEventAt).toBeNull();
@@ -706,7 +778,7 @@ describe("PUSTA odpowiedź bazy - `null` zamiast tablicy", () => {
   it("brak kuponów w bazie daje pustą listę porównania z operatorem", async () => {
     h.coupons.current = null;
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons).toEqual([]);
   });
@@ -744,7 +816,7 @@ describe("KUPON Z DZIURAMI - kolumny, które przyszły puste", () => {
     // naprawienia, a nie coś do ukrycia przed administratorem.
     h.coupons.current = [{ code: null, discount_kind: "percent", discount_percent: 10 }];
 
-    const diag = await buildPaymentsDiagnostics("sandbox");
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
 
     expect(diag.coupons).toHaveLength(1);
     expect(diag.coupons[0].code).toBe("");

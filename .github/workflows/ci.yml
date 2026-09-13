@@ -409,6 +409,18 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:content-layering
 
+      # Blocking gate: every `dangerouslySetInnerHTML` in src/ reaches the DOM
+      # through a trusted sanitizer. The sanitizer existed and was documented
+      # only in a comment (src/lib/sanitize.ts:2-4) - 84 sinks across 56 files,
+      # 41 of them rendering builder_data JSONB, post bodies, event copy and
+      # uploaded documents, with nothing in CI or ESLint enforcing a single one.
+      # Zero tolerance for new sinks. Constant boot scripts and generated
+      # keyframes are listed one by one, each with a written reason, in
+      # scripts/lib/dangerousHtmlAllowlist.ts. Rationale: src/lib/ci/dangerousHtml.ts
+      - name: Every dangerouslySetInnerHTML goes through the sanitizer
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:dangerous-html
+
       # Blocking gate on a defect that review cannot catch by reading: the page
       # editor carried a comment promising autosave over code where
       # `useAutosave` did not appear at all, so editors lost builder work on tab

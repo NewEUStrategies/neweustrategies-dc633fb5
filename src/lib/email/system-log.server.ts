@@ -7,6 +7,16 @@
 // Tabela jest dostępna wyłącznie dla service_role (RLS), dlatego odczyt idzie
 // przez klienta admina - wywołujący jest wcześniej weryfikowany rolą admina
 // w middleware server function.
+//
+// ZAKRES DANYCH - LUKA ZNANA, JESZCZE NIEZAMKNIĘTA. Bramka roli odpowiada
+// wyłącznie na pytanie „czy to admin", i to admin liczony we WŁASNYM tenancie
+// wywołującego. Na pytanie „czyje to wiersze" nie odpowiada nic: `email_send_log`
+// nie ma kolumny `tenant_id` (20260728154925_email_infra.sql:27-36), a `metadata`
+// nie wypełnia żadna ze ścieżek zapisu - nie ma więc po czym filtrować. Raport
+// jednego najemcy pokazuje dziś adresy odbiorców i błędy dostawcy wszystkich
+// najemców. Domknięcie: migracja z kolumną `tenant_id` i backfillem, potem
+// wypełnianie jej na ścieżkach zapisu, a DOPIERO NA KOŃCU `.eq("tenant_id", …)`
+// tutaj - filtr przed backfillem zostawiłby operatorowi pusty raport.
 
 export type SystemEmailStatus =
   "pending" | "sent" | "dlq" | "suppressed" | "failed" | "bounced" | "complained";
@@ -207,6 +217,16 @@ export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<S
   // Liczba AKTYWNYCH wykluczeń z listy kanonicznej. Wcześniej liczyliśmy wiersze
   // zaszłej tabeli `suppressed_emails`, która nie znała wygaśnięcia ani zdjęcia
   // blokady - raport pokazywał więc adresy, na które od dawna wolno już wysyłać.
+  //
+  // TO JEST LICZNIK CAŁEJ PLATFORMY, NIE NAJEMCY. `email_suppressions.tenant_id`
+  // jest NOT NULL (20260725120000_analytics_semantic_layer.sql:314), więc filtr
+  // `.eq("tenant_id", …)` jest tu dostępny od ręki - brakuje wyłącznie najemcy
+  // wywołującego, którego ta funkcja nie dostaje (kontekst middleware go nie
+  // niesie, a `SystemEmailQuery` go nie ma). Skutek jest podwójny: agregat
+  // przecieka między najemcami i FAŁSZUJE własną metrykę tenanta, bo
+  // `suppressedRecipients` w panelu to suma całej platformy. Poprawka to jedna
+  // linia po dopisaniu `tenantId` do `SystemEmailQuery` i przekazaniu go z
+  // server fn - patrz nagłówek pliku.
   let suppressedRecipients = 0;
   const { count } = await supabaseAdmin
     .from("email_suppressions")

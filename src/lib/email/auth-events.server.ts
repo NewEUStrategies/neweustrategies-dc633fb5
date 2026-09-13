@@ -4,6 +4,19 @@
 // /platform/email/auth/webhook. Tabela jest dostępna wyłącznie dla
 // service_role, więc odczyt idzie przez klienta admina - rola wywołującego
 // jest wcześniej weryfikowana w middleware server function.
+//
+// ZAKRES DANYCH - LUKA ZNANA, JESZCZE NIEZAMKNIĘTA. Weryfikacja roli dotyczy
+// tenanta wywołującego, a zapytanie niżej filtruje WYŁĄCZNIE po dacie, bo
+// `auth_email_events` nie ma kolumny `tenant_id` (20260728193308:1-23) - webhook
+// maili autoryzacyjnych w ogóle nie zna dziś najemcy. Adres odbiorcy jest tu
+// zamaskowany, ale admin jednego najemcy widzi mimo to `recipient_domain`,
+// `subject`, `redirect_to`, `action_url_host` (czyli domeny cudzych najemców),
+// `greeting_name` (imię odbiorcy), `error_message` i `run_id` WSZYSTKICH
+// najemców. Domknięcie wymaga najpierw kolumny `tenant_id` w tabeli i
+// rozstrzygnięcia, co robić z mailem, dla którego najemcy nie da się ustalić
+// (świeża rejestracja - profilu jeszcze nie ma w chwili hooka): NULL oznacza
+// „nie pokazujemy nikomu", fallback na najemcę domyślnego oznacza „pokazujemy
+// jego adminowi". Dopiero po tej decyzji ma sens `.eq("tenant_id", …)` tutaj.
 
 export type AuthEventStatus = "enqueued" | "rejected" | "failed";
 

@@ -49,6 +49,7 @@
     "check:unknown-casts": "bun run scripts/check-unknown-casts.ts",
     "check:clock-freeze": "bun run scripts/check-clock-freeze.ts",
     "check:content-layering": "bun run scripts/check-content-layering.ts",
+    "check:dangerous-html": "bun run scripts/check-dangerous-html.ts",
     "check:ssr-budgets": "bun run scripts/check-ssr-budgets.ts",
     "check:editor-autosave": "bun run scripts/check-editor-autosave.ts",
     "check:workflow-env-contract": "bun run scripts/check-workflow-env-contract.ts",
