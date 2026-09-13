@@ -453,6 +453,9 @@ describe("najemca maila autoryzacyjnego", () => {
       status: "pending",
       tenant_id: TENANT_Z_ADRESU,
     });
+    // Mechanizm, nie tylko wynik: rozstrzygacz adresu MUSIAŁ zostać zapytany.
+    // Bez tego test przechodziłby też wtedy, gdyby ktoś zaszył stałą.
+    expect(h.resolveTenantForAddress).toHaveBeenCalledTimes(1);
   });
 
   it("ten sam najemca jedzie w ładunku kolejki", async () => {
@@ -507,9 +510,11 @@ describe("najemca maila autoryzacyjnego", () => {
     h.resolveTenantForAddress.mockResolvedValue(null);
     h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: true });
 
-    await post();
+    const res = await post();
 
     expect(lastInsert("email_send_log").tenant_id).toBeNull();
+    // Brak stempla nie może oznaczać braku maila - to są dwie różne rzeczy.
+    expect(res.status).toBe(200);
   });
 
   it("awaria rozstrzygania najemcy NIE zatrzymuje maila z linkiem do logowania", async () => {
@@ -566,6 +571,10 @@ describe("najemca maila autoryzacyjnego", () => {
       status: "enqueued",
       tenant_id: TENANT_Z_ADRESU,
     });
+    // Obie tabele muszą nieść TEGO SAMEGO najemcę: rozjazd między dziennikiem
+    // wysyłek a dziennikiem zdarzeń znaczy, że dwa panele pokażą tę samą
+    // wiadomość dwóm różnym serwisom.
+    expect(lastInsert("auth_email_events").tenant_id).toBe(lastInsert("email_send_log").tenant_id);
   });
 
   it("wiersz 'failed' w auth_email_events też niesie najemcę", async () => {
@@ -577,6 +586,8 @@ describe("najemca maila autoryzacyjnego", () => {
       status: "failed",
       tenant_id: TENANT_Z_ADRESU,
     });
+    // Ścieżka błędu nie może gubić ani przyczyny, ani najemcy.
+    expect(lastInsert("auth_email_events").error_message).toBe("queue full");
   });
 
   it("nierozstrzygnięty najemca trafia do auth_email_events jako jawny null", async () => {
@@ -589,5 +600,8 @@ describe("najemca maila autoryzacyjnego", () => {
     await post();
 
     expect(lastInsert("auth_email_events")).toHaveProperty("tenant_id", null);
+    // Klucz MUSI być obecny, nie pominięty - bez triggera nie ma tu drugiej
+    // szansy, więc pominięcie zostawiłoby wiersz niewidzialny na zawsze.
+    expect("tenant_id" in lastInsert("auth_email_events")).toBe(true);
   });
 });
