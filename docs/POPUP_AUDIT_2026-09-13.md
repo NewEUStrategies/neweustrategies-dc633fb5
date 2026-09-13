@@ -16,6 +16,12 @@ Poniższy audyt początkowy opisuje stan przed kontynuacją. W tej iteracji napr
 
 Weryfikacja: pierwotne pięć testów przechodzi w serii 188 testów formularzy i newslettera. Rozszerzona walidacja i nowy CI są w toku. CI poprzedniego commitu `9b6d564` zakończyło się sukcesem dla E2E, Lighthouse, First visit i CMS widget performance; główne CI nie przeszło bramki gęstości asercji testu PopupHost oraz kilku progów coverage. Asercja cyklu życia została uzupełniona o stan slotu przed odmontowaniem. Progów coverage nie obniżono.
 
+Dalsze wyniki dla `2559a8e`: pełny typecheck, lint i formatowanie przeszły. 301 lokalnych przypadków w 11 plikach przeszło. W CI wszystkie cztery części testów przeszły: 70 651 poprawnych przypadków, 415 oczekiwanych porażek w pozostałych obszarach oraz 50 pominiętych. Główna bramka nadal nie przeszła progów coverage: `charts/scale`, `experiment-event`, `email/suppression`, `newsletter-admin/status`, `post-tts`, `admin/impersonation` oraz zbiorczego progu branches platformy. Build, verify, pgTAP, pg-harness, Lighthouse, First visit i CMS widget performance zakończyły się sukcesem.
+
+Pierwszy nowy test konta zatrzymał się przed wysłaniem: automatyczny wybór języka przekierował przeglądarkę na `/en`, podczas gdy test szukał polskiej etykiety CTA. Test ma teraz jawny język i obie etykiety konfiguracji, a przycisk identyfikuje przez funkcję formularza. Wymaga ponownej oceny CI - błąd testu nie dowodzi awarii rejestracji ani jej powodzenia.
+
+Lokalny przegląd Chromium rzeczywistej aplikacji z testową konfiguracją popupu obejmuje 320x568, 390x844, 390x420 i 768x600. Przycisk wysłania jest osiągalny po przewinięciu; Escape zamyka okno; dokument nie przewija się poziomo. Stwierdzono przycinanie około 15 px aktywnego pola przez kontener po zmianie wysokości. Poprawka ponawia przewinięcie do aktywnego pola po focusin i zmianie rozmiaru okna/visualViewport, a pola mają własny margines przewijania. Pełny test z rzeczywistą bazą i skrzynką pozostaje osobnym dowodem.
+
 Nie wykonano jeszcze odbioru na fizycznym telefonie z klawiaturą ekranową ani produkcyjnego testu utworzenia konta i doręczenia maila. Zmniejszony viewport nie zastępuje systemowej klawiatury.
 
 ## Zakres i wynik

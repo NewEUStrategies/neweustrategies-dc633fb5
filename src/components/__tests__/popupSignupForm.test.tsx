@@ -878,6 +878,21 @@ describe("PopupSignupForm: zachowania o wysokiej konsekwencji", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.success.newsletterFailed");
   });
 
+  it("odmowa newslettera w odpowiedzi ok:false jest widoczna po utworzeniu konta", async () => {
+    h.subscribe.mockResolvedValue({ ok: false });
+    const onSuccess = vi.fn();
+
+    renderForm({ onSuccess });
+    fillMinimal();
+    acceptPrivacy();
+    actLikeHuman();
+    await submit();
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("status")).toHaveTextContent("signupPopup.success.title(lng=pl)");
+    expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.success.newsletterFailed");
+  });
+
   it("po udanej rejestracji panel sukcesu pokazuje adres, na który poszedł link", async () => {
     const onSuccess = vi.fn();
     renderForm({ onSuccess });

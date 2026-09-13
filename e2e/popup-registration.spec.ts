@@ -48,6 +48,7 @@ async function confirmationLink(request: APIRequestContext, email: string) {
 test.describe("popup registration (local account and mailbox)", () => {
   test.skip(!SEEDED, "requires disposable local Supabase with E2E_SEEDED=1");
   test.describe.configure({ mode: "serial" });
+  test.use({ locale: "pl-PL" });
   test.setTimeout(120_000);
 
   let tenantId = "";
@@ -114,6 +115,8 @@ test.describe("popup registration (local account and mailbox)", () => {
             popup_doc: null,
             popup_title_pl: "Załóż konto",
             popup_cta_pl: "Załóż konto",
+            popup_cta_en: "Create account",
+            popup_title_en: "Create an account",
           },
         },
       );
@@ -139,21 +142,22 @@ test.describe("popup registration (local account and mailbox)", () => {
         // Models reduced available height, not an actual OS keyboard.
         await page.setViewportSize({ width: 390, height: 420 });
         await field.focus();
-        await expect(field).toBeInViewport();
+        await expect(field).toBeInViewport({ ratio: 1 });
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
         );
-        await dialog
-          .getByRole("button", { name: "Załóż konto", exact: true })
-          .scrollIntoViewIfNeeded();
+        await dialog.locator('button[type="submit"]').scrollIntoViewIfNeeded();
         await page.screenshot({ path: testInfo.outputPath("mobile-reduced-height.png") });
       }
       // The real form has a 1200ms anti-automation guard; exercise human submission.
       await page.waitForTimeout(1300);
+      await expect(dialog.locator('button[type="submit"]')).toHaveAccessibleName(
+        /Załóż konto|Create account/,
+      );
       const signup = page.waitForResponse(
         (r) => new URL(r.url()).pathname === "/auth/v1/signup" && r.request().method() === "POST",
       );
-      await dialog.getByRole("button", { name: "Załóż konto", exact: true }).click();
+      await dialog.locator('button[type="submit"]').click();
       const signupResponse = await signup;
       expect(signupResponse.ok()).toBe(true);
       const user: { id: string; access_token?: string } = await signupResponse.json();

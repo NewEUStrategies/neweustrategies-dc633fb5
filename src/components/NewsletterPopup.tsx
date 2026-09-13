@@ -81,6 +81,33 @@ export function NewsletterPopup() {
   useFocusTrap(panelRef, open);
   useBodyScrollLock(open);
 
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    const viewport = window.visualViewport;
+    let frame = 0;
+    const revealFocusedField = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const target = document.activeElement;
+        if (target instanceof HTMLElement && target !== panel && panel?.contains(target)) {
+          target.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        }
+      });
+    };
+    // Native focus scrolling may leave a field clipped by the nested panel.
+    // Resize also matters when the focused field stays active as height changes.
+    panel?.addEventListener("focusin", revealFocusedField);
+    window.addEventListener("resize", revealFocusedField);
+    viewport?.addEventListener("resize", revealFocusedField);
+    return () => {
+      cancelAnimationFrame(frame);
+      panel?.removeEventListener("focusin", revealFocusedField);
+      window.removeEventListener("resize", revealFocusedField);
+      viewport?.removeEventListener("resize", revealFocusedField);
+    };
+  }, [open]);
+
   // Jeden jezyk dla calego popupu: kod dla dzieci i serwera oraz wybor tresci
   // z blizniaczych kolumn. Dotad ta sama derywacja powtarzala sie w siedmiu
   // miejscach jako `lang`.

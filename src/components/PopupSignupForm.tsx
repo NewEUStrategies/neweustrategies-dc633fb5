@@ -389,7 +389,7 @@ export function PopupSignupForm({
   return (
     <form
       onSubmit={onSubmit}
-      className={compact ? "space-y-2 text-left" : "space-y-2.5 text-left"}
+      className={`[&_input]:scroll-my-2 ${compact ? "space-y-2 text-left" : "space-y-2.5 text-left"}`}
       noValidate
     >
       <div
