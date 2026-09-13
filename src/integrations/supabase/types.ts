@@ -465,6 +465,7 @@ export type Database = {
           sender_domain: string | null
           status: string
           subject: string | null
+          tenant_id: string | null
         }
         Insert: {
           action_url_host?: string | null
@@ -488,6 +489,7 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
         Update: {
           action_url_host?: string | null
@@ -511,8 +513,17 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "auth_email_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       author_profiles: {
         Row: {
@@ -5584,6 +5595,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
+          tenant_id: string | null
         }
         Insert: {
           created_at?: string
@@ -5594,6 +5606,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
+          tenant_id?: string | null
         }
         Update: {
           created_at?: string
@@ -5604,8 +5617,17 @@ export type Database = {
           recipient_email?: string
           status?: string
           template_name?: string
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "email_send_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_send_state: {
         Row: {
