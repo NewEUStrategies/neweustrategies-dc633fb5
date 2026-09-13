@@ -8,9 +8,13 @@
 //  4. teksty idą z konfiguracji w wersji PL/EN (bez hardkodów w komponencie),
 //  5. w kaflu ikony ląduje logo marki, a bez logo - zapasowa ikona.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
+
+import type { ConsentState } from "@/lib/ads/consent";
+import { requestOverlaySlot, __resetOverlayCoordinator } from "@/lib/overlayCoordinator";
 
 const h = vi.hoisted(() => ({
+  state: null as ConsentState | null,
   save: vi.fn(),
   acceptAll: vi.fn(),
   rejectAll: vi.fn(),
@@ -21,8 +25,8 @@ vi.mock("@/lib/ads/consent", () => ({
   OPEN_PREFS_EVENT: "consent-open-preferences",
   consumeOpenPrefsRequest: () => false,
   useConsent: () => ({
-    state: null,
-    decided: false,
+    state: h.state,
+    decided: !!h.state,
     mounted: true,
     save: h.save,
     acceptAll: h.acceptAll,
@@ -59,10 +63,6 @@ vi.mock("@/lib/useSiteSetting", () => ({
 }));
 
 vi.mock("@/components/ThemeProvider", () => ({ useTheme: () => ({ theme: "light" }) }));
-vi.mock("@/lib/overlayCoordinator", () => ({
-  setConsentOverlayVisible: vi.fn(),
-  setMarketingConsent: vi.fn(),
-}));
 
 import i18n from "@/lib/i18n";
 import { ConsentBanner } from "@/components/ConsentBanner";
@@ -72,6 +72,8 @@ const PL = COOKIE_BANNER_DEFAULTS.copy.pl;
 const EN = COOKIE_BANNER_DEFAULTS.copy.en;
 
 beforeEach(async () => {
+  h.state = null;
+  __resetOverlayCoordinator();
   h.logo.current = "https://cdn.example.com/mark.svg";
   h.save.mockClear();
   h.acceptAll.mockClear();
@@ -79,7 +81,11 @@ beforeEach(async () => {
   await i18n.changeLanguage("pl");
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  __resetOverlayCoordinator();
+  vi.useRealTimers();
+});
 
 const openPrefs = () => fireEvent.click(screen.getByRole("button", { name: PL.customize }));
 
@@ -195,4 +201,63 @@ describe("ConsentBanner - panel preferencji", () => {
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(screen.getByRole("button", { name: `${PL.showVendors} 4` })).toBeInTheDocument();
   });
+});
+
+describe("ConsentBanner: integration with the real overlay queue", () => {
+  it.each([false, true])(
+    "applies marketing=%s before releasing a waiting popup",
+    async (granted) => {
+      vi.useFakeTimers();
+      const view = render(<ConsentBanner />);
+      const opened = vi.fn();
+      void requestOverlaySlot("waiting-popup", { marketing: true }).then(opened);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(opened).not.toHaveBeenCalled();
+      h.state = {
+        version: 2,
+        ts: Date.now(),
+        categories: {
+          necessary: true,
+          functional: granted,
+          analytics: granted,
+          marketing: granted,
+        },
+      };
+      view.rerender(<ConsentBanner />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(opened).toHaveBeenCalledTimes(granted ? 1 : 0);
+    },
+  );
+});
+
+it("waits for the consent exit animation before opening the next popup", async () => {
+  vi.useFakeTimers();
+  render(<ConsentBanner />);
+  const opened = vi.fn();
+  void requestOverlaySlot("after-animation", { marketing: true }).then(opened);
+  h.acceptAll.mockImplementationOnce(() => {
+    h.state = {
+      version: 2,
+      ts: Date.now(),
+      categories: {
+        necessary: true,
+        functional: true,
+        analytics: true,
+        marketing: true,
+      },
+    };
+  });
+  fireEvent.click(screen.getByRole("button", { name: PL.acceptAll }));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(299);
+  });
+  expect(opened).not.toHaveBeenCalled();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(opened).toHaveBeenCalledTimes(1);
 });

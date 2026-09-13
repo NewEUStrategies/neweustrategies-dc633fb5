@@ -675,3 +675,32 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
     expect(panel.style.borderRadius).toBe("6px");
   });
 });
+
+describe("NewsletterPopup: modal lifecycle regressions", () => {
+  it("locks background scrolling and restores it on close", async () => {
+    const previous = document.body.style.overflow;
+    await openByDelay();
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.body.style.overflow).toBe(previous);
+  });
+  it("releases an already granted slot when unmounted", async () => {
+    const view = await openByDelay();
+    view.unmount();
+    expect(h.release).toHaveBeenCalledTimes(1);
+  });
+  it("closes an open popup when navigation leaves the page", async () => {
+    const view = await openByDelay();
+    h.pathname = "/login";
+    view.remount();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.release).toHaveBeenCalledTimes(1);
+  });
+  it("releases its slot when settings disable an open popup", async () => {
+    const view = await openByDelay();
+    h.settings = popupSettings({ popup_enabled: false });
+    view.remount();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.release).toHaveBeenCalledTimes(1);
+  });
+});

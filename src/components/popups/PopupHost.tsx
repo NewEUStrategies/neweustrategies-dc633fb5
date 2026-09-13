@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { X } from "@/lib/lucide-shim";
 import { isEmptyDocument, type Device } from "@/lib/builder/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useBodyScrollLock } from "@/lib/a11y/useBodyScrollLock";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 import {
   evaluatePopupTargeting,
@@ -148,6 +149,18 @@ export function PopupHost() {
     releaseSlotRef.current = null;
   }, []);
 
+  useEffect(() => {
+    if (releaseSlotRef.current) close();
+  }, [loc.pathname, close]);
+
+  useEffect(
+    () => () => {
+      releaseSlotRef.current?.();
+      releaseSlotRef.current = null;
+    },
+    [],
+  );
+
   // Escape closes; focus trap moves focus in on open and restores it on close.
   useEffect(() => {
     if (!open) return;
@@ -158,6 +171,7 @@ export function PopupHost() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
   useFocusTrap(panelRef, !!open);
+  useBodyScrollLock(!!open);
 
   // Growth analytics: a click on any CTA (link/button) inside the panel - other
   // than the close control - counts as one conversion for this showing.

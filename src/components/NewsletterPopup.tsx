@@ -16,6 +16,7 @@ import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import "@/lib/i18n-signup-popup";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useBodyScrollLock } from "@/lib/a11y/useBodyScrollLock";
 import { useTheme } from "@/components/ThemeProvider";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 import {
@@ -81,6 +82,7 @@ export function NewsletterPopup() {
   const panelRef = useRef<HTMLDivElement>(null);
   const releaseSlotRef = useRef<(() => void) | null>(null);
   useFocusTrap(panelRef, open);
+  useBodyScrollLock(open);
 
   // Jeden jezyk dla calego popupu: kod dla dzieci i serwera oraz wybor tresci
   // z blizniaczych kolumn. Dotad ta sama derywacja powtarzala sie w siedmiu
@@ -176,6 +178,20 @@ export function NewsletterPopup() {
     releaseSlotRef.current?.();
     releaseSlotRef.current = null;
   }, []);
+
+  // A route change or disabling the popup ends its display. In particular,
+  // a link to /login must not leave the signup modal above the new page.
+  useEffect(() => {
+    if (releaseSlotRef.current) close();
+  }, [loc.pathname, s?.popup_enabled, close]);
+
+  useEffect(
+    () => () => {
+      releaseSlotRef.current?.();
+      releaseSlotRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) return;
