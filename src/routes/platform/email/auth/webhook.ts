@@ -223,40 +223,43 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
         // operatora KAŻDEGO serwisu (`email_send_log` czyta się klientem
         // serwisowym, który RLS omija).
         //
-        // WŁAŚCICIEL ADRESU MA PIERWSZEŃSTWO przed hostem powrotu. Kolejność
-        // była tu wcześniej odwrotna i to był błąd, bo host powrotu
+        // WŁAŚCICIEL KONTA MA PIERWSZEŃSTWO przed hostem powrotu. Host powrotu
         // uwierzytelnia CEL LINKU, a nie to, czyj jest odbiorca.
         //
         // Przypadek, który to rozstrzyga: reset hasła zamówiony na serwisie B
         // dla adresu należącego do A. Formularz resetu podaje `redirectTo` jako
         // `${window.location.origin}${redirectTo}` (AuthFormBlocks.tsx:1034-1035),
-        // czyli ZAWSZE bieżący origin - przy kolejności „host najpierw" wiersz
-        // dziennika z surowym adresem odbiorcy dostawał tenanta B i wchodził do
-        // raportu systemowego B. Dokładnie ten wyciek miała zamykać ta zmiana.
+        // czyli ZAWSZE bieżący origin, i przyjmuje dowolny adres. Przy kolejności
+        // „host najpierw" wiersz dziennika z SUROWYM adresem odbiorcy dostawał
+        // tenanta B i wchodził do raportu systemowego B.
         //
-        // `email_resolve_tenant_for_address` odpowiada tylko wtedy, gdy adres
-        // należy JEDNOZNACZNIE do jednego najemcy: kaskada to jednoznaczny
-        // subskrybent -> jednoznaczne konto -> NULL, świadomie bez fallbacku na
-        // tenanta domyślnego (20260913140000:88-116). Dlatego to bezpieczne
-        // pierwszeństwo - przy adresie żyjącym u wielu najemców funkcja oddaje
-        // NULL i decyduje host, czyli cel linku.
+        // DLACZEGO NIE `resolveTenantForAddress`. Stała tu wcześniej i to był
+        // błąd w dwie strony naraz. `email_resolve_tenant_for_address`
+        // (20260731120000:84-122) pyta NAJPIERW o `newsletter_subscribers`, więc
+        // subskrypcja bije konto - adres zapisany na newsletter u A, z kontem
+        // u B, dostawał stempel A, choć mail autoryzacyjny dotyczy KONTA.
+        // A dla adresu nierozstrzygniętego oddaje `email_default_tenant_id()`,
+        // nie NULL - czyli gałąź hosta poniżej była MARTWA, bo `owner` zawsze
+        // było prawdziwe. Świeża rejestracja na B lądowała u tenanta domyślnego.
         //
-        // Host zostaje więc rozstrzygnięciem dla kont, których jeszcze nie ma:
-        // przy świeżej rejestracji adresu nie ma ani w `newsletter_subscribers`,
-        // ani w `profiles`, a `resolveDomainBinding` dopasowuje ŚCIŚLE, bez
-        // zjeżdżania na tenanta domyślnego.
+        // `email_account_tenant_for_address` (20260913160000) pyta wyłącznie
+        // o `profiles`, wyłącznie jednoznacznie i bez tenanta domyślnego. Dzięki
+        // temu `null` znaczy „nie wiadomo" i host powrotu DOSTAJE swoją kolej -
+        // przy świeżej rejestracji jest jedyną prawdziwą odpowiedzią, bo mówi,
+        // na który serwis ten człowiek właśnie wchodzi. `resolveDomainBinding`
+        // dopasowuje ŚCIŚLE, bez zjeżdżania na tenanta domyślnego.
         //
         // Try/catch jak przy `resolveRecipientName` niżej i z tego samego
         // powodu: to jest ATRYBUCJA, nie warunek wysyłki. Link do logowania ma
-        // wyjść nawet wtedy, gdy katalog domen albo rozstrzygacz adresu padnie -
-        // najemcę dopnie wtedy trigger `trg_email_send_log_bind_tenant`.
+        // wyjść nawet wtedy, gdy katalog domen albo rozstrzygacz padnie -
+        // najemcę dopnie wtedy trigger `email_send_log_bind_tenant`.
         let tenantId: string | null = null;
         try {
-          const [{ resolveDomainBinding }, { resolveTenantForAddress }] = await Promise.all([
+          const [{ resolveDomainBinding }, { resolveAccountTenantForAddress }] = await Promise.all([
             import("@/lib/server/tenant.server"),
             import("@/lib/email/suppression.server"),
           ]);
-          const owner = await resolveTenantForAddress(supabase, payload.data.email);
+          const owner = await resolveAccountTenantForAddress(supabase, payload.data.email);
           tenantId =
             owner ??
             (await resolveDomainBinding(hostOf(payload.data.redirect_to))).tenant?.id ??

@@ -146,6 +146,37 @@ export async function resolveTenantForAddress(
   return typeof data === "string" && data ? data : null;
 }
 
+/**
+ * Najemca KONTA o tym adresie - rozstrzygnięcie WŁASNOŚCIOWE.
+ *
+ * Osobna funkcja od `resolveTenantForAddress`, bo tamta rozstrzyga co innego
+ * i na ścieżce autoryzacyjnej myli się w dwie strony:
+ * `email_resolve_tenant_for_address` (20260731120000:84-122) pyta NAJPIERW
+ * o `newsletter_subscribers`, więc subskrypcja bije konto, a dla adresu
+ * nierozstrzygniętego oddaje `email_default_tenant_id()` zamiast NULL-a.
+ *
+ * To drugie jest groźniejsze, niż wygląda: funkcja, która nigdy nie mówi
+ * „nie wiadomo", zamyka wołającemu każdą ścieżkę zapasową. `owner ?? host`
+ * nigdy nie dojdzie do hosta, bo `owner` zawsze jest prawdziwe.
+ *
+ * Tu jest odwrotnie z obu powodów: wyłącznie `profiles`, wyłącznie
+ * jednoznacznie, bez tenanta domyślnego. `null` znaczy „nie wiadomo" i JEST
+ * odpowiedzią - dopiero on pozwala sięgnąć po host powrotu.
+ */
+export async function resolveAccountTenantForAddress(
+  admin: DbClient,
+  email: string,
+): Promise<string | null> {
+  const { data, error } = await rpcClient(admin).rpc("email_account_tenant_for_address", {
+    p_email: normalize(email),
+  });
+  if (error) {
+    console.error("[suppression] account tenant resolve failed", error.message);
+    return null;
+  }
+  return typeof data === "string" && data ? data : null;
+}
+
 export interface SendGateInput {
   email: string;
   category: EmailCategory;

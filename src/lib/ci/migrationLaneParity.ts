@@ -114,6 +114,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0011_profiles_discoverable_opt_in_restore",
     twin: "20260913150000_profiles_discoverable_opt_in_restore.sql",
   },
+  {
+    tag: "0012_email_account_tenant_for_address",
+    twin: "20260913160000_email_account_tenant_for_address.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

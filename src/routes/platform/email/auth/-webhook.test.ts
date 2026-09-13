@@ -39,7 +39,7 @@ const h = vi.hoisted(() => {
     createClient: vi.fn(),
     rpc: vi.fn(),
     resolveDomainBinding: vi.fn(),
-    resolveTenantForAddress: vi.fn(),
+    resolveAccountTenantForAddress: vi.fn(),
   };
 });
 
@@ -59,7 +59,7 @@ vi.mock("@/lib/server/tenant.server", () => ({
   resolveDomainBinding: h.resolveDomainBinding,
 }));
 vi.mock("@/lib/email/suppression.server", () => ({
-  resolveTenantForAddress: h.resolveTenantForAddress,
+  resolveAccountTenantForAddress: h.resolveAccountTenantForAddress,
 }));
 
 import { Route } from "@/routes/platform/email/auth/webhook";
@@ -67,7 +67,7 @@ import { Route } from "@/routes/platform/email/auth/webhook";
 /** Najemca, do którego należy domena z `redirect_to`. */
 const TENANT_B = "22222222-2222-4222-8222-222222222222";
 /** Najemca rozstrzygnięty z ADRESU, gdy host powrotu nic nie mówi. */
-const TENANT_Z_ADRESU = "33333333-3333-4333-8333-333333333333";
+const TENANT_Z_KONTA = "33333333-3333-4333-8333-333333333333";
 
 const db = supabaseFromStub();
 
@@ -121,7 +121,7 @@ beforeEach(() => {
     tenant: { id: TENANT_B, slug: "b", domain: "example.test", isDefault: false },
     directoryPopulated: true,
   });
-  h.resolveTenantForAddress.mockResolvedValue(TENANT_Z_ADRESU);
+  h.resolveAccountTenantForAddress.mockResolvedValue(TENANT_Z_KONTA);
   h.createClient.mockReturnValue({ from: db.from, rpc: h.rpc });
   h.render.mockResolvedValue("<html>mail</html>");
   h.verifyWebhookRequest.mockResolvedValue({ payload: payload() });
@@ -446,16 +446,16 @@ describe("porażka kolejkowania", () => {
 describe("najemca maila autoryzacyjnego", () => {
   it("mail jest przypisany do serwisu, który JEST WŁAŚCICIELEM ADRESU", async () => {
     // Atrapy domyślne stawiają oba źródła w SPRZECZNOŚCI: adres należy do
-    // TENANT_Z_ADRESU, a host powrotu wskazuje TENANT_B. Wygrywa właściciel.
+    // TENANT_Z_KONTA, a host powrotu wskazuje TENANT_B. Wygrywa właściciel.
     await post();
 
     expect(lastInsert("email_send_log")).toMatchObject({
       status: "pending",
-      tenant_id: TENANT_Z_ADRESU,
+      tenant_id: TENANT_Z_KONTA,
     });
     // Mechanizm, nie tylko wynik: rozstrzygacz adresu MUSIAŁ zostać zapytany.
     // Bez tego test przechodziłby też wtedy, gdyby ktoś zaszył stałą.
-    expect(h.resolveTenantForAddress).toHaveBeenCalledTimes(1);
+    expect(h.resolveAccountTenantForAddress).toHaveBeenCalledTimes(1);
   });
 
   it("ten sam najemca jedzie w ładunku kolejki", async () => {
@@ -465,11 +465,11 @@ describe("najemca maila autoryzacyjnego", () => {
     await post();
 
     const [, args] = h.rpc.mock.calls[0] as [string, Record<string, unknown>];
-    expect((args.payload as Record<string, unknown>).tenant_id).toBe(TENANT_Z_ADRESU);
+    expect((args.payload as Record<string, unknown>).tenant_id).toBe(TENANT_Z_KONTA);
     // Ładunek i wiersz dziennika muszą nieść TEGO SAMEGO najemcę - rozjazd
     // między nimi znaczy, że DLQ i panel przypiszą tę samą wiadomość dwóm
     // serwisom.
-    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_Z_ADRESU);
+    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_Z_KONTA);
   });
 
   it("reset hasła zamówiony na CUDZYM serwisie nie stempluje wiersza tym serwisem", async () => {
@@ -486,7 +486,7 @@ describe("najemca maila autoryzacyjnego", () => {
 
     const row = lastInsert("email_send_log");
     expect(row.tenant_id).not.toBe(TENANT_B);
-    expect(row.tenant_id).toBe(TENANT_Z_ADRESU);
+    expect(row.tenant_id).toBe(TENANT_Z_KONTA);
   });
 
   it("adres, którego nie da się przypisać, oddaje decyzję HOSTOWI powrotu", async () => {
@@ -495,7 +495,7 @@ describe("najemca maila autoryzacyjnego", () => {
     // żyje u wielu najemców (wieloznaczny). W obu host powrotu jest jedyną
     // odpowiedzią, jaka została - i wtedy jest właściwą, bo mówi, na który
     // serwis ten człowiek właśnie wchodzi.
-    h.resolveTenantForAddress.mockResolvedValue(null);
+    h.resolveAccountTenantForAddress.mockResolvedValue(null);
 
     await post();
 
@@ -507,7 +507,7 @@ describe("najemca maila autoryzacyjnego", () => {
   it("nieznany host NIE zjeżdża na tenanta domyślnego", async () => {
     // `resolveDomainBinding` dopasowuje ŚCIŚLE i to jest sedno: cichy fallback
     // na tenanta domyślnego jest dokładnie tym, co produkuje ten wyciek.
-    h.resolveTenantForAddress.mockResolvedValue(null);
+    h.resolveAccountTenantForAddress.mockResolvedValue(null);
     h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: true });
 
     const res = await post();
@@ -520,7 +520,7 @@ describe("najemca maila autoryzacyjnego", () => {
   it("awaria rozstrzygania najemcy NIE zatrzymuje maila z linkiem do logowania", async () => {
     // Atrybucja nie jest warunkiem wysyłki. Padnięty rozstrzygacz ma kosztować
     // stempel, a nie dostęp użytkownika do konta.
-    h.resolveTenantForAddress.mockRejectedValue(new Error("rozstrzygacz padł"));
+    h.resolveAccountTenantForAddress.mockRejectedValue(new Error("rozstrzygacz padł"));
 
     const res = await post();
 
@@ -532,7 +532,7 @@ describe("najemca maila autoryzacyjnego", () => {
   it("gdy ani adres, ani host nic nie mówią, wysyłka i tak idzie", async () => {
     // Link do logowania jest ważniejszy niż stempel; najemcę dopina wtedy
     // trigger bazy `trg_email_send_log_bind_tenant`.
-    h.resolveTenantForAddress.mockResolvedValue(null);
+    h.resolveAccountTenantForAddress.mockResolvedValue(null);
     h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: false });
 
     const res = await post();
@@ -549,7 +549,7 @@ describe("najemca maila autoryzacyjnego", () => {
     expect(h.rpc).toHaveBeenCalled();
     expect(lastInsert("email_send_log")).toMatchObject({
       status: "failed",
-      tenant_id: TENANT_Z_ADRESU,
+      tenant_id: TENANT_Z_KONTA,
     });
   });
 
@@ -569,7 +569,7 @@ describe("najemca maila autoryzacyjnego", () => {
 
     expect(lastInsert("auth_email_events")).toMatchObject({
       status: "enqueued",
-      tenant_id: TENANT_Z_ADRESU,
+      tenant_id: TENANT_Z_KONTA,
     });
     // Obie tabele muszą nieść TEGO SAMEGO najemcę: rozjazd między dziennikiem
     // wysyłek a dziennikiem zdarzeń znaczy, że dwa panele pokażą tę samą
@@ -584,7 +584,7 @@ describe("najemca maila autoryzacyjnego", () => {
 
     expect(lastInsert("auth_email_events")).toMatchObject({
       status: "failed",
-      tenant_id: TENANT_Z_ADRESU,
+      tenant_id: TENANT_Z_KONTA,
     });
     // Ścieżka błędu nie może gubić ani przyczyny, ani najemcy.
     expect(lastInsert("auth_email_events").error_message).toBe("queue full");
@@ -594,7 +594,7 @@ describe("najemca maila autoryzacyjnego", () => {
     // Bez triggera nie ma tu drugiej szansy, więc kolumna musi być NAPISANA -
     // pominięty klucz i jawny null dają ten sam wiersz, ale tylko jawny null
     // dowodzi, że producent o kolumnie pamiętał.
-    h.resolveTenantForAddress.mockResolvedValue(null);
+    h.resolveAccountTenantForAddress.mockResolvedValue(null);
     h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: true });
 
     await post();
