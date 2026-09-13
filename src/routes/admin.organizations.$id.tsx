@@ -1,7 +1,7 @@
 // Panel: pełna strona organizacji członkowskiej - premium edytor marki
 // (kolory, logo poziome/pionowe w wariantach light/dark), dane, kontakt i
 // zarządzanie miejscami. Wygląd zgodny z produkcyjnym layoutem admin (kompakt).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { uiLocale } from "@/lib/i18n/format";
@@ -70,6 +70,7 @@ import {
   removeOrgSeat,
   type OrganizationRow,
 } from "@/lib/admin/membership-admin";
+import { isEditConflict } from "@/lib/content/saveConflict";
 
 export const Route = createFileRoute("/admin/organizations/$id")({
   component: AdminOrganizationDetailPage,
@@ -104,9 +105,36 @@ function AdminOrganizationDetailPage() {
   }, [tiers]);
 
   const [draft, setDraft] = useState<OrganizationRow | null>(null);
+
+  // Baza optimistic-locka: `updated_at` wiersza, który draft ODWZOROWUJE.
+  // Przesuwana przy każdym uzgodnieniu draftu i po każdym udanym zapisie, żeby
+  // kolejny zapis nie zgłaszał fałszywego konfliktu z własną zmianą. Ten sam
+  // wzorzec co `baseUpdatedAtRef` w edytorze wpisów.
+  const baseUpdatedAtRef = useRef<string | null>(null);
+
+  // UZGADNIANIE DRAFTU Z SERWEREM.
+  //
+  // Wcześniej warunkiem było `!draft`, więc po PIERWSZYM ustawieniu draft
+  // zamrażał się na zawsze: żaden refetch nie docierał już do formularza.
+  // Zakładka Miejsca zmienia `seats_limit` funkcją serwerową i unieważnia to
+  // zapytanie, ale karta dalej trzymała wartości sprzed zmiany - i wysyłała je
+  // z powrotem przy zapisie czegokolwiek innego.
+  //
+  // Teraz reagujemy na TOŻSAMOŚĆ i WERSJĘ wiersza: inny `id` to inna
+  // organizacja (pełne przeładowanie), a nowszy `updated_at` to zmiana, której
+  // draft jeszcze nie widział. Niezapisane zmiany użytkownika nadal nie są
+  // deptane w trakcie edycji, bo `updated_at` rośnie wyłącznie wtedy, gdy ktoś
+  // NAPRAWDĘ zapisał wiersz w bazie.
+  const loadedRef = useRef<{ id: string; updatedAt: string | null } | null>(null);
   useEffect(() => {
-    if (orgQ.data && !draft) setDraft(orgQ.data);
-  }, [orgQ.data, draft]);
+    const row = orgQ.data;
+    if (!row) return;
+    const seen = loadedRef.current;
+    if (seen && seen.id === row.id && seen.updatedAt === row.updated_at) return;
+    loadedRef.current = { id: row.id, updatedAt: row.updated_at ?? null };
+    baseUpdatedAtRef.current = row.updated_at ?? null;
+    setDraft(row);
+  }, [orgQ.data]);
 
   const isDirty = useMemo(
     () => (draft && orgQ.data ? JSON.stringify(draft) !== JSON.stringify(orgQ.data) : false),
@@ -131,14 +159,35 @@ function AdminOrganizationDetailPage() {
       void _u;
       void _b;
       void _cc;
-      await updateOrganization(id, patch);
+      // Zapis niesie wersję, którą formularz odwzorowuje. Serwer odrzuci go,
+      // jeśli w międzyczasie ktoś zapisał ten wiersz - zamiast cicho cofnąć
+      // cudzą zmianę.
+      return updateOrganization(id, patch, baseUpdatedAtRef.current);
     },
-    onSuccess: () => {
+    onSuccess: (savedUpdatedAt) => {
+      // Przesuwamy bazę na `updated_at` FAKTYCZNIE zapisany, zanim odświeżenie
+      // zdąży wrócić - inaczej drugi zapis z rzędu zderzyłby się z własnym
+      // pierwszym.
+      if (savedUpdatedAt) {
+        baseUpdatedAtRef.current = savedUpdatedAt;
+        loadedRef.current = { id, updatedAt: savedUpdatedAt };
+      }
       toast.success(t("adminOrganizations.saved"));
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      // Konflikt dostaje WŁASNY komunikat w języku panelu: „zapis się nie
+      // udał" nie mówi administratorowi, że cudza zmiana wciąż stoi i że ma
+      // przeładować kartę. Klasyfikacja jest wspólną regułą (`isEditConflict`),
+      // tekst powstaje tutaj, bo tylko klient zna język panelu.
+      if (isEditConflict(err)) {
+        toast.error(t("adminOrganizations.saveConflict"));
+        void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
+        return;
+      }
+      toast.error(err.message);
+    },
   });
 
   const removeOrg = useMutation({

@@ -103,6 +103,10 @@ const h = vi.hoisted(() => ({
   emailError: "smtp down",
   /** Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`. */
   existingAuthUsers: [] as { id: string; email: string | null }[],
+  /** Zapis stron, o które moduł poprosił katalog - dowód na stronicowanie. */
+  listUsersPages: [] as { page: number; perPage: number }[],
+  /** Awaria katalogu tożsamości (`listUsers`). */
+  listUsersError: null as Error | null,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -110,7 +114,19 @@ vi.mock("@/integrations/supabase/client.server", () => ({
     auth: {
       admin: {
         // Moduł najpierw sprawdza, czy konto o tym adresie już istnieje.
-        listUsers: async () => ({ data: { users: h.existingAuthUsers ?? [] }, error: null }),
+        //
+        // Atrapa NAPRAWDĘ stronicuje: kroi `existingAuthUsers` po `page`
+        // i `perPage`, zamiast oddawać całą listę na każde pytanie. Bez tego
+        // test „konto leży na drugiej stronie" przechodziłby także dla wersji
+        // czytającej wyłącznie stronę pierwszą - czyli nie dowodziłby niczego.
+        listUsers: async (params?: { page?: number; perPage?: number }) => {
+          const page = params?.page ?? 1;
+          const perPage = params?.perPage ?? 50;
+          h.listUsersPages.push({ page, perPage });
+          if (h.listUsersError) return { data: { users: [] }, error: h.listUsersError };
+          const all = h.existingAuthUsers ?? [];
+          return { data: { users: all.slice((page - 1) * perPage, page * perPage) }, error: null };
+        },
         inviteUserByEmail: async (email: string, payload: unknown) => {
           h.authCalls.push({ kind: "invite", email, payload });
           if (h.authError) return { data: { user: null }, error: h.authError };
@@ -309,6 +325,8 @@ function invitationRow(overrides: Partial<InvitationRow> = {}): InvitationRow {
 
 beforeEach(() => {
   h.existingAuthUsers = [];
+  h.listUsersPages = [];
+  h.listUsersError = null;
   h.claimError = null;
   h.inviteLinkFails = false;
   h.hashedToken = null;
@@ -1126,9 +1144,11 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
       string,
       unknown
     >;
-    // Znaki z ogonkami i kreskami schodzą przez `NFD` + usunięcie znaków
-    // diakrytycznych. `ł` NIE schodzi - patrz `it.fails` na końcu pliku.
-    expect(profile.slug).toBe("zazo-c-gesla-jazn");
+    // Znaki z ogonkami schodzą przez `NFD` + usunięcie znaków diakrytycznych,
+    // a „ł" - które rozkładu kanonicznego NIE MA - przez `replaceStrokeLetters`
+    // wołane PRZED `NFD`. Wcześniej dawało tu `zazo-c-gesla-jazn`: litera
+    // zamieniała się w dywiz.
+    expect(profile.slug).toBe("zazolc-gesla-jazn");
     expect(profile).toMatchObject({
       tenant_id: IDS.tenant,
       email: "nowa@example.org",
@@ -2153,31 +2173,22 @@ describe("system zaproszeń - higiena danych osobowych", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 11. DEFEKT ZGŁOSZONY, NIE NAPRAWIONY (konwencja repo: produkcja bez zmian).
+// 11. DEFEKT NAPRAWIONY: `slugify` transliteruje litery bez rozkładu Unicode.
 // ---------------------------------------------------------------------------
 
-describe("system zaproszeń - defekt zgłoszony", () => {
-  it.fails("DEFEKT: `slugify` gubi polskie `ł` - slug profilu wychodzi kaleki", async () => {
-    // `slugify` (`invitations.functions.ts:36-44`) robi
-    // `.normalize("NFD").replace(/\p{Diacritic}/gu, "")`. To działa dla znaków
-    // ROZKŁADALNYCH (`ą ę ó ć ś ń ż ź` = litera + znak diakrytyczny), ale `ł`
-    // i `Ł` (U+0142 / U+0141) NIE MAJĄ rozkładu kanonicznego - nie są literą
-    // z diakrytykiem, są osobnymi literami. `NFD` ich nie rusza, więc wpadają
-    // w `[^a-z0-9]+` i zamieniają się w KRESKĘ.
-    //
-    // Zmierzone skutki dla realnych, bardzo częstych polskich imion:
-    //   „Michał Kowalski"       -> „micha-kowalski"
-    //   „Paweł Nowak"           -> „pawe-nowak"
-    //   „Małgorzata Wiśniewska" -> „ma-gorzata-wisniewska"
-    //   „Łukasz Dąbrowski"      -> „ukasz-dabrowski"   (pierwsza litera GINIE)
-    //
-    // KONSEKWENCJA. Slug jest publicznym adresem profilu autora
-    // (`/author/<slug>`), więc jest widoczny, cytowany i indeksowany. Ta sama
-    // funkcja tworzy slugi w `performSend` i w `provisionTeamMembers`, czyli na
-    // OBU ścieżkach powstawania kont - a produkt jest polskojęzyczny, więc
-    // dotyczy to dużej części zespołu. Poprawka to jedna mapa znaków przed
-    // `NFD` (`ł->l`, `Ł->L`), ale zmiana slugów istniejących kont wymaga
-    // migracji i przekierowań, więc jest decyzją, nie poprawką w teście.
+describe("system zaproszeń - slug profilu autora", () => {
+  // Było `it.fails`. `slugify` (`invitations.functions.ts`) robiło
+  // `.normalize("NFD").replace(/\p{Diacritic}/gu, "")`. To działa dla znaków
+  // ROZKŁADALNYCH (`ą ę ó ć ś ń ż ź` = litera + znak diakrytyczny), ale „ł"
+  // i „Ł" (U+0142 / U+0141) rozkładu kanonicznego NIE MAJĄ - są osobnymi
+  // literami. `NFD` ich nie ruszało, więc wpadały w `[^a-z0-9]+` i zamieniały
+  // się w KRESKĘ. Naprawa: `replaceStrokeLetters` PRZED `NFD` - ta sama mapa,
+  // której używa `slugifyTaxonomy`.
+  //
+  // Slug jest publicznym adresem profilu autora (`/author/<slug>`), a ta sama
+  // funkcja tworzy go w `performSend` i w `provisionTeamMembers`, czyli na OBU
+  // ścieżkach powstawania kont.
+  it("„ł" staje się „l", a nie dywizem - nazwisko nie jest okaleczone", async () => {
     grantAdmin();
     db.setResponse("user_invitations", (chain) =>
       chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Michał Kowalski" })),
@@ -2188,6 +2199,49 @@ describe("system zaproszeń - defekt zgłoszony", () => {
       slug: string;
     };
     expect(profile.slug).toBe("michal-kowalski");
+  });
+
+  it("„Ł" na POCZĄTKU nazwy nie znika - pierwsza litera adresu zostaje", async () => {
+    // Najostrzejszy z przypadków: dywiz z krawędzi jest zdejmowany, więc przed
+    // naprawą pierwsza litera ginęła bez śladu („Łukasz" -> `ukasz`).
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Łukasz Dąbrowski" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("lukasz-dabrowski");
+  });
+
+  it("„ł" w środku wyrazu nie rozbija go na dwa człony", async () => {
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Małgorzata Wiśniewska" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("malgorzata-wisniewska");
+  });
+
+  it("transliteracja obejmuje też pozostałe litery bez rozkładu (ø, ß, đ)", async () => {
+    // Katalog osób jest ogólnoeuropejski, a mapa `STROKE_LETTERS` obsługuje
+    // całą tę klasę - nie samo „ł".
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Søren Weiß Đurić" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("soren-weiss-duric");
   });
 });
 
@@ -2354,6 +2408,66 @@ describe("invitation delivery recovery branches", () => {
       context: context(),
     });
     expect(result).toMatchObject({ ok: true });
+    expect(h.authCalls.some((c) => c.kind === "create")).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------
+  // DEFEKT A2 NAPRAWIONY: katalog tożsamości był czytany JEDNĄ stroną.
+  //
+  // `listUsers` nie ma w tej wersji SDK filtru po adresie, a moduł pytał
+  // wyłącznie o `{ page: 1, perPage: 200 }`. Od 201. konta istniejące konto
+  // stawało się niewidoczne, sterowanie szło w `createUser`, GoTrue zwracał
+  // „already been registered", wyjątek leciał do `catch` w `performSend`
+  // i zaproszenie kończyło jako `failed`. Funkcja, która istnieje po to, żeby
+  // nie zakładać duplikatu, przestawała działać dokładnie wtedy, kiedy
+  // zaczynała być potrzebna.
+  // ---------------------------------------------------------------------
+  it("znajduje konto leżące na DRUGIEJ stronie katalogu i nie tworzy duplikatu", async () => {
+    prepare();
+    // 200 obcych kont wypełnia stronę pierwszą co do sztuki; szukane leży
+    // zaraz za jej krawędzią.
+    h.existingAuthUsers = [
+      ...Array.from({ length: 200 }, (_, i) => ({
+        id: `obce-${i}`,
+        email: `obcy${i}@example.com`,
+      })),
+      { id: IDS.existingUser, email: "NOWA@example.org" },
+    ];
+
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    // Gałąź tworzenia konta NIE została tknięta - to jest istota naprawy.
+    expect(h.authCalls.some((c) => c.kind === "create")).toBe(false);
+    // I dowód mechanizmu: moduł faktycznie poprosił o drugą stronę.
+    expect(h.listUsersPages.map((p) => p.page)).toEqual([1, 2]);
+  });
+
+  it("przestaje pytać na pierwszej niepełnej stronie - nie skanuje katalogu w kółko", async () => {
+    prepare();
+    h.existingAuthUsers = [{ id: "ktos-inny", email: "ktos@example.com" }];
+
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+
+    // Jedna strona, krótsza niż pełna, wystarcza za dowód „przeszliśmy całość".
+    expect(h.listUsersPages).toEqual([{ page: 1, perPage: 200 }]);
+  });
+
+  it("awaria katalogu NIE czyta się jak „konta nie ma" - zaproszenie kończy jako `failed`", async () => {
+    prepare();
+    h.listUsersError = new Error("gotrue unavailable");
+
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+
+    // Przed naprawą `error` było pomijane przy destrukturyzacji, więc awaria
+    // katalogu wyglądała jak pusty katalog i prowadziła prosto w `createUser`.
+    expect(result).toMatchObject({ ok: false });
     expect(h.authCalls.some((c) => c.kind === "create")).toBe(false);
   });
   it.each([false, true])("falls back from invite to magic link (hashed %s)", async (hashed) => {

@@ -22,6 +22,7 @@
 // supabaseAdmin ładowanego wewnątrz .handler() (patrz reguły import-graph).
 
 import { invitationCopy } from "@/lib/locale/invitation";
+import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -38,9 +39,15 @@ type InviteMode = Database["public"]["Enums"]["invitation_mode"];
 
 // ---------- utils ----------------------------------------------------------
 
+/**
+ * Slug profilu autora. `replaceStrokeLetters` MUSI iść przed `NFD`: „ł" (U+0142)
+ * nie ma rozkładu kanonicznego, więc normalizacja go nie rusza i bez tego kroku
+ * wpadał w `[^a-z0-9]+`, czyli zamieniał się w dywiz („Michał" -> `micha`,
+ * „Łukasz" -> `ukasz`). Mapa jest współdzielona z `slugifyTaxonomy`
+ * i `content.functions` - trzecia kopia rozjechałaby adresy między ekranami.
+ */
 function slugify(input: string): string {
-  return input
-    .toLowerCase()
+  return replaceStrokeLetters(input.toLowerCase())
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z0-9]+/g, "-")
@@ -290,10 +297,47 @@ async function performSend(
   // własna). `createUser` zwraca wtedy twardy błąd "already been registered" i
   // całe zaproszenie ląduje jako `failed` - mimo że jedyne, czego brakuje, to
   // ponowny link aktywacyjny. Dlatego najpierw szukamy istniejącego konta.
+  //
+  // DLACZEGO PĘTLA, A NIE JEDNO ZAPYTANIE. `listUsers` w tej wersji SDK
+  // (@supabase/auth-js 2.106) NIE MA filtru po adresie - przyjmuje wyłącznie
+  // `PageParams` (`page`, `perPage`). Wcześniej czytaliśmy stąd JEDNĄ stronę
+  // (`perPage: 200`), więc od 201. konta w katalogu funkcja odpowiadała „nie ma
+  // takiego konta" dla kont, które są - czyli przestawała działać dokładnie
+  // wtedy, kiedy zaczynała być potrzebna, i kierowała ścieżkę prosto
+  // w `createUser` i w konflikt.
+  //
+  // DLACZEGO NIE `nextPage` Z ODPOWIEDZI. Paginacja SDK parsuje nagłówek `link`
+  // przez `.substring(0, 1)`, więc numer strony jest OBCINANY DO PIERWSZEJ
+  // CYFRY (strona 10 czyta się jako 1, strona 25 jako 2). Pętla sterowana tym
+  // polem zapętla się albo kończy za wcześnie, gdy katalog przekroczy dziesięć
+  // stron. Liczymy więc strony sami, a kończymy na stronie krótszej niż pełna.
+  const AUTH_DIRECTORY_PAGE_SIZE = 200;
+  /** Twardy sufit: 200 * 100 = 20 000 kont. Po jego przekroczeniu ODMAWIAMY. */
+  const AUTH_DIRECTORY_MAX_PAGES = 100;
+
   async function findAuthUserIdByEmail(): Promise<string | null> {
-    const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
     const target = email.toLowerCase();
-    return data?.users.find((u) => (u.email ?? "").toLowerCase() === target)?.id ?? null;
+    for (let page = 1; page <= AUTH_DIRECTORY_MAX_PAGES; page += 1) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage: AUTH_DIRECTORY_PAGE_SIZE,
+      });
+      // Błąd katalogu NIE MOŻE czytać się jak „konta nie ma": cicha odpowiedź
+      // przecząca prowadzi wprost do `createUser`, czyli do konfliktu i do
+      // zaproszenia w stanie `failed`. Wcześniej `error` było tu pomijane przy
+      // destrukturyzacji.
+      if (error) throw error;
+      const users = data?.users ?? [];
+      const hit = users.find((u) => (u.email ?? "").toLowerCase() === target);
+      if (hit) return hit.id;
+      // Strona krótsza niż pełna jest ostatnia - w tym miejscu wiemy, że
+      // przeszliśmy CAŁY katalog i konta w nim nie ma.
+      if (users.length < AUTH_DIRECTORY_PAGE_SIZE) return null;
+    }
+    // Sufit wyczerpany, a katalog się nie skończył: nie wiemy, czy konto
+    // istnieje. „Nie wiem" musi być błędem, a nie odpowiedzią „nie ma" - ta
+    // druga kazałaby wyżej założyć konto i wywrócić zaproszenie na konflikcie.
+    throw new Error("auth_directory_scan_exhausted");
   }
 
   try {

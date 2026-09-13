@@ -62,8 +62,17 @@ export const setMyConsent = createServerFn({ method: "POST" })
 // Wariant batchowy dla mostu CMP->rejestr (registryBridge): jedna decyzja
 // z banera/strony prywatności potrafi zmienić kilka kategorii cookie naraz,
 // a każda z nich musi wylądować w audit-logu jako osobny wpis z tym samym
-// IP/UA/źródłem. Wpisy idą sekwencyjnie przez ten sam RPC `set_user_consent`
-// co wariant pojedynczy - każdy upsert+event jest atomowy po stronie bazy.
+// IP/UA/źródłem.
+//
+// CAŁA DECYZJA IDZIE JEDNYM RPC. Wcześniej była tu pętla po osobnych
+// wywołaniach `set_user_consent` - a każde z nich to WŁASNA transakcja, więc
+// `throw` na którymkolwiek zostawiał wpisy wcześniejsze zatwierdzone. Atomowy
+// był pojedynczy upsert plus jego zdarzenie, a nie decyzja użytkownika:
+// „odrzuć wszystko" przerwane w połowie zostawiało część kategorii WŁĄCZONYCH,
+// trwale i bez komunikatu (`backfillRegistryOnLogin` tego nie naprawia -
+// uzupełnia wyłącznie klucze NIEOBECNE w rejestrze, a te są obecne ze starą
+// wartością). `set_user_consents` (20260913170000) wykonuje całą pętlę
+// w jednej transakcji: wszystko albo nic.
 export const setMyConsentsBulk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => SetConsentsBulkSchema.parse(input))
@@ -87,25 +96,30 @@ export const setMyConsentsBulk = createServerFn({ method: "POST" })
       data.entries.some((e) => e.gpc === true),
     );
 
-    const savedKeys: string[] = [];
-    for (const entry of data.entries) {
-      const { error } = await supabase.rpc("set_user_consent", {
-        p_key: entry.key,
-        p_given: entry.given,
-        p_version: entry.version,
-        p_gpc: gpc,
-        p_lang: entry.lang,
-        p_ip: ip ?? undefined,
-        p_user_agent: ua ?? undefined,
-        p_source: entry.source ?? "account",
-        p_banner_version: entry.bannerVersion ?? undefined,
-        p_decision_id: entry.decisionId ?? undefined,
-        p_page_url: entry.pageUrl ?? undefined,
-      });
-      if (error) throw new Error(`${entry.key}: ${error.message}`);
-      savedKeys.push(entry.key);
-    }
-    return { saved: savedKeys };
+    // Kształt elementu odwzorowuje NAZWANE parametry `set_user_consent`
+    // (snake_case), bo to ich funkcja SQL używa przy wołaniu w pętli.
+    const entries = data.entries.map((entry) => ({
+      key: entry.key,
+      given: entry.given,
+      version: entry.version,
+      gpc,
+      lang: entry.lang ?? null,
+      ip: ip ?? null,
+      user_agent: ua ?? null,
+      source: entry.source ?? "account",
+      banner_version: entry.bannerVersion ?? null,
+      decision_id: entry.decisionId ?? null,
+      page_url: entry.pageUrl ?? null,
+    }));
+
+    const { data: saved, error } = await supabase.rpc("set_user_consents", {
+      p_entries: entries,
+    });
+    if (error) throw new Error(error.message);
+    // Zwracamy to, co zapisała BAZA, a nie to, co wysłał klient: przy „wszystko
+    // albo nic" te dwie listy mogą się różnić wyłącznie wtedy, gdy coś poszło
+    // nie tak, i wtedy chcemy zobaczyć wersję bazy.
+    return { saved: saved ?? [] };
   });
 
 export const listMyConsentEvents = createServerFn({ method: "GET" })
