@@ -25,9 +25,11 @@ const h = vi.hoisted(() => {
   const state = {
     configured: { current: true },
     hasRole: { current: true as unknown },
-    // Najemca wołającego oddawany przez RPC `current_tenant_id` - ta sama
-    // płaszczyzna, po której autoryzuje `has_role`.
+    // Najemca wołającego czytany z `profiles` - ta sama płaszczyzna, po której
+    // autoryzuje `has_role` (`current_tenant_id()` czyta to samo pole).
     tenant: { current: "tenant-alfa" as unknown },
+    /** Wiązanie hosta żądania: `null` = brak wskazówki (dev, podgląd). */
+    binding: { current: null as { id: string } | null },
     rpc: vi.fn(),
     // `null` jest tu równie prawdziwym kształtem co pusta tablica: PostgREST
     // oddaje `data: null` przy zerowym wyniku, a diagnostyka MUSI to przeżyć.
@@ -64,6 +66,13 @@ const h = vi.hoisted(() => {
           return link;
         };
       }
+      // Odczyt profilu wołającego (`resolveUserTenantId`) kończy się ogniwem
+      // terminalnym, a nie `await` na łańcuchu - atrapa musi je znać.
+      link.maybeSingle = () =>
+        Promise.resolve({
+          data: table === "profiles" ? { tenant_id: state.tenant.current as string | null } : null,
+          error: null,
+        });
       link.then = (onFulfilled?: (value: unknown) => unknown) =>
         Promise.resolve({
           data: table === "b2b_coupons" ? state.coupons.current : state.webhookRows.current,
@@ -138,6 +147,20 @@ const h = vi.hoisted(() => {
 // środowiskowych), więc test pilnuje też tego, że klucz serwisowy jest wymagany.
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => h.supabaseAdmin }));
 
+// PŁASZCZYZNA HOSTA. Host jest w tej bramce wyłącznie KONTROLĄ SPÓJNOŚCI -
+// zakres bierze się z profilu. Atrapa oddaje samo wiązanie domeny, bez
+// fallbacku na najemcę domyślnego (to rozróżnienie trzyma przy życiu dev
+// i podgląd - patrz `src/lib/server/callerTenant.server.ts`).
+vi.mock("@/lib/http/requestHost", () => ({
+  currentTenantHost: async () => "panel.example.test",
+}));
+vi.mock("@/lib/server/tenant.server", () => ({
+  resolveDomainBinding: async () => ({
+    tenant: h.binding.current,
+    directoryPopulated: h.binding.current !== null,
+  }),
+}));
+
 // Atrapa na GRANICY SDK operatora, nie na naszym wrapperze - z tego samego
 // powodu, co przy Supabase. Dodatkowa korzyść: przez `createStripeClient`
 // przechodzi PRAWDZIWY kod, więc test pilnuje też wymagania kluczy
@@ -192,6 +215,7 @@ beforeEach(() => {
   h.configured.current = true;
   h.hasRole.current = true;
   h.tenant.current = TENANT;
+  h.binding.current = null;
   h.rpc.mockReset();
   h.coupons.current = [];
   h.webhookRows.current = [];
@@ -214,10 +238,10 @@ afterEach(() => {
 });
 
 describe("assertAdmin - bramka dostępu do diagnostyki", () => {
-  it("przepuszcza administratora", async () => {
+  it("przepuszcza administratora I ODDAJE jego najemcę", async () => {
     h.hasRole.current = true;
 
-    await expect(assertAdmin(adminClient(), "user-admin")).resolves.toBeUndefined();
+    await expect(assertAdmin(adminClient(), "user-admin")).resolves.toEqual({ tenantId: TENANT });
     expect(h.rpc).toHaveBeenCalledWith("has_role", { _user_id: "user-admin", _role: "admin" });
   });
 
@@ -242,24 +266,28 @@ describe("assertAdmin - bramka dostępu do diagnostyki", () => {
 });
 
 describe("assertAdminWithTenant - bramka, która ODDAJE najemcę", () => {
-  // CO BYŁO ZŁE. `assertAdmin` zwraca `void`, więc handler musiał pamiętać
+  // CO BYŁO ZŁE. Bramka zwracała `void`, więc handler musiał pamiętać
   // o zakresie najemcy z własnej głowy - i nie pamiętał: kondycja dziennika
   // webhooków była liczona po CAŁEJ tabeli, spod `service_role`, czyli
-  // z pominięciem RLS.
+  // z pominięciem RLS. Gorzej: warstwa danych rozstrzygała najemcę DRUGI RAZ,
+  // z hosta żądania, więc rola autoryzowała się w obszarze A, a dane szły z B.
   //
-  // JAKIE TO BYŁO RYZYKO. Kontrolki `webhook_failures` i `webhook_traffic`
-  // pokazywały ruch i awarie wszystkich obszarów roboczych, a `lastEventAt`
-  // oddawał znacznik cudzego zdarzenia. Mniej niż wyciek ładunku, ale ta sama
-  // klasa: autoryzacja po jednym najemcy, dane z wszystkich.
+  // JAK NAPRAWIONE. Najemca jest CZĘŚCIĄ WYNIKU bramki i pochodzi z PROFILU
+  // wołającego - z tego samego pola, które czyta `current_tenant_id()` przy
+  // autoryzacji roli. Host bierze udział wyłącznie jako kontrola spójności.
   //
-  // JAK NAPRAWIONE. Najemca jest CZĘŚCIĄ WYNIKU bramki, więc zapytanie nie ma
-  // jak o nim zapomnieć - wartość leży tuż obok wywołania.
-  it("oddaje najemcę z `current_tenant_id`, dopiero PO kontroli roli", async () => {
+  // `assertAdminWithTenant` jest dziś aliasem `assertAdmin`; obie nazwy
+  // MUSZĄ znaczyć jedno i to samo, bo druga implementacja byłaby drugim
+  // źródłem prawdy.
+  it("oddaje najemcę z profilu, dopiero PO kontroli roli", async () => {
     await expect(assertAdminWithTenant(adminClient(), "user-admin")).resolves.toEqual({
       tenantId: TENANT,
     });
 
-    expect(h.rpc.mock.calls.map((call) => call[0])).toEqual(["has_role", "current_tenant_id"]);
+    // Jedno RPC: rola. Najemca czytany jest z `profiles`, a nie osobną funkcją.
+    expect(h.rpc.mock.calls.map((call) => call[0])).toEqual(["has_role"]);
+    expect(h.chains.map((chain) => chain.table)).toEqual(["profiles"]);
+    expect(h.chains[0]?.filters).toEqual([["id", "user-admin"]]);
   });
 
   it("brak roli admina NIE pyta nawet o najemcę", async () => {
@@ -269,6 +297,7 @@ describe("assertAdminWithTenant - bramka, która ODDAJE najemcę", () => {
 
     await expect(assertAdminWithTenant(adminClient(), "user-me")).rejects.toThrow("forbidden");
     expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.chains).toHaveLength(0);
   });
 
   it("nierozwiązany najemca to ODMOWA, nie zgoda na wszystko", async () => {
@@ -278,7 +307,7 @@ describe("assertAdminWithTenant - bramka, która ODDAJE najemcę", () => {
     h.tenant.current = null;
 
     await expect(assertAdminWithTenant(adminClient(), "user-admin")).rejects.toThrow(
-      "brak kontekstu najemcy",
+      "No tenant for current user",
     );
   });
 
@@ -286,8 +315,29 @@ describe("assertAdminWithTenant - bramka, która ODDAJE najemcę", () => {
     h.tenant.current = "";
 
     await expect(assertAdminWithTenant(adminClient(), "user-admin")).rejects.toThrow(
-      "brak kontekstu najemcy",
+      "No tenant for current user",
     );
+  });
+
+  it("host wiążący się z INNYM najemcą zamyka ścieżkę", async () => {
+    // To jest sedno poprawki: rola przechodzi (admin obszaru A), ale żądanie
+    // przyszło na domenę obszaru B. Zakres NIE MOŻE pójść za hostem, a sama
+    // niespójność jest podejrzana na tyle, że kończy się odmową.
+    h.binding.current = { id: "tenant-beta" };
+
+    await expect(assertAdminWithTenant(adminClient(), "user-admin")).rejects.toThrow(
+      "TENANT/HOST_MISMATCH",
+    );
+  });
+
+  it("host bez wiązania (dev, podgląd) przepuszcza na najemcy profilowego", async () => {
+    // ANTYREGRESJA: bez tej gałęzi diagnostyka padałaby na localhoście
+    // i `*.pages.dev` każdemu adminowi spoza najemcy domyślnego.
+    h.binding.current = null;
+
+    await expect(assertAdminWithTenant(adminClient(), "user-admin")).resolves.toEqual({
+      tenantId: TENANT,
+    });
   });
 });
 

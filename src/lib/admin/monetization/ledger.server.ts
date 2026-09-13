@@ -1,10 +1,15 @@
 // Rejestr monetyzacji - warstwa danych (server-only, klucz serwisowy).
 //
-// IZOLACJA NAJEMCY. Wszystkie trzy zapytania są twardo zawężone do
-// `tenant_id` rozstrzygniętego z HOSTA żądania (`resolveTenantIdForHost`), a
-// nie z parametru wejściowego - administrator najemcy nie ma jak poprosić
-// o cudzy rejestr, nawet znając identyfikator. Brak rozstrzygniętego najemcy
-// = pusty rejestr (nigdy „wszystko").
+// IZOLACJA NAJEMCY. Wszystkie trzy zapytania są twardo zawężone do `tenant_id`
+// podanego przez WOŁAJĄCEGO SERWEROWEGO - a ten bierze go z bramki
+// `assertAdmin`, czyli z profilu administratora, nie z ładunku i nie z hosta.
+//
+// Wcześniej moduł rozstrzygał najemcę sam, z hosta żądania. To była DRUGA
+// granica obok tej, po której autoryzowała się rola: admin obszaru A na
+// domenie obszaru B przechodził bramkę w A i dostawał pełny rejestr B
+// (nadania, linki podarunkowe, adresy darczyńców). Host może być wyłącznie
+// kontrolą spójności (`assertCallerTenantMatchesHost`), nigdy źródłem zakresu.
+// Pusty najemca = pusty rejestr (nigdy „wszystko").
 //
 // FILTR ŚRODOWISKA jest domenowy i mieszka w `model.ts`; tutaj tylko go
 // stosujemy, żeby ta sama reguła obowiązywała w teście jednostkowym i na
@@ -24,7 +29,7 @@ import {
 export interface MonetizationLedgerResult extends MonetizationLedger {
   environment: EnvironmentFilter;
   summary: MonetizationSummary;
-  /** `false` gdy host nie rozstrzyga najemcy - panel mówi to wprost. */
+  /** `false` gdy wołający nie ma rozstrzygniętego najemcy - panel mówi to wprost. */
   tenantResolved: boolean;
 }
 
@@ -33,14 +38,6 @@ const MAX_LIMIT = 200;
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
-}
-
-async function resolveTenantId(): Promise<string | null> {
-  const [{ resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
-    import("@/lib/server/tenant.server"),
-    import("@/lib/http/requestHost"),
-  ]);
-  return resolveTenantIdForHost(await currentTenantHost());
 }
 
 function clampLimit(limit: number): number {
@@ -52,9 +49,12 @@ export const EMPTY_LEDGER: MonetizationLedger = { donations: [], grants: [], gif
 export async function loadMonetizationLedger(input: {
   environment: EnvironmentFilter;
   limit: number;
+  /** WYMAGANY - z bramki `assertAdmin` (profil wołającego), nigdy z ładunku. */
+  tenantId: string;
 }): Promise<MonetizationLedgerResult> {
   const now = new Date();
-  const tenantId = await resolveTenantId();
+  const tenantId = input.tenantId;
+  // Bezpiecznik: pusta wartość NIGDY nie ma znaczyć „wszyscy najemcy".
   if (!tenantId) {
     return {
       ...EMPTY_LEDGER,

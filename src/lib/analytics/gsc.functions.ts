@@ -6,8 +6,10 @@
  * Docs: https://developers.google.com/webmaster-tools/v1/api_reference_index
  */
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_search_console";
 
@@ -31,6 +33,11 @@ interface GatewayCtx {
 
 async function requireAdmin(context: GatewayCtx): Promise<void> {
   // Tenant-scoped: has_role() filters user_roles by current_tenant_id().
+  //
+  // TA BRAMKA NIE ZAWĘŻA DANYCH. Konektor GSC jest jeden na wdrożenie (klucze
+  // ze środowiska), więc każdy admin każdego najemcy pyta Google tym samym
+  // kontem - o zakres DANYCH dba dopiero związanie `siteUrl` z `tenants.domain`
+  // wołającego (`assertSiteUrlBelongsToTenant`), a nie ta funkcja.
   const { data: isAdmin, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
@@ -39,6 +46,18 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
   if (!isAdmin) {
     throw new Error("Forbidden: admin role required");
   }
+}
+
+/**
+ * Najemca wołającego - z jego PROFILU, czyli z tej samej płaszczyzny, po
+ * której autoryzowało `has_role()`. Nigdy z ładunku żądania.
+ */
+async function callerTenantId(context: GatewayCtx): Promise<string> {
+  const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");
+  return resolveUserTenantId(
+    context.supabase as unknown as SupabaseClient<Database>,
+    context.userId,
+  );
 }
 
 /**
@@ -95,10 +114,20 @@ export interface GscSite {
 export const listGscSites = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ sites: GscSite[]; configured: boolean }> => {
-    await requireAdmin(context as unknown as GatewayCtx);
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
+    const tenantId = await callerTenantId(ctx);
+    const { siteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
     try {
       const res = await gwFetch<{ siteEntry?: GscSite[] }>("/webmasters/v3/sites");
-      return { sites: res.siteEntry ?? [], configured: true };
+      // LISTA TEŻ JEST DANYMI. Bez odsiania panel sam wyliczałby adresy
+      // wszystkich najemców obsługiwanych przez ten jeden konektor - czyli
+      // podawałby gotowe `siteUrl` do wpisania w pozostałe dwie funkcje.
+      const entries = res.siteEntry ?? [];
+      const owned = await Promise.all(
+        entries.map((site) => siteUrlBelongsToTenant(site.siteUrl, tenantId)),
+      );
+      return { sites: entries.filter((_, i) => owned[i]), configured: true };
     } catch (e) {
       if (isGscNotConfigured(e)) return { sites: [], configured: false };
       throw e;
@@ -130,7 +159,12 @@ export const queryGscAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => analyticsInput.parse(i))
   .handler(async ({ data, context }): Promise<{ rows: GscRow[] }> => {
-    await requireAdmin(context as unknown as GatewayCtx);
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
+    // Odmowa PRZED `gwFetch`: kwerenda cudzej właściwości nie ma prawa ruszyć
+    // do Google ani kosztować limitu konektora.
+    const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
+    await assertSiteUrlBelongsToTenant(data.siteUrl, await callerTenantId(ctx));
     const path = `/webmasters/v3/sites/${encodeURIComponent(data.siteUrl)}/searchAnalytics/query`;
     const body = {
       startDate: data.startDate,
@@ -168,7 +202,15 @@ export const inspectGscUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => inspectInput.parse(i))
   .handler(async ({ data, context }): Promise<{ raw: string }> => {
-    await requireAdmin(context as unknown as GatewayCtx);
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
+    // OBA pola niosą adres: `siteUrl` wybiera właściwość, a `inspectionUrl`
+    // konkretną stronę w niej. Sprawdzamy oba, bo inspekcja zwraca stan
+    // indeksowania adresu, a nie właściwości.
+    const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
+    const tenantId = await callerTenantId(ctx);
+    await assertSiteUrlBelongsToTenant(data.siteUrl, tenantId);
+    await assertSiteUrlBelongsToTenant(data.inspectionUrl, tenantId);
     try {
       const res = await gwFetch<unknown>("/v1/urlInspection/index:inspect", {
         method: "POST",

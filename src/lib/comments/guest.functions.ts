@@ -6,6 +6,7 @@
 // jest tylko bramą wejściową, nie drugim źródłem prawdy.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
+import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { z } from "zod";
 
 const GuestCommentInput = z.object({
@@ -43,10 +44,13 @@ export const createGuestComment = createServerFn({ method: "POST" })
     let clientIp = "unknown-ip";
     try {
       const req = getRequest();
-      const fwd = req.headers.get("x-forwarded-for");
-      clientIp =
-        req.headers.get("cf-connecting-ip") ??
-        (fwd ? (fwd.split(",")[0]?.trim() ?? "unknown-ip") : "unknown-ip");
+      // Jedna definicja „kto dzwoni" na całe repo (`@/lib/http/rateLimit`):
+      // `cf-connecting-ip` -> `x-real-ip` -> OSTATNI wpis `x-forwarded-for`.
+      // Pierwszy wpis XFF dopisuje klient, więc kubełek po nim kluczowany
+      // rotował się jednym nagłówkiem. Nazwa wspólnego kubełka zostaje
+      // "unknown-ip" - ten klucz już żyje w `rate_limits` dla tego scope'u.
+      const subject = rateLimitIpSubject(req.headers);
+      clientIp = subject === "unknown" ? "unknown-ip" : subject;
     } catch {
       /* brak kontekstu HTTP - zostaje wspólny kubełek */
     }

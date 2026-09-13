@@ -211,13 +211,34 @@ export interface LinkCheckResult {
   alerted: number;
 }
 
-export async function runLinkCheckBatch(admin: DbClient, postsLimit = 3): Promise<LinkCheckResult> {
+/**
+ * Porcja rotacyjnego skanu.
+ *
+ * `tenantId` ZAWĘŻA kolejkę do jednego najemcy i jest obowiązkowy dla każdego
+ * wołającego, który ma tożsamość użytkownika. Skan nie tylko czyta - upsertuje
+ * `outbound_link_checks`, stempluje `posts.outbound_links_checked_at` i potrafi
+ * wstawić wiersze `notifications` adminom dotkniętego najemcy. Bez zakresu
+ * przycisk „skanuj teraz" w panelu jednego najemcy pisał w obszarze wszystkich
+ * pozostałych i zjadał ich budżet rotacji.
+ *
+ * `null` (wartość domyślna) znaczy „bez zawężenia" i ma DOKŁADNIE JEDNEGO
+ * legalnego wołającego: cron `src/lib/server/jobsTick.server.ts`. To jedyne
+ * wejście bez tożsamości użytkownika - jego zadaniem jest właśnie obsłużyć
+ * kolejkę wszystkich najemców. Każdy inny wołający musi podać najemcę.
+ */
+export async function runLinkCheckBatch(
+  admin: DbClient,
+  postsLimit = 3,
+  tenantId: string | null = null,
+): Promise<LinkCheckResult> {
   const dueBefore = new Date(Date.now() - RECHECK_AFTER_DAYS * 24 * 3_600_000).toISOString();
-  const { data: due, error } = await admin
+  let query = admin
     .from("posts")
     .select("id, tenant_id, content_pl, content_en, builder_data, blocks_data")
     .eq("status", "published")
-    .is("deleted_at", null)
+    .is("deleted_at", null);
+  if (tenantId !== null) query = query.eq("tenant_id", tenantId);
+  const { data: due, error } = await query
     .or(`outbound_links_checked_at.is.null,outbound_links_checked_at.lt.${dueBefore}`)
     .order("outbound_links_checked_at", { ascending: true, nullsFirst: true })
     .limit(postsLimit);

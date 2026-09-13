@@ -28,6 +28,7 @@
 // diagnostyczne. Nie ma tu więc ani kluczy i18n, ani słownika; asercje
 // dotyczą filtra języka, nie tłumaczeń.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ok, supabaseFromStub } from "@/test/supabaseChain";
 import { ZodError } from "zod";
 
 import {
@@ -65,6 +66,9 @@ vi.mock("@/lib/email/auth-events.server", () => ({
 
 import { getAuthEmailEvents } from "@/lib/auth-email-events.functions";
 
+/** Kształt, jaki wolno przysłać KLIENTOWI - bez `tenantId`. */
+type Filtry = Omit<AuthEmailEventsQuery, "tenantId">;
+
 /** Raport w kształcie, jaki panel dostaje z serwera. */
 const pustyRaport = (days: number): AuthEmailEventsReport => ({
   days,
@@ -77,8 +81,23 @@ const pustyRaport = (days: number): AuthEmailEventsReport => ({
   generatedAt: "2026-08-22T10:00:00.000Z",
 });
 
-/** Kontekst, jaki middleware wstrzykuje w produkcji. Handler go nie używa. */
-const kontekst = () => ({ supabase: null });
+const AKTOR = "11111111-1111-4111-8111-111111111111";
+const NAJEMCA = "22222222-2222-4222-8222-222222222222";
+
+/**
+ * Kontekst, jaki middleware wstrzykuje w produkcji. Handler GO UŻYWA: najemcę
+ * bierze z profilu wołającego (`resolveUserTenantId`), a nie z ładunku.
+ * Atrapa REALNIE FILTRUJE po `id` - pytanie o cudzy profil oddaje pustkę, więc
+ * test upadnie, gdyby handler kiedyś sięgnął po nie swój wiersz.
+ */
+function kontekst() {
+  const db = supabaseFromStub();
+  db.setResponse("profiles", (chain) => {
+    const [, id] = chain.argsOf("eq") ?? [];
+    return id === AKTOR ? ok({ tenant_id: NAJEMCA }) : ok(null);
+  });
+  return { supabase: db, userId: AKTOR };
+}
 
 beforeAll(() => {
   vi.useFakeTimers();
@@ -117,7 +136,10 @@ describe("getAuthEmailEvents - walidator wejścia", () => {
   it("brak parametrów daje komplet wartości domyślnych", () => {
     // Panel wchodzi na zakładkę bez parametrów w URL-u; brak domyślnych
     // kończyłby się błędem przy pierwszym otwarciu diagnostyki.
-    const dane = validateServerFnInput<AuthEmailEventsQuery>(getAuthEmailEvents, undefined);
+    // `Omit<..., "tenantId">` NIE jest kosmetyką: najemca pochodzi z profilu
+    // wołającego, a nie z ładunku żądania, więc walidator NIE MOŻE go przyjąć.
+    // Gdyby kiedyś przyjął, ten typ przestanie się zgadzać i test to złapie.
+    const dane = validateServerFnInput<Filtry>(getAuthEmailEvents, undefined);
 
     expect(dane).toEqual({
       days: 7,
@@ -133,7 +155,7 @@ describe("getAuthEmailEvents - walidator wejścia", () => {
   });
 
   it("komplet poprawnych filtrów przechodzi bez zmiany", () => {
-    const wejscie: AuthEmailEventsQuery = {
+    const wejscie: Filtry = {
       days: 30,
       emailType: "recovery",
       lang: "en",
@@ -235,7 +257,35 @@ describe("getAuthEmailEvents - ścieżka szczęśliwa", () => {
     await callServerFn(getAuthEmailEvents, { data: wejscie, context: kontekst() });
 
     expect(h.zapytania).toHaveLength(1);
-    expect(h.zapytania[0]).toEqual(wejscie);
+    // Warstwa danych dostaje filtry klienta PLUS najemcę doklejony przez
+    // handler z profilu wołającego - to on jest granicą, więc musi tu być.
+    expect(h.zapytania[0]).toEqual({ ...wejscie, tenantId: NAJEMCA });
+  });
+
+  it("najemca z ŁADUNKU jest ignorowany - liczy się profil wołającego", async () => {
+    // Gdyby `tenantId` dało się podać w żądaniu, cała granica byłaby fikcją:
+    // admin najemcy A wpisałby identyfikator najemcy B i przeczytał jego pocztę.
+    await callServerFn(getAuthEmailEvents, {
+      data: { tenantId: "99999999-9999-4999-8999-999999999999" } as never,
+      context: kontekst(),
+    });
+
+    expect((h.zapytania[0] as { tenantId: string }).tenantId).toBe(NAJEMCA);
+  });
+
+  it("brak najemcy w profilu wołającego ODMAWIA, zamiast czytać bez zakresu", async () => {
+    // Fail closed: warstwa danych czyta kluczem serwisowym, więc "brak zakresu"
+    // znaczyłoby "wszyscy najemcy".
+    const db = supabaseFromStub();
+    db.setResponse("profiles", ok(null));
+
+    await expect(
+      callServerFn(getAuthEmailEvents, {
+        data: {},
+        context: { supabase: db, userId: AKTOR },
+      }),
+    ).rejects.toThrow("No tenant for current user");
+    expect(h.zapytania).toHaveLength(0);
   });
 
   it("oddaje panelowi raport bez przepakowywania go po drodze", async () => {
@@ -257,6 +307,7 @@ describe("getAuthEmailEvents - ścieżka szczęśliwa", () => {
     await callServerFn(getAuthEmailEvents, { data: undefined, context: kontekst() });
 
     expect(h.zapytania[0]).toEqual({
+      tenantId: NAJEMCA,
       days: 7,
       emailType: null,
       lang: null,

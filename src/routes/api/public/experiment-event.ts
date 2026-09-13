@@ -17,7 +17,17 @@
 //   public_tenant_id() ze zdjętej polityki RLS).
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { createHash } from "crypto";
+// Prefiks `node:` jest OBOWIĄZKOWY. Ten moduł jest TRASĄ, więc routeTree.gen
+// importuje go zachłannie i workerd (preset `cloudflare-module`) wykonuje go
+// przy pierwszym żądaniu SSR. Goły specyfikator "crypto" nie jest tam modułem
+// rozwiązywalnym (nodejs_compat wystawia wbudowane wyłącznie pod `node:`):
+// nierozwiązany import wywraca CAŁY graf modułów tras, a h3 serializuje to jako
+// nieprzezroczyste `{"unhandled":true,"message":"HTTPError"}` 500 dla KAŻDEJ
+// trasy. Pod Node bare specifier działa, więc awaria widoczna jest dopiero na
+// produkcji - dokładnie ten incydent opisuje `hooks.refresh-og-image.ts`.
+import { createHash } from "node:crypto";
+import { clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 
 // visitorId: crypto.randomUUID() albo fallback base36 z getVisitorId() -
 // oba mieszczą się w [a-z0-9-]{8,64}.
@@ -29,14 +39,52 @@ const BodySchema = z.object({
   path: z.string().max(2000).optional(),
 });
 
+// Adres bierzemy z JEDYNEJ definicji „kto dzwoni" w repo (`clientIpFromHeaders`):
+// pierwszy wpis `x-forwarded-for` pochodzi OD KLIENTA, więc kubełek po nim
+// kluczowany rotuje się jednym nagłówkiem. Drugiej kolejności nagłówków tu nie
+// powtarzamy - dwie definicje znaczyłyby dwa różne kubełki na to samo żądanie.
+// UWAGA WDROŻENIOWA: klucz `viewer_hash` się ZMIENIA, więc jedno okno (5 min)
+// limitu `ab.event` rusza po wdrożeniu od zera.
 function viewerHashFrom(req: Request): string {
-  const ip =
-    req.headers.get("cf-connecting-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    req.headers.get("x-real-ip") ??
-    "0.0.0.0";
+  const ip = clientIpFromHeaders(req.headers);
   const ua = req.headers.get("user-agent") ?? "";
   return createHash("sha256").update(`${ip}|${ua}`).digest("hex");
+}
+
+// Preflight beaconu: `Access-Control-Allow-Origin: *` na endpoincie ZAPISU
+// pozwalał dowolnej obcej stronie wykonać POST przeglądarką swojego gościa -
+// odpowiedzi nie odczyta, ale WIERSZ POWSTAJE, więc metryki testu A/B (a przez
+// nie wybór „zwycięzcy" kampanii) dają się fabrykować z zewnątrz. Bramka
+// `resolveTenantIdForHost` w POST tego NIE zatrzymuje: przy żądaniu
+// cross-origin Host jest nadal NASZ - ona chroni przed cross-TENANT, nie przed
+// cross-ORIGIN. Mikrosite'y tenantów stoją na własnych domenach, więc zamiast
+// stałej listy hostów pytamy katalog tenantów; `resolveTenantIdForHost` nie
+// nadaje się na tę bramkę, bo nieznany host degraduje tam do tenanta
+// DOMYŚLNEGO (fail-open) i odbiłaby każdy origin. `sendBeacon` z własnej
+// domeny preflightu nie wykonuje, więc główna ścieżka tego nie dotyka.
+async function preflightCorsHeaders(request: Request): Promise<Record<string, string>> {
+  // `Vary: Origin` zawsze - odpowiedź zależy od originu także wtedy, gdy
+  // nagłówków CORS w niej nie ma, a cache pośredni nie może ich pomieszać.
+  const headers: Record<string, string> = { Vary: "Origin" };
+  const origin = request.headers.get("origin");
+  if (!origin) return headers;
+  let host: string | null = null;
+  try {
+    host = normalizeHost(new URL(origin).hostname);
+  } catch {
+    return headers;
+  }
+  if (!host) return headers;
+  const { getTenantDirectory } = await import("@/lib/server/tenant.server");
+  const directory = await getTenantDirectory();
+  const known = directory.byDomain.has(host) || directory.byDomain.has(wwwToggledHost(host));
+  if (!known && !isPreviewHost(host)) return headers;
+  return {
+    ...headers,
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "content-type",
+  };
 }
 
 export const Route = createFileRoute("/api/public/experiment-event")({
@@ -88,20 +136,20 @@ export const Route = createFileRoute("/api/public/experiment-event")({
           visitor_id: parsed.data.visitorId,
           path: parsed.data.path ?? null,
         });
-        if (insErr) return new Response(insErr.message, { status: 500 });
+        // Komunikat Postgresa niesie nazwy tabel, kolumn i ograniczeń - na
+        // ścieżce dostępnej bez sesji to darmowa mapa schematu. Do klienta idzie
+        // stały kod, do logu workera pełna treść: beacon jest fire-and-forget,
+        // więc bez tego logu nikt nie zgłosi nieudanych INSERT-ów.
+        if (insErr) {
+          console.error("[experiment-event] insert failed", insErr.message);
+          return new Response("Insert failed", { status: 500 });
+        }
 
         return new Response("ok", { status: 202 });
       },
       // sendBeacon może w niektórych przeglądarkach wykonać preflight
-      OPTIONS: async () =>
-        new Response(null, {
-          status: 204,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "content-type",
-          },
-        }),
+      OPTIONS: async ({ request }) =>
+        new Response(null, { status: 204, headers: await preflightCorsHeaders(request) }),
     },
   },
 });

@@ -6,27 +6,58 @@
 // - admin uruchamia tę samą ścieżkę na ładunku zapisanym w dzienniku.
 //
 // Bezpieczeństwo:
-//  - dostęp wyłącznie dla roli `admin` (weryfikacja po stronie serwera),
+//  - dostęp wyłącznie dla roli `super_admin` (weryfikacja po stronie serwera).
+//    Poprzeczka odtwarza politykę RLS tej tabeli - „payment_webhook_events
+//    admin read" to `USING (tenant_id = current_tenant_id() AND
+//    is_super_admin())`. Ścieżka serwerowa biegnie spod `service_role`, czyli
+//    z pominięciem RLS, więc to ONA musi odtworzyć oba człony polityki; rola
+//    `admin` była o szczebel niżej niż wymaga baza,
 //  - podpis nie jest tu weryfikowany, bo ładunek pochodzi z naszej bazy, a nie
 //    z sieci - dlatego funkcja nigdy nie przyjmuje ładunku od klienta, tylko
 //    identyfikator wiersza,
 //  - obsługa jest idempotentna, więc powtórka nie dubluje maili ani uprawnień,
-//  - zakres NAJEMCY: bramka `assertAdminWithTenant` oddaje najemcę wołającego,
-//    a oba zapytania (odczyt i zapis) filtrują po `tenant_id`. Klient
-//    `service_role` omija RLS, więc polityka "payment_webhook_events admin
-//    read" (tenant + super_admin) na tej ścieżce NIE DZIAŁA - jedynym zakresem
-//    jest filtr w zapytaniu. Bez niego admin jednego obszaru roboczego czytał
-//    surowy ładunek Stripe'a (e-mail, adres, kwoty) i ODTWARZAŁ zdarzenie
-//    rozliczeniowe cudzego obszaru.
+//  - zakres NAJEMCY (drugi człon polityki): `assertCallerTenantMatchesHost`
+//    oddaje najemcę Z PROFILU wołającego - tego samego, w którym `has_role()`
+//    autoryzowało rolę - a oba zapytania (odczyt i zapis) filtrują po
+//    `tenant_id`. Jedynym zakresem jest ten filtr. Bez niego admin jednego
+//    obszaru roboczego czytał surowy ładunek Stripe'a (e-mail, adres, kwoty)
+//    i ODTWARZAŁ zdarzenie rozliczeniowe cudzego obszaru.
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
 
 const retrySchema = z.object({
   /** Identyfikator wiersza dziennika (`payment_webhook_events.id`). */
   id: z.string().uuid(),
 });
+
+/**
+ * Bramka obu funkcji: rola `super_admin` w obszarze wołającego, a potem najemca
+ * z jego profilu (skonfrontowany z hostem żądania).
+ *
+ * Kolejność jest wiążąca - rola PRZED dotknięciem czegokolwiek - i nie ma tu
+ * gałęzi wyjątku: `is_super_admin()` w bazie samo jest zawężone do
+ * `current_tenant_id()`, więc „super admin widzi wszystko" byłoby cofnięciem
+ * całej poprawki, a nie udogodnieniem.
+ */
+async function assertSuperAdminTenant(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "super_admin",
+  });
+  // Fail-closed: `null` z RPC (brak wiersza roli, brak grantu na funkcję) ani
+  // żadna wartość prawdziwa-ale-nie-`true` nie może przejść jako zgoda.
+  if (error || data !== true) throw new Error("forbidden");
+
+  const { assertCallerTenantMatchesHost } = await import("@/lib/server/callerTenant.server");
+  return assertCallerTenantMatchesHost(supabase, userId);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -67,14 +98,17 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }): Promise<WebhookRetryResult> => {
-    const { assertAdminWithTenant } = await import("@/lib/billing/diagnostics.server");
-    const { tenantId } = await assertAdminWithTenant(context.supabase, context.userId);
+    const tenantId = await assertSuperAdminTenant(context.supabase, context.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("payment_webhook_events")
       .select("id, event_id, event_type, environment, occurred_at, payload, retry_count")
       .eq("id", data.id)
+      // Wiersze bez rozstrzygniętego płatnika też MAJĄ najemcę: nadaje go
+      // trigger `payment_webhook_events_bind_tenant` przez
+      // `email_default_tenant_id()` (migracja 20260831060000), więc nie ma
+      // kategorii „zdarzeń bez obszaru", którą ten filtr mógłby odciąć.
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error) throw new Error(`nie udało się odczytać zdarzenia: ${error.message}`);
@@ -156,13 +190,12 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
     };
   });
 
-/** Ładunek pojedynczego zdarzenia - podgląd w panelu (tylko admin). */
+/** Ładunek pojedynczego zdarzenia - podgląd w panelu (tylko `super_admin`). */
 export const readWebhookEventPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }) => {
-    const { assertAdminWithTenant } = await import("@/lib/billing/diagnostics.server");
-    const { tenantId } = await assertAdminWithTenant(context.supabase, context.userId);
+    const tenantId = await assertSuperAdminTenant(context.supabase, context.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin

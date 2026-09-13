@@ -5,18 +5,21 @@
 // service_role, więc odczyt idzie przez klienta admina - rola wywołującego
 // jest wcześniej weryfikowana w middleware server function.
 //
-// ZAKRES DANYCH - LUKA ZNANA, JESZCZE NIEZAMKNIĘTA. Weryfikacja roli dotyczy
-// tenanta wywołującego, a zapytanie niżej filtruje WYŁĄCZNIE po dacie, bo
-// `auth_email_events` nie ma kolumny `tenant_id` (20260728193308:1-23) - webhook
-// maili autoryzacyjnych w ogóle nie zna dziś najemcy. Adres odbiorcy jest tu
-// zamaskowany, ale admin jednego najemcy widzi mimo to `recipient_domain`,
-// `subject`, `redirect_to`, `action_url_host` (czyli domeny cudzych najemców),
-// `greeting_name` (imię odbiorcy), `error_message` i `run_id` WSZYSTKICH
-// najemców. Domknięcie wymaga najpierw kolumny `tenant_id` w tabeli i
-// rozstrzygnięcia, co robić z mailem, dla którego najemcy nie da się ustalić
-// (świeża rejestracja - profilu jeszcze nie ma w chwili hooka): NULL oznacza
-// „nie pokazujemy nikomu", fallback na najemcę domyślnego oznacza „pokazujemy
-// jego adminowi". Dopiero po tej decyzji ma sens `.eq("tenant_id", …)` tutaj.
+// ZAKRES DANYCH. Weryfikacja roli dotyczy najemcy wołającego i sama w sobie nie
+// mówi NIC o tym, czyje są wiersze - adres odbiorcy jest tu wprawdzie
+// zamaskowany, ale `recipient_domain`, `subject`, `redirect_to`,
+// `action_url_host` (czyli domeny cudzych najemców), `greeting_name`,
+// `error_message` i `run_id` już nie. Granicę stawia `tenant_id` w tabeli
+// (migracja 20260913101000) i JAWNY filtr w zapytaniu niżej, z najemcą
+// przyniesionym w `AuthEmailEventsQuery` z kontekstu middleware. Pusty najemca
+// to ODMOWA, nie zapytanie bez filtra.
+//
+// ZDARZENIA BEZ NAJEMCY zostają niewidoczne dla każdego najemcy - i to jest
+// decyzja, nie niedopatrzenie. Webhook auth nie zna dziś najemcy, a przy świeżej
+// rejestracji profilu jeszcze nie ma w chwili hooka, więc gotowy resolver
+// wpadłby w fallback na najemcę DOMYŚLNEGO i oddał jego adminowi cudze maile
+// resetu hasła. „Nie wiem, czyje to jest" ma tu znaczyć „nie pokazuję nikomu".
+// Pełne uzasadnienie i plan dopięcia ścieżki zapisu: komentarz migracji.
 
 export type AuthEventStatus = "enqueued" | "rejected" | "failed";
 
@@ -62,6 +65,8 @@ export interface AuthEmailEventsReport {
 }
 
 export interface AuthEmailEventsQuery {
+  /** Najemca wołającego - granica danych raportu, nie filtr prezentacyjny. */
+  tenantId: string;
   days: number;
   emailType: string | null;
   lang: string | null;
@@ -71,6 +76,18 @@ export interface AuthEmailEventsQuery {
   page: number;
   pageSize: number;
 }
+
+/**
+ * Nazwa kolumny najemcy podana jako `string`, a nie literał.
+ *
+ * PO CO. `auth_email_events.tenant_id` wchodzi migracją 20260913101000, a
+ * `src/integrations/supabase/types.ts` jest GENEROWANY z bazy - do najbliższej
+ * regeneracji kolumny w typach nie ma, więc `.eq("tenant_id", …)` z literałem
+ * nie kompiluje się. Sygnatura `eq` przyjmuje zwykły `string`, gdy nazwa nie
+ * jest literałem, więc obywa się bez `as never` i bez `as unknown as`, których
+ * repo pilnuje ratchetami. Stała znika razem z regeneracją typów.
+ */
+const TENANT_COLUMN: string = "tenant_id";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -137,6 +154,10 @@ function tally(values: (string | null)[]): { key: string; count: number }[] {
 export async function fetchAuthEmailEvents(
   query: AuthEmailEventsQuery,
 ): Promise<AuthEmailEventsReport> {
+  // Fail closed PRZED dotknięciem bazy: klient serwisowy omija RLS, więc brak
+  // najemcy nie może zdegradować się do zapytania bez granicy.
+  if (!query.tenantId) throw new Error("Forbidden: brak kontekstu najemcy");
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - (query.days - 1));
@@ -145,6 +166,7 @@ export async function fetchAuthEmailEvents(
   const { data, error } = await supabaseAdmin
     .from("auth_email_events")
     .select("*")
+    .eq(TENANT_COLUMN, query.tenantId)
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: false })
     .limit(3000);

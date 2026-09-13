@@ -421,6 +421,20 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:dangerous-html
 
+      # Blocking gate on the single defect that removed the login brute-force
+      # threshold entirely: every public limit keyed off `x-forwarded-for`, whose
+      # FIRST entry the client writes itself (Cloudflare appends the connection
+      # address at the END, it does not replace the client's prefix). Rotating one
+      # header rotated the bucket; `x-forwarded-for: " "` made the bucket vanish
+      # altogether, and the test suite froze both as "known behaviour". The header
+      # name may now appear in executed code only in src/lib/http/rateLimit.ts -
+      # everything else calls clientIpFromHeaders / rateLimitIpSubject from there.
+      # Named exemptions carry a written reason and a stale one fails the gate, so
+      # the allowlist can only shrink. Rationale: src/lib/ci/clientIpSource.ts
+      - name: Client IP has exactly one definition
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:client-ip-source
+
       # Blocking gate on a defect that review cannot catch by reading: the page
       # editor carried a comment promising autosave over code where
       # `useAutosave` did not appear at all, so editors lost builder work on tab

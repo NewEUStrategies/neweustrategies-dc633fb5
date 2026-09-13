@@ -78,44 +78,46 @@ async function admin() {
   return supabaseAdmin;
 }
 
-/** Twardy warunek dostępu - wszystkie funkcje diagnostyczne go wołają. */
+/**
+ * Twardy warunek dostępu - wszystkie funkcje diagnostyczne go wołają - ORAZ
+ * jedyne źródło najemcy dla ich zapytań.
+ *
+ * PO CO BRAMKA ODDAJE NAJEMCĘ. Gdy zwracała `void`, handler musiał pamiętać
+ * o zakresie z własnej głowy, a warstwa danych rozstrzygała go DRUGI RAZ
+ * z hosta żądania (`resolveTenantIdForHost`). To były dwie różne granice: rola
+ * autoryzowana w obszarze wołającego, dane czytane z obszaru spod domeny.
+ * Teraz najemca jest CZĘŚCIĄ WYNIKU bramki - zapytanie spod `service_role`
+ * nie ma jak zapomnieć o `.eq("tenant_id", ...)`, bo wartość leży tuż obok.
+ *
+ * Najemca pochodzi z PROFILU wołającego, czyli dokładnie z tej płaszczyzny, po
+ * której autoryzuje `has_role()` (`current_tenant_id()` czyta to samo pole).
+ * Host żądania jest wyłącznie kontrolą spójności - patrz
+ * `src/lib/server/callerTenant.server.ts`.
+ *
+ * Kolejność jest wiążąca: rola PRZED rozwiązaniem najemcy. Inaczej zwykły
+ * zalogowany dotykałby bazy, zanim dostanie odmowę.
+ */
 export async function assertAdmin(
   supabase: SupabaseClient<Database>,
   userId: string,
-): Promise<void> {
+): Promise<{ tenantId: string }> {
   const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   if (data !== true) throw new Error("forbidden");
+  const { assertCallerTenantMatchesHost } = await import("@/lib/server/callerTenant.server");
+  return { tenantId: await assertCallerTenantMatchesHost(supabase, userId) };
 }
 
 /**
- * Bramka roli, ktora ODDAJE najemce wolajacego.
- *
- * `assertAdmin` zwraca `void`, wiec handler musial pamietac o zakresie
- * z wlasnej glowy - i nie pamietal (dziennik webhookow czytany po samym `id`).
- * Tu najemca jest CZESCIA WYNIKU bramki: zapytanie spod `service_role` nie ma
- * jak zapomniec o `.eq("tenant_id", ...)`, bo wartosc lezy tuz obok.
- *
- * Najemca pochodzi z `current_tenant_id()`, czyli DOKLADNIE z tej plaszczyzny,
- * po ktorej autoryzuje `has_role()` (obie funkcje czytaja `profiles.tenant_id`
- * wolajacego). NIE z hosta zadania: `pickTrustedHost` przyjmuje kazda domene
- * z `tenants.domain`, wiec host da sie podstawic, a rozjazd "rola po najemcy
- * domowym, dane po najemcy z naglowka" to osobna klasa dziury
- * (scripts/check-sql-tenant-scope.ts). NIE z ladunku klienta - z oczywistych
- * powodow.
- *
- * Kolejnosc jest wiazaca: rola PRZED rozwiazaniem najemcy. Inaczej zwykly
- * zalogowany dotykalby bazy zanim dostanie odmowe.
+ * Alias zgodnościowy dla wołających, którzy jawnie proszą o najemcę.
+ * Po ujednoliceniu `assertAdmin` sam go oddaje, więc obie nazwy znaczą JEDNO
+ * i to samo - osobna implementacja byłaby drugim źródłem prawdy, czyli
+ * dokładnie tym, co ta zmiana likwiduje.
  */
 export async function assertAdminWithTenant(
   supabase: SupabaseClient<Database>,
   userId: string,
 ): Promise<{ tenantId: string }> {
-  await assertAdmin(supabase, userId);
-  const { data, error } = await supabase.rpc("current_tenant_id");
-  // Brak rozwiazanego najemcy to ODMOWA, nie zgoda na wszystko (fail-closed).
-  if (error || typeof data !== "string" || data === "")
-    throw new Error("forbidden: brak kontekstu najemcy");
-  return { tenantId: data };
+  return assertAdmin(supabase, userId);
 }
 
 async function readDestinations(env: StripeEnv) {

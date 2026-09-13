@@ -10,7 +10,13 @@
 //   3. każdy inny błąd MUSI polecieć w górę - cicha pustka udawałaby, że
 //      maile autoryzacyjne wychodzą, gdy w rzeczywistości nie wiadomo.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
+import {
+  fail,
+  ok,
+  supabaseFromStub,
+  type RecordedChain,
+  type SupabaseResult,
+} from "@/test/supabaseChain";
 import type { AuthEmailEventsQuery } from "@/lib/email/auth-events.server";
 
 const db = supabaseFromStub();
@@ -23,8 +29,26 @@ import { fetchAuthEmailEvents } from "@/lib/email/auth-events.server";
 
 const TABLE = "auth_email_events";
 
+const NAJEMCA_A = "aaaaaaaa-1111-4111-8111-111111111111";
+const NAJEMCA_B = "bbbbbbbb-2222-4222-8222-222222222222";
+
+/**
+ * Atrapa, która REALNIE FILTRUJE po najemcy: odpowiedź zależy od argumentów
+ * `.eq()` zapisanych przez łańcuch, nie od stałej. Atrapa zwracająca stałą
+ * „udowodniłaby" izolację także wtedy, gdyby produkcja nie postawiła filtru
+ * w ogóle. Bez filtru oddaje WSZYSTKO - tak jak zrobiłby PostgREST.
+ */
+function scopedRows(rows: Record<string, unknown>[]) {
+  return (chain: RecordedChain): SupabaseResult => {
+    const args = chain.argsOf("eq");
+    if (!args || args[0] !== "tenant_id") return ok(rows);
+    return ok(rows.filter((row) => row.tenant_id === args[1]));
+  };
+}
+
 function query(overrides: Partial<AuthEmailEventsQuery> = {}): AuthEmailEventsQuery {
   return {
+    tenantId: NAJEMCA_A,
     days: 7,
     emailType: null,
     lang: null,
@@ -41,6 +65,7 @@ function query(overrides: Partial<AuthEmailEventsQuery> = {}): AuthEmailEventsQu
 function eventRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "evt-1",
+    tenant_id: NAJEMCA_A,
     created_at: "2026-08-18T09:00:00.000Z",
     run_id: "run-1",
     message_id: "msg-1",
@@ -401,5 +426,52 @@ describe("stan infrastruktury", () => {
 
     await expect(fetchAuthEmailEvents(query())).rejects.toThrow(/permission denied/);
     expect(db.chainsFor(TABLE)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GRANICA NAJEMCY. Adres odbiorcy jest tu zamaskowany, ale `recipient_domain`,
+// `subject`, `redirect_to` i `action_url_host` już nie - to są DOMENY cudzych
+// najemców. Odczyt idzie klientem serwisowym, który omija RLS, więc jedyną
+// granicą danych jest jawny filtr w zapytaniu.
+// ---------------------------------------------------------------------------
+describe("granica najemcy", () => {
+  it("zapytanie jest PINOWANE najemcą wołającego", async () => {
+    db.setResponse(TABLE, ok([]));
+
+    await fetchAuthEmailEvents(query({ tenantId: NAJEMCA_B }));
+
+    expect(db.lastChain(TABLE)?.argsOf("eq")).toEqual(["tenant_id", NAJEMCA_B]);
+  });
+
+  it("zdarzenie obcego najemcy NIE wchodzi do raportu", async () => {
+    db.setResponse(
+      TABLE,
+      scopedRows([
+        eventRow({ id: "wlasny", message_id: "wlasny", tenant_id: NAJEMCA_A }),
+        eventRow({
+          id: "obcy",
+          message_id: "obcy",
+          tenant_id: NAJEMCA_B,
+          recipient_domain: "cudzy-najemca.example",
+          action_url_host: "cudzy-najemca.example",
+        }),
+      ]),
+    );
+
+    const report = await fetchAuthEmailEvents(query({ tenantId: NAJEMCA_A }));
+
+    expect(report.rows.map((r) => r.messageId)).toEqual(["wlasny"]);
+    // Sumy i rozkłady też są najemcy, nie platformy - przed filtrem było tu 2.
+    expect(report.totals.total).toBe(1);
+    expect(report.rows.map((r) => r.actionUrlHost)).not.toContain("cudzy-najemca.example");
+  });
+
+  it("pusty najemca to ODMOWA, a nie zapytanie bez filtra", async () => {
+    db.setResponse(TABLE, ok([eventRow()]));
+
+    await expect(fetchAuthEmailEvents(query({ tenantId: "" }))).rejects.toThrow(/Forbidden/);
+    // Najważniejsza asercja: baza nie została dotknięta W OGÓLE.
+    expect(db.chains).toHaveLength(0);
   });
 });

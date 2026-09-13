@@ -10,7 +10,14 @@
 // Druga reguła: liczba prób (`attempts`) MA zliczać wszystkie wiersze, bo to
 // ona mówi, ile razy kolejka biła się o tę wiadomość.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fail, ok, okCount, supabaseFromStub } from "@/test/supabaseChain";
+import {
+  fail,
+  ok,
+  okCount,
+  supabaseFromStub,
+  type RecordedChain,
+  type SupabaseResult,
+} from "@/test/supabaseChain";
 import type { SystemEmailQuery } from "@/lib/email/system-log.server";
 
 const db = supabaseFromStub();
@@ -24,8 +31,12 @@ import { fetchSystemEmailReport } from "@/lib/email/system-log.server";
 const LOG = "email_send_log";
 const SUPPRESSIONS = "email_suppressions";
 
+const NAJEMCA_A = "aaaaaaaa-1111-4111-8111-111111111111";
+const NAJEMCA_B = "bbbbbbbb-2222-4222-8222-222222222222";
+
 function query(overrides: Partial<SystemEmailQuery> = {}): SystemEmailQuery {
   return {
+    tenantId: NAJEMCA_A,
     days: 7,
     template: null,
     status: null,
@@ -36,8 +47,33 @@ function query(overrides: Partial<SystemEmailQuery> = {}): SystemEmailQuery {
   };
 }
 
+/**
+ * Atrapa, która REALNIE FILTRUJE po najemcy - wynik zależy od argumentów
+ * `.eq()` zapisanych przez łańcuch, a nie od stałej. Bez tego test „obcy wiersz
+ * nie wchodzi do raportu" przechodziłby także wtedy, gdyby produkcja filtru
+ * w ogóle nie postawiła: atrapa oddawałaby dokładnie to, co jej podano.
+ * Gdy filtru nie ma, atrapa oddaje WSZYSTKO - tak jak zrobiłby PostgREST.
+ */
+function scopedRows(rows: Record<string, unknown>[]) {
+  return (chain: RecordedChain): SupabaseResult => {
+    const args = chain.argsOf("eq");
+    if (!args || args[0] !== "tenant_id") return ok(rows);
+    return ok(rows.filter((row) => row.tenant_id === args[1]));
+  };
+}
+
+/** Ta sama zasada dla zapytania LICZĄCEGO: licznik też ma zależeć od filtru. */
+function scopedCount(rows: Record<string, unknown>[]) {
+  return (chain: RecordedChain): SupabaseResult => {
+    const args = chain.argsOf("eq");
+    if (!args || args[0] !== "tenant_id") return okCount(rows.length);
+    return okCount(rows.filter((row) => row.tenant_id === args[1]).length);
+  };
+}
+
 function logRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
+    tenant_id: NAJEMCA_A,
     message_id: "msg-1",
     template_name: "password_reset",
     recipient_email: "odbiorca@example.test",
@@ -458,5 +494,68 @@ describe("stan infrastruktury", () => {
 
     await expect(fetchSystemEmailReport(query())).rejects.toThrow(/permission denied/);
     expect(db.chainsFor(SUPPRESSIONS)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GRANICA NAJEMCY. Raport czytany jest klientem SERWISOWYM, który omija RLS,
+// więc jedyną granicą danych jest tu jawny filtr w zapytaniu. Bramka roli mówi
+// „to admin", i to admin liczony we WŁASNYM najemcy - na pytanie „czyje to
+// wiersze" nie odpowiada.
+// ---------------------------------------------------------------------------
+describe("granica najemcy", () => {
+  it("zapytanie o dziennik jest PINOWANE najemcą wołającego", async () => {
+    db.setResponse(LOG, ok([]));
+
+    await fetchSystemEmailReport(query({ tenantId: NAJEMCA_B }));
+
+    expect(db.lastChain(LOG)?.argsOf("eq")).toEqual(["tenant_id", NAJEMCA_B]);
+  });
+
+  it("wiersz obcego najemcy NIE wchodzi do raportu", async () => {
+    db.setResponse(
+      LOG,
+      scopedRows([
+        logRow({ message_id: "wlasny", tenant_id: NAJEMCA_A }),
+        logRow({ message_id: "obcy", tenant_id: NAJEMCA_B, recipient_email: "cudzy@example.test" }),
+      ]),
+    );
+
+    const report = await fetchSystemEmailReport(query({ tenantId: NAJEMCA_A }));
+
+    expect(report.rows.map((r) => r.messageId)).toEqual(["wlasny"]);
+    // Sumy też są najemcy, nie platformy - przed filtrem było tu 2.
+    expect(report.totals.total).toBe(1);
+    expect(report.rows.map((r) => r.recipientEmail)).not.toContain("cudzy@example.test");
+  });
+
+  it("licznik aktywnych wykluczeń liczy się W GRANICACH najemcy, nie platformy", async () => {
+    db.setResponse(LOG, ok([]));
+    db.setResponse(
+      SUPPRESSIONS,
+      scopedCount([
+        { tenant_id: NAJEMCA_A },
+        { tenant_id: NAJEMCA_A },
+        { tenant_id: NAJEMCA_B },
+        { tenant_id: NAJEMCA_B },
+        { tenant_id: NAJEMCA_B },
+      ]),
+    );
+
+    const report = await fetchSystemEmailReport(query({ tenantId: NAJEMCA_A }));
+
+    // Przed poprawką: 5, czyli suma całej platformy podpisana jako metryka
+    // najemcy. `email_suppressions.tenant_id` jest NOT NULL, więc filtr był
+    // dostępny od ręki - brakowało wyłącznie najemcy w zapytaniu.
+    expect(report.suppressedRecipients).toBe(2);
+    expect(db.lastChain(SUPPRESSIONS)?.argsOf("eq")).toEqual(["tenant_id", NAJEMCA_A]);
+  });
+
+  it("pusty najemca to ODMOWA, a nie zapytanie bez filtra", async () => {
+    db.setResponse(LOG, ok([logRow()]));
+
+    await expect(fetchSystemEmailReport(query({ tenantId: "" }))).rejects.toThrow(/Forbidden/);
+    // Najważniejsza asercja tego pliku: baza nie została dotknięta W OGÓLE.
+    expect(db.chains).toHaveLength(0);
   });
 });

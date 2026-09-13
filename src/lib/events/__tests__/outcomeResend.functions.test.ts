@@ -12,6 +12,11 @@
 //      idzie kluczem serwisowym, z pominięciem RLS, więc odwrócenie tej
 //      kolejności pozwoliłoby dowolnemu zalogowanemu użytkownikowi ponowić
 //      mail o cudzym zgłoszeniu - i po fakcie dostać jego treść w wyniku.
+//   3. ZAKRES NAJEMCY Z BRAMKI, NIE Z ŁADUNKU. `assertAdmin` oddaje najemcę
+//      profilu wołającego i to ON - a nie nic - ma pojechać do warstwy
+//      logiki drugim argumentem. Gdyby handler zgubił tę wartość, filtr
+//      `.eq("tenant_id", …)` w `outcomeResend.server.ts` przestałby cokolwiek
+//      zawężać, a sam ten plik dalej byłby zielony.
 //
 // Klient podaje WYŁĄCZNIE identyfikator zgłoszenia; adresat i treść pochodzą
 // z bazy - test pilnuje, że nic więcej z ciała żądania nie jedzie dalej.
@@ -51,7 +56,7 @@ vi.mock("@/lib/events/outcomeResend.server", () => ({ resendTicketOutcome }));
 const { resendRegistrationNotifications } = await import("@/lib/events/outcomeResend.functions");
 
 type Callable = (input: {
-  data: { registrationId: string };
+  data: { registrationId: string; tenantId?: string };
   context: { supabase: unknown; userId: string };
 }) => Promise<unknown>;
 type WithValidator = { validate: (data: unknown) => unknown };
@@ -61,6 +66,8 @@ const validator = resendRegistrationNotifications as unknown as WithValidator;
 
 const REG = "11111111-1111-4111-8111-111111111111";
 const USER = "22222222-2222-4222-8222-222222222222";
+/** Najemca profilu wołającego - jedyne dopuszczalne źródło zakresu odczytu. */
+const TENANT = "33333333-3333-4333-8333-333333333333";
 const RESULT = {
   registrationId: REG,
   outcome: "paid",
@@ -76,6 +83,7 @@ beforeEach(() => {
   assertAdmin.mockReset();
   assertAdmin.mockImplementation(async () => {
     order.push("assertAdmin");
+    return { tenantId: TENANT };
   });
   resendTicketOutcome.mockReset();
   resendTicketOutcome.mockImplementation(async () => {
@@ -127,11 +135,21 @@ describe("bramka roli - sam login nie wystarcza", () => {
 });
 
 describe("przekazanie do warstwy logiki", () => {
-  it("podaje dalej WYŁĄCZNIE identyfikator zgłoszenia", async () => {
+  it("podaje dalej identyfikator zgłoszenia I najemcę z bramki - nic więcej", async () => {
     // Adresat, treść i kwota mają pochodzić z bazy - gdyby handler przekazywał
     // cały `data`, dopisanie pola w ciele żądania sterowałoby wysyłką.
+    // Drugi argument to najemca ODDANY PRZEZ BRAMKĘ (profil wołającego), więc
+    // ładunek nie ma jak wskazać cudzego obszaru.
     await resend({ data: { registrationId: REG }, context: { supabase, userId: USER } });
-    expect(resendTicketOutcome.mock.calls).toEqual([[REG]]);
+    expect(resendTicketOutcome.mock.calls).toEqual([[REG, TENANT]]);
+  });
+
+  it("nie da się podstawić najemcy polem w ciele żądania", async () => {
+    await resend({
+      data: { registrationId: REG, tenantId: "44444444-4444-4444-8444-444444444444" },
+      context: { supabase, userId: USER },
+    });
+    expect(resendTicketOutcome.mock.calls).toEqual([[REG, TENANT]]);
   });
 
   it("oddaje wynik warstwy logiki bez zmian", async () => {

@@ -8,6 +8,7 @@
 // serwisowy omija RLS, więc granica najemcy musi być sprawdzona jawnie.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
+import { clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 interface StartImpersonationInput {
@@ -34,12 +35,16 @@ function requestOrigin(): { ip: string | null; userAgent: string | null } {
     const request = getRequest();
     const headers = request?.headers;
     if (!headers) return { ip: null, userAgent: null };
-    const forwarded = headers.get("x-forwarded-for");
-    const forwardedFirst = forwarded ? (forwarded.split(",")[0]?.trim() ?? null) : null;
-    const ip =
-      headers.get("cf-connecting-ip") ?? forwardedFirst ?? headers.get("x-real-ip") ?? null;
+    // Kolejność nagłówków ma JEDNĄ definicję w repo (`clientIpFromHeaders`):
+    // pierwszy wpis `x-forwarded-for` jest DEKLARACJĄ KLIENTA, nie adresem, więc
+    // dziennik podszyć nie może go zapisywać jako "skąd". Bramka
+    // `check:client-ip-source` pilnuje, żeby druga definicja nie odrosła.
+    // "unknown" sprowadzamy do NULL: w wierszu audytu brak dowodu jest
+    // uczciwszy niż napis udający adres.
+    const rozpoznany = clientIpFromHeaders(headers);
+    const ip = rozpoznany === "unknown" ? null : rozpoznany;
     const userAgent = headers.get("user-agent");
-    return { ip: ip || null, userAgent: userAgent ? userAgent.slice(0, 500) : null };
+    return { ip, userAgent: userAgent ? userAgent.slice(0, 500) : null };
   } catch {
     // Brak kontekstu żądania - wiersz audytu powstanie bez tych pól.
     return { ip: null, userAgent: null };

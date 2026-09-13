@@ -741,7 +741,7 @@ describe("podszycie - wpis audytowy i wynik", () => {
       target_user_id: IDS.target,
       tenant_id: IDS.tenant,
       reason: "zgłoszenie 42",
-      ip: "203.0.113.7",
+      ip: "70.41.3.18",
       user_agent: "Mozilla/5.0 (test)",
     });
     const sessions = chain("impersonation_sessions");
@@ -762,9 +762,9 @@ describe("podszycie - wpis audytowy i wynik", () => {
       userAgent: null,
     },
     {
-      label: "z `x-forwarded-for` bierzemy PIERWSZY adres - klienta, nie proxy",
+      label: "z `x-forwarded-for` bierzemy OSTATNI adres - proxy, nie deklarację klienta",
       headers: { "x-forwarded-for": "203.0.113.7, 70.41.3.18" },
-      ip: "203.0.113.7",
+      ip: "70.41.3.18",
       userAgent: null,
     },
     {
@@ -797,6 +797,12 @@ describe("podszycie - wpis audytowy i wynik", () => {
     // Dziennik podszyć ma odpowiadać na pytanie „skąd”, ale metadane są
     // best-effort: brak nagłówka albo brak kontekstu żądania NIE MOŻE blokować
     // zapisu śladu. Odmowa należy się za brak granicy najemcy, nie za brak UA.
+    //
+    // KOLEJNOŚĆ NAGŁÓWKÓW jest wspólna dla całego repo (`clientIpFromHeaders`):
+    // `cf-connecting-ip` -> `x-real-ip` -> OSTATNI wpis `x-forwarded-for`.
+    // Pierwszy wpis XFF pochodzi od KLIENTA - dowód „skąd” oparty na wartości,
+    // którą wpisuje sam podejrzany, nie jest dowodem. „unknown” sprowadzamy do
+    // NULL, bo w wierszu audytu brak dowodu jest uczciwszy niż napis udający adres.
     happyPath();
     h.headers = headers;
     await callServerFn(startImpersonation, { data: startInput(), context: context() });

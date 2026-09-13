@@ -16,8 +16,10 @@ export const getPaymentsDiagnostics = createServerFn({ method: "GET" })
     z.object({ environment: z.enum(["sandbox", "live"]) }).parse(input),
   )
   .handler(async ({ data, context }): Promise<PaymentsDiagnostics> => {
-    await assertAdmin(context.supabase, context.userId);
-    return buildPaymentsDiagnostics(data.environment);
+    // Najemca pochodzi Z BRAMKI, nie z hosta i nie z ładunku - diagnostyka
+    // liczy kondycję dziennika webhooków WYŁĄCZNIE w obszarze wołającego.
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    return buildPaymentsDiagnostics(data.environment, tenantId);
   });
 
 export const syncCouponsToProvider = createServerFn({ method: "POST" })

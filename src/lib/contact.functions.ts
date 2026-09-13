@@ -5,6 +5,7 @@
 // silently - the message is still stored so the form never breaks.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
+import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { z } from "zod";
 
 // Celowo `recruitmentShared`, nie `recruitmentLayer`: ten moduł importuje
@@ -292,9 +293,12 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     let userAgent: string | null = null;
     try {
       const req = getRequest();
-      const fwd = req.headers.get("x-forwarded-for");
-      const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
-      clientIp = req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
+      // Jedna definicja „kto dzwoni" na całe repo (`@/lib/http/rateLimit`):
+      // `cf-connecting-ip` -> `x-real-ip` -> OSTATNI wpis `x-forwarded-for`.
+      // Pierwszy wpis XFF dopisuje klient, więc kubełek po nim kluczowany
+      // rotował się jednym nagłówkiem.
+      const subject = rateLimitIpSubject(req.headers);
+      clientIp = subject === "unknown" ? null : subject;
 
       userAgent = req.headers.get("user-agent");
     } catch {
