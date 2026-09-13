@@ -116,6 +116,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0012_email_account_tenant_for_address",
     twin: "20260913160000_email_account_tenant_for_address.sql",
   },
+  {
+    tag: "0013_pr355_discoverable_optin_and_email_account_tenant",
+    drizzleOnly:
+      "Uzgodnienie stanu po scaleniu #355: 0011 i 0012 nigdy nie pojechały na to środowisko (przyrostowy `supabase db push` bez --include-all pominął wersje starsze od zdalnej historii), więc oba SQL-e zostały wykonane RAZEM na pasie drizzle. Pas supabase ma je już jako 20260913150000 i 20260913160000 - bliźniak byłby trzecim wykonaniem tej samej treści, a nie nowym kontraktem. Pliku nie usuwamy: repozytorium jest forward-only.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
