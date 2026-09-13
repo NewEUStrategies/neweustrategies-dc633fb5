@@ -189,6 +189,18 @@ async function renderPanel(row: Record<string, unknown> | null = ownProfileRow()
   h.rpc.mockResolvedValue({ data: row ? [row] : [], error: null });
   const view = render(<AccountIdentityPanel />);
   await waitFor(() => expect(h.rpc).toHaveBeenCalled());
+  // `waitFor` wyżej kończy się, gdy RPC ZOSTAŁO WYWOŁANE - a nie gdy jego wynik
+  // wrócił i wylądował w stanie. `refresh()` robi `await supabase.rpc(...)`
+  // (AccountIdentityPanel.tsx:117) i dopiero POTEM woła settery, więc asercje
+  // o WARTOŚCIACH pól biegły wyścig z rozwiązaniem obietnicy. Wyścig jest
+  // niewidoczny na pustej maszynie i realnie przegrywany w CI, gdzie shard
+  // chodzi z instrumentacją pokrycia - stąd `wypełnia pola PII wartościami
+  // z RPC` padające raz na jakiś czas bez żadnej zmiany w kodzie panelu.
+  //
+  // Pusty `act` domyka mikrozadania i efekty: po nim stan jest już ustawiony.
+  // Trzymamy to TUTAJ, a nie w pojedynczej asercji, bo wyścig dotyczy każdego
+  // przypadku czytającego wartość pola, nie tylko tego, który akurat padł.
+  await act(async () => {});
   return view;
 }
 
