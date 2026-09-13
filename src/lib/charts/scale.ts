@@ -65,7 +65,7 @@ export function niceScale(rawMin: number, rawMax: number, targetTicks = 5): Nice
   // na końcu rysuje się jako pusta. Bez epsilonu granica jest po prostu ostra.
   const limit = niceMax + step * 1e-6;
   const safeLimit = Number.isFinite(limit) ? limit : niceMax;
-  for (let v = niceMin; v <= safeLimit; ) {
+  for (let v = niceMin; v <= safeLimit;) {
     ticks.push(roundToStep(v, step));
     const next = v + step;
     // Sama arytmetyka NIE GWARANTUJE postępu: przy |v| rzędu 1e308 krok

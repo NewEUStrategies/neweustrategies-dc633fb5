@@ -24,11 +24,14 @@ const fromMap =
 describe("analyzeMigrationLanes", () => {
   it("przepuszcza bliźniaka identycznego bajt w bajt", () => {
     const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_x.sql" }];
-    const report = analyzeMigrationLanes(["0000_x"], entries,
+    const report = analyzeMigrationLanes(
+      ["0000_x"],
+      entries,
       fromMap({
         "drizzle/migrations/0000_x.sql": "ALTER TABLE a;\n",
         "supabase/migrations/20260101000000_x.sql": "ALTER TABLE a;\n",
-      }));
+      }),
+    );
     expect(laneParityFailed(report)).toBe(false);
     expect(report.twins).toBe(1);
   });
@@ -37,11 +40,14 @@ describe("analyzeMigrationLanes", () => {
     // Dwa pasy jadą na produkcję. Pliki o tej samej nazwie i różnej treści
     // znaczą, że pgTAP testuje coś innego, niż dostaje produkcja.
     const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_x.sql" }];
-    const report = analyzeMigrationLanes(["0000_x"], entries,
+    const report = analyzeMigrationLanes(
+      ["0000_x"],
+      entries,
       fromMap({
         "drizzle/migrations/0000_x.sql": "ALTER TABLE a;\n",
         "supabase/migrations/20260101000000_x.sql": "ALTER TABLE b;\n",
-      }));
+      }),
+    );
     expect(report.violations.map((v) => v.kind)).toEqual(["rozjazd-tresci"]);
   });
 
@@ -55,8 +61,11 @@ describe("analyzeMigrationLanes", () => {
 
   it("ŁAPIE wpis wskazujący na nieistniejącego bliźniaka", () => {
     const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_nie_ma.sql" }];
-    const report = analyzeMigrationLanes(["0000_x"], entries,
-      fromMap({ "drizzle/migrations/0000_x.sql": "ALTER TABLE a;\n" }));
+    const report = analyzeMigrationLanes(
+      ["0000_x"],
+      entries,
+      fromMap({ "drizzle/migrations/0000_x.sql": "ALTER TABLE a;\n" }),
+    );
     expect(report.violations.map((v) => v.kind)).toEqual(["brak-blizniaka"]);
   });
 
@@ -67,7 +76,9 @@ describe("analyzeMigrationLanes", () => {
   });
 
   it("przepuszcza plik świadomie bez bliźniaka i NIE czyta wtedy dysku", () => {
-    const entries: LaneEntry[] = [{ tag: "0002_tylko_drizzle", drizzleOnly: "operacja jednorazowa" }];
+    const entries: LaneEntry[] = [
+      { tag: "0002_tylko_drizzle", drizzleOnly: "operacja jednorazowa" },
+    ];
     const report = analyzeMigrationLanes(["0002_tylko_drizzle"], entries, () => {
       throw new Error("czytanie pliku przy wpisie drizzleOnly");
     });
@@ -113,8 +124,6 @@ describe("rejestr kontra stan faktyczny", () => {
     // Pełna lista tagów, nie sam 0006: rejestr sprawdza też wpisy bez pliku,
     // więc skan jednego tagu zgłosiłby pozostałe sześć jako martwe wpisy.
     const report = analyzeMigrationLanes(tags);
-    expect(
-      report.violations.filter((v) => v.tag.includes("discoverable")),
-    ).toEqual([]);
+    expect(report.violations.filter((v) => v.tag.includes("discoverable"))).toEqual([]);
   });
 });

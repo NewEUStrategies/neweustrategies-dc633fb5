@@ -83,10 +83,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
 ];
 
 export type LaneViolationKind =
-  | "brak-wpisu"
-  | "wpis-bez-pliku"
-  | "brak-blizniaka"
-  | "rozjazd-tresci";
+  "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-tresci";
 
 export interface LaneViolation {
   readonly kind: LaneViolationKind;
