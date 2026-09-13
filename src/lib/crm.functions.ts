@@ -1020,27 +1020,62 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
   });
 
 // Lista staffu do pickera "właściciela" - profile użytkowników z rolami
-// admin/super_admin/editor/moderator w bieżącym tenancie. Używamy admina
+// admin/super_admin/editor w bieżącym tenancie. Używamy admina
 // (RLS user_roles jest owner-only). Zwracamy minimalny zestaw pól.
+//
+// PRZYCZYNA ŹRÓDŁOWA. Najemca był czytany z `context.claims.tenant_id` -
+// claimu, którego w tym repo NIKT nie wystawia. `requireSupabaseAuth` wkłada
+// do kontekstu dosłowny wynik `supabase.auth.getClaims(token)`, a hooka
+// `custom_access_token_hook` nie ma ani w `supabase/config.toml`, ani w żadnej
+// z 958 migracji; `raw_app_meta_data` niesie wyłącznie `signup_type`,
+// `tenant_slug` i `tenant_name` dla triggera rejestracji. `tenantId` był więc
+// ZAWSZE `null`, gałąź z filtrem martwa, a `supabaseAdmin` - który omija RLS -
+// oddawał role i profile staffu WSZYSTKICH najemców każdemu zalogowanemu
+// CRM-owcowi. Typów to nie ruszyło, bo `JwtPayload` supabase-js ma
+// `[key: string]: any`: dowolny claim „istnieje" dla kompilatora.
+//
+// Tenant bierzemy stamtąd, skąd bierze go reszta modułu CRM: z `profiles`
+// wywołującego, klientem użytkownika (pod RLS) - jak `createCrmCompany`
+// (crm-companies.functions.ts) i `upsertCrmScoringSettings` wyżej. Brak
+// najemcy = ODMOWA, nie odczyt bez filtru: fallback „pokaż wszystko" jest
+// dokładnie tym, co ten defekt przywlókł.
 export const listStaffUsers = createServerFn({ method: "GET" })
   .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
-    const claims = (context as { claims: { tenant_id?: string } }).claims;
-    const tenantId = claims?.tenant_id ?? null;
+    const userId = (context as { userId: string }).userId;
+    // Tenant z profilu bieżącego staffu (requireCrmStaff nie przekazuje go dalej).
+    const { data: profile, error: profileError } = await looseTable(context, "profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileError) throw new Error(profileError.message);
+    const tenantId = (profile as { tenant_id?: string } | null)?.tenant_id;
+    if (!tenantId) throw new Error("tenant_unresolved");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = looseClient({ supabase: supabaseAdmin });
-    const staffRoles = ["admin", "super_admin", "editor", "moderator"];
+    // Literały MUSZĄ być wartościami enuma `public.app_role`
+    // (admin|author|editor|super_admin|user) - PostgREST rzutuje je na enum,
+    // więc wartość spoza niego to `22P02` w runtime, nie błąd typów. Stało tu
+    // „moderator", a połknięty błąd zamieniał go w pustą listę - i tylko dzięki
+    // temu wyciek wyżej nie był widoczny.
+    const staffRoles = ["admin", "super_admin", "editor"];
     const rolesRes = await admin
       .from("user_roles")
       .select("user_id, role")
+      .eq("tenant_id", tenantId)
       .in("role", staffRoles)
       .returns<{ user_id: string; role: string }>();
+    if (rolesRes.error) throw new Error(rolesRes.error.message);
     const userIds = Array.from(new Set((rolesRes.data ?? []).map((r) => r.user_id)));
     if (userIds.length === 0) return { json: j([]) };
     const cols = "id, first_name, last_name, display_name, avatar_url, tenant_id";
-    const profRes = tenantId
-      ? await admin.from("profiles").select(cols).eq("tenant_id", tenantId).in("id", userIds)
-      : await admin.from("profiles").select(cols).in("id", userIds);
+    const profRes = await admin
+      .from("profiles")
+      .select(cols)
+      .eq("tenant_id", tenantId)
+      .in("id", userIds);
+    if (profRes.error) throw new Error(profRes.error.message);
     const rows = (profRes.data as Array<Record<string, unknown>>) ?? [];
     return { json: j(rows) };
   });

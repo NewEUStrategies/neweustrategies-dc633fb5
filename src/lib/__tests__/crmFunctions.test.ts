@@ -74,7 +74,6 @@ function context(): ServerFnContext {
       },
     },
     userId: USER_ID,
-    claims: { tenant_id: TENANT },
   };
 }
 
@@ -716,28 +715,90 @@ describe("operacje zbiorcze", () => {
 });
 
 describe("lista właścicieli (staff picker)", () => {
-  it("czyta role adminem i zawęża profile do tenanta z tokenu", async () => {
+  it("zawęża role I profile do tenanta wywołującego, nie do claimu z tokenu", async () => {
+    // Najemca pochodzi z `profiles` wywołującego (klient użytkownika, RLS),
+    // bo token go nie niesie - w repo nie ma hooka na access token.
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
     admin.setResponse("user_roles", () => ok([{ user_id: USER_ID, role: "admin" }]));
     admin.setResponse("profiles", () => ok([{ id: USER_ID, display_name: "Anna" }]));
     const result = await callServerFn(crm.listStaffUsers, { context: context() });
     expect(parsed(result)).toEqual([{ id: USER_ID, display_name: "Anna" }]);
+    expect(lead.lastChain("profiles")?.argsOf("eq")).toEqual(["id", USER_ID]);
+    expect(admin.lastChain("user_roles")?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
     expect(admin.lastChain("profiles")?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
   });
 
-  it("brak staffu oddaje pustą listę bez pytania o profile", async () => {
+  it("żaden odczyt adminem nie idzie bez granicy najemcy", async () => {
+    // Bramka w miejscu defektu: `supabaseAdmin` omija RLS, więc jedyną zaporą
+    // jest filtr wpisany ręcznie - i musi go mieć KAŻDE zapytanie, nie jedno.
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    admin.setResponse("user_roles", () => ok([{ user_id: USER_ID, role: "editor" }]));
+    admin.setResponse("profiles", () => ok([]));
+    await callServerFn(crm.listStaffUsers, { context: context() });
+    expect(admin.chains.length).toBeGreaterThan(0);
+    for (const chain of admin.chains) {
+      expect(chain.argsOf("eq"), `${chain.table} bez granicy najemcy`).toEqual([
+        "tenant_id",
+        TENANT,
+      ]);
+    }
+  });
+
+  it("pyta tylko o role z enuma app_role", async () => {
+    // `moderator` nie jest wartością `public.app_role`; PostgREST rzutuje
+    // literał na enum, więc wartość spoza niego to 22P02 w runtime.
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    admin.setResponse("user_roles", () => ok([]));
+    await callServerFn(crm.listStaffUsers, { context: context() });
+    expect(admin.lastChain("user_roles")?.argsOf("in")).toEqual([
+      "role",
+      ["admin", "super_admin", "editor"],
+    ]);
+  });
+
+  it("brak staffu oddaje pustą listę bez pytania o profile adminem", async () => {
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
     admin.setResponse("user_roles", () => ok([]));
     const result = await callServerFn(crm.listStaffUsers, { context: context() });
     expect(parsed(result)).toEqual([]);
     expect(admin.chainsFor("profiles")).toHaveLength(0);
   });
 
-  it("bez tenanta w tokenie lista nie jest zawężana po tenancie", async () => {
-    admin.setResponse("user_roles", () => ok([{ user_id: USER_ID, role: "editor" }]));
-    admin.setResponse("profiles", () => ok([]));
-    await callServerFn(crm.listStaffUsers, {
-      context: { supabase: context().supabase, userId: USER_ID, claims: {} },
-    });
-    expect(admin.lastChain("profiles")?.has("eq")).toBe(false);
+  it("brak tenanta w profilu ODMAWIA, a nie oddaje staffu wszystkich najemców", async () => {
+    // Odwrócony test: wcześniej ta ścieżka PRZYPINAŁA wyciek jako zamiar
+    // („bez tenanta w tokenie lista nie jest zawężana"). Fallback „pokaż
+    // wszystko" jest tu defektem, nie wygodą.
+    lead.setResponse("profiles", () => ok(null));
+    await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
+      "tenant_unresolved",
+    );
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("błąd odczytu profilu przerywa listowanie", async () => {
+    lead.setResponse("profiles", () => fail("profile down"));
+    await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
+      "profile down",
+    );
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("błąd odczytu ról wychodzi na zewnątrz, nie znika jako pusta lista", async () => {
+    // Połknięty błąd zamieniał 22P02 na „brak staffu" - defekt bez sygnału.
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    admin.setResponse("user_roles", () => fail("roles down"));
+    await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
+      "roles down",
+    );
+  });
+
+  it("błąd odczytu profili adminem wychodzi na zewnątrz", async () => {
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    admin.setResponse("user_roles", () => ok([{ user_id: USER_ID, role: "admin" }]));
+    admin.setResponse("profiles", () => fail("profiles down"));
+    await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
+      "profiles down",
+    );
   });
 });
 

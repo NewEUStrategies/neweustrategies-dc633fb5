@@ -47,7 +47,6 @@ function context(): ServerFnContext {
       },
     },
     userId: USER_ID,
-    claims: { tenant_id: TENANT },
   };
 }
 
