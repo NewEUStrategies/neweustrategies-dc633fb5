@@ -738,6 +738,71 @@ describe("tenant odbiorcy", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Najemca w dzienniku wysyłek
+//
+// Dziennik czyta panel operatora - i czyta go w granicach JEDNEGO najemcy, bo
+// `email_send_log` niesie adresy odbiorców, a jego RLS dopuszcza wyłącznie
+// service_role (czyli nie stawia żadnej granicy). Wiersz bez stempla jest więc
+// niewidoczny dokładnie dla tego operatora, do którego należy.
+// ---------------------------------------------------------------------------
+describe("najemca w dzienniku wysyłek", () => {
+  it("każdy wiersz dziennika niesie najemcę odbiorcy", async () => {
+    await sendTxEmail(txInput());
+
+    expect(logInserts()).not.toHaveLength(0);
+    for (const row of logInserts()) expect(row.tenant_id).toBe(TENANT);
+  });
+
+  it("wiersz 'suppressed' też niesie najemcę", async () => {
+    // To jest wiersz, którym operator tłumaczy ciszę w skrzynce odbiorcy.
+    // Nieostemplowany jest niewidoczny właśnie dla niego.
+    suppress("anna@example.test", "complaint");
+
+    await sendTxEmail(txInput());
+
+    expect(logInserts()).toHaveLength(1);
+    expect(logInserts()[0]).toMatchObject({ status: "suppressed", tenant_id: TENANT });
+  });
+
+  it("wiersz 'failed' po odmowie kolejki niesie najemcę", async () => {
+    rpc.setError("enqueue_email", "queue is full");
+
+    await sendTxEmail(txInput());
+
+    expect(logInserts()[1]).toMatchObject({ status: "failed", tenant_id: TENANT });
+    // Wiersz 'pending' zapisany PRZED odmową kolejki też musi nieść najemcę -
+    // inaczej nieudana wysyłka znika z panelu swojego serwisu.
+    expect(logInserts()[0]).toMatchObject({ tenant_id: TENANT });
+  });
+
+  it("nierozstrzygnięty najemca NIE blokuje zapisu dziennika", async () => {
+    // Producent oddaje `tenant_id: null` i to jest POPRAWNE, nie przeoczenie:
+    // `tg_email_send_log_bind_tenant` (20260913140000) jest wyzwalaczem
+    // BEFORE INSERT i odpala się dokładnie na `NEW.tenant_id IS NULL`,
+    // rozstrzygając najemcę z adresu odbiorcy ZANIM zadziała ograniczenie
+    // NOT NULL. Ostatnią zaporą jest baza, nie nadawca.
+    //
+    // Właściwość, o którą tu chodzi, jest jedna: nierozstrzygnięty najemca nie
+    // może WYWRÓCIĆ zapisu. Mail już wyszedł - wiersz dziennika bez śladu jest
+    // gorszy niż wiersz, któremu najemcę dopina trigger.
+    rpc.setData("email_resolve_tenant_for_address", null);
+
+    const result = await sendTxEmail(txInput());
+
+    expect(result).toEqual({ ok: true });
+    expect(logInserts()).not.toHaveLength(0);
+    expect(logInserts()[0]).toHaveProperty("tenant_id", null);
+  });
+
+  it("digest (enqueueRawEmail) stempluje dziennik tak samo jak poczta 1:1", async () => {
+    await enqueueRawEmail(rawInput({ tenantId: OTHER_TENANT }));
+
+    expect(logInserts()).not.toHaveLength(0);
+    for (const row of logInserts()) expect(row.tenant_id).toBe(OTHER_TENANT);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Idempotencja
 // ---------------------------------------------------------------------------
 describe("idempotencja", () => {

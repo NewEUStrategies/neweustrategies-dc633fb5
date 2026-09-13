@@ -78,6 +78,20 @@
       "when": 1789297200048,
       "tag": "0010_email_send_log_tenant_producers",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789300800048,
+      "tag": "0011_profiles_discoverable_opt_in_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789304400048,
+      "tag": "0012_email_account_tenant_for_address",
+      "breakpoints": true
     }
   ]
 }

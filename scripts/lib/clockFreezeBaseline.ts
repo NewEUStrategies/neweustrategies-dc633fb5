@@ -1,7 +1,7 @@
 // ZAMROŻONY DŁUG: testy z literałem daty, które NIE zamrażają zegara - per plik.
 //
 // Stan ZMIERZONY, nie przepisany (`bun run check:clock-freeze --print-baseline`)
-// na HEAD c239ab891, 2026-09-06. Liczba przy pliku to liczba literałów daty
+// na HEAD 004cba1, 2026-09-13. Liczba przy pliku to liczba literałów daty
 // POZA komentarzami.
 //
 // Lista jest RATCHETEM: liczba w pliku może tylko maleć, plik nieobecny na
@@ -70,7 +70,6 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/newsletter/auth-logs/__tests__/AuthEmailLogsPanel.test.tsx", 2],
   ["src/components/admin/newsletter/builder/__tests__/PropertiesPanel.test.tsx", 5],
   ["src/components/admin/newsletter/builder/__tests__/WidgetPreview.test.tsx", 1],
-  ["src/components/admin/newsletter/deliverability/__tests__/deliverabilityPanels.test.tsx", 5],
   ["src/components/admin/newsletter/system-emails/__tests__/SystemEmailsPanel.test.tsx", 4],
   ["src/components/admin/newsletter/system-emails/__tests__/systemEmailsRules.test.ts", 5],
   ["src/components/admin/podcasts/__tests__/EpisodeEditorPane.test.tsx", 7],
@@ -252,5 +251,5 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/-api.public.newsletter.confirm.test.ts", 5],
   ["src/routes/api/public/-webhooks.resend.test.ts", 3],
   ["src/routes/api/public/payments/-webhook.test.ts", 25],
-  ["src/routes/platform/email/transactional/-send.test.ts", 2],
+  ["src/routes/platform/email/transactional/-send.test.ts", 1],
 ];

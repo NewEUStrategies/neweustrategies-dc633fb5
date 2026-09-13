@@ -56,12 +56,11 @@ const TYPES_FILE = "src/integrations/supabase/types.ts";
  * pod nową tabelę.
  */
 const BASELINE: readonly string[] = [
-  // 2026-09-13: 26 -> 28 wpisów. `auth_email_events.tenant_id` i `email_send_log.tenant_id`
-  // wchodzą migracją 20260913101000 (zakres najemcy w dziennikach poczty). To ta sama klasa
-  // co cztery wpisy `research_program_*.tenant_id`: kolumna, na której stoi izolacja najemców,
-  // a której regeneracja types.ts wymaga dostępu do bazy - niedostępnego w PR-ze.
-  "auth_email_events.tenant_id",
-  "email_send_log.tenant_id",
+  // 2026-09-13: 28 -> 26 wpisów. `auth_email_events.tenant_id` i `email_send_log.tenant_id`
+  // wpisano tu razem z migracją 20260913101000, bo regeneracja types.ts wymaga dostępu do
+  // bazy. types.ts zostało jednak przegenerowane w tym samym wydaniu i OBIE kolumny w nim SĄ,
+  // więc wpisy zrobiły się martwe - a bramka słusznie się na nie zapala ("martwy wpis to
+  // przyszła furtka"). Usunięte zgodnie z jej własną instrukcją.
   "membership_grants.source_coupon_id",
   "notifications.meta",
   "podcast_settings.itunes_author",

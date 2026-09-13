@@ -27,6 +27,7 @@ import { z } from "zod";
 // produkcji - dokładnie ten incydent opisuje `hooks.refresh-og-image.ts`.
 import { createHash } from "node:crypto";
 import { clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { redactUrl } from "@/lib/observability/redact";
 import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 
 // visitorId: crypto.randomUUID() albo fallback base36 z getVisitorId() -
@@ -134,7 +135,12 @@ export const Route = createFileRoute("/api/public/experiment-event")({
           variant: parsed.data.variant,
           event: parsed.data.event,
           visitor_id: parsed.data.visitorId,
-          path: parsed.data.path ?? null,
+          // `path` przez `redactUrl`, jak w /api/public/track i /vitals. Klient
+          // (src/lib/builder/experiments.ts) podaje samo `location.pathname`,
+          // ale schemat przyjmuje `z.string().max(2000)` od DOWOLNEGO klienta
+          // na trasie bez sesji - query string z tokenem albo adresem e-mail
+          // wchodziłby do tabeli w całości.
+          path: redactUrl(parsed.data.path ?? null),
         });
         // Komunikat Postgresa niesie nazwy tabel, kolumn i ograniczeń - na
         // ścieżce dostępnej bez sesji to darmowa mapa schematu. Do klienta idzie

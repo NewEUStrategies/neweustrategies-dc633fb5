@@ -2,12 +2,35 @@
 // wysyła batch `sendBeacon`em; ten route waliduje, ogranicza rate limit
 // i zapisuje do public.analytics_events przez klienta service_role.
 // Odpowiedź zawsze 204 - beacony nie mogą blokować/psuć nawigacji.
+//
+// PRZYCZYNA ŹRÓDŁOWA. Redakcja stała dotąd WYŁĄCZNIE na `path` i `referrer` -
+// na polach, które adres NIOSĄ, a nie na tych, w które użytkownik WPISUJE.
+// `trackSearch` (src/lib/analytics/track.ts) posyła frazę z wyszukiwarki wprost
+// do `entity_id`, a `trackFooterLink` wkłada do `meta` cały href. Fraza bywa
+// adresem e-mail albo numerem telefonu, a wiersz niesie obok niej `anon_id` -
+// identyfikator przeglądarki z localStorage, BEZ WYGASANIA. Tabela nie ma
+// retencji (zero `DELETE` w migracjach), czyta ją admin ALBO EDYTOR (migracja
+// 20260730085737), a bramka eksportu RODO wyłącza ją z eksportu uzasadnieniem
+// „zdarzenia analityczne bez identyfikatora konta - nie są danymi osobowymi"
+// (exportManifestParity.gate.test.ts). Surowa fraza czyni to uzasadnienie
+// NIEPRAWDZIWYM. Komplet redaktorów jest ten sam co w /api/public/client-errors.
+//
+// `entity_id` idzie przez `redactPii`, NIE przez `redactUrl`: to jedno pole ma
+// trzy kształty (fraza, UUID wpisu, href stopki), a ZMIERZONE
+// `redactUrl("cee") === "/cee"` i `redactUrl("polityka spójności") ===
+// "/polityka%20sp%C3%B3jno%C5%9Bci"` zamieniłyby klucz grupowania raportu na
+// napis, którego nikt nie wpisał.
+//
+// `event_name` ŚWIADOMIE ZOSTAJE SUROWE: to klucz grupowania KAŻDEGO raportu, a
+// `redactPii` tnie ciągi [A-Za-z0-9_-] od 40 znaków - nazwa dłuższa niż 39
+// znaków zlałaby się z każdą inną w kubełek „[redacted]" (ZMIERZONE). Nazwa
+// pochodzi z NASZEGO kodu, nie z klawiatury odwiedzającego; to jest ta różnica.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
-import { redactUrl } from "@/lib/observability/redact";
+import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
 import { countryFromHeaders } from "@/lib/analytics/geoHeaders";
 
 const MAX_BODY = 32_000;
@@ -114,13 +137,13 @@ export const Route = createFileRoute("/api/public/track")({
               event_type: type,
               event_name: name,
               entity_type: entityType,
-              entity_id: truncate(e.entity_id, 120),
+              entity_id: redactPii(truncate(e.entity_id, 120)),
               path: redactUrl(truncate(e.path, 512)),
               referrer: redactUrl(truncate(e.referrer, 512)),
               session_id: truncate(e.session_id, 80),
               anon_id: truncate(e.anon_id, 80),
               lang: truncate(e.lang, 8),
-              meta: safeMeta(e.meta),
+              meta: redactMeta(safeMeta(e.meta)),
               ua,
               ...(country ? { country } : {}),
               ...(tenantId ? { tenant_id: tenantId } : {}),

@@ -83,6 +83,22 @@ interface AuthEventLog {
   status: "enqueued" | "rejected" | "failed";
   error_message?: string | null;
   duration_ms?: number | null;
+  /**
+   * Najemca wiersza diagnostycznego. WYMAGANY, nie opcjonalny, i to jest cała
+   * poprawka: `auth_email_events` NIE MA odpowiednika triggera
+   * `email_send_log_bind_tenant` - 20260913101000 dokłada kolumnę, 20260913140000
+   * backfilluje wyłącznie wiersze ZASTANE, a wiązania przy INSERT-cie nie ma
+   * nigdzie. Wiersz dopisany bez tej kolumny zostaje więc z `tenant_id IS NULL`
+   * NA ZAWSZE, a `fetchAuthEmailEvents` filtruje twardo po
+   * `.eq("tenant_id", query.tenantId)` (auth-events.server.ts:169) i rzuca bez
+   * kontekstu najemcy (:159). Każde nowe zdarzenie byłoby niewidoczne w panelu
+   * KAŻDEGO najemcy - panel wyglądałby na zakresowany, a po cichu byłby pusty.
+   *
+   * `null` jest dozwolony (adresu nie dało się rozstrzygnąć), ale musi być
+   * napisany WPROST - pole opcjonalne dałoby się pominąć przy dopisywaniu
+   * kolejnej ścieżki wyniku, a tutaj nie ma triggera, który by to naprawił.
+   */
+  tenant_id: string | null;
 }
 
 /** Diagnostyka webhooka - nigdy nie może wywrócić wysyłki maila. */
@@ -201,6 +217,57 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+        // NAJEMCA MAILA AUTORYZACYJNEGO. To jedyna ścieżka wysyłki w platformie,
+        // która nie ma ani sesji, ani bramki listy wykluczeń - tenant nie bierze
+        // się tu znikąd, a wiersz dziennika bez tenanta jest widoczny dla
+        // operatora KAŻDEGO serwisu (`email_send_log` czyta się klientem
+        // serwisowym, który RLS omija).
+        //
+        // WŁAŚCICIEL KONTA MA PIERWSZEŃSTWO przed hostem powrotu. Host powrotu
+        // uwierzytelnia CEL LINKU, a nie to, czyj jest odbiorca.
+        //
+        // Przypadek, który to rozstrzyga: reset hasła zamówiony na serwisie B
+        // dla adresu należącego do A. Formularz resetu podaje `redirectTo` jako
+        // `${window.location.origin}${redirectTo}` (AuthFormBlocks.tsx:1034-1035),
+        // czyli ZAWSZE bieżący origin, i przyjmuje dowolny adres. Przy kolejności
+        // „host najpierw" wiersz dziennika z SUROWYM adresem odbiorcy dostawał
+        // tenanta B i wchodził do raportu systemowego B.
+        //
+        // DLACZEGO NIE `resolveTenantForAddress`. Stała tu wcześniej i to był
+        // błąd w dwie strony naraz. `email_resolve_tenant_for_address`
+        // (20260731120000:84-122) pyta NAJPIERW o `newsletter_subscribers`, więc
+        // subskrypcja bije konto - adres zapisany na newsletter u A, z kontem
+        // u B, dostawał stempel A, choć mail autoryzacyjny dotyczy KONTA.
+        // A dla adresu nierozstrzygniętego oddaje `email_default_tenant_id()`,
+        // nie NULL - czyli gałąź hosta poniżej była MARTWA, bo `owner` zawsze
+        // było prawdziwe. Świeża rejestracja na B lądowała u tenanta domyślnego.
+        //
+        // `email_account_tenant_for_address` (20260913160000) pyta wyłącznie
+        // o `profiles`, wyłącznie jednoznacznie i bez tenanta domyślnego. Dzięki
+        // temu `null` znaczy „nie wiadomo" i host powrotu DOSTAJE swoją kolej -
+        // przy świeżej rejestracji jest jedyną prawdziwą odpowiedzią, bo mówi,
+        // na który serwis ten człowiek właśnie wchodzi. `resolveDomainBinding`
+        // dopasowuje ŚCIŚLE, bez zjeżdżania na tenanta domyślnego.
+        //
+        // Try/catch jak przy `resolveRecipientName` niżej i z tego samego
+        // powodu: to jest ATRYBUCJA, nie warunek wysyłki. Link do logowania ma
+        // wyjść nawet wtedy, gdy katalog domen albo rozstrzygacz padnie -
+        // najemcę dopnie wtedy trigger `email_send_log_bind_tenant`.
+        let tenantId: string | null = null;
+        try {
+          const [{ resolveDomainBinding }, { resolveAccountTenantForAddress }] = await Promise.all([
+            import("@/lib/server/tenant.server"),
+            import("@/lib/email/suppression.server"),
+          ]);
+          const owner = await resolveAccountTenantForAddress(supabase, payload.data.email);
+          tenantId =
+            owner ??
+            (await resolveDomainBinding(hostOf(payload.data.redirect_to))).tenant?.id ??
+            null;
+        } catch (err) {
+          console.error("Failed to resolve auth email tenant", err);
+        }
+
         let firstName = metaName;
         let gender = metaGender;
         let vocativePl: string | null = null;
@@ -248,6 +315,7 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
           template_name: emailType,
           recipient_email: payload.data.email,
           status: "pending",
+          tenant_id: tenantId,
         });
 
         const fromAddress = `${SITE_NAME} <noreply@${FROM_DOMAIN}>`;
@@ -272,6 +340,9 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
           redirect_to: payload.data.redirect_to ?? null,
           action_url_host: hostOf(payload.data.url),
           greeting_name: vocativePl ?? firstName ?? null,
+          // Jedno miejsce dla OBU wywołań `logAuthEvent` ('failed' i 'enqueued'),
+          // bo oba rozwijają ten obiekt. `diagnostics` nie idzie nigdzie indziej.
+          tenant_id: tenantId,
         };
 
         const { error: enqueueError } = await supabase.rpc("enqueue_email", {
@@ -287,6 +358,11 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
             text,
             purpose: "transactional",
             label: emailType,
+            // Tenant w ładunku, tak jak u producentów transakcyjnych: dren
+            // wywozi wiadomość do DLQ (zepsuty ładunek, TTL, ponowienia) ZANIM
+            // dojdzie do bramki, więc bez tego pola wiersz 'dlq' maila
+            // autoryzacyjnego nie miałby najemcy z żadnego źródła.
+            tenant_id: tenantId,
             queued_at: new Date().toISOString(),
           },
         });
@@ -299,6 +375,7 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
             recipient_email: payload.data.email,
             status: "failed",
             error_message: "Failed to enqueue email",
+            tenant_id: tenantId,
           });
           await logAuthEvent(supabase, {
             ...diagnostics,

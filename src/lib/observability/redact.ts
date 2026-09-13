@@ -71,24 +71,53 @@ export function redactUrl(input: string | null | undefined): string | null {
   }
 }
 
+/** Najgłębszy poziom, który scrubber jeszcze przechodzi. */
+const MAX_META_DEPTH = 6;
+/** Znacznik poddrzewa uciętego na limicie głębokości. */
+const TOO_DEEP = "[redacted-depth]";
+
 /**
  * Deep-scrub a bounded structured-context object (boundary label, component
  * stack, etc.): redact every string value (and key path that is itself a
  * URL/message). Arrays and nested objects are walked; non-strings pass
  * through. Depth-bounded to avoid pathological payloads.
+ *
+ * PONIŻEJ LIMITU GŁĘBOKOŚCI PODDRZEWO ZNIKA, nie przechodzi surowe. Wcześniej
+ * `depth > 6` oddawało resztę struktury NIETKNIĘTĄ - a to jest dokładna
+ * odwrotność tego, po co ten limit stoi: ładunek zagnieżdżony głębiej niż
+ * siedem poziomów wjeżdżał do tabeli w całości, z adresem, tokenem albo IP
+ * włącznie. `safeMeta` w /api/public/track ogranicza tylko ROZMIAR
+ * serializacji i zagnieżdżenia nie pilnuje wcale, więc na tej trasie limit
+ * był jedyną zaporą - i był otwarty.
+ *
+ * Napis na granicy nadal przechodzi przez `redactPii` (tanie, a zachowuje
+ * tekst bez PII); obiekt albo tablica ustępuje znacznikowi, bo nie ma już jak
+ * wejść w środek. Liczby i wartości logiczne zostają - nie ma w nich czego
+ * dopasować.
  */
-export function redactMeta<T>(value: T, depth = 0): T {
-  if (depth > 6) return value;
-  if (typeof value === "string") return redactPii(value) as unknown as T;
-  if (Array.isArray(value)) {
-    return value.map((v) => redactMeta(v, depth + 1)) as unknown as T;
+/** Skrub pary klucz-wartość o jeden poziom głębiej. Wydzielony, żeby gałąź
+ *  obiektu miała JEDNO miejsce z rzutowaniem, nie dwa. */
+function scrubEntries(value: object, depth: number): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = redactMeta(v, depth + 1);
   }
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = redactMeta(v, depth + 1);
-    }
+  return out;
+}
+
+export function redactMeta<T>(value: T, depth = 0): T {
+  // Napis skrubujemy na KAŻDEJ głębokości - to jedyny kształt, w którym PII
+  // realnie siedzi, a limit dotyczy schodzenia w strukturę, nie treści.
+  if (typeof value === "string") return redactPii(value) as unknown as T;
+  const zaGleboko = depth > MAX_META_DEPTH;
+  if (Array.isArray(value)) {
+    const out = zaGleboko ? TOO_DEEP : value.map((v) => redactMeta(v, depth + 1));
     return out as unknown as T;
   }
+  if (value && typeof value === "object") {
+    const out: unknown = zaGleboko ? TOO_DEEP : scrubEntries(value, depth);
+    return out as unknown as T;
+  }
+  // Liczba, wartość logiczna, null, undefined - nie ma czego dopasować.
   return value;
 }
