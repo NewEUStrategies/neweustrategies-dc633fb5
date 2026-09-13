@@ -23810,6 +23810,10 @@ export type Database = {
         Args: { p_email: string }
         Returns: string
       }
+      email_send_log_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
       email_suppression_add: {
         Args: { p_email: string; p_note?: string; p_reason?: string }
         Returns: Json

@@ -71,6 +71,13 @@
       "when": 1789297135558,
       "tag": "0009_email_log_tenant_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789297200048,
+      "tag": "0010_email_send_log_tenant_producers",
+      "breakpoints": true
     }
   ]
 }
