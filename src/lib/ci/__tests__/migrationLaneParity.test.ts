@@ -220,6 +220,42 @@ describe("analyzeMigrationLanes", () => {
     expect(sql).toContain('"bez konca');
   });
 
+  it("tekst WYGLĄDAJĄCY na komentarz w zagnieżdżonej wartości przeżywa", () => {
+    // REGRESJA. Komentarze wycinał wcześniej `stripSqlComments` PRZED skanerem,
+    // a ta funkcja nie zna cytowania dolarami - kasowała więc `-- A` ze środka
+    // zagnieżdżonej WARTOŚCI `$b$...$b$`, zanim rekurencja miała czego bronić.
+    // Obie funkcje zwracają RÓŻNE napisy, a odcisk wychodził ten sam.
+    const body = (x: string) =>
+      `CREATE FUNCTION f() RETURNS text AS $a$ BEGIN RETURN $b$foo -- ${x}\nbar$b$; END $a$;`;
+    const a = executableSql(body("A"));
+    const b = executableSql(body("B"));
+    expect(a).not.toBe(b);
+    // Wartość przechodzi nietknięta, razem z tym, co wygląda na komentarz.
+    expect(a).toContain("-- A");
+  });
+
+  it("komentarz w KODZIE ciała funkcji nadal znika - to proza", () => {
+    // Druga strona tej samej reguły i powód, dla którego rekurencja istnieje:
+    // pas supabase komentuje ciała obficie, pas drizzle wcale.
+    const a = executableSql("CREATE FUNCTION f() AS $fn$\n  -- po polsku\n  SELECT 1;\n$fn$;");
+    const b = executableSql("CREATE FUNCTION f() AS $fn$ SELECT 1; $fn$;");
+    expect(a).toBe(b);
+    expect(a).not.toContain("po polsku");
+  });
+
+  it("komentarz na najwyższym poziomie też znika, a instrukcje zostają", () => {
+    const sql = executableSql("-- nagłówek\nALTER TABLE a;\n/* blok */\nALTER TABLE b;");
+    expect(sql).toBe("ALTER TABLE a; ALTER TABLE b;");
+    expect(sql).not.toContain("nagłówek");
+  });
+
+  it("`--` w zwykłym literale pojedynczym nie jest komentarzem", () => {
+    const a = executableSql("INSERT INTO t (v) VALUES ('a -- A');");
+    const b = executableSql("INSERT INTO t (v) VALUES ('a -- B');");
+    expect(a).not.toBe(b);
+    expect(a).toContain("'a -- A'");
+  });
+
   it("`$1` NIE jest otwarciem cytowania dolarami - to placeholder", () => {
     // `$` w SQL-u to najczęściej odwołanie do parametru, a nie tag cytowania.
     // Wzięcie `$1` za otwarcie zjadłoby resztę pliku jako „ciało funkcji".

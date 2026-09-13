@@ -38,8 +38,6 @@
 // bliźniaka albo napisania, czemu go nie ma. Nie da się już dołożyć pliku po cichu.
 import { readFileSync } from "node:fs";
 
-import { stripSqlComments } from "../../../scripts/lib/sqlMigrations";
-
 export const DRIZZLE_DIR = "drizzle/migrations";
 export const SUPABASE_DIR = "supabase/migrations";
 
@@ -157,14 +155,22 @@ function isCommentOperand(stmt: string): boolean {
 }
 
 /**
- * Skaner świadomy cytowania. Normalizuje WYŁĄCZNIE tekst poza literałami.
+ * Skaner świadomy cytowania. Normalizuje WYŁĄCZNIE tekst poza literałami
+ * i sam wycina komentarze - to drugie jest istotne, patrz `executableSql`.
  *
  * `maskCommentProse` włącza podmianę treści literału, który jest operandem
  * `COMMENT ON ... IS`. Wyłączamy je dla ciał cytowanych dolarami: `COMMENT ON`
  * w środku ciała funkcji czy widoku to NIE jest instrukcja komentująca obiekt,
  * tylko fragment zachowania - i dwa różne ciała nie mogą się przez to zrównać.
+ *
+ * `dollarIsCode` mówi, czym jest napotkany obszar `$tag$ ... $tag$`. Na
+ * najwyższym poziomie to ciało funkcji albo widoku, czyli KOD: wchodzimy w nie
+ * rekurencyjnie, bo spacja jest tam nieistotna, a komentarze `--` to proza,
+ * którą trzeba wyciąć. JUŻ W ŚRODKU tego ciała zagnieżdżony obszar cytowany
+ * dolarami jest natomiast WARTOŚCIĄ - i musi przejść bajt w bajt, razem
+ * z tekstem, który tylko wygląda na komentarz.
  */
-function scan(src: string, maskCommentProse: boolean): string {
+function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: boolean }): string {
   let out = "";
   let buf = "";
   let stmt = "";
@@ -183,8 +189,24 @@ function scan(src: string, maskCommentProse: boolean): string {
   while (i < src.length) {
     const ch = src[i]!;
 
-    // $tag$ ... $tag$ - ciało funkcji/widoku, czyli KOD. Wchodzimy rekurencyjnie:
-    // spacja w kodzie jest nieistotna, ale literały w środku muszą przeżyć.
+    // Komentarze wycinamy TUTAJ, a nie przed wejściem do skanera: dopiero tu
+    // wiadomo, czy `--` stoi w kodzie, czy w środku wartości. Zostaje spacja,
+    // żeby `a--c\nb` nie skleiło się w `ab`.
+    if (ch === "-" && src[i + 1] === "-") {
+      const nl = src.indexOf("\n", i);
+      buf += " ";
+      i = nl === -1 ? src.length : nl;
+      continue;
+    }
+    if (ch === "/" && src[i + 1] === "*") {
+      const close = src.indexOf("*/", i + 2);
+      buf += " ";
+      i = close === -1 ? src.length : close + 2;
+      continue;
+    }
+
+    // $tag$ ... $tag$ - na wierzchu ciało funkcji/widoku (KOD), a w środku
+    // takiego ciała już WARTOŚĆ, którą zostawiamy nietkniętą.
     if (ch === "$") {
       const opener = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(src.slice(i));
       if (opener) {
@@ -192,8 +214,14 @@ function scan(src: string, maskCommentProse: boolean): string {
         const bodyFrom = i + tag.length;
         const close = src.indexOf(tag, bodyFrom);
         const bodyTo = close === -1 ? src.length : close;
+        const body = src.slice(bodyFrom, bodyTo);
         flush();
-        out += tag + scan(src.slice(bodyFrom, bodyTo), false) + (close === -1 ? "" : tag);
+        out +=
+          tag +
+          (opts.dollarIsCode
+            ? scan(body, { maskCommentProse: false, dollarIsCode: false })
+            : body) +
+          (close === -1 ? "" : tag);
         stmt += "x";
         i = close === -1 ? src.length : close + tag.length;
         continue;
@@ -215,7 +243,7 @@ function scan(src: string, maskCommentProse: boolean): string {
       }
       const end = Math.min(j + 1, src.length);
       flush();
-      out += maskCommentProse && isCommentOperand(stmt) ? "'<proza>'" : src.slice(i, end);
+      out += opts.maskCommentProse && isCommentOperand(stmt) ? "'<proza>'" : src.slice(i, end);
       stmt += "x";
       i = end;
       continue;
@@ -263,21 +291,29 @@ function scan(src: string, maskCommentProse: boolean): string {
  *     nawzajem - a to jest różnica zachowania, nie prozy.
  *
  * CO JEST, A CO NIE JEST TREŚCIĄ. Literał pojedynczy i cytowany identyfikator
- * przechodzą bajt w bajt. Tekst cytowany dolarami jest traktowany jak KOD -
- * wchodzimy w niego rekurencyjnie, więc spacja w nim się zwiera, a literały
- * w jego środku i tak przeżywają. Tak trzeba, bo `stripSqlComments` wycina
- * komentarze `--` TAKŻE ze środka ciał funkcji (nie zna cytowania dolarami),
- * zostawiając po nich same znaki nowej linii. Pas supabase komentuje ciała
- * obficie, pas drizzle wcale - bez zwarcia tej spacji bramka zapalałaby się na
- * czterech z dziesięciu par, i to WYŁĄCZNIE z powodu prozy.
+ * przechodzą bajt w bajt. Obszar cytowany dolarami zależy od piętra: NA WIERZCHU
+ * to ciało funkcji albo widoku, czyli kod - wchodzimy w nie rekurencyjnie, bo
+ * spacja jest tam nieistotna, a komentarze `--` to proza, którą trzeba wyciąć
+ * (pas supabase komentuje ciała obficie, pas drizzle wcale; bez tego bramka
+ * zapalałaby się na czterech z dziesięciu par WYŁĄCZNIE z powodu prozy).
+ * JUŻ W ŚRODKU takiego ciała zagnieżdżony obszar cytowany dolarami jest
+ * WARTOŚCIĄ i przechodzi nietknięty.
  *
- * CENA, POWIEDZIANA WPROST: wartość danych cytowana dolarami, która różni się
- * wyłącznie spacją w środku, przejdzie jako zgodna. W obu pasach cytowanie
- * dolarami niesie dziś wyłącznie ciała funkcji, więc płacimy za to, czego nie
- * ma - a alternatywą jest bramka zapalona na prozie, czyli bramka wyłączona.
+ * DLACZEGO KOMENTARZE WYCINA SAM SKANER, a nie `stripSqlComments` przed nim.
+ * Tamta funkcja zna apostrof i cudzysłów, ale NIE zna cytowania dolarami, więc
+ * uruchomiona wcześniej kasowała tekst wyglądający na komentarz także ze środka
+ * zagnieżdżonej WARTOŚCI - a rekurencja nie ma już czego ochronić, skoro wejście
+ * przyszło zmienione. Para
+ *
+ *     $a$ BEGIN RETURN $b$foo -- A\nbar$b$; END $a$
+ *     $a$ BEGIN RETURN $b$foo -- B\nbar$b$; END $a$
+ *
+ * zwracała ten sam odcisk, mimo że funkcje zwracają RÓŻNE napisy. Dlatego
+ * wycinanie komentarzy siedzi w pętli skanera: dopiero tam wiadomo, czy `--`
+ * stoi w kodzie, czy w wartości.
  */
 export function executableSql(sql: string): string {
-  return scan(stripSqlComments(sql), true).trim();
+  return scan(sql, { maskCommentProse: true, dollarIsCode: true }).trim();
 }
 
 /**
