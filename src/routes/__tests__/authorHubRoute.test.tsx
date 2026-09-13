@@ -176,7 +176,16 @@ vi.mock("@/lib/ssr/resilientLoad", async (importOriginal) => ({
   // asercje tego pliku na nagłówek cache'a mają mierzyć produkcyjną politykę,
   // a nie wartość wymyśloną w atrapie. Podmieniamy wyłącznie `loadResilient`,
   // bo to jego czas oczekiwania test chce omijać.
-  ...(await importOriginal<typeof import("@/lib/ssr/resilientLoad")>()),
+  //
+  // `Record<string, unknown>` ZAMIAST `typeof import("@/lib/ssr/resilientLoad")`
+  // I TO NIE JEST STYL. Wyrażenie `typeof import("...")` jest krawędzią importu
+  // widzialną dla skanerów statycznych, choć w runtime nie istnieje (pozycja
+  // typu). `check:clock-freeze` liczy taką krawędź jako „plik zależy od modułu
+  // produkcyjnego, który czyta zegar" - a `resilientLoad.ts` czyta `Date.now()`
+  // przy liczeniu terminu. Ten plik ma dwa literały dat w danych syntetycznych,
+  // więc fantomowa krawędź czyniła go bombą zegarową: bramka zapalała się na
+  // zależności, której przebieg testu nigdy nie wykonuje.
+  ...(await importOriginal<Record<string, unknown>>()),
   loadResilient: async (
     _client: unknown,
     options: { queryFn: () => Promise<unknown> },
