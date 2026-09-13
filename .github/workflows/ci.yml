@@ -496,6 +496,22 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:unknown-casts
 
+      # Blocking allowlist on raw HTML rendering. Measured on this HEAD: 84
+      # `dangerouslySetInnerHTML` sites across 56 files - 15 of them in files
+      # that reference no sanitizer at all, so a reviewer cannot tell from the
+      # file whether the sink is safe. The discipline held by convention only;
+      # every prior defence was a per-component unit test, which covers the
+      # sinks someone already thought about. The asymmetry that proves the
+      # class is live sits inside one engine: renderSpoiler sanitises its
+      # `?? fallback`, renderParagraph and renderHtml next door do not, and
+      # only an exact match between the footnote pre-pass recursion and the
+      # renderer's own recursion keeps that unreachable. Frozen PER FILE with a
+      # COUNT and a written JUSTIFICATION: a new file fails, a file that grows
+      # fails, and an entry whose reason is blank fails.
+      - name: No unjustified raw HTML sinks
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:raw-html-sinks
+
       # Blocking ratchet: a test carrying a calendar literal may not read the
       # real clock. This class of defect does not show up as a red test on the
       # day it is introduced - it shows up weeks later, when the literal falls
