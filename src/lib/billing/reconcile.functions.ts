@@ -4,6 +4,11 @@
 // `admin` (weryfikacja serwerowa `assertAdmin`). Klient nigdy nie przekazuje
 // ładunku zdarzenia - wyłącznie identyfikatory, po których serwer sam pobiera
 // dane ze Stripe.
+//
+// ZAKRES NAJEMCY pochodzi z WYNIKU bramki (profil wołającego, skonfrontowany
+// z hostem żądania), a nie z osobnego rozstrzygnięcia po hoście w warstwie
+// danych. Uzgadnianie i naprawa sięgają po `service_role`, więc ten jeden
+// identyfikator jest całą granicą obszaru roboczego.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -28,9 +33,9 @@ export const getReconcileReport = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => reportSchema.parse(input))
   .handler(async ({ data, context }): Promise<ReconcileReport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { buildReconcileReport } = await import("@/lib/billing/reconcile.server");
-    return buildReconcileReport(data.environment, data.sinceHours);
+    return buildReconcileReport(data.environment, data.sinceHours, tenantId);
   });
 
 /** Naprawa pojedynczej rozbieżności - idempotentna, tą samą ścieżką co webhook. */
@@ -39,7 +44,7 @@ export const repairReconcileEntry = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => repairSchema.parse(input))
   .handler(async ({ data, context }): Promise<RepairOutcome> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { repairReconcileIssue } = await import("@/lib/billing/reconcile.server");
-    return repairReconcileIssue(data.environment, data.kind, data.reference);
+    return repairReconcileIssue(data.environment, data.kind, data.reference, tenantId);
   });

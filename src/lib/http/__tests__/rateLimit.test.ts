@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { tickBucket, createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import {
+  tickBucket,
+  createRateLimiter,
+  clientIpFromHeaders,
+  rateLimitIpSubject,
+} from "@/lib/http/rateLimit";
 
 const OPTS = { capacity: 3, refillPerSec: 1 };
 
@@ -42,14 +47,91 @@ describe("createRateLimiter", () => {
   });
 });
 
-describe("clientIpFromHeaders", () => {
-  it("uses the first x-forwarded-for entry", () => {
-    const h = new Headers({ "x-forwarded-for": "203.0.113.7, 70.41.3.18" });
-    expect(clientIpFromHeaders(h)).toBe("203.0.113.7");
+describe("clientIpFromHeaders - kto naprawdę dzwoni", () => {
+  // Za Cloudflare `x-forwarded-for` jest listą, do której KLIENT dopisuje
+  // własny prefiks, a Cloudflare dokleja adres połączenia na KOŃCU. Pierwszy
+  // wpis jest więc deklaracją klienta, nie adresem - kubełek po nim kluczowany
+  // rotował się jednym nagłówkiem. Adresy z zakresów dokumentacyjnych
+  // (RFC 5737), żeby żaden prawdziwy nie trafił do logów testu.
+  const CF = "203.0.113.7";
+  const REAL = "198.51.100.2";
+  const KLAMSTWO_KLIENTA = "1.2.3.4";
+  const OGON = "203.0.113.9";
+
+  it("`cf-connecting-ip` WYGRYWA z `x-forwarded-for` niosącym inny adres", () => {
+    const h = new Headers({
+      "cf-connecting-ip": CF,
+      "x-forwarded-for": `${KLAMSTWO_KLIENTA}, 10.0.0.1`,
+    });
+    expect(clientIpFromHeaders(h)).toBe(CF);
   });
 
-  it("falls back to x-real-ip, then to a constant", () => {
-    expect(clientIpFromHeaders(new Headers({ "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");
-    expect(clientIpFromHeaders(new Headers())).toBe("unknown");
+  it("sam `x-forwarded-for` daje OSTATNI wpis, bo tylko ogon pochodzi od proxy", () => {
+    const h = new Headers({ "x-forwarded-for": `${KLAMSTWO_KLIENTA}, ${OGON}` });
+    expect(clientIpFromHeaders(h)).toBe(OGON);
+  });
+
+  it("rotacja prefiksu XFF NIE zmienia kubełka, dopóki ogon jest ten sam", () => {
+    // To jest cały sens poprawki: atakujący dopisuje dowolny prefiks, a podmiot
+    // limitu zostaje bez zmian.
+    const a = clientIpFromHeaders(new Headers({ "x-forwarded-for": `9.9.9.9, ${OGON}` }));
+    const b = clientIpFromHeaders(new Headers({ "x-forwarded-for": `8.8.8.8, ${OGON}` }));
+    expect(a).toBe(b);
+    expect(a).toBe(OGON);
+  });
+
+  it("`x-real-ip` wchodzi, gdy nie ma Cloudflare, i bije `x-forwarded-for`", () => {
+    expect(clientIpFromHeaders(new Headers({ "x-real-ip": REAL }))).toBe(REAL);
+    expect(
+      clientIpFromHeaders(new Headers({ "x-real-ip": REAL, "x-forwarded-for": KLAMSTWO_KLIENTA })),
+    ).toBe(REAL);
+  });
+
+  it("puste i białoznakowe wpisy są odrzucane na KAŻDYM kroku", () => {
+    // `x-forwarded-for: " "` dawało wcześniej pusty string udający adres -
+    // a ten schodził dalej jako „brak adresu" i znosił kubełek IP w całości.
+    expect(clientIpFromHeaders(new Headers({ "x-forwarded-for": " " }))).toBe("unknown");
+    expect(clientIpFromHeaders(new Headers({ "x-forwarded-for": " , , " }))).toBe("unknown");
+    expect(clientIpFromHeaders(new Headers({ "cf-connecting-ip": "   " }))).toBe("unknown");
+    expect(clientIpFromHeaders(new Headers({ "x-real-ip": "  " }))).toBe("unknown");
+  });
+
+  it("białe znaki wokół wybranego wpisu są obcinane", () => {
+    expect(clientIpFromHeaders(new Headers({ "x-forwarded-for": `10.0.0.1 ,  ${OGON}  ` }))).toBe(
+      OGON,
+    );
+  });
+
+  it("bez żadnego nagłówka oddaje stałą, nigdy pusty string", () => {
+    const ip = clientIpFromHeaders(new Headers());
+    expect(ip).toBe("unknown");
+    expect(ip).not.toBe("");
+  });
+
+  it("puste XFF schodzi na `x-real-ip`, a nie udaje adresu", () => {
+    expect(clientIpFromHeaders(new Headers({ "x-forwarded-for": " ", "x-real-ip": REAL }))).toBe(
+      REAL,
+    );
+  });
+});
+
+describe("rateLimitIpSubject - cienki alias, nie druga precedencja", () => {
+  it("oddaje DOKŁADNIE to samo, co `clientIpFromHeaders`", () => {
+    const przypadki = [
+      new Headers({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "1.2.3.4" }),
+      new Headers({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" }),
+      new Headers({ "x-real-ip": "198.51.100.2" }),
+      new Headers({ "x-forwarded-for": " " }),
+      new Headers(),
+    ];
+    for (const h of przypadki) {
+      expect(rateLimitIpSubject(h)).toBe(clientIpFromHeaders(h));
+    }
+  });
+
+  it("NIGDY nie zwraca wartości pustej - „unknown” jest legalnym WSPÓLNYM kubełkiem", () => {
+    expect(rateLimitIpSubject(new Headers())).toBe("unknown");
+    expect(rateLimitIpSubject(new Headers({ "x-forwarded-for": " " }))).toBe("unknown");
+    expect(rateLimitIpSubject(new Headers({ "x-forwarded-for": " " }))).not.toBe("");
   });
 });

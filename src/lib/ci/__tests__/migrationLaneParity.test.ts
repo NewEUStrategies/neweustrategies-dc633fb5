@@ -10,6 +10,7 @@ import {
   DRIZZLE_DIR,
   MIGRATION_LANES,
   analyzeMigrationLanes,
+  executableSql,
   laneParityFailed,
   renderLaneReport,
   type LaneEntry,
@@ -22,7 +23,7 @@ const fromMap =
     files[path] ?? null;
 
 describe("analyzeMigrationLanes", () => {
-  it("przepuszcza bliźniaka identycznego bajt w bajt", () => {
+  it("przepuszcza bliźniaka o tym samym SQL-u", () => {
     const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_x.sql" }];
     const report = analyzeMigrationLanes(
       ["0000_x"],
@@ -36,9 +37,9 @@ describe("analyzeMigrationLanes", () => {
     expect(report.twins).toBe(1);
   });
 
-  it("ŁAPIE rozjazd treści bliźniaków - to jest cała stawka tej bramki", () => {
-    // Dwa pasy jadą na produkcję. Pliki o tej samej nazwie i różnej treści
-    // znaczą, że pgTAP testuje coś innego, niż dostaje produkcja.
+  it("ŁAPIE rozjazd SQL-u bliźniaków - to jest cała stawka tej bramki", () => {
+    // Dwa pasy jadą na produkcję. Ten sam plik o różnym SQL-u znaczy, że pgTAP
+    // testuje inną bazę, niż dostaje produkcja.
     const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_x.sql" }];
     const report = analyzeMigrationLanes(
       ["0000_x"],
@@ -48,7 +49,7 @@ describe("analyzeMigrationLanes", () => {
         "supabase/migrations/20260101000000_x.sql": "ALTER TABLE b;\n",
       }),
     );
-    expect(report.violations.map((v) => v.kind)).toEqual(["rozjazd-tresci"]);
+    expect(report.violations.map((v) => v.kind)).toEqual(["rozjazd-sql"]);
   });
 
   it("ŁAPIE plik dołożony do drizzle/ bez wpisu w rejestrze", () => {
@@ -86,6 +87,53 @@ describe("analyzeMigrationLanes", () => {
     expect(report.drizzleOnly).toBe(1);
   });
 
+  it("NAGŁÓWEK i diakrytyki nie są rozjazdem - taka jest konwencja obu pasów", () => {
+    // ZMIERZONE na wszystkich parach: pas supabase niesie długi nagłówek po
+    // polsku, pas drizzle zaczyna od pierwszej instrukcji, a literały w drizzle
+    // mają złożone diakrytyki. Bramka, która zapala się na tym, zapala się
+    // zawsze - i zostaje wyłączona.
+    const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_x.sql" }];
+    const report = analyzeMigrationLanes(
+      ["0000_x"],
+      entries,
+      fromMap({
+        "drizzle/migrations/0000_x.sql":
+          "COMMENT ON COLUMN a.b IS 'Najemca, do ktorego nalezy wiersz.';\n",
+        "supabase/migrations/20260101000000_x.sql":
+          "-- Długi nagłówek po polsku.\n--\n-- PRZYCZYNA ŹRÓDŁOWA. Cokolwiek.\nCOMMENT ON COLUMN a.b IS 'Najemca, do którego należy wiersz.';\n",
+      }),
+    );
+    expect(laneParityFailed(report)).toBe(false);
+    expect(report.twins).toBe(1);
+  });
+
+  it("ŁAPIE rozjazd, gdy jeden pas GUBI instrukcję", () => {
+    // Granica poprzedniego przypadku: znacznik zastępuje TREŚĆ literału
+    // `COMMENT ON`, ale nie całą instrukcję - zniknięcie komentarza z jednego
+    // pasa nadal jest rozjazdem.
+    const entries: LaneEntry[] = [{ tag: "0000_x", twin: "20260101000000_x.sql" }];
+    const report = analyzeMigrationLanes(
+      ["0000_x"],
+      entries,
+      fromMap({
+        "drizzle/migrations/0000_x.sql": "ALTER TABLE a ADD COLUMN b int;\n",
+        "supabase/migrations/20260101000000_x.sql":
+          "ALTER TABLE a ADD COLUMN b int;\nCOMMENT ON COLUMN a.b IS 'cokolwiek';\n",
+      }),
+    );
+    expect(report.violations.map((v) => v.kind)).toEqual(["rozjazd-sql"]);
+  });
+
+  it("executableSql zostawia DDL, a wycina samą prozę", () => {
+    const sql = executableSql(
+      "-- nagłówek\nALTER TABLE a ADD COLUMN b int;\nCOMMENT ON COLUMN a.b IS 'TRESC-DOKUMENTACJI';",
+    );
+    expect(sql).toContain("ALTER TABLE a ADD COLUMN b int");
+    // Instrukcja zostaje, znika sama treść - stąd znacznik zamiast wycięcia.
+    expect(sql).toContain("COMMENT ON COLUMN a.b IS");
+    expect(sql).not.toContain("TRESC-DOKUMENTACJI");
+  });
+
   it("raport nazywa każde naruszenie po tagu", () => {
     const report = analyzeMigrationLanes(["0009_obcy"], [], fromMap({}));
     expect(renderLaneReport(report)).toContain("0009_obcy");
@@ -115,7 +163,7 @@ describe("rejestr kontra stan faktyczny", () => {
     // 20260826182500 opierało na tym drugim argument prawny listy uczestników.
     // Naprawa ma sens tylko wtedy, gdy stoi w OBU pasach - stąd bliźniak.
     const entry = MIGRATION_LANES.find(
-      (e) => e.tag === "0006_profiles_discoverable_opt_in_restore",
+      (e) => e.tag === "0011_profiles_discoverable_opt_in_restore",
     );
     expect(entry).toBeDefined();
     expect(entry && "twin" in entry ? entry.twin : null).toBe(

@@ -61,6 +61,37 @@ const DEFAULT_TTL_MINUTES: Readonly<Record<EmailQueueName, number>> = {
  */
 const VISIBILITY_TIMEOUT_SEC = 60;
 
+/**
+ * Nazwa kolumny najemcy podana jako `string`, a nie literał.
+ *
+ * PO CO DREN ZAPISUJE NAJEMCĘ. Raport poczty systemowej filtruje dziennik
+ * RÓWNOŚCIOWO po `tenant_id` (`fetchSystemEmailReport`), a dren jest jedynym
+ * producentem wierszy 'sent', 'failed' i 'dlq' - czyli dokładnie tych, po które
+ * operator sięga, gdy poczta przestaje dochodzić. Wiersz bez najemcy nie należy
+ * do nikogo i nie pokaże się w żadnym panelu: awaria wysyłki byłaby widoczna
+ * wyłącznie w logu procesu.
+ *
+ * SKĄD NAJEMCA. Z bramy higieny listy (`gate.tenantId`) tam, gdzie dren ją
+ * przeszedł, a przy wywózce do DLQ - z ładunku kolejki (`payload.tenant_id`),
+ * bo wiadomość bez adresu albo po TTL do bramy nie dociera. To ten sam najemca,
+ * którym dren taguje wysyłkę u dostawcy, więc wiersz dziennika i zdarzenie
+ * zwrotne webhooka opisują JEDNĄ organizację.
+ *
+ * DLACZEGO `string`, A NIE LITERAŁ. Kolumna wchodzi migracją 20260913101000,
+ * a `src/integrations/supabase/types.ts` jest GENEROWANY z bazy - do najbliższej
+ * regeneracji jej tam nie ma. Stała typu `string` wystarcza dla `.eq()`, które
+ * i tak przyjmuje nazwę kolumny jako tekst (tak używa jej `system-log.server.ts`).
+ *
+ * W ŁADUNKU `insert` TO NIE WYSTARCZA i trzeba `as never`: klucz wyliczany nie
+ * omija kontroli nadmiarowych właściwości, bo `insert` sprawdza CAŁY kształt
+ * obiektu wobec wygenerowanego typu wiersza. `as never` jest tu idiomem repo
+ * (ten sam zapis w `newsletter-admin.functions.ts`), a `check:stale-never-casts`
+ * dopilnuje, żeby rzutowanie zniknęło: bramka zapala się, gdy rzutowana nazwa
+ * JEST już w wygenerowanych typach, czyli przy pierwszej regeneracji po tej
+ * migracji. Stała i rzutowania znikają wtedy razem.
+ */
+const TENANT_COLUMN: string = "tenant_id";
+
 export interface DrainOptions {
   /** Górna granica wiadomości wysłanych w jednym przebiegu (budżet ticku). */
   maxMessages?: number;
@@ -227,17 +258,6 @@ async function readBatch(
   return out;
 }
 
-/**
- * Jedyne miejsce, w którym dren pisze do dziennika wysyłek.
- *
- * `tenantId` jest wymagany JAWNIE (a nie opcjonalny), bo panel wysyłek czyta
- * dziennik w granicach jednego najemcy: wiersz bez stempla jest niewidoczny dla
- * KAŻDEGO operatora. Cztery ścieżki po bramce listy wykluczeń mają tenanta
- * rozstrzygniętego (`gate.tenantId`); trzy ścieżki wywózki do DLQ biegną PRZED
- * bramką (zepsuty ładunek, przekroczony TTL, wyczerpane ponowienia) i mają
- * wyłącznie to, co włożył producent - gdy nie wiedział, wiersz idzie bez
- * tenanta, a trigger `trg_email_send_log_bind_tenant` dopina go z adresu.
- */
 async function logSend(
   admin: DbClient,
   row: {
@@ -246,6 +266,13 @@ async function logSend(
     to: string;
     status: "sent" | "failed" | "suppressed" | "dlq";
     error?: string | null;
+    /**
+     * Najemca wiersza. WYMAGANY, nie opcjonalny: pole opcjonalne dałoby się
+     * pominąć przy dopisywaniu kolejnej ścieżki wyniku, a pominięcie znaczy tu
+     * „wiersz niewidoczny w panelu żadnego najemcy". `null` jest dozwolony
+     * (adresu nie dało się rozstrzygnąć), ale musi być napisany WPROST -
+     * i wtedy domyka go trigger bazy (20260913140000).
+     */
     tenantId: string | null;
   },
 ): Promise<void> {
@@ -255,11 +282,8 @@ async function logSend(
     recipient_email: row.to,
     status: row.status,
     error_message: row.error ? row.error.slice(0, 1000) : null,
-    // `?? undefined`, nie `?? null`: kolumna jest NOT NULL, a DEFAULT odpala się
-    // wyłącznie przy POMINIĘTYM kluczu. Jawny `null` zostawiałby wysyłkę bez
-    // wiersza w dzienniku - już po tym, jak mail wyszedł.
-    tenant_id: row.tenantId ?? undefined,
-  });
+    [TENANT_COLUMN]: row.tenantId,
+  } as never);
   // Wysyłka już się stała - nieudany zapis logu nie może jej „odkręcić", ale
   // musi być widoczny, bo psuje raport dostarczalności.
   if (error) console.error("[email-queue] send log insert failed", row.status, error.message);
@@ -278,7 +302,17 @@ async function moveToDlq(
   queue: EmailQueueName,
   msg: QueueMessage,
   reason: string,
-  tenantId: string | null,
+  /**
+   * Najemca rozstrzygnięty przez bramę higieny listy. Podawany WYŁĄCZNIE na
+   * ścieżce PO bramie (trwała odmowa dostawcy) i ma wtedy pierwszeństwo przed
+   * ładunkiem z dwóch powodów. Po pierwsze bywa jedyną odpowiedzią: kolejka
+   * `auth_emails` nie niesie najemcy w ogóle. Po drugie - i ważniejsze - ta sama
+   * wiadomość zostawiła wcześniej wiersze 'failed' podpisane właśnie tym
+   * najemcą, a raport skleja stany po `message_id` i pokazuje NAJNOWSZY. Wpis
+   * do DLQ w innym najemcy rozerwałby historię jednej wiadomości na dwa panele:
+   * jeden operator widziałby wieczne 'failed', drugi samo 'dlq' bez przyczyny.
+   */
+  resolvedTenantId?: string | null,
 ): Promise<void> {
   await logSend(admin, {
     messageId: nullableText(msg.payload.message_id),
@@ -286,7 +320,12 @@ async function moveToDlq(
     to: text(msg.payload.to),
     status: "dlq",
     error: reason,
-    tenantId,
+    // Ładunek jako źródło domyślne: do DLQ wiadomość trafia też PRZED bramą
+    // (brak adresu, przekroczony TTL, wyczerpany budżet ponowień), więc
+    // rozstrzygnięty najemca jeszcze wtedy nie istnieje. Ładunek zna go od
+    // nadania (`sendTxEmail` / `enqueueRawEmail` wpisują tam `gate.tenantId`),
+    // a gdy i tam go nie ma - domyka wiersz trigger bazy (20260913140000).
+    tenantId: resolvedTenantId ?? payloadTenantId(msg.payload.tenant_id),
   });
   const { error } = await rpcClient(admin).rpc("move_to_dlq", {
     source_queue: queue,
@@ -302,11 +341,6 @@ async function moveToDlq(
  * zapytanie zamiast N). Budżet ponowień liczymy po realnych porażkach, a nie po
  * `pgmq.read_ct`, bo odczyt zakończony pominięciem (cooldown, blokada adresu)
  * nie jest próbą wysyłki i nie może zbliżać wiadomości do DLQ.
- *
- * BEZ FILTRU NAJEMCY - ŚWIADOMIE, jak `alreadySent` niżej: kluczem jest
- * `message_id`, deterministyczny UUID z SHA-256, globalnie unikatowy. To licznik
- * wewnętrzny workera, nie treść dla człowieka; predykat po najemcy dałby
- * chwilowemu rozjazdowi rozstrzygnięcia tenanta moc zerowania budżetu ponowień.
  */
 async function loadFailedAttempts(
   admin: DbClient,
@@ -331,15 +365,7 @@ async function loadFailedAttempts(
   return counts;
 }
 
-/**
- * Czy inny worker zdążył już wysłać tę wiadomość (wyścig po wygaśnięciu VT).
- *
- * BEZ FILTRU NAJEMCY - ŚWIADOMIE. To jest zabezpieczenie przed PODWÓJNĄ
- * WYSYŁKĄ, oparte na globalnie unikatowym `message_id` i wsparte unikalnym
- * indeksem `idx_email_send_log_message_sent_unique`. Predykat po najemcy
- * zamieniłby chwilowy rozjazd rozstrzygnięcia tenanta w drugiego maila
- * w skrzynce odbiorcy - czyli byłby ściśle gorszy niż jego brak.
- */
+/** Czy inny worker zdążył już wysłać tę wiadomość (wyścig po wygaśnięciu VT). */
 async function alreadySent(admin: DbClient, messageId: string): Promise<boolean> {
   const { data } = await admin
     .from("email_send_log")
@@ -425,13 +451,7 @@ export async function drainEmailQueues(
       // Wiadomość bez adresu albo bez treści nigdy nie wyjdzie - ponawianie jej
       // przez pięć cykli to tylko hałas w logu.
       if (!to || !text(payload.subject)) {
-        await moveToDlq(
-          admin,
-          queue,
-          msg,
-          "invalid_payload (missing recipient or subject)",
-          payloadTenantId(payload.tenant_id),
-        );
+        await moveToDlq(admin, queue, msg, "invalid_payload (missing recipient or subject)");
         result.dlq += 1;
         continue;
       }
@@ -442,13 +462,7 @@ export async function drainEmailQueues(
         const queuedMs = Date.parse(queuedAt);
         const ttlMs = config.ttlMinutes[queue] * 60_000;
         if (Number.isFinite(queuedMs) && Date.now() - queuedMs > ttlMs) {
-          await moveToDlq(
-            admin,
-            queue,
-            msg,
-            `TTL exceeded (${config.ttlMinutes[queue]} minutes)`,
-            payloadTenantId(payload.tenant_id),
-          );
+          await moveToDlq(admin, queue, msg, `TTL exceeded (${config.ttlMinutes[queue]} minutes)`);
           result.dlq += 1;
           continue;
         }
@@ -456,13 +470,7 @@ export async function drainEmailQueues(
 
       const attempts = messageId ? (failedAttempts.get(messageId) ?? 0) : msg.readCount;
       if (attempts >= MAX_RETRIES) {
-        await moveToDlq(
-          admin,
-          queue,
-          msg,
-          `Max retries (${MAX_RETRIES}) exceeded`,
-          payloadTenantId(payload.tenant_id),
-        );
+        await moveToDlq(admin, queue, msg, `Max retries (${MAX_RETRIES}) exceeded`);
         result.dlq += 1;
         continue;
       }
@@ -544,8 +552,6 @@ export async function drainEmailQueues(
           queue,
           msg,
           sendResult.error ?? `http_${sendResult.status ?? "4xx"}`,
-          // Ta wywózka JEDYNA biegnie po bramce, więc niesie najemcę
-          // rozstrzygniętego, a nie tylko to, co włożył producent.
           gate.tenantId,
         );
         result.dlq += 1;

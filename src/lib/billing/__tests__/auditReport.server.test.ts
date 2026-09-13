@@ -57,16 +57,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (table: string) => db.from(table) },
 }));
 
-// Najemca żądania. `null` odwzorowuje sytuację „nie wiadomo, czyje to dane"
-// (host spoza katalogu domen, praca poza kontekstem żądania) - audyt musi się
-// wtedy zamknąć, a nie oddać wszystko.
-const tenant = vi.hoisted(() => ({ current: null as string | null }));
-vi.mock("@/lib/http/requestHost", () => ({
-  currentTenantHost: () => Promise.resolve("panel.example.com"),
-}));
-vi.mock("@/lib/server/tenant.server", () => ({
-  resolveTenantIdForHost: () => Promise.resolve(tenant.current),
-}));
+// NAJEMCA JEST ARGUMENTEM ZAPYTANIA, nie rozstrzygnięciem z hosta. Podaje go
+// wołający - a jedynym legalnym źródłem jest bramka `assertAdmin` w warstwie
+// server fn (profil administratora, ten sam, po którym autoryzuje `has_role`).
+// Atrapy `currentTenantHost` i `resolveTenantIdForHost` zniknęły stąd razem
+// z tamtym kontraktem: utrwalały rozjazd „rola po profilu, dane po hoście",
+// który był całym defektem.
 
 // --- rzuty kolumn (z wygenerowanych definicji, rozluźnione o `null`) --------
 type Nullable<
@@ -188,12 +184,15 @@ function givenDb(scenario: Scenario = {}): SupabaseFromStub {
   return stub;
 }
 
-const QUERY: AuditQuery = { environment: "sandbox", sinceHours: 24 };
+const QUERY: AuditQuery = {
+  environment: "sandbox",
+  sinceHours: 24,
+  tenantId: BILLING_IDS.tenant,
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
-  tenant.current = BILLING_IDS.tenant;
 });
 
 afterEach(() => {
@@ -203,7 +202,11 @@ afterEach(() => {
 describe("zakres materiału dowodowego", () => {
   it("okno czasowe liczy się wstecz od teraz i wchodzi do obu zapytań", async () => {
     const stub = givenDb();
-    const report = await buildAuditReport({ environment: "live", sinceHours: 48 });
+    const report = await buildAuditReport({
+      environment: "live",
+      sinceHours: 48,
+      tenantId: BILLING_IDS.tenant,
+    });
 
     const expected = new Date(NOW.getTime() - 48 * 3600_000).toISOString();
     expect(report.sinceIso).toBe(expected);
@@ -225,7 +228,11 @@ describe("zakres materiału dowodowego", () => {
 
   it("środowisko sandbox i live to rozłączne zbiory dowodowe", async () => {
     const stub = givenDb();
-    await buildAuditReport({ environment: "sandbox", sinceHours: 1 });
+    await buildAuditReport({
+      environment: "sandbox",
+      sinceHours: 1,
+      tenantId: BILLING_IDS.tenant,
+    });
     expect(stub.lastChain("payment_orders")?.argsOf("eq")).toEqual(["environment", "sandbox"]);
   });
 
@@ -620,10 +627,10 @@ describe("izolacja najemcy w audycie rozliczeń", () => {
     // ale jej rejestr obejmuje wyłącznie czytniki z `src/lib/server/**`,
     // więc ten plik nigdy nie był przez nią widziany.
     //
-    // JAK NAPRAWIONE. Najemca jest rozwiązywany z HOSTA ŻĄDANIA (nie z ładunku,
-    // bo wtedy admin podałby po prostu cudzy identyfikator), oba zapytania
-    // filtrują po `tenant_id`, a brak rozwiązania zamyka raport - dokładnie
-    // wzorem panelu darowizn.
+    // JAK NAPRAWIONE. Najemca przychodzi ARGUMENTEM z bramki `assertAdmin`
+    // (profil wołającego, nie ładunek i nie host - z hosta brałby się drugi,
+    // niezależny zakres obok tego, po którym autoryzuje się rola), oba
+    // zapytania filtrują po `tenant_id`, a pusta wartość zamyka raport.
     //
     // ASERCJA jest kontraktem ZAPYTANIA, a nie kształtu wyniku, bo moduł nie
     // wybiera `tenant_id` - po samych danych nie da się odróżnić najemców.
@@ -640,14 +647,14 @@ describe("izolacja najemcy w audycie rozliczeń", () => {
     expect(tenantFilter("payment_webhook_events")).toBe(BILLING_IDS.tenant);
   });
 
-  it("nierozwiązany najemca daje PUSTY raport i ani jednego zapytania", async () => {
+  it("pusty najemca daje PUSTY raport i ani jednego zapytania", async () => {
     // Fail-closed jak w panelu darowizn: „nie wiem, czyje to dane" nie może
-    // znaczyć „oddaj wszystko". Okno czasowe zostaje policzone (raport ma być
-    // czytelny w panelu), ale do bazy nie idzie nic.
-    tenant.current = null;
+    // znaczyć „oddaj wszystko". Bramka takiej wartości nie wypuści, ale
+    // bezpiecznik zostaje - okno czasowe zostaje policzone (raport ma być
+    // czytelny w panelu), a do bazy nie idzie nic.
     const stub = givenDb({ orders: [orderRow()], hooks: [hookRow()] });
 
-    const report = await buildAuditReport(QUERY);
+    const report = await buildAuditReport({ ...QUERY, tenantId: "" });
 
     expect(report.orders).toEqual([]);
     expect(report.webhooks).toEqual([]);
@@ -660,10 +667,10 @@ describe("izolacja najemcy w audycie rozliczeń", () => {
     expect(stub.chains).toEqual([]);
   });
 
-  it("jawnie podany najemca omija rozwiązywanie z hosta", async () => {
-    // Ścieżka dla wywołań spoza kontekstu żądania. Wartość NIGDY nie pochodzi
-    // od klienta - schemat funkcji serwerowej jej nie przyjmuje.
-    tenant.current = null;
+  it("zakres bierze się WYŁĄCZNIE z podanego najemcy", async () => {
+    // Wartość NIGDY nie pochodzi od klienta - schemat funkcji serwerowej jej
+    // nie przyjmuje; podaje ją bramka roli. Host żądania nie ma tu wpływu na
+    // nic, bo moduł w ogóle o niego nie pyta.
     const stub = givenDb({ orders: [orderRow()] });
 
     await buildAuditReport({ ...QUERY, tenantId: BILLING_IDS.foreignTenant });

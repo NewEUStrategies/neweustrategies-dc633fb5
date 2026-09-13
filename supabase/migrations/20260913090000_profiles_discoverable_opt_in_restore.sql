@@ -33,7 +33,7 @@
 -- którzy włączyli się sami, czyli powtórzyłby ten sam błąd lustrzanie.
 --
 -- Bliźniak dla pipeline Drizzle:
--- drizzle/migrations/0006_profiles_discoverable_opt_in_restore.sql - bajt w bajt,
+-- drizzle/migrations/0011_profiles_discoverable_opt_in_restore.sql - bajt w bajt,
 -- pilnuje tego src/lib/ci/__tests__/migrationLaneParity.test.ts.
 
 ALTER TABLE public.profiles

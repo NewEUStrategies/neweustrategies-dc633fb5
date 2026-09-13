@@ -6,34 +6,58 @@
 // - admin uruchamia tę samą ścieżkę na ładunku zapisanym w dzienniku.
 //
 // Bezpieczeństwo:
-//  - dostęp wyłącznie dla roli `admin` (weryfikacja po stronie serwera),
-//  - ZAKRES NAJEMCY: bramka roli potwierdza rolę w tenancie DOMOWYM wywołującego
-//    (`has_role` -> `current_tenant_id()` -> `profiles.tenant_id`), a dziennik
-//    czytamy kluczem serwisowym, czyli Z POMINIĘCIEM RLS - polityka
-//    `payment_webhook_events admin read` na tej ścieżce NIE BIEGNIE, więc jawny
-//    filtr `tenant_id` w zapytaniu JEST tu jedyną granicą obszaru roboczego.
-//    Bez niego sam identyfikator wiersza wystarczał, żeby admin jednego obszaru
-//    odczytał ładunek płatności drugiego (dane rozliczeniowe kupującego)
-//    i odtworzył jego skutki. Cudze identyfikatory nie są przy tym tajemnicą:
-//    RPC `admin_payment_webhook_health` oddaje je w `recent_failures` każdemu
-//    adminowi, bez filtra najemcy. Filtrujemy po najemcy Z PROFILU, nie po
-//    hoście żądania - autoryzacja i zakres danych muszą biec po tej samej
-//    płaszczyźnie; admin obszaru A oglądający domenę obszaru B dostanie tu
-//    „Zdarzenie nie istnieje." i jest to odpowiedź poprawna, bo rola została
-//    udowodniona wyłącznie w A (nie „naprawiać" tego przejściem na host),
+//  - dostęp wyłącznie dla roli `super_admin` (weryfikacja po stronie serwera).
+//    Poprzeczka odtwarza politykę RLS tej tabeli - „payment_webhook_events
+//    admin read" to `USING (tenant_id = current_tenant_id() AND
+//    is_super_admin())`. Ścieżka serwerowa biegnie spod `service_role`, czyli
+//    z pominięciem RLS, więc to ONA musi odtworzyć oba człony polityki; rola
+//    `admin` była o szczebel niżej niż wymaga baza,
 //  - podpis nie jest tu weryfikowany, bo ładunek pochodzi z naszej bazy, a nie
 //    z sieci - dlatego funkcja nigdy nie przyjmuje ładunku od klienta, tylko
 //    identyfikator wiersza,
-//  - obsługa jest idempotentna, więc powtórka nie dubluje maili ani uprawnień.
+//  - obsługa jest idempotentna, więc powtórka nie dubluje maili ani uprawnień,
+//  - zakres NAJEMCY (drugi człon polityki): `assertCallerTenantMatchesHost`
+//    oddaje najemcę Z PROFILU wołającego - tego samego, w którym `has_role()`
+//    autoryzowało rolę - a oba zapytania (odczyt i zapis) filtrują po
+//    `tenant_id`. Jedynym zakresem jest ten filtr. Bez niego admin jednego
+//    obszaru roboczego czytał surowy ładunek Stripe'a (e-mail, adres, kwoty)
+//    i ODTWARZAŁ zdarzenie rozliczeniowe cudzego obszaru.
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
 
 const retrySchema = z.object({
   /** Identyfikator wiersza dziennika (`payment_webhook_events.id`). */
   id: z.string().uuid(),
 });
+
+/**
+ * Bramka obu funkcji: rola `super_admin` w obszarze wołającego, a potem najemca
+ * z jego profilu (skonfrontowany z hostem żądania).
+ *
+ * Kolejność jest wiążąca - rola PRZED dotknięciem czegokolwiek - i nie ma tu
+ * gałęzi wyjątku: `is_super_admin()` w bazie samo jest zawężone do
+ * `current_tenant_id()`, więc „super admin widzi wszystko" byłoby cofnięciem
+ * całej poprawki, a nie udogodnieniem.
+ */
+async function assertSuperAdminTenant(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "super_admin",
+  });
+  // Fail-closed: `null` z RPC (brak wiersza roli, brak grantu na funkcję) ani
+  // żadna wartość prawdziwa-ale-nie-`true` nie może przejść jako zgoda.
+  if (error || data !== true) throw new Error("forbidden");
+
+  const { assertCallerTenantMatchesHost } = await import("@/lib/server/callerTenant.server");
+  return assertCallerTenantMatchesHost(supabase, userId);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -74,24 +98,17 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }): Promise<WebhookRetryResult> => {
-    const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const tenantId = await assertSuperAdminTenant(context.supabase, context.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Najemca z PROFILU wywołującego - nie z ładunku i nie z hosta. Rolę
-    // potwierdziliśmy w tenancie domowym (`has_role` -> `current_tenant_id()`),
-    // więc granica danych musi biec dokładnie po tej samej płaszczyźnie;
-    // rozjazd „autoryzuj po domowym, filtruj po hoście" to ta sama klasa
-    // defektu, którą opisuje `scripts/check-sql-tenant-scope.ts`. Profil bez
-    // najemcy kończy ścieżkę wyjątkiem - odczyt bez granicy byłby gorszy od
-    // odmowy.
-    const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");
-    const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);
-
     const { data: row, error } = await supabaseAdmin
       .from("payment_webhook_events")
       .select("id, event_id, event_type, environment, occurred_at, payload, retry_count")
       .eq("id", data.id)
+      // Wiersze bez rozstrzygniętego płatnika też MAJĄ najemcę: nadaje go
+      // trigger `payment_webhook_events_bind_tenant` przez
+      // `email_default_tenant_id()` (migracja 20260831060000), więc nie ma
+      // kategorii „zdarzeń bez obszaru", którą ten filtr mógłby odciąć.
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error) throw new Error(`nie udało się odczytać zdarzenia: ${error.message}`);
@@ -157,10 +174,9 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
         last_retried_at: new Date().toISOString(),
         retried_by: context.userId,
       })
-      // Zapis też z filtrem najemcy, mimo że wiersz przeszedł już przez odczyt:
-      // odczyt i zapis to dwa osobne zapytania, a to drugie stempluje cudzy
-      // ślad audytowy (`retried_by`, `retry_count`). Filtr tylko przy odczycie
-      // zostawiałby zapis bez granicy dla następnej zmiany w tym łańcuchu.
+      // Filtr najemcy na ZAPISIE jest osobnym wymogiem, nie powtórzeniem
+      // odczytu: gdyby kiedyś rozdzielono te dwa zapytania, sam filtr na
+      // odczycie przestałby chronić stempel `retried_by` w cudzym wierszu.
       .eq("id", row.id)
       .eq("tenant_id", tenantId);
 
@@ -174,22 +190,14 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
     };
   });
 
-/** Ładunek pojedynczego zdarzenia - podgląd w panelu (tylko admin). */
+/** Ładunek pojedynczego zdarzenia - podgląd w panelu (tylko `super_admin`). */
 export const readWebhookEventPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const tenantId = await assertSuperAdminTenant(context.supabase, context.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Ta sama granica co w ponowieniu, a stawka wyższa: `payload` to najbardziej
-    // wrażliwa kolumna dziennika (adres, e-mail, kwoty kupującego), a ten eksport
-    // nie ma żadnego konsumenta w UI - jedyne, co dzieli go od wywołania
-    // „na surowo", to ten filtr.
-    const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");
-    const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);
-
     const { data: row } = await supabaseAdmin
       .from("payment_webhook_events")
       .select(
@@ -198,6 +206,8 @@ export const readWebhookEventPayload = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("tenant_id", tenantId)
       .maybeSingle();
+    // Wiersz cudzego najemcy ma być NIEODRÓŻNIALNY od nieistniejącego: osobny
+    // komunikat potwierdzałby istnienie zdarzenia o podanym identyfikatorze.
     if (!row) throw new Error("Zdarzenie nie istnieje.");
     return row;
   });

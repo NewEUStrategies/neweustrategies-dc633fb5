@@ -57,6 +57,8 @@ vi.mock("@/lib/billing/reconcile.server", () => ({
 import { getReconcileReport, repairReconcileEntry } from "@/lib/billing/reconcile.functions";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
+/** Najemca wołającego - bramka ODDAJE go i to on jest zakresem uzgodnienia. */
+const NAJEMCA = "77777777-7777-4777-8777-777777777777";
 const ZAMOWIENIE_ID = "33333333-3333-4333-8333-333333333333";
 
 /** Znaczniki tożsamości - dowodzą przekazania TEGO SAMEGO obiektu, nie kopii. */
@@ -81,7 +83,7 @@ function kontekst() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.assertAdmin.mockResolvedValue(undefined);
+  h.assertAdmin.mockResolvedValue({ tenantId: NAJEMCA });
   h.buildReconcileReport.mockResolvedValue(RAPORT);
   h.repairReconcileIssue.mockResolvedValue(WYNIK_NAPRAWY);
 });
@@ -326,7 +328,7 @@ describe("handler raportu - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.buildReconcileReport).toHaveBeenCalledWith("sandbox", 24);
+    expect(h.buildReconcileReport).toHaveBeenCalledWith("sandbox", 24, NAJEMCA);
   });
 
   it("domyślne okno 72 h dojeżdża do implementacji", async () => {
@@ -335,7 +337,7 @@ describe("handler raportu - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.buildReconcileReport).toHaveBeenCalledWith("live", 72);
+    expect(h.buildReconcileReport).toHaveBeenCalledWith("live", 72, NAJEMCA);
   });
 
   it("oddaje raport implementacji bez własnego przetwarzania", async () => {
@@ -372,7 +374,7 @@ describe("handler naprawy - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.repairReconcileIssue).toHaveBeenCalledWith("live", "order", ZAMOWIENIE_ID);
+    expect(h.repairReconcileIssue).toHaveBeenCalledWith("live", "order", ZAMOWIENIE_ID, NAJEMCA);
   });
 
   it("referencja dociera do implementacji już PRZYCIĘTA", async () => {
@@ -383,7 +385,7 @@ describe("handler naprawy - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.repairReconcileIssue).toHaveBeenCalledWith("live", "order", ZAMOWIENIE_ID);
+    expect(h.repairReconcileIssue).toHaveBeenCalledWith("live", "order", ZAMOWIENIE_ID, NAJEMCA);
   });
 
   it("piaskownica nie jest podmieniana na produkcję", async () => {
@@ -394,7 +396,12 @@ describe("handler naprawy - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.repairReconcileIssue).toHaveBeenCalledWith("sandbox", "subscription", "sub_1AbCdEfGh");
+    expect(h.repairReconcileIssue).toHaveBeenCalledWith(
+      "sandbox",
+      "subscription",
+      "sub_1AbCdEfGh",
+      NAJEMCA,
+    );
   });
 
   it("oddaje wynik naprawy bez własnego przetwarzania", async () => {

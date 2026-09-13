@@ -47,8 +47,43 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1789327881684,
-      "tag": "0006_profiles_discoverable_opt_in_restore",
+      "when": 1789296895759,
+      "tag": "0006_impersonation_tenant_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789296900412,
+      "tag": "0007_job_runner_base_url_shape_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789296967119,
+      "tag": "0008_payment_webhook_events_tenant_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789297135558,
+      "tag": "0009_email_log_tenant_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789297200048,
+      "tag": "0010_email_send_log_tenant_producers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789300800048,
+      "tag": "0011_profiles_discoverable_opt_in_restore",
       "breakpoints": true
     }
   ]

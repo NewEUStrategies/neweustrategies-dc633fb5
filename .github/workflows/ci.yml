@@ -409,6 +409,32 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:content-layering
 
+      # Blocking gate: every `dangerouslySetInnerHTML` in src/ reaches the DOM
+      # through a trusted sanitizer. The sanitizer existed and was documented
+      # only in a comment (src/lib/sanitize.ts:2-4) - 84 sinks across 56 files,
+      # 41 of them rendering builder_data JSONB, post bodies, event copy and
+      # uploaded documents, with nothing in CI or ESLint enforcing a single one.
+      # Zero tolerance for new sinks. Constant boot scripts and generated
+      # keyframes are listed one by one, each with a written reason, in
+      # scripts/lib/dangerousHtmlAllowlist.ts. Rationale: src/lib/ci/dangerousHtml.ts
+      - name: Every dangerouslySetInnerHTML goes through the sanitizer
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:dangerous-html
+
+      # Blocking gate on the single defect that removed the login brute-force
+      # threshold entirely: every public limit keyed off `x-forwarded-for`, whose
+      # FIRST entry the client writes itself (Cloudflare appends the connection
+      # address at the END, it does not replace the client's prefix). Rotating one
+      # header rotated the bucket; `x-forwarded-for: " "` made the bucket vanish
+      # altogether, and the test suite froze both as "known behaviour". The header
+      # name may now appear in executed code only in src/lib/http/rateLimit.ts -
+      # everything else calls clientIpFromHeaders / rateLimitIpSubject from there.
+      # Named exemptions carry a written reason and a stale one fails the gate, so
+      # the allowlist can only shrink. Rationale: src/lib/ci/clientIpSource.ts
+      - name: Client IP has exactly one definition
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:client-ip-source
+
       # Blocking gate on a defect that review cannot catch by reading: the page
       # editor carried a comment promising autosave over code where
       # `useAutosave` did not appear at all, so editors lost builder work on tab
@@ -496,21 +522,6 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:unknown-casts
 
-      # Blocking allowlist on raw HTML rendering. Measured on this HEAD: 84
-      # `dangerouslySetInnerHTML` sites across 56 files - 15 of them in files
-      # that reference no sanitizer at all, so a reviewer cannot tell from the
-      # file whether the sink is safe. The discipline held by convention only;
-      # every prior defence was a per-component unit test, which covers the
-      # sinks someone already thought about. The asymmetry that proves the
-      # class is live sits inside one engine: renderSpoiler sanitises its
-      # `?? fallback`, renderParagraph and renderHtml next door do not, and
-      # only an exact match between the footnote pre-pass recursion and the
-      # renderer's own recursion keeps that unreachable. Frozen PER FILE with a
-      # COUNT and a written JUSTIFICATION: a new file fails, a file that grows
-      # fails, and an entry whose reason is blank fails.
-      - name: No unjustified raw HTML sinks
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:raw-html-sinks
 
       # Blocking ratchet: a test carrying a calendar literal may not read the
       # real clock. This class of defect does not show up as a red test on the

@@ -1,6 +1,6 @@
 // Bramka dwóch pasów migracji: każdy plik w `drizzle/migrations/` ma w rejestrze
-// DECYZJĘ - albo bliźniaka w `supabase/migrations/` bajt w bajt, albo jawny powód,
-// dla którego bliźniaka nie ma.
+// DECYZJĘ - albo bliźniaka w `supabase/migrations/` o tym samym SQL-u, albo jawny
+// powód, dla którego bliźniaka nie ma.
 //
 // PRZYCZYNA ŹRÓDŁOWA. Repozytorium ma DWA pasy migracji i oba jadą na produkcję,
 // co `docs/MAIN_RECOVERY_2026-09-12.md` mówi wprost: „Drizzle i Supabase mają
@@ -13,16 +13,32 @@
 //
 // Tak przeszło `0001_profiles_discoverable_default_true`: przestawiło
 // `profiles.discoverable` na DEFAULT true i przepisało wszystkie wiersze, podczas
-// gdy pas supabase trzymał NOT NULL DEFAULT false, a dwie późniejsze migracje
-// opierały na tym drugim argument prawny. Żadna bramka nie miała jak tego zobaczyć.
+// gdy pas supabase trzymał NOT NULL DEFAULT false, a późniejsza migracja opierała
+// na tym argument prawny listy uczestników. Żadna bramka nie miała jak tego zobaczyć.
 //
-// DLACZEGO REJESTR, A NIE REGUŁA „każdy plik musi mieć bliźniaka". Bo to nieprawda:
-// z sześciu plików pasa drizzle tylko dwa mają dziś bliźniaka bajt w bajt, a reszta
-// powstała jako operacje jednorazowe na produkcji. Reguła, której stan faktyczny nie
+// CO ZNACZY „TEN SAM SQL". Pliki obu pasów NIE są bajt w bajt i nie taka jest
+// konwencja - ZMIERZONE na wszystkich parach: pas supabase niesie długi nagłówek
+// po polsku, pas drizzle zaczyna się od pierwszej instrukcji, a polskie znaki
+// diakrytyczne w literałach `COMMENT ON` są w pasie drizzle złożone do ASCII
+// („ktorego" wobec „którego"). Porównujemy więc SQL WYKONYWALNY: bez komentarzy,
+// ze złożonymi diakrytykami, ze znormalizowaną spacją i z treścią literałów
+// `COMMENT ON ... IS '...'` zastąpioną znacznikiem.
+//
+// CZEGO TA BRAMKA ŚWIADOMIE NIE ŁAPIE, powiedziane wprost: rozjazdu PROZY
+// w literałach `COMMENT ON` (dziś realnie różni się tak para 0010). To
+// dokumentacja zapisana w bazie - nie zmienia ani schematu, ani zachowania,
+// a traktowanie jej na równi z DDL-em zapaliłoby bramkę na każdej poprawce
+// literówki i skończyło się jej wyłączeniem.
+//
+// DLACZEGO REJESTR, A NIE REGUŁA „każdy plik musi mieć bliźniaka". Bo to
+// nieprawda: dwa pliki pasa drizzle powstały jako operacje jednorazowe na
+// produkcji i bliźniaka mieć nie powinny. Reguła, której stan faktyczny nie
 // spełnia, zostaje wyłączona pierwszego dnia. Rejestr wymusza coś słabszego, ale
 // wykonalnego: KAŻDY nowy plik w drizzle/ wymaga świadomego wpisu - wskazania
 // bliźniaka albo napisania, czemu go nie ma. Nie da się już dołożyć pliku po cichu.
 import { readFileSync } from "node:fs";
+
+import { stripSqlComments } from "../../../scripts/lib/sqlMigrations";
 
 export const DRIZZLE_DIR = "drizzle/migrations";
 export const SUPABASE_DIR = "supabase/migrations";
@@ -31,7 +47,7 @@ export const SUPABASE_DIR = "supabase/migrations";
 export type LaneEntry =
   | {
       readonly tag: string;
-      /** Nazwa pliku w `supabase/migrations/`, porównywana BAJT W BAJT. */
+      /** Nazwa pliku w `supabase/migrations/` o tym samym SQL-u wykonywalnym. */
       readonly twin: string;
     }
   | {
@@ -55,12 +71,12 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0001_profiles_discoverable_default_true",
     drizzleOnly:
-      "Regresja prywatności zastosowana wyłącznie na tym pasie - przestawiła profiles.discoverable na DEFAULT true i przepisała wszystkie wiersze. Pas supabase NIE dostaje bliźniaka: oba pasy jadą na produkcję, więc skopiowanie tego pliku uruchomiłoby jego hurtowy UPDATE DRUGI RAZ i ponownie przestawiło każdego, kto od tamtej pory się wypisał. Stan naprawia forward-only 0006 (DEFAULT false) obecne w OBU pasach. Pliku nie usuwamy - repozytorium jest forward-only, a usunięcie nie cofa tego, co już zastosowane.",
+      "Regresja prywatności zastosowana wyłącznie na tym pasie - przestawiła profiles.discoverable na DEFAULT true i przepisała wszystkie wiersze. Pas supabase NIE dostaje bliźniaka: oba pasy jadą na produkcję, więc skopiowanie tego pliku uruchomiłoby jego hurtowy UPDATE DRUGI RAZ i ponownie przestawiło każdego, kto od tamtej pory się wypisał. Stan naprawia forward-only 0011 (DEFAULT false) obecne w OBU pasach. Pliku nie usuwamy - repozytorium jest forward-only, a usunięcie nie cofa tego, co już zastosowane.",
   },
   {
     tag: "0002_pr350_member_crm_sync_and_chat_compat",
     drizzleOnly:
-      "Uzgodnienie stanu produkcyjnego po scaleniu #350, wykonane na pasie drizzle. Odpowiadający SQL wszedł do pasa supabase osobnymi migracjami o innej treści, więc porównanie bajt w bajt nie ma tu sensu.",
+      "Uzgodnienie stanu produkcyjnego po scaleniu #350, wykonane na pasie drizzle. Odpowiadający SQL wszedł do pasa supabase osobnymi migracjami o innej treści, więc porównanie instrukcja po instrukcji nie ma tu sensu.",
   },
   {
     tag: "0003_read_only_schema_contract",
@@ -68,22 +84,39 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
   {
     tag: "0004_read_only_schema_contract",
-    drizzleOnly:
-      "Powtórzenie 0003 bez nagłówka własnicielskiego, zastosowane na produkcji zanim ustalono wersję kanoniczną. Bliźniakiem kanonicznym jest 0003; osobnego pliku w pasie supabase ta wersja nie ma i mieć nie powinna.",
+    twin: "20260912170000_read_only_schema_contract.sql",
   },
   {
     tag: "0005_pr353_admin_dashboard_aggregates",
-    drizzleOnly:
-      "Agregaty panelu admina zastosowane na pasie drizzle po scaleniu #353. Pas supabase niesie tę funkcjonalność własnymi migracjami; treść nie jest identyczna.",
+    twin: "20260912110000_admin_dashboard_aggregates.sql",
   },
   {
-    tag: "0006_profiles_discoverable_opt_in_restore",
+    tag: "0006_impersonation_tenant_scope",
+    twin: "20260912180000_impersonation_tenant_scope.sql",
+  },
+  {
+    tag: "0007_job_runner_base_url_shape_guard",
+    twin: "20260912181000_job_runner_base_url_shape_guard.sql",
+  },
+  {
+    tag: "0008_payment_webhook_events_tenant_binding",
+    twin: "20260913100000_payment_webhook_events_tenant_binding.sql",
+  },
+  {
+    tag: "0009_email_log_tenant_scope",
+    twin: "20260913101000_email_log_tenant_scope.sql",
+  },
+  {
+    tag: "0010_email_send_log_tenant_producers",
+    twin: "20260913140000_email_send_log_tenant_producers.sql",
+  },
+  {
+    tag: "0011_profiles_discoverable_opt_in_restore",
     twin: "20260913090000_profiles_discoverable_opt_in_restore.sql",
   },
 ];
 
-export type LaneViolationKind =
-  "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-tresci";
+export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
 
 export interface LaneViolation {
   readonly kind: LaneViolationKind;
@@ -109,6 +142,25 @@ export const readFileOrNull: ReadFile = (path) => {
   }
 };
 
+/** Polskie znaki do ASCII - pas drizzle zapisuje literały bez diakrytyków. */
+function foldDiacritics(sql: string): string {
+  return sql.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ł/g, "l").replace(/Ł/g, "L");
+}
+
+/**
+ * SQL WYKONYWALNY: bez komentarzy, bez diakrytyków, ze znormalizowaną spacją
+ * i bez treści literałów `COMMENT ON ... IS '...'`.
+ *
+ * Znacznik zamiast treści, a nie wycięcie całej instrukcji: gdyby jeden pas
+ * przestał w ogóle komentować obiekt, różnica ma być nadal widoczna.
+ */
+export function executableSql(sql: string): string {
+  return foldDiacritics(stripSqlComments(sql))
+    .replace(/(COMMENT\s+ON\s+[\s\S]*?\sIS\s+)'(?:[^']|'')*'/gi, "$1'<proza>'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * Porównuje pas drizzle z rejestrem i - dla wpisów z bliźniakiem - z pasem supabase.
  *
@@ -131,7 +183,7 @@ export function analyzeMigrationLanes(
       violations.push({
         kind: "brak-wpisu",
         tag,
-        detail: `Plik ${DRIZZLE_DIR}/${tag}.sql nie ma wpisu w MIGRATION_LANES. Dopisz bliźniaka z ${SUPABASE_DIR}/ albo napisz, czemu go nie ma.`,
+        detail: `Plik ${DRIZZLE_DIR}/${tag}.sql nie ma wpisu w MIGRATION_LANES. Wskaż bliźniaka z ${SUPABASE_DIR}/ albo napisz, czemu go nie ma.`,
       });
       continue;
     }
@@ -143,6 +195,7 @@ export function analyzeMigrationLanes(
     twins += 1;
     const drizzleSql = read(`${DRIZZLE_DIR}/${tag}.sql`);
     const supabaseSql = read(`${SUPABASE_DIR}/${entry.twin}`);
+    if (drizzleSql === null) continue; // brak pliku łapie pętla niżej
     if (supabaseSql === null) {
       violations.push({
         kind: "brak-blizniaka",
@@ -151,11 +204,11 @@ export function analyzeMigrationLanes(
       });
       continue;
     }
-    if (drizzleSql !== supabaseSql) {
+    if (executableSql(drizzleSql) !== executableSql(supabaseSql)) {
       violations.push({
-        kind: "rozjazd-tresci",
+        kind: "rozjazd-sql",
         tag,
-        detail: `${DRIZZLE_DIR}/${tag}.sql i ${SUPABASE_DIR}/${entry.twin} różnią się treścią. Bliźniak znaczy BAJT W BAJT - inaczej produkcja i pgTAP testują dwie różne rzeczy.`,
+        detail: `${DRIZZLE_DIR}/${tag}.sql i ${SUPABASE_DIR}/${entry.twin} mają RÓŻNY SQL wykonywalny. Produkcja i pgTAP testowałyby wtedy dwie różne bazy.`,
       });
     }
   }

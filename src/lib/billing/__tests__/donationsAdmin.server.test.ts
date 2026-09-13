@@ -12,8 +12,16 @@
 // Miniaturowa tabela zamiast licznika wywołań - jak w `donationsLedger.server`:
 // interesuje nas STAN rejestru po uzgodnieniu, bo to on trafia do eksportów
 // księgowych i do triggera nadającego status wspierającego. Atrapujemy wyłącznie
-// GRANICE (klient Supabase, Stripe, rozwiązanie tenanta, cache SSR); księgowanie
-// wpłaty (`@/lib/billing/donations.server`) wykonuje się NAPRAWDĘ.
+// GRANICE (klient Supabase, Stripe, cache SSR); księgowanie wpłaty
+// (`@/lib/billing/donations.server`) wykonuje się NAPRAWDĘ.
+//
+// NAJEMCA JEST ARGUMENTEM, NIE ROZSTRZYGNIĘCIEM Z HOSTA. Moduł nie pyta już
+// o niego katalogu domen - podaje go wołający, a jedynym legalnym źródłem jest
+// bramka `assertAdmin` (profil administratora). Wcześniej rola autoryzowała
+// się w obszarze wołającego, a zapytanie szło po obszarze spod domeny żądania:
+// admin obszaru A na domenie obszaru B czytał wpłaty B. Dlatego zniknęły stąd
+// atrapy `resolveTenantIdForHost` i `currentTenantHost` - utrwalały kontrakt,
+// którego już nie ma.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tables } from "@/integrations/supabase/types";
 import { DZIEN, GODZINA, freezeClock, relativeIso } from "@/test/time";
@@ -78,18 +86,19 @@ vi.mock("@/lib/stripe.server", () => ({
   },
   getStripeErrorMessage: (e: unknown) => `stripe_error:${(e as Error).message}`,
 }));
-vi.mock("@/lib/server/tenant.server", () => ({
-  resolveTenantIdForHost: async () => h.tenantId,
-}));
-vi.mock("@/lib/http/requestHost", () => ({
-  currentTenantHost: async () => "nes.example.com",
-}));
 vi.mock("@/lib/ssrCache", () => ({
   invalidateEdgeTtlCache: (key: string) => h.fns.invalidateCache(key),
 }));
 
-const { listAdminDonations, syncDonationsFromStripe } =
+const { listAdminDonations: listAdminDonationsRaw, syncDonationsFromStripe: syncFromStripeRaw } =
   await import("@/lib/billing/donationsAdmin.server");
+
+// Wołanie warstwy danych tak, jak robi to handler: najemca z bramki, argumentem.
+// `h.tenantId = null` odwzorowuje wartość, której bramka nigdy nie wypuści -
+// zostaje jako dowód BEZPIECZNIKA (pusty zakres nie znaczy „wszyscy najemcy").
+const listAdminDonations = (limit = 50) => listAdminDonationsRaw(limit, h.tenantId ?? "");
+const syncDonationsFromStripe = (environment: "sandbox" | "live", sinceHours = 168) =>
+  syncFromStripeRaw(environment, sinceHours, h.tenantId ?? "");
 
 // ---------------------------------------------------------------------------
 // Miniaturowa tabela `donations`
@@ -303,9 +312,11 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("listAdminDonations", () => {
-  it("ODMOWA: nierozwiązany tenant oddaje pustą listę i NIE dotyka bazy", async () => {
-    // Brak tenanta oznacza żądanie spod nieznanego hosta. Odczyt „na wszelki
-    // wypadek" rolą serwisową pokazałby wpłaty WSZYSTKICH tenantów naraz.
+  it("ODMOWA: pusty tenant oddaje pustą listę i NIE dotyka bazy", async () => {
+    // Bezpiecznik ostatniej instancji. Najemca przychodzi z bramki, więc pusta
+    // wartość nie powinna się tu w ogóle pojawić - ale gdyby się pojawiła,
+    // odczyt „na wszelki wypadek" rolą serwisową pokazałby wpłaty WSZYSTKICH
+    // najemców naraz.
     h.tenantId = null;
 
     await expect(listAdminDonations()).resolves.toEqual([]);
@@ -409,7 +420,7 @@ describe("listAdminDonations", () => {
 // ---------------------------------------------------------------------------
 
 describe("syncDonationsFromStripe - bramka tenanta", () => {
-  it("ODMOWA: brak tenanta kończy uzgodnienie ostrzeżeniem, bez bazy i bez operatora", async () => {
+  it("ODMOWA: pusty tenant kończy uzgodnienie ostrzeżeniem, bez bazy i bez operatora", async () => {
     h.tenantId = null;
 
     const report = await syncDonationsFromStripe("sandbox");

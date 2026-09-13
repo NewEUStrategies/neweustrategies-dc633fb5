@@ -55,6 +55,8 @@ vi.mock("@/lib/billing/diagnostics.server", () => ({
 import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
+/** Najemca wołającego - bramka ODDAJE go handlerowi, nie czyta go host. */
+const NAJEMCA = "77777777-7777-4777-8777-777777777777";
 
 /** Znaczniki tożsamości - dowodzą przekazania TEGO SAMEGO obiektu, nie kopii. */
 const DIAGNOSTYKA = { marker: "diagnostyka" };
@@ -72,7 +74,7 @@ function kontekst() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.assertAdmin.mockResolvedValue(undefined);
+  h.assertAdmin.mockResolvedValue({ tenantId: NAJEMCA });
   h.buildPaymentsDiagnostics.mockResolvedValue(DIAGNOSTYKA);
   h.syncCouponDiscounts.mockResolvedValue(WYNIK_KUPONOW);
 });
@@ -196,7 +198,10 @@ describe("handler diagnostyki - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.buildPaymentsDiagnostics).toHaveBeenCalledWith("sandbox");
+    // Najemca jedzie DRUGIM argumentem i pochodzi WYŁĄCZNIE z bramki: gdyby
+    // diagnostyka rozstrzygała go sama z hosta, admin obszaru A na domenie B
+    // dostałby kondycję dziennika webhooków obszaru B.
+    expect(h.buildPaymentsDiagnostics).toHaveBeenCalledWith("sandbox", NAJEMCA);
     // `toBe`, nie `toEqual`: opakowanie nie ma prawa przycinać raportu.
     expect(wynik).toBe(DIAGNOSTYKA);
   });

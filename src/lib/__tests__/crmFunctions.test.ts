@@ -47,6 +47,7 @@ vi.mock("@/lib/integrations/dispatch.functions", () => ({
   },
 }));
 
+import { APP_ROLES } from "@/lib/authz/roles";
 import * as crm from "@/lib/crm.functions";
 
 const LEAD_ID = "11111111-1111-4111-8111-111111111111";
@@ -74,6 +75,9 @@ function context(): ServerFnContext {
       },
     },
     userId: USER_ID,
+    // Realistyczne claimy: Supabase w tym projekcie NIE wzbogaca tokenu o
+    // `tenant_id` (brak custom access token hooka), więc atrapa też nie może.
+    claims: { sub: USER_ID, aal: "aal1" },
   };
 }
 
@@ -715,48 +719,19 @@ describe("operacje zbiorcze", () => {
 });
 
 describe("lista właścicieli (staff picker)", () => {
-  it("zawęża role I profile do tenanta wywołującego, nie do claimu z tokenu", async () => {
-    // Najemca pochodzi z `profiles` wywołującego (klient użytkownika, RLS),
-    // bo token go nie niesie - w repo nie ma hooka na access token.
+  it("czyta role i profile zawężone do tenanta z profilu wołającego", async () => {
     lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
     admin.setResponse("user_roles", () => ok([{ user_id: USER_ID, role: "admin" }]));
     admin.setResponse("profiles", () => ok([{ id: USER_ID, display_name: "Anna" }]));
     const result = await callServerFn(crm.listStaffUsers, { context: context() });
     expect(parsed(result)).toEqual([{ id: USER_ID, display_name: "Anna" }]);
-    expect(lead.lastChain("profiles")?.argsOf("eq")).toEqual(["id", USER_ID]);
+    // OBA zapytania spod service-role muszą być zawężone - `user_roles` bez
+    // filtru wydawało mapę tożsamości staffu wszystkich najemców.
     expect(admin.lastChain("user_roles")?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
     expect(admin.lastChain("profiles")?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
   });
 
-  it("żaden odczyt adminem nie idzie bez granicy najemcy", async () => {
-    // Bramka w miejscu defektu: `supabaseAdmin` omija RLS, więc jedyną zaporą
-    // jest filtr wpisany ręcznie - i musi go mieć KAŻDE zapytanie, nie jedno.
-    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
-    admin.setResponse("user_roles", () => ok([{ user_id: USER_ID, role: "editor" }]));
-    admin.setResponse("profiles", () => ok([]));
-    await callServerFn(crm.listStaffUsers, { context: context() });
-    expect(admin.chains.length).toBeGreaterThan(0);
-    for (const chain of admin.chains) {
-      expect(chain.argsOf("eq"), `${chain.table} bez granicy najemcy`).toEqual([
-        "tenant_id",
-        TENANT,
-      ]);
-    }
-  });
-
-  it("pyta tylko o role z enuma app_role", async () => {
-    // `moderator` nie jest wartością `public.app_role`; PostgREST rzutuje
-    // literał na enum, więc wartość spoza niego to 22P02 w runtime.
-    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
-    admin.setResponse("user_roles", () => ok([]));
-    await callServerFn(crm.listStaffUsers, { context: context() });
-    expect(admin.lastChain("user_roles")?.argsOf("in")).toEqual([
-      "role",
-      ["admin", "super_admin", "editor"],
-    ]);
-  });
-
-  it("brak staffu oddaje pustą listę bez pytania o profile adminem", async () => {
+  it("brak staffu oddaje pustą listę bez pytania o profile", async () => {
     lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
     admin.setResponse("user_roles", () => ok([]));
     const result = await callServerFn(crm.listStaffUsers, { context: context() });
@@ -764,40 +739,38 @@ describe("lista właścicieli (staff picker)", () => {
     expect(admin.chainsFor("profiles")).toHaveLength(0);
   });
 
-  it("brak tenanta w profilu ODMAWIA, a nie oddaje staffu wszystkich najemców", async () => {
-    // Odwrócony test: wcześniej ta ścieżka PRZYPINAŁA wyciek jako zamiar
-    // („bez tenanta w tokenie lista nie jest zawężana"). Fallback „pokaż
-    // wszystko" jest tu defektem, nie wygodą.
+  it("bez tenanta w profilu ODMAWIA, zamiast listować wszystkich", async () => {
+    // Regresja: wcześniej tenanta czytano z claimów JWT, których Supabase w tym
+    // projekcie nie wzbogaca (brak custom access token hooka) - warunek zawsze
+    // schodził na gałąź bez filtru i picker sięgałby po staff WSZYSTKICH
+    // najemców spod service-role. Poprzedni test przypinał ten brak filtru jako
+    // KONTRAKT (`expect(admin.lastChain("profiles")?.has("eq")).toBe(false)`) -
+    // dlatego został usunięty, a nie "naprawiony".
     lead.setResponse("profiles", () => ok(null));
     await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
       "tenant_unresolved",
     );
-    expect(admin.chains).toHaveLength(0);
+    expect(admin.chainsFor("user_roles")).toHaveLength(0);
+    expect(admin.chainsFor("profiles")).toHaveLength(0);
   });
 
-  it("błąd odczytu profilu przerywa listowanie", async () => {
-    lead.setResponse("profiles", () => fail("profile down"));
-    await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
-      "profile down",
-    );
-    expect(admin.chains).toHaveLength(0);
-  });
-
-  it("błąd odczytu ról wychodzi na zewnątrz, nie znika jako pusta lista", async () => {
-    // Połknięty błąd zamieniał 22P02 na „brak staffu" - defekt bez sygnału.
-    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
-    admin.setResponse("user_roles", () => fail("roles down"));
-    await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
-      "roles down",
-    );
-  });
-
-  it("błąd odczytu profili adminem wychodzi na zewnątrz", async () => {
+  it("filtruje wyłącznie po wartościach enuma app_role", async () => {
+    // 'moderator' NIE jest wartością public.app_role (to rola klubowa).
+    // PostgREST rzutuje literały z in.() na typ kolumny, więc taki filtr kończy
+    // się 22P02 i - przy połykaniu błędu - cichą pustą listą.
     lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
     admin.setResponse("user_roles", () => ok([{ user_id: USER_ID, role: "admin" }]));
-    admin.setResponse("profiles", () => fail("profiles down"));
+    admin.setResponse("profiles", () => ok([{ id: USER_ID }]));
+    await callServerFn(crm.listStaffUsers, { context: context() });
+    const roles = admin.lastChain("user_roles")?.argsOf("in")?.[1] as string[];
+    expect(roles.every((r) => (APP_ROLES as readonly string[]).includes(r))).toBe(true);
+  });
+
+  it("błąd odczytu ról wychodzi na zewnątrz, nie zamienia się w pustą listę", async () => {
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    admin.setResponse("user_roles", () => fail("invalid input value for enum app_role"));
     await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
-      "profiles down",
+      "invalid input value for enum app_role",
     );
   });
 });

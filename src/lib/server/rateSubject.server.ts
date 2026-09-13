@@ -27,7 +27,10 @@ function hashedRateSubject(kind: string, raw: string): string {
  * Podmiot limitu dla bieżącego żądania: zalogowany użytkownik ma własny kubełek
  * (nie dzieli go z NAT-em biura), anonim - kubełek per adres.
  * `cf-connecting-ip` wygrywa z `x-forwarded-for`, bo za Cloudflare tylko on
- * jest nagłówkiem, którego klient nie podrobi.
+ * jest nagłówkiem, którego klient nie podrobi. Sama KOLEJNOŚĆ nagłówków mieszka
+ * już wyłącznie w `clientIpFromHeaders` (`@/lib/http/rateLimit`) - podwójny
+ * odczyt `cf-connecting-ip` w tym miejscu znaczył, że repo miało dwie
+ * definicje „kto dzwoni", i tylko jedna z nich była poprawna.
  */
 export function requestRateSubject(
   headers: Headers | null | undefined,
@@ -35,6 +38,6 @@ export function requestRateSubject(
 ): string {
   if (userId) return hashedRateSubject("user", userId);
   if (!headers) return hashedRateSubject("ip", "unknown");
-  const ip = headers.get("cf-connecting-ip")?.trim() || clientIpFromHeaders(headers);
+  const ip = clientIpFromHeaders(headers);
   return hashedRateSubject("ip", ip);
 }

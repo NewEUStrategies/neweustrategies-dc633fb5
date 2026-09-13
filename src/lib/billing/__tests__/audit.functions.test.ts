@@ -60,6 +60,12 @@ vi.mock("@/lib/billing/audit.server", () => ({
 import { exportBillingAudit, getBillingAudit } from "@/lib/billing/audit.functions";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
+/**
+ * Najemca wołającego. Jedyne legalne źródło zakresu audytu - bramka go ODDAJE,
+ * a `audit.server` nie pyta już o hosta. Eksport CSV/XLSX opuszcza system,
+ * więc pomyłka w tym jednym polu jest nieodwracalna.
+ */
+const NAJEMCA = "77777777-7777-4777-8777-777777777777";
 const EVENT_ID = "22222222-2222-4222-8222-222222222222";
 
 /** Znaczniki tożsamości - dowodzą przekazania TEGO SAMEGO obiektu, nie kopii. */
@@ -86,7 +92,7 @@ function kontekst() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.assertAdmin.mockResolvedValue(undefined);
+  h.assertAdmin.mockResolvedValue({ tenantId: NAJEMCA });
   h.buildAuditReport.mockResolvedValue(RAPORT);
   h.buildAuditExport.mockResolvedValue(PLIK);
 });
@@ -352,6 +358,7 @@ describe("handler raportu - co robi z argumentami", () => {
       environment: "sandbox",
       sinceHours: 24,
       eventId: null,
+      tenantId: NAJEMCA,
     });
   });
 
@@ -365,6 +372,7 @@ describe("handler raportu - co robi z argumentami", () => {
       environment: "live",
       sinceHours: 72,
       eventId: EVENT_ID,
+      tenantId: NAJEMCA,
     });
   });
 
@@ -410,6 +418,7 @@ describe("handler eksportu - co robi z argumentami", () => {
       environment: "live",
       sinceHours: 48,
       eventId: EVENT_ID,
+      tenantId: NAJEMCA,
     });
     expect(h.buildAuditExport).toHaveBeenCalledWith(RAPORT, "xlsx");
   });

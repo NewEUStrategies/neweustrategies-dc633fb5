@@ -10,6 +10,7 @@
 // pobrać. Import żyje więc wewnątrz funkcji, nie na górze modułu.
 import { runSpreadsheetWorker } from "./spreadsheetWorker";
 import DOMPurify from "dompurify";
+import { assertSanitizerEngine, escapeHtmlToText } from "../sanitizeEngineGuard";
 import type JSZipType from "jszip";
 
 export interface DocxResult {
@@ -32,13 +33,33 @@ export interface SlideResult {
   images: readonly string[];
 }
 
-/** Wspólna sanityzacja: dokument z zewnątrz nigdy nie trafia do DOM surowy. */
+// Polityka IDENTYCZNA z `HTML_POLICY` w lib/sanitize.ts:36-39. Wcześniej
+// `FORBID_ATTR` było tu krótsze (bez `onclick`/`onmouseover`) - profil html
+// DOMPurify i tak odsiewa handlery, więc to była niespójność, a nie dziura,
+// ale dwie polityki na tej samej klasie treści rozjeżdżają się po cichu.
+const DOCUMENT_POLICY: Parameters<typeof DOMPurify.sanitize>[1] = {
+  USE_PROFILES: { html: true },
+  FORBID_TAGS: ["style", "script", "iframe", "form", "object", "embed"],
+  FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "style"],
+};
+
+const purifyDocument = (dirty: string): string => DOMPurify.sanitize(dirty, DOCUMENT_POLICY);
+
+/**
+ * Wspólna sanityzacja: dokument z zewnątrz nigdy nie trafia do DOM surowy.
+ *
+ * PRZEZ KANARKA SILNIKA, NIE OBOK NIEGO. Wcześniej ten moduł wołał DOMPurify
+ * bezpośrednio, pomijając `assertSanitizerEngine` (lib/sanitizeEngineGuard) -
+ * JEDYNĄ mitygację udokumentowanej regresji DOMPurify >= 3.4.8, po której
+ * `<script>` PRZEŻYWA sanityzację mimo jawnego `FORBID_TAGS`. Skutek był
+ * odwrotny do reszty aplikacji: na tej samej stronie `sanitizeHtml`
+ * degradowało do zaescape'owanego tekstu, a podgląd dokumentu wypuszczał
+ * surowy HTML z pliku WGRANEGO PRZEZ UŻYTKOWNIKA. Teraz oba wejścia mają ten
+ * sam model awarii: fail-closed.
+ */
 function sanitize(html: string): string {
-  return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: ["style", "script", "iframe", "form", "object", "embed"],
-    FORBID_ATTR: ["style", "onerror", "onload"],
-  });
+  if (assertSanitizerEngine(purifyDocument) === "degraded") return escapeHtmlToText(html);
+  return purifyDocument(html);
 }
 
 export async function parseDocx(buffer: ArrayBuffer): Promise<DocxResult> {

@@ -465,6 +465,7 @@ export type Database = {
           sender_domain: string | null
           status: string
           subject: string | null
+          tenant_id: string | null
         }
         Insert: {
           action_url_host?: string | null
@@ -488,6 +489,7 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
         Update: {
           action_url_host?: string | null
@@ -511,8 +513,17 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "auth_email_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       author_profiles: {
         Row: {
@@ -5584,7 +5595,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
-          tenant_id: string
+          tenant_id: string | null
         }
         Insert: {
           created_at?: string
@@ -5595,7 +5606,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
-          tenant_id?: string
+          tenant_id?: string | null
         }
         Update: {
           created_at?: string
@@ -5606,7 +5617,7 @@ export type Database = {
           recipient_email?: string
           status?: string
           template_name?: string
-          tenant_id?: string
+          tenant_id?: string | null
         }
         Relationships: [
           {
@@ -23799,6 +23810,10 @@ export type Database = {
         Args: { p_email: string }
         Returns: string
       }
+      email_send_log_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
       email_suppression_add: {
         Args: { p_email: string; p_note?: string; p_reason?: string }
         Returns: Json
@@ -25509,6 +25524,16 @@ export type Database = {
           _status?: Database["public"]["Enums"]["order_status"]
         }
         Returns: boolean
+      }
+      payment_webhook_event_tenant: {
+        Args: {
+          p_customer_id: string
+          p_environment: string
+          p_payload: Json
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: string
       }
       payments_apply_event_ticket_outcome: {
         Args: {

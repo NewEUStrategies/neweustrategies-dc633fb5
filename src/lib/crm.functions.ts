@@ -3,6 +3,7 @@
 // as a JSON string in `json` and parsed on the client (see lib/crm.client.ts).
 import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
+import type { Database } from "@/integrations/supabase/types";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
 import { csvDocument } from "@/lib/crm/csv";
@@ -25,6 +26,10 @@ import {
 } from "@/lib/crm/leadListSpec";
 
 const STAGE_ENUM = LeadStageSchema;
+
+// Rola systemowa prosto z wygenerowanego enuma `public.app_role` - literał
+// spoza niego PostgREST odbija jako 22P02, a nie jako pusty wynik.
+type AppRole = Database["public"]["Enums"]["app_role"];
 
 // Wejście listy = WSPÓLNY opis filtra (lib/crm/leadListSpec.ts) + paginacja
 // i zakres tenanta, które są sprawą wyłącznie serwera. Filtry stały tu
@@ -1020,55 +1025,54 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
   });
 
 // Lista staffu do pickera "właściciela" - profile użytkowników z rolami
-// admin/super_admin/editor w bieżącym tenancie. Używamy admina
-// (RLS user_roles jest owner-only). Zwracamy minimalny zestaw pól.
+// CRM (admin/editor/super_admin) W TENANCIE WOŁAJĄCEGO.
 //
-// PRZYCZYNA ŹRÓDŁOWA. Najemca był czytany z `context.claims.tenant_id` -
-// claimu, którego w tym repo NIKT nie wystawia. `requireSupabaseAuth` wkłada
-// do kontekstu dosłowny wynik `supabase.auth.getClaims(token)`, a hooka
-// `custom_access_token_hook` nie ma ani w `supabase/config.toml`, ani w żadnej
-// z 958 migracji; `raw_app_meta_data` niesie wyłącznie `signup_type`,
-// `tenant_slug` i `tenant_name` dla triggera rejestracji. `tenantId` był więc
-// ZAWSZE `null`, gałąź z filtrem martwa, a `supabaseAdmin` - który omija RLS -
-// oddawał role i profile staffu WSZYSTKICH najemców każdemu zalogowanemu
-// CRM-owcowi. Typów to nie ruszyło, bo `JwtPayload` supabase-js ma
-// `[key: string]: any`: dowolny claim „istnieje" dla kompilatora.
+// Tenanta bierzemy z profilu wołającego pod RLS, NIE z tokenu. Claimy Supabase
+// nie niosą `tenant_id`: w repo nie ma custom access token hooka, a
+// auth-middleware wkłada do kontekstu surowy wynik getClaims(). Poprzednia
+// wersja czytała `claims.tenant_id`, czyli zawsze `undefined`, i schodziła na
+// gałąź bez filtru - listując staff WSZYSTKICH najemców spod service-role.
 //
-// Tenant bierzemy stamtąd, skąd bierze go reszta modułu CRM: z `profiles`
-// wywołującego, klientem użytkownika (pod RLS) - jak `createCrmCompany`
-// (crm-companies.functions.ts) i `upsertCrmScoringSettings` wyżej. Brak
-// najemcy = ODMOWA, nie odczyt bez filtru: fallback „pokaż wszystko" jest
-// dokładnie tym, co ten defekt przywlókł.
+// supabaseAdmin jest tu świadomy: RLS na user_roles pokazuje adminowi role
+// tylko we własnym tenancie, a picker potrzebuje WSZYSTKICH ról w TYM tenancie.
+// Skoro RLS jest wyłączone, `.eq("tenant_id", tenantId)` na OBU zapytaniach
+// jest jedyną granicą najemcy - nie wolno jej uwarunkować.
 export const listStaffUsers = createServerFn({ method: "GET" })
   .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
     const userId = (context as { userId: string }).userId;
-    // Tenant z profilu bieżącego staffu (requireCrmStaff nie przekazuje go dalej).
-    const { data: profile, error: profileError } = await looseTable(context, "profiles")
+    const { data: tenantRow, error: tenantErr } = await looseTable(context, "profiles")
       .select("tenant_id")
       .eq("id", userId)
       .maybeSingle();
-    if (profileError) throw new Error(profileError.message);
-    const tenantId = (profile as { tenant_id?: string } | null)?.tenant_id;
+    if (tenantErr) throw new Error(tenantErr.message);
+    const tenantId = (tenantRow as { tenant_id?: string } | null)?.tenant_id;
+    // Brak tenanta = ODMOWA, nigdy "pokaż wszystko". To jest istota poprawki.
     if (!tenantId) throw new Error("tenant_unresolved");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = looseClient({ supabase: supabaseAdmin });
-    // Literały MUSZĄ być wartościami enuma `public.app_role`
-    // (admin|author|editor|super_admin|user) - PostgREST rzutuje je na enum,
-    // więc wartość spoza niego to `22P02` w runtime, nie błąd typów. Stało tu
-    // „moderator", a połknięty błąd zamieniał go w pustą listę - i tylko dzięki
-    // temu wyciek wyżej nie był widoczny.
-    const staffRoles = ["admin", "super_admin", "editor"];
+
+    // Ten sam zestaw co CRM_STAFF_ROLES w require-staff.ts: picker nie może
+    // proponować kogoś, kogo bramka CRM i tak odbije - dlatego nie ma tu
+    // 'author'. Wypadł też 'moderator': to rola KLUBOWA (kolumna text
+    // z CHECK-iem), spoza enuma public.app_role, więc filtr z nią kończył się
+    // 22P02 i - przy połykanym błędzie - cichą pustą listą.
+    const staffRoles: readonly AppRole[] = ["admin", "editor", "super_admin"];
+
     const rolesRes = await admin
       .from("user_roles")
       .select("user_id, role")
       .eq("tenant_id", tenantId)
-      .in("role", staffRoles)
+      .in("role", [...staffRoles])
       .returns<{ user_id: string; role: string }>();
+    // Błąd odczytu musi wyjść na zewnątrz: `?? []` zamieniał go w pustą listę
+    // i dlatego defekt enuma przeżył w repo bez jednego sygnału.
     if (rolesRes.error) throw new Error(rolesRes.error.message);
+
     const userIds = Array.from(new Set((rolesRes.data ?? []).map((r) => r.user_id)));
     if (userIds.length === 0) return { json: j([]) };
+
     const cols = "id, first_name, last_name, display_name, avatar_url, tenant_id";
     const profRes = await admin
       .from("profiles")
@@ -1076,6 +1080,7 @@ export const listStaffUsers = createServerFn({ method: "GET" })
       .eq("tenant_id", tenantId)
       .in("id", userIds);
     if (profRes.error) throw new Error(profRes.error.message);
+
     const rows = (profRes.data as Array<Record<string, unknown>>) ?? [];
     return { json: j(rows) };
   });

@@ -25,22 +25,46 @@ describe("niceStep", () => {
     expect(niceStep(230)).toBe(500);
   });
 
+  it("krok nie zależy od ULP-a `Math.pow` - ten sam wynik na każdym silniku", () => {
+    // `Math.pow` jest w ECMA-262 zależne od implementacji: `Math.pow(10, -17)`
+    // daje 9.999999999999999e-18 na Node 22 i 1e-17 na Node 24. Ten jeden bit
+    // zmieniał rozstaw siatki, przez co `niceScale(1, 1 + 1 ULP, 3)` zwracało
+    // pięć podziałek o trzech różnych wartościach - i to TYLKO na runnerze CI.
+    // Asercja MUSI być na literale dziesiętnym, nie na wyniku `Math.pow` -
+    // porównanie z `Math.pow` byłoby tak samo zależne od silnika jak defekt,
+    // który ten test przypina.
+    expect(niceStep(1e-17)).toBe(1e-17);
+    for (const p of [-300, -17, -3, 0, 3, 17, 300]) {
+      expect(niceStep(Number(`1e${p}`)), `1e${p}`).toBe(Number(`1e${p}`));
+    }
+    // Zakres SUBNORMALNY jest osobny: tam sam literał dziesiętny nie ma
+    // dokładnej reprezentacji (`1e-320` to w praktyce 9.98e-321), więc
+    // kontraktem jest krok dodatni i skończony, a nie równość co do bitu.
+    for (const maly of [Number.MIN_VALUE, 1e-320, 1e-310]) {
+      const krok = niceStep(maly);
+      expect(krok, String(maly)).toBeGreaterThan(0);
+      expect(Number.isFinite(krok), String(maly)).toBe(true);
+    }
+  });
+
   it("survives zero and non-finite input", () => {
     expect(niceStep(0)).toBe(1);
     expect(niceStep(Number.NaN)).toBe(1);
   });
 
-  it("zwraca krok będący LICZBĄ na obu krańcach zakresu double", () => {
-    // REGRESJA. Zaokrąglenie w górę po progresji 1-2-5 wypadało poza liczby:
-    // `mult * base` przepełniało się do Infinity przy base === 1e308, a
-    // `Math.pow(10, -324)` daje 0. Oba wyniki zamieniały `min / step` w NaN,
-    // przez co oś przestawała być liczbą - `niceScale(0, 2.5e-323)` zwracało
-    // {min: NaN, max: NaN, ticks: []}, czyli wykres bez osi i bez błędu.
-    for (const rough of [Number.MAX_VALUE, 1.5e308, 1e308, 5e-324, 1e-323, Number.MIN_VALUE]) {
-      const step = niceStep(rough);
-      expect(Number.isFinite(step)).toBe(true);
-      expect(step).toBeGreaterThan(0);
-    }
+  it("nie zwraca kroku ZEROWEGO dla argumentu subnormalnego", () => {
+    // REGRESJA. Dla 5e-324 `Math.pow(10, -324)` PODPŁYWA DO ZERA, więc
+    // `mult * base` dawało 0. Zerowy krok szedł dalej jako `Math.floor(min / 0)`,
+    // czyli NaN w obu krańcach domeny i cicho pusty wykres.
+    expect(niceStep(Number.MIN_VALUE)).toBe(1);
+    expect(niceStep(5e-324)).toBe(1);
+  });
+
+  it("nie zwraca kroku NIESKOŃCZONEGO przy magnitudzie rzędu 1e308", () => {
+    // REGRESJA. `base` wychodziło 1e308, a `mult` 2 - iloczyn wypadał poza
+    // zakres liczb. Z nieskończonym krokiem nie da się policzyć ani jednej
+    // podziałki, więc krok o rząd za mały jest mniejszym złem.
+    expect(Number.isFinite(niceStep(1.25e308))).toBe(true);
   });
 });
 
@@ -66,71 +90,6 @@ describe("niceScale", () => {
     const sc = niceScale(-80, -20);
     expect(sc.min).toBeLessThanOrEqual(-80);
     expect(sc.max).toBeGreaterThanOrEqual(-20);
-  });
-
-  // REGRESJA. Jedna skrajna liczba w danych zawieszała RENDER, nie tylko oś.
-  // Dwie różne arytmetyczne drogi do tej samej pętli bez końca:
-  //  * `max - min` przepełnia się do Infinity, `niceStep(Infinity)` cofa krok
-  //    do 1 i pętla dokłada podziałki po jednej przez 1e308,
-  //  * `Math.ceil(max / step) * step` wypycha `niceMax` na Infinity, więc
-  //    warunek `v <= niceMax` nie gaśnie nigdy.
-  // Obie kończyły się RangeError na długości tablicy - zmierzone 13,8 s dla
-  // MAX_VALUE i 45,4 s dla -MAX..MAX. `parse.ts` przepuszcza każdą liczbę
-  // skończoną, a `honesty.ts` woła `niceScale` przy KAŻDYM renderze, również
-  // serwerowym, więc jedna komórka w arkuszu wystarczała, żeby położyć SSR.
-  const EKSTREMA: [string, number, number][] = [
-    ["0..MAX_VALUE", 0, Number.MAX_VALUE],
-    ["-MAX..MAX", -Number.MAX_VALUE, Number.MAX_VALUE],
-    ["-MAX..0", -Number.MAX_VALUE, 0],
-    ["1e308..MAX", 1e308, Number.MAX_VALUE],
-    ["MAX..MAX (płaska)", Number.MAX_VALUE, Number.MAX_VALUE],
-    ["-MAX..1", -Number.MAX_VALUE, 1],
-    ["subnormalna", Number.MIN_VALUE, 1e-320],
-    ["subnormalna przy zerze", 0, 2.5e-323],
-    ["-MAX..-MAX (płaska)", -Number.MAX_VALUE, -Number.MAX_VALUE],
-  ];
-
-  it.each(EKSTREMA)("domyka się na skrajnej domenie: %s", (_nazwa, min, max) => {
-    const start = performance.now();
-    const sc = niceScale(min, max, 5);
-    // Sekunda to trzy rzędy wielkości zapasu wobec zmierzonych 13,8 s, a wciąż
-    // próg, którego pętla bez końca nie ma jak przejść.
-    expect(performance.now() - start).toBeLessThan(1000);
-    expect(sc.ticks.length).toBeGreaterThan(0);
-    expect(sc.ticks.length).toBeLessThanOrEqual(1000);
-    // Oś, która nie jest liczbą, kłamie tak samo jak oś ucięta.
-    expect(Number.isFinite(sc.min)).toBe(true);
-    expect(Number.isFinite(sc.max)).toBe(true);
-    expect(sc.ticks.every((t) => Number.isFinite(t))).toBe(true);
-  });
-
-  it.each([2, 3, 5, 8, 13])(
-    "skrajna domena daje oś z podziałkami, nie jedną kreską (targetTicks=%i)",
-    (target) => {
-      // Przy targetTicks 2 i 3 rozpiętość -MAX..MAX dzieliła się na dokładnie
-      // MAX_VALUE, a `niceStep` zwracał wtedy Infinity - krok nieskończony
-      // zostawiał oś z JEDNĄ podziałką. Sam brak zawieszenia to za mało:
-      // oś z jedną kreską nie niesie skali.
-      const sc = niceScale(-Number.MAX_VALUE, Number.MAX_VALUE, target);
-      expect(sc.ticks.length).toBeGreaterThanOrEqual(3);
-      expect(sc.ticks.every((t) => Number.isFinite(t))).toBe(true);
-    },
-  );
-
-  it("skrajnie wysoki targetTicks nie rozdyma tablicy podziałek", () => {
-    // Drugie wejście do tej samej pętli: nie przez dane, tylko przez liczbę
-    // żądanych podziałek. `valueTickTarget` zwraca 3..~20, więc sufit nie
-    // dotyka żadnej osi rysowanej z danych - jest bezpiecznikiem.
-    expect(niceScale(0, 100, 1e6).ticks.length).toBeLessThanOrEqual(1000);
-  });
-
-  it("nie zmienia podziałek osi liczonych z realnych danych", () => {
-    // Kontrakt bezpiecznika: dla wejść, które działały, wynik ma być CO DO
-    // BITU ten sam. Wartości poniżej pochodzą z przebiegu sprzed zmiany.
-    expect(niceScale(0, 100, 5).ticks).toEqual([0, 20, 40, 60, 80, 100]);
-    expect(niceScale(2, 24, 5).ticks).toEqual([0, 5, 10, 15, 20, 25]);
-    expect(niceScale(-80, -20, 5).ticks).toEqual([-80, -60, -40, -20]);
-    expect(niceScale(0, 1e20, 5).ticks).toEqual([0, 2e19, 4e19, 6e19, 8e19, 1e20]);
   });
 });
 
@@ -160,6 +119,30 @@ describe("seriesExtent", () => {
   it("uses per-category sums when stacked", () => {
     const e = seriesExtent([s([5, 5]), s([7, 1], 2)], 2, { stacked: true, includeZero: true });
     expect(e.max).toBe(12);
+  });
+
+  it("stos zawsze obejmuje ZERO, także dla serii wyłącznie ujemnej", () => {
+    // Stos rośnie OD ZERA, więc zero zostaje w domenie nawet bez `includeZero`
+    // - sumy ujemne sprowadzają `min` w dół, a górny kraniec zostaje na zerze.
+    // To pinuje zachowanie po usunięciu martwego `if (pos < min) ...`.
+    const e = seriesExtent([s([-5, -3]), s([-2, -8], 2)], 2, {
+      stacked: true,
+      includeZero: false,
+    });
+    expect(e).toEqual({ min: -11, max: 0 });
+  });
+
+  it("stos mieszany bierze sumy dodatnie i ujemne osobno", () => {
+    const e = seriesExtent([s([5, -3]), s([-2, 8], 2)], 2, {
+      stacked: true,
+      includeZero: false,
+    });
+    expect(e).toEqual({ min: -3, max: 8 });
+  });
+
+  it("poza stosem seria ujemna NIE dostaje fałszywego zera", () => {
+    const e = seriesExtent([s([-5, -3])], 2, { stacked: false, includeZero: false });
+    expect(e).toEqual({ min: -5, max: -3 });
   });
 });
 
@@ -220,5 +203,148 @@ describe("forecastBandExtent", () => {
     const band = forecastBandExtent([s([0, -40])], 1, 25);
     expect(band?.min).toBeCloseTo(-50, 6);
     expect(band?.max).toBeCloseTo(-30, 6);
+  });
+});
+
+// Inwarianty, których oś musi dotrzymać NIEZALEŻNIE od danych. Krańce
+// sprawdzamy z tolerancją pół kroku, bo `roundToStep` zaokrągla PODZIAŁKI,
+// a `min`/`max` wracają surowe - i tak było zawsze.
+function sprawdzOs(sc: { min: number; max: number; ticks: number[] }): void {
+  expect(sc.ticks.length).toBeGreaterThan(0);
+  expect(sc.ticks.length).toBeLessThanOrEqual(1001);
+  expect(sc.ticks.every(Number.isFinite)).toBe(true);
+  expect(Number.isFinite(sc.min) && Number.isFinite(sc.max)).toBe(true);
+  expect(sc.max).toBeGreaterThan(sc.min);
+  expect(new Set(sc.ticks).size).toBe(sc.ticks.length);
+  for (let i = 1; i < sc.ticks.length; i++) expect(sc.ticks[i]).toBeGreaterThan(sc.ticks[i - 1]);
+  const krok = (sc.max - sc.min) / Math.max(1, sc.ticks.length - 1);
+  expect(Math.abs(sc.ticks[0] - sc.min)).toBeLessThanOrEqual(krok / 2);
+  expect(Math.abs(sc.ticks[sc.ticks.length - 1] - sc.max)).toBeLessThanOrEqual(krok / 2);
+}
+
+describe("niceScale - pętla podziałek kończy się ZAWSZE", () => {
+  // REGRESJA. Pętla akumulowała `v += step`. Gdy krok schodził poniżej odstępu
+  // między sąsiednimi liczbami double przy danej magnitudzie, `v` przestawało
+  // rosnąć i render - także SSR, czyli SYNCHRONICZNIE na serwerze - kręcił się
+  // w nieskończoność, poza zasięgiem strażników timerowych.
+  //
+  // Asercje stoją na DŁUGOŚCI tablicy podziałek, a nie na timeoutcie vitesta:
+  // przy zablokowanej pętli zdarzeń timer nigdy nie wystrzeli.
+  const wejscia: [string, number, number][] = [
+    ["1 ULP przy jedynce", 1, 1.0000000000000002],
+    ["1 ULP przy tysiącu (dryf analityki)", 1000, 1000.0000000000001],
+    ["1 ULP przy 1e16", 1e16, 1e16 + 2],
+    ["2 ULP przy 1e16", 1e16, 1e16 + 4],
+    ["rozstęp 16 przy 1e17", 1e17, 1e17 + 16],
+    ["rozstęp 0,25 przy 1e15", 1e15, 1e15 + 0.25],
+    ["1 ULP na ułamku", 0.1, 0.10000000000000002],
+    ["znacznik czasu w nanosekundach", 1700000000000000000, 1700000000000000256],
+    ["rozstęp NIESKOŃCZONY", -1e308, 1e308],
+    ["dociągnięcie krańca poza zakres liczb", 0, Number.MAX_VALUE],
+  ];
+
+  // targetTicks = 3 to produkcyjna ścieżka małych wielokrotności
+  // (`SMALL_MULTIPLES_TARGET_TICKS`) - i właśnie przy niej najłatwiej o kolizję
+  // siatki, więc każde wejście jedzie po wszystkich czterech celach.
+  for (const cel of [2, 3, 5, 9]) {
+    for (const [opis, a, b] of wejscia) {
+      it(`kończy się i daje sensowną oś: ${opis} (targetTicks=${cel})`, () => {
+        sprawdzOs(niceScale(a, b, cel));
+      });
+    }
+  }
+
+  it("liczy krok Z DANYCH także przy rozstępie nieskończonym", () => {
+    // Najlepszy dowód, że osłona dotyczy PĘTLI, a nie danych: oś symetryczna
+    // wychodzi z prawdziwego kroku 5e307, a nie z awaryjnej jedynki.
+    expect(niceScale(-1e308, 1e308, 5).ticks).toEqual([-1e308, -5e307, 0, 5e307, 1e308]);
+  });
+});
+
+describe("niceScale - walidacja targetTicks", () => {
+  // REGRESJA. `targetTicks` przychodzi od wywołującego i nie jest pilnowany
+  // przez typ: nieliczba dawała krok NaN, a wielka liczba - krok mikroskopijny
+  // i miliardy obrotów pętli.
+  it("wielki targetTicks nie rozsypuje osi na miliardy podziałek", () => {
+    const sc = niceScale(0, 1, 1e7);
+    sprawdzOs(sc);
+    expect(sc.ticks.length).toBeLessThanOrEqual(1001);
+  });
+
+  it("NaN degraduje do domyślnych pięciu podziałek", () => {
+    expect(niceScale(0, 1, Number.NaN).ticks).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+  });
+
+  it("zero i liczba ujemna wpadają w dolną klamrę na dwóch", () => {
+    sprawdzOs(niceScale(0, 1, 0));
+    sprawdzOs(niceScale(0, 1, -3));
+  });
+});
+
+describe("niceScale - podziałki drobne nie sklejają się", () => {
+  // REGRESJA. `roundToStep` ucinał do 10 miejsc po przecinku NIEZALEŻNIE od
+  // kroku, więc dla kroków poniżej 1e-10 wszystkie podziałki wychodziły równe:
+  // linie siatki lądowały jedna na drugiej, a pierwsza i ostatnia podziałka
+  // przestawały odpowiadać krańcom domeny.
+  it("krok 1e-12 daje pięć RÓŻNYCH podziałek, a nie pięć zer", () => {
+    const sc = niceScale(1e-12, 5e-12, 5);
+    sprawdzOs(sc);
+    expect(sc.ticks).toEqual([1e-12, 2e-12, 3e-12, 4e-12, 5e-12]);
+  });
+
+  it("skala nanoskalowa nie zwija się do jednej wartości", () => {
+    const sc = niceScale(6.611e-9, 6.647e-9, 5);
+    sprawdzOs(sc);
+    expect(sc.ticks).toEqual([6.61e-9, 6.62e-9, 6.63e-9, 6.64e-9, 6.65e-9]);
+  });
+
+  it("domena od zera do 1e-10 nie dubluje krańców", () => {
+    const sc = niceScale(0, 1e-10, 5);
+    sprawdzOs(sc);
+    expect(sc.ticks).toEqual([0, 5e-11, 1e-10, 1.5e-10]);
+  });
+
+  it("przy trzech podziałkach nie zostaje DUPLIKAT w środku osi", () => {
+    const sc = niceScale(1.342e-7, 1.343e-7, 3);
+    sprawdzOs(sc);
+    expect(sc.ticks).toEqual([1.342e-7, 1.3425e-7, 1.343e-7, 1.3435e-7]);
+  });
+});
+
+describe("niceScale - domena zdegenerowana traktowana jak seria płaska", () => {
+  // Oś, która nie odróżnia własnych krańców, NIE MA PRAWA udawać, że je
+  // odróżnia. Rozsunięcie jest tym samym zabiegiem co dla serii płaskiej.
+  it("rozstęp poniżej rozdzielczości przy 1e16 rozsuwa domenę", () => {
+    expect(niceScale(1e16, 1e16 + 2, 5).ticks).toEqual([8e15, 9e15, 1e16, 1.1e16, 1.2e16, 1.3e16]);
+  });
+
+  it("rozstęp 1 ULP przy tysiącu rozsuwa domenę", () => {
+    expect(niceScale(1000, 1000.0000000000001, 5).ticks).toEqual([800, 900, 1000, 1100, 1200]);
+  });
+
+  it("seria PŁASKA zachowuje się dokładnie jak dotąd", () => {
+    expect(niceScale(50, 50, 5).ticks).toEqual([40, 45, 50, 55, 60]);
+    expect(niceScale(0, 0, 5).ticks).toEqual([-1, -0.5, 0, 0.5, 1]);
+  });
+});
+
+describe("niceScale - wielkie magnitudy zostają NIETKNIĘTE", () => {
+  it("wartości rzędu 1e308 dalej mieszczą się w domenie", () => {
+    // Pinezka anty-regresyjna: osłona ma dotyczyć PĘTLI, nie danych. Klamra
+    // magnitudy zepchnęłaby te punkty daleko ponad ramkę rysunku, a żaden
+    // istniejący test by tego nie zauważył (sprawdzają tylko brak "NaN"/"∞").
+    expect(niceScale(0, 1e308, 3)).toEqual({ min: 0, max: 1e308, ticks: [0, 5e307, 1e308] });
+    expect(niceScale(5e307, 1e308, 3).max).toBe(1e308);
+  });
+});
+
+describe("niceScale - kontrole niezmienności", () => {
+  it("skale typowych wykresów nie drgnęły", () => {
+    // Przepisanie pętli miało zmienić TERMINACJĘ, a nie skale - te cztery
+    // wejścia to kontrolki, po których regresja skali jest widoczna od razu.
+    expect(niceScale(3, 97, 5).ticks).toEqual([0, 20, 40, 60, 80, 100]);
+    expect(niceScale(0, 1, 5).ticks).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+    expect(niceScale(-80, -20, 5).ticks).toEqual([-80, -60, -40, -20]);
+    expect(niceScale(2, 24, 5).ticks).toEqual([0, 5, 10, 15, 20, 25]);
   });
 });

@@ -11,6 +11,7 @@
 // written so the address can be confirmed once mail is configured.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
+import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { z } from "zod";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -266,9 +267,13 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     let userAgent: string | null = null;
     try {
       const req = getRequest();
-      const fwd = req.headers.get("x-forwarded-for");
-      const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
-      clientIp = req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
+      // Jedna definicja „kto dzwoni" na całe repo: `cf-connecting-ip` ->
+      // `x-real-ip` -> OSTATNI wpis `x-forwarded-for`. Pierwszy wpis XFF jest
+      // deklaracją klienta, więc kubełek po nim kluczowany rotował się jednym
+      // nagłówkiem. Brak adresu zostaje `null`, żeby kolejny krok mógł go
+      // odróżnić od adresu rozpoznanego.
+      const subject = rateLimitIpSubject(req.headers);
+      clientIp = subject === "unknown" ? null : subject;
       userAgent = req.headers.get("user-agent");
     } catch {
       // request context unavailable - fine

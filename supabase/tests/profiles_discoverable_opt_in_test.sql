@@ -11,11 +11,22 @@
 -- ten test pilnuje SKUTKU w zbudowanej bazie, niezależnie od tego, którym pasem
 -- ktoś spróbuje go zmienić.
 --
--- Na tym DEFAULT stoi argument prawny listy uczestników (20260826182500:19),
--- bo handle_new_user() nie wymienia tej kolumny - każda rejestracja bierze DEFAULT.
+-- Na tym DEFAULT stoi argument prawny listy uczestników (20260826182500:19):
+-- `handle_new_user()` (20260805083149:113-116) NIE WYMIENIA tej kolumny na liście
+-- INSERT-a, więc KAŻDA rejestracja bierze DEFAULT. Dlatego trzeci przypadek
+-- wstawia wiersz DOKŁADNIE tak, jak robi to trigger rejestracji: bez nazwania
+-- kolumny.
+--
+-- WYZWALACZE UŻYTKOWNIKA WYŁĄCZONE - konwencja tej suity (accounting_retention,
+-- analytics_semantic_layer, anonymous_insert_lockdown). `on_auth_user_created`
+-- wywołuje `handle_new_user()`, który sam zakłada wiersz w `public.profiles`;
+-- bez wyłączenia ręczne wstawienie profilu o tym samym `id` padłoby na kluczu
+-- głównym, zanim doszłoby do jakiejkolwiek asercji.
 
 BEGIN;
 SELECT plan(3);
+
+ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 SELECT col_default_is(
   'public', 'profiles', 'discoverable', 'false',
@@ -33,8 +44,8 @@ INSERT INTO public.tenants (id, slug, name) VALUES
 INSERT INTO auth.users (id, email) VALUES
   ('d4444444-0000-4444-0000-4444444444dd', 'nowy@x.test');
 
--- Wiersz zakładany BEZ wymienienia kolumny - dokładnie tak, jak robi to
--- handle_new_user() przy każdej rejestracji.
+-- Kolumna CELOWO nie jest wymieniona - tak samo, jak w INSERT-cie
+-- `handle_new_user()`. To jest cała treść tego przypadku.
 INSERT INTO public.profiles (id, tenant_id, email) VALUES
   ('d4444444-0000-4444-0000-4444444444dd', 'd4444444-4444-4444-4444-4444444444dd', 'nowy@x.test');
 
