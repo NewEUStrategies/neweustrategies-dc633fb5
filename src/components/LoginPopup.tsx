@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { publicAuthError } from "@/lib/auth/publicAuthError";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { isMfaChallengeRequired } from "@/lib/auth/mfa";
 import { MfaChallenge } from "@/components/auth/MfaChallenge";
@@ -36,6 +37,8 @@ export function LoginPopup() {
   const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
 
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -68,6 +71,10 @@ export function LoginPopup() {
         navigate({ to: "/login", search: { mode: m } });
         return;
       }
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && !dialogRef.current?.contains(focused)) {
+        triggerRef.current = focused;
+      }
       setMode(m);
       setOpen(true);
     });
@@ -97,16 +104,19 @@ export function LoginPopup() {
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {
-          throw new Error(t("auth.rateLimited"));
+          toast.error(t("auth.rateLimited"));
+          return;
         }
         if (msg.includes("invalid_input")) {
-          throw new Error(t("auth.invalidInput"));
+          toast.error(t("auth.invalidInput"));
+          return;
         }
         throw guardErr;
       }
       if (mode === "signup") {
         if (!settings.allow_public_signup) {
-          throw new Error(t("authForms.signupDisabled"));
+          toast.error(t("authForms.signupDisabled"));
+          return;
         }
         const trimmed = name.trim();
         const parts = trimmed.split(/\s+/).filter(Boolean);
@@ -155,7 +165,8 @@ export function LoginPopup() {
         }
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      setMfaPending(false);
+      toast.error(t(`authForms.errors.${publicAuthError(err)}`));
     } finally {
       setBusy(false);
     }
@@ -178,7 +189,17 @@ export function LoginPopup() {
         }}
       />
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          ref={dialogRef}
+          className="sm:max-w-md"
+          onCloseAutoFocus={(event) => {
+            const trigger = triggerRef.current;
+            if (trigger?.isConnected) {
+              event.preventDefault();
+              trigger.focus({ preventScroll: true });
+            }
+          }}
+        >
           <DialogHeader className="items-center text-center">
             {logo ? <img src={logo} alt="" className="h-12 mx-auto mb-2 object-contain" /> : null}
             <DialogTitle className="font-display text-2xl">{heading}</DialogTitle>

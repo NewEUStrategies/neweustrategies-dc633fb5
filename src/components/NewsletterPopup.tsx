@@ -26,9 +26,6 @@ import {
   resolvePopupPalette,
 } from "@/lib/newsletter/popupDesign";
 
-const NewsletterForm = lazy(() =>
-  import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
-);
 const PopupSignupForm = lazy(() =>
   import("@/components/PopupSignupForm").then((m) => ({ default: m.PopupSignupForm })),
 );
@@ -359,17 +356,9 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                {s.popup_extended_fields ||
-                s.popup_mailing_lists.length > 0 ||
-                s.popup_require_terms ? (
-                  <Suspense fallback={popupFallback}>
-                    <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
-                  </Suspense>
-                ) : (
-                  <Suspense fallback={popupFallback}>
-                    <NewsletterForm lang={lang} source="popup" variant="inline" />
-                  </Suspense>
-                )}
+                <Suspense fallback={popupFallback}>
+                  <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
+                </Suspense>
               </div>
             </>
           )}

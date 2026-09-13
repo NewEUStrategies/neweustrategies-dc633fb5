@@ -2,6 +2,16 @@
 import i18n from "i18next";
 const pl = {
   authForms: {
+    errors: {
+      invalidCredentials: "Niepoprawny adres e-mail lub hasło.",
+      emailNotConfirmed: "Potwierdź adres e-mail linkiem z wiadomości, zanim się zalogujesz.",
+      emailInUse: "Ten adres jest już zarejestrowany. Zaloguj się lub zresetuj hasło.",
+      weakPassword: "Hasło nie spełnia wymagań bezpieczeństwa. Wybierz silniejsze hasło.",
+      invalidInput: "Sprawdź poprawność wprowadzonych danych.",
+      unavailable: "Nie udało się wykonać operacji. Spróbuj ponownie za chwilę.",
+      signupDisabled: "Rejestracja jest wyłączona.",
+      rateLimited: "Zbyt wiele prób. Spróbuj ponownie za kilka minut.",
+    },
     signinTitle: "Zaloguj się",
     signupTitle: "Utwórz konto",
     signupSubmit: "Zarejestruj się",
@@ -46,6 +56,17 @@ const pl = {
 };
 const en: typeof pl = {
   authForms: {
+    errors: {
+      invalidCredentials: "Invalid email address or password.",
+      emailNotConfirmed: "Confirm your email using the link in your inbox before signing in.",
+      emailInUse: "This email is already registered. Sign in or reset your password.",
+      weakPassword:
+        "The password does not meet the security requirements. Choose a stronger password.",
+      invalidInput: "Check the information you entered.",
+      unavailable: "The operation could not be completed. Please try again shortly.",
+      signupDisabled: "Sign-up is disabled.",
+      rateLimited: "Too many attempts. Please try again in a few minutes.",
+    },
     signinTitle: "Sign in",
     signupTitle: "Create account",
     signupSubmit: "Sign up",

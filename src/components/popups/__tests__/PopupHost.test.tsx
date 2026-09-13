@@ -624,6 +624,7 @@ describe("PopupHost: modal lifecycle regressions", () => {
   });
   it("releases an already granted slot when unmounted", async () => {
     const view = await mountAndFire();
+    expect(env.released).toBe(0);
     view.unmount();
     expect(env.released).toBe(1);
   });

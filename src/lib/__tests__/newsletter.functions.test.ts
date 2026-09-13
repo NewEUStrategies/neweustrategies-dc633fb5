@@ -623,7 +623,7 @@ describe("ślad zgody i źródła", () => {
     });
 
     const row = upserted();
-    expect(row.consents).toEqual(consents);
+    expect(row.consents).toMatchObject(consents);
     expect(row.source).toBe("popup-glowny");
     expect(row.source_form_id).toBe("form-7");
     expect(row.source_form_name).toBe("Popup startowy");
@@ -795,4 +795,39 @@ describe("newsletter preference tags in CRM", () => {
     expect(result).toMatchObject({ ok: true });
     expect(errorSpy).toHaveBeenCalledWith("[newsletter] crm tag sync threw", expect.any(Error));
   });
+});
+
+it("preserves client interaction time and stamps receipt with the server clock", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const received = new Date("2026-09-13T20:00:00.000Z");
+  vi.setSystemTime(received);
+  try {
+    const result = await subscribeToNewsletter({
+      data: input({
+        consents: [
+          {
+            key: "privacy",
+            text: "Privacy version A",
+            version: "v1",
+            given: true,
+            timestamp: "2026-09-13T19:59:58.000Z",
+            received_at: "2099-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
+    });
+    expect(result.ok).toBe(true);
+    expect(upserted().consents).toEqual([
+      {
+        key: "privacy",
+        text: "Privacy version A",
+        version: "v1",
+        given: true,
+        timestamp: "2026-09-13T19:59:58.000Z",
+        received_at: received.toISOString(),
+      },
+    ]);
+  } finally {
+    vi.useRealTimers();
+  }
 });

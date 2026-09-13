@@ -141,6 +141,9 @@ jobs:
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
           export E2E_SEEDED=1
           bun run test:e2e e2e/user-paths.spec.ts
+          # Run after the other seeded journeys: popup settings are changed only
+          # in this disposable stack and restored by the registration suite.
+          PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-registration bun run test:e2e e2e/popup-registration.spec.ts
         env:
           CI: "true"
 
@@ -150,4 +153,14 @@ jobs:
         with:
           name: playwright-report-seeded
           path: playwright-report/
+          retention-days: 7
+
+      - name: Upload popup registration evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: popup-registration-report
+          path: |
+            playwright-report-registration/
+            test-results/
           retention-days: 7

@@ -471,11 +471,20 @@ describe("NewsletterPopup: zamykanie ma trzy drogi i jest zapamiętywane", () =>
 
     // Bariera antybotowa formularza: wypełnienie musi zająć ponad 1,2 s.
     vi.setSystemTime(new Date("2026-08-22T10:00:20.000Z"));
-    fireEvent.click(
-      dialog().querySelector<HTMLButtonElement>('button[type="submit"]') as HTMLButtonElement,
-    );
-    await flush();
-    await flush();
+    let complete: () => void = () => {};
+    const submitted = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    h.subscribe.mockImplementation(async () => {
+      complete();
+      return { ok: true };
+    });
+    await act(async () => {
+      fireEvent.click(
+        dialog().querySelector<HTMLButtonElement>('button[type="submit"]') as HTMLButtonElement,
+      );
+      await submitted;
+    });
 
     expect(window.localStorage.getItem(LS_KEY)).toBe(
       String(new Date("2026-08-22T10:00:20.000Z").getTime()),
@@ -499,7 +508,7 @@ describe("NewsletterPopup: dostępność okna, które zabiera uwagę", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it("okno w układzie stacked z formularzem newslettera też jest czyste", async () => {
+  it("okno w układzie stacked z formularzem konta też jest czyste", async () => {
     await openByDelay({ popup_layout: "stacked", popup_cover_url: "https://cdn/okladka.jpg" });
 
     vi.useRealTimers();
@@ -597,7 +606,7 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
     expect(dialog().querySelector('input[type="email"]')).toBeNull();
   });
 
-  it("prosty popup bez pól rozszerzonych pokazuje krótki formularz newslettera, nie rejestrację konta", async () => {
+  it("prosty popup bez pól rozszerzonych również zakłada konto", async () => {
     await openByDelay({
       popup_layout: "stacked",
       popup_extended_fields: false,
@@ -605,8 +614,8 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
       popup_require_terms: false,
     });
 
-    expect(screen.getByTestId("newsletter-form")).toHaveAttribute("data-source", "popup");
-    expect(dialog().querySelector("input[minlength]")).toBeNull();
+    expect(dialog().querySelector('input[type="email"]')).toBeInTheDocument();
+    expect(dialog().querySelectorAll('input[type="password"]')).toHaveLength(2);
   });
 
   it.each([
@@ -634,7 +643,7 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
 
   it("pusty opis nie zostawia pustego akapitu pod tytułem", async () => {
     await openByDelay({ popup_description_pl: "", popup_description_en: "" });
-    expect(dialog().querySelectorAll("p")).toHaveLength(0);
+    expect(dialog().querySelector("#nl-popup-title + p")).toBeNull();
 
     cleanup();
     await openByDelay({ popup_description_pl: "Zajrzyj za kulisy." });

@@ -2,6 +2,22 @@
 
 Właściciel: Fundacja New European Strategies.
 
+## Kontynuacja - rejestracja konta i mail potwierdzający
+
+Poniższy audyt początkowy opisuje stan przed kontynuacją. W tej iteracji naprawiono pięć opisanych dalej `it.fails` i zmieniono je w zwykłe testy regresji. Błędy logowania i rejestracji są tłumaczone, a LoginPopup odtwarza fokus elementu wywołującego.
+
+- Zwykły popup `stacked` zawsze używa teraz rejestracji konta, tak jak `split` i `showcase`. Dokumenty newslettera w builderze zachowują własny typ formularza.
+- Poprawny formularz wywołuje `supabase.auth.signUp` z hasłem i adresem powrotu. Newsletter pozostaje opcjonalny. Błąd newslettera po utworzeniu konta jest osobno komunikowany.
+- Wysłanie przed upływem 1200 ms pokazuje możliwość ponowienia, zamiast udawać utworzenie konta. Ukryty honeypot nadal zatrzymuje spam bez rejestracji.
+- Metadane konta `signup_consents` zachowują tekst, język, decyzję, wersję treści i deklarowany czas klienta także bez zapisu do newslettera. Wersja to 96-bitowy skrót treści (SHA-256), a nie dowód tożsamości.
+- Serwer newslettera zapisuje dodatkowo własne `received_at` dla każdej zgody. Klient nie może podmienić tego znacznika. JSONB nie wymaga zmiany schematu. `auth.users.created_at` nadal stanowi czas utworzenia konta po stronie serwera; modyfikowalne user_metadata nie są niezmiennym rejestrem audytowym.
+- Nowa specyfikacja `e2e/popup-registration.spec.ts` używa rzeczywistego lokalnego Auth, bazy i skrzynki Mailpit: nowe konto, mail z linkiem, potwierdzenie, opcjonalny rekord newslettera oraz widok 390 px i skrócona wysokość 420 px. Nie używa atrap rejestracji. Uruchamia się po pozostałych testach seeded, wyłącznie dla hostów localhost/127.0.0.1. Wynik wymaga oceny nowego przebiegu CI.
+- Lokalny `supabase/config.toml` włącza potwierdzanie adresów. Nie zmienia ustawień hostowanego Auth. Produkcja wymaga włączonego potwierdzania e-mail, poprawnej konfiguracji wysyłki oraz dozwolonego adresu powrotu. Konfigurację i doręczenie produkcyjne trzeba odebrać oddzielnie.
+
+Weryfikacja: pierwotne pięć testów przechodzi w serii 188 testów formularzy i newslettera. Rozszerzona walidacja i nowy CI są w toku. CI poprzedniego commitu `9b6d564` zakończyło się sukcesem dla E2E, Lighthouse, First visit i CMS widget performance; główne CI nie przeszło bramki gęstości asercji testu PopupHost oraz kilku progów coverage. Asercja cyklu życia została uzupełniona o stan slotu przed odmontowaniem. Progów coverage nie obniżono.
+
+Nie wykonano jeszcze odbioru na fizycznym telefonie z klawiaturą ekranową ani produkcyjnego testu utworzenia konta i doręczenia maila. Zmniejszony viewport nie zastępuje systemowej klawiatury.
+
 ## Zakres i wynik
 
 Audyt kodu wykonano na `main` w wersji `39543746dd5232a0a17ad6addbee14696242f03f`. PR #352 z optymalizacjami CMS jest już scalony. Publiczna aplikacja przekierowała z `https://neweustrategies.lovable.app` do `https://neweuropeanstrategies.com/`. Nie ustalono identyfikatora kompilacji wdrożonej na tej domenie; obserwacje przeglądarkowe i analiza tego commitu są odrębnymi źródłami dowodów.

@@ -26,6 +26,8 @@ import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FieldBox } from "@/components/ui/field-box";
+import { publicAuthError } from "@/lib/auth/publicAuthError";
+import { snapshotConsents, type ConsentSnapshotInput } from "@/lib/newsletter/consentSnapshot";
 import { SignupSuccessPanel } from "@/components/auth/SignupSuccessPanel";
 
 import { SubscribeButton } from "@/components/ui/subscribe-button";
@@ -96,6 +98,7 @@ export function PopupSignupForm({
   const [showPass, setShowPass] = useState(false);
   // Adres, na który poszedł link aktywacyjny - pola są czyszczone po zapisie.
   const [sentTo, setSentTo] = useState("");
+  const [newsletterFailed, setNewsletterFailed] = useState(false);
 
   const [honey, setHoney] = useState("");
   const mountedAt = useRef<number>(Date.now());
@@ -160,14 +163,19 @@ export function PopupSignupForm({
     setErr(null);
     if (previewOnly) return;
 
-    // Honeypot + minimalny czas wypełnienia: boty dostają "sukces" bez zapisu.
+    // Honeypot zatrzymuje spam; szybki użytkownik dostaje możliwość ponowienia.
     const elapsed = Date.now() - mountedAt.current;
-    if (honey.trim() !== "" || elapsed < 1200) {
+    if (honey.trim() !== "") {
       setSentTo(v.email.trim().toLowerCase());
       setState("ok");
       setV(empty);
 
       onSuccess?.();
+      return;
+    }
+
+    if (elapsed < 1200) {
+      fail(t("signupPopup.errors.tooFast"), "too_fast");
       return;
     }
 
@@ -270,6 +278,22 @@ export function PopupSignupForm({
         throw guardErr;
       }
 
+      const consentEntries: ConsentSnapshotInput[] = [];
+      if (showNewsletter && v.newsletter) {
+        consentEntries.push({
+          key: "newsletter",
+          text: t("signupPopup.newsletterConsent", { lng: lang }),
+          given: true,
+          lang,
+        });
+      }
+      if (requirePrivacy && privacyHtml) {
+        consentEntries.push({ key: "privacy", text: privacyHtml, given: v.privacy, lang });
+      }
+      if (requireTerms && termsHtml) {
+        consentEntries.push({ key: "terms", text: termsHtml, given: v.terms, lang });
+      }
+      const consents = await snapshotConsents(consentEntries, new Date().toISOString());
       const { error } = await supabase.auth.signUp({
         email,
         password: v.password,
@@ -286,6 +310,7 @@ export function PopupSignupForm({
             phone: v.phone.trim() || undefined,
             signup_type: "reader",
             signup_source: source,
+            signup_consents: consents,
             preferred_language: lang,
             marketing_opt_in: showNewsletter ? v.newsletter : false,
           },
@@ -300,22 +325,8 @@ export function PopupSignupForm({
         if (v.company.trim()) meta.company = v.company.trim();
         if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
         if (v.phone.trim()) meta.phone = v.phone.trim();
-        const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [
-          {
-            key: "newsletter",
-            text: t("signupPopup.newsletterConsent", { lng: lang }),
-            given: true,
-            lang,
-          },
-        ];
-        if (requirePrivacy && privacyHtml) {
-          consents.push({ key: "privacy", text: privacyHtml, given: v.privacy, lang });
-        }
-        if (requireTerms && termsHtml) {
-          consents.push({ key: "terms", text: termsHtml, given: v.terms, lang });
-        }
         try {
-          await subscribe({
+          const result = await subscribe({
             data: {
               email,
               name: displayName,
@@ -329,8 +340,9 @@ export function PopupSignupForm({
               mailingLists: showLists && v.list ? [v.list] : undefined,
             },
           });
+          setNewsletterFailed(!result.ok);
         } catch {
-          /* zapis na listę nie może blokować rejestracji konta */
+          setNewsletterFailed(true);
         }
       }
 
@@ -341,7 +353,7 @@ export function PopupSignupForm({
       setV(empty);
       onSuccess?.();
     } catch (error) {
-      fail(error instanceof Error ? error.message : String(error), "exception");
+      fail(t(`signupPopup.errors.${publicAuthError(error)}`), "exception");
     }
   };
 
@@ -355,12 +367,19 @@ export function PopupSignupForm({
 
   if (state === "ok") {
     return (
-      <SignupSuccessPanel
-        email={sentTo}
-        lang={lang}
-        redirectTo={previewOnly ? undefined : `${window.location.origin}${redirectPath}`}
-        previewOnly={previewOnly}
-      />
+      <>
+        <SignupSuccessPanel
+          email={sentTo}
+          lang={lang}
+          redirectTo={previewOnly ? undefined : `${window.location.origin}${redirectPath}`}
+          previewOnly={previewOnly}
+        />
+        {newsletterFailed && (
+          <p role="alert" className="text-sm">
+            {t("signupPopup.success.newsletterFailed", { lng: lang })}
+          </p>
+        )}
+      </>
     );
   }
 

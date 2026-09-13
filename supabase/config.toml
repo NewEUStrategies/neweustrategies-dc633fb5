@@ -1,1 +1,9 @@
 project_id = "unnltowbgszpdzwpawdu"
+
+# Local development and seeded CI. Hosted Auth must be configured separately.
+[auth]
+site_url = "http://127.0.0.1:4173"
+additional_redirect_urls = ["http://127.0.0.1:4173/**", "http://localhost:4173/**"]
+
+[auth.email]
+enable_confirmations = true
