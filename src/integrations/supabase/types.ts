@@ -25499,6 +25499,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      payment_webhook_event_tenant: {
+        Args: {
+          p_customer_id: string
+          p_environment: string
+          p_payload: Json
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       payments_apply_event_ticket_outcome: {
         Args: {
           p_order_id: string
