@@ -10,6 +10,13 @@ export interface NiceScale {
 }
 
 /**
+ * Twardy sufit liczby podziałek. Bezpiecznik pętli, nie decyzja estetyczna -
+ * realny `targetTicks` liczy `valueTickTarget` i mieści się w 3..~20, więc
+ * ten limit nie dotyka żadnej osi rysowanej z danych.
+ */
+const MAX_TICKS = 1000;
+
+/**
  * "Ładna" skala osi wartości: rozszerza [min, max] do wielokrotności kroku
  * z progresji 1-2-5 i zwraca równe podziałki. Zawsze obejmuje 0 dla wykresów
  * słupkowych/pól (słupki rosną od zera - inaczej kłamią wysokością).
@@ -26,17 +33,50 @@ export function niceScale(rawMin: number, rawMax: number, targetTicks = 5): Nice
     const pad = Math.abs(min) > 0 ? Math.abs(min) * 0.2 : 1;
     min -= pad;
     max += pad;
+    // Samo rozsunięcie o 20% wypycha krawędź poza zakres double, gdy płaska
+    // seria stoi na liczbie rzędu 1e308 - i od tego miejsca cała reszta
+    // liczyłaby już na Infinity.
+    if (!Number.isFinite(min)) min = -Number.MAX_VALUE;
+    if (!Number.isFinite(max)) max = Number.MAX_VALUE;
   }
 
+  const divisor = Math.max(2, targetTicks);
   const span = max - min;
-  const step = niceStep(span / Math.max(2, targetTicks));
-  const niceMin = Math.floor(min / step) * step;
-  const niceMax = Math.ceil(max / step) * step;
+  // `max - min` PRZEPEŁNIA SIĘ do Infinity, gdy domena obejmuje większość
+  // zakresu double (np. -MAX_VALUE..MAX_VALUE), a `niceStep(Infinity)` cofa
+  // wtedy krok do 1 - czyli do dokładania podziałek po jednej przez 1e308.
+  // Dzielenie PRZED odjęciem trzyma iloraz w zakresie, więc krok wychodzi
+  // z PRAWDZIWEJ rozpiętości. Dla rozpiętości skończonej wynik jest ten sam,
+  // więc żadna istniejąca oś nie zmienia podziałek.
+  const step = niceStep(Number.isFinite(span) ? span / divisor : max / divisor - min / divisor);
+
+  let niceMin = Math.floor(min / step) * step;
+  let niceMax = Math.ceil(max / step) * step;
+  // Zaokrąglenie NA ZEWNĄTRZ potrafi wypchnąć krawędź poza zakres double.
+  // Przy `niceMax === Infinity` warunek pętli nigdy nie gaśnie, bo `v` też
+  // dobija do Infinity i tam zostaje.
+  if (!Number.isFinite(niceMin)) niceMin = min;
+  if (!Number.isFinite(niceMax)) niceMax = max;
 
   const ticks: number[] = [];
   // Epsilon guards float drift (0.1+0.2 style) so the last tick always lands.
-  for (let v = niceMin; v <= niceMax + step * 1e-6; v += step) {
+  // Przy `niceMax` rzędu MAX_VALUE sam epsilon przepełnia sumę do Infinity,
+  // a wtedy warunek przepuszcza podziałkę o wartości Infinity - oś z nieliczbą
+  // na końcu rysuje się jako pusta. Bez epsilonu granica jest po prostu ostra.
+  const limit = niceMax + step * 1e-6;
+  const safeLimit = Number.isFinite(limit) ? limit : niceMax;
+  for (let v = niceMin; v <= safeLimit; ) {
     ticks.push(roundToStep(v, step));
+    const next = v + step;
+    // Sama arytmetyka NIE GWARANTUJE postępu: przy |v| rzędu 1e308 krok
+    // mniejszy od ULP-a znika w zaokrągleniu i `v + step === v`. Pętla
+    // akumulacyjna nie miała wtedy żadnego warunku stopu i rosła aż do
+    // RangeError na długości tablicy - zmierzone 13,8 s dla
+    // niceScale(0, MAX_VALUE) i 45,4 s dla niceScale(-MAX_VALUE, MAX_VALUE),
+    // za każdym razem na wątku renderującym, również w SSR.
+    // MAX_TICKS domyka drugi przypadek: absurdalnie wysoki `targetTicks`.
+    if (!(next > v) || ticks.length >= MAX_TICKS) break;
+    v = next;
   }
   return { min: niceMin, max: niceMax, ticks };
 }
@@ -48,7 +88,15 @@ export function niceStep(rough: number): number {
   const base = Math.pow(10, power);
   const fraction = safe / base;
   const mult = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
-  return mult * base;
+  const step = mult * base;
+  // Na obu krańcach zakresu double zaokrąglenie w górę wypada POZA liczby:
+  //  * `mult * base` przepełnia się do Infinity, gdy base === 1e308,
+  //  * `Math.pow(10, -324)` daje 0, bo 10^-324 nie ma reprezentacji.
+  // Krok zerowy albo nieskończony zamienia `min / step` w NaN i oś przestaje
+  // być liczbą, więc cofamy się do najbliższego kroku, który jeszcze nią jest:
+  // do samej potęgi dziesiątki, a gdy i ta wypadła z zakresu - do rozpiętości.
+  if (step > 0 && Number.isFinite(step)) return step;
+  return base > 0 && Number.isFinite(base) ? base : safe;
 }
 
 function roundToStep(value: number, step: number): number {

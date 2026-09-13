@@ -29,6 +29,19 @@ describe("niceStep", () => {
     expect(niceStep(0)).toBe(1);
     expect(niceStep(Number.NaN)).toBe(1);
   });
+
+  it("zwraca krok będący LICZBĄ na obu krańcach zakresu double", () => {
+    // REGRESJA. Zaokrąglenie w górę po progresji 1-2-5 wypadało poza liczby:
+    // `mult * base` przepełniało się do Infinity przy base === 1e308, a
+    // `Math.pow(10, -324)` daje 0. Oba wyniki zamieniały `min / step` w NaN,
+    // przez co oś przestawała być liczbą - `niceScale(0, 2.5e-323)` zwracało
+    // {min: NaN, max: NaN, ticks: []}, czyli wykres bez osi i bez błędu.
+    for (const rough of [Number.MAX_VALUE, 1.5e308, 1e308, 5e-324, 1e-323, Number.MIN_VALUE]) {
+      const step = niceStep(rough);
+      expect(Number.isFinite(step)).toBe(true);
+      expect(step).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("niceScale", () => {
@@ -53,6 +66,71 @@ describe("niceScale", () => {
     const sc = niceScale(-80, -20);
     expect(sc.min).toBeLessThanOrEqual(-80);
     expect(sc.max).toBeGreaterThanOrEqual(-20);
+  });
+
+  // REGRESJA. Jedna skrajna liczba w danych zawieszała RENDER, nie tylko oś.
+  // Dwie różne arytmetyczne drogi do tej samej pętli bez końca:
+  //  * `max - min` przepełnia się do Infinity, `niceStep(Infinity)` cofa krok
+  //    do 1 i pętla dokłada podziałki po jednej przez 1e308,
+  //  * `Math.ceil(max / step) * step` wypycha `niceMax` na Infinity, więc
+  //    warunek `v <= niceMax` nie gaśnie nigdy.
+  // Obie kończyły się RangeError na długości tablicy - zmierzone 13,8 s dla
+  // MAX_VALUE i 45,4 s dla -MAX..MAX. `parse.ts` przepuszcza każdą liczbę
+  // skończoną, a `honesty.ts` woła `niceScale` przy KAŻDYM renderze, również
+  // serwerowym, więc jedna komórka w arkuszu wystarczała, żeby położyć SSR.
+  const EKSTREMA: [string, number, number][] = [
+    ["0..MAX_VALUE", 0, Number.MAX_VALUE],
+    ["-MAX..MAX", -Number.MAX_VALUE, Number.MAX_VALUE],
+    ["-MAX..0", -Number.MAX_VALUE, 0],
+    ["1e308..MAX", 1e308, Number.MAX_VALUE],
+    ["MAX..MAX (płaska)", Number.MAX_VALUE, Number.MAX_VALUE],
+    ["-MAX..1", -Number.MAX_VALUE, 1],
+    ["subnormalna", Number.MIN_VALUE, 1e-320],
+    ["subnormalna przy zerze", 0, 2.5e-323],
+    ["-MAX..-MAX (płaska)", -Number.MAX_VALUE, -Number.MAX_VALUE],
+  ];
+
+  it.each(EKSTREMA)("domyka się na skrajnej domenie: %s", (_nazwa, min, max) => {
+    const start = performance.now();
+    const sc = niceScale(min, max, 5);
+    // Sekunda to trzy rzędy wielkości zapasu wobec zmierzonych 13,8 s, a wciąż
+    // próg, którego pętla bez końca nie ma jak przejść.
+    expect(performance.now() - start).toBeLessThan(1000);
+    expect(sc.ticks.length).toBeGreaterThan(0);
+    expect(sc.ticks.length).toBeLessThanOrEqual(1000);
+    // Oś, która nie jest liczbą, kłamie tak samo jak oś ucięta.
+    expect(Number.isFinite(sc.min)).toBe(true);
+    expect(Number.isFinite(sc.max)).toBe(true);
+    expect(sc.ticks.every((t) => Number.isFinite(t))).toBe(true);
+  });
+
+  it.each([2, 3, 5, 8, 13])(
+    "skrajna domena daje oś z podziałkami, nie jedną kreską (targetTicks=%i)",
+    (target) => {
+      // Przy targetTicks 2 i 3 rozpiętość -MAX..MAX dzieliła się na dokładnie
+      // MAX_VALUE, a `niceStep` zwracał wtedy Infinity - krok nieskończony
+      // zostawiał oś z JEDNĄ podziałką. Sam brak zawieszenia to za mało:
+      // oś z jedną kreską nie niesie skali.
+      const sc = niceScale(-Number.MAX_VALUE, Number.MAX_VALUE, target);
+      expect(sc.ticks.length).toBeGreaterThanOrEqual(3);
+      expect(sc.ticks.every((t) => Number.isFinite(t))).toBe(true);
+    },
+  );
+
+  it("skrajnie wysoki targetTicks nie rozdyma tablicy podziałek", () => {
+    // Drugie wejście do tej samej pętli: nie przez dane, tylko przez liczbę
+    // żądanych podziałek. `valueTickTarget` zwraca 3..~20, więc sufit nie
+    // dotyka żadnej osi rysowanej z danych - jest bezpiecznikiem.
+    expect(niceScale(0, 100, 1e6).ticks.length).toBeLessThanOrEqual(1000);
+  });
+
+  it("nie zmienia podziałek osi liczonych z realnych danych", () => {
+    // Kontrakt bezpiecznika: dla wejść, które działały, wynik ma być CO DO
+    // BITU ten sam. Wartości poniżej pochodzą z przebiegu sprzed zmiany.
+    expect(niceScale(0, 100, 5).ticks).toEqual([0, 20, 40, 60, 80, 100]);
+    expect(niceScale(2, 24, 5).ticks).toEqual([0, 5, 10, 15, 20, 25]);
+    expect(niceScale(-80, -20, 5).ticks).toEqual([-80, -60, -40, -20]);
+    expect(niceScale(0, 1e20, 5).ticks).toEqual([0, 2e19, 4e19, 6e19, 8e19, 1e20]);
   });
 });
 
