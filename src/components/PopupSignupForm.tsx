@@ -282,16 +282,21 @@ export function PopupSignupForm({
       if (showNewsletter && v.newsletter) {
         consentEntries.push({
           key: "newsletter",
-          text: t("signupPopup.newsletterConsent", { lng: lang }),
+          text: label("newsletter_optin"),
           given: true,
           lang,
         });
       }
       if (requirePrivacy && privacyHtml) {
-        consentEntries.push({ key: "privacy", text: privacyHtml, given: v.privacy, lang });
+        consentEntries.push({
+          key: "privacy",
+          text: sanitizeHtml(privacyHtml),
+          given: v.privacy,
+          lang,
+        });
       }
       if (requireTerms && termsHtml) {
-        consentEntries.push({ key: "terms", text: termsHtml, given: v.terms, lang });
+        consentEntries.push({ key: "terms", text: sanitizeHtml(termsHtml), given: v.terms, lang });
       }
       const consents = await snapshotConsents(consentEntries, new Date().toISOString());
       const { error } = await supabase.auth.signUp({

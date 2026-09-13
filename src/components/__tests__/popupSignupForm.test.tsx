@@ -232,7 +232,7 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
     expect(consents).toMatchObject([
       {
         key: "newsletter",
-        text: "signupPopup.newsletterConsent(lng=pl)",
+        text: "Chcę otrzymywać newsletter",
         given: true,
         lang: "pl",
       },
@@ -243,6 +243,34 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
         lang: "pl",
       },
     ]);
+  });
+
+  it("records the configured checkbox label and the same sanitized privacy text shown to the reader", async () => {
+    const consentText = "Send me the editorial newsletter.";
+    renderForm({
+      lang: "en",
+      settings: settings({
+        popup_fields: fieldsWith({ key: "newsletter_optin", label_en: consentText }),
+        popup_privacy_html_en:
+          '<strong onclick="bad()">I accept</strong> the policy.<script>bad()</script>',
+      }),
+    });
+    expect(screen.getByText(consentText)).toBeInTheDocument();
+    const displayedPrivacy = document.querySelector(".nl-consent")?.innerHTML;
+    fillMinimal();
+    fireEvent.click(consentBoxes()[1]);
+    actLikeHuman();
+    await submit();
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
+    const consents = h.subscribe.mock.calls[0][0].data.consents;
+    expect(consents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "newsletter", text: consentText, lang: "en" }),
+        expect.objectContaining({ key: "privacy", text: displayedPrivacy, lang: "en" }),
+      ]),
+    );
+    expect(consents.find((entry) => entry.key === "privacy")?.text).not.toContain("bad()");
+    expect(h.signUp.mock.calls[0][0].options.data.signup_consents).toEqual(consents);
   });
 
   it("zgoda zawiera wersję treści i deklarowany czas interakcji", async () => {
