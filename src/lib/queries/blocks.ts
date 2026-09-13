@@ -13,6 +13,7 @@
 //     widgets.
 import { queryOptions, type FetchQueryOptions, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import type { PublicPoll } from "@/lib/community/publicQueries";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
@@ -779,13 +780,36 @@ export function blockQueryOptionsList(
  * (never reject) so a single failing block cannot fail the SSR loader; the
  * affected view just falls back to its client fetch.
  */
+/**
+ * Wynik rozgrzewki zapytań silnika bloków.
+ *
+ * PO CO SYGNAŁ (defekt P1 z recenzji PR #357). `Promise.allSettled` niżej
+ * POCHŁANIA awarie pojedynczych bloków z premedytacją - jeden zepsuty blok nie
+ * ma prawa wywrócić całej rozgrzewki - a `prefetchQuery` i tak nigdy nie
+ * odrzuca. Ta funkcja rozstrzygała się więc ZAWSZE sukcesem, także wtedy, gdy
+ * nie dowiozła ani jednego wiersza. Wołający, który czytał degradację
+ * z odrzucenia, nie widział NICZEGO - i render bez treści bloków szedł
+ * z nagłówkiem wspólnego cache'u.
+ *
+ * `degraded` mówi to, co trzeba wiedzieć przy decyzji o `Cache-Control`:
+ * czy KAŻDE zapytanie z listy wylądowało świeżym sukcesem. Predykat jest ten
+ * sam co w korzeniu (`hasSsrQueryData`), więc zasiew fallbackowy
+ * (`dataUpdatedAt === 0`) liczy się jako degradacja.
+ */
+export interface BlocksPrefetchResult {
+  readonly degraded: boolean;
+}
+
 export async function prefetchBlockQueries(
   queryClient: QueryClient,
   doc: BlocksDoc,
   lang: Lang,
   ctx: BlocksPrefetchCtx = {},
-): Promise<void> {
+): Promise<BlocksPrefetchResult> {
   const options = blockQueryOptionsList(doc, lang, ctx);
-  if (options.length === 0) return;
+  if (options.length === 0) return { degraded: false };
   await Promise.allSettled(options.map((opts) => prefetchBlockDataQuery(queryClient, opts)));
+  return {
+    degraded: options.some((opts) => !hasSsrQueryData(queryClient, opts.queryKey)),
+  };
 }

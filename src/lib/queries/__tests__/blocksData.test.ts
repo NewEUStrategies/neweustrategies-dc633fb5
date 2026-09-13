@@ -1511,10 +1511,18 @@ describe("prefetchBlockQueries", () => {
     ).toEqual([]);
   });
 
-  it("jeden padający blok NIE wywraca loadera SSR i nie truje pozostałych", async () => {
+  it("jeden padający blok NIE wywraca loadera SSR, ale RAPORTUJE degradację", async () => {
     // `Promise.allSettled`: gdyby to był `Promise.all`, odmowa na jednej tabeli
     // (np. RLS na `tags`) wywaliłaby CAŁE renderowanie serwerowe strony -
     // czytelnik dostałby 500 zamiast strony z jednym pustym widgetem.
+    //
+    // DRUGA POŁOWA KONTRAKTU, DOŁOŻONA 2026-09-13 PO RECENZJI PR #357 (P1).
+    // Do tego dnia ten przypadek kończył się asercją `resolves.toBeUndefined()`
+    // - czyli sam ZAPISYWAŁ defekt: funkcja pochłaniała awarię i nie zostawiała
+    // wołającemu ŻADNEGO śladu. Loader trasy `/$` czytał degradację z odrzucenia
+    // obietnicy, którego tu z zasady nie ma, więc render z pustą chmurą tagów
+    // szedł na brzeg z pełnym oknem świeżości. Nie wywrócić SSR i POWIEDZIEĆ,
+    // że treści brakuje, to dwa różne wymagania - i oba są tu teraz sprawdzone.
     baza().setResponse("tags", fail("odmowa tags", "42501"));
     baza().setResponse("categories", ok([{ slug: "europa", name_pl: "Europa", name_en: null }]));
     const qc = klient();
@@ -1527,9 +1535,39 @@ describe("prefetchBlockQueries", () => {
         ]),
         "pl",
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ degraded: true });
     expect(qc.getQueryData(blockTagsQueryOptions(5).queryKey)).toBeUndefined();
     expect(qc.getQueryData(blockCategoriesQueryOptions("pl").queryKey)).toHaveLength(1);
+  });
+
+  it("komplet rozgrzanych bloków NIE jest degradacją (kontrola pozytywna)", async () => {
+    // Bez tej pary asercja wyżej nie odróżniałaby „raportuje degradację"
+    // od „raportuje degradację ZAWSZE" - a bramka, która zawsze mówi to samo,
+    // zdejmowałaby wspólny cache z każdej strony z blokami.
+    baza().setResponse("categories", ok([{ slug: "europa", name_pl: "Europa", name_en: null }]));
+    baza().setResponse("tags", ok([{ slug: "ue", name: "UE" }]));
+    const qc = klient();
+    await expect(
+      prefetchBlockQueries(
+        qc,
+        dokument([
+          { id: "a", type: "tag-cloud", data: { count: 5 } },
+          { id: "b", type: "categories-list", data: {} },
+        ]),
+        "pl",
+      ),
+    ).resolves.toEqual({ degraded: false });
+  });
+
+  it("dokument bez bloków danych nie jest degradacją", async () => {
+    const qc = klient();
+    await expect(
+      prefetchBlockQueries(
+        qc,
+        dokument([{ id: "a", type: "paragraph", data: { text: "x" } }]),
+        "pl",
+      ),
+    ).resolves.toEqual({ degraded: false });
   });
 
   it("okno świeżości PRZEŻYWA rzutowanie w prefetchBlockDataQuery", async () => {

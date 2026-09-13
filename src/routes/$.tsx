@@ -372,13 +372,39 @@ export const Route = createFileRoute("/$")({
       ]),
       SECONDARY_PREFETCH_BUDGET_MS,
     );
-    // DWA POWODY, DLA KTÓRYCH TEN RENDER JEST NIEPEŁNY, i oba znaczą to samo
-    // dla brzegu: budżet minął (odnoga nie zdążyła) albo odnoga odrzuciła.
-    // `Promise.allSettled` nie rzuca, więc bez tego odczytu degradacja była
-    // NIEWIDOCZNA dla nagłówka - dokładnie ta klasa, którą opisuje punkt 4
-    // doktryny `resilientLoad`.
+    // CZTERY POWODY, DLA KTÓRYCH TEN RENDER JEST NIEPEŁNY - i tylko dwa
+    // pierwsze widać po kształcie obietnicy.
+    //
+    // SPROSTOWANIE DO PIERWSZEJ WERSJI TEJ ZMIANY (recenzja PR #357, P1).
+    // Czytanie degradacji z ODRZUCENIA odnogi łapało prawie nic: żadna z pięciu
+    // odnóg nie odrzuca. `prefetchQuery` pochłania błąd z definicji,
+    // `prefetchBlockQueries` pochłania go świadomie w `Promise.allSettled`,
+    // a `prefetchAboveFoldQueries` ma WŁASNY budżet 2 500 ms i po jego
+    // przekroczeniu rozstrzyga się NORMALNIE, zostawiając zapytania w locie.
+    // Zewnętrzny budżet 3 000 ms nie zdążył więc nigdy minąć w najczęstszym
+    // realnym kształcie awarii - wewnętrzny mijał pierwszy, wynik wychodził
+    // `fulfilled`, a render bez treści nad zgięciem szedł na brzeg z pełnym
+    // oknem świeżości. Bramka była wtedy napisem, nie zabezpieczeniem.
+    //
+    // Dzisiaj pytamy o STAN ZAPYTAŃ, a nie o kształt obietnicy: dwa pomocniki
+    // zwracają własny sygnał (liczony `hasSsrQueryData` po SWOICH kluczach),
+    // a trzy odnogi wołające `prefetchQuery` wprost sprawdzamy tutaj - po tych
+    // samych warunkach, pod którymi zostały odpalone.
+    const armDegraded = (result: PromiseSettledResult<unknown>): boolean => {
+      if (result.status === "rejected") return true;
+      return (result.value as { degraded?: boolean } | undefined)?.degraded === true;
+    };
+    const directArmCold = [
+      data.kind === "post" || data.kind === "page"
+        ? postLayoutSettingsQueryOptions().queryKey
+        : null,
+      relatedPostsConfigQueryOptions().queryKey,
+      data.kind === "page" && data.item.template_type === "archive_listing"
+        ? archiveListingQueryOptions(data.item.id).queryKey
+        : null,
+    ].some((queryKey) => queryKey !== null && !hasSsrQueryData(context.queryClient, queryKey));
     const secondaryDegraded =
-      secondary === BUDGET_LAPSED || secondary.some((r) => r.status === "rejected");
+      secondary === BUDGET_LAPSED || secondary.some(armDegraded) || directArmCold;
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own.

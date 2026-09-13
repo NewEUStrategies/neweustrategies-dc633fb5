@@ -56,8 +56,8 @@ const h = vi.hoisted(() => ({
   consoleErrors: [] as unknown[],
   /** Gdy ustawione, KAŻDE wywołanie RPC oddaje ten błąd (awaria bazy). */
   rpcError: null as { message: string } | null,
-  /** Jak ma się zachować rozgrzewka bloków: normalnie, odrzuceniem, zawieszeniem. */
-  blocksPrefetch: "ok" as "ok" | "reject" | "hang",
+  /** Jak ma się zachować rozgrzewka bloków. */
+  blocksPrefetch: "ok" as "ok" | "reject" | "hang" | "degraded",
 }));
 
 // JĘZYK RENDERU JAKO WSTRZYKIWANE WEJŚCIE, nie jako stan globalny.
@@ -136,11 +136,14 @@ vi.mock("@/lib/queries/blocks", async (o) => ({
     ctx: Record<string, unknown> = {},
   ) => {
     h.blocksPrefetchCtx.push({ ...ctx });
-    // Dwie ścieżki DEGRADACJI prefetchu wtórnego, obie realne w produkcji:
-    // odrzucenie (upstream oddał błąd) i zawieszenie (upstream nie odpowiada,
-    // budżet 3 000 ms mija). Nagłówek cache musi je widzieć tak samo.
+    // TRZY ścieżki degradacji prefetchu wtórnego, wszystkie realne w produkcji:
+    // odrzucenie (upstream oddał błąd), zawieszenie (budżet 3 000 ms mija)
+    // oraz - najczęstsza i do 2026-09-13 NIEWIDOCZNA - rozstrzygnięcie
+    // SUKCESEM z sygnałem `degraded`, bo prawdziwa funkcja pochłania awarie
+    // pojedynczych bloków w `Promise.allSettled` i nigdy nie odrzuca.
     if (h.blocksPrefetch === "reject") throw new Error("blocks_data unreachable");
     if (h.blocksPrefetch === "hang") await new Promise(() => {});
+    return { degraded: h.blocksPrefetch === "degraded" };
   },
 }));
 
@@ -934,6 +937,34 @@ describe("loader trasy `/$` - degradacja zapytań pobocznych", () => {
 
   it("ODRZUCONA odnoga prefetchu wtórnego zdejmuje cache wspólny", async () => {
     h.blocksPrefetch = "reject";
+    await runLoader(
+      "analizy/atom",
+      resolvedPost({
+        item: postItem({
+          blocks_data: {
+            pl: { version: 1, blocks: [{ id: "b1", type: "related-posts", data: {} }] },
+            en: { version: 1, blocks: [] },
+          },
+        }),
+      }),
+    );
+    expect(h.cacheControl).not.toEqual([]);
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("REGRES P1: odnoga ROZSTRZYGNIĘTA SUKCESEM z sygnałem `degraded` zdejmuje cache wspólny", async () => {
+    // NAJWAŻNIEJSZY z trzech przypadków i jedyny, którego pierwsza wersja tej
+    // bramki NIE ŁAPAŁA (znalezisko P1 z recenzji PR #357). Żadna z pięciu
+    // odnóg prefetchu wtórnego nie odrzuca: `prefetchQuery` pochłania błąd
+    // z definicji, `prefetchBlockQueries` świadomie w `allSettled`,
+    // a `prefetchAboveFoldQueries` ma WŁASNY budżet 2 500 ms i po nim wraca
+    // NORMALNIE. Zewnętrzny budżet 3 000 ms nie zdążył więc minąć, wynik
+    // wychodził `fulfilled` i render bez treści szedł na brzeg.
+    //
+    // Tu odnoga wraca SZYBKO i SUKCESEM - bez zawieszenia, bez odrzucenia -
+    // a mimo to nagłówek musi być `no-store`. To dowodzi, że decyzja czyta
+    // STAN ZAPYTAŃ, a nie kształt obietnicy.
+    h.blocksPrefetch = "degraded";
     await runLoader(
       "analizy/atom",
       resolvedPost({
