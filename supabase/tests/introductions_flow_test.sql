@@ -1,13 +1,34 @@
--- pgTAP: przepływ wprowadzeń (migracja 20260724120000).
+-- pgTAP: przepływ wprowadzeń (migracje 20260724120000 i 20260913171000).
 --
 -- Sprawdza naprawione ścieżki: most 'forward' -> 'forwarded' i widoczność dla
 -- targetu z avatarem mostu; proszący 'withdraw' -> 'withdrawn'; brak ścieżki
 -- dla obcego aktora.
 --
+-- DOŁOŻONE 20260913171000 - PIERWSZA POŁOWA PRZEPŁYWU. Do tej pory ten plik
+-- testował wyłącznie `respond_introduction` i `my_introduction_requests`, czyli
+-- DRUGĄ połowę: `request_introduction` nie było wołane w ŻADNYM teście pgTAP
+-- (grep po całym supabase/tests/ dawał zero trafień). Tymczasem to właśnie
+-- pierwsza połowa zapisuje wiersze i to w niej były dziury:
+--   * trzy bramki prywatności, które ma wzorzec `connection_request`
+--     (blokada pary, `discoverable` celu, `connections_allowed_from`), NIE
+--     ZOSTAŁY do wprowadzeń przepisane - a przy statusie `forwarded` wyzwalacz
+--     `tg_introduction_notify` wysyła celowi powiadomienie, więc blokada nie
+--     blokowała i wyłączenie nie wyłączało;
+--   * deklarowana "deduplikacja w bazie" nie istniała - ani UNIQUE, ani indeksu
+--     częściowego, ani SELECT-a w funkcji.
+--
+-- DLACZEGO TRZY ODMOWY MAJĄ IDENTYCZNY KOMUNIKAT. To jest asercja o
+-- PRYWATNOŚCI, nie o ergonomii: rozróżnialne teksty powiedziałyby proszącemu,
+-- KTÓRE ustawienie celu go zatrzymało ("zablokował mnie" kontra "nie przyjmuje
+-- zaproszeń" kontra "ukrył profil"), czyli wydałyby informację o osobie, która
+-- właśnie odmówiła kontaktu. `connection_request` rozstrzygnęło to tak samo
+-- (20260717170000:136-139) i wprowadzenia mają to POWTÓRZYĆ, a nie wymyślać
+-- własne zachowanie - stąd oczekiwany tekst jest tu wpisany DOSŁOWNIE.
+--
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(6);
+SELECT plan(13);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -18,7 +39,8 @@ INSERT INTO public.tenants (id, slug, name, domain) VALUES
 INSERT INTO auth.users (id, email) VALUES
   ('d0000000-0000-0000-0000-0000000000a1', 'r@intro.test'),
   ('d0000000-0000-0000-0000-0000000000b1', 'b@intro.test'),
-  ('d0000000-0000-0000-0000-0000000000c1', 't@intro.test');
+  ('d0000000-0000-0000-0000-0000000000c1', 't@intro.test'),
+  ('d0000000-0000-0000-0000-0000000000d1', 't1b@intro.test');
 
 INSERT INTO public.profiles (id, email, display_name, avatar_url, tenant_id) VALUES
   ('d0000000-0000-0000-0000-0000000000a1', 'r@intro.test', 'Requester', NULL,
@@ -26,9 +48,19 @@ INSERT INTO public.profiles (id, email, display_name, avatar_url, tenant_id) VAL
   ('d0000000-0000-0000-0000-0000000000b1', 'b@intro.test', 'Bridge',
    'https://cdn/bridge.jpg', 'd1a11111-1111-1111-1111-111111111111'),
   ('d0000000-0000-0000-0000-0000000000c1', 't@intro.test', 'Target', NULL,
+   'd1a11111-1111-1111-1111-111111111111'),
+  ('d0000000-0000-0000-0000-0000000000d1', 't1b@intro.test', 'Target B', NULL,
    'd1a11111-1111-1111-1111-111111111111');
 
 -- Dwie oczekujące prośby: intro1 (do przekazania), intro2 (do wycofania).
+--
+-- INTRO2 CELUJE W INNĄ OSOBĘ (Target B) i to jest zmiana wymuszona przez
+-- 20260913171000, a nie kosmetyka. Do tej pory oba wiersze miały tę SAMĄ trójkę
+-- (R, B, T) w stanie `pending` - czyli fixture kodował dokładnie ten stan, który
+-- indeks `introduction_requests_active_uidx` od teraz wyklucza jako defekt
+-- (jedna aktywna prośba na trójkę). Rozdzielony jest CEL, a nie most, bo obie
+-- asercje niżej mówią o rolach `bridge` i `requester`, więc pozostają dosłownie
+-- tym samym twierdzeniem, co przed zmianą.
 INSERT INTO public.introduction_requests
   (id, tenant_id, requester_id, bridge_id, target_id, message, status) VALUES
   ('11110000-0000-0000-0000-000000000001', 'd1a11111-1111-1111-1111-111111111111',
@@ -36,7 +68,7 @@ INSERT INTO public.introduction_requests
    'd0000000-0000-0000-0000-0000000000c1', 'Prosze o wprowadzenie do celu.', 'pending'),
   ('11110000-0000-0000-0000-000000000002', 'd1a11111-1111-1111-1111-111111111111',
    'd0000000-0000-0000-0000-0000000000a1', 'd0000000-0000-0000-0000-0000000000b1',
-   'd0000000-0000-0000-0000-0000000000c1', 'Druga prosba do wycofania teraz.', 'pending');
+   'd0000000-0000-0000-0000-0000000000d1', 'Druga prosba do wycofania teraz.', 'pending');
 
 SET LOCAL ROLE authenticated;
 
@@ -83,6 +115,139 @@ SELECT is(
      WHERE id = '11110000-0000-0000-0000-000000000002'),
   'withdrawn',
   'proszący: status po withdraw = withdrawn'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- request_introduction: bramki prywatności i deduplikacja (20260913171000)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Trójka R2 -> B2 -> T2 z ZAAKCEPTOWANYMI relacjami R2-B2 i B2-T2, bo bez nich
+-- funkcja odpada na wcześniejszym warunku i test bramki prywatności mierzyłby
+-- kształt trójkąta, a nie prywatność.
+INSERT INTO auth.users (id, email) VALUES
+  ('d0000000-0000-0000-0000-0000000000a2', 'r2@intro.test'),
+  ('d0000000-0000-0000-0000-0000000000b2', 'b2@intro.test'),
+  ('d0000000-0000-0000-0000-0000000000c2', 't2@intro.test');
+
+INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) VALUES
+  ('d0000000-0000-0000-0000-0000000000a2', 'r2@intro.test', 'Requester 2',
+   'd1a11111-1111-1111-1111-111111111111', true),
+  ('d0000000-0000-0000-0000-0000000000b2', 'b2@intro.test', 'Bridge 2',
+   'd1a11111-1111-1111-1111-111111111111', true),
+  ('d0000000-0000-0000-0000-0000000000c2', 't2@intro.test', 'Target 2',
+   'd1a11111-1111-1111-1111-111111111111', true);
+
+INSERT INTO public.user_connections
+  (tenant_id, requester_id, addressee_id, status, responded_at) VALUES
+  ('d1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000a2', 'd0000000-0000-0000-0000-0000000000b2',
+   'accepted', now()),
+  ('d1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000b2', 'd0000000-0000-0000-0000-0000000000c2',
+   'accepted', now());
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+
+-- ── Ścieżka szczęśliwa: komplet warunków spełniony ──────────────────────────
+SELECT lives_ok(
+  $$SELECT public.request_introduction(
+      'd0000000-0000-0000-0000-0000000000b2',
+      'd0000000-0000-0000-0000-0000000000c2',
+      'Prosze o wprowadzenie do celu w sprawie energii.')$$,
+  'request: komplet warunków spełniony - prośba przechodzi'
+);
+
+-- ── DEDUPLIKACJA: drugie wywołanie tej samej trójki ─────────────────────────
+-- Przed 20260913171000 ochroną było WYŁĄCZNIE `usedBridges` liczone w kliencie
+-- z zapytania o `staleTime: 15_000` - dwie karty obok siebie zakładały dwa
+-- wiersze i most dostawał tę samą prośbę dwa razy.
+SELECT is(
+  (SELECT public.request_introduction(
+      'd0000000-0000-0000-0000-0000000000b2',
+      'd0000000-0000-0000-0000-0000000000c2',
+      'Zupelnie inna tresc, ta sama trojka osob.')),
+  (SELECT id FROM public.introduction_requests
+    WHERE requester_id = 'd0000000-0000-0000-0000-0000000000a2'
+      AND status = 'pending'),
+  'dedup: powtórzenie zwraca id istniejącej prośby (bezszkodliwie, bez wyjątku)'
+);
+SELECT is(
+  (SELECT count(*)::int FROM public.introduction_requests
+    WHERE requester_id = 'd0000000-0000-0000-0000-0000000000a2'
+      AND bridge_id = 'd0000000-0000-0000-0000-0000000000b2'
+      AND target_id = 'd0000000-0000-0000-0000-0000000000c2'
+      AND status = 'pending'),
+  1,
+  'dedup: po dwóch wywołaniach istnieje DOKŁADNIE JEDEN aktywny wiersz'
+);
+
+-- Sprzątamy aktywną prośbę, żeby kolejne przypadki mierzyły BRAMKĘ, a nie
+-- deduplikację (ta odpowiedziałaby id istniejącego wiersza przed odmową).
+RESET ROLE;
+UPDATE public.introduction_requests SET status = 'withdrawn'
+ WHERE requester_id = 'd0000000-0000-0000-0000-0000000000a2';
+SET LOCAL ROLE authenticated;
+
+-- ── BRAMKA 1: blokada pary ──────────────────────────────────────────────────
+RESET ROLE;
+INSERT INTO public.user_blocks (blocker_id, blocked_id, tenant_id) VALUES
+  ('d0000000-0000-0000-0000-0000000000c2', 'd0000000-0000-0000-0000-0000000000a2',
+   'd1a11111-1111-1111-1111-111111111111');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+SELECT throws_ok(
+  $$SELECT public.request_introduction(
+      'd0000000-0000-0000-0000-0000000000b2',
+      'd0000000-0000-0000-0000-0000000000c2',
+      'Prosze o wprowadzenie do celu w sprawie energii.')$$,
+  'connections: peer not available',
+  'bramka: cel, który mnie ZABLOKOWAŁ, jest nieosiągalny drogą wprowadzenia'
+);
+SELECT is(
+  (SELECT count(*)::int FROM public.introduction_requests
+    WHERE requester_id = 'd0000000-0000-0000-0000-0000000000a2' AND status = 'pending'),
+  0,
+  'bramka: odmowa nie zostawia wiersza (most nie dostaje powiadomienia)'
+);
+
+-- ── BRAMKA 2: cel zdjął `discoverable` ──────────────────────────────────────
+RESET ROLE;
+DELETE FROM public.user_blocks
+ WHERE blocker_id = 'd0000000-0000-0000-0000-0000000000c2';
+UPDATE public.profiles SET discoverable = false
+ WHERE id = 'd0000000-0000-0000-0000-0000000000c2';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+SELECT throws_ok(
+  $$SELECT public.request_introduction(
+      'd0000000-0000-0000-0000-0000000000b2',
+      'd0000000-0000-0000-0000-0000000000c2',
+      'Prosze o wprowadzenie do celu w sprawie energii.')$$,
+  'connections: peer not available',
+  'bramka: cel bez discoverable jest nieosiągalny - TEN SAM komunikat'
+);
+
+-- ── BRAMKA 3: cel nie przyjmuje zaproszeń ───────────────────────────────────
+RESET ROLE;
+UPDATE public.profiles SET discoverable = true
+ WHERE id = 'd0000000-0000-0000-0000-0000000000c2';
+INSERT INTO public.notification_preferences (user_id, allow_connections_from)
+VALUES ('d0000000-0000-0000-0000-0000000000c2', 'nobody')
+ON CONFLICT (user_id) DO UPDATE SET allow_connections_from = 'nobody';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+SELECT throws_ok(
+  $$SELECT public.request_introduction(
+      'd0000000-0000-0000-0000-0000000000b2',
+      'd0000000-0000-0000-0000-0000000000c2',
+      'Prosze o wprowadzenie do celu w sprawie energii.')$$,
+  'connections: peer not available',
+  'bramka: cel z allow_connections_from = nobody - TEN SAM komunikat'
 );
 
 SELECT * FROM finish();

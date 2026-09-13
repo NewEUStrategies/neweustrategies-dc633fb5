@@ -273,7 +273,6 @@ function PersonCard({
           bridge={connection.bridge}
           targetName={person.display_name}
           targetAvatarUrl={person.avatar_url}
-          targetSlug={person.slug}
           interactive={false}
           className="mt-0.5"
         />

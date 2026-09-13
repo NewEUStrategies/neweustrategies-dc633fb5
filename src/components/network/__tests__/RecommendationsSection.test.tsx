@@ -485,3 +485,49 @@ describe("RecommendationsSection - pisanie rekomendacji", () => {
     expect(write().mutate).not.toHaveBeenCalled();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Kotwica deep-linku z powiadomienia (A6, gałąź rekomendacji)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Bliźniak kotwicy wprowadzeń, z tą samą historią: producent rekomendacji
+// (20260812101000:201, :216 i wcześniejsze wcielenia w 20260807073000 /
+// 20260807082516) skleja `... || '#r-' || NEW.id::text || '-pending'` albo
+// `'-published'`, a w całym `src/` nie było ani jednego `id` w tym formacie.
+// Zgłoszenie audytu wymieniało wyłącznie kotwicę WPROWADZEŃ - obie były martwe
+// z tego samego powodu, więc obie są tu domykane.
+//
+// Kotwicę mają OBA kształty wiersza, bo producent emituje oba statusy:
+// `-pending` trafia w wiersz moderacji (odbiorca), `-published` w kartę na
+// profilu. Trafienie w jeden, a nie w drugi, znaczyłoby, że połowa
+// powiadomień dalej prowadzi na górę strony.
+describe("RecommendationsSection - kotwica deep-linku z powiadomienia", () => {
+  it("opublikowana rekomendacja: `r-<id>-published` (20260812101000:216)", () => {
+    h.rows = [recommendationRow({ id: "rec-77", status: "published" })];
+    renderSection();
+
+    expect(document.getElementById("r-rec-77-published")).not.toBeNull();
+  });
+
+  it("rekomendacja do moderacji: `r-<id>-pending` (20260812101000:201)", () => {
+    // Wiersz moderacji widzi WYŁĄCZNIE odbiorca rekomendacji - i to właśnie
+    // on dostaje powiadomienie o statusie `pending`, więc kotwica musi
+    // istnieć dokładnie w tym widoku.
+    h.user = { id: NETWORK_IDS.peer };
+    h.rows = [recommendationRow({ id: "rec-88", status: "pending" })];
+    renderSection();
+
+    expect(document.getElementById("r-rec-88-pending")).not.toBeNull();
+  });
+
+  it("kotwica należy do WIERSZA - dwie rekomendacje mają dwa różne `id`", () => {
+    h.rows = [
+      recommendationRow({ id: "rec-a", status: "published" }),
+      recommendationRow({ id: "rec-b", status: "published" }),
+    ];
+    renderSection();
+
+    expect(document.getElementById("r-rec-a-published")).not.toBeNull();
+    expect(document.getElementById("r-rec-b-published")).not.toBeNull();
+  });
+});

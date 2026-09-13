@@ -92,6 +92,8 @@ interface SavedField {
   readonly value: unknown;
 }
 
+const scrollSpy = vi.hoisted(() => ({ ids: [] as string[] }));
+
 const h = vi.hoisted(() => ({
   language: "pl",
   user: { id: "user-me", email: "anna.nowak@example.com" } as {
@@ -136,6 +138,16 @@ vi.mock("react-i18next", async () =>
 );
 // Rejestracja słowników trasy: efekt uboczny, nie przedmiot dowodu (parytet
 // kluczy pilnują bramki `check:i18n-*`).
+// `smoothScrollToAnchor` dotyka realnego układu strony (mierzy offsety,
+// animuje klatkami) - pod happy-dom nie ma czego mierzyć, więc atrapa zapisuje
+// SAM FAKT wywołania i identyfikator. To jest tu kontrakt: trasa ma przewinąć
+// do wiersza wskazanego fragmentem, a nie „jak" to zrobi.
+vi.mock("@/lib/smoothAnchorScroll", () => ({
+  smoothScrollToAnchor: (id: string) => scrollSpy.ids.push(id),
+  getAnchorScrollOffset: () => 80,
+  replaceHashPreservingRouterState: () => undefined,
+}));
+
 vi.mock("@/lib/i18n-profile-extras2", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-profile-intent", () => ({ ensureI18n: () => undefined }));
 
@@ -1843,5 +1855,72 @@ describe("nieosiągalne gałęzie zakładki „Ustawienia” - świadomy opis st
     for (const heading of headings) {
       expect(heading.querySelector("span.text-primary svg")).toBeTruthy();
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRUGA POŁOWA KONTRAKTU DEEP-LINKU: fragment adresu (A6)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Powyżej dowiedziona jest połowa PIERWSZA - `?tab` i `?intro` doprowadzają na
+// właściwą zakładkę. Druga połowa, fragment `#i-<id>-<status>`, była do
+// 20260913 NIENAPISANA: nikt nie czytał `location.hash` i nikt nie przewijał,
+// więc powiadomienie zostawiało użytkownika na górze listy. Migracja
+// 20260812101000 deklarowała przy tym w swoim nagłówku, że "fragment wskazuje
+// wiersz" - była to naprawa martwych linków, która sama zostawiła martwy link.
+//
+// Przewijanie jest tu ZALEŻNE OD ZAKŁADKI, a nie od zamontowania: właściwa
+// lista renderuje się dopiero po przestawieniu widoku, więc szukanie elementu
+// przy montażu trafiałoby w DOM, w którym wiersza jeszcze nie ma.
+describe("kontrakt adresu - fragment `#i-<id>-<status>` przewija do wiersza", () => {
+  beforeEach(() => {
+    scrollSpy.ids = [];
+    window.location.hash = "";
+  });
+
+  afterEach(() => {
+    window.location.hash = "";
+  });
+
+  it("bez fragmentu trasa NIE przewija - zwykłe wejście na profil nie skacze", async () => {
+    await mount("?tab=activity");
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    expect(scrollSpy.ids).toEqual([]);
+  });
+
+  it("fragment wskazujący istniejący wiersz uruchamia przewinięcie do NIEGO", async () => {
+    const row = document.createElement("div");
+    row.id = "i-intro-42-pending";
+    document.body.appendChild(row);
+    window.location.hash = "#i-intro-42-pending";
+    try {
+      await mount("?tab=activity&intro=bridge");
+      await waitFor(() => expect(scrollSpy.ids).toContain("i-intro-42-pending"));
+    } finally {
+      row.remove();
+    }
+  });
+
+  it("fragment ze STARYM statusem trafia w ten sam wiersz w nowym stanie", async () => {
+    // Most dostał powiadomienie przy `pending` i klika je po przekazaniu
+    // prośby: w DOM stoi już `-forwarded`. Bez zejścia link byłby martwy
+    // dokładnie wtedy, kiedy użytkownik najbardziej chce zobaczyć skutek.
+    const row = document.createElement("div");
+    row.id = "i-intro-42-forwarded";
+    document.body.appendChild(row);
+    window.location.hash = "#i-intro-42-pending";
+    try {
+      await mount("?tab=activity&intro=bridge");
+      await waitFor(() => expect(scrollSpy.ids).toContain("i-intro-42-forwarded"));
+    } finally {
+      row.remove();
+    }
+  });
+
+  it("fragment bez odpowiednika w DOM nie przewija NIGDZIE (fail-soft)", async () => {
+    window.location.hash = "#i-nie-ma-takiego-pending";
+    await mount("?tab=activity&intro=bridge");
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    expect(scrollSpy.ids).toEqual([]);
   });
 });

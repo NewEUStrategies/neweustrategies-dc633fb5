@@ -2148,11 +2148,17 @@ export default defineConfig({
         // mimo że decyduje o prywatności odmów zaproszeń, izolacji kont w
         // cache i kontrakcie czasowników RPC. Próg jest zaporą przed powrotem
         // do zera, wyznaczoną tuż pod osiągniętym poziomem.
+        // 2026-09-13: gałęzie 65 -> 71. Zmierzone tym samym przebiegiem, co
+        // progi per plik niżej: 75,40% (zlecenie zastało 73,25% przy progu 65,
+        // czyli ponad osiem punktów zapasu - próg z takim luzem nie zauważyłby
+        // cofnięcia). Pozostałe trzy wartości ZOSTAJĄ: zmierzone minus ~4 pp
+        // (reguła per glob) wypada dla nich PONIŻEJ obecnych progów, a tych
+        // obniżać nie wolno.
         "src/lib/network/**": {
           statements: 85,
           functions: 95,
           lines: 95,
-          branches: 65,
+          branches: 71,
         },
         // Sieć kontaktów - warstwa KOMPONENTÓW. Do 06.08.2026 cały katalog stał
         // na 4,6% (12 z 13 plików na zerze), w tym ConnectButton: jedna maszyna
@@ -2167,6 +2173,63 @@ export default defineConfig({
           functions: 98,
           lines: 98,
           branches: 92,
+        },
+        // ── SIEĆ: CZTERY PLIKI, KTÓRYCH NIE ŁAPAŁ ŻADEN GLOB ──────────────────
+        //
+        // Te progi są NOWE (2026-09-13, rozdział 5 zlecenia MODUŁ 10) i mają
+        // własną historię, bo zero na trzech z nich NIE BYŁO przypadkiem.
+        // Progów pasujących do modułu sieci były dokładnie DWA: `src/lib/network/**`
+        // i `src/components/network/**` (wyżej). Zbiór „bez progu" i zbiór „bez
+        // dowodu" był tym samym zbiorem CO DO PLIKU - dwie trasy i dwa hooki
+        // obserwowania wypadły spod obu globów, więc przez CAŁE ŻYCIE MODUŁU
+        // nikt nie dostał o nich sygnału. Próg per ścieżka jest w tym
+        // repozytorium jedynym mechanizmem, który zauważa, że czegoś nie ma.
+        //
+        // Te cztery pliki trzymały 223 z 962 gałęzi modułu (23%), z czego
+        // pokrytych było SIEDEM. Cała dziura gałęziowa modułu siedziała tutaj.
+        //
+        // ZMIERZONE 2026-09-13 (`--coverage`, przebieg:
+        //   src/lib/network src/components/network src/routes/__tests__ src/hooks
+        // - 203 pliki testowe, zielone), w porządku instrukcje/funkcje/linie/gałęzie:
+        //   network.tsx                 0 / 0 / 0 / 0      -> 98,36 / 97,77 / 99,05 / 81,87
+        //   network.mutual.$userId.tsx  0 / 0 / 0 / 0      -> 96,66 / 100 / 100 / 86,20
+        //   useFollowedFeed.ts          0 / 0 / 0 / 0      -> 100 / 100 / 100 / 100
+        //   useFollows.ts               82,6 bez własnego  -> 95,65 / 100 / 100 / 91,66
+        //     testu (pokrycie uboczne z czterech cudzych plików)
+        // Progi = zmierzone minus ~2 pp (reguła per-plik); 100% -> 98. Pomiar
+        // jest IZOLOWANY do podzbioru suity, więc w pełnym przebiegu te pliki
+        // mogą tylko ZYSKAĆ - próg nie może się przez to zapalić.
+        //
+        // `network.tsx` ma najniższe gałęzie i to jest OPISANE, a nie
+        // przemilczane: plik trzyma cztery zakładki, stronicowanie klienta nad
+        // `useInfiniteQuery`, deep-link `?c=` i zimny start sugestii, więc
+        // gałęzi jest tam po prostu najwięcej. Jedna pozostaje świadomie
+        // niepokryta - `intents` w `PersonRow`, prop, którego ŻADEN wołający
+        // nie przekazuje (zapisany jako `it.fails("DEFEKT: ...")`
+        // w `src/routes/__tests__/networkRoute.test.tsx`, nie naprawiony tutaj).
+        "src/routes/network.tsx": {
+          statements: 96,
+          functions: 95,
+          lines: 97,
+          branches: 79,
+        },
+        "src/routes/network.mutual.$userId.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 84,
+        },
+        "src/hooks/useFollows.ts": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        "src/hooks/useFollowedFeed.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
         // Manifest eksportu RODO: rejestr sekcji + bramka rozjazdu z server fn.
         // Czysty moduł, więc trzymamy go pod 100%.

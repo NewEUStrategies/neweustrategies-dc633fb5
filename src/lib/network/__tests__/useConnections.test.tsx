@@ -89,6 +89,11 @@ describe("useConnectionStatuses", () => {
           status: "connected",
           connection_id: "c-1",
           mutual_count: 3,
+          // Dwie liczby są rozdzielone w RPC od 20260913172000: `mutual_count`
+          // to fakt grafu (stopień, ranking), `mutual_visible_count` to zbiór,
+          // który wołający realnie zobaczy. Fixture trzyma je RÓŻNE, żeby
+          // pomyłka w mapowaniu nie schowała się za równością.
+          mutual_visible_count: 2,
           can_invite: false,
           degree: 1,
           bridge_id: null,
@@ -123,6 +128,7 @@ describe("useConnectionStatuses", () => {
       status: "connected",
       connectionId: "c-1",
       mutualCount: 3,
+      mutualVisibleCount: 2,
       canInvite: false,
       degree: 1,
       bridge: null,
@@ -246,6 +252,7 @@ describe("useConnectionStatuses", () => {
       status: "none",
       connectionId: null,
       mutualCount: 0,
+      mutualVisibleCount: 0,
       canInvite: true,
       // „Poza zasięgiem" to brak twierdzenia, a nie twierdzenie o dystansie -
       // UI ma wtedy nie rysować żadnej odznaki.
@@ -300,17 +307,53 @@ describe("useMyConnections", () => {
 });
 
 describe("skrzynki, liczniki i sugestie", () => {
-  it("useConnectionRequests przekazuje kierunek i limit", async () => {
-    h.rpc.mockImplementation(() => ok([{ user_id: "p1" }]));
+  it("useConnectionRequests przekazuje kierunek, rozmiar strony i offset", async () => {
+    h.rpc.mockImplementation(() => ok([{ user_id: "p1", total_count: 1 }]));
     const client = makeClient();
     const { result } = renderHook(() => useConnectionRequests("out"), {
       wrapper: wrapperFor(client),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // `p_offset` jest tu istotą, nie ozdobą: bez niego RPC klamrowało limit do
+    // 50 i pięćdziesiąt było TWARDYM SUFITEM skrzynki, a odznaka zakładki
+    // (COUNT(*) po całej tabeli) mówiła o wierszach, do których nie było drogi.
     expect(h.rpc).toHaveBeenCalledWith("my_connection_requests", {
       p_direction: "out",
-      p_limit: 50,
+      p_limit: 24,
+      p_offset: 0,
     });
+  });
+
+  it("skrzynka dociąga DRUGĄ stronę od offsetu równego długości pierwszej", async () => {
+    // 30 wierszy przy stronie 24: pierwsza strona pełna, `total_count` mówi, że
+    // jest więcej, więc `getNextPageParam` ma wskazać offset 24 - a nie 50,
+    // nie 0 i nie `undefined`.
+    h.rpc.mockImplementation((_fn: string, args: Record<string, unknown>) => {
+      const offset = Number(args.p_offset ?? 0);
+      const size = offset === 0 ? 24 : 6;
+      return ok(
+        Array.from({ length: size }, (_, i) => ({
+          user_id: `p-${offset + i}`,
+          total_count: 30,
+        })),
+      );
+    });
+    const client = makeClient();
+    const { result } = renderHook(() => useConnectionRequests("in"), {
+      wrapper: wrapperFor(client),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.hasNextPage).toBe(true);
+
+    await result.current.fetchNextPage();
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(h.rpc).toHaveBeenLastCalledWith("my_connection_requests", {
+      p_direction: "in",
+      p_limit: 24,
+      p_offset: 24,
+    });
+    // Druga strona domyka zbiór: 24 + 6 = 30 = total_count, więc koniec.
+    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
   });
 
   it("useNetworkCounts zwraca zera, gdy RPC nie ma jeszcze wiersza", async () => {

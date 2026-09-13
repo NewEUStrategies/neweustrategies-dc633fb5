@@ -2,10 +2,18 @@
 //
 // Łańcuch: requester -> bridge -> target. Wszystkie RPC są SECURITY DEFINER
 // i egzekwują:
-//   - tenant_id (izolacja organizacji),
+//   - tenant_id (izolacja organizacji, przechodnio przez user_connections),
 //   - relacje requester<->bridge oraz bridge<->target muszą być zaakceptowane,
-//   - target musi zezwalać na komunikację (allowConnections),
-//   - jeden aktywny request na trójkę (deduplikacja w bazie).
+//   - target musi zezwalać na komunikację: brak blokady pary, opt-in
+//     `discoverable` i `connections_allowed_from` - trzy bramki dołożone
+//     migracją 20260913171000; do tamtej pory zdanie wyżej było NIEPRAWDZIWE
+//     i osoba, która zablokowała proszącego, dostawała powiadomienie
+//     o przekazanym wprowadzeniu,
+//   - jeden aktywny request na trójkę - `introduction_requests_active_uidx`
+//     (indeks częściowy na `status = 'pending'`, ta sama migracja). Powtórne
+//     wywołanie zwraca id istniejącej prośby zamiast zakładać drugi wiersz,
+//     więc `usedBridges` w dialogu jest od teraz WYGODĄ INTERFEJSU, a nie
+//     jedyną ochroną.
 // RPC dostępne w projekcie:
 //   - request_introduction(p_bridge, p_target, p_message) -> uuid,
 //   - respond_introduction(p_id, p_action) -> void,
@@ -23,15 +31,25 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type Fns = Database["public"]["Functions"];
-// `bridge_avatar` dodane przez migrację 20260724120000; augmentujemy typ do
-// czasu regeneracji types.ts (opcjonalnie, bo wygenerowany typ jeszcze go nie
-// zna - w runtime RPC zawsze je zwraca).
-export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number] & {
-  bridge_avatar?: string;
-};
+export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number];
 
-/** Rola z perspektywy zalogowanego użytkownika. */
-export type IntroductionRole = "requester" | "bridge" | "target" | "all";
+/**
+ * Rola z perspektywy zalogowanego użytkownika. WYMAGANA i bez wartości "all".
+ *
+ * "all" było tu wartością domyślną i szło 1:1 do `p_role`, gdzie rola
+ * rozstrzyga się przez `CASE p_role WHEN 'bridge' ... ELSE FALSE END`
+ * (20260724120000:64-71) - czyli dla "all" predykat `WHERE` był FAŁSZYWY:
+ * zero wierszy, zero błędów, zero sygnału. `useMyIntroductions()` bez
+ * argumentu wyglądało jak "wszystkie moje wprowadzenia" i zwracało pustą
+ * listę. Defekt był uśpiony (wszystkie wywołania produkcyjne podają rolę
+ * jawnie), więc była to pułapka na następnego czytelnika, nie awaria.
+ *
+ * Wybrano usunięcie wartości, a nie dopisanie jej obsługi w bazie: wartość,
+ * która nigdy nie ma sensu, nie powinna dać się wpisać. Rola bez domyślnej
+ * znaczy też, że każde nowe wywołanie MUSI rozstrzygnąć, o czyje wprowadzenia
+ * pyta - a kompilator wskazuje miejsca, które tego nie zrobiły.
+ */
+export type IntroductionRole = "requester" | "bridge" | "target";
 
 /** Status wiersza introduction_requests (zgodny z CHECK w bazie). */
 export type IntroductionStatus = "pending" | "forwarded" | "declined" | "withdrawn";
@@ -46,7 +64,7 @@ const keys = {
 
 /** Lista wprowadzeń dla zalogowanego użytkownika w wybranej roli. */
 export function useMyIntroductions(
-  role: IntroductionRole = "all",
+  role: IntroductionRole,
 ): UseQueryResult<ReadonlyArray<IntroductionRow>> {
   const { user } = useAuth();
   return useQuery({

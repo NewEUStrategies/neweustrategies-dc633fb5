@@ -43,6 +43,7 @@ import { formatDate } from "@/lib/i18n/format";
 import { confirmDialog } from "@/lib/appDialogs";
 import { toast } from "sonner";
 import "@/lib/i18n-network";
+import { recommendationAnchorId } from "@/lib/network/anchors";
 
 interface Props {
   recipientId: string;
@@ -160,7 +161,11 @@ function RecommendationCard({
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
   return (
-    <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    // Kotwica `r-<id>-<status>` z producenta powiadomień (20260812101000:216).
+    <article
+      id={recommendationAnchorId(rec.id, rec.status)}
+      className="scroll-mt-24 rounded-xl border border-border bg-card p-5 shadow-sm"
+    >
       <div className="flex items-start gap-3">
         {rec.author_avatar ? (
           <img
@@ -215,7 +220,10 @@ function PendingRow({
   const respond = useRespondRecommendation();
   const errorMessage = useRpcErrorMessage();
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border bg-background/60 p-3 sm:flex-row sm:items-start">
+    <li
+      id={recommendationAnchorId(rec.id, rec.status)}
+      className="flex scroll-mt-24 flex-col gap-2 rounded-lg border border-border bg-background/60 p-3 sm:flex-row sm:items-start"
+    >
       <div className="flex-1">
         <div className="text-sm font-medium">{rec.author_name}</div>
         {rec.relationship && (
