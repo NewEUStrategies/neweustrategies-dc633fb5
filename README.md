@@ -34,15 +34,15 @@ z dwujęzycznym interfejsem (polski i angielski) i pełną izolacją danych mię
 | Wymiar                                 | Stan                                   |
 | -------------------------------------- | -------------------------------------- |
 | Moduły domenowe                        | **22** oraz 3 powierzchnie przekrojowe |
-| Udokumentowane funkcjonalności         | **146**                                |
-| Pliki kodu produkcyjnego               | **3 534** (747 034 linii)              |
+| Udokumentowane funkcjonalności         | **173**                                |
+| Pliki kodu produkcyjnego               | **3 534** (743 500 linii)              |
 | Pliki testowe                          | **2 545**                              |
 | Testy warstwy danych (pgTAP)           | 104 pliki, 1 973 asercje               |
-| Testy ścieżek użytkownika (Playwright) | 13 plików, 108 testów                  |
+| Testy ścieżek użytkownika (Playwright) | 17 plików, 129 testów (4 konfiguracje) |
 | Bramki jakości w CI (`check:*`)        | **44**                                 |
 | Progi pokrycia per ścieżka             | **694**                                |
 | Migracje bazy danych                   | 958                                    |
-| Polityki RLS w stanie końcowym         | 634 na 261 tabelach                    |
+| Polityki RLS w stanie końcowym         | 634 na 262 tabelach                    |
 
 Liczniki plików, testów, migracji i polityk odzwierciedlają stan repozytorium na 2026-09-12.
 Podział na moduły i funkcjonalności oraz wskaźniki pokrycia pochodzą z pomiaru audytowego
@@ -244,15 +244,15 @@ interface (Polish and English) and data isolation enforced between workspaces.
 | Dimension                       | State                                |
 | ------------------------------- | ------------------------------------ |
 | Domain modules                  | **22** plus 3 cross-cutting surfaces |
-| Documented functionalities      | **146**                              |
-| Production source files         | **3,534** (747,034 lines)            |
+| Documented functionalities      | **173**                              |
+| Production source files         | **3,534** (743,500 lines)            |
 | Test files                      | **2,545**                            |
 | Data-layer tests (pgTAP)        | 104 files, 1,973 assertions          |
-| User-journey tests (Playwright) | 13 files, 108 tests                  |
+| User-journey tests (Playwright) | 17 files, 129 tests (4 configs)      |
 | Quality gates in CI (`check:*`) | **44**                               |
 | Per-path coverage thresholds    | **694**                              |
 | Database migrations             | 958                                  |
-| RLS policies in final state     | 634 across 261 tables                |
+| RLS policies in final state     | 634 across 262 tables                |
 
 File, test, migration and policy counts reflect the state of the repository as of 2026-09-12.
 The module and functionality breakdown and the coverage figures come from the audit measurement

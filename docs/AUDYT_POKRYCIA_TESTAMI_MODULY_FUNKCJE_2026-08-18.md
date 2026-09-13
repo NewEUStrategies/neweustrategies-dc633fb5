@@ -6555,8 +6555,9 @@ jedna w `first-visit.yml`**, a meta-bramka `check:gate-coverage` czyta wszystkie
 **Dwie rzeczy w tej tabeli są ważniejsze od reszty.** Pierwsza: **suita rośnie wolniej niż kod.**
 Kod produkcyjny urósł o 5,8% linii, testy o 3,8%. Przy takim tempie różnica kumuluje się w tygodniach,
 nie miesiącach - i to jest mechanizm, który w tej serii już raz doprowadził do spadku pokrycia o kilka
-punktów. Druga: **warstwa ścieżek użytkownika stoi w miejscu od trzech wydań** - 13 plików e2e i 80 testów,
-bez ruchu, przy 199 trasach panelu administracyjnego i 148 publicznych.
+punktów. Druga: **warstwa ścieżek użytkownika stoi w miejscu od trzech wydań** - 13 plików e2e
+i **108 testów** (`playwright test --list`; liczbę 80, którą podałem wcześniej ze skanu treści plików,
+prostuję w rozdz. 15.13), bez ruchu, przy 199 trasach panelu administracyjnego i 148 publicznych.
 
 ### 15.3. Co przyszło w tym oknie - trzy zmiany architektoniczne
 
@@ -6569,7 +6570,7 @@ usunięcia; wracam do nich w 15.7.
 
 **Doszedł drugi pas migracji.** Katalog `drizzle/` z konfiguracją wskazującą na `LOVABLE_DB_MIGRATION_URL`
 (`drizzle.config.ts:8`) i sześcioma plikami SQL. To jest źródło najpoważniejszego znaleziska tego
-wydania - rozdział 15.6.
+wydania - znalezisko Z1 w rozdz. 15.7.
 
 **Panel administracyjny dostał nowy pulpit.** PR #353 dołożył `src/components/admin/dashboard/`
 (14 plików) i `src/lib/admin/dashboard/` (7 plików) plus agregaty po stronie bazy
@@ -6586,35 +6587,46 @@ policzony tą samą funkcją `classifyPath`, której używa bramka.
 |   # | Moduł                                                 | Pliki prod. |   Linie | Pliki testowe | Trasy |
 | --: | ----------------------------------------------------- | ----------: | ------: | ------------: | ----: |
 |   1 | Wpisy: doświadczenie czytelnika                       |         106 |  13 896 |            42 |    10 |
-|   2 | Edytor wpisów i workflow redakcyjny                   |         103 |  14 771 |            81 |     6 |
-|   3 | Silniki treści: bloki + page builder                  |         474 | 117 228 |           375 |     9 |
+|   2 | Edytor wpisów i workflow redakcyjny                   |         103 |  14 771 |            81 |     8 |
+|   3 | Silniki treści: bloki + page builder                  |         474 | 117 228 |           375 |     0 |
 |   4 | Strony, wygląd, motyw, media, import                  |         137 |  17 852 |            70 |    22 |
-|   5 | Strona główna, archiwa, chrome                        |          65 |  10 186 |            29 |     9 |
-|   6 | Wyszukiwarka                                          |          25 |   4 696 |            19 |     3 |
+|   5 | Strona główna, archiwa, chrome                        |          65 |  10 186 |            29 |     7 |
+|   6 | Wyszukiwarka                                          |          25 |   4 696 |            19 |     1 |
 |   7 | Typy treści specjalne                                 |         110 |  25 151 |            79 |    39 |
 |   8 | SEO, feedy, dane strukturalne                         |          78 |  11 133 |            69 |    13 |
-|   9 | Czat / komunikator                                    |          86 |  16 285 |            64 |     4 |
-|  10 | Sieć / networking                                     |          32 |   5 206 |            23 |     5 |
+|   9 | Czat / komunikator                                    |          86 |  16 285 |            64 |     2 |
+|  10 | Sieć / networking                                     |          32 |   5 206 |            23 |     2 |
 |  11 | Newsletter i e-mail                                   |         153 |  30 176 |           110 |    34 |
 |  12 | Realtime / powiadomienia / web-push                   |          31 |   5 623 |            36 |     2 |
 |  13 | Monetyzacja: checkout / subskrypcje / billing         |         197 |  30 001 |           136 |    18 |
-|  14 | Monetyzacja: kupony / darowizny / prezenty / reklamy  |          44 |   6 408 |            27 |     4 |
+|  14 | Monetyzacja: kupony / darowizny / prezenty / reklamy  |          44 |   6 408 |            27 |    10 |
 |  15 | Profil i konto                                        |         100 |  20 630 |            67 |    26 |
 |  16 | Społeczność: kluby, komentarze, moderacja             |         308 |  59 462 |           222 |    33 |
 |  17 | Analityka i BI                                        |         129 |  51 524 |           112 |    11 |
-|  18 | CRM                                                   |          62 |  16 803 |            33 |     9 |
+|  18 | CRM                                                   |          62 |  16 803 |            33 |     8 |
 |  19 | Ustawienia / integracje / users / multi-tenant / RODO |         147 |  28 484 |            61 |    28 |
 |  20 | Platforma / backend / infrastruktura / SSR            |         245 |  74 134 |           420 |    32 |
-|  21 | Rekrutacja / kariera                                  |          30 |   5 351 |            20 |     6 |
+|  21 | Rekrutacja / kariera                                  |          30 |   5 351 |            20 |     4 |
 |  22 | Wydarzenia: event builder, rejestracja, onsite        |         364 |  68 287 |           274 |    69 |
 |   X | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |         256 |  38 743 |           153 |     - |
 |   X | PRZEKROJOWE: słowniki i18n                            |         149 |  60 307 |             6 |     - |
 |   X | PRZEKROJOWE: design system (`components/ui`)          |          45 |   4 792 |             2 |     - |
 |   - | poza taksonomią                                       |          58 |   9 905 |            15 |     - |
 
-Trasy dzielą się tak: **199 panelu administracyjnego, 148 publicznych, 20 endpointów API,
-6 operacyjnych platformy, 5 integracji, 1 układ główny.** Największym modułem tras są wydarzenia (69),
-potem typy treści specjalne (39), newsletter (34) i społeczność (33).
+Trasy dzielą się tak: **199 panelu administracyjnego, 144 publiczne, 22 endpointy API,
+7 integracji, 6 operacyjnych platformy, 1 układ główny** - razem 379.
+
+> **Kolumna „Trasy" przeliczona i poprawiona (wydanie 11, poprawka po dokończeniu pracy agentów).**
+> Pierwsza wersja tej kolumny sumowała się do **392**, choć nagłówek rozdziału - poprawnie - mówi **379**.
+> Dziewięć komórek było błędnych, bo powstały z dopasowania nazw tras do nazw modułów, a nie z funkcji
+> `classifyPath`, której używa bramka. Najostrzejszy przypadek: modułowi 3 przypisano dziewięć tras, choć
+> w jego regułach nie ma ani jednego wzorca `^src/routes/` - taksonomia fizycznie nie jest w stanie
+> przypisać mu trasy, więc poprawna wartość to **0**. Odwrotnie moduł 14: było 4, jest **10** (panel reklam,
+> pięć tras kuponów, darowizny, prezenty, endpoint zdarzeń reklamowych i strona wsparcia). Kolumna sumuje się
+> dziś do 379, czyli do liczby plików tras w repozytorium. **42 z tych 379 tras nie wykonały w pomiarze ani
+> jednej linii** (652 linie), najwięcej w module 1 (8) i module 20 (9).
+> Największym modułem tras są wydarzenia (69),
+> potem typy treści specjalne (39), newsletter (34) i społeczność (33).
 
 **Największy pojedynczy problem tej tabeli nie jest w kolumnie z liczbami, tylko w przedostatnim wierszu.**
 Powierzchnia „PRZEKROJOWE: powłoka panelu admin + atomy/molekuły" ma 256 plików i 38 743 linie,
@@ -7577,3 +7589,82 @@ Wydanie 11 nie jest wyłącznie pomiarem - trzy rzeczy zostały naprawione w tra
 3. **Dwa własne błędy pomiarowe sprostowane w tekście** (bramka `check:first-visit-regression` jest
    wpięta; liczba testów e2e to 108, nie 80) - oba wyszły z pracy agentów weryfikujących i oba
    zostały zapisane, zamiast po cichu poprawione.
+
+### 15.14. Domknięcie wydania 11: co wyszło z dokończenia pracy agentów
+
+Praca agentów mapujących i mierzących przerwała się na limicie sesji. Dokończyłem ją ręcznie
+i osobnymi skryptami; poniżej wyłącznie to, czego w rozdziałach 15.1-15.13 nie było, każde z dowodem.
+
+#### 15.14.1. Cztery martwe progi pokrycia - po migracji z ECharts
+
+`vitest.config.ts` trzyma progi per-ścieżka dla czterech plików, **których w repozytorium już nie ma**:
+`src/components/admin/analytics/EChart.tsx`, `EChartClient.tsx`, `chartTheme.ts` i `ChartDataTable.tsx`.
+Zniknęły razem z drugim silnikiem wykresów (rozdz. 15.3); progi zostały. Próg na nieistniejący plik nie
+pilnuje niczego i nie zapala się nigdy - podnosi tylko deklarowaną liczbę progów. **Realnych progów jest
+690, nie 694.** Sprawdzenie: dopasowanie każdego z 694 kluczy `picomatch` (tą samą biblioteką, której
+używa vitest) do drzewa `src/` - cztery klucze nie łapią ani jednego pliku, pozostałe 690 łapią razem
+2 165 z 3 424 plików w pomiarze (63,2%).
+
+Przy okazji prostuję własną pomyłkę metodologiczną, złapaną przed publikacją: pierwsza wersja tego skryptu
+wołała `wszystkie.filter(dopasuj)`, a `Array.filter` podaje indeks jako drugi argument - picomatch traktuje
+go jako `returnState` i zwraca wtedy **obiekt** zamiast wartości logicznej. Obiekt jest zawsze prawdziwy,
+więc wynik brzmiał „każdy próg obejmuje wszystkie 3 424 pliki, pokrycie progami 100%". Jedno wywołanie
+w postaci `filter((f) => dopasuj(f))` przywraca 63,2%.
+
+#### 15.14.2. Sześć modułów logiki bramek, których nie uruchamia żadna bramka
+
+`src/lib/ci/` ma 40 modułów z regułami, które bramki `check:*` mają egzekwować. **Sześć z nich nie ma
+ani jednego konsumenta poza własnym testem jednostkowym**: `ftsConfigSymmetry` (802 wiersze),
+`serviceRoleTenantScope` (309), `sourceScan` (159), `staticAssetShadowing` (142),
+`profileDomainParity` (123) i `i18nForms` (54). Ich reguły są przetestowane - i nie są egzekwowane:
+żaden skrypt w `scripts/` i żaden plik w `src/` poza `__tests__` nie wymienia ich nazwy.
+
+To jest gorszy tryb awarii niż brak testu, bo **pokrycie takiego modułu wygląda wzorowo**. Najpoważniejszy
+z szóstki jest `serviceRoleTenantScope`: audytuje, czy kwerendy roli serwisowej filtrują po najemcy -
+czyli dokładnie tę regułę, której złamanie dało w wydaniu 7 uprząż `tenant-isolation-harness`.
+
+#### 15.14.3. Warstwa ścieżek użytkownika jest o połowę większa, niż podawałem - i prostuję to drugi raz
+
+Playwright ma w tym repozytorium **cztery konfiguracje**, nie jedną:
+
+| Konfiguracja                       | Katalog            | Pliki | Testy | Uruchamiana w CI                                 |
+| ---------------------------------- | ------------------ | ----: | ----: | ------------------------------------------------ |
+| `playwright.config.ts`             | `e2e/` bez boot-*  |    10 |   101 | `e2e.yml:55` (`test:e2e`)                        |
+| `playwright.artifact.config.ts`    | `e2e/boot-*`       |     3 |     7 | `ci.yml:1054` (`test:e2e:artifact`)              |
+| `playwright.performance.config.ts` | `e2e-performance/` |     3 |    20 | `first-visit.yml:55,85`                          |
+| `playwright.ab.config.ts`          | `e2e-ab/`          |     1 |     1 | **nigdzie** - tylko `scripts/measure-boot-ab.ts` |
+
+Razem **129 testów w 17 plikach**, z czego **128 w 16 plikach biegnie w CI**, a jeden plik uruchamia
+wyłącznie człowiek, ręcznie. Liczbę podawałem w tym wydaniu dwa razy i dwa razy źle: najpierw 80 (skan
+treści plików nie widzi testów generowanych w pętli), potem 108 (`playwright test --list` bez `--config`
+widzi tylko konfigurację domyślną i artefaktową). Poprawnie liczy się to czterema wywołaniami `--list`,
+po jednym na konfigurację. Ocena warstwy nie zmienia się: 129 testów na 199 tras panelu i 144 publiczne
+to nadal najcieńsza warstwa dowodu w tym repozytorium.
+
+#### 15.14.4. Wiersze kodu produkcyjnego: 743 500, nie 747 034
+
+Licznik tej serii liczył wiersze przez `split("\n").length`, co dolicza **pusty ogon po ostatnim znaku
+nowej linii**. Wszystkie 3 534 pliki produkcyjne kończą się znakiem nowej linii, więc zawyżenie wynosiło
+dokładnie 1 wiersz na plik: **747 034 − 3 534 = 743 500**, i tyle raportuje `wc -l`. Wierszy niepustych
+jest 703 111. Trendy między wydaniami nie zmieniają się (ten sam licznik po obu stronach), ale liczba
+bezwzględna była o 0,47% za duża i tak ją prostuję w `README.md` i w tym dokumencie.
+
+#### 15.14.5. Trzeci łapacz w powierzchni przekrojowej - moje zdanie z 15.4 było niepełne
+
+Rozdział 15.4 mówi, że 183 pliki wpadają do kubełka „powłoka panelu admin + atomy/molekuły" z **dwóch**
+łapaczy: `^src/components/` i `^src/hooks/`. Przeliczenie regułą po regule (pierwsza pasująca wygrywa)
+pokazuje, że te dwa biorą **60 plików / 10 097 wierszy**, a większość - **123 pliki / 20 879 wierszy** -
+bierze **trzeci, nienazwany przeze mnie łapacz `^src/components/admin/`**. Wniosek merytoryczny zostaje
+bez zmian (etykieta kubełka nie opisuje jego zawartości), ale przyczyna jest inna, niż napisałem,
+a przy naprawie reguł to właśnie ten trzeci wzorzec trzeba rozbić.
+
+Przy tej samej okazji: wzorzec `^src/lib/(features|hooks)/` w `CROSS_CUTTING` **nie łapie ani jednego
+pliku** - `src/lib/features/` zabiera wcześniej moduł 19 (ma ten sam wzorzec), a katalogu `src/lib/hooks/`
+w repozytorium nie ma. To martwa reguła w mapie, która sama jest bramkowana.
+
+#### 15.14.6. Wiersz „poza taksonomią" to w całości harness testowy
+
+58 plików i 9 905 wierszy stojących poza mapą modułów **leży w całości pod `src/test/`**. To nie jest kod
+produktu, który wypadł z taksonomii - to infrastruktura testów policzona w kolumnie plików produkcyjnych,
+bo nie ma w nazwie `.test.` ani `.spec.`. Uczciwa liczba plików produktu to więc **3 476**, a 58 plików
+harnessu warto w kolejnym wydaniu przenieść do licznika testów.
