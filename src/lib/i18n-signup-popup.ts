@@ -13,6 +13,13 @@ const pl = {
     // dwujęzycznym tekstem w kodzie (bramka `check:i18n-hardcoded` nie widzi
     // małego `t`, żeby nie łapać prawdziwego i18next).
     errors: {
+      invalidCredentials: "Niepoprawny adres e-mail lub hasło.",
+      emailNotConfirmed: "Potwierdź adres e-mail linkiem z wiadomości, zanim się zalogujesz.",
+      emailInUse: "Ten adres jest już zarejestrowany. Zaloguj się lub zresetuj hasło.",
+      weakPassword: "Hasło nie spełnia wymagań bezpieczeństwa. Wybierz silniejsze hasło.",
+      invalidInput: "Sprawdź poprawność wprowadzonych danych.",
+      unavailable: "Nie udało się wykonać operacji. Spróbuj ponownie za chwilę.",
+      tooFast: "Formularz wysłano zbyt szybko. Spróbuj ponownie za chwilę.",
       invalidEmail: "Niepoprawny adres e-mail.",
       passwordMismatch: "Hasła nie są identyczne.",
       privacyRequired: "Wymagana akceptacja Polityki prywatności.",
@@ -35,6 +42,8 @@ const pl = {
     chooseList: "Wybierz listę",
     creatingAccount: "Tworzę konto…",
     success: {
+      newsletterFailed:
+        "Konto zostało utworzone, ale zapis do newslettera nie powiódł się. Możesz ponowić zapis po potwierdzeniu konta.",
       title: "Dane zostały wysłane!",
       body: "Teraz potwierdź rejestrację konta w wiadomości e-mail - kliknij link aktywacyjny, który wysłaliśmy na adres:",
       spamHint: "Nie widzisz wiadomości? Sprawdź folder Spam lub Oferty.",
@@ -55,6 +64,14 @@ const en = {
     slide: "Slide",
     next: "Next frame",
     errors: {
+      invalidCredentials: "Invalid email address or password.",
+      emailNotConfirmed: "Confirm your email using the link in your inbox before signing in.",
+      emailInUse: "This email is already registered. Sign in or reset your password.",
+      weakPassword:
+        "The password does not meet the security requirements. Choose a stronger password.",
+      invalidInput: "Check the information you entered.",
+      unavailable: "The operation could not be completed. Please try again shortly.",
+      tooFast: "The form was submitted too quickly. Please try again shortly.",
       invalidEmail: "Invalid e-mail address.",
       passwordMismatch: "Passwords do not match.",
       privacyRequired: "Please accept the Privacy Policy.",
@@ -75,6 +92,8 @@ const en = {
     chooseList: "Choose a list",
     creatingAccount: "Creating account…",
     success: {
+      newsletterFailed:
+        "Your account was created, but the newsletter subscription failed. You can subscribe again after confirming your account.",
       title: "Your details were sent!",
       body: "Now confirm your registration by e-mail - click the activation link we sent to:",
       spamHint: "Can't find the message? Check your Spam or Promotions folder.",

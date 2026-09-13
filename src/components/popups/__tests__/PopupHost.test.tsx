@@ -613,3 +613,26 @@ describe("język", () => {
     }
   });
 });
+
+describe("PopupHost: modal lifecycle regressions", () => {
+  it("locks background scrolling and restores it on close", async () => {
+    const previous = document.body.style.overflow;
+    await mountAndFire();
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.body.style.overflow).toBe(previous);
+  });
+  it("releases an already granted slot when unmounted", async () => {
+    const view = await mountAndFire();
+    expect(env.released).toBe(0);
+    view.unmount();
+    expect(env.released).toBe(1);
+  });
+  it("closes an open popup when navigation leaves the page", async () => {
+    const view = await mountAndFire();
+    env.pathname = "/login";
+    view.rerender(<PopupHost />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(env.released).toBe(1);
+  });
+});
