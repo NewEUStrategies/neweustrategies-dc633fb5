@@ -27,18 +27,31 @@ interface FakeState {
   /** Wiadomości per kolejka. */
   queues: Record<string, QueueRow[]>;
   /**
-   * Wiersze email_send_log. `tenant_id` jest tu OPCJONALNY, a nie `| null`,
-   * i to rozróżnienie jest load-bearing: kolumna jest NOT NULL, a trigger bazy
-   * dopina najemcę wyłącznie wtedy, gdy nadawca POMINĄŁ klucz. Atrapa musi więc
-   * umieć odróżnić „pominięty" od „jawny null", inaczej asercja o pominięciu
-   * przechodzi wtedy, gdy kod produkcyjny wysyła null - czyli dokładnie
-   * w przypadku, który wywróciłby INSERT.
+   * Wiersze email_send_log. `tenant_id` jest `string | null` - tak samo, jak
+   * wymagane pole w kontrakcie `logSend`, które atrapa odwzorowuje.
+   *
+   * Stało tu wcześniej `?: string` z uzasadnieniem, że rozróżnienie
+   * „pominięty" kontra „jawny null" jest load-bearing, bo kolumna jest NOT NULL,
+   * a trigger dopina najemcę wyłącznie przy pominiętym kluczu. ZMIERZONE - oba
+   * zdania są nieprawdziwe:
+   *
+   *  - 20260913101000:33 zakłada kolumnę jako `uuid REFERENCES public.tenants(id)
+   *    ON DELETE CASCADE`, BEZ `NOT NULL`. Nagłówek 20260913140000 mówi to
+   *    zresztą wprost: „Wiersze, których kaskada nie rozstrzygnie, zostają
+   *    z NULL-em - świadomie". Jawny null nie ma czego wywrócić.
+   *  - `tg_email_send_log_bind_tenant` (20260913140000:145) warunkuje się na
+   *    `NEW.tenant_id IS NULL`, a to jest prawda ZARÓWNO dla pominiętego klucza
+   *    (kolumna bierze DEFAULT, czyli NULL), JAK I dla jawnego null-a. Trigger
+   *    tych dwóch przypadków nie umie odróżnić i nie taka jest jego rola.
+   *
+   * Rozróżnienie, którego pilnowała stara atrapa, po prostu nie istnieje w SQL-u
+   * - a typ, który je udawał, kazał testom asertować kontrakt nieobecny w kodzie.
    */
   log: {
     message_id: string | null;
     status: string;
     error_message: string | null;
-    tenant_id?: string;
+    tenant_id: string | null;
   }[];
   /** Aktywne blokady: adres -> powód. */
   suppressed: Record<string, string>;
@@ -99,7 +112,10 @@ function fakeClient(state: FakeState) {
             message_id: (row.message_id as string) ?? null,
             status: row.status as string,
             error_message: (row.error_message as string) ?? null,
-            tenant_id: row.tenant_id as string | undefined,
+            // WIERNIE, bez `?? null`: normalizacja zatarłaby pominięty klucz
+            // i asercja „każdy wiersz niesie kolumnę" niżej nie miałaby czego
+            // złapać. Produkcyjny `logSend` zawsze pisze klucz wprost.
+            tenant_id: row.tenant_id as string | null,
           });
           return { error: null };
         },
@@ -292,7 +308,11 @@ describe("drainEmailQueues - ochrona przed podwójną wysyłką", () => {
   it("usuwa z kolejki wiadomość, która ma już wiersz 'sent'", async () => {
     const state = makeState({
       queues: { transactional_emails: [txMessage()] },
-      log: [{ message_id: "msg-1", status: "sent", error_message: null }],
+      // `tenant_id: null` bo ten przypadek nie jest o najemcy: wiersz istnieje
+      // po to, żeby dren rozpoznał duplikat, a ścieżka duplikatu tej kolumny
+      // nie czyta. Typ wymaga jej podania WPROST i o to chodzi - żeby kolumna
+      // nie znikała z atrapy przez przeoczenie.
+      log: [{ message_id: "msg-1", status: "sent", error_message: null, tenant_id: null }],
     });
     const result = await drainEmailQueues(fakeClient(state), {});
 
@@ -323,6 +343,7 @@ describe("drainEmailQueues - czas życia i budżet ponowień", () => {
         message_id: "msg-1",
         status: "failed",
         error_message: "boom",
+        tenant_id: null,
       })),
     });
     const result = await drainEmailQueues(fakeClient(state), {});
@@ -498,17 +519,31 @@ describe("drainEmailQueues - najemca w dzienniku wysyłek", () => {
     expect(state.log.at(-1)).toMatchObject({ status: "dlq", tenant_id: TENANT_Z_LADUNKU });
   });
 
-  it("zepsuty tenant w ładunku NIE dojeżdża do wiersza DLQ - klucz zostaje pominięty", async () => {
-    // `payloadTenantId` nadal rządzi: wartość, która nie jest UUID-em, nie ma
-    // prawa trafić do kolumny uuid. Pominięty klucz oddaje decyzję triggerowi
-    // bazy, który dopnie najemcę z adresu - jawny `null` wywróciłby INSERT.
+  it("zepsuty tenant w ładunku NIE dojeżdża do wiersza DLQ - zostaje jawny null", async () => {
+    // To jest przypadek o `payloadTenantId`: wartość, która nie jest UUID-em, nie
+    // ma prawa trafić do kolumny `uuid`, bo wywróciłaby INSERT (22P02) i wiersz
+    // DLQ przepadłby razem z przyczyną wywózki.
+    //
+    // Filtr oddaje `null`, a `logSend` pisze go WPROST - i tak ma być. `null`
+    // nie jest tu przeoczeniem, tylko WEJŚCIEM do triggera
+    // `tg_email_send_log_bind_tenant` (20260913140000), który jest BEFORE INSERT
+    // i odpala się dokładnie na `NEW.tenant_id IS NULL`, dopinając najemcę po
+    // adresie odbiorcy. Dlatego kontrakt `logSend` ma `tenantId: string | null`
+    // jako pole WYMAGANE: pominięty klucz dałby ten sam wiersz, ale zależałby od
+    // tego, czy klient Supabase serializuje `undefined`.
     const state = makeState({
       queues: { transactional_emails: [txMessage({ subject: "", tenant_id: "nie-uuid" })] },
     });
     await drainEmailQueues(fakeClient(state), {});
 
     expect(state.log.at(-1)?.status).toBe("dlq");
-    expect(state.log.at(-1)?.tenant_id).toBeUndefined();
+    expect(state.log.at(-1)).toHaveProperty("tenant_id", null);
+    // Sedno: śmieć z ładunku nie przeciekł do kolumny pod żadną postacią.
+    expect(state.log.at(-1)?.tenant_id).not.toBe("nie-uuid");
+    // Kontrakt `logSend`: `tenantId` jest polem WYMAGANYM właśnie po to, żeby
+    // kolejna ścieżka wyniku nie mogła pominąć kolumny po cichu. Atrapa zapisuje
+    // wiernie, więc pominięcie dałoby tu `undefined` i ta asercja by je złapała.
+    expect(state.log.every((r) => "tenant_id" in r)).toBe(true);
   });
 
   it("wywózka do DLQ po TRWAŁYM błędzie dostawcy niesie najemcę z bramki", async () => {
