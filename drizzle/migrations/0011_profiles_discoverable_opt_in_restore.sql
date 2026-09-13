@@ -32,6 +32,15 @@
 -- do danych: hurtowy `UPDATE` w drugą stronę wyłączyłby z katalogu także tych,
 -- którzy włączyli się sami, czyli powtórzyłby ten sam błąd lustrzanie.
 --
+-- DLACZEGO ZNACZNIK CZASU JEST PÓŹNIEJSZY NIŻ WYDANIE #354, a nie wcześniejszy.
+-- Ścieżka wdrożenia (scripts/migrate-with-preflight.sh:8) woła `supabase db push`
+-- BEZ `--include-all` - w całym repozytorium nie ma ani jednego wywołania z tą
+-- flagą. Zwykły przyrostowy push POMIJA wersję starszą od tych, które zdalna
+-- historia migracji już zna. Ta migracja stała pierwotnie na 20260913090000,
+-- czyli PRZED 20260913100000/101000/140000 z wydania #354 - a ponieważ tamte są
+-- już wdrożone, przywrócenie domyślnej prywatności nigdy nie pojechałoby na
+-- istniejące środowiska. Numer musi zostać za nimi.
+--
 -- Bliźniak dla pipeline Drizzle:
 -- drizzle/migrations/0011_profiles_discoverable_opt_in_restore.sql - bajt w bajt,
 -- pilnuje tego src/lib/ci/__tests__/migrationLaneParity.test.ts.

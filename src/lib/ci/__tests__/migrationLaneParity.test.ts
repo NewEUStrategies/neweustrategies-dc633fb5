@@ -167,7 +167,7 @@ describe("rejestr kontra stan faktyczny", () => {
     );
     expect(entry).toBeDefined();
     expect(entry && "twin" in entry ? entry.twin : null).toBe(
-      "20260913090000_profiles_discoverable_opt_in_restore.sql",
+      "20260913150000_profiles_discoverable_opt_in_restore.sql",
     );
     // Pełna lista tagów, nie sam 0006: rejestr sprawdza też wpisy bez pliku,
     // więc skan jednego tagu zgłosiłby pozostałe sześć jako martwe wpisy.

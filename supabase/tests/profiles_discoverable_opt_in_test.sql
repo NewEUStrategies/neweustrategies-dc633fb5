@@ -1,7 +1,7 @@
 -- pgTAP: profiles.discoverable jest zgodą wyrażoną WPROST - konto, które nigdy
 -- nie zdecydowało, zostaje niewidoczne.
 --
--- Weryfikuje migrację 20260913090000_profiles_discoverable_opt_in_restore.sql.
+-- Weryfikuje migrację 20260913150000_profiles_discoverable_opt_in_restore.sql.
 --
 -- PO CO TO STOI. Regresja, którą ten test zamyka, przeszła DRUGIM pasem migracji:
 -- drizzle/migrations/0001_profiles_discoverable_default_true.sql przestawiło

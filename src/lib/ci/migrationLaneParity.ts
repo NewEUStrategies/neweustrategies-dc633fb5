@@ -112,7 +112,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
   {
     tag: "0011_profiles_discoverable_opt_in_restore",
-    twin: "20260913090000_profiles_discoverable_opt_in_restore.sql",
+    twin: "20260913150000_profiles_discoverable_opt_in_restore.sql",
   },
 ];
 
