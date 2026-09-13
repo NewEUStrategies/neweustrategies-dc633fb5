@@ -283,6 +283,59 @@ describe("literały", () => {
   });
 });
 
+// Bramka, którą omija się jednym `.concat(...)`, daje FAŁSZYWE poczucie
+// pokrycia: raport pokazuje „literal", a do sinka leci dowolny HTML. Dlatego
+// literał liczy się TYLKO wtedy, gdy jest CAŁYM wyrażeniem.
+describe("23. prefiks literału NIE JEST literałem", () => {
+  function sink(wyrazenie: string) {
+    return scan(
+      source(
+        "src/components/Prefiks.tsx",
+        "export const Prefiks = ({ userHtml, n }: Props) => (",
+        `  <div dangerouslySetInnerHTML={{ __html: ${wyrazenie} }} />`,
+        ");",
+      ),
+    );
+  }
+
+  it('`"prefix".concat(userHtml)` OBLEWA - zacytowany token to nie całość', () => {
+    const report = sink('"prefix".concat(userHtml)');
+    expect(report.stats.literal).toBe(0);
+    expect(report.violations).toHaveLength(1);
+    expect(report.violations[0].expression).toBe('"prefix".concat(userHtml)');
+  });
+
+  it('`"a" + userHtml` OBLEWA nadal - konkatenacja rozbija się przed literałem', () => {
+    const report = sink('"a" + userHtml');
+    expect(report.stats.literal).toBe(0);
+    expect(report.violations).toHaveLength(1);
+  });
+
+  it("literał z zaescape'owanym cudzysłowem W ŚRODKU zostaje literałem", () => {
+    const report = sink('"<b class=\\"x\\">•</b>"');
+    expect(report.violations).toEqual([]);
+    expect(report.stats.literal).toBe(1);
+  });
+
+  it("backtick z doklejonym `.repeat(n)` OBLEWA - koniec literału to nie koniec wyrażenia", () => {
+    const report = sink("`<hr/>`.repeat(n)");
+    expect(report.stats.literal).toBe(0);
+    expect(report.violations).toHaveLength(1);
+    expect(report.violations[0].expression).toBe("`<hr/>`.repeat(n)");
+  });
+
+  it("`` `safe`.concat(userHtml) `` OBLEWA - łańcuch metod na szablonie też wnosi obcą treść", () => {
+    expect(sink("`safe`.concat(userHtml)").violations).toHaveLength(1);
+  });
+
+  it("liczba z doklejonym łańcuchem OBLEWA, goła liczba zostaje literałem", () => {
+    expect(sink("5..toString().concat(userHtml)").violations).toHaveLength(1);
+    const goly = sink("0");
+    expect(goly.violations).toEqual([]);
+    expect(goly.stats.literal).toBe(1);
+  });
+});
+
 describe("maskowanie komentarzy", () => {
   it("10. plik wspominający atrybut WYŁĄCZNIE w komentarzu ma zero sinków", () => {
     const src = source(

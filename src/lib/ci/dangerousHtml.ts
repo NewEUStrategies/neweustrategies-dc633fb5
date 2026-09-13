@@ -811,15 +811,32 @@ function naruszenie(powod: string): Ocena {
   return { ok: false, status: "violation", sanitizer: null, powod };
 }
 
+/**
+ * Czy CAŁE wyrażenie jest jednym domkniętym literałem napisowym.
+ *
+ * PO CO: sam pierwszy cudzysłów NICZEGO nie dowodzi - `"prefix".concat(html)`
+ * i `` `x`.repeat(n) `` też zaczynają się od cudzysłowu, a do sinka wnoszą
+ * wartość spoza literału. Koniec napisu szukamy przez `pominNapis`, więc
+ * `\"` w środku go nie urywa; urwany literał (brak znaku zamykającego)
+ * NIE jest literałem - bramka ma wtedy oblać, a nie zgadywać.
+ */
+function calyLiteralNapisowy(expr: string): boolean {
+  const cudzyslow = expr[0];
+  if (cudzyslow !== '"' && cudzyslow !== "'" && cudzyslow !== "`") return false;
+  const koniec = pominNapis(expr, 0);
+  return koniec === expr.length && koniec > 1 && expr[koniec - 1] === cudzyslow;
+}
+
 /** Czy wyrażenie jest bezpieczną wartością skalarną (nie może wnieść `<`). */
 function bezpiecznaWartosc(text: string, ctx: Kontekst, depth: number): boolean {
   const expr = text.trim().replace(/\s+as\s+[\w<>[\]|.\s]+$/, "");
   if (expr === "") return true;
   if (/^-?\d[\d_.e+-]*$/.test(expr)) return true;
   if (/^(?:true|false|undefined|null)$/.test(expr)) return true;
-  if (/^["']/.test(expr)) return true;
-  if (expr.startsWith("`"))
-    return wstawkiSzablonu(expr).every((w) => bezpiecznaWartosc(w, ctx, depth + 1));
+  if (calyLiteralNapisowy(expr))
+    return (
+      expr[0] !== "`" || wstawkiSzablonu(expr).every((w) => bezpiecznaWartosc(w, ctx, depth + 1))
+    );
   if (depth > MAX_DEPTH) return false;
   // `useId().replace(/:/g, "")` - łańcuch metod na bezpiecznym korzeniu.
   const korzen = /^([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*\(/.exec(expr)?.[1];
@@ -903,16 +920,18 @@ function ocen(text: string, ctx: Kontekst, depth: number): Ocena {
     return zlaczOceny(konkatenacja.map((a) => ocen(a, ctx, depth + 1)));
   }
 
-  if (/^["']/.test(expr)) return LITERAL;
-
-  if (expr.startsWith("`")) {
+  if (calyLiteralNapisowy(expr)) {
     // Literał szablonowy: tekst statyczny jest bezpieczny, każda wstawka
     // przechodzi PEŁNĄ klasyfikację - to właśnie tu `${kolor}` z bazy
     // wchodzi do `<style>` i domyka element.
-    return zlaczOceny(wstawkiSzablonu(expr).map((w) => ocen(w, ctx, depth + 1)));
+    if (expr[0] === "`")
+      return zlaczOceny(wstawkiSzablonu(expr).map((w) => ocen(w, ctx, depth + 1)));
+    return LITERAL;
   }
 
-  if (/^-?\d/.test(expr) || /^(?:true|false|undefined|null)$/.test(expr)) return LITERAL;
+  // Liczba musi być CAŁYM wyrażeniem (ten sam wzorzec co w `bezpiecznaWartosc`).
+  // Sam wiodący cyfrowy znak przepuszczałby `5..toString().concat(html)`.
+  if (/^-?\d[\d_.e+-]*$/.test(expr) || /^(?:true|false|undefined|null)$/.test(expr)) return LITERAL;
 
   // Wartość, która NIE MOŻE wnieść `<` (liczba, `JSON.stringify`, `useId()`
   // z łańcuchem `.replace`), jest bezpieczna w każdym rodzaju sinka - także

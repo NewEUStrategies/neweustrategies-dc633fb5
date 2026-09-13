@@ -21,6 +21,18 @@ export interface NiceScale {
 const MAX_TICKS = 1000;
 
 /**
+ * Czy podziałki rosną ŚCIŚLE. Dwie sąsiednie podziałki równe jako `double`
+ * znaczą, że krok wypadł poniżej rozdzielczości przy tej magnitudzie - oś
+ * pokazywałaby wtedy tę samą liczbę kilka razy i kłamałaby rozstawem.
+ */
+function scisleRosnie(ticks: readonly number[]): boolean {
+  for (let i = 1; i < ticks.length; i++) {
+    if (!(ticks[i] > ticks[i - 1])) return false;
+  }
+  return true;
+}
+
+/**
  * "Ładna" skala osi wartości: rozszerza [min, max] do wielokrotności kroku
  * z progresji 1-2-5 i zwraca równe podziałki. Zawsze obejmuje 0 dla wykresów
  * słupkowych/pól (słupki rosną od zera - inaczej kłamią wysokością).
@@ -77,17 +89,26 @@ export function niceScale(rawMin: number, rawMax: number, targetTicks = 5): Nice
     // KOLIZJA SIATKI. Gdy sąsiednie podziałki są tą samą liczbą double,
     // krok jest poniżej rozdzielczości przy tej magnitudzie - i DOKŁADNIE
     // to zawieszało pętlę akumulującą (`v += step` nie przesuwało `v`).
-    // Warunek stawiamy na tych samych iloczynach, które trafią do tablicy,
-    // bo test w rodzaju `skrajna + step === skrajna` przepuszcza przypadek
-    // zaokrąglenia do parzystej i zostawia zdublowane podziałki.
-    const kolizja = (i0 + 1) * step === i0 * step || (i1 - 1) * step === i1 * step;
+    //
+    // Bramka sprawdza CAŁĄ siatkę, a nie dwie skrajne pary. Para skrajna
+    // potrafi się różnić, gdy pary ŚRODKOWE już się zlewają - wtedy oś
+    // wracała ze zdublowanymi podziałkami (np. `niceScale(1, 1 + 1 ULP, 3)`
+    // dawało pięć podziałek o trzech różnych wartościach). Liczymy dokładnie
+    // te iloczyny, które trafią do tablicy, więc bramka nie może rozminąć się
+    // z wynikiem.
+    const rozpietosc = i1 - i0;
+    const ile = Number.isFinite(rozpietosc)
+      ? Math.min(MAX_TICKS, Math.max(1, Math.round(rozpietosc)))
+      : 1;
+    const ticks: number[] = [];
+    for (let i = 0; i <= ile; i++) ticks.push(roundToStep((i0 + i) * step, step));
 
     const zdegenerowana =
       min === max ||
       !(niceMax > niceMin) ||
       !Number.isFinite(niceMin) ||
       !Number.isFinite(niceMax) ||
-      kolizja;
+      !scisleRosnie(ticks);
 
     if (zdegenerowana) {
       if (podejscie === 0) {
@@ -110,14 +131,9 @@ export function niceScale(rawMin: number, rawMax: number, targetTicks = 5): Nice
       return { min: -1, max: 1, ticks: [-1, -0.5, 0, 0.5, 1] };
     }
 
-    // ITERACJA PO INDEKSIE, NIE PO AKUMULACJI. Epsilon w warunku przestaje
-    // być potrzebny: ostatnia podziałka wypada z `i1 - i0`, a nie z tolerancji.
-    const rozpietosc = i1 - i0;
-    const ile = Number.isFinite(rozpietosc)
-      ? Math.min(MAX_TICKS, Math.max(1, Math.round(rozpietosc)))
-      : 1;
-    const ticks: number[] = [];
-    for (let i = 0; i <= ile; i++) ticks.push(roundToStep((i0 + i) * step, step));
+    // ITERACJA PO INDEKSIE, NIE PO AKUMULACJI (patrz wyżej): ostatnia
+    // podziałka wypada z `i1 - i0`, a nie z tolerancji, więc epsilon
+    // w warunku pętli przestaje być potrzebny.
     return { min: niceMin, max: niceMax, ticks };
   }
 
@@ -129,7 +145,14 @@ export function niceScale(rawMin: number, rawMax: number, targetTicks = 5): Nice
 export function niceStep(rough: number): number {
   const safe = Math.abs(rough) > 0 && Number.isFinite(rough) ? Math.abs(rough) : 1;
   const power = Math.floor(Math.log10(safe));
-  const base = Math.pow(10, power);
+  // `Number("1e" + power)`, a NIE `Math.pow(10, power)`. `Math.pow` jest
+  // w ECMA-262 zależne od implementacji i potrafi różnić się o JEDEN ULP
+  // między silnikami: `Math.pow(10, -17)` daje 9.999999999999999e-18 na
+  // Node 22 i 1e-17 na Node 24. Ten jeden bit zmieniał krok, a przez to
+  // rozstaw siatki - test przechodził lokalnie i padał na runnerze CI.
+  // Konwersja literału dziesiętnego jest poprawnie zaokrąglana przez
+  // specyfikację, więc wynik jest ten sam wszędzie.
+  const base = Number(`1e${power}`);
   // Dla argumentu subnormalnego (np. 5e-324) `power` wychodzi -324, a
   // `Math.pow(10, -324)` PODPŁYWA DO ZERA: `fraction` robi się
   // nieskończonością, a krok - zerem. Zero kroku dawało `Math.floor(min / 0)`,

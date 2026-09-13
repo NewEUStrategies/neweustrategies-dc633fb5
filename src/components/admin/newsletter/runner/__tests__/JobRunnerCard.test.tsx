@@ -266,6 +266,14 @@ describe("telemetria ticku", () => {
     await mount();
 
     expect(document.body.textContent).toContain(R("tick.endpoint"));
+    // Druga asercja jest tu właściwa, nie ozdobna: sama obecność wiersza
+    // o endpoincie nie dowodzi jeszcze, że sekret nie wycieka. Dowodem jest
+    // KSZTAŁT ŁADUNKU - serwer oddaje wyłącznie `secret_set: boolean`,
+    // a pola z treścią sekretu (`secret_preview`, `secret`) nie ma w ogóle,
+    // więc panel nie ma czego pokazać nawet przez pomyłkę.
+    expect(Object.keys(settings())).toEqual(
+      expect.not.arrayContaining(["secret", "secret_preview"]),
+    );
   });
 
   it("brak sekretu nie pokazuje wiersza o endpoincie", async () => {

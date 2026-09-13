@@ -25,6 +25,28 @@ describe("niceStep", () => {
     expect(niceStep(230)).toBe(500);
   });
 
+  it("krok nie zależy od ULP-a `Math.pow` - ten sam wynik na każdym silniku", () => {
+    // `Math.pow` jest w ECMA-262 zależne od implementacji: `Math.pow(10, -17)`
+    // daje 9.999999999999999e-18 na Node 22 i 1e-17 na Node 24. Ten jeden bit
+    // zmieniał rozstaw siatki, przez co `niceScale(1, 1 + 1 ULP, 3)` zwracało
+    // pięć podziałek o trzech różnych wartościach - i to TYLKO na runnerze CI.
+    // Asercja MUSI być na literale dziesiętnym, nie na wyniku `Math.pow` -
+    // porównanie z `Math.pow` byłoby tak samo zależne od silnika jak defekt,
+    // który ten test przypina.
+    expect(niceStep(1e-17)).toBe(1e-17);
+    for (const p of [-300, -17, -3, 0, 3, 17, 300]) {
+      expect(niceStep(Number(`1e${p}`)), `1e${p}`).toBe(Number(`1e${p}`));
+    }
+    // Zakres SUBNORMALNY jest osobny: tam sam literał dziesiętny nie ma
+    // dokładnej reprezentacji (`1e-320` to w praktyce 9.98e-321), więc
+    // kontraktem jest krok dodatni i skończony, a nie równość co do bitu.
+    for (const maly of [Number.MIN_VALUE, 1e-320, 1e-310]) {
+      const krok = niceStep(maly);
+      expect(krok, String(maly)).toBeGreaterThan(0);
+      expect(Number.isFinite(krok), String(maly)).toBe(true);
+    }
+  });
+
   it("survives zero and non-finite input", () => {
     expect(niceStep(0)).toBe(1);
     expect(niceStep(Number.NaN)).toBe(1);

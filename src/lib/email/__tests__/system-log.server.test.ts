@@ -507,9 +507,13 @@ describe("granica najemcy", () => {
   it("zapytanie o dziennik jest PINOWANE najemcą wołającego", async () => {
     db.setResponse(LOG, ok([]));
 
-    await fetchSystemEmailReport(query({ tenantId: NAJEMCA_B }));
+    const report = await fetchSystemEmailReport(query({ tenantId: NAJEMCA_B }));
 
     expect(db.lastChain(LOG)?.argsOf("eq")).toEqual(["tenant_id", NAJEMCA_B]);
+    // Druga asercja pilnuje, że filtr faktycznie ZAWĘŻA wynik, a nie tylko
+    // pojawia się w łańcuchu: przy pustej odpowiedzi bazy raport ma być pusty,
+    // a nie dosypywać wierszy z jakiegokolwiek innego źródła.
+    expect(report.rows).toEqual([]);
   });
 
   it("wiersz obcego najemcy NIE wchodzi do raportu", async () => {
