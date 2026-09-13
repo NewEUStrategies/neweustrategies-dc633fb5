@@ -23752,6 +23752,10 @@ export type Database = {
         Returns: boolean
       }
       early_access_window: { Args: never; Returns: string }
+      email_account_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string

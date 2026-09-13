@@ -92,6 +92,13 @@
       "when": 1789304400048,
       "tag": "0012_email_account_tenant_for_address",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789326756549,
+      "tag": "0013_pr355_discoverable_optin_and_email_account_tenant",
+      "breakpoints": true
     }
   ]
 }
