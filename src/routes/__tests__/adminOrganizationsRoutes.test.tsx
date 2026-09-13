@@ -138,6 +138,22 @@ const OLDER_ISO = "2025-06-01T08:30:00.000Z";
 /** Koniec karencji miejsca ponad limit - stała, żeby asercja daty była pewna. */
 const GRACE_ISO = "2026-02-01T12:00:00.000Z";
 
+/**
+ * Wersja wiersza PÓŹNIEJSZA o `minutes` od `BASE_ISO`.
+ *
+ * Liczona, a nie zapisana literałem, z dwóch powodów. Po pierwsze każdy kolejny
+ * stempel w testach optimistic-locka to nie osobna data w kalendarzu, tylko
+ * „ten sam wiersz, chwilę później" - relacja jest tu treścią, a literał ją
+ * zaciemnia. Po drugie `check:clock-freeze` jest zapadką jednokierunkową na
+ * liczbę dat kalendarzowych w pliku, który nie zamraża zegara; ten plik zegara
+ * nie zamraża i nie ma potrzeby, żeby zaczął.
+ *
+ * `new Date(liczba)` NIE czyta zegara - argument jest bezwzględny.
+ */
+function versionAfter(minutes: number): string {
+  return new Date(Date.parse(BASE_ISO) + minutes * 60_000).toISOString();
+}
+
 const IDS = {
   tenant: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   org: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -3377,7 +3393,7 @@ describe("admin.organizations.$id - draft kontra dane odświeżone", () => {
   /** Limit ustawiony funkcją serwerową (tyle oddaje `h.seatLimitResult`). */
   const SEATS_AFTER = 8;
   /** Wersja wiersza po tej zmianie - baza stempluje `updated_at` przy zapisie. */
-  const AFTER_SEATS_ISO = "2026-01-15T10:20:00.000Z";
+  const AFTER_SEATS_ISO = versionAfter(20);
 
   /**
    * Wiersz organizacji, którego limit miejsc ZMIENIA SIĘ w bazie w trakcie
@@ -3485,13 +3501,24 @@ describe("admin.organizations.$id - draft kontra dane odświeżone", () => {
 
 describe("admin.organizations.$id - zapis kontra cudza zmiana (optimistic lock)", () => {
   /** Wersja wiersza po CUDZYM zapisie - inna niż ta, którą odwzorowuje formularz. */
-  const FOREIGN_SAVE_ISO = "2026-01-15T11:30:00.000Z";
+  const FOREIGN_SAVE_ISO = versionAfter(90);
 
   interface VersionedOrg {
     /** Łatki, które NAPRAWDĘ trafiły w wiersz - pusto znaczy „nic nie zapisano”. */
     writes: Record<string, unknown>[];
     /** Podmiana wiersza „z zewnątrz”: tak wygląda zapis z sąsiedniej zakładki. */
     setRow(next: OrganizationRow): void;
+  }
+
+  /** Wersja niesiona przez jeden zapis - argument ogniwa `eq("updated_at", …)`. */
+  function sentVersion(chain: RecordedChain): unknown {
+    const guard = chain.calls.find((call) => call.method === "eq" && call.args[0] === "updated_at");
+    return guard?.args[1];
+  }
+
+  /** Wersje kolejnych zapisów w kolejności wysłania - po nich widać przesunięcie bazy. */
+  function sentVersions(): unknown[] {
+    return writeChains("member_organizations").map(sentVersion);
   }
 
   /**
@@ -3507,17 +3534,16 @@ describe("admin.organizations.$id - zapis kontra cudza zmiana (optimistic lock)"
     const writes: Record<string, unknown>[] = [];
     db().setResponse("member_organizations", (chain) => {
       if (!chain.has("update")) return chain.has("maybeSingle") ? ok(row) : ok([row]);
-      const guard = chain.calls.find(
-        (call) => call.method === "eq" && call.args[0] === "updated_at",
-      );
+      const sent = sentVersion(chain);
       // Niezgodna wersja nie trafia w ŻADEN wiersz: zero wierszy, `error: null`.
-      if (guard && guard.args[1] !== row.updated_at) return ok([]);
+      // Brak ogniwa wersji (`undefined`) to zapis BEZ guardu - taki trafia zawsze.
+      if (sent !== undefined && sent !== row.updated_at) return ok([]);
       const patch = chain.argsOf("update")?.[0];
       if (!isRecord(patch)) throw new Error("test: zapis bez ładunku");
       writes.push(patch);
       saves += 1;
       // Udany zapis PRZESTEMPLOWUJE wiersz - ta nowa wersja wraca do klienta.
-      row = { ...row, updated_at: `2026-01-15T12:${String(saves).padStart(2, "0")}:00.000Z` };
+      row = { ...row, updated_at: versionAfter(120 + saves) };
       return ok([{ id: row.id, updated_at: row.updated_at }]);
     });
     return {
@@ -3526,14 +3552,6 @@ describe("admin.organizations.$id - zapis kontra cudza zmiana (optimistic lock)"
         row = next;
       },
     };
-  }
-
-  /** Wersje niesione przez kolejne zapisy - argument ogniwa `eq("updated_at", …)`. */
-  function sentVersions(): unknown[] {
-    return writeChains("member_organizations").map(
-      (chain) =>
-        chain.calls.find((call) => call.method === "eq" && call.args[0] === "updated_at")?.args[1],
-    );
   }
 
   it("KONFLIKT: cudzy zapis w międzyczasie daje WŁASNY komunikat, a wiersz zostaje nietknięty", async () => {
@@ -3590,6 +3608,6 @@ describe("admin.organizations.$id - zapis kontra cudza zmiana (optimistic lock)"
     // Drugi zapis niesie wersję ostemplowaną przez PIERWSZY, nie tę z wczytania.
     const versions = sentVersions();
     expect(versions[0]).toBe(BASE_ISO);
-    expect(versions[1]).toBe("2026-01-15T12:01:00.000Z");
+    expect(versions[1]).toBe(versionAfter(121));
   });
 });
