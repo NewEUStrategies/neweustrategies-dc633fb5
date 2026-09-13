@@ -8,20 +8,28 @@
 // najwyżej przez trzy doby - po tym czasie ten przycisk jest JEDYNĄ drogą do
 // nadania opłaconego uprawnienia. Cała ta ścieżka stała na zerze.
 //
-// CZTERY REGUŁY, KTÓRYCH PILNUJE TEN PLIK:
+// PIĘĆ REGUŁ, KTÓRYCH PILNUJE TEN PLIK:
 //   1. BRAMKA ROLI. Wejście ma `requireSupabaseAuth`, ale to za mało -
 //      uwierzytelniony NIE ZNACZY admin. `assertAdmin` przepuszcza wyłącznie
 //      `has_role() === true`; `null` z RPC (brak wiersza, brak grantu) MUSI
 //      być odmową, bo inaczej dowolny zalogowany odtwarzałby zdarzenia
 //      płatnicze.
-//   2. ŁADUNEK POCHODZI Z DZIENNIKA, NIE OD KLIENTA. Dlatego ta ścieżka nie
+//   2. ROLA I DANE NA TEJ SAMEJ PŁASZCZYŹNIE. `has_role` jest zawężone do
+//      `current_tenant_id()`, czyli do `profiles.tenant_id` wywołującego -
+//      bramka dowodzi więc roli WYŁĄCZNIE w tenancie domowym. Dziennik czytamy
+//      kluczem serwisowym, z pominięciem RLS, więc granicę danych stawia sam
+//      filtr w zapytaniu i MUSI on iść po tym samym najemcy co bramka. Bez
+//      filtru sam identyfikator wiersza otwierał cudze płatności - a cudze
+//      identyfikatory nie są tajemnicą: RPC `admin_payment_webhook_health`
+//      rozdaje je w `recent_failures` każdemu adminowi, bez filtra najemcy.
+//   3. ŁADUNEK POCHODZI Z DZIENNIKA, NIE OD KLIENTA. Dlatego ta ścieżka nie
 //      weryfikuje podpisu - i dlatego funkcja przyjmuje WYŁĄCZNIE identyfikator
 //      wiersza. Gdyby dało się podstawić ładunek z przeglądarki, brak
 //      weryfikacji podpisu zamieniłby panel w darmowy generator uprawnień.
-//   3. LICZNIK PRÓB I ŚLAD AUTORA. Każde ponowienie ma zostawić `retry_count`,
+//   4. LICZNIK PRÓB I ŚLAD AUTORA. Każde ponowienie ma zostawić `retry_count`,
 //      `last_retried_at`, `retried_by` i czas obsługi - bez tego nie da się
 //      odróżnić zdarzenia naprawionego od klikanego w kółko.
-//   4. PORAŻKA MA BYĆ WIDOCZNA. Wyjątek z obsługi nie może wywrócić server fn
+//   5. PORAŻKA MA BYĆ WIDOCZNA. Wyjątek z obsługi nie może wywrócić server fn
 //      (admin zostałby bez odpowiedzi), ale MUSI wylądować w dzienniku jako
 //      `failed` z komunikatem.
 //
@@ -82,6 +90,12 @@ const { retryWebhookEvent, readWebhookEventPayload } =
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const EVENT_ROW_ID = "22222222-2222-4222-8222-222222222222";
 const OCCURRED_AT = "2026-08-30T10:00:00.000Z";
+/** Obszar roboczy, w którym wywołujący ma rolę - i którego wiersze wolno mu ruszać. */
+const TENANT_ID = "33333333-3333-4333-8333-333333333333";
+/** Obszar CUDZY: wiersz istnieje, ale rola wywołującego nie sięga tak daleko. */
+const FOREIGN_TENANT_ID = "44444444-4444-4444-8444-444444444444";
+/** `profiles.tenant_id` wywołującego - ustawiane per przypadek, `null` = profil bez najemcy. */
+let callerTenant: string | null;
 
 /** Wiersz dziennika `payment_webhook_events` w kształcie czytanym przez handler. */
 function logRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -99,11 +113,23 @@ function logRow(overrides: Record<string, unknown> = {}): Record<string, unknown
   };
 }
 
-/** Odpowiedź dziennika: odczyt wiersza (`maybeSingle`) kontra zapis wyniku. */
+/**
+ * Odpowiedź dziennika: odczyt wiersza (`maybeSingle`) kontra zapis wyniku.
+ *
+ * Atrapa odwzorowuje PREDYKAT, nie tylko wiersz. Filtr `tenant_id` jest tu
+ * jedyną granicą (klucz serwisowy omija RLS), więc atrapa, która oddaje wiersz
+ * niezależnie od filtrów, „dowodziłaby" izolacji, której nie ma - i przepuściła
+ * regres polegający na usunięciu tego jednego ogniwa. Dzięki temu KAŻDY test
+ * szczęśliwej ścieżki w tym pliku dodatkowo dowodzi obecności filtru.
+ */
 function logResponder(row: Record<string, unknown> | null, readError?: string) {
   return (chain: RecordedChain) => {
-    if (chain.has("maybeSingle")) return readError ? fail(readError) : ok(row);
-    return ok(null);
+    if (!chain.has("maybeSingle")) return ok(null);
+    if (readError) return fail(readError);
+    const scoped = chain.calls.some(
+      (c) => c.method === "eq" && c.args[0] === "tenant_id" && c.args[1] === TENANT_ID,
+    );
+    return ok(scoped ? row : null);
   };
 }
 
@@ -131,6 +157,11 @@ beforeEach(() => {
   adminRpc = supabaseRpcStub();
   userRpc = supabaseRpcStub();
   userRpc.setData("has_role", true);
+  callerTenant = TENANT_ID;
+  // `resolveUserTenantId` czyta `profiles.tenant_id` wywołującego - bez tej
+  // zaplanowanej odpowiedzi atrapa zgłasza brak planu i handler kończy się
+  // „No tenant for current user".
+  db.setResponse("profiles", () => ok({ tenant_id: callerTenant }));
   db.setResponse("payment_webhook_events", logResponder(logRow()));
   db.setResponse("subscriptions", ok(null));
   db.setResponse("billing_profiles", ok(null));
@@ -189,6 +220,92 @@ describe("retryWebhookEvent - bramka dostępu", () => {
       "provider_customer_id",
       "cus_z_dziennika",
     ]);
+  });
+});
+
+// DEFEKT NAPRAWIONY 13.09.2026 (kod produkcyjny).
+//
+// PRZYCZYNA ŹRÓDŁOWA. Bramka roli i granica danych stały na DWÓCH różnych
+// płaszczyznach. `assertAdmin` woła `has_role`, a `has_role` jest zawężone do
+// `current_tenant_id()`, czyli do `profiles.tenant_id` wywołującego - dowodzi
+// więc roli wyłącznie w JEGO obszarze roboczym. Dziennik natomiast czytał
+// `supabaseAdmin`, klient service-role, którego własny nagłówek mówi „bypasses
+// RLS": polityka `payment_webhook_events admin read` (tenant_id =
+// current_tenant_id() AND is_super_admin()) na tej ścieżce w ogóle nie biegła.
+// Jedynym predykatem zostawało `.eq("id", data.id)` z ciała żądania - czyli
+// granicy nie było wcale.
+//
+// JAKIE TO BYŁO RYZYKO. Admin dowolnego obszaru roboczego mógł odczytać ładunek
+// cudzej płatności (adres, e-mail, kwoty kupującego) i ODTWORZYĆ jego skutki:
+// nadać uprawnienie i wysłać mail w cudzym obszarze, a przy okazji podstemplować
+// cudzy ślad audytowy własnym `retried_by` i `retry_count`. Identyfikatory nie
+// były przy tym żadną barierą: RPC `admin_payment_webhook_health` oddaje
+// `recent_failures[].id` KAŻDEMU adminowi bez filtra najemcy, więc łańcuch
+// ataku nie wymagał zgadywania uuid-a.
+//
+// JAK NAPRAWIONE. Najemca jest przypinany z PROFILU wywołującego
+// (`resolveUserTenantId`), po bramce roli, i wchodzi jako `.eq("tenant_id", ...)`
+// do wszystkich trzech zapytań (odczyt, zapis wyniku, podgląd ładunku).
+// Świadomie NIE po hoście żądania: host to inna płaszczyzna niż ta, na której
+// udowodniono rolę, a „autoryzuj po domowym, filtruj po hoście" to dokładnie ten
+// sam defekt w przebraniu.
+describe("retryWebhookEvent - granica najemcy", () => {
+  it("odczyt dziennika filtruje po najemcy wywołującego, nie po samym identyfikatorze", async () => {
+    await callRetry({ id: EVENT_ROW_ID });
+
+    const read = db.chainsFor("payment_webhook_events")[0];
+    expect(read.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["id", EVENT_ROW_ID],
+      ["tenant_id", TENANT_ID],
+    ]);
+    // Najemca pochodzi z profilu wywołującego - nie z ładunku żądania i nie
+    // z hosta, bo tylko w tej płaszczyźnie udowodniono rolę.
+    expect(db.lastChain("profiles")?.argsOf("eq")).toEqual(["id", ADMIN_ID]);
+  });
+
+  it("wiersz CUDZEGO najemcy jest nie do odróżnienia od nieistniejącego", async () => {
+    // Ponowienie na cudzym wierszu nie jest „podejrzeniem cudzych danych" -
+    // to nadanie komuś uprawnienia i wysłanie maila za cudzą płatność, plus
+    // trwały ślad `retried_by` w cudzym audycie. Musi się zatrzymać na odczycie,
+    // z komunikatem nieodróżnialnym od braku wiersza: inny komunikat byłby
+    // wyrocznią istnienia zdarzeń płatniczych w sąsiednim obszarze.
+    callerTenant = FOREIGN_TENANT_ID;
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("Zdarzenie nie istnieje.");
+    expect(db.chainsFor("payment_webhook_events")).toHaveLength(1);
+    expect(db.chainsFor("subscriptions")).toHaveLength(0);
+  });
+
+  it("zapis wyniku ponowienia też jest zawężony do najemcy", async () => {
+    // Odczyt i zapis to dwa osobne zapytania. Filtr tylko przy odczycie
+    // zostawiałby UPDATE bez granicy - a to on stempluje cudzy wiersz.
+    await callRetry({ id: EVENT_ROW_ID });
+
+    const patch = db.chainsFor("payment_webhook_events").at(-1)!;
+    expect(patch.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["id", EVENT_ROW_ID],
+      ["tenant_id", TENANT_ID],
+    ]);
+  });
+
+  it("profil bez najemcy zamyka ścieżkę, zamiast czytać bez granicy", async () => {
+    // Fail-closed: nierozwiązany najemca znaczy „nie wiem, po czym filtrować",
+    // a przy kliencie omijającym RLS zapytanie bez filtru czyta WSZYSTKICH.
+    callerTenant = null;
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("No tenant for current user");
+    expect(db.chainsFor("payment_webhook_events")).toHaveLength(0);
+  });
+
+  it("kolejność bramek: rola PRZED sięgnięciem po najemcę", async () => {
+    // Odczyt profilu jest tanim, ale realnym efektem ubocznym. Gdyby wskoczył
+    // przed `assertAdmin`, zwykły zalogowany dotykałby bazy przed odmową -
+    // i wróciłaby ta sama klasa pre-autoryzacyjnego wycieku, którą zamyka
+    // pierwszy test tego pliku.
+    userRpc.setData("has_role", false);
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("forbidden");
+    expect(db.chains).toHaveLength(0);
   });
 });
 
@@ -534,6 +651,51 @@ describe("readWebhookEventPayload - podgląd ładunku", () => {
     for (const column of ["status", "error", "duration_ms", "retry_count", "payload"]) {
       expect(selected).toContain(column);
     }
+  });
+
+  it("podgląd CUDZEGO ładunku kończy się tak samo jak brak wiersza", async () => {
+    // `payload` to najwrażliwsza kolumna dziennika: adres, e-mail i kwoty
+    // kupującego, prosto od operatora. Ta funkcja nie ma ŻADNEGO konsumenta
+    // w UI - jedyne, co dzieli ją od wywołania „na surowo" z cudzym
+    // identyfikatorem, to predykat najemcy. Asercja patrzy na wysłane ogniwa,
+    // a nie tylko na wyjątek: dowodem ma być filtr w zapytaniu, a nie
+    // odsiewanie wiersza po stronie JavaScriptu.
+    callerTenant = FOREIGN_TENANT_ID;
+
+    await expect(
+      callServerFn(
+        readWebhookEventPayload,
+        { id: EVENT_ROW_ID },
+        {
+          supabase: { rpc: userRpc.rpc },
+          userId: ADMIN_ID,
+        },
+      ),
+    ).rejects.toThrow("Zdarzenie nie istnieje.");
+    const read = db.lastChain("payment_webhook_events");
+    expect(read?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["id", EVENT_ROW_ID],
+      ["tenant_id", FOREIGN_TENANT_ID],
+    ]);
+  });
+
+  it("podgląd SWOJEGO ładunku oddaje pełny wiersz", async () => {
+    // Kontrapunkt dla asercji wyżej: zawężenie ma siedzieć w zapytaniu, a nie
+    // w filtrowaniu wyniku - gdyby ktoś „naprawił" to obcinaniem kolumn
+    // w JavaScripcie, panel diagnostyczny zgasłby po cichu.
+    const row = logRow({ status: "failed", error: "boom", duration_ms: 120 });
+    db.setResponse("payment_webhook_events", logResponder(row));
+
+    const result = await callServerFn(
+      readWebhookEventPayload,
+      { id: EVENT_ROW_ID },
+      {
+        supabase: { rpc: userRpc.rpc },
+        userId: ADMIN_ID,
+      },
+    );
+
+    expect(result).toEqual(row);
   });
 
   it("identyfikator spoza kształtu UUID jest odrzucany również w podglądzie", async () => {
