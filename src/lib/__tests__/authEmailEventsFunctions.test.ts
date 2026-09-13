@@ -193,17 +193,14 @@ describe("getAuthEmailEvents - walidator wejścia", () => {
     // Cicha zamiana pokazałaby operatorowi WSZYSTKIE języki, gdy pytał o jeden
     // - i utwierdziła go w fałszywym wniosku o wysyłce.
     expect(() => validateServerFnInput(getAuthEmailEvents, { lang: "de" })).toThrow(ZodError);
-    expect(
-      validateServerFnInput<AuthEmailEventsQuery>(getAuthEmailEvents, { lang: null }).lang,
-    ).toBeNull();
+    expect(validateServerFnInput<Filtry>(getAuthEmailEvents, { lang: null }).lang).toBeNull();
   });
 
   it("nieznany status zdarzenia jest odrzucany", () => {
     expect(() => validateServerFnInput(getAuthEmailEvents, { status: "queued" })).toThrow(ZodError);
-    expect(
-      validateServerFnInput<AuthEmailEventsQuery>(getAuthEmailEvents, { status: "rejected" })
-        .status,
-    ).toBe("rejected");
+    expect(validateServerFnInput<Filtry>(getAuthEmailEvents, { status: "rejected" }).status).toBe(
+      "rejected",
+    );
   });
 
   it("przełącznik spadku języka musi być wartością logiczną", () => {
@@ -211,8 +208,7 @@ describe("getAuthEmailEvents - walidator wejścia", () => {
       ZodError,
     );
     expect(
-      validateServerFnInput<AuthEmailEventsQuery>(getAuthEmailEvents, { fallbackOnly: true })
-        .fallbackOnly,
+      validateServerFnInput<Filtry>(getAuthEmailEvents, { fallbackOnly: true }).fallbackOnly,
     ).toBe(true);
   });
 
@@ -221,8 +217,7 @@ describe("getAuthEmailEvents - walidator wejścia", () => {
       ZodError,
     );
     expect(
-      validateServerFnInput<AuthEmailEventsQuery>(getAuthEmailEvents, { search: "x".repeat(160) })
-        .search,
+      validateServerFnInput<Filtry>(getAuthEmailEvents, { search: "x".repeat(160) }).search,
     ).toHaveLength(160);
   });
 
@@ -242,7 +237,7 @@ describe("getAuthEmailEvents - ścieżka szczęśliwa", () => {
   it("przekazuje do warstwy danych DOKŁADNIE te filtry, które podał panel", async () => {
     // Zgubiony filtr to raport, który wygląda poprawnie, a odpowiada na inne
     // pytanie niż zadane - najgorszy możliwy wynik w narzędziu diagnostycznym.
-    const wejscie: AuthEmailEventsQuery = {
+    const wejscie: Filtry = {
       days: 14,
       emailType: "magiclink",
       lang: "pl",

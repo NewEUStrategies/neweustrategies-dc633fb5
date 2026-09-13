@@ -14,20 +14,12 @@ import type { Database } from "@/integrations/supabase/types";
 const GATEWAY = "https://connector-gateway.lovable.dev/google_search_console";
 
 interface GatewayCtx {
-  supabase: {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (
-          col: string,
-          val: string,
-        ) => Promise<{ data: unknown; error: { message: string } | null }>;
-      };
-    };
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: { message: string } | null }>;
-  };
+  // Pełny klient, a nie strukturalna atrapa z `from`/`rpc`. Atrapa wystarczała,
+  // dopóki moduł tylko wołał `has_role()`; odkąd najemcę wołającego ustala
+  // `resolveUserTenantId` (wspólny helper przyjmujący `SupabaseClient`), atrapa
+  // wymuszałaby rzutowanie przez `unknown` - czyli wyłączenie kontroli typów
+  // dokładnie na granicy, na której stoi izolacja najemców.
+  supabase: SupabaseClient<Database>;
   userId: string;
 }
 
@@ -54,10 +46,7 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
  */
 async function callerTenantId(context: GatewayCtx): Promise<string> {
   const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");
-  return resolveUserTenantId(
-    context.supabase as unknown as SupabaseClient<Database>,
-    context.userId,
-  );
+  return resolveUserTenantId(context.supabase, context.userId);
 }
 
 /**
