@@ -235,8 +235,11 @@ SELECT throws_ok(
 RESET ROLE;
 UPDATE public.profiles SET discoverable = true
  WHERE id = 'd0000000-0000-0000-0000-0000000000c2';
-INSERT INTO public.notification_preferences (user_id, allow_connections_from)
-VALUES ('d0000000-0000-0000-0000-0000000000c2', 'nobody')
+-- `tenant_id` jest tu NOT NULL (20260710152630:4), więc musi paść jawnie -
+-- preferencje powiadomień są zakresowane najemcą tak samo, jak profil.
+INSERT INTO public.notification_preferences (user_id, tenant_id, allow_connections_from)
+VALUES ('d0000000-0000-0000-0000-0000000000c2',
+        'd1a11111-1111-1111-1111-111111111111', 'nobody')
 ON CONFLICT (user_id) DO UPDATE SET allow_connections_from = 'nobody';
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
