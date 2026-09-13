@@ -41,8 +41,29 @@ vi.mock("@/lib/email/auth-preview.server", () => ({
 }));
 
 import { resetServerFnContext, serverFnMeta, setServerFnContext } from "@/test/serverFn";
+import { ok, supabaseFromStub } from "@/test/supabaseChain";
 import { getSystemEmailReport } from "@/lib/system-emails.functions";
 import { getAuthEmailPreviews } from "@/lib/auth-email-preview.functions";
+
+const AKTOR = "11111111-1111-4111-8111-111111111111";
+const NAJEMCA = "22222222-2222-4222-8222-222222222222";
+
+/**
+ * Kontekst, jaki middleware wstrzykuje w produkcji. Handler GO UŻYWA: najemcę
+ * bierze z profilu wołającego (`resolveUserTenantId`), a nie z ładunku żądania,
+ * bo warstwa danych czyta dziennik kluczem serwisowym, czyli ponad RLS.
+ *
+ * Atrapa REALNIE FILTRUJE po `id` - pytanie o cudzy profil oddaje pustkę, więc
+ * test upadnie, gdyby handler kiedyś sięgnął po nie swój wiersz.
+ */
+function kontekst() {
+  const db = supabaseFromStub();
+  db.setResponse("profiles", (chain) => {
+    const [, id] = chain.argsOf("eq") ?? [];
+    return id === AKTOR ? ok({ tenant_id: NAJEMCA }) : ok(null);
+  });
+  return { supabase: db, userId: AKTOR };
+}
 
 /** Nazwy middleware zadeklarowanych przez server fn (dowód strukturalny). */
 function middlewareNames(fn: unknown): string[] {
@@ -54,7 +75,7 @@ beforeEach(() => {
   h.renderPreviews.mockReset();
   h.fetchReport.mockResolvedValue({ rows: [], total: 0, byDay: [] });
   h.renderPreviews.mockResolvedValue([]);
-  setServerFnContext({ supabase: null });
+  setServerFnContext(kontekst());
 });
 
 describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
@@ -66,6 +87,9 @@ describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
 
     expect(h.fetchReport).toHaveBeenCalledTimes(1);
     expect(h.fetchReport).toHaveBeenCalledWith({
+      // Najemca doklejony przez handler z profilu wołającego - to on jest
+      // granicą, więc musi tu być obok filtrów operatora.
+      tenantId: NAJEMCA,
       days: 7,
       template: null,
       status: null,
@@ -88,6 +112,7 @@ describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
     });
 
     expect(h.fetchReport).toHaveBeenCalledWith({
+      tenantId: NAJEMCA,
       days: 30,
       template: "payment_failed",
       status: "dlq",
@@ -124,6 +149,27 @@ describe("getSystemEmailReport - raport wysyłek maili systemowych", () => {
       expect.objectContaining({ template: null, status: null }),
     );
     expect(h.fetchReport).toHaveBeenCalledTimes(1);
+  });
+
+  it("najemca z ŁADUNKU jest ignorowany - liczy się profil wołającego", async () => {
+    // Gdyby `tenantId` dało się podać w żądaniu, cała granica byłaby fikcją:
+    // admin najemcy A wpisałby identyfikator najemcy B i przeczytał jego pocztę.
+    await getSystemEmailReport({
+      data: { tenantId: "99999999-9999-4999-8999-999999999999" } as never,
+    });
+
+    expect(h.fetchReport.mock.calls[0]?.[0]).toMatchObject({ tenantId: NAJEMCA });
+  });
+
+  it("brak najemcy w profilu wołającego ODMAWIA, zamiast czytać bez zakresu", async () => {
+    // Fail closed: warstwa danych czyta kluczem serwisowym, więc „brak zakresu"
+    // znaczyłoby „wszyscy najemcy".
+    const db = supabaseFromStub();
+    db.setResponse("profiles", ok(null));
+    setServerFnContext({ supabase: db, userId: AKTOR });
+
+    await expect(getSystemEmailReport()).rejects.toThrow("No tenant for current user");
+    expect(h.fetchReport).not.toHaveBeenCalled();
   });
 
   it("oddaje raport z warstwy niżej BEZ przetwarzania", async () => {
