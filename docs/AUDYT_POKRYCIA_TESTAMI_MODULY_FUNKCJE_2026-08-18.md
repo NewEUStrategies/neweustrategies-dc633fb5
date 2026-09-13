@@ -7920,3 +7920,84 @@ migracji: stan obowiązujący jest wynikiem ich odtworzenia, nie treścią pierw
 
 Pełne uzasadnienia wszystkich 189 potwierdzonych defektów - wraz z tym, co dokładnie sprawdziła
 weryfikacja - stoją w artefakcie audytu, w sekcji „Defekty" i w mapie modułów.
+
+### 15.16. Rodzaj testu per moduł i weryfikacja całego wydania
+
+**Rodzaj testu waży więcej niż liczba.** Dwa moduły z tym samym procentem mają inne ryzyko, jeśli jeden
+dowodzi się wyłącznie testem jednostkowym, a drugi ma pod sobą jeszcze test warstwy danych i bramkę.
+Poniżej liczba plików testowych każdego rodzaju w każdej pozycji taksonomii. Kolumna „rodz." to liczba
+rodzajów, które w ogóle wystąpiły - i to ona, a nie procent, mówi, ile stron ma dowód.
+
+| #   | Moduł                                                 | jedn. | komp. | a11y | dane | hook | serw. | bramka | paryt. | inwar. | dymny | integr. | razem | rodz. |
+| --- | ----------------------------------------------------- | ----: | ----: | ---: | ---: | ---: | ----: | -----: | -----: | -----: | ----: | ------: | ----: | ----: |
+| 1   | Wpisy: doświadczenie czytelnika                       |    25 |    10 |    1 |    1 |    5 |     - |      - |      - |      - |     - |       - |    42 |     5 |
+| 2   | Edytor wpisów i workflow redakcyjny                   |    25 |    39 |    - |    8 |    7 |     - |      1 |      1 |      - |     - |       - |    81 |     6 |
+| 3   | Silniki treści: bloki + page builder                  |   174 |   132 |   12 |   22 |   18 |     3 |      3 |     10 |      - |     1 |       - |   375 |     9 |
+| 4   | Strony, wygląd, motyw, media, import                  |    26 |    30 |    - |    2 |   11 |     - |      - |      1 |      - |     - |       - |    70 |     5 |
+| 5   | Strona główna, archiwa, chrome                        |    13 |    12 |    1 |    2 |    - |     - |      - |      1 |      - |     - |       - |    29 |     5 |
+| 6   | Wyszukiwarka                                          |     7 |     9 |    - |    2 |    1 |     - |      - |      - |      - |     - |       - |    19 |     4 |
+| 7   | Typy treści specjalne                                 |    28 |    20 |   19 |    8 |    2 |     - |      - |      - |      - |     2 |       - |    79 |     6 |
+| 8   | SEO, feedy, dane strukturalne                         |    53 |     5 |    8 |    1 |    2 |     - |      - |      - |      - |     - |       - |    69 |     5 |
+| 9   | Czat / komunikator                                    |    28 |    22 |    1 |    - |   13 |     - |      - |      - |      - |     - |       - |    64 |     4 |
+| 10  | Sieć / networking                                     |    10 |     9 |    - |    - |    3 |     - |      1 |      - |      - |     - |       - |    23 |     4 |
+| 11  | Newsletter i e-mail                                   |    76 |    16 |    1 |   15 |    2 |     - |      - |      - |      - |     - |       - |   110 |     5 |
+| 12  | Realtime / powiadomienia / web-push                   |    22 |     - |    4 |    1 |    8 |     1 |      - |      - |      - |     - |       - |    36 |     5 |
+| 13  | Monetyzacja: checkout / subskrypcje / billing         |    82 |    13 |    4 |   35 |    1 |     - |      - |      1 |      - |     - |       - |   136 |     6 |
+| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |     8 |     6 |    4 |    4 |    4 |     - |      - |      1 |      - |     - |       - |    27 |     6 |
+| 15  | Profil i konto                                        |    26 |    15 |   13 |    3 |    5 |     1 |      4 |      - |      - |     - |       - |    67 |     7 |
+| 16  | Społeczność: kluby, komentarze, moderacja             |   112 |    71 |   16 |    4 |    8 |     7 |      3 |      1 |      - |     - |       - |   222 |     8 |
+| 17  | Analityka i BI                                        |    68 |    18 |   19 |    4 |    2 |     - |      - |      1 |      - |     - |       - |   112 |     6 |
+| 18  | CRM                                                   |    27 |     3 |    - |    1 |    1 |     - |      - |      1 |      - |     - |       - |    33 |     5 |
+| 19  | Ustawienia / integracje / users / multi-tenant / RODO |    45 |     3 |    - |    8 |    3 |     - |      1 |      1 |      - |     - |       - |    61 |     6 |
+| 20  | Platforma / backend / infrastruktura / SSR            |   269 |    25 |   26 |   79 |    5 |     5 |      6 |      4 |      - |     - |       1 |   420 |     9 |
+| 21  | Rekrutacja / kariera                                  |     9 |     - |   10 |    1 |    - |     - |      - |      - |      - |     - |       - |    20 |     3 |
+| 22  | Wydarzenia: event builder, rejestracja, onsite        |   111 |    55 |   71 |    4 |   15 |     4 |      7 |      7 |      - |     - |       - |   274 |     8 |
+| X   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |    22 |    71 |   21 |   17 |   17 |     2 |      3 |      - |      - |     - |       - |   153 |     7 |
+| X   | PRZEKROJOWE: design system (components/ui)            |     - |     2 |    - |    - |    - |     - |      - |      - |      - |     - |       - |     2 |     1 |
+| X   | PRZEKROJOWE: słowniki i18n                            |     6 |     - |    - |    - |    - |     - |      - |      - |      - |     - |       - |     6 |     1 |
+| X   | X-other                                               |     5 |     2 |    - |    - |    - |     - |      2 |      1 |      4 |     - |       1 |    15 |     6 |
+
+**Powierzchnie, na których dowód stoi na jednej nodze** (kryterium jawne: co najmniej 25 plików
+produkcyjnych i najwyżej trzy rodzaje testów): **Rekrutacja / kariera** (30 plików), **PRZEKROJOWE: design system (components/ui)** (45 plików), **PRZEKROJOWE: słowniki i18n** (149 plików).
+Wszystkie mają wysokie pokrycie - rzecz w tym, że pochodzi ono z jednego rodzaju dowodu, więc klasa
+defektu, której ten rodzaj nie widzi, nie zostanie złapana nigdzie.
+
+#### 15.16.1. Weryfikacja: 1 136 asercji, 1 136 zielonych
+
+Każda liczba tego wydania jest sprawdzana skryptem, który wyprowadza ją niezależnie z żywego repozytorium
+albo z `coverage/coverage-summary.json`, a potem porównuje z tym, co stoi w dokumencie, w `README.md`
+i w artefakcie:
+
+| Skrypt              | Zakres                                                   |   Asercji |
+| ------------------- | -------------------------------------------------------- | --------: |
+| `wer.mjs`           | rozdziały 15.1-15.13, tabele delt, README w obu wersjach |       205 |
+| `wer-1551.mjs`      | tabela 173 funkcjonalności, wiersz po wierszu            |       866 |
+| `wer-1514-1515.mjs` | rozdziały 15.14 i 15.15, spójność dokumentu z artefaktem |        65 |
+| **razem**           |                                                          | **1 136** |
+
+Dwa pierwsze skrypty czytają artefakty pomiaru i wyniki agentów, więc żyją w katalogu roboczym audytu.
+Trzeci ma inną naturę: sprawdza **wyłącznie stan żywego repozytorium**, więc da się go uruchomić na czystym
+klonie i po każdym PR-ze. Dlatego jego samodzielna wersja leży w repozytorium jako
+**`scripts/audit/verify-edition-11.mjs`** (36 asercji: progi i cztery martwe progi, moduły `src/lib/ci`
+bez konsumenta, cztery konfiguracje Playwrighta, wiersze kodu liczone jak `wc -l`, trasy i wiersz poza
+taksonomią, 634 polityki RLS odtworzone z 958 migracji, drugi pas migracji, 44 bramki i ich wpięcie).
+Uruchomienie:
+
+```
+node scripts/audit/verify-edition-11.mjs
+```
+
+**Nie wpinam go w `package.json` ani w `ci.yml`.** Zlecenie tej serii zabrania zmieniać `package.json`,
+a dopisanie kroku do CI jest decyzją właściciela repozytorium, nie audytora. Wpięcie to jedna linia
+w `scripts` i jeden krok w jobie `verify`; do tego czasu skrypt jest narzędziem na żądanie i tak go
+opisuję, zamiast udawać, że jest bramką. Gdyby został wpięty, złapałby każdą liczbę rozdz. 15.14-15.16
+w dniu, w którym przestanie być prawdziwa - czyli robiłby dokładnie to, czego brak wytykam w znalezisku
+o dwóch modułach `src/lib/ci` bez konsumenta.
+
+**Zapisuję przy tym błąd procesu, który wyszedł dopiero przy tym kroku.** Skrypt `wer.mjs` powstał PRZED
+korektami z rozdz. 15.14 i asertował stan sprzed nich: 108 testów e2e w 13 plikach, 747 034 wiersze,
+634 polityki na 261 tabelach, dziewięć tras w module 3. Po poprawieniu dokumentu i `README.md` zapalił
+sześć czerwieni - i to jest zachowanie poprawne. Gorsza jest obserwacja: **przez kilka godzin w repozytorium
+stał weryfikator, który przy zielonym przebiegu utrwalałby liczby już nieprawdziwe**. Weryfikator
+twierdzący sprostowane liczby jest gorszy niż brak weryfikatora, bo daje fałszywą pewność.
+Zasada na przyszłość: **korekta liczby i korekta jej asercji idą jednym ruchem**, nigdy osobno.
