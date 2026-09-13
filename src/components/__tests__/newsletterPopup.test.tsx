@@ -10,7 +10,7 @@
 // wolno mu się pokazać, czy da się go zamknąć każdą z trzech dróg, czy pamięta
 // zamknięcie i czy oddaje klawiaturę tam, skąd ją wziął.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { axeViolations, summarize } from "@/test/axe";
 
 interface SignUpArgs {
@@ -686,6 +686,54 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
 });
 
 describe("NewsletterPopup: modal lifecycle regressions", () => {
+  it("keeps the active field visible after focus and viewport resize, then removes listeners", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, "visualViewport");
+    const viewport = new EventTarget();
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+    try {
+      const view = await openByDelay();
+      vi.useRealTimers();
+      const email = dialog().querySelector<HTMLInputElement>('input[type="email"]')!;
+      const reveal = vi.fn();
+      Object.defineProperty(email, "scrollIntoView", { configurable: true, value: reveal });
+
+      email.focus();
+      await waitFor(() =>
+        expect(reveal).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" }),
+      );
+      expect(email).toHaveFocus();
+
+      // The same focused field must be revealed again when available height changes.
+      reveal.mockClear();
+      window.dispatchEvent(new Event("resize"));
+      viewport.dispatchEvent(new Event("resize"));
+      await act(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      expect(reveal).toHaveBeenCalledTimes(1);
+
+      // Focus outside the panel must not scroll the underlying document.
+      email.blur();
+      window.dispatchEvent(new Event("resize"));
+      await act(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      expect(reveal).toHaveBeenCalledTimes(1);
+
+      email.focus();
+      view.unmount();
+      window.dispatchEvent(new Event("resize"));
+      viewport.dispatchEvent(new Event("resize"));
+      await act(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      expect(reveal).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      if (descriptor) Object.defineProperty(window, "visualViewport", descriptor);
+      else Reflect.deleteProperty(window, "visualViewport");
+    }
+  });
   it("locks background scrolling and restores it on close", async () => {
     const previous = document.body.style.overflow;
     await openByDelay();

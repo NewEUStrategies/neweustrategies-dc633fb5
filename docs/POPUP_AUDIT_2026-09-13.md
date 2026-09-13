@@ -2,6 +2,18 @@
 
 Właściciel: Fundacja New European Strategies.
 
+## Wynik odbioru kodu i testów konta
+
+Ta sekcja aktualizuje wcześniejsze, chronologiczne wyniki poniżej.
+
+- Dla kodu `ebebecf` [E2E rejestracji](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34781697026) zakończyło się sukcesem: **2/2** przypadki. Formularz utworzył konta w lokalnym Auth, wiadomości dotarły do Mailpit, a użycie linków ustawiło potwierdzenie adresu w Auth. Zapis newslettera powstał tylko w wariancie z wybraną opcją. Pozostałe 12 scenariuszy seeded oraz ogólne E2E również przeszły.
+- Oceniono [zrzuty mobilne z CI](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34781697026/artifacts/10325522946). Lokalnie sprawdzono także pełny formularz przy 320x568, 390x844, 390x420 i 768x600. Po poprawce całe pole mieści się w obszarze przewijania (także po zmianie wysokości), przycisk jest osiągalny, Escape działa, a `scrollY` dokumentu pozostaje równy 0. Nadal nie jest to odbiór klawiatury systemowej fizycznego telefonu.
+- Pięć wskazanych wcześniej `it.fails` naprawiono i zamieniono na zwykłe testy. Pełna kontrola typów, lint i formatowanie przeszły. Końcowa seria dwóch zmienianych komponentów ma **116 poprawnych przypadków**, **100% linii, 100% funkcji, 99,68% instrukcji i 97,5% gałęzi**. Próg coverage popupów przechodzi lokalnie; nie obniżono żadnego progu.
+- Wszystkie workflowy dla `ebebecf` zakończyły pracę. E2E, Lighthouse, First visit oraz CMS widget performance są zielone. [Główne CI](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/34781697031) ma 70 652 poprawne przypadki, 415 oczekiwanych porażek w innych obszarach i 50 pominiętych, ale jest czerwone na coverage. Wykryty dodatkowo brak pokrycia obsługi fokusu popupu został uzupełniony końcowym testem; poza tym pozostają progi dla wykresów, zdarzeń eksperymentów, wykluczeń e-mail, newsletter-admin/status, TTS, impersonacji i branches platformy.
+- Końcowa zmiana testu i raportu nie zmienia kodu produkcyjnego sprawdzonego w E2E. Nowy przebieg CI wymaga odrębnego odczytu; aktualny wynik jest publikowany w [opisie PR #358](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/pull/358).
+
+**Pozostały odbiór:** doręczenie do produkcyjnej skrzynki, ustawienia hosted Auth i telefon z klawiaturą systemową. PR nie został scalony ani wdrożony. Zaliczenie lokalnego maila nie jest potwierdzeniem doręczenia produkcyjnego.
+
 ## Kontynuacja - rejestracja konta i mail potwierdzający
 
 Poniższy audyt początkowy opisuje stan przed kontynuacją. W tej iteracji naprawiono pięć opisanych dalej `it.fails` i zmieniono je w zwykłe testy regresji. Błędy logowania i rejestracji są tłumaczone, a LoginPopup odtwarza fokus elementu wywołującego.
