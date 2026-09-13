@@ -86,8 +86,7 @@ describe("redactMeta", () => {
     // serializacji, nie zagnieżdżenia, więc ten limit był jedyną zaporą.
     const gleboko = { a: { b: { c: { d: { e: { f: { g: { mail: "jan@example.com" } } } } } } } };
 
-    const out = redactMeta(gleboko) as Record<string, never>;
-    const json = JSON.stringify(out);
+    const json = JSON.stringify(redactMeta(gleboko));
 
     expect(json).not.toContain("jan@example.com");
     expect(json).toContain("[redacted-depth]");
@@ -100,8 +99,7 @@ describe("redactMeta", () => {
       a: { b: { c: { d: { e: { f: { g: "pisz na jan@example.com", n: 7 } } } } } },
     };
 
-    const out = redactMeta(naGranicy) as Record<string, never>;
-    const json = JSON.stringify(out);
+    const json = JSON.stringify(redactMeta(naGranicy));
 
     expect(json).not.toContain("jan@example.com");
     expect(json).toContain("[redacted-email]");

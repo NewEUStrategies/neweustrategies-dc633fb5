@@ -522,7 +522,6 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:unknown-casts
 
-
       # Blocking ratchet: a test carrying a calendar literal may not read the
       # real clock. This class of defect does not show up as a red test on the
       # day it is introduced - it shows up weeks later, when the literal falls
