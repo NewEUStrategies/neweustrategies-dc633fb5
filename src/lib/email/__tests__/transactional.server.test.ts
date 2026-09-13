@@ -775,17 +775,23 @@ describe("najemca w dzienniku wysyłek", () => {
     expect(logInserts()[0]).toMatchObject({ tenant_id: TENANT });
   });
 
-  it("nierozstrzygnięty najemca nie blokuje zapisu dziennika", async () => {
-    // Klucz jest POMINIĘTY (`undefined`), a nie ustawiony na `null`: kolumna
-    // jest NOT NULL, a trigger bazy dopina najemcę z adresu. Jawny `null`
-    // wywróciłby INSERT już PO tym, jak mail wyszedł.
+  it("nierozstrzygnięty najemca NIE blokuje zapisu dziennika", async () => {
+    // Producent oddaje `tenant_id: null` i to jest POPRAWNE, nie przeoczenie:
+    // `tg_email_send_log_bind_tenant` (20260913140000) jest wyzwalaczem
+    // BEFORE INSERT i odpala się dokładnie na `NEW.tenant_id IS NULL`,
+    // rozstrzygając najemcę z adresu odbiorcy ZANIM zadziała ograniczenie
+    // NOT NULL. Ostatnią zaporą jest baza, nie nadawca.
+    //
+    // Właściwość, o którą tu chodzi, jest jedna: nierozstrzygnięty najemca nie
+    // może WYWRÓCIĆ zapisu. Mail już wyszedł - wiersz dziennika bez śladu jest
+    // gorszy niż wiersz, któremu najemcę dopina trigger.
     rpc.setData("email_resolve_tenant_for_address", null);
 
     const result = await sendTxEmail(txInput());
 
     expect(result).toEqual({ ok: true });
-    expect(logInserts()[0]).toHaveProperty("tenant_id", undefined);
-    expect(logInserts()[0]?.tenant_id).not.toBeNull();
+    expect(logInserts()).not.toHaveLength(0);
+    expect(logInserts()[0]).toHaveProperty("tenant_id", null);
   });
 
   it("digest (enqueueRawEmail) stempluje dziennik tak samo jak poczta 1:1", async () => {
