@@ -147,18 +147,133 @@ function foldDiacritics(sql: string): string {
   return sql.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ł/g, "l").replace(/Ł/g, "L");
 }
 
+/** Czy tekst POZA literałami, od ostatniego `;`, kończy się na `COMMENT ON ... IS `. */
+function isCommentOperand(stmt: string): boolean {
+  return /\bCOMMENT\s+ON\b[\s\S]*\bIS\s+$/i.test(stmt);
+}
+
 /**
- * SQL WYKONYWALNY: bez komentarzy, bez diakrytyków, ze znormalizowaną spacją
- * i bez treści literałów `COMMENT ON ... IS '...'`.
+ * Skaner świadomy cytowania. Normalizuje WYŁĄCZNIE tekst poza literałami.
+ *
+ * `maskCommentProse` włącza podmianę treści literału, który jest operandem
+ * `COMMENT ON ... IS`. Wyłączamy je dla ciał cytowanych dolarami: `COMMENT ON`
+ * w środku ciała funkcji czy widoku to NIE jest instrukcja komentująca obiekt,
+ * tylko fragment zachowania - i dwa różne ciała nie mogą się przez to zrównać.
+ */
+function scan(src: string, maskCommentProse: boolean): string {
+  let out = "";
+  let buf = "";
+  let stmt = "";
+  let i = 0;
+
+  /** Oddaje zebrany tekst spoza literałów - złożony i ze zwartą spacją. */
+  const flush = (): void => {
+    if (buf === "") return;
+    const norm = foldDiacritics(buf).replace(/\s+/g, " ");
+    buf = "";
+    out += norm;
+    const lastSemi = norm.lastIndexOf(";");
+    stmt = lastSemi === -1 ? stmt + norm : norm.slice(lastSemi + 1);
+  };
+
+  while (i < src.length) {
+    const ch = src[i]!;
+
+    // $tag$ ... $tag$ - ciało funkcji/widoku, czyli KOD. Wchodzimy rekurencyjnie:
+    // spacja w kodzie jest nieistotna, ale literały w środku muszą przeżyć.
+    if (ch === "$") {
+      const opener = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(src.slice(i));
+      if (opener) {
+        const tag = opener[0];
+        const bodyFrom = i + tag.length;
+        const close = src.indexOf(tag, bodyFrom);
+        const bodyTo = close === -1 ? src.length : close;
+        flush();
+        out += tag + scan(src.slice(bodyFrom, bodyTo), false) + (close === -1 ? "" : tag);
+        stmt += "x";
+        i = close === -1 ? src.length : close + tag.length;
+        continue;
+      }
+    }
+
+    // Literał pojedynczy; '' w środku to escape, nie koniec.
+    if (ch === "'") {
+      let j = i + 1;
+      while (j < src.length) {
+        if (src[j] === "'") {
+          if (src[j + 1] === "'") {
+            j += 2;
+            continue;
+          }
+          break;
+        }
+        j += 1;
+      }
+      const end = Math.min(j + 1, src.length);
+      flush();
+      out += maskCommentProse && isCommentOperand(stmt) ? "'<proza>'" : src.slice(i, end);
+      stmt += "x";
+      i = end;
+      continue;
+    }
+
+    // Cytowany identyfikator - też nietykalny ("Kolumna" != "kolumna").
+    if (ch === '"') {
+      const close = src.indexOf('"', i + 1);
+      const end = close === -1 ? src.length : close + 1;
+      flush();
+      out += src.slice(i, end);
+      stmt += "x";
+      i = end;
+      continue;
+    }
+
+    buf += ch;
+    i += 1;
+  }
+
+  flush();
+  return out;
+}
+
+/**
+ * SQL WYKONYWALNY: bez komentarzy, ze złożonymi diakrytykami i znormalizowaną
+ * spacją POZA literałami, i z treścią literału `COMMENT ON ... IS '...'`
+ * zastąpioną znacznikiem.
  *
  * Znacznik zamiast treści, a nie wycięcie całej instrukcji: gdyby jeden pas
  * przestał w ogóle komentować obiekt, różnica ma być nadal widoczna.
+ *
+ * DLACZEGO SKANER, A NIE TRZY `replace`. Poprzednia wersja składała diakrytyki
+ * i zwierała spację GLOBALNIE, a literał komentarza łapała wyrażeniem
+ * regularnym - i każda z tych trzech rzeczy potrafiła uzgodnić pliki, które
+ * NAPRAWDĘ się różnią:
+ *
+ *   * globalne składanie diakrytyków zrównywało `CHECK (typ = 'złożony')`
+ *     z `CHECK (typ = 'zlozony')` - inne ograniczenie, ten sam odcisk;
+ *   * globalne zwieranie spacji zmieniało TREŚĆ literałów, więc `'a  b'`
+ *     i `'a b'` przestawały się różnić;
+ *   * wzorzec `COMMENT ON ... IS '...'` trafiał też WEWNĄTRZ ciała funkcji czy
+ *     widoku cytowanego dolarami, więc dwa różne ciała zwracające
+ *     `$$COMMENT ON x IS 'foo'$$` i `$$COMMENT ON x IS 'bar'$$` maskowały się
+ *     nawzajem - a to jest różnica zachowania, nie prozy.
+ *
+ * CO JEST, A CO NIE JEST TREŚCIĄ. Literał pojedynczy i cytowany identyfikator
+ * przechodzą bajt w bajt. Tekst cytowany dolarami jest traktowany jak KOD -
+ * wchodzimy w niego rekurencyjnie, więc spacja w nim się zwiera, a literały
+ * w jego środku i tak przeżywają. Tak trzeba, bo `stripSqlComments` wycina
+ * komentarze `--` TAKŻE ze środka ciał funkcji (nie zna cytowania dolarami),
+ * zostawiając po nich same znaki nowej linii. Pas supabase komentuje ciała
+ * obficie, pas drizzle wcale - bez zwarcia tej spacji bramka zapalałaby się na
+ * czterech z dziesięciu par, i to WYŁĄCZNIE z powodu prozy.
+ *
+ * CENA, POWIEDZIANA WPROST: wartość danych cytowana dolarami, która różni się
+ * wyłącznie spacją w środku, przejdzie jako zgodna. W obu pasach cytowanie
+ * dolarami niesie dziś wyłącznie ciała funkcji, więc płacimy za to, czego nie
+ * ma - a alternatywą jest bramka zapalona na prozie, czyli bramka wyłączona.
  */
 export function executableSql(sql: string): string {
-  return foldDiacritics(stripSqlComments(sql))
-    .replace(/(COMMENT\s+ON\s+[\s\S]*?\sIS\s+)'(?:[^']|'')*'/gi, "$1'<proza>'")
-    .replace(/\s+/g, " ")
-    .trim();
+  return scan(stripSqlComments(sql), true).trim();
 }
 
 /**

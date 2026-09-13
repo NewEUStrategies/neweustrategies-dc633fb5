@@ -83,6 +83,22 @@ interface AuthEventLog {
   status: "enqueued" | "rejected" | "failed";
   error_message?: string | null;
   duration_ms?: number | null;
+  /**
+   * Najemca wiersza diagnostycznego. WYMAGANY, nie opcjonalny, i to jest cała
+   * poprawka: `auth_email_events` NIE MA odpowiednika triggera
+   * `email_send_log_bind_tenant` - 20260913101000 dokłada kolumnę, 20260913140000
+   * backfilluje wyłącznie wiersze ZASTANE, a wiązania przy INSERT-cie nie ma
+   * nigdzie. Wiersz dopisany bez tej kolumny zostaje więc z `tenant_id IS NULL`
+   * NA ZAWSZE, a `fetchAuthEmailEvents` filtruje twardo po
+   * `.eq("tenant_id", query.tenantId)` (auth-events.server.ts:169) i rzuca bez
+   * kontekstu najemcy (:159). Każde nowe zdarzenie byłoby niewidoczne w panelu
+   * KAŻDEGO najemcy - panel wyglądałby na zakresowany, a po cichu byłby pusty.
+   *
+   * `null` jest dozwolony (adresu nie dało się rozstrzygnąć), ale musi być
+   * napisany WPROST - pole opcjonalne dałoby się pominąć przy dopisywaniu
+   * kolejnej ścieżki wyniku, a tutaj nie ma triggera, który by to naprawił.
+   */
+  tenant_id: string | null;
 }
 
 /** Diagnostyka webhooka - nigdy nie może wywrócić wysyłki maila. */
@@ -207,17 +223,29 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
         // operatora KAŻDEGO serwisu (`email_send_log` czyta się klientem
         // serwisowym, który RLS omija).
         //
-        // Najpierw host powrotu: `redirect_to` wskazuje serwis, na który
-        // użytkownik właśnie się zapisuje. `resolveDomainBinding` dopasowuje
-        // ŚCIŚLE, bez zjeżdżania na tenanta domyślnego - i o to chodzi, bo to
-        // właśnie milczący fallback na tenanta domyślnego produkuje ten wyciek.
-        // Dopiero gdy host nic nie mówi, pytamy adres tą samą funkcją, z której
-        // korzysta wypis i webhook dostarczalności.
+        // WŁAŚCICIEL ADRESU MA PIERWSZEŃSTWO przed hostem powrotu. Kolejność
+        // była tu wcześniej odwrotna i to był błąd, bo host powrotu
+        // uwierzytelnia CEL LINKU, a nie to, czyj jest odbiorca.
         //
-        // CZEGO TO NIE NAPRAWIA: przy świeżej rejestracji adres nie istnieje ani
-        // w `newsletter_subscribers`, ani w `profiles`, więc bez `redirect_to`
-        // rozstrzygnięcie schodzi na tenanta domyślnego. To ZAWĘŻENIE (operator
-        // innego serwisu zobaczy mniej niż dotąd), nie wyciek.
+        // Przypadek, który to rozstrzyga: reset hasła zamówiony na serwisie B
+        // dla adresu należącego do A. Formularz resetu podaje `redirectTo` jako
+        // `${window.location.origin}${redirectTo}` (AuthFormBlocks.tsx:1034-1035),
+        // czyli ZAWSZE bieżący origin - przy kolejności „host najpierw" wiersz
+        // dziennika z surowym adresem odbiorcy dostawał tenanta B i wchodził do
+        // raportu systemowego B. Dokładnie ten wyciek miała zamykać ta zmiana.
+        //
+        // `email_resolve_tenant_for_address` odpowiada tylko wtedy, gdy adres
+        // należy JEDNOZNACZNIE do jednego najemcy: kaskada to jednoznaczny
+        // subskrybent -> jednoznaczne konto -> NULL, świadomie bez fallbacku na
+        // tenanta domyślnego (20260913140000:88-116). Dlatego to bezpieczne
+        // pierwszeństwo - przy adresie żyjącym u wielu najemców funkcja oddaje
+        // NULL i decyduje host, czyli cel linku.
+        //
+        // Host zostaje więc rozstrzygnięciem dla kont, których jeszcze nie ma:
+        // przy świeżej rejestracji adresu nie ma ani w `newsletter_subscribers`,
+        // ani w `profiles`, a `resolveDomainBinding` dopasowuje ŚCIŚLE, bez
+        // zjeżdżania na tenanta domyślnego.
+        //
         // Try/catch jak przy `resolveRecipientName` niżej i z tego samego
         // powodu: to jest ATRYBUCJA, nie warunek wysyłki. Link do logowania ma
         // wyjść nawet wtedy, gdy katalog domen albo rozstrzygacz adresu padnie -
@@ -228,8 +256,11 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
             import("@/lib/server/tenant.server"),
             import("@/lib/email/suppression.server"),
           ]);
-          const bound = (await resolveDomainBinding(hostOf(payload.data.redirect_to))).tenant;
-          tenantId = bound?.id ?? (await resolveTenantForAddress(supabase, payload.data.email));
+          const owner = await resolveTenantForAddress(supabase, payload.data.email);
+          tenantId =
+            owner ??
+            (await resolveDomainBinding(hostOf(payload.data.redirect_to))).tenant?.id ??
+            null;
         } catch (err) {
           console.error("Failed to resolve auth email tenant", err);
         }
@@ -306,6 +337,9 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
           redirect_to: payload.data.redirect_to ?? null,
           action_url_host: hostOf(payload.data.url),
           greeting_name: vocativePl ?? firstName ?? null,
+          // Jedno miejsce dla OBU wywołań `logAuthEvent` ('failed' i 'enqueued'),
+          // bo oba rozwijają ten obiekt. `diagnostics` nie idzie nigdzie indziej.
+          tenant_id: tenantId,
         };
 
         const { error: enqueueError } = await supabase.rpc("enqueue_email", {

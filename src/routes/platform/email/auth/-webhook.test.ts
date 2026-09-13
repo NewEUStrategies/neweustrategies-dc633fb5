@@ -444,14 +444,14 @@ describe("porażka kolejkowania", () => {
 // operator KAŻDEGO serwisu.
 // ---------------------------------------------------------------------------
 describe("najemca maila autoryzacyjnego", () => {
-  it("mail jest przypisany do serwisu z ADRESU POWROTU", async () => {
+  it("mail jest przypisany do serwisu, który JEST WŁAŚCICIELEM ADRESU", async () => {
+    // Atrapy domyślne stawiają oba źródła w SPRZECZNOŚCI: adres należy do
+    // TENANT_Z_ADRESU, a host powrotu wskazuje TENANT_B. Wygrywa właściciel.
     await post();
 
-    // Do katalogu idzie sam host, nie cały URL.
-    expect(h.resolveDomainBinding).toHaveBeenCalledWith("example.test");
     expect(lastInsert("email_send_log")).toMatchObject({
       status: "pending",
-      tenant_id: TENANT_B,
+      tenant_id: TENANT_Z_ADRESU,
     });
   });
 
@@ -462,36 +462,60 @@ describe("najemca maila autoryzacyjnego", () => {
     await post();
 
     const [, args] = h.rpc.mock.calls[0] as [string, Record<string, unknown>];
-    expect((args.payload as Record<string, unknown>).tenant_id).toBe(TENANT_B);
-    // Ładunek i wiersz dziennika muszą nieść TEN SAM najemca - rozjazd między
-    // nimi znaczy, że DLQ i panel przypiszą tę samą wiadomość dwóm serwisom.
-    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_B);
+    expect((args.payload as Record<string, unknown>).tenant_id).toBe(TENANT_Z_ADRESU);
+    // Ładunek i wiersz dziennika muszą nieść TEGO SAMEGO najemcę - rozjazd
+    // między nimi znaczy, że DLQ i panel przypiszą tę samą wiadomość dwóm
+    // serwisom.
+    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_Z_ADRESU);
   });
 
-  it("host powrotu ma pierwszeństwo - adresu nie pytamy niepotrzebnie", async () => {
+  it("reset hasła zamówiony na CUDZYM serwisie nie stempluje wiersza tym serwisem", async () => {
+    // REGRESJA. Kolejność była tu odwrotna - host powrotu przed adresem - i to
+    // był wyciek, nie detal. Formularz resetu podaje `redirectTo` jako
+    // `${window.location.origin}${redirectTo}` (AuthFormBlocks.tsx:1034-1035),
+    // czyli ZAWSZE bieżący origin, a formularz przyjmuje dowolny adres. Operator
+    // serwisu B zamawiał więc reset na adres należący do A i dostawał do swojego
+    // raportu systemowego wiersz z SUROWYM adresem odbiorcy - czyli dowód, że
+    // ten człowiek ma konto, plus jego adres.
+    //
+    // Host powrotu uwierzytelnia CEL LINKU, nie to, czyj jest odbiorca.
     await post();
 
-    expect(h.resolveTenantForAddress).not.toHaveBeenCalled();
-    // Pierwszeństwo ma być WIDOCZNE w wyniku, nie tylko w liczbie wywołań:
-    // najemca pochodzi z hosta powrotu.
+    const row = lastInsert("email_send_log");
+    expect(row.tenant_id).not.toBe(TENANT_B);
+    expect(row.tenant_id).toBe(TENANT_Z_ADRESU);
+  });
+
+  it("adres, którego nie da się przypisać, oddaje decyzję HOSTOWI powrotu", async () => {
+    // `email_resolve_tenant_for_address` oddaje NULL w DWÓCH przypadkach i oba
+    // trafiają tutaj: adresu nie ma jeszcze nigdzie (świeża rejestracja) albo
+    // żyje u wielu najemców (wieloznaczny). W obu host powrotu jest jedyną
+    // odpowiedzią, jaka została - i wtedy jest właściwą, bo mówi, na który
+    // serwis ten człowiek właśnie wchodzi.
+    h.resolveTenantForAddress.mockResolvedValue(null);
+
+    await post();
+
+    // Do katalogu idzie sam host, nie cały URL.
+    expect(h.resolveDomainBinding).toHaveBeenCalledWith("example.test");
     expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_B);
   });
 
-  it("nieznany host powrotu spada na rozstrzygnięcie z ADRESU, nie na tenanta domyślnego", async () => {
+  it("nieznany host NIE zjeżdża na tenanta domyślnego", async () => {
     // `resolveDomainBinding` dopasowuje ŚCIŚLE i to jest sedno: cichy fallback
-    // na tenanta domyślnego jest dokładnie tym, co wyprodukowało ten wyciek.
+    // na tenanta domyślnego jest dokładnie tym, co produkuje ten wyciek.
+    h.resolveTenantForAddress.mockResolvedValue(null);
     h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: true });
 
     await post();
 
-    expect(h.resolveTenantForAddress).toHaveBeenCalledTimes(1);
-    expect(lastInsert("email_send_log").tenant_id).toBe(TENANT_Z_ADRESU);
+    expect(lastInsert("email_send_log").tenant_id).toBeNull();
   });
 
   it("awaria rozstrzygania najemcy NIE zatrzymuje maila z linkiem do logowania", async () => {
-    // Atrybucja nie jest warunkiem wysyłki. Padnięty katalog domen ma kosztować
+    // Atrybucja nie jest warunkiem wysyłki. Padnięty rozstrzygacz ma kosztować
     // stempel, a nie dostęp użytkownika do konta.
-    h.resolveDomainBinding.mockRejectedValue(new Error("katalog domen padł"));
+    h.resolveTenantForAddress.mockRejectedValue(new Error("rozstrzygacz padł"));
 
     const res = await post();
 
@@ -500,11 +524,11 @@ describe("najemca maila autoryzacyjnego", () => {
     expect(errorSpy).toHaveBeenCalledWith("Failed to resolve auth email tenant", expect.any(Error));
   });
 
-  it("gdy ani host, ani adres nic nie mówią, wysyłka i tak idzie", async () => {
+  it("gdy ani adres, ani host nic nie mówią, wysyłka i tak idzie", async () => {
     // Link do logowania jest ważniejszy niż stempel; najemcę dopina wtedy
     // trigger bazy `trg_email_send_log_bind_tenant`.
-    h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: false });
     h.resolveTenantForAddress.mockResolvedValue(null);
+    h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: false });
 
     const res = await post();
 
@@ -512,7 +536,7 @@ describe("najemca maila autoryzacyjnego", () => {
     expect(lastInsert("email_send_log").tenant_id).toBeNull();
   });
 
-  it("wiersz 'failed' po odmowie kolejki niesie TEN SAM najemca", async () => {
+  it("wiersz 'failed' po odmowie kolejki niesie TEGO SAMEGO najemcę", async () => {
     h.rpc.mockResolvedValue({ error: { message: "queue full" } });
 
     await post();
@@ -520,7 +544,50 @@ describe("najemca maila autoryzacyjnego", () => {
     expect(h.rpc).toHaveBeenCalled();
     expect(lastInsert("email_send_log")).toMatchObject({
       status: "failed",
-      tenant_id: TENANT_B,
+      tenant_id: TENANT_Z_ADRESU,
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // auth_email_events - druga tabela, BEZ triggera wiążącego
+  //
+  // `email_send_log` ma `email_send_log_bind_tenant` (20260913140000), który
+  // dopina najemcę przy `NEW.tenant_id IS NULL`. `auth_email_events` NIE MA
+  // odpowiednika: 20260913101000 dokłada samą kolumnę, a backfill w
+  // 20260913140000 obejmuje wyłącznie wiersze ZASTANE. Wiersz dopisany bez tej
+  // kolumny zostaje z NULL-em na zawsze, a `fetchAuthEmailEvents` filtruje
+  // twardo po `.eq("tenant_id", …)` - panel wyglądałby na zakresowany i po cichu
+  // byłby pusty.
+  // -------------------------------------------------------------------------
+  it("wiersz 'enqueued' w auth_email_events niesie najemcę", async () => {
+    await post();
+
+    expect(lastInsert("auth_email_events")).toMatchObject({
+      status: "enqueued",
+      tenant_id: TENANT_Z_ADRESU,
+    });
+  });
+
+  it("wiersz 'failed' w auth_email_events też niesie najemcę", async () => {
+    h.rpc.mockResolvedValue({ error: { message: "queue full" } });
+
+    await post();
+
+    expect(lastInsert("auth_email_events")).toMatchObject({
+      status: "failed",
+      tenant_id: TENANT_Z_ADRESU,
+    });
+  });
+
+  it("nierozstrzygnięty najemca trafia do auth_email_events jako jawny null", async () => {
+    // Bez triggera nie ma tu drugiej szansy, więc kolumna musi być NAPISANA -
+    // pominięty klucz i jawny null dają ten sam wiersz, ale tylko jawny null
+    // dowodzi, że producent o kolumnie pamiętał.
+    h.resolveTenantForAddress.mockResolvedValue(null);
+    h.resolveDomainBinding.mockResolvedValue({ tenant: null, directoryPopulated: true });
+
+    await post();
+
+    expect(lastInsert("auth_email_events")).toHaveProperty("tenant_id", null);
   });
 });

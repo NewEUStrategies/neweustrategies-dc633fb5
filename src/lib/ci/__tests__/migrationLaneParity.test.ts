@@ -134,6 +134,66 @@ describe("analyzeMigrationLanes", () => {
     expect(sql).not.toContain("TRESC-DOKUMENTACJI");
   });
 
+  // -------------------------------------------------------------------------
+  // Normalizacja NIE MOŻE uzgadniać plików, które naprawdę się różnią.
+  //
+  // Poprzednia wersja składała diakrytyki i zwierała spację GLOBALNIE, a literał
+  // komentarza łapała wyrażeniem regularnym. Każdy z poniższych przypadków
+  // przechodził wtedy jako "zgodny", mimo że zmienia schemat albo zachowanie.
+  // -------------------------------------------------------------------------
+  it("diakrytyki w literale NIE-komentarzowym zostają - to wartość, nie proza", () => {
+    const a = executableSql("ALTER TABLE t ADD CONSTRAINT c CHECK (typ = 'złożony');");
+    const b = executableSql("ALTER TABLE t ADD CONSTRAINT c CHECK (typ = 'zlozony');");
+    expect(a).not.toBe(b);
+    expect(a).toContain("'złożony'");
+  });
+
+  it("spacja W ŚRODKU literału zostaje - zwieranie jej zmieniałoby wartość", () => {
+    const a = executableSql("INSERT INTO t (v) VALUES ('a  b');");
+    const b = executableSql("INSERT INTO t (v) VALUES ('a b');");
+    expect(a).not.toBe(b);
+    expect(a).toContain("'a  b'");
+  });
+
+  it("`COMMENT ON ... IS` WEWNĄTRZ ciała cytowanego dolarami to nie proza", () => {
+    const body = (x: string) =>
+      `CREATE FUNCTION f() RETURNS text LANGUAGE sql AS $fn$ SELECT 'COMMENT ON x IS ${x}' $fn$;`;
+    const a = executableSql(body("foo"));
+    const b = executableSql(body("bar"));
+    // To jest RÓŻNICA ZACHOWANIA funkcji, a nie rozjazd dokumentacji.
+    expect(a).not.toBe(b);
+    expect(a).not.toContain("<proza>");
+  });
+
+  it("literał w ciele funkcji przeżywa, ale spacja wokół niego się zwiera", () => {
+    // Ciało jest KODEM: `stripSqlComments` wycina z niego komentarze `--`,
+    // zostawiając same nowe linie, więc spacja musi się zewrzeć. Wartości w
+    // środku nie wolno przy tym ruszyć.
+    const a = executableSql("CREATE FUNCTION f() RETURNS text AS $fn$\n\n  SELECT 'a  b';\n$fn$;");
+    const b = executableSql("CREATE FUNCTION f() RETURNS text AS $fn$ SELECT 'a  b'; $fn$;");
+    expect(a).toBe(b);
+    expect(a).toContain("'a  b'");
+  });
+
+  it("spacja POZA literałami nadal się zwiera", () => {
+    expect(executableSql("ALTER   TABLE\n\n a  ADD COLUMN b int;")).toBe(
+      "ALTER TABLE a ADD COLUMN b int;",
+    );
+  });
+
+  it("diakrytyki POZA literałami nadal się składają - tym różnią się pasy", () => {
+    expect(executableSql("COMMENT ON COLUMN a.b IS 'którego';")).toBe(
+      executableSql("COMMENT ON COLUMN a.b IS 'ktorego';"),
+    );
+  });
+
+  it("apostrof podwojony w prozie nie urywa literału", () => {
+    const sql = executableSql("COMMENT ON COLUMN a.b IS 'to ''jest'' proza'; ALTER TABLE z;");
+    expect(sql).toContain("'<proza>'");
+    // Gdyby skaner zgubił escape, druga instrukcja wpadłaby do literału.
+    expect(sql).toContain("ALTER TABLE z");
+  });
+
   it("raport nazywa każde naruszenie po tagu", () => {
     const report = analyzeMigrationLanes(["0009_obcy"], [], fromMap({}));
     expect(renderLaneReport(report)).toContain("0009_obcy");
