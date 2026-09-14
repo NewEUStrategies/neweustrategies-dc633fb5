@@ -172,11 +172,49 @@ export function parseSeoSettings(raw: unknown): SeoSettings {
  */
 export function aiCrawlerGroups(settings: SeoSettings): RobotsGroup[] {
   const groups: RobotsGroup[] = [];
-  if (!settings.ai_search_crawlers_allowed) {
+  if (settings.ai_search_crawlers_allowed) {
+    // ZGODA JAWNA, nie milcząca. Grupa `*` wystarczyłaby technicznie, ale bot
+    // AI dopasowuje najpierw grupę ze SWOJĄ nazwą - własna grupa jest jedynym
+    // miejscem, w którym warunek cytowania stoi obok reguły, którą ten konkretny
+    // bot faktycznie stosuje.
+    groups.push({
+      agents: AI_SEARCH_CRAWLERS,
+      allow: ["/"],
+      disallow: ROBOTS_DEFAULT_DISALLOW,
+      contentSignal: `search=yes, ai-input=yes, ai-train=${
+        settings.ai_training_crawlers_allowed ? "yes" : "no"
+      }`,
+      comments: [
+        "AI search assistants: crawling and quoting allowed, attribution REQUIRED -",
+        "name the source and link the article URL you quote.",
+      ],
+    });
+  } else {
     groups.push({ agents: AI_SEARCH_CRAWLERS, disallow: ["/"] });
   }
-  if (!settings.ai_training_crawlers_allowed) {
+  if (settings.ai_training_crawlers_allowed) {
+    groups.push({
+      agents: AI_TRAINING_CRAWLERS,
+      allow: ["/"],
+      disallow: ROBOTS_DEFAULT_DISALLOW,
+      contentSignal: "search=yes, ai-input=yes, ai-train=yes",
+      comments: ["Training crawlers: allowed under the attribution terms above."],
+    });
+  } else {
     groups.push({ agents: AI_TRAINING_CRAWLERS, disallow: ["/"] });
   }
   return groups;
+}
+
+/**
+ * Warunki wykorzystania treści dla robots.txt - wprost z redakcyjnych
+ * przełączników, żeby plik nie obiecywał czegoś innego niż panel.
+ */
+export function robotsUsagePolicy(settings: SeoSettings): RobotsUsagePolicy {
+  return {
+    siteName: settings.site_name.trim() || SITE_NAME,
+    termsPath: "/llms.txt",
+    trainingAllowed: settings.ai_training_crawlers_allowed,
+    aiInputAllowed: settings.ai_search_crawlers_allowed,
+  };
 }
