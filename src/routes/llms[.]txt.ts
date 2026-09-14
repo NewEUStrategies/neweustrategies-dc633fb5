@@ -18,11 +18,16 @@ import {
 } from "@/lib/server/publishedContent.server";
 import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
+// Adres publikowany w llms.txt liczy WSPÓLNA reguła crawlerowa
+// (`crawlerPublishOrigin`) - ten sam origin, który emituje mapa strony i
+// ogłasza robots.txt. Wcześniej origin brał się wprost z hosta żądania, więc na
+// podglądzie (gdzie zwalidowany host to `localhost`) asystenci AI dostawali
+// listę artykułów pod adresami `https://localhost/...`.
 async function requestContext(): Promise<{ origin: string; host: string }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  return { origin: host ? `${proto}://${host}` : "", host };
+  return { origin: crawlerPublishOrigin(host, proto), host };
 }
 
 const LATEST_COUNT = 15;
