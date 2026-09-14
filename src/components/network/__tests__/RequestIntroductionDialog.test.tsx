@@ -1,11 +1,13 @@
 // RequestIntroductionDialog: wprowadzenie przez wspólny kontakt („most").
 // Reguły, których pilnujemy w UI, bo baza odrzuciłaby je dopiero po wysyłce:
 //   - most wybiera się WYŁĄCZNIE z własnej sieci (lista `my_connections`),
-//   - ten sam most nie może mieć dwóch aktywnych próśb do tej samej osoby,
+//     a wyszukiwarka mostów czeka 250 ms, zamiast strzelać na każdy klawisz,
+//   - ten sam most nie może mieć dwóch aktywnych próśb do tej samej osoby
+//     (od 20260913171000 wygoda interfejsu - ochroną jest indeks w bazie),
 //   - notka musi mieścić się w 20-600 znakach (licznik + blokada wysyłki),
 //   - zamknięcie dialogu czyści formularz (żeby prośba nie „wracała").
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import {
   NETWORK_IDS,
   PEER_NAME,
@@ -113,13 +115,64 @@ describe("RequestIntroductionDialog - szkielet", () => {
   });
 
   it("lista mostów jeździ na mojej sieci z limitem 30 i frazą wyszukiwania", () => {
-    renderDialog();
-    expect(h.queries[0]).toEqual({ query: "", pageSize: 30 });
+    vi.useFakeTimers();
+    try {
+      renderDialog();
+      expect(h.queries[0]).toEqual({ query: "", pageSize: 30 });
 
-    fireEvent.change(screen.getByPlaceholderText(k("network.searchPlaceholder")), {
-      target: { value: "kowalski" },
-    });
-    expect(h.queries.at(-1)).toEqual({ query: "kowalski", pageSize: 30 });
+      act(() => {
+        fireEvent.change(screen.getByPlaceholderText(k("network.searchPlaceholder")), {
+          target: { value: "kowalski" },
+        });
+      });
+      act(() => void vi.advanceTimersByTime(250));
+      expect(h.queries.at(-1)).toEqual({ query: "kowalski", pageSize: 30 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A8: każde naciśnięcie klawisza szło wprost do `my_connections`, bo klucz
+  // zapytania niesie przyciętą frazę - wpisanie ośmioliterowego nazwiska to
+  // osiem zapytań trigramowych po stronie bazy (`discovery_search LIKE '%...%'`
+  // z sortowaniem po `similarity`). Zegar atrapa jest tu konieczny: bez niego
+  // test mierzyłby szybkość maszyny, a nie istnienie zwłoki.
+  it("trzy znaki szybciej niż 250 ms to JEDNO zapytanie o sieć, nie trzy", () => {
+    vi.useFakeTimers();
+    try {
+      renderDialog();
+      const input = screen.getByPlaceholderText(k("network.searchPlaceholder"));
+      const before = h.queries.length;
+
+      act(() => {
+        fireEvent.change(input, { target: { value: "k" } });
+      });
+      act(() => void vi.advanceTimersByTime(80));
+      act(() => {
+        fireEvent.change(input, { target: { value: "ko" } });
+      });
+      act(() => void vi.advanceTimersByTime(80));
+      act(() => {
+        fireEvent.change(input, { target: { value: "kow" } });
+      });
+
+      // Przed upływem okna żadna z faz pisania nie dotarła do warstwy danych.
+      const queriedDuringTyping = h.queries
+        .slice(before)
+        .map((q) => q.query)
+        .filter((q) => q !== "");
+      expect(queriedDuringTyping).toEqual([]);
+
+      act(() => void vi.advanceTimersByTime(250));
+      const queriedAfter = h.queries
+        .slice(before)
+        .map((q) => q.query)
+        .filter((q) => q !== "");
+      // Dokładnie jedna fraza i to ta OSTATNIA - nie "k", nie "ko".
+      expect(new Set(queriedAfter)).toEqual(new Set(["kow"]));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("ładowanie sieci: komunikat zamiast pustej listy", () => {

@@ -17,6 +17,19 @@
 //
 // Lista mieszka osobno, żeby ścięcie długu w kolejnym module było diffem
 // w JEDNYM miejscu, a nie edycją runnera bramki.
+//
+// 2026-09-13, MODUŁ 10 (sieć kontaktów): 191 -> 189. Oba wpisy modułu zeszły
+// do zera i ZNIKAJĄ z listy, bo plik bez wpisu musi mieć zero:
+//   * `network.mutual.$userId.tsx` - lokalna kopia kształtu wiersza różniła się
+//     od wygenerowanego typu RPC nullowalnością pól, więc odczyt wymagał
+//     podwójnego rzutowania. Alias bierze teraz kształt z `Database[...]`,
+//     czyli rozjazd kolumny w migracji wychodzi na typach.
+//   * `useProfileViews.ts` - wygenerowany typ mówi `viewer_mode: string`
+//     i `display_name: string`, a baza zwraca unię trzech wartości ORAZ NULL-e
+//     w polach wymaskowanych dla widza anonimowego. Rzutowanie kupowało oba
+//     kłamstwa naraz; zastąpiła je funkcja zawężająca na granicy RPC
+//     (nieznany tryb degraduje się do `anonymous`, czyli do interpretacji
+//     najostrożniejszej).
 export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/archiveLayout/ArchiveLayoutAdmin.tsx", 1],
   ["src/components/admin/blocks/edit/Buttons.tsx", 2],
@@ -108,7 +121,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/http/middlewareResult.ts", 2],
   ["src/lib/icons/lucideIconNodes.generated.ts", 1],
   ["src/lib/lucide-shim.tsx", 1],
-  ["src/lib/network/useProfileViews.ts", 1],
   ["src/lib/newsletter-campaigns.functions.ts", 4],
   ["src/lib/newsletter/emailDocResolve.ts", 3],
   ["src/lib/newsletter/trackingEvents.server.ts", 1],
@@ -146,7 +158,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/admin.pages.new.tsx", 1],
   ["src/routes/admin.research-programs.tsx", 2],
   ["src/routes/author.$slug.tsx", 1],
-  ["src/routes/network.mutual.$userId.tsx", 1],
   ["src/server.ts", 1],
   // Atrapa `XMLHttpRequest` w `xhrStub` (postęp wysyłki avatara/CV): `FakeXhr`
   // odgrywa tylko cztery użyte przez kod produkcyjny człony, nie pełny

@@ -75,6 +75,7 @@ import {
   ProfileSectionCard,
 } from "@/components/profile/shell/ProfileShell";
 import { BRAND_PILL_CLASS, BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
+import { useAnchorScroll } from "@/lib/network/useAnchorScroll";
 type Gender = "male" | "female" | "neutral";
 type TabKey = "about" | "experience" | "badges" | "activity" | "settings";
 /** Rola w karcie „Wprowadzenia" - do mnie / wysłane / o mnie. */
@@ -133,6 +134,17 @@ function ProfileInline() {
   useEffect(() => {
     if (tabFromUrl) setTab(tabFromUrl);
   }, [tabFromUrl]);
+
+  // DRUGA POŁOWA KONTRAKTU DEEP-LINKU. Parametry `?tab` i `?intro` wyżej
+  // doprowadzały na właściwą zakładkę i tam kończyły - fragment
+  // `#i-<id>-<status>`, który producent powiadomień dokleja od 20260812101000,
+  // nikt nie czytał i nikt nie przewijał. Wiersze mają teraz `id` w tym
+  // formacie (src/lib/network/anchors.ts), a hook niżej dowozi ostatni krok.
+  //
+  // `tab` jako sygnał: właściwa lista renderuje się DOPIERO po przestawieniu
+  // zakładki. Hook i tak ponawia próbę w oknie czasowym, bo wprowadzenia
+  // dojeżdżają trzema zapytaniami - patrz jego nagłówek.
+  useAnchorScroll(tab);
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
   const companyTriggerRef = useRef<HTMLButtonElement | null>(null);
 

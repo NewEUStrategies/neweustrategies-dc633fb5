@@ -103,15 +103,15 @@ describe("ConnectionPathTrail", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
+  // Prop `targetSlug` odpadł 20260913: był ZADEKLAROWANY w
+  // `ConnectionPathTrailProps` i przekazywany z dwóch miejsc (network.tsx,
+  // people.tsx), ale ciało komponentu nigdy go nie czytało. Ten przypadek
+  // podawał go wcześniej, żeby dowieść, że mimo sluga cel nie staje się
+  // linkiem - czyli sprawdzał zachowanie propsa, który nic nie robił.
+  // Twierdzenie zostaje, bo jest o komponencie, a nie o propie: linkiem jest
+  // WYŁĄCZNIE most.
   it("osoba docelowa nigdy nie jest linkiem - jej profil ma własne CTA obok", () => {
-    render(
-      <ConnectionPathTrail
-        degree={2}
-        bridge={BRIDGE}
-        targetName={TARGET}
-        targetSlug="marek-kowal"
-      />,
-    );
+    render(<ConnectionPathTrail degree={2} bridge={BRIDGE} targetName={TARGET} />);
     expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Anna Nowak" })).toBeInTheDocument();
   });

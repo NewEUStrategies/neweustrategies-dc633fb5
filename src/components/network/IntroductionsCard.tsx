@@ -28,6 +28,7 @@ import {
 import { toastError } from "@/lib/toastError";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-network";
+import { introductionAnchorId } from "@/lib/network/anchors";
 
 type Role = "bridge" | "requester" | "target";
 
@@ -81,7 +82,12 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
     role === "bridge" ? row.requester_id : role === "requester" ? row.target_id : row.bridge_id;
 
   return (
-    <div className="rounded-md border border-border bg-background/60 p-3">
+    // `id` w formacie, którego oczekuje producent powiadomień
+    // (20260812101000:92) - bez niego fragment adresu nie ma w co trafić.
+    <div
+      id={introductionAnchorId(row.id, row.status)}
+      className="scroll-mt-24 rounded-md border border-border bg-background/60 p-3"
+    >
       <div className="flex items-start gap-3">
         <Link
           to="/author/$slug"

@@ -1,8 +1,13 @@
-// ReportUserDialog + ReportUserButton: zgłoszenie osoby do moderacji tenanta.
-// Dialog jest sterowany z zewnątrz (popover ConnectButton, menu profilu), więc
-// testujemy zarówno sam dialog, jak i samodzielny przycisk. Domknięty słownik
-// powodów jest kontraktem z CHECK-iem w bazie, a dedup i limit dzienny
-// egzekwuje RPC - UI musi tylko odróżnić limit od zwykłego błędu.
+// ReportUserDialog: zgłoszenie osoby do moderacji tenanta.
+// Dialog jest sterowany z zewnątrz (popover ConnectButton), więc testujemy sam
+// dialog. Domknięty słownik powodów jest kontraktem z CHECK-iem w bazie, a
+// dedup i limit dzienny egzekwuje RPC - UI musi tylko odróżnić limit od
+// zwykłego błędu.
+//
+// Cztery przypadki `ReportUserButton` odpadły 20260913 razem z komponentem:
+// był wyeksportowany i przetestowany, a nie wołał go ŻADEN plik produkcyjny.
+// Test kodu bez użytkownika to nie pokrycie, tylko koszt utrzymania, który
+// wygląda jak pokrycie.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import {
@@ -33,7 +38,7 @@ vi.mock("@/lib/network/useConnections", () => ({ useReportUser: () => h.report }
 vi.mock("@/lib/toastError", () => ({ toastError: h.toastErrorMapper }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 
-import { ReportUserButton, ReportUserDialog } from "@/components/network/ReportUserDialog";
+import { ReportUserDialog } from "@/components/network/ReportUserDialog";
 
 const report = (): MutationStub<ReportVars, string> => h.report as MutationStub<ReportVars, string>;
 
@@ -147,44 +152,5 @@ describe("ReportUserDialog", () => {
     h.report = pendingMutation<ReportVars, string>();
     renderDialog();
     expect(screen.getByRole("button", { name: k("network.reportSubmit") })).toBeDisabled();
-  });
-});
-
-describe("ReportUserButton", () => {
-  it("anon: przycisk nie istnieje", () => {
-    h.user = null;
-    const { container } = render(
-      <ReportUserButton userId={NETWORK_IDS.peer} displayName={PEER_NAME} />,
-    );
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("własny profil: przycisk nie istnieje", () => {
-    h.user = { id: NETWORK_IDS.peer };
-    const { container } = render(
-      <ReportUserButton userId={NETWORK_IDS.peer} displayName={PEER_NAME} />,
-    );
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("klik otwiera dialog moderacji dla wskazanej osoby", () => {
-    render(
-      <ReportUserButton userId={NETWORK_IDS.peer} displayName={PEER_NAME} className="ml-auto" />,
-    );
-    const trigger = screen.getByRole("button", {
-      name: `${k("network.report")}: ${PEER_NAME}`,
-    });
-    expect(trigger.className).toContain("ml-auto");
-    expect(screen.queryByText(k("network.reportBody"))).not.toBeInTheDocument();
-
-    fireEvent.click(trigger);
-    expect(screen.getByText(k("network.reportTitle", { name: PEER_NAME }))).toBeInTheDocument();
-  });
-
-  it("etykieta akcji jest widoczna od sm, na mobile zostaje dla czytnika ekranu", () => {
-    render(<ReportUserButton userId={NETWORK_IDS.peer} displayName={PEER_NAME} />);
-    const label = screen.getByText(k("network.report"));
-    expect(label.className).toContain("sr-only");
-    expect(label.className).toContain("sm:not-sr-only");
   });
 });

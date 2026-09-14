@@ -1,8 +1,9 @@
 // Dialog "Poproś o wprowadzenie" - LinkedIn-style bridge introductions.
 // Requester wybiera kogoś ze SWOJEJ sieci jako "bridge" i pisze notkę
 // (20-600 znaków). Baza sama waliduje że bridge<->target są połączeni
-// oraz że target zezwala na komunikację.
-import { useMemo, useState } from "react";
+// oraz że target zezwala na komunikację (blokada pary, `discoverable`,
+// `connections_allowed_from` - migracja 20260913171000).
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UsersRound, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -33,7 +34,13 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   targetId: string;
   targetName: string;
-  /** Wiersze wprowadzeń, gdzie zalogowany jest requester - filtr aktywnych bridge'ów. */
+  /**
+   * Wiersze wprowadzeń, gdzie zalogowany jest requester - filtr aktywnych
+   * bridge'ów. Od 20260913171000 jest to WYGODA INTERFEJSU (most już
+   * poproszony jest wyszarzony), a nie ochrona przed duplikatem: tę trzyma
+   * indeks `introduction_requests_active_uidx`, a `request_introduction`
+   * zwraca id istniejącej prośby zamiast zakładać drugi wiersz.
+   */
   existing?: ReadonlyArray<IntroductionRow>;
 }
 
@@ -48,8 +55,21 @@ export function RequestIntroductionDialog({
   const [bridgeId, setBridgeId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
 
-  const connectionsQ = useMyConnections(search, 30);
+  // 250 ms zwłoki między pisaniem a zapytaniem - ten sam mechanizm i to samo
+  // okno, co w `ConnectionsTab` (src/routes/network.tsx). Bez niego KAŻDE
+  // naciśnięcie klawisza szło do `my_connections`, bo klucz zapytania niesie
+  // przyciętą frazę (useConnections.ts): wpisanie ośmioliterowego nazwiska to
+  // osiem zapytań trigramowych (`discovery_search LIKE '%...%'` z sortowaniem
+  // po `similarity`, 20260717162432:421-427). Zwykły `useEffect` z
+  // `clearTimeout` wystarcza - bez nowej zależności i bez własnego okna.
+  useEffect(() => {
+    const handle = setTimeout(() => setQuery(search), 250);
+    return () => clearTimeout(handle);
+  }, [search]);
+
+  const connectionsQ = useMyConnections(query, 30);
   const connections = useMemo(() => (connectionsQ.data?.pages ?? []).flat(), [connectionsQ.data]);
 
   // ID mostów już użytych w aktywnych wprowadzeniach do tego targetu.
@@ -74,6 +94,9 @@ export function RequestIntroductionDialog({
     setBridgeId(null);
     setMessage("");
     setSearch("");
+    // Fraza zdebounce'owana też - inaczej ponowne otwarcie dialogu startuje
+    // z wynikami poprzedniego wyszukiwania i pustym polem nad nimi.
+    setQuery("");
   };
 
   const handleSubmit = () => {
