@@ -219,7 +219,12 @@ async function fetchTaxonomyPage(
   const { data: rows, count, error: postsError } = await q.range(from, to);
   if (postsError) throw postsError;
   return {
-    posts: await hydrateHref(rows ?? []),
+    // RZUTOWANIE JEST NOŚNE, mimo że wygląda na kosmetykę. `kind` wybiera jedno
+    // z dwóch osadzeń, więc `rows` jest UNIĄ dwóch typów wiersza (z kluczem
+    // `post_categories` albo `post_tags`), a `hydrateHref` jest generyczne po
+    // JEDNYM kształcie - bez rzutowania drugi wariant unii nie jest przypisywalny.
+    // Sprawdzone `tsc`: usunięcie tej linijki daje TS2345.
+    posts: await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>),
     total: count ?? 0,
   };
 }

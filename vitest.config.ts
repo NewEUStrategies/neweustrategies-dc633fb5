@@ -7525,10 +7525,10 @@ export default defineConfig({
         // `publicRouteLoaders.ts` mierzone tym samym przebiegiem; pełna suita daje
         // na nim nie mniej (analizator biegnie też z `check:ci-gates`).
         "src/lib/ci/publicRouteLoaders.ts": {
-          statements: 94,
-          functions: 96,
-          lines: 95,
-          branches: 91,
+          statements: 96,
+          functions: 98,
+          lines: 97,
+          branches: 94,
         },
         "src/lib/http/documentCache.ts": {
           statements: 98,

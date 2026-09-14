@@ -724,7 +724,6 @@ describe("adresy wpisów w archiwum: batch page_full_paths", () => {
   it("wpisy pod tym samym rodzicem nie mnożą wywołań - identyfikatory są deduplikowane", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }, { post_id: "p3" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2"), wpis("p3")], 3),
     });
     await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
@@ -735,7 +734,6 @@ describe("adresy wpisów w archiwum: batch page_full_paths", () => {
   it("dwóch różnych rodziców trafia do jednego wywołania i do dwóch różnych adresów", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2", { parent_page_id: "str-inna" })], 2),
       sciezki: ok([
         { page_id: STRONA_RODZIC, full_path: SCIEZKA_RODZICA },
@@ -778,7 +776,6 @@ describe("adresy wpisów w archiwum: fallback per-id", () => {
   it("BŁĄD batcha przełącza na page_full_path per identyfikator (nazwa argumentu _page_id)", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2", { parent_page_id: "str-inna" })], 2),
       sciezki: fail("function page_full_paths does not exist", "42883"),
     });

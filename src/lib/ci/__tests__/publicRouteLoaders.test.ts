@@ -724,6 +724,138 @@ function wchodziDoCache(fullPath: string): boolean {
   );
 }
 
+// ---------------------------------------------------------------------------
+// RATCHET PER TRASA - na atrapach, bez chodzenia po drzewie
+// ---------------------------------------------------------------------------
+//
+// Przypadki na PRAWDZIWYM drzewie (niżej) dowodzą liczby; te dowodzą KOMUNIKATU
+// i rozróżnień, których prawdziwe drzewo dziś nie produkuje - bo lista jest
+// aktualna, więc `moved` i `fixed` są tam z definicji puste. Bez tego bloku
+// gałęzie raportu byłyby martwym kodem: zapaliłyby się dopiero w dniu, w którym
+// ktoś przeniesie albo naprawi trasę, czyli dokładnie wtedy, gdy komunikat musi
+// być poprawny.
+describe("ratchet per trasa - komunikat i rozróżnienia", () => {
+  /** Raport z jedną zimną trasą (`useQuery` bez loadera) o zadanym pliku i adresie. */
+  function zimnyRaport(plik: string, adres: string) {
+    const files = sources({
+      "src/routes/__root.tsx": ROOT,
+      [plik]: `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('${adres}')({ component: P });
+function P() { const q = useQuery(qo()); return <div>{q.data}</div>; }`,
+    });
+    const tree = routeTree([
+      {
+        ident: "Probe",
+        file: plik.replace("src/", "").replace(/\.tsx$/, ""),
+        path: adres,
+        parent: "rootRouteImport",
+      },
+    ]);
+    return analysePublicRouteLoaders({ routeTree: tree, sources: files });
+  }
+
+  const WSZYSTKO_W_CACHE = () => true;
+  const NIC_W_CACHE = () => false;
+
+  it("trasa NA liście nie jest ani nowa, ani naprawiona, ani przeniesiona", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/proba"],
+    ]);
+
+    expect(r).toEqual({ fresh: [], moved: [], fixed: [], total: 1 });
+    expect(coldRouteRatchetFailed(r)).toBe(false);
+    expect(renderColdRouteRatchet(r, WSZYSTKO_W_CACHE)).toContain("ratchet trzyma kierunek");
+  });
+
+  it("trasa SPOZA listy jest nowym długiem, a komunikat NAZYWA ją i mówi, gdzie boli", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), []);
+
+    expect(coldRouteRatchetFailed(r)).toBe(true);
+    expect(r.fresh).toEqual([{ file: "src/routes/proba.tsx", fullPath: "/proba" }]);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("/proba");
+    expect(tekst).toContain("src/routes/proba.tsx");
+    expect(tekst).toContain("wchodzi do NES Edge Cache");
+    expect(tekst).toContain("loader rozgrzewający");
+  });
+
+  it("komunikat odróżnia trasę POZA cache dokumentów - to jest tańsza połowa długu", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), []);
+
+    expect(renderColdRouteRatchet(r, NIC_W_CACHE)).toContain("poza cache dokumentów");
+  });
+
+  it("ten sam plik pod INNYM adresem to PRZENIESIENIE, nie nowy dług", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/stary-adres"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([]);
+    expect(r.moved).toEqual([
+      { kind: "adres", file: "src/routes/proba.tsx", was: "/stary-adres", now: "/proba" },
+    ]);
+    expect(coldRouteRatchetFailed(r)).toBe(false);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("PRZENIESIONYCH");
+    expect(tekst).toContain("adres /stary-adres -> /proba");
+  });
+
+  it("ten sam adres pod INNYM plikiem też jest przeniesieniem", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/stara-nazwa.tsx", "/proba"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([]);
+    expect(r.moved).toEqual([
+      {
+        kind: "plik",
+        fullPath: "/proba",
+        was: "src/routes/stara-nazwa.tsx",
+        now: "src/routes/proba.tsx",
+      },
+    ]);
+    expect(renderColdRouteRatchet(r, WSZYSTKO_W_CACHE)).toContain(
+      "plik src/routes/stara-nazwa.tsx -> src/routes/proba.tsx",
+    );
+  });
+
+  it("wpis z listy, który NIE jest już zimny, trafia do `fixed` i NIE oblewa bramki", () => {
+    // Naprawa nie może być porażką. Komunikat ma za to kazać skrócić listę
+    // razem z sufitem - inaczej lista po kilku PR-ach przestaje cokolwiek znaczyć.
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/proba"],
+      ["src/routes/juz-naprawiona.tsx", "/juz-naprawiona"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([
+      { file: "src/routes/juz-naprawiona.tsx", fullPath: "/juz-naprawiona" },
+    ]);
+    expect(coldRouteRatchetFailed(r)).toBe(false);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("NAPRAWIONYCH");
+    expect(tekst).toContain("/juz-naprawiona");
+    expect(tekst).toContain("FROZEN_COLD_PUBLIC_ROUTES");
+  });
+
+  it("DWA pliki pod tym samym adresem: drugi wpis z listy nie jest zużywany dwa razy", () => {
+    // Na prawdziwym drzewie szesnaście adresów niesie po dwa pliki tras. Gdyby
+    // mapa adresów trzymała tylko pierwszy wpis, dopasowanie potrafiłoby trafić
+    // w rekord już zużyty przez dopasowanie po pliku - i ta sama trasa dałaby
+    // JEDNOCZEŚNIE `fresh` i `fixed`.
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/inna.tsx", "/proba"],
+      ["src/routes/jeszcze-inna.tsx", "/proba"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.moved).toHaveLength(1);
+    expect(r.fixed).toEqual([{ file: "src/routes/jeszcze-inna.tsx", fullPath: "/proba" }]);
+  });
+});
+
 describe("ratchet na prawdziwym drzewie tras", () => {
   it("lista tras publicznych bez rozgrzanej treści NIE ROŚNIE", { timeout: 180_000 }, () => {
     const { cold, cachedCold } = analyseRealTree();
