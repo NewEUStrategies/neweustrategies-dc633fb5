@@ -21,7 +21,7 @@ export function HeaderSeoHeading() {
   const lang = useLang();
   const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const text = headerSeoHeadingText(
-    resolveSetting<unknown>(settingsMap, SEO_SETTINGS_KEY, null),
+    resolveSetting<Record<string, unknown>>(settingsMap, SEO_SETTINGS_KEY, {}),
     lang,
   );
   return (
