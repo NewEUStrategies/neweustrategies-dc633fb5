@@ -21834,6 +21834,7 @@ export type Database = {
         Args: { p_note?: string; p_slot_id: string }
         Returns: Json
       }
+      brand_media_url_text: { Args: { _value: string }; Returns: string }
       bulk_generate_coupons_for_campaign: {
         Args: { _campaign_id: string }
         Returns: number

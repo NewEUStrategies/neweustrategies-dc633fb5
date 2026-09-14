@@ -61,6 +61,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { uiLocale } from "@/lib/i18n/format";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 type Company = {
   id: string;
@@ -1028,7 +1029,7 @@ function EditableCompanyLogo({
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
-      await onChange(data.publicUrl);
+      await onChange(brandedMediaUrl(data.publicUrl));
       toast.success(t("Logo zaktualizowane", "Logo updated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "upload failed");

@@ -308,6 +308,7 @@ export const getMediaUsage = createServerFn({ method: "POST" })
 
 // ---- Regenerate thumbnails / pre-warm Supabase image transforms ----
 import { buildTransformedImageUrl } from "@/lib/cropSizes";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 export interface ThumbnailRegenResult {
   media: number;
@@ -587,6 +588,7 @@ export const duplicateMedia = createServerFn({ method: "POST" })
         continue;
       }
       const { data: urlData } = supabaseAdmin.storage.from("media").getPublicUrl(newPath);
+      const brandedUrl = brandedMediaUrl(urlData.publicUrl);
       const dot = r.filename.lastIndexOf(".");
       const base = dot > 0 ? r.filename.slice(0, dot) : r.filename;
       const suffix = dot > 0 ? r.filename.slice(dot) : "";
@@ -597,7 +599,7 @@ export const duplicateMedia = createServerFn({ method: "POST" })
           tenant_id: tenantId,
           uploader_id: userId,
           storage_path: newPath,
-          public_url: urlData.publicUrl,
+          public_url: brandedUrl,
           filename: newName,
           mime_type: r.mime_type,
           size_bytes: r.size_bytes,

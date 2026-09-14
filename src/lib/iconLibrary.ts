@@ -1,5 +1,6 @@
 // Biblioteka ikon - data layer (CRUD + bulk upload do bucketu 'media').
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 export type IconKind = "custom" | "flag" | "brand";
 export type IconVariant = "auto" | "light" | "dark" | "default";
@@ -117,7 +118,7 @@ export async function uploadIconAsset(
     .from("media")
     .upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
   if (error) throw error;
-  return supabase.storage.from("media").getPublicUrl(path).data.publicUrl;
+  return brandedMediaUrl(supabase.storage.from("media").getPublicUrl(path).data.publicUrl);
 }
 
 export interface BulkResult {

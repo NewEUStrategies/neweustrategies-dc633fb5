@@ -25,6 +25,7 @@ import { Lock, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 type Gender = "male" | "female" | "neutral";
 
@@ -205,7 +206,7 @@ export function AccountIdentityPanel() {
       });
 
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
-      const publicUrl = pub.publicUrl;
+      const publicUrl = brandedMediaUrl(pub.publicUrl);
       const patch = kind === "avatar" ? { avatar_url: publicUrl } : { cover_url: publicUrl };
 
       const { error: updErr } = await supabase.from("profiles").update(patch).eq("id", user.id);

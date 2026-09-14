@@ -45,6 +45,7 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { useServerFn } from "@tanstack/react-start";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 /**
  * Pole URL obrazu z:
@@ -101,6 +102,7 @@ function ImageUrlField({
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
+      const publicUrl = brandedMediaUrl(data.publicUrl);
       // Register in the `media` table so it shows up on /admin/media.
       try {
         await registerUpload({
@@ -109,7 +111,7 @@ function ImageUrlField({
             filename: file.name,
             mimeType: file.type,
             sizeBytes: file.size,
-            publicUrl: data.publicUrl,
+            publicUrl,
           },
         });
       } catch (regErr) {
@@ -118,7 +120,7 @@ function ImageUrlField({
         console.warn("[ImageUrlField] media registration failed:", regErr);
       }
       setPreviewOk(true);
-      onChange(data.publicUrl);
+      onChange(publicUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : "upload error");
     } finally {

@@ -22,10 +22,15 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
-function serve(method: "GET" | "HEAD", path?: string, headers: HeadersInit = {}) {
+function serve(
+  method: "GET" | "HEAD",
+  path?: string,
+  headers: HeadersInit = {},
+  query = "",
+) {
   if (!h.handlers) throw new Error("route did not register handlers");
   return h.handlers[method]({
-    request: new Request("https://nes.example/media/file", { method, headers }),
+    request: new Request(`https://nes.example/media/file${query}`, { method, headers }),
     params: { _splat: path },
   });
 }
@@ -92,4 +97,25 @@ it.each([
   const response = await serve("GET", "image.png");
   expect(response.status).toBe(expected);
   expect(await response.text()).toBe("Not found");
+});
+
+it("wariant kadrowany trafia na transformację obrazu z ograniczonymi parametrami", async () => {
+  h.fetch.mockResolvedValue(new Response("img", { headers: { "content-type": "image/jpeg" } }));
+  await serve("GET", "cover.jpg", {}, "?width=9999&height=300&resize=cover&quality=88");
+  expect(String(h.fetch.mock.calls[0][0])).toBe(
+    "https://storage.example.test/storage/v1/render/image/public/media/cover.jpg?width=4000&height=300&resize=cover&quality=88",
+  );
+});
+
+it("wariant szerokościowy nie wymaga wysokości, a śmieciowe parametry są pomijane", async () => {
+  h.fetch.mockResolvedValue(new Response("img", { headers: { "content-type": "image/jpeg" } }));
+  await serve("GET", "cover.jpg", {}, "?width=320&resize=hack&quality=1");
+  expect(String(h.fetch.mock.calls[0][0])).toBe(
+    "https://storage.example.test/storage/v1/render/image/public/media/cover.jpg?width=320",
+  );
+  h.fetch.mockClear();
+  await serve("GET", "cover.jpg", {}, "?width=0&height=abc");
+  expect(String(h.fetch.mock.calls[0][0])).toBe(
+    "https://storage.example.test/storage/v1/object/public/media/cover.jpg",
+  );
 });

@@ -17,6 +17,7 @@ import { AdZone } from "@/components/AdSlot";
 import type { AdPageType } from "@/lib/ads/types";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
+import { HeaderSeoHeading } from "@/components/header/atoms/HeaderSeoHeading";
 // Closed overlays stay outside the boot waterfall. Keep search state after
 // its first use, and load the mobile drawer only when its shell is opened.
 const MobileDrawerBody = lazy(() =>
@@ -156,6 +157,9 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
           klatce animacji i przy okazji skalowało też fullscreenowy
           SearchOverlay, który jest renderowany poniżej - poza tym kontenerem. */}
       <div className="site-header-chrome">
+        {/* H1 strony głównej: istnieje w kodzie i w indeksie, niewidoczny w
+            layoucie - treść z panelu SEO, przyczepiona do logo w headerze. */}
+        {isHome && <HeaderSeoHeading />}
         <AlertBar />
         {trending.enabled !== false && (
           <TrendingTicker
