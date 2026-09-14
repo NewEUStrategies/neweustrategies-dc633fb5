@@ -47,13 +47,35 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
 
   const docRef = useRef(doc);
   docRef.current = doc;
+  /**
+   * @returns czy zmiana została ZATWIERDZONA. Mutacja, która zwróci `false`,
+   *   zgłasza „nie było czego (albo gdzie) zmienić i dokumentu nie ruszyłem" -
+   *   wtedy przerywamy przed `history.set`. Bez tego przerwania nieudane
+   *   przeniesienie dokładało krok „Cofnij", który nic nie cofa, i - przez
+   *   `onChange` historii - rewizję autozapisu identyczną z poprzednią.
+   *   Operacje zwracające `undefined` (a takich jest większość) zatwierdzają
+   *   się jak dotąd, bez żadnej zmiany zachowania - dlatego test jest na
+   *   `=== false`, a nie na falsy.
+   *
+   *   Pomijamy wtedy również sanityzację (`safeParseBuilderDoc`): odrzucone
+   *   upuszczenie nie ma prawa przepisać dokumentu, nawet „na lepsze".
+   *
+   *   UBOCZNY SKUTEK, ŚWIADOMY: pominięty `history.set` nie zeruje też klucza
+   *   zwijania w `useHistory`, więc odrzucone upuszczenie w środku serii
+   *   naciśnięć w jednym polu nie rozcina jej na dwa kroki cofania. Skoro nic
+   *   się nie zmieniło, seria edycji jest nieprzerwana - i tak ma być.
+   */
   const update = useCallback(
-    (mut: (d: BuilderDocument) => void, opts?: { label?: string; coalesceKey?: string }) => {
+    (
+      mut: (d: BuilderDocument) => void | boolean,
+      opts?: { label?: string; coalesceKey?: string },
+    ): boolean => {
       const next: BuilderDocument = safeParseBuilderDoc(JSON.parse(JSON.stringify(docRef.current)));
-      mut(next);
+      if (mut(next) === false) return false;
       const normalized = safeParseBuilderDoc(next);
       docRef.current = normalized;
       history.set(normalized, opts);
+      return true;
     },
     [history],
   );
@@ -274,22 +296,41 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     toast.success(t("builder.ops.abEnded"));
   };
 
-  const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") =>
-    update((d) => ops.moveWidgetTo(d, srcId, targetId, pos), {
+  // PRZENOSZENIE MOŻE SIĘ NIE UDAĆ, i o tym trzeba powiedzieć. Identyfikator
+  // celu czyta się z DOM w chwili upuszczenia, więc bywa, że wskazuje węzeł,
+  // którego już nie ma (druga karta redakcji, cofnięcie zmiany w trakcie
+  // przeciągania, przebudowa sekcji pod kursorem). Wcześniej taki drop KASOWAŁ
+  // widget i zapisywał brak autozapisem; teraz dokument zostaje nietknięty -
+  // ale samo „nic się nie stało" byłoby dalej mylące, bo redaktor nie wie, czy
+  // jego treść jeszcze istnieje. Dlatego mówimy wprost, że nic nie zginęło.
+  const moveRejected = () => toast.error(t("builder.ops.moveErr"));
+  const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") => {
+    // Upuszczenie widgetu na samego siebie to nie porażka, tylko brak ruchu.
+    if (srcId === targetId) return;
+    const moved = update((d) => ops.moveWidgetTo(d, srcId, targetId, pos), {
       label: t("builder.ops.movedWidget"),
     });
-  const moveWidgetToColumn = (srcId: string, targetColId: string) =>
-    update((d) => ops.moveWidgetToColumn(d, srcId, targetColId), {
+    if (!moved) moveRejected();
+  };
+  const moveWidgetToColumn = (srcId: string, targetColId: string) => {
+    const moved = update((d) => ops.moveWidgetToColumn(d, srcId, targetColId), {
       label: t("builder.ops.movedWidgetToColumn"),
     });
-  const moveWidgetToSection = (srcId: string, targetSectionId: string) =>
-    update((d) => ops.moveWidgetToSection(d, srcId, targetSectionId), {
+    if (!moved) moveRejected();
+  };
+  const moveWidgetToSection = (srcId: string, targetSectionId: string) => {
+    const moved = update((d) => ops.moveWidgetToSection(d, srcId, targetSectionId), {
       label: t("builder.ops.movedWidgetToSection"),
     });
-  const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") =>
-    update((d) => ops.moveSectionTo(d, srcId, targetId, pos), {
+    if (!moved) moveRejected();
+  };
+  const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") => {
+    if (srcId === targetId) return;
+    const moved = update((d) => ops.moveSectionTo(d, srcId, targetId, pos), {
       label: t("builder.ops.movedSection"),
     });
+    if (!moved) moveRejected();
+  };
 
   const toggleHidden = (id: string, kind: NonNullable<SelectionKind>) =>
     update((d) => ops.toggleHidden(d, id, kind, device));

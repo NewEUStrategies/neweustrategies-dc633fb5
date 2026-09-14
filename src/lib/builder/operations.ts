@@ -5,6 +5,13 @@
 // IN PLACE on a draft document (the Builder deep-clones before calling them,
 // so they never touch the live tree). They were extracted verbatim from
 // Builder.tsx so they can be unit-tested in isolation.
+//
+// Operacje PRZENOSZENIA zwracają `boolean`: `true` = dokument się zmienił,
+// `false` = nie było czego (albo gdzie) przenosić i drzewo pozostało
+// NIETKNIĘTE. Nie jest to kosmetyka sygnatury - hook buildera pomija na `false`
+// wpis do historii i rewizję autozapisu, więc odrzucone upuszczenie nie dokłada
+// kroku „Cofnij", który nic nie cofa, i nie zapisuje rewizji bez zmian. Reszta
+// operacji nadal zwraca `void`.
 import type {
   BuilderDocument,
   SectionNode,
@@ -66,25 +73,54 @@ export function cloneSection(s: SectionNode): SectionNode {
 
 // ---------- find + remove ----------
 
+/**
+ * KAŻDA kolumna dokumentu, w kolejności dokumentu, z pominięciem dziur.
+ *
+ * Dziecko sekcji jest ALBO kolumną, ALBO sekcją wewnętrzną, która trzyma
+ * kolumny - ten trójpoziomowy obchód był wcześniej przepisany z ręki w
+ * siedmiu funkcjach tego pliku. Jedno źródło prawdy znaczy, że obrona przed
+ * uszkodzonym drzewem (`null` w `sections`, `children` albo `columns` - realny
+ * ślad niepełnej migracji, patrz `brokenDoc` w testach) nie może się rozjechać
+ * między operacjami: dopisanie obrony w jednym miejscu było poprawką w jednej
+ * operacji i pozostawało dziurą w sześciu pozostałych.
+ */
+function* eachColumn(doc: BuilderDocument): Generator<ColumnNode> {
+  for (const section of doc?.sections ?? []) {
+    if (!section) continue;
+    for (const child of section.children ?? []) {
+      if (!child) continue;
+      if (child.kind === "column") {
+        yield child;
+        continue;
+      }
+      for (const col of child.columns ?? []) if (col) yield col;
+    }
+  }
+}
+
+/**
+ * Kolumna I INDEKS widgetu - w tej kolejności, bo przenoszenie potrzebuje
+ * POZYCJI, a nie tylko węzła: bez indeksu nie da się ani wyciąć widgetu, ani
+ * policzyć, gdzie ma wylądować względem celu. `index >= 0` gwarantuje, że
+ * `column.children` jest tablicą, więc wołający nie musi jej już bronić.
+ */
+function locateWidget(
+  doc: BuilderDocument,
+  id: string,
+): { column: ColumnNode; index: number } | null {
+  for (const column of eachColumn(doc)) {
+    const index = (column.children ?? []).findIndex((w) => w?.id === id);
+    if (index >= 0) return { column, index };
+  }
+  return null;
+}
+
 export function findWidget(
   doc: BuilderDocument,
   id: string,
 ): { widget: WidgetNode; column: ColumnNode } | null {
-  if (!doc?.sections) return null;
-  for (const s of doc.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const child of children) {
-      if (!child) continue;
-      const cols = child.kind === "column" ? [child] : (child.columns ?? []);
-      for (const col of cols) {
-        if (!col) continue;
-        const w = (col.children ?? []).find((x) => x?.id === id);
-        if (w) return { widget: w, column: col };
-      }
-    }
-  }
-  return null;
+  const at = locateWidget(doc, id);
+  return at ? { widget: at.column.children[at.index], column: at.column } : null;
 }
 
 export function findSection(doc: BuilderDocument, id: string): SectionNode | null {
@@ -93,19 +129,7 @@ export function findSection(doc: BuilderDocument, id: string): SectionNode | nul
 }
 
 export function findColumn(doc: BuilderDocument, id: string): ColumnNode | null {
-  if (!doc?.sections) return null;
-  for (const s of doc.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      if (c.kind === "column" && c.id === id) return c;
-      if (c.kind === "inner-section") {
-        const f = (c.columns ?? []).find((x) => x?.id === id);
-        if (f) return f;
-      }
-    }
-  }
+  for (const column of eachColumn(doc)) if (column.id === id) return column;
   return null;
 }
 
@@ -255,22 +279,28 @@ export function duplicateSection(d: BuilderDocument, id: string): void {
   d.sections.splice(i + 1, 0, cloneSection(d.sections[i]));
 }
 
+/**
+ * @returns czy dokument się zmienił - patrz kontrakt przy `moveWidgetTo`.
+ *   Nieznany CEL nie jest tu porażką: sekcja ląduje na końcu dokumentu
+ *   (zachowanie przypięte testem), więc coś się zmieniło.
+ */
 export function moveSectionTo(
   d: BuilderDocument,
   srcId: string,
   targetId: string,
   pos: "before" | "after",
-): void {
-  if (srcId === targetId) return;
+): boolean {
+  if (srcId === targetId) return false;
   const i = d.sections.findIndex((s) => s?.id === srcId);
-  if (i < 0) return;
+  if (i < 0) return false;
   const [node] = d.sections.splice(i, 1);
   const j = d.sections.findIndex((s) => s?.id === targetId);
   if (j < 0) {
     d.sections.push(node);
-    return;
+    return true;
   }
   d.sections.splice(pos === "before" ? j : j + 1, 0, node);
+  return true;
 }
 
 export function addInnerSection(d: BuilderDocument, sectionId: string): void {
@@ -321,47 +351,55 @@ export function duplicateColumn(d: BuilderDocument, colId: string): void {
 }
 
 export function removeWidget(d: BuilderDocument, wid: string): void {
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) {
-        if (!col) continue;
-        col.children = (col.children ?? []).filter((w) => w?.id !== wid);
-      }
-    }
+  // Czyścimy WSZYSTKIE kolumny, a nie tylko pierwsze trafienie: gdyby drzewo
+  // niosło ten sam identyfikator dwa razy (zduplikowana rewizja, import),
+  // wyjście po pierwszym trafieniu zostawiłoby widget-widmo na stronie.
+  for (const column of eachColumn(d)) {
+    column.children = (column.children ?? []).filter((w) => w?.id !== wid);
   }
 }
 
 export function duplicateWidget(d: BuilderDocument, wid: string): void {
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) {
-        if (!col) continue;
-        const wchildren = col.children ?? [];
-        const i = wchildren.findIndex((w) => w?.id === wid);
-        if (i >= 0) {
-          col.children.splice(i + 1, 0, cloneWidget(wchildren[i]));
-          return;
-        }
-      }
-    }
-  }
+  const at = locateWidget(d, wid);
+  if (!at) return;
+  at.column.children.splice(at.index + 1, 0, cloneWidget(at.column.children[at.index]));
+}
+
+/**
+ * Kolumna wskazana identyfikatorem, JAKI NIESIE KANWA - a ten nie zawsze jest
+ * identyfikatorem kolumny.
+ *
+ * `data-col-id` jest stemplowane na SLOCIE dziecka sekcji, a dzieckiem sekcji
+ * bywa również sekcja wewnętrzna (BuilderRenderer, `visibleCols.map`); jej
+ * własne kolumny siedzą o poziom niżej i tego atrybutu NIE mają. Upuszczenie na
+ * wyściółkę sekcji wewnętrznej (12 px góra/dół), na jej tło albo w przerwę
+ * między jej kolumnami trafia więc tutaj z identyfikatorem SEKCJI WEWNĘTRZNEJ,
+ * którego żadna kolumna nigdy nie dopasuje. Nie jest to wyścig ani uszkodzony
+ * dokument - to zwykłe upuszczenie w zdrowym drzewie, a kanwa maluje tam pełną
+ * zachętę „upuść tutaj" (`is-drop-into`). Odpowiedzią nie może być ani utrata
+ * widgetu (tak było przed poprawką), ani cisza: celujemy w pierwszą kolumnę tej
+ * sekcji wewnętrznej, a gdy nie ma ona żadnej - zakładamy pełnowymiarową,
+ * dokładnie jak `moveWidgetToSection` dla sekcji bez kolumn.
+ */
+function columnForDrop(d: BuilderDocument, colId: string): ColumnNode | null {
+  const column = findColumn(d, colId);
+  if (column) return column;
+  const inner = findInner(d, colId);
+  if (!inner) return null;
+  const existing = (inner.columns ?? []).find((c): c is ColumnNode => !!c);
+  if (existing) return existing;
+  if (!inner.columns) inner.columns = [];
+  const created = newColumn(12);
+  inner.columns.push(created);
+  return created;
 }
 
 /** Push a ready-made widget node into a specific column. */
 export function addWidgetToColumn(d: BuilderDocument, colId: string, widget: WidgetNode): void {
-  const c = findColumn(d, colId);
-  if (c) {
-    if (!c.children) c.children = [];
-    c.children.push(widget);
-  }
+  const c = columnForDrop(d, colId);
+  if (!c) return;
+  if (!c.children) c.children = [];
+  c.children.push(widget);
 }
 
 /** Push a ready-made widget into a brand-new 1-column section. */
@@ -380,23 +418,9 @@ export function insertWidgetNear(
   pos: "before" | "after",
   widget: WidgetNode,
 ): void {
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) {
-        if (!col) continue;
-        const wchildren = col.children ?? [];
-        const i = wchildren.findIndex((x) => x?.id === targetWidgetId);
-        if (i >= 0) {
-          col.children.splice(pos === "before" ? i : i + 1, 0, widget);
-          return;
-        }
-      }
-    }
-  }
+  const at = locateWidget(d, targetWidgetId);
+  if (!at) return;
+  at.column.children.splice(pos === "before" ? at.index : at.index + 1, 0, widget);
 }
 
 /**
@@ -424,143 +448,112 @@ export function appendWidgetToSection(
   s.children.push(newCol);
 }
 
+/**
+ * Przenieś widget przed/za inny widget - także między kolumnami i sekcjami.
+ *
+ * KOLEJNOŚĆ DZIAŁAŃ JEST CZĘŚCIĄ KONTRAKTU: najpierw namierzamy ŹRÓDŁO ORAZ
+ * CEL, i tylko gdy OBA istnieją, cokolwiek wycinamy. Wcześniej było odwrotnie -
+ * widget wypadał ze swojej kolumny pierwszym `splice`, a gdy cel się nie
+ * znalazł, pętla szukania po prostu się kończyła i węzeł przepadał z dokumentu
+ * BEZ ŚLADU. Upuszczenie na cel, którego już nie ma, nie jest teoretyczne:
+ * identyfikator celu czytamy z atrybutu DOM w chwili `drop`, a między ostatnim
+ * rysowaniem a upuszczeniem druga karta redakcji może usunąć kolumnę, redaktor
+ * cofnąć zmianę (Ctrl+Z), a sekcja przebudować się pod kursorem. Dokument leci
+ * zaraz do autozapisu, więc taka utrata byłaby cicha i nieodwracalna. Ta sama
+ * gałąź brzegowa, którą `moveSectionTo` obsługiwało poprawnie od początku.
+ *
+ * @returns czy dokument się zmienił. `false` znaczy „nie było czego albo gdzie
+ *   przenosić" i DOKUMENT POZOSTAJE NIETKNIĘTY - wołający (hook buildera)
+ *   pomija wtedy wpis do historii i rewizję autozapisu, zamiast dokładać krok
+ *   `undo`, który nic nie cofa.
+ */
 export function moveWidgetTo(
   d: BuilderDocument,
   srcId: string,
   targetId: string,
   pos: "before" | "after",
-): void {
-  if (srcId === targetId) return;
-  let src: WidgetNode | null = null;
-  const removeFrom = (col: ColumnNode) => {
-    if (!col?.children) return false;
-    const i = col.children.findIndex((w) => w?.id === srcId);
-    if (i >= 0) {
-      src = col.children.splice(i, 1)[0];
-      return true;
-    }
-    return false;
-  };
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) if (removeFrom(col)) break;
-      if (src) break;
-    }
-    if (src) break;
-  }
-  if (!src) return;
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) {
-        if (!col?.children) continue;
-        const j = col.children.findIndex((w) => w?.id === targetId);
-        if (j >= 0) {
-          col.children.splice(pos === "before" ? j : j + 1, 0, src!);
-          return;
-        }
-      }
-    }
-  }
+): boolean {
+  if (srcId === targetId) return false;
+  const from = locateWidget(d, srcId);
+  const to = locateWidget(d, targetId);
+  if (!from || !to) return false;
+
+  const [node] = from.column.children.splice(from.index, 1);
+  // Wycięcie źródła przesuwa cel o jedno miejsce w lewo, ale TYLKO gdy oba
+  // leżały w tej samej kolumnie, a źródło było wcześniej. Dokładnie tę
+  // arytmetykę dawał stary kod (szukał celu już po wycięciu) - tutaj jest
+  // policzona jawnie, więc nie wymaga mutowania drzewa na próbę.
+  const at = to.index - (from.column === to.column && from.index < to.index ? 1 : 0);
+  to.column.children.splice(pos === "before" ? at : at + 1, 0, node);
+  return true;
 }
 
-export function moveWidgetToColumn(d: BuilderDocument, srcId: string, targetColId: string): void {
-  let src: WidgetNode | null = null;
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) {
-        if (!col?.children) continue;
-        const i = col.children.findIndex((w) => w?.id === srcId);
-        if (i >= 0) {
-          src = col.children.splice(i, 1)[0];
-          break;
-        }
-      }
-      if (src) break;
-    }
-    if (src) break;
-  }
-  if (!src) return;
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) {
-        if (col?.id === targetColId) {
-          if (!col.children) col.children = [];
-          col.children.push(src);
-          return;
-        }
-      }
-    }
-  }
+/**
+ * Przenieś widget na KONIEC wskazanej kolumny. Cel namierzamy przed wycięciem
+ * źródła - uzasadnienie i kontrakt zwracanej wartości jak w `moveWidgetTo`.
+ * `targetColId` przechodzi przez `columnForDrop`, bo kanwa podaje tu również
+ * identyfikatory sekcji wewnętrznych (patrz komentarz tej funkcji).
+ */
+export function moveWidgetToColumn(
+  d: BuilderDocument,
+  srcId: string,
+  targetColId: string,
+): boolean {
+  // Źródło sprawdzamy PIERWSZE: `columnForDrop` potrafi założyć kolumnę
+  // w pustej sekcji wewnętrznej, a nie ma po co jej zakładać dla przeniesienia,
+  // które i tak się nie wykona.
+  const from = locateWidget(d, srcId);
+  if (!from) return false;
+  const target = columnForDrop(d, targetColId);
+  if (!target) return false;
+
+  const [node] = from.column.children.splice(from.index, 1);
+  if (!target.children) target.children = [];
+  target.children.push(node);
+  return true;
 }
 
+/**
+ * Przenieś widget do sekcji: ląduje na końcu jej PIERWSZEJ kolumny (własnej
+ * albo pierwszej kolumny sekcji wewnętrznej), a gdy sekcja nie ma żadnej -
+ * zakładamy pełnowymiarową. Cel namierzamy przed wycięciem źródła -
+ * uzasadnienie i kontrakt zwracanej wartości jak w `moveWidgetTo`.
+ */
 export function moveWidgetToSection(
   d: BuilderDocument,
   srcId: string,
   targetSectionId: string,
-): void {
-  let src: WidgetNode | null = null;
-  for (const s of d.sections) {
-    if (!s) continue;
-    const children = s.children ?? [];
-    for (const c of children) {
-      if (!c) continue;
-      const cols = c.kind === "column" ? [c] : (c.columns ?? []);
-      for (const col of cols) {
-        if (!col?.children) continue;
-        const i = col.children.findIndex((w) => w?.id === srcId);
-        if (i >= 0) {
-          src = col.children.splice(i, 1)[0];
-          break;
-        }
-      }
-      if (src) break;
-    }
-    if (src) break;
-  }
-  if (!src) return;
+): boolean {
+  const from = locateWidget(d, srcId);
+  const targetSection = findSection(d, targetSectionId);
+  if (!from || !targetSection) return false;
 
-  const targetSection = d.sections.find((section) => section?.id === targetSectionId);
-  if (!targetSection) return;
-
+  // Pierwsza kolumna celu - szukana PRZED wycięciem, żeby cała funkcja trzymała
+  // się schematu „sprawdź wszystko, potem zmieniaj". Dziury i sekcje wewnętrzne
+  // bez kolumn przeskakujemy; węzeł kolumny zostaje ważny po wycięciu źródła.
   let targetColumn: ColumnNode | null = null;
-  const tchildren = targetSection.children ?? [];
-  for (const child of tchildren) {
+  for (const child of targetSection.children ?? []) {
     if (!child) continue;
     if (child.kind === "column") {
       targetColumn = child;
       break;
     }
-    if (child.kind === "inner-section" && (child.columns ?? [])[0]) {
-      targetColumn = child.columns[0];
+    const firstInner = (child.columns ?? [])[0];
+    if (firstInner) {
+      targetColumn = firstInner;
       break;
     }
   }
 
+  const [node] = from.column.children.splice(from.index, 1);
   if (!targetColumn) {
-    const newCol = newColumn(12);
+    targetColumn = newColumn(12);
     if (!targetSection.children) targetSection.children = [];
-    targetSection.children.push(newCol);
-    targetColumn = newCol;
+    targetSection.children.push(targetColumn);
   }
-
   if (!targetColumn.children) targetColumn.children = [];
-  targetColumn.children.push(src);
+  targetColumn.children.push(node);
+  return true;
 }
 
 /** Detach a global-widget instance: the local snapshot becomes a plain widget. */

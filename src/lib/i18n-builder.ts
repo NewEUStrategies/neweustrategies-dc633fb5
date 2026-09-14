@@ -1188,6 +1188,8 @@ const pl = {
       movedWidget: "Przeniesiono widget",
       movedWidgetToColumn: "Przeniesiono widget do kolumny",
       movedWidgetToSection: "Przeniesiono widget do sekcji",
+      moveErr:
+        "Nie przeniesiono - układ zmienił się w trakcie przeciągania. Nic nie zginęło, spróbuj ponownie.",
     },
     widgetProps: {
       dimensions: "Wymiary widgetu",
@@ -2732,6 +2734,8 @@ const en: typeof pl = {
       movedWidget: "Widget moved",
       movedWidgetToColumn: "Widget moved to column",
       movedWidgetToSection: "Widget moved to section",
+      moveErr:
+        "Nothing was moved - the layout changed mid-drag. No content was lost; please try again.",
     },
     widgetProps: {
       dimensions: "Widget dimensions",

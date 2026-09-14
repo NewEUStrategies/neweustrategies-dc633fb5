@@ -307,6 +307,41 @@ describe("VisualCanvas - przenoszenie istniejących węzłów", () => {
     expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "c2");
   });
 
+  // SKĄD BIERZE SIĘ IDENTYFIKATOR, KTÓRY NIE JEST KOLUMNĄ. Renderer stempluje
+  // `data-col-id` na SLOCIE dziecka sekcji, a dzieckiem bywa sekcja
+  // wewnętrzna - jej własne kolumny leżą o poziom niżej i mają własne
+  // `data-col-id`. Upuszczenie na wyściółkę sekcji wewnętrznej (albo w przerwę
+  // między jej kolumnami) woła więc „przenieś do kolumny" z identyfikatorem
+  // SEKCJI WEWNĘTRZNEJ. To nie wyścig ani uszkodzony dokument - tak wygląda
+  // zwykłe upuszczenie w zdrowym drzewie, i dlatego `moveWidgetToColumn`
+  // rozwiązuje taki identyfikator na pierwszą kolumnę tej sekcji
+  // (`columnForDrop` w operations.ts). Dawniej ten drop KASOWAŁ widget.
+  it("widget upuszczony na slot sekcji wewnętrznej dostaje JEJ identyfikator", () => {
+    const { h } = renderCanvas({
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        sec("s2", [{ id: "i1", kind: "inner-section", columns: [col("ic1", [])] }]),
+      ],
+    });
+    startWidgetDrag("w1");
+    fireDrop(node("data-col-id", "i1"), {});
+    expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "i1");
+  });
+
+  it("upuszczenie na kolumnę WEWNĄTRZ sekcji wewnętrznej celuje w tę kolumnę", () => {
+    const { h } = renderCanvas({
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        sec("s2", [{ id: "i1", kind: "inner-section", columns: [col("ic1", [])] }]),
+      ],
+    });
+    startWidgetDrag("w1");
+    fireDrop(node("data-col-id", "ic1"), {});
+    expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "ic1");
+  });
+
   it("widget upuszczony na sekcję bez kolumn tworzy w niej kolumnę", () => {
     const { h } = renderCanvas({
       version: 1,
