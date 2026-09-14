@@ -114,7 +114,7 @@ export const Route = createFileRoute("/api/public/related-click")({
 
         // Rate-limit: 30 klik / 5 min z jednego `viewer_hash` W OBRĘBIE NAJEMCY.
         // Predykat `(tenant_id, viewer_hash, clicked_at)` odpowiada indeksowi
-        // `related_post_clicks_tenant_viewer_window_idx` (migracja 20260914120000).
+        // `related_post_clicks_tenant_viewer_window_idx` (migracja 20260914230000).
         const since = new Date(Date.now() - 5 * 60_000).toISOString();
         const { count } = await supabaseAdmin
           .from("related_post_clicks")
