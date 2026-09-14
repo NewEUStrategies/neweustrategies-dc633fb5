@@ -26283,10 +26283,6 @@ export type Database = {
               isSetofReturn: false
             }
           }
-      set_user_consents: {
-        Args: { p_entries: Json }
-        Returns: string[]
-      }
       skill_endorsement_counts: {
         Args: { p_user: string }
         Returns: {
