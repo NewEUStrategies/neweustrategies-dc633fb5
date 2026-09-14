@@ -881,6 +881,14 @@ export const en = {
       canonicalHint: "Only for republished content - points at the original source.",
       noindexLabel: "Hide from search engines (noindex)",
       noindexHint: "Also removes the URL from the sitemap, RSS and news sitemap.",
+      live: {
+        address: "Real address",
+        openPage: "Open page",
+        google: "Google result",
+        facebook: "Facebook card",
+        linkedin: "LinkedIn card",
+        hint: "Opens in a new window and shows the published page, not unsaved changes.",
+      },
       meter: {
         empty: "The default text will be used",
         short: "Too short",
