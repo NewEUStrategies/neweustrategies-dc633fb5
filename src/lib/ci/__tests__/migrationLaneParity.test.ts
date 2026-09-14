@@ -195,18 +195,28 @@ describe("analyzeMigrationLanes", () => {
   // wierszach, pas drizzle jednym - i sama proza zapalała `rozjazd-sql`,
   // którego ta bramka świadomie nie pilnuje.
   // -------------------------------------------------------------------------
-  it("operand COMMENT ON sklejony z kilku literałów to jedna proza", () => {
+  it("operand COMMENT ON sklejony przez koniec wiersza to jedna proza", () => {
     expect(executableSql("COMMENT ON COLUMN a.b IS 'ab';")).toBe(
       executableSql("COMMENT ON COLUMN a.b IS 'a'\n'b';"),
     );
   });
 
   it("sklejanie nie przeskakuje poza operand - kolejna instrukcja zostaje", () => {
-    const sql = executableSql("COMMENT ON COLUMN a.b IS 'a' 'b'; INSERT INTO z VALUES ('c');");
+    const sql = executableSql("COMMENT ON COLUMN a.b IS 'a'\n'b'; INSERT INTO z VALUES ('c');");
     expect(sql).toContain("'<proza>'");
     expect(sql).toContain("INSERT INTO z VALUES ('c')");
     // Dokładnie JEDEN znacznik: sklejony operand to jedna wartość.
     expect(sql.match(/<proza>/g)).toHaveLength(1);
+  });
+
+  // PostgreSQL skleja stałe napisowe TYLKO przez koniec wiersza; `'a' 'b'`
+  // w jednej linii to błąd składni. Bramka nie ma prawa udawać, że taki plik
+  // jest równy poprawnemu bliźniakowi - pas drizzle nie jest przez nic innego
+  // wykonywany, bo `check:sql-*` czytają wyłącznie pas supabase.
+  it("w JEDNEJ linii sąsiadujące literały to NIE jest sklejanie", () => {
+    expect(executableSql("COMMENT ON COLUMN a.b IS 'ab';")).not.toBe(
+      executableSql("COMMENT ON COLUMN a.b IS 'a' 'b';"),
+    );
   });
 
   it("sklejanie nie zrównuje RÓŻNIĄCEGO SIĘ DDL-u obok prozy", () => {
@@ -217,8 +227,8 @@ describe("analyzeMigrationLanes", () => {
 
   it("literały sklejane POZA komentarzem zostają bajt w bajt", () => {
     // To jest wartość, nie proza: dwa różne napisy nie mogą się zrównać.
-    expect(executableSql("INSERT INTO z VALUES ('a' 'b');")).not.toBe(
-      executableSql("INSERT INTO z VALUES ('a' 'c');"),
+    expect(executableSql("INSERT INTO z VALUES ('a'\n'b');")).not.toBe(
+      executableSql("INSERT INTO z VALUES ('a'\n'c');"),
     );
   });
 

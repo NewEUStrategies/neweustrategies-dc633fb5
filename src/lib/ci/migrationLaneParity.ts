@@ -192,16 +192,28 @@ function literalEnd(src: string, at: number): number {
 }
 
 /**
- * Koniec CAŁEGO ciągu sklejanych literałów zaczynającego się na `at` - łącznie
- * z literałami oddzielonymi samą spacją albo końcem wiersza. Rozdziela je
- * wyłącznie biały znak: cokolwiek innego kończy ciąg.
+ * Koniec CAŁEGO ciągu sklejanych literałów zaczynającego się na `at`.
+ *
+ * KONIEC WIERSZA JEST WARUNKIEM, NIE OZDOBĄ. PostgreSQL skleja dwie sąsiadujące
+ * stałe napisowe tylko wtedy, gdy rozdzielający je biały znak zawiera ZNAK
+ * NOWEGO WIERSZA; `'a' 'b'` w jednej linii to błąd składni, a nie napis `ab`.
+ * Gdyby ta pętla łykała też wariant jednowierszowy, odcisk zrównywałby plik
+ * NIEWYKONYWALNY z poprawnym bliźniakiem - a bramki `check:sql-*` czytają
+ * wyłącznie pas supabase, więc nic innego by tego nie złapało. Zepsuty plik
+ * pasa drizzle ma tu zapalić bramkę, nie przejść.
+ *
+ * Cokolwiek innego niż biały znak - również komentarz `--` - kończy ciąg.
  */
 function concatenatedLiteralsEnd(src: string, at: number): number {
   let end = literalEnd(src, at);
   for (;;) {
     let k = end;
-    while (k < src.length && /\s/.test(src[k]!)) k += 1;
-    if (src[k] !== "'") return end;
+    let sawNewline = false;
+    while (k < src.length && /\s/.test(src[k]!)) {
+      if (src[k] === "\n") sawNewline = true;
+      k += 1;
+    }
+    if (!sawNewline || src[k] !== "'") return end;
     end = literalEnd(src, k);
   }
 }
