@@ -120,6 +120,13 @@
       "when": 1789366394872,
       "tag": "0016_mutual_visible_count",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789368131307,
+      "tag": "0017_set_user_consents_atomic",
+      "breakpoints": true
     }
   ]
 }
