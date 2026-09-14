@@ -15,6 +15,13 @@
 // zależeć od tego, czy akurat da się wyprodukować błąd.
 import { useTranslation } from "react-i18next";
 import type { BrandFinding } from "@/lib/seo/brandAudit";
+// Komunikaty audytu (`adminSeoHub.*`) mieszkają w nakładce, a nakładka rejestruje
+// klucze EFEKTEM UBOCZNYM importu. Trasy wołają `ensureI18n()`, bo ich shelle są
+// eager; ten komponent jest liściem wciąganym wyłącznie przez leniwe komponenty
+// zakładek SEO, więc zwykły import bez referencji ląduje w ich chunku - i tam
+// ma wylądować. Bez tej linijki klucz zna tylko przypadek: dopóki nakładkę
+// wciągnie do tego samego chunka ktoś inny.
+import "@/lib/i18n-admin-seo-hub";
 
 export interface BrandFindingListProps {
   findings: readonly BrandFinding[];
