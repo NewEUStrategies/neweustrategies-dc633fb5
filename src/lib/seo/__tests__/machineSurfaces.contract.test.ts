@@ -109,7 +109,11 @@ describe("llms.txt content contract", () => {
     expect(txt.startsWith("# New European Strategies\n")).toBe(true);
     expect(txt).toContain("> Think-tank.");
     expect(txt).toContain("## Zasoby maszynowe / Machine-readable resources");
-    expect(txt).toContain("## Zasady cytowania / Citation policy");
+    expect(txt).toContain("## Warunki wykorzystania i cytowania / Usage and citation terms");
+    // Warunek wskazania źródła musi stać w pliku rozkazująco - to jedyny zapis,
+    // który model widzi razem z treścią, którą właśnie zaciąga.
+    expect(txt).toContain("MUSI wskazać");
+    expect(txt).toContain("MUST name");
   });
 
   it("emits every resource as a markdown bullet with a label", () => {
