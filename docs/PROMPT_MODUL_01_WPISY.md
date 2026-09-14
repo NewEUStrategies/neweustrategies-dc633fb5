@@ -71,6 +71,37 @@ glob `src/components/post/**` (linie 84), a `routes/api/tts.ts`, `routes/api/pub
 i `hooks/useRecordPostView.ts` **nie wpadają pod nic**. Dowolna regresja na tych trzech ostatnich
 przejdzie CI bez mrugnięcia.
 
+### 0.3. Dwie liczby, dwa różne pomiary - przeczytaj to, zanim uruchomisz pomiar
+
+Jeżeli patrzysz na moduł przez **widok funkcjonalności** (dziewięć nazwanych pozycji), zobaczysz
+liczby lepsze niż te z rozdziału 0. Obie serie są prawdziwe i mierzą co innego:
+
+| Widok                                     | Plików | Wiersze | Linie       | Funkcje               | Na zerze |
+| ----------------------------------------- | ------ | ------- | ----------- | --------------------- | -------- |
+| **Funkcjonalności** (9 nazwanych pozycji) | 93     | 2 334   | **90,45 %** | **88,06 %** (546/620) | **4**    |
+| **Cały moduł** (klasyfikator taksonomii)  | 106    | 2 588   | **84,78 %** | **82,28 %** (571/694) | **13**   |
+
+Widok funkcjonalności obejmuje pliki przypisane do nazwanej funkcjonalności. Trzynaście plików modułu
+nie ma takiego przypisania i do tamtej średniej nie wchodzi - stąd różnica pięciu i pół punktu
+oraz dziewięciu plików na zerze.
+
+**Zlecenie stoi na widoku całego modułu i tak ma zostać.** Piszę to jawnie z dwóch powodów.
+
+Po pierwsze, dziewięć zer spoza nazwanych funkcjonalności to nie są pliki poboczne. Cztery zera,
+które widok funkcjonalności pokazuje, rozkładają się na paywall (2), audio wpisu (1) i powiązane
+wpisy (1). Pozostałe dziewięć - w tym **`src/routes/post.$slug.tsx`, czyli trasa, na której czytelnik
+czyta wpis** - leży poza wszystkimi dziewięcioma pozycjami. Można to wywieść wprost z danych: każda
+funkcjonalność raportuje własną liczbę plików na zerze, a wszystkie poza tymi trzema mają tam zero,
+więc trasa wpisu nie należy do żadnej z nich. Razem z nią poza obrazem stoją obie karty CV autora
+(94 wiersze), trasa podglądu (25) i cztery trasy panelu.
+
+Po drugie, kierunek tej różnicy jest tutaj **odwrotny niż w modułach 19 i 20**, gdzie widok
+funkcjonalności wypadał gorzej od widoku modułu. Tam ryzykiem było przeoczenie długu; tu ryzykiem
+jest **uznanie, że długu nie ma**. Ktoś, kto otworzy panel funkcjonalności, zobaczy 90,45 % i cztery
+zera, i nie dowie się, że trasa wpisu nie ma ani jednej linii pokrycia.
+
+---
+
 ---
 
 ## 1. Pozycje BLOKUJĄCE - trzy defekty o wadze wysokiej
@@ -326,9 +357,13 @@ Zapisuję to, żeby nie zniknęło, ale **nie jest to część tego zlecenia**:
 - Osiem defektów A1-A8 zamkniętych albo jawnie odłożonych z uzasadnieniem w opisie PR-a.
   **Pozycja odłożona bez adnotacji jest traktowana jak niewykonana** - w wydaniu 10 pominięto tak
   pozycję nazwaną blokującą i wyszło to dopiero w audycie.
-- Moduł 1 na **≥ 92% linii i ≥ 90% funkcji** (dziś 84,78% / 82,28%). To jest cel realny: 394 niepokryte
-  wiersze, z czego 270 to trzynaście plików na zerze.
-- **Zer w module: 0** albo lista zer z uzasadnieniem, dlaczego dany plik zostaje.
+- Moduł 1 na **>= 92 % linii i >= 90 % funkcji** (dziś 84,78 % / 82,28 %). To jest cel realny: 394
+  niepokryte wiersze, z czego 270 to trzynaście plików na zerze.
+  **Mierzone na widoku całego modułu** (klasyfikator taksonomii, 106 plików), nie na widoku
+  funkcjonalności - ten drugi pokazuje dziś 90,45 % i minąłby próg bez jednej linii nowego testu.
+  Różnicę tłumaczy rozdz. 0.3.
+- **Zer w module: 0** albo lista zer z uzasadnieniem, dlaczego dany plik zostaje. Liczone na tych
+  samych trzynastu plikach z rozdz. 0.1, nie na czterech z panelu funkcjonalności.
 - Progi per plik dopisane dla każdego ruszonego pliku; żaden próg nie obniżony.
 - `bun run check:gate-coverage` i komplet bramek `check:*` zielone.
 - **Opis PR-a równy diffowi:** lista zmienionych plików produkcyjnych z powodem każdej zmiany.
