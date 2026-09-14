@@ -11,15 +11,21 @@ const PASSTHROUGH_HEADERS = ["content-type", "content-length", "etag", "last-mod
  * `height`, `resize` i `quality` na endpoint transformacji obrazu.
  */
 function imageTransform(url: URL): URLSearchParams | null {
-  const width = Number(url.searchParams.get("width") ?? "");
-  const height = Number(url.searchParams.get("height") ?? "");
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const clamp = (raw: string | null): number | null => {
+    const value = Number(raw ?? "");
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return Math.min(Math.round(value), 4000);
+  };
+  const width = clamp(url.searchParams.get("width"));
+  const height = clamp(url.searchParams.get("height"));
+  // Warianty szerokościowe (srcSet) podają tylko `width` - wysokość jest wtedy
+  // wyliczana proporcjonalnie przez transformację magazynu.
+  if (!width && !height) return null;
   const resize = url.searchParams.get("resize");
   const quality = Number(url.searchParams.get("quality") ?? "");
-  const params = new URLSearchParams({
-    width: String(Math.min(Math.round(width), 4000)),
-    height: String(Math.min(Math.round(height), 4000)),
-  });
+  const params = new URLSearchParams();
+  if (width) params.set("width", String(width));
+  if (height) params.set("height", String(height));
   if (resize === "cover" || resize === "contain" || resize === "fill") params.set("resize", resize);
   if (Number.isFinite(quality) && quality >= 20 && quality <= 100) {
     params.set("quality", String(Math.round(quality)));
