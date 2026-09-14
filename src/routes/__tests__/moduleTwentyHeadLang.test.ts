@@ -40,7 +40,18 @@ vi.mock("@/lib/seo/request", async (importOriginal) => ({
   getRequestUrl: () => h.requestUrl,
 }));
 
+import type { AnyRoute } from "@tanstack/react-router";
 import { routeHead } from "@/test/routeHarness";
+// Import STATYCZNY, nie `await import()` w tabeli - `vi.mock` i tak jest
+// hoistowane nad importy, a statyczny kształt daje `routeHead` KONKRETNY typ
+// trasy zamiast `unknown` (to jest idiom `membershipRegistrationRoute.test.tsx`).
+import { Route as PeopleRoute } from "@/routes/people";
+import { Route as CartRoute } from "@/routes/cart";
+import { Route as ContributorsRoute } from "@/routes/contributors";
+import { Route as ReadingListRoute } from "@/routes/reading-list";
+import { Route as AdminI18nRoute } from "@/routes/admin.i18n";
+import { Route as AdminMonetizationLedgerRoute } from "@/routes/admin.monetization-ledger";
+import { Route as AdminReadingTimeRoute } from "@/routes/admin.reading-time";
 
 /** Wartość `title` z tablicy `meta` - jedyny wpis, który ją niesie. */
 function tytul(meta: ReadonlyArray<Record<string, unknown>>): string {
@@ -62,8 +73,7 @@ function meta(
 }
 
 interface Przypadek {
-  /** Ścieżka modułu trasy - ładowana leniwie, żeby atrapa zdążyła wejść. */
-  readonly modul: () => Promise<{ Route: unknown }>;
+  readonly route: AnyRoute;
   readonly adresPl: string;
   readonly adresEn: string;
   readonly tytulPl: string;
@@ -76,7 +86,7 @@ const PRZYPADKI: ReadonlyArray<readonly [string, Przypadek]> = [
   [
     "/people",
     {
-      modul: () => import("../people"),
+      route: PeopleRoute,
       adresPl: "/people",
       adresEn: "/en/people",
       tytulPl: "Osoby | New European Strategies",
@@ -87,7 +97,7 @@ const PRZYPADKI: ReadonlyArray<readonly [string, Przypadek]> = [
   [
     "/cart",
     {
-      modul: () => import("../cart"),
+      route: CartRoute,
       adresPl: "/cart",
       adresEn: "/en/cart",
       tytulPl: "Mój koszyk - New European Strategies",
@@ -98,7 +108,7 @@ const PRZYPADKI: ReadonlyArray<readonly [string, Przypadek]> = [
   [
     "/contributors",
     {
-      modul: () => import("../contributors"),
+      route: ContributorsRoute,
       adresPl: "/contributors",
       adresEn: "/en/contributors",
       tytulPl: "Tablica kontrybutorów",
@@ -109,7 +119,7 @@ const PRZYPADKI: ReadonlyArray<readonly [string, Przypadek]> = [
   [
     "/reading-list",
     {
-      modul: () => import("../reading-list"),
+      route: ReadingListRoute,
       adresPl: "/reading-list",
       adresEn: "/en/reading-list",
       tytulPl: "Twoja lista do przeczytania",
@@ -121,7 +131,7 @@ const PRZYPADKI: ReadonlyArray<readonly [string, Przypadek]> = [
   [
     "/admin/i18n",
     {
-      modul: () => import("../admin.i18n"),
+      route: AdminI18nRoute,
       adresPl: "/admin/i18n",
       adresEn: "/en/admin/i18n",
       tytulPl: "Audyt tłumaczeń widgetów | Panel New European Strategies",
@@ -132,7 +142,7 @@ const PRZYPADKI: ReadonlyArray<readonly [string, Przypadek]> = [
   [
     "/admin/monetization-ledger",
     {
-      modul: () => import("../admin.monetization-ledger"),
+      route: AdminMonetizationLedgerRoute,
       adresPl: "/admin/monetization-ledger",
       adresEn: "/en/admin/monetization-ledger",
       tytulPl: "Monetyzacja - rejestr | Panel",
@@ -143,7 +153,7 @@ const PRZYPADKI: ReadonlyArray<readonly [string, Przypadek]> = [
   [
     "/admin/reading-time",
     {
-      modul: () => import("../admin.reading-time"),
+      route: AdminReadingTimeRoute,
       adresPl: "/admin/reading-time",
       adresEn: "/en/admin/reading-time",
       tytulPl: "Czas czytania - admin",
@@ -162,76 +172,67 @@ afterEach(() => {
 });
 
 describe("moduł 20: tytuł dokumentu idzie za językiem adresu", () => {
-  it.each(PRZYPADKI)("%s - adres bez prefiksu daje tytuł POLSKI", async (_nazwa, p) => {
+  it.each(PRZYPADKI)("%s - adres bez prefiksu daje tytuł POLSKI", (_nazwa, p) => {
     h.requestUrl = p.adresPl;
-    const { Route } = await p.modul();
 
-    expect(tytul(routeHead(Route).meta ?? [])).toBe(p.tytulPl);
+    expect(tytul(routeHead(p.route).meta ?? [])).toBe(p.tytulPl);
   });
 
-  it.each(PRZYPADKI)("%s - adres z prefiksem /en daje tytuł ANGIELSKI", async (_nazwa, p) => {
+  it.each(PRZYPADKI)("%s - adres z prefiksem /en daje tytuł ANGIELSKI", (_nazwa, p) => {
     // To jest cały defekt A6: przed naprawą ta asercja dostawała polski napis
     // na angielskim interfejsie.
     h.requestUrl = p.adresEn;
-    const { Route } = await p.modul();
 
-    expect(tytul(routeHead(Route).meta ?? [])).toBe(p.tytulEn);
+    expect(tytul(routeHead(p.route).meta ?? [])).toBe(p.tytulEn);
   });
 
-  it.each(PRZYPADKI)("%s - zmiana języka NIE gubi `robots`", async (_nazwa, p) => {
+  it.each(PRZYPADKI)("%s - zmiana języka NIE gubi `robots`", (_nazwa, p) => {
     // Naprawa językowa nie może przy okazji otworzyć indeksowania prywatnej
     // powierzchni ani znormalizować `noindex` do `noindex, nofollow`.
     for (const adres of [p.adresPl, p.adresEn]) {
       h.requestUrl = adres;
-      const { Route } = await p.modul();
 
-      expect(meta(routeHead(Route).meta ?? [], "name", "robots")).toBe(p.robots);
+      expect(meta(routeHead(p.route).meta ?? [], "name", "robots")).toBe(p.robots);
     }
   });
 
   it.each(PRZYPADKI)(
     "%s - PUSTY getRequestUrl spada na własną ścieżkę, nie na pustą",
-    async (_nazwa, p) => {
+    (_nazwa, p) => {
       // Gałąź `|| "/x"`. Bez niej `activeLang("")` wchodzi w `catch` i wynik
       // zależałby od globalnego stanu i18n zamiast od adresu.
       h.requestUrl = "";
-      const { Route } = await p.modul();
 
-      expect(tytul(routeHead(Route).meta ?? [])).toBe(p.tytulPl);
+      expect(tytul(routeHead(p.route).meta ?? [])).toBe(p.tytulPl);
     },
   );
 });
 
 describe("moduł 20: opis strony też jest dwujęzyczny tam, gdzie istnieje", () => {
-  const Z_OPISEM = [
-    ["/people", () => import("../people"), "/en/people"],
-    ["/cart", () => import("../cart"), "/en/cart"],
-    ["/admin/i18n", () => import("../admin.i18n"), "/en/admin/i18n"],
-  ] as const;
+  const Z_OPISEM: ReadonlyArray<readonly [string, AnyRoute, string]> = [
+    ["/people", PeopleRoute, "/en/people"],
+    ["/cart", CartRoute, "/en/cart"],
+    ["/admin/i18n", AdminI18nRoute, "/en/admin/i18n"],
+  ];
 
-  it.each(Z_OPISEM)(
-    "%s - opis po angielsku nie jest polskim napisem",
-    async (_n, modul, adresEn) => {
-      h.requestUrl = adresEn;
-      const { Route } = await modul();
-      const wpisy = routeHead(Route).meta ?? [];
-      const opis = meta(wpisy, "name", "description");
+  it.each(Z_OPISEM)("%s - opis po angielsku nie jest polskim napisem", (_n, route, adresEn) => {
+    h.requestUrl = adresEn;
+    const wpisy = routeHead(route).meta ?? [];
+    const opis = meta(wpisy, "name", "description");
 
-      expect(opis).toBeTruthy();
-      // Litery wyłącznie polskie w tym zestawie - obecność którejkolwiek znaczy,
-      // że opis nie został przetłumaczony.
-      expect(opis).not.toMatch(/[ąćęłńóśżź]/i);
-    },
-  );
+    expect(opis).toBeTruthy();
+    // Litery wyłącznie polskie w tym zestawie - obecność którejkolwiek znaczy,
+    // że opis nie został przetłumaczony.
+    expect(opis).not.toMatch(/[ąćęłńóśżź]/i);
+  });
 
-  it("/people i /cart trzymają og:* zgodne z tytułem i opisem w OBU językach", async () => {
+  it("/people i /cart trzymają og:* zgodne z tytułem i opisem w OBU językach", () => {
     for (const [adres, oczekiwanyTytul] of [
       ["/people", "Osoby | New European Strategies"],
       ["/en/people", "People | New European Strategies"],
     ] as const) {
       h.requestUrl = adres;
-      const { Route } = await import("../people");
-      const wpisy = routeHead(Route).meta ?? [];
+      const wpisy = routeHead(PeopleRoute).meta ?? [];
 
       expect(meta(wpisy, "property", "og:title")).toBe(oczekiwanyTytul);
       expect(meta(wpisy, "property", "og:description")).toBe(meta(wpisy, "name", "description"));
