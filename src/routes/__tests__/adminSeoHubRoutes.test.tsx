@@ -86,6 +86,8 @@ const h = vi.hoisted(() => ({
   })) as (file: unknown) => Record<string, unknown>,
   /** Instancje `new window.Image()` utworzone przez trasę. */
   images: [] as Array<Record<string, unknown>>,
+  /** Błąd odczytu tabel treści (null = odczyt się udaje). */
+  readError: null as Error | null,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -106,8 +108,13 @@ vi.mock("@/integrations/supabase/client", () => {
       link[method] = () => link;
     }
     link.maybeSingle = () => Promise.resolve({ data: h.staticHomepage, error: null });
-    link.then = (resolve: (value: { data: unknown[]; error: null }) => unknown): unknown =>
-      resolve({ data: table === "posts" ? h.posts : h.pages, error: null });
+    link.then = (
+      resolve: (value: { data: unknown[] | null; error: unknown }) => unknown,
+    ): unknown =>
+      resolve({
+        data: h.readError ? null : table === "posts" ? h.posts : h.pages,
+        error: h.readError,
+      });
     return link;
   };
   return {
@@ -255,6 +262,7 @@ beforeEach(() => {
   h.tables = [];
   h.imageSlot = {};
   h.images = [];
+  h.readError = null;
   h.ogPrepareResult = (file: unknown) => ({
     file,
     issues: [],
@@ -996,5 +1004,27 @@ describe("/admin/seo/ - kokpit, rozgałęzienia oceny", () => {
     await mount();
     const pill = screen.getByTestId("score-pill");
     expect(["warn", "poor"]).toContain(pill.getAttribute("data-grade"));
+  });
+});
+
+describe("/admin/seo/ - kokpit wobec PADNIĘTEGO odczytu treści", () => {
+  async function mount() {
+    return renderRoute({ route: DashboardRoute, path: "/admin/seo", initialEntry: "/admin/seo" });
+  }
+
+  it("błąd odczytu NIE wywraca ekranu - audyt marki zostaje na swoim miejscu", async () => {
+    // Sekcja marki czyta ustawienia, a nie tabele treści. Gdyby padnięty odczyt
+    // treści zabierał ze sobą cały kokpit, redakcja straciłaby także tę część,
+    // która z tym odczytem nie ma nic wspólnego.
+    h.readError = new Error("PostgREST padł");
+    const { findByTestId } = await mount();
+    await findByTestId("score-pill");
+    expect(screen.getByText("adminSeoHub.sectionContent")).toBeTruthy();
+  });
+
+  it("po błędzie liczniki treści pokazują zera, a nie liczby z poprzedniego odczytu", async () => {
+    h.readError = new Error("PostgREST padł");
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.contentSummary(done=0,total=0)");
   });
 });

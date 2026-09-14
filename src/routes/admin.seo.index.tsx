@@ -41,9 +41,9 @@ import {
 import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import {
   seoContentStatus,
+  seoGrade,
   summarizeSeoStatuses,
   type SeoContentStatus,
-  type SeoGrade,
   type SeoStatusInput,
 } from "@/lib/seo/contentStatus";
 import {
@@ -70,15 +70,6 @@ export const Route = createFileRoute("/admin/seo/")({
 
 /** Te same kolumny, co w zakładce „Treści" - jedno zapytanie, jedna prawda. */
 const CONTENT_SELECT = `id, slug, status, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, ${SEO_FIELDS_SELECT}`;
-
-/**
- * Progi oceny przepisane z `contentStatus.ts` (>=80 dobrze, >=50 do poprawy).
- * Ta sama skala dla wyniku marki i dla wyniku treści - inaczej ta sama liczba
- * świeciłaby na dwa różne kolory w dwóch miejscach panelu.
- */
-function gradeForScore(score: number): SeoGrade {
-  return score >= 80 ? "good" : score >= 50 ? "warn" : "poor";
-}
 
 /** Czy ta treść jest „gotowa": ma oba opisy i własną kartę. */
 function isContentComplete(status: SeoContentStatus): boolean {
@@ -237,7 +228,7 @@ function SeoDashboard() {
           <div>
             <div className="text-[11px] text-muted-foreground">{t("adminSeoHub.scoreLabel")}</div>
             <div className="mt-1">
-              <SeoScorePill score={score} grade={gradeForScore(score)} />
+              <SeoScorePill score={score} grade={seoGrade(score)} />
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">{t("adminSeoHub.scoreHint")}</p>
