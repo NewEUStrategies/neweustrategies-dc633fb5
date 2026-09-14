@@ -72,6 +72,28 @@ export const FOOTER_LINKS: readonly FooterLink[] = [
     href: "/wytyczne-dotyczace-reklam",
     label: { pl: "Wytyczne reklam", en: "Advertising guidelines" },
   },
+  // PASEK PRAWNY JEST PASKIEM, NIE SPISEM TREŚCI. `CopyrightBar` renderuje tę
+  // grupę jako jeden `flex-wrap` w cienkiej belce na dole strony. Pakiet
+  // zgodności 2026-09 dołożył dziewięć dokumentów; wrzucenie ich tutaj w
+  // całości zamieniało belkę w trzywierszową ścianę linków, a na telefonie
+  // w jeszcze dłuższą. Dlatego w pasku stoją tylko te, których czytelnik
+  // SZUKA po nazwie, a pozostałe są dociągane trzema innymi drogami:
+  // sitemapą XML (sekcja `core`), wzajemnym linkowaniem wewnątrz samych
+  // dokumentów i stroną /sitemap.
+  {
+    group: "legal",
+    href: "/regulamin-subskrypcji-i-zakupow",
+    label: { pl: "Subskrypcje i zakupy", en: "Subscriptions and purchases" },
+  },
+  { group: "legal", href: "/rodo", label: { pl: "RODO", en: "GDPR" } },
+  {
+    group: "legal",
+    href: "/moderacja-komentarzy",
+    label: { pl: "Moderacja treści", en: "Content moderation" },
+  },
+  // Statut nie jest dokumentem prawnym serwisu, tylko TOŻSAMOŚCIĄ wydawcy -
+  // stąd grupa "institute", obok "O nas" i "Kontakt".
+  { group: "institute", href: "/statut", label: { pl: "Statut", en: "Statute" } },
 ];
 
 export function footerLinksByGroup(group: FooterLinkGroup): readonly FooterLink[] {
