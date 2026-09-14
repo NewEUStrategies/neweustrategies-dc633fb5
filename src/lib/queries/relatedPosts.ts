@@ -4,7 +4,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  RELATED_POSTS_DEFAULTS,
+  
   buildIdf,
   documentFrequency,
   normalizeMap,
