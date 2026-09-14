@@ -839,3 +839,79 @@ describe("dostępność", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 });
+
+describe("nawigacja na telefonie", () => {
+  /** Wąski ekran: `matchMedia` w jsdom zawsze zwraca `false`, więc podajemy go. */
+  function mobileViewport(mobile: boolean): void {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: mobile,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    );
+  }
+
+  it("wyjście z otwartej rozmowy minimalizuje ją na pasku i zamyka skrzynkę", async () => {
+    mobileViewport(true);
+    h.views = [conversationView()];
+
+    const { onClose, rerenderWith } = renderDrawer();
+
+    fireEvent.click(rowFor(ANNA.display_name));
+    await screen.findByTestId("chat-window");
+
+    h.pathname = "/kluby";
+    await act(async () => {
+      rerenderWith({});
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("chat-window")).toBeNull();
+    expect(minimizedChatsStore.getSnapshot().minimized[0]).toMatchObject({
+      id: CHAT_IDS.conversation,
+      name: ANNA.display_name,
+    });
+  });
+
+  it("wyjście z samej listy rozmów tylko zamyka skrzynkę, bez pigułki", async () => {
+    mobileViewport(true);
+    h.views = [conversationView()];
+
+    const { onClose, rerenderWith } = renderDrawer();
+
+    h.pathname = "/kluby";
+    await act(async () => {
+      rerenderWith({});
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(minimizedChatsStore.getSnapshot().minimized).toHaveLength(0);
+  });
+
+  it("na szerokim ekranie nawigacja nie rusza skrzynki", async () => {
+    mobileViewport(false);
+    h.views = [conversationView()];
+
+    const { onClose, rerenderWith } = renderDrawer();
+
+    fireEvent.click(rowFor(ANNA.display_name));
+    await screen.findByTestId("chat-window");
+
+    h.pathname = "/kluby";
+    await act(async () => {
+      rerenderWith({});
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("chat-window")).toBeInTheDocument();
+    expect(minimizedChatsStore.getSnapshot().minimized).toHaveLength(0);
+  });
+});
