@@ -1,3 +1,7 @@
+import { LoginPopupHost } from "../components/LoginPopupHost";
+import { CommandPaletteHost } from "../components/search/CommandPaletteHost";
+import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogHost";
+import { widgetPreloadHeaders } from "../lib/seo/widgetPreloads";
 import { createBackgroundScope } from "@/lib/backgroundScope";
 import { RouteLoadingSkeleton } from "../lib/ssr/RouteLoadingSkeleton";
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
@@ -100,31 +104,14 @@ export const CHROME_WARM_BUDGET_MS = 500;
 // (wcześniej ładowały się na każdej stronie: cmdk, formularz newslettera z
 // rendererem dokumentów, formularz logowania...). Fallback null = zero CLS,
 // bo wszystkie renderują się jako overlaye/portale poza przepływem dokumentu.
-const LoginPopup = lazy(() =>
-  import("../components/LoginPopup").then((m) => ({ default: m.LoginPopup })),
-);
 const NewsletterPopup = lazy(() =>
   import("../components/NewsletterPopup").then((m) => ({ default: m.NewsletterPopup })),
-);
-const CommandPalette = lazy(() =>
-  import("../components/search/CommandPalette").then((m) => ({ default: m.CommandPalette })),
 );
 const PopupHost = lazy(() =>
   import("../components/popups/PopupHost").then((m) => ({ default: m.PopupHost })),
 );
 const GlobalAudioBar = lazy(() =>
   import("../components/audio/GlobalAudioBar").then((m) => ({ default: m.GlobalAudioBar })),
-);
-// Dialog "zapytaj eksperta" otwiera się WYŁĄCZNIE zdarzeniem busa
-// (expertRequestDialogBus) - statyczny import ciągnął 347-liniowy formularz
-// (zod + FloatingInput + hooki quota) i pełne słowniki PL+EN do chunku
-// wejściowego każdej strony, mimo że Suspense wokół hosta już istniał.
-// UWAGA: host musi być zamontowany od pierwszego renderu (bus nie ma replay
-// ostatniego zdarzenia) - lazy tylko wydziela chunk, nie odracza montażu.
-const ExpertRequestDialogHost = lazy(() =>
-  import("../components/chat/ExpertRequestDialogHost").then((m) => ({
-    default: m.ExpertRequestDialogHost,
-  })),
 );
 // Baner zgód renderuje null zarówno w SSR, jak i w pierwszym renderze klienta
 // (`mounted` przestawia się dopiero w useEffect), więc React.lazy nie zmienia
@@ -443,6 +430,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         const header = resolveSetting<HeaderSettings>(settings, "header", {});
         const trending = resolveActiveTickerConfig(header.trending);
         const headerVisible = !!header.builder_data?.sections?.length;
+        if (isServer && headerVisible && header.builder_data) {
+          for (const hint of widgetPreloadHeaders(header.builder_data, 3)) appendLinkHeader(hint);
+        }
         const chromeQueryKeys: QueryKey[] = [
           ["menu-with-items", "main"],
           ["menu-with-items", "footer"],
@@ -754,16 +744,14 @@ function RootComponent() {
           <Suspense fallback={null}>
             <ConsentBanner />
             <ConsentPreviewPanel />
-            <LoginPopup />
             <NewsletterPopup />
             <PopupHost />
-            <CommandPalette />
           </Suspense>
+          <LoginPopupHost />
+          <CommandPaletteHost />
           <UnsavedChangesGuardHost />
           <AppDialogHost />
-          <Suspense fallback={null}>
-            <ExpertRequestDialogHost />
-          </Suspense>
+          <ExpertRequestDialogHost />
           <Suspense fallback={null}>
             <Toaster />
           </Suspense>

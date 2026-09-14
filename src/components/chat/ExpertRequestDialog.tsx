@@ -1,3 +1,4 @@
+import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 // ExpertRequestDialog - sformalizowane „Zapytanie do eksperta".
 // Otwierany globalnie przez `expertRequestDialogBus` gdy serwer zwróci
 // `chat: expert requires request`; można też odpalać wprost w profilu
@@ -51,6 +52,7 @@ function initials(name?: string | null): string {
 }
 
 export function ExpertRequestDialog({ open, onOpenChange, prefill }: ExpertRequestDialogProps) {
+  ensureExpertRequestI18n();
   const { t } = useTranslation();
   const send = useSendExpertRequest();
   const quotaQ = useMyExpertRequestQuota();

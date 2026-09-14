@@ -1,3 +1,4 @@
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 // Header widget "Konto / Logowanie" - rich popover menu.
 // Konfigurowane przez WidgetProperties (AccountLinkEditor):
 //   - items: lista pozycji menu (section: guest/auth/staff, kind: page/preset/custom/separator/logout)
@@ -380,7 +381,14 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       title={triggerLabel}
     >
       <Avatar className="h-6 w-6 rounded-[5px]">
-        {avatarUrl ? <AvatarImage src={avatarUrl} alt="" className="rounded-[5px]" /> : null}
+        {avatarUrl ? (
+          <AvatarImage
+            src={buildAvatarSrc(avatarUrl, 24)}
+            srcSet={buildAvatarSrcSet(avatarUrl, 24)}
+            alt=""
+            className="rounded-[5px]"
+          />
+        ) : null}
         <AvatarFallback className="text-[10px] rounded-[5px]">
           {(firstName || displayName || user?.email || "?").slice(0, 1).toUpperCase()}
         </AvatarFallback>
@@ -662,7 +670,12 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
                 >
                   <Avatar className="h-9 w-9 rounded-[6px]">
                     {avatarUrl ? (
-                      <AvatarImage src={avatarUrl} alt="" className="rounded-[6px] object-cover" />
+                      <AvatarImage
+                        src={buildAvatarSrc(avatarUrl, 36)}
+                        srcSet={buildAvatarSrcSet(avatarUrl, 36)}
+                        alt=""
+                        className="rounded-[6px] object-cover"
+                      />
                     ) : null}
                     <AvatarFallback className="rounded-[6px] text-xs">
                       {(firstName || displayName || user.email).slice(0, 1).toUpperCase()}

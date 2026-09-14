@@ -1,3 +1,4 @@
+import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { isServer } from "@tanstack/router-core/isServer";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -210,6 +211,8 @@ export const Route = createFileRoute("/")({
     if (!contentDegraded && homePage && homePage.editor === "builder") {
       const doc = parseBuilderDoc(homePage.builder_data);
       if (doc.sections.length > 0) {
+        for (const hint of widgetPreloadHeaders(doc, ABOVE_FOLD_SECTION_COUNT))
+          appendLinkHeader(hint);
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
         if (deadlineAt === undefined) {
           await prefetchAboveFoldQueries(queryClient, doc, lang);

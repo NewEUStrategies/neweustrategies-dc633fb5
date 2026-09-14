@@ -88,6 +88,16 @@ describe("useAuthSettings - widok publiczny zawsze coś pokazuje", () => {
     expect(result.current).toEqual(AUTH_DEFAULTS);
   });
 
+  it("honours hydrated login settings synchronously on the first render", () => {
+    const { queryClient, wrapper } = harness();
+    queryClient.setQueryData(["site_settings_public", "all"], {
+      [AUTH_SETTINGS_KEY]: { popup_enabled: false, custom_login_url: "/membership/login" },
+    });
+    const { result } = renderHook(() => useAuthSettings(), { wrapper });
+    expect(result.current.popup_enabled).toBe(false);
+    expect(result.current.custom_login_url).toBe("/membership/login");
+  });
+
   it("wiersz z bazy nakłada się na domyślne", async () => {
     h.settingsMap = {
       [AUTH_SETTINGS_KEY]: { popup_enabled: false, custom_login_url: "/membership/login" },

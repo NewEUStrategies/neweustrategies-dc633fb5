@@ -761,7 +761,8 @@ describe("Header - warianty językowe", () => {
       screen.getByRole("button", { name: `${dict("pl", "mobileDrawer.language")}: EN` }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "pl");
-    expect(screen.getByTestId("search-overlay")).toHaveAttribute("data-lang", "pl");
+    fireEvent.click(screen.getByRole("button", { name: dict("pl", "common.openSearch") }));
+    expect(await screen.findByTestId("search-overlay")).toHaveAttribute("data-lang", "pl");
   });
 
   it("wariant EN: te same akcje niosą napisy z angielskiego słownika", async () => {
@@ -778,7 +779,8 @@ describe("Header - warianty językowe", () => {
       screen.getByRole("button", { name: `${dict("en", "mobileDrawer.language")}: PL` }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "en");
-    expect(screen.getByTestId("search-overlay")).toHaveAttribute("data-lang", "en");
+    fireEvent.click(screen.getByRole("button", { name: dict("en", "common.openSearch") }));
+    expect(await screen.findByTestId("search-overlay")).toHaveAttribute("data-lang", "en");
     // Dowód, że to naprawdę dwa różne słowniki, a nie kopia jednego napisu.
     expect(dict("en", "common.openMenu")).not.toBe(dict("pl", "common.openMenu"));
   });
@@ -803,17 +805,19 @@ describe("Header - warianty językowe", () => {
 // --- Wyszukiwarka ------------------------------------------------------------
 
 describe("Header - leniwa wyszukiwarka", () => {
-  it("montuje overlay zamknięty, otwiera go lupą i zamyka jego własną akcją", async () => {
+  it("nie montuje zamkniętego overlayu; pierwszy klik otwiera go, a zamknięcie zachowuje stan", async () => {
     renderHeader({ header: { builder_data: doc(1) } });
 
+    expect(screen.queryByTestId("search-overlay")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: dict("pl", "common.openSearch") }));
     const overlay = await screen.findByTestId("search-overlay");
-    expect(overlay).toHaveAttribute("data-open", "false");
+    expect(overlay).toHaveAttribute("data-open", "true");
     expect(overlay).toHaveAttribute("data-mode", "fullscreen");
     expect(overlay).toHaveAttribute("data-limit", "8");
     expect(overlay).toHaveTextContent(dict("pl", "common.search"));
 
     fireEvent.click(screen.getByRole("button", { name: dict("pl", "common.openSearch") }));
-    expect(screen.getByTestId("search-overlay")).toHaveAttribute("data-open", "true");
+    expect(await screen.findByTestId("search-overlay")).toHaveAttribute("data-open", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "zamknij wyszukiwarkę" }));
     expect(screen.getByTestId("search-overlay")).toHaveAttribute("data-open", "false");
@@ -827,7 +831,7 @@ describe("Header - leniwa wyszukiwarka", () => {
       window.dispatchEvent(new Event("neus:open-mobile-search"));
     });
 
-    expect(screen.getByTestId("search-overlay")).toHaveAttribute("data-open", "true");
+    expect(await screen.findByTestId("search-overlay")).toHaveAttribute("data-open", "true");
   });
 });
 
@@ -856,7 +860,7 @@ describe("Header - mobilna szuflada", () => {
     // Portal: szuflada wisi bezpośrednio na <body>, poza <header>.
     expect(dialog.parentElement).toBe(document.body);
     expect(headerEl().contains(dialog)).toBe(false);
-    expect(screen.getByTestId("drawer-body")).toHaveAttribute("data-sections", "3");
+    expect(await screen.findByTestId("drawer-body")).toHaveAttribute("data-sections", "3");
     expect(document.body.style.overflow).toBe("hidden");
     expect(screen.getByRole("button", { name: dict("pl", "common.openMenu") })).toHaveAttribute(
       "aria-expanded",

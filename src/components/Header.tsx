@@ -17,13 +17,13 @@ import { AdZone } from "@/components/AdSlot";
 import type { AdPageType } from "@/lib/ads/types";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
-import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
-// SearchOverlay przez React.lazy: renderuje null aż do otwarcia (searchOpen
-// startuje false po obu stronach), więc lazy nie zmienia ani bajta HTML-a,
-// a ~20 kB źródeł overlayu schodzi z chunku wejściowego każdej strony.
-// Montowany BEZWARUNKOWO (nie za bramką searchOpen): stan wewnętrzny
-// (ostatnie wyszukiwania, wpisana fraza) ma przeżywać zamknięcie overlayu -
-// dokładnie jak przed zmianą. Ta sama doktryna lazy-overlay co w __root.tsx.
+// Closed overlays stay outside the boot waterfall. Keep search state after
+// its first use, and load the mobile drawer only when its shell is opened.
+const MobileDrawerBody = lazy(() =>
+  import("@/components/header/mobile/MobileDrawerBody").then((m) => ({
+    default: m.MobileDrawerBody,
+  })),
+);
 const SearchOverlay = lazy(() =>
   import("@/components/SearchOverlay").then((m) => ({ default: m.SearchOverlay })),
 );
@@ -99,6 +99,10 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   // Jedno-tapowa szukajka na mobilnym pasku (audyt: szukanie było schowane za
   // hamburgerem -> drawer -> tap). Otwiera ten sam fullscreenowy SearchOverlay.
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchMounted, setSearchMounted] = useState(false);
+  useEffect(() => {
+    if (searchOpen) setSearchMounted(true);
+  }, [searchOpen]);
   const drawerPanelRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   useFocusTrap(drawerPanelRef, open);
@@ -280,22 +284,28 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
                   <X className="w-5 h-5" aria-hidden />
                 </button>
               </div>
-              <MobileDrawerBody builderDoc={cfg.builder_data} onNavigate={() => setOpen(false)} />
+              <Suspense
+                fallback={<div aria-busy="true" className="h-24 animate-pulse bg-muted/40" />}
+              >
+                <MobileDrawerBody builderDoc={cfg.builder_data} onNavigate={() => setOpen(false)} />
+              </Suspense>
             </div>
           </div>,
           document.body,
         )}
-      <Suspense fallback={null}>
-        <SearchOverlay
-          open={searchOpen}
-          onClose={() => setSearchOpen(false)}
-          mode="fullscreen"
-          heading={t("common.search")}
-          liveResults
-          limit={8}
-          lang={lang}
-        />
-      </Suspense>
+      {(searchOpen || searchMounted) && (
+        <Suspense fallback={null}>
+          <SearchOverlay
+            open={searchOpen}
+            onClose={() => setSearchOpen(false)}
+            mode="fullscreen"
+            heading={t("common.search")}
+            liveResults
+            limit={8}
+            lang={lang}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
