@@ -126,7 +126,7 @@ describe("llms.txt content contract", () => {
     // llms.txt opisuje ZASOBY, nie sam siebie; robots.txt nie jest zasobem
     // treściowym dla modelu (jest polityką dla crawlera).
     const resourceBlock = txt.split("## Zasoby maszynowe")[1] ?? "";
-    const citationSplit = resourceBlock.split("## Zasady cytowania")[0] ?? "";
+    const citationSplit = resourceBlock.split("## Warunki wykorzystania")[0] ?? "";
     expect(citationSplit).not.toContain("/llms.txt");
     expect(citationSplit).not.toContain("/robots.txt");
   });

@@ -26,7 +26,8 @@ describe("RobotsTxtPreview", () => {
         mode: "canonical",
         origin: CANONICAL_SITE_ORIGIN,
         sitemapPaths: ["/sitemap.xml", "/news-sitemap.xml"],
-        groups: [],
+        groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+        usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
       }),
     );
   });
