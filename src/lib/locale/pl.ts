@@ -889,6 +889,14 @@ export const pl = {
       canonicalHint: "Tylko dla treści przedrukowanych - wskazuje oryginalne źródło.",
       noindexLabel: "Ukryj przed wyszukiwarkami (noindex)",
       noindexHint: "Usuwa też adres z sitemap, RSS i news-sitemap.",
+      live: {
+        address: "Rzeczywisty adres",
+        openPage: "Otwórz stronę",
+        google: "Wynik Google",
+        facebook: "Karta na Facebooku",
+        linkedin: "Karta na LinkedInie",
+        hint: "Otwiera się w nowym oknie i pokazuje stan opublikowanej strony - nie niezapisanych zmian.",
+      },
       meter: {
         empty: "Użyty zostanie tekst domyślny",
         short: "Za krótki",
