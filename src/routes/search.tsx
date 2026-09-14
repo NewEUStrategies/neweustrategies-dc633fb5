@@ -253,6 +253,26 @@ function SearchPage() {
     setSugIndex(-1);
   }, [suggestQ]);
 
+  // Popover zamyka KLIK POZA formularzem, a NIE utrata fokusu przez input.
+  //
+  // Zamykanie na `onBlur` wiązało życie listy z fokusem, a domyślną akcją
+  // `mousedown` jest przeniesienie fokusu na kotwicę pod kursorem - więc każdy
+  // gest, którego nie da się (albo nie wolno) zdusić przez `preventDefault`,
+  // odmontowywał wiersz MIĘDZY `mousedown` a `mouseup`. Zmierzone w Chromium:
+  // środkowym przyciskiem nie otwierała się nowa karta (nie dochodził
+  // `auxclick`), a prawy przycisk pokazywał menu STRONY zamiast menu linku.
+  // Ten sam wzorzec (klik poza obudową) działa w widgecie nagłówka -
+  // `SearchButtonWidget`.
+  const formRef = useRef<HTMLFormElement | null>(null);
+  useEffect(() => {
+    if (!sugOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (formRef.current && !formRef.current.contains(e.target as Node)) setSugOpen(false);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [sugOpen]);
+
   // ---- Ostatnie wyszukiwania (localStorage, jak w overlayu/widgecie) ------
   // Stan ładowany w efekcie: SSR nie widzi localStorage, a hydratacja musi
   // zgadzać się z HTML-em serwera.
@@ -604,7 +624,12 @@ function SearchPage() {
           <p className="text-sm text-muted-foreground max-w-2xl">{t("search.hero_sub")}</p>
         </header>
 
-        <form onSubmit={submit} className="search-page-form relative z-40 mb-2" role="search">
+        <form
+          ref={formRef}
+          onSubmit={submit}
+          className="search-page-form relative z-40 mb-2"
+          role="search"
+        >
           <div className="input-group" style={{ height: "40px" }}>
             <input
               type="search"
@@ -615,7 +640,6 @@ function SearchPage() {
                 setSugOpen(true);
               }}
               onFocus={() => setSugOpen(true)}
-              onBlur={() => setSugOpen(false)}
               onKeyDown={onInputKeyDown}
               placeholder=" "
               aria-label={t("search.placeholder")}

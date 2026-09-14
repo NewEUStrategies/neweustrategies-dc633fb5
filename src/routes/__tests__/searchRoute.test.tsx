@@ -379,11 +379,40 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
     expect(phraseInput()).toHaveValue("ra");
   });
 
-  it("UTRATA FOKUSU zamyka listę - klik poza obszarem nie zostawia popovera", async () => {
+  it("KLIK POZA formularzem zamyka listę", async () => {
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "false"));
+  });
+
+  it("SAMA UTRATA FOKUSU listy NIE zamyka - inaczej giną gesty niepodstawowe", async () => {
+    // Popover żył wcześniej dokładnie tyle, co fokus w polu frazy. Domyślną
+    // akcją `mousedown` jest przeniesienie fokusu na kotwicę pod kursorem,
+    // więc każdy gest, którego nie wolno zdusić przez `preventDefault`
+    // (środkowy przycisk, menu kontekstowe), odmontowywał wiersz MIĘDZY
+    // `mousedown` a `mouseup` - i nowa karta nie otwierała się wcale.
+    // Zmierzone w Chromium; tu pilnujemy samego warunku: blur nie zamyka.
     await openSuggest();
     await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
     fireEvent.blur(phraseInput());
-    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "false"));
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    expect(phraseInput()).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("KLIK WEWNĄTRZ formularza (obudowa listy) NIE zamyka listy", async () => {
+    // Klik w padding popovera albo przeciągnięcie paska przewijania zamykało
+    // listę, bo i jedno, i drugie zabierało fokus polu frazy.
+    //
+    // ZASIĘG TEGO TESTU: pilnuje warunku `formRef.contains(target)` w nowym
+    // nasłuchu. NIE wykryłby powrotu zamykania na `blur` - happy-dom nie
+    // realizuje domyślnej akcji `mousedown` (przeniesienia fokusu), więc blur
+    // tu po prostu nie pada. Ten wariant zmierzony jest w Chromium.
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.mouseDown(screen.getByRole("listbox"));
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    expect(phraseInput()).toHaveAttribute("aria-expanded", "true");
   });
 
   it("ENTER bez wybranej opcji NIE porywa formularza - wysyła wpisaną frazę", async () => {
