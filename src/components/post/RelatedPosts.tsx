@@ -186,13 +186,30 @@ interface ViewProps {
   sourcePostId: string;
 }
 
-function CardThumb({ p, cfg }: { p: BlogListItem; cfg: RelatedPostsConfig }) {
+/**
+ * Tytuł wpisu w języku widoku - także jako `alt` okładki. Okładka rekomendacji
+ * NIE jest dekoracją: skaner treści SEO (2026-09) zgłosił puste `alt`, a dla
+ * czytnika ekranu obrazek bez opisu w liście kart jest po prostu niemy.
+ */
+function postTitleFor(p: BlogListItem, lang: "pl" | "en"): string {
+  return lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
+}
+
+function CardThumb({
+  p,
+  cfg,
+  lang,
+}: {
+  p: BlogListItem;
+  cfg: RelatedPostsConfig;
+  lang: "pl" | "en";
+}) {
   if (!cfg.show_cover || !p.cover_image_url) return null;
   return (
     <div className="aspect-[16/10] overflow-hidden rounded-md bg-muted">
       <OptimizedImage
         src={p.cover_image_url}
-        alt=""
+        alt={postTitleFor(p, lang)}
         responsive
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
         className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
