@@ -24,6 +24,12 @@
 -- obszar roboczy, bliżej `user_roles` niż wpisu w CV. Przeniesienie jej
 -- udawałoby, że nowy najemca kogoś zweryfikował, choć tego nie zrobił.
 --
+-- Asercja 14 zamyka wektor, ktory samo przepiecie otwieralo: `endorse_skill()`
+-- czyta umiejetnosc bez filtra najemcy, a `_are_connected()` przepuszcza
+-- polaczenie sprzed przeniesienia konta - wiec wystawca, ktory zostal w starym
+-- obszarze i zna identyfikator umiejetnosci, tworzyl poparcie w SWOIM najemcy
+-- pod umiejetnoscia stojaca juz w nowym. Ustalenie z przegladu PR #365 (P1).
+--
 -- Bliźniacze pliki tej samej klasy: push_and_digest_test.sql (sekcja 6),
 -- author_profiles_owner_tenant_scope_test.sql (asercje 18-19),
 -- media_mentions_tenant_follows_profile_test.sql.
@@ -31,7 +37,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(13);
+SELECT plan(14);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -46,8 +52,13 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('cf000000-0000-0000-0000-0000000000a1', 'cv-owner@cv.test', 'CV Owner',
    'cf111111-1111-1111-1111-111111111111');
 
-INSERT INTO public.profile_skills (user_id, tenant_id, label) VALUES
-  ('cf000000-0000-0000-0000-0000000000a1', 'cf111111-1111-1111-1111-111111111111', 'Analiza polityk');
+-- Stale id: asercja 14 wola RPC juz jako `authenticated`, wiec podzapytanie
+-- o id poszloby pod RLS i zwrocilo NULL zamiast umiejetnosci (a RPC odpowiedzialoby
+-- 'skill not found' zamiast sprawdzic najemce). Wystawca w realnym scenariuszu
+-- ZNA to id sprzed przeprowadzki adresata.
+INSERT INTO public.profile_skills (id, user_id, tenant_id, label) VALUES
+  ('cf333333-3333-3333-3333-333333333333',
+   'cf000000-0000-0000-0000-0000000000a1', 'cf111111-1111-1111-1111-111111111111', 'Analiza polityk');
 INSERT INTO public.profile_education (user_id, tenant_id, school) VALUES
   ('cf000000-0000-0000-0000-0000000000a1', 'cf111111-1111-1111-1111-111111111111', 'SGH');
 INSERT INTO public.profile_experiences (user_id, tenant_id, role_title) VALUES
@@ -87,6 +98,15 @@ VALUES ('cf000000-0000-0000-0000-0000000000a1', 'cf000000-0000-0000-0000-0000000
 INSERT INTO public.profile_embeddings (profile_id, tenant_id, content_hash, embedding)
 VALUES ('cf000000-0000-0000-0000-0000000000a1', 'cf111111-1111-1111-1111-111111111111',
         'hash-1', array_fill(0.1::double precision, ARRAY[768])::extensions.vector);
+
+-- Polaczenie zawierane, GDY obie strony sa jeszcze w tym samym najemcy.
+-- `tg_user_connections_guard` wymaga tego przy zakladaniu, ale po przeniesieniu
+-- konta NIE uniewaznia wiersza - i wlasnie ta nieaktualnosc jest wektorem
+-- z asercji 14.
+INSERT INTO public.user_connections (requester_id, addressee_id, status)
+VALUES ('cf000000-0000-0000-0000-0000000000b1', 'cf000000-0000-0000-0000-0000000000a1', 'pending');
+UPDATE public.user_connections SET status = 'accepted'
+ WHERE requester_id = 'cf000000-0000-0000-0000-0000000000b1';
 
 -- Odznaka nadana przez STARY obszar roboczy - kontrola granicy (asercja 13).
 INSERT INTO public.profile_badges (user_id, tenant_id, badge, granted_by)
@@ -220,6 +240,24 @@ SELECT is(
   'cf111111-1111-1111-1111-111111111111'::uuid,
   'odznaka CELOWO zostaje przy najemcy, ktory ja nadal'
 );
+
+-- ── (14) Poparcie z obcego najemcy jest ODRZUCANE, nie tworzone po cichu ────
+-- Wystawca zostal w starym obszarze (peer nie byl przenoszony), ma z adresatem
+-- zaakceptowane polaczenie sprzed przeprowadzki i zna id umiejetnosci. Przed
+-- naprawa RPC tworzylo poparcie z najemcą WYSTAWCY; teraz najemca pochodzi
+-- z umiejetnosci, a wolajacy z innego obszaru dostaje tenant_mismatch.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"cf000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$SELECT public.endorse_skill('cf333333-3333-3333-3333-333333333333')$$,
+  '42501',
+  'tenant_mismatch',
+  'poparcie od wystawcy z obcego najemcy jest odrzucane (nie powstaje rozjazd)'
+);
+
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;
