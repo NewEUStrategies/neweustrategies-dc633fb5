@@ -153,13 +153,19 @@ export async function planRobotsTxt(request: Request): Promise<RobotsPlan> {
 
   let sitemapPaths: readonly string[] = [];
   let groups: readonly RobotsGroup[] = [];
+  let usage: RobotsUsagePolicy | undefined;
   if (indexable) {
-    const policy = tenantId
+    const policy: CrawlPolicy = tenantId
       ? await tenantCrawlPolicy(tenantId)
-      : { sitemapPaths: [SITEMAP_INDEX_PATH], groups: [] };
+      : {
+          sitemapPaths: [SITEMAP_INDEX_PATH],
+          groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+          usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
+        };
     // Polityka crawlerów AI obowiązuje niezależnie od tego, czy mapa jest
     // serwowalna - to dwie różne decyzje redakcji.
     groups = policy.groups;
+    usage = policy.usage;
     sitemapPaths = (await sitemapsAreServed(host, tenantId)) ? policy.sitemapPaths : [];
   }
 
@@ -168,6 +174,7 @@ export async function planRobotsTxt(request: Request): Promise<RobotsPlan> {
     origin: crawlHostOrigin(hostClass, host, proto),
     sitemapPaths,
     groups,
+    usage,
   });
 
   return { body, hostClass, indexable, volatile };
