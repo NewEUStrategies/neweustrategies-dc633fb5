@@ -33,7 +33,13 @@ interface Props {
   items: AutosuggestItem[];
   activeIndex: number;
   lang: "pl" | "en";
+  /** Księgowość wyboru (historia, zamknięcie popovera). NIE nawiguje -
+   *  nawigację robi `href` wiersza, wspólny z obsługą klawiatury rodzica. */
   onPick: (item: AutosuggestItem) => void;
+  /** Cel podpowiedzi. Nadpisywane przez /search, żeby adres scalał się
+   *  z bieżącymi filtrami zamiast je kasować (i żeby był ten sam, co pod
+   *  Enterem). Domyślnie statyczny cel z modelu faset. */
+  hrefFor?: (item: AutosuggestItem) => string;
   /** Aktualna fraza - potrzebna do stopki (view all + operatory). */
   query?: string;
   /** Ref inputa - potrzebny, żeby wstawianie operatorów przywracało fokus. */
@@ -66,6 +72,7 @@ export function SearchAutosuggest({
   activeIndex,
   lang,
   onPick,
+  hrefFor = suggestionHref,
   query = "",
   inputRef,
   onSetQuery,
@@ -187,7 +194,7 @@ export function SearchAutosuggest({
                       <li key={`${it.kind}:${it.id ?? it.slug ?? i}`} role="presentation">
                         <SuggestRow
                           id={autosuggestOptionId(i)}
-                          href={suggestionHref(it)}
+                          href={hrefFor(it)}
                           label={label(it)}
                           meta={kindLabel(it.kind)}
                           icon={Icon}
@@ -195,10 +202,7 @@ export function SearchAutosuggest({
                             it.kind === "author" && it.id ? (authorAvatars[it.id] ?? null) : null
                           }
                           active={i === activeIndex}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            onPick(it);
-                          }}
+                          onSelect={() => onPick(it)}
                         />
                       </li>
                     );
@@ -315,11 +319,16 @@ export function RecentSearchesList({
   items,
   lang,
   onPick,
+  hrefFor = (term) => `/search?q=${encodeURIComponent(term)}`,
   onClear,
 }: {
   items: string[];
   lang: "pl" | "en";
+  /** Księgowość wyboru. NIE nawiguje - patrz `SuggestRowProps.onSelect`. */
   onPick: (term: string) => void;
+  /** Cel wiersza. /search podaje adres SCALONY z bieżącymi filtrami; goły
+   *  `/search?q=<fraza>` kasował zakładkę, sortowanie i fasety. */
+  hrefFor?: (term: string) => string;
   onClear: () => void;
 }) {
   if (items.length === 0) return null;
@@ -340,18 +349,17 @@ export function RecentSearchesList({
           {t("recent_clear", "Wyczyść historię")}
         </button>
       </div>
-      <ul role="list" className="py-1">
+      {/* `listbox`, nie `list`: wiersze mają rolę `option`, która wymaga
+          rodzica listbox (aria-required-parent). */}
+      <ul role="listbox" aria-label={t("recent", "Ostatnie wyszukiwania")} className="py-1">
         {items.map((term) => (
           <li key={term} role="presentation">
             <SuggestRow
-              href={`/search?q=${encodeURIComponent(term)}`}
+              href={hrefFor(term)}
               label={term}
               icon={Clock}
               active={false}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onPick(term);
-              }}
+              onSelect={() => onPick(term)}
             />
           </li>
         ))}

@@ -379,11 +379,64 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
     expect(phraseInput()).toHaveValue("ra");
   });
 
-  it("UTRATA FOKUSU zamyka listę - klik poza obszarem nie zostawia popovera", async () => {
+  it("KLIK POZA formularzem zamyka listę", async () => {
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "false"));
+  });
+
+  it("SAMA UTRATA FOKUSU listy NIE zamyka - inaczej giną gesty niepodstawowe", async () => {
+    // Popover żył wcześniej dokładnie tyle, co fokus w polu frazy. Domyślną
+    // akcją `mousedown` jest przeniesienie fokusu na kotwicę pod kursorem,
+    // więc każdy gest, którego nie wolno zdusić przez `preventDefault`
+    // (środkowy przycisk, menu kontekstowe), odmontowywał wiersz MIĘDZY
+    // `mousedown` a `mouseup` - i nowa karta nie otwierała się wcale.
+    // Zmierzone w Chromium; tu pilnujemy samego warunku: blur nie zamyka.
     await openSuggest();
     await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
     fireEvent.blur(phraseInput());
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    expect(phraseInput()).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("TAB POZA formularz zamyka listę - klawiatura nie ma `mousedown`", async () => {
+    // Zamykanie na kliku poza formularzem nie obsługuje klawiatury: przejście
+    // Tabem na przełącznik trybów zaawansowanych nie generuje `mousedown`,
+    // więc popover zostawał otwarty nad niepowiązaną treścią, z
+    // `aria-expanded="true"`, mimo że fokus był już gdzie indziej.
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    const outside = screen.getByRole("button", { name: /Zaawansowane/i });
+    fireEvent.blur(phraseInput(), { relatedTarget: outside });
     await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "false"));
+  });
+
+  it("TAB W OBRĘBIE formularza NIE zamyka listy", async () => {
+    // Fokus wędrujący między kontrolkami formularza (np. na przycisk
+    // mikrofonu) musi zostawić listę otwartą - inaczej wracamy do zamykania
+    // na samą utratę fokusu przez pole frazy.
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    const inside = screen.getByRole("option", { name: /Raport roczny/ });
+    fireEvent.blur(phraseInput(), { relatedTarget: inside });
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    expect(phraseInput()).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("KLIK WEWNĄTRZ formularza (obudowa listy) NIE zamyka listy", async () => {
+    // Klik w padding popovera albo przeciągnięcie paska przewijania zamykało
+    // listę, bo i jedno, i drugie zabierało fokus polu frazy.
+    //
+    // ZASIĘG TEGO TESTU: pilnuje warunku `formRef.contains(target)` w nowym
+    // nasłuchu. NIE wykryłby powrotu zamykania na `blur` - happy-dom nie
+    // realizuje domyślnej akcji `mousedown` (przeniesienia fokusu), więc blur
+    // tu po prostu nie pada. Ten wariant zmierzony jest w Chromium.
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.mouseDown(screen.getByRole("listbox"));
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    expect(phraseInput()).toHaveAttribute("aria-expanded", "true");
   });
 
   it("ENTER bez wybranej opcji NIE porywa formularza - wysyła wpisaną frazę", async () => {
@@ -417,19 +470,53 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
 // ---------------------------------------------------------------------------
 
 describe("/search - deep-linki z podpowiedzi", () => {
-  async function pick(item: AutosuggestItem) {
+  /** Otwiera popover z JEDNĄ podpowiedzią i oddaje widok razem z wierszem. */
+  async function openWith(item: AutosuggestItem, entry = "/search") {
     h.suggestData = [item];
-    const view = await mount("/search");
+    const view = await mount(entry);
     fireEvent.change(phraseInput(), { target: { value: "ab" } });
     fireEvent.focus(phraseInput());
     await act(async () => {
       await new Promise((r) => setTimeout(r, 250));
     });
     await waitFor(() => expect(screen.getAllByRole("option").length).toBe(1));
+    return { view, option: screen.getByRole("option") };
+  }
+
+  /**
+   * PEŁNA sekwencja myszy, a nie sam `mousedown`.
+   *
+   * Przez to, że helper strzelał wyłącznie `fireEvent.mouseDown`, żaden z tych
+   * testów nie dotykał `click` - czyli tej połowy zdarzenia, w której siedzi
+   * nawigacja linku wiersza (`AppLink`). Wybór myszą to `mousedown` (utrzymuje
+   * fokus w polu, więc popover nie znika) ORAZ `click` (nawiguje).
+   *
+   * DWA OSOBNE `act`, A NIE JEDNO NA OBA ZDARZENIA. React odkłada flush do
+   * wyjścia z NAJBARDZIEJ ZEWNĘTRZNEGO `act`, więc para zdarzeń w jednym bloku
+   * renderuje się dopiero po obu - i wiersz nie zdąży zniknąć między nimi.
+   * Przeglądarka flushuje po każdym zdarzeniu dyskretnym z osobna: gdyby
+   * `mousedown` zamykał popover (tak robił stary handler wyboru), kotwica
+   * byłaby odmontowana ZANIM przyjdzie `click`, i nawigacja nie zaszłaby wcale.
+   * Jedno wspólne `act` ukrywa dokładnie tę klasę błędu.
+   */
+  async function clickRow(option: HTMLElement, init: MouseEventInit = { button: 0 }) {
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole("option"));
+      fireEvent.mouseDown(option, init);
       await Promise.resolve();
     });
+    // Kotwica odmontowana przez `mousedown` nie dostałaby `click` od przeglądarki.
+    if (option.isConnected) {
+      await act(async () => {
+        fireEvent.click(option, init);
+        await Promise.resolve();
+      });
+    }
+    return option.isConnected;
+  }
+
+  async function pick(item: AutosuggestItem, entry = "/search") {
+    const { view, option } = await openWith(item, entry);
+    await clickRow(option);
     return view;
   }
 
@@ -470,25 +557,123 @@ describe("/search - deep-linki z podpowiedzi", () => {
     await waitFor(() => expect(view.search()).toMatchObject({ org: "o-1", q: "NATO" }));
   });
 
-  it("WPIS zagnieżdżony pod stroną rozwiązuje pełną ścieżkę JEDNYM zapytaniem", async () => {
-    h.rpcByFn.page_full_path = "raporty/2026";
-    const view = await pick(sug({ kind: "post", slug: "roczny", parentPageId: "pg-1" }));
-    await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("page_full_path", { _page_id: "pg-1" }));
-    await waitFor(() => expect(view.currentPath()).toBe("/raporty/2026/roczny"));
-  });
-
-  it("BŁĄD rozwiązania ścieżki spada na wyszukanie tytułu, a nie na pustą stronę", async () => {
-    h.rpcByFn.page_full_path = new Error("brak funkcji");
-    const view = await pick(
-      sug({ kind: "post", slug: "roczny", parentPageId: "pg-1", label_pl: "Raport roczny" }),
+  it("WPIS zagnieżdżony pod stroną idzie na /post/<slug> - BEZ własnego zapytania o ścieżkę", async () => {
+    // Ścieżkę rodzica rozwiązuje trasa `/post/$slug` (301 na adres kanoniczny
+    // przez `resolveLegacyPostPath`), a nie klik w podpowiedź. Wcześniej robił
+    // to RPC w handlerze wyboru - druga, równoległa definicja tego samego
+    // przekierowania, ścigająca się z nawigacją linku wiersza.
+    const { view, option } = await openWith(
+      sug({ kind: "post", slug: "roczny", parentPageId: "pg-1" }),
     );
-    await waitFor(() => expect(view.search().q).toBe("Raport roczny"));
+    expect(option).toHaveAttribute("href", "/post/roczny");
+    await clickRow(option);
+    await waitFor(() => expect(view.currentPath()).toBe("/post/roczny"));
+    expect(h.rpc).not.toHaveBeenCalledWith("page_full_path", expect.anything());
   });
 
-  it("wpis BEZ rodzica od razu traktowany jest jak fraza", async () => {
+  it("wpis BEZ rodzica traktowany jest jak fraza - /post/<slug> odesłałby na /blog", async () => {
     const view = await pick(sug({ kind: "post", slug: "roczny", label_pl: "Raport roczny" }));
     await waitFor(() => expect(view.search().q).toBe("Raport roczny"));
     expect(h.rpc).not.toHaveBeenCalledWith("page_full_path", expect.anything());
+  });
+
+  // -------------------------------------------------------------------------
+  // Regresja: wiersz podpowiedzi ma DOKŁADNIE JEDEN cel nawigacji
+  // -------------------------------------------------------------------------
+
+  it("NAWIGUJE WYŁĄCZNIE href wiersza - zduszony klik NIE rusza adresu", async () => {
+    // JEDYNY test, który wykryje POWRÓT podwójnej nawigacji. Pozostałe patrzą
+    // na adres KOŃCOWY, a nawigacja linku idzie ZAWSZE OSTATNIA (`AppLink`
+    // woła `onClick` przed `router.navigate`), więc zamiata drugi nawigator
+    // pod dywan: jeśli ktoś doda `navigate()` z powrotem do `pickSuggestion`,
+    // adres końcowy i tak się zgadza.
+    //
+    // Dlatego dusimy nawigację linku i patrzymy, czy adres DRGNIE. Listener na
+    // samym elemencie biegnie w fazie celu, a delegowany handler Reacta siedzi
+    // na kontenerze roota (faza bąbelkowania) - więc `AppLink` zobaczy
+    // `defaultPrevented` i odpuści. Zostaje wyłącznie to, co robi rodzic.
+    const { view, option } = await openWith(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+      "/search?tab=titles&sort=newest",
+    );
+    option.addEventListener("click", (e) => e.preventDefault());
+    await clickRow(option);
+    expect(view.currentPath()).toBe("/search");
+    expect(view.search()).toMatchObject({ tab: "titles", sort: "newest" });
+    expect(view.search().org).toBeUndefined();
+    expect(view.search().q).toBe("");
+  });
+
+  it("adres wiersza to DOKŁADNIE ten adres, pod który prowadzi klik", async () => {
+    // Oczekiwanie przybite do wartości DOSŁOWNEJ, nie wyprowadzone z `href`:
+    // porównywanie `href` z adresem końcowym jest tautologią (obie strony
+    // pochodzą z `suggestionHref`), więc przechodziłoby także wtedy, gdyby
+    // model wytwarzał adres błędny.
+    const { view, option } = await openWith(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+    );
+    expect(option).toHaveAttribute("href", "/search?q=NATO&org=o-1");
+    await clickRow(option);
+    await waitFor(() => expect(view.search()).toMatchObject({ q: "NATO", org: "o-1" }));
+  });
+
+  it("wybór podpowiedzi ZACHOWUJE pozostały stan wyszukiwarki (zakładka, sortowanie)", async () => {
+    // Adres wiersza scala się z bieżącym stanem. Goły `/search?<filtr>` kasował
+    // zakładkę i sortowanie, bo query string zastępuje się w całości.
+    const view = await pick(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+      "/search?tab=titles&sort=newest",
+    );
+    await waitFor(() =>
+      expect(view.search()).toMatchObject({ q: "NATO", org: "o-1", tab: "titles", sort: "newest" }),
+    );
+  });
+
+  it("PRAWY przycisk myszy niczego nie wybiera (menu kontekstowe, nie nawigacja)", async () => {
+    const { view, option } = await openWith(sug({ kind: "topic", id: "t-1", slug: "energia" }));
+    await act(async () => {
+      fireEvent.mouseDown(option, { button: 2 });
+      await Promise.resolve();
+    });
+    expect(view.currentPath()).toBe("/search");
+  });
+
+  it("CTRL+klik zostawia nawigację przeglądarce (otwarcie w nowej karcie)", async () => {
+    const { view, option } = await openWith(sug({ kind: "topic", id: "t-1", slug: "energia" }));
+    await clickRow(option, { button: 0, ctrlKey: true });
+    expect(view.currentPath()).toBe("/search");
+  });
+
+  // `page`, `company` i wymiary wyliczane nie miały własnej gałęzi w handlerze
+  // wyboru, a nawigację z `href` zjadało zamknięcie popovera - klik w nie nie
+  // robił NIC. Nawiguje je teraz adres wiersza, ten sam dla myszy i Entera.
+  it("STRONA nie jest martwa - klik prowadzi na jej adres", async () => {
+    const view = await pick(sug({ kind: "page", id: "pg-9", slug: "o-nas" }));
+    await waitFor(() => expect(view.currentPath()).toBe("/o-nas"));
+  });
+
+  it("FIRMA nie jest martwa - klik szuka po nazwie", async () => {
+    const view = await pick(sug({ kind: "company", id: "c-1", slug: "acme", label_pl: "Acme" }));
+    await waitFor(() => expect(view.search().q).toBe("Acme"));
+  });
+
+  it("WYMIAR WYLICZANY nie jest martwy - klik nakłada filtr", async () => {
+    const view = await pick(sug({ kind: "format", id: null, slug: "video" }));
+    await waitFor(() => expect(view.search().format).toBe("video"));
+  });
+
+  it("ENTER z klawiatury prowadzi POD TEN SAM adres co klik myszą", async () => {
+    const { view, option } = await openWith(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+    );
+    const href = option.getAttribute("href");
+    fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });
+    await act(async () => {
+      fireEvent.keyDown(phraseInput(), { key: "Enter" });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(view.search()).toMatchObject({ q: "NATO", org: "o-1" }));
+    expect(href).toBe("/search?q=NATO&org=o-1");
   });
 });
 
@@ -557,6 +742,32 @@ describe("/search - ostatnie wyszukiwania", () => {
     fireEvent.focus(phraseInput());
     await waitFor(() => expect(screen.getByText("Ostatnie wyszukiwania")).toBeInTheDocument());
     expect(screen.getByRole("option", { name: /polityka/ })).toBeInTheDocument();
+  });
+
+  it("klik w historię NIE GUBI filtrów - wiersz nawiguje raz, pod adres scalony", async () => {
+    // Wiersz historii miał `href` = goły `/search?q=<fraza>` ORAZ handler
+    // rodzica robiący patch adresu. Ten popover nie jest bramkowany fokusem,
+    // więc szły OBIE nawigacje, a druga (z linku) zastępowała cały query
+    // string - zakładka, sortowanie i fasety znikały.
+    await mount("/search");
+    fireEvent.change(phraseInput(), { target: { value: "polityka" } });
+    await act(async () => {
+      fireEvent.submit(phraseInput().closest("form")!);
+    });
+
+    cleanup();
+    const view = await mount("/search?tab=titles&sort=newest");
+    await waitFor(() => expect(screen.getByText("Ostatnie wyszukiwania")).toBeInTheDocument());
+    const row = screen.getByRole("option", { name: /polityka/ });
+    expect(row).toHaveAttribute("href", "/search?q=polityka&sort=newest&tab=titles");
+    await act(async () => {
+      fireEvent.mouseDown(row, { button: 0 });
+      fireEvent.click(row, { button: 0 });
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(view.search()).toMatchObject({ q: "polityka", tab: "titles", sort: "newest" }),
+    );
   });
 
   it("„wyczyść historię” opróżnia listę ostatnich wyszukiwań", async () => {
