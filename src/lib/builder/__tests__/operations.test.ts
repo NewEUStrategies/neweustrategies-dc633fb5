@@ -1097,6 +1097,94 @@ describe("identyfikator sekcji wewnętrznej jako cel kolumnowy", () => {
     expect(ops.findSection(naSekcje, "s2")?.children).toHaveLength(1);
   });
 
+  // KOLUMNA Z REGUŁĄ DOSTĘPU MOŻE BYĆ NIENARYSOWANA. Renderer filtruje kolumny
+  // przez `evaluateAccess`, więc wrzucenie widgetu do bramkowanej kolumny
+  // znaczyłoby dla redaktora dokładnie to samo, co naprawiany tu defekt -
+  // „upuściłem i zniknęło" - a na dodatek oddawałoby treść innej publiczności.
+  // Dlatego celujemy w pierwszą kolumnę BEZ reguły, a gdy takiej nie ma,
+  // zakładamy własną.
+  it("upuszczenie omija bramkowaną kolumnę sekcji wewnętrznej", () => {
+    const bramkowana = () =>
+      ({
+        version: 1,
+        sections: [
+          sec("s1", [col("c1", [w("w1")])]),
+          {
+            id: "s2",
+            kind: "section",
+            children: [
+              {
+                id: "i1",
+                kind: "inner-section",
+                columns: [
+                  { ...col("ic-tajna", []), advanced: { access: { auth: "guest" } } },
+                  col("ic-jawna", []),
+                ],
+              },
+            ],
+          },
+        ],
+      }) as unknown as BuilderDocument;
+
+    const naKolumne = bramkowana();
+    expect(ops.moveWidgetToColumn(naKolumne, "w1", "i1")).toBe("moved");
+    expect(ids(ops.findColumn(naKolumne, "ic-jawna")!)).toEqual(["w1"]);
+    expect(ids(ops.findColumn(naKolumne, "ic-tajna")!)).toEqual([]);
+
+    const naSekcje = bramkowana();
+    expect(ops.moveWidgetToSection(naSekcje, "w1", "s2")).toBe("moved");
+    expect(ids(ops.findColumn(naSekcje, "ic-jawna")!)).toEqual(["w1"]);
+  });
+
+  it("gdy wszystkie kolumny są bramkowane, zakładamy niebramkowaną", () => {
+    const d = {
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        {
+          id: "s2",
+          kind: "section",
+          children: [
+            {
+              id: "i1",
+              kind: "inner-section",
+              columns: [{ ...col("ic-tajna", []), advanced: { access: { auth: "user" } } }],
+            },
+          ],
+        },
+      ],
+    } as unknown as BuilderDocument;
+
+    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe("moved");
+    const i1 = ops.findInner(d, "i1");
+    expect(i1?.columns).toHaveLength(2);
+    // Nowa kolumna nie niesie cudzej reguły dostępu.
+    expect(i1?.columns[1].advanced?.access).toBeUndefined();
+    expect(ids(i1!.columns[1])).toEqual(["w1"]);
+    expect(ids(ops.findColumn(d, "ic-tajna")!)).toEqual([]);
+  });
+
+  it("bramkowana kolumna najwyższego poziomu też jest omijana", () => {
+    const d = {
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        {
+          id: "s2",
+          kind: "section",
+          children: [
+            { ...col("c-tajna", []), advanced: { access: { auth: "guest" } } },
+            col("c-jawna", []),
+          ],
+        },
+      ],
+    } as unknown as BuilderDocument;
+
+    expect(ops.moveWidgetToSection(d, "w1", "s2")).toBe("moved");
+    expect(ids(ops.findColumn(d, "c-jawna")!)).toEqual(["w1"]);
+    expect(ids(ops.findColumn(d, "c-tajna")!)).toEqual([]);
+  });
+
   it("addWidgetToColumn też przyjmuje identyfikator sekcji wewnętrznej", () => {
     const d = doc(sec("s1", [inner("i1", [col("ic1", [])])]));
     ops.addWidgetToColumn(d, "i1", w("nowy"));
