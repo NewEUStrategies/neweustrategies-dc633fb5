@@ -124,10 +124,9 @@ export function buildScaledImageUrl(src: string, width: number, quality = IMAGE_
     // Markowy adres `/media/<ścieżka>` obsługuje te same warianty rozmiarowe -
     // trasa `/media/$` przepisuje je na transformację obrazu w magazynie.
     if (url.pathname.startsWith("/media/")) {
-      url.searchParams.set("width", String(size.width));
-      url.searchParams.set("height", String(size.height));
-      url.searchParams.set("resize", resize);
-      url.searchParams.set("quality", String(IMAGE_QUALITY));
+      url.searchParams.set("width", String(width));
+      url.searchParams.set("resize", "contain");
+      url.searchParams.set("quality", String(quality));
       return src.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
     }
     if (url.pathname.includes("/storage/v1/object/public/")) {
