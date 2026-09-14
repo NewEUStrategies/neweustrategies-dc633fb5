@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { freezeClock, relativeIso, MINUTA } from "@/test/time";
 
 interface ClickRow {
+  tenant_id: string;
   viewer_hash: string;
   clicked_at: string;
 }
@@ -34,7 +35,7 @@ interface InsertedRow {
 const h = vi.hoisted(() => {
   const state = {
     /** Wiersze już zapisane - atrapa FILTRUJE po nich naprawdę. */
-    clicks: [] as { viewer_hash: string; clicked_at: string }[],
+    clicks: [] as { tenant_id: string; viewer_hash: string; clicked_at: string }[],
     posts: new Map<string, { tenant_id: string }>(),
     inserted: [] as Record<string, unknown>[],
     insertError: null as { message: string } | null,
@@ -42,9 +43,16 @@ const h = vi.hoisted(() => {
   };
 
   // Atrapa łańcucha PostgREST, która REALNIE stosuje zapisane filtry: licznik
-  // klików liczy wyłącznie wiersze tego `viewer_hash` i nie starsze niż
-  // `clicked_at >= since`, a odczyt wpisu oddaje wiersz spod podanego `id`.
-  // Atrapa zwracająca stałą „dowodziłaby" limitu, którego nie ma.
+  // klików liczy wyłącznie wiersze tego NAJEMCY i tego `viewer_hash`, nie
+  // starsze niż `clicked_at >= since`, a odczyt wpisu oddaje wiersz spod
+  // podanego `id`. Atrapa zwracająca stałą „dowodziłaby" limitu, którego nie ma.
+  //
+  // FILTR NAJEMCY DOSZEDŁ 2026-09-14 RAZEM Z NAPRAWĄ TRASY. Do tego dnia atrapa
+  // czytała wyłącznie `viewer_hash` i `clicked_at`, więc PRZEPUŚCIŁABY handler
+  // liczący bez `tenant_id` - czyli dokładnie defekt, który naprawiamy: licznik
+  // sumował ruch wszystkich najemców i aktywny najemca wyczerpywał limit
+  // czytelnikom cudzego serwisu. Atrapa, która ignoruje filtr, nie dowodzi
+  // zawężenia; ta go wymusza.
   function from(table: string): unknown {
     const filters = new Map<string, unknown>();
     const builder: Record<string, unknown> = {};
@@ -74,10 +82,12 @@ const h = vi.hoisted(() => {
       if (table !== "related_post_clicks") {
         throw new Error(`test: nieoczekiwany odczyt tabeli "${table}"`);
       }
+      const tenant = String(filters.get("tenant_id") ?? "");
       const viewer = String(filters.get("viewer_hash") ?? "");
       const since = String(filters.get("gte:clicked_at") ?? "");
       const count = state.clicks.filter(
-        (click) => click.viewer_hash === viewer && click.clicked_at >= since,
+        (click) =>
+          click.tenant_id === tenant && click.viewer_hash === viewer && click.clicked_at >= since,
       ).length;
       return Promise.resolve({ count, data: null, error: null }).then(onFulfilled);
     };
@@ -113,6 +123,10 @@ const OPTIONS = handlers.OPTIONS!;
 
 const SOURCE_ID = "11111111-2222-3333-4444-555555555555";
 const TARGET_ID = "66666666-7777-8888-9999-aaaaaaaaaaaa";
+// Najemca obu zasiewanych wpisów. Limiter jest od 2026-09-14 zawężony do niego,
+// więc stała musi być jedna dla zasiewu wpisów, zasiewu klików i asercji zapisu.
+const TENANT_ZRODLA = "tenant-1";
+const TENANT_OBCY = "tenant-2";
 
 freezeClock();
 
@@ -158,9 +172,10 @@ function lastInserted(): InsertedRow {
   return row as unknown as InsertedRow;
 }
 
-/** Wiersze klików tego samego widza w oknie limitu. */
-function clicksOf(viewerHash: string, count: number): ClickRow[] {
+/** Wiersze klików tego samego widza w oknie limitu (domyślnie najemca źródła). */
+function clicksOf(viewerHash: string, count: number, tenantId = TENANT_ZRODLA): ClickRow[] {
   return Array.from({ length: count }, () => ({
+    tenant_id: tenantId,
     viewer_hash: viewerHash,
     clicked_at: relativeIso(-1 * MINUTA),
   }));
@@ -169,8 +184,8 @@ function clicksOf(viewerHash: string, count: number): ClickRow[] {
 beforeEach(() => {
   h.state.clicks = [];
   h.state.posts = new Map([
-    [SOURCE_ID, { tenant_id: "tenant-1" }],
-    [TARGET_ID, { tenant_id: "tenant-1" }],
+    [SOURCE_ID, { tenant_id: TENANT_ZRODLA }],
+    [TARGET_ID, { tenant_id: TENANT_ZRODLA }],
   ]);
   h.state.inserted = [];
   h.state.insertError = null;
@@ -184,7 +199,7 @@ describe("zapis kliknięcia", () => {
 
     expect(res.status).toBe(202);
     expect(lastInserted()).toMatchObject({
-      tenant_id: "tenant-1",
+      tenant_id: TENANT_ZRODLA,
       source_post_id: SOURCE_ID,
       target_post_id: TARGET_ID,
     });
@@ -246,11 +261,32 @@ describe("limiter", () => {
     expect(res.status).toBe(202);
   });
 
+  // REGRESJA IZOLACJI NAJEMCY W LIMITERZE.
+  //
+  // Do 2026-09-14 licznik pytał WYŁĄCZNIE o `viewer_hash`, więc sumował kliki
+  // wszystkich najemców naraz: aktywny serwis wyczerpywał limit czytelnikom
+  // cudzego. Ten przypadek zasiewa komplet klików TEGO SAMEGO widza pod OBCYM
+  // najemcą - po naprawie nie mają one prawa zablokować zapisu w najemcy źródła.
+  // Uwaga dla czytającego: przed naprawą ten test zwracał 429, nie 202.
+  it("kliki tego samego widza u INNEGO najemcy nie wyczerpują limitu", async () => {
+    const probe = await post(body());
+    const viewer = lastInserted().viewer_hash;
+    expect(probe.status).toBe(202);
+    h.state.inserted = [];
+    h.state.clicks = clicksOf(viewer, 100, TENANT_OBCY);
+
+    const res = await post(body());
+
+    expect(res.status).toBe(202);
+    expect(h.state.inserted).toHaveLength(1);
+  });
+
   it("kliki STARSZE niż okno 5 min nie liczą się do limitu", async () => {
     const probe = await post(body());
     const viewer = lastInserted().viewer_hash;
     expect(probe.status).toBe(202);
     h.state.clicks = Array.from({ length: 50 }, () => ({
+      tenant_id: TENANT_ZRODLA,
       viewer_hash: viewer,
       clicked_at: relativeIso(-30 * MINUTA),
     }));
