@@ -384,7 +384,6 @@ function Index() {
   return (
     <div data-theme-typography className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 w-full">
-        <HomeSrHeading doc={doc} lang={lang} />
         {contentUnavailable ? (
           <HomeLoadingNotice
             onRetry={() => {
