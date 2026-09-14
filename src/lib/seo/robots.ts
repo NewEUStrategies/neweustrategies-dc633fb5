@@ -162,8 +162,25 @@ export function buildRobotsTxt(input: RobotsInput): string {
     // per host), czy statyczny plik z `public/` - dokładnie ten błąd przez
     // miesiące był niewidoczny (audyt 2026-08-06).
     [`# robots.txt for ${hostFromOrigin(origin)} - generated per request.`],
-    ["User-agent: *", "Allow: /", ...disallow.map((path) => `Disallow: ${path}`)],
   ];
+
+  if (input.usage) blocks.push(renderUsagePolicy(origin, input.usage));
+
+  blocks.push([
+    "User-agent: *",
+    "Allow: /",
+    ...disallow.map((path) => `Disallow: ${path}`),
+    // Content Signals: indeksowanie TAK, cytowanie w odpowiedzi AI zgodnie z
+    // polityką redakcji, trenowanie modelu osobno - jedno `Allow: /` nie
+    // odróżniało tych trzech zgód.
+    ...(input.usage
+      ? [
+          `Content-Signal: search=yes, ai-input=${input.usage.aiInputAllowed ? "yes" : "no"}, ai-train=${
+            input.usage.trainingAllowed ? "yes" : "no"
+          }`,
+        ]
+      : []),
+  ]);
 
   for (const group of input.groups ?? []) {
     const rendered = renderGroup(group);
