@@ -19,7 +19,7 @@ import {
   type CrawlHostClass,
 } from "@/lib/http/host";
 import { buildRobotsTxt } from "@/lib/seo/robots";
-import { aiCrawlerGroups, type SeoSettings } from "@/lib/seo/settings";
+import { aiCrawlerGroups, robotsUsagePolicy, type SeoSettings } from "@/lib/seo/settings";
 
 /**
  * Origin, którym podgląd się posługuje. Host podglądu/edytora nie jest adresem
@@ -45,6 +45,9 @@ export function RobotsTxtPreview({ settings }: { settings: SeoSettings }) {
       ? ["/sitemap.xml", "/news-sitemap.xml"]
       : ["/sitemap.xml"],
     groups: aiCrawlerGroups(settings),
+    // Redakcja musi widzieć w podglądzie także warunek wskazania źródła -
+    // inaczej panel pokazywałby politykę łagodniejszą niż realny plik.
+    usage: robotsUsagePolicy(settings),
   });
 
   const nonCanonicalHost = !crawlHostIsIndexable(hostClass);

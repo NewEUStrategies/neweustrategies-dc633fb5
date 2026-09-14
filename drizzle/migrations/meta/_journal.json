@@ -141,6 +141,13 @@
       "when": 1789383610469,
       "tag": "0019_related_post_clicks_viewer_window_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789411078963,
+      "tag": "0020_club_covers_per_club_storage_write",
+      "breakpoints": true
     }
   ]
 }

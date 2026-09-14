@@ -22406,6 +22406,10 @@ export type Database = {
       }
       club_invite_quota_ok: { Args: { _user_id: string }; Returns: boolean }
       club_is_any_moderator: { Args: { _user_id: string }; Returns: boolean }
+      club_is_cover_moderator: {
+        Args: { _object_name: string; _user_id: string }
+        Returns: boolean
+      }
       club_join: { Args: { p_club_id: string }; Returns: string }
       club_leave: { Args: { p_club_id: string }; Returns: boolean }
       club_linked_item_label: {

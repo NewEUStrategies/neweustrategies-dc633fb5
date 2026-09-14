@@ -58,10 +58,14 @@ describe("HomeSrHeading", () => {
     expect(headings(container)).toEqual([]);
   });
 
-  it("nagłówek jest ukryty wizualnie, ale czytany przez czytnik ekranu", () => {
-    // `sr-only` zamiast `display:none` - inaczej czytnik ekranu też go nie widzi.
+  it("nagłówek jest WIDOCZNY, nie tylko dla czytnika ekranu", () => {
+    // Skaner treści SEO (2026-09) zgłosił brak widocznego nagłówka głównego na
+    // stronie głównej: `sr-only` czyta czytnik ekranu, ale nie widzi go ani
+    // czytelnik, ani wyszukiwarka oceniająca temat strony.
     const { container } = render(<HomeSrHeading doc={null} lang="pl" />);
-    expect(container.querySelector("h1")?.className).toContain("sr-only");
+    const h1 = container.querySelector("h1");
+    expect(h1?.className).not.toContain("sr-only");
+    expect(h1?.className).toContain("font-display");
   });
 
   it.each([
