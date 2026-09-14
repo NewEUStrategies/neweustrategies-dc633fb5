@@ -90,6 +90,13 @@ const h = vi.hoisted(() => ({
    * i `user_agent`, a nie odmówić.
    */
   headers: null as Record<string, string> | null,
+  /**
+   * `getRequest()` oddaje obiekt żądania BEZ `headers`. To trzeci, osobny stan
+   * od dwóch wyżej: kontekst żądania ISTNIEJE (nie ma wyjątku), ale nie niesie
+   * nagłówków. Zdarza się to poza ścieżką HTTP - w zadaniu w tle albo pod
+   * adapterem, który podaje uproszczony obiekt żądania.
+   */
+  requestWithoutHeaders: false,
 }));
 
 vi.mock("@tanstack/react-start", async () => {
@@ -103,6 +110,7 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 
 vi.mock("@tanstack/react-start/server", () => ({
   getRequest: () => {
+    if (h.requestWithoutHeaders) return {};
     const headers = h.headers;
     if (!headers) throw new Error("test: brak kontekstu żądania");
     return { headers: { get: (name: string) => headers[name.toLowerCase()] ?? null } };
@@ -271,6 +279,7 @@ beforeEach(() => {
   h.userResponse = null;
   h.linkResponse = null;
   h.headers = {};
+  h.requestWithoutHeaders = false;
   rpcCalls = [];
   rpcResult = { data: true, error: null };
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -808,6 +817,20 @@ describe("podszycie - wpis audytowy i wynik", () => {
     await callServerFn(startImpersonation, { data: startInput(), context: context() });
     expect(insertedRow().ip).toBe(ip);
     expect(insertedRow().user_agent).toBe(userAgent);
+  });
+
+  it("żądanie BEZ nagłówków - wiersz powstaje, a podszycie NIE jest odmawiane", async () => {
+    // Czwarty stan kontekstu żądania, osobny od „są nagłówki" i od „getRequest()
+    // rzuca": obiekt żądania jest, ale nie niesie `headers`. Dzieje się tak poza
+    // ścieżką HTTP - w zadaniu w tle albo pod adapterem podającym uproszczone
+    // żądanie. Metadane dziennika są best-effort, więc ma zadziałać ta sama
+    // reguła co przy wyjątku: wiersz audytu POWSTAJE, tylko bez `ip` i `user_agent`.
+    // Odmowa należy się za brak granicy najemcy, nie za brak nagłówków.
+    happyPath();
+    h.requestWithoutHeaders = true;
+    await callServerFn(startImpersonation, { data: startInput(), context: context() });
+    expect(insertedRow().ip).toBeNull();
+    expect(insertedRow().user_agent).toBeNull();
   });
 
   it("obcina `user_agent` do 500 znaków", async () => {

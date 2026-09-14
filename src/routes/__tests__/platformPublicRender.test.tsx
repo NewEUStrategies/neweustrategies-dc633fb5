@@ -694,3 +694,79 @@ describe("access decisions in the rendered public route", () => {
     },
   );
 });
+
+// ===========================================================================
+// WIERSZE I DOPASOWANIA, KTÓRYCH NIE WIDAĆ NA SZCZĘŚLIWEJ ŚCIEŻCE.
+// ===========================================================================
+//
+// Komentarze po polsku - jak w pozostałych plikach testowych tras w tym
+// katalogu (`publicCatchAllRoute`, `publicResolverRoute`, `checkoutCancelRoute`).
+//
+// Każdy przypadek niżej karmi TĘ SAMĄ kompozycję kształtem, którego fixture
+// szczęśliwej ścieżki nie ma: dopasowaniem bez segmentu, wpisem bez powiązań,
+// wpisem bez daty publikacji i wierszem bez jawnego formatu. Wszystkie cztery
+// prowadzą do zapasów (`?? ""`, `?? []`, `?? null`, `?? "standard"`), których
+// dotąd nie odwiedzał żaden test - a to one stoją między takim wierszem
+// a wywróceniem najruchliwszej trasy serwisu.
+describe("trasa łapiąca wszystko - wejścia brzegowe kompozycji", () => {
+  it("dopasowanie BEZ pola `_splat` oddaje ekran „nie ma takiej strony”, a nie rzut", () => {
+    // Trasa `/$` łapie także pusty ogon adresu, a router NIE wstawia wtedy
+    // parametru `_splat` w ogóle. `splatToSegments` przyjmuje string i woła na
+    // nim `.split`, więc bez zapasu `?? ""` komponent najruchliwszej trasy
+    // serwisu wywracałby się na TypeError - zamiast pokazać powierzchnię 404.
+    vi.spyOn(Route, "useParams").mockReturnValue({});
+    qc.setQueryData(resolvedContentQueryOptions([]).queryKey, null);
+    const Component = Route.options.component!;
+    render(
+      <QueryClientProvider client={qc}>
+        <Component />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("PublicNotFound")).toBeTruthy();
+    expect(screen.queryByTestId("content")).toBeNull();
+  });
+
+  it("wpis BEZ kategorii i tagów daje puste listy, a nie `undefined` w kontekście", () => {
+    // Wiersz bez powiązań (świeżo utworzony wpis, obcięta projekcja) idzie
+    // prosto do `.map(...)` w kontekście targetowania reklam i w kontekście
+    // widgetów. Gdyby zapasy `?? []` zniknęły, cała strona wpisu wywracałaby
+    // się na TypeError - i to na warstwie, która jest wyłącznie dodatkiem.
+    mount(resolvedPost({ categories: undefined, tags: undefined, item: postItem() }));
+
+    expect(prop("PostSidebarRenderer").adContent).toEqual({ categorySlugs: [], tagSlugs: [] });
+    expect(prop("ContentRenderer").currentPostCtx).toMatchObject({ tags: [], categories: [] });
+  });
+
+  it("wpis BEZ daty publikacji nie pyta o sąsiadów, choć `show_prev_next` jest włączone", () => {
+    // `published_at` jest w bazie kolumną dopuszczającą NULL (wpis zdjęty
+    // z publikacji, import bez daty). Zapas `?? null` jest jedynym powodem,
+    // dla którego zapytanie o sąsiadów zostaje WYŁĄCZONE
+    // (`enabled: !!postId && !!publishedAt`) - bez niego do klucza zapytania
+    // wszedłby `undefined`, zapytanie ruszyłoby i poszłoby po `published_at`
+    // porównywane z niczym, czyli po dwa skany na każdą taką stronę.
+    h.layout!.show_prev_next = true;
+    const data = resolvedPost({ item: postItem({ published_at: null }) });
+    mount(data);
+
+    expect(prop("PostFooterBars")).toMatchObject({ prev: null, next: null });
+    expect(qc.getQueryData(["public", "adjacent-posts", data.item.id, null])).toBeUndefined();
+  });
+
+  it("wiersz BEZ jawnego formatu wybiera `standard` w OBU miejscach naraz", () => {
+    // `$.tsx` niesie ten sam łańcuch zapasów trzy razy: w loaderze
+    // (`buildCoverPreload` - preload okładki), w decyzji o niezwlekaniu
+    // z pierwszym obrazem (`coverAboveBody`) i w wyborze layoutu wpisu.
+    // Komentarz nad `coverAboveBody` mówi wprost, że to MA BYĆ ta sama reguła.
+    // Gdyby któraś kopia zgubiła `?? "standard"`, loader preloadowałby okładkę,
+    // której renderer nie maluje na gorąco (albo odwrotnie) - czyli DWA
+    // pobrania najcięższego zasobu strony na ścieżce krytycznej.
+    mount(resolvedPost({ item: postItem({ post_format: undefined }) }));
+
+    expect(prop("PostLayoutRenderer").format).toBe("standard");
+    // `eagerFirstImage: false` znaczy „okładka jest nad treścią", czyli
+    // `rendersCover` policzone z formatu `standard` - ta sama decyzja, którą
+    // w loaderze podejmuje `buildCoverPreload`.
+    expect(prop("ContentRenderer").eagerFirstImage).toBe(false);
+  });
+});

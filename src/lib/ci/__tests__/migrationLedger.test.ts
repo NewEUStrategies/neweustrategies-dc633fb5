@@ -89,4 +89,61 @@ describe("migrationLedger", () => {
     const report = buildLedgerReport(parsed, malformed, [], CONFIG);
     expect(ledgerFailed(report)).toBe(true);
   });
+
+  // ── Raport tekstowy: sekcje, które widzi wyłącznie człowiek czytający log ──
+  // `ledgerFailed` zwraca jeden bit, więc bramka świeci na czerwono nawet wtedy,
+  // gdy render gubi całe sekcje. Poniższe przypadki pilnują treści raportu:
+  // bez nich zniknięcie listy plików o złej nazwie, listy martwych uzgodnień
+  // albo adnotacji o uzgodnionej wersji przeszłoby bez jednego czerwonego testu,
+  // a autor zmiany zobaczyłby w CI samo „coś jest nie tak".
+
+  it("raport wymienia pliki o złej nazwie i martwe uzgodnienia w nagłówku ORAZ w osobnych sekcjach", () => {
+    const { parsed, malformed } = parseMigrationFiles(["20260825210000_pr.sql", "hotfix.sql"]);
+    const config: LedgerConfig = {
+      baseline: "20260101000000",
+      reconciled: {
+        // Uzgodnienie żywe: SQL poszedł pod inną wersją, której baza nie zna.
+        "20260825210000_pr.sql": "20260826101500",
+        // Uzgodnienie martwe: plik zniknął z gałęzi.
+        "20260101100000_gone.sql": "20260101110000",
+      },
+    };
+    const report = buildLedgerReport(parsed, malformed, ["20260826101500"], config);
+    const rendered = renderLedgerReport(report);
+
+    expect(ledgerFailed(report)).toBe(true);
+    // Nagłówek liczbowy - obie kategorie pojawiają się WYŁĄCZNIE, gdy są niepuste.
+    expect(rendered).toContain("Plików o złej nazwie: **1**");
+    expect(rendered).toContain("Martwych uzgodnień: **1**");
+    // Sekcje szczegółowe z nazwami plików do naprawy.
+    for (const fragment of [
+      "### Pliki spoza konwencji",
+      "- `hotfix.sql`",
+      "### Uzgodnienia wskazujące nieistniejące pliki",
+      "- `20260101100000_gone.sql`",
+    ]) {
+      expect(rendered).toContain(fragment);
+    }
+    // Migracja uzgodniona musi podać wersję, KTÓREJ naprawdę brakuje w
+    // rejestrze - inaczej czytelnik szuka w bazie wersji z nazwy pliku,
+    // której pipeline nigdy tam nie zapisał.
+    expect(rendered).toContain(
+      "`20260825210000_pr.sql` (uzgodniona wersja `20260826101500` też nie istnieje w rejestrze)",
+    );
+    expect(rendered).not.toContain("Wszystkie migracje z gałęzi są wykonane");
+  });
+
+  it("brakująca migracja BEZ uzgodnienia jest wypisana samą nazwą pliku", () => {
+    // Kontrapunkt dla przypadku wyżej: gdyby render dopisywał adnotację
+    // o uzgodnionej wersji zawsze, raport kłamałby o istnieniu wpisu
+    // uzgodnienia przy każdej zwykłej niewykonanej migracji.
+    const { parsed, malformed } = parseMigrationFiles(["20260825210000_zwykla.sql"]);
+    const report = buildLedgerReport(parsed, malformed, ["20260825210000"], CONFIG);
+    const rendered = renderLedgerReport(report);
+
+    expect(rendered).toContain("- `20260825210000_zwykla.sql`");
+    expect(rendered).not.toContain("uzgodniona wersja");
+    expect(rendered).not.toContain("Plików o złej nazwie");
+    expect(rendered).not.toContain("Martwych uzgodnień");
+  });
 });
