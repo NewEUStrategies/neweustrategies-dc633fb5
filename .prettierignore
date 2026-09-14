@@ -53,6 +53,8 @@ docs/ANALIZA_MODULOW_DOGLEBNA_2026-08-12.md
 # które generują skrypty CI (`check:bundle`, `check:i18n-parity`). Formatowanie
 # ich rozjechałoby porównanie z artefaktem świeżo wyprodukowanym w przebiegu.
 reports
+# Browser traces and screenshots from the first-visit performance harness.
+test-results-performance
 # Katalog skills platformy - resetowany przy każdej wiadomości, więc formatowanie
 # go nie przetrwa i bramka `format:check` fałszywie czerwieniła się na cudzej treści.
 .workspace

@@ -61,6 +61,30 @@ async function logoImg(container: HTMLElement): Promise<HTMLImageElement> {
 }
 
 describe("ImageWidget - rozmiar logo", () => {
+  it("reads legacy CSS dimensions and prefers positive canonical panel values", async () => {
+    const src = "https://cdn.example.com/photo.jpg";
+    const legacy = renderImage({ src, width: "120px", maxWidth: "180px", height: "60px" });
+    const legacyImage = await logoImg(legacy.container);
+    expect(legacyImage.style.width).toBe("120px");
+    expect(legacyImage.style.height).toBe("60px");
+    expect(legacyImage.style.maxWidth).toBe("min(100%, 120px)");
+    legacy.unmount();
+
+    const canonical = renderImage({
+      src,
+      width: "120px",
+      maxWidth: "180px",
+      height: "60px",
+      widthPx: 100,
+      maxWidthPx: 90,
+      heightPx: 50,
+    });
+    const canonicalImage = await logoImg(canonical.container);
+    expect(canonicalImage.style.width).toBe("100px");
+    expect(canonicalImage.style.height).toBe("50px");
+    expect(canonicalImage.style.maxWidth).toBe("min(100%, 90px)");
+  });
+
   it("respects a CSS-length maxWidth stored in widget content", async () => {
     const { container } = renderImage({
       src: "",

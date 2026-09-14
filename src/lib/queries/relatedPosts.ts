@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   buildIdf,
   documentFrequency,
-
   normalizeMap,
   rankRelated,
   scoreRelatedDetailed,

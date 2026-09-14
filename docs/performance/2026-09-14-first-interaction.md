@@ -104,3 +104,16 @@ Po publikacji potrzebny jest profil tej samej wersji na rzeczywistym urządzeniu
 i łączu. Nadal istotny pozostaje koszt około 3 MB nieskompresowanego JS w tej
 konfiguracji testowej oraz odpowiedzi SSR na produkcji. Te pomiary nie
 potwierdzają jeszcze przejścia produkcyjnego czasu 8 s do 2–3 s.
+
+## Blokady CI obecne w bazie
+
+CI na bazowym `8de2c23df` zgłaszało formatowanie `mediaWidgets.tsx` i
+`relatedPosts.ts` oraz historyczne aliasy wymiarów obrazów w bramce wierności
+ustawień. Uporządkowano formatowanie i dodano precyzyjne opisy aliasów
+`width`/`maxWidth`/`height`, których odpowiednikami w panelu są
+`widthPx`/`maxWidthPx`/`heightPx`. Test wymiarów sprawdza fallback starych pól
+oraz pierwszeństwo dodatnich wartości zapisanych przez panel. Zachowanie
+renderera nie jest zmienione. Wyniki przeglądarkowego harnessu pominięto
+w Git i Prettier tak jak pozostałe generowane raporty.
+
+Po uzupełnieniu przeszło 237 testów bramki ustawień i 5 testów wymiarów logo.
