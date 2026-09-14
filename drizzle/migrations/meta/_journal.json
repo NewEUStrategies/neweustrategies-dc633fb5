@@ -99,6 +99,20 @@
       "when": 1789326756549,
       "tag": "0013_pr355_discoverable_optin_and_email_account_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789366349541,
+      "tag": "0014_profile_view_privacy_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789366355649,
+      "tag": "0015_introduction_gates_and_dedup",
+      "breakpoints": true
     }
   ]
 }
