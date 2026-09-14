@@ -69,7 +69,7 @@ export function buildTransformedImageUrl(
   if (!src) return src;
   const resize = size.resize ?? "cover";
   try {
-    const url = new URL(src, PUBLIC_MEDIA_ORIGIN);
+    const url = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
     // Markowy adres `/media/<ścieżka>` obsługuje te same warianty rozmiarowe -
     // trasa `/media/$` przepisuje je na transformację obrazu w magazynie.
     if (url.pathname.startsWith("/media/")) {
@@ -102,7 +102,7 @@ export function buildTransformedImageUrl(
 export function isSupabaseStorageUrl(src: string): boolean {
   if (!src) return false;
   try {
-    const { pathname } = new URL(src, PUBLIC_MEDIA_ORIGIN);
+    const { pathname } = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
     return (
       pathname.startsWith("/media/") ||
       pathname.includes("/storage/v1/object/public/") ||
@@ -120,7 +120,7 @@ export function isSupabaseStorageUrl(src: string): boolean {
 export function buildScaledImageUrl(src: string, width: number, quality = IMAGE_QUALITY): string {
   if (!src) return src;
   try {
-    const url = new URL(src, PUBLIC_MEDIA_ORIGIN);
+    const url = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
     // Markowy adres `/media/<ścieżka>` obsługuje te same warianty rozmiarowe -
     // trasa `/media/$` przepisuje je na transformację obrazu w magazynie.
     if (url.pathname.startsWith("/media/")) {
