@@ -17,13 +17,15 @@
 --      właściciela, nie przeglądanej witryny - trigger przypina go przy INSERT
 --      i UPDATE, więc para (tenant_id, user_id) subskrypcji zgadza się z parą
 --      zadania w kolejce, po której dyspozytor dobiera urządzenia.
---   6. przeniesienie konta między najemcami przepina subskrypcje właściciela,
---      więc pin nie zostaje migawką sprzed przeniesienia.
+--   6. przeniesienie konta między najemcami przepina STAN BIEŻĄCY konta
+--      (subskrypcje push ORAZ preferencje powiadomień), więc pin nie zostaje
+--      migawką sprzed przeniesienia, a właściciel nie traci dostępu do
+--      własnego wiersza preferencji pod politykami wiążącymi najemcę w USING.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(16);
+SELECT plan(19);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -252,6 +254,44 @@ SELECT is(
   'a9222222-2222-2222-2222-222222222222'::uuid,
   'przeniesienie konta przepina subskrypcje push na nowego najemce'
 );
+
+-- Preferencje sa drugim wierszem STANU BIEZACEGO konta. Ich zamrozenie bylo
+-- ostrzejsze niz przy pushu: WSZYSTKIE cztery polityki `own prefs *` wiaza
+-- najemce juz w USING, wiec osierocony wiersz stawal sie dla wlasciciela
+-- NIEWIDOCZNY, NIEZAPISYWALNY (UPDATE 0 bez bledu) i NIEUSUWALNY, a UNIQUE
+-- (user_id) blokowal wstawienie zastepczego. Klient nie mial drogi naprawy.
+SELECT is(
+  (SELECT tenant_id FROM public.notification_preferences
+    WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa'),
+  'a9222222-2222-2222-2222-222222222222'::uuid,
+  'przeniesienie konta przepina takze preferencje powiadomien'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"a9000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.notification_preferences
+    WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa'),
+  1,
+  'po przeniesieniu wlasciciel NADAL widzi swoj wiersz preferencji'
+);
+
+-- Zapis musi realnie dojsc do wiersza. Przed naprawa USING odcinalo go po
+-- cichu: UPDATE zwracalo 0 wierszy i zaden blad nie docieral do UI.
+UPDATE public.notification_preferences
+   SET push_enabled = true
+ WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa';
+
+SELECT is(
+  (SELECT push_enabled FROM public.notification_preferences
+    WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa'),
+  true,
+  'po przeniesieniu wlasciciel NADAL zapisuje swoje preferencje'
+);
+
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;
