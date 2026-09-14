@@ -45,6 +45,9 @@ export function RobotsTxtPreview({ settings }: { settings: SeoSettings }) {
       ? ["/sitemap.xml", "/news-sitemap.xml"]
       : ["/sitemap.xml"],
     groups: aiCrawlerGroups(settings),
+    // Redakcja musi widzieć w podglądzie także warunek wskazania źródła -
+    // inaczej panel pokazywałby politykę łagodniejszą niż realny plik.
+    usage: robotsUsagePolicy(settings),
   });
 
   const nonCanonicalHost = !crawlHostIsIndexable(hostClass);
