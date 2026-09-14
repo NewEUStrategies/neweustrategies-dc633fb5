@@ -6,6 +6,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
@@ -18,11 +19,16 @@ import {
 } from "@/lib/server/publishedContent.server";
 import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
+// Adres publikowany w llms.txt liczy WSPÓLNA reguła crawlerowa
+// (`crawlerPublishOrigin`) - ten sam origin, który emituje mapa strony i
+// ogłasza robots.txt. Wcześniej origin brał się wprost z hosta żądania, więc na
+// podglądzie (gdzie zwalidowany host to `localhost`) asystenci AI dostawali
+// listę artykułów pod adresami `https://localhost/...`.
 async function requestContext(): Promise<{ origin: string; host: string }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  return { origin: host ? `${proto}://${host}` : "", host };
+  return { origin: crawlerPublishOrigin(host, proto), host };
 }
 
 const LATEST_COUNT = 15;
