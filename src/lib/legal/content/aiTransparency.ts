@@ -15,7 +15,8 @@
 // dokument musi opisać JEDNO I DRUGIE, zamiast obiecywać znakowanie wszystkiego.
 import type { LegalDocContent } from "../types";
 import { AI_TRANSPARENCY_META } from "../meta";
-import { COMPLIANCE_PACK_UPDATED, LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { COMPLIANCE_PACK_UPDATED } from "@/lib/legal/registration";
 
 export const AI_TRANSPARENCY_CONTENT: LegalDocContent = {
   pl: {

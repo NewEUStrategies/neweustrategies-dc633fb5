@@ -15,20 +15,18 @@
 // się opisać bez niej.
 import type { LegalDocContent } from "../types";
 import { STATUTE_META } from "../meta";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY_FULL, LEGAL_SITE_URL } from "@/lib/legal/entity";
 import {
   COMPLIANCE_PACK_UPDATED,
-  LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY_ADDRESS,
   LEGAL_ENTITY_COURT,
   LEGAL_ENTITY_FOUNDED,
-  LEGAL_ENTITY_FULL,
   LEGAL_ENTITY_KRS,
   LEGAL_ENTITY_NIP,
   LEGAL_ENTITY_REGISTERED,
   LEGAL_ENTITY_STATUTE_DATE,
   LEGAL_ENTITY_SUPERVISION,
-  LEGAL_SITE_URL,
-} from "@/lib/legal/entity";
+} from "@/lib/legal/registration";
 
 export const STATUTE_CONTENT: LegalDocContent = {
   pl: {

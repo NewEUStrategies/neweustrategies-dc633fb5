@@ -8,12 +8,8 @@
 // To odpowiednik „polityki o politykach” - art. 5 ust. 2 RODO (rozliczalność).
 import type { LegalDocContent } from "../types";
 import { PRIVACY_GOVERNANCE_META } from "../meta";
-import {
-  COMPLIANCE_PACK_UPDATED,
-  LEGAL_CONTACT_EMAIL,
-  LEGAL_ENTITY,
-  PRIVACY_HUB_PATH,
-} from "@/lib/legal/entity";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { COMPLIANCE_PACK_UPDATED, PRIVACY_HUB_PATH } from "@/lib/legal/registration";
 
 export const PRIVACY_GOVERNANCE_CONTENT: LegalDocContent = {
   pl: {

@@ -13,7 +13,8 @@
 // miejsce, w którym uczestnik realnie coś traci, jeśli nie rozumie zasady.
 import type { LegalDocContent } from "../types";
 import { EVENTS_META } from "../meta";
-import { COMPLIANCE_PACK_UPDATED, LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { COMPLIANCE_PACK_UPDATED } from "@/lib/legal/registration";
 
 export const EVENTS_CONTENT: LegalDocContent = {
   pl: {

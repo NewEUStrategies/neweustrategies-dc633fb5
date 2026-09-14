@@ -14,7 +14,6 @@
 import type { LegalDocContent } from "../types";
 import { SUBSCRIPTIONS_META } from "../meta";
 import {
-  COMPLIANCE_PACK_UPDATED,
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY_FULL,
   PAYMENT_PROVIDER_DISCLOSURE,
@@ -22,6 +21,7 @@ import {
   PAYMENT_PROVIDER_STATEMENT_DESCRIPTOR,
   REFUND_WINDOW_DAYS,
 } from "@/lib/legal/entity";
+import { COMPLIANCE_PACK_UPDATED } from "@/lib/legal/registration";
 
 export const SUBSCRIPTIONS_CONTENT: LegalDocContent = {
   pl: {

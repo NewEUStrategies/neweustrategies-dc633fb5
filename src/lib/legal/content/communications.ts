@@ -9,12 +9,8 @@
 // serwisowych, bez których nie da się wykonać umowy.
 import type { LegalDocContent } from "../types";
 import { COMMUNICATIONS_META } from "../meta";
-import {
-  COMPLIANCE_PACK_UPDATED,
-  LEGAL_CONTACT_EMAIL,
-  LEGAL_ENTITY,
-  PRIVACY_HUB_PATH,
-} from "@/lib/legal/entity";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { COMPLIANCE_PACK_UPDATED, PRIVACY_HUB_PATH } from "@/lib/legal/registration";
 
 export const COMMUNICATIONS_CONTENT: LegalDocContent = {
   pl: {

@@ -8,11 +8,8 @@
 // nie ma jak sprawdzić deklaracji z pierwszego dokumentu.
 import type { LegalDocContent } from "../types";
 import { DATA_PROCESSING_META } from "../meta";
-import {
-  COMPLIANCE_PACK_UPDATED,
-  LEGAL_CONTACT_EMAIL,
-  PAYMENT_PROVIDER_NAME,
-} from "@/lib/legal/entity";
+import { LEGAL_CONTACT_EMAIL, PAYMENT_PROVIDER_NAME } from "@/lib/legal/entity";
+import { COMPLIANCE_PACK_UPDATED } from "@/lib/legal/registration";
 
 export const DATA_PROCESSING_CONTENT: LegalDocContent = {
   pl: {

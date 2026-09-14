@@ -7,13 +7,12 @@
 // żądanie, jeden kanał, jeden termin, jedna ścieżka odwoławcza.
 import type { LegalDocContent } from "../types";
 import { RODO_META } from "../meta";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
 import {
   COMPLIANCE_PACK_UPDATED,
-  LEGAL_CONTACT_EMAIL,
-  LEGAL_ENTITY,
   PRIVACY_HUB_PATH,
   SUPERVISORY_AUTHORITY,
-} from "@/lib/legal/entity";
+} from "@/lib/legal/registration";
 
 export const RODO_CONTENT: LegalDocContent = {
   pl: {

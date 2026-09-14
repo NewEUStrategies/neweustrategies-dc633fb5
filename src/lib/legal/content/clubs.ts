@@ -13,7 +13,8 @@
 //   3. wykluczenie z klubu ma skutek finansowy, więc musi mieć tryb odwoławczy.
 import type { LegalDocContent } from "../types";
 import { CLUBS_META } from "../meta";
-import { COMPLIANCE_PACK_UPDATED, LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
+import { COMPLIANCE_PACK_UPDATED } from "@/lib/legal/registration";
 
 export const CLUBS_CONTENT: LegalDocContent = {
   pl: {
