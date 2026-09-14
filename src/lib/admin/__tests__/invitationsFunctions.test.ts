@@ -107,6 +107,11 @@ const h = vi.hoisted(() => ({
   listUsersPages: [] as { page: number; perPage: number }[],
   /** Awaria katalogu tożsamości (`listUsers`). */
   listUsersError: null as Error | null,
+  /**
+   * Slug, który konto JUŻ MA w `profiles`. `null` = konto bez sluga (nowe),
+   * więc hydracja policzy go z nazwy.
+   */
+  existingProfileSlug: null as string | null,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -182,7 +187,17 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         for (const method of ["eq", "in", "order", "limit"]) {
           chain[method] = () => Object.assign(result(), chain);
         }
-        chain["maybeSingle"] = () => Promise.resolve({ data: null, error: null });
+        // `maybeSingle` obsługuje DWA odczyty i muszą się różnić po tabeli:
+        // slug istniejącego profilu (hydracja czyta go, żeby NIE nadpisać
+        // publicznego adresu) oraz wiersz subskrypcji zapraszanego.
+        chain["maybeSingle"] = () =>
+          Promise.resolve({
+            data:
+              table === "profiles" && h.existingProfileSlug
+                ? { slug: h.existingProfileSlug }
+                : null,
+            error: null,
+          });
         return chain;
       },
     }),
@@ -327,6 +342,7 @@ beforeEach(() => {
   h.existingAuthUsers = [];
   h.listUsersPages = [];
   h.listUsersError = null;
+  h.existingProfileSlug = null;
   h.claimError = null;
   h.inviteLinkFails = false;
   h.hashedToken = null;
@@ -2227,6 +2243,27 @@ describe("system zaproszeń - slug profilu autora", () => {
       slug: string;
     };
     expect(profile.slug).toBe("malgorzata-wisniewska");
+  });
+
+  it("KONTO, KTÓRE JUŻ MA SLUG, zachowuje go - resend nie przenosi adresu autora", async () => {
+    // Najważniejszy przypadek tej naprawy, i to on decyduje o jej zasięgu.
+    // `performSend` robi UPSERT, który nadpisuje wymienione kolumny także przy
+    // PONOWNYM wysłaniu zaproszenia. Gdyby slug był liczony z nazwy za każdym
+    // razem, sama ta zmiana transliteracji przesunęłaby przy najbliższym
+    // resendzie każdego „Michała" z `micha` na `michal` - zrywając
+    // opublikowane linki, a przy kolizji wywracając cały resend na
+    // `profiles_slug_unique`.
+    grantAdmin();
+    h.existingProfileSlug = "micha-kowalski";
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Michał Kowalski" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("micha-kowalski");
   });
 
   it("transliteracja obejmuje też pozostałe litery bez rozkładu (ø, ß, đ)", async () => {

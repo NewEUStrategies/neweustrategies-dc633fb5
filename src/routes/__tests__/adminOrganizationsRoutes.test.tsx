@@ -3463,6 +3463,38 @@ describe("admin.organizations.$id - draft kontra dane odświeżone", () => {
     expect(payloadOf("member_organizations", "update").seats_limit).toBe(8);
   });
 
+  it("NIEZAPISANA zmiana NIE znika, gdy w tle zmieni się wersja wiersza", async () => {
+    // DRUGA STRONA TEGO SAMEGO DEFEKTU. Uzgadnianie „zawsze" jest równie złe
+    // co „nigdy", tylko kosztuje pracę administratora zamiast cudzej zmiany:
+    // wpisuje miasto, przechodzi na zakładkę Miejsca, zmienia limit - mutacja
+    // unieważnia zapytanie karty, refetch przynosi nowszy wiersz i bezwarunkowe
+    // `setDraft(row)` wyrzuca mu miasto bez słowa.
+    //
+    // Reguła (`organizationDraftSync`) zostawia wtedy draft i NIE przesuwa bazy
+    // optimistic-locka, więc zapis odbije się o warunek wersji i administrator
+    // dostanie komunikat o konflikcie - zamiast cichej straty.
+    let seatsInDb = SEATS_BEFORE;
+    stubMovingLimit(() => seatsInDb);
+    await mountSeats();
+
+    // Najpierw NIEZAPISANA zmiana w zakładce Ogólne.
+    openTab(TAB.general);
+    type(generalInput("city"), "Warszawa");
+    expect(generalInput("city")).toHaveValue("Warszawa");
+
+    // Dopiero teraz ktoś przestawia limit i wiersz dostaje nowszy stempel.
+    await openSeatsTab();
+    seatsInDb = SEATS_AFTER;
+    type(screen.getByLabelText("adminOrganizations.seatCount"), "8");
+    fireEvent.click(button("adminOrganizations.applySeatCount"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    await waitFor(() => expect(readChains("member_organizations").length).toBeGreaterThan(1));
+
+    // Praca administratora stoi tam, gdzie ją zostawił.
+    openTab(TAB.general);
+    expect(generalInput("city")).toHaveValue("Warszawa");
+  });
+
   it("po zmianie limitu karta pokazuje NOWĄ liczbę i taką wysyła", async () => {
     // PRZEPISANE PO NAPRAWIE. Ten test przypinał wcześniej stan ZEPSUTY:
     // nagłówek z liczbą sprzed zmiany, przycisk zapisu odblokowany SAM Z
@@ -3591,10 +3623,12 @@ describe("admin.organizations.$id - zapis kontra cudza zmiana (optimistic lock)"
     type(generalInput("city"), "Warszawa");
     fireEvent.click(button("adminOrganizations.save"));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(1));
-    // Domknięcie na PRZYCISKU, nie na toaście: zejście z `isPending` dochodzi
-    // do drzewa mikrozadaniem później, a klik w zablokowany przycisk nie
-    // wysłałby drugiego zapisu i test stałby do timeoutu.
-    await waitFor(() => expect(button("adminOrganizations.save")).toBeEnabled());
+    // Domknięcie na PRZYCISKU, który po udanym zapisie ma być ZABLOKOWANY:
+    // draft dostał wersję faktycznie zapisaną, więc nie różni się już od
+    // swojego punktu odniesienia i nie ma czego zapisywać. Przycisk aktywny
+    // po udanym zapisie znaczyłby, że tę samą łatkę można wysłać drugi raz
+    // i bez potrzeby podbić wersję wiersza.
+    await waitFor(() => expect(button("adminOrganizations.save")).toBeDisabled());
 
     type(generalInput("country"), "Polska");
     fireEvent.click(button("adminOrganizations.save"));

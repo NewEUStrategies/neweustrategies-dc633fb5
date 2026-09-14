@@ -374,15 +374,37 @@ async function performSend(
 
     if (!authUserId) throw new Error("no_auth_user_id");
 
-    // Hydrate profile + author_profile + user_role. UPSERT: jeśli konto już
-    // istniało (resend), tylko uzupełniamy braki bez nadpisywania edycji.
+    // SLUG ISTNIEJĄCEGO KONTA ZOSTAJE NIETKNIĘTY.
+    //
+    // `upsert` niżej NADPISUJE wymienione kolumny także przy ponownym wysłaniu
+    // zaproszenia - liczenie sluga z nazwy przy KAŻDYM wysłaniu zmieniałoby
+    // więc publiczny adres profilu autora (`/author/<slug>`) kontu, które już
+    // działa. To nie jest teoria: transliteracja „ł" (ta zmiana) przesunęłaby
+    // przy najbliższym resendzie każdego „Michała" z `micha` na `michal`,
+    // zrywając opublikowane i zaindeksowane linki. Gorzej: `profiles_slug_unique`
+    // jest indeksem UNIKALNYM, więc kolizja z cudzym slugiem wywróciłaby CAŁY
+    // resend na błędzie zapisu, a nie tylko sam adres.
+    //
+    // Slug liczymy zatem wyłącznie dla konta, które jeszcze go nie ma. Zmiana
+    // adresu istniejącego profilu to osobna decyzja (mapowanie stary -> nowy
+    // plus przekierowania), nie skutek uboczny wysłania zaproszenia.
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("slug")
+      .eq("id", authUserId)
+      .maybeSingle();
+    const slug = existingProfile?.slug ?? slugify(displayName);
+
+    // Hydrate profile + author_profile + user_role. UPSERT nadpisuje wymienione
+    // kolumny danymi z zaproszenia; wyjątkiem jest `slug` (wyżej), bo ten jest
+    // publicznym adresem, a nie polem formularza.
     await supabaseAdmin.from("profiles").upsert(
       {
         id: authUserId,
         tenant_id: inv.tenant_id,
         email,
         display_name: displayName,
-        slug: slugify(displayName),
+        slug,
         avatar_url: (meta.photo as string) ?? null,
         bio_pl: (meta.bio_pl as string) ?? null,
         bio_en: (meta.bio_en as string) ?? null,

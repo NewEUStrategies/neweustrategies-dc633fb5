@@ -71,6 +71,7 @@ import {
   type OrganizationRow,
 } from "@/lib/admin/membership-admin";
 import { isEditConflict } from "@/lib/content/saveConflict";
+import { draftSyncAction } from "@/lib/admin/organizationDraftSync";
 
 export const Route = createFileRoute("/admin/organizations/$id")({
   component: AdminOrganizationDetailPage,
@@ -105,41 +106,47 @@ function AdminOrganizationDetailPage() {
   }, [tiers]);
 
   const [draft, setDraft] = useState<OrganizationRow | null>(null);
+  /**
+   * Wiersz, Z KTÓREGO powstał bieżący draft - punkt odniesienia dla pytania
+   * „czy administrator cokolwiek zmienił". Mierzenie tego wobec BIEŻĄCEJ
+   * odpowiedzi serwera było właśnie tym, co zapalało przycisk zapisu samo
+   * z siebie po cudzym zapisie.
+   */
+  const [seeded, setSeeded] = useState<OrganizationRow | null>(null);
 
   // Baza optimistic-locka: `updated_at` wiersza, który draft ODWZOROWUJE.
-  // Przesuwana przy każdym uzgodnieniu draftu i po każdym udanym zapisie, żeby
+  // Przesuwana przy uzgodnieniu draftu i po każdym udanym zapisie, żeby
   // kolejny zapis nie zgłaszał fałszywego konfliktu z własną zmianą. Ten sam
   // wzorzec co `baseUpdatedAtRef` w edytorze wpisów.
   const baseUpdatedAtRef = useRef<string | null>(null);
 
-  // UZGADNIANIE DRAFTU Z SERWEREM.
-  //
-  // Wcześniej warunkiem było `!draft`, więc po PIERWSZYM ustawieniu draft
-  // zamrażał się na zawsze: żaden refetch nie docierał już do formularza.
-  // Zakładka Miejsca zmienia `seats_limit` funkcją serwerową i unieważnia to
-  // zapytanie, ale karta dalej trzymała wartości sprzed zmiany - i wysyłała je
-  // z powrotem przy zapisie czegokolwiek innego.
-  //
-  // Teraz reagujemy na TOŻSAMOŚĆ i WERSJĘ wiersza: inny `id` to inna
-  // organizacja (pełne przeładowanie), a nowszy `updated_at` to zmiana, której
-  // draft jeszcze nie widział. Niezapisane zmiany użytkownika nadal nie są
-  // deptane w trakcie edycji, bo `updated_at` rośnie wyłącznie wtedy, gdy ktoś
-  // NAPRAWDĘ zapisał wiersz w bazie.
+  // UZGADNIANIE DRAFTU Z SERWEREM - reguła mieszka w `organizationDraftSync`
+  // i ma tam własne testy; tutaj zostaje wyłącznie jej wykonanie.
   const loadedRef = useRef<{ id: string; updatedAt: string | null } | null>(null);
+  const isDirty = useMemo(
+    () => (draft && seeded ? JSON.stringify(draft) !== JSON.stringify(seeded) : false),
+    [draft, seeded],
+  );
+
   useEffect(() => {
     const row = orgQ.data;
     if (!row) return;
-    const seen = loadedRef.current;
-    if (seen && seen.id === row.id && seen.updatedAt === row.updated_at) return;
+    const action = draftSyncAction({
+      seen: loadedRef.current,
+      row: { id: row.id, updatedAt: row.updated_at ?? null },
+      userEdited: isDirty,
+    });
+    if (action === "skip") return;
     loadedRef.current = { id: row.id, updatedAt: row.updated_at ?? null };
-    baseUpdatedAtRef.current = row.updated_at ?? null;
+    // `keep-local-edits` CELOWO nie rusza ani draftu, ani bazy optimistic-locka:
+    // niezapisana praca administratora zostaje, a zapis pojedzie ze starą
+    // wersją i odbije się o warunek `updated_at`, dając komunikat o konflikcie
+    // zamiast cichej straty - czyjejkolwiek.
+    if (action !== "reseed") return;
+    setSeeded(row);
     setDraft(row);
-  }, [orgQ.data]);
-
-  const isDirty = useMemo(
-    () => (draft && orgQ.data ? JSON.stringify(draft) !== JSON.stringify(orgQ.data) : false),
-    [draft, orgQ.data],
-  );
+    baseUpdatedAtRef.current = row.updated_at ?? null;
+  }, [orgQ.data, isDirty]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -162,15 +169,26 @@ function AdminOrganizationDetailPage() {
       // Zapis niesie wersję, którą formularz odwzorowuje. Serwer odrzuci go,
       // jeśli w międzyczasie ktoś zapisał ten wiersz - zamiast cicho cofnąć
       // cudzą zmianę.
-      return updateOrganization(id, patch, baseUpdatedAtRef.current);
+      const savedUpdatedAt = await updateOrganization(id, patch, baseUpdatedAtRef.current);
+      // Oddajemy TAKŻE wysłany draft: to on, a nie stan z chwili powrotu
+      // odpowiedzi, jest treścią, którą baza właśnie przyjęła.
+      return { savedUpdatedAt, sent: draft };
     },
-    onSuccess: (savedUpdatedAt) => {
+    onSuccess: (result) => {
       // Przesuwamy bazę na `updated_at` FAKTYCZNIE zapisany, zanim odświeżenie
       // zdąży wrócić - inaczej drugi zapis z rzędu zderzyłby się z własnym
       // pierwszym.
-      if (savedUpdatedAt) {
-        baseUpdatedAtRef.current = savedUpdatedAt;
-        loadedRef.current = { id, updatedAt: savedUpdatedAt };
+      if (result?.savedUpdatedAt && result.sent) {
+        const savedRow: OrganizationRow = { ...result.sent, updated_at: result.savedUpdatedAt };
+        baseUpdatedAtRef.current = result.savedUpdatedAt;
+        loadedRef.current = { id, updatedAt: result.savedUpdatedAt };
+        // Draft i jego punkt odniesienia dostają wersję zapisaną. Bez tego
+        // draft zostawał ze STARYM stemplem, a `isDirty` porównywałby go do
+        // nowej odpowiedzi serwera i wychodziłby prawdą: przycisk zapisu
+        // zostawałby aktywny po UDANYM zapisie, gotowy wysłać tę samą łatkę
+        // drugi raz i bez potrzeby podbić wersję.
+        setDraft(savedRow);
+        setSeeded(savedRow);
       }
       toast.success(t("adminOrganizations.saved"));
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
