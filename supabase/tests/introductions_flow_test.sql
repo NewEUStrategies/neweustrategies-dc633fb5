@@ -144,14 +144,18 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) V
   ('d0000000-0000-0000-0000-0000000000c2', 't2@intro.test', 'Target 2',
    'd1a11111-1111-1111-1111-111111111111', true);
 
-INSERT INTO public.user_connections
-  (tenant_id, requester_id, addressee_id, status, responded_at) VALUES
-  ('d1a11111-1111-1111-1111-111111111111',
-   'd0000000-0000-0000-0000-0000000000a2', 'd0000000-0000-0000-0000-0000000000b2',
-   'accepted', now()),
-  ('d1a11111-1111-1111-1111-111111111111',
-   'd0000000-0000-0000-0000-0000000000b2', 'd0000000-0000-0000-0000-0000000000c2',
-   'accepted', now());
+-- Relacje idą TĄ SAMĄ DROGĄ, CO APLIKACJA: `tg_user_connections_guard`
+-- (20260717162432:63) dopuszcza wyłącznie INSERT w stanie 'pending' i dopiero
+-- przejście pending -> accepted. Fikstura wstawiająca od razu 'accepted'
+-- wywraca się na wyzwalaczu, zanim dojdzie do jakiejkolwiek asercji. Ten sam
+-- wzorzec, co w `connection_degree_test.sql`.
+INSERT INTO public.user_connections (requester_id, addressee_id) VALUES
+  ('d0000000-0000-0000-0000-0000000000a2', 'd0000000-0000-0000-0000-0000000000b2'),
+  ('d0000000-0000-0000-0000-0000000000b2', 'd0000000-0000-0000-0000-0000000000c2');
+UPDATE public.user_connections
+   SET status = 'accepted', responded_at = now()
+ WHERE requester_id IN ('d0000000-0000-0000-0000-0000000000a2',
+                        'd0000000-0000-0000-0000-0000000000b2');
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
@@ -279,17 +283,17 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable)
   SELECT ('d9000000-0000-0000-0000-00000000000' || g)::uuid, 'q' || g || '@intro.test',
          'Limit ' || g, 'd1a11111-1111-1111-1111-111111111111', true
     FROM generate_series(1, 8) g;
-INSERT INTO public.user_connections
-  (tenant_id, requester_id, addressee_id, status, responded_at)
-  SELECT 'd1a11111-1111-1111-1111-111111111111',
-         'd9000000-0000-0000-0000-000000000002',
-         ('d9000000-0000-0000-0000-00000000000' || g)::uuid, 'accepted', now()
+-- Jak wyżej: wstawka w 'pending', dopiero potem przejście na 'accepted'.
+INSERT INTO public.user_connections (requester_id, addressee_id)
+  SELECT 'd9000000-0000-0000-0000-000000000002',
+         ('d9000000-0000-0000-0000-00000000000' || g)::uuid
     FROM generate_series(3, 8) g;
-INSERT INTO public.user_connections
-  (tenant_id, requester_id, addressee_id, status, responded_at) VALUES
-  ('d1a11111-1111-1111-1111-111111111111',
-   'd9000000-0000-0000-0000-000000000001', 'd9000000-0000-0000-0000-000000000002',
-   'accepted', now());
+INSERT INTO public.user_connections (requester_id, addressee_id) VALUES
+  ('d9000000-0000-0000-0000-000000000001', 'd9000000-0000-0000-0000-000000000002');
+UPDATE public.user_connections
+   SET status = 'accepted', responded_at = now()
+ WHERE requester_id IN ('d9000000-0000-0000-0000-000000000001',
+                        'd9000000-0000-0000-0000-000000000002');
 -- Pięć oczekujących prośb = dokładnie limit dobowy.
 INSERT INTO public.introduction_requests
   (tenant_id, requester_id, bridge_id, target_id, message, status)
