@@ -40,6 +40,7 @@ import {
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 /**
  * Redirect capture for the WP migration: map the ORIGINAL WordPress permalink
@@ -334,7 +335,7 @@ function createMediaImporter(opts: {
       if (upErr) throw new Error(`storage upload: ${upErr.message}`);
 
       const { data: pub } = supabaseAdmin.storage.from("media").getPublicUrl(path);
-      const publicUrl = pub.publicUrl;
+      const publicUrl = brandedMediaUrl(pub.publicUrl);
 
       // Best-effort row in `media`. Idempotent on path (unique not enforced, so we check).
       const { data: existing } = await supabaseAdmin
