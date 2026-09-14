@@ -1221,14 +1221,22 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "select",
       label: "Głos",
       options: [
+        // LISTA MUSI BYĆ PODZBIOREM `TTS_VOICES` z `lib/audio/ttsCanonical`.
+        //
+        // Do 2026-09-14 stały tu DWIE pozycje spoza allowlisty kanonicznej:
+        // Liam (TX3LPaxmHKxFdv7VOQHJ) i Jessica (cgSgspJ2msm6clMCkdW9).
+        // Przechodziły, bo `/api/tts` sprawdzała wtedy KSZTAŁT identyfikatora
+        // regexem, a nie jego PRZYNALEŻNOŚĆ. Po domknięciu walidacji trasy
+        // widget z takim głosem dostawałby 400 i przestawał mówić, a redakcja
+        // wybrałaby go z panelu zupełnie legalnie. Panel nie ma prawa oferować
+        // wartości, którą serwer odrzuca - dlatego obie pozycje znikają stąd
+        // razem ze swoimi wpisami w `labelsEn.ts`.
         { value: "JBFqnCBsd6RMkjVDRZzb", label: "George (męski, EN)" },
         { value: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (kobiecy, EN)" },
         { value: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (kobiecy, EN)" },
-        { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (męski, EN)" },
         { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda (kobiecy, EN)" },
         { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily (kobiecy, EN)" },
         { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel (męski, EN)" },
-        { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica (kobiecy, EN)" },
       ],
     },
     {

@@ -61,7 +61,13 @@ export type AudioStatus = "idle" | "loading" | "playing" | "paused" | "error";
  * - error: błąd na dowolnym etapie
  */
 export type TtsStage =
-  "idle" | "preparing" | "synthesizing" | "streaming" | "ready" | "cached" | "error";
+  | "idle"
+  | "preparing"
+  | "synthesizing"
+  | "streaming"
+  | "ready"
+  | "cached"
+  | "error";
 
 export interface TtsProgress {
   stage: TtsStage;
@@ -348,16 +354,20 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
           const reader = body.getReader();
           const chunks: Uint8Array[] = [];
           let received = 0;
-          let announcedStreaming = false;
+          // ŚWIADOMIE BEZ FLAGI „ogłoszono streaming". Do 2026-09-14 stała tu
+          // zmienna `announcedStreaming`, ustawiana na `true` przy pierwszym
+          // fragmencie i nigdy niczytana - sugerowała jednorazowe przejście
+          // w etap `streaming`, którego nie ma i którego BYĆ NIE MOŻE:
+          // `setTts` niżej niesie `percent`, `bytes` i `elapsedMs`, czyli jest
+          // aktualizacją POSTĘPU. Zabramkowanie go pierwszym fragmentem
+          // zamroziłoby pasek na zerze. Zostaje wywołanie przy każdym
+          // fragmencie, znika martwy warunek, który obiecywał co innego.
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
             if (value) {
               chunks.push(value);
               received += value.byteLength;
-              if (!announcedStreaming) {
-                announcedStreaming = true;
-              }
               setTts({
                 stage: "streaming",
                 percent:

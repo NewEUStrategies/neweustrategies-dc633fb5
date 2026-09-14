@@ -45,18 +45,26 @@ export const Route = createFileRoute("/api/public/related-click")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const viewer = viewerHashFrom(request);
 
-        // Rate-limit: 30 klik / 5 min z jednego viewer_hash
-        const since = new Date(Date.now() - 5 * 60_000).toISOString();
-        const { count } = await supabaseAdmin
-          .from("related_post_clicks")
-          .select("id", { count: "exact", head: true })
-          .eq("viewer_hash", viewer)
-          .gte("clicked_at", since);
-        if ((count ?? 0) >= 30) {
-          return new Response("Too many requests", { status: 429 });
-        }
-
-        // Rozwiązanie tenanta z posts.tenant_id (musi się zgadzać dla obu)
+        // KOLEJNOŚĆ JEST TU CZĘŚCIĄ NAPRAWY, NIE PORZĄDKAMI.
+        //
+        // Do 2026-09-14 licznik rate-limitu stał PRZED rozwiązaniem najemcy
+        // i pytał wyłącznie o `viewer_hash`. Dawało to dwa osobne defekty:
+        //
+        //  1. LICZNIK SUMOWAŁ RUCH WSZYSTKICH NAJEMCÓW. Aktywny najemca
+        //     wyczerpywał limit czytelnikom cudzego serwisu - i był to defekt
+        //     izolacji, nie wydajności: zapytanie bez `tenant_id` łamie regułę,
+        //     którą pilnuje bramka `check:sql-tenant-scope`.
+        //  2. ZAPYTANIE NIE MIAŁO PASUJĄCEGO INDEKSU. Wszystkie trzy indeksy
+        //     `related_post_clicks` prowadzą `tenant_id` jako pierwszą kolumnę,
+        //     więc predykat po samym `viewer_hash` schodził do przeglądu całej,
+        //     stale rosnącej tabeli klików - na gorącej ścieżce czytelniczej.
+        //
+        // Żeby zawęzić licznik do najemcy, trzeba najemcę najpierw znać, więc
+        // odczyt wpisu źródłowego wędruje przed limiter. To NIE pogarsza
+        // odporności na nadużycie: przed limiterem stoi teraz jeden odczyt po
+        // kluczu głównym `posts`, a nie - jak dotąd - nieindeksowane zliczanie
+        // całej tabeli klików. Odczyt wpisu DOCELOWEGO zostaje za limiterem,
+        // więc żądanie odrzucone limitem nadal kosztuje dokładnie jeden odczyt.
         const { data: srcPost, error: srcErr } = await supabaseAdmin
           .from("posts")
           .select("tenant_id")
@@ -64,6 +72,21 @@ export const Route = createFileRoute("/api/public/related-click")({
           .maybeSingle();
         if (srcErr || !srcPost) return new Response("Source not found", { status: 404 });
 
+        // Rate-limit: 30 klik / 5 min z jednego `viewer_hash` W OBRĘBIE NAJEMCY.
+        // Predykat `(tenant_id, viewer_hash, clicked_at)` odpowiada indeksowi
+        // `related_post_clicks_tenant_viewer_window_idx` (migracja 20260914120000).
+        const since = new Date(Date.now() - 5 * 60_000).toISOString();
+        const { count } = await supabaseAdmin
+          .from("related_post_clicks")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", srcPost.tenant_id)
+          .eq("viewer_hash", viewer)
+          .gte("clicked_at", since);
+        if ((count ?? 0) >= 30) {
+          return new Response("Too many requests", { status: 429 });
+        }
+
+        // Wpis docelowy musi należeć do tego samego najemcy co źródłowy.
         const { data: tgtPost, error: tgtErr } = await supabaseAdmin
           .from("posts")
           .select("tenant_id")
