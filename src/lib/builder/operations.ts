@@ -389,6 +389,31 @@ export function duplicateWidget(d: BuilderDocument, wid: string): void {
 }
 
 /**
+ * Kolumna wskazana identyfikatorem, JAKI NIESIE KANWA - CZYSTO, bez tworzenia
+ * czegokolwiek. Rozwiązuje ten sam rozjazd co `columnForDrop` (patrz jego opis:
+ * `data-col-id` bywa identyfikatorem SEKCJI WEWNĘTRZNEJ, nie kolumny), ale
+ * zatrzymuje się na tym, co w dokumencie JUŻ JEST.
+ *
+ * Czystość nie jest tu ozdobnikiem, tylko warunkiem użycia: `focusedColumn`
+ * w `useBuilderOperations` to `useMemo` liczony na ŻYWYM dokumencie, poza
+ * cyklem „głęboka kopia -> mutacja -> historia". Dołożenie kolumny stamtąd
+ * dopisałoby węzeł do dokumentu, którego nikt nie zapisał do historii - zmiana
+ * bez kroku „Cofnij", niewidoczna dla autozapisu i gubiona przy następnym
+ * renderze. Dlatego sekcja wewnętrzna BEZ ANI JEDNEJ kolumny daje tutaj `null`;
+ * zakładanie kolumny zostaje wyłącznie po stronie upuszczeń (`columnForDrop`),
+ * które i tak mutują kopię roboczą.
+ */
+export function columnForCanvasId(d: BuilderDocument, colId: string): ColumnNode | null {
+  const column = findColumn(d, colId);
+  if (column) return column;
+  const inner = findInner(d, colId);
+  if (!inner) return null;
+  // Pierwsza NIEPUSTA kolumna - jak w `columnForDrop` i `moveWidgetToSection`:
+  // dziura na pozycji zerowej nie może przesłonić prawdziwej kolumny.
+  return (inner.columns ?? []).find((c): c is ColumnNode => !!c) ?? null;
+}
+
+/**
  * Kolumna wskazana identyfikatorem, JAKI NIESIE KANWA - a ten nie zawsze jest
  * identyfikatorem kolumny.
  *
@@ -410,14 +435,16 @@ export function duplicateWidget(d: BuilderDocument, wid: string): void {
  * dostępu, której redaktor nie spełnia, renderer jej nie rysuje). Wybór
  * najbliższej kolumny wymagałby geometrii wskaźnika, której ta warstwa nie zna
  * i znać nie powinna; `moveWidgetToSection` bierze pierwszą kolumnę od zawsze.
+ *
+ * TYLKO DLA UPUSZCZEŃ - bo MUTUJE (zakłada kolumnę). Ścieżki, które jedynie
+ * odczytują dokument (kolumna w ognisku, panel właściwości, wklejanie), biorą
+ * czysty `columnForCanvasId` powyżej.
  */
 function columnForDrop(d: BuilderDocument, colId: string): ColumnNode | null {
-  const column = findColumn(d, colId);
-  if (column) return column;
+  const existing = columnForCanvasId(d, colId);
+  if (existing) return existing;
   const inner = findInner(d, colId);
   if (!inner) return null;
-  const existing = (inner.columns ?? []).find((c): c is ColumnNode => !!c);
-  if (existing) return existing;
   if (!inner.columns) inner.columns = [];
   const created = newColumn(12);
   inner.columns.push(created);

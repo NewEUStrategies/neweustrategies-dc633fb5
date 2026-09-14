@@ -12,6 +12,7 @@ import {
   cloneColumn,
   cloneInner,
   cloneWidget,
+  columnForCanvasId,
   findWidget,
   findSection,
   findColumn,
@@ -60,7 +61,11 @@ export function useBuilderClipboard({ doc, selection, focusedColumn, update }: P
         const cloned = cloneWidget(env.node as WidgetNode);
         const colId = focusedColumn?.id;
         if (!colId) return;
-        const col = findColumn(d, colId);
+        // `columnForCanvasId`, a nie `findColumn`: kolumna w ognisku wywodzi się
+        // z zaznaczenia, a to niesie identyfikator PODANY PRZEZ KANWĘ - bywa nim
+        // identyfikator sekcji wewnętrznej, którego żadna kolumna nie dopasuje.
+        // Wklejenie widgetu kończyło się wtedy ciszą.
+        const col = columnForCanvasId(d, colId);
         if (col) {
           if (!Array.isArray(col.children)) col.children = [];
           col.children.push(cloned);

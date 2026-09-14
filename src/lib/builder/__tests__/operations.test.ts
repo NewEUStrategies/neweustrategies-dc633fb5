@@ -1103,3 +1103,54 @@ describe("identyfikator sekcji wewnętrznej jako cel kolumnowy", () => {
     expect(ids(ops.findColumn(d, "ic1")!)).toEqual(["nowy"]);
   });
 });
+
+// Ten sam rozjazd widzą ścieżki, które dokumentu NIE mutują: kolumna w ognisku
+// (`useMemo`), panel właściwości i wklejanie. Dostają czysty `columnForCanvasId`
+// - rozwiązuje identyfikator sekcji wewnętrznej tak samo jak `columnForDrop`,
+// ale niczego nie zakłada.
+describe("columnForCanvasId - czysty resolwer identyfikatora z kanwy", () => {
+  it("identyfikator kolumny zwraca tę kolumnę", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")])]));
+    expect(ops.columnForCanvasId(d, "c1")?.id).toBe("c1");
+  });
+
+  it("identyfikator sekcji wewnętrznej zwraca jej PIERWSZĄ kolumnę", () => {
+    const d = doc(sec("s1", [inner("i1", [col("ic1", []), col("ic2", [])])]));
+    expect(ops.columnForCanvasId(d, "i1")?.id).toBe("ic1");
+  });
+
+  it("dziura na pozycji zerowej nie przesłania prawdziwej kolumny", () => {
+    const d = {
+      version: 1,
+      sections: [
+        {
+          id: "s1",
+          kind: "section",
+          children: [{ id: "i1", kind: "inner-section", columns: [null, col("ic2", [])] }],
+        },
+      ],
+    } as unknown as BuilderDocument;
+    expect(ops.columnForCanvasId(d, "i1")?.id).toBe("ic2");
+  });
+
+  it("sekcja wewnętrzna BEZ kolumn daje null i NICZEGO nie zakłada", () => {
+    // Tu przebiega granica wobec `columnForDrop`: ten resolwer wołany jest
+    // z `useMemo` na ŻYWYM dokumencie, więc dołożona kolumna byłaby zmianą
+    // poza historią - niewidoczną dla „Cofnij" i dla autozapisu.
+    const d = doc(sec("s1", [inner("i1", [])]));
+    expect(ops.columnForCanvasId(d, "i1")).toBeNull();
+    expect(ops.findInner(d, "i1")?.columns).toEqual([]);
+  });
+
+  it("nieznany identyfikator daje null", () => {
+    const d = doc(sec("s1", [col("c1", [])]));
+    expect(ops.columnForCanvasId(d, "nie-ma")).toBeNull();
+  });
+
+  it("identyfikator sekcji nie jest identyfikatorem kolumny", () => {
+    // `data-sec-id` i `data-col-id` to osobne atrybuty; resolwer nie ma prawa
+    // zgadywać, że zaznaczono sekcję.
+    const d = doc(sec("s1", [col("c1", [])]));
+    expect(ops.columnForCanvasId(d, "s1")).toBeNull();
+  });
+});

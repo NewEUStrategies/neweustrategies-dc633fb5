@@ -198,6 +198,73 @@ describe("useBuilderOperations - kolumna w ognisku", () => {
   });
 });
 
+// Kliknięcie w wyściółkę SEKCJI WEWNĘTRZNEJ (12 px góra/dół) daje zaznaczenie
+// `{ kind: "column", id: <id sekcji wewnętrznej> }`, bo `data-col-id` stoi na
+// SLOCIE dziecka sekcji, a dzieckiem bywa sekcja wewnętrzna (BuilderRenderer,
+// `visibleCols.map`). Upuszczenie takiego identyfikatora już rozumie
+// (`columnForDrop`); ten opis przypina, że rozumie go również ŚCIEŻKA
+// KLIKNIĘCIA - inaczej ten sam piksel zachowuje się inaczej pod myszką
+// ciągnącą i pod myszką klikającą.
+describe("useBuilderOperations - identyfikator sekcji wewnętrznej w zaznaczeniu", () => {
+  const zSekcjaWewnetrzna = (): BuilderDocument => ({
+    version: 1,
+    sections: [
+      sec("s1", [
+        { id: "i1", kind: "inner-section", columns: [col("ic1", [w("iw1")]), col("ic2", [])] },
+      ]),
+      sec("s2", [col("c2", [])]),
+    ],
+  });
+  const kolumnyWewnetrzne = (d: BuilderDocument) =>
+    (d.sections[0].children[0] as InnerSectionNode).columns;
+
+  it("ognisko pada na PIERWSZĄ kolumnę tej sekcji wewnętrznej", () => {
+    const { result } = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    expect(result.current.focusedColumn?.id).toBe("ic1");
+  });
+
+  it("widget z biblioteki ląduje w tej sekcji, a NIE w nowej sekcji na końcu", () => {
+    const s = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    act(() => s.result.current.addWidgetToFocused("heading"));
+    const doc = s.last()!.doc;
+    // Dwie sekcje, czyli żadnej nowej na dole dokumentu - tam właśnie lądował
+    // widget, zanim zaznaczenie zaczęło rozwiązywać się na kolumnę.
+    expect(doc.sections).toHaveLength(2);
+    const [ic1, ic2] = kolumnyWewnetrzne(doc);
+    expect(ic1.children.map((x) => x.type)).toEqual(["text", "heading"]);
+    expect(ic2.children).toHaveLength(0);
+  });
+
+  it("widget globalny z biblioteki idzie tą samą drogą", () => {
+    const s = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    act(() =>
+      s.result.current.addGlobalWidgetToFocused({ id: "g1", data: { type: "text", content: {} } }),
+    );
+    const doc = s.last()!.doc;
+    expect(doc.sections).toHaveLength(2);
+    expect(kolumnyWewnetrzne(doc)[0].children).toHaveLength(2);
+  });
+
+  it("edycja właściwości kolumny trafia w pierwszą kolumnę, a nie w nicość", () => {
+    const s = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    act(() => s.result.current.updateColumn("i1", (c) => (c.span = { desktop: 6 })));
+    expect(kolumnyWewnetrzne(s.last()!.doc)[0].span.desktop).toBe(6);
+  });
+
+  it("sekcja wewnętrzna BEZ kolumn nadal nie daje ogniska i niczego nie zakłada", () => {
+    // Granica świadoma: `focusedColumn` to `useMemo` na ŻYWYM dokumencie, więc
+    // nie wolno mu dołożyć kolumny - taka zmiana nie trafiłaby do historii.
+    // Zakładanie kolumny zostaje po stronie upuszczeń (`columnForDrop`).
+    const doc: BuilderDocument = {
+      version: 1,
+      sections: [sec("s1", [{ id: "i1", kind: "inner-section", columns: [] }])],
+    };
+    const s = setup({ kind: "column", id: "i1" }, doc);
+    expect(s.result.current.focusedColumn).toBeNull();
+    expect((s.state.doc.sections[0].children[0] as InnerSectionNode).columns).toEqual([]);
+  });
+});
+
 describe("useBuilderOperations - operacje strukturalne", () => {
   it.each([
     [
