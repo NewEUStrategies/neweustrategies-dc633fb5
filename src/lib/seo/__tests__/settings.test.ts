@@ -45,23 +45,36 @@ describe("effective values", () => {
 });
 
 describe("aiCrawlerGroups", () => {
-  it("emits nothing when everything is allowed (GEO default)", () => {
-    expect(aiCrawlerGroups(DEFAULT_SEO_SETTINGS)).toEqual([]);
+  // ZMIANA POLITYKI (2026-09): zgoda dla botów AI jest JAWNA, nie milcząca.
+  // Milcząca zgoda (brak grupy) nie nosi warunku cytowania - bot dopasowuje
+  // grupę ze swoją nazwą, więc tylko własna grupa może przenieść `Content-Signal`
+  // i wymóg wskazania źródła.
+  it("grants both families explicitly, with a content signal (GEO default)", () => {
+    const groups = aiCrawlerGroups(DEFAULT_SEO_SETTINGS);
+    expect(groups).toHaveLength(2);
+    for (const group of groups) {
+      expect(group.allow).toEqual(["/"]);
+      expect(group.contentSignal).toBe("search=yes, ai-input=yes, ai-train=yes");
+    }
+    expect(groups[0]?.agents).toEqual(AI_SEARCH_CRAWLERS);
+    expect(groups[1]?.agents).toEqual(AI_TRAINING_CRAWLERS);
   });
   it("blocks training crawlers independently of search crawlers", () => {
     const groups = aiCrawlerGroups({
       ...DEFAULT_SEO_SETTINGS,
       ai_training_crawlers_allowed: false,
     });
-    expect(groups).toEqual([{ agents: AI_TRAINING_CRAWLERS, disallow: ["/"] }]);
-    expect(groups.flatMap((g) => g.agents)).not.toContain("PerplexityBot");
+    expect(groups).toHaveLength(2);
+    expect(groups[1]).toEqual({ agents: AI_TRAINING_CRAWLERS, disallow: ["/"] });
+    // Wyszukiwarki AI nadal wpuszczone, ale sygnał mówi wprost: bez trenowania.
+    expect(groups[0]?.contentSignal).toBe("search=yes, ai-input=yes, ai-train=no");
   });
   it("blocks search crawlers when disabled", () => {
     const groups = aiCrawlerGroups({
       ...DEFAULT_SEO_SETTINGS,
       ai_search_crawlers_allowed: false,
     });
-    expect(groups).toEqual([{ agents: AI_SEARCH_CRAWLERS, disallow: ["/"] }]);
+    expect(groups[0]).toEqual({ agents: AI_SEARCH_CRAWLERS, disallow: ["/"] });
   });
   it("blocks both families when the editors opt out of AI entirely", () => {
     const groups = aiCrawlerGroups({
