@@ -32,12 +32,13 @@ import { SponsoredDisclosure } from "@/components/post/SponsoredDisclosure";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import { PostOrganizationCard } from "@/components/post/PostOrganizationCard";
 import { articleJsonLdType, resolveDisclosure } from "@/lib/content/sponsored";
-import { RelatedPosts } from "@/components/post/RelatedPosts";
 import { PostCategoryArchive } from "@/components/post/PostCategoryArchive";
-import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
-import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
+import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPostsConfig";
 import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
-import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts";
+// Z LEKKIEGO modułu konfiguracji, nie z `lib/relatedPosts`: trasa potrzebuje
+// tylko scalonej konfiguracji, a tamten moduł dociąga silnik scoringu do
+// chunku wejściowego (patrz nagłówek `relatedPosts/config.ts`).
+import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts/config";
 import { useRecordPostView } from "@/hooks/useRecordPostView";
 import { ContactForm } from "@/components/pages/ContactForm";
 import { ArchiveListing } from "@/components/pages/ArchiveListing";
@@ -119,6 +120,28 @@ const NewsletterForm = lazy(() =>
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 import { resolveTakeaways } from "@/lib/keyTakeaways/resolve";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
+// Rekomendacje stoją POD treścią i renderują się warunkowo, więc nie są
+// potrzebne do pierwszego malowania. Statyczny import trzymał cały ich podgraf
+// - komponent, warstwę zapytań i silnik scoringu - w CHUNKU WEJŚCIOWYM, a
+// bramka `check:bundle` mierzy największy POJEDYNCZY plik i `index-*.js` stoi
+// tuż pod progiem 280 KB.
+//
+// To działa TYLKO w parze z rozdziałem `relatedPosts/config.ts`: leniwy import
+// wyprowadza `RelatedPosts` i warstwę zapytań, a rozdział sprawia, że
+// `mergeRelatedConfig` (którego trasa potrzebuje statycznie) nie wciąga silnika
+// z powrotem. Zmierzone osobno, każda z tych zmian daje ZERO - dopiero razem
+// zdejmują algorytm z chunku wejściowego.
+//
+// OBA wejścia muszą być leniwe: `RelatedPostsAfterParagraph` importuje
+// `RelatedPosts` statycznie, więc jeden statyczny import trzyma cały podgraf.
+const RelatedPosts = lazy(() =>
+  import("@/components/post/RelatedPosts").then((m) => ({ default: m.RelatedPosts })),
+);
+const RelatedPostsAfterParagraph = lazy(() =>
+  import("@/components/post/RelatedPostsAfterParagraph").then((m) => ({
+    default: m.RelatedPostsAfterParagraph,
+  })),
+);
 import { InlineToc } from "@/components/post/InlineToc";
 import { ContentSkeleton } from "@/components/content/ContentSkeleton";
 import { mergeTocSettings, useTocDefaults, type TocOverride } from "@/lib/toc/settings";
@@ -1262,14 +1285,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 <SponsoredDisclosure post={post} lang={lang} />
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
-                  <RelatedPostsAfterParagraph
-                    containerRef={articleRef}
-                    afterParagraph={relatedCfg.after_paragraph}
-                    scanKey={`${it.id}-${lang}`}
-                    postId={post.id}
-                    lang={lang}
-                    override={relatedOverride}
-                  />
+                  <Suspense fallback={null}>
+                    <RelatedPostsAfterParagraph
+                      containerRef={articleRef}
+                      afterParagraph={relatedCfg.after_paragraph}
+                      scanKey={`${it.id}-${lang}`}
+                      postId={post.id}
+                      lang={lang}
+                      override={relatedOverride}
+                    />
+                  </Suspense>
                 )}
                 {allowAd("mid_post") && (
                   <MidPostAds
@@ -1291,6 +1316,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     lang={lang}
                     tags={postTags}
                     adContent={adContent}
+                    relatedOverride={relatedOverride}
                     suppressToc={bodyTocActive}
                     suppressAds={!allowAd("sidebar")}
                     layoutId={
@@ -1404,7 +1430,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 )}
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
                   <div className="no-print">
-                    <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                    <Suspense fallback={null}>
+                      <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                    </Suspense>
                   </div>
                 )}
                 {postCategories[0] && (

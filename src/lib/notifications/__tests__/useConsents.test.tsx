@@ -471,6 +471,24 @@ describe("useSetMyConsent - optymistyczny onMutate", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["user-consent-events", "u-1"] });
   });
 
+  // TRZECI klucz, bo zgoda `personalization` ma DRUGIEGO konsumenta poza tym
+  // modułem. Rekomendacje pod wpisem czytają ją własnym zapytaniem
+  // (`lib/queries/relatedPosts`), żeby nie wciągać runtime funkcji serwerowych
+  // do publicznej paczki trasy wpisu - a osobny klucz znaczy osobne
+  // unieważnianie. Bez tej linii czytelnik, który WYCOFAŁ zgodę, byłby
+  // profilowany jeszcze przez `staleTime` tamtego zapytania. To nie jest
+  // opóźnienie wydajnościowe, tylko profilowanie po cofnięciu zgody.
+  it("onSettled unieważnia TAKŻE zgodę czytaną przez rekomendacje", async () => {
+    const { result, queryClient } = renderHookWithQueryClient(() => useSetMyConsent());
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await act(async () => {
+      await result.current.mutateAsync({ key: "personalization", given: false, version: "1.0" });
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["public", "related-posts-consent", "u-1"],
+    });
+  });
+
   it("onSettled unieważnia także po błędzie zapisu", async () => {
     h.setMyConsent.mockRejectedValue(new Error("rpc failed"));
     const { result, queryClient } = renderHookWithQueryClient(() => useSetMyConsent());

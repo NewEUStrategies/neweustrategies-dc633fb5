@@ -552,9 +552,23 @@ describe("public catch-all composition", () => {
   });
   it.each(["end", "after_paragraph", "sidebar"] as const)(
     "honors the related-content position %s",
-    (position) => {
+    async (position) => {
       qc.setQueryData(["public", "related-posts-config"], { ...RELATED_POSTS_DEFAULTS, position });
       mount(article());
+      // Oba wejścia rekomendacji są w trasie leniwe (`$.tsx`), więc pierwszy
+      // render zwraca fallback Suspense - atrapa pojawia się dopiero po
+      // rozwiązaniu importu. Czekamy na TĘ, która ma się zamontować; jej
+      // obecność jest jednocześnie dowodem, że mikrozadania importów zostały
+      // przemielone, więc brak drugiej można już sprawdzić synchronicznie.
+      // Pozycja „sidebar" nie montuje żadnego z nich (sidebar ma własną
+      // atrapę renderera), więc nie ma tam na co czekać.
+      const oczekiwany =
+        position === "end"
+          ? "RelatedPosts"
+          : position === "after_paragraph"
+            ? "RelatedPostsAfterParagraph"
+            : null;
+      if (oczekiwany) await waitFor(() => expect(h.props.get(oczekiwany)).toBeDefined());
       expect(!!h.props.get("RelatedPosts")).toBe(position === "end");
       expect(!!h.props.get("RelatedPostsAfterParagraph")).toBe(position === "after_paragraph");
     },
