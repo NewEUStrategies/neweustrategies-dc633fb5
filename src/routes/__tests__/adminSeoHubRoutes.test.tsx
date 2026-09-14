@@ -344,6 +344,7 @@ describe("/admin/seo - układ zakładek", () => {
       "/admin/seo/homepage",
       "/admin/seo/social",
       "/admin/seo/content",
+      "/admin/seo/queries",
       "/admin/seo/search-console",
     ]);
   });
