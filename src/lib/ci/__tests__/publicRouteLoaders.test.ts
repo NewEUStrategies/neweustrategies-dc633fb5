@@ -821,9 +821,12 @@ function P() { const q = useQuery(qo()); return <div>{q.data}</div>; }`,
     );
   });
 
-  it("wpis z listy, który NIE jest już zimny, trafia do `fixed` i NIE oblewa bramki", () => {
-    // Naprawa nie może być porażką. Komunikat ma za to kazać skrócić listę
-    // razem z sufitem - inaczej lista po kilku PR-ach przestaje cokolwiek znaczyć.
+  it("NIEODEBRANA naprawa OBLEWA bramkę - inaczej zapadka nie zapada", () => {
+    // To nie jest karanie za poprawę, tylko warunek, bez którego lista
+    // membershipowa przestaje działać. Dopóki naprawiona trasa stoi na liście,
+    // ma tam WOLNY SLOT: jej późniejsza regresja dopasuje się do nieaktualnego
+    // wpisu, więc nie będzie `fresh`, a licznik wróci pod sufit - i obie bramki
+    // przepuszczą cofnięcie. Poprawę trzeba ODEBRAĆ w tym samym PR-ze.
     const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
       ["src/routes/proba.tsx", "/proba"],
       ["src/routes/juz-naprawiona.tsx", "/juz-naprawiona"],
@@ -833,11 +836,29 @@ function P() { const q = useQuery(qo()); return <div>{q.data}</div>; }`,
     expect(r.fixed).toEqual([
       { file: "src/routes/juz-naprawiona.tsx", fullPath: "/juz-naprawiona" },
     ]);
-    expect(coldRouteRatchetFailed(r)).toBe(false);
+    expect(coldRouteRatchetFailed(r)).toBe(true);
     const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
     expect(tekst).toContain("NAPRAWIONYCH");
     expect(tekst).toContain("/juz-naprawiona");
-    expect(tekst).toContain("FROZEN_COLD_PUBLIC_ROUTES");
+    expect(tekst).toContain("ODBIERZ poprawę");
+    expect(tekst).toContain("WOLNY SLOT");
+  });
+
+  it("DOWÓD SEKWENCJI: nieodebrana naprawa przepuściłaby późniejszą regresję", () => {
+    // Krok 2 z opisu przy `coldRouteRatchetFailed`, odegrany na atrapach.
+    // Trasa wraca do stanu zimnego, a NIEAKTUALNY wpis wciąż na nią czeka -
+    // więc bez reguły „fixed oblewa" ta regresja NIE byłaby `fresh`.
+    const nieaktualnaLista = [["src/routes/proba.tsx", "/proba"]] as const;
+    const poRegresji = compareColdRouteRatchet(
+      zimnyRaport("src/routes/proba.tsx", "/proba"),
+      nieaktualnaLista,
+    );
+
+    expect(poRegresji.fresh).toEqual([]);
+    expect(poRegresji.fixed).toEqual([]);
+    // Zielone - i o to właśnie chodzi: gdyby krok 1 (naprawa) nie oblał,
+    // lista dotrwałaby do tego momentu w tym samym kształcie.
+    expect(coldRouteRatchetFailed(poRegresji)).toBe(false);
   });
 
   it("DWA pliki pod tym samym adresem: drugi wpis z listy nie jest zużywany dwa razy", () => {
@@ -853,6 +874,8 @@ function P() { const q = useQuery(qo()); return <div>{q.data}</div>; }`,
     expect(r.fresh).toEqual([]);
     expect(r.moved).toHaveLength(1);
     expect(r.fixed).toEqual([{ file: "src/routes/jeszcze-inna.tsx", fullPath: "/proba" }]);
+    // Drugi, nadmiarowy wpis to nieodebrana naprawa - i tak ma oblewać.
+    expect(coldRouteRatchetFailed(r)).toBe(true);
   });
 });
 

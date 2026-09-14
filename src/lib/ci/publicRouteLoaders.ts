@@ -1239,7 +1239,28 @@ export function compareColdRouteRatchet(
 }
 
 /**
- * Czy bramka ma paść. `fixed` i `moved` NIE oblewają - one wskazują kierunek.
+ * Czy bramka ma paść: nowy dług (`fresh`) ALBO nieodebrana naprawa (`fixed`).
+ *
+ * DLACZEGO NAPRAWA TEŻ OBLEWA - to nie jest karanie za poprawę, tylko warunek,
+ * bez którego zapadka nie zapada. Lista jest MEMBERSHIPOWA, nie licznikowa:
+ * dopóki naprawiona trasa stoi na liście, ma tam wolny slot. Sekwencja, która
+ * przez to przechodziła:
+ *
+ *   1. PR A rozgrzewa `/x`. `fixed = ["/x"]`, ale bramka zielona, więc nikt nie
+ *      zdejmuje wpisu ani nie obniża sufitu: lista dalej ma 29 pozycji,
+ *      `FROZEN_COLD_PUBLIC_ROUTES` dalej 29, a zimnych tras jest 28.
+ *   2. PR B psuje `/x` z powrotem. Trasa DOPASOWUJE SIĘ do nieaktualnego wpisu,
+ *      więc nie jest `fresh`; licznik wraca do 29, czyli mieści się w suficie.
+ *   3. Obie bramki zielone, a regresja przeszła niezauważona.
+ *
+ * Poprawa musi więc zostać ODEBRANA w tym samym PR-ze, w którym powstała:
+ * wpis znika z listy, a oba sufity schodzą o tyle, ile trzeba. Dopiero wtedy
+ * krok 2 jest `fresh` i pada. Ten sam warunek stoi już w suicie
+ * (`__tests__/publicRouteLoaders.test.ts`, „lista jest AKTUALNA"); bez niego
+ * `bun run test` i `--gate` mówiłyby co innego, a to jest dokładnie ten rozjazd,
+ * dla którego sufity zostały wyniesione do tego modułu.
+ *
+ * `moved` NIE oblewa - przeniesienie pliku albo adresu nie jest długiem.
  *
  * ZNANA DZIURA, ZAPISANA ŚWIADOMIE. Dopasowanie po adresie nie odróżnia
  * PRZENIESIENIA od „starą trasę skasowano, a pod tym samym adresem powstała
@@ -1251,7 +1272,7 @@ export function compareColdRouteRatchet(
  * w komunikacie, więc przypadek nie jest cichy: recenzent go widzi.
  */
 export function coldRouteRatchetFailed(ratchet: ColdRouteRatchet): boolean {
-  return ratchet.fresh.length > 0;
+  return ratchet.fresh.length > 0 || ratchet.fixed.length > 0;
 }
 
 /**
@@ -1302,9 +1323,16 @@ export function renderColdRouteRatchet(
 
   if (ratchet.fixed.length > 0) {
     lines.push(
-      `[route-loaders] ${ratchet.fixed.length} tras NAPRAWIONYCH - skróć listę i obniż FROZEN_COLD_PUBLIC_ROUTES:`,
+      `[route-loaders] ${ratchet.fixed.length} tras NAPRAWIONYCH - ODBIERZ poprawę w TYM PR-ze:`,
     );
     for (const entry of ratchet.fixed) lines.push(opis(entry));
+    lines.push(
+      "  Zdejmij te wpisy z `scripts/lib/coldPublicRouteBaseline.ts` i obniż",
+      "  FROZEN_COLD_PUBLIC_ROUTES / FROZEN_COLD_CACHED_ROUTES o tyle, ile ubyło:",
+      "    bun run scripts/report-public-route-loaders.ts --print-baseline",
+      "  Nieodebrana poprawa zostawia na liście WOLNY SLOT, w który ta sama trasa",
+      "  może wrócić bez zapalenia bramki - i wtedy zapadka nie zapada.",
+    );
   }
 
   return lines.join("\n");

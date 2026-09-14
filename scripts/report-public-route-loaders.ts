@@ -198,8 +198,13 @@ function main(): void {
   // przepuszczają) stoi w nagłówku sekcji w `lib/ci/publicRouteLoaders.ts`.
   const ratchet = compareColdRouteRatchet(report, COLD_PUBLIC_ROUTE_BASELINE);
   console.log(renderColdRouteRatchet(ratchet, (fullPath) => entersEdgeCachePath(fullPath)));
-  if (coldRouteRatchetFailed(ratchet)) {
+  if (ratchet.fresh.length > 0) {
     failures.push(`${ratchet.fresh.length} tras spoza zamrożonej listy jest zimnych`);
+  }
+  if (ratchet.fixed.length > 0) {
+    failures.push(
+      `${ratchet.fixed.length} tras z listy jest już rozgrzanych, a lista i sufity tego nie odebrały`,
+    );
   }
 
   if (failures.length > 0) {
