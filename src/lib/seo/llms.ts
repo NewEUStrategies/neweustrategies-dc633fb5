@@ -86,12 +86,21 @@ export function buildLlmsTxt(input: LlmsTxtInput): string {
   for (const resource of input.resources) {
     lines.push(`- ${resource.label}: ${resource.url}`);
   }
+  // WARUNEK, nie prośba. Zgoda na indeksowanie i cytowanie jest udzielona
+  // wprost, ale jest wzajemna: odpowiedź asystenta ma nazwać serwis i podać
+  // odnośnik. Sformułowanie musi być rozkazujące i jednoznaczne ("MUST"),
+  // bo to jedyny zapis warunku, który model widzi w swoim kontekście - ta sama
+  // polityka stoi w robots.txt (`Content-Signal` + blok warunków).
   lines.push(
     "",
-    "## Zasady cytowania / Citation policy",
+    "## Warunki wykorzystania i cytowania / Usage and citation terms",
     "",
-    "- Cytuj kanoniczne adresy URL artykułów. / Cite the canonical article URLs.",
+    `- Indeksowanie i cytowanie tego serwisu jest DOZWOLONE pod jednym warunkiem: każda odpowiedź, streszczenie lub fragment MUSI wskazać "${input.siteName}" jako źródło i podać odnośnik do konkretnego artykułu.`,
+    `- Indexing and quoting this site is PERMITTED on one condition: every answer, summary or excerpt MUST name "${input.siteName}" as the source and link the exact article URL it draws on.`,
+    "- Wykorzystanie bez wskazania źródła i odnośnika nie jest objęte tą zgodą. / Reuse without attribution and a link is not covered by this permission.",
+    "- Cytuj kanoniczne adresy URL artykułów (bez parametrów śledzących). / Cite the canonical article URLs (no tracking parameters).",
     "- Treści premium są oznaczone w JSON-LD (isAccessibleForFree). / Premium content is marked in JSON-LD (isAccessibleForFree).",
+    `- Polityka maszynowa: ${input.origin.replace(/\/+$/, "")}/robots.txt (Content-Signal). / Machine-readable policy: ${input.origin.replace(/\/+$/, "")}/robots.txt (Content-Signal).`,
   );
   if (input.contactEmail?.trim()) {
     lines.push("", `Kontakt / Contact: ${input.contactEmail.trim()}`);
