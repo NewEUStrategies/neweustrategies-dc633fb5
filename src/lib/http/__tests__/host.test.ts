@@ -177,13 +177,21 @@ describe("crawlerPublishOrigin", () => {
     expect(crawlerPublishOrigin("www.b.example")).toBe("https://www.b.example");
   });
 
-  it("honoruje protokół żądania i normalizuje hosta", () => {
-    expect(crawlerPublishOrigin("127.0.0.1:4173", "http")).toBe("http://127.0.0.1");
+  it("normalizuje hosta tenanta", () => {
     expect(crawlerPublishOrigin("B.EXAMPLE")).toBe("https://b.example");
   });
 
-  it("bez hosta nie zmyśla originu", () => {
-    expect(crawlerPublishOrigin(null)).toBe("");
-    expect(crawlerPublishOrigin("")).toBe("");
+  // Hosty podglądu/lokalne: adres kanoniczny, nigdy `http://127.0.0.1` ani
+  // `https://localhost` w dokumencie, który ktoś zaraz zacytuje.
+  it("podgląd, localhost i host hostingu publikują origin kanoniczny", () => {
+    expect(crawlerPublishOrigin("127.0.0.1:4173", "http")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("localhost", "http")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("59b9e533.lovableproject.com")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("id-preview--x.lovable.app")).toBe(CANONICAL_SITE_ORIGIN);
+  });
+
+  it("bez hosta publikuje origin kanoniczny, nie pustkę", () => {
+    expect(crawlerPublishOrigin(null)).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("")).toBe(CANONICAL_SITE_ORIGIN);
   });
 });
