@@ -59,109 +59,109 @@ export const REFUNDS_META: Record<"pl" | "en", LegalDocMeta> = {
 export const RODO_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "RODO - Twoje prawa",
-    lead: `Skrócona instrukcja obsługi RODO w ${LEGAL_ENTITY}: jakie prawa Ci przysługują, jak z nich skorzystać, w jakim terminie odpowiadamy i gdzie złożyć skargę.`,
+    lead: `Prawa z RODO w ${LEGAL_ENTITY}: jakie Ci przysługują, jak z nich skorzystać, w jakim terminie odpowiadamy i gdzie złożyć skargę.`,
   },
   en: {
     title: "GDPR - your rights",
-    lead: `A practical guide to the GDPR at ${LEGAL_ENTITY}: what rights you have, how to exercise them, how fast we respond and where to lodge a complaint.`,
+    lead: `GDPR rights at ${LEGAL_ENTITY}: what you have, how to exercise them, how fast we respond and where to lodge a complaint.`,
   },
 };
 
 export const PRIVACY_GOVERNANCE_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Zarządzanie polityką prywatności",
-    lead: `Jak ${LEGAL_ENTITY} tworzy, wersjonuje i zmienia polityki prywatności - kto za nie odpowiada, jak ogłaszamy zmiany i gdzie samodzielnie zarządzasz swoimi ustawieniami.`,
+    lead: `Jak ${LEGAL_ENTITY} wersjonuje polityki prywatności: kto za nie odpowiada, jak ogłaszamy zmiany i gdzie ustawisz swoje preferencje.`,
   },
   en: {
     title: "Privacy policy governance",
-    lead: `How ${LEGAL_ENTITY} writes, versions and changes its privacy policies - who owns them, how we announce changes and where you manage your own settings.`,
+    lead: `How ${LEGAL_ENTITY} versions its privacy policies: who owns them, how we announce changes and where you manage your settings.`,
   },
 };
 
 export const DATA_PROCESSING_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Polityka przetwarzania danych",
-    lead: `Warstwa operacyjna ochrony danych w ${LEGAL_ENTITY}: rejestr czynności, podmioty przetwarzające, okresy retencji, transfery poza EOG i środki bezpieczeństwa.`,
+    lead: `Rejestr czynności, podmioty przetwarzające, okresy retencji, transfery poza EOG i środki bezpieczeństwa w ${LEGAL_ENTITY}.`,
   },
   en: {
     title: "Data processing policy",
-    lead: `The operational layer of data protection at ${LEGAL_ENTITY}: records of processing, processors, retention periods, transfers outside the EEA and security measures.`,
+    lead: `Records of processing, processors, retention periods, transfers outside the EEA and security measures at ${LEGAL_ENTITY}.`,
   },
 };
 
 export const COMMUNICATIONS_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Komunikacja i marketing",
-    lead: `Zasady newslettera, powiadomień i komunikacji marketingowej ${LEGAL_ENTITY} - jakie zgody zbieramy, czym różni się wiadomość transakcyjna od marketingowej i jak zrezygnować.`,
+    lead: `Newsletter i marketing w ${LEGAL_ENTITY}: jakie zgody zbieramy, czym wiadomość serwisowa różni się od marketingowej i jak zrezygnować.`,
   },
   en: {
     title: "Communications and marketing",
-    lead: `How ${LEGAL_ENTITY} runs its newsletter, notifications and marketing - what consents we collect, how transactional messages differ from marketing and how to opt out.`,
+    lead: `Newsletter and marketing at ${LEGAL_ENTITY}: what consents we collect, how service messages differ from marketing and how to opt out.`,
   },
 };
 
 export const CLUBS_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Regulamin klubów dyskusyjnych",
-    lead: `Zasady udziału w klubach dyskusyjnych ${LEGAL_ENTITY}: rekrutacja, reguła Chatham House, poufność, wypowiedzi anonimowe i moderacja.`,
+    lead: `Kluby dyskusyjne ${LEGAL_ENTITY}: rekrutacja, reguła Chatham House, poufność, wypowiedzi anonimowe i moderacja.`,
   },
   en: {
     title: "Discussion club rules",
-    lead: `Rules for taking part in ${LEGAL_ENTITY} discussion clubs: admission, the Chatham House Rule, confidentiality, anonymous contributions and moderation.`,
+    lead: `${LEGAL_ENTITY} discussion clubs: admission, the Chatham House Rule, confidentiality, anonymous contributions and moderation.`,
   },
 };
 
 export const MODERATION_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Moderacja komentarzy i treści",
-    lead: `Zasady moderacji w ${LEGAL_ENTITY} zgodne z aktem o usługach cyfrowych (DSA): co usuwamy, jak zgłosić treść, jak uzasadniamy decyzje i jak się od nich odwołać.`,
+    lead: `Moderacja w ${LEGAL_ENTITY} zgodnie z DSA: co usuwamy, jak zgłosić treść, jak uzasadniamy decyzje i jak się odwołać.`,
   },
   en: {
     title: "Comment and content moderation",
-    lead: `${LEGAL_ENTITY} moderation rules under the Digital Services Act (DSA): what we remove, how to report content, how we justify decisions and how to appeal them.`,
+    lead: `Moderation at ${LEGAL_ENTITY} under the DSA: what we remove, how to report content, how we justify decisions and how to appeal.`,
   },
 };
 
 export const EVENTS_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Wydarzenia, bilety i skanowanie",
-    lead: `Warunki udziału w wydarzeniach ${LEGAL_ENTITY}: rejestracja i bilety, identyfikatory QR, kontrola wejścia, skanowanie na stoiskach partnerów, nagrania i odwołanie udziału.`,
+    lead: `Wydarzenia ${LEGAL_ENTITY}: rejestracja i bilety, identyfikatory QR, kontrola wejścia, skanowanie na stoiskach partnerów i nagrania.`,
   },
   en: {
     title: "Events, tickets and scanning",
-    lead: `Terms for attending ${LEGAL_ENTITY} events: registration and tickets, QR badges, access control, scanning at partner booths, recordings and cancellation.`,
+    lead: `${LEGAL_ENTITY} events: registration and tickets, QR badges, access control, scanning at partner booths and recordings.`,
   },
 };
 
 export const AI_TRANSPARENCY_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Sztuczna inteligencja i przejrzystość",
-    lead: `Gdzie ${LEGAL_ENTITY} używa sztucznej inteligencji, jak to oznaczamy i czego nigdy nie oddajemy maszynie - zgodnie z art. 50 aktu o sztucznej inteligencji (AI Act), stosowanym od 2 sierpnia 2026 r.`,
+    lead: `Gdzie ${LEGAL_ENTITY} używa sztucznej inteligencji, jak oznaczamy treści i czego nigdy nie oddajemy maszynie - art. 50 AI Act.`,
   },
   en: {
     title: "Artificial intelligence and transparency",
-    lead: `Where ${LEGAL_ENTITY} uses artificial intelligence, how we label it and what we never hand over to a machine - under Article 50 of the AI Act, applicable since 2 August 2026.`,
+    lead: `Where ${LEGAL_ENTITY} uses artificial intelligence, how we label content and what we never hand to a machine - Article 50 AI Act.`,
   },
 };
 
 export const SUBSCRIPTIONS_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Subskrypcje, zakupy i płatności",
-    lead: `Warunki handlowe ${LEGAL_ENTITY}: plany i okresy rozliczeniowe, odnowienia, bilety i zakupy jednorazowe, faktury, prawo odstąpienia i rezygnacja.`,
+    lead: `Warunki handlowe ${LEGAL_ENTITY}: plany i okresy rozliczeniowe, odnowienia, bilety, faktury, prawo odstąpienia i rezygnacja.`,
   },
   en: {
     title: "Subscriptions, purchases and payments",
-    lead: `The commercial terms of ${LEGAL_ENTITY}: plans and billing periods, renewals, tickets and one-off purchases, invoices, the right of withdrawal and cancellation.`,
+    lead: `${LEGAL_ENTITY} commercial terms: plans and billing periods, renewals, tickets, invoices, the right of withdrawal and cancellation.`,
   },
 };
 
 export const STATUTE_META: Record<"pl" | "en", LegalDocMeta> = {
   pl: {
     title: "Statut i dane rejestrowe",
-    lead: `${LEGAL_ENTITY_FULL} - cele statutowe, organy, majątek i pełne dane rejestrowe wydawcy serwisu neweuropeanstrategies.com.`,
+    lead: `${LEGAL_ENTITY_FULL} - cele statutowe, organy, majątek i pełne dane rejestrowe wydawcy serwisu.`,
   },
   en: {
     title: "Statute and registration details",
-    lead: `${LEGAL_ENTITY_FULL} - statutory objectives, governing bodies, assets and the full registration details of the publisher of neweuropeanstrategies.com.`,
+    lead: `${LEGAL_ENTITY_FULL} - statutory objectives, governing bodies, assets and full registration details of the publisher.`,
   },
 };
