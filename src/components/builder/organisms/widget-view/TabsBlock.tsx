@@ -12,10 +12,13 @@ export type TabAlign = "left" | "center" | "right" | "justify";
 function TabLabel({ tab, lang }: { tab: Record<string, string>; lang: Lang }) {
   const icon = typeof tab.icon === "string" ? tab.icon.trim() : "";
   const label = tab[`label_${lang}`] || tab.label_pl || "";
+  // Mobile: ikona wycentrowana nad etykietą (kolumna), desktop: ikona obok.
+  // min-w-0 + overflow-wrap pozwalają długiej etykiecie złamać wiersz zamiast
+  // zostać przyciętą przy wąskim ekranie.
   return (
-    <span className="inline-flex items-center gap-2 font-bold">
+    <span className="inline-flex min-w-0 flex-col items-center justify-center gap-1 text-center font-bold leading-tight sm:flex-row sm:gap-2 sm:text-left">
       {icon ? <DynamicIcon name={icon} size={16} aria-hidden={true} /> : null}
-      <span>{label}</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
     </span>
   );
 }
