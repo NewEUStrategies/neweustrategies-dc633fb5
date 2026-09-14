@@ -121,6 +121,22 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Uzgodnienie stanu po scaleniu #355: 0011 i 0012 nigdy nie pojechały na to środowisko (przyrostowy `supabase db push` bez --include-all pominął wersje starsze od zdalnej historii), więc oba SQL-e zostały wykonane RAZEM na pasie drizzle. Pas supabase ma je już jako 20260913150000 i 20260913160000 - bliźniak byłby trzecim wykonaniem tej samej treści, a nie nowym kontraktem. Pliku nie usuwamy: repozytorium jest forward-only.",
   },
+  {
+    tag: "0014_profile_view_privacy_fix",
+    twin: "20260913170000_profile_view_privacy_fix.sql",
+  },
+  {
+    tag: "0015_introduction_gates_and_dedup",
+    twin: "20260913171000_introduction_gates_and_dedup.sql",
+  },
+  {
+    tag: "0016_mutual_visible_count",
+    twin: "20260913172000_mutual_visible_count.sql",
+  },
+  {
+    tag: "0017_set_user_consents_atomic",
+    twin: "20260913173000_set_user_consents_atomic.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
@@ -157,6 +173,37 @@ function foldDiacritics(sql: string): string {
 /** Czy tekst POZA literałami, od ostatniego `;`, kończy się na `COMMENT ON ... IS `. */
 function isCommentOperand(stmt: string): boolean {
   return /\bCOMMENT\s+ON\b[\s\S]*\bIS\s+$/i.test(stmt);
+}
+
+/** Koniec (wyłącznie) literału zaczynającego się na `at`; `''` w środku to escape. */
+function literalEnd(src: string, at: number): number {
+  let j = at + 1;
+  while (j < src.length) {
+    if (src[j] === "'") {
+      if (src[j + 1] === "'") {
+        j += 2;
+        continue;
+      }
+      break;
+    }
+    j += 1;
+  }
+  return Math.min(j + 1, src.length);
+}
+
+/**
+ * Koniec CAŁEGO ciągu sklejanych literałów zaczynającego się na `at` - łącznie
+ * z literałami oddzielonymi samą spacją albo końcem wiersza. Rozdziela je
+ * wyłącznie biały znak: cokolwiek innego kończy ciąg.
+ */
+function concatenatedLiteralsEnd(src: string, at: number): number {
+  let end = literalEnd(src, at);
+  for (;;) {
+    let k = end;
+    while (k < src.length && /\s/.test(src[k]!)) k += 1;
+    if (src[k] !== "'") return end;
+    end = literalEnd(src, k);
+  }
 }
 
 /**
@@ -235,20 +282,23 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
 
     // Literał pojedynczy; '' w środku to escape, nie koniec.
     if (ch === "'") {
-      let j = i + 1;
-      while (j < src.length) {
-        if (src[j] === "'") {
-          if (src[j + 1] === "'") {
-            j += 2;
-            continue;
-          }
-          break;
-        }
-        j += 1;
-      }
-      const end = Math.min(j + 1, src.length);
+      const end = literalEnd(src, i);
+      // `flush()` PRZED pytaniem o operand: dopiero on dokłada do `stmt` tekst
+      // spoza literałów, a to w nim stoi `COMMENT ON ... IS `.
       flush();
-      out += opts.maskCommentProse && isCommentOperand(stmt) ? "'<proza>'" : src.slice(i, end);
+      if (opts.maskCommentProse && isCommentOperand(stmt)) {
+        // SĄSIADUJĄCE LITERAŁY TO JEDNA WARTOŚĆ. SQL skleja `'a' 'b'` w `'ab'`,
+        // więc operand `COMMENT ON ... IS` rozbity na kilka literałów - tak
+        // zapisuje długą prozę pas supabase - jest tą samą prozą, co jeden
+        // literał w pasie drizzle. Bez zjedzenia całego ciągu pierwszy literał
+        // dostawał znacznik, a reszta szła bajt w bajt i para 0016 zapalała
+        // `rozjazd-sql` na SAMEJ PROZIE, której ta bramka świadomie nie pilnuje.
+        out += "'<proza>'";
+        stmt += "x";
+        i = concatenatedLiteralsEnd(src, i);
+        continue;
+      }
+      out += src.slice(i, end);
       stmt += "x";
       i = end;
       continue;
@@ -275,8 +325,9 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
 
 /**
  * SQL WYKONYWALNY: bez komentarzy, ze złożonymi diakrytykami i znormalizowaną
- * spacją POZA literałami, i z treścią literału `COMMENT ON ... IS '...'`
- * zastąpioną znacznikiem.
+ * spacją POZA literałami, i z treścią operandu `COMMENT ON ... IS '...'`
+ * zastąpioną znacznikiem - także wtedy, gdy operand jest sklejony z kilku
+ * sąsiadujących literałów, bo SQL widzi w nich JEDNĄ wartość.
  *
  * Znacznik zamiast treści, a nie wycięcie całej instrukcji: gdyby jeden pas
  * przestał w ogóle komentować obiekt, różnica ma być nadal widoczna.

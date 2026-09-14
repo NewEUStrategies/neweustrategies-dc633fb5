@@ -188,6 +188,40 @@ describe("analyzeMigrationLanes", () => {
     );
   });
 
+  // -------------------------------------------------------------------------
+  // PROZA SKLEJANA Z KILKU LITERAŁÓW. SQL widzi w `'a' 'b'` JEDNĄ wartość, więc
+  // dla bramki to ta sama proza, co `'ab'`. Tak właśnie rozjechała się para
+  // 0016: pas supabase zapisał komentarz kilkoma literałami w kolejnych
+  // wierszach, pas drizzle jednym - i sama proza zapalała `rozjazd-sql`,
+  // którego ta bramka świadomie nie pilnuje.
+  // -------------------------------------------------------------------------
+  it("operand COMMENT ON sklejony z kilku literałów to jedna proza", () => {
+    expect(executableSql("COMMENT ON COLUMN a.b IS 'ab';")).toBe(
+      executableSql("COMMENT ON COLUMN a.b IS 'a'\n'b';"),
+    );
+  });
+
+  it("sklejanie nie przeskakuje poza operand - kolejna instrukcja zostaje", () => {
+    const sql = executableSql("COMMENT ON COLUMN a.b IS 'a' 'b'; INSERT INTO z VALUES ('c');");
+    expect(sql).toContain("'<proza>'");
+    expect(sql).toContain("INSERT INTO z VALUES ('c')");
+    // Dokładnie JEDEN znacznik: sklejony operand to jedna wartość.
+    expect(sql.match(/<proza>/g)).toHaveLength(1);
+  });
+
+  it("sklejanie nie zrównuje RÓŻNIĄCEGO SIĘ DDL-u obok prozy", () => {
+    expect(executableSql("ALTER TABLE a ADD b int; COMMENT ON COLUMN a.b IS 'x' 'y';")).not.toBe(
+      executableSql("ALTER TABLE a ADD b text; COMMENT ON COLUMN a.b IS 'x';"),
+    );
+  });
+
+  it("literały sklejane POZA komentarzem zostają bajt w bajt", () => {
+    // To jest wartość, nie proza: dwa różne napisy nie mogą się zrównać.
+    expect(executableSql("INSERT INTO z VALUES ('a' 'b');")).not.toBe(
+      executableSql("INSERT INTO z VALUES ('a' 'c');"),
+    );
+  });
+
   it("apostrof podwojony w prozie nie urywa literału", () => {
     const sql = executableSql("COMMENT ON COLUMN a.b IS 'to ''jest'' proza'; ALTER TABLE z;");
     expect(sql).toContain("'<proza>'");
