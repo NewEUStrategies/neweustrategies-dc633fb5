@@ -143,11 +143,18 @@ describe("crawlHostOrigin", () => {
 
   it("publishes a tenant domain on its own origin", () => {
     expect(crawlHostOrigin("tenant", "tenant-b.eu")).toBe("https://tenant-b.eu");
-    expect(crawlHostOrigin("editor", "localhost", "http")).toBe("http://localhost");
   });
 
-  it("has no origin to publish without a host", () => {
-    expect(crawlHostOrigin("unknown", "")).toBe("");
+  // Podgląd edytora i localhost NIE publikują własnego originu: adres w mapie,
+  // w robots.txt i w llms.txt jest cytowany na zewnątrz, a `https://localhost`
+  // ani host podglądu nie otworzy się nikomu (defekt zgłoszony 2026-09-14).
+  it("podgląd i localhost publikują origin kanoniczny, nie własny", () => {
+    expect(crawlHostOrigin("editor", "localhost", "http")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlHostOrigin("editor", "id-preview--x.lovable.app")).toBe(CANONICAL_SITE_ORIGIN);
+  });
+
+  it("bez hosta publikuje origin kanoniczny, nie pustkę", () => {
+    expect(crawlHostOrigin("unknown", "")).toBe(CANONICAL_SITE_ORIGIN);
   });
 });
 
