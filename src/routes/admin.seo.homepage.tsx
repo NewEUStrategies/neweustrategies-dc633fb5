@@ -366,8 +366,10 @@ function SeoHomepageTab() {
                   title={resolveTitle(lang)}
                   description={resolveDescription(lang)}
                   siteName={effectiveSiteName}
-                  path=""
+                  path={lang === "en" ? "en" : ""}
                 />
+                {/* Wyjścia „na żywo": ten sam adres, który rysuje podgląd. */}
+                <LivePreviewLinks path={lang === "en" ? "en" : ""} />
               </div>
             );
           })}
