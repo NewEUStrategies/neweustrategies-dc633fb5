@@ -40,8 +40,8 @@
 // * UWIERZYTELNIENIA - `e2e/seo.spec.ts` dowodzi, że niezalogowany nie zobaczy
 //   `/admin/seo`. Tutaj nie ma ani jednej asercji o przekierowaniu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { useEffect, useState } from "react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { useEffect, useState, type ReactNode } from "react";
 import { renderRoute, routeMeta } from "@/test/routeHarness";
 import { DEFAULT_SEO_SETTINGS } from "@/lib/seo/settings";
 import { SOCIAL_NETWORKS } from "@/lib/seo/socialNetworks";
@@ -75,6 +75,17 @@ const h = vi.hoisted(() => ({
   pages: [] as unknown[],
   /** Tabele, o które kokpit faktycznie zapytał. */
   tables: [] as string[],
+  /** Propsy ostatniego `ImageSlot` - stąd wołamy domknięcia trasy. */
+  imageSlot: {} as Record<string, unknown>,
+  /** Sterowalny wynik `prepareOgImageFile`. */
+  ogPrepareResult: ((file: unknown) => ({
+    file,
+    issues: [] as Array<{ severity: string; code: string; params?: Record<string, unknown> }>,
+    bytesBefore: 100,
+    bytesAfter: 100,
+  })) as (file: unknown) => Record<string, unknown>,
+  /** Instancje `new window.Image()` utworzone przez trasę. */
+  images: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -139,18 +150,55 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   return { ...actual, Link: RouterLinkStub };
 });
 
+// `Select` z paneli ustawień deleguje do Radixa, który pod happy-dom nie działa
+// bez pełnego pointer API. Podmieniamy na natywny `<select>`: przedmiotem dowodu
+// jest to, KTÓRE opcje trasa wystawia i CO robi ze zmianą, a nie mechanika
+// biblioteki (ten sam zabieg co w `adminSeoRoutes.test.tsx`).
+vi.mock("@/components/admin/blocks/AdminSelect", () => ({
+  AdminSelect: ({
+    value,
+    onChange,
+    children,
+  }: {
+    value?: string | number;
+    onChange?: (event: { target: { value: string } }) => void;
+    children?: ReactNode;
+  }) => (
+    <select
+      data-testid="admin-select"
+      value={value === undefined ? "" : String(value)}
+      onChange={(event) => onChange?.({ target: { value: event.target.value } })}
+    >
+      {children}
+    </select>
+  ),
+}));
+
 vi.mock("@/components/admin/seo/SeoScorePill", () => ({
   SeoScorePill: ({ score, grade }: { score: number; grade: string }) => (
     <span data-testid="score-pill" data-score={score} data-grade={grade} />
   ),
 }));
 
+// ImageSlot jest tu atrapą-MARKEREM, ale WYSTAWIA swoje wywołania zwrotne.
+// Bez tego domknięcia trasy (`onChange` pola obrazka i walidator uploadu)
+// nie wykonują się ANI RAZU - test renderowałby ekran i nie dotykał logiki,
+// dla której to pole istnieje.
 vi.mock("@/components/admin/ImageSlot", () => ({
-  ImageSlot: ({ label, value }: { label: string; value: string }) => (
-    <div data-testid="image-slot" data-value={value}>
-      {label}
-    </div>
-  ),
+  ImageSlot: (props: Record<string, unknown>) => {
+    h.imageSlot = props;
+    return (
+      <div data-testid="image-slot" data-value={String(props.value ?? "")}>
+        {String(props.label ?? "")}
+      </div>
+    );
+  },
+}));
+
+// Przygotowanie pliku karty ma własny test jednostkowy; tutaj sterujemy jego
+// wynikiem, żeby dowieść, JAK trasa tłumaczy zgłoszone uwagi na komunikaty.
+vi.mock("@/lib/media/ogImage", () => ({
+  prepareOgImageFile: (file: unknown) => Promise.resolve(h.ogPrepareResult(file)),
 }));
 
 // Podgląd karty zastąpiony markerem zapisującym PROPY: przedmiotem dowodu jest
@@ -205,6 +253,34 @@ beforeEach(() => {
   h.posts = [];
   h.pages = [];
   h.tables = [];
+  h.imageSlot = {};
+  h.images = [];
+  h.ogPrepareResult = (file: unknown) => ({
+    file,
+    issues: [],
+    bytesBefore: 100,
+    bytesAfter: 100,
+  });
+  // Pomiar wymiarów karty idzie przez `new window.Image()`. happy-dom nie
+  // pobiera obrazków, więc bez tej atrapy `onload`/`onerror` nie wykonują się
+  // NIGDY - a to w nich siedzi cały werdykt o wymiarach.
+  class FakeImage {
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    naturalWidth = 0;
+    naturalHeight = 0;
+    #src = "";
+    constructor() {
+      h.images.push(this as unknown as Record<string, unknown>);
+    }
+    set src(value: string) {
+      this.#src = value;
+    }
+    get src(): string {
+      return this.#src;
+    }
+  }
+  (globalThis as unknown as { window: { Image: unknown } }).window.Image = FakeImage;
   h.savePayloads = [];
   h.savePending = false;
   h.isAdmin = true;
@@ -639,5 +715,286 @@ describe("/admin/seo/ - kokpit", () => {
     await mount();
     expect(screen.queryByText("admin.saveSettings")).toBeNull();
     expect(h.savePayloads).toEqual([]);
+  });
+});
+
+describe("/admin/seo/social - domknięcia, których nie widać w statycznym renderze", () => {
+  async function mount() {
+    return renderRoute({
+      route: SocialRoute,
+      path: "/admin/seo/social",
+      initialEntry: "/admin/seo/social",
+    });
+  }
+
+  /** Ostatni `new window.Image()` utworzony przez efekt pomiaru. */
+  function probe(): Record<string, unknown> {
+    const last = h.images[h.images.length - 1];
+    expect(last, "trasa nie utworzyła sondy obrazka").toBeTruthy();
+    return last;
+  }
+
+  function measure(width: number, height: number) {
+    const image = probe();
+    image.naturalWidth = width;
+    image.naturalHeight = height;
+    act(() => (image.onload as () => void)());
+  }
+
+  it("zmiana obrazka idzie do kopii roboczej przez `onChange` ImageSlota", async () => {
+    await mount();
+    act(() => (h.imageSlot.onChange as (v: string) => void)("https://cdn.example/nowa.jpg"));
+    fireEvent.click(screen.getByText("admin.saveSettings"));
+    expect(h.savePayloads[0]).toMatchObject({
+      default_og_image_url: "https://cdn.example/nowa.jpg",
+    });
+  });
+
+  it("zmiana typu karty na X trafia do kopii roboczej", async () => {
+    await mount();
+    const select = screen.getByTestId("admin-select");
+    fireEvent.change(select, { target: { value: "summary" } });
+    fireEvent.click(screen.getByText("admin.saveSettings"));
+    expect(h.savePayloads[0]).toMatchObject({ twitter_card_type: "summary" });
+  });
+
+  it("przełącznik języka podglądu przestawia teksty wszystkich kart naraz", async () => {
+    await mount();
+    const before = h.cards[0]?.title;
+    h.cards = [];
+    fireEvent.click(screen.getByText("EN"));
+    expect(h.cards.length).toBeGreaterThan(0);
+    expect(h.cards[0]?.title).not.toBe(before);
+    // Wszystkie karty nadal dostają JEDEN komplet danych - przełącznik nie
+    // może rozjechać podglądów między sobą.
+    expect(new Set(h.cards.map((c) => c.title)).size).toBe(1);
+  });
+
+  it("zmierzone wymiary 1200x630 dają werdykt OK", async () => {
+    const { findByText } = await mount();
+    measure(1200, 630);
+    await findByText("adminSeoHub.dimensionsOk");
+  });
+
+  it("mały plik zgłasza `tooSmall` z RZECZYWISTYMI wymiarami", async () => {
+    // Liczby w komunikacie muszą pochodzić z pliku, a nie z zalecenia -
+    // inaczej redakcja nie wie, o ile jej obrazek jest za mały.
+    const { findByText } = await mount();
+    measure(400, 210);
+    await findByText("adminSeoHub.dimensionsTooSmall(height=210,width=400)");
+  });
+
+  it("złe proporcje zgłaszają ZALECANY kadr, bo to on jest instrukcją", async () => {
+    const { findByText } = await mount();
+    measure(1200, 1200);
+    await findByText("adminSeoHub.dimensionsWrongRatio(height=630,width=1200)");
+  });
+
+  it("błąd pobrania obrazka daje `unknown`, a nie fałszywy werdykt", async () => {
+    const { findByText } = await mount();
+    act(() => (probe().onerror as () => void)());
+    await findByText("adminSeoHub.dimensionsUnknown");
+  });
+
+  it("podmiana adresu ZERUJE poprzedni werdykt", async () => {
+    // Bez zerowania przez chwilę widać ocenę POPRZEDNIEGO pliku - czyli
+    // zielone „OK" pod obrazkiem, którego nikt jeszcze nie zmierzył.
+    const { findByText } = await mount();
+    measure(1200, 630);
+    await findByText("adminSeoHub.dimensionsOk");
+    act(() => (h.imageSlot.onChange as (v: string) => void)("https://cdn.example/inna.jpg"));
+    await findByText("adminSeoHub.dimensionsUnknown");
+  });
+
+  it("walidator uploadu tłumaczy uwagi `prepareOgImageFile` na klucze i18n", async () => {
+    h.ogPrepareResult = (file: unknown) => ({
+      file,
+      issues: [
+        { severity: "error", code: "tooHeavy", params: { max: "1 MB" } },
+        { severity: "warning", code: "lowRes" },
+      ],
+      bytesBefore: 100,
+      bytesAfter: 100,
+    });
+    await mount();
+    const transform = h.imageSlot.transformFile as (f: unknown) => Promise<{
+      errors: string[];
+      warnings: string[];
+    }>;
+    const result = await transform({ name: "karta.jpg" });
+    expect(result.errors).toEqual(["ogUpload.tooHeavy(max=1 MB)"]);
+    expect(result.warnings).toEqual(["ogUpload.lowRes"]);
+  });
+
+  it("skuteczna kompresja dopisuje OSOBNE ostrzeżenie z rozmiarami", async () => {
+    h.ogPrepareResult = (file: unknown) => ({
+      file,
+      issues: [],
+      bytesBefore: 2_000_000,
+      bytesAfter: 500_000,
+    });
+    await mount();
+    const transform = h.imageSlot.transformFile as (f: unknown) => Promise<{
+      warnings: string[];
+    }>;
+    const result = await transform({ name: "karta.jpg" });
+    expect(result.warnings).toHaveLength(1);
+    expect(String(result.warnings[0])).toContain("ogUpload.optimized");
+  });
+
+  it("brak kompresji NIE dopisuje ostrzeżenia o optymalizacji", async () => {
+    await mount();
+    const transform = h.imageSlot.transformFile as (f: unknown) => Promise<{
+      warnings: string[];
+    }>;
+    const result = await transform({ name: "karta.jpg" });
+    expect(result.warnings).toEqual([]);
+  });
+});
+
+describe("/admin/seo/homepage - domknięcia pól i rozgałęzienia zapytania", () => {
+  async function mount() {
+    return renderRoute({
+      route: HomepageRoute,
+      path: "/admin/seo/homepage",
+      initialEntry: "/admin/seo/homepage",
+    });
+  }
+
+  it("każde pole tytułu i opisu trafia do kopii roboczej pod WŁASNYM kluczem", async () => {
+    // Cztery osobne domknięcia `onChange`. Pomylenie ich miejscami jest
+    // niewidoczne w renderze i wygląda jak „zapis nie działa" dopiero
+    // w wyszukiwarce.
+    await mount();
+    const edits: Array<[string, string]> = [
+      ["adminSeoHub.titlePl", "Tytuł PL"],
+      ["adminSeoHub.titleEn", "Title EN"],
+      ["adminSeoHub.descriptionPl", "Opis PL"],
+      ["adminSeoHub.descriptionEn", "Description EN"],
+    ];
+    for (const [label, value] of edits) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    }
+    fireEvent.click(screen.getByText("admin.saveSettings"));
+    expect(h.savePayloads[0]).toMatchObject({
+      site_title_pl: "Tytuł PL",
+      site_title_en: "Title EN",
+      site_description_pl: "Opis PL",
+      site_description_en: "Description EN",
+    });
+  });
+
+  it("wyczyszczone pole zapisuje się jako PUSTY napis, nie jako null", async () => {
+    // `SeoTextField` oddaje `null` dla pustego wpisu; ustawienia trzymają
+    // napisy, a `parseSeoSettings` odrzuciłby blob z nullem i cofnął CAŁY
+    // zestaw do wartości domyślnych.
+    h.seoSettings = { ...DEFAULT_SEO_SETTINGS, site_title_pl: "Coś" };
+    await mount();
+    fireEvent.change(screen.getByLabelText("adminSeoHub.titlePl"), { target: { value: "" } });
+    fireEvent.click(screen.getByText("admin.saveSettings"));
+    expect(h.savePayloads[0]?.site_title_pl).toBe("");
+  });
+
+  it("nazwa alternatywna ma własne pole i własny klucz", async () => {
+    await mount();
+    fireEvent.change(screen.getAllByRole("textbox")[1], { target: { value: "NES" } });
+    fireEvent.click(screen.getByText("admin.saveSettings"));
+    expect(h.savePayloads[0]).toMatchObject({ site_name_alternate: "NES" });
+  });
+
+  it("tryb `latest_posts` w ogóle NIE pyta o stronę CMS-a", async () => {
+    // Przy liście najnowszych wpisów żadna strona nie jest stroną główną,
+    // więc zapytanie o nadpisanie byłoby pytaniem bez przedmiotu.
+    h.reading = { homepage_mode: "latest_posts", homepage_page_id: "", homepage_page_slug: "" };
+    const { findAllByTestId } = await mount();
+    await findAllByTestId("serp");
+    expect(h.tables).not.toContain("pages");
+  });
+
+  it("tryb `static_page` bez id szuka strony po slugu z ustawień", async () => {
+    h.reading = {
+      homepage_mode: "static_page",
+      homepage_page_id: "",
+      homepage_page_slug: "witaj",
+    };
+    h.staticHomepage = {
+      id: "p-9",
+      slug: "witaj",
+      seo_title_pl: "Nadpisany",
+      seo_title_en: "Overridden",
+    };
+    const { findAllByText } = await mount();
+    // Oba języki nadpisane - ostrzeżenie stoi przy obu podglądach.
+    expect(await findAllByText("adminSeoHub.staticHomepageNotice")).toHaveLength(2);
+  });
+
+  it("strona CMS-a BEZ nadpisania tytułu nie wywołuje ostrzeżenia", async () => {
+    // Sama obecność strony głównej z CMS-a niczego nie psuje - psuje dopiero
+    // JEJ własny tytuł SEO. Ostrzeżenie przy każdej stronie byłoby szumem.
+    h.reading = { homepage_mode: "static_page", homepage_page_id: "p-1", homepage_page_slug: "" };
+    h.staticHomepage = { id: "p-1", slug: "home", seo_title_pl: null, seo_title_en: "   " };
+    const { findAllByTestId } = await mount();
+    await findAllByTestId("serp");
+    expect(screen.queryByText("adminSeoHub.staticHomepageNotice")).toBeNull();
+  });
+});
+
+describe("/admin/seo/ - kokpit, rozgałęzienia oceny", () => {
+  function contentRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "c-1",
+      slug: "wpis",
+      status: "published",
+      title_pl: "Wpis",
+      title_en: "Post",
+      excerpt_pl: "Opis PL",
+      excerpt_en: "Opis EN",
+      cover_image_url: "https://cdn.example/cover.jpg",
+      seo_title_pl: null,
+      seo_title_en: null,
+      seo_description_pl: null,
+      seo_description_en: null,
+      seo_canonical_url: null,
+      seo_noindex: false,
+      seo_og_image_url: null,
+      og_image_generated_url: null,
+      ...overrides,
+    };
+  }
+
+  async function mount() {
+    return renderRoute({ route: DashboardRoute, path: "/admin/seo", initialEntry: "/admin/seo" });
+  }
+
+  it("treść bez opisu EN NIE liczy się jako gotowa", async () => {
+    h.pages = [contentRow({ id: "p-1", excerpt_en: null })];
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.contentSummary(done=0,total=1)");
+  });
+
+  it("treść z domyślną kartą NIE liczy się jako gotowa, choć ma oba opisy", async () => {
+    // Dwa niezależne warunki gotowości. Gdyby liczył się tylko opis, kokpit
+    // raportowałby komplet przy treściach bez własnego obrazka.
+    h.pages = [contentRow({ id: "p-1", cover_image_url: null })];
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.contentSummary(done=0,total=1)");
+  });
+
+  it("pusty serwis nie dzieli przez zero ani nie chowa sekcji treści", async () => {
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.contentSummary(done=0,total=0)");
+  });
+
+  it("wynik marki schodzi do oceny `poor` przy samych brakach", async () => {
+    h.seoSettings = {
+      ...DEFAULT_SEO_SETTINGS,
+      site_title_pl: "",
+      site_title_en: "",
+      site_description_pl: "x",
+      site_description_en: "x",
+    };
+    await mount();
+    const pill = screen.getByTestId("score-pill");
+    expect(["warn", "poor"]).toContain(pill.getAttribute("data-grade"));
   });
 });
