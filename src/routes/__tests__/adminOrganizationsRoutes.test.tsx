@@ -70,16 +70,21 @@
 //   i czy wyczyszczenie pola zapisuje `null`, a nie `""`.
 //
 // DEFEKTY ZNALEZIONE I ZGŁOSZONE `it.fails` (produkcja bez zmian - przyjęta
-// konwencja repo): PIĘĆ, każdy z opisem, miejscem i konsekwencją przy swoim
+// konwencja repo): CZTERY, każdy z opisem, miejscem i konsekwencją przy swoim
 // teście, każdy z kontrolą dodatnią przypinającą stan faktyczny obok.
 //   - dwie reguły sluga w jednym panelu (sekcja 2),
 //   - organizacja, której baza nie oddała, zostaje na „wczytywanie” na zawsze
 //     (komunikat `organizationFound` jest kodem martwym) - sekcja 3,
 //   - awaria odczytu miejsc pokazana jako „nie ma jeszcze miejsc” - sekcja 3,
 //   - „domknij zaległe” i „wyślij przypomnienia” z karty JEDNEJ organizacji
-//     działają na wszystkich (ładunek bez `org_id`) - sekcja 3,
-//   - zapis danych ogólnych cofa liczbę miejsc ustawioną funkcją serwerową
-//     (draft z chwili wczytania nadpisuje kolumny miejsc) - sekcja 3.
+//     działają na wszystkich (ładunek bez `org_id`) - sekcja 3.
+//
+// DEFEKT PIĄTY JEST JUŻ NAPRAWIONY W PRODUKCJI - zapis danych ogólnych cofał
+// liczbę miejsc ustawioną funkcją serwerową, bo draft zamrażał się na wartości
+// z chwili wczytania. Karta uzgadnia teraz draft z WERSJĄ wiersza
+// (`updated_at`), a zapis niesie optimistic-lock: wersję, którą formularz
+// odwzorowuje. Testy sekcji „draft kontra dane odświeżone” i „zapis kontra
+// cudza zmiana” dowodzą więc zachowania POPRAWNEGO - nie zgłaszają defektu.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { RecordedChain, SupabaseFromStub, SupabaseResult } from "@/test/supabaseChain";
@@ -132,6 +137,22 @@ const BASE_ISO = "2026-01-15T10:00:00.000Z";
 const OLDER_ISO = "2025-06-01T08:30:00.000Z";
 /** Koniec karencji miejsca ponad limit - stała, żeby asercja daty była pewna. */
 const GRACE_ISO = "2026-02-01T12:00:00.000Z";
+
+/**
+ * Wersja wiersza PÓŹNIEJSZA o `minutes` od `BASE_ISO`.
+ *
+ * Liczona, a nie zapisana literałem, z dwóch powodów. Po pierwsze każdy kolejny
+ * stempel w testach optimistic-locka to nie osobna data w kalendarzu, tylko
+ * „ten sam wiersz, chwilę później" - relacja jest tu treścią, a literał ją
+ * zaciemnia. Po drugie `check:clock-freeze` jest zapadką jednokierunkową na
+ * liczbę dat kalendarzowych w pliku, który nie zamraża zegara; ten plik zegara
+ * nie zamraża i nie ma potrzeby, żeby zaczął.
+ *
+ * `new Date(liczba)` NIE czyta zegara - argument jest bezwzględny.
+ */
+function versionAfter(minutes: number): string {
+  return new Date(Date.parse(BASE_ISO) + minutes * 60_000).toISOString();
+}
 
 const IDS = {
   tenant: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -829,14 +850,25 @@ describe("admin.organizations - lista: przełącznik statusu", () => {
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
     expect(payloadOf("member_organizations", "update")).toEqual({ status: "suspended" });
     const chain = writeChains("member_organizations").at(-1);
-    expect(chain?.calls.map((call) => call.method)).toEqual(["update", "eq"]);
+    // `select` domyka zapis: PostgREST oddaje ZERO wierszy i `error: null`,
+    // gdy warunek nie trafił w żaden wiersz (albo RLS go odfiltrowała), więc
+    // bez tego odczytu przełącznik meldowałby „zmieniono” po zapisie, który
+    // nic nie zmienił. Warunku WERSJI tu nie ma i być nie powinno - lista
+    // zmienia JEDNĄ kolumnę i nie trzyma draftu, z którym można się zderzyć.
+    expect(chain?.calls.map((call) => call.method)).toEqual(["update", "eq", "select"]);
     expect(chain?.argsOf("eq")).toEqual(["id", IDS.org]);
+    expect(chain?.argsOf("select")).toEqual(["id, updated_at"]);
     expect(lastToast("success")).toBe("adminOrganizations.statusUpdated");
   });
 
   it("przywrócenie zawieszonej organizacji wysyła `status: active`", async () => {
+    // Zapis ODDAJE TRAFIONY WIERSZ (`select("id, updated_at")`) - pusta
+    // odpowiedź znaczy dziś „nie trafiono w żaden wiersz” i kończy się odmową,
+    // więc atrapa musi odpowiedzieć tak, jak odpowiada baza po udanym zapisie.
     db().setResponse("member_organizations", (chain) =>
-      chain.has("update") ? ok(null) : ok([orgRow({ status: "suspended" })]),
+      chain.has("update")
+        ? ok([{ id: IDS.org, updated_at: BASE_ISO }])
+        : ok([orgRow({ status: "suspended" })]),
     );
     await mountList();
     await waitFor(() => expect(screen.getByText("adminOrganizations.suspended")).toBeTruthy());
@@ -1891,8 +1923,17 @@ describe("admin.organizations.$id - zakładka Ogólne: ładunek zapisu", () => {
       expires_at: null,
     });
     const chain = writeChains("member_organizations").at(-1);
-    expect(chain?.calls.map((call) => call.method)).toEqual(["update", "eq"]);
-    expect(chain?.argsOf("eq")).toEqual(["id", IDS.org]);
+    // Łańcuch niesie DWA ogniwa `eq`: identyfikator i WERSJĘ wiersza, którą
+    // formularz odwzorowuje. Drugie z nich jest tu całą różnicą między
+    // „zapisz to, co widzę” a „nadpisz cudzą zmianę, której nie widziałem” -
+    // karta wysyła CAŁY obiekt, więc bez niego zapis cofa każdą kolumnę, która
+    // zmieniła się w międzyczasie. `select` odróżnia zapis od nietrafienia.
+    expect(chain?.calls.map((call) => call.method)).toEqual(["update", "eq", "eq", "select"]);
+    expect(chain?.calls.filter((call) => call.method === "eq").map((call) => call.args)).toEqual([
+      ["id", IDS.org],
+      ["updated_at", BASE_ISO],
+    ]);
+    expect(chain?.argsOf("select")).toEqual(["id, updated_at"]);
     expect(lastToast("success")).toBe("adminOrganizations.saved");
   });
 
@@ -3347,78 +3388,271 @@ describe("admin.organizations.$id - miejsca: dodawanie i usuwanie kont", () => {
 });
 
 describe("admin.organizations.$id - draft kontra dane odświeżone", () => {
+  /** Limit z fixture'u - stan „przed” zmianą funkcją serwerową. */
+  const SEATS_BEFORE = 5;
+  /** Limit ustawiony funkcją serwerową (tyle oddaje `h.seatLimitResult`). */
+  const SEATS_AFTER = 8;
+  /** Wersja wiersza po tej zmianie - baza stempluje `updated_at` przy zapisie. */
+  const AFTER_SEATS_ISO = versionAfter(20);
+
   /**
    * Wiersz organizacji, którego limit miejsc ZMIENIA SIĘ w bazie w trakcie
    * edycji karty - dokładnie to robi funkcja serwerowa miejsc.
+   *
+   * Razem z limitem przesuwa się `updated_at`, bo to JEDEN fakt, a nie dwa:
+   * baza stempluje wersję przy każdym zapisie. I to po wersji karta poznaje,
+   * że ma przed sobą wiersz, którego draft jeszcze nie widział - stempel jest
+   * tu więc częścią scenariusza, nie ozdobą fixture'u.
    */
   function stubMovingLimit(read: () => number): void {
-    db().setResponse("member_organizations", (chain) =>
-      chain.has("maybeSingle") ? ok(orgRow({ seats_limit: read() })) : ok(null),
-    );
+    const versionOf = (seats: number) => (seats === SEATS_BEFORE ? BASE_ISO : AFTER_SEATS_ISO);
+    db().setResponse("member_organizations", (chain) => {
+      const row = orgRow({ seats_limit: read(), updated_at: versionOf(read()) });
+      // Zapis ODDAJE trafiony wiersz: pusta odpowiedź znaczy „nie trafiono
+      // w żaden wiersz” i kończy się odmową, a tu zapis ma się udać.
+      if (chain.has("update")) return ok([{ id: row.id, updated_at: row.updated_at }]);
+      return chain.has("maybeSingle") ? ok(row) : ok([row]);
+    });
   }
 
-  it.fails(
-    "DEFEKT: zapis danych ogólnych COFA liczbę miejsc ustawioną funkcją serwerową",
-    async () => {
-      // CO JEST ZŁE. `draft` ustawia się RAZ (`admin.organizations.$id.tsx:107`:
-      // `if (orgQ.data && !draft) setDraft(orgQ.data)`), a łatka zapisu to CAŁY
-      // draft bez kolumn systemowych - razem z `seats_limit`, `seats_source`,
-      // `seats_grace_days` i `seats_grace_reminder_days`. Zakładka Miejsca
-      // zmienia te kolumny funkcją serwerową i unieważnia zapytanie karty,
-      // ale draft zostaje z wartościami sprzed zmiany. Przycisk zapisu robi
-      // się przy tym AKTYWNY sam z siebie (draft różni się od danych), więc
-      // administrator ma pełne prawo go użyć.
-      //
-      // SKUTEK DLA UŻYTKOWNIKA. Klient dopłaca do ośmiu miejsc, operator
-      // płatności ma osiem, baza ma osiem - a zapis dowolnej zmiany w
-      // zakładce Ogólne (np. poprawki miasta) wpisuje z powrotem PIĘĆ,
-      // omijając `org_set_seats_limit`. Trzy osoby tracą dostęp za coś, za co
-      // klient zapłacił, i nie ma po tym śladu poza `updated_at`.
-      //
-      // DLACZEGO OSOBNA PRACA. Do wyboru są dwie różne naprawy (łatka zawężona
-      // do pól zakładki Ogólne albo odświeżanie draftu przy zmianie danych
-      // serwera) i obie zmieniają zachowanie formularza w innych miejscach -
-      // to decyzja projektowa, nie poprawka testu.
-      let seatsInDb = 5;
-      stubMovingLimit(() => seatsInDb);
-      await mountSeats();
-
-      // Zmiana liczby miejsc przez funkcję serwerową: baza od tej chwili
-      // oddaje osiem, a karta unieważnia własne zapytanie.
-      seatsInDb = 8;
-      type(screen.getByLabelText("adminOrganizations.seatCount"), "8");
-      fireEvent.click(button("adminOrganizations.applySeatCount"));
-      await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
-      await waitFor(() => expect(readChains("member_organizations").length).toBeGreaterThan(1));
-
-      openTab(TAB.general);
-      type(generalInput("city"), "Warszawa");
-      fireEvent.click(button("adminOrganizations.save"));
-
-      await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(2));
-      expect(payloadOf("member_organizations", "update").seats_limit).toBe(8);
-    },
-  );
-
-  it("KONTROLA DODATNIA: po zmianie limitu karta pokazuje STARĄ liczbę i taką wysyła", async () => {
-    let seatsInDb = 5;
+  it("zapis danych ogólnych NIE COFA liczby miejsc ustawionej funkcją serwerową", async () => {
+    // CO BYŁO ZEPSUTE. `draft` ustawiał się RAZ (warunek `orgQ.data && !draft`),
+    // a łatka zapisu to CAŁY draft bez kolumn systemowych - razem z
+    // `seats_limit`, `seats_source`, `seats_grace_days` i
+    // `seats_grace_reminder_days`. Zakładka Miejsca zmienia te kolumny funkcją
+    // serwerową i unieważnia zapytanie karty, ale draft zostawał z wartościami
+    // sprzed zmiany: klient dopłacał do ośmiu miejsc, operator płatności miał
+    // osiem, baza miała osiem - a zapis poprawki miasta wpisywał z powrotem
+    // PIĘĆ, omijając `org_set_seats_limit`. Trzy osoby traciły dostęp za coś,
+    // za co klient zapłacił, i nie zostawało po tym śladu poza `updated_at`.
+    //
+    // JAK JEST NAPRAWIONE. Warunkiem uzgodnienia jest TOŻSAMOŚĆ I WERSJA
+    // wiersza (`loadedRef` = `{ id, updated_at }`), a nie „czy draft jest
+    // pusty”. Baza stempluje `updated_at` przy każdym zapisie, więc wiersz
+    // odświeżony po funkcji serwerowej niesie wersję, której draft jeszcze nie
+    // widział - i dopiero to prze-sieje formularz.
+    //
+    // DLACZEGO TO SIĘ TRZYMA. Zwykły refetch tego samego wiersza (ta sama
+    // wersja) nie rusza draftu, więc niezapisane zmiany nie znikają przy każdym
+    // unieważnieniu cache. Draft ustępuje wyłącznie wtedy, gdy ktoś NAPRAWDĘ
+    // zapisał wiersz w bazie - a wtedy ustąpić MUSI, bo inaczej zapis cofnie
+    // cudzą zmianę. Drugą połową naprawy jest optimistic-lock w samym zapisie
+    // (sekcja „zapis kontra cudza zmiana”): tam, gdzie uzgodnienie nie zdąży,
+    // wersja w warunku `update` nie pozwala nadpisać cudzej pracy po cichu.
+    let seatsInDb = SEATS_BEFORE;
     stubMovingLimit(() => seatsInDb);
     await mountSeats();
 
-    seatsInDb = 8;
+    // Zmiana liczby miejsc przez funkcję serwerową: baza od tej chwili oddaje
+    // osiem (z nowym stemplem), a karta unieważnia własne zapytanie.
+    seatsInDb = SEATS_AFTER;
+    type(screen.getByLabelText("adminOrganizations.seatCount"), "8");
+    fireEvent.click(button("adminOrganizations.applySeatCount"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    // Domknięcie na NAGŁÓWKU, nie na liczbie zapytań: nagłówek czyta `draft`,
+    // więc jego zmiana znaczy „draft został uzgodniony”, a nie „refetch wyszedł”.
+    await waitFor(() =>
+      expect(bodyText()).toContain(`adminOrganizations.seatLimit: ${SEATS_AFTER}`),
+    );
+
+    openTab(TAB.general);
+    type(generalInput("city"), "Warszawa");
+    fireEvent.click(button("adminOrganizations.save"));
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(2));
+    expect(payloadOf("member_organizations", "update").seats_limit).toBe(8);
+  });
+
+  it("NIEZAPISANA zmiana NIE znika, gdy w tle zmieni się wersja wiersza", async () => {
+    // DRUGA STRONA TEGO SAMEGO DEFEKTU. Uzgadnianie „zawsze" jest równie złe
+    // co „nigdy", tylko kosztuje pracę administratora zamiast cudzej zmiany:
+    // wpisuje miasto, przechodzi na zakładkę Miejsca, zmienia limit - mutacja
+    // unieważnia zapytanie karty, refetch przynosi nowszy wiersz i bezwarunkowe
+    // `setDraft(row)` wyrzuca mu miasto bez słowa.
+    //
+    // Reguła (`organizationDraftSync`) zostawia wtedy draft i NIE przesuwa bazy
+    // optimistic-locka, więc zapis odbije się o warunek wersji i administrator
+    // dostanie komunikat o konflikcie - zamiast cichej straty.
+    let seatsInDb = SEATS_BEFORE;
+    stubMovingLimit(() => seatsInDb);
+    await mountSeats();
+
+    // Najpierw NIEZAPISANA zmiana w zakładce Ogólne.
+    openTab(TAB.general);
+    type(generalInput("city"), "Warszawa");
+    expect(generalInput("city")).toHaveValue("Warszawa");
+
+    // Dopiero teraz ktoś przestawia limit i wiersz dostaje nowszy stempel.
+    await openSeatsTab();
+    seatsInDb = SEATS_AFTER;
     type(screen.getByLabelText("adminOrganizations.seatCount"), "8");
     fireEvent.click(button("adminOrganizations.applySeatCount"));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
     await waitFor(() => expect(readChains("member_organizations").length).toBeGreaterThan(1));
 
-    // Nagłówek karty nadal mówi „5”, choć baza oddaje już „8”.
-    expect(bodyText()).toContain("adminOrganizations.seatLimit: 5");
-    // I zapis jest odblokowany BEZ ani jednej zmiany zrobionej ręcznie.
+    // Praca administratora stoi tam, gdzie ją zostawił.
     openTab(TAB.general);
-    expect(button("adminOrganizations.save")).toBeEnabled();
+    expect(generalInput("city")).toHaveValue("Warszawa");
+  });
 
+  it("po zmianie limitu karta pokazuje NOWĄ liczbę i taką wysyła", async () => {
+    // PRZEPISANE PO NAPRAWIE. Ten test przypinał wcześniej stan ZEPSUTY:
+    // nagłówek z liczbą sprzed zmiany, przycisk zapisu odblokowany SAM Z
+    // SIEBIE (draft różnił się od danych, choć administrator niczego nie
+    // tknął) i ładunek z piątką. Dziś prawdziwe jest zdanie odwrotne i to ono
+    // jest tu przedmiotem dowodu - asercje zostały odwrócone, nie usunięte.
+    let seatsInDb = SEATS_BEFORE;
+    stubMovingLimit(() => seatsInDb);
+    await mountSeats();
+    expect(bodyText()).toContain(`adminOrganizations.seatLimit: ${SEATS_BEFORE}`);
+
+    seatsInDb = SEATS_AFTER;
+    type(screen.getByLabelText("adminOrganizations.seatCount"), "8");
+    fireEvent.click(button("adminOrganizations.applySeatCount"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    await waitFor(() => expect(readChains("member_organizations").length).toBeGreaterThan(1));
+
+    // Nagłówek karty mówi to, co baza: osiem miejsc, nie pięć.
+    await waitFor(() =>
+      expect(bodyText()).toContain(`adminOrganizations.seatLimit: ${SEATS_AFTER}`),
+    );
+    expect(bodyText()).not.toContain(`adminOrganizations.seatLimit: ${SEATS_BEFORE}`);
+
+    // Zapis jest z powrotem ZABLOKOWANY: draft odwzorowuje wiersz, więc nie ma
+    // czego zapisywać. Przycisk odblokowany nad nietkniętym formularzem był
+    // właśnie zaproszeniem do cofnięcia cudzej zmiany jednym kliknięciem.
+    openTab(TAB.general);
+    expect(button("adminOrganizations.save")).toBeDisabled();
+
+    type(generalInput("city"), "Warszawa");
     fireEvent.click(button("adminOrganizations.save"));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(2));
-    expect(payloadOf("member_organizations", "update").seats_limit).toBe(5);
+    expect(payloadOf("member_organizations", "update").seats_limit).toBe(SEATS_AFTER);
+  });
+});
+
+describe("admin.organizations.$id - zapis kontra cudza zmiana (optimistic lock)", () => {
+  /** Wersja wiersza po CUDZYM zapisie - inna niż ta, którą odwzorowuje formularz. */
+  const FOREIGN_SAVE_ISO = versionAfter(90);
+
+  interface VersionedOrg {
+    /** Łatki, które NAPRAWDĘ trafiły w wiersz - pusto znaczy „nic nie zapisano”. */
+    writes: Record<string, unknown>[];
+    /** Podmiana wiersza „z zewnątrz”: tak wygląda zapis z sąsiedniej zakładki. */
+    setRow(next: OrganizationRow): void;
+  }
+
+  /** Wersja niesiona przez jeden zapis - argument ogniwa `eq("updated_at", …)`. */
+  function sentVersion(chain: RecordedChain): unknown {
+    const guard = chain.calls.find((call) => call.method === "eq" && call.args[0] === "updated_at");
+    return guard?.args[1];
+  }
+
+  /** Wersje kolejnych zapisów w kolejności wysłania - po nich widać przesunięcie bazy. */
+  function sentVersions(): unknown[] {
+    return writeChains("member_organizations").map(sentVersion);
+  }
+
+  /**
+   * Atrapa wiersza Z WŁASNĄ WERSJĄ - najmniejszy kawałek bazy, bez którego ten
+   * dowód byłby pusty. Zwykła atrapa oddaje to, co jej kazano, więc test
+   * „konflikt” dowodziłby wyłącznie tego, że kazano jej oddać pustkę. Tutaj
+   * `update` TRAFIA albo NIE TRAFIA zgodnie z warunkiem `eq("updated_at", …)`
+   * odczytanym z samego łańcucha - tak samo, jak rozstrzyga to PostgREST.
+   */
+  function stubVersionedOrg(initial: OrganizationRow): VersionedOrg {
+    let row = initial;
+    let saves = 0;
+    const writes: Record<string, unknown>[] = [];
+    db().setResponse("member_organizations", (chain) => {
+      if (!chain.has("update")) return chain.has("maybeSingle") ? ok(row) : ok([row]);
+      const sent = sentVersion(chain);
+      // Niezgodna wersja nie trafia w ŻADEN wiersz: zero wierszy, `error: null`.
+      // Brak ogniwa wersji (`undefined`) to zapis BEZ guardu - taki trafia zawsze.
+      if (sent !== undefined && sent !== row.updated_at) return ok([]);
+      const patch = chain.argsOf("update")?.[0];
+      if (!isRecord(patch)) throw new Error("test: zapis bez ładunku");
+      writes.push(patch);
+      saves += 1;
+      // Udany zapis PRZESTEMPLOWUJE wiersz - ta nowa wersja wraca do klienta.
+      row = { ...row, updated_at: versionAfter(120 + saves) };
+      return ok([{ id: row.id, updated_at: row.updated_at }]);
+    });
+    return {
+      writes,
+      setRow: (next) => {
+        row = next;
+      },
+    };
+  }
+
+  it("KONFLIKT: cudzy zapis w międzyczasie daje WŁASNY komunikat, a wiersz zostaje nietknięty", async () => {
+    // Karta wysyła CAŁY obiekt, więc bez porównania wersji zapis last-write-wins
+    // cicho cofa cudzą zmianę - i nikt nie dostaje o tym żadnego sygnału.
+    // Komunikat musi być przy tym ODRĘBNY: „nie udało się zapisać” nie mówi
+    // administratorowi, że cudza zmiana wciąż stoi i że ma przeładować kartę.
+    const orgDb = stubVersionedOrg(orgRow());
+    await mountLoadedDetail();
+
+    type(generalInput("city"), "Warszawa");
+    // Ktoś inny (druga zakładka, funkcja serwerowa miejsc) zapisał ten wiersz,
+    // zanim administrator kliknął „zapisz”.
+    orgDb.setRow(orgRow({ seats_limit: 8, updated_at: FOREIGN_SAVE_ISO }));
+    fireEvent.click(button("adminOrganizations.save"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(lastToast("error")).toBe("adminOrganizations.saveConflict");
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    // ŻADNA łatka nie trafiła w wiersz - cudza zmiana stoi nienaruszona.
+    expect(orgDb.writes).toEqual([]);
+    // Zapis niósł wersję Z CHWILI WCZYTANIA, więc warunek nie mógł trafić.
+    expect(sentVersions()).toEqual([BASE_ISO]);
+    // I PRACA ADMINISTRATORA ZOSTAJE. To jest właściwe zachowanie po konflikcie,
+    // a nie przeoczenie: komunikat mówi „odśwież kartę, żeby zobaczyć aktualne
+    // dane, i powtórz zmianę", więc karta NIE MOŻE sama podmienić formularza -
+    // podmiana skasowałaby wpisane miasto dokładnie w chwili, w której
+    // administrator dowiaduje się, że musi je wpisać jeszcze raz.
+    //
+    // Karta pokazuje więc nadal stan sprzed konfliktu (nagłówek z pięcioma
+    // miejscami), a o tym, że w bazie jest już co innego, mówi toast. Dopiero
+    // świadome przeładowanie karty przez administratora przynosi nowy wiersz.
+    expect(generalInput("city")).toHaveValue("Warszawa");
+    // Nagłówek nadal mówi to, co karta wczytała (`orgRow()` ma pięć miejsc),
+    // a nie to, co cudzy zapis wstawił do bazy.
+    expect(bodyText()).toContain("adminOrganizations.seatLimit: 5");
+    expect(bodyText()).not.toContain("adminOrganizations.seatLimit: 8");
+  });
+
+  it("DWA ZAPISY POD RZĄD: wersja przesuwa się, drugi nie zgłasza konfliktu z pierwszym", async () => {
+    // Gdyby baza wersji została przy tej z chwili wczytania, drugi zapis
+    // zderzyłby się z WŁASNYM pierwszym: administrator dostałby komunikat
+    // o cudzej zmianie, której nie ma, i nie miałby jak zapisać poprawki.
+    // Dlatego wersję przesuwa WYNIK zapisu, a nie dopiero odświeżenie karty.
+    const orgDb = stubVersionedOrg(orgRow());
+    await mountLoadedDetail();
+
+    type(generalInput("city"), "Warszawa");
+    fireEvent.click(button("adminOrganizations.save"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(1));
+    // Domknięcie na PRZYCISKU, który po udanym zapisie ma być ZABLOKOWANY:
+    // draft dostał wersję faktycznie zapisaną, więc nie różni się już od
+    // swojego punktu odniesienia i nie ma czego zapisywać. Przycisk aktywny
+    // po udanym zapisie znaczyłby, że tę samą łatkę można wysłać drugi raz
+    // i bez potrzeby podbić wersję wiersza.
+    await waitFor(() => expect(button("adminOrganizations.save")).toBeDisabled());
+
+    type(generalInput("country"), "Polska");
+    fireEvent.click(button("adminOrganizations.save"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(2));
+
+    expect(lastToast("success")).toBe("adminOrganizations.saved");
+    expect(h.toastError).not.toHaveBeenCalled();
+    expect(orgDb.writes).toHaveLength(2);
+    expect(orgDb.writes[1].city).toBe("Warszawa");
+    expect(orgDb.writes[1].country).toBe("Polska");
+    // Drugi zapis niesie wersję ostemplowaną przez PIERWSZY, nie tę z wczytania.
+    const versions = sentVersions();
+    expect(versions[0]).toBe(BASE_ISO);
+    expect(versions[1]).toBe(versionAfter(121));
   });
 });

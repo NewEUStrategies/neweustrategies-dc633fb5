@@ -489,25 +489,33 @@ describe("fetchAdminConversations - kształt zapytania", () => {
     expect(chain("conversations").argsOf("ilike")).toEqual(["last_message_preview", "%Bruksela%"]);
   });
 
-  it.fails(
-    "DEFEKT: fraza z panelu nie przechodzi przez escapeLike - `%` z wejścia działa jak wildcard",
-    async () => {
-      // CO: `community.ts:115` wstawia frazę wprost do wzorca ILIKE
-      // (`%${params.search.trim()}%`), choć ten sam katalog eksportuje
-      // `escapeLike` (`src/lib/admin/listFilters.ts:7`) i używają go obie
-      // pozostałe wyszukiwarki panelu (`postsListQuery.ts:167`,
-      // `admin.pages.tsx:144`).
-      // KONSEKWENCJA: szukanie frazy „100%” albo „a_b” daje wzorzec
-      // z wildcardem - moderator dostaje wynik szerszy niż fraza, a przy
-      // pustym rdzeniu (sama fraza „%") wszystkie rozmowy tenanta.
-      // Naprawa to jedna linia w produkcji, dlatego test jest deklaratywny.
-      await fetchAdminConversations({ search: "100%" });
-      expect(chain("conversations").argsOf("ilike")).toEqual([
-        "last_message_preview",
-        `%${escapeLike("100%")}%`,
-      ]);
-    },
-  );
+  // NAPRAWIONE (było `it.fails`): fraza z panelu przechodzi przez `escapeLike`,
+  // tak samo jak w pozostałych wyszukiwarkach panelu (`postsListQuery.ts`,
+  // `admin.pages.tsx`). Bez tego `%` i `_` z wejścia są wildcardami wzorca,
+  // a nie szukanymi znakami.
+  it("fraza z panelu przechodzi przez escapeLike - `%` z wejścia nie jest wildcardem", async () => {
+    await fetchAdminConversations({ search: "100%" });
+    expect(chain("conversations").argsOf("ilike")).toEqual([
+      "last_message_preview",
+      `%${escapeLike("100%")}%`,
+    ]);
+  });
+
+  it("podkreślenie i nawias z frazy też są zdejmowane, zanim trafią do wzorca", async () => {
+    await fetchAdminConversations({ search: "a_b (c), d" });
+    // `escapeLike` usuwa `%_,()"\\` - wzorzec dostaje sam rdzeń frazy.
+    expect(chain("conversations").argsOf("ilike")).toEqual(["last_message_preview", "%ab c d%"]);
+  });
+
+  it("fraza złożona z samych metaznaków daje wzorzec bez ANI JEDNEGO wildcardu z wejścia", async () => {
+    await fetchAdminConversations({ search: "%%" });
+    // Rdzeń po `escapeLike` jest PUSTY, więc wzorzec to gołe `%…%` - dokładnie
+    // to samo, co przy pustej frazie. Wynik nadal obejmuje wszystkie rozmowy
+    // NAJEMCY (bo pusty filtr niczego nie zawęża) i to jest zamierzone; rzecz
+    // w tym, że żaden `%` z wejścia nie dołożył się do wzorca, więc fraza nie
+    // steruje już jego znaczeniem.
+    expect(chain("conversations").argsOf("ilike")).toEqual(["last_message_preview", "%%"]);
+  });
 
   it("błąd odczytu rozmów podnosi wyjątek", async () => {
     db().setResponse("conversations", fail("conversations denied", "42501"));

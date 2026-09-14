@@ -265,8 +265,28 @@ export function syncCmpDecisionToRegistry(
       const { data: sess } = await supabase.auth.getSession();
       if (!sess?.session?.user?.id) return;
       await pushEntriesToRegistry(entries);
-    } catch {
-      // Świadomie cicho: audyt rejestru jest best-effort z perspektywy klienta.
+    } catch (err) {
+      // NIE „świadomie cicho". Decyzja cookie jest już trwała lokalnie i w
+      // profilu, więc nieudany zapis do rejestru nie blokuje CMP - i to zostaje
+      // bez zmian. Ale nieudany zapis ZGODY to zdarzenie, które ktoś musi
+      // zobaczyć: to rejestr RODO jest dowodem, na czyją zgodę powołuje się
+      // administrator danych. Pusty `catch` znaczył, że rozjazd między tym, co
+      // widzi użytkownik, a tym, co ma w dowodach administrator, nie zostawiał
+      // ŻADNEGO śladu - ani w konsoli, ani w telemetrii.
+      //
+      // Zgłaszamy przez tę samą drogę, co inne połknięte odrzucenia obietnic;
+      // import jest dynamiczny, żeby ścieżka sukcesu nie ciągnęła telemetrii
+      // do chunku banera.
+      try {
+        const { reportClientError } = await import("@/lib/observability/report");
+        reportClientError(err, "unhandledrejection");
+      } catch {
+        // Telemetria jest najlepszym możliwym śladem, nie warunkiem działania
+        // CMP - jej własna awaria nie może wywrócić decyzji użytkownika.
+      }
+      // Konsola zostaje niezależnie od beacona: w środowisku deweloperskim
+      // i przy wyłączonej telemetrii to jedyny widoczny sygnał.
+      console.error("[consent] zapis decyzji do rejestru RODO nie powiódł się", err);
     }
   });
 }

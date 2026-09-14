@@ -19,9 +19,12 @@
 //      niezależne żądania; bez kolejki FIFO starszy, wolniejszy zapis mógłby
 //      nadpisać nowszą decyzję i pomieszać chronologię. Kolejka nie może też
 //      PĘKAĆ na błędzie jednego zadania.
-//   3. REJESTR NIE JEST WARUNKIEM DZIAŁANIA CMP. Brak sesji, offline i błąd
-//      serwera nie mogą rzucić - decyzja cookie jest już trwała lokalnie,
-//      a rejestr jest najlepszym możliwym śladem, nie bramką.
+//   3. REJESTR NIE JEST WARUNKIEM DZIAŁANIA CMP, ALE JEGO AWARIA NIE JEST
+//      CICHA. Brak sesji, offline i błąd serwera nie mogą rzucić - decyzja
+//      cookie jest już trwała lokalnie, a rejestr jest najlepszym możliwym
+//      śladem, nie bramką. Nieudany zapis ZGODY musi jednak zostawić ślad
+//      w konsoli i w telemetrii: to rejestr RODO jest dowodem, na czyją zgodę
+//      powołuje się administrator danych.
 //
 // PLUS: JEDNA DECYZJA = JEDEN IDENTYFIKATOR. Kliknięcie „Zapisz” zmieniające
 // trzy kategorie musi dać w audycie JEDNĄ decyzję o trzech kategoriach, a nie
@@ -65,6 +68,10 @@ const h = vi.hoisted(() => ({
   sessionUserId: "11111111-1111-4111-8111-111111111111" as string | null,
   /** Gdy `true`, `auth.getSession()` rzuca (offline). */
   sessionThrows: false,
+  /** Zgłoszenia, które most wysłał do telemetrii z nieudanego zapisu. */
+  reported: [] as { error: unknown; source: string }[],
+  /** Gdy `true`, rzuca SAMA telemetria - jej awaria to osobna gałąź. */
+  reportThrows: false,
 }));
 
 vi.mock("@/lib/consents.functions", () => ({
@@ -82,6 +89,19 @@ vi.mock("@/lib/consents.functions", () => ({
     h.listCalls += 1;
     if (h.listError) throw h.listError;
     return h.registryRows;
+  },
+}));
+
+// Telemetria jest ATRAPOWANA, nie wyciszona: nieudany zapis zgody ma dojść tą
+// samą drogą co inne połknięte odrzucenia obietnic, więc test musi zobaczyć
+// WYWOŁANIE, a nie tylko brak rzutu. Most importuje ten moduł dynamicznie
+// (żeby ścieżka sukcesu nie ciągnęła telemetrii do chunku banera), a `vi.mock`
+// przechwytuje import dynamiczny tak samo jak statyczny.
+vi.mock("@/lib/observability/report", () => ({
+  reportClientError: (error: unknown, source: string) => {
+    if (h.reportThrows) throw new Error("beacon blocked");
+    h.reported.push({ error, source });
+    return true;
   },
 }));
 
@@ -153,6 +173,13 @@ beforeEach(() => {
   h.releases = [];
   h.sessionUserId = USER;
   h.sessionThrows = false;
+  h.reported = [];
+  h.reportThrows = false;
+  // Konsola jest PODMIENIANA, a nie wyciszana na stałe: nieudany zapis zgody
+  // MA trafiać do `console.error` (to jedyny widoczny sygnał przy wyłączonej
+  // telemetrii), więc testy ścieżki błędu na niej asertują - a reszta pliku nie
+  // ma tego drukować w logu przebiegu.
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
   // Flagi deduplikacji żyją w localStorage - każdy test startuje na czysto.
   window.localStorage.clear();
   document.documentElement.lang = "pl";
@@ -162,6 +189,9 @@ afterEach(() => {
   // Zwolnij ewentualne zawieszone zapisy, żeby nie przeciekły do kolejnego testu.
   for (const release of h.releases) release();
   h.releases = [];
+  // Przywraca wyłącznie szpiegów z `vi.spyOn` - atrapy modułów (`vi.mock`)
+  // zostają nietknięte.
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -224,21 +254,55 @@ describe("syncCmpDecisionToRegistry - wycofanie i udzielenie zgody", () => {
     expect(h.bulkCalls).toHaveLength(0);
   });
 
-  it("AWARIA odczytu sesji (offline) nie rzuca", async () => {
+  it("AWARIA odczytu sesji (offline) nie rzuca, ale zostawia ślad", async () => {
     h.sessionThrows = true;
     await expect(
       syncCmpDecisionToRegistry(null, state({ analytics: true }), "cmp_banner"),
     ).resolves.toBeUndefined();
     expect(h.bulkCalls).toHaveLength(0);
+    // Ta sama gałąź `catch` co przy błędzie zapisu: decyzja, która NIE dotarła
+    // do rejestru, nie może zniknąć bez śladu niezależnie od przyczyny.
+    expect(console.error).toHaveBeenCalled();
   });
 
-  it("BŁĄD ZAPISU po stronie serwera nie rzuca - rejestr jest best-effort", async () => {
-    h.bulkError = new Error("not_authorized");
+  it("BŁĄD ZAPISU po stronie serwera nie rzuca, ale jest ZGŁASZANY", async () => {
+    // DEFEKT NAPRAWIONY. `catch` był PUSTY, więc rozjazd między tym, co widzi
+    // użytkownik, a tym, co ma w dowodach administrator, nie zostawiał żadnego
+    // śladu - ani w konsoli, ani w telemetrii. Brak rzutu zostaje bez zmian
+    // (decyzja cookie jest już trwała lokalnie, rejestr nie jest bramką), ale
+    // „best-effort" nie znaczy „po cichu".
+    const failure = new Error("not_authorized");
+    h.bulkError = failure;
     await expect(
       syncCmpDecisionToRegistry(null, state({ analytics: true }), "cmp_banner"),
     ).resolves.toBeUndefined();
-    // Próba BYŁA - cichy brak próby byłby czymś innym niż cicha porażka.
+    // Próba BYŁA - brak próby byłby czymś innym niż próba nieudana.
     expect(h.bulkCalls).toHaveLength(1);
+    // Konsola zostaje niezależnie od telemetrii: przy wyłączonym beaconie to
+    // jedyny widoczny sygnał.
+    expect(console.error).toHaveBeenCalledWith(
+      "[consent] zapis decyzji do rejestru RODO nie powiódł się",
+      failure,
+    );
+    // Telemetria dostaje TEN SAM błąd tą samą drogą co połknięte odrzucenia.
+    expect(h.reported).toEqual([{ error: failure, source: "unhandledrejection" }]);
+  });
+
+  it("AWARIA SAMEJ TELEMETRII nie zabiera śladu z konsoli", async () => {
+    // Telemetria jest najlepszym możliwym śladem, nie warunkiem działania CMP:
+    // jej własny rzut nie może ani wywrócić decyzji, ani skasować jedynego
+    // sygnału widocznego przy wyłączonym beaconie.
+    const failure = new Error("not_authorized");
+    h.bulkError = failure;
+    h.reportThrows = true;
+    await expect(
+      syncCmpDecisionToRegistry(null, state({ analytics: true }), "cmp_banner"),
+    ).resolves.toBeUndefined();
+    expect(h.reported).toEqual([]);
+    expect(console.error).toHaveBeenCalledWith(
+      "[consent] zapis decyzji do rejestru RODO nie powiódł się",
+      failure,
+    );
   });
 
   it("źródło decyzji jest SANITYZOWANE - przypadkowy `MouseEvent` schodzi na baner", async () => {
@@ -465,8 +529,10 @@ describe("kolejka zapisów - chronologia audytu", () => {
   });
 
   it("BŁĄD jednego zapisu NIE PĘKA kolejki - następne decyzje przechodzą", async () => {
-    // Zadania łykają własne błędy, a łańcuch łapie odrzucenie. Bez tego jedna
-    // porażka sieci zamykałaby rejestr do końca sesji karty - i to bez śladu.
+    // Zadania łykają własne błędy (zgłaszając je dalej do konsoli i telemetrii),
+    // a łańcuch łapie odrzucenie. Bez tego jedna porażka sieci zamykałaby
+    // rejestr do końca sesji karty - i TO byłoby bez śladu, bo kolejne decyzje
+    // nie dochodziłyby nawet do `catch`.
     h.bulkError = new Error("network");
     await syncCmpDecisionToRegistry(null, state({ analytics: true }), "cmp_banner");
     h.bulkError = null;

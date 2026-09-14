@@ -12,6 +12,8 @@ import i18n from "./i18n";
 const pl = {
   adminOrganizations: {
     saved: "Zapisano",
+    saveConflict:
+      "Ktoś inny zapisał tę organizację w międzyczasie. Odśwież kartę, żeby zobaczyć aktualne dane, i powtórz zmianę.",
     organizationDeleted: "Usunięto organizację",
     loading: "Wczytywanie...",
     organizationFound: "Nie znaleziono organizacji.",
@@ -153,6 +155,8 @@ const pl = {
 const en = {
   adminOrganizations: {
     saved: "Saved",
+    saveConflict:
+      "Someone else saved this organization in the meantime. Reload the card to see the current data, then repeat your change.",
     organizationDeleted: "Organization deleted",
     loading: "Loading...",
     organizationFound: "Organization not found.",
