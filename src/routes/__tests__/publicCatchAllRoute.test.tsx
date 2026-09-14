@@ -1113,13 +1113,17 @@ describe("loader trasy `/$` - wejście bez segmentu i wiersz z pustą kolumną",
     expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(true);
   });
 
-  it("wpis z PUSTĄ kolumną `post_format` dostaje ten sam preload, co format `standard`", async () => {
-    // `post_format` jest w bazie kolumną dopuszczającą NULL (stąd zapas
-    // `?? "standard"` w `buildCoverPreload`). Wiersz sprzed wprowadzenia
-    // formatów ma tam NULL, a mimo to musi wybrać layout standardowy: inaczej
-    // `pickLayoutId` dostaje `undefined`, preload wychodzi z innego zestawu
-    // kandydatów niż ten, który namaluje `PostLayoutRenderer`, i przeglądarka
-    // pobiera okładkę DWA RAZY - na najcięższym zasobie strony.
+  it("wiersz BEZ jawnego formatu dostaje ten sam preload, co format `standard`", async () => {
+    // Łańcuch `layout_overrides?.format ?? post_format ?? "standard"` stoi
+    // w `$.tsx` TRZY RAZY: tutaj (preload okładki z loadera), w decyzji
+    // `coverAboveBody` i w wyborze layoutu wpisu - a komentarz nad
+    // `coverAboveBody` mówi wprost, że to MA BYĆ ta sama reguła. Ostatnie
+    // ogniwo tego łańcucha nie było dotąd odwiedzone w żadnej z trzech kopii,
+    // więc nic nie trzymało ich razem. Gdyby któraś zgubiła `?? "standard"`,
+    // `pickLayoutId` dostałby `undefined`, preload wyszedłby z innego zestawu
+    // kandydatów niż ten, który maluje `PostLayoutRenderer`, i przeglądarka
+    // pobrałaby okładkę DWA RAZY - na najcięższym zasobie strony. Dowód jest
+    // więc RÓWNOŚCIĄ obu deskryptorów, a nie samą prawdziwością jednego.
     const jawny = jakoWynik((await runLoader("analizy/atom", resolvedPost())).wynik).coverPreload;
     h.linkHeaders = [];
     const pusty = jakoWynik(
