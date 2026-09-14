@@ -300,6 +300,22 @@ describe("VisualCanvas - przenoszenie istniejących węzłów", () => {
     expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "c1");
   });
 
+  // PRZERWANE PRZECIĄGANIE NIE MOŻE WYKONAĆ SIĘ PÓŹNIEJ. `dragend` to jedyne
+  // wyjście z przeciągania, które NIE przechodzi przez `onDrop` (Esc,
+  // upuszczenie poza kanwą), więc tylko tam można zapomnieć o źródle. Zanim
+  // to robiliśmy, identyfikator przeciąganego węzła żył dalej i konsumowało go
+  // następne, zupełnie inne upuszczenie - przeniesienie bez zlecenia.
+  it("przeciąganie przerwane przez dragend nie wykonuje się przy kolejnym upuszczeniu", () => {
+    stubRects();
+    const { h } = renderCanvas();
+    startWidgetDrag("w1");
+    fireDragEvent("dragend", node("data-widget-id", "w1"));
+    fireDrop(node("data-widget-id", "w2"), {}, 190);
+    expect(h.onMoveWidget).not.toHaveBeenCalled();
+    expect(h.onMoveWidgetToColumn).not.toHaveBeenCalled();
+    expect(h.onMoveWidgetToSection).not.toHaveBeenCalled();
+  });
+
   it("widget upuszczony na kolumnę ląduje na jej końcu", () => {
     const { h } = renderCanvas();
     startWidgetDrag("w1");

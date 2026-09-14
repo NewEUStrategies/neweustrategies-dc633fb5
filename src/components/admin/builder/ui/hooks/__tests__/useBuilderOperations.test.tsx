@@ -573,10 +573,35 @@ describe("useBuilderOperations - przenoszenie", () => {
     expect(widgetsIn(s.state.doc, 0).map((x) => x.id)).toEqual(["w1"]);
   });
 
-  it("upuszczenie na samego siebie milczy - to brak ruchu, nie błąd", () => {
+  // UPUSZCZENIE, KTÓRE NICZEGO NIE ZMIENIA, NIE MOŻE ANI ZAPISAĆ HISTORII, ANI
+  // NAKRZYCZEĆ NA REDAKCJĘ. `useHistory.set` nie deduplikuje niczego, więc taki
+  // wpis byłby krokiem „Cofnij", który nic nie cofa, plus rewizją autozapisu
+  // identyczną z poprzednią - a komunikat o nieudanym przeniesieniu byłby
+  // fałszywym alarmem przy najzwyklejszym geście.
+  it.each([
+    [
+      "widget na samego siebie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetTo("w1", "w1", "after"),
+    ],
+    [
+      "sekcja na samą siebie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveSectionTo("s1", "s1", "after"),
+    ],
+    [
+      // Tą drogą kanwa zrzuca upuszczenie widgetu na SIEBIE: gałąź „obok
+      // widgetu" odfiltrowuje własny identyfikator, a upuszczenie spada
+      // o poziom niżej, na kolumnę, w której ten widget leży (patrz
+      // visualCanvasDrop: „widget upuszczony na SIEBIE").
+      "widget na własną kolumnę, w której jest ostatni",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToColumn("w1", "c1"),
+    ],
+    [
+      "widget na własną sekcję, gdy jest ostatni w jej pierwszej kolumnie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToSection("w1", "s1"),
+    ],
+  ])("%s milczy - to brak ruchu, nie błąd", (_label, run) => {
     const s = setup();
-    act(() => s.result.current.moveWidgetTo("w1", "w1", "after"));
-    act(() => s.result.current.moveSectionTo("s1", "s1", "after"));
+    act(() => run(s));
     expect(s.recorded).toHaveLength(0);
     expect(toastError).not.toHaveBeenCalled();
   });

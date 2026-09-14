@@ -55,7 +55,8 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
    *   `onChange` historii - rewizję autozapisu identyczną z poprzednią.
    *   Operacje zwracające `undefined` (a takich jest większość) zatwierdzają
    *   się jak dotąd, bez żadnej zmiany zachowania - dlatego test jest na
-   *   `=== false`, a nie na falsy.
+   *   `=== false`, a nie na falsy. Przenoszenie przechodzi tędy przez `runMove`,
+   *   które tłumaczy trójstanowy `MoveOutcome` na to `false`.
    *
    *   Pomijamy wtedy również sanityzację (`safeParseBuilderDoc`): odrzucone
    *   upuszczenie nie ma prawa przepisać dokumentu, nawet „na lepsze".
@@ -296,40 +297,60 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     toast.success(t("builder.ops.abEnded"));
   };
 
-  // PRZENOSZENIE MOŻE SIĘ NIE UDAĆ, i o tym trzeba powiedzieć. Identyfikator
-  // celu czyta się z DOM w chwili upuszczenia, więc bywa, że wskazuje węzeł,
-  // którego już nie ma (druga karta redakcji, cofnięcie zmiany w trakcie
-  // przeciągania, przebudowa sekcji pod kursorem). Wcześniej taki drop KASOWAŁ
-  // widget i zapisywał brak autozapisem; teraz dokument zostaje nietknięty -
-  // ale samo „nic się nie stało" byłoby dalej mylące, bo redaktor nie wie, czy
-  // jego treść jeszcze istnieje. Dlatego mówimy wprost, że nic nie zginęło.
-  const moveRejected = () => toast.error(t("builder.ops.moveErr"));
+  /**
+   * PRZENOSZENIE MA TRZY WYNIKI, nie dwa, i każdy zasługuje na inną reakcję.
+   *
+   * `"moved"` zapisujemy. `"unchanged"` (węzeł już tam stoi - podniesienie
+   * i odłożenie na miejsce, upuszczenie na siebie, na bliższą połowę sąsiada)
+   * przemilczamy CAŁKOWICIE: nie ma zmiany, więc nie ma ani kroku „Cofnij",
+   * ani rewizji autozapisu, ani powodu, żeby zawracać redakcji głowę.
+   * `"rejected"` mówimy wprost, bo tu gest NIE ZADZIAŁAŁ: identyfikator celu
+   * czyta się z DOM w chwili upuszczenia, więc bywa, że wskazuje węzeł, którego
+   * już nie ma (druga karta redakcji, cofnięcie zmiany w trakcie przeciągania,
+   * przebudowa sekcji pod kursorem). Wcześniej taki drop KASOWAŁ widget
+   * i zapisywał brak autozapisem; teraz dokument zostaje nietknięty - ale samo
+   * „nic się nie stało" byłoby dalej mylące, bo redaktor nie wie, czy jego treść
+   * jeszcze istnieje. Dlatego komunikat mówi wprost, że nic nie zginęło.
+   *
+   * `ops.moveSectionTo` jest tu jednym wyjątkiem wartym zapamiętania: przy
+   * NIEZNANYM CELU dokleja sekcję na koniec dokumentu i zwraca `"moved"`
+   * (zachowanie przypięte testem od czasu, gdy alternatywą było zgubienie
+   * sekcji). Czyli dla sekcji `"moved"` nie znaczy „wylądowała tam, gdzie ją
+   * upuszczono" - i dlatego ta jedna ścieżka nie pokazuje komunikatu, choć cel
+   * zniknął w trakcie przeciągania.
+   */
+  const runMove = (
+    mut: (d: BuilderDocument) => ops.MoveOutcome,
+    label: string,
+  ): ops.MoveOutcome => {
+    let outcome: ops.MoveOutcome = "unchanged";
+    update(
+      (d) => {
+        outcome = mut(d);
+        return outcome === "moved";
+      },
+      { label },
+    );
+    if (outcome === "rejected") toast.error(t("builder.ops.moveErr"));
+    return outcome;
+  };
   const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") => {
-    // Upuszczenie widgetu na samego siebie to nie porażka, tylko brak ruchu.
-    if (srcId === targetId) return;
-    const moved = update((d) => ops.moveWidgetTo(d, srcId, targetId, pos), {
-      label: t("builder.ops.movedWidget"),
-    });
-    if (!moved) moveRejected();
+    runMove((d) => ops.moveWidgetTo(d, srcId, targetId, pos), t("builder.ops.movedWidget"));
   };
   const moveWidgetToColumn = (srcId: string, targetColId: string) => {
-    const moved = update((d) => ops.moveWidgetToColumn(d, srcId, targetColId), {
-      label: t("builder.ops.movedWidgetToColumn"),
-    });
-    if (!moved) moveRejected();
+    runMove(
+      (d) => ops.moveWidgetToColumn(d, srcId, targetColId),
+      t("builder.ops.movedWidgetToColumn"),
+    );
   };
   const moveWidgetToSection = (srcId: string, targetSectionId: string) => {
-    const moved = update((d) => ops.moveWidgetToSection(d, srcId, targetSectionId), {
-      label: t("builder.ops.movedWidgetToSection"),
-    });
-    if (!moved) moveRejected();
+    runMove(
+      (d) => ops.moveWidgetToSection(d, srcId, targetSectionId),
+      t("builder.ops.movedWidgetToSection"),
+    );
   };
   const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") => {
-    if (srcId === targetId) return;
-    const moved = update((d) => ops.moveSectionTo(d, srcId, targetId, pos), {
-      label: t("builder.ops.movedSection"),
-    });
-    if (!moved) moveRejected();
+    runMove((d) => ops.moveSectionTo(d, srcId, targetId, pos), t("builder.ops.movedSection"));
   };
 
   const toggleHidden = (id: string, kind: NonNullable<SelectionKind>) =>

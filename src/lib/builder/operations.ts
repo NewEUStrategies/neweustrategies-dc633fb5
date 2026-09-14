@@ -6,12 +6,10 @@
 // so they never touch the live tree). They were extracted verbatim from
 // Builder.tsx so they can be unit-tested in isolation.
 //
-// Operacje PRZENOSZENIA zwracają `boolean`: `true` = dokument się zmienił,
-// `false` = nie było czego (albo gdzie) przenosić i drzewo pozostało
-// NIETKNIĘTE. Nie jest to kosmetyka sygnatury - hook buildera pomija na `false`
-// wpis do historii i rewizję autozapisu, więc odrzucone upuszczenie nie dokłada
-// kroku „Cofnij", który nic nie cofa, i nie zapisuje rewizji bez zmian. Reszta
-// operacji nadal zwraca `void`.
+// Operacje PRZENOSZENIA zwracają `MoveOutcome` (patrz niżej), a nie `void`.
+// Nie jest to kosmetyka sygnatury: hook buildera zapisuje krok historii
+// i rewizję autozapisu WYŁĄCZNIE dla `"moved"`, a komunikat pokazuje wyłącznie
+// dla `"rejected"`. Reszta operacji nadal zwraca `void`.
 import type {
   BuilderDocument,
   SectionNode,
@@ -280,27 +278,52 @@ export function duplicateSection(d: BuilderDocument, id: string): void {
 }
 
 /**
- * @returns czy dokument się zmienił - patrz kontrakt przy `moveWidgetTo`.
- *   Nieznany CEL nie jest tu porażką: sekcja ląduje na końcu dokumentu
- *   (zachowanie przypięte testem), więc coś się zmieniło.
+ * Wynik operacji przenoszenia. TRZY stany, nie dwa, bo wołający musi rozróżnić
+ * dwa RÓŻNE rodzaje „nic nie zrobiłem":
+ *
+ * - `"moved"`     - dokument się zmienił; tylko to zasługuje na krok historii
+ *                   i rewizję autozapisu.
+ * - `"unchanged"` - źródło i cel istnieją, ale widget (albo sekcja) już stoi
+ *                   dokładnie tam, gdzie go upuszczono. Drzewo jest NIETKNIĘTE.
+ *                   To najzwyklejszy gest redakcji - podniesienie węzła
+ *                   i odłożenie go na miejsce, upuszczenie na siebie, na połowę
+ *                   sąsiada - więc nie wolno go ani zapisywać, ani zgłaszać
+ *                   jako błąd. Bez tego stanu boolean kłamał: „wykonałem ruch"
+ *                   brano za „dokument się zmienił" i każde takie upuszczenie
+ *                   dokładało krok „Cofnij", który nic nie cofa, oraz rewizję
+ *                   autozapisu identyczną z poprzednią.
+ * - `"rejected"`  - źródła albo celu NIE MA w dokumencie. Drzewo jest
+ *                   NIETKNIĘTE (to jest sedno poprawki - wcześniej węzeł był
+ *                   już wtedy wycięty i przepadał). O tym trzeba redakcji
+ *                   powiedzieć, bo jej gest nie zadziałał.
+ */
+export type MoveOutcome = "moved" | "unchanged" | "rejected";
+
+/**
+ * @returns patrz `MoveOutcome`. UWAGA na nieznany CEL: sekcja ląduje wtedy na
+ *   końcu dokumentu (zachowanie przypięte testem od czasu, gdy alternatywą było
+ *   ZGUBIENIE sekcji), czyli wynikiem jest `"moved"`, a nie `"rejected"` -
+ *   sekcja się przeniosła, tylko nie tam, gdzie ją upuszczono.
  */
 export function moveSectionTo(
   d: BuilderDocument,
   srcId: string,
   targetId: string,
   pos: "before" | "after",
-): boolean {
-  if (srcId === targetId) return false;
+): MoveOutcome {
+  if (srcId === targetId) return "unchanged";
   const i = d.sections.findIndex((s) => s?.id === srcId);
-  if (i < 0) return false;
+  if (i < 0) return "rejected";
+  const t = d.sections.findIndex((s) => s?.id === targetId);
+  // Pozycję docelową liczymy PRZED wycięciem - inaczej nie da się stwierdzić,
+  // że sekcja już tam stoi. `t` to indeks celu w tablicy sprzed wycięcia, `j`
+  // po wycięciu (źródło przed celem przesuwa go o jedno miejsce w lewo).
+  const j = t < 0 ? -1 : t - (i < t ? 1 : 0);
+  const insertAt = j < 0 ? d.sections.length - 1 : pos === "before" ? j : j + 1;
+  if (insertAt === i) return "unchanged";
   const [node] = d.sections.splice(i, 1);
-  const j = d.sections.findIndex((s) => s?.id === targetId);
-  if (j < 0) {
-    d.sections.push(node);
-    return true;
-  }
-  d.sections.splice(pos === "before" ? j : j + 1, 0, node);
-  return true;
+  d.sections.splice(insertAt, 0, node);
+  return "moved";
 }
 
 export function addInnerSection(d: BuilderDocument, sectionId: string): void {
@@ -380,6 +403,13 @@ export function duplicateWidget(d: BuilderDocument, wid: string): void {
  * widgetu (tak było przed poprawką), ani cisza: celujemy w pierwszą kolumnę tej
  * sekcji wewnętrznej, a gdy nie ma ona żadnej - zakładamy pełnowymiarową,
  * dokładnie jak `moveWidgetToSection` dla sekcji bez kolumn.
+ *
+ * OGRANICZENIE, ŚWIADOME: to PIERWSZA kolumna, a nie ta pod kursorem - w
+ * kilkukolumnowej sekcji wewnętrznej widget wyląduje więc po lewej, niezależnie
+ * od tego, w którą przerwę go upuszczono (a gdy pierwsza kolumna ma regułę
+ * dostępu, której redaktor nie spełnia, renderer jej nie rysuje). Wybór
+ * najbliższej kolumny wymagałby geometrii wskaźnika, której ta warstwa nie zna
+ * i znać nie powinna; `moveWidgetToSection` bierze pierwszą kolumnę od zawsze.
  */
 function columnForDrop(d: BuilderDocument, colId: string): ColumnNode | null {
   const column = findColumn(d, colId);
@@ -462,30 +492,33 @@ export function appendWidgetToSection(
  * zaraz do autozapisu, więc taka utrata byłaby cicha i nieodwracalna. Ta sama
  * gałąź brzegowa, którą `moveSectionTo` obsługiwało poprawnie od początku.
  *
- * @returns czy dokument się zmienił. `false` znaczy „nie było czego albo gdzie
- *   przenosić" i DOKUMENT POZOSTAJE NIETKNIĘTY - wołający (hook buildera)
- *   pomija wtedy wpis do historii i rewizję autozapisu, zamiast dokładać krok
- *   `undo`, który nic nie cofa.
+ * @returns patrz `MoveOutcome`. `"rejected"` i `"unchanged"` ZOSTAWIAJĄ
+ *   dokument nietknięty; hook buildera zapisuje historię i rewizję tylko dla
+ *   `"moved"`, a komunikat pokazuje tylko dla `"rejected"`.
  */
 export function moveWidgetTo(
   d: BuilderDocument,
   srcId: string,
   targetId: string,
   pos: "before" | "after",
-): boolean {
-  if (srcId === targetId) return false;
+): MoveOutcome {
+  if (srcId === targetId) return "unchanged";
   const from = locateWidget(d, srcId);
   const to = locateWidget(d, targetId);
-  if (!from || !to) return false;
+  if (!from || !to) return "rejected";
+
+  // Wycięcie źródła przesuwa cel o jedno miejsce w lewo, ale TYLKO gdy oba
+  // leżą w tej samej kolumnie, a źródło jest wcześniej. Dokładnie tę arytmetykę
+  // dawał stary kod (szukał celu już po wycięciu) - tutaj jest policzona
+  // jawnie, PRZED mutacją, więc widać z niej również przypadek „widget już tam
+  // stoi": upuszczenie na połowę sąsiada, od której jest bliżej.
+  const at = to.index - (from.column === to.column && from.index < to.index ? 1 : 0);
+  const insertAt = pos === "before" ? at : at + 1;
+  if (from.column === to.column && insertAt === from.index) return "unchanged";
 
   const [node] = from.column.children.splice(from.index, 1);
-  // Wycięcie źródła przesuwa cel o jedno miejsce w lewo, ale TYLKO gdy oba
-  // leżały w tej samej kolumnie, a źródło było wcześniej. Dokładnie tę
-  // arytmetykę dawał stary kod (szukał celu już po wycięciu) - tutaj jest
-  // policzona jawnie, więc nie wymaga mutowania drzewa na próbę.
-  const at = to.index - (from.column === to.column && from.index < to.index ? 1 : 0);
-  to.column.children.splice(pos === "before" ? at : at + 1, 0, node);
-  return true;
+  to.column.children.splice(insertAt, 0, node);
+  return "moved";
 }
 
 /**
@@ -498,19 +531,28 @@ export function moveWidgetToColumn(
   d: BuilderDocument,
   srcId: string,
   targetColId: string,
-): boolean {
+): MoveOutcome {
   // Źródło sprawdzamy PIERWSZE: `columnForDrop` potrafi założyć kolumnę
   // w pustej sekcji wewnętrznej, a nie ma po co jej zakładać dla przeniesienia,
   // które i tak się nie wykona.
   const from = locateWidget(d, srcId);
-  if (!from) return false;
+  if (!from) return "rejected";
   const target = columnForDrop(d, targetColId);
-  if (!target) return false;
+  if (!target) return "rejected";
+  // Widget już stoi na końcu tej kolumny - wycięcie i dołożenie dałoby dokument
+  // bajt w bajt identyczny. TĘDY przychodzi upuszczenie widgetu na SAMEGO
+  // SIEBIE: kanwa odfiltrowuje je z gałęzi „obok widgetu" i zrzuca o poziom
+  // niżej, na kolumnę, w której ten widget leży (patrz test kanwy „widget
+  // upuszczony na SIEBIE"). Gest jest codzienny, więc nie wolno go ani
+  // zapisywać jako zmiany, ani zgłaszać jako błędu.
+  if (target === from.column && from.index === from.column.children.length - 1) {
+    return "unchanged";
+  }
 
   const [node] = from.column.children.splice(from.index, 1);
   if (!target.children) target.children = [];
   target.children.push(node);
-  return true;
+  return "moved";
 }
 
 /**
@@ -523,14 +565,17 @@ export function moveWidgetToSection(
   d: BuilderDocument,
   srcId: string,
   targetSectionId: string,
-): boolean {
+): MoveOutcome {
   const from = locateWidget(d, srcId);
   const targetSection = findSection(d, targetSectionId);
-  if (!from || !targetSection) return false;
+  if (!from || !targetSection) return "rejected";
 
   // Pierwsza kolumna celu - szukana PRZED wycięciem, żeby cała funkcja trzymała
   // się schematu „sprawdź wszystko, potem zmieniaj". Dziury i sekcje wewnętrzne
-  // bez kolumn przeskakujemy; węzeł kolumny zostaje ważny po wycięciu źródła.
+  // bez ANI JEDNEJ kolumny przeskakujemy; węzeł kolumny zostaje ważny po
+  // wycięciu źródła. Pierwszą kolumnę sekcji wewnętrznej bierzemy tak samo jak
+  // `columnForDrop`, czyli pierwszą NIEPUSTĄ - inaczej dziura na pozycji zerowej
+  // przesłaniałaby prawdziwą kolumnę i dokładalibyśmy obok drugi kontener.
   let targetColumn: ColumnNode | null = null;
   for (const child of targetSection.children ?? []) {
     if (!child) continue;
@@ -538,11 +583,17 @@ export function moveWidgetToSection(
       targetColumn = child;
       break;
     }
-    const firstInner = (child.columns ?? [])[0];
+    const firstInner = (child.columns ?? []).find((c): c is ColumnNode => !!c);
     if (firstInner) {
       targetColumn = firstInner;
       break;
     }
+  }
+
+  // Jak w `moveWidgetToColumn`: widget już stoi na końcu kolumny, w którą
+  // celuje to upuszczenie.
+  if (targetColumn === from.column && from.index === from.column.children.length - 1) {
+    return "unchanged";
   }
 
   const [node] = from.column.children.splice(from.index, 1);
@@ -553,7 +604,7 @@ export function moveWidgetToSection(
   }
   if (!targetColumn.children) targetColumn.children = [];
   targetColumn.children.push(node);
-  return true;
+  return "moved";
 }
 
 /** Detach a global-widget instance: the local snapshot becomes a plain widget. */

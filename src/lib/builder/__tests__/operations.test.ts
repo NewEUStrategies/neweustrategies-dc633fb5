@@ -830,7 +830,7 @@ describe("przeniesienie na nieistniejący cel nie rusza dokumentu", () => {
   it("moveWidgetTo z nieznanym CELEM zostawia dokument bez zmian i zwraca false", () => {
     const d = doc(sec("s1", [col("c1", [w("w1"), w("w2")])]));
     const przed = snapshot(d);
-    expect(ops.moveWidgetTo(d, "w1", "widget-widmo", "after")).toBe(false);
+    expect(ops.moveWidgetTo(d, "w1", "widget-widmo", "after")).toBe("rejected");
     expect(ops.findWidget(d, "w1")).not.toBeNull();
     expect(d).toEqual(przed);
   });
@@ -838,7 +838,7 @@ describe("przeniesienie na nieistniejący cel nie rusza dokumentu", () => {
   it("moveWidgetToColumn z nieznanym CELEM zostawia dokument bez zmian i zwraca false", () => {
     const d = doc(sec("s1", [col("c1", [w("w1")])]));
     const przed = snapshot(d);
-    expect(ops.moveWidgetToColumn(d, "w1", "kolumna-widmo")).toBe(false);
+    expect(ops.moveWidgetToColumn(d, "w1", "kolumna-widmo")).toBe("rejected");
     expect(ops.findWidget(d, "w1")).not.toBeNull();
     expect(d).toEqual(przed);
   });
@@ -846,48 +846,134 @@ describe("przeniesienie na nieistniejący cel nie rusza dokumentu", () => {
   it("moveWidgetToSection z nieznanym CELEM zostawia dokument bez zmian i zwraca false", () => {
     const d = doc(sec("s1", [col("c1", [w("w1")])]));
     const przed = snapshot(d);
-    expect(ops.moveWidgetToSection(d, "w1", "sekcja-widmo")).toBe(false);
+    expect(ops.moveWidgetToSection(d, "w1", "sekcja-widmo")).toBe("rejected");
     expect(ops.findWidget(d, "w1")).not.toBeNull();
     expect(d).toEqual(przed);
   });
 
-  it("nieznane ŹRÓDŁO też nie rusza dokumentu i zwraca false", () => {
+  it("nieznane ŹRÓDŁO też nie rusza dokumentu i daje wynik „rejected”", () => {
     const d = doc(sec("s1", [col("c1", [w("w1")])]), sec("s2", [col("c2", [])]));
     const przed = snapshot(d);
-    expect(ops.moveWidgetTo(d, "widget-widmo", "w1", "after")).toBe(false);
-    expect(ops.moveWidgetToColumn(d, "widget-widmo", "c2")).toBe(false);
-    expect(ops.moveWidgetToSection(d, "widget-widmo", "s2")).toBe(false);
-    expect(ops.moveSectionTo(d, "sekcja-widmo", "s1", "after")).toBe(false);
+    expect(ops.moveWidgetTo(d, "widget-widmo", "w1", "after")).toBe("rejected");
+    expect(ops.moveWidgetToColumn(d, "widget-widmo", "c2")).toBe("rejected");
+    expect(ops.moveWidgetToSection(d, "widget-widmo", "s2")).toBe("rejected");
+    expect(ops.moveSectionTo(d, "sekcja-widmo", "s1", "after")).toBe("rejected");
     expect(d).toEqual(przed);
   });
 
   it("upuszczenie na samego siebie to brak ruchu, a nie porażka z mutacją", () => {
     const d = doc(sec("s1", [col("c1", [w("w1"), w("w2")])]));
     const przed = snapshot(d);
-    expect(ops.moveWidgetTo(d, "w1", "w1", "before")).toBe(false);
-    expect(ops.moveSectionTo(d, "s1", "s1", "before")).toBe(false);
+    expect(ops.moveWidgetTo(d, "w1", "w1", "before")).toBe("unchanged");
+    expect(ops.moveSectionTo(d, "s1", "s1", "before")).toBe("unchanged");
     expect(d).toEqual(przed);
   });
 
-  it("udane przeniesienia zwracają true", () => {
+  it("udane przeniesienia dają „moved”", () => {
     const d = doc(
       sec("s1", [col("c1", [w("w1"), w("w2")])]),
       sec("s2", [col("c2", [])]),
       sec("s3", []),
     );
-    expect(ops.moveWidgetTo(d, "w1", "w2", "after")).toBe(true);
-    expect(ops.moveWidgetToColumn(d, "w1", "c2")).toBe(true);
-    expect(ops.moveWidgetToSection(d, "w1", "s3")).toBe(true);
-    expect(ops.moveSectionTo(d, "s3", "s1", "before")).toBe(true);
-    // Nieznany CEL sekcji to nie porażka - sekcja ląduje na końcu dokumentu.
-    expect(ops.moveSectionTo(d, "s1", "sekcja-widmo", "before")).toBe(true);
+    expect(ops.moveWidgetTo(d, "w1", "w2", "after")).toBe("moved");
+    expect(ops.moveWidgetToColumn(d, "w1", "c2")).toBe("moved");
+    expect(ops.moveWidgetToSection(d, "w1", "s3")).toBe("moved");
+    expect(ops.moveSectionTo(d, "s3", "s1", "before")).toBe("moved");
+    // Nieznany CEL sekcji to nie porażka - sekcja ląduje na końcu dokumentu,
+    // czyli COŚ się zmieniło, tylko nie tam, gdzie ją upuszczono.
+    expect(ops.moveSectionTo(d, "s1", "sekcja-widmo", "before")).toBe("moved");
   });
 
   it("dokument bez tablicy sekcji nie wywraca żadnej z operacji przenoszenia", () => {
     const pusty = () => ({ version: 1 }) as unknown as BuilderDocument;
-    expect(ops.moveWidgetTo(pusty(), "w1", "w2", "after")).toBe(false);
-    expect(ops.moveWidgetToColumn(pusty(), "w1", "c1")).toBe(false);
-    expect(ops.moveWidgetToSection(pusty(), "w1", "s1")).toBe(false);
+    expect(ops.moveWidgetTo(pusty(), "w1", "w2", "after")).toBe("rejected");
+    expect(ops.moveWidgetToColumn(pusty(), "w1", "c1")).toBe("rejected");
+    expect(ops.moveWidgetToSection(pusty(), "w1", "s1")).toBe("rejected");
+  });
+});
+
+// UPUSZCZENIE, KTÓRE NICZEGO NIE ZMIENIA, NIE JEST ZMIANĄ DOKUMENTU.
+//
+// To nie kosmetyka wyniku: hook buildera zapisuje krok historii i - przez
+// `onChange` historii - rewizję autozapisu dla KAŻDEGO zatwierdzonego
+// `update`, a `useHistory.set` nie deduplikuje niczego. Gdyby „wykonałem
+// ruch" znaczyło to samo co „dokument się zmienił", podniesienie widgetu
+// i odłożenie go na miejsce dokładałoby krok „Cofnij", który nic nie cofa,
+// oraz zapis rewizji identycznej z poprzednią. Te gesty są codzienne, więc
+// każdy z nich ma tu swój przypadek.
+describe("przeniesienie w miejsce, w którym węzeł już stoi", () => {
+  const snapshot = (d: BuilderDocument) => JSON.parse(JSON.stringify(d)) as BuilderDocument;
+  const bezZmiany = (d: BuilderDocument, wynik: ops.MoveOutcome, przed: BuilderDocument) => {
+    expect(wynik).toBe("unchanged");
+    expect(d).toEqual(przed);
+  };
+
+  it("moveWidgetTo: upuszczenie na bliższą połowę sąsiada", () => {
+    const kolumna = () => doc(sec("s1", [col("c1", [w("w1"), w("w2"), w("w3")])]));
+    // w1 już jest przed w2...
+    const a = kolumna();
+    bezZmiany(a, ops.moveWidgetTo(a, "w1", "w2", "before"), snapshot(kolumna()));
+    // ...a w2 już jest za w1.
+    const b = kolumna();
+    bezZmiany(b, ops.moveWidgetTo(b, "w2", "w1", "after"), snapshot(kolumna()));
+    // Ostatni widget upuszczony za ostatniego sąsiada też nigdzie nie idzie.
+    const c = kolumna();
+    bezZmiany(c, ops.moveWidgetTo(c, "w3", "w2", "after"), snapshot(kolumna()));
+  });
+
+  it("moveWidgetTo: ten sam gest MIĘDZY kolumnami jest już zmianą", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")]), col("c2", [w("w2")])]));
+    // Nic tu nie „stoi już na miejscu" - kolumna docelowa jest inna.
+    expect(ops.moveWidgetTo(d, "w1", "w2", "before")).toBe("moved");
+    expect(ids(d.sections[0].children[1] as ColumnNode)).toEqual(["w1", "w2"]);
+  });
+
+  it("moveWidgetToColumn: widget upuszczony na własną kolumnę, gdy jest w niej ostatni", () => {
+    // TĘDY kanwa zrzuca upuszczenie widgetu na SAMEGO SIEBIE.
+    const d = doc(sec("s1", [col("c1", [w("w1")])]));
+    bezZmiany(
+      d,
+      ops.moveWidgetToColumn(d, "w1", "c1"),
+      snapshot(doc(sec("s1", [col("c1", [w("w1")])]))),
+    );
+  });
+
+  it("moveWidgetToColumn: widget upuszczony na własną kolumnę, gdy NIE jest ostatni", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1"), w("w2")])]));
+    expect(ops.moveWidgetToColumn(d, "w1", "c1")).toBe("moved");
+    expect(ids(ops.findColumn(d, "c1")!)).toEqual(["w2", "w1"]);
+  });
+
+  it("moveWidgetToSection: widget upuszczony na własną sekcję, gdy jest ostatni w jej pierwszej kolumnie", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")])]));
+    bezZmiany(
+      d,
+      ops.moveWidgetToSection(d, "w1", "s1"),
+      snapshot(doc(sec("s1", [col("c1", [w("w1")])]))),
+    );
+  });
+
+  it("moveSectionTo: sekcja upuszczona tam, gdzie już stoi", () => {
+    const trzy = () => doc(sec("a", []), sec("b", []), sec("c", []));
+    // a jest już przed b...
+    const p1 = trzy();
+    bezZmiany(p1, ops.moveSectionTo(p1, "a", "b", "before"), snapshot(trzy()));
+    // ...b jest już za a...
+    const p2 = trzy();
+    bezZmiany(p2, ops.moveSectionTo(p2, "b", "a", "after"), snapshot(trzy()));
+    // ...a b jest już przed c.
+    const p3 = trzy();
+    bezZmiany(p3, ops.moveSectionTo(p3, "b", "c", "before"), snapshot(trzy()));
+  });
+
+  it("moveSectionTo: nieznany cel, gdy sekcja i tak jest ostatnia", () => {
+    const d = doc(sec("a", []), sec("b", []));
+    // Gałąź „nieznany cel" dokleja na koniec - a ostatnia sekcja już tam jest.
+    bezZmiany(
+      d,
+      ops.moveSectionTo(d, "b", "widmo", "after"),
+      snapshot(doc(sec("a", []), sec("b", []))),
+    );
   });
 });
 
@@ -964,14 +1050,14 @@ describe("identyfikator sekcji wewnętrznej jako cel kolumnowy", () => {
       sec("s1", [col("c1", [w("w1")])]),
       sec("s2", [inner("i1", [col("ic1", [w("wi1")]), col("ic2", [])])]),
     );
-    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe(true);
+    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe("moved");
     expect(ids(ops.findColumn(d, "ic1")!)).toEqual(["wi1", "w1"]);
     expect(ids(ops.findColumn(d, "c1")!)).toEqual([]);
   });
 
   it("moveWidgetToColumn zakłada kolumnę, gdy sekcja wewnętrzna nie ma żadnej", () => {
     const d = doc(sec("s1", [col("c1", [w("w1")])]), sec("s2", [inner("i1", [])]));
-    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe(true);
+    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe("moved");
     const i1 = ops.findInner(d, "i1");
     expect(i1?.columns).toHaveLength(1);
     expect(ids(i1!.columns[0])).toEqual(["w1"]);
@@ -979,8 +1065,36 @@ describe("identyfikator sekcji wewnętrznej jako cel kolumnowy", () => {
 
   it("nieudane przeniesienie nie zakłada kolumny w pustej sekcji wewnętrznej", () => {
     const d = doc(sec("s2", [inner("i1", [])]));
-    expect(ops.moveWidgetToColumn(d, "widget-widmo", "i1")).toBe(false);
+    expect(ops.moveWidgetToColumn(d, "widget-widmo", "i1")).toBe("rejected");
     expect(ops.findInner(d, "i1")?.columns).toEqual([]);
+  });
+
+  it("dziura na pozycji zerowej nie przesłania prawdziwej kolumny sekcji wewnętrznej", () => {
+    // Obie drogi - „na kolumnę" i „na sekcję" - biorą pierwszą NIEPUSTĄ kolumnę,
+    // więc dziura w tablicy nie powoduje dołożenia drugiego kontenera obok.
+    const zDziura = () =>
+      ({
+        version: 1,
+        sections: [
+          sec("s1", [col("c1", [w("w1")])]),
+          {
+            id: "s2",
+            kind: "section",
+            children: [{ id: "i1", kind: "inner-section", columns: [null, col("ic2", [])] }],
+          },
+        ],
+      }) as unknown as BuilderDocument;
+
+    const naKolumne = zDziura();
+    expect(ops.moveWidgetToColumn(naKolumne, "w1", "i1")).toBe("moved");
+    expect(ids(ops.findColumn(naKolumne, "ic2")!)).toEqual(["w1"]);
+    expect(ops.findInner(naKolumne, "i1")?.columns).toHaveLength(2);
+
+    const naSekcje = zDziura();
+    expect(ops.moveWidgetToSection(naSekcje, "w1", "s2")).toBe("moved");
+    expect(ids(ops.findColumn(naSekcje, "ic2")!)).toEqual(["w1"]);
+    // Żadnej nowej kolumny w sekcji - użyta została ta, która już tam była.
+    expect(ops.findSection(naSekcje, "s2")?.children).toHaveLength(1);
   });
 
   it("addWidgetToColumn też przyjmuje identyfikator sekcji wewnętrznej", () => {
