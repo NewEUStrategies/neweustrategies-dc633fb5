@@ -5,7 +5,7 @@
 // agrees on shape and fallbacks.
 import { z } from "zod";
 import { SITE_NAME } from "@/lib/seo/meta";
-import type { RobotsGroup } from "@/lib/seo/robots";
+import { ROBOTS_DEFAULT_DISALLOW, type RobotsGroup, type RobotsUsagePolicy } from "@/lib/seo/robots";
 
 export const SEO_SETTINGS_KEY = "seo";
 
