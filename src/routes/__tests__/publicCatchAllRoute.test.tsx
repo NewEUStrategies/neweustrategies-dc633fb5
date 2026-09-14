@@ -58,6 +58,10 @@ const h = vi.hoisted(() => ({
   rpcError: null as { message: string } | null,
   /** Jak ma się zachować rozgrzewka bloków. */
   blocksPrefetch: "ok" as "ok" | "reject" | "hang" | "degraded",
+  /** Języki, z jakimi loader zawołał rozgrzewkę sekcji nad zgięciem. */
+  aboveFoldLangs: [] as string[],
+  /** Czy rozgrzewka nad zgięciem ma oddać sygnał degradacji (rozstrzygnięta SUKCESEM). */
+  aboveFoldDegraded: false,
 }));
 
 // JĘZYK RENDERU JAKO WSTRZYKIWANE WEJŚCIE, nie jako stan globalny.
@@ -144,6 +148,20 @@ vi.mock("@/lib/queries/blocks", async (o) => ({
     if (h.blocksPrefetch === "reject") throw new Error("blocks_data unreachable");
     if (h.blocksPrefetch === "hang") await new Promise(() => {});
     return { degraded: h.blocksPrefetch === "degraded" };
+  },
+}));
+
+// Rozgrzewka sekcji NAD ZGIĘCIEM przechwycona tą samą metodą i dokładnie z tego
+// samego powodu, co rozgrzewka bloków wyżej: prawdziwa funkcja NIGDY NIE
+// ODRZUCA - ma własny budżet 2 500 ms i po jego przekroczeniu rozstrzyga się
+// normalnie - więc jedynym sygnałem awarii jest pole `degraded` w wyniku
+// ROZSTRZYGNIĘTYM SUKCESEM. Bez atrapy nie widać ani tego sygnału, ani samego
+// faktu, że loader w ogóle zawołał rozgrzewkę i z jakim językiem.
+vi.mock("@/lib/builder/prefetch", async (o) => ({
+  ...(await o<typeof import("@/lib/builder/prefetch")>()),
+  prefetchAboveFoldQueries: async (_client: unknown, _doc: unknown, lang: unknown) => {
+    h.aboveFoldLangs.push(String(lang));
+    return { degraded: h.aboveFoldDegraded };
   },
 }));
 
@@ -382,6 +400,8 @@ beforeEach(() => {
   h.blocksPrefetchCtx = [];
   h.rpcError = null;
   h.blocksPrefetch = "ok";
+  h.aboveFoldLangs = [];
+  h.aboveFoldDegraded = false;
   // Domyślnie: adres nie trafia w żadne archiwum taksonomii (gałąź „treści nie ma").
   stub.setResponse("categories", ok(null));
   stub.setResponse("tags", ok(null));
@@ -1040,6 +1060,189 @@ describe("loader trasy `/$` - degradacja zapytań pobocznych", () => {
     const { wynik } = await runLoader("analizy/atom");
     expect(isNotFound(wynik)).toBe(true);
     expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(true);
+  });
+});
+
+// ===========================================================================
+// KSZTAŁTY WEJŚCIA, KTÓRYCH NIE WIDAĆ NA SZCZĘŚLIWEJ ŚCIEŻCE.
+// ===========================================================================
+//
+// Wszystkie przypadki niżej dotyczą tego samego loadera, ale karmią go tym, co
+// przynosi PRODUKCJA, a czego nie przynosi wygodna fixture: dopasowaniem bez
+// segmentu, wierszem z pustą kolumną, dokumentem bloków zapisanym w jednym
+// języku i wpisem bez powiązań. Każdy z tych kształtów prowadzi do INNEJ
+// gałęzi tego samego wyrażenia, a żadna z nich nie była dotąd odwiedzona.
+
+/**
+ * Loader wywołany BEZ pola `_splat`. To nie jest wymysł testu: dopasowanie
+ * trasy łapiącej wszystko na pustym ogonie nie wstawia tego parametru w ogóle,
+ * więc `params._splat` jest wtedy `undefined`, a nie pustym stringiem.
+ * `runLoader` wyżej zawsze podaje to pole, więc zapas `?? ""` nie był dotąd
+ * przez nic odwiedzony.
+ */
+async function runLoaderBezSplatu(): Promise<unknown> {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  try {
+    return await loader()({ params: {}, context: { queryClient } });
+  } catch (thrown) {
+    return thrown;
+  }
+}
+
+/** Strona z dokumentem buildera - `sections` decyduje o rozgrzewce nad zgięciem. */
+function stronaZDokumentem(builderData: unknown): ResolvedContent {
+  return {
+    kind: "page",
+    item: postItem({ builder_data: builderData, cover_image_url: null }),
+    crumbs: [],
+    parentPageId: "page-1",
+    access: null,
+  };
+}
+
+describe("loader trasy `/$` - wejście bez segmentu i wiersz z pustą kolumną", () => {
+  it("dopasowanie BEZ pola `_splat` daje 404, a nie rzut na pustym parametrze", async () => {
+    const thrown = await runLoaderBezSplatu();
+
+    // Gdyby zapas `?? ""` zniknął, `planPublicPath(undefined)` dostałby wartość
+    // spoza swojego kontraktu - a jest to pierwsza instrukcja loadera KAŻDEJ
+    // strony CMS-a, więc czytelnik zobaczyłby ekran błędu zamiast 404.
+    expect(isNotFound(thrown)).toBe(true);
+    // Pusty adres rozstrzyga sam kształt adresu - bez ani jednego round-tripu.
+    expect(stub.chains).toEqual([]);
+    expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(true);
+  });
+
+  it("wpis z PUSTĄ kolumną `post_format` dostaje ten sam preload, co format `standard`", async () => {
+    // `post_format` jest w bazie kolumną dopuszczającą NULL (stąd zapas
+    // `?? "standard"` w `buildCoverPreload`). Wiersz sprzed wprowadzenia
+    // formatów ma tam NULL, a mimo to musi wybrać layout standardowy: inaczej
+    // `pickLayoutId` dostaje `undefined`, preload wychodzi z innego zestawu
+    // kandydatów niż ten, który namaluje `PostLayoutRenderer`, i przeglądarka
+    // pobiera okładkę DWA RAZY - na najcięższym zasobie strony.
+    const jawny = jakoWynik((await runLoader("analizy/atom", resolvedPost())).wynik).coverPreload;
+    h.linkHeaders = [];
+    const pusty = jakoWynik(
+      (
+        await runLoader(
+          "analizy/atom",
+          resolvedPost({ item: postItem({ post_format: undefined }) }),
+        )
+      ).wynik,
+    ).coverPreload;
+
+    expect(pusty).toEqual(jawny);
+    expect(pusty?.href).toBe(COVER_URL);
+    expect(h.linkHeaders).toHaveLength(1);
+  });
+});
+
+describe("loader trasy `/$` - wybór językowej odmiany dokumentu bloków", () => {
+  it("brak odmiany PL schodzi na odmianę EN, zamiast zrezygnować z rozgrzewki", async () => {
+    // Redaktor, który zbudował stronę tylko po angielsku, zapisuje w
+    // `blocks_data` wyłącznie klucz `en`. Bez zejścia po łańcuchu zapasów
+    // polski render takiego wpisu NIE ROZGRZAŁBY żadnego zapytania widoku,
+    // a robot dostałby HTML z pustymi listami - i to na dobę w cache'u brzegu.
+    const { wynik } = await runLoader(
+      "analizy/atom",
+      resolvedPost({
+        item: postItem({
+          blocks_data: {
+            en: { version: 1, blocks: [{ id: "b-en", type: "related-posts", data: {} }] },
+          },
+        }),
+      }),
+    );
+
+    expect(jakoWynik(wynik).kind).toBe("post");
+    expect(h.blocksPrefetchCtx).toHaveLength(1);
+    expect(h.blocksPrefetchCtx[0]?.postId).toBe("post-1");
+  });
+
+  it("dokument zapisany WYŁĄCZNIE w nieobsługiwanej odmianie nie grzeje niczego", async () => {
+    // Koniec tego samego łańcucha zapasów: ładunek, w którym nie ma ani
+    // bieżącego języka, ani PL, ani EN (import z obcego systemu). Ma zejść do
+    // `null` i przejść obok rozgrzewki - a nie wywrócić loadera na
+    // `blocksDoc.blocks` liczonym z `undefined`.
+    const { wynik } = await runLoader(
+      "analizy/atom",
+      resolvedPost({
+        item: postItem({
+          blocks_data: {
+            de: { version: 1, blocks: [{ id: "b-de", type: "related-posts", data: {} }] },
+          },
+        }),
+      }),
+    );
+
+    expect(jakoWynik(wynik).kind).toBe("post");
+    expect(h.blocksPrefetchCtx).toEqual([]);
+  });
+
+  it("wpis BEZ kategorii i tagów grzeje bloki pustymi listami, a nie `undefined`", async () => {
+    // Wiersz bez powiązań (świeży wpis, obcięty select) jest realny, a
+    // `categorySlugs`/`tagSlugs` idą prosto do `.map(...)`. Gdyby zapasy `?? []`
+    // zniknęły, rozgrzewka rzuciłaby TypeError wewnątrz `Promise.allSettled`,
+    // a klucze warstwy powiązanej rozjechałyby się z tymi po hydracji.
+    await runLoader(
+      "analizy/atom",
+      resolvedPost({
+        item: postItem({
+          blocks_data: {
+            pl: { version: 1, blocks: [{ id: "b1", type: "related-posts", data: {} }] },
+          },
+        }),
+        categories: undefined,
+        tags: undefined,
+      }),
+    );
+
+    expect(h.blocksPrefetchCtx).toHaveLength(1);
+    const ctx = h.blocksPrefetchCtx[0];
+    expect(ctx.categorySlugs).toEqual([]);
+    expect(ctx.tagSlugs).toEqual([]);
+  });
+});
+
+describe("loader trasy `/$` - rozgrzewka sekcji nad zgięciem", () => {
+  it("dokument buildera z sekcjami grzeje sekcje nad zgięciem w języku renderu", async () => {
+    const { wynik } = await runLoader(
+      "o-nas",
+      stronaZDokumentem({ version: 1, sections: [{ id: "s0", children: [] }] }),
+    );
+
+    expect(jakoWynik(wynik).kind).toBe("page");
+    expect(h.aboveFoldLangs).toEqual(["pl"]);
+    // Rozgrzewka, która się udała, NIE zdejmuje cache'u wspólnego - inaczej
+    // przypadek degradacji niżej nie odróżniałby się od zwykłego renderu.
+    expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(false);
+  });
+
+  it("dokument BEZ sekcji nie kosztuje rozgrzewki nad zgięciem", async () => {
+    // Kontrola dla przypadku wyżej: strona richtext (`builder_data: null`) nie
+    // ma czego grzać, a wywołanie rozgrzewki byłoby tu czystym kosztem na
+    // ścieżce pierwszego bajtu.
+    const { wynik } = await runLoader("o-nas", stronaZDokumentem(null));
+
+    expect(jakoWynik(wynik).kind).toBe("page");
+    expect(h.aboveFoldLangs).toEqual([]);
+  });
+
+  it("REGRES: `degraded` z rozgrzewki nad zgięciem zdejmuje cache wspólny", async () => {
+    // Ta sama klasa co znalezisko P1 przy rozgrzewce bloków, tylko na drugim
+    // pomocniku: `prefetchAboveFoldQueries` ma WŁASNY budżet 2 500 ms i po nim
+    // wraca ROZSTRZYGNIĘTA SUKCESEM, zostawiając zapytania w locie. Decyzja
+    // o nagłówku musi czytać jej sygnał `degraded`, bo kształt obietnicy nic
+    // tu nie powie - a treść nad zgięciem to CAŁA widoczna część strony.
+    h.aboveFoldDegraded = true;
+    await runLoader(
+      "o-nas",
+      stronaZDokumentem({ version: 1, sections: [{ id: "s0", children: [] }] }),
+    );
+
+    expect(h.aboveFoldLangs).toEqual(["pl"]);
+    expect(h.cacheControl).not.toEqual([]);
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
   });
 });
 
