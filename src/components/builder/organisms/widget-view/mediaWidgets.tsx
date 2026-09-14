@@ -120,6 +120,10 @@ export function ImageWidget({
   const caps: number[] = [];
   if (widthPx > 0) caps.push(widthPx);
   if (maxWidthPx > 0) caps.push(maxWidthPx);
+  // Logo bez ŻADNEGO limitu rozmiaru nie ma rozlewać się na całą kolumnę
+  // (stopka: kolumna 6/12 to ponad 500 px). Domyślny limit jest zachowawczy i
+  // ustępuje każdej wartości ustawionej w panelu.
+  if (caps.length === 0 && isLogo && heightPx <= 0) caps.push(LOGO_FALLBACK_MAX_PX);
   const effectiveMaxPx = caps.length ? Math.min(...caps) : 0;
   const ratioCss = ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined;
   const wrapperStyle: WidgetMediaFrameStyle = {
