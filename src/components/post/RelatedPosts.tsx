@@ -186,13 +186,30 @@ interface ViewProps {
   sourcePostId: string;
 }
 
-function CardThumb({ p, cfg }: { p: BlogListItem; cfg: RelatedPostsConfig }) {
+/**
+ * Tytuł wpisu w języku widoku - także jako `alt` okładki. Okładka rekomendacji
+ * NIE jest dekoracją: skaner treści SEO (2026-09) zgłosił puste `alt`, a dla
+ * czytnika ekranu obrazek bez opisu w liście kart jest po prostu niemy.
+ */
+function postTitleFor(p: BlogListItem, lang: "pl" | "en"): string {
+  return lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
+}
+
+function CardThumb({
+  p,
+  cfg,
+  lang,
+}: {
+  p: BlogListItem;
+  cfg: RelatedPostsConfig;
+  lang: "pl" | "en";
+}) {
   if (!cfg.show_cover || !p.cover_image_url) return null;
   return (
     <div className="aspect-[16/10] overflow-hidden rounded-md bg-muted">
       <OptimizedImage
         src={p.cover_image_url}
-        alt=""
+        alt={postTitleFor(p, lang)}
         responsive
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
         className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
@@ -258,7 +275,7 @@ function RelatedGrid({
     <div className={`grid grid-cols-1 ${colClass} gap-5`}>
       {posts.map((p) => (
         <article key={p.id} className="space-y-3">
-          <CardThumb p={p} cfg={cfg} />
+          <CardThumb p={p} cfg={cfg} lang={lang} />
           <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
         </article>
       ))}
@@ -275,7 +292,7 @@ function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
             <div className="w-20 h-20 shrink-0 overflow-hidden rounded-md bg-muted">
               <OptimizedImage
                 src={p.cover_image_url}
-                alt=""
+                alt={postTitleFor(p, lang)}
                 responsive
                 responsiveWidths={[80, 160, 240]}
                 sizes="80px"
@@ -323,7 +340,7 @@ function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
             key={p.id}
             className="snap-start shrink-0 w-[85%] sm:w-[45%] lg:w-[31%] space-y-3"
           >
-            <CardThumb p={p} cfg={cfg} />
+            <CardThumb p={p} cfg={cfg} lang={lang} />
             <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
           </article>
         ))}
@@ -371,7 +388,7 @@ function RelatedCards({ posts, cfg, lang, sourcePostId }: ViewProps) {
               <div className="relative aspect-[16/10] overflow-hidden bg-muted">
                 <OptimizedImage
                   src={p.cover_image_url}
-                  alt=""
+                  alt={title}
                   responsive
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -445,7 +462,7 @@ function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
           <div className="relative aspect-[16/10] overflow-hidden bg-muted">
             <OptimizedImage
               src={hero.cover_image_url}
-              alt=""
+              alt={heroTitle}
               responsive
               sizes="(max-width: 1024px) 100vw, 60vw"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
