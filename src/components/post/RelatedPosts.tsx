@@ -275,7 +275,7 @@ function RelatedGrid({
     <div className={`grid grid-cols-1 ${colClass} gap-5`}>
       {posts.map((p) => (
         <article key={p.id} className="space-y-3">
-          <CardThumb p={p} cfg={cfg} />
+          <CardThumb p={p} cfg={cfg} lang={lang} />
           <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
         </article>
       ))}
@@ -340,7 +340,7 @@ function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
             key={p.id}
             className="snap-start shrink-0 w-[85%] sm:w-[45%] lg:w-[31%] space-y-3"
           >
-            <CardThumb p={p} cfg={cfg} />
+            <CardThumb p={p} cfg={cfg} lang={lang} />
             <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
           </article>
         ))}
