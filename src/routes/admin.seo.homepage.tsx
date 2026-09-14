@@ -31,6 +31,7 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
 import { SeoTextField } from "@/components/admin/seo/SeoTextField";
 import { SerpPreview } from "@/components/admin/seo/SerpPreview";
+import { BrandFindingList } from "@/components/admin/seo/BrandFindingList";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import { auditBrandSeo, type BrandFinding } from "@/lib/seo/brandAudit";
 // Jedna definicja tego, czym jest tryb strony głównej - ta sama funkcja, której
@@ -103,43 +104,6 @@ interface StaticHomepageRow {
 function hasSeoTitleOverride(row: StaticHomepageRow, lang: Lang): boolean {
   const override = lang === "en" ? row.seo_title_en : row.seo_title_pl;
   return (override ?? "").trim().length > 0;
-}
-
-/**
- * Lista problemów jednego języka. Lokalna, bo poza tym ekranem nie ma jej kto
- * renderować - kokpit pokazuje LICZNIKI z `countBySeverity`, nie te wiersze.
- */
-function FindingList({ findings }: { findings: readonly BrandFinding[] }) {
-  const { t } = useTranslation();
-  if (!findings.length) {
-    return <p className="text-xs text-muted-foreground">{t("adminSeoHub.auditClean")}</p>;
-  }
-  return (
-    <ul className="space-y-2">
-      {findings.map((finding) => (
-        <li
-          key={finding.id}
-          className="flex items-start gap-2 rounded-lg border border-border bg-card p-3"
-        >
-          <span
-            className={`shrink-0 text-[11px] font-medium ${
-              finding.severity === "error" ? "text-destructive" : "text-amber-500"
-            }`}
-          >
-            {finding.severity === "error"
-              ? t("adminSeoHub.severityError")
-              : t("adminSeoHub.severityWarning")}
-          </span>
-          {/* Klucz dynamiczny jest tu POPRAWNY: `id` z audytu to zarazem nazwa
-              klucza w nakładce (`adminSeoHub.finding.<id>`), a `params` to
-              wartości interpolacji komunikatu - nie tekst zapasowy. */}
-          <span className="text-sm">
-            {t(`adminSeoHub.finding.${finding.id}`, { ...(finding.params ?? {}) })}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 function SeoHomepageTab() {
@@ -383,7 +347,7 @@ function SeoHomepageTab() {
           {HOMEPAGE_LANGS.map(({ lang, headingKey }) => (
             <div key={lang} className="space-y-2">
               <h3 className="text-xs font-medium text-muted-foreground">{t(headingKey)}</h3>
-              <FindingList findings={findingsFor(lang)} />
+              <BrandFindingList findings={findingsFor(lang)} emptyKey="adminSeoHub.auditClean" />
             </div>
           ))}
         </div>

@@ -24,6 +24,11 @@ const pl = {
     tabSocial: "Karty społecznościowe",
     tabContent: "Treści",
     noResults: "Brak wyników dla tych filtrów.",
+    colDescPl: "Opis PL",
+    colDescEn: "Opis EN",
+    // Dyrektywa protokołu robots - brzmi tak samo po polsku i po angielsku,
+    // ale idzie przez słownik, bo literał w JSX-ie omija wszystkie bramki i18n.
+    noindexLabel: "noindex",
     tabSearchConsole: "Search Console",
 
     // --- Kokpit ---
@@ -157,6 +162,9 @@ const en: typeof pl = {
     tabSocial: "Social cards",
     tabContent: "Content",
     noResults: "No results for these filters.",
+    colDescPl: "PL description",
+    colDescEn: "EN description",
+    noindexLabel: "noindex",
     tabSearchConsole: "Search Console",
 
     dashboardIntro:

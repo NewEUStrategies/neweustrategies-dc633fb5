@@ -72,8 +72,7 @@ function SeoContentOverview() {
   // przyciąga graf serwerowy). Własny klucz w małej nakładce, którą i tak
   // ładuje układ zakładek, kosztuje jedną parę napisów.
   ensureI18n();
-  const { t, i18n } = useTranslation();
-  const isPL = !i18n.language.startsWith("en");
+  const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
@@ -257,7 +256,7 @@ function SeoContentOverview() {
               <th className="p-2 text-left w-24">{t("admin.seoOverview.colStatus")}</th>
               <th className="p-2 text-center w-20">{t("admin.seoOverview.colDesc")}</th>
               <th className="p-2 text-left w-32">{t("admin.seoOverview.colImage")}</th>
-              <th className="p-2 text-center w-16">noindex</th>
+              <th className="p-2 text-center w-16">{t("adminSeoHub.noindexLabel")}</th>
               <th className="p-2 text-left w-28">{t("admin.seoOverview.colScore")}</th>
             </tr>
           </thead>
@@ -294,11 +293,11 @@ function SeoContentOverview() {
                   />
                 </td>
                 <td className="p-2 text-center whitespace-nowrap">
-                  <span title={isPL ? "Opis PL" : "PL description"}>
+                  <span title={t("adminSeoHub.colDescPl")}>
                     <DescriptionMark source={status.description.pl} />
                   </span>
                   <span className="text-muted-foreground mx-1">/</span>
-                  <span title={isPL ? "Opis EN" : "EN description"}>
+                  <span title={t("adminSeoHub.colDescEn")}>
                     <DescriptionMark source={status.description.en} />
                   </span>
                 </td>
@@ -308,7 +307,7 @@ function SeoContentOverview() {
                 <td className="p-2 text-center">
                   {status.noindex ? (
                     <span className="text-[10px] font-medium text-destructive border border-destructive/40 rounded-full px-2 py-0.5">
-                      noindex
+                      {t("adminSeoHub.noindexLabel")}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">-</span>

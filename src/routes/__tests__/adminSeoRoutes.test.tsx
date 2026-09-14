@@ -524,7 +524,10 @@ describe("/admin/seo/content - przegląd treści", () => {
     h.pages = [contentRow({ id: "pg", slug: "strona" })];
     await mount();
     await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(2));
-    expect(screen.getAllByText("noindex").length).toBeGreaterThan(0);
+    // Dyrektywa `noindex` idzie przez słownik (klucz `adminSeoHub.noindexLabel`),
+    // a nie literałem w JSX-ie: literał omija wszystkie trzy bramki i18n.
+    // Atrapa tłumaczeń oddaje sam klucz, stąd taka asercja.
+    expect(screen.getAllByText("adminSeoHub.noindexLabel").length).toBeGreaterThan(0);
   });
 
   it("odnośnik wiersza prowadzi do edytora WŁAŚCIWEGO rodzaju treści", async () => {

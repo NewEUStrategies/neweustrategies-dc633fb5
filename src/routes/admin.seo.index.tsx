@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { useSettings } from "@/lib/admin/useSettings";
 import { SeoScorePill } from "@/components/admin/seo/SeoScorePill";
+import { BrandFindingList } from "@/components/admin/seo/BrandFindingList";
 import { ExternalLink } from "@/lib/lucide-shim";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import {
@@ -259,36 +260,7 @@ function SeoDashboard() {
           ]}
         />
 
-        {findings.length ? (
-          <ul className="space-y-2">
-            {findings.map((finding) => (
-              <li
-                key={finding.id}
-                className="flex items-start gap-2 rounded-lg border border-border bg-card p-3"
-              >
-                <span
-                  className={`shrink-0 text-[11px] font-medium ${
-                    finding.severity === "error" ? "text-destructive" : "text-amber-500"
-                  }`}
-                >
-                  {finding.severity === "error"
-                    ? t("adminSeoHub.severityError")
-                    : t("adminSeoHub.severityWarning")}
-                </span>
-                {/* Klucz dynamiczny jest tu POPRAWNY: `id` z audytu to zarazem
-                    nazwa klucza w nakładce, a `params` to wartości interpolacji
-                    komunikatu - nie tekst zapasowy. */}
-                <span className="text-sm">
-                  {t(`adminSeoHub.finding.${finding.id}`, { ...(finding.params ?? {}) })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="rounded-lg border border-border bg-card p-3 text-sm text-emerald-500">
-            {t("adminSeoHub.allGood")}
-          </p>
-        )}
+        <BrandFindingList findings={findings} emptyKey="adminSeoHub.allGood" />
 
         <div className="flex flex-wrap gap-4 text-xs">
           <Link to="/admin/seo/homepage" className="text-brand hover:underline">
