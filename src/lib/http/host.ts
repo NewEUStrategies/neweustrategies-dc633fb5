@@ -299,17 +299,18 @@ export function crawlHostIsIndexable(hostClass: CrawlHostClass): boolean {
 /**
  * Origin, na którym host tej klasy publikuje adresy crawlerom.
  *
- * Marka i jej aliasy ZAWSZE zbiegają się na originie kanonicznym (alias
- * obsłużył żądanie, ale adresy w mapie i w robots.txt muszą wskazywać domenę
- * docelową). Domena tenanta, podgląd i host nieznany publikują na własnym
- * originie - inaczej mapa jednego serwisu reklamowałaby adresy drugiego.
+ * TYLKO domena tenanta publikuje na własnym originie - jej serwis nie jest
+ * kanonizowany na markę. Marka, alias hostingu, podgląd edytora, localhost i
+ * host nieznany zbiegają się na originie kanonicznym: to jedyny adres, który
+ * cytujący (Search Console, asystent AI, człowiek kopiujący link) potrafi
+ * otworzyć. Reguła jest DELEGOWANA do `crawlerPublishOrigin`, żeby robots.txt i
+ * mapa strony nie mogły się rozjechać.
  */
 export function crawlHostOrigin(
   hostClass: CrawlHostClass,
   rawHost: string | null | undefined,
   proto = "https",
 ): string {
-  if (hostClass === "brand" || hostClass === "alias") return CANONICAL_SITE_ORIGIN;
-  const host = normalizeHost(rawHost);
-  return host ? `${proto}://${host}` : "";
+  if (hostClass === "tenant") return crawlerPublishOrigin(rawHost, proto);
+  return CANONICAL_SITE_ORIGIN;
 }
