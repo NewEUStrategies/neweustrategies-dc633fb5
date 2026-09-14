@@ -333,10 +333,10 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.homePage = homePageData();
   });
 
-  it("czytelnik widzi treść kanwy i DOKŁADNIE JEDEN nagłówek h1", async () => {
+  it("czytelnik widzi treść kanwy bez dodatkowego nagłówka h1", async () => {
     const view = await mountHome();
     expect(screen.getByTestId("kanwa")).toBeTruthy();
-    expect(view.container.querySelectorAll("h1")).toHaveLength(1);
+    expect(view.container.querySelectorAll("h1")).toHaveLength(0);
   });
 
   it("przypis `[fn]` z widgetu tekstowego dostaje sekcję końcową, a nie dosłowny shortcode", async () => {
