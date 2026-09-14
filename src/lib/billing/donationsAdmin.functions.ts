@@ -1,5 +1,10 @@
 // Cienki plik `createServerFn` - logika w `donationsAdmin.server.ts`.
 // Obie funkcje wymagają zalogowania (middleware) i roli `admin` (`assertAdmin`).
+//
+// NAJEMCA POCHODZI Z BRAMKI, nie z hosta żądania. Wcześniej warstwa danych
+// rozstrzygała go drugi raz (`resolveTenantIdForHost`), więc admin obszaru A
+// na domenie obszaru B przechodził kontrolę roli w A i czytał wpłaty B -
+// adresy darczyńców, kwoty i identyfikatory operatora.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -18,9 +23,9 @@ export const listDonationRecords = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => listSchema.parse(input))
   .handler(async ({ data, context }): Promise<AdminDonationRow[]> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { listAdminDonations } = await import("@/lib/billing/donationsAdmin.server");
-    return listAdminDonations(data.limit);
+    return listAdminDonations(data.limit, tenantId);
   });
 
 /** Synchronizacja rejestru darowizn ze Stripe (idempotentna). */
@@ -29,7 +34,7 @@ export const syncDonationsWithStripe = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => syncSchema.parse(input))
   .handler(async ({ data, context }): Promise<DonationsSyncReport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { syncDonationsFromStripe } = await import("@/lib/billing/donationsAdmin.server");
-    return syncDonationsFromStripe(data.environment, data.sinceHours);
+    return syncDonationsFromStripe(data.environment, data.sinceHours, tenantId);
   });

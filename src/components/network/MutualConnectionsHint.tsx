@@ -2,6 +2,13 @@
 // batchowany connection_statuses co ConnectButton (wspólny cache React Query),
 // więc nie dokłada zapytań. Kliknięcie prowadzi do listy wspólnych kontaktów
 // z powrotem do profilu tej osoby.
+//
+// LICZBA MUSI OPISYWAĆ TO, CO BĘDZIE PO KLIKNIĘCIU. Stąd `mutualVisibleCount`,
+// a nie `mutualCount`: docelowa trasa czyta `mutual_connections`, które odsiewa
+// po `tenant_id` i `discoverable`, więc do 20260913172000 podpowiedź mówiła
+// "7 wspólnych kontaktów" i otwierała stronę z czterema, nie tłumacząc różnicy.
+// Kiedy widoczny jest zero mostów, podpowiedzi NIE MA - link do pustej listy
+// jest gorszy niż jego brak.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { Users } from "lucide-react";
@@ -16,7 +23,7 @@ export function MutualConnectionsHint({ userId }: { userId: string }) {
   const modules = useCommunityModules();
   const enabled = modules.connections_enabled && !!user && user.id !== userId;
   const statusesQ = useConnectionStatuses(enabled ? [userId] : []);
-  const mutual = statusesQ.data?.get(userId)?.mutualCount ?? 0;
+  const mutual = statusesQ.data?.get(userId)?.mutualVisibleCount ?? 0;
   if (!enabled || mutual === 0) return null;
   const label = t("network.mutual", { count: mutual });
   return (

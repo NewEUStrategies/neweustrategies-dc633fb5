@@ -16,9 +16,40 @@
 // klientem serwisowym - ale dopiero PO potwierdzeniu roli admina/edytora przez
 // `requireAdminEditor`. Klient serwisowy jest importowany wewnątrz handlera:
 // moduł `*.functions.ts` trafia do grafu klienta, importy modułowe nie.
+//
+// ZAKRES DANYCH - GRANICA NAJEMCY STAWIANA JAWNIE. Rola jest liczona
+// w TENANCIE WYWOŁUJĄCEGO (`requireAdminEditor` sprawdza `user_roles` po
+// `profiles.tenant_id`), ale potwierdzenie roli w tenancie X nie jest zgodą na
+// dane tenanta Y - a odczyt niżej idzie kluczem serwisowym, który RLS OMIJA.
+// Filtr `.eq("tenant_id", …)` w zapytaniu JEST tu więc jedyną granicą.
+// Bez niego admin albo edytor jednego najemcy widział w tym panelu adresy
+// odbiorców, nazwy szablonów i komunikaty błędów dostawcy WSZYSTKICH najemców.
+//
+// Domknięcie wymagało trzech kroków; dwa pierwsze są poza tym plikiem i już
+// weszły: (1) `email_send_log.tenant_id` z backfillem i indeksem
+// `(tenant_id, created_at DESC)` - 20260913101000_email_log_tenant_scope.sql,
+// (2) wypełnianie kolumny przez producentów, a dla tych, którzy najemcy nie
+// znają, trigger `email_send_log_bind_tenant` rozstrzygający go z adresu
+// odbiorcy - 20260913140000_email_send_log_tenant_producers.sql. Krok (3) to
+// filtr w tym pliku. Kolejność była wiążąca: sam filtr przed migracjami
+// wyczyściłby operatorowi panel z całej historii.
+//
+// ŻADNEJ GAŁĘZI WYJĄTKU DLA `super_admin`. `super_admin` jest w tym schemacie
+// rolą PER NAJEMCA (`user_roles.tenant_id` NOT NULL od 20260531181120), a
+// `is_super_admin()` jest zawężone do `current_tenant_id()`. Wyjątek „super
+// admin widzi wszystkich" nie byłby więc udogodnieniem dla operatora
+// platformy, tylko odtworzeniem dokładnie tej dziury - dla każdego, kto ma
+// `super_admin` we własnym obszarze roboczym. Ten sam wybór i to samo
+// uzasadnienie co w `accountAdmin.functions.ts`, `impersonation.functions.ts`
+// i `callerTenant.server.ts`, oraz co w polityce `email_send_log_admin_select`.
+//
+// Wiersz z `tenant_id IS NULL` (adres nierozstrzygalny albo obecny w dwóch
+// organizacjach) nie spełnia `.eq(...)` i jest tu świadomie NIEWIDOCZNY - ta
+// sama decyzja „fail closed, nie pokaż wszystkim", co w obu migracjach wyżej.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdminEditor } from "@/integrations/supabase/require-staff";
+import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 
 /** Statusy, na które filtruje panel (reszta trafia do kubełka „inne"). */
 export const OUTBOX_STATUSES = [
@@ -127,13 +158,27 @@ function statsOf(rows: OutboxRow[]): OutboxStats {
 export const getEmailOutbox = createServerFn({ method: "GET" })
   .middleware([requireAdminEditor])
   .validator((data: unknown) => inputSchema.parse(data ?? {}))
-  .handler(async ({ data }): Promise<OutboxResult> => {
+  .handler(async ({ data, context }): Promise<OutboxResult> => {
+    // Najemca rozstrzygnięty PRZED dotknięciem dziennika: brak najemcy ma być
+    // odmową, a nie zapytaniem bez filtra. Zakres pochodzi WYŁĄCZNIE z profilu
+    // wołającego, nigdy z ładunku żądania, a `resolveUserTenantId` rzuca, gdy
+    // profil najemcy nie ma (fail closed).
+    //
+    // Ten sam helper co w `fetchSystemEmailReport` (`system-emails.functions.ts`)
+    // - to drugi panel czytający TEN SAM dziennik tym samym kluczem serwisowym,
+    // więc granica ma tu mieć jedną definicję, a nie dwie. Mocniejszy wariant
+    // `assertCallerTenantMatchesHost` (dokładający kontrolę spójności z hostem)
+    // istnieje i jest używany w ścieżkach płatności; gdyby dziennik poczty miał
+    // go dostać, powinny go dostać OBA panele naraz.
+    const tenantId = await resolveUserTenantId(context.supabase, context.userId);
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const window = resolveWindow(data);
 
     const { data: raw, error } = await supabaseAdmin
       .from("email_send_log")
       .select("id, message_id, template_name, recipient_email, status, error_message, created_at")
+      .eq("tenant_id", tenantId)
       .gte("created_at", window.from)
       .lte("created_at", window.to)
       .order("created_at", { ascending: false })

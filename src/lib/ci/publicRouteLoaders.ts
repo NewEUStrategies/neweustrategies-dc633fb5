@@ -1052,6 +1052,53 @@ const EXCLUSION_ORDER: readonly RouteExclusion[] = [
 ];
 
 /** Trasy, które NAPRAWDĘ potrzebują loadera i go nie mają (lista do roboty). */
+/**
+ * RATCHET: sufity listy „SSR bez treści". Wolno je WYŁĄCZNIE OBNIŻAĆ.
+ *
+ * PO CO TU, A NIE W SKRYPCIE. Do 2026-09-12 te dwie liczby żyły jako stałe
+ * lokalne `scripts/report-public-route-loaders.ts`, a `--gate` był opt-in
+ * i nie biegł NIGDZIE. Ten moduł mówił o sobie wprost, że jest narzędziem
+ * pomiarowym, nie bramką, a jego 34 testy sprawdzały ANALIZATOR NA ATRAPACH,
+ * nie liczbę w repozytorium - więc nowa trasa bez loadera nie zapalała niczego.
+ * Eksport stąd daje jedno źródło prawdy dla skryptu i dla ratchetu w suicie
+ * (`__tests__/publicRouteLoaders.test.ts`), czyli liczbę, która wreszcie
+ * biegnie w `bun run test`.
+ *
+ * KRONIKA POMIARU - i to jest najważniejsza treść tego komentarza, bo pokazuje
+ * dokładnie tę regresję, której brak zapadki nie wychwycił:
+ *
+ *   2026-09-01 (HEAD 1e3e1a4): 368 tras -> 82 publiczne strony SSR
+ *                              -> 21 o samych zimnych kluczach, 16 w cache.
+ *   2026-09-12 (ten HEAD):     378 tras -> 82 publiczne strony SSR
+ *                              -> 29 o samych zimnych kluczach (9 bez loadera
+ *                              w łańcuchu + 20 z loaderem, który tych kluczy
+ *                              nie grzeje), 26 w cache dokumentów.
+ *
+ * Przyrost +8 / +10 przyniosła gałąź minisite'ów klubowych
+ * (`/club/$clubSlug/**`, jedenaście tras) - dokładnie scenariusz, przed którym
+ * ratchet ma bronić i którego przy opt-inowym `--gate` nikt nie zobaczył.
+ *
+ * SPROSTOWANIE DO ZLECENIA WYDANIA 10. Punkt A8 podawał „11 bez loadera + 6
+ * z loaderem = 17, z czego 12 w cache" i kazał zamrozić właśnie te liczby.
+ * ŻADNA z nich nie odtwarza się na tym drzewie: ani jako dzisiejszy pomiar
+ * (29/26), ani jako stan zamrożony 2026-09-01 (21/16). Zamrażamy POMIAR,
+ * nie liczbę ze zlecenia - sufit ustawiony poniżej rzeczywistości byłby
+ * czerwony na wejściu, a bramka czerwona na wejściu nie pilnuje niczego.
+ * Regres wobec 21/16 jest zarejestrowany osobno, jako `it.fails`.
+ */
+export const FROZEN_COLD_PUBLIC_ROUTES = 29;
+
+/** Ta część listy, której pusty dokument NAPRAWDĘ wchodzi do NES Edge Cache. */
+export const FROZEN_COLD_CACHED_ROUTES = 26;
+
+/**
+ * Stan zamrożony z 2026-09-01 - zachowany JAKO ZAPIS, nie jako próg. Służy
+ * wyłącznie temu, żeby przyrost od tamtej daty miał w suicie własny, nazwany
+ * wpis (`it.fails`), zamiast rozpłynąć się w podniesionym suficie.
+ */
+export const COLD_PUBLIC_ROUTES_2026_09_01 = 21;
+export const COLD_CACHED_ROUTES_2026_09_01 = 16;
+
 export function routesMissingWarmedLoader(report: PublicRouteLoaderReport): readonly RouteFacts[] {
   return report.routes.filter(
     (route) => route.verdict === "brak-loadera" || route.verdict === "loader-trywialny",
@@ -1069,6 +1116,226 @@ export function routesMissingWarmedLoader(report: PublicRouteLoaderReport): read
  */
 export function routesGuestViewOnly(report: PublicRouteLoaderReport): readonly RouteFacts[] {
   return report.routes.filter((route) => route.verdict === "tylko-widok-goscia");
+}
+
+// ---------------------------------------------------------------------------
+// RATCHET PER TRASA
+// ---------------------------------------------------------------------------
+//
+// PO CO, SKORO SUFITY WYŻEJ JUŻ STOJĄ. Licznik globalny zamraża OBJĘTOŚĆ długu,
+// nie jego TOŻSAMOŚĆ, a objętość da się skompensować. Trzy scenariusze, które
+// przy samych licznikach przechodzą na zielono:
+//
+//   a. Jeden PR dokłada rozgrzewający loader do JEDNEJ trasy z listy (29 -> 28)
+//      i w tym samym PR-ze dokłada czytający hook do komponentu innej trasy,
+//      która loadera nie ma (28 -> 29). Zielono. Ta druga trasa jest zimna NA
+//      ZAWSZE i CI nigdy jej nie nazwało. Gdy pół roku później ktoś cofnie tamten
+//      loader, licznik idzie 29 -> 30 i bramka wskaże niewłaściwy commit.
+//   b. Liczba „w cache dokumentów" jest POCHODNA, nie mierzona: to zimne trasy
+//      minus te pod `PUBLIC_DOCUMENT_DENY_PREFIXES`. Przesunięcie jednej
+//      istniejącej zimnej trasy pod deny-prefiks zbija 26 -> 25 i „opłaca"
+//      nową zimną trasę, która do cache WCHODZI. Droższa połowa listy rośnie,
+//      a liczba maleje.
+//   c. To nie jest hipoteza - to awaria, która już zaszła. Kronika wyżej
+//      zapisuje 21 -> 29 z gałęzi minisite'ów klubowych. Licznik umie wypisać
+//      tylko „29 > 21"; lista per trasa wypisałaby osiem ścieżek i wskazała
+//      gałąź.
+//
+// Lista daje też regułę „nieobecny znaczy zero": trasa spoza listy MUSI być
+// rozgrzana, więc nowy kod nie startuje w długu. Ten sam inwariant i to samo
+// uzasadnienie co w `hardcodedLanguage.ts`.
+
+/** Trasa publiczna z SSR czytająca wyłącznie zimne klucze. */
+export interface ColdRouteEntry {
+  readonly file: string;
+  readonly fullPath: string;
+}
+
+/**
+ * Trasa z listy, która zmieniła plik albo adres - podpowiedź, nie porażka.
+ *
+ * Rozróżnienie jest jawne, bo przy jednym polu `file` nie dałoby się zapisać
+ * przypadku „ten sam adres, inny plik" (nie ma gdzie włożyć starej nazwy).
+ */
+export type MovedColdRoute =
+  | { readonly kind: "adres"; readonly file: string; readonly was: string; readonly now: string }
+  | {
+      readonly kind: "plik";
+      readonly fullPath: string;
+      readonly was: string;
+      readonly now: string;
+    };
+
+export interface ColdRouteRatchet {
+  /** Zimna DZIŚ, nieobecna na liście - nowy dług, bramka pada. */
+  readonly fresh: readonly ColdRouteEntry[];
+  /** Ta sama trasa pod innym plikiem albo innym adresem. */
+  readonly moved: readonly MovedColdRoute[];
+  /** Na liście, już NIE zimna - listę można skrócić i obniżyć sufit. */
+  readonly fixed: readonly ColdRouteEntry[];
+  /** Ile tras jest zimnych dzisiaj. */
+  readonly total: number;
+}
+
+/**
+ * Porównanie dzisiejszego stanu z zamrożoną listą.
+ *
+ * DWA KLUCZE DOPASOWANIA, I TO JEST ISTOTA. Trasa ma tożsamość podwójną: plik
+ * i adres. Dopasowanie po samym pliku dawałoby fałszywą czerwień przy zmianie
+ * adresu, po samym adresie - przy zmianie nazwy pliku. Przy jednym kluczu
+ * zwykłe przeniesienie pliku produkowałoby JEDNOCZEŚNIE wpis `fresh`
+ * i `fixed` dla tej samej trasy, czyli bramka obwiniałaby refaktor za dług,
+ * którego nie przybyło.
+ */
+export function compareColdRouteRatchet(
+  report: PublicRouteLoaderReport,
+  baseline: readonly (readonly [string, string])[],
+): ColdRouteRatchet {
+  const cold = routesMissingWarmedLoader(report);
+  const byFile = new Map<string, string>(baseline.map(([file, path]) => [file, path]));
+
+  // WIELOMAPA, NIE MAPA. Adres NIE jest unikalny: na tym drzewie szesnaście
+  // adresów niesie po dwa pliki tras (`/club` to `club.tsx` i `club.index.tsx`,
+  // podobnie `/events`, `/events/$slug`, `/profile` i jedenaście par `/admin*`).
+  // Przy „pierwszy wygrywa" ocalały wpis bywa tym, który `byFile` już zużył -
+  // i wtedy dopasowanie po adresie nie trafia, a ta sama trasa daje
+  // JEDNOCZEŚNIE `fresh` i `fixed`, czyli dokładnie tę fałszywą czerwień,
+  // przed którą dwa klucze miały bronić.
+  const byPath = new Map<string, string[]>();
+  for (const [file, path] of baseline) {
+    const lista = byPath.get(path);
+    if (lista) lista.push(file);
+    else byPath.set(path, [file]);
+  }
+
+  const consumed = new Set<string>();
+  const fresh: ColdRouteEntry[] = [];
+  const moved: MovedColdRoute[] = [];
+
+  for (const route of cold) {
+    const storedPath = byFile.get(route.file);
+    if (storedPath !== undefined && !consumed.has(route.file)) {
+      consumed.add(route.file);
+      if (storedPath !== route.fullPath) {
+        moved.push({ kind: "adres", file: route.file, was: storedPath, now: route.fullPath });
+      }
+      continue;
+    }
+    // Ten sam adres pod inną nazwą pliku - bierzemy pierwszy NIEZUŻYTY wpis.
+    const storedFile = byPath.get(route.fullPath)?.find((file) => !consumed.has(file));
+    if (storedFile !== undefined) {
+      consumed.add(storedFile);
+      moved.push({ kind: "plik", fullPath: route.fullPath, was: storedFile, now: route.file });
+      continue;
+    }
+    fresh.push({ file: route.file, fullPath: route.fullPath });
+  }
+
+  const fixed = baseline
+    .filter(([file]) => !consumed.has(file))
+    .map(([file, fullPath]) => ({ file, fullPath }));
+
+  return { fresh, moved, fixed, total: cold.length };
+}
+
+/**
+ * Czy bramka ma paść: nowy dług (`fresh`) ALBO nieodebrana naprawa (`fixed`).
+ *
+ * DLACZEGO NAPRAWA TEŻ OBLEWA - to nie jest karanie za poprawę, tylko warunek,
+ * bez którego zapadka nie zapada. Lista jest MEMBERSHIPOWA, nie licznikowa:
+ * dopóki naprawiona trasa stoi na liście, ma tam wolny slot. Sekwencja, która
+ * przez to przechodziła:
+ *
+ *   1. PR A rozgrzewa `/x`. `fixed = ["/x"]`, ale bramka zielona, więc nikt nie
+ *      zdejmuje wpisu ani nie obniża sufitu: lista dalej ma 29 pozycji,
+ *      `FROZEN_COLD_PUBLIC_ROUTES` dalej 29, a zimnych tras jest 28.
+ *   2. PR B psuje `/x` z powrotem. Trasa DOPASOWUJE SIĘ do nieaktualnego wpisu,
+ *      więc nie jest `fresh`; licznik wraca do 29, czyli mieści się w suficie.
+ *   3. Obie bramki zielone, a regresja przeszła niezauważona.
+ *
+ * Poprawa musi więc zostać ODEBRANA w tym samym PR-ze, w którym powstała:
+ * wpis znika z listy, a oba sufity schodzą o tyle, ile trzeba. Dopiero wtedy
+ * krok 2 jest `fresh` i pada. Ten sam warunek stoi już w suicie
+ * (`__tests__/publicRouteLoaders.test.ts`, „lista jest AKTUALNA"); bez niego
+ * `bun run test` i `--gate` mówiłyby co innego, a to jest dokładnie ten rozjazd,
+ * dla którego sufity zostały wyniesione do tego modułu.
+ *
+ * `moved` NIE oblewa - przeniesienie pliku albo adresu nie jest długiem.
+ *
+ * ZNANA DZIURA, ZAPISANA ŚWIADOMIE. Dopasowanie po adresie nie odróżnia
+ * PRZENIESIENIA od „starą trasę skasowano, a pod tym samym adresem powstała
+ * nowa, też zimna". Drugi przypadek wpada do `moved`, więc przechodzi. Cena
+ * jest znana i policzona: wariant ostrożniejszy (każda zmiana pliku = `fresh`)
+ * zapalałby czerwień przy KAŻDYM przeniesieniu pliku trasy, czyli przy
+ * czynności czysto porządkowej - a bramka, która krzyczy na refaktory, zostaje
+ * wyciszona i przestaje pilnować czegokolwiek. `moved` jest wypisywane
+ * w komunikacie, więc przypadek nie jest cichy: recenzent go widzi.
+ */
+export function coldRouteRatchetFailed(ratchet: ColdRouteRatchet): boolean {
+  return ratchet.fresh.length > 0 || ratchet.fixed.length > 0;
+}
+
+/**
+ * Komunikat dla człowieka. `entersEdgeCache` jest parametrem, a nie importem,
+ * żeby ten czysty moduł nie ciągnął `lib/http/documentCache` - wołający podaje
+ * to samo domknięcie, którego używa już runner i suita.
+ */
+export function renderColdRouteRatchet(
+  ratchet: ColdRouteRatchet,
+  entersEdgeCache: (fullPath: string) => boolean,
+): string {
+  const lines: string[] = [];
+  const opis = (entry: ColdRouteEntry): string => {
+    const gdzie = entersEdgeCache(entry.fullPath)
+      ? "wchodzi do NES Edge Cache"
+      : "poza cache dokumentów";
+    return `  - ${entry.fullPath.padEnd(40)} ${entry.file.padEnd(52)} [${gdzie}]`;
+  };
+
+  if (ratchet.fresh.length > 0) {
+    lines.push(
+      `[route-loaders] ${ratchet.fresh.length} NOWE trasy publiczne z SSR bez rozgrzanej treści:`,
+    );
+    for (const entry of ratchet.fresh) lines.push(opis(entry));
+    lines.push(
+      "  Nowa trasa publiczna czytająca dane MUSI mieć loader rozgrzewający jej klucze",
+      "  (wzorzec: src/routes/glossary.tsx - loadResilient + setCacheControlHeader).",
+      "  Trasa PRZENIESIONA, a nie dodana? Odśwież listę:",
+      "    bun run scripts/report-public-route-loaders.ts --print-baseline",
+      "  i wklej wynik do scripts/lib/coldPublicRouteBaseline.ts.",
+    );
+  } else {
+    lines.push(
+      `[route-loaders] OK - ${ratchet.total} znanych tras na liście (ratchet trzyma kierunek).`,
+    );
+  }
+
+  if (ratchet.moved.length > 0) {
+    lines.push(`[route-loaders] ${ratchet.moved.length} tras PRZENIESIONYCH - odśwież listę:`);
+    for (const m of ratchet.moved) {
+      lines.push(
+        m.kind === "adres"
+          ? `  - ${m.file}: adres ${m.was} -> ${m.now}`
+          : `  - ${m.fullPath}: plik ${m.was} -> ${m.now}`,
+      );
+    }
+  }
+
+  if (ratchet.fixed.length > 0) {
+    lines.push(
+      `[route-loaders] ${ratchet.fixed.length} tras NAPRAWIONYCH - ODBIERZ poprawę w TYM PR-ze:`,
+    );
+    for (const entry of ratchet.fixed) lines.push(opis(entry));
+    lines.push(
+      "  Zdejmij te wpisy z `scripts/lib/coldPublicRouteBaseline.ts` i obniż",
+      "  FROZEN_COLD_PUBLIC_ROUTES / FROZEN_COLD_CACHED_ROUTES o tyle, ile ubyło:",
+      "    bun run scripts/report-public-route-loaders.ts --print-baseline",
+      "  Nieodebrana poprawa zostawia na liście WOLNY SLOT, w który ta sama trasa",
+      "  może wrócić bez zapalenia bramki - i wtedy zapadka nie zapada.",
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function pad(value: number, width: number): string {

@@ -3,9 +3,10 @@
 // Powrót do profilu tej osoby jest zapewniony w nagłówku.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BadgeCheck, MapPin, Users, UsersRound } from "lucide-react";
 import { AuthGate } from "@/components/profile/AuthGate";
+import { Button } from "@/components/ui/button";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
@@ -14,18 +15,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
+import type { Database } from "@/integrations/supabase/types";
 
-type MutualRow = {
-  user_id: string;
-  display_name: string;
-  avatar_url: string | null;
-  job_title: string | null;
-  current_company: string | null;
-  location: string | null;
-  slug: string | null;
-  verified: boolean;
-  total_count: number;
-};
+// Kształt wiersza bierzemy z WYGENEROWANEGO typu RPC zamiast z lokalnej kopii.
+// Kopia różniła się od niego nullowalnością pól, więc odczyt wymagał
+// `as unknown as MutualRow[]` - a to rzutowanie znaczyło dokładnie tyle, że
+// rozjazd kolumny w migracji nie miał jak wyjść na typach. Alias jest teraz
+// kontraktem, nie jego opisem.
+type MutualRow = Database["public"]["Functions"]["mutual_connections"]["Returns"][number];
+
+const PAGE_SIZE = 48;
 
 type TargetProfile = {
   id: string;
@@ -71,18 +70,30 @@ function MutualConnectionsPage() {
     },
   });
 
-  const mutualQ = useQuery({
-    queryKey: ["mutual-connections", user?.id, userId],
+  // STRONICOWANE. Wcześniej `p_limit: 100, p_offset: 0` było wpisane na sztywno,
+  // a nagłówek i tak pokazywał `total_count` z wiersza: przy 150 wspólnych
+  // kontaktach strona pisała "150" i wyświetlała 100, bez śladu obcięcia. RPC
+  // obsługuje `p_offset` i klamruje limit do 100 (20260724110537:67-68), więc
+  // brakowało wyłącznie strony klienta. Ta sama klasa błędu, co w skrzynce
+  // zaproszeń na /network - jeden defekt w dwóch instancjach.
+  const mutualQ = useInfiniteQuery({
+    queryKey: ["mutual-connections", user?.id, userId, PAGE_SIZE],
     enabled: !!user && !!userId,
     staleTime: 30_000,
-    queryFn: async (): Promise<MutualRow[]> => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<MutualRow[]> => {
       const { data, error } = await supabase.rpc("mutual_connections", {
         p_user_id: userId,
-        p_limit: 100,
-        p_offset: 0,
+        p_limit: PAGE_SIZE,
+        p_offset: pageParam,
       });
       if (error) throw error;
-      return (data ?? []) as unknown as MutualRow[];
+      return data ?? [];
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      const total = lastPage[0]?.total_count ?? 0;
+      const loaded = allPages.reduce((sum, page) => sum + page.length, 0);
+      return lastPage.length === PAGE_SIZE && loaded < total ? loaded : undefined;
     },
   });
 
@@ -91,7 +102,7 @@ function MutualConnectionsPage() {
     target?.display_name?.trim() ||
     [target?.first_name, target?.last_name].filter(Boolean).join(" ").trim() ||
     "";
-  const rows = mutualQ.data ?? [];
+  const rows = (mutualQ.data?.pages ?? []).flat();
   const total = rows[0]?.total_count ?? 0;
 
   return (
@@ -228,6 +239,7 @@ function MutualConnectionsPage() {
                         status: "connected",
                         connectionId: null,
                         mutualCount: 0,
+                        mutualVisibleCount: 0,
                         canInvite: false,
                         degree: 1,
                         bridge: null,
@@ -237,6 +249,21 @@ function MutualConnectionsPage() {
                 </li>
               ))}
             </ul>
+            {mutualQ.hasNextPage && (
+              <div className="mt-4 flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={mutualQ.isFetchingNextPage}
+                  onClick={() => void mutualQ.fetchNextPage()}
+                >
+                  {mutualQ.isFetchingNextPage
+                    ? t("network.loadingMore")
+                    : t("network.loadMoreOf", { loaded: rows.length, total })}
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>

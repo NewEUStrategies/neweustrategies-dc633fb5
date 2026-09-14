@@ -78,13 +78,46 @@ async function admin() {
   return supabaseAdmin;
 }
 
-/** Twardy warunek dostępu - wszystkie funkcje diagnostyczne go wołają. */
+/**
+ * Twardy warunek dostępu - wszystkie funkcje diagnostyczne go wołają - ORAZ
+ * jedyne źródło najemcy dla ich zapytań.
+ *
+ * PO CO BRAMKA ODDAJE NAJEMCĘ. Gdy zwracała `void`, handler musiał pamiętać
+ * o zakresie z własnej głowy, a warstwa danych rozstrzygała go DRUGI RAZ
+ * z hosta żądania (`resolveTenantIdForHost`). To były dwie różne granice: rola
+ * autoryzowana w obszarze wołającego, dane czytane z obszaru spod domeny.
+ * Teraz najemca jest CZĘŚCIĄ WYNIKU bramki - zapytanie spod `service_role`
+ * nie ma jak zapomnieć o `.eq("tenant_id", ...)`, bo wartość leży tuż obok.
+ *
+ * Najemca pochodzi z PROFILU wołającego, czyli dokładnie z tej płaszczyzny, po
+ * której autoryzuje `has_role()` (`current_tenant_id()` czyta to samo pole).
+ * Host żądania jest wyłącznie kontrolą spójności - patrz
+ * `src/lib/server/callerTenant.server.ts`.
+ *
+ * Kolejność jest wiążąca: rola PRZED rozwiązaniem najemcy. Inaczej zwykły
+ * zalogowany dotykałby bazy, zanim dostanie odmowę.
+ */
 export async function assertAdmin(
   supabase: SupabaseClient<Database>,
   userId: string,
-): Promise<void> {
+): Promise<{ tenantId: string }> {
   const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   if (data !== true) throw new Error("forbidden");
+  const { assertCallerTenantMatchesHost } = await import("@/lib/server/callerTenant.server");
+  return { tenantId: await assertCallerTenantMatchesHost(supabase, userId) };
+}
+
+/**
+ * Alias zgodnościowy dla wołających, którzy jawnie proszą o najemcę.
+ * Po ujednoliceniu `assertAdmin` sam go oddaje, więc obie nazwy znaczą JEDNO
+ * i to samo - osobna implementacja byłaby drugim źródłem prawdy, czyli
+ * dokładnie tym, co ta zmiana likwiduje.
+ */
+export async function assertAdminWithTenant(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<{ tenantId: string }> {
+  return assertAdmin(supabase, userId);
 }
 
 async function readDestinations(env: StripeEnv) {
@@ -180,12 +213,20 @@ async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
   return rows;
 }
 
-async function readWebhookHealth(env: StripeEnv): Promise<WebhookHealth> {
+/**
+ * Kondycja dziennika webhookow - ZAWSZE w zakresie jednego najemcy.
+ *
+ * Klient jest serwisowy, wiec omija RLS: bez jawnego `.eq("tenant_id", ...)`
+ * kontrolki `webhook_failures` i `webhook_traffic` liczyly ruch wszystkich
+ * obszarow roboczych, a `lastEventAt` oddawal znacznik cudzego zdarzenia.
+ */
+async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<WebhookHealth> {
   const supabase = await admin();
   const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
   const { data } = await supabase
     .from("payment_webhook_events")
     .select("status, created_at, duration_ms")
+    .eq("tenant_id", tenantId)
     .eq("environment", env)
     .gte("created_at", since)
     .order("created_at", { ascending: false })
@@ -209,8 +250,17 @@ async function readWebhookHealth(env: StripeEnv): Promise<WebhookHealth> {
   };
 }
 
-/** Pełny raport diagnostyczny dla wskazanego środowiska. */
-export async function buildPaymentsDiagnostics(env: StripeEnv): Promise<PaymentsDiagnostics> {
+/**
+ * Pełny raport diagnostyczny dla wskazanego środowiska I NAJEMCY.
+ *
+ * `tenantId` jest parametrem WYMAGANYM, bo jedyny bezpieczny sposób jego
+ * podania to wynik bramki `assertAdminWithTenant` w warstwie server fn -
+ * parametr opcjonalny zamieniłby pominięcie zakresu w cichy wyciek.
+ */
+export async function buildPaymentsDiagnostics(
+  env: StripeEnv,
+  tenantId: string,
+): Promise<PaymentsDiagnostics> {
   const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
   const configured = paymentsConfiguredServer();
 
@@ -218,7 +268,7 @@ export async function buildPaymentsDiagnostics(env: StripeEnv): Promise<Payments
     configured ? readDestinations(env) : Promise.resolve([]),
     configured ? readCatalog(env) : Promise.resolve([]),
     readCoupons(env),
-    readWebhookHealth(env),
+    readWebhookHealth(env, tenantId),
   ]);
 
   const missingPrices = catalog.filter((c) => !c.providerPriceId);

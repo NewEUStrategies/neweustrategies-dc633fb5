@@ -263,7 +263,7 @@ export function clampPushPayload(payload: PushPayload): PushPayload {
  * usługi push - href zdradzałby, co odbiorca czyta.
  */
 export function pushTopic(...parts: readonly string[]): string {
-  const digest = createHash("sha256").update(parts.join(" "), "utf8").digest();
+  const digest = createHash("sha256").update(parts.join("\0"), "utf8").digest();
   return b64urlEncode(digest).slice(0, MAX_TOPIC_CHARS);
 }
 

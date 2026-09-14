@@ -2,7 +2,13 @@
 //
 // Bezpieczeństwo: zalogowanie (middleware) plus serwerowa weryfikacja roli
 // `admin`. Klient podaje wyłącznie zakres (środowisko, okno czasowe, opcjonalne
-// wydarzenie) - nigdy identyfikatorów operatora ani ładunków.
+// wydarzenie) - nigdy identyfikatorów operatora, ładunków ANI NAJEMCY.
+//
+// Najemca jest WYNIKIEM bramki (`assertAdmin` -> profil wołającego,
+// skonfrontowany z hostem żądania) i jedzie do raportu argumentem. Wcześniej
+// rozstrzygał go sam `audit.server` z hosta - czyli druga granica obok tej,
+// po której autoryzowała się rola. Eksport CSV/XLSX z definicji opuszcza
+// system, więc pomyłka w zakresie jest tu nieodwracalna.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -24,12 +30,13 @@ export const getBillingAudit = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => querySchema.parse(input))
   .handler(async ({ data, context }): Promise<AuditReport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { buildAuditReport } = await import("@/lib/billing/audit.server");
     return buildAuditReport({
       environment: data.environment,
       sinceHours: data.sinceHours,
       eventId: data.eventId ?? null,
+      tenantId,
     });
   });
 
@@ -39,12 +46,13 @@ export const exportBillingAudit = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => exportSchema.parse(input))
   .handler(async ({ data, context }): Promise<AuditExport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { buildAuditReport, buildAuditExport } = await import("@/lib/billing/audit.server");
     const report = await buildAuditReport({
       environment: data.environment,
       sinceHours: data.sinceHours,
       eventId: data.eventId ?? null,
+      tenantId,
     });
     return buildAuditExport(report, data.format);
   });

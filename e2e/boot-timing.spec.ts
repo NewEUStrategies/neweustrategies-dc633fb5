@@ -56,6 +56,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { staticBootAssets, type BootAssetChunk } from "../scripts/lib/staticBootAssets";
+import { modulepreloadTargets } from "../scripts/lib/bootAbReport";
 
 // ── PROGI ───────────────────────────────────────────────────────────────────
 //
@@ -955,4 +956,78 @@ test("cache dokumentów oddaje drugie żądanie z HIT-a, a TTFB jest podany rozd
     second.ttfbMs,
     `TTFB na HIT ${second.ttfbMs.toFixed(1)} ms > ${MAX_TTFB_HIT_MS} ms - odtworzenie z cache'u nie może kosztować jak render`,
   ).toBeLessThan(MAX_TTFB_HIT_MS);
+});
+
+// ── HINT SŁOWNIKA: JEDEN `modulepreload` SŁOWNIKA, WSKAZUJĄCY W COŚ ────────
+//
+// PO CO TEN PRZYPADEK (punkt A7 zlecenia wydania 10). Preload rdzenia słownika
+// jest ZROBIONY, ale do 2026-09-12 BEZ ZAPADKI - a raz już umarł: commit
+// `6700e74cb`, „hint słownika był MARTWY w artefakcie". Jedynym śladem takiej
+// śmierci jest `this.warn` w `scripts/lib/localeChunkPlugin.ts`, które NIE
+// WYWRACA BUILDA, więc rdzeń wpadający do wspólnego chunku albo cicha zmiana
+// kształtu `LOCALE_CHUNK_URLS` przechodzą na zielono. Dwa istniejące testy
+// (`rootHead.test.ts`, `localeChunkPlugin.test.ts`) są NA ATRAPACH i z definicji
+// nie mogą tego zobaczyć: poza buildem `LOCALE_CHUNK_URLS` niesie `null`.
+//
+// SPROSTOWANIE DO ZLECENIA, ZMIERZONE NA ARTEFAKCIE 2026-09-12. Zlecenie kazało
+// asertować „dokładnie jeden `rel="modulepreload"`" w całym nagłówku `Link`.
+// Na tym artefakcie takich wpisów jest CZTERNAŚCIE i to jest POPRAWNE:
+// jeden nasz (`</assets/pl-bt25BNdv.js>; rel="modulepreload"`) plus trzynaście
+// wystawionych przez framework z manifestu klienta
+// (`rel=modulepreload; as=script`: `index`, `vendor-react`, `vendor-tanstack`,
+// `vendor-lucide`, `vendor-zod`, `vendor-i18n`, `vendor-radix-select`,
+// `vendor-radix`, `vendor-tw-merge`, `vendor-supabase`, `cookies`, `Stat`,
+// `users-query`) - czyli dokładnie to, co miał dać `responseLinkHeader`
+// przekazany jako drugi argument `handler.fetch` (`src/server.ts:39-40`).
+// Asercja „dokładnie jeden w całym nagłówku" byłaby więc CZERWONA na
+// poprawnym artefakcie, a bramka czerwona na poprawnym wejściu uczy tylko
+// obchodzenia. Mierzymy jeden hint SŁOWNIKA i osobno obecność grafu klienta.
+//
+// Parser jest ISTNIEJĄCY - `modulepreloadTargets` ze `scripts/lib/bootAbReport.ts`,
+// ten sam, którym liczy pomiar A/B - żeby nie powstała druga, rozjeżdżająca
+// się implementacja czytania tego nagłówka (radzi sobie z obiema pisowniami:
+// `rel="modulepreload"` i `rel=modulepreload`).
+//
+// KONTROLA NEGATYWNA: podmiana `LOCALE_CHUNK_URLS` na `{ pl: null, en: null }`
+// (czyli dokładnie stan sprzed wtyczki) zeruje `dictionary` i oblewa pierwszą
+// asercję, nie ruszając pozostałych.
+const LOCALE_CHUNK_RE = /^\/assets\/(?:pl|en)-[A-Za-z0-9_-]{8}\.js$/;
+
+test("nagłówek Link niesie hint modulepreload chunku słownika", async ({ page }) => {
+  const response = await page.goto("/cookies", { waitUntil: "commit" });
+  expect(response, "nawigacja nie zwróciła odpowiedzi").not.toBeNull();
+  const linkHeader = response === null ? null : (response.headers()["link"] ?? null);
+  const targets = modulepreloadTargets(linkHeader);
+  const dictionary = targets.filter((target) => LOCALE_CHUNK_RE.test(target));
+
+  console.log(
+    `[boot-timing] modulepreload n=${targets.length} slownik=${JSON.stringify(dictionary)}`,
+  );
+
+  // 1. DOKŁADNIE JEDEN hint słownika, nie „co najmniej jeden". Zero znaczy
+  //    martwy hint (regres z `6700e74cb`); dwa znaczą, że dokument ciągnie
+  //    słownik drugiego języka, czyli płaci za tłumaczenia, których nie pokaże.
+  expect(
+    dictionary,
+    `oczekiwano jednego modulepreload słownika; cele = ${JSON.stringify(targets)}`,
+  ).toHaveLength(1);
+
+  // 2. TRASA `/cookies` JEST POLSKA (EN stoi pod `/en/cookies`), więc hint musi
+  //    wskazywać `pl-*`. Bez tej asercji test przeszedłby na hincie do słownika
+  //    NIEWŁAŚCIWEGO języka - jedna z dwóch rzeczy, które ta wtyczka może
+  //    zepsuć po cichu (druga to wskazanie w chunk wspólny, które wyklucza
+  //    kształt nazwy sprawdzany wyżej).
+  expect(dictionary[0].startsWith("/assets/pl-")).toBe(true);
+
+  // 3. GRAF KLIENTA Z MANIFESTU nadal jest wystawiany. To DRUGA połowa tej
+  //    samej reguły i osobna rzecz, którą da się zepsuć jednym argumentem:
+  //    `src/server.ts:197` woła `handler.fetch(request, env, ctx)`, a bez
+  //    czwartego pola (`responseLinkHeader`) te wpisy znikają bez śladu.
+  //    ZMIERZONE 2026-09-12: 13 wpisów. Próg jest DOLNY i luźny, bo liczba
+  //    zależy od podziału chunków; zero znaczy, że mechanizm umarł.
+  const clientGraph = targets.filter((target) => !LOCALE_CHUNK_RE.test(target));
+  expect(
+    clientGraph.length,
+    `graf klienta z manifestu zniknął z nagłówka Link (cele = ${JSON.stringify(targets)})`,
+  ).toBeGreaterThan(0);
 });

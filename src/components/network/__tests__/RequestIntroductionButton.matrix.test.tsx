@@ -4,7 +4,7 @@
 // i akcja klikniecia (otwarcie dialogu wprowadzenia).
 // Uwaga: ten przycisk nie ma wlasnej bramki po warstwie czlonkostwa (tier) -
 // widocznosc zalezy od modulu "connections_enabled", auth i stanu polaczenia
-// (status/mutualCount) zwracanego przez useConnectionStatuses.
+// (status/mutualVisibleCount) zwracanego przez useConnectionStatuses.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -86,7 +86,7 @@ describe("RequestIntroductionButton - macierz", () => {
   it("modul polaczen wylaczony w tenancie: nic sie nie renderuje", () => {
     h.modules = { connections_enabled: false };
     h.statuses = {
-      data: new Map([["target-1", state({ mutualCount: 3 })]]),
+      data: new Map([["target-1", state({ mutualVisibleCount: 3 })]]),
       isPending: false,
     };
     const { container } = renderButton();
@@ -102,9 +102,9 @@ describe("RequestIntroductionButton - macierz", () => {
     expect(button).toHaveTextContent("network.introductions.requestCta");
   });
 
-  it("brak wspolnego kontaktu (mutualCount=0): przycisk niewidoczny", () => {
+  it("brak wspolnego kontaktu (mutualVisibleCount=0): przycisk niewidoczny", () => {
     h.statuses = {
-      data: new Map([["target-1", state({ mutualCount: 0 })]]),
+      data: new Map([["target-1", state({ mutualVisibleCount: 0 })]]),
       isPending: false,
     };
     const { container } = renderButton();
@@ -113,7 +113,7 @@ describe("RequestIntroductionButton - macierz", () => {
 
   it("juz polaczeni (status=connected): przycisk niewidoczny mimo wspolnych kontaktow", () => {
     h.statuses = {
-      data: new Map([["target-1", state({ status: "connected", mutualCount: 5 })]]),
+      data: new Map([["target-1", state({ status: "connected", mutualVisibleCount: 5 })]]),
       isPending: false,
     };
     const { container } = renderButton();
@@ -122,7 +122,7 @@ describe("RequestIntroductionButton - macierz", () => {
 
   it("wspolny kontakt + brak polaczenia (status=none): przycisk widoczny i klikalny", () => {
     h.statuses = {
-      data: new Map([["target-1", state({ status: "none", mutualCount: 2 })]]),
+      data: new Map([["target-1", state({ status: "none", mutualVisibleCount: 2 })]]),
       isPending: false,
     };
     renderButton();
@@ -135,7 +135,7 @@ describe("RequestIntroductionButton - macierz", () => {
 
   it("zaproszenie oczekujace wychodzace (pending_out) + wspolny kontakt: nadal widoczny", () => {
     h.statuses = {
-      data: new Map([["target-1", state({ status: "pending_out", mutualCount: 1 })]]),
+      data: new Map([["target-1", state({ status: "pending_out", mutualVisibleCount: 1 })]]),
       isPending: false,
     };
     renderButton();
@@ -144,9 +144,24 @@ describe("RequestIntroductionButton - macierz", () => {
     ).toBeInTheDocument();
   });
 
+  // CTA bramkuje `mutualVisibleCount`, bo dialog kaze wybrac most z listy MOICH
+  // kontaktow, a ta jest odsiewana przez `discoverable`. Przy samych ukrytych
+  // mostach `mutualCount > 0` otwieral przycisk prowadzacy do listy, z ktorej
+  // nie dalo sie nic wybrac - patrz migracja 20260913172000.
+  it("same ukryte mosty: CTA niewidoczne, choc graf zna droge", () => {
+    h.statuses = {
+      data: new Map([
+        ["target-1", state({ status: "none", mutualCount: 3, mutualVisibleCount: 0 })],
+      ]),
+      isPending: false,
+    };
+    const { container } = renderButton();
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("zaproszenie oczekujace przychodzace (pending_in) + wspolny kontakt: nadal widoczny", () => {
     h.statuses = {
-      data: new Map([["target-1", state({ status: "pending_in", mutualCount: 4 })]]),
+      data: new Map([["target-1", state({ status: "pending_in", mutualVisibleCount: 4 })]]),
       isPending: false,
     };
     renderButton();

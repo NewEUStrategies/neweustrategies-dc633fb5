@@ -263,3 +263,56 @@ describe("IntroductionsCard - chip statusu", () => {
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Kotwica deep-linku z powiadomienia (A6)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Producent i konsument tego kontraktu żyją w dwóch różnych językach i żaden
+// nie widzi drugiego: wyzwalacz `tg_introduction_notify` (20260812101000:92,
+// 113, 125, 141) skleja adres `'/profile?tab=activity&intro=<rola>#i-' ||
+// NEW.id || '-<status>'`, a wiersz karty jest zwykłym `<div>` w TSX.
+//
+// Do 20260913 ta druga połowa NIE ISTNIAŁA: w całym pliku nie było ani jednego
+// atrybutu `id`, więc fragment adresu nie miał w co trafić - powiadomienie
+// doprowadzało na właściwą zakładkę i zostawiało użytkownika na górze listy.
+// Najostrzejsze jest to, że nagłówek tamtej migracji (punkt 2 "MARTWE LINKI")
+// deklarował wprost, że "fragment #i-<id>-<status> wskazuje wiersz" - była to
+// NAPRAWA martwych linków, która poprawiła parametry `?tab`/`?intro`
+// i zostawiła drugą połowę nienapisaną, w przekonaniu, że istnieje.
+//
+// Dlatego asercja porównuje się z formatem DOSŁOWNIE, a nie przez helper:
+// gdyby oba końce brały łańcuch z tej samej funkcji, test przeszedłby także po
+// zmianie formatu po obu stronach naraz - czyli po rozjeździe z bazą, która
+// o tej funkcji nic nie wie.
+describe("IntroductionsCard - kotwica deep-linku z powiadomienia", () => {
+  it("wiersz ma `id` DOKŁADNIE w formacie, który skleja wyzwalacz bazy", () => {
+    h.rows = { bridge: [introductionRow({ id: "intro-42", status: "pending" })] };
+    renderCard();
+
+    expect(document.getElementById("i-intro-42-pending")).not.toBeNull();
+  });
+
+  it("status jest CZĘŚCIĄ kotwicy - wyzwalacz stempluje stan z chwili wysyłki", () => {
+    h.rows = { bridge: [introductionRow({ id: "intro-7", status: "forwarded" })] };
+    renderCard();
+
+    expect(document.getElementById("i-intro-7-forwarded")).not.toBeNull();
+    // Kotwica o innym statusie NIE istnieje - to ona zmusza `resolveAnchorId`
+    // do zejścia na "ten sam wiersz w innym stanie".
+    expect(document.getElementById("i-intro-7-pending")).toBeNull();
+  });
+
+  it("kotwica należy do WIERSZA, więc dwa wprowadzenia mają dwa różne `id`", () => {
+    h.rows = {
+      bridge: [
+        introductionRow({ id: "intro-a", status: "pending" }),
+        introductionRow({ id: "intro-b", status: "pending" }),
+      ],
+    };
+    renderCard();
+
+    expect(document.getElementById("i-intro-a-pending")).not.toBeNull();
+    expect(document.getElementById("i-intro-b-pending")).not.toBeNull();
+  });
+});

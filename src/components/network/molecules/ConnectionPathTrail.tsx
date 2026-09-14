@@ -31,7 +31,6 @@ export interface ConnectionPathTrailProps {
   /** Osoba na końcu ścieżki (ta, której kartę/profil właśnie oglądam). */
   targetName: string;
   targetAvatarUrl?: string | null;
-  targetSlug?: string | null;
   /** `full` - z awatarami (profil), `compact` - sama typografia (karty list). */
   density?: "full" | "compact";
   /**

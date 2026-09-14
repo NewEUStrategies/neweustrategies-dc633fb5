@@ -5,6 +5,8 @@
 // Autoryzacja: requireAdmin (admin/super_admin w tenancie wywołującego) plus
 // twarde sprawdzenie, że konto docelowe należy do tego samego tenanta - klucz
 // serwisowy omija RLS, więc granica najemcy musi być sprawdzona jawnie.
+// Granica nie zna wyjątku dla super_admina: jego rola też jest przypisana
+// do jednego tenanta, więc nie upoważnia do konta w cudzej organizacji.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
@@ -30,20 +32,23 @@ export const ADMIN_ACCOUNT_ERROR = {
  * równy tenantowi konta docelowego (klucz serwisowy). Nie polegamy na samej
  * widoczności RLS, bo brak wiersza może oznaczać zarówno inny tenant, jak i
  * chwilową niedostępność polityki - a admin dostawał wtedy mylący komunikat.
+ *
+ * Przed porównaniem tenantów nie stoi ŻADNA gałąź wcześniejszego zwrotu.
+ * Wcześniej kończyło tę funkcję `has_role(_role: "super_admin")` - z komentarzem
+ * o „super administratorze platformy". Tyle że `has_role()` jest równie
+ * tenantowe co reszta bramek (`ur.tenant_id = public.current_tenant_id()`,
+ * migracja 20260625160054): odpowiadało wyłącznie o tenancie wywołującego
+ * i nie mówiło NIC o koncie docelowym. Skutkiem było to, że super admin
+ * tenanta A czytał status i USUWAŁ konta w tenancie B. Schemat nie zna roli
+ * ponadtenantowej (`user_roles.tenant_id` NOT NULL), a listy kont w panelu są
+ * twardo zawężone do `current_tenant_id()`, więc zamknięcie tej furtki nie
+ * odbiera żadnej działającej ścieżki UI.
  */
 async function assertSameTenant(
   supabase: SupabaseClient<Database>,
   callerId: string,
   targetId: string,
 ): Promise<{ email: string | null }> {
-  // Super administrator platformy zarządza wszystkimi organizacjami, więc
-  // granica najemcy go nie ogranicza - rola jest sprawdzana przez RLS-owy
-  // klient wywołującego, nie przez klucz serwisowy.
-  const { data: isSuperAdmin } = await supabase.rpc("has_role", {
-    _user_id: callerId,
-    _role: "super_admin",
-  });
-
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: target, error: targetError } = await supabaseAdmin
     .from("profiles")
@@ -52,7 +57,6 @@ async function assertSameTenant(
     .maybeSingle();
   if (targetError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
   if (!target) throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
-  if (isSuperAdmin === true) return { email: target.email ?? null };
 
   const { data: caller, error: callerError } = await supabase
     .from("profiles")
@@ -61,6 +65,9 @@ async function assertSameTenant(
     .maybeSingle();
   if (callerError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
   const callerTenant = caller?.tenant_id ?? null;
+  // Ten sam kod odmowy co przy braku wiersza profilu celu - inaczej funkcja
+  // stawałaby się wyrocznią potwierdzającą istnienie identyfikatora w obcym
+  // tenancie.
   if (!callerTenant || target.tenant_id !== callerTenant) {
     throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
   }

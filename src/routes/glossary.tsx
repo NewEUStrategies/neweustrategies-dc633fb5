@@ -8,6 +8,9 @@ import { glossaryTermsQueryOptions } from "@/lib/queries/glossary";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+// Kanoniczny helper JSON-LD - ucieka też `>`, `&`, U+2028/9, więc jedna
+// polityka ucieczki obowiązuje wszystkie pięć sinków JSON-LD w repo.
+import { safeJsonLd } from "@/lib/seo/jsonld";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import type { GlossaryTerm } from "@/lib/queries/glossary";
@@ -83,7 +86,7 @@ function GlossaryPage() {
   // DefinedTermSet dla wyszukiwarek - definicje są danymi publicznymi.
   const jsonLd = useMemo(() => {
     if (!terms || terms.length === 0) return null;
-    return JSON.stringify({
+    return safeJsonLd({
       "@context": "https://schema.org",
       "@type": "DefinedTermSet",
       name: `${c.title} - ${SITE_NAME}`,
@@ -92,7 +95,7 @@ function GlossaryPage() {
         name: lang === "en" ? term.term_en || term.term_pl : term.term_pl,
         description: lang === "en" ? term.definition_en || term.definition_pl : term.definition_pl,
       })),
-    }).replace(/</g, "\\u003c");
+    });
   }, [terms, lang, c.title]);
 
   return (

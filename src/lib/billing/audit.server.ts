@@ -13,12 +13,15 @@
 // i identyfikatorach operatora; powiązanie z osobą zostaje w aplikacji.
 //
 // ZAKRES NAJEMCY. Moduł biegnie na kliencie `service_role`, czyli Z POMINIĘCIEM
-// RLS, a bramka wejściowa (`assertAdmin`) sprawdza rolę GLOBALNIE, bez najemcy.
-// Zakres obszaru roboczego jest więc wyłącznie tym, co zapytanie samo sobie
-// narzuci - dlatego oba zapytania filtrują po `tenant_id`, a brak rozwiązanego
-// najemcy zwraca PUSTY raport (fail-closed, tak jak `listAdminDonations`
-// w `donationsAdmin.server.ts`). Bez tego administrator jednego najemcy pobierał
-// pełną historię płatności pozostałych w gotowym pliku CSV/XLSX.
+// RLS - zakres obszaru roboczego jest więc wyłącznie tym, co zapytanie samo
+// sobie narzuci. Bramka wejściowa (`assertAdmin`) ODDAJE najemcę wołającego
+// (jego `profiles.tenant_id`, skonfrontowany z hostem żądania), a oba zapytania
+// filtrują po TEJ wartości; pusty najemca zwraca PUSTY raport (fail-closed).
+//
+// Wcześniej moduł rozstrzygał najemcę sam, z hosta żądania - a rola
+// autoryzowała się po profilu. Dwie różne granice: admin obszaru A na domenie
+// obszaru B pobierał pełną historię płatności B w gotowym pliku CSV/XLSX,
+// który z definicji opuszcza system.
 //
 // Moduł server-only (klient service_role) - importuj wyłącznie z handlerów.
 import { toCsv } from "@/lib/csv/formatCsv";
@@ -74,31 +77,18 @@ export interface AuditReport {
 /** Twardy limit wierszy: audyt ma być szybki, a nie zrzucać całą bazę. */
 const ROW_LIMIT = 500;
 
-/**
- * Najemca żądania (host -> tenant), tak samo jak w panelu darowizn. Audyt jest
- * uruchamiany wyłącznie z funkcji serwerowych, więc kontekst żądania zawsze
- * istnieje; `null` znaczy „nie wiem, czyje to dane" i jest traktowane jak
- * odmowa, a nie jak zgoda na wszystko.
- */
-async function resolveTenantId(): Promise<string | null> {
-  const [{ resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
-    import("@/lib/server/tenant.server"),
-    import("@/lib/http/requestHost"),
-  ]);
-  return resolveTenantIdForHost(await currentTenantHost());
-}
-
 export interface AuditQuery {
   environment: AuditEnv;
   sinceHours: number;
   /** Zawęża audyt do jednego wydarzenia (`payment_orders.metadata.event_id`). */
   eventId?: string | null;
   /**
-   * Najemca, którego dotyczy audyt. Pominięty = rozwiązywany z hosta żądania;
-   * nierozwiązany = raport pusty. Pole istnieje dla wywołań spoza kontekstu
-   * żądania (testy, przyszłe zadania w tle) - NIGDY dla wartości od klienta.
+   * Najemca, którego dotyczy audyt - pole WYMAGANE i NIGDY nie pochodzące od
+   * klienta. Jedyne legalne źródło to wynik bramki `assertAdmin` w warstwie
+   * server fn (profil wołającego); schemat funkcji serwerowej tego pola nie
+   * przyjmuje. Pusta wartość = raport pusty (fail-closed).
    */
-  tenantId?: string | null;
+  tenantId: string;
 }
 
 function num(value: unknown): number | null {
@@ -123,9 +113,9 @@ export async function buildAuditReport(query: AuditQuery): Promise<AuditReport> 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const sinceIso = new Date(Date.now() - query.sinceHours * 3600_000).toISOString();
 
-  // Najemca z kontekstu żądania, a nie z ładunku: gdyby przychodził od klienta,
+  // Najemca z bramki, a nie z ładunku: gdyby przychodził od klienta,
   // administrator podałby po prostu cudzy identyfikator.
-  const tenantId = query.tenantId ?? (await resolveTenantId());
+  const tenantId = query.tenantId;
   if (!tenantId) {
     console.error("[billing-audit] brak rozwiązanego najemcy - raport pusty");
     return emptyReport(query.environment, sinceIso);

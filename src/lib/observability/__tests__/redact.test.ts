@@ -77,4 +77,32 @@ describe("redactMeta", () => {
     expect(out.nested.count).toBe(3);
     expect(out.tags[1]).toContain("[redacted-email]");
   });
+
+  it("POZA limitem głębokości poddrzewo NIE przechodzi surowe", () => {
+    // REGRESJA. `depth > 6` oddawało resztę struktury NIETKNIĘTĄ, czyli
+    // odwrotnie, niż limit sugeruje: ładunek zagnieżdżony głębiej niż siedem
+    // poziomów wjeżdżał do `analytics_events` w całości - obok `anon_id`,
+    // który nie wygasa. `safeMeta` w /api/public/track pilnuje tylko ROZMIARU
+    // serializacji, nie zagnieżdżenia, więc ten limit był jedyną zaporą.
+    const gleboko = { a: { b: { c: { d: { e: { f: { g: { mail: "jan@example.com" } } } } } } } };
+
+    const json = JSON.stringify(redactMeta(gleboko));
+
+    expect(json).not.toContain("jan@example.com");
+    expect(json).toContain("[redacted-depth]");
+  });
+
+  it("napis NA granicy głębokości nadal jest skrubowany, a liczba zostaje", () => {
+    // Znacznik zastępuje wyłącznie to, w co nie da się już wejść. Napis i tak
+    // przechodzi przez `redactPii`, bo to tanie, a zachowuje tekst bez PII.
+    const naGranicy = {
+      a: { b: { c: { d: { e: { f: { g: "pisz na jan@example.com", n: 7 } } } } } },
+    };
+
+    const json = JSON.stringify(redactMeta(naGranicy));
+
+    expect(json).not.toContain("jan@example.com");
+    expect(json).toContain("[redacted-email]");
+    expect(json).toContain("7");
+  });
 });

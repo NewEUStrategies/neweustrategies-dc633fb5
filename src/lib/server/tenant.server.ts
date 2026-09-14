@@ -25,6 +25,7 @@
 import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { readBootstrapSnapshot, writeBootstrapSnapshot } from "@/lib/http/bootstrapCache.server";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 
 export interface TenantDirectoryEntry {
   id: string;
@@ -39,6 +40,30 @@ export interface TenantDirectory {
 }
 
 const CACHE_TTL_MS = 60_000;
+
+/**
+ * TERMIN round-tripu katalogu tenantów - stała W KODZIE, nie w zmiennej
+ * środowiskowej (ta sama zasada, co przy podłogach `check:bundle`: budżet,
+ * który wolno rozluźnić jedną zmienną w workflow, nie jest budżetem).
+ *
+ * DLACZEGO W OGÓLE. Ten odczyt biegnie PRZED routerem i przed
+ * `documentCacheMiddleware` (pozycja 10 w `requestMiddleware`), więc dopóki
+ * nie ma terminu, ŻADNE trafienie w cache dokumentów nie ratuje czytelnika:
+ * zawieszone połączenie nie rzuca, tylko czeka, a `try/catch` niżej broni
+ * wyłącznie przed BŁĘDEM. Do 2026-09-12 ten odcinek nie miał terminu w ogóle -
+ * ani `withBudget`, ani `AbortSignal`, ani własnego `fetch` w
+ * `src/integrations/supabase/client.server.ts`.
+ *
+ * DLACZEGO 1 500 ms. To odczyt po indeksie ograniczony do 500 wierszy, a nie
+ * raport: zdrowy round-trip mieści się w dziesiątkach ms, więc 1 500 ms to
+ * ~1-2 rzędy zapasu na zimny izolat (uzgodnienie TLS) i jednocześnie sufit,
+ * który wchodzi do budżetu przed pierwszym bajtem obok 3 000 ms rozgrzewki
+ * korzenia. Zejście po przekroczeniu terminu to TA SAMA gałąź, co dla błędu
+ * (nieświeży katalog albo `EMPTY_DIRECTORY`) - nowe jest wyłącznie to, że
+ * lapsus terminu ma WŁASNĄ telemetrię, bo inaczej pierwsza produkcyjna awaria
+ * powolności byłaby nieodróżnialna od dwudziestu poprzednich awarii błędu.
+ */
+export const TENANT_DIRECTORY_BUDGET_MS = 1_500;
 
 interface DirectoryCache {
   at: number;
@@ -92,10 +117,12 @@ async function loadDirectory(): Promise<DirectoryCache> {
       if (snapshot) return { at: snapshot.at, directory: buildDirectory(snapshot.value) };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("tenants")
-      .select("id, slug, domain, is_default")
-      .limit(500);
+    const settled = await settleWithinBudget(
+      supabaseAdmin.from("tenants").select("id, slug, domain, is_default").limit(500),
+      TENANT_DIRECTORY_BUDGET_MS,
+    );
+    if (settled === BUDGET_LAPSED) return degradedDirectory("timeout");
+    const { data, error } = settled;
     if (error) throw error;
     const rows = (data ?? []).map((t) => ({
       id: t.id,
@@ -108,10 +135,26 @@ async function loadDirectory(): Promise<DirectoryCache> {
     return { at, directory: buildDirectory(rows) };
   } catch (e) {
     console.warn("[tenant] directory load failed:", e);
-    // Preserve the existing local retry backoff during a database outage.
-    // Never publish that stale fallback as a fresh shared snapshot.
-    return { at: Date.now(), directory: cache?.directory ?? EMPTY_DIRECTORY };
+    return degradedDirectory("error");
   }
+}
+
+/**
+ * Jedno zejście dla OBU przyczyn degradacji - i jedyne miejsce, które je
+ * ROZRÓŻNIA w logu. `failed` to odpowiedź bazy, której nie da się użyć;
+ * `timed out` to brak odpowiedzi w terminie, czyli zupełnie inna awaria
+ * (połączenie wisi, a nie zwraca błąd) i zupełnie inna naprawa.
+ * Zachowanie jest w obu przypadkach identyczne: lokalny backoff retry przez
+ * TTL, nieświeży katalog zamiast pustego, gdy jakiś jest, i ZERO publikacji
+ * tego fallbacku jako świeżej migawki współdzielonej.
+ */
+function degradedDirectory(reason: "error" | "timeout"): DirectoryCache {
+  if (reason === "timeout") {
+    console.warn(
+      `[tenant] directory load timed out after ${TENANT_DIRECTORY_BUDGET_MS}ms (budget lapsed, no database error)`,
+    );
+  }
+  return { at: Date.now(), directory: cache?.directory ?? EMPTY_DIRECTORY };
 }
 
 /**
@@ -340,4 +383,69 @@ export async function crawlerDegradeIsSafe(rawHost: string | null | undefined): 
   const directory = await getTenantDirectory();
   const host = normalizeHost(rawHost);
   return isPreviewHost(host) || directory.byDomain.size === 0;
+}
+
+// ── Właściwość Google Search Console -> najemca ────────────────────────────
+//
+// PO CO. Konektor GSC jest JEDEN na wdrożenie (klucze ze środowiska), więc
+// bramka roli nie zawęża niczego: admin dowolnego najemcy, podając `siteUrl`
+// w ładunku, czytałby zapytania, kliknięcia i pozycje CUDZEJ domeny. Zakres
+// danych musi więc pochodzić z `tenants.domain` najemcy wołającego, a nie
+// z wejścia. Definicja „czyj to adres" mieszka tutaj, przy katalogu domen,
+// żeby nie powstała druga - rozjeżdżająca się - kopia w warstwie analityki.
+
+/** Prefiks właściwości domenowej GSC (druga forma to zwykły URL prefiksowy). */
+const GSC_DOMAIN_PREFIX = "sc-domain:";
+
+/**
+ * Host właściwości Search Console - JEDNA normalizacja dla OBU form, którymi
+ * GSC nazywa właściwość: `sc-domain:example.com` (właściwość domenowa) oraz
+ * `https://example.com/` (właściwość prefiksowa). `null` = nie da się odczytać
+ * hosta, czyli wartość nie pasuje do ŻADNEJ domeny.
+ */
+function gscSiteHost(siteUrl: string): string | null {
+  const raw = siteUrl.trim();
+  if (!raw) return null;
+  if (raw.toLowerCase().startsWith(GSC_DOMAIN_PREFIX)) {
+    return normalizeHost(raw.slice(GSC_DOMAIN_PREFIX.length));
+  }
+  try {
+    return normalizeHost(new URL(raw).hostname);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Czy właściwość GSC należy do domeny tego najemcy (alias www/apex jak wszędzie
+ * indziej w tym module).
+ *
+ * GAŁĄŹ „NIE WIEM" JEST OBOWIĄZKOWA i przepuszcza. Dwa przypadki, w których
+ * katalog domen NIE jest dowodem obcości adresu:
+ *   * katalog niezasiedlony - żaden najemca nie zajął jeszcze domeny (albo
+ *     katalog był nieosiągalny); instalacja sprzed multi-domain nie ma czego
+ *     cross-tenantowo pomylić,
+ *   * najemca bez `tenants.domain` - nie ma z czym porównywać.
+ * Odmowa w tych przypadkach odebrałaby panel Search Console instalacjom, które
+ * nigdy nie miały problemu, który ta funkcja zamyka.
+ */
+export async function siteUrlBelongsToTenant(siteUrl: string, tenantId: string): Promise<boolean> {
+  const directory = await getTenantDirectory();
+  if (directory.byDomain.size === 0) return true;
+  const tenantHasDomain = [...directory.byDomain.values()].some((t) => t.id === tenantId);
+  if (!tenantHasDomain) return true;
+  return matchDomain(directory, gscSiteHost(siteUrl))?.id === tenantId;
+}
+
+/**
+ * Wariant rzucający dla wywołań, które mają ODMÓWIĆ przed dotknięciem bramki
+ * konektora. Komunikat jest jeden i nie zdradza, czyja jest właściwość.
+ */
+export async function assertSiteUrlBelongsToTenant(
+  siteUrl: string,
+  tenantId: string,
+): Promise<void> {
+  if (!(await siteUrlBelongsToTenant(siteUrl, tenantId))) {
+    throw new Error("Forbidden: site not owned by tenant");
+  }
 }

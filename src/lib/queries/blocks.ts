@@ -13,9 +13,11 @@
 //     widgets.
 import { queryOptions, type FetchQueryOptions, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import type { PublicPoll } from "@/lib/community/publicQueries";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { postsNarrowedToTaxonomy, type TaxonomyNarrowing } from "@/lib/queries/taxonomyPivot";
 
 const STALE_TIME = 2 * 60_000;
 const GC_TIME = 10 * 60_000;
@@ -63,8 +65,17 @@ export interface PostNeighbor {
 
 const POST_SELECT = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
 
-/** Post ids belonging to a category slug (empty slug -> null = no filter). */
-async function postIdsForCategorySlug(categorySlug: string): Promise<string[] | null> {
+/**
+ * Id kategorii dla sluga. Trzy stany, bo trzy są potrzebne wołającym:
+ *   * `null`      - pusty slug, czyli BRAK zawężenia,
+ *   * `undefined` - slug nieznany, czyli wynik pusty BEZ pytania o wpisy,
+ *   * string      - identyfikator kategorii do zawężenia w bazie.
+ *
+ * Odczyt sluga zostaje osobnym zapytaniem (zamiast dwuskokowego osadzenia
+ * `post_categories!inner(categories!inner(slug))`) właśnie po to, żeby nieznany
+ * slug nadal kończył się bez dotykania tabeli wpisów.
+ */
+async function categoryIdForSlug(categorySlug: string): Promise<string | null | undefined> {
   if (!categorySlug) return null;
   const { data: cat, error } = await supabase
     .from("categories")
@@ -72,13 +83,14 @@ async function postIdsForCategorySlug(categorySlug: string): Promise<string[] | 
     .eq("slug", categorySlug)
     .maybeSingle();
   if (error) throw error;
-  if (!cat?.id) return [];
-  const { data: pc, error: pcErr } = await supabase
-    .from("post_categories")
-    .select("post_id")
-    .eq("category_id", cat.id);
-  if (pcErr) throw pcErr;
-  return [...new Set((pc ?? []).map((r) => r.post_id))];
+  return cat?.id ?? undefined;
+}
+
+/** Zapytanie o wpisy, zawężone do kategorii albo nie - jedno miejsce na ten wybór. */
+function postsQuery(narrowing: TaxonomyNarrowing | null) {
+  return narrowing === null
+    ? supabase.from("posts").select(POST_SELECT)
+    : postsNarrowedToTaxonomy(POST_SELECT, narrowing);
 }
 
 // ---------------------------------------------------------------------------
@@ -97,16 +109,13 @@ export const latestPostsBlockQueryOptions = (input: LatestPostsInput) =>
     gcTime: GC_TIME,
     queryFn: async (): Promise<BlockPostRow[]> => {
       const safeCount = Math.max(1, Math.min(50, input.count));
-      const ids = await postIdsForCategorySlug(input.category);
-      if (ids !== null && ids.length === 0) return [];
-      let q = supabase
-        .from("posts")
-        .select(POST_SELECT)
+      const catId = await categoryIdForSlug(input.category);
+      if (catId === undefined) return [];
+      const q = postsQuery(catId === null ? null : { kind: "category", termIds: [catId] })
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false })
         .limit(safeCount);
-      if (ids !== null) q = q.in("id", ids);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -303,19 +312,16 @@ export const queryLoopBlockQueryOptions = (input: QueryLoopInput) =>
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     queryFn: async (): Promise<BlockPostRow[]> => {
-      const ids = await postIdsForCategorySlug(input.categorySlug);
-      if (ids !== null && ids.length === 0) return [];
-      let q = supabase
-        .from("posts")
-        .select(POST_SELECT)
+      const catId = await categoryIdForSlug(input.categorySlug);
+      if (catId === undefined) return [];
+      const base = postsQuery(catId === null ? null : { kind: "category", termIds: [catId] })
         .eq("status", "published")
         .is("deleted_at", null)
         .limit(Math.max(1, Math.min(24, input.limit)));
-      q =
+      const q =
         input.orderBy === "title"
-          ? q.order(input.lang === "en" ? "title_en" : "title_pl", { ascending: true })
-          : q.order("published_at", { ascending: false });
-      if (ids !== null) q = q.in("id", ids);
+          ? base.order(input.lang === "en" ? "title_en" : "title_pl", { ascending: true })
+          : base.order("published_at", { ascending: false });
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -342,7 +348,10 @@ export const relatedPostsBlockQueryOptions = (input: RelatedPostsInput) =>
     gcTime: GC_TIME,
     queryFn: async (): Promise<BlockPostRow[]> => {
       const cap = Math.max(1, Math.min(12, input.limit));
-      let postIds: string[] | null = null;
+      // Zawężenie niesie identyfikatory TERMINÓW - kategorii albo tagów
+      // wybranych w widżecie. Ich liczba jest ograniczona konfiguracją bloku,
+      // a nie liczbą wpisów, więc lista w `.in(...)` przestaje rosnąć z danymi.
+      let narrowing: TaxonomyNarrowing | null = null;
 
       if (input.strategy === "category" && input.categorySlugs.length > 0) {
         const { data: cats, error } = await supabase
@@ -350,49 +359,24 @@ export const relatedPostsBlockQueryOptions = (input: RelatedPostsInput) =>
           .select("id")
           .in("slug", [...input.categorySlugs]);
         if (error) throw error;
-        const catIds = (cats ?? []).map((r) => r.id);
-        if (catIds.length > 0) {
-          const { data: pc, error: pcErr } = await supabase
-            .from("post_categories")
-            .select("post_id")
-            .in("category_id", catIds);
-          if (pcErr) throw pcErr;
-          postIds = [...new Set((pc ?? []).map((r) => r.post_id))];
-        } else {
-          postIds = [];
-        }
+        narrowing = { kind: "category", termIds: (cats ?? []).map((r) => r.id) };
       } else if (input.strategy === "tag" && input.tagSlugs.length > 0) {
         const { data: tags, error } = await supabase
           .from("tags")
           .select("id")
           .in("slug", [...input.tagSlugs]);
         if (error) throw error;
-        const tagIds = (tags ?? []).map((r) => r.id);
-        if (tagIds.length > 0) {
-          const { data: pt, error: ptErr } = await supabase
-            .from("post_tags")
-            .select("post_id")
-            .in("tag_id", tagIds);
-          if (ptErr) throw ptErr;
-          postIds = [...new Set((pt ?? []).map((r) => r.post_id))];
-        } else {
-          postIds = [];
-        }
+        narrowing = { kind: "tag", termIds: (tags ?? []).map((r) => r.id) };
       }
+      if (narrowing !== null && narrowing.termIds.length === 0) return [];
 
-      let q = supabase
-        .from("posts")
-        .select(POST_SELECT)
+      let q = postsQuery(narrowing)
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false })
         .limit(cap);
       if (input.currentId) q = q.neq("id", input.currentId);
       if (input.strategy === "author" && input.authorId) q = q.eq("author_id", input.authorId);
-      if (postIds !== null) {
-        if (postIds.length === 0) return [];
-        q = q.in("id", postIds);
-      }
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -497,19 +481,18 @@ export const morePostsBlockQueryOptions = (input: MorePostsInput) =>
           parent_page_id: p.parent_page_id,
         }));
       }
-      const ids =
+      const catId =
         input.strategy === "category" && input.categorySlug
-          ? await postIdsForCategorySlug(input.categorySlug)
+          ? await categoryIdForSlug(input.categorySlug)
           : null;
-      if (input.strategy === "category" && (!ids || ids.length === 0)) return [];
-      let q = supabase
-        .from("posts")
-        .select(POST_SELECT)
+      if (input.strategy === "category" && (catId === null || catId === undefined)) return [];
+      const q = postsQuery(
+        catId === null || catId === undefined ? null : { kind: "category", termIds: [catId] },
+      )
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false })
         .limit(lim + 1);
-      if (ids !== null) q = q.in("id", ids);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -779,13 +762,36 @@ export function blockQueryOptionsList(
  * (never reject) so a single failing block cannot fail the SSR loader; the
  * affected view just falls back to its client fetch.
  */
+/**
+ * Wynik rozgrzewki zapytań silnika bloków.
+ *
+ * PO CO SYGNAŁ (defekt P1 z recenzji PR #357). `Promise.allSettled` niżej
+ * POCHŁANIA awarie pojedynczych bloków z premedytacją - jeden zepsuty blok nie
+ * ma prawa wywrócić całej rozgrzewki - a `prefetchQuery` i tak nigdy nie
+ * odrzuca. Ta funkcja rozstrzygała się więc ZAWSZE sukcesem, także wtedy, gdy
+ * nie dowiozła ani jednego wiersza. Wołający, który czytał degradację
+ * z odrzucenia, nie widział NICZEGO - i render bez treści bloków szedł
+ * z nagłówkiem wspólnego cache'u.
+ *
+ * `degraded` mówi to, co trzeba wiedzieć przy decyzji o `Cache-Control`:
+ * czy KAŻDE zapytanie z listy wylądowało świeżym sukcesem. Predykat jest ten
+ * sam co w korzeniu (`hasSsrQueryData`), więc zasiew fallbackowy
+ * (`dataUpdatedAt === 0`) liczy się jako degradacja.
+ */
+export interface BlocksPrefetchResult {
+  readonly degraded: boolean;
+}
+
 export async function prefetchBlockQueries(
   queryClient: QueryClient,
   doc: BlocksDoc,
   lang: Lang,
   ctx: BlocksPrefetchCtx = {},
-): Promise<void> {
+): Promise<BlocksPrefetchResult> {
   const options = blockQueryOptionsList(doc, lang, ctx);
-  if (options.length === 0) return;
+  if (options.length === 0) return { degraded: false };
   await Promise.allSettled(options.map((opts) => prefetchBlockDataQuery(queryClient, opts)));
+  return {
+    degraded: options.some((opts) => !hasSsrQueryData(queryClient, opts.queryKey)),
+  };
 }

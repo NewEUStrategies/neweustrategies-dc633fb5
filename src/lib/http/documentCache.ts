@@ -193,6 +193,21 @@ const NO_STORE: StorePolicy = { store: false, freshMs: 0, swrMs: 0 };
  * HTML, które SAME zadeklarowały współdzielenie (`public` + `s-maxage>0` -
  * dokładnie to emituje `contentCacheControl()`; rendery personalized/preview
  * wysyłają `private, no-store` i naturalnie tu odpadają).
+ *
+ * Dwie dyrektywy walidacyjne rozstrzygamy tak, jak ten magazyn potrafi:
+ *   * `no-cache` -> NIE ZAPISUJEMY. RFC 9111 5.2.2.4 pozwala przechować, ale
+ *     zabrania PODAĆ bez walidacji u źródła, a tu nie ma czym walidować:
+ *     `replay()` odtwarza bajty z pamięci (żadnego ETagu ani żądania
+ *     warunkowego na `DocumentCacheEntry`), a odświeżenie biegnie ZA
+ *     odpowiedzią. „Przechowany" znaczy w tym magazynie „podany bez
+ *     walidacji", czyli dokładnie to, czego `no-cache` zakazuje. `freshMs = 0`
+ *     nie jest wyjściem pośrednim: wpis byłby serwowany STALE od pierwszej
+ *     milisekundy, czyli ODWROTNIE niż każe dyrektywa.
+ *   * `must-revalidate` -> zapisujemy, ale BEZ okna stale. Dyrektywa
+ *     (RFC 9111 5.2.2.2) nie skraca świeżości, tylko zabrania ponownego użycia
+ *     wpisu NIEŚWIEŻEGO bez walidacji - a jedyne, co ten magazyn robi po
+ *     świeżości, to serwowanie stale. Zerowe okno stale zamienia wygaśnięcie
+ *     w zwykły MISS (pełny render), co jest jedyną wierną interpretacją.
  */
 export function documentStorePolicy(
   status: number,
@@ -203,10 +218,13 @@ export function documentStorePolicy(
   if (!contentType || !contentType.includes("text/html")) return NO_STORE;
   const cc = parseCacheControl(cacheControl);
   if (!cc.public || cc.noStore || cc.private) return NO_STORE;
+  if (cc.noCache) return NO_STORE;
   if (!cc.sMaxAge || cc.sMaxAge <= 0) return NO_STORE;
   return {
     store: true,
     freshMs: Math.min(cc.sMaxAge * 1000, DOCUMENT_CACHE_MAX_FRESH_MS),
-    swrMs: Math.min((cc.staleWhileRevalidate ?? 0) * 1000, DOCUMENT_CACHE_MAX_SWR_MS),
+    swrMs: cc.mustRevalidate
+      ? 0
+      : Math.min((cc.staleWhileRevalidate ?? 0) * 1000, DOCUMENT_CACHE_MAX_SWR_MS),
   };
 }

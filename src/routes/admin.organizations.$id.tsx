@@ -1,7 +1,7 @@
 // Panel: pełna strona organizacji członkowskiej - premium edytor marki
 // (kolory, logo poziome/pionowe w wariantach light/dark), dane, kontakt i
 // zarządzanie miejscami. Wygląd zgodny z produkcyjnym layoutem admin (kompakt).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { uiLocale } from "@/lib/i18n/format";
@@ -70,6 +70,8 @@ import {
   removeOrgSeat,
   type OrganizationRow,
 } from "@/lib/admin/membership-admin";
+import { isEditConflict } from "@/lib/content/saveConflict";
+import { draftSyncAction } from "@/lib/admin/organizationDraftSync";
 
 export const Route = createFileRoute("/admin/organizations/$id")({
   component: AdminOrganizationDetailPage,
@@ -104,14 +106,47 @@ function AdminOrganizationDetailPage() {
   }, [tiers]);
 
   const [draft, setDraft] = useState<OrganizationRow | null>(null);
-  useEffect(() => {
-    if (orgQ.data && !draft) setDraft(orgQ.data);
-  }, [orgQ.data, draft]);
+  /**
+   * Wiersz, Z KTÓREGO powstał bieżący draft - punkt odniesienia dla pytania
+   * „czy administrator cokolwiek zmienił". Mierzenie tego wobec BIEŻĄCEJ
+   * odpowiedzi serwera było właśnie tym, co zapalało przycisk zapisu samo
+   * z siebie po cudzym zapisie.
+   */
+  const [seeded, setSeeded] = useState<OrganizationRow | null>(null);
 
+  // Baza optimistic-locka: `updated_at` wiersza, który draft ODWZOROWUJE.
+  // Przesuwana przy uzgodnieniu draftu i po każdym udanym zapisie, żeby
+  // kolejny zapis nie zgłaszał fałszywego konfliktu z własną zmianą. Ten sam
+  // wzorzec co `baseUpdatedAtRef` w edytorze wpisów.
+  const baseUpdatedAtRef = useRef<string | null>(null);
+
+  // UZGADNIANIE DRAFTU Z SERWEREM - reguła mieszka w `organizationDraftSync`
+  // i ma tam własne testy; tutaj zostaje wyłącznie jej wykonanie.
+  const loadedRef = useRef<{ id: string; updatedAt: string | null } | null>(null);
   const isDirty = useMemo(
-    () => (draft && orgQ.data ? JSON.stringify(draft) !== JSON.stringify(orgQ.data) : false),
-    [draft, orgQ.data],
+    () => (draft && seeded ? JSON.stringify(draft) !== JSON.stringify(seeded) : false),
+    [draft, seeded],
   );
+
+  useEffect(() => {
+    const row = orgQ.data;
+    if (!row) return;
+    const action = draftSyncAction({
+      seen: loadedRef.current,
+      row: { id: row.id, updatedAt: row.updated_at ?? null },
+      userEdited: isDirty,
+    });
+    if (action === "skip") return;
+    loadedRef.current = { id: row.id, updatedAt: row.updated_at ?? null };
+    // `keep-local-edits` CELOWO nie rusza ani draftu, ani bazy optimistic-locka:
+    // niezapisana praca administratora zostaje, a zapis pojedzie ze starą
+    // wersją i odbije się o warunek `updated_at`, dając komunikat o konflikcie
+    // zamiast cichej straty - czyjejkolwiek.
+    if (action !== "reseed") return;
+    setSeeded(row);
+    setDraft(row);
+    baseUpdatedAtRef.current = row.updated_at ?? null;
+  }, [orgQ.data, isDirty]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -131,14 +166,46 @@ function AdminOrganizationDetailPage() {
       void _u;
       void _b;
       void _cc;
-      await updateOrganization(id, patch);
+      // Zapis niesie wersję, którą formularz odwzorowuje. Serwer odrzuci go,
+      // jeśli w międzyczasie ktoś zapisał ten wiersz - zamiast cicho cofnąć
+      // cudzą zmianę.
+      const savedUpdatedAt = await updateOrganization(id, patch, baseUpdatedAtRef.current);
+      // Oddajemy TAKŻE wysłany draft: to on, a nie stan z chwili powrotu
+      // odpowiedzi, jest treścią, którą baza właśnie przyjęła.
+      return { savedUpdatedAt, sent: draft };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      // Przesuwamy bazę na `updated_at` FAKTYCZNIE zapisany, zanim odświeżenie
+      // zdąży wrócić - inaczej drugi zapis z rzędu zderzyłby się z własnym
+      // pierwszym.
+      if (result?.savedUpdatedAt && result.sent) {
+        const savedRow: OrganizationRow = { ...result.sent, updated_at: result.savedUpdatedAt };
+        baseUpdatedAtRef.current = result.savedUpdatedAt;
+        loadedRef.current = { id, updatedAt: result.savedUpdatedAt };
+        // Draft i jego punkt odniesienia dostają wersję zapisaną. Bez tego
+        // draft zostawał ze STARYM stemplem, a `isDirty` porównywałby go do
+        // nowej odpowiedzi serwera i wychodziłby prawdą: przycisk zapisu
+        // zostawałby aktywny po UDANYM zapisie, gotowy wysłać tę samą łatkę
+        // drugi raz i bez potrzeby podbić wersję.
+        setDraft(savedRow);
+        setSeeded(savedRow);
+      }
       toast.success(t("adminOrganizations.saved"));
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      // Konflikt dostaje WŁASNY komunikat w języku panelu: „zapis się nie
+      // udał" nie mówi administratorowi, że cudza zmiana wciąż stoi i że ma
+      // przeładować kartę. Klasyfikacja jest wspólną regułą (`isEditConflict`),
+      // tekst powstaje tutaj, bo tylko klient zna język panelu.
+      if (isEditConflict(err)) {
+        toast.error(t("adminOrganizations.saveConflict"));
+        void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
+        return;
+      }
+      toast.error(err.message);
+    },
   });
 
   const removeOrg = useMutation({

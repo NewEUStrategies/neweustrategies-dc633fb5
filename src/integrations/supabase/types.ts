@@ -465,6 +465,7 @@ export type Database = {
           sender_domain: string | null
           status: string
           subject: string | null
+          tenant_id: string | null
         }
         Insert: {
           action_url_host?: string | null
@@ -488,6 +489,7 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
         Update: {
           action_url_host?: string | null
@@ -511,8 +513,17 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "auth_email_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       author_profiles: {
         Row: {
@@ -5584,6 +5595,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
+          tenant_id: string | null
         }
         Insert: {
           created_at?: string
@@ -5594,6 +5606,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
+          tenant_id?: string | null
         }
         Update: {
           created_at?: string
@@ -5604,8 +5617,17 @@ export type Database = {
           recipient_email?: string
           status?: string
           template_name?: string
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "email_send_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_send_state: {
         Row: {
@@ -23431,6 +23453,7 @@ export type Database = {
           connection_id: string
           degree: number
           mutual_count: number
+          mutual_visible_count: number
           status: string
           user_id: string
         }[]
@@ -23450,6 +23473,7 @@ export type Database = {
           job_title: string
           location: string
           mutual_count: number
+          mutual_visible_count: number
           open_to: string[]
           shared_events: number
           shared_follows: number
@@ -23730,6 +23754,10 @@ export type Database = {
         Returns: boolean
       }
       early_access_window: { Args: never; Returns: string }
+      email_account_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string
@@ -23785,6 +23813,10 @@ export type Database = {
         Returns: Json
       }
       email_resolve_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
+      email_send_log_tenant_for_address: {
         Args: { p_email: string }
         Returns: string
       }
@@ -25499,6 +25531,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      payment_webhook_event_tenant: {
+        Args: {
+          p_customer_id: string
+          p_environment: string
+          p_payload: Json
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       payments_apply_event_ticket_outcome: {
         Args: {
           p_order_id: string
@@ -26241,6 +26283,7 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      set_user_consents: { Args: { p_entries: Json }; Returns: string[] }
       skill_endorsement_counts: {
         Args: { p_user: string }
         Returns: {

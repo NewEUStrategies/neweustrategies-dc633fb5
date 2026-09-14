@@ -884,12 +884,21 @@ describe("formularz kontaktowy - odczyt nagłówków", () => {
       ip: PII.cloudflareIp,
     },
     {
-      why: "bez Cloudflare bierzemy PIERWSZY wpis z `x-forwarded-for`",
+      // Pierwszy wpis `x-forwarded-for` dopisuje KLIENT (proxy dokleja adres
+      // połączenia na KOŃCU), więc kubełek po nim kluczowany rotował się jednym
+      // nagłówkiem. Bez Cloudflare wiarygodne są kolejno: `x-real-ip`, a potem
+      // OSTATNI wpis listy.
+      why: "bez Cloudflare `x-real-ip` bije `x-forwarded-for`",
       headers: {
         "x-forwarded-for": `${PII.proxyFirstHopIp}, ${PII.realIp}`,
         "x-real-ip": PII.realIp,
       },
-      ip: PII.proxyFirstHopIp,
+      ip: PII.realIp,
+    },
+    {
+      why: "sam `x-forwarded-for` daje OSTATNI wpis, nie deklarację klienta",
+      headers: { "x-forwarded-for": `${PII.proxyFirstHopIp}, ${PII.realIp}` },
+      ip: PII.realIp,
     },
     {
       why: "`x-real-ip` jest ostatnią deską ratunku",
@@ -911,6 +920,31 @@ describe("formularz kontaktowy - odczyt nagłówków", () => {
     h.request = request({ "x-forwarded-for": "" });
     await submit();
     expect(fieldOf(insertedRow(), "ip")).toBeNull();
+  });
+
+  it('`x-forwarded-for` równy " " też nie udaje adresu - wspólny kubełek', async () => {
+    // Jeden nagłówek wystarczał, żeby wartość zeszła na pusty string i udała
+    // „brak adresu"; teraz białoznakowe wpisy odpadają na każdym kroku.
+    planHappyPath();
+    h.request = request({ "x-forwarded-for": " , " });
+    await submit();
+    expect(fieldOf(insertedRow(), "ip")).toBeNull();
+    expect(h.rateLimitCalls[0].subjectId).toBe("unknown-ip");
+  });
+
+  it("rotacja prefiksu `x-forwarded-for` NIE daje nowego kubełka", async () => {
+    planHappyPath();
+    h.request = request({ "x-forwarded-for": `1.2.3.4, ${PII.realIp}` });
+    await submit();
+    const pierwszy = h.rateLimitCalls[0].subjectId;
+
+    planHappyPath();
+    h.rateLimitCalls.length = 0;
+    h.request = request({ "x-forwarded-for": `8.8.8.8, 9.9.9.9, ${PII.realIp}` });
+    await submit();
+
+    expect(pierwszy).toBe(PII.realIp);
+    expect(h.rateLimitCalls[0].subjectId).toBe(pierwszy);
   });
 
   it("brak kontekstu żądania nie wywraca zgłoszenia - IP i UA są NULL", async () => {

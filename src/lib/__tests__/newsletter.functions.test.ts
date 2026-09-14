@@ -371,16 +371,47 @@ describe("limity nadużyć", () => {
     expect(upserted().ip).toBe("203.0.113.7");
   });
 
-  it("bez cf-connecting-ip bierzemy PIERWSZY adres z x-forwarded-for", async () => {
+  it("bez cf-connecting-ip bierzemy OSTATNI adres z x-forwarded-for", async () => {
+    // Lista rośnie od klienta w stronę serwera: pierwszy wpis dopisuje KLIENT,
+    // a proxy dokleja adres połączenia na KOŃCU. Kubełek kluczowany pierwszym
+    // wpisem rotował się jednym nagłówkiem.
     h.getRequest.mockReturnValue(
       new Request("https://example.test/zapis", {
-        headers: { "x-forwarded-for": "198.51.100.1, 10.0.0.1" },
+        headers: { "x-forwarded-for": "198.51.100.1, 203.0.113.9" },
       }),
     );
 
     await subscribeToNewsletter({ data: input() });
 
-    expect(upserted().ip).toBe("198.51.100.1");
+    expect(upserted().ip).toBe("203.0.113.9");
+  });
+
+  it("rotacja prefiksu `x-forwarded-for` NIE daje nowego kubełka", async () => {
+    const podmioty: unknown[] = [];
+    for (const prefiks of ["1.2.3.4", "8.8.8.8"]) {
+      h.rateLimit.mockClear();
+      h.getRequest.mockReturnValue(
+        new Request("https://example.test/zapis", {
+          headers: { "x-forwarded-for": `${prefiks}, 203.0.113.9` },
+        }),
+      );
+      await subscribeToNewsletter({ data: input() });
+      podmioty.push(h.rateLimit.mock.calls[0]?.[0]?.subjectId);
+    }
+
+    expect(podmioty[0]).toBe("203.0.113.9");
+    expect(podmioty[1]).toBe(podmioty[0]);
+  });
+
+  it("puste `x-forwarded-for` nie udaje adresu - wspólny kubełek, NULL w wierszu", async () => {
+    h.getRequest.mockReturnValue(
+      new Request("https://example.test/zapis", { headers: { "x-forwarded-for": " " } }),
+    );
+
+    await subscribeToNewsletter({ data: input() });
+
+    expect(upserted().ip).toBeNull();
+    expect(h.rateLimit.mock.calls[0]?.[0]).toMatchObject({ subjectId: "unknown-ip" });
   });
 
   it("brak kontekstu żądania nie wywraca zapisu", async () => {
@@ -592,7 +623,7 @@ describe("ślad zgody i źródła", () => {
     });
 
     const row = upserted();
-    expect(row.consents).toEqual(consents);
+    expect(row.consents).toMatchObject(consents);
     expect(row.source).toBe("popup-glowny");
     expect(row.source_form_id).toBe("form-7");
     expect(row.source_form_name).toBe("Popup startowy");
@@ -764,4 +795,39 @@ describe("newsletter preference tags in CRM", () => {
     expect(result).toMatchObject({ ok: true });
     expect(errorSpy).toHaveBeenCalledWith("[newsletter] crm tag sync threw", expect.any(Error));
   });
+});
+
+it("preserves client interaction time and stamps receipt with the server clock", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const received = new Date("2026-09-13T20:00:00.000Z");
+  vi.setSystemTime(received);
+  try {
+    const result = await subscribeToNewsletter({
+      data: input({
+        consents: [
+          {
+            key: "privacy",
+            text: "Privacy version A",
+            version: "v1",
+            given: true,
+            timestamp: "2026-09-13T19:59:58.000Z",
+            received_at: "2099-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
+    });
+    expect(result.ok).toBe(true);
+    expect(upserted().consents).toEqual([
+      {
+        key: "privacy",
+        text: "Privacy version A",
+        version: "v1",
+        given: true,
+        timestamp: "2026-09-13T19:59:58.000Z",
+        received_at: received.toISOString(),
+      },
+    ]);
+  } finally {
+    vi.useRealTimers();
+  }
 });

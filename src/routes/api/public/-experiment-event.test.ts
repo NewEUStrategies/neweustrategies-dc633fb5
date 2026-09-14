@@ -30,6 +30,7 @@ const h = vi.hoisted(() => ({
   maybeSingle: vi.fn(),
   insert: vi.fn(),
   hostTenantId: "tenant-1" as string | null,
+  tenantDomains: ["redakcja.example.test"] as string[],
   trustedHost: "redakcja.example.test" as string | null,
   selectedTable: "" as string,
 }));
@@ -49,6 +50,17 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 vi.mock("@/lib/server/tenant.server", () => ({
   resolveTenantIdForHost: async () => h.hostTenantId,
   resolveTrustedRequestHost: async () => h.trustedHost,
+  // Katalog tenantów jest bramką preflightu: odbijamy Origin wyłącznie dla
+  // domen w nim ZAREJESTROWANYCH (mikrosite'y stoją na własnych domenach).
+  getTenantDirectory: async () => ({
+    byDomain: new Map(
+      h.tenantDomains.map((domain) => [
+        domain,
+        { id: "tenant-1", slug: "redakcja", domain, isDefault: true },
+      ]),
+    ),
+    defaultTenant: { id: "tenant-1", slug: "redakcja", domain: null, isDefault: true },
+  }),
 }));
 
 import { routeServerHandlers } from "@/test/routeHarness";
@@ -84,6 +96,20 @@ function request(payload: unknown, raw?: string, headers?: Record<string, string
   });
 }
 
+/**
+ * Żądanie preflightu w minimalnym kształcie: handler OPTIONS czyta z niego
+ * WYŁĄCZNIE nagłówek `Origin`. Pełnego `new Request` tu nie użyjemy, bo
+ * `Origin` jest nazwą ZABRONIONĄ dla kodu strony (w produkcji ustawia go
+ * przeglądarka gościa), a implementacja DOM w teście po prostu ją wycina -
+ * test budowany na `new Request` „przechodziłby" na braku nagłówka.
+ */
+function preflightRequest(origin?: string): Request {
+  const headers: Record<string, string> = origin ? { origin } : {};
+  return {
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+  } as unknown as Request;
+}
+
 async function post(payload: unknown, raw?: string, headers?: Record<string, string>) {
   const req = request(payload, raw, headers);
   return POST({ request: req });
@@ -98,6 +124,7 @@ beforeEach(() => {
   h.insert.mockReset().mockResolvedValue({ error: null });
   h.hostTenantId = "tenant-1";
   h.trustedHost = "redakcja.example.test";
+  h.tenantDomains = ["redakcja.example.test"];
   h.selectedTable = "";
 });
 
@@ -128,6 +155,18 @@ describe("zapis zdarzenia", () => {
     expect(h.insert.mock.calls[0]![0]).toMatchObject({ path: null });
   });
 
+  it("QUERY STRING ze ścieżki NIE trafia do tabeli", async () => {
+    // Schemat przyjmuje `z.string().max(2000)` od DOWOLNEGO klienta na trasie
+    // bez sesji; shipowany klient posyła samo `location.pathname`, ale tabela
+    // nie ma prawa zależeć od jego dobrej woli.
+    await post(body({ path: "/cennik?token=abcdef0123456789abcdef01&email=jan@example.org" }));
+
+    const { path } = h.insert.mock.calls[0]![0] as { path: string };
+    expect(path).not.toContain("abcdef0123456789abcdef01");
+    expect(path).not.toContain("jan@example.org");
+    expect(path.startsWith("/cennik")).toBe(true);
+  });
+
   it("identyfikator gościa z fallbacku base36 (bez myślników) też przechodzi", async () => {
     // `getVisitorId()` ma dwa źródła: crypto.randomUUID i fallback base36.
     await post(body({ visitorId: "m4k2p9x1q7" }));
@@ -135,12 +174,41 @@ describe("zapis zdarzenia", () => {
     expect(h.insert.mock.calls[0]![0]).toMatchObject({ visitor_id: "m4k2p9x1q7" });
   });
 
-  it("preflight OPTIONS oddaje 204 z nagłówkami CORS - sendBeacon bywa poprzedzony preflightem", async () => {
-    const res = await OPTIONS({ request: request(body()) });
+  it("preflight ZNANEJ domeny tenanta odbija Origin (nie gwiazdkę) i ustawia Vary", async () => {
+    const res = await OPTIONS({ request: preflightRequest("https://redakcja.example.test") });
 
     expect(res.status).toBe(204);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://redakcja.example.test");
     expect(res.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS");
+    expect(res.headers.get("Vary")).toBe("Origin");
+  });
+
+  it("preflight OBCEGO originu NIE dostaje żadnego nagłówka CORS - to endpoint ZAPISU", async () => {
+    // `*` pozwalał dowolnej stronie wykonać POST przeglądarką swojego gościa:
+    // odpowiedzi nie odczyta, ale wiersz zdarzenia A/B POWSTAJE, więc wynik
+    // testu (wybór „zwycięzcy") dawał się fabrykować z zewnątrz.
+    const res = await OPTIONS({ request: preflightRequest("https://zlodziej.example") });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    expect(res.headers.get("Access-Control-Allow-Methods")).toBeNull();
+    expect(res.headers.get("Vary")).toBe("Origin");
+  });
+
+  it("preflight hosta PODGLĄDU przechodzi - lokalny dev nie ma domeny w katalogu", async () => {
+    const res = await OPTIONS({ request: preflightRequest("http://localhost:5173") });
+
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:5173");
+  });
+
+  it("preflight bez Origin i z Originem niebędącym adresem nie wywala się na wyjątku", async () => {
+    const bare = await OPTIONS({ request: preflightRequest() });
+    const broken = await OPTIONS({ request: preflightRequest("to-nie-jest-adres") });
+
+    expect(bare.status).toBe(204);
+    expect(bare.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    expect(broken.status).toBe(204);
+    expect(broken.headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 });
 
@@ -235,20 +303,46 @@ describe("limiter", () => {
     expect(subject(0)).not.toBe(subject(2));
   });
 
-  it("adres czytany jest kolejno z cf-connecting-ip, x-forwarded-for, x-real-ip", async () => {
-    await post(body(), undefined, { "x-forwarded-for": "203.0.113.7, 10.0.0.1" });
-    await post(body(), undefined, { "x-real-ip": "203.0.113.8" });
-    const req = new Request("https://redakcja.example.test/api/public/experiment-event", {
-      method: "POST",
-      body: JSON.stringify(body()),
-    });
-    await POST({ request: req });
+  it("adres pochodzi ze WSPÓLNEJ definicji `clientIpFromHeaders`: cf → x-real-ip → OSTATNI wpis XFF", async () => {
+    const bare = (headers: Record<string, string>) =>
+      POST({
+        request: new Request("https://redakcja.example.test/api/public/experiment-event", {
+          method: "POST",
+          headers: { "user-agent": "A", ...headers },
+          body: JSON.stringify(body()),
+        }),
+      });
+
+    await bare({ "cf-connecting-ip": "203.0.113.1", "x-forwarded-for": "9.9.9.9" });
+    await bare({ "x-real-ip": "203.0.113.2", "x-forwarded-for": "9.9.9.9" });
+    await bare({ "x-forwarded-for": "9.9.9.9, 203.0.113.3" });
+    await bare({});
 
     const subject = (i: number) =>
       (h.rateLimit.mock.calls[i]![0] as { subjectId: string }).subjectId;
-    // Trzy różne źródła adresu dają trzy różne kubełki; brak adresu ma własny,
-    // wspólny kubełek zamiast kanału bez limitu.
-    expect(new Set([subject(0), subject(1), subject(2)]).size).toBe(3);
+    // Cztery różne źródła adresu dają cztery różne kubełki; brak adresu ma
+    // własny, wspólny kubełek ("unknown") zamiast kanału bez limitu.
+    expect(new Set([subject(0), subject(1), subject(2), subject(3)]).size).toBe(4);
+  });
+
+  it("ten sam cf-connecting-ip z RÓŻNYM x-forwarded-for trafia w TEN SAM kubełek", async () => {
+    // Gdyby pierwszy wpis XFF decydował o kluczu, limit 60/5 min rotowałby się
+    // jednym nagłówkiem - czyli nie istniał.
+    const send = (xff: string) =>
+      POST({
+        request: new Request("https://redakcja.example.test/api/public/experiment-event", {
+          method: "POST",
+          headers: { "cf-connecting-ip": "203.0.113.5", "x-forwarded-for": xff, "user-agent": "A" },
+          body: JSON.stringify(body()),
+        }),
+      });
+
+    await send("1.1.1.1");
+    await send("2.2.2.2, 3.3.3.3");
+
+    const subject = (i: number) =>
+      (h.rateLimit.mock.calls[i]![0] as { subjectId: string }).subjectId;
+    expect(subject(0)).toBe(subject(1));
   });
 });
 
@@ -340,5 +434,29 @@ describe("odporność", () => {
     const res = await post(body());
 
     expect(res.status).toBe(500);
+  });
+
+  it("500 NIE oddaje treści błędu Postgresa - klient anonimowy nie dostaje mapy schematu", async () => {
+    // Komunikat PostgREST niesie nazwy tabel, kolumn i ograniczeń. Pełna treść
+    // ma iść do logu workera (beacon jest fire-and-forget, więc bez logu nikt
+    // nie zgłosi nieudanych INSERT-ów), a do klienta - stały kod.
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.insert.mockResolvedValue({
+      error: {
+        message: 'null value in column "tenant_id" of relation "builder_experiment_events"',
+      },
+    });
+
+    const res = await post(body());
+    const text = await res.text();
+
+    expect(res.status).toBe(500);
+    expect(text).toBe("Insert failed");
+    expect(text).not.toContain("builder_experiment_events");
+    expect(logged).toHaveBeenCalledWith(
+      "[experiment-event] insert failed",
+      expect.stringContaining("builder_experiment_events"),
+    );
+    logged.mockRestore();
   });
 });

@@ -6,6 +6,7 @@
     "countryCompare",
     "adminBlocks",
     "adminThemeDesign",
+    "adminDashboard",
     "adminPermissions",
     "network",
     "directMessage",
@@ -32,6 +33,12 @@
   "missingEn": [],
   "missingPl": [],
   "untranslated": [
+    "adminDashboard.audience.role.admin",
+    "adminDashboard.audience.role.super_admin",
+    "adminDashboard.crm.source.import",
+    "adminDashboard.crm.source.newsletter",
+    "adminDashboard.crm.source.webinar",
+    "adminDashboard.marketing.title",
     "adminEventAgenda.tracks.workspace.minutes",
     "adminEventRegistration.audienceGrantHistory.summary",
     "adminEvents.general.videoPlatforms.vimeo",
@@ -206,6 +213,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 538
+    "untranslated": 544
   }
 }

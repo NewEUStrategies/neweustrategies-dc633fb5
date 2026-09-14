@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ChevronDown, ChevronRight, RefreshCcw, RotateCw, Webhook } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import type { Tables } from "@/integrations/supabase/types";
 import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
 import { billingKeys } from "@/lib/billing/keys";
@@ -72,6 +73,11 @@ const STATUS_TONE: Record<string, string> = {
 export function AdminWebhookLogPanel() {
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  // Ponowienie stoi po stronie serwera za rolą `super_admin` (odtwarza drugi
+  // człon polityki RLS na `payment_webhook_events`). Bez tej flagi admin
+  // najemcy klikałby przycisk i dostawał gołe „forbidden" - przycisku po
+  // prostu nie pokazujemy. To jest WYŁĄCZNIE ergonomia: bramką jest serwer.
+  const { isSuperAdmin } = useAuth();
 
   const [status, setStatus] = useState("all");
   const [env, setEnv] = useState("all");
@@ -280,22 +286,26 @@ export function AdminWebhookLogPanel() {
                           {fmt(row.occurred_at ?? row.created_at)}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 rounded-[6px]"
-                            disabled={retry.isPending}
-                            onClick={() => retry.mutate(row.id)}
-                          >
-                            <RotateCw
-                              className={`mr-1.5 h-3.5 w-3.5 ${
-                                retry.isPending && retry.variables === row.id ? "animate-spin" : ""
-                              }`}
-                              aria-hidden="true"
-                            />
-                            {t("adminBilling.retry2")}
-                          </Button>
+                          {isSuperAdmin && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 rounded-[6px]"
+                              disabled={retry.isPending}
+                              onClick={() => retry.mutate(row.id)}
+                            >
+                              <RotateCw
+                                className={`mr-1.5 h-3.5 w-3.5 ${
+                                  retry.isPending && retry.variables === row.id
+                                    ? "animate-spin"
+                                    : ""
+                                }`}
+                                aria-hidden="true"
+                              />
+                              {t("adminBilling.retry2")}
+                            </Button>
+                          )}
                           {(row.retry_count ?? 0) > 0 && (
                             <span className="mt-1 block text-[0.7rem] text-muted-foreground">
                               {t("adminBilling.attempts")}: {row.retry_count} ·{" "}

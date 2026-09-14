@@ -177,8 +177,15 @@ export function trackSearch(query: string, meta?: Record<string, unknown>): void
     type: "search",
     name: "internal_search",
     entityType: "search_query",
+    // JEDNA kopia frazy, nie dwie. Do naprawy ta sama fraza szła do `entity_id`
+    // (znormalizowana, 120 znaków) i do `meta.q` (ORYGINALNA WIELKOŚĆ LITER,
+    // 200 znaków) - dwie ekspozycje przy ZEROWYM czytelniku: raport „popularne
+    // frazy" (/search, stan pusty) stoi na `search_query_log` i RPC
+    // `popular_searches`, a warstwa semantyczna liczy z `analytics_events`
+    // WYŁĄCZNIE `COUNT(*) FILTER (WHERE event_type = 'search')`. Kopia zostaje
+    // w `entity_id`, bo to ona jest zaindeksowana (analytics_events_entity_idx).
     entityId: q.slice(0, 120).toLowerCase(),
-    meta: { q: q.slice(0, 200), ...(meta ?? {}) },
+    meta: meta ?? {},
   });
 }
 

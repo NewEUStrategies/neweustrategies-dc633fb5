@@ -41,11 +41,16 @@
 //     `node:dns/promises` jest importem statycznym, wiec tego wyscigu nie ma;
 //   * kadencji joba (co ile minut leci porcja i jaki ma budzet) - to
 //     `everyNthMinute` i `src/lib/server/__tests__/jobsTickDutyCycle.test.ts`;
-//   * uprawnien: `runLinkCheckBatch` nie jest server fn i nie ma wlasnej
+//   * BRAMKI ROLI: `runLinkCheckBatch` nie jest server fn i nie ma wlasnej
 //     kontroli dostepu - dostaje z gory klienta service-role, bo kolumny
-//     `posts.content_*` sa dla klientow odciete. Wolajacym jest jobs-tick
-//     (cron) oraz panel `admin.link-monitor` przez `linkMonitor.functions.ts`
-//     za middleware - i tam nalezy dowod autoryzacji.
+//     `posts.content_*` sa dla klientow odciete. Rola wolajacego jest
+//     sprawdzana w `linkMonitor.functions.ts` (middleware `requireStaff`,
+//     dowod w `src/lib/content/__tests__/linkMonitor.functions.test.ts`).
+//     ZAKRES NAJEMCY jest juz jednak wlasnoscia TEJ funkcji i ma tu wlasny
+//     zestaw przypadkow: `tenantId` przychodzi argumentem z profilu
+//     wolajacego, a `null` nalezy WYLACZNIE do crona (jobs-tick), ktory jako
+//     jedyny nie ma tozsamosci uzytkownika. Wczesniej ten akapit odsylal
+//     dowod zakresu do `linkMonitor.functions.ts`, gdzie go nie bylo.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -923,5 +928,135 @@ describe("runLinkCheckBatch - alert progowy dla redakcji", () => {
 
     expect(warn).toHaveBeenCalledWith("[link-monitor] threshold alert failed", expect.any(Error));
     expect(result).toMatchObject({ postsScanned: 1, linksChecked: 1, alerted: 0 });
+  });
+});
+
+/* ======================================================================= */
+
+describe("zakres najemcy", () => {
+  // Skan PISZE: upsertuje `outbound_link_checks`, stempluje
+  // `posts.outbound_links_checked_at` i potrafi wstawic wiersze
+  // `notifications` adminom dotknietego najemcy. Dlatego atrapa kolejki
+  // REALNIE FILTRUJE po zapisanym `.eq("tenant_id", …)` - atrapa oddajaca
+  // stala liste przeszlaby tak samo bez filtru w kodzie produkcyjnym.
+  const TENANT_B = "tenant-2";
+  const POST_B = "post-2";
+  const LINK_A = "https://obcy-a.test/zrodlo";
+  const LINK_B = "https://obcy-b.test/zrodlo";
+
+  /** Wartosci wszystkich ogniw `.eq()` danej kolumny w lancuchu. */
+  function eqValues(chain: RecordedChain, column: string): unknown[] {
+    return chain.calls
+      .filter((c) => c.method === "eq" && c.args[0] === column)
+      .map((c) => c.args[1]);
+  }
+
+  /** Kolejka dwoch najemcow, wybierana filtrem z zapytania. */
+  function planTwoTenants(): void {
+    const queue = [
+      post({ id: POST, tenant_id: TENANT, content_pl: LINK_A }),
+      post({ id: POST_B, tenant_id: TENANT_B, content_pl: LINK_B }),
+    ];
+    db.setResponse("posts", (chain: RecordedChain) => {
+      if (chain.has("update")) return ok(null);
+      const wanted = eqValues(chain, "tenant_id");
+      return ok(wanted.length === 0 ? queue : queue.filter((p) => wanted.includes(p.tenant_id)));
+    });
+    db.setResponse("outbound_link_checks", (chain: RecordedChain) => {
+      if (chain.has("upsert")) return ok(null);
+      if (chain.has("delete")) return ok(null);
+      return okCount(0);
+    });
+    db.setResponse("outbound_link_alerts", (chain: RecordedChain) =>
+      chain.has("select") ? ok(null) : ok(null),
+    );
+    db.setResponse("user_roles", () => ok([{ user_id: "admin-1" }]));
+    db.setResponse("notifications", () => ok(null));
+  }
+
+  /** Zapytanie o kolejke - PIERWSZY lancuch na `posts` (dalsze to stemple). */
+  function queueChain(): RecordedChain {
+    const chain = db.chainsFor("posts").find((c) => c.has("select"));
+    if (!chain) throw new Error("test: kod nie zapytal o kolejke wpisow");
+    return chain;
+  }
+
+  it("porcja najemcy A niesie filtr najemcy w zapytaniu o kolejke", async () => {
+    planTwoTenants();
+
+    await runLinkCheckBatch(adminClient(db), 6, TENANT);
+
+    expect(eqValues(queueChain(), "tenant_id")).toEqual([TENANT]);
+    expect(eqValues(queueChain(), "status")).toEqual(["published"]);
+  });
+
+  it("porcja najemcy A NIE dotyka wpisow najemcy B", async () => {
+    planTwoTenants();
+
+    const result = await runLinkCheckBatch(adminClient(db), 6, TENANT);
+
+    expect(result.postsScanned).toBe(1);
+    expect(probeCalls()).toEqual([LINK_A]);
+    expect(upsertedRows(db).map((r) => r.tenant_id)).toEqual([TENANT]);
+    expect(upsertedRows(db).map((r) => r.post_id)).toEqual([POST]);
+  });
+
+  it("porcja najemcy A nie stempluje `posts` ani nie czysci raportu najemcy B", async () => {
+    planTwoTenants();
+
+    await runLinkCheckBatch(adminClient(db), 6, TENANT);
+
+    const dotkniete = db
+      .chainsFor("posts")
+      .filter((c) => c.has("update"))
+      .flatMap((c) => eqValues(c, "id"));
+    expect(dotkniete).toEqual([POST]);
+    const czyszczone = db
+      .chainsFor("outbound_link_checks")
+      .filter((c) => c.has("delete"))
+      .flatMap((c) => eqValues(c, "post_id"));
+    expect(czyszczone).toEqual([POST]);
+  });
+
+  it("alert progowy nie siega po adminow najemcy B ani nie wstawia mu powiadomien", async () => {
+    planTwoTenants();
+    db.setResponse("outbound_link_checks", (chain: RecordedChain) => {
+      if (chain.has("upsert")) return ok(null);
+      if (chain.has("delete")) return ok(null);
+      return okCount(12);
+    });
+    h.fetchMock.mockImplementation(async (input: string) =>
+      input.startsWith(ARCHIVE_PREFIX) ? noSnapshotResponse() : new Response(null, { status: 404 }),
+    );
+
+    await runLinkCheckBatch(adminClient(db), 6, TENANT);
+
+    expect(db.chainsFor("user_roles").flatMap((c) => eqValues(c, "tenant_id"))).toEqual([TENANT]);
+    const wstawione = db
+      .chainsFor("notifications")
+      .filter((c) => c.has("insert"))
+      .flatMap((c) => c.argsOf("insert")?.[0] as Array<{ tenant_id: string }>);
+    expect(wstawione.map((r) => r.tenant_id)).toEqual([TENANT]);
+  });
+
+  it("cron (tenantId === null) zachowuje kolejke GLOBALNA - bez filtru najemcy", async () => {
+    // Jedyny wolajacy bez tozsamosci uzytkownika; jego zadaniem jest obsluzyc
+    // wszystkich najemcow, wiec brak filtru jest tu poprawnym zachowaniem.
+    planTwoTenants();
+
+    const result = await runLinkCheckBatch(adminClient(db), 6, null);
+
+    expect(eqValues(queueChain(), "tenant_id")).toEqual([]);
+    expect(result.postsScanned).toBe(2);
+    expect(probeCalls().sort()).toEqual([LINK_A, LINK_B]);
+  });
+
+  it("domyslny brak trzeciego argumentu znaczy to samo co cron", async () => {
+    planTwoTenants();
+
+    const result = await runLinkCheckBatch(adminClient(db), 6);
+
+    expect(eqValues(queueChain(), "tenant_id")).toEqual([]);
+    expect(result.postsScanned).toBe(2);
   });
 });

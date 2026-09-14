@@ -10,7 +10,7 @@
 // wolno mu się pokazać, czy da się go zamknąć każdą z trzech dróg, czy pamięta
 // zamknięcie i czy oddaje klawiaturę tam, skąd ją wziął.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { axeViolations, summarize } from "@/test/axe";
 
 interface SignUpArgs {
@@ -471,11 +471,20 @@ describe("NewsletterPopup: zamykanie ma trzy drogi i jest zapamiętywane", () =>
 
     // Bariera antybotowa formularza: wypełnienie musi zająć ponad 1,2 s.
     vi.setSystemTime(new Date("2026-08-22T10:00:20.000Z"));
-    fireEvent.click(
-      dialog().querySelector<HTMLButtonElement>('button[type="submit"]') as HTMLButtonElement,
-    );
-    await flush();
-    await flush();
+    let complete: () => void = () => {};
+    const submitted = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    h.subscribe.mockImplementation(async () => {
+      complete();
+      return { ok: true };
+    });
+    await act(async () => {
+      fireEvent.click(
+        dialog().querySelector<HTMLButtonElement>('button[type="submit"]') as HTMLButtonElement,
+      );
+      await submitted;
+    });
 
     expect(window.localStorage.getItem(LS_KEY)).toBe(
       String(new Date("2026-08-22T10:00:20.000Z").getTime()),
@@ -499,7 +508,7 @@ describe("NewsletterPopup: dostępność okna, które zabiera uwagę", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it("okno w układzie stacked z formularzem newslettera też jest czyste", async () => {
+  it("okno w układzie stacked z formularzem konta też jest czyste", async () => {
     await openByDelay({ popup_layout: "stacked", popup_cover_url: "https://cdn/okladka.jpg" });
 
     vi.useRealTimers();
@@ -597,7 +606,7 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
     expect(dialog().querySelector('input[type="email"]')).toBeNull();
   });
 
-  it("prosty popup bez pól rozszerzonych pokazuje krótki formularz newslettera, nie rejestrację konta", async () => {
+  it("prosty popup bez pól rozszerzonych również zakłada konto", async () => {
     await openByDelay({
       popup_layout: "stacked",
       popup_extended_fields: false,
@@ -605,8 +614,8 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
       popup_require_terms: false,
     });
 
-    expect(screen.getByTestId("newsletter-form")).toHaveAttribute("data-source", "popup");
-    expect(dialog().querySelector("input[minlength]")).toBeNull();
+    expect(dialog().querySelector('input[type="email"]')).toBeInTheDocument();
+    expect(dialog().querySelectorAll('input[type="password"]')).toHaveLength(2);
   });
 
   it.each([
@@ -634,7 +643,7 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
 
   it("pusty opis nie zostawia pustego akapitu pod tytułem", async () => {
     await openByDelay({ popup_description_pl: "", popup_description_en: "" });
-    expect(dialog().querySelectorAll("p")).toHaveLength(0);
+    expect(dialog().querySelector("#nl-popup-title + p")).toBeNull();
 
     cleanup();
     await openByDelay({ popup_description_pl: "Zajrzyj za kulisy." });
@@ -673,5 +682,82 @@ describe("NewsletterPopup: każdy układ renderuje właściwą treść", () => {
 
     const panel = dialog().firstElementChild as HTMLElement;
     expect(panel.style.borderRadius).toBe("6px");
+  });
+});
+
+describe("NewsletterPopup: modal lifecycle regressions", () => {
+  it("keeps the active field visible after focus and viewport resize, then removes listeners", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, "visualViewport");
+    const viewport = new EventTarget();
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+    try {
+      const view = await openByDelay();
+      vi.useRealTimers();
+      const email = dialog().querySelector<HTMLInputElement>('input[type="email"]')!;
+      const reveal = vi.fn();
+      Object.defineProperty(email, "scrollIntoView", { configurable: true, value: reveal });
+
+      email.focus();
+      await waitFor(() =>
+        expect(reveal).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" }),
+      );
+      expect(email).toHaveFocus();
+
+      // The same focused field must be revealed again when available height changes.
+      reveal.mockClear();
+      window.dispatchEvent(new Event("resize"));
+      viewport.dispatchEvent(new Event("resize"));
+      await act(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      expect(reveal).toHaveBeenCalledTimes(1);
+
+      // Focus outside the panel must not scroll the underlying document.
+      email.blur();
+      window.dispatchEvent(new Event("resize"));
+      await act(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      expect(reveal).toHaveBeenCalledTimes(1);
+
+      email.focus();
+      view.unmount();
+      window.dispatchEvent(new Event("resize"));
+      viewport.dispatchEvent(new Event("resize"));
+      await act(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      expect(reveal).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      if (descriptor) Object.defineProperty(window, "visualViewport", descriptor);
+      else Reflect.deleteProperty(window, "visualViewport");
+    }
+  });
+  it("locks background scrolling and restores it on close", async () => {
+    const previous = document.body.style.overflow;
+    await openByDelay();
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.body.style.overflow).toBe(previous);
+  });
+  it("releases an already granted slot when unmounted", async () => {
+    const view = await openByDelay();
+    view.unmount();
+    expect(h.release).toHaveBeenCalledTimes(1);
+  });
+  it("closes an open popup when navigation leaves the page", async () => {
+    const view = await openByDelay();
+    h.pathname = "/login";
+    view.remount();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.release).toHaveBeenCalledTimes(1);
+  });
+  it("releases its slot when settings disable an open popup", async () => {
+    const view = await openByDelay();
+    h.settings = popupSettings({ popup_enabled: false });
+    view.remount();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.release).toHaveBeenCalledTimes(1);
   });
 });

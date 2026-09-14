@@ -570,63 +570,50 @@ describe("LoginPopup - błąd serwera ODRĘBNY od pustego formularza", () => {
     expect(h.toastError).not.toHaveBeenCalled();
   });
 
-  // DEFEKT PRODUKCYJNY (LoginPopup.tsx:160). `toast.error(err instanceof Error
-  // ? err.message : "Error")` wyrzuca na ekran SUROWY komunikat Supabase.
-  // Polskojęzyczny gość przy JEDYNEJ bramie wejścia do konta widzi angielskie
-  // „Invalid login credentials" - nie wie, czy pomylił hasło, czy usługa padła,
-  // więc nie wie, co zrobić dalej. Zlecenie wymaga komunikatu Z KLUCZA i18n.
-  // Produkcji NIE ZMIENIAMY - test opisuje kontrakt, którego brakuje.
-  it.fails(
-    "DEFEKT: odmowa logowania pokazuje surowy angielski komunikat Supabase, a nie klucz i18n",
-    async () => {
-      h.signIn.mockResolvedValue({ error: new Error("Invalid login credentials") });
-      render(<LoginPopup />);
-      openPopup();
-      fillSignin();
-      fireEvent.click(submitButton());
-      await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-      // FORMA ODPORNA NA WYBÓR KLUCZA. Asercja `toHaveBeenCalledWith(
-      // t("auth.invalidInput"))` przypięłaby zgłoszenie do JEDNEGO konkretnego
-      // klucza: gdyby ktoś naprawił defekt, ale użył trafniejszego klucza
-      // (np. `auth.signinFailed`), asercja NADAL by rzucała, `it.fails` NADAL
-      // byłby zielony i nikt nie dowiedziałby się, że defekt zniknął.
-      // Sformułowanie negatywne gaśnie po DOWOLNEJ naprawie.
-      expect(h.toastError).not.toHaveBeenCalledWith("Invalid login credentials");
-    },
-  );
-
-  it("stan faktyczny (regresja w drugą stronę): toast powtarza dosłownie komunikat Supabase", async () => {
+  // Regresja: komunikaty dostawcy nie trafiają bezpośrednio do interfejsu.
+  it("regresja: odmowa logowania nie ujawnia surowego komunikatu Supabase", async () => {
     h.signIn.mockResolvedValue({ error: new Error("Invalid login credentials") });
     render(<LoginPopup />);
     openPopup();
     fillSignin();
     fireEvent.click(submitButton());
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Invalid login credentials"));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(h.toastError).not.toHaveBeenCalledWith("Invalid login credentials");
+  });
+
+  it("odmowa logowania pokazuje przetłumaczony komunikat", async () => {
+    h.signIn.mockResolvedValue({ error: new Error("Invalid login credentials") });
+    render(<LoginPopup />);
+    openPopup();
+    fillSignin();
+    fireEvent.click(submitButton());
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(t("authForms.errors.invalidCredentials")),
+    );
   });
 
   // DRUGA POŁOWA TEGO SAMEGO DEFEKTU: odrzucenie wartością inną niż Error
   // (np. odrzucony string z warstwy transportowej) daje nieprzetłumaczony
   // literał „Error" - komunikat, który nie mówi użytkownikowi absolutnie nic.
-  it.fails(
-    "DEFEKT: odrzucenie wartością inną niż Error pokazuje nieprzetłumaczony literał 'Error'",
-    async () => {
-      h.guard.mockRejectedValue("transport-down");
-      render(<LoginPopup />);
-      openPopup();
-      fillSignin();
-      fireEvent.click(submitButton());
-      await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-      expect(h.toastError).not.toHaveBeenCalledWith("Error");
-    },
-  );
-
-  it("stan faktyczny: odrzucenie nie-Errorem daje literał 'Error', a signIn nie jest wołany", async () => {
+  it("regresja: błąd transportu nie pokazuje literału Error", async () => {
     h.guard.mockRejectedValue("transport-down");
     render(<LoginPopup />);
     openPopup();
     fillSignin();
     fireEvent.click(submitButton());
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Error"));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(h.toastError).not.toHaveBeenCalledWith("Error");
+  });
+
+  it("błąd transportu pokazuje przetłumaczony komunikat i nie wywołuje signIn", async () => {
+    h.guard.mockRejectedValue("transport-down");
+    render(<LoginPopup />);
+    openPopup();
+    fillSignin();
+    fireEvent.click(submitButton());
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(t("authForms.errors.unavailable")),
+    );
     expect(h.signIn).not.toHaveBeenCalled();
   });
 
@@ -650,13 +637,15 @@ describe("LoginPopup - błąd serwera ODRĘBNY od pustego formularza", () => {
     expect(h.signIn).not.toHaveBeenCalled();
   });
 
-  it("guard z nieznanym błędem przechodzi bez podmiany komunikatu", async () => {
+  it("nieznany błąd strażnika jest zastępowany bezpiecznym komunikatem", async () => {
     h.guard.mockRejectedValue(new Error("boom-nieoczekiwany"));
     render(<LoginPopup />);
     openPopup();
     fillSignin();
     fireEvent.click(submitButton());
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("boom-nieoczekiwany"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(t("authForms.errors.unavailable")),
+    );
     expect(h.signIn).not.toHaveBeenCalled();
   });
 
@@ -719,16 +708,8 @@ describe("LoginPopup - dostępność", () => {
     expect(emailInput()).toHaveFocus();
   });
 
-  // DEFEKT DOSTĘPNOŚCI. Radix przywraca fokus po zamknięciu na `DialogTrigger`,
-  // a LoginPopup otwiera się SZYNĄ ZDARZEŃ, bez triggera Radiksa (patrz
-  // `onCloseAutoFocus` w @radix-ui/react-dialog: robi preventDefault i celuje w
-  // `context.triggerRef`, który tu jest pusty). Skutek dla użytkownika
-  // klawiatury: po zamknięciu popupu fokus przepada na <body>, więc czytnik
-  // ekranu traci miejsce w dokumencie, a Tab startuje od początku strony -
-  // przy przycisku „zapisz artykuł" w środku długiego tekstu to oznacza
-  // przewijanie całej strony od nowa. To NIE jest ograniczenie happy-dom:
-  // brak triggera jest własnością produkcyjnego kodu popupu.
-  it.fails("DEFEKT: po zamknięciu popupu fokus NIE wraca na element wywołujący", async () => {
+  // Otwarcie przez szynę zdarzeń wymaga zapamiętania elementu wywołującego.
+  it("regresja: po zamknięciu popupu fokus wraca na element wywołujący", async () => {
     render(
       <>
         <OpenPopupButton label={TRIGGER_LABEL} />
@@ -744,7 +725,7 @@ describe("LoginPopup - dostępność", () => {
     await waitFor(() => expect(trigger).toHaveFocus(), { timeout: 300, interval: 50 });
   });
 
-  it("stan faktyczny: po zamknięciu fokus ląduje na <body>, nie na wywołującym przycisku", async () => {
+  it("zamknięcie przywraca fokus wywołującego", async () => {
     render(
       <>
         <OpenPopupButton label={TRIGGER_LABEL} />
@@ -757,8 +738,7 @@ describe("LoginPopup - dostępność", () => {
     await screen.findByRole("dialog");
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(document.activeElement).toBe(document.body));
-    expect(trigger).not.toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   // CO ZOSTAŁO DOWIEDZIONE: kontrakt uwięzienia fokusu, jaki Radix REALNIE
@@ -1119,7 +1099,9 @@ describe("LoginPopup - rejestracja", () => {
     fillSignup("Anna");
     fireEvent.click(submitButton());
 
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("User already registered"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(t("authForms.errors.emailInUse")),
+    );
     expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(emailInput()).toHaveValue(EMAIL);

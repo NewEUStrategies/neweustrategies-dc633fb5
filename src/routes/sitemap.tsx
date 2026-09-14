@@ -16,7 +16,7 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 
 export const COPY = {
   pl: {
@@ -56,12 +56,22 @@ const COMMUNITY_LINKS = [
 
 export const Route = createFileRoute("/sitemap")({
   loader: async ({ context }) => {
-    setCacheControlHeader(contentCacheControl());
-    await Promise.allSettled([
+    // KOLEJNOŚĆ JEST CAŁĄ NAPRAWĄ. Do 2026-09-12 `setCacheControlHeader(
+    // contentCacheControl())` było PIERWSZĄ instrukcją tego loadera, a trzy
+    // zapytania budujące CAŁĄ treść mapy leciały po nim w `Promise.allSettled`
+    // bez sprawdzenia wyniku. Odrzucenie któregokolwiek dawało mapę bez stron,
+    // bez kategorii albo bez wpisów - przy statusie 200 i z nagłówkiem
+    // pozwalającym brzegowi trzymać ten kadłubek przez 15 minut świeżości plus
+    // dobę okna stale. Mapa strony jest powierzchnią, z której crawler czerpie
+    // strukturę serwisu, więc jej okrojona wersja w cache'u kosztuje indeks.
+    const results = await Promise.allSettled([
       context.queryClient.ensureQueryData(publicPagesTreeQueryOptions()),
       context.queryClient.ensureQueryData(publicCategoriesQueryOptions()),
       context.queryClient.ensureQueryData(blogListQueryOptions()),
     ]);
+    setCacheControlHeader(
+      resilientCacheControl(results.some((result) => result.status === "rejected")),
+    );
     return null;
   },
   head: () => {

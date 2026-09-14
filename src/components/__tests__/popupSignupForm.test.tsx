@@ -21,7 +21,7 @@ interface ConsentPayload {
   given: boolean;
   lang: "pl" | "en";
   version?: string;
-  /** Znacznik czasu udzielenia zgody - schemat go NIE deklaruje (patrz `it.fails`). */
+  /** Deklarowany czas interakcji klienta, odrębny od czasu odbioru przez serwer. */
   timestamp?: string;
 }
 
@@ -229,10 +229,10 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
     const { consents } = h.subscribe.mock.calls[0][0].data;
-    expect(consents).toEqual([
+    expect(consents).toMatchObject([
       {
         key: "newsletter",
-        text: "signupPopup.newsletterConsent(lng=pl)",
+        text: "Chcę otrzymywać newsletter",
         given: true,
         lang: "pl",
       },
@@ -245,23 +245,48 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
     ]);
   });
 
-  it.fails(
-    "zgoda jedzie do bazy BEZ wersji i BEZ znacznika czasu - z takiego wpisu nie da się dowieść, na jaką treść i kiedy padła zgoda (art. 7 ust. 1 RODO: ciężar dowodu leży po stronie administratora)",
-    async () => {
-      renderForm();
-      fillMinimal();
-      fireEvent.click(consentBoxes()[1]);
-      actLikeHuman();
-      await submit();
+  it("records the configured checkbox label and the same sanitized privacy text shown to the reader", async () => {
+    const consentText = "Send me the editorial newsletter.";
+    renderForm({
+      lang: "en",
+      settings: settings({
+        popup_fields: fieldsWith({ key: "newsletter_optin", label_en: consentText }),
+        popup_privacy_html_en:
+          '<strong onclick="bad()">I accept</strong> the policy.<script>bad()</script>',
+      }),
+    });
+    expect(screen.getByText(consentText)).toBeInTheDocument();
+    const displayedPrivacy = document.querySelector(".nl-consent")?.innerHTML;
+    fillMinimal();
+    fireEvent.click(consentBoxes()[1]);
+    actLikeHuman();
+    await submit();
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
+    const consents = h.subscribe.mock.calls[0][0].data.consents;
+    expect(consents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "newsletter", text: consentText, lang: "en" }),
+        expect.objectContaining({ key: "privacy", text: displayedPrivacy, lang: "en" }),
+      ]),
+    );
+    expect(consents.find((entry) => entry.key === "privacy")?.text).not.toContain("bad()");
+    expect(h.signUp.mock.calls[0][0].options.data.signup_consents).toEqual(consents);
+  });
 
-      await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
-      const [privacyConsent] = h.subscribe.mock.calls[0][0].data.consents.filter(
-        (entry) => entry.key === "privacy",
-      );
-      expect(privacyConsent.version, "wersja treści zgody").toBeTruthy();
-      expect(privacyConsent.timestamp, "znacznik czasu zgody").toBe(HUMAN_AT.toISOString());
-    },
-  );
+  it("zgoda zawiera wersję treści i deklarowany czas interakcji", async () => {
+    renderForm();
+    fillMinimal();
+    fireEvent.click(consentBoxes()[1]);
+    actLikeHuman();
+    await submit();
+
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
+    const [privacyConsent] = h.subscribe.mock.calls[0][0].data.consents.filter(
+      (entry) => entry.key === "privacy",
+    );
+    expect(privacyConsent.version, "wersja treści zgody").toBeTruthy();
+    expect(privacyConsent.timestamp, "znacznik czasu zgody").toBe(HUMAN_AT.toISOString());
+  });
 
   it("kilka zgód naraz zapisuje się jako osobne wpisy, każdy z własną treścią", async () => {
     renderForm({
@@ -785,14 +810,14 @@ describe("PopupSignupForm: zachowania o wysokiej konsekwencji", () => {
     h.signUp.mockResolvedValue({ error: new Error("User already registered") });
     await submit();
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent("User already registered"),
+      expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.errors.emailInUse"),
     );
     const duplicateMessage = screen.getByRole("alert").textContent;
 
     h.signUp.mockResolvedValue({ error: new Error("Database error saving new user") });
     await submit();
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent("Database error saving new user"),
+      expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.errors.unavailable"),
     );
     const failureMessage = screen.getByRole("alert").textContent;
 
@@ -801,23 +826,20 @@ describe("PopupSignupForm: zachowania o wysokiej konsekwencji", () => {
     expect(duplicateMessage).not.toBe(failureMessage);
   });
 
-  it.fails(
-    "komunikat po błędzie zapisu to SUROWY tekst dostawcy, nie klucz i18n - użytkownik anglojęzycznego backendu czyta techniczny komunikat w interfejsie po polsku, a treść błędu bazy wycieka na ekran",
-    async () => {
-      h.signUp.mockResolvedValue({
-        error: new Error('duplicate key value violates unique constraint "users_email_key"'),
-      });
+  it("błąd dostawcy jest zastępowany kluczem tłumaczenia bez ujawnienia szczegółów", async () => {
+    h.signUp.mockResolvedValue({
+      error: new Error('duplicate key value violates unique constraint "users_email_key"'),
+    });
 
-      renderForm();
-      fillMinimal();
-      acceptPrivacy();
-      actLikeHuman();
-      await submit();
+    renderForm();
+    fillMinimal();
+    acceptPrivacy();
+    actLikeHuman();
+    await submit();
 
-      await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-      expect(screen.getByRole("alert").textContent).toMatch(/^signupPopup\.errors\./);
-    },
-  );
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert").textContent).toMatch(/^signupPopup\.errors\./);
+  });
 
   it("przekroczony limit prób pokazuje komunikat z klucza i nie próbuje zakładać konta", async () => {
     h.guard.mockRejectedValue(new Error("rate_limited: too many attempts"));
@@ -881,7 +903,22 @@ describe("PopupSignupForm: zachowania o wysokiej konsekwencji", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status")).toHaveTextContent("signupPopup.success.title(lng=pl)");
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.success.newsletterFailed");
+  });
+
+  it("odmowa newslettera w odpowiedzi ok:false jest widoczna po utworzeniu konta", async () => {
+    h.subscribe.mockResolvedValue({ ok: false });
+    const onSuccess = vi.fn();
+
+    renderForm({ onSuccess });
+    fillMinimal();
+    acceptPrivacy();
+    actLikeHuman();
+    await submit();
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("status")).toHaveTextContent("signupPopup.success.title(lng=pl)");
+    expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.success.newsletterFailed");
   });
 
   it("po udanej rejestracji panel sukcesu pokazuje adres, na który poszedł link", async () => {
@@ -923,8 +960,12 @@ describe("PopupSignupForm: zachowania o wysokiej konsekwencji", () => {
     // wynosi zero - tak wygląda odesłanie formularza przez skrypt.
     await submit();
 
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.errors.tooFast");
     expect(h.signUp).not.toHaveBeenCalled();
+    actLikeHuman();
+    await submit();
+    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
   });
 
   it("podgląd w adminie niczego nie zapisuje i nie podstawia danych administratora", async () => {
@@ -1198,4 +1239,24 @@ describe("PopupSignupForm: co ląduje w profilu i jak wygląda formularz", () =>
     );
     expect(container.querySelectorAll("button[type='submit'] svg")).toHaveLength(0);
   });
+});
+
+it("keeps account consent snapshots even when newsletter opt-in is off", async () => {
+  renderForm();
+  fillMinimal();
+  fireEvent.click(consentBoxes()[0]);
+  fireEvent.click(consentBoxes()[1]);
+  actLikeHuman();
+  await submit();
+  await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
+  const payload = h.signUp.mock.calls[0][0];
+  expect(payload.options.data.signup_consents).toEqual([
+    expect.objectContaining({
+      key: "privacy",
+      given: true,
+      version: expect.stringMatching(/^sha256:[0-9a-f]{24}$/),
+      timestamp: HUMAN_AT.toISOString(),
+    }),
+  ]);
+  expect(h.subscribe).not.toHaveBeenCalled();
 });

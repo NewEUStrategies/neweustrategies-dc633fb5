@@ -56,6 +56,8 @@ const h = vi.hoisted(() => ({
   consoleErrors: [] as unknown[],
   /** Gdy ustawione, KAŻDE wywołanie RPC oddaje ten błąd (awaria bazy). */
   rpcError: null as { message: string } | null,
+  /** Jak ma się zachować rozgrzewka bloków. */
+  blocksPrefetch: "ok" as "ok" | "reject" | "hang" | "degraded",
 }));
 
 // JĘZYK RENDERU JAKO WSTRZYKIWANE WEJŚCIE, nie jako stan globalny.
@@ -134,6 +136,14 @@ vi.mock("@/lib/queries/blocks", async (o) => ({
     ctx: Record<string, unknown> = {},
   ) => {
     h.blocksPrefetchCtx.push({ ...ctx });
+    // TRZY ścieżki degradacji prefetchu wtórnego, wszystkie realne w produkcji:
+    // odrzucenie (upstream oddał błąd), zawieszenie (budżet 3 000 ms mija)
+    // oraz - najczęstsza i do 2026-09-13 NIEWIDOCZNA - rozstrzygnięcie
+    // SUKCESEM z sygnałem `degraded`, bo prawdziwa funkcja pochłania awarie
+    // pojedynczych bloków w `Promise.allSettled` i nigdy nie odrzuca.
+    if (h.blocksPrefetch === "reject") throw new Error("blocks_data unreachable");
+    if (h.blocksPrefetch === "hang") await new Promise(() => {});
+    return { degraded: h.blocksPrefetch === "degraded" };
   },
 }));
 
@@ -150,6 +160,7 @@ import {
   type PostData,
   type ResolvedContent,
 } from "@/lib/queries/public";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { splatToSegments } from "@/lib/routing/publicSegments";
 import { Route } from "@/routes/$";
 
@@ -327,11 +338,21 @@ interface WynikLoadera {
 async function runLoader(
   splat: string,
   tresc?: ResolvedContent,
+  { ustawieniaSerwisu = true }: { ustawieniaSerwisu?: boolean } = {},
 ): Promise<{ wynik: unknown; queryClient: QueryClient }> {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   if (tresc) {
     const opcje = resolvedContentQueryOptions(splatToSegments(splat));
     queryClient.setQueryData(opcje.queryKey, tresc);
+  }
+  // USTAWIENIA SERWISU ZASIANE DOMYŚLNIE, bo tak wygląda produkcja: fala 1
+  // loadera korzenia (`__root.tsx:346-354`) rozgrzewa `siteSettingsQueryOptions`
+  // RÓWNOLEGLE do loadera trasy, więc na czystym renderze ta trasa czyta je
+  // z cache'u i nie płaci round-tripu. Bez zasiewu KAŻDY przypadek tego pliku
+  // mierzyłby render ZDEGRADOWANY (od 2026-09-12 brak ustawień zdejmuje
+  // `Cache-Control` wspólnego cache'u), czyli co innego, niż nazywa.
+  if (ustawieniaSerwisu) {
+    queryClient.setQueryData(siteSettingsQueryOptions.queryKey, { seo: null });
   }
   try {
     return {
@@ -360,6 +381,7 @@ beforeEach(() => {
   h.requestUrl = "";
   h.blocksPrefetchCtx = [];
   h.rpcError = null;
+  h.blocksPrefetch = "ok";
   // Domyślnie: adres nie trafia w żadne archiwum taksonomii (gałąź „treści nie ma").
   stub.setResponse("categories", ok(null));
   stub.setResponse("tags", ok(null));
@@ -899,6 +921,101 @@ describe("loader trasy `/$` - degradacja zapytań pobocznych", () => {
     const { wynik } = await runLoader("analizy/atom", resolvedPost());
     expect(jakoWynik(wynik).kind).toBe("post");
     expect(jakoWynik(wynik).coverPreload).toBeTruthy();
+  });
+
+  // ------------------------------------------------------------------------
+  // NAGŁÓWEK CACHE'U BRAMKOWANY CZYSTOŚCIĄ RENDERU (punkt A4.5 / definicja
+  // ukończenia 10 zlecenia `docs/PROMPT_SSR_PIERWSZE_WCZYTANIE.md`).
+  //
+  // Do 2026-09-12 `setCacheControlHeader(contentCacheControl())` było w tym
+  // loaderze PRZED prefetchem wtórnym, więc render niepełny wychodził
+  // z nagłówkiem pozwalającym trzymać go na brzegu przez 15 minut świeżości
+  // plus dobę okna stale. Trzy przypadki niżej to trzy sposoby, na jakie ten
+  // render bywa niepełny; kontrola pozytywna („treść rozstrzygnięta znaczy
+  // cache brzegowy") stoi w bloku preloadu okładki wyżej.
+  // ------------------------------------------------------------------------
+
+  it("ODRZUCONA odnoga prefetchu wtórnego zdejmuje cache wspólny", async () => {
+    h.blocksPrefetch = "reject";
+    await runLoader(
+      "analizy/atom",
+      resolvedPost({
+        item: postItem({
+          blocks_data: {
+            pl: { version: 1, blocks: [{ id: "b1", type: "related-posts", data: {} }] },
+            en: { version: 1, blocks: [] },
+          },
+        }),
+      }),
+    );
+    expect(h.cacheControl).not.toEqual([]);
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("REGRES P1: odnoga ROZSTRZYGNIĘTA SUKCESEM z sygnałem `degraded` zdejmuje cache wspólny", async () => {
+    // NAJWAŻNIEJSZY z trzech przypadków i jedyny, którego pierwsza wersja tej
+    // bramki NIE ŁAPAŁA (znalezisko P1 z recenzji PR #357). Żadna z pięciu
+    // odnóg prefetchu wtórnego nie odrzuca: `prefetchQuery` pochłania błąd
+    // z definicji, `prefetchBlockQueries` świadomie w `allSettled`,
+    // a `prefetchAboveFoldQueries` ma WŁASNY budżet 2 500 ms i po nim wraca
+    // NORMALNIE. Zewnętrzny budżet 3 000 ms nie zdążył więc minąć, wynik
+    // wychodził `fulfilled` i render bez treści szedł na brzeg.
+    //
+    // Tu odnoga wraca SZYBKO i SUKCESEM - bez zawieszenia, bez odrzucenia -
+    // a mimo to nagłówek musi być `no-store`. To dowodzi, że decyzja czyta
+    // STAN ZAPYTAŃ, a nie kształt obietnicy.
+    h.blocksPrefetch = "degraded";
+    await runLoader(
+      "analizy/atom",
+      resolvedPost({
+        item: postItem({
+          blocks_data: {
+            pl: { version: 1, blocks: [{ id: "b1", type: "related-posts", data: {} }] },
+            en: { version: 1, blocks: [] },
+          },
+        }),
+      }),
+    );
+    expect(h.cacheControl).not.toEqual([]);
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("MINIĘTY budżet prefetchu wtórnego zdejmuje cache wspólny", async () => {
+    // Zawieszony upstream nie odrzuca - on czeka, a `Promise.allSettled` nie
+    // ma o czym powiedzieć. Bez odczytu lapsusu budżetu ta degradacja była
+    // dla nagłówka NIEWIDOCZNA, a to jest najczęstszy kształt awarii bazy.
+    vi.useFakeTimers();
+    try {
+      h.blocksPrefetch = "hang";
+      const bieg = runLoader(
+        "analizy/atom",
+        resolvedPost({
+          item: postItem({
+            blocks_data: {
+              pl: { version: 1, blocks: [{ id: "b1", type: "related-posts", data: {} }] },
+              en: { version: 1, blocks: [] },
+            },
+          }),
+        }),
+      );
+      // SECONDARY_PREFETCH_BUDGET_MS = 3 000 (`src/routes/$.tsx:169`).
+      await vi.advanceTimersByTimeAsync(3_001);
+      await bieg;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(h.cacheControl).not.toEqual([]);
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("brak ustawień serwisu zdejmuje cache wspólny - `<head>` bez nich jest niepełny", async () => {
+    // Sufiks tytułu, `twitter:site` i logo wydawcy wychodzą z tego zapytania.
+    // Render bez nich nie wywraca strony (przypadek wyżej), ale NIE MOŻE być
+    // serwowany kolejnym czytelnikom przez okno cache'u.
+    stub.setResponse("site_settings", fail("site_settings unreachable"));
+    await runLoader("analizy/atom", resolvedPost(), { ustawieniaSerwisu: false });
+    expect(h.cacheControl).not.toEqual([]);
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
   });
 
   it("RZUT z zapytania o TREŚĆ daje 404, a nie surowy 500", async () => {

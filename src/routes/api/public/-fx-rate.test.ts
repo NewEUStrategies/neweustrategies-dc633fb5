@@ -489,11 +489,13 @@ describe("GET: limit 30/min per adres, świadomie FAIL-OPEN", () => {
     expect(limiter.calls[2]?.subject).toEqual(limiter.calls[0]?.subject);
   });
 
-  it("pierwszy wpis `x-forwarded-for` wygrywa nad łańcuchem proxy", async () => {
+  it("ostatni wpis `x-forwarded-for` wygrywa nad prefiksem od klienta", async () => {
+    // Prefiks listy wpisuje sam klient - gdyby był podmiotem limitu, jeden
+    // dopisany nagłówek dawałby świeży kubełek. Ogon dokleja edge proxy.
     await get("/api/public/fx-rate", { "x-forwarded-for": " 203.0.113.9 , 10.0.0.1 , 10.0.0.2" });
 
     expect(limiter.calls[0]).toMatchObject({
-      subject: podmiot({ "x-forwarded-for": "203.0.113.9" }),
+      subject: podmiot({ "x-forwarded-for": "10.0.0.2" }),
     });
   });
 

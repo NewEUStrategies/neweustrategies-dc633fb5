@@ -178,12 +178,12 @@ export function JobRunnerCard() {
           )}
         </div>
 
-        {data?.secret_preview && (
-          <p className="m-0 text-xs text-muted-foreground">
-            {t("adminRunner.tick.secret")} <code>{data.secret_preview}</code>
-            {" · "}
-            {t("adminRunner.tick.endpoint")}
-          </p>
+        {/* Sam FAKT ustawienia sekretu, bez ani jednego jego znaku: podgląd
+            potwierdzał napastnikowi, że przechwycony nagłówek należy do tej
+            instalacji, a operatorowi odpowiadał na pytanie „czy cron ma czym
+            się uwierzytelnić" tak samo dobrze jak zwykłe „jest". */}
+        {data?.secret_set && (
+          <p className="m-0 text-xs text-muted-foreground">{t("adminRunner.tick.endpoint")}</p>
         )}
       </CardContent>
     </Card>

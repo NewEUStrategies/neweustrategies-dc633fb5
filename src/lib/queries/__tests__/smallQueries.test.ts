@@ -434,7 +434,7 @@ describe("kolumna mega-menu: co pokazuje rozwijane menu nawigacji", () => {
     expect(megaMenuCategoryQueryOptions("analizy", 4, "pl").enabled).toBe(true);
   });
 
-  it("nieistniejąca kategoria kończy sprawę BEZ nazwy i BEZ zapytania o pivot", async () => {
+  it("nieistniejąca kategoria kończy sprawę BEZ nazwy i BEZ zapytania o wpisy", async () => {
     baza().setResponse("categories", ok(null));
     const dane = await klient().fetchQuery(megaMenuCategoryQueryOptions("nie-ma", 4, "pl"));
     expect(dane).toEqual({ posts: [], catName: "" });
@@ -444,21 +444,26 @@ describe("kolumna mega-menu: co pokazuje rozwijane menu nawigacji", () => {
 
   it("kategoria bez wpisów zachowuje NAZWĘ kolumny - menu nie gubi nagłówka", async () => {
     baza().setResponse("categories", ok(wierszKategorii()));
-    baza().setResponse("post_categories", ok([]));
+    baza().setResponse("posts", ok([]));
     const dane = await klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl"));
     expect(dane).toEqual({ posts: [], catName: "Analizy" });
-    expect(baza().chainsFor("posts")).toHaveLength(0);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
   });
 
-  it("pivot pobiera z zapasem, a lista wpisów dokładnie tyle, ile ma kolumna", async () => {
+  it("JEDNO zapytanie: sortowanie i limit stoją na tym samym, co zawężenie", async () => {
+    // DEFEKT, KTÓRY TO ZAMYKA (A4). Wcześniej próbka tabeli pośredniej brała
+    // `limit * 4` BEZ `ORDER BY`, a sortowanie po `published_at` nakładało
+    // dopiero DRUGIE zapytanie - czyli „najnowsze" liczyły się z przypadkowej
+    // czwórki razy limit. Teraz porządek i limit są w tym samym zapytaniu,
+    // co filtr kategorii, więc nadpróbkowanie jest zbędne.
     baza().setResponse("categories", ok(wierszKategorii()));
-    baza().setResponse("post_categories", ok([{ post_id: "w-1" }, { post_id: "w-2" }]));
     baza().setResponse("posts", ok([wierszWpisu("w-1")]));
     await klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl"));
-    // Zapas x4 pokrywa wpisy, które wypadną na filtrze publikacji/usunięcia.
-    expect(ogniwa(lancuch("post_categories"), "limit")).toEqual([[16]]);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
     const c = lancuch("posts");
-    expect(c.argsOf("in")).toEqual(["id", ["w-1", "w-2"]]);
+    expect(String(c.argsOf("select")?.[0])).toContain("post_categories!inner(category_id)");
+    expect(c.argsOf("in")).toEqual(["post_categories.category_id", ["kat-1"]]);
+    expect(c.calls.filter((w) => w.method === "in" && w.args[0] === "id")).toEqual([]);
     expect(filtrEq(c, "status")).toEqual(["status", "published"]);
     expect(ogniwa(c, "is")).toEqual([["deleted_at", null]]);
     expect(ogniwa(c, "order")).toEqual([["published_at", { ascending: false }]]);
@@ -467,7 +472,6 @@ describe("kolumna mega-menu: co pokazuje rozwijane menu nawigacji", () => {
 
   it("karta menu prowadzi na trasę /post/$slug i znosi brak okładki", async () => {
     baza().setResponse("categories", ok(wierszKategorii()));
-    baza().setResponse("post_categories", ok([{ post_id: "w-1" }]));
     baza().setResponse("posts", ok([wierszWpisu("w-1")]));
     const dane = await klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl"));
     expect(dane.posts).toEqual([
@@ -485,7 +489,6 @@ describe("kolumna mega-menu: co pokazuje rozwijane menu nawigacji", () => {
 
   it("język steruje nazwą kolumny i tytułami kart", async () => {
     baza().setResponse("categories", ok(wierszKategorii()));
-    baza().setResponse("post_categories", ok([{ post_id: "w-1" }]));
     baza().setResponse("posts", ok([wierszWpisu("w-1")]));
     const dane = await klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "en"));
     expect(dane.catName).toBe("Analyses");
@@ -494,26 +497,15 @@ describe("kolumna mega-menu: co pokazuje rozwijane menu nawigacji", () => {
 
   it("brak wierszy wpisów (null) daje pustą kolumnę z zachowaną nazwą", async () => {
     baza().setResponse("categories", ok(wierszKategorii()));
-    baza().setResponse("post_categories", ok([{ post_id: "w-1" }]));
     baza().setResponse("posts", ok(null));
     const dane = await klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl"));
     expect(dane).toEqual({ posts: [], catName: "Analizy" });
   });
 
-  it("pusta odpowiedź powiązań zachowuje nazwę kategorii i nie pyta o wpisy", async () => {
-    baza().setResponse("categories", ok(wierszKategorii()));
-    baza().setResponse("post_categories", ok(null));
-    await expect(
-      klient().fetchQuery(megaMenuCategoryQueryOptions("analizy", 4, "pl")),
-    ).resolves.toEqual({ posts: [], catName: "Analizy" });
-    expect(baza().chainsFor("posts")).toHaveLength(0);
-  });
-
-  it.each(["categories", "post_categories", "posts"])(
+  it.each(["categories", "posts"])(
     "odmowa %s odrzuca odczyt menu zamiast udawać pustą kategorię",
     async (table) => {
       baza().setResponse("categories", ok(wierszKategorii()));
-      baza().setResponse("post_categories", ok([{ post_id: "w-1" }]));
       baza().setResponse("posts", ok([wierszWpisu("w-1")]));
       baza().setResponse(table, fail("odmowa odczytu", "42501"));
       await expect(

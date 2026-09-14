@@ -7,6 +7,7 @@
 import { queryOptions, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { postsNarrowedToTaxonomy } from "@/lib/queries/taxonomyPivot";
 
 export type MegaMenuLang = "pl" | "en";
 
@@ -44,19 +45,22 @@ export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: 
         .maybeSingle();
       if (catError) throw catError;
       if (!cat?.id) return { posts: [], catName: "" };
-      const { data: pivot, error: pivotError } = await supabase
-        .from("post_categories")
-        .select("post_id")
-        .eq("category_id", cat.id as string)
-        .limit(limit * 4);
-      if (pivotError) throw pivotError;
-      const ids = (pivot ?? []).map((r) => r.post_id as string);
       const catName = pickLocalized(cat as Record<string, unknown>, "name", lang);
-      if (ids.length === 0) return { posts: [], catName };
-      const { data: posts, error: postsError } = await supabase
-        .from("posts")
-        .select("id, slug, title_pl, title_en, cover_image_url, published_at")
-        .in("id", ids)
+      // JEDNO zapytanie, z sortowaniem tam, gdzie działa.
+      //
+      // Do 13.09.2026 stały tu DWA. Pierwsze próbkowało tabelę pośrednią
+      // `.limit(limit * 4)` BEZ `ORDER BY` i dopiero drugie sortowało po
+      // `published_at` - czyli „najnowsze wpisy" liczyły się z przypadkowej
+      // czwórki razy limit. Kolejność bez `ORDER BY` nie jest w Postgresie
+      // gwarantowana, ale bywa STABILNA, więc defekt nie objawiał się losowo:
+      // konsekwentnie pomijał te same wpisy - a przy staleTime 10 min
+      // i wyłączonym odświeżaniu próbka zastygała na całe okno pracy.
+      // Nadpróbkowanie `limit * 4` jest teraz zbędne: filtr publikacji i limit
+      // stoją w tym samym zapytaniu, co zawężenie.
+      const { data: posts, error: postsError } = await postsNarrowedToTaxonomy(
+        "id, slug, title_pl, title_en, cover_image_url, published_at",
+        { kind: "category", termIds: [cat.id as string] },
+      )
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false })

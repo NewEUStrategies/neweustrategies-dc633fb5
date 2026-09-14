@@ -209,6 +209,54 @@ describe("prefetchAboveFoldQueries", () => {
     expect(spy).toHaveBeenCalledTimes(ABOVE_FOLD_SECTION_COUNT);
   });
 
+  // ── SYGNAŁ DEGRADACJI (recenzja PR #357, P1) ─────────────────────────────
+  //
+  // Ta funkcja ma WŁASNY budżet 2 500 ms i po jego przekroczeniu rozstrzyga się
+  // NORMALNIE, zostawiając zapytania w locie. Wołający (`src/routes/$.tsx`)
+  // opakowywał ją w `Promise.allSettled` pod budżetem 3 000 ms i czytał
+  // degradację z ODRZUCENIA - którego tu z zasady nie ma. Najczęstszy realny
+  // kształt awarii (wolny upstream, wewnętrzny budżet mija PIERWSZY) dawał więc
+  // wynik `fulfilled`, a render bez treści nad zgięciem szedł na brzeg
+  // z 15 minutami świeżości plus dobą okna stale.
+
+  it("REGRES P1: lapsus WEWNĘTRZNEGO budżetu raportuje degradację", async () => {
+    // Zapytanie, które NIGDY nie rozstrzyga - dokładnie wolny upstream.
+    // Funkcja i tak wraca (na własnym budżecie) i MUSI powiedzieć, że nie
+    // dowiozła. Gdyby czytać sam kształt obietnicy, ten przypadek byłby
+    // nieodróżnialny od sukcesu.
+    vi.spyOn(qc, "prefetchQuery").mockImplementation(() => new Promise<void>(() => {}));
+    const result = await prefetchAboveFoldQueries(qc, docOfSections(1), "pl", { budgetMs: 5 });
+    expect(result.degraded).toBe(true);
+  });
+
+  it("ODMOWA pojedynczego zapytania też raportuje degradację", async () => {
+    vi.spyOn(qc, "prefetchQuery").mockRejectedValue(new Error("PostgREST 500"));
+    const result = await prefetchAboveFoldQueries(qc, docOfSections(1), "pl");
+    expect(result.degraded).toBe(true);
+  });
+
+  it("komplet rozgrzanych kluczy NIE jest degradacją (kontrola pozytywna)", async () => {
+    // Bez tej pary asercje wyżej nie odróżniałyby „raportuje degradację" od
+    // „raportuje ją ZAWSZE" - a taka bramka zdejmowałaby wspólny cache
+    // z każdej strony buildera.
+    const doc = docOfSections(2);
+    for (const widget of collectAboveFoldWidgets(doc, ABOVE_FOLD_SECTION_COUNT)) {
+      for (const options of widgetQueryOptionsList(widget, "pl")) {
+        qc.setQueryData(options.queryKey, []);
+      }
+    }
+    vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);
+    const result = await prefetchAboveFoldQueries(qc, doc, "pl");
+    expect(result.degraded).toBe(false);
+  });
+
+  it("dokument bez widgetów danych nad zgięciem NIE jest degradacją", async () => {
+    const doc: BuilderDocument = {
+      sections: [makeSection([makeWidget("heading")], "s0")],
+    } as unknown as BuilderDocument;
+    await expect(prefetchAboveFoldQueries(qc, doc, "pl")).resolves.toEqual({ degraded: false });
+  });
+
   it("does nothing when no data-bound widgets are above the fold", async () => {
     const spy = vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);
     const doc: BuilderDocument = {

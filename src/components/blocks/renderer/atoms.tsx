@@ -15,7 +15,10 @@ import { bool, num, sanitize, str, strList } from "./data";
 
 /** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
-  const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? str(block.data, "html"));
+  // Pre-pass sanityzuje i rozwija `[fn]`; fallback zachowuje sanityzację,
+  // gdy mapa nie ma wpisu (blok w kontenerze nieobjętym rekurencją
+  // `precomputeFootnotes`). Bliźniak: molecules.tsx::renderSpoiler.
+  const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? sanitize(str(block.data, "html")));
   return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
 };
 
@@ -278,7 +281,10 @@ export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
 
 /** Surowy HTML (sanitizowany, z rozwiniętymi przypisami). */
 export const renderHtml: BlockRenderer = ({ block, fnHtml, cls }) => {
-  const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? str(block.data, "html"));
+  // Pre-pass sanityzuje i rozwija `[fn]`; fallback zachowuje sanityzację,
+  // gdy mapa nie ma wpisu (blok w kontenerze nieobjętym rekurencją
+  // `precomputeFootnotes`). Bliźniak: molecules.tsx::renderSpoiler.
+  const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? sanitize(str(block.data, "html")));
   return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
 };
 

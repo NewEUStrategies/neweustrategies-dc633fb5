@@ -289,7 +289,36 @@ export async function runJobsTick(
   return result;
 }
 
-/** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */
+/**
+ * Porównanie sekretów w STAŁYM CZASIE (`node:crypto`, nie `===`) ze ŚWIADOMYM
+ * strażnikiem długości.
+ *
+ * CO NAPRAWDĘ ZACHODZI. `&&` zwraca `false` bez wchodzenia w `timingSafeEqual`,
+ * więc różnica DŁUGOŚCI jest rozstrzygana wcześniej - i tak ma być. Poprzednia
+ * wersja tego komentarza twierdziła coś przeciwnego („długości też nie
+ * zdradzamy wcześniej"); kod był poprawny, zdanie nie.
+ *
+ * DLACZEGO STRAŻNIK TU STOI. `timingSafeEqual` RZUCA `RangeError` na buforach
+ * różnej długości, a żaden z czterech wołających nie owija wywołania w `try`
+ * (`api/public/jobs-tick`, `platform/email/transactional/preview`,
+ * `platform/email/auth/preview`, `platform/email/queue/process`). Bez strażnika
+ * sekret złej długości dawałby 500 zamiast 401/403 na trasie publicznej: ten
+ * sam oracle dla atakującego, tylko głośniejszy i z fałszywym alarmem
+ * w monitoringu.
+ *
+ * DLACZEGO WYCIEK DŁUGOŚCI JEST TU BEZ WARTOŚCI. Sekret ticku powstaje jako
+ * `encode(gen_random_bytes(24), 'hex')` - DEFAULT kolumny (migracja
+ * 20260713170000) i ta sama formuła w obu ścieżkach samozbrojenia
+ * (20260731110000, 20260731120352) - więc na każdej ścieżce zapisu W TYM
+ * REPOZYTORIUM ma 48 znaków, a panel nie umie go nadpisać:
+ * `updateJobRunnerSettings` zapisuje wyłącznie `enabled` i `base_url`.
+ * ŚWIADOMIE nie piszę „stała schematu": kolumna nie ma CHECK-a, więc dostęp
+ * service-role albo ręczny SQL może wpisać dowolną długość. Ta długość jest
+ * jednak opublikowana w migracjach tego repozytorium, czyli nie niesie
+ * entropii; tajne są BAJTY i to one idą przez `timingSafeEqual`. Pozostali
+ * trzej wołający porównują klucze ze zmiennych środowiskowych, których
+ * długość narzuca wystawca, nie my.
+ */
 export async function secretsEqual(a: string, b: string): Promise<boolean> {
   const { timingSafeEqual } = await import("node:crypto");
   const bufA = Buffer.from(a);

@@ -4,20 +4,38 @@ import { useTranslation } from "react-i18next";
 import { Languages } from "lucide-react";
 
 import { WidgetI18nAuditPane } from "@/components/admin/i18n/WidgetI18nAuditPane";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { SITE_NAME } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/admin/i18n")({
   component: AdminI18nAuditPage,
-  head: () => ({
-    meta: [
-      { title: "Audyt tłumaczeń widgetów | Panel New European Strategies" },
-      {
-        name: "description",
-        content:
-          "Lista widgetów, które renderują polską treść na stronach /en: brak tłumaczenia, EN identyczne z PL lub wartość szablonowa.",
-      },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`. Trasy /admin są
+    // w NON_LOCALIZED_PREFIXES, więc w praktyce rozstrzyga ciasteczko języka; to
+    // jednak ta sama wartość, którą widzi ciało strony, a o zgodność karty
+    // przeglądarki z interfejsem tu właśnie chodzi.
+    const lang = activeLang(getRequestUrl() || "/admin/i18n");
+    return {
+      meta: [
+        {
+          title:
+            lang === "en"
+              ? `Widget translation audit | ${SITE_NAME} panel`
+              : `Audyt tłumaczeń widgetów | Panel ${SITE_NAME}`,
+        },
+        {
+          name: "description",
+          content:
+            lang === "en"
+              ? "Widgets rendering Polish content on /en pages: missing translation, EN identical to PL, or a placeholder value."
+              : "Lista widgetów, które renderują polską treść na stronach /en: brak tłumaczenia, EN identyczne z PL lub wartość szablonowa.",
+        },
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
 });
 
 function AdminI18nAuditPage() {

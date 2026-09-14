@@ -5,6 +5,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { currentUserIdFromSession } from "@/lib/auth/currentUser";
 import type { Database } from "@/integrations/supabase/types";
+import { editConflictError } from "@/lib/content/saveConflict";
 
 // ------- Nadania warstwy (membership_grants) --------
 
@@ -111,12 +112,55 @@ export async function createOrganization(input: OrgInput): Promise<OrganizationR
   return data;
 }
 
+/**
+ * Zapis karty organizacji z optimistic-lockiem.
+ *
+ * PO CO WERSJA. Formularz karty wysyła CAŁY obiekt, nie same zmienione pola,
+ * więc bez porównania wersji zapis last-write-wins cicho cofa każdą zmianę,
+ * która weszła w międzyczasie - także tę zrobioną funkcją serwerową
+ * (`org_set_seats_limit`) z sąsiedniej zakładki. Nikt nie dostawał wtedy
+ * żadnego sygnału, a jedynym śladem zostawało `updated_at`.
+ *
+ * `baseUpdatedAt` to `updated_at`, który klient OSTATNIO WIDZIAŁ. Warunek
+ * `.eq("updated_at", …)` jest atomowy: albo trafia w ten sam wiersz, albo nie
+ * trafia w żaden. Ten sam kontrakt i ten sam kod błędu co przy zapisie postów
+ * i stron (`saveConflict.ts`), więc klient rozpoznaje konflikt jedną regułą.
+ *
+ * Wywołanie BEZ `baseUpdatedAt` zachowuje się jak dotąd (bez guardu) - jest
+ * tak celowo, bo ścieżki, które zmieniają pojedynczą kolumnę i nie trzymają
+ * draftu, nie mają czym się zderzyć.
+ */
 export async function updateOrganization(
   id: string,
   patch: Partial<Database["public"]["Tables"]["member_organizations"]["Update"]>,
-): Promise<void> {
-  const { error } = await supabase.from("member_organizations").update(patch).eq("id", id);
+  baseUpdatedAt?: string | null,
+): Promise<string | null> {
+  let q = supabase.from("member_organizations").update(patch).eq("id", id);
+  if (baseUpdatedAt) q = q.eq("updated_at", baseUpdatedAt);
+  // `.select()` odróżnia „zapisano" od „nie trafiono w żaden wiersz":
+  // PostgREST oddaje zero wierszy i `error: null`, gdy warunek nie trafił albo
+  // gdy polityka RLS odfiltrowała cel. Bez tego odczytu klient pokazywałby
+  // „Zapisano", choć nic nie zostało zapisane.
+  const { data, error } = await q.select("id, updated_at");
   if (error) throw error;
+  if (!data?.length) {
+    // Zero wierszy ma DWIE przyczyny: konflikt wersji (wiersz istnieje, ale ma
+    // inny `updated_at`) albo odmowa RLS (wiersz niewidoczny dla tej roli).
+    // Rozróżniamy je dodatkowym odczytem, żeby komunikat nie mylił „ktoś
+    // zapisał przed Tobą" z „nie masz uprawnień".
+    if (baseUpdatedAt) {
+      const { data: still } = await supabase
+        .from("member_organizations")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
+      if (still) throw editConflictError("organization");
+    }
+    throw new Error("Save rejected - you do not have permission to edit this organization");
+  }
+  // Nowa baza optimistic-locka dla kolejnego zapisu. Bez tego druga zmiana
+  // w tej samej sesji zgłaszałaby FAŁSZYWY konflikt z własnym zapisem.
+  return data[0].updated_at ?? null;
 }
 
 export async function deleteOrganization(id: string): Promise<void> {

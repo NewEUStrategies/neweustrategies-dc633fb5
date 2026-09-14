@@ -3,6 +3,7 @@
 // handlerów (co powodowało "Failed to load url ...?tss-serverfn-split").
 import { z } from "zod";
 import { readGpcCookie, readGpcFromHeaders } from "@/lib/consent/gpc";
+import { clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { CONSENT_KEYS } from "@/lib/notifications/consentCatalog";
 
 export const ConsentKeyEnum = z.enum(CONSENT_KEYS as [string, ...string[]]);
@@ -37,11 +38,23 @@ export const ListEventsSchema = z.object({
   limit: z.number().int().min(1).max(200).optional(),
 });
 
+/**
+ * Adres do REKORDU ZGODY - nie do kubełka limitu.
+ *
+ * Adres w rekordzie zgody jest DOWODEM, kto i skąd wyraził zgodę. Pierwszy wpis
+ * `x-forwarded-for` pochodzi od klienta (Cloudflare dokleja adres połączenia na
+ * KOŃCU listy, nie zastępuje prefiksu klienta), więc dowód oparty na nim nie ma
+ * wartości dowodowej. Kolejność jest więc ta sama, co w `clientIpFromHeaders`:
+ * `cf-connecting-ip` -> `x-real-ip` -> OSTATNI niepusty wpis XFF.
+ *
+ * Różnica wobec limitów: brak wiarygodnego źródła zapisujemy jako NULL, a nie
+ * jako wspólny kubełek "unknown" - brak dowodu jest uczciwszy niż dowód
+ * o wartości "unknown" w kolumnie, którą czyta audyt RODO.
+ */
 export function readIp(req: Request | null): string | null {
   if (!req) return null;
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]?.trim() || null;
-  return req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || null;
+  const ip = clientIpFromHeaders(req.headers);
+  return ip === "unknown" ? null : ip;
 }
 
 export function readUserAgent(req: Request | null): string | null {

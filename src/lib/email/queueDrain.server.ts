@@ -61,6 +61,37 @@ const DEFAULT_TTL_MINUTES: Readonly<Record<EmailQueueName, number>> = {
  */
 const VISIBILITY_TIMEOUT_SEC = 60;
 
+/**
+ * Nazwa kolumny najemcy podana jako `string`, a nie literał.
+ *
+ * PO CO DREN ZAPISUJE NAJEMCĘ. Raport poczty systemowej filtruje dziennik
+ * RÓWNOŚCIOWO po `tenant_id` (`fetchSystemEmailReport`), a dren jest jedynym
+ * producentem wierszy 'sent', 'failed' i 'dlq' - czyli dokładnie tych, po które
+ * operator sięga, gdy poczta przestaje dochodzić. Wiersz bez najemcy nie należy
+ * do nikogo i nie pokaże się w żadnym panelu: awaria wysyłki byłaby widoczna
+ * wyłącznie w logu procesu.
+ *
+ * SKĄD NAJEMCA. Z bramy higieny listy (`gate.tenantId`) tam, gdzie dren ją
+ * przeszedł, a przy wywózce do DLQ - z ładunku kolejki (`payload.tenant_id`),
+ * bo wiadomość bez adresu albo po TTL do bramy nie dociera. To ten sam najemca,
+ * którym dren taguje wysyłkę u dostawcy, więc wiersz dziennika i zdarzenie
+ * zwrotne webhooka opisują JEDNĄ organizację.
+ *
+ * DLACZEGO `string`, A NIE LITERAŁ. Kolumna wchodzi migracją 20260913101000,
+ * a `src/integrations/supabase/types.ts` jest GENEROWANY z bazy - do najbliższej
+ * regeneracji jej tam nie ma. Stała typu `string` wystarcza dla `.eq()`, które
+ * i tak przyjmuje nazwę kolumny jako tekst (tak używa jej `system-log.server.ts`).
+ *
+ * W ŁADUNKU `insert` TO NIE WYSTARCZA i trzeba `as never`: klucz wyliczany nie
+ * omija kontroli nadmiarowych właściwości, bo `insert` sprawdza CAŁY kształt
+ * obiektu wobec wygenerowanego typu wiersza. `as never` jest tu idiomem repo
+ * (ten sam zapis w `newsletter-admin.functions.ts`), a `check:stale-never-casts`
+ * dopilnuje, żeby rzutowanie zniknęło: bramka zapala się, gdy rzutowana nazwa
+ * JEST już w wygenerowanych typach, czyli przy pierwszej regeneracji po tej
+ * migracji. Stała i rzutowania znikają wtedy razem.
+ */
+const TENANT_COLUMN: string = "tenant_id";
+
 export interface DrainOptions {
   /** Górna granica wiadomości wysłanych w jednym przebiegu (budżet ticku). */
   maxMessages?: number;
@@ -235,6 +266,14 @@ async function logSend(
     to: string;
     status: "sent" | "failed" | "suppressed" | "dlq";
     error?: string | null;
+    /**
+     * Najemca wiersza. WYMAGANY, nie opcjonalny: pole opcjonalne dałoby się
+     * pominąć przy dopisywaniu kolejnej ścieżki wyniku, a pominięcie znaczy tu
+     * „wiersz niewidoczny w panelu żadnego najemcy". `null` jest dozwolony
+     * (adresu nie dało się rozstrzygnąć), ale musi być napisany WPROST -
+     * i wtedy domyka go trigger bazy (20260913140000).
+     */
+    tenantId: string | null;
   },
 ): Promise<void> {
   const { error } = await admin.from("email_send_log").insert({
@@ -243,7 +282,8 @@ async function logSend(
     recipient_email: row.to,
     status: row.status,
     error_message: row.error ? row.error.slice(0, 1000) : null,
-  });
+    [TENANT_COLUMN]: row.tenantId,
+  } as never);
   // Wysyłka już się stała - nieudany zapis logu nie może jej „odkręcić", ale
   // musi być widoczny, bo psuje raport dostarczalności.
   if (error) console.error("[email-queue] send log insert failed", row.status, error.message);
@@ -262,6 +302,17 @@ async function moveToDlq(
   queue: EmailQueueName,
   msg: QueueMessage,
   reason: string,
+  /**
+   * Najemca rozstrzygnięty przez bramę higieny listy. Podawany WYŁĄCZNIE na
+   * ścieżce PO bramie (trwała odmowa dostawcy) i ma wtedy pierwszeństwo przed
+   * ładunkiem z dwóch powodów. Po pierwsze bywa jedyną odpowiedzią: kolejka
+   * `auth_emails` nie niesie najemcy w ogóle. Po drugie - i ważniejsze - ta sama
+   * wiadomość zostawiła wcześniej wiersze 'failed' podpisane właśnie tym
+   * najemcą, a raport skleja stany po `message_id` i pokazuje NAJNOWSZY. Wpis
+   * do DLQ w innym najemcy rozerwałby historię jednej wiadomości na dwa panele:
+   * jeden operator widziałby wieczne 'failed', drugi samo 'dlq' bez przyczyny.
+   */
+  resolvedTenantId?: string | null,
 ): Promise<void> {
   await logSend(admin, {
     messageId: nullableText(msg.payload.message_id),
@@ -269,6 +320,12 @@ async function moveToDlq(
     to: text(msg.payload.to),
     status: "dlq",
     error: reason,
+    // Ładunek jako źródło domyślne: do DLQ wiadomość trafia też PRZED bramą
+    // (brak adresu, przekroczony TTL, wyczerpany budżet ponowień), więc
+    // rozstrzygnięty najemca jeszcze wtedy nie istnieje. Ładunek zna go od
+    // nadania (`sendTxEmail` / `enqueueRawEmail` wpisują tam `gate.tenantId`),
+    // a gdy i tam go nie ma - domyka wiersz trigger bazy (20260913140000).
+    tenantId: resolvedTenantId ?? payloadTenantId(msg.payload.tenant_id),
   });
   const { error } = await rpcClient(admin).rpc("move_to_dlq", {
     source_queue: queue,
@@ -440,6 +497,7 @@ export async function drainEmailQueues(
           to,
           status: "suppressed",
           error: gate.hit ? suppressionSkipReason(gate.hit.reason) : "suppressed",
+          tenantId: gate.tenantId,
         });
         await deleteMessage(admin, queue, msg.msgId);
         result.suppressed += 1;
@@ -470,7 +528,7 @@ export async function drainEmailQueues(
       budget -= 1;
 
       if (sendResult.ok) {
-        await logSend(admin, { messageId, label, to, status: "sent" });
+        await logSend(admin, { messageId, label, to, status: "sent", tenantId: gate.tenantId });
         await deleteMessage(admin, queue, msg.msgId);
         result.sent += 1;
       } else if (sendResult.rateLimited) {
@@ -483,6 +541,7 @@ export async function drainEmailQueues(
           to,
           status: "failed",
           error: sendResult.error ?? "rate_limited",
+          tenantId: gate.tenantId,
         });
         await startCooldown(admin, sendResult.retryAfterSeconds ?? 60);
         result.failed += 1;
@@ -493,6 +552,7 @@ export async function drainEmailQueues(
           queue,
           msg,
           sendResult.error ?? `http_${sendResult.status ?? "4xx"}`,
+          gate.tenantId,
         );
         result.dlq += 1;
       } else {
@@ -502,6 +562,7 @@ export async function drainEmailQueues(
           to,
           status: "failed",
           error: sendResult.error ?? `http_${sendResult.status ?? "unknown"}`,
+          tenantId: gate.tenantId,
         });
         if (messageId) failedAttempts.set(messageId, attempts + 1);
         result.failed += 1;

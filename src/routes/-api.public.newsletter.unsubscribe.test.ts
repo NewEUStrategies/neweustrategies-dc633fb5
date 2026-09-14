@@ -375,13 +375,29 @@ describe("POST - limit żądań", () => {
     ]);
   });
 
-  it("bierze PIERWSZY adres z `x-forwarded-for`, nie całą listę", async () => {
+  it("bierze OSTATNI adres z `x-forwarded-for`, nie całą listę i nie prefiks klienta", async () => {
     // Cały łańcuch jako podmiot dawałby osobny kubełek na każdą kombinację
-    // proxy, czyli limit, którego nie da się wyczerpać.
+    // proxy, czyli limit, którego nie da się wyczerpać. Pierwszy wpis jest
+    // jeszcze gorszy: to DEKLARACJA KLIENTA - edge proxy dokleja swój adres
+    // na KOŃCU, a nie zastępuje nim tego, co wpisał klient. Podmiotem jest
+    // więc ogon, jedyna część łańcucha, której klient nie wpisuje sam.
     await handlers().POST(
       postRequest({ token: TOKEN }, { "x-forwarded-for": "203.0.113.7, 198.51.100.2" }),
     );
-    expect(db.state.rateLimitCalls[0].subjectId).toBe("203.0.113.7");
+    expect(db.state.rateLimitCalls[0].subjectId).toBe("198.51.100.2");
+  });
+
+  it("rotowanie prefiksu `x-forwarded-for` NIE odnawia budżetu", async () => {
+    // Regresja właściwa: napastnik dopisuje sobie dowolny prefiks i musi
+    // trafić w ten sam kubełek, co przy prefiksie pustym.
+    await handlers().POST(
+      postRequest({ token: TOKEN }, { "x-forwarded-for": "1.1.1.1, 198.51.100.2" }),
+    );
+    await handlers().POST(
+      postRequest({ token: TOKEN }, { "x-forwarded-for": "2.2.2.2, 9.9.9.9, 198.51.100.2" }),
+    );
+    expect(db.state.rateLimitCalls[0].subjectId).toBe("198.51.100.2");
+    expect(db.state.rateLimitCalls[1].subjectId).toBe("198.51.100.2");
   });
 
   it("nagłówek Cloudflare ma pierwszeństwo nad `x-forwarded-for`", async () => {

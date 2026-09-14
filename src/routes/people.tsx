@@ -90,6 +90,9 @@ import { ensureI18n as ensureChatI18n } from "@/lib/i18n-chat";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { SITE_NAME } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/people")({
   component: PeoplePage,
@@ -97,23 +100,29 @@ export const Route = createFileRoute("/people")({
   // obsluguje adres w przegladarce I snapshot z bazy przy przywracaniu
   // zapisanego wyszukiwania.
   validateSearch: parsePeopleSearchParams,
-  head: () => ({
-    meta: [
-      { title: "Osoby | New European Strategies" },
-      {
-        name: "description",
-        content: "Wewnętrzna wyszukiwarka osób w społeczności New European Strategies.",
-      },
-      { property: "og:title", content: "Osoby | New European Strategies" },
-      {
-        property: "og:description",
-        content: "Wewnętrzna wyszukiwarka osób w społeczności New European Strategies.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`, dokładnie jak
+    // `welcome.tsx`. Bez tego użytkownik z angielskim interfejsem dostawał polską
+    // kartę przeglądarki i polski podgląd linku przy udostępnieniu.
+    const lang = activeLang(getRequestUrl() || "/people");
+    const title = lang === "en" ? `People | ${SITE_NAME}` : `Osoby | ${SITE_NAME}`;
+    const description =
+      lang === "en"
+        ? "Internal people search across the New European Strategies community."
+        : "Wewnętrzna wyszukiwarka osób w społeczności New European Strategies.";
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary" },
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
 });
 
 function PeoplePage() {
@@ -273,7 +282,6 @@ function PersonCard({
           bridge={connection.bridge}
           targetName={person.display_name}
           targetAvatarUrl={person.avatar_url}
-          targetSlug={person.slug}
           interactive={false}
           className="mt-0.5"
         />

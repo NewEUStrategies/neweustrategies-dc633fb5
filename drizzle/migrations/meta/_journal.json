@@ -43,6 +43,90 @@
       "when": 1789241481684,
       "tag": "0005_pr353_admin_dashboard_aggregates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789296895759,
+      "tag": "0006_impersonation_tenant_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789296900412,
+      "tag": "0007_job_runner_base_url_shape_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789296967119,
+      "tag": "0008_payment_webhook_events_tenant_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789297135558,
+      "tag": "0009_email_log_tenant_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789297200048,
+      "tag": "0010_email_send_log_tenant_producers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789300800048,
+      "tag": "0011_profiles_discoverable_opt_in_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789304400048,
+      "tag": "0012_email_account_tenant_for_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789326756549,
+      "tag": "0013_pr355_discoverable_optin_and_email_account_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789366349541,
+      "tag": "0014_profile_view_privacy_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789366355649,
+      "tag": "0015_introduction_gates_and_dedup",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789366394872,
+      "tag": "0016_mutual_visible_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789368131307,
+      "tag": "0017_set_user_consents_atomic",
+      "breakpoints": true
     }
   ]
 }

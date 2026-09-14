@@ -1,13 +1,17 @@
 /**
- * Bramka BUDŻETÓW WEWNĘTRZNYCH POTOKU SSR - trzech liczb, których do
- * 2026-09-03 nie pilnowało nic:
+ * Bramka BUDŻETÓW WEWNĘTRZNYCH POTOKU SSR - liczb, których do 2026-09-03
+ * nie pilnowało nic:
  *
  *   1. szeregowany budżet rozgrzewki PRZED PIERWSZYM BAJTEM (fale loadera
- *      korzenia oraz najdłuższy łańcuch `await withBudget` w loaderze trasy);
+ *      korzenia oraz najdłuższy łańcuch `await withBudget` /
+ *      `await settleWithinBudget` w loaderze trasy);
  *   2. liczba RÓWNOLEGŁYCH podżądań w jednej tablicy `Promise.all*` loadera -
  *      runtime Cloudflare Workers odrzuca siódmy subrequest na żądanie;
  *   3. DEHYDRATOWANY STAN wstrzykiwany do HTML-a: trzy inwarianty strukturalne
- *      z `src/router.tsx` plus proxy liczby wpisów zasilających payload.
+ *      z `src/router.tsx` plus proxy liczby wpisów zasilających payload;
+ *   4. REGUŁA „loader, który może zdegradować, BRAMKUJE swój `Cache-Control`"
+ *      (dołożona 2026-09-12) - render niepełny nie ma prawa utrwalić się na
+ *      brzegu na czas świeżości plus okno `stale-while-revalidate`.
  *
  * Bramka czyta WYŁĄCZNIE ŹRÓDŁA - nie potrzebuje builda, artefaktu, bazy ani
  * przeglądarki - dlatego biegnie w jobie `verify`, a nie `build`, i jej wynik

@@ -239,6 +239,12 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   // Wartości syntetyczne - żaden prawdziwy sekret nie występuje w tym pliku.
+  // Origin powrotu przechodzi przez bramkę dozwolonych hostów
+  // (`lib/billing/returnUrl.server`). Zerujemy PUBLIC_SITE_URL, bo CI bywa
+  // uruchamiane z ustawioną wartością, a wtedy przypadki niżej dowodziłyby
+  // konfiguracji maszyny zamiast kodu.
+  vi.stubEnv("PUBLIC_SITE_URL", "");
+  vi.stubEnv("BILLING_RETURN_HOSTS", "");
   vi.stubEnv("SUPABASE_URL", "https://projekt.supabase.test");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-testowy");
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "publishable-testowy");
@@ -656,9 +662,11 @@ describe("adres powrotu - bramka przeciw przekierowaniu na obcą domenę", () =>
     });
   });
 
-  it("domena powrotu pochodzi z ŻĄDANIA, nie ze stałej w kodzie", async () => {
+  it("domena powrotu pochodzi z ŻĄDANIA, gdy host jest ZADEKLAROWANY", async () => {
     // Środowiska podglądowe mają własne domeny - powrót po płatności musi
-    // wrócić tam, skąd przyszło żądanie, a nie na produkcję.
+    // wrócić tam, skąd przyszło żądanie, a nie na produkcję. Warunkiem jest
+    // deklaracja hosta przez wdrożenie: sam nagłówek podaje klient.
+    vi.stubEnv("BILLING_RETURN_HOSTS", "podglad.example.com");
     http.request = new Request("https://podglad.example.com/wsparcie", {
       method: "POST",
       headers: { "x-forwarded-proto": "https", "x-forwarded-host": "podglad.example.com" },
@@ -668,6 +676,19 @@ describe("adres powrotu - bramka przeciw przekierowaniu na obcą domenę", () =>
 
     expect(stripe.params[0]).toMatchObject({
       return_url: "https://podglad.example.com/wsparcie/dziekujemy",
+    });
+  });
+
+  it("KONTRPRZYKŁAD: NIEZADEKLAROWANY host podglądu nie przejmuje adresu powrotu", async () => {
+    http.request = new Request("https://podglad.example.com/wsparcie", {
+      method: "POST",
+      headers: { "x-forwarded-proto": "https", "x-forwarded-host": "podglad.example.com" },
+    });
+
+    await checkout({ returnUrl: "https://neweuropeanstrategies.com/wsparcie/dziekujemy" });
+
+    expect(stripe.params[0]).toMatchObject({
+      return_url: "https://neweuropeanstrategies.com/wsparcie/dziekujemy",
     });
   });
 

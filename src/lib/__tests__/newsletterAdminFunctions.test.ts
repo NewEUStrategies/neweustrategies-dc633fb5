@@ -33,6 +33,7 @@ vi.mock("@tanstack/react-start", async () =>
 vi.mock("@/integrations/supabase/require-staff", () => ({
   requireStaff: { __mw: "requireStaff" },
   requireAdminEditor: { __mw: "requireAdminEditor" },
+  requirePlatformAdmin: { __mw: "requirePlatformAdmin" },
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (table: string) => db.from(table), rpc: h.rpc },
@@ -48,6 +49,8 @@ const db = supabaseFromStub();
 const PROFILES = "profiles";
 const SUBSCRIBERS = "newsletter_subscribers";
 const RUNNER = "job_runner_settings";
+const TENANTS = "tenants";
+const AUDIT = "audit_log";
 
 const TENANT = "tenant-1";
 
@@ -108,23 +111,56 @@ beforeEach(() => {
   db.setResponse(RUNNER, (chain: RecordedChain) =>
     chain.has("update") ? ok(null) : ok(runnerRow()),
   );
+  // Katalog najemców to ALLOWLISTA hostów zapisu - bez niego żaden adres nie
+  // przechodzi, więc atrapa musi go mieć tak samo jak produkcja.
+  db.setResponse(TENANTS, ok([{ domain: "example.test" }]));
+  db.setResponse(AUDIT, ok(null));
+
+  // Środowisko czyścimy JAWNIE: gdyby host runnera wpadał do allowlisty
+  // z `PUBLIC_SITE_URL` maszyny CI, testy o obcym hoście dowodziłyby tylko
+  // tego, jak skonfigurowano pipeline.
+  vi.stubEnv("PUBLIC_SITE_URL", "");
+  vi.stubEnv("SITE_URL", "");
+  vi.stubEnv("URL", "");
+  vi.stubEnv("JOB_RUNNER_BASE_URL_ALLOWLIST", "");
 
   setServerFnContext({ supabase: { from: db.from, rpc: h.rpc }, userId: "user-1" });
 });
 
 afterEach(() => {
   resetServerFnContext();
+  vi.unstubAllEnvs();
 });
 
 describe("obudowa - kto w ogóle może wołać te funkcje", () => {
-  it("import listy i konfiguracja automatu są za rolą redakcyjną", () => {
-    // Dowód STRUKTURALNY, nie behawioralny: harness nie uruchamia middleware,
-    // więc jedyne, co można tu uczciwie przybić, to DEKLARACJA bramki. Gdyby
-    // ktoś ją zdjął, import cudzych danych osobowych stanąłby otworem dla
-    // każdego zalogowanego.
-    for (const fn of [importNewsletterSubscribers, getJobRunnerSettings, updateJobRunnerSettings]) {
-      expect(serverFnMeta(fn)?.middleware).toEqual([{ __mw: "requireStaff" }]);
-    }
+  // Dowód STRUKTURALNY, nie behawioralny: harness nie uruchamia middleware,
+  // więc jedyne, co można tu uczciwie przybić, to DEKLARACJA bramki. TRZY różne
+  // bramki, bo to trzy różne zasoby - zrównanie ich z powrotem do `requireStaff`
+  // ma być czerwonym testem, a nie niezauważoną regresją.
+  it("import listy (dane najemcy) stoi na roli redakcyjnej", () => {
+    // Import cudzych danych osobowych bez bramki stanąłby otworem dla każdego
+    // zalogowanego - i to jest jedyna z trzech funkcji, która jest tenantowa.
+    expect(serverFnMeta(importNewsletterSubscribers)?.middleware).toEqual([
+      { __mw: "requireStaff" },
+    ]);
+  });
+
+  it("odczyt stanu automatu WYPYCHA autorów - telemetria platformy nie jest dla redakcji", () => {
+    // Ta sama rola co RPC `job_scheduler_health()` po drugiej stronie panelu
+    // zdrowia; bramki muszą być te same po obu stronach.
+    expect(serverFnMeta(getJobRunnerSettings)?.middleware).toEqual([
+      { __mw: "requireAdminEditor" },
+    ]);
+  });
+
+  it("ZAPIS konfiguracji automatu stoi na bramce PLATFORMOWEJ, nie na staffie najemcy", () => {
+    // `job_runner_settings` to singleton instalacji: `base_url` decyduje, pod
+    // jaki adres pg_cron wysyła sekret operatora, a `enabled = false` gasi
+    // zadania tła WSZYSTKICH najemców. Staff jednego najemcy nie może o tym
+    // decydować.
+    expect(serverFnMeta(updateJobRunnerSettings)?.middleware).toEqual([
+      { __mw: "requirePlatformAdmin" },
+    ]);
   });
 
   it("operacje zmieniające stan idą metodą POST, odczyt stanu automatu GET", () => {
@@ -299,8 +335,12 @@ describe("automat wysyłki - odczyt DOWODU działania, nie samego przełącznika
     expect(res.enabled).toBe(true);
     expect(res.base_url).toBe("https://example.test");
     expect(res.effective_base_url).toBe("https://runner.example.test");
-    // Sekret NIE opuszcza serwera - w panelu widać wyłącznie sześć znaków.
-    expect(res.secret_preview).toBe("sekret…");
+    // Sekret NIE opuszcza serwera nawet w podglądzie - panel dostaje sam FAKT
+    // ustawienia. Sześć znaków podglądu zawężało przestrzeń sekretu i
+    // potwierdzało napastnikowi, że przechwycony nagłówek należy do tej
+    // instalacji.
+    expect(res.secret_set).toBe(true);
+    expect(JSON.stringify(res)).not.toContain("sekret-bardzo-dlugi");
     expect(res.last_tick_at).toBe("2026-08-22T09:59:00.000Z");
     expect(res.last_tick_status).toBe("dispatched");
     expect(res.tick_count).toBe(1234);
@@ -317,7 +357,7 @@ describe("automat wysyłki - odczyt DOWODU działania, nie samego przełącznika
     expect(res).toMatchObject({
       enabled: false,
       base_url: "",
-      secret_preview: "",
+      secret_set: false,
       updated_at: null,
       last_tick_at: null,
       last_tick_status: null,
@@ -448,6 +488,15 @@ describe("automat wysyłki - zapis konfiguracji", () => {
     ["adres bez TLS", "http://example.test"],
     ["adres bez schematu", "example.test"],
     ["adres ze spacją", "https://exa mple.test"],
+    // Poniższe cztery przechodziły starą walidację (`^https://[^\s]+$`), choć
+    // ścieżka automatyczna (`arm_job_runner`) odrzucała je od zawsze. Ścieżka
+    // w URL i userinfo są tu groźne dosłownie: cron wysyła pod ten adres sekret
+    // operatora, a `https://ofiara@evil.test` czyta się w panelu jak własna
+    // domena.
+    ["adres ze ścieżką", "https://evil.test/sciezka"],
+    ["adres z userinfo", "https://ofiara@evil.test"],
+    ["adres lokalny", "https://localhost"],
+    ["adres pętli zwrotnej", "https://127.0.0.1:3000"],
   ])(
     "walidator odrzuca %s - tick niesie sekret, więc idzie WYŁĄCZNIE po https",
     async (_nazwa, adres) => {
@@ -461,5 +510,153 @@ describe("automat wysyłki - zapis konfiguracji", () => {
   it("walidator odrzuca brak przełącznika - stan automatu musi być jawny", async () => {
     await expect(updateJobRunnerSettings({ data: { base_url: "" } })).rejects.toThrow();
     expect(db.chains).toHaveLength(0);
+  });
+
+  it("białe znaki wokół adresu są UCINANE, a nie przemycane do bazy", async () => {
+    await updateJobRunnerSettings({
+      data: { enabled: true, base_url: "  https://example.test  " },
+    });
+
+    expect(db.lastChain(RUNNER)?.argsOf("update")?.[0]).toEqual({
+      enabled: true,
+      base_url: "https://example.test",
+    });
+  });
+});
+
+describe("automat wysyłki - allowlista hostów zapisu", () => {
+  // PO CO ALLOWLISTA. Sam kształt `https://host` nie mówi, czy host jest NASZ.
+  // Pod zapisany adres pg_cron puka co minutę z sekretem operatora w nagłówku,
+  // więc obcy host w tej kolumnie to przekierowanie sekretu, a nie literówka.
+  it("host z katalogu najemców przechodzi", async () => {
+    const res = await updateJobRunnerSettings({
+      data: { enabled: true, base_url: "https://example.test" },
+    });
+
+    expect(res).toEqual({ ok: true });
+    expect(db.lastChain(TENANTS)?.argsOf("select")).toEqual(["domain"]);
+  });
+
+  it("OBCY host jest odrzucany i NIE dotyka tabeli konfiguracji", async () => {
+    await expect(
+      updateJobRunnerSettings({ data: { enabled: true, base_url: "https://evil.test" } }),
+    ).rejects.toThrow("base_url_not_in_allowlist");
+    expect(db.chainsFor(RUNNER)).toHaveLength(0);
+  });
+
+  it("host różniący się WIELKOŚCIĄ LITER i portem to ten sam host", async () => {
+    // Domeny nie rozróżniają wielkości liter, a port nie zmienia tożsamości
+    // hosta - bez normalizacji `https://Example.test:8443` byłby „obcy".
+    const res = await updateJobRunnerSettings({
+      data: { enabled: true, base_url: "https://Example.test:8443" },
+    });
+
+    expect(res).toEqual({ ok: true });
+  });
+
+  it("host z `PUBLIC_SITE_URL` przechodzi, choć nie ma go w katalogu najemców", async () => {
+    // Instalacja jednodomenowa bywa BEZ wpisanej domeny najemcy - wtedy adres
+    // aplikacji zna wyłącznie środowisko.
+    db.setResponse(TENANTS, ok([{ domain: "" }, { domain: null }]));
+    vi.stubEnv("PUBLIC_SITE_URL", "https://app.example.test");
+
+    const res = await updateJobRunnerSettings({
+      data: { enabled: true, base_url: "https://app.example.test" },
+    });
+
+    expect(res).toEqual({ ok: true });
+  });
+
+  it("furtka `JOB_RUNNER_BASE_URL_ALLOWLIST` wpuszcza host podglądowy", async () => {
+    // Staging i podglądy mają host spoza katalogu najemców; bez tej furtki
+    // pierwszy zapis po wdrożeniu byłby odrzucony przez własną ochronę.
+    vi.stubEnv("JOB_RUNNER_BASE_URL_ALLOWLIST", "preview.example.test, staging.example.test");
+
+    const res = await updateJobRunnerSettings({
+      data: { enabled: true, base_url: "https://staging.example.test" },
+    });
+
+    expect(res).toEqual({ ok: true });
+  });
+
+  it("niedostępny katalog najemców ODMAWIA zapisu - fail closed", async () => {
+    // Bez katalogu domen nie wiemy, czy adres jest nasz. Przepuszczenie zapisu
+    // „bo baza nie odpowiedziała" zamieniłoby awarię odczytu w otwarte drzwi.
+    db.setResponse(TENANTS, fail("tenants unreachable"));
+
+    await expect(
+      updateJobRunnerSettings({ data: { enabled: true, base_url: "https://example.test" } }),
+    ).rejects.toThrow("base_url_allowlist_unavailable");
+    expect(db.chainsFor(RUNNER)).toHaveLength(0);
+  });
+
+  it("pusty adres nie pyta o allowlistę - nie ma hosta do sprawdzenia", async () => {
+    // Puste = „wylicz z domeny najemcy domyślnego", czyli adres rozstrzyga
+    // baza, nie panel.
+    await updateJobRunnerSettings({ data: { enabled: false, base_url: "" } });
+
+    expect(db.chainsFor(TENANTS)).toHaveLength(0);
+  });
+});
+
+describe("automat wysyłki - ślad audytowy zmiany", () => {
+  // PO CO. Tabela nie ma `updated_by`, a `updated_at` nadpisuje telemetria
+  // ticku już minutę po zapisie. Bez wpisu w `audit_log` po incydencie nie da
+  // się ustalić, kto zmienił adres crona ani kiedy.
+  it("udany zapis zostawia wpis z autorem, stanem PRZED i PO - ale BEZ sekretu", async () => {
+    await updateJobRunnerSettings({
+      data: { enabled: false, base_url: "https://example.test" },
+    });
+
+    const entry = db.lastChain(AUDIT)?.argsOf("insert")?.[0] as Record<string, unknown>;
+    expect(entry).toMatchObject({
+      tenant_id: TENANT,
+      actor_id: "user-1",
+      action: "job_runner.settings.update",
+      entity_type: "job_runner_settings",
+      entity_id: "1",
+    });
+    expect(entry.metadata).toEqual({
+      enabled_before: true,
+      enabled_after: false,
+      base_url_before: "https://example.test",
+      base_url_after: "https://example.test",
+    });
+    // Wpis audytowy czyta się szerzej niż samą tabelę konfiguracji, więc sekret
+    // runnera nie ma prawa się w nim znaleźć ani jako pole, ani jako treść.
+    expect(JSON.stringify(entry)).not.toContain("sekret-bardzo-dlugi");
+  });
+
+  it("stan PRZED czytany jest z jedynego wiersza, zanim zapis go nadpisze", async () => {
+    await updateJobRunnerSettings({ data: { enabled: true, base_url: "" } });
+
+    const [odczyt, zapis] = db.chainsFor(RUNNER);
+    expect(odczyt?.has("update")).toBe(false);
+    expect(odczyt?.argsOf("eq")).toEqual(["id", 1]);
+    expect(zapis?.has("update")).toBe(true);
+  });
+
+  it("nieudany audyt NIE wywraca zapisu, który w bazie już się wydarzył", async () => {
+    // Rzut po udanym UPDATE pokazałby w panelu błąd przy zmianie, która weszła
+    // - czyli stan niezgodny z bazą. Audyt jest best-effort, jak `recordJobRun`.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    db.setResponse(AUDIT, fail("audit_log unreachable"));
+
+    const res = await updateJobRunnerSettings({ data: { enabled: true, base_url: "" } });
+
+    expect(res).toEqual({ ok: true });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("brak tenanta wywołującego też nie wywraca zapisu - wpisu po prostu nie ma", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    db.setResponse(PROFILES, ok(null));
+
+    const res = await updateJobRunnerSettings({ data: { enabled: false, base_url: "" } });
+
+    expect(res).toEqual({ ok: true });
+    expect(db.chainsFor(AUDIT)).toHaveLength(0);
+    spy.mockRestore();
   });
 });

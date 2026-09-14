@@ -15,9 +15,19 @@
 // Dlatego niżej stoją asercje na KSZTAŁT wejścia (jednolinijkowe opcje, złamana
 // deklaracja), a nie na wynik przebiegu.
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+import { PUBLIC_DOCUMENT_DENY_PREFIXES } from "@/lib/http/documentCache";
 import {
   analysePublicRouteLoaders,
   balancedArgs,
+  coldRouteRatchetFailed,
+  compareColdRouteRatchet,
+  renderColdRouteRatchet,
+  COLD_CACHED_ROUTES_2026_09_01,
+  COLD_PUBLIC_ROUTES_2026_09_01,
+  FROZEN_COLD_CACHED_ROUTES,
+  FROZEN_COLD_PUBLIC_ROUTES,
   findQuerySites,
   keyFactorySymbols,
   loaderWarmedSymbols,
@@ -34,7 +44,9 @@ import {
   staticImportSpecifiers,
   topLevelOption,
   type PublicRouteLoaderInput,
+  type PublicRouteLoaderReport,
 } from "../publicRouteLoaders";
+import { COLD_PUBLIC_ROUTE_BASELINE } from "../../../../scripts/lib/coldPublicRouteBaseline";
 
 function sources(entries: Record<string, string>): Map<string, string> {
   return new Map(Object.entries(entries));
@@ -633,4 +645,365 @@ describe("platform inventory handles incomplete input and inherited evidence", (
       "tresc-z-przodka",
     );
   });
+});
+
+// ===========================================================================
+// RATCHET NA PRAWDZIWYM DRZEWIE TRAS (punkt A8 zlecenia wydania 10)
+// ===========================================================================
+//
+// PO CO, SKORO 34 TESTY WYŻEJ JUŻ ISTNIEJĄ. Bo one wszystkie sprawdzają
+// ANALIZATOR NA ATRAPACH - a to jest właściwa konwencja dla inwariantu i tak
+// ma zostać. Czego nie sprawdzały: LICZBY W TYM REPOZYTORIUM. Moduł mówi
+// o sobie wprost, że jest narzędziem pomiarowym, nie bramką
+// (`publicRouteLoaders.ts:1`), a jego `--gate` był opt-in i nie biegł nigdzie -
+// więc JEDNA NOWA TRASA BEZ LOADERA nie zapalała niczego. I tak się właśnie
+// stało: między 2026-09-01 a 2026-09-12 lista urosła z 21 na 29 (gałąź
+// minisite'ów klubowych), a repozytorium się o tym nie dowiedziało.
+//
+// KOSZT: analiza czyta całe `src/` i zajmuje ~48 s. To jedyny przypadek w tym
+// pliku, który dotyka dysku, i dlatego stoi osobno na końcu - reszta zostaje
+// milisekundowa.
+
+const SCAN_ROOT = "src";
+const SKIP_DIRS = new Set(["node_modules", "dist", ".git", "coverage"]);
+
+function walkReal(dir: string, out: string[]): string[] {
+  for (const entry of readdirSync(dir)) {
+    if (SKIP_DIRS.has(entry)) continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walkReal(full, out);
+    else out.push(full);
+  }
+  return out;
+}
+
+function realSources(): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const path of walkReal(SCAN_ROOT, [])) {
+    const file = relative(process.cwd(), path).replaceAll("\\", "/");
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    out.set(file, readFileSync(file, "utf8"));
+  }
+  return out;
+}
+
+/**
+ * Analiza CAŁEGO `src/` kosztuje ~44 s, a dwa przypadki niżej pytają o ten sam
+ * stan drzewa. Jedno przeliczenie zamiast dwóch to ~44 s mniej w kroku
+ * `check:ci-gates` - liczba, która przy bramce biegnącej na każdy push ma
+ * znaczenie. Kontrola negatywna musi liczyć osobno, bo zmienia WEJŚCIE.
+ */
+let baseAnalysis: ReturnType<typeof analyseRealTreeUncached> | null = null;
+
+function analyseRealTree(): ReturnType<typeof analyseRealTreeUncached> {
+  baseAnalysis ??= analyseRealTreeUncached();
+  return baseAnalysis;
+}
+
+function analyseRealTreeUncached(
+  extra: Record<string, string> = {},
+  extraTree = "",
+): {
+  cold: readonly { fullPath: string }[];
+  cachedCold: readonly { fullPath: string }[];
+  report: PublicRouteLoaderReport;
+} {
+  const files = realSources();
+  for (const [file, source] of Object.entries(extra)) files.set(file, source);
+  const tree = (files.get("src/routeTree.gen.ts") ?? "") + extraTree;
+  const report = analysePublicRouteLoaders({ routeTree: tree, sources: files });
+  const cold = routesMissingWarmedLoader(report);
+  const cachedCold = cold.filter((route) => wchodziDoCache(route.fullPath));
+  return { cold, cachedCold, report };
+}
+
+/** Ta sama reguła co `isDeniedPath` w `lib/http/documentCache`, na ścieżce trasy. */
+function wchodziDoCache(fullPath: string): boolean {
+  return !PUBLIC_DOCUMENT_DENY_PREFIXES.some(
+    (prefix) => fullPath === prefix || fullPath.startsWith(`${prefix}/`),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RATCHET PER TRASA - na atrapach, bez chodzenia po drzewie
+// ---------------------------------------------------------------------------
+//
+// Przypadki na PRAWDZIWYM drzewie (niżej) dowodzą liczby; te dowodzą KOMUNIKATU
+// i rozróżnień, których prawdziwe drzewo dziś nie produkuje - bo lista jest
+// aktualna, więc `moved` i `fixed` są tam z definicji puste. Bez tego bloku
+// gałęzie raportu byłyby martwym kodem: zapaliłyby się dopiero w dniu, w którym
+// ktoś przeniesie albo naprawi trasę, czyli dokładnie wtedy, gdy komunikat musi
+// być poprawny.
+describe("ratchet per trasa - komunikat i rozróżnienia", () => {
+  /** Raport z jedną zimną trasą (`useQuery` bez loadera) o zadanym pliku i adresie. */
+  function zimnyRaport(plik: string, adres: string) {
+    const files = sources({
+      "src/routes/__root.tsx": ROOT,
+      [plik]: `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('${adres}')({ component: P });
+function P() { const q = useQuery(qo()); return <div>{q.data}</div>; }`,
+    });
+    const tree = routeTree([
+      {
+        ident: "Probe",
+        file: plik.replace("src/", "").replace(/\.tsx$/, ""),
+        path: adres,
+        parent: "rootRouteImport",
+      },
+    ]);
+    return analysePublicRouteLoaders({ routeTree: tree, sources: files });
+  }
+
+  const WSZYSTKO_W_CACHE = () => true;
+  const NIC_W_CACHE = () => false;
+
+  it("trasa NA liście nie jest ani nowa, ani naprawiona, ani przeniesiona", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/proba"],
+    ]);
+
+    expect(r).toEqual({ fresh: [], moved: [], fixed: [], total: 1 });
+    expect(coldRouteRatchetFailed(r)).toBe(false);
+    expect(renderColdRouteRatchet(r, WSZYSTKO_W_CACHE)).toContain("ratchet trzyma kierunek");
+  });
+
+  it("trasa SPOZA listy jest nowym długiem, a komunikat NAZYWA ją i mówi, gdzie boli", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), []);
+
+    expect(coldRouteRatchetFailed(r)).toBe(true);
+    expect(r.fresh).toEqual([{ file: "src/routes/proba.tsx", fullPath: "/proba" }]);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("/proba");
+    expect(tekst).toContain("src/routes/proba.tsx");
+    expect(tekst).toContain("wchodzi do NES Edge Cache");
+    expect(tekst).toContain("loader rozgrzewający");
+  });
+
+  it("komunikat odróżnia trasę POZA cache dokumentów - to jest tańsza połowa długu", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), []);
+
+    expect(renderColdRouteRatchet(r, NIC_W_CACHE)).toContain("poza cache dokumentów");
+  });
+
+  it("ten sam plik pod INNYM adresem to PRZENIESIENIE, nie nowy dług", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/stary-adres"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([]);
+    expect(r.moved).toEqual([
+      { kind: "adres", file: "src/routes/proba.tsx", was: "/stary-adres", now: "/proba" },
+    ]);
+    expect(coldRouteRatchetFailed(r)).toBe(false);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("PRZENIESIONYCH");
+    expect(tekst).toContain("adres /stary-adres -> /proba");
+  });
+
+  it("ten sam adres pod INNYM plikiem też jest przeniesieniem", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/stara-nazwa.tsx", "/proba"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([]);
+    expect(r.moved).toEqual([
+      {
+        kind: "plik",
+        fullPath: "/proba",
+        was: "src/routes/stara-nazwa.tsx",
+        now: "src/routes/proba.tsx",
+      },
+    ]);
+    expect(renderColdRouteRatchet(r, WSZYSTKO_W_CACHE)).toContain(
+      "plik src/routes/stara-nazwa.tsx -> src/routes/proba.tsx",
+    );
+  });
+
+  it("NIEODEBRANA naprawa OBLEWA bramkę - inaczej zapadka nie zapada", () => {
+    // To nie jest karanie za poprawę, tylko warunek, bez którego lista
+    // membershipowa przestaje działać. Dopóki naprawiona trasa stoi na liście,
+    // ma tam WOLNY SLOT: jej późniejsza regresja dopasuje się do nieaktualnego
+    // wpisu, więc nie będzie `fresh`, a licznik wróci pod sufit - i obie bramki
+    // przepuszczą cofnięcie. Poprawę trzeba ODEBRAĆ w tym samym PR-ze.
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/proba"],
+      ["src/routes/juz-naprawiona.tsx", "/juz-naprawiona"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([
+      { file: "src/routes/juz-naprawiona.tsx", fullPath: "/juz-naprawiona" },
+    ]);
+    expect(coldRouteRatchetFailed(r)).toBe(true);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("NAPRAWIONYCH");
+    expect(tekst).toContain("/juz-naprawiona");
+    expect(tekst).toContain("ODBIERZ poprawę");
+    expect(tekst).toContain("WOLNY SLOT");
+  });
+
+  it("DOWÓD SEKWENCJI: nieodebrana naprawa przepuściłaby późniejszą regresję", () => {
+    // Krok 2 z opisu przy `coldRouteRatchetFailed`, odegrany na atrapach.
+    // Trasa wraca do stanu zimnego, a NIEAKTUALNY wpis wciąż na nią czeka -
+    // więc bez reguły „fixed oblewa" ta regresja NIE byłaby `fresh`.
+    const nieaktualnaLista = [["src/routes/proba.tsx", "/proba"]] as const;
+    const poRegresji = compareColdRouteRatchet(
+      zimnyRaport("src/routes/proba.tsx", "/proba"),
+      nieaktualnaLista,
+    );
+
+    expect(poRegresji.fresh).toEqual([]);
+    expect(poRegresji.fixed).toEqual([]);
+    // Zielone - i o to właśnie chodzi: gdyby krok 1 (naprawa) nie oblał,
+    // lista dotrwałaby do tego momentu w tym samym kształcie.
+    expect(coldRouteRatchetFailed(poRegresji)).toBe(false);
+  });
+
+  it("DWA pliki pod tym samym adresem: drugi wpis z listy nie jest zużywany dwa razy", () => {
+    // Na prawdziwym drzewie szesnaście adresów niesie po dwa pliki tras. Gdyby
+    // mapa adresów trzymała tylko pierwszy wpis, dopasowanie potrafiłoby trafić
+    // w rekord już zużyty przez dopasowanie po pliku - i ta sama trasa dałaby
+    // JEDNOCZEŚNIE `fresh` i `fixed`.
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/inna.tsx", "/proba"],
+      ["src/routes/jeszcze-inna.tsx", "/proba"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.moved).toHaveLength(1);
+    expect(r.fixed).toEqual([{ file: "src/routes/jeszcze-inna.tsx", fullPath: "/proba" }]);
+    // Drugi, nadmiarowy wpis to nieodebrana naprawa - i tak ma oblewać.
+    expect(coldRouteRatchetFailed(r)).toBe(true);
+  });
+});
+
+describe("ratchet na prawdziwym drzewie tras", () => {
+  it("lista tras publicznych bez rozgrzanej treści NIE ROŚNIE", { timeout: 180_000 }, () => {
+    const { cold, cachedCold } = analyseRealTree();
+    // Sufity wolno WYŁĄCZNIE OBNIŻAĆ - kronika pomiaru i uzasadnienie stoją
+    // przy `FROZEN_COLD_PUBLIC_ROUTES` w `../publicRouteLoaders`.
+    expect(
+      cold.length,
+      `trasy o samych zimnych kluczach: ${cold.map((r) => r.fullPath).join(", ")}`,
+    ).toBeLessThanOrEqual(FROZEN_COLD_PUBLIC_ROUTES);
+    expect(cachedCold.length).toBeLessThanOrEqual(FROZEN_COLD_CACHED_ROUTES);
+  });
+
+  it("ŻADNA trasa spoza ZAMROŻONEJ LISTY nie jest zimna", { timeout: 180_000 }, () => {
+    // Sufit wyżej pilnuje OBJĘTOŚCI długu, ta lista - jego TOŻSAMOŚCI. Sam
+    // licznik przepuszcza kompensację: naprawa `/qa` w tym samym PR-ze
+    // „opłaca" nową zimną trasę i liczba stoi w miejscu, a CI nigdy nie
+    // nazwie tej nowej. Pełne uzasadnienie: sekcja „RATCHET PER TRASA"
+    // w `../publicRouteLoaders`.
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, COLD_PUBLIC_ROUTE_BASELINE);
+
+    expect(ratchet.fresh, renderColdRouteRatchet(ratchet, wchodziDoCache)).toEqual([]);
+    expect(coldRouteRatchetFailed(ratchet)).toBe(false);
+  });
+
+  it("lista jest AKTUALNA - nie ma na niej tras już naprawionych", { timeout: 180_000 }, () => {
+    // `fixed` nie OBLEWA bramki (naprawa nie może być porażką), ale lista,
+    // z której nikt nie zdejmuje naprawionych tras, po kilku PR-ach przestaje
+    // cokolwiek znaczyć. Ten przypadek każe ją skrócić razem z sufitem.
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, COLD_PUBLIC_ROUTE_BASELINE);
+
+    expect(ratchet.fixed, renderColdRouteRatchet(ratchet, wchodziDoCache)).toEqual([]);
+    expect(ratchet.moved).toEqual([]);
+  });
+
+  it(
+    "KONTROLA NEGATYWNA: atrapowa trasa spoza listy OBLEWA ratchet per trasa",
+    { timeout: 180_000 },
+    () => {
+      // Bez tego przypadku nie wiadomo, czy lista w ogóle potrafi zapalić się
+      // na czerwono - a bramka, która zawsze widzi to samo, jest napisem.
+      const { report } = analyseRealTreeUncached(
+        {
+          "src/routes/ratchet-probe.tsx": `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('/ratchet-probe')({ component: Probe });
+function Probe() { const q = useQuery(probeQueryOptions()); return <div>{q.data}</div>; }`,
+        },
+        `\n${routeTree([
+          {
+            ident: "RatchetProbe",
+            file: "routes/ratchet-probe",
+            path: "/ratchet-probe",
+            parent: "rootRouteImport",
+          },
+        ])}\n`,
+      );
+      const ratchet = compareColdRouteRatchet(report, COLD_PUBLIC_ROUTE_BASELINE);
+
+      expect(coldRouteRatchetFailed(ratchet)).toBe(true);
+      expect(ratchet.fresh.map((r) => r.fullPath)).toEqual(["/ratchet-probe"]);
+      // Komunikat MUSI nazywać trasę - to jest cała przewaga nad licznikiem.
+      expect(renderColdRouteRatchet(ratchet, wchodziDoCache)).toContain("/ratchet-probe");
+    },
+  );
+
+  it("PRZENIESIENIE pliku trasy nie jest nowym długiem", { timeout: 180_000 }, () => {
+    // Dopasowanie po DWÓCH kluczach (plik i adres). Przy jednym kluczu zwykła
+    // zmiana nazwy pliku dawałaby JEDNOCZEŚNIE `fresh` i `fixed` dla tej samej
+    // trasy, czyli bramka obwiniałaby refaktor za dług, którego nie przybyło.
+    const [[plik, adres]] = COLD_PUBLIC_ROUTE_BASELINE;
+    const podmieniona = COLD_PUBLIC_ROUTE_BASELINE.map(([f, a]) =>
+      f === plik
+        ? ([`src/routes/przeniesiona-${f.slice("src/routes/".length)}`, a] as const)
+        : ([f, a] as const),
+    );
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, podmieniona);
+
+    expect(ratchet.fresh).toEqual([]);
+    expect(ratchet.fixed).toEqual([]);
+    expect(ratchet.moved).toHaveLength(1);
+    const przeniesiona = ratchet.moved[0];
+    expect(przeniesiona?.kind).toBe("plik");
+    if (przeniesiona?.kind !== "plik") throw new Error("test: oczekiwano przeniesienia PLIKU");
+    expect(przeniesiona.fullPath).toBe(adres);
+    expect(przeniesiona.now).toBe(plik);
+  });
+
+  it(
+    "KONTROLA NEGATYWNA: atrapowa trasa z `useQuery` bez loadera OBLEWA ratchet",
+    { timeout: 180_000 },
+    () => {
+      // Bez tego przypadku nie wiadomo, czy ratchet w ogóle potrafi wzrosnąć:
+      // bramka, która zawsze widzi tę samą liczbę, jest napisem.
+      const { cold, cachedCold } = analyseRealTreeUncached(
+        {
+          "src/routes/ratchet-probe.tsx": `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('/ratchet-probe')({ component: Probe });
+function Probe() { const q = useQuery(probeQueryOptions()); return <div>{q.data}</div>; }`,
+        },
+        `\n${routeTree([
+          {
+            ident: "RatchetProbe",
+            file: "routes/ratchet-probe",
+            path: "/ratchet-probe",
+            parent: "rootRouteImport",
+          },
+        ])}\n`,
+      );
+      expect(cold.length).toBeGreaterThan(FROZEN_COLD_PUBLIC_ROUTES);
+      expect(cachedCold.length).toBeGreaterThan(FROZEN_COLD_CACHED_ROUTES);
+    },
+  );
+
+  it.fails(
+    "REGRES ZAREJESTROWANY: lista urosła ponad stan zamrożony 2026-09-01 (21/16)",
+    { timeout: 180_000 },
+    () => {
+      // To NIE jest test do naprawienia zmianą progu. To wpis w rejestrze:
+      // między 2026-09-01 a 2026-09-12 doszło jedenaście tras
+      // `/club/$clubSlug/**`, z których żadna nie grzeje swoich kluczy, i nic
+      // tego nie zauważyło, bo `--gate` był opt-in. Wpis padnie sam, gdy te
+      // trasy dostaną loadery - i wtedy MA zostać zdjęty razem z obniżeniem
+      // `FROZEN_COLD_PUBLIC_ROUTES`.
+      const { cold, cachedCold } = analyseRealTree();
+      expect(cold.length).toBeLessThanOrEqual(COLD_PUBLIC_ROUTES_2026_09_01);
+      expect(cachedCold.length).toBeLessThanOrEqual(COLD_CACHED_ROUTES_2026_09_01);
+    },
+  );
 });
