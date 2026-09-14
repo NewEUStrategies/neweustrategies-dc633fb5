@@ -299,6 +299,7 @@ function SeoHomepageTab() {
         <div>
           <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionTexts")}</h2>
           <p className="text-xs text-muted-foreground">{t("adminSeoHub.textsHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("adminSeoHub.titleIsH1Hint")}</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <SeoTextField

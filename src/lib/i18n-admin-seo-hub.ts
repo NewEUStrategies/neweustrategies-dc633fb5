@@ -73,6 +73,8 @@ const pl = {
     descriptionPl: "Opis strony głównej (PL)",
     descriptionEn: "Opis strony głównej (EN)",
     textsHint: "Puste pole = wbudowany tekst marki. Podgląd poniżej pokazuje wynik na żywo.",
+    titleIsH1Hint:
+      "Tytuł PL/EN jest równocześnie nagłówkiem H1 strony głównej - jest w kodzie strony i w indeksie Google, ale niewidoczny w layoucie (etykieta logo w nagłówku).",
     sectionPreview: "Podgląd wyniku",
     previewPl: "Wynik po polsku",
     previewEn: "Wynik po angielsku",
@@ -205,6 +207,8 @@ const en: typeof pl = {
     descriptionPl: "Homepage description (PL)",
     descriptionEn: "Homepage description (EN)",
     textsHint: "An empty field = the built-in brand text. The preview below updates live.",
+    titleIsH1Hint:
+      "The PL/EN title is also the homepage H1: present in the page source and in Google, but not visible in the layout (it labels the header logo).",
     sectionPreview: "Result preview",
     previewPl: "Polish result",
     previewEn: "English result",
