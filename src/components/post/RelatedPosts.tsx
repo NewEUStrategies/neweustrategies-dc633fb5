@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import {
+  relatedPersonalizationConsentQueryOptions,
   relatedPostsConfigQueryOptions,
   relatedPostsQueryOptions,
 } from "@/lib/queries/relatedPosts";
@@ -15,7 +16,6 @@ import {
 } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsConsentGiven } from "@/lib/notifications/useConsents";
 import { isGpcCurrentlyHonored } from "@/lib/ads/consent";
 import { formatDate } from "@/lib/i18n/format";
 import { trackRelatedClick } from "@/lib/relatedClickBeacon";
@@ -41,49 +41,65 @@ export function RelatedPosts({
   forceColumns,
   className,
 }: RelatedPostsProps) {
-  const { data: globalCfg } = useQuery(relatedPostsConfigQueryOptions());
-  const cfg = mergeRelatedConfig(globalCfg, override);
+  const cfgQuery = useQuery(relatedPostsConfigQueryOptions());
+  const cfg = mergeRelatedConfig(cfgQuery.data, override);
 
   // Personalizacja rusza dopiero po ZGODZIE, nie po zalogowaniu. Dobieranie
   // treści na podstawie historii czytania to profilowanie w rozumieniu RODO,
-  // więc bramką jest zgoda `personalization` z rejestru - a `useIsConsentGiven`
-  // nakłada na nią klamrę GPC, bo sygnał opt-outu przeglądarki sprzeciwia się
-  // dokładnie temu zastosowaniu (`lib/consent/gpc.ts`).
-  const { user } = useAuth();
-  const zgodaProfilu = useIsConsentGiven("personalization");
-  // Druga, SYNCHRONICZNA klamra GPC. `useIsConsentGiven` też ją nakłada, ale
-  // przez `useGpcSignal`, który sygnał odczytuje dopiero w efekcie - a rejestr
-  // zgód przy drugim artykule w sesji wychodzi z cache OD RAZU. Powstaje jeden
-  // render, w którym zgoda jest już znana, a klamra jeszcze nie: to wystarczy,
-  // by `useQuery` wystrzelił zapytanie spersonalizowane mimo opt-outu
-  // przeglądarki. `isGpcCurrentlyHonored` czyta sygnał bez czekania na efekt.
+  // więc bramką jest zgoda `personalization` z rejestru.
+  const { user, loading: authLoading } = useAuth();
+  // SYNCHRONICZNA klamra GPC. Sygnał opt-outu przeglądarki sprzeciwia się
+  // dokładnie temu zastosowaniu - `personalization` jest w
+  // `GPC_CLAMPED_REGISTRY_KEYS` (`lib/consent/gpc.ts`). Czytamy go bez czekania
+  // na efekt Reacta, bo rejestr zgód przy drugim artykule w sesji wychodzi
+  // z cache OD RAZU: powstałby jeden render, w którym zgoda jest już znana,
+  // a klamra jeszcze nie - i to wystarczy, by poleciało zapytanie
+  // spersonalizowane mimo wyrażonego sprzeciwu.
   const gpcBlokuje = isGpcCurrentlyHonored();
-  // Porównanie do `true` jest istotne: hook oddaje `undefined`, dopóki rejestr
-  // się nie wczyta. Bramka jest domyślnie ZAMKNIĘTA.
-  const personalizedFor = user && zgodaProfilu === true && !gpcBlokuje ? user.id : null;
 
-  // Czy wiadomo już, CZY personalizować. Identyfikator czytelnika wchodzi do
-  // klucza zapytania, więc odpowiedź „jeszcze nie wiem" nie jest neutralna:
-  // wystrzelenie zapytania przed rozstrzygnięciem zgody policzyłoby listę
-  // bezosobową, a chwilę później - po dojściu rejestru - klucz zmieniłby się na
-  // spersonalizowany i CAŁY potok (sześć fal zapytań) poleciałby drugi raz,
-  // gasząc na ten czas sekcję, którą czytelnik ma już przed oczami.
+  // O zgodę pytamy TYLKO wtedy, gdy odpowiedź może cokolwiek zmienić: gość nie
+  // ma rejestru, przy wadze 0 personalizacja nie wnosi ani punktu, a przy GPC
+  // i tak zostałaby sklamrowana do „nie". W pozostałych przypadkach byłby to
+  // round-trip pod każdym artykułem za decyzję znaną z góry.
+  const mozeProfilowac = !!user && cfg.weight_personalization > 0 && !gpcBlokuje;
+  const zgodaQuery = useQuery({
+    ...relatedPersonalizationConsentQueryOptions(user?.id ?? ""),
+    enabled: mozeProfilowac,
+  });
+  // Porównanie do `true` jest istotne: `data` to `undefined`, dopóki odczyt się
+  // nie skończy, ORAZ gdy padnie. Bramka jest domyślnie ZAMKNIĘTA, a awaria
+  // rejestru zamyka PROFILOWANIE, nie całe rekomendacje - lista wychodzi wtedy
+  // bezosobowa, dokładnie tak jak warstwa zapytań degraduje awarię profilu.
+  const personalizedFor = mozeProfilowac && zgodaQuery.data === true && user ? user.id : null;
+
+  // Identyfikator czytelnika wchodzi do klucza zapytania, więc odpowiedź
+  // „jeszcze nie wiem" nie jest neutralna: wystrzelenie zapytania przed
+  // rozstrzygnięciem policzyłoby listę bezosobową, a chwilę później - po
+  // dojściu danych - klucz zmieniłby się i CAŁY potok (sześć fal zapytań)
+  // poleciałby drugi raz, gasząc na ten czas sekcję, którą czytelnik ma już
+  // przed oczami.
   //
-  // Czekamy więc na rozstrzygnięcie, ale TYLKO wtedy, gdy może ono cokolwiek
-  // zmienić: dla gościa rejestr nigdy nie dojedzie (zapytanie o zgody jest
-  // wyłączone bez użytkownika), a przy wadze 0 personalizacja i tak nie wnosi
-  // ani punktu - w obu przypadkach czekanie byłoby samą zwłoką.
-  const personalizacjaWazy = cfg.weight_personalization > 0 && !gpcBlokuje;
-  const zgodaRozstrzygnieta = !user || !personalizacjaWazy || zgodaProfilu !== undefined;
+  // KAŻDA Z TYCH BRAMEK CZEKA NA ROZSTRZYGNIĘCIE, ŻADNA NIE CZEKA W NIESKOŃCZONOŚĆ.
+  // To jest tu cała sztuka: warunek „wartość już znana" wygląda niewinnie, ale
+  // przy nieudanym odczycie wartość NIGDY nie staje się znana - i sekcja
+  // rekomendacji znika z serwisu na stałe przez awarię sygnału pomocniczego.
+  // Dlatego pytamy o STAN ZAPYTANIA (`isPending`), a nie o obecność danych:
+  // sukces i błąd tak samo kończą oczekiwanie, tylko z innym wynikiem.
+  //
+  // Tożsamość musi być ustalona, ZANIM wybierzemy klucz. `AuthProvider` oddaje
+  // `user: null` przy `loading`, więc bez tego warunku zalogowany czytelnik
+  // startuje jako gość. Ta sama bramka stoi w `useRecommendedPosts`.
+  const tozsamoscZnana = !authLoading;
+  const zgodaRozstrzygnieta = !mozeProfilowac || !zgodaQuery.isPending;
 
-  // Ta sama zasada dla KONFIGURACJI: dopóki globalna konfiguracja nie dojechała,
+  // Ta sama zasada dla KONFIGURACJI: dopóki globalna konfiguracja się liczy,
   // `mergeRelatedConfig` oddaje wartości DOMYŚLNE - nie te, które ustawiła
   // redakcja. Potok policzony pod nimi to nie tylko zmarnowane siedem
   // round-tripów; to lista widoczna przez moment i ułożona WEDŁUG INNYCH WAG niż
   // skonfigurowane, czyli dokładnie ten objaw, który ta zmiana likwiduje -
-  // tyle że przelotny. Nadpisanie per wpis nie wystarcza, bo niesie zwykle
-  // jedno-dwa pola, a resztę i tak bierze z globalnej.
-  const konfiguracjaZnana = globalCfg !== undefined;
+  // tyle że przelotny. Gdy odczyt PADNIE, jedziemy na domyślnych: lepsze
+  // rekomendacje z domyślnymi wagami niż brak rekomendacji.
+  const konfiguracjaRozstrzygnieta = !cfgQuery.isPending;
 
   // Wagi jadą do zapytania Z KONFIGURACJI, nie z domyślnych. To jest ta jedna
   // rzecz, której brak unieruchamiał cały silnik v2: panel zapisywał siedem wag,
@@ -109,7 +125,11 @@ export function RelatedPosts({
   });
   const { data: posts = [], isLoading } = useQuery({
     ...opcje,
-    enabled: opcje.enabled !== false && zgodaRozstrzygnieta && konfiguracjaZnana,
+    enabled:
+      opcje.enabled !== false &&
+      tozsamoscZnana &&
+      zgodaRozstrzygnieta &&
+      konfiguracjaRozstrzygnieta,
   });
 
   if (!cfg.enabled) return null;

@@ -122,6 +122,7 @@ vi.mock("@/integrations/supabase/client", async () => {
 });
 
 import {
+  relatedPersonalizationConsentQueryOptions,
   relatedPostsConfigQueryOptions,
   relatedPostsQueryOptions,
   type RelatedPostsInput,
@@ -234,6 +235,8 @@ interface Plan {
   tagiHistorii?: SupabaseResult;
   /** RPC `trending_posts` - źródło sygnału popularności. */
   popularne?: SupabaseResult;
+  /** `user_consents` - zgoda `personalization` czytana wprost z rejestru. */
+  zgodaRejestru?: SupabaseResult;
 }
 
 function planuj(plan: Plan = {}): void {
@@ -268,6 +271,7 @@ function planuj(plan: Plan = {}): void {
     return plan.wlasneTagi ?? ok([{ tag_id: TAG_A }, { tag_id: TAG_B }]);
   });
   baza().setResponse("user_read_history", () => plan.historiaCzytania ?? ok([]));
+  baza().setResponse("user_consents", () => plan.zgodaRejestru ?? ok(null));
   funkcje().setResponse("trending_posts", plan.popularne ?? ok([]));
   baza().setResponse("posts", (chain) => {
     if (chain.has("maybeSingle")) {
@@ -1545,8 +1549,11 @@ describe("personalizacja: profil czytelnika pod bramką zgody", () => {
         }),
       ),
     );
-    expect(slugi(wynik)).toHaveLength(2);
-    expect(wynik.every((p) => Number.isFinite(0))).toBe(true);
+    // Obaj kandydaci zostają, w kolejności bezosobowej. Gdyby mianownik wyszedł
+    // zerowy i wpadł do dzielenia, wynik byłby NaN - a NaN nie przechodzi ani
+    // `score > 0`, ani progu, więc lista wyszłaby PUSTA. Długość 2 jest tu
+    // dowodem na brak NaN, nie ozdobą.
+    expect(slugi(wynik)).toEqual(["slug-k-w-profilu", "slug-k-obcy"]);
   });
 
   it("AWARIA PROFILU NIE GASI WIDGETU - czytelnik dostaje listę bezosobową", async () => {
@@ -1707,28 +1714,28 @@ describe("sygnały dostrajające: puste i uszkodzone odpowiedzi", () => {
     expect(slugi(wynik)).toHaveLength(2);
   });
 
-  it.each([
-    ["kategorieHistorii", "kategorii"],
-    ["tagiHistorii", "tagów"],
-  ] as const)("odmowa odczytu %s historii nie gasi widgetu", async (etap) => {
-    const ostrzezenia = vi.spyOn(console, "warn").mockImplementation(() => {});
-    planuj({
-      ...planProsty(),
-      historiaCzytania: ok([{ post_id: "h-1" }]),
-      [etap]: fail("odmowa taksonomii historii", "42501"),
-    });
-    const wynik = await klient().fetchQuery(
-      relatedPostsQueryOptions(
-        wejscie({ strategy: "categories", personalizedFor: CZYTELNIK, scoring: zProfilem }),
-      ),
-    );
-    expect(slugi(wynik)).toHaveLength(2);
-    expect(ostrzezenia).toHaveBeenCalledWith(
-      expect.stringContaining("personalization signal unavailable"),
-      expect.anything(),
-    );
-    ostrzezenia.mockRestore();
-  });
+  it.each(["kategorieHistorii", "tagiHistorii"] as const)(
+    "odmowa odczytu `%s` nie gasi widgetu",
+    async (etap) => {
+      const ostrzezenia = vi.spyOn(console, "warn").mockImplementation(() => {});
+      planuj({
+        ...planProsty(),
+        historiaCzytania: ok([{ post_id: "h-1" }]),
+        [etap]: fail("odmowa taksonomii historii", "42501"),
+      });
+      const wynik = await klient().fetchQuery(
+        relatedPostsQueryOptions(
+          wejscie({ strategy: "categories", personalizedFor: CZYTELNIK, scoring: zProfilem }),
+        ),
+      );
+      expect(slugi(wynik)).toHaveLength(2);
+      expect(ostrzezenia).toHaveBeenCalledWith(
+        expect.stringContaining("personalization signal unavailable"),
+        expect.anything(),
+      );
+      ostrzezenia.mockRestore();
+    },
+  );
 
   it("AWARIA PROFILU SPOZA KLASY `Error` też tylko ostrzega", async () => {
     const ostrzezenia = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -1747,5 +1754,60 @@ describe("sygnały dostrajające: puste i uszkodzone odpowiedzi", () => {
       "awaria bez klasy Error",
     );
     ostrzezenia.mockRestore();
+  });
+});
+
+// ==========================================================================
+// ZGODA NA PERSONALIZACJĘ - odczyt wprost z rejestru, bez server-fn
+//
+// Ten odczyt istnieje zamiast `useIsConsentGiven` z JEDNEGO powodu: tamten hook
+// ciągnie `lib/consents.functions`, a więc runtime funkcji serwerowych, do
+// PUBLICZNEJ paczki trasy wpisu. Bramka `Bundle size budget` złapała to jako
+// regresję. Semantyka musi jednak zostać ta sama co w `buildConsentViews`,
+// inaczej zamiana „taniej drogi" po cichu rozszczelniłaby bramkę RODO.
+// ==========================================================================
+
+describe("zgoda `personalization`: rejestr czytany bezpośrednio", () => {
+  it("pyta o WŁASNY wiersz czytelnika i o właściwy klucz zgody", async () => {
+    planuj({ zgodaRejestru: ok({ given: true }) });
+    await klient().fetchQuery(relatedPersonalizationConsentQueryOptions(CZYTELNIK));
+
+    const c = lancuch("user_consents");
+    expect(filtrEq(c, "user_id")).toEqual(["user_id", CZYTELNIK]);
+    expect(filtrEq(c, "consent_key")).toEqual(["consent_key", "personalization"]);
+  });
+
+  it("UDZIELONA zgoda to `true`", async () => {
+    planuj({ zgodaRejestru: ok({ given: true }) });
+    await expect(
+      klient().fetchQuery(relatedPersonalizationConsentQueryOptions(CZYTELNIK)),
+    ).resolves.toBe(true);
+  });
+
+  it("WYCOFANA zgoda to `false`", async () => {
+    planuj({ zgodaRejestru: ok({ given: false }) });
+    await expect(
+      klient().fetchQuery(relatedPersonalizationConsentQueryOptions(CZYTELNIK)),
+    ).resolves.toBe(false);
+  });
+
+  it("BRAK WIERSZA to BRAK zgody - katalog nie daje `personalization` wartości domyślnej", async () => {
+    // To jest ta sama reguła, którą stosuje `buildConsentViews`: czytelnik,
+    // który nigdy nie podjął decyzji, NIE jest profilowany. Gdyby brak wiersza
+    // czytać jako zgodę, bramka RODO otworzyłaby się dla wszystkich naraz.
+    planuj({ zgodaRejestru: ok(null) });
+    await expect(
+      klient().fetchQuery(relatedPersonalizationConsentQueryOptions(CZYTELNIK)),
+    ).resolves.toBe(false);
+  });
+
+  it("ODMOWA ODCZYTU leci w górę - wywołujący degraduje do listy bezosobowej", async () => {
+    // Błąd NIE może zamienić się w ciche `false`, bo wtedy „nie wiem" byłoby
+    // nieodróżnialne od „nie zgodził się", a komponent nie mógłby rozpoznać,
+    // że decyzja jeszcze nie zapadła.
+    planuj({ zgodaRejestru: fail("odmowa odczytu zgód", "42501") });
+    await expect(
+      klient().fetchQuery(relatedPersonalizationConsentQueryOptions(CZYTELNIK)),
+    ).rejects.toThrow("odmowa odczytu zgód");
   });
 });

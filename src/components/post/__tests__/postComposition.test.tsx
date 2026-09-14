@@ -16,6 +16,10 @@ const h = vi.hoisted(() => ({
   relatedPosts: [] as unknown[],
   nextPost: null as unknown,
   observers: [] as { callback: unknown; disconnected: boolean }[],
+  /** Tożsamość czytelnika - `RelatedPosts` czeka z zapytaniem, aż się ustali. */
+  auth: { user: null as { id: string } | null, loading: false },
+  /** Zgoda `personalization` z rejestru RODO. */
+  consentGiven: false,
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
@@ -29,11 +33,22 @@ vi.mock("@/lib/queries/relatedPosts", () => ({
     queryKey: ["related-config"],
     queryFn: async () => h.relatedConfig,
   }),
+  relatedPersonalizationConsentQueryOptions: (userId: string) => ({
+    queryKey: ["related-consent", userId],
+    queryFn: async () => h.consentGiven,
+  }),
   relatedPostsQueryOptions: (input: Record<string, unknown>) => ({
     queryKey: ["related-posts", input],
     queryFn: async () => h.relatedPosts,
   }),
 }));
+
+// `RelatedPosts` renderuje się tu POZA `AuthProvider` (w aplikacji stoi on
+// w `__root.tsx`). Bez atrapy kontekst oddaje wieczne `loading: true`,
+// a komponent - poprawnie - nie wybierze klucza cache, dopóki nie wie, KOMU
+// liczy rekomendacje. Te testy dotyczą kompozycji i układów, więc tożsamość
+// jest tu ustalona i bezosobowa.
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 
 vi.mock("@/lib/queries/nextPost", () => ({
   fetchNextPost: async () => h.nextPost,
@@ -100,6 +115,11 @@ beforeEach(() => {
   h.relatedConfig = { ...RELATED_POSTS_DEFAULTS, enabled: true };
   h.relatedPosts = [];
   h.nextPost = null;
+  // Tożsamość wraca do stanu USTALONEGO. Bez tego przypadek „nieustalona
+  // tożsamość" zostawiłby `loading: true` kolejnym testom, a te czekałyby na
+  // sekcję, której komponent - słusznie - nie renderuje.
+  h.auth = { user: null, loading: false };
+  h.consentGiven = false;
 });
 
 afterEach(() => {
@@ -319,6 +339,44 @@ describe("RelatedPosts - rekomendacje pod artykułem", () => {
       reading_time_minutes: 5,
     },
   ];
+
+  // ------------------------------------------------------------------
+  // BRAMKI WEJŚCIA: czekają na rozstrzygnięcie, NIGDY w nieskończoność.
+  //
+  // Komponent wstrzymuje zapytanie, dopóki nie wie, KOMU liczy rekomendacje
+  // (tożsamość) i WEDŁUG CZEGO (konfiguracja) - inaczej potok leci raz
+  // bezosobowo i pod domyślnymi wagami, a zaraz potem drugi raz pod właściwym
+  // kluczem, gasząc po drodze sekcję, którą czytelnik ma już przed oczami.
+  //
+  // Awaria sygnału pomocniczego NIE MOŻE jednak zamienić tego w trwałe
+  // wyłączenie rekomendacji. Te trzy przypadki pilnują różnicy między
+  // „czekam na odpowiedź" a „odpowiedzi nie będzie".
+  // ------------------------------------------------------------------
+
+  it("NIEUSTALONA TOŻSAMOŚĆ wstrzymuje zapytanie, zamiast liczyć je jako gość", async () => {
+    h.auth = { user: null, loading: true };
+    h.relatedPosts = posts;
+    const { container } = renderWithQuery(<RelatedPosts postId="p1" lang="pl" />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("PADNIĘTY REJESTR ZGÓD daje listę bezosobową, a nie brak rekomendacji", async () => {
+    // `useIsConsentGiven` oddaje `undefined` i przy ładowaniu, i po błędzie.
+    // Gdyby bramka czekała na „wartość znana", awaria rejestru zgód kasowałaby
+    // rekomendacje na stałe - sygnał pomocniczy wygaszający cały widget.
+    h.auth = { user: { id: "u1" }, loading: false };
+    h.relatedPosts = posts;
+    renderWithQuery(<RelatedPosts postId="p1" lang="pl" />);
+    await waitFor(() => expect(screen.getAllByRole("link").length).toBeGreaterThan(0));
+  });
+
+  it("ZALOGOWANY CZYTELNIK BEZ ZGODY dostaje rekomendacje normalnie", async () => {
+    h.auth = { user: { id: "u1" }, loading: false };
+    h.relatedPosts = posts;
+    renderWithQuery(<RelatedPosts postId="p1" lang="pl" />);
+    await waitFor(() => expect(screen.getAllByRole("link").length).toBeGreaterThan(0));
+  });
 
   it("STAN PUSTY nie renderuje sekcji (brak rekomendacji to nie puste ramki)", async () => {
     h.relatedPosts = [];

@@ -118,6 +118,47 @@ export const relatedPopularityQueryOptions = (days: number = POPULARITY_WINDOW_D
     staleTime: RELATED_TTL,
   });
 
+/** Klucz zgody w rejestrze RODO, który bramkuje profilowanie treści. */
+export const PERSONALIZATION_CONSENT_KEY = "personalization";
+
+/**
+ * Zgoda na personalizację, czytana WPROST z rejestru `user_consents`.
+ *
+ * DLACZEGO NIE `useConsents`. Hook `useIsConsentGiven` robi dokładnie to samo,
+ * ale jedzie przez `lib/consents.functions`, a ten ciągnie za sobą runtime
+ * funkcji serwerowych (`@tanstack/react-start/server`) i middleware autoryzacji.
+ * Na stronie ustawień to nic nie kosztuje - tam i tak są. Pod PUBLICZNYM
+ * artykułem kosztuje budżet paczki klienckiej: `RelatedPosts` wchodzi do
+ * pakietu trasy wpisu, więc każdy czytelnik - także niezalogowany, także taki,
+ * u którego personalizacja ma wagę 0 - pobierałby kod, który nie ma dla niego
+ * żadnego zastosowania. Bramka `Bundle size budget` złapała to jako regresję.
+ *
+ * Odczyt wprost jest bezpieczny i nie omija żadnej kontroli: polityka
+ * `user_consents_select_own` przepuszcza wyłącznie `auth.uid() = user_id`,
+ * a SELECT jest jedyną operacją, jaką klient na tej tabeli ma - INSERT, UPDATE
+ * i DELETE zostały odebrane (20260803190927), bo ślad audytowy musi powstawać
+ * funkcją `set_user_consent`. Czytanie własnej zgody to nie pisanie zgody.
+ *
+ * Semantyka jest ta sama co w `buildConsentViews`: brak wiersza znaczy BRAK
+ * zgody (`personalization` nie ma `defaultGiven` w katalogu), a klamrę GPC
+ * nakłada wywołujący - ten klucz jest w `GPC_CLAMPED_REGISTRY_KEYS`.
+ */
+export const relatedPersonalizationConsentQueryOptions = (userId: string) =>
+  queryOptions({
+    queryKey: ["public", "related-posts-consent", userId] as const,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error: dataError } = await supabase
+        .from("user_consents")
+        .select("given")
+        .eq("user_id", userId)
+        .eq("consent_key", PERSONALIZATION_CONSENT_KEY)
+        .maybeSingle();
+      if (dataError) throw dataError;
+      return data?.given === true;
+    },
+    staleTime: RELATED_TTL,
+  });
+
 /** Ile ostatnio przeczytanych wpisów buduje profil zainteresowań. */
 const AFFINITY_HISTORY_LIMIT = 100;
 
