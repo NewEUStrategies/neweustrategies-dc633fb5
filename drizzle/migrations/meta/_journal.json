@@ -155,6 +155,20 @@
       "when": 1789416639327,
       "tag": "0021_brand_media_urls_on_canonical_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789420013102,
+      "tag": "0022_club_covers_per_club_storage_write_register",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789420193052,
+      "tag": "0023_record_club_covers_migration_in_ledger",
+      "breakpoints": true
     }
   ]
 }
