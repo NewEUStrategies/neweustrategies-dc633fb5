@@ -579,6 +579,32 @@ describe("automat wysyłki - allowlista hostów zapisu", () => {
     expect(res).toEqual({ ok: true });
   });
 
+  it("PUSTY katalog najemców (zero wierszy) też ODMAWIA - pusta lista nie wpuszcza nikogo", async () => {
+    // Inny stan niż błąd odczytu: baza odpowiada POPRAWNIE, tylko nie ma ani
+    // jednej domeny. Bez tego przypadku nie widać, czy `tenants ?? []` nie
+    // przechodzi przypadkiem w „brak listy = brak ograniczeń" - a to byłaby
+    // otwarta furtka na świeżej instalacji, czyli dokładnie tam, gdzie nikt
+    // jeszcze nie patrzy.
+    db.setResponse(TENANTS, ok(null));
+
+    await expect(
+      updateJobRunnerSettings({ data: { enabled: true, base_url: "https://example.test" } }),
+    ).rejects.toThrow("base_url_not_in_allowlist");
+    expect(db.chainsFor(RUNNER)).toHaveLength(0);
+  });
+
+  it("BRAK zmiennej `JOB_RUNNER_BASE_URL_ALLOWLIST` to pusta furtka, nie wyjątek", async () => {
+    // Zmiennej nie ma w większości instalacji - ma wtedy działać sam katalog
+    // najemców, a nie wywracać się na odczycie nieustawionego środowiska.
+    vi.stubEnv("JOB_RUNNER_BASE_URL_ALLOWLIST", undefined);
+
+    const res = await updateJobRunnerSettings({
+      data: { enabled: true, base_url: "https://example.test" },
+    });
+
+    expect(res).toEqual({ ok: true });
+  });
+
   it("niedostępny katalog najemców ODMAWIA zapisu - fail closed", async () => {
     // Bez katalogu domen nie wiemy, czy adres jest nasz. Przepuszczenie zapisu
     // „bo baza nie odpowiedziała" zamieniłoby awarię odczytu w otwarte drzwi.
@@ -634,6 +660,48 @@ describe("automat wysyłki - ślad audytowy zmiany", () => {
     expect(odczyt?.has("update")).toBe(false);
     expect(odczyt?.argsOf("eq")).toEqual(["id", 1]);
     expect(zapis?.has("update")).toBe(true);
+  });
+
+  it("BRAK wiersza konfiguracji: stan PRZED zapisuje się jako `null`, nie jako zgadywanka", async () => {
+    // Pierwszy zapis na świeżej instalacji nie ma czego czytać. `null` w polach
+    // „przed" jest wtedy JEDYNĄ uczciwą odpowiedzią - domyślenie się `false`
+    // albo pustego adresu wpisałoby do dziennika audytu stan, którego nigdy
+    // nie było, a to jest gorsze niż luka: ślad, któremu nie wolno wierzyć.
+    db.setResponse(RUNNER, ok(null));
+
+    const res = await updateJobRunnerSettings({
+      data: { enabled: true, base_url: "https://example.test" },
+    });
+
+    expect(res).toEqual({ ok: true });
+    const entry = db.lastChain(AUDIT)?.argsOf("insert")?.[0] as { metadata: unknown };
+    expect(entry.metadata).toEqual({
+      enabled_before: null,
+      enabled_after: true,
+      base_url_before: null,
+      base_url_after: "https://example.test",
+    });
+  });
+
+  it("audyt rzucający czymś, co NIE JEST `Error`, też nie wywraca zapisu", async () => {
+    // Druga droga porażki audytu, osobna od `{ error }` z PostgREST-a: wyjątek
+    // spoza warstwy bazy (zerwane połączenie, atrapa, kod bibioteki) bywa
+    // napisem albo obiektem. `instanceof Error` jest wtedy fałszywe, więc bez
+    // gałęzi `String(...)` log zapisałby „undefined" zamiast powodu - a to
+    // jedyny ślad, jaki po tej awarii zostaje.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    db.setResponse(AUDIT, () => {
+      throw "audit_log unreachable";
+    });
+
+    const res = await updateJobRunnerSettings({ data: { enabled: true, base_url: "" } });
+
+    expect(res).toEqual({ ok: true });
+    expect(spy).toHaveBeenCalledWith(
+      "[updateJobRunnerSettings] audit_log write failed",
+      expect.objectContaining({ message: "audit_log unreachable" }),
+    );
+    spy.mockRestore();
   });
 
   it("nieudany audyt NIE wywraca zapisu, który w bazie już się wydarzył", async () => {

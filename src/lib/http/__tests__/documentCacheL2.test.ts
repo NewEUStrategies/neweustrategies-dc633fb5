@@ -36,6 +36,43 @@ function memoryColoCache(): ColoCache & { size(): number } {
   };
 }
 
+/**
+ * Magazyn kolonii z ZATRZASKIEM na odczycie dokumentu: pozwala zaparkować
+ * jednego czytelnika w środku `l2Match` i wpuścić przed nim drugiego. Wpisy
+ * wersji przechodzą bez zatrzymania - zatrzask dotyczy wyłącznie dokumentu.
+ */
+function gatedColoCache(base: ColoCache): ColoCache & {
+  holdNextDocumentMatch(): void;
+  isHolding(): boolean;
+  releaseDocumentMatch(): void;
+} {
+  let pending: Promise<void> | null = null;
+  let release: (() => void) | undefined;
+  let holding = false;
+  return {
+    holdNextDocumentMatch() {
+      pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    },
+    isHolding: () => holding,
+    releaseDocumentMatch() {
+      release?.();
+    },
+    async match(request: Request) {
+      if (pending !== null && request.url.includes("/__nes/doc/")) {
+        const gate = pending;
+        pending = null;
+        holding = true;
+        await gate;
+        holding = false;
+      }
+      return base.match(request);
+    },
+    put: (request, response) => base.put(request, response),
+  };
+}
+
 const CACHEABLE_HEADERS = {
   "content-type": "text/html; charset=utf-8",
   "cache-control": "public, max-age=60, s-maxage=900, stale-while-revalidate=86400",
@@ -250,5 +287,67 @@ describe("handleDocumentRequest z warstwą L2", () => {
     const serverTiming = res.headers.get("server-timing") ?? "";
     expect(serverTiming).toContain('nes-edge;desc="MISS"');
     expect(serverTiming).toMatch(/ssr;dur=\d+(\.\d+)?/);
+  });
+
+  it("wpis L2 w oknie SWR: drugi czytelnik dostaje STALE, zamiast dublować render", async () => {
+    // Bez zarejestrowanego drivera rewalidacji (tak działa suita jednostkowa
+    // i tak degraduje produkcja przed wpięciem drivera) rewalidację płaci JEDEN
+    // czytelnik synchronicznie. Zamek single-flight musi być sprawdzany także
+    // na ścieżce KOLONII, nie tylko na wpisie z pamięci izolatu: świeży izolat
+    // ma L1 pusty, więc bez tego sprawdzenia każdy równoległy czytelnik wpisu
+    // L2 po świeżości ruszałby własny pełny render - dokładnie stampede, przed
+    // którym zamek ma chronić.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const gated = gatedColoCache(memoryColoCache());
+    setColoCacheForTests(gated);
+
+    const seed = vi.fn(async () => htmlResponse("<html>old</html>"));
+    const miss = applyDeferredDocumentStore(
+      (await handleDocumentRequest(docRequest("/wpis"), seed)) as Response,
+    );
+    await miss.text();
+    await vi.waitFor(() => {
+      expect(getDocumentCacheSnapshot().entries).toBe(1);
+    });
+
+    // Rotacja izolatu (L1 znika, kolonia zostaje) + wyjście poza okno
+    // świeżości, wewnątrz okna SWR.
+    resetDocumentCacheForTests();
+    advanceClock(10 * MINUTA);
+
+    // Czytelnik A parkuje w środku odczytu z kolonii...
+    gated.holdNextDocumentMatch();
+    const renderA = vi.fn(async () => htmlResponse("<html>A-nie-powinien</html>"));
+    const czytelnikA = handleDocumentRequest(docRequest("/wpis"), renderA);
+    await settle();
+    expect(gated.isHolding()).toBe(true);
+
+    // ...a czytelnik B w tym czasie odczytuje kolonię, bierze zamek i zaczyna
+    // render, którego my trzymamy w miejscu.
+    let releaseRender: (() => void) | undefined;
+    const renderGate = new Promise<void>((resolve) => {
+      releaseRender = resolve;
+    });
+    const renderB = vi.fn(async () => {
+      await renderGate;
+      return htmlResponse("<html>new</html>");
+    });
+    const czytelnikB = handleDocumentRequest(docRequest("/wpis"), renderB);
+    await settle();
+    expect(renderB).toHaveBeenCalledTimes(1);
+
+    // A wraca z kolonii na zajęty zamek: dostaje STALE, a nie drugi render.
+    gated.releaseDocumentMatch();
+    const staleA = (await czytelnikA) as Response;
+    expect(staleA.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    expect(await staleA.text()).toBe("<html>old</html>");
+    expect(renderA).not.toHaveBeenCalled();
+    expect(getDocumentCacheSnapshot().l2.stale).toBe(1);
+
+    releaseRender?.();
+    const missB = applyDeferredDocumentStore((await czytelnikB) as Response);
+    expect(missB.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    await missB.text();
+    await settle();
   });
 });

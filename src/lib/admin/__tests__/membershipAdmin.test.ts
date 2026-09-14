@@ -352,6 +352,18 @@ describe("organizacje członkowskie - zapis", () => {
     ]);
   });
 
+  it("wiersz BEZ `updated_at` oddaje `null`, a nie `undefined`", async () => {
+    // `member_organizations.updated_at` jest w schemacie NULLOWALNE, więc typ
+    // zwrotny tej funkcji musi to unieść - a wołający (karta organizacji)
+    // przekazuje wynik z powrotem jako `baseUpdatedAt`. `undefined` i `null`
+    // znaczą tam CO INNEGO: `undefined` to „nie pytaj o wersję", `null` to
+    // „wersji nie znam". Gdyby przeciekło `undefined`, następny zapis cicho
+    // zgubiłby warunek `.eq("updated_at", …)` i wrócił do last-write-wins -
+    // czyli dokładnie do defektu, który ta funkcja naprawia.
+    db().setResponse("member_organizations", ok([{ id: "org-1", updated_at: null }]));
+    await expect(updateOrganization("org-1", { name: "Nowa" }, SEEN_VERSION)).resolves.toBeNull();
+  });
+
   it("NIETRAFIONA wersja przy ISTNIEJĄCYM wierszu to KONFLIKT, nie odmowa uprawnień", async () => {
     // Zero wierszy ma dwie przyczyny i tylko doczytanie je rozróżnia. Pomylenie
     // ich wysyła administratora w złą stronę: szuka uprawnień, zamiast odświeżyć

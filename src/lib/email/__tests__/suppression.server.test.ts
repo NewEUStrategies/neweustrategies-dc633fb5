@@ -23,6 +23,7 @@ import {
   fetchSuppressedEmails,
   isEmailSuppressed,
   recordSuppression,
+  resolveAccountTenantForAddress,
   resolveTenantForAddress,
   unsubscribeByToken,
   type ApplyDeliveryEventInput,
@@ -367,6 +368,66 @@ describe("resolveTenantForAddress", () => {
 
     await expect(resolveTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
     expect(errorSpy).toHaveBeenCalledWith("[suppression] tenant resolve failed", "no rpc");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveAccountTenantForAddress
+//
+// DLACZEGO OSOBNO OD `resolveTenantForAddress`. Tamta odpowiada na pytanie
+// „dokąd wysłać", ta na pytanie „czyje to konto", i na ścieżce autoryzacyjnej
+// tamta myli się w dwie strony: pyta NAJPIERW o `newsletter_subscribers` (więc
+// subskrypcja bije konto), a dla adresu nierozstrzygniętego oddaje
+// `email_default_tenant_id()` zamiast NULL-a.
+//
+// To drugie jest groźniejsze, niż wygląda, i właśnie tego pilnują przypadki
+// niżej: funkcja, która NIGDY nie mówi „nie wiadomo", zamyka wołającemu każdą
+// ścieżkę zapasową - `owner ?? host` nie dojdzie do hosta, bo `owner` zawsze
+// jest prawdziwe. Dlatego `null` MUSI tu zostać `null`-em.
+// ---------------------------------------------------------------------------
+describe("resolveAccountTenantForAddress", () => {
+  it("oddaje tenanta KONTA, pytając adresem znormalizowanym", async () => {
+    const db = fakeAdmin();
+    db.on("email_account_tenant_for_address", { data: TENANT, error: null });
+
+    await expect(resolveAccountTenantForAddress(db.admin, " Ktos@Example.TEST ")).resolves.toBe(
+      TENANT,
+    );
+    // Ta sama normalizacja co w reszcie modułu: adres przychodzi od dostawcy
+    // poczty w kształcie, w jakim wpisał go człowiek.
+    expect(db.lastCall("email_account_tenant_for_address")?.args.p_email).toBe("ktos@example.test");
+  });
+
+  it("pusty napis to BRAK rozstrzygnięcia, nie tenant o pustej nazwie", async () => {
+    const db = fakeAdmin();
+    db.on("email_account_tenant_for_address", { data: "", error: null });
+
+    await expect(resolveAccountTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
+    // Zapytanie POSZŁO - `null` jest tu odpowiedzią bazy, a nie skutkiem
+    // ominięcia RPC po drodze.
+    expect(db.callsTo("email_account_tenant_for_address")).toHaveLength(1);
+  });
+
+  it("odpowiedź nie-napisowa to brak rozstrzygnięcia", async () => {
+    const db = fakeAdmin();
+    db.on("email_account_tenant_for_address", { data: { id: TENANT }, error: null });
+
+    await expect(resolveAccountTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
+    // Obiekt z polem `id` jest tu pułapką: gdyby funkcja czytała `data.id`
+    // zamiast wymagać napisu, oddałaby tenanta z kształtu, którego kontrakt RPC
+    // nie obiecuje.
+    expect(db.callsTo("email_account_tenant_for_address")).toHaveLength(1);
+  });
+
+  it("błąd bazy to brak rozstrzygnięcia i wpis w logu - a NIE tenant domyślny", async () => {
+    // Najgroźniejsza gałąź: gdyby błąd RPC kończył się tenantem domyślnym,
+    // adres z CUDZEGO konta dostałby granicę hosta i nikt by się o tym nie
+    // dowiedział. `null` zmusza wołającego do świadomego wyboru ścieżki zapasowej.
+    const db = fakeAdmin();
+    db.on("email_account_tenant_for_address", { data: null, error: { message: "no rpc" } });
+
+    await expect(resolveAccountTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
+    expect(errorSpy).toHaveBeenCalledWith("[suppression] account tenant resolve failed", "no rpc");
   });
 });
 

@@ -348,3 +348,67 @@ describe("niceScale - kontrole niezmienności", () => {
     expect(niceScale(2, 24, 5).ticks).toEqual([0, 5, 10, 15, 20, 25]);
   });
 });
+
+describe("niceScale - domena NIELICZBOWA nie propaguje się na oś", () => {
+  it("`NaN` i nieskończoności dają domyślną domenę 0-1, a nie oś z `NaN`", () => {
+    // Wartości krańcowe przychodzą z danych, nie z kodu: pusty CSV, dzielenie
+    // przez zero w wyliczanej serii, `parseFloat("")`. Bez sprowadzenia do
+    // domyślnej domeny `NaN` przeciekał do atrybutów SVG i przeglądarka
+    // przestawała rysować CAŁY wykres - bez komunikatu, bez śladu w konsoli.
+    for (const [min, max] of [
+      [NaN, NaN],
+      [NaN, 10],
+      [0, Infinity],
+      [-Infinity, Infinity],
+    ] as const) {
+      const oś = niceScale(min, max);
+      expect(Number.isFinite(oś.min)).toBe(true);
+      expect(Number.isFinite(oś.max)).toBe(true);
+      expect(oś.ticks.every((t) => Number.isFinite(t))).toBe(true);
+      expect(oś.max).toBeGreaterThan(oś.min);
+    }
+  });
+});
+
+describe("niceScale - dociąganie krawędzi PRZEPEŁNIAJĄCE zakres double", () => {
+  it("domena od -MAX do +MAX zostaje SKOŃCZONA, choć ładna krawędź wychodzi poza zakres", () => {
+    // `Math.floor(min / step) * step` potrafi wyjść poza `Number.MAX_VALUE`
+    // i dać `-Infinity` przy SKOŃCZONYM wejściu. Oś sięgająca nieskończoności
+    // rozjeżdża całą skalę: każdy punkt danych ląduje wtedy w tym samym
+    // pikselu. Dlatego zawracamy o jeden krok bliżej zera - lepiej przyciąć
+    // skrajny punkt o ułamek kroku niż oddać oś, której nie da się narysować.
+    const M = Number.MAX_VALUE;
+    const oś = niceScale(-M, M, 3);
+
+    expect(Number.isFinite(oś.min)).toBe(true);
+    expect(Number.isFinite(oś.max)).toBe(true);
+    expect(oś.ticks.every((t) => Number.isFinite(t))).toBe(true);
+    expect(oś.min).toBeLessThan(oś.max);
+  });
+
+  it("domena ZDEGENEROWANA przy krańcu zakresu spada na oś zastępczą -1..1", () => {
+    // Tu nie da się rozsunąć domeny: `min - |min| * 0,2` przepełnia się
+    // w drugą stronę. Oś zastępcza jest wtedy jedynym wyjściem, które da się
+    // narysować - i to jest świadomy wybór, a nie awaria.
+    const M = Number.MAX_VALUE;
+    const oś = niceScale(-M, -M, 5);
+
+    expect(oś).toEqual({ min: -1, max: 1, ticks: [-1, -0.5, 0, 0.5, 1] });
+    expect(oś.ticks.every((t) => Number.isFinite(t))).toBe(true);
+  });
+});
+
+describe("seriesExtent - stos BEZ ANI JEDNEJ kategorii", () => {
+  it("zwraca zakres 0-0, a nie wartości nieskończone z inicjalizacji", () => {
+    // Wykres skumulowany o zerowej liczbie kategorii powstaje przy pustym
+    // filtrze i przy danych, z których wszystko odpadło. Akumulatory startują
+    // z `Infinity`/`-Infinity`, więc bez tego domknięcia oddawałyby je wprost -
+    // a `linearScale` na takim zakresie liczy dalej i wypuszcza `NaN` do
+    // atrybutów SVG.
+    const e = seriesExtent([s([1, 2]), s([3, 4], 2)], 0, { stacked: true, includeZero: true });
+
+    expect(e).toEqual({ min: 0, max: 0 });
+    expect(Number.isFinite(e.min)).toBe(true);
+    expect(Number.isFinite(e.max)).toBe(true);
+  });
+});

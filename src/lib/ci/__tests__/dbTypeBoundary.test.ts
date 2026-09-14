@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   isDerivedFromGenerated,
   isScannable,
+  renderRowCastsReport,
   scanHandWrittenRowCasts,
   staleExceptions,
 } from "@/lib/ci/dbRowCasts";
@@ -110,6 +111,93 @@ describe("dbRowCasts - rzutowanie wyniku zapytania", () => {
     expect(isScannable("src/lib/__tests__/a.ts")).toBe(false);
     expect(isScannable("src/lib/a.test.ts")).toBe(false);
     expect(isScannable("src/integrations/supabase/types.ts")).toBe(false);
+  });
+
+  it("plik nie-TypeScriptowy odpada na PIERWSZYM warunku - w SQL-u i Markdownie nie ma typów", () => {
+    // Skan dostaje wykaz całego repozytorium, nie tylko `src/**/*.ts`. Bez tego
+    // odcięcia wzorzec castu szukałby `as unknown as` w migracjach SQL i w
+    // dokumentacji, a każde trafienie byłoby „długiem" nie do naprawienia:
+    // w pliku bez typów nie ma czego wyprowadzić z `Tables<…>`.
+    for (const file of [
+      "supabase/migrations/20260101000000_init.sql",
+      "docs/ADR-0007.md",
+      "scripts/check-db-row-casts.mjs",
+      ".github/workflows/ci.yml",
+      "src/lib/ci/dbRowCasts",
+    ]) {
+      expect(isScannable(file)).toBe(false);
+    }
+    expect(isScannable("src/lib/ci/dbRowCasts.ts")).toBe(true);
+    expect(isScannable("src/components/Card.tsx")).toBe(true);
+  });
+
+  it("typ BEZ deklaracji w pliku nie uchodzi za wyprowadzony z generowanych", () => {
+    // Gdyby brak deklaracji liczył się jako „wyprowadzony", literówka w nazwie
+    // typu po cichu wyciszałaby cast - bramka milczałaby dokładnie tam, gdzie
+    // kształt wiersza jest najmniej pewny.
+    const source = 'type InnyRow = Pick<Tables<"payment_orders">, "id">;';
+    expect(isDerivedFromGenerated(source, "OrderRow")).toBe(false);
+    expect(isDerivedFromGenerated(source, "InnyRow")).toBe(true);
+  });
+
+  it("wyjątek żyje tylko póki żyje JEGO plik i JEGO cast", () => {
+    // Dwa powody skreślenia wpisu, które nie mają nic wspólnego z wyprowadzeniem
+    // typu: plik zniknął z gałęzi i cast został usunięty ręcznie. Bez nich lista
+    // wyjątków rosłaby o wpisy celujące w próżnię i nikt nigdy by ich nie zdjął,
+    // a „lista może tylko maleć" byłoby pustą deklaracją.
+    const zCastem = [
+      "interface OrderRow { id: string }",
+      'const { data } = await supabase.from("payment_orders").select("id");',
+      "const rows = (data ?? []) as unknown as OrderRow[];",
+    ].join("\n");
+    const bezCastu = 'const { data } = await supabase.from("payment_orders").select("id");';
+
+    const stale = staleExceptions(
+      [
+        { file: "zostal.ts", source: zCastem },
+        { file: "bez-castu.ts", source: bezCastu },
+      ],
+      [
+        { file: "zniknal.ts", type: "OrderRow", reason: "plik skasowany" },
+        { file: "bez-castu.ts", type: "OrderRow", reason: "cast usunięty" },
+        { file: "zostal.ts", type: "OrderRow", reason: "nadal ręczny kształt" },
+      ],
+    );
+    expect(stale.map((entry) => entry.file)).toEqual(["zniknal.ts", "bez-castu.ts"]);
+    expect(stale.map((entry) => entry.reason)).toEqual(["plik skasowany", "cast usunięty"]);
+  });
+
+  it("zielony raport podaje LICZBĘ przeskanowanych plików i rozmiar listy wyjątków", () => {
+    // Skaner, który po zmianie wzorca nie obejrzał ani jednego pliku, wygląda
+    // identycznie jak przebieg bez długu. Liczba w zielonym raporcie jest
+    // jedynym miejscem, w którym tę różnicę widać gołym okiem.
+    const ok = renderRowCastsReport([], 812, [
+      { file: "a.ts", type: "OrderRow", reason: "RPC kłamie o nullowalności" },
+    ]);
+    expect(ok).toContain("OK - przeskanowano 812 plików.");
+    expect(ok).toContain("wyjątków na liście: 1");
+    expect(ok).not.toContain("as unknown as");
+  });
+
+  it("czerwony raport cytuje plik z linią i podpowiada wyprowadzenie typu, nie wyciszenie", () => {
+    // Raport bez lokalizacji i bez recepty kończy się dopisaniem wyjątku -
+    // czyli utrwaleniem dokładnie tego długu, który bramka miała zdejmować.
+    const report = renderRowCastsReport(
+      [
+        {
+          file: "src/pages/Orders.tsx",
+          line: 42,
+          type: "OrderRow",
+          snippet: "const rows = (data ?? []) as unknown as OrderRow[];",
+        },
+      ],
+      812,
+      [],
+    );
+    expect(report).toContain("src/pages/Orders.tsx:42");
+    expect(report).toContain("Pick<Tables<");
+    expect(report).toContain("ROW_CAST_EXCEPTIONS");
+    expect(report).not.toContain("OK - przeskanowano");
   });
 });
 

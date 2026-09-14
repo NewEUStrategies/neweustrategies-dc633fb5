@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MINUTA, advanceClock } from "@/test/time";
 
-import { DOCUMENT_CACHE_MAX_ENTRY_BYTES, NES_CACHE_HEADER } from "@/lib/http/documentCache";
+import {
+  DOCUMENT_CACHE_MAX_ENTRY_BYTES,
+  NES_CACHE_HEADER,
+  NES_EDGE_CACHE_NAME,
+} from "@/lib/http/documentCache";
 import {
   applyDeferredDocumentStore,
   getDocumentCacheSnapshot,
@@ -252,6 +256,58 @@ describe("handleDocumentRequest", () => {
     await renderThroughEdge("/y", next);
     expect(next).toHaveBeenCalledTimes(2);
     expect(getDocumentCacheSnapshot().enabled).toBe(false);
+  });
+
+  it("działa w środowisku BEZ globalnego `process` (workerd bez nodejs_compat)", () => {
+    // Kill-switch czyta `process.env.NES_EDGE_CACHE`. Gołe odwołanie do
+    // `process` w runtimie, który go nie ma, rzuca ReferenceError - i nie
+    // w migawce admina, tylko w `cacheEnabled()`, czyli w PIERWSZEJ linii
+    // obsługi KAŻDEGO żądania dokumentu. Bez osłony `typeof` cała warstwa
+    // dokumentów padałaby na Workers bez `nodejs_compat`, a testy w Node
+    // nigdy by tego nie zobaczyły.
+    const realProcess = globalThis.process;
+    try {
+      Reflect.deleteProperty(globalThis, "process");
+      const snapshot = getDocumentCacheSnapshot();
+      // Brak zmiennej środowiskowej = brak wyłącznika, czyli cache WŁĄCZONY.
+      expect(snapshot.enabled).toBe(true);
+      expect(snapshot.name).toBe(NES_EDGE_CACHE_NAME);
+    } finally {
+      globalThis.process = realProcess;
+    }
+  });
+
+  it("MISS bez nagłówka Cache-Control zostawia w pierścieniu PUSTE pole polityki", async () => {
+    // Pierścień decyzji jest jedynym źródłem prawdy karty /admin/performance:
+    // warstwa hostingu zdejmuje `x-nes-cache` i nadpisuje `Cache-Control`,
+    // więc z zewnątrz nie da się zobaczyć, co aplikacja naprawdę policzyła.
+    // Render bez Cache-Control (trasa poza defaultCacheControlMiddleware,
+    // błąd loadera) musi zostawić pole PUSTE. Gdyby wpadał tam napis "null",
+    // karta pokazywałaby politykę cache'a, której nigdy nie było, i nikt by
+    // nie zauważył, że ta trasa nie ma szans trafić do magazynu.
+    const next = vi.fn(
+      async () =>
+        new Response("<html>bez-cc</html>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+    );
+    const res = await renderThroughEdge("/bez-cache-control", next);
+    expect(res.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+
+    const recent = getDocumentCacheSnapshot().recent;
+    expect(recent[0]?.status).toBe("MISS");
+    expect(recent[0]?.path).toBe("/bez-cache-control");
+    expect(recent[0]?.cacheControl).toBeUndefined();
+
+    // Bez `s-maxage` polityka zapisu nie przepuszcza wpisu, więc kolejny
+    // czytelnik znów płaci pełny render. Sonda pyta o TĘ ścieżkę, a nie
+    // o licznik wpisów - odświeżenia w tle z innych przypadków tej suity
+    // mogą jeszcze dosypywać własne klucze do magazynu.
+    await settle();
+    const probe = await probeDocumentCache("/bez-cache-control", "tenant-a.eu");
+    expect(probe.cached).toBe(false);
+    expect(probe.status).toBe("MISS");
   });
 });
 
