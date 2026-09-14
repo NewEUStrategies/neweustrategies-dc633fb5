@@ -519,6 +519,13 @@ export function VisualCanvas({
       clearDropMarkers();
       stopAutoScroll();
       removeDragGhost();
+      // Przeciąganie PRZERWANE (Esc, upuszczenie poza kanwą) kończy się tu,
+      // a nie w `onDrop` - i to jedyne miejsce, w którym można zapomnieć
+      // o źródle. Bez tego zerowania identyfikator przeciąganego węzła żył
+      // dalej i konsumowało go NASTĘPNE, zupełnie inne upuszczenie w kanwie:
+      // wystarczyło wciągnąć plik albo zaznaczony tekst, żeby wykonać
+      // przeniesienie, którego nikt nie zlecił.
+      dragRef.current = null;
     };
 
     /**

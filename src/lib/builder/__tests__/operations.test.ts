@@ -798,55 +798,396 @@ describe("przenoszenie widgetu przez uszkodzone drzewo", () => {
   });
 });
 
-// DEFEKT: PRZENIESIENIE WIDGETU NA NIEISTNIEJĄCY CEL KASUJE WIDGET.
+// DEFEKT ZAMKNIĘTY, NIE WYCISZONY - `it`, nie `it.fails`.
 //
-// WEJŚCIE: dokument z jednym widgetem `w1` i wywołanie przenoszenia, w którym
-//   CEL nie istnieje w dokumencie - `moveWidgetTo(d, "w1", "widget-widmo")`,
-//   `moveWidgetToColumn(d, "w1", "kolumna-widmo")` albo
-//   `moveWidgetToSection(d, "w1", "sekcja-widmo")`. W edytorze taki stan
-//   powstaje realnie: przeciągnięcie trwa, a w tym czasie druga zakładka
-//   redakcji (albo cofnięcie/undo) usuwa kolumnę lub sekcję pod kursorem, więc
-//   identyfikator celu z zdarzenia drop wskazuje węzeł, którego już nie ma.
-// CO PSUJE: wszystkie trzy funkcje (src/lib/builder/operations.ts:427-472,
-//   :474-510 i :512-564) najpierw WYCINAJĄ węzeł ze źródłowej kolumny
-//   (`col.children.splice(i, 1)`), a dopiero potem szukają celu. Gdy cel się
-//   nie znajdzie, `moveWidgetTo` po prostu kończy pętlę (:471), a
-//   `moveWidgetToColumn` (:509) i `moveWidgetToSection` (:539 `if
-//   (!targetSection) return;`) wychodzą wcześniej - i w żadnej z nich nie ma
-//   ścieżki, która wstawiłaby wycięty węzeł z powrotem.
-// KONSEKWENCJA: widget znika z dokumentu bezpowrotnie. Operacje mutują
-//   roboczy dokument, który zaraz idzie do zapisu rewizji, więc redakcja traci
-//   treść bez żadnego komunikatu - a jedynym śladem jest to, że po nieudanym
-//   upuszczeniu widget przestaje istnieć. To ten sam przypadek brzegowy, który
-//   `moveSectionTo` (:269-272) obsługuje POPRAWNIE: przy nieznanym celu
-//   dokleja wyciętą sekcję na koniec dokumentu zamiast ją zgubić.
-// WYMAGANA POPRAWKA: każda z trzech funkcji musi na ścieżce "cel nie
-//   znaleziony" przywrócić węzeł - albo wstawiając go z powrotem na
-//   zapamiętaną pozycję w kolumnie źródłowej, albo, wzorem `moveSectionTo`,
-//   doklejając go na koniec. Alternatywnie: znaleźć cel PRZED wycięciem
-//   źródła i wyjść bez żadnej mutacji, gdy celu nie ma.
-describe("DEFEKT: przeniesienie na nieistniejący cel gubi widget", () => {
-  it.fails("DEFEKT: moveWidgetTo z nieznanym CELEM nie moze usunac widgetu z dokumentu", () => {
+// INWARIANT: PRZENIESIENIE, KTÓRE NIE MA CELU, NIE RUSZA DOKUMENTU.
+//
+// HISTORIA DEFEKTU. `moveWidgetTo`, `moveWidgetToColumn` i `moveWidgetToSection`
+//   najpierw WYCINAŁY widget ze źródłowej kolumny (`col.children.splice(i, 1)`),
+//   a dopiero potem szukały celu. Gdy cel się nie znalazł, pętla po prostu
+//   kończyła się bez wstawienia - i widget przepadał z dokumentu bezpowrotnie.
+//   Operacje mutują dokument roboczy, który zaraz idzie do zapisu rewizji, więc
+//   redakcja traciła treść bez żadnego komunikatu.
+// DWA REALNE WEJŚCIA W TĘ GAŁĄŹ. (1) WYŚCIG: identyfikator celu czyta się
+//   z atrybutu DOM w chwili `drop`, a między ostatnim rysowaniem a upuszczeniem
+//   druga karta redakcji może usunąć kolumnę, redaktor cofnąć zmianę, a sekcja
+//   przebudować się pod kursorem. (2) BEZ ŻADNEGO WYŚCIGU: `data-col-id` nosi
+//   też SLOT sekcji wewnętrznej (BuilderRenderer, `visibleCols.map`), więc
+//   upuszczenie na jej wyściółkę albo w przerwę między jej kolumnami przychodzi
+//   do `moveWidgetToColumn` z identyfikatorem, który nie jest żadną kolumną -
+//   w całkowicie zdrowym dokumencie.
+// POPRAWKA. Namierzamy ŹRÓDŁO I CEL przed jakąkolwiek mutacją i wychodzimy
+//   BEZ ZMIAN, gdy któregoś nie ma (zwracając `false`, po czym hook pomija wpis
+//   do historii i rewizję autozapisu). Identyfikator sekcji wewnętrznej nie jest
+//   traktowany jako „brak celu", tylko rozwiązywany na jej pierwszą kolumnę.
+// CZEGO PILNUJĄ TESTY NIŻEJ: nie tylko tego, że widget PRZEŻYŁ - to przechodziło
+//   już wtedy, gdy operacja przenosiła go w losowe miejsce - ale tego, że
+//   dokument po nieudanym przeniesieniu jest IDENTYCZNY jak przed nim.
+describe("przeniesienie na nieistniejący cel nie rusza dokumentu", () => {
+  /** Dokument przed operacją, do porównania „nic się nie zmieniło". */
+  const snapshot = (d: BuilderDocument) => JSON.parse(JSON.stringify(d)) as BuilderDocument;
+
+  it("moveWidgetTo z nieznanym CELEM zostawia dokument bez zmian i zwraca false", () => {
     const d = doc(sec("s1", [col("c1", [w("w1"), w("w2")])]));
-    ops.moveWidgetTo(d, "w1", "widget-widmo", "after");
+    const przed = snapshot(d);
+    expect(ops.moveWidgetTo(d, "w1", "widget-widmo", "after")).toBe("rejected");
     expect(ops.findWidget(d, "w1")).not.toBeNull();
+    expect(d).toEqual(przed);
   });
 
-  it.fails(
-    "DEFEKT: moveWidgetToColumn z nieznanym CELEM nie moze usunac widgetu z dokumentu",
-    () => {
-      const d = doc(sec("s1", [col("c1", [w("w1")])]));
-      ops.moveWidgetToColumn(d, "w1", "kolumna-widmo");
-      expect(ops.findWidget(d, "w1")).not.toBeNull();
-    },
-  );
+  it("moveWidgetToColumn z nieznanym CELEM zostawia dokument bez zmian i zwraca false", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")])]));
+    const przed = snapshot(d);
+    expect(ops.moveWidgetToColumn(d, "w1", "kolumna-widmo")).toBe("rejected");
+    expect(ops.findWidget(d, "w1")).not.toBeNull();
+    expect(d).toEqual(przed);
+  });
 
-  it.fails(
-    "DEFEKT: moveWidgetToSection z nieznanym CELEM nie moze usunac widgetu z dokumentu",
-    () => {
-      const d = doc(sec("s1", [col("c1", [w("w1")])]));
-      ops.moveWidgetToSection(d, "w1", "sekcja-widmo");
-      expect(ops.findWidget(d, "w1")).not.toBeNull();
-    },
-  );
+  it("moveWidgetToSection z nieznanym CELEM zostawia dokument bez zmian i zwraca false", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")])]));
+    const przed = snapshot(d);
+    expect(ops.moveWidgetToSection(d, "w1", "sekcja-widmo")).toBe("rejected");
+    expect(ops.findWidget(d, "w1")).not.toBeNull();
+    expect(d).toEqual(przed);
+  });
+
+  it("nieznane ŹRÓDŁO też nie rusza dokumentu i daje wynik „rejected”", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")])]), sec("s2", [col("c2", [])]));
+    const przed = snapshot(d);
+    expect(ops.moveWidgetTo(d, "widget-widmo", "w1", "after")).toBe("rejected");
+    expect(ops.moveWidgetToColumn(d, "widget-widmo", "c2")).toBe("rejected");
+    expect(ops.moveWidgetToSection(d, "widget-widmo", "s2")).toBe("rejected");
+    expect(ops.moveSectionTo(d, "sekcja-widmo", "s1", "after")).toBe("rejected");
+    expect(d).toEqual(przed);
+  });
+
+  it("upuszczenie na samego siebie to brak ruchu, a nie porażka z mutacją", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1"), w("w2")])]));
+    const przed = snapshot(d);
+    expect(ops.moveWidgetTo(d, "w1", "w1", "before")).toBe("unchanged");
+    expect(ops.moveSectionTo(d, "s1", "s1", "before")).toBe("unchanged");
+    expect(d).toEqual(przed);
+  });
+
+  it("udane przeniesienia dają „moved”", () => {
+    const d = doc(
+      sec("s1", [col("c1", [w("w1"), w("w2")])]),
+      sec("s2", [col("c2", [])]),
+      sec("s3", []),
+    );
+    expect(ops.moveWidgetTo(d, "w1", "w2", "after")).toBe("moved");
+    expect(ops.moveWidgetToColumn(d, "w1", "c2")).toBe("moved");
+    expect(ops.moveWidgetToSection(d, "w1", "s3")).toBe("moved");
+    expect(ops.moveSectionTo(d, "s3", "s1", "before")).toBe("moved");
+    // Nieznany CEL sekcji to nie porażka - sekcja ląduje na końcu dokumentu,
+    // czyli COŚ się zmieniło, tylko nie tam, gdzie ją upuszczono.
+    expect(ops.moveSectionTo(d, "s1", "sekcja-widmo", "before")).toBe("moved");
+  });
+
+  it("dokument bez tablicy sekcji nie wywraca żadnej z operacji przenoszenia", () => {
+    const pusty = () => ({ version: 1 }) as unknown as BuilderDocument;
+    expect(ops.moveWidgetTo(pusty(), "w1", "w2", "after")).toBe("rejected");
+    expect(ops.moveWidgetToColumn(pusty(), "w1", "c1")).toBe("rejected");
+    expect(ops.moveWidgetToSection(pusty(), "w1", "s1")).toBe("rejected");
+  });
+});
+
+// UPUSZCZENIE, KTÓRE NICZEGO NIE ZMIENIA, NIE JEST ZMIANĄ DOKUMENTU.
+//
+// To nie kosmetyka wyniku: hook buildera zapisuje krok historii i - przez
+// `onChange` historii - rewizję autozapisu dla KAŻDEGO zatwierdzonego
+// `update`, a `useHistory.set` nie deduplikuje niczego. Gdyby „wykonałem
+// ruch" znaczyło to samo co „dokument się zmienił", podniesienie widgetu
+// i odłożenie go na miejsce dokładałoby krok „Cofnij", który nic nie cofa,
+// oraz zapis rewizji identycznej z poprzednią. Te gesty są codzienne, więc
+// każdy z nich ma tu swój przypadek.
+describe("przeniesienie w miejsce, w którym węzeł już stoi", () => {
+  const snapshot = (d: BuilderDocument) => JSON.parse(JSON.stringify(d)) as BuilderDocument;
+  const bezZmiany = (d: BuilderDocument, wynik: ops.MoveOutcome, przed: BuilderDocument) => {
+    expect(wynik).toBe("unchanged");
+    expect(d).toEqual(przed);
+  };
+
+  it("moveWidgetTo: upuszczenie na bliższą połowę sąsiada", () => {
+    const kolumna = () => doc(sec("s1", [col("c1", [w("w1"), w("w2"), w("w3")])]));
+    // w1 już jest przed w2...
+    const a = kolumna();
+    bezZmiany(a, ops.moveWidgetTo(a, "w1", "w2", "before"), snapshot(kolumna()));
+    // ...a w2 już jest za w1.
+    const b = kolumna();
+    bezZmiany(b, ops.moveWidgetTo(b, "w2", "w1", "after"), snapshot(kolumna()));
+    // Ostatni widget upuszczony za ostatniego sąsiada też nigdzie nie idzie.
+    const c = kolumna();
+    bezZmiany(c, ops.moveWidgetTo(c, "w3", "w2", "after"), snapshot(kolumna()));
+  });
+
+  it("moveWidgetTo: ten sam gest MIĘDZY kolumnami jest już zmianą", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")]), col("c2", [w("w2")])]));
+    // Nic tu nie „stoi już na miejscu" - kolumna docelowa jest inna.
+    expect(ops.moveWidgetTo(d, "w1", "w2", "before")).toBe("moved");
+    expect(ids(d.sections[0].children[1] as ColumnNode)).toEqual(["w1", "w2"]);
+  });
+
+  it("moveWidgetToColumn: widget upuszczony na własną kolumnę, gdy jest w niej ostatni", () => {
+    // TĘDY kanwa zrzuca upuszczenie widgetu na SAMEGO SIEBIE.
+    const d = doc(sec("s1", [col("c1", [w("w1")])]));
+    bezZmiany(
+      d,
+      ops.moveWidgetToColumn(d, "w1", "c1"),
+      snapshot(doc(sec("s1", [col("c1", [w("w1")])]))),
+    );
+  });
+
+  it("moveWidgetToColumn: widget upuszczony na własną kolumnę, gdy NIE jest ostatni", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1"), w("w2")])]));
+    expect(ops.moveWidgetToColumn(d, "w1", "c1")).toBe("moved");
+    expect(ids(ops.findColumn(d, "c1")!)).toEqual(["w2", "w1"]);
+  });
+
+  it("moveWidgetToSection: widget upuszczony na własną sekcję, gdy jest ostatni w jej pierwszej kolumnie", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")])]));
+    bezZmiany(
+      d,
+      ops.moveWidgetToSection(d, "w1", "s1"),
+      snapshot(doc(sec("s1", [col("c1", [w("w1")])]))),
+    );
+  });
+
+  it("moveSectionTo: sekcja upuszczona tam, gdzie już stoi", () => {
+    const trzy = () => doc(sec("a", []), sec("b", []), sec("c", []));
+    // a jest już przed b...
+    const p1 = trzy();
+    bezZmiany(p1, ops.moveSectionTo(p1, "a", "b", "before"), snapshot(trzy()));
+    // ...b jest już za a...
+    const p2 = trzy();
+    bezZmiany(p2, ops.moveSectionTo(p2, "b", "a", "after"), snapshot(trzy()));
+    // ...a b jest już przed c.
+    const p3 = trzy();
+    bezZmiany(p3, ops.moveSectionTo(p3, "b", "c", "before"), snapshot(trzy()));
+  });
+
+  it("moveSectionTo: nieznany cel, gdy sekcja i tak jest ostatnia", () => {
+    const d = doc(sec("a", []), sec("b", []));
+    // Gałąź „nieznany cel" dokleja na koniec - a ostatnia sekcja już tam jest.
+    bezZmiany(
+      d,
+      ops.moveSectionTo(d, "b", "widmo", "after"),
+      snapshot(doc(sec("a", []), sec("b", []))),
+    );
+  });
+});
+
+// Arytmetyka indeksu przy przenoszeniu W OBRĘBIE JEDNEJ KOLUMNY. Stary kod był
+// tu poprawny „przez przypadek": szukał celu już PO wycięciu źródła, więc
+// przesunięcie indeksu robiło się samo. Poprawka liczy pozycję celu PRZED
+// mutacją, więc musi to przesunięcie odjąć jawnie - i właśnie te cztery
+// przypadki pilnują, że wynik się nie zmienił.
+describe("moveWidgetTo - kolejność w obrębie jednej kolumny", () => {
+  const trzy = () => doc(sec("s1", [col("c1", [w("w1"), w("w2"), w("w3")])]));
+  const kolejnosc = (d: BuilderDocument) => ids(d.sections[0].children[0] as ColumnNode);
+
+  it("źródło PRZED celem, before", () => {
+    const d = trzy();
+    ops.moveWidgetTo(d, "w1", "w3", "before");
+    expect(kolejnosc(d)).toEqual(["w2", "w1", "w3"]);
+  });
+
+  it("źródło PRZED celem, after", () => {
+    const d = trzy();
+    ops.moveWidgetTo(d, "w1", "w3", "after");
+    expect(kolejnosc(d)).toEqual(["w2", "w3", "w1"]);
+  });
+
+  it("źródło ZA celem, before", () => {
+    const d = trzy();
+    ops.moveWidgetTo(d, "w3", "w1", "before");
+    expect(kolejnosc(d)).toEqual(["w3", "w1", "w2"]);
+  });
+
+  it("źródło ZA celem, after", () => {
+    const d = trzy();
+    ops.moveWidgetTo(d, "w3", "w1", "after");
+    expect(kolejnosc(d)).toEqual(["w1", "w3", "w2"]);
+  });
+
+  it("sąsiedzi zamieniają się miejscami, a nie znikają", () => {
+    const d = trzy();
+    ops.moveWidgetTo(d, "w1", "w2", "after");
+    expect(kolejnosc(d)).toEqual(["w2", "w1", "w3"]);
+  });
+
+  // KONTROLA UJEMNA dla powyższej arytmetyki: przy przenoszeniu MIĘDZY
+  // kolumnami przesunięcia NIE WOLNO odjąć, choć indeks źródła jest mniejszy
+  // od indeksu celu. Cel musi więc mieć w swojej kolumnie sąsiada - z celem na
+  // indeksie 0 warunek „ta sama kolumna" można usunąć i nikt tego nie zauważy.
+  it("między kolumnami indeks celu zostaje nietknięty", () => {
+    const dwie = () =>
+      doc(sec("s1", [col("c1", [w("w1"), w("w2")]), col("c2", [w("wA"), w("wB")])]));
+    const cel = (d: BuilderDocument) => ids(d.sections[0].children[1] as ColumnNode);
+
+    const przed = dwie();
+    ops.moveWidgetTo(przed, "w1", "wB", "before");
+    expect(cel(przed)).toEqual(["wA", "w1", "wB"]);
+
+    const po = dwie();
+    ops.moveWidgetTo(po, "w1", "wB", "after");
+    expect(cel(po)).toEqual(["wA", "wB", "w1"]);
+
+    const naPoczatek = dwie();
+    ops.moveWidgetTo(naPoczatek, "w2", "wA", "before");
+    expect(cel(naPoczatek)).toEqual(["w2", "wA", "wB"]);
+  });
+});
+
+// Upuszczenie na SLOT SEKCJI WEWNĘTRZNEJ. `data-col-id` w kanwie nosi
+// identyfikator dziecka sekcji, a dzieckiem bywa sekcja wewnętrzna - więc do
+// operacji „na kolumnę" trafia identyfikator, który kolumną nie jest. To nie
+// wyścig: tak wygląda każde upuszczenie na wyściółkę sekcji wewnętrznej
+// w zdrowym dokumencie, a kanwa maluje tam pełną zachętę „upuść tutaj".
+describe("identyfikator sekcji wewnętrznej jako cel kolumnowy", () => {
+  it("moveWidgetToColumn celuje w pierwszą kolumnę sekcji wewnętrznej", () => {
+    const d = doc(
+      sec("s1", [col("c1", [w("w1")])]),
+      sec("s2", [inner("i1", [col("ic1", [w("wi1")]), col("ic2", [])])]),
+    );
+    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe("moved");
+    expect(ids(ops.findColumn(d, "ic1")!)).toEqual(["wi1", "w1"]);
+    expect(ids(ops.findColumn(d, "c1")!)).toEqual([]);
+  });
+
+  it("moveWidgetToColumn zakłada kolumnę, gdy sekcja wewnętrzna nie ma żadnej", () => {
+    const d = doc(sec("s1", [col("c1", [w("w1")])]), sec("s2", [inner("i1", [])]));
+    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe("moved");
+    const i1 = ops.findInner(d, "i1");
+    expect(i1?.columns).toHaveLength(1);
+    expect(ids(i1!.columns[0])).toEqual(["w1"]);
+  });
+
+  it("nieudane przeniesienie nie zakłada kolumny w pustej sekcji wewnętrznej", () => {
+    const d = doc(sec("s2", [inner("i1", [])]));
+    expect(ops.moveWidgetToColumn(d, "widget-widmo", "i1")).toBe("rejected");
+    expect(ops.findInner(d, "i1")?.columns).toEqual([]);
+  });
+
+  it("dziura na pozycji zerowej nie przesłania prawdziwej kolumny sekcji wewnętrznej", () => {
+    // Obie drogi - „na kolumnę" i „na sekcję" - biorą pierwszą NIEPUSTĄ kolumnę,
+    // więc dziura w tablicy nie powoduje dołożenia drugiego kontenera obok.
+    const zDziura = () =>
+      ({
+        version: 1,
+        sections: [
+          sec("s1", [col("c1", [w("w1")])]),
+          {
+            id: "s2",
+            kind: "section",
+            children: [{ id: "i1", kind: "inner-section", columns: [null, col("ic2", [])] }],
+          },
+        ],
+      }) as unknown as BuilderDocument;
+
+    const naKolumne = zDziura();
+    expect(ops.moveWidgetToColumn(naKolumne, "w1", "i1")).toBe("moved");
+    expect(ids(ops.findColumn(naKolumne, "ic2")!)).toEqual(["w1"]);
+    expect(ops.findInner(naKolumne, "i1")?.columns).toHaveLength(2);
+
+    const naSekcje = zDziura();
+    expect(ops.moveWidgetToSection(naSekcje, "w1", "s2")).toBe("moved");
+    expect(ids(ops.findColumn(naSekcje, "ic2")!)).toEqual(["w1"]);
+    // Żadnej nowej kolumny w sekcji - użyta została ta, która już tam była.
+    expect(ops.findSection(naSekcje, "s2")?.children).toHaveLength(1);
+  });
+
+  // KOLUMNA Z REGUŁĄ DOSTĘPU MOŻE BYĆ NIENARYSOWANA. Renderer filtruje kolumny
+  // przez `evaluateAccess`, więc wrzucenie widgetu do bramkowanej kolumny
+  // znaczyłoby dla redaktora dokładnie to samo, co naprawiany tu defekt -
+  // „upuściłem i zniknęło" - a na dodatek oddawałoby treść innej publiczności.
+  // Dlatego celujemy w pierwszą kolumnę BEZ reguły, a gdy takiej nie ma,
+  // zakładamy własną.
+  it("upuszczenie omija bramkowaną kolumnę sekcji wewnętrznej", () => {
+    const bramkowana = () =>
+      ({
+        version: 1,
+        sections: [
+          sec("s1", [col("c1", [w("w1")])]),
+          {
+            id: "s2",
+            kind: "section",
+            children: [
+              {
+                id: "i1",
+                kind: "inner-section",
+                columns: [
+                  { ...col("ic-tajna", []), advanced: { access: { auth: "guest" } } },
+                  col("ic-jawna", []),
+                ],
+              },
+            ],
+          },
+        ],
+      }) as unknown as BuilderDocument;
+
+    const naKolumne = bramkowana();
+    expect(ops.moveWidgetToColumn(naKolumne, "w1", "i1")).toBe("moved");
+    expect(ids(ops.findColumn(naKolumne, "ic-jawna")!)).toEqual(["w1"]);
+    expect(ids(ops.findColumn(naKolumne, "ic-tajna")!)).toEqual([]);
+
+    const naSekcje = bramkowana();
+    expect(ops.moveWidgetToSection(naSekcje, "w1", "s2")).toBe("moved");
+    expect(ids(ops.findColumn(naSekcje, "ic-jawna")!)).toEqual(["w1"]);
+  });
+
+  it("gdy wszystkie kolumny są bramkowane, zakładamy niebramkowaną", () => {
+    const d = {
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        {
+          id: "s2",
+          kind: "section",
+          children: [
+            {
+              id: "i1",
+              kind: "inner-section",
+              columns: [{ ...col("ic-tajna", []), advanced: { access: { auth: "user" } } }],
+            },
+          ],
+        },
+      ],
+    } as unknown as BuilderDocument;
+
+    expect(ops.moveWidgetToColumn(d, "w1", "i1")).toBe("moved");
+    const i1 = ops.findInner(d, "i1");
+    expect(i1?.columns).toHaveLength(2);
+    // Nowa kolumna nie niesie cudzej reguły dostępu.
+    expect(i1?.columns[1].advanced?.access).toBeUndefined();
+    expect(ids(i1!.columns[1])).toEqual(["w1"]);
+    expect(ids(ops.findColumn(d, "ic-tajna")!)).toEqual([]);
+  });
+
+  it("bramkowana kolumna najwyższego poziomu też jest omijana", () => {
+    const d = {
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        {
+          id: "s2",
+          kind: "section",
+          children: [
+            { ...col("c-tajna", []), advanced: { access: { auth: "guest" } } },
+            col("c-jawna", []),
+          ],
+        },
+      ],
+    } as unknown as BuilderDocument;
+
+    expect(ops.moveWidgetToSection(d, "w1", "s2")).toBe("moved");
+    expect(ids(ops.findColumn(d, "c-jawna")!)).toEqual(["w1"]);
+    expect(ids(ops.findColumn(d, "c-tajna")!)).toEqual([]);
+  });
+
+  it("addWidgetToColumn też przyjmuje identyfikator sekcji wewnętrznej", () => {
+    const d = doc(sec("s1", [inner("i1", [col("ic1", [])])]));
+    ops.addWidgetToColumn(d, "i1", w("nowy"));
+    expect(ids(ops.findColumn(d, "ic1")!)).toEqual(["nowy"]);
+  });
 });

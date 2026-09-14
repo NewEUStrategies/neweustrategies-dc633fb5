@@ -15,7 +15,13 @@
 //     w jednym polu to JEDEN krok cofnięcia, nie trzydzieści.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import type { BuilderDocument, ColumnNode, SectionNode, WidgetNode } from "@/lib/builder/types";
+import type {
+  BuilderDocument,
+  ColumnNode,
+  InnerSectionNode,
+  SectionNode,
+  WidgetNode,
+} from "@/lib/builder/types";
 import type { History, SetOptions } from "@/hooks/useHistory";
 import type { Selection } from "../../organisms/builder/types";
 import { useBuilderOperations } from "../useBuilderOperations";
@@ -485,31 +491,48 @@ describe("useBuilderOperations - dodawanie widgetów", () => {
 });
 
 describe("useBuilderOperations - przenoszenie", () => {
+  /**
+   * Dokument z DWOMA widgetami - potrzebny tam, gdzie celem przeniesienia jest
+   * drugi widget. `baseDoc` ma tylko `w1`, a przeniesienie na cel, którego nie
+   * ma, jest teraz odrzucane bez wpisu do historii (i tak właśnie ten test
+   * przechodził wcześniej: operacja KASOWAŁA widget, a mimo to zapisywała
+   * etykietę „Przeniesiono widget").
+   */
+  const docZDwoma = (): BuilderDocument => ({
+    version: 1,
+    sections: [sec("s1", [col("c1", [w("w1"), w("w2")])]), sec("s2", [col("c2", [])])],
+  });
+
   it.each([
     [
       "widget obok widgetu",
       (r: ReturnType<typeof setup>) => r.result.current.moveWidgetTo("w1", "w2", "after"),
       "builder.ops.movedWidget",
+      docZDwoma,
     ],
     [
       "widget do kolumny",
       (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToColumn("w1", "c2"),
       "builder.ops.movedWidgetToColumn",
+      baseDoc,
     ],
     [
       "widget do sekcji",
       (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToSection("w1", "s2"),
       "builder.ops.movedWidgetToSection",
+      baseDoc,
     ],
     [
       "sekcja obok sekcji",
       (r: ReturnType<typeof setup>) => r.result.current.moveSectionTo("s1", "s2", "after"),
       "builder.ops.movedSection",
+      baseDoc,
     ],
-  ])("%s zapisuje własną etykietę", (_label, run, label) => {
-    const s = setup();
+  ])("%s zapisuje własną etykietę", (_label, run, label, initial) => {
+    const s = setup({ kind: null, id: null }, initial());
     act(() => run(s));
     expect(s.last()?.opts?.label).toBe(label);
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("przeniesienie widgetu do innej kolumny naprawdę go przenosi", () => {
@@ -517,6 +540,91 @@ describe("useBuilderOperations - przenoszenie", () => {
     act(() => s.result.current.moveWidgetToColumn("w1", "c2"));
     expect(widgetsIn(s.last()!.doc, 0)).toHaveLength(0);
     expect(widgetsIn(s.last()!.doc, 1)).toHaveLength(1);
+  });
+
+  // NIEUDANE PRZENIESIENIE NIE MOŻE DOPISAĆ SIĘ DO HISTORII. Wpis oznaczałby
+  // krok „Cofnij", który nic nie cofa, a przez `onChange` historii - rewizję
+  // autozapisu identyczną z poprzednią. Dawniej gorzej: operacja kasowała
+  // widget i zapisywała to jako udane przeniesienie.
+  it.each([
+    [
+      "widget na nieistniejący widget",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetTo("w1", "widget-widmo", "after"),
+    ],
+    [
+      "widget do nieistniejącej kolumny",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToColumn("w1", "kolumna-widmo"),
+    ],
+    [
+      "widget do nieistniejącej sekcji",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToSection("w1", "sekcja-widmo"),
+    ],
+    [
+      "sekcja o nieistniejącym źródle",
+      (r: ReturnType<typeof setup>) =>
+        r.result.current.moveSectionTo("sekcja-widmo", "s1", "after"),
+    ],
+  ])("%s nie zapisuje historii i mówi o tym redakcji", (_label, run) => {
+    const s = setup();
+    act(() => run(s));
+    expect(s.recorded).toHaveLength(0);
+    expect(toastError).toHaveBeenCalledWith("builder.ops.moveErr");
+    // Dokument roboczy hooka zostaje nietknięty - widget nadal istnieje.
+    expect(widgetsIn(s.state.doc, 0).map((x) => x.id)).toEqual(["w1"]);
+  });
+
+  // UPUSZCZENIE, KTÓRE NICZEGO NIE ZMIENIA, NIE MOŻE ANI ZAPISAĆ HISTORII, ANI
+  // NAKRZYCZEĆ NA REDAKCJĘ. `useHistory.set` nie deduplikuje niczego, więc taki
+  // wpis byłby krokiem „Cofnij", który nic nie cofa, plus rewizją autozapisu
+  // identyczną z poprzednią - a komunikat o nieudanym przeniesieniu byłby
+  // fałszywym alarmem przy najzwyklejszym geście.
+  it.each([
+    [
+      "widget na samego siebie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetTo("w1", "w1", "after"),
+    ],
+    [
+      "sekcja na samą siebie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveSectionTo("s1", "s1", "after"),
+    ],
+    [
+      // Tą drogą kanwa zrzuca upuszczenie widgetu na SIEBIE: gałąź „obok
+      // widgetu" odfiltrowuje własny identyfikator, a upuszczenie spada
+      // o poziom niżej, na kolumnę, w której ten widget leży (patrz
+      // visualCanvasDrop: „widget upuszczony na SIEBIE").
+      "widget na własną kolumnę, w której jest ostatni",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToColumn("w1", "c1"),
+    ],
+    [
+      "widget na własną sekcję, gdy jest ostatni w jej pierwszej kolumnie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToSection("w1", "s1"),
+    ],
+  ])("%s milczy - to brak ruchu, nie błąd", (_label, run) => {
+    const s = setup();
+    act(() => run(s));
+    expect(s.recorded).toHaveLength(0);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("upuszczenie na slot sekcji wewnętrznej trafia w jej pierwszą kolumnę", () => {
+    const s = setup(
+      { kind: null, id: null },
+      {
+        version: 1,
+        sections: [
+          sec("s1", [col("c1", [w("w1")])]),
+          sec("s2", [{ id: "i1", kind: "inner-section", columns: [col("ic1", [])] }]),
+        ],
+      },
+    );
+    // Kanwa stempluje `data-col-id` także na slocie sekcji wewnętrznej, więc
+    // przychodzi tu jej identyfikator - nie identyfikator kolumny.
+    act(() => s.result.current.moveWidgetToColumn("w1", "i1"));
+    expect(toastError).not.toHaveBeenCalled();
+    expect(s.last()?.opts?.label).toBe("builder.ops.movedWidgetToColumn");
+    const i1 = s.last()!.doc.sections[1].children[0] as InnerSectionNode;
+    expect(i1.columns[0].children.map((x) => x.id)).toEqual(["w1"]);
+    expect(widgetsIn(s.last()!.doc, 0)).toHaveLength(0);
   });
 
   it("ukrycie elementu zapisuje się bez etykiety historii", () => {

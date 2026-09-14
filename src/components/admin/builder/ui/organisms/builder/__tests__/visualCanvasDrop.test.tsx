@@ -300,11 +300,62 @@ describe("VisualCanvas - przenoszenie istniejących węzłów", () => {
     expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "c1");
   });
 
+  // PRZERWANE PRZECIĄGANIE NIE MOŻE WYKONAĆ SIĘ PÓŹNIEJ. `dragend` to jedyne
+  // wyjście z przeciągania, które NIE przechodzi przez `onDrop` (Esc,
+  // upuszczenie poza kanwą), więc tylko tam można zapomnieć o źródle. Zanim
+  // to robiliśmy, identyfikator przeciąganego węzła żył dalej i konsumowało go
+  // następne, zupełnie inne upuszczenie - przeniesienie bez zlecenia.
+  it("przeciąganie przerwane przez dragend nie wykonuje się przy kolejnym upuszczeniu", () => {
+    stubRects();
+    const { h } = renderCanvas();
+    startWidgetDrag("w1");
+    fireDragEvent("dragend", node("data-widget-id", "w1"));
+    fireDrop(node("data-widget-id", "w2"), {}, 190);
+    expect(h.onMoveWidget).not.toHaveBeenCalled();
+    expect(h.onMoveWidgetToColumn).not.toHaveBeenCalled();
+    expect(h.onMoveWidgetToSection).not.toHaveBeenCalled();
+  });
+
   it("widget upuszczony na kolumnę ląduje na jej końcu", () => {
     const { h } = renderCanvas();
     startWidgetDrag("w1");
     fireDrop(node("data-col-id", "c2"), {});
     expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "c2");
+  });
+
+  // SKĄD BIERZE SIĘ IDENTYFIKATOR, KTÓRY NIE JEST KOLUMNĄ. Renderer stempluje
+  // `data-col-id` na SLOCIE dziecka sekcji, a dzieckiem bywa sekcja
+  // wewnętrzna - jej własne kolumny leżą o poziom niżej i mają własne
+  // `data-col-id`. Upuszczenie na wyściółkę sekcji wewnętrznej (albo w przerwę
+  // między jej kolumnami) woła więc „przenieś do kolumny" z identyfikatorem
+  // SEKCJI WEWNĘTRZNEJ. To nie wyścig ani uszkodzony dokument - tak wygląda
+  // zwykłe upuszczenie w zdrowym drzewie, i dlatego `moveWidgetToColumn`
+  // rozwiązuje taki identyfikator na pierwszą kolumnę tej sekcji
+  // (`columnForDrop` w operations.ts). Dawniej ten drop KASOWAŁ widget.
+  it("widget upuszczony na slot sekcji wewnętrznej dostaje JEJ identyfikator", () => {
+    const { h } = renderCanvas({
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        sec("s2", [{ id: "i1", kind: "inner-section", columns: [col("ic1", [])] }]),
+      ],
+    });
+    startWidgetDrag("w1");
+    fireDrop(node("data-col-id", "i1"), {});
+    expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "i1");
+  });
+
+  it("upuszczenie na kolumnę WEWNĄTRZ sekcji wewnętrznej celuje w tę kolumnę", () => {
+    const { h } = renderCanvas({
+      version: 1,
+      sections: [
+        sec("s1", [col("c1", [w("w1")])]),
+        sec("s2", [{ id: "i1", kind: "inner-section", columns: [col("ic1", [])] }]),
+      ],
+    });
+    startWidgetDrag("w1");
+    fireDrop(node("data-col-id", "ic1"), {});
+    expect(h.onMoveWidgetToColumn).toHaveBeenCalledWith("w1", "ic1");
   });
 
   it("widget upuszczony na sekcję bez kolumn tworzy w niej kolumnę", () => {
