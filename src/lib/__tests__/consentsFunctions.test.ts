@@ -40,7 +40,7 @@
 //   `gpcServer.test.ts`.
 // - RPC `set_user_consent`: utwardzony SECURITY DEFINER z pgTAP
 //   (`consent_evidence_hardening_test.sql`), oraz `set_user_consents`
-//   (migracja 20260913170000), którego atomowość daje transakcja plpgsql.
+//   (migracja 20260913173000), którego atomowość daje transakcja plpgsql.
 //   Test na atrapie nie odtwarza ani reguł definera, ani transakcji - dowodzi,
 //   CO aplikacja do nich wysyła i jak czyta odpowiedź.
 // - MOSTU CMP -> REJESTR: `registryBridge.test.ts` i `registryBridgeSync.test.ts`.

@@ -1,6 +1,6 @@
 -- pgTAP: CAŁA decyzja zgód RODO zapisuje się albo w całości, albo wcale.
 --
--- Weryfikuje migrację 20260913170000_set_user_consents_atomic.sql.
+-- Weryfikuje migrację 20260913173000_set_user_consents_atomic.sql.
 --
 -- PO CO TO STOI. `setMyConsentsBulk` dostaje JEDNĄ decyzję z banera („odrzuć
 -- wszystko", „zapisz wybrane") obejmującą kilka kategorii cookie naraz, a

@@ -71,7 +71,7 @@ export const setMyConsent = createServerFn({ method: "POST" })
 // „odrzuć wszystko" przerwane w połowie zostawiało część kategorii WŁĄCZONYCH,
 // trwale i bez komunikatu (`backfillRegistryOnLogin` tego nie naprawia -
 // uzupełnia wyłącznie klucze NIEOBECNE w rejestrze, a te są obecne ze starą
-// wartością). `set_user_consents` (20260913170000) wykonuje całą pętlę
+// wartością). `set_user_consents` (20260913173000) wykonuje całą pętlę
 // w jednej transakcji: wszystko albo nic.
 export const setMyConsentsBulk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
