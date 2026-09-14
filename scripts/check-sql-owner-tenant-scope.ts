@@ -49,6 +49,8 @@ const JUSTIFIED: OwnerScopeAnnotations = {
     "current_tenant_id() JEST tenantem tego wiersza (SELECT tenant_id FROM profiles WHERE id = auth.uid()), wiec dla id = auth.uid() warunek jest tautologia",
   "profiles::users update own profile":
     "jw. - wlasny wiersz profilu definiuje tenant domowy; przepiecie tenanta blokuje trigger profiles_pin_tenant i tenantowy WITH CHECK",
+  "push_subscriptions::push subs owner all":
+    "USING bez tenanta CELOWO (20260914090000). Endpoint Web Push jest UNIKALNY globalnie i nalezy do PRZEGLADARKI, nie do obszaru roboczego. Gdyby USING wiazalo tenanta, wiersz osierocony przez przeniesienie konta staje sie dla wlasciciela NIEWIDOCZNY i NIEUSUWALNY, a dalej trzyma zakladnika w UNIQUE (endpoint) - ta sama przegladarka nie moze sie wtedy zasubskrybowac NIGDY. Zapis jest zwiazany dwukrotnie: tenantowy WITH CHECK oraz trigger push_subscriptions_pin_tenant, ktory przypina tenanta z profilu WLASCICIELA przed ocena polityki, wiec kolumna nie jest polem klienta. Stan przybity asercjami 11 i 16-18 w supabase/tests/module12_notifications_rls_test.sql",
 };
 
 /**
