@@ -134,6 +134,13 @@
       "when": 1789374609765,
       "tag": "0018_pr365_tenant_follows_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789383610469,
+      "tag": "0019_related_post_clicks_viewer_window_idx",
+      "breakpoints": true
     }
   ]
 }
