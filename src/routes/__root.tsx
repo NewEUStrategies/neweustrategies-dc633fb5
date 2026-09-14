@@ -405,6 +405,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       rememberSocialDefaults(getOrigin(), {
         imageUrl: seo.default_og_image_url,
         imageAlt: seo.default_og_image_alt,
+        twitterCard: seo.twitter_card_type,
       });
       // Redakcyjny tytuł i opis serwisu (/admin/settings/site-identity) - ta
       // sama droga: pamięć kluczowana hostem czytana przez buildRootHead()
@@ -412,6 +413,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       rememberBrandDefaults(getOrigin(), {
         title: { pl: seo.site_title_pl, en: seo.site_title_en },
         description: { pl: seo.site_description_pl, en: seo.site_description_en },
+        // Nazwa serwisu (/admin/seo/homepage) - zasila `og:site_name` oraz
+        // `WebSite.name`/`alternateName`, czyli linię nazwy w wynikach Google.
+        name: seo.site_name,
+        alternateName: seo.site_name_alternate,
       });
     } catch {
       /* karta społecznościowa to dekoracja - nigdy nie wywraca renderu */

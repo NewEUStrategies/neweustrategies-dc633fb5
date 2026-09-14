@@ -386,7 +386,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/routes/admin.posts.tsx", 23],
   ["src/routes/admin.reading-time.tsx", 28],
   ["src/routes/admin.seo.search-console.tsx", 18],
-  ["src/routes/admin.seo.tsx", 1],
   ["src/routes/admin.settings.discussion.tsx", 2],
   ["src/routes/admin.settings.general.tsx", 3],
   ["src/routes/admin.settings.marketing.tsx", 4],

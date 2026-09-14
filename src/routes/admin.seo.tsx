@@ -1,329 +1,93 @@
-// SEO content overview (/admin/seo) - "odrębna strona dla wszystkich stron i
-// wpisów": one tenant-scoped table of every post and page with its SEO health
-// (per-language descriptions, social image source, overrides, noindex, 0-100
-// score), summary tiles and filters. Assessment logic lives in the pure
-// @/lib/seo/contentStatus module; this screen only fetches rows and renders.
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+// UKŁAD kokpitu SEO (/admin/seo) - pasek zakładek i `<Outlet />`, nic więcej.
+//
+// DLACZEGO TO JEST UKŁAD, A NIE EKRAN. Do 2026-09 ta trasa renderowała tabelę
+// treści i NIE wołała `<Outlet />`, mając przy tym dziecko
+// (`/admin/seo/search-console`). W TanStack Router `Match` renderuje ALBO
+// `component`, ALBO `<Outlet />` - nigdy oba - więc Search Console było
+// NIEOSIĄGALNE z przeglądarki: każde wejście pokazywało tabelę treści. Defekt
+// był zamrożony w `parentRoutesRenderOutlet.gate.test.ts` na liście
+// `KNOWN_BROKEN` z adnotacją, że naprawa to podział na układ + `x.index.tsx`.
+// Ta zmiana wykonuje dokładnie ten podział, a wpis z listy długu znika.
+//
+// PODZIAŁ ZAKŁADEK wynika z tego, KTO co poprawia, a nie z układu bazy:
+//   kokpit          - co jest zepsute i gdzie to kliknąć,
+//   strona główna   - nazwa serwisu, tytuł i opis (wynik na nazwę marki),
+//   karty społ.     - og:image i podglądy per sieć,
+//   treści          - tabela wszystkich wpisów i stron,
+//   Search Console  - dane z zewnątrz (zapytania, strony).
+//
+// Trasa jest CZYSTO NAWIGACYJNA i taka ma zostać: bramka autorytetu
+// (`adminRouteAuthority.gate.test.ts`) wymaga, żeby `admin.seo.tsx` nie
+// wykonywało żadnej mutacji.
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useRequiredTenant } from "@/hooks/useAuth";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
-import { SeoScorePill } from "@/components/admin/seo/SeoScorePill";
-import { Check, File, Newspaper, Search, X } from "@/lib/lucide-shim";
-import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
-import {
-  seoContentStatus,
-  summarizeSeoStatuses,
-  type SeoContentStatus,
-  type SeoStatusInput,
-} from "@/lib/seo/contentStatus";
+import { Search } from "@/lib/lucide-shim";
+import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 
 export const Route = createFileRoute("/admin/seo")({
-  component: SeoOverview,
-  head: () => ({ meta: [{ title: "SEO - Przegląd treści" }] }),
+  component: SeoHubLayout,
+  // Tytuł zakładki przeglądarki jest literałem, a nie `t()`: `head()` czytające
+  // słownik wciąga cały jego graf do chunku wejściowego KAŻDEJ strony
+  // (scripts/check-entry-purity.ts). Dzieci dopisują własne, bardziej
+  // szczegółowe tytuły - w TanStacku wygrywa ostatnie dopasowanie.
+  head: () => ({ meta: [{ title: "SEO" }] }),
 });
 
-interface ContentRow extends SeoStatusInput {
-  id: string;
-  slug: string;
-  status: string;
+interface HubTab {
+  to: string;
+  label: string;
+  /** Zakładka indeksowa dopasowuje się TYLKO dokładną ścieżką. */
+  exact?: boolean;
 }
 
-interface OverviewRow {
-  kind: "post" | "page";
-  row: ContentRow;
-  status: SeoContentStatus;
-}
+function SeoHubLayout() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-seo-hub.ts.
+  ensureI18n();
+  const { t } = useTranslation();
+  const path = useRouterState({ select: (s) => s.location.pathname });
 
-const CONTENT_SELECT = `id, slug, status, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, ${SEO_FIELDS_SELECT}`;
-
-type KindFilter = "all" | "post" | "page";
-type SeoFilter = "all" | "missing_description" | "default_image" | "noindex" | "overrides";
-
-function DescriptionMark({ source }: { source: SeoContentStatus["description"]["pl"] }) {
-  if (source === "missing") return <X className="w-3.5 h-3.5 text-destructive inline" />;
-  return (
-    <Check
-      className={`w-3.5 h-3.5 inline ${source === "override" ? "text-emerald-500" : "text-muted-foreground"}`}
-    />
-  );
-}
-
-function SeoOverview() {
-  const { t, i18n } = useTranslation();
-  const isPL = !i18n.language.startsWith("en");
-  const tenantId = useRequiredTenant();
-  const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
-  const [seoFilter, setSeoFilter] = useState<SeoFilter>("all");
-
-  const { data: posts } = useQuery({
-    queryKey: ["admin-seo-posts", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<ContentRow[]> => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(CONTENT_SELECT)
-        .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const { data: pages } = useQuery({
-    queryKey: ["admin-seo-pages", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<ContentRow[]> => {
-      const { data, error } = await supabase
-        .from("pages")
-        .select(CONTENT_SELECT)
-        .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
-        .order("menu_order")
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const rows = useMemo<OverviewRow[]>(() => {
-    const assess =
-      (kind: "post" | "page") =>
-      (row: ContentRow): OverviewRow => ({
-        kind,
-        row,
-        status: seoContentStatus(row),
-      });
-    return [...(pages ?? []).map(assess("page")), ...(posts ?? []).map(assess("post"))];
-  }, [posts, pages]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter(({ kind, row, status }) => {
-      if (kindFilter !== "all" && kind !== kindFilter) return false;
-      if (seoFilter === "missing_description") {
-        if (status.description.pl !== "missing" && status.description.en !== "missing")
-          return false;
-      } else if (seoFilter === "default_image") {
-        if (status.socialImage !== "default") return false;
-      } else if (seoFilter === "noindex") {
-        if (!status.noindex) return false;
-      } else if (seoFilter === "overrides") {
-        if (
-          !status.titleOverride.pl &&
-          !status.titleOverride.en &&
-          status.description.pl !== "override" &&
-          status.description.en !== "override"
-        ) {
-          return false;
-        }
-      }
-      if (!q) return true;
-      return (
-        row.title_pl.toLowerCase().includes(q) ||
-        row.title_en.toLowerCase().includes(q) ||
-        row.slug.toLowerCase().includes(q)
-      );
-    });
-  }, [rows, search, kindFilter, seoFilter]);
-
-  const summary = useMemo(() => summarizeSeoStatuses(rows.map((r) => r.status)), [rows]);
-
-  const tiles = [
-    {
-      key: "total",
-      label: t("admin.seoOverview.tileTotal"),
-      value: summary.total,
-      tone: "text-foreground",
-    },
-    {
-      key: "missing",
-      label: t("admin.seoOverview.tileMissingDesc"),
-      value: summary.missingDescription,
-      tone: summary.missingDescription ? "text-destructive" : "text-emerald-500",
-      filter: "missing_description" as const,
-    },
-    {
-      key: "image",
-      label: t("admin.seoOverview.tileDefaultImage"),
-      value: summary.defaultImage,
-      tone: summary.defaultImage ? "text-amber-500" : "text-emerald-500",
-      filter: "default_image" as const,
-    },
-    {
-      key: "noindex",
-      label: t("admin.seoOverview.tileNoindex"),
-      value: summary.noindexed,
-      tone: "text-muted-foreground",
-      filter: "noindex" as const,
-    },
-    {
-      key: "overrides",
-      label: t("admin.seoOverview.tileOverrides"),
-      value: summary.withOverrides,
-      tone: "text-muted-foreground",
-      filter: "overrides" as const,
-    },
+  const tabs: HubTab[] = [
+    { to: "/admin/seo", label: t("adminSeoHub.tabDashboard"), exact: true },
+    { to: "/admin/seo/homepage", label: t("adminSeoHub.tabHomepage") },
+    { to: "/admin/seo/social", label: t("adminSeoHub.tabSocial") },
+    { to: "/admin/seo/content", label: t("adminSeoHub.tabContent") },
+    { to: "/admin/seo/search-console", label: t("adminSeoHub.tabSearchConsole") },
   ];
-
-  const imageSourceLabel: Record<SeoContentStatus["socialImage"], string> = {
-    override: t("admin.seo.og.sourceOverride"),
-    cover: t("admin.seo.og.sourceCover"),
-    card: t("admin.seo.og.sourceCard"),
-    default: t("admin.seo.og.sourceDefault"),
-  };
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="font-display text-2xl font-bold inline-flex items-center gap-2">
           <Search className="w-6 h-6" />
-          {t("admin.seoOverview.title")}
+          {t("adminSeoHub.title")}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">{t("admin.seoOverview.subtitle")}</p>
+        <p className="text-sm text-muted-foreground mt-1">{t("adminSeoHub.subtitle")}</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {tiles.map((tile) => (
-          <button
-            key={tile.key}
-            type="button"
-            onClick={() =>
-              tile.filter && setSeoFilter(seoFilter === tile.filter ? "all" : tile.filter)
-            }
-            className={`bg-card border rounded-lg p-3 text-left transition-colors ${
-              tile.filter && seoFilter === tile.filter
-                ? "border-brand"
-                : "border-border hover:bg-muted/30"
-            } ${tile.filter ? "cursor-pointer" : "cursor-default"}`}
-          >
-            <div className={`text-2xl font-bold tabular-nums ${tile.tone}`}>{tile.value}</div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">{tile.label}</div>
-          </button>
-        ))}
-      </div>
+      <nav className="flex flex-wrap gap-1 border-b border-border">
+        {tabs.map((tab) => {
+          // Zakładka indeksowa musi porównywać ścieżkę DOKŁADNIE - prefiks
+          // "/admin/seo" pasuje do każdej podstrony, więc kokpit świeciłby się
+          // jako aktywny na wszystkich zakładkach naraz.
+          const active = tab.exact ? path === tab.to : path.startsWith(tab.to);
+          return (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+                active
+                  ? "border-brand text-brand font-medium"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("admin.seoOverview.searchPlaceholder")}
-          className="max-w-xs h-8 text-xs"
-        />
-        <Select
-          value={kindFilter}
-          onValueChange={(v) =>
-            setKindFilter(v === "post" ? "post" : v === "page" ? "page" : "all")
-          }
-        >
-          <SelectTrigger className="w-[130px] h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("admin.seoOverview.kindAll")}</SelectItem>
-            <SelectItem value="post">{t("admin.nav.posts")}</SelectItem>
-            <SelectItem value="page">{t("admin.nav.pages")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-xs text-muted-foreground">
-          {filtered.length} / {rows.length}
-        </span>
-      </div>
-
-      <div className="bg-card border border-border rounded-lg overflow-hidden overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
-            <tr>
-              <th className="p-2 text-left">{t("admin.seoOverview.colTitle")}</th>
-              <th className="p-2 text-left w-16">{t("admin.seoOverview.colKind")}</th>
-              <th className="p-2 text-left w-24">{t("admin.seoOverview.colStatus")}</th>
-              <th className="p-2 text-center w-20">{t("admin.seoOverview.colDesc")}</th>
-              <th className="p-2 text-left w-32">{t("admin.seoOverview.colImage")}</th>
-              <th className="p-2 text-center w-16">noindex</th>
-              <th className="p-2 text-left w-28">{t("admin.seoOverview.colScore")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.map(({ kind, row, status }) => (
-              <tr key={`${kind}-${row.id}`} className="hover:bg-muted/20">
-                <td className="p-2 max-w-[280px]">
-                  <Link
-                    to={kind === "post" ? "/admin/posts/$slug" : "/admin/pages/$slug"}
-                    params={{ slug: row.slug }}
-                    className="font-medium hover:text-brand hover:underline block truncate"
-                    title={row.title_pl || row.title_en}
-                  >
-                    {row.title_pl || row.title_en || row.slug}
-                  </Link>
-                  <span className="text-[10px] text-muted-foreground font-mono">/{row.slug}</span>
-                </td>
-                <td className="p-2 text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    {kind === "post" ? (
-                      <Newspaper className="w-3 h-3" />
-                    ) : (
-                      <File className="w-3 h-3" />
-                    )}
-                    {kind === "post"
-                      ? t("admin.seoOverview.kindPost")
-                      : t("admin.seoOverview.kindPage")}
-                  </span>
-                </td>
-                <td className="p-2">
-                  <StatusBadge
-                    status={row.status}
-                    label={t(`admin.status.${row.status}`, { defaultValue: row.status })}
-                  />
-                </td>
-                <td className="p-2 text-center whitespace-nowrap">
-                  <span title={isPL ? "Opis PL" : "PL description"}>
-                    <DescriptionMark source={status.description.pl} />
-                  </span>
-                  <span className="text-muted-foreground mx-1">/</span>
-                  <span title={isPL ? "Opis EN" : "EN description"}>
-                    <DescriptionMark source={status.description.en} />
-                  </span>
-                </td>
-                <td className="p-2 text-muted-foreground">
-                  {imageSourceLabel[status.socialImage]}
-                </td>
-                <td className="p-2 text-center">
-                  {status.noindex ? (
-                    <span className="text-[10px] font-medium text-destructive border border-destructive/40 rounded-full px-2 py-0.5">
-                      noindex
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </td>
-                <td className="p-2">
-                  <SeoScorePill score={status.score} grade={status.grade} />
-                </td>
-              </tr>
-            ))}
-            {!filtered.length && (
-              <tr>
-                <td colSpan={7} className="p-6 text-center text-muted-foreground">
-                  {rows.length ? t("admin.list.noResults") : t("admin.loading")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[11px] text-muted-foreground">{t("admin.seoOverview.scoreHint")}</p>
+      <Outlet />
     </div>
   );
 }

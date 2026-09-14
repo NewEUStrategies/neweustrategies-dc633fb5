@@ -34,7 +34,6 @@ const TREE = "src/routeTree.gen.ts";
  * z przeglądarki:
  *
  *   admin.organizations -> /admin/organizations/$id, /admin/organizations/new
- *   admin.seo           -> /admin/seo/search-console
  *   network             -> /network/mutual/$userId
  *   qa                  -> /qa/$slug
  *
@@ -43,10 +42,16 @@ const TREE = "src/routeTree.gen.ts";
  * tamtych modułów - dopisanie jej do zmiany o wydarzeniach ukryłoby cztery
  * osobne regresje w jednym przeglądzie. Lista ma TYLKO MALEĆ; nowy rodzic
  * musi mieć `<Outlet />` od pierwszego dnia.
+ *
+ * SPŁACONE:
+ *   admin.seo (2026-09-14) - `/admin/seo/search-console` było nieosiągalne od
+ *     dnia dodania. Trasa jest teraz układem zakładek z `<Outlet />`, a tabela
+ *     treści przeniosła się do `admin.seo.content.tsx`; kokpit stoi
+ *     w `admin.seo.index.tsx`. Dokładnie ten podział, który opisuje akapit
+ *     wyżej.
  */
 const KNOWN_BROKEN: readonly string[] = [
   "src/routes/admin.organizations",
-  "src/routes/admin.seo",
   "src/routes/network",
   "src/routes/qa",
 ];
