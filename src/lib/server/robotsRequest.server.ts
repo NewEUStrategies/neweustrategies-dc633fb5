@@ -22,8 +22,20 @@ import {
   type CrawlHostClass,
 } from "@/lib/http/host";
 import { trustedPublicHost } from "@/lib/http/requestHost";
-import { buildRobotsTxt, type RobotsGroup } from "@/lib/seo/robots";
-import { aiCrawlerGroups, parseSeoSettings } from "@/lib/seo/settings";
+import { buildRobotsTxt, type RobotsGroup, type RobotsUsagePolicy } from "@/lib/seo/robots";
+import {
+  DEFAULT_SEO_SETTINGS,
+  aiCrawlerGroups,
+  parseSeoSettings,
+  robotsUsagePolicy,
+} from "@/lib/seo/settings";
+
+/** Polityka crawlowania jednego tenanta: mapy, grupy botów, warunki cytowania. */
+interface CrawlPolicy {
+  readonly sitemapPaths: string[];
+  readonly groups: RobotsGroup[];
+  readonly usage: RobotsUsagePolicy;
+}
 
 /** Indeks sitemapy - ogłaszany zawsze, gdy host wolno indeksować. */
 const SITEMAP_INDEX_PATH = "/sitemap.xml";
