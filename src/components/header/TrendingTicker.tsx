@@ -1,3 +1,4 @@
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 // Header "Na czasie / Trending" - compact bar of posts.
 // Sources: trending | latest | pinned | selected | mixed.
 // Modes: scroll (marquee) | fade | slide | flip | typewriter.
@@ -417,7 +418,9 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
     <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px]">
       {avatar ? (
         <img
-          src={avatar}
+          src={buildAvatarSrc(avatar, 20)}
+          srcSet={buildAvatarSrcSet(avatar, 20)}
+          decoding="async"
           alt=""
           loading="lazy"
           width={20}

@@ -10,12 +10,24 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY, type AuthSettings } from "@/lib/authSettings";
 import { readAuthSettings } from "@/lib/authSettingsRules";
-import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
 import { toJson } from "@/lib/builder/types";
 
 export function useAuthSettings(): AuthSettings {
+  const queryClient = useQueryClient();
+  const bulkState = queryClient.getQueryState(siteSettingsQueryOptions.queryKey);
   const { data } = useQuery({
     queryKey: ["site_settings_public", AUTH_SETTINGS_KEY],
+    // A first-use dialog must honour SSR settings on its first render. Without
+    // this seed it briefly used AUTH_DEFAULTS before ensureQueryData settled,
+    // so an immediate sign-in request could ignore a configured redirect.
+    initialData: () => {
+      const settings = queryClient.getQueryData<SettingsMap>(siteSettingsQueryOptions.queryKey);
+      return settings && bulkState?.dataUpdatedAt
+        ? readAuthSettings(settings[AUTH_SETTINGS_KEY])
+        : undefined;
+    },
+    initialDataUpdatedAt: bulkState?.dataUpdatedAt,
     queryFn: async ({ client }): Promise<AuthSettings> => {
       const settings = await client.ensureQueryData(siteSettingsQueryOptions);
       return readAuthSettings(settings[AUTH_SETTINGS_KEY]);

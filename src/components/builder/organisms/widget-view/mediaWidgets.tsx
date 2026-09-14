@@ -131,8 +131,7 @@ export function ImageWidget({
   const ratioCss = ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined;
   // Logo bez jawnego dopasowania rysujemy w całości (`contain`) - domyślne
   // `cover` przycinało znak firmowy do ramki.
-  const mediaFit: CSSProperties["objectFit"] =
-    isLogo && !getStr(c, "objectFit") ? "contain" : fit;
+  const mediaFit: CSSProperties["objectFit"] = isLogo && !getStr(c, "objectFit") ? "contain" : fit;
   const wrapperStyle: WidgetMediaFrameStyle = {
     width: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
     maxWidth: "100%",

@@ -1107,3 +1107,36 @@ describe("LoginPopup - rejestracja", () => {
     expect(emailInput()).toHaveValue(EMAIL);
   });
 });
+
+describe("LoginPopupHost - first interaction", () => {
+  it("preserves the first request across lazy loading, and can reopen after dismissal", async () => {
+    const { LoginPopupHost } = await import("@/components/LoginPopupHost");
+    const view = render(<LoginPopupHost />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    openPopup({ mode: "signup", title: "First click", description: "Preserved context" });
+    expect(await screen.findByRole("dialog")).toHaveTextContent("First click");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Preserved context");
+    fireEvent.click(closeButton());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    h.settings = { ...h.settings, popup_enabled: false, custom_login_url: "/custom-login" };
+    view.rerender(<LoginPopupHost />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(h.assign).not.toHaveBeenCalled();
+    h.settings = { ...h.settings, popup_enabled: true };
+    view.rerender(<LoginPopupHost />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    openPopup({ mode: "signin", title: "Second click" });
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Second click");
+  });
+
+  it("honours a custom login route on the first lazy request", async () => {
+    const { LoginPopupHost } = await import("@/components/LoginPopupHost");
+    h.settings.popup_enabled = false;
+    h.settings.custom_login_url = "/membership/login";
+    render(<LoginPopupHost />);
+    openPopup();
+    await waitFor(() => expect(h.navigate).toHaveBeenCalledWith({ to: "/membership/login" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});

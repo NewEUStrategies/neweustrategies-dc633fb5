@@ -88,6 +88,16 @@ export const RENDERER_ENUMERATES_CONTENT: Partial<Record<WidgetType, string>> = 
 
 /** Zwolnienia per typ widgetu. Brak wpisu = widget jest w pełni pod bramką. */
 export const FIDELITY_WAIVERS: Partial<Record<WidgetType, WidgetFidelityWaiver>> = {
+  image: {
+    hidden: {
+      width:
+        "Historyczny alias CSS pola widthPx; panel edytuje widthPx. Fallback i precedencję sprawdza imageLogoSizing.test.tsx.",
+      maxWidth:
+        "Historyczny alias CSS pola maxWidthPx używany m.in. przez domyślne logo stopki; panel edytuje maxWidthPx. Pokrycie: imageLogoSizing.test.tsx.",
+      height:
+        "Historyczny alias CSS pola heightPx; panel edytuje heightPx. Fallback i precedencję sprawdza imageLogoSizing.test.tsx.",
+    },
+  },
   button: {
     hidden: {
       widthPx: "Ustawiane uchwytem zmiany rozmiaru na kanwie (ResizableBox), nie kontrolką panelu.",

@@ -1,3 +1,4 @@
+import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
 // @lovable.dev/vite-tanstack-config already includes the following - do NOT add them manually
 // or the app will break with duplicate plugins:
 //   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, nitro (build-only using cloudflare as a default target),
@@ -94,7 +95,7 @@ export default defineConfig({
     // Przyrząd pomiarowy składu bundla - INERTNY, dopóki nie ustawisz
     // BUNDLE_INVENTORY=1 (patrz nagłówek wtyczki). Nie duplikuje żadnej wtyczki
     // z @lovable.dev/vite-tanstack-config: ma wyłącznie hook `generateBundle`.
-    plugins: [chunkInventoryPlugin(), localeChunkPlugin(), adminCssPlugin()],
+    plugins: [chunkInventoryPlugin(), localeChunkPlugin(), widgetChunkPlugin(), adminCssPlugin()],
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz

@@ -30,6 +30,7 @@ coverage-platform
 # Playwright (E2E)
 playwright-report/
 test-results/
+test-results-performance/
 /playwright/.cache/
 
 # Editor directories and files

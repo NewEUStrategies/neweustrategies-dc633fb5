@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBrandLogoUrl } from "@/lib/brand/useBrandLogoUrl";
-import { onOpenLoginPopup } from "@/lib/loginPopupBus";
+import { onOpenLoginPopup, type LoginPopupOptions } from "@/lib/loginPopupBus";
 import "@/lib/i18n-public";
 import "@/lib/i18n-public-auth";
 import {
@@ -28,7 +28,8 @@ import { toast } from "sonner";
 
 type Mode = "signin" | "signup";
 
-export function LoginPopup() {
+export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
+  const handledRequest = useRef<LoginPopupOptions | null>(null);
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { session } = useAuth();
@@ -51,7 +52,7 @@ export function LoginPopup() {
   const [mfaPending, setMfaPending] = useState(false);
 
   useEffect(() => {
-    return onOpenLoginPopup((opts) => {
+    const handleRequest = (opts: LoginPopupOptions) => {
       const m = opts.mode ?? "signin";
       setOverride({ title: opts.title, description: opts.description });
       if (!settings.popup_enabled) {
@@ -77,8 +78,18 @@ export function LoginPopup() {
       }
       setMode(m);
       setOpen(true);
-    });
-  }, [settings.popup_enabled, settings.custom_login_url, navigate]);
+    };
+    if (request) {
+      // Preserve the first click while the form chunk loads; settings updates
+      // must not reopen an already dismissed request.
+      if (handledRequest.current !== request) {
+        handledRequest.current = request;
+        handleRequest(request);
+      }
+      return;
+    }
+    return onOpenLoginPopup(handleRequest);
+  }, [request, settings.popup_enabled, settings.custom_login_url, navigate]);
 
   useEffect(() => {
     if (session && open && !mfaPending) setOpen(false);

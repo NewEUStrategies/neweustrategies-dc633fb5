@@ -303,6 +303,22 @@ describe("układy szklane (marquee i pionowa rotacja)", () => {
     expect(screen.queryByText("AN")).toBeNull();
   });
 
+  it("uses a small responsive avatar instead of the full storage original", async () => {
+    const original = "https://project.supabase.co/storage/v1/object/public/media/avatar.png";
+    feed.posts = [
+      post({ id: "p1", author_display_name: "Anna Nowak", author_avatar_url: original }),
+    ];
+    const { container } = render(
+      renderTicker({ layoutStyle: "glassLive", liveDirection: "horizontal" }),
+    );
+    await screen.findByTestId("trending-ticker");
+    const image = container.querySelector(".tt-live-avatar");
+    expect(image?.getAttribute("src")).toContain("/render/image/public/");
+    expect(image?.getAttribute("src")).toContain("width=40");
+    expect(image?.getAttribute("srcset")).toContain("3x");
+    expect(container.querySelector(`img[src="${original}"]`)).toBeNull();
+  });
+
   it("wpis bez autora nie zostawia pustego miejsca po nim", async () => {
     feed.posts = [post({ id: "p1" })];
     const { container } = render(

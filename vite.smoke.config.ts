@@ -1,3 +1,4 @@
+import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
 // Wariant SMOKE-TESTOWY builda: identyczna konfiguracja jak vite.config.ts,
 // ale nitro celuje w node-server zamiast cloudflare-module, więc produkcyjny
 // artefakt da się uruchomić lokalnie (node .output/server/index.mjs) i
@@ -44,7 +45,12 @@ export default defineConfig({
     // dokument o innym zestawie nagłówków niż produkcja. The inventory must
     // describe THIS smoke build: browser timing classifies static imports
     // from its graph, independently of Chromium's initiatorType labels.
-    plugins: [localeChunkPlugin(), adminCssPlugin(), chunkInventoryPlugin(true)],
+    plugins: [
+      localeChunkPlugin(),
+      widgetChunkPlugin(),
+      adminCssPlugin(),
+      chunkInventoryPlugin(true),
+    ],
 
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
