@@ -74,6 +74,7 @@ interface ExpertRequestStub {
 // `?? []`. Bez tego wariantu pierwsze pobranie byłoby w teście niewidoczne.
 const h = vi.hoisted(() => ({
   uid: "user-me" as string | null,
+  pathname: "/messages",
   views: undefined as ConversationView[] | undefined,
   peers: undefined as ReadonlyMap<string, PeerProfile> | undefined,
   requests: undefined as { id: string; status: string }[] | undefined,
@@ -191,6 +192,11 @@ vi.mock("@/components/chat/ExpertRequestsInbox", () => ({
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+  // Skrzynka czyta z routera JEDNO pole - bieżącą ścieżkę - żeby na telefonie
+  // złożyć się przy nawigacji. Goły render nie ma kontekstu routera, więc
+  // podajemy tę ścieżkę wprost.
+  useRouterState: ({ select }: { select: (s: unknown) => unknown }) =>
+    select({ location: { pathname: h.pathname } }),
 }));
 
 import { ChatSideDrawer, type ChatSideDrawerProps } from "../ChatSideDrawer";
