@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { RobotsTxtPreview } from "@/components/admin/seo/RobotsTxtPreview";
 import { buildRobotsTxt } from "@/lib/seo/robots";
-import { aiCrawlerGroups, DEFAULT_SEO_SETTINGS } from "@/lib/seo/settings";
+import { aiCrawlerGroups, DEFAULT_SEO_SETTINGS, robotsUsagePolicy } from "@/lib/seo/settings";
 import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
 
 function previewText(settings = DEFAULT_SEO_SETTINGS): string {
@@ -26,7 +26,8 @@ describe("RobotsTxtPreview", () => {
         mode: "canonical",
         origin: CANONICAL_SITE_ORIGIN,
         sitemapPaths: ["/sitemap.xml", "/news-sitemap.xml"],
-        groups: [],
+        groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+        usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
       }),
     );
   });
@@ -41,7 +42,9 @@ describe("RobotsTxtPreview", () => {
     const settings = { ...DEFAULT_SEO_SETTINGS, ai_training_crawlers_allowed: false };
     const text = previewText(settings);
     expect(text).toContain("User-agent: GPTBot");
-    expect(aiCrawlerGroups(settings)).toHaveLength(1);
+    // Dwie grupy: wyszukiwarki AI wpuszczone jawnie, trenowanie zablokowane.
+    expect(aiCrawlerGroups(settings)).toHaveLength(2);
+    expect(text).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=no");
   });
 
   it("links to the live file so a shadowed route is one click away", () => {
@@ -100,7 +103,8 @@ describe("RobotsTxtPreview - host indeksowalny", () => {
           mode: "canonical",
           origin: CANONICAL_SITE_ORIGIN,
           sitemapPaths: ["/sitemap.xml", "/news-sitemap.xml"],
-          groups: [],
+          groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+          usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
         }),
       );
     } finally {
