@@ -292,7 +292,7 @@ function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
             <div className="w-20 h-20 shrink-0 overflow-hidden rounded-md bg-muted">
               <OptimizedImage
                 src={p.cover_image_url}
-                alt=""
+                alt={postTitleFor(p, lang)}
                 responsive
                 responsiveWidths={[80, 160, 240]}
                 sizes="80px"
