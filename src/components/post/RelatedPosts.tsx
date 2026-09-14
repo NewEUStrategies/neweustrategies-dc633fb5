@@ -462,7 +462,7 @@ function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
           <div className="relative aspect-[16/10] overflow-hidden bg-muted">
             <OptimizedImage
               src={hero.cover_image_url}
-              alt=""
+              alt={heroTitle}
               responsive
               sizes="(max-width: 1024px) 100vw, 60vw"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
