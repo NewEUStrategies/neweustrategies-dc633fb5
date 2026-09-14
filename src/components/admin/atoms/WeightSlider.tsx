@@ -10,6 +10,15 @@ interface WeightSliderProps {
   min?: number;
   max?: number;
   step?: number;
+  /**
+   * Sygnał nie ma za sobą danych - suwak jest wyłączony i opisany powodem.
+   *
+   * Panel NIE MOŻE pokazywać pokrętła, za którym nic nie stoi: dokładnie ta
+   * klasa defektu unieruchomiła cały silnik v2 (siedem wag zapisywanych do
+   * bazy, których render nie czytał). Ta sama zasada stoi już przy polu „po
+   * którym akapicie" (`afterParagraphEnabled` w `relatedPosts/panelRules`).
+   */
+  disabledReason?: string | null;
 }
 
 /**
@@ -34,25 +43,39 @@ export function WeightSlider({
   min = 0,
   max = 10,
   step = 1,
+  disabledReason = null,
 }: WeightSliderProps) {
   const labelId = useId();
+  const hintId = useId();
+  const inert = !!disabledReason;
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${inert ? "opacity-60" : ""}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <Label id={labelId} className="text-sm font-semibold">
             {label}
           </Label>
           <p className="text-xs text-muted-foreground">{hint}</p>
+          {inert && (
+            <p id={hintId} className="mt-0.5 text-xs font-medium text-amber-600">
+              {disabledReason}
+            </p>
+          )}
         </div>
         <span className="w-8 shrink-0 text-right font-mono text-sm tabular-nums">{value}</span>
       </div>
       <Slider
-        thumbProps={{ "aria-labelledby": labelId }}
+        thumbProps={{
+          "aria-labelledby": labelId,
+          // Powód wyłączenia idzie na UCHWYT, tam gdzie stoi rola `slider` -
+          // tą samą drogą co nazwa. Na korzeniu czytnik ekranu by go nie przeczytał.
+          ...(inert ? { "aria-describedby": hintId } : {}),
+        }}
         min={min}
         max={max}
         step={step}
         value={[value]}
+        disabled={inert}
         onValueChange={(values) => onChange(values[0] ?? min)}
       />
     </div>

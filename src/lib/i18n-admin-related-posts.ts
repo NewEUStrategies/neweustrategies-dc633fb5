@@ -45,7 +45,9 @@ const pl = {
       sliderAutoplay: "Autoplay",
       minScore: "Minimalny score",
       minScoreHint: "Kandydaci poniżej tej wartości nie wchodzą do listy - filtr jakości.",
-      useIdf: "IDF (rzadkie tagi ważą więcej)",
+      useIdf: "IDF (rzadkie terminy ważą więcej)",
+      useIdfHint:
+        "Kategoria lub tag dzielony przez WSZYSTKICH kandydatów nie pomaga ich uszeregować, więc waży mniej niż termin rzadki. Rzadkość liczy się w puli kandydatów danego wpisu, nie w całym serwisie. Uwaga: przełącznik zmienia SKALĘ wyniku, więc próg `min_score` może wymagać korekty.",
     },
     position: {
       end: "Na końcu wpisu",
@@ -69,7 +71,7 @@ const pl = {
     engine: {
       heading: "Wagi silnika rekomendacji",
       intro:
-        "Skala 0-10. Silnik składa wyniki: wspólne kategorie x waga + wspólne tagi x waga (opcjonalnie IDF) + autor + świeżość + popularność (post_views) + dwell (user_read_history) + personalizacja (profil zalogowanego użytkownika).",
+        "Skala 0-10. Silnik składa wyniki: wspólne kategorie x waga + wspólne tagi x waga (opcjonalnie IDF) + autor + świeżość + popularność (post_views przez trending_posts) + personalizacja (historia czytania zalogowanego użytkownika, po zgodzie). Dwell czeka na źródło danych i jest wyłączony.",
       categories: "Wspólne kategorie",
       categoriesHint: "Klasyczny sygnał: ile kategorii dzielą wpisy",
       tags: "Wspólne tagi",
@@ -79,12 +81,16 @@ const pl = {
       recency: "Świeżość",
       recencyHint: "Bonus dla wpisów opublikowanych w oknie „bonus świeżości”",
       popularity: "Popularność (views)",
-      popularityHint: "Bonus proporcjonalny do liczby wyświetleń w ostatnich 28 dniach",
+      popularityHint:
+        "Bonus z odsłon w ostatnich 28 dniach, skalowany względem najpopularniejszego wpisu serwisu. Liczy się z listy 50 najczęściej czytanych - kandydat spoza niej dostaje 0.",
       dwell: "Dwell / czytania",
-      dwellHint: "Bonus dla wpisów, które użytkownicy dodają do historii czytania",
+      dwellHint:
+        "Bonus dla wpisów często dodawanych do historii czytania - zadziała, gdy powstanie źródło danych.",
+      dwellInactive:
+        "Nieaktywne: sygnał wymaga agregatu historii czytania wszystkich czytelników, a ta tabela jest widoczna wyłącznie dla właściciela wierszy. Waga jest zapisana i wróci do gry, gdy powstanie źródło.",
       personalization: "Personalizacja",
       personalizationHint:
-        "Dopasowanie do profilu zainteresowań zalogowanego użytkownika (kategorie + tagi z historii)",
+        "Dopasowanie do profilu zainteresowań zalogowanego użytkownika (kategorie + tagi z historii). Działa wyłącznie po zgodzie na personalizację i przy braku sygnału GPC.",
     },
     notFound: "Nie znaleziono",
   },
@@ -134,7 +140,9 @@ const en = {
       sliderAutoplay: "Autoplay",
       minScore: "Minimum score",
       minScoreHint: "Candidates below this value are dropped - a quality filter.",
-      useIdf: "IDF (rare tags weigh more)",
+      useIdf: "IDF (rare terms weigh more)",
+      useIdfHint:
+        "A category or tag shared by EVERY candidate does not help rank them, so it weighs less than a rare one. Rarity is measured within the post's candidate pool, not the whole site. Note: this toggle changes the score SCALE, so `min_score` may need adjusting.",
     },
     position: {
       end: "At the end of the post",
@@ -158,7 +166,7 @@ const en = {
     engine: {
       heading: "Recommendation engine weights",
       intro:
-        "Scale 0-10. The engine combines: shared categories x weight + shared tags x weight (optionally IDF) + author + recency + popularity (post_views) + dwell (user_read_history) + personalization (signed-in user's profile).",
+        "Scale 0-10. The engine combines: shared categories x weight + shared tags x weight (optionally IDF) + author + recency + popularity (post_views via trending_posts) + personalization (signed-in reader's history, with consent). Dwell is awaiting a data source and is disabled.",
       categories: "Shared categories",
       categoriesHint: "The classic signal: how many categories the posts share",
       tags: "Shared tags",
@@ -168,12 +176,16 @@ const en = {
       recency: "Recency",
       recencyHint: "Bonus for posts published inside the recency-boost window",
       popularity: "Popularity (views)",
-      popularityHint: "Bonus proportional to the view count over the last 28 days",
+      popularityHint:
+        "Bonus from views over the last 28 days, scaled against the site's most-read post. Drawn from the top 50 most-read - a candidate outside it scores 0.",
       dwell: "Dwell / reads",
-      dwellHint: "Bonus for posts users add to their reading history",
+      dwellHint:
+        "Bonus for posts often added to reading history - will apply once a data source exists.",
+      dwellInactive:
+        "Inactive: this signal needs an aggregate of every reader's reading history, and that table is visible only to the owner of its rows. The weight is stored and returns once a source exists.",
       personalization: "Personalization",
       personalizationHint:
-        "Match against the signed-in user's interest profile (categories + tags from history)",
+        "Match against the signed-in reader's interest profile (categories + tags from history). Applies only with personalization consent and no GPC signal.",
     },
     notFound: "Not found",
   },

@@ -45,6 +45,7 @@ export function RelatedPostsEngineSection({
           label={t(signal.labelKey)}
           hint={t(signal.hintKey)}
           value={form[signal.field] as number}
+          disabledReason={signal.inactiveKey ? t(signal.inactiveKey) : null}
           min={RELATED_POSTS_LIMITS.weight.min}
           max={RELATED_POSTS_LIMITS.weight.max}
           onChange={(v) => onChange(signal.field, v as RelatedPostsConfig[typeof signal.field])}
@@ -54,6 +55,7 @@ export function RelatedPostsEngineSection({
       <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-2">
         <SettingToggle
           label={t("adminRelatedPosts.fields.useIdf")}
+          hint={t("adminRelatedPosts.fields.useIdfHint")}
           checked={form.use_idf}
           onCheckedChange={(v) => onChange("use_idf", v)}
         />

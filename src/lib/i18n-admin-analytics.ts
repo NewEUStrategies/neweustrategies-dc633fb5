@@ -176,7 +176,7 @@ const pl = {
             "Odnotowano {{views}} wyświetleń wpisów, ale 0 klików w powiązane. Sygnały nie działają lub nie są wyświetlane.",
           fixes: [
             "Sprawdź czy sekcja Powiązane wpisy jest włączona globalnie i pod wpisami.",
-            "Zmniejsz próg `min_score` w zakładce Konfiguracja - być może wszystko jest odfiltrowane.",
+            "Zmniejsz próg `min_score` w zakładce Silnik (wagi) - być może wszystko jest odfiltrowane.",
             "Sprawdź czy strategia źródła nie jest zbyt restrykcyjna (spróbuj `Kategorie + Tagi`).",
           ],
         },
@@ -209,8 +209,9 @@ const pl = {
           detail:
             "user_read_history jest puste w tym oknie - personalizacja nie ma na czym się oprzeć.",
           fixes: [
-            "Wpięcie logowania czasu czytania (np. IntersectionObserver + timer) do user_read_history.",
-            "Do czasu zebrania danych utrzymuj `weight_personalization` na 3 - nie zaszkodzi, a zacznie działać automatycznie.",
+            "Sprawdź, czy czytelnicy w ogóle się logują - historia zapisuje się wyłącznie dla zalogowanych.",
+            "Personalizacja NIE włącza się sama: wymaga zgody `personalization` od czytelnika i braku sygnału GPC. Bez zgody waga nie wnosi ani punktu, choćby dane były.",
+            "Utrzymuj `weight_personalization` powyżej zera, żeby sygnał zadziałał dla tych czytelników, którzy zgodę wyrazili.",
           ],
         },
         sparseTags: {
@@ -1033,7 +1034,7 @@ const en = {
             "Recorded {{views}} post views, but 0 clicks on related. Signals are not working or not being shown.",
           fixes: [
             "Check whether the Related posts section is enabled globally and below posts.",
-            "Lower the `min_score` threshold in the Configuration tab - everything may be filtered out.",
+            "Lower the `min_score` threshold in the Engine (weights) tab - everything may be filtered out.",
             "Check whether the source strategy isn't too restrictive (try `Categories + Tags`).",
           ],
         },
@@ -1066,8 +1067,9 @@ const en = {
           detail:
             "user_read_history is empty in this window - personalization has nothing to rely on.",
           fixes: [
-            "Wire up reading-time logging (e.g. IntersectionObserver + timer) into user_read_history.",
-            "Until data is collected keep `weight_personalization` at 3 - it won't hurt and will start working automatically.",
+            "Check whether readers sign in at all - the history is only recorded for signed-in readers.",
+            "Personalization does NOT switch itself on: it needs the reader's `personalization` consent and no GPC signal. Without consent the weight contributes nothing, however much data exists.",
+            "Keep `weight_personalization` above zero so the signal applies for readers who did grant consent.",
           ],
         },
         sparseTags: {

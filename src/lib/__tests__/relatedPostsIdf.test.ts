@@ -19,7 +19,7 @@
 //      maksimum wstawiłoby NaN do wyniku i cała lista rekomendacji zniknęłaby
 //      (NaN nie przechodzi progu `minScore`).
 import { describe, it, expect } from "vitest";
-import { buildIdf, normalizeMap, rankRelated } from "@/lib/relatedPosts";
+import { buildIdf, documentFrequency, normalizeMap, rankRelated } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
 
 /** Górna i dolna granica wagi IDF, wprost z implementacji. */
@@ -264,5 +264,72 @@ describe("rankRelated - stabilność rankingu", () => {
   it("pusta lista kandydatów daje pustą listę, nie wyjątek", () => {
     expect(rankRelated([], 5)).toEqual([]);
     expect(rankRelated([], 0)).toHaveLength(0);
+  });
+});
+
+describe("documentFrequency - `df` liczone z danych JUŻ pobranych", () => {
+  /** Przynależność w kształcie, w jakim trzyma ją warstwa zapytań. */
+  function terminy(entries: [string, string[]][]): Map<string, Set<string>> {
+    return new Map(entries.map(([doc, ids]) => [doc, new Set(ids)]));
+  }
+
+  it("zlicza, w ILU DOKUMENTACH występuje termin, a nie ile razy łącznie", () => {
+    const df = documentFrequency(
+      terminy([
+        ["p1", ["kat-a", "kat-b"]],
+        ["p2", ["kat-a"]],
+        ["p3", ["kat-a"]],
+      ]),
+    );
+    expect(df.get("kat-a")).toBe(3);
+    expect(df.get("kat-b")).toBe(1);
+  });
+
+  it("termin powtórzony w JEDNYM dokumencie liczy się raz - to zbiór, nie lista", () => {
+    // Wiersze przynależności bywają zduplikowane; `df` ma mierzyć dokumenty.
+    const df = documentFrequency(terminy([["p1", ["kat-a", "kat-a"]]]));
+    expect(df.get("kat-a")).toBe(1);
+  });
+
+  it("pusta przynależność daje pustą mapę, a nie wyjątek", () => {
+    expect(documentFrequency(new Map()).size).toBe(0);
+    expect(documentFrequency(terminy([["p1", []]])).size).toBe(0);
+  });
+
+  it("wynik wchodzi do `buildIdf` i zachowuje monotoniczność rzadkości", () => {
+    // To jest cały sens tej funkcji: para `documentFrequency` + `buildIdf`
+    // musi dać termin rzadki wyżej niż pospolity, bez ani jednego zapytania.
+    const df = documentFrequency(
+      terminy([
+        ["p1", ["pospolity", "rzadki"]],
+        ["p2", ["pospolity"]],
+        ["p3", ["pospolity"]],
+      ]),
+    );
+    const idf = buildIdf(df, 3);
+    expect(idf.get("rzadki")!).toBeGreaterThan(idf.get("pospolity")!);
+    expect(idf.get("rzadki")!).toBeLessThanOrEqual(IDF_MAX);
+    expect(idf.get("pospolity")!).toBeGreaterThanOrEqual(IDF_MIN);
+  });
+
+  it("TERMIN OBECNY U WSZYSTKICH KANDYDATÓW dostaje wagę najniższą", () => {
+    // Kategoria, którą dzielą wszyscy kandydaci, nie pomaga ich uszeregować -
+    // i właśnie dlatego IDF liczony na puli kandydatów jest tu poprawną skalą,
+    // a nie uproszczeniem.
+    const df = documentFrequency(
+      terminy([
+        ["p1", ["wszedzie"]],
+        ["p2", ["wszedzie"]],
+      ]),
+    );
+    const idf = buildIdf(df, 2);
+    expect(idf.get("wszedzie")).toBeCloseTo(Math.log(2), 10);
+  });
+
+  it("nie mutuje wejścia", () => {
+    const input = terminy([["p1", ["kat-a"]]]);
+    documentFrequency(input);
+    expect(input.get("p1")!.size).toBe(1);
+    expect(input.size).toBe(1);
   });
 });

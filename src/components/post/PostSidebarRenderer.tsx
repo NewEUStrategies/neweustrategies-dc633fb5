@@ -9,6 +9,7 @@ import {
   sidebarLayoutByIdQueryOptions,
 } from "@/lib/queries/sidebarLayouts";
 import type { ReadingPanelSettings, SidebarWidget } from "@/lib/sidebarBuilder/types";
+import type { RelatedPostsOverride } from "@/lib/relatedPosts";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 
@@ -63,6 +64,15 @@ export interface PostSidebarRendererProps {
   suppressToc?: boolean;
   /** Tryb czytania: strefa sidebar wypadła z budżetu reklam - widget ad-slot milczy. */
   suppressAds?: boolean;
+  /**
+   * Nadpisanie konfiguracji rekomendacji zapisane NA WPISIE (`related_override`).
+   *
+   * Musi być tym SAMYM obiektem, który dostaje mount pod treścią - widget
+   * sidebara i widget końca wpisu liczą to samo zapytanie, więc rozjazd
+   * konfiguracji rozszczepia klucz cache i każe policzyć całą listę dwa razy
+   * na jednej stronie. Wcześniej sidebar po prostu ignorował nadpisania wpisu.
+   */
+  relatedOverride?: RelatedPostsOverride | null;
 }
 
 export function PostSidebarRenderer(props: PostSidebarRendererProps) {
@@ -147,7 +157,13 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
     case "related-posts": {
       return (
         <Suspense fallback={null}>
-          <RelatedPosts postId={postId} lang={lang} forceLayout="list" forceColumns={2} />
+          <RelatedPosts
+            postId={postId}
+            lang={lang}
+            override={props.relatedOverride}
+            forceLayout="list"
+            forceColumns={2}
+          />
         </Suspense>
       );
     }

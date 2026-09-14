@@ -14,6 +14,9 @@ import {
   type RelatedPostsOverride,
 } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
+import { useAuth } from "@/hooks/useAuth";
+import { useIsConsentGiven } from "@/lib/notifications/useConsents";
+import { isGpcCurrentlyHonored } from "@/lib/ads/consent";
 import { formatDate } from "@/lib/i18n/format";
 import { trackRelatedClick } from "@/lib/relatedClickBeacon";
 import { accentFor } from "./relatedVisuals";
@@ -41,14 +44,73 @@ export function RelatedPosts({
   const { data: globalCfg } = useQuery(relatedPostsConfigQueryOptions());
   const cfg = mergeRelatedConfig(globalCfg, override);
 
-  const { data: posts = [], isLoading } = useQuery(
-    relatedPostsQueryOptions({
-      postId,
-      limit: cfg.items_limit,
-      strategy: cfg.source_strategy,
-      recencyBoostDays: cfg.recency_boost_days,
-    }),
-  );
+  // Personalizacja rusza dopiero po ZGODZIE, nie po zalogowaniu. Dobieranie
+  // treści na podstawie historii czytania to profilowanie w rozumieniu RODO,
+  // więc bramką jest zgoda `personalization` z rejestru - a `useIsConsentGiven`
+  // nakłada na nią klamrę GPC, bo sygnał opt-outu przeglądarki sprzeciwia się
+  // dokładnie temu zastosowaniu (`lib/consent/gpc.ts`).
+  const { user } = useAuth();
+  const zgodaProfilu = useIsConsentGiven("personalization");
+  // Druga, SYNCHRONICZNA klamra GPC. `useIsConsentGiven` też ją nakłada, ale
+  // przez `useGpcSignal`, który sygnał odczytuje dopiero w efekcie - a rejestr
+  // zgód przy drugim artykule w sesji wychodzi z cache OD RAZU. Powstaje jeden
+  // render, w którym zgoda jest już znana, a klamra jeszcze nie: to wystarczy,
+  // by `useQuery` wystrzelił zapytanie spersonalizowane mimo opt-outu
+  // przeglądarki. `isGpcCurrentlyHonored` czyta sygnał bez czekania na efekt.
+  const gpcBlokuje = isGpcCurrentlyHonored();
+  // Porównanie do `true` jest istotne: hook oddaje `undefined`, dopóki rejestr
+  // się nie wczyta. Bramka jest domyślnie ZAMKNIĘTA.
+  const personalizedFor = user && zgodaProfilu === true && !gpcBlokuje ? user.id : null;
+
+  // Czy wiadomo już, CZY personalizować. Identyfikator czytelnika wchodzi do
+  // klucza zapytania, więc odpowiedź „jeszcze nie wiem" nie jest neutralna:
+  // wystrzelenie zapytania przed rozstrzygnięciem zgody policzyłoby listę
+  // bezosobową, a chwilę później - po dojściu rejestru - klucz zmieniłby się na
+  // spersonalizowany i CAŁY potok (sześć fal zapytań) poleciałby drugi raz,
+  // gasząc na ten czas sekcję, którą czytelnik ma już przed oczami.
+  //
+  // Czekamy więc na rozstrzygnięcie, ale TYLKO wtedy, gdy może ono cokolwiek
+  // zmienić: dla gościa rejestr nigdy nie dojedzie (zapytanie o zgody jest
+  // wyłączone bez użytkownika), a przy wadze 0 personalizacja i tak nie wnosi
+  // ani punktu - w obu przypadkach czekanie byłoby samą zwłoką.
+  const personalizacjaWazy = cfg.weight_personalization > 0 && !gpcBlokuje;
+  const zgodaRozstrzygnieta = !user || !personalizacjaWazy || zgodaProfilu !== undefined;
+
+  // Ta sama zasada dla KONFIGURACJI: dopóki globalna konfiguracja nie dojechała,
+  // `mergeRelatedConfig` oddaje wartości DOMYŚLNE - nie te, które ustawiła
+  // redakcja. Potok policzony pod nimi to nie tylko zmarnowane siedem
+  // round-tripów; to lista widoczna przez moment i ułożona WEDŁUG INNYCH WAG niż
+  // skonfigurowane, czyli dokładnie ten objaw, który ta zmiana likwiduje -
+  // tyle że przelotny. Nadpisanie per wpis nie wystarcza, bo niesie zwykle
+  // jedno-dwa pola, a resztę i tak bierze z globalnej.
+  const konfiguracjaZnana = globalCfg !== undefined;
+
+  // Wagi jadą do zapytania Z KONFIGURACJI, nie z domyślnych. To jest ta jedna
+  // rzecz, której brak unieruchamiał cały silnik v2: panel zapisywał siedem wag,
+  // IDF i próg, a tutaj wychodziły cztery pola, więc `scoreRelated` dobierał
+  // resztę z wartości domyślnych - redakcja kręciła pokrętłami bez podłączenia.
+  const opcje = relatedPostsQueryOptions({
+    postId,
+    limit: cfg.items_limit,
+    strategy: cfg.source_strategy,
+    recencyBoostDays: cfg.recency_boost_days,
+    scoring: {
+      weight_categories: cfg.weight_categories,
+      weight_tags: cfg.weight_tags,
+      weight_author: cfg.weight_author,
+      weight_recency: cfg.weight_recency,
+      weight_popularity: cfg.weight_popularity,
+      weight_dwell: cfg.weight_dwell,
+      weight_personalization: cfg.weight_personalization,
+      use_idf: cfg.use_idf,
+      min_score: cfg.min_score,
+    },
+    personalizedFor,
+  });
+  const { data: posts = [], isLoading } = useQuery({
+    ...opcje,
+    enabled: opcje.enabled !== false && zgodaRozstrzygnieta && konfiguracjaZnana,
+  });
 
   if (!cfg.enabled) return null;
   if (isLoading) return null;

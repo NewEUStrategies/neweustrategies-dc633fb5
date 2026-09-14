@@ -1291,6 +1291,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     lang={lang}
                     tags={postTags}
                     adContent={adContent}
+                    relatedOverride={relatedOverride}
                     suppressToc={bodyTocActive}
                     suppressAds={!allowAd("sidebar")}
                     layoutId={

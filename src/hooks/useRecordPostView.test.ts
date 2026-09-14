@@ -10,6 +10,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 const h = vi.hoisted(() => ({
   record: vi.fn(),
   hasAnalyticsConsent: vi.fn(),
+  gpcHonored: vi.fn(),
   upsertThen: vi.fn(),
   user: null as { id: string } | null,
 }));
@@ -18,6 +19,7 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.record }));
 vi.mock("@/lib/views/postViews.functions", () => ({ recordPostView: {} }));
 vi.mock("@/lib/ads/consent", () => ({
   hasAnalyticsConsent: () => h.hasAnalyticsConsent(),
+  isGpcCurrentlyHonored: () => h.gpcHonored(),
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user }) }));
 vi.mock("@/integrations/supabase/client", () => ({
@@ -42,6 +44,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   h.record.mockReset().mockResolvedValue({ ok: true });
   h.hasAnalyticsConsent.mockReset().mockReturnValue(false);
+  h.gpcHonored.mockReset().mockReturnValue(false);
   h.upsertThen.mockReset();
   h.user = null;
   window.localStorage.clear();
@@ -97,5 +100,51 @@ describe("useRecordPostView - bramka zgody analitycznej", () => {
     });
 
     expect(h.record).not.toHaveBeenCalled();
+  });
+});
+
+describe("useRecordPostView - historia czytania a sygnał GPC", () => {
+  // Od 14.09.2026 `user_read_history` realnie zasila personalizację
+  // rekomendacji, a `personalization` jest kluczem klamrowanym sygnałem GPC.
+  // Klamra musi więc stać przy ZBIERANIU, nie dopiero przy użyciu: zapisywanie
+  // profilu czytelniczego mimo wyrażonego sprzeciwu po to, żeby go potem nie
+  // użyć, jest gromadzeniem danych wbrew temu sprzeciwowi.
+  it("zalogowany czytelnik BEZ sygnału GPC dopisuje wpis do historii", async () => {
+    h.user = { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
+
+    await mountAndTick();
+
+    expect(h.upsertThen).toHaveBeenCalled();
+  });
+
+  it("SYGNAŁ GPC wstrzymuje zapis historii czytania", async () => {
+    h.user = { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
+    h.gpcHonored.mockReturnValue(true);
+
+    await mountAndTick();
+
+    expect(h.upsertThen).not.toHaveBeenCalled();
+  });
+
+  it("GPC wstrzymuje historię NIEZALEŻNIE od zgody analitycznej", async () => {
+    // Dwie różne zgody i dwa różne zbiory danych: analityka rządzi
+    // `post_views`, klamra GPC - profilem czytelniczym. Zgoda na jedno nie
+    // otwiera drugiego.
+    h.user = { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    h.gpcHonored.mockReturnValue(true);
+
+    await mountAndTick();
+
+    expect(h.record).toHaveBeenCalledTimes(1);
+    expect(h.upsertThen).not.toHaveBeenCalled();
+  });
+
+  it("gość nie ma historii do zapisania, nawet bez GPC", async () => {
+    h.user = null;
+
+    await mountAndTick();
+
+    expect(h.upsertThen).not.toHaveBeenCalled();
   });
 });

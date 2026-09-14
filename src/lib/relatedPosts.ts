@@ -68,17 +68,88 @@ export const RELATED_POSTS_DEFAULTS: RelatedPostsConfig = {
   min_score: 0,
 };
 
+/**
+ * Pola liczbowe, które trafiają WPROST do silnika, wraz z ich zakresami.
+ *
+ * Nadpisanie per wpis (`posts.related_override`) to surowy `jsonb`: nic w bazie
+ * nie pilnuje ani typu, ani zakresu - odpowiednik CHECK-ów stoi wyłącznie na
+ * ścieżce zapisu panelu globalnego (`buildRelatedPostsConfigRow`). Dopóki wagi
+ * nie docierały do renderu, nie miało to znaczenia. Teraz ma: `min_score`
+ * przyszły jako NAPIS przeszedłby do porównania `score >= minScore`, które dla
+ * napisu jest zawsze fałszem - i sekcja powiązanych wpisów zniknęłaby z wpisu
+ * bez śladu. Ujemna albo absurdalna waga wywróciłaby ranking równie cicho.
+ */
+type EngineNumericField =
+  | "items_limit"
+  | "recency_boost_days"
+  | "weight_categories"
+  | "weight_tags"
+  | "weight_author"
+  | "weight_recency"
+  | "weight_popularity"
+  | "weight_dwell"
+  | "weight_personalization"
+  | "min_score";
+
+const ENGINE_BOUNDS: Readonly<Record<EngineNumericField, { min: number; max: number }>> = {
+  items_limit: { min: 1, max: 24 },
+  recency_boost_days: { min: 0, max: 3650 },
+  weight_categories: { min: 0, max: 10 },
+  weight_tags: { min: 0, max: 10 },
+  weight_author: { min: 0, max: 10 },
+  weight_recency: { min: 0, max: 10 },
+  weight_popularity: { min: 0, max: 10 },
+  weight_dwell: { min: 0, max: 10 },
+  weight_personalization: { min: 0, max: 10 },
+  min_score: { min: 0, max: 1000 },
+};
+
+const ENGINE_NUMERIC_FIELDS = Object.keys(ENGINE_BOUNDS) as EngineNumericField[];
+
+/**
+ * Wartość liczbowa w zakresie albo `fallback`.
+ *
+ * Parametr jest typowany jako `number`, ale w RUNTIME przychodzi z `jsonb`, więc
+ * bywa napisem, `null`-em albo obiektem - stąd jawna konwersja zamiast zaufania
+ * do typu. Sensowny napis liczbowy przechodzi po konwersji; wszystko inne wraca
+ * na wartość globalną.
+ */
+function clampEngineValue(value: number, fallback: number, min: number, max: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+}
+
 export function mergeRelatedConfig(
   global: Partial<RelatedPostsConfig> | null | undefined,
   override: RelatedPostsOverride | null | undefined,
 ): RelatedPostsConfig {
   const base: RelatedPostsConfig = { ...RELATED_POSTS_DEFAULTS, ...(global ?? {}) };
-  if (!override) return base;
   // Only spread defined override keys so `null`/missing values don't clobber the global.
-  const cleaned = Object.fromEntries(
-    Object.entries(override).filter(([, v]) => v !== undefined && v !== null),
-  ) as RelatedPostsOverride;
-  return { ...base, ...cleaned };
+  const cleaned = override
+    ? (Object.fromEntries(
+        Object.entries(override).filter(([, v]) => v !== undefined && v !== null),
+      ) as RelatedPostsOverride)
+    : null;
+  const merged: RelatedPostsConfig = cleaned ? { ...base, ...cleaned } : { ...base };
+
+  // Domknięcie zakresów obejmuje TAKŻE konfigurację globalną, nie tylko
+  // nadpisanie: uszkodzony wiersz `related_posts_config` wywraca silnik dokładnie
+  // tak samo jak uszkodzony `related_override`, a dwie ścieżki o różnej
+  // odporności to dwie różne klasy defektu do wyśledzenia.
+  //
+  // Wartość spoza zakresu wraca do tej z konfiguracji globalnej (a dla samej
+  // globalnej - do domyślnej), nigdy do zera: uszkodzone ustawienie nie ma
+  // prawa wyjść na wartość skrajną i po cichu wygasić sygnału.
+  for (const pole of ENGINE_NUMERIC_FIELDS) {
+    const { min, max } = ENGINE_BOUNDS[pole];
+    const fallback = clampEngineValue(base[pole], RELATED_POSTS_DEFAULTS[pole], min, max);
+    merged[pole] = clampEngineValue(merged[pole], fallback, min, max);
+  }
+  // `use_idf` steruje CAŁĄ skalą wyniku, więc musi być boolem, nie czymkolwiek
+  // prawdziwym w sensie JS (napis "false" jest prawdziwy).
+  merged.use_idf = merged.use_idf === true;
+
+  return merged;
 }
 
 // -- Scoring algorithm v2 ----------------------------------------------------
@@ -132,7 +203,7 @@ export interface ScoredCandidate {
   breakdown: ScoreBreakdown;
 }
 
-type ScoringConfig = Pick<
+export type ScoringConfig = Pick<
   RelatedPostsConfig,
   | "source_strategy"
   | "recency_boost_days"
@@ -301,6 +372,24 @@ export function buildIdf(df: ReadonlyMap<string, number>, totalDocs: number): Ma
     out.set(id, Math.min(3, Math.max(0.2, v)));
   });
   return out;
+}
+
+/**
+ * Zlicza, w ilu dokumentach występuje każdy termin (`df` dla `buildIdf`).
+ *
+ * Wejściem jest mapa dokument -> zbiór terminów, czyli dokładnie ten kształt,
+ * w jakim warstwa zapytań trzyma przynależność kandydatów do kategorii i tagów.
+ * Dzięki temu IDF liczy się z danych JUŻ pobranych - bez ani jednego
+ * dodatkowego round-tripu do bazy.
+ */
+export function documentFrequency(
+  termsByDoc: ReadonlyMap<string, ReadonlySet<string>>,
+): Map<string, number> {
+  const df = new Map<string, number>();
+  termsByDoc.forEach((terms) => {
+    terms.forEach((id) => df.set(id, (df.get(id) ?? 0) + 1));
+  });
+  return df;
 }
 
 /** Normalizuje mapę do zakresu 0..1 względem maksimum. */
