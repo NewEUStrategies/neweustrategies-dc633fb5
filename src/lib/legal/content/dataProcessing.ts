@@ -11,7 +11,6 @@ import { DATA_PROCESSING_META } from "../meta";
 import {
   COMPLIANCE_PACK_UPDATED,
   LEGAL_CONTACT_EMAIL,
-  LEGAL_ENTITY,
   PAYMENT_PROVIDER_NAME,
 } from "@/lib/legal/entity";
 

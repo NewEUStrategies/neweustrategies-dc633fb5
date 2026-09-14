@@ -6,9 +6,9 @@ import { safeParseLegalContent } from "@/lib/legal/types";
 import { LEGAL_ICONS, resolveLegalIcon } from "@/lib/legal/icons";
 import { LEGAL_DOC_LIST, LEGAL_DOCS } from "@/lib/legal/registry";
 import { LEGAL_DOC_KEYS } from "@/lib/legal/types";
+// TERMS_CONTENT zostaje pod ręką dla dowodów o pierwszeństwie wersji z bazy;
+// pozostałe dokumenty test bierze z rejestru (ALL_BASELINES), a nie z importów.
 import { TERMS_CONTENT } from "@/lib/legal/content/terms";
-import { PRIVACY_CONTENT } from "@/lib/legal/content/privacy";
-import { REFUNDS_CONTENT } from "@/lib/legal/content/refunds";
 
 // Bramka chodzi po CAŁYM rejestrze, nie po trzech wymienionych dokumentach.
 // Wpisanie nazw wprost było powodem, dla którego nowy dokument prawny mógł
