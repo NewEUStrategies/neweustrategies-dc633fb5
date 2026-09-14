@@ -18,7 +18,8 @@ async function requestContext(): Promise<{ origin: string; host: string }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  return { origin: host ? `${proto}://${host}` : "", host };
+  // Ten sam origin, co mapa główna i robots.txt - patrz crawlerPublishOrigin.
+  return { origin: crawlerPublishOrigin(host, proto), host };
 }
 
 export const Route = createFileRoute("/news-sitemap.xml")({
