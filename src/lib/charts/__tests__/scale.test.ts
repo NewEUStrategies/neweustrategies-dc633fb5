@@ -348,3 +348,39 @@ describe("niceScale - kontrole niezmienności", () => {
     expect(niceScale(2, 24, 5).ticks).toEqual([0, 5, 10, 15, 20, 25]);
   });
 });
+
+describe("niceScale - domena NIELICZBOWA nie propaguje się na oś", () => {
+  it("`NaN` i nieskończoności dają domyślną domenę 0-1, a nie oś z `NaN`", () => {
+    // Wartości krańcowe przychodzą z danych, nie z kodu: pusty CSV, dzielenie
+    // przez zero w wyliczanej serii, `parseFloat("")`. Bez sprowadzenia do
+    // domyślnej domeny `NaN` przeciekał do atrybutów SVG i przeglądarka
+    // przestawała rysować CAŁY wykres - bez komunikatu, bez śladu w konsoli.
+    for (const [min, max] of [
+      [NaN, NaN],
+      [NaN, 10],
+      [0, Infinity],
+      [-Infinity, Infinity],
+    ] as const) {
+      const oś = niceScale(min, max);
+      expect(Number.isFinite(oś.min)).toBe(true);
+      expect(Number.isFinite(oś.max)).toBe(true);
+      expect(oś.ticks.every((t) => Number.isFinite(t))).toBe(true);
+      expect(oś.max).toBeGreaterThan(oś.min);
+    }
+  });
+});
+
+describe("seriesExtent - stos BEZ ANI JEDNEJ kategorii", () => {
+  it("zwraca zakres 0-0, a nie wartości nieskończone z inicjalizacji", () => {
+    // Wykres skumulowany o zerowej liczbie kategorii powstaje przy pustym
+    // filtrze i przy danych, z których wszystko odpadło. Akumulatory startują
+    // z `Infinity`/`-Infinity`, więc bez tego domknięcia oddawałyby je wprost -
+    // a `linearScale` na takim zakresie liczy dalej i wypuszcza `NaN` do
+    // atrybutów SVG.
+    const e = seriesExtent([s([1, 2]), s([3, 4], 2)], 0, { stacked: true, includeZero: true });
+
+    expect(e).toEqual({ min: 0, max: 0 });
+    expect(Number.isFinite(e.min)).toBe(true);
+    expect(Number.isFinite(e.max)).toBe(true);
+  });
+});

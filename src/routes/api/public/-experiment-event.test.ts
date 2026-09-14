@@ -201,6 +201,23 @@ describe("zapis zdarzenia", () => {
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:5173");
   });
 
+  it("Origin będący POPRAWNYM adresem, ale BEZ hosta, nie dostaje nagłówków CORS", async () => {
+    // Trzeci stan, osobny od „brak Origin" i od „Origin nie jest adresem":
+    // `file://` parsuje się bez wyjątku, a `hostname` jest PUSTY. Bez osobnego
+    // sprawdzenia pusty host poszedłby do katalogu tenantów jako klucz - i tam
+    // decydowałby o wyniku przypadek (trafienie w pusty klucz), a nie reguła.
+    // Przeglądarka wysyła tu zwykle `Origin: null` (to łapie gałąź wyjątku),
+    // ale schemat bez autorytetu jest osiągalny i musi kończyć się odmową.
+    const res = await OPTIONS({ request: preflightRequest("file:///home/gosc/strona.html") });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    expect(res.headers.get("Access-Control-Allow-Methods")).toBeNull();
+    // `Vary` zostaje nawet przy odmowie: odpowiedź ZALEŻY od originu, więc
+    // cache pośredni nie może podać jej innemu originowi.
+    expect(res.headers.get("Vary")).toBe("Origin");
+  });
+
   it("preflight bez Origin i z Originem niebędącym adresem nie wywala się na wyjątku", async () => {
     const bare = await OPTIONS({ request: preflightRequest() });
     const broken = await OPTIONS({ request: preflightRequest("to-nie-jest-adres") });
