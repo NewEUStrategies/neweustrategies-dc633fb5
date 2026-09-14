@@ -102,7 +102,23 @@ describe("aiCrawlerGroups", () => {
     // Grupa `*` nadal zaprasza wyszukiwarki - blokada dotyczy tylko botów AI.
     expect(body).toContain("Allow: /");
     expect(body.indexOf("User-agent: GPTBot")).toBeGreaterThan(body.indexOf("Allow: /"));
-    expect(body).not.toContain("PerplexityBot");
+    // PerplexityBot jest wpuszczony JAWNIE (własna grupa), więc musi być w pliku -
+    // wcześniej zgoda była milcząca i nie nosiła warunku cytowania.
+    expect(body).toContain("User-agent: PerplexityBot");
+    expect(body).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=no");
+  });
+
+  it("carries the attribution requirement into the rendered file", () => {
+    const body = buildRobotsTxt({
+      mode: "canonical",
+      origin: "https://neweuropeanstrategies.com",
+      sitemapPaths: ["/sitemap.xml"],
+      groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+      usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
+    });
+    expect(body).toContain("attribution");
+    expect(body).toContain(robotsUsagePolicy(DEFAULT_SEO_SETTINGS).siteName);
+    expect(body).toContain("https://neweuropeanstrategies.com/llms.txt");
   });
 });
 
