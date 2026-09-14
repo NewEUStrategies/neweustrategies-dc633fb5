@@ -6,7 +6,6 @@ import { Suspense, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
-import { HomeSrHeading } from "@/components/home/atoms/HomeSrHeading";
 import { homeBuilderSource, homeContent } from "@/components/home/atoms/homeRenderMode";
 import { HomeBuilderContent } from "@/components/home/molecules/HomeBuilderContent";
 import { HomeEmptyNotice } from "@/components/home/molecules/HomeEmptyNotice";
