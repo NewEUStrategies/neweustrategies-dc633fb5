@@ -49,7 +49,8 @@ describe("TabsBlock - wyrównanie poziomego rzędu", () => {
     const row = container.querySelector(".justify-between");
     expect(row).not.toBeNull();
     for (const btn of screen.getAllByRole("tab")) {
-      expect(btn.className).toContain("flex-1");
+      // Równe rozciągnięcie na desktopie (na mobile flex-1 mają wszystkie).
+      expect(btn.className).toContain("sm:flex-1");
     }
   });
 
@@ -69,7 +70,52 @@ describe("TabsBlock - wyrównanie poziomego rzędu", () => {
       <TabsBlock tabs={tabs} lang="pl" nodeId="h-bogus" tabAlign={"bogus" as TabAlign} />,
     );
     expect(container.querySelector(".justify-start")).not.toBeNull();
-    expect(container.querySelector(".flex-1")).toBeNull();
+    // Bez justify zakładki na desktopie wracają do szerokości treści.
+    for (const btn of screen.getAllByRole("tab")) {
+      expect(btn.className).toContain("sm:flex-none");
+      expect(btn.className).not.toContain("sm:flex-1");
+    }
+  });
+});
+
+describe("TabsBlock - mobile bez przycinania", () => {
+  it("wraps the horizontal row instead of clipping tabs on narrow screens", () => {
+    const { container } = render(
+      <TabsBlock tabs={tabs} lang="pl" nodeId="m1" />,
+    );
+    const row = container.querySelector('[role="tablist"] > div');
+    expect(row).not.toBeNull();
+    expect(row!.className).toContain("flex-wrap");
+    // Poziome przewijanie (i przycinanie) dopuszczalne dopiero od sm w górę.
+    expect(row!.className).not.toContain(" overflow-x-auto");
+    for (const btn of screen.getAllByRole("tab")) {
+      // Zakładki dzielą szerokość po równo i mogą się zawijać (2 w rzędzie).
+      expect(btn.className).toContain("flex-1");
+      expect(btn.className).toContain("basis-[45%]");
+      expect(btn.className).toContain("min-w-0");
+    }
+  });
+
+  it("lets long panel text wrap instead of overflowing the screen", () => {
+    render(<TabsBlock tabs={tabs} lang="pl" nodeId="m2" />);
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.className).toContain("min-w-0");
+    expect(panel.className).toContain("[overflow-wrap:anywhere]");
+  });
+
+  it("centers the icon above the label on mobile (column layout)", () => {
+    const { container } = render(
+      <TabsBlock
+        tabs={[{ label_pl: "Z ikoną", html_pl: "<p>Ikonowa</p>", icon: "star" }]}
+        lang="pl"
+        nodeId="m3"
+      />,
+    );
+    const labelWrap = container.querySelector("button > span");
+    expect(labelWrap).not.toBeNull();
+    expect(labelWrap!.className).toContain("flex-col");
+    expect(labelWrap!.className).toContain("items-center");
+    expect(labelWrap!.className).toContain("sm:flex-row");
   });
 });
 
