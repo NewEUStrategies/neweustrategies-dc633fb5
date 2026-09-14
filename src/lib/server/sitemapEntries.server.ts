@@ -57,16 +57,22 @@ export function coreSitemapEntries(origin: string): SitemapEntry[] {
     // nie istniałyby dla crawlera. Sekcja `core` jest właściwym miejscem także
     // dlatego, że nie zależy od bazy: dokument prawny musi być odnajdywalny
     // również wtedy, gdy warstwa danych jest niedostępna.
-    { loc: `${origin}/rodo`, changefreq: "yearly", priority: "0.4" },
-    { loc: `${origin}/zarzadzanie-polityka-prywatnosci`, changefreq: "yearly", priority: "0.3" },
-    { loc: `${origin}/polityka-przetwarzania-danych`, changefreq: "yearly", priority: "0.4" },
-    { loc: `${origin}/komunikacja-i-marketing`, changefreq: "yearly", priority: "0.3" },
-    { loc: `${origin}/regulamin-klubow-dyskusyjnych`, changefreq: "yearly", priority: "0.3" },
-    { loc: `${origin}/moderacja-komentarzy`, changefreq: "yearly", priority: "0.4" },
-    { loc: `${origin}/regulamin-wydarzen-i-biletow`, changefreq: "yearly", priority: "0.4" },
-    { loc: `${origin}/regulamin-subskrypcji-i-zakupow`, changefreq: "yearly", priority: "0.4" },
-    { loc: `${origin}/przejrzystosc-ai`, changefreq: "yearly", priority: "0.3" },
-    { loc: `${origin}/statut`, changefreq: "yearly", priority: "0.4" },
+    //
+    // `monthly`, mimo że dokumenty prawne zmieniają się rzadziej: `changefreq`
+    // w `SitemapEntry` dopuszcza wyłącznie daily/weekly/monthly, a `monthly`
+    // jest najrzadszą wartością z tego zbioru. To podpowiedź dla crawlera,
+    // nie deklaracja - crawler i tak rozstrzyga po `lastmod` i własnej
+    // historii pobrań.
+    { loc: `${origin}/rodo`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/zarzadzanie-polityka-prywatnosci`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/polityka-przetwarzania-danych`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/komunikacja-i-marketing`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/regulamin-klubow-dyskusyjnych`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/moderacja-komentarzy`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/regulamin-wydarzen-i-biletow`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/regulamin-subskrypcji-i-zakupow`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/przejrzystosc-ai`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/statut`, changefreq: "monthly", priority: "0.4" },
   ];
 }
 
