@@ -197,6 +197,25 @@ export function ChatSideDrawer({
     return peersQ.data.get(peerUserId)?.avatar_url ?? null;
   }, [selectedView, peersQ.data]);
 
+  // NAWIGACJA NA TELEFONIE SKŁADA CZAT.
+  // Rozmowa (prywatna albo krąg) trafia na szynę zminimalizowanych pigułek,
+  // więc jednym dotknięciem wraca dokładnie tam, gdzie była. Sama lista
+  // rozmów niczego nie ma do zapamiętania, więc po prostu się zamyka.
+  // Na desktopie skrzynka zostaje otwarta - tam nie zasłania treści.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useMobileRouteDismiss(pathname, () => {
+    if (selected) {
+      minimizedChatsStore.minimize({
+        id: selected,
+        name: selectedName || t("dock.chat.title"),
+        avatarUrl: selectedAvatarUrl,
+      });
+    }
+    setInboxCollapsed(false);
+    setSelected(null);
+    onClose();
+  });
+
   if (!user) return null;
 
   const minimizeSelected = () => {
