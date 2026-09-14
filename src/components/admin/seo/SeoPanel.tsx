@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SerpPreview } from "@/components/admin/seo/SerpPreview";
+import { LivePreviewLinks } from "@/components/admin/seo/LivePreviewLinks";
 import { SeoTextField } from "@/components/admin/seo/SeoTextField";
 import { SeoValidationSummary } from "@/components/admin/seo/SeoValidationSummary";
 import { Loader2, Search, Sparkles } from "@/lib/lucide-shim";
@@ -201,6 +202,9 @@ export function SeoPanel(props: SeoPanelProps) {
           path={lang === "en" ? `en/${previewPath}` : previewPath}
           noindex={value.seo_noindex}
         />
+        {/* Rzeczywisty adres tej treści plus wyjścia do Google, Facebooka
+            i LinkedIna - każde w nowym oknie. */}
+        <LivePreviewLinks path={lang === "en" ? `en/${previewPath}` : previewPath} />
         <SeoTextField
           label={t("admin.seo.titleLabel")}
           kind="title"

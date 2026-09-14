@@ -31,6 +31,7 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Select, SaveBar } from "@/components/admin/settings/fields";
 import { ImageSlot, type ImageSlotTransform } from "@/components/admin/ImageSlot";
 import { SocialCardPreview } from "@/components/admin/seo/SocialCardPreview";
+import { LivePreviewLinks } from "@/components/admin/seo/LivePreviewLinks";
 import { formatBytes } from "@/components/admin/media/lib/mediaFormat";
 import { prepareOgImageFile, type OgIssue } from "@/lib/media/ogImage";
 import { socialSourceRows } from "@/lib/seo/socialPreviewSources";
@@ -280,6 +281,10 @@ function SeoSocialTab() {
             />
           ))}
         </div>
+
+        {/* Podglądy wyżej rysują to, co WYŚLEMY; te linki pokazują, co pod tym
+            adresem widzą naprawdę Google, Facebook i LinkedIn. */}
+        <LivePreviewLinks className="mt-4" path={previewLang === "en" ? "en" : ""} />
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4">
