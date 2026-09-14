@@ -155,6 +155,19 @@ function lancuch(tabela: string): RecordedChain {
   return c;
 }
 
+/**
+ * Ogniwa `.in(...)` niosące listę identyfikatorów WPISÓW - po naprawie A2/A3/A4
+ * ma ich nie być ANI JEDNEGO.
+ *
+ * Zwykłe `expect(chain.has("in")).toBe(false)` byłoby tu BŁĘDNE: zawężenie
+ * przez osadzenie legalnie używa `.in(...)` na kolumnie TERMINU
+ * (`post_categories.category_id`). Defektem jest wyłącznie lista po `"id"`,
+ * bo tylko ona rośnie razem z liczbą wpisów.
+ */
+function listaIdWpisow(chain: RecordedChain): ReadonlyArray<ReadonlyArray<unknown>> {
+  return chain.calls.filter((c) => c.method === "in" && c.args[0] === "id").map((c) => c.args);
+}
+
 /** Ostatnie wywołanie RPC o danej nazwie (brak = błąd testu, jak wyżej). */
 function wywolanie(nazwa: string): RecordedRpc {
   const c = funkcje().lastCall(nazwa);
@@ -253,7 +266,6 @@ const SCIEZKI_OK = ok([{ page_id: STRONA_RODZIC, full_path: SCIEZKA_RODZICA }]);
 interface PlanArchiwum {
   kind: "category" | "tag";
   taksonomia?: SupabaseResult;
-  pivot?: SupabaseResult;
   wpisy?: SupabaseResult;
   szablon?: SupabaseResult;
   sciezki?: SupabaseResult;
@@ -266,7 +278,6 @@ function planujArchiwum(p: PlanArchiwum): void {
     kategoria ? "categories" : "tags",
     p.taksonomia ?? ok(kategoria ? WIERSZ_KATEGORII : WIERSZ_TAGU),
   );
-  s.setResponse(kategoria ? "post_categories" : "post_tags", p.pivot ?? ok([{ post_id: "p1" }]));
   s.setResponse("posts", p.wpisy ?? okZLicznikiem([wpis("p1")], 1));
   s.setResponse("builder_templates", p.szablon ?? ok(null));
   funkcje().setResponse("page_full_paths", p.sciezki ?? SCIEZKI_OK);
@@ -397,19 +408,56 @@ describe("archiwum kategorii: kształt zapytań", () => {
     expect(wynik?.taxonomy.description_en).toBe("opis en");
   });
 
-  it("pivot kategorii filtruje po category_id i oddaje same identyfikatory wpisów", async () => {
+  it("zawężenie kategorią robi BAZA - osadzenie w `select`, zero zapytań do tabeli pośredniej", async () => {
+    // Asercja na DOSŁOWNYM napisie jest tu obowiązkowa, a nie stylistyczna:
+    // literówka w nazwie osadzenia (`post_categoriez!inner(...)`) przechodzi
+    // przez tsc bez błędu, a kolumny obok zachowują poprawne typy. Napis jest
+    // jedynym miejscem, w którym da się to złapać.
     planujArchiwum({ kind: "category" });
     await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
-    const pivot = lancuch("post_categories");
-    expect(pivot.argsOf("select")?.[0]).toBe("post_id");
-    expect(pivot.argsOf("eq")).toEqual(["category_id", WIERSZ_KATEGORII.id]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_categories!inner(category_id)");
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", [WIERSZ_KATEGORII.id]]);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
+    // Filtr niesie identyfikator TERMINU (jeden), a nie WPISÓW (tyle, ile ma
+    // kategoria) - różnica między linią żądania o stałej długości a linią
+    // rosnącą o około 38 bajtów na wpis. To jest cały defekt A2.
+    expect(listaIdWpisow(posty)).toEqual([]);
+  });
+
+  it("zapytanie NIE rośnie razem z kategorią - 1 a 3000 przypisań daje IDENTYCZNY łańcuch", async () => {
+    // DLACZEGO ROZMIAR SIEDZI W ODPOWIEDZI TABELI POŚREDNIEJ, A NIE W LIŚCIE
+    // WPISÓW. Pierwsza wersja tego przypadku planowała 3000 WPISÓW i była
+    // BEZWARTOŚCIOWA: liczba wierszy w odpowiedzi `posts` jest konsumowana PO
+    // zapisaniu łańcucha, więc `lancuch("posts").calls` wygląda tak samo przy
+    // KAŻDEJ implementacji - przypadek przechodził także na pełnym coficie
+    // naprawy (sprawdzone). Rozmiar musi siedzieć tam, skąd defekt brał listę:
+    // w tabeli POŚREDNIEJ. Kod sprzed naprawy odczytał ją i włożyłby 3000
+    // identyfikatorów do `.in("id", ...)`, więc łańcuchy by się rozjechały;
+    // kod po naprawie o tę tabelę w ogóle nie pyta.
+    planujArchiwum({ kind: "category" });
+    baza().setResponse("post_categories", ok([{ post_id: "p1" }]));
+    await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    const male = JSON.stringify(lancuch("posts").calls);
+
+    baza().reset();
+    planujArchiwum({ kind: "category" });
+    baza().setResponse(
+      "post_categories",
+      ok(Array.from({ length: 3000 }, (_, i) => ({ post_id: `p${i}` }))),
+    );
+    await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+
+    expect(JSON.stringify(lancuch("posts").calls)).toBe(male);
+    // I to jest druga połowa dowodu: tabela pośrednia nie została dotknięta ANI RAZU.
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
   });
 
   it("lista wpisów bierze tylko opublikowane i nieusunięte, z dokładnym licznikiem", async () => {
     planujArchiwum({ kind: "category", wpisy: okZLicznikiem([wpis("p1")], 137) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     const posty = lancuch("posts");
-    expect(posty.argsOf("in")).toEqual(["id", ["p1"]]);
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", [WIERSZ_KATEGORII.id]]);
     expect(posty.argsOf("eq")).toEqual(["status", "published"]);
     expect(posty.argsOf("is")).toEqual(["deleted_at", null]);
     expect(posty.argsOf("select")?.[1]).toEqual({ count: "exact" });
@@ -452,11 +500,15 @@ describe("archiwum tagu: kształt zapytań i jedna nazwa na oba języki", () => 
     expect(wynik?.taxonomy.description_en).toBeNull();
   });
 
-  it("pivot tagu filtruje po tag_id, a nie po category_id", async () => {
+  it("zawężenie tagiem osadza post_tags, a nie post_categories", async () => {
     planujArchiwum({ kind: "tag" });
     await klient().fetchQuery(taxonomyArchiveQueryOptions("tag", "nato"));
-    expect(lancuch("post_tags").argsOf("eq")).toEqual(["tag_id", WIERSZ_TAGU.id]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_tags!inner(tag_id)");
+    expect(posty.argsOf("in")).toEqual(["post_tags.tag_id", [WIERSZ_TAGU.id]]);
+    expect(listaIdWpisow(posty)).toEqual([]);
     expect(baza().chainsFor("post_categories")).toHaveLength(0);
+    expect(baza().chainsFor("post_tags")).toHaveLength(0);
   });
 });
 
@@ -488,27 +540,25 @@ describe("archiwum taksonomii: pustka to nie awaria", () => {
     );
   });
 
-  it("PUSTKA: taksonomia bez ani jednego wpisu oddaje pustą listę i NIE pyta o tabelę wpisów", async () => {
-    planujArchiwum({ kind: "category", pivot: ok([]) });
+  it("PUSTKA: taksonomia bez ani jednego wpisu oddaje pustą listę, nazwę i licznik zero", async () => {
+    // ZMIANA WOBEC POPRZEDNIEJ WERSJI TEGO PRZYPADKU. Do 13.09.2026 stało tu
+    // „NIE pyta o tabelę wpisów" - bo pusty pivot pozwalał pominąć drugie
+    // zapytanie. Zapytanie jest teraz JEDNO i zawsze leci; pustka wychodzi
+    // z niego jako pusta odpowiedź z licznikiem zero. Przypadek mówi więc to,
+    // co faktycznie zachodzi, zamiast udawać nieistniejącą optymalizację.
+    planujArchiwum({ kind: "category", wpisy: okZLicznikiem([], 0) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.posts).toEqual([]);
     expect(wynik?.total).toBe(0);
     expect(wynik?.taxonomy.slug).toBe("analizy");
-    expect(baza().chainsFor("posts")).toHaveLength(0);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
   });
 
-  it("PUSTKA: null z pivotu jest traktowany jak brak przypisań", async () => {
-    planujArchiwum({ kind: "category", pivot: ok(null) });
+  it("PUSTKA: `data: null` z listy wpisów jest traktowane jak brak wpisów", async () => {
+    planujArchiwum({ kind: "category", wpisy: ok(null) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.posts).toEqual([]);
     expect(wynik?.total).toBe(0);
-  });
-
-  it("BŁĄD: odmowa na pivocie jest wyrzucana, a nie pokazywana jako archiwum bez treści", async () => {
-    planujArchiwum({ kind: "category", pivot: fail("odmowa odczytu przypisań") });
-    await expect(
-      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
-    ).rejects.toThrow("odmowa odczytu przypisań");
   });
 
   it("BŁĄD: odmowa na liście wpisów jest wyrzucana, mimo że taksonomia się rozwiązała", async () => {
@@ -674,7 +724,6 @@ describe("adresy wpisów w archiwum: batch page_full_paths", () => {
   it("wpisy pod tym samym rodzicem nie mnożą wywołań - identyfikatory są deduplikowane", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }, { post_id: "p3" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2"), wpis("p3")], 3),
     });
     await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
@@ -685,7 +734,6 @@ describe("adresy wpisów w archiwum: batch page_full_paths", () => {
   it("dwóch różnych rodziców trafia do jednego wywołania i do dwóch różnych adresów", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2", { parent_page_id: "str-inna" })], 2),
       sciezki: ok([
         { page_id: STRONA_RODZIC, full_path: SCIEZKA_RODZICA },
@@ -728,7 +776,6 @@ describe("adresy wpisów w archiwum: fallback per-id", () => {
   it("BŁĄD batcha przełącza na page_full_path per identyfikator (nazwa argumentu _page_id)", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2", { parent_page_id: "str-inna" })], 2),
       sciezki: fail("function page_full_paths does not exist", "42883"),
     });

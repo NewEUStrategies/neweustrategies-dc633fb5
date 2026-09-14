@@ -74,11 +74,15 @@ import {
   analysePublicRouteLoaders,
   FROZEN_COLD_CACHED_ROUTES,
   FROZEN_COLD_PUBLIC_ROUTES,
+  coldRouteRatchetFailed,
+  compareColdRouteRatchet,
+  renderColdRouteRatchet,
   renderPublicRouteLoaderReport,
   routesMissingWarmedLoader,
   type RouteFacts,
 } from "../src/lib/ci/publicRouteLoaders";
 import { PUBLIC_DOCUMENT_DENY_PREFIXES } from "../src/lib/http/documentCache";
+import { COLD_PUBLIC_ROUTE_BASELINE } from "./lib/coldPublicRouteBaseline";
 
 const SCAN_ROOT = "src";
 const ROUTE_TREE = "src/routeTree.gen.ts";
@@ -118,10 +122,14 @@ function collectSources(): Map<string, string> {
  * prefiksu języka - `routeTree.gen.ts` trzyma ścieżki gołe, a `/en` zdejmuje
  * `stripLangPrefix` po stronie runtime'u).
  */
-function entersEdgeCache(route: RouteFacts): boolean {
+function entersEdgeCachePath(fullPath: string): boolean {
   return !PUBLIC_DOCUMENT_DENY_PREFIXES.some(
-    (prefix) => route.fullPath === prefix || route.fullPath.startsWith(`${prefix}/`),
+    (prefix) => fullPath === prefix || fullPath.startsWith(`${prefix}/`),
   );
+}
+
+function entersEdgeCache(route: RouteFacts): boolean {
+  return entersEdgeCachePath(route.fullPath);
 }
 
 function main(): void {
@@ -159,6 +167,17 @@ function main(): void {
     console.log(`  deny    ${route.fullPath.padEnd(40)} [poza cache dokumentów]`);
   }
 
+  if (process.argv.includes("--print-baseline")) {
+    // Lista jest GENEROWANA, nigdy pisana ręcznie - dokładnie jak w
+    // `check-i18n-hardcoded.ts --print-baseline`.
+    console.log("");
+    console.log(RULE);
+    for (const route of [...missing].sort((a, b) => a.file.localeCompare(b.file))) {
+      console.log(`  ["${route.file}", "${route.fullPath}"],`);
+    }
+    return;
+  }
+
   if (!process.argv.includes("--gate")) return;
 
   console.log("");
@@ -174,6 +193,20 @@ function main(): void {
       `${cacheable.length} z nich wchodzi do NES Edge Cache przy zamrożonym ${FROZEN_CACHEABLE}`,
     );
   }
+  // RATCHET PER TRASA. Sufity wyżej pilnują OBJĘTOŚCI długu, ta lista - jego
+  // TOŻSAMOŚCI. Uzasadnienie (i trzy scenariusze kompensacji, które same sufity
+  // przepuszczają) stoi w nagłówku sekcji w `lib/ci/publicRouteLoaders.ts`.
+  const ratchet = compareColdRouteRatchet(report, COLD_PUBLIC_ROUTE_BASELINE);
+  console.log(renderColdRouteRatchet(ratchet, (fullPath) => entersEdgeCachePath(fullPath)));
+  if (ratchet.fresh.length > 0) {
+    failures.push(`${ratchet.fresh.length} tras spoza zamrożonej listy jest zimnych`);
+  }
+  if (ratchet.fixed.length > 0) {
+    failures.push(
+      `${ratchet.fixed.length} tras z listy jest już rozgrzanych, a lista i sufity tego nie odebrały`,
+    );
+  }
+
   if (failures.length > 0) {
     console.error(
       `✗ BRAMKA: ${failures.join("; ")}.\n` +

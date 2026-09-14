@@ -58,7 +58,12 @@ vi.mock("@/lib/billing/mockMode.server", () => ({
   paymentsConfiguredServer: () => false,
 }));
 
-vi.mock("@/lib/http/resolveReturnUrl", () => ({ resolveReturnUrl: (path: string) => path }));
+// Atrapa oddaje adres BEZWZGLĘDNY, bo gałąź trybu mock parsuje wynik przez
+// `new URL()` - odkąd i ona przechodzi przez bramkę adresu powrotu. Origin jest
+// tu nieistotny (plik dowodzi wiązania zgłoszenia, nie adresu), ale musi być.
+vi.mock("@/lib/http/resolveReturnUrl", () => ({
+  resolveReturnUrl: (path: string) => new URL(path, "https://kasa.example.org").toString(),
+}));
 
 vi.mock("@/lib/stripe.server", () => ({ resolveEnvironment: () => "sandbox" }));
 

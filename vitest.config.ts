@@ -7359,6 +7359,264 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+
+        // ── PRZESTRZEŃ ROBOCZA CZŁONKA (dok) - 32 PLIKI, WCZEŚNIEJ ZERO PROGÓW ──
+        //
+        // POWÓD, DLA KTÓREGO TEN BLOK ISTNIEJE. Przed 14.09.2026 ŻADEN z 32
+        // plików doku nie wpadał pod ANI JEDEN glob ani wpis w tym pliku
+        // (sprawdzone przeciw wszystkim 697 kluczom progów). Powierzchnia
+        // z szesnastoma plikami testowymi mogła więc zejść do 65% linii i nikt
+        // tego nie zobaczył: rama (powłoka, stan, geometria, ruch, SSR) była
+        // udowodniona, a ZAWARTOŚĆ - sześć paneli, w których użytkownik
+        // faktycznie pracuje - trzymała 238 z 263 niepokrytych wierszy.
+        //
+        // ZMIERZONE 2026-09-14 tym samym przebiegiem:
+        //   npx vitest run src/components/dock src/lib/dock --coverage.enabled \
+        //     --coverage.all --coverage.provider=istanbul \
+        //     --coverage.include='src/components/dock/**' \
+        //     --coverage.include='src/lib/dock/**'
+        // (21 plików testowych, 283 zielone + 6 it.fails, zero czerwonych).
+        // Całość doku: instrukcje 97,88 / gałęzie 96,40 / funkcje 98,99 /
+        // linie 98,15 - wobec 65,21 / 60,25 / 58,05 / 64,86 przed tą pracą.
+        // Pełna suita zawiera te same testy, więc daje na tych plikach NIE MNIEJ.
+        //
+        // Podłogi wg reguły z tego pliku: zmierzone minus ~2 pp, 100 -> 98.
+        // Progi ustawione na poziomie OSIĄGNIĘTYM, nie życzeniowym - zapadka ma
+        // trzymać to, co zrobiono, a nie blokować cudzy PR.
+        "src/components/dock/DockPanelShell.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 48,
+        },
+        "src/components/dock/NoteContextBinder.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 81,
+        },
+        "src/components/dock/WorkspaceDock.tsx": {
+          statements: 91,
+          functions: 89,
+          lines: 92,
+          branches: 86,
+        },
+        "src/components/dock/atoms/DockEmptyState.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/atoms/DockPanelSkeleton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/atoms/DockTabSeparator.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/atoms/PriorityChip.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/molecules/ExpandableTab.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/components/dock/molecules/MinimizedChats.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/organisms/CalendarPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/organisms/ChatSideDrawer.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/components/dock/organisms/NotesPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/organisms/SavedPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/organisms/TodoPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/dock/panelChunks.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/calendarGrid.ts": {
+          statements: 95,
+          functions: 98,
+          lines: 94,
+          branches: 98,
+        },
+        "src/lib/dock/dockMotion.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/dockState.ts": {
+          statements: 88,
+          functions: 98,
+          lines: 86,
+          branches: 81,
+        },
+        "src/lib/dock/keys.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/noteContext.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/prefetchDockData.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/queryPolicy.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/reservedSpace.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/lib/dock/types.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/useDockCalendar.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/useDockDismiss.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        "src/lib/dock/useDockPresence.ts": {
+          statements: 89,
+          functions: 98,
+          lines: 88,
+          branches: 85,
+        },
+        "src/lib/dock/useDockReservedSpace.ts": {
+          statements: 83,
+          functions: 85,
+          lines: 87,
+          branches: 64,
+        },
+        "src/lib/dock/useNotes.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/useReadLater.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/useSaved.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/dock/useTodos.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // ── WARSTWA HTTP I CI BEZ PROGÓW (defekty A1, A5, A8 + pomocnik A2) ──
+        //
+        // Cztery pliki dotknięte przez defekty tego PR-a nie miały ŻADNEGO progu,
+        // a defekt o najwyższej wadze (adres powrotu po płatności) leżał właśnie
+        // w tej warstwie. `taxonomyPivot.ts` jest nowy i wchodzi z progiem od razu,
+        // żeby nie powtórzyć tej samej historii.
+        //
+        // ZMIERZONE 2026-09-14: npx vitest run src/lib/http src/lib/ci/__tests__
+        //   src/lib/queries src/routes/__tests__ src/components/blocks --coverage...
+        // `publicRouteLoaders.ts` mierzone tym samym przebiegiem; pełna suita daje
+        // na nim nie mniej (analizator biegnie też z `check:ci-gates`).
+        "src/lib/ci/publicRouteLoaders.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 97,
+          branches: 94,
+        },
+        "src/lib/http/documentCache.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/http/parseCacheControl.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/http/resolveReturnUrl.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/queries/taxonomyPivot.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
       },
     },
   },

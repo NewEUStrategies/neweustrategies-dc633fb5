@@ -7,27 +7,36 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { CartPanel } from "@/components/cart/organisms/CartPanel";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { SITE_NAME } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
-  head: () => ({
-    meta: [
-      { title: "Mój koszyk - New European Strategies" },
-      {
-        name: "description",
-        content: "Bilety odłożone do zakupu: przejrzyj pozycje i dokończ płatność.",
-      },
-      { property: "og:title", content: "Mój koszyk - New European Strategies" },
-      {
-        property: "og:description",
-        content: "Bilety odłożone do zakupu: przejrzyj pozycje i dokończ płatność.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      // Koszyk jest osobisty - w indeksie nie ma czego pokazać.
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`, dokładnie jak
+    // `welcome.tsx`. Bez tego użytkownik z angielskim interfejsem dostawał polską
+    // kartę przeglądarki i polski podgląd linku przy udostępnieniu.
+    const lang = activeLang(getRequestUrl() || "/cart");
+    const title = lang === "en" ? `My cart - ${SITE_NAME}` : `Mój koszyk - ${SITE_NAME}`;
+    const description =
+      lang === "en"
+        ? "Tickets set aside for purchase: review the items and complete payment."
+        : "Bilety odłożone do zakupu: przejrzyj pozycje i dokończ płatność.";
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary" },
+        // Koszyk jest osobisty - w indeksie nie ma czego pokazać.
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
 });
 
 function CartPage() {
