@@ -17,8 +17,13 @@ import {
 } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { RELATED_TTL } from "@/lib/queries/relatedPostsConfig";
 
-const RELATED_TTL = 5 * 60_000;
+// Odczyt globalnej konfiguracji mieszka w `queries/relatedPostsConfig` - trasa
+// wpisu importuje go statycznie i nie może przez to wciągać silnika scoringu do
+// chunku wejściowego. Re-eksport zostaje, żeby konsumenci, którzy i tak liczą
+// (komponent rekomendacji, testy), mieli jedno miejsce importu.
+export { RELATED_TTL, relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPostsConfig";
 
 /**
  * Okno popularności. 28 dni to NIE jest dowolna stała: dokładnie ten okres
@@ -33,33 +38,6 @@ const POPULARITY_WINDOW_DAYS = 28;
 
 /** Twardy sufit `trending_posts` - funkcja i tak klamruje do 50. */
 const POPULARITY_SAMPLE = 50;
-
-/**
- * Konfiguracja rekomendacji tenanta PRZEGLĄDANEGO (płaszczyzna publiczna).
- *
- * Czyta przez `get_related_posts_config()`, a nie przez `select().limit(1)`.
- * Dlaczego: polityki SELECT na tabeli sumują się (OR) - publiczna po
- * `public_tenant_id()` i edytorska po `current_tenant_id()`. Zalogowany
- * admin/edytor tenanta A, który przegląda domenę tenanta B, spełniał OBIE, więc
- * `limit(1)` mógł zwrócić wiersz TENANTA A i publiczna strona tenanta B
- * renderowała się cudzą konfiguracją. Funkcja zwraca wyłącznie wiersz tenanta
- * przeglądanego, więc odczyt jest deterministyczny i izolowany.
- *
- * Klucz zapytania celowo NIE zawiera tenanta - prefetch SSR i render kliencki
- * muszą trafiać w ten sam wpis cache (patrz components/blocks/renderer/tenant.tsx).
- */
-export const relatedPostsConfigQueryOptions = () =>
-  queryOptions({
-    queryKey: ["public", "related-posts-config"] as const,
-    queryFn: async (): Promise<RelatedPostsConfig> => {
-      const { data, error: dataError } = await supabase.rpc("get_related_posts_config");
-      if (dataError) throw dataError;
-      const row = Array.isArray(data) ? data[0] : null;
-      if (!row) return RELATED_POSTS_DEFAULTS;
-      return { ...RELATED_POSTS_DEFAULTS, ...(row as Partial<RelatedPostsConfig>) };
-    },
-    staleTime: RELATED_TTL,
-  });
 
 /**
  * Strojenie silnika v2 - dokładnie te pola, którymi steruje /admin/related-posts.
