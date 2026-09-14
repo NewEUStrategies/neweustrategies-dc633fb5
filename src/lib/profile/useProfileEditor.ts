@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 type Gender = "male" | "female" | "neutral";
 
@@ -182,7 +183,7 @@ export function useProfileEditor() {
         });
 
         const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
-        const publicUrl = pub.publicUrl;
+        const publicUrl = brandedMediaUrl(pub.publicUrl);
         const field: keyof ProfileEditorRow = kind === "avatar" ? "avatar_url" : "cover_url";
         await saveField(field, publicUrl);
         setStatus((s) => ({ ...s, [kind]: "success" }));

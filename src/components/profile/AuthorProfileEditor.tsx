@@ -42,6 +42,7 @@ import { useExpertLayoutSettings } from "@/hooks/useExpertLayoutSettings";
 import { EXPERT_LAYOUT_PRESETS } from "@/lib/expertLayouts";
 import "@/lib/i18n-experts";
 import { MediaMentionsSection } from "@/components/profile/MediaMentionsSection";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 const SpotifyFallback: ComponentType<{ className?: string } & SVGAttributes<SVGSVGElement>> = ({
   className,
@@ -325,7 +326,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         xhr.send(blob);
       });
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
-      setData((d) => ({ ...d, avatar_url: pub.publicUrl }));
+      setData((d) => ({ ...d, avatar_url: brandedMediaUrl(pub.publicUrl) }));
       toast.success(t("profile.account.uploadSuccess"));
     } catch {
       toast.error(t("profile.account.uploadError"));

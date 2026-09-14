@@ -2,6 +2,7 @@
 // Używane przez admin route oraz przez OptimizedImage/lightbox do
 // generowania URL-i wariantów obrazu (Supabase Storage transforms).
 import { supabase } from "@/integrations/supabase/client";
+import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 
 export interface CropSize {
   id: string;
@@ -68,7 +69,16 @@ export function buildTransformedImageUrl(
   if (!src) return src;
   const resize = size.resize ?? "cover";
   try {
-    const url = new URL(src);
+    const url = new URL(src, PUBLIC_MEDIA_ORIGIN);
+    // Markowy adres `/media/<ścieżka>` obsługuje te same warianty rozmiarowe -
+    // trasa `/media/$` przepisuje je na transformację obrazu w magazynie.
+    if (url.pathname.startsWith("/media/")) {
+      url.searchParams.set("width", String(size.width));
+      url.searchParams.set("height", String(size.height));
+      url.searchParams.set("resize", resize);
+      url.searchParams.set("quality", String(IMAGE_QUALITY));
+      return src.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
+    }
     if (url.pathname.includes("/storage/v1/object/public/")) {
       url.pathname = url.pathname.replace(
         "/storage/v1/object/public/",
@@ -92,8 +102,9 @@ export function buildTransformedImageUrl(
 export function isSupabaseStorageUrl(src: string): boolean {
   if (!src) return false;
   try {
-    const { pathname } = new URL(src);
+    const { pathname } = new URL(src, PUBLIC_MEDIA_ORIGIN);
     return (
+      pathname.startsWith("/media/") ||
       pathname.includes("/storage/v1/object/public/") ||
       pathname.includes("/storage/v1/render/image/public/")
     );
@@ -109,7 +120,16 @@ export function isSupabaseStorageUrl(src: string): boolean {
 export function buildScaledImageUrl(src: string, width: number, quality = IMAGE_QUALITY): string {
   if (!src) return src;
   try {
-    const url = new URL(src);
+    const url = new URL(src, PUBLIC_MEDIA_ORIGIN);
+    // Markowy adres `/media/<ścieżka>` obsługuje te same warianty rozmiarowe -
+    // trasa `/media/$` przepisuje je na transformację obrazu w magazynie.
+    if (url.pathname.startsWith("/media/")) {
+      url.searchParams.set("width", String(size.width));
+      url.searchParams.set("height", String(size.height));
+      url.searchParams.set("resize", resize);
+      url.searchParams.set("quality", String(IMAGE_QUALITY));
+      return src.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
+    }
     if (url.pathname.includes("/storage/v1/object/public/")) {
       url.pathname = url.pathname.replace(
         "/storage/v1/object/public/",

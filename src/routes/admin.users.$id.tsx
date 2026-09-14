@@ -74,6 +74,7 @@ import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
 import { adminToast } from "@/lib/adminToasts";
 import { uiLocale } from "@/lib/i18n/format";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
@@ -570,7 +571,7 @@ function AvatarEditor({
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
       const { error: updErr } = await supabase.rpc("admin_update_user_avatar", {
         _user_id: userId,
-        _avatar_url: pub.publicUrl,
+        _avatar_url: brandedMediaUrl(pub.publicUrl),
       });
       if (updErr) throw updErr;
       toast.success(adminToast.saved());

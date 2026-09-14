@@ -5,16 +5,42 @@ import { mediaStoragePath } from "@/lib/media/publicUrl";
 
 const PASSTHROUGH_HEADERS = ["content-type", "content-length", "etag", "last-modified"] as const;
 
+/**
+ * Warianty rozmiarowe muszą działać pod markową domeną - inaczej miniatury
+ * cofałyby się do technicznego hosta magazynu. Przepisujemy więc `width`,
+ * `height`, `resize` i `quality` na endpoint transformacji obrazu.
+ */
+function imageTransform(url: URL): URLSearchParams | null {
+  const width = Number(url.searchParams.get("width") ?? "");
+  const height = Number(url.searchParams.get("height") ?? "");
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const resize = url.searchParams.get("resize");
+  const quality = Number(url.searchParams.get("quality") ?? "");
+  const params = new URLSearchParams({
+    width: String(Math.min(Math.round(width), 4000)),
+    height: String(Math.min(Math.round(height), 4000)),
+  });
+  if (resize === "cover" || resize === "contain" || resize === "fill") params.set("resize", resize);
+  if (Number.isFinite(quality) && quality >= 20 && quality <= 100) {
+    params.set("quality", String(Math.round(quality)));
+  }
+  return params;
+}
+
 async function serveMedia(request: Request, splat: string): Promise<Response> {
   const storagePath = mediaStoragePath(`/media/${splat}`);
   const storageOrigin = process.env.SUPABASE_URL;
   if (!storagePath || !storageOrigin) return new Response("Not found", { status: 404 });
 
+  const transform = imageTransform(new URL(request.url));
+  const encodedPath = storagePath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
   const upstream = new URL(
-    `/storage/v1/object/public/media/${storagePath
-      .split("/")
-      .map((segment) => encodeURIComponent(segment))
-      .join("/")}`,
+    transform
+      ? `/storage/v1/render/image/public/media/${encodedPath}?${transform.toString()}`
+      : `/storage/v1/object/public/media/${encodedPath}`,
     storageOrigin,
   );
   const response = await fetch(upstream, {

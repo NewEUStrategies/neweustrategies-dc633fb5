@@ -39,6 +39,7 @@ import {
 } from "@/lib/admin/invitations.functions";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useServerFn } from "@tanstack/react-start";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import {
   initialsFromNameParts,
   isLinkedInInputValid,
@@ -156,7 +157,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
         .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
       if (error) throw error;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
-      setPhoto(data.publicUrl);
+      setPhoto(brandedMediaUrl(data.publicUrl));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {

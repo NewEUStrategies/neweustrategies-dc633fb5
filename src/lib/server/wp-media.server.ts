@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { BuilderDocument, WidgetContent, Json, ColumnNode } from "@/lib/builder/types";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 const ALLOWED_MIME = new Set<string>([
   "image/jpeg",
@@ -194,7 +195,7 @@ export async function mirrorWpMedia(opts: MirrorOptions): Promise<MirrorResult> 
         continue;
       }
       const { data: pub } = admin.storage.from("media").getPublicUrl(storagePath);
-      const publicUrl = pub.publicUrl;
+      const publicUrl = brandedMediaUrl(pub.publicUrl);
       // Wstaw wiersz user-scoped clientem, tenant guard poprzez RLS.
       const { data: row, error: insErr } = await opts.supabase
         .from("media")
