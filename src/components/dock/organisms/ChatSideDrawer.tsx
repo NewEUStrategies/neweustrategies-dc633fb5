@@ -30,7 +30,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 
 import {
   loadChatWindow,
@@ -53,6 +53,7 @@ import {
 } from "@/lib/chat/useConversations";
 import { useMyExpertRequests } from "@/lib/chat/useExpertRequests";
 import { minimizedChatsStore, useMinimizedChats } from "@/lib/chat/minimizedChats";
+import { useMobileRouteDismiss } from "@/lib/chat/useMobileRouteDismiss";
 import type { ChatLang } from "@/lib/chat/time";
 import type { DockPresenceState } from "@/lib/dock/dockMotion";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
