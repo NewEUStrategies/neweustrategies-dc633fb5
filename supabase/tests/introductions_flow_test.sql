@@ -28,7 +28,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(13);
+SELECT plan(15);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -124,6 +124,13 @@ SELECT is(
 -- Trójka R2 -> B2 -> T2 z ZAAKCEPTOWANYMI relacjami R2-B2 i B2-T2, bo bez nich
 -- funkcja odpada na wcześniejszym warunku i test bramki prywatności mierzyłby
 -- kształt trójkąta, a nie prywatność.
+--
+-- `RESET ROLE` PRZED fiksturą: wyżej stoi już `SET LOCAL ROLE authenticated`,
+-- a `authenticated` nie ma prawa pisać do `auth.users` (i nie ma go mieć -
+-- to konto aplikacji, nie migracji). Bez tego cała sekcja pada na
+-- "permission denied for table users", zanim dojdzie do pierwszej asercji.
+RESET ROLE;
+
 INSERT INTO auth.users (id, email) VALUES
   ('d0000000-0000-0000-0000-0000000000a2', 'r2@intro.test'),
   ('d0000000-0000-0000-0000-0000000000b2', 'b2@intro.test'),
@@ -251,6 +258,71 @@ SELECT throws_ok(
       'Prosze o wprowadzenie do celu w sprawie energii.')$$,
   'connections: peer not available',
   'bramka: cel z allow_connections_from = nobody - TEN SAM komunikat'
+);
+
+-- ── LIMIT DOBOWY NIE MOŻE ZJEŚĆ POWTÓRZENIA ────────────────────────────────
+--
+-- Znalezione w przeglądzie PR #361 (Codex, P2): sprawdzenie limitu stało PRZED
+-- wyszukaniem istniejącego wiersza, więc proszący z pięcioma oczekującymi
+-- prośbami, ponawiając trójkę, KTÓRA JEST JUŻ WŚRÓD TYCH PIĘCIU, dostawał
+-- 'rate limited' zamiast identyfikatora. Obietnica bezszkodliwego powtórzenia
+-- pękała dokładnie na granicy limitu - czyli tam, gdzie użytkownik ponawia
+-- najczęściej (zgubiona odpowiedź, druga karta).
+--
+-- Oba twierdzenia stoją razem, bo dopiero para czyni z tego kontrakt:
+-- powtórzenie MA przechodzić, a nowa prośba ponad limitem MA odpadać.
+RESET ROLE;
+INSERT INTO auth.users (id, email)
+  SELECT ('d9000000-0000-0000-0000-00000000000' || g)::uuid, 'q' || g || '@intro.test'
+    FROM generate_series(1, 8) g;
+INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable)
+  SELECT ('d9000000-0000-0000-0000-00000000000' || g)::uuid, 'q' || g || '@intro.test',
+         'Limit ' || g, 'd1a11111-1111-1111-1111-111111111111', true
+    FROM generate_series(1, 8) g;
+INSERT INTO public.user_connections
+  (tenant_id, requester_id, addressee_id, status, responded_at)
+  SELECT 'd1a11111-1111-1111-1111-111111111111',
+         'd9000000-0000-0000-0000-000000000002',
+         ('d9000000-0000-0000-0000-00000000000' || g)::uuid, 'accepted', now()
+    FROM generate_series(3, 8) g;
+INSERT INTO public.user_connections
+  (tenant_id, requester_id, addressee_id, status, responded_at) VALUES
+  ('d1a11111-1111-1111-1111-111111111111',
+   'd9000000-0000-0000-0000-000000000001', 'd9000000-0000-0000-0000-000000000002',
+   'accepted', now());
+-- Pięć oczekujących prośb = dokładnie limit dobowy.
+INSERT INTO public.introduction_requests
+  (tenant_id, requester_id, bridge_id, target_id, message, status)
+  SELECT 'd1a11111-1111-1111-1111-111111111111',
+         'd9000000-0000-0000-0000-000000000001',
+         'd9000000-0000-0000-0000-000000000002',
+         ('d9000000-0000-0000-0000-00000000000' || g)::uuid,
+         'Prosba numer ' || g || ' o wprowadzenie do celu.', 'pending'
+    FROM generate_series(3, 7) g;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d9000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+
+SELECT is(
+  (SELECT public.request_introduction(
+      'd9000000-0000-0000-0000-000000000002',
+      'd9000000-0000-0000-0000-000000000003',
+      'Ponowienie tej samej prosby po zgubionej odpowiedzi.')),
+  (SELECT id FROM public.introduction_requests
+    WHERE requester_id = 'd9000000-0000-0000-0000-000000000001'
+      AND target_id = 'd9000000-0000-0000-0000-000000000003'
+      AND status = 'pending'),
+  'limit: powtórzenie trójki NA GRANICY limitu zwraca istniejące id, nie błąd'
+);
+
+SELECT throws_ok(
+  $$SELECT public.request_introduction(
+      'd9000000-0000-0000-0000-000000000002',
+      'd9000000-0000-0000-0000-000000000008',
+      'Zupelnie nowa prosba ponad limitem dobowym.')$$,
+  'rate limited',
+  'limit: NOWA prośba ponad limitem nadal odpada (kolejność nie luzuje kwoty)'
 );
 
 SELECT * FROM finish();

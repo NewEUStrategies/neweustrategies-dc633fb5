@@ -53,7 +53,8 @@ INSERT INTO auth.users (id, email) VALUES
   ('e0000000-0000-0000-0000-0000000000a1', 'hub@notify.test'),
   ('e0000000-0000-0000-0000-0000000000a2', 'actor@notify.test'),
   ('e0000000-0000-0000-0000-0000000000a3', 'target@notify.test'),
-  ('e0000000-0000-0000-0000-0000000000a4', 'silent@notify.test');
+  ('e0000000-0000-0000-0000-0000000000a4', 'silent@notify.test'),
+  ('e0000000-0000-0000-0000-0000000000a5', 'target2@notify.test');
 
 INSERT INTO public.profiles (id, email, display_name, slug, tenant_id) VALUES
   ('e0000000-0000-0000-0000-0000000000a1', 'hub@notify.test', 'Anna Hub', 'anna-hub',
@@ -63,14 +64,17 @@ INSERT INTO public.profiles (id, email, display_name, slug, tenant_id) VALUES
   ('e0000000-0000-0000-0000-0000000000a3', 'target@notify.test', 'Maria Cel', 'maria-cel',
    'e1111111-1111-1111-1111-1111111100aa'),
   ('e0000000-0000-0000-0000-0000000000a4', 'silent@notify.test', 'Jan Cichy', 'jan-cichy',
-   'e1111111-1111-1111-1111-1111111100aa');
+   'e1111111-1111-1111-1111-1111111100aa'),
+  ('e0000000-0000-0000-0000-0000000000a5', 'target2@notify.test', 'Ewa Cel Druga',
+   'ewa-cel-druga', 'e1111111-1111-1111-1111-1111111100aa');
 
 -- Komplet flag na true (kolumny mają DEFAULT true).
 INSERT INTO public.notification_preferences (user_id, tenant_id) VALUES
   ('e0000000-0000-0000-0000-0000000000a1', 'e1111111-1111-1111-1111-1111111100aa'),
   ('e0000000-0000-0000-0000-0000000000a2', 'e1111111-1111-1111-1111-1111111100aa'),
   ('e0000000-0000-0000-0000-0000000000a3', 'e1111111-1111-1111-1111-1111111100aa'),
-  ('e0000000-0000-0000-0000-0000000000a4', 'e1111111-1111-1111-1111-1111111100aa');
+  ('e0000000-0000-0000-0000-0000000000a4', 'e1111111-1111-1111-1111-1111111100aa'),
+  ('e0000000-0000-0000-0000-0000000000a5', 'e1111111-1111-1111-1111-1111111100aa');
 
 -- `notify_profile_welcome` (20260711212733) wita KAŻDY nowy profil wpisem
 -- rodzaju 'system'. Asercje ciszy poniżej są celowo bez filtra po rodzaju -
@@ -115,7 +119,16 @@ SELECT is(
 -- ── 2. WPROWADZENIA ─────────────────────────────────────────────────────────
 -- i1: u2 prosi u1 o wprowadzenie do u3 (ścieżka przekazania).
 -- i2: u4 prosi u1 o wprowadzenie do u2 (ścieżka CICHEJ odmowy).
--- i3: u2 prosi u1 ponownie (ścieżka wycofania).
+-- i3: u2 prosi u1 o wprowadzenie do u5 (ścieżka wycofania).
+--
+-- i3 CELUJE W INNĄ OSOBĘ NIŻ i1 i to jest zmiana wymuszona przez
+-- 20260913171000, a nie kosmetyka. Obie prośby miały wcześniej tę SAMĄ trójkę
+-- (u2, u1, u3) w stanie `pending`, czyli fikstura kodowała dokładnie ten stan,
+-- który indeks `introduction_requests_active_uidx` wyklucza jako defekt: jedna
+-- aktywna prośba na trójkę. Rozdzielony jest CEL, bo obie asercje niżej mówią
+-- wyłącznie o tym, co dostaje MOST (u1) - pozostają więc dosłownie tym samym
+-- twierdzeniem, co przed zmianą. Nowy u5 jest osobnym użytkownikiem, a nie
+-- ponownym użyciem u4, żeby nie mieszać się z asercją "u4 nie dostaje NIC".
 
 INSERT INTO public.introduction_requests
   (id, tenant_id, requester_id, bridge_id, target_id, message, status) VALUES
@@ -127,7 +140,7 @@ INSERT INTO public.introduction_requests
    'e0000000-0000-0000-0000-0000000000a2', 'Druga prosba, ta zostanie odrzucona.', 'pending'),
   ('e2220000-0000-0000-0000-000000000003', 'e1111111-1111-1111-1111-1111111100aa',
    'e0000000-0000-0000-0000-0000000000a2', 'e0000000-0000-0000-0000-0000000000a1',
-   'e0000000-0000-0000-0000-0000000000a3', 'Trzecia prosba, ta zostanie wycofana.', 'pending');
+   'e0000000-0000-0000-0000-0000000000a5', 'Trzecia prosba, ta zostanie wycofana.', 'pending');
 
 SELECT is(
   (SELECT count(*) FROM public.notifications n
