@@ -23453,6 +23453,7 @@ export type Database = {
           connection_id: string
           degree: number
           mutual_count: number
+          mutual_visible_count: number
           status: string
           user_id: string
         }[]
@@ -23472,6 +23473,7 @@ export type Database = {
           job_title: string
           location: string
           mutual_count: number
+          mutual_visible_count: number
           open_to: string[]
           shared_events: number
           shared_follows: number
