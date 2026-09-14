@@ -1118,7 +1118,12 @@ describe("LoginPopupHost - first interaction", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Preserved context");
     fireEvent.click(closeButton());
     expect(screen.queryByRole("dialog")).toBeNull();
-    h.settings = { ...h.settings, custom_login_url: "/custom-login" };
+    h.settings = { ...h.settings, popup_enabled: false, custom_login_url: "/custom-login" };
+    view.rerender(<LoginPopupHost />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(h.assign).not.toHaveBeenCalled();
+    h.settings = { ...h.settings, popup_enabled: true };
     view.rerender(<LoginPopupHost />);
     expect(screen.queryByRole("dialog")).toBeNull();
     openPopup({ mode: "signin", title: "Second click" });

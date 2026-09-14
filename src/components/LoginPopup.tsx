@@ -28,7 +28,7 @@ import { toast } from "sonner";
 
 type Mode = "signin" | "signup";
 
-export function LoginPopup({ request }: { request?: LoginPopupOptions } = {}) {
+export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
   const handledRequest = useRef<LoginPopupOptions | null>(null);
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
