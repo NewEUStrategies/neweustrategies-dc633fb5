@@ -94,9 +94,12 @@ export function TabsBlock({
 
   const rowJustify = ALIGN_JUSTIFY[tabAlign] ?? ALIGN_JUSTIFY.left;
   const isJustify = tabAlign === "justify";
+  // Mobile: zakładki zawijają się i dzielą szerokość po równo (2 w rzędzie),
+  // więc nic nie jest przycinane; overflow-x-auto tylko od sm w górę, gdy
+  // etykiety wracają do układu poziomego. flex-1 dla justify zostaje.
   return (
     <div role="tablist" aria-label="Tabs" className="space-y-3">
-      <div className={`flex gap-1 border-b border-border overflow-x-auto ${rowJustify}`}>
+      <div className={`flex flex-wrap gap-1 border-b border-border sm:overflow-x-auto ${rowJustify}`}>
         {tabs.map((t, i) => (
           <button
             key={`${nodeId}-${i}`}
@@ -104,8 +107,8 @@ export function TabsBlock({
             aria-selected={i === safe}
             type="button"
             onClick={() => setActive(i)}
-            className={`px-4 py-2 text-sm font-bold border-b-2 -mb-px transition ${
-              isJustify ? "flex-1 text-center" : ""
+            className={`min-w-0 flex-1 basis-[45%] px-3 py-2 text-sm font-bold border-b-2 -mb-px transition sm:basis-auto sm:px-4 ${
+              isJustify ? "sm:flex-1 text-center" : "sm:flex-none"
             } ${
               i === safe
                 ? "border-brand text-foreground"
