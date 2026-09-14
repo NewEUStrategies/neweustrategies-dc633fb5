@@ -34,6 +34,35 @@ export interface RobotsGroup {
   readonly disallow: readonly string[];
   /** Wyjątki wewnątrz zakazu (dłuższy wzorzec Allow wygrywa nad Disallow). */
   readonly allow?: readonly string[];
+  /**
+   * Content Signals (`search=`, `ai-input=`, `ai-train=`) - maszynowe
+   * rozróżnienie POMIĘDZY indeksowaniem, cytowaniem w odpowiedzi asystenta i
+   * trenowaniem modelu. `Allow: /` tego nie wyraża: dla klasycznego crawlera
+   * znaczy "indeksuj", a bot AI czytał je jako zgodę na wszystko naraz.
+   */
+  readonly contentSignal?: string;
+  /** Komentarze poprzedzające grupę (warunki cytowania czytane przez ludzi). */
+  readonly comments?: readonly string[];
+}
+
+/**
+ * Warunki wykorzystania treści - blok czytany przez ludzi i przez asystenty AI,
+ * które sięgają po robots.txt razem ze stroną.
+ *
+ * PO CO, skoro `Allow: /` już wpuszcza boty: zgoda na indeksowanie i cytowanie
+ * jest tu WARUNKOWA - wolno zacytować, jeżeli odpowiedź nazywa serwis i podaje
+ * odnośnik do materiału. Bez zapisanego warunku nie ma czego dochodzić: operator
+ * modelu może twierdzić, że plik nie stawiał żadnych wymagań.
+ */
+export interface RobotsUsagePolicy {
+  /** Nazwa, którą asystent ma podać jako źródło. */
+  readonly siteName: string;
+  /** Adres pełnych warunków (np. /llms.txt) - absolutny albo ścieżka. */
+  readonly termsPath?: string;
+  /** Czy trenowanie modeli na treści jest dozwolone (wpływa na `ai-train`). */
+  readonly trainingAllowed: boolean;
+  /** Czy asystenty AI mogą w ogóle czytać treść do odpowiedzi. */
+  readonly aiInputAllowed: boolean;
 }
 
 export interface RobotsInput {
