@@ -308,6 +308,39 @@ describe("processPushJobs", () => {
     expect(rpcs("report_push_job")).toHaveLength(0);
   });
 
+  // Zadanie trafia do kolejki WYŁĄCZNIE wtedy, gdy trigger
+  // tg_notifications_enqueue_push zobaczył żywą subskrypcję odbiorcy (szukając
+  // jej po samym user_id). Zero urządzeń u dyspozytora, który szuka po parze
+  // (tenant_id, user_id), nie jest więc stanem normalnym, tylko dowodem, że
+  // najemca subskrypcji rozjechał się z najemcą profilu - a taki wiersz idzie
+  // w 'dead' bez ani jednej próby wysyłki i w logu wygląda jak pusta kolejka.
+  it("zero urządzeń mimo zakolejkowanego zadania jest nazwane w logu", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.state.jobs = [job(1, { tenant_id: TENANT_A })];
+    // Subskrypcja odbiorcy ISTNIEJE i żyje, ale nosi najemcę innej witryny -
+    // filtr tenanta w zapytaniu jej nie zwróci.
+    h.state.subscriptions = [];
+
+    await processPushJobs();
+
+    const message = warn.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(message).toContain("bez ani jednego urzadzenia");
+    expect(message).toContain(`${TENANT_A}|${USER}`);
+    warn.mockRestore();
+  });
+
+  it("komplet urządzeń nie zapala tripwire'a kontraktu", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.state.jobs = [job(1)];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+
+    await processPushJobs();
+
+    const message = warn.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(message).not.toContain("bez ani jednego urzadzenia");
+    warn.mockRestore();
+  });
+
   it("ten sam martwy endpoint w wielu zadaniach to JEDNO RPC oznaczenia", async () => {
     h.state.jobs = [job(1), job(2), job(3)];
     h.state.subscriptions = [device("https://fcm.example/dead")];
