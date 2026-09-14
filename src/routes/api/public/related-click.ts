@@ -92,8 +92,19 @@ export const Route = createFileRoute("/api/public/related-click")({
         //
         //  1. LICZNIK SUMOWAŁ RUCH WSZYSTKICH NAJEMCÓW. Aktywny najemca
         //     wyczerpywał limit czytelnikom cudzego serwisu - i był to defekt
-        //     izolacji, nie wydajności: zapytanie bez `tenant_id` łamie regułę,
-        //     którą pilnuje bramka `check:sql-tenant-scope`.
+        //     izolacji, nie wydajności.
+        //
+        //     CO TEGO PILNUJE, A CO NIE. Zawężenie trzymają DWA przypadki
+        //     w `-related-click.test.ts`: „30 klików tego samego widza w oknie
+        //     5 min kończy się 429" oraz „kliki tego samego widza u INNEGO
+        //     najemcy nie wyczerpują limitu". I tyle. Bramka
+        //     `check:sql-tenant-scope` tej ścieżki NIE widzi: czyta wyłącznie
+        //     ciała funkcji SECURITY DEFINER z `supabase/migrations/`
+        //     (`MIGRATIONS_DIR` w `scripts/lib/sqlMigrations.ts`), więc
+        //     zapytania PostgREST w TypeScripcie są poza jej zasięgiem - tak
+        //     samo jak poza zasięgiem pozostałych bramek `check:sql-*`.
+        //     Usunięcie `.eq("tenant_id", ...)` niżej przejdzie KAŻDĄ bramkę
+        //     statyczną w tym repozytorium; zatrzymać je ma wyłącznie ten test.
         //  2. ZAPYTANIE NIE MIAŁO PASUJĄCEGO INDEKSU. Wszystkie trzy indeksy
         //     `related_post_clicks` prowadzą `tenant_id` jako pierwszą kolumnę,
         //     więc predykat po samym `viewer_hash` schodził do przeglądu całej,

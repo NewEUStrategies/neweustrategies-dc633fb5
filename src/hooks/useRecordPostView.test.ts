@@ -119,7 +119,10 @@ describe("useRecordPostView - bramka zgody analitycznej", () => {
 // przestawał liczyć odsłonę i kasował `viewer_hash`, a mimo to dalej dopisywał
 // do profilu zachowania konkretnej osoby - co i kiedy przeczytała. Mock upsertu
 // istniał w tym pliku od początku i nie był asertowany ANI RAZU, więc decyzja
-// nigdy nie została utrwalona. Te trzy przypadki ją utrwalają.
+// nigdy nie została utrwalona. Utrwalają ją przypadki niżej - CZTERY, bo
+// czwarty pilnuje ASYMETRII: autor nie nabija odsłony, ale swoją historię
+// czytania zapisuje. Liczba jest tu istotna, nie ozdobna: bez tego czwartego
+// przypadku regresja obejmująca oba zapisy jednym `if (!isAuthor)` przejdzie.
 describe("useRecordPostView - historia czytania pod tą samą bramką zgody", () => {
   const USER = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
