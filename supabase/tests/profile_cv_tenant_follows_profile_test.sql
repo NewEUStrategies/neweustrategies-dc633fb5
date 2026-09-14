@@ -19,6 +19,11 @@
 -- spójnością: mają klucz obcy do `profile_skills`, więc gdyby nie szły za
 -- profilem, najemca poparcia rozjechałby się z najemcą własnej umiejętności.
 --
+-- Asercja 13 przybija GRANICĘ tej naprawy: `profile_badges` CELOWO nie podąża.
+-- Odznaka ma `granted_by` i `grant_source` - jest wyróżnieniem NADANYM przez
+-- obszar roboczy, bliżej `user_roles` niż wpisu w CV. Przeniesienie jej
+-- udawałoby, że nowy najemca kogoś zweryfikował, choć tego nie zrobił.
+--
 -- Bliźniacze pliki tej samej klasy: push_and_digest_test.sql (sekcja 6),
 -- author_profiles_owner_tenant_scope_test.sql (asercje 18-19),
 -- media_mentions_tenant_follows_profile_test.sql.
@@ -26,7 +31,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(12);
+SELECT plan(13);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -82,6 +87,11 @@ VALUES ('cf000000-0000-0000-0000-0000000000a1', 'cf000000-0000-0000-0000-0000000
 INSERT INTO public.profile_embeddings (profile_id, tenant_id, content_hash, embedding)
 VALUES ('cf000000-0000-0000-0000-0000000000a1', 'cf111111-1111-1111-1111-111111111111',
         'hash-1', array_fill(0.1::double precision, ARRAY[768])::extensions.vector);
+
+-- Odznaka nadana przez STARY obszar roboczy - kontrola granicy (asercja 13).
+INSERT INTO public.profile_badges (user_id, tenant_id, badge, granted_by)
+VALUES ('cf000000-0000-0000-0000-0000000000a1', 'cf111111-1111-1111-1111-111111111111',
+        'verified', 'cf000000-0000-0000-0000-0000000000b1');
 
 -- ── (1) Kształt: polityki właściciela NADAL wiążą najemcę ────────────────────
 -- Naprawa dryfu nie może być pretekstem do rozluźnienia izolacji. Ta asercja
@@ -196,6 +206,19 @@ SELECT is(
     WHERE profile_id = 'cf000000-0000-0000-0000-0000000000a1'),
   'cf222222-2222-2222-2222-222222222222'::uuid,
   'wektor semantyczny idzie za profilem (wyszukiwalnosc i izolacja naraz)'
+);
+
+-- ── (13) GRANICA: odznaka NIE idzie za kontem ───────────────────────────────
+-- Ta asercja oblewa, gdy ktos dopisze profile_badges do
+-- tg_profiles_repin_account_tenant "dla spojnosci z reszta profilu". Odznaka
+-- to wyroznienie NADANE przez obszar roboczy (granted_by, grant_source), a nie
+-- dane osoby: przeniesienie jej udawaloby, ze nowy najemca kogos zweryfikowal.
+-- Jesli decyzja produktowa kiedys sie zmieni, trzeba tu wpisac nowy stan.
+SELECT is(
+  (SELECT tenant_id FROM public.profile_badges
+    WHERE user_id = 'cf000000-0000-0000-0000-0000000000a1'),
+  'cf111111-1111-1111-1111-111111111111'::uuid,
+  'odznaka CELOWO zostaje przy najemcy, ktory ja nadal'
 );
 
 SELECT * FROM finish();
