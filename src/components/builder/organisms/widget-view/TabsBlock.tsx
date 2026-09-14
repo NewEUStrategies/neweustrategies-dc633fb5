@@ -69,7 +69,7 @@ export function TabsBlock({
         aria-orientation="vertical"
         className="flex flex-col gap-4 md:flex-row md:gap-6"
       >
-        <div className="flex flex-row overflow-x-auto md:w-56 md:shrink-0 md:flex-col md:overflow-visible md:border-r md:border-border">
+        <div className="flex flex-row flex-wrap md:w-56 md:shrink-0 md:flex-col md:overflow-visible md:border-r md:border-border">
           {tabs.map((t, i) => (
             <button
               key={`${nodeId}-${i}`}
@@ -77,7 +77,7 @@ export function TabsBlock({
               aria-selected={i === safe}
               type="button"
               onClick={() => setActive(i)}
-              className={`px-4 py-2 text-sm font-bold transition text-left md:border-r-2 md:-mr-px border-b-2 md:border-b-0 ${
+              className={`min-w-0 flex-1 basis-[45%] px-3 py-2 text-sm font-bold transition text-center md:flex-none md:basis-auto md:px-4 md:text-left md:border-r-2 md:-mr-px border-b-2 md:border-b-0 ${
                 i === safe
                   ? "border-brand text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
