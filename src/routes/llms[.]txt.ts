@@ -6,6 +6,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
