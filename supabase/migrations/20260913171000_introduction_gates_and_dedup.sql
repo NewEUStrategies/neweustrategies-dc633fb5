@@ -113,16 +113,23 @@ BEGIN
     RAISE EXCEPTION 'connections: peer not available';
   END IF;
 
-  IF (SELECT COUNT(*) FROM public.introduction_requests
-       WHERE requester_id = auth.uid() AND status = 'pending'
-         AND created_at > now() - INTERVAL '24 hours') >= 5 THEN
-    RAISE EXCEPTION 'rate limited'; END IF;
-
-  -- Ścieżka zwykła: prośba do tej samej trójki już czeka.
+  -- Ścieżka zwykła: prośba do tej samej trójki już czeka. Stoi PRZED limitem
+  -- i to jest istotne, a nie kosmetyczne: przy pięciu oczekujących prośbach
+  -- powtórzenie trójki, KTÓRA JEST JUŻ WŚRÓD TYCH PIĘCIU, dostawałoby
+  -- 'rate limited' zamiast identyfikatora istniejącego wiersza. Obietnica
+  -- bezszkodliwego powtórzenia pękałaby dokładnie na granicy limitu - czyli
+  -- tam, gdzie użytkownik najpewniej ponawia (zgubiona odpowiedź, druga
+  -- karta). Sprawdzenie niczego nie otwiera: zwraca wiersz, który już się
+  -- do limitu wlicza, więc kolejność nie luzuje kwoty dla NOWYCH próśb.
   SELECT id INTO v_id FROM public.introduction_requests
    WHERE requester_id = auth.uid() AND bridge_id = p_bridge
      AND target_id = p_target AND status = 'pending';
   IF v_id IS NOT NULL THEN RETURN v_id; END IF;
+
+  IF (SELECT COUNT(*) FROM public.introduction_requests
+       WHERE requester_id = auth.uid() AND status = 'pending'
+         AND created_at > now() - INTERVAL '24 hours') >= 5 THEN
+    RAISE EXCEPTION 'rate limited'; END IF;
 
   v_tenant := public._caller_tenant();
   BEGIN

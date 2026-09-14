@@ -44,6 +44,7 @@ import { confirmDialog } from "@/lib/appDialogs";
 import { toast } from "sonner";
 import "@/lib/i18n-network";
 import { recommendationAnchorId } from "@/lib/network/anchors";
+import { useAnchorScroll } from "@/lib/network/useAnchorScroll";
 
 interface Props {
   recipientId: string;
@@ -91,6 +92,13 @@ export function RecommendationsSection({
   const listQ = useRecommendations(recipientId);
   const rows = listQ.data ?? [];
   // `published` = słownik bazy (CHECK profile_recommendations.status).
+  // Powiadomienia rekomendacji prowadzą na `/author/<ref>#r-<id>-<status>`,
+  // czyli NIE na trasę profilu - a `router.tsx:87` ma
+  // `defaultHashScrollIntoView: false`. Kotwica musi więc mieć konsumenta
+  // TUTAJ, w komponencie, który te wiersze renderuje. `rows` jako sygnał:
+  // na zimnym wejściu kotwica nie istnieje, dopóki RPC nie wróci.
+  useAnchorScroll(rows);
+
   const visible = rows.filter((r) => r.status === "published");
   const pending = isOwner ? rows.filter((r) => r.status === "pending") : [];
 
