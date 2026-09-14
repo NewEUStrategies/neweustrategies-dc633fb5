@@ -4,9 +4,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  
   buildIdf,
   documentFrequency,
+
   normalizeMap,
   rankRelated,
   scoreRelatedDetailed,
