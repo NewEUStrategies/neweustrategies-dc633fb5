@@ -370,6 +370,34 @@ describe("niceScale - domena NIELICZBOWA nie propaguje się na oś", () => {
   });
 });
 
+describe("niceScale - dociąganie krawędzi PRZEPEŁNIAJĄCE zakres double", () => {
+  it("domena od -MAX do +MAX zostaje SKOŃCZONA, choć ładna krawędź wychodzi poza zakres", () => {
+    // `Math.floor(min / step) * step` potrafi wyjść poza `Number.MAX_VALUE`
+    // i dać `-Infinity` przy SKOŃCZONYM wejściu. Oś sięgająca nieskończoności
+    // rozjeżdża całą skalę: każdy punkt danych ląduje wtedy w tym samym
+    // pikselu. Dlatego zawracamy o jeden krok bliżej zera - lepiej przyciąć
+    // skrajny punkt o ułamek kroku niż oddać oś, której nie da się narysować.
+    const M = Number.MAX_VALUE;
+    const oś = niceScale(-M, M, 3);
+
+    expect(Number.isFinite(oś.min)).toBe(true);
+    expect(Number.isFinite(oś.max)).toBe(true);
+    expect(oś.ticks.every((t) => Number.isFinite(t))).toBe(true);
+    expect(oś.min).toBeLessThan(oś.max);
+  });
+
+  it("domena ZDEGENEROWANA przy krańcu zakresu spada na oś zastępczą -1..1", () => {
+    // Tu nie da się rozsunąć domeny: `min - |min| * 0,2` przepełnia się
+    // w drugą stronę. Oś zastępcza jest wtedy jedynym wyjściem, które da się
+    // narysować - i to jest świadomy wybór, a nie awaria.
+    const M = Number.MAX_VALUE;
+    const oś = niceScale(-M, -M, 5);
+
+    expect(oś).toEqual({ min: -1, max: 1, ticks: [-1, -0.5, 0, 0.5, 1] });
+    expect(oś.ticks.every((t) => Number.isFinite(t))).toBe(true);
+  });
+});
+
 describe("seriesExtent - stos BEZ ANI JEDNEJ kategorii", () => {
   it("zwraca zakres 0-0, a nie wartości nieskończone z inicjalizacji", () => {
     // Wykres skumulowany o zerowej liczbie kategorii powstaje przy pustym

@@ -403,6 +403,9 @@ describe("resolveAccountTenantForAddress", () => {
     db.on("email_account_tenant_for_address", { data: "", error: null });
 
     await expect(resolveAccountTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
+    // Zapytanie POSZŁO - `null` jest tu odpowiedzią bazy, a nie skutkiem
+    // ominięcia RPC po drodze.
+    expect(db.callsTo("email_account_tenant_for_address")).toHaveLength(1);
   });
 
   it("odpowiedź nie-napisowa to brak rozstrzygnięcia", async () => {
@@ -410,6 +413,10 @@ describe("resolveAccountTenantForAddress", () => {
     db.on("email_account_tenant_for_address", { data: { id: TENANT }, error: null });
 
     await expect(resolveAccountTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
+    // Obiekt z polem `id` jest tu pułapką: gdyby funkcja czytała `data.id`
+    // zamiast wymagać napisu, oddałaby tenanta z kształtu, którego kontrakt RPC
+    // nie obiecuje.
+    expect(db.callsTo("email_account_tenant_for_address")).toHaveLength(1);
   });
 
   it("błąd bazy to brak rozstrzygnięcia i wpis w logu - a NIE tenant domyślny", async () => {
