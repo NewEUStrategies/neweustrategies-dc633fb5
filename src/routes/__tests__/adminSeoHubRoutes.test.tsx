@@ -41,7 +41,7 @@
 //   `/admin/seo`. Tutaj nie ma ani jednej asercji o przekierowaniu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { renderRoute, routeMeta } from "@/test/routeHarness";
 import { DEFAULT_SEO_SETTINGS } from "@/lib/seo/settings";
 import { SOCIAL_NETWORKS } from "@/lib/seo/socialNetworks";
