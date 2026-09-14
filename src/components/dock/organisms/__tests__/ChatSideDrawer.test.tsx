@@ -302,6 +302,7 @@ beforeEach(() => {
   h.conversationsError = false;
   h.prefetchedWindow = 0;
   h.prefetchedGroup = 0;
+  h.pathname = "/messages";
   minimizedChatsStore.reset();
 });
 
