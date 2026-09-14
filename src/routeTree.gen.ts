@@ -202,6 +202,7 @@ import { Route as EventsSlugIndexRouteImport } from './routes/events.$slug.index
 import { Route as ClubClubSlugIndexRouteImport } from './routes/club.$clubSlug.index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
+import { Route as AdminSeoIndexRouteImport } from './routes/admin.seo.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as AdminEventsIndexRouteImport } from './routes/admin.events.index'
 import { Route as AdminCrmIndexRouteImport } from './routes/admin.crm.index'
@@ -271,7 +272,10 @@ import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.sett
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
 import { Route as AdminSettingsCookieBannerRouteImport } from './routes/admin.settings.cookie-banner'
 import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
+import { Route as AdminSeoSocialRouteImport } from './routes/admin.seo.social'
 import { Route as AdminSeoSearchConsoleRouteImport } from './routes/admin.seo.search-console'
+import { Route as AdminSeoHomepageRouteImport } from './routes/admin.seo.homepage'
+import { Route as AdminSeoContentRouteImport } from './routes/admin.seo.content'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsCalendarRouteImport } from './routes/admin.posts.calendar'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
@@ -1356,6 +1360,11 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSeoIndexRoute = AdminSeoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
 const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1708,9 +1717,24 @@ const AdminSettingsAnalyticsRoute = AdminSettingsAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSeoSocialRoute = AdminSeoSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
 const AdminSeoSearchConsoleRoute = AdminSeoSearchConsoleRouteImport.update({
   id: '/search-console',
   path: '/search-console',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
+const AdminSeoHomepageRoute = AdminSeoHomepageRouteImport.update({
+  id: '/homepage',
+  path: '/homepage',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
+const AdminSeoContentRoute = AdminSeoContentRouteImport.update({
+  id: '/content',
+  path: '/content',
   getParentRoute: () => AdminSeoRoute,
 } as any)
 const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
@@ -2601,7 +2625,10 @@ export interface FileRoutesByFullPath {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/content': typeof AdminSeoContentRoute
+  '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
+  '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -2671,6 +2698,7 @@ export interface FileRoutesByFullPath {
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
+  '/admin/seo/': typeof AdminSeoIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
@@ -2840,7 +2868,6 @@ export interface FileRoutesByTo {
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/research-programs': typeof AdminResearchProgramsRoute
-  '/admin/seo': typeof AdminSeoRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
@@ -2965,7 +2992,10 @@ export interface FileRoutesByTo {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/content': typeof AdminSeoContentRoute
+  '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
+  '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -3035,6 +3065,7 @@ export interface FileRoutesByTo {
   '/admin/crm': typeof AdminCrmIndexRoute
   '/admin/events': typeof AdminEventsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
+  '/admin/seo': typeof AdminSeoIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/club/$clubSlug': typeof ClubClubSlugIndexRoute
@@ -3346,7 +3377,10 @@ export interface FileRoutesById {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/content': typeof AdminSeoContentRoute
+  '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
+  '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -3416,6 +3450,7 @@ export interface FileRoutesById {
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
+  '/admin/seo/': typeof AdminSeoIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
@@ -3728,7 +3763,10 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/seo/content'
+    | '/admin/seo/homepage'
     | '/admin/seo/search-console'
+    | '/admin/seo/social'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -3798,6 +3836,7 @@ export interface FileRouteTypes {
     | '/admin/crm/'
     | '/admin/events/'
     | '/admin/newsletter/'
+    | '/admin/seo/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/club/$clubSlug/'
@@ -3967,7 +4006,6 @@ export interface FileRouteTypes {
     | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/research-programs'
-    | '/admin/seo'
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
@@ -4092,7 +4130,10 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/seo/content'
+    | '/admin/seo/homepage'
     | '/admin/seo/search-console'
+    | '/admin/seo/social'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -4162,6 +4203,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/events'
     | '/admin/newsletter'
+    | '/admin/seo'
     | '/admin/settings'
     | '/admin/users'
     | '/club/$clubSlug'
@@ -4472,7 +4514,10 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/seo/content'
+    | '/admin/seo/homepage'
     | '/admin/seo/search-console'
+    | '/admin/seo/social'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -4542,6 +4587,7 @@ export interface FileRouteTypes {
     | '/admin/crm/'
     | '/admin/events/'
     | '/admin/newsletter/'
+    | '/admin/seo/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/club/$clubSlug/'
@@ -6085,6 +6131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsIndexRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/seo/': {
+      id: '/admin/seo/'
+      path: '/'
+      fullPath: '/admin/seo/'
+      preLoaderRoute: typeof AdminSeoIndexRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
     '/admin/newsletter/': {
       id: '/admin/newsletter/'
       path: '/'
@@ -6568,11 +6621,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsAnalyticsRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/seo/social': {
+      id: '/admin/seo/social'
+      path: '/social'
+      fullPath: '/admin/seo/social'
+      preLoaderRoute: typeof AdminSeoSocialRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
     '/admin/seo/search-console': {
       id: '/admin/seo/search-console'
       path: '/search-console'
       fullPath: '/admin/seo/search-console'
       preLoaderRoute: typeof AdminSeoSearchConsoleRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
+    '/admin/seo/homepage': {
+      id: '/admin/seo/homepage'
+      path: '/homepage'
+      fullPath: '/admin/seo/homepage'
+      preLoaderRoute: typeof AdminSeoHomepageRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
+    '/admin/seo/content': {
+      id: '/admin/seo/content'
+      path: '/content'
+      fullPath: '/admin/seo/content'
+      preLoaderRoute: typeof AdminSeoContentRouteImport
       parentRoute: typeof AdminSeoRoute
     }
     '/admin/posts/new': {
@@ -7646,11 +7720,19 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
 )
 
 interface AdminSeoRouteChildren {
+  AdminSeoContentRoute: typeof AdminSeoContentRoute
+  AdminSeoHomepageRoute: typeof AdminSeoHomepageRoute
   AdminSeoSearchConsoleRoute: typeof AdminSeoSearchConsoleRoute
+  AdminSeoSocialRoute: typeof AdminSeoSocialRoute
+  AdminSeoIndexRoute: typeof AdminSeoIndexRoute
 }
 
 const AdminSeoRouteChildren: AdminSeoRouteChildren = {
+  AdminSeoContentRoute: AdminSeoContentRoute,
+  AdminSeoHomepageRoute: AdminSeoHomepageRoute,
   AdminSeoSearchConsoleRoute: AdminSeoSearchConsoleRoute,
+  AdminSeoSocialRoute: AdminSeoSocialRoute,
+  AdminSeoIndexRoute: AdminSeoIndexRoute,
 }
 
 const AdminSeoRouteWithChildren = AdminSeoRoute._addFileChildren(

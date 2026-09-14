@@ -39,6 +39,21 @@ export const AI_TRAINING_CRAWLERS: readonly string[] = [
 ];
 
 export const SeoSettingsSchema = z.object({
+  /**
+   * NAZWA SERWISU (site name) - krótka nazwa marki, NIE tytuł strony głównej.
+   *
+   * To są dwie różne rzeczy i mylenie ich jest źródłem konkretnej awarii:
+   * Google rysuje nazwę serwisu w OSOBNEJ LINII nad niebieskim linkiem i bierze
+   * ją z `WebSite.name` (dane strukturalne strony głównej) oraz `og:site_name`.
+   * Tytuł to zdanie opisujące stronę; nazwa to sama marka. Gdy nazwa jest
+   * nieustawiona, w linii nazwy ląduje to, co Google wywnioskuje z tytułu -
+   * i wtedy z tytułu ZDEJMUJE powtórzony prefiks marki.
+   *
+   * Puste = stały fallback marki (`SITE_NAME` z meta.ts).
+   */
+  site_name: z.string().max(120),
+  /** Nazwa alternatywna / skrót ("NES") - `WebSite.alternateName`. */
+  site_name_alternate: z.string().max(120),
   /** Redakcyjny tytuł serwisu (pusty = stały fallback marki z meta.ts). */
   site_title_pl: z.string().max(120),
   site_title_en: z.string().max(120),
@@ -74,11 +89,19 @@ export const SeoSettingsSchema = z.object({
   default_og_image_url: z.string().max(2048),
   /** og:image:alt domyślnej karty (opis dla czytników ekranu i scraperów). */
   default_og_image_alt: z.string().max(300),
+  /**
+   * Typ karty X/Twittera. `summary_large_image` to karta pełnowymiarowa
+   * (1200x630), `summary` to mały kwadrat obok tekstu. Wybór jest redakcyjny:
+   * karta duża zabiera więcej miejsca w osi czasu, ale ma wyższy CTR.
+   */
+  twitter_card_type: z.enum(["summary_large_image", "summary"]),
 });
 
 export type SeoSettings = z.infer<typeof SeoSettingsSchema>;
 
 export const DEFAULT_SEO_SETTINGS: SeoSettings = {
+  site_name: "",
+  site_name_alternate: "",
   site_title_pl: "",
   site_title_en: "",
   site_description_pl: "",
@@ -97,7 +120,13 @@ export const DEFAULT_SEO_SETTINGS: SeoSettings = {
   twitter_site: "",
   default_og_image_url: "",
   default_og_image_alt: "",
+  twitter_card_type: "summary_large_image",
 };
+
+/** Redakcyjna nazwa serwisu ("" = użyj stałego fallbacku marki). */
+export function siteNameOverride(settings: SeoSettings): string {
+  return settings.site_name.trim();
+}
 
 /** Redakcyjny tytuł serwisu dla języka ("" = użyj fallbacku marki). */
 export function siteTitleOverride(settings: SeoSettings, lang: "pl" | "en"): string {

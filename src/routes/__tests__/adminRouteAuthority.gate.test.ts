@@ -706,13 +706,43 @@ describe("moduł 19 - wzorzec B: trasa admina i defekty zgłoszone", () => {
 // `adminSeoRoutes.test.tsx`) i nie sprawdza bazy (to robią polityki RLS,
 // czytane tu wyłącznie jako TEKST migracji - żeby ciche rozluźnienie polityki
 // nie zostało niezauważone).
-const SEO_ROUTES = ["admin.seo.tsx", "admin.seo.search-console.tsx", "admin.settings.seo.tsx"];
+const SEO_ROUTES = [
+  "admin.seo.tsx",
+  "admin.seo.index.tsx",
+  "admin.seo.content.tsx",
+  "admin.seo.homepage.tsx",
+  "admin.seo.social.tsx",
+  "admin.seo.search-console.tsx",
+  "admin.settings.seo.tsx",
+];
+
+/**
+ * Ekrany rodziny SEO, które WYŁĄCZNIE czytają. Brak własnego sprawdzenia roli
+ * jest na nich poprawny: layout `/admin` odsiewa osoby z zewnątrz, a personel
+ * ma prawo czytać. Gdyby któryś dostał mutację, test niżej padnie i wymusi
+ * decyzję o roli - zamiast wypuścić formularz, który odrzuci RLS.
+ */
+const SEO_READ_ONLY_ROUTES = [
+  "admin.seo.tsx",
+  "admin.seo.index.tsx",
+  "admin.seo.content.tsx",
+  "admin.seo.search-console.tsx",
+];
+
+/**
+ * Ekrany rodziny SEO, które ZAPISUJĄ `site_settings`. RLS wymaga tu roli
+ * `admin`, a layout `/admin` przepuszcza także `editor` i `author` - więc
+ * każdy z nich MUSI sam sprawdzić rolę, inaczej oferuje akcję, którą baza
+ * odrzuci. To jest ta sama klasa defektu, którą `it.fails` niżej opisuje dla
+ * `/admin/settings/seo`; nowe ekrany nie mają prawa jej powielać.
+ */
+const SEO_WRITING_ROUTES = ["admin.seo.homepage.tsx", "admin.seo.social.tsx"];
 /** Migracja, która nadała `site_settings` politykę „tylko admin pisze". */
 const SITE_SETTINGS_POLICY_MIGRATION =
   "supabase/migrations/20260626162717_fe6d7498-55f7-4850-b07e-7accc7013cb5.sql";
 
 describe("panel SEO - autorytet dostępu", () => {
-  it("wszystkie trzy trasy rodziny SEO istnieją - kanarek zasięgu", () => {
+  it("wszystkie trasy rodziny SEO istnieją - kanarek zasięgu", () => {
     // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i milczała.
     const present = adminRoutes();
     for (const file of SEO_ROUTES) {
@@ -735,17 +765,32 @@ describe("panel SEO - autorytet dostępu", () => {
   });
 
   it("przeglądy SEO są TYLKO DO CZYTANIA - nie oferują zapisu, którego baza mogłaby odrzucić", () => {
-    // `/admin/seo` i `/admin/seo/search-console` czytają treść i dane GSC.
+    // Układ zakładek, kokpit, tabela treści i Search Console tylko CZYTAJĄ.
     // Dopóki nie mają mutacji, brak własnego sprawdzenia roli jest POPRAWNY:
     // layout `/admin` odsiewa osoby z zewnątrz, a personel ma prawo czytać.
     // Gdyby dowolna z nich dostała zapis, ten test padnie i wymusi decyzję
     // o roli - zamiast wypuścić formularz, który odrzuci RLS.
-    const offenders = ["admin.seo.tsx", "admin.seo.search-console.tsx"].filter((file) =>
+    const offenders = SEO_READ_ONLY_ROUTES.filter((file) =>
       /useMutation\(|\.mutate\(|\.upsert\(|\.insert\(|\.update\(|\.delete\(/.test(
         read(`${ROUTES_DIR}/${file}`),
       ),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("zakładki SEO, które ZAPISUJĄ, sprawdzają rolę `admin` same z siebie", () => {
+    // Odwrotność testu wyżej i domknięcie defektu, który `it.fails` niżej
+    // trzyma zamrożony dla `/admin/settings/seo`: skoro RLS puszcza zapis
+    // `site_settings` wyłącznie adminowi, a layout `/admin` wpuszcza cały
+    // personel, to ekran z `SaveBar` bez odczytu `isAdmin` KŁAMIE redaktorowi.
+    // Nowe zakładki (`/admin/seo/homepage`, `/admin/seo/social`) czytają
+    // `isAdmin` z `useAuth()` i renderują formularz tylko do odczytu.
+    const missing = SEO_WRITING_ROUTES.filter((file) => {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      const writes = /save\.mutate\(|useMutation\(/.test(source);
+      return writes && !/isAdmin/.test(source);
+    });
+    expect(missing, "trasa zapisująca site_settings musi sama sprawdzać rolę `admin`").toEqual([]);
   });
 
   it("panel SEO nie mówi redaktorowi po polsku w kodzie - komunikaty idą przez klucze", () => {

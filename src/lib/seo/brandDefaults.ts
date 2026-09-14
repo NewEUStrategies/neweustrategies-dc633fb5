@@ -16,11 +16,24 @@ export type BrandLang = "pl" | "en";
 export type BrandDefaults = {
   title: Record<BrandLang, string>;
   description: Record<BrandLang, string>;
+  /**
+   * NAZWA serwisu - jedna dla obu języków, bo marka się nie tłumaczy.
+   *
+   * Osobne pole, a nie `title`, ponieważ wyszukiwarka używa ich do RÓŻNYCH
+   * rzeczy: tytuł trafia do niebieskiego linku, nazwa do linii nad nim
+   * (`WebSite.name` + `og:site_name`). Tak długo, jak jedno pole obsługiwało
+   * oba zastosowania, nazwa serwisu w SERP-ie była tym, co Google wywnioskował.
+   */
+  name: string;
+  /** Nazwa alternatywna / skrót - `WebSite.alternateName`. */
+  alternateName: string;
 };
 
 export const EMPTY_BRAND_DEFAULTS: BrandDefaults = {
   title: { pl: "", en: "" },
   description: { pl: "", en: "" },
+  name: "",
+  alternateName: "",
 };
 
 const byHost = new Map<string, BrandDefaults>();
@@ -39,6 +52,8 @@ export function rememberBrandDefaults(
   byHost.set(key, {
     title: { pl: clean(value.title?.pl), en: clean(value.title?.en) },
     description: { pl: clean(value.description?.pl), en: clean(value.description?.en) },
+    name: clean(value.name),
+    alternateName: clean(value.alternateName),
   });
   while (byHost.size > MAX_HOSTS) {
     const oldest = byHost.keys().next().value;
