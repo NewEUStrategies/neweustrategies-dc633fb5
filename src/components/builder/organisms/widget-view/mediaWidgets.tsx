@@ -129,20 +129,24 @@ export function ImageWidget({
   if (caps.length === 0 && isLogo && heightPx <= 0) caps.push(LOGO_FALLBACK_MAX_PX);
   const effectiveMaxPx = caps.length ? Math.min(...caps) : 0;
   const ratioCss = ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined;
+  // Logo bez jawnego dopasowania rysujemy w całości (`contain`) - domyślne
+  // `cover` przycinało znak firmowy do ramki.
+  const mediaFit: CSSProperties["objectFit"] =
+    isLogo && !getStr(c, "objectFit") ? "contain" : fit;
   const wrapperStyle: WidgetMediaFrameStyle = {
     width: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
     maxWidth: "100%",
     ...(ratioCss ? { aspectRatio: ratioCss } : null),
-    ...(ratioCss ? { "--widget-media-fit": fit } : null),
+    ...(ratioCss ? { "--widget-media-fit": mediaFit } : null),
   };
   // Bez ramki (ratio=auto) obrazek rysuje się bezpośrednio - wcześniej dostawał
   // twarde `width: 100%`, więc "Szerokość (px)"/"Maks. szerokość (px)" nie miały
   // ŻADNEGO wpływu (logo w headerze rozlewało się na całą kolumnę). Teraz oba
   // limity oraz nowa "Wysokość (px)" trafiają na element realnie.
   const imgStyle: WidgetImageStyle = ratioCss
-    ? { objectFit: fit, width: "100%", height: "100%" }
+    ? { objectFit: mediaFit, width: "100%", height: "100%" }
     : {
-        objectFit: fit,
+        objectFit: mediaFit,
         width: heightPx > 0 && widthPx <= 0 ? "auto" : widthPx > 0 ? `${widthPx}px` : "100%",
         maxWidth: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
         height: heightPx > 0 ? `${heightPx}px` : "auto",
