@@ -46,18 +46,27 @@ export interface RobotsPlan {
  * robots.txt: crawler musi dostać poprawny plik (indeks sitemapy + domyślna,
  * otwarta polityka AI), a nie 500 albo zakaz indeksowania.
  */
-async function tenantCrawlPolicy(
-  tenantId: string,
-): Promise<{ sitemapPaths: string[]; groups: RobotsGroup[] }> {
+async function tenantCrawlPolicy(tenantId: string): Promise<CrawlPolicy> {
   const paths = [SITEMAP_INDEX_PATH];
   try {
     const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
     const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
     if (settings.news_sitemap_enabled) paths.push(NEWS_SITEMAP_PATH);
-    return { sitemapPaths: paths, groups: aiCrawlerGroups(settings) };
+    return {
+      sitemapPaths: paths,
+      groups: aiCrawlerGroups(settings),
+      usage: robotsUsagePolicy(settings),
+    };
   } catch (e) {
     console.warn("[seo] robots.txt settings unavailable:", e);
-    return { sitemapPaths: paths, groups: [] };
+    // Degradacja NIE ZDEJMUJE warunku cytowania: awaria bazy nie jest zgodą na
+    // nieoznaczone przejęcie treści, więc plik nadal go stawia (na domyślnych
+    // ustawieniach polityki AI).
+    return {
+      sitemapPaths: paths,
+      groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+      usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
+    };
   }
 }
 
