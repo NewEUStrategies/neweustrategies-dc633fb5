@@ -207,6 +207,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
               )}
             </button>
           </div>
+          {isHome && <HeaderSeoHeading />}
           <AppLink
             href="/"
             aria-label={siteName}
