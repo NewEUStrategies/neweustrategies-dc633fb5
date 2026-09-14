@@ -127,6 +127,13 @@
       "when": 1789368131307,
       "tag": "0017_set_user_consents_atomic",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789374609765,
+      "tag": "0018_pr365_tenant_follows_profile",
+      "breakpoints": true
     }
   ]
 }

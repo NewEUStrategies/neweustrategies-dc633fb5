@@ -137,6 +137,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0017_set_user_consents_atomic",
     twin: "20260913173000_set_user_consents_atomic.sql",
   },
+  {
+    tag: "0018_pr365_tenant_follows_profile",
+    drizzleOnly:
+      "Stan końcowy siedmiu migracji serii 20260914* (090000 push_subscriptions_tenant_binding, 120000 tenant_follows_profile, 140000 author_profiles, 160000 profile_cv, 180000 media_mentions, 200000 profile_graph, 220000 endorse_skill_tenant_guard) wykonany JEDNYM plikiem na pasie drizzle. Bliźniak 1:1 nie istnieje z założenia: pięć z tych plików nadpisuje tę samą funkcję tg_profiles_repin_account_tenant kolejnymi wersjami, więc pas drizzle niesie wyłącznie wersję końcową, a nie łańcuch pośrednich. Pas supabase ma wszystkie siedem wersji w rejestrze; pliku nie usuwamy - repozytorium jest forward-only.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
