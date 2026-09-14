@@ -15,29 +15,33 @@
 -- jest RELACYJNA i samokalibrujaca sie: zapala sie dopiero wtedy, gdy NA TEJ
 -- SAMEJ TABELI chocby jedna klauzula wlascicielska wiaze tenanta - taki
 -- „swiadek" dowodzi, ze schemat sam zadeklarowal skalowanie po tenancie.
--- `push_subscriptions` ma w stanie koncowym DOKLADNIE JEDNA polityke i ta
--- polityka tenanta NIE wiaze, wiec swiadka nie ma i bramka strukturalnie nie ma
--- czego porownac. Identycznie `user_consents` (jedna polityka, bez tenanta).
+-- `push_subscriptions` ma w stanie koncowym DOKLADNIE JEDNA polityke; od
+-- 20260914090000 wiaze ona tenanta w WITH CHECK, ale nie w USING (patrz nizej),
+-- wiec bramka nadal nie ma pelnego swiadka. Identycznie `user_consents` (jedna
+-- polityka, bez tenanta).
 -- Dla obu tabel THIS TEST JEST TYM SWIADKIEM: wpisuje na trwale, jaka decyzja
 -- zapadla, zeby brak alarmu z bramki nie byl mylony z brakiem tematu.
 --
 -- ── USTALENIA (stan koncowy, po przejsciu WSZYSTKICH migracji) ──────────────
 --
 -- 1) push_subscriptions - JEDNA polityka `push subs owner all`, FOR ALL,
---    TO authenticated, USING/WITH CHECK = `user_id = (SELECT auth.uid())`.
---    Ustanawia ja 20260713092000_notification_channels.sql; rownolegly potok
---    z 20260713180000 (cztery polityki `push_subscriptions_own_*`) zostal
+--    TO authenticated. USING = `user_id = (SELECT auth.uid())`; WITH CHECK od
+--    20260914090000 doklada `tenant_id = COALESCE(current_tenant_id(), tenant_id)`.
+--    Polityke ustanawia 20260713092000_notification_channels.sql; rownolegly
+--    potok z 20260713180000 (cztery polityki `push_subscriptions_own_*`) zostal
 --    skasowany przez 20260713210000_notifications_pipeline_reconciliation.sql,
 --    ktore swiadomie zostawilo wariant `FOR ALL` jako kanoniczny.
 --
---    DEFEKT (opisany, NIE naprawiany w tym pliku - test niczego nie migruje).
+--    DEFEKT (zdiagnozowany tutaj, NAPRAWIONY przez
+--    20260914090000_push_subscriptions_tenant_binding.sql).
 --    Tabela MA kolumne `tenant_id uuid NOT NULL DEFAULT public_tenant_id()`,
 --    a dyspozytor `src/lib/notifications/dispatch.server.ts` czyta urzadzenia
 --    kluczem ZLOZONYM: `.in("tenant_id", tenantIds).in("user_id", userIds)`.
---    Serwer zaklada wiec rozdzial per tenant, ktorego RLS w ogole nie pilnuje:
---    klient moze wstawic wlasny wiersz z DOWOLNYM `tenant_id` i przestawic go
---    pozniej (asercje 16-17 ponizej to POKAZUJA, a nie zglaszaja jako blad -
---    to jest przybicie stanu zastanego).
+--    Serwer zakladal wiec rozdzial per tenant, ktorego RLS nie pilnowal: klient
+--    mogl wstawic wlasny wiersz z DOWOLNYM `tenant_id` i przestawic go pozniej.
+--    Co gorsza DEFAULT `public_tenant_id()` rozstrzyga tenanta Z HOSTA zadania,
+--    a przegladarka niesie POSWIADCZONY `x-tenant-assert`, wiec wychodzil z
+--    niego tenant PRZEGLADANEJ DOMENY - nie tenant domowy wlasciciela.
 --
 --    ROZSTRZYGNIECIE „per uzytkownik czy per uzytkownik-w-tenancie":
 --    PER UZYTKOWNIK. Trzy niezalezne dowody z samego repo:
@@ -47,38 +51,26 @@
 --          niewykonalny.
 --      (b) `profiles` ma klucz glowny `id`, jeden `tenant_id` na konto, a
 --          trigger `profiles_pin_tenant_id` blokuje samodzielna zmiane tenanta.
---          Scenariusz (b) z zadania - „uzytkownik nalezy do dwoch obszarow" -
---          nie istnieje na poziomie konta auth: to sa DWA konta o roznych
---          `auth.uid()`, a wtedy predykat po `user_id` juz je rozdziela.
 --      (c) `engagement_overview` (20260713099000) liczy `push_optin` przez
 --          JOIN `profiles p ON p.id = ps.user_id WHERE p.tenant_id = v_tenant`,
---          czyli rozstrzyga tenanta Z PROFILU, IGNORUJAC `ps.tenant_id`. Dwaj
---          konsumenci tej samej tabeli czytaja tenanta z dwoch roznych miejsc.
---    Wniosek: `push_subscriptions.tenant_id` to NIEODSWIEZANA denormalizacja
---    `profiles.tenant_id`. Klient (`src/lib/notifications/push.ts`) nie podaje
---    tej kolumny w ogole - upsert `onConflict: "endpoint"` nie dotyka jej przy
---    aktualizacji, wiec po scenariuszu (a) z zadania („uzytkownik przeniesiony
---    miedzy obszarami roboczymi") wiersz zostaje ze STARYM tenantem. Wtedy:
---    trigger `tg_notifications_enqueue_push` widzi subskrypcje (sprawdza sam
---    `user_id`) i wstawia zadanie do kolejki, ale dyspozytor filtruje po
---    `(tenant_id, user_id)` i nie znajduje urzadzenia - a `dispatch.server.ts`
---    ma `p_dead: !ok && (devices === 0 || ...)`, wiec zadanie ladnie umiera
---    jako DEAD BEZ JEDNEJ PROBY WYSYLKI. Push cichnie i nikt sie nie dowiaduje.
+--          czyli rozstrzyga tenanta Z PROFILU, IGNORUJAC `ps.tenant_id`.
+--    Wniosek: `push_subscriptions.tenant_id` to denormalizacja
+--    `profiles.tenant_id` - i wlasnie dlatego naprawa polega na PRZYPINANIU jej
+--    do profilu, a nie na uczynieniu jej polem klienta.
 --
---    PROPONOWANA POLITYKA (do osobnej migracji, decyzja wlasciciela modulu):
---      DROP POLICY "push subs owner all" ON public.push_subscriptions;
---      CREATE POLICY "push subs owner all" ON public.push_subscriptions
---        FOR ALL TO authenticated
---        USING (user_id = (SELECT auth.uid()))
---        WITH CHECK (user_id = (SELECT auth.uid())
---                    AND tenant_id = (SELECT public.current_tenant_id()));
---    USING zostaje BEZ tenanta CELOWO: po przeniesieniu uzytkownika jego stary
---    wiersz musi pozostac widoczny i usuwalny, inaczej zostaje smieciem, ktory
---    trzyma zakladnika w `UNIQUE (endpoint)` i przegladarka nigdy nie zdola
---    zasubskrybowac sie ponownie. Tenant wiaze wylacznie WITH CHECK, wiec kazdy
---    ZAPIS stempluje biezacy tenant domowy. Komplementarnie `push.ts` powinien
---    podawac `tenant_id` jawnie w upsercie, zeby odswiezal go przy kazdym
---    wejsciu w ustawienia.
+--    STAN PO NAPRAWIE (20260914090000):
+--      * trigger `push_subscriptions_pin_tenant` BEFORE INSERT OR UPDATE
+--        ustawia `NEW.tenant_id` z `profiles.tenant_id` wlasciciela wiersza.
+--        Galaz UPDATE jest istotna: upsert klienta `onConflict: "endpoint"`
+--        idzie wlasnie nia, wiec stary wiersz leczy sie sam. Dzieki temu
+--        `push.ts` NIE musi podawac `tenant_id` - jedno zrodlo prawdy zostaje
+--        w bazie (asercje 16-17 to sprawdzaja).
+--      * WITH CHECK polityki wiaze tenanta jawnie („pas i szelki"), USING
+--        zostaje bez tenanta CELOWO: po przeniesieniu uzytkownika jego stary
+--        wiersz musi pozostac widoczny i usuwalny, inaczej zostaje smieciem,
+--        ktory trzyma zakladnika w `UNIQUE (endpoint)` i przegladarka nigdy
+--        nie zdola zasubskrybowac sie ponownie.
+--      * migracja przepisuje istniejace wiersze na tenanta wlasciciela.
 --
 -- 2) user_consents - JEDNA polityka `user_consents_select_own`, tylko SELECT,
 --    `auth.uid() = user_id`, bez tenanta. Polityki i granty zapisu zdjete przez
@@ -354,16 +346,18 @@ SELECT is(
   'push subs owner all|ALL|{authenticated}',
   'push_subscriptions: polityka „push subs owner all", FOR ALL, TO authenticated');
 
--- 11. DEFEKT PRZYBITY SWIADOMIE: ani USING, ani WITH CHECK nie wspominaja
--- tenanta, mimo ze kolumna istnieje i dyspozytor po niej filtruje. Ta asercja
--- oblegnie w dniu, w ktorym ktos ZAMKNIE ten defekt - i to jest zamierzone:
--- wtedy trzeba tu wpisac nowy stan i skasowac akapit „PROPONOWANA POLITYKA"
--- z naglowka, zeby dokumentacja nie klamala.
+-- 11. DEFEKT ZAMKNIETY (20260914090000). Polityka wiaze tenanta, ale WYLACZNIE
+-- w WITH CHECK - USING zostaje bez tenanta CELOWO, zeby osierocony wiersz byl
+-- nadal widoczny i USUWALNY (inaczej trzyma zakladnika w UNIQUE (endpoint) i
+-- przegladarka nigdy nie zasubskrybuje sie ponownie). Ta asercja pilnuje OBU
+-- polowek naraz: gdyby ktos dopisal tenanta do USING, oblewa tak samo jak
+-- gdyby wyjal go z WITH CHECK.
 SELECT ok(
-  (SELECT coalesce(qual, '') || coalesce(with_check, '') NOT LIKE '%tenant%'
+  (SELECT coalesce(with_check, '') LIKE '%tenant%'
+      AND coalesce(qual, '') NOT LIKE '%tenant%'
      FROM pg_policies
     WHERE schemaname = 'public' AND tablename = 'push_subscriptions'),
-  'push_subscriptions: polityka NIE wiaze tenanta - stan zastany, opisany w naglowku');
+  'push_subscriptions: tenant wiazany w WITH CHECK, USING celowo bez tenanta');
 
 -- 12. Kolumna tenanta jednak ISTNIEJE i jest obowiazkowa. To wlasnie ta para -
 -- kolumna wymagana przez schemat, ale nie pilnowana przez RLS - jest zrodlem
@@ -417,35 +411,48 @@ SELECT is(
   '12aaaaaa-0000-0000-0000-00000000000a'::uuid,
   'push_subscriptions: pominiety tenant_id domysla sie tenanta domowego zapisujacego');
 
--- 16. DEFEKT, skutek nr 1: wlasny wiersz z CUDZYM tenantem przechodzi. Polityka
--- sprawdza tylko `user_id`, wiec `tenant_id` jest polem pod kontrola klienta.
-SELECT lives_ok(
-  $$INSERT INTO public.push_subscriptions (user_id, tenant_id, endpoint, p256dh, auth)
-    VALUES ('12000000-0000-0000-0000-0000000000a1',
-            '12bbbbbb-0000-0000-0000-00000000000b',
-            'https://push.example.com/ann-obcy-tenant', 'p256dhp256dhp256dh', 'authauthauth')$$,
-  'push_subscriptions: DEFEKT - INSERT wlasnego wiersza z OBCYM tenant_id przechodzi');
+-- 16. NAPRAWIONE, skutek nr 1: wlasny wiersz z CUDZYM tenantem juz nie zostaje
+-- zapisany z tym tenantem. Trigger `push_subscriptions_pin_tenant` przepina go
+-- na tenanta PROFILU wlasciciela, zanim polityka zdazy go ocenic - `tenant_id`
+-- przestal byc polem pod kontrola klienta.
+INSERT INTO public.push_subscriptions (user_id, tenant_id, endpoint, p256dh, auth)
+VALUES ('12000000-0000-0000-0000-0000000000a1',
+        '12bbbbbb-0000-0000-0000-00000000000b',
+        'https://push.example.com/ann-obcy-tenant', 'p256dhp256dhp256dh', 'authauthauth');
 
--- 17. DEFEKT, skutek nr 2: istniejacy wiersz mozna przestawic na obcy tenant.
--- To ta sama dziura od strony UPDATE - `FOR ALL` obejmuje obie operacje.
-SELECT lives_ok(
-  $$UPDATE public.push_subscriptions
-       SET tenant_id = '12bbbbbb-0000-0000-0000-00000000000b'
-     WHERE endpoint = 'https://push.example.com/ann-device'$$,
-  'push_subscriptions: DEFEKT - UPDATE przestawiajacy tenant_id na obcy przechodzi');
+SELECT is(
+  (SELECT tenant_id FROM public.push_subscriptions
+    WHERE endpoint = 'https://push.example.com/ann-obcy-tenant'),
+  '12aaaaaa-0000-0000-0000-00000000000a'::uuid,
+  'push_subscriptions: INSERT z OBCYM tenant_id jest przypinany do tenanta profilu');
+
+-- 17. NAPRAWIONE, skutek nr 2: ta sama dziura od strony UPDATE tez jest zamknieta.
+-- To jest wazniejsza polowka, niz wyglada: upsert klienta (onConflict "endpoint")
+-- idzie WLASNIE sciezka UPDATE, wiec to tutaj stary wiersz z nieaktualnym
+-- tenantem sam sie leczy przy ponownym wlaczeniu pusha.
+UPDATE public.push_subscriptions
+   SET tenant_id = '12bbbbbb-0000-0000-0000-00000000000b'
+ WHERE endpoint = 'https://push.example.com/ann-device';
+
+SELECT is(
+  (SELECT tenant_id FROM public.push_subscriptions
+    WHERE endpoint = 'https://push.example.com/ann-device'),
+  '12aaaaaa-0000-0000-0000-00000000000a'::uuid,
+  'push_subscriptions: UPDATE na obcy tenant_id jest przypinany z powrotem');
 
 -- 18. Konsekwencja operacyjna, odwzorowana zapytaniem dyspozytora
 -- (`.in("tenant_id", tenantIds).in("user_id", userIds).is("failed_at", null)`):
--- po rozjezdzie tenanta urzadzen jest ZERO, a `dispatch.server.ts` oznacza takie
--- zadanie jako DEAD (`devices === 0`) bez ani jednej proby wysylki. Push cichnie
--- bez sladu w bledach - to jest realny koszt tego, ze RLS tenanta nie pilnuje.
+-- OBA urzadzenia Ann - to zapisane z pominietym tenantem (15) i to zapisane z
+-- obcym (16), po probie przestawienia (17) - sa dla dyspozytora widoczne pod
+-- tenantem jej profilu. Wczesniej bylo tu ZERO i `dispatch.server.ts` oznaczal
+-- zadanie jako DEAD (`devices === 0`) bez ani jednej proby wysylki.
 SELECT is(
   (SELECT count(*)::int FROM public.push_subscriptions ps
     WHERE ps.tenant_id = '12aaaaaa-0000-0000-0000-00000000000a'
       AND ps.user_id = '12000000-0000-0000-0000-0000000000a1'
       AND ps.failed_at IS NULL),
-  0,
-  'dyspozytor po rozjezdzie tenanta widzi ZERO urzadzen Ann - zadanie umiera jako DEAD');
+  2,
+  'dyspozytor widzi OBA urzadzenia Ann pod tenantem jej profilu');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- E. user_consents - lockdown zapisu jest STANEM DOCELOWYM, nie brakiem

@@ -281,6 +281,22 @@ export async function processPushJobs(
     };
   });
 
+  // TRIPWIRE KONTRAKTU. Zadanie trafia do kolejki WYŁĄCZNIE wtedy, gdy trigger
+  // tg_notifications_enqueue_push zobaczył żywą subskrypcję odbiorcy - więc
+  // zero urządzeń po stronie dyspozytora nie jest stanem normalnym, tylko
+  // dowodem, że obie połowy kontraktu rozeszły się co do klucza adresata
+  // (tenant_id, user_id). Taki wiersz idzie w 'dead' bez ani jednej próby
+  // wysyłki, czyli w logu wygląda identycznie jak pusta kolejka - dokładnie ten
+  // sam rodzaj niemej awarii, co brak kluczy VAPID wyżej. Nazywamy go wprost.
+  const orphaned = jobs.filter((job) => (deviceCountByJob.get(job.id) ?? 0) === 0);
+  if (orphaned.length > 0) {
+    const keys = [...new Set(orphaned.map((job) => recipientKey(job.tenant_id, job.user_id)))];
+    console.warn(
+      `[community] push: ${orphaned.length} zadan bez ani jednego urzadzenia ` +
+        `(kolejka widziala subskrypcje, dyspozytor nie) - klucze tenant|user: ${keys.join(", ")}`,
+    );
+  }
+
   // Błąd JEDNEGO raportu nie może zabrać reszty partii: zadania zostałyby w
   // 'pending' i poszłyby ponownie, czyli odbiorca dostałby duplikat pusha.
   const deadEndpoints = laneResults.filter((lane) => lane.gone).map((lane) => lane.endpoint);

@@ -89,6 +89,12 @@ export async function enablePushForThisBrowser(userId: string): Promise<void> {
     throw new Error("push_bad_subscription");
   }
 
+  // `tenant_id` NIE jest tu podawany ŚWIADOMIE. Najemcę przypina baza
+  // (trigger push_subscriptions_pin_tenant, 20260914090000) do najemcy PROFILU
+  // właściciela - tego samego, z którego `enqueue_notification` bierze
+  // `notifications.tenant_id`. Gdyby wysyłał go klient, byłyby dwa źródła
+  // prawdy, które mogą się rozejść, a `onConflict: "endpoint"` i tak nie
+  // odświeżałby kolumny przy ponownym włączeniu pusha.
   const { error } = await supabase.from("push_subscriptions").upsert(
     {
       user_id: userId,
