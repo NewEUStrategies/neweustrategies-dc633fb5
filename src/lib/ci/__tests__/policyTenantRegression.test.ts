@@ -38,6 +38,19 @@ ON storage.objects FOR SELECT TO authenticated
 USING (bucket_id = 'career-cv' AND public.is_staff());
 `;
 
+/**
+ * `FOR ALL` z OBIEMA klauzulami - jedyny kształt, w którym obie strony polityki
+ * istnieją jednocześnie, więc każda może zgubić wiązanie niezależnie.
+ */
+function forAll(using: string, withCheck: string): string {
+  return [
+    'DROP POLICY IF EXISTS "t_all" ON public.t;',
+    'CREATE POLICY "t_all" ON public.t FOR ALL TO authenticated',
+    `USING (${using})`,
+    `WITH CHECK (${withCheck});`,
+  ].join("\n");
+}
+
 function analyze(files: readonly MigrationFile[], known: PolicyTenantGaps = {}) {
   return analyzePolicyTenantRegressions(
     extractPolicyHistory(files),
@@ -275,5 +288,216 @@ describe("policyTenantRegression - wiązanie najemcy w politykach", () => {
     expect(report.totalPolicies).toBe(2);
     expect(report.tenantBound).toBe(1);
     expect(renderPolicyTenantRegressionReport(report)).toContain("2 polityk w stanie końcowym");
+  });
+
+  // ── Dwie strony nadane / zdjęte w RÓŻNYCH migracjach ──────────────────────
+  // Wpis cofnięcia niesie dwie daty: `hardenedIn` (kiedy wiązanie powstało)
+  // i `weakenedIn` (kiedy zniknęło). Gdy strony wędrują osobno, obie muszą być
+  // liczone po CAŁYM łańcuchu, a nie po pierwszej napotkanej stronie - inaczej
+  // audytor dostaje w raporcie plik, w którym nic się nie wydarzyło, i szuka
+  // przyczyny nie tam, gdzie ona jest.
+
+  it("`hardenedIn` wskazuje NAJWCZEŚNIEJSZĄ migrację wiążącą, gdy pierwszy był WITH CHECK", () => {
+    const report = analyze([
+      // Sam zapis: istnieje wyłącznie strona `result`.
+      {
+        file: "001.sql",
+        sql: 'CREATE POLICY "t_all" ON public.t FOR INSERT WITH CHECK (tenant_id = current_tenant_id());',
+      },
+      // Polityka rozszerzona na wszystkie komendy - dopiero tu powstaje `selection`.
+      {
+        file: "002.sql",
+        sql: [
+          'DROP POLICY IF EXISTS "t_all" ON public.t;',
+          'CREATE POLICY "t_all" ON public.t FOR ALL TO authenticated',
+          "USING (tenant_id = current_tenant_id())",
+          "WITH CHECK (tenant_id = current_tenant_id());",
+        ].join("\n"),
+      },
+      {
+        file: "003.sql",
+        sql: [
+          'DROP POLICY IF EXISTS "t_all" ON public.t;',
+          'CREATE POLICY "t_all" ON public.t FOR ALL TO authenticated',
+          "USING (true)",
+          "WITH CHECK (true);",
+        ].join("\n"),
+      },
+    ]);
+    expect(report.open.map(regressionKey)).toEqual(["t::t_all"]);
+    expect(report.open[0].sides).toEqual(["selection", "result"]);
+    expect(report.open[0].hardenedIn).toBe("001.sql");
+    expect(report.open[0].weakenedIn).toBe("003.sql");
+  });
+
+  it("`hardenedIn` wskazuje NAJWCZEŚNIEJSZĄ migrację wiążącą, gdy pierwszy był USING", () => {
+    // Lustrzane odbicie przypadku wyżej. Obie kolejności muszą dać ten sam
+    // wynik, bo o dacie nadania decyduje plik, a nie to, którą stronę bramka
+    // ogląda pierwszą (strony są sprawdzane w stałej kolejności USING -> CHECK).
+    const report = analyze([
+      {
+        file: "001.sql",
+        sql: 'CREATE POLICY "t_all" ON public.t FOR SELECT USING (tenant_id = current_tenant_id());',
+      },
+      {
+        file: "002.sql",
+        sql: [
+          'DROP POLICY IF EXISTS "t_all" ON public.t;',
+          'CREATE POLICY "t_all" ON public.t FOR ALL TO authenticated',
+          "USING (tenant_id = current_tenant_id())",
+          "WITH CHECK (tenant_id = current_tenant_id());",
+        ].join("\n"),
+      },
+      {
+        file: "003.sql",
+        sql: [
+          'DROP POLICY IF EXISTS "t_all" ON public.t;',
+          'CREATE POLICY "t_all" ON public.t FOR ALL TO authenticated',
+          "USING (true)",
+          "WITH CHECK (true);",
+        ].join("\n"),
+      },
+    ]);
+    expect(report.open[0].hardenedIn).toBe("001.sql");
+    expect(report.open[0].sides).toEqual(["selection", "result"]);
+    expect(policyTenantRegressionFailed(report)).toBe(true);
+  });
+
+  it("cofnięcie zaleczone datuje się OSTATNIĄ migracją, która zdjęła wiązanie (USING wcześniej)", () => {
+    // Raport zaleczeń ma skierować audytora do pliku, który trzeba przeczytać.
+    // Gdy strony padły w dwóch różnych migracjach, tym plikiem jest PÓŹNIEJSZA
+    // z nich - wcześniejsza była już wtedy nieaktualna.
+    const report = analyze([
+      {
+        file: "001.sql",
+        sql: forAll("tenant_id = current_tenant_id()", "tenant_id = current_tenant_id()"),
+      },
+      { file: "002.sql", sql: forAll("true", "tenant_id = current_tenant_id()") },
+      { file: "003.sql", sql: forAll("tenant_id = current_tenant_id()", "true") },
+      {
+        file: "004.sql",
+        sql: forAll("tenant_id = current_tenant_id()", "tenant_id = current_tenant_id()"),
+      },
+    ]);
+    expect(report.open).toEqual([]);
+    expect(report.healed.map(regressionKey)).toEqual(["t::t_all"]);
+    expect(report.healed[0].sides).toEqual(["selection", "result"]);
+    expect(report.healed[0].hardenedIn).toBe("001.sql");
+    expect(report.healed[0].weakenedIn).toBe("003.sql");
+    expect(policyTenantRegressionFailed(report)).toBe(false);
+  });
+
+  it("cofnięcie zaleczone datuje się OSTATNIĄ migracją, która zdjęła wiązanie (WITH CHECK wcześniej)", () => {
+    // Ta sama reguła przy odwróconej kolejności zapisów: w 002 obie strony
+    // tracą wiązanie naraz, a w 003 `result` je odzyskuje, gdy `selection`
+    // traci je PONOWNIE. Ostatnim zdjęciem jest więc 003, mimo że wpis strony
+    // `result` wskazuje plik wcześniejszy.
+    const report = analyze([
+      {
+        file: "001.sql",
+        sql: forAll("tenant_id = current_tenant_id()", "tenant_id = current_tenant_id()"),
+      },
+      { file: "002.sql", sql: forAll("true", "true") },
+      { file: "003.sql", sql: forAll("true", "tenant_id = current_tenant_id()") },
+      {
+        file: "004.sql",
+        sql: forAll("tenant_id = current_tenant_id()", "tenant_id = current_tenant_id()"),
+      },
+    ]);
+    expect(report.healed.map(regressionKey)).toEqual(["t::t_all"]);
+    expect(report.healed[0].weakenedIn).toBe("003.sql");
+    expect(report.healed[0].sides).toEqual(["selection", "result"]);
+    expect(report.open).toEqual([]);
+  });
+
+  it("bez podanej listy długu KAŻDE cofnięcie jest nowe - pusta lista to domyślna surowość", () => {
+    // Trzeci argument jest opcjonalny, bo woła go także skrypt sprawdzający
+    // pojedynczy katalog migracji. Gdyby brak listy znaczył „wycisz wszystko",
+    // bramka przechodziłaby wszędzie tam, gdzie nikt listy nie podał.
+    const files = [
+      { file: "001.sql", sql: HARDENED },
+      { file: "002.sql", sql: WEAKENED },
+    ];
+    const report = analyzePolicyTenantRegressions(
+      extractPolicyHistory(files),
+      extractLatestPolicies(files),
+    );
+    expect(report.open.map(regressionKey)).toEqual(["objects::career_cv_staff_read"]);
+    expect(report.known).toEqual([]);
+    expect(report.staleKnown).toEqual([]);
+    expect(policyTenantRegressionFailed(report)).toBe(true);
+  });
+
+  it("raport pokazuje JEDNOCZEŚNIE stan otwarty, dług zastany i zaleczenia", () => {
+    // Trzy kategorie żyją w jednym przebiegu i mają w raporcie osobne sekcje.
+    // Bez tego przypadku sekcja długu zastanego albo zaleczeń mogłaby zniknąć
+    // bez śladu: bramka nadal oblewałaby na stanie otwartym, więc CI wyglądałby
+    // tak samo, a audyt straciłby jedyne miejsce, w którym te dwie kategorie
+    // w ogóle widać.
+    const known: PolicyTenantGaps = {
+      "u::zastana": "poprawny predykat: tenant_id = current_tenant_id()",
+    };
+    const report = analyze(
+      [
+        {
+          file: "001.sql",
+          sql: [
+            'CREATE POLICY "otwarta" ON public.t FOR SELECT USING (tenant_id = current_tenant_id());',
+            'CREATE POLICY "zastana" ON public.u FOR SELECT USING (tenant_id = current_tenant_id());',
+            'CREATE POLICY "zaleczona" ON public.w FOR SELECT USING (tenant_id = current_tenant_id());',
+          ].join("\n"),
+        },
+        {
+          file: "002.sql",
+          sql: [
+            'DROP POLICY IF EXISTS "otwarta" ON public.t;',
+            'CREATE POLICY "otwarta" ON public.t FOR SELECT USING (public.is_staff());',
+            'DROP POLICY IF EXISTS "zastana" ON public.u;',
+            'CREATE POLICY "zastana" ON public.u FOR SELECT USING (public.is_staff());',
+            'DROP POLICY IF EXISTS "zaleczona" ON public.w;',
+            'CREATE POLICY "zaleczona" ON public.w FOR SELECT USING (public.is_staff());',
+          ].join("\n"),
+        },
+        {
+          file: "003.sql",
+          sql: [
+            'DROP POLICY IF EXISTS "zaleczona" ON public.w;',
+            'CREATE POLICY "zaleczona" ON public.w FOR SELECT USING (tenant_id = current_tenant_id());',
+          ].join("\n"),
+        },
+      ],
+      known,
+    );
+    expect(report.open.map(regressionKey)).toEqual(["t::otwarta"]);
+    expect(report.known.map(regressionKey)).toEqual(["u::zastana"]);
+    expect(report.healed.map(regressionKey)).toEqual(["w::zaleczona"]);
+
+    const rendered = renderPolicyTenantRegressionReport(report, known);
+    for (const fragment of [
+      "1 polityk STRACIŁO wiązanie z najemcą",
+      "t::otwarta",
+      "DŁUG ZASTANY - 1 polityk nadal bez wiązania",
+      "poprawny predykat: tenant_id = current_tenant_id()",
+      "1 cofnięć ZALECZONYCH później",
+      "w::zaleczona",
+    ]) {
+      expect(rendered).toContain(fragment);
+    }
+    // Sekcja „wszystko OK" nie ma prawa współistnieć ze stanem otwartym.
+    expect(rendered).not.toContain("Inwariant wiązania najemcy w politykach OK");
+  });
+
+  it("martwy wpis długu bez podanej listy powodów raportuje się jako `brak powodu`", () => {
+    // Raport bierze powody z listy przekazanej OSOBNO, nie z samego wyniku
+    // analizy. Wołający, który jej nie poda (albo poda listę już przyciętą),
+    // musi dostać czytelną nazwę wpisu do usunięcia, a nie `undefined`
+    // doklejone do klucza - to jedyna instrukcja, jaką ma autor zmiany.
+    const known: PolicyTenantGaps = { "objects::career_cv_staff_read": "już naprawione" };
+    const report = analyze([{ file: "001.sql", sql: HARDENED }], known);
+    const rendered = renderPolicyTenantRegressionReport(report);
+
+    expect(rendered).toContain("objects::career_cv_staff_read  (brak powodu)");
+    expect(rendered).toContain("wpisów długu nie pasuje już do niczego");
+    expect(rendered).not.toContain("już naprawione");
   });
 });
