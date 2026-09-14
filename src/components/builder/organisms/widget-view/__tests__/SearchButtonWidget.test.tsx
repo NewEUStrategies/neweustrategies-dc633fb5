@@ -192,7 +192,13 @@ describe("SearchButtonWidget", () => {
 
   it("grupuje podpowiedzi w cztery premium kubełki (organizacja w Osobach i organizacjach)", async () => {
     rpc.rows = [
-      row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" }),
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
       row({ kind: "pub_type", id: "t1", slug: "raport", label_pl: "Raport" }),
       row({ kind: "topic", id: "top1", slug: "energia", label_pl: "Energia" }),
       row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" }),
@@ -231,7 +237,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("linki stopki (wszystkie wyniki + zaawansowane) zapisują frazę i zamykają popover", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -252,7 +266,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("nawigacja klawiaturą: strzałki wybierają opcję, Enter nawiguje do jej celu", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -270,7 +292,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("Enter bez wybranej opcji prowadzi do pełnych wyników /search", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -305,7 +335,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("przycisk czyszczenia usuwa frazę i wyniki", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")! as HTMLInputElement;
     fireEvent.focus(input);
@@ -329,7 +367,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("tryb bez wyników na żywo: wyszukiwanie dopiero po Enterze", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget({ liveResults: false });
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -358,7 +404,13 @@ describe("SearchButtonWidget", () => {
     rpc.rows = [
       row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" }),
       row({ kind: "author", id: "a2", slug: "ewa", label_pl: "Ewa Nowak" }),
-      row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" }),
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
     ];
     rpc.avatars = [
       { id: "a1", avatar_url: "https://cdn.example/a1.webp" },
@@ -387,7 +439,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("przycisk operatora wstawia go w miejsce karetki, nie na koniec", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -406,7 +466,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("operator zastępuje zaznaczony fragment frazy", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -425,7 +493,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("lupa z frazą przechodzi do pełnych wyników i zapisuje historię", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -455,7 +531,13 @@ describe("SearchButtonWidget", () => {
 
   it("zakładka kubełka zawęża listę do jednej kategorii", async () => {
     rpc.rows = [
-      row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" }),
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
       row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" }),
     ];
     const { container } = renderWidget();
@@ -481,7 +563,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("przycisk czyszczenia historii usuwa ostatnie wyszukiwania", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -501,7 +591,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("fraza krótsza niż 2 znaki czyści listę bez odpytywania RPC", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -543,7 +641,15 @@ describe("SearchButtonWidget", () => {
 
   it("BEZ routera nawigacja degraduje do twardego przejścia, nie do wyjątku", async () => {
     nav.absent = true;
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
 
     const { container } = renderWidget();
@@ -559,7 +665,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("Enter z frazą KRÓTSZĄ niż 2 znaki nie odpytuje RPC i czyści listę", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget({ liveResults: false });
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -697,7 +811,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("operator ląduje na KOŃCU frazy, gdy przeglądarka nie raportuje karetki", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -719,7 +841,15 @@ describe("SearchButtonWidget", () => {
 
   it("dyktowanie: transkrypcja płynie do pola i otwiera podpowiedzi", async () => {
     installSpeechRecognition();
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")! as HTMLInputElement;
 
@@ -741,7 +871,15 @@ describe("SearchButtonWidget", () => {
 
   it("dyktowanie BEZ wyników na żywo: finalna transkrypcja sama odpala wyszukiwanie", async () => {
     installSpeechRecognition();
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget({ liveResults: false });
     const input = container.querySelector("input")! as HTMLInputElement;
 
@@ -757,7 +895,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("klik POZA widgetem zamyka megabox (handler dokumentu)", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);

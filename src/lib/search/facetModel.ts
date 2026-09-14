@@ -14,6 +14,7 @@ import type {
   AutosuggestItem,
 } from "@/lib/queries/archives";
 import { TAXONOMY_DIMS } from "@/lib/queries/archives";
+import { searchParamsSchema } from "@/lib/search/searchParams";
 
 /** Sekcje wyników wyszukiwarki premium (zakładki na /search). */
 export type SearchTab = "all" | "titles" | "types" | "topics" | "people";
@@ -352,16 +353,65 @@ export function orderSuggestions(items: AutosuggestItem[]): AutosuggestItem[] {
   });
 }
 
-/** Statyczny cel nawigacji podpowiedzi:
- *  - publikacja → permalink `/post/<slug>`,
- *  - autor → profil `/author/<slug>` (fallback: `/search?author=<id>`),
+/** Kolejność parametrów w adresie `/search` = kolejność pól schematu adresu.
+ *  Wyprowadzona, nie przepisana: dopisanie pola do `searchParamsSchema` od razu
+ *  obejmuje serializację, więc nie da się dodać parametru, który ginie w URL-u. */
+const SEARCH_PARAM_ORDER = Object.keys(searchParamsSchema.shape);
+
+/** Serializuje stan `/search` do adresu. Puste wartości znikają (`q=""` nie
+ *  trafia do URL-a), a pola spoza schematu są pomijane - adres pozostaje
+ *  dokładnie tym, co `validateSearch` potrafi odczytać z powrotem. */
+export function searchHref(params: Record<string, unknown>): string {
+  const qs = new URLSearchParams();
+  for (const key of SEARCH_PARAM_ORDER) {
+    const value = params[key];
+    if (value === undefined || value === null || value === "") continue;
+    qs.set(key, String(value));
+  }
+  const serialized = qs.toString();
+  return serialized ? `/search?${serialized}` : "/search";
+}
+
+/** Opcje celu podpowiedzi - patrz `suggestionHref`. */
+export interface SuggestionHrefOptions {
+  /** Język etykiety wstawianej w `q` (działa wyłącznie razem z `phrase`). */
+  lang?: "pl" | "en";
+  /** Bieżący stan `/search`. Adres SCALA się z nim zamiast go zastępować, więc
+   *  wybór podpowiedzi nie gubi zakładki, sortowania ani pozostałych faset. */
+  base?: SearchUrl;
+  /** Wstaw etykietę podpowiedzi w `q` - zachowanie strony `/search`: to, co
+   *  widać w polu frazy, ma odpowiadać temu, co filtruje wyniki. */
+  phrase?: boolean;
+}
+
+/** JEDYNY cel nawigacji podpowiedzi - używany zarówno jako `href` wiersza, jak
+ *  i przez ścieżkę klawiaturową, więc mysz i Enter nie mogą się rozjechać:
+ *  - publikacja z rodzicem → `/post/<slug>` (trasa robi 301 na adres kanoniczny),
+ *  - publikacja bez rodzica → `/search` z tytułem jako frazą (kanonicznego
+ *    adresu nie ma, a `/post/<slug>` odesłałby na `/blog`),
+ *  - strona → `/<slug>`, autor → `/author/<slug>`,
  *  - kategoria/tag/seria/program → publiczna strona archiwum, jeśli mamy slug,
- *  - pozostałe wymiary taksonomii i wymiary wyliczane → `/search` z odpowiednim filtrem.
+ *  - pozostałe wymiary taksonomii i wymiary wyliczane → `/search` z filtrem.
  *  Termy taksonomii bez publicznej strony identyfikuje ID (parametry
- *  spec/type/… trafiają do RPC jako uuid[] - slug w URL wywracał zapytanie). */
-export function suggestionHref(it: AutosuggestItem): string {
+ *  spec/type/… trafiają do RPC jako uuid[] - slug w URL wywracał zapytanie),
+ *  więc term BEZ id szuka po samej nazwie zamiast budować zepsuty filtr. */
+export function suggestionHref(it: AutosuggestItem, opts: SuggestionHrefOptions = {}): string {
   const kind = it.kind as string;
-  if (kind === "post" && it.slug) return `/post/${it.slug}`;
+  const label =
+    (opts.lang === "en" ? it.label_en || it.label_pl : it.label_pl || it.label_en) || "";
+  /** Adres `/search` scalony z bieżącym stanem strony (gdy go znamy). */
+  const toSearch = (patch: Record<string, unknown>): string =>
+    searchHref({ ...(opts.base ?? {}), ...patch });
+  /** Etykieta jako fraza - tylko tam, gdzie jest nazwą własną termu. */
+  const withPhrase = (patch: Record<string, unknown>): Record<string, unknown> =>
+    opts.phrase && label ? { q: label, ...patch } : patch;
+
+  if (kind === "post") {
+    // Bez rodzica wpis nie ma adresu kanonicznego (`resolveLegacyPostPath`
+    // zwraca null, a `/post/<slug>` odsyła na `/blog`) - szukamy po tytule.
+    if (it.slug && it.parentPageId) return `/post/${it.slug}`;
+    return label ? toSearch({ q: label }) : toSearch({});
+  }
   if (kind === "page" && it.slug) return `/${it.slug}`;
   if (kind === "author" && it.slug) return `/author/${it.slug}`;
   if (kind === "category" && it.slug) return `/category/${it.slug}`;
@@ -373,22 +423,29 @@ export function suggestionHref(it: AutosuggestItem): string {
     // przenosimy do /search z frazą = nazwa firmy, żeby użytkownik zobaczył
     // powiązane treści (autorstwo, wzmianki, wydarzenia).
     const phrase = it.label_pl || it.label_en || it.slug || "";
-    return phrase ? `/search?q=${encodeURIComponent(phrase)}` : "/search";
+    return phrase ? toSearch({ q: phrase }) : toSearch({});
   }
-  const patch: Record<string, string> = {};
   if (kind === "author") {
-    if (it.id) patch.author = it.id;
-  } else if (kind === "format" && it.slug) patch.format = it.slug;
-  else if (kind === "access" && it.slug) patch.access = it.slug;
-  else if (kind === "lang" && it.slug) patch.lang = it.slug;
-  else if (kind === "year" && it.slug) patch.year = it.slug;
-  else {
-    const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
-    const value = it.id ?? it.slug;
-    if (param && value) patch[param as string] = value;
+    return it.id ? toSearch(withPhrase({ author: it.id })) : toSearch({});
   }
-  const qs = new URLSearchParams(patch).toString();
-  return qs ? `/search?${qs}` : "/search";
+  // Wymiary wyliczane: slug jest kodem (video, pl, 2026), nie nazwą - fraza
+  // z etykiety („Wideo") zawęziłaby wyniki do tekstu, więc jej tu nie ma.
+  if (kind === "format" && it.slug) return toSearch({ format: it.slug });
+  if (kind === "access" && it.slug) return toSearch({ access: it.slug });
+  if (kind === "lang") {
+    // JEDYNY parametr o zamkniętej liście wartości (`searchParams.ts`:
+    // z.enum(["pl","en"])), który bierze się z DANYCH podpowiedzi, a nie
+    // z `base` (ten przeszedł już `validateSearch`). Kod spoza listy wywraca
+    // walidację CAŁEJ trasy, więc nie wolno go wpuścić do adresu - taka
+    // podpowiedź szuka po nazwie języka zamiast wywalać stronę.
+    if (it.slug === "pl" || it.slug === "en") return toSearch({ lang: it.slug });
+    return label ? toSearch({ q: label }) : toSearch({});
+  }
+  if (kind === "year" && it.slug) return toSearch({ year: it.slug });
+
+  const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
+  if (param && it.id) return toSearch(withPhrase({ [param]: it.id }));
+  return label ? toSearch({ q: label }) : toSearch({});
 }
 
 export const AUTOSUGGEST_LISTBOX_ID = "search-autosuggest-listbox";

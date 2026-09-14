@@ -144,7 +144,14 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   it("wiersz prowadzi pod adres z modelu i pokazuje rodzaj treści", () => {
     render(
       <SearchAutosuggest
-        items={[item({ kind: "post", slug: "raport-roczny", label_pl: "Raport" })]}
+        items={[
+          item({
+            kind: "post",
+            slug: "raport-roczny",
+            label_pl: "Raport",
+            parentPageId: "pg-1",
+          }),
+        ]}
         activeIndex={-1}
         lang="pl"
         onPick={noop}
@@ -259,18 +266,74 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
   });
 });
 
+// Wybór wiersza: `mousedown` utrzymuje fokus w polu frazy, `click` wybiera.
+//
+// POPRZEDNIA WERSJA TEGO BLOKU TWIERDZIŁA W NAZWIE, ŻE „BLOKUJE domyślną
+// nawigację linku", a sprawdzała wyłącznie `defaultPrevented` na `mousedown` -
+// czyli coś, co nie ma z nawigacją nic wspólnego: `preventDefault` na
+// `mousedown` nie anuluje późniejszego `click`. Wiersz miał przez to DWA
+// źródła prawdy o celu (`href` i handler rodzica), czego ten test nie mógł
+// wychwycić, bo `click` w nim nigdy nie padał.
 describe("SearchAutosuggest - wybór wpisu", () => {
-  it("mousedown oddaje wpis rodzicowi i BLOKUJE domyślną nawigację linku", () => {
-    const onPick = vi.fn();
-    const picked = item({ kind: "post", slug: "raport", label_pl: "Raport" });
+  const picked = () => item({ kind: "post", slug: "raport", label_pl: "Raport" });
+
+  const renderOne = (onPick: (it: AutosuggestItem) => void) => {
+    const it0 = picked();
     render(
-      <SearchAutosuggest items={[picked]} activeIndex={-1} lang="pl" onPick={onPick} query="r" />,
+      <SearchAutosuggest items={[it0]} activeIndex={-1} lang="pl" onPick={onPick} query="r" />,
     );
-    const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    return it0;
+  };
+
+  it("ZWYKŁY klik lewym przyciskiem oddaje wpis rodzicowi", () => {
+    const onPick = vi.fn();
+    const it0 = renderOne(onPick);
+    fireEvent.click(screen.getByRole("option"), { button: 0 });
+    expect(onPick).toHaveBeenCalledWith(it0);
+  });
+
+  it("sam mousedown NIE WYBIERA - blokuje tylko odebranie fokusu polu frazy", () => {
+    const onPick = vi.fn();
+    renderOne(onPick);
+    const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 });
     screen.getByRole("option").dispatchEvent(event);
-    expect(onPick).toHaveBeenCalledWith(picked);
-    // Bez preventDefault link zabrałby fokus z inputa i popover by się zamknął.
+    // Bez preventDefault link zabrałby fokus z inputa i popover by się zamknął
+    // (onBlur), zanim doszedłby `click`.
     expect(event.defaultPrevented).toBe(true);
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("PRAWY przycisk nie wybiera i zostawia menu kontekstowe w spokoju", () => {
+    const onPick = vi.fn();
+    renderOne(onPick);
+    const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 2 });
+    screen.getByRole("option").dispatchEvent(event);
+    expect(onPick).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("CTRL/CMD/SHIFT+klik nie wybiera - to otwarcie celu w nowej karcie", () => {
+    const onPick = vi.fn();
+    renderOne(onPick);
+    const option = screen.getByRole("option");
+    fireEvent.click(option, { button: 0, ctrlKey: true });
+    fireEvent.click(option, { button: 0, metaKey: true });
+    fireEvent.click(option, { button: 0, shiftKey: true });
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("hrefFor nadpisuje cel wiersza - /search podaje adres scalony z filtrami", () => {
+    render(
+      <SearchAutosuggest
+        items={[picked()]}
+        activeIndex={-1}
+        lang="pl"
+        onPick={noop}
+        hrefFor={() => "/search?q=Raport&tab=titles"}
+        query="r"
+      />,
+    );
+    expect(screen.getByRole("option")).toHaveAttribute("href", "/search?q=Raport&tab=titles");
   });
 });
 
@@ -513,13 +576,29 @@ describe("RecentSearchesList", () => {
     expect(screen.getByRole("button", { name: "Clear history" })).toBeInTheDocument();
   });
 
-  it("klik terminu oddaje frazę rodzicowi i blokuje nawigację", () => {
+  it("klik terminu oddaje frazę rodzicowi (nawiguje adres wiersza, nie handler)", () => {
     const onPick = vi.fn();
     render(<RecentSearchesList items={["NATO"]} lang="pl" onPick={onPick} onClear={noop} />);
-    const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
-    screen.getByRole("option").dispatchEvent(event);
+    fireEvent.click(screen.getByRole("option"), { button: 0 });
     expect(onPick).toHaveBeenCalledWith("NATO");
-    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("hrefFor nadpisuje cel wiersza - /search scala frazę z bieżącymi filtrami", () => {
+    render(
+      <RecentSearchesList
+        items={["NATO"]}
+        lang="pl"
+        onPick={noop}
+        hrefFor={(term) => `/search?q=${term}&tab=titles`}
+        onClear={noop}
+      />,
+    );
+    expect(screen.getByRole("option")).toHaveAttribute("href", "/search?q=NATO&tab=titles");
+  });
+
+  it("wiersze z rolą option siedzą w listboxie (aria-required-parent)", () => {
+    render(<RecentSearchesList items={["NATO"]} lang="pl" onPick={noop} onClear={noop} />);
+    expect(screen.getByRole("option").closest("[role='listbox']")).not.toBeNull();
   });
 
   it("„wyczyść historię” woła onClear", () => {

@@ -7,7 +7,7 @@
 // używają dokładnie tego samego wyglądu wierszy - typografia Red Hat Display,
 // tokeny (--popover, --border, --brand, --brand-ink, --muted), 6px rounding.
 // Wzorowane na wzorcu Preline combobox (grouping + right-meta + hover state).
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { ArrowRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 
@@ -42,17 +42,35 @@ export function SuggestGroupHeader({ icon: Icon, label, count }: SuggestGroupHea
 
 export interface SuggestRowProps {
   id?: string;
+  /** JEDYNY cel nawigacji wiersza. Nawiguje AppLink - nikt inny. */
   href: string;
   label: string;
   meta?: string;
   icon?: IconType;
   avatarUrl?: string | null;
   active: boolean;
+  /**
+   * Księgowość wyboru: historia wyszukiwań, zamknięcie popovera, synchronizacja
+   * pola frazy. NIE nawiguje.
+   *
+   * CELOWO BEZ PARAMETRU ZDARZENIA. Gdyby konsument dostał `MouseEvent`, mógłby
+   * wywołać `preventDefault()` i przejąć nawigację - a wtedy wiersz miałby dwa
+   * źródła prawdy o celu (`href` i handler rodzica), które rozjeżdżają się przy
+   * pierwszej zmianie jednego z nich. Brak parametru czyni to niemożliwym
+   * kompilacyjnie, a nie regulaminowo.
+   *
+   * Wołane wyłącznie przy ZWYKŁYM kliknięciu lewym przyciskiem: ctrl/cmd/shift/
+   * alt+klik i przycisk środkowy zostawiamy przeglądarce (otwarcie w nowej
+   * karcie nie powinno zamykać popovera ani dopisywać do historii).
+   */
   onSelect?: () => void;
   onHover?: () => void;
-  /** Intercepcja mousedown - używana gdy rodzic sam obsługuje nawigację
-   *  (np. autosuggest na /search, gdzie pickSuggestion robi router.navigate). */
-  onMouseDown?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}
+
+/** Czy to zwykłe kliknięcie lewym przyciskiem - a więc wybór pozycji, a nie
+ *  próba otwarcia celu w nowej karcie/oknie. */
+function isPlainLeftClick(e: ReactMouseEvent<HTMLAnchorElement>): boolean {
+  return e.button === 0 && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey;
 }
 
 /**
@@ -71,8 +89,16 @@ export function SuggestRow({
   active,
   onSelect,
   onHover,
-  onMouseDown,
 }: SuggestRowProps) {
+  // Domyślną akcją mousedown jest przeniesienie fokusu na kotwicę (`tabIndex=-1`
+  // tego NIE blokuje). Popover podpowiedzi na /search zamyka się na `onBlur`
+  // inputa, więc bez tego fokus wychodzi z pola, lista odmontowuje się przed
+  // `mouseup` i nie dochodzi ani `click`, ani otwarcie w nowej karcie.
+  // Tylko przycisk główny: dla prawego zabranie domyślnej akcji potrafi w części
+  // przeglądarek zdusić menu kontekstowe („otwórz w nowej karcie").
+  const preserveFocus = (e: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (e.button === 0) e.preventDefault();
+  };
   return (
     <AppLink
       href={href}
@@ -80,9 +106,15 @@ export function SuggestRow({
       role="option"
       aria-selected={active}
       tabIndex={-1}
-      onClick={onSelect}
+      onClick={
+        onSelect
+          ? (e: ReactMouseEvent<HTMLAnchorElement>) => {
+              if (isPlainLeftClick(e)) onSelect();
+            }
+          : undefined
+      }
       onMouseEnter={onHover}
-      onMouseDown={onMouseDown}
+      onMouseDown={preserveFocus}
       className={`group relative mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-2 text-[13px] leading-[1.4] transition-all ${
         active
           ? "bg-[color-mix(in_oklab,var(--brand)_8%,transparent)] text-foreground"

@@ -417,17 +417,32 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
 // ---------------------------------------------------------------------------
 
 describe("/search - deep-linki z podpowiedzi", () => {
-  async function pick(item: AutosuggestItem) {
+  /** Otwiera popover z JEDNĄ podpowiedzią i oddaje widok razem z wierszem. */
+  async function openWith(item: AutosuggestItem, entry = "/search") {
     h.suggestData = [item];
-    const view = await mount("/search");
+    const view = await mount(entry);
     fireEvent.change(phraseInput(), { target: { value: "ab" } });
     fireEvent.focus(phraseInput());
     await act(async () => {
       await new Promise((r) => setTimeout(r, 250));
     });
     await waitFor(() => expect(screen.getAllByRole("option").length).toBe(1));
+    return { view, option: screen.getByRole("option") };
+  }
+
+  /**
+   * PEŁNA sekwencja myszy, a nie sam `mousedown`.
+   *
+   * Przez to, że helper strzelał wyłącznie `fireEvent.mouseDown`, żaden z tych
+   * testów nie dotykał `click` - czyli tej połowy zdarzenia, w której siedzi
+   * nawigacja linku wiersza (`AppLink`). Wybór myszą to `mousedown` (utrzymuje
+   * fokus w polu, więc popover nie znika) ORAZ `click` (nawiguje).
+   */
+  async function pick(item: AutosuggestItem, entry = "/search") {
+    const { view, option } = await openWith(item, entry);
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole("option"));
+      fireEvent.mouseDown(option, { button: 0 });
+      fireEvent.click(option, { button: 0 });
       await Promise.resolve();
     });
     return view;
@@ -470,25 +485,119 @@ describe("/search - deep-linki z podpowiedzi", () => {
     await waitFor(() => expect(view.search()).toMatchObject({ org: "o-1", q: "NATO" }));
   });
 
-  it("WPIS zagnieżdżony pod stroną rozwiązuje pełną ścieżkę JEDNYM zapytaniem", async () => {
-    h.rpcByFn.page_full_path = "raporty/2026";
-    const view = await pick(sug({ kind: "post", slug: "roczny", parentPageId: "pg-1" }));
-    await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("page_full_path", { _page_id: "pg-1" }));
-    await waitFor(() => expect(view.currentPath()).toBe("/raporty/2026/roczny"));
-  });
-
-  it("BŁĄD rozwiązania ścieżki spada na wyszukanie tytułu, a nie na pustą stronę", async () => {
-    h.rpcByFn.page_full_path = new Error("brak funkcji");
-    const view = await pick(
-      sug({ kind: "post", slug: "roczny", parentPageId: "pg-1", label_pl: "Raport roczny" }),
+  it("WPIS zagnieżdżony pod stroną idzie na /post/<slug> - BEZ własnego zapytania o ścieżkę", async () => {
+    // Ścieżkę rodzica rozwiązuje trasa `/post/$slug` (301 na adres kanoniczny
+    // przez `resolveLegacyPostPath`), a nie klik w podpowiedź. Wcześniej robił
+    // to RPC w handlerze wyboru - druga, równoległa definicja tego samego
+    // przekierowania, ścigająca się z nawigacją linku wiersza.
+    const { view, option } = await openWith(
+      sug({ kind: "post", slug: "roczny", parentPageId: "pg-1" }),
     );
-    await waitFor(() => expect(view.search().q).toBe("Raport roczny"));
+    expect(option).toHaveAttribute("href", "/post/roczny");
+    await act(async () => {
+      fireEvent.mouseDown(option, { button: 0 });
+      fireEvent.click(option, { button: 0 });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(view.currentPath()).toBe("/post/roczny"));
+    expect(h.rpc).not.toHaveBeenCalledWith("page_full_path", expect.anything());
   });
 
-  it("wpis BEZ rodzica od razu traktowany jest jak fraza", async () => {
+  it("wpis BEZ rodzica traktowany jest jak fraza - /post/<slug> odesłałby na /blog", async () => {
     const view = await pick(sug({ kind: "post", slug: "roczny", label_pl: "Raport roczny" }));
     await waitFor(() => expect(view.search().q).toBe("Raport roczny"));
     expect(h.rpc).not.toHaveBeenCalledWith("page_full_path", expect.anything());
+  });
+
+  // -------------------------------------------------------------------------
+  // Regresja: wiersz podpowiedzi ma DOKŁADNIE JEDEN cel nawigacji
+  // -------------------------------------------------------------------------
+
+  it("adres wiersza JEST tym, co robi klik - jeden cel, nie dwa", async () => {
+    // Wiersz dostawał `href` z modelu faset i OSOBNO handler rodzica, który
+    // nawigował gdzie indziej. Kontrakt: `href` i skutek kliknięcia są tożsame.
+    const { view, option } = await openWith(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+    );
+    const href = option.getAttribute("href");
+    await act(async () => {
+      fireEvent.mouseDown(option, { button: 0 });
+      fireEvent.click(option, { button: 0 });
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(
+        `${view.currentPath()}?${new URLSearchParams(
+          Object.entries(view.search()).filter(([, v]) => v !== undefined && v !== "") as [
+            string,
+            string,
+          ][],
+        ).toString()}`,
+      ).toBe(href),
+    );
+  });
+
+  it("wybór podpowiedzi ZACHOWUJE pozostały stan wyszukiwarki (zakładka, sortowanie)", async () => {
+    // Adres wiersza scala się z bieżącym stanem. Goły `/search?<filtr>` kasował
+    // zakładkę i sortowanie, bo query string zastępuje się w całości.
+    const view = await pick(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+      "/search?tab=titles&sort=newest",
+    );
+    await waitFor(() =>
+      expect(view.search()).toMatchObject({ q: "NATO", org: "o-1", tab: "titles", sort: "newest" }),
+    );
+  });
+
+  it("PRAWY przycisk myszy niczego nie wybiera (menu kontekstowe, nie nawigacja)", async () => {
+    const { view, option } = await openWith(sug({ kind: "topic", id: "t-1", slug: "energia" }));
+    await act(async () => {
+      fireEvent.mouseDown(option, { button: 2 });
+      await Promise.resolve();
+    });
+    expect(view.currentPath()).toBe("/search");
+  });
+
+  it("CTRL+klik zostawia nawigację przeglądarce (otwarcie w nowej karcie)", async () => {
+    const { view, option } = await openWith(sug({ kind: "topic", id: "t-1", slug: "energia" }));
+    await act(async () => {
+      fireEvent.mouseDown(option, { button: 0, ctrlKey: true });
+      fireEvent.click(option, { button: 0, ctrlKey: true });
+      await Promise.resolve();
+    });
+    expect(view.currentPath()).toBe("/search");
+  });
+
+  // `page`, `company` i wymiary wyliczane nie miały własnej gałęzi w handlerze
+  // wyboru, a nawigację z `href` zjadało zamknięcie popovera - klik w nie nie
+  // robił NIC. Nawiguje je teraz adres wiersza, ten sam dla myszy i Entera.
+  it("STRONA nie jest martwa - klik prowadzi na jej adres", async () => {
+    const view = await pick(sug({ kind: "page", id: "pg-9", slug: "o-nas" }));
+    await waitFor(() => expect(view.currentPath()).toBe("/o-nas"));
+  });
+
+  it("FIRMA nie jest martwa - klik szuka po nazwie", async () => {
+    const view = await pick(sug({ kind: "company", id: "c-1", slug: "acme", label_pl: "Acme" }));
+    await waitFor(() => expect(view.search().q).toBe("Acme"));
+  });
+
+  it("WYMIAR WYLICZANY nie jest martwy - klik nakłada filtr", async () => {
+    const view = await pick(sug({ kind: "format", id: null, slug: "video" }));
+    await waitFor(() => expect(view.search().format).toBe("video"));
+  });
+
+  it("ENTER z klawiatury prowadzi POD TEN SAM adres co klik myszą", async () => {
+    const { view, option } = await openWith(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+    );
+    const href = option.getAttribute("href");
+    fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });
+    await act(async () => {
+      fireEvent.keyDown(phraseInput(), { key: "Enter" });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(view.search()).toMatchObject({ q: "NATO", org: "o-1" }));
+    expect(href).toBe("/search?q=NATO&org=o-1");
   });
 });
 
@@ -557,6 +666,32 @@ describe("/search - ostatnie wyszukiwania", () => {
     fireEvent.focus(phraseInput());
     await waitFor(() => expect(screen.getByText("Ostatnie wyszukiwania")).toBeInTheDocument());
     expect(screen.getByRole("option", { name: /polityka/ })).toBeInTheDocument();
+  });
+
+  it("klik w historię NIE GUBI filtrów - wiersz nawiguje raz, pod adres scalony", async () => {
+    // Wiersz historii miał `href` = goły `/search?q=<fraza>` ORAZ handler
+    // rodzica robiący patch adresu. Ten popover nie jest bramkowany fokusem,
+    // więc szły OBIE nawigacje, a druga (z linku) zastępowała cały query
+    // string - zakładka, sortowanie i fasety znikały.
+    await mount("/search");
+    fireEvent.change(phraseInput(), { target: { value: "polityka" } });
+    await act(async () => {
+      fireEvent.submit(phraseInput().closest("form")!);
+    });
+
+    cleanup();
+    const view = await mount("/search?tab=titles&sort=newest");
+    await waitFor(() => expect(screen.getByText("Ostatnie wyszukiwania")).toBeInTheDocument());
+    const row = screen.getByRole("option", { name: /polityka/ });
+    expect(row).toHaveAttribute("href", "/search?q=polityka&sort=newest&tab=titles");
+    await act(async () => {
+      fireEvent.mouseDown(row, { button: 0 });
+      fireEvent.click(row, { button: 0 });
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(view.search()).toMatchObject({ q: "polityka", tab: "titles", sort: "newest" }),
+    );
   });
 
   it("„wyczyść historię” opróżnia listę ostatnich wyszukiwań", async () => {
