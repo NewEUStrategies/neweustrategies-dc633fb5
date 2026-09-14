@@ -75,6 +75,8 @@ export interface RobotsInput {
   disallow?: readonly string[];
   /** Grupy per user-agent, np. polityka crawlerów AI (tylko dla mode="canonical"). */
   groups?: readonly RobotsGroup[];
+  /** Warunki cytowania (wskazanie źródła) - tylko dla mode="canonical". */
+  usage?: RobotsUsagePolicy;
 }
 
 /** Domyślnie zamknięte obszary: panel, API i ścieżki autoryzacji. */
