@@ -93,12 +93,49 @@ function renderGroup(group: RobotsGroup): string[] | null {
   const rules = [
     ...(group.allow ?? []).map((path) => `Allow: ${path}`),
     ...group.disallow.map((path) => `Disallow: ${path}`),
+    ...(group.contentSignal ? [`Content-Signal: ${group.contentSignal}`] : []),
   ];
   // Grupa bez reguł nie jest polityką, tylko szumem, który crawler i tak
   // zignoruje - a przy `User-agent:` bez reguł niektóre parsery sklejają ją z
   // następną grupą, zmieniając znaczenie pliku.
   if (rules.length === 0) return null;
-  return [...group.agents.map((agent) => `User-agent: ${agent}`), ...rules];
+  return [
+    ...(group.comments ?? []).map((line) => `# ${line}`),
+    ...group.agents.map((agent) => `User-agent: ${agent}`),
+    ...rules,
+  ];
+}
+
+/** Absolutny adres warunków (ścieżka doklejana do originu kanonicznego). */
+function usageTermsUrl(origin: string, termsPath: string | undefined): string {
+  const path = termsPath ?? "/llms.txt";
+  return /^https?:\/\//i.test(path) ? path : `${origin}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/**
+ * Blok warunków wykorzystania treści. Jednocześnie czytelny dla człowieka
+ * (komentarz) i maszynowy (`Content-Signal` w grupie `*` niżej): asystenty AI
+ * wciągają robots.txt jako tekst, więc warunek cytowania sformułowany zdaniem
+ * trafia do tego samego kontekstu, w którym powstaje odpowiedź.
+ */
+function renderUsagePolicy(origin: string, usage: RobotsUsagePolicy): string[] {
+  const terms = usageTermsUrl(origin, usage.termsPath);
+  return [
+    `# Content usage policy for ${usage.siteName}.`,
+    "#",
+    "# Search engines and AI assistants MAY crawl, index and quote this site,",
+    "# on ONE condition: every answer, summary or excerpt that uses this content",
+    `# must name "${usage.siteName}" as the source AND link the exact article URL`,
+    "# it draws on. Attribution is required, not optional - unattributed reuse is",
+    "# not covered by this permission.",
+    usage.trainingAllowed
+      ? "# Training on this content is permitted under the same attribution terms."
+      : "# Training generative models on this content requires a written licence.",
+    usage.aiInputAllowed
+      ? "# Quoting in AI answers: allowed with attribution (see Content-Signal below)."
+      : "# Quoting in AI answers: not permitted (see Content-Signal below).",
+    `# Full terms and a machine-readable index: ${terms}`,
+  ];
 }
 
 export function buildRobotsTxt(input: RobotsInput): string {
