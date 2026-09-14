@@ -49,10 +49,12 @@ export function TabsBlock({
   const safe = Math.min(active, tabs.length - 1);
   const cur = tabs[safe];
 
+  // min-w-0 + overflow-wrap: treść panelu łamie wiersze zamiast wystawać
+  // poza ekran na mobile (żadnego poziomego przycinania tekstu).
   const panel = (
     <div
       role="tabpanel"
-      className="prose prose-sm max-w-none [&_*]:text-inherit"
+      className="prose prose-sm max-w-none min-w-0 [overflow-wrap:anywhere] [&_*]:text-inherit"
       dangerouslySetInnerHTML={{ __html: sanitizeHtml(cur[`html_${lang}`] || cur.html_pl || "") }}
     />
   );
