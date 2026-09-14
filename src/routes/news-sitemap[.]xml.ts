@@ -6,6 +6,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { buildNewsSitemapXml, type NewsSitemapEntry } from "@/lib/seo/newsSitemap";
 import { feedCacheControl } from "@/lib/seo/feedCache";
