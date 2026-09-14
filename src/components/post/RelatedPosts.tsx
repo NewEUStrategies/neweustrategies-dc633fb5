@@ -388,7 +388,7 @@ function RelatedCards({ posts, cfg, lang, sourcePostId }: ViewProps) {
               <div className="relative aspect-[16/10] overflow-hidden bg-muted">
                 <OptimizedImage
                   src={p.cover_image_url}
-                  alt=""
+                  alt={title}
                   responsive
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
