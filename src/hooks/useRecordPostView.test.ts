@@ -10,8 +10,9 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 const h = vi.hoisted(() => ({
   record: vi.fn(),
   hasAnalyticsConsent: vi.fn(),
-  gpcHonored: vi.fn(),
+  upsert: vi.fn(),
   upsertThen: vi.fn(),
+  from: vi.fn(),
   user: null as { id: string } | null,
 }));
 
@@ -19,11 +20,19 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.record }));
 vi.mock("@/lib/views/postViews.functions", () => ({ recordPostView: {} }));
 vi.mock("@/lib/ads/consent", () => ({
   hasAnalyticsConsent: () => h.hasAnalyticsConsent(),
-  isGpcCurrentlyHonored: () => h.gpcHonored(),
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user }) }));
+// Mock łańcucha zapisu historii czytania. `from` i `upsert` są SZPIEGAMI, a nie
+// pustymi zaślepkami, bo test niżej asertuje nie tylko FAKT zapisu, ale i to,
+// DO KTÓREJ TABELI oraz z jakim ładunkiem - inaczej bramka zgody dałaby się
+// „spełnić" przepięciem zapisu na inną tabelę.
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: () => ({ upsert: () => ({ then: h.upsertThen }) }) },
+  supabase: {
+    from: (table: string) => {
+      h.from(table);
+      return { upsert: (...args: unknown[]) => (h.upsert(...args), { then: h.upsertThen }) };
+    },
+  },
 }));
 
 import { useRecordPostView } from "./useRecordPostView";
@@ -44,8 +53,9 @@ beforeEach(() => {
   vi.useFakeTimers();
   h.record.mockReset().mockResolvedValue({ ok: true });
   h.hasAnalyticsConsent.mockReset().mockReturnValue(false);
-  h.gpcHonored.mockReset().mockReturnValue(false);
+  h.upsert.mockReset();
   h.upsertThen.mockReset();
+  h.from.mockReset();
   h.user = null;
   window.localStorage.clear();
 });
@@ -103,48 +113,70 @@ describe("useRecordPostView - bramka zgody analitycznej", () => {
   });
 });
 
-describe("useRecordPostView - historia czytania a sygnał GPC", () => {
-  // Od 14.09.2026 `user_read_history` realnie zasila personalizację
-  // rekomendacji, a `personalization` jest kluczem klamrowanym sygnałem GPC.
-  // Klamra musi więc stać przy ZBIERANIU, nie dopiero przy użyciu: zapisywanie
-  // profilu czytelniczego mimo wyrażonego sprzeciwu po to, żeby go potem nie
-  // użyć, jest gromadzeniem danych wbrew temu sprzeciwowi.
-  it("zalogowany czytelnik BEZ sygnału GPC dopisuje wpis do historii", async () => {
-    h.user = { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
+// REGRESJA DRUGIEJ STRONY TEJ SAMEJ BRAMKI.
+//
+// Do 2026-09-14 zapis do `user_read_history` stał POZA gałęzią zgody: hook
+// przestawał liczyć odsłonę i kasował `viewer_hash`, a mimo to dalej dopisywał
+// do profilu zachowania konkretnej osoby - co i kiedy przeczytała. Mock upsertu
+// istniał w tym pliku od początku i nie był asertowany ANI RAZU, więc decyzja
+// nigdy nie została utrwalona. Utrwalają ją przypadki niżej - CZTERY, bo
+// czwarty pilnuje ASYMETRII: autor nie nabija odsłony, ale swoją historię
+// czytania zapisuje. Liczba jest tu istotna, nie ozdobna: bez tego czwartego
+// przypadku regresja obejmująca oba zapisy jednym `if (!isAuthor)` przejdzie.
+describe("useRecordPostView - historia czytania pod tą samą bramką zgody", () => {
+  const USER = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+
+  it("bez zgody NIE dopisuje historii czytania zalogowanego użytkownika", async () => {
+    h.user = { id: USER };
 
     await mountAndTick();
 
-    expect(h.upsertThen).toHaveBeenCalled();
+    expect(h.upsert).not.toHaveBeenCalled();
+    expect(h.from).not.toHaveBeenCalledWith("user_read_history");
   });
 
-  it("SYGNAŁ GPC wstrzymuje zapis historii czytania", async () => {
-    h.user = { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
-    h.gpcHonored.mockReturnValue(true);
-
-    await mountAndTick();
-
-    expect(h.upsertThen).not.toHaveBeenCalled();
-  });
-
-  it("GPC wstrzymuje historię NIEZALEŻNIE od zgody analitycznej", async () => {
-    // Dwie różne zgody i dwa różne zbiory danych: analityka rządzi
-    // `post_views`, klamra GPC - profilem czytelniczym. Zgoda na jedno nie
-    // otwiera drugiego.
-    h.user = { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
+  it("po zgodzie dopisuje historię czytania z kluczem konfliktu użytkownik-wpis", async () => {
     h.hasAnalyticsConsent.mockReturnValue(true);
-    h.gpcHonored.mockReturnValue(true);
+    h.user = { id: USER };
 
     await mountAndTick();
 
-    expect(h.record).toHaveBeenCalledTimes(1);
-    expect(h.upsertThen).not.toHaveBeenCalled();
+    expect(h.from).toHaveBeenCalledWith("user_read_history");
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    const [wiersz, opcje] = h.upsert.mock.calls[0] as [
+      { user_id: string; post_id: string; read_at: string },
+      { onConflict: string },
+    ];
+    expect(wiersz.user_id).toBe(USER);
+    expect(wiersz.post_id).toBe(POST);
+    expect(typeof wiersz.read_at).toBe("string");
+    // Bez tego klucza każde wejście na wpis dokładałoby wiersz zamiast odświeżać.
+    expect(opcje.onConflict).toBe("user_id,post_id");
   });
 
-  it("gość nie ma historii do zapisania, nawet bez GPC", async () => {
+  it("anonim nie dopisuje historii czytania nawet po zgodzie", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
     h.user = null;
 
     await mountAndTick();
 
-    expect(h.upsertThen).not.toHaveBeenCalled();
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  // Ta asymetria jest ZAMIERZONA i dlatego ma własny test: reguła „autor nie
+  // nabija odsłon własnego wpisu" chroni METRYKĘ WPISU, a historia czytania to
+  // dane autora jako czytelnika. Gdyby ktoś kiedyś objął oba zapisy jednym
+  // warunkiem `isAuthor`, ten test to wychwyci.
+  it("autor czytający własny wpis: bez odsłony, ale z historią czytania", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    h.user = { id: USER };
+
+    renderHook(() => useRecordPostView(POST, USER));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(h.record).not.toHaveBeenCalled();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
   });
 });

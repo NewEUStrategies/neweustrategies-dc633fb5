@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { recordPostView } from "@/lib/views/postViews.functions";
 import { clearViewerHash, getViewerHash } from "@/lib/views/viewerHash";
-import { hasAnalyticsConsent, isGpcCurrentlyHonored } from "@/lib/ads/consent";
+import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { afterPrerendering } from "@/lib/prerender";
@@ -52,34 +52,35 @@ export function useRecordPostView(postId: string | undefined | null, authorId?: 
               /* silent: view counts are best-effort */
             });
           }
+          // The view counter runs as anon and can't attribute the read to the user,
+          // so record the signed-in user's read history here (owner-RLS, authed
+          // session). This is what feeds recommendations' "already read" exclusion
+          // and read-based interest scoring - previously nothing ever wrote it.
+          //
+          // POD TĄ SAMĄ BRAMKĄ ZGODY CO LICZNIK ODSŁON, i to jest naprawa, nie
+          // kosmetyka. Do 2026-09-14 ten zapis stał POZA gałęzią zgody: hook
+          // przestawał liczyć odsłonę i kasował `viewer_hash`, a mimo to dalej
+          // dopisywał do `user_read_history`, czyli do PROFILU ZACHOWANIA
+          // konkretnej osoby - co i kiedy przeczytała. Tabela zasila rekomendacje
+          // oraz strumienie analityczne (`lib/analytics/semantic/streams.ts`),
+          // więc wycofanie zgody analitycznej musi ją zatrzymać tak samo jak
+          // licznik. Świadomie NIE bramkujemy tego regułą `isAuthor`: autor
+          // czytający własny wpis nie nabija licznika publicznego, ale jego
+          // własna historia czytania to jego dane, nie metryka wpisu.
+          if (userId) {
+            void supabase
+              .from("user_read_history")
+              .upsert(
+                { user_id: userId, post_id: postId, read_at: new Date().toISOString() },
+                { onConflict: "user_id,post_id" },
+              )
+              .then(undefined, () => {
+                /* best-effort */
+              });
+          }
         } else {
           // Identyfikator z czasów poprzedniej zgody nie ma prawa jej przeżyć.
           clearViewerHash();
-        }
-        // The view counter runs as anon and can't attribute the read to the user,
-        // so record the signed-in user's read history here (owner-RLS, authed
-        // session). This is what feeds recommendations' "already read" exclusion
-        // and read-based interest scoring - previously nothing ever wrote it.
-        //
-        // KLAMRA GPC OBEJMUJE TAKŻE ZBIERANIE, nie tylko użycie. Od 14.09.2026
-        // `user_read_history` realnie zasila personalizację rekomendacji
-        // (`relatedAffinityQueryOptions`), a `personalization` jest kluczem
-        // klamrowanym sygnałem GPC (`lib/consent/gpc.ts`). Zapisywanie profilu
-        // czytelniczego przy włączonym opt-oucie przeglądarki po to, żeby go
-        // potem nie użyć, jest gromadzeniem danych wbrew wyrażonemu
-        // sprzeciwowi - klamra musi stać przy zapisie, nie dopiero przy
-        // odczycie. Sygnał czytamy tą samą nie-hookową drogą co `hasAnalyticsConsent`
-        // wyżej, bo jesteśmy w callbacku poza drzewem Reacta.
-        if (userId && !isGpcCurrentlyHonored()) {
-          void supabase
-            .from("user_read_history")
-            .upsert(
-              { user_id: userId, post_id: postId, read_at: new Date().toISOString() },
-              { onConflict: "user_id,post_id" },
-            )
-            .then(undefined, () => {
-              /* best-effort */
-            });
         }
       }, 1500);
     });

@@ -14,13 +14,21 @@
 -- poprawka polityki byłaby martwą literą - dlatego oba predykaty są tu
 -- sprawdzane osobno.
 --
+-- DOMKNIĘCIE PRZYCZYNY (20260914140000). Utwardzenie powyżej zamknęło objaw,
+-- ale zostawiło DRYF, o którym samo mówi: wiersz w tenancie A, konto przepięte
+-- do B. Po takim przeniesieniu właściciel widział PUSTY formularz (RPC filtruje
+-- po tenancie), a zapis wywalał się na `USING expression` - bo BEFORE-trigger
+-- ustawia wiersz NOWY, a USING sprawdza ISTNIEJĄCY. Naprawą jest przepięcie
+-- przy przeniesieniu konta (tg_profiles_repin_account_tenant) plus backfill;
+-- asercje 18-19 pilnują, że dryf już nie powstaje.
+--
 -- Bliźniaczy plik dla tej samej klasy: user_bookmarks_tenant_isolation_test.sql.
 -- Bramka statyczna klasy: scripts/check-sql-owner-tenant-scope.ts.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(17);
+SELECT plan(19);
 
 -- ── (1-4) Kształt polityk: wszystkie cztery ścieżki właściciela wiążą tenanta ─
 SELECT ok(
@@ -201,6 +209,41 @@ SELECT is(
   0,
   'legit: właściciel kasuje własny wiersz w tenancie domowym (polityka nie jest za ciasna)'
 );
+
+-- ── (18-19) Przeniesienie konta NIE osierraca profilu autorskiego ───────────
+-- Przeniesienie jest legalne dla roli serwerowej (profiles_pin_tenant_id
+-- zwalnia is_service_role_caller(); tą furtką chodzi przyjęcie zaproszenia).
+-- Przed 20260914140000 wiersz zostawał w starym najemcy i właściciel tracił go
+-- bezpowrotnie - RPC nie zwracało go, a upsert wywalał się na USING.
+INSERT INTO public.author_profiles (user_id, tenant_id, job_title, is_public)
+VALUES ('ac000000-0000-0000-0000-0000000000a1',
+        'ac111111-1111-1111-1111-111111111111', 'Analyst', false);
+
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+UPDATE public.profiles
+   SET tenant_id = 'ac222222-2222-2222-2222-222222222222'
+ WHERE id = 'ac000000-0000-0000-0000-0000000000a1';
+
+SELECT is(
+  (SELECT tenant_id FROM public.author_profiles
+    WHERE user_id = 'ac000000-0000-0000-0000-0000000000a1'),
+  'ac222222-2222-2222-2222-222222222222'::uuid,
+  'przeniesienie konta przepina profil autorski na nowego najemcę'
+);
+
+-- Dowód, że to nie jest kosmetyka: właściciel po przeniesieniu NADAL dosięga
+-- swojego wiersza jedyną drogą, którą ma edytor - RPC get_own_author_profile().
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"ac000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.get_own_author_profile()),
+  1,
+  'po przeniesieniu właściciel NADAL czyta swój profil autorski (formularz nie startuje pusty)'
+);
+
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

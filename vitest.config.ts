@@ -4506,6 +4506,66 @@ export default defineConfig({
           lines: 95,
           branches: 85,
         },
+        // ── PODŁOGI POMIAROWE DLA PLIKÓW RUSZONYCH W ZLECENIU „MODUŁ 1" ──────
+        //
+        // Pięć plików poniżej było do 14.09.2026 MIERZONE, ale NIEBRAMKOWANE:
+        // miały pokrycie w raporcie i nie miały ani jednego progu per-ścieżka,
+        // więc dowolny regres schodził z nich bez sygnału. Zlecenie wymaga progu
+        // dla każdego ruszonego pliku, więc każdy dostaje podłogę.
+        //
+        // SKĄD TE LICZBY. Nie z pomiaru lokalnego - zależności repozytorium nie
+        // dają się tu zainstalować (403 z lustra pakietów), więc lokalny przebieg
+        // z coverage jest niewykonalny i KAŻDA liczba z niego byłaby zaniżona.
+        // Liczby pochodzą ze scalonego raportu czterech shardów w przebiegu CI
+        // 34831329705 na commicie 2370507 (zadanie `test`, krok „Test + coverage
+        // gate"). Każda podłoga to wartość zmierzona ZAOKRĄGLONA W DÓŁ do liczby
+        // całkowitej - to nie jest cel, tylko zapadka: próg wolno wyłącznie
+        // podnosić.
+        //
+        // WYJĄTEK NA GAŁĘZIACH `labelsEn.ts`: pomiar pokazuje równe 90,00%, więc
+        // podłoga stoi na 89, a nie na 90. Tabela istanbula podaje `pct`
+        // zaokrąglony do dwóch miejsc, więc „90" może być zarówno 90,00, jak
+        // i 89,995 - a próg równy zaokrąglonej wartości robi z tego rzut monetą
+        // przy pierwszym niezwiązanym przebiegu. Reszta podłóg ma margines
+        // z samego zaokrąglenia w dół.
+        "src/hooks/useRecordPostView.ts": {
+          statements: 96,
+          functions: 71,
+          lines: 100,
+          branches: 86,
+        },
+        "src/lib/builder/labelsEn.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 89,
+        },
+        "src/lib/builder/schemas.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 88,
+        },
+        "src/routes/api/public/related-click.ts": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // TRASA `/api/tts` STOI NISKO I PODŁOGA TEGO NIE UKRYWA: 22,72% linii.
+        // Testowany jest wyłącznie `normalizeTtsInput` (walidacja wejścia, czyli
+        // to, czego dotyczył defekt A2); całe ciało uchwytu POST - uwierzytelnienie,
+        // RPC `is_staff`, dwuoknowy limiter i wywołanie ElevenLabs - nie ma ani
+        // jednego przypadku. Domknięcie tego wymaga atrap `@supabase/supabase-js`,
+        // `rate-limit.server` i `fetch`, których w tym środowisku nie da się
+        // wykonać ani razu przed wypchnięciem. Podłoga zapisuje więc stan
+        // faktyczny i blokuje zejście niżej; podniesienie go jest osobną pracą.
+        "src/routes/api/tts.ts": {
+          statements: 27,
+          functions: 50,
+          lines: 22,
+          branches: 37,
+        },
         // UKŁADY WPISU I RENDER + AUDIO: powierzchnie komponentowe modułu.
         // Stan wyjściowy: `components/post` 21 z 26 plików na ZERZE (19,0% linii
         // całej funkcjonalności), `components/audio` 4 z 4 na zerze. Po pracy

@@ -924,8 +924,11 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Turbo v2.5 (szybszy)": "Turbo v2.5 (faster)",
   "Daniel (męski, EN)": "Daniel (male, EN)",
   "George (męski, EN)": "George (male, EN)",
-  "Liam (męski, EN)": "Liam (male, EN)",
-  "Jessica (kobiecy, EN)": "Jessica (female, EN)",
+  // Liam i Jessica usunięte razem ze swoimi pozycjami w `schemas.ts` - były to
+  // głosy spoza allowlisty kanonicznej `TTS_VOICES`, które po domknięciu
+  // walidacji `/api/tts` dostają 400. Wpisy muszą znikać PARAMI: test
+  // „no dictionary entry is dead weight" w `__tests__/labelsEn.test.ts`
+  // odrzuca każdy klucz słownika, którego nie używa żaden moduł danych.
   "Laura (kobiecy, EN)": "Laura (female, EN)",
   "Lily (kobiecy, EN)": "Lily (female, EN)",
   "Matilda (kobiecy, EN)": "Matilda (female, EN)",
