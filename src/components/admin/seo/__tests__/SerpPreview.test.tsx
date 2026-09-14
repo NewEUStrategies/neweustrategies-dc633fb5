@@ -320,3 +320,26 @@ describe("SerpPreview - dostępność", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 });
+
+describe("nazwa serwisu w linii nad niebieskim linkiem", () => {
+  // To jest jedyne miejsce w panelu, gdzie widać SKUTEK pola „nazwa serwisu"
+  // z /admin/seo/homepage. Google rysuje tę linię z `og:site_name` /
+  // `WebSite.name`, i to ona decyduje, czy z tytułu zdejmie powtórzony prefiks
+  // marki. Podgląd rysujący tu stałą ukrywałby efekt jedynej edycji, dla której
+  // tamto pole powstało.
+  it("podana nazwa WYGRYWA nad stałą marki", () => {
+    render(<SerpPreview title="Tytuł" description="Opis" path="" siteName="Nowe Strategie" />);
+    expect(screen.getByText("Nowe Strategie")).toBeTruthy();
+    expect(screen.queryByText(SITE_NAME)).toBeNull();
+  });
+
+  it("nazwa z samych spacji spada na stałą marki, a nie na pustą linię", () => {
+    render(<SerpPreview title="Tytuł" description="Opis" path="" siteName="   " />);
+    expect(screen.getByText(SITE_NAME)).toBeTruthy();
+  });
+
+  it("brak propu zachowuje dotychczasowe zachowanie", () => {
+    render(<SerpPreview title="Tytuł" description="Opis" path="" />);
+    expect(screen.getByText(SITE_NAME)).toBeTruthy();
+  });
+});

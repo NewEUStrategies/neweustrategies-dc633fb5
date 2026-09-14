@@ -26,13 +26,16 @@ const LINK_CLASS =
 export function LivePreviewLinks({ path, className }: LivePreviewLinksProps) {
   const { t } = useTranslation();
   const url = livePageUrl(path);
-  const targets: readonly { readonly key: string; readonly href: string; readonly label: string }[] =
-    [
-      { key: "page", href: url, label: t("admin.seo.live.openPage") },
-      { key: "google", href: googleResultUrl(url), label: t("admin.seo.live.google") },
-      { key: "facebook", href: facebookDebuggerUrl(url), label: t("admin.seo.live.facebook") },
-      { key: "linkedin", href: linkedinInspectorUrl(url), label: t("admin.seo.live.linkedin") },
-    ];
+  const targets: readonly {
+    readonly key: string;
+    readonly href: string;
+    readonly label: string;
+  }[] = [
+    { key: "page", href: url, label: t("admin.seo.live.openPage") },
+    { key: "google", href: googleResultUrl(url), label: t("admin.seo.live.google") },
+    { key: "facebook", href: facebookDebuggerUrl(url), label: t("admin.seo.live.facebook") },
+    { key: "linkedin", href: linkedinInspectorUrl(url), label: t("admin.seo.live.linkedin") },
+  ];
   return (
     <div className={`space-y-2 ${className ?? ""}`}>
       <p className="text-xs text-muted-foreground">

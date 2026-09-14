@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { useSettings } from "@/lib/admin/useSettings";
 import { SeoScorePill } from "@/components/admin/seo/SeoScorePill";
+import { BrandFindingList } from "@/components/admin/seo/BrandFindingList";
 import { ExternalLink } from "@/lib/lucide-shim";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import {
@@ -40,9 +41,9 @@ import {
 import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import {
   seoContentStatus,
+  seoGrade,
   summarizeSeoStatuses,
   type SeoContentStatus,
-  type SeoGrade,
   type SeoStatusInput,
 } from "@/lib/seo/contentStatus";
 import {
@@ -69,15 +70,6 @@ export const Route = createFileRoute("/admin/seo/")({
 
 /** Te same kolumny, co w zakładce „Treści" - jedno zapytanie, jedna prawda. */
 const CONTENT_SELECT = `id, slug, status, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, ${SEO_FIELDS_SELECT}`;
-
-/**
- * Progi oceny przepisane z `contentStatus.ts` (>=80 dobrze, >=50 do poprawy).
- * Ta sama skala dla wyniku marki i dla wyniku treści - inaczej ta sama liczba
- * świeciłaby na dwa różne kolory w dwóch miejscach panelu.
- */
-function gradeForScore(score: number): SeoGrade {
-  return score >= 80 ? "good" : score >= 50 ? "warn" : "poor";
-}
 
 /** Czy ta treść jest „gotowa": ma oba opisy i własną kartę. */
 function isContentComplete(status: SeoContentStatus): boolean {
@@ -236,7 +228,7 @@ function SeoDashboard() {
           <div>
             <div className="text-[11px] text-muted-foreground">{t("adminSeoHub.scoreLabel")}</div>
             <div className="mt-1">
-              <SeoScorePill score={score} grade={gradeForScore(score)} />
+              <SeoScorePill score={score} grade={seoGrade(score)} />
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">{t("adminSeoHub.scoreHint")}</p>
@@ -259,36 +251,7 @@ function SeoDashboard() {
           ]}
         />
 
-        {findings.length ? (
-          <ul className="space-y-2">
-            {findings.map((finding) => (
-              <li
-                key={finding.id}
-                className="flex items-start gap-2 rounded-lg border border-border bg-card p-3"
-              >
-                <span
-                  className={`shrink-0 text-[11px] font-medium ${
-                    finding.severity === "error" ? "text-destructive" : "text-amber-500"
-                  }`}
-                >
-                  {finding.severity === "error"
-                    ? t("adminSeoHub.severityError")
-                    : t("adminSeoHub.severityWarning")}
-                </span>
-                {/* Klucz dynamiczny jest tu POPRAWNY: `id` z audytu to zarazem
-                    nazwa klucza w nakładce, a `params` to wartości interpolacji
-                    komunikatu - nie tekst zapasowy. */}
-                <span className="text-sm">
-                  {t(`adminSeoHub.finding.${finding.id}`, { ...(finding.params ?? {}) })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="rounded-lg border border-border bg-card p-3 text-sm text-emerald-500">
-            {t("adminSeoHub.allGood")}
-          </p>
-        )}
+        <BrandFindingList findings={findings} emptyKey="adminSeoHub.allGood" />
 
         <div className="flex flex-wrap gap-4 text-xs">
           <Link to="/admin/seo/homepage" className="text-brand hover:underline">

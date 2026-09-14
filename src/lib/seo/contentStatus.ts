@@ -27,6 +27,19 @@ export interface SeoContentStatus {
   grade: SeoGrade;
 }
 
+/**
+ * Pasma oceny 0-100 -> `good` / `warn` / `poor`.
+ *
+ * JEDEN WŁAŚCICIEL PROGÓW. Kokpit SEO liczy wynik marki własnym modułem
+ * (`brandAudit`), ale plakietkę rysuje tą samą skalą, co tabela treści.
+ * Dopóki obie strony miały własną kopię tego wyrażenia, ta sama liczba mogła
+ * zapalić dwa różne kolory w dwóch miejscach panelu - bez żadnego objawu poza
+ * tym, że redakcja widzi sprzeczność.
+ */
+export function seoGrade(score: number): SeoGrade {
+  return score >= 80 ? "good" : score >= 50 ? "warn" : "poor";
+}
+
 function has(value: string | null | undefined): boolean {
   return !!value && value.trim().length > 0;
 }
@@ -70,7 +83,7 @@ export function seoContentStatus(row: SeoStatusInput): SeoContentStatus {
     noindex,
     canonicalOverride: has(row.seo_canonical_url),
     score,
-    grade: score >= 80 ? "good" : score >= 50 ? "warn" : "poor",
+    grade: seoGrade(score),
   };
 }
 

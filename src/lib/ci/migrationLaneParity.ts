@@ -146,6 +146,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0019_related_post_clicks_viewer_window_idx",
     twin: "20260914230000_related_post_clicks_viewer_window_idx.sql",
   },
+  {
+    tag: "0020_club_covers_per_club_storage_write",
+    twin: "20260914184500_club_covers_per_club_storage_write.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
