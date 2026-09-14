@@ -389,29 +389,6 @@ export function duplicateWidget(d: BuilderDocument, wid: string): void {
 }
 
 /**
- * Kolumna wskazana identyfikatorem, JAKI NIESIE KANWA - a ten nie zawsze jest
- * identyfikatorem kolumny.
- *
- * `data-col-id` jest stemplowane na SLOCIE dziecka sekcji, a dzieckiem sekcji
- * bywa również sekcja wewnętrzna (BuilderRenderer, `visibleCols.map`); jej
- * własne kolumny siedzą o poziom niżej i tego atrybutu NIE mają. Upuszczenie na
- * wyściółkę sekcji wewnętrznej (12 px góra/dół), na jej tło albo w przerwę
- * między jej kolumnami trafia więc tutaj z identyfikatorem SEKCJI WEWNĘTRZNEJ,
- * którego żadna kolumna nigdy nie dopasuje. Nie jest to wyścig ani uszkodzony
- * dokument - to zwykłe upuszczenie w zdrowym drzewie, a kanwa maluje tam pełną
- * zachętę „upuść tutaj" (`is-drop-into`). Odpowiedzią nie może być ani utrata
- * widgetu (tak było przed poprawką), ani cisza: celujemy w pierwszą kolumnę tej
- * sekcji wewnętrznej, a gdy nie ma ona żadnej - zakładamy pełnowymiarową,
- * dokładnie jak `moveWidgetToSection` dla sekcji bez kolumn.
- *
- * OGRANICZENIE, ŚWIADOME: to PIERWSZA kolumna, a nie ta pod kursorem - w
- * kilkukolumnowej sekcji wewnętrznej widget wyląduje więc po lewej, niezależnie
- * od tego, w którą przerwę go upuszczono (a gdy pierwsza kolumna ma regułę
- * dostępu, której redaktor nie spełnia, renderer jej nie rysuje). Wybór
- * najbliższej kolumny wymagałby geometrii wskaźnika, której ta warstwa nie zna
- * i znać nie powinna; `moveWidgetToSection` bierze pierwszą kolumnę od zawsze.
- */
-/**
  * Kolumna, którą upuszczający NA PEWNO widzi na kanwie.
  *
  * Renderer filtruje kolumny przez `evaluateAccess` - i sekcje wewnętrzne, i
@@ -433,13 +410,66 @@ export function duplicateWidget(d: BuilderDocument, wid: string): void {
 const isColumnVisibleToEditor = (c: ColumnNode | null | undefined): c is ColumnNode =>
   !!c && !c.advanced?.access;
 
-function columnForDrop(d: BuilderDocument, colId: string): ColumnNode | null {
+/**
+ * Kolumna wskazana identyfikatorem, JAKI NIESIE KANWA - CZYSTO, bez tworzenia
+ * czegokolwiek. Rozwiązuje ten sam rozjazd co `columnForDrop` (patrz jego opis:
+ * `data-col-id` bywa identyfikatorem SEKCJI WEWNĘTRZNEJ, nie kolumny), ale
+ * zatrzymuje się na tym, co w dokumencie JUŻ JEST.
+ *
+ * Czystość nie jest tu ozdobnikiem, tylko warunkiem użycia: `focusedColumn`
+ * w `useBuilderOperations` to `useMemo` liczony na ŻYWYM dokumencie, poza
+ * cyklem „głęboka kopia -> mutacja -> historia". Dołożenie kolumny stamtąd
+ * dopisałoby węzeł do dokumentu, którego nikt nie zapisał do historii - zmiana
+ * bez kroku „Cofnij", niewidoczna dla autozapisu i gubiona przy następnym
+ * renderze. Dlatego sekcja wewnętrzna BEZ ANI JEDNEJ kolumny daje tutaj `null`;
+ * zakładanie kolumny zostaje wyłącznie po stronie upuszczeń (`columnForDrop`),
+ * które i tak mutują kopię roboczą.
+ */
+export function columnForCanvasId(d: BuilderDocument, colId: string): ColumnNode | null {
   const column = findColumn(d, colId);
   if (column) return column;
   const inner = findInner(d, colId);
   if (!inner) return null;
-  const existing = (inner.columns ?? []).find(isColumnVisibleToEditor);
+  // Pierwsza kolumna, którą redaktor NA PEWNO widzi - identycznie jak
+  // `columnForDrop` i `moveWidgetToSection` (patrz `isColumnVisibleToEditor`):
+  // ani dziura na pozycji zerowej, ani cudza reguła dostępu nie może przesłonić
+  // dobrej kolumny. Kliknięcie i upuszczenie MUSZĄ celować w to samo miejsce -
+  // rozjazd między nimi jest dokładnie tym, co ta zmiana likwiduje.
+  return (inner.columns ?? []).find(isColumnVisibleToEditor) ?? null;
+}
+
+/**
+ * Kolumna wskazana identyfikatorem, JAKI NIESIE KANWA - a ten nie zawsze jest
+ * identyfikatorem kolumny.
+ *
+ * `data-col-id` jest stemplowane na SLOCIE dziecka sekcji, a dzieckiem sekcji
+ * bywa również sekcja wewnętrzna (BuilderRenderer, `visibleCols.map`); jej
+ * własne kolumny siedzą o poziom niżej i tego atrybutu NIE mają. Upuszczenie na
+ * wyściółkę sekcji wewnętrznej (12 px góra/dół), na jej tło albo w przerwę
+ * między jej kolumnami trafia więc tutaj z identyfikatorem SEKCJI WEWNĘTRZNEJ,
+ * którego żadna kolumna nigdy nie dopasuje. Nie jest to wyścig ani uszkodzony
+ * dokument - to zwykłe upuszczenie w zdrowym drzewie, a kanwa maluje tam pełną
+ * zachętę „upuść tutaj" (`is-drop-into`). Odpowiedzią nie może być ani utrata
+ * widgetu (tak było przed poprawką), ani cisza: celujemy w pierwszą kolumnę tej
+ * sekcji wewnętrznej, a gdy nie ma ona żadnej - zakładamy pełnowymiarową,
+ * dokładnie jak `moveWidgetToSection` dla sekcji bez kolumn.
+ *
+ * OGRANICZENIE, ŚWIADOME: to PIERWSZA kolumna, a nie ta pod kursorem - w
+ * kilkukolumnowej sekcji wewnętrznej widget wyląduje więc po lewej, niezależnie
+ * od tego, w którą przerwę go upuszczono - w pierwszej, którą redaktor NA PEWNO
+ * widzi (kolumny z regułą dostępu omijamy, patrz `isColumnVisibleToEditor`).
+ * Wybór najbliższej kolumny wymagałby geometrii wskaźnika, której ta warstwa nie zna
+ * i znać nie powinna; `moveWidgetToSection` bierze pierwszą kolumnę od zawsze.
+ *
+ * TYLKO DLA UPUSZCZEŃ - bo MUTUJE (zakłada kolumnę). Ścieżki, które jedynie
+ * odczytują dokument (kolumna w ognisku, panel właściwości, wklejanie), biorą
+ * czysty `columnForCanvasId` powyżej.
+ */
+function columnForDrop(d: BuilderDocument, colId: string): ColumnNode | null {
+  const existing = columnForCanvasId(d, colId);
   if (existing) return existing;
+  const inner = findInner(d, colId);
+  if (!inner) return null;
   if (!inner.columns) inner.columns = [];
   const created = newColumn(12);
   inner.columns.push(created);

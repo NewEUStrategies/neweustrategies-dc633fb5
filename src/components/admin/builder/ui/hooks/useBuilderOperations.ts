@@ -82,8 +82,16 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   );
 
   // ---------- focused column / add widget ----------
+  // `ops.columnForCanvasId`, a nie `ops.findColumn`: zaznaczenie rodzaju
+  // „column" niesie identyfikator, KTÓRY PODAŁA KANWA, a ten bywa
+  // identyfikatorem sekcji wewnętrznej (`data-col-id` stoi na SLOCIE dziecka
+  // sekcji - patrz opis resolwera). Kliknięcie w jej wyściółkę dawało wcześniej
+  // brak ogniska, więc widget wzięty z biblioteki KLIKNIĘCIEM lądował w nowej
+  // sekcji na samym dole dokumentu - podczas gdy PRZECIĄGNIĘTY na ten sam
+  // piksel trafiał tam, gdzie trzeba. Resolwer jest czysty, bo to `useMemo`.
   const focusedColumn = useMemo<ColumnNode | null>(() => {
-    if (selection.kind === "column" && selection.id) return ops.findColumn(doc, selection.id);
+    if (selection.kind === "column" && selection.id)
+      return ops.columnForCanvasId(doc, selection.id);
     if (selection.kind === "widget" && selection.id)
       return ops.findWidget(doc, selection.id)?.column ?? null;
     const normalized = safeParseBuilderDoc(doc);
@@ -183,10 +191,12 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
       },
       { label: t("builder.ops.editSection"), coalesceKey: `s:${sid}` },
     );
+  // Jak w `focusedColumn`: `cid` przychodzi z zaznaczenia, więc może być
+  // identyfikatorem sekcji wewnętrznej.
   const updateColumn = (cid: string, mut: (c: ColumnNode) => void) =>
     update(
       (d) => {
-        const c = ops.findColumn(d, cid);
+        const c = ops.columnForCanvasId(d, cid);
         if (c) mut(c);
       },
       { label: t("builder.ops.editColumn"), coalesceKey: `c:${cid}` },
