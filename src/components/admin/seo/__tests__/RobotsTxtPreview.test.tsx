@@ -42,7 +42,9 @@ describe("RobotsTxtPreview", () => {
     const settings = { ...DEFAULT_SEO_SETTINGS, ai_training_crawlers_allowed: false };
     const text = previewText(settings);
     expect(text).toContain("User-agent: GPTBot");
-    expect(aiCrawlerGroups(settings)).toHaveLength(1);
+    // Dwie grupy: wyszukiwarki AI wpuszczone jawnie, trenowanie zablokowane.
+    expect(aiCrawlerGroups(settings)).toHaveLength(2);
+    expect(text).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=no");
   });
 
   it("links to the live file so a shadowed route is one click away", () => {
