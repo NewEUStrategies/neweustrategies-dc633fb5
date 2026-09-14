@@ -504,10 +504,7 @@ describe("fetchAdminConversations - kształt zapytania", () => {
   it("podkreślenie i nawias z frazy też są zdejmowane, zanim trafią do wzorca", async () => {
     await fetchAdminConversations({ search: "a_b (c), d" });
     // `escapeLike` usuwa `%_,()"\\` - wzorzec dostaje sam rdzeń frazy.
-    expect(chain("conversations").argsOf("ilike")).toEqual([
-      "last_message_preview",
-      "%ab c d%",
-    ]);
+    expect(chain("conversations").argsOf("ilike")).toEqual(["last_message_preview", "%ab c d%"]);
   });
 
   it("fraza złożona z samych metaznaków daje wzorzec bez ANI JEDNEGO wildcardu z wejścia", async () => {

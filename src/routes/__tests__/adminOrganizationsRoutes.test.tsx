@@ -3607,9 +3607,20 @@ describe("admin.organizations.$id - zapis kontra cudza zmiana (optimistic lock)"
     expect(orgDb.writes).toEqual([]);
     // Zapis niósł wersję Z CHWILI WCZYTANIA, więc warunek nie mógł trafić.
     expect(sentVersions()).toEqual([BASE_ISO]);
-    // Karta dociąga stan po cudzym zapisie: administrator widzi, co właściwie
-    // stoi w bazie, zamiast patrzeć na wersję, której już nie ma.
-    await waitFor(() => expect(bodyText()).toContain("adminOrganizations.seatLimit: 8"));
+    // I PRACA ADMINISTRATORA ZOSTAJE. To jest właściwe zachowanie po konflikcie,
+    // a nie przeoczenie: komunikat mówi „odśwież kartę, żeby zobaczyć aktualne
+    // dane, i powtórz zmianę", więc karta NIE MOŻE sama podmienić formularza -
+    // podmiana skasowałaby wpisane miasto dokładnie w chwili, w której
+    // administrator dowiaduje się, że musi je wpisać jeszcze raz.
+    //
+    // Karta pokazuje więc nadal stan sprzed konfliktu (nagłówek z pięcioma
+    // miejscami), a o tym, że w bazie jest już co innego, mówi toast. Dopiero
+    // świadome przeładowanie karty przez administratora przynosi nowy wiersz.
+    expect(generalInput("city")).toHaveValue("Warszawa");
+    // Nagłówek nadal mówi to, co karta wczytała (`orgRow()` ma pięć miejsc),
+    // a nie to, co cudzy zapis wstawił do bazy.
+    expect(bodyText()).toContain("adminOrganizations.seatLimit: 5");
+    expect(bodyText()).not.toContain("adminOrganizations.seatLimit: 8");
   });
 
   it("DWA ZAPISY POD RZĄD: wersja przesuwa się, drugi nie zgłasza konfliktu z pierwszym", async () => {

@@ -2204,7 +2204,7 @@ describe("system zaproszeń - slug profilu autora", () => {
   // Slug jest publicznym adresem profilu autora (`/author/<slug>`), a ta sama
   // funkcja tworzy go w `performSend` i w `provisionTeamMembers`, czyli na OBU
   // ścieżkach powstawania kont.
-  it("„ł" staje się „l", a nie dywizem - nazwisko nie jest okaleczone", async () => {
+  it("„ł” staje się „l”, a nie dywizem - nazwisko nie jest okaleczone", async () => {
     grantAdmin();
     db.setResponse("user_invitations", (chain) =>
       chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Michał Kowalski" })),
@@ -2217,7 +2217,7 @@ describe("system zaproszeń - slug profilu autora", () => {
     expect(profile.slug).toBe("michal-kowalski");
   });
 
-  it("„Ł" na POCZĄTKU nazwy nie znika - pierwsza litera adresu zostaje", async () => {
+  it("„Ł” na POCZĄTKU nazwy nie znika - pierwsza litera adresu zostaje", async () => {
     // Najostrzejszy z przypadków: dywiz z krawędzi jest zdejmowany, więc przed
     // naprawą pierwsza litera ginęła bez śladu („Łukasz" -> `ukasz`).
     grantAdmin();
@@ -2232,7 +2232,7 @@ describe("system zaproszeń - slug profilu autora", () => {
     expect(profile.slug).toBe("lukasz-dabrowski");
   });
 
-  it("„ł" w środku wyrazu nie rozbija go na dwa człony", async () => {
+  it("„ł” w środku wyrazu nie rozbija go na dwa człony", async () => {
     grantAdmin();
     db.setResponse("user_invitations", (chain) =>
       chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Małgorzata Wiśniewska" })),
@@ -2493,7 +2493,7 @@ describe("invitation delivery recovery branches", () => {
     expect(h.listUsersPages).toEqual([{ page: 1, perPage: 200 }]);
   });
 
-  it("awaria katalogu NIE czyta się jak „konta nie ma" - zaproszenie kończy jako `failed`", async () => {
+  it("awaria katalogu NIE czyta się jak „konta nie ma” - zaproszenie kończy jako `failed`", async () => {
     prepare();
     h.listUsersError = new Error("gotrue unavailable");
 

@@ -40,9 +40,9 @@ describe("isNewerRow", () => {
 
 describe("draftSyncAction", () => {
   it("pierwsze wczytanie przejmuje wiersz", () => {
-    expect(draftSyncAction({ seen: null, row: { id: ORG, updatedAt: V1 }, userEdited: false })).toBe(
-      "reseed",
-    );
+    expect(
+      draftSyncAction({ seen: null, row: { id: ORG, updatedAt: V1 }, userEdited: false }),
+    ).toBe("reseed");
   });
 
   it("INNA organizacja przejmuje wiersz NAWET z niezapisanymi zmianami", () => {
