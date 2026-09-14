@@ -29,6 +29,9 @@ type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSPropert
 /** Styl obrazka + zmienna z ustawioną wysokością (czyta ją zwijanie headera). */
 type WidgetImageStyle = CSSProperties & { "--img-h"?: string };
 
+/** Zachowawczy limit szerokości logo, gdy panel nie ustawił żadnego rozmiaru. */
+const LOGO_FALLBACK_MAX_PX = 200;
+
 function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
   const { data } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
