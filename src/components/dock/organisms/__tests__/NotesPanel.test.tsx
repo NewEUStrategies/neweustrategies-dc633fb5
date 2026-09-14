@@ -114,6 +114,13 @@ function card(title: string): HTMLElement {
   return node;
 }
 
+/** To samo, ale z odczekaniem na pierwsze wczytanie listy. */
+async function cardFor(title: string): Promise<HTMLElement> {
+  const node = (await screen.findByText(title)).closest("li");
+  if (!node) throw new Error(`brak karty notatki: ${title}`);
+  return node;
+}
+
 const titleField = () => screen.getAllByLabelText(dockPl.dock.notes.newTitle)[0];
 const bodyField = () => screen.getAllByLabelText(dockPl.dock.notes.newBody)[0];
 const addButton = () => screen.getByRole("button", { name: dockPl.dock.notes.add });
@@ -152,7 +159,12 @@ describe("NotesPanel", () => {
     fireEvent.change(titleField(), { target: { value: "   " } });
     fireEvent.change(bodyField(), { target: { value: "  \n " } });
     fireEvent.click(addButton());
+    // Mutacja startuje dopiero w mikrozadaniu, więc gołe `expect` tuż po
+    // kliknięciu przeszłoby TAKŻE przy zepsutym strażniku - trzeba oddać
+    // pętlę zdarzeń. Widoczny dowód jest drugi: pola NIE zostały wyczyszczone.
+    await act(async () => {});
     expect(chainsWith("insert")).toHaveLength(0);
+    expect(titleField()).toHaveValue("   ");
 
     fireEvent.change(titleField(), { target: { value: "  Tezy na panel o energii  " } });
     fireEvent.change(bodyField(), { target: { value: "  Trzy pytania do moderatora.  " } });
@@ -230,7 +242,7 @@ describe("NotesPanel", () => {
     );
   });
 
-  it("zakres „ten materiał" zawęża listę do notatek przypiętych do niego", async () => {
+  it("zakres „ten materiał” zawęża listę do notatek przypiętych do niego", async () => {
     rows = [
       note("zwiazana", {
         title: "Liczby do akapitu o cenach",
@@ -257,7 +269,7 @@ describe("NotesPanel", () => {
   it("przypięcie i odpięcie notatki wysyła wartość odwróconą i przestawia etykietę", async () => {
     rows = [note("n1", { title: "Wnioski z rozmowy" })];
     renderPanel();
-    const otwarta = card(await screen.findByText("Wnioski z rozmowy").then(() => "Wnioski z rozmowy"));
+    const otwarta = await cardFor("Wnioski z rozmowy");
 
     fireEvent.click(within(otwarta).getByLabelText(dockPl.dock.notes.pin));
     // Baza po zapisie odda notatkę przypiętą - hook unieważnia i czyta ponownie.
@@ -274,7 +286,7 @@ describe("NotesPanel", () => {
   it("kliknięcie karteczki zmienia wyłącznie kolor", async () => {
     rows = [note("n1", { title: "Szkic wstępu" })];
     renderPanel();
-    const karta = card(await screen.findByText("Szkic wstępu").then(() => "Szkic wstępu"));
+    const karta = await cardFor("Szkic wstępu");
 
     fireEvent.click(within(karta).getByLabelText(`${dockPl.dock.notes.color}: rose`));
 
@@ -284,7 +296,7 @@ describe("NotesPanel", () => {
   it("edycja w miejscu zapisuje tytuł i treść, a potem wraca do trybu odczytu", async () => {
     rows = [note("n1", { title: "Stary tytuł", body: "Stara treść" })];
     renderPanel();
-    const karta = card(await screen.findByText("Stary tytuł").then(() => "Stary tytuł"));
+    const karta = await cardFor("Stary tytuł");
 
     fireEvent.click(within(karta).getByText(dockPl.dock.notes.edit));
     fireEvent.change(within(karta).getByLabelText(dockPl.dock.notes.newTitle), {
@@ -303,7 +315,7 @@ describe("NotesPanel", () => {
   it("anulowanie edycji nie wysyła nic i przywraca wartości sprzed edycji", async () => {
     rows = [note("n1", { title: "Tytuł roboczy", body: "Treść robocza" })];
     renderPanel();
-    const karta = card(await screen.findByText("Tytuł roboczy").then(() => "Tytuł roboczy"));
+    const karta = await cardFor("Tytuł roboczy");
 
     fireEvent.click(within(karta).getByText(dockPl.dock.notes.edit));
     fireEvent.change(within(karta).getByLabelText(dockPl.dock.notes.newTitle), {
@@ -311,6 +323,7 @@ describe("NotesPanel", () => {
     });
     fireEvent.click(within(karta).getByText(dockPl.dock.notes.cancel));
 
+    await act(async () => {});
     expect(chainsWith("update")).toHaveLength(0);
     expect(screen.getByText("Tytuł roboczy")).toBeInTheDocument();
 
@@ -331,11 +344,7 @@ describe("NotesPanel", () => {
       }),
     ];
     renderPanel();
-    const karta = card(
-      await screen.findByText("Kontrargument do tezy trzeciej").then(
-        () => "Kontrargument do tezy trzeciej",
-      ),
-    );
+    const karta = await cardFor("Kontrargument do tezy trzeciej");
 
     fireEvent.click(within(karta).getByLabelText(dockPl.dock.notes.unlink));
 
@@ -349,7 +358,7 @@ describe("NotesPanel", () => {
     );
   });
 
-  it("powiązanie z adresem jest odnośnikiem, bez adresu - zwykłym tekstem, a braki spadają na teksty zastępcze", async () => {
+  it("powiązanie z adresem jest odnośnikiem, bez adresu - tekstem, a braki mają teksty zastępcze", async () => {
     rows = [
       note("z-adresem", {
         title: "Z odnośnikiem",
@@ -359,39 +368,52 @@ describe("NotesPanel", () => {
         entity_url: MATERIAL.url,
       }),
       note("bez-adresu", {
-        title: "",
+        title: "Bez odnośnika",
         entity_type: "document",
         entity_id: MATERIAL_ID,
         entity_title: null,
         entity_url: null,
       }),
+      note("bez-tytulow", {
+        title: "",
+        entity_type: "event",
+        entity_id: MATERIAL_ID,
+        entity_title: null,
+        entity_url: "/wydarzenia/debata-o-energii",
+      }),
     ];
     renderPanel();
 
-    const zAdresem = card(await screen.findByText("Z odnośnikiem").then(() => "Z odnośnikiem"));
+    const zAdresem = await cardFor("Z odnośnikiem");
     const odnosnik = within(zAdresem).getByRole("link");
     expect(odnosnik).toHaveAttribute("href", MATERIAL.url);
     expect(odnosnik).toHaveTextContent(MATERIAL.title);
 
-    // Notatka bez tytułu bierze za nagłówek etykietę pola tytułu, a powiązanie
-    // bez nazwy - zastępczy napis „powiązany materiał". Oba napisy są wtedy
-    // na ekranie po kilka razy; dlatego zapytania są zawężone do karty.
-    const bezAdresu = card(dockPl.dock.notes.linked);
+    // Materiał bez adresu nie udaje odnośnika - byłby to klik donikąd.
+    const bezAdresu = card("Bez odnośnika");
     expect(within(bezAdresu).queryByRole("link")).toBeNull();
-    expect(within(bezAdresu).getByText(dockPl.dock.notes.newTitle)).toBeInTheDocument();
+    expect(within(bezAdresu).getByText(dockPl.dock.notes.linked)).toBeInTheDocument();
+
+    // Notatka bez tytułu bierze za nagłówek etykietę pola tytułu, a powiązanie
+    // bez zapisanej nazwy - zastępczy napis o powiązanym materiale. Oba napisy
+    // są wtedy na ekranie po kilka razy; dlatego zapytania są zawężone do kart.
+    const bezTytulow = card(dockPl.dock.notes.newTitle);
+    expect(within(bezTytulow).getByRole("link")).toHaveAttribute(
+      "href",
+      "/wydarzenia/debata-o-energii",
+    );
+    expect(within(bezTytulow).getByRole("link")).toHaveTextContent(dockPl.dock.notes.linked);
   });
 
   it("usunięcie notatki wysyła jej identyfikator i zdejmuje kartę z listy", async () => {
     rows = [note("n1", { title: "Do wyrzucenia" })];
     renderPanel();
-    const karta = card(await screen.findByText("Do wyrzucenia").then(() => "Do wyrzucenia"));
+    const karta = await cardFor("Do wyrzucenia");
 
     fireEvent.click(within(karta).getByLabelText(dockPl.dock.notes.remove));
     rows = [];
 
-    await waitFor(() =>
-      expect(chainsWith("delete").at(-1)?.argsOf("eq")).toEqual(["id", "n1"]),
-    );
+    await waitFor(() => expect(chainsWith("delete").at(-1)?.argsOf("eq")).toEqual(["id", "n1"]));
     expect(await screen.findByText(dockPl.dock.notes.empty)).toBeInTheDocument();
   });
 

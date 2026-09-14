@@ -357,9 +357,7 @@ describe("zakładki i licznik otwartych", () => {
 
     fireEvent.click(tabButton(dockPl.dock.todos.tabs.done));
 
-    expect(
-      screen.getByText(dockPl.dock.todos.openCount.replace("{{count}}", "1")),
-    ).toBeTruthy();
+    expect(screen.getByText(dockPl.dock.todos.openCount.replace("{{count}}", "1"))).toBeTruthy();
     expect(screen.queryByText(dockPl.dock.todos.empty)).toBeNull();
   });
 });

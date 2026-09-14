@@ -65,6 +65,21 @@ describe("parseCacheControl", () => {
   it("treats proxy-revalidate like must-revalidate - this cache IS a shared cache", () => {
     expect(parseCacheControl("public, s-maxage=600, proxy-revalidate").mustRevalidate).toBe(true);
   });
+
+  it("ignores empty segments, unknown directives and a negative s-maxage", () => {
+    // A defensive parser must survive a header written by hand or by another
+    // proxy: a trailing comma, a directive this cache does not model, and a
+    // value that is syntactically fine but semantically nonsense.
+    const parsed = parseCacheControl("public, , immutable, s-maxage=-5, stale-while-revalidate=x");
+    expect(parsed.public).toBe(true);
+    expect(parsed.sMaxAge).toBeNull();
+    expect(parsed.staleWhileRevalidate).toBeNull();
+    expect(parsed.noCache).toBe(false);
+    expect(parsed.mustRevalidate).toBe(false);
+    // A seconds directive written with no "=" at all: the token parses, the
+    // value is undefined, and the field must stay null rather than NaN.
+    expect(parseCacheControl("public, s-maxage").sMaxAge).toBeNull();
+  });
 });
 
 describe("stripLangPrefix", () => {
