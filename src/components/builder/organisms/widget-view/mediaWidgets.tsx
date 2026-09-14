@@ -68,9 +68,20 @@ export function ImageWidget({
   const variant = getStr(c, "variant") || "default";
   const fit = (getStr(c, "objectFit") || "cover") as CSSProperties["objectFit"];
   const ratio = getStr(c, "ratio");
-  const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
-  const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
-  const heightPx = typeof c.heightPx === "number" ? c.heightPx : Number(c.heightPx) || 0;
+  // Rozmiary bywają zapisane dwiema drogami: liczbowo (uchwyt zmiany rozmiaru
+  // na kanwie: `widthPx`/`maxWidthPx`/`heightPx`) albo jako długość CSS w
+  // treści (`width`/`maxWidth`/`height`, tak siały domyślne chrome: logo
+  // stopki "180px"). Druga droga była wcześniej IGNOROWANA, więc logo dostawało
+  // `width: 100%` i rozlewało się na całą kolumnę stopki - wbrew ustawieniu.
+  const pxLen = (value: unknown): number => {
+    if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : 0;
+    if (typeof value !== "string") return 0;
+    const m = /^\s*(\d+(?:\.\d+)?)\s*px\s*$/i.exec(value) ?? /^\s*(\d+(?:\.\d+)?)\s*$/.exec(value);
+    return m ? Number(m[1]) : 0;
+  };
+  const widthPx = pxLen(c.widthPx) || pxLen(c.width);
+  const maxWidthPx = pxLen(c.maxWidthPx) || pxLen(c.maxWidth);
+  const heightPx = pxLen(c.heightPx) || pxLen(c.height);
   const align = (getStr(c, "align") || "center") as "left" | "center" | "right";
 
   // Fallback: use site logo from theme_options when no src is configured AND
