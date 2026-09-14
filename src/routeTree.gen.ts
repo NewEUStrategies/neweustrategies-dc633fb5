@@ -274,6 +274,7 @@ import { Route as AdminSettingsCookieBannerRouteImport } from './routes/admin.se
 import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
 import { Route as AdminSeoSocialRouteImport } from './routes/admin.seo.social'
 import { Route as AdminSeoSearchConsoleRouteImport } from './routes/admin.seo.search-console'
+import { Route as AdminSeoQueriesRouteImport } from './routes/admin.seo.queries'
 import { Route as AdminSeoHomepageRouteImport } from './routes/admin.seo.homepage'
 import { Route as AdminSeoContentRouteImport } from './routes/admin.seo.content'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
@@ -1727,6 +1728,11 @@ const AdminSeoSearchConsoleRoute = AdminSeoSearchConsoleRouteImport.update({
   path: '/search-console',
   getParentRoute: () => AdminSeoRoute,
 } as any)
+const AdminSeoQueriesRoute = AdminSeoQueriesRouteImport.update({
+  id: '/queries',
+  path: '/queries',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
 const AdminSeoHomepageRoute = AdminSeoHomepageRouteImport.update({
   id: '/homepage',
   path: '/homepage',
@@ -2627,6 +2633,7 @@ export interface FileRoutesByFullPath {
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/seo/content': typeof AdminSeoContentRoute
   '/admin/seo/homepage': typeof AdminSeoHomepageRoute
+  '/admin/seo/queries': typeof AdminSeoQueriesRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
@@ -2994,6 +3001,7 @@ export interface FileRoutesByTo {
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/seo/content': typeof AdminSeoContentRoute
   '/admin/seo/homepage': typeof AdminSeoHomepageRoute
+  '/admin/seo/queries': typeof AdminSeoQueriesRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
@@ -3379,6 +3387,7 @@ export interface FileRoutesById {
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/seo/content': typeof AdminSeoContentRoute
   '/admin/seo/homepage': typeof AdminSeoHomepageRoute
+  '/admin/seo/queries': typeof AdminSeoQueriesRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
@@ -3765,6 +3774,7 @@ export interface FileRouteTypes {
     | '/admin/posts/new'
     | '/admin/seo/content'
     | '/admin/seo/homepage'
+    | '/admin/seo/queries'
     | '/admin/seo/search-console'
     | '/admin/seo/social'
     | '/admin/settings/analytics'
@@ -4132,6 +4142,7 @@ export interface FileRouteTypes {
     | '/admin/posts/new'
     | '/admin/seo/content'
     | '/admin/seo/homepage'
+    | '/admin/seo/queries'
     | '/admin/seo/search-console'
     | '/admin/seo/social'
     | '/admin/settings/analytics'
@@ -4516,6 +4527,7 @@ export interface FileRouteTypes {
     | '/admin/posts/new'
     | '/admin/seo/content'
     | '/admin/seo/homepage'
+    | '/admin/seo/queries'
     | '/admin/seo/search-console'
     | '/admin/seo/social'
     | '/admin/settings/analytics'
@@ -6635,6 +6647,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSeoSearchConsoleRouteImport
       parentRoute: typeof AdminSeoRoute
     }
+    '/admin/seo/queries': {
+      id: '/admin/seo/queries'
+      path: '/queries'
+      fullPath: '/admin/seo/queries'
+      preLoaderRoute: typeof AdminSeoQueriesRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
     '/admin/seo/homepage': {
       id: '/admin/seo/homepage'
       path: '/homepage'
@@ -7722,6 +7741,7 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
 interface AdminSeoRouteChildren {
   AdminSeoContentRoute: typeof AdminSeoContentRoute
   AdminSeoHomepageRoute: typeof AdminSeoHomepageRoute
+  AdminSeoQueriesRoute: typeof AdminSeoQueriesRoute
   AdminSeoSearchConsoleRoute: typeof AdminSeoSearchConsoleRoute
   AdminSeoSocialRoute: typeof AdminSeoSocialRoute
   AdminSeoIndexRoute: typeof AdminSeoIndexRoute
@@ -7730,6 +7750,7 @@ interface AdminSeoRouteChildren {
 const AdminSeoRouteChildren: AdminSeoRouteChildren = {
   AdminSeoContentRoute: AdminSeoContentRoute,
   AdminSeoHomepageRoute: AdminSeoHomepageRoute,
+  AdminSeoQueriesRoute: AdminSeoQueriesRoute,
   AdminSeoSearchConsoleRoute: AdminSeoSearchConsoleRoute,
   AdminSeoSocialRoute: AdminSeoSocialRoute,
   AdminSeoIndexRoute: AdminSeoIndexRoute,

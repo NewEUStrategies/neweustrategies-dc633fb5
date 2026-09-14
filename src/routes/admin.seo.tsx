@@ -52,6 +52,7 @@ function SeoHubLayout() {
     { to: "/admin/seo/homepage", label: t("adminSeoHub.tabHomepage") },
     { to: "/admin/seo/social", label: t("adminSeoHub.tabSocial") },
     { to: "/admin/seo/content", label: t("adminSeoHub.tabContent") },
+    { to: "/admin/seo/queries", label: t("adminSeoHub.tabQueries") },
     { to: "/admin/seo/search-console", label: t("adminSeoHub.tabSearchConsole") },
   ];
 

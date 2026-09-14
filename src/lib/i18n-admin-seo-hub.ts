@@ -31,6 +31,49 @@ const pl = {
     noindexLabel: "noindex",
     tabSearchConsole: "Search Console",
 
+    // --- Rejestr fraz ---
+    tabQueries: "Frazy",
+    queriesIntro:
+      "Czego ludzie SZUKALI, zanim zobaczyli nasz tekst - i które tytuły przez to nie klikają. Dane z Google Search Console, opóźnione o ok. dwa dni.",
+    queriesViewPages: "Po artykule",
+    queriesViewQueries: "Po frazie",
+    queriesColQuery: "Fraza",
+    queriesColPage: "Strona",
+    queriesColImpressions: "Wyświetlenia",
+    queriesColClicks: "Kliknięcia",
+    queriesColCtr: "CTR",
+    queriesColPosition: "Pozycja",
+    queriesColVerdict: "Ocena",
+    queriesTotalPages: "Stron",
+    queriesTotalQueries: "Fraz",
+    queriesVerdictBelow: "CTR poniżej normy",
+    queriesVerdictOk: "CTR w normie",
+    queriesVerdictTooFew: "za mało danych",
+    queriesVerdictBelowHint:
+      "Ten wynik klika się gorzej, niż wypada na jego pozycji - zwykle winny jest tytuł albo opis, nie treść.",
+    queriesVerdictTooFewHint:
+      "Poniżej {{count}} wyświetleń jedno kliknięcie przestawia CTR o kilka punktów, więc nie orzekamy.",
+    queriesMissedClicks: "Do odzyskania",
+    queriesMissedClicksHint:
+      "Tyle kliknięć dzieli tę stronę od CTR typowego dla jej pozycji. To szacunek, nie obietnica.",
+    queriesOpportunities: "Do poprawy najpierw",
+    queriesOpportunitiesEmpty:
+      "Żadna strona nie odstaje od normy dla swojej pozycji. Nie ma tu czego poprawiać.",
+    queriesMissingTerms: "Brak w tytule i opisie:",
+    queriesMissingTermsHint:
+      "Ludzie trafiają tu po tych słowach, ale nie ma ich ani w tytule, ani w opisie - dlatego nie widzą, że to o tym.",
+    queriesEditContent: "Popraw tytuł i opis",
+    queriesNotConnected:
+      "Search Console nie jest podłączone, więc rejestr nie ma skąd wziąć fraz. Podłącz konektor Google, żeby ta zakładka się wypełniła.",
+    queriesNoData:
+      "Search Console nie zwróciło jeszcze fraz dla tego zakresu. Świeże adresy potrafią milczeć kilka tygodni.",
+    queriesRange7d: "7 dni",
+    queriesRange28d: "28 dni",
+    queriesRange90d: "90 dni",
+    queriesUnmatched: "spoza CMS-a",
+    queriesSiteLabel: "Właściwość w Search Console",
+    queriesRangeLabel: "Zakres dat",
+
     // --- Kokpit ---
     dashboardIntro:
       "Stan SEO całego serwisu na dziś. Kafelki i listy prowadzą prosto do miejsca, w którym daną rzecz się poprawia.",
@@ -166,6 +209,48 @@ const en: typeof pl = {
     colDescEn: "EN description",
     noindexLabel: "noindex",
     tabSearchConsole: "Search Console",
+
+    tabQueries: "Queries",
+    queriesIntro:
+      "What people SEARCHED for before they saw our text - and which titles fail to earn the click. Data from Google Search Console, lagging by about two days.",
+    queriesViewPages: "By article",
+    queriesViewQueries: "By query",
+    queriesColQuery: "Query",
+    queriesColPage: "Page",
+    queriesColImpressions: "Impressions",
+    queriesColClicks: "Clicks",
+    queriesColCtr: "CTR",
+    queriesColPosition: "Position",
+    queriesColVerdict: "Verdict",
+    queriesTotalPages: "Pages",
+    queriesTotalQueries: "Queries",
+    queriesVerdictBelow: "CTR below par",
+    queriesVerdictOk: "CTR on par",
+    queriesVerdictTooFew: "too little data",
+    queriesVerdictBelowHint:
+      "This result earns fewer clicks than its position warrants - usually the title or description is at fault, not the article.",
+    queriesVerdictTooFewHint:
+      "Below {{count}} impressions a single click moves CTR by several points, so we do not judge.",
+    queriesMissedClicks: "Recoverable",
+    queriesMissedClicksHint:
+      "How many clicks separate this page from the CTR typical for its position. An estimate, not a promise.",
+    queriesOpportunities: "Fix these first",
+    queriesOpportunitiesEmpty:
+      "No page falls below par for its position. There is nothing to fix here.",
+    queriesMissingTerms: "Missing from title and description:",
+    queriesMissingTermsHint:
+      "People arrive on these words, but neither the title nor the description contains them - so they cannot see the article is about that.",
+    queriesEditContent: "Fix title and description",
+    queriesNotConnected:
+      "Search Console is not connected, so the registry has no queries to show. Connect the Google connector to fill this tab.",
+    queriesNoData:
+      "Search Console has returned no queries for this range yet. Fresh addresses can stay silent for weeks.",
+    queriesRange7d: "7 days",
+    queriesRange28d: "28 days",
+    queriesRange90d: "90 days",
+    queriesUnmatched: "outside the CMS",
+    queriesSiteLabel: "Search Console property",
+    queriesRangeLabel: "Date range",
 
     dashboardIntro:
       "Today's SEO state of the whole site. Tiles and lists link straight to the screen where each item is fixed.",
