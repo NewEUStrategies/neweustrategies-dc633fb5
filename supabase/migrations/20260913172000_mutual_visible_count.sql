@@ -96,21 +96,28 @@ AS $$
       JOIN public.user_connections c
         ON c.status = 'accepted' AND m.peer IN (c.requester_id, c.addressee_id)
   ),
-  mutual AS (  -- wspólne kontakty per pytany id (agregacja, bez korelacji)
-    SELECT i.id AS uid, count(*) AS cnt
-      FROM ids i
-      JOIN public.user_connections c
-        ON c.status = 'accepted' AND i.id IN (c.requester_id, c.addressee_id)
-      JOIN mine m
-        ON m.peer = CASE WHEN c.requester_id = i.id
-                         THEN c.addressee_id ELSE c.requester_id END
-     GROUP BY i.id
-  ),
-  -- Ta sama agregacja zawężona do mostów, które użytkownik REALNIE zobaczy po
-  -- kliknięciu w podpowiedź: te same dwa warunki, co `mutual_connections`
-  -- (20260724110537:63-65). Patrz nagłówek migracji.
-  mutual_visible AS (
-    SELECT i.id AS uid, count(*) AS cnt
+  -- Wspólne kontakty per pytany id: OBIE liczby w JEDNYM przebiegu.
+  --
+  -- `cnt` to fakt grafu (stopień, ranking), `visible_cnt` to podzbiór mostów,
+  -- które wołający zobaczy po kliknięciu - te same dwa warunki, co
+  -- `mutual_connections` (20260724110537:63-65). Patrz nagłówek migracji.
+  --
+  -- DLACZEGO `FILTER`, A NIE DRUGIE CTE. Druga agregacja powtarzałaby CAŁE
+  -- złączenie `ids × user_connections × mine` tylko po to, żeby je zawęzić -
+  -- czyli drugi przebieg po najdroższej części zapytania. `connection_statuses`
+  -- jest wołane batchem dla KAŻDEJ partii kart (strona /people, sugestie,
+  -- profil), więc to jest ścieżka gorąca, a nie widok raportowy.
+  --
+  -- `LEFT JOIN profiles`, nie `JOIN`: `cnt` musi policzyć most także wtedy, gdy
+  -- jego profilu nie da się złączyć (inny najemca, wiersz skasowany) - inaczej
+  -- zawężenie przeciekłoby do liczby, która ma być faktem grafu. Fan-outu nie
+  -- ma, bo `profiles.id` jest kluczem głównym.
+  mutual AS (
+    SELECT i.id AS uid,
+           count(*) AS cnt,
+           count(*) FILTER (
+             WHERE pm.discoverable AND pm.tenant_id = me.tenant_id
+           ) AS visible_cnt
       FROM ids i
       CROSS JOIN me
       JOIN public.user_connections c
@@ -118,8 +125,7 @@ AS $$
       JOIN mine m
         ON m.peer = CASE WHEN c.requester_id = i.id
                          THEN c.addressee_id ELSE c.requester_id END
-      JOIN public.profiles pm
-        ON pm.id = m.peer AND pm.tenant_id = me.tenant_id AND pm.discoverable
+      LEFT JOIN public.profiles pm ON pm.id = m.peer
      GROUP BY i.id
   ),
   rel AS (  -- istniejący wiersz relacji ze mną (o ile jest)
@@ -145,7 +151,7 @@ AS $$
       ELSE 'none'
     END AS status,
     COALESCE(mu.cnt, 0) AS mutual_count,
-    COALESCE(mv.cnt, 0) AS mutual_visible_count,
+    COALESCE(mu.visible_cnt, 0) AS mutual_visible_count,
     -- can_invite: czy świeże zaproszenie ma sens (UI chowa przycisk zamiast
     -- serwować odmowę). Dla istniejącej relacji (poza moją cichą odmową)
     -- decyduje maszyna stanów, nie ten test.
@@ -191,7 +197,6 @@ AS $$
   CROSS JOIN me
   LEFT JOIN rel r ON r.uid = i.id
   LEFT JOIN mutual mu ON mu.uid = i.id
-  LEFT JOIN mutual_visible mv ON mv.uid = i.id
   -- Most 2. stopnia: wspólny kontakt. Kolejność deterministyczna i sensowna
   -- produktowo - najpierw ten, kogo znam NAJDŁUŻEJ (największa szansa, że
   -- realnie zrobi wprowadzenie), potem alfabetycznie.
@@ -315,20 +320,18 @@ AS $$
         ON c.status = 'accepted' AND m.peer IN (c.requester_id, c.addressee_id)
   ),
   -- Drugi stopień: kontakty moich kontaktów, policzone jedną agregacją.
+  -- Jak wyżej w `connection_statuses`: obie liczby jednym przebiegiem.
+  -- Ranking w `ORDER BY` zostaje na `cnt` (fakt grafu), karta pokazuje
+  -- `visible_cnt`.
   mutual AS (
-    SELECT sp.uid, count(*) AS cnt
-      FROM second_pairs sp, me
-     WHERE sp.uid <> me.id
-     GROUP BY sp.uid
-  ),
-  -- Jak wyżej w `connection_statuses`: liczba POKAZYWANA musi opisywać zbiór,
-  -- który użytkownik zobaczy po kliknięciu. Ranking niżej zostaje na `mutual`.
-  mutual_visible AS (
-    SELECT sp.uid, count(*) AS cnt
+    SELECT sp.uid,
+           count(*) AS cnt,
+           count(*) FILTER (
+             WHERE pm.discoverable AND pm.tenant_id = me.tenant_id
+           ) AS visible_cnt
       FROM second_pairs sp
       CROSS JOIN me
-      JOIN public.profiles pm
-        ON pm.id = sp.via AND pm.tenant_id = me.tenant_id AND pm.discoverable
+      LEFT JOIN public.profiles pm ON pm.id = sp.via
      WHERE sp.uid <> me.id
      GROUP BY sp.uid
   ),
@@ -436,7 +439,7 @@ AS $$
     c.slug,
     (c.verified_at IS NOT NULL) AS verified,
     COALESCE(mu.cnt, 0) AS mutual_count,
-    COALESCE(mv.cnt, 0) AS mutual_visible_count,
+    COALESCE(mu.visible_cnt, 0) AS mutual_visible_count,
     COALESCE(sf.cnt, 0) AS shared_follows,
     COALESCE(se.cnt, 0) AS shared_events,
     -- Sugestia nigdy nie jest 1. stopniem (relacje odpadają w `related`);
@@ -458,7 +461,6 @@ AS $$
     c.completeness_score
   FROM cand c
   LEFT JOIN mutual mu ON mu.uid = c.id
-  LEFT JOIN mutual_visible mv ON mv.uid = c.id
   LEFT JOIN shared_follows sf ON sf.uid = c.id
   LEFT JOIN shared_events se ON se.uid = c.id
   LEFT JOIN third_reach t3 ON t3.uid = c.id
