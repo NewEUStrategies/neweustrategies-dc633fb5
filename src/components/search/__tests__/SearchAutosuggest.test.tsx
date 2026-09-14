@@ -35,6 +35,7 @@ vi.mock("@/integrations/supabase/client", async () => {
 import "@/test/i18nReal";
 import "@/lib/i18n-search";
 import { SearchAutosuggest, RecentSearchesList } from "../SearchAutosuggest";
+import { SuggestRow } from "../SuggestListView";
 
 const item = (p: Partial<AutosuggestItem>): AutosuggestItem => ({
   kind: "post",
@@ -606,5 +607,36 @@ describe("RecentSearchesList", () => {
     render(<RecentSearchesList items={["NATO"]} lang="pl" onPick={noop} onClear={onClear} />);
     fireEvent.click(screen.getByRole("button", { name: "Wyczyść historię" }));
     expect(onClear).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Bariera przeciw DRUGIEMU źródłu prawdy o celu nawigacji.
+//
+// Cała poprawka stoi na tym, że `onSelect` NIE dostaje `MouseEvent`: konsument
+// nie ma jak wywołać `preventDefault()`, więc nie może przejąć nawigacji od
+// `href`. To zabezpieczenie jest niewidoczne w runtime - gdyby ktoś przywrócił
+// przekazywanie zdarzenia, wszystkie pozostałe testy nadal by przechodziły,
+// a wiersz znów mógłby nawigować dwa razy.
+describe("SuggestRow - kontrakt aktywacji wiersza", () => {
+  it("onSelect wołany jest BEZ ARGUMENTÓW - nie da się przejąć nawigacji", () => {
+    const onSelect = vi.fn();
+    render(<SuggestRow href="/post/raport" label="Raport" active={false} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("option"), { button: 0 });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect.mock.calls[0]).toHaveLength(0);
+  });
+
+  it("mousedown przycisku głównego dusi domyślną akcję, prawego NIE", () => {
+    render(<SuggestRow href="/post/raport" label="Raport" active={false} onSelect={noop} />);
+    const option = screen.getByRole("option");
+    // Lewy: bez tego fokus ucieka z pola frazy i popover znika przed `click`.
+    const lewy = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 });
+    option.dispatchEvent(lewy);
+    expect(lewy.defaultPrevented).toBe(true);
+    // Prawy: zduszenie domyślnej akcji potrafi zabrać menu kontekstowe,
+    // a w nim „otwórz w nowej karcie".
+    const prawy = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 2 });
+    option.dispatchEvent(prawy);
+    expect(prawy.defaultPrevented).toBe(false);
   });
 });

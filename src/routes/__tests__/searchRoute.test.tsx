@@ -437,14 +437,33 @@ describe("/search - deep-linki z podpowiedzi", () => {
    * testów nie dotykał `click` - czyli tej połowy zdarzenia, w której siedzi
    * nawigacja linku wiersza (`AppLink`). Wybór myszą to `mousedown` (utrzymuje
    * fokus w polu, więc popover nie znika) ORAZ `click` (nawiguje).
+   *
+   * DWA OSOBNE `act`, A NIE JEDNO NA OBA ZDARZENIA. React odkłada flush do
+   * wyjścia z NAJBARDZIEJ ZEWNĘTRZNEGO `act`, więc para zdarzeń w jednym bloku
+   * renderuje się dopiero po obu - i wiersz nie zdąży zniknąć między nimi.
+   * Przeglądarka flushuje po każdym zdarzeniu dyskretnym z osobna: gdyby
+   * `mousedown` zamykał popover (tak robił stary handler wyboru), kotwica
+   * byłaby odmontowana ZANIM przyjdzie `click`, i nawigacja nie zaszłaby wcale.
+   * Jedno wspólne `act` ukrywa dokładnie tę klasę błędu.
    */
-  async function pick(item: AutosuggestItem, entry = "/search") {
-    const { view, option } = await openWith(item, entry);
+  async function clickRow(option: HTMLElement, init: MouseEventInit = { button: 0 }) {
     await act(async () => {
-      fireEvent.mouseDown(option, { button: 0 });
-      fireEvent.click(option, { button: 0 });
+      fireEvent.mouseDown(option, init);
       await Promise.resolve();
     });
+    // Kotwica odmontowana przez `mousedown` nie dostałaby `click` od przeglądarki.
+    if (option.isConnected) {
+      await act(async () => {
+        fireEvent.click(option, init);
+        await Promise.resolve();
+      });
+    }
+    return option.isConnected;
+  }
+
+  async function pick(item: AutosuggestItem, entry = "/search") {
+    const { view, option } = await openWith(item, entry);
+    await clickRow(option);
     return view;
   }
 
@@ -494,11 +513,7 @@ describe("/search - deep-linki z podpowiedzi", () => {
       sug({ kind: "post", slug: "roczny", parentPageId: "pg-1" }),
     );
     expect(option).toHaveAttribute("href", "/post/roczny");
-    await act(async () => {
-      fireEvent.mouseDown(option, { button: 0 });
-      fireEvent.click(option, { button: 0 });
-      await Promise.resolve();
-    });
+    await clickRow(option);
     await waitFor(() => expect(view.currentPath()).toBe("/post/roczny"));
     expect(h.rpc).not.toHaveBeenCalledWith("page_full_path", expect.anything());
   });
@@ -513,28 +528,40 @@ describe("/search - deep-linki z podpowiedzi", () => {
   // Regresja: wiersz podpowiedzi ma DOKŁADNIE JEDEN cel nawigacji
   // -------------------------------------------------------------------------
 
-  it("adres wiersza JEST tym, co robi klik - jeden cel, nie dwa", async () => {
-    // Wiersz dostawał `href` z modelu faset i OSOBNO handler rodzica, który
-    // nawigował gdzie indziej. Kontrakt: `href` i skutek kliknięcia są tożsame.
+  it("NAWIGUJE WYŁĄCZNIE href wiersza - zduszony klik NIE rusza adresu", async () => {
+    // JEDYNY test, który wykryje POWRÓT podwójnej nawigacji. Pozostałe patrzą
+    // na adres KOŃCOWY, a nawigacja linku idzie ZAWSZE OSTATNIA (`AppLink`
+    // woła `onClick` przed `router.navigate`), więc zamiata drugi nawigator
+    // pod dywan: jeśli ktoś doda `navigate()` z powrotem do `pickSuggestion`,
+    // adres końcowy i tak się zgadza.
+    //
+    // Dlatego dusimy nawigację linku i patrzymy, czy adres DRGNIE. Listener na
+    // samym elemencie biegnie w fazie celu, a delegowany handler Reacta siedzi
+    // na kontenerze roota (faza bąbelkowania) - więc `AppLink` zobaczy
+    // `defaultPrevented` i odpuści. Zostaje wyłącznie to, co robi rodzic.
+    const { view, option } = await openWith(
+      sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
+      "/search?tab=titles&sort=newest",
+    );
+    option.addEventListener("click", (e) => e.preventDefault());
+    await clickRow(option);
+    expect(view.currentPath()).toBe("/search");
+    expect(view.search()).toMatchObject({ tab: "titles", sort: "newest" });
+    expect(view.search().org).toBeUndefined();
+    expect(view.search().q).toBe("");
+  });
+
+  it("adres wiersza to DOKŁADNIE ten adres, pod który prowadzi klik", async () => {
+    // Oczekiwanie przybite do wartości DOSŁOWNEJ, nie wyprowadzone z `href`:
+    // porównywanie `href` z adresem końcowym jest tautologią (obie strony
+    // pochodzą z `suggestionHref`), więc przechodziłoby także wtedy, gdyby
+    // model wytwarzał adres błędny.
     const { view, option } = await openWith(
       sug({ kind: "organization", id: "o-1", label_pl: "NATO" }),
     );
-    const href = option.getAttribute("href");
-    await act(async () => {
-      fireEvent.mouseDown(option, { button: 0 });
-      fireEvent.click(option, { button: 0 });
-      await Promise.resolve();
-    });
-    await waitFor(() =>
-      expect(
-        `${view.currentPath()}?${new URLSearchParams(
-          Object.entries(view.search()).filter(([, v]) => v !== undefined && v !== "") as [
-            string,
-            string,
-          ][],
-        ).toString()}`,
-      ).toBe(href),
-    );
+    expect(option).toHaveAttribute("href", "/search?q=NATO&org=o-1");
+    await clickRow(option);
+    await waitFor(() => expect(view.search()).toMatchObject({ q: "NATO", org: "o-1" }));
   });
 
   it("wybór podpowiedzi ZACHOWUJE pozostały stan wyszukiwarki (zakładka, sortowanie)", async () => {
@@ -560,11 +587,7 @@ describe("/search - deep-linki z podpowiedzi", () => {
 
   it("CTRL+klik zostawia nawigację przeglądarce (otwarcie w nowej karcie)", async () => {
     const { view, option } = await openWith(sug({ kind: "topic", id: "t-1", slug: "energia" }));
-    await act(async () => {
-      fireEvent.mouseDown(option, { button: 0, ctrlKey: true });
-      fireEvent.click(option, { button: 0, ctrlKey: true });
-      await Promise.resolve();
-    });
+    await clickRow(option, { button: 0, ctrlKey: true });
     expect(view.currentPath()).toBe("/search");
   });
 
