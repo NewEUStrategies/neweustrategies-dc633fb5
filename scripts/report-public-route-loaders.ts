@@ -198,13 +198,26 @@ function main(): void {
   // przepuszczają) stoi w nagłówku sekcji w `lib/ci/publicRouteLoaders.ts`.
   const ratchet = compareColdRouteRatchet(report, COLD_PUBLIC_ROUTE_BASELINE);
   console.log(renderColdRouteRatchet(ratchet, (fullPath) => entersEdgeCachePath(fullPath)));
-  if (ratchet.fresh.length > 0) {
-    failures.push(`${ratchet.fresh.length} tras spoza zamrożonej listy jest zimnych`);
-  }
-  if (ratchet.fixed.length > 0) {
-    failures.push(
-      `${ratchet.fixed.length} tras z listy jest już rozgrzanych, a lista i sufity tego nie odebrały`,
-    );
+  // DECYZJA Z JEDNEGO MIEJSCA. `coldRouteRatchetFailed` jest DOKŁADNIE tym
+  // predykatem, którym ratchet rozstrzyga w suicie testowej. `--gate` liczący
+  // ten warunek po swojemu to dwie kopie tej samej reguły - czyli ta sama klasa
+  // rozjazdu „`bun run test` i bramka mówią co innego", o której mówi komentarz
+  // przy sufitach wyżej. Zdania niżej opisują tylko POWÓD; oblewa predykat.
+  if (coldRouteRatchetFailed(ratchet)) {
+    const before = failures.length;
+    if (ratchet.fresh.length > 0) {
+      failures.push(`${ratchet.fresh.length} tras spoza zamrożonej listy jest zimnych`);
+    }
+    if (ratchet.fixed.length > 0) {
+      failures.push(
+        `${ratchet.fixed.length} tras z listy jest już rozgrzanych, a lista i sufity tego nie odebrały`,
+      );
+    }
+    // Gdyby predykat urósł kiedyś o trzeci warunek, bramka ma oblać ZANIM ktoś
+    // dopisze dla niego zdanie - cicha zieleń byłaby tu gorsza od suchego zdania.
+    if (failures.length === before) {
+      failures.push("ratchet zimnych tras oblewa - powód nazywa raport wyżej");
+    }
   }
 
   if (failures.length > 0) {
