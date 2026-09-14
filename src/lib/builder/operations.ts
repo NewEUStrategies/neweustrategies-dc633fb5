@@ -389,6 +389,28 @@ export function duplicateWidget(d: BuilderDocument, wid: string): void {
 }
 
 /**
+ * Kolumna, którą upuszczający NA PEWNO widzi na kanwie.
+ *
+ * Renderer filtruje kolumny przez `evaluateAccess` - i sekcje wewnętrzne, i
+ * kolumny najwyższego poziomu - więc kolumna z regułą dostępu może w ogóle nie
+ * być narysowana. Wrzucenie tam widgetu daje DWIE szkody naraz: widget znika
+ * redaktorowi z oczu (czyli znów „upuszczenie skasowało treść", tylko innym
+ * mechanizmem) i dziedziczy cudzą regułę dostępu, więc trafia do innej
+ * publiczności niż ta, dla której go dodano.
+ *
+ * Nie pytamy tu `evaluateAccess`, kto patrzy, i nie importujemy
+ * `accessControl` - ten moduł ciągnie `useAuth`, a to jest czysty moduł
+ * drzewa, który jedzie w lekkim chunku. Zamiast tego reguła jest ZACHOWAWCZA
+ * w jedną stronę: KAŻDA obecna reguła znaczy „może być niewidoczna", więc
+ * celujemy tylko w kolumny bez reguły (te renderer pokazuje zawsze, bo
+ * `evaluateAccess(undefined)` to `true`). Może to kosztować jedną kolumnę
+ * dołożoną niepotrzebnie; nigdy nie kosztuje zniknięcia treści ani zmiany
+ * publiczności - a drugi kierunek pomyłki kosztowałby oba.
+ */
+const isColumnVisibleToEditor = (c: ColumnNode | null | undefined): c is ColumnNode =>
+  !!c && !c.advanced?.access;
+
+/**
  * Kolumna wskazana identyfikatorem, JAKI NIESIE KANWA - CZYSTO, bez tworzenia
  * czegokolwiek. Rozwiązuje ten sam rozjazd co `columnForDrop` (patrz jego opis:
  * `data-col-id` bywa identyfikatorem SEKCJI WEWNĘTRZNEJ, nie kolumny), ale
@@ -408,9 +430,12 @@ export function columnForCanvasId(d: BuilderDocument, colId: string): ColumnNode
   if (column) return column;
   const inner = findInner(d, colId);
   if (!inner) return null;
-  // Pierwsza NIEPUSTA kolumna - jak w `columnForDrop` i `moveWidgetToSection`:
-  // dziura na pozycji zerowej nie może przesłonić prawdziwej kolumny.
-  return (inner.columns ?? []).find((c): c is ColumnNode => !!c) ?? null;
+  // Pierwsza kolumna, którą redaktor NA PEWNO widzi - identycznie jak
+  // `columnForDrop` i `moveWidgetToSection` (patrz `isColumnVisibleToEditor`):
+  // ani dziura na pozycji zerowej, ani cudza reguła dostępu nie może przesłonić
+  // dobrej kolumny. Kliknięcie i upuszczenie MUSZĄ celować w to samo miejsce -
+  // rozjazd między nimi jest dokładnie tym, co ta zmiana likwiduje.
+  return (inner.columns ?? []).find(isColumnVisibleToEditor) ?? null;
 }
 
 /**
@@ -431,9 +456,9 @@ export function columnForCanvasId(d: BuilderDocument, colId: string): ColumnNode
  *
  * OGRANICZENIE, ŚWIADOME: to PIERWSZA kolumna, a nie ta pod kursorem - w
  * kilkukolumnowej sekcji wewnętrznej widget wyląduje więc po lewej, niezależnie
- * od tego, w którą przerwę go upuszczono (a gdy pierwsza kolumna ma regułę
- * dostępu, której redaktor nie spełnia, renderer jej nie rysuje). Wybór
- * najbliższej kolumny wymagałby geometrii wskaźnika, której ta warstwa nie zna
+ * od tego, w którą przerwę go upuszczono - w pierwszej, którą redaktor NA PEWNO
+ * widzi (kolumny z regułą dostępu omijamy, patrz `isColumnVisibleToEditor`).
+ * Wybór najbliższej kolumny wymagałby geometrii wskaźnika, której ta warstwa nie zna
  * i znać nie powinna; `moveWidgetToSection` bierze pierwszą kolumnę od zawsze.
  *
  * TYLKO DLA UPUSZCZEŃ - bo MUTUJE (zakłada kolumnę). Ścieżki, które jedynie
@@ -600,17 +625,21 @@ export function moveWidgetToSection(
   // Pierwsza kolumna celu - szukana PRZED wycięciem, żeby cała funkcja trzymała
   // się schematu „sprawdź wszystko, potem zmieniaj". Dziury i sekcje wewnętrzne
   // bez ANI JEDNEJ kolumny przeskakujemy; węzeł kolumny zostaje ważny po
-  // wycięciu źródła. Pierwszą kolumnę sekcji wewnętrznej bierzemy tak samo jak
-  // `columnForDrop`, czyli pierwszą NIEPUSTĄ - inaczej dziura na pozycji zerowej
-  // przesłaniałaby prawdziwą kolumnę i dokładalibyśmy obok drugi kontener.
+  // wycięciu źródła. Kolumnę wybieramy tak samo jak `columnForDrop`: pierwszą,
+  // którą redaktor NA PEWNO widzi (patrz `isColumnVisibleToEditor`) - inaczej
+  // dziura albo cudza reguła dostępu na pozycji zerowej przesłaniałaby dobrą
+  // kolumnę, a widget lądowałby poza kanwą.
   let targetColumn: ColumnNode | null = null;
   for (const child of targetSection.children ?? []) {
     if (!child) continue;
     if (child.kind === "column") {
-      targetColumn = child;
-      break;
+      if (isColumnVisibleToEditor(child)) {
+        targetColumn = child;
+        break;
+      }
+      continue;
     }
-    const firstInner = (child.columns ?? []).find((c): c is ColumnNode => !!c);
+    const firstInner = (child.columns ?? []).find(isColumnVisibleToEditor);
     if (firstInner) {
       targetColumn = firstInner;
       break;

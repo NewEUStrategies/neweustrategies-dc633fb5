@@ -333,7 +333,13 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     mut: (d: BuilderDocument) => ops.MoveOutcome,
     label: string,
   ): ops.MoveOutcome => {
-    let outcome: ops.MoveOutcome = "unchanged";
+    // Rzutowanie na `MoveOutcome` NIE jest ozdobą: bez niego typem
+    // przepływu `outcome` zostaje literał `"unchanged"` z inicjalizatora, bo
+    // analiza przepływu TypeScriptu nie widzi przypisania z WNĘTRZA callbacka
+    // (`update` woła mutację synchronicznie, ale kompilator tego nie wie).
+    // Wtedy `outcome === "rejected"` niżej jest błędem TS2367 - „typy nie mają
+    // części wspólnej" - i cały komunikat o odrzuceniu jest kodem martwym.
+    let outcome = "unchanged" as ops.MoveOutcome;
     update(
       (d) => {
         outcome = mut(d);
