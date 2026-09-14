@@ -59,7 +59,9 @@ beforeEach(() => {
 
 describe("MutualConnectionsHint", () => {
   it("pokazuje liczbę wspólnych kontaktów i link do ich listy", () => {
-    setStatuses(queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualCount: 3 }) })));
+    setStatuses(
+      queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualVisibleCount: 3 }) })),
+    );
     renderHint();
     const link = screen.getByRole("link", { name: k("network.mutualLinkAria", { count: 3 }) });
     expect(link).toHaveAttribute("href", `/network/mutual/${NETWORK_IDS.peer}`);
@@ -67,7 +69,9 @@ describe("MutualConnectionsHint", () => {
   });
 
   it("etykieta czytnika ekranu idzie ze słownika (bez defaultValue w kodzie)", () => {
-    setStatuses(queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualCount: 1 }) })));
+    setStatuses(
+      queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualVisibleCount: 1 }) })),
+    );
     renderHint();
     // Klucz z licznikiem - i18next rozwinie go na formę mnogą właściwą dla
     // języka; w teście liczy się, że w aria trafia KLUCZ, nie polski tekst.
@@ -77,7 +81,38 @@ describe("MutualConnectionsHint", () => {
   });
 
   it("zero wspólnych kontaktów: nic się nie renderuje", () => {
-    setStatuses(queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualCount: 0 }) })));
+    setStatuses(
+      queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualVisibleCount: 0 }) })),
+    );
+    const { container } = renderHint();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  // To jest cały defekt A4 zamknięty w jednym przypadku: podpowiedź prowadzi do
+  // `mutual_connections`, które odsiewa po `discoverable` i najemcy, więc liczba
+  // NIE MOŻE pochodzić z `mutualCount` (fakt grafu). Przed 20260913172000
+  // ten stan renderował "7 wspólnych kontaktów" i otwierał pustą listę.
+  it("liczy MOSTY WIDOCZNE, nie fakt grafu - inaczej link prowadzi w pustkę", () => {
+    setStatuses(
+      queryStub(
+        statusMap({
+          [NETWORK_IDS.peer]: connectionState({ mutualCount: 7, mutualVisibleCount: 4 }),
+        }),
+      ),
+    );
+    renderHint();
+    expect(screen.getByText(k("network.mutual", { count: 4 }))).toBeInTheDocument();
+    expect(screen.queryByText(k("network.mutual", { count: 7 }))).not.toBeInTheDocument();
+  });
+
+  it("same ukryte mosty: podpowiedzi NIE MA, choć graf zna drogę", () => {
+    setStatuses(
+      queryStub(
+        statusMap({
+          [NETWORK_IDS.peer]: connectionState({ mutualCount: 2, mutualVisibleCount: 0 }),
+        }),
+      ),
+    );
     const { container } = renderHint();
     expect(container).toBeEmptyDOMElement();
   });
@@ -90,7 +125,9 @@ describe("MutualConnectionsHint", () => {
 
   it("wspólne kontakty widać także przy istniejącej relacji", () => {
     setStatuses(
-      queryStub(statusMap({ [NETWORK_IDS.peer]: stateFor("connected", { mutualCount: 8 }) })),
+      queryStub(
+        statusMap({ [NETWORK_IDS.peer]: stateFor("connected", { mutualVisibleCount: 8 }) }),
+      ),
     );
     renderHint();
     expect(screen.getByText(k("network.mutual", { count: 8 }))).toBeInTheDocument();
@@ -98,7 +135,9 @@ describe("MutualConnectionsHint", () => {
 
   it("moduł sieci wyłączony w tenancie: brak hintu i brak zapytania o status", () => {
     h.modules = { connections_enabled: false };
-    setStatuses(queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualCount: 5 }) })));
+    setStatuses(
+      queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualVisibleCount: 5 }) })),
+    );
     const { container } = renderHint();
     expect(container).toBeEmptyDOMElement();
     expect(h.requestedIds).toEqual([[]]);
@@ -119,7 +158,9 @@ describe("MutualConnectionsHint", () => {
   });
 
   it("aktywny hint pyta o dokładnie jedną osobę (wspólny cache z ConnectButton)", () => {
-    setStatuses(queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualCount: 2 }) })));
+    setStatuses(
+      queryStub(statusMap({ [NETWORK_IDS.peer]: connectionState({ mutualVisibleCount: 2 }) })),
+    );
     renderHint();
     expect(h.requestedIds).toEqual([[NETWORK_IDS.peer]]);
   });

@@ -204,7 +204,6 @@ function PersonRow({
         bridge={bridge}
         targetName={displayName}
         targetAvatarUrl={avatarUrl}
-        targetSlug={slug}
         interactive={false}
         className="mt-0.5"
       />
@@ -495,7 +494,7 @@ function RequestsTab({
 
   if (requestsQ.isError) return <ErrorBox retry={() => void requestsQ.refetch()} />;
   if (requestsQ.isLoading) return <LoadingList rows={2} />;
-  const rows = requestsQ.data ?? [];
+  const rows = (requestsQ.data?.pages ?? []).flat();
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -505,97 +504,118 @@ function RequestsTab({
     );
   }
 
+  // Licznik z `my_network_counts` nad tą listą liczy COUNT(*) po całej tabeli,
+  // więc dopóki nie dociągniemy wszystkich stron, odznaka mówi o wierszach,
+  // których tu nie ma. Kontrolka niżej jest jedyną drogą do nich - jej brak był
+  // całym defektem (odznaka "60" nad listą pokazującą 50, bez śladu obcięcia).
+  const total = requestsQ.data?.pages?.[0]?.[0]?.total_count ?? rows.length;
+
   return (
-    <ul className="grid gap-3">
-      {rows.map((r: ConnectionRequestRow) => (
-        <li
-          key={r.connection_id}
-          ref={highlightRef(highlightId === r.connection_id)}
-          className={cn(
-            "rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
-            highlightId === r.connection_id &&
-              "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
-          )}
-        >
-          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
-            <ChatAvatar
-              name={r.display_name}
-              avatarUrl={r.avatar_url}
-              online={online.has(r.user_id)}
-              size="md"
-              to={r.slug ? `/author/${r.slug}` : undefined}
-            />
-            <div className="min-w-0 flex-1">
-              {r.slug ? (
-                <Link
-                  to="/author/$slug"
-                  params={{ slug: r.slug }}
-                  className="rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
-                    <span className="truncate">{r.display_name}</span>
-                    {r.verified && (
-                      <BadgeCheck
-                        className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
-                        aria-label={t("people.verifiedBadge")}
-                      />
-                    )}
+    <>
+      <ul className="grid gap-3">
+        {rows.map((r: ConnectionRequestRow) => (
+          <li
+            key={r.connection_id}
+            ref={highlightRef(highlightId === r.connection_id)}
+            className={cn(
+              "rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+              highlightId === r.connection_id &&
+                "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
+            )}
+          >
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
+              <ChatAvatar
+                name={r.display_name}
+                avatarUrl={r.avatar_url}
+                online={online.has(r.user_id)}
+                size="md"
+                to={r.slug ? `/author/${r.slug}` : undefined}
+              />
+              <div className="min-w-0 flex-1">
+                {r.slug ? (
+                  <Link
+                    to="/author/$slug"
+                    params={{ slug: r.slug }}
+                    className="rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
+                      <span className="truncate">{r.display_name}</span>
+                      {r.verified && (
+                        <BadgeCheck
+                          className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
+                          aria-label={t("people.verifiedBadge")}
+                        />
+                      )}
+                    </p>
+                  </Link>
+                ) : (
+                  <p className="truncate text-sm font-semibold">{r.display_name}</p>
+                )}
+                {(r.job_title || r.current_company) && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[r.job_title, r.current_company].filter(Boolean).join(" - ")}
                   </p>
-                </Link>
-              ) : (
-                <p className="truncate text-sm font-semibold">{r.display_name}</p>
-              )}
-              {(r.job_title || r.current_company) && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {[r.job_title, r.current_company].filter(Boolean).join(" - ")}
+                )}
+                <p className="text-[11px] text-muted-foreground/80">
+                  {t("network.requestedAt", { date: formatDate(r.requested_at) })}
                 </p>
-              )}
-              <p className="text-[11px] text-muted-foreground/80">
-                {t("network.requestedAt", { date: formatDate(r.requested_at) })}
-              </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
+                {direction === "in" ? (
+                  <ConnectButton
+                    userId={r.user_id}
+                    displayName={r.display_name}
+                    state={{
+                      // Zaproszenie w toku nie jest stopniem - graf relacji
+                      // opisuje fakty, nie intencje (stąd `degree` z NO_CONNECTION).
+                      ...NO_CONNECTION,
+                      status: "pending_in",
+                      connectionId: r.connection_id,
+                      canInvite: false,
+                    }}
+                    compact
+                    iconOnly
+                  />
+                ) : (
+                  <ConnectButton
+                    userId={r.user_id}
+                    displayName={r.display_name}
+                    state={{
+                      ...NO_CONNECTION,
+                      status: "pending_out",
+                      connectionId: r.connection_id,
+                      canInvite: false,
+                    }}
+                    compact
+                    iconOnly
+                  />
+                )}
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
-              {direction === "in" ? (
-                <ConnectButton
-                  userId={r.user_id}
-                  displayName={r.display_name}
-                  state={{
-                    // Zaproszenie w toku nie jest stopniem - graf relacji
-                    // opisuje fakty, nie intencje (stąd `degree` z NO_CONNECTION).
-                    ...NO_CONNECTION,
-                    status: "pending_in",
-                    connectionId: r.connection_id,
-                    canInvite: false,
-                    degree: 3,
-                  }}
-                  compact
-                  iconOnly
-                />
-              ) : (
-                <ConnectButton
-                  userId={r.user_id}
-                  displayName={r.display_name}
-                  state={{
-                    ...NO_CONNECTION,
-                    status: "pending_out",
-                    connectionId: r.connection_id,
-                    canInvite: false,
-                    degree: 3,
-                  }}
-                  compact
-                  iconOnly
-                />
-              )}
-            </div>
-          </div>
-          {direction === "in" && r.message && (
-            <blockquote className="mt-2 rounded-[4px] border-l-2 border-[var(--brand)]/50 bg-muted/40 px-3 py-2 text-xs italic text-muted-foreground">
-              {r.message}
-            </blockquote>
-          )}
-        </li>
-      ))}
-    </ul>
+            {direction === "in" && r.message && (
+              <blockquote className="mt-2 rounded-[4px] border-l-2 border-[var(--brand)]/50 bg-muted/40 px-3 py-2 text-xs italic text-muted-foreground">
+                {r.message}
+              </blockquote>
+            )}
+          </li>
+        ))}
+      </ul>
+      {requestsQ.hasNextPage && (
+        <div className="mt-3 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={requestsQ.isFetchingNextPage}
+            onClick={() => void requestsQ.fetchNextPage()}
+          >
+            {requestsQ.isFetchingNextPage
+              ? t("network.loadingMore")
+              : t("network.loadMoreOf", { loaded: rows.length, total })}
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -685,7 +705,12 @@ function SuggestionsTab() {
             {...readDegree(s)}
             meta={
               [
-                s.mutual_count > 0 ? t("network.mutual", { count: s.mutual_count }) : null,
+                // Ta sama reguła, co w MutualConnectionsHint: pokazujemy liczbę
+                // mostów MOŻLIWYCH DO WSKAZANIA, nie fakt grafu (ten steruje
+                // rankingiem wyżej w bazie). Patrz migracja 20260913172000.
+                (s.mutual_visible_count ?? 0) > 0
+                  ? t("network.mutual", { count: s.mutual_visible_count ?? 0 })
+                  : null,
                 s.shared_follows > 0
                   ? t("network.sharedDossiers", { count: s.shared_follows })
                   : null,

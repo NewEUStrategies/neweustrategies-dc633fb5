@@ -1,6 +1,12 @@
-// Zgłoszenie użytkownika do moderacji tenanta. Dialog kontrolowany, żeby dało
-// się go otwierać zarówno z samodzielnego przycisku (profil autora), jak i z
-// popovera ConnectButton. Dedup i rate limit egzekwuje DB (report_user).
+// Zgłoszenie użytkownika do moderacji tenanta. Dialog kontrolowany - otwiera go
+// popover ConnectButton (`AuthorMoreMenu` -> `ConnectButton`). Dedup i rate
+// limit egzekwuje DB (report_user).
+//
+// `ReportUserButton` - samodzielny przycisk owijający ten dialog - został
+// USUNIĘTY 20260913 razem ze swoimi czterema przypadkami testowymi. Był
+// wyeksportowany i pokryty testami, ale NIE MIAŁ ANI JEDNEGO konsumenta
+// produkcyjnego: pokrycie wyglądało jak zdrowie i nic nie sygnalizowało, że
+// nikt go nie woła. Metryka nagradzała trzymanie kodu bez użytkownika.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Flag } from "lucide-react";
@@ -22,7 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/useAuth";
 import { useReportUser } from "@/lib/network/useConnections";
 import { toastError } from "@/lib/toastError";
 import "@/lib/i18n-network";
@@ -118,42 +123,5 @@ export function ReportUserDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** Samodzielny przycisk "Zgłoś osobę" (np. profil autora). */
-export function ReportUserButton({
-  userId,
-  displayName,
-  className,
-}: {
-  userId: string;
-  displayName: string;
-  className?: string;
-}) {
-  const { t } = useTranslation();
-  const { user } = useAuth();
-  const [open, setOpen] = useState(false);
-  if (!user || user.id === userId) return null;
-  return (
-    <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className={className}
-        aria-label={`${t("network.report")}: ${displayName}`}
-        onClick={() => setOpen(true)}
-      >
-        <Flag className="h-3.5 w-3.5" aria-hidden />
-        <span className="sr-only sm:not-sr-only sm:ml-1.5">{t("network.report")}</span>
-      </Button>
-      <ReportUserDialog
-        userId={userId}
-        displayName={displayName}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
   );
 }

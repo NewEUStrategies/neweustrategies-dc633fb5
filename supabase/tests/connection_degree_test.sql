@@ -22,7 +22,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(24);
+SELECT plan(28);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -210,6 +210,57 @@ SELECT ok(
      FROM public.connection_statuses(
        ARRAY['cd000000-0000-0000-0000-000000000088'::uuid]) cs),
   'mostu bez opt-inu `discoverable` nie nazywamy'
+);
+
+-- ---------------------------------------------------------------------------
+-- 12a-12d. LICZBA POKAZYWANA opisuje zbior, ktory uzytkownik ZOBACZY
+--          (migracja 20260913172000)
+-- ---------------------------------------------------------------------------
+-- Do 20260913172000 podpowiedz „N wspolnych kontaktow" brala `mutual_count`
+-- z `connection_statuses`, a prowadzila na liste z `mutual_connections`, ktora
+-- odsiewa po `tenant_id` i `discoverable`. Dla Iwo (jedyny wspolny kontakt to
+-- UKRYTA Halina) znaczylo to: podpowiedz mowi „1 wspolny kontakt", klikniecie
+-- otwiera liste PUSTA, a przycisk prosby o wprowadzenie - bramkowany ta sama
+-- liczba - pojawia sie bez ani jednego mostu do wybrania.
+--
+-- Rozdzielenie ról jest tu cala stawka i dlatego obie liczby stoja obok siebie:
+-- `mutual_count` zostaje FAKTEM GRAFU (na nim stoi `degree` z asercji 12 wyzej
+-- oraz ranking sugestii), a `mutual_visible_count` mowi, co widac po
+-- kliknieciu. Zawezenie samego `mutual_count` zdjeloby Iwo 2. stopien, czyli
+-- zlamaloby wlasnosc nr 3 z naglowka tego pliku.
+SELECT is(
+  (SELECT cs.mutual_count FROM public.connection_statuses(
+     ARRAY['cd000000-0000-0000-0000-000000000088'::uuid]) cs),
+  1::bigint,
+  'ukryty most LICZY sie do faktu grafu (mutual_count = 1)'
+);
+
+SELECT is(
+  (SELECT cs.mutual_visible_count FROM public.connection_statuses(
+     ARRAY['cd000000-0000-0000-0000-000000000088'::uuid]) cs),
+  0::bigint,
+  'ukryty most NIE LICZY sie do liczby pokazywanej (mutual_visible_count = 0)'
+);
+
+-- Wlasciwa asercja o zgodnosci: liczba w podpowiedzi = dlugosc listy, na ktora
+-- podpowiedz prowadzi. To jest zdanie, ktore przed ta migracja bylo falszywe.
+SELECT is(
+  (SELECT cs.mutual_visible_count FROM public.connection_statuses(
+     ARRAY['cd000000-0000-0000-0000-000000000088'::uuid]) cs),
+  (SELECT count(*) FROM public.mutual_connections(
+     'cd000000-0000-0000-0000-000000000088'::uuid, 100, 0)),
+  'zgodnosc: mutual_visible_count = liczba wierszy mutual_connections'
+);
+
+-- Kontrola dodatnia na tej samej parze liczb: gdy most JEST widoczny (Celina
+-- przez Bartka), obie liczby mowia to samo - czyli nowa kolumna nie jest
+-- stalym zerem udajacym poprawke.
+SELECT is(
+  (SELECT cs.mutual_count || '/' || cs.mutual_visible_count
+     FROM public.connection_statuses(
+       ARRAY['cd000000-0000-0000-0000-0000000000cc'::uuid]) cs),
+  '1/1',
+  'most widoczny: obie liczby zgodne (kontrola dodatnia)'
 );
 
 -- ---------------------------------------------------------------------------

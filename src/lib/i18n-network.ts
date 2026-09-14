@@ -35,6 +35,10 @@ export const networkPl = {
     retry: "Spróbuj ponownie",
     showMore: "Pokaż więcej",
     loadingMore: "Wczytywanie...",
+    // Skrzynka zaproszeń dociąga strony po 24, a odznaka zakładki liczy CAŁĄ
+    // tabelę - napis niesie więc oba człony, żeby "wczytano 24 z 60" było
+    // widoczne bez liczenia wierszy wzrokiem.
+    loadMoreOf: "Pokaż więcej ({{loaded}} z {{total}})",
     // Stronicowanie listy połączeń: przyciski mają same strzałki, więc te trzy
     // napisy są WYŁĄCZNIE dla czytnika ekranu - stąd osobne klucze zamiast
     // podpisów. Gałąź `club.network` ma własną parę - to nie ta sama skala.
@@ -340,6 +344,7 @@ export const networkEn = {
     retry: "Try again",
     showMore: "Show more",
     loadingMore: "Loading...",
+    loadMoreOf: "Show more ({{loaded}} of {{total}})",
     pagination: "Pagination",
     prevPage: "Previous page",
     nextPage: "Next page",
