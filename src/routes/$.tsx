@@ -32,12 +32,13 @@ import { SponsoredDisclosure } from "@/components/post/SponsoredDisclosure";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import { PostOrganizationCard } from "@/components/post/PostOrganizationCard";
 import { articleJsonLdType, resolveDisclosure } from "@/lib/content/sponsored";
-import { RelatedPosts } from "@/components/post/RelatedPosts";
 import { PostCategoryArchive } from "@/components/post/PostCategoryArchive";
-import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
 import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
-import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts";
+// Z LEKKIEGO modułu konfiguracji, nie z `lib/relatedPosts`: trasa potrzebuje
+// tylko scalonej konfiguracji, a tamten moduł dociąga silnik scoringu do
+// chunku wejściowego (patrz nagłówek `relatedPosts/config.ts`).
+import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts/config";
 import { useRecordPostView } from "@/hooks/useRecordPostView";
 import { ContactForm } from "@/components/pages/ContactForm";
 import { ArchiveListing } from "@/components/pages/ArchiveListing";
@@ -119,6 +120,8 @@ const NewsletterForm = lazy(() =>
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 import { resolveTakeaways } from "@/lib/keyTakeaways/resolve";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
+import { RelatedPosts } from "@/components/post/RelatedPosts";
+import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { InlineToc } from "@/components/post/InlineToc";
 import { ContentSkeleton } from "@/components/content/ContentSkeleton";
 import { mergeTocSettings, useTocDefaults, type TocOverride } from "@/lib/toc/settings";

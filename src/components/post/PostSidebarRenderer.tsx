@@ -9,7 +9,7 @@ import {
   sidebarLayoutByIdQueryOptions,
 } from "@/lib/queries/sidebarLayouts";
 import type { ReadingPanelSettings, SidebarWidget } from "@/lib/sidebarBuilder/types";
-import type { RelatedPostsOverride } from "@/lib/relatedPosts";
+import type { RelatedPostsOverride } from "@/lib/relatedPosts/config";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 
