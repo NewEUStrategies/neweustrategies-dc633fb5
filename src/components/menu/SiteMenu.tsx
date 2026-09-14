@@ -279,6 +279,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={menuItemRel(node)}
+          data-site-menu-top-level
           className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground"
         >
           {node.icon ? (
@@ -302,6 +303,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     >
       <button
         type="button"
+        data-site-menu-top-level
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={panelId}

@@ -149,6 +149,22 @@ describe("wariant desktopowy", () => {
     );
   });
 
+  it("oznacza linki i triggery wspólnym rozmiarem głównego menu", async () => {
+    setMenu([
+      item({ id: "a", label_pl: "Wywiady", href: "/wywiady" }),
+      item({ id: "b", label_pl: "Analizy", href: "/analizy", position: 1 }),
+      item({ id: "b1", parent_id: "b", label_pl: "Europa", href: "/europa" }),
+    ]);
+    await renderMenu();
+
+    expect(screen.getByRole("link", { name: "Wywiady" })).toHaveAttribute(
+      "data-site-menu-top-level",
+    );
+    expect(screen.getByRole("button", { name: /Analizy/ })).toHaveAttribute(
+      "data-site-menu-top-level",
+    );
+  });
+
   it("menu z WNUKAMI awansuje na panel redakcyjny (bez zgody administratora)", async () => {
     setMenu([
       item({ id: "a", label_pl: "Wiedza", href: "/wiedza" }),
