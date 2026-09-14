@@ -88,6 +88,8 @@ const h = vi.hoisted(() => ({
   images: [] as Array<Record<string, unknown>>,
   /** Błąd odczytu tabel treści (null = odczyt się udaje). */
   readError: null as Error | null,
+  /** Odczyt udany, ale bez wierszy - `data` jest `null`, nie `[]`. */
+  nullRows: false,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -112,7 +114,10 @@ vi.mock("@/integrations/supabase/client", () => {
       resolve: (value: { data: unknown[] | null; error: unknown }) => unknown,
     ): unknown =>
       resolve({
-        data: h.readError ? null : table === "posts" ? h.posts : h.pages,
+        // `nullRows` odtwarza odpowiedź BEZ błędu i BEZ wierszy - PostgREST tak
+        // odpowiada, a trasa ma wtedy zejść na pustą tablicę (`data ?? []`),
+        // nie wywrócić się na `null.map`.
+        data: h.readError || h.nullRows ? null : table === "posts" ? h.posts : h.pages,
         error: h.readError,
       });
     return link;
@@ -263,6 +268,7 @@ beforeEach(() => {
   h.imageSlot = {};
   h.images = [];
   h.readError = null;
+  h.nullRows = false;
   h.ogPrepareResult = (file: unknown) => ({
     file,
     issues: [],
@@ -1025,6 +1031,21 @@ describe("/admin/seo/ - kokpit wobec PADNIĘTEGO odczytu treści", () => {
   it("po błędzie liczniki treści pokazują zera, a nie liczby z poprzedniego odczytu", async () => {
     h.readError = new Error("PostgREST padł");
     const { findByText } = await mount();
+    await findByText("adminSeoHub.contentSummary(done=0,total=0)");
+  });
+});
+
+describe("/admin/seo/ - kokpit wobec odpowiedzi BEZ wierszy", () => {
+  it("`data: null` bez błędu schodzi na pustą listę, a nie wywraca renderu", async () => {
+    // PostgREST potrafi oddać `data: null` przy braku trafień. Bez `?? []`
+    // kokpit padałby na `null.map` - i to na ekranie, który ma raportować
+    // stan, więc awaria wyglądałaby jak „SEO nie działa".
+    h.nullRows = true;
+    const { findByText } = await renderRoute({
+      route: DashboardRoute,
+      path: "/admin/seo",
+      initialEntry: "/admin/seo",
+    });
     await findByText("adminSeoHub.contentSummary(done=0,total=0)");
   });
 });
