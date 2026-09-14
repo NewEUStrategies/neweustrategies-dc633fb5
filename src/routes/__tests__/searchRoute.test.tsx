@@ -400,6 +400,30 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
     expect(phraseInput()).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("TAB POZA formularz zamyka listę - klawiatura nie ma `mousedown`", async () => {
+    // Zamykanie na kliku poza formularzem nie obsługuje klawiatury: przejście
+    // Tabem na przełącznik trybów zaawansowanych nie generuje `mousedown`,
+    // więc popover zostawał otwarty nad niepowiązaną treścią, z
+    // `aria-expanded="true"`, mimo że fokus był już gdzie indziej.
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    const outside = screen.getByRole("button", { name: /Zaawansowane/i });
+    fireEvent.blur(phraseInput(), { relatedTarget: outside });
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "false"));
+  });
+
+  it("TAB W OBRĘBIE formularza NIE zamyka listy", async () => {
+    // Fokus wędrujący między kontrolkami formularza (np. na przycisk
+    // mikrofonu) musi zostawić listę otwartą - inaczej wracamy do zamykania
+    // na samą utratę fokusu przez pole frazy.
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    const inside = screen.getByRole("option", { name: /Raport roczny/ });
+    fireEvent.blur(phraseInput(), { relatedTarget: inside });
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    expect(phraseInput()).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("KLIK WEWNĄTRZ formularza (obudowa listy) NIE zamyka listy", async () => {
     // Klik w padding popovera albo przeciągnięcie paska przewijania zamykało
     // listę, bo i jedno, i drugie zabierało fokus polu frazy.

@@ -273,6 +273,22 @@ function SearchPage() {
     return () => document.removeEventListener("mousedown", onDocMouseDown);
   }, [sugOpen]);
 
+  // Klawiatura: Tab poza formularz też musi zamknąć listę - `mousedown` wtedy
+  // nie pada, a otwarty popover zasłaniałby treść i zostawiał `aria-expanded`
+  // na `true`, mimo że fokus jest już gdzie indziej.
+  //
+  // Zamykamy WYŁĄCZNIE przy przejściu fokusu na konkretny element poza
+  // formularzem. Gdy `relatedTarget` jest pusty (klik w tło, utrata fokusu
+  // okna, a także klik w padding popovera albo pasek przewijania), listę
+  // zostawiamy: te przypadki obsługuje `mousedown` powyżej i to on decyduje,
+  // czy klik padł poza formularzem. Wiersz i przyciski kubełków są WEWNĄTRZ
+  // formularza, więc fokus przeniesiony na nie przez środkowy lub prawy
+  // przycisk myszy nie zamyka listy.
+  const onFormFocusOut = (e: React.FocusEvent<HTMLFormElement>) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && !e.currentTarget.contains(next)) setSugOpen(false);
+  };
+
   // ---- Ostatnie wyszukiwania (localStorage, jak w overlayu/widgecie) ------
   // Stan ładowany w efekcie: SSR nie widzi localStorage, a hydratacja musi
   // zgadzać się z HTML-em serwera.
@@ -626,6 +642,7 @@ function SearchPage() {
 
         <form
           ref={formRef}
+          onBlur={onFormFocusOut}
           onSubmit={submit}
           className="search-page-form relative z-40 mb-2"
           role="search"
