@@ -10,6 +10,7 @@
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "@/lib/lucide-shim";
+import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
 import {
   FOUNDATION_BODY_LIMIT,
   checkHtmlLang,
