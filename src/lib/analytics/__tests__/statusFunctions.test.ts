@@ -69,6 +69,7 @@ const { getAnalyticsStatus } = await import("../status.functions");
 
 /** Wszystko, co moduł czyta ze środowiska - czyszczone przed KAŻDYM przypadkiem. */
 const KLUCZE_ENV = [
+  "VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY",
   "LOVABLE_API_KEY",
   "GOOGLE_SEARCH_CONSOLE_API_KEY",
   "GA4_SERVICE_ACCOUNT_JSON",

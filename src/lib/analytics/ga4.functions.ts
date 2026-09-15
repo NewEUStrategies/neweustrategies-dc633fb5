@@ -111,8 +111,8 @@ export const sendGa4Event = createServerFn({ method: "POST" })
     await requireAnalyticsAdmin(ctx);
 
     const stored = await readStoredAnalyticsSettings(ctx);
-    const measurementId =
-      process.env.GA4_MEASUREMENT_ID?.trim() || stored.ga4_measurement_id?.trim() || "";
+    const { resolveGa4MeasurementId } = await import("./measurementId");
+    const measurementId = resolveGa4MeasurementId(stored.ga4_measurement_id).measurementId ?? "";
     const apiSecret = process.env.GA4_API_SECRET;
     if (!measurementId || !apiSecret) {
       return {
