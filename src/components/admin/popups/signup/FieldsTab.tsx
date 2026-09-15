@@ -8,6 +8,7 @@ import { SectionCard, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
 import {
   isPopupFieldLocked,
+  isPopupFieldNeverRequired,
   resolvePopupFields,
   type PopupFieldConfig,
 } from "@/lib/newsletter/popupFields";
