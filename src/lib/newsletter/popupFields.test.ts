@@ -5,6 +5,7 @@ import {
   popupFieldLabel,
   popupFieldPlaceholder,
   isPopupFieldLocked,
+  isPopupFieldNeverRequired,
   POPUP_FIELD_KEYS,
 } from "@/lib/newsletter/popupFields";
 
