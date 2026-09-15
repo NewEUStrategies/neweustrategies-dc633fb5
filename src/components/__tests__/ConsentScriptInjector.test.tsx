@@ -235,6 +235,11 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  // GA4 nie należy do tej bramki (tryb domyślnej odmowy Google), więc jego tag
+  // trzeba sprzątnąć osobno - inaczej wyciekłby do kolejnego przypadku.
+  document.head.querySelectorAll("script[data-ga4-tag]").forEach((el) => el.remove());
+  resetGa4BootstrapForTests();
+  Reflect.deleteProperty(window, "dataLayer");
   // Gdyby jakiś przypadek zostawił węzeł (a właśnie tego pilnujemy), nie może
   // on wyciec do kolejnego testu i sfałszować liczenia.
   allOwned().forEach((el) => el.parentElement?.removeChild(el));
