@@ -23,18 +23,28 @@ import {
   type FoundationState,
 } from "@/lib/seo/technicalFoundation";
 
-/** Cztery powierzchnie: trzy pliki generowane i strona główna (atrybut lang). */
+/**
+ * Cztery powierzchnie: trzy pliki generowane i strona główna (atrybut lang).
+ * Sondy celują w DOMENĘ KANONICZNĄ - panel otwarty na hoście podglądu ma
+ * raportować stan adresu publicznego, nie adresu tymczasowego. Gdy przeglądarka
+ * odmówi odczytu cross-origin (brak nagłówków CORS na domenie), wracamy do
+ * same-origin: treść plików generowanych jest identyczna na obu hostach.
+ */
 const PROBE_PATHS = ["/sitemap.xml", "/robots.txt", "/llms.txt", "/"] as const;
 
 async function probe(path: string): Promise<FoundationProbe> {
-  try {
-    const res = await fetch(path, { headers: { Accept: "*/*" } });
-    const text = await res.text();
-    return { status: res.status, body: text.slice(0, FOUNDATION_BODY_LIMIT) };
-  } catch {
-    // Błąd sieci nie może wywrócić kokpitu - 0 czyta się jako „brak odpowiedzi".
-    return { status: 0, body: "" };
+  const targets = [`${CANONICAL_SITE_ORIGIN}${path}`, path];
+  for (const target of targets) {
+    try {
+      const res = await fetch(target, { headers: { Accept: "*/*" } });
+      const text = await res.text();
+      return { status: res.status, body: text.slice(0, FOUNDATION_BODY_LIMIT) };
+    } catch {
+      // Błąd sieci na kanonicznym originie - próbujemy same-origin; 0 czyta się
+      // jako „brak odpowiedzi" i nie może wywrócić kokpitu.
+    }
   }
+  return { status: 0, body: "" };
 }
 
 const TONE: Record<FoundationState, string> = {
