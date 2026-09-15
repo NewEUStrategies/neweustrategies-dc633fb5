@@ -86,6 +86,7 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     label_en: "LinkedIn",
     placeholder_pl: "https://linkedin.com/in/jan-kowalski",
     placeholder_en: "https://linkedin.com/in/jane-doe",
+    neverRequired: true,
   },
   email: {
     enabled: true,
