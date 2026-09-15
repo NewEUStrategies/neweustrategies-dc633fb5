@@ -560,6 +560,21 @@ describe("PopupSignupForm: walidacja pól zatrzymuje śmieciowe konta", () => {
     expect(h.subscribe.mock.calls[0][0].data.meta).toBeUndefined();
   });
 
+  it("LinkedIn jest zawsze opcjonalne - nawet zapisane jako wymagane nie blokuje rejestracji", async () => {
+    renderForm({
+      settings: settings({
+        popup_extended_fields: true,
+        popup_fields: fieldsWith({ key: "linkedin", required: true }),
+      }),
+    });
+    fillMinimal();
+    acceptPrivacy();
+    actLikeHuman();
+    await submit();
+
+    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
+  });
+
   it("wyłączone pole rozszerzone nie renderuje się i nie blokuje zapisu, choć jest wymagane", async () => {
     renderForm({
       settings: settings({
