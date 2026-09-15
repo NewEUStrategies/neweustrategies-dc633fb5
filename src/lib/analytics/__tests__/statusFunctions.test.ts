@@ -277,6 +277,7 @@ describe("instalacja bez konfiguracji", () => {
         serviceAccountEmail: null,
         propertyId: null,
         measurementId: null,
+        measurementIdSource: null,
         embedUrl: null,
         missingSecrets: ["GA4_PROPERTY_ID", "GA4_SERVICE_ACCOUNT_JSON"],
       },
