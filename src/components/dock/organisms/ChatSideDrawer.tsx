@@ -30,7 +30,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 
 import {
   loadChatWindow,
@@ -53,6 +53,7 @@ import {
 } from "@/lib/chat/useConversations";
 import { useMyExpertRequests } from "@/lib/chat/useExpertRequests";
 import { minimizedChatsStore, useMinimizedChats } from "@/lib/chat/minimizedChats";
+import { useMobileRouteDismiss } from "@/lib/chat/useMobileRouteDismiss";
 import type { ChatLang } from "@/lib/chat/time";
 import type { DockPresenceState } from "@/lib/dock/dockMotion";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
@@ -195,6 +196,25 @@ export function ChatSideDrawer({
     if (!peerUserId) return null;
     return peersQ.data.get(peerUserId)?.avatar_url ?? null;
   }, [selectedView, peersQ.data]);
+
+  // NAWIGACJA NA TELEFONIE SKŁADA CZAT.
+  // Rozmowa (prywatna albo krąg) trafia na szynę zminimalizowanych pigułek,
+  // więc jednym dotknięciem wraca dokładnie tam, gdzie była. Sama lista
+  // rozmów niczego nie ma do zapamiętania, więc po prostu się zamyka.
+  // Na desktopie skrzynka zostaje otwarta - tam nie zasłania treści.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useMobileRouteDismiss(pathname, () => {
+    if (selected) {
+      minimizedChatsStore.minimize({
+        id: selected,
+        name: selectedName || t("dock.chat.title"),
+        avatarUrl: selectedAvatarUrl,
+      });
+    }
+    setInboxCollapsed(false);
+    setSelected(null);
+    onClose();
+  });
 
   if (!user) return null;
 

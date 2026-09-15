@@ -74,6 +74,7 @@ interface ExpertRequestStub {
 // `?? []`. Bez tego wariantu pierwsze pobranie byłoby w teście niewidoczne.
 const h = vi.hoisted(() => ({
   uid: "user-me" as string | null,
+  pathname: "/messages",
   views: undefined as ConversationView[] | undefined,
   peers: undefined as ReadonlyMap<string, PeerProfile> | undefined,
   requests: undefined as { id: string; status: string }[] | undefined,
@@ -191,6 +192,11 @@ vi.mock("@/components/chat/ExpertRequestsInbox", () => ({
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+  // Skrzynka czyta z routera JEDNO pole - bieżącą ścieżkę - żeby na telefonie
+  // złożyć się przy nawigacji. Goły render nie ma kontekstu routera, więc
+  // podajemy tę ścieżkę wprost.
+  useRouterState: ({ select }: { select: (s: unknown) => unknown }) =>
+    select({ location: { pathname: h.pathname } }),
 }));
 
 import { ChatSideDrawer, type ChatSideDrawerProps } from "../ChatSideDrawer";
@@ -296,6 +302,7 @@ beforeEach(() => {
   h.conversationsError = false;
   h.prefetchedWindow = 0;
   h.prefetchedGroup = 0;
+  h.pathname = "/messages";
   minimizedChatsStore.reset();
 });
 
@@ -830,5 +837,81 @@ describe("dostępność", () => {
 
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("nawigacja na telefonie", () => {
+  /** Wąski ekran: `matchMedia` w jsdom zawsze zwraca `false`, więc podajemy go. */
+  function mobileViewport(mobile: boolean): void {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: mobile,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    );
+  }
+
+  it("wyjście z otwartej rozmowy minimalizuje ją na pasku i zamyka skrzynkę", async () => {
+    mobileViewport(true);
+    h.views = [conversationView()];
+
+    const { onClose, rerenderWith } = renderDrawer();
+
+    fireEvent.click(rowFor(ANNA.display_name));
+    await screen.findByTestId("chat-window");
+
+    h.pathname = "/kluby";
+    await act(async () => {
+      rerenderWith({});
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("chat-window")).toBeNull();
+    expect(minimizedChatsStore.getSnapshot().minimized[0]).toMatchObject({
+      id: CHAT_IDS.conversation,
+      name: ANNA.display_name,
+    });
+  });
+
+  it("wyjście z samej listy rozmów tylko zamyka skrzynkę, bez pigułki", async () => {
+    mobileViewport(true);
+    h.views = [conversationView()];
+
+    const { onClose, rerenderWith } = renderDrawer();
+
+    h.pathname = "/kluby";
+    await act(async () => {
+      rerenderWith({});
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(minimizedChatsStore.getSnapshot().minimized).toHaveLength(0);
+  });
+
+  it("na szerokim ekranie nawigacja nie rusza skrzynki", async () => {
+    mobileViewport(false);
+    h.views = [conversationView()];
+
+    const { onClose, rerenderWith } = renderDrawer();
+
+    fireEvent.click(rowFor(ANNA.display_name));
+    await screen.findByTestId("chat-window");
+
+    h.pathname = "/kluby";
+    await act(async () => {
+      rerenderWith({});
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("chat-window")).toBeInTheDocument();
+    expect(minimizedChatsStore.getSnapshot().minimized).toHaveLength(0);
   });
 });
