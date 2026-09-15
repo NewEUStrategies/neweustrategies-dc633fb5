@@ -184,6 +184,7 @@ function status(
       serviceAccountEmail: null,
       propertyId: null,
       measurementId: null,
+      measurementIdSource: null,
       embedUrl: null,
       missingSecrets: [],
       ...patch.ga4,

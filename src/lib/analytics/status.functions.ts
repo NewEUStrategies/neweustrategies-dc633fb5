@@ -5,6 +5,10 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  resolveGa4MeasurementId,
+  type Ga4MeasurementIdSource,
+} from "@/lib/analytics/measurementId";
 
 interface SelectResultRow {
   data: unknown;
@@ -84,6 +88,8 @@ export interface AnalyticsStatus {
     serviceAccountEmail: string | null;
     propertyId: string | null;
     measurementId: string | null;
+    // Skąd pochodzi ID pomiaru: sekret, ustawienia panelu czy konektor.
+    measurementIdSource: Ga4MeasurementIdSource;
     embedUrl: string | null;
     // Podpowiedzi UX - czego brakuje po stronie sekretów projektu.
     missingSecrets: string[];
@@ -131,8 +137,12 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
     // `sendGa4Event` (`GA4_MEASUREMENT_ID?.trim() || stored...`) nadawałby
     // identyfikatorem z bazy - dwie funkcje modułu przeczyłyby sobie co do
     // tej samej wartości.
-    const measurementId =
-      process.env.GA4_MEASUREMENT_ID?.trim() || stored.ga4_measurement_id?.trim() || null;
+    // Konektor Google Analytics jest trzecim (zapasowym) źródłem - ta sama
+    // kolejność co w kliencie, żeby panel nie meldował „brak", gdy skrypt GA
+    // realnie działa z ID konektora.
+    const { measurementId, source: measurementIdSource } = resolveGa4MeasurementId(
+      stored.ga4_measurement_id,
+    );
     const apiSecretOk = Boolean(process.env.GA4_API_SECRET);
     const mpOk = Boolean(measurementId && apiSecretOk);
 
@@ -178,6 +188,7 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
         serviceAccountEmail: saEmail,
         propertyId,
         measurementId,
+        measurementIdSource,
         embedUrl,
         missingSecrets,
       },

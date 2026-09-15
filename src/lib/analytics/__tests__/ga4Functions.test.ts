@@ -104,6 +104,7 @@ const MEASUREMENT_ID = "G-TESTOWY";
 
 /** Wszystko, co ten przepływ czyta ze środowiska. */
 const KLUCZE_ENV = [
+  "VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY",
   "GA4_PROPERTY_ID",
   "GA4_MEASUREMENT_ID",
   "GA4_API_SECRET",

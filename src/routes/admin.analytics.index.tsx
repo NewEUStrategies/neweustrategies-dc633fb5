@@ -323,6 +323,11 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
                 <span className="ml-1 font-mono opacity-80">{status.measurementId}</span>
               ) : null}
             </Badge>
+            {status.measurementIdSource === "connector" ? (
+              <Badge variant="secondary" className="text-[10px]">
+                {t("admin.analyticsPanel.ga4Modes.fromConnector")}
+              </Badge>
+            ) : null}
             <Badge variant="outline" className="text-[10px]">
               API secret {status.hasMeasurementProtocol && status.hasMeasurementId ? "✓" : "×"}
             </Badge>

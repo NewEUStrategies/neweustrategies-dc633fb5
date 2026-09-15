@@ -263,6 +263,7 @@ function status(overrides: StatusOverrides = {}): AnalyticsStatus {
       serviceAccountEmail: null,
       propertyId: null,
       measurementId: null,
+      measurementIdSource: null,
       embedUrl: null,
       missingSecrets: [],
       ...overrides.ga4,

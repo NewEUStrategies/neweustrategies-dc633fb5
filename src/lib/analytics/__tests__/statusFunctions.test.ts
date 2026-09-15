@@ -69,6 +69,7 @@ const { getAnalyticsStatus } = await import("../status.functions");
 
 /** Wszystko, co moduł czyta ze środowiska - czyszczone przed KAŻDYM przypadkiem. */
 const KLUCZE_ENV = [
+  "VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY",
   "LOVABLE_API_KEY",
   "GOOGLE_SEARCH_CONSOLE_API_KEY",
   "GA4_SERVICE_ACCOUNT_JSON",
@@ -276,6 +277,7 @@ describe("instalacja bez konfiguracji", () => {
         serviceAccountEmail: null,
         propertyId: null,
         measurementId: null,
+        measurementIdSource: null,
         embedUrl: null,
         missingSecrets: ["GA4_PROPERTY_ID", "GA4_SERVICE_ACCOUNT_JSON"],
       },
@@ -502,7 +504,27 @@ describe("kolejność trybów", () => {
 
     expect(wynik.ga4.hasMeasurementId).toBe(true);
     expect(wynik.ga4.hasMeasurementProtocol).toBe(false);
+    expect(wynik.ga4.hasMeasurementId).toBe(true);
+    expect(wynik.ga4.hasMeasurementProtocol).toBe(false);
     expect(wynik.ga4.activeMode).toBeNull();
+  });
+
+  it("konektor Google Analytics dostarcza Measurement ID, gdy nie ma sekretu ani wpisu najemcy", async () => {
+    vi.stubEnv("VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY", "G-KONEKTOR1");
+
+    const wynik = await statusAdmina();
+
+    expect(wynik.ga4.measurementId).toBe("G-KONEKTOR1");
+    expect(wynik.ga4.measurementIdSource).toBe("connector");
+  });
+
+  it("wpis najemcy wyprzedza identyfikator z konektora", async () => {
+    vi.stubEnv("VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY", "G-KONEKTOR1");
+
+    const wynik = await statusAdmina({ ga4_measurement_id: "G-NAJEMCA1" });
+
+    expect(wynik.ga4.measurementId).toBe("G-NAJEMCA1");
+    expect(wynik.ga4.measurementIdSource).toBe("settings");
   });
 });
 
