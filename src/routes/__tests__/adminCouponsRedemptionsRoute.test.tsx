@@ -59,6 +59,14 @@ import { Route as RedemptionsRoute } from "@/routes/admin.coupons.redemptions";
 const PATH = "/admin/coupons/redemptions";
 const TABELA = "b2b_coupon_redemptions";
 
+/**
+ * Dzień kalendarza używany w testach zakresu dat - ZAWSZE inny niż dzisiejszy.
+ * Kalendarz otwiera się na bieżącym miesiącu, a domyślny zakres panelu sięga
+ * DZIŚ: klik w dzisiejszy dzień KASUJE wybór, więc test przypięty na sztywno
+ * do „15" przewracał się dokładnie 15. dnia miesiąca.
+ */
+const DZIEN = new Date().getDate() === 15 ? "14" : DZIEN;
+
 const db = () => h.from as SupabaseFromStub;
 
 /** Blob-y oddane przeglądarce - z nich czytamy treść wyeksportowanego pliku. */
@@ -324,18 +332,18 @@ describe("trasa /admin/coupons/redemptions - zakres dat", () => {
     await zamontuj();
     await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
     fireEvent.click(poleDaty("Od"));
-    await screen.findByRole("gridcell", { name: "15" });
+    await screen.findByRole("gridcell", { name: DZIEN });
     // Kalendarz w warstwie Radiksa PRZEMONTOWUJE się przy kolejnych renderach
     // panelu, więc uchwyt do komórki złapany raz bywa już odpięty od dokumentu
     // w chwili kliknięcia (klik w odpięty węzeł jest bezgłośny). Dlatego
     // komórkę wyszukujemy i klikamy WEWNĄTRZ pętli oczekiwania - dowodem jest
     // dopiero NOWE zapytanie do bazy.
     await waitFor(() => {
-      const komorka = screen.getByRole("gridcell", { name: "15" });
+      const komorka = screen.getByRole("gridcell", { name: DZIEN });
       fireEvent.click(komorka.querySelector("button") ?? komorka);
       expect(db().chainsFor(TABELA).length).toBeGreaterThan(1);
     });
-    expect(argDaty("gte").getDate()).toBe(15);
+    expect(argDaty("gte").getDate()).toBe(Number(DZIEN));
     cleanup();
   });
 });
@@ -351,8 +359,8 @@ describe("trasa /admin/coupons/redemptions - zakres otwarty i puste dane", () =>
     await zamontuj();
     await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
     fireEvent.click(poleDaty("Od"));
-    await klikDzien("15", 1);
-    await klikDzien("15", db().chainsFor(TABELA).length);
+    await klikDzien(DZIEN, 1);
+    await klikDzien(DZIEN, db().chainsFor(TABELA).length);
     expect(ostatnieZapytanie().has("gte")).toBe(false);
     // Górna granica zostaje - czyszczenie jednego pola nie może po cichu
     // rozszerzyć zakresu w drugą stronę.
@@ -369,8 +377,8 @@ describe("trasa /admin/coupons/redemptions - zakres otwarty i puste dane", () =>
     await zamontuj();
     await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
     fireEvent.click(poleDaty("Do"));
-    await klikDzien("15", 1);
-    await klikDzien("15", db().chainsFor(TABELA).length);
+    await klikDzien(DZIEN, 1);
+    await klikDzien(DZIEN, db().chainsFor(TABELA).length);
     expect(ostatnieZapytanie().has("lte")).toBe(false);
     expect(ostatnieZapytanie().has("gte")).toBe(true);
     cleanup();
