@@ -111,6 +111,9 @@ export function PopupSignupForm({
   const ext = settings.popup_extended_fields;
   const lists = settings.popup_mailing_lists ?? [];
   const fields = popupFieldMap(settings.popup_fields);
+  // LinkedIn jest zawsze opcjonalne - nawet gdyby w konfiguracji zostało
+  // zapisane jako wymagane, pole nie może blokować rejestracji.
+  const linkedinNeverRequired = isPopupFieldNeverRequired("linkedin");
   const design = resolvePopupDesign(settings.popup_design);
   const form = design.form;
   // W podglądzie w adminie wyłączamy autouzupełnianie: przeglądarka podstawiała
