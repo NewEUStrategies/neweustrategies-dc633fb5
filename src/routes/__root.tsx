@@ -90,6 +90,7 @@ import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
 import { withBudget } from "../lib/asyncBudget";
 import { registerChromeWarmup } from "../lib/ssr/chromeWarmup";
+import { ga4SsrSnippet } from "../lib/analytics/ga4Client";
 
 export const ROOT_WARM_BUDGET_MS = 2_500;
 
@@ -177,6 +178,13 @@ const ROOT_ASSETS: RootAssets = {
   fontLatinExt: redHatDisplayLatinExt,
 };
 
+// Identyfikator pomiaru GA4 z konektora Google Analytics - stała build-time
+// (import.meta.env), wspólna z ConsentScriptInjector. Puste = brak tagu w SSR.
+const ROOT_GA4_ID: string =
+  typeof import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY === "string"
+    ? import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY.trim()
+    : "";
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     // One language source for the whole document head, matching the <html lang>
@@ -215,7 +223,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // nawigacje SPA, więc prerenderowany dokument nigdy nie byłby
       // konsumowany (szczegóły w speculationRules.ts). Beacony i tak są
       // osłonięte przed prerenderem w src/lib/prerender.ts.
-      scripts: [{ type: "speculationrules", children: speculationRulesJson() }],
+      scripts: [
+        // Tag Google (gtag.js) w SSR - wykrywalny przez weryfikator GA4 już w
+        // pierwszym bajcie HTML. Tryb domyślnej odmowy jest wysyłany przed
+        // konfiguracją strumienia, więc bez zgody nie powstają cookies; decyzję
+        // odwiedzającego aplikuje `ga4ConsentUpdate` (ConsentScriptInjector).
+        // ID pochodzi z konektora Google Analytics i jest wplatane w bundel.
+        ...(ROOT_GA4_ID
+          ? [
+              { children: ga4SsrSnippet(ROOT_GA4_ID) },
+              {
+                src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ROOT_GA4_ID)}`,
+                async: true,
+              },
+            ]
+          : []),
+        { type: "speculationrules", children: speculationRulesJson() },
+      ],
     };
   },
   // Prefetch the entire site_settings bulk map on the server. The same query
