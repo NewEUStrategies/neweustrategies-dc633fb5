@@ -52,6 +52,27 @@ export function coreSitemapEntries(origin: string): SitemapEntry[] {
     { loc: `${origin}/experts`, changefreq: "weekly", priority: "0.7" },
     { loc: `${origin}/contribute`, changefreq: "monthly", priority: "0.4" },
     { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },
+    // Pakiet zgodności 2026-09. Te dokumenty są trasami REACT, a nie wierszami
+    // w tabeli `pages`, więc kolektor `pages` ich nie widzi - bez wpisu tutaj
+    // nie istniałyby dla crawlera. Sekcja `core` jest właściwym miejscem także
+    // dlatego, że nie zależy od bazy: dokument prawny musi być odnajdywalny
+    // również wtedy, gdy warstwa danych jest niedostępna.
+    //
+    // `monthly`, mimo że dokumenty prawne zmieniają się rzadziej: `changefreq`
+    // w `SitemapEntry` dopuszcza wyłącznie daily/weekly/monthly, a `monthly`
+    // jest najrzadszą wartością z tego zbioru. To podpowiedź dla crawlera,
+    // nie deklaracja - crawler i tak rozstrzyga po `lastmod` i własnej
+    // historii pobrań.
+    { loc: `${origin}/rodo`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/zarzadzanie-polityka-prywatnosci`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/polityka-przetwarzania-danych`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/komunikacja-i-marketing`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/regulamin-klubow-dyskusyjnych`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/moderacja-komentarzy`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/regulamin-wydarzen-i-biletow`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/regulamin-subskrypcji-i-zakupow`, changefreq: "monthly", priority: "0.4" },
+    { loc: `${origin}/przejrzystosc-ai`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${origin}/statut`, changefreq: "monthly", priority: "0.4" },
   ];
 }
 

@@ -22,12 +22,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
-function serve(
-  method: "GET" | "HEAD",
-  path?: string,
-  headers: HeadersInit = {},
-  query = "",
-) {
+function serve(method: "GET" | "HEAD", path?: string, headers: HeadersInit = {}, query = "") {
   if (!h.handlers) throw new Error("route did not register handlers");
   return h.handlers[method]({
     request: new Request(`https://nes.example/media/file${query}`, { method, headers }),
