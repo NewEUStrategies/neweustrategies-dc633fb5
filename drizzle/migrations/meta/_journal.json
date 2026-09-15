@@ -176,6 +176,13 @@
       "when": 1789461645882,
       "tag": "0024_profiles_tenant_id_not_client_writable",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789501549844,
+      "tag": "0025_tenant_scope_presence_and_rsvp_owner_read",
+      "breakpoints": true
     }
   ]
 }
