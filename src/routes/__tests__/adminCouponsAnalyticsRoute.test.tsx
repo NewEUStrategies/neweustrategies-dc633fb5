@@ -73,7 +73,7 @@ const RPC = "b2b_coupons_analytics";
  * DZIŚ: klik w dzisiejszy dzień KASUJE wybór, więc test przypięty na sztywno
  * do „15" przewracał się dokładnie 15. dnia miesiąca.
  */
-const DZIEN = new Date().getDate() === 15 ? "14" : DZIEN;
+const DZIEN: string = new Date().getDate() === 15 ? "14" : "15";
 
 /** Wiersz agregatu w kształcie kontraktu funkcji `b2b_coupons_analytics`. */
 interface WierszAnalityki {

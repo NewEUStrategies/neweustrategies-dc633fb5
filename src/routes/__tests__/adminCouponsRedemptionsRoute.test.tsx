@@ -65,7 +65,7 @@ const TABELA = "b2b_coupon_redemptions";
  * DZIŚ: klik w dzisiejszy dzień KASUJE wybór, więc test przypięty na sztywno
  * do „15" przewracał się dokładnie 15. dnia miesiąca.
  */
-const DZIEN = new Date().getDate() === 15 ? "14" : DZIEN;
+const DZIEN: string = new Date().getDate() === 15 ? "14" : "15";
 
 const db = () => h.from as SupabaseFromStub;
 
