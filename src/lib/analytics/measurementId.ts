@@ -1,7 +1,9 @@
 /**
  * Jedno źródło prawdy dla identyfikatora pomiaru GA4 po stronie serwera.
  *
- * Kolejność: sekret projektu -> ustawienia najemcy (panel) -> konektor
+ * Kolejność: sekrety projektu (`GA4_MEASUREMENT_ID`, potem
+ * `GOOGLE_ANALYTICS_MEASUREMENT_ID` zapisywany z panelu Lovable) ->
+ * ustawienia najemcy (panel) -> konektor
  * Google Analytics (`VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY`).
  * Konektor jest źródłem zapasowym - dokładnie jak w kliencie
  * (`ConsentScriptInjector`), żeby panel i realne wysyłanie zdarzeń nigdy
@@ -24,7 +26,9 @@ export function connectorGa4MeasurementId(): string {
 }
 
 export function resolveGa4MeasurementId(storedId?: string | null): ResolvedGa4MeasurementId {
-  const fromSecret = clean(process.env["GA4_MEASUREMENT_ID"]);
+  const fromSecret =
+    clean(process.env["GA4_MEASUREMENT_ID"]) ||
+    clean(process.env["GOOGLE_ANALYTICS_MEASUREMENT_ID"]);
   if (fromSecret) return { measurementId: fromSecret, source: "secret" };
 
   const fromSettings = clean(storedId ?? undefined);
