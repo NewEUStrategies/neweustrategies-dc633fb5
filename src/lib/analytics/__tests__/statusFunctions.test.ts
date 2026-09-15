@@ -504,7 +504,27 @@ describe("kolejność trybów", () => {
 
     expect(wynik.ga4.hasMeasurementId).toBe(true);
     expect(wynik.ga4.hasMeasurementProtocol).toBe(false);
+    expect(wynik.ga4.hasMeasurementId).toBe(true);
+    expect(wynik.ga4.hasMeasurementProtocol).toBe(false);
     expect(wynik.ga4.activeMode).toBeNull();
+  });
+
+  it("konektor Google Analytics dostarcza Measurement ID, gdy nie ma sekretu ani wpisu najemcy", async () => {
+    vi.stubEnv("VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY", "G-KONEKTOR1");
+
+    const wynik = await statusAdmina();
+
+    expect(wynik.ga4.measurementId).toBe("G-KONEKTOR1");
+    expect(wynik.ga4.measurementIdSource).toBe("connector");
+  });
+
+  it("wpis najemcy wyprzedza identyfikator z konektora", async () => {
+    vi.stubEnv("VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY", "G-KONEKTOR1");
+
+    const wynik = await statusAdmina({ ga4_measurement_id: "G-NAJEMCA1" });
+
+    expect(wynik.ga4.measurementId).toBe("G-NAJEMCA1");
+    expect(wynik.ga4.measurementIdSource).toBe("settings");
   });
 });
 
