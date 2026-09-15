@@ -73,6 +73,7 @@ vi.mock("@/lib/ads/consent", () => ({
 
 import { ConsentScriptInjector } from "@/components/ConsentScriptInjector";
 import type { AnalyticsConfig, MarketingConfig } from "@/lib/analytics/config";
+import { resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
 
 // -------------------- atrapowe identyfikatory i adresy --------------------
 
@@ -83,6 +84,20 @@ const PLAUSIBLE_DOMAIN = "consent-test.example.com";
 const META_ID = "PIXEL-TEST-1";
 const LINKEDIN_ID = "LI-PARTNER-TEST-1";
 const TIKTOK_ID = "TT-PIXEL-TEST-1";
+
+/** Odczyt wpisów `dataLayer` - tak GA4 przyjmuje Consent Mode v2. */
+function consentEntry(action: "default" | "update"): Record<string, unknown> | undefined {
+  const layer: unknown = Reflect.get(window, "dataLayer");
+  if (!Array.isArray(layer)) return undefined;
+  const found = layer.find(
+    (entry): entry is unknown[] =>
+      Array.isArray(entry) && entry[0] === "consent" && entry[1] === action,
+  );
+  return found?.[2] as Record<string, unknown> | undefined;
+}
+
+const consentDefault = () => consentEntry("default");
+const consentUpdate = () => consentEntry("update");
 
 const MARK_ATTR = "data-consent-owner";
 const ANALYTICS_OWNER = "consent-analytics";
@@ -235,6 +250,11 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  // GA4 nie należy do tej bramki (tryb domyślnej odmowy Google), więc jego tag
+  // trzeba sprzątnąć osobno - inaczej wyciekłby do kolejnego przypadku.
+  document.head.querySelectorAll("script[data-ga4-tag]").forEach((el) => el.remove());
+  resetGa4BootstrapForTests();
+  Reflect.deleteProperty(window, "dataLayer");
   // Gdyby jakiś przypadek zostawił węzeł (a właśnie tego pilnujemy), nie może
   // on wyciec do kolejnego testu i sfałszować liczenia.
   allOwned().forEach((el) => el.parentElement?.removeChild(el));
@@ -286,9 +306,16 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
     renderInjector();
 
     expect(allOwned()).toHaveLength(0);
-    for (const needle of [GA4_ID, GTM_ID, PLAUSIBLE_URL, META_ID, LINKEDIN_ID, TIKTOK_ID]) {
+    for (const needle of [GTM_ID, PLAUSIBLE_URL, META_ID, LINKEDIN_ID, TIKTOK_ID]) {
       expect(documentMentions(needle)).toBe(false);
     }
+    // GA4 jest wyjątkiem z rozmysłem: pracuje w trybie domyślnej odmowy Google,
+    // więc jego tag wolno wczytać bez zgody - z KAŻDĄ kategorią `denied`.
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+    expect(consentDefault()).toMatchObject({
+      analytics_storage: "denied",
+      ad_storage: "denied",
+    });
   });
 
   it("zgoda tylko na analitykę nie wstrzykuje marketingu", () => {
@@ -314,13 +341,13 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
     expect(owned(MARKETING_OWNER).length).toBeGreaterThan(0);
     expect(owned(ANALYTICS_OWNER)).toHaveLength(0);
     expect(documentMentions(META_ID)).toBe(true);
-    for (const needle of [GA4_ID, GTM_ID, PLAUSIBLE_URL, GTAG_PREFIX]) {
+    for (const needle of [GTM_ID, PLAUSIBLE_URL]) {
       expect(documentMentions(needle)).toBe(false);
     }
   });
 
   it("dopiero montaż klienta (mounted false -> true) uruchamia wstrzyknięcie", () => {
-    setAnalytics({ ga4_measurement_id: GA4_ID });
+    setAnalytics({ plausible_domain: PLAUSIBLE_DOMAIN, plausible_script_url: PLAUSIBLE_URL });
     grant({ analytics: true });
     harness.mounted = false;
 
@@ -330,7 +357,7 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
     harness.mounted = true;
     view.rerender(<ConsentScriptInjector />);
 
-    expect(owned(ANALYTICS_OWNER)).toHaveLength(2);
+    expect(owned(ANALYTICS_OWNER)).toHaveLength(1);
   });
 });
 
@@ -343,21 +370,37 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     grant({ analytics: true });
   });
 
-  it("GA4 dodaje oznaczony skrypt zewnętrzny gtag oraz inline z identyfikatorem", () => {
+  it("GA4 stoi poza bramką zgody: tag ładuje się z domyślną odmową wszystkich kategorii", () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
 
     renderInjector();
 
-    const external = externalScripts(ANALYTICS_OWNER);
-    expect(external).toHaveLength(1);
-    expect(external[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
-    expect(external[0].async).toBe(true);
-    expect(external[0].parentElement).toBe(document.head);
+    // Żaden węzeł GA4 nie należy do właściciela `consent-analytics` - GA4 nie
+    // jest już usuwany przy cofnięciu zgody, bo bez zgody i tak nie zapisuje
+    // cookies (Consent Mode v2), a trafienia zasilają wyłącznie modelowanie.
+    expect(externalScripts(ANALYTICS_OWNER)).toHaveLength(0);
+    expect(inlineScripts(ANALYTICS_OWNER)).toHaveLength(0);
 
-    const inline = inlineScripts(ANALYTICS_OWNER);
-    expect(inline).toHaveLength(1);
-    expect(inline[0].textContent).toContain(JSON.stringify(GA4_ID));
-    expect(inline[0].textContent).toContain("anonymize_ip");
+    const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
+    expect(tag).toHaveLength(1);
+    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
+    expect(tag[0].async).toBe(true);
+    expect(consentDefault()).toMatchObject({ analytics_storage: "denied" });
+  });
+
+  it("zgoda odwiedzającego aktualizuje Consent Mode zamiast wstrzykiwać drugi tag", () => {
+    setAnalytics({ ga4_measurement_id: GA4_ID });
+
+    const view = renderInjector();
+    grant({ analytics: true });
+    view.rerender(<ConsentScriptInjector />);
+
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+    expect(consentUpdate()).toMatchObject({
+      analytics_storage: "granted",
+      functionality_storage: "denied",
+      ad_storage: "denied",
+    });
   });
 
   it("GTM dodaje inline snippet z identyfikatorem kontenera i własnym znacznikiem sprzątania", () => {
@@ -493,7 +536,6 @@ describe("ConsentScriptInjector - loadery marketingu", () => {
 describe("ConsentScriptInjector - kontrakt 2: cofnięcie zgody sprząta dokument", () => {
   it("cofnięcie zgody analitycznej usuwa skrypt zewnętrzny, inline i kontenery z head i body", () => {
     setAnalytics({
-      ga4_measurement_id: GA4_ID,
       plausible_domain: PLAUSIBLE_DOMAIN,
       plausible_script_url: PLAUSIBLE_URL,
       custom_head_html: '<meta name="consent-test-analytics-head" content="1" />',
@@ -505,11 +547,10 @@ describe("ConsentScriptInjector - kontrakt 2: cofnięcie zgody sprząta dokument
 
     // Każdy rodzaj węzła musi być na miejscu PRZED cofnięciem - inaczej test
     // „sprząta" coś, czego nigdy nie było.
-    expect(externalScripts(ANALYTICS_OWNER)).toHaveLength(2);
-    expect(inlineScripts(ANALYTICS_OWNER)).toHaveLength(1);
+    expect(externalScripts(ANALYTICS_OWNER)).toHaveLength(1);
     expect(containersIn(document.head, ANALYTICS_OWNER)).toHaveLength(1);
     expect(ownedIn(document.body, ANALYTICS_OWNER)).toHaveLength(1);
-    expect(owned(ANALYTICS_OWNER)).toHaveLength(5);
+    expect(owned(ANALYTICS_OWNER)).toHaveLength(3);
 
     grant({ analytics: false });
     view.rerender(<ConsentScriptInjector />);
@@ -517,9 +558,8 @@ describe("ConsentScriptInjector - kontrakt 2: cofnięcie zgody sprząta dokument
     expect(document.querySelectorAll(`[${MARK_ATTR}]`)).toHaveLength(0);
     expect(document.head.querySelector('meta[name="consent-test-analytics-head"]')).toBeNull();
     expect(document.body.querySelector('span[data-test="consent-analytics-body"]')).toBeNull();
-    // Po cofnięciu zgody identyfikator nie może zostać nigdzie w dokumencie -
-    // także w skrypcie, który zgubiłby znacznik właściciela.
-    expect(documentMentions(GA4_ID)).toBe(false);
+    // Po cofnięciu zgody adres nie może zostać nigdzie w dokumencie - także w
+    // skrypcie, który zgubiłby znacznik właściciela.
     expect(documentMentions(PLAUSIBLE_URL)).toBe(false);
   });
 
@@ -548,23 +588,25 @@ describe("ConsentScriptInjector - kontrakt 2: cofnięcie zgody sprząta dokument
     // Inwentarz przed odmontowaniem, rodzaj po rodzaju - bez niego asercja
     // „po odmontowaniu jest pusto" byłaby prawdziwa także wtedy, gdyby
     // wstrzyknięcie w ogóle się nie odbyło albo pomijało któryś rodzaj węzła.
-    expect(externalScripts(ANALYTICS_OWNER)).toHaveLength(2); // gtag + plausible
-    expect(inlineScripts(ANALYTICS_OWNER)).toHaveLength(2); // GA4 + GTM
+    expect(externalScripts(ANALYTICS_OWNER)).toHaveLength(1); // plausible
+    expect(inlineScripts(ANALYTICS_OWNER)).toHaveLength(1); // GTM
     expect(containersIn(document.head, ANALYTICS_OWNER)).toHaveLength(1);
     expect(containersIn(document.body, ANALYTICS_OWNER)).toHaveLength(1);
     expect(externalScripts(MARKETING_OWNER)).toHaveLength(1); // insight LinkedIn
     expect(inlineScripts(MARKETING_OWNER)).toHaveLength(3); // Meta + LinkedIn + TikTok
     expect(containersIn(document.head, MARKETING_OWNER)).toHaveLength(1);
     expect(containersIn(document.body, MARKETING_OWNER)).toHaveLength(1);
-    expect(allOwned()).toHaveLength(12);
+    expect(allOwned()).toHaveLength(10);
 
     view.unmount();
 
     expect(document.querySelectorAll(`[${MARK_ATTR}]`)).toHaveLength(0);
-    expect(document.head.querySelectorAll("script")).toHaveLength(0);
+    // Zostaje wyłącznie tag GA4: nie należy do tej bramki, bo działa w trybie
+    // domyślnej odmowy Google i po odmontowaniu nadal ma wszystko `denied`.
+    expect(document.head.querySelectorAll("script:not([data-ga4-tag])")).toHaveLength(0);
     expect(document.head.querySelector('meta[name="consent-test-analytics-head"]')).toBeNull();
     expect(document.body.querySelector('span[data-test="consent-marketing-body"]')).toBeNull();
-    for (const needle of [GA4_ID, GTM_ID, PLAUSIBLE_URL, META_ID, LINKEDIN_ID, TIKTOK_ID]) {
+    for (const needle of [GTM_ID, PLAUSIBLE_URL, META_ID, LINKEDIN_ID, TIKTOK_ID]) {
       expect(documentMentions(needle)).toBe(false);
     }
   });
@@ -672,22 +714,20 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     expect(owned(ANALYTICS_OWNER)).toHaveLength(1);
   });
 
-  it("zmiana ga4_measurement_id wymienia oba węzły GA4 na nowe, bez duplikatów", () => {
+  it("zmiana ga4_measurement_id wstawia tag nowego strumienia poza bramką zgody", () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
     grant({ analytics: true });
 
     const view = renderInjector();
-    expect(owned(ANALYTICS_OWNER)).toHaveLength(2);
+    expect(owned(ANALYTICS_OWNER)).toHaveLength(0);
 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
 
-    expect(owned(ANALYTICS_OWNER)).toHaveLength(2);
-    expect(externalScripts(ANALYTICS_OWNER)[0].getAttribute("src")).toBe(
-      `${GTAG_PREFIX}G-TEST111111`,
+    const srcs = [...document.head.querySelectorAll("script[data-ga4-tag]")].map((s) =>
+      s.getAttribute("src"),
     );
-    expect(inlineCode(ANALYTICS_OWNER)).toContain("G-TEST111111");
-    expect(inlineCode(ANALYTICS_OWNER)).not.toContain(GA4_ID);
+    expect(srcs).toContain(`${GTAG_PREFIX}G-TEST111111`);
   });
 
   it("zmiana meta_pixel_id podmienia inline marketingu zamiast dokładać drugi", () => {
@@ -797,9 +837,9 @@ describe("ConsentScriptInjector - izolacja od sieci", () => {
     const srcs = [...externalScripts(ANALYTICS_OWNER), ...externalScripts(MARKETING_OWNER)].map(
       (s) => s.getAttribute("src"),
     );
-    // Trzy adresy zewnętrzne: gtag, plausible (atrapowy) i insight LinkedIn.
-    expect(srcs).toHaveLength(3);
-    expect(srcs).toContain(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
+    // Dwa adresy zewnętrzne pod bramką zgody: plausible (atrapowy) i insight
+    // LinkedIn. GA4 ma własną ścieżkę (tryb domyślnej odmowy), stąd nie tutaj.
+    expect(srcs).toHaveLength(2);
     expect(srcs).toContain(PLAUSIBLE_URL);
     expect(srcs).toContain(LINKEDIN_SRC);
     expect(fetchSpy).not.toHaveBeenCalled();

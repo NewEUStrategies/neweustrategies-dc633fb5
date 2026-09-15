@@ -10,6 +10,8 @@ import { Check, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart/useCart";
 import { cartItemId, type CartItem } from "@/lib/cart/cartStore";
+import { cartItemToGa4Item, ga4AddToCart } from "@/lib/analytics/ga4Ecommerce";
+import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n } from "@/lib/i18n-cart";
 
 ensureI18n();
@@ -17,7 +19,8 @@ ensureI18n();
 export type AddToCartInput = Omit<CartItem, "id" | "kind" | "addedAt">;
 
 export function AddToCartButton({ item }: { item: AddToCartInput }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { add, has } = useCart();
   const id = cartItemId(item.eventId, item.ticketTypeId);
   const inCart = has(id);
@@ -36,7 +39,14 @@ export function AddToCartButton({ item }: { item: AddToCartInput }) {
       variant="outline"
       size="sm"
       onClick={() => {
-        add({ ...item, id, kind: "event_ticket", addedAt: new Date().toISOString() });
+        const entry: CartItem = {
+          ...item,
+          id,
+          kind: "event_ticket",
+          addedAt: new Date().toISOString(),
+        };
+        add(entry);
+        ga4AddToCart(cartItemToGa4Item(entry, lang));
         toast.success(t("cart.added"));
       }}
     >

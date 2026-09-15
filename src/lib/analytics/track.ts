@@ -14,6 +14,8 @@
 
 import { sendBeaconPayload } from "@/lib/observability/report";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
+import { ga4Event, ga4PageView } from "./ga4Client";
+import { ga4EventName, ga4EventParams } from "./ga4EventMap";
 
 export interface AnalyticsEventInput {
   /** Techniczna klasa zdarzenia: page_view / cta_click / search / view / interaction. */
@@ -133,8 +135,52 @@ export function flush(_force = false): void {
   sendBeaconPayload(ENDPOINT, { events: batch });
 }
 
+/**
+ * Kopia zdarzenia do GA4. Wysyłana ZANIM zadziała nasza bramka zgody, bo GA4
+ * pracuje w trybie domyślnej odmowy Google: bez zgody nie zapisuje cookies ani
+ * identyfikatorów, a trafienie zasila wyłącznie modelowanie. Zgoda przełącza
+ * `analytics_storage` w `ga4Client`, więc bramka jest tam, nie tutaj.
+ */
+function mirrorToGa4(event: QueuedEvent): void {
+  try {
+    const name = ga4EventName(event.name);
+    ga4Event(
+      name,
+      ga4EventParams({
+        type: event.type,
+        name: event.name,
+        entityType: event.entity_type,
+        entityId: event.entity_id,
+        meta: event.meta,
+        path: event.path,
+        lang: event.lang,
+      }),
+    );
+  } catch {
+    // Analityka nie ma prawa wywrócić interakcji użytkownika.
+  }
+}
+
 export function track(input: AnalyticsEventInput): void {
   if (typeof window === "undefined") return;
+  const mirrored: QueuedEvent = {
+    type: input.type || "interaction",
+    name: input.name,
+    entity_type: input.entityType ?? null,
+    entity_id: input.entityId ?? null,
+    meta: input.meta ?? {},
+    path: input.path ?? currentPath(),
+    referrer: "",
+    session_id: "",
+    anon_id: "",
+    lang: currentLang(),
+    ts: Date.now(),
+  };
+  if (input.name === "page_view") {
+    ga4PageView(mirrored.path, undefined, mirrored.lang);
+  } else {
+    mirrorToGa4(mirrored);
+  }
   if (!hasAnalyticsConsent()) return;
   attachListeners();
   queue.push({
