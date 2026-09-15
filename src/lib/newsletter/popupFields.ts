@@ -187,10 +187,11 @@ export function resolvePopupFields(raw: unknown): PopupFieldConfig[] {
     const def = DEFAULTS[key];
     const o = overrides.get(key);
     const locked = def.locked === true;
+    const neverRequired = def.neverRequired === true;
     return {
       key,
       enabled: locked ? true : bool(o?.enabled, def.enabled),
-      required: locked ? true : bool(o?.required, def.required),
+      required: neverRequired ? false : locked ? true : bool(o?.required, def.required),
       label_pl: str(o?.label_pl, def.label_pl),
       label_en: str(o?.label_en, def.label_en),
       // Placeholdery są opcjonalne: pusty ciąg = brak podpowiedzi, więc
