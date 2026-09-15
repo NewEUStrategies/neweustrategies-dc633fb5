@@ -392,13 +392,13 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
 
     const view = renderInjector();
-    grant({ analytics: true, functional: true });
+    grant({ analytics: true });
     view.rerender(<ConsentScriptInjector />);
 
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
     expect(consentUpdate()).toMatchObject({
       analytics_storage: "granted",
-      functionality_storage: "granted",
+      functionality_storage: "denied",
       ad_storage: "denied",
     });
   });
