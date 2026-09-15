@@ -85,6 +85,20 @@ const META_ID = "PIXEL-TEST-1";
 const LINKEDIN_ID = "LI-PARTNER-TEST-1";
 const TIKTOK_ID = "TT-PIXEL-TEST-1";
 
+/** Odczyt wpisów `dataLayer` - tak GA4 przyjmuje Consent Mode v2. */
+function consentEntry(action: "default" | "update"): Record<string, unknown> | undefined {
+  const layer: unknown = Reflect.get(window, "dataLayer");
+  if (!Array.isArray(layer)) return undefined;
+  const found = layer.find(
+    (entry): entry is unknown[] =>
+      Array.isArray(entry) && entry[0] === "consent" && entry[1] === action,
+  );
+  return found?.[2] as Record<string, unknown> | undefined;
+}
+
+const consentDefault = () => consentEntry("default");
+const consentUpdate = () => consentEntry("update");
+
 const MARK_ATTR = "data-consent-owner";
 const ANALYTICS_OWNER = "consent-analytics";
 const MARKETING_OWNER = "consent-marketing";
