@@ -223,7 +223,6 @@ export function PopupSignupForm({
       ["last_name", v.surname],
       ["job", v.job],
       ["company", v.company],
-      ["linkedin", v.linkedin],
       ["phone", v.phone],
       ["list", v.list],
     ];
