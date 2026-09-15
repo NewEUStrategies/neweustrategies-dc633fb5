@@ -158,7 +158,15 @@ function loadMarketing(cfg: MarketingConfig): CleanupFn {
 export function ConsentScriptInjector() {
   const analyticsRaw = useSiteSetting("analytics", defaultAnalyticsConfig());
   const marketingRaw = useSiteSetting("marketing", defaultMarketingConfig());
-  const analytics: AnalyticsConfig = AnalyticsConfigSchema.parse(analyticsRaw);
+  const parsedAnalytics = AnalyticsConfigSchema.parse(analyticsRaw);
+  // Konektor Google Analytics: ID pomiaru z VITE_LOVABLE_CONNECTOR_* jest
+  // zapasowym źródłem, gdy admin nie ustawił GA4 w panelu. Zgoda na
+  // kategorię "analytics" nadal jest wymagana - konektor jej nie omija.
+  const connectorGa4Id = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY;
+  const analytics: AnalyticsConfig =
+    !parsedAnalytics.ga4_measurement_id && typeof connectorGa4Id === "string" && connectorGa4Id
+      ? { ...parsedAnalytics, ga4_measurement_id: connectorGa4Id }
+      : parsedAnalytics;
   const marketing: MarketingConfig = MarketingConfigSchema.parse(marketingRaw);
   const { categories, mounted } = useEffectiveConsent();
   const analyticsCleanup = useRef<CleanupFn | null>(null);
