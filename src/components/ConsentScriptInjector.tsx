@@ -16,6 +16,7 @@ import {
   type MarketingConfig,
 } from "@/lib/analytics/config";
 import { useEffectiveConsent } from "@/lib/ads/consent";
+import { bootstrapGa4, ga4ConsentUpdate } from "@/lib/analytics/ga4Client";
 
 type CleanupFn = () => void;
 
@@ -77,16 +78,8 @@ function loadAnalytics(cfg: AnalyticsConfig): CleanupFn {
   const owner = "consent-analytics";
   removeMarked(owner);
 
-  if (cfg.ga4_measurement_id) {
-    injectExternalScript(
-      `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(cfg.ga4_measurement_id)}`,
-      owner,
-    );
-    injectInlineScript(
-      `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(cfg.ga4_measurement_id)},{anonymize_ip:true});`,
-      owner,
-    );
-  }
+  // GA4 NIE jest tu ładowany: pracuje w trybie domyślnej odmowy Google i jest
+  // uruchamiany niezależnie od tej bramki (patrz `Ga4ConsentBridge` niżej).
 
   if (cfg.gtm_container_id) {
     injectInlineScript(
@@ -169,6 +162,21 @@ export function ConsentScriptInjector() {
       : parsedAnalytics;
   const marketing: MarketingConfig = MarketingConfigSchema.parse(marketingRaw);
   const { categories, mounted } = useEffectiveConsent();
+  const ga4Id = analytics.ga4_measurement_id;
+
+  // GA4 w trybie domyślnej odmowy: tag startuje od razu z wszystkimi
+  // kategoriami `denied`, a decyzja odwiedzającego jedynie je aktualizuje.
+  // Dlatego tu NIE ma bramki `categories.analytics` - jest nią sam Consent Mode.
+  useEffect(() => {
+    if (!mounted || !ga4Id) return;
+    bootstrapGa4(ga4Id);
+  }, [mounted, ga4Id]);
+
+  useEffect(() => {
+    if (!mounted || !ga4Id) return;
+    ga4ConsentUpdate(categories);
+  }, [mounted, ga4Id, categories]);
+
   const analyticsCleanup = useRef<CleanupFn | null>(null);
   const marketingCleanup = useRef<CleanupFn | null>(null);
 

@@ -20,6 +20,11 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/lib/cart/useCart";
 import { cartItemLabel } from "@/lib/cart/cartStore";
+import {
+  cartItemToGa4Item,
+  ga4BeginCheckout,
+  ga4RemoveFromCart,
+} from "@/lib/analytics/ga4Ecommerce";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
@@ -52,6 +57,9 @@ export function CartPanel() {
       return;
     }
     setBusyId(id);
+    // GA4: rozpoczęcie kasy liczymy w chwili kliknięcia „Zapłać" - to jedyny
+    // moment, w którym znamy koszyk i wybraną pozycję.
+    ga4BeginCheckout([cartItemToGa4Item(item, lang)]);
     const code = promo.trim().toUpperCase();
     try {
       const res = await checkout({
@@ -128,6 +136,7 @@ export function CartPanel() {
                   removeLabel={t("cart.remove")}
                   onPay={() => void pay(item.id)}
                   onRemove={() => {
+                    ga4RemoveFromCart(cartItemToGa4Item(item, lang));
                     remove(item.id);
                     toast.success(t("cart.removed"));
                   }}

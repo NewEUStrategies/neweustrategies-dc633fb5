@@ -342,6 +342,22 @@ function amountFromTransaction(data: TransactionData): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * GA4: zakup zgłaszany z serwera (ścieżka pewna). `_ga_client_id` trafia do
+ * `custom_data` przy tworzeniu transakcji, gdy przeglądarka miała już cookie
+ * GA4 - wtedy zakup jest zszyty z sesją. Bez niego liczy się sam przychód.
+ */
+async function reportPurchaseToGa4(data: TransactionData): Promise<void> {
+  const clientId = data.customData?.["_ga_client_id"];
+  const { sendGa4Purchase } = await import("@/lib/analytics/ga4Mp.server");
+  await sendGa4Purchase({
+    transactionId: data.id,
+    amountCents: amountFromTransaction(data),
+    currency: data.currencyCode ?? null,
+    clientId: typeof clientId === "string" ? clientId : null,
+  });
+}
+
 async function handleTransaction(
   data: TransactionData,
   env: StripeEnv,
@@ -375,6 +391,7 @@ async function handleTransaction(
       },
       env,
     );
+    await reportPurchaseToGa4(data);
     return;
   }
   // Odnowienie darowizny cyklicznej: brak uprawnień i windykacji planów -
