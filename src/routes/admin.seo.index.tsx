@@ -295,6 +295,8 @@ function SeoDashboard() {
         </Link>
       </section>
 
+      <TechnicalFoundationCard />
+
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionShortcuts")}</h2>
         <div className="overflow-hidden rounded-lg border border-border">
