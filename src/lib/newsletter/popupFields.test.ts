@@ -32,6 +32,12 @@ describe("popupFields", () => {
     expect(isPopupFieldLocked("email")).toBe(true);
   });
 
+  it("linkedin zawsze pozostaje opcjonalne, nawet gdyby zapisano required=true", () => {
+    expect(isPopupFieldNeverRequired("linkedin")).toBe(true);
+    const fields = popupFieldMap([{ key: "linkedin", required: true }]);
+    expect(fields.linkedin.required).toBe(false);
+  });
+
   it("ignoruje śmieciowe wpisy i puste etykiety", () => {
     const fields = popupFieldMap([null, 42, { key: "job", label_pl: "   " }]);
     expect(fields.job.label_pl).toBe("Stanowisko");
