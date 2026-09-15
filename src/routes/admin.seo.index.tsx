@@ -30,6 +30,7 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { useSettings } from "@/lib/admin/useSettings";
 import { SeoScorePill } from "@/components/admin/seo/SeoScorePill";
 import { BrandFindingList } from "@/components/admin/seo/BrandFindingList";
+import { TechnicalFoundationCard } from "@/components/admin/seo/TechnicalFoundationCard";
 import { ExternalLink } from "@/lib/lucide-shim";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import {
@@ -294,6 +295,8 @@ function SeoDashboard() {
           {t("adminSeoHub.openContent")}
         </Link>
       </section>
+
+      <TechnicalFoundationCard />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionShortcuts")}</h2>
