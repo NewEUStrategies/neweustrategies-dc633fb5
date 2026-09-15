@@ -67,6 +67,14 @@ import { Route as AnalyticsRoute } from "@/routes/admin.coupons.analytics";
 const PATH = "/admin/coupons/analytics";
 const RPC = "b2b_coupons_analytics";
 
+/**
+ * Dzień kalendarza używany w testach zakresu dat - ZAWSZE inny niż dzisiejszy.
+ * Kalendarz otwiera się na bieżącym miesiącu, a domyślny zakres panelu sięga
+ * DZIŚ: klik w dzisiejszy dzień KASUJE wybór, więc test przypięty na sztywno
+ * do „15" przewracał się dokładnie 15. dnia miesiąca.
+ */
+const DZIEN: string = new Date().getDate() === 15 ? "14" : "15";
+
 /** Wiersz agregatu w kształcie kontraktu funkcji `b2b_coupons_analytics`. */
 interface WierszAnalityki {
   coupon_id: string;
@@ -223,8 +231,8 @@ describe("trasa /admin/coupons/analytics - sklejenie i zakres", () => {
     await zamontuj();
     await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
     fireEvent.click(poleDaty("Od"));
-    await klikDzien("15", 1);
-    expect(new Date(argumentyRpc()._from).getDate()).toBe(15);
+    await klikDzien(DZIEN, 1);
+    expect(new Date(argumentyRpc()._from).getDate()).toBe(Number(DZIEN));
     cleanup();
   });
 
@@ -239,8 +247,8 @@ describe("trasa /admin/coupons/analytics - sklejenie i zakres", () => {
     await zamontuj();
     await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
     fireEvent.click(poleDaty("Od"));
-    await klikDzien("15", 1);
-    await klikDzien("15", h.rpc.mock.calls.length);
+    await klikDzien(DZIEN, 1);
+    await klikDzien(DZIEN, h.rpc.mock.calls.length);
     expect(Date.parse(argumentyRpc()._from)).toBe(0);
     cleanup();
   });
@@ -252,8 +260,8 @@ describe("trasa /admin/coupons/analytics - sklejenie i zakres", () => {
     await zamontuj();
     await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
     fireEvent.click(poleDaty("Do"));
-    await klikDzien("15", 1);
-    await klikDzien("15", h.rpc.mock.calls.length);
+    await klikDzien(DZIEN, 1);
+    await klikDzien(DZIEN, h.rpc.mock.calls.length);
     const doChwili = Date.parse(argumentyRpc()._to);
     expect(Number.isNaN(doChwili)).toBe(false);
     expect(Math.abs(Date.now() - doChwili)).toBeLessThan(60_000);
