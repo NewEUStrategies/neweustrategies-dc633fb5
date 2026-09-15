@@ -97,7 +97,12 @@ export function checkLlms(probe: FoundationProbe): FoundationCheck {
  */
 export function checkHtmlLang(probe: FoundationProbe): FoundationCheck {
   if (probe.status !== 200) {
-    return { id: "htmlLang", state: "fail", detailKey: "foundationHttp", detailValue: probe.status };
+    return {
+      id: "htmlLang",
+      state: "fail",
+      detailKey: "foundationHttp",
+      detailValue: probe.status,
+    };
   }
   const match = /<html[^>]*\slang=["']([^"']*)["']/i.exec(probe.body);
   const value = match?.[1]?.trim() ?? "";

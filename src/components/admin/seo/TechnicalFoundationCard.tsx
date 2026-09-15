@@ -59,12 +59,7 @@ export function TechnicalFoundationCard() {
     staleTime: 60_000,
     queryFn: async (): Promise<FoundationCheck[]> => {
       const [sitemap, robots, llms, home] = await Promise.all(PROBE_PATHS.map(probe));
-      return [
-        checkSitemap(sitemap!),
-        checkRobots(robots!),
-        checkLlms(llms!),
-        checkHtmlLang(home!),
-      ];
+      return [checkSitemap(sitemap!), checkRobots(robots!), checkLlms(llms!), checkHtmlLang(home!)];
     },
   });
 
@@ -87,7 +82,9 @@ export function TechnicalFoundationCard() {
                   <td className="w-1/3 px-3 py-2 align-top font-medium">
                     {t(`adminSeoHub.foundation_${check.id}`)}
                   </td>
-                  <td className={`w-24 px-3 py-2 align-top text-xs font-medium ${TONE[check.state]}`}>
+                  <td
+                    className={`w-24 px-3 py-2 align-top text-xs font-medium ${TONE[check.state]}`}
+                  >
                     {t(`adminSeoHub.foundationState_${check.state}`)}
                   </td>
                   <td className="px-3 py-2 align-top text-xs text-muted-foreground">
