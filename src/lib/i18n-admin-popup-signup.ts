@@ -170,6 +170,7 @@ const pl = {
       placeholderPl: "Podpowiedź PL",
       placeholderEn: "Podpowiedź EN",
       locked: "Pole wymagane systemowo",
+      optional: "Opcjonalne",
       keys: {
         first_name: "Imię",
         last_name: "Nazwisko",
@@ -395,6 +396,7 @@ const en = {
       placeholderPl: "Placeholder PL",
       placeholderEn: "Placeholder EN",
       locked: "Required by the system",
+      optional: "Optional",
       keys: {
         first_name: "First name",
         last_name: "Last name",

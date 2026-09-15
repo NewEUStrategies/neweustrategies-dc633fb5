@@ -8,6 +8,7 @@ import { SectionCard, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
 import {
   isPopupFieldLocked,
+  isPopupFieldNeverRequired,
   resolvePopupFields,
   type PopupFieldConfig,
 } from "@/lib/newsletter/popupFields";
@@ -35,6 +36,7 @@ export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value"
       <div className="space-y-2">
         {fields.map((field) => {
           const locked = isPopupFieldLocked(field.key);
+          const neverRequired = isPopupFieldNeverRequired(field.key);
           return (
             <div key={field.key} className="space-y-2 rounded-md border border-border p-2.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -43,6 +45,11 @@ export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value"
                   {locked && (
                     <span className="ml-2 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
                       {t("adminPopupSignup.fields.locked")}
+                    </span>
+                  )}
+                  {neverRequired && (
+                    <span className="ml-2 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+                      {t("adminPopupSignup.fields.optional")}
                     </span>
                   )}
                 </span>
@@ -54,8 +61,8 @@ export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value"
                 />
                 <ToggleRow
                   label={t("adminPopupSignup.fields.required")}
-                  checked={field.required}
-                  disabled={locked || !field.enabled}
+                  checked={field.required && !neverRequired}
+                  disabled={locked || neverRequired || !field.enabled}
                   onChange={(required) => patchField(field.key, { required })}
                 />
               </div>

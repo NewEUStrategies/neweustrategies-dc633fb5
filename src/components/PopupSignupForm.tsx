@@ -36,6 +36,7 @@ import {
   popupFieldMap,
   popupFieldLabel,
   popupFieldPlaceholder,
+  isPopupFieldNeverRequired,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
 import { resolvePopupDesign } from "@/lib/newsletter/popupDesign";
@@ -110,6 +111,9 @@ export function PopupSignupForm({
   const ext = settings.popup_extended_fields;
   const lists = settings.popup_mailing_lists ?? [];
   const fields = popupFieldMap(settings.popup_fields);
+  // LinkedIn jest zawsze opcjonalne - nawet gdyby w konfiguracji zostało
+  // zapisane jako wymagane, pole nie może blokować rejestracji.
+  const linkedinNeverRequired = isPopupFieldNeverRequired("linkedin");
   const design = resolvePopupDesign(settings.popup_design);
   const form = design.form;
   // W podglądzie w adminie wyłączamy autouzupełnianie: przeglądarka podstawiała
@@ -219,7 +223,6 @@ export function PopupSignupForm({
       ["last_name", v.surname],
       ["job", v.job],
       ["company", v.company],
-      ["linkedin", v.linkedin],
       ["phone", v.phone],
       ["list", v.list],
     ];
@@ -472,7 +475,7 @@ export function PopupSignupForm({
         <FieldBox
           label={label("linkedin")}
           placeholder={placeholder("linkedin")}
-          required={fields.linkedin.required}
+          required={fields.linkedin.required && !linkedinNeverRequired}
           value={v.linkedin}
           onChange={(e) => upd("linkedin", e.target.value)}
           maxLength={200}
