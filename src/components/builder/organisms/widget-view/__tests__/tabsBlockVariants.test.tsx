@@ -94,10 +94,12 @@ describe("TabsBlock - mobile bez przycinania", () => {
   it("lets long and wide panel content stay inside the screen", () => {
     render(
       <TabsBlock
-        tabs={[{
-          label_pl: "Bardzo długa nazwa benefitu, która musi się zawinąć",
-          html_pl: "<table><tbody><tr><td>Dane</td></tr></tbody></table>",
-        }]}
+        tabs={[
+          {
+            label_pl: "Bardzo długa nazwa benefitu, która musi się zawinąć",
+            html_pl: "<table><tbody><tr><td>Dane</td></tr></tbody></table>",
+          },
+        ]}
         lang="pl"
         nodeId="m-wide"
       />,
