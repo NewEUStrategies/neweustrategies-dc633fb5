@@ -99,7 +99,9 @@ export function TabsBlock({
   // etykiety wracają do układu poziomego. flex-1 dla justify zostaje.
   return (
     <div role="tablist" aria-label="Tabs" className="space-y-3">
-      <div className={`flex flex-wrap gap-1 border-b border-border sm:overflow-x-auto ${rowJustify}`}>
+      <div
+        className={`flex flex-wrap gap-1 border-b border-border sm:overflow-x-auto ${rowJustify}`}
+      >
         {tabs.map((t, i) => (
           <button
             key={`${nodeId}-${i}`}

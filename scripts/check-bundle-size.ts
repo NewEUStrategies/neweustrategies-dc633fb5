@@ -1254,11 +1254,71 @@ const CLIENT_DIR =
 // wszystkie trzymają PL i EN w jednym module. Pomiar przyczyny jest wyżej,
 // więc następna osoba nie startuje od zera.
 
+// 2026-09-14 XIV  PAKIET ZGODNOŚCI: DZIESIĘĆ PUBLICZNYCH DOKUMENTÓW PRAWNYCH.
+//             Floor CHUNK 280 -> 285. Jedyny ruszony próg.
+//
+// POMIAR OBU STRON, ten sam host, ta sama metoda, pełny build za każdym razem:
+//   * main (bb53cee):        279,1 KB  -> bramka ZIELONA, ale z zapasem 0,9 KB
+//                                        (0,31%). Taki zapas nie przyjmie
+//                                        ŻADNEJ nowej trasy publicznej.
+//   * ta gałąź, stan wyjściowy: 283,7 KB  (+4,6 wobec maina)
+//   * po przycięciu leadów meta: 283,4 KB  (-0,3)
+//   * po zdjęciu danych rejestrowych ze ścieżki eager: 283,0 KB  (-0,4)
+//
+// PRZYCZYNA, zmierzona a nie zgadnięta. Chunk wejściowy `index` idzie
+// 383,4 -> 387,3 KB. Reszty po dwóch redukcjach NIE DA SIĘ ściąć treścią ani
+// układem modułów: to drzewo tras (dziesięć rejestracji `Route`) plus obiekty
+// meta czytane przez `head()`, który jest EAGER. Każda nowa trasa publiczna
+// kosztuje w tym chunku niezależnie od tego, co renderuje.
+//
+// CO ZROBIŁEM ZANIM PODNIOSŁEM PRÓG - bo plik każe mierzyć przyczynę, a nie
+// przesuwać liczbę:
+//   1. leady w `lib/legal/meta.ts` przycięte do 155-158 znaków (commit 0afe1e2).
+//      To są `<meta name="description">`; wyszukiwarki ucinają opis w okolicach
+//      160 znaków, więc nadmiar nie docierał do nikogo, a jechał w chunku
+//      wejściowym KAŻDEJ strony. Osiem leadów miało ponad 160, najdłuższy 197.
+//      Odzysk: 0,3 KB.
+//   2. dane rejestrowe (KRS, NIP, adres, sąd, organy nadzoru, daty) zdjęte
+//      z `lib/legal/entity.ts` do `lib/legal/registration.ts` (commit 240dd8f).
+//      `entity.ts` jest czytany przez `meta.ts`, czyli przez `head()`, więc
+//      ląduje w chunku wejściowym i ciągnie tam każdy swój eksport używany
+//      gdziekolwiek. Numer KRS czytała WYŁĄCZNIE treść statutu - chunk
+//      ładowany leniwie. Odzysk: 0,4 KB.
+// Razem 0,7 KB. Pozostałe 3,9 KB to koszt strukturalny dziesięciu tras.
+//
+// DLACZEGO FLOOR, A NIE MNIEJ TRAS. Dokumenty wchodzą pod płaskimi adresami
+// (`/rodo`, `/statut`, ...), tak jak trzy istniejące dokumenty prawne
+// (`/regulamin`, `/polityka-prywatnosci`, `/zwroty-i-reklamacje`). Alternatywa
+// - jedna trasa dynamiczna `/prawo/$slug` - kosztowałaby ułamek tego w chunku
+// wejściowym, ale zmienia kształt adresów i rozjeżdża się z konwencją, która
+// w tym repo już stoi. Wybór jest świadomy i jest do cofnięcia: jeżeli ktoś
+// uzna 3,9 KB na starcie każdej strony za zbyt drogie, zwinięcie dziesięciu
+// tras do jednej dynamicznej jest drogą odwrotu.
+//
+// 285, nie więcej: 283,0 zmierzone + 2,0 KB zapasu (0,71%), czyli mniej niż
+// 1% z wpisu 08-14. Pozycja ma dalej piszczeć przy każdym kolejnym kilobajcie.
+//
+// ZASTRZEŻENIE DO LICZBY, świadome i ważne dla następnej osoby: to jest pomiar
+// HOSTA, nie runnera - a reguła z wpisu V mówi, że floor idzie z runnera.
+// Piaskownica, w której to mierzyłem, nie instaluje `xlsx` (lockfile wskazuje
+// `cdn.sheetjs.com`, host zablokowany polityką sieci), więc build wymagał
+// lokalnej zaślepki tego pakietu. `xlsx` jest importowany dynamicznie i tylko
+// z powierzchni administracyjnych, więc siedzi we WŁASNYM chunku i nie zmienia
+// `index` ani największego chunku - ale `overall` z takiego pomiaru jest
+// zaniżony i NIE zostało na jego podstawie ruszone nic.
+// Kontrola spójności: ta sama zaślepka na mainie dała 279,1 przy zielonej
+// bramce w CI, a na nieprzyciętej gałęzi 283,7 przy czerwonej - czyli host
+// i runner zgadzają się na tej metryce. PIERWSZY ZIELONY LOG RUNNERA jest
+// momentem na dociągnięcie tej liczby w dół, jeżeli runner pokaże mniej.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
   // 385 -> 280: próg schodzi za śladem (wpis 2026-08-18 w kronice).
-  chunk: 280,
+  // Ratchet 280 -> 285 (wpis 2026-09-14 XIV): dziesięć publicznych dokumentów
+  // prawnych; zmierzone 283,0 po dwóch redukcjach, main stał na 279,1 z zapasem
+  // 0,9 KB. Przyczyna i pełny pomiar obu stron w kronice wyżej.
+  chunk: 285,
   // gzip JS osiągalny z publicznego URL-a. Zmierzone NA RUNNERZE 2026-08-30
   // (przebieg 2756, job `build`, `--frozen-lockfile`): 2710,8 przy 939 plikach.
   // Ratchet 2545 -> 2711 (wpis 2026-08-30 VI): dwa tygodnie funkcjonalności,
