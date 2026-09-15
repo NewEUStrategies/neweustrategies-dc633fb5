@@ -143,6 +143,10 @@ export function isPopupFieldLocked(key: PopupFieldKey): boolean {
   return DEFAULTS[key].locked === true;
 }
 
+export function isPopupFieldNeverRequired(key: PopupFieldKey): boolean {
+  return DEFAULTS[key].neverRequired === true;
+}
+
 /**
  * Wbudowane (fabryczne) etykiety pola w obu językach.
  *
