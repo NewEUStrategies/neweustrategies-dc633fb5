@@ -54,11 +54,13 @@ const TONE: Record<FoundationState, string> = {
   unknown: "text-muted-foreground",
 };
 
+// Linki „Otwórz" zawsze prowadzą na domenę kanoniczną - audytor ma zobaczyć
+// publiczny plik, nie jego kopię na hoście podglądu.
 const OPEN_HREF: Record<string, string> = {
-  sitemap: "/sitemap.xml",
-  robots: "/robots.txt",
-  llms: "/llms.txt",
-  htmlLang: "/",
+  sitemap: `${CANONICAL_SITE_ORIGIN}/sitemap.xml`,
+  robots: `${CANONICAL_SITE_ORIGIN}/robots.txt`,
+  llms: `${CANONICAL_SITE_ORIGIN}/llms.txt`,
+  htmlLang: `${CANONICAL_SITE_ORIGIN}/`,
 };
 
 export function TechnicalFoundationCard() {
