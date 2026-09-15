@@ -79,29 +79,39 @@ describe("TabsBlock - wyrównanie poziomego rzędu", () => {
 });
 
 describe("TabsBlock - mobile bez przycinania", () => {
-  it("wraps the horizontal row instead of clipping tabs on narrow screens", () => {
+  it("uses a stable two-column grid instead of clipping tabs on narrow screens", () => {
     const { container } = render(<TabsBlock tabs={tabs} lang="pl" nodeId="m1" />);
     const row = container.querySelector('[role="tablist"] > div');
     expect(row).not.toBeNull();
-    expect(row!.className).toContain("flex-wrap");
-    // Poziome przewijanie (i przycinanie) dopuszczalne dopiero od sm w górę.
-    expect(row!.className).not.toContain(" overflow-x-auto");
+    expect(row?.className).toContain("grid-cols-2");
+    expect(row?.className).toContain("sm:flex");
     for (const btn of screen.getAllByRole("tab")) {
-      // Zakładki dzielą szerokość po równo i mogą się zawijać (2 w rzędzie).
-      expect(btn.className).toContain("flex-1");
-      expect(btn.className).toContain("basis-[45%]");
+      expect(btn.className).toContain("w-full");
       expect(btn.className).toContain("min-w-0");
     }
   });
 
-  it("lets long panel text wrap instead of overflowing the screen", () => {
-    render(<TabsBlock tabs={tabs} lang="pl" nodeId="m2" />);
+  it("lets long and wide panel content stay inside the screen", () => {
+    render(
+      <TabsBlock
+        tabs={[{
+          label_pl: "Bardzo długa nazwa benefitu, która musi się zawinąć",
+          html_pl: "<table><tbody><tr><td>Dane</td></tr></tbody></table>",
+        }]}
+        lang="pl"
+        nodeId="m-wide"
+      />,
+    );
     const panel = screen.getByRole("tabpanel");
+    expect(panel.className).toContain("w-full");
     expect(panel.className).toContain("min-w-0");
+    expect(panel.className).toContain("max-w-full");
+    expect(panel.className).toContain("overflow-x-auto");
     expect(panel.className).toContain("[overflow-wrap:anywhere]");
+    expect(panel.className).toContain("[&_*]:max-w-full");
   });
 
-  it("centers the icon above the label on mobile (column layout)", () => {
+  it("centers the icon over the full tab width on mobile", () => {
     const { container } = render(
       <TabsBlock
         tabs={[{ label_pl: "Z ikoną", html_pl: "<p>Ikonowa</p>", icon: "star" }]}
@@ -111,9 +121,27 @@ describe("TabsBlock - mobile bez przycinania", () => {
     );
     const labelWrap = container.querySelector("button > span");
     expect(labelWrap).not.toBeNull();
-    expect(labelWrap!.className).toContain("flex-col");
-    expect(labelWrap!.className).toContain("items-center");
-    expect(labelWrap!.className).toContain("sm:flex-row");
+    expect(labelWrap?.className).toContain("w-full");
+    expect(labelWrap?.className).toContain("flex-col");
+    expect(labelWrap?.className).toContain("items-center");
+    expect(labelWrap?.className).toContain("sm:flex-row");
+    const iconWrap = labelWrap?.querySelector("span[aria-hidden='true']");
+    expect(iconWrap).not.toBeNull();
+    expect(iconWrap?.className).toContain("justify-center");
+  });
+
+  it("uses the same two-column mobile grid for the vertical variant", () => {
+    const { container } = render(
+      <TabsBlock tabs={tabs} lang="pl" nodeId="m-vertical" orientation="vertical" />,
+    );
+    const row = container.querySelector('[role="tablist"] > div');
+    expect(row).not.toBeNull();
+    expect(row?.className).toContain("grid-cols-2");
+    expect(row?.className).toContain("md:flex");
+    for (const btn of screen.getAllByRole("tab")) {
+      expect(btn.className).toContain("w-full");
+      expect(btn.className).toContain("min-w-0");
+    }
   });
 });
 

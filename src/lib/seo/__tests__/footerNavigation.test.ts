@@ -14,7 +14,7 @@
 //      kanonicznej mapy), a pięć grup to rozbicie mapy BEZ RESZTY i BEZ
 //      NAKŁADEK - więc gałąź „grupa bez linków" jest nieosiągalna z
 //      konstrukcji, a nie tylko nieprzetestowana. `labelFor` sprawdzone dla
-//      OBU języków na KAŻDYM z 25 linków, przeciwko tabeli wpisanej w tym
+//      OBU języków na KAŻDYM z 21 linków, przeciwko tabeli wpisanej w tym
 //      pliku RĘCZNIE (a nie odczytanej z produkcji - inaczej test
 //      potwierdzałby sam siebie).
 //   2. CZTERECH INWARIANTÓW MAPY, których nie sprawdza żaden inny test w
@@ -57,8 +57,8 @@ const EXPECTED_GROUP_SIZES: Record<FooterLinkGroup, number> = {
   editorial: 4,
   topics: 4,
   community: 4,
-  institute: 5,
-  legal: 8,
+  institute: 4,
+  legal: 5,
 };
 
 /** Kolejność grup taka, jak w mega-stopce - używana do iteracji po testach. */
@@ -106,13 +106,6 @@ const EXPECTED_LABELS: Record<string, { pl: string; en: string }> = {
   "/zwroty-i-reklamacje": { pl: "Zwroty i reklamacje", en: "Refund policy" },
   "/cookies": { pl: "Polityka cookies", en: "Cookie policy" },
   "/wytyczne-dotyczace-reklam": { pl: "Wytyczne reklam", en: "Advertising guidelines" },
-  "/regulamin-subskrypcji-i-zakupow": {
-    pl: "Subskrypcje i zakupy",
-    en: "Subscriptions and purchases",
-  },
-  "/rodo": { pl: "RODO", en: "GDPR" },
-  "/moderacja-komentarzy": { pl: "Moderacja treści", en: "Content moderation" },
-  "/statut": { pl: "Statut", en: "Statute" },
 };
 
 /** Adresy powtórzone w mapie - komunikat asercji ma je wymienić z nazwy. */
@@ -142,9 +135,6 @@ describe("footerLinksByGroup", () => {
       "/zwroty-i-reklamacje",
       "/cookies",
       "/wytyczne-dotyczace-reklam",
-      "/regulamin-subskrypcji-i-zakupow",
-      "/rodo",
-      "/moderacja-komentarzy",
     ]);
   });
 

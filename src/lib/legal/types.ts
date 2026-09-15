@@ -3,25 +3,7 @@
 // Treść jest serializowalna: ikony trzymamy jako nazwy, nie komponenty.
 import { z } from "zod";
 
-export const LEGAL_DOC_KEYS = [
-  "terms",
-  "privacy",
-  "refunds",
-  // Pakiet zgodności 2026-09: dokumenty rozdzielające warstwy, które wcześniej
-  // mieszały się w jednej polityce prywatności. Każdy klucz ma odpowiadający mu
-  // CHECK w `legal_document_versions.doc_key` - dopisanie klucza tutaj BEZ
-  // migracji kończy się odmową zapisu wersji w panelu.
-  "rodo",
-  "privacy_governance",
-  "data_processing",
-  "communications",
-  "clubs",
-  "moderation",
-  "events",
-  "ai_transparency",
-  "subscriptions",
-  "statute",
-] as const;
+export const LEGAL_DOC_KEYS = ["terms", "privacy", "refunds"] as const;
 export type LegalDocKey = (typeof LEGAL_DOC_KEYS)[number];
 
 export const LEGAL_VERSION_STATUSES = ["draft", "published", "archived"] as const;

@@ -3,22 +3,6 @@
 // pełni rolę operatora płatności obsługującego naliczanie i pobór podatków,
 // wsparcie transakcyjne oraz spory i obciążenia zwrotne.
 export const LEGAL_ENTITY = "New European Strategies";
-/**
- * PEŁNE DANE IDENTYFIKACYJNE WYDAWCY - wymagane, a nie ozdobne.
- *
- * `LEGAL_ENTITY` to nazwa handlowa i tak zostaje w zdaniach („dane przetwarza
- * New European Strategies"). Nie jest jednak identyfikacją podmiotu w rozumieniu
- * art. 13 ust. 1 lit. a RODO, art. 5 ustawy o świadczeniu usług drogą
- * elektroniczną ani art. 12 ust. 1 ustawy o prawach konsumenta - te przepisy
- * wymagają formy prawnej, adresu siedziby, numeru w rejestrze i numeru NIP.
- * Dane pochodzą z odpisu pełnego KRS nr 0001195512 (stan na 19.09.2025).
- */
-export const LEGAL_ENTITY_FULL = "Fundacja New European Strategies";
-// Pozostałe dane rejestrowe (KRS, NIP, adres, sąd, organy nadzoru, daty)
-// mieszkają w `lib/legal/registration.ts` - czyta je WYŁĄCZNIE treść dokumentów,
-// więc nie mają czego szukać w module, który przez `meta.ts` i `head()` ląduje
-// w chunku wejściowym każdej strony. Uzasadnienie w nagłówku tamtego pliku.
-
 export const LEGAL_CONTACT_EMAIL = "office@neweuropeanstrategies.com";
 export const LEGAL_SITE_URL = "https://neweuropeanstrategies.com";
 /** Data ostatniej aktualizacji dokumentów prawnych (ISO, wyświetlana wprost). */

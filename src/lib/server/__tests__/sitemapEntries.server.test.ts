@@ -234,18 +234,6 @@ describe("sekcja core - huby serwisu bez udziału bazy", () => {
       `${ORIGIN}/experts`,
       `${ORIGIN}/contribute`,
       `${ORIGIN}/sitemap`,
-      // Pakiet zgodności 2026-09 - dokumenty prawne renderowane z tras React,
-      // niewidoczne dla kolektora `pages` (ten czyta tabelę `pages`).
-      `${ORIGIN}/rodo`,
-      `${ORIGIN}/zarzadzanie-polityka-prywatnosci`,
-      `${ORIGIN}/polityka-przetwarzania-danych`,
-      `${ORIGIN}/komunikacja-i-marketing`,
-      `${ORIGIN}/regulamin-klubow-dyskusyjnych`,
-      `${ORIGIN}/moderacja-komentarzy`,
-      `${ORIGIN}/regulamin-wydarzen-i-biletow`,
-      `${ORIGIN}/regulamin-subskrypcji-i-zakupow`,
-      `${ORIGIN}/przejrzystosc-ai`,
-      `${ORIGIN}/statut`,
     ]);
   });
 
@@ -654,7 +642,7 @@ describe("degradacja odczytu - pustka kontra awaria", () => {
       if (sekcja === "core") continue;
       expect(mapa.get(sekcja)).toEqual([]);
     }
-    expect(mapa.get("core")).toHaveLength(24);
+    expect(mapa.get("core")).toHaveLength(14);
   });
 
   it("odmowa bazy zostawia ślad z nazwą sekcji", async () => {
@@ -690,7 +678,7 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
     const db = atrapaAdmina({});
     const mapa = await collectAllSitemapSections(db.admin, null, ORIGIN);
     expect([...mapa.keys()]).toEqual(["core"]);
-    expect(mapa.get("core")).toHaveLength(24);
+    expect(mapa.get("core")).toHaveLength(14);
     expect(db.zadania).toEqual([]);
   });
 
@@ -714,7 +702,7 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
     const mapa = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
     expect(mapa.get("posts")).toEqual([]);
     expect(locs(mapa.get("taxonomy") ?? [])).toEqual([`${ORIGIN}/category/prawo`]);
-    expect(mapa.get("core")).toHaveLength(24);
+    expect(mapa.get("core")).toHaveLength(14);
     expect(ostrzezenia).toHaveBeenCalledWith(
       '[seo] sitemap section "posts" read failed:',
       expect.any(TypeError),
