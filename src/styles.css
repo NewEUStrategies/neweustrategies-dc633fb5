@@ -235,7 +235,7 @@ body {
      Wzorcem jest droplist wyboru tematów (py-2 + text-sm + 1.5px ramki
      = 35px), więc floating-label inputy (`.input-group > .input`) i zwykłe
      kontrolki muszą mieć dokładnie tę samą wysokość. */
-  --form-field-height: 2.1875rem;
+  --form-field-height: 35px;
   --form-input-height: var(--form-field-height);
   --input-group-height: var(--form-field-height);
   --form-input-padding-x: 0.75rem;
