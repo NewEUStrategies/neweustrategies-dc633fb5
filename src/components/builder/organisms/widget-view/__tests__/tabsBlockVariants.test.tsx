@@ -80,9 +80,7 @@ describe("TabsBlock - wyrównanie poziomego rzędu", () => {
 
 describe("TabsBlock - mobile bez przycinania", () => {
   it("wraps the horizontal row instead of clipping tabs on narrow screens", () => {
-    const { container } = render(
-      <TabsBlock tabs={tabs} lang="pl" nodeId="m1" />,
-    );
+    const { container } = render(<TabsBlock tabs={tabs} lang="pl" nodeId="m1" />);
     const row = container.querySelector('[role="tablist"] > div');
     expect(row).not.toBeNull();
     expect(row!.className).toContain("flex-wrap");
