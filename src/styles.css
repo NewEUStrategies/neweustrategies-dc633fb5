@@ -231,7 +231,13 @@ body {
      Nadpisz per-widget ustawiając te zmienne na shellu widgetu
      (np. .cf-shell{ --form-input-height: 3rem }) lub inline
      style={{ ['--form-input-height' as string]: '3rem' }} */
-  --form-input-height: 2.5rem;
+  /* JEDEN wzorzec wysokości dla WSZYSTKICH pól formularzy na platformie.
+     Wzorcem jest droplist wyboru tematów (py-2 + text-sm + 1.5px ramki
+     = 35px), więc floating-label inputy (`.input-group > .input`) i zwykłe
+     kontrolki muszą mieć dokładnie tę samą wysokość. */
+  --form-field-height: 2.1875rem;
+  --form-input-height: var(--form-field-height);
+  --input-group-height: var(--form-field-height);
   --form-input-padding-x: 0.75rem;
   --form-input-font-size: 0.875rem;
   --form-input-line-height: 1.25rem;
