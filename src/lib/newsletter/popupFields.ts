@@ -42,6 +42,8 @@ interface FieldDefault {
   placeholder_en?: string;
   /** Pola, których nie da się wyłączyć ani odznaczyć jako wymagane. */
   locked?: boolean;
+  /** Pola, które zawsze pozostają opcjonalne - nie da się zaznaczyć jako wymagane. */
+  neverRequired?: boolean;
 }
 
 const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
