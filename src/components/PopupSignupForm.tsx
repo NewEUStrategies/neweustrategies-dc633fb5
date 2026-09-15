@@ -36,6 +36,7 @@ import {
   popupFieldMap,
   popupFieldLabel,
   popupFieldPlaceholder,
+  isPopupFieldNeverRequired,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
 import { resolvePopupDesign } from "@/lib/newsletter/popupDesign";
