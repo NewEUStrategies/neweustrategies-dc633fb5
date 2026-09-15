@@ -475,7 +475,7 @@ export function PopupSignupForm({
         <FieldBox
           label={label("linkedin")}
           placeholder={placeholder("linkedin")}
-          required={fields.linkedin.required}
+          required={fields.linkedin.required && !linkedinNeverRequired}
           value={v.linkedin}
           onChange={(e) => upd("linkedin", e.target.value)}
           maxLength={200}
