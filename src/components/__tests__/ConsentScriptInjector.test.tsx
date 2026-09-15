@@ -601,7 +601,9 @@ describe("ConsentScriptInjector - kontrakt 2: cofnięcie zgody sprząta dokument
     view.unmount();
 
     expect(document.querySelectorAll(`[${MARK_ATTR}]`)).toHaveLength(0);
-    expect(document.head.querySelectorAll("script")).toHaveLength(0);
+    // Zostaje wyłącznie tag GA4: nie należy do tej bramki, bo działa w trybie
+    // domyślnej odmowy Google i po odmontowaniu nadal ma wszystko `denied`.
+    expect(document.head.querySelectorAll("script:not([data-ga4-tag])")).toHaveLength(0);
     expect(document.head.querySelector('meta[name="consent-test-analytics-head"]')).toBeNull();
     expect(document.body.querySelector('span[data-test="consent-marketing-body"]')).toBeNull();
     for (const needle of [GA4_ID, GTM_ID, PLAUSIBLE_URL, META_ID, LINKEDIN_ID, TIKTOK_ID]) {
