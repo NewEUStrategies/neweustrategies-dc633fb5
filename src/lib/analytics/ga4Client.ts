@@ -85,13 +85,22 @@ export function ga4ConsentUpdate(categories: Record<ConsentCategory, boolean>): 
 }
 
 /**
+ * Identyfikator konwersji Google Ads przypięty do tego samego tagu Google co
+ * GA4 (jeden skrypt gtag.js, dwa miejsca docelowe). Publiczny identyfikator
+ * witryny - bezpieczny do wplatania w bundel; zmiana konta Ads = zmiana tu.
+ */
+export const GOOGLE_ADS_ID = "AW-17612160320";
+
+/**
  * Snippet SSR wklejany do `<head>` (patrz `__root.tsx`): natywny tag Google
  * wykrywalny przez weryfikator GA4 już w pierwszym bajcie HTML, z trybem
  * domyślnej odmowy wysyłanym PRZED konfiguracją strumienia. Tekst jest
  * tożsamy z bootstrapperem klienckim - zmiany trzymać w parze.
+ * `adsId` dopina konto Google Ads jako drugie miejsce docelowe tagu.
  */
-export function ga4SsrSnippet(measurementId: string): string {
+export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string {
   const id = JSON.stringify(measurementId.trim());
+  const ads = adsId.trim();
   return [
     "window.dataLayer=window.dataLayer||[];",
     "function gtag(){dataLayer.push(arguments);}window.gtag=gtag;",
@@ -100,6 +109,7 @@ export function ga4SsrSnippet(measurementId: string): string {
     "gtag('set','ads_data_redaction',true);",
     "gtag('js',new Date());",
     `gtag('config',${id},{anonymize_ip:true,send_page_view:false});`,
+    ...(ads ? [`gtag('config',${JSON.stringify(ads)});`] : []),
   ].join("");
 }
 
