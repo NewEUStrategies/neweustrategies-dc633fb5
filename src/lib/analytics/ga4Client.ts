@@ -38,7 +38,8 @@ interface GtagWindow extends Window {
 }
 
 /** Stan modułu: żeby dwukrotny montaż nie wstawił tagu dwa razy. */
-let bootstrappedId: string | null = null;
+let bootstrappedPrimary: string | null = null;
+let bootstrappedGa4: string | null = null;
 
 const SCRIPT_ATTR = "data-ga4-tag";
 
