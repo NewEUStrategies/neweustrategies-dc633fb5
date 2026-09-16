@@ -99,6 +99,16 @@ function consentEntry(action: "default" | "update"): Record<string, unknown> | u
 const consentDefault = () => consentEntry("default");
 const consentUpdate = () => consentEntry("update");
 
+function configEntry(id: string): Record<string, unknown> | undefined {
+  const layer: unknown = Reflect.get(window, "dataLayer");
+  if (!Array.isArray(layer)) return undefined;
+  const found = layer.find(
+    (entry): entry is unknown[] =>
+      Array.isArray(entry) && entry[0] === "config" && entry[1] === id,
+  );
+  return found?.[2] as Record<string, unknown> | undefined;
+}
+
 const MARK_ATTR = "data-consent-owner";
 const ANALYTICS_OWNER = "consent-analytics";
 const MARKETING_OWNER = "consent-marketing";
