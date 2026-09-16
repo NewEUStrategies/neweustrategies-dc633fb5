@@ -73,7 +73,7 @@ vi.mock("@/lib/ads/consent", () => ({
 
 import { ConsentScriptInjector } from "@/components/ConsentScriptInjector";
 import type { AnalyticsConfig, MarketingConfig } from "@/lib/analytics/config";
-import { resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
+import { GOOGLE_ADS_ID, resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
 
 // -------------------- atrapowe identyfikatory i adresy --------------------
 
@@ -98,6 +98,15 @@ function consentEntry(action: "default" | "update"): Record<string, unknown> | u
 
 const consentDefault = () => consentEntry("default");
 const consentUpdate = () => consentEntry("update");
+
+function configEntry(id: string): Record<string, unknown> | undefined {
+  const layer: unknown = Reflect.get(window, "dataLayer");
+  if (!Array.isArray(layer)) return undefined;
+  const found = layer.find(
+    (entry): entry is unknown[] => Array.isArray(entry) && entry[0] === "config" && entry[1] === id,
+  );
+  return found?.[2] as Record<string, unknown> | undefined;
+}
 
 const MARK_ATTR = "data-consent-owner";
 const ANALYTICS_OWNER = "consent-analytics";
@@ -326,7 +335,9 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
 
     expect(owned(ANALYTICS_OWNER).length).toBeGreaterThan(0);
     expect(owned(MARKETING_OWNER)).toHaveLength(0);
-    expect(documentMentions(GA4_ID)).toBe(true);
+    // GA4 konfiguruje się jako dodatkowe miejsce docelowe tagu Google Ads -
+    // nie ma osobnego skryptu z identyfikatorem GA4.
+    expect(configEntry(GA4_ID)).toBeDefined();
     for (const needle of [META_ID, LINKEDIN_ID, TIKTOK_ID, LINKEDIN_SRC]) {
       expect(documentMentions(needle)).toBe(false);
     }
@@ -383,8 +394,9 @@ describe("ConsentScriptInjector - loadery analityki", () => {
 
     const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
     expect(tag).toHaveLength(1);
-    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
+    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GOOGLE_ADS_ID)}`);
     expect(tag[0].async).toBe(true);
+    expect(configEntry(GA4_ID)).toBeDefined();
     expect(consentDefault()).toMatchObject({ analytics_storage: "denied" });
   });
 
@@ -714,20 +726,24 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     expect(owned(ANALYTICS_OWNER)).toHaveLength(1);
   });
 
-  it("zmiana ga4_measurement_id wstawia tag nowego strumienia poza bramką zgody", () => {
+  it("zmiana ga4_measurement_id przeładowuje konfigurację strumienia poza bramką zgody", () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
     grant({ analytics: true });
 
     const view = renderInjector();
     expect(owned(ANALYTICS_OWNER)).toHaveLength(0);
+    expect(configEntry(GA4_ID)).toBeDefined();
 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
 
+    // Główny identyfikator tagu (Google Ads) się nie zmienia; zmienia się
+    // dodatkowa konfiguracja GA4 w dataLayer.
     const srcs = [...document.head.querySelectorAll("script[data-ga4-tag]")].map((s) =>
       s.getAttribute("src"),
     );
-    expect(srcs).toContain(`${GTAG_PREFIX}G-TEST111111`);
+    expect(srcs).toContain(`${GTAG_PREFIX}${encodeURIComponent(GOOGLE_ADS_ID)}`);
+    expect(configEntry("G-TEST111111")).toBeDefined();
   });
 
   it("zmiana meta_pixel_id podmienia inline marketingu zamiast dokładać drugi", () => {

@@ -57,6 +57,32 @@ describe("GA4 w przeglądarce", () => {
     expect(isGa4Ready()).toBe(true);
   });
 
+  it("gdy podano Google Ads, tag ładuje się z AW- jako głównym identyfikatorem", () => {
+    bootstrapGa4("G-TEST123", "AW-123456789");
+    const scripts = document.head.querySelectorAll<HTMLScriptElement>(
+      "script[src*=googletagmanager]",
+    );
+    expect(scripts.length).toBe(1);
+    expect(scripts[0].getAttribute("src")).toContain("id=AW-123456789");
+    expect(scripts[0].getAttribute("data-ga4-tag")).toBe("AW-123456789");
+  });
+
+  it("konfiguruje zarówno Google Ads, jak i GA4, gdy oba identyfikatory są podane", () => {
+    bootstrapGa4("G-TEST123", "AW-123456789");
+    const configs = warstwa().filter((wpis) => wpis[0] === "config");
+    expect(configs.some((wpis) => wpis[1] === "AW-123456789")).toBe(true);
+    const ga4Config = configs.find((wpis) => wpis[1] === "G-TEST123");
+    expect(ga4Config?.[2]).toMatchObject({ send_page_view: false, anonymize_ip: true });
+  });
+
+  it("nie duplikuje skryptu gtag.js, gdy już istnieje inny tag", () => {
+    const existing = document.createElement("script");
+    existing.src = "https://www.googletagmanager.com/gtag/js?id=G-EXISTING";
+    document.head.appendChild(existing);
+    bootstrapGa4("G-TEST123", "AW-123456789");
+    expect(document.head.querySelectorAll("script[src*=googletagmanager]").length).toBe(1);
+  });
+
   it("przekłada zgodę odwiedzającego na aktualizację Consent Mode", () => {
     bootstrapGa4("G-TEST123");
     ga4ConsentUpdate({ necessary: true, functional: true, analytics: true, marketing: false });

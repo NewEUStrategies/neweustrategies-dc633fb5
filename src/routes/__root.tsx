@@ -185,6 +185,10 @@ const ROOT_GA4_ID: string =
     ? import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY.trim()
     : "";
 
+// Główny identyfikator tagu Google: Google Ads ma pierwszeństwo (zgodnie z
+// instrukcją Google), a GA4 konfiguruje się jako dodatkowe miejsce docelowe.
+const ROOT_TAG_ID: string = GOOGLE_ADS_ID || ROOT_GA4_ID;
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     // One language source for the whole document head, matching the <html lang>
@@ -224,16 +228,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // konsumowany (szczegóły w speculationRules.ts). Beacony i tak są
       // osłonięte przed prerenderem w src/lib/prerender.ts.
       scripts: [
-        // Tag Google (gtag.js) w SSR - wykrywalny przez weryfikator GA4 już w
+        // Tag Google (gtag.js) w SSR - wykrywalny przez weryfikator Google już w
         // pierwszym bajcie HTML. Tryb domyślnej odmowy jest wysyłany przed
         // konfiguracją strumienia, więc bez zgody nie powstają cookies; decyzję
         // odwiedzającego aplikuje `ga4ConsentUpdate` (ConsentScriptInjector).
-        // ID pochodzi z konektora Google Analytics i jest wplatane w bundel.
-        ...(ROOT_GA4_ID
+        // Główny identyfikator tagu to Google Ads; GA4 (jeśli skonfigurowany)
+        // jest dodatkowym miejscem docelowym tego samego tagu.
+        ...(ROOT_TAG_ID
           ? [
               { children: ga4SsrSnippet(ROOT_GA4_ID, GOOGLE_ADS_ID) },
               {
-                src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ROOT_GA4_ID)}`,
+                src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ROOT_TAG_ID)}`,
                 async: true,
               },
             ]
