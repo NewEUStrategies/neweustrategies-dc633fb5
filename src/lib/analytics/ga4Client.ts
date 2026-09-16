@@ -93,14 +93,29 @@ export const GOOGLE_ADS_ID = "AW-17612160320";
 
 /**
  * Snippet SSR wklejany do `<head>` (patrz `__root.tsx`): natywny tag Google
- * wykrywalny przez weryfikator GA4 już w pierwszym bajcie HTML, z trybem
+ * wykrywalny przez weryfikator Google już w pierwszym bajcie HTML, z trybem
  * domyślnej odmowy wysyłanym PRZED konfiguracją strumienia. Tekst jest
  * tożsamy z bootstrapperem klienckim - zmiany trzymać w parze.
- * `adsId` dopina konto Google Ads jako drugie miejsce docelowe tagu.
+ * `adsId` jest głównym identyfikatorem tagu Google (Google Ads); `measurementId`
+ * (GA4) konfiguruje się jako dodatkowe miejsce docelowe tego samego tagu.
  */
 export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string {
-  const id = JSON.stringify(measurementId.trim());
+  const ga4 = measurementId.trim();
   const ads = adsId.trim();
+  const primary = ads || ga4;
+  if (!primary) return "";
+
+  const primaryId = JSON.stringify(primary);
+  const ga4Id = ga4 ? JSON.stringify(ga4) : null;
+
+  const configs: string[] = [];
+  if (ads) {
+    configs.push(`gtag('config',${JSON.stringify(ads)});`);
+  }
+  if (ga4Id) {
+    configs.push(`gtag('config',${ga4Id},{anonymize_ip:true,send_page_view:false});`);
+  }
+
   return [
     "window.dataLayer=window.dataLayer||[];",
     "function gtag(){dataLayer.push(arguments);}window.gtag=gtag;",
@@ -108,46 +123,48 @@ export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string
     "gtag('set','url_passthrough',true);",
     "gtag('set','ads_data_redaction',true);",
     "gtag('js',new Date());",
-    `gtag('config',${id},{anonymize_ip:true,send_page_view:false});`,
-    ...(ads ? [`gtag('config',${JSON.stringify(ads)});`] : []),
+    ...configs,
   ].join("");
 }
 
 /**
- * Wstawia tag Google i konfiguruje strumień. Idempotentne dla tego samego ID.
+ * Wstawia tag Google i konfiguruje strumień. Idempotentne dla głównego ID.
  * `send_page_view: false` - odsłony wysyła router (patrz `ga4PageView`), inaczej
  * pierwsza odsłona byłaby zdublowana przy nawigacji SPA.
  */
 export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
   const w = win();
-  if (!w || !measurementId) return;
-  if (bootstrappedId === measurementId) return;
-  bootstrappedId = measurementId;
+  const ga4 = measurementId.trim();
+  const ads = adsId.trim();
+  const primary = ads || ga4;
+  if (!w || !primary) return;
+  if (bootstrappedId === primary) return;
+  bootstrappedId = primary;
 
   ga4ConsentDefault();
   gtag("js", new Date());
-  gtag("config", measurementId, {
-    anonymize_ip: true,
-    send_page_view: false,
-  });
-  // Konto Google Ads jako drugie miejsce docelowe tego samego tagu - bez
-  // osobnego skryptu; parametry zgód dzieli z konfiguracją GA4.
-  if (adsId.trim()) gtag("config", adsId.trim());
+
+  // Google Ads jako główne miejsce docelowe tagu (zgodnie z instrukcją Google).
+  if (ads) gtag("config", ads);
+  // GA4 jako dodatkowe miejsce docelowe tego samego tagu; odsłony wysyła
+  // osobno router, więc wyłączamy domyślną odsłonę konfiguracji.
+  if (ga4) {
+    gtag("config", ga4, {
+      anonymize_ip: true,
+      send_page_view: false,
+    });
+  }
 
   // SSR (`ga4SsrSnippet` w `__root.tsx`) już wstawia ten sam tag - nie
   // duplikujemy skryptu, niezależnie od tego, kto był pierwszy.
-  if (document.querySelector(`script[${SCRIPT_ATTR}="${measurementId}"]`)) return;
-  if (
-    document.querySelector(
-      `script[src^="https://www.googletagmanager.com/gtag/js?id=${measurementId}"]`,
-    )
-  ) {
+  if (document.querySelector(`script[${SCRIPT_ATTR}="${primary}"]`)) return;
+  if (document.querySelector('script[src^="https://www.googletagmanager.com/gtag/js"]')) {
     return;
   }
   const script = document.createElement("script");
   script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
-  script.setAttribute(SCRIPT_ATTR, measurementId);
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(primary)}`;
+  script.setAttribute(SCRIPT_ATTR, primary);
   document.head.appendChild(script);
 }
 
