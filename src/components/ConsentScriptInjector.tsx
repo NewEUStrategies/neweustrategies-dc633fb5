@@ -16,7 +16,7 @@ import {
   type MarketingConfig,
 } from "@/lib/analytics/config";
 import { useEffectiveConsent } from "@/lib/ads/consent";
-import { bootstrapGa4, ga4ConsentUpdate } from "@/lib/analytics/ga4Client";
+import { bootstrapGa4, ga4ConsentUpdate, GOOGLE_ADS_ID } from "@/lib/analytics/ga4Client";
 
 type CleanupFn = () => void;
 
@@ -169,7 +169,7 @@ export function ConsentScriptInjector() {
   // Dlatego tu NIE ma bramki `categories.analytics` - jest nią sam Consent Mode.
   useEffect(() => {
     if (!mounted || !ga4Id) return;
-    bootstrapGa4(ga4Id);
+    bootstrapGa4(ga4Id, GOOGLE_ADS_ID);
   }, [mounted, ga4Id]);
 
   useEffect(() => {
