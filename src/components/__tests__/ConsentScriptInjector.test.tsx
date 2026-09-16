@@ -336,7 +336,9 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
 
     expect(owned(ANALYTICS_OWNER).length).toBeGreaterThan(0);
     expect(owned(MARKETING_OWNER)).toHaveLength(0);
-    expect(documentMentions(GA4_ID)).toBe(true);
+    // GA4 konfiguruje się jako dodatkowe miejsce docelowe tagu Google Ads -
+    // nie ma osobnego skryptu z identyfikatorem GA4.
+    expect(configEntry(GA4_ID)).toBeDefined();
     for (const needle of [META_ID, LINKEDIN_ID, TIKTOK_ID, LINKEDIN_SRC]) {
       expect(documentMentions(needle)).toBe(false);
     }
