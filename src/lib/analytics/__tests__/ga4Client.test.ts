@@ -59,7 +59,9 @@ describe("GA4 w przeglądarce", () => {
 
   it("gdy podano Google Ads, tag ładuje się z AW- jako głównym identyfikatorem", () => {
     bootstrapGa4("G-TEST123", "AW-123456789");
-    const scripts = document.head.querySelectorAll<HTMLScriptElement>("script[src*=googletagmanager]");
+    const scripts = document.head.querySelectorAll<HTMLScriptElement>(
+      "script[src*=googletagmanager]",
+    );
     expect(scripts.length).toBe(1);
     expect(scripts[0].getAttribute("src")).toContain("id=AW-123456789");
     expect(scripts[0].getAttribute("data-ga4-tag")).toBe("AW-123456789");
