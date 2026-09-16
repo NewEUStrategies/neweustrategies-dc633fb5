@@ -395,8 +395,9 @@ describe("ConsentScriptInjector - loadery analityki", () => {
 
     const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
     expect(tag).toHaveLength(1);
-    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
+    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GOOGLE_ADS_ID)}`);
     expect(tag[0].async).toBe(true);
+    expect(configEntry(GA4_ID)).toBeDefined();
     expect(consentDefault()).toMatchObject({ analytics_storage: "denied" });
   });
 
