@@ -105,7 +105,6 @@ export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string
   const primary = ads || ga4;
   if (!primary) return "";
 
-  const primaryId = JSON.stringify(primary);
   const ga4Id = ga4 ? JSON.stringify(ga4) : null;
 
   const configs: string[] = [];
