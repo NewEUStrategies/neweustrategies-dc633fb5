@@ -727,20 +727,25 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     expect(owned(ANALYTICS_OWNER)).toHaveLength(1);
   });
 
-  it("zmiana ga4_measurement_id wstawia tag nowego strumienia poza bramką zgody", () => {
+  it("zmiana ga4_measurement_id przeładowuje konfigurację strumienia poza bramką zgody", () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
     grant({ analytics: true });
 
     const view = renderInjector();
     expect(owned(ANALYTICS_OWNER)).toHaveLength(0);
+    expect(configEntry(GA4_ID)).toBeDefined();
 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
 
+    // Główny identyfikator tagu (Google Ads) się nie zmienia; zmienia się
+    // dodatkowa konfiguracja GA4 w dataLayer.
     const srcs = [...document.head.querySelectorAll("script[data-ga4-tag]")].map((s) =>
       s.getAttribute("src"),
     );
-    expect(srcs).toContain(`${GTAG_PREFIX}G-TEST111111`);
+    expect(srcs).toContain(`${GTAG_PREFIX}${encodeURIComponent(GOOGLE_ADS_ID)}`);
+    expect(configEntry("G-TEST111111")).toBeDefined();
+    expect(configEntry(GA4_ID)).toBeUndefined();
   });
 
   it("zmiana meta_pixel_id podmienia inline marketingu zamiast dokładać drugi", () => {
