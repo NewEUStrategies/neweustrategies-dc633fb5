@@ -118,7 +118,7 @@ export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string
  * `send_page_view: false` - odsłony wysyła router (patrz `ga4PageView`), inaczej
  * pierwsza odsłona byłaby zdublowana przy nawigacji SPA.
  */
-export function bootstrapGa4(measurementId: string): void {
+export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
   const w = win();
   if (!w || !measurementId) return;
   if (bootstrappedId === measurementId) return;
@@ -130,6 +130,9 @@ export function bootstrapGa4(measurementId: string): void {
     anonymize_ip: true,
     send_page_view: false,
   });
+  // Konto Google Ads jako drugie miejsce docelowe tego samego tagu - bez
+  // osobnego skryptu; parametry zgód dzieli z konfiguracją GA4.
+  if (adsId.trim()) gtag("config", adsId.trim());
 
   // SSR (`ga4SsrSnippet` w `__root.tsx`) już wstawia ten sam tag - nie
   // duplikujemy skryptu, niezależnie od tego, kto był pierwszy.
