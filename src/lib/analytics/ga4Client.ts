@@ -128,7 +128,9 @@ export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string
 }
 
 /**
- * Wstawia tag Google i konfiguruje strumień. Idempotentne dla głównego ID.
+ * Wstawia tag Google i konfiguruje strumień. Idempotentne dla pary
+ * (główny ID, GA4 ID), ale reaguje też na zmianę samego GA4 - wtedy tylko
+ * wypycha nową konfigurację, bez ponownego ładowania skryptu czy resetu zgód.
  * `send_page_view: false` - odsłony wysyła router (patrz `ga4PageView`), inaczej
  * pierwsza odsłona byłaby zdublowana przy nawigacji SPA.
  */
@@ -138,14 +140,20 @@ export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
   const ads = adsId.trim();
   const primary = ads || ga4;
   if (!w || !primary) return;
-  if (bootstrappedId === primary) return;
-  bootstrappedId = primary;
+  if (bootstrappedPrimary === primary && bootstrappedGa4 === ga4) return;
 
-  ga4ConsentDefault();
-  gtag("js", new Date());
+  const primaryChanged = bootstrappedPrimary !== primary;
+  bootstrappedPrimary = primary;
+  bootstrappedGa4 = ga4;
 
-  // Google Ads jako główne miejsce docelowe tagu (zgodnie z instrukcją Google).
-  if (ads) gtag("config", ads);
+  if (primaryChanged) {
+    ga4ConsentDefault();
+    gtag("js", new Date());
+
+    // Google Ads jako główne miejsce docelowe tagu (zgodnie z instrukcją Google).
+    if (ads) gtag("config", ads);
+  }
+
   // GA4 jako dodatkowe miejsce docelowe tego samego tagu; odsłony wysyła
   // osobno router, więc wyłączamy domyślną odsłonę konfiguracji.
   if (ga4) {
@@ -154,6 +162,8 @@ export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
       send_page_view: false,
     });
   }
+
+  if (!primaryChanged) return;
 
   // SSR (`ga4SsrSnippet` w `__root.tsx`) już wstawia ten sam tag - nie
   // duplikujemy skryptu, niezależnie od tego, kto był pierwszy.
@@ -170,12 +180,13 @@ export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
 
 /** Wyłącznie dla testów - zeruje pamięć bootstrapu. */
 export function resetGa4BootstrapForTests(): void {
-  bootstrappedId = null;
+  bootstrappedPrimary = null;
+  bootstrappedGa4 = null;
 }
 
 /** Czy strumień jest już skonfigurowany (używane przez mostek zdarzeń). */
 export function isGa4Ready(): boolean {
-  return bootstrappedId !== null;
+  return bootstrappedPrimary !== null;
 }
 
 export function ga4Event(name: string, params: Ga4Params = {}): void {
