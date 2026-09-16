@@ -185,6 +185,10 @@ const ROOT_GA4_ID: string =
     ? import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY.trim()
     : "";
 
+// Główny identyfikator tagu Google: Google Ads ma pierwszeństwo (zgodnie z
+// instrukcją Google), a GA4 konfiguruje się jako dodatkowe miejsce docelowe.
+const ROOT_TAG_ID: string = GOOGLE_ADS_ID || ROOT_GA4_ID;
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     // One language source for the whole document head, matching the <html lang>
