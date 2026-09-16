@@ -90,7 +90,7 @@ import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
 import { withBudget } from "../lib/asyncBudget";
 import { registerChromeWarmup } from "../lib/ssr/chromeWarmup";
-import { ga4SsrSnippet } from "../lib/analytics/ga4Client";
+import { ga4SsrSnippet, GOOGLE_ADS_ID } from "../lib/analytics/ga4Client";
 
 export const ROOT_WARM_BUDGET_MS = 2_500;
 
