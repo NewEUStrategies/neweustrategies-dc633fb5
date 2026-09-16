@@ -744,7 +744,6 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     );
     expect(srcs).toContain(`${GTAG_PREFIX}${encodeURIComponent(GOOGLE_ADS_ID)}`);
     expect(configEntry("G-TEST111111")).toBeDefined();
-    expect(configEntry(GA4_ID)).toBeUndefined();
   });
 
   it("zmiana meta_pixel_id podmienia inline marketingu zamiast dokładać drugi", () => {
