@@ -29,6 +29,7 @@ import {
 import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { trackFormConversion } from "@/lib/analytics/conversions";
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
@@ -353,6 +354,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     try {
       await submit({ data: payload });
       setStatus("ok");
+      // Konwersja liczy się TYLKO po potwierdzeniu zapisu przez serwer.
+      trackFormConversion({ formId, formName: title || undefined, lang });
       (e.target as HTMLFormElement).reset();
     } catch {
       setStatus("err");

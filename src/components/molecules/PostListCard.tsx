@@ -16,6 +16,7 @@ import { formatDateShort } from "@/lib/i18n/format";
 // head() tras archiwów - parytet preload<->render jest strukturalny).
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
+import { trackStrategyConversion } from "@/lib/analytics/conversions";
 
 // Minimalny, dwujęzyczny kształt danych karty. `BlogListItem` jest z nim
 // strukturalnie zgodny, więc można przekazać go wprost.
@@ -68,6 +69,14 @@ interface PostListCardProps {
   viewTransitionId?: string;
   /** Zamiennik excerptu (np. snippet trafienia wyszukiwarki z <mark>). */
   excerptOverride?: React.ReactNode;
+  /**
+   * Id materiału dla konwersji „kliknięcie w konkretną strategię" (tag Google).
+   * Gdy brak - kluczem zostaje `href`, więc przepływ per materiał jest widoczny
+   * także tam, gdzie karta nie dostaje id.
+   */
+  strategyId?: string;
+  /** Miejsce kliknięcia w raportach: `blog`, `home`, `related`, `search`… */
+  placement?: string;
 }
 
 export function PostListCard({
@@ -81,9 +90,21 @@ export function PostListCard({
   imageZoom = true,
   viewTransitionId,
   excerptOverride,
+  strategyId,
+  placement = "post_list",
 }: PostListCardProps) {
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en : post.excerpt_pl;
+
+  const onCardClick = () => {
+    trackStrategyConversion({
+      strategyId: strategyId || viewTransitionId || href,
+      href,
+      title,
+      placement,
+      lang,
+    });
+  };
 
   const cardClassName =
     "group block bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition";
@@ -128,13 +149,13 @@ export function PostListCard({
 
   if (link === "app") {
     return (
-      <AppLink href={href} className={cardClassName}>
+      <AppLink href={href} className={cardClassName} onClick={onCardClick}>
         {inner}
       </AppLink>
     );
   }
   return (
-    <Link to={href as "/"} className={cardClassName}>
+    <Link to={href as "/"} className={cardClassName} onClick={onCardClick}>
       {inner}
     </Link>
   );
