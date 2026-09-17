@@ -16,6 +16,7 @@ import { formatDateShort } from "@/lib/i18n/format";
 // head() tras archiwów - parytet preload<->render jest strukturalny).
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
+import { trackStrategyConversion } from "@/lib/analytics/conversions";
 
 // Minimalny, dwujęzyczny kształt danych karty. `BlogListItem` jest z nim
 // strukturalnie zgodny, więc można przekazać go wprost.
@@ -68,6 +69,14 @@ interface PostListCardProps {
   viewTransitionId?: string;
   /** Zamiennik excerptu (np. snippet trafienia wyszukiwarki z <mark>). */
   excerptOverride?: React.ReactNode;
+  /**
+   * Id materiału dla konwersji „kliknięcie w konkretną strategię" (tag Google).
+   * Gdy brak - kluczem zostaje `href`, więc przepływ per materiał jest widoczny
+   * także tam, gdzie karta nie dostaje id.
+   */
+  strategyId?: string;
+  /** Miejsce kliknięcia w raportach: `blog`, `home`, `related`, `search`… */
+  placement?: string;
 }
 
 export function PostListCard({
