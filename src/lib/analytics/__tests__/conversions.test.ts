@@ -13,9 +13,8 @@ const ga4EventMock = vi.fn();
 vi.mock("../track", () => ({ track: (...args: unknown[]) => trackMock(...args) }));
 vi.mock("../ga4Client", () => ({ ga4Event: (...args: unknown[]) => ga4EventMock(...args) }));
 
-const { adsSendTo, adsConversion, trackFormConversion, trackStrategyConversion } = await import(
-  "../conversions"
-);
+const { adsSendTo, adsConversion, trackFormConversion, trackStrategyConversion } =
+  await import("../conversions");
 
 beforeEach(() => {
   trackMock.mockClear();
