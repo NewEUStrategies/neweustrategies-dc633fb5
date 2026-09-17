@@ -16,7 +16,12 @@ import {
   type MarketingConfig,
 } from "@/lib/analytics/config";
 import { useEffectiveConsent } from "@/lib/ads/consent";
-import { bootstrapGa4, ga4ConsentUpdate, GOOGLE_ADS_ID } from "@/lib/analytics/ga4Client";
+import {
+  bootstrapGa4,
+  ga4ConsentUpdate,
+  GA4_MEASUREMENT_ID,
+  GOOGLE_ADS_ID,
+} from "@/lib/analytics/ga4Client";
 
 type CleanupFn = () => void;
 
