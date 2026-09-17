@@ -415,20 +415,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
     // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
     // stronie. Zmierzone: 3 równoległe podżądania -> 2.
-    // TERMIN FALI 1 - trzy rozłączne kontrakty, w kolejności od najwęższego.
-    //
-    //  1. Strona główna: wspólny deadline całego renderu, docięty osobnym
-    //     sufitem motywu (`HOME_THEME_BUDGET_MS`).
-    //  2. Dokument BEZ serwerowego renderu (`/admin`, `ssr: false`): krótki
-    //     termin z `clientOnlyDocument.ts`. Fala 1 nie maluje tam ani jednego
-    //     piksela - ani treści (trasa nie ma SSR), ani chrome'u (`showsSiteChrome`
-    //     jest fałszem) - a dokumenty panelu są na deny-liście NES Edge Cache,
-    //     więc te 2 500 ms płaciło KAŻDE twarde wejście do panelu.
-    //  3. Reszta serwisu: bez zmian, czyli pełny `ROOT_WARM_BUDGET_MS`.
-    //
-    // Trzeci argument `withBudget` może budżet wyłącznie SKRÓCIĆ (kontrakt
-    // `lib/asyncBudget.ts`), więc żaden z tych wariantów nie podnosi sufitu
-    // fali 1 ani łańcucha rozgrzewki korzenia pilnowanego przez `check:ssr-budgets`.
+    // TERMIN FALI 1 - trzy rozłączne kontrakty: strona główna (wspólny deadline
+    // renderu docięty `HOME_THEME_BUDGET_MS`), dokument bez serwerowego renderu
+    // (uzasadnienie i wartość: `lib/routing/clientOnlyDocument.ts`), reszta
+    // serwisu bez zmian. Trzeci argument `withBudget` może budżet wyłącznie
+    // SKRÓCIĆ, więc żaden wariant nie podnosi sufitu pilnowanego przez
+    // `check:ssr-budgets`.
     const themeDeadline =
       homeDeadline !== undefined
         ? Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS)

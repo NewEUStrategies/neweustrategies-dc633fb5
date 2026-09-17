@@ -39,9 +39,6 @@ const timings = new WeakMap<Request, SsrDbTiming>();
  */
 const phases = new WeakMap<Request, SsrPhaseTiming[]>();
 
-/** Ile faz wolno zapamiętać per żądanie - bezpiecznik przed pętlą w wołającym. */
-const PHASE_LIMIT = 8;
-
 function activeRequest(): Request | null {
   try {
     return getRequest() ?? null;
@@ -89,7 +86,6 @@ export function recordRequestPhase(request: Request, name: string, durationMs: n
     existing.durationMs += durationMs;
     return;
   }
-  if (list.length >= PHASE_LIMIT) return;
   list.push({ name, durationMs });
 }
 

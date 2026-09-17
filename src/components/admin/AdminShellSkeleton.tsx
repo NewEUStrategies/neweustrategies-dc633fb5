@@ -72,28 +72,23 @@ export function AdminShellSkeleton({
           )}
           <div className="flex-1 overflow-hidden p-2 space-y-1.5">
             {Array.from({ length: NAV_ROWS }, (_, index) => (
-              <Skeleton
-                key={index}
-                className={compact ? "h-5 w-6 mx-auto" : "h-5 w-full"}
-                style={compact ? undefined : { opacity: 1 - index * 0.04 }}
-              />
+              <Skeleton key={index} className={compact ? "h-5 w-6 mx-auto" : "h-5 w-full"} />
             ))}
           </div>
         </aside>
       )}
+      {/* TREŚĆ: rama i jeden ekran wysokości - NIC WIĘCEJ, i to jest decyzja.
+          Ten szkielet stoi na KAŻDEJ trasie `/admin/**`, a ekrany panelu nie
+          mają wspólnego układu wewnętrznego: pulpit ma kafle i wykresy, lista
+          wpisów - tabelę, edytor - dwie kolumny. Rysowanie tu siatki kafli
+          byłoby zgadywaniem, które na większości tras jest błędne, czyli
+          dokładałoby przesunięcie zamiast je zdejmować. Wspólne dla wszystkich
+          tych ekranów jest dokładnie dwoje: padding `p-4 md:p-6` i nagłówek
+          na górze (patrz `admin.index.tsx`, `admin.analytics.bi.tsx`). */}
       <main className="flex-1 min-w-0">
-        <div className="p-4 md:p-6 space-y-6">
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-64" />
-            <Skeleton className="h-3.5 w-96 max-w-full" />
-          </div>
-          <Skeleton className="h-7 w-72 max-w-full" />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-20" />
-            ))}
-          </div>
-          <Skeleton className="h-64" />
+        <div className="p-4 md:p-6 space-y-4">
+          <Skeleton className="h-7 w-64 max-w-full" />
+          <Skeleton className="h-[70vh] w-full" />
         </div>
       </main>
     </div>

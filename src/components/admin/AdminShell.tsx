@@ -432,7 +432,12 @@ function AdminShellInner({
                     to="/admin"
                     data-sidebar-brand
                     title={compact ? undefined : t("admin.nav.dashboard")}
-                    className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
+                    // WYSOKOŚĆ WIERSZA MARKI JEST PRZYPIĘTA (`h-8`/`h-9`), bo
+                    // jego zawartość zmienia się PO pierwszym malowaniu: dopóki
+                    // `theme_options` nie przyjechało, renderuje się napis
+                    // (jedna linia), a po odpowiedzi bazy - logo najemcy.
+                    // Bez tego cała nawigacja pod spodem zjeżdżała w dół.
+                    className={`font-display font-bold text-sm flex items-center justify-center overflow-hidden min-w-0 ${compact ? "h-8 w-8" : "h-9 flex-1"} bg-transparent hover:bg-transparent`}
                     style={{ background: "transparent" }}
                   >
                     <SidebarBrand compact={compact} />
@@ -675,30 +680,20 @@ function SidebarBrand({ compact }: { compact: boolean }) {
     (isDark ? logo.main_dark : logo.main) ||
     logo.main;
 
-  // WYSOKOŚĆ WIERSZA MARKI JEST PRZYPIĘTA, bo jego zawartość zmienia się PO
-  // pierwszym malowaniu: dopóki `theme_options` nie przyjechało, renderuje się
-  // napis (jedna linia), a po odpowiedzi bazy - logo najemcy (do 36 px).
-  // Bez `h-8`/`h-9` cała nawigacja pod spodem zjeżdżała wtedy w dół.
+  // Wysokość wiersza marki przypina RODZIC (`h-8`/`h-9` na `Link` wyżej), więc
+  // tutaj zostaje wyłącznie wybór zawartości - żadnej dodatkowej otoczki.
   if (compact) {
-    return (
-      <span className="flex h-8 w-8 items-center justify-center overflow-hidden">
-        {iconSrc ? (
-          <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
-        ) : (
-          <span className="text-base leading-none">New European Strategies</span>
-        )}
-      </span>
+    return iconSrc ? (
+      <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
+    ) : (
+      <span className="text-base">New European Strategies</span>
     );
   }
-  return (
-    <span className="flex h-9 w-full items-center justify-center overflow-hidden">
-      {expandedSrc ? (
-        <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
-      ) : (
-        <span className="leading-tight">
-          New European Strategies <span className="text-brand">Admin</span>
-        </span>
-      )}
+  return expandedSrc ? (
+    <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
+  ) : (
+    <span>
+      New European Strategies <span className="text-brand">Admin</span>
     </span>
   );
 }

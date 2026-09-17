@@ -296,12 +296,6 @@ describe("recordRequestPhase / readRequestPhases", () => {
       expect(readRequestPhases(request)).toEqual([]);
     },
   );
-
-  it("limit faz per żądanie chroni przed pętlą w wołającym", () => {
-    const request = req("/limit");
-    for (let i = 0; i < 40; i += 1) recordRequestPhase(request, `faza-${i}`, 1);
-    expect(readRequestPhases(request).length).toBeLessThanOrEqual(8);
-  });
 });
 
 describe("fazy w nagłówku Server-Timing", () => {
