@@ -73,7 +73,7 @@ vi.mock("@/lib/ads/consent", () => ({
 
 import { ConsentScriptInjector } from "@/components/ConsentScriptInjector";
 import type { AnalyticsConfig, MarketingConfig } from "@/lib/analytics/config";
-import { GOOGLE_ADS_ID, resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
+import { resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
 
 // -------------------- atrapowe identyfikatory i adresy --------------------
 
@@ -394,7 +394,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
 
     const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
     expect(tag).toHaveLength(1);
-    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GOOGLE_ADS_ID)}`);
+    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
     expect(tag[0].async).toBe(true);
     expect(configEntry(GA4_ID)).toBeDefined();
     expect(consentDefault()).toMatchObject({ analytics_storage: "denied" });
@@ -737,12 +737,12 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
 
-    // Główny identyfikator tagu (Google Ads) się nie zmienia; zmienia się
-    // dodatkowa konfiguracja GA4 w dataLayer.
+    // Skrypt gtag.js pozostaje jeden (ładowany pierwszym identyfikatorem);
+    // zmiana strumienia to nowa konfiguracja w dataLayer, nie nowy skrypt.
     const srcs = [...document.head.querySelectorAll("script[data-ga4-tag]")].map((s) =>
       s.getAttribute("src"),
     );
-    expect(srcs).toContain(`${GTAG_PREFIX}${encodeURIComponent(GOOGLE_ADS_ID)}`);
+    expect(srcs).toEqual([`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`]);
     expect(configEntry("G-TEST111111")).toBeDefined();
   });
 

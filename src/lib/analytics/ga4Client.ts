@@ -93,6 +93,14 @@ export function ga4ConsentUpdate(categories: Record<ConsentCategory, boolean>): 
 export const GOOGLE_ADS_ID = "AW-17612160320";
 
 /**
+ * Identyfikator pomiaru GA4 strumienia neweuropeanstrategies.com. Publiczny
+ * identyfikator witryny (widoczny w HTML), więc trzymamy go w kodzie jako
+ * PEWNE źródło: konektor wystawia go tylko jako zmienną build-time, a gdy jej
+ * brak, tag ładował się z samym Google Ads i GA4 nie zbierał danych.
+ */
+export const GA4_MEASUREMENT_ID = "G-EN05JH34VP";
+
+/**
  * Snippet SSR wklejany do `<head>` (patrz `__root.tsx`): natywny tag Google
  * wykrywalny przez weryfikator Google już w pierwszym bajcie HTML, z trybem
  * domyślnej odmowy wysyłanym PRZED konfiguracją strumienia. Tekst jest
@@ -103,7 +111,7 @@ export const GOOGLE_ADS_ID = "AW-17612160320";
 export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string {
   const ga4 = measurementId.trim();
   const ads = adsId.trim();
-  const primary = ads || ga4;
+  const primary = ga4 || ads;
   if (!primary) return "";
 
   const ga4Id = ga4 ? JSON.stringify(ga4) : null;
@@ -138,7 +146,7 @@ export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
   const w = win();
   const ga4 = measurementId.trim();
   const ads = adsId.trim();
-  const primary = ads || ga4;
+  const primary = ga4 || ads;
   if (!w || !primary) return;
   if (bootstrappedPrimary === primary && bootstrappedGa4 === ga4) return;
 

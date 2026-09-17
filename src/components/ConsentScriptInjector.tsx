@@ -16,7 +16,12 @@ import {
   type MarketingConfig,
 } from "@/lib/analytics/config";
 import { useEffectiveConsent } from "@/lib/ads/consent";
-import { bootstrapGa4, ga4ConsentUpdate, GOOGLE_ADS_ID } from "@/lib/analytics/ga4Client";
+import {
+  bootstrapGa4,
+  ga4ConsentUpdate,
+  GA4_MEASUREMENT_ID,
+  GOOGLE_ADS_ID,
+} from "@/lib/analytics/ga4Client";
 
 type CleanupFn = () => void;
 
@@ -156,10 +161,11 @@ export function ConsentScriptInjector() {
   // zapasowym źródłem, gdy admin nie ustawił GA4 w panelu. Zgoda na
   // kategorię "analytics" nadal jest wymagana - konektor jej nie omija.
   const connectorGa4Id = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY;
-  const analytics: AnalyticsConfig =
-    !parsedAnalytics.ga4_measurement_id && typeof connectorGa4Id === "string" && connectorGa4Id
-      ? { ...parsedAnalytics, ga4_measurement_id: connectorGa4Id }
-      : parsedAnalytics;
+  const fallbackGa4Id =
+    (typeof connectorGa4Id === "string" ? connectorGa4Id.trim() : "") || GA4_MEASUREMENT_ID;
+  const analytics: AnalyticsConfig = !parsedAnalytics.ga4_measurement_id
+    ? { ...parsedAnalytics, ga4_measurement_id: fallbackGa4Id }
+    : parsedAnalytics;
   const marketing: MarketingConfig = MarketingConfigSchema.parse(marketingRaw);
   const { categories, mounted } = useEffectiveConsent();
   const ga4Id = analytics.ga4_measurement_id;

@@ -90,7 +90,7 @@ import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
 import { withBudget } from "../lib/asyncBudget";
 import { registerChromeWarmup } from "../lib/ssr/chromeWarmup";
-import { ga4SsrSnippet, GOOGLE_ADS_ID } from "../lib/analytics/ga4Client";
+import { ga4SsrSnippet, GA4_MEASUREMENT_ID, GOOGLE_ADS_ID } from "../lib/analytics/ga4Client";
 
 export const ROOT_WARM_BUDGET_MS = 2_500;
 
@@ -181,13 +181,13 @@ const ROOT_ASSETS: RootAssets = {
 // Identyfikator pomiaru GA4 z konektora Google Analytics - stała build-time
 // (import.meta.env), wspólna z ConsentScriptInjector. Puste = brak tagu w SSR.
 const ROOT_GA4_ID: string =
-  typeof import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY === "string"
+  (typeof import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY === "string"
     ? import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY.trim()
-    : "";
+    : "") || GA4_MEASUREMENT_ID;
 
 // Główny identyfikator tagu Google: Google Ads ma pierwszeństwo (zgodnie z
 // instrukcją Google), a GA4 konfiguruje się jako dodatkowe miejsce docelowe.
-const ROOT_TAG_ID: string = GOOGLE_ADS_ID || ROOT_GA4_ID;
+const ROOT_TAG_ID: string = ROOT_GA4_ID || GOOGLE_ADS_ID;
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {

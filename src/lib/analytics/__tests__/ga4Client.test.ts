@@ -57,14 +57,16 @@ describe("GA4 w przeglądarce", () => {
     expect(isGa4Ready()).toBe(true);
   });
 
-  it("gdy podano Google Ads, tag ładuje się z AW- jako głównym identyfikatorem", () => {
+  it("tag ładuje się identyfikatorem GA4, nawet gdy podano też Google Ads", () => {
     bootstrapGa4("G-TEST123", "AW-123456789");
     const scripts = document.head.querySelectorAll<HTMLScriptElement>(
       "script[src*=googletagmanager]",
     );
     expect(scripts.length).toBe(1);
-    expect(scripts[0].getAttribute("src")).toContain("id=AW-123456789");
-    expect(scripts[0].getAttribute("data-ga4-tag")).toBe("AW-123456789");
+    // Skrypt gtag.js MUSI być ładowany identyfikatorem strumienia GA4 -
+    // ładowanie samym AW- nie uruchamia zbierania danych w Analytics.
+    expect(scripts[0].getAttribute("src")).toContain("id=G-TEST123");
+    expect(scripts[0].getAttribute("data-ga4-tag")).toBe("G-TEST123");
   });
 
   it("konfiguruje zarówno Google Ads, jak i GA4, gdy oba identyfikatory są podane", () => {
