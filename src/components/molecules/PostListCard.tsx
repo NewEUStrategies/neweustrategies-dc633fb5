@@ -90,9 +90,21 @@ export function PostListCard({
   imageZoom = true,
   viewTransitionId,
   excerptOverride,
+  strategyId,
+  placement = "post_list",
 }: PostListCardProps) {
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en : post.excerpt_pl;
+
+  const onCardClick = () => {
+    trackStrategyConversion({
+      strategyId: strategyId || viewTransitionId || href,
+      href,
+      title,
+      placement,
+      lang,
+    });
+  };
 
   const cardClassName =
     "group block bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition";
