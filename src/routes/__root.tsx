@@ -245,7 +245,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: (ctx) => {
     // Tag Google z loaderData (patrz `ssrGoogleTag`); bez loaderData (render
     // błędu, wywołanie bez kontekstu) - stała wdrożenia.
-    const googleTag = ctx?.loaderData?.ga4 ?? DEFAULT_SSR_GOOGLE_TAG;
+    const googleTag = ssrGoogleTagFromLoaderData(ctx?.loaderData);
     // One language source for the whole document head, matching the <html lang>
     // RootShell emits. Both read the request-scoped currentLang() (NOT the
     // module-global i18next singleton, which is shared across concurrent SSR
