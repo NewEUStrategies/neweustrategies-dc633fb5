@@ -25682,6 +25682,10 @@ export type Database = {
         Returns: boolean
       }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
+      profile_verification_matches: {
+        Args: { _id: string; _verified_at: string; _verified_by: string }
+        Returns: boolean
+      }
       profile_view_stats: {
         Args: never
         Returns: {
