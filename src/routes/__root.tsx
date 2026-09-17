@@ -211,6 +211,22 @@ const DEFAULT_SSR_GOOGLE_TAG: SsrGoogleTag = { measurementId: ROOT_GA4_ID, enabl
  * i klient nigdy nie konfigurują dwóch różnych. Dokument jest cache'owany na
  * brzegu, więc zmiana w panelu dochodzi z opóźnieniem `s-maxage` dokumentu.
  */
+/**
+ * `head()` jest deklarowany PRZED `loader` w tym samym literale, więc TypeScript
+ * nie zna jeszcze typu `loaderData` (widzi `never`). Czytamy więc pole przez
+ * jawne zawężenie z `unknown` - bez `any` i bez rzutowania na kształt trasy.
+ */
+function ssrGoogleTagFromLoaderData(loaderData: unknown): SsrGoogleTag {
+  if (loaderData === null || typeof loaderData !== "object") return DEFAULT_SSR_GOOGLE_TAG;
+  const tag = (loaderData as { ga4?: unknown }).ga4;
+  if (tag === null || typeof tag !== "object") return DEFAULT_SSR_GOOGLE_TAG;
+  const { measurementId, enabled } = tag as { measurementId?: unknown; enabled?: unknown };
+  if (typeof measurementId !== "string" || typeof enabled !== "boolean") {
+    return DEFAULT_SSR_GOOGLE_TAG;
+  }
+  return { measurementId, enabled };
+}
+
 function ssrGoogleTag(settings: Readonly<Record<string, unknown>> | undefined): SsrGoogleTag {
   const analytics = resolveSetting(
     settings,
