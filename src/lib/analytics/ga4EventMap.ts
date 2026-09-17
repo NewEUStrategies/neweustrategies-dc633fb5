@@ -22,6 +22,9 @@ const NAME_MAP: Record<string, string> = {
   pricing_contact_click: "generate_lead",
   pricing_interval_change: "select_item",
   newsletter_signup: "join_group",
+  // Konwersje przeniesione z WordPressa (patrz `./conversions.ts`).
+  form_submit: "generate_lead",
+  strategy_click: "select_content",
   signup_completed: "sign_up",
   login_completed: "login",
   post_view: "view_item",
