@@ -149,13 +149,13 @@ export function PostListCard({
 
   if (link === "app") {
     return (
-      <AppLink href={href} className={cardClassName}>
+      <AppLink href={href} className={cardClassName} onClick={onCardClick}>
         {inner}
       </AppLink>
     );
   }
   return (
-    <Link to={href as "/"} className={cardClassName}>
+    <Link to={href as "/"} className={cardClassName} onClick={onCardClick}>
       {inner}
     </Link>
   );
