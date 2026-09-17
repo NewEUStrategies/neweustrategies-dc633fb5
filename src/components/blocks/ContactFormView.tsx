@@ -29,6 +29,7 @@ import {
 import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { trackFormConversion } from "@/lib/analytics/conversions";
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
