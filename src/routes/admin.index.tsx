@@ -12,11 +12,43 @@ import { Loader2 } from "lucide-react";
 import { ensureI18n } from "@/lib/i18n-admin-dashboard";
 import { AdminBiStrip } from "@/components/admin/analytics/AdminBiStrip";
 
+const loadAdminDashboard = () => import("@/components/admin/dashboard/AdminDashboard");
+
 const AdminDashboard = lazy(() =>
-  import("@/components/admin/dashboard/AdminDashboard").then((m) => ({
-    default: m.AdminDashboard,
-  })),
+  loadAdminDashboard().then((m) => ({ default: m.AdminDashboard })),
 );
+
+// POBRANIE CHUNKU STARTUJE TUTAJ, NIE PRZY RENDERZE - i to jest jedna linijka
+// warta sekund w LCP, więc należy jej się akapit.
+//
+// ŁAŃCUCH, KTÓRY TO ROZCINA. `/admin` to trasa `ssr: false`, a `AdminLayout`
+// (routes/admin.tsx) przy `useAuth().loading` NIE renderuje `<Outlet/>`. Ten
+// komponent montuje się więc dopiero PO rozstrzygnięciu sesji - a `React.lazy`
+// odpala swój import przy pierwszym renderze. Przed zmianą wyglądało to tak,
+// SZEREGOWO:
+//   1. `supabase.auth.getSession()` - odczyt localStorage, a przy wygasłym
+//      tokenie DODATKOWO odświeżenie po sieci;
+//   2. `loadContext(uid)` - dwa zapytania PostgREST (`user_roles`, `profiles`);
+//      `loading` schodzi dopiero po nich (hooks/useAuth.tsx: `loading =
+//      sessionLoading || (session !== null && rolesLoading)`);
+//   3. DOPIERO TERAZ pobranie chunku pulpitu (silnik wykresów + mapa);
+//   4. sześć zapytań pulpitu;
+//   5. malowanie.
+// Zmierzone na produkcji LCP `/admin` = 7,54 s. Faza 3 nie zależy od faz 1-2
+// w ŻADEN sposób - to czysta serializacja.
+//
+// Moduł trasy jest ewaluowany przez router przy rozwiązywaniu dopasowania,
+// czyli ZANIM zacznie się faza 1. Ten `void` przenosi więc fazę 3 równolegle
+// do faz 1-2, nie dotykając ani `Suspense`, ani podziału na chunki: pulpit
+// nadal NIE wchodzi do grafu startowego (to była intencja `lazy` i zostaje).
+//
+// KOSZT, wprost: osoba BEZ uprawnień, która wejdzie na `/admin`, pobierze ten
+// chunk, zanim `AdminLayout` przekieruje ją na `/login`. Świadomie nie
+// stawiamy tu bramki: jedyny synchroniczny sposób jej postawienia to czytanie
+// wewnętrznego klucza sesji Supabase z `localStorage`, czyli sprzęgnięcie się
+// z formatem, którego nie kontrolujemy - a `/admin` jest noindex i na
+// deny-liście cache'u, więc ruch spoza redakcji jest tu marginalny.
+if (typeof window !== "undefined") void loadAdminDashboard().catch(() => undefined);
 
 export const Route = createFileRoute("/admin/")({
   component: Dashboard,
