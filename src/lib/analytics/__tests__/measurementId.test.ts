@@ -63,4 +63,15 @@ describe("resolveGa4MeasurementId", () => {
       source: "secret",
     });
   });
+
+  it("wartość konektora bez kształtu identyfikatora pomiaru (np. klucz API) jest traktowana jako BRAK", () => {
+    vi.stubEnv("VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY", "AIzaSyD-fake-api-key");
+    expect(connectorGa4MeasurementId()).toBe("");
+    expect(resolveGa4MeasurementId(null)).toEqual({ measurementId: null, source: null });
+    // Wpis z panelu nadal wygrywa nad pustym konektorem.
+    expect(resolveGa4MeasurementId("G-PANEL")).toEqual({
+      measurementId: "G-PANEL",
+      source: "settings",
+    });
+  });
 });

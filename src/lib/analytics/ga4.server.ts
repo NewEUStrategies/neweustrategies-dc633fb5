@@ -215,7 +215,24 @@ export async function resolveGa4AccessToken(): Promise<{
  * każdemu, kto ma poprawną konfigurację w bazie.
  */
 export function resolveGa4PropertyId(storedPropertyId?: string | null): string | undefined {
-  return process.env.GA4_PROPERTY_ID?.trim() || storedPropertyId?.trim() || undefined;
+  return (
+    normalizeGa4PropertyId(process.env.GA4_PROPERTY_ID) ||
+    normalizeGa4PropertyId(storedPropertyId) ||
+    undefined
+  );
+}
+
+/**
+ * Data API adresuje usługę jako `properties/{id}` i sam dokleja prefiks, a
+ * podpowiedź w panelu pokazuje pełną formę `properties/XXXXXXXX` - wklejona
+ * 1:1 dawała `properties/properties/123:runReport` i błąd 400 w dashboardzie.
+ * Zdejmujemy prefiks, resztę przycinamy; puste = brak.
+ */
+export function normalizeGa4PropertyId(raw: string | null | undefined): string {
+  return (raw ?? "")
+    .trim()
+    .replace(/^properties\//i, "")
+    .trim();
 }
 
 export interface Ga4ReportRequest {
@@ -260,6 +277,9 @@ export async function runGa4DataApiReport(
           dateRanges: [{ startDate: req.startDate, endDate: req.endDate }],
           dimensions: req.dimensions.map((name) => ({ name })),
           metrics: req.metrics.map((name) => ({ name })),
+          // Bez tego Data API NIE zwraca `totals` - a z nich żyją kafle KPI,
+          // radar zaangażowania i strumień semantyczny (`ga4TotalsMap`).
+          metricAggregations: ["TOTAL"],
           limit: String(req.limit),
         }),
       },
@@ -269,6 +289,12 @@ export async function runGa4DataApiReport(
       return { ...base, error: `GA4 ${res.status}: ${text.slice(0, 300)}` };
     }
     const parsed = JSON.parse(text) as Ga4ApiResponse;
+    // Raport bez wymiarów ma dokładnie jeden wiersz z sumami za cały zakres -
+    // gdy odpowiedź nie niesie `totals`, ten wiersz JEST totalem.
+    const totalValues =
+      parsed.totals?.[0]?.metricValues ??
+      (req.dimensions.length === 0 ? parsed.rows?.[0]?.metricValues : undefined) ??
+      [];
     return {
       ...base,
       dimensionHeaders: (parsed.dimensionHeaders ?? []).map((h) => h.name),
@@ -277,7 +303,7 @@ export async function runGa4DataApiReport(
         dims: (r.dimensionValues ?? []).map((v) => v.value ?? ""),
         metrics: (r.metricValues ?? []).map((v) => v.value ?? "0"),
       })),
-      totals: (parsed.totals?.[0]?.metricValues ?? []).map((v) => v.value ?? "0"),
+      totals: totalValues.map((v) => v.value ?? "0"),
     };
   } catch (e) {
     return { ...base, error: e instanceof Error ? e.message : String(e) };

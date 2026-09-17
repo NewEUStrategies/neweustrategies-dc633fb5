@@ -8,12 +8,33 @@
 // Dzięki `wait_for_update` tag wstrzymuje wysyłkę na moment, żeby nie wyprzedzić
 // decyzji zapisanej w localStorage.
 //
+// JEDEN TAG, DWA MIEJSCA DOCELOWE. gtag.js ładuje się RAZ, identyfikatorem
+// strumienia GA4 (`?id=G-…`): po nim weryfikator Google rozpoznaje instalację
+// i on decyduje, które ustawienia tagu Google się wczytają. Każde
+// `gtag('config', ID)` rejestruje osobne miejsce docelowe (GA4, Google Ads);
+// zdarzenia bez `send_to` trafiają do WSZYSTKICH skonfigurowanych.
+//
+// SNIPPET SSR I BOOTSTRAP KLIENCKI. `ga4SsrSnippet` (w `<head>` przez
+// `__root.tsx`) wykonuje te same polecenia, zanim wystartuje React. Bootstrap
+// kliencki ROZPOZNAJE ten stan (`window.gtag` + `<script src=…gtag/js?id=…>`
+// bez znacznika klienckiego) i przejmuje go, nie powtarzając poleceń - drugi
+// `config` to drugi ping Google Ads przy wejściu.
+//
+// POLECENIA JAKO `arguments`, NIE TABLICE. gtag.js rozpoznaje polecenie po
+// obiekcie `arguments` wypchniętym do `dataLayer` - tak robi oficjalny snippet
+// `function gtag(){dataLayer.push(arguments);}`. Zwykła tablica `['event', …]`
+// jest dla niego zwykłym wpisem warstwy danych: zgoda, odsłony i zdarzenia
+// pchane tablicą nigdy nie dojechałyby do GA4.
+//
 // GPC i podgląd zgód są respektowane, bo mapę kategorii dostajemy z
 // `@/lib/ads/consent` (klamra GPC jest tam, nie tutaj).
 //
 // SSR: każda funkcja no-op-uje bez `window`.
 
 import type { ConsentCategory } from "@/lib/ads/consent";
+import { GA4_MEASUREMENT_ID, asGa4MeasurementId } from "./tagIds";
+
+export { GA4_MEASUREMENT_ID, GOOGLE_ADS_ID, asGa4MeasurementId, asGoogleAdsId } from "./tagIds";
 
 /** Parametry zdarzenia GA4 - wyłącznie wartości serializowalne. */
 export type Ga4Params = Record<string, string | number | boolean | undefined | Ga4ItemList>;
@@ -31,28 +52,116 @@ export interface Ga4Item {
 
 export type Ga4ItemList = Ga4Item[];
 
+type GtagFn = (...args: unknown[]) => void;
+
 interface GtagWindow extends Window {
   dataLayer?: unknown[];
-  // Tag Google jest zewnętrzny - trzymamy tylko sygnaturę wywołania.
-  gtag?: (...args: unknown[]) => void;
+  // Tag Google jest zewnętrzny; `unknown`, bo na `window.gtag` potrafi
+  // wylądować cokolwiek (pomyłka wdrożeniowa, atrapa w teście).
+  gtag?: unknown;
 }
 
 /** Stan modułu: żeby dwukrotny montaż nie wstawił tagu dwa razy. */
 let bootstrappedPrimary: string | null = null;
 let bootstrappedGa4: string | null = null;
 
+/** Znacznik skryptu wstawionego przez bootstrap KLIENCKI (SSR go nie ma). */
 const SCRIPT_ATTR = "data-ga4-tag";
+const GTAG_SRC_PREFIX = "https://www.googletagmanager.com/gtag/js";
 
 function win(): GtagWindow | null {
   return typeof window === "undefined" ? null : (window as GtagWindow);
 }
 
-/** Kolejka `dataLayer` działa też przed wczytaniem tagu - stąd push, nie fetch. */
+function layerOf(w: GtagWindow): unknown[] {
+  if (!Array.isArray(w.dataLayer)) w.dataLayer = [];
+  return w.dataLayer;
+}
+
+/** Wypycha polecenie jako obiekt `arguments` - jedyny kształt komendy dla gtag.js. */
+function pushCommand(layer: unknown[], args: unknown[]): void {
+  const push = function () {
+    // eslint-disable-next-line prefer-rest-params
+    layer.push(arguments);
+  };
+  Reflect.apply(push, null, args);
+}
+
+/** Definicja tożsama ze snippetem SSR - dokładana tylko, gdy nikt jej jeszcze nie dał. */
+function ensureWindowGtag(w: GtagWindow): void {
+  if (w.gtag !== undefined) return;
+  w.gtag = function gtag() {
+    // eslint-disable-next-line prefer-rest-params
+    layerOf(w).push(arguments);
+  };
+}
+
+function gtagScript(): HTMLScriptElement | null {
+  if (typeof document === "undefined") return null;
+  return document.querySelector<HTMLScriptElement>(`script[src^="${GTAG_SRC_PREFIX}"]`);
+}
+
+function tagIdOf(script: HTMLScriptElement | null): string {
+  if (!script) return "";
+  try {
+    const url = new URL(script.getAttribute("src") ?? "", GTAG_SRC_PREFIX);
+    return url.searchParams.get("id")?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Identyfikator, którym snippet SSR (`__root.tsx`) wczytał gtag.js - "" gdy
+ * w dokumencie nie ma takiego skryptu. Skrypt wstawiony przez bootstrap
+ * kliencki (ze znacznikiem `data-ga4-tag`) się NIE liczy: klient ma się dopiąć
+ * do tagu z SSR, ale własną konfigurację może zmieniać (test zmiany strumienia).
+ */
+export function ssrGtagId(): string {
+  if (typeof document === "undefined") return "";
+  return tagIdOf(
+    document.querySelector<HTMLScriptElement>(
+      `script[src^="${GTAG_SRC_PREFIX}"]:not([${SCRIPT_ATTR}])`,
+    ),
+  );
+}
+
+/**
+ * Identyfikator GA4 dla bootstrapu klienckiego. Kolejność:
+ *  1. tag już wczytany przez snippet SSR - klient dopina się do TEGO strumienia,
+ *     zamiast konfigurować drugi (dual-tagging po zmianie wpisu w panelu);
+ *  2. wpis z panelu (`site_settings.analytics.ga4_measurement_id`), o ile ma
+ *     kształt identyfikatora pomiaru;
+ *  3. zmienna konektora Google Analytics (build-time), również tylko o kształcie
+ *     identyfikatora - klucz API nie może trafić do `gtag('config', …)`;
+ *  4. stała wdrożenia.
+ */
+export function resolveBrowserGa4Id(input: {
+  settingsId?: string | null;
+  connectorId?: unknown;
+}): string {
+  return (
+    asGa4MeasurementId(ssrGtagId()) ||
+    asGa4MeasurementId(input.settingsId) ||
+    asGa4MeasurementId(input.connectorId) ||
+    GA4_MEASUREMENT_ID
+  );
+}
+
+/**
+ * Kolejka `dataLayer` działa też przed wczytaniem tagu - stąd push, nie fetch.
+ * Gdy snippet (SSR albo kliencki) zdefiniował już `window.gtag`, wołamy go -
+ * to dokładnie ta sama kolejka i ten sam kształt `arguments`.
+ */
 export function gtag(...args: unknown[]): void {
   const w = win();
   if (!w) return;
-  w.dataLayer = w.dataLayer || [];
-  w.dataLayer.push(args);
+  const layer = layerOf(w);
+  if (typeof w.gtag === "function") {
+    (w.gtag as GtagFn)(...args);
+    return;
+  }
+  pushCommand(layer, args);
 }
 
 /** Domyślne odmowy - wysyłane ZAWSZE przed konfiguracją strumienia. */
@@ -86,47 +195,29 @@ export function ga4ConsentUpdate(categories: Record<ConsentCategory, boolean>): 
 }
 
 /**
- * Identyfikator konwersji Google Ads przypięty do tego samego tagu Google co
- * GA4 (jeden skrypt gtag.js, dwa miejsca docelowe). Publiczny identyfikator
- * witryny - bezpieczny do wplatania w bundel; zmiana konta Ads = zmiana tu.
- */
-export const GOOGLE_ADS_ID = "AW-17612160320";
-
-/**
- * Identyfikator pomiaru GA4 strumienia neweuropeanstrategies.com. Publiczny
- * identyfikator witryny (widoczny w HTML), więc trzymamy go w kodzie jako
- * PEWNE źródło: konektor wystawia go tylko jako zmienną build-time, a gdy jej
- * brak, tag ładował się z samym Google Ads i GA4 nie zbierał danych.
- */
-export const GA4_MEASUREMENT_ID = "G-EN05JH34VP";
-
-/**
  * Snippet SSR wklejany do `<head>` (patrz `__root.tsx`): natywny tag Google
  * wykrywalny przez weryfikator Google już w pierwszym bajcie HTML, z trybem
- * domyślnej odmowy wysyłanym PRZED konfiguracją strumienia. Tekst jest
- * tożsamy z bootstrapperem klienckim - zmiany trzymać w parze.
- * `adsId` jest głównym identyfikatorem tagu Google (Google Ads); `measurementId`
- * (GA4) konfiguruje się jako dodatkowe miejsce docelowe tego samego tagu.
+ * domyślnej odmowy wysyłanym PRZED konfiguracją strumienia. Polecenia są
+ * tożsame z bootstrapperem klienckim (`bootstrapGa4`) - zmiany trzymać w parze.
+ * `send_page_view: false` - odsłony wysyła router (`ga4PageView`), inaczej
+ * pierwsza odsłona byłaby zdublowana przy nawigacji SPA.
  */
 export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string {
   const ga4 = measurementId.trim();
   const ads = adsId.trim();
-  const primary = ga4 || ads;
-  if (!primary) return "";
-
-  const ga4Id = ga4 ? JSON.stringify(ga4) : null;
+  if (!ga4 && !ads) return "";
 
   const configs: string[] = [];
   if (ads) {
     configs.push(`gtag('config',${JSON.stringify(ads)});`);
   }
-  if (ga4Id) {
-    configs.push(`gtag('config',${ga4Id},{anonymize_ip:true,send_page_view:false});`);
+  if (ga4) {
+    configs.push(`gtag('config',${JSON.stringify(ga4)},{send_page_view:false});`);
   }
 
   return [
     "window.dataLayer=window.dataLayer||[];",
-    "function gtag(){dataLayer.push(arguments);}window.gtag=gtag;",
+    "function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;",
     "gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500});",
     "gtag('set','url_passthrough',true);",
     "gtag('set','ads_data_redaction',true);",
@@ -138,7 +229,8 @@ export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string
 /**
  * Wstawia tag Google i konfiguruje strumień. Idempotentne dla pary
  * (główny ID, GA4 ID), ale reaguje też na zmianę samego GA4 - wtedy tylko
- * wypycha nową konfigurację, bez ponownego ładowania skryptu czy resetu zgód.
+ * wypycha nową konfigurację, bez ponownego ładowania skryptu.
+ * Gdy snippet SSR wczytał już ten sam tag, bootstrap jedynie przejmuje stan.
  * `send_page_view: false` - odsłony wysyła router (patrz `ga4PageView`), inaczej
  * pierwsza odsłona byłaby zdublowana przy nawigacji SPA.
  */
@@ -155,46 +247,44 @@ export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
   bootstrappedGa4 = ga4;
 
   if (primaryChanged) {
+    // Snippet SSR wykonał już zgodę domyślną, `js` i oba `config` dla tego tagu.
+    if (typeof w.gtag === "function" && ssrGtagId() === primary) return;
+
+    ensureWindowGtag(w);
     ga4ConsentDefault();
     gtag("js", new Date());
-
-    // Google Ads jako główne miejsce docelowe tagu (zgodnie z instrukcją Google).
     if (ads) gtag("config", ads);
   }
 
-  // GA4 jako dodatkowe miejsce docelowe tego samego tagu; odsłony wysyła
-  // osobno router, więc wyłączamy domyślną odsłonę konfiguracji.
-  if (ga4) {
-    gtag("config", ga4, {
-      anonymize_ip: true,
-      send_page_view: false,
-    });
-  }
+  if (ga4) gtag("config", ga4, { send_page_view: false });
 
   if (!primaryChanged) return;
 
-  // SSR (`ga4SsrSnippet` w `__root.tsx`) już wstawia ten sam tag - nie
-  // duplikujemy skryptu, niezależnie od tego, kto był pierwszy.
-  if (document.querySelector(`script[${SCRIPT_ATTR}="${primary}"]`)) return;
-  if (document.querySelector('script[src^="https://www.googletagmanager.com/gtag/js"]')) {
-    return;
-  }
+  // Skrypt już jest (SSR albo wcześniejszy bootstrap innym ID) - nie duplikujemy.
+  if (gtagScript()) return;
   const script = document.createElement("script");
   script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(primary)}`;
+  script.src = `${GTAG_SRC_PREFIX}?id=${encodeURIComponent(primary)}`;
   script.setAttribute(SCRIPT_ATTR, primary);
   document.head.appendChild(script);
 }
 
-/** Wyłącznie dla testów - zeruje pamięć bootstrapu. */
+/** Wyłącznie dla testów - zeruje pamięć bootstrapu i zdjętą przez nas globalną `gtag`. */
 export function resetGa4BootstrapForTests(): void {
   bootstrappedPrimary = null;
   bootstrappedGa4 = null;
+  const w = win();
+  if (w) delete w.gtag;
 }
 
-/** Czy strumień jest już skonfigurowany (używane przez mostek zdarzeń). */
+/**
+ * Czy strumień jest już skonfigurowany: przez bootstrap kliencki albo przez
+ * snippet SSR (wtedy w dokumencie jest już `<script src=…gtag/js?id=…>`, a
+ * konfiguracja poprzedza go w `dataLayer`). Bez tego pierwsza odsłona - wołana
+ * przez router ZANIM zamontuje się `ConsentScriptInjector` - ginęła.
+ */
 export function isGa4Ready(): boolean {
-  return bootstrappedPrimary !== null;
+  return bootstrappedPrimary !== null || gtagScript() !== null;
 }
 
 export function ga4Event(name: string, params: Ga4Params = {}): void {
@@ -205,8 +295,7 @@ export function ga4Event(name: string, params: Ga4Params = {}): void {
 export function ga4PageView(path: string, title?: string, language?: string): void {
   if (!isGa4Ready()) return;
   gtag("event", "page_view", {
-    page_path: path,
-    page_location: typeof location === "undefined" ? undefined : location.href,
+    page_location: typeof location === "undefined" ? path : location.href,
     page_title: title || (typeof document === "undefined" ? undefined : document.title),
     language: language || undefined,
   });

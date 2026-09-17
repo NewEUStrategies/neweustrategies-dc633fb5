@@ -97,6 +97,17 @@ export interface Ga4MpResult {
   error?: string;
 }
 
+/** Komunikaty walidacji z `/debug/mp/collect`; nie-JSON (np. 400 tekstem) = brak listy. */
+function debugValidationProblems(body: string): string[] {
+  try {
+    const parsed = JSON.parse(body) as { validationMessages?: unknown };
+    const messages = Array.isArray(parsed.validationMessages) ? parsed.validationMessages : [];
+    return messages.map((message) => JSON.stringify(message));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Wysyła event GA4 przez Measurement Protocol.
  * Wymaga sekretów: GA4_MEASUREMENT_ID + GA4_API_SECRET.
@@ -134,7 +145,14 @@ export const sendGa4Event = createServerFn({ method: "POST" })
         }),
       });
       if (data.debug) {
+        // Endpoint walidacyjny odpowiada 200 także dla ODRZUCONEGO zdarzenia -
+        // odmowa siedzi w `validationMessages`. Bez tego panel meldował
+        // „przyjęte" dla zdarzeń, których Google nigdy by nie zapisał.
         const body = await res.text();
+        const problems = debugValidationProblems(body);
+        if (problems.length > 0) {
+          return { ok: false, configured: true, debug: body, error: problems.join("; ") };
+        }
         return { ok: res.ok, configured: true, debug: body };
       }
 

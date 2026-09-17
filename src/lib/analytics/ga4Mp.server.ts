@@ -9,7 +9,11 @@
 // Bez `GA4_API_SECRET` funkcja milczy - analityka nigdy nie może wywrócić
 // realizacji płatności.
 
+import { GA4_MEASUREMENT_ID } from "./tagIds";
+
 const ENDPOINT = "https://www.google-analytics.com/mp/collect";
+/** Webhook operatora płatności czeka na odpowiedź - Google nie może go zawiesić. */
+const TIMEOUT_MS = 5_000;
 
 export interface Ga4ServerEvent {
   name: string;
@@ -29,9 +33,11 @@ export async function sendGa4ServerEvent(
   const apiSecret = process.env["GA4_API_SECRET"];
   if (!apiSecret || events.length === 0) return;
 
+  // Sekret projektu wygrywa; bez niego ten sam publiczny identyfikator, którym
+  // przeglądarka wysyła zakup - inaczej `transaction_id` nie miałby się z czym
+  // zdeduplikować i zakup z webhooka trafiałby do innego strumienia albo nikąd.
   const { resolveGa4MeasurementId } = await import("./measurementId");
-  const measurementId = resolveGa4MeasurementId(null).measurementId;
-  if (!measurementId) return;
+  const measurementId = resolveGa4MeasurementId(null).measurementId ?? GA4_MEASUREMENT_ID;
 
   const url = `${ENDPOINT}?measurement_id=${encodeURIComponent(measurementId)}&api_secret=${encodeURIComponent(apiSecret)}`;
   try {
@@ -43,6 +49,7 @@ export async function sendGa4ServerEvent(
         non_personalized_ads: true,
         events,
       }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {
       console.error(`GA4 MP ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -77,6 +84,9 @@ export async function sendGa4Purchase(input: {
           value: Math.round(input.amountCents) / 100,
           currency: input.currency,
           items: [],
+          // Bez czasu zaangażowania zdarzenie z Measurement Protocol nie zasila
+          // metryk sesji/użytkowników w raportach standardowych GA4.
+          engagement_time_msec: 1,
         },
       },
     ],

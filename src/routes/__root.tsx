@@ -90,7 +90,12 @@ import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
 import { withBudget } from "../lib/asyncBudget";
 import { registerChromeWarmup } from "../lib/ssr/chromeWarmup";
-import { ga4SsrSnippet, GA4_MEASUREMENT_ID, GOOGLE_ADS_ID } from "../lib/analytics/ga4Client";
+import {
+  asGa4MeasurementId,
+  ga4SsrSnippet,
+  GA4_MEASUREMENT_ID,
+  GOOGLE_ADS_ID,
+} from "../lib/analytics/ga4Client";
 
 export const ROOT_WARM_BUDGET_MS = 2_500;
 
@@ -178,15 +183,18 @@ const ROOT_ASSETS: RootAssets = {
   fontLatinExt: redHatDisplayLatinExt,
 };
 
-// Identyfikator pomiaru GA4 z konektora Google Analytics - stała build-time
-// (import.meta.env), wspólna z ConsentScriptInjector. Puste = brak tagu w SSR.
+// Identyfikator pomiaru GA4 dla tagu w SSR: zmienna konektora Google Analytics
+// (build-time) WYŁĄCZNIE gdy ma kształt identyfikatora pomiaru - klucz API
+// podstawiony pod tę zmienną nie może trafić do publicznego HTML - a w
+// przeciwnym razie stała wdrożenia. Ta sama kolejność co w bootstrapie
+// klienckim (`resolveBrowserGa4Id`), więc SSR i klient mówią o jednym strumieniu.
 const ROOT_GA4_ID: string =
-  (typeof import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY === "string"
-    ? import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY.trim()
-    : "") || GA4_MEASUREMENT_ID;
+  asGa4MeasurementId(import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY) ||
+  GA4_MEASUREMENT_ID;
 
-// Główny identyfikator tagu Google: Google Ads ma pierwszeństwo (zgodnie z
-// instrukcją Google), a GA4 konfiguruje się jako dodatkowe miejsce docelowe.
+// gtag.js ładuje się identyfikatorem strumienia GA4 - po nim weryfikator Google
+// rozpoznaje instalację. Google Ads jest dodatkowym miejscem docelowym tego
+// samego tagu (`gtag('config', 'AW-…')` w snippecie), nie osobnym skryptem.
 const ROOT_TAG_ID: string = ROOT_GA4_ID || GOOGLE_ADS_ID;
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -232,8 +240,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // pierwszym bajcie HTML. Tryb domyślnej odmowy jest wysyłany przed
         // konfiguracją strumienia, więc bez zgody nie powstają cookies; decyzję
         // odwiedzającego aplikuje `ga4ConsentUpdate` (ConsentScriptInjector).
-        // Główny identyfikator tagu to Google Ads; GA4 (jeśli skonfigurowany)
-        // jest dodatkowym miejscem docelowym tego samego tagu.
+        // Skrypt ładuje się identyfikatorem GA4; Google Ads to drugie miejsce
+        // docelowe tego samego tagu. Hosty Google muszą być w CSP (`start.ts`).
         ...(ROOT_TAG_ID
           ? [
               { children: ga4SsrSnippet(ROOT_GA4_ID, GOOGLE_ADS_ID) },

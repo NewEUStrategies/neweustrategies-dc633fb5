@@ -19,8 +19,8 @@ import { useEffectiveConsent } from "@/lib/ads/consent";
 import {
   bootstrapGa4,
   ga4ConsentUpdate,
-  GA4_MEASUREMENT_ID,
   GOOGLE_ADS_ID,
+  resolveBrowserGa4Id,
 } from "@/lib/analytics/ga4Client";
 
 type CleanupFn = () => void;
@@ -153,22 +153,41 @@ function loadMarketing(cfg: MarketingConfig): CleanupFn {
 
 // ---------------- Component ----------------
 
+/** Nieprawidłowy wpis w site_settings degraduje do domyślnych - nie wywraca strony. */
+function parseOrDefault<T>(
+  parse: { safeParse: (v: unknown) => { success: boolean; data?: T } },
+  raw: unknown,
+  fallback: () => T,
+): T {
+  const result = parse.safeParse(raw);
+  return result.success && result.data !== undefined ? result.data : fallback();
+}
+
 export function ConsentScriptInjector() {
   const analyticsRaw = useSiteSetting("analytics", defaultAnalyticsConfig());
   const marketingRaw = useSiteSetting("marketing", defaultMarketingConfig());
-  const parsedAnalytics = AnalyticsConfigSchema.parse(analyticsRaw);
-  // Konektor Google Analytics: ID pomiaru z VITE_LOVABLE_CONNECTOR_* jest
-  // zapasowym źródłem, gdy admin nie ustawił GA4 w panelu. Zgoda na
-  // kategorię "analytics" nadal jest wymagana - konektor jej nie omija.
-  const connectorGa4Id = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY;
-  const fallbackGa4Id =
-    (typeof connectorGa4Id === "string" ? connectorGa4Id.trim() : "") || GA4_MEASUREMENT_ID;
-  const analytics: AnalyticsConfig = !parsedAnalytics.ga4_measurement_id
-    ? { ...parsedAnalytics, ga4_measurement_id: fallbackGa4Id }
-    : parsedAnalytics;
-  const marketing: MarketingConfig = MarketingConfigSchema.parse(marketingRaw);
+  const analytics: AnalyticsConfig = parseOrDefault(
+    AnalyticsConfigSchema,
+    analyticsRaw,
+    defaultAnalyticsConfig,
+  );
+  const marketing: MarketingConfig = parseOrDefault(
+    MarketingConfigSchema,
+    marketingRaw,
+    defaultMarketingConfig,
+  );
   const { categories, mounted } = useEffectiveConsent();
-  const ga4Id = analytics.ga4_measurement_id;
+  // Identyfikator GA4 dla przeglądarki: tag z SSR > wpis z panelu > konektor >
+  // stała (patrz `resolveBrowserGa4Id`). „Odłącz GA4" w panelu
+  // (`ga4_enabled: false`) zatrzymuje bootstrap i aktualizacje zgody - tag z SSR
+  // zostaje wtedy w trybie pełnej odmowy, czyli bez cookies i identyfikatorów.
+  const ga4Id =
+    analytics.ga4_enabled === false
+      ? ""
+      : resolveBrowserGa4Id({
+          settingsId: analytics.ga4_measurement_id,
+          connectorId: import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY,
+        });
 
   // GA4 w trybie domyślnej odmowy: tag startuje od razu z wszystkimi
   // kategoriami `denied`, a decyzja odwiedzającego jedynie je aktualizuje.

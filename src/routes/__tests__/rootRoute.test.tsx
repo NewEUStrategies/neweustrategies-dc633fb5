@@ -33,6 +33,7 @@
 import { readChromeWarmup } from "@/lib/ssr/chromeWarmup";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
 
 const h = vi.hoisted(() => ({
   lang: "pl" as "pl" | "en",
@@ -349,7 +350,7 @@ describe("__root head()", () => {
     const head = Route.options.head as unknown as () => {
       meta: Record<string, unknown>[];
       links: Record<string, unknown>[];
-      scripts: { type?: string; children?: string }[];
+      scripts: { type?: string; children?: string; src?: string; async?: boolean }[];
     };
     const r = head();
     expect(r.meta[0]).toEqual({
@@ -359,7 +360,19 @@ describe("__root head()", () => {
     });
     expect(r.meta.length).toBeGreaterThan(1);
     expect(r.links.some((l) => l.rel === "stylesheet")).toBe(true);
-    expect(r.scripts[0]?.type).toBe("speculationrules");
+    // Tag Google w SSR: zgoda domyślna PRZED konfiguracją strumienia, potem
+    // gtag.js ładowany identyfikatorem GA4; reguły spekulacji zamykają listę.
+    const snippet = r.scripts[0]?.children ?? "";
+    expect(snippet).toContain("gtag('consent','default'");
+    expect(snippet).toContain(`gtag('config',"${GA4_MEASUREMENT_ID}",{send_page_view:false})`);
+    expect(snippet.indexOf("gtag('consent','default'")).toBeLessThan(
+      snippet.indexOf("gtag('config'"),
+    );
+    expect(r.scripts[1]).toMatchObject({
+      src: `https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`,
+      async: true,
+    });
+    expect(r.scripts.at(-1)?.type).toBe("speculationrules");
   });
 });
 

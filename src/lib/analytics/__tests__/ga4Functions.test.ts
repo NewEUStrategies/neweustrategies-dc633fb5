@@ -785,6 +785,36 @@ describe("sendGa4Event - wysyłka", () => {
     expect(wynik).toEqual({ ok: true, configured: true, debug: walidacja });
   });
 
+  it("debug z listą validationMessages oddaje ok=false i treść odmowy w error, mimo HTTP 200", async () => {
+    vi.stubEnv("GA4_MEASUREMENT_ID", MEASUREMENT_ID);
+    const walidacja = JSON.stringify({
+      validationMessages: [
+        {
+          fieldPath: "events",
+          description: "Event name is invalid",
+          validationCode: "NAME_INVALID",
+        },
+      ],
+    });
+    zawsze(() => odpowiedz(200, walidacja));
+
+    const wynik = await wyslij(najemca(TENANT_A, ADMIN_A), { debug: true });
+
+    expect(wynik.ok).toBe(false);
+    expect(wynik.configured).toBe(true);
+    expect(wynik.debug).toBe(walidacja);
+    expect(wynik.error).toContain("Event name is invalid");
+  });
+
+  it("debug z odpowiedzią JSON bez validationMessages przechodzi jako przyjęte", async () => {
+    vi.stubEnv("GA4_MEASUREMENT_ID", MEASUREMENT_ID);
+    zawsze(() => odpowiedz(200, "{}"));
+
+    const wynik = await wyslij(najemca(TENANT_A, ADMIN_A), { debug: true });
+
+    expect(wynik).toEqual({ ok: true, configured: true, debug: "{}" });
+  });
+
   it("debug z odmową Google oddaje ok=false razem z treścią walidacji", async () => {
     vi.stubEnv("GA4_MEASUREMENT_ID", MEASUREMENT_ID);
     zawsze(() => odpowiedz(400, "invalid measurement id"));

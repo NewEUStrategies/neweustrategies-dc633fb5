@@ -50,6 +50,21 @@ export function initObservability(): () => void {
   window.addEventListener("error", onError);
   window.addEventListener("unhandledrejection", onRejection);
 
+  // NARUSZENIA CSP. Przeglądarka blokuje skrypt albo beacon po cichu (tylko
+  // wpis w konsoli odwiedzającego), więc dashboard błędów nic o tym nie wie -
+  // tak tag Google znikał z produkcji przez cztery dni bez jednego sygnału.
+  // Raport idzie tym samym kanałem co błędy nieobsłużone, z prefiksem `[csp]`.
+  const onCspViolation = (event: Event) => {
+    const violation = event as Partial<SecurityPolicyViolationEvent>;
+    reportClientError(
+      new Error(
+        `[csp] ${violation.violatedDirective ?? "?"} blocked ${violation.blockedURI ?? "?"}`,
+      ),
+      "onerror",
+    );
+  };
+  document.addEventListener("securitypolicyviolation", onCspViolation);
+
   // BŁĘDY BOOTU zbuforowane, ZANIM ten moduł w ogóle istniał.
   //
   // Sonda `BOOT_PROBE_SCRIPT` to klasyczny skrypt w `<head>`, pierwszy
@@ -80,6 +95,7 @@ export function initObservability(): () => void {
   return () => {
     window.removeEventListener("error", onError);
     window.removeEventListener("unhandledrejection", onRejection);
+    document.removeEventListener("securitypolicyviolation", onCspViolation);
     teardownWebVitals();
     started = false;
   };

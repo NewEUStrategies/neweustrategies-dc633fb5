@@ -60,6 +60,29 @@ describe("initObservability", () => {
     expect(initWebVitals).toHaveBeenCalledTimes(2);
   });
 
+  it("nasłuchuje naruszeń CSP na dokumencie i zdejmuje nasłuch przy cleanupie", () => {
+    const docAdd = vi.spyOn(document, "addEventListener");
+    const docRemove = vi.spyOn(document, "removeEventListener");
+    cleanup = initObservability();
+    expect((docAdd.mock.calls as unknown[][]).map((c) => c[0])).toContain(
+      "securitypolicyviolation",
+    );
+    // Tak przeglądarka zgłasza zablokowany przez CSP skrypt - dokładnie ten
+    // przypadek, przez który tag Google zniknął z produkcji bez sygnału.
+    const violation = Object.assign(new Event("securitypolicyviolation"), {
+      violatedDirective: "script-src",
+      blockedURI: "https://www.googletagmanager.com/gtag/js",
+    });
+    expect(() => document.dispatchEvent(violation)).not.toThrow();
+    cleanup();
+    cleanup = undefined;
+    expect((docRemove.mock.calls as unknown[][]).map((c) => c[0])).toContain(
+      "securitypolicyviolation",
+    );
+    docAdd.mockRestore();
+    docRemove.mockRestore();
+  });
+
   it("error and rejection events are handled without throwing", () => {
     cleanup = initObservability();
     expect(() =>
