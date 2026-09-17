@@ -353,6 +353,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     try {
       await submit({ data: payload });
       setStatus("ok");
+      // Konwersja liczy się TYLKO po potwierdzeniu zapisu przez serwer.
+      trackFormConversion({ formId, formName: title || undefined, lang });
       (e.target as HTMLFormElement).reset();
     } catch {
       setStatus("err");
