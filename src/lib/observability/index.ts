@@ -4,7 +4,7 @@
 // beaconed to the configurable observability endpoint. Idempotent and SSR-safe -
 // call once on the client (wired from the root component's mount effect).
 import { initWebVitals } from "@/lib/webVitals";
-import { reportClientError } from "./report";
+import { reportClientError, observabilityEndpoint } from "./report";
 
 export {
   observabilityEndpoint,
@@ -28,6 +28,30 @@ function bootProbeEntryToError(entry: BootProbeEntry): Error {
   const error = new Error(`[boot] ${entry.m ?? "nieznany błąd bootu"}${where}`);
   if (entry.s) error.stack = entry.s;
   return error;
+}
+
+/** Górna granica raportów naruszeń CSP z jednej strony - patrz `initObservability`. */
+export const MAX_CSP_REPORTS = 5;
+
+/**
+ * Czy zablokowany adres to nasz własny endpoint raportowania błędów. Porównanie
+ * po originie i ścieżce, bo przeglądarka podaje w `blockedURI` adres bez
+ * parametrów zapytania (a dla innych originów - sam origin).
+ */
+function isReportingEndpoint(blockedUri: string): boolean {
+  const endpoint = observabilityEndpoint();
+  if (!endpoint) return false;
+  try {
+    const base = typeof location === "undefined" ? "https://localhost/" : location.href;
+    const target = new URL(endpoint, base);
+    const blocked = new URL(blockedUri, base);
+    return (
+      blocked.origin === target.origin &&
+      (blocked.pathname === "/" || target.pathname.startsWith(blocked.pathname))
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function initObservability(): () => void {
@@ -54,12 +78,21 @@ export function initObservability(): () => void {
   // wpis w konsoli odwiedzającego), więc dashboard błędów nic o tym nie wie -
   // tak tag Google znikał z produkcji przez cztery dni bez jednego sygnału.
   // Raport idzie tym samym kanałem co błędy nieobsłużone, z prefiksem `[csp]`.
+  //
+  // DWA BEZPIECZNIKI PRZED PĘTLĄ. Gdy CSP blokuje SAM endpoint raportowania
+  // (zewnętrzny `VITE_OBSERVABILITY_ENDPOINT` poza `connect-src`), beacon
+  // z raportem naruszenia sam generuje kolejne naruszenie - i tak bez końca.
+  // Dlatego: (1) naruszenie dotyczące endpointu raportowania jest pomijane,
+  // (2) na stronę idzie najwyżej `MAX_CSP_REPORTS` raportów - do diagnozy
+  // wystarczy pierwszy, a strona nie może stać się generatorem beaconów.
+  let cspReports = 0;
   const onCspViolation = (event: Event) => {
     const violation = event as Partial<SecurityPolicyViolationEvent>;
+    const blocked = violation.blockedURI ?? "?";
+    if (isReportingEndpoint(blocked) || cspReports >= MAX_CSP_REPORTS) return;
+    cspReports += 1;
     reportClientError(
-      new Error(
-        `[csp] ${violation.violatedDirective ?? "?"} blocked ${violation.blockedURI ?? "?"}`,
-      ),
+      new Error(`[csp] ${violation.violatedDirective ?? "?"} blocked ${blocked}`),
       "onerror",
     );
   };

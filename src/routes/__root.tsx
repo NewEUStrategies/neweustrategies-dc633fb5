@@ -96,6 +96,7 @@ import {
   GA4_MEASUREMENT_ID,
   GOOGLE_ADS_ID,
 } from "../lib/analytics/ga4Client";
+import { AnalyticsConfigSchema, defaultAnalyticsConfig } from "../lib/analytics/config";
 
 export const ROOT_WARM_BUDGET_MS = 2_500;
 
@@ -192,13 +193,43 @@ const ROOT_GA4_ID: string =
   asGa4MeasurementId(import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY) ||
   GA4_MEASUREMENT_ID;
 
-// gtag.js ładuje się identyfikatorem strumienia GA4 - po nim weryfikator Google
-// rozpoznaje instalację. Google Ads jest dodatkowym miejscem docelowym tego
-// samego tagu (`gtag('config', 'AW-…')` w snippecie), nie osobnym skryptem.
-const ROOT_TAG_ID: string = ROOT_GA4_ID || GOOGLE_ADS_ID;
+/** Tag Google emitowany w SSR: strumień GA4 z ustawień najemcy albo stała wdrożenia. */
+interface SsrGoogleTag {
+  measurementId: string;
+  enabled: boolean;
+}
+
+const DEFAULT_SSR_GOOGLE_TAG: SsrGoogleTag = { measurementId: ROOT_GA4_ID, enabled: true };
+
+/**
+ * Strumień GA4 dla tagu w `<head>` z wpisu panelu analityki
+ * (`site_settings.analytics`), którego `head()` sam nie widzi - jedzie przez
+ * `loaderData` korzenia. Wpis o kształcie innym niż `G-XXXXXXXXXX` (np. klucz
+ * API wklejony przez pomyłkę) nie trafia do HTML - zostaje stała wdrożenia.
+ * „Odłącz GA4" w panelu (`ga4_enabled: false`) wyłącza tag w SSR; bootstrap
+ * kliencki (`ConsentScriptInjector`) dopina się do TEGO strumienia, więc SSR
+ * i klient nigdy nie konfigurują dwóch różnych. Dokument jest cache'owany na
+ * brzegu, więc zmiana w panelu dochodzi z opóźnieniem `s-maxage` dokumentu.
+ */
+function ssrGoogleTag(settings: Readonly<Record<string, unknown>> | undefined): SsrGoogleTag {
+  const analytics = resolveSetting(
+    settings,
+    "analytics",
+    defaultAnalyticsConfig(),
+    AnalyticsConfigSchema,
+  );
+  if (analytics.ga4_enabled === false) return { measurementId: "", enabled: false };
+  return {
+    measurementId: asGa4MeasurementId(analytics.ga4_measurement_id) || ROOT_GA4_ID,
+    enabled: true,
+  };
+}
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => {
+  head: (ctx) => {
+    // Tag Google z loaderData (patrz `ssrGoogleTag`); bez loaderData (render
+    // błędu, wywołanie bez kontekstu) - stała wdrożenia.
+    const googleTag = ctx?.loaderData?.ga4 ?? DEFAULT_SSR_GOOGLE_TAG;
     // One language source for the whole document head, matching the <html lang>
     // RootShell emits. Both read the request-scoped currentLang() (NOT the
     // module-global i18next singleton, which is shared across concurrent SSR
@@ -240,13 +271,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // pierwszym bajcie HTML. Tryb domyślnej odmowy jest wysyłany przed
         // konfiguracją strumienia, więc bez zgody nie powstają cookies; decyzję
         // odwiedzającego aplikuje `ga4ConsentUpdate` (ConsentScriptInjector).
-        // Skrypt ładuje się identyfikatorem GA4; Google Ads to drugie miejsce
-        // docelowe tego samego tagu. Hosty Google muszą być w CSP (`start.ts`).
-        ...(ROOT_TAG_ID
+        // gtag.js ładuje się identyfikatorem strumienia GA4 - po nim weryfikator
+        // Google rozpoznaje instalację; Google Ads to drugie miejsce docelowe
+        // tego samego tagu, nie osobny skrypt. Hosty Google są w CSP (`start.ts`).
+        ...(googleTag.enabled
           ? [
-              { children: ga4SsrSnippet(ROOT_GA4_ID, GOOGLE_ADS_ID) },
+              { children: ga4SsrSnippet(googleTag.measurementId, GOOGLE_ADS_ID) },
               {
-                src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ROOT_TAG_ID)}`,
+                src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(googleTag.measurementId || GOOGLE_ADS_ID)}`,
                 async: true,
               },
             ]
@@ -585,9 +617,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         setCacheControlHeader(resilientCacheControl(true));
       }
     }
-    // Nothing reads the root loader's data - return null so the settings map is
-    // not serialized a second time into the dehydrated payload.
-    return null;
+    // Jedyne, co czyta loaderData korzenia: strumień GA4 dla tagu Google w
+    // head() (`ssrGoogleTag`). Mapa ustawień celowo NIE wraca stąd - byłaby
+    // serializowana drugi raz do dehydratowanego payloadu.
+    return { ga4: ssrGoogleTag(settings) };
   },
   shellComponent: RootShell,
   component: RootComponent,
