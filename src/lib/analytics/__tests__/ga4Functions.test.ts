@@ -454,6 +454,8 @@ describe("runGa4Report - kształt żądania do Data API", () => {
       dateRanges: [{ startDate: "2026-08-01", endDate: "2026-08-28" }],
       dimensions: [{ name: "date" }, { name: "country" }],
       metrics: [{ name: "sessions" }, { name: "activeUsers" }],
+      // Bez agregacji TOTAL Data API nie oddaje `totals`, z których żyją kafle KPI.
+      metricAggregations: ["TOTAL"],
       limit: "250",
     });
   });
@@ -465,6 +467,7 @@ describe("runGa4Report - kształt żądania do Data API", () => {
       dateRanges: [{ startDate: "28daysAgo", endDate: "today" }],
       dimensions: [{ name: "date" }],
       metrics: [{ name: "sessions" }, { name: "activeUsers" }, { name: "screenPageViews" }],
+      metricAggregations: ["TOTAL"],
       limit: "100",
     });
   });
