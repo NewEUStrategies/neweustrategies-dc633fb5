@@ -38,6 +38,10 @@ import {
 } from "../lib/seo/rootHead";
 import { LOCALE_CHUNK_URLS } from "../lib/seo/localeChunks";
 import { showsSiteChrome } from "../lib/routing/siteChrome";
+import {
+  CLIENT_ONLY_WARM_BUDGET_MS,
+  isClientOnlyDocument,
+} from "../lib/routing/clientOnlyDocument";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
 import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
@@ -411,10 +415,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
     // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
     // stronie. Zmierzone: 3 równoległe podżądania -> 2.
+    // TERMIN FALI 1 - trzy rozłączne kontrakty, w kolejności od najwęższego.
+    //
+    //  1. Strona główna: wspólny deadline całego renderu, docięty osobnym
+    //     sufitem motywu (`HOME_THEME_BUDGET_MS`).
+    //  2. Dokument BEZ serwerowego renderu (`/admin`, `ssr: false`): krótki
+    //     termin z `clientOnlyDocument.ts`. Fala 1 nie maluje tam ani jednego
+    //     piksela - ani treści (trasa nie ma SSR), ani chrome'u (`showsSiteChrome`
+    //     jest fałszem) - a dokumenty panelu są na deny-liście NES Edge Cache,
+    //     więc te 2 500 ms płaciło KAŻDE twarde wejście do panelu.
+    //  3. Reszta serwisu: bez zmian, czyli pełny `ROOT_WARM_BUDGET_MS`.
+    //
+    // Trzeci argument `withBudget` może budżet wyłącznie SKRÓCIĆ (kontrakt
+    // `lib/asyncBudget.ts`), więc żaden z tych wariantów nie podnosi sufitu
+    // fali 1 ani łańcucha rozgrzewki korzenia pilnowanego przez `check:ssr-budgets`.
     const themeDeadline =
-      homeDeadline === undefined
-        ? undefined
-        : Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS);
+      homeDeadline !== undefined
+        ? Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS)
+        : isServer && isClientOnlyDocument(path)
+          ? Date.now() + CLIENT_ONLY_WARM_BUDGET_MS
+          : undefined;
     await withBudget(
       Promise.allSettled([
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),

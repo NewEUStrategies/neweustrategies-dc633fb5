@@ -69,10 +69,30 @@ export const Route = createFileRoute("/admin/analytics/bi")({
   component: AnalyticsBiPage,
 });
 
-function Fallback() {
+/**
+ * REZERWA UKŁADU NA DASHBOARD, w pikselach - naprawa CLS 0,676 na tej ścieżce.
+ *
+ * MECHANIZM DEFEKTU: siedem `Suspense` jeden pod drugim, każdy z migotką
+ * wysokości ~72 px (`py-10`), każdy rozstrzygający się NIEZALEŻNIE (osobny
+ * chunk + osobne zapytania) i każdy dorastający do kilkuset pikseli. Dashboard
+ * numer siedem przesuwa się więc sześć razy, numer sześć - pięć razy, i tak
+ * dalej: to jest najwyższy CLS w całym serwisie (próg "Poor" = 0,250).
+ *
+ * LICZBY SĄ PRZYBLIŻENIAMI wysokości typowego dashboardu (nagłówek karty +
+ * wiersz kafli + wykres), nie kontraktem - dokładna wysokość zależy od danych.
+ * Rezerwa nieco za mała zostawia resztę przesunięcia, za duża daje jednorazowe
+ * skrócenie po załadowaniu; obie są o rząd wielkości lepsze od 72 px.
+ */
+const DASHBOARD_RESERVE_PX = 420;
+
+function Fallback({ minHeight = DASHBOARD_RESERVE_PX }: { minHeight?: number }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">
+    <div
+      role="status"
+      className="flex items-center justify-center py-10 text-muted-foreground text-sm"
+      style={{ minHeight: `${minHeight}px` }}
+    >
       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       {t("adminAnalytics.common.loadingData")}
     </div>
@@ -102,7 +122,8 @@ function AnalyticsBiPage() {
         <p className="text-sm text-muted-foreground mt-1">{t("adminAnalytics.bi.subtitle")}</p>
       </header>
 
-      <Suspense fallback={<Fallback />}>
+      {/* Mapa choropletowa - najwyższy panel na tym ekranie. */}
+      <Suspense fallback={<Fallback minHeight={560} />}>
         <TrafficGeoDashboard />
       </Suspense>
 
@@ -129,7 +150,7 @@ function AnalyticsBiPage() {
         />
       </Suspense>
 
-      <Suspense fallback={<Fallback />}>
+      <Suspense fallback={<Fallback minHeight={280} />}>
         <FooterAnalyticsPanel />
       </Suspense>
     </div>

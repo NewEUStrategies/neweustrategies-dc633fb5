@@ -30,7 +30,12 @@ import {
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
 
-import { useSiteSetting } from "@/lib/useSiteSetting";
+import { resolveSetting, siteSettingsQueryOptions, useSiteSetting } from "@/lib/useSiteSetting";
+import { useQuery } from "@tanstack/react-query";
+import {
+  readRememberedSidebarStyle,
+  rememberSidebarStyle,
+} from "@/lib/admin/sidebarStylePreference";
 import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -298,8 +303,42 @@ function AdminShellInner({
   const path = useRouterState({ select: (s) => s.location.pathname });
   const lang = i18n.language ?? "pl";
   const { extras } = useAdminSidebarExtrasSlot();
-  const themeOpts = useSiteSetting<SidebarLogoCfg>("theme_options", SIDEBAR_LOGO_DEFAULTS);
-  const sidebarStyle = themeOpts.sidebars?.style ?? "style-1";
+  // SZEROKOŚĆ PASKA JEST DECYZJĄ UKŁADU, więc nie wolno jej podjąć dwa razy.
+  //
+  // `useSiteSetting` scala domyślne z danymi i NIE ODRÓŻNIA "jeszcze nie
+  // wiem" od "najemca ma style-1" - a te dwa stany prowadzą tu do dwóch
+  // różnych szerokości (14 rem vs 3 rem dla `style-4`). Czytamy więc surowe
+  // zapytanie: dopóki mapa ustawień nie przyjechała, pierwszym malowaniem
+  // rządzi wariant ZAPAMIĘTANY z poprzedniego wejścia (patrz
+  // `lib/admin/sidebarStylePreference.ts` - to jest naprawa CLS 0,532 na
+  // `/admin`), a nie wbudowane domyślne.
+  const settingsQuery = useQuery(siteSettingsQueryOptions);
+  const themeOpts = resolveSetting<SidebarLogoCfg>(
+    settingsQuery.data,
+    "theme_options",
+    SIDEBAR_LOGO_DEFAULTS,
+  );
+  // Inicjalizator, nie odczyt w renderze: wartość musi być stabilna przez
+  // całe życie komponentu, inaczej zapis z innej karty przestawiłby układ
+  // w środku sesji.
+  const [rememberedStyle] = useState<SidebarStyle | null>(() =>
+    typeof window === "undefined" ? null : readRememberedSidebarStyle(),
+  );
+  // `dataUpdatedAt > 0`, nie samo `data !== undefined` - to ta sama doktryna,
+  // co `hasSsrQueryData` w warstwie SSR. Loader korzenia ZASIEWA pustą mapę
+  // ustawień z `updatedAt: 0`, gdy fala 1 nic nie dowiozła; taki zasiew jest
+  // PRZETERMINOWANY z premedytacją i klient dociąga prawdziwą wartość zaraz po
+  // hydratacji. Potraktowanie go jako rozstrzygnięcia zapisałoby do pamięci
+  // „style-1" wyprowadzone z fallbacku i skasowało poprawny wariant najemcy -
+  // czyli naprawa CLS fundowałaby przesunięcie przy następnym wejściu.
+  const settingsResolved = settingsQuery.data !== undefined && settingsQuery.dataUpdatedAt > 0;
+  const resolvedStyle: SidebarStyle | null = settingsResolved
+    ? (themeOpts.sidebars?.style ?? "style-1")
+    : null;
+  const sidebarStyle: SidebarStyle = resolvedStyle ?? rememberedStyle ?? "style-1";
+  useEffect(() => {
+    if (resolvedStyle) rememberSidebarStyle(resolvedStyle);
+  }, [resolvedStyle]);
 
   const isEditRoute =
     /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
@@ -636,18 +675,30 @@ function SidebarBrand({ compact }: { compact: boolean }) {
     (isDark ? logo.main_dark : logo.main) ||
     logo.main;
 
+  // WYSOKOŚĆ WIERSZA MARKI JEST PRZYPIĘTA, bo jego zawartość zmienia się PO
+  // pierwszym malowaniu: dopóki `theme_options` nie przyjechało, renderuje się
+  // napis (jedna linia), a po odpowiedzi bazy - logo najemcy (do 36 px).
+  // Bez `h-8`/`h-9` cała nawigacja pod spodem zjeżdżała wtedy w dół.
   if (compact) {
-    return iconSrc ? (
-      <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
-    ) : (
-      <span className="text-base">New European Strategies</span>
+    return (
+      <span className="flex h-8 w-8 items-center justify-center overflow-hidden">
+        {iconSrc ? (
+          <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
+        ) : (
+          <span className="text-base leading-none">New European Strategies</span>
+        )}
+      </span>
     );
   }
-  return expandedSrc ? (
-    <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
-  ) : (
-    <span>
-      New European Strategies <span className="text-brand">Admin</span>
+  return (
+    <span className="flex h-9 w-full items-center justify-center overflow-hidden">
+      {expandedSrc ? (
+        <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
+      ) : (
+        <span className="leading-tight">
+          New European Strategies <span className="text-brand">Admin</span>
+        </span>
+      )}
     </span>
   );
 }

@@ -281,6 +281,30 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
 });
 
 /**
+ * NAZWA METRYKI odcinka routingu krawędziowego w nagłówku `Server-Timing`.
+ * Jedno miejsce, bo czytają ją RUM i testy, a literał powtórzony w dwóch
+ * plikach rozjeżdża się po cichu.
+ */
+export const EDGE_ROUTING_PHASE = "edge-routing";
+
+/**
+ * Telemetria fazy - server-only i best-effort. Import DYNAMICZNY za bramką
+ * `import.meta.env.SSR`, dokładnie jak w `documentCache.server.ts`: ten plik
+ * jest osiągalny w grafie klienta, a `ssrTiming.server.ts` dotyka statycznie
+ * `@tanstack/react-start/server`, którego import-protection Vite nie
+ * przepuszcza do bundla przeglądarki.
+ */
+async function recordEdgeRoutingPhase(request: Request, durationMs: number): Promise<void> {
+  if (!import.meta.env.SSR) return;
+  try {
+    const timing = await import("@/lib/http/ssrTiming.server");
+    timing.recordRequestPhase(request, EDGE_ROUTING_PHASE, durationMs);
+  } catch {
+    /* pomiar nigdy nie może zerwać potoku dokumentu */
+  }
+}
+
+/**
  * Redirect manager (front-half): match GET/HEAD requests against per-tenant
  * rules from `public.redirects` BEFORE the router runs. A hit short-circuits
  * with the configured 301/302/307/308/410 - preserving link equity through
@@ -291,7 +315,22 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
 const redirectMiddleware = createMiddleware().server(async ({ request, next }) => {
   if (isInternalPlatformPath(new URL(request.url).pathname)) return next();
   try {
+    // ZEGAR NA CAŁYM ODCINKU ROUTINGU KRAWĘDZIOWEGO (`edge-routing`).
+    //
+    // `resolveRedirectForRequest` robi DWA SZEREGOWE odczyty planu
+    // service-role: host -> tenant (katalog tenantów) i dopiero potem reguły
+    // przekierowań. Oba mają własne terminy po 1 500 ms, oba stoją PRZED
+    // `documentCacheMiddleware` - czyli przed jakimkolwiek trafieniem w cache
+    // dokumentów - i ŻADEN z nich nie wchodzi do `db;dur`, bo ta metryka
+    // mierzy wyłącznie plan anon. Do tej pory ten odcinek był w telemetrii
+    // niewidzialny: mieścił się w różnicy `app;dur - ssr;dur` razem z siecią,
+    // middleware bezpieczeństwa i samym cache'em, więc pytanie „czy TTFB
+    // 3 s to zimny odczyt routingu" nie miało odpowiedzi opartej na pomiarze.
+    //
+    // Pomiar jest czysto obserwacyjny: nie zmienia ani jednej decyzji potoku.
+    const routingStartedAt = Date.now();
     const hit = await resolveRedirectForRequest(request);
+    void recordEdgeRoutingPhase(request, Date.now() - routingStartedAt);
     if (hit) {
       if (hit.status === 410) {
         return new Response("Gone", { status: 410 });

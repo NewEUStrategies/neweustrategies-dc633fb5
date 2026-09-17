@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminShellSkeleton } from "@/components/admin/AdminShellSkeleton";
 import { isEventStudioPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 import adminCss from "@/admin-styles.css?url";
@@ -50,13 +51,17 @@ function AdminLayout() {
     if (!loading && (!session || !isStaff)) navigate({ to: "/login" });
   }, [loading, session, isStaff, navigate]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
-        …
-      </div>
-    );
-  }
+  // SESJA ROZSTRZYGA SIĘ PO PIERWSZYM MALOWANIU (trasa `ssr: false`, token
+  // w `localStorage`), więc ten stan JEST pierwszym ekranem panelu - nie
+  // migawką. Do tej pory była to jedna wyśrodkowana kropka, którą React
+  // zamieniał następnie na całą powłokę: pasek 14 rem, nagłówek, siatka.
+  // Wymiana całego układu po ~pół sekundy to najgrubszy pojedynczy wkład do
+  // CLS 0,532 zmierzonego na `/admin`. Szkielet ma GEOMETRIĘ docelowej
+  // powłoki, więc rozstrzygnięcie sesji nie przesuwa już niczego.
+  if (loading) return <AdminShellSkeleton hideSidebar={isEventStudio} />;
+  // Brak uprawnień: świadomie NIC - efekt wyżej nawiguje na /login, a
+  // szkielet panelu pokazywany osobie spoza redakcji byłby obietnicą ekranu,
+  // którego nigdy nie zobaczy.
   if (!session || !isStaff) return null;
 
   if (isEventStudio) return <Outlet />;

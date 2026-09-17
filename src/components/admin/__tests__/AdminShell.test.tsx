@@ -207,6 +207,28 @@ interface ShellOptions {
   collapsedGroups?: string;
   /** Motyw zapisany przez użytkownika (czytany przez `ThemeProvider`). */
   storedTheme?: "light" | "dark";
+  /**
+   * NIE ZASIEWAJ mapy ustawień - odwzorowanie PIERWSZEGO renderu panelu.
+   *
+   * `/admin` jest trasą `ssr: false`, więc pierwszy render klienta NIE MA
+   * `site_settings`: nie ma ich skąd zhydratować. To jest jedyny stan, w którym
+   * pamięć wariantu paska (`lib/admin/sidebarStylePreference.ts`) w ogóle
+   * cokolwiek robi - i dlatego musi dać się go odtworzyć w teście.
+   * Atrapa Supabase RZUCA, więc zapytanie kończy się błędem i `data` zostaje
+   * `undefined`; to jest ten sam kształt stanu, co „odpowiedź jeszcze nie
+   * przyjechała", i o niego tu chodzi.
+   */
+  unseededSettings?: boolean;
+  /**
+   * Zasiej mapę ustawień jako PRZETERMINOWANĄ (`updatedAt: 0`).
+   *
+   * To jest kształt, który zostawia loader korzenia, gdy fala 1 nic nie
+   * dowiozła (`src/routes/__root.tsx` - zasiew MUSI rodzić się przeterminowany,
+   * inaczej wbudowane domyślne przypinają się w cache'u klienta na minuty).
+   * Z punktu widzenia paska bocznego to NIE jest rozstrzygnięcie, tylko
+   * fallback - i pamięć wariantu nie ma prawa go zapamiętać.
+   */
+  expiredSeed?: boolean;
 }
 
 function renderShell(options: ShellOptions = {}) {
@@ -218,6 +240,8 @@ function renderShell(options: ShellOptions = {}) {
     children = <p>treść ekranu</p>,
     collapsedGroups,
     storedTheme,
+    unseededSettings = false,
+    expiredSeed = false,
   } = options;
 
   h.pathname = pathname;
@@ -228,7 +252,13 @@ function renderShell(options: ShellOptions = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // Zasiew zamiast atrapy modułu: `useSiteSetting` robi PRAWDZIWY deep-merge
   // z domyślnymi, a `useClubPendingCounts` liczy sumę z dwóch pól.
-  queryClient.setQueryData(SETTINGS_QUERY_KEY, themeOptions ? { theme_options: themeOptions } : {});
+  if (!unseededSettings) {
+    queryClient.setQueryData(
+      SETTINGS_QUERY_KEY,
+      themeOptions ? { theme_options: themeOptions } : {},
+      expiredSeed ? { updatedAt: 0 } : undefined,
+    );
+  }
   if (clubCounts) queryClient.setQueryData(clubKeys.pendingCounts(), clubCounts);
 
   return {
@@ -344,6 +374,53 @@ describe("AdminShell - tryby sidebara", () => {
       themeOptions: { logo: { main: "https://example.com/l.png" } },
     });
     expect(sidebar()).toHaveAttribute("data-sidebar-style", "style-1");
+  });
+
+  // PIERWSZE MALOWANIE PANELU - naprawa CLS 0,532 na `/admin`.
+  //
+  // Bez tej pamięci pierwszy render (trasa `ssr: false`, brak `site_settings`
+  // w cache'u) rysował pasek ROZWINIĘTY, a po odpowiedzi bazy zwężał go do
+  // 3 rem - czyli cała treść panelu przesuwała się o 176 px w poziomie.
+  it("zanim przyjadą ustawienia, szerokość paska bierze się z ZAPAMIĘTANEGO wariantu", () => {
+    window.localStorage.setItem("nes.admin.sidebar-style", "style-4");
+    renderShell({ pathname: "/admin", unseededSettings: true });
+
+    expect(sidebar().className).toContain("w-12");
+    expect(sidebar()).toHaveAttribute("data-sidebar-style", "style-4");
+  });
+
+  it("bez zapamiętanego wariantu pierwsze malowanie zostaje przy `style-1`", () => {
+    renderShell({ pathname: "/admin", unseededSettings: true });
+
+    expect(sidebar().className).toContain("w-56");
+    expect(sidebar()).toHaveAttribute("data-sidebar-style", "style-1");
+  });
+
+  it("USTAWIENIA WYGRYWAJĄ z pamięcią i ją nadpisują - pamięć nie może zamrozić układu", () => {
+    // Kontrola negatywna: gdyby pamięć miała pierwszeństwo, zmiana wariantu
+    // w panelu nigdy nie doszłaby do skutku na maszynie, która widziała stary.
+    window.localStorage.setItem("nes.admin.sidebar-style", "style-4");
+    renderShell({ pathname: "/admin", themeOptions: { sidebars: { style: "style-1" } } });
+
+    expect(sidebar().className).toContain("w-56");
+    expect(window.localStorage.getItem("nes.admin.sidebar-style")).toBe("style-1");
+  });
+
+  it("rozstrzygnięty wariant jest zapamiętywany na następne wejście", () => {
+    renderShell({ pathname: "/admin", themeOptions: { sidebars: { style: "style-4" } } });
+
+    expect(window.localStorage.getItem("nes.admin.sidebar-style")).toBe("style-4");
+  });
+
+  it("PRZETERMINOWANY zasiew korzenia NIE kasuje pamięci - to fallback, nie rozstrzygnięcie", () => {
+    // Bez rozróżnienia `dataUpdatedAt > 0` naprawa CLS fundowałaby przesunięcie
+    // przy NASTĘPNYM wejściu: jedna czkawka bazy nadpisywałaby zapamiętany
+    // `style-4` wartością wyprowadzoną z wbudowanych domyślnych.
+    window.localStorage.setItem("nes.admin.sidebar-style", "style-4");
+    renderShell({ pathname: "/admin", expiredSeed: true });
+
+    expect(sidebar().className).toContain("w-12");
+    expect(window.localStorage.getItem("nes.admin.sidebar-style")).toBe("style-4");
   });
 
   it("panel z własną nawigacją (extras) ODBIERA zwinięcie trasie edycji", async () => {

@@ -204,6 +204,56 @@ describe("__root loader", () => {
     },
   );
 
+  // DOKUMENT BEZ SERWEROWEGO RENDERU (`/admin`, `ssr: false`).
+  //
+  // Panel nie renderuje na serwerze ANI treści (trasa wyłącza SSR), ANI chrome'u
+  // (`showsSiteChrome` jest tam fałszem), a jego dokumenty są na deny-liście
+  // NES Edge Cache - czyli każde twarde wejście płaciło pełne 2 500 ms fali 1
+  // za dane, z których nie powstaje ani jeden piksel przed hydratacją. Te trzy
+  // przypadki przypinają nowy kontrakt i jego GRANICE.
+  it("ścina falę 1 na dokumencie bez serwerowego renderu (`/admin`)", async () => {
+    h.server = true;
+    h.chrome = false;
+    h.settingsHangs = true;
+    const started = performance.now();
+    await runLoader(qc, "/admin");
+    // Z terminem: rzędu CLIENT_ONLY_WARM_BUDGET_MS. Bez niego: 2 500 ms.
+    expect(performance.now() - started).toBeLessThan(900);
+    // Zasiew rodzi się PRZETERMINOWANY, więc klient dociąga prawdziwe
+    // ustawienia natychmiast po hydratacji - tą samą drogą, co resztę panelu.
+    expect(qc.getQueryState(["site-settings"])).toMatchObject({ dataUpdatedAt: 0 });
+    await qc.cancelQueries();
+  });
+
+  it("panel NIE anuluje wspólnych zapytań motywu - to kontrakt wyłącznie strony głównej", async () => {
+    h.server = true;
+    h.chrome = false;
+    h.settingsHangs = true;
+    const cancel = vi.spyOn(qc, "cancelQueries");
+    await runLoader(qc, "/admin");
+    expect(cancel).not.toHaveBeenCalled();
+    // Zapytanie NADAL LECI: jeśli zdąży przed zamiataniem cache'u, jego dane
+    // pojadą do klienta. Termin ogranicza CZEKANIE, nie odbiera wyniku.
+    expect(qc.getQueryState(["site-settings"])?.fetchStatus).toBe("fetching");
+    await qc.cancelQueries();
+    cancel.mockRestore();
+  });
+
+  it("nawigacja SPA po panelu zachowuje pełny budżet - termin jest WYŁĄCZNIE serwerowy", async () => {
+    // KONTROLA NEGATYWNA tej zmiany, i dlatego kosztuje 2,5 s zegara. Termin
+    // liczy się od `Date.now()` W MOMENCIE WYWOŁANIA LOADERA, co jest poprawne
+    // dla żądania (jeden QueryClient na dokument) i byłoby błędem dla sesji
+    // przeglądarki (jeden QueryClient na całe życie karty). Bramką jest
+    // `isServer` - ten test pilnuje, żeby nie zniknęła.
+    h.server = false;
+    h.chrome = false;
+    h.settingsHangs = true;
+    const started = performance.now();
+    await runLoader(qc, "/admin/posts");
+    expect(performance.now() - started).toBeGreaterThan(2_000);
+    await qc.cancelQueries();
+  });
+
   it("zwraca wyłącznie strumień GA4 dla tagu Google - mapa ustawień nie jedzie do payloadu drugi raz", async () => {
     const data = await runLoader(qc);
     expect(data).toEqual({ ga4: { measurementId: GA4_MEASUREMENT_ID, enabled: true } });

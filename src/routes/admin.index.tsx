@@ -27,7 +27,15 @@ function Fallback() {
   return (
     <div
       role="status"
-      className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground"
+      // REZERWA JEDNEGO EKRANU, nie `py-16`. Ta migotka stoi na czas dociągania
+      // chunku pulpitu, po którym w jej miejscu wyrasta kilka ekranów sekcji.
+      // Bez rezerwy pasek kondycji platformy (`AdminBiStrip`) maluje się tuż
+      // pod nagłówkiem i po chwili zjeżdża o wysokość całego pulpitu - jedno
+      // z największych pojedynczych przesunięć układu na `/admin`.
+      // 70vh, a nie pełna wysokość pulpitu: tej drugiej nie da się poznać przed
+      // odczytem danych (liczba sekcji zależy od wybranego okna czasu), a
+      // rezerwa większa od potrzebnej produkuje przesunięcie w drugą stronę.
+      className="flex min-h-[70vh] items-center justify-center gap-2 py-16 text-sm text-muted-foreground"
     >
       <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
       {t("adminDashboard.state.loading")}
