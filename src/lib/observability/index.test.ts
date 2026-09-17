@@ -3,8 +3,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // initWebVitals zwraca teraz funkcję teardown (rozłączenie obserwerów przy
 // cofnięciu zgody); mock musi ją zwracać, bo initObservability woła ją w cleanupie.
 vi.mock("@/lib/webVitals", () => ({ initWebVitals: vi.fn(() => () => {}) }));
+// Raport błędu klienta jest atrapą: liczymy WYWOŁANIA, nie beacony - transport
+// i tak jest wyciszony niżej, a tu chodzi o bramki przed pętlą raportów CSP.
+vi.mock("./report", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./report")>();
+  return { ...original, reportClientError: vi.fn(() => true) };
+});
 import { initWebVitals } from "@/lib/webVitals";
-import { initObservability } from "./index";
+import { observabilityEndpoint, reportClientError } from "./report";
+import { initObservability, MAX_CSP_REPORTS } from "./index";
 
 describe("initObservability", () => {
   let addSpy: ReturnType<typeof vi.spyOn>;
@@ -58,6 +65,58 @@ describe("initObservability", () => {
     );
     cleanup = initObservability();
     expect(initWebVitals).toHaveBeenCalledTimes(2);
+  });
+
+  it("nasłuchuje naruszeń CSP na dokumencie i zdejmuje nasłuch przy cleanupie", () => {
+    const docAdd = vi.spyOn(document, "addEventListener");
+    const docRemove = vi.spyOn(document, "removeEventListener");
+    cleanup = initObservability();
+    expect((docAdd.mock.calls as unknown[][]).map((c) => c[0])).toContain(
+      "securitypolicyviolation",
+    );
+    // Tak przeglądarka zgłasza zablokowany przez CSP skrypt - dokładnie ten
+    // przypadek, przez który tag Google zniknął z produkcji bez sygnału.
+    const violation = Object.assign(new Event("securitypolicyviolation"), {
+      violatedDirective: "script-src",
+      blockedURI: "https://www.googletagmanager.com/gtag/js",
+    });
+    expect(() => document.dispatchEvent(violation)).not.toThrow();
+    cleanup();
+    cleanup = undefined;
+    expect((docRemove.mock.calls as unknown[][]).map((c) => c[0])).toContain(
+      "securitypolicyviolation",
+    );
+    docAdd.mockRestore();
+    docRemove.mockRestore();
+  });
+
+  it("naruszenie CSP trafia do raportu błędów, ale zablokowany endpoint raportowania i nadmiar są pomijane", () => {
+    vi.mocked(reportClientError).mockClear();
+    cleanup = initObservability();
+    const violation = (blockedURI: string) =>
+      Object.assign(new Event("securitypolicyviolation"), {
+        violatedDirective: "connect-src",
+        blockedURI,
+      });
+
+    document.dispatchEvent(violation("https://www.googletagmanager.com/gtag/js"));
+    expect(reportClientError).toHaveBeenCalledTimes(1);
+    expect(String((vi.mocked(reportClientError).mock.calls[0]?.[0] as Error).message)).toContain(
+      "[csp] connect-src blocked https://www.googletagmanager.com/gtag/js",
+    );
+
+    // Zablokowany WŁASNY endpoint raportowania: raport o nim byłby kolejnym
+    // zablokowanym beaconem, czyli pętlą - pomijamy.
+    const endpoint = new URL(observabilityEndpoint(), location.href);
+    document.dispatchEvent(violation(endpoint.href));
+    document.dispatchEvent(violation(endpoint.origin));
+    expect(reportClientError).toHaveBeenCalledTimes(1);
+
+    // Górna granica raportów z jednej strony.
+    for (let i = 0; i < MAX_CSP_REPORTS + 3; i += 1) {
+      document.dispatchEvent(violation(`https://blocked.example/${i}`));
+    }
+    expect(reportClientError).toHaveBeenCalledTimes(MAX_CSP_REPORTS);
   });
 
   it("error and rejection events are handled without throwing", () => {

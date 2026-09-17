@@ -454,6 +454,8 @@ describe("runGa4Report - kształt żądania do Data API", () => {
       dateRanges: [{ startDate: "2026-08-01", endDate: "2026-08-28" }],
       dimensions: [{ name: "date" }, { name: "country" }],
       metrics: [{ name: "sessions" }, { name: "activeUsers" }],
+      // Bez agregacji TOTAL Data API nie oddaje `totals`, z których żyją kafle KPI.
+      metricAggregations: ["TOTAL"],
       limit: "250",
     });
   });
@@ -465,6 +467,7 @@ describe("runGa4Report - kształt żądania do Data API", () => {
       dateRanges: [{ startDate: "28daysAgo", endDate: "today" }],
       dimensions: [{ name: "date" }],
       metrics: [{ name: "sessions" }, { name: "activeUsers" }, { name: "screenPageViews" }],
+      metricAggregations: ["TOTAL"],
       limit: "100",
     });
   });
@@ -783,6 +786,36 @@ describe("sendGa4Event - wysyłka", () => {
 
     expect(zadanie().url).toContain("/debug/mp/collect?");
     expect(wynik).toEqual({ ok: true, configured: true, debug: walidacja });
+  });
+
+  it("debug z listą validationMessages oddaje ok=false i treść odmowy w error, mimo HTTP 200", async () => {
+    vi.stubEnv("GA4_MEASUREMENT_ID", MEASUREMENT_ID);
+    const walidacja = JSON.stringify({
+      validationMessages: [
+        {
+          fieldPath: "events",
+          description: "Event name is invalid",
+          validationCode: "NAME_INVALID",
+        },
+      ],
+    });
+    zawsze(() => odpowiedz(200, walidacja));
+
+    const wynik = await wyslij(najemca(TENANT_A, ADMIN_A), { debug: true });
+
+    expect(wynik.ok).toBe(false);
+    expect(wynik.configured).toBe(true);
+    expect(wynik.debug).toBe(walidacja);
+    expect(wynik.error).toContain("Event name is invalid");
+  });
+
+  it("debug z odpowiedzią JSON bez validationMessages przechodzi jako przyjęte", async () => {
+    vi.stubEnv("GA4_MEASUREMENT_ID", MEASUREMENT_ID);
+    zawsze(() => odpowiedz(200, "{}"));
+
+    const wynik = await wyslij(najemca(TENANT_A, ADMIN_A), { debug: true });
+
+    expect(wynik).toEqual({ ok: true, configured: true, debug: "{}" });
   });
 
   it("debug z odmową Google oddaje ok=false razem z treścią walidacji", async () => {

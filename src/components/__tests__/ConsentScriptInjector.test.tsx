@@ -73,7 +73,12 @@ vi.mock("@/lib/ads/consent", () => ({
 
 import { ConsentScriptInjector } from "@/components/ConsentScriptInjector";
 import type { AnalyticsConfig, MarketingConfig } from "@/lib/analytics/config";
-import { resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
+import {
+  GA4_MEASUREMENT_ID,
+  ga4SsrSnippet,
+  GOOGLE_ADS_ID,
+  resetGa4BootstrapForTests,
+} from "@/lib/analytics/ga4Client";
 
 // -------------------- atrapowe identyfikatory i adresy --------------------
 
@@ -85,13 +90,20 @@ const META_ID = "PIXEL-TEST-1";
 const LINKEDIN_ID = "LI-PARTNER-TEST-1";
 const TIKTOK_ID = "TT-PIXEL-TEST-1";
 
-/** Odczyt wpisów `dataLayer` - tak GA4 przyjmuje Consent Mode v2. */
+/**
+ * Odczyt wpisów `dataLayer` - tak GA4 przyjmuje Consent Mode v2. Polecenia
+ * gtag to obiekty `arguments` (nie tablice), więc czytamy je po indeksach.
+ */
+function isCommand(entry: unknown): entry is ArrayLike<unknown> {
+  return typeof entry === "object" && entry !== null && "length" in entry;
+}
+
 function consentEntry(action: "default" | "update"): Record<string, unknown> | undefined {
   const layer: unknown = Reflect.get(window, "dataLayer");
   if (!Array.isArray(layer)) return undefined;
   const found = layer.find(
-    (entry): entry is unknown[] =>
-      Array.isArray(entry) && entry[0] === "consent" && entry[1] === action,
+    (entry): entry is ArrayLike<unknown> =>
+      isCommand(entry) && entry[0] === "consent" && entry[1] === action,
   );
   return found?.[2] as Record<string, unknown> | undefined;
 }
@@ -103,9 +115,17 @@ function configEntry(id: string): Record<string, unknown> | undefined {
   const layer: unknown = Reflect.get(window, "dataLayer");
   if (!Array.isArray(layer)) return undefined;
   const found = layer.find(
-    (entry): entry is unknown[] => Array.isArray(entry) && entry[0] === "config" && entry[1] === id,
+    (entry): entry is ArrayLike<unknown> =>
+      isCommand(entry) && entry[0] === "config" && entry[1] === id,
   );
   return found?.[2] as Record<string, unknown> | undefined;
+}
+
+function configCount(id: string): number {
+  const layer: unknown = Reflect.get(window, "dataLayer");
+  if (!Array.isArray(layer)) return 0;
+  return layer.filter((entry) => isCommand(entry) && entry[0] === "config" && entry[1] === id)
+    .length;
 }
 
 const MARK_ATTR = "data-consent-owner";
@@ -262,6 +282,8 @@ afterEach(() => {
   // GA4 nie należy do tej bramki (tryb domyślnej odmowy Google), więc jego tag
   // trzeba sprzątnąć osobno - inaczej wyciekłby do kolejnego przypadku.
   document.head.querySelectorAll("script[data-ga4-tag]").forEach((el) => el.remove());
+  // Tag ze snippetu SSR (bez znacznika klienckiego) też nie może wyciec.
+  document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`).forEach((el) => el.remove());
   resetGa4BootstrapForTests();
   Reflect.deleteProperty(window, "dataLayer");
   // Gdyby jakiś przypadek zostawił węzeł (a właśnie tego pilnujemy), nie może
@@ -413,6 +435,54 @@ describe("ConsentScriptInjector - loadery analityki", () => {
       functionality_storage: "denied",
       ad_storage: "denied",
     });
+  });
+
+  it("nieprawidłowy wpis site_settings degraduje do domyślnych zamiast wywracać stronę", () => {
+    // Identyfikator dłuższy niż dopuszcza schemat (max 64) - dawniej `.parse`
+    // rzucał w renderze i każda publiczna strona lądowała na ekranie błędu.
+    setAnalytics({ ga4_measurement_id: "G-" + "X".repeat(70) });
+
+    expect(() => renderInjector()).not.toThrow();
+
+    // Domyślne = brak wpisu z panelu, więc bootstrap idzie ze stałą wdrożenia.
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+    expect(configEntry(GA4_MEASUREMENT_ID)).toBeDefined();
+  });
+
+  it("Odłącz GA4 w panelu (ga4_enabled: false) zatrzymuje bootstrap i aktualizacje zgody", () => {
+    setAnalytics({ ga4_measurement_id: GA4_ID, ga4_enabled: false });
+    grant({ analytics: true });
+
+    renderInjector();
+
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(0);
+    expect(consentDefault()).toBeUndefined();
+    expect(consentUpdate()).toBeUndefined();
+  });
+
+  it("dopina się do tagu ze snippetu SSR zamiast konfigurować drugi strumień", () => {
+    // Snippet SSR z __root.tsx: `window.gtag`, zgoda domyślna i oba `config`
+    // wykonane w <head>, plus <script async src=gtag/js?id=…> BEZ znacznika
+    // klienckiego. Panel ma tu INNY identyfikator - klient nie może z niego
+    // zrobić drugiego strumienia (dual-tagging).
+    const ssrId = "G-SSR0000001";
+    new Function(ga4SsrSnippet(ssrId, GOOGLE_ADS_ID))();
+    const ssrTag = document.createElement("script");
+    ssrTag.async = true;
+    ssrTag.src = `${GTAG_PREFIX}${encodeURIComponent(ssrId)}`;
+    document.head.appendChild(ssrTag);
+    setAnalytics({ ga4_measurement_id: GA4_ID });
+
+    const view = renderInjector();
+    grant({ analytics: true });
+    view.rerender(<ConsentScriptInjector />);
+
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(0);
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
+    expect(configEntry(GA4_ID)).toBeUndefined();
+    expect(configCount(ssrId)).toBe(1);
+    expect(configCount(GOOGLE_ADS_ID)).toBe(1);
+    expect(consentUpdate()).toMatchObject({ analytics_storage: "granted" });
   });
 
   it("GTM dodaje inline snippet z identyfikatorem kontenera i własnym znacznikiem sprzątania", () => {

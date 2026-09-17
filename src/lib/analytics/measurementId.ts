@@ -7,8 +7,12 @@
  * Google Analytics (`VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY`).
  * Konektor jest źródłem zapasowym - dokładnie jak w kliencie
  * (`ConsentScriptInjector`), żeby panel i realne wysyłanie zdarzeń nigdy
- * nie raportowały różnych wartości.
+ * nie raportowały różnych wartości. Wartość konektora przechodzi przez filtr
+ * kształtu `G-XXXXXXXXXX` (`asGa4MeasurementId`): to zmienna klucza API, więc
+ * cokolwiek innego niż identyfikator pomiaru jest traktowane jako BRAK.
  */
+
+import { asGa4MeasurementId } from "./tagIds";
 
 export type Ga4MeasurementIdSource = "secret" | "settings" | "connector" | null;
 
@@ -22,7 +26,7 @@ function clean(value: string | undefined): string {
 }
 
 export function connectorGa4MeasurementId(): string {
-  return clean(process.env["VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY"]);
+  return asGa4MeasurementId(process.env["VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY"]);
 }
 
 export function resolveGa4MeasurementId(storedId?: string | null): ResolvedGa4MeasurementId {

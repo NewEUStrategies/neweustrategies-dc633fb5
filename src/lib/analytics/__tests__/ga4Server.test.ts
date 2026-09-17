@@ -645,6 +645,8 @@ describe("runGa4DataApiReport - kształt żądania", () => {
       dateRanges: [{ startDate: "2026-08-01", endDate: "2026-08-28" }],
       dimensions: [{ name: "date" }, { name: "country" }],
       metrics: [{ name: "sessions" }, { name: "activeUsers" }],
+      // Bez agregacji TOTAL odpowiedź nie niesie `totals` - kafle KPI liczą z nich.
+      metricAggregations: ["TOTAL"],
       // Data API przyjmuje `limit` jako string - liczba przechodzi przez tsc,
       // ale Google odpowiada 400.
       limit: "100",
@@ -999,5 +1001,74 @@ describe("ga4TotalsMap", () => {
     const mapa = ga4TotalsMap(raport({ metricHeaders: ["sessions"], totals: ["17", "99"] }));
 
     expect([...mapa.entries()]).toEqual([["sessions", 17]]);
+  });
+});
+
+describe("runGa4DataApiReport - totale i identyfikator usługi (regresje dashboardu)", () => {
+  const REQ = {
+    propertyId: "123456789",
+    startDate: "2026-08-01",
+    endDate: "2026-08-28",
+    dimensions: [] as string[],
+    metrics: ["sessions", "activeUsers"],
+    limit: 10,
+  };
+
+  it("raport bez wymiarów bez `totals` bierze sumy z jedynego wiersza", async () => {
+    zawsze(() =>
+      odpowiedz(
+        200,
+        JSON.stringify({
+          metricHeaders: [{ name: "sessions" }, { name: "activeUsers" }],
+          rows: [{ metricValues: [{ value: "5" }, { value: "3" }] }],
+        }),
+      ),
+    );
+    const { runGa4DataApiReport } = await loadGa4();
+
+    const raport = await runGa4DataApiReport(REQ, "token");
+
+    expect(raport.totals).toEqual(["5", "3"]);
+    expect(raport.rows).toEqual([{ dims: [], metrics: ["5", "3"] }]);
+  });
+
+  it("raport bez wymiarów, bez wierszy i bez `totals` daje pustą listę, nie wyjątek", async () => {
+    zawsze(() => odpowiedz(200, JSON.stringify({ metricHeaders: [{ name: "sessions" }] })));
+    const { runGa4DataApiReport } = await loadGa4();
+
+    const raport = await runGa4DataApiReport(REQ, "token");
+
+    expect(raport.totals).toEqual([]);
+    expect(raport.error).toBeUndefined();
+  });
+
+  it("`totals` z odpowiedzi wygrywa nad pierwszym wierszem", async () => {
+    zawsze(() =>
+      odpowiedz(
+        200,
+        JSON.stringify({
+          metricHeaders: [{ name: "sessions" }],
+          rows: [{ metricValues: [{ value: "5" }] }],
+          totals: [{ metricValues: [{ value: "7" }] }],
+        }),
+      ),
+    );
+    const { runGa4DataApiReport } = await loadGa4();
+
+    const raport = await runGa4DataApiReport(REQ, "token");
+
+    expect(raport.totals).toEqual(["7"]);
+  });
+
+  it("identyfikator usługi z prefiksem `properties/` (jak w podpowiedzi panelu) jest normalizowany", async () => {
+    const { resolveGa4PropertyId, normalizeGa4PropertyId } = await loadGa4();
+
+    expect(resolveGa4PropertyId("properties/222222222")).toBe("222222222");
+    expect(normalizeGa4PropertyId("PROPERTIES/333")).toBe("333");
+    expect(normalizeGa4PropertyId(null)).toBe("");
+    expect(normalizeGa4PropertyId(undefined)).toBe("");
+
+    vi.stubEnv("GA4_PROPERTY_ID", " properties/111111111 ");
+    expect(resolveGa4PropertyId("222222222")).toBe("111111111");
   });
 });

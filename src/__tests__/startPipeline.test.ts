@@ -231,6 +231,35 @@ describe("security headers across deployment modes", () => {
       value.startsWith("https") ? "wss://db.example.org" : "connect-src 'self' https: wss:",
     );
   });
+  it("dopuszcza tag Google: gtag.js w script-src, kolektory GA4 i Google Ads w connect-src", () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://db.example.org");
+    vi.stubEnv("SUPABASE_URL", "");
+    const csp =
+      applySecurityHeaders(request(), document()).headers.get("content-security-policy") ?? "";
+    const directive = (name: string) =>
+      csp
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${name} `)) ?? "";
+
+    expect(directive("script-src")).toContain("https://*.googletagmanager.com");
+    expect(directive("script-src")).toContain("https://www.googleadservices.com");
+    // example.org nie jest hostem podglądu: produkcja bez 'unsafe-eval' i bez
+    // otwartego `https:` - tylko wskazane hosty.
+    expect(directive("script-src")).not.toContain("'unsafe-eval'");
+    expect(directive("script-src")).not.toMatch(/\shttps:(\s|$)/);
+    for (const host of [
+      "https://*.google-analytics.com",
+      "https://*.analytics.google.com",
+      "https://analytics.google.com",
+      "https://www.google.com",
+      "https://googleads.g.doubleclick.net",
+      "https://pagead2.googlesyndication.com",
+    ]) {
+      expect(directive("connect-src")).toContain(host);
+    }
+    expect(directive("connect-src")).not.toMatch(/\shttps:(\s|$)/);
+  });
   it("preserves existing CSP and HSTS", () => {
     const res = document();
     res.headers.set("content-security-policy", "default-src 'none'");

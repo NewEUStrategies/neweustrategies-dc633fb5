@@ -165,8 +165,9 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
  * Baseline security headers: HSTS for every https response plus the document
  * set (CSP / X-Frame-Options / nosniff / referrer / permissions) for HTML. The
  * CSP is the defense-in-depth layer behind output escaping (see safeJsonLd):
- * even if an escape is missed somewhere, no third-party script can load,
- * nothing can frame the site, <base> cannot be hijacked and plugins are dead.
+ * even if an escape is missed somewhere, no third-party script beyond the
+ * allow-listed vendors (Stripe.js, Google tag) can load, nothing can frame
+ * the site, <base> cannot be hijacked and plugins are dead.
  *
  * Zakres 'unsafe-inline':
  * - script-src trzyma 'unsafe-inline' wyłącznie dla framework'owych snippetów
@@ -179,10 +180,10 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
  *   'unsafe-inline' w script-src (React podpina zdarzenia addEventListenerem,
  *   więc 'none' niczego nie psuje).
  * - connect-src jest zawężony do 'self' + origin Supabase (https + realtime
- *   websocket) - beacons (vitals, client-errors) i Stripe (redirect, nie XHR)
- *   idą przez 'self'. Gdy origin Supabase jest nieznany w runtime (brak env
- *   na edge'u), wraca szeroki wariant - lepsza słabsza polityka niż zerwanie
- *   połączenia z bazą.
+ *   websocket) + NBP/Stripe + kolektory tagu Google (GOOGLE_TAG_CONNECT_SRC) -
+ *   własne beacons (vitals, client-errors) idą przez 'self'. Gdy origin
+ *   Supabase jest nieznany w runtime (brak env na edge'u), wraca szeroki
+ *   wariant - lepsza słabsza polityka niż zerwanie połączenia z bazą.
  * - Google Fonts jest na allowliście stylów/fontów dla podglądu czcionek
  *   w adminie (FontPicker wstrzykuje <link> do fonts.googleapis.com).
  */
@@ -206,6 +207,32 @@ function isPreviewRequest(request: Request): boolean {
   }
 }
 
+/**
+ * Tag Google (gtag.js -> GA4 + Google Ads): hosty wg przewodnika Google „Use
+ * Google tag with a Content Security Policy". Bez tych wpisów CSP blokowało
+ * gtag.js i beacony `/g/collect` na produkcji od wejścia polityki
+ * (2026-09-13): GA4 nie odebrał ani jednego trafienia („Zbieranie danych nie
+ * jest włączone w Twojej witrynie"), choć weryfikator Google widział snippet
+ * w HTML - detektor czyta HTML serwerowo i nagłówek CSP go nie dotyczy.
+ * `img-src https:` i `frame-src https:` obejmują już piksele i ramki Google,
+ * więc rozszerzamy wyłącznie `script-src` i `connect-src`. Test regresji:
+ * `__tests__/startPipeline.test.ts`.
+ */
+const GOOGLE_TAG_SCRIPT_SRC =
+  "https://*.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com";
+const GOOGLE_TAG_CONNECT_SRC = [
+  "https://*.googletagmanager.com",
+  "https://*.google-analytics.com",
+  "https://*.analytics.google.com",
+  "https://analytics.google.com",
+  "https://stats.g.doubleclick.net",
+  "https://www.google.com",
+  "https://googleads.g.doubleclick.net",
+  "https://www.googleadservices.com",
+  "https://pagead2.googlesyndication.com",
+  "https://td.doubleclick.net",
+].join(" ");
+
 function contentSecurityPolicy(request?: Request): string {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
   let supabaseOrigins = "";
@@ -220,7 +247,7 @@ function contentSecurityPolicy(request?: Request): string {
   const preview = request ? isPreviewRequest(request) : false;
   // Kurs EUR/PLN w koszyku pobieramy bezpośrednio z NBP (Tabela A), a Stripe.js
   // odpytuje własne API - bez tych origin-ów CSP blokuje checkout w przeglądarce.
-  const extraOrigins = "https://api.nbp.pl https://api.stripe.com";
+  const extraOrigins = `https://api.nbp.pl https://api.stripe.com ${GOOGLE_TAG_CONNECT_SRC}`;
   const connectSrc = supabaseOrigins
     ? `connect-src 'self' ${supabaseOrigins} ${extraOrigins}${preview ? " https: wss:" : ""}`
     : "connect-src 'self' https: wss:";
@@ -230,7 +257,7 @@ function contentSecurityPolicy(request?: Request): string {
     // Stripe.js MUSI pochodzić z js.stripe.com (wymóg PCI - Stripe nie
     // wspiera self-hostingu tego skryptu). Bez tego wpisu CSP blokuje
     // ładowanie SDK i checkout nie startuje.
-    `script-src 'self' 'unsafe-inline' https://js.stripe.com${preview ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",

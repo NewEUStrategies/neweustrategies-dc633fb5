@@ -33,6 +33,7 @@
 import { readChromeWarmup } from "@/lib/ssr/chromeWarmup";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
 
 const h = vi.hoisted(() => ({
   lang: "pl" as "pl" | "en",
@@ -203,8 +204,10 @@ describe("__root loader", () => {
     },
   );
 
-  it("zwraca null - nikt nie czyta danych korzenia, więc ustawienia nie jadą do payloadu drugi raz", async () => {
-    await expect(runLoader(qc)).resolves.toBeNull();
+  it("zwraca wyłącznie strumień GA4 dla tagu Google - mapa ustawień nie jedzie do payloadu drugi raz", async () => {
+    const data = await runLoader(qc);
+    expect(data).toEqual({ ga4: { measurementId: GA4_MEASUREMENT_ID, enabled: true } });
+    expect(Object.keys(data as object)).toEqual(["ga4"]);
   });
 
   it("wymusza kanoniczny host i synchronizuje i18n z żądaniem", async () => {
@@ -339,7 +342,9 @@ describe("__root loader", () => {
 
   it("awaria ustawień NIE wywraca loadera - dekoracja nie może zabrać serwisu", async () => {
     h.settingsFails = true;
-    await expect(runLoader(qc)).resolves.toBeNull();
+    await expect(runLoader(qc)).resolves.toEqual({
+      ga4: { measurementId: GA4_MEASUREMENT_ID, enabled: true },
+    });
     h.settingsFails = false;
   });
 });
@@ -349,7 +354,7 @@ describe("__root head()", () => {
     const head = Route.options.head as unknown as () => {
       meta: Record<string, unknown>[];
       links: Record<string, unknown>[];
-      scripts: { type?: string; children?: string }[];
+      scripts: { type?: string; children?: string; src?: string; async?: boolean }[];
     };
     const r = head();
     expect(r.meta[0]).toEqual({
@@ -359,7 +364,19 @@ describe("__root head()", () => {
     });
     expect(r.meta.length).toBeGreaterThan(1);
     expect(r.links.some((l) => l.rel === "stylesheet")).toBe(true);
-    expect(r.scripts[0]?.type).toBe("speculationrules");
+    // Tag Google w SSR: zgoda domyślna PRZED konfiguracją strumienia, potem
+    // gtag.js ładowany identyfikatorem GA4; reguły spekulacji zamykają listę.
+    const snippet = r.scripts[0]?.children ?? "";
+    expect(snippet).toContain("gtag('consent','default'");
+    expect(snippet).toContain(`gtag('config',"${GA4_MEASUREMENT_ID}",{send_page_view:false})`);
+    expect(snippet.indexOf("gtag('consent','default'")).toBeLessThan(
+      snippet.indexOf("gtag('config'"),
+    );
+    expect(r.scripts[1]).toMatchObject({
+      src: `https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`,
+      async: true,
+    });
+    expect(r.scripts.at(-1)?.type).toBe("speculationrules");
   });
 });
 
@@ -437,5 +454,45 @@ describe("root chrome gate uses real query freshness", () => {
     expect(() => readChromeWarmup(qc)).not.toThrow();
     expect(qc.getQueryData(["menu-with-items", "main"])).toEqual([]);
     expect(h.prefetch).toHaveLength(2);
+  });
+});
+
+describe("__root loader -> tag Google w SSR", () => {
+  type HeadWithData = (ctx: { loaderData: unknown }) => {
+    scripts: { type?: string; children?: string; src?: string }[];
+  };
+  const headWithData = () => Route.options.head as unknown as HeadWithData;
+
+  it("strumień GA4 z panelu analityki trafia do loaderData, a head() emituje go w snippecie i w src gtag.js", async () => {
+    h.settings = { analytics: { ga4_measurement_id: "G-PANEL00001" } };
+
+    const data = await runLoader(qc);
+
+    expect(data).toEqual({ ga4: { measurementId: "G-PANEL00001", enabled: true } });
+    const r = headWithData()({ loaderData: data });
+    expect(r.scripts[0]?.children).toContain(
+      `gtag('config',"G-PANEL00001",{send_page_view:false})`,
+    );
+    expect(r.scripts[1]?.src).toBe("https://www.googletagmanager.com/gtag/js?id=G-PANEL00001");
+  });
+
+  it("wpis o złym kształcie (np. klucz API) nie trafia do HTML - zostaje stała wdrożenia", async () => {
+    h.settings = { analytics: { ga4_measurement_id: "AIzaSyFakeKey" } };
+
+    await expect(runLoader(qc)).resolves.toEqual({
+      ga4: { measurementId: GA4_MEASUREMENT_ID, enabled: true },
+    });
+  });
+
+  it("Odłącz GA4 w panelu (ga4_enabled: false) wyłącza tag Google w SSR", async () => {
+    h.settings = { analytics: { ga4_measurement_id: "G-PANEL00001", ga4_enabled: false } };
+
+    const data = await runLoader(qc);
+
+    expect(data).toEqual({ ga4: { measurementId: "", enabled: false } });
+    const r = headWithData()({ loaderData: data });
+    expect(r.scripts.some((s) => s.src?.includes("googletagmanager"))).toBe(false);
+    expect(r.scripts.some((s) => s.children?.includes("gtag("))).toBe(false);
+    expect(r.scripts.at(-1)?.type).toBe("speculationrules");
   });
 });
