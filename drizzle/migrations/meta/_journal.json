@@ -183,6 +183,13 @@
       "when": 1789501549844,
       "tag": "0025_tenant_scope_presence_and_rsvp_owner_read",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789663184987,
+      "tag": "0026_selfservice_privilege_pins",
+      "breakpoints": true
     }
   ]
 }
