@@ -73,7 +73,7 @@ vi.mock("@/lib/ads/consent", () => ({
 
 import { ConsentScriptInjector } from "@/components/ConsentScriptInjector";
 import type { AnalyticsConfig, MarketingConfig } from "@/lib/analytics/config";
-import { GOOGLE_ADS_ID, resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
+import { resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
 
 // -------------------- atrapowe identyfikatory i adresy --------------------
 
