@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
+import { trackFormConversion } from "@/lib/analytics/conversions";
 
 type Lang = "pl" | "en";
 
@@ -102,6 +103,8 @@ export function ContactFormView({
         },
       });
       setStatus("ok");
+      // Konwersja liczy się TYLKO po potwierdzeniu zapisu przez serwer.
+      trackFormConversion({ formId: "marketing_contact", formName: title, lang });
       setName("");
       setEmail("");
       setPhone("");
