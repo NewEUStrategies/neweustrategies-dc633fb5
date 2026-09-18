@@ -585,7 +585,7 @@ describe("handleDocumentRequest - fazy Server-Timing na BYPASS", () => {
     // Telemetria jest server-only (`if (!import.meta.env.SSR) return []`), a ta
     // suita biegnie w happy-dom. Bez podstawienia flagi test mierzyłby wyłącznie
     // gałąź "nie jesteśmy na serwerze" - czyli nie mierzyłby niczego.
-    vi.stubEnv("SSR", "true");
+    vi.stubEnv("SSR", true);
     const request = docRequest("/admin");
     const timing = await import("../ssrTiming.server");
     timing.recordRequestPhase(request, "edge-routing", 284.2);
