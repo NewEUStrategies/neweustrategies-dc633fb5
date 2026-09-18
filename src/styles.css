@@ -4637,6 +4637,9 @@ input.icon-input-with-action {
   /* Podświetlenie pod kursorem i pojawienie tooltipa. */
   --neh-hover-ms: 150ms;
   --neh-tip-ms: 120ms;
+  /* Zwłoka pola pod linią. Pole wchodzi RAZEM z rysowaniem linii, a nie po
+     nim jak odczyty spod `.neh-fade` - uzasadnienie przy regule `.neh-area`. */
+  --neh-area-delay: 120ms;
   /* Krok kaskady. Nadpisywany inline przez silnik, gdy słupków jest tyle,
      że 40 ms na element przekroczyłoby budżet 500 ms na całość. */
   --neh-step: 40ms;
@@ -4755,6 +4758,30 @@ input.icon-input-with-action {
 }
 .neh-run .neh-fade {
   transition: opacity var(--neh-state-ms) ease var(--neh-anim-ms);
+  opacity: 1;
+}
+
+/* POLE POD LINIĄ MA WŁASNY ZEGAR, oddzielony od `.neh-fade`, i to jest cała
+   różnica między wykresem, który się rysuje, a wykresem, który się składa
+   z gotowych kawałków.
+
+   `.neh-fade` czeka na koniec rysowania linii (opóźnienie = --neh-anim-ms),
+   bo niesie ODCZYTY: znaczniki punktów i etykiety wartości. Odczyt ma prawo
+   pojawić się dopiero wtedy, gdy jest już przy czym stanąć - kropka nad
+   linią, której jeszcze nie ma, wisi w pustce.
+
+   Pole nie jest odczytem, tylko drugą stroną tej samej linii, więc wchodzi
+   RAZEM z nią: opóźnienie 120 ms to około jednej czwartej czasu rysowania,
+   czyli tyle, żeby linia zdążyła wyjść z lewej krawędzi i poprowadzić ruch,
+   a powierzchnia narastała za nią, a nie doklejała się na końcu.
+
+   Czas narastania to pełne --neh-anim-ms, nie krótszy --neh-state-ms: pole
+   ma domknąć się dokładnie z linią, a nie przed nią. */
+.neh-armed .neh-area {
+  opacity: 0;
+}
+.neh-run .neh-area {
+  transition: opacity var(--neh-anim-ms) var(--neh-anim-ease) var(--neh-area-delay, 120ms);
   opacity: 1;
 }
 
@@ -5159,6 +5186,7 @@ input.icon-input-with-action {
     stroke-dasharray: var(--chart-series-dash, 7 4);
   }
   .neh-armed .neh-fade,
+  .neh-armed .neh-area,
   .neh-armed .neh-pie-group,
   .neh-armed .neh-map-countries {
     opacity: 1;
@@ -5170,6 +5198,7 @@ input.icon-input-with-action {
   }
   .neh-run .neh-line,
   .neh-run .neh-fade,
+  .neh-run .neh-area,
   .neh-run .neh-bar,
   .neh-run .neh-bar-h,
   .neh-run .neh-pie-group,
@@ -5453,6 +5482,7 @@ input.icon-input-with-action {
     stroke-dasharray: var(--chart-series-dash, 7 4);
   }
   .neh-armed .neh-fade,
+  .neh-armed .neh-area,
   .neh-armed .neh-pie-group,
   .neh-armed .neh-map-countries {
     opacity: 1;
@@ -5464,6 +5494,7 @@ input.icon-input-with-action {
   }
   .neh-run .neh-line,
   .neh-run .neh-fade,
+  .neh-run .neh-area,
   .neh-run .neh-bar,
   .neh-run .neh-bar-h,
   .neh-run .neh-pie-group,

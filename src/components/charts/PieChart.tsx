@@ -93,7 +93,9 @@ function slicePath(
 
 export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
-  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate, {
+    onMount: true,
+  });
   const [active, setActive] = useState<number | null>(null);
   const hintId = useId();
   // Owijka CAŁEGO układu (pierścień plus tabela klucza): tapnięcie w tabelę

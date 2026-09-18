@@ -235,7 +235,9 @@ export function IndexBaseChart({
     [scoped, lang],
   );
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>();
-  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate, {
+    onMount: true,
+  });
   const [active, setActive] = useState<number | null>(null);
   const hintId = useId();
 

@@ -437,7 +437,9 @@ export function HeatmapChart({
     [scoped, lang],
   );
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>();
-  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate, {
+    onMount: true,
+  });
   const [active, setActive] = useState<CellAddress | null>(null);
   const hintId = useId();
   // Identyfikator tekstury luki. `useId`, bo `url(#id)` wiąże się z PIERWSZYM

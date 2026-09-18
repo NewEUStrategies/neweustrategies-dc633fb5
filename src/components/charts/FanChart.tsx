@@ -318,7 +318,9 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
     [scoped, lang],
   );
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>();
-  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate, {
+    onMount: true,
+  });
   const [active, setActive] = useState<number | null>(null);
   // Identyfikatory bez dwukropków: `useId` daje je z dwukropkami, a taki
   // napis nie jest poprawnym selektorem ani poprawnym celem `url(#...)`.

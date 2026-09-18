@@ -43,6 +43,23 @@ const FARBA = [
   "dominant-baseline",
 ] as const;
 
+/**
+ * Własności STOPNIA GRADIENTU - osobno, bo dotyczą wyłącznie `<stop>`.
+ *
+ * Bez nich eksport gubił gradienty w sposób trudny do zauważenia na małym
+ * podglądzie i kosztowny na dużym. `stop-color` jedzie w znaczniku jako
+ * `var(--chart-N-deep)`, a `stop-opacity` pola pod linią siedzi w `style`,
+ * które ta funkcja zdejmuje razem z klasami. W pliku zostawał więc stopień
+ * bez koloru (czerń domyślna) i bez krycia (pełne 1) - czyli pole pod linią
+ * wychodziło z eksportu jako SOLIDNA PŁACHTA zasłaniająca własną linię.
+ *
+ * Lista jest oddzielna, a nie doklejona do FARBA, bo `getComputedStyle` zwróci
+ * wartość początkową tych własności dla KAŻDEGO elementu rysunku i bez tego
+ * warunku eksport dopisywałby `stop-color` do ścieżek, tekstów i prostokątów,
+ * gdzie nie znaczą nic.
+ */
+const FARBA_STOPNIA = ["stop-color", "stop-opacity"] as const;
+
 /** Czy napis jest wartością, której nie ma sensu wklejać. */
 function pusta(value: string): boolean {
   return value === "" || value === "auto" || value === "normal";
@@ -65,7 +82,8 @@ export function svgZWklejonaFarba(zrodlo: SVGSVGElement): SVGSVGElement {
     const kopia = kopie[i];
     if (widok !== null) {
       const styl = widok.getComputedStyle(el);
-      for (const nazwa of FARBA) {
+      const nazwy = el.tagName.toLowerCase() === "stop" ? [...FARBA, ...FARBA_STOPNIA] : [...FARBA];
+      for (const nazwa of nazwy) {
         const value = styl.getPropertyValue(nazwa).trim();
         // `var()` niezrozumiane przez przeglądarkę wraca tu jako pusty napis
         // albo jako samo `var(...)` - jedno i drugie jest bezużyteczne poza

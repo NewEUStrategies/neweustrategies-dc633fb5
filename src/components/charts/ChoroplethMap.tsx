@@ -84,7 +84,9 @@ interface ActiveCountry {
 export function ChoroplethMap({ config, lang, className }: DataMapProps) {
   const t = L[lang];
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
-  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate, {
+    onMount: true,
+  });
   const [active, setActive] = useState<ActiveCountry | null>(null);
 
   const geo = useQuery({
