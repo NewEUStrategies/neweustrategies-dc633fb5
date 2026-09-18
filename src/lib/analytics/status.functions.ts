@@ -9,18 +9,7 @@ import {
   resolveGa4MeasurementId,
   type Ga4MeasurementIdSource,
 } from "@/lib/analytics/measurementId";
-
-/**
- * Pierwszy niepusty sekret z listy nazw - status panelu musi widzieć te
- * same aliasy (GA4_* / GOOGLE_*), co odczyt tokenu w ga4.server.ts.
- */
-function firstEnv(...names: string[]): string | undefined {
-  for (const name of names) {
-    const value = process.env[name]?.trim();
-    if (value) return value;
-  }
-  return undefined;
-}
+import { firstEnv } from "@/lib/analytics/envSecrets";
 
 interface SelectResultRow {
   data: unknown;
