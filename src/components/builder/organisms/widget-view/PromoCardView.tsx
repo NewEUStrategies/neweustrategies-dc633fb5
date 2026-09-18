@@ -23,6 +23,7 @@
 // maszyny - inaczej serwer w UTC i przeglądarka w Warszawie wypisałyby dwie
 // różne daty dla tego samego wieczoru i React wyrzuciłby całe drzewo.
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import type { WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
@@ -70,6 +71,7 @@ function eventMetaLine(
 
 export function PromoCardView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const d = PROMO_CARD_DEFAULTS;
+  const { t } = useTranslation();
   const inBuilder = useBuilderMode() !== null;
 
   // Każde ustawienie schematu czytane BEZWARUNKOWO - bramka wierności ustawień
@@ -158,12 +160,14 @@ export function PromoCardView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   // brakuje - inaczej widget wstawiony z palety wygląda na zepsuty.
   if (!title && !image) {
     if (!inBuilder) return null;
+    // Podpowiedź kanwy idzie SŁOWNIKIEM (`t`), nie warunkiem po języku: warunek
+    // omija bramkę parytetu PL/EN i bramkę rozjazdu kod<->słownik. Mówi też
+    // w języku PANELU, a nie treści - to komunikat do redaktora, nie do
+    // czytelnika, więc ma iść za ustawieniem edytora.
     return (
       <section className="cms-promo-card">
         <p className="rounded-[6px] border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground">
-          {lang === "pl"
-            ? "Dodaj okładkę i tytuł karty (lub wybierz wydarzenie) w panelu widgetu."
-            : "Add a cover and a title (or pick an event) in the widget panel."}
+          {t("promoCard.builderEmpty")}
         </p>
       </section>
     );

@@ -43,6 +43,8 @@ vi.mock("@/integrations/supabase/client", () => {
 import { PromoCardView } from "../PromoCardView";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import type { WidgetContent } from "@/lib/builder/types";
+import { pl } from "@/lib/locale/pl";
+import { en } from "@/lib/locale/en";
 
 const base: WidgetContent = {
   title_pl: "Raport o bezpieczeństwie",
@@ -129,7 +131,16 @@ describe("PromoCardView - treść i język", () => {
         <PromoCardView c={{ mode: "link" }} lang="pl" />
       </BuilderModeProvider>,
     );
-    expect(screen.getByText(/Dodaj okładkę i tytuł karty/)).toBeInTheDocument();
+    // W teście i18next nie ma wgranych zasobów, więc `t()` zwraca KLUCZ - i to
+    // jest tu asercja właściwa: podpowiedź ma iść słownikiem, a nie warunkiem
+    // po języku wpisanym w komponent (taki warunek omija bramkę parytetu PL/EN).
+    expect(screen.getByText("promoCard.builderEmpty")).toBeInTheDocument();
+  });
+
+  it("klucz podpowiedzi istnieje w OBU słownikach - klucz bez tłumaczenia to pusty ekran", () => {
+    expect(pl.promoCard.builderEmpty).toBeTruthy();
+    expect(en.promoCard.builderEmpty).toBeTruthy();
+    expect(en.promoCard.builderEmpty).not.toBe(pl.promoCard.builderEmpty);
   });
 });
 
