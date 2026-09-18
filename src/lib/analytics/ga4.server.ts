@@ -153,9 +153,9 @@ async function getServiceAccountToken(sa: ServiceAccount): Promise<string | null
 }
 
 async function getOauthAccessToken(): Promise<string | null> {
-  const clientId = process.env.GA4_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GA4_OAUTH_CLIENT_SECRET;
-  const refreshToken = process.env.GA4_OAUTH_REFRESH_TOKEN;
+  const clientId = firstEnv("GA4_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID");
+  const clientSecret = firstEnv("GA4_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET");
+  const refreshToken = firstEnv("GA4_OAUTH_REFRESH_TOKEN", "GOOGLE_OAUTH_REFRESH_TOKEN");
   if (!clientId || !clientSecret || !refreshToken) return null;
 
   const now = Math.floor(Date.now() / 1000);
