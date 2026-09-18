@@ -140,7 +140,7 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
     // GOOGLE_*, bo pod takimi użytkownik zapisuje klucze z Google Cloud.
     const oauthClientOk = Boolean(
       firstEnv("GA4_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID") &&
-        firstEnv("GA4_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET"),
+      firstEnv("GA4_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET"),
     );
     const oauthRefreshOk = Boolean(
       firstEnv("GA4_OAUTH_REFRESH_TOKEN", "GOOGLE_OAUTH_REFRESH_TOKEN"),
