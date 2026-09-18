@@ -82,6 +82,18 @@ function readServiceAccount(): ServiceAccount | null {
   }
 }
 
+/**
+ * Pierwszy niepusty sekret z listy nazw. Pozwala przyjąć obie konwencje
+ * nazewnicze (GA4_* i GOOGLE_*) bez dublowania logiki w każdym trybie.
+ */
+function firstEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 function b64url(input: Buffer | string): string {
   const buf = typeof input === "string" ? Buffer.from(input) : input;
   return buf.toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
@@ -153,9 +165,9 @@ async function getServiceAccountToken(sa: ServiceAccount): Promise<string | null
 }
 
 async function getOauthAccessToken(): Promise<string | null> {
-  const clientId = process.env.GA4_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GA4_OAUTH_CLIENT_SECRET;
-  const refreshToken = process.env.GA4_OAUTH_REFRESH_TOKEN;
+  const clientId = firstEnv("GA4_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID");
+  const clientSecret = firstEnv("GA4_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET");
+  const refreshToken = firstEnv("GA4_OAUTH_REFRESH_TOKEN", "GOOGLE_OAUTH_REFRESH_TOKEN");
   if (!clientId || !clientSecret || !refreshToken) return null;
 
   const now = Math.floor(Date.now() / 1000);

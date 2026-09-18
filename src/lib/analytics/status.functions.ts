@@ -10,6 +10,18 @@ import {
   type Ga4MeasurementIdSource,
 } from "@/lib/analytics/measurementId";
 
+/**
+ * Pierwszy niepusty sekret z listy nazw - status panelu musi widzieć te
+ * same aliasy (GA4_* / GOOGLE_*), co odczyt tokenu w ga4.server.ts.
+ */
+function firstEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 interface SelectResultRow {
   data: unknown;
   error: { message: string } | null;
@@ -124,11 +136,15 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
       }
     }
 
-    // OAuth 2.0 refresh token
+    // OAuth 2.0 refresh token - przyjmujemy też nazwy z przedrostkiem
+    // GOOGLE_*, bo pod takimi użytkownik zapisuje klucze z Google Cloud.
     const oauthClientOk = Boolean(
-      process.env.GA4_OAUTH_CLIENT_ID && process.env.GA4_OAUTH_CLIENT_SECRET,
+      firstEnv("GA4_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID") &&
+      firstEnv("GA4_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET"),
     );
-    const oauthRefreshOk = Boolean(process.env.GA4_OAUTH_REFRESH_TOKEN);
+    const oauthRefreshOk = Boolean(
+      firstEnv("GA4_OAUTH_REFRESH_TOKEN", "GOOGLE_OAUTH_REFRESH_TOKEN"),
+    );
 
     // Measurement Protocol (send events) - fall back to stored measurement id.
     // `||`, nie `??`: pusta zmienna środowiskowa to pusty string, a nie brak
