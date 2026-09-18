@@ -552,6 +552,11 @@ const pl = {
       uploadFile: "Wgraj plik",
       mediaLibrary: "Biblioteka mediów",
       pickFromLibrary: "Wybierz obrazek z biblioteki mediów",
+      recommendedSize: "Zalecany rozmiar pliku: {{width}} × {{height}} px",
+      sizeTooSmall:
+        "Wgrany obraz ma {{width}} × {{height}} px - mniej niż zalecane, więc po rozciągnięciu na kadr będzie rozmyty.",
+      sizeOversized:
+        "Wgrany obraz ma {{width}} × {{height}} px - znacznie więcej, niż potrzeba. Czytelnik pobierze piksele, których nie zobaczy.",
     },
     imageEditor: {
       preview: "Podgląd",
@@ -2106,6 +2111,11 @@ const en: typeof pl = {
       uploadFile: "Upload file",
       mediaLibrary: "Media library",
       pickFromLibrary: "Pick an image from the media library",
+      recommendedSize: "Recommended file size: {{width}} × {{height}} px",
+      sizeTooSmall:
+        "The uploaded image is {{width}} × {{height}} px - below the recommendation, so it will look blurry once stretched to the frame.",
+      sizeOversized:
+        "The uploaded image is {{width}} × {{height}} px - far more than needed. Readers would download pixels they never see.",
     },
     imageEditor: {
       preview: "Preview",

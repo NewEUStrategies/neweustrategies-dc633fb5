@@ -106,6 +106,9 @@ export const en = {
     pause: "Pause autoplay",
     play: "Resume autoplay",
   },
+  promoCard: {
+    builderEmpty: "Add a cover and a card title (or pick an event) in the widget panel.",
+  },
   trendingTicker: {
     badge: "Worth reading",
   },

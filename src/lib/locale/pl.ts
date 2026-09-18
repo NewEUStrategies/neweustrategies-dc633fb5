@@ -106,6 +106,13 @@ export const pl = {
     pause: "Zatrzymaj automatyczne przewijanie",
     play: "Wznów automatyczne przewijanie",
   },
+  // Karta promocyjna: podpowiedź widoczna WYŁĄCZNIE w kanwie buildera, gdy
+  // redakcja wstawi widget i nie wypełni go jeszcze treścią. Napis idzie
+  // słownikiem, a nie warunkiem po języku, bo warunek omija bramkę parytetu
+  // PL/EN i zamyka drogę do trzeciego języka.
+  promoCard: {
+    builderEmpty: "Dodaj okładkę i tytuł karty (lub wybierz wydarzenie) w panelu widgetu.",
+  },
   trendingTicker: {
     badge: "Warte przeczytania",
   },

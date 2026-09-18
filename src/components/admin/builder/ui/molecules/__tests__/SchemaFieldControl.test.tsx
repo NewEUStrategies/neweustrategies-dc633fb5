@@ -122,17 +122,29 @@ vi.mock("../../organisms/widget-properties/ImageSlot", () => ({
     value,
     onChange,
     hint,
+    recommendedSize,
   }: {
     label: string;
     value: string;
     onChange: (v: string) => void;
     hint?: string;
+    recommendedSize?: { width: number; height: number } | null;
   }) => (
     <div>
       <span>{label}</span>
       {hint ? <em>{hint}</em> : null}
+      {recommendedSize ? (
+        <b data-testid="rekomendacja">{`${recommendedSize.width}x${recommendedSize.height}`}</b>
+      ) : null}
       <input aria-label="obrazek" value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
+  ),
+}));
+// Picker wydarzeń ma własny test (lista z modułu wydarzeń); tutaj liczy się
+// wyłącznie to, czy kontrolka wpina go pod właściwy klucz treści.
+vi.mock("../../organisms/widget-properties/EventPicker", () => ({
+  EventPicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <input aria-label="wydarzenie" value={value} onChange={(e) => onChange(e.target.value)} />
   ),
 }));
 vi.mock("@/components/admin/media/MediaPickerDialog", () => ({
@@ -555,6 +567,33 @@ describe("SchemaFieldControl - pola delegujące do dzieci", () => {
       target: { value: "https://cdn.test/b.jpg" },
     });
     expect(last()).toEqual(["image", "https://cdn.test/b.jpg"]);
+  });
+
+  it("rekomendacja rozmiaru liczy się z BIEŻĄCEJ treści widgetu, nie ze stałej", () => {
+    const field: SchemaField = {
+      key: "image",
+      type: "image",
+      label: "Zdjęcie",
+      recommendedSize: (c) => (c.ratio === "1:1" ? { width: 1000, height: 1000 } : null),
+    };
+    renderField(field, { ratio: "1:1" });
+    expect(screen.getByTestId("rekomendacja")).toHaveTextContent("1000x1000");
+  });
+
+  it("pole obrazka bez rekomendacji nie pokazuje jej wcale", () => {
+    renderField({ key: "image", type: "image", label: "Zdjęcie" }, {});
+    expect(screen.queryByTestId("rekomendacja")).not.toBeInTheDocument();
+  });
+
+  it("picker wydarzenia zapisuje IDENTYFIKATOR pod klucz pola", () => {
+    const { last } = renderField(
+      { key: "eventId", type: "eventPicker", label: "Wydarzenie" },
+      { eventId: "ev-1" },
+    );
+    const input = screen.getByLabelText("wydarzenie") as HTMLInputElement;
+    expect(input.value).toBe("ev-1");
+    fireEvent.change(input, { target: { value: "ev-2" } });
+    expect(last()).toEqual(["eventId", "ev-2"]);
   });
 
   it("pole danych wykresu ma tekst CSV i arkusz z kontekstem widgetu", () => {

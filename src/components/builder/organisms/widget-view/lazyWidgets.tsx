@@ -111,6 +111,7 @@ import type { TeamMemberWidget as TeamMemberWidgetImpl } from "./TeamMemberWidge
 import type { AuthorProfileCardWidget as AuthorProfileCardWidgetImpl } from "./AuthorProfileCardWidget";
 import type { TravelRouteCardView as TravelRouteCardViewImpl } from "./TravelRouteCardView";
 import type { CoverOverlayCardView as CoverOverlayCardViewImpl } from "./CoverOverlayCardView";
+import type { PromoCardView as PromoCardViewImpl } from "./PromoCardView";
 import type { InteractiveCircleWidget as InteractiveCircleWidgetImpl } from "./InteractiveCircleWidget";
 import type { TocWidget as TocWidgetImpl } from "./TocWidget";
 import type { PricingPlansView as PricingPlansViewImpl } from "./PricingPlansView";
@@ -475,6 +476,11 @@ const CoverOverlayCardViewLazy = lazy(() =>
   import("./CoverOverlayCardView").then((m) => ({ default: m.CoverOverlayCardView })),
 ) as ComponentType<ComponentProps<typeof CoverOverlayCardViewImpl>>;
 export const CoverOverlayCardView = withSuspense(CoverOverlayCardViewLazy);
+
+const PromoCardViewLazy = lazy(() =>
+  import("./PromoCardView").then((m) => ({ default: m.PromoCardView })),
+) as ComponentType<ComponentProps<typeof PromoCardViewImpl>>;
+export const PromoCardView = withSuspense(PromoCardViewLazy);
 
 const InteractiveCircleWidgetLazy = lazy(() =>
   import("./InteractiveCircleWidget").then((m) => ({ default: m.InteractiveCircleWidget })),

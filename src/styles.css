@@ -10742,3 +10742,122 @@ input[type="reset"],
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- widget „Karta promocyjna" (promo-card) --------------------------------
+   Gradient nakładki liczy arkusz, bo `color-mix()` wpisany wprost w atrybut
+   `style` przepada w silnikach DOM bez wsparcia tej funkcji. Panel podaje
+   wyłącznie kolor i dwa krycia jako `--pcx-*`.
+
+   REGUŁA NACZELNA TEGO BLOKU: ani jedna reguła nie zmienia GEOMETRII KARTY.
+   Pierwowzór (framer-motion) obracał i przesuwał cały kafelek pod kursorem;
+   tutaj `transform` dotyka wyłącznie `<img>` zamkniętego w kadrze
+   `overflow: hidden`, więc karta zajmuje stale to samo miejsce w kolumnie
+   (CLS = 0), a sąsiedzi nigdy nie drgają. Wariantów „przesuń"/„unieś" nie ma. */
+/* Ramka jest JEDNOKOMÓRKOWĄ siatką: rozpieracz kadru, okładka, nakładka i treść
+   leżą na sobie w tej samej komórce. Wiersz ma wtedy wysokość MAKSIMUM z kadru
+   i treści, więc miejsce jest zarezerwowane przed pobraniem obrazu (CLS = 0),
+   a dłuższy tytuł rozpycha kartę zamiast zniknąć pod `overflow: hidden`. */
+.pcx-card {
+  display: grid;
+  grid-template-areas: "pcx";
+}
+.pcx-card > * {
+  grid-area: pcx;
+  min-width: 0;
+}
+.pcx-ratio {
+  /* Sam rezerwuje wysokość - nic nie rysuje. */
+  pointer-events: none;
+}
+.pcx-content {
+  /* Treść siada przy dolnej krawędzi kadru, nie rozciąga się na całą komórkę. */
+  align-self: stretch;
+}
+
+.pcx-overlay {
+  background: linear-gradient(
+    to top,
+    color-mix(
+      in oklab,
+      var(--pcx-overlay-color, #0b1220) var(--pcx-overlay-bottom, 70%),
+      transparent
+    ),
+    color-mix(in oklab, var(--pcx-overlay-color, #0b1220) var(--pcx-overlay-top, 0%), transparent)
+  );
+  transition: opacity 300ms ease-out;
+}
+
+/* Zoom startowy wariantu „zoom-out": okładka wchodzi powiększona i wraca do 1
+   dopiero pod kursorem. Wartość skali jest jedna (`--pcx-zoom`) i pochodzi
+   z modelu widgetu, żeby oba kierunki ruszały się tak samo mocno. */
+.pcx-image {
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pcx-image {
+    transition:
+      transform 500ms ease-out,
+      opacity 400ms ease-out;
+  }
+  [data-promo-card][data-hover="zoom-in"]:hover .pcx-image,
+  [data-promo-card][data-hover="zoom-in"]:focus-within .pcx-image {
+    transform: scale(var(--pcx-zoom, 1.04));
+  }
+  [data-promo-card][data-hover="zoom-out"] .pcx-image {
+    transform: scale(var(--pcx-zoom, 1.04));
+  }
+  [data-promo-card][data-hover="zoom-out"]:hover .pcx-image,
+  [data-promo-card][data-hover="zoom-out"]:focus-within .pcx-image {
+    transform: scale(1);
+  }
+
+  /* Wejście karty: czyste krycie (`fade`) albo krycie + zejście ze skali
+     (`zoom`). Animacja jest jednorazowa i nie ma stanu początkowego w JS, więc
+     HTML z serwera i pierwszy render klienta są identyczne - hydratacja nie ma
+     czego naprawiać. */
+  [data-promo-card][data-entrance="fade"],
+  [data-promo-card][data-entrance="zoom"] {
+    animation: pcx-fade-in 420ms ease-out both;
+  }
+  /* Wariant „zoom-out" TRZYMA okładkę powiększoną jako stan spoczynku, a
+     animacja z `fill-mode: both` wygrywa ze zwykłą deklaracją `transform`
+     i zostawiłaby ją na skali 1 - czyli wyłączyłaby hover. Dlatego zejście
+     ze skali przy wejściu obowiązuje wszędzie POZA tym wariantem. */
+  [data-promo-card][data-entrance="zoom"]:not([data-hover="zoom-out"]) .pcx-image {
+    animation: pcx-zoom-in 600ms ease-out both;
+  }
+}
+
+/* Przenikanie i cień nie ruszają układem, więc działają także przy
+   `prefers-reduced-motion` - tam znika jedynie płynność przejścia. */
+[data-promo-card][data-hover="fade"]:hover .pcx-overlay,
+[data-promo-card][data-hover="fade"]:focus-within .pcx-overlay {
+  opacity: 0.65;
+}
+[data-promo-card][data-hover="shadow"] {
+  transition: box-shadow 300ms ease-out;
+}
+[data-promo-card][data-hover="shadow"]:hover,
+[data-promo-card][data-hover="shadow"]:focus-within {
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+@keyframes pcx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pcx-zoom-in {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}

@@ -123,6 +123,7 @@ export function WidgetLibrary({
     "author-profile-card": "content",
     "travel-route-card": "content",
     "cover-overlay-card": "content",
+    "promo-card": "marketing",
     "dark-featured-card": "content",
     "rated-list": "content",
     pricing: "marketing",

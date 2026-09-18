@@ -417,6 +417,28 @@ const CASES: ReadonlyArray<VisibilityCase> = [
     visible: [{ showCaption: true }, { showCaption: "1" }],
     hidden: [{}, { showCaption: false }, { showCaption: "0" }],
   },
+
+  // ---- karta promocyjna ----
+  {
+    widget: "promo-card",
+    keys: ["eventId", "showEventMeta"],
+    // Pusta tresc = tryb "link" (tak wstawia karte rejestr), wiec picker
+    // wydarzenia MUSI byc wtedy ukryty. Gdyby warunek sie odwrocil, redakcja
+    // dostalaby picker wydarzenia nad kartą, ktora i tak prowadzi pod reczny
+    // adres - czyli kontrolke bez skutku.
+    why: "picker wydarzenia i wiersz meta tylko w trybie wydarzenia",
+    visible: [{ mode: "event" }],
+    hidden: [{}, { mode: "link" }, { mode: "Event" }, { mode: 1 }],
+  },
+  {
+    widget: "promo-card",
+    keys: ["heightPx"],
+    // Kadr o proporcjach liczy wysokosc sam; pole wysokosci ma sens WYLACZNIE
+    // dla "auto". Pusta tresc = domyslne "16:9" ze schematu, czyli ukryte.
+    why: "wysokosc kadru tylko przy kadrze o stalej wysokosci",
+    visible: [{ ratio: "auto" }],
+    hidden: [{}, { ratio: "16:9" }, { ratio: "1:1" }, { ratio: "Auto" }],
+  },
 ];
 
 describe("visibleWhen: kazdy warunek ma dowod na POKAZANIE i na UKRYCIE pola", () => {

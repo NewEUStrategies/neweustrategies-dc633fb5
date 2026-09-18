@@ -88,22 +88,25 @@ export function collectBuilderWidgets(doc: BuilderDocument): WidgetNode[] {
 }
 
 /**
- * Widgety odliczania czytajace wydarzenie po id (eventByIdQueryOptions).
- * "event-countdown-card" dlugo brakowalo na tej liscie, wiec premium karta w
- * trybie "event" nie miala prefetchu SSR: serwer renderowal placeholdery, a
- * tytul/okladka/data wskakiwaly dopiero po hydratacji i osobnym fetchu.
+ * Widgety czytajace JEDNO wydarzenie po id (eventByIdQueryOptions) w trybie
+ * "event". "event-countdown-card" dlugo brakowalo na tej liscie, wiec premium
+ * karta w trybie "event" nie miala prefetchu SSR: serwer renderowal
+ * placeholdery, a tytul/okladka/data wskakiwaly dopiero po hydratacji i osobnym
+ * fetchu. Kazdy nowy widget z pickerem wydarzenia MUSI tu trafic - inaczej
+ * powtarza dokladnie ten defekt.
  */
-const COUNTDOWN_WIDGET_TYPES: ReadonlySet<string> = new Set([
+const EVENT_BY_ID_WIDGET_TYPES: ReadonlySet<string> = new Set([
   "event-countdown",
   "event-countdown-card",
+  "promo-card",
 ]);
 
-function isCountdownWidget(widget: WidgetNode): boolean {
-  return COUNTDOWN_WIDGET_TYPES.has(widget.type);
+function readsEventById(widget: WidgetNode): boolean {
+  return EVENT_BY_ID_WIDGET_TYPES.has(widget.type);
 }
 
-/** Id wydarzenia dla widgetu odliczania w trybie "event" (inaczej pusty string). */
-function countdownEventId(c: WidgetContent): string {
+/** Id wydarzenia dla widgetu w trybie "event" (inaczej pusty string). */
+function widgetEventId(c: WidgetContent): string {
   const mode = typeof c.mode === "string" ? c.mode : "custom";
   const eventId = typeof c.eventId === "string" ? c.eventId : "";
   return mode === "event" ? eventId : "";
@@ -286,8 +289,8 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   if (widget.type === "rated-list" && ratedListUsesDynamicSource(widget.content)) {
     out.push(ratedListQueryOptions(widget.content, lang));
   }
-  if (isCountdownWidget(widget)) {
-    const eventId = countdownEventId(widget.content);
+  if (readsEventById(widget)) {
+    const eventId = widgetEventId(widget.content);
     if (eventId) out.push(eventByIdQueryOptions(eventId));
   }
   if (widget.type === "speakers" && speakersSource(widget.content) !== "manual") {
@@ -493,8 +496,8 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     const opts = ratedListQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
-  if (isCountdownWidget(widget)) {
-    const eventId = countdownEventId(widget.content);
+  if (readsEventById(widget)) {
+    const eventId = widgetEventId(widget.content);
     if (eventId) {
       const opts = eventByIdQueryOptions(eventId);
       out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });

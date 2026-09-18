@@ -577,7 +577,7 @@ export const FEATURES_3 = [
     // prefetchu SSR. Jedno miejsce parsowania kluczy magazynowych - tych
     // samych, które porównuje bramka wierności ustawień.
     patterns: [
-      /^src\/lib\/builder\/(animatedHeadingVariants|animatedHeadingLinks|sectionLabelVariants|coverOverlayCard|travelRouteCard|worldMapContent|speakerRow|clubHub|socialBrand)\.tsx?$/,
+      /^src\/lib\/builder\/(animatedHeadingVariants|animatedHeadingLinks|sectionLabelVariants|coverOverlayCard|promoCard|travelRouteCard|worldMapContent|speakerRow|clubHub|socialBrand)\.tsx?$/,
     ],
   },
   {

@@ -411,6 +411,10 @@ export type WidgetType =
   // polubienie pamiętane w przegladarce odwiedzajacego (bez zapisu w bazie).
   | "travel-route-card"
   | "cover-overlay-card"
+  // Karta promocyjna: okładka pod nakładką, tytuł/podtytuł i przycisk CTA,
+  // który może prowadzić pod ręczny adres ALBO pod wydarzenie z wewnętrznego
+  // kreatora (wtedy karta bierze z niego adres, okładkę, tytuł i termin).
+  | "promo-card"
   | "speakers"
   | "pricing"
   | "interactive-circle"

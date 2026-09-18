@@ -71,6 +71,7 @@ import {
   TravelRouteCardView,
   ClubHubView,
   CoverOverlayCardView,
+  PromoCardView,
   // Podział po typie (2026-08-15): listingi, karty zdarzeń, billing, formularz
   // onboardingu, karuzela postępu i renderer HTML tekstu jadą w chunkach na
   // żądanie - entry chrome nie płaci już za komplet widgetów.
@@ -1196,6 +1197,13 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     // ani identyfikatora węzła, ani wiedzy o kanwie edytora.
     case "cover-overlay-card":
       return wrap(<CoverOverlayCardView c={c} lang={lang} />);
+
+    // Karta promocyjna. Tryb wydarzenia czyta wiersz z modułu wydarzeń przez
+    // react-query; prefetch SSR tego samego klucza stoi w lib/builder/prefetch,
+    // więc serwer renderuje kartę z realnymi danymi i hydratacja nie ma czego
+    // poprawiać.
+    case "promo-card":
+      return wrap(<PromoCardView c={c} lang={lang} />);
 
     case "cta": {
       const tKey = `title_${lang}`;

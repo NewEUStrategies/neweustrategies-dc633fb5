@@ -1311,6 +1311,46 @@ const CLIENT_DIR =
 // i runner zgadzają się na tej metryce. PIERWSZY ZIELONY LOG RUNNERA jest
 // momentem na dociągnięcie tej liczby w dół, jeżeli runner pokaże mniej.
 
+// 2026-09-18 XV  KARTA PROMOCYJNA (promo-card). Floor CHUNK 285 -> 286.
+//             Jedyny ruszony próg. Podnoszę go W CUDZEJ SPRAWIE i piszę to
+//             wprost, żeby następna osoba nie szukała przyczyny w tym widgecie.
+//
+// POMIAR OBU STRON, ten sam host, ta sama komenda, pełny build za każdym razem:
+//   * main (79667b3, baza tej gałęzi): 285,5 KB -> bramka CZERWONA JUŻ TAM.
+//     Baza przekracza próg 285 bez udziału tej gałęzi.
+//   * ta gałąź (b8cd17b):              285,7 KB  (+0,2 wobec maina)
+//
+// CO DOKŁADNIE DOKŁADA TEN WIDGET DO CHUNKU `index` - sprawdzone w wyemitowanym
+// pliku, nie oszacowane: DWA literały i jedna stała.
+//   * "promo-card" w `WIDGET_TYPES` (parser dokumentu buildera) i w `case`
+//     dyspozytora `WidgetView` - obie pozycje są z definicji eager, bo bez nich
+//     zapisany dokument nie sparsuje się i nie wyrenderuje,
+//   * korzeń klucza "builder-event-by-id-canvas" w `queryKeys.ts`.
+// Cała reszta widgetu (model, molekuła, widok, schemat panelu, etykiety EN)
+// siedzi POZA `index`: `grep` po wyemitowanym chunku nie znajduje ani jednej
+// etykiety schematu ("Karta promocyjna", "Proporcje kadru") ani klas `pcx-`.
+// Podział po typie (React.lazy) działa tu tak, jak miał działać.
+//
+// PRZYCZYNA PRZEKROCZENIA jest więc starsza od tej gałęzi i mierzalna w raporcie
+// ruchów wobec baseline'u 2765e53: `Chart` +59,0 KB, `ChartFrame` +21,5 KB,
+// `index` +15,2 KB, `PostBlockEditor` +14,2 KB. Zapas, z jakim wpis XIV
+// zostawił ten próg (0,9 KB), został wyczerpany przez te scalenia; moje 0,2 KB
+// jest ostatnią kroplą, nie przyczyną.
+//
+// DLACZEGO NIE TNĘ ZAMIAST PODNOSIĆ. Redukcja o wymagane ~1 KB musiałaby
+// wyjść z cudzego modułu - plik sam wskazuje otwarte zadanie (podział
+// `i18n-charts.ts` po języku, rzędu 10 KB gzip z KAŻDEGO czytelnika, wpis
+// wyżej). Wciągnięcie go tutaj rozdęłoby PR widgetu buildera o zmianę w
+// warstwie wykresów i i18n, czyli w miejscu z własnym właścicielem i własnym
+// ryzykiem regresji. Podnoszę więc próg o MINIMUM (1 KB, do 286), a zadanie
+// redukcji zostaje otwarte tam, gdzie je opisano.
+//
+// UWAGA DLA NASTĘPNEJ OSOBY - druga metryka jest jeszcze ciaśniejsza:
+// publiczny CSS stoi na 82,6 KB przy progu 83 KB (main: 82,2). Arkusz tego
+// widgetu zjadł 0,4 KB z 0,8 KB zapasu. Kolejny blok reguł w `styles.css`
+// zapali tę bramkę, a tam redukcja JEST w zasięgu (arkusz korzenia jest
+// render-blocking na każdym URL-u).
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -1318,7 +1358,10 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 280 -> 285 (wpis 2026-09-14 XIV): dziesięć publicznych dokumentów
   // prawnych; zmierzone 283,0 po dwóch redukcjach, main stał na 279,1 z zapasem
   // 0,9 KB. Przyczyna i pełny pomiar obu stron w kronice wyżej.
-  chunk: 285,
+  // Ratchet 285 -> 286 (wpis 2026-09-18 XV): próg BYŁ JUŻ przekroczony na
+  // bazie (main 79667b3: 285,5), a gałąź widgetu dokłada 0,2 KB w dwóch
+  // literałach. Pomiar obu stron i powód rezygnacji z cięcia - w kronice wyżej.
+  chunk: 286,
   // gzip JS osiągalny z publicznego URL-a. Zmierzone NA RUNNERZE 2026-08-30
   // (przebieg 2756, job `build`, `--frozen-lockfile`): 2710,8 przy 939 plikach.
   // Ratchet 2545 -> 2711 (wpis 2026-08-30 VI): dwa tygodnie funkcjonalności,

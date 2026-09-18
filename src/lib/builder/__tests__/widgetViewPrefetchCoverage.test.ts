@@ -122,6 +122,10 @@ const REGISTERED: ReadonlyArray<{
   },
   { file: "PostsSliderWidget.tsx", types: [{ type: "slider", content: { items: [] } }] },
   { file: "PricingPlansView.tsx", types: [{ type: "pricing", content: { source: "plans" } }] },
+  {
+    file: "PromoCardView.tsx",
+    types: [{ type: "promo-card", content: { mode: "event", eventId: "ev-1" } }],
+  },
   { file: "RatedListView.tsx", types: [{ type: "rated-list", content: { source: "dynamic" } }] },
   { file: "SpeakersWidget.tsx", types: [{ type: "speakers", content: { source: "directory" } }] },
   { file: "WebStoriesCarouselView.tsx", types: [{ type: "web-stories-carousel", content: {} }] },

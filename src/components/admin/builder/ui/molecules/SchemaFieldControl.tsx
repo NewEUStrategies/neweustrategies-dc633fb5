@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
+import { EventPicker } from "../organisms/widget-properties/EventPicker";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MapDataField } from "./MapDataField";
 // Region pola danych mapy idzie tym samym parserem, co render - porównanie
@@ -152,7 +153,25 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           value={asString(read(field.key))}
           onChange={(v) => setContent(field.key, v)}
           hint={hint}
+          // Rekomendacja rozmiaru liczy się z BIEŻĄCEJ treści widgetu (kadr,
+          // szerokość karty), więc zmiana proporcji od razu zmienia liczbę
+          // pokazaną przy polu - statyczna podpowiedź by tego nie umiała.
+          recommendedSize={field.recommendedSize?.(content) ?? null}
         />
+      );
+
+    // Wybór wydarzenia z WEWNĘTRZNEGO modułu wydarzeń. Zapisujemy identyfikator
+    // (nie adres), więc zmiana daty czy slugu wydarzenia przechodzi na stronę
+    // sama, bez ruszania treści widgetu.
+    case "eventPicker":
+      return (
+        <PropField label={label} hint={hint}>
+          <EventPicker
+            value={asString(read(field.key))}
+            onChange={(id) => setContent(field.key, id)}
+            lang={lang}
+          />
+        </PropField>
       );
 
     case "i18nText":
