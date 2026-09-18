@@ -28,7 +28,7 @@ import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { asNumInRange, asOneOf, pickI18n } from "@/lib/content-model/contentValue";
 import { AppLink } from "@/components/atoms/AppLink";
-import { eventByIdQueryOptions } from "@/lib/builder/eventsQuery";
+import { eventByIdForCanvasQueryOptions, eventByIdQueryOptions } from "@/lib/builder/eventsQuery";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { promoCardCoverSizes } from "@/lib/builder/widgetImageSizes";
@@ -109,11 +109,33 @@ export function PromoCardView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 
   // Zapytanie startuje TYLKO w trybie wydarzenia i tylko z wybranym id -
   // inaczej karta z ręcznym adresem płaciłaby za zapytanie, którego nie użyje.
-  const eventQ = useQuery({
+  //
+  // KANWA CZYTA INNYM ZAPYTANIEM NIŻ STRONA. Picker celowo pokazuje szkice, bo
+  // redaktor podpina widget przed publikacją wydarzenia; zapytanie publiczne
+  // filtruje po `status = published`, więc w edytorze karta pokazywałaby pustkę
+  // dokładnie wtedy, gdy ma pomagać. Kanwa idzie więc wariantem bez filtra
+  // (osobny korzeń klucza, bez cache'u krawędziowego, dostęp rozstrzyga RLS),
+  // a render publiczny - tym samym zapytaniem co prefetch SSR. Rozdział jest
+  // twardy: czytelnik nigdy nie zobaczy szkicu, bo publiczna ścieżka go nie
+  // pobiera, a jej wynik nie miesza się z wynikiem kanwy w cache'u.
+  //
+  // Dwa wywołania `useQuery`, nie jedno z podmienionymi opcjami: każdy wariant
+  // niesie WŁASNY literał korzenia klucza, a `enabled` gasi ten niepotrzebny.
+  // Kolejność hooków jest stała (kontekst kanwy nie zmienia się w trakcie życia
+  // drzewa), więc rozdział jest darmowy - płaci wyłącznie ten wariant, który
+  // faktycznie ma pobrać wiersz.
+  const wantsEvent = mode === "event" && !!eventId;
+  const publicEventQ = useQuery({
     ...eventByIdQueryOptions(eventId),
-    enabled: mode === "event" && !!eventId,
+    enabled: wantsEvent && !inBuilder,
   });
-  const eventRow = mode === "event" ? (eventQ.data ?? null) : null;
+  const canvasEventQ = useQuery({
+    ...eventByIdForCanvasQueryOptions(eventId),
+    enabled: wantsEvent && inBuilder,
+  });
+  const eventRow = wantsEvent
+    ? ((inBuilder ? canvasEventQ.data : publicEventQ.data) ?? null)
+    : null;
 
   const eventTitle = eventRow
     ? lang === "pl"

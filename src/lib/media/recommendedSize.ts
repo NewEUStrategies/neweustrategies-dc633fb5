@@ -46,8 +46,20 @@ export function isImageTooSmall(natural: PixelSize, recommended: PixelSize): boo
   );
 }
 
-/** Czy obraz jest wyraźnie większy niż potrzeba (zbędny transfer u czytelnika). */
+/**
+ * Czy obraz jest wyraźnie większy niż potrzeba (zbędny transfer u czytelnika).
+ *
+ * Mierzymy OBA wymiary, tak samo jak przy niedoborze. Sama szerokość nie
+ * wystarcza: plik 1000 × 5000 px przy rekomendacji 1000 × 563 px mieści się
+ * w limicie szerokości, a i tak niesie dziewięć razy więcej pikseli, niż karta
+ * pokaże. Transformacje responsywne skalują po SZEROKOŚCI, więc ten nadmiar
+ * przechodzi przez nie nietknięty, a `object-fit: cover` tylko go przycina
+ * wizualnie - czytelnik pobiera całość.
+ */
 export function isImageOversized(natural: PixelSize, recommended: PixelSize): boolean {
   if (!usable(natural) || !usable(recommended)) return false;
-  return natural.width > recommended.width * RECOMMENDED_SIZE_MAX_SCALE;
+  return (
+    natural.width > recommended.width * RECOMMENDED_SIZE_MAX_SCALE ||
+    natural.height > recommended.height * RECOMMENDED_SIZE_MAX_SCALE
+  );
 }

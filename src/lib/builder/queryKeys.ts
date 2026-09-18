@@ -60,6 +60,10 @@ export const WIDGET_QUERY_ROOTS = {
   // --- ekosystem wydarzeń ---
   eventList: "builder-event-list",
   eventById: "builder-event-by-id",
+  // Ten sam wiersz, ale czytany BEZ filtra publikacji - wyłącznie w kanwie
+  // buildera (osobny korzeń, żeby szkic nigdy nie trafił do cache'u strony
+  // publicznej ani do danych zdehydratowanych z SSR).
+  eventByIdCanvas: "builder-event-by-id-canvas",
   eventRsvpCounts: "builder-event-rsvp-counts",
   speakers: "builder-speakers",
   speakersByIds: "builder-speakers-by-ids",

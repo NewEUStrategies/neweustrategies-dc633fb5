@@ -49,4 +49,21 @@ describe("isImageOversized", () => {
   it("mówi dopiero powyżej tej dwukrotności - rekomendacja SAMA liczy już ekran Retina", () => {
     expect(isImageOversized({ width: 2001, height: 2001 }, rec)).toBe(true);
   });
+
+  it("nadmiar SAMEJ WYSOKOŚCI też się liczy - skalowanie responsywne idzie po szerokości", () => {
+    // 1000 × 5000 px przy rekomendacji 1000 × 563 px: szerokość w normie,
+    // a plik niesie dziewięć razy więcej pikseli, niż karta pokaże. Kadrowanie
+    // `object-fit: cover` przycina to dopiero na ekranie, po pobraniu.
+    expect(isImageOversized({ width: 1000, height: 5000 }, { width: 1000, height: 563 })).toBe(
+      true,
+    );
+  });
+
+  it("obraz o innych proporcjach, ale rozsądnej wadze, nadal nie jest zgłaszany", () => {
+    // Kwadrat 1000 × 1000 w kadrze 16:9 (1000 × 563) to świadomy wybór kadru,
+    // nie marnotrawstwo - mieści się w dwukrotności obu wymiarów.
+    expect(isImageOversized({ width: 1000, height: 1000 }, { width: 1000, height: 563 })).toBe(
+      false,
+    );
+  });
 });

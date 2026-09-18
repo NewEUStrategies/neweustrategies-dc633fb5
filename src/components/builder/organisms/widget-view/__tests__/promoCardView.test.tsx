@@ -15,11 +15,25 @@ import type { ReactElement } from "react";
 
 const db = vi.hoisted(() => ({ event: null as unknown }));
 
+// Atrapa Supabase ODTWARZA FILTR PUBLIKACJI, bo na nim stoi różnica między
+// stroną a kanwą: zapytanie publiczne dokłada `.eq("status", "published")`
+// i wtedy szkic ma NIE wrócić, a zapytanie kanwy tego filtra nie ma.
+// Atrapa przepuszczająca wszystko udowodniłaby dokładnie nic.
 vi.mock("@/integrations/supabase/client", () => {
   const makeBuilder = () => {
+    const filters: Record<string, unknown> = {};
     const b: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "in", "is", "order", "limit", "range"]) b[m] = () => b;
-    b.maybeSingle = async () => ({ data: db.event, error: null });
+    for (const m of ["select", "in", "is", "order", "limit", "range"]) b[m] = () => b;
+    b.eq = (column: string, value: unknown) => {
+      filters[column] = value;
+      return b;
+    };
+    b.maybeSingle = async () => {
+      const row = db.event as { status?: string } | null;
+      const wanted = filters.status;
+      if (row && wanted !== undefined && row.status !== wanted) return { data: null, error: null };
+      return { data: row, error: null };
+    };
     b.then = (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
     return b;
   };
@@ -135,6 +149,7 @@ describe("PromoCardView - tryb wydarzenia", () => {
     visibility: "public",
     description_pl: null,
     description_en: null,
+    status: "published",
   };
 
   it("bierze z wydarzenia tytuł, okładkę, termin i adres strony", async () => {
@@ -185,6 +200,30 @@ describe("PromoCardView - tryb wydarzenia", () => {
     renderCard({ ...base, mode: "link", eventId: "ev-1" }, "pl");
     expect(screen.getByRole("heading", { name: "Raport o bezpieczeństwie" })).toBeInTheDocument();
     expect(screen.getByRole("link")).toHaveAttribute("href", "https://example.org/raport");
+  });
+
+  // Picker celowo pokazuje szkice - redakcja podpina widget PRZED publikacją
+  // wydarzenia. Kanwa musi wtedy pokazać, co właśnie podpięto; strona publiczna
+  // nie ma prawa pokazać niczego, dopóki wydarzenie nie jest opublikowane.
+  const draft = { ...eventRow, status: "draft", title_pl: "Szkic: Forum 2027" };
+
+  it("szkic wydarzenia JEST widoczny w kanwie buildera", async () => {
+    db.event = draft;
+    wrap(
+      <BuilderModeProvider mode="light">
+        <PromoCardView c={{ mode: "event", eventId: "ev-1" }} lang="pl" />
+      </BuilderModeProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Szkic: Forum 2027" })).toBeInTheDocument(),
+    );
+  });
+
+  it("ten sam szkic NIE wychodzi na stronę publiczną", async () => {
+    db.event = draft;
+    const { container } = renderCard({ mode: "event", eventId: "ev-1" }, "pl");
+    await waitFor(() => expect(container.innerHTML).toBe(""));
+    expect(screen.queryByText("Szkic: Forum 2027")).not.toBeInTheDocument();
   });
 });
 

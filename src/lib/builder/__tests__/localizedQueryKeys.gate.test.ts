@@ -169,6 +169,10 @@ describe("rejestr fabryk nie ma dziur", () => {
     "clubHubMembersQueryOptions",
     "designTokensQueryOptions",
     "eventByIdQueryOptions",
+    // Ten sam wiersz wydarzenia, tylko bez filtra publikacji (kanwa buildera):
+    // niesie obie wersje językowe (`title_pl`/`title_en`), a wybór następuje
+    // w renderze - dokładnie jak w wariancie publicznym wyżej.
+    "eventByIdForCanvasQueryOptions",
     "eventRsvpCountsQueryOptions",
     "meetingSlotsQueryOptions",
     "postViewCountQueryOptions",
