@@ -1328,6 +1328,52 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "promo-card",
+    label: "Karta promocyjna",
+    category: "blocks",
+    icon: Megaphone,
+    defaults: () => ({
+      // Bez treści przykładowej i bez zdjęcia: świeżo wstawiona karta pokazuje
+      // płaszczyznę z nakładką i podpowiedź w kanwie, a nie zmyśloną promocję,
+      // którą ktoś mógłby opublikować.
+      title_pl: "",
+      title_en: "",
+      subtitle_pl: "",
+      subtitle_en: "",
+      image: "",
+      imageAlt_pl: "",
+      imageAlt_en: "",
+      // CTA: domyślnie ręczny adres. Tryb "event" podpina wydarzenie z modułu
+      // wydarzeń i wtedy pusty `href` znaczy "prowadź na stronę wydarzenia".
+      mode: "link",
+      eventId: "",
+      href: "",
+      buttonText_pl: "",
+      buttonText_en: "",
+      newTab: false,
+      showEventMeta: true,
+      // Kadr okładki.
+      ratio: "16:9",
+      heightPx: 288,
+      maxWidth: 512,
+      fit: "cover",
+      imagePosition: "center",
+      // Prezentacja. Puste kolory = wartości wzorca / motywu.
+      overlayColor: "",
+      overlayAlphaTop: 0,
+      overlayAlphaBottom: 0.7,
+      radius: 6,
+      align: "left",
+      textColor: "",
+      buttonBg: "",
+      buttonTextColor: "",
+      // Animacja bez przesunięć: delikatny zoom okładki pod kursorem i
+      // przenikanie przy wejściu. Karta jako całość nie dostaje `transform`.
+      hover: "zoom-in",
+      entrance: "fade",
+    }),
+  },
+  {
     type: "author-profile-card",
     label: "Karta profilu autora",
     category: "blocks",

@@ -9,7 +9,7 @@
 //  * przełączenie rodzaju kolumny wymienia zestaw pól, a nie dokłada go,
 //  * usunięcie karty wyróżnionej zapisuje `null`, nie brak klucza.
 import type { ReactNode } from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
@@ -740,6 +740,97 @@ describe("ImageSlot - adres i wysyłka", () => {
     fireEvent.change(file, { target: { files: [big] } });
     await waitFor(() => expect(uploadMedia).not.toHaveBeenCalled());
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("ImageSlot - rekomendacja rozmiaru i pomiar wgranego pliku", () => {
+  // Pomiar idzie przez `new window.Image()`, a w jsdom obrazy się nie wczytują
+  // (`onload` nigdy nie padnie). Podstawiamy więc atrapę, która natychmiast
+  // zgłasza zadane wymiary - mierzymy REGUŁĘ panelu, nie silnik obrazków.
+  const realImage = window.Image;
+
+  function stubImage(size: { width: number; height: number } | null) {
+    class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 0;
+      naturalHeight = 0;
+      set src(_value: string) {
+        if (size === null) {
+          queueMicrotask(() => this.onerror?.());
+          return;
+        }
+        this.naturalWidth = size.width;
+        this.naturalHeight = size.height;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    window.Image = FakeImage as unknown as typeof Image;
+  }
+
+  afterEach(() => {
+    window.Image = realImage;
+  });
+
+  function renderSlot(
+    value: string,
+    recommendedSize: { width: number; height: number } | null = { width: 1000, height: 563 },
+  ) {
+    return renderWithQueryClient(
+      <ImageSlot
+        label="Zdjęcie"
+        icon={<span data-testid="ikona-slotu" />}
+        value={value}
+        onChange={vi.fn()}
+        recommendedSize={recommendedSize}
+      />,
+    );
+  }
+
+  it("pokazuje rekomendację zanim redakcja cokolwiek wgra", () => {
+    stubImage({ width: 1600, height: 900 });
+    const { container } = renderSlot("");
+    expect(container.textContent).toContain("builder.imageSlot.recommendedSize");
+  });
+
+  it("pole bez rekomendacji nie mierzy obrazu i nic nie mówi", async () => {
+    stubImage({ width: 10, height: 10 });
+    const { container } = renderSlot("https://cdn.test/male.png", null);
+    await waitFor(() =>
+      expect(container.textContent).not.toContain("builder.imageSlot.sizeTooSmall"),
+    );
+    expect(container.textContent).not.toContain("builder.imageSlot.recommendedSize");
+  });
+
+  it("plik wyraźnie mniejszy od rekomendacji dostaje ostrzeżenie", async () => {
+    stubImage({ width: 320, height: 180 });
+    const { container } = renderSlot("https://cdn.test/miniatura.png");
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.sizeTooSmall"));
+  });
+
+  it("plik zgodny z rekomendacją nie generuje żadnego ostrzeżenia", async () => {
+    stubImage({ width: 1600, height: 900 });
+    const { container } = renderSlot("https://cdn.test/dobry.png");
+    await waitFor(() =>
+      expect(container.textContent).toContain("builder.imageSlot.recommendedSize"),
+    );
+    expect(container.textContent).not.toContain("builder.imageSlot.sizeTooSmall");
+    expect(container.textContent).not.toContain("builder.imageSlot.sizeOversized");
+  });
+
+  it("plik znacznie większy niż potrzeba też jest zgłoszony - to rachunek za transfer", async () => {
+    stubImage({ width: 4000, height: 2250 });
+    const { container } = renderSlot("https://cdn.test/z-aparatu.jpg");
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.sizeOversized"));
+  });
+
+  it("obrazu nie do pobrania nie komentuje - to sprawa pola adresu", async () => {
+    stubImage(null);
+    const { container } = renderSlot("https://cdn.test/nie-ma.png");
+    await waitFor(() =>
+      expect(container.textContent).toContain("builder.imageSlot.recommendedSize"),
+    );
+    expect(container.textContent).not.toContain("builder.imageSlot.sizeTooSmall");
   });
 });
 

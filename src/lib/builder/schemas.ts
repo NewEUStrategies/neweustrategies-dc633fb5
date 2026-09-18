@@ -5,6 +5,13 @@ import type { WidgetType } from "./types";
 import { asBool } from "@/lib/content-model/contentValue";
 import { SOCIAL_IDLE_ICON_COLOR } from "./socialBrand";
 import { MAP_REGIONS, type MapRegion } from "@/lib/charts/types";
+import {
+  PROMO_CARD_DEFAULTS,
+  PROMO_CARD_RATIOS,
+  promoCardImageSize,
+  promoCardRatio,
+  type PromoCardRatio,
+} from "./promoCard";
 
 /**
  * Regiony map (`data-map`, `feature-corridor-map`) - opcje WYPROWADZONE
@@ -38,6 +45,27 @@ const MAP_REGION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = MAP_
 );
 
 /**
+ * Proporcje kadru karty promocyjnej - opcje WYPROWADZONE z `PROMO_CARD_RATIOS`,
+ * dokładnie jak regiony map wyżej. Etykieta jest literałem (schemat trzyma
+ * napisy źródłowe), ale tablica jest typowana `Record<PromoCardRatio, string>`,
+ * więc proporcja dopisana do modelu bez etykiety NIE SKOMPILUJE SIĘ, a etykieta
+ * dla proporcji, której model nie zna, jest niewyrażalna.
+ */
+const PROMO_CARD_RATIO_LABEL_PL: Record<PromoCardRatio, string> = {
+  "21:9": "21:9 (panorama)",
+  "16:9": "16:9 (wideo)",
+  "3:2": "3:2 (foto)",
+  "4:3": "4:3",
+  "1:1": "1:1 (kwadrat)",
+  "4:5": "4:5 (pion)",
+  "3:4": "3:4 (pion)",
+  auto: "stała wysokość (px)",
+};
+
+const PROMO_CARD_RATIO_OPTIONS: ReadonlyArray<{ value: string; label: string }> =
+  PROMO_CARD_RATIOS.map((value) => ({ value, label: PROMO_CARD_RATIO_LABEL_PL[value] }));
+
+/**
  * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
  * przykładowych widget bez kontekstu wpisu renderuje `null` poza kanwą
  * buildera - redaktor musi to wiedzieć, zanim wstawi go do nagłówka.
@@ -60,7 +88,8 @@ type FieldType =
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
   | "mapData" // textarea "KOD; wartość" + import z pliku (xlsx/csv)
   | "stringArray" // textarea with one item per line
-  | "i18nStringArray"; // textarea with one item per line, stored as `${key}_pl|_en`
+  | "i18nStringArray" // textarea with one item per line, stored as `${key}_pl|_en`
+  | "eventPicker"; // select wydarzenia z WEWNĘTRZNEGO modułu wydarzeń (zapisuje id)
 
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
@@ -93,6 +122,18 @@ export interface SchemaField {
   rows?: number;
   /** Optional hint shown under the control. */
   hint?: string;
+  /**
+   * Rekomendowany rozmiar pliku dla pola `image`, LICZONY z treści widgetu.
+   *
+   * Statyczna podpowiedź (`hint`) nie umie tego powiedzieć: zalecany rozmiar
+   * zależy od tego, jaki kadr i jaką szerokość redakcja wybrała przed chwilą w
+   * sąsiednich kontrolkach. Zwracamy więc same LICZBY, a napis („Zalecany
+   * rozmiar: 1024 × 576 px") składa panel w swoim języku - dzięki temu
+   * rekomendacja nie wchodzi do słownika etykiet i nie może się z nim rozjechać.
+   *
+   * `null` = to pole nie ma rekomendacji.
+   */
+  recommendedSize?: (content: Record<string, unknown>) => { width: number; height: number } | null;
   /** Show only when this predicate returns true (against full content object). */
   visibleWhen?: (content: Record<string, unknown>) => boolean;
   /** Optional group label to visually cluster related fields in the editor. */
@@ -1682,6 +1723,220 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "bool",
       label: "Podświetl cień na hoverze",
       group: "Prezentacja",
+    },
+  ],
+  // Karta promocyjna: okładka pod nakładką, tytuł/podtytuł i przycisk CTA.
+  // Renderer (PromoCardView) czyta KAŻDY z tych kluczy bezwarunkowo.
+  "promo-card": [
+    {
+      key: "image",
+      type: "image",
+      label: "Okładka (tło karty)",
+      hint: "Puste = sama płaszczyzna w kolorze nakładki. W trybie wydarzenia puste pole bierze okładkę wydarzenia.",
+      // Rekomendacja liczy się z WYBRANEGO kadru i szerokości karty, więc
+      // zmiana proporcji od razu zmienia liczbę pokazaną przy polu.
+      recommendedSize: (c) =>
+        promoCardImageSize(
+          promoCardRatio(c.ratio),
+          typeof c.maxWidth === "number" ? c.maxWidth : PROMO_CARD_DEFAULTS.maxWidth,
+          typeof c.heightPx === "number" ? c.heightPx : PROMO_CARD_DEFAULTS.heightPx,
+        ),
+    },
+    {
+      key: "imageAlt",
+      type: "i18nText",
+      label: "Tekst alternatywny okładki",
+      hint: "Puste = okładka jest dekoracją i znika z drzewa dostępności. Wypełnij, jeśli obraz niesie własną informację.",
+    },
+    {
+      key: "title",
+      type: "i18nText",
+      label: "Tytuł karty",
+      hint: "Puste w trybie wydarzenia = tytuł wydarzenia.",
+    },
+    { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+    {
+      key: "mode",
+      type: "select",
+      label: "Źródło przycisku",
+      options: [
+        { value: "link", label: "ręczny adres" },
+        { value: "event", label: "wydarzenie z kreatora" },
+      ],
+    },
+    {
+      key: "eventId",
+      type: "eventPicker",
+      label: "Wydarzenie",
+      visibleWhen: (c) => c.mode === "event",
+      hint: "Przycisk prowadzi na stronę wydarzenia, a puste pola karty biorą z niego tytuł, okładkę i termin.",
+    },
+    {
+      key: "showEventMeta",
+      type: "bool",
+      label: "Pokaż termin i miejsce wydarzenia",
+      visibleWhen: (c) => c.mode === "event",
+    },
+    {
+      key: "href",
+      type: "url",
+      label: "Adres przycisku",
+      placeholder: "https://…",
+      hint: "W trybie wydarzenia puste = strona wydarzenia. Wpisany adres ma pierwszeństwo.",
+    },
+    {
+      key: "buttonText",
+      type: "i18nText",
+      label: "Etykieta przycisku",
+      hint: "Puste = etykieta domyślna dla wybranego źródła.",
+    },
+    { key: "newTab", type: "bool", label: "Otwórz w nowej karcie" },
+    {
+      key: "ratio",
+      type: "select",
+      label: "Proporcje kadru",
+      group: "Kadr zdjęcia",
+      options: PROMO_CARD_RATIO_OPTIONS,
+    },
+    {
+      key: "heightPx",
+      type: "number",
+      label: "Wysokość kadru (px)",
+      group: "Kadr zdjęcia",
+      min: 80,
+      max: 1200,
+      step: 8,
+      default: 288,
+      visibleWhen: (c) => c.ratio === "auto",
+    },
+    {
+      key: "maxWidth",
+      type: "number",
+      label: "Maksymalna szerokość (px)",
+      group: "Kadr zdjęcia",
+      min: 0,
+      max: 1600,
+      step: 8,
+      default: 512,
+      hint: "0 = pełna szerokość kolumny. Ta liczba steruje też rekomendacją rozmiaru okładki.",
+    },
+    {
+      key: "fit",
+      type: "select",
+      label: "Dopasowanie zdjęcia",
+      group: "Kadr zdjęcia",
+      options: [
+        { value: "cover", label: "wypełnij kadr (przytnij)" },
+        { value: "contain", label: "zmieść w całości" },
+      ],
+    },
+    {
+      key: "imagePosition",
+      type: "select",
+      label: "Punkt kadrowania",
+      group: "Kadr zdjęcia",
+      options: [
+        { value: "center", label: "środek" },
+        { value: "top", label: "góra" },
+        { value: "bottom", label: "dół" },
+        { value: "left", label: "lewo" },
+        { value: "right", label: "prawo" },
+      ],
+    },
+    {
+      key: "overlayColor",
+      type: "color",
+      label: "Kolor nakładki",
+      group: "Prezentacja",
+      inheritedValue: "#0B1220",
+      hint: "Nakładka daje kontrast dla jasnego tekstu nad zdjęciem.",
+    },
+    {
+      key: "overlayAlphaTop",
+      type: "number",
+      label: "Krycie nakładki u góry (0-1)",
+      group: "Prezentacja",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      default: 0,
+    },
+    {
+      key: "overlayAlphaBottom",
+      type: "number",
+      label: "Krycie nakładki u dołu (0-1)",
+      group: "Prezentacja",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      default: 0.7,
+    },
+    {
+      key: "radius",
+      type: "number",
+      label: "Zaokrąglenie (px)",
+      group: "Prezentacja",
+      min: 0,
+      max: 48,
+      step: 1,
+      default: 6,
+    },
+    {
+      key: "align",
+      type: "select",
+      label: "Wyrównanie treści",
+      group: "Prezentacja",
+      options: [
+        { value: "left", label: "do lewej" },
+        { value: "center", label: "do środka" },
+      ],
+    },
+    {
+      key: "textColor",
+      type: "color",
+      label: "Kolor tekstu",
+      group: "Prezentacja",
+      inheritedValue: "#FFFFFF",
+      hint: "Puste = biel nad nakładką.",
+    },
+    {
+      key: "buttonBg",
+      type: "color",
+      label: "Tło przycisku",
+      group: "Prezentacja",
+      hint: "Puste = kolor marki.",
+    },
+    {
+      key: "buttonTextColor",
+      type: "color",
+      label: "Kolor tekstu przycisku",
+      group: "Prezentacja",
+    },
+    {
+      key: "hover",
+      type: "select",
+      label: "Reakcja na kursor",
+      group: "Prezentacja",
+      options: [
+        { value: "zoom-in", label: "zbliżenie okładki" },
+        { value: "zoom-out", label: "oddalenie okładki" },
+        { value: "fade", label: "rozjaśnienie nakładki" },
+        { value: "shadow", label: "cień" },
+        { value: "none", label: "bez reakcji" },
+      ],
+      hint: "Żaden wariant nie przesuwa karty ani jej treści - zmienia się wyłącznie okładka w kadrze, nakładka albo cień.",
+    },
+    {
+      key: "entrance",
+      type: "select",
+      label: "Animacja wejścia",
+      group: "Prezentacja",
+      options: [
+        { value: "fade", label: "przenikanie" },
+        { value: "zoom", label: "przenikanie + zbliżenie" },
+        { value: "none", label: "bez animacji" },
+      ],
+      hint: "Efekt jest wyłączany przez systemowe ograniczenie animacji (prefers-reduced-motion).",
     },
   ],
   "travel-route-card": [
