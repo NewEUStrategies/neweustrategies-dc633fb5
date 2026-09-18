@@ -18,39 +18,47 @@ const AdminDashboard = lazy(() =>
   loadAdminDashboard().then((m) => ({ default: m.AdminDashboard })),
 );
 
-// POBRANIE CHUNKU STARTUJE TUTAJ, NIE PRZY RENDERZE - i to jest jedna linijka
-// warta sekund w LCP, więc należy jej się akapit.
-//
-// ŁAŃCUCH, KTÓRY TO ROZCINA. `/admin` to trasa `ssr: false`, a `AdminLayout`
-// (routes/admin.tsx) przy `useAuth().loading` NIE renderuje `<Outlet/>`. Ten
-// komponent montuje się więc dopiero PO rozstrzygnięciu sesji - a `React.lazy`
-// odpala swój import przy pierwszym renderze. Przed zmianą wyglądało to tak,
-// SZEREGOWO:
-//   1. `supabase.auth.getSession()` - odczyt localStorage, a przy wygasłym
-//      tokenie DODATKOWO odświeżenie po sieci;
-//   2. `loadContext(uid)` - dwa zapytania PostgREST (`user_roles`, `profiles`);
-//      `loading` schodzi dopiero po nich (hooks/useAuth.tsx: `loading =
-//      sessionLoading || (session !== null && rolesLoading)`);
-//   3. DOPIERO TERAZ pobranie chunku pulpitu (silnik wykresów + mapa);
-//   4. sześć zapytań pulpitu;
-//   5. malowanie.
-// Zmierzone na produkcji LCP `/admin` = 7,54 s. Faza 3 nie zależy od faz 1-2
-// w ŻADEN sposób - to czysta serializacja.
-//
-// Moduł trasy jest ewaluowany przez router przy rozwiązywaniu dopasowania,
-// czyli ZANIM zacznie się faza 1. Ten `void` przenosi więc fazę 3 równolegle
-// do faz 1-2, nie dotykając ani `Suspense`, ani podziału na chunki: pulpit
-// nadal NIE wchodzi do grafu startowego (to była intencja `lazy` i zostaje).
-//
-// KOSZT, wprost: osoba BEZ uprawnień, która wejdzie na `/admin`, pobierze ten
-// chunk, zanim `AdminLayout` przekieruje ją na `/login`. Świadomie nie
-// stawiamy tu bramki: jedyny synchroniczny sposób jej postawienia to czytanie
-// wewnętrznego klucza sesji Supabase z `localStorage`, czyli sprzęgnięcie się
-// z formatem, którego nie kontrolujemy - a `/admin` jest noindex i na
-// deny-liście cache'u, więc ruch spoza redakcji jest tu marginalny.
-if (typeof window !== "undefined") void loadAdminDashboard().catch(() => undefined);
-
 export const Route = createFileRoute("/admin/")({
+  // ROZGRZEWKA CHUNKU PULPITU W `loader`, A NIE W CIELE MODUŁU. Ta różnica
+  // kosztowała 434 kB na publicznej stronie głównej, więc jest tu opisana
+  // razem z dowodem.
+  //
+  // ŁAŃCUCH, KTÓRY TO ROZCINA. `/admin` to trasa `ssr: false`, a `AdminLayout`
+  // (routes/admin.tsx) przy `useAuth().loading` NIE renderuje `<Outlet/>`.
+  // Komponent tej trasy montuje się więc dopiero PO rozstrzygnięciu sesji,
+  // a `React.lazy` odpala import przy pierwszym renderze. Szeregowo wychodziło:
+  //   1. `supabase.auth.getSession()` - localStorage, przy wygasłym tokenie
+  //      dodatkowo odświeżenie po sieci;
+  //   2. `loadContext(uid)` - dwa zapytania PostgREST (`user_roles`, `profiles`);
+  //      `loading` schodzi dopiero po nich (hooks/useAuth.tsx);
+  //   3. dopiero teraz pobranie chunku pulpitu (silnik wykresów + mapa);
+  //   4. sześć zapytań pulpitu; 5. malowanie.
+  // Zmierzone na produkcji LCP `/admin` = 7,54 s. Faza 3 nie zależy od faz 1-2.
+  //
+  // DLACZEGO NIE W CIELE MODUŁU - ZMIERZONE, NIE PRZEWIDZIANE. Pierwsze podejście
+  // wołało rozgrzewkę przy ewaluacji modułu trasy, w założeniu, że router
+  // ewaluuje moduł tylko dla DOPASOWANEJ trasy. To jest nieprawda: bramka
+  // `first-visit` na zbudowanym artefakcie pokazała, że wejście na `/` ściąga
+  // moduły kilkunastu niedopasowanych tras (`author.$slug`, `admin.crop-sizes`,
+  // `podcasts.$show`, `events.$slug_.packages`...), a razem z nimi poleciał cały
+  // silnik wykresów: `Chart` 216 kB, `ChartFrame` 74 kB, `i18n-admin-analytics`
+  // 58 kB, `AdminDashboard`, `useDashboardData`, `geoQuery`, `DataVizViews`.
+  // Suma: jsBytes 3 070 809 -> 3 504 909 na PUBLICZNEJ stronie głównej, czyli
+  // dokładne złamanie zasady z nagłówka tego pliku.
+  //
+  // `loader` biegnie WYŁĄCZNIE dla dopasowanej trasy - i biegnie przy
+  // rozwiązywaniu dopasowania, czyli zanim React zamontuje `AuthProvider`
+  // i zanim ruszy faza 1. Daje więc tę samą równoległość bez wycieku.
+  // Kontrola negatywna jest przypięta testem (`adminDashboardRoute.test.tsx`):
+  // sam import modułu NIE MOŻE żądać chunku, a `loader` MUSI.
+  //
+  // KOSZT, wprost: osoba bez uprawnień wchodząca na `/admin` pobierze ten chunk,
+  // zanim `AdminLayout` przekieruje ją na `/login`. Świadomie bez bramki -
+  // jedyna synchroniczna wymagałaby czytania wewnętrznego klucza sesji Supabase
+  // z `localStorage`, a `/admin` jest noindex i na deny-liście cache'u.
+  loader: () => {
+    void loadAdminDashboard().catch(() => undefined);
+  },
   component: Dashboard,
 });
 
