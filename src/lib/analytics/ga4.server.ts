@@ -84,7 +84,6 @@ function readServiceAccount(): ServiceAccount | null {
 
 import { firstEnv } from "@/lib/analytics/envSecrets";
 
-
 function b64url(input: Buffer | string): string {
   const buf = typeof input === "string" ? Buffer.from(input) : input;
   return buf.toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
