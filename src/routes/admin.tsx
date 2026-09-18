@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { isCompactSidebarRoute } from "@/lib/admin/adminNav";
 import { AdminShellSkeleton } from "@/components/admin/AdminShellSkeleton";
+import { readRememberedSidebarStyle } from "@/lib/admin/sidebarStylePreference";
 import { isEventStudioPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 import adminCss from "@/admin-styles.css?url";
@@ -47,6 +49,24 @@ function AdminLayout() {
   // `/admin`, a nie osobnym drzewem tras. Wymieniamy tylko powloke wizualna.
   const isEventStudio = isEventStudioPath(path);
 
+  // SZEROKOŚĆ PASKA W SZKIELECIE MUSI BYĆ TĄ SAMĄ DECYZJĄ, co w powłoce.
+  //
+  // `AdminShell` liczy `compact` ze wzoru `(trasa edycji || wymuszenie) && brak
+  // extrasów || styl "style-4"`. Przed hydratacją znamy z tego dwa człony:
+  // trasę (z URL-a) i wariant zapamiętany z poprzedniego wejścia. Pozostałe
+  // dwa startują fałszem (`forceCompact`) albo pustką (`extras`), więc ta
+  // wartość jest najlepszą dostępną prognozą docelowej szerokości.
+  //
+  // Bez tego szkielet rysował 224 px NAWET u najemcy ze `style-4`, u którego
+  // powłoka stawia 48 px - czyli naprawa CLS produkowała dokładnie to
+  // przesunięcie o 176 px, które `lib/admin/sidebarStylePreference.ts` miało
+  // zdjąć. Inicjalizator `useState`, nie odczyt w renderze: wartość ma być
+  // stabilna przez cały czas oczekiwania na sesję.
+  const [rememberedStyle] = useState(() =>
+    typeof window === "undefined" ? null : readRememberedSidebarStyle(),
+  );
+  const skeletonCompact = isCompactSidebarRoute(path) || rememberedStyle === "style-4";
+
   useEffect(() => {
     if (!loading && (!session || !isStaff)) navigate({ to: "/login" });
   }, [loading, session, isStaff, navigate]);
@@ -58,7 +78,7 @@ function AdminLayout() {
   // Wymiana całego układu po ~pół sekundy to najgrubszy pojedynczy wkład do
   // CLS 0,532 zmierzonego na `/admin`. Szkielet ma GEOMETRIĘ docelowej
   // powłoki, więc rozstrzygnięcie sesji nie przesuwa już niczego.
-  if (loading) return <AdminShellSkeleton hideSidebar={isEventStudio} />;
+  if (loading) return <AdminShellSkeleton hideSidebar={isEventStudio} compact={skeletonCompact} />;
   // Brak uprawnień: świadomie NIC - efekt wyżej nawiguje na /login, a
   // szkielet panelu pokazywany osobie spoza redakcji byłby obietnicą ekranu,
   // którego nigdy nie zobaczy.

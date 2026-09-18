@@ -19,6 +19,7 @@ import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   buildAdminNavGroups,
+  isCompactSidebarRoute,
   searchAdminNav,
   adminNavItemKey,
   resolveActiveNavTarget,
@@ -340,8 +341,7 @@ function AdminShellInner({
     if (resolvedStyle) rememberSidebarStyle(resolvedStyle);
   }, [resolvedStyle]);
 
-  const isEditRoute =
-    /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
+  const isEditRoute = isCompactSidebarRoute(path);
   const isThemeOptions = path.startsWith("/admin/theme-options");
   const [forceCompact, setForceCompact] = useState(false);
   const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";

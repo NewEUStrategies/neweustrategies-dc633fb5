@@ -29,6 +29,7 @@ import { cleanup, render } from "@testing-library/react";
 import { AdminShellSkeleton } from "../AdminShellSkeleton";
 
 const SHELL_SOURCE = readFileSync("src/components/admin/AdminShell.tsx", "utf8");
+const ROUTE_SOURCE = readFileSync("src/routes/admin.tsx", "utf8");
 
 afterEach(cleanup);
 
@@ -104,5 +105,37 @@ describe("niezależność", () => {
     // więc nie wolno mu czekać na cokolwiek, co samo się jeszcze ładuje.
     // Brak atrap w tym pliku (`vi.mock`) jest tu dowodem, a nie przeoczeniem.
     expect(() => render(<AdminShellSkeleton />)).not.toThrow();
+  });
+});
+
+// PROP, KTÓREGO PRODUKCJA NIE USTAWIA, JEST PROPEM MARTWYM - a tu był gorszy
+// niż martwy. `AdminShell` zwija pasek do 48 px, gdy najemca ma `style-4`
+// (albo gdy trasa jest edytorem). Szkielet, który tego nie wie, maluje 224 px
+// i sam produkuje przesunięcie o 176 px - czyli dokładnie to, które
+// `lib/admin/sidebarStylePreference.ts` ma zdejmować. Defekt był NIEWIDOCZNY
+// dla testów renderujących sam szkielet, bo szkielet obsługiwał `compact`
+// poprawnie; brakowało WOŁAJĄCEGO. Dlatego asercja idzie po ŹRÓDLE trasy.
+describe("trasa panelu faktycznie steruje szerokością szkieletu", () => {
+  it("routes/admin.tsx przekazuje `compact` do szkieletu", () => {
+    const usage = /<AdminShellSkeleton[^/]*\/>/s.exec(ROUTE_SOURCE)?.[0] ?? "";
+    expect(usage).not.toBe("");
+    expect(usage).toContain("compact=");
+  });
+
+  it("decyzja o zwinięciu ma JEDNO źródło - `isCompactSidebarRoute`", () => {
+    // Powłoka i trasa muszą pytać tę samą funkcję. Dopóki predykat był
+    // literałem regexpowym wewnątrz powłoki, trasa nie miała jak go poznać.
+    expect(SHELL_SOURCE).toContain("isCompactSidebarRoute");
+    expect(ROUTE_SOURCE).toContain("isCompactSidebarRoute");
+    // I nikt nie przepisuje go z pamięci obok.
+    expect(SHELL_SOURCE).not.toMatch(/\/\^\\\/admin\\\/\(posts\|pages\)/);
+    expect(ROUTE_SOURCE).not.toMatch(/\/\^\\\/admin\\\/\(posts\|pages\)/);
+  });
+
+  it("szkielet bierze pod uwagę ZAPAMIĘTANY wariant paska, nie tylko trasę", () => {
+    // Bez tego członu najemca ze `style-4` dostaje 224 px na każdym ekranie
+    // panelu poza edytorami - czyli w większości wejść.
+    expect(ROUTE_SOURCE).toContain("readRememberedSidebarStyle");
+    expect(ROUTE_SOURCE).toContain("style-4");
   });
 });

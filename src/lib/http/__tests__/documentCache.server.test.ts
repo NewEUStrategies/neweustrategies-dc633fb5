@@ -567,3 +567,46 @@ describe("odrzut rozmiarowy (dokument > limit wpisu)", () => {
     expect(render).toHaveBeenCalledTimes(1);
   });
 });
+
+// TELEMETRIA FAZ NA GAŁĘZI BYPASS.
+//
+// `edge-routing` mierzy odcinek przed routerem (katalog tenantów + indeks
+// przekierowań, szeregowo, planem service-role) i powstał po to, żeby dało się
+// rozstrzygnąć, z czego składa się zmierzone na produkcji TTFB. Deny-lista NES
+// Edge Cache obejmuje `/admin` - czyli DOKŁADNIE jedną z powierzchni, których
+// TTFB był zgłoszony (3,15 s). Gdyby faza wypadała na BYPASS-ie, instrument
+// byłby ślepy tam, gdzie postawiono pytanie: `/admin`, `/profile`, `/checkout`
+// i całe `/api` nie niosłyby ani jednej liczby o tym odcinku.
+//
+// KONTROLA NEGATYWNA jest w drugim teście: bez zmierzonej fazy nagłówek NIE
+// POWSTAJE, więc BYPASS nie zaczyna nagle deklarować pomiaru, którego nie ma.
+describe("handleDocumentRequest - fazy Server-Timing na BYPASS", () => {
+  it("ścieżka z deny-listy (/admin) NIESIE zmierzoną fazę edge-routing", async () => {
+    // Telemetria jest server-only (`if (!import.meta.env.SSR) return []`), a ta
+    // suita biegnie w happy-dom. Bez podstawienia flagi test mierzyłby wyłącznie
+    // gałąź "nie jesteśmy na serwerze" - czyli nie mierzyłby niczego.
+    vi.stubEnv("SSR", "true");
+    const request = docRequest("/admin");
+    const timing = await import("../ssrTiming.server");
+    timing.recordRequestPhase(request, "edge-routing", 284.2);
+
+    const result = (await handleDocumentRequest(request, () =>
+      htmlResponse("<html>panel</html>"),
+    )) as Response;
+
+    expect(result.headers.get("server-timing")).toBe(
+      'nes-edge;desc="BYPASS", edge-routing;dur=284.2',
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("bez zmierzonej fazy BYPASS nie dokłada nagłówka - pomiar, nie deklaracja", async () => {
+    const request = docRequest("/admin/posts");
+
+    const result = (await handleDocumentRequest(request, () =>
+      htmlResponse("<html>panel</html>"),
+    )) as Response;
+
+    expect(result.headers.get("server-timing")).toBeNull();
+  });
+});

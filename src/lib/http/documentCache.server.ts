@@ -654,7 +654,32 @@ export async function handleDocumentRequest<T>(
       stats.bypass += 1;
       recordDecision({ at: new Date().toISOString(), path, status: "BYPASS" });
     }
-    return next();
+    // BYPASS TEŻ DOSTAJE POMIAR, i to nie jest symetria dla symetrii.
+    //
+    // Deny-lista NES Edge Cache obejmuje `/admin` - czyli dokładnie tę
+    // powierzchnię, której TTFB (3,15 s) był jednym ze zgłoszonych defektów.
+    // Gdyby faza `edge-routing` wypadała na gałęzi BYPASS, telemetria byłaby
+    // ślepa tam, gdzie postawiono pytanie: odpowiedzi z `/admin`, `/profile`,
+    // `/checkout` i całego `/api` nie niosłyby ani jednej liczby o odcinku
+    // przed routerem. Koszt to odczyt WeakMapy po module już wczytanym.
+    const result = await next();
+    const bypassed = getMiddlewareResponse(result);
+    if (!bypassed) return result;
+    const phasesOnBypass = await readPhasesSafe(request);
+    if (phasesOnBypass.length === 0) return result;
+    const headers = new Headers(bypassed.headers);
+    headers.set(
+      "server-timing",
+      buildServerTimingValue("BYPASS", undefined, undefined, undefined, phasesOnBypass),
+    );
+    return withMiddlewareResponse(
+      result,
+      new Response(bypassed.body, {
+        status: bypassed.status,
+        statusText: bypassed.statusText,
+        headers,
+      }),
+    );
   }
 
   // Fazy sprzed tego middleware są w tym punkcie JUŻ ZAMKNIĘTE: routing
