@@ -833,9 +833,9 @@ describe("CartesianChart - linie i pola", () => {
     // wobec płyty jest bardzo nierówna, więc jedna alfa dawała pola raz
     // niewidoczne, raz krzyczące. Wartość liczona jest pod kontrast
     // 1,10-1,17:1 do płyty i pilnuje jej bramka palety.
-    // Pole jest RAMPĄ PIONOWĄ, nie płaską płachtą: pełna alfa tokena przy
-    // górnej krawędzi (tam siedzi wartość), zejście do zera przy bazie (tam
-    // jest samo domknięcie do osi). Krycie przeniosło się więc z `fill-opacity`
+    // Pole jest RAMPĄ, nie płaską płachtą: pełna alfa tokena przy krawędzi
+    // wartości (tej, którą rysuje linia), zejście do zera przy bazie (tam jest
+    // samo domknięcie do osi). Krycie przeniosło się więc z `fill-opacity`
     // ścieżki do stopni gradientu - na ścieżce nie ma go już w żadnej postaci.
     const slot = slotForSeries(0);
     expect(all(container, SEL.area)[0].getAttribute("fill-opacity")).toBeNull();
@@ -846,10 +846,10 @@ describe("CartesianChart - linie i pola", () => {
     // pełna nieprzezroczystość - czyli pole zamalowałoby wykres. Ten sam
     // powód, dla którego mapa-choropleta podaje `fill` w `style`.
     const stops = all(container, "linearGradient[id^='neh-area-'] stop");
+    // Seria dodatnia: baza na DOLE, więc dolna strona rampy jest zdegenerowana
+    // i zostają trzy stopnie - pełny u góry, przygaszony w drodze, zero na bazie.
     expect(stops).toHaveLength(3);
     expect(stops[0].getAttribute("style")).toContain(`stop-opacity: var(--chart-band-${slot})`);
-    // Ostatni stopień gasi pole całkowicie - baza pola nie może konkurować
-    // z linią o uwagę.
     expect(stops[2].getAttribute("stop-opacity")).toBe("0");
     // Odcień przez cały gradient jest JEDEN - rampa zmienia krycie, nigdy
     // kolor serii; zmiana odcienia po drodze kodowałaby coś, czego nie ma.
@@ -888,6 +888,69 @@ describe("CartesianChart - linie i pola", () => {
     const axisY = all(container, SEL.axis)[0].getAttribute("y1");
     expect(axisY).toBe("12");
     expect(d(all(container, SEL.area)[0])).toContain("12.0 Z");
+  });
+
+  it("rampa pola GAŚNIE PRZY BAZIE, także gdy baza stoi na górze rysunku", () => {
+    // Regresja. Rampa przyklejona do pudełka ścieżki (`objectBoundingBox`,
+    // pełna alfa u góry) kodowała serię wyłącznie ujemną DOKŁADNIE ODWROTNIE:
+    // `zeroPos` jest przycięty do dziedziny, więc baza ląduje na GÓRZE rysunku,
+    // a linia biegnie pod nią. Pole było więc najmocniejsze przy bazie
+    // i przezroczyste przy wartości - czyli emfaza siadała tam, gdzie nie ma
+    // żadnego pomiaru.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "area",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [-10, -20, -5] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const slot = slotForSeries(0);
+    const gradient = all(container, "linearGradient[id^='neh-area-']")[0];
+    // Rampa jedzie w układzie RYSUNKU, bo baza leży w nim, a nie w pudełku
+    // ścieżki - bez tego nie da się jej zakotwiczyć na zerze.
+    expect(gradient.getAttribute("gradientUnits")).toBe("userSpaceOnUse");
+    const stops = all(container, "linearGradient[id^='neh-area-'] stop");
+    // Baza na samej górze: górna strona rampy jest zdegenerowana, więc pierwszy
+    // stopień to WŁAŚNIE zero, a pełna alfa siedzi na dole, przy linii.
+    expect(stops[0].getAttribute("stop-opacity")).toBe("0");
+    expect(stops[0].getAttribute("offset")).toBe("0");
+    expect(stops[stops.length - 1].getAttribute("style")).toContain(
+      `stop-opacity: var(--chart-band-${slot})`,
+    );
+    expect(stops[stops.length - 1].getAttribute("offset")).toBe("1");
+  });
+
+  it("seria o ZMIENNYM ZNAKU gaśnie ku bazie z OBU stron", () => {
+    // Baza stoi w środku, więc obie połowy pola niosą wartość na swoim
+    // zewnętrznym brzegu. Jedna rampa przez całą wysokość obsługuje oba
+    // kierunki naraz - bez dzielenia ścieżki na części.
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "area",
+          categories: ["a", "b", "c"],
+          series: [{ name: "A", values: [-10, 20, 5] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const slot = slotForSeries(0);
+    const stops = all(container, "linearGradient[id^='neh-area-'] stop");
+    expect(stops).toHaveLength(5);
+    // Pełna alfa na obu krańcach, zero dokładnie na bazie w środku.
+    expect(stops[0].getAttribute("style")).toContain(`stop-opacity: var(--chart-band-${slot})`);
+    expect(stops[2].getAttribute("stop-opacity")).toBe("0");
+    expect(stops[4].getAttribute("style")).toContain(`stop-opacity: var(--chart-band-${slot})`);
+    // Zero siedzi MIĘDZY krańcami, a nie na którymś z nich.
+    const bazaOffset = Number(stops[2].getAttribute("offset"));
+    expect(bazaOffset).toBeGreaterThan(0);
+    expect(bazaOffset).toBeLessThan(1);
+    // Stopnie idą w kolejności niemalejącej - inaczej gradient jest nieważny.
+    const offsety = stops.map((s) => Number(s.getAttribute("offset")));
+    expect([...offsety].sort((a, b) => a - b)).toEqual(offsety);
   });
 
   it("pojedynczy punkt linii ląduje na środku pasa i zostaje widoczny jako kropka", () => {
