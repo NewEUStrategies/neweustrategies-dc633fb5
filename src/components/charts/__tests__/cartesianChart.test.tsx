@@ -65,7 +65,9 @@ const textOf = (root: HTMLElement, sel: string): string[] =>
 const SEL = {
   bar: "path.neh-bar",
   line: "path.neh-line",
-  area: "path.neh-fade",
+  // Pole pod linią ma WŁASNĄ klasę, bo ma własny zegar wejścia: wchodzi razem
+  // z rysowaniem linii, a nie po nim jak odczyty spod `.neh-fade`.
+  area: "path.neh-area",
   dot: "circle",
   grid: "line[stroke='var(--chart-grid)']",
   axis: "line[stroke='var(--chart-axis)']",
@@ -831,14 +833,29 @@ describe("CartesianChart - linie i pola", () => {
     // wobec płyty jest bardzo nierówna, więc jedna alfa dawała pola raz
     // niewidoczne, raz krzyczące. Wartość liczona jest pod kontrast
     // 1,10-1,17:1 do płyty i pilnuje jej bramka palety.
+    // Pole jest RAMPĄ PIONOWĄ, nie płaską płachtą: pełna alfa tokena przy
+    // górnej krawędzi (tam siedzi wartość), zejście do zera przy bazie (tam
+    // jest samo domknięcie do osi). Krycie przeniosło się więc z `fill-opacity`
+    // ścieżki do stopni gradientu - na ścieżce nie ma go już w żadnej postaci.
+    const slot = slotForSeries(0);
+    expect(all(container, SEL.area)[0].getAttribute("fill-opacity")).toBeNull();
+    expect(all(container, SEL.area)[0].getAttribute("style")).toBeNull();
+    expect(all(container, SEL.area)[0].getAttribute("fill")).toMatch(/^url\(#neh-area-.+-\d+\)$/);
     // Krycie jedzie w `style`, NIE w atrybucie prezentacyjnym: `var()`
     // w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązane krycie to
     // pełna nieprzezroczystość - czyli pole zamalowałoby wykres. Ten sam
     // powód, dla którego mapa-choropleta podaje `fill` w `style`.
-    expect(all(container, SEL.area)[0].getAttribute("fill-opacity")).toBeNull();
-    expect(all(container, SEL.area)[0].getAttribute("style")).toContain(
-      `fill-opacity: var(--chart-band-${slotForSeries(0)})`,
-    );
+    const stops = all(container, "linearGradient[id^='neh-area-'] stop");
+    expect(stops).toHaveLength(3);
+    expect(stops[0].getAttribute("style")).toContain(`stop-opacity: var(--chart-band-${slot})`);
+    // Ostatni stopień gasi pole całkowicie - baza pola nie może konkurować
+    // z linią o uwagę.
+    expect(stops[2].getAttribute("stop-opacity")).toBe("0");
+    // Odcień przez cały gradient jest JEDEN - rampa zmienia krycie, nigdy
+    // kolor serii; zmiana odcienia po drodze kodowałaby coś, czego nie ma.
+    for (const stop of stops) {
+      expect(stop.getAttribute("stop-color")).toBe(`var(--chart-${slot})`);
+    }
   });
 
   it("linia bez pola nie generuje warstwy wypełnienia", () => {

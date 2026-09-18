@@ -236,7 +236,9 @@ export function CartesianChart({
   const t = (key: string, values?: Record<string, string | number>): string =>
     scoped(key, { lng: lang, ...values });
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
-  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate, {
+    onMount: true,
+  });
   // W stanie siedzi WYŁĄCZNIE indeks kategorii, a nie gotowa kotwica: piksele
   // zależą od geometrii, a ta zmienia się z każdą podmianą configu.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -663,6 +665,28 @@ export function CartesianChart({
           })),
         )
       : [];
+  /**
+   * POLE POD LINIĄ JAKO PIONOWA RAMPA, nie jako płaska płachta.
+   *
+   * Alfa u góry zostaje DOKŁADNIE ta, co dotąd - token `--chart-band-N`,
+   * policzony pod kontrast 1,10-1,17:1 do płyty. Zmienia się wyłącznie to, co
+   * dzieje się NIŻEJ: krycie schodzi do zera przy linii bazowej.
+   *
+   * To nie jest zabieg czysto estetyczny i dlatego rampa idzie w tę stronę,
+   * a nie w drugą. Informacja w wykresie warstwowym siedzi przy KRAWĘDZI
+   * GÓRNEJ - to ona niesie wartość - a dół pola to tylko domknięcie do osi.
+   * Płaska płachta daje obu obszarom tę samą wagę wizualną i przy kilku
+   * seriach zaczyna konkurować z liniami o uwagę. Rampa zostawia pełną,
+   * policzoną alfę tam, gdzie jest sygnał, i wygasza obszar, który go nie
+   * niesie.
+   *
+   * PASMO PROGNOZY zostaje płaskie i to jest rozstrzygnięcie, nie przeoczenie:
+   * pasmo koduje ROZPIĘTOŚĆ niepewności całą swoją wysokością, więc wygaszanie
+   * jego dolnej części pokazywałoby mniejszą niepewność, niż mówią dane.
+   */
+  const areaGradientId = (slot: number): string => `neh-area-${uid}-${slot}`;
+  const areaGradientSlots =
+    config.kind === "area" ? [...new Set(series.map((s) => s.colorSlot))] : [];
   return (
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
@@ -716,6 +740,32 @@ export function CartesianChart({
                   </linearGradient>
                 );
               })}
+            </defs>
+          )}
+          {areaGradientSlots.length > 0 && (
+            <defs>
+              {areaGradientSlots.map((slot) => (
+                <linearGradient key={slot} id={areaGradientId(slot)} x1={0} y1={0} x2={0} y2={1}>
+                  {/* Krycie w `style`, nie w atrybucie `stop-opacity`: wartość
+                      jedzie z tokena przez `var()`, a atrybuty prezentacyjne
+                      SVG nie rozwijają zmiennych CSS wszędzie. Ta sama zasada,
+                      co przy `fillOpacity` pasma niżej. */}
+                  <stop
+                    offset="0"
+                    stopColor={`var(--chart-${slot})`}
+                    style={{ stopOpacity: `var(--chart-band-${slot})` }}
+                  />
+                  {/* Stopień środkowy trzyma rampę przy górnej krawędzi:
+                      liniowe zejście do zera gasi pole już w połowie wysokości
+                      i warstwa przestaje się czytać jako powierzchnia. */}
+                  <stop
+                    offset="0.55"
+                    stopColor={`var(--chart-${slot})`}
+                    style={{ stopOpacity: `calc(var(--chart-band-${slot}) * 0.45)` }}
+                  />
+                  <stop offset="1" stopColor={`var(--chart-${slot})`} stopOpacity={0} />
+                </linearGradient>
+              ))}
             </defs>
           )}
 
@@ -1139,11 +1189,13 @@ export function CartesianChart({
                       {areaD && (
                         <path
                           d={areaD}
-                          fill={seriesColor(s)}
-                          // Krycie w `style`, nie w atrybucie - patrz komentarz
-                          // przy strefie prognozy.
-                          style={{ fillOpacity: `var(--chart-band-${s.colorSlot})` }}
-                          className="neh-fade"
+                          // Rampa pionowa z alfą tokena u góry - patrz
+                          // `areaGradientSlots`. Krycie siedzi w stopniach
+                          // gradientu, więc `fillOpacity` już tu nie ma.
+                          fill={`url(#${areaGradientId(s.colorSlot)})`}
+                          // `neh-area`, nie `neh-fade`: pole wchodzi RAZEM
+                          // z rysowaniem linii, a nie po nim - patrz styles.css.
+                          className="neh-area"
                         />
                       )}
                       {/* Pasmo niepewności prognozy. Krycie z tokena per slot,

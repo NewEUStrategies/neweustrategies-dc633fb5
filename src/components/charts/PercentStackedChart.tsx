@@ -334,7 +334,9 @@ export function PercentStackedChart({
     [scoped, lang],
   );
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>();
-  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate, {
+    onMount: true,
+  });
   // W stanie siedzą WYŁĄCZNIE indeksy, nie gotowe piksele: geometria zmienia
   // się z każdą podmianą konfiguracji i z każdą zmianą szerokości kontenera.
   const [activeBar, setActiveBar] = useState<number | null>(null);
