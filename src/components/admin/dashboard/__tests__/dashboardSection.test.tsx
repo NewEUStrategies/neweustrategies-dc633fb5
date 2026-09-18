@@ -128,3 +128,45 @@ describe("DashboardSection - nagłówek", () => {
     expect(container.querySelector("section")?.getAttribute("aria-busy")).toBeNull();
   });
 });
+
+// REZERWA UKŁADU - osobny opis, bo to inny inwariant niż "trzy stany odczytu".
+//
+// Stan "ładowanie" ma wysokość jednego wiersza, stan gotowy - kilkuset pikseli.
+// Sześć sekcji pulpitu rozstrzyga się niezależnie, więc bez rezerwy każde
+// dojście danych spycha w dół wszystko, co pod nim - i to jest połowa CLS 0,532
+// zmierzonego na `/admin`. Test pilnuje, że rezerwa DOCHODZI DO DOM-u i że
+// znika razem ze stanem ładowania (rezerwa, która zostaje, byłaby pustym pasem
+// pod gotowym panelem).
+describe("DashboardSection - rezerwa układu", () => {
+  it("rezerwuje wysokość na czas odczytu", () => {
+    render(
+      <DashboardSection title="Ruch" isPending pendingMinHeight={420}>
+        <p>x</p>
+      </DashboardSection>,
+    );
+    expect(screen.getByRole("status").style.minHeight).toBe("420px");
+  });
+
+  it("bez argumentu zachowanie jest dokładnie dzisiejsze - żadnej rezerwy", () => {
+    render(
+      <DashboardSection title="Ruch" isPending>
+        <p>x</p>
+      </DashboardSection>,
+    );
+    expect(screen.getByRole("status").style.minHeight).toBe("");
+  });
+
+  it("rezerwa znika razem ze stanem ładowania", () => {
+    const { container, rerender } = render(
+      <DashboardSection title="Ruch" isPending pendingMinHeight={420}>
+        <p>x</p>
+      </DashboardSection>,
+    );
+    rerender(
+      <DashboardSection title="Ruch" pendingMinHeight={420}>
+        <p>x</p>
+      </DashboardSection>,
+    );
+    expect(container.querySelector("[style*='min-height']")).toBeNull();
+  });
+});

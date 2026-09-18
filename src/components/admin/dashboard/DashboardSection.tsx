@@ -37,6 +37,22 @@ export interface DashboardSectionProps {
    */
   children?: ReactNode;
   className?: string;
+  /**
+   * WYSOKOŚĆ REZERWOWANA NA CZAS ODCZYTU, w pikselach.
+   *
+   * PO CO. Stan "ładowanie" to jeden wiersz z migotką (`py-6`, ~56 px), a stan
+   * gotowy to panel liczący setki pikseli. Sześć sekcji pulpitu rozstrzyga się
+   * NIEZALEŻNIE i każda, dorastając, spycha wszystkie następne w dół - czyli
+   * jedno wejście na `/admin` produkuje sześć osobnych przesunięć układu.
+   * To jest druga połowa CLS 0,532 zmierzonego na tej ścieżce (pierwsza to
+   * wymiana całej powłoki po rozstrzygnięciu sesji - patrz `AdminShellSkeleton`).
+   *
+   * Liczba jest PRZYBLIŻENIEM docelowej wysokości panelu, nie jego kontraktem:
+   * rezerwa za mała zostawia resztę przesunięcia, za duża daje jednorazowe
+   * skrócenie. Wołający podaje wartość zmierzoną dla swojego panelu; bez
+   * argumentu zachowanie jest dokładnie dzisiejsze (sama migotka).
+   */
+  pendingMinHeight?: number;
 }
 
 export function DashboardSection({
@@ -50,6 +66,7 @@ export function DashboardSection({
   unavailable,
   children,
   className,
+  pendingMinHeight,
 }: DashboardSectionProps) {
   const { t } = useTranslation();
 
@@ -80,6 +97,7 @@ export function DashboardSection({
         <div
           role="status"
           className="flex items-center gap-2 text-xs text-muted-foreground py-6 justify-center"
+          style={pendingMinHeight ? { minHeight: `${pendingMinHeight}px` } : undefined}
         >
           <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
           {t("adminDashboard.state.loading")}

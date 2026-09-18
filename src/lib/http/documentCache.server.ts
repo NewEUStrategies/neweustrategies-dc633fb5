@@ -65,7 +65,11 @@ import {
   type L2DocumentEntry,
 } from "@/lib/http/documentCacheL2.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
-import { buildServerTimingValue, type SsrDbTiming } from "@/lib/http/ssrTiming";
+import {
+  buildServerTimingValue,
+  type SsrDbTiming,
+  type SsrPhaseTiming,
+} from "@/lib/http/ssrTiming";
 
 /**
  * Migawka telemetrii DB bieżącego żądania. Część server-only telemetrii
@@ -81,6 +85,25 @@ async function readDbTimingSafe(request: Request): Promise<SsrDbTiming | null> {
     return mod.readDbTiming(request);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fazy potoku zmierzone PRZED tym middleware (dziś: `edge-routing` z
+ * `src/start.ts`). Ta sama doktryna dynamicznego importu, co wyżej.
+ *
+ * DLACZEGO TO NALEŻY DO KAŻDEJ ODPOWIEDZI, A NIE TYLKO DO MISS-a: routing
+ * krawędziowy biegnie PRZED konsultacją cache'u dokumentów, więc jego koszt
+ * płaci także trafienie. Nagłówek, który pokazywałby go wyłącznie na MISS-ie,
+ * mówiłby dokładną nieprawdę o tym, ile kosztuje HIT.
+ */
+async function readPhasesSafe(request: Request): Promise<SsrPhaseTiming[]> {
+  if (!import.meta.env.SSR) return [];
+  try {
+    const mod = await import("@/lib/http/ssrTiming.server");
+    return mod.readRequestPhases(request);
+  } catch {
+    return [];
   }
 }
 
@@ -321,6 +344,7 @@ function replay(
   status: NesCacheStatus,
   now: number,
   path: string,
+  phases: readonly SsrPhaseTiming[] = [],
 ): Response {
   const ageS = Math.max(0, Math.round((now - entry.storedAt) / 1000));
   recordDecision({
@@ -335,7 +359,13 @@ function replay(
     "cache-control": entry.cacheControl,
     [NES_CACHE_HEADER]: status,
     [NES_CACHE_AGE_HEADER]: String(Math.max(0, Math.round((now - entry.storedAt) / 1000))),
-    "server-timing": buildServerTimingValue(status, undefined, undefined, now - entry.storedAt),
+    "server-timing": buildServerTimingValue(
+      status,
+      undefined,
+      undefined,
+      now - entry.storedAt,
+      phases,
+    ),
   });
   if (entry.contentLanguage) headers.set("content-language", entry.contentLanguage);
   // Hinty preload (obraz LCP, fonty) wracają na odpowiedź także z cache'a -
@@ -364,6 +394,8 @@ function entryFromL2(l2Entry: L2DocumentEntry): DocumentCacheEntry {
 interface RenderTiming {
   renderMs: number;
   db: SsrDbTiming | null;
+  /** Fazy zmierzone poza renderem (routing krawędziowy) - patrz `readPhasesSafe`. */
+  phases?: readonly SsrPhaseTiming[];
 }
 
 function withCacheStatus(
@@ -373,7 +405,10 @@ function withCacheStatus(
 ): Response {
   const headers = new Headers(response.headers);
   headers.set(NES_CACHE_HEADER, status);
-  headers.set("server-timing", buildServerTimingValue(status, timing?.renderMs, timing?.db));
+  headers.set(
+    "server-timing",
+    buildServerTimingValue(status, timing?.renderMs, timing?.db, undefined, timing?.phases),
+  );
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -619,8 +654,41 @@ export async function handleDocumentRequest<T>(
       stats.bypass += 1;
       recordDecision({ at: new Date().toISOString(), path, status: "BYPASS" });
     }
-    return next();
+    // BYPASS TEŻ DOSTAJE POMIAR, i to nie jest symetria dla symetrii.
+    //
+    // Deny-lista NES Edge Cache obejmuje `/admin` - czyli dokładnie tę
+    // powierzchnię, której TTFB (3,15 s) był jednym ze zgłoszonych defektów.
+    // Gdyby faza `edge-routing` wypadała na gałęzi BYPASS, telemetria byłaby
+    // ślepa tam, gdzie postawiono pytanie: odpowiedzi z `/admin`, `/profile`,
+    // `/checkout` i całego `/api` nie niosłyby ani jednej liczby o odcinku
+    // przed routerem. Koszt to odczyt WeakMapy po module już wczytanym.
+    const result = await next();
+    const bypassed = getMiddlewareResponse(result);
+    if (!bypassed) return result;
+    const phasesOnBypass = await readPhasesSafe(request);
+    if (phasesOnBypass.length === 0) return result;
+    const headers = new Headers(bypassed.headers);
+    headers.set(
+      "server-timing",
+      buildServerTimingValue("BYPASS", undefined, undefined, undefined, phasesOnBypass),
+    );
+    return withMiddlewareResponse(
+      result,
+      new Response(bypassed.body, {
+        status: bypassed.status,
+        statusText: bypassed.statusText,
+        headers,
+      }),
+    );
   }
+
+  // Fazy sprzed tego middleware są w tym punkcie JUŻ ZAMKNIĘTE: routing
+  // krawędziowy (`edge-routing`) biegnie w `redirectMiddleware`, czyli cztery
+  // pozycje wyżej w łańcuchu. Ten odczyt obsługuje gałęzie, które NIE
+  // renderują (HIT i STALE z L1/L2); gałąź renderu czyta fazy PONOWNIE, już
+  // po `next()`, żeby przyszły pomiar wykonany w trakcie renderu też trafił
+  // do nagłówka zamiast wypaść po cichu.
+  const phases = await readPhasesSafe(request);
 
   /** next() z pomiarem czasu renderu + kosztu bazy (Server-Timing). */
   const renderWithTiming = async (): Promise<{ result: T; timing: RenderTiming }> => {
@@ -628,7 +696,11 @@ export async function handleDocumentRequest<T>(
     const result = await next();
     return {
       result,
-      timing: { renderMs: Date.now() - startedAt, db: await readDbTimingSafe(request) },
+      timing: {
+        renderMs: Date.now() - startedAt,
+        db: await readDbTimingSafe(request),
+        phases: await readPhasesSafe(request),
+      },
     };
   };
 
@@ -645,7 +717,7 @@ export async function handleDocumentRequest<T>(
     if (age < entry.freshMs) {
       stats.hits += 1;
       touchEntry(plan.key, entry);
-      return replay(entry, "HIT", now, path);
+      return replay(entry, "HIT", now, path, phases);
     }
     if (age < entry.freshMs + entry.swrMs) {
       // Właściwe stale-while-revalidate: czytelnik NIGDY nie płaci renderu,
@@ -653,13 +725,13 @@ export async function handleDocumentRequest<T>(
       if (documentRevalidator) {
         scheduleRevalidation(request, plan.key);
         stats.stale += 1;
-        return replay(entry, "STALE", now, path);
+        return replay(entry, "STALE", now, path, phases);
       }
       // Bez zarejestrowanego drivera (suita jednostkowa, obce entry) zostaje
       // zachowanie sprzed zmiany: jedno żądanie płaci rewalidację synchronicznie.
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
-        return replay(entry, "STALE", now, path);
+        return replay(entry, "STALE", now, path, phases);
       }
       revalidating.add(plan.key);
       try {
@@ -675,7 +747,7 @@ export async function handleDocumentRequest<T>(
       } catch {
         // Render się wywalił - nieświeży dokument jest lepszy niż 500.
         stats.stale += 1;
-        return replay(entry, "STALE", now, path);
+        return replay(entry, "STALE", now, path, phases);
       } finally {
         revalidating.delete(plan.key);
       }
@@ -694,7 +766,7 @@ export async function handleDocumentRequest<T>(
       setEntry(plan.key, seeded);
       stats.hits += 1;
       recordL2Serve("HIT");
-      return replay(seeded, "HIT", now, path);
+      return replay(seeded, "HIT", now, path, phases);
     }
     if (l2Age < l2Entry.freshMs + l2Entry.swrMs) {
       const staleEntry = entryFromL2(l2Entry);
@@ -705,12 +777,12 @@ export async function handleDocumentRequest<T>(
         scheduleRevalidation(request, plan.key);
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now, path);
+        return replay(staleEntry, "STALE", now, path, phases);
       }
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now, path);
+        return replay(staleEntry, "STALE", now, path, phases);
       }
       revalidating.add(plan.key);
       try {
@@ -726,7 +798,7 @@ export async function handleDocumentRequest<T>(
       } catch {
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now, path);
+        return replay(staleEntry, "STALE", now, path, phases);
       } finally {
         revalidating.delete(plan.key);
       }

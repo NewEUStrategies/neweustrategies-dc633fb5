@@ -38,6 +38,10 @@ import {
 } from "../lib/seo/rootHead";
 import { LOCALE_CHUNK_URLS } from "../lib/seo/localeChunks";
 import { showsSiteChrome } from "../lib/routing/siteChrome";
+import {
+  CLIENT_ONLY_WARM_BUDGET_MS,
+  isClientOnlyDocument,
+} from "../lib/routing/clientOnlyDocument";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
 import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
@@ -411,10 +415,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
     // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
     // stronie. Zmierzone: 3 równoległe podżądania -> 2.
+    // TERMIN FALI 1 - trzy rozłączne kontrakty: strona główna (wspólny deadline
+    // renderu docięty `HOME_THEME_BUDGET_MS`), dokument bez serwerowego renderu
+    // (uzasadnienie i wartość: `lib/routing/clientOnlyDocument.ts`), reszta
+    // serwisu bez zmian. Trzeci argument `withBudget` może budżet wyłącznie
+    // SKRÓCIĆ, więc żaden wariant nie podnosi sufitu pilnowanego przez
+    // `check:ssr-budgets`.
     const themeDeadline =
-      homeDeadline === undefined
-        ? undefined
-        : Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS);
+      homeDeadline !== undefined
+        ? Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS)
+        : isServer && isClientOnlyDocument(path)
+          ? Date.now() + CLIENT_ONLY_WARM_BUDGET_MS
+          : undefined;
     await withBudget(
       Promise.allSettled([
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),

@@ -462,3 +462,18 @@ export function resolveActiveNavTarget(groups: AdminNavGroup[], path: string): s
   }
   return best;
 }
+
+/**
+ * Trasy, na których pasek boczny panelu startuje ZWINIĘTY - edytor wpisu,
+ * edytor strony i wygląd potrzebują szerokości na formularz.
+ *
+ * MIESZKA TU, A NIE W `AdminShell.tsx`, bo tę samą decyzję podejmują DWA
+ * niezależne komponenty: powłoka i jej SZKIELET (`AdminShellSkeleton`,
+ * montowany przez `routes/admin.tsx` na czas rozstrzygania sesji). Dopóki
+ * predykat był literałem wewnątrz powłoki, szkielet nie miał jak go poznać
+ * i rysował pasek 224 px tam, gdzie powłoka po nim stawiała 48 px - czyli sam
+ * produkował przesunięcie 176 px, które miał zdejmować.
+ */
+export function isCompactSidebarRoute(path: string): boolean {
+  return /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
+}

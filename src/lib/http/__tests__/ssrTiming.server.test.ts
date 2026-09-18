@@ -22,7 +22,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildServerTimingValue } from "../ssrTiming";
-import { readDbTiming, recordDbRoundTrip } from "../ssrTiming.server";
+import {
+  readDbTiming,
+  readRequestPhases,
+  recordDbRoundTrip,
+  recordRequestPhase,
+} from "../ssrTiming.server";
 
 const ctx = vi.hoisted(() => ({
   /** Co ma zwrócić `getRequest()`. */
@@ -241,5 +246,104 @@ describe("invalid timing samples do not poison the header", () => {
     expect(buildServerTimingValue("HIT", -1, { count: 1, totalMs: 0 }, 0)).toBe(
       'nes-edge;desc="HIT", db;dur=0.0;desc="n=1", nes-age;dur=0',
     );
+  });
+});
+
+// FAZY POTOKU (`edge-routing`) - druga, niezależna oś tej telemetrii.
+//
+// PO CO ISTNIEJE, skoro `db;dur` już jest. `db;dur` mierzy KOSZT planu anon
+// (suma czasów round-tripów) i wyłącznie w trakcie renderu. Odcinek PRZED
+// routerem - katalog tenantów i indeks przekierowań, oba planem service-role,
+// oba SZEREGOWO i oba PRZED konsultacją NES Edge Cache - nie wchodzi tam
+// w ogóle. Na produkcji z TTFB p75 = 2,5-3,2 s to jest właśnie ten odcinek,
+// o którym nagłówek dotąd milczał: mieścił się w różnicy `app;dur - ssr;dur`
+// razem z siecią i całą resztą middleware.
+describe("recordRequestPhase / readRequestPhases", () => {
+  it("zapisuje fazę i oddaje ją migawką", () => {
+    const request = req("/faza");
+    recordRequestPhase(request, "edge-routing", 12.5);
+    expect(readRequestPhases(request)).toEqual([{ name: "edge-routing", durationMs: 12.5 }]);
+  });
+
+  it("powtórzone wywołanie tej samej fazy SUMUJE - faza może biec w odcinkach", () => {
+    const request = req("/suma");
+    recordRequestPhase(request, "edge-routing", 10);
+    recordRequestPhase(request, "edge-routing", 5);
+    expect(readRequestPhases(request)).toEqual([{ name: "edge-routing", durationMs: 15 }]);
+  });
+
+  it("dwa żądania nie widzą faz siebie nawzajem", () => {
+    const a = req("/a");
+    const b = req("/b");
+    recordRequestPhase(a, "edge-routing", 40);
+    expect(readRequestPhases(b)).toEqual([]);
+    expect(readRequestPhases(a)).toEqual([{ name: "edge-routing", durationMs: 40 }]);
+  });
+
+  it("zwraca MIGAWKĘ - mutacja wyniku nie psuje licznika w module", () => {
+    const request = req("/migawka");
+    recordRequestPhase(request, "edge-routing", 7);
+    const snapshot = readRequestPhases(request);
+    snapshot[0]!.durationMs = 9999;
+    expect(readRequestPhases(request)).toEqual([{ name: "edge-routing", durationMs: 7 }]);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
+    "odrzuca próbkę nie do użycia: %s",
+    (sample) => {
+      const request = req("/zla-probka");
+      recordRequestPhase(request, "edge-routing", sample);
+      expect(readRequestPhases(request)).toEqual([]);
+    },
+  );
+});
+
+describe("fazy w nagłówku Server-Timing", () => {
+  it("dopisują się NA KOŃCU, za istniejącymi metrykami", () => {
+    expect(
+      buildServerTimingValue("MISS", 674, { count: 19, totalMs: 2697 }, undefined, [
+        { name: "edge-routing", durationMs: 284.2 },
+      ]),
+    ).toBe(
+      'nes-edge;desc="MISS", ssr;dur=674.0, db;dur=2697.0;desc="n=19", edge-routing;dur=284.2',
+    );
+  });
+
+  it("trafiają też na HIT - routing krawędziowy biegnie PRZED cache'em dokumentów", () => {
+    // To jest cały powód, dla którego ta metryka istnieje: gorące trafienie
+    // w cache NIE omija odczytu routingu, więc nagłówek pokazujący ją tylko
+    // na MISS-ie mówiłby nieprawdę o koszcie HIT-a.
+    expect(
+      buildServerTimingValue("HIT", undefined, null, 1200, [
+        { name: "edge-routing", durationMs: 3 },
+      ]),
+    ).toBe('nes-edge;desc="HIT", nes-age;dur=1200, edge-routing;dur=3.0');
+  });
+
+  it("brak faz nie zmienia nagłówka ani o bajt (zgodność wsteczna)", () => {
+    expect(buildServerTimingValue("MISS", 10, null, undefined, [])).toBe(
+      buildServerTimingValue("MISS", 10, null),
+    );
+    expect(buildServerTimingValue("MISS", 10, null, undefined, null)).toBe(
+      buildServerTimingValue("MISS", 10, null),
+    );
+  });
+
+  it.each(["edge routing", "edge;routing", 'edge"routing', "", "a".repeat(33)])(
+    "nazwa spoza tokenu jest POMIJANA, nie wypuszczana (%s psułoby parsowanie całego nagłówka)",
+    (name) => {
+      expect(
+        buildServerTimingValue("MISS", undefined, null, undefined, [{ name, durationMs: 5 }]),
+      ).toBe('nes-edge;desc="MISS"');
+    },
+  );
+
+  it("odrzuca czas fazy nie do użycia", () => {
+    expect(
+      buildServerTimingValue("MISS", undefined, null, undefined, [
+        { name: "edge-routing", durationMs: Number.NaN },
+        { name: "inna-faza", durationMs: -1 },
+      ]),
+    ).toBe('nes-edge;desc="MISS"');
   });
 });
