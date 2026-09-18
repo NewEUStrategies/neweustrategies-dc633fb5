@@ -82,17 +82,8 @@ function readServiceAccount(): ServiceAccount | null {
   }
 }
 
-/**
- * Pierwszy niepusty sekret z listy nazw. Pozwala przyjąć obie konwencje
- * nazewnicze (GA4_* i GOOGLE_*) bez dublowania logiki w każdym trybie.
- */
-function firstEnv(...names: string[]): string | undefined {
-  for (const name of names) {
-    const value = process.env[name]?.trim();
-    if (value) return value;
-  }
-  return undefined;
-}
+import { firstEnv } from "@/lib/analytics/envSecrets";
+
 
 function b64url(input: Buffer | string): string {
   const buf = typeof input === "string" ? Buffer.from(input) : input;
