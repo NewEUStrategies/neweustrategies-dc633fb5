@@ -58,6 +58,71 @@ describe("UploadArea", () => {
     expect(document.querySelectorAll('[data-slot="upload-area"] .ring-border')).toHaveLength(1);
   });
 
+  it("DWIE ikony dają DWA kafle - trzecia droga klastra nie gubi po cichu ikony", () => {
+    // Pierwsza wersja rozgałęziała się wyłącznie na `length === 3`, więc pole
+    // z dwiema ikonami renderowało tylko pierwszą. Połowa powierzchni podaje
+    // dokładnie dwie, więc strata była cicha i powszechna.
+    const { unmount } = render(
+      <UploadArea
+        title="A"
+        description="B"
+        ctaLabel="C"
+        icons={[FileText, FileVideo]}
+        onFiles={vi.fn()}
+      />,
+    );
+    expect(document.querySelectorAll('[data-slot="upload-area"] .ring-border')).toHaveLength(2);
+    unmount();
+  });
+
+  it("klik w natywne kontrolki mediów w podglądzie NIE otwiera okna wyboru pliku", () => {
+    // Kontrolki `<audio controls>` żyją w shadow DOM, więc klik w „play"
+    // bąbelkuje do obszaru jako klik w element medialny. Bez wyjątku na liście
+    // elementów interaktywnych odsłuchanie wgranego nagrania otwierałoby picker.
+    renderArea({ preview: <audio controls data-testid="odtwarzacz" /> });
+    const click = vi.spyOn(fileInput(), "click").mockImplementation(() => {});
+    fireEvent.click(screen.getByTestId("odtwarzacz"));
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it("upuszczony plik SPOZA `accept` nie idzie do wysyłki, tylko do `onRejectedFiles`", () => {
+    // Przeglądarka egzekwuje `accept` WYŁĄCZNIE w oknie systemowym - z
+    // upuszczenia leci wszystko. Filtr stoi więc we wspólnej powłoce.
+    const onFiles = vi.fn();
+    const onRejectedFiles = vi.fn();
+    renderArea({ accept: "image/png,.webp", onFiles, onRejectedFiles });
+    const area = screen.getByRole("group");
+
+    fireEvent.drop(area, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [
+          new File(["x"], "okladka.png", { type: "image/png" }),
+          new File(["x"], "raport.pdf", { type: "application/pdf" }),
+          new File(["x"], "grafika.webp", { type: "" }),
+        ],
+      },
+    });
+
+    expect(onFiles).toHaveBeenCalledTimes(1);
+    expect(onFiles.mock.calls[0][0].map((f: File) => f.name)).toEqual([
+      "okladka.png",
+      "grafika.webp",
+    ]);
+    expect(onRejectedFiles).toHaveBeenCalledTimes(1);
+    expect(onRejectedFiles.mock.calls[0][0].map((f: File) => f.name)).toEqual(["raport.pdf"]);
+  });
+
+  it("wybór z okna systemowego NIE jest filtrowany przez `accept` - tam decyduje walidacja wywołującego", () => {
+    // Użytkownik może w oknie przełączyć filtr na „wszystkie pliki". Zachowanie
+    // zostaje takie, jakie było przed ujednoliceniem: plik dociera do
+    // wywołującego, a ten ma własną walidację przed wysyłką.
+    const onFiles = vi.fn();
+    renderArea({ accept: "image/png", onFiles });
+    fireEvent.change(fileInput(), { target: { files: [sample("raport.pdf")] } });
+    expect(onFiles).toHaveBeenCalledTimes(1);
+  });
+
   it("kliknięcie w tło obszaru otwiera picker", () => {
     renderArea();
     const click = vi.spyOn(fileInput(), "click").mockImplementation(() => {});

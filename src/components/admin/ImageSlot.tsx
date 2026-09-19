@@ -4,11 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Image, Upload, X } from "@/lib/lucide-shim";
 import { UploadArea } from "@/components/ui/upload-area";
+import { matchesAccept } from "@/lib/media/acceptMatch";
 import "@/lib/i18n-upload-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 import "@/lib/i18n-admin-panes-misc";
+
+/** Limit dla slotu obrazu - ten sam, co w `lib/media/upload.ts` dla grafik. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export interface ImageSlotTransform {
   /** Zwraca plik do wysyłki (null = odrzucony) plus komunikaty dla użytkownika. */
@@ -50,6 +54,24 @@ export function ImageSlot({
   const handleFile = async (input: File) => {
     setError(null);
     setNotices([]);
+    // WALIDACJA STOI PRZED SIECIĄ i dotyczy TAK SAMO pliku z okna wyboru, jak
+    // i upuszczonego. `accept` filtruje wyłącznie okno systemowe, więc bez
+    // tego sprawdzenia upuszczony PDF albo wideo szedł wprost do publicznego
+    // bucketu i zapisywał w ustawieniach adres, którego nie da się wyświetlić
+    // jako obrazu (zgłoszenie Codeksa P2 do tego pliku).
+    if (!matchesAccept(input, accept)) {
+      setError(t("uploadArea.badType", { name: input.name }));
+      return;
+    }
+    if (input.size > MAX_IMAGE_BYTES) {
+      setError(
+        t("uploadArea.tooLarge", {
+          name: input.name,
+          max: Math.round(MAX_IMAGE_BYTES / (1024 * 1024)),
+        }),
+      );
+      return;
+    }
     if (!tenantId) {
       setError(t("adminPanesMisc.imageSlot.uploadError"));
       return;
@@ -105,6 +127,7 @@ export function ImageSlot({
         icons={[Image, Upload]}
         accept={accept}
         onFiles={(files) => void handleFile(files[0])}
+        onRejectedFiles={(files) => setError(t("uploadArea.badType", { name: files[0].name }))}
         preview={
           value ? (
             <div

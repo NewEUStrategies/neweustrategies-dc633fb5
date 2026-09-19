@@ -117,7 +117,10 @@ export function DataImportControl({ onRows, hint, className }: Props) {
     <div className={className}>
       <UploadArea
         size="sm"
-        title={tr("button")}
+        // Tytuł obszaru NAZYWA POLE, CTA nazywa czynność. Ten sam napis w obu
+        // miejscach czyta się w czytniku ekranu jako „Importuj z pliku,
+        // Importuj z pliku" i psuje zapytania testowe po tekście.
+        title={tr("areaTitle")}
         description={hint ?? tr("hintChart")}
         ctaLabel={tr("button")}
         busy={stan.faza === "czytam"}

@@ -24,6 +24,8 @@ const pl = {
     dropOrPick: "Przeciągnij plik tutaj albo wybierz go z dysku.",
     dropOrPickMultiple: "Przeciągnij pliki tutaj albo wybierz je z dysku.",
     maxSize: "Maksymalny rozmiar: {{size}}.",
+    badType: "Ten plik ma niedozwolony typ ({{name}}). Wgraj plik z listy dozwolonych formatów.",
+    tooLarge: "Plik {{name}} jest za duży - maksymalnie {{max}} MB.",
     csv: {
       title: "Wgraj plik CSV",
       description: "Przeciągnij plik .csv tutaj albo wybierz go z dysku.",
@@ -74,6 +76,8 @@ const en = {
     dropOrPick: "Drag a file here, or pick one from your disk.",
     dropOrPickMultiple: "Drag files here, or pick them from your disk.",
     maxSize: "Maximum size: {{size}}.",
+    badType: "This file has a disallowed type ({{name}}). Upload one of the allowed formats.",
+    tooLarge: "The file {{name}} is too large - {{max}} MB at most.",
     csv: {
       title: "Upload a CSV file",
       description: "Drag a .csv file here, or pick one from your disk.",

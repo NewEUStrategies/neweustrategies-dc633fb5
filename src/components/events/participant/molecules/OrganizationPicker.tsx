@@ -273,7 +273,9 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
           <div className="space-y-4">
             <UploadArea
               size="sm"
-              title={t("eventMe.organization.logoUpload")}
+              // Tytuł obszaru nazywa POLE („Logo organizacji"), a CTA czynność -
+              // ten sam napis w obu miejscach dubluje nazwę w drzewie dostępności.
+              title={t("eventMe.organization.logoAlt")}
               description={t("eventMe.organization.logoHint")}
               ctaLabel={t("eventMe.organization.logoUpload")}
               busy={uploading}

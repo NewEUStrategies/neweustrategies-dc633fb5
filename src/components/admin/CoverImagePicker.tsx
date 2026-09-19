@@ -22,7 +22,12 @@ import {
   Smartphone,
 } from "@/lib/lucide-shim";
 import { UploadArea } from "@/components/ui/upload-area";
+import { matchesAccept } from "@/lib/media/acceptMatch";
 import "@/lib/i18n-upload-area";
+
+/** Okładka: ta sama allowlista i ten sam limit, co reszta grafik platformy. */
+const COVER_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif,image/apng";
+const MAX_COVER_BYTES = 10 * 1024 * 1024;
 
 type DevicePreview = "desktop" | "tablet" | "mobile";
 
@@ -59,6 +64,23 @@ export function CoverImagePicker({
 
   const handleFile = async (file: File) => {
     setError(null);
+    // WALIDACJA PRZED SIECIĄ, TAKA SAMA DLA OKNA WYBORU I UPUSZCZENIA.
+    // `accept="image/*"` filtruje wyłącznie okno systemowe, a upuszczenie
+    // dowozi tu dowolny plik - i bez tego sprawdzenia PDF albo wideo lądowało
+    // w publicznym buckecie jako „okładka wpisu" (zgłoszenie Codeksa P2).
+    if (!matchesAccept(file, COVER_ACCEPT)) {
+      setError(t("uploadArea.badType", { name: file.name }));
+      return;
+    }
+    if (file.size > MAX_COVER_BYTES) {
+      setError(
+        t("uploadArea.tooLarge", {
+          name: file.name,
+          max: Math.round(MAX_COVER_BYTES / (1024 * 1024)),
+        }),
+      );
+      return;
+    }
     setUploading(true);
     try {
       const { data: userData } = await supabase.auth
@@ -166,8 +188,9 @@ export function CoverImagePicker({
         busy={uploading}
         error={error}
         icons={[ImageIcon, Upload, FileIcon]}
-        accept="image/*"
+        accept={COVER_ACCEPT}
         onFiles={(files) => void handleFile(files[0])}
+        onRejectedFiles={(files) => setError(t("uploadArea.badType", { name: files[0].name }))}
         preview={preview}
         actions={
           <Button
