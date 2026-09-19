@@ -58,8 +58,7 @@ export function ClubHubIdentity({
     typeof club.cover_image_url === "string" && club.cover_image_url.trim() !== ""
       ? club.cover_image_url
       : null;
-  const coverPositionY =
-    typeof club.cover_position_y === "number" ? club.cover_position_y : 50;
+  const coverPositionY = typeof club.cover_position_y === "number" ? club.cover_position_y : 50;
   const canEditCover = club.can_moderate === true;
 
   return (

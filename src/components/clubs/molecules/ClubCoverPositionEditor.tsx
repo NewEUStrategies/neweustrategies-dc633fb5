@@ -79,10 +79,7 @@ export function ClubCoverPositionEditor({
           type="button"
           size="sm"
           variant="secondary"
-          className={cn(
-            "h-8 rounded-lg bg-background/80 px-2.5 text-xs backdrop-blur",
-            className,
-          )}
+          className={cn("h-8 rounded-lg bg-background/80 px-2.5 text-xs backdrop-blur", className)}
           aria-label={t("club.hub.identity.cover.position.open")}
           title={t("club.hub.identity.cover.position.open")}
         >

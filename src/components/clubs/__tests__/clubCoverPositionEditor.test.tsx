@@ -48,7 +48,9 @@ function slider(): HTMLElement {
 }
 
 function saveButton(): HTMLElement {
-  return screen.getByRole("button", { name: translateKey("club.hub.identity.cover.position.save") });
+  return screen.getByRole("button", {
+    name: translateKey("club.hub.identity.cover.position.save"),
+  });
 }
 
 describe("ClubCoverPositionEditor", () => {
