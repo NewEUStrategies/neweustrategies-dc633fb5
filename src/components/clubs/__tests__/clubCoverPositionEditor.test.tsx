@@ -25,7 +25,10 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: h.toast }));
-vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.savePosition }));
+vi.mock("@tanstack/react-start", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-start")>();
+  return { ...actual, useServerFn: () => h.savePosition };
+});
 
 import { ClubCoverPositionEditor } from "@/components/clubs/molecules/ClubCoverPositionEditor";
 import { CLUB_IDS } from "@/test/clubs/fixtures";
