@@ -4059,6 +4059,7 @@ export type Database = {
           accent_color: string | null
           attribution_mode: string
           cover_image_url: string | null
+          cover_position_y: number
           created_at: string
           created_by: string | null
           description_en: string | null
@@ -4092,6 +4093,7 @@ export type Database = {
           accent_color?: string | null
           attribution_mode?: string
           cover_image_url?: string | null
+          cover_position_y?: number
           created_at?: string
           created_by?: string | null
           description_en?: string | null
@@ -4125,6 +4127,7 @@ export type Database = {
           accent_color?: string | null
           attribution_mode?: string
           cover_image_url?: string | null
+          cover_position_y?: number
           created_at?: string
           created_by?: string | null
           description_en?: string | null
@@ -22012,6 +22015,7 @@ export type Database = {
           author_alias: string
           author_name: string
           club_cover_image_url: string
+          club_cover_position_y: number
           club_id: string
           club_name_en: string
           club_name_pl: string
@@ -22427,6 +22431,7 @@ export type Database = {
           accent_color: string
           can_read: boolean
           cover_image_url: string
+          cover_position_y: number
           group_count: number
           icon: string
           id: string
@@ -22454,6 +22459,7 @@ export type Database = {
           accent_color: string
           can_read: boolean
           cover_image_url: string
+          cover_position_y: number
           group_count: number
           icon: string
           id: string
@@ -22885,6 +22891,10 @@ export type Database = {
       club_set_cover: {
         Args: { p_club_id: string; p_url: string }
         Returns: string
+      }
+      club_set_cover_position: {
+        Args: { p_club_id: string; p_position_y: number }
+        Returns: number
       }
       club_set_notify_level: {
         Args: { p_club_id: string; p_level: string }
@@ -23378,6 +23388,7 @@ export type Database = {
           can_reply: boolean
           can_see_members: boolean
           cover_image_url: string
+          cover_position_y: number
           created_at: string
           description_en: string
           description_pl: string
