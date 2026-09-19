@@ -1,4 +1,5 @@
 // Dostosowanie pionowej pozycji okładki klubu (`ClubCoverPositionEditor`).
+// Obraz podglądu ma puste `alt`, więc w testach szukamy go przez selektor `img`.
 //
 // CO TEN PLIK DOWODZI.
 //  1. Komponent widzi się TYLKO, gdy użytkownik ma uprawnienia (`canEdit`)
