@@ -117,7 +117,7 @@ describe("ClubCoverPositionEditor", () => {
     fireEvent.click(openButton());
     const thumb = slider();
     fireEvent.keyDown(thumb, { key: "End" });
-    const preview = screen.getByRole("img") as HTMLImageElement;
+    const preview = document.querySelector("img") as HTMLImageElement;
     expect(preview.style.objectPosition).toBe("center 100%");
   });
 
