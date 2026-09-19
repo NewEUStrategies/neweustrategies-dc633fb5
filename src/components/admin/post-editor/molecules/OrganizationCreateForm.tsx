@@ -12,7 +12,7 @@
 // ZAPIS IDZIE RPC-em `create_company_self_service` (SECURITY DEFINER, zawężony
 // do najemcy), a nie `createCrmCompany` - uzasadnienie w nagłówku
 // OrganizationPickerDialog.
-import { useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -23,7 +23,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { UploadArea } from "@/components/ui/upload-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { registerMediaUpload } from "@/lib/media.functions";
@@ -70,7 +70,6 @@ export function OrganizationCreateForm({
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const set = (key: keyof FormState) => (e: { target: { value: string } }) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -98,7 +97,6 @@ export function OrganizationCreateForm({
       toast.error(`${t("adminPostPanes.organization.logoFailed")} ${errText(e)}`);
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -167,73 +165,49 @@ export function OrganizationCreateForm({
           />
         </FieldRow>
 
-        <div className="space-y-1.5">
-          <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {t("adminPostPanes.organization.logoLabel")}
-          </Label>
-          <div className="flex items-center gap-3">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted">
-              {logoUrl ? (
+        {/* `accept` to JAWNA lista MIME z lib/media/upload, nie `image/*` -
+            serwer i bucket egzekwują tę samą allowlistę, a SVG jest z niej
+            świadomie wykluczone (publiczny bucket serwuje bajty wprost). */}
+        <UploadArea
+          size="sm"
+          title={t("adminPostPanes.organization.logoLabel")}
+          description={t("adminPostPanes.organization.logoHint")}
+          ctaLabel={
+            logoUrl
+              ? t("adminPostPanes.organization.logoReplace")
+              : t("adminPostPanes.organization.logoUpload")
+          }
+          busyLabel={t("adminPostPanes.organization.logoUploading")}
+          busy={uploading}
+          icons={[Building2, Upload]}
+          accept={IMAGE_ACCEPT_ATTR}
+          onFiles={(files) => void handleLogo(files[0])}
+          preview={
+            logoUrl ? (
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted">
                 <img
                   src={logoUrl}
                   alt={t("adminPostPanes.organization.logoAlt")}
                   className="h-full w-full object-contain"
                 />
-              ) : (
-                <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-              )}
-            </span>
-            <div className="flex flex-wrap gap-2">
+              </span>
+            ) : undefined
+          }
+          actions={
+            logoUrl ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-8 text-[12px]"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
+                className="h-8 text-[12px] text-muted-foreground hover:text-destructive"
+                onClick={() => setLogoUrl(null)}
               >
-                {uploading ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Upload className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                )}
-                {uploading
-                  ? t("adminPostPanes.organization.logoUploading")
-                  : logoUrl
-                    ? t("adminPostPanes.organization.logoReplace")
-                    : t("adminPostPanes.organization.logoUpload")}
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                {t("adminPostPanes.organization.logoRemove")}
               </Button>
-              {logoUrl && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-[12px] text-muted-foreground hover:text-destructive"
-                  onClick={() => setLogoUrl(null)}
-                >
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                  {t("adminPostPanes.organization.logoRemove")}
-                </Button>
-              )}
-            </div>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            {t("adminPostPanes.organization.logoHint")}
-          </p>
-          {/* `accept` to JAWNA lista MIME z lib/media/upload, nie `image/*` -
-              serwer i bucket egzekwują tę samą allowlistę, a SVG jest z niej
-              świadomie wykluczone (publiczny bucket serwuje bajty wprost). */}
-          <input
-            ref={fileRef}
-            type="file"
-            accept={IMAGE_ACCEPT_ATTR}
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleLogo(file);
-            }}
-          />
-        </div>
+            ) : undefined
+          }
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <FieldRow label={t("adminPostPanes.organization.fields.website")} htmlFor="org-website">

@@ -6,7 +6,7 @@
 // + expert_expertise_areas (diff). RLS: właściciel edytuje siebie, admin
 // edytuje dowolnego użytkownika w swoim tenancie.
 import { useTranslation } from "react-i18next";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { adminGetAuthorProfile } from "@/lib/experts/adminAuthorProfileRpc";
@@ -22,6 +22,7 @@ import {
   Trash2,
   Plus,
   Upload,
+  Image as ImageIcon,
   Info,
   RefreshCcw,
   ExternalLink,
@@ -34,6 +35,8 @@ import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { XIcon } from "@/components/atoms/XIcon";
 import type { ComponentType, SVGAttributes } from "react";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
+import { UploadArea } from "@/components/ui/upload-area";
+import "@/lib/i18n-upload-area";
 import { useServerFn } from "@tanstack/react-start";
 import { refreshAuthorOgImage } from "@/lib/experts/refreshOg.functions";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
@@ -191,7 +194,6 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
   const [busy, setBusy] = useState(false);
   const [exists, setExists] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const avatarInput = useRef<HTMLInputElement | null>(null);
   const [areaOptions, setAreaOptions] = useState<ExpertiseAreaOption[]>([]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<Set<string>>(new Set());
   const [bulletsPl, setBulletsPl] = useState<string[]>([]);
@@ -477,48 +479,40 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
             </span>
           </div>
           <div className="flex items-center gap-4">
-            {data.avatar_url ? (
-              <img src={data.avatar_url} alt="" className="h-20 w-20 rounded-[7px] object-cover" />
-            ) : (
-              <div className="grid h-20 w-20 place-items-center rounded-[7px] bg-muted text-xs text-muted-foreground">
-                {t("profile.account.avatarPlaceholder")}
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={uploading}
-                onClick={() => avatarInput.current?.click()}
-              >
-                <BrandIcon name="upload" fallback={Upload} className="mr-2 h-4 w-4" alt="" />
-                {uploading ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
-              </Button>
-              {data.avatar_url && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setData({ ...data, avatar_url: null })}
-                >
-                  {t("common.remove")}
-                </Button>
-              )}
-            </div>
-            <input
-              ref={avatarInput}
-              type="file"
+            <UploadArea
+              size="sm"
+              title={t("profile.author.avatarSection")}
+              description={t("uploadArea.image.description")}
+              ctaLabel={t("profile.account.uploadAvatar")}
+              busyLabel={t("profile.account.uploading")}
+              busy={uploading}
+              icons={[ImageIcon, Upload]}
               accept={ACCEPT}
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) {
-                  setPendingFile(f);
-                  setCropOpen(true);
-                }
-                e.target.value = "";
+              onFiles={(files) => {
+                setPendingFile(files[0]);
+                setCropOpen(true);
               }}
+              preview={
+                data.avatar_url ? (
+                  <img
+                    src={data.avatar_url}
+                    alt=""
+                    className="h-20 w-20 rounded-[7px] object-cover"
+                  />
+                ) : undefined
+              }
+              actions={
+                data.avatar_url ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setData({ ...data, avatar_url: null })}
+                  >
+                    {t("common.remove")}
+                  </Button>
+                ) : undefined
+              }
             />
             <ImageCropDialog
               open={cropOpen}

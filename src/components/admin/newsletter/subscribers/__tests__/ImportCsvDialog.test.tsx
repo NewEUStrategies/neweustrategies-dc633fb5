@@ -82,7 +82,7 @@ describe("krok 1: wgranie pliku", () => {
   it("otwarty dialog prosi o plik i nie pokazuje jeszcze mapowania", () => {
     mount();
 
-    expect(screen.getByText(/Kliknij aby wybrac plik/)).toBeTruthy();
+    expect(screen.getByText("Wgraj plik CSV z subskrybentami")).toBeTruthy();
     expect(screen.queryByText(/Mapowanie kolumn/)).toBeNull();
   });
 
@@ -100,7 +100,7 @@ describe("krok 1: wgranie pliku", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Zmien plik/ }));
 
-    expect(screen.getByText(/Kliknij aby wybrac plik/)).toBeTruthy();
+    expect(screen.getByText("Wgraj plik CSV z subskrybentami")).toBeTruthy();
     expect(screen.queryByText(/Mapowanie kolumn/)).toBeNull();
   });
 });

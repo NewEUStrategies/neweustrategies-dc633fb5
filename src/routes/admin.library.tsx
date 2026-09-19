@@ -12,6 +12,7 @@ import { ensureI18n as ensureAdminLibraryI18n } from "@/lib/i18n-admin-library";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Library, Upload, Plus, Save, Trash2, FileText, Lock, Pencil } from "lucide-react";
+import { UploadArea } from "@/components/ui/upload-area";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -422,8 +423,7 @@ function NewResourceDialog({
       toast.error(e instanceof Error ? e.message : t("adminLibrary.couldSave")),
   });
 
-  const onPick = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0] ?? null;
+  const onPick = (f: File | null) => {
     setFile(f);
     upload.reset();
     if (f) upload.mutate(f);
@@ -482,29 +482,25 @@ function NewResourceDialog({
           <DialogTitle>{t("adminLibrary.newResource")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">
-              {t("adminLibrary.file")} <span className="text-destructive">*</span>
-            </Label>
-            <input
-              type="file"
-              onChange={onPick}
-              aria-label={t("adminLibrary.chooseFileUpload")}
-              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
-            />
-            {upload.isPending ? (
-              <p className="text-xs text-muted-foreground">{t("adminLibrary.uploading")}</p>
-            ) : upload.data && file ? (
-              <p className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                <Upload className="h-3 w-3" aria-hidden="true" />
-                {file.name} · {formatBytes(upload.data.size)}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {t("adminLibrary.pickFileUploadsPrivateBucket")}
-              </p>
-            )}
-          </div>
+          <UploadArea
+            size="sm"
+            title={t("adminLibrary.file")}
+            description={t("adminLibrary.pickFileUploadsPrivateBucket")}
+            ctaLabel={t("adminLibrary.chooseFileUpload")}
+            busyLabel={t("adminLibrary.uploading")}
+            busy={upload.isPending}
+            icons={[FileText, Upload, Lock]}
+            inputLabel={t("adminLibrary.chooseFileUpload")}
+            onFiles={(files) => onPick(files[0])}
+            hint={
+              upload.data && file ? (
+                <span className="flex items-center justify-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <Upload className="h-3 w-3" aria-hidden="true" />
+                  {file.name} · {formatBytes(upload.data.size)}
+                </span>
+              ) : undefined
+            }
+          />
 
           <ResourceFields
             lang={lang}

@@ -7,14 +7,15 @@
 //
 // Zapisywana jest NAZWA (pole `company_text` kartoteki wydarzenia); logotyp i
 // dane brandowe czyta potem `crm_company_brand` po tej właśnie nazwie.
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Building2, Check, ImagePlus, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, Check, ImagePlus, Loader2, Plus, Search, Trash2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/field-box";
+import { UploadArea } from "@/components/ui/upload-area";
 import {
   Dialog,
   DialogContent,
@@ -73,13 +74,11 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
   const { t } = useTranslation();
   const { user, tenantId } = useAuth();
   const registerUpload = useServerFn(registerMediaUpload);
-  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
   const [org, setOrg] = useState<NewOrgForm>(EMPTY_ORG);
 
   const search = useCompanySearch(query);
@@ -115,7 +114,6 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
       toast.error(`${t("eventMe.organization.logoFailed")} ${(error as Error).message}`.trim());
     } finally {
       setUploading(false);
-      if (fileRef.current !== null) fileRef.current.value = "";
     }
   };
 
@@ -273,77 +271,41 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <div
-                className={`relative grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-[6px] border border-dashed bg-muted/30 ${
-                  dragOver ? "border-primary" : "border-border"
-                }`}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setDragOver(false);
-                  const file = event.dataTransfer.files[0];
-                  if (file !== undefined) void handleLogo(file);
-                }}
-              >
-                {org.logo_url.trim() !== "" ? (
-                  <img
-                    src={org.logo_url}
-                    alt={t("eventMe.organization.logoAlt")}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <ImagePlus className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                )}
-                {uploading && (
-                  <span className="absolute inset-0 grid place-items-center bg-background/70">
-                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <UploadArea
+              size="sm"
+              title={t("eventMe.organization.logoUpload")}
+              description={t("eventMe.organization.logoHint")}
+              ctaLabel={t("eventMe.organization.logoUpload")}
+              busy={uploading}
+              icons={[ImagePlus, Upload]}
+              accept={IMAGE_ACCEPT_ATTR}
+              inputLabel={t("eventMe.organization.logoUpload")}
+              onFiles={(files) => void handleLogo(files[0])}
+              preview={
+                org.logo_url.trim() !== "" ? (
+                  <span className="grid h-24 w-24 place-items-center overflow-hidden rounded-[6px] border border-border bg-muted/30">
+                    <img
+                      src={org.logo_url}
+                      alt={t("eventMe.organization.logoAlt")}
+                      className="h-full w-full object-contain"
+                    />
                   </span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1 space-y-2">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept={IMAGE_ACCEPT_ATTR}
-                  className="sr-only"
-                  aria-label={t("eventMe.organization.logoUpload")}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file !== undefined) void handleLogo(file);
-                  }}
-                />
-                <div className="flex flex-wrap gap-2">
+                ) : undefined
+              }
+              actions={
+                org.logo_url.trim() !== "" ? (
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
-                    disabled={uploading}
-                    onClick={() => fileRef.current?.click()}
+                    variant="ghost"
+                    onClick={() => setOrg((prev) => ({ ...prev, logo_url: "" }))}
                   >
-                    {t("eventMe.organization.logoUpload")}
+                    <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    {t("eventMe.organization.logoRemove")}
                   </Button>
-                  {org.logo_url.trim() !== "" && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setOrg((prev) => ({ ...prev, logo_url: "" }))}
-                    >
-                      <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                      {t("eventMe.organization.logoRemove")}
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t("eventMe.organization.logoHint")}
-                </p>
-              </div>
-            </div>
+                ) : undefined
+              }
+            />
 
             <div className="grid gap-3 sm:grid-cols-2">
               <FieldBox

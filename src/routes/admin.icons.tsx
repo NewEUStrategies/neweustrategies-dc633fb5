@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Upload, Trash2, Search, Plus, Tags, LayoutGrid, Shapes } from "@/lib/lucide-shim";
+import { UploadArea } from "@/components/ui/upload-area";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import {
   listIcons,
@@ -258,7 +259,6 @@ function BulkUpload({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{
     index: number;
@@ -270,7 +270,7 @@ function BulkUpload({
     { base: string; status: "done" | "skipped" | "error"; message?: string }[]
   >([]);
 
-  const handle = async (files: FileList | null) => {
+  const handle = async (files: File[] | null) => {
     if (!files || files.length === 0) return;
     setBusy(true);
     setLog([]);
@@ -307,7 +307,6 @@ function BulkUpload({
     } finally {
       setBusy(false);
       setProgress(null);
-      if (ref.current) ref.current.value = "";
     }
   };
 
@@ -315,33 +314,19 @@ function BulkUpload({
     progress && progress.total > 0 ? Math.round((progress.index / progress.total) * 100) : 0;
 
   return (
-    <div className="rounded-lg border border-dashed border-border p-4 space-y-3 bg-muted/30">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <Upload className="w-5 h-5 text-muted-foreground mt-0.5" />
-          <div className="space-y-0.5">
-            <div className="text-sm font-medium">{t("admin.icons.bulk.title")}</div>
-            <div className="text-xs text-muted-foreground">{t("admin.icons.bulk.hint")}</div>
-          </div>
-        </div>
-        <input
-          ref={ref}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => handle(e.target.files)}
-        />
-        <Button
-          variant="outline"
-          onClick={() => ref.current?.click()}
-          disabled={busy}
-          className="h-9 shrink-0"
-        >
-          <Upload className="w-4 h-4 mr-1.5" />
-          {busy ? t("admin.icons.bulk.uploading") : t("admin.icons.bulk.choose")}
-        </Button>
-      </div>
+    <div className="space-y-3">
+      <UploadArea
+        size="sm"
+        title={t("admin.icons.bulk.title")}
+        description={t("admin.icons.bulk.hint")}
+        ctaLabel={t("admin.icons.bulk.choose")}
+        busyLabel={t("admin.icons.bulk.uploading")}
+        busy={busy}
+        icons={[Shapes, Upload, LayoutGrid]}
+        accept="image/*"
+        multiple
+        onFiles={(files) => void handle(files)}
+      />
 
       {progress && (
         <div className="space-y-2 pt-2 border-t border-border/60">

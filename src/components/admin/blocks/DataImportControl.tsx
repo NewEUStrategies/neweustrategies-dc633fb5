@@ -16,8 +16,9 @@
 // PROBLEMY SĄ CZĘŚCIĄ WYNIKU, NIE DODATKIEM. Import, który po cichu obcina
 // serie albo gubi nieznany kraj, wygląda dla redaktora jak sukces - dlatego
 // `onRows` zwraca listę problemów, a ten komponent ma obowiązek ją wypisać.
-import { useId, useRef, useState } from "react";
-import { AlertTriangle, Check, Loader2, Upload } from "@/lib/lucide-shim";
+import { useId, useState } from "react";
+import { AlertTriangle, Check, File as FileIcon, Rows, Upload } from "@/lib/lucide-shim";
+import { UploadArea } from "@/components/ui/upload-area";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import {
   IMPORT_ACCEPT,
@@ -75,7 +76,6 @@ export function DataImportControl({ onRows, hint, className }: Props) {
   const bt = useBlocksI18n();
   const tr = (key: string, opts?: Record<string, unknown>) => bt.editor("dataImport", key, opts);
   const [stan, setStan] = useState<Stan>({ faza: "idle" });
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const statusId = useId();
 
   const zastosuj = (sheet: ImportedSheet) => {
@@ -115,36 +115,17 @@ export function DataImportControl({ onRows, hint, className }: Props) {
 
   return (
     <div className={className}>
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-60"
-          disabled={stan.faza === "czytam"}
-          onClick={() => inputRef.current?.click()}
-        >
-          {stan.faza === "czytam" ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Upload className="w-3.5 h-3.5" />
-          )}
-          {tr("button")}
-        </button>
-        <span className="text-[11px] text-muted-foreground">{hint ?? tr("hintChart")}</span>
-      </div>
-
-      <input
-        ref={inputRef}
-        type="file"
+      <UploadArea
+        size="sm"
+        title={tr("button")}
+        description={hint ?? tr("hintChart")}
+        ctaLabel={tr("button")}
+        busy={stan.faza === "czytam"}
+        icons={[Rows, Upload, FileIcon]}
         accept={IMPORT_ACCEPT}
-        className="sr-only"
-        aria-label={tr("button")}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          // Wyzerowanie pozwala wybrać TEN SAM plik drugi raz (po poprawce
-          // w Excelu) - bez tego `change` już nie wystrzeli.
-          e.target.value = "";
-          if (file) void wybierzPlik(file);
-        }}
+        // Wyzerowanie inputu (żeby TEN SAM plik dało się wybrać drugi raz po
+        // poprawce w Excelu) robi już wspólny obszar wgrywania.
+        onFiles={(files) => void wybierzPlik(files[0])}
       />
 
       {/* `aria-live` BEZ `role="status"`. Rola jest skrótem, który tę samą
