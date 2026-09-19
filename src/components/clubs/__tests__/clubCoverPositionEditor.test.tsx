@@ -100,7 +100,7 @@ describe("ClubCoverPositionEditor", () => {
     );
     fireEvent.click(openButton());
     expect(slider()).toBeInTheDocument();
-    const preview = screen.getByRole("img") as HTMLImageElement;
+    const preview = document.querySelector("img") as HTMLImageElement;
     expect(preview.style.objectPosition).toBe("center 30%");
   });
 
