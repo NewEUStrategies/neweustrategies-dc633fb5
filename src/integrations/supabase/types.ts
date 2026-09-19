@@ -21876,6 +21876,10 @@ export type Database = {
         Returns: undefined
       }
       career_cv_gc_scan: { Args: { _limit?: number }; Returns: Json }
+      career_cv_upload_quota_ok: {
+        Args: { _day: string; _tenant: string }
+        Returns: boolean
+      }
       change_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]
