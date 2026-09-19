@@ -9489,27 +9489,51 @@ html[data-mbb="on"] [data-site-shell] {
    rozmywa resztkę krawędzi. `color-mix(... var(--card) ...)` zamiast
    sztywnego koloru - ten sam gradient działa w jasnym i ciemnym motywie. */
 @utility club-cover-fade {
+  /* W jasnym motywie biała karta zbyt mocno zasłania okładkę - gradient
+     zostaje zdecydowanie rozjaśniony. W ciemnym motywie pozostaje pełna
+     siła przejścia, bo tam karta jest ciemna i okładka na nią lepiej wchodzi. */
   background-image:
     linear-gradient(
       to top,
-      var(--card) 0%,
-      color-mix(in oklab, var(--card) 99%, transparent) 6%,
-      color-mix(in oklab, var(--card) 96%, transparent) 13%,
-      color-mix(in oklab, var(--card) 90%, transparent) 21%,
-      color-mix(in oklab, var(--card) 80%, transparent) 31%,
-      color-mix(in oklab, var(--card) 66%, transparent) 43%,
-      color-mix(in oklab, var(--card) 48%, transparent) 56%,
-      color-mix(in oklab, var(--card) 29%, transparent) 70%,
-      color-mix(in oklab, var(--card) 13%, transparent) 84%,
-      color-mix(in oklab, var(--card) 4%, transparent) 93%,
+      color-mix(in oklab, var(--card) 55%, transparent) 0%,
+      color-mix(in oklab, var(--card) 48%, transparent) 8%,
+      color-mix(in oklab, var(--card) 38%, transparent) 18%,
+      color-mix(in oklab, var(--card) 26%, transparent) 31%,
+      color-mix(in oklab, var(--card) 15%, transparent) 46%,
+      color-mix(in oklab, var(--card) 7%, transparent) 62%,
+      color-mix(in oklab, var(--card) 2%, transparent) 80%,
       transparent 100%
     ),
     linear-gradient(
       to top,
-      color-mix(in oklab, var(--card) 22%, transparent) 0%,
-      color-mix(in oklab, var(--card) 10%, transparent) 45%,
+      color-mix(in oklab, var(--card) 10%, transparent) 0%,
+      color-mix(in oklab, var(--card) 4%, transparent) 45%,
       transparent 100%
     );
+
+  &:is(.dark *) {
+    background-image:
+      linear-gradient(
+        to top,
+        var(--card) 0%,
+        color-mix(in oklab, var(--card) 99%, transparent) 6%,
+        color-mix(in oklab, var(--card) 96%, transparent) 13%,
+        color-mix(in oklab, var(--card) 90%, transparent) 21%,
+        color-mix(in oklab, var(--card) 80%, transparent) 31%,
+        color-mix(in oklab, var(--card) 66%, transparent) 43%,
+        color-mix(in oklab, var(--card) 48%, transparent) 56%,
+        color-mix(in oklab, var(--card) 29%, transparent) 70%,
+        color-mix(in oklab, var(--card) 13%, transparent) 84%,
+        color-mix(in oklab, var(--card) 4%, transparent) 93%,
+        transparent 100%
+      ),
+      linear-gradient(
+        to top,
+        color-mix(in oklab, var(--card) 22%, transparent) 0%,
+        color-mix(in oklab, var(--card) 10%, transparent) 45%,
+        transparent 100%
+      );
+  }
 }
 
 /* Zastępnik okładki - miękka poświata akcentu klubu zamiast płaskiej płyty.
