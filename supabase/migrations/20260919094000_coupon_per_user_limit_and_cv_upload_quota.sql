@@ -8,6 +8,23 @@
 --
 -- POWTÓRNE WYKONANIE JEST BEZPIECZNE: `CREATE OR REPLACE FUNCTION`,
 -- `CREATE INDEX IF NOT EXISTS` oraz `DROP POLICY IF EXISTS` + `CREATE POLICY`.
+--
+-- DYREKTYWA PONIŻEJ WYŁĄCZA TEN PLIK Z HARNESSU KARIERY, i to nie jest
+-- obejście bramki. `scripts/careers-harness/run.sh` wybiera migracje po
+-- treści (`public.career_` albo bucket CV) i odtwarza je na bazie, która
+-- modeluje WYŁĄCZNIE moduł kariery. Ten plik jest zlepkiem dwóch obszarów:
+-- obok kwoty CV siedzi limit kuponu, a ten pyta o `public.b2b_coupons`,
+-- czyli tabelę, której harness celowo nie zna - stąd
+-- „relation public.b2b_coupons does not exist" na jego bazie. Atrapowanie
+-- kuponów w harnessie kariery byłoby dokładaniem niezweryfikowanych zdań
+-- o kształcie cudzej tabeli, więc plik jest pomijany JAWNIE i widocznie
+-- w logu (`SKIP`). Pełne odtworzenie tej migracji dowodzi `pgtap`, który
+-- startuje bazę z KOMPLETEM `supabase/migrations/`.
+--
+-- Podziału pliku na dwa nie da się tu zrobić: bramka parytetu porównuje
+-- odcisk SQL-a jeden do jednego z plikiem pasa drizzle, więc rozbicie
+-- bliźniaka rozjechałoby obie połówki z oryginałem.
+-- careers-harness: exclude
 -- A. Kupony B2B (plan/subskrypcja): limit na UŻYTKOWNIKA.
 --
 -- `validate_b2b_coupon`/`redeem_b2b_coupon` pilnowały tylko globalnego
