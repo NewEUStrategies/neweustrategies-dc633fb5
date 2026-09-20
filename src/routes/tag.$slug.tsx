@@ -1,10 +1,14 @@
 // Tag archive: /tag/$slug - shares TaxonomyPage (components/archive/TaxonomyPage).
 // URL search state: ?page=N&sort=newest|oldest|popular
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
-import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
+import {
+  taxonomyArchiveQueryOptions,
+  type ArchiveSort,
+  type TaxonomyArchiveResult,
+} from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { localizedPath } from "@/lib/i18n/localePath";
@@ -15,11 +19,38 @@ import {
   splitUrl,
   SITE_CANONICAL_ORIGIN,
 } from "@/lib/seo/meta";
-import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
+import {
+  archiveLayoutQueryOptions,
+  DEFAULT_ARCHIVE_LAYOUT,
+  type ArchiveLayoutSettings,
+} from "@/lib/archive-layout-settings";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
-import { appendLinkHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { TaxonomyPage } from "@/components/archive/TaxonomyPage";
+
+/** Wspólny termin ŻĄDANIA obu faz - identyczny kontrakt co w category.$slug. */
+const TAG_ARCHIVE_SSR_BUDGET_MS = 1_400;
+
+/**
+ * Krótki termin KONFIGURACJI: `posts_per_page` wchodzi do klucza listy, więc
+ * layout musi rozstrzygnąć się PRZED treścią - ale nie kosztem jej budżetu.
+ */
+const TAG_ARCHIVE_LAYOUT_BUDGET_MS = 300;
+
+/** Fallback konfiguracji archiwum tagu - domyślki z kodu. */
+const TAG_LAYOUT_FALLBACK: ArchiveLayoutSettings = {
+  id: "",
+  archive_type: "tag",
+  ...DEFAULT_ARCHIVE_LAYOUT,
+};
+
+/** Fallback TOŻSAMOŚCIOWY - o 404 decyduje `degraded`, nie ten literał. */
+const NO_ARCHIVE: TaxonomyArchiveResult | null = null;
+
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
 function parseSearch(search: Record<string, unknown>): { page?: number; sort?: ArchiveSort } {
@@ -40,20 +71,47 @@ export const Route = createFileRoute("/tag/$slug")({
   validateSearch: parseSearch,
   loaderDeps: ({ search }) => ({ page: search.page ?? 1, sort: search.sort ?? "newest" }),
   loader: async ({ params, context, deps }) => {
-    const settings = await context.queryClient.ensureQueryData(archiveLayoutQueryOptions("tag"));
-    const data = await context.queryClient.ensureQueryData(
+    const deadlineAt = Date.now() + TAG_ARCHIVE_SSR_BUDGET_MS;
+    // KONFIGURACJA NIE BLOKUJE TREŚCI - krótki termin, potem domyślki z kodu.
+    const settings = await loadResilient(
+      context.queryClient,
+      archiveLayoutQueryOptions("tag"),
+      TAG_LAYOUT_FALLBACK,
+      { budgetMs: TAG_ARCHIVE_LAYOUT_BUDGET_MS, deadlineAt, label: "archive-layout:tag" },
+    );
+    const archive = await loadResilient(
+      context.queryClient,
       taxonomyArchiveQueryOptions("tag", params.slug, {
         page: deps.page,
-        pageSize: settings.posts_per_page,
+        pageSize: settings.data.posts_per_page,
         sort: deps.sort,
       }),
+      NO_ARCHIVE,
+      { deadlineAt, label: `archive:tag:${params.slug}` },
     );
-    if (!data) throw notFound();
+    const degraded = anyDegraded(settings, archive);
+    // BRAMKA NAGŁÓWKA, której ta trasa NIE MIAŁA W OGÓLE: bez niej render
+    // niepełny (albo 404) brał domyślną politykę treści z middleware i mógł
+    // utrwalić się na brzegu na 15 minut świeżości plus dobę okna stale.
+    setCacheControlHeader(resilientCacheControl(degraded || archive.data === null));
+    const data = notFoundIfClean(archive);
+    if (data === null) {
+      return {
+        taxonomy: null,
+        posts: [],
+        total: 0,
+        page: deps.page,
+        pageSize: settings.data.posts_per_page,
+        sort: deps.sort,
+        coverPreload: null,
+        degraded: true,
+      };
+    }
     // Preload LCP pierwszej okładki (jak w category.$slug): deskryptor dla
     // head() + nagłówek HTTP `Link` utrwalany przez NES Edge Cache.
-    const coverPreload = archiveFirstCardPreload(data.posts, settings.show_featured_top);
+    const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { ...data, coverPreload };
+    return { ...data, coverPreload, degraded: false };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -142,5 +200,14 @@ export const Route = createFileRoute("/tag/$slug")({
 function TagArchivePage() {
   const { slug } = Route.useParams();
   const { page = 1, sort = "newest" } = Route.useSearch();
+  const { degraded } = Route.useLoaderData();
+  // Zdegradowany render mówi prawdę zamiast udawać 404 (patrz category.$slug).
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice variant="page" />
+      </div>
+    );
+  }
   return <TaxonomyPage kind="tag" slug={slug} page={page} sort={sort} />;
 }

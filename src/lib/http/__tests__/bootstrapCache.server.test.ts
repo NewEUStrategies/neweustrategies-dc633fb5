@@ -101,9 +101,9 @@ describe("routing metadata across Worker isolates", () => {
     await writeBootstrapSnapshot("x", { at: Date.now(), value: [] }, 60_000, { maxAgeMs: 1_000 });
     expect([...entries.values()][0].headers.get("cache-control")).toBe("public, max-age=60");
     vi.advanceTimersByTime(59_999);
-    expect(
-      await readBootstrapSnapshot("x", 60_000, isStrings, { maxAgeMs: 1_000 }),
-    ).toMatchObject({ stale: false });
+    expect(await readBootstrapSnapshot("x", 60_000, isStrings, { maxAgeMs: 1_000 })).toMatchObject({
+      stale: false,
+    });
     vi.advanceTimersByTime(1);
     expect(await readBootstrapSnapshot("x", 60_000, isStrings, { maxAgeMs: 1_000 })).toBeNull();
   });
@@ -155,8 +155,8 @@ describe("routing metadata across Worker isolates", () => {
     },
   );
 
-  it("contains read/write failures and rounds a short TTL to one second", async () => {
-    await writeBootstrapSnapshot("short", { at: Date.now(), value: [] }, 5);
+  it("contains read/write failures and rounds a short maxAge to one second", async () => {
+    await writeBootstrapSnapshot("short", { at: Date.now(), value: [] }, 5, { maxAgeMs: 5 });
     expect([...entries.values()][0].headers.get("cache-control")).toBe("public, max-age=1");
     setColoCacheForTests({
       match: async () => {

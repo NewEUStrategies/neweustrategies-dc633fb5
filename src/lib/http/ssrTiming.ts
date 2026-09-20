@@ -143,7 +143,10 @@ export function parseServerTiming(header: string | null | undefined): ServerTimi
       const eq = param.indexOf("=");
       if (eq < 0) continue;
       const key = param.slice(0, eq).trim().toLowerCase();
-      const value = param.slice(eq + 1).trim().replace(/^"(.*)"$/, "$1");
+      const value = param
+        .slice(eq + 1)
+        .trim()
+        .replace(/^"(.*)"$/, "$1");
       if (key === "dur") {
         const dur = Number.parseFloat(value);
         if (Number.isFinite(dur) && dur >= 0) entry.durationMs = dur;

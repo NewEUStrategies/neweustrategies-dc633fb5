@@ -19,7 +19,7 @@
 //
 //   4. MAPOWANIE BŁĘDÓW NA COPY. Limit tempa, wygasłe okno edycji i wymagane
 //      logowanie mają własne komunikaty; reszta - ogólny.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -165,6 +165,13 @@ beforeEach(() => {
   h.unsubscribe.mockReset();
 });
 
+afterEach(() => {
+  // Atrapa IntersectionObservera zakładana tylko w teście bramki widoczności -
+  // reszta pliku ma widzieć jsdom, w którym obserwatora NIE MA (wtedy useInView
+  // uznaje sekcję za widoczną od razu).
+  vi.unstubAllGlobals();
+});
+
 describe("kiedy sekcja w ogóle się pojawia", () => {
   it("dyskusja WYŁĄCZONA i zero zatwierdzonych: sekcji NIE MA", async () => {
     h.discussion = { ...h.discussion, allow_comments: false };
@@ -244,7 +251,8 @@ describe("licznik i realtime", () => {
     await waitFor(() => expect(hasKey('comments.title|{"count":137}')).toBe(true));
   });
 
-  it("subskrybuje zmiany TEGO wpisu i sprząta przy odmontowaniu", async () => {
+  it("ZALOGOWANY subskrybuje zmiany TEGO wpisu i sprząta przy odmontowaniu", async () => {
+    h.user = { id: USER_ID.author };
     const { unmount } = section();
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalled());
@@ -257,6 +265,60 @@ describe("licznik i realtime", () => {
     // Zgubiony `unsubscribe` kończy się wyczerpaniem limitu kanałów po kilku
     // przejściach między wpisami.
     expect(h.unsubscribe).toHaveBeenCalled();
+  });
+
+  it("ANONIM nie otwiera kanału Realtime w ogóle", async () => {
+    h.page = { comments: [withAuthorRow()], topLevelCount: 1, approvedCount: 1 };
+
+    section();
+
+    await waitFor(() => expect(hasKey("Treść komentarza")).toBe(true));
+    // Websocket (TLS + WS + auth + join) na każdą anonimową odsłonę wpisu to
+    // koszt bez adresata: gość i tak nie zobaczy cudzych `pending`, a świeżość
+    // niesie staleTime 30 s i refetch przy powrocie na kartę.
+    expect(h.subscribe).not.toHaveBeenCalled();
+  });
+
+  it("ZAMKNIĘTA dyskusja nie trzyma kanału nawet zalogowanemu", async () => {
+    h.user = { id: USER_ID.author };
+    h.discussion = { ...h.discussion, allow_comments: false };
+    h.page = { comments: [withAuthorRow()], topLevelCount: 1, approvedCount: 1 };
+
+    section();
+
+    await waitFor(() => expect(hasKey("comments.closed")).toBe(true));
+    // Do zamkniętego archiwum nic nowego nie przyjdzie - nie ma czego słuchać.
+    expect(h.subscribe).not.toHaveBeenCalled();
+  });
+
+  it("kanał czeka, aż sekcja komentarzy WJEDZIE W KADR", async () => {
+    let notifyVisible!: IntersectionObserverCallback;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          notifyVisible = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    h.user = { id: USER_ID.author };
+
+    section();
+
+    // Czytelnik jest na górze wpisu: sekcja istnieje w DOM, ale kanału nie ma.
+    await waitFor(() => expect(document.querySelector("#comments")).toBeTruthy());
+    expect(h.subscribe).not.toHaveBeenCalled();
+
+    await act(async () => {
+      notifyVisible(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
   });
 
   it("'pokaż więcej' pojawia się dopiero, gdy WĄTKÓW jest więcej niż okno", async () => {
@@ -940,6 +1002,8 @@ describe("okno paginacji i stany ładowania", () => {
   });
 
   it("odświeżenie w tle blokuje przycisk i zamienia go w 'ładowanie'", async () => {
+    // Zalogowany, bo to jedyny czytelnik z kanałem Realtime (bramka F34).
+    h.user = { id: USER_ID.author };
     h.page = { comments: [withAuthorRow()], topLevelCount: 120, approvedCount: 120 };
     section();
     await waitFor(() => expect(hasKey("comments.loadMore")).toBe(true));

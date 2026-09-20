@@ -191,27 +191,33 @@ export function CommentsSection({ postId, lang }: Props) {
     },
   });
 
-  // Referencje stabilne przez `mutateAsync`/`mutate` (react-query trzyma je
-  // związane z obserwatorem), więc `memo` na CommentNode naprawdę ucina
-  // przerysowanie całego drzewa przy każdej zmianie stanu rodzica.
+  // `mutateAsync`/`mutate` mają STAŁĄ identyczność (react-query wiąże je raz
+  // z obserwatorem mutacji, obiekt wyniku jest nowy przy każdym renderze).
+  // Rozpakowanie ich do zmiennych daje `useCallback` uczciwą zależność - i to
+  // dopiero sprawia, że `memo` na CommentNode naprawdę ucina przerysowanie
+  // całego drzewa przy każdej zmianie stanu rodzica.
+  const createAsync = create.mutateAsync;
+  const guestCreateAsync = guestCreate.mutateAsync;
+  const removeMutate = remove.mutate;
+  const editAsync = edit.mutateAsync;
   const handleReply = useCallback(
     async (body: string, parentId: string) => {
-      await create.mutateAsync({ body, parentId });
+      await createAsync({ body, parentId });
     },
-    [create.mutateAsync],
+    [createAsync],
   );
   const handleGuestReply = useCallback(
     async (input: GuestCommentInput) => {
-      await guestCreate.mutateAsync(input);
+      await guestCreateAsync(input);
     },
-    [guestCreate.mutateAsync],
+    [guestCreateAsync],
   );
-  const handleDelete = useCallback((id: string) => remove.mutate(id), [remove.mutate]);
+  const handleDelete = useCallback((id: string) => removeMutate(id), [removeMutate]);
   const handleEdit = useCallback(
     async (id: string, body: string) => {
-      await edit.mutateAsync({ id, body });
+      await editAsync({ id, body });
     },
-    [edit.mutateAsync],
+    [editAsync],
   );
   // Rozsunięcie okna paginacji to praca NIEPILNA: przerysowanie 50 kolejnych
   // wątków nie może blokować klatki, w której kliknięto przycisk.
@@ -504,7 +510,13 @@ function CommentComposer({
   );
 }
 
-function CommentNode({
+/**
+ * Jeden węzeł drzewa. `memo`, bo wątek z odpowiedziami potrafi mieć kilkaset
+ * węzłów, a każdy stan rodzica (otwarty edytor, trwająca mutacja) przerysowywał
+ * dotąd wszystkie. Wszystkie propsy-funkcje przychodzą z `useCallback`, więc
+ * porównanie płytkie faktycznie wypada na „bez zmian".
+ */
+const CommentNode = memo(function CommentNode({
   node,
   depth,
   currentUserId,
@@ -515,7 +527,6 @@ function CommentNode({
   onGuestReply,
   onDelete,
   onEdit,
-  submittingReply,
 }: {
   node: Node;
   /** 0 = wątek główny; odpowiedzi wchodzą do MAX_COMMENT_DEPTH (rekurencja). */
@@ -530,9 +541,23 @@ function CommentNode({
   onGuestReply: (input: GuestCommentInput) => void | Promise<void>;
   onDelete: (id: string) => void;
   onEdit: (id: string, body: string) => void | Promise<void>;
-  submittingReply: boolean;
 }) {
   const [replying, setReplying] = useState(false);
+  // Stan wysyłki JEST LOKALNY. Globalne `create.isPending` z rodzica blokowało
+  // przyciski we WSZYSTKICH otwartych odpowiedziach naraz i przerysowywało całe
+  // drzewo - odpowiada ten węzeł, więc i „wysyłam" należy do tego węzła.
+  const [submitting, setSubmitting] = useState(false);
+  const submitReply = async (run: () => Promise<void>) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      // Okno odpowiedzi zamykamy DOPIERO po sukcesie; błąd zostawia treść.
+      await run();
+      setReplying(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const canReply =
     canReplyToComment(depth, allowReplies) && (currentUserId !== null || guestAllowed);
   return (
@@ -552,23 +577,18 @@ function CommentNode({
           {currentUserId ? (
             <CommentComposer
               lang={lang}
-              submitting={submittingReply}
-              onSubmit={async (body) => {
-                // Zamykamy odpowiedź DOPIERO po sukcesie; błąd zostawia okno i treść.
-                await onReply(body, node.comment.id);
-                setReplying(false);
-              }}
+              submitting={submitting}
+              onSubmit={(body) =>
+                submitReply(() => Promise.resolve(onReply(body, node.comment.id)))
+              }
               onCancel={() => setReplying(false)}
             />
           ) : (
             <GuestCommentComposer
               lang={lang}
-              submitting={submittingReply}
+              submitting={submitting}
               parentId={node.comment.id}
-              onSubmit={async (input) => {
-                await onGuestReply(input);
-                setReplying(false);
-              }}
+              onSubmit={(input) => submitReply(() => Promise.resolve(onGuestReply(input)))}
               onCancel={() => setReplying(false)}
             />
           )}
@@ -589,14 +609,15 @@ function CommentNode({
               onGuestReply={onGuestReply}
               onDelete={onDelete}
               onEdit={onEdit}
-              submittingReply={submittingReply}
             />
           ))}
         </div>
       )}
     </article>
   );
-}
+});
+
+CommentNode.displayName = "CommentNode";
 
 function CommentItem({
   c,

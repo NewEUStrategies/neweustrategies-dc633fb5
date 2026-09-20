@@ -1,10 +1,14 @@
 // Category archive: /category/$slug
 // Uses global archive_layout_settings + one of 6 registered layouts.
 // URL search state: ?page=N&sort=newest|oldest|popular
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
-import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
+import {
+  taxonomyArchiveQueryOptions,
+  type ArchiveSort,
+  type TaxonomyArchiveResult,
+} from "@/lib/queries/archives";
 import { TaxonomyPage } from "@/components/archive/TaxonomyPage";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 
@@ -18,13 +22,50 @@ import {
   splitUrl,
   SITE_CANONICAL_ORIGIN,
 } from "@/lib/seo/meta";
-import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
+import {
+  archiveLayoutQueryOptions,
+  DEFAULT_ARCHIVE_LAYOUT,
+  type ArchiveLayoutSettings,
+} from "@/lib/archive-layout-settings";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 
-const NO_STORE = contentCacheControl({ preview: true });
+/**
+ * Wspólny termin ŻĄDANIA dla obu faz loadera. Dwa gołe `ensureQueryData`
+ * biegły tu wcześniej SZEREGOWO i BEZ budżetu: watchdog SSR (5 s) anulował
+ * zapytanie, `ensureQueryData` odrzucało, a loader oddawał HTTP 500 na
+ * archiwum, które w indeksie jest żywe. Termin jest ABSOLUTNY, więc druga faza
+ * dostaje resztę budżetu, a nie własne pełne okno.
+ */
+const ARCHIVE_SSR_BUDGET_MS = 1_400;
+
+/**
+ * Krótki termin KONFIGURACJI. `posts_per_page` wchodzi do KLUCZA listy
+ * (`lib/queries/archives.ts:328`), więc listy fizycznie nie da się odpalić
+ * równolegle z layoutem - ale layout nie ma prawa zjeść budżetu TREŚCI.
+ * Po tych 300 ms wchodzą domyślki z kodu (`DEFAULT_ARCHIVE_LAYOUT`), a
+ * `loadResilient` zasiewa je pod kluczem komponentu, więc `useSuspenseQuery`
+ * w `TaxonomyPage` liczy TEN SAM klucz listy, co loader.
+ */
+const ARCHIVE_LAYOUT_BUDGET_MS = 300;
+
+/** Fallback konfiguracji archiwum - domyślki z kodu, nie zgadywanie z bazy. */
+const CATEGORY_LAYOUT_FALLBACK: ArchiveLayoutSettings = {
+  id: "",
+  archive_type: "category",
+  ...DEFAULT_ARCHIVE_LAYOUT,
+};
+
+/**
+ * Fallback TOŻSAMOŚCIOWY. `null` jest tu WYŁĄCZNIE wartością zasiewu - o tym,
+ * czy kategoria istnieje, decyduje flaga `degraded`, nigdy ten literał
+ * (patrz `lib/ssr/notFoundIfClean.ts`).
+ */
+const NO_ARCHIVE: TaxonomyArchiveResult | null = null;
 
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
@@ -47,27 +88,51 @@ export const Route = createFileRoute("/category/$slug")({
   validateSearch: parseSearch,
   loaderDeps: ({ search }) => ({ page: search.page ?? 1, sort: search.sort ?? "newest" }),
   loader: async ({ params, context, deps }) => {
-    const settings = await context.queryClient.ensureQueryData(
+    const deadlineAt = Date.now() + ARCHIVE_SSR_BUDGET_MS;
+    // KONFIGURACJA NIE BLOKUJE TREŚCI. Krótki własny termin, potem domyślki.
+    const settings = await loadResilient(
+      context.queryClient,
       archiveLayoutQueryOptions("category"),
+      CATEGORY_LAYOUT_FALLBACK,
+      { budgetMs: ARCHIVE_LAYOUT_BUDGET_MS, deadlineAt, label: "archive-layout:category" },
     );
-    const data = await context.queryClient.ensureQueryData(
+    const archive = await loadResilient(
+      context.queryClient,
       taxonomyArchiveQueryOptions("category", params.slug, {
         page: deps.page,
-        pageSize: settings.posts_per_page,
+        pageSize: settings.data.posts_per_page,
         sort: deps.sort,
       }),
+      NO_ARCHIVE,
+      { deadlineAt, label: `archive:category:${params.slug}` },
     );
-    if (!data) {
-      setCacheControlHeader(NO_STORE);
-      throw notFound();
+    const degraded = anyDegraded(settings, archive);
+    // `no-store` należy się DWÓM różnym sytuacjom i obie są przejściowe:
+    // renderowi zdegradowanemu („nie wiemy") i 404 (slug bywa publikowany
+    // minutę po tym, jak crawler go odwiedził). Render CZYSTY z wpisami
+    // zostaje przy dotychczasowej polityce treści - bajt w bajt.
+    setCacheControlHeader(resilientCacheControl(degraded || archive.data === null));
+    // 404 WYŁĄCZNIE z czystego odczytu - blip nie ma prawa wypisać archiwum
+    // z indeksu.
+    const data = notFoundIfClean(archive);
+    if (data === null) {
+      return {
+        taxonomy: null,
+        posts: [],
+        total: 0,
+        page: deps.page,
+        pageSize: settings.data.posts_per_page,
+        sort: deps.sort,
+        coverPreload: null,
+        degraded: true,
+      };
     }
-    setCacheControlHeader(contentCacheControl());
     // Preload LCP pierwszej okładki (karta wyróżniona albo pierwsza karta
     // siatki) - deskryptor dla head() + nagłówek HTTP `Link` (utrwalany przez
     // NES Edge Cache na HIT/STALE; droga do 103 Early Hints).
-    const coverPreload = archiveFirstCardPreload(data.posts, settings.show_featured_top);
+    const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { ...data, coverPreload };
+    return { ...data, coverPreload, degraded: false };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -171,5 +236,17 @@ export const Route = createFileRoute("/category/$slug")({
 function CategoryArchivePage() {
   const { slug } = Route.useParams();
   const { page = 1, sort = "newest" } = Route.useSearch();
+  const { degraded } = Route.useLoaderData();
+  // Render ZDEGRADOWANY mówi prawdę zamiast udawać 404. `TaxonomyPage` na
+  // zasianym `null` pokazałby `PublicNotFound`, czyli miękkie 404 na żywej
+  // kategorii - a nagłówek jest już `no-store`, więc ten HTML nie zamarza
+  // na brzegu (wzór: events.$slug.tsx, podcasts.$show.tsx).
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice variant="page" />
+      </div>
+    );
+  }
   return <TaxonomyPage kind="category" slug={slug} page={page} sort={sort} />;
 }

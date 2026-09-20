@@ -142,10 +142,84 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
   });
 
   it("does not add document timings to JSON responses", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     hoisted.render = () => Response.json({ ok: true });
     const response = await entryFetch(new Request("https://tenant-a.eu/api/data"));
     expect(response.headers.get("server-timing")).toBeNull();
     expect(await response.json()).toEqual({ ok: true });
+    // Log dokumentu dotyczy WYŁĄCZNIE HTML - API i beacony nie zaśmiecają Workers Logs.
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  // LOG DOKUMENTU DO WORKERS LOGS (audyt 0.1 / F40). Hosting zdejmuje
+  // `Server-Timing` i `x-nes-cache` z odpowiedzi, więc ta linia JSON jest
+  // jedynym miejscem, w którym rozkład TTFB na fazy i status cache przeżywają.
+  it("logs one JSON line per HTML document: path only, phases parsed, no query, no cookies", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    let now = 1000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    hoisted.render = () => {
+      now += 37;
+      return new Response(DOC, {
+        headers: {
+          ...HTML_HEADERS,
+          "server-timing":
+            'nes-edge;desc="MISS", ssr;dur=674.0, db;dur=2697.0;desc="n=19", edge-routing;dur=284.2',
+          "x-nes-cache": "MISS",
+          "set-cookie": "nes_lang=pl; Path=/",
+        },
+      });
+    };
+    const response = await entryFetch(
+      new Request("https://tenant-a.eu/en/blog?utm_source=mail&token=sekret", {
+        headers: { cookie: "sb-access-token=tajne", "accept-language": "en" },
+      }),
+    );
+    await response.text();
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toEqual({
+      kind: "doc",
+      path: "/en/blog",
+      status: 200,
+      cache: "MISS",
+      revalidation: false,
+      serverInitMs: 0,
+      appMs: 37,
+      edgeRoutingMs: 284.2,
+      ssrMs: 674,
+      dbMs: 2697,
+      dbCount: 19,
+    });
+    // Bez PII: ani query string, ani cookie, ani host nie mają prawa być w logu.
+    expect(lines[0]).not.toContain("sekret");
+    expect(lines[0]).not.toContain("tajne");
+    expect(lines[0]).not.toContain("utm_source");
+    expect(lines[0]).not.toContain("tenant-a.eu");
+    // Nagłówek wychodzący nadal dostaje te same liczby, co log.
+    expect(response.headers.get("server-timing")).toContain("server-init;dur=0, app;dur=37");
+  });
+
+  it("logs a background revalidation render with `revalidation: true`, never as a reader hit", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    hoisted.render = () =>
+      new Response(DOC, {
+        headers: { ...HTML_HEADERS, "server-timing": 'nes-edge;desc="MISS", ssr;dur=12.0' },
+      });
+    await hoisted.revalidator!(new Request("https://tenant-a.eu/blog?page=2"));
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toMatchObject({
+      kind: "doc",
+      path: "/blog",
+      status: 200,
+      revalidation: true,
+      serverInitMs: 0,
+      ssrMs: 12,
+    });
+    expect(lines[0]).not.toContain("page=2");
   });
 
   it("ścieżka czytelnika przekazuje wyłącznie kontrolowane opcje frameworka, cokolwiek dostanie od runtime'u", async () => {

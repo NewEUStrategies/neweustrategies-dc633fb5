@@ -6,7 +6,10 @@ import { HelpCircle, Clock } from "lucide-react";
 import { publicQaSessionsQueryOptions, type PublicQaSession } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
-import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
+import { withBudget } from "@/lib/asyncBudget";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -17,6 +20,20 @@ import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 interface QaListHeadData {
   sessions: Array<{ slug: string; titlePl: string; titleEn: string }>;
 }
+
+/** Wspólny termin ŻĄDANIA - obie fazy dzielą jedno okno, nie dwa. */
+const QA_LIST_SSR_BUDGET_MS = 1_400;
+
+/**
+ * Krótki termin BRAMKI MODUŁU. `site_settings` grzeje RÓWNOLEGLE loader
+ * korzenia, więc 300 ms z zapasem wystarcza na dołączenie się do jego fetcha;
+ * po tym czasie wchodzą `COMMUNITY_MODULES_DEFAULTS` z kodu, a lista dostaje
+ * resztę budżetu. Konfiguracja NIGDY nie blokuje treści.
+ */
+const QA_SETTINGS_BUDGET_MS = 300;
+
+/** Fallback listy sesji - pusta, zasiewana z `updatedAt: 0` (samoleczenie). */
+const NO_QA_SESSIONS: PublicQaSession[] = [];
 
 export const Route = createFileRoute("/qa")({
   component: QaListPage,
@@ -34,23 +51,44 @@ export const Route = createFileRoute("/qa")({
   // przez root loader, więc `ensureQueryData` deduplikuje z jego fetchem,
   // a wyłączony moduł nie kosztuje ANI JEDNEGO zapytania o sesje.
   loader: async ({ context }): Promise<QaListHeadData> => {
-    const settings = await context.queryClient
-      .ensureQueryData(siteSettingsQueryOptions)
-      .catch(() => undefined);
+    const deadlineAt = Date.now() + QA_LIST_SSR_BUDGET_MS;
+    // Bramka modułu POD TERMINEM. Wcześniej było tu gołe `await
+    // ensureQueryData` - odczyt KONFIGURACJI mógł więc zjeść cały budżet SSR,
+    // zanim padło pierwsze zapytanie o TREŚĆ.
+    await withBudget(
+      context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
+      QA_SETTINGS_BUDGET_MS,
+      deadlineAt,
+    );
+    const settings = context.queryClient.getQueryData<SettingsMap>(
+      siteSettingsQueryOptions.queryKey,
+    );
     const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
-    if (!modules.qa_enabled) return { sessions: [] };
-    try {
-      const sessions = await context.queryClient.ensureQueryData(publicQaSessionsQueryOptions());
-      return {
-        sessions: sessions.slice(0, 50).map((s) => ({
-          slug: s.slug,
-          titlePl: s.title_pl,
-          titleEn: s.title_en,
-        })),
-      };
-    } catch {
+    // Render na DOMYŚLKACH modułu nie jest prawdą tenanta, więc nie wolno go
+    // rozdać kolejnym czytelnikom z brzegu - to ten sam kontrakt, co przy
+    // fallbacku danych.
+    const settingsDegraded = settings === undefined;
+    if (!modules.qa_enabled) {
+      setCacheControlHeader(resilientCacheControl(settingsDegraded));
       return { sessions: [] };
     }
+    // Lista sesji jest treścią POD zgięciem i czyta ją `useQuery` (nie
+    // suspense), więc blip degraduje do pustej listy i dociąga się po
+    // hydratacji - zero rzutu, zero HTTP 500.
+    const sessions = await loadResilient(
+      context.queryClient,
+      publicQaSessionsQueryOptions(),
+      NO_QA_SESSIONS,
+      { deadlineAt, label: "qa-sessions" },
+    );
+    setCacheControlHeader(resilientCacheControl(settingsDegraded || sessions.degraded));
+    return {
+      sessions: sessions.data.slice(0, 50).map((s) => ({
+        slug: s.slug,
+        titlePl: s.title_pl,
+        titleEn: s.title_en,
+      })),
+    };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/qa";

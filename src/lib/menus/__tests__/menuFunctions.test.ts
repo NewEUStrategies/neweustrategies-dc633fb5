@@ -6,14 +6,40 @@
 // sprawdzić to, co naprawdę boli:
 //
 //   * ODCZYT: uszkodzony wiersz (`mega_config` z JSONB) nie może wywrócić SSR
-//     nagłówka, a błąd pozycji nie może zabrać CAŁEGO menu,
+//     nagłówka, odpowiedź bez osadzonych pozycji nie może zabrać CAŁEGO menu,
+//     a samych połączeń do bazy ma być JEDNO (osadzenie PostgREST) na JEDNYM
+//     współdzielonym kliencie anon,
 //   * ZAPIS: bramka roli, KOLEJNOŚĆ wstawiania (klucz obcy w tej samej partii)
 //     i to, że payload bez rodzica nie tworzy sierot w bazie.
 //
 // Reguły egzekwowane w bazie (RLS, izolacja tenanta) zostają pgTAP-owi.
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { fail, ok, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
+import {
+  fail,
+  ok,
+  supabaseFromStub,
+  type SupabaseFromStub,
+  type SupabaseResult,
+} from "@/test/supabaseChain";
 import { DEFAULT_MEGA_CONFIG, type MenuItemInput, type SaveMenuInput } from "../types";
+
+// Atrapa fabryki klienta - wyłącznie po to, żeby POLICZYĆ jej wywołania.
+// Wszystkie pozostałe przypadki wstrzykują własny łańcuch i tej atrapy nie
+// dotykają.
+const domyslny = vi.hoisted(() => ({ created: 0, stub: null as SupabaseFromStub | null }));
+
+vi.mock("@supabase/supabase-js", async () => {
+  const { supabaseFromStub: makeStub } = await import("@/test/supabase/chain");
+  const stub = makeStub();
+  domyslny.stub = stub;
+  return {
+    createClient: () => {
+      domyslny.created += 1;
+      return { from: stub.from };
+    },
+  };
+});
+
 import { fetchMenuWithItems, listMenuSummaries, saveMenuItems } from "../menu.functions";
 
 function readClient() {
@@ -70,41 +96,88 @@ describe("listMenuSummaries", () => {
 });
 
 describe("fetchMenuWithItems", () => {
-  it("scala menu z pozycjami i pyta o oba RÓWNOLEGLE", async () => {
+  it("scala menu z pozycjami JEDNYM zapytaniem (osadzenie PostgREST)", async () => {
     const { stub, client } = readClient();
-    stub.setResponse("menus", ok(menuRow()));
-    stub.setResponse("menu_items", ok([itemRow()]));
+    stub.setResponse("menus", ok(menuRow({ menu_items: [itemRow()] })));
 
     const menu = await fetchMenuWithItems("main", client);
     expect(menu).toMatchObject({ id: "menu-1", key: "main", name: "Główne" });
     expect(menu?.items).toHaveLength(1);
-    // Pozycje filtrowane przez złączenie po kluczu menu - jedno okrążenie
-    // zamiast dwóch sekwencyjnych (nagłówek startował dwa razy wolniej).
-    const items = stub.lastChain("menu_items")!;
-    expect(items.argsOf("eq")).toEqual(["menus.key", "main"]);
-    expect(items.argsOf("order")).toEqual(["position"]);
+
+    // LICZBA POŁĄCZEŃ JEST KONTRAKTEM. Do 20.09.2026 leciały dwa zapytania
+    // równolegle (menu + pozycje przez inner join), czyli dwa z sześciu
+    // równoległych gniazd Workera - a menu `main` i `footer` grzane razem
+    // w loaderze ROOTA brały cztery, dokładnie w t0 pierwszej fali.
+    expect(stub.chains).toHaveLength(1);
+    expect(stub.chainsFor("menu_items")).toHaveLength(0);
+
+    const c = stub.lastChain("menus")!;
+    expect(c.argsOf("eq")).toEqual(["key", "main"]);
+    expect(c.has("maybeSingle")).toBe(true);
+  });
+
+  it("osadzenie niesie WSZYSTKIE kolumny, które czyta normalizacja", async () => {
+    // Zgubiona kolumna w osadzeniu nie jest błędem PostgREST - po prostu nie
+    // wraca, a normalizacja podstawia wartość domyślną. Ikona albo
+    // `mega_config` znikają wtedy po cichu z nawigacji.
+    const { stub, client } = readClient();
+    stub.setResponse("menus", ok(menuRow({ menu_items: [] })));
+    await fetchMenuWithItems("main", client);
+
+    const select = String(stub.lastChain("menus")!.argsOf("select")?.[0]);
+    const embed = select.slice(select.indexOf("menu_items("));
+    for (const kolumna of [
+      "id",
+      "menu_id",
+      "parent_id",
+      "position",
+      "item_type",
+      "ref_id",
+      "label_pl",
+      "label_en",
+      "href",
+      "target",
+      "css_class",
+      "visibility",
+      "icon",
+      "mega_enabled",
+      "mega_config",
+    ]) {
+      expect(embed).toContain(kolumna);
+    }
+  });
+
+  it("sortowanie jest zaadresowane do ZASOBU OSADZONEGO, nie do wierszy menu", async () => {
+    // Bez `referencedTable` PostgREST posortowałby menu (jeden wiersz), a
+    // pozycje wróciłyby w kolejności fizycznej - nawigacja poprzestawiana.
+    const { stub, client } = readClient();
+    stub.setResponse("menus", ok(menuRow({ menu_items: [] })));
+    await fetchMenuWithItems("main", client);
+    expect(stub.lastChain("menus")!.argsOf("order")).toEqual([
+      "position",
+      { referencedTable: "menu_items" },
+    ]);
   });
 
   it("nieistniejące menu daje `null` (nagłówek pokazuje wtedy stan pusty)", async () => {
     const { stub, client } = readClient();
     stub.setResponse("menus", ok(null));
-    stub.setResponse("menu_items", ok([]));
     expect(await fetchMenuWithItems("nie-ma", client)).toBeNull();
   });
 
-  it("błąd odczytu MENU daje `null`", async () => {
+  it("błąd odczytu daje `null`, a nie wyjątek w renderze SSR", async () => {
     const { stub, client } = readClient();
     stub.setResponse("menus", fail("boom"));
-    stub.setResponse("menu_items", ok([]));
     expect(await fetchMenuWithItems("main", client)).toBeNull();
   });
 
-  it("błąd odczytu POZYCJI zostawia menu z pustą listą, a nie kasuje nagłówka", async () => {
-    // Rozróżnienie jest celowe: bez menu nie ma czego pokazać, ale menu bez
-    // pozycji to nadal poprawna odpowiedź - reszta chrome ma się wyrenderować.
+  it("osadzenie w kształcie INNYM niż tablica nie wywraca nagłówka", async () => {
+    // Po scaleniu w jedno zapytanie nie ma już osobnej gałęzi „błąd pozycji".
+    // Została jedna realna granica: odpowiedź bez tablicy `menu_items` (RLS
+    // przycięło zasób osadzony albo ktoś zmienił nazwę osadzenia). Menu ma się
+    // wtedy wyrenderować puste, a nie zniknąć razem z resztą chrome.
     const { stub, client } = readClient();
-    stub.setResponse("menus", ok(menuRow()));
-    stub.setResponse("menu_items", fail("statement timeout"));
+    stub.setResponse("menus", ok(menuRow({ menu_items: null })));
     expect(await fetchMenuWithItems("main", client)).toEqual({
       id: "menu-1",
       key: "main",
@@ -115,22 +188,25 @@ describe("fetchMenuWithItems", () => {
 
   it("normalizuje pola, których baza nie gwarantuje", async () => {
     const { stub, client } = readClient();
-    stub.setResponse("menus", ok(menuRow()));
     stub.setResponse(
-      "menu_items",
-      ok([
-        itemRow({
-          parent_id: null,
-          position: null,
-          label_pl: null,
-          label_en: null,
-          href: null,
-          target: null,
-          css_class: null,
-          icon: null,
-          mega_enabled: null,
+      "menus",
+      ok(
+        menuRow({
+          menu_items: [
+            itemRow({
+              parent_id: null,
+              position: null,
+              label_pl: null,
+              label_en: null,
+              href: null,
+              target: null,
+              css_class: null,
+              icon: null,
+              mega_enabled: null,
+            }),
+          ],
         }),
-      ]),
+      ),
     );
 
     const [item] = (await fetchMenuWithItems("main", client))!.items;
@@ -151,17 +227,18 @@ describe("fetchMenuWithItems", () => {
     // To jest kolumna JSONB - mógł ją zapisać starszy panel albo ręczny UPDATE.
     // Wyjątek tutaj przewraca render CAŁEJ strony, nie jednego panelu.
     const { stub, client } = readClient();
-    stub.setResponse("menus", ok(menuRow()));
-    stub.setResponse("menu_items", ok([itemRow({ mega_config: { columns_per_row: "dużo" } })]));
+    stub.setResponse(
+      "menus",
+      ok(menuRow({ menu_items: [itemRow({ mega_config: { columns_per_row: "dużo" } })] })),
+    );
 
     const [item] = (await fetchMenuWithItems("main", client))!.items;
     expect(item.mega_config).toEqual(DEFAULT_MEGA_CONFIG);
   });
 
-  it("brak pozycji daje menu z pustą listą", async () => {
+  it("menu bez pozycji daje pustą listę", async () => {
     const { stub, client } = readClient();
-    stub.setResponse("menus", ok(menuRow()));
-    stub.setResponse("menu_items", ok(null));
+    stub.setResponse("menus", ok(menuRow({ menu_items: [] })));
     expect((await fetchMenuWithItems("main", client))!.items).toEqual([]);
   });
 });
@@ -474,11 +551,31 @@ describe("obwoluty server fn", () => {
 // zaplanował - inaczej „brak wiersza" udawałby poprawny odczyt.
 describe("higiena atrapy", () => {
   it("niezaplanowana tabela zwraca błąd, nie pustkę", async () => {
-    const { stub, client } = readClient();
-    stub.setResponse("menus", ok(menuRow()));
+    const { client } = readClient();
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const result = await fetchMenuWithItems("main", client);
-    expect(result?.items).toEqual([]);
+    expect(await fetchMenuWithItems("main", client)).toBeNull();
+    expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+// Klient anon był budowany PRZY KAŻDYM wywołaniu, a menu jest grzane w loaderze
+// ROOTA na każdej trasie z chrome - czyli `createClient` biegł na każde
+// chybienie w `edgeTtlCache`, dwa razy (main + footer). Na Workers czas CPU
+// jest zasobem bilowanym, więc to jest oszczędność realna, choć nie w latencji.
+describe("klient anon: jeden egzemplarz na izolat", () => {
+  it("DRUGI odczyt menu NIE buduje kolejnego klienta", async () => {
+    const stub = domyslny.stub!;
+    stub.reset();
+    stub.setResponse("menus", ok(menuRow({ menu_items: [] })));
+
+    await fetchMenuWithItems("main");
+    const poPierwszym = domyslny.created;
+    await fetchMenuWithItems("footer");
+
+    // Przyrost, nie wartość bezwzględna: singleton żyje na poziomie MODUŁU,
+    // więc licznik zależałby od kolejności bloków w pliku.
+    expect(domyslny.created).toBe(poPierwszym);
+    expect(stub.chainsFor("menus")).toHaveLength(2);
   });
 });

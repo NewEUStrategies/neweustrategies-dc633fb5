@@ -50,11 +50,6 @@ function claimPreload(href: string, now: number): boolean {
   return true;
 }
 
-/** Czyści pamięć preloadu - do testów i diagnostyki. */
-export function resetPreloadMemory(): void {
-  preloadMemory.clear();
-}
-
 function isModifiedEvent(event: MouseEvent<HTMLAnchorElement>): boolean {
   return event.metaKey || event.altKey || event.ctrlKey || event.shiftKey;
 }

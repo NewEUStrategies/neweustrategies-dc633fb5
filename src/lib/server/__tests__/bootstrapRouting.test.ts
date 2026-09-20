@@ -148,6 +148,109 @@ describe("first document on a new Worker", () => {
     expect(h.from).toHaveBeenCalledTimes(4);
   });
 
+  // ŚWIEŻOŚĆ vs PRZETRWANIE (audyt F01). Do 2026-09-20 migawka umierała
+  // razem z TTL (60 s / 30 s), więc po dłuższej ciszy zimny izolat płacił dwa
+  // SZEREGOWE odczyty planu service-role (po 1 500 ms terminu) PRZED cache
+  // dokumentów - także na trafieniu. Teraz nieświeża migawka serwuje od ręki,
+  // a odświeżenie biegnie za odpowiedzią.
+  describe("cold isolate after a long silence (stale shared snapshot)", () => {
+    const SILENCE_MS = 6 * 60 * 60 * 1000;
+
+    /** Rozstrzygnięcie jako FLAGA - `await` na wiszącej obietnicy zawiesiłby przebieg. */
+    function watch<T>(promise: Promise<T>): { settled: () => boolean; value: () => T | undefined } {
+      let done = false;
+      let result: T | undefined;
+      void promise.then((value) => {
+        done = true;
+        result = value;
+      });
+      return { settled: () => done, value: () => result };
+    }
+
+    async function warmSnapshots(): Promise<void> {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-06T12:00:00Z"));
+      const first = await import("@/lib/seo/redirects.server");
+      await first.resolveRedirectForRequest(new Request("https://a.example/old"));
+      await Promise.all(h.background);
+      expect(h.from).toHaveBeenCalledTimes(2);
+      vi.advanceTimersByTime(SILENCE_MS);
+      vi.resetModules(); // Nowy izolat; przeżywa wyłącznie Cache API kolonii.
+      h.from.mockClear();
+      h.background = [];
+    }
+
+    it("answers from the stale snapshot with ZERO blocking database reads", async () => {
+      await warmSnapshots();
+      // Baza WISI. Gdyby zimny izolat na nią czekał, ta odpowiedź nigdy by nie
+      // wróciła - to jest kontrola negatywna „zero blokującego odczytu".
+      h.from.mockImplementation(() => {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          limit: () => new Promise(() => {}),
+        };
+        return query;
+      });
+      const next = await import("@/lib/seo/redirects.server");
+      const pending = watch(next.resolveRedirectForRequest(new Request("https://a.example/old")));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(pending.settled(), "odpowiedź musi wrócić bez czekania na bazę").toBe(true);
+      expect(pending.value()).toEqual({ target: "/new", status: 301 });
+      // Odświeżenie WYSTARTOWAŁO za odpowiedzią (katalog + indeks), nie przed nią.
+      expect(h.from).toHaveBeenCalledTimes(2);
+      // Tło domyka się terminem planu service-role, nie na ścieżce czytelnika,
+      // a zejście po terminie zostawia nieświeży katalog zamiast pustego.
+      await vi.advanceTimersByTimeAsync(1_501);
+      await Promise.all(h.background);
+      const tenants = await import("@/lib/server/tenant.server");
+      expect((await tenants.resolveTenantForHost("a.example"))?.id).toBe("tenant-a");
+    });
+
+    it("refreshes both snapshots behind the response and republishes them with a new `at`", async () => {
+      await warmSnapshots();
+      const before = new Map<string, number>();
+      for (const [key, entry] of entries) {
+        before.set(key, ((await entry.clone().json()) as { at: number }).at);
+      }
+      h.rows.redirects = [{ ...rule, target_path: "/renewed" }];
+
+      const next = await import("@/lib/seo/redirects.server");
+      const request = new Request("https://a.example/old");
+      // Pierwsza odpowiedź: nieświeże reguły, od ręki.
+      expect(await next.resolveRedirectForRequest(request)).toEqual({
+        target: "/new",
+        status: 301,
+      });
+      await Promise.all(h.background);
+      expect(h.from).toHaveBeenCalledTimes(2);
+      // Druga: już po odświeżeniu w tle - bez kolejnego round-tripu.
+      expect(await next.resolveRedirectForRequest(request)).toEqual({
+        target: "/renewed",
+        status: 301,
+      });
+      expect(h.from).toHaveBeenCalledTimes(2);
+      // Migawki w kolonii mają nowy znacznik czasu - następny zimny izolat
+      // dostanie je ŚWIEŻE, a `max-age` znów obejmuje pełną dobę.
+      for (const [key, entry] of entries) {
+        expect(((await entry.clone().json()) as { at: number }).at).toBe(Date.now());
+        expect(before.get(key)).toBe(Date.now() - SILENCE_MS);
+        expect(entry.headers.get("cache-control")).toBe("public, max-age=86400");
+      }
+    });
+
+    it("still blocks once and reads the database when the snapshot is older than a day", async () => {
+      await warmSnapshots();
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000 - SILENCE_MS);
+      const next = await import("@/lib/seo/redirects.server");
+      expect(await next.resolveRedirectForRequest(new Request("https://a.example/old"))).toEqual({
+        target: "/new",
+        status: 301,
+      });
+      expect(h.from).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("does not extend freshness by copying a snapshot into a new isolate", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-06T12:00:00Z"));
