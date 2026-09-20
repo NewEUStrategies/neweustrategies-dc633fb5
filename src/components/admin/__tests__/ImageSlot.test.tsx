@@ -308,6 +308,53 @@ describe("ImageSlot - odmowy i błędy", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // WALIDACJA WEJŚCIOWA STOI PRZED SIECIĄ I PRZED `transformFile`.
+  // `accept` filtruje WYŁĄCZNIE okno systemowe - upuszczenie dowozi dowolny
+  // plik, a w oknie użytkownik może przełączyć filtr na „wszystkie pliki".
+  // Bez tego sprawdzenia PDF albo wideo szedł wprost do publicznego bucketu
+  // i zapisywał w ustawieniach adres, którego nie da się wyrenderować jako
+  // obrazu (zgłoszenie Codeksa P2 do tego pliku).
+  it("plik spoza `accept` nie dotyka Storage ani `transformFile`", async () => {
+    const transformFile = vi.fn<ImageSlotTransform>();
+    const { onChange } = renderuj({ accept: "image/png,image/webp", transformFile });
+
+    wybierzPlik("umowa.pdf", "application/pdf");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("uploadArea.badType");
+    expect(transformFile).not.toHaveBeenCalled();
+    expect(h.storageFrom).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("plik ponad 10 MB nie dotyka Storage", async () => {
+    const { onChange } = renderuj({});
+    const plik = new File(["x"], "panorama.png", { type: "image/png" });
+    // Atrapa `File` nie alokuje 10 MB - rozmiar podstawiamy wprost.
+    Object.defineProperty(plik, "size", { value: 10 * 1024 * 1024 + 1 });
+
+    fireEvent.change(polePliku(), { target: { files: [plik] } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("uploadArea.tooLarge");
+    expect(h.storageFrom).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("UPUSZCZONY plik spoza `accept` wraca komunikatem ze wspólnego obszaru", async () => {
+    renderuj({ accept: "image/png" });
+    const obszar = document.querySelector('[data-slot="upload-area"]');
+    expect(obszar, "pole obrazka bez wspólnego obszaru wgrywania").toBeTruthy();
+
+    fireEvent.drop(obszar as Element, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "klip.mp4", { type: "video/mp4" })],
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("uploadArea.badType");
+    expect(h.storageFrom).not.toHaveBeenCalled();
+  });
+
   it("odrzucenie przez walidację NIE wysyła pliku i pokazuje zebrane błędy", async () => {
     const transformFile = vi.fn<ImageSlotTransform>(async () => ({
       file: null,

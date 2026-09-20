@@ -128,14 +128,20 @@ function wejsciePliku(container: HTMLElement): HTMLInputElement {
 }
 
 /**
- * Strefa upuszczania. Szukamy jej po ZNACZNIKU, a nie po dostepnej nazwie:
- * strefa i przycisk „Wgraj" nosza TEN SAM napis (i tak ma byc - to jedna
- * czynnosc w dwoch miejscach), wiec zapytanie po nazwie oddaje dwa elementy.
+ * Strefa upuszczania. Szukamy jej po ZNACZNIKU wspolnego obszaru wgrywania
+ * (`@/components/ui/upload-area`), a nie po dostepnej nazwie: strefa i jej
+ * przycisk mowia o tej samej czynnosci, wiec zapytanie po nazwie oddawaloby
+ * dwa elementy.
  */
 function strefa(container: HTMLElement): HTMLElement {
-  const zone = container.querySelector('div[role="button"]');
+  const zone = container.querySelector('[data-slot="upload-area"]');
   if (zone === null) throw new Error("test: atom nie ma strefy upuszczania");
   return zone as HTMLElement;
+}
+
+/** CTA obszaru - jedyna droga z klawiatury do okna wyboru pliku. */
+function przyciskWyboru(): HTMLElement {
+  return screen.getByRole("button", { name: `${DROP}upload` });
 }
 
 beforeEach(() => {
@@ -241,6 +247,7 @@ describe("EventImageDropzone - upuszczanie", () => {
 
     fireEvent.drop(strefa(container), {
       dataTransfer: {
+        types: ["Files"],
         files: [
           plik("pierwszy.png", "image/png", 1024),
           plik("drugi.png", "image/png", 1024),
@@ -258,7 +265,7 @@ describe("EventImageDropzone - upuszczanie", () => {
   it("UPUSZCZENIE PUSTKI nic nie robi - przeciagniecie zaznaczenia tekstu nie jest uploadem", () => {
     const { container } = pole();
 
-    fireEvent.drop(strefa(container), { dataTransfer: { files: [] } });
+    fireEvent.drop(strefa(container), { dataTransfer: { types: ["Files"], files: [] } });
 
     expect(h.upload).not.toHaveBeenCalled();
     expect(h.kubelki).toEqual([]);
@@ -267,8 +274,8 @@ describe("EventImageDropzone - upuszczanie", () => {
   it("przeciagniecie nad polem i zjechanie z niego nie wysyla niczego", () => {
     const { container } = pole();
 
-    fireEvent.dragOver(strefa(container));
-    fireEvent.dragLeave(strefa(container));
+    fireEvent.dragOver(strefa(container), { dataTransfer: { types: ["Files"], files: [] } });
+    fireEvent.dragLeave(strefa(container), { dataTransfer: { types: ["Files"], files: [] } });
 
     expect(h.upload).not.toHaveBeenCalled();
   });
@@ -291,12 +298,15 @@ describe("EventImageDropzone - obraz juz wybrany", () => {
     expect(h.kubelki).toEqual([]);
   });
 
-  it("wybrany obraz ma PODGLAD z tekstem alternatywnym, a strefa mowi „podmien”", () => {
+  it("wybrany obraz ma PODGLAD z tekstem alternatywnym, a CTA mowi „podmien”", () => {
     const { container } = pole({ value: "https://cdn.example.org/media/okladka.png" });
 
     const podglad = screen.getByRole("img", { name: "Okladka pasma" });
     expect(podglad).toHaveAttribute("src", "https://cdn.example.org/media/okladka.png");
-    expect(strefa(container)).toHaveAttribute("aria-label", `${DROP}replace`);
+    // Nazwa obszaru to etykieta pola, a czynnosc nazywa jego CTA - tak samo
+    // jak w kazdym innym obszarze wgrywania na platformie.
+    expect(strefa(container)).toHaveAccessibleName("Okladka pasma");
+    expect(screen.getByRole("button", { name: `${DROP}replace` })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: `${DROP}upload` })).toBeNull();
   });
 
@@ -320,22 +330,24 @@ describe("EventImageDropzone - obraz juz wybrany", () => {
 });
 
 describe("EventImageDropzone - obsluga z klawiatury i dostepnosc", () => {
-  it("strefa otwiera okno wyboru Enterem i spacja - klik myszy nie moze byc jedyna droga", () => {
+  it("CTA obszaru otwiera okno wyboru - klik w tlo nie moze byc jedyna droga", () => {
+    // Wspolny obszar wgrywania prowadzi klawiature przez PRAWDZIWY `<button>`
+    // (zamiast `div[role=button]` z wlasna obsluga Enter/Spacji), wiec dowodem
+    // jest aktywacja CTA - przegladarka zamienia Enter i spacje na `click`.
     const { container } = pole();
     const otworz = vi.spyOn(wejsciePliku(container), "click");
 
-    fireEvent.keyDown(strefa(container), { key: "Enter" });
-    fireEvent.keyDown(strefa(container), { key: " " });
-    expect(otworz).toHaveBeenCalledTimes(2);
+    fireEvent.click(przyciskWyboru());
+    expect(otworz).toHaveBeenCalledTimes(1);
 
-    // Inne klawisze nie otwieraja okna - Tab musi wyprowadzac z pola dalej.
-    fireEvent.keyDown(strefa(container), { key: "Tab" });
+    // Klikniecie w tlo obszaru prowadzi do tego samego okna - i tylko raz.
+    fireEvent.click(strefa(container));
     expect(otworz).toHaveBeenCalledTimes(2);
   });
 
   it("pole nie ma naruszen axe - i z obrazem, i bez niego", async () => {
     // `label` WYLACZONY I TO NIE JEST ZAMIATANIE DEFEKTU POD DYWAN. Ukryte pole
-    // pliku ma klase `hidden` (czyli `display: none`), a happy-dom nie liczy
+    // pliku jest poza ekranem (`sr-only`, `tabIndex=-1`), a happy-dom nie liczy
     // CSS - w przegladarce axe pomija elementy `display: none`, tutaj widzi je
     // jako zwykly `<input>` bez etykiety. To ten sam powod, dla ktorego wspolny
     // pomocnik gasi `color-contrast` i `region`. Dostepna nazwe pol, ktore
@@ -346,7 +358,8 @@ describe("EventImageDropzone - obsluga z klawiatury i dostepnosc", () => {
     const puste = pole();
     const bezObrazu = await axeViolations(puste.container, bezEtykietyUkrytego);
     expect(bezObrazu, summarize(bezObrazu)).toEqual([]);
-    expect(strefa(puste.container)).toHaveAttribute("aria-label", `${DROP}upload`);
+    expect(strefa(puste.container)).toHaveAccessibleName("Okladka pasma");
+    expect(przyciskWyboru()).toBeInTheDocument();
     puste.unmount();
 
     const zObrazem = pole({ value: "https://cdn.example.org/media/okladka.png" });

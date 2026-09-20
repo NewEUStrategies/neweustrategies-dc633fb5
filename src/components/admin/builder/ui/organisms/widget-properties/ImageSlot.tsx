@@ -4,13 +4,17 @@
 // Uploady rejestrują się w bibliotece mediów (registerMediaUpload, folder
 // /widgets) - wcześniej lądowały w storage z pominięciem tabeli `media`,
 // więc były niewidoczne w bibliotece i cleanupie (higiena z audytu 13.07).
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { IMAGE_MIME, VIDEO_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { Upload, X, AlertCircle, FolderOpen } from "lucide-react";
+import { Upload, X, AlertCircle, FileImage, FolderOpen, Images } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UploadArea } from "@/components/ui/upload-area";
+import "@/lib/i18n-upload-area";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { createMediaFolder, registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
 import { useTranslation } from "react-i18next";
@@ -83,7 +87,6 @@ export function ImageSlot({
   recommendedSize = null,
 }: Props) {
   const { t } = useTranslation();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -225,39 +228,41 @@ export function ImageSlot({
           </button>
         )}
       </div>
-      <input
-        ref={fileRef}
-        type="file"
+      <UploadArea
+        size="sm"
+        title={t("uploadArea.image.title")}
+        description={t("uploadArea.image.description")}
+        ctaLabel={t("builder.imageSlot.uploadFile")}
+        busyLabel={t("builder.imageSlot.uploading")}
+        busy={uploading}
+        error={error}
+        icons={[FileImage, Upload, Images]}
         accept={ALLOWED_MIME.join(",")}
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) handleFile(f);
-          e.target.value = "";
-        }}
+        onFiles={(files) => void handleFile(files[0])}
+        preview={
+          value && !urlError ? (
+            <img
+              src={mediaRenderUrl(value)}
+              alt=""
+              className="max-h-24 max-w-full rounded-[6px] border border-border/60 object-contain"
+            />
+          ) : undefined
+        }
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setPickerOpen(true);
+            }}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            {t("builder.imageSlot.mediaLibrary")}
+          </Button>
+        }
       />
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          {uploading ? t("builder.imageSlot.uploading") : t("builder.imageSlot.uploadFile")}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setError(null);
-            setPickerOpen(true);
-          }}
-          className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs"
-        >
-          <FolderOpen className="w-3.5 h-3.5" />
-          {t("builder.imageSlot.mediaLibrary")}
-        </button>
-      </div>
       <MediaPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
@@ -289,12 +294,6 @@ export function ImageSlot({
         <div className="flex items-start gap-1 text-[10px] text-destructive" role="alert">
           <AlertCircle className="w-3 h-3 mt-[1px] shrink-0" />
           <span>{urlError}</span>
-        </div>
-      )}
-      {error && (
-        <div className="flex items-start gap-1 text-[10px] text-destructive" role="alert">
-          <AlertCircle className="w-3 h-3 mt-[1px] shrink-0" />
-          <span>{error}</span>
         </div>
       )}
     </div>

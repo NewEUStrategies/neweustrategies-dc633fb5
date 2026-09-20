@@ -20,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Download, Upload } from "lucide-react";
+import { FileCode2, FileText, Loader2, Download, Upload } from "lucide-react";
+import { UploadArea } from "@/components/ui/upload-area";
+import "@/lib/i18n-upload-area";
 import { parseWxr, fallbackHtmlFromElementorJson, type WxrPage } from "@/lib/wp-import/wxr";
 import { wpImportFromWxr } from "@/lib/wp-import.functions";
 
@@ -54,7 +56,7 @@ interface Props {
 }
 
 export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
   const importFn = useServerFn(wpImportFromWxr);
@@ -119,13 +121,6 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
     },
     [lang],
   );
-
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    void parseFile(f);
-  };
 
   const selectableCount = pages.filter((p) => p.slug !== "main").length;
   const summary = useMemo(() => {
@@ -276,28 +271,32 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
 
   return (
     <div className="grid gap-3">
-      <div className="grid gap-1.5">
-        <Label>{lang === "pl" ? "Plik WXR (.xml)" : "WXR file (.xml)"}</Label>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            type="file"
-            accept=".xml,text/xml,application/xml"
-            onChange={onFileChange}
-            className="max-w-md"
-          />
-          {file && (
-            <span className="text-xs text-muted-foreground">
+      <UploadArea
+        size="sm"
+        // Kopia obszaru idzie ze SŁOWNIKA, a nie z ternariów po języku: ten
+        // panel ma własny dług dwujęzycznych literałów (bramka
+        // `check:i18n-hardcoded` trzyma go w ryzach per plik), więc nowy tekst
+        // nie ma prawa go powiększać.
+        title={t("uploadArea.wxr.title")}
+        description={t("uploadArea.wxr.description")}
+        ctaLabel={t("uploadArea.wxr.cta")}
+        busyLabel={t("uploadArea.wxr.reading")}
+        busy={parsing}
+        icons={[FileCode2, Upload, FileText]}
+        accept=".xml,text/xml,application/xml"
+        onFiles={(files) => {
+          const f = files[0];
+          setFile(f);
+          void parseFile(f);
+        }}
+        hint={
+          file ? (
+            <span>
               {file.name} · {(file.size / 1024).toFixed(1)} KB
             </span>
-          )}
-          {parsing && <Loader2 className="h-4 w-4 animate-spin" />}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {lang === "pl"
-            ? "W wp-admin: Tools → Export → wybierz „Pages”, pobierz XML i wgraj tutaj. Media są ściągane automatycznie z URL-i w treści (jeżeli publicznie dostępne)."
-            : 'In wp-admin: Tools → Export → select "Pages", download the XML and upload here. Media is fetched automatically from URLs in the content (if publicly reachable).'}
-        </p>
-      </div>
+          ) : undefined
+        }
+      />
 
       {pages.length > 0 && (
         <>

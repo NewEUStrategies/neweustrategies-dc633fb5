@@ -21,6 +21,10 @@ const h = vi.hoisted(() => ({
   toastWarning: vi.fn(),
 }));
 
+// Kopia obszaru wgrywania idzie ze wspólnego słownika (`uploadArea.csv.*`),
+// więc `t` jest echem klucza i asercje mierzą KLUCZ, nie polski tekst.
+vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: () => h.importFn,
@@ -82,7 +86,7 @@ describe("krok 1: wgranie pliku", () => {
   it("otwarty dialog prosi o plik i nie pokazuje jeszcze mapowania", () => {
     mount();
 
-    expect(screen.getByText(/Kliknij aby wybrac plik/)).toBeTruthy();
+    expect(screen.getByText("uploadArea.csv.title")).toBeTruthy();
     expect(screen.queryByText(/Mapowanie kolumn/)).toBeNull();
   });
 
@@ -100,7 +104,7 @@ describe("krok 1: wgranie pliku", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Zmien plik/ }));
 
-    expect(screen.getByText(/Kliknij aby wybrac plik/)).toBeTruthy();
+    expect(screen.getByText("uploadArea.csv.title")).toBeTruthy();
     expect(screen.queryByText(/Mapowanie kolumn/)).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
-import { Upload } from "lucide-react";
+import { Image as ImageIcon, PanelTop, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { UploadArea } from "@/components/ui/upload-area";
 
 interface Props {
   firstName: string | null;
@@ -21,8 +21,12 @@ interface Props {
   };
   onAvatarUrlChange: (url: string) => void;
   onCoverUrlChange: (url: string) => void;
-  onAvatarUploadClick: () => void;
-  onCoverUploadClick: () => void;
+  /** Plik awatara z pickera albo z upuszczenia - kadrowanie robi rodzic. */
+  onAvatarFile: (file: File) => void;
+  /** Plik okładki - jak wyżej. */
+  onCoverFile: (file: File) => void;
+  /** Dozwolone typy plików (`accept`) - lista MIME, nie wildcard. */
+  accept?: string;
   t: (k: string, v?: Record<string, unknown>) => string;
 }
 
@@ -69,8 +73,9 @@ export function ProfileMediaPreview({
   status,
   onAvatarUrlChange,
   onCoverUrlChange,
-  onAvatarUploadClick,
-  onCoverUploadClick,
+  onAvatarFile,
+  onCoverFile,
+  accept,
   t,
 }: Props) {
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || displayName || "";
@@ -126,61 +131,57 @@ export function ProfileMediaPreview({
         </div>
       </div>
 
-      {/* Controls */}
+      {/* Controls - oba pola w standardzie obszaru wgrywania platformy. */}
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Avatar controls */}
-        <div className="grid gap-2">
-          <span className="text-sm font-medium">{t("profile.account.avatar")}</span>
-          <div className="flex items-center gap-2">
-            <Input
-              value={avatarUrl ?? ""}
-              onChange={(e) => onAvatarUrlChange(e.target.value)}
-              placeholder="https://..."
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onAvatarUploadClick}
-              disabled={uploading === "avatar"}
-            >
-              <Upload className="h-4 w-4 mr-1.5" />
-              {uploading === "avatar"
-                ? t("profile.account.uploading")
-                : t("profile.account.uploadAvatar")}
-            </Button>
-          </div>
-          <StatusBadge status={status.avatar} percent={progress.avatar} t={t} />
-          <p className="text-xs text-muted-foreground">{t("profile.account.avatarHint")}</p>
-        </div>
+        <UploadArea
+          size="sm"
+          title={t("profile.account.avatar")}
+          description={t("profile.account.avatarHint")}
+          ctaLabel={t("profile.account.uploadAvatar")}
+          busyLabel={t("profile.account.uploading")}
+          busy={uploading === "avatar"}
+          icons={[ImageIcon, Upload]}
+          accept={accept}
+          onFiles={(files) => onAvatarFile(files[0])}
+          footer={
+            <div className="grid gap-2">
+              <Input
+                value={avatarUrl ?? ""}
+                onChange={(e) => onAvatarUrlChange(e.target.value)}
+                placeholder="https://..."
+                className="flex-1"
+                aria-label={t("profile.account.avatar")}
+              />
+              <StatusBadge status={status.avatar} percent={progress.avatar} t={t} />
+            </div>
+          }
+        />
 
         {/* Cover controls */}
-        <div className="grid gap-2">
-          <span className="text-sm font-medium">{t("profile.account.cover")}</span>
-          <div className="flex items-center gap-2">
-            <Input
-              value={coverUrl ?? ""}
-              onChange={(e) => onCoverUrlChange(e.target.value)}
-              placeholder="https://..."
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onCoverUploadClick}
-              disabled={uploading === "cover"}
-            >
-              <Upload className="h-4 w-4 mr-1.5" />
-              {uploading === "cover"
-                ? t("profile.account.uploading")
-                : t("profile.account.uploadCover")}
-            </Button>
-          </div>
-          <StatusBadge status={status.cover} percent={progress.cover} t={t} />
-          <p className="text-xs text-muted-foreground">{t("profile.account.coverHint")}</p>
-        </div>
+        <UploadArea
+          size="sm"
+          title={t("profile.account.cover")}
+          description={t("profile.account.coverHint")}
+          ctaLabel={t("profile.account.uploadCover")}
+          busyLabel={t("profile.account.uploading")}
+          busy={uploading === "cover"}
+          icons={[PanelTop, Upload]}
+          accept={accept}
+          onFiles={(files) => onCoverFile(files[0])}
+          footer={
+            <div className="grid gap-2">
+              <Input
+                value={coverUrl ?? ""}
+                onChange={(e) => onCoverUrlChange(e.target.value)}
+                placeholder="https://..."
+                className="flex-1"
+                aria-label={t("profile.account.cover")}
+              />
+              <StatusBadge status={status.cover} percent={progress.cover} t={t} />
+            </div>
+          }
+        />
       </div>
     </div>
   );

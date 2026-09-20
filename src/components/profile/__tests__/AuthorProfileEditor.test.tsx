@@ -655,12 +655,21 @@ describe("wysyłka avatara", () => {
 
   it("przycisk USUŃ czyści avatar bez wołania Storage", async () => {
     planLoad({ row: authorRow({ avatar_url: "https://cdn.example/old.jpg" }) });
-    await renderEditor();
+    const { container } = await renderEditor();
+    const miniatura = () => container.querySelector('img[src="https://cdn.example/old.jpg"]');
+
+    expect(miniatura()).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "common.remove" }));
 
     expect(screen.queryByRole("button", { name: "common.remove" })).not.toBeInTheDocument();
-    expect(screen.getByText("profile.account.avatarPlaceholder")).toBeInTheDocument();
+    // Po usunięciu podglądu wraca PUSTY STAN wspólnego obszaru wgrywania
+    // (klaster ikon zamiast miniatury) - dawny kafel „Brak awatara" był
+    // osobną implementacją tej samej pustki i zniknął wraz z ujednoliceniem.
+    expect(miniatura()).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "profile.account.uploadAvatar" }),
+    ).toBeInTheDocument();
   });
 
   it("BEZ tenanta nie wysyła nic", async () => {

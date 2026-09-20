@@ -15,6 +15,12 @@ import { pl as corePl } from "@/lib/locale/pl";
 import { en as coreEn } from "@/lib/locale/en";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-builder";
+// Pola obrazu w panelu właściwości stoją na wspólnym obszarze wgrywania
+// i sięgają po jego słownik (`uploadArea.*`). Bramka rozstrzyga o KAŻDYM
+// kluczu widzianym w źródłach buildera, więc musi mieć wpięte wszystkie
+// nakładki, z których te źródła korzystają - inaczej zgłasza brak klucza,
+// którego w aplikacji nie brakuje.
+import "@/lib/i18n-upload-area";
 
 type Dict = Record<string, unknown>;
 

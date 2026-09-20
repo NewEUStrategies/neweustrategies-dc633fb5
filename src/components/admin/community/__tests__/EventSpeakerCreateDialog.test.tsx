@@ -492,12 +492,14 @@ function field(label: string): HTMLInputElement | HTMLTextAreaElement {
 }
 
 /**
- * Kafel podgladu ma `role="button"` i `aria-label`, a stojacy obok PRZYCISK ma
- * ten sam napis w tresci - to dwa rozne wejscia do tego samego wyboru pliku,
- * wiec zapytania musza je rozroznic.
+ * Obszar wgrywania w standardzie platformy (`@/components/ui/upload-area`):
+ * ramka przyjmuje upuszczony plik, a klawiature obsluguje jego CTA. Kafel
+ * `role="button"` z wlasna obsluga Enter/Spacji zniknal razem z nim.
  */
-function photoTile(label: "Wgraj zdjęcie" | "Podmień zdjęcie"): HTMLElement {
-  return screen.getByLabelText(label);
+function photoTile(): HTMLElement {
+  const area = document.querySelector('[data-slot="upload-area"]');
+  if (!(area instanceof HTMLElement)) throw new Error("test: brak obszaru wgrywania");
+  return area;
 }
 
 function photoButton(label: "Wgraj zdjęcie" | "Podmień zdjęcie"): HTMLElement {
@@ -563,7 +565,6 @@ describe("EventSpeakerCreateDialog - zdjecie prelegenta", () => {
     );
     // Etykieta przycisku zmienia sie na „podmien", a obok pojawia sie kasowanie.
     expect(photoButton("Podmień zdjęcie")).toBeInTheDocument();
-    expect(photoTile("Podmień zdjęcie")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Usuń zdjęcie" })).toBeInTheDocument();
     expect(screen.getByAltText("Podgląd zdjęcia prelegenta")).toHaveAttribute(
       "src",
@@ -593,11 +594,12 @@ describe("EventSpeakerCreateDialog - zdjecie prelegenta", () => {
   it("upuszczenie pliku na kafel dziala tak samo jak wybor z dysku", async () => {
     uploadAndRegisterMedia.mockResolvedValue({ publicUrl: "https://cdn.example.com/drop.png" });
     renderDialog();
-    const tile = photoTile("Wgraj zdjęcie");
+    const tile = photoTile();
+    const niesiePlik = { types: ["Files"], files: [] as File[] };
 
-    fireEvent.dragOver(tile);
-    fireEvent.dragLeave(tile);
-    fireEvent.drop(tile, { dataTransfer: { files: [PORTRAIT()] } });
+    fireEvent.dragOver(tile, { dataTransfer: niesiePlik });
+    fireEvent.dragLeave(tile, { dataTransfer: niesiePlik });
+    fireEvent.drop(tile, { dataTransfer: { types: ["Files"], files: [PORTRAIT()] } });
 
     await waitFor(() => expect(uploadAndRegisterMedia).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -607,27 +609,25 @@ describe("EventSpeakerCreateDialog - zdjecie prelegenta", () => {
 
   it("upuszczenie CZEGOKOLWIEK BEZ PLIKU nie rusza storage", () => {
     renderDialog();
-    fireEvent.drop(photoTile("Wgraj zdjęcie"), { dataTransfer: { files: [] } });
+    fireEvent.drop(photoTile(), { dataTransfer: { types: ["Files"], files: [] } });
     // To samo od strony pola pliku: anulowanie okna systemowego zostawia
     // puste `files`, a nie „brak zdarzenia".
     fireEvent.change(fileInput(), { target: { files: [] } });
     expect(uploadAndRegisterMedia).not.toHaveBeenCalled();
   });
 
-  it("kafel i przycisk otwieraja ten sam wybor pliku - takze z klawiatury", () => {
+  it("tlo obszaru i jego CTA otwieraja ten sam wybor pliku - i kazde DOKLADNIE raz", () => {
+    // Klawiature obsluguje CTA (prawdziwy `<button>`): przegladarka zamienia
+    // Enter i spacje na `click`, wiec dowodem jest liczba otwarc pickera, a
+    // nie wlasna obsluga `keyDown` na divie. Klikniecie w CTA bąbelkuje do
+    // obszaru - gdyby obszar go nie odfiltrowal, picker otwieralby sie dwa razy.
     renderDialog();
     const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
-    const tile = photoTile("Wgraj zdjęcie");
 
-    fireEvent.click(tile);
-    // Kafel jest `role="button"` z `tabIndex`, wiec MUSI reagowac na Enter
-    // i spacje - inaczej wgranie zdjecia jest niedostepne z klawiatury.
-    fireEvent.keyDown(tile, { key: "Enter" });
-    fireEvent.keyDown(tile, { key: " " });
-    fireEvent.keyDown(tile, { key: "a" });
+    fireEvent.click(photoTile());
     fireEvent.click(photoButton("Wgraj zdjęcie"));
 
-    expect(click).toHaveBeenCalledTimes(4);
+    expect(click).toHaveBeenCalledTimes(2);
   });
 
   it("ODRZUCONY upload zostawia komunikat, a nie ciszę i nie pusty podglad", async () => {

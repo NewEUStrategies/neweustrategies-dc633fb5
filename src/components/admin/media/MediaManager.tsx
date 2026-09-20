@@ -361,7 +361,12 @@ export function MediaManager() {
               />
             )}
 
-            {isEmpty && <MediaEmptyState />}
+            {isEmpty && (
+              <MediaEmptyState
+                busy={mutations.busy}
+                onFiles={(files) => void mutations.uploadFiles(files, currentPath)}
+              />
+            )}
             {marquee.marquee && <MarqueeBox rect={marquee.marquee} />}
           </div>
         </section>

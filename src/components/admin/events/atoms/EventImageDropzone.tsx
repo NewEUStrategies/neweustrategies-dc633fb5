@@ -4,16 +4,23 @@
 // -> rejestracja w bibliotece mediów (`uploadAndRegisterMedia`). Adres ręczny
 // zostaje, bo redakcja bywa szybsza z gotowym linkiem z CDN.
 //
+// POWŁOKA JEST WSPÓLNA DLA CAŁEJ PLATFORMY (`@/components/ui/upload-area`):
+// ten atom miał własną strefę `div[role="button"]` z obsługą Enter/Spacji, a
+// obok niej przycisk robiący to samo - dwa punkty wejścia dla jednej czynności
+// i dwa różne zachowania na klawiaturze niż w pozostałych polach platformy.
+// Teraz klawiatura prowadzi przez CTA obszaru (prawdziwy `<button>`), a
+// upuszczenie pliku obsługuje cały obszar.
+//
 // PODGLĄD MA PROPORCJE DOCELOWE (domyślnie 16:9), żeby autor od razu widział
 // kadr, który zobaczy uczestnik - i rekomendowane wymiary pod spodem.
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
-import { ImagePlus, Loader2, Trash2, UploadCloud } from "lucide-react";
+import { FileImage, ImagePlus, Images, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { UploadArea } from "@/components/ui/upload-area";
 import { useAuth } from "@/hooks/useAuth";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
@@ -46,9 +53,7 @@ export function EventImageDropzone({
   const { t } = useTranslation();
   const { user, tenantId } = useAuth();
   const registerUpload = useServerFn(registerMediaUpload);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const hasImage = value.trim() !== "";
@@ -74,114 +79,67 @@ export function EventImageDropzone({
       setError(`${t("adminEventAgenda.imageDrop.failed")} ${(e as Error).message}`.trim());
     } finally {
       setUploading(false);
-      if (fileRef.current !== null) fileRef.current.value = "";
     }
   };
 
   return (
-    <div className={className}>
-      <Label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</Label>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={
-          hasImage
-            ? t("adminEventAgenda.imageDrop.replace")
-            : t("adminEventAgenda.imageDrop.upload")
-        }
-        onClick={() => fileRef.current?.click()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            fileRef.current?.click();
-          }
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          const file = e.dataTransfer.files?.[0];
-          if (file !== undefined) void handleFile(file);
-        }}
-        className={`relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[6px] border border-dashed bg-muted/40 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${aspectClassName} ${
-          dragOver ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/60"
-        }`}
-      >
-        {uploading ? (
-          <Loader2 aria-hidden="true" className="size-6 animate-spin text-muted-foreground" />
-        ) : hasImage ? (
-          <img src={value} alt={label} className="size-full object-cover" />
-        ) : (
-          <span className="flex flex-col items-center gap-1 px-3 text-center">
-            <UploadCloud aria-hidden="true" className="size-6 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              {t("adminEventAgenda.imageDrop.dropHint")}
-            </span>
-          </span>
-        )}
-      </div>
-      <p className="mt-1 text-[11px] text-muted-foreground">
-        {t("adminEventAgenda.imageDrop.recommended", { size: recommendation })}
-      </p>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Input
-          className="h-9 min-w-[12rem] flex-1 rounded-[6px]"
-          value={value}
-          onChange={(e) => onValueChange(e.target.value)}
-          placeholder="https://"
-          type="url"
-          maxLength={2000}
-          aria-label={t("adminEventAgenda.imageDrop.urlLabel")}
-        />
-        <input
-          ref={fileRef}
-          type="file"
-          className="hidden"
-          accept={IMAGE_ACCEPT_ATTR}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file !== undefined) void handleFile(file);
-          }}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 rounded-[6px]"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-        >
-          {uploading ? (
-            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-          ) : (
-            <ImagePlus aria-hidden="true" className="size-4" />
-          )}
-          {uploading
-            ? t("adminEventAgenda.imageDrop.uploading")
-            : hasImage
-              ? t("adminEventAgenda.imageDrop.replace")
-              : t("adminEventAgenda.imageDrop.upload")}
-        </Button>
-        {hasImage && (
+    <UploadArea
+      size="sm"
+      className={className}
+      title={label}
+      description={t("adminEventAgenda.imageDrop.dropHint")}
+      ctaLabel={
+        hasImage ? t("adminEventAgenda.imageDrop.replace") : t("adminEventAgenda.imageDrop.upload")
+      }
+      busy={uploading}
+      busyLabel={t("adminEventAgenda.imageDrop.uploading")}
+      error={error}
+      icons={[FileImage, ImagePlus, Images]}
+      accept={IMAGE_ACCEPT_ATTR}
+      inputLabel={
+        hasImage ? t("adminEventAgenda.imageDrop.replace") : t("adminEventAgenda.imageDrop.upload")
+      }
+      // POLE TRZYMA JEDEN ADRES, więc z upuszczonej paczki bierzemy PIERWSZY
+      // plik. Pętla nadpisywałaby wartość w kolejności odpowiedzi serwera i
+      // redaktor dostawałby losowy z upuszczonych obrazów.
+      onFiles={(files) => void handleFile(files[0])}
+      preview={
+        hasImage ? (
+          <div
+            className={`w-full overflow-hidden rounded-[6px] border border-border/60 ${aspectClassName}`}
+          >
+            <img src={value} alt={label} className="size-full object-cover" />
+          </div>
+        ) : undefined
+      }
+      actions={
+        hasImage ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 rounded-[6px]"
             aria-label={t("adminEventAgenda.imageDrop.remove")}
             onClick={() => onValueChange("")}
           >
             <Trash2 aria-hidden="true" className="size-4" />
           </Button>
-        )}
-      </div>
-      {hint !== undefined && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
-      {error !== null && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
-    </div>
+        ) : undefined
+      }
+      hint={t("adminEventAgenda.imageDrop.recommended", { size: recommendation })}
+      footer={
+        <>
+          <Input
+            className="h-9 w-full rounded-[6px]"
+            value={value}
+            onChange={(e) => onValueChange(e.target.value)}
+            placeholder="https://"
+            type="url"
+            maxLength={2000}
+            aria-label={t("adminEventAgenda.imageDrop.urlLabel")}
+          />
+          {hint !== undefined && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
+        </>
+      }
+    />
   );
 }

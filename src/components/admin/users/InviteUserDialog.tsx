@@ -6,7 +6,7 @@
 // `profiles.avatar_url` / `profiles.linkedin_url` przy tworzeniu konta.
 // „Autoakceptacja” oznacza zaproszenie zamknięte od razu po utworzeniu konta
 // (status `accepted`), bez czekania na pierwsze logowanie.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-team-media";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Upload, X, Loader2 } from "@/lib/lucide-shim";
+import { UploadArea } from "@/components/ui/upload-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import {
@@ -80,7 +81,6 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
   const [autoAccept, setAutoAccept] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const create = useServerFn(createInvitations);
   const findCompanies = useServerFn(searchCrmCompanies);
   const addCompany = useServerFn(createCrmCompany);
@@ -138,8 +138,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
     setEmailLang("pl");
   };
 
-  const pickPhoto = async (file: File | undefined) => {
-    if (!file) return;
+  const pickPhoto = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error(t("adminTeamMedia.inviteUser.photoTypeError"));
       return;
@@ -289,61 +288,51 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
               {t("adminTeamMedia.inviteUser.personSection")}
             </p>
 
-            <div className="flex min-w-0 items-center gap-3">
-              <div
-                data-testid="invite-avatar"
-                className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-border bg-background"
-              >
-                {photo ? (
-                  <img src={photo} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-lg font-semibold tracking-wide text-muted-foreground/50">
-                    {initials || "?"}
-                  </span>
-                )}
-                {uploading ? (
-                  <span className="absolute inset-0 flex items-center justify-center bg-background/70">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </span>
-                ) : null}
-              </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                data-testid="invite-photo-input"
-                onChange={(e) => void pickPhoto(e.target.files?.[0])}
-              />
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="text-sm">{t("adminTeamMedia.inviteUser.photoLabel")}</span>
-                <div className="flex flex-wrap items-center gap-1">
+            <UploadArea
+              size="sm"
+              title={t("adminTeamMedia.inviteUser.photoLabel")}
+              description={t("adminTeamMedia.inviteUser.photoHint")}
+              ctaLabel={t("adminTeamMedia.inviteUser.photo")}
+              busy={uploading}
+              disabled={busy}
+              icons={[Upload]}
+              accept="image/*"
+              inputTestId="invite-photo-input"
+              onFiles={(files) => void pickPhoto(files[0])}
+              preview={
+                <div
+                  data-testid="invite-avatar"
+                  className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-border bg-background"
+                >
+                  {photo ? (
+                    <img src={photo} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-lg font-semibold tracking-wide text-muted-foreground/50">
+                      {initials || "?"}
+                    </span>
+                  )}
+                  {uploading ? (
+                    <span className="absolute inset-0 flex items-center justify-center bg-background/70">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </span>
+                  ) : null}
+                </div>
+              }
+              actions={
+                photo ? (
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     className="rounded-[6px]"
-                    disabled={uploading || busy}
-                    onClick={() => fileRef.current?.click()}
+                    aria-label={t("adminTeamMedia.inviteUser.photoRemove")}
+                    onClick={() => setPhoto("")}
                   >
-                    <Upload className="mr-1 h-3.5 w-3.5" />
-                    {t("adminTeamMedia.inviteUser.photo")}
+                    <X className="h-3.5 w-3.5" />
                   </Button>
-                  {photo ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-[6px]"
-                      aria-label={t("adminTeamMedia.inviteUser.photoRemove")}
-                      onClick={() => setPhoto("")}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+                ) : undefined
+              }
+            />
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-2">
               <div className="grid min-w-0 gap-1">

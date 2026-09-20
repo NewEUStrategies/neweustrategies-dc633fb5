@@ -319,9 +319,15 @@ describe("MediaPickerDialog - wgrywanie", () => {
     fireEvent.change(input!);
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(expect.any(Error), "upload"));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /wgraj|upload/i })).toBeEnabled(),
-    );
+    // W PUSTEJ bibliotece drogi do pickera są DWIE: przycisk paska narzędzi i
+    // CTA wspólnego obszaru wgrywania, który zajmuje miejsce komunikatu „brak
+    // plików". Obie muszą wrócić do stanu gotowego - blokada zdjęta z jednej,
+    // a zostawiona na drugiej, byłaby ślepą uliczką, więc mierzymy KAŻDĄ.
+    await waitFor(() => {
+      const przyciski = screen.getAllByRole("button", { name: /wgraj|upload/i });
+      expect(przyciski.length).toBeGreaterThan(0);
+      for (const przycisk of przyciski) expect(przycisk).toBeEnabled();
+    });
   });
 });
 
