@@ -31,6 +31,7 @@
 // własny, atrapowy korzeń i wiesza trasę pliku jako jego dziecko, więc prawdziwy
 // `__root` nigdy nie zostaje korzeniem.
 import { readChromeWarmup } from "@/lib/ssr/chromeWarmup";
+import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
@@ -444,7 +445,12 @@ describe("__root wiring", () => {
 });
 
 describe("root chrome gate uses real query freshness", () => {
-  it("marks pending chrome no-store before its Suspense fallback flushes", async () => {
+  it("pending chrome before the shell flushes = KRÓTKA świeżość wspólna, nie no-store (F02)", async () => {
+    // Do 2026-09-20 stało tu `private, no-store`: każdy dokument, którego menu
+    // dostrumieniowało się po flushu shella, był niecache'owalny, więc zimny
+    // izolat nigdy nie zasiewał L1/L2. Rozgrzewka biegnie, dokument będzie
+    // kompletny - wolno go współdzielić przez `CHROME_DEGRADED_S_MAXAGE`.
+    // `no-store` zostaje dla `failed` (test niżej: wyczerpany termin).
     h.menusHang = true;
     try {
       await runLoader(qc, "/cookies");
@@ -455,7 +461,7 @@ describe("root chrome gate uses real query freshness", () => {
         suspended = value;
       }
       expect(suspended).toBeInstanceOf(Promise);
-      expect(h.cacheControl.at(-1)).toBe("private, no-store");
+      expect(h.cacheControl.at(-1)).toBe(chromeDegradedCacheControl());
       await suspended;
       expect(() => readChromeWarmup(qc)).not.toThrow();
     } finally {

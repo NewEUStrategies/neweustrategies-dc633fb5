@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { renderToString } from "react-dom/server";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -95,16 +96,32 @@ describe.each(routes)("static route %s", (slug, options) => {
   it.each([false, true])(
     "loads SEO and degrades safely on an unavailable metadata endpoint (failure=%s)",
     async (failure) => {
-      const ensureQueryData = failure
-        ? vi.fn().mockRejectedValue(new Error("offline"))
-        : vi.fn().mockResolvedValue({ slug });
+      // PRAWDZIWY QueryClient: loader idzie przez `loadResilient` (budżet +
+      // zasiew fallbacku `updatedAt: 0`), który czyta stan zapytania z cache'u -
+      // atrapa z samym `ensureQueryData` nie ma czego czytać.
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const ensureQueryData = vi
+        .spyOn(queryClient, "ensureQueryData")
+        .mockImplementation(async (opts: { queryKey: readonly unknown[] }) => {
+          if (failure) throw new Error("offline");
+          queryClient.setQueryData(opts.queryKey, { slug });
+          return { slug };
+        });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
       const loader = options.loader as (args: unknown) => Promise<unknown>;
-      expect(await loader({ context: { queryClient: { ensureQueryData } } })).toEqual({
+      expect(await loader({ context: { queryClient } })).toEqual({
         seo: failure ? null : { slug },
       });
       expect(ensureQueryData).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: ["static-page-seo", slug] }),
       );
+      // Degradacja zasiewa fallback PRZETERMINOWANY (klient dociągnie po
+      // hydratacji), czysty odczyt zostawia świeży wpis.
+      const state = queryClient.getQueryState(["static-page-seo", slug]);
+      expect(state?.status).toBe("success");
+      if (failure) expect(state?.dataUpdatedAt).toBe(0);
+      else expect(state?.dataUpdatedAt).toBeGreaterThan(0);
+      warn.mockRestore();
     },
   );
   it.each(["pl", "en"] as const)(

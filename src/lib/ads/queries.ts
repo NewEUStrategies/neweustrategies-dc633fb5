@@ -5,9 +5,10 @@
 // "manage") widział na froncie wygasłe i jeszcze nierozpoczęte emisje.
 // Targeting slotu (kategorie/tagi/język z ad_slots.targeting) dopasowujemy
 // client-side po pobraniu - lista placementów per pozycja jest krótka.
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeTtlCache } from "@/lib/ssrCache";
 import { Constants, type Database } from "@/integrations/supabase/types";
 import {
   matchesAdTargeting,
@@ -79,6 +80,43 @@ async function fetchPlacements({
   );
 }
 
+/**
+ * JEDNA definicja zapytania o placementy - dla loadera (rozgrzewka SSR) i dla
+ * komponentu (`useAdPlacements`).
+ *
+ * PO CO FABRYKA, skoro hook i tak wołał `useQuery` z literałem. Bo dopóki klucz
+ * i `queryFn` żyły WYŁĄCZNIE wewnątrz hooka, rozgrzewka serwerowa musiałaby
+ * powtórzyć jedno i drugie u siebie - a dwa literały klucza to dwa wpisy cache'u
+ * i rozgrzewka, która nigdy nie trafia do komponentu. Sloty dochodziły więc po
+ * hydratacji, a baner `header_banner` (90 px nad treścią) spychał stronę w dół:
+ * ~0,11 CLS, najdroższa pojedyncza pozycja audytu CWV 2026-09-20 (F26).
+ * Kontrakt: klucz i `queryFn` MAJĄ ŻYĆ TUTAJ, hook ma ich UŻYWAĆ - nie kopiować.
+ *
+ * `edgeTtlCache` jest przezroczysty w przeglądarce (`typeof window !== "undefined"`
+ * -> natychmiastowe `fetcher()`), więc dokłada się wyłącznie w SSR: równoległe
+ * rendery tej samej pozycji dzielą jeden round-trip, a w oknie 60 s izolat nie
+ * pyta bazy ponownie. TTL jest równy `staleTime` zapytania - to ta sama
+ * obietnica świeżości powiedziana dwa razy, po obu stronach granicy.
+ */
+export function adPlacementsQueryOptions(
+  position: AdPosition,
+  pageType: AdPageType,
+  pageId?: string | null,
+) {
+  const id = pageId ?? null;
+  return queryOptions<AdPlacementWithSlot[]>({
+    // Klucz bez języka/kontekstu treści: fetch jest współdzielony, a filtr
+    // targetingu działa per obserwator w `select` (react-query v5).
+    queryKey: ["ad_placements", position, pageType, id],
+    queryFn: () =>
+      edgeTtlCache(`ad_placements:${position}:${pageType}:${id ?? "-"}`, 60_000, () =>
+        fetchPlacements({ position, pageType, pageId: id }),
+      ),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
 export function useAdPlacements(
   position: AdPosition,
   pageType: AdPageType,
@@ -91,12 +129,7 @@ export function useAdPlacements(
   const tagSlugs = content?.tagSlugs ?? [];
 
   return useQuery({
-    // Klucz bez języka/kontekstu treści: fetch jest współdzielony, a filtr
-    // targetingu działa per obserwator w `select` (react-query v5).
-    queryKey: ["ad_placements", position, pageType, pageId ?? null],
-    queryFn: () => fetchPlacements({ position, pageType, pageId }),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
+    ...adPlacementsQueryOptions(position, pageType, pageId),
     select: (placements) =>
       placements.filter((p) =>
         matchesAdTargeting(parseAdTargeting(p.slot.targeting), {

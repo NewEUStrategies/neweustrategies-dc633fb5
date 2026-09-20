@@ -4,6 +4,7 @@
 //   /<page-path>/<post-slug>
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
 import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
+import { isServer } from "@tanstack/router-core/isServer";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useMemo, useRef } from "react";
@@ -185,15 +186,32 @@ import {
   type TaxonomyRedirect,
 } from "@/lib/routing/resolvePublicPath";
 
-import { BUDGET_LAPSED, settleWithinBudget, withBudget } from "@/lib/asyncBudget";
+import { withBudget } from "@/lib/asyncBudget";
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
+import { routeSsrDeadline } from "@/lib/ssr/routeSsrDeadline";
+import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+
+/**
+ * JEDEN ZEGAR NA CAŁE ŻĄDANIE SSR tej trasy (audyt CWV 2026-09-20, §8 wiersz
+ * 2.2). Trzy fazy loadera są SZEREGOWE, więc dopóki każda miała własny budżet,
+ * ich sufity SUMOWAŁY SIĘ przed pierwszym bajtem: 5 000 + 3 000 + 5 000
+ * = 13 000 ms na chorej bazie. Wspólny termin absolutny sprawia, że faza druga
+ * i trzecia dostają wyłącznie RESZTĘ tego jednego budżetu.
+ */
+const CONTENT_SSR_BUDGET_MS = 1_500;
 
 // Wall-clock cap on secondary prefetches (blocks data, related config). The
 // primary content query is already awaited; these warmers are best-effort and
 // must never hang the SSR response - views fall back to their client fetch.
-const SECONDARY_PREFETCH_BUDGET_MS = 3000;
-const PRIMARY_CONTENT_BUDGET_MS = 5_000;
+//
+// Obie stałe są SUFITAMI FAZY, a nie sumą: termin `CONTENT_SSR_BUDGET_MS`
+// i tak przycina każdą z nich do reszty czasu. Zostają w tej wysokości, żeby
+// bramka `check:ssr-budgets` (która sumuje sufity faz, bo tylko je widzi ze
+// źródeł) raportowała liczbę BLISKĄ prawdzie - 4 500 ms zamiast 13 000.
+const SECONDARY_PREFETCH_BUDGET_MS = 1_500;
+const PRIMARY_CONTENT_BUDGET_MS = 1_500;
 // Non-2xx / redirect responses must never be CDN-cached as the content itself.
 const NO_STORE = contentCacheControl({ preview: true });
 
@@ -264,10 +282,49 @@ export const Route = createFileRoute("/$")({
     }
     const segments = [...plan.segments];
     const contentOptions = resolvedContentQueryOptions(segments);
-    await withBudget(
-      context.queryClient.ensureQueryData(contentOptions).catch(() => undefined),
-      PRIMARY_CONTENT_BUDGET_MS,
-    );
+    // TERMIN ŻĄDANIA TWORZONY WYŁĄCZNIE NA SERWERZE. W przeglądarce jeden
+    // `QueryClient` żyje całą sesję, więc termin z pierwszej nawigacji byłby
+    // miniony dla wszystkich kolejnych i każdy loader oddawałby sterowanie
+    // natychmiast (patrz nagłówek `lib/ssr/routeSsrDeadline.ts`). Poza tym
+    // nawigacja SPA nie ma TTFB do obrony: czytelnik patrzy na
+    // `pendingComponent` (ContentSkeleton), a loader ma po prostu POCZEKAĆ na
+    // dane. Sztywne 5 s, które klient dostawał do 2026-09-20, nie służyło tam
+    // niczemu - było tylko terminem, po którym trasa udawała 404.
+    const deadlineAt = isServer
+      ? routeSsrDeadline(context.queryClient, CONTENT_SSR_BUDGET_MS)
+      : undefined;
+    // PREFETCHE NIEZALEŻNE OD TREŚCI STARTUJĄ PRZED FAZĄ GŁÓWNĄ. Ustawienia
+    // układu wpisu i konfiguracja powiązanych nie potrzebują rozstrzygniętego
+    // adresu, więc szeregowanie ich ZA treścią dokładało ich round-trip do
+    // łańcucha zamiast schować go w cieniu zapytania o treść. Bez `await`:
+    // ich stan zbieramy dopiero w fazie wtórnej, tymi samymi obietnicami
+    // (dzięki czemu tablica `Promise.allSettled` nadal ma 5 odnóg, a nie 7 -
+    // sufit równoległych podżądań runtime Workers to 6).
+    const layoutWarm = context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions());
+    const relatedConfigWarm = context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions());
+    const contentWarm = context.queryClient.ensureQueryData(contentOptions).catch(() => undefined);
+    if (deadlineAt === undefined) await contentWarm;
+    else await withBudget(contentWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
+    // DEGRADACJA TO NIE JEST 404 (audyt CWV F07 / W8). Do 2026-09-20 ta gałąź
+    // czytała samo `getQueryData`, więc BRAK DANYCH z dowolnego powodu -
+    // miniętego budżetu, anulowania przez watchdoga SSR, błędu PostgREST -
+    // wchodził do gałęzi „treści nie ma" i kończył się `notFound()`. Chora
+    // baza WYPISYWAŁA w ten sposób żywe wpisy z indeksu Google, a to jest
+    // szkoda liczona w tygodniach, nie w jednym żądaniu.
+    //
+    // Rozstrzyga więc STAN ZAPYTANIA, nie obecność wartości: 404 należy się
+    // WYŁĄCZNIE odczytowi CZYSTEMU (`success` + `null`), czyli tej samej
+    // regule, co na trasach archiwów (`lib/ssr/notFoundIfClean.ts`).
+    const contentState = context.queryClient.getQueryState(contentOptions.queryKey);
+    if (contentState?.status !== "success") {
+      // `removeQueries`, a nie zasiew: klient ma dociągnąć treść ŚWIEŻO po
+      // hydratacji, a wpis w stanie `error`/`pending` nie ma prawa pojechać
+      // w dehydratowanym ładunku (zamiatanie cache'u przed serializacją
+      // zostawiłoby go jako wiszące zapytanie bez danych).
+      context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
+      setCacheControlHeader(resilientCacheControl(true));
+      return { kind: "degraded" as const, degraded: true, seoSettings: null, coverPreload: null };
+    }
     const data = context.queryClient.getQueryData(contentOptions.queryKey) ?? null;
     if (!data) {
       context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
@@ -332,6 +389,19 @@ export const Route = createFileRoute("/$")({
     const url = getRequestUrl() || `/${splat}`;
     const lang: "pl" | "en" = activeLang(url) === "en" ? "en" : "pl";
     const doc = parseBuilderDoc(data.item.builder_data);
+    // HINTY MODUŁÓW WIDGETÓW TREŚCI (audyt CWV F21 / §8 wiersz 3.8). Dokładnie
+    // ta sama droga, którą korzeń emituje hinty widgetów NAGŁÓWKA
+    // (`__root.tsx`): chunki widgetów sekcji nad zgięciem zaczynają się
+    // pobierać z NAGŁÓWKÓW odpowiedzi, zanim przeglądarka sparsuje HTML,
+    // a NES Edge Cache odtwarza je na HIT/STALE. Bez tego moduł widgetu
+    // wchodzi do kolejki dopiero po pobraniu i wykonaniu chunku trasy.
+    //
+    // Duplikatów z nagłówkiem nie trzeba filtrować: `appendLinkHeader` trzyma
+    // wartości w zbiorze per żądanie, a `widgetPreloadHeaders` produkuje dla
+    // tego samego chunku identyczny napis.
+    if (isServer && doc.sections.length > 0) {
+      for (const hint of widgetPreloadHeaders(doc, 3)) appendLinkHeader(hint);
+    }
     // Blocks engine: warm every data query its views will render (latest
     // posts, taxonomies, related, calendar, ...) so the SSR HTML carries the
     // real lists - without this a crawler sees only skeletons/empty markup.
@@ -343,7 +413,22 @@ export const Route = createFileRoute("/$")({
     // Secondary prefetches are best-effort and wall-clock-bounded. A slow
     // upstream (blocks_data / related config) must never abort the SSR stream
     // - views fall back to their own client fetch.
-    const secondary = await settleWithinBudget(
+    //
+    // WYNIK ODNÓG PRZEZ ZMIENNĄ, A NIE PRZEZ `settleWithinBudget`, i to jest
+    // wymuszone przez bramkę, nie stylistyka. Termin wspólny musi przyciąć
+    // sufit tej fazy do RESZTY czasu, a `settleWithinBudget` nie przyjmuje
+    // terminu absolutnego; policzenie reszty w miejscu argumentu
+    // (`remainingBudget(...)`) zamieniłoby budżet w WYRAŻENIE, którego
+    // `check:ssr-budgets` nie umie rozwiązać - a budżet nierozwiązany oblewa
+    // bramkę, bo liczyłaby go jako zero i przepuściła dowolną wartość.
+    // `withBudget` bierze termin trzecim argumentem, więc sufit zostaje
+    // STAŁĄ widoczną dla bramki, a `secondary.results === null` znaczy
+    // dokładnie to, co znaczyło `BUDGET_LAPSED`: faza nie zdążyła się
+    // rozstrzygnąć. Uchwyt jest OBIEKTEM, nie `let`-em: zapis w domknięciu nie
+    // istnieje dla analizy przepływu TypeScriptu, więc zwykła zmienna zostałaby
+    // zawężona do `null` w miejscu odczytu.
+    const secondary: { results: PromiseSettledResult<unknown>[] | null } = { results: null };
+    await withBudget(
       Promise.allSettled([
         // Także dla STRON, nie tylko wpisów: `ContentAreaStyle` renderuje
         // typografię prozy (`.post-content`, odstępy akapitów, style linków)
@@ -351,9 +436,12 @@ export const Route = createFileRoute("/$")({
         // klucza w fali 1 (osobny round-trip na KAŻDEJ trasie publicznej -
         // patrz komentarz przy fali 1 w routes/__root.tsx). Tutaj płaci za to
         // tylko powierzchnia, która tę typografię realnie pokazuje.
-        data.kind === "post" || data.kind === "page"
-          ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
-          : Promise.resolve(),
+        //
+        // TA OBIETNICA JUŻ BIEGNIE od czasu przed fazą główną - tu zbieramy
+        // wyłącznie jej stan. `ResolvedContent` ma dwa warianty (`post`,
+        // `page`) i oba tę typografię pokazują, więc warunek, który stał tu
+        // wcześniej, był zawsze prawdziwy.
+        layoutWarm,
         doc.sections.length > 0
           ? // Public pages/posts are edge-cached. Block the SSR response only on the
             // above-the-fold sections; below-the-fold sections Suspense-stream as
@@ -382,7 +470,9 @@ export const Route = createFileRoute("/$")({
               tagSlugs: data.kind === "post" ? (data.tags ?? []).map((t) => t.slug) : [],
             })
           : Promise.resolve(),
-        context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
+        // Druga obietnica ODPALONA PRZED FAZĄ GŁÓWNĄ (konfiguracja powiązanych
+        // nie zależy od treści) - tu tylko czekamy na jej stan.
+        relatedConfigWarm,
         // STRONY SEKCYJNE (`template_type === 'archive_listing'`): lista do 60
         // dzieci jest CAŁĄ treścią takiej strony, a jechała zwykłym `useQuery`
         // w `ArchiveListing`, który na serwerze nie startuje fetcha. SSR emitował
@@ -392,8 +482,11 @@ export const Route = createFileRoute("/$")({
         data.kind === "page" && data.item.template_type === "archive_listing"
           ? context.queryClient.prefetchQuery(archiveListingQueryOptions(data.item.id))
           : Promise.resolve(),
-      ]),
+      ]).then((results) => {
+        secondary.results = results;
+      }),
       SECONDARY_PREFETCH_BUDGET_MS,
+      deadlineAt,
     );
     // CZTERY POWODY, DLA KTÓRYCH TEN RENDER JEST NIEPEŁNY - i tylko dwa
     // pierwsze widać po kształcie obietnicy.
@@ -404,7 +497,7 @@ export const Route = createFileRoute("/$")({
     // `prefetchBlockQueries` pochłania go świadomie w `Promise.allSettled`,
     // a `prefetchAboveFoldQueries` ma WŁASNY budżet 2 500 ms i po jego
     // przekroczeniu rozstrzyga się NORMALNIE, zostawiając zapytania w locie.
-    // Zewnętrzny budżet 3 000 ms nie zdążył więc nigdy minąć w najczęstszym
+    // Zewnętrzny budżet nie zdążył więc nigdy minąć w najczęstszym
     // realnym kształcie awarii - wewnętrzny mijał pierwszy, wynik wychodził
     // `fulfilled`, a render bez treści nad zgięciem szedł na brzeg z pełnym
     // oknem świeżości. Bramka była wtedy napisem, nie zabezpieczeniem.
@@ -418,23 +511,22 @@ export const Route = createFileRoute("/$")({
       return (result.value as { degraded?: boolean } | undefined)?.degraded === true;
     };
     const directArmCold = [
-      data.kind === "post" || data.kind === "page"
-        ? postLayoutSettingsQueryOptions().queryKey
-        : null,
+      postLayoutSettingsQueryOptions().queryKey,
       relatedPostsConfigQueryOptions().queryKey,
       data.kind === "page" && data.item.template_type === "archive_listing"
         ? archiveListingQueryOptions(data.item.id).queryKey
         : null,
     ].some((queryKey) => queryKey !== null && !hasSsrQueryData(context.queryClient, queryKey));
     const secondaryDegraded =
-      secondary === BUDGET_LAPSED || secondary.some(armDegraded) || directArmCold;
+      secondary.results === null || secondary.results.some(armDegraded) || directArmCold;
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own.
-    await withBudget(
-      context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
-      PRIMARY_CONTENT_BUDGET_MS,
-    );
+    const settingsWarm = context.queryClient
+      .ensureQueryData(siteSettingsQueryOptions)
+      .catch(() => undefined);
+    if (deadlineAt === undefined) await settingsWarm;
+    else await withBudget(settingsWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
     const emptySettings: Record<string, unknown> = Object.freeze({});
     const settingsMap =
       context.queryClient.getQueryData<Record<string, unknown>>(
@@ -489,6 +581,15 @@ export const Route = createFileRoute("/$")({
     return { ...data, seoSettings, coverPreload };
   },
   head: ({ loaderData, params }) => {
+    // Render ZDEGRADOWANY niesie komunikat „nie udało się załadować", a nie
+    // treść - i jedzie z HTTP 200, bo status 500 wyrzuciłby żywy wpis z indeksu
+    // i zablokował CDN. `noindex` jest więc jedyną rzeczą, która broni indeksu
+    // przed utrwaleniem tego komunikatu pod adresem prawdziwego artykułu.
+    // Brak `loaderData` (404 / przekierowanie) zostaje bez zmian: tam robotę
+    // robi status odpowiedzi.
+    if (loaderData?.kind === "degraded") {
+      return { meta: [{ name: "robots", content: "noindex, nofollow" }] };
+    }
     const it = loaderData?.item;
     if (!it) return { meta: [] };
     const splat = (params as { _splat?: string })._splat ?? "";
@@ -672,6 +773,41 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
 }
 
 function PublicPage() {
+  const { kind } = Route.useLoaderData();
+  // BRAMKA DEGRADACJI STOI PRZED `useSuspenseQuery`, i to jest wymóg, nie
+  // porządek: loader zdegradowany USUNĄŁ wpis treści z cache'u, więc
+  // `useSuspenseQuery` zawiesiłby się tu na nowym pobraniu - na serwerze
+  // bez końca, bo to ta sama baza, która właśnie nie odpowiedziała.
+  if (kind === "degraded") return <DegradedPublicPage />;
+  return <ResolvedPublicPage />;
+}
+
+/**
+ * Render ZDEGRADOWANY: uczciwy komunikat zamiast miękkiego 404 na żywym
+ * wpisie. Nagłówek ustawił już loader (`private, no-store`), więc ten HTML nie
+ * zamarza na brzegu - wzór wspólny z `category.$slug.tsx`, `events.$slug.tsx`
+ * i `podcast.$slug.tsx`.
+ *
+ * SAMOLECZENIE PO HYDRATACJI jest tu DODATKIEM ponad tamte trasy i ma powód:
+ * tam degraduje się ozdoba albo lista, a tutaj znika CAŁA treść artykułu.
+ * Loader kliencki biegnie bez budżetu (patrz `deadlineAt` wyżej), więc jedno
+ * unieważnienie po zamontowaniu dociąga wpis, gdy baza wróciła, i czytelnik
+ * nie musi klikać „spróbuj ponownie". JEDNORAZOWO: przy dalszej degradacji
+ * ten sam komponent zostaje zamontowany, więc efekt się nie powtarza.
+ */
+function DegradedPublicPage() {
+  const router = useRouter();
+  useEffect(() => {
+    void router.invalidate();
+  }, [router]);
+  return (
+    <div className="container mx-auto max-w-3xl px-4 py-12">
+      <DegradedDataNotice variant="page" />
+    </div>
+  );
+}
+
+function ResolvedPublicPage() {
   const params = Route.useParams() as { _splat?: string };
   const segments = splatToSegments(params._splat ?? "");
   const { data } = useSuspenseQuery(resolvedContentQueryOptions(segments));

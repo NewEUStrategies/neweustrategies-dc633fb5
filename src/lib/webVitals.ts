@@ -31,6 +31,12 @@
  * which is precisely why the hide listeners - never the timer - are the
  * guarantee.
  *
+ * KONTEKST NAWIGACJI W ŁADUNKU. Każda próbka niesie dodatkowo `sinceNav`,
+ * `navigationType`, `deviceMemory`, `effectiveType` i `coldStart` - pięć pól
+ * OPISOWYCH, bez ani jednego identyfikatora, opisanych przy
+ * `VitalsNavigationContext` niżej. Bez nich p75 miesza zimne pierwsze wejście
+ * z czwartą miękką nawigacją tego samego czytelnika (audyt CWV, F40).
+ *
  * DEFINICJE CLS I INP SĄ TE SAME, CO W BRAMCE CI. Obie metryki liczymy tak,
  * jak liczy je specyfikacja Web Vitals (a za nią Chrome, CrUX i Lighthouse):
  * CLS to MAKSIMUM Z OKIEN SESYJNYCH (patrz `CLS_SESSION_GAP_MS`), a INP to
@@ -61,10 +67,92 @@ function uid(): string {
   return `v-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * KONTEKST NAWIGACJI - pola OPISOWE próbki, bez ani jednego identyfikatora.
+ *
+ * PO CO. Audyt CWV (docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md, F40 i wiersz
+ * 0.3 „Fali 0") nazwał lukę: p75 liczone po wszystkich wierszach MIESZA dwie
+ * różne populacje. Zimne pierwsze wejście (pusty cache HTTP, zimny izolat
+ * Workera, telefon na 3G) i czwarta miękka nawigacja tego samego czytelnika
+ * trafiają dziś do jednego worka, więc mediana „poprawia się" wraz z długością
+ * sesji, a dokładnie ten ogon, dla którego p75 się liczy, znika w uśrednieniu.
+ * Pięć poniższych pól pozwala ROZCIĄĆ tę populację po stronie zapytania, nie
+ * dokładając ani jednego nowego wymiaru osobowego.
+ *
+ * ZERO NOWYCH IDENTYFIKATORÓW - TO JEST OGRANICZENIE, NIE PREFERENCJA. Żadne
+ * z tych pól nie wyróżnia osoby ani urządzenia: `navigationType` ma cztery
+ * wartości, `deviceMemory` cztery progi, `effectiveType` cztery klasy łącza,
+ * `coldStart` dwie, a `sinceNav` jest czasem względem startu TEJ nawigacji,
+ * więc nie sklei dwóch odsłon. Nie ma tu `id` odsłony, sesji ani urządzenia -
+ * ingest i tak nie zapisuje `id` metryki (patrz komentarz przy `lcpReported`),
+ * a wprowadzenie stabilnego klucza zamieniłoby anonimową telemetrię czasową
+ * w profilowanie i unieważniło podstawę, na której ten pomiar stoi.
+ *
+ * ZGODA. Ten moduł startuje WYŁĄCZNIE zza bramki zgody analitycznej
+ * (`initObservability` w `src/lib/observability/index.ts`), a jej cofnięcie
+ * rozłącza obserwery i KASUJE bufor (teardown na końcu pliku). Rozszerzenie
+ * ładunku NICZEGO w tym nie zmienia: nowe pola jadą tą samą, zgodową drogą.
+ * Wysyłka anonimowych metryk czasowych BEZ zgody jest w audycie decyzją DPO
+ * i celowo NIE jest tu zaimplementowana.
+ */
+const NAVIGATION_TYPES = ["navigate", "reload", "back_forward", "prerender"] as const;
+type VitalNavigationType = (typeof NAVIGATION_TYPES)[number];
+
+/**
+ * PROGI PAMIĘCI URZĄDZENIA. `navigator.deviceMemory` jest z definicji zgrubne
+ * (spec dopuszcza 0,25/0,5/1/2/4/8 i CELOWO ucina na 8 GB, żeby nie było
+ * wektorem odcisku palca), ale i tak kubełkujemy je do czterech wartości:
+ * próbka ma odróżniać telefon od stacji roboczej, a nie opisywać egzemplarz.
+ * Kubełkujemy W DÓŁ - urządzenie z 0,5 GB należy do klasy „1 GB i mniej",
+ * bo zaokrąglenie w górę wpisałoby najsłabszy sprzęt do mocniejszej klasy
+ * i zamazało dokładnie ten ogon, przez który ta kolumna powstaje.
+ */
+const DEVICE_MEMORY_BUCKETS = [8, 4, 2, 1] as const;
+type VitalDeviceMemory = (typeof DEVICE_MEMORY_BUCKETS)[number];
+
+/** Klasy łącza z Network Information API - cztery wartości ze specyfikacji. */
+const EFFECTIVE_TYPES = ["slow-2g", "2g", "3g", "4g"] as const;
+type VitalEffectiveType = (typeof EFFECTIVE_TYPES)[number];
+
+/**
+ * Znacznik „ta karta miała już nawigację". Trzyma DOSŁOWNIE `"1"` - nie ma tu
+ * czego skorelować, a `sessionStorage` umiera razem z kartą, więc znacznik nie
+ * przeżywa sesji przeglądania i nie jest trwałym identyfikatorem.
+ */
+const COLD_START_KEY = "nes:vitals:nav-seen";
+
+/** Opisowy kontekst odsłony - liczony RAZ na dokument, patrz `readNavigationContext`. */
+interface VitalsNavigationContext {
+  navigationType: VitalNavigationType | null;
+  deviceMemory: VitalDeviceMemory | null;
+  effectiveType: VitalEffectiveType | null;
+  coldStart: boolean;
+}
+
+/** `navigator` z dwoma polami spoza standardowych typów DOM (oba opcjonalne). */
+interface NavigatorWithHints extends Navigator {
+  deviceMemory?: number;
+  connection?: { effectiveType?: string };
+}
+
 /** One buffered sample, in the wire shape the ingest route reads. */
 interface QueuedVital extends VitalMetric {
   url: string;
   ts: number;
+  /**
+   * Milisekundy od startu nawigacji do CHWILI ZGŁOSZENIA tej próbki
+   * (`performance.now()`, czyli zegar liczony od `timeOrigin`).
+   *
+   * To NIE jest duplikat `value`: LCP o wartości 2 100 ms zgłoszone przy
+   * `sinceNav` 2 300 należy do pierwszego malowania, a to samo LCP zgłoszone
+   * przy `sinceNav` 180 000 pochodzi z miękkiej nawigacji po trzech minutach
+   * czytania - i tylko pierwsze opisuje zimne wejście.
+   */
+  sinceNav?: number;
+  navigationType?: VitalNavigationType | null;
+  deviceMemory?: VitalDeviceMemory | null;
+  effectiveType?: VitalEffectiveType | null;
+  coldStart?: boolean;
 }
 
 /**
@@ -113,6 +201,96 @@ const INP_INTERACTIONS_PER_DISCARD = 50;
 const queue: QueuedVital[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Kontekst nawigacji tego DOKUMENTU. Liczony raz, przy pierwszej udanej
+ * inicjalizacji, i celowo NIE zerowany przy miękkiej nawigacji: opisuje
+ * nawigację, która zbudowała dokument, a nie ścieżkę, na której akurat
+ * jesteśmy (tę niesie `url`). Nie zeruje go też teardown zgody - ponowne
+ * wyrażenie zgody w tej samej odsłonie nie może ogłosić drugiego „zimnego
+ * startu", bo znacznik `COLD_START_KEY` byłby już postawiony i `coldStart`
+ * przeskoczyłby z `true` na `false` w połowie tej samej odsłony.
+ */
+let navContext: VitalsNavigationContext | null = null;
+
+/** Typ nawigacji z Navigation Timing; nieznana wartość -> `null`, nie zgadujemy. */
+function readNavigationType(): VitalNavigationType | null {
+  try {
+    const nav = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    const type = nav?.type;
+    return NAVIGATION_TYPES.find((known) => known === type) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Próg pamięci urządzenia (kubełek W DÓŁ) albo `null`, gdy przeglądarka nie podaje. */
+function readDeviceMemory(): VitalDeviceMemory | null {
+  const raw = (navigator as NavigatorWithHints).deviceMemory;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  // Lista jest malejąca, więc pierwszy próg <= wartości to kubełek w dół.
+  // Wartość dodatnia poniżej 1 GB (spec dopuszcza 0,25 i 0,5) nie trafia
+  // w żaden próg i domyka ją gałąź `raw > 0 ? 1`. Zero i wartość ujemna to
+  // nie „bardzo słabe urządzenie", tylko brak pomiaru - stąd `null`.
+  return DEVICE_MEMORY_BUCKETS.find((bucket) => raw >= bucket) ?? (raw > 0 ? 1 : null);
+}
+
+/** Klasa łącza z Network Information API; brak API albo nieznana klasa -> `null`. */
+function readEffectiveType(): VitalEffectiveType | null {
+  const raw = (navigator as NavigatorWithHints).connection?.effectiveType;
+  return EFFECTIVE_TYPES.find((known) => known === raw) ?? null;
+}
+
+/**
+ * Czy to PIERWSZE wejście w tej karcie.
+ *
+ * Mechanizm: brak znacznika w `sessionStorage` = nikt w tej karcie jeszcze nie
+ * nawigował, więc dokument otwarto na zimno. Znacznik stawiamy od razu, więc
+ * każde kolejne wczytanie w tej samej karcie zgłosi `false`.
+ *
+ * `sessionStorage` RZUCA, a nie zwraca `null`, gdy przeglądarka blokuje
+ * magazyn (tryb prywatny Safari, polityka „zablokuj dane witryn", iframe
+ * z partycjonowaniem). Rzut jest tu przechwytywany i sprowadzony do `false`:
+ * zakładamy wtedy „to nie jest zimne wejście", bo fałszywe `true` ZAWYŻYŁOBY
+ * populację zimnych wejść przy każdej odsłonie takiego czytelnika, a to
+ * właśnie ta populacja ma być mierzona.
+ *
+ * ZNANE OBCIĄŻENIE, ŚWIADOME: znacznik stawiamy dopiero po zgodzie
+ * analitycznej (ten moduł startuje zza jej bramki), więc czytelnik, który
+ * zgodził się dopiero na trzeciej podstronie, zostanie policzony jako zimne
+ * wejście. Alternatywa - pisanie do magazynu przed zgodą - jest gorsza:
+ * magazyn nieistotny dla działania serwisu wymaga zgody tak samo jak beacon.
+ */
+function readColdStart(): boolean {
+  try {
+    if (sessionStorage.getItem(COLD_START_KEY) !== null) return false;
+    sessionStorage.setItem(COLD_START_KEY, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readNavigationContext(): VitalsNavigationContext {
+  return {
+    navigationType: readNavigationType(),
+    deviceMemory: readDeviceMemory(),
+    effectiveType: readEffectiveType(),
+    coldStart: readColdStart(),
+  };
+}
+
+/** Milisekundy od startu nawigacji; brak `performance` -> brak pola, nie zero. */
+function elapsedSinceNavigation(): number | null {
+  try {
+    const now = performance.now();
+    return Number.isFinite(now) && now >= 0 ? Math.round(now) : null;
+  } catch {
+    return null;
+  }
+}
+
 function cancelScheduledDrain(): void {
   if (flushTimer === null) return;
   clearTimeout(flushTimer);
@@ -150,7 +328,20 @@ function report(metric: VitalMetric, pathname: string): void {
   // Without this guard an SSR-side report() would push into a module-scope
   // array that never drains - a cross-request leak, not merely a memory one.
   if (typeof navigator === "undefined") return;
-  queue.push({ ...metric, url: pathname.slice(0, MAX_PATH), ts: Date.now() });
+  const sample: QueuedVital = { ...metric, url: pathname.slice(0, MAX_PATH), ts: Date.now() };
+  // Kontekst dokładamy TYLKO wtedy, gdy został policzony (czyli po
+  // `initWebVitals`). Brak pola jest dla ingestu tym samym co `null`, więc
+  // próbka bez kontekstu nadal jest pełnoprawną próbką - nie wysyłamy zer,
+  // które udawałyby pomiar.
+  if (navContext !== null) {
+    const sinceNav = elapsedSinceNavigation();
+    if (sinceNav !== null) sample.sinceNav = sinceNav;
+    sample.navigationType = navContext.navigationType;
+    sample.deviceMemory = navContext.deviceMemory;
+    sample.effectiveType = navContext.effectiveType;
+    sample.coldStart = navContext.coldStart;
+  }
+  queue.push(sample);
   if (queue.length >= MAX_METRICS) {
     drain();
     return;
@@ -339,6 +530,13 @@ export function initWebVitals(): () => void {
   (window as Window & { __vitalsInit?: boolean }).__vitalsInit = true;
 
   currentPath = location.pathname;
+
+  // Kontekst nawigacji MUSI powstać tutaj, a nie przy pierwszym `report()`:
+  // `coldStart` czyta i STAWIA znacznik w `sessionStorage`, więc policzony
+  // leniwie zwracałby „zimne wejście" dla dokumentu, który zdążył już zrobić
+  // twardą nawigację. `??=` sprawia, że ponowna zgoda w tej samej odsłonie
+  // nie przelicza kontekstu (patrz komentarz przy deklaracji).
+  navContext ??= readNavigationContext();
 
   // Rejestr obserwerow do rozlaczenia przy teardownie (cofniecie zgody RODO).
   const observers: PerformanceObserver[] = [];

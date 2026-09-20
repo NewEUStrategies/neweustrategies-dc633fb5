@@ -29,14 +29,38 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 import { ensureI18n as ensureLibraryI18n } from "@/lib/i18n-library";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+
+/**
+ * Termin ŻĄDANIA dla jedynej fazy loadera. `catch(() => undefined)` bronił
+ * przed BŁĘDEM, ale nie przed POWOLNOŚCIĄ: zwis PostgREST trzymał bibliotekę
+ * aż do watchdoga SSR (5 s), bo nic nie oddawało sterowania wcześniej.
+ */
+const LIBRARY_SSR_BUDGET_MS = 1_400;
+
+/** Fallback listy materiałów - pusta, zasiew z `updatedAt: 0` (samoleczenie). */
+const NO_RESOURCES: PublicResource[] = [];
+
 export const Route = createFileRoute("/library")({
   component: LibraryPage,
-  // Loader nigdy nie wywraca trasy - awaria backendu degraduje do klienckiego
-  // fetcha (komponent pokaże loadError), a metatagi zostają nietknięte.
-  loader: async ({ context }) => {
-    await context.queryClient
-      .ensureQueryData(libraryResourcesQueryOptions())
-      .catch(() => undefined);
+  // Loader nigdy nie wywraca trasy - awaria backendu degraduje do pustej listy
+  // z zasiewu (komponent mówi wtedy PRAWDĘ, patrz DegradedDataNotice),
+  // a metatagi zostają nietknięte.
+  loader: async ({ context }): Promise<{ degraded: boolean }> => {
+    const deadlineAt = Date.now() + LIBRARY_SSR_BUDGET_MS;
+    const resources = await loadResilient(
+      context.queryClient,
+      libraryResourcesQueryOptions(),
+      NO_RESOURCES,
+      { deadlineAt, label: "library-resources" },
+    );
+    // BRAMKA NAGŁÓWKA, której ta trasa nie miała W OGÓLE: biblioteka bez ani
+    // jednego materiału to powierzchnia sprzedażowa bez oferty - nie ma prawa
+    // zamarznąć na brzegu na 15 minut świeżości plus dobę okna `stale`.
+    setCacheControlHeader(resilientCacheControl(resources.degraded));
+    return { degraded: resources.degraded };
   },
   head: () => {
     const url = getRequestUrl() || "/library";
@@ -79,9 +103,17 @@ function LibraryPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const { user } = useAuth();
+  const { degraded: ssrDegraded } = Route.useLoaderData();
   const resourcesQ = useQuery(libraryResourcesQueryOptions());
   const currentTier = useCurrentTier();
   const myRank = currentTier.data?.rank ?? 0;
+
+  // STEMPEL FALLBACKU, nie nowy stan. `loadResilient` zasiewa pustą listę
+  // z `updatedAt: 0`, więc `dataUpdatedAt === 0` znaczy „dane są, ale nie są
+  // prawdą backendu". Po refetchu po hydratacji stempel się zmienia
+  // i komunikat znika sam - bez tego zdegradowany render wyglądałby dokładnie
+  // jak „biblioteka jest pusta", czyli jak brak oferty.
+  const degraded = ssrDegraded && resourcesQ.dataUpdatedAt === 0;
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-12 md:py-16">
@@ -93,7 +125,11 @@ function LibraryPage() {
         {!user && <p className="mt-3 text-sm text-muted-foreground">{t("library.signInHint")}</p>}
       </header>
 
-      {resourcesQ.isLoading ? (
+      {/* Nagłówek strony ZOSTAJE: degraduje lista, nie cała strona - stąd
+          panel wewnątrz układu, a nie karta pełnoekranowa. */}
+      {degraded ? (
+        <DegradedDataNotice />
+      ) : resourcesQ.isLoading ? (
         <p className="text-center text-muted-foreground">{t("library.loading")}</p>
       ) : resourcesQ.isError ? (
         <p className="text-center text-muted-foreground">{t("library.loadError")}</p>

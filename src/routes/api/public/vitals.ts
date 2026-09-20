@@ -32,15 +32,50 @@ const limiter = createRateLimiter({ capacity: 20, refillPerSec: 0.2 });
 const MAX_METRICS = 8;
 // Worst case per sample on the wire is ~640 chars: a 512-char `url` plus
 // name (15) + value (28) + rating (28) + id (24) + ts (18) + braces/commas (7).
-// Eight of those plus the {"metrics":[...]} wrapper is ~5 140 chars, so 8 000
-// covers the batch with room to spare and still drops junk before parsing.
+// Kontekst nawigacji (`sinceNav` ~19, `navigationType` ~32, `deviceMemory` ~18,
+// `effectiveType` ~26, `coldStart` ~19) dokłada do tego ~114 znaków, czyli
+// ~754 na próbkę. Osiem takich plus opakowanie {"metrics":[...]} to ~6 050
+// znaków - nadal Z ZAPASEM poniżej 8 000, więc ta granica NIE JEST rozluźniana
+// razem z rozszerzeniem ładunku (byłby to cichy upust w budżecie pamięci
+// workera przy okazji zmiany o czym innym).
 const MAX_BODY = 8_000;
+
+// ---------------------------------------------------------------------------
+// KONTEKST NAWIGACJI (audyt CWV 2026-09-20, F40 / wiersz 0.3 „Fali 0").
+//
+// Pięć pól OPISOWYCH, żeby dało się odciąć populację zimnego pierwszego
+// wejścia od miękkich nawigacji w tej samej odsłonie. ZERO identyfikatorów -
+// szerzej w `src/lib/webVitals.ts` przy `VitalsNavigationContext`.
+//
+// DLACZEGO LISTA DOZWOLONYCH, A NIE `String(...)`. To jest publiczna,
+// niepodpisana ścieżka zapisu: `navigation_type` bez listy przyjąłby dowolny
+// napis, a wtedy kolumna przeznaczona na cztery wartości stałaby się polem
+// tekstowym pod kontrolą kogokolwiek z curl-em, a `GROUP BY navigation_type`
+// na panelu - listą tego, co ktoś wstrzyknął. To ta sama klasa decyzji co
+// `VALID_METRICS` wyżej: enum waliduje się PRZYNALEŻNOŚCIĄ, nie długością.
+const NAVIGATION_TYPES = new Set(["navigate", "reload", "back_forward", "prerender"]);
+const EFFECTIVE_TYPES = new Set(["slow-2g", "2g", "3g", "4g"]);
+/** Progi z klienta (kubełkowanie w dół do 1/2/4/8) - inne wartości odpadają. */
+const DEVICE_MEMORY_BUCKETS = new Set([1, 2, 4, 8]);
+/**
+ * Górna granica `sinceNav`: doba. Pole liczy czas od startu nawigacji, więc
+ * karta zostawiona na noc potrafi legalnie zgłosić kilkanaście godzin - ale
+ * wartość spoza doby albo pochodzi z podrobionego beacona, albo z zegara,
+ * któremu i tak nie można ufać. Odrzucamy ją do `null` (a nie całą próbkę):
+ * sam pomiar LCP/CLS/INP pozostaje użyteczny bez kontekstu.
+ */
+const MAX_SINCE_NAV_MS = 24 * 60 * 60 * 1_000;
 
 interface IncomingVital {
   name?: unknown;
   value?: unknown;
   rating?: unknown;
   url?: unknown;
+  sinceNav?: unknown;
+  navigationType?: unknown;
+  deviceMemory?: unknown;
+  effectiveType?: unknown;
+  coldStart?: unknown;
 }
 
 /**
@@ -86,6 +121,50 @@ function metricValue(raw: unknown): number | null {
         ? Number(raw)
         : Number.NaN;
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * `sinceNav` w milisekundach albo `null`.
+ *
+ * Ta sama zasada co w `metricValue`: `Number(null)` i `Number("")` to ZERO,
+ * więc bez kontroli TYPU beacon z `sinceNav: null` zapisałby „zgłoszone
+ * w chwili startu nawigacji" - a to najmocniejszy możliwy sygnał zimnego
+ * wejścia, czyli dokładnie ta wartość, którą warto podrobić, żeby przesunąć
+ * statystyki. Zaokrąglamy do pełnych ms: kolumna jest całkowita, a ułamek
+ * mikrosekundy i tak nie niesie informacji.
+ */
+function sinceNavMs(raw: unknown): number | null {
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim() !== ""
+        ? Number(raw)
+        : Number.NaN;
+  if (!Number.isFinite(n) || n < 0 || n > MAX_SINCE_NAV_MS) return null;
+  return Math.round(n);
+}
+
+/** Wartość z listy dozwolonych albo `null` - bez obcinania, bez normalizacji. */
+function enumValue(raw: unknown, allowed: ReadonlySet<string>): string | null {
+  return typeof raw === "string" && allowed.has(raw) ? raw : null;
+}
+
+/** Próg pamięci urządzenia: dokładnie 1, 2, 4 albo 8; wszystko inne -> `null`. */
+function deviceMemoryBucket(raw: unknown): number | null {
+  const n = typeof raw === "number" ? raw : Number.NaN;
+  return DEVICE_MEMORY_BUCKETS.has(n) ? n : null;
+}
+
+/**
+ * `coldStart` jako boolean albo `null`.
+ *
+ * ŚCIŚLE `typeof === "boolean"`, bez `Boolean(raw)`: `Boolean("false")` to
+ * `true`, a `Boolean(0)` to `false`, więc konwersja zamieniłaby każde śmieci
+ * na jedną z dwóch prawdziwie wyglądających odpowiedzi. „Nie wiem" (null)
+ * jest tu informacją, a nie brakiem informacji.
+ */
+function coldStartFlag(raw: unknown): boolean | null {
+  return typeof raw === "boolean" ? raw : null;
 }
 
 function noContent(): Response {
