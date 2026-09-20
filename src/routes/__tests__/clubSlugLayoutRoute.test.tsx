@@ -76,7 +76,6 @@ vi.mock("@/lib/http/responseHeaders", () => ({
 }));
 
 import { QueryClient } from "@tanstack/react-query";
-import { isNotFound } from "@tanstack/react-router";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubCoverPreload } from "@/lib/clubs/clubCoverPreload";

@@ -2505,23 +2505,12 @@ select option {
   ::view-transition-old(site-header),
   ::view-transition-new(site-header),
   ::view-transition-old(site-footer),
-  ::view-transition-new(site-footer),
-  ::view-transition-old(admin-sidebar),
-  ::view-transition-new(admin-sidebar) {
+  ::view-transition-new(site-footer) {
     animation: none !important;
     mix-blend-mode: normal;
   }
-  ::view-transition-old(admin-main),
-  ::view-transition-new(admin-main) {
-    animation-duration: 180ms;
-    animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
-  }
-  ::view-transition-old(admin-main) {
-    animation-name: vt-fade-out;
-  }
-  ::view-transition-new(admin-main) {
-    animation-name: vt-fade-in;
-  }
+  /* Migawki `admin-sidebar` / `admin-main` nadaje wyłącznie `AdminShell`,
+     więc ich reguły siedzą w `src/admin-styles.css` (F31). */
   /* Chat dock: mounted once w SiteChrome. Podczas View Transition musi
      pozostać w miejscu (bez cross-fade/slide), inaczej "znika i wczytuje się"
      przy każdej nawigacji. Nazwany snapshot + brak animacji = stabilna klatka
@@ -3959,57 +3948,10 @@ textarea::placeholder {
   width: auto !important;
 }
 
-/* ==========================================================================
-   Admin calendar / date picker - soft hover token
-   Zamiast intensywnego pomarańczowego (primary), używamy #FDB078 na hover
-   we wszystkich kalendarzach i triggerach dat w adminie.
-   ========================================================================== */
-.admin-calendar [data-day]:hover:not([data-disabled="true"]),
-.admin-calendar button[role="gridcell"]:hover:not([disabled]),
-.admin-calendar .rdp-day:hover:not([disabled]),
-.admin-calendar [data-slot="calendar"] button:hover:not([disabled]) {
-  background-color: #fdb078 !important;
-  color: var(--foreground) !important;
-}
-
-.admin-date-trigger:hover:not([disabled]) {
-  background-color: #fdb078 !important;
-  color: var(--foreground) !important;
-  border-color: #fdb078 !important;
-}
-
-/* ==========================================================================
-   AdminColorPicker - kompaktowy popover z react-colorful
-   ========================================================================== */
-.admin-color-picker-canvas .react-colorful {
-  width: 100% !important;
-  height: 148px !important;
-  gap: 6px;
-}
-.admin-color-picker-canvas--lg .react-colorful {
-  height: 240px !important;
-  gap: 10px;
-}
-.admin-color-picker-canvas .react-colorful__saturation {
-  border-radius: 6px;
-  border-bottom: none;
-}
-.admin-color-picker-canvas .react-colorful__hue {
-  height: 10px !important;
-  border-radius: 999px;
-}
-.admin-color-picker-canvas--lg .react-colorful__hue {
-  height: 12px !important;
-}
-.admin-color-picker-canvas .react-colorful__pointer {
-  width: 14px;
-  height: 14px;
-  border-width: 2px;
-}
-.admin-color-picker-canvas .react-colorful__saturation-pointer {
-  width: 14px;
-  height: 14px;
-}
+/* Reguły `.admin-calendar`, `.admin-date-trigger` i `.admin-color-picker-canvas`
+   przeniesione do `src/admin-styles.css` (F31): arkusz publiczny jest
+   render-blocking na KAŻDEJ stronie, a te selektory pasują wyłącznie do
+   komponentów z `src/components/admin/blocks/*`, ładowanych tylko pod /admin. */
 
 @layer components {
   /* ============================================================
@@ -10634,25 +10576,10 @@ textarea::placeholder,
   font-size: var(--fs-placeholder);
 }
 
-/* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
-[data-admin-shell]
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
-    [type="submit"]
-  ):not([type="button"]),
-[data-admin-shell] textarea {
-  font-size: var(--fs-input) !important;
-}
-
-[data-admin-shell] label,
-[data-admin-shell] .input-group > .user-label {
-  font-size: var(--fs-label) !important;
-}
-
-[data-admin-shell] [role="combobox"],
-[data-admin-shell] [data-slot="select-trigger"],
-[data-admin-shell] [data-slot="select-item"] {
-  font-size: var(--fs-droplist) !important;
-}
+/* Wzmocnienia `[data-admin-shell]` dla pól, etykiet i list rozwijanych
+   przeniesione do `src/admin-styles.css` (F31). Atrybut `data-admin-shell`
+   stawia wyłącznie `AdminShell`/`AdminShellSkeleton`, więc na powierzchni
+   publicznej te reguły nigdy nie pasują - a ważyły w arkuszu blokującym render. */
 
 /* ---------------------------------------------------------------------------
    GLOBAL ATOM RULE: every button uses 12px text platform-wide. Covers shadcn
@@ -10673,15 +10600,8 @@ input[type="reset"],
   font-size: 0.875rem !important;
 }
 
-/* Admin panel: reinforce the 12px button rule on all admin pages. */
-[data-admin-shell] button,
-[data-admin-shell] [role="button"],
-[data-admin-shell] input[type="submit"],
-[data-admin-shell] input[type="button"],
-[data-admin-shell] input[type="reset"],
-[data-admin-shell] [data-slot="button"] {
-  font-size: var(--fs-button) !important;
-}
+/* Wzmocnienie 12 px dla przycisków w `[data-admin-shell]` przeniesione do
+   `src/admin-styles.css` (F31) - patrz nota wyżej. */
 
 /* Ujednolicenie rozmiaru pól i etykiet formularzy (także gdy widget ustawia
    font-size inline) - 12px w całym serwisie i panelu administracyjnym. */
@@ -10745,8 +10665,7 @@ input[type="reset"],
 
 /* Przełączniki (Switch): globalne reguły przycisków/formularzy nie mogą
    zmieniać ich wysokości, paddingu ani typografii. */
-[data-ui-switch],
-[data-admin-shell] [data-ui-switch] {
+[data-ui-switch] {
   height: 22px !important;
   min-height: 0 !important;
   width: 38px !important;

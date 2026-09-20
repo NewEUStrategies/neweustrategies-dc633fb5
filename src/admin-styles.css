@@ -496,3 +496,134 @@
 .block-canvas div[data-block-type="paragraph"] .ProseMirror br {
   line-height: inherit;
 }
+
+/* ==========================================================================
+   F31 - reguły przeniesione z `src/styles.css`.
+
+   `styles.css` jest jednym arkuszem render-blocking dla CAŁEJ powierzchni
+   publicznej, a poniższe selektory (`.admin-*`, `[data-admin-shell]`,
+   migawki View Transition panelu) pasują wyłącznie do komponentów
+   `src/components/admin/**` i tras `/admin*`. Ten arkusz ładuje `head()`
+   trasy admina, więc tam obowiązują tak samo jak wcześniej, a publiczny
+   dokument już za nie nie płaci.
+
+   Kaskada: arkusz admina jest linkowany PO `styles.css`, a reguły są
+   nielayerowane - dokładnie jak w miejscu, z którego pochodzą. Selektory
+   z `[data-admin-shell]` mają też wyższą specyficzność od globalnych
+   atomów `input` / `label` / `button`, więc wygrywają niezależnie od
+   kolejności arkuszy.
+   ========================================================================== */
+
+/* Admin calendar / date picker - soft hover token.
+   Zamiast intensywnego pomarańczowego (primary), używamy #FDB078 na hover
+   we wszystkich kalendarzach i triggerach dat w adminie. */
+.admin-calendar [data-day]:hover:not([data-disabled="true"]),
+.admin-calendar button[role="gridcell"]:hover:not([disabled]),
+.admin-calendar .rdp-day:hover:not([disabled]),
+.admin-calendar [data-slot="calendar"] button:hover:not([disabled]) {
+  background-color: #fdb078 !important;
+  color: var(--foreground) !important;
+}
+
+.admin-date-trigger:hover:not([disabled]) {
+  background-color: #fdb078 !important;
+  color: var(--foreground) !important;
+  border-color: #fdb078 !important;
+}
+
+/* AdminColorPicker - kompaktowy popover z react-colorful. */
+.admin-color-picker-canvas .react-colorful {
+  width: 100% !important;
+  height: 148px !important;
+  gap: 6px;
+}
+.admin-color-picker-canvas--lg .react-colorful {
+  height: 240px !important;
+  gap: 10px;
+}
+.admin-color-picker-canvas .react-colorful__saturation {
+  border-radius: 6px;
+  border-bottom: none;
+}
+.admin-color-picker-canvas .react-colorful__hue {
+  height: 10px !important;
+  border-radius: 999px;
+}
+.admin-color-picker-canvas--lg .react-colorful__hue {
+  height: 12px !important;
+}
+.admin-color-picker-canvas .react-colorful__pointer {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+.admin-color-picker-canvas .react-colorful__saturation-pointer {
+  width: 14px;
+  height: 14px;
+}
+
+/* Admin panel: wymuszenie na wszystkich polach i etykietach w podstronach /admin. */
+[data-admin-shell]
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
+    [type="submit"]
+  ):not([type="button"]),
+[data-admin-shell] textarea {
+  font-size: var(--fs-input) !important;
+}
+
+[data-admin-shell] label,
+[data-admin-shell] .input-group > .user-label {
+  font-size: var(--fs-label) !important;
+}
+
+[data-admin-shell] [role="combobox"],
+[data-admin-shell] [data-slot="select-trigger"],
+[data-admin-shell] [data-slot="select-item"] {
+  font-size: var(--fs-droplist) !important;
+}
+
+/* Admin panel: reinforce the 12px button rule on all admin pages. */
+[data-admin-shell] button,
+[data-admin-shell] [role="button"],
+[data-admin-shell] input[type="submit"],
+[data-admin-shell] input[type="button"],
+[data-admin-shell] input[type="reset"],
+[data-admin-shell] [data-slot="button"] {
+  font-size: var(--fs-button) !important;
+}
+
+/* Przełączniki (Switch) w adminie - globalna reguła `[data-ui-switch]`
+   ze `styles.css` obowiązuje tak samo; ten wariant o wyższej specyficzności
+   trzymał ją przy życiu pod kompaktowymi regułami panelu. */
+[data-admin-shell] [data-ui-switch] {
+  height: 22px !important;
+  min-height: 0 !important;
+  width: 38px !important;
+  padding: 2px !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  box-sizing: border-box;
+}
+
+/* View Transitions panelu: `admin-sidebar` stoi w miejscu, `admin-main`
+   dostaje krótki cross-fade. Nazwy migawek nadaje wyłącznie `AdminShell`.
+   Klatki `vt-fade-in` / `vt-fade-out` żyją w `styles.css`, ładowanym także
+   pod /admin. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(admin-sidebar),
+  ::view-transition-new(admin-sidebar) {
+    animation: none !important;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-old(admin-main),
+  ::view-transition-new(admin-main) {
+    animation-duration: 180ms;
+    animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  ::view-transition-old(admin-main) {
+    animation-name: vt-fade-out;
+  }
+  ::view-transition-new(admin-main) {
+    animation-name: vt-fade-in;
+  }
+}
