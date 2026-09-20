@@ -165,6 +165,21 @@ describe("UploadArea", () => {
     expect(onFiles).not.toHaveBeenCalled();
   });
 
+  it("upuszczenie z PUSTĄ listą `types`, ale z plikiem, wciąż jest przyjmowane", () => {
+    // `types` jest jedynym sygnałem przy `dragover` (przeglądarka ukrywa tam
+    // `files`), ale przy `drop` pliki są już jawne. Wymaganie wpisu „Files"
+    // także w tym momencie gubiło zrzut z `DataTransfer` złożonego ręcznie -
+    // tak robią starsze WebKity, integracje i harnessy testowe. Warunek gestu
+    // (tekst/odnośnik) nadal nie przechodzi, bo tam `files` jest puste.
+    const { onFiles } = renderArea();
+    const area = screen.getByRole("group");
+
+    fireEvent.drop(area, { dataTransfer: { types: [], files: [sample("umowa.pdf")] } });
+
+    expect(onFiles).toHaveBeenCalledTimes(1);
+    expect(onFiles.mock.calls[0][0][0].name).toBe("umowa.pdf");
+  });
+
   it("upuszczenie NIE DOCHODZI do rodzica, który też słucha plików (brak podwójnej wysyłki)", () => {
     // Obszar bywa osadzony w kanwie, która sama przyjmuje upuszczenie (biblioteka
     // mediów, dialog wyboru pliku). Gdyby zdarzenie bąbelkowało dalej, ten sam
@@ -246,5 +261,91 @@ describe("UploadArea", () => {
     const input = fileInput();
     expect(input.getAttribute("accept")).toBe("video/mp4,audio/mpeg");
     expect(input.multiple).toBe(true);
+  });
+
+  it("podświetlenie LICZY wejścia i wyjścia - przejazd nad dzieckiem go nie gasi", () => {
+    // `dragleave` leci TAKŻE wtedy, gdy kursor przechodzi z obszaru na jego
+    // własne dziecko (kafel ikony, podgląd, CTA). Bez licznika głębokości
+    // ramka migałaby na każdym elemencie w środku, a przy gęstym klastrze
+    // ikon - kilka razy na sekundę.
+    renderArea();
+    const area = screen.getByRole("group");
+    const dziecko = screen.getByText("Wgraj materiał");
+    const files = { dataTransfer: { types: ["Files"], files: [] } };
+
+    fireEvent.dragEnter(area, files);
+    expect(area).toHaveAttribute("data-drag-over", "true");
+
+    fireEvent.dragEnter(dziecko, files);
+    fireEvent.dragLeave(area, files);
+    // Wyjście z rodzica przy wciąż „otwartym" dziecku NIE gasi podświetlenia.
+    expect(area).toHaveAttribute("data-drag-over", "true");
+
+    fireEvent.dragLeave(dziecko, files);
+    expect(area).not.toHaveAttribute("data-drag-over");
+  });
+
+  it("`dragover` z plikiem jest ANULOWANY - bez tego przeglądarka otwiera plik zamiast oddać go stronie", () => {
+    // `preventDefault` na `dragover` nie jest kosmetyką: domyślną akcją
+    // przeglądarki jest NAWIGACJA do upuszczonego pliku, więc bez anulowania
+    // obszar w ogóle nie dostaje `drop`. Gest bez plików musi zostać
+    // nieanulowany, żeby przeciąganie tekstu działało jak zwykle.
+    renderArea();
+    const area = screen.getByRole("group");
+
+    const zPlikiem = fireEvent.dragOver(area, {
+      dataTransfer: { types: ["Files"], files: [] },
+    });
+    const bezPliku = fireEvent.dragOver(area, {
+      dataTransfer: { types: ["text/plain"], files: [] },
+    });
+
+    // `fireEvent` oddaje `false`, gdy zdarzenie zostało anulowane.
+    expect(zPlikiem).toBe(false);
+    expect(bezPliku).toBe(true);
+  });
+
+  it("stan zajętości BEZ własnej etykiety zostawia napis CTA, a `data-busy` i tak stoi", () => {
+    renderArea({ busy: true });
+    expect(screen.getByRole("button", { name: "Wybierz plik" })).toBeDisabled();
+    expect(screen.getByRole("group")).toHaveAttribute("data-busy", "true");
+  });
+
+  it("własny `errorId` wiąże komunikat rodzica, a nie wygenerowany identyfikator", () => {
+    // Formularz kariery sam wskazuje `aria-describedby` na swój węzeł błędu -
+    // obszar musi użyć TEGO identyfikatora, inaczej czytnik ekranu czyta opis
+    // pola zamiast powodu odmowy.
+    renderArea({ error: "Plik jest za duży.", errorId: "cv-blad" });
+    const alert = screen.getByRole("alert");
+    expect(alert.id).toBe("cv-blad");
+    expect(screen.getByRole("group").getAttribute("aria-describedby")).toBe("cv-blad");
+  });
+
+  it("identyfikatory dla testów i formularzy schodzą na właściwe węzły", () => {
+    renderArea({
+      "data-testid": "obszar-cv",
+      inputTestId: "picker-cv",
+      inputId: "cv-plik",
+      inputLabel: "Wgraj CV",
+      name: "cv",
+    });
+    const input = screen.getByTestId("picker-cv") as HTMLInputElement;
+    expect(screen.getByTestId("obszar-cv")).toBe(screen.getByRole("group"));
+    expect(input.id).toBe("cv-plik");
+    expect(input.name).toBe("cv");
+    expect(screen.getByLabelText("Wgraj CV")).toBe(input);
+  });
+
+  it("czwarta ikona jest OBCINANA - klaster ma najwyżej trzy kafle", () => {
+    render(
+      <UploadArea
+        title="A"
+        description="B"
+        ctaLabel="C"
+        icons={[FileText, FileVideo, FileAudio, FileText]}
+        onFiles={vi.fn()}
+      />,
+    );
+    expect(document.querySelectorAll('[data-slot="upload-area"] .ring-border')).toHaveLength(3);
   });
 });

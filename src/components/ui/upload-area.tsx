@@ -111,12 +111,34 @@ export interface UploadAreaProps {
   inputTestId?: string;
 }
 
-/** Czy przeciągane dane w ogóle niosą pliki (a nie np. element listy mediów). */
-function carriesFiles(transfer: DataTransfer | null): boolean {
+/**
+ * Czy przeciągane dane w ogóle niosą pliki (a nie np. element listy mediów).
+ *
+ * W trakcie `dragenter`/`dragover` przeglądarka UKRYWA zawartość `files` (do
+ * chwili upuszczenia strona nie ma prawa czytać, co jest niesione), więc
+ * jedynym sygnałem jest `types`. To jest wariant dla tych trzech zdarzeń.
+ */
+function dragCarriesFiles(transfer: DataTransfer | null): boolean {
   if (transfer === null) return false;
   // `types` jest w Safari `DOMStringList`, w reszcie `ReadonlyArray<string>`;
   // `Array.from` obsługuje oba bez rozgałęzienia.
   return Array.from(transfer.types).includes("Files");
+}
+
+/**
+ * Wariant dla SAMEGO `drop`, gdzie `files` jest już jawne.
+ *
+ * Nie wolno tu wymagać wyłącznie `types`: lista typów bywa pusta albo niepełna
+ * (starsze WebKity, `DataTransfer` składany ręcznie przez integracje i przez
+ * testy), a plik mimo to jest. Warunek „`types` niesie Files ALBO `files` nie
+ * jest puste" przyjmuje każdy realny zrzut pliku, a dalej i tak przepuszcza
+ * wyłącznie to, co `emit` przefiltruje przez `accept`. Przeciągnięty tekst
+ * albo odnośnik nadal nie wgrywa niczego, bo `files` jest wtedy puste.
+ */
+function dropCarriesFiles(transfer: DataTransfer | null): boolean {
+  if (transfer === null) return false;
+  if (Array.from(transfer.types).includes("Files")) return true;
+  return (transfer.files?.length ?? 0) > 0;
 }
 
 /**
@@ -287,7 +309,7 @@ export function UploadArea({
         openPicker();
       }}
       onDragEnter={(event) => {
-        if (locked || !carriesFiles(event.dataTransfer)) return;
+        if (locked || !dragCarriesFiles(event.dataTransfer)) return;
         event.preventDefault();
         // Obszar PRZEJMUJE gest. Bez zatrzymania bąbelkowania rodzic, który
         // też słucha upuszczenia (kanwa mediów, dialog biblioteki), podświetla
@@ -297,7 +319,7 @@ export function UploadArea({
         setDragOver(true);
       }}
       onDragOver={(event) => {
-        if (locked || !carriesFiles(event.dataTransfer)) return;
+        if (locked || !dragCarriesFiles(event.dataTransfer)) return;
         // Bez `preventDefault` przeglądarka OTWIERA upuszczony plik zamiast
         // oddać go stronie - to nie jest kosmetyka, tylko warunek działania.
         event.preventDefault();
@@ -305,13 +327,13 @@ export function UploadArea({
         event.dataTransfer.dropEffect = "copy";
       }}
       onDragLeave={(event) => {
-        if (locked || !carriesFiles(event.dataTransfer)) return;
+        if (locked || !dragCarriesFiles(event.dataTransfer)) return;
         event.stopPropagation();
         dragDepth.current = Math.max(0, dragDepth.current - 1);
         if (dragDepth.current === 0) setDragOver(false);
       }}
       onDrop={(event) => {
-        if (locked || !carriesFiles(event.dataTransfer)) return;
+        if (locked || !dropCarriesFiles(event.dataTransfer)) return;
         event.preventDefault();
         event.stopPropagation();
         resetDrag();

@@ -47,8 +47,9 @@ export function CareerCvField({
   const id = useId();
   const errorId = `${id}-err`;
 
-  const pickFile = async (file: File | undefined) => {
-    if (!file) return;
+  // Pustej listy obszar wgrywania nie oddaje (`emit` w `upload-area` odcina ją
+  // przed wywołaniem), więc pole nie potrzebuje własnego strażnika.
+  const pickFile = async (file: File) => {
     onErrorMessage(undefined);
     setUploading(true);
     const result = await uploadCv(file);

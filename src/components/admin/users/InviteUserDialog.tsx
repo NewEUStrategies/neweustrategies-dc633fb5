@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/select";
 import { Upload, X, Loader2 } from "@/lib/lucide-shim";
 import { UploadArea } from "@/components/ui/upload-area";
-import "@/lib/i18n-upload-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import {
@@ -139,8 +138,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
     setEmailLang("pl");
   };
 
-  const pickPhoto = async (file: File | undefined) => {
-    if (!file) return;
+  const pickPhoto = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error(t("adminTeamMedia.inviteUser.photoTypeError"));
       return;
@@ -293,7 +291,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
             <UploadArea
               size="sm"
               title={t("adminTeamMedia.inviteUser.photoLabel")}
-              description={t("uploadArea.image.description")}
+              description={t("adminTeamMedia.inviteUser.photoHint")}
               ctaLabel={t("adminTeamMedia.inviteUser.photo")}
               busy={uploading}
               disabled={busy}

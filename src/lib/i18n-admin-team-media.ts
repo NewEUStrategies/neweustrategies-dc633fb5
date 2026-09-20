@@ -86,6 +86,7 @@ const pl = {
       linkedinError: "Podaj poprawny adres profilu LinkedIn",
       photo: "Wgraj",
       photoLabel: "Zdjęcie profilowe",
+      photoHint: "Przeciągnij zdjęcie tutaj albo wybierz je z dysku (JPG/PNG, do 5 MB).",
       personSection: "Dane osoby (opcjonalne)",
 
       photoRemove: "Usuń zdjęcie",
@@ -196,6 +197,7 @@ const en = {
       linkedinError: "Enter a valid LinkedIn profile URL",
       photo: "Upload",
       photoLabel: "Profile photo",
+      photoHint: "Drag a photo here, or pick one from your disk (JPG/PNG, up to 5 MB).",
       personSection: "Person details (optional)",
 
       photoRemove: "Remove photo",

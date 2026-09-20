@@ -423,10 +423,11 @@ function NewResourceDialog({
       toast.error(e instanceof Error ? e.message : t("adminLibrary.couldSave")),
   });
 
-  const onPick = (f: File | null) => {
+  // Obszar wgrywania oddaje zawsze konkretny plik (pustą listę odcina `emit`).
+  const onPick = (f: File) => {
     setFile(f);
     upload.reset();
-    if (f) upload.mutate(f);
+    upload.mutate(f);
   };
 
   const canSubmit =

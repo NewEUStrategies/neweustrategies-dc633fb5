@@ -25,8 +25,9 @@ export function CustomFontUploader({ value, onChange }: Props) {
   const [weight, setWeight] = useState("400");
   const [busy, setBusy] = useState(false);
 
-  const onPick = async (file: File | undefined) => {
-    if (!file) return;
+  // Obszar wgrywania nie oddaje pustej listy (patrz `emit` w `upload-area`),
+  // więc pole dostaje zawsze konkretny plik - własny strażnik byłby martwy.
+  const onPick = async (file: File) => {
     if (!tenantId) {
       toast.error(t("adminPanesMisc.customFont.errNoTenant"));
       return;
