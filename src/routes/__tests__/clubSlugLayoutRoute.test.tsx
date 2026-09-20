@@ -176,52 +176,52 @@ describe("układ klubu - czysty odczyt karty", () => {
     expect(wCache(queryClient, "inny-klub")).toEqual(h.club);
   });
 
-  it("czysty `null` to 404 - slug, którego w bazie nie ma, nie renderuje powłoki", async () => {
-    // To PRZYPINA stan faktyczny loadera (`notFoundIfClean`), a nie ocenia go:
-    // dwa przypadki niżej pokazują, czego ta reguła nie umie odróżnić.
+  it("czysty `null` NIE jest 404 z układu - powłoka renderuje się, a o istnieniu klubu rozstrzyga widok z widzem", async () => {
+    // `club_view` oddaje anonimowi wyłącznie kluby `public` + `active`, więc
+    // zero wierszy w SSR (zawsze anonimowym) nie odróżnia „slug nie istnieje”
+    // od „klub zamknięty” - układ nie ma prawa rzucać `notFound()`. Dwa testy
+    // niżej dowodzą obu konsekwencji tej reguły.
     h.club = null;
     let rzucone: unknown;
 
-    await uruchom(klient(), "/club/nie-ma", "nie-ma").catch((error: unknown) => {
+    const wynik = await uruchom(klient(), "/club/nie-ma", "nie-ma").catch((error: unknown) => {
       rzucone = error;
+      return null;
     });
 
-    expect(isNotFound(rzucone)).toBe(true);
+    expect(rzucone).toBeUndefined();
+    expect(wynik?.club).toBeNull();
   });
 
-  // --- DWA DEFEKTY UJAWNIONE PRZEZ TEN PLIK --------------------------------
+  // --- DWA DEFEKTY UJAWNIONE PRZEZ TEN PLIK (naprawione 2026-09-20) ----------
   //
-  // Oba dotyczą KODU PRODUKCYJNEGO (`src/routes/club.$clubSlug.tsx`), więc nie
-  // są tu naprawiane - są OPISANE jako `it.fails` z konsekwencją dla człowieka
-  // (ta sama konwencja, co w `publicContent.test.ts`). Gdy łatka wejdzie, oba
-  // trzeba przełączyć na zwykłe `it`.
+  // Oba dotyczyły KODU PRODUKCYJNEGO (`src/routes/club.$clubSlug.tsx`): układ
+  // rzucał `notFound()` z czystego odczytu ANONIMOWEGO i wypuszczał 404 z
+  // polityką treści. Testy niżej przypinają ZAMIERZONE zachowanie po łatce.
 
-  it.fails(
-    "ZERO WIERSZY DLA ANONIMA NIE ZNACZY „KLUBU NIE MA” - członek klubu zamkniętego dostaje 404",
-    async () => {
-      // `club_view` (migracja 20260808210000, predykat pozytywny) oddaje
-      // ANONIMOWI wyłącznie kluby `public` + `active`. Dokument SSR jest
-      // z konstrukcji anonimowy (sesja mieszka w localStorage), więc czysty
-      // odczyt karty klubu `members`/`private`/`secret`/`draft` ZAWSZE daje
-      // `null` - a `notFoundIfClean` zamienia to w twarde HTTP 404 na CAŁYM
-      // poddrzewie `/club/<slug>/*`.
-      //
-      // KONSEKWENCJA: członek klubu zamkniętego, który otwiera link z maila,
-      // z LinkedIna albo z zakładki (czyli ZIMNY dokument), dostaje „nie
-      // znaleziono" zamiast swojego klubu. Przed F09 loadery liściowe robiły
-      // `.catch(() => null)` i nie 404-owały nigdy: dokument oddawał powłokę,
-      // a `useClubBySlug` dociągał kartę KLUCZEM Z WIDZEM po hydratacji.
-      //
-      // ŁATKA: układ nie ma prawa rozstrzygać istnienia klubu z odczytu
-      // anonimowego - `const club = card.data;` zamiast `notFoundIfClean(card)`.
-      // Rozstrzygnięcie „klub nie istnieje" należy do `ClubHubRoute`, który
-      // czyta klucz z widzem i ma już na to gałąź (`club.reason.not_found`).
-      h.club = null;
-      await expect(uruchom(klient(), HUB)).resolves.toEqual({ club: null, coverPreload: null });
-    },
-  );
+  it("ZERO WIERSZY DLA ANONIMA NIE ZNACZY „KLUBU NIE MA” - członek klubu zamkniętego dostaje 404", async () => {
+    // `club_view` (migracja 20260808210000, predykat pozytywny) oddaje
+    // ANONIMOWI wyłącznie kluby `public` + `active`. Dokument SSR jest
+    // z konstrukcji anonimowy (sesja mieszka w localStorage), więc czysty
+    // odczyt karty klubu `members`/`private`/`secret`/`draft` ZAWSZE daje
+    // `null` - a `notFoundIfClean` zamienia to w twarde HTTP 404 na CAŁYM
+    // poddrzewie `/club/<slug>/*`.
+    //
+    // KONSEKWENCJA: członek klubu zamkniętego, który otwiera link z maila,
+    // z LinkedIna albo z zakładki (czyli ZIMNY dokument), dostaje „nie
+    // znaleziono" zamiast swojego klubu. Przed F09 loadery liściowe robiły
+    // `.catch(() => null)` i nie 404-owały nigdy: dokument oddawał powłokę,
+    // a `useClubBySlug` dociągał kartę KLUCZEM Z WIDZEM po hydratacji.
+    //
+    // ŁATKA: układ nie ma prawa rozstrzygać istnienia klubu z odczytu
+    // anonimowego - `const club = card.data;` zamiast `notFoundIfClean(card)`.
+    // Rozstrzygnięcie „klub nie istnieje" należy do `ClubHubRoute`, który
+    // czyta klucz z widzem i ma już na to gałąź (`club.reason.not_found`).
+    h.club = null;
+    await expect(uruchom(klient(), HUB)).resolves.toEqual({ club: null, coverPreload: null });
+  });
 
-  it.fails("404 NIE POWINIEN ZAMARZAĆ NA BRZEGU - należy mu się `no-store`", async () => {
+  it("404 NIE POWINIEN ZAMARZAĆ NA BRZEGU - należy mu się `no-store`", async () => {
     // Nagłówek jest ustawiany PRZED rzutem, więc 404 wychodzi z polityką
     // treści (`public, s-maxage=900`). Doktryna repo jest odwrotna i stoi
     // wprost w `category.$slug.tsx`: `resilientCacheControl(degraded ||

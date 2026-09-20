@@ -10,7 +10,10 @@ import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+// `MenuIcon` = `DynamicIcon` z `allowFull={false}`: nieznana nazwa ikony rysuje
+// `Circle` z zestawu kuratorowanego, zamiast dociągać pełny rejestr lucide
+// (109 KB gzip) w bocie menu, które jedzie na każdej stronie.
+import { MenuIcon as DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";

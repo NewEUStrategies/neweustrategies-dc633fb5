@@ -13,7 +13,9 @@
 //    referencyjnym (bez podpisów) efekt jest pikselowo ten sam.
 import { forwardRef, type CSSProperties } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+// `MenuIcon` = tryb strict: nieznana nazwa z konfiguracji rysuje ikonę zastępczą
+// z zestawu kuratorowanego zamiast dociągać pełny rejestr (109 KB gzip) do chrome.
+import { MenuIcon as DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LiveTabBadge } from "./LiveTabBadge";
 import { bottomBarHref, itemAccent, type MobileBottomBarItem } from "@/lib/mobileBottomBar/config";
 

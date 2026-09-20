@@ -199,6 +199,37 @@ describe("typografia zakresowa", () => {
     expect(css).toContain('[data-sec-id="a"] a:hover{color:rgb(10, 11, 12);}');
   });
 
+  it("<style> sekcji stoi PRZED jej kolumnami, nie po nich", () => {
+    // F29c. Przy strumieniowanym HTML parser maluje to, co już wczytał: styl
+    // dojeżdżający PO kolumnach znaczy jedną klatkę treści bez typografii
+    // sekcji i bez mobilnej kolejności kolumn - czyli przesunięcie układu
+    // dokładnie w momencie, w którym sekcja się pojawia. Asercja idzie na
+    // KOLEJNOŚĆ W DRZEWIE, bo tylko ona odpowiada kolejności w strumieniu.
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([
+          section("a", [column("a-c", [widget("a-w")], { order: { mobile: 2 } })], {
+            typography: { textColor: "rgb(4, 5, 6)" },
+          }),
+        ])}
+        lang="pl"
+      />,
+    );
+    const sekcja = container.querySelector('[data-sec-id="a"]')!;
+    const wezly = [...sekcja.querySelectorAll("style, [data-col-id]")];
+    const pierwszaKolumna = wezly.findIndex((el) => el.hasAttribute("data-col-id"));
+    const style = wezly.filter((el) => el.tagName === "STYLE");
+    // Oba bloki sekcji (typografia + kolejność kolumn na telefonie) są
+    // wyemitowane i oba są PRZED pierwszą kolumną.
+    expect(style.length).toBeGreaterThanOrEqual(2);
+    expect(pierwszaKolumna).toBeGreaterThan(0);
+    for (const el of style) {
+      expect(wezly.indexOf(el)).toBeLessThan(pierwszaKolumna);
+    }
+    const css = style.map((el) => el.textContent).join("\n");
+    expect(css).toContain('[data-sec-id="a"] [data-col-id="a-c"]{order:2;}');
+  });
+
   it("wartość z bazy NIE potrafi zamknąć elementu <style>", () => {
     const { container } = renderWithQueryClient(
       <BuilderRenderer

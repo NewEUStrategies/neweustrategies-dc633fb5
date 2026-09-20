@@ -21,8 +21,13 @@
 //   * zalogowany czytelnik dostaje po hydratacji własny klucz z widzem -
 //     to jest zamierzone i opisane przy `clubKeys.bySlugViewer`.
 //
-// 404 WYŁĄCZNIE Z CZYSTEGO ODCZYTU (`notFoundIfClean`): zdegradowany odczyt
-// nie ma prawa wypisać żywego klubu z indeksu wyszukiwarki.
+// BEZ 404 Z TEGO LOADERA. `club_view` oddaje ANONIMOWI wyłącznie kluby
+// `public` + `active` (migracja A19), a dokument SSR jest z konstrukcji
+// anonimowy - zero wierszy nie znaczy więc „klubu nie ma”, tylko „nie dla
+// anonima”. Twarde 404 wypisywałoby z indeksu (i z zakładek członków) każdy
+// klub `members`/`private`/`secret`. Rozstrzygnięcie „klub nie istnieje” należy
+// do komponentu, który po hydratacji czyta klucz Z WIDZEM (`ClubHubRoute` ma
+// już miękką gałąź `club === null`, HTTP 200).
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { fetchClubBySlug } from "@/lib/clubs/publicClub";
@@ -30,7 +35,6 @@ import { toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubCoverPreload } from "@/lib/clubs/clubCoverPreload";
 import type { ClubViewRow } from "@/lib/clubs/types";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
-import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { imagePreloadLink, imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
 
@@ -55,7 +59,11 @@ export const Route = createFileRoute("/club/$clubSlug")({
       null,
       { deadlineAt: Date.now() + CLUB_CARD_BUDGET_MS, label: `club:${params.clubSlug}` },
     );
-    setCacheControlHeader(resilientCacheControl(card.degraded));
+    // `no-store` należy się DWÓM sytuacjom przejściowym: renderowi zdegradowanemu
+    // i brakowi wiersza (klub niepubliczny albo opublikowany minutę po wizycie
+    // crawlera - wzór: category.$slug.tsx). Czysta karta publiczna zostaje przy
+    // polityce treści.
+    setCacheControlHeader(resilientCacheControl(card.degraded || card.data === null));
     // ZDEGRADOWANY ODCZYT MUSI ZOSTAWIĆ CACHE PUSTY. `loadResilient` zasiewa
     // fallback (`null`, `updatedAt: 0`), bo jego typowy konsument to
     // `useSuspenseQuery` - tu konsumentem jest zwykłe `useQuery`
@@ -70,9 +78,9 @@ export const Route = createFileRoute("/club/$clubSlug")({
         exact: true,
       });
     }
-    // Czysty odczyt bez wiersza to 404 (klub `secret` bez dostępu nie zdradza,
-    // że istnieje); odczyt zdegradowany oddaje `null` i renderuje się dalej.
-    const club = notFoundIfClean(card);
+    // Brak wiersza (czysty albo zdegradowany) oddaje `null` i renderuje się
+    // dalej - patrz nagłówek pliku; nagłówek dokumentu dostał już `no-store`.
+    const club = card.data;
 
     // HINT LCP wyłącznie tam, gdzie okładka NAPRAWDĘ jest elementem LCP -
     // regułę i jej dowód trzyma `clubCoverPreload` (hub klubu za bramką
