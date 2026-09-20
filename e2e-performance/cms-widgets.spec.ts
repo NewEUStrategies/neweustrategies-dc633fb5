@@ -6,7 +6,12 @@ import {
   CMS_TITLES,
   cmsFixtureResponse,
 } from "../scripts/performance/cmsFixture";
-import { fixtureImage, homeFixture, isFixtureBackend } from "../scripts/performance/homeFixture";
+import {
+  fixtureImage,
+  homeFixture,
+  isAnalyticsScript,
+  isFixtureBackend,
+} from "../scripts/performance/homeFixture";
 
 declare global {
   interface Window {
@@ -92,6 +97,17 @@ for (const engine of CMS_ENGINES)
                   return route.fulfill({
                     body: fixtureImage,
                     contentType: homeFixture.fixture_image_type,
+                  });
+                // ANALITYKA JEST SPEŁNIANA, NIE PRZERYWANA. `route.abort()`
+                // zapala `requestfailed`, a ten dopisuje „Script failed: …" -
+                // czyli dokładnie ten błąd, który chcemy usunąć. Pusty skrypt
+                // ładuje się poprawnie i nie robi nic, więc lista błędów
+                // zostaje pusta, a strona zachowuje się jak z wyciętą zgodą.
+                if (isAnalyticsScript(req.url()))
+                  return route.fulfill({
+                    status: 200,
+                    contentType: "application/javascript",
+                    body: "",
                   });
                 errors.push(`Unrecorded external resource: ${req.url()}`);
                 await route.abort();

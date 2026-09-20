@@ -12,6 +12,10 @@ import {
   resolvePopupFields,
   type PopupFieldConfig,
 } from "@/lib/newsletter/popupFields";
+// Zakładka woła klucze `adminPopupSignup.*`, a nakładkę wciągał dotąd
+// wyłącznie rodzic (`SignupPopupEditor`). Taka zależność znika w chwili,
+// w której zakładka trafi do innego chunka - wtedy ekran pokazuje klucze.
+import "@/lib/i18n-admin-popup-signup";
 
 export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value" | "onChange">) {
   const { t } = useTranslation();

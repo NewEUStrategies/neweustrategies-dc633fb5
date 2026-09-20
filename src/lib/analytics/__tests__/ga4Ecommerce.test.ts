@@ -10,6 +10,16 @@ import {
   ga4Purchase,
 } from "../ga4Ecommerce";
 import type { CartItem } from "@/lib/cart/cartStore";
+import { DZIEN, freezeClock, relativeIso } from "@/test/time";
+
+// ZEGAR ZAMROŻONY. `addedAt` pozycji koszyka to ta sama data, którą `pruneCart`
+// (`cartStore.ts`) zestawia z oknem `CART_MAX_AGE_DAYS` liczonym z `Date.now()`.
+// Żadna z testowanych tu funkcji tego pola nie czyta, ale literał kalendarzowy
+// w fixturze koszyka starzeje się sam z siebie - pierwszy test, który przepuści
+// tę pozycję przez `pruneCart`, dostanie po cichu pustą listę. Odtąd „teraz" jest
+// stałą, a `addedAt` liczy się WZGLĘDEM niej, więc odległość fixture'u od „teraz"
+// nie zmienia się z upływem czasu.
+freezeClock();
 
 const POZYCJA: CartItem = {
   id: "e1:t1",
@@ -23,7 +33,7 @@ const POZYCJA: CartItem = {
   ticketNameEn: "Standard",
   priceCents: 24900,
   currency: "PLN",
-  addedAt: "2026-01-01T00:00:00.000Z",
+  addedAt: relativeIso(-2 * DZIEN),
 };
 
 interface Layered {
