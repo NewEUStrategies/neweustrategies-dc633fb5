@@ -12,10 +12,15 @@
 // Zasada: polityka jest DOMYŚLNA, nigdy nadrzędna. Trasa, która ustawiła
 // własny nagłówek (np. home z opt-outem `private, no-store` przy degradacji,
 // preview/personalized), zawsze wygrywa - middleware dokłada nagłówek tylko
-// wtedy, gdy odpowiedź w ogóle go nie niesie. Kwalifikują się wyłącznie pełne
-// (200) dokumenty HTML z żądań GET poza deny-listą powierzchni zalogowanych /
-// transakcyjnych (współdzieloną z NES Edge Cache i Speculation Rules - jedna
-// lista, jedna doktryna).
+// wtedy, gdy odpowiedź w ogóle go nie niesie. Politykę WSPÓLNĄ dostają
+// wyłącznie pełne (200) dokumenty HTML z żądań GET poza deny-listą powierzchni
+// zalogowanych / transakcyjnych (współdzieloną z NES Edge Cache i Speculation
+// Rules - jedna lista, jedna doktryna).
+//
+// Od 2026-09-20 (twardnienie H1) deny-lista NIE oznacza już „brak nagłówka",
+// tylko jawne `private, no-store`: odpowiedź bez `Cache-Control` jest dla
+// pośrednika zaproszeniem do własnej heurystyki, a nie zakazem. Uzasadnienie
+// i kolejność względem bariery żądań sesyjnych - przy samej gałęzi niżej.
 //
 // Kontrakt bezpieczeństwa jest ten sam co dla całego publicznego SSR:
 // dokument to anonimowa skorupa (sesja w localStorage, treści gated wydaje
@@ -37,6 +42,13 @@ import { parseCacheControl } from "./parseCacheControl";
  * okno stale zachowują ochronę przed stampede bez zamrażania relacji.
  */
 const LIVE_PATH_PREFIXES = ["/live"] as const;
+
+/**
+ * Polityka powierzchni zalogowanych i transakcyjnych - stała modułu, żeby nie
+ * składać jej przy każdym żądaniu i żeby była DOSŁOWNIE tą samą wartością, co
+ * opt-out deklarowany przez trasy (`routes/admin.tsx`).
+ */
+const NO_STORE = cacheControlHeader({ cacheable: false });
 
 /** Cache-Control dla powierzchni live: świeżość w sekundach. */
 export function liveCacheControl(): string {
@@ -124,6 +136,37 @@ export function planDefaultCacheControl(
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("text/html")) return null;
 
+  const url = new URL(request.url);
+  const { pathname } = url;
+  // Zasoby z rozszerzeniem mają własne polityki (sitemapy, feedy, robots).
+  if (/\.[a-z0-9]+$/i.test(pathname)) return null;
+
+  // DENY-LISTA DOSTAJE JAWNE `private, no-store`, A NIE BRAK NAGŁÓWKA
+  // (twardnienie H1 z audytu CWV 2026-09-20, ustalenie A1).
+  //
+  // Do tej pory ta gałąź zwracała `null`, czyli „nie dokładaj nic" - i dla
+  // dokumentów `/admin`, `/profile`, `/messages`, `/checkout` … odpowiedź
+  // wychodziła na drut BEZ ŻADNEGO `Cache-Control`. Deny-lista mówi „nie
+  // zapisuj" WYŁĄCZNIE NASZEMU brzegowi (`documentStorePolicy`); dla każdego
+  // pośrednika po drodze - hostingu, proxy firmowego, przeglądarki - brak
+  // nagłówka nie jest zakazem, tylko zaproszeniem do WŁASNEJ HEURYSTYKI, a ta
+  // dla odpowiedzi 200 text/html bywa „można trzymać". Powierzchnia
+  // zalogowana i transakcyjna to jedyne miejsce w tym serwisie, gdzie cena
+  // takiej pomyłki to cudza treść w cudzej przeglądarce.
+  //
+  // Nadanie `private, no-store` wyłącznie ZAWĘŻA uprawnienia pośrednika, więc
+  // nie da się tym niczego zepsuć; ta sama asymetria, na której stoi opt-out
+  // trasy wyżej. `routes/admin.tsx` deklaruje tę wartość sam (`beforeLoad`)
+  // i nadal wygrywa gałęzią opt-outu - obie drogi niosą TĘ SAMĄ wartość, więc
+  // nie ma między nimi rozjazdu.
+  //
+  // KOLEJNOŚĆ WZGLĘDEM BARIERY ŻĄDAŃ SESYJNYCH JEST CZĘŚCIĄ NAPRAWY. Bariera
+  // niżej zwraca `null` dla żądań z `Authorization`/`sb-*`, a to jest ZWYKŁY
+  // stan tych właśnie powierzchni: gdyby deny-lista stała za nią, zalogowany
+  // czytelnik `/profile` dalej dostawał odpowiedź bez nagłówka, czyli naprawa
+  // omijałaby swój główny przypadek.
+  if (isDeniedPath(pathname)) return NO_STORE;
+
   // Sesyjne żądania nie dostają współdzielonej polityki (pas i szelki - NES
   // Edge Cache i tak je BYPASS-uje, ale nagłówek public na odpowiedzi dla
   // żądania z tokenem byłby mylący dla pośredników). Dotyczy to także
@@ -131,12 +174,6 @@ export function planDefaultCacheControl(
   if (request.headers.get("authorization")) return null;
   const cookie = request.headers.get("cookie") ?? "";
   if (/(?:^|;\s*)sb-[^=]*=/.test(cookie)) return null;
-
-  const url = new URL(request.url);
-  const { pathname } = url;
-  // Zasoby z rozszerzeniem mają własne polityki (sitemapy, feedy, robots).
-  if (/\.[a-z0-9]+$/i.test(pathname)) return null;
-  if (isDeniedPath(pathname)) return null;
   // POWIERZCHNIA ŻYWA WYPRZEDZA dyrektywę czystego renderu, nie odwrotnie.
   // Odwrotna kolejność wyglądała naturalnie („trasa wie lepiej"), ale
   // reintrodukowałaby naprawiany tu defekt PO ŚCIEŻCE: strona CMS opublikowana

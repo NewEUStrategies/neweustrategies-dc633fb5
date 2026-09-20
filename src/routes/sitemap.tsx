@@ -16,6 +16,10 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
+
+/** Wspólny termin trzech zapytań mapy - biegną równolegle, więc jeden budżet. */
+const SITEMAP_SSR_BUDGET_MS = 2_000;
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 
 export const COPY = {
@@ -64,13 +68,23 @@ export const Route = createFileRoute("/sitemap")({
     // pozwalającym brzegowi trzymać ten kadłubek przez 15 minut świeżości plus
     // dobę okna stale. Mapa strony jest powierzchnią, z której crawler czerpie
     // strukturę serwisu, więc jej okrojona wersja w cache'u kosztuje indeks.
-    const results = await Promise.allSettled([
-      context.queryClient.ensureQueryData(publicPagesTreeQueryOptions()),
-      context.queryClient.ensureQueryData(publicCategoriesQueryOptions()),
-      context.queryClient.ensureQueryData(blogListQueryOptions()),
-    ]);
+    //
+    // BUDŻET (2026-09-20): `.allSettled` chroniło przed rzutem, ale nie przed
+    // czekaniem - zwis jednego zapytania trzymał mapę aż do watchdoga SSR.
+    // Po terminie render idzie z `no-store`, a spóźnione zapytania kończą się
+    // w tle (cache zapytań je przyjmie dla następnego żądania).
+    const results = await settleWithinBudget(
+      Promise.allSettled([
+        context.queryClient.ensureQueryData(publicPagesTreeQueryOptions()),
+        context.queryClient.ensureQueryData(publicCategoriesQueryOptions()),
+        context.queryClient.ensureQueryData(blogListQueryOptions()),
+      ]),
+      SITEMAP_SSR_BUDGET_MS,
+    );
     setCacheControlHeader(
-      resilientCacheControl(results.some((result) => result.status === "rejected")),
+      resilientCacheControl(
+        results === BUDGET_LAPSED || results.some((result) => result.status === "rejected"),
+      ),
     );
     return null;
   },

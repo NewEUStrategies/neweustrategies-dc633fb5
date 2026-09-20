@@ -11,9 +11,9 @@
  *   1. `/cart`, `/checkout/cancel`, `/cookies`, `/error` - treść stoi w JSX,
  *      loader nie ma czego rozgrzewać (11 tras);
  *   2. `/messages`, `/profile/*`, `/people` - render jest za bramką sesji,
- *      a serwer sesji NIE MA (stan auth siedzi w localStorage - patrz komentarz
- *      przy `ssr: false` w `routes/admin.tsx`), więc loader nie zmieniłby ani
- *      bajtu SSR-owego HTML-a (27 tras);
+ *      a serwer sesji NIE MA (stan auth siedzi w localStorage - doktryna
+ *      i dowód: komentarz przy `beforeLoad` w `routes/admin.tsx`), więc loader
+ *      nie zmieniłby ani bajtu SSR-owego HTML-a (27 tras);
  *   3. `/events/$slug`, `/blog` - klucz treści grzeje loader TRASY ALBO PRZODKA
  *      (45 tras);
  *   4. `/events/$slug/agenda` i cztery inne podstrony modułowe - własne
@@ -42,8 +42,13 @@
  * generatora.
  *
  * PUBLICZNA = nie panel + nie za bramką sesji. Panel: cała gałąź `/admin`
- * (`routes/admin.tsx` przekierowuje każdego bez `isStaff` na `/login` i ma
- * `ssr: false`). Bramka sesji: trasa renderuje `<AuthGate>` albo nawiguje na
+ * (`routes/admin.tsx` przekierowuje każdego bez `isStaff` na `/login`).
+ * KRYTERIUM JEST ŚCIEŻKOWE, NIE `ssr: false` - i to jest sprostowanie, nie
+ * szczegół: od 2026-09-20 (audyt CWV, F32) `/admin` SSR-uje sam szkielet
+ * `AdminShellSkeleton` i `ssr: false` na tej trasie JUŻ NIE MA. Wykluczenie
+ * panelu stoi więc na `ADMIN_PATH_PREFIX`, a nie na fladze, która zniknęła -
+ * gdyby stało na fladze, 203 trasy panelu wjechałyby jednym commitem do spisu
+ * tras publicznych. Bramka sesji: trasa renderuje `<AuthGate>` albo nawiguje na
  * `/login` - i DZIEDZICZY się w dół drzewa tras, bo `/profile` opakowuje
  * wszystkie swoje dzieci jednym `<AuthGate>`. Wykrywanie jest tekstowe na
  * źródle bez komentarzy, więc opis bramki w komentarzu jej nie udaje.
@@ -1018,7 +1023,7 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
 // --- render raportu ---------------------------------------------------------
 
 const EXCLUSION_LABEL: Record<RouteExclusion, string> = {
-  "panel-admin": "panel /admin (ssr: false + redirect bez isStaff)",
+  "panel-admin": "panel /admin (szkielet w SSR + redirect bez isStaff)",
   "bramka-sesji": "za bramką sesji (serwer nie ma sesji, SSR oddaje CTA logowania)",
   "ssr-wylaczony": "ssr: false (brak SSR-owego HTML-a)",
   "bez-komponentu": "bez komponentu (server: { handlers } - nie oddaje HTML-a)",
@@ -1080,24 +1085,35 @@ const EXCLUSION_ORDER: readonly RouteExclusion[] = [
  *
  * SPROSTOWANIE DO ZLECENIA WYDANIA 10. Punkt A8 podawał „11 bez loadera + 6
  * z loaderem = 17, z czego 12 w cache" i kazał zamrozić właśnie te liczby.
- * ŻADNA z nich nie odtwarza się na tym drzewie: ani jako dzisiejszy pomiar
+ * ŻADNA z nich nie odtwarzała się na tamtym drzewie: ani jako ówczesny pomiar
  * (29/26), ani jako stan zamrożony 2026-09-01 (21/16). Zamrażamy POMIAR,
  * nie liczbę ze zlecenia - sufit ustawiony poniżej rzeczywistości byłby
  * czerwony na wejściu, a bramka czerwona na wejściu nie pilnuje niczego.
- * Regres wobec 21/16 jest zarejestrowany osobno, jako `it.fails`.
+ *
+ *   2026-09-20 (ten HEAD):     393 trasy -> 93 publiczne strony SSR
+ *                              -> 15 o samych zimnych kluczach (9 bez loadera
+ *                              w łańcuchu + 6 z loaderem, który tych kluczy
+ *                              nie grzeje), 12 w cache dokumentów.
+ *
+ * RATCHET W DÓŁ 29 -> 15 (i 26 -> 12). Ubyło czternaście tras liściowych
+ * `/club/$clubSlug/**` - nie dlatego, że każda dostała loader, tylko dlatego,
+ * że ich klucze grzeje JEDEN loader układu `src/routes/club.$clubSlug.tsx`
+ * (audyt CWV 2026-09-20, F09; pełny spis w nagłówku
+ * `scripts/lib/coldPublicRouteBaseline.ts`). To jest ODBIÓR tej poprawy
+ * w rozumieniu `coldRouteRatchetFailed`: wpisy znikają z listy, a oba sufity
+ * schodzą o tyle, ile ubyło - inaczej naprawione trasy zostawiłyby na liście
+ * wolne sloty, w które ta sama regresja wraca bez zapalenia bramki.
+ *
+ * ZAMKNIĘTY WPIS REJESTRU: regres 21 -> 29 z gałęzi minisite'ów klubowych,
+ * zapisany tu jako `it.fails` w suicie („REGRES ZAREJESTROWANY"), został
+ * SPŁACONY tą samą falą prac (15 < 21, 12 < 16), więc wpis i towarzyszące mu
+ * stałe `COLD_*_2026_09_01` zostały zdjęte razem z nim - dokładnie tak, jak
+ * zapowiadał jego komentarz. Historia zostaje w kronice wyżej.
  */
-export const FROZEN_COLD_PUBLIC_ROUTES = 29;
+export const FROZEN_COLD_PUBLIC_ROUTES = 15;
 
 /** Ta część listy, której pusty dokument NAPRAWDĘ wchodzi do NES Edge Cache. */
-export const FROZEN_COLD_CACHED_ROUTES = 26;
-
-/**
- * Stan zamrożony z 2026-09-01 - zachowany JAKO ZAPIS, nie jako próg. Służy
- * wyłącznie temu, żeby przyrost od tamtej daty miał w suicie własny, nazwany
- * wpis (`it.fails`), zamiast rozpłynąć się w podniesionym suficie.
- */
-export const COLD_PUBLIC_ROUTES_2026_09_01 = 21;
-export const COLD_CACHED_ROUTES_2026_09_01 = 16;
+export const FROZEN_COLD_CACHED_ROUTES = 12;
 
 export function routesMissingWarmedLoader(report: PublicRouteLoaderReport): readonly RouteFacts[] {
   return report.routes.filter(

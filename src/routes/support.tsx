@@ -23,6 +23,9 @@ import { hasRenderableBody } from "@/lib/access/gating";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { withBudget } from "@/lib/asyncBudget";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { hasSsrQueryData } from "@/lib/ssr/routeSsrDeadline";
 import { SUPPORT_DOC_BUDGET_MS, SUPPORT_SEGMENTS } from "@/lib/supportRouteConfig";
 
 // Dokument buildera dla /support jest opcjonalny: gdy redakcja opublikuje
@@ -31,11 +34,16 @@ import { SUPPORT_DOC_BUDGET_MS, SUPPORT_SEGMENTS } from "@/lib/supportRouteConfi
 export const Route = createFileRoute("/support")({
   component: SupportPage,
   loader: async ({ context }) => {
+    const options = resolvedContentQueryOptions(SUPPORT_SEGMENTS);
     await withBudget(
-      context.queryClient
-        .ensureQueryData(resolvedContentQueryOptions(SUPPORT_SEGMENTS))
-        .catch(() => null),
+      context.queryClient.ensureQueryData(options).catch(() => null),
       SUPPORT_DOC_BUDGET_MS,
+    );
+    // Dokument redakcyjny nie dojechał w budżecie (albo baza odrzuciła) ->
+    // render bez treści NIE MOŻE utrwalić się na brzegu z domyślną polityką
+    // (900 s + doba stale). Czysty render zostaje przy polityce treści.
+    setCacheControlHeader(
+      resilientCacheControl(!hasSsrQueryData(context.queryClient, options.queryKey)),
     );
   },
   head: () => {

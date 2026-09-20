@@ -19,22 +19,29 @@
 //
 // Lista może się tylko SKRACAĆ. Naprawiona trasa znika stąd razem z obniżeniem
 // obu sufitów.
+//
+// ── SKRÓCENIE 2026-09-20: 29 -> 15 wpisów (w cache dokumentów 26 -> 12) ─────
+// Zapadka zadziałała w ZAMIERZONYM kierunku i to jest odbiór tej poprawy, a nie
+// aktualizacja liczby. Ubyło CZTERNAŚCIE tras liściowych `/club/$clubSlug/**`:
+//
+//   about, board, calendar, documents, e/$eventSlug, experts, index, insights,
+//   members, minisite, new, schedule, spotlight, t/$threadSlug
+//
+// Żadna z nich nie dostała własnego loadera. Wszystkie czternaście grzeje dziś
+// JEDEN loader UKŁADU `src/routes/club.$clubSlug.tsx`, który pobiera kartę
+// klubu pod budżetem 800 ms i zasiewa DOKŁADNIE ten klucz, który czyta komponent
+// dla widza anonimowego (`clubKeys.bySlugViewer(slug, null)`). Wcześniej każda
+// z tych tras robiła własny round-trip do `club_view` na klucz `clubKeys.bySlug`
+// - czyli klucz, którego komponent nie czytał - więc ten sam odczyt leciał
+// drugi raz po hydratacji, a SSR oddawał szkielet (audyt CWV 2026-09-20, F09).
+// Rozjazdu tej klasy pilnuje od teraz reguła W4 bramki `check:loader-policy`
+// (`src/lib/ci/loaderPolicy.ts`), żeby naprawa nie zależała od czyjejś pamięci.
+//
+// Pozostałe 15 wpisów to dług NIETKNIĘTY przez tę falę prac - lista niżej jest
+// jego pełnym spisem imiennym, wygenerowanym `--print-baseline` ze stanu na
+// dysku, a nie przepisanym ręcznie.
 export const COLD_PUBLIC_ROUTE_BASELINE: readonly (readonly [string, string])[] = [
   ["src/routes/checkout.$planId.tsx", "/checkout/$planId"],
-  ["src/routes/club.$clubSlug.about.tsx", "/club/$clubSlug/about"],
-  ["src/routes/club.$clubSlug.board.tsx", "/club/$clubSlug/board"],
-  ["src/routes/club.$clubSlug.calendar.tsx", "/club/$clubSlug/calendar"],
-  ["src/routes/club.$clubSlug.documents.tsx", "/club/$clubSlug/documents"],
-  ["src/routes/club.$clubSlug.e.$eventSlug.tsx", "/club/$clubSlug/e/$eventSlug"],
-  ["src/routes/club.$clubSlug.experts.tsx", "/club/$clubSlug/experts"],
-  ["src/routes/club.$clubSlug.index.tsx", "/club/$clubSlug/"],
-  ["src/routes/club.$clubSlug.insights.tsx", "/club/$clubSlug/insights"],
-  ["src/routes/club.$clubSlug.members.tsx", "/club/$clubSlug/members"],
-  ["src/routes/club.$clubSlug.minisite.tsx", "/club/$clubSlug/minisite"],
-  ["src/routes/club.$clubSlug.new.tsx", "/club/$clubSlug/new"],
-  ["src/routes/club.$clubSlug.schedule.tsx", "/club/$clubSlug/schedule"],
-  ["src/routes/club.$clubSlug.spotlight.tsx", "/club/$clubSlug/spotlight"],
-  ["src/routes/club.$clubSlug.t.$threadSlug.tsx", "/club/$clubSlug/t/$threadSlug"],
   ["src/routes/club.apply.tsx", "/club/apply"],
   ["src/routes/club.index.tsx", "/club"],
   ["src/routes/club.join.$token.tsx", "/club/join/$token"],

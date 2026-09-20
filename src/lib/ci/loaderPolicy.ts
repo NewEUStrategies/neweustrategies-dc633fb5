@@ -48,6 +48,15 @@
  *       `setCacheControlHeader(` albo `resilientCacheControl(` w tym samym
  *       ciele. Oba są wywołaniami w pliku trasy.
  *
+ *       DWA ZAWĘŻENIA, OBA ŚWIADOME. (a) Liczy się CIAŁO LOADERA, nie
+ *       `beforeLoad`: o polityce ma decydować to miejsce, które WIE, czy render
+ *       jest zdegradowany, a `beforeLoad` biegnie przed danymi. (b) Nagłówek
+ *       ustawiony przez trasę-RODZICA nie zwalnia dziecka - rodzic nie wie
+ *       o degradacji dziecka, więc jego `resilientCacheControl(false)` byłby
+ *       właśnie tym fałszywym „czysto", którego ta reguła pilnuje. Oba
+ *       zawężenia dają dziś ZERO fałszywych alarmów (zmierzone na 66 loaderach
+ *       tras publicznych).
+ *
  *   W2: TAK dla ZAMKNIĘTEJ listy sygnałów sieci (niżej, `NETWORK_SIGNALS`).
  *       CZEGO NIE WIDZI: funkcji serwerowej zawołanej pod dowolnym aliasem
  *       (`await pobierzCos()`), bo „czy ten identyfikator chodzi do sieci" nie
@@ -109,27 +118,22 @@ export const FROZEN_DEGRADED_WITHOUT_CACHE_CONTROL: Readonly<Record<string, stri
   // wpuścić zdegradowanego potwierdzenia zakupu do wspólnego cache'u.
   "src/routes/checkout.success.tsx":
     "dokument potwierdzenia zakupu poza cache'em dokumentów (deny-lista) - dług doktrynalny, nie ekspozycja",
-  // REALNY DŁUG: obie trasy są indeksowane i BEZ nagłówka, więc ich render
-  // zdegradowany (dokument redakcyjny nie dojechał -> `.catch(() => null)`)
-  // dostaje z middleware `public, s-maxage=900, stale-while-revalidate=86400`.
-  "src/routes/support.tsx":
-    "strona mecenatu: `.catch(() => null)` na dokumencie redakcyjnym, brak nagłówka - wersja bez treści wchodzi do wspólnego cache'u",
-  "src/routes/contribute.tsx":
-    "strona dla kontrybutorów: `.catch(() => null)` na SEO strony statycznej, brak nagłówka - jak wyżej",
+  // 2026-09-20: `support.tsx` i `contribute.tsx` (realny dług: render bez treści
+  // wchodził do wspólnego cache'u) spłacone tego samego dnia - oba loadery
+  // ogłaszają politykę przez `resilientCacheControl`.
 };
 
 /**
  * ZAMROŻONE trasy publiczne, których loader woła sieć BEZ budżetu czasu
  * (reguła W2) - plik -> powód.
  *
- * ZMIERZONE 2026-09-20: dwie. Ta sama zasada skracania i ten sam warunek
- * „nieodebrana naprawa oblewa", co wyżej.
+ * ZMIERZONE 2026-09-20: dwie, spłacone tego samego dnia (zero). Ta sama zasada
+ * skracania i ten sam warunek „nieodebrana naprawa oblewa", co wyżej.
  */
 export const FROZEN_UNBUDGETED_NETWORK_LOADERS: Readonly<Record<string, string>> = {
-  "src/routes/sitemap.tsx":
-    "trzy `ensureQueryData` w `Promise.allSettled` bez budżetu - degradacja jest bramkowana (`resilientCacheControl`), ale czas do pierwszego bajtu ogranicza wyłącznie watchdog zapytań SSR",
-  "src/routes/contribute.tsx":
-    "`ensureQueryData(staticPageSeoQueryOptions(...)).catch(() => null)` bez budżetu - `.catch` chroni przed rzutem, nie przed czekaniem",
+  // 2026-09-20: `sitemap.tsx` (`settleWithinBudget` 2 000 ms) i `contribute.tsx`
+  // (`loadResilient` z terminem) spłacone tego samego dnia - lista pusta i taka
+  // ma zostać.
 };
 
 /**
@@ -228,10 +232,16 @@ export function isPublicRouteFile(file: string): boolean {
   const rest = normalized.slice(ROUTE_DIR.length);
   if (rest === "__root.tsx") return false;
   // Pliki generowane i pomocnicze: `routeTree.gen.ts` to sklejenie bez loaderów,
-  // `-nazwa.test.ts` / `__tests__/…` to testy (generator tras pomija przedrostek
+  // `-nazwa.test.ts` i `__tests__/…` to testy (generator tras pomija przedrostek
   // `-`), a plik testowy cytujący `ensureQueryData` nie jest loaderem.
+  //
+  // ODSIEWAMY WYŁĄCZNIE PRZEDROSTEK `-`, A NIE KAŻDY ZNAK NIELITEROWY. Szersze
+  // `[-_]` wyglądało równoważnie na dzisiejszym drzewie (jedyne pliki na `_` to
+  // `__root.tsx` i `__tests__/`), ale wycinałoby też UKŁADY BEZŚCIEŻKOWE
+  // (`_uklad.konto.tsx`) - a to są normalne trasy z loaderem. Bramka, która po
+  // cichu przestaje widzieć całą klasę tras, jest gorsza od jej braku.
   if (rest.endsWith("routeTree.gen.ts")) return false;
-  if (/(^|\/)[-_]/.test(rest)) return false;
+  if (/(^|\/)-/.test(rest)) return false;
   if (/\.(?:test|spec)\.[tj]sx?$/.test(rest)) return false;
   if (rest.includes("__tests__/")) return false;
   const head = rest.split(/[./]/)[0] ?? "";
@@ -393,8 +403,12 @@ function detailFor(facts: LoaderPolicyFacts, rule: LoaderPolicyRule): string {
       return `loader wychodzi do sieci (${facts.networkSignals.join(", ")}) bez budżetu czasu - czas do pierwszego bajtu ogranicza wyłącznie watchdog zapytań SSR, który kończy się RZUTEM, czyli statusem 500. Domknięcie: \`loadResilient\` albo \`withBudget(..., STALA_MS)\` / wspólny \`deadlineAt\` z \`routeSsrDeadline\``;
     case "keyParity":
       return `${facts.keyParityBreaks
-        .map((b) => `loader grzeje \`${b.warmed}\`, a komponent czyta \`${b.read}\` (linia ${b.line})`)
-        .join("; ")} - rozgrzewka zasila wyłącznie \`head()\`, a ciało strony i tak pyta bazę: jeden round-trip przed pierwszym bajtem I drugi po hydratacji, przy szkielecie w SSR (audyt F09)`;
+        .map(
+          (b) => `loader grzeje \`${b.warmed}\`, a komponent czyta \`${b.read}\` (linia ${b.line})`,
+        )
+        .join(
+          "; ",
+        )} - rozgrzewka zasila wyłącznie \`head()\`, a ciało strony i tak pyta bazę: jeden round-trip przed pierwszym bajtem I drugi po hydratacji, przy szkielecie w SSR (audyt F09)`;
   }
 }
 
@@ -412,7 +426,12 @@ export function analyzeLoaderPolicy(input: LoaderPolicyInput): LoaderPolicyRepor
     for (const facts of loaders) {
       if (!violates(facts, rule)) continue;
       if (frozen[facts.file] !== undefined) continue;
-      violations.push({ rule, kind: "nowy-dlug", file: facts.file, detail: detailFor(facts, rule) });
+      violations.push({
+        rule,
+        kind: "nowy-dlug",
+        file: facts.file,
+        detail: detailFor(facts, rule),
+      });
     }
     // NIEODEBRANA NAPRAWA OBLEWA. Nie jest to karanie za poprawę, tylko warunek,
     // bez którego zapadka nie zapada: dopóki naprawiona trasa stoi na liście,

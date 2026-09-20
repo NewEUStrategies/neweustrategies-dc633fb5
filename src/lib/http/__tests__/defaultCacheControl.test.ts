@@ -65,10 +65,36 @@ describe("planDefaultCacheControl", () => {
     ).toBeNull();
   });
 
-  it("respektuje deny-listę powierzchni zalogowanych/transakcyjnych", () => {
+  it("deny-lista dostaje JAWNE `private, no-store`, a nie brak nagłówka", () => {
+    // TWARDNIENIE H1 (audyt CWV 2026-09-20, A1). Do tej zmiany te ścieżki
+    // zwracały `null`, czyli odpowiedź szła na drut BEZ `Cache-Control` -
+    // a brak nagłówka nie jest dla pośrednika zakazem, tylko zaproszeniem do
+    // własnej heurystyki. Dokument panelu, profilu czy checkoutu to jedyne
+    // miejsce, gdzie cena takiej pomyłki to cudza treść w cudzej przeglądarce.
     for (const path of ["/admin/posts", "/profile", "/checkout/plan", "/en/admin", "/preview/t"]) {
-      expect(planDefaultCacheControl(req(path), res())).toBeNull();
+      expect(planDefaultCacheControl(req(path), res()), path).toBe(NO_STORE);
     }
+  });
+
+  it("deny-lista działa TAKŻE dla żądań z sesją - to ich zwykły stan", () => {
+    // Kolejność względem bariery żądań sesyjnych jest częścią naprawy: gdyby
+    // deny-lista stała ZA nią, zalogowany czytelnik `/profile` (czyli główny,
+    // a nie skrajny przypadek tej powierzchni) dalej dostawał odpowiedź bez
+    // nagłówka i twardnienie omijałoby swój własny cel.
+    expect(planDefaultCacheControl(req("/profile", { authorization: "Bearer t" }), res())).toBe(
+      NO_STORE,
+    );
+    expect(
+      planDefaultCacheControl(req("/messages", { cookie: "sb-access-token=abc" }), res()),
+    ).toBe(NO_STORE);
+  });
+
+  it("KONTROLA NEGATYWNA: ścieżka PUBLICZNA nadal dostaje politykę domyślną", () => {
+    // Bez tego przypadku „wszystko dostaje no-store" przechodziłoby jako
+    // naprawa - a byłoby wyłączeniem całego wspólnego cache'u dokumentów.
+    const value = planDefaultCacheControl(req("/category/geopolityka"), res());
+    expect(value).not.toBe(NO_STORE);
+    expect(value).toBe(contentCacheControl());
   });
 
   it("pomija ścieżki zasobów z rozszerzeniem (własne polityki feedów/sitemap)", () => {
@@ -128,7 +154,10 @@ describe("planDefaultCacheControl - dyrektywa trasy", () => {
 
   it("dyrektywa `public` NIE obchodzi deny-listy ani rozszerzeń", () => {
     const clean = contentCacheControl();
-    expect(planDefaultCacheControl(req("/profile"), res(), clean)).toBeNull();
+    // Deny-lista wygrywa z CZYSTĄ dyrektywą trasy - i od twardnienia H1 robi to
+    // jawnym `private, no-store`, a nie milczeniem. (Dyrektywa `no-store`
+    // z loadera dochodzi gałęzią opt-outu wyżej i niesie tę samą wartość.)
+    expect(planDefaultCacheControl(req("/profile"), res(), clean)).toBe(NO_STORE);
     expect(planDefaultCacheControl(req("/rss.xml"), res(), clean)).toBeNull();
   });
 

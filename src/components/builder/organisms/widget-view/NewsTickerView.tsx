@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
+import { WidgetStyleSheet, WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
 import {
   newsTickerQueryOptions,
   newsTickerDisplayLimit,
@@ -162,13 +163,17 @@ function NewsTickerVertical({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const animName = `news-ticker-vertical-${useId().replace(/:/g, "")}`;
   const items = Array.isArray(children) ? children : [children];
   const count = items.length;
   // Duplicate the first item at the end for a seamless vertical loop.
   const first = items[0];
   const trackItems = [...items, first];
   const m = trackItems.length; // N + 1
+  // Nazwa animacji z LICZBY KLATEK, nie z `useId()`: treść tych klatek
+  // zależy wyłącznie od `m`, więc dwie instancje o tej samej długości
+  // listy mogą dzielić jeden arkusz. Dzięki temu blok jedzie jako zasób
+  // React 19 (`href` + `precedence`) i wypisuje się raz na dokument.
+  const animName = `nes-news-ticker-v-${m}`;
 
   const keyframes = buildVerticalKeyframes(m, animName);
 
@@ -212,6 +217,8 @@ function NewsTickerVertical({
           ))}
         </div>
         <style
+          href={animName}
+          precedence={WIDGET_SHEET_PRECEDENCE}
           dangerouslySetInnerHTML={{
             __html: keyframes,
           }}
@@ -220,6 +227,20 @@ function NewsTickerVertical({
     </div>
   );
 }
+
+// Poziomy pasek ma klatki NIEZALEŻNE od treści, więc nazwa animacji jest
+// stała, a arkusz jedzie jako zasób React 19 - jeden na dokument, nawet
+// przy kilku paskach na stronie.
+const NEWS_TICKER_H_ANIM = "nes-news-ticker-h";
+const NEWS_TICKER_H_CSS = `
+@keyframes ${NEWS_TICKER_H_ANIM} {
+  0% { transform: translate3d(0,0,0); }
+  100% { transform: translate3d(-50%,0,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-news-ticker="horizontal"] [style*="animation"] { animation: none !important; }
+}
+`;
 
 function buildVerticalKeyframes(m: number, animName: string): string {
   if (m < 2) return "";
@@ -262,7 +283,6 @@ function NewsTickerMarqueeHorizontal({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const animName = `news-ticker-${useId().replace(/:/g, "")}`;
 
   return (
     <div
@@ -279,7 +299,7 @@ function NewsTickerMarqueeHorizontal({
         <div
           className="flex w-max items-center gap-4 py-2 pl-4"
           style={{
-            animation: `${animName} ${durationSec}s linear infinite`,
+            animation: `${NEWS_TICKER_H_ANIM} ${durationSec}s linear infinite`,
             animationPlayState: "running",
           }}
           onMouseEnter={(e) => {
@@ -291,19 +311,7 @@ function NewsTickerMarqueeHorizontal({
         >
           {children}
         </div>
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `
-          @keyframes ${animName} {
-            0% { transform: translate3d(0,0,0); }
-            100% { transform: translate3d(-50%,0,0); }
-          }
-          @media (prefers-reduced-motion: reduce) {
-            [data-news-ticker="horizontal"] [style*="animation"] { animation: none !important; }
-          }
-        `,
-          }}
-        />
+        <WidgetStyleSheet name={NEWS_TICKER_H_ANIM} css={NEWS_TICKER_H_CSS} />
       </div>
     </div>
   );

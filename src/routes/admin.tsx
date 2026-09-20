@@ -49,12 +49,12 @@ export const Route = createFileRoute("/admin")({
   beforeLoad: () => {
     // DOKUMENT PANELU NIE MA PRAWA UTRWALIĆ SIĘ W ŻADNYM CACHE'U.
     //
-    // `/admin` stoi na `PUBLIC_DOCUMENT_DENY_PREFIXES`, ale deny-lista mówi
-    // „nie zapisuj" wyłącznie NASZEMU brzegowi: `planDefaultCacheControl`
-    // zwraca dla tych ścieżek `null`, więc odpowiedź wychodziła BEZ ŻADNEGO
-    // `Cache-Control` - a brak nagłówka to zaproszenie do heurystyki dowolnego
-    // pośrednika. Póki ciało było puste, nie było o co kruszyć kopii; od tej
-    // zmiany dokument NIESIE HTML, więc intencja musi być powiedziana wprost.
+    // `/admin` stoi na `PUBLIC_DOCUMENT_DENY_PREFIXES`; od 2026-09-20 deny-lista
+    // w `planDefaultCacheControl` nadaje już jawne `private, no-store` (wcześniej
+    // zwracała `null`, czyli odpowiedź szła BEZ `Cache-Control`). Trasa deklaruje
+    // tę samą intencję wprost, żeby nie zależeć od kolejności middleware: od tej
+    // zmiany dokument NIESIE HTML szkieletu, więc zakaz musi stać na drucie
+    // niezależnie od tego, która warstwa go wypowie pierwsza.
     setCacheControlHeader(NO_STORE);
     // Rejestruje słownik brakujących kluczy admina/CRM w chunku tras /admin
     // (patrz lib/i18n-admin-extras) - jeden punkt wejścia dla całego panelu.

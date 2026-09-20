@@ -467,6 +467,35 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:ssr-budgets
 
+      # Bramka blokująca na TRZECH WZORCACH SYSTEMOWYCH z audytu CWV
+      # 2026-09-20 (§4.4). Nie na jednej zepsutej trasie - na kształcie, który
+      # powtarzał się w kilkudziesięciu plikach, bo nic go nie pilnowało:
+      #   * W1 - loader, który MOŻE ZDEGRADOWAĆ, ogłasza WŁASNY `Cache-Control`.
+      #     `check:ssr-budgets` pilnuje już przypadku „nagłówek ustawiony, ale
+      #     nieprzepuszczony przez `resilientCacheControl`"; NIE widzi
+      #     przypadku częstszego, bo NIEWIDOCZNEGO W PLIKU: loadera BEZ
+      #     ŻADNEGO nagłówka. Taka odpowiedź dostaje z
+      #     `defaultCacheControlMiddleware` domyślne `public, s-maxage=900,
+      #     stale-while-revalidate=86400`, więc render niepełny utrwala się na
+      #     brzegu na 15 minut świeżości PLUS dobę okna stale. Audyt (F07)
+      #     naliczył 42 takie trasy publiczne.
+      #   * W2 - publiczny loader wołający sieć ma BUDŻET czasu; bez niego czas
+      #     do pierwszego bajtu ogranicza wyłącznie watchdog zapytań SSR, a ten
+      #     kończy się RZUTEM, czyli statusem 500.
+      #   * W4 - PARYTET KLUCZY loader/komponent. Rozjazd (`xKeys.bySlug` vs
+      #     `xKeys.bySlugViewer`) daje round-trip przed pierwszym bajtem, który
+      #     nie zasila renderu, drugi ten sam odczyt po hydratacji i szkielet
+      #     w SSR - tak działało czternaście tras `/club/$clubSlug/**` (F09).
+      # Czyta WYŁĄCZNIE źródła (bez builda, artefaktu i bazy), więc należy do
+      # `verify`, a jej wynik jest identyczny na każdej maszynie. Zamrożone
+      # listy wyjątków (wolno je WYŁĄCZNIE skracać) i granice każdej reguły
+      # powiedziane wprost: src/lib/ci/loaderPolicy.ts. Kontrole negatywne -
+      # dowód, że bramka umie zapalić się na czerwono - stoją w
+      # src/lib/ci/__tests__/loaderPolicy.test.ts (biegnie w `check:ci-gates`).
+      - name: Public route loader policy
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:loader-policy
+
       # Blocking gate on an icon name that CHROME cannot render synchronously.
       # `DynamicIcon` renders a curated set from named lucide imports; ANY other
       # name makes the browser pull the full icon registry

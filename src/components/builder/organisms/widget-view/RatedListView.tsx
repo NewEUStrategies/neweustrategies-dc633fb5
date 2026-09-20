@@ -28,6 +28,7 @@ import { hardenStyleCss } from "@/lib/sanitize";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { uiLocale } from "@/lib/i18n/format";
+import { WidgetStyleSheet } from "./widgetStyleSheets";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one. Empty string === inherit/default.
@@ -53,6 +54,12 @@ const NUMBER_POSITIONS = ["behind", "left", "top"] as const;
 const SCROLLING_MODES = ["none", "scroll", "loadmore", "carousel"] as const;
 const GRID_BORDERS = ["none", "between", "full"] as const;
 const COLOR_SCHEMES = ["auto", "light", "dark"] as const;
+
+const RATED_LIST_GRID_CSS = `
+.rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-m,1),minmax(0,1fr));}
+@media (min-width:${RL_TABLET_MIN_PX}px){.rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-t,1),minmax(0,1fr));}}
+@media (min-width:${RL_DESKTOP_MIN_PX}px){.rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-d,1),minmax(0,1fr));}}
+`;
 
 export function RatedListView({
   c,
@@ -278,14 +285,6 @@ export function RatedListView({
   // Realnie responsywna siatka: mobile jest baza, tablet i desktop tylko
   // nadpisuja liczbe kolumn. Wartosci ida przez zmienne ustawione inline na
   // konkretnym `<ol>`, wiec regula moze byc wspolna dla wszystkich instancji.
-  const responsiveGridCss = isGrid
-    ? `
-        .rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-m,1),minmax(0,1fr));}
-        @media (min-width:${RL_TABLET_MIN_PX}px){.rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-t,1),minmax(0,1fr));}}
-        @media (min-width:${RL_DESKTOP_MIN_PX}px){.rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-d,1),minmax(0,1fr));}}
-      `
-    : "";
-
   const ratedListColorCss = hardenStyleCss(`
         .rl-wrap .rl-num{color:${numColor};}
         .dark .rl-wrap .rl-num{color:${numColorDark};}
@@ -306,11 +305,14 @@ export function RatedListView({
         ${postFormatColor ? `.rl-wrap .rl-format{color:${postFormatColor};}` : ""}
         ${postFormatColorDark ? `.dark .rl-wrap .rl-format{color:${postFormatColorDark};}` : ""}
         .rl-wrap .rl-item + .rl-item{${gridBorders === "between" && !isGrid ? `border-top:${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"};padding-top:${itemSpacing}px;` : ""}}
-        ${responsiveGridCss}
       `);
 
   return (
     <div className={schemeCls}>
+      {/* Siatka jest STAŁA - liczby kolumn wchodzą przez zmienne ustawione
+          inline na `<ol>`, więc reguła nie zależy od instancji i jedzie jako
+          zasób React 19 (jeden blok na dokument zamiast jednego na widget). */}
+      {isGrid ? <WidgetStyleSheet name="nes-rated-list-grid" css={RATED_LIST_GRID_CSS} /> : null}
       <style dangerouslySetInnerHTML={{ __html: ratedListColorCss }} />
       <ol
         className={`rl-wrap${isGrid ? " rl-grid" : ""}`}

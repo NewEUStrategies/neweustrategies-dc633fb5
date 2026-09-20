@@ -26,11 +26,15 @@ import type {
   Device,
   ResponsiveValue,
 } from "@/lib/builder/types";
-import { hiddenOnDevice } from "@/components/builder/organisms/WidgetView";
 import { BuilderWidgetNode } from "@/components/builder/organisms/BuilderWidgetNode";
+// `hiddenOnDevice` czytamy z modułu ŹRÓDŁOWEGO, nie przez re-eksport z
+// `WidgetView`: re-eksport był statyczną krawędzią do pełnego dyspozytora
+// widgetów, więc każdy dokument z nagłówkiem ciągnął go do chunku wejściowego
+// nawet wtedy, gdy renderuje wyłącznie widgety chrome (audyt CWV, F17).
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
+  hiddenOnDevice,
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
