@@ -148,6 +148,15 @@ SELECT pg_temp.assert(
 SELECT pg_temp.assert_raises(
   format($q$ SELECT public.admin_club_group_upsert('{"club_id":"%s","slug":"obca","name_pl":"Obca"}'::jsonb) $q$, :'club_id'),
   'admin tenanta B nie dopisze grupy do klubu tenanta A');
+-- KADROWANIE OKLADKI TEZ JEST ZAPISEM, a przez jedna wersje funkcji nie bylo
+-- wiazane tenantem. `club_capabilities` oddawalo tu `can_moderate = false`
+-- (admin B nie jest czlonkiem klubu A), ale druga galaz bramki -
+-- `has_role(v_uid,'admin')` - pyta o role w tenancie WOLAJACEGO, wiec admin B
+-- ja spelnial i `UPDATE ... WHERE id = p_club_id` zmienial cudzy wiersz.
+-- Ta asercja pada na wersji sprzed 0029 i przechodzi po niej.
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover_position('%s'::uuid, 0::smallint) $q$, :'club_id'),
+  'admin tenanta B nie przestawi kadrowania okladki klubu tenanta A');
 
 \echo '== 4. Rola klubowa NIGDY nie jest rola platformy =='
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';

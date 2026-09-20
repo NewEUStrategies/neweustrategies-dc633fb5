@@ -187,6 +187,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0028_club_cover_position_y",
     twin: "20260919220300_club_cover_position_y.sql",
   },
+  {
+    tag: "0029_club_set_cover_position_tenant_scope",
+    twin: "20260920120000_club_set_cover_position_tenant_scope.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
