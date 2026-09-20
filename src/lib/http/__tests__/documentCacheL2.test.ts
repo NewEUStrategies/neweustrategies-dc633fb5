@@ -4,8 +4,10 @@ import { MINUTA, advanceClock } from "@/test/time";
 import { NES_CACHE_HEADER } from "@/lib/http/documentCache";
 import {
   bumpL2Version,
+  l2Delete,
   l2Match,
   l2Put,
+  l2Stats,
   setColoCacheForTests,
   type ColoCache,
 } from "@/lib/http/documentCacheL2.server";
@@ -14,6 +16,7 @@ import {
   getDocumentCacheSnapshot,
   handleDocumentRequest,
   purgeDocumentCache,
+  purgeDocumentPaths,
   resetDocumentCacheForTests,
 } from "@/lib/http/documentCache.server";
 
@@ -31,6 +34,10 @@ function memoryColoCache(): ColoCache & { size(): number } {
         body: new Uint8Array(await response.arrayBuffer()),
         headers: new Headers(response.headers),
       });
+    },
+    // Standardowe `Cache.delete`: true tylko, gdy coś realnie usunięto.
+    async delete(request: Request) {
+      return entries.delete(request.url);
     },
     size: () => entries.size,
   };
@@ -349,5 +356,57 @@ describe("handleDocumentRequest z warstwą L2", () => {
     expect(missB.headers.get(NES_CACHE_HEADER)).toBe("MISS");
     await missB.text();
     await settle();
+  });
+});
+
+describe("purge selektywny w L2 (`l2Delete`, plan 1.5)", () => {
+  it("usuwa JEDEN wpis pod bieżącą wersją, liczy go w statystykach, a sąsiada zostawia", async () => {
+    const body = new TextEncoder().encode("<html>a</html>");
+    await l2Put("tenant-a.eu", "tenant-a.eu::/a", { ...ENTRY, body, storedAt: Date.now() });
+    await l2Put("tenant-a.eu", "tenant-a.eu::/b", { ...ENTRY, body, storedAt: Date.now() });
+    expect(await l2Delete("tenant-a.eu", "tenant-a.eu::/a")).toBe(true);
+    expect(await l2Match("tenant-a.eu", "tenant-a.eu::/a")).toBeNull();
+    expect(await l2Match("tenant-a.eu", "tenant-a.eu::/b")).not.toBeNull();
+    expect(l2Stats().deletes).toBe(1);
+    // Drugie usunięcie tego samego wpisu nie ma czego usuwać.
+    expect(await l2Delete("tenant-a.eu", "tenant-a.eu::/a")).toBe(false);
+    expect(l2Stats().deletes).toBe(1);
+  });
+
+  it("magazyn bez `delete` degraduje do no-op (false), nie do wyjątku", async () => {
+    setColoCacheForTests({ match: async () => undefined, put: async () => {} });
+    expect(await l2Delete("tenant-a.eu", "tenant-a.eu::/a")).toBe(false);
+  });
+
+  it("`purgeDocumentPaths` czyści L1 i L2 zmienionej ścieżki BEZ bumpu wersji hosta - sąsiedni dokument zostaje HIT", async () => {
+    for (const path of ["/a", "/b"]) {
+      const rendered = await handleDocumentRequest(docRequest(path), () =>
+        htmlResponse(`<html>${path}</html>`),
+      );
+      let work: Promise<boolean> | undefined;
+      const final = applyDeferredDocumentStore(rendered as Response, (pending) => {
+        work = pending;
+      });
+      await final.arrayBuffer();
+      expect(await work).toBe(true);
+    }
+    expect(getDocumentCacheSnapshot().entries).toBe(2);
+
+    expect(purgeDocumentPaths("tenant-a.eu", ["/a"])).toBe(1);
+    await settle();
+
+    // Sąsiad: dalej HIT z L1 - wersja hosta nie ruszyła się.
+    const b = await handleDocumentRequest(docRequest("/b"), () => htmlResponse("<html>b2</html>"));
+    expect((b as Response).headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    // Zmieniona ścieżka: L1 puste, a L2 nie ma czym zasilić (wpis usunięty) - MISS.
+    const a = await handleDocumentRequest(docRequest("/a"), () => htmlResponse("<html>a2</html>"));
+    expect((a as Response).headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    expect(l2Stats().bumps).toBe(0);
+    expect(l2Stats().deletes).toBeGreaterThanOrEqual(1);
+    // Purge pełny nadal bumpuje wersję - to inna, świadomie droższa ścieżka.
+    purgeDocumentCache("tenant-a.eu");
+    await settle();
+    expect(l2Stats().bumps).toBe(1);
+    expect(bumpL2Version).toBeTypeOf("function");
   });
 });

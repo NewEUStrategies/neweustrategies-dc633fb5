@@ -57,7 +57,7 @@ function fakeAdapter(read: EdgeTtlL2Adapter["read"] = async () => null) {
   const adapter = {
     enabled: vi.fn(() => true),
     read: vi.fn(read),
-    write: vi.fn(async () => undefined),
+    write: vi.fn<EdgeTtlL2Adapter["write"]>(async () => undefined),
   };
   setEdgeTtlL2Adapter(adapter);
   return adapter;
@@ -162,7 +162,10 @@ describe("edgeTtlCache L2: kolejność na chybieniu L1", () => {
     const fetcher = vi.fn().mockResolvedValue("shared");
     const p1 = edgeTtlCache(KEY, TTL, fetcher);
     const p2 = edgeTtlCache(KEY, TTL, fetcher);
-    await Promise.resolve();
+    // Lot dochodzi do odczytu L2 po kilku mikrozadaniach (host, adapter) -
+    // czekamy na FAKT wywołania, nie na zegar.
+    for (let i = 0; i < 50 && l2.read.mock.calls.length === 0; i++) await Promise.resolve();
+    expect(l2.read).toHaveBeenCalledTimes(1);
     releaseRead(null);
     await expect(p1).resolves.toBe("shared");
     await expect(p2).resolves.toBe("shared");

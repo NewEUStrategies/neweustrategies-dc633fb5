@@ -10,26 +10,55 @@ import { LegalPage } from "@/components/legal/LegalPage";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
-import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
+import {
+  staticPageSeoQueryOptions,
+  pickStaticSeo,
+  LEGAL_SSR_BUDGET_MS,
+  NO_STATIC_SEO,
+} from "@/lib/queries/staticPageSeo";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { LEGAL_ENTITY } from "@/lib/legal/entity";
 import { AI_TRANSPARENCY_CONTENT } from "@/lib/legal/content/aiTransparency";
 import { AI_TRANSPARENCY_META } from "@/lib/legal/meta";
-import { legalDocumentQueryOptions, useLegalDocumentCopy } from "@/lib/legal/useLegalDocument";
+import {
+  legalDocumentQueryOptions,
+  useLegalDocumentCopy,
+  NO_LEGAL_DOCUMENT,
+} from "@/lib/legal/useLegalDocument";
 
 const COPY = AI_TRANSPARENCY_CONTENT;
 
 export const Route = createFileRoute("/przejrzystosc-ai")({
   component: AiTransparencyPage,
   loader: async ({ context }) => {
-    const [seo] = await Promise.all([
-      context.queryClient
-        .ensureQueryData(staticPageSeoQueryOptions("przejrzystosc-ai"))
-        .catch(() => null),
-      context.queryClient
-        .ensureQueryData(legalDocumentQueryOptions("ai_transparency"))
-        .catch(() => null),
+    // Oba odczyty pod JEDNYM krótkim terminem (F10): to nadpisania SEO i wersja
+    // dokumentu, nie warunek renderu - treść bazowa żyje w kodzie.
+    const deadlineAt = Date.now() + LEGAL_SSR_BUDGET_MS;
+    const [seo, document] = await Promise.all([
+      loadResilient(
+        context.queryClient,
+        staticPageSeoQueryOptions("przejrzystosc-ai"),
+        NO_STATIC_SEO,
+        {
+          deadlineAt,
+          label: "legal-seo:przejrzystosc-ai",
+        },
+      ),
+      loadResilient(
+        context.queryClient,
+        legalDocumentQueryOptions("ai_transparency"),
+        NO_LEGAL_DOCUMENT,
+        {
+          deadlineAt,
+          label: "legal-doc:ai_transparency",
+        },
+      ),
     ]);
-    return { seo };
+    // Render zdegradowany (treść bazowa zamiast opublikowanej wersji) nie może
+    // zamarznąć na brzegu jako wariant wszystkich czytelników.
+    setCacheControlHeader(resilientCacheControl(anyDegraded(seo, document)));
+    return { seo: seo.data };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/przejrzystosc-ai";

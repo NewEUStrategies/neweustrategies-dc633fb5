@@ -61,3 +61,38 @@ export function isClientOnlyDocument(pathname: string): boolean {
   const { pathname: bare } = stripLangPrefix(pathname);
   return CLIENT_ONLY_PREFIXES.some((prefix) => bare === prefix || bare.startsWith(`${prefix}/`));
 }
+
+/**
+ * Powierzchnie Z CHROME'EM SERWISU, ale BEZ serwerowego renderu treści: widok
+ * rozstrzyga sesja z `localStorage` po hydratacji (profil, sieć kontaktów,
+ * lista do przeczytania, wiadomości, checkout). Fala 1 maluje tu wyłącznie
+ * nagłówek i stopkę, więc czekanie 2 500 ms na dane, z których nie powstanie
+ * ani jeden piksel treści, było czystą stratą TTFB: audyt CWV 2026-09-20
+ * zmierzył na `/profile/*` 0,7–1,25 s przy każdym twardym wejściu (F05, plan
+ * 1.4). Prefiksy zawężone do tras, których treść jest w całości kliencka -
+ * `/checkout/success` ma własny loader, ale i tak nie renderuje treści
+ * publicznej przed sesją.
+ */
+const CHROME_ONLY_PREFIXES = [
+  "/profile",
+  "/network",
+  "/people",
+  "/reading-list",
+  "/messages",
+  "/checkout",
+] as const;
+
+/**
+ * Termin fali 1 na powierzchni chrome-only. Dłuższy niż `CLIENT_ONLY_WARM_BUDGET_MS`
+ * (tu ustawienia MALUJĄ nagłówek, więc warto na nie chwilę poczekać), ale
+ * trzykrotnie krótszy niż `ROOT_WARM_BUDGET_MS`: po terminie nagłówek idzie na
+ * domyślnych z zasiewem `updatedAt: 0`, a dokument dostaje `no-store`, żeby
+ * ten wariant nie zamarzł na brzegu.
+ */
+export const CHROME_ONLY_WARM_BUDGET_MS = 800;
+
+/** Czy dokument tej ścieżki niesie chrome serwisu, ale nie treść z serwera. */
+export function isChromeOnlyDocument(pathname: string): boolean {
+  const { pathname: bare } = stripLangPrefix(pathname);
+  return CHROME_ONLY_PREFIXES.some((prefix) => bare === prefix || bare.startsWith(`${prefix}/`));
+}

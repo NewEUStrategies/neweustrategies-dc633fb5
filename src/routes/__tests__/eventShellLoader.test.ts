@@ -34,6 +34,8 @@ const h = vi.hoisted(() => ({
   eventsEnabled: true,
   /** Nagłówek `Cache-Control`, jaki loader ustawił na odpowiedzi. */
   cacheControl: [] as string[],
+  /** Wartości nagłówka HTTP `Link` - dowód, że preload LCP wyszedł na drut. */
+  linkHeaders: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -65,7 +67,7 @@ vi.mock("@/lib/useSiteSetting", () => ({
 
 vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
-  appendLinkHeader: () => {},
+  appendLinkHeader: (value: string) => void h.linkHeaders.push(value),
   readRouteCacheDirective: () => null,
 }));
 
@@ -85,6 +87,7 @@ interface ShellLoaderData {
     readonly publishedAt: string | null;
   } | null;
   readonly degraded: boolean;
+  readonly coverPreload: { readonly href: string } | null;
 }
 
 type LoaderCtx = {
@@ -145,6 +148,7 @@ beforeEach(() => {
   h.eventThrows = false;
   h.eventsEnabled = true;
   h.cacheControl = [];
+  h.linkHeaders = [];
 });
 
 describe("loader powłoki /events/$slug", () => {
@@ -288,7 +292,7 @@ describe("head() powłoki /events/$slug", () => {
   } as const;
 
   it("bierze tytuł, opis i obraz Z WYDARZENIA, nie ze stałej", async () => {
-    const out = head({ headEvent, degraded: false });
+    const out = head({ headEvent, degraded: false, coverPreload: null });
     // Do 2026-09-01 tu stało "Wydarzenie - New European Strategies" dla KAŻDEGO
     // wydarzenia w serwisie - jeden tytuł, jeden opis, jeden obraz karty.
     expect(titleOf(out)).toContain("Szczyt strategiczny");
@@ -298,8 +302,84 @@ describe("head() powłoki /events/$slug", () => {
   });
 
   it("bez danych loadera wraca do dwujęzycznej wartości domyślnej, nie do pustki", async () => {
-    const out = head({ headEvent: null, degraded: true });
+    const out = head({ headEvent: null, degraded: true, coverPreload: null });
     expect(titleOf(out)).toContain("Wydarzenie");
     expect(metaByProperty(out, "og:description")).not.toBe("");
+  });
+});
+
+// ── PRELOAD LCP OKŁADKI WYDARZENIA ───────────────────────────────────────────
+//
+// Baner wydarzenia jest największym obrazem nad zgięciem przeglądu, więc jego
+// fetch ma ruszyć z nagłówków odpowiedzi, a nie dopiero z `<img>` w body.
+// Każdy z trzech warunków odcina POBRANIE, którego nikt nie namaluje - preload
+// obrazu, który nie wchodzi do układu, to czysty koszt pasma konkurujący
+// z zasobami krytycznymi.
+describe("preload okładki przeglądu wydarzenia", () => {
+  const PUBLIC_EVENT = {
+    id: "e1",
+    slug: "szczyt",
+    cover_url: "https://cdn.nes.eu/szczyt.jpg",
+    video_header_platform: null,
+    video_header_id: null,
+  };
+
+  it("PRZEGLĄD bez nagłówka wideo: deskryptor i nagłówek HTTP `Link`", async () => {
+    h.header = HEADER_ROW;
+    h.event = PUBLIC_EVENT;
+    const data = await runLoader();
+    // PARYTET: komponent maluje `<img src>` BEZ `srcSet`, więc deskryptor
+    // niesie sam `href` - inaczej przeglądarka pobrałaby dwa różne warianty.
+    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(h.linkHeaders[0]).toContain("<https://cdn.nes.eu/szczyt.jpg>");
+    expect(h.linkHeaders[0]).toContain("fetchpriority=high");
+    expect(h.linkHeaders[0]).not.toContain("imagesrcset");
+  });
+
+  it("ZAKŁADKA (np. /agenda) nie preloaduje - okładki tam nie ma", async () => {
+    h.header = HEADER_ROW;
+    h.event = PUBLIC_EVENT;
+    const data = await runLoader("szczyt", "/events/szczyt/agenda");
+    expect(data.coverPreload).toBeNull();
+    expect(h.linkHeaders).toEqual([]);
+  });
+
+  it("prefiks języka NIE psuje rozpoznania przeglądu", async () => {
+    h.header = HEADER_ROW;
+    h.event = PUBLIC_EVENT;
+    const data = await runLoader("szczyt", "/en/events/szczyt");
+    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+  });
+
+  it("NAGŁÓWEK WIDEO zastępuje okładkę, więc preloadu nie ma", async () => {
+    h.header = HEADER_ROW;
+    h.event = { ...PUBLIC_EVENT, video_header_platform: "youtube", video_header_id: "abc123" };
+    const data = await runLoader();
+    expect(data.coverPreload).toBeNull();
+  });
+
+  it("BŁĘDNY identyfikator wideo wraca do okładki - i do preloadu", async () => {
+    // `videoEmbedUrl` odrzuca identyfikator spoza alfabetu, a komponent maluje
+    // wtedy okładkę. Decyzja jest JEDNA i wspólna, więc preload jedzie za nią.
+    h.header = HEADER_ROW;
+    h.event = { ...PUBLIC_EVENT, video_header_platform: "youtube", video_header_id: "a b/c" };
+    const data = await runLoader();
+    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+  });
+
+  it("WYDARZENIE ZA BRAMKĄ WARSTWY: body rysuje zaproszenie, nie baner", async () => {
+    h.header = HEADER_ROW;
+    h.event = null;
+    const data = await runLoader();
+    expect(data.coverPreload).toBeNull();
+    expect(h.linkHeaders).toEqual([]);
+  });
+
+  it("wydarzenie bez okładki nie generuje pustego preloadu", async () => {
+    h.header = HEADER_ROW;
+    h.event = { ...PUBLIC_EVENT, cover_url: "   " };
+    const data = await runLoader();
+    expect(data.coverPreload).toBeNull();
   });
 });

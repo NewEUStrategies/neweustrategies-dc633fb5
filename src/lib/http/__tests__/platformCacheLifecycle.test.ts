@@ -24,6 +24,7 @@ import {
   probeDocumentCache,
   purgeDocumentCache,
   purgeDocumentCacheForCurrentHost,
+  purgeDocumentPathsForCurrentHost,
   resetDocumentCacheForTests,
   setDocumentRevalidator,
 } from "../documentCache.server";
@@ -192,5 +193,25 @@ describe("non-mutating cache diagnostics and purge", () => {
     expect(await purgeDocumentCacheForCurrentHost()).toBe(1);
     h.host.mockRejectedValueOnce(new Error("no request context"));
     expect(await purgeDocumentCacheForCurrentHost()).toBe(0);
+  });
+});
+
+describe("purge selektywny dla hosta bieżącego żądania", () => {
+  it("z hostem usuwa wyłącznie podane ścieżki, sąsiedni dokument zostaje HIT", async () => {
+    await store("/article");
+    await store("/other");
+    expect(await purgeDocumentPathsForCurrentHost(["/article"])).toBe(1);
+    const miss = await handleDocumentRequest(req("/article"), () => html("again"));
+    expect(miss.headers.get("x-nes-cache")).toBe("MISS");
+    const hit = await handleDocumentRequest(req("/other"), () => html("unexpected"));
+    expect(hit.headers.get("x-nes-cache")).toBe("HIT");
+  });
+
+  it("bez hosta (praca w tle) degraduje do purge'a CAŁEGO magazynu - poprawność ponad hit-rate", async () => {
+    await store("/article");
+    await store("/other");
+    h.host.mockResolvedValue(null);
+    await purgeDocumentPathsForCurrentHost(["/article"]);
+    expect(getDocumentCacheSnapshot().entries).toBe(0);
   });
 });

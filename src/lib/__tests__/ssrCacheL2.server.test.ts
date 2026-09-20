@@ -14,7 +14,11 @@ import {
   setEdgeTtlL2Adapter,
 } from "@/lib/ssrCache";
 
-const state = vi.hoisted(() => ({ host: null as string | null }));
+const state = vi.hoisted(() => ({
+  host: null as string | null,
+  /** Prace zarejestrowane „za odpowiedzią" przez `completeAfterResponse`. */
+  background: [] as Promise<unknown>[],
+}));
 
 vi.mock("@/lib/http/requestHost", () => ({
   currentTenantHost: () => Promise.resolve(state.host),
@@ -36,7 +40,6 @@ const match = vi.fn(async (request: Request) => entries.get(request.url)?.clone(
 
 const TTL = 60_000;
 const MAX_AGE = TTL * 5;
-const isString = (v: unknown): v is string => typeof v === "string";
 
 async function settleBackground(): Promise<void> {
   for (let i = 0; i < 10; i++) await Promise.resolve();
@@ -125,11 +128,12 @@ describe("adapter L2 edgeTtlCache: sprzężenie z wersją L2 dokumentów", () =>
     await expect(edgeTtlL2Adapter.read("a.example", "k", TTL, MAX_AGE)).resolves.toMatchObject({
       value: "a2",
     });
-    const versioned = [...entries.keys()].filter((u) => u.includes(encodeURIComponent("edge:v")));
-    expect(versioned.some((u) => u.includes(encodeURIComponent("edge:v0.0:a.example::k")))).toBe(
-      true,
-    );
-    expect(versioned.some((u) => !u.includes(encodeURIComponent("edge:v0.")))).toBe(true);
+    // Stara migawka leży pod `v0.0`, nowa pod `v0.<bump>` - segment globalny
+    // bez zmian, segment hosta podbity.
+    const forA = [...entries.keys()].filter((u) => u.includes(encodeURIComponent("a.example::k")));
+    expect(forA).toHaveLength(2);
+    expect(forA.some((u) => u.includes(encodeURIComponent("edge:v0.0:a.example::k")))).toBe(true);
+    expect(forA.some((u) => !u.includes(encodeURIComponent("edge:v0.0:")))).toBe(true);
   });
 
   it("bump wersji globalnej odcina migawki WSZYSTKICH hostów", async () => {
@@ -246,12 +250,5 @@ describe("edgeTtlCache + prawdziwy adapter: rotacja izolatu w ciepłej kolonii",
     await settleBackground();
     expect(put).not.toHaveBeenCalled();
     expect(match).not.toHaveBeenCalled();
-  });
-
-  it("pod happy-dom/kliencie nic z tego nie biegnie (okno = przezroczyste fetchery)", async () => {
-    // Sanity check kontraktu: to środowisko node, więc `window` nie istnieje;
-    // ścieżka kliencka jest pokryta w testach hooków (designTokens.test.tsx).
-    expect(typeof window).toBe("undefined");
-    expect(isString("x")).toBe(true);
   });
 });

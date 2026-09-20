@@ -6,6 +6,8 @@ import {
   getDocumentCacheSnapshot,
   handleDocumentRequest,
   resetDocumentCacheForTests,
+  revalidationHeader,
+  setDocumentRevalidator,
 } from "../documentCache.server";
 import { setCacheControlHeader } from "../responseHeaders";
 const h = vi.hoisted(() => ({ put: vi.fn() }));
@@ -109,5 +111,68 @@ describe("deferred write respects final and late stream policy", () => {
     })) as Response;
     expect(replay.headers.get("x-nes-cache")).toBe("HIT");
     expect(replay.headers.get("link")).toBe(res.headers.get("link"));
+  });
+});
+
+/** Praca w tle biegnie bez `await` (runAfterResponse) - domknij mikrotaski. */
+async function flush(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe("zdegradowany MISS planuje odświeżenie w tle (F02)", () => {
+  const degraded = { "content-type": "text/html", "cache-control": "private, no-store" };
+  const render = () => new Response("degraded", { headers: degraded });
+  function scheduledKinds(): Array<string | undefined> {
+    return getDocumentCacheSnapshot()
+      .recent.filter((d) => d.status === "MISS")
+      .map((d) => d.degradedRevalidation);
+  }
+
+  it("`no-store` z loadera nie zasiewa magazynu, ale uruchamia rewalidację z limitem 2 prób na klucz", async () => {
+    const revalidator = vi.fn(async () => false);
+    setDocumentRevalidator(revalidator);
+
+    await ((await handleDocumentRequest(req(), render)) as Response).text();
+    await flush();
+    expect(getDocumentCacheSnapshot().entries).toBe(0);
+    expect(revalidator).toHaveBeenCalledTimes(1);
+    expect(getDocumentCacheSnapshot().degradedRevalidations).toBe(1);
+    expect(scheduledKinds()).toContain("scheduled");
+
+    await ((await handleDocumentRequest(req(), render)) as Response).text();
+    await flush();
+    expect(revalidator).toHaveBeenCalledTimes(2);
+
+    // Trzecia degradacja w oknie: klucz wyczerpał limit - żadnego renderu w tle.
+    await ((await handleDocumentRequest(req(), render)) as Response).text();
+    await flush();
+    expect(revalidator).toHaveBeenCalledTimes(2);
+    expect(scheduledKinds()).toContain("throttled");
+    expect(getDocumentCacheSnapshot().degradedRevalidations).toBe(2);
+  });
+
+  it("żądanie REWALIDACYJNE nigdy nie planuje kolejnej rewalidacji (brak rekurencji)", async () => {
+    const revalidator = vi.fn(async () => false);
+    setDocumentRevalidator(revalidator);
+    const [marker, nonce] = revalidationHeader();
+    const request = new Request("https://example.org/article", { headers: { [marker]: nonce } });
+    await ((await handleDocumentRequest(request, render)) as Response).text();
+    await flush();
+    expect(revalidator).not.toHaveBeenCalled();
+    expect(scheduledKinds()).not.toContain("scheduled");
+  });
+
+  it("czysty MISS nie jest liczony jako degradacja i nie planuje niczego", async () => {
+    const revalidator = vi.fn(async () => false);
+    setDocumentRevalidator(revalidator);
+    const clean = (await handleDocumentRequest(
+      req(),
+      () => new Response("content", { headers }),
+    )) as Response;
+    await applyDeferredDocumentStore(clean).text();
+    await flush();
+    expect(revalidator).not.toHaveBeenCalled();
+    expect(getDocumentCacheSnapshot().degradedRevalidations).toBe(0);
   });
 });

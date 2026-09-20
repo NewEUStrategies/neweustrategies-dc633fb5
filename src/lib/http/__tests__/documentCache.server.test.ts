@@ -12,6 +12,7 @@ import {
   handleDocumentRequest,
   probeDocumentCache,
   purgeDocumentCache,
+  purgeDocumentPaths,
   resetDocumentCacheForTests,
   revalidationHeader,
   setDocumentRevalidator,
@@ -608,5 +609,40 @@ describe("handleDocumentRequest - fazy Server-Timing na BYPASS", () => {
     )) as Response;
 
     expect(result.headers.get("server-timing")).toBeNull();
+  });
+});
+
+describe("purgeDocumentPaths (purge selektywny L1)", () => {
+  it("usuwa dokument zmienionej ścieżki w OBU językach i jego warianty z query, sąsiada zostawia HIT", async () => {
+    const next = vi.fn(async () => htmlResponse("<html>doc</html>"));
+    for (const path of ["/analizy/tekst", "/en/analizy/tekst", "/analizy/tekst?page=2", "/blog"]) {
+      await (await renderThroughEdge(path, next)).text();
+    }
+    await settle();
+    const before = getDocumentCacheSnapshot();
+
+    const removed = purgeDocumentPaths("tenant-a.eu", ["/analizy/tekst/"]);
+    await settle();
+    expect(removed).toBeGreaterThanOrEqual(2);
+    const after = getDocumentCacheSnapshot();
+    expect(after.entries).toBe(before.entries - removed);
+    expect(after.purges).toBe(before.purges + 1);
+
+    const blog = await renderThroughEdge("/blog", next);
+    expect(blog.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    const pl = await renderThroughEdge("/analizy/tekst", next);
+    expect(pl.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    const en = await renderThroughEdge("/en/analizy/tekst", next);
+    expect(en.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+  });
+
+  it("nie dotyka dokumentów innego hosta i zwraca 0 dla ścieżek niepoprawnych", async () => {
+    const next = vi.fn(async () => htmlResponse("<html>doc</html>"));
+    await (await renderThroughEdge("/blog", next, "tenant-b.eu")).text();
+    await settle();
+    expect(purgeDocumentPaths("tenant-a.eu", ["/blog"])).toBe(0);
+    expect(purgeDocumentPaths("tenant-b.eu", ["", "https://x.example/blog"])).toBe(0);
+    const still = await renderThroughEdge("/blog", next, "tenant-b.eu");
+    expect(still.headers.get(NES_CACHE_HEADER)).toBe("HIT");
   });
 });

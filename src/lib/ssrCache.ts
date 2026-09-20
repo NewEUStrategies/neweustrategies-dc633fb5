@@ -199,7 +199,14 @@ function readL2WithTimeout<T>(
       resolve(snapshot);
     };
     const timer = setTimeout(() => finish(null), EDGE_TTL_L2_READ_TIMEOUT_MS);
-    adapter.read<T>(scope, key, ttlMs, ttlMs * STALE_FACTOR).then(finish, () => finish(null));
+    adapter
+      .read(scope, key, ttlMs, ttlMs * STALE_FACTOR)
+      // Magazyn oddaje `unknown`; typ zna wyłącznie wołający `edgeTtlCache<T>`
+      // (patrz kontrakt `EdgeTtlL2Adapter.read`).
+      .then(
+        (snapshot) => finish(snapshot as EdgeTtlL2Snapshot<T> | null),
+        () => finish(null),
+      );
   });
 }
 

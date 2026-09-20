@@ -48,12 +48,18 @@ export interface EdgeTtlL2Snapshot<T> {
 export interface EdgeTtlL2Adapter {
   /** Czy warstwa ma gdzie pisać: Cache API dostępne i projekt bazy znany. */
   enabled(): boolean;
-  read<T>(
+  /**
+   * Bez parametru generycznego z premedytacją: migawka przychodzi z magazynu
+   * jako `unknown`, a o jej typie wie wyłącznie wołający `edgeTtlCache<T>` -
+   * to on ją zawęża (jedno rzutowanie w `ssrCache.ts`). Atrapy w testach
+   * dzięki temu są zwykłymi funkcjami, nie funkcjami generycznymi.
+   */
+  read(
     scope: string,
     key: string,
     ttlMs: number,
     maxAgeMs: number,
-  ): Promise<EdgeTtlL2Snapshot<T> | null>;
+  ): Promise<EdgeTtlL2Snapshot<unknown> | null>;
   write(
     scope: string,
     key: string,
@@ -141,9 +147,9 @@ const isPresent = <T>(value: unknown): value is T => value !== null && value !==
 export const edgeTtlL2Adapter: EdgeTtlL2Adapter = {
   enabled: () => getColoCache() !== null && hasSnapshotOrigin(),
 
-  async read<T>(scope: string, key: string, ttlMs: number, maxAgeMs: number) {
+  async read(scope: string, key: string, ttlMs: number, maxAgeMs: number) {
     try {
-      const snapshot = await readBootstrapSnapshot<T>(
+      const snapshot = await readBootstrapSnapshot<unknown>(
         await snapshotKey(scope, key),
         ttlMs,
         isPresent,

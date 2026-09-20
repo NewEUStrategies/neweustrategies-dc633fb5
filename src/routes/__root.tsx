@@ -23,6 +23,7 @@ import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url"
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
 import { resilientCacheControl } from "../lib/ssr/resilientLoad";
+import { chromeDegradedCacheControl } from "../lib/http/cachePolicy";
 import {
   HOME_THEME_BUDGET_MS,
   hasSsrQueryData,
@@ -39,7 +40,9 @@ import {
 import { LOCALE_CHUNK_URLS } from "../lib/seo/localeChunks";
 import { showsSiteChrome } from "../lib/routing/siteChrome";
 import {
+  CHROME_ONLY_WARM_BUDGET_MS,
   CLIENT_ONLY_WARM_BUDGET_MS,
+  isChromeOnlyDocument,
   isClientOnlyDocument,
 } from "../lib/routing/clientOnlyDocument";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
@@ -421,12 +424,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // serwisu bez zmian. Trzeci argument `withBudget` może budżet wyłącznie
     // SKRÓCIĆ, więc żaden wariant nie podnosi sufitu pilnowanego przez
     // `check:ssr-budgets`.
+    // Czwarty kontrakt (plan 1.4): powierzchnia Z chrome'em, ale BEZ
+    // serwerowego renderu treści (profil, sieć, checkout - widok rozstrzyga
+    // sesja po hydratacji). Fala 1 maluje tu tylko nagłówek i stopkę, więc nie
+    // czeka pełnych 2 500 ms na dane, z których nie powstanie treść.
+    const chromeOnly = isServer && homeDeadline === undefined && isChromeOnlyDocument(path);
     const themeDeadline =
       homeDeadline !== undefined
         ? Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS)
         : isServer && isClientOnlyDocument(path)
           ? Date.now() + CLIENT_ONLY_WARM_BUDGET_MS
-          : undefined;
+          : chromeOnly
+            ? Date.now() + CHROME_ONLY_WARM_BUDGET_MS
+            : undefined;
     await withBudget(
       Promise.allSettled([
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),
@@ -449,6 +459,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           await context.queryClient.cancelQueries({ queryKey, exact: true }).catch(() => undefined);
         }
       }
+    }
+    // Termin chrome-only minął bez ustawień: nagłówek pójdzie na domyślnych
+    // (zasiew niżej), a taki dokument nie ma prawa utrwalić się na brzegu.
+    if (chromeOnly && !hasSsrQueryData(context.queryClient, siteSettingsQueryOptions.queryKey)) {
+      setCacheControlHeader(resilientCacheControl(true));
     }
     // `updatedAt: 0` - zasiew MUSI rodzić się PRZETERMINOWANY.
     //
@@ -601,7 +616,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           expired: () =>
             homeDeadline !== undefined &&
             remainingHomeBudget(homeDeadline, CHROME_WARM_BUDGET_MS) <= 0,
-          markDegraded: () => setCacheControlHeader(resilientCacheControl(true)),
+          // Dwa rodzaje degradacji, dwie polityki (lib/ssr/chromeWarmup.tsx):
+          // `chrome` = dane powłoki dostrumieniują się po flushu shella, dokument
+          // będzie kompletny - wolno go współdzielić KRÓTKO (s-maxage=30);
+          // `failed` = rozgrzewka padła albo budżet wyczerpany - `no-store`.
+          // Scalenie w `setCacheControlHeader` gwarantuje, że ostrzejsza wygrywa.
+          markDegraded: (kind) =>
+            setCacheControlHeader(
+              kind === "failed" ? resilientCacheControl(true) : chromeDegradedCacheControl(),
+            ),
           warm: async () => {
             if (chromeBudget <= 0) return;
             await withBudget(
