@@ -25,6 +25,10 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+// Nakładka rejestruje słownik EFEKTEM UBOCZNYM importu, więc bez tej atrapy
+// plik testowy wciągnąłby prawdziwy `@/lib/i18n` (top-level await + `init`)
+// tylko po to, żeby wyrzucić wynik - `react-i18next` i tak jest tu atrapą.
+vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: h.toast }));
 vi.mock("@tanstack/react-start", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-start")>();

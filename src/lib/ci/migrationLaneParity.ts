@@ -150,6 +150,47 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0020_club_covers_per_club_storage_write",
     twin: "20260914184500_club_covers_per_club_storage_write.sql",
   },
+  {
+    tag: "0021_brand_media_urls_on_canonical_domain",
+    twin: "20260915091000_brand_media_urls_on_canonical_domain.sql",
+  },
+  // Ten sam SQL, co 0020 - bajt w bajt - wykonany PONOWNIE na pasie drizzle,
+  // bo pierwszego przebiegu nie potwierdzał żaden rejestr. Wpis wskazuje więc
+  // TEGO SAMEGO bliźniaka, co 0020 (tak samo jak para 0003/0004): treść ma być
+  // nadal pilnowana, a nie zwolniona z porównania przez `drizzleOnly`.
+  {
+    tag: "0022_club_covers_per_club_storage_write_register",
+    twin: "20260914184500_club_covers_per_club_storage_write.sql",
+  },
+  {
+    tag: "0023_record_club_covers_migration_in_ledger",
+    drizzleOnly:
+      "Wpis do REJESTRU WDROŻEŃ pasa supabase (supabase_migrations.schema_migrations), a nie zmiana schematu: SQL z 20260914184500 był już wykonany na bazie, ale bez wiersza w rejestrze, więc check:migration-ledger widział go jako niewdrożony. Bliźniak byłby błędem z definicji - plik leżący w supabase/migrations/ sam dostaje wiersz w tym rejestrze w chwili zastosowania, więc dopisywałby wiersz za SĄSIADA i na świeżej bazie ogłaszał cudzą migrację za wdrożoną, zanim ta się wykona. To dokładnie kłamstwo, które check:migration-ledger ma wykrywać. Pliku nie usuwamy - repozytorium jest forward-only.",
+  },
+  {
+    tag: "0024_profiles_tenant_id_not_client_writable",
+    twin: "20260915092000_profiles_tenant_id_not_client_writable.sql",
+  },
+  {
+    tag: "0025_tenant_scope_presence_and_rsvp_owner_read",
+    twin: "20260915194500_tenant_scope_presence_and_rsvp_owner_read.sql",
+  },
+  {
+    tag: "0026_selfservice_privilege_pins",
+    twin: "20260917163900_selfservice_privilege_pins.sql",
+  },
+  {
+    tag: "0027_coupon_per_user_limit_and_cv_upload_quota",
+    twin: "20260919094000_coupon_per_user_limit_and_cv_upload_quota.sql",
+  },
+  {
+    tag: "0028_club_cover_position_y",
+    twin: "20260919220300_club_cover_position_y.sql",
+  },
+  {
+    tag: "0029_club_set_cover_position_tenant_scope",
+    twin: "20260920120000_club_set_cover_position_tenant_scope.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

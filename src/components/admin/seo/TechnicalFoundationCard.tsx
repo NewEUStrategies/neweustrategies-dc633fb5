@@ -11,6 +11,10 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "@/lib/lucide-shim";
 import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
+// Karta woła wyłącznie klucze `adminSeoHub.*`. Bez tego importu nakładka
+// wchodziła do chunka tylko wtedy, gdy wciągnął ją inny moduł kokpitu -
+// renderowana samodzielnie pokazywała surowe klucze zamiast napisów.
+import "@/lib/i18n-admin-seo-hub";
 import {
   FOUNDATION_BODY_LIMIT,
   checkHtmlLang,

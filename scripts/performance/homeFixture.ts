@@ -74,6 +74,26 @@ export function isFixtureBackend(url: string): boolean {
   );
 }
 
+/**
+ * Hosty skryptów analitycznych, których harness NIE MA PRAWA pobierać z sieci.
+ *
+ * Aplikacja wstrzykuje GTM (`ConsentScriptInjector`) i GA4 (`ga4Client`) z
+ * `googletagmanager.com`. Runner CI nie ma wyjścia na te hosty, więc żądanie
+ * kończy się porażką sieciową - a pomiar wydajności czyta ją jako błąd strony
+ * i przewraca się, ZANIM zmierzy cokolwiek. Nie zależy to od mierzonej zmiany:
+ * tak samo pada noga BAZOWA, czyli kod sprzed dowolnej modyfikacji. Harness
+ * musi więc odpowiedzieć na to żądanie sam, zamiast liczyć na egress.
+ */
+export function isAnalyticsScript(url: string): boolean {
+  const { hostname } = new URL(url);
+  return (
+    hostname === "www.googletagmanager.com" ||
+    hostname === "googletagmanager.com" ||
+    hostname === "www.google-analytics.com" ||
+    hostname === "google-analytics.com"
+  );
+}
+
 /** Real PostgREST/RPC response shapes consumed by the unchanged application. */
 export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): Promise<Response> {
   const url = new URL(request.url);
